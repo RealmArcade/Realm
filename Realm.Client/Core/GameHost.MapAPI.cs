@@ -1449,6 +1449,26 @@ public partial class GameHost
 		GameContext.RegistryService.AddUnitTypeAbility(unitTypeId, abilityId);
 	}
 
+	IReadOnlyList<string> IGameAPI.GetUnitTypeAbilities(string unitTypeId)
+	{
+		return GameContext.RegistryService.GetUnitTypeAbilities(unitTypeId);
+	}
+
+	string IGameAPI.GetUnitName(string unitTypeId)
+	{
+		return GameContext.RegistryService.GetUnitName(unitTypeId);
+	}
+
+	string IGameAPI.GetAbilityName(string abilityId)
+	{
+		return GameContext.RegistryService.GetAbilityName(abilityId);
+	}
+
+	void IGameAPI.EnableUnitAutoCombat(IUnit unit, bool enabled)
+	{
+		GameContext.SimulationService.EnableUnitAutoCombat(unit, enabled);
+	}
+
 	void IGameAPI.PlayWarningSound()
 	{
 		GameContext.AudioService.PlayWarningSound();

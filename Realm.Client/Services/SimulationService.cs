@@ -11,6 +11,7 @@ using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Training;
 using Realm.Ecs.Common;
+using Realm.Ecs.Components.Abilities;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
@@ -252,6 +253,7 @@ public class SimulationService
 	private readonly QueryDescription _prodQuery = QueryCache.AllProductionQueueQuery;
 	private readonly QueryDescription _spellCooldownQuery = QueryCache.AllSpellCooldownsQuery;
 	private readonly QueryDescription _cooldownsQuery = QueryCache.AllCooldownsQuery;
+	private readonly QueryDescription _autoCastQuery = QueryCache.AllAutoCastQuery;
 
 	private ForEachWithEntity<Buffs> _buffsQueryDelegate = null!;
 	private ForEachWithEntity<BuffState> _buffStateQueryDelegate = null!;
@@ -265,6 +267,7 @@ public class SimulationService
 	private ForEachWithEntity<InterpolationTarget> _interpolationQueryDelegate = null!;
 	private ForEachWithEntity<SpellCooldowns> _spellCooldownQueryDelegate = null!;
 	private ForEachWithEntity<Cooldowns> _cooldownsQueryDelegate = null!;
+	private ForEachWithEntity<AutoCastState, Position, DefinitionId, Owner> _autoCastQueryDelegate = null!;
 
 	public Action<Vector3, Vector3> OnArrowProjectileRequested;
 	public Action<Vector3, Vector3, string?, Entity>? OnWeaponProjectileRequested;
@@ -382,6 +385,7 @@ public class SimulationService
 		_cooldownsQueryDelegate = CooldownsQueryAction;
 		_interpolationQueryDelegate = InterpolationQueryAction;
 		_spellCooldownQueryDelegate = SpellCooldownQueryAction;
+		_autoCastQueryDelegate = AutoCastQueryAction;
 	}
 
 	public void TickEcs(float fDelta)
@@ -454,6 +458,7 @@ public class SimulationService
 		GameContext.World.Query(in _healthRegenQuery, _healthRegenQueryDelegate);
 		GameContext.World.Query(in _manaRegenQuery, _manaRegenQueryDelegate);
 		GameContext.World.Query(in _prodQuery, _prodQueryDelegate);
+		GameContext.World.Query(in _autoCastQuery, _autoCastQueryDelegate);
 
 		foreach (var (entity, pf) in _tickAddPathFollow)
 		{
@@ -1482,6 +1487,177 @@ public class SimulationService
 
 	public void SetAbilityAutoCast(IUnit unit, string abilityId, bool active)
 	{
+		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		{
+			var entity = wrapper.Entity;
+			string unitTypeId = unit.UnitId;
+			var abilities = GameContext.RegistryService.GetUnitTypeAbilities(unitTypeId);
+			int slotIdx = -1;
+			for (int i = 0; i < abilities.Count; i++)
+			{
+				if (string.Equals(abilities[i], abilityId, StringComparison.OrdinalIgnoreCase) ||
+				    string.Equals(Path.GetFileNameWithoutExtension(abilities[i]), Path.GetFileNameWithoutExtension(abilityId), StringComparison.OrdinalIgnoreCase))
+				{
+					slotIdx = i;
+					break;
+				}
+			}
+
+			uint bit = (slotIdx >= 0 && slotIdx < 32) ? (1u << slotIdx) : 1u;
+			if (GameContext.World.Has<AutoCastState>(entity))
+			{
+				ref var ac = ref GameContext.World.Get<AutoCastState>(entity);
+				if (active) ac.ActiveAbilityBitmask |= bit;
+				else ac.ActiveAbilityBitmask &= ~bit;
+				ac.Enabled = (ac.ActiveAbilityBitmask != 0);
+			}
+			else if (active)
+			{
+				GameContext.World.Add(entity, new AutoCastState(true, bit));
+			}
+		}
+	}
+
+	public void EnableUnitAutoCombat(IUnit unit, bool enabled)
+	{
+		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		{
+			var entity = wrapper.Entity;
+			if (enabled)
+			{
+				GameContext.World.SetOrAdd(entity, new AutoCombatState(true));
+			}
+			else
+			{
+				if (GameContext.World.Has<AutoCombatState>(entity))
+				{
+					GameContext.World.Remove<AutoCombatState>(entity);
+				}
+			}
+		}
+	}
+
+	private void AutoCastQueryAction(Entity entity, ref AutoCastState autoCast, ref Position pos, ref DefinitionId defId, ref Owner owner)
+	{
+		if (!autoCast.Enabled || autoCast.ActiveAbilityBitmask == 0) return;
+
+		if (GameContext.World.Has<BuffState>(entity))
+		{
+			var buffs = GameContext.World.Get<BuffState>(entity).Value;
+			if (buffs.ContainsKey("silence") || buffs.ContainsKey("stun")) return;
+		}
+
+		if (GameContext.World.Has<Buffs>(entity))
+		{
+			var buffs = GameContext.World.Get<Buffs>(entity).Value;
+			if (buffs.ContainsKey("silence") || buffs.ContainsKey("stun")) return;
+		}
+
+		string unitTypeId = defId.Value;
+		var abilities = GameContext.RegistryService.GetUnitTypeAbilities(unitTypeId);
+		if (abilities.Count == 0) return;
+
+		var unitWrapper = GetUnitWrapper(entity);
+		var casterOwnerEntity = owner.PlayerEntity;
+
+		for (int i = 0; i < abilities.Count && i < 32; i++)
+		{
+			if ((autoCast.ActiveAbilityBitmask & (1u << i)) == 0) continue;
+
+			string abilityId = abilities[i];
+			if (GetAbilityCooldown(unitWrapper, abilityId) > 0f) continue;
+
+			float manaCost = GameContext.RegistryService.GetAbilityManaCostForUnit(unitWrapper, abilityId);
+			if (GameContext.World.Has<Mana>(entity) && GameContext.World.Get<Mana>(entity).Current < manaCost) continue;
+
+			var def = GameContext.RegistryService.GetAbilityDefinition(abilityId);
+			if (def == null) continue;
+
+			Vector3 casterPos = pos.Value;
+			float range = def.TargetRange > 0f ? def.TargetRange : (def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 12f);
+
+			Vector3 targetPos = Vector3.Zero;
+			bool targetFound = false;
+
+			if (def.Healing > 0f)
+			{
+				Entity bestFriendly = Entity.Null;
+				float bestHp = float.MaxValue;
+				Vector3 friendlyPos = Vector3.Zero;
+
+				var friendlyQuery = QueryCache.AllPositionAndHealthAndOwnerNoneDeadQuery;
+				GameContext.World.Query(in friendlyQuery, (Entity fEnt, ref Position fPos, ref Health fHp, ref Owner fOwner) =>
+				{
+					if (fOwner.PlayerEntity == casterOwnerEntity && fHp.Current < fHp.Max)
+					{
+						float dist = Vector3.Distance(casterPos, fPos.Value);
+						if (dist <= range && fHp.Current < bestHp)
+						{
+							bestHp = fHp.Current;
+							bestFriendly = fEnt;
+							friendlyPos = fPos.Value;
+						}
+					}
+				});
+
+				if (bestFriendly != Entity.Null)
+				{
+					targetPos = friendlyPos;
+					targetFound = true;
+				}
+			}
+			else if (def.Damage > 0f || !def.IsInstant)
+			{
+				Entity bestEnemy = Entity.Null;
+				float closestDist = range;
+				Vector3 enemyPos = Vector3.Zero;
+
+				bool isAttackerEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
+				var enemyQuery = QueryCache.AllPositionAndOwnerNoneDeadQuery;
+
+				GameContext.World.Query(in enemyQuery, (Entity eEnt, ref Position ePos, ref Owner eOwner) =>
+				{
+					if (eOwner.PlayerEntity != casterOwnerEntity)
+					{
+						bool isTargetEnemy = GameContext.World.Has<UnitFaction>(eEnt) && GameContext.World.Get<UnitFaction>(eEnt).IsEnemy;
+						if (isTargetEnemy != isAttackerEnemy)
+						{
+							float dist = Vector3.Distance(casterPos, ePos.Value);
+							if (dist <= closestDist)
+							{
+								closestDist = dist;
+								bestEnemy = eEnt;
+								enemyPos = ePos.Value;
+							}
+						}
+					}
+				});
+
+				if (bestEnemy != Entity.Null)
+				{
+					targetPos = enemyPos;
+					targetFound = true;
+				}
+			}
+			else
+			{
+				targetPos = casterPos;
+				targetFound = true;
+			}
+
+			if (targetFound)
+			{
+				if (GameContext.World.Has<Mana>(entity) && manaCost > 0f)
+				{
+					ref var mana = ref GameContext.World.Get<Mana>(entity);
+					mana.Current = Math.Max(0f, mana.Current - manaCost);
+				}
+
+				SetAbilityCooldown(unitWrapper, abilityId, def.Cooldown > 0f ? def.Cooldown : 5f);
+				CastAbility(unitWrapper, abilityId, targetPos, def, null, (d, p) => GameContext.FXService?.SpawnAbilityEffect(GameHost.Instance, d, p));
+				break;
+			}
+		}
 	}
 
 	public void SetPlayerComputerControlled(int playerIndex, bool isProxy)

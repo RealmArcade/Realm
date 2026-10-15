@@ -1,4 +1,5 @@
 using Arch.Core;
+using Realm.Ecs.Components.Abilities;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
@@ -70,4 +71,6 @@ public static class QueryCache
 	public static readonly QueryDescription AllBuildQueueNoneDeadQuery = new QueryDescription().WithAll<BuildQueue>().WithNone<Dead>();
 	public static readonly QueryDescription AllIdleMovableQuery = new QueryDescription().WithAll<Owner, Movable>().WithNone<Dead, Building, MoveTo, AttackTarget, AttackMove, Patrol, Follow, HealingTarget>();
 	public static readonly QueryDescription AllPositionAndMoveToAndPathFollowNoneDeadQuery = new QueryDescription().WithAll<Position, MoveTo, PathFollow>().WithNone<Dead>();
+	public static readonly QueryDescription AllAutoCastQuery = new QueryDescription().WithAll<AutoCastState, Position, DefinitionId, Owner>().WithNone<Dead>();
+	public static readonly QueryDescription AllAutoCombatQuery = new QueryDescription().WithAll<AutoCombatState, Position, Owner>().WithNone<Dead>();
 }

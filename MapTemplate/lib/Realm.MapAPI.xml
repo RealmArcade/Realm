@@ -1522,6 +1522,34 @@
             <param name="unitTypeId">The type identifier of the unit/structure.</param>
             <param name="abilityId">The identifier of the ability to add.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitTypeAbilities(System.String)">
+            <summary>
+            Retrieves the ordered list of ability identifiers configured for the specified unit or building type.
+            </summary>
+            <param name="unitTypeId">The unit or building type identifier.</param>
+            <returns>A read-only list of ability identifiers configured for the unit type (never null).</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitName(System.String)">
+            <summary>
+            Retrieves the authored display name for the specified unit or building type.
+            </summary>
+            <param name="unitTypeId">The unit or building type identifier.</param>
+            <returns>The localized or authored display name, or a fallback string if unauthored.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetAbilityName(System.String)">
+            <summary>
+            Retrieves the authored display name for the specified ability type.
+            </summary>
+            <param name="abilityId">The ability type identifier.</param>
+            <returns>The localized or authored display name, or a fallback string if unauthored.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.EnableUnitAutoCombat(Realm.MapAPI.IUnit,System.Boolean)">
+            <summary>
+            Enables or disables automated combat AI for a specific unit instance.
+            </summary>
+            <param name="unit">The unit to modify.</param>
+            <param name="enabled">True to enable autonomous combat AI; false to disable.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.WriteSavedData(System.String,System.String)">
             <summary>
             Writes string content to a file in the whitelisted, map-specific subfolder in AppData saved_data directory.
@@ -2319,6 +2347,24 @@
             <param name="strength">The peak strength of the impulse deformation.</param>
             <param name="duration">The duration of the impulse oscillation in seconds.</param>
             <param name="frequency">The oscillation frequency in Hz.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.GetAbilities">
+            <summary>
+            Retrieves the ordered list of ability identifiers configured for this unit's archetype.
+            </summary>
+            <returns>A read-only list of ability identifiers (never null).</returns>
+        </member>
+        <member name="P:Realm.MapAPI.IUnit.AutoCombatEnabled">
+            <summary>
+            Gets or sets a value indicating whether automated combat AI is enabled for this unit instance.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.SetAutoCast(System.String,System.Boolean)">
+            <summary>
+            Enables or disables auto-cast for the specified ability on this unit.
+            </summary>
+            <param name="abilityId">The identifier of the ability.</param>
+            <param name="active">True to activate auto-cast, false to deactivate.</param>
         </member>
         <member name="T:Realm.MapAPI.IWasmModule">
             <summary>

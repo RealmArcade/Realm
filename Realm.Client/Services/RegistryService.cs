@@ -446,8 +446,63 @@ public class RegistryService
 	public AbilityDefinition GetAbilityDefinition(string abilityId)
 	{
 		if (string.IsNullOrEmpty(abilityId)) return null;
-		AbilityDefinitions.TryGetValue(abilityId, out var def);
+		if (AbilityDefinitions.TryGetValue(abilityId, out var def)) return def;
+		if (abilityId.StartsWith("ability/", StringComparison.OrdinalIgnoreCase))
+		{
+			AbilityDefinitions.TryGetValue(abilityId.Substring(8), out def);
+		}
 		return def;
+	}
+
+	public IReadOnlyList<string> GetUnitTypeAbilities(string unitTypeId)
+	{
+		if (string.IsNullOrEmpty(unitTypeId)) return Array.Empty<string>();
+
+		if (UnitRegistry.TryGetValue((StringName)unitTypeId, out var meta) && meta.Abilities != null)
+			return meta.Abilities;
+
+		if (BuildingRegistry.TryGetValue((StringName)unitTypeId, out var bldMeta) && bldMeta.Abilities != null)
+			return bldMeta.Abilities;
+
+		string cleanId = Path.GetFileNameWithoutExtension(unitTypeId);
+		if (UnitRegistry.TryGetValue((StringName)cleanId, out meta) && meta.Abilities != null)
+			return meta.Abilities;
+
+		if (BuildingRegistry.TryGetValue((StringName)cleanId, out bldMeta) && bldMeta.Abilities != null)
+			return bldMeta.Abilities;
+
+		return Array.Empty<string>();
+	}
+
+	public string GetUnitName(string unitTypeId)
+	{
+		if (string.IsNullOrEmpty(unitTypeId)) return string.Empty;
+
+		if (UnitRegistry.TryGetValue((StringName)unitTypeId, out var meta) && !string.IsNullOrWhiteSpace(meta.Name))
+			return meta.Name;
+
+		if (BuildingRegistry.TryGetValue((StringName)unitTypeId, out var bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.Name))
+			return bldMeta.Name;
+
+		string cleanId = Path.GetFileNameWithoutExtension(unitTypeId);
+		if (UnitRegistry.TryGetValue((StringName)cleanId, out meta) && !string.IsNullOrWhiteSpace(meta.Name))
+			return meta.Name;
+
+		if (BuildingRegistry.TryGetValue((StringName)cleanId, out bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.Name))
+			return bldMeta.Name;
+
+		return cleanId;
+	}
+
+	public string GetAbilityName(string abilityId)
+	{
+		if (string.IsNullOrEmpty(abilityId)) return string.Empty;
+
+		var def = GetAbilityDefinition(abilityId);
+		if (def != null && !string.IsNullOrWhiteSpace(def.DisplayName))
+			return def.DisplayName;
+
+		return Path.GetFileNameWithoutExtension(abilityId);
 	}
 
 	public void RegisterCustomAbilities(List<AbilityMetadata> customAbilities)
@@ -470,7 +525,10 @@ public class RegistryService
 				Damage = meta.Damage,
 				Healing = meta.Healing,
 				VisualEffect = meta.VisualEffect,
-				CastSound = meta.CastSound
+				CastSound = meta.CastSound,
+				GridX = meta.GridX,
+				GridY = meta.GridY,
+				Hotkey = meta.Hotkey ?? ""
 			};
 			AbilityDefinitions[meta.TemplateID] = def;
 			if (meta.TemplateID.StartsWith("ability/", StringComparison.OrdinalIgnoreCase))

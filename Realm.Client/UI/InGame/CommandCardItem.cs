@@ -16,4 +16,6 @@ public class CommandCardItem
 	public string AbilityId { get; set; }
 	public Entity CasterEntity { get; set; } = Entity.Null;
 	public float ManaCost { get; set; } = 0f;
+	public int GridX { get; set; } = -1;
+	public int GridY { get; set; } = -1;
 }

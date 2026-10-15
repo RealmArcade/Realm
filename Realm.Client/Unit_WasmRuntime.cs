@@ -957,4 +957,31 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			unit3D.TriggerImpulse(strength, duration, frequency);
 		}
 	}
+
+	public IReadOnlyList<string> GetAbilities()
+	{
+		string typeId = TemplateID;
+		if (string.IsNullOrEmpty(typeId)) return Array.Empty<string>();
+		return GameContext.RegistryService?.GetUnitTypeAbilities(typeId) ?? Array.Empty<string>();
+	}
+
+	public bool AutoCombatEnabled
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return false;
+			return _world.Has<AutoCombatState>(_entity) && _world.Get<AutoCombatState>(_entity).Enabled;
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			GameContext.SimulationService?.EnableUnitAutoCombat(this, value);
+		}
+	}
+
+	public void SetAutoCast(string abilityId, bool active)
+	{
+		if (!_world.IsAlive(_entity)) return;
+		GameContext.SimulationService?.SetAbilityAutoCast(this, abilityId, active);
+	}
 }

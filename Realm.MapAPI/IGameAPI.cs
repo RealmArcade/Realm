@@ -1088,6 +1088,34 @@ public interface IGameAPI
 	void AddUnitTypeAbility(string unitTypeId, string abilityId);
 
 	/// <summary>
+	/// Retrieves the ordered list of ability identifiers configured for the specified unit or building type.
+	/// </summary>
+	/// <param name="unitTypeId">The unit or building type identifier.</param>
+	/// <returns>A read-only list of ability identifiers configured for the unit type (never null).</returns>
+	IReadOnlyList<string> GetUnitTypeAbilities(string unitTypeId);
+
+	/// <summary>
+	/// Retrieves the authored display name for the specified unit or building type.
+	/// </summary>
+	/// <param name="unitTypeId">The unit or building type identifier.</param>
+	/// <returns>The localized or authored display name, or a fallback string if unauthored.</returns>
+	string GetUnitName(string unitTypeId);
+
+	/// <summary>
+	/// Retrieves the authored display name for the specified ability type.
+	/// </summary>
+	/// <param name="abilityId">The ability type identifier.</param>
+	/// <returns>The localized or authored display name, or a fallback string if unauthored.</returns>
+	string GetAbilityName(string abilityId);
+
+	/// <summary>
+	/// Enables or disables automated combat AI for a specific unit instance.
+	/// </summary>
+	/// <param name="unit">The unit to modify.</param>
+	/// <param name="enabled">True to enable autonomous combat AI; false to disable.</param>
+	void EnableUnitAutoCombat(IUnit unit, bool enabled);
+
+	/// <summary>
 	/// Writes string content to a file in the whitelisted, map-specific subfolder in AppData saved_data directory.
 	/// The target location is sandboxed to user://saved_data/{mapName}/{fileName}.
 	/// </summary>

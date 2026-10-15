@@ -298,11 +298,12 @@ namespace Realm.Client.Services
 		{
 			if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value == "priest") return;
 
+			bool isAutoCombat = GameContext.World.Has<AutoCombatState>(entity) && GameContext.World.Get<AutoCombatState>(entity).Enabled;
 			bool isAttackMove = GameContext.World.Has<AttackMove>(entity);
 			bool isPatrol = GameContext.World.Has<Patrol>(entity);
 			bool isIdle = !GameContext.World.Has<MoveTo>(entity) && !isAttackMove;
 
-			if (!isIdle && !isAttackMove && !isPatrol) return;
+			if (!isIdle && !isAttackMove && !isPatrol && !isAutoCombat) return;
 
 			if (!TryGetTargetAcquisitionContext(entity, ref pos, ref atk, ref owner)) return;
 

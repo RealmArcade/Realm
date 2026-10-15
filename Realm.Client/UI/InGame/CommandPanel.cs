@@ -359,12 +359,11 @@ public partial class CommandPanel
 
 			if (localIdx >= 0 && localIdx < 12)
 			{
-				_activeItems[i].Hotkey = gridHotkeys[localIdx];
-				_activeItems[i].Tooltip = HotkeyPrefixRegex().Replace(_activeItems[i].Tooltip, $"[{gridHotkeys[localIdx]}] ");
-			}
-			else
-			{
-				_activeItems[i].Hotkey = Key.None;
+				if (_activeItems[i].Hotkey == Key.None)
+				{
+					_activeItems[i].Hotkey = gridHotkeys[localIdx];
+				}
+				_activeItems[i].Tooltip = HotkeyPrefixRegex().Replace(_activeItems[i].Tooltip, $"[{_activeItems[i].Hotkey}] ");
 			}
 		}
 	}
@@ -398,12 +397,55 @@ public partial class CommandPanel
 
 	private void PopulateGridPage(int startIndex, int maxItems, int totalItems, bool hasCycleButton)
 	{
+		Key[] gridHotkeys =
+		{
+			Key.Q, Key.W, Key.E, Key.R,
+			Key.A, Key.S, Key.D, Key.F,
+			Key.Z, Key.X, Key.C, Key.V
+		};
+
+		var gridSlots = new CommandCardItem[12];
+		var unslotted = new List<CommandCardItem>();
+
 		for (int i = 0; i < maxItems; i++)
 		{
 			int itemIndex = startIndex + i;
-			if (itemIndex < totalItems)
+			if (itemIndex >= totalItems) break;
+
+			var item = _activeItems[itemIndex];
+			if (item.GridX >= 0 && item.GridX < 4 && item.GridY >= 0 && item.GridY < 3)
 			{
-				_commandGrid.AddChild(CreateButtonForItem(_activeItems[itemIndex]));
+				int slotIndex = item.GridY * 4 + item.GridX;
+				if (gridSlots[slotIndex] == null)
+				{
+					gridSlots[slotIndex] = item;
+					continue;
+				}
+			}
+
+			unslotted.Add(item);
+		}
+
+		int unslottedIdx = 0;
+		for (int i = 0; i < maxItems; i++)
+		{
+			if (gridSlots[i] == null && unslottedIdx < unslotted.Count)
+			{
+				gridSlots[i] = unslotted[unslottedIdx++];
+			}
+		}
+
+		for (int i = 0; i < maxItems; i++)
+		{
+			var item = gridSlots[i];
+			if (item != null)
+			{
+				if (item.Hotkey == Key.None)
+				{
+					item.Hotkey = gridHotkeys[i];
+				}
+				item.Tooltip = HotkeyPrefixRegex().Replace(item.Tooltip, $"[{item.Hotkey}] ");
+				_commandGrid.AddChild(CreateButtonForItem(item));
 			}
 			else
 			{
@@ -1034,6 +1076,8 @@ public partial class CommandPanel
 			IconPath = ResolveAbilityIcon(abilityId, abilityDef),
 			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef),
 			Hotkey = ParseHotkey(abilityDef?.Hotkey),
+			GridX = abilityDef?.GridX ?? -1,
+			GridY = abilityDef?.GridY ?? -1,
 			Callback = GetAbilityCallback(abilityId, abilityDef?.IsInstant ?? false),
 			IsDisabled = () => IsAbilityDisabled(host, unitWrapper, casterEntity, abilityId, manaCost)
 		};

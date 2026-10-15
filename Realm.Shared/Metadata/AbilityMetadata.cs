@@ -19,4 +19,7 @@ public class AbilityMetadata
 	public string? SummonedUnitId { get; set; }
 	public int SummonCount { get; set; }
 	public float SummonDuration { get; set; }
+	public int GridX { get; set; } = -1;
+	public int GridY { get; set; } = -1;
+	public string? Hotkey { get; set; }
 }
