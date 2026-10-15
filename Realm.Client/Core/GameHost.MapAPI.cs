@@ -15,6 +15,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
+using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Core;
@@ -1076,17 +1077,18 @@ public partial class GameHost
 		((IGameAPI)this).SetPlayerGold(playerIndex, newAmount);
 	}
 
-	IUnit IGameAPI.SpawnUnitForPlayer(string unitTypeId, Vector3 position, int playerIndex, bool executeSpawnShader)
+	IUnit IGameAPI.SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader)
 	{
 		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex);
-		var unit = ((IGameAPI)this).SpawnUnit(unitTypeId, position, isEnemy, false, executeSpawnShader);
+		var position3D = new Vector3(position.X, 0f, position.Y);
+		var unit = ((IGameAPI)this).SpawnUnit(unitTypeId, position3D, isEnemy, false, executeSpawnShader);
 		unit.Player = playerIndex;
 		if (playerIndex > 0 && _multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
 		{
 			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
 			if (p != null && p.PeerId > 1)
 			{
-				RpcId(p.PeerId, nameof(ClientPanCameraTo), new Godot.Vector3(position.X, position.Y, position.Z), 0f);
+				RpcId(p.PeerId, nameof(ClientPanCameraTo), new Godot.Vector3(position.X, 0f, position.Y), 0f);
 			}
 		}
 

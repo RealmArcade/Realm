@@ -1049,12 +1049,22 @@
             <param name="playerIndex">Zero-based player slot index.</param>
             <param name="delta">The amount to add (may be negative).</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnUnitForPlayer(System.String,System.Numerics.Vector2,System.Int32,System.Boolean)">
+            <summary>
+            Spawns a unit owned by the specified player slot at the given position.
+            </summary>
+            <param name="unitTypeId">The type identifier of the unit to spawn.</param>
+            <param name="position">The spawn coordinates in 2D ground space (X, Z).</param>
+            <param name="playerIndex">Zero-based player slot index that will own the unit.</param>
+            <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
+            <returns>A reference to the spawned unit.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SpawnUnitForPlayer(System.String,System.Numerics.Vector3,System.Int32,System.Boolean)">
             <summary>
             Spawns a unit owned by the specified player slot at the given position.
             </summary>
             <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-            <param name="position">The spawn coordinates in 3D world space.</param>
+            <param name="position">The spawn coordinates in 3D world space. The Y (height) component is ignored.</param>
             <param name="playerIndex">Zero-based player slot index that will own the unit.</param>
             <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
             <returns>A reference to the spawned unit.</returns>

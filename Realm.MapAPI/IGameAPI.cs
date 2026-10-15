@@ -524,11 +524,25 @@ public interface IGameAPI
 	/// Spawns a unit owned by the specified player slot at the given position.
 	/// </summary>
 	/// <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-	/// <param name="position">The spawn coordinates in 3D world space.</param>
+	/// <param name="position">The spawn coordinates in 2D ground space (X, Z).</param>
 	/// <param name="playerIndex">Zero-based player slot index that will own the unit.</param>
 	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
 	/// <returns>A reference to the spawned unit.</returns>
-	IUnit SpawnUnitForPlayer(string unitTypeId, Vector3 position, int playerIndex, bool executeSpawnShader = true);
+	IUnit SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader = true);
+
+	/// <summary>
+	/// Spawns a unit owned by the specified player slot at the given position.
+	/// </summary>
+	/// <param name="unitTypeId">The type identifier of the unit to spawn.</param>
+	/// <param name="position">The spawn coordinates in 3D world space. The Y (height) component is ignored.</param>
+	/// <param name="playerIndex">Zero-based player slot index that will own the unit.</param>
+	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
+	/// <returns>A reference to the spawned unit.</returns>
+	[Obsolete("Use SpawnUnitForPlayer taking Vector2 (X, Z) instead. Height is automatically determined based on terrain height and template offset.")]
+	IUnit SpawnUnitForPlayer(string unitTypeId, Vector3 position, int playerIndex, bool executeSpawnShader = true)
+	{
+		return SpawnUnitForPlayer(unitTypeId, new Vector2(position.X, position.Z), playerIndex, executeSpawnShader);
+	}
 
 	/// <summary>
 	/// Retrieves all alive units owned by the specified player slot.
@@ -1068,7 +1082,7 @@ public interface IGameAPI
 	/// <returns>The spawned <see cref="IUnit"/>.</returns>
 	IUnit SpawnUnitForPlayer(string unitTypeId, Coordinate coordinate, int playerIndex)
 	{
-		return SpawnUnitForPlayer(unitTypeId, coordinate.Center, playerIndex);
+		return SpawnUnitForPlayer(unitTypeId, new Vector2(coordinate.Center.X, coordinate.Center.Z), playerIndex);
 	}
 
 	/// <summary>
@@ -1314,7 +1328,7 @@ public interface IGameAPI
 	/// <param name="playerIndex">The zero-based player index to own the revived unit.</param>
 	/// <returns>The revived unit instance.</returns>
 	IUnit ReviveUnit(string unitTypeId, Vector3 position, int playerIndex) =>
-		SpawnUnitForPlayer(unitTypeId, position, playerIndex);
+		SpawnUnitForPlayer(unitTypeId, new Vector2(position.X, position.Z), playerIndex);
 
 	/// <summary>
 	/// Destroys <paramref name="unit"/> and spawns a new copy of its type at <paramref name="position"/> with the same owner player index.
@@ -1327,7 +1341,7 @@ public interface IGameAPI
 		string typeId = unit.UnitId;
 		int playerIndex = unit.Player;
 		DestroyUnit(unit);
-		return SpawnUnitForPlayer(typeId, position, playerIndex);
+		return SpawnUnitForPlayer(typeId, new Vector2(position.X, position.Z), playerIndex);
 	}
 
 	/// <summary>
