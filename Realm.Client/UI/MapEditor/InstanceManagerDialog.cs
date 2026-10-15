@@ -17,6 +17,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	private string _filterText = string.Empty;
 	private readonly Dictionary<TreeItem, Node3D> _treeItemToObjectMap = new();
 	private readonly Dictionary<TreeItem, string> _treeItemToCoordinateMap = new();
+	private Texture2D _trashIconTexture;
 
 	private double _refreshCheckTimer = 0.0;
 	private int _lastUnitsCount = -1;
@@ -94,8 +95,17 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 		_objectTree.ItemSelected += OnTreeItemSelected;
 		_objectTree.ItemActivated += OnTreeItemActivated;
+		_objectTree.ButtonClicked += OnTreeButtonClicked;
 
 		BodyContainer.AddChild(_objectTree);
+	}
+
+	private Texture2D GetTrashIconTexture()
+	{
+		if (_trashIconTexture != null) return _trashIconTexture;
+
+		_trashIconTexture = UIStyle.LoadTextureWithFallback("res://Assets/UI/gear_icon.png");
+		return _trashIconTexture;
 	}
 
 	private bool HasCountsChanged()
@@ -259,6 +269,12 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 			TreeItem itemNode = _objectTree.CreateItem(categoryNode);
 			itemNode.SetText(0, displayTitle);
+
+			var trashIcon = GetTrashIconTexture();
+			if (trashIcon != null)
+			{
+				itemNode.AddButton(0, trashIcon, 0, false, TranslationServer.Translate("Delete Object"));
+			}
 
 			if (node != null)
 			{
@@ -443,6 +459,25 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out string coordName))
 		{
 			FocusOnCoordinate(coordName);
+		}
+	}
+
+	private void OnTreeButtonClicked(TreeItem item, long column, long id, long mouseButtonIndex)
+	{
+		if (item == null) return;
+
+		if (_treeItemToObjectMap.TryGetValue(item, out Node3D targetObject) && GodotObject.IsInstanceValid(targetObject))
+		{
+			if (GameHost.Instance != null)
+			{
+				GameHost.Instance.SelectedEditorObject = targetObject;
+			}
+			DeleteObject(targetObject);
+		}
+		else if (_treeItemToCoordinateMap.TryGetValue(item, out string coordName) && !string.IsNullOrEmpty(coordName))
+		{
+			GameContext.IEditorAPI?.DeleteCoordinate(coordName);
+			RefreshObjectTree();
 		}
 	}
 
