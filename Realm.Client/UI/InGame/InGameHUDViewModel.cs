@@ -668,6 +668,7 @@ public class InGameHUDViewModel
 	{
 		info.Entity = u.Entity;
 		info.UnitId = u.UnitId;
+		info.Player = u.Player;
 		info.IsEnemy = u.IsEnemy;
 		info.IsBuilding = u.IsBuilding;
 		info.Name = u.UnitId;

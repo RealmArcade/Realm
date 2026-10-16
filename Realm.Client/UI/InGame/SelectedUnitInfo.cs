@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Arch.Core;
 
@@ -16,6 +16,7 @@ public class SelectedUnitInfo
 	public float Armor { get; set; }
 	public float Speed { get; set; }
 	public float Dps { get; set; }
+	public int Player { get; set; }
 	public bool IsEnemy { get; set; }
 	public bool IsBuilding { get; set; }
 	public bool IsUnderConstruction { get; set; }

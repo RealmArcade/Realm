@@ -3301,7 +3301,7 @@ public partial class GameHost
 		}
 
 		var targetIds = new List<int>();
-		if (SelectedUnits.Count > 0 && !SelectedUnits[0].IsEnemy)
+		if (SelectedUnits.Count > 0 && !SelectedUnits[0].IsEnemy && SelectedUnits[0].Player == LocalPlayerIndex)
 		{
 			targetIds.Add(GetServerEntityId(SelectedUnits[0].Entity));
 		}
@@ -3313,6 +3313,8 @@ public partial class GameHost
 	{
 		int focusedIdx = Math.Clamp(CycleSelectionIndex, 0, Math.Max(0, SelectedUnits.Count - 1));
 		Unit3D focusedUnit = SelectedUnits.Count > focusedIdx ? SelectedUnits[focusedIdx] : null;
+
+		if (_multiplayerActive && focusedUnit != null && focusedUnit.Player != LocalPlayerIndex) return;
 
 		IUnit caster = null;
 		if (focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity))
@@ -3369,6 +3371,7 @@ public partial class GameHost
 	public void CastInstantAbility(string abilityId)
 	{
 		if (SelectedUnits.Count == 0 || !GameContext.World.IsAlive(SelectedUnits[0].Entity)) return;
+		if (SelectedUnits[0].Player != LocalPlayerIndex) return;
 
 		if (GameContext.InputService.TryGetCasterPosition(SelectedUnits[0].Entity, out var pos))
 		{

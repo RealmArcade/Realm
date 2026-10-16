@@ -289,16 +289,17 @@ public class SimulationService
 
 	public void SetPlayerTeam(int playerIndex, int teamIndex)
 	{
-		// Domain logic for setting player team goes here
+		NetworkService.SetPlayerTeam(playerIndex, teamIndex);
 	}
 
 	public int GetPlayerTeam(int playerIndex)
 	{
-		return 0;
+		return NetworkService.GetPlayerTeam(playerIndex);
 	}
 
 	public void SetPlayersAllied(int playerIndex, int otherPlayerIndex, bool allied)
 	{
+		NetworkService.SetPlayersAllied(playerIndex, otherPlayerIndex, allied);
 	}
 
 	public void IssueAttackMoveOrder(IUnit unit, Vector3 destination, Action<IUnit, string, Vector3>? onUnitOrdered)

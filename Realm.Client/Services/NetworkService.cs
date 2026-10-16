@@ -221,6 +221,8 @@ public class NetworkService
 		_spectatorDelayedPackets.Clear();
 		_pendingUnitSpawns.Clear();
 		_pendingUnitKills.Clear();
+		_playerTeams.Clear();
+		_alliances.Clear();
 	}
 
 	public int GetServerEntityId(int localEntityId)
@@ -1570,9 +1572,40 @@ public class NetworkService
 		IsConnectionLost = isLost;
 	}
 
+	private static readonly Dictionary<int, int> _playerTeams = new();
+	private static readonly Dictionary<(int, int), bool> _alliances = new();
+
+	public static void SetPlayerTeam(int playerIndex, int teamIndex)
+	{
+		_playerTeams[playerIndex] = teamIndex;
+	}
+
+	public static int GetPlayerTeam(int playerIndex)
+	{
+		if (_playerTeams.TryGetValue(playerIndex, out int team)) return team;
+		return playerIndex;
+	}
+
+	public static void SetPlayersAllied(int playerIndex1, int playerIndex2, bool allied)
+	{
+		_alliances[(playerIndex1, playerIndex2)] = allied;
+		_alliances[(playerIndex2, playerIndex1)] = allied;
+	}
+
 	public static bool ArePeersEnemies(int peerId1, int peerId2)
 	{
 		if (peerId1 == peerId2) return false;
+
+		if (LobbyManager.Instance?.PlayerList != null)
+		{
+			var p1 = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId1);
+			var p2 = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId2);
+			if (p1 != null && p2 != null)
+			{
+				return ArePlayerIndicesEnemies(p1.Slot, p2.Slot);
+			}
+		}
+
 		if (!HasActiveLobby()) return true;
 
 		string t1 = GetTeamForPeer(peerId1, "Team 1");
@@ -1615,6 +1648,17 @@ public class NetworkService
 	public static bool ArePlayerIndicesEnemies(int playerIndex1, int playerIndex2)
 	{
 		if (playerIndex1 == playerIndex2) return false;
+
+		if (_alliances.TryGetValue((playerIndex1, playerIndex2), out bool isAllied))
+		{
+			return !isAllied;
+		}
+
+		if (_playerTeams.TryGetValue(playerIndex1, out int team1) && _playerTeams.TryGetValue(playerIndex2, out int team2))
+		{
+			return team1 != team2;
+		}
+
 		if (!HasActiveLobby()) return playerIndex1 != playerIndex2;
 
 		string t1 = GetTeamForPlayerIndex(playerIndex1, $"Team {playerIndex1 + 1}");

@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Arch.Core;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
@@ -295,7 +296,10 @@ public partial class CommandPanel
 	{
 		if (_commandGrid == null) return;
 
-		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy)
+		int localPlayer = GameHost.Instance?.LocalPlayerIndex ?? 0;
+		bool isMultiplayer = LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 1;
+
+		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy || (isMultiplayer && focusedUnit.Player != localPlayer))
 		{
 			ClearCommandPanelState();
 			return;
