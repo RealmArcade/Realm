@@ -470,7 +470,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			RetKind.BoolReturn => $"({expr} ?? false) ? 1 : 0",
 			RetKind.DirectFloat => $"{expr} ?? 0f",
-			RetKind.DirectInt => $"{expr} ?? 0",
+			RetKind.DirectInt => $"(int)({expr} ?? 0)",
 			RetKind.StringReturn => $"{expr} ?? \"\"",
 			_ => "0"
 		};
@@ -749,7 +749,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return retKind switch
 		{
 			RetKind.DirectFloat => $"{targetInstance}?.{propertyName} ?? 0f",
-			RetKind.DirectInt => $"{targetInstance}?.{propertyName} ?? 0",
+			RetKind.DirectInt => $"(int)({targetInstance}?.{propertyName} ?? 0)",
 			RetKind.BoolReturn => $"({targetInstance}?.{propertyName} ?? false) ? 1 : 0",
 			RetKind.StringReturn => $"{targetInstance}?.{propertyName} ?? \"\"",
 			_ => "0"
@@ -1137,7 +1137,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return retKind switch
 		{
 			RetKind.Void => callExpr,
-			RetKind.DirectInt => $"{callExpr} ?? 0",
+			RetKind.DirectInt => $"(int)({callExpr} ?? 0)",
 			RetKind.DirectFloat => $"{callExpr} ?? 0f",
 			RetKind.BoolReturn => $"({callExpr} ?? false) ? 1 : 0",
 			RetKind.StringReturn => $"{callExpr} ?? \"\"",
