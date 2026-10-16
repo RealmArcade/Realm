@@ -2,7 +2,7 @@
 .llmPrompts/
 .jules_prompts/
 .jules/
-__pycache__
+__pycache__/
 MapTemplate/lib/Realm.MapAPI.dll
 MapTemplate/lib/Realm.MapAPI.pdb
 MapTemplate/lib/Realm.EditorAPI.dll
@@ -13,10 +13,10 @@ bin/
 node_modules/
 vscode_embedded/
 wasi_sdk_embedded/
-vscode_extensions_dist
+vscode_extensions_dist/
 GeneratedFiles/
 *.trx
-Realm.AdminServer/.data
+Realm.AdminServer/.data/
 *.key
 *.privatekey
 *.admin_key
@@ -24,3 +24,7 @@ admin_private.key
 servers.json
 Realm.Clientservers.json
 Realm.AdminServer/appsettings.json
+.godot/
+/android/
+.codegraph/
+Realm.MapEditorExtension/dist/

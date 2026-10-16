@@ -28,7 +28,7 @@ public class InventoryPanel
 		if (focusIdx < 0 || focusIdx >= viewModel.SelectedUnits.Count) focusIdx = 0;
 		var focusedUnit = viewModel.SelectedUnits[focusIdx];
 
-		if (focusedUnit.IsEnemy || focusedUnit.IsBuilding)
+		if (focusedUnit.IsEnemy || (focusedUnit.IsBuilding && !focusedUnit.HasInventory && (focusedUnit.InventoryItems == null || focusedUnit.InventoryItems.Count == 0)))
 		{
 			return;
 		}

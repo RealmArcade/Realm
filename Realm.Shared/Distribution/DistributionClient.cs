@@ -512,7 +512,7 @@ public class DistributionClient
 				onAssetReady?.Invoke(item.VirtualPath, item.AssetKey, item.NormalizedHash);
 			}
 
-			int currentCompleted = Interlocked.Increment(ref completedCountWrapper[0]);
+			int currentCompleted = Interlocked.Add(ref completedCountWrapper[0], readyItems.Count);
 			float progress = (float)currentCompleted / totalMissing;
 			progressCallback?.Invoke(progress);
 		}
@@ -1018,7 +1018,8 @@ public class DistributionClient
 	{
 		if (errorWrapper[0] != null || cancellationToken.IsCancellationRequested) return;
 
-		if (!hashToRelativePath.TryGetValue(missingHash, out var relPath))
+		if (!hashToRelativePath.TryGetValue(missingHash, out var relPath) &&
+		    !hashToRelativePath.TryGetValue(ContentAddressableStorage.NormalizeBlake3Hash(missingHash), out relPath))
 		{
 			SetUploadError(errorLock, errorWrapper, missingHash, $"Missing hash '{missingHash}' is not present in manifest file mapping.");
 			return;

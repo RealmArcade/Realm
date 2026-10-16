@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Arch.Core;
@@ -5,6 +6,10 @@ using DotRecast.Detour;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Services;
 using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client.Services;
@@ -41,7 +46,38 @@ public class WorldInitService
 		AddOrSet(worldEntity, new WorldState(0f, 0, 0f, true));
 		AddOrSet(worldEntity, new ReplayState(0, 500f, 400f, 200f));
 		AddOrSet(worldEntity, new NetworkState(1, 0f, 0, -1, -1, false, 0, 1));
-		AddOrSet(worldEntity, new NetworkMappingState(new(), new(), new()));
+		var mappingState = new NetworkMappingState(new(), new(), new());
+		if (ECSContext.PlayerResourceService.GoldResourceId == default)
+		{
+			ECSContext.PlayerResourceService.GoldResourceId = "gold".AsResourceId(ECSContext.DefinitionManager);
+			ECSContext.PlayerResourceService.WoodResourceId = "wood".AsResourceId(ECSContext.DefinitionManager);
+			ECSContext.PlayerResourceService.StoneResourceId = "stone".AsResourceId(ECSContext.DefinitionManager);
+		}
+
+		for (int i = 0; i < 25; i++)
+		{
+			var playerEntity = GameContext.World.Create();
+			GameContext.World.Add(playerEntity, new Player());
+			GameContext.World.Add(playerEntity, new UnitOwnerPlayer(i));
+			GameContext.World.Add(playerEntity, new Name(i == 0 ? "Neutral" : (i == 1 ? "Horaid_Topa" : $"Player {i}")));
+			var resourcesDict = new Dictionary<ResourceId, int>
+			{
+				{ ECSContext.PlayerResourceService.GoldResourceId, i == 1 ? 500 : 0 },
+				{ ECSContext.PlayerResourceService.WoodResourceId, i == 1 ? 400 : 0 },
+				{ ECSContext.PlayerResourceService.StoneResourceId, i == 1 ? 200 : 0 }
+			};
+			GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
+			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
+			GameContext.World.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
+			GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
+			mappingState.PlayerEntities[i] = playerEntity;
+		}
+
+		mappingState.PeerIdToPlayerEntityMap[0] = mappingState.PlayerEntities[0];
+		mappingState.PeerIdToPlayerEntityMap[1] = mappingState.PlayerEntities[1];
+		mappingState.PeerIdToPlayerEntityMap[-1] = mappingState.PlayerEntities[2];
+
+		AddOrSet(worldEntity, mappingState);
 		if (!GameContext.World.Has<EditorState>(worldEntity))
 		{
 			GameContext.World.Add(worldEntity, new EditorState(true, 3.0f, -95.0f, 95.0f, -95.0f, 125.0f, "", false));
@@ -89,15 +125,33 @@ public class WorldInitService
 
 	private static ScriptPlayer[] CreateDefaultPlayers()
 	{
-		var players = new ScriptPlayer[12];
-		for (int i = 0; i < 12; i++)
+		var players = new ScriptPlayer[25];
+
+		// Slot 0 is always neutral Gaia
+		players[0] = new ScriptPlayer
+		{
+			Gold = 0f,
+			Wood = 0f,
+			Stone = 0f,
+			Active = true,
+			IsComputer = true,
+			Team = 0,
+			Name = "Neutral",
+			KillCount = 0
+		};
+
+		// Slots 1 to 24 are match participants
+		for (int i = 1; i < 25; i++)
 		{
 			players[i] = new ScriptPlayer
 			{
-				Gold = i == 0 ? 500f : 0f,
-				Wood = i == 0 ? 400f : 0f,
-				Active = i == 0,
-				Name = $"Player {i + 1}",
+				Gold = i == 1 ? 500f : 0f,
+				Wood = i == 1 ? 400f : 0f,
+				Stone = i == 1 ? 200f : 0f,
+				Active = i == 1,
+				IsComputer = false,
+				Team = i,
+				Name = $"Player {i}",
 				KillCount = 0
 			};
 		}

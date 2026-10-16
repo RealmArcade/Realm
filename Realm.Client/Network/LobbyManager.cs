@@ -21,6 +21,7 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Shared;
 using Realm.Shared.Distribution;
+using Realm.Shared.Services;
 using SharpToken;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -399,14 +400,49 @@ public partial class LobbyManager : Node
 		ActiveMapVersion = !string.IsNullOrWhiteSpace(mapVersion) ? mapVersion : "1.0.0";
 		PlayerList.Clear();
 
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		var metadata = MapFileService.LoadMetadata(wsPath);
+		int aiCount = Math.Clamp(metadata.MapProperties?.TestAiPlayerCount ?? 1, 0, 23);
+		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
+
+		int humanSlot = 1;
+		var aiSlots = new List<int>();
+
+		if (!randomize)
+		{
+			humanSlot = 1;
+			for (int i = 0; i < aiCount; i++)
+			{
+				aiSlots.Add(2 + i);
+			}
+		}
+		else
+		{
+			var available = Enumerable.Range(1, 24).ToList();
+			var rng = new Random();
+			int n = available.Count;
+			while (n > 1)
+			{
+				n--;
+				int k = rng.Next(n + 1);
+				(available[k], available[n]) = (available[n], available[k]);
+			}
+
+			humanSlot = available[0];
+			for (int i = 0; i < aiCount; i++)
+			{
+				aiSlots.Add(available[1 + i]);
+			}
+		}
+
 		LocalPlayer = new PlayerInfo
 		{
 			PeerId = 1,
-			Slot = 0,
+			Slot = humanSlot,
 			Name = AuthenticatedUsername,
 			Faction = "HUMAN",
 			Team = "Team 1",
-			Color = PlayerColorConfig.GetColor(1),
+			Color = PlayerColorConfig.GetColor(humanSlot),
 			IsHost = true,
 			Latency = "0 ms",
 			Jitter = "0 ms",
@@ -415,6 +451,27 @@ public partial class LobbyManager : Node
 			SessionToken = _persistentSessionToken
 		};
 		PlayerList.Add(LocalPlayer);
+
+		for (int i = 0; i < aiSlots.Count; i++)
+		{
+			int slot = aiSlots[i];
+			var botPlayer = new PlayerInfo
+			{
+				PeerId = -(slot + 100),
+				Slot = slot,
+				Name = $"Bot {slot}",
+				Faction = "AI",
+				Team = $"Team {slot}",
+				Color = PlayerColorConfig.GetColor(slot),
+				IsHost = false,
+				Latency = "0 ms",
+				Jitter = "0 ms",
+				PacketLoss = "0%",
+				BinaryVersion = RealmVersion.GameBinaryVersion,
+				SessionToken = string.Empty
+			};
+			PlayerList.Add(botPlayer);
+		}
 
 		Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
 		CallDeferred(nameof(LoadMap), mapPathName);
@@ -466,7 +523,7 @@ public partial class LobbyManager : Node
 		LocalPlayer = new PlayerInfo
 		{
 			PeerId = 1,
-			Slot = 0,
+			Slot = 1,
 			Name = AuthenticatedUsername,
 			Faction = "HUMAN",
 			Team = "Team 1",
@@ -1251,10 +1308,13 @@ public partial class LobbyManager : Node
 			}
 
 
+			int nextSlot = 1;
+			while (PlayerList.Any(p => p.Slot == nextSlot)) nextSlot++;
+
 			var newPlayer = new PlayerInfo
 			{
 				PeerId = id,
-				Slot = PlayerList.Count,
+				Slot = nextSlot,
 				Name = $"Player_{id}",
 				Faction = "HUMAN",
 				Team = "Team 1",
@@ -1323,7 +1383,7 @@ public partial class LobbyManager : Node
 
 				for (int i = 0; i < PlayerList.Count; i++)
 				{
-					PlayerList[i].Slot = i;
+					PlayerList[i].Slot = i + 1;
 				}
 
 				UpdateAllPeerDiagnostics();
@@ -2364,7 +2424,7 @@ public partial class LobbyManager : Node
 		}
 		else
 		{
-			GetTree().ChangeSceneToFile("res://GameHostView.tscn");
+			GetTree().ChangeSceneToFile("res://GameHost.tscn");
 		}
 	}
 
@@ -2905,7 +2965,7 @@ public partial class LobbyManager : Node
 		IsGameStarted = true;
 		GameSessionStartTime = DateTime.UtcNow;
 
-		GetTree().ChangeSceneToFile("res://GameHostView.tscn");
+		GetTree().ChangeSceneToFile("res://GameHost.tscn");
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -3028,10 +3088,13 @@ public partial class LobbyManager : Node
 				botId--;
 			}
 
+			int nextSlot = 1;
+			while (PlayerList.Any(p => p.Slot == nextSlot)) nextSlot++;
+
 			var botPlayer = new PlayerInfo
 			{
 				PeerId = botId,
-				Slot = PlayerList.Count,
+				Slot = nextSlot,
 				Name = $"AI Bot {Math.Abs(botId) - 99}",
 				Faction = "ORC",
 				Team = "Team 2",
@@ -3060,7 +3123,7 @@ public partial class LobbyManager : Node
 					PlayerList.RemoveAt(removedIdx);
 					for (int i = 0; i < PlayerList.Count; i++)
 					{
-						PlayerList[i].Slot = i;
+						PlayerList[i].Slot = i + 1;
 					}
 
 					BroadcastPlayerList();

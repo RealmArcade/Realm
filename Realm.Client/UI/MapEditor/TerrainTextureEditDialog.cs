@@ -35,6 +35,8 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	private List<ProceduralBombingVfxRule> _vfxRules = new();
 
 	private TerrainTextureSnapshot _initialSnapshot;
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 	private Action<JsonObject> _onApplied;
 
 	private Label _lblObjectTypePrefix;
@@ -728,6 +730,35 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		OpenDialog();
 	}
 
+	protected override string GetRandomizeTemplateSlug()
+	{
+		return !string.IsNullOrEmpty(_textureFileName) ? _textureFileName : $"{_objectType}/{_slug}";
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) && meta?.Textures != null)
+		{
+			var (_, curSlug) = TemplateIDHelper.ParseTemplateID(targetId);
+			TextureMetadata? texMeta = null;
+			if (meta.Textures.TryGetValue(targetId, out texMeta) ||
+			    (!string.IsNullOrEmpty(curSlug) && meta.Textures.TryGetValue(curSlug, out texMeta)) ||
+			    (!string.IsNullOrEmpty(_rtexAsset) && meta.Textures.TryGetValue(_rtexAsset, out texMeta)))
+			{
+				if (texMeta != null && !string.IsNullOrEmpty(texMeta.TexturePath))
+				{
+					_rtexAsset = EnsureRtexExtension(Path.GetFileName(texMeta.TexturePath));
+				}
+			}
+		}
+
+		ApplyValuesToUIControls();
+		ApplyLiveTerrainUpdate();
+	}
+
 	private void DetermineRtexAsset(JsonObject textureData)
 	{
 		_rtexAsset = textureData?.TryGetPropertyValue("TexturePath", out var tpNode) == true && tpNode != null ? tpNode.ToString() : string.Empty;
@@ -1049,6 +1080,10 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			DecalBombingRules = new List<ProceduralBombingDecalRule>(_decalRules.Select(r => r.Clone())),
 			VfxBombingRules = new List<ProceduralBombingVfxRule>(_vfxRules.Select(r => r.Clone()))
 		};
+
+		string targetId = !string.IsNullOrEmpty(_textureFileName) ? _textureFileName : $"{_objectType}/{_slug}";
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
 	}
 
 	private void ApplyValuesToUIControls()
@@ -1238,6 +1273,19 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 
 	protected override void OnCancel()
 	{
+		string targetId = !string.IsNullOrEmpty(_textureFileName) ? _textureFileName : $"{_objectType}/{_slug}";
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			if (_templateExistedInitially)
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
+		}
+
 		if (_initialSnapshot != null)
 		{
 			_brightness = _initialSnapshot.Brightness;

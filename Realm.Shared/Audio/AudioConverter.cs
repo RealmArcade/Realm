@@ -176,9 +176,7 @@ public static class AudioConverter
 
 	private static string? ExtractExistingAssetType(JsonObject metaObj)
 	{
-		return metaObj["asset_type"]?.ToString()
-		       ?? metaObj["default_asset_type"]?.ToString()
-		       ?? metaObj["type"]?.ToString();
+		return metaObj["asset_type"]?.ToString();
 	}
 
 	private static bool IsValidExistingAssetType(string? existingType, out string canonical)

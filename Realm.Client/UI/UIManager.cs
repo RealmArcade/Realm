@@ -129,7 +129,7 @@ public partial class UIManager : Control
 			{
 				MapEditorHUD.Instance.HandleQuitRequest();
 			}
-			else if (GameContext.EditorService.IsTestMode && MapEditorHUD.HasUnsavedChangesStatic())
+			else if (GameContext.SessionState.IsTestMode && MapEditorHUD.HasUnsavedChangesStatic())
 			{
 				ShowConfirmationDialog(
 					"You haven't saved yet",
@@ -519,7 +519,7 @@ public partial class UIManager : Control
 		if (_targetScreen == GameScreen.InGameHUD && ReplayPlaybackManager.Instance.IsPlayingReplay)
 		{
 			GameHost.Instance?.StopRecording();
-			var panelScene = GD.Load<PackedScene>("res://UI/ReplayViewerPanelView.tscn");
+			var panelScene = GD.Load<PackedScene>("res://UI/ReplayViewerPanel.tscn");
 			if (panelScene != null)
 			{
 				var panel = panelScene.Instantiate<Control>();
@@ -560,11 +560,11 @@ public partial class UIManager : Control
 	{
 		return screen switch
 		{
-			GameScreen.LobbyBrowser => GetSceneOrLoad(LobbyBrowserScene, "res://UI/LobbyBrowserView.tscn"),
-			GameScreen.LobbyCreate => GetSceneOrLoad(LobbyCreateScene, "res://UI/LobbyCreateView.tscn"),
-			GameScreen.LobbyRoom => GetSceneOrLoad(LobbyRoomScene, "res://UI/LobbyRoomView.tscn"),
-			GameScreen.MapDiscovery => GetSceneOrLoad(MapDiscoveryScene, "res://UI/MapDiscoveryView.tscn"),
-			GameScreen.MapDetails => GetSceneOrLoad(MapDetailsScene, "res://UI/MapDetailsView.tscn"),
+			GameScreen.LobbyBrowser => GetSceneOrLoad(LobbyBrowserScene, "res://UI/LobbyBrowser.tscn"),
+			GameScreen.LobbyCreate => GetSceneOrLoad(LobbyCreateScene, "res://UI/LobbyCreate.tscn"),
+			GameScreen.LobbyRoom => GetSceneOrLoad(LobbyRoomScene, "res://UI/LobbyRoom.tscn"),
+			GameScreen.MapDiscovery => GetSceneOrLoad(MapDiscoveryScene, "res://UI/MapDiscovery.tscn"),
+			GameScreen.MapDetails => GetSceneOrLoad(MapDetailsScene, "res://UI/MapDetails.tscn"),
 			_ => null
 		};
 	}
@@ -573,12 +573,12 @@ public partial class UIManager : Control
 	{
 		return screen switch
 		{
-			GameScreen.Settings => GetSceneOrLoad(SettingsScene, "res://UI/SettingsMenuView.tscn"),
-			GameScreen.InGameHUD => GetSceneOrLoad(InGameHUDScene, "res://UI/InGameHUDView.tscn"),
-			GameScreen.GameOver => GetSceneOrLoad(GameOverScene, "res://UI/GameOverView.tscn"),
-			GameScreen.CreatorDiscovery => GetSceneOrLoad(null, "res://UI/CreatorDiscoveryView.tscn"),
-			GameScreen.ReplayList => GetSceneOrLoad(ReplayListScene, "res://UI/ReplayListPanelView.tscn"),
-			GameScreen.Storage => GetSceneOrLoad(StorageScene, "res://UI/StorageMenuView.tscn"),
+			GameScreen.Settings => GetSceneOrLoad(SettingsScene, "res://UI/SettingsMenu.tscn"),
+			GameScreen.InGameHUD => GetSceneOrLoad(InGameHUDScene, "res://UI/InGameHUD.tscn"),
+			GameScreen.GameOver => GetSceneOrLoad(GameOverScene, "res://UI/GameOver.tscn"),
+			GameScreen.CreatorDiscovery => GetSceneOrLoad(null, "res://UI/CreatorDiscovery.tscn"),
+			GameScreen.ReplayList => GetSceneOrLoad(ReplayListScene, "res://UI/ReplayListPanel.tscn"),
+			GameScreen.Storage => GetSceneOrLoad(StorageScene, "res://UI/StorageMenu.tscn"),
 			_ => null
 		};
 	}
@@ -590,13 +590,13 @@ public partial class UIManager : Control
 		if (screen == GameScreen.MainMenu)
 		{
 			if (LobbyManager.Instance != null) LobbyManager.Instance.Disconnect();
-			return MainMenuScene ?? GD.Load<PackedScene>("res://UI/MainMenuView.tscn");
+			return MainMenuScene ?? GD.Load<PackedScene>("res://UI/MainMenu.tscn");
 		}
 
 		if (screen == GameScreen.MapEditorHUD)
 		{
 			GameHost.Instance?.StartMapEditorMode();
-			return MapEditorHUDScene ?? GD.Load<PackedScene>("res://UI/MapEditorHUDView.tscn");
+			return MapEditorHUDScene ?? GD.Load<PackedScene>("res://UI/MapEditorHUD.tscn");
 		}
 
 		return GetLobbyOrMapScene(screen) ?? GetOtherScene(screen);
@@ -622,7 +622,7 @@ public partial class UIManager : Control
 	{
 		if (SettingsMenu.IsOpen) return;
 
-		var settingsPopup = GD.Load<PackedScene>("res://UI/SettingsMenuView.tscn").Instantiate<SettingsMenu>();
+		var settingsPopup = GD.Load<PackedScene>("res://UI/SettingsMenu.tscn").Instantiate<SettingsMenu>();
 		settingsPopup.IsOverlay = true;
 		AddChild(settingsPopup);
 		MoveChild(settingsPopup, GetChildCount() - 1);

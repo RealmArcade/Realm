@@ -1,0 +1,1008 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://UI/MapEditorHUD.cs" id="1_script"]
+[ext_resource type="Script" path="res://UI/MapEditor/MapEditorCameraIndicator.cs" id="2_camera_indicator"]
+
+[node name="MapEditorHUD" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+
+[node name="FeedbackLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -500.0
+offset_top = -240.0
+offset_right = 500.0
+offset_bottom = -160.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TopLeftBox" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -480.0
+offset_top = 15.0
+offset_right = 480.0
+offset_bottom = 55.0
+grow_horizontal = 2
+alignment = 1
+
+[node name="BtnBack" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(160, 42)
+layout_mode = 2
+focus_mode = 0
+text = "BACK TO HUB"
+
+[node name="BtnHelp" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "❓ HELP / HOTKEYS"
+
+[node name="BtnEditors" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "WINDOWS"
+
+[node name="BtnUndo" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "↩️ UNDO"
+
+[node name="BtnRedo" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "↪️ REDO"
+
+[node name="BtnEyedropper" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "🔍 EYEDROPPER"
+
+[node name="OptModule" type="OptionButton" parent="TopLeftBox"]
+custom_minimum_size = Vector2(100, 32)
+layout_mode = 2
+focus_mode = 0
+
+[node name="BtnSettings" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(36, 32)
+layout_mode = 2
+focus_mode = 0
+
+[node name="BtnTestMap" type="Button" parent="TopLeftBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "🎮 TEST"
+
+[node name="TopBar" type="PanelContainer" parent="."]
+custom_minimum_size = Vector2(500, 60)
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -250.0
+offset_top = -70.0
+offset_right = 250.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="HBox" type="HBoxContainer" parent="TopBar"]
+layout_mode = 2
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="TopBar/HBox"]
+visible = false
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="TopBar/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "ACTIVE TOOL: NONE"
+horizontal_alignment = 1
+
+[node name="LeftSlidePanel" type="Panel" parent="."]
+custom_minimum_size = Vector2(325, 0)
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 325.0
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="LeftTabButton" type="Button" parent="LeftSlidePanel"]
+visible = false
+custom_minimum_size = Vector2(30, 120)
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = 6.0
+offset_top = -60.0
+offset_right = 36.0
+offset_bottom = 60.0
+grow_horizontal = 2
+grow_vertical = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 20
+text = "◀"
+
+[node name="LeftScroll" type="ScrollContainer" parent="LeftSlidePanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 40.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+horizontal_scroll_mode = 3
+vertical_scroll_mode = 3
+
+[node name="LeftVBox" type="VBoxContainer" parent="LeftSlidePanel/LeftScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+mouse_filter = 2
+
+[node name="FileAccordion" type="VBoxContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox"]
+layout_mode = 2
+
+[node name="BtnHeaderFile" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion"]
+layout_mode = 2
+focus_mode = 0
+text = "▶ File"
+
+[node name="ContentFile" type="VBoxContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnLoad" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
+layout_mode = 2
+focus_mode = 0
+text = "📂 LOAD"
+
+[node name="BtnSave" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
+layout_mode = 2
+focus_mode = 0
+text = "💾 SAVE"
+
+[node name="BtnExportMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
+layout_mode = 2
+focus_mode = 0
+text = "📦 EXPORT (.7Z)"
+
+[node name="BtnPublish" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
+layout_mode = 2
+focus_mode = 0
+text = "📜 PUBLISH"
+
+[node name="BtnResetMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
+layout_mode = 2
+focus_mode = 0
+text = "🧹 RESET TO BLANK MAP"
+
+[node name="BtnGenerateMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
+layout_mode = 2
+focus_mode = 0
+text = "🎲 PROCEDURAL"
+
+[node name="BtnImportMinimap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile"]
+layout_mode = 2
+focus_mode = 0
+text = "🗺️ GEN FROM IMAGE"
+
+[node name="ViewportAccordion" type="VBoxContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox"]
+layout_mode = 2
+
+[node name="BtnHeaderViewport" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion"]
+layout_mode = 2
+focus_mode = 0
+text = "▼ Viewport & Navigation"
+
+[node name="ContentViewport" type="VBoxContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnToggleGrid" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+layout_mode = 2
+focus_mode = 0
+text = "🌐 GRID OVERLAY: OFF"
+
+[node name="BtnToggleEnvironment" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+layout_mode = 2
+focus_mode = 0
+text = "☀️ Environment"
+
+[node name="BtnToggleCamera" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+layout_mode = 2
+focus_mode = 0
+text = "📷 Camera"
+
+[node name="MinimapFrame" type="PanelContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport"]
+layout_mode = 2
+
+[node name="MinimapArea" type="Control" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame"]
+custom_minimum_size = Vector2(200, 200)
+layout_mode = 2
+
+[node name="CameraIndicator" type="Control" parent="LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea"]
+layout_mode = 2
+script = ExtResource("2_camera_indicator")
+
+
+[node name="RightSlidePanel" type="Panel" parent="."]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -300.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="RightTabButton" type="Button" parent="RightSlidePanel"]
+visible = false
+custom_minimum_size = Vector2(30, 120)
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -30.0
+offset_top = -60.0
+offset_bottom = 60.0
+grow_vertical = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 20
+text = "▶"
+
+[node name="RightScroll" type="ScrollContainer" parent="RightSlidePanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 40.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+horizontal_scroll_mode = 3
+vertical_scroll_mode = 3
+
+[node name="AccordionContainer" type="VBoxContainer" parent="RightSlidePanel/RightScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+mouse_filter = 2
+
+[node name="ToolAccordion" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer"]
+layout_mode = 2
+
+[node name="BtnHeaderTool" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion"]
+layout_mode = 2
+focus_mode = 0
+text = "▼ Tool"
+
+[node name="ContentTool" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PanelTerrainVBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BtnRaise" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "⛰️ Raise"
+
+[node name="BtnLower" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "🕳️ Lower"
+
+[node name="BtnHeight" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "↕️ Height"
+
+[node name="BtnSmooth" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "✨ Smooth"
+
+[node name="BtnPlateau" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "🥞 Plateau"
+
+[node name="BtnRamp" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "📐 Ramp"
+
+[node name="BtnNoise" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "🎲 Roughen"
+
+[node name="PanelDecoVBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BtnTextureBrush" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "🖌️ Texture"
+
+[node name="BtnFloodFill" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "🪣 Flood Fill"
+
+[node name="PanelPathingVBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BtnPathingBrush" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelPathingVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "🖌️ Pathing Brush"
+
+[node name="BtnFloodFillPathing" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelPathingVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "🪣 Flood Fill Pathing"
+
+[node name="PanelCoordinatesVBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnDrawCoordinate" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "📍 Draw Area"
+
+[node name="LblCoordinateTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "🗺️ COORDINATE TOOL"
+
+[node name="LblCoordinateInstructions" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Drag to draw a box on the terrain, then name it and create."
+autowrap_mode = 3
+
+[node name="CoordinateNameRow" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LblNameTag" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/CoordinateNameRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Name:"
+
+[node name="TxtCoordinateName" type="LineEdit" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/CoordinateNameRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+placeholder_text = "e.g. spawnZone"
+
+[node name="BtnCommitCoordinate" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+visible = false
+layout_mode = 2
+focus_mode = 0
+text = "✅ Create"
+
+[node name="BtnViewCoordinates" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+layout_mode = 2
+focus_mode = 0
+text = "View Existing Coordinates"
+
+[node name="PanelObjectsVBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BtnAddObject" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "➕ Add Object"
+
+[node name="BtnSelectMove" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "🖱️ Select / Move"
+
+[node name="BtnDeleteObject" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "❌ Erase Object"
+
+[node name="PanelClipboard" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BtnSelectArea" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "🔲 Select Area"
+
+[node name="BtnCut" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "✂️ CUT"
+
+[node name="BtnCopy" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "📋 COPY"
+
+[node name="BtnPaste" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "📋 PASTE"
+
+[node name="BtnEraseArea" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+focus_mode = 0
+text = "🧹 ERASE SELECTED AREA"
+
+[node name="BrushAccordion" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer"]
+layout_mode = 2
+
+[node name="BtnHeaderBrush" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion"]
+layout_mode = 2
+focus_mode = 0
+text = "▼ Global Brush Properties"
+
+[node name="ContentBrush" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BrushSizeBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox"]
+layout_mode = 2
+
+[node name="LblSizeTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Size"
+
+[node name="LblBrushSizeValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "2"
+
+[node name="SldBrushSize" type="HSlider" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox"]
+layout_mode = 2
+focus_mode = 0
+min_value = 1.0
+max_value = 20.0
+step = 1.0
+value = 2.0
+rounded = true
+
+[node name="BrushStrengthBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushStrengthBox"]
+layout_mode = 2
+
+[node name="LblStrengthTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushStrengthBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Intensity"
+
+[node name="LblBrushStrengthValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushStrengthBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "3.0"
+
+[node name="SldBrushStrength" type="HSlider" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushStrengthBox"]
+layout_mode = 2
+focus_mode = 0
+min_value = 0.5
+max_value = 10.0
+step = 0.1
+value = 3.0
+
+[node name="BtnBrushShape" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+layout_mode = 2
+focus_mode = 0
+text = "🔳 BRUSH: SQUARE"
+
+[node name="OptMirrorMode" type="OptionButton" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+layout_mode = 2
+focus_mode = 0
+
+[node name="ChkBlockMode" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 11
+text = "Block Mode (M)"
+
+[node name="StepBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox"]
+layout_mode = 2
+
+[node name="LblStepTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Step Height"
+
+[node name="LblBlockStepValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "3.0"
+
+[node name="SldBlockStep" type="HSlider" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/StepBox"]
+layout_mode = 2
+focus_mode = 0
+min_value = 3.0
+max_value = 16.0
+step = 3.0
+value = 3.0
+
+[node name="HeightBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox"]
+layout_mode = 2
+
+[node name="LblHeightTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+text = "Height"
+
+[node name="LblHeightValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "0.0m"
+
+[node name="SldHeight" type="HSlider" parent="RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/HeightBox"]
+layout_mode = 2
+focus_mode = 0
+min_value = -48.0
+max_value = 48.0
+step = 0.5
+value = 0.0
+
+[node name="ToolSettingsAccordion" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer"]
+layout_mode = 2
+
+[node name="BtnHeaderToolSettings" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion"]
+layout_mode = 2
+focus_mode = 0
+text = "▼ Tool Settings"
+
+[node name="ContentToolSettings" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ContainerTexture" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LblTerrainTexture" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Terrain Paint Swatch"
+
+[node name="LblCliffTexture" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+[node name="ScrollSwatches" type="ScrollContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+
+[node name="GridSwatches" type="GridContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture/ScrollSwatches"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+columns = 6
+
+[node name="BtnTextureSwap" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerTexture"]
+layout_mode = 2
+focus_mode = 0
+text = "🔄 SWAP TEXTURES (GLOBAL)"
+
+[node name="ContainerPathing" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings"]
+layout_mode = 2
+
+[node name="PathingContent" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="PathingModeRow" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent"]
+layout_mode = 2
+
+[node name="LblPathingModeTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent/PathingModeRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Mode: "
+
+[node name="OptPathingMode" type="OptionButton" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent/PathingModeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+
+[node name="ChkShallowWater" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent"]
+layout_mode = 2
+focus_mode = 0
+text = "Shallow Water"
+
+[node name="ChkDeepWater" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent"]
+layout_mode = 2
+focus_mode = 0
+text = "Deep Water"
+
+[node name="ChkFlying" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent"]
+layout_mode = 2
+focus_mode = 0
+text = "Flying"
+
+[node name="ChkGround" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent"]
+layout_mode = 2
+focus_mode = 0
+text = "Ground"
+
+[node name="ChkBuildable" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPathing/PathingContent"]
+layout_mode = 2
+focus_mode = 0
+text = "Buildable"
+
+[node name="ContainerEyedropper" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings"]
+layout_mode = 2
+
+[node name="OptEyedropperMode" type="OptionButton" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerEyedropper"]
+layout_mode = 2
+focus_mode = 0
+
+[node name="ContainerPaste" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings"]
+layout_mode = 2
+
+[node name="PasteOptionsBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="LblPasteTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Paste Options"
+
+[node name="ChkPasteHeights" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox"]
+layout_mode = 2
+focus_mode = 0
+button_pressed = true
+text = "HeightMap"
+
+[node name="ChkPasteTextures" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox"]
+layout_mode = 2
+focus_mode = 0
+button_pressed = true
+text = "Textures"
+
+[node name="ChkPasteEntities" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox"]
+layout_mode = 2
+focus_mode = 0
+button_pressed = true
+text = "Units / Props / Decals"
+
+[node name="ChkPastePathing" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox"]
+layout_mode = 2
+focus_mode = 0
+button_pressed = true
+text = "Pathing"
+
+[node name="PasteRotationBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox"]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox"]
+layout_mode = 2
+
+[node name="LblRotTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "Paste Rotation"
+
+[node name="LblPasteRotationValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "0°"
+
+[node name="SldPasteRotation" type="HSlider" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/PasteRotationBox"]
+layout_mode = 2
+focus_mode = 0
+min_value = -180.0
+max_value = 180.0
+step = 90.0
+value = 0.0
+
+[node name="ContainerCategorySelector" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings"]
+layout_mode = 2
+
+[node name="InspectorAccordion" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer"]
+layout_mode = 2
+
+[node name="BtnHeaderInspector" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion"]
+layout_mode = 2
+focus_mode = 0
+text = "▼ Selected Object Inspector"
+
+[node name="ContentInspector" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="InspectorPanel" type="PanelContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector"]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LblInspectorTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "INSPECTOR: NONE"
+
+[node name="LblInspectorPos" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+
+[node name="Grid" type="GridContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+columns = 2
+
+[node name="BtnInspectorRotLeft" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "🔄 Rotate CCW"
+
+[node name="BtnInspectorRotRight" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "🔄 Rotate CW"
+
+[node name="BtnInspectorScaleDown" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "➖ Scale Down"
+
+[node name="BtnInspectorScaleUp" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "➕ Scale Up"
+
+[node name="BtnInspectorScaleReset" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "📐 Reset Scale"
+
+[node name="BtnCenter" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "🎯 Locate Object"
+
+[node name="BtnInspectorDelete" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "❌ Erase"
+
+[node name="PlacementAccordion" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer"]
+layout_mode = 2
+
+[node name="BtnHeaderPlacement" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion"]
+layout_mode = 2
+focus_mode = 0
+text = "▼ Placement Config"
+
+[node name="ContentPlacement" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PlacementRotateBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement"]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox"]
+layout_mode = 2
+
+[node name="LblRotateTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Rotation"
+
+[node name="LblPlacementRotateValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "0°"
+
+[node name="SldPlacementRotate" type="HSlider" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox"]
+layout_mode = 2
+focus_mode = 0
+max_value = 360.0
+step = 15.0
+
+[node name="PlacementScaleBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement"]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox"]
+layout_mode = 2
+
+[node name="LblScaleTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Scale"
+
+[node name="LblPlacementScaleValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "1.0x"
+
+[node name="SldPlacementScale" type="HSlider" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox"]
+layout_mode = 2
+focus_mode = 0
+min_value = 0.25
+max_value = 5.0
+step = 0.05
+value = 1.0
+
+[node name="BtnToggleSnap" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+focus_mode = 0
+text = "🔲 Snap to Grid"
+
+[node name="ChkRandomRotation" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement"]
+layout_mode = 2
+focus_mode = 0
+text = "Random Rotation"
+
+[node name="ChkRandomScale" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement"]
+layout_mode = 2
+focus_mode = 0
+text = "Random Scale"
+
+[node name="ChkClumpMode" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement"]
+layout_mode = 2
+focus_mode = 0
+text = "Clump Mode"
+
+[node name="DensityBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement"]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox"]
+layout_mode = 2
+
+[node name="LblDensityTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Clump Count"
+
+[node name="LblClumpDensityValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "5"
+
+[node name="SldClumpDensity" type="HSlider" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/DensityBox"]
+layout_mode = 2
+focus_mode = 0
+min_value = 1.0
+max_value = 20.0
+value = 5.0
+
+[node name="ScaleVarBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement"]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox"]
+layout_mode = 2
+
+[node name="LblScaleVarTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Clump Scale Variance"
+
+[node name="LblClumpScaleVarValue" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "0.3"
+
+[node name="SldClumpScaleVar" type="HSlider" parent="RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ScaleVarBox"]
+layout_mode = 2
+focus_mode = 0
+max_value = 1.0
+step = 0.05
+value = 0.3
+

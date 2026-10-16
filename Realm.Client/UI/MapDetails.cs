@@ -1165,7 +1165,7 @@ public partial class MapDetails : Control
 		_isDownloading = false;
 		_downloadButton.Disabled = false;
 
-		if (success)
+		if (success || CheckIfMapAlreadyDownloaded(_mapData))
 		{
 			UIStyle.ApplyButtonText(_downloadButton, "PLAY MAP", 18);
 			_downloadSubtitle.Text = Tr("Ready to Play");

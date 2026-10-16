@@ -464,41 +464,7 @@ namespace Realm.Client.UI
 
 		public void RefreshCoordinateListExternal()
 		{
-			if (_coordinateListVBox == null) return;
-			foreach (var child in _coordinateListVBox.GetChildren())
-			{
-				child.QueueFree();
-			}
-
-			var coordinates = GameContext.EditorService.EditorCoordinates;
-			if (coordinates == null) return;
-			foreach (var coord in coordinates)
-			{
-				var row = new HBoxContainer();
-				row.AddThemeConstantOverride("separation", 6);
-				_coordinateListVBox.AddChild(row);
-
-				var btnSelect = new Button();
-				btnSelect.Text = $"{coord.Name}  ({coord.MinX:F0},{coord.MinZ:F0}) → ({coord.MaxX:F0},{coord.MaxZ:F0})";
-				btnSelect.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				btnSelect.Flat = true;
-				btnSelect.Alignment = HorizontalAlignment.Left;
-				btnSelect.AddThemeFontSizeOverride("font_size", 11);
-				btnSelect.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-				string coordinateName = coord.Name;
-				btnSelect.Pressed += () => { GameContext.IEditorAPI?.SelectCoordinate(coordinateName); };
-				row.AddChild(btnSelect);
-
-				var btnDel = new Button();
-				btnDel.Set("icon_max_width", 0);
-				SetupButton(btnDel, "✕", () =>
-					{
-						GameContext.IEditorAPI?.DeleteCoordinate(coordinateName);
-						RefreshCoordinateListExternal();
-					}, 10, $"Delete coordinate '{coordinateName}'");
-				btnDel.CustomMinimumSize = new Vector2(28, 24);
-				row.AddChild(btnDel);
-			}
+			_instanceManagerDialog?.RefreshIfOpen();
 		}
 
 
@@ -2083,6 +2049,55 @@ namespace Realm.Client.UI
 			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		}
 
+		private void StyleCompactMapEditorTopButton(Button btn, int horizontalMargin = 4)
+		{
+			if (btn == null) return;
+			var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
+			if (tex != null)
+			{
+				var normalStyle = new StyleBoxTexture();
+				normalStyle.Texture = tex;
+				normalStyle.TextureMarginLeft = 0;
+				normalStyle.TextureMarginRight = 0;
+				normalStyle.TextureMarginTop = 0;
+				normalStyle.TextureMarginBottom = 0;
+				normalStyle.ContentMarginLeft = horizontalMargin;
+				normalStyle.ContentMarginRight = horizontalMargin;
+				normalStyle.ContentMarginTop = 6;
+				normalStyle.ContentMarginBottom = 6;
+
+				var hoverStyle = new StyleBoxTexture();
+				hoverStyle.Texture = tex;
+				hoverStyle.ModulateColor = new Color(1.25f, 1.2f, 1.0f, 1.0f);
+				hoverStyle.TextureMarginLeft = 0;
+				hoverStyle.TextureMarginRight = 0;
+				hoverStyle.TextureMarginTop = 0;
+				hoverStyle.TextureMarginBottom = 0;
+				hoverStyle.ContentMarginLeft = horizontalMargin;
+				hoverStyle.ContentMarginRight = horizontalMargin;
+				hoverStyle.ContentMarginTop = 6;
+				hoverStyle.ContentMarginBottom = 6;
+
+				var pressedStyle = new StyleBoxTexture();
+				pressedStyle.Texture = tex;
+				pressedStyle.ModulateColor = new Color(0.85f, 0.8f, 0.7f, 1.0f);
+				pressedStyle.TextureMarginLeft = 0;
+				pressedStyle.TextureMarginRight = 0;
+				pressedStyle.TextureMarginTop = 0;
+				pressedStyle.TextureMarginBottom = 0;
+				pressedStyle.ContentMarginLeft = horizontalMargin;
+				pressedStyle.ContentMarginRight = horizontalMargin;
+				pressedStyle.ContentMarginTop = 6;
+				pressedStyle.ContentMarginBottom = 6;
+
+				btn.AddThemeStyleboxOverride("normal", normalStyle);
+				btn.AddThemeStyleboxOverride("hover", hoverStyle);
+				btn.AddThemeStyleboxOverride("pressed", pressedStyle);
+			}
+
+			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		}
+
 
 		private void MakeCardDraggable(Control cardNode, Button headerBtn, Control contentControl = null, string titleText = null)
 		{
@@ -3124,14 +3139,14 @@ namespace Realm.Client.UI
 			return focusOwner != null && (focusOwner is LineEdit || focusOwner is TextEdit);
 		}
 
-		public void OpenInstanceManagerDialog()
+		public void OpenInstanceManagerDialog(string? initialTypeFilter = null)
 		{
 			if (_instanceManagerDialog == null)
 			{
 				_instanceManagerDialog = new InstanceManagerDialog(this);
 			}
 
-			_instanceManagerDialog.OpenDialog();
+			_instanceManagerDialog.OpenDialog(initialTypeFilter);
 		}
 
 		public void OpenAuthorSignatureDialog()

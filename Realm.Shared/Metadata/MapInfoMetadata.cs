@@ -35,6 +35,8 @@ public class MapInfoMetadata
 	public List<MapTeamConfig>? Teams { get; set; }
 	public List<string>? Tags { get; set; }
 	public string? MapType { get; set; }
+	public int? TestAiPlayerCount { get; set; }
+	public bool? TestRandomizeSlots { get; set; }
 
 	[JsonExtensionData] public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

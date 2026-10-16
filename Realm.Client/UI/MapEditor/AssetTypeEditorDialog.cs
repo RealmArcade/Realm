@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Godot;
 using Realm.Client.Services;
+using Realm.EditorAPI;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -57,7 +58,7 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 		if (_asset != null)
 		{
 			_validTypes = RealmMetadataHelper.GetValidAssetTypesForExtension(_asset.FilePath);
-			string currentType = RealmMetadataHelper.ExtractAssetType(_asset.FilePath) ?? string.Empty;
+			string currentType = RealmMetadataHelper.ExtractAssetType(_asset.FilePath) ?? _asset.AssetType?.ToCanonicalString() ?? string.Empty;
 
 			var validTypesArray = _validTypes.ToArray();
 			for (int i = 0; i < validTypesArray.Length; i++)
@@ -65,7 +66,7 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 				string typeName = validTypesArray[i];
 				_optAssetType.AddItem(typeName, i);
 				_optAssetType.SetItemMetadata(i, typeName);
-				if (typeName.Equals(currentType, StringComparison.OrdinalIgnoreCase))
+				if (typeName.Equals(currentType, StringComparison.OrdinalIgnoreCase) || RealmMetadataHelper.NormalizeAssetType(typeName) == _asset.AssetType)
 				{
 					_optAssetType.Selected = i;
 				}

@@ -811,9 +811,9 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 		if (typeName.Equals(_selectedAssetTypeFilter, StringComparison.OrdinalIgnoreCase)) return true;
 
-		string normType = RealmMetadataHelper.NormalizeAssetType(typeName);
-		string normSelected = RealmMetadataHelper.NormalizeAssetType(_selectedAssetTypeFilter);
-		return normType.Equals(normSelected, StringComparison.OrdinalIgnoreCase);
+		var normType = RealmMetadataHelper.NormalizeAssetType(typeName);
+		var normSelected = RealmMetadataHelper.NormalizeAssetType(_selectedAssetTypeFilter);
+		return normType.HasValue && normSelected.HasValue && normType.Value == normSelected.Value;
 	}
 
 	private void OnAssetTypeFilterChanged(long index)
@@ -1237,7 +1237,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	{
 		if (_selectedAsset == null) return;
 		GameContext.AssetIndexService.UpdateAssetType(_selectedAsset.FilePath, updatedAssetType);
-		_selectedAsset.AssetType = updatedAssetType;
+		_selectedAsset.AssetType = RealmMetadataHelper.NormalizeAssetType(updatedAssetType);
 		_txtAssetTypeEdit.Text = updatedAssetType;
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Updated asset type for {0} to {1}"), _selectedAsset.FileName, updatedAssetType));
 		RefreshSearchResults();

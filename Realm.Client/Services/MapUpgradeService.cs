@@ -55,7 +55,7 @@ public class MapUpgradeService
 		_migrations.Add(new Migration_0_0_4_TemplateIDPrefixes());
 	}
 
-	public string GetMapBuildNumber(string mapDirectory)
+	public string? GetMapBuildNumber(string mapDirectory)
 	{
 		if (string.IsNullOrEmpty(mapDirectory))
 		{
@@ -74,6 +74,11 @@ public class MapUpgradeService
 		try
 		{
 			string json = File.ReadAllText(metadataPath);
+			if (string.IsNullOrWhiteSpace(json))
+			{
+				return null;
+			}
+
 			using var doc = JsonDocument.Parse(json);
 			if (doc.RootElement.TryGetProperty("GameBuildNumber", out var prop) && prop.ValueKind == JsonValueKind.String)
 			{
@@ -86,25 +91,34 @@ public class MapUpgradeService
 		}
 		catch
 		{
+			return null;
 		}
 
 		return "v0.0.0";
 	}
 
-	public bool NeedsUpgrade(string mapDirectory, out string currentVersion, out string targetVersion)
+	public bool NeedsUpgrade(string mapDirectory, out string? currentVersion, out string targetVersion)
 	{
 		currentVersion = GetMapBuildNumber(mapDirectory);
 		targetVersion = RealmVersion.GameBuildNumber;
+
+		if (currentVersion == null)
+		{
+			return false;
+		}
+
 		return !string.Equals(currentVersion, targetVersion, StringComparison.OrdinalIgnoreCase);
 	}
 
 	public bool IsMapNewerThanGame(string mapVersionOrDirectory, string? gameVersion = null)
 	{
-		string mapBuildNumber = mapVersionOrDirectory;
+		string? mapBuildNumber = mapVersionOrDirectory;
 		if (!string.IsNullOrEmpty(mapVersionOrDirectory) && (Directory.Exists(mapVersionOrDirectory) || File.Exists(mapVersionOrDirectory)))
 		{
 			mapBuildNumber = GetMapBuildNumber(mapVersionOrDirectory);
 		}
+
+		if (string.IsNullOrEmpty(mapBuildNumber)) return false;
 
 		string targetGameVersion = !string.IsNullOrWhiteSpace(gameVersion) ? gameVersion : RealmVersion.GameBuildNumber;
 		var parsedMapVersion = ParseBuildVersion(mapBuildNumber);

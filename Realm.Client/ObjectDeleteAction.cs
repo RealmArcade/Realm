@@ -1,6 +1,8 @@
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.UI;
 using Vector3 = Godot.Vector3;
 
 namespace Realm.Client;
@@ -31,7 +33,7 @@ public class ObjectDeleteAction : IEditorAction
 		_rotationY = rotationDegrees.Y;
 		_scale = scale;
 		_player = player >= 0 ? player : ((deletedNode as Unit3D)?.Player ?? 0);
-		_isEnemy = NetworkService.ArePlayerIndicesEnemies(GameHost.Instance?.LocalPlayerIndex ?? 0, _player);
+		_isEnemy = NetworkService.ArePlayerIndicesEnemies(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1, _player);
 		_spawnedNode = deletedNode;
 	}
 

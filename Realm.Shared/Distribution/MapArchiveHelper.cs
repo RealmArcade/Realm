@@ -262,6 +262,8 @@ public static class MapArchiveHelper
 		}
 	}
 
+	private static readonly string[] ModelSubFolders = { "items", "attachments", "projectiles", "weapons", "props", "units", "buildings", "resources" };
+
 	private static Dictionary<string, string> BuildCasFileMap(MapManifest manifest)
 	{
 		var casFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -273,6 +275,16 @@ public static class MapArchiveHelper
 			relKey = relKey.TrimStart('/', '\\').Replace('\\', '/');
 			string normHash = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
 			casFileMap[relKey] = normHash;
+
+			if (relKey.StartsWith("Assets/models/", StringComparison.OrdinalIgnoreCase))
+			{
+				string fileName = Path.GetFileName(relKey);
+				foreach (var sub in ModelSubFolders)
+				{
+					string altModelKey = $"Assets/models/{sub}/{fileName}";
+					casFileMap.TryAdd(altModelKey, normHash);
+				}
+			}
 		}
 
 		return casFileMap;

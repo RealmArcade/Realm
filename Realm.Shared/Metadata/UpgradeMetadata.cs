@@ -13,8 +13,5 @@ public class UpgradeMetadata
 	public string Requirement { get; set; } = string.Empty;
 	public int MaxLevel { get; set; } = 1;
 	public string[]? AffectedUnitIds { get; set; }
-	public float MaxHpBonus { get; set; }
-	public float DamageBonus { get; set; }
-	public float ArmorBonus { get; set; }
-	public float SpeedBonus { get; set; }
+	public List<StatModifierDefinition> Modifiers { get; set; } = new();
 }

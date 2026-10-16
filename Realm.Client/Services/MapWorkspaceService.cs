@@ -36,7 +36,9 @@ public static partial class MapWorkspaceService
 			normalized.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".log", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
-			Path.GetFileName(normalized).StartsWith("~", StringComparison.OrdinalIgnoreCase))
+			normalized.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase) ||
+			Path.GetFileName(normalized).StartsWith("~", StringComparison.OrdinalIgnoreCase) ||
+			Path.GetFileName(normalized).Equals("WasmEntryPoint.cs", StringComparison.OrdinalIgnoreCase))
 		{
 			return true;
 		}
@@ -228,11 +230,27 @@ public static partial class MapWorkspaceService
 	public const string DefaultWorkspaceFolder = "temp_map_workspace";
 	public const string DefaultWorkspaceGodotPath = "user://temp_map_workspace";
 
-	public static string GetDefaultWorkspaceGlobalPath() =>
-		ProjectSettings.GlobalizePath(DefaultWorkspaceGodotPath);
+	public static string GetDefaultWorkspaceGlobalPath()
+	{
+		if (AppDomain.CurrentDomain.FriendlyName.Contains("testhost", StringComparison.OrdinalIgnoreCase))
+		{
+			return Path.Combine(Path.GetTempPath(), DefaultWorkspaceFolder);
+		}
+
+		return ProjectSettings.GlobalizePath(DefaultWorkspaceGodotPath);
+	}
+
+	private static string? _testActiveWorkspacePath;
+
+	public static void SetActiveWorkspacePathForTesting(string? path)
+	{
+		_testActiveWorkspacePath = path;
+	}
 
 	public static string GetActiveWorkspacePath()
 	{
+		if (!string.IsNullOrEmpty(_testActiveWorkspacePath))
+			return _testActiveWorkspacePath;
 		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
 			return GameContext.EditorService._tempWorkspacePath;
 		if (GameHost.Instance != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))
@@ -318,6 +336,7 @@ public static partial class MapWorkspaceService
 		EnsureGlbAssetsOptimized(directory);
 		EnsurePngAssetsConverted(directory);
 		EnsureNoiseTexturesGenerated(directory);
+		MapTemplateGeneratorService.EnsureMapTemplates(directory);
 	}
 
 	public static void EnsureNoiseTexturesGenerated(string directory)
@@ -442,8 +461,9 @@ public static partial class MapWorkspaceService
 		{
 			foreach (var file in Directory.GetFiles(templateVsCodeDir))
 			{
-				string dest = Path.Combine(vscodeDir, Path.GetFileName(file));
-				if (!File.Exists(dest))
+				string fileName = Path.GetFileName(file);
+				string dest = Path.Combine(vscodeDir, fileName);
+				if (!File.Exists(dest) || fileName.Equals("launch.json", StringComparison.OrdinalIgnoreCase))
 				{
 					File.Copy(file, dest, true);
 				}
@@ -613,29 +633,12 @@ public static partial class MapWorkspaceService
 	{
 		string targetsPath = Path.Combine(directory, "Directory.Build.targets");
 		string targetsTemplate = GetTemplatePath("Directory.Build.targets");
-		if (!string.IsNullOrEmpty(targetsTemplate) && File.Exists(targetsTemplate))
+		if (string.IsNullOrEmpty(targetsTemplate) || !File.Exists(targetsTemplate))
 		{
-			try
-			{
-				File.Copy(targetsTemplate, targetsPath, true);
-				return;
-			}
-			catch
-			{
-			}
+			throw new Exception($"File not found: {targetsTemplate}");
 		}
 
-		if (!File.Exists(targetsPath) || !File.ReadAllText(targetsPath).Contains("_InitializeWasiSdk"))
-		{
-			try
-			{
-				string fallbackContent = "<Project>\n  <Target Name=\"PrepareInputsForWasmBuild\" />\n  <Target Name=\"_InitializeWasiSdk\" Condition=\"'$(_targetOS)' == 'wasi'\">\n    <Error Text=\"Wasi SDK not found, not compiling to WebAssembly. To enable WebAssembly compilation, install Wasi SDK and ensure the WASI_SDK_PATH environment variable points to the directory containing share/wasi-sysroot\" Condition=\"'$(WASI_SDK_PATH)' == ''\" />\n    <PropertyGroup>\n      <_NativeWasmSdkBinPath>$([MSBuild]::NormalizeDirectory('$(WASI_SDK_PATH)', 'bin'))</_NativeWasmSdkBinPath>\n      <CppCompiler Condition=\"'$(CppCompiler)' == ''\">&quot;$(_NativeWasmSdkBinPath)clang&quot;</CppCompiler>\n      <CppLinker Condition=\"'$(CppLinker)' == ''\">$(CppCompiler)</CppLinker>\n    </PropertyGroup>\n  </Target>\n</Project>\n";
-				File.WriteAllText(targetsPath, fallbackContent);
-			}
-			catch
-			{
-			}
-		}
+		File.Copy(targetsTemplate, targetsPath, true);
 	}
 
 	private static void EnsureTrimmerRoot(string csprojPath)
@@ -833,23 +836,7 @@ public static partial class MapWorkspaceService
 
 	public static void EnsureWasmEntryPoint(string directory)
 	{
-		string entryPointPath = Path.Combine(directory, "WasmEntryPoint.cs");
-		string template = GetTemplatePath("WasmEntryPoint.cs");
-		if (File.Exists(template))
-		{
-			if (!File.Exists(entryPointPath) || new FileInfo(entryPointPath).Length == 0)
-			{
-				File.Copy(template, entryPointPath);
-			}
-			else
-			{
-				string existing = File.ReadAllText(entryPointPath);
-				if (existing.Contains("private static IWasmModule? _mapScript;"))
-				{
-					File.Copy(template, entryPointPath, true);
-				}
-			}
-		}
+		MapTemplateGeneratorService.EnsureWasmEntryPoint(directory);
 	}
 
 	public static void EnsureMetadataJson(string directory)

@@ -1594,6 +1594,76 @@
                                     </table>
                                 </div>
                             </div>
+
+                            <!-- INLINE NESTED TABLE: Granted Abilities -->
+                            <div class="sub-table-group">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <label style="font-weight: 600;">Granted Abilities</label>
+                                    <div style="display: flex; gap: 4px;">
+                                        <button type="button" class="btn small-btn copy-subtable-btn" data-type="GrantedAbilities" data-parent-index="${index}" title="Copy Granted Abilities block">📋 Copy Block</button>
+                                        <button type="button" class="btn small-btn paste-subtable-btn" data-type="GrantedAbilities" data-parent-index="${index}" title="Paste Granted Abilities block">📥 Paste Block</button>
+                                        <button type="button" class="btn secondary-btn small-btn add-subitem-btn" data-type="GrantedAbilities" data-parent-index="${index}">+ Add Ability</button>
+                                    </div>
+                                </div>
+                                <div class="sub-table-container">
+                                    <table class="sub-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Ability ID</th>
+                                                <th style="width: 40px;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${(item.GrantedAbilities || []).map((aId, subIdx) => `
+                                                <tr>
+                                                    <td>
+                                                        <input type="text" class="subitem-input" data-type="GrantedAbilities" data-parent-index="${index}" data-sub-index="${subIdx}" value="${aId || ''}" list="suggest-abilities" placeholder="e.g. fire_ball" />
+                                                    </td>
+                                                    <td>
+                                                        <button type="button" class="btn-delete-subitem btn-delete" data-type="GrantedAbilities" data-parent-index="${index}" data-sub-index="${subIdx}">&times;</button>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                            ${!(item.GrantedAbilities && item.GrantedAbilities.length) ? `<tr><td colspan="2" class="no-slots-info">No abilities granted.</td></tr>` : ''}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- INLINE NESTED TABLE: Granted Upgrades -->
+                            <div class="sub-table-group">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <label style="font-weight: 600;">Granted Upgrades</label>
+                                    <div style="display: flex; gap: 4px;">
+                                        <button type="button" class="btn small-btn copy-subtable-btn" data-type="GrantedUpgrades" data-parent-index="${index}" title="Copy Granted Upgrades block">📋 Copy Block</button>
+                                        <button type="button" class="btn small-btn paste-subtable-btn" data-type="GrantedUpgrades" data-parent-index="${index}" title="Paste Granted Upgrades block">📥 Paste Block</button>
+                                        <button type="button" class="btn secondary-btn small-btn add-subitem-btn" data-type="GrantedUpgrades" data-parent-index="${index}">+ Add Upgrade</button>
+                                    </div>
+                                </div>
+                                <div class="sub-table-container">
+                                    <table class="sub-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Upgrade ID</th>
+                                                <th style="width: 40px;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${(item.GrantedUpgrades || []).map((uId, subIdx) => `
+                                                <tr>
+                                                    <td>
+                                                        <input type="text" class="subitem-input" data-type="GrantedUpgrades" data-parent-index="${index}" data-sub-index="${subIdx}" value="${uId || ''}" list="suggest-upgrades" placeholder="e.g. iron_forging" />
+                                                    </td>
+                                                    <td>
+                                                        <button type="button" class="btn-delete-subitem btn-delete" data-type="GrantedUpgrades" data-parent-index="${index}" data-sub-index="${subIdx}">&times;</button>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                            ${!(item.GrantedUpgrades && item.GrantedUpgrades.length) ? `<tr><td colspan="2" class="no-slots-info">No upgrades granted.</td></tr>` : ''}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </td>
                 </tr>
@@ -2226,6 +2296,16 @@
             if (!item) return null;
             if (!item.GrantedWeapons) item.GrantedWeapons = [];
             return item.GrantedWeapons;
+        } else if (type === 'GrantedAbilities') {
+            const item = (units.Templates.Items || [])[parentIndex];
+            if (!item) return null;
+            if (!item.GrantedAbilities) item.GrantedAbilities = [];
+            return item.GrantedAbilities;
+        } else if (type === 'GrantedUpgrades') {
+            const item = (units.Templates.Items || [])[parentIndex];
+            if (!item) return null;
+            if (!item.GrantedUpgrades) item.GrantedUpgrades = [];
+            return item.GrantedUpgrades;
         }
         return null;
     }
@@ -2250,6 +2330,16 @@
         } else if (type === 'GrantedWeapons') {
             if (units.Templates.Items && units.Templates.Items[parentIndex]) {
                 units.Templates.Items[parentIndex].GrantedWeapons = arr;
+            }
+            renderCustomItems();
+        } else if (type === 'GrantedAbilities') {
+            if (units.Templates.Items && units.Templates.Items[parentIndex]) {
+                units.Templates.Items[parentIndex].GrantedAbilities = arr;
+            }
+            renderCustomItems();
+        } else if (type === 'GrantedUpgrades') {
+            if (units.Templates.Items && units.Templates.Items[parentIndex]) {
+                units.Templates.Items[parentIndex].GrantedUpgrades = arr;
             }
             renderCustomItems();
         }
@@ -3356,6 +3446,20 @@
                     }
                 });
             }
+            if (item.GrantedAbilities) {
+                item.GrantedAbilities.forEach((targetId, abiIdx) => {
+                    if (targetId && !existingAbilityIds.has(targetId)) {
+                        itemErrors[`GrantedAbilities_${abiIdx}`] = `Ability ID "${targetId}" does not exist in Custom Abilities.`;
+                    }
+                });
+            }
+            if (item.GrantedUpgrades) {
+                item.GrantedUpgrades.forEach((targetId, upgIdx) => {
+                    if (targetId && !existingUpgradeIds.has(targetId)) {
+                        itemErrors[`GrantedUpgrades_${upgIdx}`] = `Upgrade ID "${targetId}" does not exist in Custom Upgrades.`;
+                    }
+                });
+            }
             if (Object.keys(itemErrors).length > 0) {
                 errors.items[index] = itemErrors;
             }
@@ -3970,6 +4074,9 @@
             if (units.Templates.Items) {
                 units.Templates.Items.forEach(item => {
                     if (item.UseAbility === oldId) item.UseAbility = newId;
+                    if (item.GrantedAbilities) {
+                        item.GrantedAbilities = item.GrantedAbilities.map(a => a === oldId ? newId : a);
+                    }
                 });
             }
         } else if (type === 'upgrade') {
@@ -3983,6 +4090,13 @@
                 if (unit.StartingItems) {
                     unit.StartingItems = unit.StartingItems.map(i => i === oldId ? newId : i);
                 }
+            }
+            if (units.Templates.Items) {
+                units.Templates.Items.forEach(item => {
+                    if (item.GrantedUpgrades) {
+                        item.GrantedUpgrades = item.GrantedUpgrades.map(u => u === oldId ? newId : u);
+                    }
+                });
             }
         }
     }
@@ -4029,6 +4143,9 @@
             if (units.Templates.Items) {
                 units.Templates.Items.forEach(item => {
                     if (item.UseAbility === targetId) delete item.UseAbility;
+                    if (item.GrantedAbilities) {
+                        item.GrantedAbilities = item.GrantedAbilities.filter(a => a !== targetId);
+                    }
                 });
             }
         } else if (type === 'upgrade') {
@@ -4042,6 +4159,13 @@
                 if (unit.StartingItems) {
                     unit.StartingItems = unit.StartingItems.filter(i => i !== targetId);
                 }
+            }
+            if (units.Templates.Items) {
+                units.Templates.Items.forEach(item => {
+                    if (item.GrantedUpgrades) {
+                        item.GrantedUpgrades = item.GrantedUpgrades.filter(u => u !== targetId);
+                    }
+                });
             }
         }
     }

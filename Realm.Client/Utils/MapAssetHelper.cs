@@ -375,6 +375,80 @@ public static class MapAssetHelper
 		}
 	}
 
+	public static void PruneUnusedAssetsFromManifest(string mapDirectory)
+	{
+		string targetDirectory = string.IsNullOrEmpty(mapDirectory)
+			? MapWorkspaceService.GetActiveWorkspacePath()
+			: mapDirectory;
+
+		if (!Directory.Exists(targetDirectory)) return;
+
+		try
+		{
+			var manifest = MapFileService.LoadManifest(targetDirectory);
+			if (manifest.Assets == null) return;
+
+			var metadata = MapFileService.LoadMetadata(targetDirectory);
+			string metadataJson = MapFileService.SaveMetadataToJson(metadata);
+
+			foreach (var categoryKvp in manifest.Assets.GetAllCategories())
+			{
+				PruneUnusedCategoryAssets(categoryKvp.Value, metadataJson);
+			}
+
+			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
+			MapFileService.SaveManifest(targetDirectory, manifest);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapAssetHelper] PruneUnusedAssetsFromManifest error: {ex.Message}");
+		}
+	}
+
+	private static void PruneUnusedCategoryAssets(Dictionary<string, string> catDict, string metadataJson)
+	{
+		var itemsToRemove = new List<string>();
+		foreach (var itemKvp in catDict)
+		{
+			string assetName = itemKvp.Key;
+			if (!IsAssetReferencedInMetadataJson(metadataJson, assetName))
+			{
+				itemsToRemove.Add(assetName);
+			}
+		}
+
+		foreach (var item in itemsToRemove)
+		{
+			catDict.Remove(item);
+		}
+	}
+
+	public static bool IsAssetReferencedInMetadataJson(string metadataJson, string assetName)
+	{
+		if (string.IsNullOrWhiteSpace(assetName)) return false;
+
+		string doubleQuoted = $"\"{assetName}\"";
+		string singleQuoted = $"'{assetName}'";
+
+		if (metadataJson.Contains(doubleQuoted, StringComparison.OrdinalIgnoreCase) ||
+		    metadataJson.Contains(singleQuoted, StringComparison.OrdinalIgnoreCase))
+		{
+			return true;
+		}
+
+		string baseName = Path.GetFileName(assetName);
+		if (!string.Equals(baseName, assetName, StringComparison.OrdinalIgnoreCase))
+		{
+			if (metadataJson.Contains($"\"{baseName}\"", StringComparison.OrdinalIgnoreCase) ||
+			    metadataJson.Contains($"'{baseName}'", StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private static void PruneCategoryAssets(string targetDirectory, string rawCategory, Dictionary<string, string> catDict)
 	{
 		string category = NormalizeCategoryKey(rawCategory);

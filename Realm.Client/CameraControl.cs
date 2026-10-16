@@ -394,7 +394,7 @@ public partial class CameraControl : Camera3D
 		_isAltRightDragging = false;
 		_isDraggingMouse = false;
 
-		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+		if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 		{
 			MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
 		}
@@ -422,7 +422,7 @@ public partial class CameraControl : Camera3D
 		Vector3 clampedPos = Position;
 		clampedPos.Y = CurrentHeight;
 
-		bool isEditor = GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode;
+		bool isEditor = GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode;
 		ApplyCameraBounds(ref clampedPos, isEditor);
 
 		Position = clampedPos;
@@ -475,7 +475,7 @@ public partial class CameraControl : Camera3D
 			return 2000.0f;
 		}
 
-		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+		if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 		{
 			return MaxZoom * 5.0f;
 		}
@@ -563,7 +563,7 @@ public partial class CameraControl : Camera3D
 				Input.MouseMode = Input.MouseModeEnum.Visible;
 			}
 
-			if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+			if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 			{
 				MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
 			}
@@ -621,7 +621,7 @@ public partial class CameraControl : Camera3D
 
 		UpdateCameraHeight(ref state, fDelta, terrainHeight);
 
-		bool isEditor = GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode;
+		bool isEditor = GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode;
 		UpdateCameraRotation(ref state, fDelta, isEditor);
 
 		if (state.IsLocked || (InGameHUD.Instance != null && InGameHUD.Instance.IsChatActive)) return;
@@ -739,7 +739,7 @@ public partial class CameraControl : Camera3D
 	{
 		if (mouseBtn.AltPressed) return true;
 
-		bool isEditor = GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode;
+		bool isEditor = GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode;
 		bool shiftOrCtrl = Input.IsKeyPressed(Key.Shift) || Input.IsKeyPressed(Key.Ctrl);
 
 		if (isEditor && shiftOrCtrl) return true;
@@ -785,7 +785,7 @@ public partial class CameraControl : Camera3D
 		_isDraggingMouse = true;
 		_lastMousePosition = mouseBtn.Position;
 
-		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+		if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 		{
 			MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(true);
 		}
@@ -807,7 +807,7 @@ public partial class CameraControl : Camera3D
 		if (mouseBtn.ButtonIndex == MouseButton.Middle)
 		{
 			_isDraggingMouse = false;
-			if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+			if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 			{
 				MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
 			}
@@ -858,7 +858,7 @@ public partial class CameraControl : Camera3D
 
 	private bool HandleEditorShiftMouseMotion(Vector2 deltaMouse)
 	{
-		if (Input.IsKeyPressed(Key.Shift) && GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+		if (Input.IsKeyPressed(Key.Shift) && GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 		{
 			_targetYaw = (_targetYaw + deltaMouse.X * 0.25f + 360.0f) % 360.0f;
 			return true;
@@ -882,7 +882,7 @@ public partial class CameraControl : Camera3D
 		Vector3 newPos = Position + velocity;
 		if (!IsFreeCamera)
 		{
-			bool isEditor = GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode;
+			bool isEditor = GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode;
 			ApplyCameraBounds(ref newPos, isEditor);
 		}
 

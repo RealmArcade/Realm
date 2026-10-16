@@ -50,6 +50,11 @@ namespace Realm.Client.UI
 		private void OnMetadataSaved(string targetPath)
 		{
 			UpdateLastMetadataSyncTime(targetPath);
+			string wsPath = string.IsNullOrEmpty(targetPath) ? MapWorkspaceService.GetActiveWorkspacePath() : (Directory.Exists(targetPath) ? targetPath : Path.GetDirectoryName(targetPath));
+			if (!string.IsNullOrEmpty(wsPath))
+			{
+				MapTemplateGeneratorService.EnsureMapTemplates(wsPath);
+			}
 		}
 
 		public void PerformAutoBackup()
@@ -59,6 +64,8 @@ namespace Realm.Client.UI
 				if (GameHost.Instance == null || GameHost.Instance.GroundTerrain == null) return;
 				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 				if (string.IsNullOrEmpty(wsPath) || !Directory.Exists(wsPath)) return;
+
+				MapWorkspaceService.EnsureWasmEntryPoint(wsPath);
 
 				string tempTerrainPath = Path.Combine(wsPath, "terrain.json");
 				GameHost.Instance.SaveMapToFile(tempTerrainPath, performReload: false);
@@ -84,7 +91,7 @@ namespace Realm.Client.UI
 
 		private void InitializeTempWorkspace()
 		{
-			if (!GameContext.EditorService.ReturningFromTest)
+			if (!GameContext.SessionState.ReturningFromTest)
 			{
 				TryCreateTempWorkspaceDirectory();
 			}
@@ -212,7 +219,7 @@ namespace Realm.Client.UI
 
 		private void CheckUnsavedSessionOnLaunch(Action onCompleted = null)
 		{
-			if (GameContext.EditorService.ReturningFromTest || !string.IsNullOrEmpty(GameContext.EditorService.PendingCasSourceDirectory))
+			if (GameContext.SessionState.ReturningFromTest || !string.IsNullOrEmpty(GameContext.EditorService.PendingCasSourceDirectory))
 			{
 				onCompleted?.Invoke();
 				return;
@@ -439,6 +446,7 @@ namespace Realm.Client.UI
 		private async Task SaveMapToFolderAsync(string targetFolder)
 		{
 			MapWorkspaceService.EnsureLicenseFile(GameContext.EditorService._tempWorkspacePath);
+			MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._tempWorkspacePath);
 			string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
 			if (GameHost.Instance != null)
 			{
@@ -454,6 +462,7 @@ namespace Realm.Client.UI
 				await Task.Run(() => CopyTempWorkspaceToFolder(targetFolder));
 
 				MapWorkspaceService.EnsureLicenseFile(targetFolder);
+				MapWorkspaceService.EnsureWasmEntryPoint(targetFolder);
 
 				SaveCurrentDirectoryBlake3();
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(tempTerrainPath);
@@ -473,9 +482,9 @@ namespace Realm.Client.UI
 		{
 			if (GameHost.Instance == null) return;
 
-			if (GameContext.EditorService.TryGetValidCurrentSourceFolder(out string validFolder) && !IsRestrictedSaveDirectory(validFolder))
+			if (!string.IsNullOrEmpty(mapSaveFolder))
 			{
-				_ = SaveMapToFolderAsync(validFolder);
+				_ = SaveMapToFolderAsync(mapSaveFolder);
 				return;
 			}
 
@@ -492,7 +501,7 @@ namespace Realm.Client.UI
 		{
 			if (GameHost.Instance == null) return;
 
-			string initialDir = GetInitialDirectory();
+			string initialDir = !string.IsNullOrEmpty(defaultSaveFolder) ? defaultSaveFolder : GetDocumentsDirectory();
 			try
 			{
 				if (!Directory.Exists(initialDir))
@@ -515,7 +524,11 @@ namespace Realm.Client.UI
 				{
 					if (status && selectedPaths.Length > 0)
 					{
-						HandleSaveToFolder(selectedPaths[0]);
+						string selected = selectedPaths[0];
+						defaultLoadFolder = selected;
+						defaultSaveFolder = selected;
+						mapSaveFolder = selected;
+						HandleSaveToFolder(selected);
 					}
 					else
 					{
@@ -535,6 +548,9 @@ namespace Realm.Client.UI
 				{
 				}
 
+				defaultLoadFolder = defaultFolder;
+				defaultSaveFolder = defaultFolder;
+				mapSaveFolder = defaultFolder;
 				HandleSaveToFolder(defaultFolder);
 			}
 		}
@@ -592,11 +608,9 @@ namespace Realm.Client.UI
 		{
 			GameContext.EditorService.LastUsedFolder = fullSelectedPath;
 			GameContext.EditorService.CurrentSourceFolder = fullSelectedPath;
-			if (!IsRestrictedSaveDirectory(fullSelectedPath))
-			{
-				GameSettings.LastOpenedFolder = fullSelectedPath;
-				GameSettings.Save();
-			}
+			defaultLoadFolder = fullSelectedPath;
+			defaultSaveFolder = fullSelectedPath;
+			mapSaveFolder = fullSelectedPath;
 
 			_ = SaveMapToFolderAsync(fullSelectedPath);
 		}
@@ -605,9 +619,21 @@ namespace Realm.Client.UI
 		{
 			if (GameHost.Instance == null) return;
 
+			string initialDir = !string.IsNullOrEmpty(defaultLoadFolder) ? defaultLoadFolder : GetDocumentsDirectory();
+			try
+			{
+				if (!Directory.Exists(initialDir))
+				{
+					Directory.CreateDirectory(initialDir);
+				}
+			}
+			catch
+			{
+			}
+
 			var err = DisplayServer.FileDialogShow(
 				TranslationServer.Translate("Load Map Folder"),
-				GetInitialDirectory(),
+				initialDir,
 				"",
 				false,
 				DisplayServer.FileDialogMode.OpenDir,
@@ -617,13 +643,6 @@ namespace Realm.Client.UI
 					if (status && selectedPaths.Length > 0)
 					{
 						string selectedFolder = selectedPaths[0];
-						GameContext.EditorService.LastUsedFolder = selectedFolder;
-						if (!IsRestrictedSaveDirectory(selectedFolder))
-						{
-							GameSettings.LastOpenedFolder = selectedFolder;
-							GameSettings.Save();
-						}
-
 						_ = LoadMapFolderAsync(selectedFolder);
 					}
 				})
@@ -643,6 +662,13 @@ namespace Realm.Client.UI
 			if (!GameContext.EditorService.IsValidMapFolder(selectedFolder))
 			{
 				ShowInvalidMapFolderErrorDialog(selectedFolder);
+				return false;
+			}
+
+			if (GameContext.EditorService.IsMapFolderCorrupt(selectedFolder, out string corruptFile, out string corruptError))
+			{
+				ShowCorruptMapFileErrorDialog(selectedFolder, corruptFile, corruptError);
+				ShowFeedback(string.Format(TranslationServer.Translate("Map file '{0}' is corrupt: {1}"), corruptFile, corruptError));
 				return false;
 			}
 
@@ -726,6 +752,13 @@ namespace Realm.Client.UI
 				return false;
 			}
 
+			if (GameContext.EditorService.IsMapFolderCorrupt(selectedFolder, out string corruptFile, out string corruptError))
+			{
+				ShowCorruptMapFileErrorDialog(selectedFolder, corruptFile, corruptError);
+				ShowFeedback(string.Format(TranslationServer.Translate("Map file '{0}' is corrupt: {1}"), corruptFile, corruptError));
+				return false;
+			}
+
 			bool canProceed = await PromptAndUpgradeMapIfNeededAsync(selectedFolder);
 			if (!canProceed)
 			{
@@ -739,6 +772,12 @@ namespace Realm.Client.UI
 		private async Task<bool> PerformMapLoadAsync(string selectedFolder)
 		{
 			GameHost.Instance?.ClearMapEntirely();
+
+			GameContext.EditorService.LastUsedFolder = selectedFolder;
+			defaultLoadFolder = selectedFolder;
+			defaultSaveFolder = selectedFolder;
+			mapSaveFolder = selectedFolder;
+
 			GameContext.EditorService.IsSyncing = true;
 			try
 			{
@@ -826,6 +865,8 @@ namespace Realm.Client.UI
 
 		public static void ResetFolderLocations()
 		{
+			mapSaveFolder = null;
+			defaultSaveFolder = GetDocumentsDirectory();
 			GameContext.EditorService.LastUsedFolder = null;
 			GameContext.EditorService.CurrentSourceFolder = null;
 			GameContext.EditorService.PendingCasSourceDirectory = null;
@@ -913,19 +954,19 @@ namespace Realm.Client.UI
 			_mapSettingsDialog?.SaveMapProperties();
 		}
 
-		private async Task CompileAndSignMapAsync(string workspace, bool skipAttribution = true)
+		private async Task CompileAndSignMapAsync(string workspace, bool skipAttribution = true, bool isDebug = false)
 		{
 			_wasmHasErrors = false;
 
-			bool compiledSuccessfully = await PerformCompilationStepAsync(workspace, skipAttribution);
+			bool compiledSuccessfully = await PerformCompilationStepAsync(workspace, skipAttribution, isDebug);
 			if (!compiledSuccessfully || skipAttribution) return;
 
 			await PerformSigningStepAsync(workspace);
 		}
 
-		private async Task<bool> PerformCompilationStepAsync(string workspace, bool skipAttribution)
+		private async Task<bool> PerformCompilationStepAsync(string workspace, bool skipAttribution, bool isDebug = false)
 		{
-			return await GameContext.EditorService.PerformCompilationStepAsyncDomain(workspace, FindProjectFile, TryBypassCompilation, CheckMapApiDependency, ExecuteDotnetPublishAsync, msg => { _wasmHasErrors = true; SetWasmConsoleStatus($"❌ WASM Compilation Failed: {msg}", new Color(1.0f, 0.3f, 0.3f)); GD.PrintErr($"[MapEditorHUD] Trigger compilation failed: {msg}"); }, err => AppendWasmConsoleLog($"[COMPILER EXCEPTION] {err}"));
+			return await GameContext.EditorService.PerformCompilationStepAsyncDomain(workspace, FindProjectFile, TryBypassCompilation, CheckMapApiDependency, ExecuteDotnetPublishAsync, msg => { _wasmHasErrors = true; SetWasmConsoleStatus($"❌ WASM Compilation Failed: {msg}", new Color(1.0f, 0.3f, 0.3f)); GD.PrintErr($"[MapEditorHUD] Trigger compilation failed: {msg}"); }, err => AppendWasmConsoleLog($"[COMPILER EXCEPTION] {err}"), isDebug);
 		}
 
 		private string FindProjectFile(string workspace)
@@ -968,11 +1009,12 @@ namespace Realm.Client.UI
 			return hasDependency;
 		}
 
-		private async Task<bool> ExecuteDotnetPublishAsync(string workspace, string csproj)
+		private async Task<bool> ExecuteDotnetPublishAsync(string workspace, string csproj, bool isDebug = false)
 		{
 			var result = await GameContext.MapStorageService.ExecuteDotnetPublishDomainAsync(workspace, csproj,
 				(output) => AppendWasmConsoleLog(output),
-				(error) => AppendWasmConsoleLog(error));
+				(error) => AppendWasmConsoleLog(error),
+				isDebug);
 
 			if (!result.success)
 			{

@@ -15,6 +15,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
+using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Core;
@@ -44,20 +45,9 @@ public partial class GameHost
 		}
 	}
 
-	void IGameAPI.RegisterAbilityForPlayer(int playerIndex, string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
+	void IGameAPI.RegisterPlayerAbility(int playerIndex, string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
-		if (playerIndex == LocalPlayerIndex)
-		{
-			((IGameAPI)this).RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant);
-		}
-		else if (_multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
-		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && p.PeerId > 1)
-			{
-				RpcId(p.PeerId, nameof(ClientRegisterAbility), abilityId, displayName ?? "", tooltip ?? "", iconPath ?? "", isInstant);
-			}
-		}
+		GameContext.ClientRPC.RegisterAbility(playerIndex, abilityId, displayName, tooltip, iconPath, isInstant);
 	}
 
 	private void RegisterAbilityView(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
@@ -175,80 +165,7 @@ public partial class GameHost
 		GameContext.TechTreeService.AddPlayerTechLevel(playerIndex, techId, delta);
 	}
 
-	float IGameAPI.Gold
-	{
-		get
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity) &&
-			    GameContext.World.TryGet<PlayerResources>(_playerEntity, out var res) &&
-			    res.Value.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var val))
-				return val;
-			return _goldBackup;
-		}
-		set
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity))
-				GameContext.World.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
-				{
-					if (r.Value.ContainsKey(ECSContext.PlayerResourceService.GoldResourceId))
-						r.Value[ECSContext.PlayerResourceService.GoldResourceId] = (int)value;
-				});
-			else
-				_goldBackup = value;
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}
-	}
-
-	float IGameAPI.Wood
-	{
-		get
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity) &&
-			    GameContext.World.TryGet<PlayerResources>(_playerEntity, out var res) &&
-			    res.Value.TryGetValue(ECSContext.PlayerResourceService.WoodResourceId, out var val))
-				return val;
-			return _woodBackup;
-		}
-		set
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity))
-				GameContext.World.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
-				{
-					if (r.Value.ContainsKey(ECSContext.PlayerResourceService.WoodResourceId))
-						r.Value[ECSContext.PlayerResourceService.WoodResourceId] = (int)value;
-				});
-			else
-				_woodBackup = value;
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}
-	}
-
-	float IGameAPI.Stone
-	{
-		get
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity) &&
-			    GameContext.World.TryGet<PlayerResources>(_playerEntity, out var res) &&
-			    res.Value.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var val))
-				return val;
-			return _stoneBackup;
-		}
-		set
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity))
-				GameContext.World.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
-				{
-					if (r.Value.ContainsKey(ECSContext.PlayerResourceService.StoneResourceId))
-						r.Value[ECSContext.PlayerResourceService.StoneResourceId] = (int)value;
-				});
-			else
-				_stoneBackup = value;
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}
-	}
-
-
-	IUnit IGameAPI.SpawnUnit(string unitTypeId, Vector3 position, bool isEnemy, bool bypassPopulation, bool executeSpawnShader)
+	private IUnit SpawnUnitInternal(string unitTypeId, Vector3 position, int playerIndex, bool bypassPopulation, bool executeSpawnShader)
 	{
 		var pos = new Godot.Vector3(position.X, GetTerrainHeightAt(new Godot.Vector3(position.X, position.Y, position.Z)), position.Z);
 
@@ -256,17 +173,17 @@ public partial class GameHost
 		if (!UnitRegistry.TryGetValue(unitTypeId, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(unitTypeId, out meta)))
 			throw new ArgumentException($"Unit ID '{unitTypeId}' not found in registry.");
 
-		int ownerPeerId = isEnemy ? -1 : _localPeerId;
-		bool actualIsEnemy = isEnemy;
-		var playerOwner = (isEnemy ? _enemyPlayerEntity : _playerEntity).AsPlayerEntity(GameContext.World);
+		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		bool actualIsEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
+		var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
 
 		if (string.IsNullOrEmpty(meta.ModelPath)) throw new ArgumentException($"Unit ID '{unitTypeId}' has no assigned 3D model asset in registry.");
 		string modelPath = GameContext.UnitSpawnService.GetFallbackModelPath(meta.ModelPath, isBuilding);
 		string name = actualIsEnemy ? GameContext.UnitSpawnService.GetEnemyUnitName(unitTypeId, meta.Name) : meta.Name;
 
-		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, _playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade);
+		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, playerOwner.Value, HasShieldsUpgrade, HasWeaponsUpgrade);
 
-		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, actualIsEnemy, bypassPopulation, isEnemy ? -1 : LocalPlayerIndex, executeSpawnShader);
+		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, actualIsEnemy, bypassPopulation, playerIndex, executeSpawnShader);
 		return GameContext.SimulationService.GetUnitWrapper(entity);
 	}
 
@@ -319,62 +236,22 @@ public partial class GameHost
 
 	void IGameAPI.ShowFeedbackText(string text, Vector3 color)
 	{
-		if (InGameHUD.Instance != null)
-		{
-			var gColor = new Color(color.X, color.Y, color.Z);
-			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(text, gColor)).CallDeferred();
-		}
-
-		if (_multiplayerActive && IsServerActive())
-		{
-			Rpc(nameof(ClientShowFeedbackText), text, new Godot.Vector3(color.X, color.Y, color.Z));
-		}
+		GameContext.ClientRPC.BroadcastFeedbackText(text, color);
 	}
 
 	void IGameAPI.TriggerVictory()
 	{
-		GD.Print("[GameHost] Victory triggered by map script!");
-		GameContext.SimulationService.TriggerVictoryDomain();
-		Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
-		if (_multiplayerActive && IsServerActive())
-		{
-			Rpc(nameof(ClientGameOver), true);
-		}
+		GameContext.ClientRPC.BroadcastVictory();
 	}
 
 	void IGameAPI.TriggerDefeat()
 	{
-		GD.Print("[GameHost] Defeat triggered by map script!");
-		GameContext.SimulationService.TriggerDefeatDomain();
-		Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
-		if (_multiplayerActive && IsServerActive())
-		{
-			Rpc(nameof(ClientGameOver), false);
-		}
-	}
-
-	IUnit? IGameAPI.GetCastle(bool isEnemy)
-	{
-		foreach (var u in AllUnits)
-		{
-			if (GodotObject.IsInstanceValid(u) && u.UnitId == "castle" && u.IsEnemy == isEnemy && GameContext.World.IsAlive(u.Entity) && !GameContext.World.Has<Dead>(u.Entity))
-			{
-				return GameContext.SimulationService.GetUnitWrapper(u.Entity);
-			}
-		}
-
-		return null;
+		GameContext.ClientRPC.BroadcastDefeat();
 	}
 
 	void IGameAPI.SpawnTargetIndicator(Vector3 position, Vector3 color)
 	{
 		SpawnTargetIndicator(new Godot.Vector3(position.X, position.Y, position.Z), new Color(color.X, color.Y, color.Z));
-	}
-
-	int IGameAPI.MaxPopulation
-	{
-		get => MaxPopulation;
-		set => MaxPopulation = value;
 	}
 
 	IUnit? IGameAPI.GetUnitById(int uniqueId)
@@ -388,30 +265,6 @@ public partial class GameHost
 		}
 
 		return null;
-	}
-
-	IEnumerable<IUnit> IGameAPI.GetSelectedUnits()
-	{
-		var list = new List<IUnit>();
-		foreach (var u in SelectedUnits)
-		{
-			if (GodotObject.IsInstanceValid(u) && GameContext.World.IsAlive(u.Entity))
-			{
-				list.Add(GameContext.SimulationService.GetUnitWrapper(u.Entity));
-			}
-		}
-
-		return list;
-	}
-
-	void IGameAPI.PingMinimap(Vector3 position)
-	{
-		AddMinimapPing(new Godot.Vector3(position.X, position.Y, position.Z));
-	}
-
-	void IGameAPI.StartBuildingPlacement(string unitTypeId)
-	{
-		EnterBuildingPlacement(unitTypeId);
 	}
 
 	void IGameAPI.GenerateMapDirectory(string mapName, string? targetDirectory)
@@ -548,6 +401,15 @@ public partial class GameHost
 		}).CallDeferred();
 	}
 
+	void IGameAPI.DrawLineOnTerrain(System.Numerics.Vector2 start, System.Numerics.Vector2 end, Vector3? color, float duration, float width)
+	{
+		Callable.From(() =>
+		{
+			Color lineCol = color.HasValue ? new Color(color.Value.X, color.Value.Y, color.Value.Z) : Colors.White;
+			TerrainLine3D.Create(this, start, end, lineCol, duration, width);
+		}).CallDeferred();
+	}
+
 	void IGameAPI.SpawnExpandingBurstSphere(Vector3 position, float maxRadius, float speed, float duration, Vector3? color)
 	{
 		Callable.From(() =>
@@ -630,8 +492,10 @@ public partial class GameHost
 	int IGameAPI.CreateStaticText(string text, Vector3 position, Vector3 color, int fontSize)
 	{
 		int handle = _nextStaticTextHandle++;
+		int gen = _staticTextGeneration;
 		Callable.From(() =>
 		{
+			if (gen != _staticTextGeneration) return;
 			var label = new Label3D();
 			label.Text = text;
 			label.Modulate = new Color(color.X, color.Y, color.Z);
@@ -806,61 +670,9 @@ public partial class GameHost
 		GameContext.NetworkService?.StopCountdownTimerDomain(_multiplayerActive && IsServerActive(), () => Rpc(nameof(ClientStopCountdownTimer)));
 	}
 
-	private void ShakeCameraViewLogic(float intensity, float duration)
-	{
-		Callable.From(() =>
-		{
-			var camera = MainCamera;
-			if (camera == null) return;
-
-			var startPos = camera.Position;
-			var tween = CreateTween();
-			float stepDuration = duration / 20f;
-			for (int i = 0; i < 20; i++)
-			{
-				var offset = new Godot.Vector3(
-					(float)(GD.RandRange(-1.0, 1.0) * intensity * 0.1),
-					(float)(GD.RandRange(-1.0, 1.0) * intensity * 0.1),
-					(float)(GD.RandRange(-1.0, 1.0) * intensity * 0.1)
-				);
-				tween.TweenProperty(camera, "position", startPos + offset, stepDuration);
-			}
-
-			tween.TweenProperty(camera, "position", startPos, stepDuration);
-		}).CallDeferred();
-	}
-
 	void IGameAPI.ShakeCamera(float intensity, float duration)
 	{
-		// Re-routing to UI logic
-		ShakeCameraViewLogic(intensity, duration);
-	}
-
-	private void PanCameraToViewLogic(Vector3 position, float duration)
-	{
-		PanCameraInternal(new Godot.Vector3(position.X, position.Y, position.Z), duration);
-	}
-
-	void IGameAPI.PanCameraTo(Vector3 position, float duration)
-	{
-		// Re-routing to UI logic
-		PanCameraToViewLogic(position, duration);
-	}
-
-	void IGameAPI.PanCameraToForPlayer(int playerIndex, Vector3 position, float duration)
-	{
-		if (playerIndex == LocalPlayerIndex)
-		{
-			PanCameraToViewLogic(position, duration);
-		}
-		else if (_multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
-		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && p.PeerId > 1)
-			{
-				RpcId(p.PeerId, nameof(ClientPanCameraTo), new Godot.Vector3(position.X, position.Y, position.Z), duration);
-			}
-		}
+		GameContext.ClientRPC.BroadcastShakeCamera(intensity, duration);
 	}
 
 	private void SetTimeOfDayViewLogic(float normalizedTime)
@@ -994,6 +806,10 @@ public partial class GameHost
 		if (!TryGetUnit3D(wrapper.Entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
 
 		bool isBuilding = unit3D.IsBuilding;
+		if (!unit3D.IsEnemy && UnitRegistry.TryGetValue(unit3D.UnitId, out var destroyMeta) && destroyMeta.PopCost > 0)
+		{
+			CurrentPopulation = Math.Max(0, CurrentPopulation - destroyMeta.PopCost);
+		}
 		float radius = GameContext.World.Has<CollisionRadius>(wrapper.Entity) ? GameContext.World.Get<CollisionRadius>(wrapper.Entity).Value : 2.0f;
 		var unitPos = GameContext.World.Has<Position>(wrapper.Entity) ? GameContext.World.Get<Position>(wrapper.Entity).Value : new Vector3(unit3D.Position.X, unit3D.Position.Y, unit3D.Position.Z);
 
@@ -1077,6 +893,11 @@ public partial class GameHost
 		return GameContext.SimulationService.GetPlayerNameDomain(playerIndex);
 	}
 
+	string IGameAPI.GetPlayerColorHex(int playerIndex)
+	{
+		return PlayerColorConfig.GetColorHex(playerIndex);
+	}
+
 	bool IGameAPI.IsPlayerActive(int playerIndex)
 	{
 		return GameContext.SimulationService.IsPlayerActiveDomain(playerIndex);
@@ -1084,12 +905,12 @@ public partial class GameHost
 
 	float IGameAPI.GetPlayerGold(int playerIndex)
 	{
-		return GameContext.SimulationService.GetPlayerGoldDomain(playerIndex, ((IGameAPI)this).Gold);
+		return GameContext.SimulationService.GetPlayerGoldDomain(playerIndex);
 	}
 
 	void IGameAPI.SetPlayerGold(int playerIndex, float amount)
 	{
-		GameContext.SimulationService.SetPlayerGoldDomain(playerIndex, amount, v => ((IGameAPI)this).Gold = v, SyncPlayerResourceEcs);
+		GameContext.SimulationService.SetPlayerGoldDomain(playerIndex, amount, SyncPlayerResourceEcs);
 	}
 
 	void IGameAPI.AdjustPlayerGold(int playerIndex, float delta)
@@ -1099,21 +920,10 @@ public partial class GameHost
 		((IGameAPI)this).SetPlayerGold(playerIndex, newAmount);
 	}
 
-	IUnit IGameAPI.SpawnUnitForPlayer(string unitTypeId, Vector3 position, int playerIndex, bool executeSpawnShader)
+	IUnit IGameAPI.SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader, bool bypassPopulation)
 	{
-		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex);
-		var unit = ((IGameAPI)this).SpawnUnit(unitTypeId, position, isEnemy, false, executeSpawnShader);
-		unit.Player = playerIndex;
-		if (playerIndex > 0 && _multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
-		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && p.PeerId > 1)
-			{
-				RpcId(p.PeerId, nameof(ClientPanCameraTo), new Godot.Vector3(position.X, position.Y, position.Z), 0f);
-			}
-		}
-
-		return unit;
+		var position3D = new Vector3(position.X, 0f, position.Y);
+		return SpawnUnitInternal(unitTypeId, position3D, playerIndex, bypassPopulation, executeSpawnShader);
 	}
 
 	IEnumerable<IUnit> IGameAPI.GetUnitsOwnedByPlayer(int playerIndex)
@@ -1126,48 +936,22 @@ public partial class GameHost
 
 	void IGameAPI.TriggerPlayerDefeat(int playerIndex, string reason)
 	{
-		if (!_multiplayerActive && playerIndex == 0)
-		{
-			((IGameAPI)this).TriggerDefeat();
-		}
+		GameContext.ClientRPC.TriggerDefeat(playerIndex, reason);
 	}
 
 	void IGameAPI.TriggerPlayerVictory(int playerIndex)
 	{
-		if (playerIndex == 0) ((IGameAPI)this).TriggerVictory();
-	}
-
-	private void BroadcastMessageViewLogic(string message)
-	{
-		GD.Print($"[HOST BROADCAST] {message}");
-		((IGameAPI)this).ShowFeedbackText(message, new Vector3(0.9f, 0.9f, 0.9f));
+		GameContext.ClientRPC.TriggerVictory(playerIndex);
 	}
 
 	void IGameAPI.BroadcastMessage(string message)
 	{
-		BroadcastMessageViewLogic(message);
-		GameContext.NetworkService.BroadcastMessageDomainLogic(message, _multiplayerActive, IsServerActive());
+		GameContext.ClientRPC.BroadcastMessage(message);
 	}
 
 	void IGameAPI.SendMessageToPlayer(int playerIndex, string message)
 	{
-		string formatted = $"[HOST MESSAGE P{playerIndex}] {message}";
-		WasmRuntime.LogToConsole(formatted);
-		if (playerIndex == 0)
-		{
-			if (InGameHUD.Instance != null)
-			{
-				Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(message, new Color(0.9f, 0.9f, 0.9f))).CallDeferred();
-			}
-		}
-		else if (_multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
-		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && p.PeerId > 1)
-			{
-				RpcId(p.PeerId, nameof(ClientShowFeedbackText), message, new Godot.Vector3(0.9f, 0.9f, 0.9f));
-			}
-		}
+		GameContext.ClientRPC.SendMessage(playerIndex, message);
 	}
 
 	private event Action<int>? _onTimerExpired;
@@ -1226,10 +1010,78 @@ public partial class GameHost
 		return IsPlayerComputer(playerIndex);
 	}
 
+	bool IGameAPI.ArePlayersAllied(int playerIndex, int otherPlayerIndex)
+	{
+		return GameContext.SimulationService.ArePlayersAllied(playerIndex, otherPlayerIndex);
+	}
+
+	void IGameAPI.SetPlayerActive(int playerIndex, bool active)
+	{
+		GameContext.SimulationService.SetPlayerActiveDomain(playerIndex, active);
+	}
+
+	void IGameAPI.KickPlayer(int playerIndex, string reason)
+	{
+		if (playerIndex >= 0)
+		{
+			GameContext.SimulationService.SetPlayerActiveDomain(playerIndex, false);
+			if (LobbyManager.Instance != null)
+			{
+				var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+				if (p != null)
+				{
+					LobbyManager.Instance.BootPlayer(p.PeerId);
+				}
+			}
+			OnPlayerLeft?.Invoke(playerIndex);
+		}
+	}
+
+	bool IGameAPI.AddComputerPlayer(int playerIndex, string? name, int teamIndex)
+	{
+		if (playerIndex <= 0 || playerIndex >= 25) return false;
+		string botName = string.IsNullOrWhiteSpace(name) ? $"Bot {playerIndex}" : name;
+		int botTeam = teamIndex >= 0 ? teamIndex : playerIndex;
+		UpdateScriptPlayerState(playerIndex, botName, active: true, isComputer: true);
+		GameContext.SimulationService.SetPlayerTeam(playerIndex, botTeam);
+
+		if (LobbyManager.Instance != null)
+		{
+			var existing = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (existing == null)
+			{
+				var botPlayer = new PlayerInfo
+				{
+					PeerId = -(playerIndex + 100),
+					Slot = playerIndex,
+					Name = botName,
+					Color = PlayerColorConfig.GetColor(playerIndex),
+					Faction = "AI",
+					Team = $"Team {botTeam}",
+					IsHost = false
+				};
+				LobbyManager.Instance.PlayerList.Add(botPlayer);
+			}
+			else
+			{
+				existing.Name = botName;
+			}
+		}
+
+		return true;
+	}
+
 	public bool IsPlayerComputer(int playerIndex)
 	{
-		if (playerIndex == 0) return false;
-		if (_multiplayerActive && LobbyManager.Instance != null)
+		if (playerIndex == 0) return true;
+		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+		{
+			if (playerIndex >= 0 && playerIndex < playersState.Players.Length)
+			{
+				return playersState.Players[playerIndex].IsComputer;
+			}
+		}
+		if (LobbyManager.Instance != null)
 		{
 			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
 			if (p != null)
@@ -1238,7 +1090,7 @@ public partial class GameHost
 			}
 		}
 
-		return playerIndex == 1;
+		return false;
 	}
 
 	void IGameAPI.SetUnitColor(IUnit unit, Vector3 color)
@@ -1326,17 +1178,17 @@ public partial class GameHost
 
 	float IGameAPI.GetPlayerWood(int playerIndex)
 	{
-		return GameContext.ResourceEconomyService.GetPlayerWood(playerIndex, ((IGameAPI)this).Wood);
+		return GameContext.ResourceEconomyService.GetPlayerWood(playerIndex);
 	}
 
 	void IGameAPI.SetPlayerWood(int playerIndex, float amount)
 	{
-		GameContext.ResourceEconomyService.SetPlayerWood(playerIndex, amount, v => ((IGameAPI)this).Wood = v);
+		GameContext.ResourceEconomyService.SetPlayerWood(playerIndex, amount);
 	}
 
 	void IGameAPI.AdjustPlayerWood(int playerIndex, float delta)
 	{
-		GameContext.ResourceEconomyService.AdjustPlayerWood(playerIndex, delta, v => ((IGameAPI)this).Wood = v, ((IGameAPI)this).Wood);
+		GameContext.ResourceEconomyService.AdjustPlayerWood(playerIndex, delta);
 	}
 
 	void IGameAPI.SetUnitOwner(IUnit unit, int playerIndex)
@@ -1346,17 +1198,17 @@ public partial class GameHost
 
 	int IGameAPI.GetPlayerCurrentPopulation(int playerIndex)
 	{
-		return GameContext.ResourceEconomyService.GetPlayerCurrentPopulation(playerIndex, CurrentPopulation);
+		return GameContext.ResourceEconomyService.GetPlayerCurrentPopulation(playerIndex);
 	}
 
 	int IGameAPI.GetPlayerMaxPopulation(int playerIndex)
 	{
-		return GameContext.ResourceEconomyService.GetPlayerMaxPopulation(playerIndex, ((IGameAPI)this).MaxPopulation);
+		return GameContext.ResourceEconomyService.GetPlayerMaxPopulation(playerIndex);
 	}
 
 	void IGameAPI.SetPlayerMaxPopulation(int playerIndex, int max)
 	{
-		GameContext.ResourceEconomyService.SetPlayerMaxPopulation(playerIndex, max, v => ((IGameAPI)this).MaxPopulation = v);
+		GameContext.ResourceEconomyService.SetPlayerMaxPopulation(playerIndex, max);
 	}
 
 	void IGameAPI.SetCountdownTimerLabel(string label)
@@ -1428,48 +1280,69 @@ public partial class GameHost
 		GameContext.SimulationService.SetUnitSpellImmune(unit, immune);
 	}
 
-	void IGameAPI.SelectUnit(IUnit unit)
+	float IGameAPI.GetPlayerStone(int playerIndex)
 	{
-		Callable.From(() =>
-		{
-			if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
-			{
-				if (TryGetUnit3D(wrapper.Entity, out var unit3D))
-				{
-					if (GodotObject.IsInstanceValid(unit3D))
-					{
-						ClearSelection();
-						SelectUnit(unit3D);
-						InGameHUD.Instance?.RefreshUI(SelectedUnits);
-					}
-				}
-			}
-		}).CallDeferred();
+		return GameContext.ResourceEconomyService.GetPlayerStone(playerIndex);
 	}
 
-	void IGameAPI.SelectUnitForPlayer(int playerIndex, IUnit unit)
+	void IGameAPI.SetPlayerStone(int playerIndex, float amount)
 	{
-		if (playerIndex == LocalPlayerIndex)
-		{
-			((IGameAPI)this).SelectUnit(unit);
-		}
-		else if (_multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
-		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && p.PeerId > 1 && unit is IEcsEntityWrapper wrapper)
-			{
-				RpcId(p.PeerId, nameof(ClientSelectUnit), wrapper.Entity.Id);
-			}
-		}
+		GameContext.ResourceEconomyService.SetPlayerStone(playerIndex, amount);
 	}
 
-	void IGameAPI.ClearSelection()
+	void IGameAPI.AdjustPlayerStone(int playerIndex, float delta)
 	{
-		Callable.From(() =>
-		{
-			ClearSelection();
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}).CallDeferred();
+		GameContext.ResourceEconomyService.AdjustPlayerStone(playerIndex, delta);
+	}
+
+	void IGameAPI.PanPlayerCameraTo(int playerIndex, Vector3 position, float duration)
+	{
+		GameContext.ClientRPC.PanCameraTo(playerIndex, position, duration);
+	}
+
+	void IGameAPI.ShakePlayerCamera(int playerIndex, float intensity, float duration)
+	{
+		GameContext.ClientRPC.ShakeCamera(playerIndex, intensity, duration);
+	}
+
+	void IGameAPI.SelectPlayerUnit(int playerIndex, IUnit unit)
+	{
+		GameContext.ClientRPC.SelectUnit(playerIndex, unit);
+	}
+
+	void IGameAPI.ClearPlayerSelection(int playerIndex)
+	{
+		GameContext.ClientRPC.ClearSelection(playerIndex);
+	}
+
+	IEnumerable<IUnit> IGameAPI.GetPlayerSelectedUnits(int playerIndex)
+	{
+		return GameContext.ClientRPC.GetSelectedUnits(playerIndex);
+	}
+
+	void IGameAPI.ShowPlayerFeedbackText(int playerIndex, string text, Vector3 color)
+	{
+		GameContext.ClientRPC.ShowFeedbackText(playerIndex, text, color);
+	}
+
+	void IGameAPI.PingPlayerMinimap(int playerIndex, Vector3 position)
+	{
+		GameContext.ClientRPC.PingMinimap(playerIndex, position);
+	}
+
+	void IGameAPI.PlayPlayerWarningSound(int playerIndex)
+	{
+		GameContext.ClientRPC.PlayWarningSound(playerIndex);
+	}
+
+	void IGameAPI.PlayPlayerClickSound(int playerIndex)
+	{
+		GameContext.ClientRPC.PlayClickSound(playerIndex);
+	}
+
+	void IGameAPI.StartPlayerBuildingPlacement(int playerIndex, string unitTypeId)
+	{
+		GameContext.ClientRPC.StartBuildingPlacement(playerIndex, unitTypeId);
 	}
 
 	bool IGameAPI.HasCoordinate(string coordinateName)
@@ -1497,19 +1370,24 @@ public partial class GameHost
 		GameContext.RegistryService.AddUnitTypeAbility(unitTypeId, abilityId);
 	}
 
-	void IGameAPI.PlayWarningSound()
+	IReadOnlyList<string> IGameAPI.GetUnitTypeAbilities(string unitTypeId)
 	{
-		GameContext.AudioService.PlayWarningSound();
+		return GameContext.RegistryService.GetUnitTypeAbilities(unitTypeId);
 	}
 
-	void IGameAPI.PlayClickSound()
+	string IGameAPI.GetUnitName(string unitTypeId)
 	{
-		PlayClickSoundViewLogic();
+		return GameContext.RegistryService.GetUnitName(unitTypeId);
 	}
 
-	private void PlayClickSoundViewLogic()
+	string IGameAPI.GetAbilityName(string abilityId)
 	{
-		GameContext.AudioService.PlayClickSound();
+		return GameContext.RegistryService.GetAbilityName(abilityId);
+	}
+
+	void IGameAPI.EnableUnitAutoCombat(IUnit unit, bool enabled)
+	{
+		GameContext.SimulationService.EnableUnitAutoCombat(unit, enabled);
 	}
 
 	void IGameAPI.SetPlayerBotProfile(int playerIndex, string profileJson)

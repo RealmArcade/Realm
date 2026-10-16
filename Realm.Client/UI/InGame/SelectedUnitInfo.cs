@@ -25,6 +25,7 @@ public class SelectedUnitInfo
 	public List<string> Abilities { get; set; } = new();
 	public int Potions { get; set; }
 	public Dictionary<string, int> InventoryItems { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	public bool HasInventory { get; set; }
 
 	public bool HasProduction { get; set; }
 	public string ProductionTitle { get; set; }

@@ -244,6 +244,12 @@ namespace Realm.Client.UI
 				BtnInstanceManager.Pressed += () => _popupEditors.Hide();
 				editorsVBox.AddChild(BtnInstanceManager);
 
+				BtnUtilities = new Button();
+				BtnUtilities.Name = "BtnUtilities";
+				SetupOptionButton(BtnUtilities, $"{UnicodeIcons.WRENCH} UTILITIES", () => OpenUtilitiesDialog(), 13, "Open batch utilities and maintenance tools");
+				BtnUtilities.Pressed += () => _popupEditors.Hide();
+				editorsVBox.AddChild(BtnUtilities);
+
 				_btnEditors = GetNodeOrNull<Button>("TopLeftBox/BtnEditors") ?? GetNodeOrNull<Button>("TopLeftBox/BtnVSCode");
 				if (_btnEditors == null)
 				{
@@ -251,11 +257,11 @@ namespace Realm.Client.UI
 					_btnEditors.Name = "BtnEditors";
 				}
 
-				SetupButton(_btnEditors, $"EDITORS {UnicodeIcons.CHEVRON_DOWN}", () =>
+				SetupButton(_btnEditors, $"WINDOWS {UnicodeIcons.CHEVRON_DOWN}", () =>
 				{
 					var popupPosition = _btnEditors.GetScreenPosition() + new Vector2(0, _btnEditors.Size.Y);
 					_popupEditors.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
-				}, 13, "Open Map Editors & Managers menu");
+				}, 13, "Open Modules");
 				StyleMapEditorTopButton(_btnEditors);
 
 				_btnUndo = GetNode<Button>("TopLeftBox/BtnUndo");
@@ -302,11 +308,47 @@ namespace Realm.Client.UI
 				SetupButton(_btnTestMap, $"{UnicodeIcons.GAMEPAD} TEST", () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
 				StyleMapEditorTopButton(_btnTestMap);
 
+				_optTestSettings = new OptionButton();
+				_optTestSettings.Name = "OptTestSettings";
+				_optTestSettings.FitToLongestItem = false;
+				_optTestSettings.CustomMinimumSize = new Vector2(20, 0);
+				_optTestSettings.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+				_optTestSettings.Alignment = HorizontalAlignment.Center;
+				_optTestSettings.AddThemeIconOverride("arrow", new PlaceholderTexture2D { Size = Vector2.Zero });
+				_optTestSettings.AddThemeConstantOverride("arrow_margin", 0);
+				_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
+				var font = GetFontAwesomeFont();
+				if (font != null)
+				{
+					_optTestSettings.AddThemeFontOverride("font", font);
+				}
+				_optTestSettings.AddThemeFontSizeOverride("font_size", 11);
+				_optTestSettings.TooltipText = "Test Settings";
+				_optTestSettings.AddItem("Test Settings", 0);
+				_optTestSettings.Selected = -1;
+				_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
+				StyleOptionButtonPopup(_optTestSettings);
+				StyleCompactMapEditorTopButton(_optTestSettings, 4);
+				_optTestSettings.ItemSelected += (idx) =>
+				{
+					Callable.From(() =>
+					{
+						_optTestSettings.Selected = -1;
+						_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
+					}).CallDeferred();
+					OpenTestSettingsDialog();
+				};
+				if (_topLeftBox != null)
+				{
+					_topLeftBox.AddChild(_optTestSettings);
+				}
+
 				if (_topLeftBox != null)
 				{
 					if (_btnTestMap != null && _btnGameSettings != null)
 					{
 						_topLeftBox.MoveChild(_btnTestMap, _btnGameSettings.GetIndex() + 1);
+						_topLeftBox.MoveChild(_optTestSettings, _btnTestMap.GetIndex() + 1);
 					}
 
 					_btnResetLayout = new Button();
@@ -721,7 +763,7 @@ namespace Realm.Client.UI
 						{
 							GameHost.Instance.ClearMeasureVisuals();
 							ClearMeasureTelemetry();
-							TriggerToolSelection(GameContext.EditorService.SavedActiveTool != EditorTool.Measure ? GameContext.EditorService.SavedActiveTool : EditorTool.Raise, null);
+							TriggerToolSelection(GameContext.SessionState.SavedActiveTool != EditorTool.Measure ? GameContext.SessionState.SavedActiveTool : EditorTool.Raise, null);
 						}
 						else
 						{
@@ -897,7 +939,8 @@ namespace Realm.Client.UI
 						_txtCoordinateName.Text = "";
 					}
 				};
-				_coordinateListVBox = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/CoordinateListVBox");
+				_btnViewCoordinates = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnViewCoordinates");
+				SetupOptionButton(_btnViewCoordinates, $"{UnicodeIcons.LIST} View Existing Coordinates", () => OpenInstanceManagerDialog("Coordinates"), 11, "Open instance manager to view and locate existing defined coordinates");
 
 				_btnCopy = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnCopy");
 				_cardCopy = CreateToolCardView(_btnCopy, UnicodeIcons.COPY, "Copy", () => GameHost.Instance?.PerformCopyAreaExternal(), "Copy selected area to clipboard (Ctrl+C)");
@@ -1552,23 +1595,23 @@ namespace Realm.Client.UI
 					}
 				}
 
-				if (GameContext.EditorService.ReturningFromTest)
+				if (GameContext.SessionState.ReturningFromTest)
 				{
-					_sldBrushSize.Value = GameContext.EditorService.SavedBrushRadius;
-					_sldBrushStrength.Value = GameContext.EditorService.SavedBrushStrength;
+					_sldBrushSize.Value = GameContext.SessionState.SavedBrushRadius;
+					_sldBrushStrength.Value = GameContext.SessionState.SavedBrushStrength;
 
-					if (GameContext.EditorService.SavedActiveTool == EditorTool.PlaceUnit ||
-					    GameContext.EditorService.SavedActiveTool == EditorTool.PlaceProp ||
-					    GameContext.EditorService.SavedActiveTool == EditorTool.PlaceDecal)
+					if (GameContext.SessionState.SavedActiveTool == EditorTool.PlaceUnit ||
+					    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceProp ||
+					    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceDecal)
 					{
-						_entityPaletteController?.SelectCategoryItemExternal(GameContext.EditorService.SavedEntityCategory, GameContext.EditorService.SavedActivePlaceId);
+						_entityPaletteController?.SelectCategoryItemExternal(GameContext.SessionState.SavedEntityCategory, GameContext.SessionState.SavedActivePlaceId);
 					}
 					else
 					{
-						Button toolBtn = GetButtonForTool(GameContext.EditorService.SavedActiveTool, GameContext.EditorService.SavedActivePlaceId);
+						Button toolBtn = GetButtonForTool(GameContext.SessionState.SavedActiveTool, GameContext.SessionState.SavedActivePlaceId);
 						if (toolBtn != null)
 						{
-							TriggerToolSelection(GameContext.EditorService.SavedActiveTool, toolBtn, GameContext.EditorService.SavedActivePlaceId);
+							TriggerToolSelection(GameContext.SessionState.SavedActiveTool, toolBtn, GameContext.SessionState.SavedActivePlaceId);
 						}
 						else
 						{
@@ -1576,7 +1619,7 @@ namespace Realm.Client.UI
 						}
 					}
 
-					GameContext.EditorService.ReturningFromTest = false;
+					GameContext.SessionState.ReturningFromTest = false;
 				}
 				else
 				{
@@ -2297,6 +2340,67 @@ namespace Realm.Client.UI
 			};
 		}
 
+		private void ShowCorruptMapFileErrorDialog(string selectedFolder, string fileName, string errorMsg)
+		{
+			var popup = new Panel();
+			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+			AddChild(popup);
+
+			var cardPanel = new Panel();
+			cardPanel.CustomMinimumSize = new Vector2(540, 260);
+			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
+			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+			popup.AddChild(cardPanel);
+
+			var vbox = new VBoxContainer();
+			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+			vbox.CustomMinimumSize = new Vector2(500, 230);
+			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
+			cardPanel.AddChild(vbox);
+
+			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+
+			var titleLabel = new Label();
+			UIStyle.ApplyTitle(titleLabel, Tr("CORRUPT MAP FILE"), 20);
+			titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
+			vbox.AddChild(titleLabel);
+
+			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
+
+			var descLabel = new Label();
+			descLabel.Text = $"{string.Format(Tr("Folder: {0}"), Path.GetFileName(selectedFolder))}\n\n{string.Format(Tr("The map file '{0}' is corrupt or contains invalid JSON syntax and failed to parse."), fileName)}\n{string.Format(Tr("Error: {0}"), errorMsg)}";
+			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+			descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			descLabel.AddThemeFontSizeOverride("font_size", 13);
+			descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+			vbox.AddChild(descLabel);
+
+			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
+
+			var buttonRow = new HBoxContainer();
+			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
+			vbox.AddChild(buttonRow);
+
+			var closeBtn = new Button();
+			closeBtn.Flat = false;
+			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
+			closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+			closeBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+			closeBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+			closeBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyButtonText(closeBtn, Tr("CLOSE"), 14);
+			closeBtn.CustomMinimumSize = new Vector2(120, 38);
+			buttonRow.AddChild(closeBtn);
+
+			closeBtn.Pressed += () =>
+			{
+				UIManager.Instance?.PlayClickSound();
+				popup.QueueFree();
+			};
+		}
+
 		private void InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn)
 		{
 			popup = new Panel();
@@ -2640,20 +2744,48 @@ namespace Realm.Client.UI
 				File.WriteAllText(manifestJsonPath, manifestJsonContent);
 				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
-				var hashToRelativePath = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-				foreach (var pair in manifest.Files)
-				{
-					string norm = ContentAddressableStorage.NormalizeBlake3Hash(pair.Value);
-					hashToRelativePath[norm] = pair.Key;
-					hashToRelativePath[pair.Value] = pair.Key;
-				}
-
 				byte[] manifestBytes = Encoding.UTF8.GetBytes(manifestJsonContent);
 				string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
 				string manifestHash = $"{manifestBlake3}.json";
 				byte[] manifestHashBytes = Encoding.UTF8.GetBytes(manifestHash);
 				byte[] manifestSigBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, manifestHashBytes);
 				string manifestSigBase64 = Convert.ToBase64String(manifestSigBytes);
+
+				MapAssetManager.Storage.StoreAsset(manifestBytes, ".json", null, pubKeyBase64, manifestSigBase64, precomputedBlake3: manifestBlake3);
+
+				var hashToRelativePath = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+				foreach (var pair in manifest.Files)
+				{
+					string norm = ContentAddressableStorage.NormalizeBlake3Hash(pair.Value);
+					hashToRelativePath[norm] = pair.Key;
+					hashToRelativePath[pair.Value] = pair.Key;
+
+					string localPath = Path.Combine(workspace, pair.Key);
+					if (File.Exists(localPath))
+					{
+						byte[] fileBytes = File.ReadAllBytes(localPath);
+						string ext = Path.GetExtension(localPath).ToLowerInvariant();
+						MapAssetManager.Storage.StoreAsset(fileBytes, ext, null, pubKeyBase64, null, precomputedBlake3: norm);
+					}
+				}
+
+				hashToRelativePath[manifestBlake3] = "manifest.json";
+				hashToRelativePath[manifestHash] = "manifest.json";
+				hashToRelativePath["manifest.json"] = "manifest.json";
+
+				if (File.Exists(activeConfigPath))
+				{
+					byte[] metaBytes = File.ReadAllBytes(activeConfigPath);
+					string metaBlake3 = RealmMetadataHelper.ComputeBlake3(metaBytes, ".json");
+					string metaNorm = ContentAddressableStorage.NormalizeBlake3Hash(metaBlake3);
+					string metaAssetKey = $"{metaBlake3}.json";
+
+					hashToRelativePath[metaBlake3] = "metadata.json";
+					hashToRelativePath[metaNorm] = "metadata.json";
+					hashToRelativePath[metaAssetKey] = "metadata.json";
+					hashToRelativePath["metadata.json"] = "metadata.json";
+					MapAssetManager.Storage.StoreAsset(metaBytes, ".json", null, pubKeyBase64, null, precomputedBlake3: metaNorm);
+				}
 
 				var distClient = new DistributionClient(seedServerUrl);
 
@@ -4457,6 +4589,8 @@ namespace Realm.Client.UI
 			_waterProfileDialog = new WaterProfileDialog(this);
 			_environmentConfigDialog = new EnvironmentConfigDialog(this);
 			_replaceTextureDialog = new ReplaceTextureDialog(this);
+			_utilitiesDialog = new UtilitiesDialog(this);
+			_testSettingsDialog = new TestSettingsDialog(this);
 			RefreshWaterSwatches();
 			ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings);
 
@@ -4740,6 +4874,23 @@ namespace Realm.Client.UI
 		public void OpenEditorSettingsDialog()
 		{
 			_editorSettingsDialog?.OpenDialog();
+		}
+
+		public void OpenUtilitiesDialog()
+		{
+			if (_utilitiesDialog == null)
+			{
+				_utilitiesDialog = new UtilitiesDialog(this);
+			}
+
+			_utilitiesDialog.OpenDialog();
+		}
+
+		public void RefreshAllInspectors()
+		{
+			_templateManagerDialog?.RefreshObjectList();
+			_templateManagerDialog?.ReloadCurrentPreview();
+			_assetManagerDialog?.RefreshAssetListAndSelect("");
 		}
 
 		private void RefreshSkyboxList()

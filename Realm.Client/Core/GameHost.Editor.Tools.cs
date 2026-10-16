@@ -774,14 +774,14 @@ namespace Realm.Client.Core
 
 		public Prop3D SpawnPropExternal(string propId, Vector3 position)
 		{
-			float rotY = GameContext.EditorService.IsMapEditorMode ? GameContext.EditorService.EditorPlacementRotation : 0f;
-			float scale = GameContext.EditorService.IsMapEditorMode ? EditorPlacementScale : 1f;
+			float rotY = GameContext.SessionState.IsMapEditorMode ? GameContext.EditorService.EditorPlacementRotation : 0f;
+			float scale = GameContext.SessionState.IsMapEditorMode ? EditorPlacementScale : 1f;
 			return SpawnPropExternalWithParams(propId, position, rotY, scale);
 		}
 
 		private Decal3D FindDecal3DInParentChain(Node node)
 		{
-			if (!GameContext.EditorService.IsMapEditorMode) return null;
+			if (!GameContext.SessionState.IsMapEditorMode) return null;
 			Node current = node;
 			while (current != null && current != this)
 			{
@@ -2208,7 +2208,7 @@ namespace Realm.Client.Core
 		public void StartMapEditorMode()
 		{
 			ReplayPlaybackManager.Instance.StopReplay();
-			GameContext.EditorService.IsMapEditorMode = true;
+			GameContext.SessionState.IsMapEditorMode = true;
 
 			string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 			try
@@ -2224,7 +2224,7 @@ namespace Realm.Client.Core
 			ActiveEditorTool = EditorTool.None;
 			EditorHistoryManager.Clear();
 
-			if (GameContext.EditorService.ReturningFromTest)
+			if (GameContext.SessionState.ReturningFromTest)
 			{
 				RestoreMapEditorStateFromTest();
 			}
@@ -2259,27 +2259,26 @@ namespace Realm.Client.Core
 			{
 				LoadMapFromFile(GameContext.EditorService.TempWorkspaceGodotPath + "/terrain.json");
 
-				GameContext.EditorService.EditorGridMode = GameContext.EditorService.SavedGridMode;
-				GameContext.EditorService.EditorCameraBoundsVisible = GameContext.EditorService.SavedCameraBoundsVisible;
-				bool val = GameContext.EditorService.SavedDisableShadows;
-				GameContext.EditorService.EditorDisableShadows = val;
+				GameContext.EditorService.EditorGridMode = GameContext.SessionState.SavedGridMode;
+				GameContext.EditorService.EditorCameraBoundsVisible = GameContext.SessionState.SavedCameraBoundsVisible;
+				GameContext.EditorService.EditorDisableShadows = GameContext.SessionState.SavedDisableShadows;
 
 				var camera = MainCamera;
 				if (camera != null)
 				{
-					camera.Position = GameContext.EditorService.SavedCameraPosition;
+					camera.Position = GameContext.SessionState.SavedCameraPosition;
 					if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
 					{
 						ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
-						state.TargetHeight = GameContext.EditorService.SavedTargetHeight;
-						state.CurrentHeight = GameContext.EditorService.SavedTargetHeight;
-						state.TargetYaw = GameContext.EditorService.SavedTargetYaw;
-						state.CurrentYaw = GameContext.EditorService.SavedTargetYaw;
-						state.TargetPitch = GameContext.EditorService.SavedTargetPitch;
-						state.CurrentPitch = GameContext.EditorService.SavedTargetPitch;
-						state.IsTopDown = GameContext.EditorService.SavedIsTopDown;
-						state.YawSwing = GameContext.EditorService.SavedYawSwing;
-						state.PitchSwing = GameContext.EditorService.SavedPitchSwing;
+						state.TargetHeight = GameContext.SessionState.SavedTargetHeight;
+						state.CurrentHeight = GameContext.SessionState.SavedTargetHeight;
+						state.TargetYaw = GameContext.SessionState.SavedTargetYaw;
+						state.CurrentYaw = GameContext.SessionState.SavedTargetYaw;
+						state.TargetPitch = GameContext.SessionState.SavedTargetPitch;
+						state.CurrentPitch = GameContext.SessionState.SavedTargetPitch;
+						state.IsTopDown = GameContext.SessionState.SavedIsTopDown;
+						state.YawSwing = GameContext.SessionState.SavedYawSwing;
+						state.PitchSwing = GameContext.SessionState.SavedPitchSwing;
 					}
 				}
 			}
@@ -2293,7 +2292,7 @@ namespace Realm.Client.Core
 
 		public void ExitMapEditorMode()
 		{
-			GameContext.EditorService.IsMapEditorMode = false;
+			GameContext.SessionState.IsMapEditorMode = false;
 			ActiveEditorTool = EditorTool.None;
 			EditorHistoryManager.Clear();
 			ClearEditorPreview();
@@ -2441,7 +2440,7 @@ namespace Realm.Client.Core
 
 		public void UpdateSymmetryPivotVisuals()
 		{
-			if (!GameContext.EditorService.IsMapEditorMode || GroundTerrain == null)
+			if (!GameContext.SessionState.IsMapEditorMode || GroundTerrain == null)
 			{
 				if (_symmetryPivotMarkerMesh != null) _symmetryPivotMarkerMesh.Visible = false;
 				return;
@@ -2732,7 +2731,7 @@ namespace Realm.Client.Core
 				HideCoordinatePreviewMesh();
 			}
 
-			if (!GameContext.EditorService.IsMapEditorMode || ActiveEditorTool != EditorTool.DrawCoordinate)
+			if (!GameContext.SessionState.IsMapEditorMode || ActiveEditorTool != EditorTool.DrawCoordinate)
 			{
 				return;
 			}

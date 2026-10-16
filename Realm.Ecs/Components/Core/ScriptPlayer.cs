@@ -7,7 +7,10 @@ public struct ScriptPlayer
 {
 	public float Gold;
 	public float Wood;
+	public float Stone;
 	public bool Active;
+	public bool IsComputer;
+	public int Team;
 	public string Name;
 	public int KillCount;
 }

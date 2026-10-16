@@ -469,7 +469,10 @@
         "Healing": 0,
         "SummonedUnitId": null,
         "SummonCount": 0,
-        "SummonDuration": 0
+        "SummonDuration": 0,
+        "GridX": -1,
+        "GridY": -1,
+        "Hotkey": null
       },
       {
         "TemplateID": "ability/holylight",
@@ -488,7 +491,10 @@
         "Healing": 60,
         "SummonedUnitId": null,
         "SummonCount": 0,
-        "SummonDuration": 0
+        "SummonDuration": 0,
+        "GridX": -1,
+        "GridY": -1,
+        "Hotkey": null
       },
       {
         "TemplateID": "ability/lightning",
@@ -507,7 +513,10 @@
         "Healing": 0,
         "SummonedUnitId": null,
         "SummonCount": 0,
-        "SummonDuration": 0
+        "SummonDuration": 0,
+        "GridX": -1,
+        "GridY": -1,
+        "Hotkey": null
       }
     ],
     "Weapons": [],

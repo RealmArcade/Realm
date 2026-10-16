@@ -9,6 +9,8 @@ namespace Realm.Client.Services
 {
 	public static class GameContext
 	{
+		public static SessionState SessionState { get; } = new();
+		
 		public static World World => ECSContext.World;
 		public static Entity WorldEntity
 		{
@@ -57,6 +59,7 @@ namespace Realm.Client.Services
 		public static NavMeshPathfinder NavMeshPathfinder { get; private set; }
 		public static ResourceEconomyService ResourceEconomyService { get; private set; }
 		public static SimulationService SimulationService { get; private set; }
+		public static ClientRpcService ClientRPC { get; private set; }
 
 		public static IEditorAPI IEditorAPI { get; private set; }
 
@@ -105,6 +108,7 @@ namespace Realm.Client.Services
 			NavMeshPathfinder = new();
 			SimulationService = new();
 			InputService = new();
+			ClientRPC = new();
 
 			IEditorAPI = EditorService;
 		}
@@ -118,6 +122,7 @@ namespace Realm.Client.Services
 			ModelOverrideService?.ClearAll();
 			RegistryService?.ClearAll();
 			MapScriptService?.ClearAll();
+			Core.GameHost.Instance?.ClearStaticText();
 
 			AudioService = null;
 			FXService = null;
@@ -150,6 +155,7 @@ namespace Realm.Client.Services
 			NavMeshPathfinder = null;
 			SimulationService = null;
 			InputService = null;
+			ClientRPC = null;
 			IEditorAPI = null;
 
 			ECSContext.DisposeAndRecreateServices();

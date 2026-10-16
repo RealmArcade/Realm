@@ -60,7 +60,7 @@ public static class ModelConverter
 			return assetType;
 		}
 
-		string? existingType = metaObj["asset_type"]?.ToString() ?? metaObj["default_asset_type"]?.ToString() ?? metaObj["type"]?.ToString();
+		string? existingType = metaObj["asset_type"]?.ToString();
 		if (!string.IsNullOrEmpty(existingType))
 		{
 			if (RealmMetadataHelper.IsValidAssetTypeForExtension(".rmesh", existingType, out string canonicalMeta, out _))

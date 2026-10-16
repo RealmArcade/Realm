@@ -1205,6 +1205,24 @@ app.MapPost("/api/publish_map/initiate", (PublishMapInitiateRequest req, DataSto
 			}
 		}
 
+		try
+		{
+			var manifestObj = MapManifest.LoadFromJson(jsonToProcess);
+			if (manifestObj?.Files != null)
+			{
+				foreach (var val in manifestObj.Files.Values)
+				{
+					if (!string.IsNullOrWhiteSpace(val))
+					{
+						referencedHashes.Add(ContentAddressableStorage.NormalizeBlake3Hash(val));
+					}
+				}
+			}
+		}
+		catch
+		{
+		}
+
 		if (root.TryGetProperty("Files", out var filesProp) && filesProp.ValueKind == JsonValueKind.Object)
 		{
 			foreach (var prop in filesProp.EnumerateObject())
@@ -1309,8 +1327,35 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
 		}
 
 		var mapDoc = JsonDocument.Parse(manifestJson);
-		var missingHashes = new List<string>();
+		var allManifestHashes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		foreach (var hash in referencedHashes)
+		{
+			if (!string.IsNullOrWhiteSpace(hash))
+			{
+				allManifestHashes.Add(ContentAddressableStorage.NormalizeBlake3Hash(hash));
+			}
+		}
+
+		try
+		{
+			var manifestObj = MapManifest.LoadFromJson(manifestJson);
+			if (manifestObj?.Files != null)
+			{
+				foreach (var val in manifestObj.Files.Values)
+				{
+					if (!string.IsNullOrWhiteSpace(val))
+					{
+						allManifestHashes.Add(ContentAddressableStorage.NormalizeBlake3Hash(val));
+					}
+				}
+			}
+		}
+		catch
+		{
+		}
+
+		var missingHashes = new List<string>();
+		foreach (var hash in allManifestHashes)
 		{
 			if (!cas.HasAsset(hash))
 			{
@@ -1358,6 +1403,10 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
 		File.WriteAllText(manifestPath, manifestJson);
 		string defaultManifestPath = Path.Combine(manifestDir, $"{mapTitle}_manifest.json");
 		File.WriteAllText(defaultManifestPath, manifestJson);
+
+		byte[] manifestBytes = Encoding.UTF8.GetBytes(manifestJson);
+		string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
+		cas.StoreAsset(manifestBytes, ".json", null, publicKey, signature, precomputedBlake3: manifestBlake3);
 
 		db.Upsert("published_maps", compositeKey, mapDoc);
 
@@ -1542,6 +1591,10 @@ app.MapPost("/api/publish_map", (PublishMapRequest req, DataStoreService db, Con
 		File.WriteAllText(manifestPath, jsonToProcess);
 		string defaultManifestPath = Path.Combine(manifestDir, $"{mapTitle}_manifest.json");
 		File.WriteAllText(defaultManifestPath, jsonToProcess);
+
+		byte[] manifestBytes = Encoding.UTF8.GetBytes(jsonToProcess);
+		string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
+		cas.StoreAsset(manifestBytes, ".json", null, req.PublicKey, req.Signature, precomputedBlake3: manifestBlake3);
 
 		db.Upsert("published_maps", compositeKey, mapDoc);
 
@@ -2407,12 +2460,33 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 			var screenshotHashes = new List<string>();
 			string? metadataFileHash = null;
 
+			Dictionary<string, string>? manifestFiles = null;
 			if (root.TryGetProperty("Files", out var filesProp) && filesProp.ValueKind == JsonValueKind.Object)
 			{
+				manifestFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 				foreach (var fileProp in filesProp.EnumerateObject())
 				{
-					string path = fileProp.Name;
-					string rawHash = fileProp.Value.GetString() ?? "";
+					manifestFiles[fileProp.Name] = fileProp.Value.GetString() ?? "";
+				}
+			}
+			else
+			{
+				try
+				{
+					var manifestObj = MapManifest.LoadFromJson(doc.RootElement.GetRawText());
+					manifestFiles = manifestObj?.Files;
+				}
+				catch
+				{
+				}
+			}
+
+			if (manifestFiles != null)
+			{
+				foreach (var fileProp in manifestFiles)
+				{
+					string path = fileProp.Key;
+					string rawHash = fileProp.Value;
 					string norm = ContentAddressableStorage.NormalizeBlake3Hash(rawHash);
 
 					if (path.Equals("metadata.json", StringComparison.OrdinalIgnoreCase) ||

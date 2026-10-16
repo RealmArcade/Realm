@@ -76,7 +76,7 @@ function Patch-ProductJson {
             $changed = $true
         }
 
-        $workspaceExts = @("google.google-antigravity", "muhammad-sammy.csharp", "patcx.vscode-nuget-gallery", "speige.realm-map-editor")
+        $workspaceExts = @("google.google-antigravity", "muhammad-sammy.csharp", "patcx.vscode-nuget-gallery", "speige.realm-map-editor", "vadimcn.vscode-lldb")
         foreach ($ext in $workspaceExts) {
             if (-not $pj.extensionKind.$ext) {
                 $pj.extensionKind | Add-Member -MemberType NoteProperty -Name $ext -Value @("workspace") -Force
@@ -393,7 +393,8 @@ $requiredExtensions = @(
     "Gruntfuggly.todo-tree",
 	# "mechatroner.rainbow-json",
     "patcx.vscode-nuget-gallery",
-    "AykutSarac.jsoncrack-vscode"
+    "AykutSarac.jsoncrack-vscode",
+    "vadimcn.vscode-lldb"
 	# "akondratiuk1-dev.texture-viewer"
 )
 

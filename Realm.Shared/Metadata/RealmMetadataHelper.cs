@@ -1,7 +1,8 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Blake3;
+using Realm.EditorAPI;
 using Realm.Shared.Animation;
 using Realm.Shared.Audio;
 using Realm.Shared.ModelOptimization;
@@ -156,67 +157,35 @@ public static class RealmMetadataHelper
 
 	private static readonly Dictionary<string, ReadOnlySet<string>> ValidAssetTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
 	{
-		[".rtex"] = (new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "vfx_radial", "vfx_vertical" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
-		[".rmesh"] = (new[] { "Character", "Building", "Prop", "Item" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
-		[".ranim"] = (new[] { "Animation" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
-		[".raud"] = (new[] { "Music", "SoundEffect" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly(),
-		[".gdshader"] = (new[] { "Shader" }).Select(NormalizeAssetType).ToHashSet<string>(StringComparer.InvariantCulture).AsReadOnly()
+		[".rtex"] = (new[] { "Decal", "Icon", "Noise", "Ribbon", "Skybox", "Spritesheet", "Terrain", "VfxRadial", "VfxVertical" }).ToHashSet(StringComparer.OrdinalIgnoreCase).AsReadOnly(),
+		[".rmesh"] = (new[] { "Character", "Building", "Prop", "Item" }).ToHashSet(StringComparer.OrdinalIgnoreCase).AsReadOnly(),
+		[".ranim"] = (new[] { "Animation" }).ToHashSet(StringComparer.OrdinalIgnoreCase).AsReadOnly(),
+		[".raud"] = (new[] { "Music", "SoundEffect" }).ToHashSet(StringComparer.OrdinalIgnoreCase).AsReadOnly(),
+		[".gdshader"] = (new[] { "Shader" }).ToHashSet(StringComparer.OrdinalIgnoreCase).AsReadOnly()
 	};
 
 	private static ReadOnlySet<string> ValidAssetTypes = ValidAssetTypesByExtension.Values.SelectMany(x => x).ToHashSet(StringComparer.OrdinalIgnoreCase).AsReadOnly();
 
-	public static string NormalizeAssetType(string? assetType)
+	public static AssetType? NormalizeAssetType(string? assetType)
 	{
-		return (assetType ?? "").Trim().ToLowerInvariant().Replace("_", "");
+		if (string.IsNullOrWhiteSpace(assetType)) return null;
+		return AssetTypeExtensions.TryParse(assetType, out var parsed) ? parsed : null;
+	}
+
+	public static AssetType? NormalizeAssetType(AssetType? assetType)
+	{
+		return assetType;
 	}
 
 	public static string GetCanonicalType(string? assetType)
 	{
-		var result = NormalizeAssetType(assetType);
-
-		if (TryStripSuffix(result, out var strippedType))
+		var norm = NormalizeAssetType(assetType);
+		if (norm.HasValue)
 		{
-			return strippedType;
+			return norm.Value.ToCanonicalString();
 		}
 
-		result = MapLegacyAssetType(result);
-
-		if (!ValidAssetTypes.Contains(result))
-		{
-			return "";
-		}
-
-		return NormalizeAssetType(result);
-	}
-
-	private static bool TryStripSuffix(string result, out string strippedType)
-	{
-		strippedType = "";
-		if (!result.EndsWith("s")) return false;
-
-		var withoutSuffix = result.Substring(0, result.Length - 1);
-		if (ValidAssetTypes.Any(x => x.Contains(withoutSuffix)))
-		{
-			strippedType = withoutSuffix;
-			return true;
-		}
-
-		return false;
-	}
-
-	private static string MapLegacyAssetType(string type)
-	{
-		return type switch
-		{
-			"units" => "character",
-			"attachments" => "item",
-			"projectiles" => "item",
-			"noisetextures" => "noise",
-			"sfx" => "soundeffect",
-			"skyboxes" => "skybox",
-			"textures" => "terrain",
-			_ => type
-		};
+		return "";
 	}
 
 	public static string GetExtension(string extensionOrPath)
@@ -242,19 +211,35 @@ public static class RealmMetadataHelper
 		return GetValidAssetTypesForExtension(extension).FirstOrDefault() ?? "";
 	}
 
-	public static bool IsValidAssetTypeForExtension(string extensionOrPath, string? assetType, out string canonicalType, out ReadOnlySet<string> validTypes)
+	public static bool IsValidAssetTypeForExtension(string extensionOrPath, AssetType assetType, out ReadOnlySet<string> validTypes)
 	{
-		canonicalType = GetCanonicalType(assetType);
-
 		string ext = GetExtension(extensionOrPath);
 		validTypes = GetValidAssetTypesForExtension(ext);
 
-		if (!validTypes.Contains(canonicalType))
+		foreach (var valid in validTypes)
+		{
+			if (NormalizeAssetType(valid) == assetType)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public static bool IsValidAssetTypeForExtension(string extensionOrPath, string? assetType, out string canonicalType, out ReadOnlySet<string> validTypes)
+	{
+		var norm = NormalizeAssetType(assetType);
+		string ext = GetExtension(extensionOrPath);
+		validTypes = GetValidAssetTypesForExtension(ext);
+
+		if (!norm.HasValue || !IsValidAssetTypeForExtension(extensionOrPath, norm.Value, out _))
 		{
 			canonicalType = GetDefaultAssetTypeForExtension(ext);
 			return false;
 		}
 
+		canonicalType = norm.Value.ToCanonicalString();
 		return true;
 	}
 
@@ -288,9 +273,7 @@ public static class RealmMetadataHelper
 
 	private static string? GetAssetTypeFromObject(JsonObject obj)
 	{
-		return obj["asset_type"]?.ToString()
-		       ?? obj["AssetType"]?.ToString()
-		       ?? obj["default_asset_type"]?.ToString();
+		return obj["asset_type"]?.ToString();
 	}
 
 	public static bool SetAssetType(string filePath, string assetType)

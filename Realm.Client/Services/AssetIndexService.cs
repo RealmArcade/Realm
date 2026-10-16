@@ -9,6 +9,7 @@ using Godot;
 using LiteDB;
 using Realm.Client.Network;
 using Realm.Client.UI.MapEditor;
+using Realm.EditorAPI;
 using Realm.Shared;
 using Realm.Shared.Distribution;
 using Environment = System.Environment;
@@ -39,18 +40,10 @@ public class AssetIndexService : IDisposable
 
 	private static string GetUserDirectory()
 	{
-		if (MapAssetManager.IsGodotEngineRunning)
-		{
-			return ProjectSettings.GlobalizePath("user://");
-		}
-		else
-		{
-			string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-			return Path.Combine(appData, "Godot", "app_userdata", "Realm");
-		}
+		return ProjectSettings.GlobalizePath("user://");
 	}
 
-	private static string GetCacheFilePath()
+	public static string GetCacheFilePath()
 	{
 		string userDirectory = GetUserDirectory();
 		if (!Directory.Exists(userDirectory))
@@ -197,17 +190,16 @@ public class AssetIndexService : IDisposable
 	{
 		var categories = _assetCollection.Find(Query.Not("AssetType", BsonValue.Null))
 			.Select(a => a.AssetType)
-			.Where(t => !string.IsNullOrEmpty(t))
-			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.Where(t => t.HasValue)
+			.Select(t => t!.Value)
+			.Distinct()
 			.ToList();
 
 		if (categories.Count == 0) return false;
 
 		foreach (var category in categories)
 		{
-			if (string.IsNullOrEmpty(category)) continue;
-
-			var matchingAssets = _assetCollection.Find(Query.EQ("AssetType", category)).ToList();
+			var matchingAssets = _assetCollection.Find(x => x.AssetType == category).ToList();
 			if (matchingAssets.Count == 0) continue;
 
 			var sampledAsset = matchingAssets[Random.Shared.Next(matchingAssets.Count)];
@@ -240,18 +232,19 @@ public class AssetIndexService : IDisposable
 
 	private bool IsAssetTypeIncorrect(IndexedAsset sampledAsset)
 	{
-		string? diskAssetType = RealmMetadataHelper.ExtractAssetType(sampledAsset.FilePath);
-		if (!string.IsNullOrEmpty(diskAssetType))
+		string? diskAssetTypeStr = RealmMetadataHelper.ExtractAssetType(sampledAsset.FilePath);
+		AssetType? diskAssetType = RealmMetadataHelper.NormalizeAssetType(diskAssetTypeStr);
+		if (diskAssetType.HasValue)
 		{
-			return !string.Equals(diskAssetType, sampledAsset.AssetType, StringComparison.OrdinalIgnoreCase);
+			return diskAssetType.Value != sampledAsset.AssetType;
 		}
 
-		if (!RealmMetadataHelper.IsValidAssetTypeForExtension(sampledAsset.FilePath, sampledAsset.AssetType, out string canonicalType, out _))
+		if (!sampledAsset.AssetType.HasValue || !RealmMetadataHelper.IsValidAssetTypeForExtension(sampledAsset.FilePath, sampledAsset.AssetType.Value, out _))
 		{
 			return true;
 		}
 
-		return !string.Equals(canonicalType, sampledAsset.AssetType, StringComparison.OrdinalIgnoreCase);
+		return false;
 	}
 
 	private bool IsBlake3Incorrect(IndexedAsset sampledAsset, bool diskHasMetadata, string? diskMetadataJson)
@@ -404,10 +397,59 @@ public class AssetIndexService : IDisposable
 
 	private static void PopulateCasSidecar(string blake3, string casSidecarPath, string mapSidecarPath, string mapFlatSidecarPath, string? casFilePath, string mapFilePath, ContentAddressableStorage cas)
 	{
-		if (TryCopyExistingSidecar(casSidecarPath, mapSidecarPath)) return;
-		if (TryCopyExistingSidecar(casSidecarPath, mapFlatSidecarPath)) return;
+		if (TryCopyExistingSidecar(casSidecarPath, mapSidecarPath))
+		{
+			EnsureSidecarHasAssetType(blake3, casSidecarPath, casFilePath, mapFilePath, cas);
+			return;
+		}
+		if (TryCopyExistingSidecar(casSidecarPath, mapFlatSidecarPath))
+		{
+			EnsureSidecarHasAssetType(blake3, casSidecarPath, casFilePath, mapFilePath, cas);
+			return;
+		}
 
 		ExtractAndSaveCasSidecar(blake3, casFilePath, mapFilePath, cas);
+	}
+
+	private static void EnsureSidecarHasAssetType(string blake3, string casSidecarPath, string? casFilePath, string mapFilePath, ContentAddressableStorage cas)
+	{
+		try
+		{
+			if (File.Exists(casSidecarPath))
+			{
+				string existingJson = File.ReadAllText(casSidecarPath);
+				if (JsonNode.Parse(existingJson) is JsonObject obj)
+				{
+					if (obj.ContainsKey("asset_type"))
+					{
+						return;
+					}
+				}
+			}
+
+			string? assetForMetadata = casFilePath ?? (File.Exists(mapFilePath) ? mapFilePath : null);
+			if (assetForMetadata != null && File.Exists(assetForMetadata))
+			{
+				string? extractedMetadata = RealmMetadataHelper.ExtractMetadata(assetForMetadata);
+				if (!string.IsNullOrWhiteSpace(extractedMetadata))
+				{
+					if (File.Exists(casSidecarPath))
+					{
+						string currentSidecar = File.ReadAllText(casSidecarPath);
+						string merged = AuthorSignatureHelper.MergeMetadataHeaders(extractedMetadata, currentSidecar, false);
+						File.WriteAllText(casSidecarPath, merged);
+						cas.UpdateSidecarCache(blake3, merged);
+					}
+					else
+					{
+						cas.UpdateSidecarCache(blake3, extractedMetadata);
+					}
+				}
+			}
+		}
+		catch
+		{
+		}
 	}
 
 	private static bool TryCopyExistingSidecar(string destPath, string srcPath)
@@ -845,8 +887,22 @@ public class AssetIndexService : IDisposable
 	private void UpdateExistingManifestAsset(IndexedAsset existingAsset, string virtualPath, string norm, string normPath, string mapName, string mapVersion, ContentAddressableStorage storage, string storageDirectory, List<IndexedAsset> assetsToUpdate)
 	{
 		bool needsUpdate = false;
-		string? existingMetaJson = storage.GetAssetMetadata(norm) ?? RealmMetadataHelper.ExtractMetadata(normPath);
+		string? existingMetaJson = storage.GetAssetMetadata(norm);
 		var parsed = ParseMetadataHeaders(existingMetaJson, virtualPath);
+
+		if (!parsed.AssetType.HasValue || parsed.Tags.Count == 0 || !parsed.SupportsTeamColor.HasValue)
+		{
+			string? diskMeta = RealmMetadataHelper.ExtractMetadata(normPath);
+			if (!string.IsNullOrEmpty(diskMeta))
+			{
+				var diskParsed = ParseMetadataHeaders(diskMeta, virtualPath);
+				if (!parsed.AssetType.HasValue) parsed.AssetType = diskParsed.AssetType;
+				if (parsed.Tags.Count == 0) parsed.Tags = diskParsed.Tags;
+				if (!parsed.SupportsTeamColor.HasValue) parsed.SupportsTeamColor = diskParsed.SupportsTeamColor;
+				if (string.IsNullOrEmpty(parsed.ChromaKey)) parsed.ChromaKey = diskParsed.ChromaKey;
+				if (string.IsNullOrEmpty(existingMetaJson)) existingMetaJson = diskMeta;
+			}
+		}
 
 		needsUpdate |= TryUpdateAssetType(existingAsset, virtualPath, parsed.AssetType, existingMetaJson);
 		needsUpdate |= TryUpdateAssetProperties(existingAsset, parsed.SupportsTeamColor, parsed.ChromaKey, existingMetaJson, normPath);
@@ -857,13 +913,13 @@ public class AssetIndexService : IDisposable
 		EnqueueThumbnailRequestIfNeeded(existingAsset.Extension, normPath, norm);
 	}
 
-	private bool TryUpdateAssetType(IndexedAsset existingAsset, string virtualPath, string? parsedType, string? existingMetaJson)
+	private bool TryUpdateAssetType(IndexedAsset existingAsset, string virtualPath, AssetType? parsedType, string? existingMetaJson)
 	{
-		string? existingAssetType = ResolveAssetTypeFromParsed(parsedType, virtualPath);
-		if (string.IsNullOrEmpty(existingAssetType) || existingAsset.AssetType == existingAssetType) return false;
+		AssetType? existingAssetType = ResolveAssetTypeFromParsed(parsedType, virtualPath);
+		if (existingAsset.AssetType == existingAssetType) return false;
 
 		existingAsset.AssetType = existingAssetType;
-		existingAsset.HasRealmMetadata = !string.IsNullOrEmpty(existingMetaJson) || existingAsset.HasRealmMetadata || !string.IsNullOrEmpty(existingAssetType);
+		existingAsset.HasRealmMetadata = !string.IsNullOrEmpty(existingMetaJson) || existingAsset.HasRealmMetadata || existingAssetType.HasValue;
 		return true;
 	}
 
@@ -912,9 +968,9 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
-	private string? ResolveAssetTypeFromParsed(string? parsedType, string virtualPath)
+	private AssetType? ResolveAssetTypeFromParsed(AssetType? parsedType, string virtualPath)
 	{
-		if (!string.IsNullOrEmpty(parsedType)) return parsedType;
+		if (parsedType.HasValue) return parsedType;
 
 		string? dir = Path.GetDirectoryName(virtualPath);
 		if (string.IsNullOrEmpty(dir)) return null;
@@ -922,9 +978,10 @@ public class AssetIndexService : IDisposable
 		string[] dirParts = dir.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
 		foreach (var part in dirParts.Reverse())
 		{
-			if (RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, part, out string canonical, out _))
+			var norm = RealmMetadataHelper.NormalizeAssetType(part);
+			if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, norm.Value, out _))
 			{
-				return canonical;
+				return norm;
 			}
 		}
 
@@ -936,18 +993,33 @@ public class AssetIndexService : IDisposable
 		var fi = new FileInfo(normPath);
 		var asset = CreateBaseManifestAsset(virtualPath, norm, normPath, mapName, mapVersion, storageDirectory, fi);
 
-		string? metaJson = storage.GetAssetMetadata(norm) ?? RealmMetadataHelper.ExtractMetadata(normPath);
+		string? metaJson = storage.GetAssetMetadata(norm);
 		var parsedMeta = ParseMetadataHeaders(metaJson, virtualPath);
+
+		if (!parsedMeta.AssetType.HasValue || parsedMeta.Tags.Count == 0 || !parsedMeta.SupportsTeamColor.HasValue)
+		{
+			string? diskMeta = RealmMetadataHelper.ExtractMetadata(normPath);
+			if (!string.IsNullOrEmpty(diskMeta))
+			{
+				var diskParsed = ParseMetadataHeaders(diskMeta, virtualPath);
+				if (!parsedMeta.AssetType.HasValue) parsedMeta.AssetType = diskParsed.AssetType;
+				if (parsedMeta.Tags.Count == 0) parsedMeta.Tags = diskParsed.Tags;
+				if (!parsedMeta.SupportsTeamColor.HasValue) parsedMeta.SupportsTeamColor = diskParsed.SupportsTeamColor;
+				if (string.IsNullOrEmpty(parsedMeta.ChromaKey)) parsedMeta.ChromaKey = diskParsed.ChromaKey;
+				if (string.IsNullOrEmpty(metaJson)) metaJson = diskMeta;
+			}
+		}
+
 		var tags = BuildManifestAssetTags(manifest, virtualPath, normPath, storageDirectory, asset.FileName, parsedMeta.Tags);
 
-		string? assetType = ResolveFallbackAssetType(parsedMeta.AssetType, virtualPath, tags);
+		AssetType? assetType = ResolveFallbackAssetType(parsedMeta.AssetType, virtualPath, tags);
 
 		asset.Tags = tags;
 		asset.MetadataJson = JsonSerializer.Serialize(new AssetMetadataModel { Tags = tags });
 		asset.HasPlayerColorMask = parsedMeta.SupportsTeamColor ?? DetermineHasPlayerColorMask(metaJson, normPath);
 		asset.ChromaKey = parsedMeta.ChromaKey ?? string.Empty;
 		asset.AssetType = assetType;
-		asset.HasRealmMetadata = !string.IsNullOrEmpty(metaJson) || !string.IsNullOrEmpty(assetType);
+		asset.HasRealmMetadata = !string.IsNullOrEmpty(metaJson) || assetType.HasValue;
 
 		assetsToInsert.Add(asset);
 		existingAssetMap[normPath] = asset;
@@ -971,16 +1043,17 @@ public class AssetIndexService : IDisposable
 		};
 	}
 
-	private string? ResolveFallbackAssetType(string? parsedType, string virtualPath, List<string> tags)
+	private AssetType? ResolveFallbackAssetType(AssetType? parsedType, string virtualPath, List<string> tags)
 	{
-		string? assetType = ResolveAssetTypeFromParsed(parsedType, virtualPath);
-		if (!string.IsNullOrEmpty(assetType)) return assetType;
+		AssetType? assetType = ResolveAssetTypeFromParsed(parsedType, virtualPath);
+		if (assetType.HasValue) return assetType;
 
 		foreach (var tag in tags)
 		{
-			if (RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, tag, out string canonical, out _))
+			var norm = RealmMetadataHelper.NormalizeAssetType(tag);
+			if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(virtualPath, norm.Value, out _))
 			{
-				return canonical;
+				return norm;
 			}
 		}
 
@@ -1403,7 +1476,7 @@ public class AssetIndexService : IDisposable
 		try
 		{
 			var fileInfo = new FileInfo(normalizedFilePath);
-			string? expectedDirType = GetExpectedAssetTypeFromDirectory(normalizedFilePath);
+			AssetType? expectedDirType = GetExpectedAssetTypeFromDirectory(normalizedFilePath);
 
 			existingAssets.TryGetValue(normalizedFilePath, out var existingAsset);
 			if (IsExistingAssetUpToDate(existingAsset, fileInfo, expectedDirType, normalizedFilePath)) return;
@@ -1443,7 +1516,7 @@ public class AssetIndexService : IDisposable
 		       File.Exists(normalizedFilePath.Substring(0, normalizedFilePath.Length - 5));
 	}
 
-	private string? GetExpectedAssetTypeFromDirectory(string normalizedFilePath)
+	private AssetType? GetExpectedAssetTypeFromDirectory(string normalizedFilePath)
 	{
 		string? dir = Path.GetDirectoryName(normalizedFilePath);
 		if (string.IsNullOrEmpty(dir)) return null;
@@ -1451,16 +1524,17 @@ public class AssetIndexService : IDisposable
 		string[] dirParts = dir.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
 		foreach (var part in dirParts.Reverse())
 		{
-			if (RealmMetadataHelper.IsValidAssetTypeForExtension(normalizedFilePath, part, out string canonical, out _))
+			var norm = RealmMetadataHelper.NormalizeAssetType(part);
+			if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(normalizedFilePath, norm.Value, out _))
 			{
-				return canonical;
+				return norm;
 			}
 		}
 
 		return null;
 	}
 
-	private bool IsExistingAssetUpToDate(IndexedAsset? existingAsset, FileInfo fileInfo, string? expectedDirType, string normalizedFilePath)
+	private bool IsExistingAssetUpToDate(IndexedAsset? existingAsset, FileInfo fileInfo, AssetType? expectedDirType, string normalizedFilePath)
 	{
 		if (existingAsset == null) return false;
 		if (existingAsset.FileSizeBytes != fileInfo.Length) return false;
@@ -1472,17 +1546,17 @@ public class AssetIndexService : IDisposable
 		return true;
 	}
 
-	private bool IsAssetMetadataValid(IndexedAsset existingAsset, string? expectedDirType)
+	private bool IsAssetMetadataValid(IndexedAsset existingAsset, AssetType? expectedDirType)
 	{
 		if (string.IsNullOrEmpty(existingAsset.Blake3)) return false;
-		if (string.IsNullOrEmpty(existingAsset.AssetType)) return false;
+		if (!existingAsset.AssetType.HasValue) return false;
 		if (existingAsset.ChromaKey == null) return false;
-		if (expectedDirType != null && !string.Equals(existingAsset.AssetType, expectedDirType, StringComparison.OrdinalIgnoreCase)) return false;
+		if (expectedDirType.HasValue && existingAsset.AssetType != expectedDirType) return false;
 
 		return true;
 	}
 
-	private IndexedAsset GenerateIndexedAssetFromFile(string normalizedFilePath, string normalizedDirectoryPath, FileInfo fileInfo, string extension, string? expectedDirType, IndexedAsset? existingAsset)
+	private IndexedAsset GenerateIndexedAssetFromFile(string normalizedFilePath, string normalizedDirectoryPath, FileInfo fileInfo, string extension, AssetType? expectedDirType, IndexedAsset? existingAsset)
 	{
 		string? metaJson = RealmMetadataHelper.ExtractMetadata(normalizedFilePath);
 		var parsedMeta = ExtractParsedMetadata(metaJson, normalizedFilePath);
@@ -1509,12 +1583,12 @@ public class AssetIndexService : IDisposable
 		asset.MapVersion = existingAsset?.MapVersion ?? asset.MapVersion;
 	}
 
-	private void PopulateAssetMetadata(IndexedAsset asset, string normalizedFilePath, string? expectedDirType, string? metaJson, (string? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) parsedMeta, List<string> tags)
+	private void PopulateAssetMetadata(IndexedAsset asset, string normalizedFilePath, AssetType? expectedDirType, string? metaJson, (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) parsedMeta, List<string> tags)
 	{
-		string? assetType = DetermineAssetType(parsedMeta.AssetType, expectedDirType, normalizedFilePath, tags);
+		AssetType? assetType = DetermineAssetType(parsedMeta.AssetType, expectedDirType, normalizedFilePath, tags);
 		string normBlake3 = GetOrComputeBlake3(parsedMeta.Blake3, normalizedFilePath);
 
-		asset.HasRealmMetadata = !string.IsNullOrEmpty(metaJson) || !string.IsNullOrEmpty(assetType);
+		asset.HasRealmMetadata = !string.IsNullOrEmpty(metaJson) || assetType.HasValue;
 		asset.AssetType = assetType;
 		asset.HasPlayerColorMask = parsedMeta.HasMask ?? DetermineHasPlayerColorMask(metaJson, normalizedFilePath);
 
@@ -1523,7 +1597,7 @@ public class AssetIndexService : IDisposable
 		asset.Blake3 = !string.IsNullOrEmpty(normBlake3) ? ContentAddressableStorage.NormalizeBlake3Hash(normBlake3) : string.Empty;
 	}
 
-	private (string? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) ExtractParsedMetadata(string? metaJson, string normalizedFilePath)
+	private (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) ExtractParsedMetadata(string? metaJson, string normalizedFilePath)
 	{
 		if (string.IsNullOrEmpty(metaJson))
 		{
@@ -1533,14 +1607,14 @@ public class AssetIndexService : IDisposable
 		return ExtractParsedMetadataFromJson(metaJson, normalizedFilePath);
 	}
 
-	private (string? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) ExtractParsedMetadataFromJson(string metaJson, string normalizedFilePath)
+	private (AssetType? AssetType, string? Blake3, List<string> Tags, bool? HasMask, string? ChromaKey) ExtractParsedMetadataFromJson(string metaJson, string normalizedFilePath)
 	{
 		try
 		{
 			var node = JsonNode.Parse(metaJson);
 			if (node is JsonObject obj)
 			{
-				string? assetType = ExtractAssetTypeFromJson(obj, normalizedFilePath);
+				AssetType? assetType = ExtractAssetTypeFromJson(obj, normalizedFilePath);
 				string? normBlake3 = obj.TryGetPropertyValue("blake3", out var blake3Node) ? blake3Node?.ToString() : null;
 				var embeddedTags = ExtractTagsFromJson(obj);
 
@@ -1554,16 +1628,16 @@ public class AssetIndexService : IDisposable
 		return (null, null, new List<string>(), null, null);
 	}
 
-	private string? ExtractAssetTypeFromJson(JsonObject obj, string normalizedFilePath)
+	private AssetType? ExtractAssetTypeFromJson(JsonObject obj, string normalizedFilePath)
 	{
-		string? typeVal = null;
-		if (obj.TryGetPropertyValue("asset_type", out var assetTypeNode)) typeVal = assetTypeNode?.ToString();
-		else if (obj.TryGetPropertyValue("AssetType", out var AssetTypeNodeUpper)) typeVal = AssetTypeNodeUpper?.ToString();
-		else if (obj.TryGetPropertyValue("default_asset_type", out var defaultAssetTypeNode)) typeVal = defaultAssetTypeNode?.ToString();
-
-		if (!string.IsNullOrEmpty(typeVal) && RealmMetadataHelper.IsValidAssetTypeForExtension(normalizedFilePath, typeVal, out string canonical, out _))
+		string? typeVal = obj["asset_type"]?.ToString();
+		if (!string.IsNullOrEmpty(typeVal))
 		{
-			return canonical;
+			var norm = RealmMetadataHelper.NormalizeAssetType(typeVal);
+			if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(normalizedFilePath, norm.Value, out _))
+			{
+				return norm;
+			}
 		}
 
 		return null;
@@ -1587,18 +1661,19 @@ public class AssetIndexService : IDisposable
 		return embeddedTags;
 	}
 
-	private string? DetermineAssetType(string? parsedType, string? expectedDirType, string normalizedFilePath, List<string> tags)
+	private AssetType? DetermineAssetType(AssetType? parsedType, AssetType? expectedDirType, string normalizedFilePath, List<string> tags)
 	{
-		if (!string.IsNullOrEmpty(parsedType)) return parsedType;
-		if (!string.IsNullOrEmpty(expectedDirType)) return expectedDirType;
+		if (parsedType.HasValue) return parsedType;
+		if (expectedDirType.HasValue) return expectedDirType;
 
 		if (tags != null)
 		{
 			foreach (var tag in tags)
 			{
-				if (RealmMetadataHelper.IsValidAssetTypeForExtension(normalizedFilePath, tag, out string canonical, out _))
+				var norm = RealmMetadataHelper.NormalizeAssetType(tag);
+				if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(normalizedFilePath, norm.Value, out _))
 				{
-					return canonical;
+					return norm;
 				}
 			}
 		}
@@ -1667,12 +1742,16 @@ public class AssetIndexService : IDisposable
 		return result;
 	}
 
-	private static string? ExtractAssetTypeFromMetadata(JsonObject obj, string filePath)
+	private static AssetType? ExtractAssetTypeFromMetadata(JsonObject obj, string filePath)
 	{
-		string? typeVal = obj["asset_type"]?.ToString() ?? obj["AssetType"]?.ToString() ?? obj["default_asset_type"]?.ToString();
-		if (!string.IsNullOrEmpty(typeVal) && RealmMetadataHelper.IsValidAssetTypeForExtension(filePath, typeVal, out string canonical, out _))
+		string? typeVal = obj["asset_type"]?.ToString();
+		if (!string.IsNullOrEmpty(typeVal))
 		{
-			return canonical;
+			var norm = RealmMetadataHelper.NormalizeAssetType(typeVal);
+			if (norm.HasValue && RealmMetadataHelper.IsValidAssetTypeForExtension(filePath, norm.Value, out _))
+			{
+				return norm;
+			}
 		}
 
 		return null;
@@ -1895,7 +1974,7 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
-	public void UpdateAssetType(string filePath, string newAssetType)
+	public void UpdateAssetType(string filePath, AssetType newAssetType)
 	{
 		if (string.IsNullOrWhiteSpace(filePath))
 		{
@@ -1915,7 +1994,7 @@ public class AssetIndexService : IDisposable
 			asset.HasRealmMetadata = true;
 			_assetCollection.Update(asset);
 
-			RealmMetadataHelper.SetAssetType(normalizedFilePath, newAssetType);
+			RealmMetadataHelper.SetAssetType(normalizedFilePath, newAssetType.ToCanonicalString());
 
 			bool isCasFile = normalizedFilePath.StartsWith(GlobalCasAssetsDirectory + "/", StringComparison.OrdinalIgnoreCase);
 			if (isCasFile)
@@ -1929,6 +2008,15 @@ public class AssetIndexService : IDisposable
 			}
 
 			_database.Checkpoint();
+		}
+	}
+
+	public void UpdateAssetType(string filePath, string newAssetType)
+	{
+		var norm = RealmMetadataHelper.NormalizeAssetType(newAssetType);
+		if (norm.HasValue)
+		{
+			UpdateAssetType(filePath, norm.Value);
 		}
 	}
 
@@ -2015,7 +2103,7 @@ public class AssetIndexService : IDisposable
 		IReadOnlyCollection<string>? allowedExtensions = null,
 		string? directoryFilter = null,
 		bool requireRealmMetadata = false,
-		string? requiredAssetType = null,
+		AssetType? requiredAssetType = null,
 		string? mapNameFilter = null,
 		string? mapVersionFilter = null,
 		bool requirePlayerColorMask = false)
@@ -2033,15 +2121,14 @@ public class AssetIndexService : IDisposable
 
 				query = ApplyMetadataFilters(query, requireRealmMetadata, requiredAssetType, requirePlayerColorMask);
 
-				var candidateList = query.ToList();
-
 				if (extensionFilterSet != null)
 				{
-					candidateList = candidateList.Where(x => extensionFilterSet.Contains(x.Extension)).ToList();
+					query = query.Where(x => extensionFilterSet.Contains(x.Extension));
 				}
 
-				var filtered = ApplySearchTermFilter(candidateList, searchTerm);
-				return DeduplicateSearchResults(filtered);
+				query = ApplySearchTermFilter(query, searchTerm);
+				var results = query.ToList();
+				return DeduplicateSearchResults(results).OrderBy(x => x.FileName, StringComparer.OrdinalIgnoreCase).ToList();
 			}
 		}
 		catch (Exception ex)
@@ -2049,6 +2136,20 @@ public class AssetIndexService : IDisposable
 			GD.PrintErr($"[AssetIndexService] SearchAssets error: {ex.Message}");
 			return new List<IndexedAsset>();
 		}
+	}
+
+	public List<IndexedAsset> SearchAssets(
+		string? searchTerm,
+		IReadOnlyCollection<string>? allowedExtensions,
+		string? directoryFilter,
+		bool requireRealmMetadata,
+		string? requiredAssetType,
+		string? mapNameFilter = null,
+		string? mapVersionFilter = null,
+		bool requirePlayerColorMask = false)
+	{
+		AssetType? normType = RealmMetadataHelper.NormalizeAssetType(requiredAssetType);
+		return SearchAssets(searchTerm, allowedExtensions, directoryFilter, requireRealmMetadata, normType, mapNameFilter, mapVersionFilter, requirePlayerColorMask);
 	}
 
 	private ILiteQueryable<IndexedAsset> ApplyMapAndDirectoryFilters(ILiteQueryable<IndexedAsset> query, string? mapNameFilter, string? mapVersionFilter, string? directoryFilter)
@@ -2104,7 +2205,7 @@ public class AssetIndexService : IDisposable
 		return query;
 	}
 
-	private ILiteQueryable<IndexedAsset> ApplyMetadataFilters(ILiteQueryable<IndexedAsset> query, bool requireRealmMetadata, string? requiredAssetType, bool requirePlayerColorMask)
+	private ILiteQueryable<IndexedAsset> ApplyMetadataFilters(ILiteQueryable<IndexedAsset> query, bool requireRealmMetadata, AssetType? requiredAssetType, bool requirePlayerColorMask)
 	{
 		var resultQuery = query;
 		if (requireRealmMetadata)
@@ -2112,18 +2213,9 @@ public class AssetIndexService : IDisposable
 			resultQuery = resultQuery.Where(x => x.HasRealmMetadata);
 		}
 
-		if (!string.IsNullOrWhiteSpace(requiredAssetType))
+		if (requiredAssetType.HasValue)
 		{
-			string normalizedRequiredType = RealmMetadataHelper.NormalizeAssetType(requiredAssetType);
-			if (string.Equals(requiredAssetType, normalizedRequiredType, StringComparison.OrdinalIgnoreCase))
-			{
-				resultQuery = resultQuery.Where(x => x.AssetType == requiredAssetType);
-			}
-			else
-			{
-				var bsonTypes = new BsonValue[] { new BsonValue(requiredAssetType), new BsonValue(normalizedRequiredType) };
-				resultQuery = resultQuery.Where(Query.In("AssetType", bsonTypes));
-			}
+			resultQuery = resultQuery.Where(x => x.AssetType == requiredAssetType.Value);
 		}
 
 		if (requirePlayerColorMask)
@@ -2134,26 +2226,19 @@ public class AssetIndexService : IDisposable
 		return resultQuery;
 	}
 
-	private List<IndexedAsset> ApplySearchTermFilter(List<IndexedAsset> candidateList, string? searchTerm)
+	private ILiteQueryable<IndexedAsset> ApplySearchTermFilter(ILiteQueryable<IndexedAsset> query, string? searchTerm)
 	{
-		if (string.IsNullOrWhiteSpace(searchTerm))
+		string[] terms = !string.IsNullOrWhiteSpace(searchTerm) ? searchTerm.Split((char[])null, StringSplitOptions.RemoveEmptyEntries) : [];
+
+		foreach (var queryTerm in terms)
 		{
-			return candidateList.OrderBy(x => x.FileName, StringComparer.OrdinalIgnoreCase).ToList();
+			query = query.Where(x => x.FileName.Contains(queryTerm, StringComparison.OrdinalIgnoreCase) ||
+			                          x.FilePath.Contains(queryTerm, StringComparison.OrdinalIgnoreCase) ||
+			                          (x.Tags != null && x.Tags.Any(t => t.Contains(queryTerm, StringComparison.OrdinalIgnoreCase)))
+			                    );
 		}
 
-		string queryTerm = searchTerm.Trim().ToLowerInvariant();
-		return candidateList
-			.Where(asset => MatchesSearchTerm(asset, queryTerm))
-			.OrderBy(x => x.FileName, StringComparer.OrdinalIgnoreCase)
-			.ToList();
-	}
-
-	private bool MatchesSearchTerm(IndexedAsset asset, string queryTerm)
-	{
-		return (asset.Tags != null && asset.Tags.Any(t => t.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0)) ||
-		       asset.FileName.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0 ||
-		       asset.FilePath.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0 ||
-		       (!string.IsNullOrEmpty(asset.MapName) && asset.MapName.IndexOf(queryTerm, StringComparison.OrdinalIgnoreCase) >= 0);
+		return query;
 	}
 
 	private List<IndexedAsset> DeduplicateSearchResults(List<IndexedAsset> filtered)

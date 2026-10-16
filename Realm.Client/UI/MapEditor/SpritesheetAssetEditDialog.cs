@@ -19,6 +19,14 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 	private float _fps = 20.0f;
 	private bool _subframeBlend = true;
 
+	private string _initialRtexAsset = "";
+	private int _initialColumns = 4;
+	private int _initialRows = 4;
+	private float _initialFps = 20.0f;
+	private bool _initialSubframeBlend = true;
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
+
 	private Action<int, int, float, bool> _onApplied;
 	private Action<string, string, int, int, float, bool> _onAppliedWithTemplateIdAndRtex;
 
@@ -273,6 +281,8 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 
 		_rtexAsset = ResolveRtexAsset(rtexAsset, MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, true);
 
+		TakeInitialSnapshot();
+
 		UpdateUIAndOpen();
 	}
 
@@ -285,7 +295,69 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		string providedAsset = !string.IsNullOrEmpty(fileName) && fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? fileName : string.Empty;
 		_rtexAsset = ResolveRtexAsset(providedAsset, MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, false);
 
+		TakeInitialSnapshot();
+
 		UpdateUIAndOpen();
+	}
+
+	private void TakeInitialSnapshot()
+	{
+		_initialRtexAsset = _rtexAsset;
+		_initialColumns = _columns;
+		_initialRows = _rows;
+		_initialFps = _fps;
+		_initialSubframeBlend = _subframeBlend;
+
+		string targetId = !string.IsNullOrEmpty(_sheetFileName) ? _sheetFileName : $"{_objectType}/{_slug}";
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
+	}
+
+	protected override string GetRandomizeTemplateSlug()
+	{
+		return !string.IsNullOrEmpty(_sheetFileName) ? _sheetFileName : $"{_objectType}/{_slug}";
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		string reloadedRtex = GetRtexFromMetadata(wsPath, _sheetFileName, _slug);
+		if (string.IsNullOrEmpty(reloadedRtex))
+		{
+			reloadedRtex = GetRtexFromMetadata(wsPath, targetId, targetId);
+		}
+
+		if (!string.IsNullOrEmpty(reloadedRtex))
+		{
+			_rtexAsset = reloadedRtex;
+		}
+
+		if (_txtRtexAsset != null) _txtRtexAsset.Text = _rtexAsset;
+		_setRtexAssetValue?.Invoke(_rtexAsset);
+	}
+
+	protected override void OnCancel()
+	{
+		_rtexAsset = _initialRtexAsset;
+		_columns = _initialColumns;
+		_rows = _initialRows;
+		_fps = _initialFps;
+		_subframeBlend = _initialSubframeBlend;
+
+		string targetId = !string.IsNullOrEmpty(_sheetFileName) ? _sheetFileName : $"{_objectType}/{_slug}";
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			if (_templateExistedInitially)
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
+		}
 	}
 
 	public void OpenForSheet(string fileName, int initialCols, int initialRows, float initialFps, Action<int, int, float> onApplied)

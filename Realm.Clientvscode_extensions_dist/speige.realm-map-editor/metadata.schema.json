@@ -282,6 +282,18 @@
             "string",
             "null"
           ]
+        },
+        "TestAiPlayerCount": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "TestRandomizeSlots": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       }
     },
@@ -922,6 +934,18 @@
                   "null"
                 ]
               },
+              "ProceduralAnimation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EnableProceduralAnimation": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "DespawnShader": {
                 "type": [
                   "string",
@@ -1200,6 +1224,18 @@
               },
               "SummonDuration": {
                 "type": "number"
+              },
+              "GridX": {
+                "type": "integer"
+              },
+              "GridY": {
+                "type": "integer"
+              },
+              "Hotkey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1603,17 +1639,31 @@
                   ]
                 }
               },
-              "MaxHpBonus": {
-                "type": "number"
-              },
-              "DamageBonus": {
-                "type": "number"
-              },
-              "ArmorBonus": {
-                "type": "number"
-              },
-              "SpeedBonus": {
-                "type": "number"
+              "Modifiers": {
+                "type": "array",
+                "items": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "StatKey": {
+                      "type": "string"
+                    },
+                    "Type": {
+                      "type": "string"
+                    },
+                    "Value": {
+                      "type": "number"
+                    },
+                    "WASMFunctionName": {
+                      "type": "string"
+                    },
+                    "PerLevelScaling": {
+                      "type": "number"
+                    }
+                  }
+                }
               }
             }
           }
@@ -1681,6 +1731,30 @@
                 }
               },
               "GrantedWeapons": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "GrantedAbilities": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "GrantedUpgrades": {
                 "type": [
                   "array",
                   "null"
@@ -2691,95 +2765,6 @@
         "string",
         "null"
       ]
-    },
-    "Models": {
-      "type": "object",
-      "additionalProperties": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "properties": {
-          "Brightness": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "CollisionCircleRatios": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "ColorTint": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "DespillPlayerColor": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "IgnorePlayerColor": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "NormalizeLuminance": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "ObstacleRadii": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "Offsets": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "Scales": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "SpawnShaders": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "DeathShaders": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "ProceduralAnimation": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "EnableProceduralAnimation": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          }
-        }
-      }
     },
     "textures": {
       "type": "object",

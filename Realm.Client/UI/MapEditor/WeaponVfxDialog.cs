@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -91,6 +92,8 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	private WeaponMetadata _initialWeapon = new();
 	private WeaponMetadata _currentWeapon = new();
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 	private string _weaponId = "";
 	private string _slug = "";
 	private Label _lblObjectTypePrefix;
@@ -934,10 +937,38 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		_onAppliedCallback = onApplied;
 		_isPlaybackPaused = false;
 
+		string targetId = !string.IsNullOrEmpty(_weaponId) ? _weaponId : _slug;
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
+
 		TitleLabel.Text = $"{TranslationServer.Translate("Weapon VFX & Audio")} - {(!string.IsNullOrEmpty(weapon?.Name) ? weapon.Name : _weaponId)}";
 
 		OpenDialog();
 		ResetCameraDefault();
+		RestartPreviewProjectile();
+	}
+
+	protected override string GetRandomizeTemplateSlug()
+	{
+		return !string.IsNullOrEmpty(_weaponId) ? _weaponId : _slug;
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var reloadedMeta) && reloadedMeta?.Templates?.Weapons != null)
+		{
+			var reloaded = reloadedMeta.Templates.Weapons.FirstOrDefault(w => string.Equals(w.TemplateID, targetId, StringComparison.OrdinalIgnoreCase) || string.Equals(w.TemplateID, _weaponId, StringComparison.OrdinalIgnoreCase));
+			if (reloaded != null)
+			{
+				_currentWeapon = reloaded;
+				CleanWeaponMetadataPaths(_currentWeapon);
+			}
+		}
+
+		SyncControlsFromCurrentWeapon();
 		RestartPreviewProjectile();
 	}
 
@@ -1267,6 +1298,31 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnCancel()
 	{
+		string targetId = !string.IsNullOrEmpty(_weaponId) ? _weaponId : _slug;
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			if (_templateExistedInitially)
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
+		}
+
+		if (GameHost.Instance != null && !string.IsNullOrEmpty(targetId))
+		{
+			if (_initialWeapon != null)
+			{
+				GameHost.WeaponRegistry[targetId] = _initialWeapon;
+			}
+			else
+			{
+				GameHost.WeaponRegistry.Remove(targetId);
+			}
+		}
+
 		ClearPreviewProjectile();
 	}
 

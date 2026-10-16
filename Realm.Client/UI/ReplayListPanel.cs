@@ -440,7 +440,7 @@ public partial class ReplayListPanel : Control
 				LobbyManager.Instance.IsGameStarted = true;
 			}
 
-			GetTree().ChangeSceneToFile("res://GameHostView.tscn");
+			GetTree().ChangeSceneToFile("res://GameHost.tscn");
 		}
 		else
 		{

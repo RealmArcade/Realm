@@ -11,7 +11,7 @@ namespace Realm.Client;
 /// Visual Layer Setup
 ///   • Sets every MeshInstance3D to render on BOTH Layer 1 (world) and
 ///     Layer 2 (character-only fill light).
-///   • CharacterFillLight (OmniLight3D, CullMask = Layer 2) in Main.tscn
+///   • CharacterFillLight (OmniLight3D, CullMask = Layer 2) in GameHost.tscn
 ///     drives energy dynamically via EnvironmentService.UpdateDayNightVisuals,
 ///     peaking at 0.42 during Night so characters outshine the terrain.
 /// </summary>

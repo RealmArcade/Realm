@@ -45,12 +45,12 @@ public class MapEditorBrushSettings
 			float fVal = (float)val;
 			if (GameHost.Instance != null && GameHost.Instance.ActiveEditorTool == EditorTool.PaintTexture)
 			{
-				GameContext.EditorService.SavedTextureIntensity = fVal;
+				GameContext.SessionState.SavedTextureIntensity = fVal;
 				_lblBrushStrengthValue.Text = fVal.ToString("F0");
 			}
 			else
 			{
-				GameContext.EditorService.SavedBrushStrength = fVal;
+				GameContext.SessionState.SavedBrushStrength = fVal;
 				_lblBrushStrengthValue.Text = fVal.ToString("F1");
 			}
 

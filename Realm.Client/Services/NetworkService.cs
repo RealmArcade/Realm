@@ -196,13 +196,11 @@ public class NetworkService
 		return playerEntity;
 	}
 
-	public void UpdateReconnectedClientMapping(Entity playerEntity, Entity enemyPlayerEntity, int localPeerId)
+	public void UpdateReconnectedClientMapping(Entity playerEntity, int localPeerId)
 	{
 		if (ECSContext.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity)) return;
 
 		var mapping = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity);
-		mapping.PlayerEntity = playerEntity;
-		mapping.EnemyPlayerEntity = enemyPlayerEntity;
 		if (playerEntity != Entity.Null)
 		{
 			mapping.PeerIdToPlayerEntityMap[localPeerId] = playerEntity;
@@ -603,7 +601,7 @@ public class NetworkService
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
 
-		Entity ownerPlayerEntity = mapping.PlayerEntity;
+		Entity ownerPlayerEntity = mapping.PlayerEntities != null && mapping.PlayerEntities.Length > 1 ? mapping.PlayerEntities[1] : Entity.Null;
 		if (mapping.PeerIdToPlayerEntityMap.TryGetValue(snap.OwnerPlayerEntityId, out var pe))
 		{
 			ownerPlayerEntity = pe;
@@ -1630,39 +1628,51 @@ public class NetworkService
 		return -1;
 	}
 
-	public Entity DeterminePlayerOwnerEntity(int ownerPeerId, bool actualIsEnemy, Dictionary<int, Entity> peerIdToPlayerEntityMap, Entity enemyPlayerEntity, Entity playerEntity)
+	public Entity DeterminePlayerOwnerEntity(int ownerPeerId, bool actualIsEnemy, Dictionary<int, Entity> peerIdToPlayerEntityMap, Entity[] playerEntities, int localSlot)
 	{
 		if (peerIdToPlayerEntityMap != null && peerIdToPlayerEntityMap.TryGetValue(ownerPeerId, out var pe) && GameContext.World.IsAlive(pe))
 		{
 			return pe;
 		}
 
-		if (actualIsEnemy && enemyPlayerEntity != Entity.Null && GameContext.World.IsAlive(enemyPlayerEntity))
+		if (playerEntities != null && playerEntities.Length > 0)
 		{
-			return enemyPlayerEntity;
+			if (actualIsEnemy)
+			{
+				if (playerEntities.Length > 2 && playerEntities[2] != Entity.Null && GameContext.World.IsAlive(playerEntities[2]))
+					return playerEntities[2];
+			}
+			else
+			{
+				if (localSlot >= 0 && localSlot < playerEntities.Length && playerEntities[localSlot] != Entity.Null && GameContext.World.IsAlive(playerEntities[localSlot]))
+					return playerEntities[localSlot];
+			}
 		}
 
-		return playerEntity;
+		return Entity.Null;
 	}
 
 	public static bool ArePlayerIndicesEnemies(int playerIndex1, int playerIndex2)
 	{
 		if (playerIndex1 == playerIndex2) return false;
 
-		if (_alliances.TryGetValue((playerIndex1, playerIndex2), out bool isAllied))
+		if (GameContext.SimulationService != null)
 		{
-			return !isAllied;
-		}
+			if (GameContext.SimulationService.ArePlayersAllied(playerIndex1, playerIndex2))
+				return false;
 
-		if (_playerTeams.TryGetValue(playerIndex1, out int team1) && _playerTeams.TryGetValue(playerIndex2, out int team2))
-		{
-			return team1 != team2;
+			int simTeam1 = GameContext.SimulationService.GetPlayerTeam(playerIndex1);
+			int simTeam2 = GameContext.SimulationService.GetPlayerTeam(playerIndex2);
+			if (simTeam1 != 0 && simTeam2 != 0)
+			{
+				return simTeam1 != simTeam2;
+			}
 		}
 
 		if (!HasActiveLobby()) return playerIndex1 != playerIndex2;
 
-		string t1 = GetTeamForPlayerIndex(playerIndex1, $"Team {playerIndex1 + 1}");
-		string t2 = GetTeamForPlayerIndex(playerIndex2, $"Team {playerIndex2 + 1}");
+		string t1 = GetTeamForPlayerIndex(playerIndex1, $"Team {playerIndex1}");
+		string t2 = GetTeamForPlayerIndex(playerIndex2, $"Team {playerIndex2}");
 		return t1 != t2;
 	}
 
@@ -1687,7 +1697,7 @@ public class NetworkService
 		return p.Team;
 	}
 
-	public static bool IsPlayerEnemy(int playerIndex, int localPlayerIndex = 0)
+	public static bool IsPlayerEnemy(int playerIndex, int localPlayerIndex)
 	{
 		return ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 	}

@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -1131,7 +1132,26 @@ public class MapStorageService
 			string destFilePath = Path.Combine(targetDirectory, rel);
 			if (!File.Exists(destFilePath))
 			{
-				missingFiles.Add(rel);
+				string normHash = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
+				string? casFilePath = MapAssetManager.Storage.FindAssetFilePath(normHash);
+				if (casFilePath != null && File.Exists(casFilePath))
+				{
+					HardLinkHelper.CreateHardLinkOrCopy(destFilePath, casFilePath, overwrite: false);
+				}
+				else if (rel.StartsWith("Assets/models/", StringComparison.OrdinalIgnoreCase))
+				{
+					string fileName = Path.GetFileName(rel);
+					string? diskPath = MapAssetHelper.FindModelOnDisk(targetDirectory, null, fileName);
+					if (!string.IsNullOrEmpty(diskPath) && File.Exists(diskPath))
+					{
+						HardLinkHelper.CreateHardLinkOrCopy(destFilePath, diskPath, overwrite: false);
+					}
+				}
+
+				if (!File.Exists(destFilePath))
+				{
+					missingFiles.Add(rel);
+				}
 			}
 		}
 
@@ -1283,6 +1303,7 @@ public class MapStorageService
 	{
 		string tempTerrainPath = Path.Combine(tempWorkspacePath, "terrain.json");
 		MapWorkspaceService.EnsureLicenseFile(tempWorkspacePath);
+		MapWorkspaceService.EnsureWasmEntryPoint(tempWorkspacePath);
 		GameHost.Instance.SaveMapToFile(tempTerrainPath, performReload: false);
 		GameHost.Instance.EditorHasUnsavedChanges = false;
 
@@ -1428,16 +1449,17 @@ public class MapStorageService
 		return true;
 	}
 
-	public async Task<(bool success, int exitCode, bool streamHadErrors)> ExecuteDotnetPublishDomainAsync(string workspace, string csproj, Action<string> onOutput, Action<string> onError)
+	public async Task<(bool success, int exitCode, bool streamHadErrors)> ExecuteDotnetPublishDomainAsync(string workspace, string csproj, Action<string> onOutput, Action<string> onError, bool isDebug = false)
 	{
 		return await Task.Run(() =>
 		{
 			bool streamHadErrors = false;
 			string resolvedWasiSdk = WasiSdkResolver.ResolveWasiSdkPath();
 			string csprojName = Path.GetFileName(csproj);
+			string configuration = isDebug ? "Debug" : "Release";
 			var compileProcess = new Process();
 			compileProcess.StartInfo.FileName = "dotnet";
-			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c Release -r wasi-wasm -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
+			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
 			compileProcess.StartInfo.EnvironmentVariables["WASI_SDK_PATH"] = resolvedWasiSdk;
 			compileProcess.StartInfo.WorkingDirectory = workspace;
 			compileProcess.StartInfo.CreateNoWindow = true;
@@ -1549,7 +1571,7 @@ public class MapStorageService
 		if (!File.Exists(metadataJsonPath)) return;
 
 		string metadataJsonContent = File.ReadAllText(metadataJsonPath);
-		var options = new JsonSerializerOptions { WriteIndented = true };
+		var options = new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 		if (!(JsonNode.Parse(metadataJsonContent) is JsonObject mapDoc)) return;
 
 		var contributorsList = ExtractExistingContributors(mapDoc);

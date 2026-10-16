@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using Godot;
+using SkiaSharp;
 
 namespace Realm.Client.UI;
 
@@ -18,6 +21,9 @@ public static class UIStyle
 	public static readonly Font FontNorseBold = GD.Load<Font>("res://Assets/UI/Norse-Bold.otf");
 	public static readonly Font FontCinzelBold = GD.Load<Font>("res://Assets/UI/Cinzel-Bold.ttf");
 	public static readonly Font FontAwesome = GD.Load<Font>("res://Assets/UI/fa-solid-900.ttf");
+
+	private static readonly Dictionary<string, Texture2D> _unicodeIconTextureCache = new();
+	private static SKTypeface? _fontAwesomeTypeface;
 
 	private static Texture2D? _emptyBlackTexture;
 
@@ -599,6 +605,99 @@ public static class UIStyle
 		}
 		catch
 		{
+			return null;
+		}
+	}
+
+	private static SKTypeface? GetFontAwesomeTypeface()
+	{
+		if (_fontAwesomeTypeface != null)
+		{
+			return _fontAwesomeTypeface;
+		}
+
+		try
+		{
+			string globalPath = ProjectSettings.GlobalizePath("res://Assets/UI/fa-solid-900.ttf");
+			if (System.IO.File.Exists(globalPath))
+			{
+				byte[] bytes = System.IO.File.ReadAllBytes(globalPath);
+				using var data = SKData.CreateCopy(bytes);
+				_fontAwesomeTypeface = SKTypeface.FromData(data);
+			}
+			else if (FileAccess.FileExists("res://Assets/UI/fa-solid-900.ttf"))
+			{
+				byte[] bytes = FileAccess.GetFileAsBytes("res://Assets/UI/fa-solid-900.ttf");
+				using var data = SKData.CreateCopy(bytes);
+				_fontAwesomeTypeface = SKTypeface.FromData(data);
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[UIStyle] Failed to load FontAwesome typeface: {ex.Message}");
+		}
+
+		return _fontAwesomeTypeface;
+	}
+
+	public static Texture2D? GetUnicodeIconTexture(string unicodeIcon, int textureSize = 32, Color? color = null)
+	{
+		if (string.IsNullOrEmpty(unicodeIcon))
+		{
+			return null;
+		}
+
+		string cacheKey = $"{unicodeIcon}_{textureSize}_{color?.ToHtml() ?? "white"}";
+		if (_unicodeIconTextureCache.TryGetValue(cacheKey, out var cachedTexture))
+		{
+			return cachedTexture;
+		}
+
+		var typeface = GetFontAwesomeTypeface();
+		if (typeface == null)
+		{
+			return null;
+		}
+
+		try
+		{
+			float fontSize = textureSize * 0.7f;
+			using var font = new SKFont(typeface, fontSize);
+
+			Color resolvedColor = color ?? Colors.White;
+			var skColor = new SKColor(
+				(byte)MathF.Round(resolvedColor.R * 255f),
+				(byte)MathF.Round(resolvedColor.G * 255f),
+				(byte)MathF.Round(resolvedColor.B * 255f),
+				(byte)MathF.Round(resolvedColor.A * 255f));
+
+			using var paint = new SKPaint
+			{
+				Color = skColor,
+				IsAntialias = true
+			};
+
+			font.MeasureText(unicodeIcon, out SKRect bounds, paint);
+
+			using var bitmap = new SKBitmap(textureSize, textureSize, SKColorType.Rgba8888, SKAlphaType.Premul);
+			using var canvas = new SKCanvas(bitmap);
+			canvas.Clear(SKColors.Transparent);
+
+			float x = (textureSize / 2f) - bounds.MidX;
+			float y = (textureSize / 2f) - bounds.MidY;
+			canvas.DrawText(unicodeIcon, x, y, SKTextAlign.Left, font, paint);
+
+			byte[] rgba = bitmap.Bytes;
+			var image = Image.CreateFromData(textureSize, textureSize, false, Image.Format.Rgba8, rgba);
+			image.GenerateMipmaps();
+			var texture = ImageTexture.CreateFromImage(image);
+
+			_unicodeIconTextureCache[cacheKey] = texture;
+			return texture;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[UIStyle] Failed to generate unicode icon texture: {ex.Message}");
 			return null;
 		}
 	}

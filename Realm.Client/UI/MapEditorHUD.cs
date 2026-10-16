@@ -29,6 +29,20 @@ public partial class MapEditorHUD : Control
 
 	public static MapEditorHUD Instance { get; set; }
 
+	public static string defaultLoadFolder
+	{
+		get => !string.IsNullOrEmpty(GameSettings.LastOpenedFolder) ? GameSettings.LastOpenedFolder : GetDocumentsDirectory();
+		set
+		{
+			GameSettings.LastOpenedFolder = value ?? string.Empty;
+			GameSettings.Save();
+		}
+	}
+
+	public static string defaultSaveFolder { get; set; } = GetDocumentsDirectory();
+
+	public static string? mapSaveFolder { get; set; } = null;
+
 	public static bool IsDraggingSlider { get; set; } = false;
 
 
@@ -155,6 +169,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnSave { get; set; }
 	private Button _btnSaveAs { get; set; }
 	private Button _btnTestMap { get; set; }
+	private OptionButton _optTestSettings { get; set; }
 	private Button _btnExportMap { get; set; }
 	private Button _btnLoad { get; set; }
 	private Button _btnDeleteObject { get; set; }
@@ -216,6 +231,8 @@ public partial class MapEditorHUD : Control
 	private ProceduralAnimationStudioDialog _proceduralAnimationStudioDialog { get; set; }
 	private AuthorSignatureDialog _authorSignatureDialog { get; set; }
 	private ReplaceTextureDialog _replaceTextureDialog { get; set; }
+	private UtilitiesDialog _utilitiesDialog { get; set; }
+	private TestSettingsDialog _testSettingsDialog { get; set; }
 	private Button _btnEditorSettings { get; set; }
 	private PanelContainer _mapNameHeaderPanel { get; set; }
 	private Label _lblMapNameHeader { get; set; }
@@ -227,6 +244,7 @@ public partial class MapEditorHUD : Control
 	private Button BtnAssetsManager { get; set; }
 	private Button BtnTemplateManager { get; set; }
 	private Button BtnInstanceManager { get; set; }
+	private Button BtnUtilities { get; set; }
 	private bool IsUpdatingInspectorUI { get; set; }
 
 	private CheckBox ChkApplyGroundTexture { get; set; }
@@ -321,7 +339,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnDrawCoordinate { get; set; }
 	private LineEdit _txtCoordinateName { get; set; }
 	private Button _btnCommitCoordinate { get; set; }
-	private VBoxContainer _coordinateListVBox { get; set; }
+	private Button _btnViewCoordinates { get; set; }
 
 
 	private Button _activeToolButton { get; set; } = null;
@@ -749,16 +767,16 @@ public partial class MapEditorHUD : Control
 			_sldBrushStrength.MinValue = 0.0;
 			_sldBrushStrength.MaxValue = 10.0;
 			_sldBrushStrength.Step = 1.0;
-			_sldBrushStrength.Value = GameContext.EditorService.SavedTextureIntensity;
-			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = GameContext.EditorService.SavedTextureIntensity.ToString("F0");
-			GameHost.Instance.EditorBrushStrength = GameContext.EditorService.SavedTextureIntensity;
+			_sldBrushStrength.Value = GameContext.SessionState.SavedTextureIntensity;
+			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = GameContext.SessionState.SavedTextureIntensity.ToString("F0");
+			GameHost.Instance.EditorBrushStrength = GameContext.SessionState.SavedTextureIntensity;
 		}
 		else
 		{
 			_sldBrushStrength.MinValue = 0.5;
 			_sldBrushStrength.MaxValue = 10.0;
 			_sldBrushStrength.Step = 0.5;
-			float restoredStrength = Math.Max(0.5f, GameContext.EditorService.SavedBrushStrength);
+			float restoredStrength = Math.Max(0.5f, GameContext.SessionState.SavedBrushStrength);
 			_sldBrushStrength.Value = restoredStrength;
 			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = restoredStrength.ToString("F1");
 			GameHost.Instance.EditorBrushStrength = restoredStrength;
@@ -1037,12 +1055,19 @@ public partial class MapEditorHUD : Control
 	{
 		return AnyOptionButtonPopupVisible(
 			_optModule,
+			_optTestSettings,
 			_entityPaletteController?.OptCategoryItems,
 			_optEyedropperMode,
 			_optPathingMode,
 			_optMirrorMode,
 			_optClipboardMirrorMode
 		);
+	}
+
+	public void OpenTestSettingsDialog()
+	{
+		_testSettingsDialog ??= new TestSettingsDialog(this);
+		_testSettingsDialog.OpenDialog();
 	}
 
 	private bool IsSecondaryOptionPopupVisible()
@@ -1185,40 +1210,41 @@ public partial class MapEditorHUD : Control
 		var camera = GameHost.Instance.MainCamera;
 		if (camera == null) return;
 
-		GameContext.EditorService.SavedCameraPosition = camera.Position;
+		GameContext.SessionState.SavedCameraPosition = camera.Position;
 
 		var host = GameHost.Instance;
 		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
 		{
 			var state = GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
-			GameContext.EditorService.SavedTargetHeight = state.TargetHeight;
-			GameContext.EditorService.SavedCurrentHeight = state.CurrentHeight;
-			GameContext.EditorService.SavedTargetYaw = state.TargetYaw;
-			GameContext.EditorService.SavedCurrentYaw = state.CurrentYaw;
-			GameContext.EditorService.SavedTargetPitch = state.TargetPitch;
-			GameContext.EditorService.SavedCurrentPitch = state.CurrentPitch;
-			GameContext.EditorService.SavedIsTopDown = state.IsTopDown;
-			GameContext.EditorService.SavedYawSwing = state.YawSwing;
-			GameContext.EditorService.SavedPitchSwing = state.PitchSwing;
+			GameContext.SessionState.SavedTargetHeight = state.TargetHeight;
+			GameContext.SessionState.SavedCurrentHeight = state.CurrentHeight;
+			GameContext.SessionState.SavedTargetYaw = state.TargetYaw;
+			GameContext.SessionState.SavedCurrentYaw = state.CurrentYaw;
+			GameContext.SessionState.SavedTargetPitch = state.TargetPitch;
+			GameContext.SessionState.SavedCurrentPitch = state.CurrentPitch;
+			GameContext.SessionState.SavedIsTopDown = state.IsTopDown;
+			GameContext.SessionState.SavedYawSwing = state.YawSwing;
+			GameContext.SessionState.SavedPitchSwing = state.PitchSwing;
 		}
 	}
 
 	private void SaveGameHostStates()
 	{
 		var host = GameHost.Instance;
-		GameContext.EditorService.SavedGridMode = GameContext.EditorService.EditorGridMode;
-		GameContext.EditorService.SavedActiveTool = host.ActiveEditorTool;
-		GameContext.EditorService.SavedActivePlaceId = host.ActivePlaceId;
-		GameContext.EditorService.SavedCameraBoundsVisible = GameContext.EditorService.EditorCameraBoundsVisible;
-		GameContext.EditorService.SavedDisableShadows = GameContext.EditorService.EditorDisableShadows;
-		GameContext.EditorService.SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
-		GameContext.EditorService.SavedBrushRadius = (float)(_sldBrushSize?.Value ?? 1f);
+		GameContext.SessionState.SavedGridMode = GameContext.EditorService.EditorGridMode;
+		GameContext.SessionState.SavedActiveTool = host.ActiveEditorTool;
+		GameContext.SessionState.SavedActivePlaceId = host.ActivePlaceId;
+		GameContext.SessionState.SavedCameraBoundsVisible = GameContext.EditorService.EditorCameraBoundsVisible;
+		GameContext.SessionState.SavedDisableShadows = GameContext.EditorService.EditorDisableShadows;
+		GameContext.SessionState.SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
+		GameContext.SessionState.SavedBrushRadius = (float)(_sldBrushSize?.Value ?? 1f);
 		float val = (float)(_sldBrushStrength?.Value ?? 1f);
-		GameContext.EditorService.SavedBrushStrength = val;
+		GameContext.SessionState.SavedBrushStrength = val;
 	}
 
 	private async Task PrepareMapAndWorkspaceForTest()
 	{
+		MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._tempWorkspacePath);
 		string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
 		GameHost.Instance.SaveMapToFile(tempTerrainPath);
 		GameHost.Instance.EditorHasUnsavedChanges = false;
@@ -1233,8 +1259,9 @@ public partial class MapEditorHUD : Control
 
 		SetWasmConsoleStatus("Compiling WASM map script...", UIStyle.ColorCyanGlow);
 		AppendWasmConsoleLog("=== WASM COMPILATION PIPELINE STARTED ===");
+		AppendWasmConsoleLog($"[DEBUG] Godot Host Process ID: {System.Environment.ProcessId}. Select this PID in CodeLLDB when attaching.");
 
-		await CompileAndSignMapAsync(GameContext.EditorService._tempWorkspacePath, skipAttribution: true);
+		await CompileAndSignMapAsync(GameContext.EditorService._tempWorkspacePath, skipAttribution: true, isDebug: true);
 
 		if (_wasmHasErrors)
 		{
@@ -1281,7 +1308,7 @@ public partial class MapEditorHUD : Control
 		}
 
 		GameHost.Instance.ExitMapEditorMode();
-		GameContext.EditorService.IsTestMode = true;
+		GameContext.SessionState.IsTestMode = true;
 
 		if (UIManager.Instance != null)
 		{

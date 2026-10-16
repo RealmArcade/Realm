@@ -8,35 +8,9 @@ namespace Realm.MapAPI;
 public interface IGameAPI
 {
 	/// <summary>
-	/// Gets or sets the player's gold resource amount.
-	/// </summary>
-	float Gold { get; set; }
-
-	/// <summary>
-	/// Gets or sets the player's wood resource amount.
-	/// </summary>
-	float Wood { get; set; }
-
-	/// <summary>
-	/// Gets or sets the player's stone resource amount.
-	/// </summary>
-	float Stone { get; set; }
-
-	/// <summary>
 	/// Gets the elapsed game time in seconds.
 	/// </summary>
 	float GameElapsedTime { get; }
-
-	/// <summary>
-	/// Spawns a unit or building of the specified type at the given position.
-	/// </summary>
-	/// <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-	/// <param name="position">The spawn coordinates in 3D world space.</param>
-	/// <param name="isEnemy">True if the unit should belong to the enemy, false if friendly.</param>
-	/// <param name="bypassPopulation">True to spawn the unit without consuming the player's population limit, false to consume it normally.</param>
-	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
-	/// <returns>A reference to the spawned unit.</returns>
-	IUnit SpawnUnit(string unitTypeId, Vector3 position, bool isEnemy, bool bypassPopulation = false, bool executeSpawnShader = true);
 
 
 	/// <summary>
@@ -90,16 +64,6 @@ public interface IGameAPI
 	void ShowFeedbackText(string text, Vector3 color);
 
 	/// <summary>
-	/// Plays the standard warning/alert audio sound.
-	/// </summary>
-	void PlayWarningSound();
-
-	/// <summary>
-	/// Plays the standard button/command click audio sound.
-	/// </summary>
-	void PlayClickSound();
-
-	/// <summary>
 	/// Triggers the game victory sequence.
 	/// </summary>
 	void TriggerVictory();
@@ -110,13 +74,6 @@ public interface IGameAPI
 	void TriggerDefeat();
 
 	/// <summary>
-	/// Gets the castle unit belonging to the specified faction.
-	/// </summary>
-	/// <param name="isEnemy">True to get the enemy castle, false for the player castle.</param>
-	/// <returns>The castle unit, or null if it has been destroyed.</returns>
-	IUnit? GetCastle(bool isEnemy);
-
-	/// <summary>
 	/// Spawns a temporary visual target indicator ring at the specified position with the given color.
 	/// </summary>
 	/// <param name="position">The coordinates in 3D world space.</param>
@@ -124,39 +81,11 @@ public interface IGameAPI
 	void SpawnTargetIndicator(Vector3 position, Vector3 color);
 
 	/// <summary>
-	/// Gets or sets the player's maximum population capacity.
-	/// </summary>
-	int MaxPopulation { get; set; }
-
-	/// <summary>
-	/// Gets the player's current population.
-	/// </summary>
-	int CurrentPopulation { get; }
-
-	/// <summary>
 	/// Retrieves a unit by its unique runtime identifier.
 	/// </summary>
 	/// <param name="uniqueId">The unique ID of the unit to retrieve.</param>
 	/// <returns>The unit wrapper if alive, or null.</returns>
 	IUnit? GetUnitById(int uniqueId);
-
-	/// <summary>
-	/// Retrieves all units that are currently selected by the player.
-	/// </summary>
-	/// <returns>A collection of currently selected units.</returns>
-	IEnumerable<IUnit> GetSelectedUnits();
-
-	/// <summary>
-	/// Spawns a minimap ping at the specified 3D position in world space.
-	/// </summary>
-	/// <param name="position">The target position in 3D world space.</param>
-	void PingMinimap(Vector3 position);
-
-	/// <summary>
-	/// Enters building placement mode for the specified structure type.
-	/// </summary>
-	/// <param name="unitTypeId">The unit type ID of the building to place.</param>
-	void StartBuildingPlacement(string unitTypeId);
 
 	/// <summary>
 	/// Generates a new map directory containing boilerplate files for a custom map.
@@ -225,9 +154,7 @@ public interface IGameAPI
 	/// <param name="radius">The radius of the barrage volley impact area.</param>
 	/// <param name="count">The total number of projectile/effect impacts to spawn.</param>
 	/// <param name="intervalSeconds">The time interval in seconds between individual barrage impacts.</param>
-	void SpawnBarrageVolley(string effectTypeId, Vector3 targetAreaCenter, float radius, int count, float intervalSeconds)
-	{
-	}
+	void SpawnBarrageVolley(string effectTypeId, Vector3 targetAreaCenter, float radius, int count, float intervalSeconds);
 
 	/// <summary>
 	/// Spawns a multi-segment ribbon beam that chains sequentially between target positions.
@@ -264,9 +191,18 @@ public interface IGameAPI
 	/// <param name="speed">The expansion speed in units per second.</param>
 	/// <param name="duration">Total lifespan in seconds before fading out.</param>
 	/// <param name="color">Optional RGB color tint for the ground ring.</param>
-	void SpawnExpandingGroundRing(Vector3 position, float maxRadius = 8.0f, float speed = 12.0f, float duration = 1.0f, Vector3? color = null)
-	{
-	}
+	void SpawnExpandingGroundRing(Vector3 position, float maxRadius = 8.0f, float speed = 12.0f, float duration = 1.0f, Vector3? color = null);
+
+	/// <summary>
+	/// Draws a visual line on the terrain surface between two ground coordinates.
+	/// The line automatically conforms to the terrain height mesh along its path.
+	/// </summary>
+	/// <param name="start">The starting ground position (X, Z coordinates on the map plane).</param>
+	/// <param name="end">The ending ground position (X, Z coordinates on the map plane).</param>
+	/// <param name="color">Optional RGB color tint for the line.</param>
+	/// <param name="duration">Duration in seconds before the line fully fades out.</param>
+	/// <param name="width">The visual width/thickness of the line in world units.</param>
+	void DrawLineOnTerrain(Vector2 start, Vector2 end, Vector3? color = null, float duration = 1.0f, float width = 0.2f);
 
 	/// <summary>
 	/// Spawns an expanding 3D spherical / dome burst shockwave effect.
@@ -276,9 +212,7 @@ public interface IGameAPI
 	/// <param name="speed">The burst expansion speed in units per second.</param>
 	/// <param name="duration">Total lifespan in seconds before fading out.</param>
 	/// <param name="color">Optional RGB color tint for the burst sphere.</param>
-	void SpawnExpandingBurstSphere(Vector3 position, float maxRadius = 6.0f, float speed = 15.0f, float duration = 0.8f, Vector3? color = null)
-	{
-	}
+	void SpawnExpandingBurstSphere(Vector3 position, float maxRadius = 6.0f, float speed = 15.0f, float duration = 0.8f, Vector3? color = null);
 
 	/// <summary>
 	/// Attaches a persistent volume shield or aura visual effect to a unit.
@@ -286,9 +220,7 @@ public interface IGameAPI
 	/// <param name="unit">The target unit wrapper to attach the aura to.</param>
 	/// <param name="auraVfxId">The identifier of the visual effect or attachment configuration.</param>
 	/// <param name="scale">The visual scale multiplier.</param>
-	void AttachPersistentAura(IUnit unit, string auraVfxId, float scale = 1.0f)
-	{
-	}
+	void AttachPersistentAura(IUnit unit, string auraVfxId, float scale = 1.0f);
 
 	/// <summary>
 	/// Adds a buff to a unit.
@@ -411,7 +343,7 @@ public interface IGameAPI
 	/// Translates a localization key using the player's preferred language with English fallback.
 	/// </summary>
 	/// <param name="key">Localization translation key.</param>
-	/// <param name="playerIndex">Zero-based player index, or -1 for current local player.</param>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
 	/// <returns>Translated text string.</returns>
 	string Translate(string key, int playerIndex);
 
@@ -433,48 +365,6 @@ public interface IGameAPI
 	/// <param name="intensity">The shake strength multiplier.</param>
 	/// <param name="duration">The time in seconds the shake lasts.</param>
 	void ShakeCamera(float intensity, float duration);
-
-	/// <summary>
-	/// Smoothly pans the game camera to the specified position.
-	/// </summary>
-	/// <param name="position">The target position in 3D world space.</param>
-	/// <param name="duration">The pan time in seconds.</param>
-	void PanCameraTo(Vector3 position, float duration);
-
-	/// <summary>
-	/// Smoothly pans the game camera to the specified position for a specific player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index whose camera should pan.</param>
-	/// <param name="position">The target position in 3D world space.</param>
-	/// <param name="duration">The pan time in seconds.</param>
-	void PanCameraToForPlayer(int playerIndex, Vector3 position, float duration)
-	{
-		if (playerIndex == 0) PanCameraTo(position, duration);
-	}
-
-	/// <summary>
-	/// Selects the specified unit programmatically for a specific player slot, clearing any previously selected units.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index whose selection should change.</param>
-	/// <param name="unit">The unit to select.</param>
-	void SelectUnitForPlayer(int playerIndex, IUnit unit)
-	{
-		if (playerIndex == 0) SelectUnit(unit);
-	}
-
-	/// <summary>
-	/// Registers an ability with display metadata and execution behavior for a specific player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index whose command card should register the ability.</param>
-	/// <param name="abilityId">Unique identifier of the ability.</param>
-	/// <param name="displayName">User-facing name of the ability.</param>
-	/// <param name="tooltip">Detailed description displayed on hover.</param>
-	/// <param name="iconPath">Resource path to the ability icon texture.</param>
-	/// <param name="isInstant">True if the ability executes immediately without ground targeting.</param>
-	void RegisterAbilityForPlayer(int playerIndex, string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false)
-	{
-		if (playerIndex == 0) RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant);
-	}
 
 	/// <summary>
 	/// Sets the time of day to a specific hour (0.0 to 24.0).
@@ -548,11 +438,12 @@ public interface IGameAPI
 	/// Spawns a unit owned by the specified player slot at the given position.
 	/// </summary>
 	/// <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-	/// <param name="position">The spawn coordinates in 3D world space.</param>
+	/// <param name="position">The spawn coordinates in 2D ground space (X, Z).</param>
 	/// <param name="playerIndex">Zero-based player slot index that will own the unit.</param>
 	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
+	/// <param name="bypassPopulation">True to bypass population cap limits when spawning, false to enforce population limits.</param>
 	/// <returns>A reference to the spawned unit.</returns>
-	IUnit SpawnUnitForPlayer(string unitTypeId, Vector3 position, int playerIndex, bool executeSpawnShader = true);
+	IUnit SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false);
 
 	/// <summary>
 	/// Retrieves all alive units owned by the specified player slot.
@@ -691,10 +582,40 @@ public interface IGameAPI
 	void SetPlayersAllied(int playerIndex, int otherPlayerIndex, bool allied);
 
 	/// <summary>
+	/// Returns true if two player slots treat each other as passive allies.
+	/// </summary>
+	/// <param name="playerIndex">Index of the first player.</param>
+	/// <param name="otherPlayerIndex">Index of the second player.</param>
+	bool ArePlayersAllied(int playerIndex, int otherPlayerIndex);
+
+	/// <summary>
 	/// Returns true if the specified player slot is controlled by a computer AI.
 	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="playerIndex">Player slot index.</param>
 	bool IsPlayerComputer(int playerIndex);
+
+	/// <summary>
+	/// Sets whether the specified player slot is active in the game session.
+	/// </summary>
+	/// <param name="playerIndex">Player slot index.</param>
+	/// <param name="active">True if active, false otherwise.</param>
+	void SetPlayerActive(int playerIndex, bool active);
+
+	/// <summary>
+	/// Kicks the specified player slot from the match.
+	/// </summary>
+	/// <param name="playerIndex">Player slot index.</param>
+	/// <param name="reason">Optional reason message for the kick.</param>
+	void KickPlayer(int playerIndex, string reason = "Kicked by host");
+
+	/// <summary>
+	/// Adds or configures an AI computer player in the specified slot.
+	/// </summary>
+	/// <param name="playerIndex">The player slot index.</param>
+	/// <param name="name">Optional display name for the bot.</param>
+	/// <param name="teamIndex">Optional team index (default -1 for unassigned).</param>
+	/// <returns>True if successfully added or configured.</returns>
+	bool AddComputerPlayer(int playerIndex, string? name = null, int teamIndex = -1);
 
 
 	/// <summary>
@@ -710,9 +631,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit whose facing direction is being set.</param>
 	/// <param name="facingRadians">The target facing angle in radians around the vertical axis.</param>
-	void SetUnitFacing(IUnit unit, float facingRadians)
-	{
-	}
+	void SetUnitFacing(IUnit unit, float facingRadians);
 
 	/// <summary>
 	/// Sets the facing direction of the unit to look at the specified target position.
@@ -973,17 +892,6 @@ public interface IGameAPI
 	void SetUnitSpellImmune(IUnit unit, bool immune);
 
 	/// <summary>
-	/// Selects the specified unit programmatically, clearing any previously selected units.
-	/// </summary>
-	/// <param name="unit">The unit to select.</param>
-	void SelectUnit(IUnit unit);
-
-	/// <summary>
-	/// Clears the player's unit selection programmatically.
-	/// </summary>
-	void ClearSelection();
-
-	/// <summary>
 	/// Checks if a named coordinate box exists.
 	/// </summary>
 	bool HasCoordinate(string coordinateName);
@@ -1071,28 +979,17 @@ public interface IGameAPI
 	}
 
 	/// <summary>
-	/// Spawns a new unit of the specified type at the center of the given coordinate region.
-	/// </summary>
-	/// <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-	/// <param name="coordinate">The coordinate region whose center will be used as spawn location.</param>
-	/// <param name="isEnemy">True if the unit belongs to the enemy player.</param>
-	/// <param name="bypassPopulation">If true, ignores population cap limits.</param>
-	/// <returns>The spawned <see cref="IUnit"/>.</returns>
-	IUnit SpawnUnit(string unitTypeId, Coordinate coordinate, bool isEnemy, bool bypassPopulation = false)
-	{
-		return SpawnUnit(unitTypeId, coordinate.Center, isEnemy, bypassPopulation);
-	}
-
-	/// <summary>
 	/// Spawns a new unit for a specific player at the center of the given coordinate region.
 	/// </summary>
 	/// <param name="unitTypeId">The type identifier of the unit to spawn.</param>
 	/// <param name="coordinate">The coordinate region whose center will be used as spawn location.</param>
 	/// <param name="playerIndex">The player index who will own the unit.</param>
+	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
+	/// <param name="bypassPopulation">True to bypass population cap limits when spawning, false to enforce population limits.</param>
 	/// <returns>The spawned <see cref="IUnit"/>.</returns>
-	IUnit SpawnUnitForPlayer(string unitTypeId, Coordinate coordinate, int playerIndex)
+	IUnit SpawnUnitForPlayer(string unitTypeId, Coordinate coordinate, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false)
 	{
-		return SpawnUnitForPlayer(unitTypeId, coordinate.Center, playerIndex);
+		return SpawnUnitForPlayer(unitTypeId, new Vector2(coordinate.Center.X, coordinate.Center.Z), playerIndex, executeSpawnShader, bypassPopulation);
 	}
 
 	/// <summary>
@@ -1123,6 +1020,34 @@ public interface IGameAPI
 	void AddUnitTypeAbility(string unitTypeId, string abilityId);
 
 	/// <summary>
+	/// Retrieves the ordered list of ability identifiers configured for the specified unit or building type.
+	/// </summary>
+	/// <param name="unitTypeId">The unit or building type identifier.</param>
+	/// <returns>A read-only list of ability identifiers configured for the unit type (never null).</returns>
+	IReadOnlyList<string> GetUnitTypeAbilities(string unitTypeId);
+
+	/// <summary>
+	/// Retrieves the authored display name for the specified unit or building type.
+	/// </summary>
+	/// <param name="unitTypeId">The unit or building type identifier.</param>
+	/// <returns>The localized or authored display name, or a fallback string if unauthored.</returns>
+	string GetUnitName(string unitTypeId);
+
+	/// <summary>
+	/// Retrieves the authored display name for the specified ability type.
+	/// </summary>
+	/// <param name="abilityId">The ability type identifier.</param>
+	/// <returns>The localized or authored display name, or a fallback string if unauthored.</returns>
+	string GetAbilityName(string abilityId);
+
+	/// <summary>
+	/// Enables or disables automated combat AI for a specific unit instance.
+	/// </summary>
+	/// <param name="unit">The unit to modify.</param>
+	/// <param name="enabled">True to enable autonomous combat AI; false to disable.</param>
+	void EnableUnitAutoCombat(IUnit unit, bool enabled);
+
+	/// <summary>
 	/// Writes string content to a file in the whitelisted, map-specific subfolder in AppData saved_data directory.
 	/// The target location is sandboxed to user://saved_data/{mapName}/{fileName}.
 	/// </summary>
@@ -1142,48 +1067,32 @@ public interface IGameAPI
 	/// <summary>
 	/// Triggered when a unit buys or receives an item from a shop or altar.
 	/// </summary>
-	event Action<IUnit, string>? OnItemSold
-	{
-		add { }
-		remove { }
-	}
+	event Action<IUnit, string>? OnItemSold;
 
 	/// <summary>
 	/// Triggered when a structure finishes construction.
 	/// </summary>
-	event Action<IUnit>? OnConstructionFinished
-	{
-		add { }
-		remove { }
-	}
+	event Action<IUnit>? OnConstructionFinished;
 
 	/// <summary>
 	/// Triggered when a unit is issued an order.
 	/// </summary>
-	event Action<IUnit, string, Vector3>? OnUnitOrdered
-	{
-		add { }
-		remove { }
-	}
+	event Action<IUnit, string, Vector3>? OnUnitOrdered;
 
 	/// <summary>
 	/// Gets the research level of a technology upgrade for the specified player slot.
 	/// </summary>
-	int GetPlayerTechLevel(int playerIndex, string techId) => 0;
+	int GetPlayerTechLevel(int playerIndex, string techId);
 
 	/// <summary>
 	/// Sets the research level of a technology upgrade for the specified player slot.
 	/// </summary>
-	void SetPlayerTechLevel(int playerIndex, string techId, int level)
-	{
-	}
+	void SetPlayerTechLevel(int playerIndex, string techId, int level);
 
 	/// <summary>
 	/// Adds to the research level of a technology upgrade for the specified player slot.
 	/// </summary>
-	void AddPlayerTechLevel(int playerIndex, string techId, int delta = 1)
-	{
-	}
+	void AddPlayerTechLevel(int playerIndex, string techId, int delta = 1);
 
 	/// <summary>
 	/// Registers an ability with display metadata and execution behavior.
@@ -1194,6 +1103,17 @@ public interface IGameAPI
 	/// <param name="iconPath">Resource path to the ability icon texture.</param>
 	/// <param name="isInstant">True if the ability executes immediately without ground targeting.</param>
 	void RegisterAbility(string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false);
+
+	/// <summary>
+	/// Registers an ability with display metadata and execution behavior for a specific player slot.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index whose command card should register the ability.</param>
+	/// <param name="abilityId">Unique identifier of the ability.</param>
+	/// <param name="displayName">User-facing name of the ability.</param>
+	/// <param name="tooltip">Detailed description displayed on hover.</param>
+	/// <param name="iconPath">Resource path to the ability icon texture.</param>
+	/// <param name="isInstant">True if the ability executes immediately without ground targeting.</param>
+	void RegisterPlayerAbility(int playerIndex, string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false);
 
 	/// <summary>
 	/// Sets whether an ability executes immediately without requiring ground targeting.
@@ -1217,9 +1137,7 @@ public interface IGameAPI
 	/// <summary>
 	/// Sets the display tooltip for an item.
 	/// </summary>
-	void SetItemTooltip(string itemId, string tooltip)
-	{
-	}
+	void SetItemTooltip(string itemId, string tooltip);
 
 	/// <summary>
 	/// Configures the grid position (X, Y) of an ability in the command card interface.
@@ -1231,32 +1149,24 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="abilityId">Unique identifier of the ability.</param>
 	/// <param name="hotkey">The key string to trigger the ability.</param>
-	void SetAbilityHotkey(string abilityId, string hotkey)
-	{
-	}
+	void SetAbilityHotkey(string abilityId, string hotkey);
 
 	/// <summary>
 	/// Sets whether an ability on a unit is disabled or hidden in the UI.
 	/// </summary>
-	void SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden)
-	{
-	}
+	void SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden);
 
 	/// <summary>
 	/// Sets the mana cost of a unit's ability.
 	/// </summary>
-	void SetAbilityManaCost(IUnit unit, string abilityId, float manaCost)
-	{
-	}
+	void SetAbilityManaCost(IUnit unit, string abilityId, float manaCost);
 
 	/// <summary>
 	/// Plays a named visual animation on the unit's 3D model and equips any configured hand attachments for that animation.
 	/// </summary>
 	/// <param name="unit">The unit to animate.</param>
 	/// <param name="animationName">The animation name (e.g., "Idle", "Labor", "Attack").</param>
-	void SetUnitAnimation(IUnit unit, string animationName)
-	{
-	}
+	void SetUnitAnimation(IUnit unit, string animationName);
 
 	/// <summary>
 	/// Attaches or removes a 3D model object on the specified hand bone of the unit's rigged skeleton.
@@ -1264,9 +1174,7 @@ public interface IGameAPI
 	/// <param name="unit">The target unit.</param>
 	/// <param name="hand">The target hand ("RightHand" or "LeftHand").</param>
 	/// <param name="attachmentId">The attachment identifier or model filename, or null/empty to clear the hand attachment.</param>
-	void SetUnitHandAttachment(IUnit unit, string hand, string? attachmentId)
-	{
-	}
+	void SetUnitHandAttachment(IUnit unit, string hand, string? attachmentId);
 
 	/// <summary>
 	/// Orders the unit to move to a world position without attacking along the way.
@@ -1310,7 +1218,7 @@ public interface IGameAPI
 	/// <param name="playerIndex">The zero-based player index to own the revived unit.</param>
 	/// <returns>The revived unit instance.</returns>
 	IUnit ReviveUnit(string unitTypeId, Vector3 position, int playerIndex) =>
-		SpawnUnitForPlayer(unitTypeId, position, playerIndex);
+		SpawnUnitForPlayer(unitTypeId, new Vector2(position.X, position.Z), playerIndex);
 
 	/// <summary>
 	/// Destroys <paramref name="unit"/> and spawns a new copy of its type at <paramref name="position"/> with the same owner player index.
@@ -1323,7 +1231,7 @@ public interface IGameAPI
 		string typeId = unit.UnitId;
 		int playerIndex = unit.Player;
 		DestroyUnit(unit);
-		return SpawnUnitForPlayer(typeId, position, playerIndex);
+		return SpawnUnitForPlayer(typeId, new Vector2(position.X, position.Z), playerIndex);
 	}
 
 	/// <summary>
@@ -1349,16 +1257,14 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="playerIndex">The zero-based player slot index.</param>
 	/// <param name="profileJson">The serialized JSON string representing the bot profile weights and personality.</param>
-	void SetPlayerBotProfile(int playerIndex, string profileJson)
-	{
-	}
+	void SetPlayerBotProfile(int playerIndex, string profileJson);
 
 	/// <summary>
 	/// Retrieves the serialized JSON string of the active AI bot decision profile for the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">The zero-based player slot index.</param>
 	/// <returns>The serialized JSON string representing the active bot profile, or an empty string if not configured.</returns>
-	string GetPlayerBotProfile(int playerIndex) => string.Empty;
+	string GetPlayerBotProfile(int playerIndex);
 
 	/// <summary>
 	/// Sets the AI sub-genre provider for the specified player slot (e.g., "rts", "tower_defense", "auto_battler", "custom").
@@ -1366,16 +1272,14 @@ public interface IGameAPI
 	/// <param name="playerIndex">The zero-based player slot index.</param>
 	/// <param name="genreName">The identifier of the AI genre provider.</param>
 	/// <param name="configJson">Optional JSON configuration parameters for the genre provider.</param>
-	void SetPlayerBotGenre(int playerIndex, string genreName, string? configJson = null)
-	{
-	}
+	void SetPlayerBotGenre(int playerIndex, string genreName, string? configJson = null);
 
 	/// <summary>
 	/// Retrieves the identifier of the active AI sub-genre provider for the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">The zero-based player slot index.</param>
 	/// <returns>The genre identifier string (e.g., "rts", "tower_defense", "auto_battler").</returns>
-	string GetPlayerBotGenre(int playerIndex) => "rts";
+	string GetPlayerBotGenre(int playerIndex);
 
 	/// <summary>
 	/// Registers a map-defined custom candidate action for evaluation by the bot utility decision loop.
@@ -1394,19 +1298,13 @@ public interface IGameAPI
 	/// Clears all registered custom bot candidate actions for the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">The zero-based player slot index.</param>
-	void ClearCustomBotDecisions(int playerIndex)
-	{
-	}
+	void ClearCustomBotDecisions(int playerIndex);
 
 	/// <summary>
 	/// Triggered when an autonomous AI bot executes a custom map-defined action.
 	/// Parameters are: playerIndex, actionId, intent, targetPosition, payload.
 	/// </summary>
-	event Action<int, string, string, Vector3, string>? OnBotCustomActionExecuted
-	{
-		add { }
-		remove { }
-	}
+	event Action<int, string, string, Vector3, string>? OnBotCustomActionExecuted;
 
 	/// <summary>
 	/// Executes an automated self-play genetic training simulation on CPU and returns the resulting serialized bot profile JSON.
@@ -1417,7 +1315,7 @@ public interface IGameAPI
 	/// <param name="matchesPerEvaluation">The number of evaluation matches each candidate plays per generation.</param>
 	/// <param name="genre">The AI sub-genre provider identifier (e.g. "rts", "tower_defense", "auto_battler").</param>
 	/// <returns>The serialized JSON string of the best evolved bot profile.</returns>
-	string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts") => string.Empty;
+	string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts");
 
 	/// <summary>
 	/// Sets the active environment lighting, fog, and atmospheric preset immediately without transition interpolation.
@@ -1493,13 +1391,123 @@ public interface IGameAPI
 	/// <returns>A lazily-evaluated sequence of active player slot indices in ascending order.</returns>
 	IEnumerable<int> GetActivePlayerIndices(int exclusiveUpperBound = -1)
 	{
-		int limit = exclusiveUpperBound < 0 ? PlayerCount : Math.Min(exclusiveUpperBound, PlayerCount);
-		for (int playerIndex = 0; playerIndex < limit; playerIndex++)
+		int limit = exclusiveUpperBound < 0 ? 25 : Math.Min(exclusiveUpperBound, 25);
+		for (int playerIndex = 1; playerIndex < limit; playerIndex++)
 		{
 			if (IsPlayerActive(playerIndex))
 				yield return playerIndex;
 		}
 	}
+
+	/// <summary>
+	/// Retrieves an <see cref="IPlayer"/> facade for the specified zero-based player slot index,
+	/// providing unified access to both authoritative player state and client-targeted RPC actions.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <returns>An <see cref="IPlayer"/> facade bound to the specified player slot.</returns>
+	IPlayer GetPlayer(int playerIndex) => new PlayerFacade(this, playerIndex);
+
+	/// <summary>
+	/// Enumerates <see cref="IPlayer"/> facades for all active player slots below the given exclusive upper bound.
+	/// </summary>
+	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
+	/// <returns>A lazily-evaluated sequence of active <see cref="IPlayer"/> facades in ascending slot order.</returns>
+	IEnumerable<IPlayer> GetActivePlayers(int exclusiveUpperBound = -1)
+	{
+		foreach (int playerIndex in GetActivePlayerIndices(exclusiveUpperBound))
+			yield return GetPlayer(playerIndex);
+	}
+
+	/// <summary>
+	/// Gets the stone resource for the specified player slot.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	float GetPlayerStone(int playerIndex);
+
+	/// <summary>
+	/// Sets the stone resource for the specified player slot.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="amount">The new stone amount.</param>
+	void SetPlayerStone(int playerIndex, float amount);
+
+	/// <summary>
+	/// Adds the specified amount to the stone resource for the given player slot.
+	/// Negative values subtract stone.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="delta">The amount to add (may be negative).</param>
+	void AdjustPlayerStone(int playerIndex, float delta);
+
+	/// <summary>
+	/// Smoothly pans the specified player's camera to the given 3D world position.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="position">The target position in 3D world space.</param>
+	/// <param name="duration">The pan duration in seconds.</param>
+	void PanPlayerCameraTo(int playerIndex, Vector3 position, float duration = 0f);
+
+	/// <summary>
+	/// Shakes the specified player's camera to simulate an explosion or impact.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="intensity">The shake strength multiplier.</param>
+	/// <param name="duration">The time in seconds the shake lasts.</param>
+	void ShakePlayerCamera(int playerIndex, float intensity, float duration);
+
+	/// <summary>
+	/// Selects the specified unit on the given player's client, clearing their previous selection.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="unit">The unit to select.</param>
+	void SelectPlayerUnit(int playerIndex, IUnit unit);
+
+	/// <summary>
+	/// Clears the unit selection on the specified player's client.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void ClearPlayerSelection(int playerIndex);
+
+	/// <summary>
+	/// Retrieves all units currently selected by the specified player.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <returns>A collection of units currently selected by that player.</returns>
+	IEnumerable<IUnit> GetPlayerSelectedUnits(int playerIndex);
+
+	/// <summary>
+	/// Displays floating feedback text on the specified player's screen.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="text">The text message to display.</param>
+	/// <param name="color">The color of the text in RGB format.</param>
+	void ShowPlayerFeedbackText(int playerIndex, string text, Vector3 color);
+
+	/// <summary>
+	/// Spawns a minimap ping on the specified player's client at the given 3D world position.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="position">The target position in 3D world space.</param>
+	void PingPlayerMinimap(int playerIndex, Vector3 position);
+
+	/// <summary>
+	/// Plays the standard warning/alert audio sound on the specified player's client.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void PlayPlayerWarningSound(int playerIndex);
+
+	/// <summary>
+	/// Plays the standard button/command click audio sound on the specified player's client.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void PlayPlayerClickSound(int playerIndex);
+
+	/// <summary>
+	/// Enters building placement mode on the specified player's client for the given structure type.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="unitTypeId">The unit type ID of the building to place.</param>
+	void StartPlayerBuildingPlacement(int playerIndex, string unitTypeId);
 
 	/// <summary>
 	/// Returns a uniformly random element of the given list.
@@ -1594,19 +1602,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
 	/// <returns>A 6-character hex color string.</returns>
-	string GetPlayerColorHex(int playerIndex)
-	{
-		ReadOnlySpan<string> colors =
-		[
-			"FF0402", "0042FF", "1BE6BA", "550081",
-			"FFFC00", "FF8A0D", "20BF00", "E35BAF",
-			"949697", "7EBFF1", "106247", "4F2B05",
-			"9C0000", "0000C2", "00EBFF", "BD00FF",
-			"ECCC86", "F7A48B", "BFFF80", "DBB8EC",
-			"4F4F55", "ECF0FF", "A46F34"
-		];
-		return (playerIndex >= 0 && playerIndex < colors.Length) ? colors[playerIndex] : "FFFFFF";
-	}
+	string GetPlayerColorHex(int playerIndex);
 
 	/// <summary>
 	/// Returns the player name formatted with rich text / BBCode markup matching their assigned player slot color.

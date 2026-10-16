@@ -37,7 +37,7 @@ using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Services;
 
-public class EditorService : IEditorAPI
+public partial class EditorService : IEditorAPI
 {
 	public (bool Success, string ErrorMessage, IReadOnlyList<string> ExtractedAnimationFiles, string FileName) ImportGlbAssetFromExtensionDomain(string sourceFilePath, string category, string wsPath, Action<string, string, string, string> updateMetadataAction)
 	{
@@ -493,9 +493,7 @@ public class EditorService : IEditorAPI
 
 	public string GetWorkspacePath()
 	{
-		return string.IsNullOrEmpty(_tempWorkspacePath)
-			? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath)
-			: _tempWorkspacePath;
+		return MapWorkspaceService.GetActiveWorkspacePath();
 	}
 
 	public void SaveCustomUnitAnimations(string unitId, Dictionary<string, List<UnitAnimationEntry>> animations)
@@ -632,22 +630,12 @@ public class EditorService : IEditorAPI
 		this.LastMetadataSyncTime = File.Exists(metadataPath) ? File.GetLastWriteTimeUtc(metadataPath).Ticks : 0;
 	}
 
-	public bool IsMapEditorMode { get; set; }
-
-	public bool IsTestMode { get; set; } = false;
-	public bool ReturningFromTest { get; set; } = false;
 	public long LastMapNameCacheTicks { get; set; } = 0;
 	public string? CachedMapName { get; set; }
 	public string? CachedMapVersion { get; set; }
 	public string CurrentDirectoryBlake3 { get; set; } = string.Empty;
 	public long LastTerrainSyncTime { get; set; } = 0;
 	public long LastMetadataSyncTime { get; set; } = 0;
-	public Godot.Vector3 SavedCameraPosition { get; set; }
-	public float SavedTargetHeight { get; set; }
-	public float SavedCurrentHeight { get; set; }
-	public float SavedTargetYaw { get; set; }
-	public float SavedCurrentYaw { get; set; }
-	public float SavedTargetPitch { get; set; }
 	public int ScaleDialogTargetWidth { get; set; }
 
 	public bool DecreaseScaleDialogWidth()
@@ -701,13 +689,6 @@ public class EditorService : IEditorAPI
 	{
 		return mirrorMode == MirrorMode.Rotational || mode == GridOverlayMode.Polar || mode == GridOverlayMode.Both;
 	}
-
-
-	public float SavedCurrentPitch { get; set; }
-	public bool SavedIsTopDown { get; set; }
-	public float SavedYawSwing { get; set; }
-	public float SavedPitchSwing { get; set; }
-	public GridOverlayMode SavedGridMode { get; set; } = GridOverlayMode.Off;
 
 	public double AutoBackupElapsedSeconds { get; set; } = 0;
 
@@ -785,6 +766,49 @@ public class EditorService : IEditorAPI
 			   && File.Exists(Path.Combine(folder, "manifest.json"));
 	}
 
+	public bool IsMapFolderCorrupt(string folder, out string corruptFileName, out string parseErrorMessage)
+	{
+		corruptFileName = string.Empty;
+		parseErrorMessage = string.Empty;
+
+		if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+		{
+			return false;
+		}
+
+		string[] targetFiles = { "metadata.json", "manifest.json", "terrain.json", "license.json" };
+
+		foreach (string fileName in targetFiles)
+		{
+			string filePath = Path.Combine(folder, fileName);
+			if (!File.Exists(filePath))
+			{
+				continue;
+			}
+
+			try
+			{
+				string json = File.ReadAllText(filePath);
+				if (string.IsNullOrWhiteSpace(json))
+				{
+					corruptFileName = fileName;
+					parseErrorMessage = "File is empty.";
+					return true;
+				}
+
+				using var doc = JsonDocument.Parse(json);
+			}
+			catch (Exception ex)
+			{
+				corruptFileName = fileName;
+				parseErrorMessage = ex.Message;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	public string TempWorkspaceGodotPath { get; set; } = MapWorkspaceService.DefaultWorkspaceGodotPath;
 	public string _tempWorkspacePath { get; set; } = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
 
@@ -809,9 +833,7 @@ public class EditorService : IEditorAPI
 
 	public string GetActiveWorkspacePathFromSettings()
 	{
-		return string.IsNullOrEmpty(_tempWorkspacePath)
-			? ProjectSettings.GlobalizePath(TempWorkspaceGodotPath)
-			: _tempWorkspacePath;
+		return MapWorkspaceService.GetActiveWorkspacePath();
 	}
 
 	public void PopulateSwatchData(SwatchSlotInfo[] slots, string wsPath)
@@ -949,12 +971,8 @@ public class EditorService : IEditorAPI
 	public float EditorPolarRingSpacing { get; set; } = 8.0f;
 	public float EditorPolarRadialStep { get; set; } = 90.0f;
 	public Godot.Vector3? EditorTapeMeasureStart { get; set; }
-
-	public bool SavedDisableShadows { get; set; } = false;
-	public string SavedEntityCategory { get; set; } = "";
 	public bool IsWaterRemoveAction { get; set; } = false;
-	public float SavedBrushRadius { get; set; } = 2f;
-	public float SavedBrushStrength { get; set; } = 0.5f;
+
 	public bool PlaceUnitIsEnemy { get; set; } = false;
 	public float EditorBrushRadius { get; set; } = 2.0f;
 	public float EditorBrushStrength { get; set; } = 3.0f;
@@ -972,11 +990,7 @@ public class EditorService : IEditorAPI
 		return (terrainName, cliffName);
 	}
 
-	public EditorTool SavedActiveTool { get; set; } = EditorTool.Raise;
 	public EditorTool ActiveEditorTool { get; set; } = EditorTool.None;
-	public string SavedActivePlaceId { get; set; } = "";
-	public bool SavedCameraBoundsVisible { get; set; } = false;
-	public float SavedTextureIntensity { get; set; } = 10f;
 	public string? LastUsedFolder { get; set; } = null;
 	public string? CurrentSourceFolder { get; set; } = null;
 	public string? PendingCasSourceDirectory { get; set; } = null;
@@ -6682,7 +6696,7 @@ public class {mapName} : IMapScript
 		return Realm.Shared.Distribution.AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
 	}
 
-	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string> findProjectFile, Func<string, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog)
+	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string> findProjectFile, Func<string, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
 	{
 		try
 		{
@@ -6695,11 +6709,11 @@ public class {mapName} : IMapScript
 			string csproj = findProjectFile(workspace);
 			if (string.IsNullOrEmpty(csproj)) return false;
 
-			if (tryBypassCompilation(workspace)) return true;
+			if (!isDebug && tryBypassCompilation(workspace)) return true;
 
 			if (!checkMapApiDependency(workspace)) return false;
 
-			return await executeDotnetPublishAsync(workspace, csproj);
+			return await executeDotnetPublishAsync(workspace, csproj, isDebug);
 		}
 		catch (Exception ex)
 		{
@@ -6796,7 +6810,6 @@ public class {mapName} : IMapScript
 						{
 							float rounded = (float)Math.Round(radius, 2);
 							GameContext.ModelOverrideService.ModelObstacleRadii[normKey] = rounded;
-							metadata.SetModelObstacleRadius(normKey, rounded);
 						}
 					}
 				}
@@ -6822,9 +6835,6 @@ public class {mapName} : IMapScript
 				var (minY, autoYOffset) = ModelCache.CalculateModelBounds(modelFullPath, defaultScale);
 				string subLower = subCategory.ToLowerInvariant();
 				bool isPropOrRes = subLower == "props" || subLower == "resources" || subLower == "attachments" || subLower == "weapons" || subLower == "items" || subLower == "projectiles";
-
-				metadata.SetModelYOffset(fileName, autoYOffset);
-				metadata.SetModelScale(fileName, defaultScale);
 
 				GameHost.Instance?.SetModelYOffset(fileName, autoYOffset);
 				GameHost.Instance?.SetModelScale(fileName, defaultScale);
