@@ -670,6 +670,7 @@ public class InGameHUDViewModel
 		info.UnitId = u.UnitId;
 		info.IsEnemy = u.IsEnemy;
 		info.IsBuilding = u.IsBuilding;
+		info.HasInventory = false;
 		info.Name = u.UnitId;
 		info.IsUnderConstruction = false;
 		info.HasProduction = false;
@@ -788,11 +789,12 @@ public class InGameHUDViewModel
 
 	private void UpdateUnitInventory(World world, Unit3D u, SelectedUnitInfo info)
 	{
-		if (!world.Has<Inventory>(u.Entity))
+		info.InventoryItems.Clear();
+		info.HasInventory = world.Has<Inventory>(u.Entity);
+		if (!info.HasInventory)
 			return;
 
 		var inv = world.Get<Inventory>(u.Entity);
-		info.InventoryItems.Clear();
 		if (inv.Items != null)
 		{
 			foreach (var kvp in inv.Items)
@@ -875,7 +877,7 @@ public class InGameHUDViewModel
 			}
 		}
 
-		if (GameHost.UnitRegistry.TryGetValue(u.UnitId, out var regMeta))
+		if (GameHost.TryGetUnitOrBuildingMetadata(u.UnitId, out var regMeta))
 		{
 			info.Description = regMeta.Description;
 			if (regMeta.Abilities != null && regMeta.Abilities.Length > 0)

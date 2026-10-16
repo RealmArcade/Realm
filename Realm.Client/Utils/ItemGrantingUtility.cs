@@ -146,7 +146,7 @@ public static class ItemGrantingUtility
 		string unitDefId = world.Has<DefinitionId>(entity) ? world.Get<DefinitionId>(entity).Value : "";
 		var activeAbilities = new List<string>();
 
-		if (!string.IsNullOrEmpty(unitDefId) && GameHost.UnitRegistry.TryGetValue(unitDefId, out var regMeta) && regMeta.Abilities != null)
+		if (!string.IsNullOrEmpty(unitDefId) && GameHost.TryGetUnitOrBuildingMetadata(unitDefId, out var regMeta) && regMeta.Abilities != null)
 		{
 			activeAbilities.AddRange(regMeta.Abilities);
 		}

@@ -4,7 +4,8 @@ using Arch.Core;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
-	using Realm.Client.Utils;
+using Realm.Client.UI;
+using Realm.Client.Utils;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -423,7 +424,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			if (GameHost.UnitRegistry.TryGetValue(UnitId, out var meta))
+			if (GameHost.TryGetUnitOrBuildingMetadata(UnitId, out var meta))
 			{
 				return meta.XpBounty;
 			}
@@ -437,7 +438,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			if (GameHost.UnitRegistry.TryGetValue(UnitId, out var meta))
+			if (GameHost.TryGetUnitOrBuildingMetadata(UnitId, out var meta))
 			{
 				return meta.GoldBounty;
 			}
@@ -716,14 +717,24 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	{
 		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
 		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Items != null && _world.Get<Inventory>(_entity).Items.Count >= 6 && !HasItem(itemId)) return false;
-		return ItemGrantingUtility.EquipItem(_world, _entity, itemId, 1);
+		bool success = ItemGrantingUtility.EquipItem(_world, _entity, itemId, 1);
+		if (success)
+		{
+			NotifyUiInventoryChanged();
+		}
+		return success;
 	}
 
 	public bool AddItem(string itemId, int charges)
 	{
 		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
 		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Items != null && _world.Get<Inventory>(_entity).Items.Count >= 6 && !HasItem(itemId)) return false;
-		return ItemGrantingUtility.EquipItem(_world, _entity, itemId, charges);
+		bool success = ItemGrantingUtility.EquipItem(_world, _entity, itemId, charges);
+		if (success)
+		{
+			NotifyUiInventoryChanged();
+		}
+		return success;
 	}
 
 	public int GetItemCharges(string itemId)
@@ -746,6 +757,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (inv.HasItem(itemId))
 			{
 				inv.SetItemCount(itemId, charges);
+				NotifyUiInventoryChanged();
 			}
 		}
 	}
@@ -753,7 +765,20 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	public bool RemoveItem(string itemId)
 	{
 		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
-		return ItemGrantingUtility.UnequipItem(_world, _entity, itemId);
+		bool success = ItemGrantingUtility.UnequipItem(_world, _entity, itemId);
+		if (success)
+		{
+			NotifyUiInventoryChanged();
+		}
+		return success;
+	}
+
+	private void NotifyUiInventoryChanged()
+	{
+		if (GameHost.Instance != null && InGameHUD.Instance != null && GameHost.TryGetUnit3D(_entity, out var u3d) && GameHost.Instance.SelectedUnits.Contains(u3d))
+		{
+			InGameHUD.Instance.RefreshUI(GameHost.Instance.SelectedUnits);
+		}
 	}
 
 	public bool HasItem(string itemId)
