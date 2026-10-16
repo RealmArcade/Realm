@@ -594,9 +594,10 @@ public partial class VSCodeManager
 			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_CLI_DATA_DIR"] = cliDataDir;
 			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS"] = extensionsDir;
 			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
+			_vscodeProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
 			_vscodeProcess.Start();
 			AddProcessToJob(_vscodeProcess);
-			GD.Print("VS Code server started successfully.");
+			GD.Print($"[VSCodeManager] VS Code server started successfully. Godot Host Process ID: {Environment.ProcessId}. Select this PID in CodeLLDB when attaching.");
 
 			StartIpcHttpListener();
 		}
@@ -2472,6 +2473,7 @@ public partial class VSCodeManager
 		tempProcess.StartInfo.UseShellExecute = false;
 		tempProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS"] = extensionsDir;
 		tempProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
+		tempProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
 		tempProcess.Start();
 		AddProcessToJob(tempProcess);
 

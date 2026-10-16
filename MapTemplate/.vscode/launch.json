@@ -5,11 +5,18 @@
 			"name": "Debug WASM Map Script (Attach via CodeLLDB)",
 			"type": "lldb",
 			"request": "attach",
-			"pid": "${command:pickProcess}",
+			"pid": "${command:pickMyProcess}",
 			"cwd": "${workspaceFolder}",
+			"breakpointMode": "file",
 			"initCommands": [
 				"settings set plugin.jit-loader.gdb.enable on"
-			]
+			],
+			"postRunCommands": [
+				"continue"
+			],
+			"env": {
+				"_NO_DEBUG_HEAP": "1"
+			}
 		},
 		{
 			"name": "Debug WASM Map Script (Attach via GDB)",

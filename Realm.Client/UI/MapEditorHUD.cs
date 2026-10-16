@@ -1259,6 +1259,7 @@ public partial class MapEditorHUD : Control
 
 		SetWasmConsoleStatus("Compiling WASM map script...", UIStyle.ColorCyanGlow);
 		AppendWasmConsoleLog("=== WASM COMPILATION PIPELINE STARTED ===");
+		AppendWasmConsoleLog($"[DEBUG] Godot Host Process ID: {System.Environment.ProcessId}. Select this PID in CodeLLDB when attaching.");
 
 		await CompileAndSignMapAsync(GameContext.EditorService._tempWorkspacePath, skipAttribution: true, isDebug: true);
 

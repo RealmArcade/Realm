@@ -46,6 +46,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (!string.IsNullOrEmpty(repoRoot))
 		{
 			GenerateWasmEntryPoint(repoRoot, gameApiSymbol);
+			string templateWitPath = Path.Combine(repoRoot, "MapTemplate", "wit", "game.g.wit");
+			WriteWitContent(templateWitPath, witContent);
 		}
 
 		GenerateOutputSources(context, compilation.AssemblyName ?? "", gameApiSymbol, entityInterfaces, manualFunctions);

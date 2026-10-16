@@ -35,8 +35,10 @@
       <_MapApiOutput Include="$(TargetDir)$(TargetName).dll" />
       <_MapApiOutput Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
       <_MapApiOutput Include="$(TargetDir)$(TargetName).xml" Condition="Exists('$(TargetDir)$(TargetName).xml')" />
+      <_MapApiWit Include="$(MSBuildProjectDirectory)\wit\game.g.wit" Condition="Exists('$(MSBuildProjectDirectory)\wit\game.g.wit')" />
     </ItemGroup>
     <Copy SourceFiles="@(_MapApiOutput)" DestinationFolder="$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)\..\MapTemplate\lib'))\" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_MapApiWit)" DestinationFolder="$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)\..\MapTemplate\wit'))\" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

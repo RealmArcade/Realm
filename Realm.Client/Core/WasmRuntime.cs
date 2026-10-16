@@ -86,6 +86,10 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 			var config = new Config()
 				.WithEpochInterruption(true)
 				.WithDebugInfo(_isDebugMode);
+			if (_isDebugMode)
+			{
+				config.WithOptimizationLevel(OptimizationLevel.None);
+			}
 			_engine = new Engine(config);
 			if (_isDebugMode)
 			{
