@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using Realm.Client.Utils;
 using Realm.Shared.Metadata;
 
 namespace Realm.Client.Services;
@@ -148,6 +149,59 @@ public static partial class MapTemplateGeneratorService
 		catch (Exception ex)
 		{
 			Godot.GD.PrintErr($"[MapTemplateGeneratorService] Failed to write MapTemplates.g.cs to {targetFilePath}: {ex.Message}");
+		}
+	}
+
+	public static void EnsureWasmEntryPoint(string workspacePath)
+	{
+		if (string.IsNullOrWhiteSpace(workspacePath) || !Directory.Exists(workspacePath)) return;
+
+		string legacyEntryPointPath = Path.Combine(workspacePath, "WasmEntryPoint.cs");
+		if (File.Exists(legacyEntryPointPath))
+		{
+			try
+			{
+				var legacyAttributes = File.GetAttributes(legacyEntryPointPath);
+				if ((legacyAttributes & FileAttributes.ReadOnly) != 0)
+				{
+					File.SetAttributes(legacyEntryPointPath, legacyAttributes & ~FileAttributes.ReadOnly);
+				}
+				File.Delete(legacyEntryPointPath);
+			}
+			catch (Exception exception)
+			{
+				Godot.GD.PrintErr($"[MapTemplateGeneratorService] Failed to delete legacy WasmEntryPoint.cs in {workspacePath}: {exception.Message}");
+			}
+		}
+
+		string templatePath = PathUtils.FindPath("MapTemplate/WasmEntryPoint.g.cs");
+		if (string.IsNullOrEmpty(templatePath) || !File.Exists(templatePath)) return;
+
+		string targetFilePath = Path.Combine(workspacePath, "WasmEntryPoint.g.cs");
+
+		try
+		{
+			string templateCode = File.ReadAllText(templatePath);
+			if (File.Exists(targetFilePath))
+			{
+				string existingCode = File.ReadAllText(targetFilePath);
+				if (string.Equals(existingCode.Replace("\r\n", "\n"), templateCode.Replace("\r\n", "\n"), StringComparison.Ordinal))
+				{
+					return;
+				}
+
+				var attributes = File.GetAttributes(targetFilePath);
+				if ((attributes & FileAttributes.ReadOnly) != 0)
+				{
+					File.SetAttributes(targetFilePath, attributes & ~FileAttributes.ReadOnly);
+				}
+			}
+
+			File.WriteAllText(targetFilePath, templateCode);
+		}
+		catch (Exception exception)
+		{
+			Godot.GD.PrintErr($"[MapTemplateGeneratorService] Failed to write WasmEntryPoint.g.cs to {targetFilePath}: {exception.Message}");
 		}
 	}
 }

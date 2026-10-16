@@ -23,6 +23,10 @@
   <ItemGroup>
     <TrimmerRootAssembly Include="$(AssemblyName)" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="**/*.template.cs" />
+    <None Include="**/*.template.cs" />
+  </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>embedded</DebugType>
