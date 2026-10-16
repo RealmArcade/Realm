@@ -15,23 +15,19 @@ namespace Realm.Client.Utils;
 
 public static class ItemGrantingUtility
 {
-	public static bool EquipItem(World world, Entity entity, string itemId)
+	public static bool EquipItem(World world, Entity entity, string itemId, int charges = 1)
 	{
 		if (world == null || !world.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId))
 			return false;
 
-		if (!world.Has<EquippedItems>(entity))
+		if (!world.Has<Inventory>(entity))
 		{
-			world.Add(entity, new EquippedItems(new List<string>()));
+			world.Add(entity, new Inventory());
 		}
 
-		ref var equipped = ref world.Get<EquippedItems>(entity);
-		equipped.Value ??= new List<string>();
-
-		if (!equipped.Value.Contains(itemId, StringComparer.OrdinalIgnoreCase))
-		{
-			equipped.Value.Add(itemId);
-		}
+		ref var inv = ref world.Get<Inventory>(entity);
+		int current = inv.GetItemCount(itemId);
+		inv.SetItemCount(itemId, current > 0 ? current : Math.Max(1, charges));
 
 		ApplyItemGrants(world, entity, itemId);
 		return true;
@@ -42,30 +38,17 @@ public static class ItemGrantingUtility
 		if (world == null || !world.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId))
 			return false;
 
-		if (!world.Has<EquippedItems>(entity))
+		if (!world.Has<Inventory>(entity))
 			return false;
 
-		ref var equipped = ref world.Get<EquippedItems>(entity);
-		if (equipped.Value == null)
+		ref var inv = ref world.Get<Inventory>(entity);
+		if (!inv.HasItem(itemId))
 			return false;
 
-		bool removed = false;
-		for (int i = equipped.Value.Count - 1; i >= 0; i--)
-		{
-			if (string.Equals(equipped.Value[i], itemId, StringComparison.OrdinalIgnoreCase))
-			{
-				equipped.Value.RemoveAt(i);
-				removed = true;
-			}
-		}
-
-		if (removed)
-		{
-			RemoveItemGrants(world, entity, itemId);
-			RebuildEntityCapabilities(world, entity);
-		}
-
-		return removed;
+		inv.SetItemCount(itemId, 0);
+		RemoveItemGrants(world, entity, itemId);
+		RebuildEntityCapabilities(world, entity);
+		return true;
 	}
 
 	public static bool IsItemEquipped(World world, Entity entity, string itemId)
@@ -73,20 +56,20 @@ public static class ItemGrantingUtility
 		if (world == null || !world.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId))
 			return false;
 
-		if (!world.Has<EquippedItems>(entity))
+		if (!world.Has<Inventory>(entity))
 			return false;
 
-		var equipped = world.Get<EquippedItems>(entity);
-		return equipped.Value != null && equipped.Value.Contains(itemId, StringComparer.OrdinalIgnoreCase);
+		var inv = world.Get<Inventory>(entity);
+		return inv.HasItem(itemId);
 	}
 
 	public static IEnumerable<string> GetEquippedItems(World world, Entity entity)
 	{
-		if (world == null || !world.IsAlive(entity) || !world.Has<EquippedItems>(entity))
+		if (world == null || !world.IsAlive(entity) || !world.Has<Inventory>(entity))
 			return Array.Empty<string>();
 
-		var equipped = world.Get<EquippedItems>(entity);
-		return equipped.Value != null ? equipped.Value.ToArray() : Array.Empty<string>();
+		var inv = world.Get<Inventory>(entity);
+		return inv.Items != null ? inv.Items.Keys.ToArray() : Array.Empty<string>();
 	}
 
 	private static void ApplyItemGrants(World world, Entity entity, string itemId)

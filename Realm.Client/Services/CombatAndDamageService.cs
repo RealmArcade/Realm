@@ -685,12 +685,12 @@ namespace Realm.Client.Services
 			if (range <= 3f) return;
 
 			string? weaponId = null;
-			if (GameContext.World.Has<EquippedItems>(entity))
+			if (GameContext.World.Has<Inventory>(entity))
 			{
-				var eq = GameContext.World.Get<EquippedItems>(entity);
-				if (eq.Value != null)
+				var inv = GameContext.World.Get<Inventory>(entity);
+				if (inv.Items != null)
 				{
-					foreach (var item in eq.Value)
+					foreach (var item in inv.Items.Keys)
 					{
 						if (GameContext.RegistryService?.ItemRegistry != null && GameContext.RegistryService.ItemRegistry.TryGetValue(item, out var itemMeta) && itemMeta?.GrantedWeapons != null && itemMeta.GrantedWeapons.Length > 0)
 						{

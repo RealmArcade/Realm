@@ -24,7 +24,6 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 {
 	private readonly Entity _entity;
 	private readonly World _world;
-	private readonly Dictionary<string, int> _itemCharges = new(StringComparer.OrdinalIgnoreCase);
 	private bool _hideHealthAndManaBars;
 
 	public bool HideHealthAndManaBars
@@ -715,40 +714,24 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 
 	public bool AddItem(string itemId)
 	{
-		if (!_world.IsAlive(_entity)) return false;
-		List<string> items;
-		if (_world.Has<UnitItems>(_entity))
-		{
-			items = _world.Get<UnitItems>(_entity).Value;
-		}
-		else
-		{
-			items = new List<string>();
-			_world.Add(_entity, new UnitItems(items));
-		}
-
-		if (items.Count >= 6) return false;
-		items.Add(itemId);
-		ItemGrantingUtility.EquipItem(_world, _entity, itemId);
-		return true;
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
+		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Items != null && _world.Get<Inventory>(_entity).Items.Count >= 6 && !HasItem(itemId)) return false;
+		return ItemGrantingUtility.EquipItem(_world, _entity, itemId, 1);
 	}
 
 	public bool AddItem(string itemId, int charges)
 	{
-		bool added = AddItem(itemId);
-		if (added)
-		{
-			_itemCharges[itemId] = charges;
-		}
-
-		return added;
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
+		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Items != null && _world.Get<Inventory>(_entity).Items.Count >= 6 && !HasItem(itemId)) return false;
+		return ItemGrantingUtility.EquipItem(_world, _entity, itemId, charges);
 	}
 
 	public int GetItemCharges(string itemId)
 	{
-		if (HasItem(itemId))
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return 0;
+		if (_world.Has<Inventory>(_entity))
 		{
-			return _itemCharges.TryGetValue(itemId, out int charges) ? charges : 1;
+			return _world.Get<Inventory>(_entity).GetItemCount(itemId);
 		}
 
 		return 0;
@@ -756,53 +739,29 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 
 	public void SetItemCharges(string itemId, int charges)
 	{
-		if (HasItem(itemId))
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return;
+		if (_world.Has<Inventory>(_entity))
 		{
-			_itemCharges[itemId] = charges;
+			ref var inv = ref _world.Get<Inventory>(_entity);
+			if (inv.HasItem(itemId))
+			{
+				inv.SetItemCount(itemId, charges);
+			}
 		}
 	}
 
 	public bool RemoveItem(string itemId)
 	{
-		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<UnitItems>(_entity))
-		{
-			var items = _world.Get<UnitItems>(_entity).Value;
-			_itemCharges.Remove(itemId);
-			ItemGrantingUtility.UnequipItem(_world, _entity, itemId);
-			return items.Remove(itemId);
-		}
-
-		return false;
-	}
-
-	public bool EquipItem(string itemId)
-	{
-		return AddItem(itemId);
-	}
-
-	public bool UnequipItem(string itemId)
-	{
-		return RemoveItem(itemId);
-	}
-
-	public bool IsItemEquipped(string itemId)
-	{
-		return HasItem(itemId);
-	}
-
-	public IEnumerable<string> GetEquippedItems()
-	{
-		return GetItems();
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
+		return ItemGrantingUtility.UnequipItem(_world, _entity, itemId);
 	}
 
 	public bool HasItem(string itemId)
 	{
-		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<UnitItems>(_entity))
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
+		if (_world.Has<Inventory>(_entity))
 		{
-			var items = _world.Get<UnitItems>(_entity).Value;
-			return items.Contains(itemId);
+			return _world.Get<Inventory>(_entity).HasItem(itemId);
 		}
 
 		return false;
@@ -810,13 +769,9 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 
 	public IEnumerable<string> GetItems()
 	{
-		if (!_world.IsAlive(_entity)) return Array.Empty<string>();
-		if (_world.Has<UnitItems>(_entity))
-		{
-			return _world.Get<UnitItems>(_entity).Value;
-		}
-
-		return Array.Empty<string>();
+		if (!_world.IsAlive(_entity) || !_world.Has<Inventory>(_entity)) return Array.Empty<string>();
+		var inv = _world.Get<Inventory>(_entity);
+		return inv.Items != null ? inv.Items.Keys : Array.Empty<string>();
 	}
 
 	public void AddBuff(string buffId, float duration)

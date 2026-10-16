@@ -269,33 +269,6 @@ public interface IUnit
 	IEnumerable<string> GetItems();
 
 	/// <summary>
-	/// Equips an item on the unit, attaching its granted weapons, abilities, and upgrades.
-	/// </summary>
-	/// <param name="itemId">The identifier of the item to equip.</param>
-	/// <returns>True if the item was equipped successfully, false otherwise.</returns>
-	bool EquipItem(string itemId) => AddItem(itemId);
-
-	/// <summary>
-	/// Unequips an item from the unit, detaching its granted weapons, abilities, and upgrade modifiers.
-	/// </summary>
-	/// <param name="itemId">The identifier of the item to unequip.</param>
-	/// <returns>True if the item was found and unequipped, false otherwise.</returns>
-	bool UnequipItem(string itemId) => RemoveItem(itemId);
-
-	/// <summary>
-	/// Checks if the specified item is currently equipped on the unit.
-	/// </summary>
-	/// <param name="itemId">The item identifier to check.</param>
-	/// <returns>True if the item is equipped, false otherwise.</returns>
-	bool IsItemEquipped(string itemId) => HasItem(itemId);
-
-	/// <summary>
-	/// Retrieves all items currently equipped on the unit.
-	/// </summary>
-	/// <returns>A collection of equipped item identifiers.</returns>
-	IEnumerable<string> GetEquippedItems() => GetItems();
-
-	/// <summary>
 	/// Adds a buff/status effect to the unit.
 	/// </summary>
 	/// <param name="buffId">The identifier of the buff.</param>

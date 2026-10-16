@@ -182,16 +182,10 @@ public class UnitSpawnService
 
 			if (regMeta.StartingItems != null && regMeta.StartingItems.Length > 0)
 			{
-				var unitItems = new List<string>();
 				foreach (var stItem in regMeta.StartingItems)
 				{
 					if (string.IsNullOrWhiteSpace(stItem)) continue;
-					unitItems.Add(stItem);
 					Realm.Client.Utils.ItemGrantingUtility.EquipItem(GameContext.World, entity, stItem);
-				}
-				if (unitItems.Count > 0)
-				{
-					GameContext.World.SetOrAdd(entity, new UnitItems(unitItems));
 				}
 			}
 

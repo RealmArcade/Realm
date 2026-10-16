@@ -930,23 +930,6 @@ public class InputService
 		if (target != Entity.Null)
 		{
 			targetUnitEntity = target;
-			ref var inv = ref GameContext.World.Get<Inventory>(target);
-			int currentCount = inv.GetItemCount(itemId);
-			inv.SetItemCount(itemId, currentCount + 1);
-
-			if (GameContext.World.Has<UnitItems>(target))
-			{
-				var uItems = GameContext.World.Get<UnitItems>(target).Value;
-				if (uItems != null && !uItems.Exists(x => string.Equals(x, itemId, StringComparison.OrdinalIgnoreCase)) && uItems.Count < 6)
-				{
-					uItems.Add(itemId);
-				}
-			}
-			else
-			{
-				GameContext.World.Add(target, new UnitItems(new List<string> { itemId }));
-			}
-
 			Realm.Client.Utils.ItemGrantingUtility.EquipItem(GameContext.World, target, itemId);
 			return true;
 		}
@@ -997,11 +980,6 @@ public class InputService
 
 		if (newCount <= 0)
 		{
-			if (GameContext.World.Has<UnitItems>(unitEntity))
-			{
-				var uItems = GameContext.World.Get<UnitItems>(unitEntity).Value;
-				uItems?.Remove(itemId);
-			}
 			Realm.Client.Utils.ItemGrantingUtility.UnequipItem(GameContext.World, unitEntity, itemId);
 		}
 
