@@ -90,6 +90,10 @@ public class UnitMetadata
 		set => DeathShader = value;
 	}
 
+	public const float DefaultConstructionRange = 4f;
+
+	public float ConstructionRange { get; set; } = DefaultConstructionRange;
+
 	public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation? orientation)
 	{
 		if (ObjectAttachments != null)

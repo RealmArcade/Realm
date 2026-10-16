@@ -258,8 +258,22 @@ public partial class GameHost
 			? GameContext.World.Get<Position>(buildTask.BuildingEntity).Value
 			: workerPos.Value;
 
+		float constructionRange = UnitMetadata.DefaultConstructionRange;
+		if (GameContext.World.Has<DefinitionId>(workerEntity))
+		{
+			string workerType = GameContext.World.Get<DefinitionId>(workerEntity).Value;
+			if (!UnitRegistry.TryGetValue(workerType, out var workerMeta))
+				BuildingRegistry.TryGetValue(workerType, out workerMeta);
+			if (workerMeta != null)
+				constructionRange = workerMeta.ConstructionRange;
+		}
+
+		float buildingCollisionRadius = GameContext.World.Has<CollisionRadius>(buildTask.BuildingEntity)
+			? GameContext.World.Get<CollisionRadius>(buildTask.BuildingEntity).Value
+			: 0f;
+		float effectiveRange = constructionRange + buildingCollisionRadius;
 		float distSq = Vector3.DistanceSquared(workerPos.Value, buildingPos);
-		bool inRange = distSq <= 16f;
+		bool inRange = distSq <= effectiveRange * effectiveRange;
 
 		if (!inRange)
 		{
@@ -511,7 +525,7 @@ public partial class GameHost
 		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(buildType, out meta))) return;
 		string targetModel = meta.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
-		float buildTime = meta.ProductionTime > 0f ? meta.ProductionTime : 1.5f;
+		float buildTime = Math.Max(meta.ProductionTime, 0);
 
 		int workerPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(workerEntity)
 			? GameContext.World.Get<UnitOwnerPlayer>(workerEntity).PlayerIndex
