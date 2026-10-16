@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -25,6 +25,11 @@ public class NatTypeTester
 			GD.PrintErr($"[NatTypeTester] Error checking NAT: {ex.Message}");
 			return NatType.PortRestrictedCone; // Safe default
 		}
+	}
+
+	public static async Task<StunResult> QueryStunOnPortAsync(IPAddress serverIp, int serverPort, int localPort)
+	{
+		return await QueryStunAsync(serverIp, serverPort, localPort);
 	}
 
 	private static async Task<NatType> EvaluateNatTypeAsync(IPAddress serverIp1, IPAddress serverIp2, int testLocalPort)
