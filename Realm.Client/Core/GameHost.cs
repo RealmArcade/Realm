@@ -2852,8 +2852,8 @@ public partial class GameHost : Node3D, IGameAPI
 	/// </summary>
 	public bool IsPathingCapability(Entity entity, TerrainPathingFlags capability)
 	{
-		if (GameContext.World == null || !GameContext.World.IsAlive(entity) || !GameContext.World.Has<PathingFlags>(entity)) return false;
-		int flags = GameContext.World.Get<PathingFlags>(entity).Value;
+		if (GameContext.World == null || !GameContext.World.IsAlive(entity) || !GameContext.World.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)) return false;
+		int flags = GameContext.World.Get<Realm.Ecs.Components.Movement.PathingFlags>(entity).Value;
 		return ((TerrainPathingFlags)flags & capability) != 0;
 	}
 

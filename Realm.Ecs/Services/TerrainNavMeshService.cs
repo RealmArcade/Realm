@@ -378,6 +378,112 @@ public class TerrainNavMeshService
 		}
 	}
 
+	public void SetRegionPathing(ref TerrainState state, float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)
+	{
+		if (state.PathingCodes == null) return;
+
+		float x1 = Math.Min(minX, maxX);
+		float x2 = Math.Max(minX, maxX);
+		float z1 = Math.Min(minZ, maxZ);
+		float z2 = Math.Max(minZ, maxZ);
+
+		int width = state.Width;
+		int depth = state.Depth;
+		float quadSize = state.QuadSize;
+		float halfW = width / 2.0f * quadSize;
+		float halfD = depth / 2.0f * quadSize;
+
+		int startX = Math.Clamp((int)Math.Floor((x1 + halfW) / quadSize), 0, width - 1);
+		int endX = Math.Clamp((int)Math.Ceiling((x2 + halfW) / quadSize), 0, width - 1);
+		int startZ = Math.Clamp((int)Math.Floor((z1 + halfD) / quadSize), 0, depth - 1);
+		int endZ = Math.Clamp((int)Math.Ceiling((z2 + halfD) / quadSize), 0, depth - 1);
+
+		for (int z = startZ; z <= endZ; z++)
+		{
+			for (int x = startX; x <= endX; x++)
+			{
+				if (blocked)
+				{
+					state.PathingCodes[x, z] &= ~flags;
+				}
+				else
+				{
+					state.PathingCodes[x, z] |= flags;
+				}
+			}
+		}
+
+		if (state.NavMesh != null)
+		{
+			int maxTiles = state.NavMesh.GetMaxTiles();
+			float pad = quadSize * 0.5f;
+			for (int t = 0; t < maxTiles; t++)
+			{
+				var tile = state.NavMesh.GetTile(t);
+				if (tile?.data?.header == null) continue;
+				long polyRefBase = state.NavMesh.GetPolyRefBase(tile);
+				for (int p = 0; p < tile.data.header.polyCount; p++)
+				{
+					var poly = tile.data.polys[p];
+					GetPolyCenter(tile, poly, out float avgX, out float avgZ);
+
+					if (avgX < x1 - pad || avgX > x2 + pad || avgZ < z1 - pad || avgZ > z2 + pad)
+						continue;
+
+					int xGrid = Math.Clamp((int)Math.Floor((avgX + halfW) / quadSize), 0, width - 1);
+					int zGrid = Math.Clamp((int)Math.Floor((avgZ + halfD) / quadSize), 0, depth - 1);
+					int cellFlags = state.PathingCodes[xGrid, zGrid];
+
+					long polyRef = polyRefBase | (long)p;
+					state.NavMesh.SetPolyFlags(polyRef, cellFlags);
+					bool isWalkable = (cellFlags & (int)TerrainPathingFlags.Ground) != 0;
+					state.NavMesh.SetPolyArea(polyRef, isWalkable ? (char)1 : (char)0);
+				}
+			}
+		}
+
+		float cx = (x1 + x2) * 0.5f;
+		float cz = (z1 + z2) * 0.5f;
+		float halfWidth = (x2 - x1) * 0.5f;
+		float halfDepth = (z2 - z1) * 0.5f;
+		float maxDim = Math.Max(halfWidth, halfDepth);
+		InvalidateIntersectingPaths(new Vector3(cx, 0, cz), maxDim + quadSize * 2f);
+	}
+
+	public int GetRegionPathing(in TerrainState state, float minX, float minZ, float maxX, float maxZ)
+	{
+		if (state.PathingCodes == null) return (int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable | TerrainPathingFlags.Flying);
+
+		float x1 = Math.Min(minX, maxX);
+		float x2 = Math.Max(minX, maxX);
+		float z1 = Math.Min(minZ, maxZ);
+		float z2 = Math.Max(minZ, maxZ);
+
+		int width = state.Width;
+		int depth = state.Depth;
+		float quadSize = state.QuadSize;
+		float halfW = width / 2.0f * quadSize;
+		float halfD = depth / 2.0f * quadSize;
+
+		int startX = Math.Clamp((int)Math.Floor((x1 + halfW) / quadSize), 0, width - 1);
+		int endX = Math.Clamp((int)Math.Ceiling((x2 + halfW) / quadSize), 0, width - 1);
+		int startZ = Math.Clamp((int)Math.Floor((z1 + halfD) / quadSize), 0, depth - 1);
+		int endZ = Math.Clamp((int)Math.Ceiling((z2 + halfD) / quadSize), 0, depth - 1);
+
+		if (startX > endX || startZ > endZ) return 0;
+
+		int combinedFlags = 0xFF;
+		for (int z = startZ; z <= endZ; z++)
+		{
+			for (int x = startX; x <= endX; x++)
+			{
+				combinedFlags &= state.PathingCodes[x, z];
+			}
+		}
+
+		return combinedFlags;
+	}
+
 	private void RestorePathingCell(ref TerrainState state, int x, int z)
 	{
 		if (state.PathingCodes == null) return;

@@ -13,8 +13,10 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
+using PathingFlags = Realm.MapAPI.PathingFlags;
 using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
 
@@ -1424,5 +1426,74 @@ public partial class GameHost
 	string IGameAPI.TrainBotProfile(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre)
 	{
 		return GameContext.SimulationService.TrainBotProfile(mapName, generations, populationSize, matchesPerEvaluation, genre);
+	}
+
+	void IGameAPI.SetRegionPathing(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags, bool blocked)
+	{
+		SetRegionPathing(minX, minZ, maxX, maxZ, pathingFlags, blocked);
+	}
+
+	public void SetRegionPathing(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags, bool blocked)
+	{
+		ApplyRegionPathingInternal(minX, minZ, maxX, maxZ, (int)pathingFlags, blocked);
+		if (IsMultiplayerServerActive())
+		{
+			Rpc(nameof(ClientUpdateRegionPathing), minX, minZ, maxX, maxZ, (int)pathingFlags, blocked);
+		}
+	}
+
+	void IGameAPI.SetRegionPathing(string coordinateName, PathingFlags pathingFlags, bool blocked)
+	{
+		SetRegionPathing(coordinateName, pathingFlags, blocked);
+	}
+
+	public void SetRegionPathing(string coordinateName, PathingFlags pathingFlags, bool blocked)
+	{
+		if (((IGameAPI)this).TryGetCoordinate(coordinateName, out var coord))
+		{
+			SetRegionPathing(
+				MathF.Min(coord.Min.X, coord.Max.X),
+				MathF.Min(coord.Min.Z, coord.Max.Z),
+				MathF.Max(coord.Min.X, coord.Max.X),
+				MathF.Max(coord.Min.Z, coord.Max.Z),
+				pathingFlags,
+				blocked);
+		}
+	}
+
+	PathingFlags IGameAPI.GetRegionPathing(float minX, float minZ, float maxX, float maxZ)
+	{
+		return GetRegionPathing(minX, minZ, maxX, maxZ);
+	}
+
+	public PathingFlags GetRegionPathing(float minX, float minZ, float maxX, float maxZ)
+	{
+		var world = GameContext.World;
+		var worldEntity = ECSContext.WorldEntity;
+		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
+		{
+			ref var state = ref world.Get<TerrainState>(worldEntity);
+			int code = ECSContext.TerrainNavMeshService?.GetRegionPathing(in state, minX, minZ, maxX, maxZ) ?? (int)PathingFlags.All;
+			return (PathingFlags)code;
+		}
+		return PathingFlags.All;
+	}
+
+	PathingFlags IGameAPI.GetRegionPathing(string coordinateName)
+	{
+		return GetRegionPathing(coordinateName);
+	}
+
+	public PathingFlags GetRegionPathing(string coordinateName)
+	{
+		if (((IGameAPI)this).TryGetCoordinate(coordinateName, out var coord))
+		{
+			return GetRegionPathing(
+				MathF.Min(coord.Min.X, coord.Max.X),
+				MathF.Min(coord.Min.Z, coord.Max.Z),
+				MathF.Max(coord.Min.X, coord.Max.X),
+				MathF.Max(coord.Min.Z, coord.Max.Z));
+		}
+		return PathingFlags.None;
 	}
 }

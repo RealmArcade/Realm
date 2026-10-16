@@ -59,6 +59,7 @@ interface game-api {
     get-player-team: func(player-index: s32) -> s32;
     get-player-tech-level: func(player-index: s32, tech-id: string) -> s32;
     get-player-wood: func(player-index: s32) -> f32;
+    get-region-pathing: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32) -> s32;
     get-resource-node: func(index: s32) -> s32;
     get-resource-node-count: func() -> s32;
     get-unit-by-id: func(unique-id: s32) -> s32;
@@ -132,6 +133,7 @@ interface game-api {
     set-player-tech-level: func(player-index: s32, tech-id: string, level: s32);
     set-player-wood: func(player-index: s32, amount: f32);
     set-players-allied: func(player-index: s32, other-player-index: s32, allied: bool);
+    set-region-pathing: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32, pathing-flags: s32, blocked: bool);
     set-resource-node-resource-amount: func(id: s32, val: f32);
     set-static-text: func(handle: s32, text: string);
     set-static-text-visible: func(handle: s32, visible: bool);

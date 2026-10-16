@@ -701,8 +701,8 @@ public partial class GameHost
 		float angle = Mathf.Atan2(-dir.X, -dir.Z) + Mathf.Pi;
 		var rot = unit3D.Rotation;
 
-		bool isFlying = GameContext.World.Has<PathingFlags>(entity)
-		                && ((TerrainPathingFlags)GameContext.World.Get<PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
+		bool isFlying = GameContext.World.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)
+		                && ((TerrainPathingFlags)GameContext.World.Get<Realm.Ecs.Components.Movement.PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
 		float turnRate = 10f;
 		if (GameContext.World.Has<MovementStats>(entity))
 		{

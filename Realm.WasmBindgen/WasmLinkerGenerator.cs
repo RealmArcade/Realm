@@ -662,6 +662,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			if (p.Type.SpecialType == SpecialType.System_Boolean)
 				callArgs.Add($"{p.Name} != 0");
+			else if (p.Type.TypeKind == TypeKind.Enum)
+				callArgs.Add($"({p.Type.ToDisplayString()}){p.Name}");
 			else
 				callArgs.Add(p.Name);
 		}
@@ -913,6 +915,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				args.Add(p.Name);
 			else if (p.Type.SpecialType == SpecialType.System_Boolean)
 				args.Add($"{p.Name} != 0");
+			else if (p.Type.TypeKind == TypeKind.Enum)
+				args.Add($"({p.Type.ToDisplayString()}){p.Name}");
 			else
 				args.Add(p.Name);
 		}
@@ -931,6 +935,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				args.Add(p.Name);
 			else if (p.Type.SpecialType == SpecialType.System_Boolean)
 				args.Add($"{p.Name} != 0");
+			else if (p.Type.TypeKind == TypeKind.Enum)
+				args.Add($"({p.Type.ToDisplayString()}){p.Name}");
 			else
 				args.Add(p.Name);
 		}
@@ -1142,6 +1148,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	private static PrmKind ClassifyParam(ITypeSymbol type)
 	{
 		if (type.SpecialType == SpecialType.System_Int32) return PrmKind.DirectInt;
+		if (type.TypeKind == TypeKind.Enum) return PrmKind.DirectInt;
 		if (type.SpecialType == SpecialType.System_Single) return PrmKind.DirectFloat;
 		if (type.SpecialType == SpecialType.System_Boolean) return PrmKind.BoolParam;
 		if (type.SpecialType == SpecialType.System_String) return PrmKind.StringParam;
@@ -1163,6 +1170,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	{
 		var specialRet = ClassifySpecialReturn(type.SpecialType);
 		if (specialRet != RetKind.Unsupported) return specialRet;
+
+		if (type.TypeKind == TypeKind.Enum) return RetKind.DirectInt;
 
 		if (IsEntityInterface(type, out _))
 		{
@@ -1491,20 +1500,32 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return string.Join(", ", witParams);
 	}
 
+	private static string EscapeWitIdentifier(string name)
+	{
+		string kebab = ToKebabCase(name);
+		return kebab switch
+		{
+			"flags" or "type" or "resource" or "enum" or "record" or "variant" or "interface" or "world" or "package" or "import" or "export" or "use" or "default"
+				=> $"%{kebab}",
+			_ => kebab
+		};
+	}
+
 	private static string? ParamToWit(ITypeSymbol type, string name)
 	{
 		var kind = ClassifyParam(type);
+		string paramName = EscapeWitIdentifier(name);
 		return kind switch
 		{
-			PrmKind.DirectInt => $"{ToKebabCase(name)}: s32",
-			PrmKind.DirectFloat => $"{ToKebabCase(name)}: f32",
-			PrmKind.BoolParam => $"{ToKebabCase(name)}: bool",
-			PrmKind.StringParam => $"{ToKebabCase(name)}: string",
-			PrmKind.StringListParam => $"{ToKebabCase(name)}: list<string>",
-			PrmKind.Vector2Param => $"{ToKebabCase(name)}-x: f32, {ToKebabCase(name)}-y: f32",
-			PrmKind.Vector3Param => $"{ToKebabCase(name)}-x: f32, {ToKebabCase(name)}-y: f32, {ToKebabCase(name)}-z: f32",
-			PrmKind.EntityParam => $"{ToKebabCase(name)}-id: s32",
-			PrmKind.Vector3NullableParam => $"{ToKebabCase(name)}-r: f32, {ToKebabCase(name)}-g: f32, {ToKebabCase(name)}-b: f32, {ToKebabCase(name)}-has-color: bool",
+			PrmKind.DirectInt => $"{paramName}: s32",
+			PrmKind.DirectFloat => $"{paramName}: f32",
+			PrmKind.BoolParam => $"{paramName}: bool",
+			PrmKind.StringParam => $"{paramName}: string",
+			PrmKind.StringListParam => $"{paramName}: list<string>",
+			PrmKind.Vector2Param => $"{paramName}-x: f32, {paramName}-y: f32",
+			PrmKind.Vector3Param => $"{paramName}-x: f32, {paramName}-y: f32, {paramName}-z: f32",
+			PrmKind.EntityParam => $"{paramName}-id: s32",
+			PrmKind.Vector3NullableParam => $"{paramName}-r: f32, {paramName}-g: f32, {paramName}-b: f32, {paramName}-has-color: bool",
 			_ => null
 		};
 	}
@@ -2026,7 +2047,11 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 		string getterName = string.IsNullOrEmpty(prefix) ? $"Get{property.Name}" : $"{prefix}{property.Name}";
 
-		if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
+		if (property.Type.TypeKind == TypeKind.Enum)
+		{
+			sb.AppendLine($"        get => ({typeStr})IGameApiImports.{getterName}({keyArg});");
+		}
+		else if (retKind == RetKind.EntityReturn || retKind == RetKind.EntityNullableReturn)
 		{
 			IsEntityInterface(property.Type, out var unwrapped);
 			string cleanElem = CleanInterfaceName(unwrapped);
@@ -2047,7 +2072,11 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (property.SetMethod != null)
 		{
 			string setVal = "value";
-			if (IsEntityInterface(property.Type, out _))
+			if (property.Type.TypeKind == TypeKind.Enum)
+			{
+				setVal = "(int)value";
+			}
+			else if (IsEntityInterface(property.Type, out _))
 			{
 				bool isNullable = property.Type.NullableAnnotation == NullableAnnotation.Annotated || property.Type.ToDisplayString().Contains("?");
 				setVal = isNullable ? "(value != null) ? ((IWasmWrapper)value).WasmId : 0" : "((IWasmWrapper)value).WasmId";
@@ -2090,6 +2119,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void EmitGuestMethodBody(StringBuilder sb, IMethodSymbol method, string typeStr, RetKind retKind, string importName, string importCall, List<string> callArgs)
 	{
+		if (method.ReturnType.TypeKind == TypeKind.Enum)
+		{
+			sb.AppendLine($"        return ({typeStr}){importCall};");
+			return;
+		}
+
 		switch (typeStr)
 		{
 			case "System.Numerics.Vector3":
@@ -2164,6 +2199,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (TryAppendVector3Arg(callArgs, p)) return;
 		if (TryAppendStringArg(callArgs, p)) return;
 		if (TryAppendMiscArg(callArgs, p)) return;
+
+		if (p.Type.TypeKind == TypeKind.Enum)
+		{
+			callArgs.Add($"(int){p.Name}");
+			return;
+		}
 
 		callArgs.Add(p.Name);
 	}

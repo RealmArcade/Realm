@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text.Json;
 using Arch.Core;
 using Godot;
@@ -10,7 +12,7 @@ using Realm.Client.UI;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
-using System.Linq;
+using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
 
@@ -721,7 +723,70 @@ public partial class GameHost
 
 		GameContext.NetworkService.UpdateReconnectedClientMapping(reconnectedEntity, _localPeerId);
 
+		if (IsMultiplayerActive() && !IsMultiplayerServerActive())
+		{
+			RpcId(1, nameof(ServerRequestDynamicPathingSync));
+		}
+
 		InGameHUD.Instance?.RefreshUI(SelectedUnits);
 		GD.Print($"[GameHost] OnClientReconnected completed for LocalPeerId={_localPeerId}, Slot={slot}");
+	}
+
+	private readonly List<(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)> _dynamicPathingOverrides = new();
+
+	public void ApplyRegionPathingInternal(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)
+	{
+		_dynamicPathingOverrides.Add((minX, minZ, maxX, maxZ, flags, blocked));
+		var world = GameContext.World;
+		var worldEntity = ECSContext.WorldEntity;
+		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
+		{
+			ref var state = ref world.Get<TerrainState>(worldEntity);
+			ECSContext.TerrainNavMeshService?.SetRegionPathing(ref state, minX, minZ, maxX, maxZ, flags, blocked);
+			world.Set(worldEntity, state);
+		}
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientUpdateRegionPathing(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)
+	{
+		ApplyRegionPathingInternal(minX, minZ, maxX, maxZ, flags, blocked);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ServerRequestDynamicPathingSync()
+	{
+		int senderId = Multiplayer.GetRemoteSenderId();
+		if (senderId <= 1) return;
+
+		var sb = new System.Text.StringBuilder();
+		for (int i = 0; i < _dynamicPathingOverrides.Count; i++)
+		{
+			var o = _dynamicPathingOverrides[i];
+			if (i > 0) sb.Append(';');
+			sb.Append($"{o.minX:F2},{o.minZ:F2},{o.maxX:F2},{o.maxZ:F2},{o.flags},{(o.blocked ? 1 : 0)}");
+		}
+		RpcId(senderId, nameof(ClientSyncDynamicPathingOverrides), sb.ToString());
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientSyncDynamicPathingOverrides(string serializedData)
+	{
+		if (string.IsNullOrEmpty(serializedData)) return;
+		var parts = serializedData.Split(';', StringSplitOptions.RemoveEmptyEntries);
+		foreach (var part in parts)
+		{
+			var tokens = part.Split(',');
+			if (tokens.Length >= 6 &&
+			    float.TryParse(tokens[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x1) &&
+			    float.TryParse(tokens[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z1) &&
+			    float.TryParse(tokens[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x2) &&
+			    float.TryParse(tokens[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z2) &&
+			    int.TryParse(tokens[4], out int flags) &&
+			    int.TryParse(tokens[5], out int blockedInt))
+			{
+				ApplyRegionPathingInternal(x1, z1, x2, z2, flags, blockedInt != 0);
+			}
+		}
 	}
 }

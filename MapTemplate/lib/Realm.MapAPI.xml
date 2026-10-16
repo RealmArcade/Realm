@@ -1445,6 +1445,103 @@
             <param name="unit">The unit to order.</param>
             <param name="destination">The coordinate region to attack-move towards.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetRegionPathing(System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.PathingFlags,System.Boolean)">
+            <summary>
+            Dynamically alters the movement-type pathing flags for a designated rectangular region on the terrain navmesh.
+            </summary>
+            <param name="minX">The minimum X coordinate in world space.</param>
+            <param name="minZ">The minimum Z coordinate in world space.</param>
+            <param name="maxX">The maximum X coordinate in world space.</param>
+            <param name="maxZ">The maximum Z coordinate in world space.</param>
+            <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+            <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetRegionPathing(System.String,Realm.MapAPI.PathingFlags,System.Boolean)">
+            <summary>
+            Dynamically alters the movement-type pathing flags for a named coordinate region.
+            </summary>
+            <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+            <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+            <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetRegionPathing(Realm.MapAPI.Coordinate,Realm.MapAPI.PathingFlags,System.Boolean)">
+            <summary>
+            Dynamically alters the movement-type pathing flags for a coordinate bounding region.
+            </summary>
+            <param name="coordinate">The coordinate bounding region.</param>
+            <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+            <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.UpdateWorldBoundaryStatus(System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.PathingFlags,System.Boolean)">
+            <summary>
+            Updates the traversability status of a rectangular world boundary region (alias for <see cref="M:Realm.MapAPI.IGameAPI.SetRegionPathing(System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.PathingFlags,System.Boolean)"/>).
+            </summary>
+            <param name="minX">The minimum X coordinate in world space.</param>
+            <param name="minZ">The minimum Z coordinate in world space.</param>
+            <param name="maxX">The maximum X coordinate in world space.</param>
+            <param name="maxZ">The maximum Z coordinate in world space.</param>
+            <param name="pathingFlags">The movement-type pathing flags to allow or block.</param>
+            <param name="blocked">True to block the boundary; false to open/restore traversability.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.UpdateWorldBoundaryStatus(System.String,Realm.MapAPI.PathingFlags,System.Boolean)">
+            <summary>
+            Updates the traversability status of a named world boundary region (alias for <see cref="M:Realm.MapAPI.IGameAPI.SetRegionPathing(System.String,Realm.MapAPI.PathingFlags,System.Boolean)"/>).
+            </summary>
+            <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+            <param name="pathingFlags">The movement-type pathing flags to allow or block.</param>
+            <param name="blocked">True to block the boundary; false to open/restore traversability.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetRegionPathing(System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Retrieves the combined active pathing flags across the specified rectangular region.
+            </summary>
+            <param name="minX">The minimum X coordinate in world space.</param>
+            <param name="minZ">The minimum Z coordinate in world space.</param>
+            <param name="maxX">The maximum X coordinate in world space.</param>
+            <param name="maxZ">The maximum Z coordinate in world space.</param>
+            <returns>A bitmask of <see cref="T:Realm.MapAPI.PathingFlags"/> representing traversability across the region.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetRegionPathing(System.String)">
+            <summary>
+            Retrieves the combined active pathing flags across a named coordinate region.
+            </summary>
+            <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+            <returns>A bitmask of <see cref="T:Realm.MapAPI.PathingFlags"/> representing traversability across the region.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetRegionPathing(Realm.MapAPI.Coordinate)">
+            <summary>
+            Retrieves the combined active pathing flags across a coordinate bounding region.
+            </summary>
+            <param name="coordinate">The coordinate bounding region.</param>
+            <returns>A bitmask of <see cref="T:Realm.MapAPI.PathingFlags"/> representing traversability across the region.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IsRegionPathingBlocked(System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.PathingFlags)">
+            <summary>
+            Checks whether the specified pathing flags are currently blocked in the designated rectangular region.
+            </summary>
+            <param name="minX">The minimum X coordinate in world space.</param>
+            <param name="minZ">The minimum Z coordinate in world space.</param>
+            <param name="maxX">The maximum X coordinate in world space.</param>
+            <param name="maxZ">The maximum Z coordinate in world space.</param>
+            <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+            <returns>True if the specified flags are blocked; false if passable.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IsRegionPathingBlocked(System.String,Realm.MapAPI.PathingFlags)">
+            <summary>
+            Checks whether the specified pathing flags are currently blocked in a named coordinate region.
+            </summary>
+            <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+            <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+            <returns>True if the specified flags are blocked; false if passable.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IsRegionPathingBlocked(Realm.MapAPI.Coordinate,Realm.MapAPI.PathingFlags)">
+            <summary>
+            Checks whether the specified pathing flags are currently blocked in a coordinate bounding region.
+            </summary>
+            <param name="coordinate">The coordinate bounding region.</param>
+            <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+            <returns>True if the specified flags are blocked; false if passable.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.AddUnitTypeAbility(System.String,System.String)">
             <summary>
             Adds an ability to the specified unit type definition.
@@ -2888,6 +2985,46 @@
             Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
             </summary>
             <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.PathingFlags">
+            <summary>
+            Bit flags describing traversability and usage capabilities for terrain cells and navigation mesh regions.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.None">
+            <summary>
+            No flags enabled; completely impassable.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.ShallowWater">
+            <summary>
+            Shallow water traversal capability.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.DeepWater">
+            <summary>
+            Deep water traversal capability.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.Flying">
+            <summary>
+            Aerial or flying traversal capability.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.Ground">
+            <summary>
+            Standard ground unit traversal capability.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.Buildable">
+            <summary>
+            Structure buildability permission.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.All">
+            <summary>
+            All traversal and buildability flags enabled.
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.SaveEnvelope`1">
             <summary>
