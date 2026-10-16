@@ -1591,6 +1591,68 @@ public interface IGameAPI
 	void ShakePlayerCamera(int playerIndex, float intensity, float duration);
 
 	/// <summary>
+	/// Restricts the specified player's camera movement limits in world space coordinates.
+	/// Clamps the camera position immediately if currently out of bounds.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="minX">The minimum X world boundary.</param>
+	/// <param name="minZ">The minimum Z world boundary.</param>
+	/// <param name="maxX">The maximum X world boundary.</param>
+	/// <param name="maxZ">The maximum Z world boundary.</param>
+	void SetPlayerCameraBounds(int playerIndex, float minX, float minZ, float maxX, float maxZ);
+
+	/// <summary>
+	/// Restricts the specified player's camera movement limits to the specified named coordinate marker.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="coordinateName">The name of the authored coordinate marker defining the camera bounds.</param>
+	void SetPlayerCameraBounds(int playerIndex, string coordinateName)
+	{
+		if (TryGetCoordinate(coordinateName, out var coord))
+		{
+			SetPlayerCameraBounds(playerIndex, coord);
+		}
+	}
+
+	/// <summary>
+	/// Restricts the specified player's camera movement limits to the specified coordinate bounding region.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="coordinate">The coordinate bounding region defining the camera bounds.</param>
+	void SetPlayerCameraBounds(int playerIndex, Coordinate coordinate)
+	{
+		SetPlayerCameraBounds(
+			playerIndex,
+			MathF.Min(coordinate.Min.X, coordinate.Max.X),
+			MathF.Min(coordinate.Min.Z, coordinate.Max.Z),
+			MathF.Max(coordinate.Min.X, coordinate.Max.X),
+			MathF.Max(coordinate.Min.Z, coordinate.Max.Z));
+	}
+
+	/// <summary>
+	/// Restricts the specified player's camera movement limits in world space coordinates (alias for <see cref="SetPlayerCameraBounds(int, float, float, float, float)"/>).
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="minX">The minimum X world boundary.</param>
+	/// <param name="minZ">The minimum Z world boundary.</param>
+	/// <param name="maxX">The maximum X world boundary.</param>
+	/// <param name="maxZ">The maximum Z world boundary.</param>
+	void SetMapCameraBoundaries(int playerIndex, float minX, float minZ, float maxX, float maxZ) =>
+		SetPlayerCameraBounds(playerIndex, minX, minZ, maxX, maxZ);
+
+	/// <summary>
+	/// Resets the specified player's camera movement boundaries back to the map default boundaries defined in metadata.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void ResetPlayerCameraBounds(int playerIndex);
+
+	/// <summary>
+	/// Resets the specified player's camera movement boundaries back to the map default boundaries (alias for <see cref="ResetPlayerCameraBounds(int)"/>).
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void ResetMapCameraBoundaries(int playerIndex) => ResetPlayerCameraBounds(playerIndex);
+
+	/// <summary>
 	/// Selects the specified unit on the given player's client, clearing their previous selection.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>

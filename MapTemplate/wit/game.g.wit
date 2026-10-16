@@ -112,6 +112,7 @@ interface game-api {
     register-buff-modifier: func(buff-id: string, stat-name: string, is-percentage: bool, value: f32);
     remove-buff: func(unit-id: s32, buff-id: string);
     remove-loot-item: func(loot-item-id: s32) -> bool;
+    reset-player-camera-bounds: func(player-index: s32);
     resource-node-count: func() -> s32;
     resource-node-is-depleted: func(id: s32) -> bool;
     resource-node-position-x: func(id: s32) -> f32;
@@ -145,6 +146,7 @@ interface game-api {
     set-player-active: func(player-index: s32, active: bool);
     set-player-bot-genre: func(player-index: s32, genre-name: string, config-json: string);
     set-player-bot-profile: func(player-index: s32, profile-json: string);
+    set-player-camera-bounds: func(player-index: s32, min-x: f32, min-z: f32, max-x: f32, max-z: f32);
     set-player-computer-controlled: func(player-index: s32, is-proxy: bool);
     set-player-gold: func(player-index: s32, amount: f32);
     set-player-kills: func(player-index: s32, kills: s32);

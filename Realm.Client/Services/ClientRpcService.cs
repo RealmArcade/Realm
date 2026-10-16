@@ -100,6 +100,48 @@ public class ClientRpcService
 		}
 	}
 
+	public void SetPlayerCameraBounds(int playerIndex, float minX, float minZ, float maxX, float maxZ)
+	{
+		var host = GameHost.Instance;
+		if (host != null)
+		{
+			host.RecordPlayerCameraBoundsOverride(playerIndex, minX, minZ, maxX, maxZ);
+		}
+
+		if (!TryResolveTargetClient(playerIndex, out host, out bool isLocal, out int remotePeerId))
+			return;
+
+		if (isLocal)
+		{
+			host.SetCameraBoundsInternal(minX, minZ, maxX, maxZ);
+		}
+		else if (remotePeerId > 1)
+		{
+			host.RpcId(remotePeerId, nameof(GameHost.ClientSetCameraBounds), minX, minZ, maxX, maxZ);
+		}
+	}
+
+	public void ResetPlayerCameraBounds(int playerIndex)
+	{
+		var host = GameHost.Instance;
+		if (host != null)
+		{
+			host.ClearPlayerCameraBoundsOverride(playerIndex);
+		}
+
+		if (!TryResolveTargetClient(playerIndex, out host, out bool isLocal, out int remotePeerId))
+			return;
+
+		if (isLocal)
+		{
+			host.ResetCameraBoundsInternal();
+		}
+		else if (remotePeerId > 1)
+		{
+			host.RpcId(remotePeerId, nameof(GameHost.ClientResetCameraBounds));
+		}
+	}
+
 	public void SelectUnit(int playerIndex, IUnit unit)
 	{
 		if (unit == null)

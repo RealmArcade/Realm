@@ -1308,6 +1308,16 @@ public partial class GameHost
 		GameContext.ClientRPC.ShakeCamera(playerIndex, intensity, duration);
 	}
 
+	void IGameAPI.SetPlayerCameraBounds(int playerIndex, float minX, float minZ, float maxX, float maxZ)
+	{
+		GameContext.ClientRPC.SetPlayerCameraBounds(playerIndex, minX, minZ, maxX, maxZ);
+	}
+
+	void IGameAPI.ResetPlayerCameraBounds(int playerIndex)
+	{
+		GameContext.ClientRPC.ResetPlayerCameraBounds(playerIndex);
+	}
+
 	void IGameAPI.SelectPlayerUnit(int playerIndex, IUnit unit)
 	{
 		GameContext.ClientRPC.SelectUnit(playerIndex, unit);

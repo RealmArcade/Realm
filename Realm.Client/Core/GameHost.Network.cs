@@ -594,6 +594,15 @@ public partial class GameHost
 		RegisterReconnectedAbilities(newPeerId);
 		SyncReconnectedPauseState(newPeerId);
 		SyncReconnectedLootItems(newPeerId);
+		SyncReconnectedCameraBounds(newPeerId, slot);
+	}
+
+	private void SyncReconnectedCameraBounds(int newPeerId, int slot)
+	{
+		if (_playerCameraBoundsOverrides.TryGetValue(slot, out var bounds))
+		{
+			RpcId(newPeerId, nameof(ClientSetCameraBounds), bounds.MinX, bounds.MinZ, bounds.MaxX, bounds.MaxZ);
+		}
 	}
 
 	private void SyncReconnectedLootItems(int newPeerId)
@@ -655,6 +664,18 @@ public partial class GameHost
 	public void ClientShakeCamera(float intensity, float duration)
 	{
 		ShakeCameraInternal(intensity, duration);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientSetCameraBounds(float minX, float minZ, float maxX, float maxZ)
+	{
+		Callable.From(() => SetCameraBoundsInternal(minX, minZ, maxX, maxZ)).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientResetCameraBounds()
+	{
+		Callable.From(() => ResetCameraBoundsInternal()).CallDeferred();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

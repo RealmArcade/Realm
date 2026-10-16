@@ -328,6 +328,8 @@ public partial class GameHost : Node3D, IGameAPI
 	public void LoadMapProperties(string path)
 	{
 		GameContext.MapPropertiesLoader?.LoadMapProperties(ECSContext.WorldEntity, path);
+		_defaultCameraBoundsCaptured = false;
+		CaptureDefaultCameraBounds();
 	}
 
 	public bool ImportTerrainFromMinimap(
@@ -1093,6 +1095,87 @@ public partial class GameHost : Node3D, IGameAPI
 
 			tween.TweenProperty(camera, "position", startPos, stepDuration);
 		}).CallDeferred();
+	}
+
+	private bool _defaultCameraBoundsCaptured = false;
+	public float? DefaultCameraBoundsLeft { get; private set; }
+	public float? DefaultCameraBoundsRight { get; private set; }
+	public float? DefaultCameraBoundsTop { get; private set; }
+	public float? DefaultCameraBoundsBottom { get; private set; }
+	private readonly Dictionary<int, (float MinX, float MinZ, float MaxX, float MaxZ)> _playerCameraBoundsOverrides = new();
+
+	public void CaptureDefaultCameraBounds()
+	{
+		if (_defaultCameraBoundsCaptured) return;
+		if (ECSContext.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
+		{
+			ref var cam = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			DefaultCameraBoundsLeft = cam.LimitLeft;
+			DefaultCameraBoundsRight = cam.LimitRight;
+			DefaultCameraBoundsTop = cam.LimitTop;
+			DefaultCameraBoundsBottom = cam.LimitBottom;
+			_defaultCameraBoundsCaptured = true;
+		}
+	}
+
+	private void EnsureDefaultCameraBoundsCaptured(CameraControl? camera)
+	{
+		if (_defaultCameraBoundsCaptured) return;
+		CaptureDefaultCameraBounds();
+		if (!_defaultCameraBoundsCaptured && camera != null)
+		{
+			DefaultCameraBoundsLeft = camera.LimitLeft;
+			DefaultCameraBoundsRight = camera.LimitRight;
+			DefaultCameraBoundsTop = camera.LimitTop;
+			DefaultCameraBoundsBottom = camera.LimitBottom;
+			_defaultCameraBoundsCaptured = true;
+		}
+	}
+
+	public void SetCameraBoundsInternal(float minX, float minZ, float maxX, float maxZ)
+	{
+		Callable.From(() =>
+		{
+			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
+			if (camera != null)
+			{
+				EnsureDefaultCameraBoundsCaptured(camera);
+				camera.LimitLeft = minX;
+				camera.LimitRight = maxX;
+				camera.LimitTop = minZ;
+				camera.LimitBottom = maxZ;
+				camera.ClampToValidGameCamera();
+			}
+		}).CallDeferred();
+	}
+
+	public void ResetCameraBoundsInternal()
+	{
+		Callable.From(() =>
+		{
+			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
+			if (camera != null)
+			{
+				if (_defaultCameraBoundsCaptured)
+				{
+					camera.LimitLeft = DefaultCameraBoundsLeft;
+					camera.LimitRight = DefaultCameraBoundsRight;
+					camera.LimitTop = DefaultCameraBoundsTop;
+					camera.LimitBottom = DefaultCameraBoundsBottom;
+				}
+				camera.ClampToValidGameCamera();
+			}
+		}).CallDeferred();
+	}
+
+	public void RecordPlayerCameraBoundsOverride(int playerIndex, float minX, float minZ, float maxX, float maxZ)
+	{
+		_playerCameraBoundsOverrides[playerIndex] = (minX, minZ, maxX, maxZ);
+	}
+
+	public void ClearPlayerCameraBoundsOverride(int playerIndex)
+	{
+		_playerCameraBoundsOverrides.Remove(playerIndex);
 	}
 
 	public void SelectUnitInternal(IUnit unit)

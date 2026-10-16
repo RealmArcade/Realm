@@ -1943,6 +1943,53 @@
             <param name="intensity">The shake strength multiplier.</param>
             <param name="duration">The time in seconds the shake lasts.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerCameraBounds(System.Int32,System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Restricts the specified player's camera movement limits in world space coordinates.
+            Clamps the camera position immediately if currently out of bounds.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="minX">The minimum X world boundary.</param>
+            <param name="minZ">The minimum Z world boundary.</param>
+            <param name="maxX">The maximum X world boundary.</param>
+            <param name="maxZ">The maximum Z world boundary.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerCameraBounds(System.Int32,System.String)">
+            <summary>
+            Restricts the specified player's camera movement limits to the specified named coordinate marker.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="coordinateName">The name of the authored coordinate marker defining the camera bounds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerCameraBounds(System.Int32,Realm.MapAPI.Coordinate)">
+            <summary>
+            Restricts the specified player's camera movement limits to the specified coordinate bounding region.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="coordinate">The coordinate bounding region defining the camera bounds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetMapCameraBoundaries(System.Int32,System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Restricts the specified player's camera movement limits in world space coordinates (alias for <see cref="M:Realm.MapAPI.IGameAPI.SetPlayerCameraBounds(System.Int32,System.Single,System.Single,System.Single,System.Single)"/>).
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="minX">The minimum X world boundary.</param>
+            <param name="minZ">The minimum Z world boundary.</param>
+            <param name="maxX">The maximum X world boundary.</param>
+            <param name="maxZ">The maximum Z world boundary.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ResetPlayerCameraBounds(System.Int32)">
+            <summary>
+            Resets the specified player's camera movement boundaries back to the map default boundaries defined in metadata.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ResetMapCameraBoundaries(System.Int32)">
+            <summary>
+            Resets the specified player's camera movement boundaries back to the map default boundaries (alias for <see cref="M:Realm.MapAPI.IGameAPI.ResetPlayerCameraBounds(System.Int32)"/>).
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SelectPlayerUnit(System.Int32,Realm.MapAPI.IUnit)">
             <summary>
             Selects the specified unit on the given player's client, clearing their previous selection.
@@ -2536,6 +2583,47 @@
         <member name="M:Realm.MapAPI.IPlayer.ShakeCamera(System.Single,System.Single)">
             <summary>
             Shakes this player's camera to simulate an explosion or impact.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetCameraBounds(System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Restricts this player's camera movement limits in world space coordinates.
+            Clamps the camera position immediately if currently out of bounds.
+            </summary>
+            <param name="minX">The minimum X world boundary.</param>
+            <param name="minZ">The minimum Z world boundary.</param>
+            <param name="maxX">The maximum X world boundary.</param>
+            <param name="maxZ">The maximum Z world boundary.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetCameraBounds(System.String)">
+            <summary>
+            Restricts this player's camera movement limits to the specified named coordinate marker.
+            </summary>
+            <param name="coordinateName">The name of the authored coordinate marker defining the camera bounds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetCameraBounds(Realm.MapAPI.Coordinate)">
+            <summary>
+            Restricts this player's camera movement limits to the specified coordinate bounding region.
+            </summary>
+            <param name="coordinate">The coordinate bounding region defining the camera bounds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetMapCameraBoundaries(System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Restricts this player's camera movement limits in world space coordinates (alias for <see cref="M:Realm.MapAPI.IPlayer.SetCameraBounds(System.Single,System.Single,System.Single,System.Single)"/>).
+            </summary>
+            <param name="minX">The minimum X world boundary.</param>
+            <param name="minZ">The minimum Z world boundary.</param>
+            <param name="maxX">The maximum X world boundary.</param>
+            <param name="maxZ">The maximum Z world boundary.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.ResetCameraBounds">
+            <summary>
+            Resets this player's camera movement boundaries back to the map default boundaries defined in metadata.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.ResetCameraBoundaries">
+            <summary>
+            Resets this player's camera movement boundaries back to the map default boundaries (alias for <see cref="M:Realm.MapAPI.IPlayer.ResetCameraBounds"/>).
             </summary>
         </member>
         <member name="M:Realm.MapAPI.IPlayer.SelectUnit(Realm.MapAPI.IUnit)">

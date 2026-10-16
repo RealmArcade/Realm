@@ -296,6 +296,47 @@ public interface IPlayer
 	void ShakeCamera(float intensity, float duration);
 
 	/// <summary>
+	/// Restricts this player's camera movement limits in world space coordinates.
+	/// Clamps the camera position immediately if currently out of bounds.
+	/// </summary>
+	/// <param name="minX">The minimum X world boundary.</param>
+	/// <param name="minZ">The minimum Z world boundary.</param>
+	/// <param name="maxX">The maximum X world boundary.</param>
+	/// <param name="maxZ">The maximum Z world boundary.</param>
+	void SetCameraBounds(float minX, float minZ, float maxX, float maxZ);
+
+	/// <summary>
+	/// Restricts this player's camera movement limits to the specified named coordinate marker.
+	/// </summary>
+	/// <param name="coordinateName">The name of the authored coordinate marker defining the camera bounds.</param>
+	void SetCameraBounds(string coordinateName);
+
+	/// <summary>
+	/// Restricts this player's camera movement limits to the specified coordinate bounding region.
+	/// </summary>
+	/// <param name="coordinate">The coordinate bounding region defining the camera bounds.</param>
+	void SetCameraBounds(Coordinate coordinate);
+
+	/// <summary>
+	/// Restricts this player's camera movement limits in world space coordinates (alias for <see cref="SetCameraBounds(float, float, float, float)"/>).
+	/// </summary>
+	/// <param name="minX">The minimum X world boundary.</param>
+	/// <param name="minZ">The minimum Z world boundary.</param>
+	/// <param name="maxX">The maximum X world boundary.</param>
+	/// <param name="maxZ">The maximum Z world boundary.</param>
+	void SetMapCameraBoundaries(float minX, float minZ, float maxX, float maxZ) => SetCameraBounds(minX, minZ, maxX, maxZ);
+
+	/// <summary>
+	/// Resets this player's camera movement boundaries back to the map default boundaries defined in metadata.
+	/// </summary>
+	void ResetCameraBounds();
+
+	/// <summary>
+	/// Resets this player's camera movement boundaries back to the map default boundaries (alias for <see cref="ResetCameraBounds"/>).
+	/// </summary>
+	void ResetCameraBoundaries() => ResetCameraBounds();
+
+	/// <summary>
 	/// Selects the specified unit on this player's client, clearing their previous selection.
 	/// </summary>
 	void SelectUnit(IUnit unit);
@@ -481,6 +522,10 @@ public class PlayerFacade : IPlayer
 	public void PanCameraTo(Vector3 position, float duration = 0f) => _api.PanPlayerCameraTo(Index, position, duration);
 	public void MoveCameraTo(Vector3 position, float duration = 0f) => _api.PanPlayerCameraTo(Index, position, duration);
 	public void ShakeCamera(float intensity, float duration) => _api.ShakePlayerCamera(Index, intensity, duration);
+	public void SetCameraBounds(float minX, float minZ, float maxX, float maxZ) => _api.SetPlayerCameraBounds(Index, minX, minZ, maxX, maxZ);
+	public void SetCameraBounds(string coordinateName) => _api.SetPlayerCameraBounds(Index, coordinateName);
+	public void SetCameraBounds(Coordinate coordinate) => _api.SetPlayerCameraBounds(Index, coordinate);
+	public void ResetCameraBounds() => _api.ResetPlayerCameraBounds(Index);
 	public void SelectUnit(IUnit unit) => _api.SelectPlayerUnit(Index, unit);
 	public void ClearSelection() => _api.ClearPlayerSelection(Index);
 	public IEnumerable<IUnit> GetSelectedUnits() => _api.GetPlayerSelectedUnits(Index);
