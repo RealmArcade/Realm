@@ -303,11 +303,29 @@ public class NetworkService
 
 	public int GetOwnerPeerId(Entity unitEntity)
 	{
-		if (!GameContext.World.Has<Owner>(unitEntity)) return -1;
-		var owner = GameContext.World.Get<Owner>(unitEntity).PlayerEntity;
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return -1;
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+
+		if (GameContext.World.Has<UnitOwnerPlayer>(unitEntity))
+		{
+			int playerIndex = GameContext.World.Get<UnitOwnerPlayer>(unitEntity).PlayerIndex;
+			var lobby = LobbyManager.Instance;
+			if (lobby != null)
+			{
+				var players = lobby.PlayerList;
+				for (int i = 0; i < players.Count; i++)
+				{
+					if (players[i].Slot == playerIndex)
+					{
+						return players[i].PeerId;
+					}
+				}
+			}
+		}
+
+		if (!GameContext.World.Has<Owner>(unitEntity)) return -1;
+		var owner = GameContext.World.Get<Owner>(unitEntity).PlayerEntity;
 		foreach (var kvp in mapping.PeerIdToPlayerEntityMap)
 		{
 			if (kvp.Value == owner.Value)

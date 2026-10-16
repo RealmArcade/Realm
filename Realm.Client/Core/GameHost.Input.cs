@@ -2375,6 +2375,12 @@ public partial class GameHost
 			return;
 		}
 
+		if (!IsSelectableByLocalPlayer(clickedUnit))
+		{
+			ClearSelection();
+			return;
+		}
+
 		if (Input.IsKeyPressed(Key.Ctrl))
 		{
 			PerformDoubleClickSelection(clickPos);
@@ -2468,7 +2474,7 @@ public partial class GameHost
 
 			if (unit.IsEnemy)
 				enemyUnits.Add(unit);
-			else
+			else if (IsSelectableByLocalPlayer(unit))
 				friendlyUnits.Add(unit);
 		}
 	}
@@ -2476,6 +2482,13 @@ public partial class GameHost
 	private bool IsValidVisibleUnit(Unit3D unit)
 	{
 		return unit != null && GodotObject.IsInstanceValid(unit) && unit.Visible;
+	}
+
+	private bool IsSelectableByLocalPlayer(Unit3D unit)
+	{
+		if (unit == null) return false;
+		if (!_multiplayerActive) return true;
+		return unit.Player == LocalPlayerIndex;
 	}
 
 	private void SelectUnits(List<Unit3D> units)
@@ -3036,7 +3049,7 @@ public partial class GameHost
 		if (hit == null || !hit.ContainsKey("collider")) return;
 
 		var clickedUnit = FindUnit3DInParentChain(hit["collider"].As<Node>());
-		if (clickedUnit == null || clickedUnit.IsEnemy) return;
+		if (clickedUnit == null || clickedUnit.IsEnemy || !IsSelectableByLocalPlayer(clickedUnit)) return;
 
 		var camera = GetViewport().GetCamera3D();
 		if (camera == null) return;
@@ -3046,7 +3059,7 @@ public partial class GameHost
 
 	private void SelectSimilarVisibleUnits(string type, Camera3D camera, Rect2 viewportRect)
 	{
-		var visibleUnits = AllUnits.FindAll(u => !u.IsEnemy && !u.IsBuilding && u.UnitId == type && viewportRect.HasPoint(camera.UnprojectPosition(u.GlobalPosition)));
+		var visibleUnits = AllUnits.FindAll(u => !u.IsEnemy && !u.IsBuilding && u.UnitId == type && IsSelectableByLocalPlayer(u) && viewportRect.HasPoint(camera.UnprojectPosition(u.GlobalPosition)));
 
 		foreach (var u in visibleUnits)
 		{
