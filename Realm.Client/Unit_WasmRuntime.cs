@@ -778,28 +778,22 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 
 	public bool EquipItem(string itemId)
 	{
-		if (!_world.IsAlive(_entity)) return false;
-		if (!HasItem(itemId))
-		{
-			AddItem(itemId);
-		}
-		return ItemGrantingUtility.EquipItem(_world, _entity, itemId);
+		return AddItem(itemId);
 	}
 
 	public bool UnequipItem(string itemId)
 	{
-		if (!_world.IsAlive(_entity)) return false;
-		return ItemGrantingUtility.UnequipItem(_world, _entity, itemId);
+		return RemoveItem(itemId);
 	}
 
 	public bool IsItemEquipped(string itemId)
 	{
-		return ItemGrantingUtility.IsItemEquipped(_world, _entity, itemId);
+		return HasItem(itemId);
 	}
 
 	public IEnumerable<string> GetEquippedItems()
 	{
-		return ItemGrantingUtility.GetEquippedItems(_world, _entity);
+		return GetItems();
 	}
 
 	public bool HasItem(string itemId)
