@@ -1250,7 +1250,7 @@ public partial class MapEditorHUD : Control
 		SetWasmConsoleStatus("Compiling WASM map script...", UIStyle.ColorCyanGlow);
 		AppendWasmConsoleLog("=== WASM COMPILATION PIPELINE STARTED ===");
 
-		await CompileAndSignMapAsync(GameContext.EditorService._tempWorkspacePath, skipAttribution: true);
+		await CompileAndSignMapAsync(GameContext.EditorService._tempWorkspacePath, skipAttribution: true, isDebug: true);
 
 		if (_wasmHasErrors)
 		{

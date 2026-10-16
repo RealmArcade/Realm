@@ -67,17 +67,33 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 	private readonly Dictionary<string, Func<float, float, int, float>?> _formulaFuncCache = new(StringComparer.OrdinalIgnoreCase);
 
 	private readonly System.Threading.Timer _watchdogTimer;
+	private readonly bool _isDebugMode;
+	private readonly WasmDebugServer? _debugServer;
 
 	public bool IsFaulted { get; private set; }
 
-	public WasmRuntime(string wasmPath, string mapName)
+	private static bool IsDebugWasmFlagActive()
+	{
+		return Array.Exists(System.Environment.GetCommandLineArgs(), a => a.Equals("--debug-wasm", StringComparison.OrdinalIgnoreCase));
+	}
+
+	public WasmRuntime(string wasmPath, string mapName, bool isDebug = false)
 	{
 		_mapName = mapName;
+		_isDebugMode = isDebug || IsDebugWasmFlagActive();
 
 		try
 		{
-			var config = new Config().WithEpochInterruption(true);
+			var config = new Config()
+				.WithEpochInterruption(true)
+				.WithDebugInfo(_isDebugMode);
 			_engine = new Engine(config);
+			if (_isDebugMode)
+			{
+				_debugServer = new WasmDebugServer();
+				_debugServer.Start();
+				LogToConsole($"[WASM RUNTIME] Debug mode enabled. Debug server listening on port {_debugServer.Port}.");
+			}
 			_module = Module.FromFile(_engine, wasmPath);
 			_linker = new Linker(_engine);
 			_store = new Store(_engine);
@@ -144,7 +160,10 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		try
 		{
 			_store.SetEpochDeadline(1);
-			_watchdogTimer.Change(timeoutMs, System.Threading.Timeout.Infinite);
+			if (!_isDebugMode)
+			{
+				_watchdogTimer.Change(timeoutMs, System.Threading.Timeout.Infinite);
+			}
 			action();
 		}
 		catch (TrapException trapEx)
@@ -161,7 +180,10 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		}
 		finally
 		{
-			_watchdogTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+			if (!_isDebugMode)
+			{
+				_watchdogTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+			}
 		}
 	}
 
@@ -172,7 +194,10 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		try
 		{
 			_store.SetEpochDeadline(1);
-			_watchdogTimer.Change(timeoutMs, System.Threading.Timeout.Infinite);
+			if (!_isDebugMode)
+			{
+				_watchdogTimer.Change(timeoutMs, System.Threading.Timeout.Infinite);
+			}
 			return func();
 		}
 		catch (TrapException trapEx)
@@ -191,7 +216,10 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		}
 		finally
 		{
-			_watchdogTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+			if (!_isDebugMode)
+			{
+				_watchdogTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+			}
 		}
 	}
 
@@ -396,6 +424,7 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		FlushWasiLogFile();
 		UnsubscribeAutoEvents();
 		_watchdogTimer?.Dispose();
+		_debugServer?.Dispose();
 		_store.Dispose();
 		_module.Dispose();
 		_engine.Dispose();

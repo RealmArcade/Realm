@@ -1448,16 +1448,17 @@ public class MapStorageService
 		return true;
 	}
 
-	public async Task<(bool success, int exitCode, bool streamHadErrors)> ExecuteDotnetPublishDomainAsync(string workspace, string csproj, Action<string> onOutput, Action<string> onError)
+	public async Task<(bool success, int exitCode, bool streamHadErrors)> ExecuteDotnetPublishDomainAsync(string workspace, string csproj, Action<string> onOutput, Action<string> onError, bool isDebug = false)
 	{
 		return await Task.Run(() =>
 		{
 			bool streamHadErrors = false;
 			string resolvedWasiSdk = WasiSdkResolver.ResolveWasiSdkPath();
 			string csprojName = Path.GetFileName(csproj);
+			string configuration = isDebug ? "Debug" : "Release";
 			var compileProcess = new Process();
 			compileProcess.StartInfo.FileName = "dotnet";
-			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c Release -r wasi-wasm -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
+			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
 			compileProcess.StartInfo.EnvironmentVariables["WASI_SDK_PATH"] = resolvedWasiSdk;
 			compileProcess.StartInfo.WorkingDirectory = workspace;
 			compileProcess.StartInfo.CreateNoWindow = true;

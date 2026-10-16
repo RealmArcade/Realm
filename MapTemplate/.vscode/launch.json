@@ -6,6 +6,23 @@
 			"type": "coreclr",
 			"request": "attach",
 			"processName": "Realm.Client"
+		},
+		{
+			"name": "Debug WASM Map Script (Remote Attachment)",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/bin/Debug/net10.0/wasi-wasm/publish/MapScript.wasm",
+			"miDebuggerServerAddress": "localhost:12345",
+			"miDebuggerPath": "gdb",
+			"cwd": "${workspaceFolder}",
+			"setupCommands": [
+				{
+					"description": "Enable pretty-printing for gdb",
+					"text": "-enable-pretty-printing",
+					"ignoreFailures": true
+				}
+			],
+			"preLaunchTask": "Build WASM Map Script (Debug)"
 		}
 	]
 }

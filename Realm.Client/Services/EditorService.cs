@@ -6696,7 +6696,7 @@ public class {mapName} : IMapScript
 		return Realm.Shared.Distribution.AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
 	}
 
-	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string> findProjectFile, Func<string, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog)
+	public async Task<bool> PerformCompilationStepAsyncDomain(string workspace, Func<string, string> findProjectFile, Func<string, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
 	{
 		try
 		{
@@ -6709,11 +6709,11 @@ public class {mapName} : IMapScript
 			string csproj = findProjectFile(workspace);
 			if (string.IsNullOrEmpty(csproj)) return false;
 
-			if (tryBypassCompilation(workspace)) return true;
+			if (!isDebug && tryBypassCompilation(workspace)) return true;
 
 			if (!checkMapApiDependency(workspace)) return false;
 
-			return await executeDotnetPublishAsync(workspace, csproj);
+			return await executeDotnetPublishAsync(workspace, csproj, isDebug);
 		}
 		catch (Exception ex)
 		{

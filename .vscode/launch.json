@@ -45,6 +45,23 @@
         "GODOT_BIN": "C:\\Program Files\\Godot_v4.7-stable_mono_win64\\Godot_v4.7-stable_mono_win64.exe"
       },
       "console": "integratedTerminal"
+    },
+    {
+      "name": "Debug WASM Map Script (Remote Attachment)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/MapTemplate/bin/Debug/net10.0/wasi-wasm/publish/MapScript.wasm",
+      "miDebuggerServerAddress": "localhost:12345",
+      "miDebuggerPath": "gdb",
+      "cwd": "${workspaceFolder}/MapTemplate",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "Build WASM Map Script (Debug)"
     }
   ]
 }

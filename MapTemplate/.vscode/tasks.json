@@ -11,10 +11,28 @@
 			],
 			"problemMatcher": [],
 			"group": {
+				"kind": "build"
+			},
+			"detail": "Compiles Realm.MapAPI and copies DLL, XML, and PDB to the local map lib folder."
+		},
+		{
+			"label": "Build WASM Map Script (Debug)",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"publish",
+				"${workspaceFolder}/MapScript.csproj",
+				"-c",
+				"Debug",
+				"-r",
+				"wasi-wasm"
+			],
+			"group": {
 				"kind": "build",
 				"isDefault": true
 			},
-			"detail": "Compiles Realm.MapAPI and copies DLL, XML, and PDB to the local map lib folder."
+			"problemMatcher": "$msCompile",
+			"detail": "Builds the WASM map script in Debug configuration with DWARF symbols retained."
 		}
 	]
 }

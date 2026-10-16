@@ -950,19 +950,19 @@ namespace Realm.Client.UI
 			_mapSettingsDialog?.SaveMapProperties();
 		}
 
-		private async Task CompileAndSignMapAsync(string workspace, bool skipAttribution = true)
+		private async Task CompileAndSignMapAsync(string workspace, bool skipAttribution = true, bool isDebug = false)
 		{
 			_wasmHasErrors = false;
 
-			bool compiledSuccessfully = await PerformCompilationStepAsync(workspace, skipAttribution);
+			bool compiledSuccessfully = await PerformCompilationStepAsync(workspace, skipAttribution, isDebug);
 			if (!compiledSuccessfully || skipAttribution) return;
 
 			await PerformSigningStepAsync(workspace);
 		}
 
-		private async Task<bool> PerformCompilationStepAsync(string workspace, bool skipAttribution)
+		private async Task<bool> PerformCompilationStepAsync(string workspace, bool skipAttribution, bool isDebug = false)
 		{
-			return await GameContext.EditorService.PerformCompilationStepAsyncDomain(workspace, FindProjectFile, TryBypassCompilation, CheckMapApiDependency, ExecuteDotnetPublishAsync, msg => { _wasmHasErrors = true; SetWasmConsoleStatus($"❌ WASM Compilation Failed: {msg}", new Color(1.0f, 0.3f, 0.3f)); GD.PrintErr($"[MapEditorHUD] Trigger compilation failed: {msg}"); }, err => AppendWasmConsoleLog($"[COMPILER EXCEPTION] {err}"));
+			return await GameContext.EditorService.PerformCompilationStepAsyncDomain(workspace, FindProjectFile, TryBypassCompilation, CheckMapApiDependency, ExecuteDotnetPublishAsync, msg => { _wasmHasErrors = true; SetWasmConsoleStatus($"❌ WASM Compilation Failed: {msg}", new Color(1.0f, 0.3f, 0.3f)); GD.PrintErr($"[MapEditorHUD] Trigger compilation failed: {msg}"); }, err => AppendWasmConsoleLog($"[COMPILER EXCEPTION] {err}"), isDebug);
 		}
 
 		private string FindProjectFile(string workspace)
@@ -1005,11 +1005,12 @@ namespace Realm.Client.UI
 			return hasDependency;
 		}
 
-		private async Task<bool> ExecuteDotnetPublishAsync(string workspace, string csproj)
+		private async Task<bool> ExecuteDotnetPublishAsync(string workspace, string csproj, bool isDebug = false)
 		{
 			var result = await GameContext.MapStorageService.ExecuteDotnetPublishDomainAsync(workspace, csproj,
 				(output) => AppendWasmConsoleLog(output),
-				(error) => AppendWasmConsoleLog(error));
+				(error) => AppendWasmConsoleLog(error),
+				isDebug);
 
 			if (!result.success)
 			{
