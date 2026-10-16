@@ -48,6 +48,13 @@ public partial class VSCodeManager
 	{
 		if (OperatingSystem.IsWindows())
 		{
+			try
+			{
+				SetCurrentProcessExplicitAppUserModelID("Realm.GameClient");
+			}
+			catch
+			{
+			}
 			AppDomain.CurrentDomain.ProcessExit += (s, e) => CleanUp();
 		}
 	}
@@ -1660,12 +1667,14 @@ public partial class VSCodeManager
 				return;
 			}
 
-			EnsureWorkspaceMapApiDll(projectRoot);
-			PatchVSCodiumConfiguration(embedDir);
-
 			string serverDataDir = Path.Combine(embedDir, "user-data-dir");
 			string extensionsDir = Path.Combine(serverDataDir, "extensions");
 			string workspacePath = GetMapFolderToOpen(projectRoot);
+
+			EnsureWorkspaceMapApiDll(projectRoot);
+			EnsureVSCodiumSettings(serverDataDir, workspacePath);
+			EnsureOhziExtensionPatched(extensionsDir);
+			PatchVSCodiumConfiguration(embedDir);
 
 			if (IsInstalling)
 			{
@@ -1687,6 +1696,7 @@ public partial class VSCodeManager
 				_vscodeProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
 				_vscodeProcess.Start();
 				AddProcessToJob(_vscodeProcess);
+				AttachWindowGrouping(_vscodeProcess);
 				_isVisible = true;
 				GD.Print($"[VSCodeManager] VSCodium desktop launched (PID {_vscodeProcess.Id}). Godot Host PID: {Environment.ProcessId}.");
 			}
@@ -1696,6 +1706,7 @@ public partial class VSCodeManager
 				IntPtr mainWindowHandle = _vscodeProcess.MainWindowHandle;
 				if (mainWindowHandle != IntPtr.Zero)
 				{
+					AttachWindowGrouping(_vscodeProcess);
 					ShowWindow(mainWindowHandle, SW_RESTORE);
 					BringWindowToTop(mainWindowHandle);
 					SetForegroundWindow(mainWindowHandle);
@@ -1716,6 +1727,259 @@ public partial class VSCodeManager
 		catch (Exception ex)
 		{
 			GD.PrintErr("Failed to launch or focus VSCodium: " + ex.Message);
+		}
+	}
+
+	private const uint WM_GETICON = 0x007F;
+	private const uint WM_SETICON = 0x0080;
+	private const int ICON_SMALL = 0;
+	private const int ICON_BIG = 1;
+
+	[DllImport("user32.dll", CharSet = CharSet.Auto)]
+	private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+	[DllImport("shell32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+	private static extern int SetCurrentProcessExplicitAppUserModelID(string appID);
+
+	[StructLayout(LayoutKind.Sequential, Pack = 4)]
+	private struct PROPERTYKEY
+	{
+		public Guid fmtid;
+		public uint pid;
+	}
+
+	[StructLayout(LayoutKind.Explicit)]
+	private struct PROPVARIANT
+	{
+		[FieldOffset(0)] public ushort vt;
+		[FieldOffset(8)] public IntPtr pwszVal;
+	}
+
+	[ComImport, Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+	private interface IPropertyStore
+	{
+		[PreserveSig] int GetCount(out uint cProps);
+		[PreserveSig] int GetAt(uint iProp, out PROPERTYKEY pkey);
+		[PreserveSig] int GetValue(ref PROPERTYKEY key, out PROPVARIANT pv);
+		[PreserveSig] int SetValue(ref PROPERTYKEY key, ref PROPVARIANT propvar);
+		[PreserveSig] int Commit();
+	}
+
+	[DllImport("shell32.dll", SetLastError = true)]
+	private static extern int SHGetPropertyStoreForWindow(IntPtr hwnd, ref Guid iid, out IPropertyStore propertyStore);
+
+	private static void SetWindowAppUserModelId(IntPtr hwnd, string appModelId)
+	{
+		if (hwnd == IntPtr.Zero || !OperatingSystem.IsWindows()) return;
+		try
+		{
+			var guid = new Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99");
+			if (SHGetPropertyStoreForWindow(hwnd, ref guid, out var store) == 0 && store != null)
+			{
+				var pkey = new PROPERTYKEY
+				{
+					fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"),
+					pid = 5
+				};
+				var propvar = new PROPVARIANT
+				{
+					vt = 31,
+					pwszVal = Marshal.StringToCoTaskMemUni(appModelId)
+				};
+				try
+				{
+					store.SetValue(ref pkey, ref propvar);
+					store.Commit();
+				}
+				finally
+				{
+					Marshal.FreeCoTaskMem(propvar.pwszVal);
+				}
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	private static void SyncWindowIcon(IntPtr sourceHwnd, IntPtr targetHwnd)
+	{
+		if (sourceHwnd == IntPtr.Zero || targetHwnd == IntPtr.Zero || !OperatingSystem.IsWindows()) return;
+		try
+		{
+			IntPtr smallIcon = SendMessage(sourceHwnd, WM_GETICON, (IntPtr)ICON_SMALL, IntPtr.Zero);
+			if (smallIcon != IntPtr.Zero)
+			{
+				SendMessage(targetHwnd, WM_SETICON, (IntPtr)ICON_SMALL, smallIcon);
+			}
+
+			IntPtr bigIcon = SendMessage(sourceHwnd, WM_GETICON, (IntPtr)ICON_BIG, IntPtr.Zero);
+			if (bigIcon != IntPtr.Zero)
+			{
+				SendMessage(targetHwnd, WM_SETICON, (IntPtr)ICON_BIG, bigIcon);
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	private void AttachWindowGrouping(Process proc)
+	{
+		if (proc == null || proc.HasExited || !OperatingSystem.IsWindows()) return;
+
+		Task.Run(async () =>
+		{
+			try
+			{
+				for (int i = 0; i < 40; i++)
+				{
+					if (proc.HasExited) break;
+					proc.Refresh();
+					IntPtr hwnd = proc.MainWindowHandle;
+					if (hwnd != IntPtr.Zero)
+					{
+						SetWindowAppUserModelId(hwnd, "Realm.GameClient");
+
+						long godotRaw = DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle);
+						if (godotRaw != 0)
+						{
+							SyncWindowIcon((IntPtr)godotRaw, hwnd);
+						}
+						break;
+					}
+
+					await Task.Delay(150);
+				}
+			}
+			catch
+			{
+			}
+		});
+	}
+
+	private static void EnsureVSCodiumSettings(string serverDataDir, string workspacePath)
+	{
+		try
+		{
+			string userDir = Path.Combine(serverDataDir, "User");
+			if (!Directory.Exists(userDir))
+			{
+				Directory.CreateDirectory(userDir);
+			}
+
+			string userSettingsFile = Path.Combine(userDir, "settings.json");
+			JsonObject settings = null;
+			if (File.Exists(userSettingsFile))
+			{
+				try
+				{
+					settings = JsonNode.Parse(File.ReadAllText(userSettingsFile, Encoding.UTF8))?.AsObject();
+				}
+				catch
+				{
+				}
+			}
+			settings ??= new JsonObject();
+
+			settings["security.workspace.trust.enabled"] = false;
+			settings["security.workspace.trust.startupPrompt"] = "never";
+			settings["security.workspace.trust.banner"] = "never";
+			settings["security.workspace.trust.emptyWindow"] = false;
+			settings["security.workspace.trust.untrustedFiles"] = "open";
+
+			File.WriteAllText(userSettingsFile, settings.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
+
+			if (!string.IsNullOrEmpty(workspacePath) && Directory.Exists(workspacePath))
+			{
+				string wsVscodeDir = Path.Combine(workspacePath, ".vscode");
+				if (!Directory.Exists(wsVscodeDir))
+				{
+					Directory.CreateDirectory(wsVscodeDir);
+				}
+
+				string wsSettingsFile = Path.Combine(wsVscodeDir, "settings.json");
+				JsonObject wsSettings = null;
+				if (File.Exists(wsSettingsFile))
+				{
+					try
+					{
+						wsSettings = JsonNode.Parse(File.ReadAllText(wsSettingsFile, Encoding.UTF8))?.AsObject();
+					}
+					catch
+					{
+					}
+				}
+				wsSettings ??= new JsonObject();
+				wsSettings["security.workspace.trust.enabled"] = false;
+				File.WriteAllText(wsSettingsFile, wsSettings.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Failed to ensure VSCodium settings: {ex.Message}");
+		}
+	}
+
+	private static string GetOhziPatchContent()
+	{
+		try
+		{
+			string projectRoot = PathUtils.GetProjectRoot();
+			string tpl1 = Path.Combine(projectRoot, "Templates", "ohzi_extension_patch.js");
+			if (File.Exists(tpl1)) return File.ReadAllText(tpl1, Encoding.UTF8);
+
+			string tpl2 = Path.Combine(AppContext.BaseDirectory, "Templates", "ohzi_extension_patch.js");
+			if (File.Exists(tpl2)) return File.ReadAllText(tpl2, Encoding.UTF8);
+		}
+		catch
+		{
+		}
+
+		return string.Empty;
+	}
+
+	private static void EnsureOhziExtensionPatched(string extensionsDir)
+	{
+		if (string.IsNullOrEmpty(extensionsDir) || !Directory.Exists(extensionsDir)) return;
+
+		try
+		{
+			string[] directories = Directory.GetDirectories(extensionsDir);
+			foreach (string dir in directories)
+			{
+				string name = Path.GetFileName(dir);
+				if (!name.Contains("ohzi-vscode-glb-viewer", StringComparison.OrdinalIgnoreCase) &&
+				    !name.Contains("ohziinteractivestudio", StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
+
+				string extJsPath = Path.Combine(dir, "extension.js");
+				bool needsPatch = !File.Exists(extJsPath);
+				if (!needsPatch)
+				{
+					string existing = File.ReadAllText(extJsPath, Encoding.UTF8);
+					if (!existing.Contains("REALM_PATCHED_OHZI_BASE64", StringComparison.Ordinal))
+					{
+						needsPatch = true;
+					}
+				}
+
+				if (needsPatch)
+				{
+					string patchContent = GetOhziPatchContent();
+					if (!string.IsNullOrEmpty(patchContent))
+					{
+						File.WriteAllText(extJsPath, patchContent, new UTF8Encoding(false));
+						GD.Print($"VS Code: Patched OHZI GLB viewer extension in {dir}");
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to patch OHZI extension: {ex.Message}");
 		}
 	}
 
@@ -2152,6 +2416,16 @@ public partial class VSCodeManager
 		if (!string.IsNullOrEmpty(embedDir))
 		{
 			targets.Add(embedDir);
+			targets.Add(Path.Combine(embedDir, "editor", "resources", "app"));
+			targets.Add(Path.Combine(embedDir, "resources", "app"));
+			string serveWebDir = Path.Combine(embedDir, "cli-data-dir", "serve-web");
+			if (Directory.Exists(serveWebDir))
+			{
+				foreach (string sub in Directory.GetDirectories(serveWebDir))
+				{
+					targets.Add(sub);
+				}
+			}
 		}
 
 		if (OS.GetName() == "Windows")
@@ -2217,13 +2491,55 @@ public partial class VSCodeManager
 
 			if (extensionAllowedProposedApi != null)
 			{
-				needsUpdate = AddProposedApi(extensionAllowedProposedApi, "speige.realm-map-editor");
+				needsUpdate |= AddProposedApi(extensionAllowedProposedApi, "speige.realm-map-editor");
+			}
+
+			if (jsonNode["win32AppUserModelId"]?.GetValue<string>() != "Realm.GameClient")
+			{
+				jsonNode["win32AppUserModelId"] = "Realm.GameClient";
+				needsUpdate = true;
+			}
+
+			if (productJsonPath.Contains("editor", StringComparison.OrdinalIgnoreCase) &&
+			    productJsonPath.Contains("resources", StringComparison.OrdinalIgnoreCase) &&
+			    jsonNode.AsObject().ContainsKey("webviewContentExternalBaseUrlTemplate"))
+			{
+				jsonNode.AsObject().Remove("webviewContentExternalBaseUrlTemplate");
+				needsUpdate = true;
+			}
+
+			var configDefaults = jsonNode["configurationDefaults"]?.AsObject();
+			if (configDefaults == null)
+			{
+				configDefaults = new JsonObject();
+				jsonNode["configurationDefaults"] = configDefaults;
+				needsUpdate = true;
+			}
+			if (configDefaults["security.workspace.trust.enabled"]?.GetValue<bool>() != false)
+			{
+				configDefaults["security.workspace.trust.enabled"] = false;
+				needsUpdate = true;
+			}
+			if (configDefaults["security.workspace.trust.startupPrompt"]?.GetValue<string>() != "never")
+			{
+				configDefaults["security.workspace.trust.startupPrompt"] = "never";
+				needsUpdate = true;
+			}
+			if (configDefaults["security.workspace.trust.banner"]?.GetValue<string>() != "never")
+			{
+				configDefaults["security.workspace.trust.banner"] = "never";
+				needsUpdate = true;
+			}
+			if (configDefaults["security.workspace.trust.emptyWindow"]?.GetValue<bool>() != false)
+			{
+				configDefaults["security.workspace.trust.emptyWindow"] = false;
+				needsUpdate = true;
 			}
 
 			if (needsUpdate)
 			{
 				File.WriteAllText(productJsonPath, jsonNode.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-				GD.Print("Successfully patched VSCode product.json for proposed APIs.");
+				GD.Print($"Successfully patched VSCode product.json at {productJsonPath}");
 			}
 		}
 		catch (UnauthorizedAccessException)
