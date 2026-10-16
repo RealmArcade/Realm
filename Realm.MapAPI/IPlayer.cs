@@ -250,6 +250,20 @@ public interface IPlayer
 	void IssueAttackMoveOrder(Vector3 destination);
 
 	/// <summary>
+	/// Attempts to collect a ground loot item using an eligible unit owned by this player.
+	/// </summary>
+	/// <param name="lootItem">The ground loot item to collect.</param>
+	/// <returns>True if an eligible unit successfully collected the item; otherwise, false.</returns>
+	bool CollectLootItem(ILootItem lootItem);
+
+	/// <summary>
+	/// Attempts to collect a ground loot item by its ID using an eligible unit owned by this player.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+	/// <returns>True if an eligible unit successfully collected the item; otherwise, false.</returns>
+	bool CollectLootItem(int lootItemId);
+
+	/// <summary>
 	/// Gets the research level of a technology upgrade for this player.
 	/// </summary>
 	int GetTechLevel(string techId);
@@ -457,6 +471,8 @@ public class PlayerFacade : IPlayer
 	public IEnumerable<IUnit> GetUnits(Func<IUnit, bool> filter) => _api.GetUnitsOwnedByPlayer(Index, filter);
 	public int CountUnits(Func<IUnit, bool>? filter = null) => _api.CountUnitsOwnedByPlayer(Index, filter);
 	public void IssueAttackMoveOrder(Vector3 destination) => _api.IssueAttackMoveOrderToPlayer(Index, destination);
+	public bool CollectLootItem(ILootItem lootItem) => _api.CollectLootItemByPlayer(lootItem.UniqueId, Index);
+	public bool CollectLootItem(int lootItemId) => _api.CollectLootItemByPlayer(lootItemId, Index);
 
 	public int GetTechLevel(string techId) => _api.GetPlayerTechLevel(Index, techId);
 	public void SetTechLevel(string techId, int level) => _api.SetPlayerTechLevel(Index, techId, level);

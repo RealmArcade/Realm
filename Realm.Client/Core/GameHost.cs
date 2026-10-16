@@ -123,6 +123,10 @@ public partial class GameHost : Node3D, IGameAPI
 	public List<Prop3D> AllProps { get; set; } = new List<Prop3D>();
 	public List<Decal> AllDecals { get; set; } = new List<Decal>();
 	public List<ProceduralVfxInstance3D> AllVfx { get; set; } = new List<ProceduralVfxInstance3D>();
+	public List<LootItem3D> AllLootItems { get; set; } = new();
+	public static Dictionary<int, LootItem_WasmRuntime> IdToLootItem { get; set; } = new();
+	private readonly List<int> _expiredLootToDespawn = new();
+	private readonly List<(int LootId, Entity UnitEntity)> _collectedLootToProcess = new();
 	private List<Unit3D> _castlesList { get; set; } = new();
 
 	public static Dictionary<Entity, Unit3D> EntityToUnit3D { get; set; } = new();
@@ -799,6 +803,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public event Action<string, IUnit?>? OnPlayerChatMessage;
 	public event Action<IUnit>? OnUnitSelected;
 	public event Action<IUnit, IUnit>? OnUnitAttacked;
+	public event Action<ILootItem, IUnit>? OnLootItemCollected;
 
 	public void TriggerPlayerChatMessage(string message)
 	{
@@ -1163,6 +1168,83 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
+
+	private void TickGroundLoot(float delta)
+	{
+		if (AllLootItems.Count == 0) return;
+
+		_expiredLootToDespawn.Clear();
+		_collectedLootToProcess.Clear();
+
+		for (int i = 0; i < AllLootItems.Count; i++)
+		{
+			var loot = AllLootItems[i];
+			if (!GodotObject.IsInstanceValid(loot) || loot.IsDespawned) continue;
+
+			if (loot.Lifetime > 0f)
+			{
+				loot.RemainingLifetime -= delta;
+				if (loot.RemainingLifetime <= 0f)
+				{
+					_expiredLootToDespawn.Add(loot.UniqueId);
+					continue;
+				}
+			}
+
+			if (!loot.AutoPickup) continue;
+
+			float radiusSq = loot.PickupRadius * loot.PickupRadius;
+			var lootPos = loot.GlobalPosition;
+
+			Unit3D? bestUnit = null;
+			float bestDistSq = float.MaxValue;
+
+			for (int u = 0; u < AllUnits.Count; u++)
+			{
+				var unit = AllUnits[u];
+				if (!GodotObject.IsInstanceValid(unit) || unit.IsBuilding) continue;
+				if (loot.OwnerPlayerIndex >= 0 && unit.Player != loot.OwnerPlayerIndex) continue;
+				if (!GameContext.World.IsAlive(unit.Entity) || GameContext.World.Has<Dead>(unit.Entity)) continue;
+
+				if (GameContext.World.Has<Inventory>(unit.Entity))
+				{
+					ref var inv = ref GameContext.World.Get<Inventory>(unit.Entity);
+					if (inv.Items != null && inv.Items.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+						continue;
+				}
+
+				float dx = unit.GlobalPosition.X - lootPos.X;
+				float dy = unit.GlobalPosition.Y - lootPos.Y;
+				float dz = unit.GlobalPosition.Z - lootPos.Z;
+				float distSq = dx * dx + dy * dy + dz * dz;
+
+				if (distSq <= radiusSq && distSq < bestDistSq)
+				{
+					bestDistSq = distSq;
+					bestUnit = unit;
+				}
+			}
+
+			if (bestUnit != null)
+			{
+				_collectedLootToProcess.Add((loot.UniqueId, bestUnit.Entity));
+			}
+		}
+
+		for (int i = 0; i < _expiredLootToDespawn.Count; i++)
+		{
+			RemoveLootItem(_expiredLootToDespawn[i]);
+		}
+
+		for (int i = 0; i < _collectedLootToProcess.Count; i++)
+		{
+			var (lootId, unitEnt) = _collectedLootToProcess[i];
+			if (GameContext.World.IsAlive(unitEnt))
+			{
+				CollectLootItem(lootId, GameContext.SimulationService.GetUnitWrapper(unitEnt));
+			}
+		}
+	}
 
 	public void NotifyPlayerLeft(int playerIndex)
 	{
@@ -2059,6 +2141,8 @@ public partial class GameHost : Node3D, IGameAPI
 		SelectedUnits.Clear();
 		ClearNodeCollection(AllProps);
 		ClearNodeCollection(AllDecals);
+		ClearNodeCollection(AllLootItems);
+		IdToLootItem.Clear();
 		ClearStaticText();
 
 		_castlesList.Clear();
@@ -2094,6 +2178,8 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		EntityToUnit3D.Clear();
 		EntityToProp3D.Clear();
+		ClearNodeCollection(AllLootItems);
+		IdToLootItem.Clear();
 		_activeMapScript = null;
 		ClearStaticText();
 
@@ -2992,6 +3078,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		TickScheduledTimers(fDelta);
 		TickZoneTriggers();
+		TickGroundLoot(fDelta);
 
 		if (_activeMapScript != null)
 		{

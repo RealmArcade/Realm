@@ -106,6 +106,12 @@ public class WasmEntryPoint
         if (_gameApi is GameAPI_WasmModule api) api.TriggerOnItemSold(unitId, text);
     }
 
+    [UnmanagedCallersOnly(EntryPoint = "on-loot-item-collected")]
+    public static void OnLootItemCollected(int lootItemId, int unitId)
+    {
+        if (_gameApi is GameAPI_WasmModule api) api.TriggerOnLootItemCollected(lootItemId, unitId);
+    }
+
     [UnmanagedCallersOnly(EntryPoint = "on-player-chat-message")]
     public static void OnPlayerChatMessage(nint textPtr, int textLen, int unitId)
     {

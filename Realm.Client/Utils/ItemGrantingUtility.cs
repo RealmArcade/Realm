@@ -27,7 +27,7 @@ public static class ItemGrantingUtility
 
 		ref var inv = ref world.Get<Inventory>(entity);
 		int current = inv.GetItemCount(itemId);
-		inv.SetItemCount(itemId, current > 0 ? current : Math.Max(1, charges));
+		inv.SetItemCount(itemId, current > 0 ? current + Math.Max(1, charges) : Math.Max(1, charges));
 
 		ApplyItemGrants(world, entity, itemId);
 		return true;

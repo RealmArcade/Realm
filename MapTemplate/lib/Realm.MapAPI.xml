@@ -656,6 +656,11 @@
             Triggered when a unit attacks another unit. Passes the attacker unit and the target unit.
             </summary>
         </member>
+        <member name="E:Realm.MapAPI.IGameAPI.OnLootItemCollected">
+            <summary>
+            Triggered when a ground loot item is collected by a unit. Passes the collected loot item and the collecting unit.
+            </summary>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.CreateFloatingText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Single)">
             <summary>
             Spawns floating text in the 3D world that drifts upwards and fades out.
@@ -2054,6 +2059,157 @@
             <param name="playerIndex">Zero-based player slot index.</param>
             <returns>The color-formatted player name string.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItem(System.String,System.Numerics.Vector3,System.Int32,System.Single)">
+            <summary>
+            Spawns a pickup loot item at the specified 3D world space coordinates.
+            </summary>
+            <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+            <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+            <param name="charges">The initial charge count or stacked quantity for the item.</param>
+            <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+            <returns>The spawned loot item instance, or null if spawning failed.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItemAtLocation(System.String,System.Numerics.Vector3,System.Int32,System.Single)">
+            <summary>
+            Spawns a pickup loot item at the specified 3D world space coordinates.
+            </summary>
+            <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+            <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+            <param name="charges">The initial charge count or stacked quantity for the item.</param>
+            <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+            <returns>The spawned loot item instance, or null if spawning failed.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItem(System.String,System.String,System.Int32,System.Single)">
+            <summary>
+            Spawns a pickup loot item at the specified named coordinate marker.
+            </summary>
+            <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+            <param name="coordinateName">The name of the authored coordinate marker where the item will be spawned.</param>
+            <param name="charges">The initial charge count or stacked quantity for the item.</param>
+            <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+            <returns>The spawned loot item instance, or null if spawning failed.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItem(System.String,Realm.MapAPI.Coordinate,System.Int32,System.Single)">
+            <summary>
+            Spawns a pickup loot item at the specified coordinate.
+            </summary>
+            <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+            <param name="coordinate">The coordinate marker where the item will be spawned.</param>
+            <param name="charges">The initial charge count or stacked quantity for the item.</param>
+            <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+            <returns>The spawned loot item instance, or null if spawning failed.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemById(System.Int32)">
+            <summary>
+            Retrieves an active ground loot item by its unique runtime identifier.
+            </summary>
+            <param name="uniqueId">The unique ID of the loot item entity.</param>
+            <returns>The loot item wrapper if alive, or null if not found or despawned.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetAllLootItems">
+            <summary>
+            Retrieves all active ground loot items in the game world.
+            </summary>
+            <returns>A collection of all active ground loot items.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemsInRadius(System.Numerics.Vector3,System.Single)">
+            <summary>
+            Retrieves all active ground loot items within the specified radial distance of a 3D position.
+            </summary>
+            <param name="center">The center point in 3D world space coordinates.</param>
+            <param name="radius">The radial distance check.</param>
+            <returns>A collection of ground loot items within the radius.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.RemoveLootItem(System.Int32)">
+            <summary>
+            Removes and despawns a ground loot item from the game world by its unique identifier.
+            </summary>
+            <param name="lootItemId">The unique identifier of the loot item to remove.</param>
+            <returns>True if the loot item was found and removed; otherwise, false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.DespawnLootItem(System.Int32)">
+            <summary>
+            Despawns and removes a ground loot item from the game world by its unique identifier.
+            </summary>
+            <param name="lootItemId">The unique identifier of the loot item to despawn.</param>
+            <returns>True if the loot item was found and despawned; otherwise, false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.CollectLootItem(System.Int32,Realm.MapAPI.IUnit)">
+            <summary>
+            Attempts to collect a ground loot item using the specified unit.
+            </summary>
+            <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+            <param name="unit">The collecting unit.</param>
+            <returns>True if the unit successfully collected the loot item into inventory; otherwise, false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.CollectLootItemByPlayer(System.Int32,System.Int32)">
+            <summary>
+            Attempts to collect a ground loot item using the most suitable eligible unit owned by the specified player.
+            </summary>
+            <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+            <param name="playerIndex">The zero-based player slot index whose unit should collect the item.</param>
+            <returns>True if an eligible unit owned by the player successfully collected the item; otherwise, false.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.ILootItem">
+            <summary>
+            Represents a pickup loot item resting on the ground in the game world that can be collected by units.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.UniqueId">
+            <summary>
+            Gets the unique runtime identifier of this loot item entity.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.ItemTypeId">
+            <summary>
+            Gets the item type identifier corresponding to the item definition in the item registry.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.Position">
+            <summary>
+            Gets the position of this loot item in 3D world space coordinates.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.Charges">
+            <summary>
+            Gets the number of charges or stacked quantity granted to the collecting unit's inventory.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.Lifetime">
+            <summary>
+            Gets the initial lifetime duration in seconds before this item automatically despawns, or 0 if it persists indefinitely.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.RemainingLifetime">
+            <summary>
+            Gets the remaining lifetime duration in seconds before this item automatically despawns.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.PickupRadius">
+            <summary>
+            Gets or sets the radial distance in world units within which eligible units can pick up this item.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.AutoPickup">
+            <summary>
+            Gets or sets a value indicating whether eligible units within range automatically collect this item.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.OwnerPlayerIndex">
+            <summary>
+            Gets or sets the zero-based player slot index restricted to collect this item, or -1 if any player's units may collect it.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.IsDespawned">
+            <summary>
+            Gets a value indicating whether this loot item has been collected or removed from the game world.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.ILootItem.Despawn">
+            <summary>
+            Despawns and removes this loot item from the game world.
+            </summary>
+        </member>
         <member name="T:Realm.MapAPI.IMapScript">
             <summary>
             Defines the base lifecycle methods for map scripts.
@@ -2337,6 +2493,20 @@
             <summary>
             Orders all units owned by this player to attack-move to the destination.
             </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.CollectLootItem(Realm.MapAPI.ILootItem)">
+            <summary>
+            Attempts to collect a ground loot item using an eligible unit owned by this player.
+            </summary>
+            <param name="lootItem">The ground loot item to collect.</param>
+            <returns>True if an eligible unit successfully collected the item; otherwise, false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.CollectLootItem(System.Int32)">
+            <summary>
+            Attempts to collect a ground loot item by its ID using an eligible unit owned by this player.
+            </summary>
+            <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+            <returns>True if an eligible unit successfully collected the item; otherwise, false.</returns>
         </member>
         <member name="M:Realm.MapAPI.IPlayer.GetTechLevel(System.String)">
             <summary>
@@ -2709,6 +2879,13 @@
             <param name="itemId">The identifier of the item to add.</param>
             <param name="charges">The initial charge count for the item.</param>
             <returns>True if the item was added successfully, false otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.CollectLootItem(Realm.MapAPI.ILootItem)">
+            <summary>
+            Attempts to collect a ground loot item into this unit's inventory.
+            </summary>
+            <param name="lootItem">The ground loot item to collect.</param>
+            <returns>True if the loot item was successfully collected; otherwise, false.</returns>
         </member>
         <member name="M:Realm.MapAPI.IUnit.GetItemCharges(System.String)">
             <summary>

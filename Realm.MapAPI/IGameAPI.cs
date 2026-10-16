@@ -130,6 +130,11 @@ public interface IGameAPI
 	event Action<IUnit, IUnit>? OnUnitAttacked;
 
 	/// <summary>
+	/// Triggered when a ground loot item is collected by a unit. Passes the collected loot item and the collecting unit.
+	/// </summary>
+	event Action<ILootItem, IUnit>? OnLootItemCollected;
+
+	/// <summary>
 	/// Spawns floating text in the 3D world that drifts upwards and fades out.
 	/// </summary>
 	/// <param name="text">The text to display.</param>
@@ -1745,4 +1750,99 @@ public interface IGameAPI
 		string color = GetPlayerColorHex(playerIndex);
 		return $"[color=#{color}]{name}[/color]";
 	}
+	/// <summary>
+	/// Spawns a pickup loot item at the specified 3D world space coordinates.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item instance, or null if spawning failed.</returns>
+	ILootItem? SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f);
+
+	/// <summary>
+	/// Spawns a pickup loot item at the specified 3D world space coordinates.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item instance, or null if spawning failed.</returns>
+	ILootItem? SpawnLootItemAtLocation(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f) =>
+		SpawnLootItem(itemTypeId, position, charges, lifetime);
+
+	/// <summary>
+	/// Spawns a pickup loot item at the specified named coordinate marker.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="coordinateName">The name of the authored coordinate marker where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item instance, or null if spawning failed.</returns>
+	ILootItem? SpawnLootItem(string itemTypeId, string coordinateName, int charges = 1, float lifetime = 0f) =>
+		TryGetCoordinate(coordinateName, out var coord)
+			? SpawnLootItem(itemTypeId, coord.Center, charges, lifetime)
+			: null;
+
+	/// <summary>
+	/// Spawns a pickup loot item at the specified coordinate.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="coordinate">The coordinate marker where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item instance, or null if spawning failed.</returns>
+	ILootItem? SpawnLootItem(string itemTypeId, Coordinate coordinate, int charges = 1, float lifetime = 0f) =>
+		SpawnLootItem(itemTypeId, coordinate.Center, charges, lifetime);
+
+	/// <summary>
+	/// Retrieves an active ground loot item by its unique runtime identifier.
+	/// </summary>
+	/// <param name="uniqueId">The unique ID of the loot item entity.</param>
+	/// <returns>The loot item wrapper if alive, or null if not found or despawned.</returns>
+	ILootItem? GetLootItemById(int uniqueId);
+
+	/// <summary>
+	/// Retrieves all active ground loot items in the game world.
+	/// </summary>
+	/// <returns>A collection of all active ground loot items.</returns>
+	IEnumerable<ILootItem> GetAllLootItems();
+
+	/// <summary>
+	/// Retrieves all active ground loot items within the specified radial distance of a 3D position.
+	/// </summary>
+	/// <param name="center">The center point in 3D world space coordinates.</param>
+	/// <param name="radius">The radial distance check.</param>
+	/// <returns>A collection of ground loot items within the radius.</returns>
+	IEnumerable<ILootItem> GetLootItemsInRadius(Vector3 center, float radius);
+
+	/// <summary>
+	/// Removes and despawns a ground loot item from the game world by its unique identifier.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the loot item to remove.</param>
+	/// <returns>True if the loot item was found and removed; otherwise, false.</returns>
+	bool RemoveLootItem(int lootItemId);
+
+	/// <summary>
+	/// Despawns and removes a ground loot item from the game world by its unique identifier.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the loot item to despawn.</param>
+	/// <returns>True if the loot item was found and despawned; otherwise, false.</returns>
+	bool DespawnLootItem(int lootItemId) => RemoveLootItem(lootItemId);
+
+	/// <summary>
+	/// Attempts to collect a ground loot item using the specified unit.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+	/// <param name="unit">The collecting unit.</param>
+	/// <returns>True if the unit successfully collected the loot item into inventory; otherwise, false.</returns>
+	bool CollectLootItem(int lootItemId, IUnit unit);
+
+	/// <summary>
+	/// Attempts to collect a ground loot item using the most suitable eligible unit owned by the specified player.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+	/// <param name="playerIndex">The zero-based player slot index whose unit should collect the item.</param>
+	/// <returns>True if an eligible unit owned by the player successfully collected the item; otherwise, false.</returns>
+	bool CollectLootItemByPlayer(int lootItemId, int playerIndex);
 }

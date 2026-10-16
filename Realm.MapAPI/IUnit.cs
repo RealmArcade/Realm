@@ -233,6 +233,13 @@ public interface IUnit
 	bool AddItem(string itemId, int charges) => AddItem(itemId);
 
 	/// <summary>
+	/// Attempts to collect a ground loot item into this unit's inventory.
+	/// </summary>
+	/// <param name="lootItem">The ground loot item to collect.</param>
+	/// <returns>True if the loot item was successfully collected; otherwise, false.</returns>
+	bool CollectLootItem(ILootItem lootItem);
+
+	/// <summary>
 	/// Gets the number of charges for the specified item in the unit's inventory.
 	/// </summary>
 	/// <param name="itemId">The identifier of the item.</param>

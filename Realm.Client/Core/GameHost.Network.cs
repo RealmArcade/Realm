@@ -593,6 +593,19 @@ public partial class GameHost
 		SyncReconnectedCountdown(newPeerId);
 		RegisterReconnectedAbilities(newPeerId);
 		SyncReconnectedPauseState(newPeerId);
+		SyncReconnectedLootItems(newPeerId);
+	}
+
+	private void SyncReconnectedLootItems(int newPeerId)
+	{
+		for (int i = 0; i < AllLootItems.Count; i++)
+		{
+			var loot = AllLootItems[i];
+			if (GodotObject.IsInstanceValid(loot) && !loot.IsDespawned)
+			{
+				RpcId(newPeerId, nameof(ClientSpawnLootItemRpc), loot.UniqueId, loot.ItemTypeId, loot.GlobalPosition, loot.Charges);
+			}
+		}
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -788,5 +801,26 @@ public partial class GameHost
 				ApplyRegionPathingInternal(x1, z1, x2, z2, flags, blockedInt != 0);
 			}
 		}
+	}
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientSpawnLootItemRpc(int lootId, string itemTypeId, Godot.Vector3 position, int charges)
+	{
+		if (IdToLootItem.ContainsKey(lootId)) return;
+
+		var lootNode = new LootItem3D();
+		lootNode.Position = position;
+		lootNode.Initialize(lootId, itemTypeId, charges, 0f, 2.0f, false, -1);
+
+		AddChild(lootNode);
+		AllLootItems.Add(lootNode);
+
+		var runtime = new LootItem_WasmRuntime(lootId, lootNode);
+		IdToLootItem[lootId] = runtime;
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientDespawnLootItemRpc(int lootId)
+	{
+		RemoveLootItemLocal(lootId);
 	}
 }
