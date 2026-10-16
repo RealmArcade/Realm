@@ -765,6 +765,15 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (inv.HasItem(itemId))
 			{
 				inv.SetItemCount(itemId, charges);
+				if (charges > 0)
+				{
+					ItemGrantingUtility.ApplyItemGrants(_world, _entity, itemId);
+				}
+				else
+				{
+					ItemGrantingUtility.RemoveItemGrants(_world, _entity, itemId);
+					ItemGrantingUtility.RebuildEntityCapabilities(_world, _entity);
+				}
 				NotifyUiInventoryChanged();
 			}
 		}

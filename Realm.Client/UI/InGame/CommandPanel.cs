@@ -814,13 +814,11 @@ public partial class CommandPanel
 			foreach (var ab in perkAbilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
 			AddStandardCombatCommands(items);
 			foreach (var ab in otherAbilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
-			items.Add(CreateHoldCommand());
 		}
 		else
 		{
 			foreach (var ab in focusedUnit.Abilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
 			AddStandardCombatCommands(items);
-			items.Add(CreateHoldCommand());
 		}
 	}
 

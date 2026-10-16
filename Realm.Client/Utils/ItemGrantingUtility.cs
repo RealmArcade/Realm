@@ -72,7 +72,7 @@ public static class ItemGrantingUtility
 		return inv.Items != null ? inv.Items.Keys.ToArray() : Array.Empty<string>();
 	}
 
-	private static void ApplyItemGrants(World world, Entity entity, string itemId)
+	public static void ApplyItemGrants(World world, Entity entity, string itemId)
 	{
 		if (GameContext.RegistryService?.ItemRegistry == null || !GameContext.RegistryService.ItemRegistry.TryGetValue(itemId, out var itemMeta) || itemMeta == null)
 			return;
@@ -98,13 +98,22 @@ public static class ItemGrantingUtility
 
 		if (itemMeta.GrantedUpgrades != null && itemMeta.GrantedUpgrades.Length > 0)
 		{
+			int copies = world.Has<Inventory>(entity)
+				? Math.Max(1, world.Get<Inventory>(entity).GetItemCount(itemId))
+				: 1;
+
+			RemoveItemModifiers(world, entity, itemId);
+
 			foreach (var upgId in itemMeta.GrantedUpgrades)
 			{
 				if (string.IsNullOrWhiteSpace(upgId)) continue;
 				if (GameContext.RegistryService.UpgradeRegistry.TryGetValue(upgId, out var upgMeta) && upgMeta != null)
 				{
-					string sourceId = $"item:{itemId}:{upgId}";
-					Services.TechTreeService.ApplyUpgradeModifiersToEntity(entity, sourceId, level: 1, upgMeta);
+					for (int copy = 0; copy < copies; copy++)
+					{
+						string sourceId = $"item:{itemId}:{upgId}:{copy}";
+						Services.TechTreeService.ApplyUpgradeModifiersToEntity(entity, sourceId, level: 1, upgMeta);
+					}
 				}
 			}
 
@@ -117,24 +126,29 @@ public static class ItemGrantingUtility
 		}
 	}
 
-	private static void RemoveItemGrants(World world, Entity entity, string itemId)
+	private static void RemoveItemModifiers(World world, Entity entity, string itemId)
+	{
+		if (!world.Has<ModifierState>(entity)) return;
+
+		ref var modState = ref world.Get<ModifierState>(entity);
+		if (modState.Value == null) return;
+
+		string itemPrefix = $"item:{itemId}:";
+		for (int i = modState.Value.Count - 1; i >= 0; i--)
+		{
+			var mod = modState.Value[i];
+			if (mod.SourceUpgradeId != null && mod.SourceUpgradeId.StartsWith(itemPrefix, StringComparison.OrdinalIgnoreCase))
+			{
+				modState.Value.RemoveAt(i);
+			}
+		}
+	}
+
+	public static void RemoveItemGrants(World world, Entity entity, string itemId)
 	{
 		if (world.Has<ModifierState>(entity))
 		{
-			ref var modState = ref world.Get<ModifierState>(entity);
-			if (modState.Value != null)
-			{
-				string itemPrefix = $"item:{itemId}:";
-				for (int i = modState.Value.Count - 1; i >= 0; i--)
-				{
-					var mod = modState.Value[i];
-					if (mod.SourceUpgradeId != null && mod.SourceUpgradeId.StartsWith(itemPrefix, StringComparison.OrdinalIgnoreCase))
-					{
-						modState.Value.RemoveAt(i);
-					}
-				}
-			}
-
+			RemoveItemModifiers(world, entity, itemId);
 			AttributeStatCalculator.RecalculateEntityStats(world, entity);
 		}
 	}
