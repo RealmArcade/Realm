@@ -89,15 +89,33 @@ public class WorldInitService
 
 	private static ScriptPlayer[] CreateDefaultPlayers()
 	{
-		var players = new ScriptPlayer[12];
-		for (int i = 0; i < 12; i++)
+		var players = new ScriptPlayer[25];
+
+		// Slot 0 is always neutral Gaia
+		players[0] = new ScriptPlayer
+		{
+			Gold = 0f,
+			Wood = 0f,
+			Stone = 0f,
+			Active = true,
+			IsComputer = true,
+			Team = 0,
+			Name = "Neutral",
+			KillCount = 0
+		};
+
+		// Slots 1 to 24 are match participants
+		for (int i = 1; i < 25; i++)
 		{
 			players[i] = new ScriptPlayer
 			{
-				Gold = i == 0 ? 500f : 0f,
-				Wood = i == 0 ? 400f : 0f,
-				Active = i == 0,
-				Name = $"Player {i + 1}",
+				Gold = i == 1 ? 500f : 0f,
+				Wood = i == 1 ? 400f : 0f,
+				Stone = i == 1 ? 200f : 0f,
+				Active = i == 1,
+				IsComputer = false,
+				Team = i,
+				Name = $"Player {i}",
 				KillCount = 0
 			};
 		}

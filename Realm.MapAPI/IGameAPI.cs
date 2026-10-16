@@ -686,10 +686,40 @@ public interface IGameAPI
 	void SetPlayersAllied(int playerIndex, int otherPlayerIndex, bool allied);
 
 	/// <summary>
+	/// Returns true if two player slots treat each other as passive allies.
+	/// </summary>
+	/// <param name="playerIndex">Index of the first player.</param>
+	/// <param name="otherPlayerIndex">Index of the second player.</param>
+	bool ArePlayersAllied(int playerIndex, int otherPlayerIndex);
+
+	/// <summary>
 	/// Returns true if the specified player slot is controlled by a computer AI.
 	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="playerIndex">Player slot index.</param>
 	bool IsPlayerComputer(int playerIndex);
+
+	/// <summary>
+	/// Sets whether the specified player slot is active in the game session.
+	/// </summary>
+	/// <param name="playerIndex">Player slot index.</param>
+	/// <param name="active">True if active, false otherwise.</param>
+	void SetPlayerActive(int playerIndex, bool active);
+
+	/// <summary>
+	/// Kicks the specified player slot from the match.
+	/// </summary>
+	/// <param name="playerIndex">Player slot index.</param>
+	/// <param name="reason">Optional reason message for the kick.</param>
+	void KickPlayer(int playerIndex, string reason = "Kicked by host");
+
+	/// <summary>
+	/// Adds or configures an AI computer player in the specified slot.
+	/// </summary>
+	/// <param name="playerIndex">The player slot index.</param>
+	/// <param name="name">Optional display name for the bot.</param>
+	/// <param name="teamIndex">Optional team index (default -1 for unassigned).</param>
+	/// <returns>True if successfully added or configured.</returns>
+	bool AddComputerPlayer(int playerIndex, string? name = null, int teamIndex = -1);
 
 
 	/// <summary>
@@ -1479,8 +1509,8 @@ public interface IGameAPI
 	/// <returns>A lazily-evaluated sequence of active player slot indices in ascending order.</returns>
 	IEnumerable<int> GetActivePlayerIndices(int exclusiveUpperBound = -1)
 	{
-		int limit = exclusiveUpperBound < 0 ? PlayerCount : Math.Min(exclusiveUpperBound, PlayerCount);
-		for (int playerIndex = 0; playerIndex < limit; playerIndex++)
+		int limit = exclusiveUpperBound < 0 ? 25 : Math.Min(exclusiveUpperBound, 25);
+		for (int playerIndex = 1; playerIndex < limit; playerIndex++)
 		{
 			if (IsPlayerActive(playerIndex))
 				yield return playerIndex;
@@ -1690,19 +1720,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
 	/// <returns>A 6-character hex color string.</returns>
-	string GetPlayerColorHex(int playerIndex)
-	{
-		ReadOnlySpan<string> colors =
-		[
-			"FF0402", "0042FF", "1BE6BA", "550081",
-			"FFFC00", "FF8A0D", "20BF00", "E35BAF",
-			"949697", "7EBFF1", "106247", "4F2B05",
-			"9C0000", "0000C2", "00EBFF", "BD00FF",
-			"ECCC86", "F7A48B", "BFFF80", "DBB8EC",
-			"4F4F55", "ECF0FF", "A46F34"
-		];
-		return (playerIndex >= 0 && playerIndex < colors.Length) ? colors[playerIndex] : "FFFFFF";
-	}
+	string GetPlayerColorHex(int playerIndex);
 
 	/// <summary>
 	/// Returns the player name formatted with rich text / BBCode markup matching their assigned player slot color.

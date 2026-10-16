@@ -5,6 +5,7 @@ using System.Text.Json;
 using Arch.Core;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Ecs.AI;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Genres;
@@ -285,6 +286,15 @@ public class SimulationService
 	public Action OnUiRefreshRequested;
 	public Action<Entity> OnPropDepleted;
 
+	private readonly HashSet<long> _alliedPairs = new();
+
+	private static long MakePairKey(int p1, int p2)
+	{
+		int min = Math.Min(p1, p2);
+		int max = Math.Max(p1, p2);
+		return ((long)min << 32) | (uint)max;
+	}
+
 	public Vector3 GetPlayerStartLocation(int playerIndex)
 	{
 		return Vector3.Zero;
@@ -292,16 +302,62 @@ public class SimulationService
 
 	public void SetPlayerTeam(int playerIndex, int teamIndex)
 	{
-		// Domain logic for setting player team goes here
+		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		{
+			playersState.Players[playerIndex].Team = teamIndex;
+		}
+
+		if (LobbyManager.Instance != null)
+		{
+			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (p != null) p.Team = $"Team {teamIndex}";
+		}
 	}
 
 	public int GetPlayerTeam(int playerIndex)
 	{
+		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		{
+			return playersState.Players[playerIndex].Team;
+		}
+
+		if (LobbyManager.Instance != null)
+		{
+			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (p != null && p.Team.StartsWith("Team ") && int.TryParse(p.Team[5..], out int teamVal))
+				return teamVal;
+		}
+
 		return 0;
 	}
 
 	public void SetPlayersAllied(int playerIndex, int otherPlayerIndex, bool allied)
 	{
+		long key = MakePairKey(playerIndex, otherPlayerIndex);
+		if (allied)
+			_alliedPairs.Add(key);
+		else
+			_alliedPairs.Remove(key);
+	}
+
+	public bool ArePlayersAllied(int playerIndex, int otherPlayerIndex)
+	{
+		if (playerIndex == otherPlayerIndex) return true;
+		if (_alliedPairs.Contains(MakePairKey(playerIndex, otherPlayerIndex))) return true;
+
+		int t1 = GetPlayerTeam(playerIndex);
+		int t2 = GetPlayerTeam(otherPlayerIndex);
+		if (t1 != 0 && t2 != 0 && t1 == t2) return true;
+
+		return false;
+	}
+
+	public void SetPlayerActiveDomain(int playerIndex, bool active)
+	{
+		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		{
+			playersState.Players[playerIndex].Active = active;
+		}
 	}
 
 	public void IssueAttackMoveOrder(IUnit unit, Vector3 destination, Action<IUnit, string, Vector3>? onUnitOrdered)
@@ -1662,6 +1718,13 @@ public class SimulationService
 
 	public void SetPlayerComputerControlled(int playerIndex, bool isProxy)
 	{
+		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+		{
+			if (playerIndex >= 0 && playerIndex < playersState.Players.Length)
+			{
+				playersState.Players[playerIndex].IsComputer = isProxy;
+			}
+		}
 	}
 
 	public void SetUnitOwner(IUnit unit, int playerIndex)
@@ -1917,40 +1980,41 @@ public class SimulationService
 
 	public string GetPlayerNameDomain(int playerIndex)
 	{
-		if (GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (playerIndex == 0) return "Neutral";
+		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			return playersState.Players[playerIndex].Name;
 		}
-		return $"Player {playerIndex + 1}";
+		return $"Player {playerIndex}";
 	}
 
 	public bool IsPlayerActiveDomain(int playerIndex)
 	{
-		if (GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			return playersState.Players[playerIndex].Active;
 		}
-		return playerIndex == 0;
+		return false;
 	}
 
 	public float GetPlayerGoldDomain(int playerIndex, float localGold)
 	{
-		if (playerIndex == 0) return localGold;
-		if (GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			return playersState.Players[playerIndex].Gold;
 		}
+		if (playerIndex == (GameHost.Instance?.LocalPlayerIndex ?? 1)) return localGold;
 		return 0f;
 	}
 
 	public void SetPlayerGoldDomain(int playerIndex, float amount, Action<float> setLocalGoldAction, Action<int, float> syncResourceAction)
 	{
-		if (playerIndex == 0)
+		if (playerIndex == (GameHost.Instance?.LocalPlayerIndex ?? 1))
 		{
 			setLocalGoldAction(amount);
 		}
 
-		if (GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].Gold = Math.Max(0f, amount);
 		}

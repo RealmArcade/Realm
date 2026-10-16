@@ -1182,11 +1182,41 @@
             <param name="otherPlayerIndex">Zero-based index of the second player.</param>
             <param name="allied">True to make them allied; false to revert to enemies.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ArePlayersAllied(System.Int32,System.Int32)">
+            <summary>
+            Returns true if two player slots treat each other as passive allies.
+            </summary>
+            <param name="playerIndex">Index of the first player.</param>
+            <param name="otherPlayerIndex">Index of the second player.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.IsPlayerComputer(System.Int32)">
             <summary>
             Returns true if the specified player slot is controlled by a computer AI.
             </summary>
-            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="playerIndex">Player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerActive(System.Int32,System.Boolean)">
+            <summary>
+            Sets whether the specified player slot is active in the game session.
+            </summary>
+            <param name="playerIndex">Player slot index.</param>
+            <param name="active">True if active, false otherwise.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.KickPlayer(System.Int32,System.String)">
+            <summary>
+            Kicks the specified player slot from the match.
+            </summary>
+            <param name="playerIndex">Player slot index.</param>
+            <param name="reason">Optional reason message for the kick.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.AddComputerPlayer(System.Int32,System.String,System.Int32)">
+            <summary>
+            Adds or configures an AI computer player in the specified slot.
+            </summary>
+            <param name="playerIndex">The player slot index.</param>
+            <param name="name">Optional display name for the bot.</param>
+            <param name="teamIndex">Optional team index (default -1 for unassigned).</param>
+            <returns>True if successfully added or configured.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitColor(Realm.MapAPI.IUnit,System.Numerics.Vector3)">
             <summary>
@@ -2122,6 +2152,11 @@
             Gets a value indicating whether this player slot is occupied by an active human or AI participant.
             </summary>
         </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetActive(System.Boolean)">
+            <summary>
+            Sets whether this player slot is active in the game session.
+            </summary>
+        </member>
         <member name="P:Realm.MapAPI.IPlayer.IsComputer">
             <summary>
             Gets or sets a value indicating whether this player slot is controlled by a computer AI.
@@ -2150,6 +2185,21 @@
         <member name="M:Realm.MapAPI.IPlayer.SetAllied(Realm.MapAPI.IPlayer,System.Boolean)">
             <summary>
             Configures whether this player and another player treat each other as passive allies.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.IsAlliedWith(System.Int32)">
+            <summary>
+            Returns true if this player and another player slot treat each other as allies.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.IsAlliedWith(Realm.MapAPI.IPlayer)">
+            <summary>
+            Returns true if this player and another player treat each other as allies.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.Kick(System.String)">
+            <summary>
+            Kicks this player from the game session.
             </summary>
         </member>
         <member name="P:Realm.MapAPI.IPlayer.StartLocation">

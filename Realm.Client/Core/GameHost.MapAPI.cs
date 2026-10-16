@@ -233,7 +233,7 @@ public partial class GameHost
 	}
 
 
-	IUnit IGameAPI.SpawnUnit(string unitTypeId, Vector3 position, bool isEnemy, bool bypassPopulation, bool executeSpawnShader)
+	private IUnit SpawnUnitInternal(string unitTypeId, Vector3 position, int playerIndex, bool bypassPopulation, bool executeSpawnShader)
 	{
 		var pos = new Godot.Vector3(position.X, GetTerrainHeightAt(new Godot.Vector3(position.X, position.Y, position.Z)), position.Z);
 
@@ -241,9 +241,8 @@ public partial class GameHost
 		if (!UnitRegistry.TryGetValue(unitTypeId, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(unitTypeId, out meta)))
 			throw new ArgumentException($"Unit ID '{unitTypeId}' not found in registry.");
 
-		int ownerPeerId = GetOwnerPeerId(isEnemy);
-		bool actualIsEnemy = NetworkService.ArePeersEnemies(_localPeerId, ownerPeerId);
-		var playerOwner = GetPlayerOwner(ownerPeerId, actualIsEnemy).AsPlayerEntity(GameContext.World);
+		bool actualIsEnemy = NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex);
+		var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
 
 		if (string.IsNullOrEmpty(meta.ModelPath)) throw new ArgumentException($"Unit ID '{unitTypeId}' has no assigned 3D model asset in registry.");
 		string modelPath = GameContext.UnitSpawnService.GetFallbackModelPath(meta.ModelPath, isBuilding);
@@ -251,8 +250,14 @@ public partial class GameHost
 
 		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, _playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade);
 
-		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, actualIsEnemy, bypassPopulation, -1, executeSpawnShader);
+		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, actualIsEnemy, bypassPopulation, playerIndex, executeSpawnShader);
 		return GameContext.SimulationService.GetUnitWrapper(entity);
+	}
+
+	IUnit IGameAPI.SpawnUnit(string unitTypeId, Vector3 position, bool isEnemy, bool bypassPopulation, bool executeSpawnShader)
+	{
+		int ownerPlayer = isEnemy ? 2 : LocalPlayerIndex;
+		return SpawnUnitInternal(unitTypeId, position, ownerPlayer, bypassPopulation, executeSpawnShader);
 	}
 
 	void IGameAPI.SpawnResourceNode(string resourceType, Vector3 position, float amount)
@@ -1000,6 +1005,11 @@ public partial class GameHost
 		return GameContext.SimulationService.GetPlayerNameDomain(playerIndex);
 	}
 
+	string IGameAPI.GetPlayerColorHex(int playerIndex)
+	{
+		return PlayerColorConfig.GetColorHex(playerIndex);
+	}
+
 	bool IGameAPI.IsPlayerActive(int playerIndex)
 	{
 		return GameContext.SimulationService.IsPlayerActiveDomain(playerIndex);
@@ -1024,11 +1034,8 @@ public partial class GameHost
 
 	IUnit IGameAPI.SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader)
 	{
-		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex);
 		var position3D = new Vector3(position.X, 0f, position.Y);
-		var unit = ((IGameAPI)this).SpawnUnit(unitTypeId, position3D, isEnemy, false, executeSpawnShader);
-		unit.Player = playerIndex;
-		return unit;
+		return SpawnUnitInternal(unitTypeId, position3D, playerIndex, false, executeSpawnShader);
 	}
 
 	IEnumerable<IUnit> IGameAPI.GetUnitsOwnedByPlayer(int playerIndex)
@@ -1115,10 +1122,78 @@ public partial class GameHost
 		return IsPlayerComputer(playerIndex);
 	}
 
+	bool IGameAPI.ArePlayersAllied(int playerIndex, int otherPlayerIndex)
+	{
+		return GameContext.SimulationService.ArePlayersAllied(playerIndex, otherPlayerIndex);
+	}
+
+	void IGameAPI.SetPlayerActive(int playerIndex, bool active)
+	{
+		GameContext.SimulationService.SetPlayerActiveDomain(playerIndex, active);
+	}
+
+	void IGameAPI.KickPlayer(int playerIndex, string reason)
+	{
+		if (playerIndex >= 0)
+		{
+			GameContext.SimulationService.SetPlayerActiveDomain(playerIndex, false);
+			if (LobbyManager.Instance != null)
+			{
+				var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+				if (p != null)
+				{
+					LobbyManager.Instance.BootPlayer(p.PeerId);
+				}
+			}
+			OnPlayerLeft?.Invoke(playerIndex);
+		}
+	}
+
+	bool IGameAPI.AddComputerPlayer(int playerIndex, string? name, int teamIndex)
+	{
+		if (playerIndex <= 0 || playerIndex >= 25) return false;
+		string botName = string.IsNullOrWhiteSpace(name) ? $"Bot {playerIndex}" : name;
+		int botTeam = teamIndex >= 0 ? teamIndex : playerIndex;
+		UpdateScriptPlayerState(playerIndex, botName, active: true, isComputer: true);
+		GameContext.SimulationService.SetPlayerTeam(playerIndex, botTeam);
+
+		if (LobbyManager.Instance != null)
+		{
+			var existing = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (existing == null)
+			{
+				var botPlayer = new PlayerInfo
+				{
+					PeerId = -(playerIndex + 100),
+					Slot = playerIndex,
+					Name = botName,
+					Color = PlayerColorConfig.GetColor(playerIndex),
+					Faction = "AI",
+					Team = $"Team {botTeam}",
+					IsHost = false
+				};
+				LobbyManager.Instance.PlayerList.Add(botPlayer);
+			}
+			else
+			{
+				existing.Name = botName;
+			}
+		}
+
+		return true;
+	}
+
 	public bool IsPlayerComputer(int playerIndex)
 	{
-		if (playerIndex == 0) return false;
-		if (_multiplayerActive && LobbyManager.Instance != null)
+		if (playerIndex == 0) return true;
+		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+		{
+			if (playerIndex >= 0 && playerIndex < playersState.Players.Length)
+			{
+				return playersState.Players[playerIndex].IsComputer;
+			}
+		}
+		if (LobbyManager.Instance != null)
 		{
 			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
 			if (p != null)
@@ -1127,7 +1202,7 @@ public partial class GameHost
 			}
 		}
 
-		return playerIndex == 1;
+		return playerIndex != LocalPlayerIndex;
 	}
 
 	void IGameAPI.SetUnitColor(IUnit unit, Vector3 color)

@@ -36,6 +36,11 @@ public interface IPlayer
 	bool IsActive { get; }
 
 	/// <summary>
+	/// Sets whether this player slot is active in the game session.
+	/// </summary>
+	void SetActive(bool active);
+
+	/// <summary>
 	/// Gets or sets a value indicating whether this player slot is controlled by a computer AI.
 	/// </summary>
 	bool IsComputer { get; set; }
@@ -64,6 +69,21 @@ public interface IPlayer
 	/// Configures whether this player and another player treat each other as passive allies.
 	/// </summary>
 	void SetAllied(IPlayer otherPlayer, bool allied);
+
+	/// <summary>
+	/// Returns true if this player and another player slot treat each other as allies.
+	/// </summary>
+	bool IsAlliedWith(int otherPlayerIndex);
+
+	/// <summary>
+	/// Returns true if this player and another player treat each other as allies.
+	/// </summary>
+	bool IsAlliedWith(IPlayer otherPlayer);
+
+	/// <summary>
+	/// Kicks this player from the game session.
+	/// </summary>
+	void Kick(string reason = "Kicked by host");
 
 	/// <summary>
 	/// Gets the start location for this player in 3D world space.
@@ -337,6 +357,7 @@ internal sealed class PlayerFacade : IPlayer
 	public string GetName() => _api.GetPlayerName(Index);
 
 	public bool IsActive => _api.IsPlayerActive(Index);
+	public void SetActive(bool active) => _api.SetPlayerActive(Index, active);
 
 	public bool IsComputer
 	{
@@ -359,6 +380,11 @@ internal sealed class PlayerFacade : IPlayer
 		if (otherPlayer != null)
 			_api.SetPlayersAllied(Index, otherPlayer.Index, allied);
 	}
+
+	public bool IsAlliedWith(int otherPlayerIndex) => _api.ArePlayersAllied(Index, otherPlayerIndex);
+	public bool IsAlliedWith(IPlayer otherPlayer) => otherPlayer != null && _api.ArePlayersAllied(Index, otherPlayer.Index);
+
+	public void Kick(string reason = "Kicked by host") => _api.KickPlayer(Index, reason);
 
 	public Vector3 StartLocation => _api.GetPlayerStartLocation(Index);
 	public Vector3 GetStartLocation() => _api.GetPlayerStartLocation(Index);

@@ -2,12 +2,14 @@
 
 interface game-api {
     add-buff: func(unit-id: s32, buff-id: string, duration: f32);
+    add-computer-player: func(player-index: s32, name: string, team-index: s32) -> bool;
     add-leaderboard-row: func(label: string, value: string, color-r: f32, color-g: f32, color-b: f32, color-has-color: bool);
     add-player-tech-level: func(player-index: s32, tech-id: string, delta: s32);
     add-unit-type-ability: func(unit-type-id: string, ability-id: string);
     adjust-player-gold: func(player-index: s32, delta: f32);
     adjust-player-stone: func(player-index: s32, delta: f32);
     adjust-player-wood: func(player-index: s32, delta: f32);
+    are-players-allied: func(player-index: s32, other-player-index: s32) -> bool;
     attach-persistent-aura: func(unit-id: s32, aura-vfx-id: string, scale: f32);
     broadcast-message: func(message: string);
     cancel-timer: func(timer-handle: s32);
@@ -46,6 +48,7 @@ interface game-api {
     get-modifiers-get: func(unit-id: s32, index: s32) -> string;
     get-player-bot-genre: func(player-index: s32) -> string;
     get-player-bot-profile: func(player-index: s32) -> string;
+    get-player-color-hex: func(player-index: s32) -> string;
     get-player-count: func() -> s32;
     get-player-current-population: func(player-index: s32) -> s32;
     get-player-gold: func(player-index: s32) -> f32;
@@ -86,6 +89,7 @@ interface game-api {
     issue-cast-order: func(caster-id: s32, ability-id: string, target-id: s32);
     issue-cast-order-at: func(caster-id: s32, ability-id: string, position-x: f32, position-y: f32, position-z: f32);
     issue-move-order: func(unit-id: s32, destination-x: f32, destination-y: f32, destination-z: f32);
+    kick-player: func(player-index: s32, reason: string);
     kill-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
     pan-camera-to: func(position-x: f32, position-y: f32, position-z: f32, duration: f32);
     pan-player-camera-to: func(player-index: s32, position-x: f32, position-y: f32, position-z: f32, duration: f32);
@@ -131,6 +135,7 @@ interface game-api {
     set-leaderboard-value: func(label: string, value: string);
     set-leaderboard-visible: func(title: string, visible: bool);
     set-max-population: func(val: s32);
+    set-player-active: func(player-index: s32, active: bool);
     set-player-bot-genre: func(player-index: s32, genre-name: string, config-json: string);
     set-player-bot-profile: func(player-index: s32, profile-json: string);
     set-player-computer-controlled: func(player-index: s32, is-proxy: bool);

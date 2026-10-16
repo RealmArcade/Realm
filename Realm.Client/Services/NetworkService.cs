@@ -1615,10 +1615,24 @@ public class NetworkService
 	public static bool ArePlayerIndicesEnemies(int playerIndex1, int playerIndex2)
 	{
 		if (playerIndex1 == playerIndex2) return false;
+
+		if (GameContext.SimulationService != null)
+		{
+			if (GameContext.SimulationService.ArePlayersAllied(playerIndex1, playerIndex2))
+				return false;
+
+			int simTeam1 = GameContext.SimulationService.GetPlayerTeam(playerIndex1);
+			int simTeam2 = GameContext.SimulationService.GetPlayerTeam(playerIndex2);
+			if (simTeam1 != 0 && simTeam2 != 0)
+			{
+				return simTeam1 != simTeam2;
+			}
+		}
+
 		if (!HasActiveLobby()) return playerIndex1 != playerIndex2;
 
-		string t1 = GetTeamForPlayerIndex(playerIndex1, $"Team {playerIndex1 + 1}");
-		string t2 = GetTeamForPlayerIndex(playerIndex2, $"Team {playerIndex2 + 1}");
+		string t1 = GetTeamForPlayerIndex(playerIndex1, $"Team {playerIndex1}");
+		string t2 = GetTeamForPlayerIndex(playerIndex2, $"Team {playerIndex2}");
 		return t1 != t2;
 	}
 

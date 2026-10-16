@@ -1,16 +1,16 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Godot;
 
 namespace Realm.Client;
 
 public static class PlayerColorConfig
 {
-	public const int NEUTRAL_PLAYER_INDEX = 9;
+	public const int NEUTRAL_PLAYER_INDEX = 0;
 
 
 	public static readonly PlayerColorEntry[] Palette = new PlayerColorEntry[]
 	{
-new PlayerColorEntry(0, "NEUTRAL_TAN", new Color(0.620f, 0.541f, 0.431f)),
+		new PlayerColorEntry(0, "NEUTRAL_TAN", new Color(0.620f, 0.541f, 0.431f)),
         
         // Primary / Base Palette (1 - 12)
         new PlayerColorEntry(1, "Crimson", new Color(0.850f, 0.100f, 0.100f)),
@@ -79,6 +79,16 @@ new PlayerColorEntry(0, "NEUTRAL_TAN", new Color(0.620f, 0.541f, 0.431f)),
 		}
 
 		return 0;
+	}
+
+	public static string GetColorHex(int playerIndex)
+	{
+		if (playerIndex < 0 || playerIndex >= Palette.Length)
+		{
+			return "FFFFFF";
+		}
+
+		return Palette[playerIndex].Color.ToHtml(false).ToUpperInvariant();
 	}
 
 	public static Color GetColorForOwner(int? playerIndex)

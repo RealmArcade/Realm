@@ -156,6 +156,12 @@ public partial class GameHost : Node3D, IGameAPI
 		set => GameContext.World?.Mutate<NetworkMappingState>(ECSContext.WorldEntity, (ref NetworkMappingState s) => s.EnemyPlayerEntity = value);
 	}
 
+	public Entity _neutralPlayerEntity
+	{
+		get => GameContext.World?.GetFieldOrDefault<NetworkMappingState, Entity>(ECSContext.WorldEntity, s => s.NeutralPlayerEntity, Entity.Null) ?? Entity.Null;
+		set => GameContext.World?.Mutate<NetworkMappingState>(ECSContext.WorldEntity, (ref NetworkMappingState s) => s.NeutralPlayerEntity = value);
+	}
+
 	public int LocalPlayerIndex
 	{
 		get
@@ -172,6 +178,13 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public Entity GetPlayerEntityForPlayerIndex(int playerIndex)
 	{
+		if (playerIndex == 0)
+		{
+			if (_neutralPlayerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(_neutralPlayerEntity))
+				return _neutralPlayerEntity;
+			_neutralPlayerEntity = CreatePlayerEntity("Neutral");
+			return _neutralPlayerEntity;
+		}
 		var pe = TryGetMultiplayerEntity(playerIndex);
 		if (pe != Entity.Null) return pe;
 
@@ -1842,35 +1855,44 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void SetupLobbyPlayers()
 	{
-		int pIdx = 0;
+		_neutralPlayerEntity = CreatePlayerEntity("Neutral");
+		_peerIdToPlayerEntityMap[0] = _neutralPlayerEntity;
+		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true);
+
 		foreach (var p in LobbyManager.Instance.PlayerList)
 		{
 			var playerEntity = CreatePlayerEntity(p.Name);
 			_peerIdToPlayerEntityMap[p.PeerId] = playerEntity;
 
-			if (p.PeerId == _localPeerId) _playerEntity = playerEntity;
-			else _enemyPlayerEntity = playerEntity;
+			if (p.Slot == LocalPlayerIndex) _playerEntity = playerEntity;
+			else if (_enemyPlayerEntity == Entity.Null) _enemyPlayerEntity = playerEntity;
 
-			UpdateScriptPlayerState(pIdx, p.Name);
-			pIdx++;
+			UpdateScriptPlayerState(p.Slot, p.Name, active: true, isComputer: p.PeerId < 0);
 		}
 	}
 
 	private void InitializeSingleplayerPlayers()
 	{
-		SetupDefaultPlayers();
+		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
+			SetupLobbyPlayers();
+		else
+			SetupDefaultPlayers();
 	}
 
 	private void SetupDefaultPlayers()
 	{
+		_neutralPlayerEntity = CreatePlayerEntity("Neutral");
+		_peerIdToPlayerEntityMap[0] = _neutralPlayerEntity;
+
 		_playerEntity = CreatePlayerEntity("Horaid_Topa");
 		_peerIdToPlayerEntityMap[1] = _playerEntity;
 
 		_enemyPlayerEntity = CreatePlayerEntity("Enemy_AI");
 		_peerIdToPlayerEntityMap[-1] = _enemyPlayerEntity;
 
-		UpdateScriptPlayerState(0, "Horaid_Topa");
-		UpdateScriptPlayerState(1, "Enemy_AI");
+		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true);
+		UpdateScriptPlayerState(1, "Horaid_Topa", active: true, isComputer: false);
+		UpdateScriptPlayerState(2, "Enemy_AI", active: true, isComputer: true);
 	}
 
 	private Entity CreatePlayerEntity(string name)
@@ -1883,32 +1905,40 @@ public partial class GameHost : Node3D, IGameAPI
 		return playerEntity;
 	}
 
-	private void UpdateScriptPlayerState(int pIdx, string name)
+	private void UpdateScriptPlayerState(int pIdx, string name, bool active = true, bool isComputer = false)
 	{
 		if (!GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity)) return;
 
 		var players = GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity).Players;
-		if (pIdx < players.Length)
+		if (pIdx >= 0 && pIdx < players.Length)
 		{
 			players[pIdx].Name = name;
-			players[pIdx].Active = true;
+			players[pIdx].Active = active;
+			players[pIdx].IsComputer = isComputer;
 		}
 	}
 
 	private void EnsureFallbackPlayers()
 	{
+		if (_neutralPlayerEntity == Entity.Null)
+		{
+			_neutralPlayerEntity = CreatePlayerEntity("Neutral");
+			_peerIdToPlayerEntityMap[0] = _neutralPlayerEntity;
+			UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true);
+		}
+
 		if (_playerEntity == Entity.Null)
 		{
 			_playerEntity = CreatePlayerEntity("Horaid_Topa");
 			_peerIdToPlayerEntityMap[1] = _playerEntity;
-			UpdateScriptPlayerState(0, "Horaid_Topa");
+			UpdateScriptPlayerState(1, "Horaid_Topa", active: true, isComputer: false);
 		}
 
 		if (_enemyPlayerEntity == Entity.Null)
 		{
 			_enemyPlayerEntity = CreatePlayerEntity("Enemy_AI");
 			_peerIdToPlayerEntityMap[-1] = _enemyPlayerEntity;
-			UpdateScriptPlayerState(1, "Enemy_AI");
+			UpdateScriptPlayerState(2, "Enemy_AI", active: true, isComputer: true);
 		}
 	}
 
