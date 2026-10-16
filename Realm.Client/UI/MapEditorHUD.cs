@@ -169,6 +169,7 @@ public partial class MapEditorHUD : Control
 	private Button _btnSave { get; set; }
 	private Button _btnSaveAs { get; set; }
 	private Button _btnTestMap { get; set; }
+	private OptionButton _optTestSettings { get; set; }
 	private Button _btnExportMap { get; set; }
 	private Button _btnLoad { get; set; }
 	private Button _btnDeleteObject { get; set; }
@@ -231,6 +232,7 @@ public partial class MapEditorHUD : Control
 	private AuthorSignatureDialog _authorSignatureDialog { get; set; }
 	private ReplaceTextureDialog _replaceTextureDialog { get; set; }
 	private UtilitiesDialog _utilitiesDialog { get; set; }
+	private TestSettingsDialog _testSettingsDialog { get; set; }
 	private Button _btnEditorSettings { get; set; }
 	private PanelContainer _mapNameHeaderPanel { get; set; }
 	private Label _lblMapNameHeader { get; set; }
@@ -1053,12 +1055,19 @@ public partial class MapEditorHUD : Control
 	{
 		return AnyOptionButtonPopupVisible(
 			_optModule,
+			_optTestSettings,
 			_entityPaletteController?.OptCategoryItems,
 			_optEyedropperMode,
 			_optPathingMode,
 			_optMirrorMode,
 			_optClipboardMirrorMode
 		);
+	}
+
+	public void OpenTestSettingsDialog()
+	{
+		_testSettingsDialog ??= new TestSettingsDialog(this);
+		_testSettingsDialog.OpenDialog();
 	}
 
 	private bool IsSecondaryOptionPopupVisible()

@@ -282,6 +282,18 @@
             "string",
             "null"
           ]
+        },
+        "TestAiPlayerCount": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "TestRandomizeSlots": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       }
     },

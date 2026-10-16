@@ -308,11 +308,47 @@ namespace Realm.Client.UI
 				SetupButton(_btnTestMap, $"{UnicodeIcons.GAMEPAD} TEST", () => TestMapAction(), 13, "Launch single-player mode on the current editor map");
 				StyleMapEditorTopButton(_btnTestMap);
 
+				_optTestSettings = new OptionButton();
+				_optTestSettings.Name = "OptTestSettings";
+				_optTestSettings.FitToLongestItem = false;
+				_optTestSettings.CustomMinimumSize = new Vector2(20, 0);
+				_optTestSettings.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+				_optTestSettings.Alignment = HorizontalAlignment.Center;
+				_optTestSettings.AddThemeIconOverride("arrow", new PlaceholderTexture2D { Size = Vector2.Zero });
+				_optTestSettings.AddThemeConstantOverride("arrow_margin", 0);
+				_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
+				var font = GetFontAwesomeFont();
+				if (font != null)
+				{
+					_optTestSettings.AddThemeFontOverride("font", font);
+				}
+				_optTestSettings.AddThemeFontSizeOverride("font_size", 11);
+				_optTestSettings.TooltipText = "Test Settings";
+				_optTestSettings.AddItem("Test Settings", 0);
+				_optTestSettings.Selected = -1;
+				_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
+				StyleOptionButtonPopup(_optTestSettings);
+				StyleCompactMapEditorTopButton(_optTestSettings, 4);
+				_optTestSettings.ItemSelected += (idx) =>
+				{
+					Callable.From(() =>
+					{
+						_optTestSettings.Selected = -1;
+						_optTestSettings.Text = UnicodeIcons.CHEVRON_DOWN;
+					}).CallDeferred();
+					OpenTestSettingsDialog();
+				};
+				if (_topLeftBox != null)
+				{
+					_topLeftBox.AddChild(_optTestSettings);
+				}
+
 				if (_topLeftBox != null)
 				{
 					if (_btnTestMap != null && _btnGameSettings != null)
 					{
 						_topLeftBox.MoveChild(_btnTestMap, _btnGameSettings.GetIndex() + 1);
+						_topLeftBox.MoveChild(_optTestSettings, _btnTestMap.GetIndex() + 1);
 					}
 
 					_btnResetLayout = new Button();
@@ -4554,6 +4590,7 @@ namespace Realm.Client.UI
 			_environmentConfigDialog = new EnvironmentConfigDialog(this);
 			_replaceTextureDialog = new ReplaceTextureDialog(this);
 			_utilitiesDialog = new UtilitiesDialog(this);
+			_testSettingsDialog = new TestSettingsDialog(this);
 			RefreshWaterSwatches();
 			ApplyEditorPreferences(EditorSettingsDialog.CurrentSettings);
 

@@ -2049,6 +2049,55 @@ namespace Realm.Client.UI
 			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		}
 
+		private void StyleCompactMapEditorTopButton(Button btn, int horizontalMargin = 4)
+		{
+			if (btn == null) return;
+			var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
+			if (tex != null)
+			{
+				var normalStyle = new StyleBoxTexture();
+				normalStyle.Texture = tex;
+				normalStyle.TextureMarginLeft = 0;
+				normalStyle.TextureMarginRight = 0;
+				normalStyle.TextureMarginTop = 0;
+				normalStyle.TextureMarginBottom = 0;
+				normalStyle.ContentMarginLeft = horizontalMargin;
+				normalStyle.ContentMarginRight = horizontalMargin;
+				normalStyle.ContentMarginTop = 6;
+				normalStyle.ContentMarginBottom = 6;
+
+				var hoverStyle = new StyleBoxTexture();
+				hoverStyle.Texture = tex;
+				hoverStyle.ModulateColor = new Color(1.25f, 1.2f, 1.0f, 1.0f);
+				hoverStyle.TextureMarginLeft = 0;
+				hoverStyle.TextureMarginRight = 0;
+				hoverStyle.TextureMarginTop = 0;
+				hoverStyle.TextureMarginBottom = 0;
+				hoverStyle.ContentMarginLeft = horizontalMargin;
+				hoverStyle.ContentMarginRight = horizontalMargin;
+				hoverStyle.ContentMarginTop = 6;
+				hoverStyle.ContentMarginBottom = 6;
+
+				var pressedStyle = new StyleBoxTexture();
+				pressedStyle.Texture = tex;
+				pressedStyle.ModulateColor = new Color(0.85f, 0.8f, 0.7f, 1.0f);
+				pressedStyle.TextureMarginLeft = 0;
+				pressedStyle.TextureMarginRight = 0;
+				pressedStyle.TextureMarginTop = 0;
+				pressedStyle.TextureMarginBottom = 0;
+				pressedStyle.ContentMarginLeft = horizontalMargin;
+				pressedStyle.ContentMarginRight = horizontalMargin;
+				pressedStyle.ContentMarginTop = 6;
+				pressedStyle.ContentMarginBottom = 6;
+
+				btn.AddThemeStyleboxOverride("normal", normalStyle);
+				btn.AddThemeStyleboxOverride("hover", hoverStyle);
+				btn.AddThemeStyleboxOverride("pressed", pressedStyle);
+			}
+
+			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		}
+
 
 		private void MakeCardDraggable(Control cardNode, Button headerBtn, Control contentControl = null, string titleText = null)
 		{
