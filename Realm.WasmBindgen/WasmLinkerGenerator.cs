@@ -193,7 +193,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (!display.StartsWith("Realm.MapAPI."))
 			return false;
 
-		if (display == "Realm.MapAPI.IGameAPI" || display == "Realm.MapAPI.IMapScript")
+		if (display == "Realm.MapAPI.IGameAPI" || display == "Realm.MapAPI.IMapScript" || display == "Realm.MapAPI.IPlayer")
 			return false;
 
 		return true;

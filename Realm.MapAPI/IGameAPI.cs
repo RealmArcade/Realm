@@ -10,16 +10,19 @@ public interface IGameAPI
 	/// <summary>
 	/// Gets or sets the player's gold resource amount.
 	/// </summary>
+	[Obsolete("Use GetPlayer(playerIndex).Gold, GetPlayer(playerIndex).GetGold(), or GetPlayer(playerIndex).SetGold() instead to explicitly specify the target player.")]
 	float Gold { get; set; }
 
 	/// <summary>
 	/// Gets or sets the player's wood resource amount.
 	/// </summary>
+	[Obsolete("Use GetPlayer(playerIndex).Wood, GetPlayer(playerIndex).GetWood(), or GetPlayer(playerIndex).SetWood() instead to explicitly specify the target player.")]
 	float Wood { get; set; }
 
 	/// <summary>
 	/// Gets or sets the player's stone resource amount.
 	/// </summary>
+	[Obsolete("Use GetPlayer(playerIndex).Stone, GetPlayer(playerIndex).GetStone(), or GetPlayer(playerIndex).SetStone() instead to explicitly specify the target player.")]
 	float Stone { get; set; }
 
 	/// <summary>
@@ -36,6 +39,7 @@ public interface IGameAPI
 	/// <param name="bypassPopulation">True to spawn the unit without consuming the player's population limit, false to consume it normally.</param>
 	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
 	/// <returns>A reference to the spawned unit.</returns>
+	[Obsolete("Use GetPlayer(playerIndex).SpawnUnit() or SpawnUnitForPlayer() instead to explicitly specify the owner player.")]
 	IUnit SpawnUnit(string unitTypeId, Vector3 position, bool isEnemy, bool bypassPopulation = false, bool executeSpawnShader = true);
 
 
@@ -92,11 +96,13 @@ public interface IGameAPI
 	/// <summary>
 	/// Plays the standard warning/alert audio sound.
 	/// </summary>
+	[Obsolete("Use GetPlayer(playerIndex).PlayWarningSound() or PlayPlayerWarningSound(playerIndex) instead to explicitly specify the target player.")]
 	void PlayWarningSound();
 
 	/// <summary>
 	/// Plays the standard button/command click audio sound.
 	/// </summary>
+	[Obsolete("Use GetPlayer(playerIndex).PlayClickSound() or PlayPlayerClickSound(playerIndex) instead to explicitly specify the target player.")]
 	void PlayClickSound();
 
 	/// <summary>
@@ -114,6 +120,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="isEnemy">True to get the enemy castle, false for the player castle.</param>
 	/// <returns>The castle unit, or null if it has been destroyed.</returns>
+	[Obsolete("Use GetPlayer(playerIndex).GetUnits() instead to explicitly query units owned by a specific player.")]
 	IUnit? GetCastle(bool isEnemy);
 
 	/// <summary>
@@ -126,11 +133,13 @@ public interface IGameAPI
 	/// <summary>
 	/// Gets or sets the player's maximum population capacity.
 	/// </summary>
+	[Obsolete("Use GetPlayer(playerIndex).MaxPopulation, GetPlayer(playerIndex).GetMaxPopulation(), or GetPlayer(playerIndex).SetMaxPopulation() instead to explicitly specify the target player.")]
 	int MaxPopulation { get; set; }
 
 	/// <summary>
 	/// Gets the player's current population.
 	/// </summary>
+	[Obsolete("Use GetPlayer(playerIndex).CurrentPopulation or GetPlayer(playerIndex).GetCurrentPopulation() instead to explicitly specify the target player.")]
 	int CurrentPopulation { get; }
 
 	/// <summary>
@@ -144,18 +153,21 @@ public interface IGameAPI
 	/// Retrieves all units that are currently selected by the player.
 	/// </summary>
 	/// <returns>A collection of currently selected units.</returns>
+	[Obsolete("Use GetPlayer(playerIndex).GetSelectedUnits() or GetPlayerSelectedUnits(playerIndex) instead to explicitly specify the target player.")]
 	IEnumerable<IUnit> GetSelectedUnits();
 
 	/// <summary>
 	/// Spawns a minimap ping at the specified 3D position in world space.
 	/// </summary>
 	/// <param name="position">The target position in 3D world space.</param>
+	[Obsolete("Use GetPlayer(playerIndex).PingMinimap(position) or PingPlayerMinimap(playerIndex, position) instead to explicitly specify the target player.")]
 	void PingMinimap(Vector3 position);
 
 	/// <summary>
 	/// Enters building placement mode for the specified structure type.
 	/// </summary>
 	/// <param name="unitTypeId">The unit type ID of the building to place.</param>
+	[Obsolete("Use GetPlayer(playerIndex).StartBuildingPlacement(unitTypeId) or StartPlayerBuildingPlacement(playerIndex, unitTypeId) instead to explicitly specify the target player.")]
 	void StartBuildingPlacement(string unitTypeId);
 
 	/// <summary>
@@ -442,6 +454,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="position">The target position in 3D world space.</param>
 	/// <param name="duration">The pan time in seconds.</param>
+	[Obsolete("Use GetPlayer(playerIndex).PanCameraTo(position, duration), GetPlayer(playerIndex).MoveCameraTo(position, duration), or PanPlayerCameraTo(playerIndex, position, duration) instead to explicitly specify the target player.")]
 	void PanCameraTo(Vector3 position, float duration);
 
 	/// <summary>
@@ -956,11 +969,13 @@ public interface IGameAPI
 	/// Selects the specified unit programmatically, clearing any previously selected units.
 	/// </summary>
 	/// <param name="unit">The unit to select.</param>
+	[Obsolete("Use GetPlayer(playerIndex).SelectUnit(unit) or SelectPlayerUnit(playerIndex, unit) instead to explicitly specify the target player.")]
 	void SelectUnit(IUnit unit);
 
 	/// <summary>
 	/// Clears the player's unit selection programmatically.
 	/// </summary>
+	[Obsolete("Use GetPlayer(playerIndex).ClearSelection() or ClearPlayerSelection(playerIndex) instead to explicitly specify the target player.")]
 	void ClearSelection();
 
 	/// <summary>
@@ -1058,6 +1073,7 @@ public interface IGameAPI
 	/// <param name="isEnemy">True if the unit belongs to the enemy player.</param>
 	/// <param name="bypassPopulation">If true, ignores population cap limits.</param>
 	/// <returns>The spawned <see cref="IUnit"/>.</returns>
+	[Obsolete("Use GetPlayer(playerIndex).SpawnUnit() or SpawnUnitForPlayer() instead to explicitly specify the owner player.")]
 	IUnit SpawnUnit(string unitTypeId, Coordinate coordinate, bool isEnemy, bool bypassPopulation = false)
 	{
 		return SpawnUnit(unitTypeId, coordinate.Center, isEnemy, bypassPopulation);
@@ -1470,6 +1486,116 @@ public interface IGameAPI
 				yield return playerIndex;
 		}
 	}
+
+	/// <summary>
+	/// Retrieves an <see cref="IPlayer"/> facade for the specified zero-based player slot index,
+	/// providing unified access to both authoritative player state and client-targeted RPC actions.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <returns>An <see cref="IPlayer"/> facade bound to the specified player slot.</returns>
+	IPlayer GetPlayer(int playerIndex) => new PlayerFacade(this, playerIndex);
+
+	/// <summary>
+	/// Enumerates <see cref="IPlayer"/> facades for all active player slots below the given exclusive upper bound.
+	/// </summary>
+	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
+	/// <returns>A lazily-evaluated sequence of active <see cref="IPlayer"/> facades in ascending slot order.</returns>
+	IEnumerable<IPlayer> GetActivePlayers(int exclusiveUpperBound = -1)
+	{
+		foreach (int playerIndex in GetActivePlayerIndices(exclusiveUpperBound))
+			yield return GetPlayer(playerIndex);
+	}
+
+	/// <summary>
+	/// Gets the stone resource for the specified player slot.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	float GetPlayerStone(int playerIndex);
+
+	/// <summary>
+	/// Sets the stone resource for the specified player slot.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="amount">The new stone amount.</param>
+	void SetPlayerStone(int playerIndex, float amount);
+
+	/// <summary>
+	/// Adds the specified amount to the stone resource for the given player slot.
+	/// Negative values subtract stone.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="delta">The amount to add (may be negative).</param>
+	void AdjustPlayerStone(int playerIndex, float delta);
+
+	/// <summary>
+	/// Smoothly pans the specified player's camera to the given 3D world position.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="position">The target position in 3D world space.</param>
+	/// <param name="duration">The pan duration in seconds.</param>
+	void PanPlayerCameraTo(int playerIndex, Vector3 position, float duration = 0f);
+
+	/// <summary>
+	/// Shakes the specified player's camera to simulate an explosion or impact.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="intensity">The shake strength multiplier.</param>
+	/// <param name="duration">The time in seconds the shake lasts.</param>
+	void ShakePlayerCamera(int playerIndex, float intensity, float duration);
+
+	/// <summary>
+	/// Selects the specified unit on the given player's client, clearing their previous selection.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="unit">The unit to select.</param>
+	void SelectPlayerUnit(int playerIndex, IUnit unit);
+
+	/// <summary>
+	/// Clears the unit selection on the specified player's client.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void ClearPlayerSelection(int playerIndex);
+
+	/// <summary>
+	/// Retrieves all units currently selected by the specified player.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <returns>A collection of units currently selected by that player.</returns>
+	IEnumerable<IUnit> GetPlayerSelectedUnits(int playerIndex);
+
+	/// <summary>
+	/// Displays floating feedback text on the specified player's screen.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="text">The text message to display.</param>
+	/// <param name="color">The color of the text in RGB format.</param>
+	void ShowPlayerFeedbackText(int playerIndex, string text, Vector3 color);
+
+	/// <summary>
+	/// Spawns a minimap ping on the specified player's client at the given 3D world position.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="position">The target position in 3D world space.</param>
+	void PingPlayerMinimap(int playerIndex, Vector3 position);
+
+	/// <summary>
+	/// Plays the standard warning/alert audio sound on the specified player's client.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void PlayPlayerWarningSound(int playerIndex);
+
+	/// <summary>
+	/// Plays the standard button/command click audio sound on the specified player's client.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void PlayPlayerClickSound(int playerIndex);
+
+	/// <summary>
+	/// Enters building placement mode on the specified player's client for the given structure type.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="unitTypeId">The unit type ID of the building to place.</param>
+	void StartPlayerBuildingPlacement(int playerIndex, string unitTypeId);
 
 	/// <summary>
 	/// Returns a uniformly random element of the given list.

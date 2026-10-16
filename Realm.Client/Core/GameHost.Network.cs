@@ -636,6 +636,69 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientShakeCamera(float intensity, float duration)
+	{
+		ShakeCameraInternal(intensity, duration);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientSelectUnit(int serverEntityId)
+	{
+		Callable.From(() =>
+		{
+			Entity targetEntity = Entity.Null;
+			if (!TryGetLocalEntity(serverEntityId, out targetEntity))
+			{
+				foreach (var u in AllUnits)
+				{
+					if (GodotObject.IsInstanceValid(u) && u.Entity.Id == serverEntityId)
+					{
+						targetEntity = u.Entity;
+						break;
+					}
+				}
+			}
+
+			if (targetEntity != Entity.Null && TryGetUnit3D(targetEntity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+			{
+				ClearSelection();
+				SelectUnit(unit3D);
+				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			}
+		}).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientClearSelection()
+	{
+		ClearSelectionInternal();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientPingMinimap(Vector3 position)
+	{
+		Callable.From(() => AddMinimapPing(position)).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientPlayWarningSound()
+	{
+		Callable.From(() => GameContext.AudioService?.PlayWarningSound()).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientPlayClickSound()
+	{
+		Callable.From(() => GameContext.AudioService?.PlayClickSound()).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientStartBuildingPlacement(string unitTypeId)
+	{
+		Callable.From(() => EnterBuildingPlacement(unitTypeId)).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientGameOver(bool isVictory)
 	{
 		GameContext.NetworkService.SetGameOver();

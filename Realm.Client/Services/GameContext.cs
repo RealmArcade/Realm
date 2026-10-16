@@ -59,6 +59,7 @@ namespace Realm.Client.Services
 		public static NavMeshPathfinder NavMeshPathfinder { get; private set; }
 		public static ResourceEconomyService ResourceEconomyService { get; private set; }
 		public static SimulationService SimulationService { get; private set; }
+		public static ClientRpcService ClientRPC { get; private set; }
 
 		public static IEditorAPI IEditorAPI { get; private set; }
 
@@ -107,6 +108,7 @@ namespace Realm.Client.Services
 			NavMeshPathfinder = new();
 			SimulationService = new();
 			InputService = new();
+			ClientRPC = new();
 
 			IEditorAPI = EditorService;
 		}
@@ -153,6 +155,7 @@ namespace Realm.Client.Services
 			NavMeshPathfinder = null;
 			SimulationService = null;
 			InputService = null;
+			ClientRPC = null;
 			IEditorAPI = null;
 
 			ECSContext.DisposeAndRecreateServices();

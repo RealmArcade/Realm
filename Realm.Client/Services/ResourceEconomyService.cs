@@ -444,6 +444,36 @@ public class ResourceEconomyService
 		}
 	}
 
+	private readonly Dictionary<int, float> _playerStoneState = new();
+
+	public float GetPlayerStone(int playerIndex, float fallbackStone)
+	{
+		if (playerIndex == 0) return fallbackStone;
+		return _playerStoneState.GetValueOrDefault(playerIndex, 0f);
+	}
+
+	public void SetPlayerStone(int playerIndex, float amount, Action<float> setFallbackStone)
+	{
+		if (playerIndex == 0)
+		{
+			setFallbackStone(amount);
+			return;
+		}
+
+		_playerStoneState[playerIndex] = Math.Max(0f, amount);
+	}
+
+	public void AdjustPlayerStone(int playerIndex, float delta, Action<float> setFallbackStone, float fallbackStone)
+	{
+		if (playerIndex == 0)
+		{
+			setFallbackStone(Math.Max(0f, fallbackStone + delta));
+			return;
+		}
+
+		_playerStoneState[playerIndex] = Math.Max(0f, _playerStoneState.GetValueOrDefault(playerIndex, 0f) + delta);
+	}
+
 	public int GetPlayerCurrentPopulation(int playerIndex, int fallbackPop)
 	{
 		if (playerIndex == 0) return fallbackPop;

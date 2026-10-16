@@ -1052,6 +1052,56 @@ public partial class GameHost : Node3D, IGameAPI
 		}).CallDeferred();
 	}
 
+	public void ShakeCameraInternal(float intensity, float duration)
+	{
+		Callable.From(() =>
+		{
+			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
+			if (camera == null) return;
+
+			var startPos = camera.Position;
+			var tween = CreateTween();
+			if (tween == null) return;
+			float stepDuration = duration / 20f;
+			for (int i = 0; i < 20; i++)
+			{
+				var offset = new Vector3(
+					(float)(GD.RandRange(-1.0, 1.0) * intensity * 0.1),
+					(float)(GD.RandRange(-1.0, 1.0) * intensity * 0.1),
+					(float)(GD.RandRange(-1.0, 1.0) * intensity * 0.1)
+				);
+				tween.TweenProperty(camera, "position", startPos + offset, stepDuration);
+			}
+
+			tween.TweenProperty(camera, "position", startPos, stepDuration);
+		}).CallDeferred();
+	}
+
+	public void SelectUnitInternal(IUnit unit)
+	{
+		Callable.From(() =>
+		{
+			if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+			{
+				if (TryGetUnit3D(wrapper.Entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				{
+					ClearSelection();
+					SelectUnit(unit3D);
+					InGameHUD.Instance?.RefreshUI(SelectedUnits);
+				}
+			}
+		}).CallDeferred();
+	}
+
+	public void ClearSelectionInternal()
+	{
+		Callable.From(() =>
+		{
+			ClearSelection();
+			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		}).CallDeferred();
+	}
+
 
 	private void SyncPlayerResourceEcs(int playerIndex, float goldAmount)
 	{
@@ -2637,6 +2687,10 @@ public partial class GameHost : Node3D, IGameAPI
 			else UpdatePauseUI();
 		}
 	}
+
+	public bool IsMultiplayerActive() => _multiplayerActive;
+
+	public bool IsMultiplayerServerActive() => _multiplayerActive && IsServerActive();
 
 	private bool IsServerActive()
 	{

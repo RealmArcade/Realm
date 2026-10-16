@@ -304,38 +304,17 @@ public partial class GameHost
 
 	void IGameAPI.ShowFeedbackText(string text, Vector3 color)
 	{
-		if (InGameHUD.Instance != null)
-		{
-			var gColor = new Color(color.X, color.Y, color.Z);
-			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(text, gColor)).CallDeferred();
-		}
-
-		if (_multiplayerActive && IsServerActive())
-		{
-			Rpc(nameof(ClientShowFeedbackText), text, new Godot.Vector3(color.X, color.Y, color.Z));
-		}
+		GameContext.ClientRPC.BroadcastFeedbackText(text, color);
 	}
 
 	void IGameAPI.TriggerVictory()
 	{
-		GD.Print("[GameHost] Victory triggered by map script!");
-		GameContext.SimulationService.TriggerVictoryDomain();
-		Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
-		if (_multiplayerActive && IsServerActive())
-		{
-			Rpc(nameof(ClientGameOver), true);
-		}
+		GameContext.ClientRPC.BroadcastVictory();
 	}
 
 	void IGameAPI.TriggerDefeat()
 	{
-		GD.Print("[GameHost] Defeat triggered by map script!");
-		GameContext.SimulationService.TriggerDefeatDomain();
-		Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
-		if (_multiplayerActive && IsServerActive())
-		{
-			Rpc(nameof(ClientGameOver), false);
-		}
+		GameContext.ClientRPC.BroadcastDefeat();
 	}
 
 	IUnit? IGameAPI.GetCastle(bool isEnemy)
@@ -377,26 +356,17 @@ public partial class GameHost
 
 	IEnumerable<IUnit> IGameAPI.GetSelectedUnits()
 	{
-		var list = new List<IUnit>();
-		foreach (var u in SelectedUnits)
-		{
-			if (GodotObject.IsInstanceValid(u) && GameContext.World.IsAlive(u.Entity))
-			{
-				list.Add(GameContext.SimulationService.GetUnitWrapper(u.Entity));
-			}
-		}
-
-		return list;
+		return GameContext.ClientRPC.GetSelectedUnits(LocalPlayerIndex);
 	}
 
 	void IGameAPI.PingMinimap(Vector3 position)
 	{
-		AddMinimapPing(new Godot.Vector3(position.X, position.Y, position.Z));
+		GameContext.ClientRPC.PingMinimap(LocalPlayerIndex, position);
 	}
 
 	void IGameAPI.StartBuildingPlacement(string unitTypeId)
 	{
-		EnterBuildingPlacement(unitTypeId);
+		GameContext.ClientRPC.StartBuildingPlacement(LocalPlayerIndex, unitTypeId);
 	}
 
 	void IGameAPI.GenerateMapDirectory(string mapName, string? targetDirectory)
@@ -802,45 +772,14 @@ public partial class GameHost
 		GameContext.NetworkService?.StopCountdownTimerDomain(_multiplayerActive && IsServerActive(), () => Rpc(nameof(ClientStopCountdownTimer)));
 	}
 
-	private void ShakeCameraViewLogic(float intensity, float duration)
-	{
-		Callable.From(() =>
-		{
-			var camera = MainCamera;
-			if (camera == null) return;
-
-			var startPos = camera.Position;
-			var tween = CreateTween();
-			float stepDuration = duration / 20f;
-			for (int i = 0; i < 20; i++)
-			{
-				var offset = new Godot.Vector3(
-					(float)(GD.RandRange(-1.0, 1.0) * intensity * 0.1),
-					(float)(GD.RandRange(-1.0, 1.0) * intensity * 0.1),
-					(float)(GD.RandRange(-1.0, 1.0) * intensity * 0.1)
-				);
-				tween.TweenProperty(camera, "position", startPos + offset, stepDuration);
-			}
-
-			tween.TweenProperty(camera, "position", startPos, stepDuration);
-		}).CallDeferred();
-	}
-
 	void IGameAPI.ShakeCamera(float intensity, float duration)
 	{
-		// Re-routing to UI logic
-		ShakeCameraViewLogic(intensity, duration);
-	}
-
-	private void PanCameraToViewLogic(Vector3 position, float duration)
-	{
-		PanCameraInternal(new Godot.Vector3(position.X, position.Y, position.Z), duration);
+		GameContext.ClientRPC.BroadcastShakeCamera(intensity, duration);
 	}
 
 	void IGameAPI.PanCameraTo(Vector3 position, float duration)
 	{
-		// Re-routing to UI logic
-		PanCameraToViewLogic(position, duration);
+		GameContext.ClientRPC.PanCameraTo(LocalPlayerIndex, position, duration);
 	}
 
 	private void SetTimeOfDayViewLogic(float normalizedTime)
@@ -1089,15 +1028,6 @@ public partial class GameHost
 		var position3D = new Vector3(position.X, 0f, position.Y);
 		var unit = ((IGameAPI)this).SpawnUnit(unitTypeId, position3D, isEnemy, false, executeSpawnShader);
 		unit.Player = playerIndex;
-		if (playerIndex > 0 && _multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
-		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && p.PeerId > 1)
-			{
-				RpcId(p.PeerId, nameof(ClientPanCameraTo), new Godot.Vector3(position.X, 0f, position.Y), 0f);
-			}
-		}
-
 		return unit;
 	}
 
@@ -1111,48 +1041,22 @@ public partial class GameHost
 
 	void IGameAPI.TriggerPlayerDefeat(int playerIndex, string reason)
 	{
-		if (!_multiplayerActive && playerIndex == 0)
-		{
-			((IGameAPI)this).TriggerDefeat();
-		}
+		GameContext.ClientRPC.TriggerDefeat(playerIndex, reason);
 	}
 
 	void IGameAPI.TriggerPlayerVictory(int playerIndex)
 	{
-		if (playerIndex == 0) ((IGameAPI)this).TriggerVictory();
-	}
-
-	private void BroadcastMessageViewLogic(string message)
-	{
-		GD.Print($"[HOST BROADCAST] {message}");
-		((IGameAPI)this).ShowFeedbackText(message, new Vector3(0.9f, 0.9f, 0.9f));
+		GameContext.ClientRPC.TriggerVictory(playerIndex);
 	}
 
 	void IGameAPI.BroadcastMessage(string message)
 	{
-		BroadcastMessageViewLogic(message);
-		GameContext.NetworkService.BroadcastMessageDomainLogic(message, _multiplayerActive, IsServerActive());
+		GameContext.ClientRPC.BroadcastMessage(message);
 	}
 
 	void IGameAPI.SendMessageToPlayer(int playerIndex, string message)
 	{
-		string formatted = $"[HOST MESSAGE P{playerIndex}] {message}";
-		WasmRuntime.LogToConsole(formatted);
-		if (playerIndex == 0)
-		{
-			if (InGameHUD.Instance != null)
-			{
-				Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(message, new Color(0.9f, 0.9f, 0.9f))).CallDeferred();
-			}
-		}
-		else if (_multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
-		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && p.PeerId > 1)
-			{
-				RpcId(p.PeerId, nameof(ClientShowFeedbackText), message, new Godot.Vector3(0.9f, 0.9f, 0.9f));
-			}
-		}
+		GameContext.ClientRPC.SendMessage(playerIndex, message);
 	}
 
 	private event Action<int>? _onTimerExpired;
@@ -1413,32 +1317,80 @@ public partial class GameHost
 		GameContext.SimulationService.SetUnitSpellImmune(unit, immune);
 	}
 
+	float IGameAPI.GetPlayerStone(int playerIndex)
+	{
+		return GameContext.ResourceEconomyService.GetPlayerStone(playerIndex, ((IGameAPI)this).Stone);
+	}
+
+	void IGameAPI.SetPlayerStone(int playerIndex, float amount)
+	{
+		GameContext.ResourceEconomyService.SetPlayerStone(playerIndex, amount, v => ((IGameAPI)this).Stone = v);
+	}
+
+	void IGameAPI.AdjustPlayerStone(int playerIndex, float delta)
+	{
+		GameContext.ResourceEconomyService.AdjustPlayerStone(playerIndex, delta, v => ((IGameAPI)this).Stone = v, ((IGameAPI)this).Stone);
+	}
+
+	void IGameAPI.PanPlayerCameraTo(int playerIndex, Vector3 position, float duration)
+	{
+		GameContext.ClientRPC.PanCameraTo(playerIndex, position, duration);
+	}
+
+	void IGameAPI.ShakePlayerCamera(int playerIndex, float intensity, float duration)
+	{
+		GameContext.ClientRPC.ShakeCamera(playerIndex, intensity, duration);
+	}
+
+	void IGameAPI.SelectPlayerUnit(int playerIndex, IUnit unit)
+	{
+		GameContext.ClientRPC.SelectUnit(playerIndex, unit);
+	}
+
+	void IGameAPI.ClearPlayerSelection(int playerIndex)
+	{
+		GameContext.ClientRPC.ClearSelection(playerIndex);
+	}
+
+	IEnumerable<IUnit> IGameAPI.GetPlayerSelectedUnits(int playerIndex)
+	{
+		return GameContext.ClientRPC.GetSelectedUnits(playerIndex);
+	}
+
+	void IGameAPI.ShowPlayerFeedbackText(int playerIndex, string text, Vector3 color)
+	{
+		GameContext.ClientRPC.ShowFeedbackText(playerIndex, text, color);
+	}
+
+	void IGameAPI.PingPlayerMinimap(int playerIndex, Vector3 position)
+	{
+		GameContext.ClientRPC.PingMinimap(playerIndex, position);
+	}
+
+	void IGameAPI.PlayPlayerWarningSound(int playerIndex)
+	{
+		GameContext.ClientRPC.PlayWarningSound(playerIndex);
+	}
+
+	void IGameAPI.PlayPlayerClickSound(int playerIndex)
+	{
+		GameContext.ClientRPC.PlayClickSound(playerIndex);
+	}
+
+	void IGameAPI.StartPlayerBuildingPlacement(int playerIndex, string unitTypeId)
+	{
+		GameContext.ClientRPC.StartBuildingPlacement(playerIndex, unitTypeId);
+	}
+
 	void IGameAPI.SelectUnit(IUnit unit)
 	{
-		Callable.From(() =>
-		{
-			if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
-			{
-				if (TryGetUnit3D(wrapper.Entity, out var unit3D))
-				{
-					if (GodotObject.IsInstanceValid(unit3D))
-					{
-						ClearSelection();
-						SelectUnit(unit3D);
-						InGameHUD.Instance?.RefreshUI(SelectedUnits);
-					}
-				}
-			}
-		}).CallDeferred();
+		int targetPlayer = unit != null && unit.Player >= 0 ? unit.Player : LocalPlayerIndex;
+		GameContext.ClientRPC.SelectUnit(targetPlayer, unit);
 	}
 
 	void IGameAPI.ClearSelection()
 	{
-		Callable.From(() =>
-		{
-			ClearSelection();
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}).CallDeferred();
+		GameContext.ClientRPC.ClearSelection(LocalPlayerIndex);
 	}
 
 	bool IGameAPI.HasCoordinate(string coordinateName)
@@ -1488,17 +1440,12 @@ public partial class GameHost
 
 	void IGameAPI.PlayWarningSound()
 	{
-		GameContext.AudioService.PlayWarningSound();
+		GameContext.ClientRPC.PlayWarningSound(LocalPlayerIndex);
 	}
 
 	void IGameAPI.PlayClickSound()
 	{
-		PlayClickSoundViewLogic();
-	}
-
-	private void PlayClickSoundViewLogic()
-	{
-		GameContext.AudioService.PlayClickSound();
+		GameContext.ClientRPC.PlayClickSound(LocalPlayerIndex);
 	}
 
 	void IGameAPI.SetPlayerBotProfile(int playerIndex, string profileJson)
