@@ -3494,8 +3494,14 @@ public partial class GameHost
 		_buildingPreviewMesh = null;
 
 		bool isBuilding = false;
-		UnitMetadata meta = default;
-		if (!UnitRegistry.TryGetValue(type, out meta) && BuildingRegistry.TryGetValue(type, out meta))
+		if (TryGetUnitOrBuildingMetadata(type, out var meta))
+		{
+			if (BuildingRegistry != null && (BuildingRegistry.ContainsKey(type) || (meta.TemplateID != null && BuildingRegistry.ContainsKey(meta.TemplateID))))
+			{
+				isBuilding = true;
+			}
+		}
+		else if (BuildingRegistry != null && BuildingRegistry.TryGetValue(type, out meta))
 		{
 			isBuilding = true;
 		}
@@ -3513,10 +3519,7 @@ public partial class GameHost
 			};
 			AddChild(previewUnit);
 			previewUnit.LoadModel(modelPath);
-			if (meta.Scale > 0f)
-			{
-				previewUnit.Scale = Vector3.One * meta.Scale;
-			}
+			previewUnit.Scale = Vector3.One;
 			MakeHologramRecursive(previewUnit, new Color(0.15f, 0.65f, 1.0f));
 			previewNode = previewUnit;
 		}
