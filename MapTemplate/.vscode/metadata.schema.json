@@ -951,6 +951,9 @@
                   "string",
                   "null"
                 ]
+              },
+              "ConstructionRange": {
+                "type": "number"
               }
             }
           }

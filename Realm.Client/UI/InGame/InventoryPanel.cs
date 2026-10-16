@@ -88,10 +88,10 @@ public class InventoryPanel
 		}
 
 		string capturedItemId = itemId;
-		return CreateButton(
+		var button = CreateButton(
 			iconPath,
 			$"{name} (Have: {count})\n{desc}",
-			$" {count} ",
+			string.Empty,
 			() =>
 			{
 				var selected = GameHost.Instance?.SelectedUnits;
@@ -101,6 +101,19 @@ public class InventoryPanel
 				}
 			}
 		);
+
+		var countLabel = new Label();
+		countLabel.Text = count.ToString();
+		countLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+		countLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		countLabel.HorizontalAlignment = HorizontalAlignment.Right;
+		countLabel.VerticalAlignment = VerticalAlignment.Bottom;
+		countLabel.Modulate = new Color(1f, 1f, 1f, 0.7f);
+		countLabel.AddThemeFontSizeOverride("font_size", 12);
+		countLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.8f));
+		countLabel.AddThemeConstantOverride("outline_size", 3);
+		button.AddChild(countLabel);
+		return button;
 	}
 
 	private Control CreateBlackTile()
