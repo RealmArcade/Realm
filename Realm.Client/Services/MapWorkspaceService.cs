@@ -461,8 +461,9 @@ public static partial class MapWorkspaceService
 		{
 			foreach (var file in Directory.GetFiles(templateVsCodeDir))
 			{
-				string dest = Path.Combine(vscodeDir, Path.GetFileName(file));
-				if (!File.Exists(dest))
+				string fileName = Path.GetFileName(file);
+				string dest = Path.Combine(vscodeDir, fileName);
+				if (!File.Exists(dest) || fileName.Equals("launch.json", StringComparison.OrdinalIgnoreCase))
 				{
 					File.Copy(file, dest, true);
 				}
