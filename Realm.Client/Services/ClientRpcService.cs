@@ -36,7 +36,8 @@ public class ClientRpcService
 		if (host.IsPlayerComputer(playerIndex))
 			return false;
 
-		if (playerIndex == host.LocalPlayerIndex)
+		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		if (playerIndex == localPlayerIndex)
 		{
 			isLocal = true;
 			return true;

@@ -2905,7 +2905,7 @@ public partial class GameHost
 	private void SelectAllBuildings()
 	{
 		ClearSelection();
-		var entities = GameContext.InputService.GetBuildingEntities(_playerEntity);
+		var entities = GameContext.InputService.GetBuildingEntities(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 		int count = 0;
 		foreach (var ent in entities)
 		{
@@ -2945,7 +2945,7 @@ public partial class GameHost
 
 	private void CycleThroughBuildings()
 	{
-		Entity buildingEntity = GameContext.InputService.CycleThroughBuildings(_playerEntity);
+		Entity buildingEntity = GameContext.InputService.CycleThroughBuildings(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 		if (buildingEntity == Entity.Null) return;
 
 		var building = AllUnits.Find(u => u.Entity == buildingEntity);
@@ -2989,7 +2989,7 @@ public partial class GameHost
 	public void SelectAllIdleUnits()
 	{
 		ClearSelection();
-		var entities = GameContext.InputService.GetIdleUnitEntities(_playerEntity);
+		var entities = GameContext.InputService.GetIdleUnitEntities(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 		int selectedCount = 0;
 		foreach (var ent in entities)
 		{
@@ -3011,7 +3011,7 @@ public partial class GameHost
 	public void SelectAllMilitaryUnits()
 	{
 		ClearSelection();
-		var entities = GameContext.InputService.GetMilitaryUnitEntities(_playerEntity);
+		var entities = GameContext.InputService.GetMilitaryUnitEntities(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 		int selectedCount = 0;
 		foreach (var ent in entities)
 		{
@@ -3292,7 +3292,7 @@ public partial class GameHost
 	{
 		if (def != null && def.Cooldown > 0f)
 		{
-			GameContext.InputService.SetSpellCooldown(_playerEntity, spellId, def.Cooldown);
+			GameContext.InputService.SetSpellCooldown(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), spellId, def.Cooldown);
 		}
 
 		if (def != null)
@@ -3327,7 +3327,7 @@ public partial class GameHost
 
 		if (IsSpellOnCooldown(spellId, def)) return;
 
-		if (GameContext.InputService.TryExecuteSpellCast(_playerEntity, casterEntity, spellId, out float maxCd))
+		if (GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), casterEntity, spellId, out float maxCd))
 		{
 			HandleSpellCastSuccess(spellId, def, position);
 		}
@@ -3335,7 +3335,7 @@ public partial class GameHost
 
 	private bool IsSpellOnCooldown(string spellId, AbilityDefinition def)
 	{
-		float cd = GameContext.InputService.GetSpellCooldown(_playerEntity, spellId);
+		float cd = GameContext.InputService.GetSpellCooldown(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), spellId);
 		if (cd <= 0f) return false;
 
 		string displayName = def?.DisplayName ?? spellId;
@@ -3394,7 +3394,7 @@ public partial class GameHost
 		var selectedEntity = SelectedUnits.Count > 0 ? SelectedUnits[0].Entity : Entity.Null;
 		var pos = new System.Numerics.Vector3(castle3D.GlobalPosition.X, castle3D.GlobalPosition.Y, castle3D.GlobalPosition.Z);
 
-		if (GameContext.InputService.BuyItem(itemId, _playerEntity, pos, selectedEntity, out Entity targetUnitEntity))
+		if (GameContext.InputService.BuyItem(itemId, GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), pos, selectedEntity, out Entity targetUnitEntity))
 		{
 			CompleteItemPurchase(itemId, itemName, costGold, targetUnitEntity);
 		}
@@ -3725,7 +3725,7 @@ public partial class GameHost
 
 	private void SpawnInstantBuilding(string type, Vector3 position, UnitMetadata meta)
 	{
-		var bldEntity = GameContext.InputService.CreateInstantBuildingEcsUnit(type, meta, new System.Numerics.Vector3(position.X, position.Y, position.Z), _playerEntity);
+		var bldEntity = GameContext.InputService.CreateInstantBuildingEcsUnit(type, meta, new System.Numerics.Vector3(position.X, position.Y, position.Z), GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 		string modelPath = GetFallbackModelPath(meta.ModelPath, true);
 		SpawnUnit3D(bldEntity, type, modelPath, position, true, false);
 		InGameHUD.Instance?.ShowFeedbackText($"Constructed: {meta.Name}", new Color(0.3f, 0.9f, 0.4f));
@@ -3833,7 +3833,7 @@ public partial class GameHost
 		{
 			if (InGameHUD.Instance.Gold >= costGold && InGameHUD.Instance.Wood >= costWood)
 			{
-				if (GameContext.TechTreeService.BuyWeaponsUpgrade(_playerEntity))
+				if (GameContext.TechTreeService.BuyWeaponsUpgrade(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1)))
 				{
 					InGameHUD.Instance.Gold -= costGold;
 					InGameHUD.Instance.Wood -= costWood;
@@ -3862,7 +3862,7 @@ public partial class GameHost
 		{
 			if (InGameHUD.Instance.Gold >= costGold && InGameHUD.Instance.Stone >= costStone)
 			{
-				if (GameContext.TechTreeService.BuyShieldsUpgrade(_playerEntity))
+				if (GameContext.TechTreeService.BuyShieldsUpgrade(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1)))
 				{
 					InGameHUD.Instance.Gold -= costGold;
 					InGameHUD.Instance.Stone -= costStone;
@@ -3891,7 +3891,7 @@ public partial class GameHost
 		{
 			if (InGameHUD.Instance.Wood >= costWood && InGameHUD.Instance.Stone >= costStone)
 			{
-				if (GameContext.TechTreeService.BuyHarvestingUpgrade(_playerEntity))
+				if (GameContext.TechTreeService.BuyHarvestingUpgrade(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1)))
 				{
 					InGameHUD.Instance.Wood -= costWood;
 					InGameHUD.Instance.Stone -= costStone;
@@ -4048,7 +4048,7 @@ public partial class GameHost
 			QueueClientCommand("train", new List<int> { GetServerEntityId(targetBuildingEntity) }, Vector3.Zero, 0, unitId);
 			DeductResourcesAndNotify(meta);
 		}
-		else if (GameContext.InputService.TryQueueUnitAtCastle(_playerEntity, targetBuildingEntity, unitId, meta.PopCost, meta.ProductionTime))
+		else if (GameContext.InputService.TryQueueUnitAtCastle(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), targetBuildingEntity, unitId, meta.PopCost, meta.ProductionTime))
 		{
 			DeductResourcesAndNotify(meta);
 		}
@@ -4293,7 +4293,8 @@ public partial class GameHost
 
 	private int ResolveSpawnParentPlayer(Entity buildingEntity, ref bool actualIsEnemy)
 	{
-		return GameContext.UnitSpawnService.ResolveSpawnParentPlayer(buildingEntity, LocalPlayerIndex, ref actualIsEnemy);
+		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		return GameContext.UnitSpawnService.ResolveSpawnParentPlayer(buildingEntity, localPlayerIndex, ref actualIsEnemy);
 	}
 
 	private void ApplySpawnRallyPointOrMove(Entity entity, Entity buildingEntity, System.Numerics.Vector3 defaultPosition)
@@ -4313,7 +4314,9 @@ public partial class GameHost
 
 	private Entity DeterminePlayerOwnerEntity(int ownerPeerId, bool actualIsEnemy)
 	{
-		return GameContext.NetworkService.DeterminePlayerOwnerEntity(ownerPeerId, actualIsEnemy, _peerIdToPlayerEntityMap, _enemyPlayerEntity, _playerEntity);
+		var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+		int localSlot = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		return GameContext.NetworkService.DeterminePlayerOwnerEntity(ownerPeerId, actualIsEnemy, _peerIdToPlayerEntityMap, playerEntities, localSlot);
 	}
 
 	private void IssueResumeConstructionCommand(Unit3D targetBuilding, bool shiftHeld)

@@ -2285,8 +2285,9 @@ void fragment() {
 		bool isMultiplayer = LobbyManager.Instance != null && !LobbyManager.Instance.IsSinglePlayer
 		                                                   && Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
 
+		Entity localPlayerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
 		var (result, _) = GameContext.CheatService.TryTriggerCheat(
-			text, isMultiplayer, GameHost.Instance._playerEntity, ECSContext.DefinitionManager, selectedEntities);
+			text, isMultiplayer, localPlayerEntity, ECSContext.DefinitionManager, selectedEntities);
 
 		if (result == CheatResult.None) return false;
 

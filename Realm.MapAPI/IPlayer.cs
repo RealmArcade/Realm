@@ -217,17 +217,17 @@ public interface IPlayer
 	/// <summary>
 	/// Spawns a unit owned by this player at the specified 2D ground coordinates (X, Z).
 	/// </summary>
-	IUnit SpawnUnit(string unitTypeId, Vector2 position, bool executeSpawnShader = true);
+	IUnit SpawnUnit(string unitTypeId, Vector2 position, bool executeSpawnShader = true, bool bypassPopulation = false);
 
 	/// <summary>
 	/// Spawns a unit owned by this player at the specified 3D world position (using X, Z ground coordinates).
 	/// </summary>
-	IUnit SpawnUnit(string unitTypeId, Vector3 position, bool executeSpawnShader = true);
+	IUnit SpawnUnit(string unitTypeId, Vector3 position, bool executeSpawnShader = true, bool bypassPopulation = false);
 
 	/// <summary>
 	/// Spawns a unit owned by this player at the center of the specified coordinate region.
 	/// </summary>
-	IUnit SpawnUnit(string unitTypeId, Coordinate coordinate);
+	IUnit SpawnUnit(string unitTypeId, Coordinate coordinate, bool executeSpawnShader = true, bool bypassPopulation = false);
 
 	/// <summary>
 	/// Retrieves all alive units owned by this player.
@@ -341,7 +341,7 @@ public interface IPlayer
 /// Default pass-through facade implementation of <see cref="IPlayer"/> that delegates
 /// player-scoped operations to <see cref="IGameAPI"/>.
 /// </summary>
-internal sealed class PlayerFacade : IPlayer
+public class PlayerFacade : IPlayer
 {
 	private readonly IGameAPI _api;
 
@@ -444,14 +444,14 @@ internal sealed class PlayerFacade : IPlayer
 	public int GetKills() => _api.GetPlayerKills(Index);
 	public void SetKills(int kills) => _api.SetPlayerKills(Index, kills);
 
-	public IUnit SpawnUnit(string unitTypeId, Vector2 position, bool executeSpawnShader = true) =>
-		_api.SpawnUnitForPlayer(unitTypeId, position, Index, executeSpawnShader);
+	public IUnit SpawnUnit(string unitTypeId, Vector2 position, bool executeSpawnShader = true, bool bypassPopulation = false) =>
+		_api.SpawnUnitForPlayer(unitTypeId, position, Index, executeSpawnShader, bypassPopulation);
 
-	public IUnit SpawnUnit(string unitTypeId, Vector3 position, bool executeSpawnShader = true) =>
-		_api.SpawnUnitForPlayer(unitTypeId, new Vector2(position.X, position.Z), Index, executeSpawnShader);
+	public IUnit SpawnUnit(string unitTypeId, Vector3 position, bool executeSpawnShader = true, bool bypassPopulation = false) =>
+		_api.SpawnUnitForPlayer(unitTypeId, new Vector2(position.X, position.Z), Index, executeSpawnShader, bypassPopulation);
 
-	public IUnit SpawnUnit(string unitTypeId, Coordinate coordinate) =>
-		_api.SpawnUnitForPlayer(unitTypeId, coordinate, Index);
+	public IUnit SpawnUnit(string unitTypeId, Coordinate coordinate, bool executeSpawnShader = true, bool bypassPopulation = false) =>
+		_api.SpawnUnitForPlayer(unitTypeId, coordinate, Index, executeSpawnShader, bypassPopulation);
 
 	public IEnumerable<IUnit> GetUnits() => _api.GetUnitsOwnedByPlayer(Index);
 	public IEnumerable<IUnit> GetUnits(Func<IUnit, bool> filter) => _api.GetUnitsOwnedByPlayer(Index, filter);

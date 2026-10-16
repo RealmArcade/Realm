@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Arch.Core;
 using Godot;
 using Realm.Client.ReplaySystem;
+using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Ecs.Common;
@@ -96,7 +97,8 @@ public partial class GameHost
 	private void HandleEnemyDeathEconomy(Unit3D unit)
 	{
 		float resCap = ECSContext.PlayerResourceService.ResourceCap;
-		bool shouldRefresh = GameContext.SimulationService.HandleEnemyDeathEconomyDomain(unit.Entity, unit.UnitId, _playerEntity, (int)resCap);
+		Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		bool shouldRefresh = GameContext.SimulationService.HandleEnemyDeathEconomyDomain(unit.Entity, unit.UnitId, localPlayerEntity, (int)resCap);
 		
 		if (shouldRefresh)
 		{
@@ -301,7 +303,7 @@ public partial class GameHost
 		string modelPath = GetFallbackModelPath(targetModel, isBuilding);
 		int ownerPlayer = GameContext.World.Has<UnitOwnerPlayer>(buildingEntity)
 			? GameContext.World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex
-			: LocalPlayerIndex;
+			: (LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
 		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, false, false, ownerPlayer);
 
 		if (TryGetUnit3D(buildingEntity, out var bNode) && GodotObject.IsInstanceValid(bNode))
@@ -511,11 +513,11 @@ public partial class GameHost
 		if (string.IsNullOrEmpty(targetModel)) return;
 		float buildTime = meta.ProductionTime > 0f ? meta.ProductionTime : 1.5f;
 
-		var playerOwner = _playerEntity.AsPlayerEntity(GameContext.World);
-
 		int workerPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(workerEntity)
 			? GameContext.World.Get<UnitOwnerPlayer>(workerEntity).PlayerIndex
-			: LocalPlayerIndex;
+			: (LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+
+		var playerOwner = GetPlayerEntityForPlayerIndex(workerPlayerIndex).AsPlayerEntity(GameContext.World);
 
 		var bldEntity = CreateEcsUnit(buildType, meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed,
 			new Godot.Vector3(targetPos.X, targetPos.Y, targetPos.Z), playerOwner);

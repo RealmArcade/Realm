@@ -259,9 +259,10 @@ public partial class GameHost
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void SyncPlayerResources(float gold, float wood, float stone)
 	{
-		((IGameAPI)this).Gold = gold;
-		((IGameAPI)this).Wood = wood;
-		((IGameAPI)this).Stone = stone;
+		int localSlot = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		((IGameAPI)this).SetPlayerGold(localSlot, gold);
+		((IGameAPI)this).SetPlayerWood(localSlot, wood);
+		((IGameAPI)this).SetPlayerStone(localSlot, stone);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -712,12 +713,13 @@ public partial class GameHost
 		GameContext.NetworkService.MarkClientEnteredMultiplayer();
 		GameContext.NetworkService.ResetReconnectionState();
 
+		Entity reconnectedEntity = Entity.Null;
 		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
 		{
-			_playerEntity = GameContext.NetworkService.AssignReconnectedPlayerEntity(slot, LobbyManager.Instance.PlayerList, _localPeerId, _peerIdToPlayerEntityMap);
+			reconnectedEntity = GameContext.NetworkService.AssignReconnectedPlayerEntity(slot, LobbyManager.Instance.PlayerList, _localPeerId, _peerIdToPlayerEntityMap);
 		}
 
-		GameContext.NetworkService.UpdateReconnectedClientMapping(_playerEntity, _enemyPlayerEntity, _localPeerId);
+		GameContext.NetworkService.UpdateReconnectedClientMapping(reconnectedEntity, _localPeerId);
 
 		InGameHUD.Instance?.RefreshUI(SelectedUnits);
 		GD.Print($"[GameHost] OnClientReconnected completed for LocalPeerId={_localPeerId}, Slot={slot}");

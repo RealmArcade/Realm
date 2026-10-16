@@ -144,54 +144,19 @@ public partial class GameHost : Node3D, IGameAPI
 		return EntityToVfx3D.TryGetValue(entity, out vfx);
 	}
 
-	public Entity _playerEntity
-	{
-		get => GameContext.World?.GetFieldOrDefault<NetworkMappingState, Entity>(ECSContext.WorldEntity, s => s.PlayerEntity, Entity.Null) ?? Entity.Null;
-		set => GameContext.World?.Mutate<NetworkMappingState>(ECSContext.WorldEntity, (ref NetworkMappingState s) => s.PlayerEntity = value);
-	}
-
-	public Entity _enemyPlayerEntity
-	{
-		get => GameContext.World?.GetFieldOrDefault<NetworkMappingState, Entity>(ECSContext.WorldEntity, s => s.EnemyPlayerEntity, Entity.Null) ?? Entity.Null;
-		set => GameContext.World?.Mutate<NetworkMappingState>(ECSContext.WorldEntity, (ref NetworkMappingState s) => s.EnemyPlayerEntity = value);
-	}
-
-	public Entity _neutralPlayerEntity
-	{
-		get => GameContext.World?.GetFieldOrDefault<NetworkMappingState, Entity>(ECSContext.WorldEntity, s => s.NeutralPlayerEntity, Entity.Null) ?? Entity.Null;
-		set => GameContext.World?.Mutate<NetworkMappingState>(ECSContext.WorldEntity, (ref NetworkMappingState s) => s.NeutralPlayerEntity = value);
-	}
-
-	public int LocalPlayerIndex
-	{
-		get
-		{
-			if (_multiplayerActive && LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
-			{
-				var p = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == _localPeerId);
-				if (p != null) return p.Slot;
-			}
-
-			return 0;
-		}
-	}
-
 	public Entity GetPlayerEntityForPlayerIndex(int playerIndex)
 	{
-		if (playerIndex == 0)
+		if (ECSContext.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
 		{
-			if (_neutralPlayerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(_neutralPlayerEntity))
-				return _neutralPlayerEntity;
-			_neutralPlayerEntity = CreatePlayerEntity("Neutral");
-			return _neutralPlayerEntity;
+			var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+			if (playerEntities != null && playerIndex >= 0 && playerIndex < playerEntities.Length)
+			{
+				var pe = playerEntities[playerIndex];
+				if (pe != Entity.Null && GameContext.World.IsAlive(pe))
+					return pe;
+			}
 		}
-		var pe = TryGetMultiplayerEntity(playerIndex);
-		if (pe != Entity.Null) return pe;
-
-		if (playerIndex == 0) return _playerEntity;
-		if (_enemyPlayerEntity != Entity.Null && GameContext.World.IsAlive(_enemyPlayerEntity)) return _enemyPlayerEntity;
-
-		return _playerEntity;
+		return TryGetMultiplayerEntity(playerIndex);
 	}
 
 	private Entity TryGetMultiplayerEntity(int playerIndex)
@@ -200,11 +165,6 @@ public partial class GameHost : Node3D, IGameAPI
 		var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
 		if (p == null || _peerIdToPlayerEntityMap?.TryGetValue(p.PeerId, out var pe) != true || !GameContext.World.IsAlive(pe)) return Entity.Null;
 		return pe;
-	}
-
-	public bool IsPlayerEnemy(int playerIndex)
-	{
-		return NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex);
 	}
 
 
@@ -252,20 +212,44 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public bool HasWeaponsUpgrade
 	{
-		get => GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(_playerEntity, u => u.WeaponsUpgrade) ?? false;
-		set => GameContext.World?.Mutate(_playerEntity, (ref PlayerUpgrades u) => u.WeaponsUpgrade = value);
+		get
+		{
+			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			return GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(pe, u => u.WeaponsUpgrade) ?? false;
+		}
+		set
+		{
+			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			GameContext.World?.Mutate(pe, (ref PlayerUpgrades u) => u.WeaponsUpgrade = value);
+		}
 	}
 
 	public bool HasShieldsUpgrade
 	{
-		get => GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(_playerEntity, u => u.ShieldsUpgrade) ?? false;
-		set => GameContext.World?.Mutate(_playerEntity, (ref PlayerUpgrades u) => u.ShieldsUpgrade = value);
+		get
+		{
+			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			return GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(pe, u => u.ShieldsUpgrade) ?? false;
+		}
+		set
+		{
+			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			GameContext.World?.Mutate(pe, (ref PlayerUpgrades u) => u.ShieldsUpgrade = value);
+		}
 	}
 
 	public bool HasHarvestingUpgrade
 	{
-		get => GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(_playerEntity, u => u.HarvestingUpgrade) ?? false;
-		set => GameContext.World?.Mutate(_playerEntity, (ref PlayerUpgrades u) => u.HarvestingUpgrade = value);
+		get
+		{
+			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			return GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(pe, u => u.HarvestingUpgrade) ?? false;
+		}
+		set
+		{
+			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			GameContext.World?.Mutate(pe, (ref PlayerUpgrades u) => u.HarvestingUpgrade = value);
+		}
 	}
 
 
@@ -654,16 +638,32 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public int MaxPopulation
 	{
-		get => GameContext.World?.GetFieldOrDefault<PlayerPopulation, int>(_playerEntity, p => p.Max) ?? 0;
-		private set => GameContext.World?.Mutate<PlayerPopulation>(_playerEntity, (ref PlayerPopulation p) =>
-			GameContext.World.Set(_playerEntity, new PlayerPopulation(p.Current, value)));
+		get
+		{
+			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			return GameContext.World?.GetFieldOrDefault<PlayerPopulation, int>(pe, p => p.Max) ?? 0;
+		}
+		private set
+		{
+			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			GameContext.World?.Mutate<PlayerPopulation>(pe, (ref PlayerPopulation p) =>
+				GameContext.World.Set(pe, new PlayerPopulation(p.Current, value)));
+		}
 	}
 
 	public int CurrentPopulation
 	{
-		get => GameContext.World?.GetFieldOrDefault<PlayerPopulation, int>(_playerEntity, p => p.Current) ?? 0;
-		set => GameContext.World?.Mutate<PlayerPopulation>(_playerEntity, (ref PlayerPopulation p) =>
-			GameContext.World.Set(_playerEntity, new PlayerPopulation(value, p.Max)));
+		get
+		{
+			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			return GameContext.World?.GetFieldOrDefault<PlayerPopulation, int>(pe, p => p.Current) ?? 0;
+		}
+		set
+		{
+			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			GameContext.World?.Mutate<PlayerPopulation>(pe, (ref PlayerPopulation p) =>
+				GameContext.World.Set(pe, new PlayerPopulation(value, p.Max)));
+		}
 	}
 
 	public float GameElapsedTime
@@ -686,10 +686,11 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public float GetPlayerSpellCooldown(string abilityId)
 	{
-		if (GameContext.World == null || _playerEntity == Entity.Null || !GameContext.World.IsAlive(_playerEntity)) return 0f;
-		if (GameContext.World.Has<SpellCooldowns>(_playerEntity))
+		var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		if (GameContext.World == null || pe == Entity.Null || !GameContext.World.IsAlive(pe)) return 0f;
+		if (GameContext.World.Has<SpellCooldowns>(pe))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(_playerEntity).Value;
+			var scd = GameContext.World.Get<SpellCooldowns>(pe).Value;
 			if (scd != null && scd.TryGetValue(abilityId, out float val)) return val;
 		}
 
@@ -698,10 +699,11 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void SetPlayerSpellCooldown(string abilityId, float cooldown)
 	{
-		if (GameContext.World == null || _playerEntity == Entity.Null || !GameContext.World.IsAlive(_playerEntity)) return;
-		if (GameContext.World.Has<SpellCooldowns>(_playerEntity))
+		var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		if (GameContext.World == null || pe == Entity.Null || !GameContext.World.IsAlive(pe)) return;
+		if (GameContext.World.Has<SpellCooldowns>(pe))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(_playerEntity).Value;
+			var scd = GameContext.World.Get<SpellCooldowns>(pe).Value;
 			if (scd != null) scd[abilityId] = cooldown;
 		}
 	}
@@ -867,9 +869,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (_peerIdToPlayerEntityMap != null && _peerIdToPlayerEntityMap.TryGetValue(ownerPeerId, out var pe) && GameContext.World.IsAlive(pe))
 			return pe;
-		if (actualIsEnemy && _enemyPlayerEntity != Entity.Null && GameContext.World.IsAlive(_enemyPlayerEntity))
-			return _enemyPlayerEntity;
-		return _playerEntity;
+		return GetPlayerEntityForPlayerIndex(actualIsEnemy ? 2 : (LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 	}
 
 	private List<IResourceNode> GetCachedResourceNodes()
@@ -1855,19 +1855,22 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void SetupLobbyPlayers()
 	{
-		_neutralPlayerEntity = CreatePlayerEntity("Neutral");
-		_peerIdToPlayerEntityMap[0] = _neutralPlayerEntity;
+		var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+		_peerIdToPlayerEntityMap[0] = playerEntities[0];
 		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true);
 
 		foreach (var p in LobbyManager.Instance.PlayerList)
 		{
-			var playerEntity = CreatePlayerEntity(p.Name);
-			_peerIdToPlayerEntityMap[p.PeerId] = playerEntity;
-
-			if (p.Slot == LocalPlayerIndex) _playerEntity = playerEntity;
-			else if (_enemyPlayerEntity == Entity.Null) _enemyPlayerEntity = playerEntity;
-
-			UpdateScriptPlayerState(p.Slot, p.Name, active: true, isComputer: p.PeerId < 0);
+			if (p.Slot >= 0 && p.Slot < playerEntities.Length)
+			{
+				var playerEntity = playerEntities[p.Slot];
+				_peerIdToPlayerEntityMap[p.PeerId] = playerEntity;
+				if (GameContext.World.Has<Name>(playerEntity))
+				{
+					GameContext.World.Set(playerEntity, new Name(p.Name));
+				}
+				UpdateScriptPlayerState(p.Slot, p.Name, active: true, isComputer: p.PeerId < 0);
+			}
 		}
 	}
 
@@ -1881,28 +1884,14 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void SetupDefaultPlayers()
 	{
-		_neutralPlayerEntity = CreatePlayerEntity("Neutral");
-		_peerIdToPlayerEntityMap[0] = _neutralPlayerEntity;
-
-		_playerEntity = CreatePlayerEntity("Horaid_Topa");
-		_peerIdToPlayerEntityMap[1] = _playerEntity;
-
-		_enemyPlayerEntity = CreatePlayerEntity("Enemy_AI");
-		_peerIdToPlayerEntityMap[-1] = _enemyPlayerEntity;
+		var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+		_peerIdToPlayerEntityMap[0] = playerEntities[0];
+		_peerIdToPlayerEntityMap[1] = playerEntities[1];
+		_peerIdToPlayerEntityMap[-1] = playerEntities[2];
 
 		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true);
 		UpdateScriptPlayerState(1, "Horaid_Topa", active: true, isComputer: false);
 		UpdateScriptPlayerState(2, "Enemy_AI", active: true, isComputer: true);
-	}
-
-	private Entity CreatePlayerEntity(string name)
-	{
-		var playerEntity = GameContext.World.Create();
-		GameContext.World.Add(playerEntity, new Player());
-		GameContext.World.Add(playerEntity, new Name(name));
-		InitializePlayerResources(playerEntity);
-		SetupPlayerEntityComponents(playerEntity);
-		return playerEntity;
 	}
 
 	private void UpdateScriptPlayerState(int pIdx, string name, bool active = true, bool isComputer = false)
@@ -1920,25 +1909,15 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void EnsureFallbackPlayers()
 	{
-		if (_neutralPlayerEntity == Entity.Null)
+		if (GameContext.World != null && ECSContext.WorldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
 		{
-			_neutralPlayerEntity = CreatePlayerEntity("Neutral");
-			_peerIdToPlayerEntityMap[0] = _neutralPlayerEntity;
-			UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true);
-		}
-
-		if (_playerEntity == Entity.Null)
-		{
-			_playerEntity = CreatePlayerEntity("Horaid_Topa");
-			_peerIdToPlayerEntityMap[1] = _playerEntity;
-			UpdateScriptPlayerState(1, "Horaid_Topa", active: true, isComputer: false);
-		}
-
-		if (_enemyPlayerEntity == Entity.Null)
-		{
-			_enemyPlayerEntity = CreatePlayerEntity("Enemy_AI");
-			_peerIdToPlayerEntityMap[-1] = _enemyPlayerEntity;
-			UpdateScriptPlayerState(2, "Enemy_AI", active: true, isComputer: true);
+			var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+			if (playerEntities != null && playerEntities.Length > 2)
+			{
+				_peerIdToPlayerEntityMap[0] = playerEntities[0];
+				_peerIdToPlayerEntityMap[1] = playerEntities[1];
+				_peerIdToPlayerEntityMap[-1] = playerEntities[2];
+			}
 		}
 	}
 
@@ -2502,7 +2481,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 		var entity = regMeta != null
 			? CreateEcsUnitEntityWithMeta(id, name, hp, damage, range, armor, speed, pos, owner, regMeta)
-			: GameContext.UnitSpawnService.CreateEcsUnitEntity(id, name, hp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, owner, _playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade, null, 0f, 0f, 0f, 0f, 0f, "unarmored", 0f, 0f, 0f, "normal", 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
+			: GameContext.UnitSpawnService.CreateEcsUnitEntity(id, name, hp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, owner, owner.Value, HasShieldsUpgrade, HasWeaponsUpgrade, null, 0f, 0f, 0f, 0f, 0f, "unarmored", 0f, 0f, 0f, "normal", 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
 
 		if (regMeta != null) ApplyUnitAttributes(entity, regMeta);
 
@@ -2516,7 +2495,7 @@ public partial class GameHost : Node3D, IGameAPI
 			id, name, hp, damage, range, armor, speed,
 			meta.ScanRadius > 0 ? meta.ScanRadius : 15.0f, meta.IsHero,
 			meta.AttackCooldown > 0 ? meta.AttackCooldown : 1.5f, GetUnitPathingFlags(meta), pos, owner,
-			_playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade, meta.Targets,
+			owner.Value, HasShieldsUpgrade, HasWeaponsUpgrade, meta.Targets,
 			meta.HpRegen, meta.HpRegenCombatDelay, meta.MaxMana, meta.ManaRegen,
 			meta.RatedArmor, !string.IsNullOrEmpty(meta.ArmorType) ? meta.ArmorType : "unarmored",
 			meta.FlatArmorPenetration, meta.PercentArmorPenetration, meta.DamageVariance,
@@ -2564,7 +2543,8 @@ public partial class GameHost : Node3D, IGameAPI
 	private Unit3D SpawnUnit3D(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, bool isEnemy, bool isFromQueue = false, int player = -1, bool executeSpawnShader = false)
 	{
 		int playerIndex = player >= 0 ? player : 0;
-		bool actualIsEnemy = player >= 0 ? NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex) : isEnemy;
+		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		bool actualIsEnemy = player >= 0 ? NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex) : isEnemy;
 
 		SetupUnitEntityComponents(entity, id, playerIndex, actualIsEnemy);
 
@@ -2870,7 +2850,7 @@ public partial class GameHost : Node3D, IGameAPI
 	///     Returns true when the entity's pathing flags include the given capability
 	///     (e.g. <see cref="TerrainPathingFlags.Flying"/>).
 	/// </summary>
-	internal bool IsPathingCapability(Entity entity, TerrainPathingFlags capability)
+	public bool IsPathingCapability(Entity entity, TerrainPathingFlags capability)
 	{
 		if (GameContext.World == null || !GameContext.World.IsAlive(entity) || !GameContext.World.Has<PathingFlags>(entity)) return false;
 		int flags = GameContext.World.Get<PathingFlags>(entity).Value;

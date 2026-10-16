@@ -10,9 +10,7 @@ namespace Realm.Ecs.Components.Core
 		public Dictionary<int, Entity> ServerToClientEntityMap { get; }
 		public Dictionary<int, int> ClientToServerEntityMap { get; }
 		public Dictionary<int, Entity> PeerIdToPlayerEntityMap { get; }
-		public Entity PlayerEntity { get; set; }
-		public Entity EnemyPlayerEntity { get; set; }
-		public Entity NeutralPlayerEntity { get; set; }
+		public Entity[] PlayerEntities { get; }
 
 		public NetworkMappingState(
 			Dictionary<int, Entity> serverToClientEntityMap,
@@ -22,9 +20,7 @@ namespace Realm.Ecs.Components.Core
 			ServerToClientEntityMap = serverToClientEntityMap;
 			ClientToServerEntityMap = clientToServerEntityMap;
 			PeerIdToPlayerEntityMap = peerIdToPlayerEntityMap;
-			PlayerEntity = Entity.Null;
-			EnemyPlayerEntity = Entity.Null;
-			NeutralPlayerEntity = Entity.Null;
+			PlayerEntities = new Entity[25];
 		}
 	}
 }

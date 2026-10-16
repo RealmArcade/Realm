@@ -8,39 +8,9 @@ namespace Realm.MapAPI;
 public interface IGameAPI
 {
 	/// <summary>
-	/// Gets or sets the player's gold resource amount.
-	/// </summary>
-	[Obsolete("Use GetPlayer(playerIndex).Gold, GetPlayer(playerIndex).GetGold(), or GetPlayer(playerIndex).SetGold() instead to explicitly specify the target player.")]
-	float Gold { get; set; }
-
-	/// <summary>
-	/// Gets or sets the player's wood resource amount.
-	/// </summary>
-	[Obsolete("Use GetPlayer(playerIndex).Wood, GetPlayer(playerIndex).GetWood(), or GetPlayer(playerIndex).SetWood() instead to explicitly specify the target player.")]
-	float Wood { get; set; }
-
-	/// <summary>
-	/// Gets or sets the player's stone resource amount.
-	/// </summary>
-	[Obsolete("Use GetPlayer(playerIndex).Stone, GetPlayer(playerIndex).GetStone(), or GetPlayer(playerIndex).SetStone() instead to explicitly specify the target player.")]
-	float Stone { get; set; }
-
-	/// <summary>
 	/// Gets the elapsed game time in seconds.
 	/// </summary>
 	float GameElapsedTime { get; }
-
-	/// <summary>
-	/// Spawns a unit or building of the specified type at the given position.
-	/// </summary>
-	/// <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-	/// <param name="position">The spawn coordinates in 3D world space.</param>
-	/// <param name="isEnemy">True if the unit should belong to the enemy, false if friendly.</param>
-	/// <param name="bypassPopulation">True to spawn the unit without consuming the player's population limit, false to consume it normally.</param>
-	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
-	/// <returns>A reference to the spawned unit.</returns>
-	[Obsolete("Use GetPlayer(playerIndex).SpawnUnit() or SpawnUnitForPlayer() instead to explicitly specify the owner player.")]
-	IUnit SpawnUnit(string unitTypeId, Vector3 position, bool isEnemy, bool bypassPopulation = false, bool executeSpawnShader = true);
 
 
 	/// <summary>
@@ -94,18 +64,6 @@ public interface IGameAPI
 	void ShowFeedbackText(string text, Vector3 color);
 
 	/// <summary>
-	/// Plays the standard warning/alert audio sound.
-	/// </summary>
-	[Obsolete("Use GetPlayer(playerIndex).PlayWarningSound() or PlayPlayerWarningSound(playerIndex) instead to explicitly specify the target player.")]
-	void PlayWarningSound();
-
-	/// <summary>
-	/// Plays the standard button/command click audio sound.
-	/// </summary>
-	[Obsolete("Use GetPlayer(playerIndex).PlayClickSound() or PlayPlayerClickSound(playerIndex) instead to explicitly specify the target player.")]
-	void PlayClickSound();
-
-	/// <summary>
 	/// Triggers the game victory sequence.
 	/// </summary>
 	void TriggerVictory();
@@ -116,14 +74,6 @@ public interface IGameAPI
 	void TriggerDefeat();
 
 	/// <summary>
-	/// Gets the castle unit belonging to the specified faction.
-	/// </summary>
-	/// <param name="isEnemy">True to get the enemy castle, false for the player castle.</param>
-	/// <returns>The castle unit, or null if it has been destroyed.</returns>
-	[Obsolete("Use GetPlayer(playerIndex).GetUnits() instead to explicitly query units owned by a specific player.")]
-	IUnit? GetCastle(bool isEnemy);
-
-	/// <summary>
 	/// Spawns a temporary visual target indicator ring at the specified position with the given color.
 	/// </summary>
 	/// <param name="position">The coordinates in 3D world space.</param>
@@ -131,44 +81,11 @@ public interface IGameAPI
 	void SpawnTargetIndicator(Vector3 position, Vector3 color);
 
 	/// <summary>
-	/// Gets or sets the player's maximum population capacity.
-	/// </summary>
-	[Obsolete("Use GetPlayer(playerIndex).MaxPopulation, GetPlayer(playerIndex).GetMaxPopulation(), or GetPlayer(playerIndex).SetMaxPopulation() instead to explicitly specify the target player.")]
-	int MaxPopulation { get; set; }
-
-	/// <summary>
-	/// Gets the player's current population.
-	/// </summary>
-	[Obsolete("Use GetPlayer(playerIndex).CurrentPopulation or GetPlayer(playerIndex).GetCurrentPopulation() instead to explicitly specify the target player.")]
-	int CurrentPopulation { get; }
-
-	/// <summary>
 	/// Retrieves a unit by its unique runtime identifier.
 	/// </summary>
 	/// <param name="uniqueId">The unique ID of the unit to retrieve.</param>
 	/// <returns>The unit wrapper if alive, or null.</returns>
 	IUnit? GetUnitById(int uniqueId);
-
-	/// <summary>
-	/// Retrieves all units that are currently selected by the player.
-	/// </summary>
-	/// <returns>A collection of currently selected units.</returns>
-	[Obsolete("Use GetPlayer(playerIndex).GetSelectedUnits() or GetPlayerSelectedUnits(playerIndex) instead to explicitly specify the target player.")]
-	IEnumerable<IUnit> GetSelectedUnits();
-
-	/// <summary>
-	/// Spawns a minimap ping at the specified 3D position in world space.
-	/// </summary>
-	/// <param name="position">The target position in 3D world space.</param>
-	[Obsolete("Use GetPlayer(playerIndex).PingMinimap(position) or PingPlayerMinimap(playerIndex, position) instead to explicitly specify the target player.")]
-	void PingMinimap(Vector3 position);
-
-	/// <summary>
-	/// Enters building placement mode for the specified structure type.
-	/// </summary>
-	/// <param name="unitTypeId">The unit type ID of the building to place.</param>
-	[Obsolete("Use GetPlayer(playerIndex).StartBuildingPlacement(unitTypeId) or StartPlayerBuildingPlacement(playerIndex, unitTypeId) instead to explicitly specify the target player.")]
-	void StartBuildingPlacement(string unitTypeId);
 
 	/// <summary>
 	/// Generates a new map directory containing boilerplate files for a custom map.
@@ -426,7 +343,7 @@ public interface IGameAPI
 	/// Translates a localization key using the player's preferred language with English fallback.
 	/// </summary>
 	/// <param name="key">Localization translation key.</param>
-	/// <param name="playerIndex">Zero-based player index, or -1 for current local player.</param>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
 	/// <returns>Translated text string.</returns>
 	string Translate(string key, int playerIndex);
 
@@ -448,14 +365,6 @@ public interface IGameAPI
 	/// <param name="intensity">The shake strength multiplier.</param>
 	/// <param name="duration">The time in seconds the shake lasts.</param>
 	void ShakeCamera(float intensity, float duration);
-
-	/// <summary>
-	/// Smoothly pans the game camera to the specified position.
-	/// </summary>
-	/// <param name="position">The target position in 3D world space.</param>
-	/// <param name="duration">The pan time in seconds.</param>
-	[Obsolete("Use GetPlayer(playerIndex).PanCameraTo(position, duration), GetPlayer(playerIndex).MoveCameraTo(position, duration), or PanPlayerCameraTo(playerIndex, position, duration) instead to explicitly specify the target player.")]
-	void PanCameraTo(Vector3 position, float duration);
 
 	/// <summary>
 	/// Sets the time of day to a specific hour (0.0 to 24.0).
@@ -532,22 +441,9 @@ public interface IGameAPI
 	/// <param name="position">The spawn coordinates in 2D ground space (X, Z).</param>
 	/// <param name="playerIndex">Zero-based player slot index that will own the unit.</param>
 	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
+	/// <param name="bypassPopulation">True to bypass population cap limits when spawning, false to enforce population limits.</param>
 	/// <returns>A reference to the spawned unit.</returns>
-	IUnit SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader = true);
-
-	/// <summary>
-	/// Spawns a unit owned by the specified player slot at the given position.
-	/// </summary>
-	/// <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-	/// <param name="position">The spawn coordinates in 3D world space. The Y (height) component is ignored.</param>
-	/// <param name="playerIndex">Zero-based player slot index that will own the unit.</param>
-	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
-	/// <returns>A reference to the spawned unit.</returns>
-	[Obsolete("Use SpawnUnitForPlayer taking Vector2 (X, Z) instead. Height is automatically determined based on terrain height and template offset.")]
-	IUnit SpawnUnitForPlayer(string unitTypeId, Vector3 position, int playerIndex, bool executeSpawnShader = true)
-	{
-		return SpawnUnitForPlayer(unitTypeId, new Vector2(position.X, position.Z), playerIndex, executeSpawnShader);
-	}
+	IUnit SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false);
 
 	/// <summary>
 	/// Retrieves all alive units owned by the specified player slot.
@@ -996,19 +892,6 @@ public interface IGameAPI
 	void SetUnitSpellImmune(IUnit unit, bool immune);
 
 	/// <summary>
-	/// Selects the specified unit programmatically, clearing any previously selected units.
-	/// </summary>
-	/// <param name="unit">The unit to select.</param>
-	[Obsolete("Use GetPlayer(playerIndex).SelectUnit(unit) or SelectPlayerUnit(playerIndex, unit) instead to explicitly specify the target player.")]
-	void SelectUnit(IUnit unit);
-
-	/// <summary>
-	/// Clears the player's unit selection programmatically.
-	/// </summary>
-	[Obsolete("Use GetPlayer(playerIndex).ClearSelection() or ClearPlayerSelection(playerIndex) instead to explicitly specify the target player.")]
-	void ClearSelection();
-
-	/// <summary>
 	/// Checks if a named coordinate box exists.
 	/// </summary>
 	bool HasCoordinate(string coordinateName);
@@ -1096,29 +979,17 @@ public interface IGameAPI
 	}
 
 	/// <summary>
-	/// Spawns a new unit of the specified type at the center of the given coordinate region.
-	/// </summary>
-	/// <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-	/// <param name="coordinate">The coordinate region whose center will be used as spawn location.</param>
-	/// <param name="isEnemy">True if the unit belongs to the enemy player.</param>
-	/// <param name="bypassPopulation">If true, ignores population cap limits.</param>
-	/// <returns>The spawned <see cref="IUnit"/>.</returns>
-	[Obsolete("Use GetPlayer(playerIndex).SpawnUnit() or SpawnUnitForPlayer() instead to explicitly specify the owner player.")]
-	IUnit SpawnUnit(string unitTypeId, Coordinate coordinate, bool isEnemy, bool bypassPopulation = false)
-	{
-		return SpawnUnit(unitTypeId, coordinate.Center, isEnemy, bypassPopulation);
-	}
-
-	/// <summary>
 	/// Spawns a new unit for a specific player at the center of the given coordinate region.
 	/// </summary>
 	/// <param name="unitTypeId">The type identifier of the unit to spawn.</param>
 	/// <param name="coordinate">The coordinate region whose center will be used as spawn location.</param>
 	/// <param name="playerIndex">The player index who will own the unit.</param>
+	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
+	/// <param name="bypassPopulation">True to bypass population cap limits when spawning, false to enforce population limits.</param>
 	/// <returns>The spawned <see cref="IUnit"/>.</returns>
-	IUnit SpawnUnitForPlayer(string unitTypeId, Coordinate coordinate, int playerIndex)
+	IUnit SpawnUnitForPlayer(string unitTypeId, Coordinate coordinate, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false)
 	{
-		return SpawnUnitForPlayer(unitTypeId, new Vector2(coordinate.Center.X, coordinate.Center.Z), playerIndex);
+		return SpawnUnitForPlayer(unitTypeId, new Vector2(coordinate.Center.X, coordinate.Center.Z), playerIndex, executeSpawnShader, bypassPopulation);
 	}
 
 	/// <summary>

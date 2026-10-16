@@ -11,6 +11,8 @@ using System.Threading.Tasks;
 using Arch.Core;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.UI;
 using Realm.Client.UI.MapEditor;
 using Realm.Client.VFX;
 using Realm.Ecs.Common;
@@ -425,7 +427,7 @@ public class SaveLoadService
 	{
 		var units = new List<UnitSaveData>();
 		var unitQuery = QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
-		int localPlayerIndex = GameHost.Instance?.LocalPlayerIndex ?? 0;
+		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
 
 		GameContext.World.Query(in unitQuery, (Entity entity, ref DefinitionId defId, ref Position pos, ref Owner owner) =>
 		{

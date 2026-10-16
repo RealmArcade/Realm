@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Numerics;
 using Arch.Core;
 using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.UI;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
@@ -68,11 +70,9 @@ public class ResourceEconomyService
 		return worldEntity;
 	}
 
-	private bool GetHarvestingUpgrade()
+	private bool GetHarvestingUpgrade(Entity playerEntity)
 	{
-		var worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null) return false;
-		var playerEntity = GameContext.World.Get<NetworkMappingState>(worldEntity).PlayerEntity;
+		if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) return false;
 		return GameContext.World.GetFieldOrDefault<PlayerUpgrades, bool>(playerEntity, u => u.HarvestingUpgrade);
 	}
 
@@ -84,16 +84,11 @@ public class ResourceEconomyService
 		float woodPerSec = DefaultWoodPerSec;
 		float stonePerSec = DefaultStonePerSec;
 
-		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(worldEntity))
+		if (GetHarvestingUpgrade(ent))
 		{
-			var playerEntityForUpgrade = GameContext.World.Get<NetworkMappingState>(worldEntity).PlayerEntity;
-			if (ent == playerEntityForUpgrade && GetHarvestingUpgrade())
-			{
-				goldPerSec *= HarvestingUpgradeMultiplier;
-				woodPerSec *= HarvestingUpgradeMultiplier;
-				stonePerSec *= HarvestingUpgradeMultiplier;
-			}
+			goldPerSec *= HarvestingUpgradeMultiplier;
+			woodPerSec *= HarvestingUpgradeMultiplier;
+			stonePerSec *= HarvestingUpgradeMultiplier;
 		}
 
 		if (!_accumulators.TryGetValue(ent, out var acc))
@@ -247,14 +242,10 @@ public class ResourceEconomyService
 			}
 		}
 
-		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null)
+		Entity localPlayerEntity = GameHost.Instance?.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1) ?? Entity.Null;
+		if (localPlayerEntity != Entity.Null && ownerEntity == localPlayerEntity)
 		{
-			var playerEntityForAlert = GameContext.World.Get<NetworkMappingState>(worldEntity).PlayerEntity;
-			if (ownerEntity == playerEntityForAlert)
-			{
-				OnResourceDepositedForPlayer?.Invoke(gather.ResourceType, carry);
-			}
+			OnResourceDepositedForPlayer?.Invoke(gather.ResourceType, carry);
 		}
 	}
 
@@ -359,12 +350,10 @@ public class ResourceEconomyService
 	private float CalculateMineRate(Entity entity)
 	{
 		float mineRate = 4.0f * _fDelta;
-		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null)
+		var ownerPlayerEntity = GameContext.World.Has<Owner>(entity) ? GameContext.World.Get<Owner>(entity).PlayerEntity.Value : Entity.Null;
+		if (ownerPlayerEntity != Entity.Null && GetHarvestingUpgrade(ownerPlayerEntity))
 		{
-			var enemyPlayerEntity = GameContext.World.Get<NetworkMappingState>(worldEntity).EnemyPlayerEntity;
-			bool isEnemy = GameContext.World.Get<Owner>(entity).PlayerEntity == enemyPlayerEntity.AsPlayerEntity(GameContext.World);
-			if (!isEnemy && GetHarvestingUpgrade()) mineRate *= 1.5f;
+			mineRate *= 1.5f;
 		}
 
 		return mineRate;
@@ -402,9 +391,8 @@ public class ResourceEconomyService
 		}
 	}
 
-	public float GetPlayerWood(int playerIndex, float fallbackWood)
+	public float GetPlayerWood(int playerIndex)
 	{
-		if (playerIndex == 0) return fallbackWood;
 		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
 		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
@@ -414,14 +402,8 @@ public class ResourceEconomyService
 		return 0f;
 	}
 
-	public void SetPlayerWood(int playerIndex, float amount, Action<float> setFallbackWood)
+	public void SetPlayerWood(int playerIndex, float amount)
 	{
-		if (playerIndex == 0)
-		{
-			setFallbackWood(amount);
-			return;
-		}
-
 		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
 		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
@@ -429,14 +411,8 @@ public class ResourceEconomyService
 		}
 	}
 
-	public void AdjustPlayerWood(int playerIndex, float delta, Action<float> setFallbackWood, float fallbackWood)
+	public void AdjustPlayerWood(int playerIndex, float delta)
 	{
-		if (playerIndex == 0)
-		{
-			setFallbackWood(fallbackWood + delta);
-			return;
-		}
-
 		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
 		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
@@ -446,37 +422,23 @@ public class ResourceEconomyService
 
 	private readonly Dictionary<int, float> _playerStoneState = new();
 
-	public float GetPlayerStone(int playerIndex, float fallbackStone)
+	public float GetPlayerStone(int playerIndex)
 	{
-		if (playerIndex == 0) return fallbackStone;
 		return _playerStoneState.GetValueOrDefault(playerIndex, 0f);
 	}
 
-	public void SetPlayerStone(int playerIndex, float amount, Action<float> setFallbackStone)
+	public void SetPlayerStone(int playerIndex, float amount)
 	{
-		if (playerIndex == 0)
-		{
-			setFallbackStone(amount);
-			return;
-		}
-
 		_playerStoneState[playerIndex] = Math.Max(0f, amount);
 	}
 
-	public void AdjustPlayerStone(int playerIndex, float delta, Action<float> setFallbackStone, float fallbackStone)
+	public void AdjustPlayerStone(int playerIndex, float delta)
 	{
-		if (playerIndex == 0)
-		{
-			setFallbackStone(Math.Max(0f, fallbackStone + delta));
-			return;
-		}
-
 		_playerStoneState[playerIndex] = Math.Max(0f, _playerStoneState.GetValueOrDefault(playerIndex, 0f) + delta);
 	}
 
-	public int GetPlayerCurrentPopulation(int playerIndex, int fallbackPop)
+	public int GetPlayerCurrentPopulation(int playerIndex)
 	{
-		if (playerIndex == 0) return fallbackPop;
 		if (GameHost.Instance != null)
 		{
 			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
@@ -489,13 +451,8 @@ public class ResourceEconomyService
 		return 0;
 	}
 
-	public void SetPlayerMaxPopulation(int playerIndex, int max, Action<int> setFallbackMax)
+	public void SetPlayerMaxPopulation(int playerIndex, int max)
 	{
-		if (playerIndex == 0)
-		{
-			setFallbackMax(max);
-		}
-
 		if (GameHost.Instance != null)
 		{
 			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
@@ -514,9 +471,8 @@ public class ResourceEconomyService
 		}
 	}
 
-	public int GetPlayerMaxPopulation(int playerIndex, int fallbackMaxPop)
+	public int GetPlayerMaxPopulation(int playerIndex)
 	{
-		if (playerIndex == 0) return fallbackMaxPop;
 		if (GameHost.Instance != null)
 		{
 			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
@@ -526,6 +482,6 @@ public class ResourceEconomyService
 			}
 		}
 
-		return fallbackMaxPop;
+		return 0;
 	}
 }

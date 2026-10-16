@@ -160,79 +160,6 @@ public partial class GameHost
 		GameContext.TechTreeService.AddPlayerTechLevel(playerIndex, techId, delta);
 	}
 
-	float IGameAPI.Gold
-	{
-		get
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity) &&
-			    GameContext.World.TryGet<PlayerResources>(_playerEntity, out var res) &&
-			    res.Value.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var val))
-				return val;
-			return _goldBackup;
-		}
-		set
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity))
-				GameContext.World.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
-				{
-					if (r.Value.ContainsKey(ECSContext.PlayerResourceService.GoldResourceId))
-						r.Value[ECSContext.PlayerResourceService.GoldResourceId] = (int)value;
-				});
-			else
-				_goldBackup = value;
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}
-	}
-
-	float IGameAPI.Wood
-	{
-		get
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity) &&
-			    GameContext.World.TryGet<PlayerResources>(_playerEntity, out var res) &&
-			    res.Value.TryGetValue(ECSContext.PlayerResourceService.WoodResourceId, out var val))
-				return val;
-			return _woodBackup;
-		}
-		set
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity))
-				GameContext.World.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
-				{
-					if (r.Value.ContainsKey(ECSContext.PlayerResourceService.WoodResourceId))
-						r.Value[ECSContext.PlayerResourceService.WoodResourceId] = (int)value;
-				});
-			else
-				_woodBackup = value;
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}
-	}
-
-	float IGameAPI.Stone
-	{
-		get
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity) &&
-			    GameContext.World.TryGet<PlayerResources>(_playerEntity, out var res) &&
-			    res.Value.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var val))
-				return val;
-			return _stoneBackup;
-		}
-		set
-		{
-			if (GameContext.World != null && _playerEntity != Entity.Null && GameContext.World.IsAlive(_playerEntity))
-				GameContext.World.Mutate<PlayerResources>(_playerEntity, (ref PlayerResources r) =>
-				{
-					if (r.Value.ContainsKey(ECSContext.PlayerResourceService.StoneResourceId))
-						r.Value[ECSContext.PlayerResourceService.StoneResourceId] = (int)value;
-				});
-			else
-				_stoneBackup = value;
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}
-	}
-
-
 	private IUnit SpawnUnitInternal(string unitTypeId, Vector3 position, int playerIndex, bool bypassPopulation, bool executeSpawnShader)
 	{
 		var pos = new Godot.Vector3(position.X, GetTerrainHeightAt(new Godot.Vector3(position.X, position.Y, position.Z)), position.Z);
@@ -241,23 +168,18 @@ public partial class GameHost
 		if (!UnitRegistry.TryGetValue(unitTypeId, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(unitTypeId, out meta)))
 			throw new ArgumentException($"Unit ID '{unitTypeId}' not found in registry.");
 
-		bool actualIsEnemy = NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex);
+		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		bool actualIsEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 		var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
 
 		if (string.IsNullOrEmpty(meta.ModelPath)) throw new ArgumentException($"Unit ID '{unitTypeId}' has no assigned 3D model asset in registry.");
 		string modelPath = GameContext.UnitSpawnService.GetFallbackModelPath(meta.ModelPath, isBuilding);
 		string name = actualIsEnemy ? GameContext.UnitSpawnService.GetEnemyUnitName(unitTypeId, meta.Name) : meta.Name;
 
-		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, _playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade);
+		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, playerOwner.Value, HasShieldsUpgrade, HasWeaponsUpgrade);
 
 		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, actualIsEnemy, bypassPopulation, playerIndex, executeSpawnShader);
 		return GameContext.SimulationService.GetUnitWrapper(entity);
-	}
-
-	IUnit IGameAPI.SpawnUnit(string unitTypeId, Vector3 position, bool isEnemy, bool bypassPopulation, bool executeSpawnShader)
-	{
-		int ownerPlayer = isEnemy ? 2 : LocalPlayerIndex;
-		return SpawnUnitInternal(unitTypeId, position, ownerPlayer, bypassPopulation, executeSpawnShader);
 	}
 
 	void IGameAPI.SpawnResourceNode(string resourceType, Vector3 position, float amount)
@@ -322,28 +244,9 @@ public partial class GameHost
 		GameContext.ClientRPC.BroadcastDefeat();
 	}
 
-	IUnit? IGameAPI.GetCastle(bool isEnemy)
-	{
-		foreach (var u in AllUnits)
-		{
-			if (GodotObject.IsInstanceValid(u) && u.UnitId == "castle" && u.IsEnemy == isEnemy && GameContext.World.IsAlive(u.Entity) && !GameContext.World.Has<Dead>(u.Entity))
-			{
-				return GameContext.SimulationService.GetUnitWrapper(u.Entity);
-			}
-		}
-
-		return null;
-	}
-
 	void IGameAPI.SpawnTargetIndicator(Vector3 position, Vector3 color)
 	{
 		SpawnTargetIndicator(new Godot.Vector3(position.X, position.Y, position.Z), new Color(color.X, color.Y, color.Z));
-	}
-
-	int IGameAPI.MaxPopulation
-	{
-		get => MaxPopulation;
-		set => MaxPopulation = value;
 	}
 
 	IUnit? IGameAPI.GetUnitById(int uniqueId)
@@ -357,21 +260,6 @@ public partial class GameHost
 		}
 
 		return null;
-	}
-
-	IEnumerable<IUnit> IGameAPI.GetSelectedUnits()
-	{
-		return GameContext.ClientRPC.GetSelectedUnits(LocalPlayerIndex);
-	}
-
-	void IGameAPI.PingMinimap(Vector3 position)
-	{
-		GameContext.ClientRPC.PingMinimap(LocalPlayerIndex, position);
-	}
-
-	void IGameAPI.StartBuildingPlacement(string unitTypeId)
-	{
-		GameContext.ClientRPC.StartBuildingPlacement(LocalPlayerIndex, unitTypeId);
 	}
 
 	void IGameAPI.GenerateMapDirectory(string mapName, string? targetDirectory)
@@ -782,11 +670,6 @@ public partial class GameHost
 		GameContext.ClientRPC.BroadcastShakeCamera(intensity, duration);
 	}
 
-	void IGameAPI.PanCameraTo(Vector3 position, float duration)
-	{
-		GameContext.ClientRPC.PanCameraTo(LocalPlayerIndex, position, duration);
-	}
-
 	private void SetTimeOfDayViewLogic(float normalizedTime)
 	{
 		Callable.From(() => { UpdateDayNightVisuals(normalizedTime); }).CallDeferred();
@@ -1017,12 +900,12 @@ public partial class GameHost
 
 	float IGameAPI.GetPlayerGold(int playerIndex)
 	{
-		return GameContext.SimulationService.GetPlayerGoldDomain(playerIndex, ((IGameAPI)this).Gold);
+		return GameContext.SimulationService.GetPlayerGoldDomain(playerIndex);
 	}
 
 	void IGameAPI.SetPlayerGold(int playerIndex, float amount)
 	{
-		GameContext.SimulationService.SetPlayerGoldDomain(playerIndex, amount, v => ((IGameAPI)this).Gold = v, SyncPlayerResourceEcs);
+		GameContext.SimulationService.SetPlayerGoldDomain(playerIndex, amount, SyncPlayerResourceEcs);
 	}
 
 	void IGameAPI.AdjustPlayerGold(int playerIndex, float delta)
@@ -1032,10 +915,10 @@ public partial class GameHost
 		((IGameAPI)this).SetPlayerGold(playerIndex, newAmount);
 	}
 
-	IUnit IGameAPI.SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader)
+	IUnit IGameAPI.SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader, bool bypassPopulation)
 	{
 		var position3D = new Vector3(position.X, 0f, position.Y);
-		return SpawnUnitInternal(unitTypeId, position3D, playerIndex, false, executeSpawnShader);
+		return SpawnUnitInternal(unitTypeId, position3D, playerIndex, bypassPopulation, executeSpawnShader);
 	}
 
 	IEnumerable<IUnit> IGameAPI.GetUnitsOwnedByPlayer(int playerIndex)
@@ -1202,7 +1085,7 @@ public partial class GameHost
 			}
 		}
 
-		return playerIndex != LocalPlayerIndex;
+		return false;
 	}
 
 	void IGameAPI.SetUnitColor(IUnit unit, Vector3 color)
@@ -1290,17 +1173,17 @@ public partial class GameHost
 
 	float IGameAPI.GetPlayerWood(int playerIndex)
 	{
-		return GameContext.ResourceEconomyService.GetPlayerWood(playerIndex, ((IGameAPI)this).Wood);
+		return GameContext.ResourceEconomyService.GetPlayerWood(playerIndex);
 	}
 
 	void IGameAPI.SetPlayerWood(int playerIndex, float amount)
 	{
-		GameContext.ResourceEconomyService.SetPlayerWood(playerIndex, amount, v => ((IGameAPI)this).Wood = v);
+		GameContext.ResourceEconomyService.SetPlayerWood(playerIndex, amount);
 	}
 
 	void IGameAPI.AdjustPlayerWood(int playerIndex, float delta)
 	{
-		GameContext.ResourceEconomyService.AdjustPlayerWood(playerIndex, delta, v => ((IGameAPI)this).Wood = v, ((IGameAPI)this).Wood);
+		GameContext.ResourceEconomyService.AdjustPlayerWood(playerIndex, delta);
 	}
 
 	void IGameAPI.SetUnitOwner(IUnit unit, int playerIndex)
@@ -1310,17 +1193,17 @@ public partial class GameHost
 
 	int IGameAPI.GetPlayerCurrentPopulation(int playerIndex)
 	{
-		return GameContext.ResourceEconomyService.GetPlayerCurrentPopulation(playerIndex, CurrentPopulation);
+		return GameContext.ResourceEconomyService.GetPlayerCurrentPopulation(playerIndex);
 	}
 
 	int IGameAPI.GetPlayerMaxPopulation(int playerIndex)
 	{
-		return GameContext.ResourceEconomyService.GetPlayerMaxPopulation(playerIndex, ((IGameAPI)this).MaxPopulation);
+		return GameContext.ResourceEconomyService.GetPlayerMaxPopulation(playerIndex);
 	}
 
 	void IGameAPI.SetPlayerMaxPopulation(int playerIndex, int max)
 	{
-		GameContext.ResourceEconomyService.SetPlayerMaxPopulation(playerIndex, max, v => ((IGameAPI)this).MaxPopulation = v);
+		GameContext.ResourceEconomyService.SetPlayerMaxPopulation(playerIndex, max);
 	}
 
 	void IGameAPI.SetCountdownTimerLabel(string label)
@@ -1394,17 +1277,17 @@ public partial class GameHost
 
 	float IGameAPI.GetPlayerStone(int playerIndex)
 	{
-		return GameContext.ResourceEconomyService.GetPlayerStone(playerIndex, ((IGameAPI)this).Stone);
+		return GameContext.ResourceEconomyService.GetPlayerStone(playerIndex);
 	}
 
 	void IGameAPI.SetPlayerStone(int playerIndex, float amount)
 	{
-		GameContext.ResourceEconomyService.SetPlayerStone(playerIndex, amount, v => ((IGameAPI)this).Stone = v);
+		GameContext.ResourceEconomyService.SetPlayerStone(playerIndex, amount);
 	}
 
 	void IGameAPI.AdjustPlayerStone(int playerIndex, float delta)
 	{
-		GameContext.ResourceEconomyService.AdjustPlayerStone(playerIndex, delta, v => ((IGameAPI)this).Stone = v, ((IGameAPI)this).Stone);
+		GameContext.ResourceEconomyService.AdjustPlayerStone(playerIndex, delta);
 	}
 
 	void IGameAPI.PanPlayerCameraTo(int playerIndex, Vector3 position, float duration)
@@ -1457,17 +1340,6 @@ public partial class GameHost
 		GameContext.ClientRPC.StartBuildingPlacement(playerIndex, unitTypeId);
 	}
 
-	void IGameAPI.SelectUnit(IUnit unit)
-	{
-		int targetPlayer = unit != null && unit.Player >= 0 ? unit.Player : LocalPlayerIndex;
-		GameContext.ClientRPC.SelectUnit(targetPlayer, unit);
-	}
-
-	void IGameAPI.ClearSelection()
-	{
-		GameContext.ClientRPC.ClearSelection(LocalPlayerIndex);
-	}
-
 	bool IGameAPI.HasCoordinate(string coordinateName)
 	{
 		return GameContext.EditorService.HasCoordinate(coordinateName);
@@ -1511,16 +1383,6 @@ public partial class GameHost
 	void IGameAPI.EnableUnitAutoCombat(IUnit unit, bool enabled)
 	{
 		GameContext.SimulationService.EnableUnitAutoCombat(unit, enabled);
-	}
-
-	void IGameAPI.PlayWarningSound()
-	{
-		GameContext.ClientRPC.PlayWarningSound(LocalPlayerIndex);
-	}
-
-	void IGameAPI.PlayClickSound()
-	{
-		GameContext.ClientRPC.PlayClickSound(LocalPlayerIndex);
 	}
 
 	void IGameAPI.SetPlayerBotProfile(int playerIndex, string profileJson)

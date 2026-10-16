@@ -92,13 +92,9 @@ public class ReplayService
 			GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
 
 			mapping.PeerIdToPlayerEntityMap[p.PeerId] = playerEntity;
-			if (p.PeerId == 1)
+			if (p.PeerId >= 0 && p.PeerId < mapping.PlayerEntities.Length)
 			{
-				mapping.PlayerEntity = playerEntity;
-			}
-			else if (p.PeerId == -1)
-			{
-				mapping.EnemyPlayerEntity = playerEntity;
+				mapping.PlayerEntities[p.PeerId] = playerEntity;
 			}
 		}
 	}
@@ -121,13 +117,21 @@ public class ReplayService
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
 
-		Entity ownerPlayerEntity = mapping.PlayerEntity;
-		if (mapping.PeerIdToPlayerEntityMap.TryGetValue(snap.OwnerPlayerEntityId, out var pe))
+		Entity ownerPlayerEntity = Entity.Null;
+		if (snap.OwnerPlayerEntityId >= 0 && snap.OwnerPlayerEntityId < mapping.PlayerEntities.Length)
+		{
+			ownerPlayerEntity = mapping.PlayerEntities[snap.OwnerPlayerEntityId];
+		}
+		if (ownerPlayerEntity == Entity.Null && mapping.PeerIdToPlayerEntityMap.TryGetValue(snap.OwnerPlayerEntityId, out var pe))
 		{
 			ownerPlayerEntity = pe;
 		}
+		if (ownerPlayerEntity == Entity.Null)
+		{
+			ownerPlayerEntity = mapping.PlayerEntities[1];
+		}
 
-		bool isEnemy = ownerPlayerEntity != mapping.PlayerEntity;
+		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(1, snap.OwnerPlayerEntityId >= 0 ? snap.OwnerPlayerEntityId : 1);
 
 		var entity = GameContext.World.Create();
 		GameContext.World.Add(entity, new DefinitionId(snap.UnitId));
@@ -262,6 +266,14 @@ public class ReplayService
 
 	private int GetOwnerPlayerEntityId(NetworkMappingState mapping, PlayerEntity owner)
 	{
+		for (int i = 0; i < mapping.PlayerEntities.Length; i++)
+		{
+			if (mapping.PlayerEntities[i] == owner.Value)
+			{
+				return i;
+			}
+		}
+
 		foreach (var kvp in mapping.PeerIdToPlayerEntityMap)
 		{
 			if (kvp.Value == owner.Value)
@@ -388,8 +400,8 @@ public class ReplayService
 
 	private void GetPlayerResources(NetworkMappingState mapping, ref float gold, ref float wood, ref float stone)
 	{
-		Entity playerEnt = mapping.PlayerEntity;
-		if (!GameContext.World.IsAlive(playerEnt) || !GameContext.World.Has<PlayerResources>(playerEnt)) return;
+		Entity playerEnt = mapping.PlayerEntities[1];
+		if (playerEnt == Entity.Null || !GameContext.World.IsAlive(playerEnt) || !GameContext.World.Has<PlayerResources>(playerEnt)) return;
 
 		var dict = GameContext.World.Get<PlayerResources>(playerEnt).Value;
 		if (dict.TryGetValue(new ResourceId("gold"), out var gVal)) gold = gVal;

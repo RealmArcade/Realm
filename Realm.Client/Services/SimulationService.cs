@@ -1372,9 +1372,9 @@ public class SimulationService
 			: new Vector3(0f, 0f, 8f);
 		var spawnPos = buildingPos + spawnOffset;
 
-		var ownerComp = GameContext.World.Get<Owner>(entity);
-		var playerEntity = GameContext.World.Get<NetworkMappingState>(ActiveWorldEntity).PlayerEntity;
-		bool isEnemy = ownerComp.PlayerEntity != playerEntity.AsPlayerEntity(GameContext.World);
+		int buildingPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
+		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, buildingPlayerIndex);
 
 		_tickSpawningRequests.Add(new SpawningRequest
 		{
@@ -1997,23 +1997,17 @@ public class SimulationService
 		return false;
 	}
 
-	public float GetPlayerGoldDomain(int playerIndex, float localGold)
+	public float GetPlayerGoldDomain(int playerIndex)
 	{
 		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			return playersState.Players[playerIndex].Gold;
 		}
-		if (playerIndex == (GameHost.Instance?.LocalPlayerIndex ?? 1)) return localGold;
 		return 0f;
 	}
 
-	public void SetPlayerGoldDomain(int playerIndex, float amount, Action<float> setLocalGoldAction, Action<int, float> syncResourceAction)
+	public void SetPlayerGoldDomain(int playerIndex, float amount, Action<int, float> syncResourceAction)
 	{
-		if (playerIndex == (GameHost.Instance?.LocalPlayerIndex ?? 1))
-		{
-			setLocalGoldAction(amount);
-		}
-
 		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].Gold = Math.Max(0f, amount);
