@@ -67,7 +67,7 @@ public partial class GameHost
 
 	private void UpdateClientWorldState(float fDelta)
 	{
-		bool isEditorMode = GameContext.EditorService.IsMapEditorMode;
+		bool isEditorMode = GameContext.SessionState.IsMapEditorMode;
 		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, isEditorMode);
 		if (res.UpdateVisuals)
 		{
@@ -259,9 +259,10 @@ public partial class GameHost
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void SyncPlayerResources(float gold, float wood, float stone)
 	{
-		((IGameAPI)this).Gold = gold;
-		((IGameAPI)this).Wood = wood;
-		((IGameAPI)this).Stone = stone;
+		int localSlot = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		((IGameAPI)this).SetPlayerGold(localSlot, gold);
+		((IGameAPI)this).SetPlayerWood(localSlot, wood);
+		((IGameAPI)this).SetPlayerStone(localSlot, stone);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -488,7 +489,7 @@ public partial class GameHost
 			if (dayNightCycleEnabled && GameContext.EnvironmentService.TimeOfDayCycleDuration > 0)
 			{
 				float progress = timeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
-				if (!GameContext.EditorService.IsMapEditorMode)
+				if (!GameContext.SessionState.IsMapEditorMode)
 				{
 					UpdateDayNightVisuals(progress);
 				}
@@ -636,6 +637,69 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientShakeCamera(float intensity, float duration)
+	{
+		ShakeCameraInternal(intensity, duration);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientSelectUnit(int serverEntityId)
+	{
+		Callable.From(() =>
+		{
+			Entity targetEntity = Entity.Null;
+			if (!TryGetLocalEntity(serverEntityId, out targetEntity))
+			{
+				foreach (var u in AllUnits)
+				{
+					if (GodotObject.IsInstanceValid(u) && u.Entity.Id == serverEntityId)
+					{
+						targetEntity = u.Entity;
+						break;
+					}
+				}
+			}
+
+			if (targetEntity != Entity.Null && TryGetUnit3D(targetEntity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+			{
+				ClearSelection();
+				SelectUnit(unit3D);
+				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			}
+		}).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientClearSelection()
+	{
+		ClearSelectionInternal();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientPingMinimap(Vector3 position)
+	{
+		Callable.From(() => AddMinimapPing(position)).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientPlayWarningSound()
+	{
+		Callable.From(() => GameContext.AudioService?.PlayWarningSound()).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientPlayClickSound()
+	{
+		Callable.From(() => GameContext.AudioService?.PlayClickSound()).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientStartBuildingPlacement(string unitTypeId)
+	{
+		Callable.From(() => EnterBuildingPlacement(unitTypeId)).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientGameOver(bool isVictory)
 	{
 		GameContext.NetworkService.SetGameOver();
@@ -649,12 +713,13 @@ public partial class GameHost
 		GameContext.NetworkService.MarkClientEnteredMultiplayer();
 		GameContext.NetworkService.ResetReconnectionState();
 
+		Entity reconnectedEntity = Entity.Null;
 		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
 		{
-			_playerEntity = GameContext.NetworkService.AssignReconnectedPlayerEntity(slot, LobbyManager.Instance.PlayerList, _localPeerId, _peerIdToPlayerEntityMap);
+			reconnectedEntity = GameContext.NetworkService.AssignReconnectedPlayerEntity(slot, LobbyManager.Instance.PlayerList, _localPeerId, _peerIdToPlayerEntityMap);
 		}
 
-		GameContext.NetworkService.UpdateReconnectedClientMapping(_playerEntity, _enemyPlayerEntity, _localPeerId);
+		GameContext.NetworkService.UpdateReconnectedClientMapping(reconnectedEntity, _localPeerId);
 
 		InGameHUD.Instance?.RefreshUI(SelectedUnits);
 		GD.Print($"[GameHost] OnClientReconnected completed for LocalPeerId={_localPeerId}, Slot={slot}");

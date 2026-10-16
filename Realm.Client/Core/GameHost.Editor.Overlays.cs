@@ -644,9 +644,9 @@ namespace Realm.Client.Core
 		{
 			if (GroundTerrain != null)
 			{
-				bool gridVisible = GameContext.EditorService.IsMapEditorMode && (GameContext.EditorService.EditorGridMode == GridOverlayMode.Grid || GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
+				bool gridVisible = GameContext.SessionState.IsMapEditorMode && (GameContext.EditorService.EditorGridMode == GridOverlayMode.Grid || GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
 				GroundTerrain.SetGridVisible(gridVisible);
-				bool polarVisible = GameContext.EditorService.IsMapEditorMode && (EditorMirrorMode == MirrorMode.Rotational || GameContext.EditorService.EditorGridMode == GridOverlayMode.Polar || GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
+				bool polarVisible = GameContext.SessionState.IsMapEditorMode && (EditorMirrorMode == MirrorMode.Rotational || GameContext.EditorService.EditorGridMode == GridOverlayMode.Polar || GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
 				GroundTerrain.SetPolarOverlayVisible(polarVisible);
 				GameContext.EditorService.EditorPolarOverlayVisible = polarVisible;
 			}
@@ -870,7 +870,7 @@ namespace Realm.Client.Core
 		public void UpdateCameraBoundsOverlayVisibility()
 		{
 			if (_cameraBoundsOverlayMesh == null) return;
-			_cameraBoundsOverlayMesh.Visible = GameContext.EditorService.IsMapEditorMode && GameContext.EditorService.EditorCameraBoundsVisible;
+			_cameraBoundsOverlayMesh.Visible = GameContext.SessionState.IsMapEditorMode && GameContext.EditorService.EditorCameraBoundsVisible;
 			if (_cameraBoundsOverlayMesh.Visible)
 			{
 				RebuildCameraBoundsOverlay();
@@ -882,7 +882,7 @@ namespace Realm.Client.Core
 			bool isPathingTool = ActiveEditorTool == EditorTool.PaintPathing || ActiveEditorTool == EditorTool.FloodFillPathing;
 			bool isClipboardTool = ActiveEditorTool == EditorTool.SelectArea || ActiveEditorTool == EditorTool.PasteArea;
 
-			bool shouldBeVisible = GameContext.EditorService.IsMapEditorMode && PathingOverlayVisible && (isPathingTool || (isClipboardTool && PasteOptionPathing));
+			bool shouldBeVisible = GameContext.SessionState.IsMapEditorMode && PathingOverlayVisible && (isPathingTool || (isClipboardTool && PasteOptionPathing));
 
 			if (GroundTerrain != null)
 			{

@@ -5,7 +5,9 @@ using System.IO;
 using Fastenshtein;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Shared.Distribution;
+using Realm.Shared.Services;
 using Environment = Godot.Environment;
 
 namespace Realm.Client.UI.MapEditor;
@@ -67,6 +69,7 @@ public partial class FloatingDialogBase : PanelContainer
 	protected HBoxContainer FooterHBox;
 	protected Button CancelButton;
 	protected Button ApplyButton;
+	protected Button RandomizeAssetsButton;
 
 	private bool _isDragging;
 	private Vector2 _dragStartMousePosition;
@@ -166,6 +169,97 @@ public partial class FloatingDialogBase : PanelContainer
 		btnClose.FocusMode = FocusModeEnum.None;
 		btnClose.Pressed += () => CloseDialog();
 		FooterHBox.AddChild(btnClose);
+	}
+
+	protected virtual string GetRandomizeTemplateSlug()
+	{
+		return string.Empty;
+	}
+
+	protected virtual void OnAssetsRandomized()
+	{
+	}
+
+	protected readonly SessionAssetTracker SessionAssetTracker = new();
+
+	public void CaptureBaselineManifestSnapshot()
+	{
+		SessionAssetTracker.CaptureBaselineManifestSnapshot();
+	}
+
+	public virtual void RandomizeAssets()
+	{
+		string targetSlug = GetRandomizeTemplateSlug();
+		if (string.IsNullOrWhiteSpace(targetSlug))
+		{
+			return;
+		}
+
+		if (SessionAssetTracker.BaselineManifestAssets.Count == 0)
+		{
+			SessionAssetTracker.CaptureBaselineManifestSnapshot();
+		}
+
+		if (SessionAssetTracker.InitialRandomizeTemplateJson == null)
+		{
+			SessionAssetTracker.RandomizeTemplateSlug = targetSlug;
+			SessionAssetTracker.InitialRandomizeTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetSlug);
+		}
+
+		GameContext.EditorService.SnapshotTemplateJson(targetSlug);
+		GameContext.EditorService.AssignRandomAssetsToTemplate(targetSlug, overwriteExisting: true);
+
+		SessionAssetTracker.RecordImportedAssets();
+
+		OnAssetsRandomized();
+	}
+
+	public void PruneUnreferencedSessionAssets(bool revertSnapshot = false)
+	{
+		SessionAssetTracker.PruneUnreferencedSessionAssets(revertSnapshot);
+	}
+
+	public virtual void SetRandomizeAssetsAction(Action? onRandomize = null)
+	{
+		var actionToWire = onRandomize ?? RandomizeAssets;
+
+		if (RandomizeAssetsButton == null)
+		{
+			RandomizeAssetsButton = new Button();
+			RandomizeAssetsButton.Set("icon_max_width", 0);
+			RandomizeAssetsButton.Text = $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize Assets");
+			RandomizeAssetsButton.CustomMinimumSize = new Vector2(160, 28);
+			RandomizeAssetsButton.FocusMode = FocusModeEnum.None;
+			RandomizeAssetsButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+			RandomizeAssetsButton.TooltipText = TranslationServer.Translate("Randomly assign matching indexed assets from storage to this template");
+
+			var faFont = Hud?.GetFontAwesomeFont();
+			if (faFont != null)
+			{
+				RandomizeAssetsButton.AddThemeFontOverride("font", faFont);
+			}
+
+			RandomizeAssetsButton.AddThemeFontSizeOverride("font_size", 11);
+			RandomizeAssetsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+			RandomizeAssetsButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+			RandomizeAssetsButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+			RandomizeAssetsButton.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+
+			BodyContainer.AddChild(RandomizeAssetsButton);
+			BodyContainer.MoveChild(RandomizeAssetsButton, 0);
+		}
+
+		RandomizeAssetsButton.Visible = true;
+		var signals = RandomizeAssetsButton.GetSignalConnectionList("pressed");
+		foreach (var sig in signals)
+		{
+			if (sig.TryGetValue("callable", out var c) && c.VariantType == Variant.Type.Callable)
+			{
+				RandomizeAssetsButton.Disconnect("pressed", c.AsCallable());
+			}
+		}
+
+		RandomizeAssetsButton.Pressed += () => actionToWire();
 	}
 
 	public void SetFooterApplyOnly(string applyText = "APPLY")
@@ -286,9 +380,16 @@ public partial class FloatingDialogBase : PanelContainer
 
 	public virtual void OpenDialog()
 	{
+		CaptureBaselineManifestSnapshot();
+
 		if (GetParent() == null && Hud != null)
 		{
 			Hud.AddChild(this);
+		}
+
+		if (RandomizeAssetsButton == null && !string.IsNullOrWhiteSpace(GetRandomizeTemplateSlug()))
+		{
+			SetRandomizeAssetsAction();
 		}
 
 		Visible = true;
@@ -309,6 +410,7 @@ public partial class FloatingDialogBase : PanelContainer
 	{
 		CommitPendingInputFocus();
 		OnApply();
+		PruneUnreferencedSessionAssets(revertSnapshot: false);
 		CloseDialog();
 	}
 
@@ -369,6 +471,7 @@ public partial class FloatingDialogBase : PanelContainer
 	public virtual void CancelAndClose()
 	{
 		OnCancel();
+		PruneUnreferencedSessionAssets(revertSnapshot: true);
 		CloseDialog();
 	}
 
@@ -376,6 +479,8 @@ public partial class FloatingDialogBase : PanelContainer
 
 	public virtual void CloseDialog()
 	{
+		SessionAssetTracker.Reset();
+
 		_openDialogs.Remove(this);
 		Visible = false;
 		if (GetParent() != null)

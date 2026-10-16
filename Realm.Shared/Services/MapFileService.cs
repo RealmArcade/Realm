@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Realm.Shared.Distribution;
@@ -13,7 +14,8 @@ public static class MapFileService
 		AllowTrailingCommas = true,
 		ReadCommentHandling = JsonCommentHandling.Skip,
 		WriteIndented = true,
-		PropertyNameCaseInsensitive = true
+		PropertyNameCaseInsensitive = true,
+		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
 	private static readonly JsonSerializerOptions MetadataJsonOptions = new()
@@ -21,7 +23,8 @@ public static class MapFileService
 		PropertyNameCaseInsensitive = true,
 		IncludeFields = true,
 		WriteIndented = true,
-		Converters = { new JsonStringEnumConverter() }
+		Converters = { new JsonStringEnumConverter() },
+		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
 	private static readonly JsonSerializerOptions TerrainJsonOptions = new()
@@ -29,7 +32,8 @@ public static class MapFileService
 		PropertyNameCaseInsensitive = true,
 		IncludeFields = true,
 		WriteIndented = true,
-		Converters = { new JsonStringEnumConverter() }
+		Converters = { new JsonStringEnumConverter() },
+		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
 	public static string ResolvePath(string pathOrDirectory, string targetFileName)

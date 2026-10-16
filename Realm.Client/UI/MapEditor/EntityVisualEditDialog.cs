@@ -37,6 +37,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private bool _isSyncing = false;
 	private Node _currentSelectedObject;
 	private VisualOverridesSnapshot _initialSnapshot;
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 	private float _modelLocalMinY = 0f;
 	private float _previousScale = 1.0f;
 	private Action<string, string> _onAppliedCallback;
@@ -1313,6 +1315,30 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		OpenDialog();
 	}
 
+	protected override string GetRandomizeTemplateSlug()
+	{
+		return !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var loadedMeta) && loadedMeta != null)
+		{
+			LoadMetadataByCategory(loadedMeta, targetId);
+			if (string.IsNullOrEmpty(_modelPath) && !string.IsNullOrEmpty(_slug))
+			{
+				LoadMetadataByCategory(loadedMeta, _slug);
+			}
+		}
+
+		SyncControls();
+		ApplyLiveModelAndVisualMode();
+		UpdateRiggedAnimationButtonVisibility();
+	}
+
 	private void InitializeDialogState(string category, string objectId, Node selectedObject, Action<string, string> onApplied)
 	{
 		_currentSelectedObject = selectedObject;
@@ -1390,6 +1416,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			EnableProceduralAnimation = _enableProceduralAnimation,
 			ProceduralAnimation = _proceduralAnimation
 		};
+
+		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
 	}
 
 	private void InitializeModelProperties(object targetLookup, string parsedSlug)
@@ -2099,6 +2129,19 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	protected override void OnCancel()
 	{
+		string targetId = !string.IsNullOrEmpty(_originalTemplateID) ? _originalTemplateID : $"{_objectType}/{_slug}";
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			if (_templateExistedInitially)
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
+		}
+
 		if (GameHost.Instance == null || string.IsNullOrEmpty(_originalTemplateID)) return;
 
 		RestoreStaticRegistryMode();

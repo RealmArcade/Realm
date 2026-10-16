@@ -260,21 +260,6 @@
             Provides convenience extension methods for map authors using the <see cref="T:Realm.MapAPI.IGameAPI"/> interface.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.GameAPIExtensions.GetPlayerLanguage(Realm.MapAPI.IGameAPI)">
-            <summary>
-            Retrieves the preferred language code of the primary local player.
-            </summary>
-            <param name="api">The game API instance.</param>
-            <returns>ISO language code string (e.g. "en", "es").</returns>
-        </member>
-        <member name="M:Realm.MapAPI.GameAPIExtensions.Translate(Realm.MapAPI.IGameAPI,System.String)">
-            <summary>
-            Translates a localization key for the current local player with English fallback.
-            </summary>
-            <param name="api">The game API instance.</param>
-            <param name="key">Localization translation key.</param>
-            <returns>Translated text string.</returns>
-        </member>
         <member name="M:Realm.MapAPI.GameAPIExtensions.SaveData``1(Realm.MapAPI.IGameAPI,System.String,``0,System.Int32,System.String,System.String)">
             <summary>
             Serializes and saves arbitrary data into a signed, human-readable JSON envelope on disk.
@@ -555,36 +540,10 @@
             Defines the safe, public API exposed to map scripts to interact with the game engine.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.IGameAPI.Gold">
-            <summary>
-            Gets or sets the player's gold resource amount.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.IGameAPI.Wood">
-            <summary>
-            Gets or sets the player's wood resource amount.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.IGameAPI.Stone">
-            <summary>
-            Gets or sets the player's stone resource amount.
-            </summary>
-        </member>
         <member name="P:Realm.MapAPI.IGameAPI.GameElapsedTime">
             <summary>
             Gets the elapsed game time in seconds.
             </summary>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SpawnUnit(System.String,System.Numerics.Vector3,System.Boolean,System.Boolean,System.Boolean)">
-            <summary>
-            Spawns a unit or building of the specified type at the given position.
-            </summary>
-            <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-            <param name="position">The spawn coordinates in 3D world space.</param>
-            <param name="isEnemy">True if the unit should belong to the enemy, false if friendly.</param>
-            <param name="bypassPopulation">True to spawn the unit without consuming the player's population limit, false to consume it normally.</param>
-            <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
-            <returns>A reference to the spawned unit.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SpawnResourceNode(System.String,System.Numerics.Vector3,System.Single)">
             <summary>
@@ -631,16 +590,6 @@
             <param name="text">The text message to display.</param>
             <param name="color">The color of the text in RGB format.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.PlayWarningSound">
-            <summary>
-            Plays the standard warning/alert audio sound.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.PlayClickSound">
-            <summary>
-            Plays the standard button/command click audio sound.
-            </summary>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.TriggerVictory">
             <summary>
             Triggers the game victory sequence.
@@ -651,13 +600,6 @@
             Triggers the game defeat sequence.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetCastle(System.Boolean)">
-            <summary>
-            Gets the castle unit belonging to the specified faction.
-            </summary>
-            <param name="isEnemy">True to get the enemy castle, false for the player castle.</param>
-            <returns>The castle unit, or null if it has been destroyed.</returns>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SpawnTargetIndicator(System.Numerics.Vector3,System.Numerics.Vector3)">
             <summary>
             Spawns a temporary visual target indicator ring at the specified position with the given color.
@@ -665,40 +607,12 @@
             <param name="position">The coordinates in 3D world space.</param>
             <param name="color">The color of the indicator ring in RGB format.</param>
         </member>
-        <member name="P:Realm.MapAPI.IGameAPI.MaxPopulation">
-            <summary>
-            Gets or sets the player's maximum population capacity.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.IGameAPI.CurrentPopulation">
-            <summary>
-            Gets the player's current population.
-            </summary>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitById(System.Int32)">
             <summary>
             Retrieves a unit by its unique runtime identifier.
             </summary>
             <param name="uniqueId">The unique ID of the unit to retrieve.</param>
             <returns>The unit wrapper if alive, or null.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetSelectedUnits">
-            <summary>
-            Retrieves all units that are currently selected by the player.
-            </summary>
-            <returns>A collection of currently selected units.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.PingMinimap(System.Numerics.Vector3)">
-            <summary>
-            Spawns a minimap ping at the specified 3D position in world space.
-            </summary>
-            <param name="position">The target position in 3D world space.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.StartBuildingPlacement(System.String)">
-            <summary>
-            Enters building placement mode for the specified structure type.
-            </summary>
-            <param name="unitTypeId">The unit type ID of the building to place.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GenerateMapDirectory(System.String,System.String)">
             <summary>
@@ -801,6 +715,17 @@
             <param name="speed">The expansion speed in units per second.</param>
             <param name="duration">Total lifespan in seconds before fading out.</param>
             <param name="color">Optional RGB color tint for the ground ring.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.DrawLineOnTerrain(System.Numerics.Vector2,System.Numerics.Vector2,System.Nullable{System.Numerics.Vector3},System.Single,System.Single)">
+            <summary>
+            Draws a visual line on the terrain surface between two ground coordinates.
+            The line automatically conforms to the terrain height mesh along its path.
+            </summary>
+            <param name="start">The starting ground position (X, Z coordinates on the map plane).</param>
+            <param name="end">The ending ground position (X, Z coordinates on the map plane).</param>
+            <param name="color">Optional RGB color tint for the line.</param>
+            <param name="duration">Duration in seconds before the line fully fades out.</param>
+            <param name="width">The visual width/thickness of the line in world units.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SpawnExpandingBurstSphere(System.Numerics.Vector3,System.Single,System.Single,System.Single,System.Nullable{System.Numerics.Vector3})">
             <summary>
@@ -942,7 +867,7 @@
             Translates a localization key using the player's preferred language with English fallback.
             </summary>
             <param name="key">Localization translation key.</param>
-            <param name="playerIndex">Zero-based player index, or -1 for current local player.</param>
+            <param name="playerIndex">Zero-based player slot index.</param>
             <returns>Translated text string.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.StartCountdownTimer(System.Single,System.String)">
@@ -963,13 +888,6 @@
             </summary>
             <param name="intensity">The shake strength multiplier.</param>
             <param name="duration">The time in seconds the shake lasts.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.PanCameraTo(System.Numerics.Vector3,System.Single)">
-            <summary>
-            Smoothly pans the game camera to the specified position.
-            </summary>
-            <param name="position">The target position in 3D world space.</param>
-            <param name="duration">The pan time in seconds.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetTimeOfDay(System.Single)">
             <summary>
@@ -1038,14 +956,15 @@
             <param name="playerIndex">Zero-based player slot index.</param>
             <param name="delta">The amount to add (may be negative).</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SpawnUnitForPlayer(System.String,System.Numerics.Vector3,System.Int32,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnUnitForPlayer(System.String,System.Numerics.Vector2,System.Int32,System.Boolean,System.Boolean)">
             <summary>
             Spawns a unit owned by the specified player slot at the given position.
             </summary>
             <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-            <param name="position">The spawn coordinates in 3D world space.</param>
+            <param name="position">The spawn coordinates in 2D ground space (X, Z).</param>
             <param name="playerIndex">Zero-based player slot index that will own the unit.</param>
             <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
+            <param name="bypassPopulation">True to bypass population cap limits when spawning, false to enforce population limits.</param>
             <returns>A reference to the spawned unit.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitsOwnedByPlayer(System.Int32)">
@@ -1161,11 +1080,41 @@
             <param name="otherPlayerIndex">Zero-based index of the second player.</param>
             <param name="allied">True to make them allied; false to revert to enemies.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ArePlayersAllied(System.Int32,System.Int32)">
+            <summary>
+            Returns true if two player slots treat each other as passive allies.
+            </summary>
+            <param name="playerIndex">Index of the first player.</param>
+            <param name="otherPlayerIndex">Index of the second player.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.IsPlayerComputer(System.Int32)">
             <summary>
             Returns true if the specified player slot is controlled by a computer AI.
             </summary>
-            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="playerIndex">Player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerActive(System.Int32,System.Boolean)">
+            <summary>
+            Sets whether the specified player slot is active in the game session.
+            </summary>
+            <param name="playerIndex">Player slot index.</param>
+            <param name="active">True if active, false otherwise.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.KickPlayer(System.Int32,System.String)">
+            <summary>
+            Kicks the specified player slot from the match.
+            </summary>
+            <param name="playerIndex">Player slot index.</param>
+            <param name="reason">Optional reason message for the kick.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.AddComputerPlayer(System.Int32,System.String,System.Int32)">
+            <summary>
+            Adds or configures an AI computer player in the specified slot.
+            </summary>
+            <param name="playerIndex">The player slot index.</param>
+            <param name="name">Optional display name for the bot.</param>
+            <param name="teamIndex">Optional team index (default -1 for unassigned).</param>
+            <returns>True if successfully added or configured.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitColor(Realm.MapAPI.IUnit,System.Numerics.Vector3)">
             <summary>
@@ -1416,17 +1365,6 @@
             <param name="unit">The unit to modify.</param>
             <param name="immune">True to make the unit spell-immune; false to remove the immunity.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SelectUnit(Realm.MapAPI.IUnit)">
-            <summary>
-            Selects the specified unit programmatically, clearing any previously selected units.
-            </summary>
-            <param name="unit">The unit to select.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.ClearSelection">
-            <summary>
-            Clears the player's unit selection programmatically.
-            </summary>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.HasCoordinate(System.String)">
             <summary>
             Checks if a named coordinate box exists.
@@ -1482,23 +1420,15 @@
             <param name="coordinate">The coordinate box to check against.</param>
             <returns>True if the position is inside the coordinate box, false otherwise.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SpawnUnit(System.String,Realm.MapAPI.Coordinate,System.Boolean,System.Boolean)">
-            <summary>
-            Spawns a new unit of the specified type at the center of the given coordinate region.
-            </summary>
-            <param name="unitTypeId">The type identifier of the unit to spawn.</param>
-            <param name="coordinate">The coordinate region whose center will be used as spawn location.</param>
-            <param name="isEnemy">True if the unit belongs to the enemy player.</param>
-            <param name="bypassPopulation">If true, ignores population cap limits.</param>
-            <returns>The spawned <see cref="T:Realm.MapAPI.IUnit"/>.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SpawnUnitForPlayer(System.String,Realm.MapAPI.Coordinate,System.Int32)">
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnUnitForPlayer(System.String,Realm.MapAPI.Coordinate,System.Int32,System.Boolean,System.Boolean)">
             <summary>
             Spawns a new unit for a specific player at the center of the given coordinate region.
             </summary>
             <param name="unitTypeId">The type identifier of the unit to spawn.</param>
             <param name="coordinate">The coordinate region whose center will be used as spawn location.</param>
             <param name="playerIndex">The player index who will own the unit.</param>
+            <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
+            <param name="bypassPopulation">True to bypass population cap limits when spawning, false to enforce population limits.</param>
             <returns>The spawned <see cref="T:Realm.MapAPI.IUnit"/>.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.IssueMoveOrder(Realm.MapAPI.IUnit,Realm.MapAPI.Coordinate)">
@@ -1521,6 +1451,34 @@
             </summary>
             <param name="unitTypeId">The type identifier of the unit/structure.</param>
             <param name="abilityId">The identifier of the ability to add.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitTypeAbilities(System.String)">
+            <summary>
+            Retrieves the ordered list of ability identifiers configured for the specified unit or building type.
+            </summary>
+            <param name="unitTypeId">The unit or building type identifier.</param>
+            <returns>A read-only list of ability identifiers configured for the unit type (never null).</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitName(System.String)">
+            <summary>
+            Retrieves the authored display name for the specified unit or building type.
+            </summary>
+            <param name="unitTypeId">The unit or building type identifier.</param>
+            <returns>The localized or authored display name, or a fallback string if unauthored.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetAbilityName(System.String)">
+            <summary>
+            Retrieves the authored display name for the specified ability type.
+            </summary>
+            <param name="abilityId">The ability type identifier.</param>
+            <returns>The localized or authored display name, or a fallback string if unauthored.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.EnableUnitAutoCombat(Realm.MapAPI.IUnit,System.Boolean)">
+            <summary>
+            Enables or disables automated combat AI for a specific unit instance.
+            </summary>
+            <param name="unit">The unit to modify.</param>
+            <param name="enabled">True to enable autonomous combat AI; false to disable.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.WriteSavedData(System.String,System.String)">
             <summary>
@@ -1831,6 +1789,112 @@
             <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="P:Realm.MapAPI.IGameAPI.PlayerCount"/>.</param>
             <returns>A lazily-evaluated sequence of active player slot indices in ascending order.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayer(System.Int32)">
+            <summary>
+            Retrieves an <see cref="T:Realm.MapAPI.IPlayer"/> facade for the specified zero-based player slot index,
+            providing unified access to both authoritative player state and client-targeted RPC actions.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <returns>An <see cref="T:Realm.MapAPI.IPlayer"/> facade bound to the specified player slot.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetActivePlayers(System.Int32)">
+            <summary>
+            Enumerates <see cref="T:Realm.MapAPI.IPlayer"/> facades for all active player slots below the given exclusive upper bound.
+            </summary>
+            <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="P:Realm.MapAPI.IGameAPI.PlayerCount"/>.</param>
+            <returns>A lazily-evaluated sequence of active <see cref="T:Realm.MapAPI.IPlayer"/> facades in ascending slot order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerStone(System.Int32)">
+            <summary>
+            Gets the stone resource for the specified player slot.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerStone(System.Int32,System.Single)">
+            <summary>
+            Sets the stone resource for the specified player slot.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="amount">The new stone amount.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.AdjustPlayerStone(System.Int32,System.Single)">
+            <summary>
+            Adds the specified amount to the stone resource for the given player slot.
+            Negative values subtract stone.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="delta">The amount to add (may be negative).</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.PanPlayerCameraTo(System.Int32,System.Numerics.Vector3,System.Single)">
+            <summary>
+            Smoothly pans the specified player's camera to the given 3D world position.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="position">The target position in 3D world space.</param>
+            <param name="duration">The pan duration in seconds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ShakePlayerCamera(System.Int32,System.Single,System.Single)">
+            <summary>
+            Shakes the specified player's camera to simulate an explosion or impact.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="intensity">The shake strength multiplier.</param>
+            <param name="duration">The time in seconds the shake lasts.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SelectPlayerUnit(System.Int32,Realm.MapAPI.IUnit)">
+            <summary>
+            Selects the specified unit on the given player's client, clearing their previous selection.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="unit">The unit to select.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ClearPlayerSelection(System.Int32)">
+            <summary>
+            Clears the unit selection on the specified player's client.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerSelectedUnits(System.Int32)">
+            <summary>
+            Retrieves all units currently selected by the specified player.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <returns>A collection of units currently selected by that player.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ShowPlayerFeedbackText(System.Int32,System.String,System.Numerics.Vector3)">
+            <summary>
+            Displays floating feedback text on the specified player's screen.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="text">The text message to display.</param>
+            <param name="color">The color of the text in RGB format.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.PingPlayerMinimap(System.Int32,System.Numerics.Vector3)">
+            <summary>
+            Spawns a minimap ping on the specified player's client at the given 3D world position.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="position">The target position in 3D world space.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.PlayPlayerWarningSound(System.Int32)">
+            <summary>
+            Plays the standard warning/alert audio sound on the specified player's client.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.PlayPlayerClickSound(System.Int32)">
+            <summary>
+            Plays the standard button/command click audio sound on the specified player's client.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.StartPlayerBuildingPlacement(System.Int32,System.String)">
+            <summary>
+            Enters building placement mode on the specified player's client for the given structure type.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="unitTypeId">The unit type ID of the building to place.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.PickRandom``1(System.Collections.Generic.IReadOnlyList{``0})">
             <summary>
             Returns a uniformly random element of the given list.
@@ -1934,6 +1998,338 @@
         <member name="P:Realm.MapAPI.InventoryItemSaveData.CustomData">
             <summary>
             Gets or sets custom arbitrary key-value metadata associated with the item.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.IPlayer">
+            <summary>
+            Represents a player in the game session, providing a unified facade over both
+            server-authoritative player simulation state and client-targeted RPC actions.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.Index">
+            <summary>
+            Gets the zero-based slot index of this player.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.Id">
+            <summary>
+            Gets the zero-based slot index of this player (alias for <see cref="P:Realm.MapAPI.IPlayer.Index"/>).
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.Name">
+            <summary>
+            Gets the display name of this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetName">
+            <summary>
+            Gets the display name of this player.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.IsActive">
+            <summary>
+            Gets a value indicating whether this player slot is occupied by an active human or AI participant.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetActive(System.Boolean)">
+            <summary>
+            Sets whether this player slot is active in the game session.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.IsComputer">
+            <summary>
+            Gets or sets a value indicating whether this player slot is controlled by a computer AI.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.Team">
+            <summary>
+            Gets or sets the team index that this player belongs to.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetTeam">
+            <summary>
+            Gets the team index that this player belongs to.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetTeam(System.Int32)">
+            <summary>
+            Assigns this player to the specified numbered team.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetAllied(System.Int32,System.Boolean)">
+            <summary>
+            Configures whether this player and another player slot treat each other as passive allies.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetAllied(Realm.MapAPI.IPlayer,System.Boolean)">
+            <summary>
+            Configures whether this player and another player treat each other as passive allies.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.IsAlliedWith(System.Int32)">
+            <summary>
+            Returns true if this player and another player slot treat each other as allies.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.IsAlliedWith(Realm.MapAPI.IPlayer)">
+            <summary>
+            Returns true if this player and another player treat each other as allies.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.Kick(System.String)">
+            <summary>
+            Kicks this player from the game session.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.StartLocation">
+            <summary>
+            Gets the start location for this player in 3D world space.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetStartLocation">
+            <summary>
+            Gets the start location for this player in 3D world space.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.Language">
+            <summary>
+            Gets the preferred ISO language code of this player (e.g. "en", "es").
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.ColorHex">
+            <summary>
+            Gets the standard hex color code string (RRGGBB) corresponding to this player's slot.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.ColoredName">
+            <summary>
+            Gets the player's name formatted with BBCode color markup matching their slot color.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.Gold">
+            <summary>
+            Gets or sets the player's gold resource amount.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetGold">
+            <summary>
+            Gets the player's gold resource amount.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetGold(System.Single)">
+            <summary>
+            Sets the player's gold resource amount.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.AdjustGold(System.Single)">
+            <summary>
+            Adds the specified delta to the player's gold resource amount.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.Wood">
+            <summary>
+            Gets or sets the player's wood (lumber) resource amount.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetWood">
+            <summary>
+            Gets the player's wood (lumber) resource amount.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetWood(System.Single)">
+            <summary>
+            Sets the player's wood (lumber) resource amount.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.AdjustWood(System.Single)">
+            <summary>
+            Adds the specified delta to the player's wood (lumber) resource amount.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.Stone">
+            <summary>
+            Gets or sets the player's stone resource amount.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetStone">
+            <summary>
+            Gets the player's stone resource amount.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetStone(System.Single)">
+            <summary>
+            Sets the player's stone resource amount.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.AdjustStone(System.Single)">
+            <summary>
+            Adds the specified delta to the player's stone resource amount.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.CurrentPopulation">
+            <summary>
+            Gets the current population count for this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetCurrentPopulation">
+            <summary>
+            Gets the current population count for this player.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.MaxPopulation">
+            <summary>
+            Gets or sets the maximum population capacity for this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetMaxPopulation">
+            <summary>
+            Gets the maximum population capacity for this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetMaxPopulation(System.Int32)">
+            <summary>
+            Sets the maximum population capacity for this player.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IPlayer.Kills">
+            <summary>
+            Gets or sets the enemy kill count for this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetKills">
+            <summary>
+            Gets the enemy kill count for this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetKills(System.Int32)">
+            <summary>
+            Sets the enemy kill count for this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SpawnUnit(System.String,System.Numerics.Vector2,System.Boolean,System.Boolean)">
+            <summary>
+            Spawns a unit owned by this player at the specified 2D ground coordinates (X, Z).
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SpawnUnit(System.String,System.Numerics.Vector3,System.Boolean,System.Boolean)">
+            <summary>
+            Spawns a unit owned by this player at the specified 3D world position (using X, Z ground coordinates).
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SpawnUnit(System.String,Realm.MapAPI.Coordinate,System.Boolean,System.Boolean)">
+            <summary>
+            Spawns a unit owned by this player at the center of the specified coordinate region.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetUnits">
+            <summary>
+            Retrieves all alive units owned by this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetUnits(System.Func{Realm.MapAPI.IUnit,System.Boolean})">
+            <summary>
+            Retrieves all alive units owned by this player that satisfy the given filter predicate.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.CountUnits(System.Func{Realm.MapAPI.IUnit,System.Boolean})">
+            <summary>
+            Returns the number of alive units owned by this player matching the optional filter.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.IssueAttackMoveOrder(System.Numerics.Vector3)">
+            <summary>
+            Orders all units owned by this player to attack-move to the destination.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetTechLevel(System.String)">
+            <summary>
+            Gets the research level of a technology upgrade for this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetTechLevel(System.String,System.Int32)">
+            <summary>
+            Sets the research level of a technology upgrade for this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.AddTechLevel(System.String,System.Int32)">
+            <summary>
+            Adds to the research level of a technology upgrade for this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.PanCameraTo(System.Numerics.Vector3,System.Single)">
+            <summary>
+            Smoothly pans this player's camera to the specified 3D world position.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.MoveCameraTo(System.Numerics.Vector3,System.Single)">
+            <summary>
+            Smoothly moves/pans this player's camera to the specified 3D world position.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.ShakeCamera(System.Single,System.Single)">
+            <summary>
+            Shakes this player's camera to simulate an explosion or impact.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SelectUnit(Realm.MapAPI.IUnit)">
+            <summary>
+            Selects the specified unit on this player's client, clearing their previous selection.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.ClearSelection">
+            <summary>
+            Clears the unit selection on this player's client.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.GetSelectedUnits">
+            <summary>
+            Retrieves the units currently selected by this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SendMessage(System.String)">
+            <summary>
+            Sends a text message to this player's screen.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.ShowFeedbackText(System.String,System.Numerics.Vector3)">
+            <summary>
+            Displays floating feedback text on this player's screen with the specified RGB color.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.PingMinimap(System.Numerics.Vector3)">
+            <summary>
+            Spawns a minimap ping on this player's client at the specified 3D world position.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.PlayWarningSound">
+            <summary>
+            Plays the standard warning/alert sound on this player's client.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.PlayClickSound">
+            <summary>
+            Plays the standard button/command click sound on this player's client.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.StartBuildingPlacement(System.String)">
+            <summary>
+            Enters building placement mode on this player's client for the specified structure type.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.TriggerVictory">
+            <summary>
+            Triggers the victory sequence for this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.TriggerDefeat(System.String)">
+            <summary>
+            Triggers the defeat sequence for this player.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.PlayerFacade">
+            <summary>
+            Default pass-through facade implementation of <see cref="T:Realm.MapAPI.IPlayer"/> that delegates
+            player-scoped operations to <see cref="T:Realm.MapAPI.IGameAPI"/>.
             </summary>
         </member>
         <member name="T:Realm.MapAPI.IResourceNode">
@@ -2320,6 +2716,24 @@
             <param name="duration">The duration of the impulse oscillation in seconds.</param>
             <param name="frequency">The oscillation frequency in Hz.</param>
         </member>
+        <member name="M:Realm.MapAPI.IUnit.GetAbilities">
+            <summary>
+            Retrieves the ordered list of ability identifiers configured for this unit's archetype.
+            </summary>
+            <returns>A read-only list of ability identifiers (never null).</returns>
+        </member>
+        <member name="P:Realm.MapAPI.IUnit.AutoCombatEnabled">
+            <summary>
+            Gets or sets a value indicating whether automated combat AI is enabled for this unit instance.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IUnit.SetAutoCast(System.String,System.Boolean)">
+            <summary>
+            Enables or disables auto-cast for the specified ability on this unit.
+            </summary>
+            <param name="abilityId">The identifier of the ability.</param>
+            <param name="active">True to activate auto-cast, false to deactivate.</param>
+        </member>
         <member name="T:Realm.MapAPI.IWasmModule">
             <summary>
             Represents a WebAssembly guest map script running inside the guest sandbox.
@@ -2329,6 +2743,16 @@
             <summary>
             Represents a WebAssembly host runtime executing a guest Wasm module.
             </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IWasmRuntime.ExecuteCustomFormula(System.String,System.Single,System.Single,System.Int32)">
+            <summary>
+            Executes an exported custom formula function from the WebAssembly guest module.
+            </summary>
+            <param name="functionName">The name of the exported function in the WebAssembly module.</param>
+            <param name="baseValue">The current base value of the stat.</param>
+            <param name="modifierValue">The configured value of the modifier.</param>
+            <param name="level">The source level of the modifier.</param>
+            <returns>The calculated bonus stat value, or zero if execution fails.</returns>
         </member>
         <member name="T:Realm.MapAPI.MapCosmeticSaveData">
             <summary>

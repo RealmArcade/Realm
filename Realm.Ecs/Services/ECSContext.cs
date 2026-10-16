@@ -16,6 +16,7 @@ public static class ECSContext
 	public static PlayerResourceService? PlayerResourceService { get; private set; }
 	public static StatService? StatService { get; private set; }
 	public static TerrainNavMeshService? TerrainNavMeshService { get; private set; }
+	public static IWasmEvaluationEngine? EvaluationEngine { get; set; }
 
 	static ECSContext()
 	{
@@ -54,6 +55,7 @@ public static class ECSContext
 		StatService = null;
 		TerrainNavMeshService = null;
 		PlayerResourceService = null;
+		EvaluationEngine = null;
 		World?.Dispose();
 		World = null;
 	}

@@ -1,0 +1,68 @@
+[gd_scene format=3 uid="uid://btcnvnkjpuns1"]
+
+[ext_resource type="Script" uid="uid://c7lawhi6g8k2d" path="res://Core/GameHost.cs" id="1_gamehost"]
+[ext_resource type="Script" uid="uid://ytd523ow1hew" path="res://CameraControl.cs" id="3_cm0pq"]
+[ext_resource type="Script" uid="uid://b14qd12uvgxrf" path="res://FPSCounter.cs" id="3_r0du0"]
+[ext_resource type="PackedScene" path="res://UI/UIManager.tscn" id="4_ui"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_cm0pq"]
+
+[sub_resource type="Sky" id="Sky_fos0i"]
+sky_material = SubResource("ProceduralSkyMaterial_cm0pq")
+
+[sub_resource type="Environment" id="Environment_3dxm6"]
+background_mode = 2
+sky = SubResource("Sky_fos0i")
+ambient_light_source = 2
+ambient_light_color = Color(0.4, 0.6, 0.85, 1)
+ambient_light_energy = 2.0
+tonemap_mode = 3
+ssao_enabled = true
+ssao_radius = 1.8
+ssao_intensity = 0.8
+glow_enabled = true
+glow_intensity = 0.6
+glow_bloom = 0.12
+fog_enabled = true
+fog_light_color = Color(0.08, 0.1, 0.15, 1)
+fog_density = 0.015
+adjustment_enabled = true
+adjustment_saturation = 1.05
+
+[node name="Main" type="Node3D" unique_id=648672385]
+script = ExtResource("1_gamehost")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1286803203]
+transform = Transform3D(0.939693, 0.280166, -0.196175, 0, 0.573576, 0.819152, 0.34202, -0.769752, 0.538986, 0, 10, 0)
+light_color = Color(1, 0.957, 0.878, 1)
+light_energy = 3.2
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=323284250]
+script = ExtResource("3_cm0pq")
+
+[node name="CharacterFillLight" type="DirectionalLight3D" parent="Camera3D" unique_id=1847392014]
+transform = Transform3D(0.9659258, -0.088521324, 0.24321035, 0, 0.9396926, 0.34202012, -0.25881904, -0.33036608, 0.90767336, 0, 0, 0)
+light_color = Color(0.604, 0.722, 0.91, 1)
+light_energy = 0.35
+light_indirect_energy = 0.0
+light_cull_mask = 2
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1056005627]
+
+[node name="FPS" type="Label" parent="CanvasLayer" unique_id=1722011162]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -160.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = 40.0
+grow_horizontal = 0
+text = "FPS: 60"
+horizontal_alignment = 2
+script = ExtResource("3_r0du0")
+
+[node name="UIManager" parent="CanvasLayer" unique_id=941517973 instance=ExtResource("4_ui")]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=941781935]
+environment = SubResource("Environment_3dxm6")

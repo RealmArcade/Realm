@@ -24,8 +24,25 @@
     <TrimmerRootAssembly Include="$(AssemblyName)" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Remove="**/*.template.cs" />
+    <None Include="**/*.template.cs" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>embedded</DebugType>
+    <Optimize>false</Optimize>
+    <StripSymbols>false</StripSymbols>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <StripSymbols>true</StripSymbols>
+  </PropertyGroup>
+  <ItemGroup>
     <DirectPInvoke Include="env" />
     <LinkerArg Include="-Wl,--allow-undefined" />
+    <LinkerArg Include="-g" Condition="'$(Configuration)' == 'Debug'" />
   </ItemGroup>
   <Target Name="EnableAotLate" BeforeTargets="ImportRuntimeIlcPackageTarget;IlcCompile;_ComputeAssembliesToCompileToNative">
     <PropertyGroup>
@@ -44,5 +61,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.DotNet.ILCompiler.LLVM" Version="10.0.0-rc.1.26357.1" />
     <PackageReference Include="runtime.win-x64.Microsoft.DotNet.ILCompiler.LLVM" Version="10.0.0-rc.1.26357.1" />
+    <PackageReference Include="runtime.linux-x64.Microsoft.DotNet.ILCompiler.LLVM" Version="10.0.0-rc.1.26357.1" />
   </ItemGroup>
 </Project>

@@ -84,6 +84,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Realm.WasmBindgen\Realm.WasmBindgen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <Target Name="GenerateEnglishLocalization" BeforeTargets="CoreCompile;AssignTargetPaths" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\Realm.LocalizationGenerator\Realm.LocalizationGenerator.csproj&quot; -- &quot;$(MSBuildThisFileDirectory)..\Realm.slnx&quot; &quot;$(MSBuildThisFileDirectory)locale\en.json&quot;" />
+  </Target>
   <Target Name="RemoveUnusedWebView2" BeforeTargets="ResolveAssemblyReferences">
     <ItemGroup>
       <Reference Remove="@(Reference-&gt;WithMetadataValue('FileName', 'Microsoft.Web.WebView2.Wpf'))" />

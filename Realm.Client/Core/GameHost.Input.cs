@@ -39,7 +39,7 @@ public partial class GameHost
 
 		if (InGameHUD.Instance != null && InGameHUD.Instance.IsChatActive) return;
 
-		if (GameContext.EditorService.IsMapEditorMode)
+		if (GameContext.SessionState.IsMapEditorMode)
 		{
 			HandleMapEditorInput(@event);
 		}
@@ -62,7 +62,7 @@ public partial class GameHost
 				else
 				{
 					_leftClickInitiatedOverUI = false;
-					if (GameContext.EditorService.IsMapEditorMode && !FloatingDialogBase.HasAnyDialogOpen)
+					if (GameContext.SessionState.IsMapEditorMode && !FloatingDialogBase.HasAnyDialogOpen)
 					{
 						_is3DLeftClickDown = true;
 						_leftClick3DStartPos = globalMb.Position;
@@ -73,7 +73,7 @@ public partial class GameHost
 			{
 				_leftClickInitiatedOverUI = false;
 				_is3DLeftClickDown = false;
-				if (GameContext.EditorService.IsMapEditorMode && _is3DDragOperationActive)
+				if (GameContext.SessionState.IsMapEditorMode && _is3DDragOperationActive)
 				{
 					_is3DDragOperationActive = false;
 					MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
@@ -2145,11 +2145,11 @@ public partial class GameHost
 					}
 					else if (ActiveBuildingPlacementType != null)
 					{
-						var hit = RaycastFromMouse(mouseBtn.Position);
+						var hit = RaycastTerrainFromMouse(mouseBtn.Position) ?? RaycastFromMouse(mouseBtn.Position);
 						if (hit != null && hit.ContainsKey("position"))
 						{
 							var hitPos = hit["position"].AsVector3();
-							hitPos.Y = 0f;
+							hitPos.Y = GetTerrainHeightAt(hitPos);
 							ExecuteBuildingPlacement(ActiveBuildingPlacementType, hitPos);
 						}
 
@@ -2634,7 +2634,7 @@ public partial class GameHost
 
 	public Decal FindDecalInParentChain(Node node)
 	{
-		if (!GameContext.EditorService.IsMapEditorMode) return null;
+		if (!GameContext.SessionState.IsMapEditorMode) return null;
 		while (node != null)
 		{
 			if (node is Decal decal)
@@ -2650,7 +2650,7 @@ public partial class GameHost
 
 	public ProceduralVfxInstance3D FindVfxInParentChain(Node node)
 	{
-		if (!GameContext.EditorService.IsMapEditorMode) return null;
+		if (!GameContext.SessionState.IsMapEditorMode) return null;
 		while (node != null)
 		{
 			if (node is ProceduralVfxInstance3D vfx)
@@ -2905,7 +2905,7 @@ public partial class GameHost
 	private void SelectAllBuildings()
 	{
 		ClearSelection();
-		var entities = GameContext.InputService.GetBuildingEntities(_playerEntity);
+		var entities = GameContext.InputService.GetBuildingEntities(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 		int count = 0;
 		foreach (var ent in entities)
 		{
@@ -2945,7 +2945,7 @@ public partial class GameHost
 
 	private void CycleThroughBuildings()
 	{
-		Entity buildingEntity = GameContext.InputService.CycleThroughBuildings(_playerEntity);
+		Entity buildingEntity = GameContext.InputService.CycleThroughBuildings(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 		if (buildingEntity == Entity.Null) return;
 
 		var building = AllUnits.Find(u => u.Entity == buildingEntity);
@@ -2989,7 +2989,7 @@ public partial class GameHost
 	public void SelectAllIdleUnits()
 	{
 		ClearSelection();
-		var entities = GameContext.InputService.GetIdleUnitEntities(_playerEntity);
+		var entities = GameContext.InputService.GetIdleUnitEntities(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 		int selectedCount = 0;
 		foreach (var ent in entities)
 		{
@@ -3011,7 +3011,7 @@ public partial class GameHost
 	public void SelectAllMilitaryUnits()
 	{
 		ClearSelection();
-		var entities = GameContext.InputService.GetMilitaryUnitEntities(_playerEntity);
+		var entities = GameContext.InputService.GetMilitaryUnitEntities(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 		int selectedCount = 0;
 		foreach (var ent in entities)
 		{
@@ -3292,7 +3292,7 @@ public partial class GameHost
 	{
 		if (def != null && def.Cooldown > 0f)
 		{
-			GameContext.InputService.SetSpellCooldown(_playerEntity, spellId, def.Cooldown);
+			GameContext.InputService.SetSpellCooldown(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), spellId, def.Cooldown);
 		}
 
 		if (def != null)
@@ -3327,7 +3327,7 @@ public partial class GameHost
 
 		if (IsSpellOnCooldown(spellId, def)) return;
 
-		if (GameContext.InputService.TryExecuteSpellCast(_playerEntity, casterEntity, spellId, out float maxCd))
+		if (GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), casterEntity, spellId, out float maxCd))
 		{
 			HandleSpellCastSuccess(spellId, def, position);
 		}
@@ -3335,7 +3335,7 @@ public partial class GameHost
 
 	private bool IsSpellOnCooldown(string spellId, AbilityDefinition def)
 	{
-		float cd = GameContext.InputService.GetSpellCooldown(_playerEntity, spellId);
+		float cd = GameContext.InputService.GetSpellCooldown(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), spellId);
 		if (cd <= 0f) return false;
 
 		string displayName = def?.DisplayName ?? spellId;
@@ -3394,7 +3394,7 @@ public partial class GameHost
 		var selectedEntity = SelectedUnits.Count > 0 ? SelectedUnits[0].Entity : Entity.Null;
 		var pos = new System.Numerics.Vector3(castle3D.GlobalPosition.X, castle3D.GlobalPosition.Y, castle3D.GlobalPosition.Z);
 
-		if (GameContext.InputService.BuyItem(itemId, _playerEntity, pos, selectedEntity, out Entity targetUnitEntity))
+		if (GameContext.InputService.BuyItem(itemId, GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), pos, selectedEntity, out Entity targetUnitEntity))
 		{
 			CompleteItemPurchase(itemId, itemName, costGold, targetUnitEntity);
 		}
@@ -3487,36 +3487,61 @@ public partial class GameHost
 	{
 		ActiveBuildingPlacementType = type;
 
-		if (_buildingPreviewMesh != null)
+		if (_buildingPreviewMesh != null && GodotObject.IsInstanceValid(_buildingPreviewMesh))
 		{
 			_buildingPreviewMesh.QueueFree();
-			_buildingPreviewMesh = null;
+		}
+		_buildingPreviewMesh = null;
+
+		bool isBuilding = false;
+		if (TryGetUnitOrBuildingMetadata(type, out var meta))
+		{
+			if (BuildingRegistry != null && (BuildingRegistry.ContainsKey(type) || (meta.TemplateID != null && BuildingRegistry.ContainsKey(meta.TemplateID))))
+			{
+				isBuilding = true;
+			}
+		}
+		else if (BuildingRegistry != null && BuildingRegistry.TryGetValue(type, out meta))
+		{
+			isBuilding = true;
 		}
 
-		var mesh = new MeshInstance3D();
-		var box = new BoxMesh();
-		if (type == "castle")
+		Node3D? previewNode = null;
+		if (meta.TemplateID != null && !string.IsNullOrEmpty(meta.ModelPath))
 		{
-			box.Size = new Vector3(10f, 2f, 10f);
+			string modelPath = GetFallbackModelPath(meta.ModelPath, isBuilding);
+			var previewUnit = new Unit3D
+			{
+				UnitId = type,
+				IsBuilding = isBuilding,
+				IsEnemy = false,
+				IsPreview = true
+			};
+			AddChild(previewUnit);
+			previewUnit.LoadModel(modelPath);
+			previewUnit.Scale = Vector3.One;
+			MakeHologramRecursive(previewUnit, new Color(0.15f, 0.65f, 1.0f));
+			previewNode = previewUnit;
 		}
 		else
 		{
-			box.Size = new Vector3(3.2f, 4f, 3.2f);
+			var mesh = new MeshInstance3D();
+			var box = new BoxMesh
+			{
+				Size = type == "castle" ? new Vector3(10f, 2f, 10f) : new Vector3(3.2f, 4f, 3.2f)
+			};
+			mesh.Mesh = box;
+			AddChild(mesh);
+			MakeHologramRecursive(mesh, new Color(0.15f, 0.65f, 1.0f));
+			previewNode = mesh;
 		}
 
-		mesh.Mesh = box;
-
-		var mat = new StandardMaterial3D();
-		mat.AlbedoColor = new Color(0.2f, 0.9f, 0.3f, 0.5f);
-		mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-		mesh.MaterialOverride = mat;
-
-		AddChild(mesh);
-		_buildingPreviewMesh = mesh;
+		_buildingPreviewMesh = previewNode;
 
 		if (InGameHUD.Instance != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"Place Building: Click on map to construct {type.ToUpper()}", new Color(0.2f, 0.9f, 0.4f));
+			string displayName = !string.IsNullOrEmpty(meta.Name) ? meta.Name : type.ToUpper();
+			InGameHUD.Instance.ShowFeedbackText($"Place {displayName}: Click on map to construct", new Color(0.15f, 0.65f, 1.0f));
 		}
 	}
 
@@ -3537,10 +3562,28 @@ public partial class GameHost
 		Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
 	}
 
+	private bool CanUnitConstructType(Unit3D u, string type)
+	{
+		if (u == null || u.IsBuilding || u.IsEnemy) return false;
+		if (u.UnitId == "worker" || u.UnitId == "unit/builder" || u.UnitId == "builder") return true;
+		if (TryGetUnitOrBuildingMetadata(u.UnitId, out var uMeta) && uMeta.BuildOptions != null)
+		{
+			foreach (var opt in uMeta.BuildOptions)
+			{
+				if (string.Equals(opt, type, StringComparison.OrdinalIgnoreCase)) return true;
+			}
+		}
+		return false;
+	}
+
 	private void ExecuteBuildingPlacement(string type, Vector3 position)
 	{
 		bool shiftHeld = Input.IsKeyPressed(Key.Shift);
-		var meta = UnitRegistry[type];
+		if (!TryGetUnitOrBuildingMetadata(type, out var meta))
+		{
+			ClearBuildingPlacementState();
+			return;
+		}
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
@@ -3559,7 +3602,7 @@ public partial class GameHost
 
 		if (InGameHUD.Instance == null) return;
 
-		float clearance = type == "castle" ? 7f : 4f;
+		float clearance = type == "castle" ? 7f : (BuildingRegistry.ContainsKey(type) ? 4f : 1.5f);
 		if (!GameContext.InputService.TryPlaceBuilding(new System.Numerics.Vector3(position.X, position.Y, position.Z), clearance))
 		{
 			ViewHandleObstructedPlacement();
@@ -3579,11 +3622,13 @@ public partial class GameHost
 		else
 		{
 			DeductResourcesForBuilding(meta);
-			
-			Unit3D firstWorker = SelectedUnits.Find(u => !u.IsBuilding && !u.IsEnemy && u.UnitId == "worker");
-			if (GameContext.InputService.TryAssignFirstWorkerTask(firstWorker?.Entity ?? Arch.Core.Entity.Null, type, new System.Numerics.Vector3(position.X, position.Y, position.Z), shiftHeld))
+			var buildingPos = new System.Numerics.Vector3(position.X, position.Y, position.Z);
+			Unit3D? firstWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
+			if (firstWorker != null && GameContext.World.IsAlive(firstWorker.Entity))
 			{
-				AssignAdditionalWorkerTasks(type, new System.Numerics.Vector3(position.X, position.Y, position.Z), shiftHeld, firstWorker);
+				var workerWrapper = GameContext.SimulationService.GetUnitWrapper(firstWorker.Entity);
+				OnUnitOrdered?.Invoke(workerWrapper, type, buildingPos);
+				AssignWorkerTasks(type, buildingPos, meta, shiftHeld, firstWorker);
 			}
 			else
 			{
@@ -3680,7 +3725,7 @@ public partial class GameHost
 
 	private void SpawnInstantBuilding(string type, Vector3 position, UnitMetadata meta)
 	{
-		var bldEntity = GameContext.InputService.CreateInstantBuildingEcsUnit(type, meta, new System.Numerics.Vector3(position.X, position.Y, position.Z), _playerEntity);
+		var bldEntity = GameContext.InputService.CreateInstantBuildingEcsUnit(type, meta, new System.Numerics.Vector3(position.X, position.Y, position.Z), GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
 		string modelPath = GetFallbackModelPath(meta.ModelPath, true);
 		SpawnUnit3D(bldEntity, type, modelPath, position, true, false);
 		InGameHUD.Instance?.ShowFeedbackText($"Constructed: {meta.Name}", new Color(0.3f, 0.9f, 0.4f));
@@ -3788,7 +3833,7 @@ public partial class GameHost
 		{
 			if (InGameHUD.Instance.Gold >= costGold && InGameHUD.Instance.Wood >= costWood)
 			{
-				if (GameContext.TechTreeService.BuyWeaponsUpgrade(_playerEntity))
+				if (GameContext.TechTreeService.BuyWeaponsUpgrade(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1)))
 				{
 					InGameHUD.Instance.Gold -= costGold;
 					InGameHUD.Instance.Wood -= costWood;
@@ -3817,7 +3862,7 @@ public partial class GameHost
 		{
 			if (InGameHUD.Instance.Gold >= costGold && InGameHUD.Instance.Stone >= costStone)
 			{
-				if (GameContext.TechTreeService.BuyShieldsUpgrade(_playerEntity))
+				if (GameContext.TechTreeService.BuyShieldsUpgrade(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1)))
 				{
 					InGameHUD.Instance.Gold -= costGold;
 					InGameHUD.Instance.Stone -= costStone;
@@ -3846,7 +3891,7 @@ public partial class GameHost
 		{
 			if (InGameHUD.Instance.Wood >= costWood && InGameHUD.Instance.Stone >= costStone)
 			{
-				if (GameContext.TechTreeService.BuyHarvestingUpgrade(_playerEntity))
+				if (GameContext.TechTreeService.BuyHarvestingUpgrade(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1)))
 				{
 					InGameHUD.Instance.Wood -= costWood;
 					InGameHUD.Instance.Stone -= costStone;
@@ -3962,21 +4007,19 @@ public partial class GameHost
 		if (_buildingPreviewMesh == null || !GodotObject.IsInstanceValid(_buildingPreviewMesh)) return;
 
 		var mousePos = GetViewport().GetMousePosition();
-		var hit = RaycastFromMouse(mousePos);
+		var hit = RaycastTerrainFromMouse(mousePos) ?? RaycastFromMouse(mousePos);
 		if (hit != null && hit.ContainsKey("position"))
 		{
 			Vector3 pos = hit["position"].AsVector3();
 			pos.Y = GetTerrainHeightAt(pos) + 0.1f;
 			_buildingPreviewMesh.GlobalPosition = pos;
 
-			float clearance = ActiveBuildingPlacementType == "castle" ? 7f : 4f;
+			string activeType = ActiveBuildingPlacementType ?? "";
+			float clearance = activeType == "castle" ? 7f : (BuildingRegistry.ContainsKey(activeType) ? 4f : 1.5f);
 			bool blocked = GameContext.InputService.IsAreaObstructed(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), clearance);
 
-			var mat = _buildingPreviewMesh.MaterialOverride as StandardMaterial3D;
-			if (mat != null)
-			{
-				mat.AlbedoColor = blocked ? new Color(0.9f, 0.2f, 0.2f, 0.5f) : new Color(0.2f, 0.9f, 0.3f, 0.5f);
-			}
+			Color targetColor = blocked ? new Color(0.9f, 0.2f, 0.2f) : new Color(0.15f, 0.65f, 1.0f);
+			MakeHologramRecursive(_buildingPreviewMesh, targetColor);
 		}
 	}
 
@@ -4005,7 +4048,7 @@ public partial class GameHost
 			QueueClientCommand("train", new List<int> { GetServerEntityId(targetBuildingEntity) }, Vector3.Zero, 0, unitId);
 			DeductResourcesAndNotify(meta);
 		}
-		else if (GameContext.InputService.TryQueueUnitAtCastle(_playerEntity, targetBuildingEntity, unitId, meta.PopCost, meta.ProductionTime))
+		else if (GameContext.InputService.TryQueueUnitAtCastle(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), targetBuildingEntity, unitId, meta.PopCost, meta.ProductionTime))
 		{
 			DeductResourcesAndNotify(meta);
 		}
@@ -4250,7 +4293,8 @@ public partial class GameHost
 
 	private int ResolveSpawnParentPlayer(Entity buildingEntity, ref bool actualIsEnemy)
 	{
-		return GameContext.UnitSpawnService.ResolveSpawnParentPlayer(buildingEntity, LocalPlayerIndex, ref actualIsEnemy);
+		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		return GameContext.UnitSpawnService.ResolveSpawnParentPlayer(buildingEntity, localPlayerIndex, ref actualIsEnemy);
 	}
 
 	private void ApplySpawnRallyPointOrMove(Entity entity, Entity buildingEntity, System.Numerics.Vector3 defaultPosition)
@@ -4270,7 +4314,9 @@ public partial class GameHost
 
 	private Entity DeterminePlayerOwnerEntity(int ownerPeerId, bool actualIsEnemy)
 	{
-		return GameContext.NetworkService.DeterminePlayerOwnerEntity(ownerPeerId, actualIsEnemy, _peerIdToPlayerEntityMap, _enemyPlayerEntity, _playerEntity);
+		var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+		int localSlot = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		return GameContext.NetworkService.DeterminePlayerOwnerEntity(ownerPeerId, actualIsEnemy, _peerIdToPlayerEntityMap, playerEntities, localSlot);
 	}
 
 	private void IssueResumeConstructionCommand(Unit3D targetBuilding, bool shiftHeld)

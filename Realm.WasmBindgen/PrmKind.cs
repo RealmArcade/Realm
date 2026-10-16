@@ -7,6 +7,7 @@ public enum PrmKind
 	BoolParam,
 	StringParam,
 	StringListParam,
+	Vector2Param,
 	Vector3Param,
 	Vector3NullableParam,
 	EntityParam,

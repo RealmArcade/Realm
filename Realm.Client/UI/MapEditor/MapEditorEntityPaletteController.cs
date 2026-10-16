@@ -363,12 +363,14 @@ public class MapEditorEntityPaletteController
 
 	private void AddCategoryItem(string id, string displayName)
 	{
-		if (string.IsNullOrEmpty(id) || _categoryFiles.Contains(id)) return;
+		var (prefix, slug) = TemplateIDHelper.ParseTemplateID(id);
 
-		_categoryFiles.Add(id);
+		if (string.IsNullOrEmpty(id) || _categoryFiles.Contains(slug)) return;
+
+		_categoryFiles.Add(slug);
 		if (!string.IsNullOrEmpty(displayName))
 		{
-			_idToDisplayName[id] = displayName;
+			_idToDisplayName[slug] = displayName;
 		}
 	}
 
@@ -408,31 +410,6 @@ public class MapEditorEntityPaletteController
 				string decalKey = kvp.Key;
 				string name = TemplateIDHelper.ParseTemplateID(decalKey).Slug.Replace("_", " ");
 				AddCategoryItem(decalKey, name);
-			}
-		}
-
-		var unionedAssets = MapAssetHelper.LoadAssets(globalWs);
-		var decalsDict = unionedAssets.GetCategory("Decal");
-		if (decalsDict == null) return;
-
-		foreach (var kvp in decalsDict)
-		{
-			string decalFile = kvp.Key;
-			string relDecalPath = Path.Combine("Assets", "decals", decalFile);
-
-			if (_categoryFiles.Contains(relDecalPath) || _categoryFiles.Contains(decalFile)) continue;
-
-			if (File.Exists(Path.Combine(globalWs, relDecalPath)))
-			{
-				_categoryFiles.Add(relDecalPath);
-			}
-			else if (File.Exists(Path.Combine(globalWs, decalFile)))
-			{
-				_categoryFiles.Add(decalFile);
-			}
-			else
-			{
-				_categoryFiles.Add(relDecalPath);
 			}
 		}
 	}

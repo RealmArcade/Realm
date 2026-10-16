@@ -6,5 +6,8 @@ namespace Realm.Ecs.Components.Stats;
 public enum ModifierType
 {
 	Flat,
-	Percentage
+	PercentAdditive,
+	Percentage = PercentAdditive,
+	PercentMultiplicative,
+	CustomFormula
 }

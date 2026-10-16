@@ -310,8 +310,11 @@ export class RealmMapEditorProvider implements vscode.CustomTextEditorProvider {
                         if (isEntityReferenced(itm)) {
                             addIdentifier(itm.TemplateID || itm.ItemId);
                             addIdentifier(itm.Name);
+                            if (itm.UseAbility) addIdentifier(itm.UseAbility);
                             if (Array.isArray(itm.Abilities)) itm.Abilities.forEach((a: string) => addIdentifier(a));
+                            if (Array.isArray(itm.GrantedAbilities)) itm.GrantedAbilities.forEach((a: string) => addIdentifier(a));
                             if (Array.isArray(itm.GrantedWeapons)) itm.GrantedWeapons.forEach((w: string) => addIdentifier(w));
+                            if (Array.isArray(itm.GrantedUpgrades)) itm.GrantedUpgrades.forEach((u: string) => addIdentifier(u));
                         }
                     }
                 }

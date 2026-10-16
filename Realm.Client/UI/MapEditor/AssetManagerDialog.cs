@@ -7,6 +7,7 @@ using Godot;
 using Realm.Client.Animation;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.EditorAPI;
 using Realm.Shared.Audio;
 using Realm.Shared.Textures;
 
@@ -497,7 +498,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			FileSizeBytes = fileSize,
 			LastModifiedUtc = lastModified,
 			Blake3 = blake3,
-			AssetType = itemAssetType,
+			AssetType = RealmMetadataHelper.NormalizeAssetType(itemAssetType),
 			Tags = tags
 		});
 	}
@@ -811,9 +812,10 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 
 		string? metaJson = RealmMetadataHelper.ExtractMetadata(_selectedAsset.FilePath);
+		string displayType = _selectedAsset.AssetType?.ToCanonicalString() ?? string.Empty;
 		_lblSelectedDetails.Text = !string.IsNullOrEmpty(metaJson)
-			? $"{TranslationServer.Translate("Type")}: {_selectedAsset.AssetType} • {TranslationServer.Translate("Metadata Header")}: {metaJson}"
-			: $"{TranslationServer.Translate("Type")}: {_selectedAsset.AssetType} • BLAKE3: {_selectedAsset.Blake3}";
+			? $"{TranslationServer.Translate("Type")}: {displayType} • {TranslationServer.Translate("Metadata Header")}: {metaJson}"
+			: $"{TranslationServer.Translate("Type")}: {displayType} • BLAKE3: {_selectedAsset.Blake3}";
 	}
 
 	private void UpdateSelectedAssetAudioPreview()
@@ -931,7 +933,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		string wsPath = GetWorkspacePath();
 		string assetFileName = _selectedAsset.FileName;
-		string categoryKey = _selectedAsset.AssetType ?? "Prop";
+		string categoryKey = _selectedAsset.AssetType?.ToCanonicalString() ?? "Prop";
 
 		// Search metadata.json for any references to the asset
 		var orphanedObjects = FindOrphanedObjectsInMetadata(wsPath, assetFileName);
@@ -1893,6 +1895,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			{
 				string wsPath = GetWorkspacePath();
 				MapAssetHelper.PruneNonExistentAssetsFromManifest(wsPath);
+				MapAssetHelper.PruneUnusedAssetsFromManifest(wsPath);
 				RefreshAssetList();
 				Hud?.ShowFeedback(TranslationServer.Translate("Pruned non-existent and unreferenced assets."));
 			},

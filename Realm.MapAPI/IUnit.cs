@@ -336,4 +336,28 @@ public interface IUnit
 	/// <param name="duration">The duration of the impulse oscillation in seconds.</param>
 	/// <param name="frequency">The oscillation frequency in Hz.</param>
 	void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
+
+	/// <summary>
+	/// Retrieves the ordered list of ability identifiers configured for this unit's archetype.
+	/// </summary>
+	/// <returns>A read-only list of ability identifiers (never null).</returns>
+	IReadOnlyList<string> GetAbilities() => Array.Empty<string>();
+
+	/// <summary>
+	/// Gets or sets a value indicating whether automated combat AI is enabled for this unit instance.
+	/// </summary>
+	bool AutoCombatEnabled
+	{
+		get => false;
+		set { }
+	}
+
+	/// <summary>
+	/// Enables or disables auto-cast for the specified ability on this unit.
+	/// </summary>
+	/// <param name="abilityId">The identifier of the ability.</param>
+	/// <param name="active">True to activate auto-cast, false to deactivate.</param>
+	void SetAutoCast(string abilityId, bool active)
+	{
+	}
 }

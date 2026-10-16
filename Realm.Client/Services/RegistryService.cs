@@ -4,6 +4,11 @@ using System.IO;
 using Arch.Core;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.UI;
+using Realm.Client.UI.InGame;
+using Realm.Ecs.Common;
+using Realm.Ecs.Components.Combat;
+using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
@@ -41,19 +46,59 @@ public class RegistryService
 		return null;
 	}
 
+	public static IEnumerable<string> GetNormalizedAbilityIdCandidates(string abilityId)
+	{
+		if (string.IsNullOrEmpty(abilityId)) yield break;
+		yield return abilityId;
+
+		string trimmed = abilityId;
+		if (trimmed.StartsWith("ability/", StringComparison.OrdinalIgnoreCase))
+		{
+			trimmed = trimmed.Substring(8);
+			yield return trimmed;
+		}
+		else if (trimmed.StartsWith("unit/", StringComparison.OrdinalIgnoreCase))
+		{
+			trimmed = trimmed.Substring(5);
+			yield return trimmed;
+		}
+		else if (trimmed.StartsWith("building/", StringComparison.OrdinalIgnoreCase))
+		{
+			trimmed = trimmed.Substring(9);
+			yield return trimmed;
+		}
+		else
+		{
+			yield return "ability/" + trimmed;
+			yield return "unit/" + trimmed;
+			yield return "building/" + trimmed;
+		}
+	}
+
 	public void AddUnitTypeAbility(string unitTypeId, string abilityId)
 	{
-		if (UnitRegistry.TryGetValue((StringName)unitTypeId, out var meta))
+		if (string.IsNullOrEmpty(unitTypeId) || string.IsNullOrEmpty(abilityId)) return;
+
+		void AddToRegistry(Dictionary<StringName, UnitMetadata> reg, string key)
 		{
-			var abilities = meta.Abilities != null
-				? new List<string>(meta.Abilities)
-				: new List<string>();
-			if (!abilities.Contains(abilityId))
+			if (reg.TryGetValue((StringName)key, out var meta))
 			{
-				abilities.Add(abilityId);
-				meta.Abilities = abilities.ToArray();
-				UnitRegistry[(StringName)unitTypeId] = meta;
+				var abilities = meta.Abilities != null
+					? new List<string>(meta.Abilities)
+					: new List<string>();
+				if (!abilities.Contains(abilityId))
+				{
+					abilities.Add(abilityId);
+					meta.Abilities = abilities.ToArray();
+					reg[(StringName)key] = meta;
+				}
 			}
+		}
+
+		foreach (var candidateKey in GetNormalizedAbilityIdCandidates(unitTypeId))
+		{
+			AddToRegistry(UnitRegistry, candidateKey);
+			AddToRegistry(BuildingRegistry, candidateKey);
 		}
 	}
 
@@ -180,6 +225,7 @@ public class RegistryService
 	public readonly Dictionary<StringName, WeaponMetadata> WeaponRegistry = new();
 	public readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
 	public readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
+	public readonly Dictionary<StringName, Realm.Shared.Metadata.UpgradeMetadata> UpgradeRegistry = new();
 	public Dictionary<string, VfxAttachmentConfig> VfxRegistry { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<string, AbilityDefinition> AbilityDefinitions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> UnitAbilityStates { get; set; } = new();
@@ -347,16 +393,35 @@ public class RegistryService
 	}
 
 
+	private AbilityDefinition GetOrCreateAbilityDefinition(string abilityId)
+	{
+		AbilityDefinition? def = null;
+		foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
+		{
+			if (AbilityDefinitions.TryGetValue(key, out def) && def != null)
+			{
+				break;
+			}
+		}
+
+		if (def == null)
+		{
+			def = new AbilityDefinition { Id = abilityId };
+		}
+
+		foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
+		{
+			AbilityDefinitions[key] = def;
+		}
+
+		return def;
+	}
+
 	public bool RegisterAbility(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
 		if (string.IsNullOrEmpty(abilityId)) return false;
 
-		if (!AbilityDefinitions.TryGetValue(abilityId, out var def))
-		{
-			def = new AbilityDefinition { Id = abilityId };
-			AbilityDefinitions[abilityId] = def;
-		}
-
+		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.DisplayName = displayName ?? "";
 		def.Tooltip = tooltip ?? "";
 		if (!string.IsNullOrEmpty(iconPath)) def.IconPath = iconPath;
@@ -369,12 +434,7 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(abilityId)) return;
 
-		if (!AbilityDefinitions.TryGetValue(abilityId, out var def))
-		{
-			def = new AbilityDefinition { Id = abilityId };
-			AbilityDefinitions[abilityId] = def;
-		}
-
+		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.IsInstant = isInstant;
 	}
 
@@ -382,12 +442,7 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(abilityId)) return;
 
-		if (!AbilityDefinitions.TryGetValue(abilityId, out var def))
-		{
-			def = new AbilityDefinition { Id = abilityId };
-			AbilityDefinitions[abilityId] = def;
-		}
-
+		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.IconPath = iconPath ?? "";
 	}
 
@@ -395,26 +450,34 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(abilityId)) return;
 
-		if (!AbilityDefinitions.TryGetValue(abilityId, out var def))
-		{
-			def = new AbilityDefinition { Id = abilityId };
-			AbilityDefinitions[abilityId] = def;
-		}
-
+		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.Hotkey = hotkey ?? "";
 	}
 
 	public void SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden)
 	{
 		if (unit == null || string.IsNullOrEmpty(abilityId)) return;
-		UnitAbilityStates[(unit.UniqueId, abilityId)] = (disabled, hidden);
+		foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
+		{
+			UnitAbilityStates[(unit.UniqueId, key)] = (disabled, hidden);
+		}
+		if (GameHost.Instance != null)
+		{
+			Callable.From(() => InGameHUD.Instance?.RefreshUI(GameHost.Instance.SelectedUnits)).CallDeferred();
+		}
 	}
 
 	public bool IsAbilityDisabledForUnit(IUnit unit, string abilityId)
 	{
-		if (unit != null && UnitAbilityStates.TryGetValue((unit.UniqueId, abilityId), out var state))
+		if (unit != null && !string.IsNullOrEmpty(abilityId))
 		{
-			return state.Disabled;
+			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
+			{
+				if (UnitAbilityStates.TryGetValue((unit.UniqueId, key), out var state))
+				{
+					return state.Disabled;
+				}
+			}
 		}
 
 		return false;
@@ -422,9 +485,15 @@ public class RegistryService
 
 	public bool IsAbilityHiddenForUnit(IUnit unit, string abilityId)
 	{
-		if (unit != null && UnitAbilityStates.TryGetValue((unit.UniqueId, abilityId), out var state))
+		if (unit != null && !string.IsNullOrEmpty(abilityId))
 		{
-			return state.Hidden;
+			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
+			{
+				if (UnitAbilityStates.TryGetValue((unit.UniqueId, key), out var state))
+				{
+					return state.Hidden;
+				}
+			}
 		}
 
 		return false;
@@ -434,20 +503,72 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(abilityId)) return;
 
-		if (!AbilityDefinitions.TryGetValue(abilityId, out var def))
-		{
-			def = new AbilityDefinition { Id = abilityId };
-			AbilityDefinitions[abilityId] = def;
-		}
-
+		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.Tooltip = tooltip ?? "";
 	}
 
 	public AbilityDefinition GetAbilityDefinition(string abilityId)
 	{
 		if (string.IsNullOrEmpty(abilityId)) return null;
-		AbilityDefinitions.TryGetValue(abilityId, out var def);
-		return def;
+		foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
+		{
+			if (AbilityDefinitions.TryGetValue(key, out var def) && def != null)
+			{
+				return def;
+			}
+		}
+		return null;
+	}
+
+	public IReadOnlyList<string> GetUnitTypeAbilities(string unitTypeId)
+	{
+		if (string.IsNullOrEmpty(unitTypeId)) return Array.Empty<string>();
+
+		if (UnitRegistry.TryGetValue((StringName)unitTypeId, out var meta) && meta.Abilities != null)
+			return meta.Abilities;
+
+		if (BuildingRegistry.TryGetValue((StringName)unitTypeId, out var bldMeta) && bldMeta.Abilities != null)
+			return bldMeta.Abilities;
+
+		string cleanId = Path.GetFileNameWithoutExtension(unitTypeId);
+		if (UnitRegistry.TryGetValue((StringName)cleanId, out meta) && meta.Abilities != null)
+			return meta.Abilities;
+
+		if (BuildingRegistry.TryGetValue((StringName)cleanId, out bldMeta) && bldMeta.Abilities != null)
+			return bldMeta.Abilities;
+
+		return Array.Empty<string>();
+	}
+
+	public string GetUnitName(string unitTypeId)
+	{
+		if (string.IsNullOrEmpty(unitTypeId)) return string.Empty;
+
+		if (UnitRegistry.TryGetValue((StringName)unitTypeId, out var meta) && !string.IsNullOrWhiteSpace(meta.Name))
+			return meta.Name;
+
+		if (BuildingRegistry.TryGetValue((StringName)unitTypeId, out var bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.Name))
+			return bldMeta.Name;
+
+		string cleanId = Path.GetFileNameWithoutExtension(unitTypeId);
+		if (UnitRegistry.TryGetValue((StringName)cleanId, out meta) && !string.IsNullOrWhiteSpace(meta.Name))
+			return meta.Name;
+
+		if (BuildingRegistry.TryGetValue((StringName)cleanId, out bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.Name))
+			return bldMeta.Name;
+
+		return cleanId;
+	}
+
+	public string GetAbilityName(string abilityId)
+	{
+		if (string.IsNullOrEmpty(abilityId)) return string.Empty;
+
+		var def = GetAbilityDefinition(abilityId);
+		if (def != null && !string.IsNullOrWhiteSpace(def.DisplayName))
+			return def.DisplayName;
+
+		return Path.GetFileNameWithoutExtension(abilityId);
 	}
 
 	public void RegisterCustomAbilities(List<AbilityMetadata> customAbilities)
@@ -470,12 +591,14 @@ public class RegistryService
 				Damage = meta.Damage,
 				Healing = meta.Healing,
 				VisualEffect = meta.VisualEffect,
-				CastSound = meta.CastSound
+				CastSound = meta.CastSound,
+				GridX = meta.GridX,
+				GridY = meta.GridY,
+				Hotkey = meta.Hotkey ?? ""
 			};
-			AbilityDefinitions[meta.TemplateID] = def;
-			if (meta.TemplateID.StartsWith("ability/", StringComparison.OrdinalIgnoreCase))
+			foreach (var key in GetNormalizedAbilityIdCandidates(meta.TemplateID))
 			{
-				AbilityDefinitions[meta.TemplateID.Substring(8)] = def;
+				AbilityDefinitions[key] = def;
 			}
 		}
 	}
@@ -484,12 +607,7 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(abilityId)) return;
 
-		if (!AbilityDefinitions.TryGetValue(abilityId, out var def))
-		{
-			def = new AbilityDefinition { Id = abilityId };
-			AbilityDefinitions[abilityId] = def;
-		}
-
+		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.GridX = x;
 		def.GridY = y;
 	}
@@ -498,24 +616,28 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(abilityId)) return;
 
-		if (!AbilityDefinitions.TryGetValue(abilityId, out var def))
-		{
-			def = new AbilityDefinition { Id = abilityId };
-			AbilityDefinitions[abilityId] = def;
-		}
-
+		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.ManaCost = manaCost;
 		if (unit != null)
 		{
-			UnitAbilityManaCosts[(unit.UniqueId, abilityId)] = manaCost;
+			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
+			{
+				UnitAbilityManaCosts[(unit.UniqueId, key)] = manaCost;
+			}
 		}
 	}
 
 	public float GetAbilityManaCostForUnit(IUnit unit, string abilityId)
 	{
-		if (unit != null && UnitAbilityManaCosts.TryGetValue((unit.UniqueId, abilityId), out float cost))
+		if (unit != null && !string.IsNullOrEmpty(abilityId))
 		{
-			return cost;
+			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
+			{
+				if (UnitAbilityManaCosts.TryGetValue((unit.UniqueId, key), out float cost))
+				{
+					return cost;
+				}
+			}
 		}
 
 		var def = GetAbilityDefinition(abilityId);
@@ -755,6 +877,7 @@ public class RegistryService
 		WeaponRegistry.Clear();
 		AttachmentRegistry.Clear();
 		ItemRegistry.Clear();
+		UpgradeRegistry.Clear();
 		VfxRegistry.Clear();
 		AbilityDefinitions.Clear();
 		UnitAbilityStates.Clear();

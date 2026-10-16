@@ -2,10 +2,43 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Attach to Realm Game Host",
+			"name": "Debug WASM Map Script (Attach via CodeLLDB)",
+			"type": "lldb",
+			"request": "attach",
+			"pid": "${command:pickMyProcess}",
+			"cwd": "${workspaceFolder}",
+			"breakpointMode": "file",
+			"initCommands": [
+				"settings set plugin.jit-loader.gdb.enable on"
+			],
+			"postRunCommands": [
+				"continue"
+			],
+			"env": {
+				"_NO_DEBUG_HEAP": "1"
+			}
+		},
+		{
+			"name": "Debug WASM Map Script (Attach via GDB)",
+			"type": "cppdbg",
+			"request": "attach",
+			"processId": "${command:pickProcess}",
+			"MIMode": "gdb",
+			"miDebuggerPath": "gdb",
+			"cwd": "${workspaceFolder}",
+			"setupCommands": [
+				{
+					"description": "Enable pretty-printing for gdb",
+					"text": "-enable-pretty-printing",
+					"ignoreFailures": true
+				}
+			]
+		},
+		{
+			"name": "Attach to Realm Game Host (.NET Core)",
 			"type": "coreclr",
 			"request": "attach",
-			"processName": "Realm.Client"
+			"processId": "${command:pickProcess}"
 		}
 	]
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -73,10 +73,13 @@ public static class PathUtils
 
 	private static string ResolveProjectRoot()
 	{
-		string resPath = ProjectSettings.GlobalizePath("res://");
-		if (!string.IsNullOrWhiteSpace(resPath) && resPath != "." && resPath != "./" && Directory.Exists(resPath))
+		if (Engine.GetMainLoop() != null)
 		{
-			return resPath.Replace("\\", "/").TrimEnd('/');
+			string resPath = ProjectSettings.GlobalizePath("res://");
+			if (!string.IsNullOrWhiteSpace(resPath) && resPath != "." && resPath != "./" && Directory.Exists(resPath))
+			{
+				return resPath.Replace("\\", "/").TrimEnd('/');
+			}
 		}
 
 		string baseDir = AppDomain.CurrentDomain.BaseDirectory.Replace("\\", "/").TrimEnd('/');
@@ -85,16 +88,19 @@ public static class PathUtils
 			return baseDir;
 		}
 
-		string exeDir = OS.GetExecutablePath().GetBaseDir().Replace("\\", "/").TrimEnd('/');
-		if (!string.IsNullOrWhiteSpace(exeDir) && Directory.Exists(exeDir))
+		if (Engine.GetMainLoop() != null)
 		{
-			string[] dataDirs = GetDataDirs(exeDir);
-			if (dataDirs.Length > 0)
+			string exeDir = OS.GetExecutablePath().GetBaseDir().Replace("\\", "/").TrimEnd('/');
+			if (!string.IsNullOrWhiteSpace(exeDir) && Directory.Exists(exeDir))
 			{
-				return dataDirs[0].Replace("\\", "/").TrimEnd('/');
-			}
+				string[] dataDirs = GetDataDirs(exeDir);
+				if (dataDirs.Length > 0)
+				{
+					return dataDirs[0].Replace("\\", "/").TrimEnd('/');
+				}
 
-			return exeDir;
+				return exeDir;
+			}
 		}
 
 		return ".";
@@ -172,6 +178,11 @@ public static class PathUtils
 
 	private static string ResolveFromExeDir(string normalizedRelative)
 	{
+		if (Engine.GetMainLoop() == null)
+		{
+			return null;
+		}
+
 		string exeDir = OS.GetExecutablePath().GetBaseDir().Replace("\\", "/").TrimEnd('/');
 		if (string.IsNullOrWhiteSpace(exeDir))
 		{
@@ -195,6 +206,11 @@ public static class PathUtils
 
 	private static string ResolveFromGlobalizedRes(string normalizedRelative)
 	{
+		if (Engine.GetMainLoop() == null)
+		{
+			return null;
+		}
+
 		string globalizedRes = ProjectSettings.GlobalizePath("res://" + normalizedRelative).Replace("\\", "/");
 		if (string.IsNullOrWhiteSpace(globalizedRes))
 		{
@@ -247,6 +263,11 @@ public static class PathUtils
 		{
 			string subPath = path.Substring(6);
 			return FindPath(subPath);
+		}
+
+		if (Engine.GetMainLoop() == null)
+		{
+			return Path.GetFullPath(path);
 		}
 
 		return ProjectSettings.GlobalizePath(path);

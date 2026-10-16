@@ -113,7 +113,13 @@ public class InputService
 	{
 		if (unitEntity == Entity.Null || unitEntity == firstWorkerEntity) return false;
 		if (isBuilding || isEnemy) return false;
-		if (unitId != "worker") return false;
+		if (unitId != "worker" && unitId != "unit/builder" && unitId != "builder")
+		{
+			if (!GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta) || meta.BuildOptions == null || meta.BuildOptions.Length == 0)
+			{
+				return false;
+			}
+		}
 		return GameContext.World.IsAlive(unitEntity);
 	}
 
@@ -685,11 +691,55 @@ public class InputService
 
 	public bool IsAreaObstructed(Vector3 position, float clearance)
 	{
+		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity))
+		{
+			ref var terrain = ref GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity);
+			if (terrain.PathingCodes != null && terrain.Width > 0 && terrain.Depth > 0 && terrain.QuadSize > 0f)
+			{
+				int cx = Math.Clamp((int)MathF.Floor(position.X / terrain.QuadSize + terrain.Width / 2.0f), 0, terrain.Width - 1);
+				int cz = Math.Clamp((int)MathF.Floor(position.Z / terrain.QuadSize + terrain.Depth / 2.0f), 0, terrain.Depth - 1);
+				if ((terrain.PathingCodes[cx, cz] & (int)Realm.Ecs.Components.Terrain.TerrainPathingFlags.Buildable) == 0)
+				{
+					return true;
+				}
+			}
+		}
+
 		bool obstructed = false;
 		var query = QueryCache.AllPositionNoneDeadQuery;
 		GameContext.World.Query(in query, (Entity entity, ref Position pos) =>
 		{
-			if (Vector3.Distance(position, pos.Value) < clearance)
+			if (obstructed) return;
+
+			float entityRadius = GameContext.World.Has<CollisionRadius>(entity)
+				? GameContext.World.Get<CollisionRadius>(entity).Value
+				: 1.0f;
+
+			if (GameContext.World.Has<DefinitionId>(entity))
+			{
+				string defId = GameContext.World.Get<DefinitionId>(entity).Value;
+				if (GameHost.TryGetUnitOrBuildingMetadata(defId, out var meta))
+				{
+					if (meta.PathingType == 16 || string.Equals(meta.VisualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase))
+					{
+						return;
+					}
+
+					if (meta.CollisionCircle > 0f)
+					{
+						entityRadius = MathF.Max(entityRadius, meta.CollisionCircle * (meta.Scale > 0f ? meta.Scale : 1.0f) * 0.5f);
+					}
+				}
+			}
+			else if (!GameContext.World.Has<PropIdentity>(entity))
+			{
+				return;
+			}
+
+			float minDist = MathF.Max(clearance, entityRadius + 0.5f);
+			float dx = position.X - pos.Value.X;
+			float dz = position.Z - pos.Value.Z;
+			if (dx * dx + dz * dz < minDist * minDist)
 			{
 				obstructed = true;
 			}
@@ -880,9 +930,7 @@ public class InputService
 		if (target != Entity.Null)
 		{
 			targetUnitEntity = target;
-			ref var inv = ref GameContext.World.Get<Inventory>(target);
-			int currentCount = inv.GetItemCount(itemId);
-			inv.SetItemCount(itemId, currentCount + 1);
+			Realm.Client.Utils.ItemGrantingUtility.EquipItem(GameContext.World, target, itemId);
 			return true;
 		}
 
@@ -924,10 +972,16 @@ public class InputService
 		ref var hp = ref GameContext.World.Get<Health>(unitEntity);
 		if (hp.Current >= hp.Max) return false;
 
-		inv.SetItemCount(itemId, currentCount - 1);
+		int newCount = currentCount - 1;
+		inv.SetItemCount(itemId, newCount);
 		float oldCurrent = hp.Current;
 		hp.Current = Math.Min(hp.Max, hp.Current + 50f);
 		healedAmount = hp.Current - oldCurrent;
+
+		if (newCount <= 0)
+		{
+			Realm.Client.Utils.ItemGrantingUtility.UnequipItem(GameContext.World, unitEntity, itemId);
+		}
 
 		return true;
 	}

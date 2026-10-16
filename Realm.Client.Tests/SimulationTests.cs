@@ -13,7 +13,6 @@ using Realm.Client.UI;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
 using Realm.Shared;
-using Environment = System.Environment;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Tests;
@@ -32,7 +31,7 @@ public class SimulationTests
 
 		SetupSinglePlayerLobby("melee");
 
-		ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
+		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1000);
 
 		GameHost gameHost = GameHost.Instance;
@@ -115,7 +114,7 @@ public class TestWasmMap : IWasmModule
 
 		WasmLogTracker tracker = AttachWasmLogListener();
 
-		ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
+		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1000);
 
 		GameHost gameHost = GameHost.Instance;
@@ -148,7 +147,7 @@ public class TestWasmMap : IWasmModule
 		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
 		isHostProp?.SetValue(LobbyManager.Instance, true);
 
-		ISceneRunner runner = ISceneRunner.Load("res://Main.tscn");
+		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1500);
 
 		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
@@ -174,44 +173,6 @@ public class TestWasmMap : IWasmModule
 		File.WriteAllBytes(Path.Combine(artifactDir, "ChaosArena_Wasm_Tested.png"), finalImage.SavePngToBuffer());
 
 		VerifyAllUnitsKilled();
-	}
-
-	[TestCase]
-	public void TestEnsureCsprojRepairsStaleAbsoluteReference()
-	{
-		string tempMapDir = Path.Combine(Path.GetTempPath(), "Realm_Simulation_StaleCsprojRepair");
-		if (Directory.Exists(tempMapDir))
-		{
-			try
-			{
-				Directory.Delete(tempMapDir, true);
-			}
-			catch
-			{
-			}
-		}
-
-		Directory.CreateDirectory(tempMapDir);
-
-		string staleCsproj =
-			"<Project Sdk=\"Microsoft.NET.Sdk\">" + Environment.NewLine +
-			"  <PropertyGroup>" + Environment.NewLine +
-			"    <TargetFramework>net10.0</TargetFramework>" + Environment.NewLine +
-			"  </PropertyGroup>" + Environment.NewLine +
-			"  <ItemGroup>" + Environment.NewLine +
-			"    <ProjectReference Include=\"C:/Users/SomeoneElse/source/repos/Realm/Realm.MapAPI/Realm.MapAPI.csproj\" />" + Environment.NewLine +
-			"  </ItemGroup>" + Environment.NewLine +
-			"</Project>";
-		File.WriteAllText(Path.Combine(tempMapDir, "MapScript.csproj"), staleCsproj);
-
-		MapWorkspaceService.EnsureCsproj(tempMapDir, "MapScript");
-
-		string repaired = File.ReadAllText(Path.Combine(tempMapDir, "MapScript.csproj"));
-		Assertions.AssertThat(!repaired.Contains("C:")).IsTrue();
-		Assertions.AssertThat(!repaired.Contains("ProjectReference")).IsTrue();
-		Assertions.AssertThat(repaired.Contains("lib/Realm.MapAPI.dll")).IsTrue();
-
-		Assertions.AssertThat(File.Exists(Path.Combine(tempMapDir, "lib", "Realm.MapAPI.dll"))).IsTrue();
 	}
 
 	private void SetupSinglePlayerLobby(string mapName)

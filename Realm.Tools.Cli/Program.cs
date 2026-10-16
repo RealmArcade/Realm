@@ -537,16 +537,7 @@ public static class Program
 			return explicitAssetType;
 		}
 
-		string? type = GetStringPropertyOrNull(inputObj, "asset_type");
-		if (type != null) return type;
-
-		type = GetStringPropertyOrNull(inputObj, "AssetType");
-		if (type != null) return type;
-
-		type = GetStringPropertyOrNull(inputObj, "default_asset_type");
-		if (type != null) return type;
-
-		return GetStringPropertyOrNull(inputObj, "type");
+		return GetStringPropertyOrNull(inputObj, "asset_type");
 	}
 
 	private static bool ResolveAssetType(string? explicitAssetType, string ext, JsonObject inputObj, out string error)
@@ -1260,7 +1251,6 @@ public static class Program
 	{
 		if (node is not JsonObject) return;
 		targetAssetType ??= node["asset_type"]?.ToString();
-		targetAssetType ??= node["default_asset_type"]?.ToString();
 		targetAuthor ??= node["author"]?.ToString();
 	}
 

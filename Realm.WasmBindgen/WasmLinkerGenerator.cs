@@ -42,6 +42,14 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		string mapApiWitPath = FindMapApiWitPath(compilation);
 		WriteWitContent(mapApiWitPath, witContent);
 
+		string? repoRoot = FindRepoRoot(compilation);
+		if (!string.IsNullOrEmpty(repoRoot))
+		{
+			GenerateWasmEntryPoint(repoRoot, gameApiSymbol);
+			string templateWitPath = Path.Combine(repoRoot, "MapTemplate", "wit", "game.g.wit");
+			WriteWitContent(templateWitPath, witContent);
+		}
+
 		GenerateOutputSources(context, compilation.AssemblyName ?? "", gameApiSymbol, entityInterfaces, manualFunctions);
 	}
 
@@ -187,7 +195,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (!display.StartsWith("Realm.MapAPI."))
 			return false;
 
-		if (display == "Realm.MapAPI.IGameAPI" || display == "Realm.MapAPI.IMapScript")
+		if (display == "Realm.MapAPI.IGameAPI" || display == "Realm.MapAPI.IMapScript" || display == "Realm.MapAPI.IPlayer")
 			return false;
 
 		return true;
@@ -600,6 +608,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			PrmKind.DirectFloat => $"float {p.Name}",
 			PrmKind.DirectInt or PrmKind.BoolParam => $"int {p.Name}",
 			PrmKind.EntityParam => $"int {p.Name}Id",
+			PrmKind.Vector2Param => $"float {p.Name}X, float {p.Name}Y",
 			PrmKind.Vector3Param => $"float {p.Name}X, float {p.Name}Y, float {p.Name}Z",
 			PrmKind.Vector3NullableParam => $"float {p.Name}R, float {p.Name}G, float {p.Name}B, int {p.Name}HasColor",
 			_ => ""
@@ -837,11 +846,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static bool CanUseExpressionBody(IMethodSymbol method, bool isVector3Ret, bool hasStringParam, bool hasStringListParam, bool needsRetArea, RetKind retKind)
 	{
+		bool hasVector2Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector2");
 		bool hasVector3Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector3");
 		bool hasVector3NullableParam = method.Parameters.Any(p => IsNullableVector3(p.Type));
 		bool hasUnitParam = method.Parameters.Any(p => IsEntityInterface(p.Type, out _));
 
-		return !isVector3Ret && !hasStringParam && !hasStringListParam && !hasVector3Param && !hasVector3NullableParam && !hasUnitParam && !needsRetArea && retKind != RetKind.EntityReturn && retKind != RetKind.EntityNullableReturn;
+		return !isVector3Ret && !hasStringParam && !hasStringListParam && !hasVector2Param && !hasVector3Param && !hasVector3NullableParam && !hasUnitParam && !needsRetArea && retKind != RetKind.EntityReturn && retKind != RetKind.EntityNullableReturn;
 	}
 
 	private static void EmitVector3AxisBinding(StringBuilder sb, string witName, string axis, string lambdaParams, List<ParamInfo> paramInfos, IMethodSymbol method, string targetInstance, INamedTypeSymbol gameApiSymbol)
@@ -851,6 +861,9 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		foreach (var p in paramInfos)
 			if (p.Kind == PrmKind.StringParam)
 				sb.AppendLine($"            string {p.Name} = ReadGuestString(caller, {p.Name}Ptr, {p.Name}Len);");
+		foreach (var p in paramInfos)
+			if (p.Kind == PrmKind.Vector2Param)
+				sb.AppendLine($"            var {p.Name} = new System.Numerics.Vector2({p.Name}X, {p.Name}Y);");
 		foreach (var p in paramInfos)
 			if (p.Kind == PrmKind.Vector3Param)
 				sb.AppendLine($"            var {p.Name} = new System.Numerics.Vector3({p.Name}X, {p.Name}Y, {p.Name}Z);");
@@ -950,13 +963,21 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void ReadVector3Parameters(StringBuilder sb, List<ParamInfo> paramInfos)
 	{
-		var processedVec3 = new HashSet<string>();
+		var processedVec = new HashSet<string>();
 		foreach (var p in paramInfos)
 		{
-			if (p.Kind == PrmKind.Vector3Param && p.Name.EndsWith("X"))
+			if (p.Kind == PrmKind.Vector2Param && p.Name.EndsWith("X"))
 			{
 				string baseName = p.Name.Substring(0, p.Name.Length - 1);
-				if (processedVec3.Add(baseName))
+				if (processedVec.Add(baseName))
+					sb.AppendLine($"            var {baseName} = new System.Numerics.Vector2({baseName}X, {baseName}Y);");
+			}
+			else if (p.Kind == PrmKind.Vector2Param)
+				sb.AppendLine($"            var {p.Name} = new System.Numerics.Vector2({p.Name}X, {p.Name}Y);");
+			else if (p.Kind == PrmKind.Vector3Param && p.Name.EndsWith("X"))
+			{
+				string baseName = p.Name.Substring(0, p.Name.Length - 1);
+				if (processedVec.Add(baseName))
 					sb.AppendLine($"            var {baseName} = new System.Numerics.Vector3({baseName}X, {baseName}Y, {baseName}Z);");
 			}
 			else if (p.Kind == PrmKind.Vector3Param)
@@ -1130,6 +1151,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 		string displayName = type.ToDisplayString();
 
+		if (displayName == "System.Numerics.Vector2") return PrmKind.Vector2Param;
 		if (displayName == "System.Numerics.Vector3") return PrmKind.Vector3Param;
 		if (IsNullableVector3(type)) return PrmKind.Vector3NullableParam;
 		if (IsEntityInterface(type, out _)) return PrmKind.EntityParam;
@@ -1479,6 +1501,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			PrmKind.BoolParam => $"{ToKebabCase(name)}: bool",
 			PrmKind.StringParam => $"{ToKebabCase(name)}: string",
 			PrmKind.StringListParam => $"{ToKebabCase(name)}: list<string>",
+			PrmKind.Vector2Param => $"{ToKebabCase(name)}-x: f32, {ToKebabCase(name)}-y: f32",
 			PrmKind.Vector3Param => $"{ToKebabCase(name)}-x: f32, {ToKebabCase(name)}-y: f32, {ToKebabCase(name)}-z: f32",
 			PrmKind.EntityParam => $"{ToKebabCase(name)}-id: s32",
 			PrmKind.Vector3NullableParam => $"{ToKebabCase(name)}-r: f32, {ToKebabCase(name)}-g: f32, {ToKebabCase(name)}-b: f32, {ToKebabCase(name)}-has-color: bool",
@@ -1662,7 +1685,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void EmitStringAutoEventHandlerBody(StringBuilder sb, IMethodSymbol delegateMethod, string fieldName, INamedTypeSymbol gameApiSymbol)
 	{
-		sb.AppendLine($"        if ({fieldName} != null)");
+		sb.AppendLine($"        if (IsFaulted || {fieldName} == null) return;");
+		sb.AppendLine("        ExecuteGuardedAction(() =>");
 		sb.AppendLine("        {");
 		sb.AppendLine("            var memory = _instance.GetMemory(\"memory\");");
 		sb.AppendLine("            if (memory != null)");
@@ -1706,11 +1730,15 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 		sb.AppendLine($"                {fieldName}.Invoke({string.Join(", ", invokeArgs)});");
 		sb.AppendLine("            }");
-		sb.AppendLine("        }");
+		sb.AppendLine("        }, \"event handler\");");
 	}
 
 	private static void EmitStandardAutoEventHandlerBody(StringBuilder sb, IMethodSymbol delegateMethod, string fieldName, INamedTypeSymbol gameApiSymbol)
 	{
+		sb.AppendLine($"        if (IsFaulted || {fieldName} == null) return;");
+		sb.AppendLine("        ExecuteGuardedAction(() =>");
+		sb.AppendLine("        {");
+
 		var invokeArgs = new List<string>();
 		foreach (var p in delegateMethod.Parameters)
 		{
@@ -1733,7 +1761,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			}
 		}
 
-		sb.AppendLine($"        {fieldName}?.Invoke({string.Join(", ", invokeArgs)});");
+		sb.AppendLine($"            {fieldName}.Invoke({string.Join(", ", invokeArgs)});");
+		sb.AppendLine("        }, \"event handler\");");
 	}
 
 	private static string GetWasmField(string eventName)
@@ -2131,11 +2160,25 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	private static void AppendGuestMethodCallArg(List<string> callArgs, IParameterSymbol p)
 	{
 		if (TryAppendEntityArg(callArgs, p)) return;
+		if (TryAppendVector2Arg(callArgs, p)) return;
 		if (TryAppendVector3Arg(callArgs, p)) return;
 		if (TryAppendStringArg(callArgs, p)) return;
 		if (TryAppendMiscArg(callArgs, p)) return;
 
 		callArgs.Add(p.Name);
+	}
+
+	private static bool TryAppendVector2Arg(List<string> callArgs, IParameterSymbol p)
+	{
+		string typeStr = p.Type.ToDisplayString();
+		if (typeStr == "System.Numerics.Vector2")
+		{
+			callArgs.Add($"{p.Name}.X");
+			callArgs.Add($"{p.Name}.Y");
+			return true;
+		}
+
+		return false;
 	}
 
 	private static bool TryAppendEntityArg(List<string> callArgs, IParameterSymbol p)
@@ -2306,6 +2349,266 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		}
 
 		return set;
+	}
+
+	private static string? FindRepoRoot(Compilation compilation)
+	{
+		var syntaxTree = compilation.SyntaxTrees.FirstOrDefault(t => !string.IsNullOrEmpty(t.FilePath));
+		if (syntaxTree == null) return null;
+
+		string? dir = Path.GetDirectoryName(syntaxTree.FilePath);
+		while (dir != null)
+		{
+			if (Directory.Exists(Path.Combine(dir, "MapTemplate")) && Directory.Exists(Path.Combine(dir, "Realm.MapAPI")))
+			{
+				return dir;
+			}
+
+			dir = Path.GetDirectoryName(dir);
+		}
+
+		return null;
+	}
+
+	private static void GenerateWasmEntryPoint(string repoRoot, INamedTypeSymbol gameApiSymbol)
+	{
+		string templatePath = Path.Combine(repoRoot, "MapTemplate", "WasmEntryPoint.template.cs");
+		if (!File.Exists(templatePath)) return;
+
+		string templateContent = File.ReadAllText(templatePath);
+		var stringBuilder = new StringBuilder();
+
+		var events = gameApiSymbol.GetMembers()
+			.OfType<IEventSymbol>()
+			.Where(e => e.Name.StartsWith("On"))
+			.OrderBy(e => e.Name, StringComparer.Ordinal);
+
+		foreach (var eventSymbol in events)
+		{
+			EmitWasmEntryPointEventHandler(stringBuilder, eventSymbol);
+		}
+
+		string handlersCode = stringBuilder.ToString().TrimEnd();
+		string generatedCode = templateContent.Contains("{{GENERATED_EVENT_HANDLERS}}")
+			? templateContent.Replace("{{GENERATED_EVENT_HANDLERS}}", handlersCode)
+			: templateContent + "\n" + handlersCode + "\n";
+
+		string targetPath = Path.Combine(repoRoot, "MapTemplate", "WasmEntryPoint.g.cs");
+		try
+		{
+			if (File.Exists(targetPath))
+			{
+				string existing = File.ReadAllText(targetPath);
+				if (string.Equals(existing.Replace("\r\n", "\n"), generatedCode.Replace("\r\n", "\n"), StringComparison.Ordinal))
+				{
+					return;
+				}
+
+				var attributes = File.GetAttributes(targetPath);
+				if ((attributes & FileAttributes.ReadOnly) != 0)
+				{
+					File.SetAttributes(targetPath, attributes & ~FileAttributes.ReadOnly);
+				}
+			}
+
+			File.WriteAllText(targetPath, generatedCode, Encoding.UTF8);
+		}
+		catch
+		{
+		}
+	}
+
+	private static void EmitWasmEntryPointEventHandler(StringBuilder stringBuilder, IEventSymbol eventSymbol)
+	{
+		var delegateMethod = ((INamedTypeSymbol)eventSymbol.Type).DelegateInvokeMethod;
+		if (delegateMethod == null) return;
+
+		string entryPointName = ToKebabCase(eventSymbol.Name);
+		string triggerMethodName = "TriggerOn" + (eventSymbol.Name.StartsWith("On") ? eventSymbol.Name.Substring(2) : eventSymbol.Name);
+		var parameters = delegateMethod.Parameters;
+
+		var methodParameters = new List<string>();
+		var bodyStatements = new List<string>();
+		var invokeArguments = new List<string>();
+
+		var parameterNames = GenerateWasmEntryPointParameterNames(parameters);
+
+		for (int parameterIndex = 0; parameterIndex < parameters.Length; parameterIndex++)
+		{
+			var parameter = parameters[parameterIndex];
+			ITypeSymbol parameterType = parameter.Type;
+			string parameterName = parameterNames[parameterIndex];
+
+			if (parameterType.SpecialType == SpecialType.System_String)
+			{
+				methodParameters.Add($"nint {parameterName}Ptr, int {parameterName}Len");
+				bodyStatements.Add($"        string {parameterName} = ReadString({parameterName}Ptr, {parameterName}Len);");
+				invokeArguments.Add(parameterName);
+			}
+			else if (parameterType.ToDisplayString() == "System.Numerics.Vector3" || IsNullableVector3(parameterType))
+			{
+				methodParameters.Add($"float {parameterName}X, float {parameterName}Y, float {parameterName}Z");
+				invokeArguments.Add($"new Vector3({parameterName}X, {parameterName}Y, {parameterName}Z)");
+			}
+			else if (parameterType.ToDisplayString() == "System.Numerics.Vector2")
+			{
+				methodParameters.Add($"float {parameterName}X, float {parameterName}Y");
+				invokeArguments.Add($"new Vector2({parameterName}X, {parameterName}Y)");
+			}
+			else if (IsEntityInterface(parameterType, out _))
+			{
+				methodParameters.Add($"int {parameterName}");
+				invokeArguments.Add(parameterName);
+			}
+			else if (parameterType.SpecialType == SpecialType.System_Boolean)
+			{
+				methodParameters.Add($"int {parameterName}");
+				invokeArguments.Add($"{parameterName} != 0");
+			}
+			else if (parameterType.TypeKind == TypeKind.Enum)
+			{
+				methodParameters.Add($"int {parameterName}");
+				invokeArguments.Add($"({GetCleanSymbolTypeName(parameterType)}){parameterName}");
+			}
+			else
+			{
+				string primitiveTypeName = GetCleanSymbolTypeName(parameterType);
+				methodParameters.Add($"{primitiveTypeName} {parameterName}");
+				invokeArguments.Add(parameterName);
+			}
+		}
+
+		stringBuilder.AppendLine($"    [UnmanagedCallersOnly(EntryPoint = \"{entryPointName}\")]");
+		stringBuilder.AppendLine($"    public static void {eventSymbol.Name}({string.Join(", ", methodParameters)})");
+		stringBuilder.AppendLine("    {");
+		foreach (var statement in bodyStatements)
+		{
+			stringBuilder.AppendLine(statement);
+		}
+		stringBuilder.AppendLine($"        if (_gameApi is GameAPI_WasmModule api) api.{triggerMethodName}({string.Join(", ", invokeArguments)});");
+		stringBuilder.AppendLine("    }");
+		stringBuilder.AppendLine();
+	}
+
+	private static List<string> GenerateWasmEntryPointParameterNames(ImmutableArray<IParameterSymbol> parameters)
+	{
+		var baseNames = new List<string>(parameters.Length);
+		for (int parameterIndex = 0; parameterIndex < parameters.Length; parameterIndex++)
+		{
+			var parameter = parameters[parameterIndex];
+			if (HasAuthoredSymbolParameterName(parameter))
+			{
+				baseNames.Add(parameter.Name);
+			}
+			else
+			{
+				baseNames.Add(GetDefaultBaseSymbolParameterName(parameter.Type));
+			}
+		}
+
+		var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+		foreach (var baseName in baseNames)
+		{
+			counts[baseName] = counts.TryGetValue(baseName, out int current) ? current + 1 : 1;
+		}
+
+		var seenIndices = new Dictionary<string, int>(StringComparer.Ordinal);
+		var resolvedNames = new List<string>(parameters.Length);
+
+		for (int parameterIndex = 0; parameterIndex < parameters.Length; parameterIndex++)
+		{
+			string baseName = baseNames[parameterIndex];
+			int totalCount = counts[baseName];
+
+			if (totalCount == 1)
+			{
+				resolvedNames.Add(baseName);
+			}
+			else
+			{
+				int occurrenceIndex = seenIndices.TryGetValue(baseName, out int currentSeen) ? currentSeen + 1 : 1;
+				seenIndices[baseName] = occurrenceIndex;
+
+				if (baseName.EndsWith("Id", StringComparison.Ordinal) && totalCount == 2)
+				{
+					resolvedNames.Add(occurrenceIndex == 1 ? $"source{char.ToUpperInvariant(baseName[0])}{baseName.Substring(1)}" : $"target{char.ToUpperInvariant(baseName[0])}{baseName.Substring(1)}");
+				}
+				else
+				{
+					resolvedNames.Add($"{baseName}{occurrenceIndex}");
+				}
+			}
+		}
+
+		return resolvedNames;
+	}
+
+	private static bool HasAuthoredSymbolParameterName(IParameterSymbol parameter)
+	{
+		if (string.IsNullOrWhiteSpace(parameter.Name)) return false;
+		if (string.Equals(parameter.Name, "obj", StringComparison.OrdinalIgnoreCase)) return false;
+		if (parameter.Name.StartsWith("arg", StringComparison.OrdinalIgnoreCase) &&
+		    int.TryParse(parameter.Name.Substring(3), out _))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	private static string GetDefaultBaseSymbolParameterName(ITypeSymbol type)
+	{
+		if (IsEntityInterface(type, out var unwrapped))
+		{
+			string name = CleanInterfaceName(unwrapped);
+			return $"{char.ToLowerInvariant(name[0])}{name.Substring(1)}Id";
+		}
+
+		if (type.SpecialType == SpecialType.System_String)
+		{
+			return "text";
+		}
+
+		if (type.ToDisplayString() == "System.Numerics.Vector3" || type.ToDisplayString() == "System.Numerics.Vector2")
+		{
+			return "position";
+		}
+
+		if (type.SpecialType == SpecialType.System_Single || type.SpecialType == SpecialType.System_Double)
+		{
+			return "amount";
+		}
+
+		if (type.SpecialType == SpecialType.System_Boolean)
+		{
+			return "flag";
+		}
+
+		if (type.SpecialType == SpecialType.System_Int32 || type.SpecialType == SpecialType.System_Int64 || type.SpecialType == SpecialType.System_Int16 || type.SpecialType == SpecialType.System_Byte)
+		{
+			return "value";
+		}
+
+		if (type.TypeKind == TypeKind.Enum)
+		{
+			string enumName = type.Name;
+			return $"{char.ToLowerInvariant(enumName[0])}{enumName.Substring(1)}";
+		}
+
+		return "param";
+	}
+
+	private static string GetCleanSymbolTypeName(ITypeSymbol type)
+	{
+		if (type.SpecialType == SpecialType.System_Int32) return "int";
+		if (type.SpecialType == SpecialType.System_Single) return "float";
+		if (type.SpecialType == SpecialType.System_Boolean) return "bool";
+		if (type.SpecialType == SpecialType.System_Double) return "double";
+		if (type.SpecialType == SpecialType.System_Byte) return "byte";
+		if (type.SpecialType == SpecialType.System_Int64) return "long";
+		if (type.SpecialType == SpecialType.System_Int16) return "short";
+		if (type.SpecialType == SpecialType.System_String) return "string";
+		return type.Name;
 	}
 
 	[GeneratedRegex(@"interface\s+game-api\s*\{(.*?)\}", RegexOptions.Singleline)]

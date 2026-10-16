@@ -780,7 +780,7 @@ public partial class RuntimeTerrain : StaticBody3D
 		if (_currentShroudTexture != null)
 		{
 			mat.SetShaderParameter("shroud_texture", _currentShroudTexture);
-			mat.SetShaderParameter("shroud_enabled", GameHost.Instance == null || !GameContext.EditorService.IsMapEditorMode);
+			mat.SetShaderParameter("shroud_enabled", GameHost.Instance == null || !GameContext.SessionState.IsMapEditorMode);
 			float halfW = (Width * QuadSize) * 0.5f;
 			float halfD = (Depth * QuadSize) * 0.5f;
 			mat.SetShaderParameter("shroud_world_min", new Vector2(-halfW, -halfD));
@@ -2127,7 +2127,7 @@ void fragment() {
 		var defaultShroudTexture = ImageTexture.CreateFromImage(defaultShroudImage);
 		_currentShroudTexture = defaultShroudTexture;
 		_material.SetShaderParameter("shroud_texture", defaultShroudTexture);
-		_material.SetShaderParameter("shroud_enabled", GameHost.Instance == null || !GameContext.EditorService.IsMapEditorMode);
+		_material.SetShaderParameter("shroud_enabled", GameHost.Instance == null || !GameContext.SessionState.IsMapEditorMode);
 
 		float halfW = (Width * QuadSize) * 0.5f;
 		float halfD = (Depth * QuadSize) * 0.5f;

@@ -73,7 +73,8 @@ public partial class VSCodeManager
 		"Gruntfuggly.todo-tree",
 		// "mechatroner.rainbow-json",
 		"patcx.vscode-nuget-gallery",
-		"AykutSarac.jsoncrack-vscode"
+		"AykutSarac.jsoncrack-vscode",
+		"vadimcn.vscode-lldb"
 		// "akondratiuk1-dev.texture-viewer",
 	};
 
@@ -593,9 +594,10 @@ public partial class VSCodeManager
 			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_CLI_DATA_DIR"] = cliDataDir;
 			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS"] = extensionsDir;
 			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
+			_vscodeProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
 			_vscodeProcess.Start();
 			AddProcessToJob(_vscodeProcess);
-			GD.Print("VS Code server started successfully.");
+			GD.Print($"[VSCodeManager] VS Code server started successfully. Godot Host Process ID: {Environment.ProcessId}. Select this PID in CodeLLDB when attaching.");
 
 			StartIpcHttpListener();
 		}
@@ -1356,7 +1358,7 @@ public partial class VSCodeManager
 	{
 		Action reloadAction = () =>
 		{
-			if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+			if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 			{
 				GameHost.Instance.LoadMapFromFile(filePath);
 				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
@@ -2364,7 +2366,7 @@ public partial class VSCodeManager
 	private bool TryGetTempWorkspacePath(out string path)
 	{
 		path = string.Empty;
-		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode)
+		if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 		{
 			string tempWorkspace = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 			if (Directory.Exists(tempWorkspace))
@@ -2471,6 +2473,7 @@ public partial class VSCodeManager
 		tempProcess.StartInfo.UseShellExecute = false;
 		tempProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS"] = extensionsDir;
 		tempProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
+		tempProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
 		tempProcess.Start();
 		AddProcessToJob(tempProcess);
 

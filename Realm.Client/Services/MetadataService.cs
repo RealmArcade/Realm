@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Godot;
@@ -21,7 +22,8 @@ public class MetadataService
 		PropertyNameCaseInsensitive = true,
 		IncludeFields = true,
 		WriteIndented = true,
-		Converters = { new JsonStringEnumConverter() }
+		Converters = { new JsonStringEnumConverter() },
+		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
 	public static string ResolveMetadataPath(string pathOrDirectory)
@@ -83,6 +85,11 @@ public class MetadataService
 		{
 			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			MapFileService.SaveMetadata(targetPath, metadata);
+			string? targetDir = Path.GetDirectoryName(targetPath);
+			if (!string.IsNullOrEmpty(targetDir))
+			{
+				MapTemplateGeneratorService.EnsureMapTemplates(targetDir, metadata);
+			}
 			MetadataSaved?.Invoke(targetPath);
 		}
 		catch (Exception ex)
@@ -207,7 +214,6 @@ public class MetadataService
 		metadata.Templates.Attachments ??= new List<AttachmentMetadata>();
 		metadata.Templates.Vfx ??= new List<VfxAttachmentConfig>();
 
-		metadata.Models ??= new Dictionary<string, ModelMetadata>(StringComparer.OrdinalIgnoreCase);
 		metadata.Textures ??= new Dictionary<string, TextureMetadata>(StringComparer.OrdinalIgnoreCase);
 		metadata.Decals ??= new Dictionary<string, DecalMetadata>(StringComparer.OrdinalIgnoreCase);
 		metadata.VfxSpritesheets ??= new Dictionary<string, VfxMetadata>(StringComparer.OrdinalIgnoreCase);
@@ -303,114 +309,6 @@ public class MetadataService
 	{
 		if (metadata?.CustomEnvironmentPresets == null || string.IsNullOrWhiteSpace(presetId)) return false;
 		return metadata.CustomEnvironmentPresets.RemoveAll(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase)) > 0;
-	}
-
-	private static ModelMetadata GetOrCreateModel(MapMetadata metadata, string modelKey)
-	{
-		metadata.Models ??= new Dictionary<string, ModelMetadata>(StringComparer.OrdinalIgnoreCase);
-		if (!metadata.Models.TryGetValue(modelKey, out var model) || model == null)
-		{
-			model = new ModelMetadata();
-			metadata.Models[modelKey] = model;
-		}
-
-		return model;
-	}
-
-	public void SetModelYOffset(MapMetadata metadata, string modelKey, float yOffset)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).Offsets = yOffset;
-	}
-
-	public void SetModelScale(MapMetadata metadata, string modelKey, float scale)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).Scales = scale;
-	}
-
-	public void SetModelCollisionCircleRatio(MapMetadata metadata, string modelKey, float ratio)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).CollisionCircleRatios = ratio;
-	}
-
-	public void SetModelObstacleRadius(MapMetadata metadata, string modelKey, float radius)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).ObstacleRadii = radius;
-	}
-
-	public void SetModelBrightness(MapMetadata metadata, string modelKey, float brightness)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).Brightness = brightness;
-	}
-
-	public void SetModelColorTint(MapMetadata metadata, string modelKey, string tint)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).ColorTint = tint;
-	}
-
-	public void SetModelDespillPlayerColor(MapMetadata metadata, string modelKey, bool despill)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).DespillPlayerColor = despill;
-	}
-
-	public void SetModelNormalizeLuminance(MapMetadata metadata, string modelKey, bool normalizeLuminance)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).NormalizeLuminance = normalizeLuminance;
-	}
-
-	public void SetModelIgnorePlayerColor(MapMetadata metadata, string modelKey, bool ignorePlayerColor)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).IgnorePlayerColor = ignorePlayerColor;
-	}
-
-	public void SetModelSpawnShader(MapMetadata metadata, string modelKey, string spawnShader)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).SpawnShaders = string.IsNullOrWhiteSpace(spawnShader) ? null : spawnShader;
-	}
-
-	public void SetModelDeathShader(MapMetadata metadata, string modelKey, string deathShader)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).DeathShaders = string.IsNullOrWhiteSpace(deathShader) ? null : deathShader;
-	}
-
-	public void SetModelProceduralAnimation(MapMetadata metadata, string modelKey, string animId)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).ProceduralAnimation = string.IsNullOrWhiteSpace(animId) ? null : animId;
-	}
-
-	public string? GetModelProceduralAnimation(MapMetadata metadata, string modelKey)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey) || metadata.Models == null) return null;
-		return metadata.Models.TryGetValue(modelKey, out var model) ? model.ProceduralAnimation : null;
-	}
-
-	public void SetModelEnableProceduralAnimation(MapMetadata metadata, string modelKey, bool enable)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		GetOrCreateModel(metadata, modelKey).EnableProceduralAnimation = enable ? true : null;
-	}
-
-	public bool GetModelEnableProceduralAnimation(MapMetadata metadata, string modelKey)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey) || metadata.Models == null) return false;
-		return metadata.Models.TryGetValue(modelKey, out var model) && (model.EnableProceduralAnimation ?? false);
-	}
-
-	public void RemoveModelOverrides(MapMetadata metadata, string modelKey)
-	{
-		if (metadata == null || string.IsNullOrWhiteSpace(modelKey)) return;
-		metadata.Models?.Remove(modelKey);
 	}
 
 	public string GetMapName(MapMetadata metadata)

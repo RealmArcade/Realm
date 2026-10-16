@@ -334,10 +334,16 @@ var RealmMapEditorProvider = class _RealmMapEditorProvider {
             if (isEntityReferenced2(itm)) {
               addIdentifier2(itm.TemplateID || itm.ItemId);
               addIdentifier2(itm.Name);
+              if (itm.UseAbility)
+                addIdentifier2(itm.UseAbility);
               if (Array.isArray(itm.Abilities))
                 itm.Abilities.forEach((a) => addIdentifier2(a));
+              if (Array.isArray(itm.GrantedAbilities))
+                itm.GrantedAbilities.forEach((a) => addIdentifier2(a));
               if (Array.isArray(itm.GrantedWeapons))
                 itm.GrantedWeapons.forEach((w) => addIdentifier2(w));
+              if (Array.isArray(itm.GrantedUpgrades))
+                itm.GrantedUpgrades.forEach((u) => addIdentifier2(u));
             }
           }
         }

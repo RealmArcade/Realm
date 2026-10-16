@@ -143,7 +143,7 @@ namespace Realm.Client.Core
 			GameContext.World.Add(entity, new RotationY(0.0f));
 			GameContext.World.Add(entity, new ModelScale(1.0f));
 
-			if (GameContext.EditorService.IsMapEditorMode)
+			if (GameContext.SessionState.IsMapEditorMode)
 			{
 				decal.RotationDegrees = new Vector3(0.0f, GameContext.EditorService.EditorPlacementRotation, 0.0f);
 				decal.Size = new Vector3(6.0f, 20.0f, 6.0f) * (EditorPlacementScale <= 0.001f ? 1.0f : EditorPlacementScale);

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
 using Godot;
 using Realm.Client.Services;
@@ -39,6 +40,8 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	private string _initialCastSound = "";
 	private string _initialIconPath = "";
 	private float _initialAoeRadius = 0.0f;
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 
 	private string _currentVisualEffect = "";
 	private string _currentCastSound = "";
@@ -688,8 +691,38 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		UpdateAoEIndicator(_currentAoeRadius);
 		ReloadVfx();
 
+		string targetId = !string.IsNullOrEmpty(_abilityId) ? _abilityId : _slug;
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
+
 		OpenDialog();
 		ResetCameraDefault();
+	}
+
+	protected override string GetRandomizeTemplateSlug()
+	{
+		return !string.IsNullOrEmpty(_abilityId) ? _abilityId : _slug;
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var reloadedMeta) && reloadedMeta?.Templates?.Abilities != null)
+		{
+			var reloaded = reloadedMeta.Templates.Abilities.FirstOrDefault(a => string.Equals(a.TemplateID, targetId, StringComparison.OrdinalIgnoreCase) || string.Equals(a.TemplateID, _abilityId, StringComparison.OrdinalIgnoreCase));
+			if (reloaded != null)
+			{
+				_currentVisualEffect = reloaded.VisualEffect ?? string.Empty;
+				_currentCastSound = reloaded.CastSound ?? string.Empty;
+				_currentIconPath = !string.IsNullOrEmpty(reloaded.IconPath) && reloaded.IconPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(reloaded.IconPath) : (reloaded.IconPath ?? string.Empty);
+			}
+		}
+
+		UpdateUIState();
+		UpdateIconPreview(_currentIconPath);
+		ReloadVfx();
 	}
 
 	private string GetEffectiveAbilityId(string fallbackId, JsonObject abilityData)
@@ -828,6 +861,24 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnCancel()
 	{
+		string targetId = !string.IsNullOrEmpty(_abilityId) ? _abilityId : _slug;
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			if (_templateExistedInitially)
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
+		}
+
+		_currentVisualEffect = _initialVisualEffect;
+		_currentCastSound = _initialCastSound;
+		_currentIconPath = _initialIconPath;
+		_currentAoeRadius = _initialAoeRadius;
+
 		StopVfxAnimation();
 	}
 

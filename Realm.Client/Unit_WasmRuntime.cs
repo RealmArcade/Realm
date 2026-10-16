@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using Arch.Core;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Client.Utils;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -23,7 +26,6 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 {
 	private readonly Entity _entity;
 	private readonly World _world;
-	private readonly Dictionary<string, int> _itemCharges = new(StringComparer.OrdinalIgnoreCase);
 	private bool _hideHealthAndManaBars;
 
 	public bool HideHealthAndManaBars
@@ -101,14 +103,13 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new UnitOwnerPlayer(value));
 
-			bool isEnemy = value != 0;
+			int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, value);
 			_world.SetOrAdd(_entity, new UnitFaction(isEnemy));
 
 			if (_world.Has<Owner>(_entity) && GameHost.Instance != null)
 			{
-				var playerOwner = isEnemy
-					? GameHost.Instance._enemyPlayerEntity.AsPlayerEntity(_world)
-					: GameHost.Instance._playerEntity.AsPlayerEntity(_world);
+				var playerOwner = GameHost.Instance.GetPlayerEntityForPlayerIndex(value).AsPlayerEntity(_world);
 				_world.Set(_entity, new Owner(playerOwner));
 			}
 
@@ -132,17 +133,17 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		{
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new UnitFaction(value));
-			if (_world.Has<Owner>(_entity))
+			int targetSlot = value ? 2 : (LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			_world.SetOrAdd(_entity, new UnitOwnerPlayer(targetSlot));
+			if (_world.Has<Owner>(_entity) && GameHost.Instance != null)
 			{
-				var playerOwner = value
-					? GameHost.Instance._enemyPlayerEntity.AsPlayerEntity(_world)
-					: GameHost.Instance._playerEntity.AsPlayerEntity(_world);
+				var playerOwner = GameHost.Instance.GetPlayerEntityForPlayerIndex(targetSlot).AsPlayerEntity(_world);
 				_world.Set(_entity, new Owner(playerOwner));
 			}
 
 			if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 			{
-				unit3D.Player = value ? 1 : 0;
+				unit3D.Player = targetSlot;
 			}
 		}
 	}
@@ -425,7 +426,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			if (GameHost.UnitRegistry.TryGetValue(UnitId, out var meta))
+			if (GameHost.TryGetUnitOrBuildingMetadata(UnitId, out var meta))
 			{
 				return meta.XpBounty;
 			}
@@ -439,7 +440,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			if (GameHost.UnitRegistry.TryGetValue(UnitId, out var meta))
+			if (GameHost.TryGetUnitOrBuildingMetadata(UnitId, out var meta))
 			{
 				return meta.GoldBounty;
 			}
@@ -716,39 +717,34 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 
 	public bool AddItem(string itemId)
 	{
-		if (!_world.IsAlive(_entity)) return false;
-		List<string> items;
-		if (_world.Has<UnitItems>(_entity))
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
+		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Items != null && _world.Get<Inventory>(_entity).Items.Count >= 6 && !HasItem(itemId)) return false;
+		bool success = ItemGrantingUtility.EquipItem(_world, _entity, itemId, 1);
+		if (success)
 		{
-			items = _world.Get<UnitItems>(_entity).Value;
+			NotifyUiInventoryChanged();
 		}
-		else
-		{
-			items = new List<string>();
-			_world.Add(_entity, new UnitItems(items));
-		}
-
-		if (items.Count >= 6) return false;
-		items.Add(itemId);
-		return true;
+		return success;
 	}
 
 	public bool AddItem(string itemId, int charges)
 	{
-		bool added = AddItem(itemId);
-		if (added)
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
+		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Items != null && _world.Get<Inventory>(_entity).Items.Count >= 6 && !HasItem(itemId)) return false;
+		bool success = ItemGrantingUtility.EquipItem(_world, _entity, itemId, charges);
+		if (success)
 		{
-			_itemCharges[itemId] = charges;
+			NotifyUiInventoryChanged();
 		}
-
-		return added;
+		return success;
 	}
 
 	public int GetItemCharges(string itemId)
 	{
-		if (HasItem(itemId))
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return 0;
+		if (_world.Has<Inventory>(_entity))
 		{
-			return _itemCharges.TryGetValue(itemId, out int charges) ? charges : 1;
+			return _world.Get<Inventory>(_entity).GetItemCount(itemId);
 		}
 
 		return 0;
@@ -756,32 +752,43 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 
 	public void SetItemCharges(string itemId, int charges)
 	{
-		if (HasItem(itemId))
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return;
+		if (_world.Has<Inventory>(_entity))
 		{
-			_itemCharges[itemId] = charges;
+			ref var inv = ref _world.Get<Inventory>(_entity);
+			if (inv.HasItem(itemId))
+			{
+				inv.SetItemCount(itemId, charges);
+				NotifyUiInventoryChanged();
+			}
 		}
 	}
 
 	public bool RemoveItem(string itemId)
 	{
-		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<UnitItems>(_entity))
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
+		bool success = ItemGrantingUtility.UnequipItem(_world, _entity, itemId);
+		if (success)
 		{
-			var items = _world.Get<UnitItems>(_entity).Value;
-			_itemCharges.Remove(itemId);
-			return items.Remove(itemId);
+			NotifyUiInventoryChanged();
 		}
+		return success;
+	}
 
-		return false;
+	private void NotifyUiInventoryChanged()
+	{
+		if (GameHost.Instance != null && InGameHUD.Instance != null && GameHost.TryGetUnit3D(_entity, out var u3d) && GameHost.Instance.SelectedUnits.Contains(u3d))
+		{
+			InGameHUD.Instance.RefreshUI(GameHost.Instance.SelectedUnits);
+		}
 	}
 
 	public bool HasItem(string itemId)
 	{
-		if (!_world.IsAlive(_entity)) return false;
-		if (_world.Has<UnitItems>(_entity))
+		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
+		if (_world.Has<Inventory>(_entity))
 		{
-			var items = _world.Get<UnitItems>(_entity).Value;
-			return items.Contains(itemId);
+			return _world.Get<Inventory>(_entity).HasItem(itemId);
 		}
 
 		return false;
@@ -789,13 +796,9 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 
 	public IEnumerable<string> GetItems()
 	{
-		if (!_world.IsAlive(_entity)) return Array.Empty<string>();
-		if (_world.Has<UnitItems>(_entity))
-		{
-			return _world.Get<UnitItems>(_entity).Value;
-		}
-
-		return Array.Empty<string>();
+		if (!_world.IsAlive(_entity) || !_world.Has<Inventory>(_entity)) return Array.Empty<string>();
+		var inv = _world.Get<Inventory>(_entity);
+		return inv.Items != null ? inv.Items.Keys : Array.Empty<string>();
 	}
 
 	public void AddBuff(string buffId, float duration)
@@ -956,5 +959,32 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		{
 			unit3D.TriggerImpulse(strength, duration, frequency);
 		}
+	}
+
+	public IReadOnlyList<string> GetAbilities()
+	{
+		string typeId = TemplateID;
+		if (string.IsNullOrEmpty(typeId)) return Array.Empty<string>();
+		return GameContext.RegistryService?.GetUnitTypeAbilities(typeId) ?? Array.Empty<string>();
+	}
+
+	public bool AutoCombatEnabled
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return false;
+			return _world.Has<AutoCombatState>(_entity) && _world.Get<AutoCombatState>(_entity).Enabled;
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			GameContext.SimulationService?.EnableUnitAutoCombat(this, value);
+		}
+	}
+
+	public void SetAutoCast(string abilityId, bool active)
+	{
+		if (!_world.IsAlive(_entity)) return;
+		GameContext.SimulationService?.SetAbilityAutoCast(this, abilityId, active);
 	}
 }

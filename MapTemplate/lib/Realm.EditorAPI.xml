@@ -4,6 +4,176 @@
         <name>Realm.EditorAPI</name>
     </assembly>
     <members>
+        <member name="T:Realm.EditorAPI.Asset">
+            <summary>
+            Represents an indexed asset in the project index or content addressable storage.
+            </summary>
+        </member>
+        <member name="P:Realm.EditorAPI.Asset.FilePath">
+            <summary>
+            Gets or sets the file path of the asset.
+            </summary>
+        </member>
+        <member name="P:Realm.EditorAPI.Asset.FileName">
+            <summary>
+            Gets or sets the file name including extension.
+            </summary>
+        </member>
+        <member name="P:Realm.EditorAPI.Asset.Extension">
+            <summary>
+            Gets or sets the file extension with leading dot.
+            </summary>
+        </member>
+        <member name="P:Realm.EditorAPI.Asset.Blake3">
+            <summary>
+            Gets or sets the BLAKE3 hash identifier of the asset content.
+            </summary>
+        </member>
+        <member name="P:Realm.EditorAPI.Asset.AssetType">
+            <summary>
+            Gets or sets the categorized asset type.
+            </summary>
+        </member>
+        <member name="P:Realm.EditorAPI.Asset.Tags">
+            <summary>
+            Gets or sets the descriptive tags associated with this asset.
+            </summary>
+        </member>
+        <member name="M:Realm.EditorAPI.Asset.#ctor">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.EditorAPI.Asset"/> class.
+            </summary>
+        </member>
+        <member name="M:Realm.EditorAPI.Asset.#ctor(System.String,System.String,System.String,System.String,Realm.EditorAPI.AssetType,System.Collections.Generic.List{System.String})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.EditorAPI.Asset"/> class with properties.
+            </summary>
+            <param name="filePath">File path of the asset.</param>
+            <param name="fileName">File name of the asset.</param>
+            <param name="extension">File extension of the asset.</param>
+            <param name="blake3">BLAKE3 hash of the asset.</param>
+            <param name="assetType">Asset type category.</param>
+            <param name="tags">Descriptive tags for the asset.</param>
+        </member>
+        <member name="T:Realm.EditorAPI.AssetType">
+            <summary>
+            Specifies the classification type of an asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Character">
+            <summary>
+            3D character or unit model asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Building">
+            <summary>
+            3D building or structure model asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Prop">
+            <summary>
+            3D prop or environmental model asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Item">
+            <summary>
+            3D item, weapon, or projectile model asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Decal">
+            <summary>
+            2D decal texture asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Icon">
+            <summary>
+            2D user interface icon asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Noise">
+            <summary>
+            2D noise texture asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Ribbon">
+            <summary>
+            2D ribbon trail texture asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Skybox">
+            <summary>
+            Panoramic skybox texture asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Spritesheet">
+            <summary>
+            Visual effects animated sprite sheet texture asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Terrain">
+            <summary>
+            Ground terrain splat texture asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.VfxRadial">
+            <summary>
+            Radial visual effects texture asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.VfxVertical">
+            <summary>
+            Vertical visual effects texture asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Animation">
+            <summary>
+            Skeletal or node animation asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Music">
+            <summary>
+            Background music audio track asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.SoundEffect">
+            <summary>
+            Sound effect audio clip asset.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.AssetType.Shader">
+            <summary>
+            Visual shader script asset.
+            </summary>
+        </member>
+        <member name="T:Realm.EditorAPI.AssetTypeExtensions">
+            <summary>
+            Provides extension and utility methods for parsing and converting <see cref="T:Realm.EditorAPI.AssetType"/> values.
+            </summary>
+        </member>
+        <member name="M:Realm.EditorAPI.AssetTypeExtensions.ToCanonicalString(Realm.EditorAPI.AssetType)">
+            <summary>
+            Converts the asset type to its canonical string representation used in metadata JSON.
+            </summary>
+            <param name="assetType">The asset classification type.</param>
+            <returns>The canonical string matching asset metadata specifications.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.AssetTypeExtensions.TryParse(System.String,Realm.EditorAPI.AssetType@)">
+            <summary>
+            Attempts to parse a raw string representation into an <see cref="T:Realm.EditorAPI.AssetType"/> enum value.
+            Handles standard names, lowercase, underscores, and normalized variants.
+            </summary>
+            <param name="raw">The raw string to parse.</param>
+            <param name="assetType">When this method returns, contains the parsed asset type if successful; otherwise default.</param>
+            <returns><see langword="true"/> if successfully parsed; otherwise <see langword="false"/>.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.AssetTypeExtensions.Parse(System.String,Realm.EditorAPI.AssetType)">
+            <summary>
+            Parses a raw string representation into an <see cref="T:Realm.EditorAPI.AssetType"/> enum value, returning a fallback if parsing fails.
+            </summary>
+            <param name="raw">The raw string to parse.</param>
+            <param name="fallback">The fallback value to return if parsing fails.</param>
+            <returns>The parsed <see cref="T:Realm.EditorAPI.AssetType"/> or the specified fallback value.</returns>
+        </member>
         <member name="T:Realm.EditorAPI.IEditorAPI">
             <summary>
             Provides domain service capabilities for map editing operations.
@@ -32,6 +202,103 @@
             Selects a named map coordinate trigger region and highlights its outline on the terrain.
             </summary>
             <param name="name">Unique name identifier of the coordinate to select, or empty string to clear selection.</param>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SearchAssets(Realm.EditorAPI.AssetType[],System.String,System.Int32)">
+            <summary>
+            Searches indexed assets across the specified asset types matching terms in the query, ranking by matching term count.
+            </summary>
+            <param name="assetTypes">Array of asset categories to filter on, or empty to search all categories.</param>
+            <param name="query">Space or delimiter separated search string.</param>
+            <param name="limit">Maximum number of assets to return.</param>
+            <returns>List of matching assets ordered descending by the number of matching terms.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.ExtractSearchQuery(System.String)">
+            <summary>
+            Extracts distinct indexed keywords associated with a template in metadata.json to form a reusable search query.
+            </summary>
+            <param name="templateSlug">Slug or template ID of the object in metadata.</param>
+            <returns>A space-separated string of validated search terms indexed in asset storage.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.ImportAssets(System.Collections.Generic.List{Realm.EditorAPI.Asset})">
+            <summary>
+            Imports the specified assets into the map workspace if they exist in content addressable storage but are not yet registered in manifest.json.
+            </summary>
+            <param name="assets">List of assets to import.</param>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.AssignRandomAssetsToTemplate(System.String,System.Boolean)">
+            <summary>
+            Replaces asset fields on a metadata template with randomly chosen matching assets found via extracted keywords.
+            </summary>
+            <param name="templateSlug">Slug or template ID of the object in metadata.</param>
+            <param name="overwriteExisting">True to overwrite existing non-empty asset fields; false to only populate empty ones.</param>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.AssignRandomAssetsToTemplates(Realm.EditorAPI.TemplateType[],System.Boolean)">
+            <summary>
+            Assigns random assets to all templates matching the given template types.
+            </summary>
+            <param name="templateTypes">Array of template categories to process.</param>
+            <param name="overwriteExisting">True to overwrite existing non-empty asset fields; false to only populate empty ones.</param>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.AssignRandomAssetsToTemplates(System.Boolean)">
+            <summary>
+            Assigns random assets to all templates across all template categories.
+            </summary>
+            <param name="overwriteExisting">True to overwrite existing non-empty asset fields; false to only populate empty ones.</param>
+        </member>
+        <member name="T:Realm.EditorAPI.TemplateType">
+            <summary>
+            Specifies the template category type in map metadata.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.TemplateType.Units">
+            <summary>
+            Unit entities.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.TemplateType.Buildings">
+            <summary>
+            Building structures.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.TemplateType.Resources">
+            <summary>
+            Harvestable or harvest-related resource nodes.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.TemplateType.Props">
+            <summary>
+            Environmental and decorative props.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.TemplateType.Abilities">
+            <summary>
+            Unit and hero abilities.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.TemplateType.Weapons">
+            <summary>
+            Combat weapons and projectile definitions.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.TemplateType.Upgrades">
+            <summary>
+            Tech tree and unit upgrades.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.TemplateType.Items">
+            <summary>
+            Inventory items and consumables.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.TemplateType.Attachments">
+            <summary>
+            Visual model attachments and socket mounts.
+            </summary>
+        </member>
+        <member name="F:Realm.EditorAPI.TemplateType.Vfx">
+            <summary>
+            Visual effect configurations.
+            </summary>
         </member>
     </members>
 </doc>

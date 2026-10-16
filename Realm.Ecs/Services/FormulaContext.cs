@@ -10,15 +10,13 @@ public struct FormulaContext
 	public World? World;
 	public Entity Caster;
 	public Entity Target;
-	public Dictionary<string, float>? SpellData;
-	public Dictionary<string, float>? DynamicData;
+	public string WASMFunctionName;
 
-	public FormulaContext(World? world, Entity caster = default, Entity target = default, Dictionary<string, float>? spellData = null, Dictionary<string, float>? dynamicData = null)
+	public FormulaContext(World? world, Entity caster = default, Entity target = default, string wasmFunctionName = "")
 	{
 		World = world;
 		Caster = caster;
 		Target = target;
-		SpellData = spellData;
-		DynamicData = dynamicData;
+		WASMFunctionName = wasmFunctionName;
 	}
 }

@@ -86,6 +86,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private readonly Dictionary<ulong, DecalNodeState> _originalDecalStates = new();
 
 	private DecalSnapshot _initialSnapshot;
+	private string? _initialTemplateJson = null;
+	private bool _templateExistedInitially = false;
 	private Action<JsonObject> _onApplied;
 
 	private Label _lblDecalName;
@@ -874,6 +876,37 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		OpenDialog();
 	}
 
+	protected override string GetRandomizeTemplateSlug()
+	{
+		return !string.IsNullOrEmpty(_decalKey) ? _decalKey : $"decal/{_slug}";
+	}
+
+	protected override void OnAssetsRandomized()
+	{
+		string targetId = GetRandomizeTemplateSlug();
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+
+		var metadata = MapFileService.LoadMetadata(wsPath);
+		if (metadata?.Decals != null)
+		{
+			var (_, curSlug) = TemplateIDHelper.ParseTemplateID(targetId);
+			Realm.Shared.Metadata.DecalMetadata? foundMeta = null;
+			if (metadata.Decals.TryGetValue(targetId, out foundMeta) ||
+			    (!string.IsNullOrEmpty(curSlug) && metadata.Decals.TryGetValue(curSlug, out foundMeta)) ||
+			    (!string.IsNullOrEmpty(_texturePath) && metadata.Decals.TryGetValue(_texturePath, out foundMeta)))
+			{
+				if (foundMeta != null && !string.IsNullOrEmpty(foundMeta.TexturePath))
+				{
+					_texturePath = foundMeta.TexturePath;
+				}
+			}
+		}
+
+		SyncControlsWithValues();
+		ReloadBaseTexture();
+		UpdateLivePreviewAndWorld();
+	}
+
 	private string ResolveTexturePath(string decalKey, JsonObject resolvedData)
 	{
 		string rawTexturePath = GetRawTexturePath(resolvedData);
@@ -999,6 +1032,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			UpperFade = _upperFade,
 			LowerFade = _lowerFade
 		};
+
+		string targetId = !string.IsNullOrEmpty(_decalKey) ? _decalKey : $"decal/{_slug}";
+		_initialTemplateJson = GameContext.EditorService.SnapshotTemplateJson(targetId);
+		_templateExistedInitially = _initialTemplateJson != null;
 	}
 
 	private void SyncControlsWithValues()
@@ -1385,6 +1422,19 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	protected override void OnCancel()
 	{
+		string targetId = !string.IsNullOrEmpty(_decalKey) ? _decalKey : $"decal/{_slug}";
+		if (!string.IsNullOrEmpty(targetId))
+		{
+			if (_templateExistedInitially)
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, _initialTemplateJson);
+			}
+			else
+			{
+				GameContext.EditorService.RevertTemplateJson(targetId, null);
+			}
+		}
+
 		if (!TryRestoreOriginalStates())
 		{
 			RestoreInitialSnapshot();
@@ -1457,6 +1507,40 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_maxScaleRatio = _initialSnapshot.MaxScaleRatio;
 		_upperFade = _initialSnapshot.UpperFade;
 		_lowerFade = _initialSnapshot.LowerFade;
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
+		{
+			m.Decals ??= new(StringComparer.OrdinalIgnoreCase);
+			m.Decals[_decalKey] = new Realm.Shared.Metadata.DecalMetadata
+			{
+				TexturePath = _texturePath,
+				Brightness = _brightness,
+				Tint = $"#{_tint.ToHtml(false)}",
+				Contrast = _contrast,
+				Saturation = _saturation,
+				Opacity = _opacity,
+				AlbedoMix = _albedoMix,
+				NormalStrength = _normalStrength,
+				Roughness = _roughness,
+				Metallic = _metallic,
+				BlendMode = _blendMode,
+				AnimateOpacity = _animateOpacity,
+				OpacityPulseSpeed = _opacityPulseSpeed,
+				MinOpacity = _minOpacity,
+				MaxOpacity = _maxOpacity,
+				AnimateEmission = _animateEmission,
+				EmissionPulseSpeed = _emissionPulseSpeed,
+				MinEmission = _minEmission,
+				MaxEmission = _maxEmission,
+				AnimateScale = _animateScale,
+				ScalePulseSpeed = _scalePulseSpeed,
+				MinScaleRatio = _minScaleRatio,
+				MaxScaleRatio = _maxScaleRatio,
+				UpperFade = _upperFade,
+				LowerFade = _lowerFade
+			};
+		});
 
 		ReloadBaseTexture();
 		UpdateLivePreviewAndWorld();

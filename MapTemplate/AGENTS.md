@@ -3,6 +3,7 @@ Realm is an RTS Game Engine with a custom map editor for UGC arcade maps.
 
 ## Skills
 Separate skill files are located in the `.agent/skills` folder.
+- `skill-assign-asset`: Automatically queries storage and assigns random matching assets to templates. **Always call `skill-assign-asset` (`AssignRandomAssetsToTemplates(false)` via IPC) after creating a new template in `metadata.json`** to populate missing asset references.
 
 ## Map Scripting & Editor API
 - Implements `IMapScript`.
@@ -43,13 +44,13 @@ VSCodium agent extensions can programmatically invoke editor operations by issui
 ## JSON Map Files
 
 ### metadata.json
-The primary map configuration file. Schema at `.vscode/map_schema.json` 
+The primary map configuration file. Schema at `.vscode/metadata.schema.json` 
 
 ### manifest.json
-Tracks map asset registrations Schema at `.vscode/manifest_schema.json`.
+Tracks map asset registrations Schema at `.vscode/manifest.schema.json`.
 
 ### terrain.json
-Defines the terrain layout: prop/unit/decal placements, map dimensions (`Width`, `Depth`), camera bounds, `Coordinates` (named map regions), and skybox path. Schema at `.vscode/terrain_schema.json`.
+Defines the terrain layout: prop/unit/decal placements, map dimensions (`Width`, `Depth`), camera bounds, `Coordinates` (named map regions), and skybox path. Schema at `.vscode/terrain.schema.json`.
 
 ## Terrain Binary Files
 

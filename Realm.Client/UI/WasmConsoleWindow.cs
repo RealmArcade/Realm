@@ -121,8 +121,8 @@ public class WasmConsoleWindow
 
 	public static bool IsSinglePlayerOrTestMode()
 	{
-		if (GameContext.EditorService.IsTestMode) return true;
-		if (GameHost.Instance != null && GameContext.EditorService.IsMapEditorMode) return true;
+		if (GameContext.SessionState.IsTestMode) return true;
+		if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode) return true;
 		if (GodotObject.IsInstanceValid(LobbyManager.Instance) && LobbyManager.Instance.IsSinglePlayer) return true;
 		return false;
 	}

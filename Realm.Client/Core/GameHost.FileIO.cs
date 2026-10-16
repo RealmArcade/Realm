@@ -336,7 +336,7 @@ public partial class GameHost
 			child.QueueFree();
 		}
 
-		var terrainNode = GameContext.EditorService.IsMapEditorMode ? (RuntimeTerrain)new EditableTerrain() : new RuntimeTerrain();
+		var terrainNode = GameContext.SessionState.IsMapEditorMode ? (RuntimeTerrain)new EditableTerrain() : new RuntimeTerrain();
 		terrainNode.Name = "Ground";
 		AddChild(terrainNode);
 		GroundTerrain = terrainNode;

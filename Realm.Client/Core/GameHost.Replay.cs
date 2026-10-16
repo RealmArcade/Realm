@@ -55,7 +55,14 @@ public partial class GameHost
 	{
 		if (_activeMapScript == null) return;
 
-		_activeMapScript.Initialize(this);
+		try
+		{
+			_activeMapScript.Initialize(this);
+		}
+		catch (System.Exception ex)
+		{
+			GD.PrintErr($"[GameHost.Replay] Exception during active map script Initialize: {ex.Message}");
+		}
 
 		var entitiesToDestroy = new List<Arch.Core.Entity>();
 		foreach (var unit in AllUnits)

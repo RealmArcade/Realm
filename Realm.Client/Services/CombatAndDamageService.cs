@@ -52,6 +52,7 @@ namespace Realm.Client.Services
 		private Vector3 _scanAttackerPos;
 		private PlayerEntity _scanAttackerOwner;
 		private bool _scanIsAttackerEnemy;
+		private int _scanAttackerPlayerIndex;
 		private bool _scanAttackerIsGroundMelee;
 		private Entity _scanAttacker;
 		private float _scanMaxDistSq;
@@ -298,11 +299,12 @@ namespace Realm.Client.Services
 		{
 			if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value == "priest") return;
 
+			bool isAutoCombat = GameContext.World.Has<AutoCombatState>(entity) && GameContext.World.Get<AutoCombatState>(entity).Enabled;
 			bool isAttackMove = GameContext.World.Has<AttackMove>(entity);
 			bool isPatrol = GameContext.World.Has<Patrol>(entity);
 			bool isIdle = !GameContext.World.Has<MoveTo>(entity) && !isAttackMove;
 
-			if (!isIdle && !isAttackMove && !isPatrol) return;
+			if (!isIdle && !isAttackMove && !isPatrol && !isAutoCombat) return;
 
 			if (!TryGetTargetAcquisitionContext(entity, ref pos, ref atk, ref owner)) return;
 
@@ -319,6 +321,9 @@ namespace Realm.Client.Services
 			_scanAttackerOwner = owner.PlayerEntity;
 			_scanAttacker = entity;
 			_scanIsAttackerEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
+			_scanAttackerPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity)
+				? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex
+				: (_scanIsAttackerEnemy ? 1 : 0);
 
 			// A ground-pathing melee attacker can never hit a unit hovering at flight
 			// altitude, so flyers are excluded from its scan entirely.
@@ -381,21 +386,21 @@ namespace Realm.Client.Services
 		// closest one that is reachable. Flying units are excluded for ground-melee attackers.
 		private void ScanEnemyQueryAction(Entity potentialEnemy, ref Position enemyPos, ref Owner enemyOwner)
 		{
-			if (enemyOwner.PlayerEntity != _scanAttackerOwner)
-			{
-				bool isEnemyEntity = GameContext.World.Has<UnitFaction>(potentialEnemy) && GameContext.World.Get<UnitFaction>(potentialEnemy).IsEnemy;
-				if (isEnemyEntity != _scanIsAttackerEnemy)
-				{
-					if (IsFlying(potentialEnemy) && (_scanAttackerIsGroundMelee || !CanAttackTarget(_scanAttacker, potentialEnemy)))
-					{
-						return;
-					}
+			int enemyPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(potentialEnemy)
+				? GameContext.World.Get<UnitOwnerPlayer>(potentialEnemy).PlayerIndex
+				: ((GameContext.World.Has<UnitFaction>(potentialEnemy) && GameContext.World.Get<UnitFaction>(potentialEnemy).IsEnemy) ? 1 : 0);
 
-					float distSq = (_scanAttackerPos - enemyPos.Value).LengthSquared();
-					if (distSq < _scanMaxDistSq)
-					{
-						InsertScanCandidate(potentialEnemy, distSq);
-					}
+			if (NetworkService.ArePlayerIndicesEnemies(_scanAttackerPlayerIndex, enemyPlayerIndex))
+			{
+				if (IsFlying(potentialEnemy) && (_scanAttackerIsGroundMelee || !CanAttackTarget(_scanAttacker, potentialEnemy)))
+				{
+					return;
+				}
+
+				float distSq = (_scanAttackerPos - enemyPos.Value).LengthSquared();
+				if (distSq < _scanMaxDistSq)
+				{
+					InsertScanCandidate(potentialEnemy, distSq);
 				}
 			}
 		}
@@ -680,7 +685,23 @@ namespace Realm.Client.Services
 			if (range <= 3f) return;
 
 			string? weaponId = null;
-			if (GameContext.World.Has<DefinitionId>(entity))
+			if (GameContext.World.Has<Inventory>(entity))
+			{
+				var inv = GameContext.World.Get<Inventory>(entity);
+				if (inv.Items != null)
+				{
+					foreach (var item in inv.Items.Keys)
+					{
+						if (GameContext.RegistryService?.ItemRegistry != null && GameContext.RegistryService.ItemRegistry.TryGetValue(item, out var itemMeta) && itemMeta?.GrantedWeapons != null && itemMeta.GrantedWeapons.Length > 0)
+						{
+							weaponId = itemMeta.GrantedWeapons[0];
+							break;
+						}
+					}
+				}
+			}
+
+			if (weaponId == null && GameContext.World.Has<DefinitionId>(entity))
 			{
 				var defId = GameContext.World.Get<DefinitionId>(entity).Value;
 				var weapons = UnitWeaponsProvider?.Invoke(defId);

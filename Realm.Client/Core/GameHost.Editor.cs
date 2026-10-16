@@ -1065,7 +1065,8 @@ public partial class GameHost
 		// Preserve the authored Y (saved maps, pasted/cloned/undone objects). Placement paths
 		// that want feet-on-terrain snap the Y to the terrain before calling this method.
 		int playerIndex = player >= 0 ? player : 0;
-		bool actualIsEnemy = player >= 0 ? NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex) : isEnemy;
+		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		bool actualIsEnemy = player >= 0 ? NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex) : isEnemy;
 		bool isBuilding = false;
 		if (!UnitRegistry.ContainsKey(unitId) && !BuildingRegistry.ContainsKey(unitId))
 		{
@@ -1141,7 +1142,7 @@ public partial class GameHost
 
 		var entity = GameContext.EditorService.SpawnPropDomain(propId, new System.Numerics.Vector3(position.X, position.Y, position.Z), rotationY, scale, cleanId, defaultAmount, position.Y, baseRadius);
 
-		if (!GameContext.EditorService.IsMapEditorMode && IsStaticPropAsset(propId))
+		if (!GameContext.SessionState.IsMapEditorMode && IsStaticPropAsset(propId))
 		{
 			PropMultiMeshManager.Instance?.MarkDirty(propId);
 			return null;
@@ -1314,7 +1315,8 @@ public partial class GameHost
 	{
 		if (GodotObject.IsInstanceValid(unit) && GameContext.World.IsAlive(unit.Entity))
 		{
-			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, playerIndex);
+			int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 			var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
 			GameContext.World.Set(unit.Entity, new Owner(playerOwner));
 
@@ -1340,7 +1342,8 @@ public partial class GameHost
 		int targetPlayer = isEnemy ? 1 : 0;
 		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
 		{
-			var enemyPlayer = LobbyManager.Instance.PlayerList.Find(p => NetworkService.ArePlayerIndicesEnemies(LocalPlayerIndex, p.Slot));
+			int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+			var enemyPlayer = LobbyManager.Instance.PlayerList.Find(p => NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, p.Slot));
 			if (isEnemy && enemyPlayer != null)
 			{
 				targetPlayer = enemyPlayer.Slot;
@@ -1397,18 +1400,6 @@ public partial class GameHost
 		EntityToProp3D.Clear();
 
 		ReinitializeEcsAndServices();
-
-		_playerEntity = GameContext.World.Create();
-		GameContext.World.Add(_playerEntity, new Player());
-		GameContext.World.Add(_playerEntity, new Name("Horaid_Topa"));
-		InitializePlayerResources(_playerEntity);
-		SetupPlayerEntityComponents(_playerEntity);
-
-		_enemyPlayerEntity = GameContext.World.Create();
-		GameContext.World.Add(_enemyPlayerEntity, new Player());
-		GameContext.World.Add(_enemyPlayerEntity, new Name("Enemy_AI"));
-		InitializePlayerResources(_enemyPlayerEntity);
-		SetupPlayerEntityComponents(_enemyPlayerEntity);
 	}
 
 	private MeshInstance3D _measureMeshInstance { get; set; }

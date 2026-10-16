@@ -107,7 +107,6 @@ public partial class MinimapOverlay : Control
 			return;
 		}
 
-		color = new Color(0.9f, 0.3f, 0.1f);
 		DrawCircle(drawPos, iconSize, color);
 		DrawCircle(drawPos, iconSize, new Color(0f, 0f, 0f, 0.6f), false, 1.0f);
 	}

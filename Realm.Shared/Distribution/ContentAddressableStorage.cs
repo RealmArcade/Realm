@@ -712,21 +712,20 @@ public class ContentAddressableStorage
 		string? authorPublicKey,
 		string? authorSignature)
 	{
-		string? metadataToEmbed = metadataHeadersJson;
+		string? baseMetadata = metadataHeadersJson;
+		if (string.IsNullOrWhiteSpace(baseMetadata) && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
+		{
+			baseMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
+		}
+
 		if (!string.IsNullOrWhiteSpace(authorPublicKey) && !string.IsNullOrWhiteSpace(authorSignature))
 		{
-			metadataToEmbed = InjectAuthorKeysIntoMetadata(metadataToEmbed, authorPublicKey, authorSignature);
+			baseMetadata = InjectAuthorKeysIntoMetadata(baseMetadata, authorPublicKey, authorSignature);
 		}
 
-		string? finalMetadata = metadataToEmbed;
-		if (finalMetadata == null && (extension is ".rmesh" or ".ranim" or ".rtex" or ".raud" or ".rkey"))
+		if (!string.IsNullOrWhiteSpace(baseMetadata))
 		{
-			finalMetadata = RealmMetadataHelper.ExtractMetadata(finalFilePath);
-		}
-
-		if (!string.IsNullOrWhiteSpace(finalMetadata))
-		{
-			UpdateSidecarCache(normalizedHash, finalMetadata);
+			UpdateSidecarCache(normalizedHash, baseMetadata);
 		}
 		else
 		{

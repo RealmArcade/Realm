@@ -57,6 +57,27 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		: base(hud, TranslationServer.Translate("Custom Shader & Dissolve Studio"), new Vector2(560, 780))
 	{
 		BuildControls();
+		if (RandomizeAssetsButton != null)
+		{
+			RandomizeAssetsButton.Visible = false;
+		}
+	}
+
+	public override void SetRandomizeAssetsAction(Action onRandomize)
+	{
+		if (RandomizeAssetsButton != null)
+		{
+			RandomizeAssetsButton.Visible = false;
+		}
+	}
+
+	public override void OpenDialog()
+	{
+		base.OpenDialog();
+		if (RandomizeAssetsButton != null)
+		{
+			RandomizeAssetsButton.Visible = false;
+		}
 	}
 
 	private void BuildControls()

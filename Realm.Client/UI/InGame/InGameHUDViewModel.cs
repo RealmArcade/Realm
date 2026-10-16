@@ -26,11 +26,11 @@ public class InGameHUDViewModel
 			return Entity.Null;
 
 		if (IsPlayingNormally())
-			return GameHost.Instance._playerEntity;
+			return GameHost.Instance.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
 
 		int targetPeerId = GetTargetPeerId();
 		if (targetPeerId == -1)
-			return GameHost.Instance._playerEntity;
+			return GameHost.Instance.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
 
 		return GetSpectatedPlayer(targetPeerId);
 	}
@@ -54,14 +54,15 @@ public class InGameHUDViewModel
 	{
 		var world = GameContext.World;
 		var worldEntity = ECSContext.WorldEntity;
+		Entity defaultPlayer = GameHost.Instance?.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1) ?? Entity.Null;
 
-		if (worldEntity == Entity.Null) return GameHost.Instance._playerEntity;
-		if (!world.IsAlive(worldEntity)) return GameHost.Instance._playerEntity;
-		if (!world.Has<NetworkMappingState>(worldEntity)) return GameHost.Instance._playerEntity;
+		if (worldEntity == Entity.Null) return defaultPlayer;
+		if (!world.IsAlive(worldEntity)) return defaultPlayer;
+		if (!world.Has<NetworkMappingState>(worldEntity)) return defaultPlayer;
 
 		var mapping = world.Get<NetworkMappingState>(worldEntity);
-		if (mapping.PeerIdToPlayerEntityMap == null) return GameHost.Instance._playerEntity;
-		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var spectatedPlayer)) return GameHost.Instance._playerEntity;
+		if (mapping.PeerIdToPlayerEntityMap == null) return defaultPlayer;
+		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var spectatedPlayer)) return defaultPlayer;
 
 		return spectatedPlayer;
 	}
@@ -670,6 +671,7 @@ public class InGameHUDViewModel
 		info.UnitId = u.UnitId;
 		info.IsEnemy = u.IsEnemy;
 		info.IsBuilding = u.IsBuilding;
+		info.HasInventory = false;
 		info.Name = u.UnitId;
 		info.IsUnderConstruction = false;
 		info.HasProduction = false;
@@ -788,11 +790,12 @@ public class InGameHUDViewModel
 
 	private void UpdateUnitInventory(World world, Unit3D u, SelectedUnitInfo info)
 	{
-		if (!world.Has<Inventory>(u.Entity))
+		info.InventoryItems.Clear();
+		info.HasInventory = world.Has<Inventory>(u.Entity);
+		if (!info.HasInventory)
 			return;
 
 		var inv = world.Get<Inventory>(u.Entity);
-		info.InventoryItems.Clear();
 		if (inv.Items != null)
 		{
 			foreach (var kvp in inv.Items)
@@ -875,7 +878,7 @@ public class InGameHUDViewModel
 			}
 		}
 
-		if (GameHost.UnitRegistry.TryGetValue(u.UnitId, out var regMeta))
+		if (GameHost.TryGetUnitOrBuildingMetadata(u.UnitId, out var regMeta))
 		{
 			info.Description = regMeta.Description;
 			if (regMeta.Abilities != null && regMeta.Abilities.Length > 0)

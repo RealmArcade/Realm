@@ -223,7 +223,7 @@ public partial class GameOver : Control
 		_btnClose.Icon = GD.Load<Texture2D>("res://Assets/UI/cancel_button_2.png");
 		_btnClose.ExpandIcon = true;
 
-		string closeText = GameContext.EditorService.IsTestMode ? "Back to Editor" : "Close";
+		string closeText = GameContext.SessionState.IsTestMode ? "Back to Editor" : "Close";
 		UIStyle.ApplyButtonText(_btnClose, closeText, 18);
 
 		_btnClose.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -234,10 +234,10 @@ public partial class GameOver : Control
 		_btnClose.Pressed += () =>
 		{
 			UIManager.Instance.PlayClickSound();
-			if (GameContext.EditorService.IsTestMode)
+			if (GameContext.SessionState.IsTestMode)
 			{
-				GameContext.EditorService.IsTestMode = false;
-				GameContext.EditorService.ReturningFromTest = true;
+				GameContext.SessionState.IsTestMode = false;
+				GameContext.SessionState.ReturningFromTest = true;
 				if (LobbyManager.Instance != null)
 				{
 					LobbyManager.Instance.Disconnect();
