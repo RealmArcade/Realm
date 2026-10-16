@@ -28,3 +28,4 @@ Realm.AdminServer/appsettings.json
 /android/
 .codegraph/
 Realm.MapEditorExtension/dist/
+*.jit.elf

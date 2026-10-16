@@ -12,6 +12,8 @@
 				"settings set plugin.jit-loader.gdb.enable on"
 			],
 			"postRunCommands": [
+				"target modules add \"${workspaceFolder}/MapScript.jit.elf\"",
+				"target modules load --file \"${workspaceFolder}/MapScript.jit.elf\" --slide 0",
 				"continue"
 			],
 			"env": {
