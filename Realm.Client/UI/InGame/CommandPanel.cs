@@ -529,7 +529,7 @@ public partial class CommandPanel
 		btn.Flat = false;
 		btn.Text = "";
 		btn.ExpandIcon = true;
-		btn.Icon = GD.Load<Texture2D>("res://Assets/UI/search_icon_clean.png");
+		btn.Icon = GD.Load<Texture2D>("res://Assets/UI/command_card_next_arrow.png");
 		btn.TooltipText = TranslationServer.Translate("Cycle Abilities / Commands");
 		btn.CustomMinimumSize = new Vector2(56, 56);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
