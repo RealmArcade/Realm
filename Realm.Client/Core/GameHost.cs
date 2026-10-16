@@ -123,6 +123,10 @@ public partial class GameHost : Node3D, IGameAPI
 	public List<Prop3D> AllProps { get; set; } = new List<Prop3D>();
 	public List<Decal> AllDecals { get; set; } = new List<Decal>();
 	public List<ProceduralVfxInstance3D> AllVfx { get; set; } = new List<ProceduralVfxInstance3D>();
+	public List<LootItem3D> AllLootItems { get; set; } = new();
+	public static Dictionary<int, LootItem_WasmRuntime> IdToLootItem { get; set; } = new();
+	private readonly List<int> _expiredLootToDespawn = new();
+	private readonly List<(int LootId, Entity UnitEntity)> _collectedLootToProcess = new();
 	private List<Unit3D> _castlesList { get; set; } = new();
 
 	public static Dictionary<Entity, Unit3D> EntityToUnit3D { get; set; } = new();
@@ -324,6 +328,8 @@ public partial class GameHost : Node3D, IGameAPI
 	public void LoadMapProperties(string path)
 	{
 		GameContext.MapPropertiesLoader?.LoadMapProperties(ECSContext.WorldEntity, path);
+		_defaultCameraBoundsCaptured = false;
+		CaptureDefaultCameraBounds();
 	}
 
 	public bool ImportTerrainFromMinimap(
@@ -799,6 +805,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public event Action<string, IUnit?>? OnPlayerChatMessage;
 	public event Action<IUnit>? OnUnitSelected;
 	public event Action<IUnit, IUnit>? OnUnitAttacked;
+	public event Action<ILootItem, IUnit>? OnLootItemCollected;
 
 	public void TriggerPlayerChatMessage(string message)
 	{
@@ -1090,6 +1097,109 @@ public partial class GameHost : Node3D, IGameAPI
 		}).CallDeferred();
 	}
 
+	private bool _defaultCameraBoundsCaptured = false;
+	public float? DefaultCameraBoundsLeft { get; private set; }
+	public float? DefaultCameraBoundsRight { get; private set; }
+	public float? DefaultCameraBoundsTop { get; private set; }
+	public float? DefaultCameraBoundsBottom { get; private set; }
+	private readonly Dictionary<int, (float MinX, float MinZ, float MaxX, float MaxZ)> _playerCameraBoundsOverrides = new();
+
+	public void CaptureDefaultCameraBounds()
+	{
+		if (_defaultCameraBoundsCaptured) return;
+		if (ECSContext.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
+		{
+			ref var cam = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			DefaultCameraBoundsLeft = cam.LimitLeft;
+			DefaultCameraBoundsRight = cam.LimitRight;
+			DefaultCameraBoundsTop = cam.LimitTop;
+			DefaultCameraBoundsBottom = cam.LimitBottom;
+			_defaultCameraBoundsCaptured = true;
+		}
+	}
+
+	private void EnsureDefaultCameraBoundsCaptured(CameraControl? camera)
+	{
+		if (_defaultCameraBoundsCaptured) return;
+		CaptureDefaultCameraBounds();
+		if (!_defaultCameraBoundsCaptured && camera != null)
+		{
+			DefaultCameraBoundsLeft = camera.LimitLeft;
+			DefaultCameraBoundsRight = camera.LimitRight;
+			DefaultCameraBoundsTop = camera.LimitTop;
+			DefaultCameraBoundsBottom = camera.LimitBottom;
+			_defaultCameraBoundsCaptured = true;
+		}
+	}
+
+	public void SetCameraBoundsInternal(float minX, float minZ, float maxX, float maxZ)
+	{
+		Callable.From(() =>
+		{
+			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
+			if (camera != null)
+			{
+				EnsureDefaultCameraBoundsCaptured(camera);
+				camera.LimitLeft = minX;
+				camera.LimitRight = maxX;
+				camera.LimitTop = minZ;
+				camera.LimitBottom = maxZ;
+				camera.ClampToValidGameCamera();
+			}
+		}).CallDeferred();
+	}
+
+	public void ResetCameraBoundsInternal()
+	{
+		Callable.From(() =>
+		{
+			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
+			if (camera != null)
+			{
+				if (_defaultCameraBoundsCaptured)
+				{
+					camera.LimitLeft = DefaultCameraBoundsLeft;
+					camera.LimitRight = DefaultCameraBoundsRight;
+					camera.LimitTop = DefaultCameraBoundsTop;
+					camera.LimitBottom = DefaultCameraBoundsBottom;
+				}
+				camera.ClampToValidGameCamera();
+			}
+		}).CallDeferred();
+	}
+
+	public void RecordPlayerCameraBoundsOverride(int playerIndex, float minX, float minZ, float maxX, float maxZ)
+	{
+		_playerCameraBoundsOverrides[playerIndex] = (minX, minZ, maxX, maxZ);
+	}
+
+	public void ClearPlayerCameraBoundsOverride(int playerIndex)
+	{
+		_playerCameraBoundsOverrides.Remove(playerIndex);
+	}
+
+	public Dictionary<HudElement, bool> LocalHudVisibilityOverrides { get; } = new();
+	private readonly Dictionary<int, Dictionary<HudElement, bool>> _playerHudVisibilityOverrides = new();
+
+	public void RecordPlayerHudVisibility(int playerIndex, HudElement element, bool visible)
+	{
+		if (!_playerHudVisibilityOverrides.TryGetValue(playerIndex, out var dict))
+		{
+			dict = new Dictionary<HudElement, bool>();
+			_playerHudVisibilityOverrides[playerIndex] = dict;
+		}
+		dict[element] = visible;
+	}
+
+	public void SetHudElementVisibleInternal(HudElement element, bool visible)
+	{
+		LocalHudVisibilityOverrides[element] = visible;
+		Callable.From(() =>
+		{
+			InGameHUD.Instance?.SetHudElementVisible(element, visible);
+		}).CallDeferred();
+	}
+
 	public void SelectUnitInternal(IUnit unit)
 	{
 		Callable.From(() =>
@@ -1163,6 +1273,83 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
+
+	private void TickGroundLoot(float delta)
+	{
+		if (AllLootItems.Count == 0) return;
+
+		_expiredLootToDespawn.Clear();
+		_collectedLootToProcess.Clear();
+
+		for (int i = 0; i < AllLootItems.Count; i++)
+		{
+			var loot = AllLootItems[i];
+			if (!GodotObject.IsInstanceValid(loot) || loot.IsDespawned) continue;
+
+			if (loot.Lifetime > 0f)
+			{
+				loot.RemainingLifetime -= delta;
+				if (loot.RemainingLifetime <= 0f)
+				{
+					_expiredLootToDespawn.Add(loot.UniqueId);
+					continue;
+				}
+			}
+
+			if (!loot.AutoPickup) continue;
+
+			float radiusSq = loot.PickupRadius * loot.PickupRadius;
+			var lootPos = loot.GlobalPosition;
+
+			Unit3D? bestUnit = null;
+			float bestDistSq = float.MaxValue;
+
+			for (int u = 0; u < AllUnits.Count; u++)
+			{
+				var unit = AllUnits[u];
+				if (!GodotObject.IsInstanceValid(unit) || unit.IsBuilding) continue;
+				if (loot.OwnerPlayerIndex >= 0 && unit.Player != loot.OwnerPlayerIndex) continue;
+				if (!GameContext.World.IsAlive(unit.Entity) || GameContext.World.Has<Dead>(unit.Entity)) continue;
+
+				if (GameContext.World.Has<Inventory>(unit.Entity))
+				{
+					ref var inv = ref GameContext.World.Get<Inventory>(unit.Entity);
+					if (inv.Items != null && inv.Items.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+						continue;
+				}
+
+				float dx = unit.GlobalPosition.X - lootPos.X;
+				float dy = unit.GlobalPosition.Y - lootPos.Y;
+				float dz = unit.GlobalPosition.Z - lootPos.Z;
+				float distSq = dx * dx + dy * dy + dz * dz;
+
+				if (distSq <= radiusSq && distSq < bestDistSq)
+				{
+					bestDistSq = distSq;
+					bestUnit = unit;
+				}
+			}
+
+			if (bestUnit != null)
+			{
+				_collectedLootToProcess.Add((loot.UniqueId, bestUnit.Entity));
+			}
+		}
+
+		for (int i = 0; i < _expiredLootToDespawn.Count; i++)
+		{
+			RemoveLootItem(_expiredLootToDespawn[i]);
+		}
+
+		for (int i = 0; i < _collectedLootToProcess.Count; i++)
+		{
+			var (lootId, unitEnt) = _collectedLootToProcess[i];
+			if (GameContext.World.IsAlive(unitEnt))
+			{
+				CollectLootItem(lootId, GameContext.SimulationService.GetUnitWrapper(unitEnt));
+			}
+		}
+	}
 
 	public void NotifyPlayerLeft(int playerIndex)
 	{
@@ -2059,6 +2246,8 @@ public partial class GameHost : Node3D, IGameAPI
 		SelectedUnits.Clear();
 		ClearNodeCollection(AllProps);
 		ClearNodeCollection(AllDecals);
+		ClearNodeCollection(AllLootItems);
+		IdToLootItem.Clear();
 		ClearStaticText();
 
 		_castlesList.Clear();
@@ -2075,6 +2264,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 		EntityToUnit3D.Clear();
 		EntityToProp3D.Clear();
+		_playerCameraBoundsOverrides.Clear();
+		_playerHudVisibilityOverrides.Clear();
+		LocalHudVisibilityOverrides.Clear();
 		_activeMapScript = null;
 
 		ReinitializeEcsAndServices();
@@ -2094,6 +2286,8 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		EntityToUnit3D.Clear();
 		EntityToProp3D.Clear();
+		ClearNodeCollection(AllLootItems);
+		IdToLootItem.Clear();
 		_activeMapScript = null;
 		ClearStaticText();
 
@@ -2852,8 +3046,8 @@ public partial class GameHost : Node3D, IGameAPI
 	/// </summary>
 	public bool IsPathingCapability(Entity entity, TerrainPathingFlags capability)
 	{
-		if (GameContext.World == null || !GameContext.World.IsAlive(entity) || !GameContext.World.Has<PathingFlags>(entity)) return false;
-		int flags = GameContext.World.Get<PathingFlags>(entity).Value;
+		if (GameContext.World == null || !GameContext.World.IsAlive(entity) || !GameContext.World.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)) return false;
+		int flags = GameContext.World.Get<Realm.Ecs.Components.Movement.PathingFlags>(entity).Value;
 		return ((TerrainPathingFlags)flags & capability) != 0;
 	}
 
@@ -2992,6 +3186,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		TickScheduledTimers(fDelta);
 		TickZoneTriggers();
+		TickGroundLoot(fDelta);
 
 		if (_activeMapScript != null)
 		{

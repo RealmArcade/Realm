@@ -20,12 +20,15 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using Godot;
 using Realm.MapAPI;
 using Realm.Ecs.Services;
+using Realm.Client.Services;
 using Wasmtime;
 using Engine = Wasmtime.Engine;
 using FileAccess = System.IO.FileAccess;
@@ -123,6 +126,11 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 			InitializeAutoEvents();
 
 			LogToConsole($"[WASM RUNTIME] Successfully instantiated WASM module '{mapName}'.");
+
+			if (_isDebugMode)
+			{
+				ExportJitDebugElf(wasmPath);
+			}
 
 			_watchdogTimer = new System.Threading.Timer(_ =>
 			{
@@ -438,5 +446,93 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 			{
 			}
 		}
+	}
+
+	public static void ExportJitDebugElf(string wasmPath)
+	{
+		try
+		{
+			IntPtr wasmtimeModuleAddress = IntPtr.Zero;
+			foreach (ProcessModule module in Process.GetCurrentProcess().Modules)
+			{
+				if (module.ModuleName.Equals("wasmtime.dll", StringComparison.OrdinalIgnoreCase))
+				{
+					wasmtimeModuleAddress = module.BaseAddress;
+					break;
+				}
+			}
+
+			if (wasmtimeModuleAddress == IntPtr.Zero)
+			{
+				return;
+			}
+
+			if (!NativeLibrary.TryGetExport(wasmtimeModuleAddress, "__jit_debug_descriptor", out IntPtr descriptorPointer))
+			{
+				return;
+			}
+
+			IntPtr firstEntryPointer = Marshal.ReadIntPtr(descriptorPointer, 16);
+			if (firstEntryPointer == IntPtr.Zero)
+			{
+				return;
+			}
+
+			IntPtr symbolFileAddress = Marshal.ReadIntPtr(firstEntryPointer, 16);
+			ulong symbolFileSize = (ulong)Marshal.ReadInt64(firstEntryPointer, 24);
+
+			if (symbolFileAddress == IntPtr.Zero || symbolFileSize == 0 || symbolFileSize > 200_000_000)
+			{
+				return;
+			}
+
+			byte[] elfBytes = new byte[symbolFileSize];
+			Marshal.Copy(symbolFileAddress, elfBytes, 0, (int)symbolFileSize);
+
+			if (elfBytes.Length < 4 || elfBytes[0] != 0x7F || elfBytes[1] != 0x45 || elfBytes[2] != 0x4C || elfBytes[3] != 0x46)
+			{
+				return;
+			}
+
+			string publishElfPath = Path.ChangeExtension(wasmPath, ".jit.elf");
+			File.WriteAllBytes(publishElfPath, elfBytes);
+
+			string? workspaceDirectory = ResolveWorkspaceDirectory(wasmPath);
+			if (!string.IsNullOrEmpty(workspaceDirectory) && Directory.Exists(workspaceDirectory))
+			{
+				string workspaceElfPath = Path.Combine(workspaceDirectory, "MapScript.jit.elf");
+				File.WriteAllBytes(workspaceElfPath, elfBytes);
+				LogToConsole($"[WASM DEBUG] Exported JIT debug symbols to '{workspaceElfPath}'.");
+			}
+			else
+			{
+				LogToConsole($"[WASM DEBUG] Exported JIT debug symbols to '{publishElfPath}'.");
+			}
+		}
+		catch (Exception exception)
+		{
+			LogToConsole($"[WASM DEBUG] Failed to export JIT debug symbols: {exception.Message}", true);
+		}
+	}
+
+	private static string? ResolveWorkspaceDirectory(string wasmPath)
+	{
+		if (!string.IsNullOrEmpty(GameContext.EditorService?._tempWorkspacePath) && Directory.Exists(GameContext.EditorService._tempWorkspacePath))
+		{
+			return GameContext.EditorService._tempWorkspacePath;
+		}
+
+		string? currentDirectory = Path.GetDirectoryName(Path.GetFullPath(wasmPath));
+		while (!string.IsNullOrEmpty(currentDirectory))
+		{
+			if (File.Exists(Path.Combine(currentDirectory, "MapScript.csproj")) || Directory.Exists(Path.Combine(currentDirectory, ".vscode")))
+			{
+				return currentDirectory;
+			}
+			DirectoryInfo? parent = Directory.GetParent(currentDirectory);
+			currentDirectory = parent?.FullName;
+		}
+
+		return null;
 	}
 }

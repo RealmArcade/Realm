@@ -535,6 +535,56 @@
             Gets or sets custom arbitrary key-value metadata associated with the hero.
             </summary>
         </member>
+        <member name="T:Realm.MapAPI.HudElement">
+            <summary>
+            Identifies built-in HUD (Heads-Up Display) interface elements whose visibility can be toggled per player.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.HudElement.Minimap">
+            <summary>
+            The terrain minimap display and camera view rectangle in the bottom-left corner.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.HudElement.ResourceBar">
+            <summary>
+            The top resource panel displaying gold, wood, stone, food/population, and game time.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.HudElement.CommandCard">
+            <summary>
+            The command card panel displaying unit actions, abilities, attack/move commands, and build menus.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.HudElement.UnitPortrait">
+            <summary>
+            The unit portrait and stats display showing the active selection's 3D portrait, name, and attributes.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.HudElement.Chat">
+            <summary>
+            The multiplayer in-game chat box and message history overlay.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.HudElement.Leaderboard">
+            <summary>
+            The custom map leaderboard panel on the right side of the screen.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.HudElement.SummaryTable">
+            <summary>
+            The full-screen summary table panel displaying multi-column statistics and player standings.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.HudElement.Inventory">
+            <summary>
+            The unit inventory item slots panel.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.HudElement.CountdownTimer">
+            <summary>
+            The countdown timer panel displayed at the top of the screen.
+            </summary>
+        </member>
         <member name="T:Realm.MapAPI.IGameAPI">
             <summary>
             Defines the safe, public API exposed to map scripts to interact with the game engine.
@@ -654,6 +704,11 @@
         <member name="E:Realm.MapAPI.IGameAPI.OnUnitAttacked">
             <summary>
             Triggered when a unit attacks another unit. Passes the attacker unit and the target unit.
+            </summary>
+        </member>
+        <member name="E:Realm.MapAPI.IGameAPI.OnLootItemCollected">
+            <summary>
+            Triggered when a ground loot item is collected by a unit. Passes the collected loot item and the collecting unit.
             </summary>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.CreateFloatingText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Single)">
@@ -1445,6 +1500,103 @@
             <param name="unit">The unit to order.</param>
             <param name="destination">The coordinate region to attack-move towards.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetRegionPathing(System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.PathingFlags,System.Boolean)">
+            <summary>
+            Dynamically alters the movement-type pathing flags for a designated rectangular region on the terrain navmesh.
+            </summary>
+            <param name="minX">The minimum X coordinate in world space.</param>
+            <param name="minZ">The minimum Z coordinate in world space.</param>
+            <param name="maxX">The maximum X coordinate in world space.</param>
+            <param name="maxZ">The maximum Z coordinate in world space.</param>
+            <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+            <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetRegionPathing(System.String,Realm.MapAPI.PathingFlags,System.Boolean)">
+            <summary>
+            Dynamically alters the movement-type pathing flags for a named coordinate region.
+            </summary>
+            <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+            <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+            <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetRegionPathing(Realm.MapAPI.Coordinate,Realm.MapAPI.PathingFlags,System.Boolean)">
+            <summary>
+            Dynamically alters the movement-type pathing flags for a coordinate bounding region.
+            </summary>
+            <param name="coordinate">The coordinate bounding region.</param>
+            <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+            <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.UpdateWorldBoundaryStatus(System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.PathingFlags,System.Boolean)">
+            <summary>
+            Updates the traversability status of a rectangular world boundary region (alias for <see cref="M:Realm.MapAPI.IGameAPI.SetRegionPathing(System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.PathingFlags,System.Boolean)"/>).
+            </summary>
+            <param name="minX">The minimum X coordinate in world space.</param>
+            <param name="minZ">The minimum Z coordinate in world space.</param>
+            <param name="maxX">The maximum X coordinate in world space.</param>
+            <param name="maxZ">The maximum Z coordinate in world space.</param>
+            <param name="pathingFlags">The movement-type pathing flags to allow or block.</param>
+            <param name="blocked">True to block the boundary; false to open/restore traversability.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.UpdateWorldBoundaryStatus(System.String,Realm.MapAPI.PathingFlags,System.Boolean)">
+            <summary>
+            Updates the traversability status of a named world boundary region (alias for <see cref="M:Realm.MapAPI.IGameAPI.SetRegionPathing(System.String,Realm.MapAPI.PathingFlags,System.Boolean)"/>).
+            </summary>
+            <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+            <param name="pathingFlags">The movement-type pathing flags to allow or block.</param>
+            <param name="blocked">True to block the boundary; false to open/restore traversability.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetRegionPathing(System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Retrieves the combined active pathing flags across the specified rectangular region.
+            </summary>
+            <param name="minX">The minimum X coordinate in world space.</param>
+            <param name="minZ">The minimum Z coordinate in world space.</param>
+            <param name="maxX">The maximum X coordinate in world space.</param>
+            <param name="maxZ">The maximum Z coordinate in world space.</param>
+            <returns>A bitmask of <see cref="T:Realm.MapAPI.PathingFlags"/> representing traversability across the region.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetRegionPathing(System.String)">
+            <summary>
+            Retrieves the combined active pathing flags across a named coordinate region.
+            </summary>
+            <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+            <returns>A bitmask of <see cref="T:Realm.MapAPI.PathingFlags"/> representing traversability across the region.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetRegionPathing(Realm.MapAPI.Coordinate)">
+            <summary>
+            Retrieves the combined active pathing flags across a coordinate bounding region.
+            </summary>
+            <param name="coordinate">The coordinate bounding region.</param>
+            <returns>A bitmask of <see cref="T:Realm.MapAPI.PathingFlags"/> representing traversability across the region.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IsRegionPathingBlocked(System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.PathingFlags)">
+            <summary>
+            Checks whether the specified pathing flags are currently blocked in the designated rectangular region.
+            </summary>
+            <param name="minX">The minimum X coordinate in world space.</param>
+            <param name="minZ">The minimum Z coordinate in world space.</param>
+            <param name="maxX">The maximum X coordinate in world space.</param>
+            <param name="maxZ">The maximum Z coordinate in world space.</param>
+            <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+            <returns>True if the specified flags are blocked; false if passable.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IsRegionPathingBlocked(System.String,Realm.MapAPI.PathingFlags)">
+            <summary>
+            Checks whether the specified pathing flags are currently blocked in a named coordinate region.
+            </summary>
+            <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+            <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+            <returns>True if the specified flags are blocked; false if passable.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IsRegionPathingBlocked(Realm.MapAPI.Coordinate,Realm.MapAPI.PathingFlags)">
+            <summary>
+            Checks whether the specified pathing flags are currently blocked in a coordinate bounding region.
+            </summary>
+            <param name="coordinate">The coordinate bounding region.</param>
+            <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+            <returns>True if the specified flags are blocked; false if passable.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.AddUnitTypeAbility(System.String,System.String)">
             <summary>
             Adds an ability to the specified unit type definition.
@@ -1841,6 +1993,70 @@
             <param name="intensity">The shake strength multiplier.</param>
             <param name="duration">The time in seconds the shake lasts.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerCameraBounds(System.Int32,System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Restricts the specified player's camera movement limits in world space coordinates.
+            Clamps the camera position immediately if currently out of bounds.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="minX">The minimum X world boundary.</param>
+            <param name="minZ">The minimum Z world boundary.</param>
+            <param name="maxX">The maximum X world boundary.</param>
+            <param name="maxZ">The maximum Z world boundary.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerCameraBounds(System.Int32,System.String)">
+            <summary>
+            Restricts the specified player's camera movement limits to the specified named coordinate marker.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="coordinateName">The name of the authored coordinate marker defining the camera bounds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerCameraBounds(System.Int32,Realm.MapAPI.Coordinate)">
+            <summary>
+            Restricts the specified player's camera movement limits to the specified coordinate bounding region.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="coordinate">The coordinate bounding region defining the camera bounds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetMapCameraBoundaries(System.Int32,System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Restricts the specified player's camera movement limits in world space coordinates (alias for <see cref="M:Realm.MapAPI.IGameAPI.SetPlayerCameraBounds(System.Int32,System.Single,System.Single,System.Single,System.Single)"/>).
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="minX">The minimum X world boundary.</param>
+            <param name="minZ">The minimum Z world boundary.</param>
+            <param name="maxX">The maximum X world boundary.</param>
+            <param name="maxZ">The maximum Z world boundary.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ResetPlayerCameraBounds(System.Int32)">
+            <summary>
+            Resets the specified player's camera movement boundaries back to the map default boundaries defined in metadata.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ResetMapCameraBoundaries(System.Int32)">
+            <summary>
+            Resets the specified player's camera movement boundaries back to the map default boundaries (alias for <see cref="M:Realm.MapAPI.IGameAPI.ResetPlayerCameraBounds(System.Int32)"/>).
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerHudElementVisible(System.Int32,Realm.MapAPI.HudElement,System.Boolean)">
+            <summary>
+            Sets whether a specific built-in HUD element is visible for the designated player.
+            Persists across HUD refreshes and reconnects.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="element">The HUD element to show or hide.</param>
+            <param name="visible">True to make the element visible; false to hide it.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ToggleUserInterfaceElement(System.Int32,Realm.MapAPI.HudElement,System.Boolean)">
+            <summary>
+            Toggles whether a specific built-in HUD element is visible for the designated player (alias for <see cref="M:Realm.MapAPI.IGameAPI.SetPlayerHudElementVisible(System.Int32,Realm.MapAPI.HudElement,System.Boolean)"/>).
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="element">The HUD element to show or hide.</param>
+            <param name="visible">True to make the element visible; false to hide it.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SelectPlayerUnit(System.Int32,Realm.MapAPI.IUnit)">
             <summary>
             Selects the specified unit on the given player's client, clearing their previous selection.
@@ -1956,6 +2172,157 @@
             </summary>
             <param name="playerIndex">Zero-based player slot index.</param>
             <returns>The color-formatted player name string.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItem(System.String,System.Numerics.Vector3,System.Int32,System.Single)">
+            <summary>
+            Spawns a pickup loot item at the specified 3D world space coordinates.
+            </summary>
+            <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+            <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+            <param name="charges">The initial charge count or stacked quantity for the item.</param>
+            <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+            <returns>The spawned loot item instance, or null if spawning failed.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItemAtLocation(System.String,System.Numerics.Vector3,System.Int32,System.Single)">
+            <summary>
+            Spawns a pickup loot item at the specified 3D world space coordinates.
+            </summary>
+            <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+            <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+            <param name="charges">The initial charge count or stacked quantity for the item.</param>
+            <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+            <returns>The spawned loot item instance, or null if spawning failed.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItem(System.String,System.String,System.Int32,System.Single)">
+            <summary>
+            Spawns a pickup loot item at the specified named coordinate marker.
+            </summary>
+            <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+            <param name="coordinateName">The name of the authored coordinate marker where the item will be spawned.</param>
+            <param name="charges">The initial charge count or stacked quantity for the item.</param>
+            <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+            <returns>The spawned loot item instance, or null if spawning failed.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItem(System.String,Realm.MapAPI.Coordinate,System.Int32,System.Single)">
+            <summary>
+            Spawns a pickup loot item at the specified coordinate.
+            </summary>
+            <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+            <param name="coordinate">The coordinate marker where the item will be spawned.</param>
+            <param name="charges">The initial charge count or stacked quantity for the item.</param>
+            <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+            <returns>The spawned loot item instance, or null if spawning failed.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemById(System.Int32)">
+            <summary>
+            Retrieves an active ground loot item by its unique runtime identifier.
+            </summary>
+            <param name="uniqueId">The unique ID of the loot item entity.</param>
+            <returns>The loot item wrapper if alive, or null if not found or despawned.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetAllLootItems">
+            <summary>
+            Retrieves all active ground loot items in the game world.
+            </summary>
+            <returns>A collection of all active ground loot items.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemsInRadius(System.Numerics.Vector3,System.Single)">
+            <summary>
+            Retrieves all active ground loot items within the specified radial distance of a 3D position.
+            </summary>
+            <param name="center">The center point in 3D world space coordinates.</param>
+            <param name="radius">The radial distance check.</param>
+            <returns>A collection of ground loot items within the radius.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.RemoveLootItem(System.Int32)">
+            <summary>
+            Removes and despawns a ground loot item from the game world by its unique identifier.
+            </summary>
+            <param name="lootItemId">The unique identifier of the loot item to remove.</param>
+            <returns>True if the loot item was found and removed; otherwise, false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.DespawnLootItem(System.Int32)">
+            <summary>
+            Despawns and removes a ground loot item from the game world by its unique identifier.
+            </summary>
+            <param name="lootItemId">The unique identifier of the loot item to despawn.</param>
+            <returns>True if the loot item was found and despawned; otherwise, false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.CollectLootItem(System.Int32,Realm.MapAPI.IUnit)">
+            <summary>
+            Attempts to collect a ground loot item using the specified unit.
+            </summary>
+            <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+            <param name="unit">The collecting unit.</param>
+            <returns>True if the unit successfully collected the loot item into inventory; otherwise, false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.CollectLootItemByPlayer(System.Int32,System.Int32)">
+            <summary>
+            Attempts to collect a ground loot item using the most suitable eligible unit owned by the specified player.
+            </summary>
+            <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+            <param name="playerIndex">The zero-based player slot index whose unit should collect the item.</param>
+            <returns>True if an eligible unit owned by the player successfully collected the item; otherwise, false.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.ILootItem">
+            <summary>
+            Represents a pickup loot item resting on the ground in the game world that can be collected by units.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.UniqueId">
+            <summary>
+            Gets the unique runtime identifier of this loot item entity.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.ItemTypeId">
+            <summary>
+            Gets the item type identifier corresponding to the item definition in the item registry.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.Position">
+            <summary>
+            Gets the position of this loot item in 3D world space coordinates.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.Charges">
+            <summary>
+            Gets the number of charges or stacked quantity granted to the collecting unit's inventory.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.Lifetime">
+            <summary>
+            Gets the initial lifetime duration in seconds before this item automatically despawns, or 0 if it persists indefinitely.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.RemainingLifetime">
+            <summary>
+            Gets the remaining lifetime duration in seconds before this item automatically despawns.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.PickupRadius">
+            <summary>
+            Gets or sets the radial distance in world units within which eligible units can pick up this item.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.AutoPickup">
+            <summary>
+            Gets or sets a value indicating whether eligible units within range automatically collect this item.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.OwnerPlayerIndex">
+            <summary>
+            Gets or sets the zero-based player slot index restricted to collect this item, or -1 if any player's units may collect it.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.ILootItem.IsDespawned">
+            <summary>
+            Gets a value indicating whether this loot item has been collected or removed from the game world.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.ILootItem.Despawn">
+            <summary>
+            Despawns and removes this loot item from the game world.
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.IMapScript">
             <summary>
@@ -2241,6 +2608,20 @@
             Orders all units owned by this player to attack-move to the destination.
             </summary>
         </member>
+        <member name="M:Realm.MapAPI.IPlayer.CollectLootItem(Realm.MapAPI.ILootItem)">
+            <summary>
+            Attempts to collect a ground loot item using an eligible unit owned by this player.
+            </summary>
+            <param name="lootItem">The ground loot item to collect.</param>
+            <returns>True if an eligible unit successfully collected the item; otherwise, false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.CollectLootItem(System.Int32)">
+            <summary>
+            Attempts to collect a ground loot item by its ID using an eligible unit owned by this player.
+            </summary>
+            <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+            <returns>True if an eligible unit successfully collected the item; otherwise, false.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IPlayer.GetTechLevel(System.String)">
             <summary>
             Gets the research level of a technology upgrade for this player.
@@ -2270,6 +2651,61 @@
             <summary>
             Shakes this player's camera to simulate an explosion or impact.
             </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetCameraBounds(System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Restricts this player's camera movement limits in world space coordinates.
+            Clamps the camera position immediately if currently out of bounds.
+            </summary>
+            <param name="minX">The minimum X world boundary.</param>
+            <param name="minZ">The minimum Z world boundary.</param>
+            <param name="maxX">The maximum X world boundary.</param>
+            <param name="maxZ">The maximum Z world boundary.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetCameraBounds(System.String)">
+            <summary>
+            Restricts this player's camera movement limits to the specified named coordinate marker.
+            </summary>
+            <param name="coordinateName">The name of the authored coordinate marker defining the camera bounds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetCameraBounds(Realm.MapAPI.Coordinate)">
+            <summary>
+            Restricts this player's camera movement limits to the specified coordinate bounding region.
+            </summary>
+            <param name="coordinate">The coordinate bounding region defining the camera bounds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetMapCameraBoundaries(System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Restricts this player's camera movement limits in world space coordinates (alias for <see cref="M:Realm.MapAPI.IPlayer.SetCameraBounds(System.Single,System.Single,System.Single,System.Single)"/>).
+            </summary>
+            <param name="minX">The minimum X world boundary.</param>
+            <param name="minZ">The minimum Z world boundary.</param>
+            <param name="maxX">The maximum X world boundary.</param>
+            <param name="maxZ">The maximum Z world boundary.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.ResetCameraBounds">
+            <summary>
+            Resets this player's camera movement boundaries back to the map default boundaries defined in metadata.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.ResetCameraBoundaries">
+            <summary>
+            Resets this player's camera movement boundaries back to the map default boundaries (alias for <see cref="M:Realm.MapAPI.IPlayer.ResetCameraBounds"/>).
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.SetHudElementVisible(Realm.MapAPI.HudElement,System.Boolean)">
+            <summary>
+            Sets whether a specific built-in HUD element is visible for this player.
+            </summary>
+            <param name="element">The HUD element to show or hide.</param>
+            <param name="visible">True to make the element visible; false to hide it.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IPlayer.ToggleUserInterfaceElement(Realm.MapAPI.HudElement,System.Boolean)">
+            <summary>
+            Toggles whether a specific built-in HUD element is visible for this player (alias for <see cref="M:Realm.MapAPI.IPlayer.SetHudElementVisible(Realm.MapAPI.HudElement,System.Boolean)"/>).
+            </summary>
+            <param name="element">The HUD element to show or hide.</param>
+            <param name="visible">True to make the element visible; false to hide it.</param>
         </member>
         <member name="M:Realm.MapAPI.IPlayer.SelectUnit(Realm.MapAPI.IUnit)">
             <summary>
@@ -2613,6 +3049,13 @@
             <param name="charges">The initial charge count for the item.</param>
             <returns>True if the item was added successfully, false otherwise.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IUnit.CollectLootItem(Realm.MapAPI.ILootItem)">
+            <summary>
+            Attempts to collect a ground loot item into this unit's inventory.
+            </summary>
+            <param name="lootItem">The ground loot item to collect.</param>
+            <returns>True if the loot item was successfully collected; otherwise, false.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IUnit.GetItemCharges(System.String)">
             <summary>
             Gets the number of charges for the specified item in the unit's inventory.
@@ -2888,6 +3331,46 @@
             Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
             </summary>
             <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.PathingFlags">
+            <summary>
+            Bit flags describing traversability and usage capabilities for terrain cells and navigation mesh regions.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.None">
+            <summary>
+            No flags enabled; completely impassable.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.ShallowWater">
+            <summary>
+            Shallow water traversal capability.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.DeepWater">
+            <summary>
+            Deep water traversal capability.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.Flying">
+            <summary>
+            Aerial or flying traversal capability.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.Ground">
+            <summary>
+            Standard ground unit traversal capability.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.Buildable">
+            <summary>
+            Structure buildability permission.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PathingFlags.All">
+            <summary>
+            All traversal and buildability flags enabled.
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.SaveEnvelope`1">
             <summary>

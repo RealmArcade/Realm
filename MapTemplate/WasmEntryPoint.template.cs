@@ -70,7 +70,7 @@ public class WasmEntryPoint
     {
         try
         {
-			if (_mapScript != null && _gameApi != null && delta > 0f)
+			if (_mapScript != null && _gameApi != null)
                 _mapScript.Update(_gameApi, delta);
         }
         catch (Exception ex)

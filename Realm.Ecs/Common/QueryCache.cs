@@ -74,4 +74,5 @@ public static class QueryCache
 	public static readonly QueryDescription AllPositionAndMoveToAndPathFollowNoneDeadQuery = new QueryDescription().WithAll<Position, MoveTo, PathFollow>().WithNone<Dead>();
 	public static readonly QueryDescription AllAutoCastQuery = new QueryDescription().WithAll<AutoCastState, Position, DefinitionId, Owner>().WithNone<Dead>();
 	public static readonly QueryDescription AllAutoCombatQuery = new QueryDescription().WithAll<AutoCombatState, Position, Owner>().WithNone<Dead>();
+	public static readonly QueryDescription AllGroundLootAndPositionQuery = new QueryDescription().WithAll<GroundLoot, Position>();
 }

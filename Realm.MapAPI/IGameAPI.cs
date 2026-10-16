@@ -130,6 +130,11 @@ public interface IGameAPI
 	event Action<IUnit, IUnit>? OnUnitAttacked;
 
 	/// <summary>
+	/// Triggered when a ground loot item is collected by a unit. Passes the collected loot item and the collecting unit.
+	/// </summary>
+	event Action<ILootItem, IUnit>? OnLootItemCollected;
+
+	/// <summary>
 	/// Spawns floating text in the 3D world that drifts upwards and fades out.
 	/// </summary>
 	/// <param name="text">The text to display.</param>
@@ -1013,6 +1018,147 @@ public interface IGameAPI
 	}
 
 	/// <summary>
+	/// Dynamically alters the movement-type pathing flags for a designated rectangular region on the terrain navmesh.
+	/// </summary>
+	/// <param name="minX">The minimum X coordinate in world space.</param>
+	/// <param name="minZ">The minimum Z coordinate in world space.</param>
+	/// <param name="maxX">The maximum X coordinate in world space.</param>
+	/// <param name="maxZ">The maximum Z coordinate in world space.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+	/// <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+	void SetRegionPathing(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags, bool blocked);
+
+	/// <summary>
+	/// Dynamically alters the movement-type pathing flags for a named coordinate region.
+	/// </summary>
+	/// <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+	/// <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+	void SetRegionPathing(string coordinateName, PathingFlags pathingFlags, bool blocked)
+	{
+		if (TryGetCoordinate(coordinateName, out var coord))
+		{
+			SetRegionPathing(coord, pathingFlags, blocked);
+		}
+	}
+
+	/// <summary>
+	/// Dynamically alters the movement-type pathing flags for a coordinate bounding region.
+	/// </summary>
+	/// <param name="coordinate">The coordinate bounding region.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+	/// <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+	void SetRegionPathing(Coordinate coordinate, PathingFlags pathingFlags, bool blocked)
+	{
+		SetRegionPathing(
+			MathF.Min(coordinate.Min.X, coordinate.Max.X),
+			MathF.Min(coordinate.Min.Z, coordinate.Max.Z),
+			MathF.Max(coordinate.Min.X, coordinate.Max.X),
+			MathF.Max(coordinate.Min.Z, coordinate.Max.Z),
+			pathingFlags,
+			blocked);
+	}
+
+	/// <summary>
+	/// Updates the traversability status of a rectangular world boundary region (alias for <see cref="SetRegionPathing(float, float, float, float, PathingFlags, bool)"/>).
+	/// </summary>
+	/// <param name="minX">The minimum X coordinate in world space.</param>
+	/// <param name="minZ">The minimum Z coordinate in world space.</param>
+	/// <param name="maxX">The maximum X coordinate in world space.</param>
+	/// <param name="maxZ">The maximum Z coordinate in world space.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to allow or block.</param>
+	/// <param name="blocked">True to block the boundary; false to open/restore traversability.</param>
+	void UpdateWorldBoundaryStatus(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags, bool blocked)
+	{
+		SetRegionPathing(minX, minZ, maxX, maxZ, pathingFlags, blocked);
+	}
+
+	/// <summary>
+	/// Updates the traversability status of a named world boundary region (alias for <see cref="SetRegionPathing(string, PathingFlags, bool)"/>).
+	/// </summary>
+	/// <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to allow or block.</param>
+	/// <param name="blocked">True to block the boundary; false to open/restore traversability.</param>
+	void UpdateWorldBoundaryStatus(string coordinateName, PathingFlags pathingFlags, bool blocked)
+	{
+		SetRegionPathing(coordinateName, pathingFlags, blocked);
+	}
+
+	/// <summary>
+	/// Retrieves the combined active pathing flags across the specified rectangular region.
+	/// </summary>
+	/// <param name="minX">The minimum X coordinate in world space.</param>
+	/// <param name="minZ">The minimum Z coordinate in world space.</param>
+	/// <param name="maxX">The maximum X coordinate in world space.</param>
+	/// <param name="maxZ">The maximum Z coordinate in world space.</param>
+	/// <returns>A bitmask of <see cref="PathingFlags"/> representing traversability across the region.</returns>
+	PathingFlags GetRegionPathing(float minX, float minZ, float maxX, float maxZ);
+
+	/// <summary>
+	/// Retrieves the combined active pathing flags across a named coordinate region.
+	/// </summary>
+	/// <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+	/// <returns>A bitmask of <see cref="PathingFlags"/> representing traversability across the region.</returns>
+	PathingFlags GetRegionPathing(string coordinateName)
+	{
+		if (TryGetCoordinate(coordinateName, out var coord))
+		{
+			return GetRegionPathing(coord);
+		}
+		return PathingFlags.None;
+	}
+
+	/// <summary>
+	/// Retrieves the combined active pathing flags across a coordinate bounding region.
+	/// </summary>
+	/// <param name="coordinate">The coordinate bounding region.</param>
+	/// <returns>A bitmask of <see cref="PathingFlags"/> representing traversability across the region.</returns>
+	PathingFlags GetRegionPathing(Coordinate coordinate)
+	{
+		return GetRegionPathing(
+			MathF.Min(coordinate.Min.X, coordinate.Max.X),
+			MathF.Min(coordinate.Min.Z, coordinate.Max.Z),
+			MathF.Max(coordinate.Min.X, coordinate.Max.X),
+			MathF.Max(coordinate.Min.Z, coordinate.Max.Z));
+	}
+
+	/// <summary>
+	/// Checks whether the specified pathing flags are currently blocked in the designated rectangular region.
+	/// </summary>
+	/// <param name="minX">The minimum X coordinate in world space.</param>
+	/// <param name="minZ">The minimum Z coordinate in world space.</param>
+	/// <param name="maxX">The maximum X coordinate in world space.</param>
+	/// <param name="maxZ">The maximum Z coordinate in world space.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+	/// <returns>True if the specified flags are blocked; false if passable.</returns>
+	bool IsRegionPathingBlocked(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags = PathingFlags.Ground)
+	{
+		return (GetRegionPathing(minX, minZ, maxX, maxZ) & pathingFlags) == 0;
+	}
+
+	/// <summary>
+	/// Checks whether the specified pathing flags are currently blocked in a named coordinate region.
+	/// </summary>
+	/// <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+	/// <returns>True if the specified flags are blocked; false if passable.</returns>
+	bool IsRegionPathingBlocked(string coordinateName, PathingFlags pathingFlags = PathingFlags.Ground)
+	{
+		return (GetRegionPathing(coordinateName) & pathingFlags) == 0;
+	}
+
+	/// <summary>
+	/// Checks whether the specified pathing flags are currently blocked in a coordinate bounding region.
+	/// </summary>
+	/// <param name="coordinate">The coordinate bounding region.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+	/// <returns>True if the specified flags are blocked; false if passable.</returns>
+	bool IsRegionPathingBlocked(Coordinate coordinate, PathingFlags pathingFlags = PathingFlags.Ground)
+	{
+		return (GetRegionPathing(coordinate) & pathingFlags) == 0;
+	}
+
+	/// <summary>
 	/// Adds an ability to the specified unit type definition.
 	/// </summary>
 	/// <param name="unitTypeId">The type identifier of the unit/structure.</param>
@@ -1445,6 +1591,86 @@ public interface IGameAPI
 	void ShakePlayerCamera(int playerIndex, float intensity, float duration);
 
 	/// <summary>
+	/// Restricts the specified player's camera movement limits in world space coordinates.
+	/// Clamps the camera position immediately if currently out of bounds.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="minX">The minimum X world boundary.</param>
+	/// <param name="minZ">The minimum Z world boundary.</param>
+	/// <param name="maxX">The maximum X world boundary.</param>
+	/// <param name="maxZ">The maximum Z world boundary.</param>
+	void SetPlayerCameraBounds(int playerIndex, float minX, float minZ, float maxX, float maxZ);
+
+	/// <summary>
+	/// Restricts the specified player's camera movement limits to the specified named coordinate marker.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="coordinateName">The name of the authored coordinate marker defining the camera bounds.</param>
+	void SetPlayerCameraBounds(int playerIndex, string coordinateName)
+	{
+		if (TryGetCoordinate(coordinateName, out var coord))
+		{
+			SetPlayerCameraBounds(playerIndex, coord);
+		}
+	}
+
+	/// <summary>
+	/// Restricts the specified player's camera movement limits to the specified coordinate bounding region.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="coordinate">The coordinate bounding region defining the camera bounds.</param>
+	void SetPlayerCameraBounds(int playerIndex, Coordinate coordinate)
+	{
+		SetPlayerCameraBounds(
+			playerIndex,
+			MathF.Min(coordinate.Min.X, coordinate.Max.X),
+			MathF.Min(coordinate.Min.Z, coordinate.Max.Z),
+			MathF.Max(coordinate.Min.X, coordinate.Max.X),
+			MathF.Max(coordinate.Min.Z, coordinate.Max.Z));
+	}
+
+	/// <summary>
+	/// Restricts the specified player's camera movement limits in world space coordinates (alias for <see cref="SetPlayerCameraBounds(int, float, float, float, float)"/>).
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="minX">The minimum X world boundary.</param>
+	/// <param name="minZ">The minimum Z world boundary.</param>
+	/// <param name="maxX">The maximum X world boundary.</param>
+	/// <param name="maxZ">The maximum Z world boundary.</param>
+	void SetMapCameraBoundaries(int playerIndex, float minX, float minZ, float maxX, float maxZ) =>
+		SetPlayerCameraBounds(playerIndex, minX, minZ, maxX, maxZ);
+
+	/// <summary>
+	/// Resets the specified player's camera movement boundaries back to the map default boundaries defined in metadata.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void ResetPlayerCameraBounds(int playerIndex);
+
+	/// <summary>
+	/// Resets the specified player's camera movement boundaries back to the map default boundaries (alias for <see cref="ResetPlayerCameraBounds(int)"/>).
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void ResetMapCameraBoundaries(int playerIndex) => ResetPlayerCameraBounds(playerIndex);
+
+	/// <summary>
+	/// Sets whether a specific built-in HUD element is visible for the designated player.
+	/// Persists across HUD refreshes and reconnects.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="element">The HUD element to show or hide.</param>
+	/// <param name="visible">True to make the element visible; false to hide it.</param>
+	void SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible);
+
+	/// <summary>
+	/// Toggles whether a specific built-in HUD element is visible for the designated player (alias for <see cref="SetPlayerHudElementVisible(int, HudElement, bool)"/>).
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="element">The HUD element to show or hide.</param>
+	/// <param name="visible">True to make the element visible; false to hide it.</param>
+	void ToggleUserInterfaceElement(int playerIndex, HudElement element, bool visible) =>
+		SetPlayerHudElementVisible(playerIndex, element, visible);
+
+	/// <summary>
 	/// Selects the specified unit on the given player's client, clearing their previous selection.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
@@ -1604,4 +1830,99 @@ public interface IGameAPI
 		string color = GetPlayerColorHex(playerIndex);
 		return $"[color=#{color}]{name}[/color]";
 	}
+	/// <summary>
+	/// Spawns a pickup loot item at the specified 3D world space coordinates.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item instance, or null if spawning failed.</returns>
+	ILootItem? SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f);
+
+	/// <summary>
+	/// Spawns a pickup loot item at the specified 3D world space coordinates.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item instance, or null if spawning failed.</returns>
+	ILootItem? SpawnLootItemAtLocation(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f) =>
+		SpawnLootItem(itemTypeId, position, charges, lifetime);
+
+	/// <summary>
+	/// Spawns a pickup loot item at the specified named coordinate marker.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="coordinateName">The name of the authored coordinate marker where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item instance, or null if spawning failed.</returns>
+	ILootItem? SpawnLootItem(string itemTypeId, string coordinateName, int charges = 1, float lifetime = 0f) =>
+		TryGetCoordinate(coordinateName, out var coord)
+			? SpawnLootItem(itemTypeId, coord.Center, charges, lifetime)
+			: null;
+
+	/// <summary>
+	/// Spawns a pickup loot item at the specified coordinate.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="coordinate">The coordinate marker where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item instance, or null if spawning failed.</returns>
+	ILootItem? SpawnLootItem(string itemTypeId, Coordinate coordinate, int charges = 1, float lifetime = 0f) =>
+		SpawnLootItem(itemTypeId, coordinate.Center, charges, lifetime);
+
+	/// <summary>
+	/// Retrieves an active ground loot item by its unique runtime identifier.
+	/// </summary>
+	/// <param name="uniqueId">The unique ID of the loot item entity.</param>
+	/// <returns>The loot item wrapper if alive, or null if not found or despawned.</returns>
+	ILootItem? GetLootItemById(int uniqueId);
+
+	/// <summary>
+	/// Retrieves all active ground loot items in the game world.
+	/// </summary>
+	/// <returns>A collection of all active ground loot items.</returns>
+	IEnumerable<ILootItem> GetAllLootItems();
+
+	/// <summary>
+	/// Retrieves all active ground loot items within the specified radial distance of a 3D position.
+	/// </summary>
+	/// <param name="center">The center point in 3D world space coordinates.</param>
+	/// <param name="radius">The radial distance check.</param>
+	/// <returns>A collection of ground loot items within the radius.</returns>
+	IEnumerable<ILootItem> GetLootItemsInRadius(Vector3 center, float radius);
+
+	/// <summary>
+	/// Removes and despawns a ground loot item from the game world by its unique identifier.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the loot item to remove.</param>
+	/// <returns>True if the loot item was found and removed; otherwise, false.</returns>
+	bool RemoveLootItem(int lootItemId);
+
+	/// <summary>
+	/// Despawns and removes a ground loot item from the game world by its unique identifier.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the loot item to despawn.</param>
+	/// <returns>True if the loot item was found and despawned; otherwise, false.</returns>
+	bool DespawnLootItem(int lootItemId) => RemoveLootItem(lootItemId);
+
+	/// <summary>
+	/// Attempts to collect a ground loot item using the specified unit.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+	/// <param name="unit">The collecting unit.</param>
+	/// <returns>True if the unit successfully collected the loot item into inventory; otherwise, false.</returns>
+	bool CollectLootItem(int lootItemId, IUnit unit);
+
+	/// <summary>
+	/// Attempts to collect a ground loot item using the most suitable eligible unit owned by the specified player.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+	/// <param name="playerIndex">The zero-based player slot index whose unit should collect the item.</param>
+	/// <returns>True if an eligible unit owned by the player successfully collected the item; otherwise, false.</returns>
+	bool CollectLootItemByPlayer(int lootItemId, int playerIndex);
 }

@@ -13,8 +13,10 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
+using PathingFlags = Realm.MapAPI.PathingFlags;
 using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
 
@@ -334,6 +336,12 @@ public partial class GameHost
 	{
 		add => OnUnitAttacked += value;
 		remove => OnUnitAttacked -= value;
+	}
+
+	event Action<ILootItem, IUnit>? IGameAPI.OnLootItemCollected
+	{
+		add => OnLootItemCollected += value;
+		remove => OnLootItemCollected -= value;
 	}
 
 	void IGameAPI.SpawnBarrageVolley(string effectTypeId, Vector3 targetAreaCenter, float radius, int count, float intervalSeconds)
@@ -1300,6 +1308,21 @@ public partial class GameHost
 		GameContext.ClientRPC.ShakeCamera(playerIndex, intensity, duration);
 	}
 
+	void IGameAPI.SetPlayerCameraBounds(int playerIndex, float minX, float minZ, float maxX, float maxZ)
+	{
+		GameContext.ClientRPC.SetPlayerCameraBounds(playerIndex, minX, minZ, maxX, maxZ);
+	}
+
+	void IGameAPI.ResetPlayerCameraBounds(int playerIndex)
+	{
+		GameContext.ClientRPC.ResetPlayerCameraBounds(playerIndex);
+	}
+
+	void IGameAPI.SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible)
+	{
+		GameContext.ClientRPC.SetPlayerHudElementVisible(playerIndex, element, visible);
+	}
+
 	void IGameAPI.SelectPlayerUnit(int playerIndex, IUnit unit)
 	{
 		GameContext.ClientRPC.SelectUnit(playerIndex, unit);
@@ -1424,5 +1447,284 @@ public partial class GameHost
 	string IGameAPI.TrainBotProfile(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre)
 	{
 		return GameContext.SimulationService.TrainBotProfile(mapName, generations, populationSize, matchesPerEvaluation, genre);
+	}
+
+	void IGameAPI.SetRegionPathing(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags, bool blocked)
+	{
+		SetRegionPathing(minX, minZ, maxX, maxZ, pathingFlags, blocked);
+	}
+
+	public void SetRegionPathing(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags, bool blocked)
+	{
+		ApplyRegionPathingInternal(minX, minZ, maxX, maxZ, (int)pathingFlags, blocked);
+		if (IsMultiplayerServerActive())
+		{
+			Rpc(nameof(ClientUpdateRegionPathing), minX, minZ, maxX, maxZ, (int)pathingFlags, blocked);
+		}
+	}
+
+	void IGameAPI.SetRegionPathing(string coordinateName, PathingFlags pathingFlags, bool blocked)
+	{
+		SetRegionPathing(coordinateName, pathingFlags, blocked);
+	}
+
+	public void SetRegionPathing(string coordinateName, PathingFlags pathingFlags, bool blocked)
+	{
+		if (((IGameAPI)this).TryGetCoordinate(coordinateName, out var coord))
+		{
+			SetRegionPathing(
+				MathF.Min(coord.Min.X, coord.Max.X),
+				MathF.Min(coord.Min.Z, coord.Max.Z),
+				MathF.Max(coord.Min.X, coord.Max.X),
+				MathF.Max(coord.Min.Z, coord.Max.Z),
+				pathingFlags,
+				blocked);
+		}
+	}
+
+	PathingFlags IGameAPI.GetRegionPathing(float minX, float minZ, float maxX, float maxZ)
+	{
+		return GetRegionPathing(minX, minZ, maxX, maxZ);
+	}
+
+	public PathingFlags GetRegionPathing(float minX, float minZ, float maxX, float maxZ)
+	{
+		var world = GameContext.World;
+		var worldEntity = ECSContext.WorldEntity;
+		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
+		{
+			ref var state = ref world.Get<TerrainState>(worldEntity);
+			int code = ECSContext.TerrainNavMeshService?.GetRegionPathing(in state, minX, minZ, maxX, maxZ) ?? (int)PathingFlags.All;
+			return (PathingFlags)code;
+		}
+		return PathingFlags.All;
+	}
+
+	PathingFlags IGameAPI.GetRegionPathing(string coordinateName)
+	{
+		return GetRegionPathing(coordinateName);
+	}
+
+	public PathingFlags GetRegionPathing(string coordinateName)
+	{
+		if (((IGameAPI)this).TryGetCoordinate(coordinateName, out var coord))
+		{
+			return GetRegionPathing(
+				MathF.Min(coord.Min.X, coord.Max.X),
+				MathF.Min(coord.Min.Z, coord.Max.Z),
+				MathF.Max(coord.Min.X, coord.Max.X),
+				MathF.Max(coord.Min.Z, coord.Max.Z));
+		}
+		return PathingFlags.None;
+	}
+	ILootItem? IGameAPI.SpawnLootItem(string itemTypeId, Vector3 position, int charges, float lifetime)
+	{
+		return SpawnLootItem(itemTypeId, position, charges, lifetime);
+	}
+
+	public ILootItem? SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f)
+	{
+		return SpawnLootItemInternal(itemTypeId, position, charges, lifetime, 2.0f, true, -1);
+	}
+
+	public ILootItem? SpawnLootItemInternal(string itemTypeId, Vector3 position, int charges, float lifetime, float pickupRadius, bool autoPickup, int ownerPlayerIndex)
+	{
+		if (string.IsNullOrWhiteSpace(itemTypeId)) return null;
+
+		float terrainY = GameContext.EditorService?.GetTerrainHeightAt(new Godot.Vector3(position.X, position.Y, position.Z)) ?? position.Y;
+		var finalPos = new Godot.Vector3(position.X, terrainY + 0.1f, position.Z);
+
+		var entity = GameContext.World.Create(
+			new Position(new Vector3(finalPos.X, finalPos.Y, finalPos.Z)),
+			new GroundLoot(0, itemTypeId, Math.Max(1, charges), lifetime, pickupRadius, autoPickup, ownerPlayerIndex)
+		);
+
+		ref var lootComp = ref GameContext.World.Get<GroundLoot>(entity);
+		lootComp.UniqueId = entity.Id;
+
+		var lootNode = new LootItem3D();
+		lootNode.Entity = entity;
+		lootNode.Position = finalPos;
+		lootNode.Initialize(entity.Id, itemTypeId, Math.Max(1, charges), lifetime, pickupRadius, autoPickup, ownerPlayerIndex);
+
+		AddChild(lootNode);
+		AllLootItems.Add(lootNode);
+
+		var runtime = new LootItem_WasmRuntime(entity.Id, lootNode);
+		IdToLootItem[entity.Id] = runtime;
+
+		if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
+		{
+			Rpc(nameof(ClientSpawnLootItemRpc), entity.Id, itemTypeId, finalPos, Math.Max(1, charges));
+		}
+
+		return runtime;
+	}
+
+	ILootItem? IGameAPI.GetLootItemById(int uniqueId) => GetLootItemById(uniqueId);
+
+	public ILootItem? GetLootItemById(int uniqueId)
+	{
+		return IdToLootItem.TryGetValue(uniqueId, out var loot) && !loot.IsDespawned ? loot : null;
+	}
+
+	IEnumerable<ILootItem> IGameAPI.GetAllLootItems() => GetAllLootItems();
+
+	public IEnumerable<ILootItem> GetAllLootItems()
+	{
+		var list = new List<ILootItem>();
+		for (int i = 0; i < AllLootItems.Count; i++)
+		{
+			var node = AllLootItems[i];
+			if (GodotObject.IsInstanceValid(node) && !node.IsDespawned && IdToLootItem.TryGetValue(node.UniqueId, out var item))
+			{
+				list.Add(item);
+			}
+		}
+		return list;
+	}
+
+	IEnumerable<ILootItem> IGameAPI.GetLootItemsInRadius(Vector3 center, float radius) => GetLootItemsInRadius(center, radius);
+
+	public IEnumerable<ILootItem> GetLootItemsInRadius(Vector3 center, float radius)
+	{
+		var list = new List<ILootItem>();
+		float rSq = radius * radius;
+		for (int i = 0; i < AllLootItems.Count; i++)
+		{
+			var node = AllLootItems[i];
+			if (GodotObject.IsInstanceValid(node) && !node.IsDespawned)
+			{
+				float dx = node.GlobalPosition.X - center.X;
+				float dy = node.GlobalPosition.Y - center.Y;
+				float dz = node.GlobalPosition.Z - center.Z;
+				if (dx * dx + dy * dy + dz * dz <= rSq && IdToLootItem.TryGetValue(node.UniqueId, out var item))
+				{
+					list.Add(item);
+				}
+			}
+		}
+		return list;
+	}
+
+	bool IGameAPI.RemoveLootItem(int lootItemId) => RemoveLootItem(lootItemId);
+
+	public bool RemoveLootItem(int lootItemId)
+	{
+		if (!IdToLootItem.ContainsKey(lootItemId)) return false;
+		RemoveLootItemLocal(lootItemId);
+
+		if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
+		{
+			Rpc(nameof(ClientDespawnLootItemRpc), lootItemId);
+		}
+		return true;
+	}
+
+	public void RemoveLootItemLocal(int lootItemId)
+	{
+		IdToLootItem.Remove(lootItemId);
+		for (int i = AllLootItems.Count - 1; i >= 0; i--)
+		{
+			var node = AllLootItems[i];
+			if (GodotObject.IsInstanceValid(node) && node.UniqueId == lootItemId)
+			{
+				node.IsDespawned = true;
+				if (GameContext.World != null && GameContext.World.IsAlive(node.Entity))
+				{
+					GameContext.World.Destroy(node.Entity);
+				}
+				node.QueueFree();
+				AllLootItems.RemoveAt(i);
+				break;
+			}
+		}
+	}
+
+	bool IGameAPI.CollectLootItem(int lootItemId, IUnit unit) => CollectLootItem(lootItemId, unit);
+
+	public bool CollectLootItem(int lootItemId, IUnit unit)
+	{
+		if (unit == null) return false;
+		if (!IdToLootItem.TryGetValue(lootItemId, out var loot) || loot.IsDespawned) return false;
+
+		Unit3D? u3d = null;
+		for (int i = 0; i < AllUnits.Count; i++)
+		{
+			var u = AllUnits[i];
+			if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.UniqueId)
+			{
+				u3d = u;
+				break;
+			}
+		}
+		if (u3d == null) return false;
+		var unitEntity = u3d.Entity;
+		if (!GameContext.World.IsAlive(unitEntity) || GameContext.World.Has<Dead>(unitEntity)) return false;
+
+		if (loot.OwnerPlayerIndex >= 0 && unit.Player != loot.OwnerPlayerIndex) return false;
+
+		if (GameContext.World.Has<Inventory>(unitEntity))
+		{
+			var inv = GameContext.World.Get<Inventory>(unitEntity);
+			if (inv.Items != null && inv.Items.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+				return false;
+		}
+
+		bool equipped = ItemGrantingUtility.EquipItem(GameContext.World, unitEntity, loot.ItemTypeId, loot.Charges);
+		if (!equipped) return false;
+
+		if (InGameHUD.Instance != null && SelectedUnits.Contains(u3d))
+		{
+			InGameHUD.Instance.RefreshUI(SelectedUnits);
+		}
+
+		OnLootItemCollected?.Invoke(loot, unit);
+		RemoveLootItem(lootItemId);
+		return true;
+	}
+
+	bool IGameAPI.CollectLootItemByPlayer(int lootItemId, int playerIndex) => CollectLootItemByPlayer(lootItemId, playerIndex);
+
+	public bool CollectLootItemByPlayer(int lootItemId, int playerIndex)
+	{
+		var loot = GetLootItemById(lootItemId);
+		if (loot == null || loot.IsDespawned) return false;
+
+		var pos = loot.Position;
+		IUnit? bestUnit = null;
+		float bestDistSq = float.MaxValue;
+
+		for (int i = 0; i < AllUnits.Count; i++)
+		{
+			var u = AllUnits[i];
+			if (!GodotObject.IsInstanceValid(u) || u.IsBuilding || u.Player != playerIndex) continue;
+			if (!GameContext.World.IsAlive(u.Entity) || GameContext.World.Has<Dead>(u.Entity)) continue;
+
+			if (GameContext.World.Has<Inventory>(u.Entity))
+			{
+				var inv = GameContext.World.Get<Inventory>(u.Entity);
+				if (inv.Items != null && inv.Items.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+					continue;
+			}
+
+			float dx = u.Position.X - pos.X;
+			float dy = u.Position.Y - pos.Y;
+			float dz = u.Position.Z - pos.Z;
+			float dsq = dx * dx + dy * dy + dz * dz;
+
+			if (dsq < bestDistSq)
+			{
+				bestDistSq = dsq;
+				bestUnit = GameContext.SimulationService.GetUnitWrapper(u.Entity);
+			}
+		}
+
+		if (bestUnit != null)
+		{
+			return CollectLootItem(lootItemId, bestUnit);
+		}
+
+		return false;
 	}
 }

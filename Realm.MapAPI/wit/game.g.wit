@@ -18,6 +18,8 @@ interface game-api {
     clear-leaderboard: func();
     clear-player-selection: func(player-index: s32);
     clear-summary-table: func();
+    collect-loot-item: func(loot-item-id: s32, unit-id: s32) -> bool;
+    collect-loot-item-by-player: func(loot-item-id: s32, player-index: s32) -> bool;
     count-units-owned-by-player: func(player-index: s32) -> s32;
     create-floating-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, duration: f32);
     create-static-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, font-size: s32) -> s32;
@@ -30,6 +32,7 @@ interface game-api {
     generate-map-directory: func(map-name: string, target-directory: string);
     get-ability-cooldown: func(unit-id: s32, ability-id: string) -> f32;
     get-ability-name: func(ability-id: string) -> string;
+    get-all-loot-items: func() -> list<s32>;
     get-all-units: func() -> list<s32>;
     get-coordinate-max-x: func(coordinate-name: string) -> f32;
     get-coordinate-max-y: func(coordinate-name: string) -> f32;
@@ -39,6 +42,8 @@ interface game-api {
     get-coordinate-min-z: func(coordinate-name: string) -> f32;
     get-current-environment-preset: func() -> string;
     get-game-elapsed-time: func() -> f32;
+    get-loot-item-by-id: func(unique-id: s32) -> s32;
+    get-loot-items-in-radius: func(center-x: f32, center-y: f32, center-z: f32, radius: f32) -> list<s32>;
     get-modifiers-count: func(unit-id: s32) -> s32;
     get-modifiers-get: func(unit-id: s32, index: s32) -> string;
     get-player-bot-genre: func(player-index: s32) -> string;
@@ -59,6 +64,7 @@ interface game-api {
     get-player-team: func(player-index: s32) -> s32;
     get-player-tech-level: func(player-index: s32, tech-id: string) -> s32;
     get-player-wood: func(player-index: s32) -> f32;
+    get-region-pathing: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32) -> s32;
     get-resource-node: func(index: s32) -> s32;
     get-resource-node-count: func() -> s32;
     get-unit-by-id: func(unique-id: s32) -> s32;
@@ -83,6 +89,18 @@ interface game-api {
     issue-move-order: func(unit-id: s32, destination-x: f32, destination-y: f32, destination-z: f32);
     kick-player: func(player-index: s32, reason: string);
     kill-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
+    loot-item-auto-pickup: func(id: s32) -> bool;
+    loot-item-charges: func(id: s32) -> s32;
+    loot-item-despawn: func(id: s32);
+    loot-item-is-despawned: func(id: s32) -> bool;
+    loot-item-item-type-id: func(id: s32) -> string;
+    loot-item-lifetime: func(id: s32) -> f32;
+    loot-item-owner-player-index: func(id: s32) -> s32;
+    loot-item-pickup-radius: func(id: s32) -> f32;
+    loot-item-position-x: func(id: s32) -> f32;
+    loot-item-position-y: func(id: s32) -> f32;
+    loot-item-position-z: func(id: s32) -> f32;
+    loot-item-remaining-lifetime: func(id: s32) -> f32;
     pan-player-camera-to: func(player-index: s32, position-x: f32, position-y: f32, position-z: f32, duration: f32);
     ping-player-minimap: func(player-index: s32, position-x: f32, position-y: f32, position-z: f32);
     play-player-click-sound: func(player-index: s32);
@@ -93,6 +111,8 @@ interface game-api {
     register-ability: func(ability-id: string, display-name: string, tooltip: string, icon-path: string, is-instant: bool);
     register-buff-modifier: func(buff-id: string, stat-name: string, is-percentage: bool, value: f32);
     remove-buff: func(unit-id: s32, buff-id: string);
+    remove-loot-item: func(loot-item-id: s32) -> bool;
+    reset-player-camera-bounds: func(player-index: s32);
     resource-node-count: func() -> s32;
     resource-node-is-depleted: func(id: s32) -> bool;
     resource-node-position-x: func(id: s32) -> f32;
@@ -120,11 +140,16 @@ interface game-api {
     set-item-tooltip: func(item-id: string, tooltip: string);
     set-leaderboard-value: func(label: string, value: string);
     set-leaderboard-visible: func(title: string, visible: bool);
+    set-loot-item-auto-pickup: func(id: s32, val: bool);
+    set-loot-item-owner-player-index: func(id: s32, val: s32);
+    set-loot-item-pickup-radius: func(id: s32, val: f32);
     set-player-active: func(player-index: s32, active: bool);
     set-player-bot-genre: func(player-index: s32, genre-name: string, config-json: string);
     set-player-bot-profile: func(player-index: s32, profile-json: string);
+    set-player-camera-bounds: func(player-index: s32, min-x: f32, min-z: f32, max-x: f32, max-z: f32);
     set-player-computer-controlled: func(player-index: s32, is-proxy: bool);
     set-player-gold: func(player-index: s32, amount: f32);
+    set-player-hud-element-visible: func(player-index: s32, element: s32, visible: bool);
     set-player-kills: func(player-index: s32, kills: s32);
     set-player-max-population: func(player-index: s32, max: s32);
     set-player-stone: func(player-index: s32, amount: f32);
@@ -132,6 +157,7 @@ interface game-api {
     set-player-tech-level: func(player-index: s32, tech-id: string, level: s32);
     set-player-wood: func(player-index: s32, amount: f32);
     set-players-allied: func(player-index: s32, other-player-index: s32, allied: bool);
+    set-region-pathing: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32, pathing-flags: s32, blocked: bool);
     set-resource-node-resource-amount: func(id: s32, val: f32);
     set-static-text: func(handle: s32, text: string);
     set-static-text-visible: func(handle: s32, visible: bool);
@@ -171,6 +197,7 @@ interface game-api {
     spawn-barrage-volley: func(effect-type-id: string, target-area-center-x: f32, target-area-center-y: f32, target-area-center-z: f32, radius: f32, count: s32, interval-seconds: f32);
     spawn-expanding-burst-sphere: func(position-x: f32, position-y: f32, position-z: f32, max-radius: f32, speed: f32, duration: f32, color-r: f32, color-g: f32, color-b: f32, color-has-color: bool);
     spawn-expanding-ground-ring: func(position-x: f32, position-y: f32, position-z: f32, max-radius: f32, speed: f32, duration: f32, color-r: f32, color-g: f32, color-b: f32, color-has-color: bool);
+    spawn-loot-item: func(item-type-id: string, position-x: f32, position-y: f32, position-z: f32, charges: s32, lifetime: f32) -> s32;
     spawn-projectile: func(projectile-type-id: string, start-x: f32, start-y: f32, start-z: f32, target-x: f32, target-y: f32, target-z: f32, speed: f32);
     spawn-resource-node: func(resource-type: string, position-x: f32, position-y: f32, position-z: f32, amount: f32);
     spawn-target-indicator: func(position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32);
@@ -194,6 +221,7 @@ interface game-api {
     unit-attack: func(id: s32, target-id: s32);
     unit-attack-move: func(id: s32, destination-x: f32, destination-y: f32, destination-z: f32);
     unit-attack-speed: func(id: s32) -> f32;
+    unit-collect-loot-item: func(id: s32, loot-item-id: s32) -> bool;
     unit-damage: func(id: s32) -> f32;
     unit-experience: func(id: s32) -> f32;
     unit-gather: func(id: s32, resource-node-id: s32);

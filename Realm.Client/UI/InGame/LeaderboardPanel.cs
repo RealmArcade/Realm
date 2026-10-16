@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using Realm.MapAPI;
 
 namespace Realm.Client.UI.InGame;
 
@@ -25,7 +26,8 @@ public class LeaderboardPanel
 
 	public void Update(InGameHUDViewModel viewModel)
 	{
-		if (viewModel.CountdownActive)
+		bool allowCountdown = InGameHUD.Instance?.IsHudElementVisible(HudElement.CountdownTimer, true) ?? true;
+		if (viewModel.CountdownActive && allowCountdown)
 		{
 			_countdownPanel.Visible = true;
 			_countdownLabel.Text = $"{viewModel.CountdownText}: {(int)Math.Ceiling(viewModel.CountdownDuration)}s";
@@ -35,8 +37,9 @@ public class LeaderboardPanel
 			_countdownPanel.Visible = false;
 		}
 
-		_leaderboardPanel.Visible = viewModel.LeaderboardVisible;
-		if (viewModel.LeaderboardVisible)
+		bool allowLeaderboard = InGameHUD.Instance?.IsHudElementVisible(HudElement.Leaderboard, true) ?? true;
+		_leaderboardPanel.Visible = viewModel.LeaderboardVisible && allowLeaderboard;
+		if (viewModel.LeaderboardVisible && allowLeaderboard)
 		{
 			_leaderboardTitleLabel.Text = viewModel.LeaderboardTitle;
 

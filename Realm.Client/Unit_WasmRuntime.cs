@@ -739,6 +739,12 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		return success;
 	}
 
+	public bool CollectLootItem(ILootItem lootItem)
+	{
+		if (lootItem == null) return false;
+		return GameHost.Instance?.CollectLootItem(lootItem.UniqueId, this) ?? false;
+	}
+
 	public int GetItemCharges(string itemId)
 	{
 		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return 0;
@@ -759,6 +765,15 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (inv.HasItem(itemId))
 			{
 				inv.SetItemCount(itemId, charges);
+				if (charges > 0)
+				{
+					ItemGrantingUtility.ApplyItemGrants(_world, _entity, itemId);
+				}
+				else
+				{
+					ItemGrantingUtility.RemoveItemGrants(_world, _entity, itemId);
+					ItemGrantingUtility.RebuildEntityCapabilities(_world, _entity);
+				}
 				NotifyUiInventoryChanged();
 			}
 		}

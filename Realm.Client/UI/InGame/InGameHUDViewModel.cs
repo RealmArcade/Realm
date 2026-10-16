@@ -807,9 +807,6 @@ public class InGameHUDViewModel
 
 	private void UpdateUnitProduction(World world, Unit3D u, SelectedUnitInfo info)
 	{
-		if (!u.IsBuilding)
-			return;
-
 		if (!u.IsEnemy && world.Has<ConstructionState>(u.Entity))
 		{
 			var cs = world.Get<ConstructionState>(u.Entity);

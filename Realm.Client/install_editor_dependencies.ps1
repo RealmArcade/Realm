@@ -65,9 +65,42 @@ function Patch-ProductJson {
         $pj = $pjContent | ConvertFrom-Json
         $changed = $false
 
-        $cdnTemplate = "/static/out/vs/workbench/contrib/webview/browser/pre/"
-        if ($pj.webviewContentExternalBaseUrlTemplate -ne $cdnTemplate) {
-            $pj.webviewContentExternalBaseUrlTemplate = $cdnTemplate
+        if ($ProductJsonPath -like "*editor*resources*app*") {
+            if ($pj.PSObject.Properties["webviewContentExternalBaseUrlTemplate"]) {
+                $pj.PSObject.Properties.Remove("webviewContentExternalBaseUrlTemplate")
+                $changed = $true
+            }
+        } else {
+            $cdnTemplate = "/static/out/vs/workbench/contrib/webview/browser/pre/"
+            if ($pj.webviewContentExternalBaseUrlTemplate -ne $cdnTemplate) {
+                $pj.webviewContentExternalBaseUrlTemplate = $cdnTemplate
+                $changed = $true
+            }
+        }
+
+        if ($pj.win32AppUserModelId -ne "Realm.GameClient") {
+            $pj.win32AppUserModelId = "Realm.GameClient"
+            $changed = $true
+        }
+
+        if (-not $pj.configurationDefaults) {
+            $pj | Add-Member -MemberType NoteProperty -Name "configurationDefaults" -Value ([PSCustomObject]@{})
+            $changed = $true
+        }
+        if ($pj.configurationDefaults."security.workspace.trust.enabled" -ne $false) {
+            $pj.configurationDefaults | Add-Member -MemberType NoteProperty -Name "security.workspace.trust.enabled" -Value $false -Force
+            $changed = $true
+        }
+        if ($pj.configurationDefaults."security.workspace.trust.startupPrompt" -ne "never") {
+            $pj.configurationDefaults | Add-Member -MemberType NoteProperty -Name "security.workspace.trust.startupPrompt" -Value "never" -Force
+            $changed = $true
+        }
+        if ($pj.configurationDefaults."security.workspace.trust.banner" -ne "never") {
+            $pj.configurationDefaults | Add-Member -MemberType NoteProperty -Name "security.workspace.trust.banner" -Value "never" -Force
+            $changed = $true
+        }
+        if ($pj.configurationDefaults."security.workspace.trust.emptyWindow" -ne $false) {
+            $pj.configurationDefaults | Add-Member -MemberType NoteProperty -Name "security.workspace.trust.emptyWindow" -Value $false -Force
             $changed = $true
         }
 
@@ -83,8 +116,6 @@ function Patch-ProductJson {
                 $changed = $true
             }
         }
-
-
 
         if ($changed) {
             $updatedPj = $pj | ConvertTo-Json -Depth 20
@@ -407,6 +438,54 @@ foreach ($extId in $requiredExtensions) {
         Write-Host "Extension $extId already installed."
     }
 }
+
+$ohziPatchFile = Join-Path $PSScriptRoot "Templates\ohzi_extension_patch.js"
+if (-not (Test-Path $ohziPatchFile)) {
+    $ohziPatchFile = Join-Path $rootDir "Realm.Client\Templates\ohzi_extension_patch.js"
+}
+if (Test-Path $ohziPatchFile) {
+    $ohziDirs = Get-ChildItem -Path $extsDir -Directory -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -like "*ohzi-vscode-glb-viewer*" -or $_.Name -like "*ohzi*"
+    }
+    foreach ($ohziDir in $ohziDirs) {
+        $extJsPath = Join-Path $ohziDir.FullName "extension.js"
+        $needsPatch = -not (Test-Path $extJsPath)
+        if (-not $needsPatch -and (Test-Path $extJsPath)) {
+            $extJsContent = [System.IO.File]::ReadAllText($extJsPath, [System.Text.Encoding]::UTF8)
+            if (-not $extJsContent.Contains("REALM_PATCHED_OHZI_BASE64")) {
+                $needsPatch = $true
+            }
+        }
+        if ($needsPatch) {
+            Copy-Item -Path $ohziPatchFile -Destination $extJsPath -Force
+            Write-Host "Patched OHZI GLB viewer extension in $($ohziDir.FullName)"
+        }
+    }
+}
+
+$userDir = Join-Path $userDataDir "User"
+New-Item -ItemType Directory -Force -Path $userDir | Out-Null
+$userSettingsPath = Join-Path $userDir "settings.json"
+$settingsObj = [ordered]@{
+    "security.workspace.trust.enabled" = $false
+    "security.workspace.trust.startupPrompt" = "never"
+    "security.workspace.trust.banner" = "never"
+    "security.workspace.trust.emptyWindow" = $false
+    "security.workspace.trust.untrustedFiles" = "open"
+}
+if (Test-Path $userSettingsPath) {
+    try {
+        $existing = [System.IO.File]::ReadAllText($userSettingsPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+        foreach ($prop in $existing.PSObject.Properties) {
+            if (-not $settingsObj.Contains($prop.Name)) {
+                $settingsObj[$prop.Name] = $prop.Value
+            }
+        }
+    } catch {}
+}
+$settingsJson = $settingsObj | ConvertTo-Json -Depth 10
+[System.IO.File]::WriteAllText($userSettingsPath, $settingsJson, [System.Text.UTF8Encoding]::new($false))
+Write-Host "Ensured user settings at $userSettingsPath"
 
 $cliDataDir = Join-Path $embedDir "cli-data-dir"
 New-Item -ItemType Directory -Force -Path $cliDataDir | Out-Null

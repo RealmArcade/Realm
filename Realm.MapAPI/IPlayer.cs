@@ -250,6 +250,20 @@ public interface IPlayer
 	void IssueAttackMoveOrder(Vector3 destination);
 
 	/// <summary>
+	/// Attempts to collect a ground loot item using an eligible unit owned by this player.
+	/// </summary>
+	/// <param name="lootItem">The ground loot item to collect.</param>
+	/// <returns>True if an eligible unit successfully collected the item; otherwise, false.</returns>
+	bool CollectLootItem(ILootItem lootItem);
+
+	/// <summary>
+	/// Attempts to collect a ground loot item by its ID using an eligible unit owned by this player.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+	/// <returns>True if an eligible unit successfully collected the item; otherwise, false.</returns>
+	bool CollectLootItem(int lootItemId);
+
+	/// <summary>
 	/// Gets the research level of a technology upgrade for this player.
 	/// </summary>
 	int GetTechLevel(string techId);
@@ -280,6 +294,61 @@ public interface IPlayer
 	/// Shakes this player's camera to simulate an explosion or impact.
 	/// </summary>
 	void ShakeCamera(float intensity, float duration);
+
+	/// <summary>
+	/// Restricts this player's camera movement limits in world space coordinates.
+	/// Clamps the camera position immediately if currently out of bounds.
+	/// </summary>
+	/// <param name="minX">The minimum X world boundary.</param>
+	/// <param name="minZ">The minimum Z world boundary.</param>
+	/// <param name="maxX">The maximum X world boundary.</param>
+	/// <param name="maxZ">The maximum Z world boundary.</param>
+	void SetCameraBounds(float minX, float minZ, float maxX, float maxZ);
+
+	/// <summary>
+	/// Restricts this player's camera movement limits to the specified named coordinate marker.
+	/// </summary>
+	/// <param name="coordinateName">The name of the authored coordinate marker defining the camera bounds.</param>
+	void SetCameraBounds(string coordinateName);
+
+	/// <summary>
+	/// Restricts this player's camera movement limits to the specified coordinate bounding region.
+	/// </summary>
+	/// <param name="coordinate">The coordinate bounding region defining the camera bounds.</param>
+	void SetCameraBounds(Coordinate coordinate);
+
+	/// <summary>
+	/// Restricts this player's camera movement limits in world space coordinates (alias for <see cref="SetCameraBounds(float, float, float, float)"/>).
+	/// </summary>
+	/// <param name="minX">The minimum X world boundary.</param>
+	/// <param name="minZ">The minimum Z world boundary.</param>
+	/// <param name="maxX">The maximum X world boundary.</param>
+	/// <param name="maxZ">The maximum Z world boundary.</param>
+	void SetMapCameraBoundaries(float minX, float minZ, float maxX, float maxZ) => SetCameraBounds(minX, minZ, maxX, maxZ);
+
+	/// <summary>
+	/// Resets this player's camera movement boundaries back to the map default boundaries defined in metadata.
+	/// </summary>
+	void ResetCameraBounds();
+
+	/// <summary>
+	/// Resets this player's camera movement boundaries back to the map default boundaries (alias for <see cref="ResetCameraBounds"/>).
+	/// </summary>
+	void ResetCameraBoundaries() => ResetCameraBounds();
+
+	/// <summary>
+	/// Sets whether a specific built-in HUD element is visible for this player.
+	/// </summary>
+	/// <param name="element">The HUD element to show or hide.</param>
+	/// <param name="visible">True to make the element visible; false to hide it.</param>
+	void SetHudElementVisible(HudElement element, bool visible);
+
+	/// <summary>
+	/// Toggles whether a specific built-in HUD element is visible for this player (alias for <see cref="SetHudElementVisible(HudElement, bool)"/>).
+	/// </summary>
+	/// <param name="element">The HUD element to show or hide.</param>
+	/// <param name="visible">True to make the element visible; false to hide it.</param>
+	void ToggleUserInterfaceElement(HudElement element, bool visible) => SetHudElementVisible(element, visible);
 
 	/// <summary>
 	/// Selects the specified unit on this player's client, clearing their previous selection.
@@ -457,6 +526,8 @@ public class PlayerFacade : IPlayer
 	public IEnumerable<IUnit> GetUnits(Func<IUnit, bool> filter) => _api.GetUnitsOwnedByPlayer(Index, filter);
 	public int CountUnits(Func<IUnit, bool>? filter = null) => _api.CountUnitsOwnedByPlayer(Index, filter);
 	public void IssueAttackMoveOrder(Vector3 destination) => _api.IssueAttackMoveOrderToPlayer(Index, destination);
+	public bool CollectLootItem(ILootItem lootItem) => _api.CollectLootItemByPlayer(lootItem.UniqueId, Index);
+	public bool CollectLootItem(int lootItemId) => _api.CollectLootItemByPlayer(lootItemId, Index);
 
 	public int GetTechLevel(string techId) => _api.GetPlayerTechLevel(Index, techId);
 	public void SetTechLevel(string techId, int level) => _api.SetPlayerTechLevel(Index, techId, level);
@@ -465,6 +536,11 @@ public class PlayerFacade : IPlayer
 	public void PanCameraTo(Vector3 position, float duration = 0f) => _api.PanPlayerCameraTo(Index, position, duration);
 	public void MoveCameraTo(Vector3 position, float duration = 0f) => _api.PanPlayerCameraTo(Index, position, duration);
 	public void ShakeCamera(float intensity, float duration) => _api.ShakePlayerCamera(Index, intensity, duration);
+	public void SetCameraBounds(float minX, float minZ, float maxX, float maxZ) => _api.SetPlayerCameraBounds(Index, minX, minZ, maxX, maxZ);
+	public void SetCameraBounds(string coordinateName) => _api.SetPlayerCameraBounds(Index, coordinateName);
+	public void SetCameraBounds(Coordinate coordinate) => _api.SetPlayerCameraBounds(Index, coordinate);
+	public void ResetCameraBounds() => _api.ResetPlayerCameraBounds(Index);
+	public void SetHudElementVisible(HudElement element, bool visible) => _api.SetPlayerHudElementVisible(Index, element, visible);
 	public void SelectUnit(IUnit unit) => _api.SelectPlayerUnit(Index, unit);
 	public void ClearSelection() => _api.ClearPlayerSelection(Index);
 	public IEnumerable<IUnit> GetSelectedUnits() => _api.GetPlayerSelectedUnits(Index);

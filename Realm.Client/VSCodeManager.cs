@@ -48,6 +48,13 @@ public partial class VSCodeManager
 	{
 		if (OperatingSystem.IsWindows())
 		{
+			try
+			{
+				SetCurrentProcessExplicitAppUserModelID("Realm.GameClient");
+			}
+			catch
+			{
+			}
 			AppDomain.CurrentDomain.ProcessExit += (s, e) => CleanUp();
 		}
 	}
@@ -285,16 +292,28 @@ public partial class VSCodeManager
 	}
 
 	private Process _vscodeProcess;
-	private Thread _staThread;
-	private IntPtr _parentHwnd;
-	private IntPtr _childHwnd;
 	private Control _containerControl;
-	private CoreWebView2Controller _controller;
 	private bool _isInitialized;
 	private bool _isVisible;
-	public bool IsVisible => _isVisible;
 
-	private readonly ConcurrentQueue<Action> _actionQueue = new ConcurrentQueue<Action>();
+	public bool IsVisible
+	{
+		get
+		{
+			if (_vscodeProcess == null)
+			{
+				return false;
+			}
+			try
+			{
+				return !_vscodeProcess.HasExited;
+			}
+			catch
+			{
+				return false;
+			}
+		}
+	}
 
 	public const uint WM_USER = 0x0400;
 	public const uint WM_WAKEUP = WM_USER + 1;
@@ -302,6 +321,7 @@ public partial class VSCodeManager
 	public const int SW_HIDE = 0;
 	public const int SW_SHOW = 5;
 	public const int SW_SHOWMAXIMIZED = 3;
+	public const int SW_RESTORE = 9;
 
 	public const uint WS_OVERLAPPEDWINDOW = 0x00CF0000;
 	public const uint WS_VISIBLE = 0x10000000;
@@ -505,27 +525,6 @@ public partial class VSCodeManager
 	private void OnLanguageChanged(GameLanguage newLanguage)
 	{
 		SaveCurrentLocaleToFile();
-		string code = newLanguage.ToLocaleCode();
-		var dict = LocalizationManager.GetDictionary(code);
-		string dictJson = JsonSerializer.Serialize(dict);
-		_actionQueue.Enqueue(() =>
-		{
-			try
-			{
-				if (_controller != null && _controller.CoreWebView2 != null)
-				{
-					string js = $"window.postMessage({{ type: 'updateLocale', realmLocale: '{code}', dictionary: {dictJson} }}, '*');";
-					_controller.CoreWebView2.ExecuteScriptAsync(js);
-				}
-			}
-			catch
-			{
-			}
-		});
-		if (_childHwnd != IntPtr.Zero)
-		{
-			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-		}
 	}
 
 	public void Initialize(Control containerControl)
@@ -541,70 +540,15 @@ public partial class VSCodeManager
 		SaveCurrentLocaleToFile();
 
 		_containerControl = containerControl;
-		int windowId = containerControl.GetWindow().GetWindowId();
-		long nativeHandle = DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle, windowId);
-		_parentHwnd = new IntPtr(nativeHandle);
 
-		StartVSCodeServer();
-
-		_staThread = new Thread(STAThreadLoop);
-		_staThread.SetApartmentState(ApartmentState.STA);
-		_staThread.Start();
+		StartIpcHttpListener();
 
 		_isInitialized = true;
 	}
 
 	private void StartVSCodeServer()
 	{
-		try
-		{
-			string projectRoot = PathUtils.GetProjectRoot();
-			string embedDir = GetVSCodeDirectory();
-			string exePath = Path.Combine(embedDir, "editor", "bin", "codium.exe");
-
-			if (!File.Exists(exePath))
-			{
-				GD.PrintErr("VS Code executable not found at: " + exePath);
-				return;
-			}
-
-			EnsureWorkspaceMapApiDll(projectRoot);
-			PatchVSCodiumConfiguration(embedDir);
-
-			string serverDataDir = Path.Combine(embedDir, "user-data-dir");
-			string extensionsDir = Path.Combine(serverDataDir, "extensions");
-			string cliDataDir = Path.Combine(embedDir, "cli-data-dir");
-			Directory.CreateDirectory(cliDataDir);
-
-			if (IsInstalling)
-			{
-				_installTask?.Wait();
-			}
-
-			var l = new TcpListener(IPAddress.Loopback, 0);
-			l.Start();
-			_vscodePort = ((IPEndPoint)l.LocalEndpoint).Port;
-			l.Stop();
-
-			_vscodeProcess = new Process();
-			_vscodeProcess.StartInfo.FileName = Path.ChangeExtension(exePath, ".cmd");
-			_vscodeProcess.StartInfo.Arguments = $"--cli-data-dir \"{cliDataDir}\" --extensions-dir \"{extensionsDir}\" serve-web --port {_vscodePort} --server-data-dir \"{serverDataDir}\" --accept-server-license-terms --without-connection-token";
-			_vscodeProcess.StartInfo.CreateNoWindow = true;
-			_vscodeProcess.StartInfo.UseShellExecute = false;
-			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_CLI_DATA_DIR"] = cliDataDir;
-			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS"] = extensionsDir;
-			_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
-			_vscodeProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
-			_vscodeProcess.Start();
-			AddProcessToJob(_vscodeProcess);
-			GD.Print($"[VSCodeManager] VS Code server started successfully. Godot Host Process ID: {Environment.ProcessId}. Select this PID in CodeLLDB when attaching.");
-
-			StartIpcHttpListener();
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr("Failed to start VS Code server: " + ex.Message);
-		}
+		StartIpcHttpListener();
 	}
 
 	private void EnsureWorkspaceMapApiDll(string projectRoot)
@@ -667,26 +611,6 @@ public partial class VSCodeManager
 	public async Task SaveAllOpenFilesAsync()
 	{
 		_pendingExtensionCommands.Enqueue("saveAll");
-		_actionQueue.Enqueue(() =>
-		{
-			try
-			{
-				if (_controller != null && _controller.CoreWebView2 != null)
-				{
-					_controller.CoreWebView2.ExecuteScriptAsync(@"
-(function() {
-	try {
-		window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS', keyCode: 83, which: 83, ctrlKey: true, altKey: true, bubbles: true }));
-		window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS', keyCode: 83, which: 83, ctrlKey: true, bubbles: true }));
-	} catch(e) {}
-})();
-");
-				}
-			}
-			catch
-			{
-			}
-		});
 		await Task.Delay(500);
 	}
 
@@ -1330,7 +1254,7 @@ public partial class VSCodeManager
 			if (MapEditorHUD.Instance != null)
 			{
 				MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-				MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), display));
+				MapEditorHUD.Instance.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally â€” reloaded."), display));
 			}
 			else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
 			{
@@ -1361,7 +1285,7 @@ public partial class VSCodeManager
 			if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
 			{
 				GameHost.Instance.LoadMapFromFile(filePath);
-				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
+				MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally â€” reloaded."));
 			}
 		};
 
@@ -1401,7 +1325,7 @@ public partial class VSCodeManager
 				if (MapEditorHUD.Instance != null)
 				{
 					MapEditorHUD.Instance.ReadMetadataAndRefreshTextures();
-					MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally — reloaded."));
+					MapEditorHUD.Instance.ShowFeedback(TranslationServer.Translate("metadata.json updated externally â€” reloaded."));
 				}
 				else if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
 				{
@@ -1670,628 +1594,22 @@ public partial class VSCodeManager
 	}
 
 
-	private void STAThreadLoop()
-	{
-		var syncContext = new SingleThreadSynchronizationContext();
-		SynchronizationContext.SetSynchronizationContext(syncContext);
-
-		var wndClass = new WNDCLASSEX();
-		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
-		wndClass.style = 0;
-		_customWndProcDelegate = CustomWndProc;
-		wndClass.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_customWndProcDelegate);
-		wndClass.cbClsExtra = 0;
-		wndClass.cbWndExtra = 0;
-		wndClass.hInstance = GetModuleHandle(null);
-		wndClass.hIcon = IntPtr.Zero;
-		wndClass.hCursor = IntPtr.Zero;
-		wndClass.hbrBackground = IntPtr.Zero;
-		wndClass.lpszMenuName = null;
-		wndClass.lpszClassName = "VSCodeEmbedWindow";
-		wndClass.hIconSm = IntPtr.Zero;
-
-		RegisterClassEx(ref wndClass);
-
-		_childHwnd = CreateWindowEx(
-			0,
-			"VSCodeEmbedWindow",
-			"Realm Editor",
-			WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-			0,
-			0,
-			800,
-			600,
-			IntPtr.Zero,
-			IntPtr.Zero,
-			GetModuleHandle(null),
-			IntPtr.Zero);
-
-		if (_childHwnd == IntPtr.Zero)
-		{
-			GD.PrintErr("Failed to create child window.");
-			return;
-		}
-
-		syncContext.SetTargetHwnd(_childHwnd);
-
-		InitializeWebView();
-
-		MSG msg;
-		while (GetMessage(out msg, IntPtr.Zero, 0, 0) > 0)
-		{
-			TranslateMessage(ref msg);
-			DispatchMessage(ref msg);
-
-			syncContext.RunPending();
-
-			while (_actionQueue.TryDequeue(out var action))
-			{
-				try
-				{
-					action();
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr("Error executing action on STA thread: " + ex.Message);
-				}
-			}
-		}
-	}
-
-	private IntPtr CustomWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
-	{
-		if (msg == 0x0005) // WM_SIZE
-		{
-			int w = (int)(lParam.ToInt64() & 0xFFFF);
-			int h = (int)((lParam.ToInt64() >> 16) & 0xFFFF);
-			if (_controller != null)
-			{
-				_controller.Bounds = new Rectangle(0, 0, w, h);
-			}
-		}
-		else if (msg == 0x0010) // WM_CLOSE
-		{
-			if (!_isVisible) return IntPtr.Zero; // already hidden
-			_actionQueue.Enqueue(() =>
-			{
-				if (_controller != null && _controller.CoreWebView2 != null)
-				{
-					_controller.CoreWebView2.Navigate("about:blank");
-					_controller.IsVisible = false;
-				}
-
-				ShowWindow(hWnd, SW_HIDE);
-				_isVisible = false;
-			});
-			PostMessage(hWnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-			return IntPtr.Zero;
-		}
-
-		return DefWindowProc(hWnd, msg, wParam, lParam);
-	}
-
-	private async void InitializeWebView()
-	{
-		try
-		{
-			string projectRoot = PathUtils.GetProjectRoot();
-			string embedDir = GetVSCodeDirectory();
-			PatchVSCodiumConfiguration(embedDir);
-			string serverDataDir = Path.Combine(embedDir, "user-data-dir");
-			string cachePath = Path.Combine(serverDataDir, "webview-cache");
-
-			ClearWebviewCache(cachePath);
-
-			var envOptions = new CoreWebView2EnvironmentOptions
-			{
-				AdditionalBrowserArguments = "--disable-web-security --allow-running-insecure-content"
-			};
-			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath, options: envOptions);
-			_controller = await env.CreateCoreWebView2ControllerAsync(_childHwnd);
-			_controller.Bounds = new Rectangle(0, 0, 800, 600);
-			if (_controller.CoreWebView2?.Settings != null)
-			{
-				_controller.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
-				_controller.CoreWebView2.Settings.AreDevToolsEnabled = true;
-			}
-
-			if (_controller.CoreWebView2 != null)
-			{
-				SetupWebviewFilters();
-				SetupWebviewMessageHandling();
-			}
-
-			await ClearWebviewCacheAndStorage();
-			NavigateToMapFolder(projectRoot);
-
-			_controller.IsVisible = _isVisible;
-			ShowWindow(_childHwnd, _isVisible ? SW_SHOW : SW_HIDE);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr("Failed to initialize WebView2: " + ex.Message);
-		}
-	}
-
-
-	private async Task ClearWebviewCacheAndStorage()
-	{
-		try
-		{
-			if (_controller?.CoreWebView2?.Profile != null)
-			{
-				await _controller.CoreWebView2.Profile.ClearBrowsingDataAsync(
-					CoreWebView2BrowsingDataKinds.ServiceWorkers |
-					CoreWebView2BrowsingDataKinds.CacheStorage |
-					CoreWebView2BrowsingDataKinds.DiskCache
-				);
-			}
-		}
-		catch
-		{
-		}
-	}
-
-	private void NavigateToMapFolder(string projectRoot)
-	{
-		string mapFolderRaw = GetMapFolderToOpen(projectRoot);
-		string mapFolder = FormatWinPathForUrl(mapFolderRaw);
-		string targetUrl = $"http://127.0.0.1:{_vscodePort}/?folder={Uri.EscapeDataString(mapFolder)}&ipcPort={_ipcHttpPort}";
-
-		_controller.CoreWebView2.NavigationCompleted += HandleNavigationCompleted;
-		_controller.CoreWebView2.Navigate(targetUrl);
-	}
-
-	private async void HandleNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs args)
-	{
-		if (!args.IsSuccess || sender != _controller.CoreWebView2) return;
-
-		try
-		{
-			await _controller.CoreWebView2.ExecuteScriptAsync(@"
-(async () => {
-    const DB = 'vscode-web-db';
-    const STORE = 'vscode-userdata-store';
-    const KEY = '/User/settings.json';
-    try {
-        const db = await new Promise((resolve, reject) => {
-            const r = indexedDB.open(DB);
-            r.onupgradeneeded = (e) => {
-                if (!e.target.result.objectStoreNames.contains(STORE))
-                    e.target.result.createObjectStore(STORE);
-            };
-            r.onsuccess = (e) => resolve(e.target.result);
-            r.onerror = (e) => reject(e.target.error);
-        });
-        let config = {};
-        const raw = await new Promise((resolve, reject) => {
-            const t = db.transaction([STORE], 'readwrite');
-            const g = t.objectStore(STORE).get(KEY);
-            g.onsuccess = () => resolve(g.result);
-            g.onerror = () => reject(g.error);
-        });
-        if (raw) {
-            const buf = raw instanceof Uint8Array ? raw : raw.value;
-            if (buf instanceof Uint8Array) {
-                const s = new TextDecoder('utf-8').decode(buf).trim();
-                if (s) config = JSON.parse(s);
-            }
-        }
-        if (config['security.workspace.trust.enabled'] === false &&
-            config['security.workspace.trust.startupPrompt'] === 'never') {
-            return;
-        }
-        config['security.workspace.trust.enabled'] = false;
-        config['security.workspace.trust.startupPrompt'] = 'never';
-        const encoded = new TextEncoder().encode(JSON.stringify(config, null, '\t'));
-        await new Promise((resolve, reject) => {
-            const t = db.transaction([STORE], 'readwrite');
-            const p = t.objectStore(STORE).put(encoded, KEY);
-            p.onsuccess = () => resolve();
-            p.onerror = () => reject(p.error);
-        });
-        window.location.replace(window.location.href);
-    } catch (e) {
-        console.error('Failed to set workspace trust:', e);
-    }
-})();
-");
-		}
-		catch
-		{
-		}
-	}
-
-
-	private void ClearWebviewCache(string cachePath)
-	{
-		try
-		{
-			string swDir = Path.Combine(cachePath, "Default", "Service Worker");
-			if (Directory.Exists(swDir)) Directory.Delete(swDir, true);
-			string codeCache = Path.Combine(cachePath, "Default", "Code Cache");
-			if (Directory.Exists(codeCache)) Directory.Delete(codeCache, true);
-			string cacheDir = Path.Combine(cachePath, "Default", "Cache");
-			if (Directory.Exists(cacheDir)) Directory.Delete(cacheDir, true);
-		}
-		catch
-		{
-		}
-	}
-
-	private void SetupWebviewFilters()
-	{
-		_controller.CoreWebView2.AddWebResourceRequestedFilter("http://127.0.0.1:*", CoreWebView2WebResourceContext.All);
-		_controller.CoreWebView2.AddWebResourceRequestedFilter("http://localhost:*", CoreWebView2WebResourceContext.All);
-		_controller.CoreWebView2.AddWebResourceRequestedFilter("http://[::1]:*", CoreWebView2WebResourceContext.All);
-		_controller.CoreWebView2.AddWebResourceRequestedFilter("https://127.0.0.1:*", CoreWebView2WebResourceContext.All);
-		_controller.CoreWebView2.AddWebResourceRequestedFilter("https://localhost:*", CoreWebView2WebResourceContext.All);
-		_controller.CoreWebView2.AddWebResourceRequestedFilter("https://[::1]:*", CoreWebView2WebResourceContext.All);
-
-		_controller.CoreWebView2.WebResourceRequested += HandleWebResourceRequested;
-	}
-
-
-	private async void HandleWebResourceRequested(object sender, CoreWebView2WebResourceRequestedEventArgs args)
-	{
-		try
-		{
-			if (!Uri.TryCreate(args.Request.Uri, UriKind.Absolute, out var uriObj)) return;
-			if (uriObj.Port == _ipcHttpPort) return;
-
-			if (!ShouldProxyRequest(uriObj, args.Request.Headers)) return;
-
-			var deferral = args.GetDeferral();
-			try
-			{
-				var requestMsg = CreateProxyRequest(args.Request, uriObj.ToString());
-				var responseMsg = await _localProxyHttpClient.SendAsync(requestMsg, HttpCompletionOption.ResponseHeadersRead);
-
-				var webResponse = await CreateProxyResponse(responseMsg, uriObj);
-				args.Response = webResponse;
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[VSCodeManager] WebResourceRequested proxy error for {uriObj}: {ex.Message}");
-			}
-			finally
-			{
-				deferral.Complete();
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[VSCodeManager] WebResourceRequested outer error: {ex.Message}");
-		}
-	}
-
-	private bool ShouldProxyRequest(Uri uriObj, CoreWebView2HttpRequestHeaders headers)
-	{
-		bool isVSCodeServer = uriObj.Port == _vscodePort;
-		bool isSpecialVSCodeResource = isVSCodeServer && (
-			uriObj.AbsolutePath.EndsWith("index.html", StringComparison.OrdinalIgnoreCase) ||
-			uriObj.AbsolutePath.EndsWith("workbench.js", StringComparison.OrdinalIgnoreCase)
-		);
-
-		if (isVSCodeServer && !isSpecialVSCodeResource) return false;
-
-		if (headers.Contains("Upgrade") || headers.Contains("Sec-WebSocket-Key"))
-		{
-			return false;
-		}
-
-		return true;
-	}
-
-	private HttpRequestMessage CreateProxyRequest(CoreWebView2WebResourceRequest request, string uri)
-	{
-		var requestMsg = new HttpRequestMessage(new HttpMethod(request.Method), uri);
-		foreach (var h in request.Headers)
-		{
-			if (h.Key.Equals("Host", StringComparison.OrdinalIgnoreCase)) continue;
-			if (h.Key.Equals("Connection", StringComparison.OrdinalIgnoreCase)) continue;
-			if (h.Key.Equals("Upgrade", StringComparison.OrdinalIgnoreCase)) continue;
-			if (h.Key.StartsWith("Sec-WebSocket", StringComparison.OrdinalIgnoreCase)) continue;
-			requestMsg.Headers.TryAddWithoutValidation(h.Key, h.Value);
-		}
-
-		if (request.Content != null)
-		{
-			var ms = new MemoryStream();
-			request.Content.CopyTo(ms);
-			ms.Position = 0;
-			requestMsg.Content = new StreamContent(ms);
-			if (request.Headers.Contains("Content-Type"))
-			{
-				requestMsg.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(request.Headers.GetHeader("Content-Type"));
-			}
-		}
-
-		return requestMsg;
-	}
-
-	private async Task<CoreWebView2WebResourceResponse> CreateProxyResponse(HttpResponseMessage responseMsg, Uri uriObj)
-	{
-		byte[] responseBytes = await responseMsg.Content.ReadAsByteArrayAsync();
-
-		responseBytes = ProcessSpecialVSCodeResources(responseBytes, uriObj);
-
-		var responseStream = new MemoryStream(responseBytes);
-		string headersString = BuildProxyResponseHeaders(responseMsg);
-
-		return _controller.CoreWebView2.Environment.CreateWebResourceResponse(
-			responseStream,
-			(int)responseMsg.StatusCode,
-			responseMsg.ReasonPhrase ?? "OK",
-			headersString
-		);
-	}
-
-	private byte[] ProcessSpecialVSCodeResources(byte[] responseBytes, Uri uriObj)
-	{
-		bool isSpecialVSCodeResource = uriObj.Port == _vscodePort && (
-			uriObj.AbsolutePath.EndsWith("index.html", StringComparison.OrdinalIgnoreCase) ||
-			uriObj.AbsolutePath.EndsWith("workbench.js", StringComparison.OrdinalIgnoreCase)
-		);
-
-		if (isSpecialVSCodeResource)
-		{
-			string originalContent = Encoding.UTF8.GetString(responseBytes);
-			string patchedContent = originalContent;
-			if (uriObj.AbsolutePath.EndsWith("index.html", StringComparison.OrdinalIgnoreCase))
-			{
-				patchedContent = PatchIndexHtmlContent(originalContent);
-			}
-			else
-			{
-				patchedContent = PatchWorkbenchJsContent(originalContent);
-			}
-
-			if (!ReferenceEquals(originalContent, patchedContent))
-			{
-				return Encoding.UTF8.GetBytes(patchedContent);
-			}
-		}
-
-		return responseBytes;
-	}
-
-	private string BuildProxyResponseHeaders(HttpResponseMessage responseMsg)
-	{
-		var headersBuilder = new StringBuilder();
-
-		void AppendHeader(string key, IEnumerable<string> values)
-		{
-			if (key.Equals("X-Frame-Options", StringComparison.OrdinalIgnoreCase)) return;
-			if (key.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase)) return;
-			if (key.Equals("Content-Encoding", StringComparison.OrdinalIgnoreCase)) return;
-			if (key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase)) return;
-
-			if (key.Equals("Content-Security-Policy", StringComparison.OrdinalIgnoreCase))
-			{
-				string relaxed = RelaxContentSecurityPolicy(string.Join(" ", values));
-				if (!string.IsNullOrWhiteSpace(relaxed))
-				{
-					headersBuilder.AppendLine($"Content-Security-Policy: {relaxed}");
-				}
-
-				return;
-			}
-
-			headersBuilder.AppendLine($"{key}: {string.Join(" ", values)}");
-		}
-
-		foreach (var h in responseMsg.Headers) AppendHeader(h.Key, h.Value);
-		foreach (var h in responseMsg.Content.Headers) AppendHeader(h.Key, h.Value);
-
-		if (!headersBuilder.ToString().Contains("Content-Security-Policy", StringComparison.OrdinalIgnoreCase))
-		{
-			headersBuilder.AppendLine("Content-Security-Policy: frame-ancestors *;");
-		}
-
-		headersBuilder.AppendLine("Access-Control-Allow-Origin: *");
-		headersBuilder.AppendLine("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD");
-		headersBuilder.AppendLine("Access-Control-Allow-Headers: *");
-		headersBuilder.AppendLine("Access-Control-Allow-Private-Network: true");
-
-		return headersBuilder.ToString();
-	}
-
-
-	private void SetupWebviewMessageHandling()
-	{
-		_controller.AcceleratorKeyPressed += HandleAcceleratorKeyPressed;
-	}
-
-
-	private void HandleAcceleratorKeyPressed(object sender, CoreWebView2AcceleratorKeyPressedEventArgs args)
-	{
-		if (args.VirtualKey == 0x73) // VK_F4
-		{
-			HandleF4Key(args);
-		}
-		else if (args.VirtualKey == 0x7B) // VK_F12
-		{
-			args.Handled = false;
-		}
-		else
-		{
-			HandleDevToolsShortcut(args);
-		}
-	}
-
-	private void HandleF4Key(CoreWebView2AcceleratorKeyPressedEventArgs args)
-	{
-		if (args.KeyEventKind == CoreWebView2KeyEventKind.SystemKeyDown)
-		{
-			args.Handled = true;
-			_actionQueue.Enqueue(() =>
-			{
-				ShowWindow(_childHwnd, SW_HIDE);
-				_isVisible = false;
-			});
-			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-		}
-	}
-
-	private void HandleDevToolsShortcut(CoreWebView2AcceleratorKeyPressedEventArgs args)
-	{
-		bool isControlPressed = (GetKeyState(0x11) & 0x8000) != 0;
-		bool isShiftPressed = (GetKeyState(0x10) & 0x8000) != 0;
-
-		if (isControlPressed && isShiftPressed && (args.VirtualKey == 0x49 || args.VirtualKey == 0x4A)) // Ctrl+Shift+I or Ctrl+Shift+J
-		{
-			if (args.KeyEventKind == CoreWebView2KeyEventKind.KeyDown)
-			{
-				args.Handled = true;
-				_actionQueue.Enqueue(() => { _controller?.CoreWebView2?.OpenDevToolsWindow(); });
-				PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-			}
-		}
-	}
-
-
-	private void PositionOnScreen()
-	{
-		if (_containerControl == null || !GodotObject.IsInstanceValid(_containerControl))
-		{
-			return;
-		}
-
-		int screenCount = DisplayServer.GetScreenCount();
-		int currentScreen = DisplayServer.WindowGetCurrentScreen();
-		Vector2I targetPos;
-		Vector2I targetSize;
-
-		if (screenCount > 1)
-		{
-			int targetScreen = (currentScreen + 1) % screenCount;
-			targetPos = DisplayServer.ScreenGetPosition(targetScreen);
-			targetSize = DisplayServer.ScreenGetSize(targetScreen);
-		}
-		else
-		{
-			targetPos = DisplayServer.ScreenGetPosition(currentScreen);
-			targetSize = DisplayServer.ScreenGetSize(currentScreen);
-		}
-
-		SetWindowPos(_childHwnd, IntPtr.Zero, targetPos.X, targetPos.Y, targetSize.X, targetSize.Y, 0x0014);
-	}
-
 	public void SetVisible(bool visible)
 	{
 		_isVisible = visible;
-		if (!_isInitialized)
-		{
-			if (visible)
-			{
-				_containerControl = null;
-				Initialize(_containerControl);
-			}
-
-			return;
-		}
-
 		if (visible)
 		{
-			EnsureVSCodeServerRunning();
+			LaunchOrFocusEditor();
 		}
-
-		_actionQueue.Enqueue(() =>
-		{
-			if (visible)
-			{
-				ShowWebViewWindow();
-			}
-			else
-			{
-				if (_controller != null)
-				{
-					_controller.IsVisible = false;
-				}
-
-				ShowWindow(_childHwnd, SW_HIDE);
-			}
-		});
-
-		if (_childHwnd != IntPtr.Zero)
-		{
-			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-		}
-	}
-
-	private void EnsureVSCodeServerRunning()
-	{
-		if (_vscodeProcess != null && _vscodeProcess.HasExited)
-		{
-			StartVSCodeServer();
-			if (_vscodeProcess != null && !_vscodeProcess.HasExited)
-			{
-				_vscodeProcess.WaitForExit(5000);
-			}
-		}
-	}
-
-	private void ShowWebViewWindow()
-	{
-		bool controllerValid = false;
-		try
-		{
-			controllerValid = _controller != null && _controller.CoreWebView2 != null;
-		}
-		catch
-		{
-			controllerValid = false;
-		}
-
-		if (!controllerValid)
-		{
-			InitializeWebView();
-			return;
-		}
-
-		string projectRoot = PathUtils.GetProjectRoot();
-		string mapFolderRaw = GetMapFolderToOpen(projectRoot);
-		string mapFolder = FormatWinPathForUrl(mapFolderRaw);
-		string targetUrl = $"http://127.0.0.1:{_vscodePort}/?folder={Uri.EscapeDataString(mapFolder)}&ipcPort={_ipcHttpPort}";
-		_controller.CoreWebView2.Navigate(targetUrl);
-
-		_controller.IsVisible = true;
-		PositionOnScreen();
-		ShowWindow(_childHwnd, SW_SHOWMAXIMIZED);
 	}
 
 	public void Focus()
 	{
-		if (_childHwnd != IntPtr.Zero)
-		{
-			_actionQueue.Enqueue(() =>
-			{
-				ShowWindow(_childHwnd, SW_SHOWMAXIMIZED);
-				BringWindowToTop(_childHwnd);
-				SetForegroundWindow(_childHwnd);
-			});
-			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-		}
+		LaunchOrFocusEditor();
 	}
 
 	public void OpenDevTools()
 	{
-		if (_childHwnd != IntPtr.Zero)
-		{
-			_actionQueue.Enqueue(() =>
-			{
-				try
-				{
-					_controller?.CoreWebView2?.OpenDevToolsWindow();
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr("Failed to open DevTools: " + ex.Message);
-				}
-			});
-			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-		}
 	}
 
 	public void UpdateBounds()
@@ -2300,34 +1618,369 @@ public partial class VSCodeManager
 
 	public void OpenFile(string relativePath)
 	{
-		string projectRoot = PathUtils.GetProjectRoot();
-		string mapFolderRaw = GetMapFolderToOpen(projectRoot);
-		string fullPathRaw = Path.Combine(mapFolderRaw, relativePath);
-
-		string mapFolder = FormatWinPathForUrl(mapFolderRaw);
-		string fullPath = FormatWinPathForUrl(fullPathRaw);
-
-		_actionQueue.Enqueue(() =>
+		try
 		{
-			if (_controller != null)
+			string projectRoot = PathUtils.GetProjectRoot();
+			string mapFolderRaw = GetMapFolderToOpen(projectRoot);
+			string fullPath = Path.Combine(mapFolderRaw, relativePath);
+
+			string embedDir = GetVSCodeDirectory();
+			string desktopExe = Path.Combine(embedDir, "editor", "VSCodium.exe");
+			if (!File.Exists(desktopExe))
 			{
-				string payload = JsonSerializer.Serialize(new[] { new[] { "openFile", fullPath } });
-				string targetUrl = $"http://127.0.0.1:{_vscodePort}/?folder={Uri.EscapeDataString(mapFolder)}&payload={Uri.EscapeDataString(payload)}&ipcPort={_ipcHttpPort}";
-				_controller.CoreWebView2.Navigate(targetUrl);
+				desktopExe = Path.Combine(embedDir, "editor", "bin", "codium.cmd");
 			}
-		});
-		PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+
+			string serverDataDir = Path.Combine(embedDir, "user-data-dir");
+			string extensionsDir = Path.Combine(serverDataDir, "extensions");
+
+			var openStartInfo = new ProcessStartInfo
+			{
+				FileName = desktopExe,
+				Arguments = $"--user-data-dir \"{serverDataDir}\" --extensions-dir \"{extensionsDir}\" -r -g \"{fullPath}\"",
+				UseShellExecute = false,
+				CreateNoWindow = true
+			};
+			using var openProc = Process.Start(openStartInfo);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Failed to open file in VSCodium: {ex.Message}");
+		}
 	}
 
-	private string FormatWinPathForUrl(string path)
+	private void LaunchOrFocusEditor()
 	{
-		string formatted = path.Replace("\\", "/");
-		if (!formatted.StartsWith("/"))
+		try
 		{
-			formatted = "/" + formatted;
+			string projectRoot = PathUtils.GetProjectRoot();
+			string embedDir = GetVSCodeDirectory();
+			string desktopExe = Path.Combine(embedDir, "editor", "VSCodium.exe");
+			if (!File.Exists(desktopExe))
+			{
+				desktopExe = Path.Combine(embedDir, "editor", "bin", "codium.cmd");
+			}
+
+			if (!File.Exists(desktopExe))
+			{
+				GD.PrintErr("VS Code executable not found at: " + desktopExe);
+				return;
+			}
+
+			string serverDataDir = Path.Combine(embedDir, "user-data-dir");
+			string extensionsDir = Path.Combine(serverDataDir, "extensions");
+			string workspacePath = GetMapFolderToOpen(projectRoot);
+
+			EnsureWorkspaceMapApiDll(projectRoot);
+			EnsureVSCodiumSettings(serverDataDir, workspacePath);
+			EnsureOhziExtensionPatched(extensionsDir);
+			PatchVSCodiumConfiguration(embedDir);
+
+			if (IsInstalling)
+			{
+				_installTask?.Wait();
+			}
+
+			StartIpcHttpListener();
+
+			if (_vscodeProcess == null || _vscodeProcess.HasExited)
+			{
+				_vscodeProcess = new Process();
+				_vscodeProcess.StartInfo.FileName = desktopExe;
+				_vscodeProcess.StartInfo.Arguments = $"--user-data-dir \"{serverDataDir}\" --extensions-dir \"{extensionsDir}\" \"{workspacePath}\"";
+				_vscodeProcess.StartInfo.UseShellExecute = false;
+				_vscodeProcess.StartInfo.CreateNoWindow = false;
+				_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS"] = extensionsDir;
+				_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
+				_vscodeProcess.StartInfo.EnvironmentVariables["REALM_IPC_PORT"] = _ipcHttpPort.ToString();
+				_vscodeProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
+				_vscodeProcess.Start();
+				AddProcessToJob(_vscodeProcess);
+				AttachWindowGrouping(_vscodeProcess);
+				_isVisible = true;
+				GD.Print($"[VSCodeManager] VSCodium desktop launched (PID {_vscodeProcess.Id}). Godot Host PID: {Environment.ProcessId}.");
+			}
+			else
+			{
+				_vscodeProcess.Refresh();
+				IntPtr mainWindowHandle = _vscodeProcess.MainWindowHandle;
+				if (mainWindowHandle != IntPtr.Zero)
+				{
+					AttachWindowGrouping(_vscodeProcess);
+					ShowWindow(mainWindowHandle, SW_RESTORE);
+					BringWindowToTop(mainWindowHandle);
+					SetForegroundWindow(mainWindowHandle);
+				}
+				else
+				{
+					var reuseStartInfo = new ProcessStartInfo
+					{
+						FileName = desktopExe,
+						Arguments = $"--user-data-dir \"{serverDataDir}\" --extensions-dir \"{extensionsDir}\" -r \"{workspacePath}\"",
+						UseShellExecute = false,
+						CreateNoWindow = true
+					};
+					using var reuseProcess = Process.Start(reuseStartInfo);
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr("Failed to launch or focus VSCodium: " + ex.Message);
+		}
+	}
+
+	private const uint WM_GETICON = 0x007F;
+	private const uint WM_SETICON = 0x0080;
+	private const int ICON_SMALL = 0;
+	private const int ICON_BIG = 1;
+
+	[DllImport("user32.dll", CharSet = CharSet.Auto)]
+	private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+	[DllImport("shell32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+	private static extern int SetCurrentProcessExplicitAppUserModelID(string appID);
+
+	[StructLayout(LayoutKind.Sequential, Pack = 4)]
+	private struct PROPERTYKEY
+	{
+		public Guid fmtid;
+		public uint pid;
+	}
+
+	[StructLayout(LayoutKind.Explicit)]
+	private struct PROPVARIANT
+	{
+		[FieldOffset(0)] public ushort vt;
+		[FieldOffset(8)] public IntPtr pwszVal;
+	}
+
+	[ComImport, Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+	private interface IPropertyStore
+	{
+		[PreserveSig] int GetCount(out uint cProps);
+		[PreserveSig] int GetAt(uint iProp, out PROPERTYKEY pkey);
+		[PreserveSig] int GetValue(ref PROPERTYKEY key, out PROPVARIANT pv);
+		[PreserveSig] int SetValue(ref PROPERTYKEY key, ref PROPVARIANT propvar);
+		[PreserveSig] int Commit();
+	}
+
+	[DllImport("shell32.dll", SetLastError = true)]
+	private static extern int SHGetPropertyStoreForWindow(IntPtr hwnd, ref Guid iid, out IPropertyStore propertyStore);
+
+	private static void SetWindowAppUserModelId(IntPtr hwnd, string appModelId)
+	{
+		if (hwnd == IntPtr.Zero || !OperatingSystem.IsWindows()) return;
+		try
+		{
+			var guid = new Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99");
+			if (SHGetPropertyStoreForWindow(hwnd, ref guid, out var store) == 0 && store != null)
+			{
+				var pkey = new PROPERTYKEY
+				{
+					fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"),
+					pid = 5
+				};
+				var propvar = new PROPVARIANT
+				{
+					vt = 31,
+					pwszVal = Marshal.StringToCoTaskMemUni(appModelId)
+				};
+				try
+				{
+					store.SetValue(ref pkey, ref propvar);
+					store.Commit();
+				}
+				finally
+				{
+					Marshal.FreeCoTaskMem(propvar.pwszVal);
+				}
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	private static void SyncWindowIcon(IntPtr sourceHwnd, IntPtr targetHwnd)
+	{
+		if (sourceHwnd == IntPtr.Zero || targetHwnd == IntPtr.Zero || !OperatingSystem.IsWindows()) return;
+		try
+		{
+			IntPtr smallIcon = SendMessage(sourceHwnd, WM_GETICON, (IntPtr)ICON_SMALL, IntPtr.Zero);
+			if (smallIcon != IntPtr.Zero)
+			{
+				SendMessage(targetHwnd, WM_SETICON, (IntPtr)ICON_SMALL, smallIcon);
+			}
+
+			IntPtr bigIcon = SendMessage(sourceHwnd, WM_GETICON, (IntPtr)ICON_BIG, IntPtr.Zero);
+			if (bigIcon != IntPtr.Zero)
+			{
+				SendMessage(targetHwnd, WM_SETICON, (IntPtr)ICON_BIG, bigIcon);
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	private void AttachWindowGrouping(Process proc)
+	{
+		if (proc == null || proc.HasExited || !OperatingSystem.IsWindows()) return;
+
+		Task.Run(async () =>
+		{
+			try
+			{
+				for (int i = 0; i < 40; i++)
+				{
+					if (proc.HasExited) break;
+					proc.Refresh();
+					IntPtr hwnd = proc.MainWindowHandle;
+					if (hwnd != IntPtr.Zero)
+					{
+						SetWindowAppUserModelId(hwnd, "Realm.GameClient");
+
+						long godotRaw = DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle);
+						if (godotRaw != 0)
+						{
+							SyncWindowIcon((IntPtr)godotRaw, hwnd);
+						}
+						break;
+					}
+
+					await Task.Delay(150);
+				}
+			}
+			catch
+			{
+			}
+		});
+	}
+
+	private static void EnsureVSCodiumSettings(string serverDataDir, string workspacePath)
+	{
+		try
+		{
+			string userDir = Path.Combine(serverDataDir, "User");
+			if (!Directory.Exists(userDir))
+			{
+				Directory.CreateDirectory(userDir);
+			}
+
+			string userSettingsFile = Path.Combine(userDir, "settings.json");
+			JsonObject settings = null;
+			if (File.Exists(userSettingsFile))
+			{
+				try
+				{
+					settings = JsonNode.Parse(File.ReadAllText(userSettingsFile, Encoding.UTF8))?.AsObject();
+				}
+				catch
+				{
+				}
+			}
+			settings ??= new JsonObject();
+
+			settings["security.workspace.trust.enabled"] = false;
+			settings["security.workspace.trust.startupPrompt"] = "never";
+			settings["security.workspace.trust.banner"] = "never";
+			settings["security.workspace.trust.emptyWindow"] = false;
+			settings["security.workspace.trust.untrustedFiles"] = "open";
+
+			File.WriteAllText(userSettingsFile, settings.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
+
+			if (!string.IsNullOrEmpty(workspacePath) && Directory.Exists(workspacePath))
+			{
+				string wsVscodeDir = Path.Combine(workspacePath, ".vscode");
+				if (!Directory.Exists(wsVscodeDir))
+				{
+					Directory.CreateDirectory(wsVscodeDir);
+				}
+
+				string wsSettingsFile = Path.Combine(wsVscodeDir, "settings.json");
+				JsonObject wsSettings = null;
+				if (File.Exists(wsSettingsFile))
+				{
+					try
+					{
+						wsSettings = JsonNode.Parse(File.ReadAllText(wsSettingsFile, Encoding.UTF8))?.AsObject();
+					}
+					catch
+					{
+					}
+				}
+				wsSettings ??= new JsonObject();
+				wsSettings["security.workspace.trust.enabled"] = false;
+				File.WriteAllText(wsSettingsFile, wsSettings.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Failed to ensure VSCodium settings: {ex.Message}");
+		}
+	}
+
+	private static string GetOhziPatchContent()
+	{
+		try
+		{
+			string projectRoot = PathUtils.GetProjectRoot();
+			string tpl1 = Path.Combine(projectRoot, "Templates", "ohzi_extension_patch.js");
+			if (File.Exists(tpl1)) return File.ReadAllText(tpl1, Encoding.UTF8);
+
+			string tpl2 = Path.Combine(AppContext.BaseDirectory, "Templates", "ohzi_extension_patch.js");
+			if (File.Exists(tpl2)) return File.ReadAllText(tpl2, Encoding.UTF8);
+		}
+		catch
+		{
 		}
 
-		return formatted;
+		return string.Empty;
+	}
+
+	private static void EnsureOhziExtensionPatched(string extensionsDir)
+	{
+		if (string.IsNullOrEmpty(extensionsDir) || !Directory.Exists(extensionsDir)) return;
+
+		try
+		{
+			string[] directories = Directory.GetDirectories(extensionsDir);
+			foreach (string dir in directories)
+			{
+				string name = Path.GetFileName(dir);
+				if (!name.Contains("ohzi-vscode-glb-viewer", StringComparison.OrdinalIgnoreCase) &&
+				    !name.Contains("ohziinteractivestudio", StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
+
+				string extJsPath = Path.Combine(dir, "extension.js");
+				bool needsPatch = !File.Exists(extJsPath);
+				if (!needsPatch)
+				{
+					string existing = File.ReadAllText(extJsPath, Encoding.UTF8);
+					if (!existing.Contains("REALM_PATCHED_OHZI_BASE64", StringComparison.Ordinal))
+					{
+						needsPatch = true;
+					}
+				}
+
+				if (needsPatch)
+				{
+					string patchContent = GetOhziPatchContent();
+					if (!string.IsNullOrEmpty(patchContent))
+					{
+						File.WriteAllText(extJsPath, patchContent, new UTF8Encoding(false));
+						GD.Print($"VS Code: Patched OHZI GLB viewer extension in {dir}");
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to patch OHZI extension: {ex.Message}");
+		}
 	}
 
 	public void SaveRecentMapDir(string dirPath)
@@ -2429,22 +2082,6 @@ public partial class VSCodeManager
 
 	public void CleanUp()
 	{
-		_actionQueue.Enqueue(() =>
-		{
-			if (_controller != null)
-			{
-				_controller.Close();
-				_controller = null;
-			}
-
-			if (_childHwnd != IntPtr.Zero)
-			{
-				DestroyWindow(_childHwnd);
-				_childHwnd = IntPtr.Zero;
-			}
-		});
-		PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-
 		if (_vscodeProcess != null && !_vscodeProcess.HasExited)
 		{
 			try
@@ -2779,6 +2416,16 @@ public partial class VSCodeManager
 		if (!string.IsNullOrEmpty(embedDir))
 		{
 			targets.Add(embedDir);
+			targets.Add(Path.Combine(embedDir, "editor", "resources", "app"));
+			targets.Add(Path.Combine(embedDir, "resources", "app"));
+			string serveWebDir = Path.Combine(embedDir, "cli-data-dir", "serve-web");
+			if (Directory.Exists(serveWebDir))
+			{
+				foreach (string sub in Directory.GetDirectories(serveWebDir))
+				{
+					targets.Add(sub);
+				}
+			}
 		}
 
 		if (OS.GetName() == "Windows")
@@ -2844,13 +2491,55 @@ public partial class VSCodeManager
 
 			if (extensionAllowedProposedApi != null)
 			{
-				needsUpdate = AddProposedApi(extensionAllowedProposedApi, "speige.realm-map-editor");
+				needsUpdate |= AddProposedApi(extensionAllowedProposedApi, "speige.realm-map-editor");
+			}
+
+			if (jsonNode["win32AppUserModelId"]?.GetValue<string>() != "Realm.GameClient")
+			{
+				jsonNode["win32AppUserModelId"] = "Realm.GameClient";
+				needsUpdate = true;
+			}
+
+			if (productJsonPath.Contains("editor", StringComparison.OrdinalIgnoreCase) &&
+			    productJsonPath.Contains("resources", StringComparison.OrdinalIgnoreCase) &&
+			    jsonNode.AsObject().ContainsKey("webviewContentExternalBaseUrlTemplate"))
+			{
+				jsonNode.AsObject().Remove("webviewContentExternalBaseUrlTemplate");
+				needsUpdate = true;
+			}
+
+			var configDefaults = jsonNode["configurationDefaults"]?.AsObject();
+			if (configDefaults == null)
+			{
+				configDefaults = new JsonObject();
+				jsonNode["configurationDefaults"] = configDefaults;
+				needsUpdate = true;
+			}
+			if (configDefaults["security.workspace.trust.enabled"]?.GetValue<bool>() != false)
+			{
+				configDefaults["security.workspace.trust.enabled"] = false;
+				needsUpdate = true;
+			}
+			if (configDefaults["security.workspace.trust.startupPrompt"]?.GetValue<string>() != "never")
+			{
+				configDefaults["security.workspace.trust.startupPrompt"] = "never";
+				needsUpdate = true;
+			}
+			if (configDefaults["security.workspace.trust.banner"]?.GetValue<string>() != "never")
+			{
+				configDefaults["security.workspace.trust.banner"] = "never";
+				needsUpdate = true;
+			}
+			if (configDefaults["security.workspace.trust.emptyWindow"]?.GetValue<bool>() != false)
+			{
+				configDefaults["security.workspace.trust.emptyWindow"] = false;
+				needsUpdate = true;
 			}
 
 			if (needsUpdate)
 			{
 				File.WriteAllText(productJsonPath, jsonNode.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-				GD.Print("Successfully patched VSCode product.json for proposed APIs.");
+				GD.Print($"Successfully patched VSCode product.json at {productJsonPath}");
 			}
 		}
 		catch (UnauthorizedAccessException)

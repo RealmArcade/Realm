@@ -114,7 +114,8 @@
         "SoundEvents": null,
         "SpawnShader": null,
         "DeathShader": null,
-        "DespawnShader": null
+        "DespawnShader": null,
+        "ConstructionRange": 4.0
       },
       {
         "TemplateID": "unit/kevin",
@@ -194,7 +195,8 @@
         "SoundEvents": null,
         "SpawnShader": null,
         "DeathShader": null,
-        "DespawnShader": null
+        "DespawnShader": null,
+        "ConstructionRange": 4.0
       }
     ],
     "Buildings": [
