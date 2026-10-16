@@ -1303,6 +1303,7 @@ public class MapStorageService
 	{
 		string tempTerrainPath = Path.Combine(tempWorkspacePath, "terrain.json");
 		MapWorkspaceService.EnsureLicenseFile(tempWorkspacePath);
+		MapWorkspaceService.EnsureWasmEntryPoint(tempWorkspacePath);
 		GameHost.Instance.SaveMapToFile(tempTerrainPath, performReload: false);
 		GameHost.Instance.EditorHasUnsavedChanges = false;
 

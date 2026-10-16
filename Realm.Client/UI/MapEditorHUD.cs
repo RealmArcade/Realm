@@ -1235,6 +1235,7 @@ public partial class MapEditorHUD : Control
 
 	private async Task PrepareMapAndWorkspaceForTest()
 	{
+		MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._tempWorkspacePath);
 		string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
 		GameHost.Instance.SaveMapToFile(tempTerrainPath);
 		GameHost.Instance.EditorHasUnsavedChanges = false;

@@ -36,7 +36,8 @@ public static partial class MapWorkspaceService
 			normalized.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".log", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
-			Path.GetFileName(normalized).StartsWith("~", StringComparison.OrdinalIgnoreCase))
+			Path.GetFileName(normalized).StartsWith("~", StringComparison.OrdinalIgnoreCase) ||
+			Path.GetFileName(normalized).Equals("WasmEntryPoint.cs", StringComparison.OrdinalIgnoreCase))
 		{
 			return true;
 		}
@@ -833,22 +834,54 @@ public static partial class MapWorkspaceService
 
 	public static void EnsureWasmEntryPoint(string directory)
 	{
-		string entryPointPath = Path.Combine(directory, "WasmEntryPoint.cs");
-		string template = GetTemplatePath("WasmEntryPoint.cs");
-		if (File.Exists(template))
+		if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return;
+
+		string legacyEntryPointPath = Path.Combine(directory, "WasmEntryPoint.cs");
+		if (File.Exists(legacyEntryPointPath))
 		{
-			if (!File.Exists(entryPointPath) || new FileInfo(entryPointPath).Length == 0)
+			try
 			{
-				File.Copy(template, entryPointPath);
-			}
-			else
-			{
-				string existing = File.ReadAllText(entryPointPath);
-				if (existing.Contains("private static IWasmModule? _mapScript;"))
+				var legacyAttrs = File.GetAttributes(legacyEntryPointPath);
+				if ((legacyAttrs & FileAttributes.ReadOnly) != 0)
 				{
-					File.Copy(template, entryPointPath, true);
+					File.SetAttributes(legacyEntryPointPath, legacyAttrs & ~FileAttributes.ReadOnly);
 				}
+				File.Delete(legacyEntryPointPath);
 			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[MapWorkspaceService] Failed to delete legacy WasmEntryPoint.cs in {directory}: {ex.Message}");
+			}
+		}
+
+		string template = GetTemplatePath("WasmEntryPoint.g.cs");
+		if (string.IsNullOrEmpty(template) || !File.Exists(template))
+		{
+			template = PathUtils.FindPath("MapTemplate/WasmEntryPoint.g.cs");
+		}
+
+		if (string.IsNullOrEmpty(template) || !File.Exists(template)) return;
+
+		string entryPointPath = Path.Combine(directory, "WasmEntryPoint.g.cs");
+		try
+		{
+			string templateContent = File.ReadAllText(template);
+			if (!File.Exists(entryPointPath) || !string.Equals(File.ReadAllText(entryPointPath).Replace("\r\n", "\n"), templateContent.Replace("\r\n", "\n"), StringComparison.Ordinal))
+			{
+				if (File.Exists(entryPointPath))
+				{
+					var attrs = File.GetAttributes(entryPointPath);
+					if ((attrs & FileAttributes.ReadOnly) != 0)
+					{
+						File.SetAttributes(entryPointPath, attrs & ~FileAttributes.ReadOnly);
+					}
+				}
+				File.WriteAllText(entryPointPath, templateContent);
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[MapWorkspaceService] Failed to write WasmEntryPoint.g.cs in {directory}: {ex.Message}");
 		}
 	}
 

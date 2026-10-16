@@ -65,6 +65,8 @@ namespace Realm.Client.UI
 				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 				if (string.IsNullOrEmpty(wsPath) || !Directory.Exists(wsPath)) return;
 
+				MapWorkspaceService.EnsureWasmEntryPoint(wsPath);
+
 				string tempTerrainPath = Path.Combine(wsPath, "terrain.json");
 				GameHost.Instance.SaveMapToFile(tempTerrainPath, performReload: false);
 
@@ -444,6 +446,7 @@ namespace Realm.Client.UI
 		private async Task SaveMapToFolderAsync(string targetFolder)
 		{
 			MapWorkspaceService.EnsureLicenseFile(GameContext.EditorService._tempWorkspacePath);
+			MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._tempWorkspacePath);
 			string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
 			if (GameHost.Instance != null)
 			{
@@ -459,6 +462,7 @@ namespace Realm.Client.UI
 				await Task.Run(() => CopyTempWorkspaceToFolder(targetFolder));
 
 				MapWorkspaceService.EnsureLicenseFile(targetFolder);
+				MapWorkspaceService.EnsureWasmEntryPoint(targetFolder);
 
 				SaveCurrentDirectoryBlake3();
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(tempTerrainPath);

@@ -665,7 +665,7 @@ public class MapManifest
 	private static readonly HashSet<string> ValidCandidateFileNames = new(StringComparer.OrdinalIgnoreCase)
 	{
 		"manifest.json", "metadata.json", "terrain.json", "Coordinates.cs", "MapScript.cs",
-		"WasmEntryPoint.cs", "Directory.Build.targets", "Directory.Build.props", "global.json",
+		"WasmEntryPoint.cs", "WasmEntryPoint.g.cs", "Directory.Build.targets", "Directory.Build.props", "global.json",
 		"NuGet.config", "AGENTS.md", "LICENSE.md", "LICENSE", ".gitignore"
 	};
 
