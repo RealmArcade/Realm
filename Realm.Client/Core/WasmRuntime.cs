@@ -68,7 +68,6 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 
 	private readonly System.Threading.Timer _watchdogTimer;
 	private readonly bool _isDebugMode;
-	private readonly WasmDebugServer? _debugServer;
 
 	public bool IsFaulted { get; private set; }
 
@@ -90,9 +89,7 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 			_engine = new Engine(config);
 			if (_isDebugMode)
 			{
-				_debugServer = new WasmDebugServer();
-				_debugServer.Start();
-				LogToConsole($"[WASM RUNTIME] Debug mode enabled. Debug server listening on port {_debugServer.Port}.");
+				LogToConsole($"[WASM RUNTIME] Debug mode enabled with DWARF symbols. Attach debugger to process '{System.Diagnostics.Process.GetCurrentProcess().ProcessName}' (PID {System.Diagnostics.Process.GetCurrentProcess().Id}).");
 			}
 			_module = Module.FromFile(_engine, wasmPath);
 			_linker = new Linker(_engine);
@@ -424,7 +421,6 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		FlushWasiLogFile();
 		UnsubscribeAutoEvents();
 		_watchdogTimer?.Dispose();
-		_debugServer?.Dispose();
 		_store.Dispose();
 		_module.Dispose();
 		_engine.Dispose();

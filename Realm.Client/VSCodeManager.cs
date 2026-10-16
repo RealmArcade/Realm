@@ -73,7 +73,8 @@ public partial class VSCodeManager
 		"Gruntfuggly.todo-tree",
 		// "mechatroner.rainbow-json",
 		"patcx.vscode-nuget-gallery",
-		"AykutSarac.jsoncrack-vscode"
+		"AykutSarac.jsoncrack-vscode",
+		"vadimcn.vscode-lldb"
 		// "akondratiuk1-dev.texture-viewer",
 	};
 

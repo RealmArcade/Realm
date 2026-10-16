@@ -8,11 +8,23 @@
 			"processName": "Realm.Client"
 		},
 		{
-			"name": "Debug WASM Map Script (Remote Attachment)",
-			"type": "cppdbg",
-			"request": "launch",
+			"name": "Debug WASM Map Script (Attach via CodeLLDB)",
+			"type": "lldb",
+			"request": "attach",
 			"program": "${workspaceFolder}/bin/Debug/net10.0/wasi-wasm/publish/MapScript.wasm",
-			"miDebuggerServerAddress": "localhost:12345",
+			"processName": "Realm.Client",
+			"cwd": "${workspaceFolder}",
+			"initCommands": [
+				"settings set plugin.jit-loader.gdb.enable on"
+			]
+		},
+		{
+			"name": "Debug WASM Map Script (Attach via GDB)",
+			"type": "cppdbg",
+			"request": "attach",
+			"program": "${workspaceFolder}/bin/Debug/net10.0/wasi-wasm/publish/MapScript.wasm",
+			"processName": "Realm.Client.exe",
+			"MIMode": "gdb",
 			"miDebuggerPath": "gdb",
 			"cwd": "${workspaceFolder}",
 			"setupCommands": [
@@ -21,8 +33,7 @@
 					"text": "-enable-pretty-printing",
 					"ignoreFailures": true
 				}
-			],
-			"preLaunchTask": "Build WASM Map Script (Debug)"
+			]
 		}
 	]
 }
