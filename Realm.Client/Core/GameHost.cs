@@ -1178,6 +1178,28 @@ public partial class GameHost : Node3D, IGameAPI
 		_playerCameraBoundsOverrides.Remove(playerIndex);
 	}
 
+	public Dictionary<HudElement, bool> LocalHudVisibilityOverrides { get; } = new();
+	private readonly Dictionary<int, Dictionary<HudElement, bool>> _playerHudVisibilityOverrides = new();
+
+	public void RecordPlayerHudVisibility(int playerIndex, HudElement element, bool visible)
+	{
+		if (!_playerHudVisibilityOverrides.TryGetValue(playerIndex, out var dict))
+		{
+			dict = new Dictionary<HudElement, bool>();
+			_playerHudVisibilityOverrides[playerIndex] = dict;
+		}
+		dict[element] = visible;
+	}
+
+	public void SetHudElementVisibleInternal(HudElement element, bool visible)
+	{
+		LocalHudVisibilityOverrides[element] = visible;
+		Callable.From(() =>
+		{
+			InGameHUD.Instance?.SetHudElementVisible(element, visible);
+		}).CallDeferred();
+	}
+
 	public void SelectUnitInternal(IUnit unit)
 	{
 		Callable.From(() =>
@@ -2242,6 +2264,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 		EntityToUnit3D.Clear();
 		EntityToProp3D.Clear();
+		_playerCameraBoundsOverrides.Clear();
+		_playerHudVisibilityOverrides.Clear();
+		LocalHudVisibilityOverrides.Clear();
 		_activeMapScript = null;
 
 		ReinitializeEcsAndServices();

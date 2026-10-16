@@ -1318,6 +1318,11 @@ public partial class GameHost
 		GameContext.ClientRPC.ResetPlayerCameraBounds(playerIndex);
 	}
 
+	void IGameAPI.SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible)
+	{
+		GameContext.ClientRPC.SetPlayerHudElementVisible(playerIndex, element, visible);
+	}
+
 	void IGameAPI.SelectPlayerUnit(int playerIndex, IUnit unit)
 	{
 		GameContext.ClientRPC.SelectUnit(playerIndex, unit);

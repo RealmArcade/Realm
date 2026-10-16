@@ -595,6 +595,7 @@ public partial class GameHost
 		SyncReconnectedPauseState(newPeerId);
 		SyncReconnectedLootItems(newPeerId);
 		SyncReconnectedCameraBounds(newPeerId, slot);
+		SyncReconnectedHudVisibility(newPeerId, slot);
 	}
 
 	private void SyncReconnectedCameraBounds(int newPeerId, int slot)
@@ -602,6 +603,17 @@ public partial class GameHost
 		if (_playerCameraBoundsOverrides.TryGetValue(slot, out var bounds))
 		{
 			RpcId(newPeerId, nameof(ClientSetCameraBounds), bounds.MinX, bounds.MinZ, bounds.MaxX, bounds.MaxZ);
+		}
+	}
+
+	private void SyncReconnectedHudVisibility(int newPeerId, int slot)
+	{
+		if (_playerHudVisibilityOverrides.TryGetValue(slot, out var dict))
+		{
+			foreach (var kvp in dict)
+			{
+				RpcId(newPeerId, nameof(ClientSetHudElementVisible), (int)kvp.Key, kvp.Value);
+			}
 		}
 	}
 
@@ -676,6 +688,16 @@ public partial class GameHost
 	public void ClientResetCameraBounds()
 	{
 		Callable.From(() => ResetCameraBoundsInternal()).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientSetHudElementVisible(int elementInt, bool visible)
+	{
+		Callable.From(() =>
+		{
+			HudElement element = (HudElement)elementInt;
+			SetHudElementVisibleInternal(element, visible);
+		}).CallDeferred();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

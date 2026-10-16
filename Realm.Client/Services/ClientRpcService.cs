@@ -142,6 +142,27 @@ public class ClientRpcService
 		}
 	}
 
+	public void SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible)
+	{
+		var host = GameHost.Instance;
+		if (host != null)
+		{
+			host.RecordPlayerHudVisibility(playerIndex, element, visible);
+		}
+
+		if (!TryResolveTargetClient(playerIndex, out host, out bool isLocal, out int remotePeerId))
+			return;
+
+		if (isLocal)
+		{
+			host.SetHudElementVisibleInternal(element, visible);
+		}
+		else if (remotePeerId > 1)
+		{
+			host.RpcId(remotePeerId, nameof(GameHost.ClientSetHudElementVisible), (int)element, visible);
+		}
+	}
+
 	public void SelectUnit(int playerIndex, IUnit unit)
 	{
 		if (unit == null)

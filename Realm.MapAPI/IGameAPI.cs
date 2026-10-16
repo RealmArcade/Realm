@@ -1653,6 +1653,24 @@ public interface IGameAPI
 	void ResetMapCameraBoundaries(int playerIndex) => ResetPlayerCameraBounds(playerIndex);
 
 	/// <summary>
+	/// Sets whether a specific built-in HUD element is visible for the designated player.
+	/// Persists across HUD refreshes and reconnects.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="element">The HUD element to show or hide.</param>
+	/// <param name="visible">True to make the element visible; false to hide it.</param>
+	void SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible);
+
+	/// <summary>
+	/// Toggles whether a specific built-in HUD element is visible for the designated player (alias for <see cref="SetPlayerHudElementVisible(int, HudElement, bool)"/>).
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="element">The HUD element to show or hide.</param>
+	/// <param name="visible">True to make the element visible; false to hide it.</param>
+	void ToggleUserInterfaceElement(int playerIndex, HudElement element, bool visible) =>
+		SetPlayerHudElementVisible(playerIndex, element, visible);
+
+	/// <summary>
 	/// Selects the specified unit on the given player's client, clearing their previous selection.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>

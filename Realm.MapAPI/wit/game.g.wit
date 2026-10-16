@@ -149,6 +149,7 @@ interface game-api {
     set-player-camera-bounds: func(player-index: s32, min-x: f32, min-z: f32, max-x: f32, max-z: f32);
     set-player-computer-controlled: func(player-index: s32, is-proxy: bool);
     set-player-gold: func(player-index: s32, amount: f32);
+    set-player-hud-element-visible: func(player-index: s32, element: s32, visible: bool);
     set-player-kills: func(player-index: s32, kills: s32);
     set-player-max-population: func(player-index: s32, max: s32);
     set-player-stone: func(player-index: s32, amount: f32);

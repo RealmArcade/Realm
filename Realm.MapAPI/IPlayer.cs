@@ -337,6 +337,20 @@ public interface IPlayer
 	void ResetCameraBoundaries() => ResetCameraBounds();
 
 	/// <summary>
+	/// Sets whether a specific built-in HUD element is visible for this player.
+	/// </summary>
+	/// <param name="element">The HUD element to show or hide.</param>
+	/// <param name="visible">True to make the element visible; false to hide it.</param>
+	void SetHudElementVisible(HudElement element, bool visible);
+
+	/// <summary>
+	/// Toggles whether a specific built-in HUD element is visible for this player (alias for <see cref="SetHudElementVisible(HudElement, bool)"/>).
+	/// </summary>
+	/// <param name="element">The HUD element to show or hide.</param>
+	/// <param name="visible">True to make the element visible; false to hide it.</param>
+	void ToggleUserInterfaceElement(HudElement element, bool visible) => SetHudElementVisible(element, visible);
+
+	/// <summary>
 	/// Selects the specified unit on this player's client, clearing their previous selection.
 	/// </summary>
 	void SelectUnit(IUnit unit);
@@ -526,6 +540,7 @@ public class PlayerFacade : IPlayer
 	public void SetCameraBounds(string coordinateName) => _api.SetPlayerCameraBounds(Index, coordinateName);
 	public void SetCameraBounds(Coordinate coordinate) => _api.SetPlayerCameraBounds(Index, coordinate);
 	public void ResetCameraBounds() => _api.ResetPlayerCameraBounds(Index);
+	public void SetHudElementVisible(HudElement element, bool visible) => _api.SetPlayerHudElementVisible(Index, element, visible);
 	public void SelectUnit(IUnit unit) => _api.SelectPlayerUnit(Index, unit);
 	public void ClearSelection() => _api.ClearPlayerSelection(Index);
 	public IEnumerable<IUnit> GetSelectedUnits() => _api.GetPlayerSelectedUnits(Index);
