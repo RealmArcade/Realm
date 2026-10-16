@@ -1738,7 +1738,6 @@ public partial class GameHost : Node3D, IGameAPI
 			_peerIdToPlayerEntityMap[p.PeerId] = playerEntity;
 
 			if (p.PeerId == _localPeerId) _playerEntity = playerEntity;
-			else _enemyPlayerEntity = playerEntity;
 
 			UpdateScriptPlayerState(pIdx, p.Name);
 			pIdx++;
@@ -1786,18 +1785,21 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void EnsureFallbackPlayers()
 	{
-		if (_playerEntity == Entity.Null)
+		if (_playerEntity == Entity.Null || !GameContext.World.IsAlive(_playerEntity))
 		{
 			_playerEntity = CreatePlayerEntity("Horaid_Topa");
 			_peerIdToPlayerEntityMap[1] = _playerEntity;
 			UpdateScriptPlayerState(0, "Horaid_Topa");
 		}
 
-		if (_enemyPlayerEntity == Entity.Null)
+		if (_enemyPlayerEntity == Entity.Null || !GameContext.World.IsAlive(_enemyPlayerEntity))
 		{
 			_enemyPlayerEntity = CreatePlayerEntity("Enemy_AI");
 			_peerIdToPlayerEntityMap[-1] = _enemyPlayerEntity;
-			UpdateScriptPlayerState(1, "Enemy_AI");
+			int enemySlot = LobbyManager.Instance?.PlayerList != null && LobbyManager.Instance.PlayerList.Count > 0
+				? LobbyManager.Instance.PlayerList.Count
+				: 1;
+			UpdateScriptPlayerState(enemySlot, "Enemy_AI");
 		}
 	}
 
@@ -1847,7 +1849,10 @@ public partial class GameHost : Node3D, IGameAPI
 			targetPath = ProjectSettings.GlobalizePath(targetPath);
 
 		if (!string.IsNullOrEmpty(targetPath) && File.Exists(targetPath))
-			LoadMapFromFile(targetPath, false, true);
+		{
+			bool terrainOnly = _multiplayerActive && !Multiplayer.IsServer();
+			LoadMapFromFile(targetPath, terrainOnly, true);
+		}
 	}
 
 	private string ResolveCustomTerrainPath(string rawMapName)

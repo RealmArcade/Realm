@@ -107,10 +107,8 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 
 			if (_world.Has<Owner>(_entity) && GameHost.Instance != null)
 			{
-				var playerOwner = isEnemy
-					? GameHost.Instance._enemyPlayerEntity.AsPlayerEntity(_world)
-					: GameHost.Instance._playerEntity.AsPlayerEntity(_world);
-				_world.Set(_entity, new Owner(playerOwner));
+				var playerOwnerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(value);
+				_world.Set(_entity, new Owner(playerOwnerEntity.AsPlayerEntity(_world)));
 			}
 
 			if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))

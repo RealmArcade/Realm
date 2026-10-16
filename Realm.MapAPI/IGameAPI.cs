@@ -442,6 +442,41 @@ public interface IGameAPI
 	void PanCameraTo(Vector3 position, float duration);
 
 	/// <summary>
+	/// Smoothly pans the game camera to the specified position for a specific player slot.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index whose camera should pan.</param>
+	/// <param name="position">The target position in 3D world space.</param>
+	/// <param name="duration">The pan time in seconds.</param>
+	void PanCameraToForPlayer(int playerIndex, Vector3 position, float duration)
+	{
+		if (playerIndex == 0) PanCameraTo(position, duration);
+	}
+
+	/// <summary>
+	/// Selects the specified unit programmatically for a specific player slot, clearing any previously selected units.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index whose selection should change.</param>
+	/// <param name="unit">The unit to select.</param>
+	void SelectUnitForPlayer(int playerIndex, IUnit unit)
+	{
+		if (playerIndex == 0) SelectUnit(unit);
+	}
+
+	/// <summary>
+	/// Registers an ability with display metadata and execution behavior for a specific player slot.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index whose command card should register the ability.</param>
+	/// <param name="abilityId">Unique identifier of the ability.</param>
+	/// <param name="displayName">User-facing name of the ability.</param>
+	/// <param name="tooltip">Detailed description displayed on hover.</param>
+	/// <param name="iconPath">Resource path to the ability icon texture.</param>
+	/// <param name="isInstant">True if the ability executes immediately without ground targeting.</param>
+	void RegisterAbilityForPlayer(int playerIndex, string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false)
+	{
+		if (playerIndex == 0) RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant);
+	}
+
+	/// <summary>
 	/// Sets the time of day to a specific hour (0.0 to 24.0).
 	/// </summary>
 	/// <param name="time">The hour value.</param>

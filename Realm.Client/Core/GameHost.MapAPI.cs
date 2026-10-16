@@ -44,6 +44,22 @@ public partial class GameHost
 		}
 	}
 
+	void IGameAPI.RegisterAbilityForPlayer(int playerIndex, string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
+	{
+		if (playerIndex == LocalPlayerIndex)
+		{
+			((IGameAPI)this).RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant);
+		}
+		else if (_multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
+		{
+			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (p != null && p.PeerId > 1)
+			{
+				RpcId(p.PeerId, nameof(ClientRegisterAbility), abilityId, displayName ?? "", tooltip ?? "", iconPath ?? "", isInstant);
+			}
+		}
+	}
+
 	private void RegisterAbilityView(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
 		if (_multiplayerActive && IsServerActive())
@@ -240,9 +256,9 @@ public partial class GameHost
 		if (!UnitRegistry.TryGetValue(unitTypeId, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(unitTypeId, out meta)))
 			throw new ArgumentException($"Unit ID '{unitTypeId}' not found in registry.");
 
-		int ownerPeerId = GetOwnerPeerId(isEnemy);
-		bool actualIsEnemy = NetworkService.ArePeersEnemies(_localPeerId, ownerPeerId);
-		var playerOwner = GetPlayerOwner(ownerPeerId, actualIsEnemy).AsPlayerEntity(GameContext.World);
+		int ownerPeerId = isEnemy ? -1 : _localPeerId;
+		bool actualIsEnemy = isEnemy;
+		var playerOwner = (isEnemy ? _enemyPlayerEntity : _playerEntity).AsPlayerEntity(GameContext.World);
 
 		if (string.IsNullOrEmpty(meta.ModelPath)) throw new ArgumentException($"Unit ID '{unitTypeId}' has no assigned 3D model asset in registry.");
 		string modelPath = GameContext.UnitSpawnService.GetFallbackModelPath(meta.ModelPath, isBuilding);
@@ -250,7 +266,7 @@ public partial class GameHost
 
 		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, _playerEntity, HasShieldsUpgrade, HasWeaponsUpgrade);
 
-		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, actualIsEnemy, bypassPopulation, -1, executeSpawnShader);
+		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, actualIsEnemy, bypassPopulation, isEnemy ? -1 : LocalPlayerIndex, executeSpawnShader);
 		return GameContext.SimulationService.GetUnitWrapper(entity);
 	}
 
@@ -829,6 +845,22 @@ public partial class GameHost
 	{
 		// Re-routing to UI logic
 		PanCameraToViewLogic(position, duration);
+	}
+
+	void IGameAPI.PanCameraToForPlayer(int playerIndex, Vector3 position, float duration)
+	{
+		if (playerIndex == LocalPlayerIndex)
+		{
+			PanCameraToViewLogic(position, duration);
+		}
+		else if (_multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
+		{
+			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (p != null && p.PeerId > 1)
+			{
+				RpcId(p.PeerId, nameof(ClientPanCameraTo), new Godot.Vector3(position.X, position.Y, position.Z), duration);
+			}
+		}
 	}
 
 	private void SetTimeOfDayViewLogic(float normalizedTime)
@@ -1413,6 +1445,22 @@ public partial class GameHost
 				}
 			}
 		}).CallDeferred();
+	}
+
+	void IGameAPI.SelectUnitForPlayer(int playerIndex, IUnit unit)
+	{
+		if (playerIndex == LocalPlayerIndex)
+		{
+			((IGameAPI)this).SelectUnit(unit);
+		}
+		else if (_multiplayerActive && IsServerActive() && LobbyManager.Instance != null)
+		{
+			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (p != null && p.PeerId > 1 && unit is IEcsEntityWrapper wrapper)
+			{
+				RpcId(p.PeerId, nameof(ClientSelectUnit), wrapper.Entity.Id);
+			}
+		}
 	}
 
 	void IGameAPI.ClearSelection()

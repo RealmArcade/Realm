@@ -971,6 +971,32 @@
             <param name="position">The target position in 3D world space.</param>
             <param name="duration">The pan time in seconds.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.PanCameraToForPlayer(System.Int32,System.Numerics.Vector3,System.Single)">
+            <summary>
+            Smoothly pans the game camera to the specified position for a specific player slot.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index whose camera should pan.</param>
+            <param name="position">The target position in 3D world space.</param>
+            <param name="duration">The pan time in seconds.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SelectUnitForPlayer(System.Int32,Realm.MapAPI.IUnit)">
+            <summary>
+            Selects the specified unit programmatically for a specific player slot, clearing any previously selected units.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index whose selection should change.</param>
+            <param name="unit">The unit to select.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.RegisterAbilityForPlayer(System.Int32,System.String,System.String,System.String,System.String,System.Boolean)">
+            <summary>
+            Registers an ability with display metadata and execution behavior for a specific player slot.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index whose command card should register the ability.</param>
+            <param name="abilityId">Unique identifier of the ability.</param>
+            <param name="displayName">User-facing name of the ability.</param>
+            <param name="tooltip">Detailed description displayed on hover.</param>
+            <param name="iconPath">Resource path to the ability icon texture.</param>
+            <param name="isInstant">True if the ability executes immediately without ground targeting.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetTimeOfDay(System.Single)">
             <summary>
             Sets the time of day to a specific hour (0.0 to 24.0).

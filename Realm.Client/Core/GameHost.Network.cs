@@ -18,6 +18,7 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
+	private int _pendingSelectUnitServerId = -1;
 	public int GetOwnerPeerId(Entity unitEntity) => GameContext.NetworkService.GetOwnerPeerId(unitEntity);
 
 	private int GetServerEntityId(Entity localEntity) =>
@@ -317,7 +318,20 @@ public partial class GameHost
 	{
 		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out bool isEnemy);
 		if (entity == Entity.Null) return;
-		SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, isEnemy);
+		int playerSlot = 0;
+		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
+		{
+			var matchPlayer = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == snap.OwnerPlayerEntityId);
+			if (matchPlayer != null) playerSlot = matchPlayer.Slot;
+		}
+		var unit3D = SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, isEnemy, false, playerSlot);
+		if (_pendingSelectUnitServerId == snap.EntityId && GodotObject.IsInstanceValid(unit3D))
+		{
+			ClearSelection();
+			SelectUnit(unit3D);
+			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			_pendingSelectUnitServerId = -1;
+		}
 	}
 
 	private void QueueOrSendPacket(int peerId, string funcName, params object[] args)
@@ -633,6 +647,24 @@ public partial class GameHost
 	public void ClientPanCameraTo(Vector3 position, float duration)
 	{
 		Callable.From(() => { PanCameraInternal(position, duration); }).CallDeferred();
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ClientSelectUnit(int serverEntityId)
+	{
+		Callable.From(() =>
+		{
+			if (TryGetLocalEntity(serverEntityId, out var localEnt) && TryGetUnit3D(localEnt, out var unit3D))
+			{
+				ClearSelection();
+				SelectUnit(unit3D);
+				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			}
+			else
+			{
+				_pendingSelectUnitServerId = serverEntityId;
+			}
+		}).CallDeferred();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
