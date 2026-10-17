@@ -147,7 +147,7 @@ public static class LocalizationManager
 		return dict;
 	}
 
-	private static readonly object SyncLock = new object();
+	private static readonly ReaderWriterLockSlim SyncLock = new();
 	private static Dictionary<string, string>? _enCatalog;
 	private static bool _isDirty;
 	private static Timer? _debounceTimer;
@@ -191,7 +191,22 @@ public static class LocalizationManager
 	private static string TranslateKeyDebug(string key, string fallback)
 	{
 		EnsureEnCatalogLoaded();
-		lock (SyncLock)
+
+		SyncLock.EnterReadLock();
+		try
+		{
+			if (_enCatalog!.TryGetValue(key, out var enVal))
+			{
+				return enVal;
+			}
+		}
+		finally
+		{
+			SyncLock.ExitReadLock();
+		}
+
+		SyncLock.EnterWriteLock();
+		try
 		{
 			if (_enCatalog!.TryGetValue(key, out var enVal))
 			{
@@ -204,12 +219,17 @@ public static class LocalizationManager
 			ScheduleDebouncedFlush();
 			return recordVal;
 		}
+		finally
+		{
+			SyncLock.ExitWriteLock();
+		}
 	}
 
 	private static void EnsureEnCatalogLoaded()
 	{
 		if (_enCatalog != null) return;
-		lock (SyncLock)
+		SyncLock.EnterWriteLock();
+		try
 		{
 			if (_enCatalog != null) return;
 			_enCatalog = GetDictionary("en") ?? new Dictionary<string, string>();
@@ -219,22 +239,24 @@ public static class LocalizationManager
 				AppDomain.CurrentDomain.ProcessExit += (s, e) => FlushPendingWrites();
 			}
 		}
+		finally
+		{
+			SyncLock.ExitWriteLock();
+		}
 	}
 
 	private static void ScheduleDebouncedFlush()
 	{
-		lock (SyncLock)
-		{
-			_debounceTimer?.Dispose();
-			_debounceTimer = new Timer(_ => FlushPendingWrites(), null, 1000, Timeout.Infinite);
-		}
+		_debounceTimer?.Dispose();
+		_debounceTimer = new Timer(_ => FlushPendingWrites(), null, 1000, Timeout.Infinite);
 	}
 
 	public static void FlushPendingWrites()
 	{
 		if (!OS.IsDebugBuild() || !_isDirty || _enCatalog == null) return;
 
-		lock (SyncLock)
+		SyncLock.EnterWriteLock();
+		try
 		{
 			if (!_isDirty || _enCatalog == null) return;
 			_isDirty = false;
@@ -245,6 +267,10 @@ public static class LocalizationManager
 			if (string.IsNullOrEmpty(filePath)) return;
 
 			WriteCatalogToDisk(filePath);
+		}
+		finally
+		{
+			SyncLock.ExitWriteLock();
 		}
 	}
 

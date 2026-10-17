@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
@@ -16,6 +17,7 @@ namespace Realm.Client.Utils
 {
 	public static class ModelCache
 	{
+		private static readonly ReaderWriterLockSlim _modelCacheLock = new();
 		private static readonly Dictionary<string, PackedScene> _cachedScenes = new(StringComparer.OrdinalIgnoreCase);
 		private static readonly HashSet<string> _failedModelPaths = new(StringComparer.OrdinalIgnoreCase);
 		private static readonly ConcurrentDictionary<string, string> _resolvedModelPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -312,58 +314,115 @@ namespace Realm.Client.Utils
 
 		public static Node GetModel(string modelPath)
 		{
-			if (string.IsNullOrEmpty(modelPath) || _failedModelPaths.Contains(modelPath)) return null;
+			if (string.IsNullOrEmpty(modelPath)) return null;
 
-			if (_cachedScenes.TryGetValue(modelPath, out var cachedScene) && GodotObject.IsInstanceValid(cachedScene))
+			_modelCacheLock.EnterReadLock();
+			try
 			{
-				return cachedScene.Instantiate();
+				if (_failedModelPaths.Contains(modelPath)) return null;
+
+				if (_cachedScenes.TryGetValue(modelPath, out var cachedScene) && GodotObject.IsInstanceValid(cachedScene))
+				{
+					return cachedScene.Instantiate();
+				}
+			}
+			finally
+			{
+				_modelCacheLock.ExitReadLock();
 			}
 
 			string resolvedPath = ResolveModelPath(modelPath);
-			if (string.IsNullOrEmpty(resolvedPath) || _failedModelPaths.Contains(resolvedPath))
+			if (string.IsNullOrEmpty(resolvedPath))
 			{
 				return null;
 			}
 
-			if (_cachedScenes.TryGetValue(resolvedPath, out var cachedSceneResolved) && GodotObject.IsInstanceValid(cachedSceneResolved))
+			_modelCacheLock.EnterReadLock();
+			try
 			{
-				return cachedSceneResolved.Instantiate();
+				if (_failedModelPaths.Contains(resolvedPath)) return null;
+
+				if (_cachedScenes.TryGetValue(resolvedPath, out var cachedSceneResolved) && GodotObject.IsInstanceValid(cachedSceneResolved))
+				{
+					return cachedSceneResolved.Instantiate();
+				}
+			}
+			finally
+			{
+				_modelCacheLock.ExitReadLock();
 			}
 
 			PackedScene scene = LoadPackedScene(resolvedPath);
-			if (scene != null)
+			_modelCacheLock.EnterWriteLock();
+			try
 			{
-				_cachedScenes[modelPath] = scene;
-				_cachedScenes[resolvedPath] = scene;
-				return scene.Instantiate();
-			}
+				if (scene != null)
+				{
+					_cachedScenes[modelPath] = scene;
+					_cachedScenes[resolvedPath] = scene;
+					return scene.Instantiate();
+				}
 
-			_failedModelPaths.Add(modelPath);
-			_failedModelPaths.Add(resolvedPath);
-			return null;
+				_failedModelPaths.Add(modelPath);
+				_failedModelPaths.Add(resolvedPath);
+				return null;
+			}
+			finally
+			{
+				_modelCacheLock.ExitWriteLock();
+			}
 		}
 
 		public static void PreloadModel(string modelPath)
 		{
-			if (string.IsNullOrEmpty(modelPath) || _failedModelPaths.Contains(modelPath)) return;
-			string resolvedPath = ResolveModelPath(modelPath);
-			if (string.IsNullOrEmpty(resolvedPath) || _failedModelPaths.Contains(resolvedPath)) return;
-			if ((_cachedScenes.TryGetValue(resolvedPath, out var s1) && GodotObject.IsInstanceValid(s1)) ||
-			    (_cachedScenes.TryGetValue(modelPath, out var s2) && GodotObject.IsInstanceValid(s2)))
+			if (string.IsNullOrEmpty(modelPath)) return;
+
+			_modelCacheLock.EnterReadLock();
+			try
 			{
-				return;
+				if (_failedModelPaths.Contains(modelPath)) return;
+			}
+			finally
+			{
+				_modelCacheLock.ExitReadLock();
+			}
+
+			string resolvedPath = ResolveModelPath(modelPath);
+			if (string.IsNullOrEmpty(resolvedPath)) return;
+
+			_modelCacheLock.EnterReadLock();
+			try
+			{
+				if (_failedModelPaths.Contains(resolvedPath)) return;
+				if ((_cachedScenes.TryGetValue(resolvedPath, out var s1) && GodotObject.IsInstanceValid(s1)) ||
+				    (_cachedScenes.TryGetValue(modelPath, out var s2) && GodotObject.IsInstanceValid(s2)))
+				{
+					return;
+				}
+			}
+			finally
+			{
+				_modelCacheLock.ExitReadLock();
 			}
 
 			PackedScene scene = LoadPackedScene(resolvedPath);
-			if (scene != null)
+			_modelCacheLock.EnterWriteLock();
+			try
 			{
-				_cachedScenes[modelPath] = scene;
-				_cachedScenes[resolvedPath] = scene;
+				if (scene != null)
+				{
+					_cachedScenes[modelPath] = scene;
+					_cachedScenes[resolvedPath] = scene;
+				}
+				else
+				{
+					_failedModelPaths.Add(modelPath);
+					_failedModelPaths.Add(resolvedPath);
+				}
 			}
-			else
+			finally
 			{
-				_failedModelPaths.Add(modelPath);
-				_failedModelPaths.Add(resolvedPath);
+				_modelCacheLock.ExitWriteLock();
 			}
 		}
 
@@ -617,18 +676,34 @@ namespace Realm.Client.Utils
 
 		public static void Clear()
 		{
-			_cachedScenes.Clear();
-			_failedModelPaths.Clear();
-			_resolvedModelPaths.Clear();
+			_modelCacheLock.EnterWriteLock();
+			try
+			{
+				_cachedScenes.Clear();
+				_failedModelPaths.Clear();
+				_resolvedModelPaths.Clear();
+			}
+			finally
+			{
+				_modelCacheLock.ExitWriteLock();
+			}
 		}
 
 		public static void InvalidateModelPath(string modelPath)
 		{
 			if (!string.IsNullOrEmpty(modelPath))
 			{
-				_cachedScenes.Remove(modelPath);
-				_failedModelPaths.Remove(modelPath);
-				_resolvedModelPaths.TryRemove(modelPath, out _);
+				_modelCacheLock.EnterWriteLock();
+				try
+				{
+					_cachedScenes.Remove(modelPath);
+					_failedModelPaths.Remove(modelPath);
+					_resolvedModelPaths.TryRemove(modelPath, out _);
+				}
+				finally
+				{
+					_modelCacheLock.ExitWriteLock();
+				}
 			}
 		}
 	}
