@@ -51,7 +51,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private int _localPeerId
 	{
-		get => GameContext.NetworkService?.LocalPeerId ?? 1;
+		get => GameContext.NetworkService.LocalPeerId;
 		set
 		{
 			if (GameContext.NetworkService != null) GameContext.NetworkService.LocalPeerId = value;
@@ -60,47 +60,41 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public int LocalPeerId => _localPeerId;
 
-	public int LocalViewingPlayerIndex
-	{
-		get
-		{
-			if (IsClientSpectator)
-			{
-				int specPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
-				if (specPerspective > 0) return specPerspective;
-				return 0;
-			}
+	private const string SpectatorTeamName = "Spectator";
 
-			if (LobbyManager.Instance?.PlayerList != null)
-			{
-				var p = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == _localPeerId);
-				if (p != null && p.Slot > 0) return p.Slot;
-			}
-			return 1;
+	private void ConfigurePerspective()
+	{
+		var filter = GameContext.PerspectiveFilter;
+		if (GameContext.SessionState.IsMapEditorMode)
+		{
+			filter.ConfigureParticipant(1);
+			return;
 		}
+
+		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+		{
+			filter.ConfigureSpectator();
+			return;
+		}
+
+		var lobbyPlayers = LobbyManager.Instance?.PlayerList;
+		if (lobbyPlayers == null || lobbyPlayers.Count == 0)
+		{
+			filter.ConfigureParticipant(1);
+			return;
+		}
+
+		int peerId = _localPeerId;
+		var entry = _multiplayerActive
+			? lobbyPlayers.Find(x => x.PeerId == peerId)
+			: lobbyPlayers.Find(x => x.PeerId >= 0 && x.Team != SpectatorTeamName);
+		if (entry == null)
+			throw new InvalidOperationException($"Local peer {peerId} is not present in the lobby player list.");
+
+		if (entry.Team == SpectatorTeamName) filter.ConfigureSpectator();
+		else filter.ConfigureParticipant(entry.Slot);
 	}
 
-	public int LocalControlledPlayerIndex
-	{
-		get
-		{
-			if (IsClientSpectator) return -1;
-			return LocalViewingPlayerIndex;
-		}
-	}
-
-	public bool IsClientSpectator
-	{
-		get
-		{
-			if (LobbyManager.Instance?.PlayerList != null)
-			{
-				var p = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == _localPeerId);
-				if (p != null) return p.Team == "Spectator";
-			}
-			return false;
-		}
-	}
 
 	private int _nextCommandId
 	{
@@ -295,7 +289,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public int GetPlayerTechLevel(int playerIndex, string techId)
 	{
-		if (playerIndex <= 0) playerIndex = LocalViewingPlayerIndex;
+		if (playerIndex <= 0) throw new ArgumentOutOfRangeException(nameof(playerIndex), playerIndex, "An explicit player index is required.");
 		return GameContext.TechTreeService?.GetPlayerTechLevel(playerIndex, techId) ?? 0;
 	}
 
@@ -1897,6 +1891,7 @@ public partial class GameHost : Node3D, IGameAPI
 		else InitializeSingleplayerPlayers();
 
 		EnsureFallbackPlayers();
+		ConfigurePerspective();
 
 		string rawMapName = LobbyManager.Instance?.ActiveMapName ?? "";
 		if (!string.IsNullOrEmpty(rawMapName)) LoadUnitMetadata(rawMapName);
@@ -2026,14 +2021,14 @@ public partial class GameHost : Node3D, IGameAPI
 
 		GameContext.SimulationService.OnResourceDepositedForPlayer = (playerIndex, resType, carry) =>
 		{
-			if (playerIndex != LocalViewingPlayerIndex) return;
+			if (!GameContext.PerspectiveFilter.CanObserve(playerIndex)) return;
 			string resTypeUpper = resType.ToUpper();
 			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText($"+{carry:F0} {resTypeUpper} deposited", new Color(0.2f, 0.9f, 0.4f))).CallDeferred();
 		};
 
 		GameContext.SimulationService.OnProductionCompleted = (playerIndex, unitToSpawn) =>
 		{
-			if (playerIndex != LocalViewingPlayerIndex) return;
+			if (!GameContext.PerspectiveFilter.CanObserve(playerIndex)) return;
 			string displayName = UnitRegistry.TryGetValue(unitToSpawn, out var nm) ? nm.Name : unitToSpawn.ToUpper();
 			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText($"✓ {displayName} training complete!", new Color(0.3f, 0.9f, 0.4f))).CallDeferred();
 		};
@@ -2618,7 +2613,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)
 	{
-		if (IsClientSpectator) return;
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (SelectedUnits.Count == 0 || prop == null || !GodotObject.IsInstanceValid(prop)) return;
 
 		string? resType = GetPropResourceType(prop.PropId);
@@ -2649,7 +2644,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void IssueMultiplayerGatherCommand(Prop3D prop, bool isQueued)
 	{
-		int localPlayerIndex = LocalControlledPlayerIndex;
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (localPlayerIndex <= 0) return;
 		var targetIds = new List<int>();
 		foreach (var unit in SelectedUnits)
@@ -2663,7 +2658,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void IssueLocalGatherCommand(Prop3D prop, string resType, bool isQueued)
 	{
-		int localPlayerIndex = LocalControlledPlayerIndex;
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (localPlayerIndex <= 0) return;
 		foreach (var unit in SelectedUnits)
 		{
@@ -2731,7 +2726,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private void ApplyGigachadBuffsIfNeeded(Entity entity, int playerIndex)
 	{
 		if (!GameContext.CheatService.GigachadEnabled) return;
-		int localPlayerIndex = LocalControlledPlayerIndex;
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (localPlayerIndex <= 0) return;
 		if (NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex)) return;
 		if (GameContext.World.Has<Health>(entity)) GameContext.World.Set(entity, new Health(9000f, 9000f));
@@ -2839,7 +2834,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			float fDelta = (float)delta;
 			bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
-			bool isSpectator = IsClientSpectator;
+			bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 			int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
 			GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, spectatorPerspective, isReplay, isSpectator);
 		}

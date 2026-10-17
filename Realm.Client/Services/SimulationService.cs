@@ -1400,9 +1400,8 @@ public class SimulationService
 		if (!GameContext.World.Has<Position>(entity)) return;
 
 		var currentPos = GameContext.World.Get<Position>(entity).Value;
-		int localViewingPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
 		int unitPlayer = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
-		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localViewingPlayer, unitPlayer);
+		bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unitPlayer);
 
 		Vector3 finalPos;
 		Vector3 finalVel;

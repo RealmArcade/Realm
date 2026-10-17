@@ -242,7 +242,7 @@ public partial class CommandPanel
 
 		if (cdRemaining <= 0f && GameHost.Instance != null)
 		{
-			cdRemaining = GameHost.Instance.GetPlayerSpellCooldown(GameHost.Instance.LocalViewingPlayerIndex, item.AbilityId);
+			cdRemaining = GameHost.Instance.GetPlayerSpellCooldown(GameContext.PerspectiveFilter.ControlledPlayerIndex, item.AbilityId);
 		}
 	}
 
@@ -294,13 +294,13 @@ public partial class CommandPanel
 	public void Update(InGameHUDViewModel viewModel)
 	{
 		if (_commandGrid == null) return;
-		if (GameHost.Instance?.IsClientSpectator == true)
+		if (GameContext.PerspectiveFilter.IsSpectating)
 		{
 			ClearCommandPanelState();
 			return;
 		}
 
-		int localPlayerIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy || focusedUnit.Player != localPlayerIndex)
 		{
 			ClearCommandPanelState();
@@ -1015,7 +1015,7 @@ public partial class CommandPanel
 	{
 		if (meta?.Upgrades == null || meta.Upgrades.Length == 0) return;
 
-		int localViewingIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
+		int localViewingIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 
 		foreach (var upgradeId in meta.Upgrades)
 		{
@@ -1290,7 +1290,7 @@ public partial class CommandPanel
 
 		int casterPlayer = GameContext.World != null && GameContext.World.IsAlive(casterEntity) && GameContext.World.Has<UnitOwnerPlayer>(casterEntity)
 			? GameContext.World.Get<UnitOwnerPlayer>(casterEntity).PlayerIndex
-			: host.LocalViewingPlayerIndex;
+			: GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (host.GetPlayerSpellCooldown(casterPlayer, abilityId) > 0f) return true;
 
 		var world = GameContext.World;

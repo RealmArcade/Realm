@@ -36,8 +36,7 @@ public class ClientRpcService
 		if (host.IsPlayerComputer(playerIndex))
 			return false;
 
-		int localPlayerIndex = host.LocalViewingPlayerIndex;
-		if (playerIndex == localPlayerIndex)
+		if (GameContext.PerspectiveFilter.CanControl(playerIndex))
 		{
 			isLocal = true;
 			return true;

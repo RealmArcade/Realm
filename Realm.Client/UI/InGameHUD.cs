@@ -832,7 +832,7 @@ public partial class InGameHUD : Control
 			if (_chatPanel != null) _chatPanel.Visible = false;
 		}
 
-		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
+		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 		if (isSpectator)
 		{
 			_resourceContainer.Visible = false;
@@ -1297,9 +1297,8 @@ public partial class InGameHUD : Control
 	{
 		if (selectedUnits != null)
 		{
-			int localPlayerIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
-			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => u.Player == localPlayerIndex);
-			bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
+			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => GameContext.PerspectiveFilter.CanControl(u.Player));
+			bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 			bool commandCardAllowed = IsHudElementVisible(HudElement.CommandCard, true);
 			_commandFrame.Visible = !isSpectator && hasPlayerSelection && commandCardAllowed;
 		}
@@ -1536,10 +1535,9 @@ void fragment() {
 		_viewModel.UpdateSelectedUnits(selected);
 
 		// Handle specific visual updates that are not data-bound yet.
-		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
 		foreach (var u in selected)
 		{
-			if (u.IsBuilding && u.Player == localPlayer)
+			if (u.IsBuilding && GameContext.PerspectiveFilter.CanObserve(u.Player))
 			{
 				u.UpdateRallyVisuals();
 			}
@@ -2403,7 +2401,8 @@ void fragment() {
 		bool isMultiplayer = LobbyManager.Instance != null && !LobbyManager.Instance.IsSinglePlayer
 		                                                   && Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
 
-		Entity localPlayerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(GameHost.Instance.LocalViewingPlayerIndex);
+		if (GameContext.PerspectiveFilter.IsSpectating) return false;
+		Entity localPlayerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
 		var (result, _) = GameContext.CheatService.TryTriggerCheat(
 			text, isMultiplayer, localPlayerEntity, ECSContext.DefinitionManager, selectedEntities);
 

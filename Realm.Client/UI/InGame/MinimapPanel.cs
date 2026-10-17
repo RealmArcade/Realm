@@ -1,3 +1,4 @@
+using Realm.Client.Services;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
@@ -39,7 +40,7 @@ public class MinimapPanel
 
 	private void OnMinimapGuiInput(InputEvent @event)
 	{
-		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
+		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 
 		if (ReplayPlaybackManager.Instance.IsPlayingReplay || isSpectator)
 		{
@@ -194,10 +195,10 @@ public class MinimapPanel
 
 	private void HandleRallyCommand(Vector3 minimapWorldPos)
 	{
-		if (GameHost.Instance == null || GameHost.Instance.IsClientSpectator) return;
+		if (GameHost.Instance == null || GameContext.PerspectiveFilter.IsSpectating) return;
 		if (GameHost.Instance.SelectedUnits.Count != 1) return;
 		var unit = GameHost.Instance.SelectedUnits[0];
-		int localPlayer = GameHost.Instance.LocalViewingPlayerIndex;
+		int localPlayer = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (unit.Player == localPlayer && unit.IsBuilding)
 		{
 			GameHost.Instance.SetRallyPoint(unit, minimapWorldPos);

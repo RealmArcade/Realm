@@ -87,11 +87,10 @@ public partial class MinimapOverlay : Control
 
 	private bool IsUnitVisibleOnMinimap(Unit3D unit, float physicalWidth, float physicalDepth)
 	{
-		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
+		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 		if (isSpectator) return true;
 
-		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
-		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
+		bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player);
 		if (!isEnemy) return true;
 		if (InGameHUD.Instance == null) return true;
 		if (string.Equals(InGameHUD.Instance.ShroudType, "visible", StringComparison.OrdinalIgnoreCase)) return true;
@@ -103,7 +102,7 @@ public partial class MinimapOverlay : Control
 
 	private void DrawUnitIcon(Unit3D unit, Vector2 drawPos, float iconSize)
 	{
-		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
+		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 		Color color;
 		if (isSpectator)
 		{
@@ -111,8 +110,7 @@ public partial class MinimapOverlay : Control
 		}
 		else
 		{
-			int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
-			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
+			bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player);
 			color = isEnemy ? new Color(0.9f, 0.1f, 0.1f) : new Color(0.2f, 0.6f, 1.0f);
 		}
 
@@ -150,7 +148,7 @@ public partial class MinimapOverlay : Control
 	{
 		if (!unit.IsSelected) return;
 
-		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
+		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 		Color selColor;
 		if (isSpectator)
 		{
@@ -158,8 +156,7 @@ public partial class MinimapOverlay : Control
 		}
 		else
 		{
-			int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
-			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
+			bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player);
 			selColor = isEnemy ? new Color(0.9f, 0.1f, 0.2f) : new Color(0.22f, 0.54f, 0.26f);
 		}
 		DrawCircle(drawPos, iconSize + 2.5f, selColor, false, 1.2f);

@@ -1,3 +1,4 @@
+using Realm.Client.Services;
 using System;
 using Godot;
 using Realm.Client.Core;
@@ -95,7 +96,7 @@ public class InventoryPanel
 			() =>
 			{
 				var selected = GameHost.Instance?.SelectedUnits;
-				int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+				int localPlayer = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 				if (selected != null && selected.Count > focusIdx && selected[focusIdx].Player == localPlayer)
 				{
 					GameHost.Instance.UseItem(selected[focusIdx], capturedItemId);

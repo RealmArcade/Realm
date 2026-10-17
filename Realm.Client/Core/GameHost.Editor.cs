@@ -1335,7 +1335,7 @@ public partial class GameHost
 		int targetPlayer = isEnemy ? 1 : 0;
 		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
 		{
-			int localPlayerIndex = LocalViewingPlayerIndex;
+			int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 			var enemyPlayer = LobbyManager.Instance.PlayerList.Find(p => NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, p.Slot));
 			if (isEnemy && enemyPlayer != null)
 			{
@@ -1366,8 +1366,8 @@ public partial class GameHost
 		}
 
 		AllUnits.Clear();
-		SetCurrentPopulation(LocalViewingPlayerIndex, 0);
-		SetMaxPopulation(LocalViewingPlayerIndex, 0);
+		SetCurrentPopulation(GameContext.PerspectiveFilter.ControlledPlayerIndex, 0);
+		SetMaxPopulation(GameContext.PerspectiveFilter.ControlledPlayerIndex, 0);
 
 		foreach (var child in GetChildren())
 		{

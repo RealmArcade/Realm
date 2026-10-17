@@ -108,7 +108,7 @@ public partial class GameHost
 
 		if (beneficiaryPlayerEntity == Entity.Null && (LobbyManager.Instance == null || LobbyManager.Instance.IsSinglePlayer))
 		{
-			int localSlot = LocalViewingPlayerIndex;
+			int localSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 			beneficiaryPlayerEntity = GetPlayerEntityForPlayerIndex(localSlot);
 		}
 
@@ -116,7 +116,7 @@ public partial class GameHost
 		{
 			bool shouldRefresh = GameContext.SimulationService.HandleEnemyDeathEconomyDomain(unit.Entity, unit.UnitId, beneficiaryPlayerEntity, (int)resCap);
 			
-			int localViewingSlot = LocalViewingPlayerIndex;
+			int localViewingSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 			Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(localViewingSlot);
 			if (shouldRefresh && beneficiaryPlayerEntity == localPlayerEntity)
 			{

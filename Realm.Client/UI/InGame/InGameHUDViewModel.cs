@@ -26,7 +26,7 @@ public class InGameHUDViewModel
 			return Entity.Null;
 
 		if (IsPlayingNormally())
-			return GameHost.Instance.GetPlayerEntityForPlayerIndex(GameHost.Instance.LocalViewingPlayerIndex);
+			return GameHost.Instance.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
 
 		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
 		{
@@ -44,7 +44,7 @@ public class InGameHUDViewModel
 
 	private bool IsPlayingNormally()
 	{
-		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
+		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 		bool isPlayingReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
 		return !isSpectator && !isPlayingReplay;
 	}
@@ -53,15 +53,13 @@ public class InGameHUDViewModel
 	{
 		var world = GameContext.World;
 		var worldEntity = ECSContext.WorldEntity;
-		Entity defaultPlayer = GameHost.Instance?.GetPlayerEntityForPlayerIndex(GameHost.Instance.LocalViewingPlayerIndex) ?? Entity.Null;
-
-		if (worldEntity == Entity.Null) return defaultPlayer;
-		if (!world.IsAlive(worldEntity)) return defaultPlayer;
-		if (!world.Has<NetworkMappingState>(worldEntity)) return defaultPlayer;
+		if (worldEntity == Entity.Null) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
+		if (!world.IsAlive(worldEntity)) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
+		if (!world.Has<NetworkMappingState>(worldEntity)) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
 
 		var mapping = world.Get<NetworkMappingState>(worldEntity);
-		if (mapping.PeerIdToPlayerEntityMap == null) return defaultPlayer;
-		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var spectatedPlayer)) return defaultPlayer;
+		if (mapping.PeerIdToPlayerEntityMap == null) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
+		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var spectatedPlayer)) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
 
 		return spectatedPlayer;
 	}
@@ -668,8 +666,7 @@ public class InGameHUDViewModel
 	{
 		info.Entity = u.Entity;
 		info.UnitId = u.UnitId;
-		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
-		info.IsEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, u.Player);
+		info.IsEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(u.Player);
 		info.Player = u.Player;
 		info.IsBuilding = u.IsBuilding;
 		info.HasInventory = false;

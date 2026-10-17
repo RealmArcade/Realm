@@ -60,6 +60,7 @@ namespace Realm.Client.Services
 		public static ResourceEconomyService ResourceEconomyService { get; private set; }
 		public static SimulationService SimulationService { get; private set; }
 		public static ClientRpcService ClientRPC { get; private set; }
+		public static PerspectiveFilter PerspectiveFilter { get; private set; }
 
 		public static IEditorAPI IEditorAPI { get; private set; }
 
@@ -109,6 +110,7 @@ namespace Realm.Client.Services
 			SimulationService = new();
 			InputService = new();
 			ClientRPC = new();
+			PerspectiveFilter = new();
 
 			IEditorAPI = EditorService;
 		}
@@ -156,6 +158,7 @@ namespace Realm.Client.Services
 			SimulationService = null;
 			InputService = null;
 			ClientRPC = null;
+			PerspectiveFilter = null;
 			IEditorAPI = null;
 
 			ECSContext.DisposeAndRecreateServices();
