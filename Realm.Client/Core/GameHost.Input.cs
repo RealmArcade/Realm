@@ -1952,7 +1952,7 @@ public partial class GameHost
 
 			if (keyEvent.Keycode == Key.Space)
 			{
-				CenterCameraOnBase();
+				CenterCameraOnPrimaryBuilding();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -3059,25 +3059,25 @@ public partial class GameHost
 		InGameHUD.Instance?.ShowFeedbackText($"Selected {visibleUnits.Count} {type.ToUpper()}(s)", new Color(0.5f, 1.0f, 0.5f));
 	}
 
-	public void CenterCameraOnBase()
+	public void CenterCameraOnPrimaryBuilding()
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		Unit3D baseBuilding = null;
-		Unit3D fallbackBuilding = null;
+		Unit3D primaryBuilding = null;
+		Unit3D anyOwnedBuilding = null;
 		foreach (var unit in AllUnits)
 		{
 			if (GameContext.PerspectiveFilter.CanControl(unit.Player) && unit.IsBuilding)
 			{
-				if (unit.UnitId == "castle" || unit.UnitId == "town_hall" || unit.UnitId == "base" || unit.UnitId == "main")
+				if (GameContext.RegistryService.IsPrimaryBuilding(unit.UnitId))
 				{
-					baseBuilding = unit;
+					primaryBuilding = unit;
 					break;
 				}
-				fallbackBuilding ??= unit;
+				anyOwnedBuilding ??= unit;
 			}
 		}
 
-		var target = baseBuilding ?? fallbackBuilding;
+		var target = primaryBuilding ?? anyOwnedBuilding;
 		if (target != null)
 		{
 			var camera = GetViewport().GetCamera3D();
@@ -3101,7 +3101,7 @@ public partial class GameHost
 		}
 		else
 		{
-			CenterCameraOnBase();
+			CenterCameraOnPrimaryBuilding();
 		}
 	}
 

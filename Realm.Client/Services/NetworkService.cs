@@ -927,13 +927,7 @@ public class NetworkService
 
 	private string GetPropResourceType(string propId)
 	{
-		return propId switch
-		{
-			"goldmine" => "gold",
-			"tree" => "wood",
-			"rock" => "stone",
-			_ => null
-		};
+		return GameContext.RegistryService.GetResourceTypeForNode(propId);
 	}
 
 	private void HandleStopCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> stopVelocityEntityIds)
@@ -1668,11 +1662,11 @@ public class NetworkService
 		return ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 	}
 
-	public void SyncProductionQueue(int castleServerEntityId, string[] unitIds, float currentProgress, float buildTime)
+	public void SyncProductionQueue(int producerServerEntityId, string[] unitIds, float currentProgress, float buildTime)
 	{
 		if (ECSContext.WorldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity)) return;
 		var mapping = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity);
-		if (mapping.ServerToClientEntityMap.TryGetValue(castleServerEntityId, out var localEntity))
+		if (mapping.ServerToClientEntityMap.TryGetValue(producerServerEntityId, out var localEntity))
 		{
 			if (GameContext.World.IsAlive(localEntity))
 			{

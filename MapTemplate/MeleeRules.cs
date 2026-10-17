@@ -48,12 +48,41 @@ public class MeleeRules
 
 	public void Initialize()
 	{
+		RegisterMeleeDefinitions();
 		InitializePlayerResources();
 		_gameApi.OnUnitCreated += HandleUnitCreated;
 		_gameApi.OnUnitDied += HandleUnitDied;
 		_gameApi.OnUnitDamaged += HandleUnitDamaged;
 	}
 
+	private void RegisterMeleeDefinitions()
+	{
+		_gameApi.RegisterPlacementRadius("castle", 5.0f);
+		_gameApi.RegisterPlacementRadius("tower", 2.5f);
+		_gameApi.RegisterPlacementRadius("goldmine", 4.0f);
+		_gameApi.RegisterPlacementRadius("logo", 1.0f);
+		_gameApi.RegisterPlacementRadius("flag", 1.0f);
+		_gameApi.RegisterPlacementRadius("rune", 1.0f);
+
+		foreach (var dropoffKey in new[] { "castle", "town_hall", "townhall", "base", "main" })
+		{
+			_gameApi.RegisterResourceDropoffBuilding(dropoffKey);
+		}
+
+		foreach (var workerKey in new[] { "worker", "builder", "chad", "kevin" })
+		{
+			_gameApi.RegisterResourceWorkerUnit(workerKey);
+		}
+
+		foreach (var primaryBuildingId in new[] { "castle", "town_hall", "base", "main" })
+		{
+			_gameApi.RegisterPrimaryBuilding(primaryBuildingId);
+		}
+
+		_gameApi.RegisterResourceNodeType("goldmine", "gold");
+		_gameApi.RegisterResourceNodeType("tree", "wood");
+		_gameApi.RegisterResourceNodeType("rock", "stone");
+	}
 	private void InitializePlayerResources()
 	{
 		foreach (var player in _gameApi.GetActivePlayers())

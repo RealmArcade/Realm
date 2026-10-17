@@ -786,14 +786,7 @@ public class InputService
 
 	public float GetPlacementRadius(string placeId, float scale = 1.0f)
 	{
-		if (string.IsNullOrEmpty(placeId)) return 1.2f * scale;
-		string lowerId = placeId.ToLower();
-		float baseRadius = 1.2f;
-		if (lowerId.Contains("castle")) baseRadius = 5.0f;
-		else if (lowerId.Contains("tower")) baseRadius = 2.5f;
-		else if (lowerId.Contains("goldmine")) baseRadius = 4.0f;
-		else if (lowerId.Contains("logo") || lowerId.Contains("flag") || lowerId.Contains("rune")) baseRadius = 1.0f;
-		return baseRadius * scale;
+		return GameContext.RegistryService.GetPlacementRadius(placeId, scale);
 	}
 
 	public Vector3? FindNearestFreePosition(Vector3 startPos, float checkRadius, float maxSearchDist = 20.0f, float terrainQuadSize = 2.0f, int terrainWidth = 256, int terrainDepth = 256)
@@ -905,11 +898,11 @@ public class InputService
 		return true;
 	}
 
-	public bool BuyItem(string itemId, Entity playerEntity, Vector3 castlePos, Entity selectedUnitEntity, out Entity targetUnitEntity)
+	public bool BuyItem(string itemId, Entity playerEntity, Vector3 shopPosition, Entity selectedUnitEntity, out Entity targetUnitEntity)
 	{
 		targetUnitEntity = Entity.Null;
 
-		Entity target = FindClosestFriendlyCombatUnit(castlePos, playerEntity, 20.0f);
+		Entity target = FindClosestFriendlyCombatUnit(shopPosition, playerEntity, 20.0f);
 
 		if (target == Entity.Null && GameContext.World.IsAlive(selectedUnitEntity))
 		{

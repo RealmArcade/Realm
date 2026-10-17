@@ -144,13 +144,7 @@ public class ResourceEconomyService
 		var query = QueryCache.AllPositionAndResourceNodeAndPropIdentityQuery;
 		GameContext.World.Query(in query, (Entity entity, ref Position nodePos, ref PropIdentity identity) =>
 		{
-			string pType = identity.PropId switch
-			{
-				"goldmine" => "gold",
-				"tree" => "wood",
-				"rock" => "stone",
-				_ => null
-			};
+			string pType = GameContext.RegistryService.GetResourceTypeForNode(identity.PropId);
 
 			if (pType == type)
 			{
@@ -341,29 +335,6 @@ public class ResourceEconomyService
 		return mineRate;
 	}
 
-	private bool IsResourceDropoffBuilding(string defId)
-	{
-		if (string.IsNullOrEmpty(defId)) return false;
-		if (string.Equals(defId, "castle", StringComparison.OrdinalIgnoreCase) ||
-		    defId.Contains("town_hall", StringComparison.OrdinalIgnoreCase) ||
-		    defId.Contains("townhall", StringComparison.OrdinalIgnoreCase) ||
-		    defId.Contains("base", StringComparison.OrdinalIgnoreCase) ||
-		    defId.Contains("main", StringComparison.OrdinalIgnoreCase))
-		{
-			return true;
-		}
-
-		if (GameContext.RegistryService.BuildingRegistry.TryGetValue(defId, out var meta) && meta.BuildOptions != null)
-		{
-			if (Array.Exists(meta.BuildOptions, opt => opt.Contains("worker") || opt.Contains("builder") || opt.Contains("chad") || opt.Contains("kevin")))
-			{
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 	private void FindNearestDropoff(Vector3 currentPos, PlayerEntity wOwner, out Entity nearestDropoff, out Vector3 nearestDropoffPos, out float dropoffRadius)
 	{
 		Entity foundDropoff = Entity.Null;
@@ -374,7 +345,7 @@ public class ResourceEconomyService
 		var buildingQuery = QueryCache.AllPositionAndDefinitionIdAndOwnerNoneDeadQuery;
 		GameContext.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
 		{
-			if (ownerComp.PlayerEntity == wOwner && IsResourceDropoffBuilding(defId.Value))
+			if (ownerComp.PlayerEntity == wOwner && GameContext.RegistryService.IsResourceDropoffBuilding(defId.Value))
 			{
 				float dist = Vector3.Distance(currentPos, bldPos.Value);
 				if (dist < nearestDist)
