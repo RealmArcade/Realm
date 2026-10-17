@@ -40,10 +40,17 @@
 - Decoupled Communication: Avoid using DTOs to communicate between orchestrators (`GameHost`) and services. Communication should be minimal and limited to simple ephemeral primitive parameters and return values. All persistent shared data must be stored directly in the ECS, allowing both services and `GameHost` to query and write to the ECS independently to coordinate.
 - Services should never be instantiated directly, they should always be accessed via the global GameContext
 
-### Realm.MapAPI:
+### Realm.MapAPI & WASM Zero-GC Facade Architecture:
 - Only expose safe APIs to map authors and external tools to prevent direct manipulation of raw Godot nodes or C# ECS structures.
 - All map scripting operations proxy through `IGameAPI`, while map editing operations proxy through `IEditorAPI`.
+- APIs must generate zero heap allocations and zero GC pressure
+- Do not use `yield return` keyword inside WASM layer because it compiles to a GC heap allocation
+- Use ReadOnlySpan<T> over facade types for enumeration rather than T[] or List<T>
 - Everything in `Realm.MapAPI` (including `IGameAPI` and `IEditorAPI`) must have full, comprehensive XML-doc comments for public consumption.
+- Zero-Allocation Facade Pattern:
+	- IGameAPI should strictly require integer ids as parameters, never full objects
+	- Facade types exposed to map scripts (e.g. `Player`) must be defined as `readonly record struct PlayerId(int value)` with implicit type-cast 'FROM int' but NEVER 'TO int'.
+	- Create extension methods over facade structs to simulate fluent API syntax. 
 
 ### Map Workspaces & WASM Compilation (Portability):
 - The map temp workspace is compiled to WASM via `dotnet publish`. Workspaces and saved map folders MUST be machine-portable: never write absolute paths into generated/saved `.csproj` files.
