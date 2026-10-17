@@ -29,6 +29,7 @@ public class WasmEntryPoint
         try
         {
             _gameApi = new GameAPI_WasmModule();
+            GameAPI.Current = _gameApi;
             _gameApi.BroadcastMessage("Guest Initialize started");
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())

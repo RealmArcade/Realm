@@ -62,28 +62,42 @@ public class MeleeRules
 			if (player.Wood <= 0f) player.Wood = 200f;
 			if (player.Stone <= 0f) player.Stone = 100f;
 
-			int baseBuildingCount = player.GetUnits(unit => unit.IsBuilding && IsBaseBuilding(unit.UnitId)).Count();
+			int baseBuildingCount = 0;
+			foreach (var u in player.GetUnits())
+			{
+				if (u.IsBuilding && IsBaseBuilding(u.TemplateID))
+				{
+					baseBuildingCount++;
+				}
+			}
 			player.MaxPopulation = Math.Max(20, baseBuildingCount * 20);
 		}
 	}
 
-	private void HandleUnitCreated(IUnit unit)
+	private void HandleUnitCreated(UnitId unit)
 	{
-		if (unit.IsBuilding && IsBaseBuilding(unit.UnitId))
+		if (unit.IsBuilding && IsBaseBuilding(unit.TemplateID))
 		{
 			var player = _gameApi.GetPlayer(unit.Player);
 			player.MaxPopulation += 20;
 		}
 	}
 
-	private void HandleUnitDied(IUnit unit, IUnit? killer)
+	private void HandleUnitDied(UnitId unit, UnitId killer)
 	{
-		if (unit.IsBuilding && IsBaseBuilding(unit.UnitId))
+		if (unit.IsBuilding && IsBaseBuilding(unit.TemplateID))
 		{
 			var player = _gameApi.GetPlayer(unit.Player);
 			player.MaxPopulation = Math.Max(0, player.MaxPopulation - 20);
 
-			int remainingBaseCount = player.GetUnits(u => u.IsBuilding && IsBaseBuilding(u.UnitId) && u.UniqueId != unit.UniqueId).Count();
+			int remainingBaseCount = 0;
+			foreach (var u in player.GetUnits())
+			{
+				if (u.IsBuilding && IsBaseBuilding(u.TemplateID) && u.UniqueId != unit.UniqueId)
+				{
+					remainingBaseCount++;
+				}
+			}
 			if (remainingBaseCount == 0)
 			{
 				HandlePlayerElimination(player);
@@ -91,9 +105,9 @@ public class MeleeRules
 		}
 	}
 
-	private void HandleUnitDamaged(IUnit victim, IUnit? attacker, float damage)
+	private void HandleUnitDamaged(UnitId victim, UnitId attacker, float damage)
 	{
-		if (victim == null || damage <= 0.01f) return;
+		if (!victim.IsValid || damage <= 0.01f) return;
 
 		int targetPlayer = victim.Player;
 		if (targetPlayer < 0) return;
@@ -101,7 +115,7 @@ public class MeleeRules
 		var player = _gameApi.GetPlayer(targetPlayer);
 		if (!player.IsActive) return;
 
-		if (attacker != null && player.IsAlliedWith(attacker.Player)) return;
+		if (attacker.IsValid && player.IsAlliedWith(attacker.Player)) return;
 
 		float currentTime = _gameApi.GameElapsedTime;
 		if (_lastUnderAttackAlertTimeByPlayer.TryGetValue(targetPlayer, out float lastAlertTime))
@@ -110,20 +124,38 @@ public class MeleeRules
 		}
 
 		_lastUnderAttackAlertTimeByPlayer[targetPlayer] = currentTime;
-		_gameApi.HandleUnderAttackAlert(targetPlayer, victim.UnitId, victim.Position);
+		_gameApi.HandleUnderAttackAlert(targetPlayer, victim.TemplateID, victim.Position);
 	}
 
-	private void HandlePlayerElimination(IPlayer eliminatedPlayer)
+	private void HandlePlayerElimination(PlayerId eliminatedPlayer)
 	{
 		if (!_eliminatedPlayerIndices.Add(eliminatedPlayer.Index)) return;
 
 		eliminatedPlayer.TriggerDefeat("Your base has been destroyed!");
 
-		var remainingPlayers = _gameApi.GetActivePlayers().Where(p => !_eliminatedPlayerIndices.Contains(p.Index)).ToList();
+		var remainingPlayers = new List<PlayerId>();
+		foreach (var p in _gameApi.GetActivePlayers())
+		{
+			if (!_eliminatedPlayerIndices.Contains(p.Index))
+			{
+				remainingPlayers.Add(p);
+			}
+		}
 		if (remainingPlayers.Count == 0) return;
 
-		var remainingTeams = remainingPlayers.Select(p => p.Team).Distinct().ToList();
-		if (remainingTeams.Count == 1)
+		int firstTeam = -1;
+		bool allSameTeam = true;
+		foreach (var p in remainingPlayers)
+		{
+			if (firstTeam == -1) firstTeam = p.Team;
+			else if (p.Team != firstTeam)
+			{
+				allSameTeam = false;
+				break;
+			}
+		}
+
+		if (allSameTeam)
 		{
 			foreach (var winner in remainingPlayers)
 			{

@@ -147,10 +147,10 @@ public partial class GameHost
 		SpawnUnit3D(bldEntity, buildUnitType, modelPath, buildPosition, true, playerIndex);
 	}
 
-	private IUnit GetSpellCaster(NetworkCommand cmd)
+	private UnitId GetSpellCaster(NetworkCommand cmd)
 	{
 		var casterEntity = GameContext.NetworkService.GetSpellCasterEntityDomain(cmd, AllUnits);
-		return casterEntity != Entity.Null ? GameContext.SimulationService.GetUnitWrapper(casterEntity) : null;
+		return casterEntity != Entity.Null ? (UnitId)casterEntity.Id : UnitId.Invalid;
 	}
 
 	private void ApplySpellEffect(string spellId, Vector3 position, Entity casterEnt)
@@ -175,7 +175,7 @@ public partial class GameHost
 		string spellId = result.SpellId;
 		Vector3 position = result.SpellPosition;
 		var caster = GetSpellCaster(cmd);
-		var casterEnt = caster != null ? ((IEcsEntityWrapper)caster).Entity : Entity.Null;
+		var casterEnt = GameContext.SimulationService.TryGetEntity(caster, out var ce) ? ce : Entity.Null;
 
 		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
 

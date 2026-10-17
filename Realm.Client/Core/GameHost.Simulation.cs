@@ -32,23 +32,13 @@ public partial class GameHost
 
 	private void KillUnit(Unit3D unit, bool executeDespawnShader, bool playDeathAnimation)
 	{
-		IUnit victimWrapper = null;
-		if (GameContext.World.IsAlive(unit.Entity))
-		{
-			victimWrapper = GameContext.SimulationService.GetUnitWrapper(unit.Entity);
-		}
-
+		UnitId victimId = GameContext.World.IsAlive(unit.Entity) ? (UnitId)unit.Entity.Id : UnitId.Invalid;
 		Entity killerEntity = GameContext.SimulationService.GetKillerEntityDomain(unit.Entity);
-		
-		IUnit killerWrapper = null;
-		if (killerEntity != Entity.Null && GameContext.World.IsAlive(killerEntity))
-		{
-			killerWrapper = GameContext.SimulationService.GetUnitWrapper(killerEntity);
-		}
+		UnitId killerId = (killerEntity != Entity.Null && GameContext.World.IsAlive(killerEntity)) ? (UnitId)killerEntity.Id : UnitId.Invalid;
 
-		if (victimWrapper != null)
+		if (victimId.IsValid)
 		{
-			OnUnitDied?.Invoke(victimWrapper, killerWrapper);
+			OnUnitDied?.Invoke(victimId, killerId);
 		}
 
 		GameContext.AudioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Death, unit.GlobalPosition);
@@ -392,10 +382,9 @@ public partial class GameHost
 
 	private void NotifyConstructionFinished(Entity buildingEntity)
 	{
-		var buildingUnit = GameContext.World.IsAlive(buildingEntity) ? GameContext.SimulationService.GetUnitWrapper(buildingEntity) : null;
-		if (buildingUnit != null)
+		if (GameContext.World.IsAlive(buildingEntity))
 		{
-			OnConstructionFinished?.Invoke(buildingUnit);
+			OnConstructionFinished?.Invoke((UnitId)buildingEntity.Id);
 		}
 
 		InGameHUD.Instance?.ShowFeedbackText("Construction complete!", new Color(0.3f, 0.9f, 0.4f));

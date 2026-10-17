@@ -22,7 +22,7 @@ using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
 
-public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
+public class Unit_WasmRuntime : IEcsEntityWrapper
 {
 	private readonly Entity _entity;
 	private readonly World _world;
@@ -41,6 +41,8 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 	}
 
 	Entity IEcsEntityWrapper.Entity => _entity;
+	public Entity Entity => _entity;
+	public static implicit operator Realm.MapAPI.UnitId(Unit_WasmRuntime? runtime) => runtime != null ? (Realm.MapAPI.UnitId)runtime.UniqueId : Realm.MapAPI.UnitId.Invalid;
 
 	public int UniqueId => _entity.Id;
 
@@ -465,27 +467,23 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		_world.SetOrAdd(_entity, mv);
 	}
 
-	public void Attack(IUnit target)
+	public void Attack(UnitId target)
 	{
-		if (!_world.IsAlive(_entity) || IsDead || target == null) return;
-		if (target is IEcsEntityWrapper wrapper && _world.IsAlive(wrapper.Entity))
+		if (!_world.IsAlive(_entity) || IsDead || !target.IsValid) return;
+		if (GameContext.SimulationService.TryGetEntity(target, out var targetEntity) && _world.IsAlive(targetEntity))
 		{
-			var at = new AttackTarget(wrapper.Entity);
+			var at = new AttackTarget(targetEntity);
 			_world.SetOrAdd(_entity, at);
 		}
 	}
 
-	public void Gather(IResourceNode resourceNode)
+	public void Gather(ResourceNodeId resourceNode)
 	{
-		if (!_world.IsAlive(_entity) || IsDead || resourceNode == null) return;
-		if (resourceNode is IEcsPropWrapper nodeWrapper)
+		if (!_world.IsAlive(_entity) || IsDead || !resourceNode.IsValid) return;
+		if (GameHost.Instance != null && GameHost.Instance.TryGetResourceProp(resourceNode, out var propNode) && GodotObject.IsInstanceValid(propNode))
 		{
-			var propNode = nodeWrapper.Prop;
-			if (GodotObject.IsInstanceValid(propNode))
-			{
-				var gatherer = new Gatherer(resourceNode.ResourceType, propNode.Entity);
-				_world.SetOrAdd(_entity, gatherer);
-			}
+			var gatherer = new Gatherer(propNode.PropId, propNode.Entity);
+			_world.SetOrAdd(_entity, gatherer);
 		}
 	}
 
@@ -647,6 +645,24 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		}
 	}
 
+	public float Facing
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return 0f;
+			if (GameHost.TryGetUnit3D(_entity, out var u3d) && GodotObject.IsInstanceValid(u3d))
+			{
+				return u3d.Rotation.Y;
+			}
+			return 0f;
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			((IGameAPI?)GameHost.Instance)?.SetUnitFacing((Realm.MapAPI.UnitId)_entity.Id, value);
+		}
+	}
+
 	public void Stop()
 	{
 		if (!_world.IsAlive(_entity)) return;
@@ -705,10 +721,10 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		return success;
 	}
 
-	public bool CollectLootItem(ILootItem lootItem)
+	public bool CollectLootItem(LootItemId lootItem)
 	{
-		if (lootItem == null) return false;
-		return GameHost.Instance?.CollectLootItem(lootItem.UniqueId, this) ?? false;
+		if (!lootItem.IsValid) return false;
+		return GameHost.Instance?.CollectLootItem(lootItem.Value, (UnitId)_entity.Id) ?? false;
 	}
 
 	public int GetItemCharges(string itemId)
@@ -775,11 +791,17 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		return false;
 	}
 
-	public IEnumerable<string> GetItems()
+	public IReadOnlyList<string> GetItems()
 	{
 		if (!_world.IsAlive(_entity) || !_world.Has<Inventory>(_entity)) return Array.Empty<string>();
 		var inv = _world.Get<Inventory>(_entity);
-		return inv.Items != null ? inv.Items.Keys : Array.Empty<string>();
+		if (inv.Items == null || inv.Items.Count == 0) return Array.Empty<string>();
+		var list = new List<string>(inv.Items.Count);
+		foreach (var key in inv.Items.Keys)
+		{
+			list.Add(key);
+		}
+		return list;
 	}
 
 	public void AddBuff(string buffId, float duration)
@@ -896,7 +918,7 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 		dict[key] = value;
 	}
 
-	string? IUnit.GetCustomData(string key) => GetCustomData(key)?.ToString();
+	public string? GetCustomDataString(string key) => GetCustomData(key)?.ToString();
 
 	public object? GetCustomData(string key)
 	{

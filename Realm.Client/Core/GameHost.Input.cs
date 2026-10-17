@@ -2589,7 +2589,7 @@ public partial class GameHost
 			SelectedUnits.Add(unit);
 			unit.IsSelected = true;
 			GameContext.AudioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Select, unit.GlobalPosition);
-			OnUnitSelected?.Invoke(GameContext.SimulationService.GetUnitWrapper(unit.Entity));
+			OnUnitSelected?.Invoke((UnitId)unit.Entity.Id);
 		}
 	}
 
@@ -3327,10 +3327,10 @@ public partial class GameHost
 		int focusedIdx = Math.Clamp(CycleSelectionIndex, 0, Math.Max(0, SelectedUnits.Count - 1));
 		Unit3D focusedUnit = SelectedUnits.Count > focusedIdx ? SelectedUnits[focusedIdx] : null;
 
-		IUnit caster = null;
+		UnitId caster = UnitId.Invalid;
 		if (focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity))
 		{
-			caster = GameContext.SimulationService.GetUnitWrapper(focusedUnit.Entity);
+			caster = (UnitId)focusedUnit.Entity.Id;
 			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position);
 		}
 
@@ -3447,7 +3447,7 @@ public partial class GameHost
 
 		if (targetUnit != null)
 		{
-			OnItemSold?.Invoke(targetUnit, itemId);
+			OnItemSold?.Invoke((UnitId)targetUnit.Entity.Id, itemId);
 		}
 
 		InGameHUD.Instance?.ShowFeedbackText($"Bought {itemName} for {targetUnit?.TemplateID.ToUpper()}!", new Color(0.3f, 0.9f, 0.4f));
@@ -3680,8 +3680,7 @@ public partial class GameHost
 			Unit3D? firstWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
 			if (firstWorker != null && GameContext.World.IsAlive(firstWorker.Entity))
 			{
-				var workerWrapper = GameContext.SimulationService.GetUnitWrapper(firstWorker.Entity);
-				OnUnitOrdered?.Invoke(workerWrapper, type, buildingPos);
+				OnUnitOrdered?.Invoke((UnitId)firstWorker.Entity.Id, type, buildingPos);
 				AssignWorkerTasks(type, buildingPos, meta, shiftHeld, firstWorker);
 			}
 			else

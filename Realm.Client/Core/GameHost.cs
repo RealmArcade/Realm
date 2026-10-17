@@ -829,21 +829,21 @@ public partial class GameHost : Node3D, IGameAPI
 			GameContext.World.Set(ECSContext.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, s.TimeOfDayTimer, value)));
 	}
 
-	public event Action<IUnit>? OnUnitCreated;
-	public event Action<IUnit, IUnit?>? OnUnitDied;
-	public event Action<IUnit, IUnit, float>? OnUnitDamaged;
-	public event Action<IUnit?, string, System.Numerics.Vector3>? OnSpellCast;
-	public event Action<string, IUnit?>? OnPlayerChatMessage;
-	public event Action<IUnit>? OnUnitSelected;
-	public event Action<IUnit, IUnit>? OnUnitAttacked;
-	public event Action<ILootItem, IUnit>? OnLootItemCollected;
+	public event Action<UnitId>? OnUnitCreated;
+	public event Action<UnitId, UnitId>? OnUnitDied;
+	public event Action<UnitId, UnitId, float>? OnUnitDamaged;
+	public event Action<UnitId, string, System.Numerics.Vector3>? OnSpellCast;
+	public event Action<string, UnitId>? OnPlayerChatMessage;
+	public event Action<UnitId>? OnUnitSelected;
+	public event Action<UnitId, UnitId>? OnUnitAttacked;
+	public event Action<LootItemId, UnitId>? OnLootItemCollected;
 
 	public void TriggerPlayerChatMessage(string message)
 	{
-		IUnit? selected = null;
+		UnitId selected = UnitId.Invalid;
 		if (SelectedUnits.Count > 0 && GameContext.World.IsAlive(SelectedUnits[0].Entity))
 		{
-			selected = GameContext.SimulationService.GetUnitWrapper(SelectedUnits[0].Entity);
+			selected = (UnitId)SelectedUnits[0].Entity.Id;
 		}
 
 		OnPlayerChatMessage?.Invoke(message, selected);
@@ -890,21 +890,40 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 
-	private List<IResourceNode> GetCachedResourceNodes()
+	private readonly ResourceNodeId[] _cachedResourceNodesBuffer = new ResourceNodeId[4096];
+	private int _cachedResourceNodesCount = 0;
+
+	public ReadOnlySpan<ResourceNodeId> GetCachedResourceNodes()
 	{
-		var list = new List<IResourceNode>();
-		foreach (var prop in AllProps)
+		_cachedResourceNodesCount = 0;
+		for (int i = 0; i < AllProps.Count && _cachedResourceNodesCount < _cachedResourceNodesBuffer.Length; i++)
 		{
+			var prop = AllProps[i];
 			if (GodotObject.IsInstanceValid(prop))
 			{
 				if (prop.PropId == "goldmine" || prop.PropId == "tree" || prop.PropId == "rock")
 				{
-					list.Add(new ResourceNode_WasmRuntime(prop));
+					_cachedResourceNodesBuffer[_cachedResourceNodesCount++] = (ResourceNodeId)prop.Entity.Id;
 				}
 			}
 		}
 
-		return list;
+		return new ReadOnlySpan<ResourceNodeId>(_cachedResourceNodesBuffer, 0, _cachedResourceNodesCount);
+	}
+
+	public bool TryGetResourceProp(ResourceNodeId node, out Prop3D? prop)
+	{
+		for (int i = 0; i < AllProps.Count; i++)
+		{
+			var p = AllProps[i];
+			if (GodotObject.IsInstanceValid(p) && p.Entity.Id == node.Value)
+			{
+				prop = p;
+				return true;
+			}
+		}
+		prop = null;
+		return false;
 	}
 
 	public static void EnsureMapProjectFiles(string mapDir)
@@ -1211,17 +1230,19 @@ public partial class GameHost : Node3D, IGameAPI
 		}).CallDeferred();
 	}
 
-	public void SelectUnitInternal(IUnit unit)
+	public void SelectUnitInternal(UnitId unit)
 	{
 		Callable.From(() =>
 		{
-			if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+			for (int i = 0; i < AllUnits.Count; i++)
 			{
-				if (TryGetUnit3D(wrapper.Entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				var u = AllUnits[i];
+				if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.Value && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
 				{
 					ClearSelection();
-					SelectUnit(unit3D);
+					SelectUnit(u);
 					InGameHUD.Instance?.RefreshUI(SelectedUnits);
+					break;
 				}
 			}
 		}).CallDeferred();
@@ -1252,7 +1273,7 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	public event Action<IUnit, int>? OnUnitEnterZone;
+	public event Action<UnitId, int>? OnUnitEnterZone;
 	public event Action<int>? OnPlayerLeft;
 
 	private void TickZoneTriggers()
@@ -1278,7 +1299,7 @@ public partial class GameHost : Node3D, IGameAPI
 			bool inside = pos.X >= z.MinX && pos.X <= z.MaxX && pos.Z >= z.MinZ && pos.Z <= z.MaxZ;
 
 			if (inside && occupiedZones.Add(i) && TryGetUnit3D(entity, out _))
-				OnUnitEnterZone?.Invoke(GameContext.SimulationService.GetUnitWrapper(entity), i);
+				OnUnitEnterZone?.Invoke((UnitId)entity.Id, i);
 			else if (!inside)
 				occupiedZones.Remove(i);
 		}
@@ -1982,8 +2003,8 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (!GameContext.World.IsAlive(targetEntity)) return;
 
-		IUnit attackerWrapper = GameContext.World.IsAlive(attackerEntity) ? GameContext.SimulationService.GetUnitWrapper(attackerEntity) : null;
-		OnUnitDamaged?.Invoke(GameContext.SimulationService.GetUnitWrapper(targetEntity), attackerWrapper, damage);
+		UnitId attackerId = (attackerEntity != Entity.Null && GameContext.World.IsAlive(attackerEntity)) ? (UnitId)attackerEntity.Id : UnitId.Invalid;
+		OnUnitDamaged?.Invoke((UnitId)targetEntity.Id, attackerId, damage);
 
 		if (TryGetUnit3D(targetEntity, out var targetUnit3D))
 		{
@@ -2004,7 +2025,7 @@ public partial class GameHost : Node3D, IGameAPI
 		if (!GameContext.World.IsAlive(attackerEntity) || !GameContext.World.IsAlive(targetEntity)) return;
 
 		if (TryGetUnit3D(attackerEntity, out var attackerUnit3D)) attackerUnit3D.PlayAnimation("Attack");
-		OnUnitAttacked?.Invoke(GameContext.SimulationService.GetUnitWrapper(attackerEntity), GameContext.SimulationService.GetUnitWrapper(targetEntity));
+		OnUnitAttacked?.Invoke((UnitId)attackerEntity.Id, (UnitId)targetEntity.Id);
 	}
 
 	private void SetupSimulationProductionCallbacks()
@@ -2354,12 +2375,12 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (!IsServerActive()) return;
 
-		IUnit? heroUnit = null;
+		UnitId heroUnit = UnitId.Invalid;
 		foreach (var u in AllUnits)
 		{
 			if (GodotObject.IsInstanceValid(u) && u.Player == slot && GameContext.World != null && GameContext.World.IsAlive(u.Entity) && !GameContext.World.Has<Dead>(u.Entity))
 			{
-				heroUnit = GameContext.SimulationService.GetUnitWrapper(u.Entity);
+				heroUnit = (UnitId)u.Entity.Id;
 				break;
 			}
 		}

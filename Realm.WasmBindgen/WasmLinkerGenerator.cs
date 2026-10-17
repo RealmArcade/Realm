@@ -201,10 +201,45 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		return true;
 	}
 
+	private static bool IsEntityIdStruct(ITypeSymbol type, out string typeName)
+	{
+		typeName = string.Empty;
+		if (type == null) return false;
+
+		ITypeSymbol unwrapped = type;
+		if (type is INamedTypeSymbol named && named.IsGenericType && named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T)
+		{
+			unwrapped = named.TypeArguments[0];
+		}
+
+		string fullName = unwrapped.ToDisplayString();
+		if (fullName == "Realm.MapAPI.UnitId" || unwrapped.Name == "UnitId")
+		{
+			typeName = "UnitId";
+			return true;
+		}
+		if (fullName == "Realm.MapAPI.PlayerId" || unwrapped.Name == "PlayerId")
+		{
+			typeName = "PlayerId";
+			return true;
+		}
+		if (fullName == "Realm.MapAPI.LootItemId" || unwrapped.Name == "LootItemId")
+		{
+			typeName = "LootItemId";
+			return true;
+		}
+		if (fullName == "Realm.MapAPI.ResourceNodeId" || unwrapped.Name == "ResourceNodeId")
+		{
+			typeName = "ResourceNodeId";
+			return true;
+		}
+		return false;
+	}
+
 	private static bool IsCollection(ITypeSymbol type, out ITypeSymbol elementType)
 	{
 		elementType = null!;
-		if (type.SpecialType == SpecialType.System_String)
+		if (type == null || type.SpecialType == SpecialType.System_String)
 			return false;
 
 		if (type is IArrayTypeSymbol arrayType)
@@ -215,10 +250,16 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 		if (type is INamedTypeSymbol namedType)
 		{
-			if (namedType.IsGenericType && namedType.ConstructedFrom.ToDisplayString() == "System.Collections.Generic.IEnumerable<T>")
+			if (namedType.IsGenericType)
 			{
-				elementType = namedType.TypeArguments[0];
-				return true;
+				string def = namedType.ConstructedFrom.ToDisplayString();
+				if (def == "System.Collections.Generic.IEnumerable<T>" ||
+				    def == "System.ReadOnlySpan<T>" ||
+				    def == "System.Span<T>")
+				{
+					elementType = namedType.TypeArguments[0];
+					return true;
+				}
 			}
 
 			foreach (var iface in namedType.AllInterfaces)
@@ -308,6 +349,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using Wasmtime;");
 		sb.AppendLine("using Realm.MapAPI;");
+		sb.AppendLine("using System.Runtime.InteropServices;");
 		sb.AppendLine();
 		sb.AppendLine("namespace Realm.Client.Core;");
 		sb.AppendLine();
@@ -607,7 +649,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			PrmKind.StringListParam => $"int {p.Name}Ptr, int {p.Name}Len",
 			PrmKind.DirectFloat => $"float {p.Name}",
 			PrmKind.DirectInt or PrmKind.BoolParam => $"int {p.Name}",
-			PrmKind.EntityParam => $"int {p.Name}Id",
+			PrmKind.EntityParam => $"int {p.Name}RawId",
 			PrmKind.Vector2Param => $"float {p.Name}X, float {p.Name}Y",
 			PrmKind.Vector3Param => $"float {p.Name}X, float {p.Name}Y, float {p.Name}Z",
 			PrmKind.Vector3NullableParam => $"float {p.Name}R, float {p.Name}G, float {p.Name}B, int {p.Name}HasColor",
@@ -627,9 +669,15 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				sb.AppendLine($"                var {p.Name} = new System.Numerics.Vector3({p.Name}X, {p.Name}Y, {p.Name}Z);");
 			else if (p.Kind == PrmKind.EntityParam)
 			{
-				IsEntityInterface(p.Type, out var unwrapped);
-				string res = FindResolverMember(gameApiSymbol, unwrapped);
-				sb.AppendLine($"                var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{res}({p.Name}Id);");
+				if (IsEntityIdStruct(p.Type, out _))
+				{
+					sb.AppendLine($"                var {p.Name} = ({p.Type.ToDisplayString()}){p.Name}RawId;");
+				}
+				else if (IsEntityInterface(p.Type, out var unwrapped))
+				{
+					string res = FindResolverMember(gameApiSymbol, unwrapped);
+					sb.AppendLine($"                var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{res}({p.Name}RawId);");
+				}
 			}
 		}
 	}
@@ -851,7 +899,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		bool hasVector2Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector2");
 		bool hasVector3Param = method.Parameters.Any(p => p.Type.ToDisplayString() == "System.Numerics.Vector3");
 		bool hasVector3NullableParam = method.Parameters.Any(p => IsNullableVector3(p.Type));
-		bool hasUnitParam = method.Parameters.Any(p => IsEntityInterface(p.Type, out _));
+		bool hasUnitParam = method.Parameters.Any(p => IsEntityInterface(p.Type, out _) || IsEntityIdStruct(p.Type, out _));
 
 		return !isVector3Ret && !hasStringParam && !hasStringListParam && !hasVector2Param && !hasVector3Param && !hasVector3NullableParam && !hasUnitParam && !needsRetArea && retKind != RetKind.EntityReturn && retKind != RetKind.EntityNullableReturn;
 	}
@@ -872,12 +920,18 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		foreach (var p in paramInfos)
 			if (p.Kind == PrmKind.EntityParam)
 			{
-				IsEntityInterface(p.Type, out var unwrapped);
-				string res = FindResolverMember(gameApiSymbol, unwrapped);
-				sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{res}({p.Name}Id);");
+				if (IsEntityIdStruct(p.Type, out _))
+				{
+					sb.AppendLine($"            var {p.Name} = ({p.Type.ToDisplayString()}){p.Name}RawId;");
+				}
+				else if (IsEntityInterface(p.Type, out var unwrapped))
+				{
+					string res = FindResolverMember(gameApiSymbol, unwrapped);
+					sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{res}({p.Name}RawId);");
+				}
 			}
 
-		var entityParams = paramInfos.FindAll(p => p.Kind == PrmKind.EntityParam);
+		var entityParams = paramInfos.FindAll(p => p.Kind == PrmKind.EntityParam && !IsEntityIdStruct(p.Type, out _));
 		string callExpr = BuildCallExpressionFull(method, paramInfos, targetInstance);
 
 		if (entityParams.Count == 0)
@@ -999,21 +1053,28 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			if (p.Kind == PrmKind.EntityParam)
 			{
-				IsEntityInterface(p.Type, out var unwrapped);
-				string res = FindResolverMember(gameApiSymbol, unwrapped);
-				sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{res}({p.Name}Id);");
+				if (IsEntityIdStruct(p.Type, out _))
+				{
+					sb.AppendLine($"            var {p.Name} = ({p.Type.ToDisplayString()}){p.Name}RawId;");
+				}
+				else if (IsEntityInterface(p.Type, out var unwrapped))
+				{
+					string res = FindResolverMember(gameApiSymbol, unwrapped);
+					sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{res}({p.Name}RawId);");
+				}
 			}
 		}
 	}
 
 	private static void EmitMethodCallAndReturn(StringBuilder sb, IMethodSymbol method, RetKind retKind, INamedTypeSymbol gameApiSymbol, List<ParamInfo> entityParams, string callExpr)
 	{
-		string condition = entityParams.Count > 0 ? string.Join(" && ", entityParams.Select(u => $"{u.Name} != null")) : "";
+		var nonStructEntityParams = entityParams.FindAll(p => !IsEntityIdStruct(p.Type, out _));
+		string condition = nonStructEntityParams.Count > 0 ? string.Join(" && ", nonStructEntityParams.Select(u => $"{u.Name} != null")) : "";
 
 		switch (retKind)
 		{
 			case RetKind.Void:
-				EmitVoidReturn(sb, entityParams.Count == 0, condition, callExpr);
+				EmitVoidReturn(sb, nonStructEntityParams.Count == 0, condition, callExpr);
 				break;
 			case RetKind.StringReturn:
 				EmitStringReturn(sb, callExpr);
@@ -1023,13 +1084,13 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				break;
 			case RetKind.EntityReturn:
 			case RetKind.EntityNullableReturn:
-				EmitEntitySingleReturn(sb, method, gameApiSymbol, entityParams.Count == 0, condition, callExpr);
+				EmitEntitySingleReturn(sb, method, gameApiSymbol, nonStructEntityParams.Count == 0, condition, callExpr);
 				break;
 			case RetKind.BoolReturn:
-				EmitBoolReturn(sb, entityParams.Count == 0, condition, callExpr);
+				EmitBoolReturn(sb, nonStructEntityParams.Count == 0, condition, callExpr);
 				break;
 			default:
-				EmitDefaultReturn(sb, retKind, entityParams.Count == 0, condition, callExpr);
+				EmitDefaultReturn(sb, retKind, nonStructEntityParams.Count == 0, condition, callExpr);
 				break;
 		}
 	}
@@ -1051,6 +1112,29 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	private static void EmitEntityListReturn(StringBuilder sb, IMethodSymbol method, INamedTypeSymbol gameApiSymbol, string callExpr)
 	{
 		IsCollection(method.ReturnType, out var elemType);
+		if (IsEntityIdStruct(elemType, out _))
+		{
+			var args = new List<string>();
+			foreach (var p in method.Parameters)
+			{
+				if (p.Type.ToDisplayString() == "System.Numerics.Vector3")
+					args.Add(p.Name);
+				else if (IsNullableVector3(p.Type))
+					args.Add(p.Name);
+				else if (p.Type.SpecialType == SpecialType.System_Boolean)
+					args.Add($"{p.Name} != 0");
+				else if (p.Type.TypeKind == TypeKind.Enum)
+					args.Add($"({p.Type.ToDisplayString()}){p.Name}");
+				else
+					args.Add(p.Name);
+			}
+			string argsCall = string.Join(", ", args);
+			sb.AppendLine($"            var api = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance);");
+			sb.AppendLine($"            var items = api != null ? api.{method.Name}({argsCall}) : ReadOnlySpan<{elemType.ToDisplayString()}>.Empty;");
+			sb.AppendLine($"            WriteGuestIntSpan(caller, retArea, MemoryMarshal.Cast<{elemType.ToDisplayString()}, int>(items));");
+			return;
+		}
+
 		bool hasUniqueId = elemType.GetMembers().Any(m => m is IPropertySymbol p && p.Name == "UniqueId");
 		sb.AppendLine($"            var items = {callExpr} ?? Array.Empty<{elemType.ToDisplayString()}>();");
 
@@ -1067,6 +1151,23 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void EmitEntitySingleReturn(StringBuilder sb, IMethodSymbol method, INamedTypeSymbol gameApiSymbol, bool noEntityParams, string condition, string callExpr)
 	{
+		if (IsEntityIdStruct(method.ReturnType, out _))
+		{
+			if (noEntityParams)
+			{
+				sb.AppendLine($"            return (int)({callExpr});");
+			}
+			else
+			{
+				sb.AppendLine($"            if ({condition})");
+				sb.AppendLine("            {");
+				sb.AppendLine($"                return (int)({callExpr});");
+				sb.AppendLine("            }");
+				sb.AppendLine("            return 0;");
+			}
+			return;
+		}
+
 		IsEntityInterface(method.ReturnType, out var unwrapped);
 		bool hasUniqueId = unwrapped.GetMembers().Any(m => m is IPropertySymbol p && p.Name == "UniqueId");
 
@@ -1161,6 +1262,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (displayName == "System.Numerics.Vector2") return PrmKind.Vector2Param;
 		if (displayName == "System.Numerics.Vector3") return PrmKind.Vector3Param;
 		if (IsNullableVector3(type)) return PrmKind.Vector3NullableParam;
+		if (IsEntityIdStruct(type, out _)) return PrmKind.EntityParam;
 		if (IsEntityInterface(type, out _)) return PrmKind.EntityParam;
 
 		return PrmKind.Unsupported;
@@ -1172,6 +1274,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (specialRet != RetKind.Unsupported) return specialRet;
 
 		if (type.TypeKind == TypeKind.Enum) return RetKind.DirectInt;
+
+		if (IsEntityIdStruct(type, out _))
+		{
+			bool isNullable = type.NullableAnnotation == NullableAnnotation.Annotated || type.ToDisplayString().EndsWith("?");
+			return isNullable ? RetKind.EntityNullableReturn : RetKind.EntityReturn;
+		}
 
 		if (IsEntityInterface(type, out _))
 		{
@@ -1200,6 +1308,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (!IsCollection(type, out var elemType)) return RetKind.Unsupported;
 
 		if (elemType.SpecialType == SpecialType.System_String) return RetKind.StringListReturn;
+		if (IsEntityIdStruct(elemType, out _)) return RetKind.EntityListReturn;
 		if (IsEntityInterface(elemType, out _)) return RetKind.EntityListReturn;
 
 		return RetKind.Unsupported;
@@ -1524,7 +1633,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			PrmKind.StringListParam => $"{paramName}: list<string>",
 			PrmKind.Vector2Param => $"{paramName}-x: f32, {paramName}-y: f32",
 			PrmKind.Vector3Param => $"{paramName}-x: f32, {paramName}-y: f32, {paramName}-z: f32",
-			PrmKind.EntityParam => $"{paramName}-id: s32",
+			PrmKind.EntityParam => paramName.EndsWith("-id", StringComparison.OrdinalIgnoreCase) ? $"{paramName}: s32" : $"{paramName}-id: s32",
 			PrmKind.Vector3NullableParam => $"{paramName}-r: f32, {paramName}-g: f32, {paramName}-b: f32, {paramName}-has-color: bool",
 			_ => null
 		};
@@ -1730,6 +1839,10 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				invokeArgs.Add($"{p.Name}.Y");
 				invokeArgs.Add($"{p.Name}.Z");
 			}
+			else if (IsEntityIdStruct(p.Type, out _))
+			{
+				invokeArgs.Add($"(int){p.Name}");
+			}
 			else if (IsEntityInterface(p.Type, out var unwrapped))
 			{
 				bool hasId = unwrapped.GetMembers().Any(m => m is IPropertySymbol prop && prop.Name == "UniqueId");
@@ -1763,7 +1876,11 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		var invokeArgs = new List<string>();
 		foreach (var p in delegateMethod.Parameters)
 		{
-			if (IsEntityInterface(p.Type, out var unwrapped))
+			if (IsEntityIdStruct(p.Type, out _))
+			{
+				invokeArgs.Add($"(int){p.Name}");
+			}
+			else if (IsEntityInterface(p.Type, out var unwrapped))
 			{
 				bool hasId = unwrapped.GetMembers().Any(m => m is IPropertySymbol prop && prop.Name == "UniqueId");
 				if (hasId)
@@ -1804,7 +1921,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		var list = new List<string>();
 		foreach (var p in parameters)
 		{
-			if (IsEntityInterface(p.Type, out _))
+			if (IsEntityIdStruct(p.Type, out _) || IsEntityInterface(p.Type, out _))
 				list.Add("int");
 			else if (p.Type.SpecialType == SpecialType.System_Int32)
 				list.Add("int");
@@ -1829,6 +1946,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Collections.Generic;");
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using System.Numerics;");
+		sb.AppendLine("using System.Runtime.InteropServices;");
 		sb.AppendLine("using GameClientWorld.wit.Imports.custom.game;");
 		sb.AppendLine();
 		sb.AppendLine("namespace Realm.MapAPI;");
@@ -1973,7 +2091,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		var triggerParams = new List<string>();
 		foreach (var p in delegateMethod.Parameters)
 		{
-			if (IsEntityInterface(p.Type, out _))
+			if (IsEntityIdStruct(p.Type, out _) || IsEntityInterface(p.Type, out _))
 				triggerParams.Add($"int {p.Name}");
 			else if (p.Type.ToDisplayString().Contains("Vector3"))
 				triggerParams.Add($"Vector3 {p.Name}");
@@ -1984,7 +2102,11 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		var invokeArgs = new List<string>();
 		foreach (var p in delegateMethod.Parameters)
 		{
-			if (IsEntityInterface(p.Type, out var unwrapped))
+			if (IsEntityIdStruct(p.Type, out var structName))
+			{
+				invokeArgs.Add($"({structName}){p.Name}");
+			}
+			else if (IsEntityInterface(p.Type, out var unwrapped))
 			{
 				string cleanElem = CleanInterfaceName(unwrapped);
 				if (p.Type.NullableAnnotation == NullableAnnotation.Annotated || p.Type.ToDisplayString().Contains("?"))
@@ -2224,10 +2346,17 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static bool TryAppendEntityArg(List<string> callArgs, IParameterSymbol p)
 	{
+		if (IsEntityIdStruct(p.Type, out _))
+		{
+			bool isNullable = p.Type.NullableAnnotation == NullableAnnotation.Annotated || p.Type.ToDisplayString().Contains("?");
+			callArgs.Add(isNullable ? $"({p.Name} != null) ? (int){p.Name} : 0" : $"(int){p.Name}");
+			return true;
+		}
+
 		if (!IsEntityInterface(p.Type, out _)) return false;
 
-		bool isNullable = p.Type.NullableAnnotation == NullableAnnotation.Annotated || p.Type.ToDisplayString().Contains("?");
-		callArgs.Add(isNullable ? $"({p.Name} != null) ? ((IWasmWrapper){p.Name}).WasmId : 0" : $"((IWasmWrapper){p.Name}).WasmId");
+		bool isNullableIface = p.Type.NullableAnnotation == NullableAnnotation.Annotated || p.Type.ToDisplayString().Contains("?");
+		callArgs.Add(isNullableIface ? $"({p.Name} != null) ? ((IWasmWrapper){p.Name}).WasmId : 0" : $"((IWasmWrapper){p.Name}).WasmId");
 		return true;
 	}
 
@@ -2307,6 +2436,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void EmitGuestMethodEntityReturn(StringBuilder sb, IMethodSymbol method, string importCall, RetKind retKind)
 	{
+		if (IsEntityIdStruct(method.ReturnType, out var structName))
+		{
+			sb.AppendLine($"        return ({structName}){importCall};");
+			return;
+		}
+
 		IsEntityInterface(method.ReturnType, out var unwrapped);
 		string cleanElem = CleanInterfaceName(unwrapped);
 		if (retKind == RetKind.EntityNullableReturn)
@@ -2323,6 +2458,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 	private static void EmitGuestMethodEntityListReturn(StringBuilder sb, IMethodSymbol method, string importCall)
 	{
 		IsCollection(method.ReturnType, out var elemType);
+		if (IsEntityIdStruct(elemType, out _))
+		{
+			sb.AppendLine($"        return MemoryMarshal.Cast<int, {elemType.ToDisplayString()}>({importCall});");
+			return;
+		}
+
 		string cleanElem = CleanInterfaceName(elemType);
 		sb.AppendLine($"        return {importCall}.Select(id => ({elemType.ToDisplayString()})new {cleanElem}_WasmModule(id));");
 	}
@@ -2496,7 +2637,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				methodParameters.Add($"float {parameterName}X, float {parameterName}Y");
 				invokeArguments.Add($"new Vector2({parameterName}X, {parameterName}Y)");
 			}
-			else if (IsEntityInterface(parameterType, out _))
+			else if (IsEntityInterface(parameterType, out _) || IsEntityIdStruct(parameterType, out _))
 			{
 				methodParameters.Add($"int {parameterName}");
 				invokeArguments.Add(parameterName);

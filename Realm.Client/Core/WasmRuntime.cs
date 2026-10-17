@@ -329,6 +329,23 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		WriteInt32(memory, retAreaAddress + 4, list.Count);
 	}
 
+	private void WriteGuestIntSpan(Caller caller, int retAreaAddress, ReadOnlySpan<int> span)
+	{
+		var memory = caller.GetMemory("memory");
+		if (memory == null) return;
+
+		int size = span.Length * 4;
+		int ptr = size > 0 ? AllocateInGuest(size) : 0;
+		if (size > 0)
+		{
+			Span<byte> destSpan = memory.GetSpan(ptr, size);
+			System.Runtime.InteropServices.MemoryMarshal.AsBytes(span).CopyTo(destSpan);
+		}
+
+		WriteInt32(memory, retAreaAddress, ptr);
+		WriteInt32(memory, retAreaAddress + 4, span.Length);
+	}
+
 	private string[] ReadGuestStringList(Caller caller, int address, int count)
 	{
 		var memory = caller.GetMemory("memory");

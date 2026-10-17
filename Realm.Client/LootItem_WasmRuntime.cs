@@ -7,7 +7,7 @@ using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
 
-public class LootItem_WasmRuntime : ILootItem
+public class LootItem_WasmRuntime
 {
 	private readonly int _uniqueId;
 	private readonly LootItem3D? _lootNode;

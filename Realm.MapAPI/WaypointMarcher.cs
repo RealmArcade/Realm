@@ -7,7 +7,7 @@ namespace Realm.MapAPI;
 /// </summary>
 public class WaypointMarcher
 {
-	private readonly IUnit _unit;
+	private readonly UnitId _unit;
 	private readonly IReadOnlyList<Vector3> _waypoints;
 	private readonly Vector3 _finalDestination;
 	private readonly WaypointMarchConfig _config;
@@ -22,7 +22,7 @@ public class WaypointMarcher
 	/// <param name="waypoints">The ordered list of waypoint positions to march through.</param>
 	/// <param name="config">Optional configuration settings for arrival thresholds and attack cooldowns. If <see langword="null"/>, default settings are used.</param>
 	public WaypointMarcher(
-		IUnit unit,
+		UnitId unit,
 		IReadOnlyList<Vector3> waypoints,
 		WaypointMarchConfig? config = null)
 	{

@@ -60,37 +60,38 @@ public class SimulationService
 		list.Add(modifier);
 	}
 
-	public void SetUnitFacingDomain(IUnit unit, float facingRadians)
+	public void SetUnitFacingDomain(UnitId unit, float facingRadians)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			GameContext.World.SetOrAdd(wrapper.Entity, new RotationY(facingRadians));
-			if (GameContext.World.Has<InterpolationTarget>(wrapper.Entity))
+			GameContext.World.SetOrAdd(entity, new RotationY(facingRadians));
+			if (GameContext.World.Has<InterpolationTarget>(entity))
 			{
-				ref var interp = ref GameContext.World.Get<InterpolationTarget>(wrapper.Entity);
+				ref var interp = ref GameContext.World.Get<InterpolationTarget>(entity);
 				interp.RotationY = facingRadians;
 			}
 		}
 	}
 
-	public void AddBuffDomain(IUnit unit, string buffId, float duration)
+	public void AddBuffDomain(UnitId unit, string buffId, float duration)
 	{
-		unit.AddBuff(buffId, duration);
+		var wrapper = GetUnitWrapper(unit);
+		wrapper?.AddBuff(buffId, duration);
 	}
 
-	public void SetUnitSpellImmune(IUnit unit, bool immune)
+	public void SetUnitSpellImmune(UnitId unit, bool immune)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
 			if (immune)
 			{
-				if (!GameContext.World.Has<SpellImmune>(wrapper.Entity))
-					GameContext.World.Add(wrapper.Entity, new SpellImmune());
+				if (!GameContext.World.Has<SpellImmune>(entity))
+					GameContext.World.Add(entity, new SpellImmune());
 			}
 			else
 			{
-				if (GameContext.World.Has<SpellImmune>(wrapper.Entity))
-					GameContext.World.Remove<SpellImmune>(wrapper.Entity);
+				if (GameContext.World.Has<SpellImmune>(entity))
+					GameContext.World.Remove<SpellImmune>(entity);
 			}
 		}
 	}
@@ -372,21 +373,24 @@ public class SimulationService
 		}
 	}
 
-	public void IssueAttackMoveOrder(IUnit unit, Vector3 destination, Action<IUnit, string, Vector3>? onUnitOrdered)
+	public void IssueAttackMoveOrder(UnitId unit, Vector3 destination, Action<UnitId, string, Vector3>? onUnitOrdered)
 	{
-		if (unit != null)
+		var wrapper = GetUnitWrapper(unit);
+		if (wrapper != null)
 		{
-			unit.AttackMove(destination);
+			wrapper.AttackMove(destination);
 			onUnitOrdered?.Invoke(unit, "AttackMove", destination);
 		}
 	}
 
-	public void IssueCastOrder(IUnit caster, string abilityId, IUnit target, Action<IUnit, string, Vector3>? onUnitOrdered)
+	public void IssueCastOrder(UnitId caster, string abilityId, UnitId target, Action<UnitId, string, Vector3>? onUnitOrdered)
 	{
-		if (caster != null)
+		var casterWrapper = GetUnitWrapper(caster);
+		if (casterWrapper != null)
 		{
-			caster.Attack(target);
-			Vector3 pos = target?.Position ?? Vector3.Zero;
+			casterWrapper.Attack(target);
+			var targetWrapper = GetUnitWrapper(target);
+			Vector3 pos = targetWrapper?.Position ?? Vector3.Zero;
 			onUnitOrdered?.Invoke(caster, abilityId ?? "Cast", pos);
 		}
 	}
@@ -1175,6 +1179,63 @@ public class SimulationService
 		return wrapper;
 	}
 
+	public bool TryGetEntity(UnitId unit, out Entity entity)
+	{
+		if (!unit.IsValid)
+		{
+			entity = Entity.Null;
+			return false;
+		}
+
+		if (UnitWrapperCache.TryGetValue(unit.Value, out var wrapper) && GameContext.World != null && GameContext.World.IsAlive(((IEcsEntityWrapper)wrapper).Entity))
+		{
+			entity = ((IEcsEntityWrapper)wrapper).Entity;
+			return true;
+		}
+
+		if (GameHost.Instance != null)
+		{
+			var allUnits = GameHost.Instance.AllUnits;
+			for (int i = 0; i < allUnits.Count; i++)
+			{
+				var u = allUnits[i];
+				if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.Value && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
+				{
+					entity = u.Entity;
+					return true;
+				}
+			}
+		}
+
+		entity = Entity.Null;
+		return false;
+	}
+
+	public Unit_WasmRuntime? GetUnitWrapper(UnitId unit)
+	{
+		if (!unit.IsValid) return null;
+
+		if (UnitWrapperCache.TryGetValue(unit.Value, out var wrapper) && GameContext.World != null && GameContext.World.IsAlive(((IEcsEntityWrapper)wrapper).Entity))
+		{
+			return wrapper;
+		}
+
+		if (GameHost.Instance != null)
+		{
+			var allUnits = GameHost.Instance.AllUnits;
+			for (int i = 0; i < allUnits.Count; i++)
+			{
+				var u = allUnits[i];
+				if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.Value && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
+				{
+					return GetUnitWrapper(u.Entity);
+				}
+			}
+		}
+
+		return null;
+	}
+
 	private readonly List<string> _tickExpiredCooldowns = new();
 	public readonly Dictionary<int, Unit_WasmRuntime> UnitWrapperCache = new();
 	public readonly HashSet<Entity> WarnedNonFinitePositions = new();
@@ -1500,61 +1561,66 @@ public class SimulationService
 		_combatService.HealAOE(position, radius, healAmount, casterEntity);
 	}
 
-	public int CountUnitsOwnedByPlayer(IEnumerable<IUnit> units)
+	public int CountUnitsOwnedByPlayer(ReadOnlySpan<UnitId> units)
 	{
 		int count = 0;
-		foreach (var unit in units)
+		for (int i = 0; i < units.Length; i++)
 		{
-			if (!unit.IsDead)
+			var wrapper = GetUnitWrapper(units[i]);
+			if (wrapper != null && !wrapper.IsDead)
 				count++;
 		}
 
 		return count;
 	}
 
-	public void SetUnitRouteState(IUnit unit, int state)
+	public void SetUnitRouteState(UnitId unit, int state)
 	{
-		unit.SetCustomData("__routeState", state);
+		var wrapper = GetUnitWrapper(unit);
+		wrapper?.SetCustomData("__routeState", state);
 	}
 
-	public int GetUnitRouteState(IUnit unit)
+	public int GetUnitRouteState(UnitId unit)
 	{
-		string? data = unit.GetCustomData("__routeState");
+		var wrapper = GetUnitWrapper(unit);
+		string? data = wrapper?.GetCustomDataString("__routeState");
 		return int.TryParse(data, out int i) ? i : 0;
 	}
 
-	public void SetUnitLevel(IUnit unit, int level)
+	public void SetUnitLevel(UnitId unit, int level)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			GameContext.World.SetOrAdd(wrapper.Entity, new Level(level));
+			GameContext.World.SetOrAdd(entity, new Level(level));
 		}
 	}
 
-	public void IssueAttackMoveOrderToPlayer(Vector3 destination, IEnumerable<IUnit> units)
+	public void IssueAttackMoveOrderToPlayer(Vector3 destination, ReadOnlySpan<UnitId> units)
 	{
-		foreach (var unit in units)
+		for (int i = 0; i < units.Length; i++)
 		{
-			if (!unit.IsDead && !unit.IsBuilding)
-				unit.AttackMove(destination);
+			var wrapper = GetUnitWrapper(units[i]);
+			if (wrapper != null && !wrapper.IsDead && !wrapper.IsBuilding)
+				wrapper.AttackMove(destination);
 		}
 	}
 
-	public void IssueCastOrderAt(IUnit caster, string abilityId, Vector3 position, Action<IUnit, string, Vector3>? onUnitOrdered)
+	public void IssueCastOrderAt(UnitId caster, string abilityId, Vector3 position, Action<UnitId, string, Vector3>? onUnitOrdered)
 	{
-		if (caster != null)
+		var wrapper = GetUnitWrapper(caster);
+		if (wrapper != null)
 		{
-			caster.AttackMove(position);
+			wrapper.AttackMove(position);
 			onUnitOrdered?.Invoke(caster, abilityId ?? "CastAt", position);
 		}
 	}
 
-	public void SetAbilityAutoCast(IUnit unit, string abilityId, bool active)
+	public void SetAbilityAutoCast(UnitId unit, string abilityId, bool active)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			var entity = wrapper.Entity;
-			string unitTypeId = unit.UnitId;
+			var wrapper = GetUnitWrapper(unit);
+			string unitTypeId = wrapper?.UnitId ?? string.Empty;
 			var abilities = GameContext.RegistryService.GetUnitTypeAbilities(unitTypeId);
 			int slotIdx = -1;
 			for (int i = 0; i < abilities.Count; i++)
@@ -1582,11 +1648,10 @@ public class SimulationService
 		}
 	}
 
-	public void EnableUnitAutoCombat(IUnit unit, bool enabled)
+	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			var entity = wrapper.Entity;
 			if (enabled)
 			{
 				GameContext.World.SetOrAdd(entity, new AutoCombatState(true));
@@ -1735,15 +1800,16 @@ public class SimulationService
 		}
 	}
 
-	public void SetUnitOwner(IUnit unit, int playerIndex)
+	public void SetUnitOwner(UnitId unit, int playerIndex)
 	{
-		unit.Player = playerIndex;
+		var wrapper = GetUnitWrapper(unit);
+		if (wrapper != null) wrapper.Player = playerIndex;
 	}
 
-	public void CastAbility(IUnit unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<IUnit, string, Vector3> onSpellCast, Action<AbilityDefinition, Godot.Vector3> spawnFx)
+	public void CastAbility(UnitId unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<UnitId, string, Vector3>? onSpellCast, Action<AbilityDefinition, Godot.Vector3>? spawnFx)
 	{
 		var godotPos = new Godot.Vector3(targetPosition.X, targetPosition.Y, targetPosition.Z);
-		var casterEnt = unit is IEcsEntityWrapper w ? w.Entity : Entity.Null;
+		TryGetEntity(unit, out var casterEnt);
 
 		if (def != null)
 		{
@@ -1769,22 +1835,22 @@ public class SimulationService
 		}
 	}
 
-	public float GetAbilityCooldown(IUnit unit, string abilityId)
+	public float GetAbilityCooldown(UnitId unit, string abilityId)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			if (GameContext.World.Has<Cooldowns>(wrapper.Entity))
+			if (GameContext.World.Has<Cooldowns>(entity))
 			{
-				var cds = GameContext.World.Get<Cooldowns>(wrapper.Entity).Value;
+				var cds = GameContext.World.Get<Cooldowns>(entity).Value;
 				if (cds.TryGetValue(abilityId, out var val))
 				{
 					return val;
 				}
 			}
 
-			if (GameContext.World.Has<SpellCooldowns>(wrapper.Entity))
+			if (GameContext.World.Has<SpellCooldowns>(entity))
 			{
-				var scds = GameContext.World.Get<SpellCooldowns>(wrapper.Entity).Value;
+				var scds = GameContext.World.Get<SpellCooldowns>(entity).Value;
 				if (scds != null && scds.TryGetValue(abilityId, out var val))
 				{
 					return val;
@@ -1795,44 +1861,56 @@ public class SimulationService
 		return 0f;
 	}
 
-	public void SetAbilityCooldown(IUnit unit, string abilityId, float cooldown)
+	public void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
 			Dictionary<string, float> dict;
-			if (GameContext.World.Has<Cooldowns>(wrapper.Entity))
+			if (GameContext.World.Has<Cooldowns>(entity))
 			{
-				dict = GameContext.World.Get<Cooldowns>(wrapper.Entity).Value;
+				dict = GameContext.World.Get<Cooldowns>(entity).Value;
 			}
 			else
 			{
 				dict = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
-				GameContext.World.Add(wrapper.Entity, new Cooldowns(dict));
+				GameContext.World.Add(entity, new Cooldowns(dict));
 			}
 
 			dict[abilityId] = cooldown;
 
-			if (GameContext.World.Has<SpellCooldowns>(wrapper.Entity))
+			if (GameContext.World.Has<SpellCooldowns>(entity))
 			{
-				var scd = GameContext.World.Get<SpellCooldowns>(wrapper.Entity).Value;
+				var scd = GameContext.World.Get<SpellCooldowns>(entity).Value;
 				if (scd != null) scd[abilityId] = cooldown;
 			}
 			else
 			{
 				var scdDict = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase) { [abilityId] = cooldown };
-				GameContext.World.Add(wrapper.Entity, new SpellCooldowns(scdDict));
+				GameContext.World.Add(entity, new SpellCooldowns(scdDict));
 			}
 		}
 	}
 
-	public void RemoveBuff(IUnit unit, string buffId)
+	public void SetAbilityCooldown(Unit_WasmRuntime unit, string abilityId, float cooldown)
 	{
-		unit.RemoveBuff(buffId);
+		SetAbilityCooldown((UnitId)unit.UniqueId, abilityId, cooldown);
 	}
 
-	public IEnumerable<string> GetModifiers(IUnit unit)
+	public void CastAbility(Unit_WasmRuntime unit, string abilityId, Vector3 targetPosition, AbilityDefinition def, Action<UnitId, string, Vector3>? onSpellCast, Action<AbilityDefinition, Godot.Vector3>? spawnFx)
 	{
-		return unit.GetModifiers();
+		CastAbility((UnitId)unit.UniqueId, abilityId, targetPosition, def, onSpellCast, spawnFx);
+	}
+
+	public void RemoveBuff(UnitId unit, string buffId)
+	{
+		var wrapper = GetUnitWrapper(unit);
+		wrapper?.RemoveBuff(buffId);
+	}
+
+	public IEnumerable<string> GetModifiers(UnitId unit)
+	{
+		var wrapper = GetUnitWrapper(unit);
+		return wrapper?.GetModifiers() ?? Array.Empty<string>();
 	}
 
 	public void SpawnProjectile(string projectileTypeId, Vector3 start, Vector3 target, float speed, Action<string, Vector3, Vector3, float> spawnView)

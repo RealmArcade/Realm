@@ -162,9 +162,9 @@ public class ClientRpcService
 		}
 	}
 
-	public void SelectUnit(int playerIndex, IUnit unit)
+	public void SelectUnit(int playerIndex, UnitId unit)
 	{
-		if (unit == null)
+		if (!unit.IsValid)
 			return;
 
 		if (!TryResolveTargetClient(playerIndex, out var host, out bool isLocal, out int remotePeerId))
@@ -174,9 +174,9 @@ public class ClientRpcService
 		{
 			host.SelectUnitInternal(unit);
 		}
-		else if (remotePeerId > 1 && unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		else if (remotePeerId > 1)
 		{
-			host.RpcId(remotePeerId, nameof(GameHost.ClientSelectUnit), wrapper.Entity.Id);
+			host.RpcId(remotePeerId, nameof(GameHost.ClientSelectUnit), unit.Value);
 		}
 	}
 
@@ -193,26 +193,6 @@ public class ClientRpcService
 		{
 			host.RpcId(remotePeerId, nameof(GameHost.ClientClearSelection));
 		}
-	}
-
-	public IEnumerable<IUnit> GetSelectedUnits(int playerIndex)
-	{
-		if (!TryResolveTargetClient(playerIndex, out var host, out bool isLocal, out _))
-			return Array.Empty<IUnit>();
-
-		if (!isLocal)
-			return Array.Empty<IUnit>();
-
-		var list = new List<IUnit>();
-		foreach (var u in host.SelectedUnits)
-		{
-			if (GodotObject.IsInstanceValid(u) && GameContext.World.IsAlive(u.Entity))
-			{
-				list.Add(GameContext.SimulationService.GetUnitWrapper(u.Entity));
-			}
-		}
-
-		return list;
 	}
 
 	public void SendMessage(int playerIndex, string message)

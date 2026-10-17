@@ -454,12 +454,12 @@ public class RegistryService
 		def.Hotkey = hotkey ?? "";
 	}
 
-	public void SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden)
+	public void SetAbilityState(UnitId unit, string abilityId, bool disabled, bool hidden)
 	{
-		if (unit == null || string.IsNullOrEmpty(abilityId)) return;
+		if (!unit.IsValid || string.IsNullOrEmpty(abilityId)) return;
 		foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 		{
-			UnitAbilityStates[(unit.UniqueId, key)] = (disabled, hidden);
+			UnitAbilityStates[(unit.Value, key)] = (disabled, hidden);
 		}
 		if (GameHost.Instance != null)
 		{
@@ -467,13 +467,18 @@ public class RegistryService
 		}
 	}
 
-	public bool IsAbilityDisabledForUnit(IUnit unit, string abilityId)
+	public void SetAbilityState(Unit_WasmRuntime unit, string abilityId, bool disabled, bool hidden)
 	{
-		if (unit != null && !string.IsNullOrEmpty(abilityId))
+		if (unit != null) SetAbilityState((UnitId)unit.UniqueId, abilityId, disabled, hidden);
+	}
+
+	public bool IsAbilityDisabledForUnit(UnitId unit, string abilityId)
+	{
+		if (unit.IsValid && !string.IsNullOrEmpty(abilityId))
 		{
 			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 			{
-				if (UnitAbilityStates.TryGetValue((unit.UniqueId, key), out var state))
+				if (UnitAbilityStates.TryGetValue((unit.Value, key), out var state))
 				{
 					return state.Disabled;
 				}
@@ -483,13 +488,18 @@ public class RegistryService
 		return false;
 	}
 
-	public bool IsAbilityHiddenForUnit(IUnit unit, string abilityId)
+	public bool IsAbilityDisabledForUnit(Unit_WasmRuntime unit, string abilityId)
 	{
-		if (unit != null && !string.IsNullOrEmpty(abilityId))
+		return unit != null && IsAbilityDisabledForUnit((UnitId)unit.UniqueId, abilityId);
+	}
+
+	public bool IsAbilityHiddenForUnit(UnitId unit, string abilityId)
+	{
+		if (unit.IsValid && !string.IsNullOrEmpty(abilityId))
 		{
 			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 			{
-				if (UnitAbilityStates.TryGetValue((unit.UniqueId, key), out var state))
+				if (UnitAbilityStates.TryGetValue((unit.Value, key), out var state))
 				{
 					return state.Hidden;
 				}
@@ -497,6 +507,11 @@ public class RegistryService
 		}
 
 		return false;
+	}
+
+	public bool IsAbilityHiddenForUnit(Unit_WasmRuntime unit, string abilityId)
+	{
+		return unit != null && IsAbilityHiddenForUnit((UnitId)unit.UniqueId, abilityId);
 	}
 
 	public void SetAbilityTooltip(string abilityId, string tooltip)
@@ -612,28 +627,33 @@ public class RegistryService
 		def.GridY = y;
 	}
 
-	public void SetAbilityManaCost(IUnit unit, string abilityId, float manaCost)
+	public void SetAbilityManaCost(UnitId unit, string abilityId, float manaCost)
 	{
 		if (string.IsNullOrEmpty(abilityId)) return;
 
 		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.ManaCost = manaCost;
-		if (unit != null)
+		if (unit.IsValid)
 		{
 			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 			{
-				UnitAbilityManaCosts[(unit.UniqueId, key)] = manaCost;
+				UnitAbilityManaCosts[(unit.Value, key)] = manaCost;
 			}
 		}
 	}
 
-	public float GetAbilityManaCostForUnit(IUnit unit, string abilityId)
+	public void SetAbilityManaCost(Unit_WasmRuntime unit, string abilityId, float manaCost)
 	{
-		if (unit != null && !string.IsNullOrEmpty(abilityId))
+		if (unit != null) SetAbilityManaCost((UnitId)unit.UniqueId, abilityId, manaCost);
+	}
+
+	public float GetAbilityManaCostForUnit(UnitId unit, string abilityId)
+	{
+		if (unit.IsValid && !string.IsNullOrEmpty(abilityId))
 		{
 			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 			{
-				if (UnitAbilityManaCosts.TryGetValue((unit.UniqueId, key), out float cost))
+				if (UnitAbilityManaCosts.TryGetValue((unit.Value, key), out float cost))
 				{
 					return cost;
 				}
@@ -642,6 +662,11 @@ public class RegistryService
 
 		var def = GetAbilityDefinition(abilityId);
 		return def?.ManaCost ?? 0f;
+	}
+
+	public float GetAbilityManaCostForUnit(Unit_WasmRuntime unit, string abilityId)
+	{
+		return unit != null ? GetAbilityManaCostForUnit((UnitId)unit.UniqueId, abilityId) : 0f;
 	}
 
 	public void SetItemTooltip(string itemId, string tooltip)

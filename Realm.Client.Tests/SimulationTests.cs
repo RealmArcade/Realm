@@ -218,7 +218,7 @@ public class TestWasmMap : IWasmModule
 		InGameHUD.Instance?.RefreshUI(GameHost.Instance.SelectedUnits);
 
 		Vector3 destination = new Vector3(-20f, 0f, -50f);
-		IUnit unitWrapper = GameContext.SimulationService.GetUnitWrapper(worker.Entity);
+		var unitWrapper = GameContext.SimulationService.GetUnitWrapper(worker.Entity);
 		unitWrapper.MoveTo(destination);
 		return worker;
 	}
