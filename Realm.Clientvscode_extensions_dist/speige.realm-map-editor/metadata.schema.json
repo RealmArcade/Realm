@@ -886,6 +886,18 @@
                   ]
                 }
               },
+              "ShopItems": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
               "Upgrades": {
                 "type": [
                   "array",
@@ -1607,6 +1619,12 @@
                 "type": "string"
               },
               "IconPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Hotkey": {
                 "type": [
                   "string",
                   "null"

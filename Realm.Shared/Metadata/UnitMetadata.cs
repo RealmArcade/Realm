@@ -76,6 +76,7 @@ public class UnitMetadata
 	public UnitObjectAttachments? ObjectAttachments { get; set; }
 	public UnitSoundsMetadata? Sounds { get; set; }
 	public string[]? StartingItems { get; set; }
+	public string[]? ShopItems { get; set; }
 	public string[]? Upgrades { get; set; }
 	public string[]? StatusEffects { get; set; }
 	public string[]? SoundEvents { get; set; }

@@ -293,6 +293,17 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.World?.Mutate(pe, (ref PlayerUpgrades u) => u.HarvestingUpgrade = value);
 	}
 
+	public int GetPlayerTechLevel(int playerIndex, string techId)
+	{
+		if (playerIndex <= 0) playerIndex = LocalViewingPlayerIndex;
+		return GameContext.TechTreeService?.GetPlayerTechLevel(playerIndex, techId) ?? 0;
+	}
+
+	public bool HasUpgrade(int playerIndex, string techId)
+	{
+		return GetPlayerTechLevel(playerIndex, techId) > 0;
+	}
+
 
 	private Node3D? _buildingPreviewMesh { get; set; }
 

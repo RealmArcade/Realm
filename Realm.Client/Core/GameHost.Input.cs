@@ -3420,6 +3420,11 @@ public partial class GameHost
 			return;
 		}
 
+		if (buildingEntity == Entity.Null && SelectedUnits.Count > 0)
+		{
+			buildingEntity = SelectedUnits[0].Entity;
+		}
+
 		if (!TryGetUnit3D(buildingEntity, out var building3D)) return;
 
 		var selectedEntity = SelectedUnits.Count > 0 ? SelectedUnits[0].Entity : Entity.Null;
@@ -3981,6 +3986,71 @@ public partial class GameHost
 					UIManager.Instance?.PlayClickSound();
 					InGameHUD.Instance.RefreshUI(SelectedUnits);
 				}
+			}
+		}
+		else if (playerIndex == LocalViewingPlayerIndex && InGameHUD.Instance != null)
+		{
+			InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
+			UIManager.Instance?.PlayWarningSound();
+		}
+	}
+
+	public void BuyUpgrade(string upgradeId, int playerIndex = 0)
+	{
+		if (IsClientSpectator) return;
+		if (playerIndex <= 0) playerIndex = LocalViewingPlayerIndex;
+		if (playerIndex <= 0) return;
+
+		UpgradeMetadata? upgMeta = null;
+		if (!UpgradeRegistry.TryGetValue(upgradeId, out upgMeta))
+		{
+			if (upgradeId.StartsWith("upgrade/", StringComparison.OrdinalIgnoreCase))
+			{
+				UpgradeRegistry.TryGetValue(upgradeId.Substring(8), out upgMeta);
+			}
+			else
+			{
+				UpgradeRegistry.TryGetValue("upgrade/" + upgradeId, out upgMeta);
+			}
+		}
+
+		string canonicalId = upgMeta != null && !string.IsNullOrEmpty(upgMeta.TemplateID) ? upgMeta.TemplateID : upgradeId;
+		int maxLevel = upgMeta != null && upgMeta.MaxLevel > 0 ? upgMeta.MaxLevel : 1;
+
+		int currentLevel = GameContext.TechTreeService.GetPlayerTechLevel(playerIndex, canonicalId);
+		if (currentLevel == 0 && canonicalId != upgradeId)
+		{
+			currentLevel = GameContext.TechTreeService.GetPlayerTechLevel(playerIndex, upgradeId);
+		}
+
+		if (currentLevel >= maxLevel) return;
+
+		float costGold = upgMeta?.CostGold ?? 0f;
+		float costWood = upgMeta?.CostWood ?? 0f;
+		float costStone = upgMeta?.CostStone ?? 0f;
+
+		float currentGold = ((IGameAPI)this).GetPlayerGold(playerIndex);
+		float currentWood = ((IGameAPI)this).GetPlayerWood(playerIndex);
+		float currentStone = ((IGameAPI)this).GetPlayerStone(playerIndex);
+
+		if (currentGold >= costGold && currentWood >= costWood && currentStone >= costStone)
+		{
+			if (costGold > 0) ((IGameAPI)this).SetPlayerGold(playerIndex, currentGold - costGold);
+			if (costWood > 0) ((IGameAPI)this).SetPlayerWood(playerIndex, currentWood - costWood);
+			if (costStone > 0) ((IGameAPI)this).SetPlayerStone(playerIndex, currentStone - costStone);
+
+			GameContext.TechTreeService.AddPlayerTechLevel(playerIndex, canonicalId, 1);
+
+			if (string.Equals(canonicalId, "upgrade_weapons", StringComparison.OrdinalIgnoreCase) || string.Equals(canonicalId, "weapons", StringComparison.OrdinalIgnoreCase)) SetWeaponsUpgrade(playerIndex, true);
+			if (string.Equals(canonicalId, "upgrade_shields", StringComparison.OrdinalIgnoreCase) || string.Equals(canonicalId, "shields", StringComparison.OrdinalIgnoreCase)) SetShieldsUpgrade(playerIndex, true);
+			if (string.Equals(canonicalId, "upgrade_harvesting", StringComparison.OrdinalIgnoreCase) || string.Equals(canonicalId, "harvesting", StringComparison.OrdinalIgnoreCase)) SetHarvestingUpgrade(playerIndex, true);
+
+			if (playerIndex == LocalViewingPlayerIndex && InGameHUD.Instance != null)
+			{
+				string upgName = upgMeta != null && !string.IsNullOrEmpty(upgMeta.Name) ? upgMeta.Name : canonicalId;
+				InGameHUD.Instance.ShowFeedbackText($"Research Complete: {upgName}!", new Color(0.2f, 0.8f, 1.0f));
+				UIManager.Instance?.PlayClickSound();
+				InGameHUD.Instance.RefreshUI(SelectedUnits);
 			}
 		}
 		else if (playerIndex == LocalViewingPlayerIndex && InGameHUD.Instance != null)
