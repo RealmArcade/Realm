@@ -1533,6 +1533,22 @@ public interface IGameAPI
 	ReadOnlySpan<PlayerId> GetActivePlayers(int exclusiveUpperBound = -1);
 
 	/// <summary>
+	/// Returns the zero-based slot indices of all active players.
+	/// </summary>
+	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
+	/// <returns>An enumerable sequence of active player slot indices.</returns>
+	IEnumerable<int> GetActivePlayerIndices(int exclusiveUpperBound = -1)
+	{
+		var players = GetActivePlayers(exclusiveUpperBound);
+		var result = new List<int>(players.Length);
+		for (int i = 0; i < players.Length; i++)
+		{
+			result.Add(players[i].Value);
+		}
+		return result;
+	}
+
+	/// <summary>
 	/// Gets the stone resource for the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>

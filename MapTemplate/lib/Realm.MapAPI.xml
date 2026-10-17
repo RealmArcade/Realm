@@ -1967,6 +1967,13 @@
             <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="P:Realm.MapAPI.IGameAPI.PlayerCount"/>.</param>
             <returns>A read-only span of active <see cref="T:Realm.MapAPI.PlayerId"/> identifiers in ascending slot order.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetActivePlayerIndices(System.Int32)">
+            <summary>
+            Returns the zero-based slot indices of all active players.
+            </summary>
+            <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="P:Realm.MapAPI.IGameAPI.PlayerCount"/>.</param>
+            <returns>An enumerable sequence of active player slot indices.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetPlayerStone(System.Int32)">
             <summary>
             Gets the stone resource for the specified player slot.
@@ -3423,6 +3430,111 @@
             </summary>
             <param name="buildingTypeId">The archetype identifier of the building to place.</param>
         </member>
+        <member name="P:Realm.MapAPI.PlayerId.Language">
+            <summary>
+            Gets the language code preference of this player.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.PlayerId.ColorHex">
+            <summary>
+            Gets the hexadecimal color string for this player slot.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.PlayerId.ColoredName">
+            <summary>
+            Gets the formatted bbcode colored name of this player.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.GetName">
+            <summary>
+            Gets the display name of this player.
+            </summary>
+            <returns>The display name string.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.GetTeam">
+            <summary>
+            Gets the team index that this player belongs to.
+            </summary>
+            <returns>The team index.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.SetTeam(System.Int32)">
+            <summary>
+            Sets the team index that this player belongs to.
+            </summary>
+            <param name="teamIndex">The new team index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.GetStartLocation">
+            <summary>
+            Gets the start location for this player in 3D world space.
+            </summary>
+            <returns>The 3D start coordinates.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.GetGold">
+            <summary>
+            Gets the current gold resource amount for this player.
+            </summary>
+            <returns>The gold resource value.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.SetGold(System.Single)">
+            <summary>
+            Sets the current gold resource amount for this player.
+            </summary>
+            <param name="amount">The new gold amount.</param>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.GetWood">
+            <summary>
+            Gets the current wood resource amount for this player.
+            </summary>
+            <returns>The wood resource value.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.SetWood(System.Single)">
+            <summary>
+            Sets the current wood resource amount for this player.
+            </summary>
+            <param name="amount">The new wood amount.</param>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.GetStone">
+            <summary>
+            Gets the current stone resource amount for this player.
+            </summary>
+            <returns>The stone resource value.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.SetStone(System.Single)">
+            <summary>
+            Sets the current stone resource amount for this player.
+            </summary>
+            <param name="amount">The new stone amount.</param>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.GetCurrentPopulation">
+            <summary>
+            Gets the current population count consumed by this player's living units.
+            </summary>
+            <returns>The current population count.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.GetMaxPopulation">
+            <summary>
+            Gets the maximum population supply capacity for this player.
+            </summary>
+            <returns>The maximum population limit.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.SetMaxPopulation(System.Int32)">
+            <summary>
+            Sets the maximum population supply capacity for this player.
+            </summary>
+            <param name="max">The new maximum population capacity.</param>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.GetKills">
+            <summary>
+            Gets the total number of enemy unit kills credited to this player.
+            </summary>
+            <returns>The total kill count.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerId.SetKills(System.Int32)">
+            <summary>
+            Sets the total number of enemy unit kills credited to this player.
+            </summary>
+            <param name="kills">The new kill count.</param>
+        </member>
         <member name="M:Realm.MapAPI.PlayerId.ToString">
             <summary>
             Formats the player identifier as a string.
@@ -3869,6 +3981,11 @@
             Gets or sets a value indicating whether the unit is invulnerable to all damage.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.UnitId.HideHealthAndManaBars">
+            <summary>
+            Gets or sets a value indicating whether overhead health and mana bars are hidden for this unit.
+            </summary>
+        </member>
         <member name="P:Realm.MapAPI.UnitId.Facing">
             <summary>
             Gets or sets the facing orientation of the unit in radians.
@@ -3966,6 +4083,28 @@
             </summary>
             <param name="itemId">The identifier of the item definition to grant.</param>
             <returns>True if the item was successfully added; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.UnitId.AddItem(System.String,System.Int32)">
+            <summary>
+            Adds an item to the unit's inventory with the specified initial number of charges.
+            </summary>
+            <param name="itemId">The identifier of the item definition to grant.</param>
+            <param name="charges">The initial charge count for the item.</param>
+            <returns>True if the item was successfully added; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.UnitId.GetItemCharges(System.String)">
+            <summary>
+            Gets the number of charges for the specified item in the unit's inventory.
+            </summary>
+            <param name="itemId">The identifier of the item.</param>
+            <returns>The charge count, or 1 if the item is present without specific charges, or 0 if not present.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.UnitId.SetItemCharges(System.String,System.Int32)">
+            <summary>
+            Sets the number of charges for the specified item in the unit's inventory.
+            </summary>
+            <param name="itemId">The identifier of the item.</param>
+            <param name="charges">The new charge count.</param>
         </member>
         <member name="M:Realm.MapAPI.UnitId.RemoveItem(System.String)">
             <summary>

@@ -335,6 +335,111 @@ public readonly record struct PlayerId(int Value)
 	public void StartBuildingPlacement(string buildingTypeId) => GameAPI.Current.StartPlayerBuildingPlacement(Value, buildingTypeId);
 
 	/// <summary>
+	/// Gets the language code preference of this player.
+	/// </summary>
+	public string Language => GameAPI.Current.GetPlayerLanguage(Value);
+
+	/// <summary>
+	/// Gets the hexadecimal color string for this player slot.
+	/// </summary>
+	public string ColorHex => GameAPI.Current.GetPlayerColorHex(Value);
+
+	/// <summary>
+	/// Gets the formatted bbcode colored name of this player.
+	/// </summary>
+	public string ColoredName => GameAPI.Current.FormatColoredPlayerName(Value);
+
+	/// <summary>
+	/// Gets the display name of this player.
+	/// </summary>
+	/// <returns>The display name string.</returns>
+	public string GetName() => Name;
+
+	/// <summary>
+	/// Gets the team index that this player belongs to.
+	/// </summary>
+	/// <returns>The team index.</returns>
+	public int GetTeam() => Team;
+
+	/// <summary>
+	/// Sets the team index that this player belongs to.
+	/// </summary>
+	/// <param name="teamIndex">The new team index.</param>
+	public void SetTeam(int teamIndex) => Team = teamIndex;
+
+	/// <summary>
+	/// Gets the start location for this player in 3D world space.
+	/// </summary>
+	/// <returns>The 3D start coordinates.</returns>
+	public Vector3 GetStartLocation() => StartLocation;
+
+	/// <summary>
+	/// Gets the current gold resource amount for this player.
+	/// </summary>
+	/// <returns>The gold resource value.</returns>
+	public float GetGold() => Gold;
+
+	/// <summary>
+	/// Sets the current gold resource amount for this player.
+	/// </summary>
+	/// <param name="amount">The new gold amount.</param>
+	public void SetGold(float amount) => Gold = amount;
+
+	/// <summary>
+	/// Gets the current wood resource amount for this player.
+	/// </summary>
+	/// <returns>The wood resource value.</returns>
+	public float GetWood() => Wood;
+
+	/// <summary>
+	/// Sets the current wood resource amount for this player.
+	/// </summary>
+	/// <param name="amount">The new wood amount.</param>
+	public void SetWood(float amount) => Wood = amount;
+
+	/// <summary>
+	/// Gets the current stone resource amount for this player.
+	/// </summary>
+	/// <returns>The stone resource value.</returns>
+	public float GetStone() => Stone;
+
+	/// <summary>
+	/// Sets the current stone resource amount for this player.
+	/// </summary>
+	/// <param name="amount">The new stone amount.</param>
+	public void SetStone(float amount) => Stone = amount;
+
+	/// <summary>
+	/// Gets the current population count consumed by this player's living units.
+	/// </summary>
+	/// <returns>The current population count.</returns>
+	public int GetCurrentPopulation() => CurrentPopulation;
+
+	/// <summary>
+	/// Gets the maximum population supply capacity for this player.
+	/// </summary>
+	/// <returns>The maximum population limit.</returns>
+	public int GetMaxPopulation() => MaxPopulation;
+
+	/// <summary>
+	/// Sets the maximum population supply capacity for this player.
+	/// </summary>
+	/// <param name="max">The new maximum population capacity.</param>
+	public void SetMaxPopulation(int max) => MaxPopulation = max;
+
+	/// <summary>
+	/// Gets the total number of enemy unit kills credited to this player.
+	/// </summary>
+	/// <returns>The total kill count.</returns>
+	public int GetKills() => Kills;
+
+	/// <summary>
+	/// Sets the total number of enemy unit kills credited to this player.
+	/// </summary>
+	/// <param name="kills">The new kill count.</param>
+	public void SetKills(int kills) => Kills = kills;
+
+	/// <summary>
 	/// Formats the player identifier as a string.
 	/// </summary>
 	/// <returns>A string representation of the player slot index.</returns>

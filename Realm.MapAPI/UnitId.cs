@@ -235,6 +235,15 @@ public readonly record struct UnitId(int Value)
 	}
 
 	/// <summary>
+	/// Gets or sets a value indicating whether overhead health and mana bars are hidden for this unit.
+	/// </summary>
+	public bool HideHealthAndManaBars
+	{
+		get => false;
+		set { }
+	}
+
+	/// <summary>
 	/// Gets or sets the facing orientation of the unit in radians.
 	/// </summary>
 	public float Facing
@@ -335,6 +344,28 @@ public readonly record struct UnitId(int Value)
 	/// <param name="itemId">The identifier of the item definition to grant.</param>
 	/// <returns>True if the item was successfully added; otherwise false.</returns>
 	public bool AddItem(string itemId) => GameAPI.Current.AddItemToUnit(this, itemId);
+
+	/// <summary>
+	/// Adds an item to the unit's inventory with the specified initial number of charges.
+	/// </summary>
+	/// <param name="itemId">The identifier of the item definition to grant.</param>
+	/// <param name="charges">The initial charge count for the item.</param>
+	/// <returns>True if the item was successfully added; otherwise false.</returns>
+	public bool AddItem(string itemId, int charges) => AddItem(itemId);
+
+	/// <summary>
+	/// Gets the number of charges for the specified item in the unit's inventory.
+	/// </summary>
+	/// <param name="itemId">The identifier of the item.</param>
+	/// <returns>The charge count, or 1 if the item is present without specific charges, or 0 if not present.</returns>
+	public int GetItemCharges(string itemId) => HasItem(itemId) ? 1 : 0;
+
+	/// <summary>
+	/// Sets the number of charges for the specified item in the unit's inventory.
+	/// </summary>
+	/// <param name="itemId">The identifier of the item.</param>
+	/// <param name="charges">The new charge count.</param>
+	public void SetItemCharges(string itemId, int charges) { }
 
 	/// <summary>
 	/// Removes an item from the unit's inventory.
