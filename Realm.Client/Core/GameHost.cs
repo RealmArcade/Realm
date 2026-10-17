@@ -171,7 +171,6 @@ public partial class GameHost : Node3D, IGameAPI
 	public static Dictionary<int, LootItem_WasmRuntime> IdToLootItem { get; set; } = new();
 	private readonly List<int> _expiredLootToDespawn = new();
 	private readonly List<(int LootId, Entity UnitEntity)> _collectedLootToProcess = new();
-	private List<Unit3D> _castlesList { get; set; } = new();
 
 	public static Dictionary<Entity, Unit3D> EntityToUnit3D { get; set; } = new();
 	public static Dictionary<Entity, Prop3D> EntityToProp3D { get; set; } = new();
@@ -1926,7 +1925,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void InitializeSimulationService()
 	{
-		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, _castlesList, ECSContext.DefinitionManager, ECSContext.PlayerResourceService.GoldResourceId, ECSContext.PlayerResourceService.WoodResourceId, ECSContext.PlayerResourceService.StoneResourceId, GroundTerrain);
+		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, ECSContext.DefinitionManager, ECSContext.PlayerResourceService.GoldResourceId, ECSContext.PlayerResourceService.WoodResourceId, ECSContext.PlayerResourceService.StoneResourceId, GroundTerrain);
 		GameContext.SimulationService.Initialize();
 		GameContext.SimulationService.EditorHeightProvider = p => GameContext.EditorService.GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
 
@@ -1971,7 +1970,6 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.SimulationService.OnUnitDamagedCallback = HandleUnitDamaged;
 		GameContext.SimulationService.OnUnitHealedCallback = HandleUnitHealed;
 		GameContext.SimulationService.OnUnitAttackedCallback = HandleUnitAttacked;
-		GameContext.SimulationService.OnUnderAttackAlertRequested = HandleUnderAttackAlert;
 	}
 
 	private void HandleUnitDamaged(Entity targetEntity, Entity attackerEntity, float damage)
@@ -2001,14 +1999,6 @@ public partial class GameHost : Node3D, IGameAPI
 
 		if (TryGetUnit3D(attackerEntity, out var attackerUnit3D)) attackerUnit3D.PlayAnimation("Attack");
 		OnUnitAttacked?.Invoke(GameContext.SimulationService.GetUnitWrapper(attackerEntity), GameContext.SimulationService.GetUnitWrapper(targetEntity));
-	}
-
-	private void HandleUnderAttackAlert(int targetPlayer, string unitId)
-	{
-		if (targetPlayer != LocalViewingPlayerIndex) return;
-		string alertMsg = unitId == "castle" ? "⚠️ YOUR CASTLE IS UNDER ATTACK!" : $"⚠️ {unitId.ToUpper()} is under attack!";
-		Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(alertMsg, new Color(1.0f, 0.2f, 0.1f))).CallDeferred();
-		Callable.From(() => UIManager.Instance?.PlayWarningSound()).CallDeferred();
 	}
 
 	private void SetupSimulationProductionCallbacks()
@@ -2260,7 +2250,6 @@ public partial class GameHost : Node3D, IGameAPI
 		IdToLootItem.Clear();
 		ClearStaticText();
 
-		_castlesList.Clear();
 		GameContext.FXService.ActivePings.Clear();
 		ClearAllBuildQueueGhosts();
 
@@ -2774,7 +2763,6 @@ public partial class GameHost : Node3D, IGameAPI
 		AllUnits.Add(unit3D);
 
 		UpdatePopulationStats(id, playerIndex, isFromQueue);
-		if (id == "castle") _castlesList.Add(unit3D);
 
 		if (executeSpawnShader) ExecuteSpawnShader(unit3D, id);
 
@@ -2818,11 +2806,6 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (!UnitRegistry.TryGetValue(id, out var popMeta)) return;
 
-		if (id == "castle")
-		{
-			int maxPop = GameContext.ResourceEconomyService?.GetPlayerMaxPopulation(playerIndex) ?? 0;
-			GameContext.ResourceEconomyService?.SetPlayerMaxPopulation(playerIndex, maxPop + 20);
-		}
 		if (!isFromQueue && popMeta.PopCost > 0)
 		{
 			int curPop = GameContext.ResourceEconomyService?.GetPlayerCurrentPopulation(playerIndex) ?? 0;

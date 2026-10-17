@@ -576,7 +576,7 @@ public partial class InGameHUD : Control
 		_minimapControls.AddChild(_btnPing);
 
 		_btnCenter = new Button();
-		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Castle [Space]", () => GameHost.Instance?.CenterCameraOnCastle());
+		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Base [Space]", () => GameHost.Instance?.CenterCameraOnBase());
 		_minimapControls.AddChild(_btnCenter);
 
 		_btnSelectIdle = new Button();
@@ -1539,7 +1539,7 @@ void fragment() {
 		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
 		foreach (var u in selected)
 		{
-			if (u.IsBuilding && u.Player == localPlayer && u.UnitId == "castle")
+			if (u.IsBuilding && u.Player == localPlayer)
 			{
 				u.UpdateRallyVisuals();
 			}
@@ -2063,7 +2063,7 @@ void fragment() {
 				{
 					("WASD / Edge", "Pan Camera"),
 					("Shift+WASD", "Fast Camera Pan"),
-					("Space", "Center Camera on Castle"),
+					("Space", "Center Camera on Base"),
 					("Z", "Cycle Zoom (Near / Mid / Far)"),
 					("F4", "Toggle Terrain Radar Mode"),
 					("Alt+G", "Ping Map Alert"),

@@ -755,7 +755,6 @@ public class SimulationService
 	public void SetRuntimeReferences(
 		List<Unit3D> allUnits,
 		List<Prop3D> allProps,
-		List<Unit3D> castlesList,
 		DefinitionManager definitionManager,
 		ResourceId goldResourceId,
 		ResourceId woodResourceId,
@@ -1111,18 +1110,17 @@ public class SimulationService
 		return (radius, unitPos);
 	}
 
-	public (int PopCost, bool IsCastle) GetDeathPopulationModifiers(Entity unitEntity, string unitId)
+	public int GetDeathPopulationCost(Entity unitEntity, string unitId)
 	{
-		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(unitId, out var killMeta)) return (0, false);
+		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(unitId, out var killMeta)) return 0;
 		
-		bool isCastle = unitId == "castle";
 		int popCost = 0;
 		if (!GameContext.World.Has<BypassPopulationTag>(unitEntity))
 		{
 			popCost = killMeta.PopCost;
 		}
 
-		return (popCost, isCastle);
+		return popCost;
 	}
 
 	public Entity GetKillerEntityDomain(Entity unitEntity)
@@ -1854,13 +1852,6 @@ public class SimulationService
 		var trainer = new SelfPlayTrainer();
 		var profile = trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation, genreProvider: genreProvider);
 		return profile.ToJson();
-	}
-
-	public bool DomainCheckGameOver(string unitId, bool isEnemy)
-	{
-		if (unitId != "castle") return false;
-		ECSContext.IsGameOver = true;
-		return true;
 	}
 
 	public (float Radius, Vector3 PropPos) DomainDepleteProp(Entity propEntity, Vector3 fallbackPos)

@@ -816,7 +816,7 @@ public class InGameHUDViewModel
 			info.ProductionProgress = cs.Progress;
 			info.ProductionMaxProgress = cs.TotalBuildTime;
 		}
-		else if (u.UnitId == "castle" && world.Has<ProductionQueue>(u.Entity))
+		else if (!info.IsEnemy && world.Has<ProductionQueue>(u.Entity))
 		{
 			var prod = world.Get<ProductionQueue>(u.Entity);
 			info.HasProduction = true;

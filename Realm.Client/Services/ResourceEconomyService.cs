@@ -9,6 +9,7 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using static Realm.Ecs.Common.ResourceConstants;
 
@@ -181,40 +182,22 @@ public class ResourceEconomyService
 		var currentPos = pos.Value;
 		var wOwner = GameContext.World.Get<Owner>(entity).PlayerEntity;
 
-		Entity nearestCastle = Entity.Null;
-		Vector3 nearestCastlePos = Vector3.Zero;
-		float nearestDist = float.MaxValue;
+		FindNearestDropoff(currentPos, wOwner, out var nearestDropoff, out var nearestDropoffPos, out float dropoffRadius);
 
-		var castleQuery = QueryCache.AllPositionAndDefinitionIdAndOwnerNoneDeadQuery;
-		GameContext.World.Query(in castleQuery, (Entity castleEntity, ref Position castlePos, ref DefinitionId defId, ref Owner ownerComp) =>
-		{
-			if (defId.Value == "castle" && ownerComp.PlayerEntity == wOwner)
-			{
-				float dist = Vector3.Distance(currentPos, castlePos.Value);
-				if (dist < nearestDist)
-				{
-					nearestDist = dist;
-					nearestCastle = castleEntity;
-					nearestCastlePos = castlePos.Value;
-				}
-			}
-		});
-
-		if (nearestCastle == Entity.Null)
+		if (nearestDropoff == Entity.Null)
 		{
 			ResetGathererTarget(entity, ref gather);
 			return;
 		}
 
-		float castleRadius = 6.0f;
-		if (Vector3.Distance(currentPos, nearestCastlePos) <= castleRadius)
+		if (Vector3.Distance(currentPos, nearestDropoffPos) <= dropoffRadius)
 		{
 			DepositResources(entity, ref gather);
 			HandleNodeAfterDeposit(entity, ref gather);
 		}
 		else if (!GameContext.World.Has<MoveTo>(entity))
 		{
-			_tickGatherersToUpdate.Add((entity, gather, nearestCastlePos));
+			_tickGatherersToUpdate.Add((entity, gather, nearestDropoffPos));
 		}
 	}
 
@@ -338,7 +321,7 @@ public class ResourceEconomyService
 		if (newState.CarriedAmount >= gather.MaxCapacity)
 		{
 			newState.ReturningToBase = true;
-			FindNearestCastleAndReturn(entity, ref newState, currentPos);
+			FindNearestDropoffAndReturn(entity, ref newState, currentPos);
 		}
 		else
 		{
@@ -358,31 +341,86 @@ public class ResourceEconomyService
 		return mineRate;
 	}
 
-	private void FindNearestCastleAndReturn(Entity entity, ref Gatherer gather, Vector3 currentPos)
+	private bool IsResourceDropoffBuilding(string defId)
 	{
-		Entity nearestCastle = Entity.Null;
-		Vector3 nearestCastlePos = Vector3.Zero;
-		float nearestDist = float.MaxValue;
-		var wOwner = GameContext.World.Get<Owner>(entity).PlayerEntity;
-
-		var castleQuery = QueryCache.AllPositionAndDefinitionIdAndOwnerNoneDeadQuery;
-		GameContext.World.Query(in castleQuery, (Entity castleEntity, ref Position castlePos, ref DefinitionId defId, ref Owner ownerComp) =>
+		if (string.IsNullOrEmpty(defId)) return false;
+		if (string.Equals(defId, "castle", StringComparison.OrdinalIgnoreCase) ||
+		    defId.Contains("town_hall", StringComparison.OrdinalIgnoreCase) ||
+		    defId.Contains("townhall", StringComparison.OrdinalIgnoreCase) ||
+		    defId.Contains("base", StringComparison.OrdinalIgnoreCase) ||
+		    defId.Contains("main", StringComparison.OrdinalIgnoreCase))
 		{
-			if (defId.Value == "castle" && ownerComp.PlayerEntity == wOwner)
+			return true;
+		}
+
+		if (GameContext.RegistryService.BuildingRegistry.TryGetValue(defId, out var meta) && meta.BuildOptions != null)
+		{
+			if (Array.Exists(meta.BuildOptions, opt => opt.Contains("worker") || opt.Contains("builder") || opt.Contains("chad") || opt.Contains("kevin")))
 			{
-				float d = Vector3.Distance(currentPos, castlePos.Value);
-				if (d < nearestDist)
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private void FindNearestDropoff(Vector3 currentPos, PlayerEntity wOwner, out Entity nearestDropoff, out Vector3 nearestDropoffPos, out float dropoffRadius)
+	{
+		Entity foundDropoff = Entity.Null;
+		Vector3 foundDropoffPos = Vector3.Zero;
+		float foundRadius = 6.0f;
+		float nearestDist = float.MaxValue;
+
+		var buildingQuery = QueryCache.AllPositionAndDefinitionIdAndOwnerNoneDeadQuery;
+		GameContext.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
+		{
+			if (ownerComp.PlayerEntity == wOwner && IsResourceDropoffBuilding(defId.Value))
+			{
+				float dist = Vector3.Distance(currentPos, bldPos.Value);
+				if (dist < nearestDist)
 				{
-					nearestDist = d;
-					nearestCastle = castleEntity;
-					nearestCastlePos = castlePos.Value;
+					nearestDist = dist;
+					foundDropoff = bldEntity;
+					foundDropoffPos = bldPos.Value;
 				}
 			}
 		});
 
-		if (nearestCastle != Entity.Null)
+		if (foundDropoff == Entity.Null)
 		{
-			_tickGatherersToUpdate.Add((entity, gather, nearestCastlePos));
+			GameContext.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
+			{
+				if (ownerComp.PlayerEntity == wOwner && GameContext.World.Has<Building>(bldEntity) && !GameContext.World.Has<ConstructionState>(bldEntity))
+				{
+					float dist = Vector3.Distance(currentPos, bldPos.Value);
+					if (dist < nearestDist)
+					{
+						nearestDist = dist;
+						foundDropoff = bldEntity;
+						foundDropoffPos = bldPos.Value;
+					}
+				}
+			});
+		}
+
+		if (foundDropoff != Entity.Null && GameContext.World.Has<CollisionRadius>(foundDropoff))
+		{
+			foundRadius = Math.Max(4f, GameContext.World.Get<CollisionRadius>(foundDropoff).Value + 2.0f);
+		}
+
+		nearestDropoff = foundDropoff;
+		nearestDropoffPos = foundDropoffPos;
+		dropoffRadius = foundRadius;
+	}
+
+	private void FindNearestDropoffAndReturn(Entity entity, ref Gatherer gather, Vector3 currentPos)
+	{
+		var wOwner = GameContext.World.Get<Owner>(entity).PlayerEntity;
+		FindNearestDropoff(currentPos, wOwner, out var nearestDropoff, out var nearestDropoffPos, out _);
+
+		if (nearestDropoff != Entity.Null)
+		{
+			_tickGatherersToUpdate.Add((entity, gather, nearestDropoffPos));
 		}
 		else
 		{

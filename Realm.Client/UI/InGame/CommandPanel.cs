@@ -931,7 +931,7 @@ public partial class CommandPanel
 			foreach (var opt in meta.BuildOptions) items.Add(CreateTrainOptionItem(opt));
 		}
 
-		if (focusedUnit.UnitId == "castle")
+		if (meta != null && meta.BuildOptions != null && meta.BuildOptions.Length > 0)
 		{
 			items.Add(new CommandCardItem
 			{
@@ -941,7 +941,10 @@ public partial class CommandPanel
 				Hotkey = Key.Y,
 				Callback = () => GameHost.Instance?.EnterCommandTargeting("rally")
 			});
+		}
 
+		if (IsMainBaseOrShop(focusedUnit.UnitId))
+		{
 			PopulateShopItems(items);
 			PopulateGlobalUpgrades(items);
 		}
@@ -1101,8 +1104,13 @@ public partial class CommandPanel
 			IconPath = GetUnitIcon(unitId),
 			Tooltip = finalTooltip,
 			Hotkey = hotkey,
-			Callback = () => GameHost.Instance?.TrainUnitAtCastle(unitId)
+			Callback = () => GameHost.Instance?.TrainUnitAtBuilding(unitId)
 		};
+	}
+
+	private static bool IsMainBaseOrShop(string unitId)
+	{
+		return unitId == "castle" || unitId == "shop" || unitId == "town_hall" || unitId == "base" || unitId == "main";
 	}
 
 	private string GetDefaultAbilityIcon(string abilityId)

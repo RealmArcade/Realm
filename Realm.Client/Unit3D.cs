@@ -242,7 +242,18 @@ public partial class Unit3D : Prop3D
 		if (IsBuilding)
 		{
 			var boxShape = new BoxShape3D();
-			float size = (UnitId == "castle") ? 4f : 3f;
+			float size = 3f;
+			if (GameHost.TryGetUnitOrBuildingMetadata(UnitId, out var bMeta))
+			{
+				if (bMeta.ObstacleRadius.HasValue && bMeta.ObstacleRadius.Value > 0)
+				{
+					size = Math.Max(2f, bMeta.ObstacleRadius.Value);
+				}
+				else if (bMeta.CollisionCircle > 0)
+				{
+					size = Math.Max(2f, bMeta.CollisionCircle);
+				}
+			}
 			boxShape.Size = new Vector3(size, size, size);
 			collisionShape.Shape = boxShape;
 			collisionShape.Position = new Vector3(0, size * 0.5f, 0);

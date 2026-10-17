@@ -1844,12 +1844,12 @@ public partial class GameHost
 			if (SelectedUnits.Count > 0)
 			{
 				int localPlayer = LocalViewingPlayerIndex;
-				if (SelectedUnits.Count == 1 && SelectedUnits[0].Player == localPlayer && SelectedUnits[0].UnitId == "castle")
+				if (SelectedUnits.Count == 1 && SelectedUnits[0].Player == localPlayer)
 				{
-					var castle = SelectedUnits[0];
-					if (GameContext.World.Has<ProductionQueue>(castle.Entity) && GameContext.World.Get<ProductionQueue>(castle.Entity).UnitIds.Count > 0)
+					var unit = SelectedUnits[0];
+					if (GameContext.World.Has<ProductionQueue>(unit.Entity) && GameContext.World.Get<ProductionQueue>(unit.Entity).UnitIds.Count > 0)
 					{
-						CancelLastQueuedUnit(castle.Entity);
+						CancelLastQueuedUnit(unit.Entity);
 						GetViewport().SetInputAsHandled();
 						return;
 					}
@@ -1953,7 +1953,7 @@ public partial class GameHost
 
 			if (keyEvent.Keycode == Key.Space)
 			{
-				CenterCameraOnCastle();
+				CenterCameraOnBase();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -3072,31 +3072,37 @@ public partial class GameHost
 		InGameHUD.Instance?.ShowFeedbackText($"Selected {visibleUnits.Count} {type.ToUpper()}(s)", new Color(0.5f, 1.0f, 0.5f));
 	}
 
-	public void CenterCameraOnCastle()
+	public void CenterCameraOnBase()
 	{
 		if (IsClientSpectator) return;
-		Unit3D castle = null;
+		Unit3D baseBuilding = null;
+		Unit3D fallbackBuilding = null;
 		int localPlayerIndex = LocalViewingPlayerIndex;
 		foreach (var unit in AllUnits)
 		{
-			if (unit.Player == localPlayerIndex && unit.UnitId == "castle")
+			if (unit.Player == localPlayerIndex && unit.IsBuilding)
 			{
-				castle = unit;
-				break;
+				if (unit.UnitId == "castle" || unit.UnitId == "town_hall" || unit.UnitId == "base" || unit.UnitId == "main")
+				{
+					baseBuilding = unit;
+					break;
+				}
+				fallbackBuilding ??= unit;
 			}
 		}
 
-		if (castle != null)
+		var target = baseBuilding ?? fallbackBuilding;
+		if (target != null)
 		{
 			var camera = GetViewport().GetCamera3D();
 			if (camera != null)
 			{
-				camera.GlobalPosition = new Vector3(castle.GlobalPosition.X, castle.GlobalPosition.Y, castle.GlobalPosition.Z + 25f);
+				camera.GlobalPosition = new Vector3(target.GlobalPosition.X, target.GlobalPosition.Y, target.GlobalPosition.Z + 25f);
 			}
 		}
 	}
 
-	public void CenterCameraOnSelectedOrCastle()
+	public void CenterCameraOnSelectedOrBase()
 	{
 		if (SelectedUnits.Count > 0)
 		{
@@ -3109,7 +3115,7 @@ public partial class GameHost
 		}
 		else
 		{
-			CenterCameraOnCastle();
+			CenterCameraOnBase();
 		}
 	}
 
@@ -3400,7 +3406,7 @@ public partial class GameHost
 		}
 	}
 
-	public void BuyItem(string itemId, Entity castleEntity)
+	public void BuyItem(string itemId, Entity buildingEntity)
 	{
 		if (IsClientSpectator) return;
 		ResolveItemInfo(itemId, out string itemName, out float costGold);
@@ -3414,10 +3420,10 @@ public partial class GameHost
 			return;
 		}
 
-		if (!TryGetUnit3D(castleEntity, out var castle3D)) return;
+		if (!TryGetUnit3D(buildingEntity, out var building3D)) return;
 
 		var selectedEntity = SelectedUnits.Count > 0 ? SelectedUnits[0].Entity : Entity.Null;
-		var pos = new System.Numerics.Vector3(castle3D.GlobalPosition.X, castle3D.GlobalPosition.Y, castle3D.GlobalPosition.Z);
+		var pos = new System.Numerics.Vector3(building3D.GlobalPosition.X, building3D.GlobalPosition.Y, building3D.GlobalPosition.Z);
 
 		if (GameContext.InputService.BuyItem(itemId, GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex), pos, selectedEntity, out Entity targetUnitEntity))
 		{
@@ -3552,9 +3558,22 @@ public partial class GameHost
 		else
 		{
 			var mesh = new MeshInstance3D();
+			float radius = 1.6f;
+			if (meta != null)
+			{
+				if (meta.ObstacleRadius > 0.01f)
+				{
+					radius = meta.ObstacleRadius.Value;
+				}
+				else if (meta.CollisionCircle > 0.01f)
+				{
+					radius = meta.CollisionCircle;
+				}
+			}
+			float side = radius * 2f;
 			var box = new BoxMesh
 			{
-				Size = type == "castle" ? new Vector3(10f, 2f, 10f) : new Vector3(3.2f, 4f, 3.2f)
+				Size = new Vector3(side, 2f, side)
 			};
 			mesh.Mesh = box;
 			AddChild(mesh);
@@ -3629,7 +3648,26 @@ public partial class GameHost
 
 		if (InGameHUD.Instance == null) return;
 
-		float clearance = type == "castle" ? 7f : (BuildingRegistry.ContainsKey(type) ? 4f : 1.5f);
+		float clearance = 1.5f;
+		if (meta != null)
+		{
+			if (meta.ObstacleRadius > 0.01f)
+			{
+				clearance = meta.ObstacleRadius.Value * 1.5f;
+			}
+			else if (meta.CollisionCircle > 0.01f)
+			{
+				clearance = meta.CollisionCircle * 1.5f;
+			}
+			else if (BuildingRegistry.ContainsKey(type))
+			{
+				clearance = 4f;
+			}
+		}
+		else if (BuildingRegistry.ContainsKey(type))
+		{
+			clearance = 4f;
+		}
 		if (!GameContext.InputService.TryPlaceBuilding(new System.Numerics.Vector3(position.X, position.Y, position.Z), clearance))
 		{
 			ViewHandleObstructedPlacement();
@@ -3770,14 +3808,14 @@ public partial class GameHost
 		InGameHUD.Instance?.ExitBuildSubMenu();
 	}
 
-	public void CancelLastQueuedUnit(Entity castleEntity)
+	public void CancelLastQueuedUnit(Entity buildingEntity)
 	{
-		if (GameContext.World.IsAlive(castleEntity) && GameContext.World.Has<ProductionQueue>(castleEntity))
+		if (GameContext.World.IsAlive(buildingEntity) && GameContext.World.Has<ProductionQueue>(buildingEntity))
 		{
-			var prod = GameContext.World.Get<ProductionQueue>(castleEntity);
+			var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
 			if (prod.UnitIds.Count > 0)
 			{
-				CancelQueuedUnitAt(castleEntity, prod.UnitIds.Count - 1);
+				CancelQueuedUnitAt(buildingEntity, prod.UnitIds.Count - 1);
 			}
 		}
 	}
@@ -4064,7 +4102,26 @@ public partial class GameHost
 			_buildingPreviewMesh.GlobalPosition = pos;
 
 			string activeType = ActiveBuildingPlacementType ?? "";
-			float clearance = activeType == "castle" ? 7f : (BuildingRegistry.ContainsKey(activeType) ? 4f : 1.5f);
+			float clearance = 1.5f;
+			if (TryGetUnitOrBuildingMetadata(activeType, out var activeMeta))
+			{
+				if (activeMeta.ObstacleRadius > 0.01f)
+				{
+					clearance = activeMeta.ObstacleRadius.Value * 1.5f;
+				}
+				else if (activeMeta.CollisionCircle > 0.01f)
+				{
+					clearance = activeMeta.CollisionCircle * 1.5f;
+				}
+				else if (BuildingRegistry.ContainsKey(activeType))
+				{
+					clearance = 4f;
+				}
+			}
+			else if (BuildingRegistry.ContainsKey(activeType))
+			{
+				clearance = 4f;
+			}
 			bool blocked = GameContext.InputService.IsAreaObstructed(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), clearance);
 
 			Color targetColor = blocked ? new Color(0.9f, 0.2f, 0.2f) : new Color(0.15f, 0.65f, 1.0f);
@@ -4072,7 +4129,7 @@ public partial class GameHost
 		}
 	}
 
-	public void TrainUnitAtCastle(string unitId)
+	public void TrainUnitAtBuilding(string unitId)
 	{
 		if (IsClientSpectator) return;
 		if (InGameHUD.Instance == null) return;
@@ -4098,7 +4155,7 @@ public partial class GameHost
 			QueueClientCommand("train", new List<int> { GetServerEntityId(targetBuildingEntity) }, Vector3.Zero, 0, unitId);
 			DeductResourcesAndNotify(meta);
 		}
-		else if (GameContext.InputService.TryQueueUnitAtCastle(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex), targetBuildingEntity, unitId, meta.PopCost, meta.ProductionTime))
+		else if (GameContext.InputService.TryQueueUnit(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex), targetBuildingEntity, unitId, meta.PopCost, meta.ProductionTime))
 		{
 			DeductResourcesAndNotify(meta);
 		}
@@ -4246,31 +4303,31 @@ public partial class GameHost
 		}
 	}
 
-	public void CancelQueuedUnitAt(Entity castleEntity, int index)
+	public void CancelQueuedUnitAt(Entity buildingEntity, int index)
 	{
 		if (IsClientSpectator) return;
-		if (!GameContext.World.IsAlive(castleEntity) || !GameContext.World.Has<ProductionQueue>(castleEntity)) return;
+		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity)) return;
 
-		int popCost = GetPopCostForIndex(castleEntity, index);
+		int popCost = GetPopCostForIndex(buildingEntity, index);
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
-			QueueClientCommand("cancel_train", new List<int> { GetServerEntityId(castleEntity) }, Vector3.Zero, index, "");
+			QueueClientCommand("cancel_train", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, index, "");
 		}
 
-		if (GameContext.InputService.CancelQueuedUnitAt(castleEntity, index, out string? cancelledId, out string? nextUnitId, popCost))
+		if (GameContext.InputService.CancelQueuedUnitAt(buildingEntity, index, out string? cancelledId, out string? nextUnitId, popCost))
 		{
 			RefundCancelledUnit(cancelledId);
-			UpdateProductionQueueAfterCancel(castleEntity, index, nextUnitId);
+			UpdateProductionQueueAfterCancel(buildingEntity, index, nextUnitId);
 
 			UIManager.Instance?.PlayClickSound();
 			InGameHUD.Instance?.RefreshUI(SelectedUnits);
 		}
 	}
 
-	private int GetPopCostForIndex(Entity castleEntity, int index)
+	private int GetPopCostForIndex(Entity buildingEntity, int index)
 	{
-		return GameContext.InputService.GetPopCostForIndex(castleEntity, index);
+		return GameContext.InputService.GetPopCostForIndex(buildingEntity, index);
 	}
 
 	private void RefundCancelledUnit(string? cancelledId)
@@ -4287,9 +4344,9 @@ public partial class GameHost
 		InGameHUD.Instance.ShowFeedbackText($"Cancelled {meta.Name} (Refunded {meta.CostGold}G, {meta.CostWood}W, {meta.CostStone}S)", new Color(1f, 0.8f, 0.2f));
 	}
 
-	private void UpdateProductionQueueAfterCancel(Entity castleEntity, int index, string? nextUnitId)
+	private void UpdateProductionQueueAfterCancel(Entity buildingEntity, int index, string? nextUnitId)
 	{
-		GameContext.InputService.UpdateProductionQueueAfterCancel(castleEntity, index, nextUnitId, _multiplayerActive && !Multiplayer.IsServer());
+		GameContext.InputService.UpdateProductionQueueAfterCancel(buildingEntity, index, nextUnitId, _multiplayerActive && !Multiplayer.IsServer());
 	}
 
 	private bool UnitHasAbility(Unit3D unit, string abilityId)

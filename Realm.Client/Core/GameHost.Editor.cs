@@ -1366,7 +1366,6 @@ public partial class GameHost
 		}
 
 		AllUnits.Clear();
-		_castlesList.Clear();
 		SetCurrentPopulation(LocalViewingPlayerIndex, 0);
 		SetMaxPopulation(LocalViewingPlayerIndex, 0);
 

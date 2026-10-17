@@ -839,10 +839,6 @@ public partial class GameHost
 		SelectedUnits.Remove(unit3D);
 		AllUnits.Remove(unit3D);
 		EntityToUnit3D.Remove(entity);
-		if (unit3D.UnitId == "castle")
-		{
-			_castlesList.Remove(unit3D);
-		}
 	}
 
 	private void HandleUnitDespawn(Unit3D unit3D, bool executeDespawnShader, bool playDeathAnimation)

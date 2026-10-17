@@ -62,7 +62,6 @@ public partial class GameHost
 		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
 
 		PlayDeathEffects(unit, executeDespawnShader, playDeathAnimation, unitId);
-		CheckGameOver(unitId, unitPlayer);
 
 		GD.Print($"Unit {unit.Name} died.");
 	}
@@ -71,10 +70,6 @@ public partial class GameHost
 	{
 		SelectedUnits.Remove(unit);
 		AllUnits.Remove(unit);
-		if (unit.UnitId == "castle")
-		{
-			_castlesList.Remove(unit);
-		}
 
 		if (!unit.IsBuilding) return;
 
@@ -85,14 +80,8 @@ public partial class GameHost
 
 	private void HandleUnitDeathEconomy(Unit3D unit)
 	{
-		var (popCost, isCastle) = GameContext.SimulationService.GetDeathPopulationModifiers(unit.Entity, unit.UnitId);
+		int popCost = GameContext.SimulationService.GetDeathPopulationCost(unit.Entity, unit.UnitId);
 		int playerIndex = unit.Player;
-
-		if (isCastle)
-		{
-			int maxPop = GameContext.ResourceEconomyService?.GetPlayerMaxPopulation(playerIndex) ?? 0;
-			GameContext.ResourceEconomyService?.SetPlayerMaxPopulation(playerIndex, Math.Max(0, maxPop - 20));
-		}
 
 		if (popCost > 0)
 		{
@@ -186,35 +175,6 @@ public partial class GameHost
 		tween.TweenProperty(unit, "scale", Godot.Vector3.Zero, 1.0f);
 		tween.Chain().TweenCallback(Callable.From(unit.QueueFree));
 		return true;
-	}
-
-	private void CheckGameOver(string unitId, int destroyedCastlePlayer)
-	{
-		if (unitId != "castle") return;
-		if (!GameContext.SimulationService.DomainCheckGameOver(unitId, false)) return;
-
-		// In multiplayer client mode, the authoritative server coordinates GameOver state via ClientGameOver RPC
-		if (_multiplayerActive && !Multiplayer.IsServer()) return;
-
-		// Spectators do not receive personal win/loss screens while matches are underway
-		if (IsClientSpectator) return;
-
-		int localPlayerIndex = LocalViewingPlayerIndex;
-		bool isLocalPlayerCastle = destroyedCastlePlayer == localPlayerIndex;
-
-		if (isLocalPlayerCastle)
-		{
-			GD.Print("[GameHost] Player Castle destroyed! Player loses!");
-			Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
-			return;
-		}
-
-		bool anyEnemyCastleAlive = _castlesList.Exists(c => NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, c.Player));
-		if (!anyEnemyCastleAlive)
-		{
-			GD.Print("[GameHost] All Enemy Castles destroyed! Player wins!");
-			Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
-		}
 	}
 
 	private void DepleteProp(Prop3D prop)
@@ -522,8 +482,23 @@ public partial class GameHost
 	private MeshInstance3D CreateGhostMesh(string buildType)
 	{
 		var mesh = new MeshInstance3D();
+		float bWidth = 3.2f;
+		float bHeight = 4f;
+		if (TryGetUnitOrBuildingMetadata(buildType, out var bMeta))
+		{
+			if (bMeta.ObstacleRadius.HasValue && bMeta.ObstacleRadius.Value > 0)
+			{
+				bWidth = bMeta.ObstacleRadius.Value * 2f;
+				bHeight = Math.Max(4f, bMeta.ObstacleRadius.Value);
+			}
+			else if (bMeta.CollisionCircle > 0)
+			{
+				bWidth = bMeta.CollisionCircle * 2f;
+				bHeight = Math.Max(4f, bMeta.CollisionCircle);
+			}
+		}
 		var box = new BoxMesh();
-		box.Size = buildType == "castle" ? new Godot.Vector3(10f, 6f, 10f) : new Godot.Vector3(3.2f, 4f, 3.2f);
+		box.Size = new Godot.Vector3(bWidth, bHeight, bWidth);
 		mesh.Mesh = box;
 
 		var mat = new StandardMaterial3D();

@@ -16,9 +16,9 @@ namespace Realm.Client.Services;
 
 public class InputService
 {
-	public int GetPopCostForIndex(Entity castleEntity, int index)
+	public int GetPopCostForIndex(Entity buildingEntity, int index)
 	{
-		var prod = GameContext.World.Get<ProductionQueue>(castleEntity);
+		var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
 		if (index >= 0 && index < prod.UnitIds.Count)
 		{
 			string peekCancelledId = prod.UnitIds[index];
@@ -32,16 +32,16 @@ public class InputService
 	}
 
 
-	public void UpdateProductionQueueAfterCancel(Entity castleEntity, int index, string? nextUnitId, bool isMultiplayerClient)
+	public void UpdateProductionQueueAfterCancel(Entity buildingEntity, int index, string? nextUnitId, bool isMultiplayerClient)
 	{
 		if (index == 0 && nextUnitId != null && !isMultiplayerClient)
 		{
 			var nextMeta = GameHost.UnitRegistry[nextUnitId];
-			if (GameContext.World.Has<ProductionQueue>(castleEntity))
+			if (GameContext.World.Has<ProductionQueue>(buildingEntity))
 			{
-				var p = GameContext.World.Get<ProductionQueue>(castleEntity);
+				var p = GameContext.World.Get<ProductionQueue>(buildingEntity);
 				p.BuildTime = nextMeta.ProductionTime;
-				GameContext.World.Set(castleEntity, p);
+				GameContext.World.Set(buildingEntity, p);
 			}
 		}
 	}
@@ -931,7 +931,7 @@ public class InputService
 		return false;
 	}
 
-	private Entity FindClosestFriendlyCombatUnit(Vector3 castlePos, Entity playerEntity, float maxDistance)
+	private Entity FindClosestFriendlyCombatUnit(Vector3 originPos, Entity playerEntity, float maxDistance)
 	{
 		Entity closestUnit = Entity.Null;
 		float closestDist = maxDistance;
@@ -941,7 +941,7 @@ public class InputService
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
-				float dist = Vector3.Distance(castlePos, pos.Value);
+				float dist = Vector3.Distance(originPos, pos.Value);
 				if (dist < closestDist)
 				{
 					closestDist = dist;
@@ -1171,9 +1171,9 @@ public class InputService
 		return Entity.Null;
 	}
 
-	public bool TryQueueUnitAtCastle(Entity playerEntity, Entity castleEntity, string unitId, int popCost, float productionTime)
+	public bool TryQueueUnit(Entity playerEntity, Entity buildingEntity, string unitId, int popCost, float productionTime)
 	{
-		if (!GameContext.World.IsAlive(playerEntity) || !GameContext.World.IsAlive(castleEntity)) return false;
+		if (!GameContext.World.IsAlive(playerEntity) || !GameContext.World.IsAlive(buildingEntity)) return false;
 
 		if (GameContext.World.Has<PlayerPopulation>(playerEntity))
 		{
@@ -1186,9 +1186,9 @@ public class InputService
 			pop.Current += popCost;
 		}
 
-		ref var prod = ref GameContext.World.Has<ProductionQueue>(castleEntity)
-			? ref GameContext.World.Get<ProductionQueue>(castleEntity)
-			: ref CreateProductionQueue(castleEntity);
+		ref var prod = ref GameContext.World.Has<ProductionQueue>(buildingEntity)
+			? ref GameContext.World.Get<ProductionQueue>(buildingEntity)
+			: ref CreateProductionQueue(buildingEntity);
 
 		if (prod.UnitIds.Count >= 5) return false;
 
@@ -1198,23 +1198,23 @@ public class InputService
 		}
 
 		prod.UnitIds.Add(unitId);
-		GameContext.World.Set(castleEntity, prod);
+		GameContext.World.Set(buildingEntity, prod);
 
 		return true;
 	}
 
-	private ref ProductionQueue CreateProductionQueue(Entity castleEntity)
+	private ref ProductionQueue CreateProductionQueue(Entity buildingEntity)
 	{
-		GameContext.World.Add(castleEntity, new ProductionQueue());
-		return ref GameContext.World.Get<ProductionQueue>(castleEntity);
+		GameContext.World.Add(buildingEntity, new ProductionQueue());
+		return ref GameContext.World.Get<ProductionQueue>(buildingEntity);
 	}
 
-	private void RefundPopulationCost(Entity castleEntity, int popCost)
+	private void RefundPopulationCost(Entity buildingEntity, int popCost)
 	{
 		if (popCost <= 0) return;
-		if (!GameContext.World.Has<Owner>(castleEntity)) return;
+		if (!GameContext.World.Has<Owner>(buildingEntity)) return;
 
-		var ownerPlayerEntity = GameContext.World.Get<Owner>(castleEntity).PlayerEntity.Value;
+		var ownerPlayerEntity = GameContext.World.Get<Owner>(buildingEntity).PlayerEntity.Value;
 		if (GameContext.World.IsAlive(ownerPlayerEntity) && GameContext.World.Has<PlayerPopulation>(ownerPlayerEntity))
 		{
 			ref var pop = ref GameContext.World.Get<PlayerPopulation>(ownerPlayerEntity);
@@ -1222,15 +1222,15 @@ public class InputService
 		}
 	}
 
-	public bool CancelQueuedUnitAt(Entity castleEntity, int index, out string? cancelledUnitId, out string? nextUnitId, int popCost = 0)
+	public bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId, int popCost = 0)
 	{
 		cancelledUnitId = null;
 		nextUnitId = null;
 
-		if (!GameContext.World.IsAlive(castleEntity) || !GameContext.World.Has<ProductionQueue>(castleEntity))
+		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity))
 			return false;
 
-		var prod = GameContext.World.Get<ProductionQueue>(castleEntity);
+		var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
 		if (index < 0 || index >= prod.UnitIds.Count)
 			return false;
 
@@ -1246,9 +1246,9 @@ public class InputService
 			}
 		}
 
-		RefundPopulationCost(castleEntity, popCost);
+		RefundPopulationCost(buildingEntity, popCost);
 
-		GameContext.World.Set(castleEntity, prod);
+		GameContext.World.Set(buildingEntity, prod);
 		return true;
 	}
 
