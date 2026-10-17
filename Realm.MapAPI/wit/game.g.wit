@@ -150,6 +150,11 @@ interface game-api {
     read-saved-data: func(file-name: string, source-map-name: string) -> string;
     register-ability: func(ability-id: string, display-name: string, tooltip: string, icon-path: string, is-instant: bool);
     register-buff-modifier: func(buff-id: string, stat-name: string, is-percentage: bool, value: f32);
+    register-placement-radius: func(definition-key: string, radius: f32);
+    register-primary-building: func(definition-id: string);
+    register-resource-dropoff-building: func(definition-key: string);
+    register-resource-node-type: func(node-definition-id: string, resource-type: string);
+    register-resource-worker-unit: func(unit-key: string);
     remove-buff: func(unit-id: s32, buff-id: string);
     remove-item-from-unit: func(unit-id: s32, item-id: string) -> bool;
     remove-loot-item: func(loot-item-id: s32) -> bool;

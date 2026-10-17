@@ -615,6 +615,31 @@ public partial class GameHost
 		GameContext.SimulationService.RegisterBuffModifierDomain(buffId, statName, isPercentage, value);
 	}
 
+	void IGameAPI.RegisterPlacementRadius(string definitionKey, float radius)
+	{
+		GameContext.RegistryService.RegisterPlacementRadius(definitionKey, radius);
+	}
+
+	void IGameAPI.RegisterResourceDropoffBuilding(string definitionKey)
+	{
+		GameContext.RegistryService.RegisterResourceDropoffBuilding(definitionKey);
+	}
+
+	void IGameAPI.RegisterResourceWorkerUnit(string unitKey)
+	{
+		GameContext.RegistryService.RegisterResourceWorkerUnit(unitKey);
+	}
+
+	void IGameAPI.RegisterPrimaryBuilding(string definitionId)
+	{
+		GameContext.RegistryService.RegisterPrimaryBuilding(definitionId);
+	}
+
+	void IGameAPI.RegisterResourceNodeType(string nodeDefinitionId, string resourceType)
+	{
+		GameContext.RegistryService.RegisterResourceNodeType(nodeDefinitionId, resourceType);
+	}
+
 	void IGameAPI.CastAbility(UnitId unit, string abilityId, Vector3 targetPosition)
 	{
 		var def = GetAbilityDefinition(abilityId);

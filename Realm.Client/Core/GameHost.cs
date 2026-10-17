@@ -2654,13 +2654,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private string? GetPropResourceType(string propId)
 	{
-		return propId switch
-		{
-			"goldmine" => "gold",
-			"tree" => "wood",
-			"rock" => "stone",
-			_ => null
-		};
+		return GameContext.RegistryService.GetResourceTypeForNode(propId);
 	}
 
 	private void IssueMultiplayerGatherCommand(Prop3D prop, bool isQueued)

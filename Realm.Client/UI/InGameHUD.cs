@@ -576,7 +576,7 @@ public partial class InGameHUD : Control
 		_minimapControls.AddChild(_btnPing);
 
 		_btnCenter = new Button();
-		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Base [Space]", () => GameHost.Instance?.CenterCameraOnBase());
+		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Base [Space]", () => GameHost.Instance?.CenterCameraOnPrimaryBuilding());
 		_minimapControls.AddChild(_btnCenter);
 
 		_btnSelectIdle = new Button();

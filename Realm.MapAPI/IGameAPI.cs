@@ -242,6 +242,38 @@ public interface IGameAPI
 	void RegisterBuffModifier(string buffId, string statName, bool isPercentage, float value);
 
 	/// <summary>
+	/// Registers the footprint radius used when placing or checking for overlap with a unit, building, or prop.
+	/// </summary>
+	/// <param name="definitionKey">A case-insensitive fragment that must be contained in the definition identifier for the rule to apply. Rules are evaluated in registration order and the first match wins.</param>
+	/// <param name="radius">The base footprint radius in world units, before the object's scale is applied.</param>
+	void RegisterPlacementRadius(string definitionKey, float radius);
+
+	/// <summary>
+	/// Registers a building definition as a drop-off point where workers deliver gathered resources.
+	/// </summary>
+	/// <param name="definitionKey">A case-insensitive fragment that must be contained in the building definition identifier.</param>
+	void RegisterResourceDropoffBuilding(string definitionKey);
+
+	/// <summary>
+	/// Registers a unit definition fragment identifying workers; any building able to produce a matching unit is treated as a resource drop-off point.
+	/// </summary>
+	/// <param name="unitKey">A case-sensitive fragment that must be contained in the unit definition identifier in a building's build options.</param>
+	void RegisterResourceWorkerUnit(string unitKey);
+
+	/// <summary>
+	/// Registers a building definition as a player's primary building, which camera shortcuts focus on.
+	/// </summary>
+	/// <param name="definitionId">The exact, case-insensitive building definition identifier.</param>
+	void RegisterPrimaryBuilding(string definitionId);
+
+	/// <summary>
+	/// Declares which resource type a harvestable node prop yields.
+	/// </summary>
+	/// <param name="nodeDefinitionId">The prop definition identifier of the harvestable node (case-insensitive).</param>
+	/// <param name="resourceType">The resource type gathered from the node, such as "gold", "wood" or "stone".</param>
+	void RegisterResourceNodeType(string nodeDefinitionId, string resourceType);
+
+	/// <summary>
 	/// Executes an ability generically by ID on a unit targeting a position.
 	/// </summary>
 	/// <param name="unit">The unit casting the ability.</param>

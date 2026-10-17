@@ -270,9 +270,9 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SyncProductionQueue(int castleServerEntityId, string[] unitIds, float currentProgress, float buildTime)
+	public void SyncProductionQueue(int producerServerEntityId, string[] unitIds, float currentProgress, float buildTime)
 	{
-		GameContext.NetworkService.SyncProductionQueue(castleServerEntityId, unitIds, currentProgress, buildTime);
+		GameContext.NetworkService.SyncProductionQueue(producerServerEntityId, unitIds, currentProgress, buildTime);
 	}
 
 	private void SyncServerPlayerResources()
