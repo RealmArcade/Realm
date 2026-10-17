@@ -60,6 +60,12 @@ public partial class GameHost
 	{
 		SelectedUnits.Remove(unit);
 		AllUnits.Remove(unit);
+		EntityToUnit3D.Remove(unit.Entity);
+		EntityIdToUnit3D.Remove(unit.Entity.Id);
+		if (PlayerToUnits.TryGetValue(unit.Player, out var pList))
+		{
+			pList.Remove(unit);
+		}
 
 		if (!unit.IsBuilding) return;
 

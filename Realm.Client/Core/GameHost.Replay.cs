@@ -48,6 +48,7 @@ public partial class GameHost
 		AllProps.Clear();
 
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
 		EntityToProp3D.Clear();
 	}
 
@@ -75,6 +76,7 @@ public partial class GameHost
 
 		AllUnits.Clear();
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
 	}
 
 	private void SetupReplayPlayers()

@@ -275,13 +275,9 @@ public partial class GameHost
 
 	UnitId IGameAPI.GetUnitById(int uniqueId)
 	{
-		for (int i = 0; i < AllUnits.Count; i++)
+		if (EntityIdToUnit3D.TryGetValue(uniqueId, out var u) && GodotObject.IsInstanceValid(u) && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
 		{
-			var u = AllUnits[i];
-			if (GodotObject.IsInstanceValid(u) && u.Entity.Id == uniqueId && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
-			{
-				return (UnitId)uniqueId;
-			}
+			return (UnitId)uniqueId;
 		}
 
 		return UnitId.Invalid;
@@ -886,6 +882,11 @@ public partial class GameHost
 		SelectedUnits.Remove(unit3D);
 		AllUnits.Remove(unit3D);
 		EntityToUnit3D.Remove(entity);
+		EntityIdToUnit3D.Remove(entity.Id);
+		if (PlayerToUnits.TryGetValue(unit3D.Player, out var pList))
+		{
+			pList.Remove(unit3D);
+		}
 	}
 
 	private void HandleUnitDespawn(Unit3D unit3D, bool executeDespawnShader, bool playDeathAnimation)
@@ -977,12 +978,15 @@ public partial class GameHost
 	ReadOnlySpan<UnitId> IGameAPI.GetUnitsOwnedByPlayer(int playerIndex)
 	{
 		int count = 0;
-		for (int i = 0; i < AllUnits.Count && count < _cachedUnitsBuffer.Length; i++)
+		if (PlayerToUnits.TryGetValue(playerIndex, out var pList))
 		{
-			var u = AllUnits[i];
-			if (GodotObject.IsInstanceValid(u) && u.Player == playerIndex && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
+			for (int i = 0; i < pList.Count && count < _cachedUnitsBuffer.Length; i++)
 			{
-				_cachedUnitsBuffer[count++] = (UnitId)u.Entity.Id;
+				var u = pList[i];
+				if (GodotObject.IsInstanceValid(u) && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
+				{
+					_cachedUnitsBuffer[count++] = (UnitId)u.Entity.Id;
+				}
 			}
 		}
 
@@ -1691,17 +1695,7 @@ public partial class GameHost
 		if (!unit.IsValid) return false;
 		if (!IdToLootItem.TryGetValue(lootItemId, out var loot) || loot.IsDespawned) return false;
 
-		Unit3D? u3d = null;
-		for (int i = 0; i < AllUnits.Count; i++)
-		{
-			var u = AllUnits[i];
-			if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.Value)
-			{
-				u3d = u;
-				break;
-			}
-		}
-		if (u3d == null) return false;
+		if (!EntityIdToUnit3D.TryGetValue(unit.Value, out var u3d) || !GodotObject.IsInstanceValid(u3d)) return false;
 		var unitEntity = u3d.Entity;
 		if (!GameContext.World.IsAlive(unitEntity) || GameContext.World.Has<Dead>(unitEntity)) return false;
 

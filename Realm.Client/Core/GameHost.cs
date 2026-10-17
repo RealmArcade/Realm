@@ -167,6 +167,8 @@ public partial class GameHost : Node3D, IGameAPI
 	private readonly List<(int LootId, Entity UnitEntity)> _collectedLootToProcess = new();
 
 	public static Dictionary<Entity, Unit3D> EntityToUnit3D { get; set; } = new();
+	public static Dictionary<int, Unit3D> EntityIdToUnit3D { get; set; } = new();
+	public static Dictionary<int, List<Unit3D>> PlayerToUnits { get; set; } = new();
 	public static Dictionary<Entity, Prop3D> EntityToProp3D { get; set; } = new();
 	public static Dictionary<Entity, ProceduralVfxInstance3D> EntityToVfx3D { get; set; } = new();
 
@@ -1602,6 +1604,11 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				UnitRegistry[(StringName)meta.TemplateID.Substring(5)] = meta;
 			}
+
+			if (!string.IsNullOrEmpty(meta.ModelPath))
+			{
+				ModelCache.PreloadModel(meta.ModelPath);
+			}
 		}
 	}
 
@@ -1616,6 +1623,11 @@ public partial class GameHost : Node3D, IGameAPI
 			if (meta.TemplateID.StartsWith("building/", StringComparison.OrdinalIgnoreCase))
 			{
 				BuildingRegistry[(StringName)meta.TemplateID.Substring(9)] = meta;
+			}
+
+			if (!string.IsNullOrEmpty(meta.ModelPath))
+			{
+				ModelCache.PreloadModel(meta.ModelPath);
 			}
 		}
 	}
@@ -2289,6 +2301,8 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
+		PlayerToUnits.Clear();
 		EntityToProp3D.Clear();
 		_playerCameraBoundsOverrides.Clear();
 		_playerHudVisibilityOverrides.Clear();
@@ -2311,6 +2325,8 @@ public partial class GameHost : Node3D, IGameAPI
 	private void ReinitializeEcsAndServices()
 	{
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
+		PlayerToUnits.Clear();
 		EntityToProp3D.Clear();
 		ClearNodeCollection(AllLootItems);
 		IdToLootItem.Clear();
@@ -2781,6 +2797,13 @@ public partial class GameHost : Node3D, IGameAPI
 		unit3D.UpdateLodVisibility();
 
 		EntityToUnit3D[entity] = unit3D;
+		EntityIdToUnit3D[entity.Id] = unit3D;
+		if (!PlayerToUnits.TryGetValue(playerIndex, out var pList))
+		{
+			pList = new List<Unit3D>();
+			PlayerToUnits[playerIndex] = pList;
+		}
+		pList.Add(unit3D);
 		AllUnits.Add(unit3D);
 
 		UpdatePopulationStats(id, playerIndex, isFromQueue);
@@ -3304,8 +3327,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private void TryProcessUnitFlash(VFXRequest req)
 	{
 		if (req.EntityId == -1) return;
-		var unit = EntityToUnit3D.FirstOrDefault(kv => kv.Key.Id == req.EntityId).Value;
-		if (unit == null || !GodotObject.IsInstanceValid(unit)) return;
+		if (!EntityIdToUnit3D.TryGetValue(req.EntityId, out var unit) || !GodotObject.IsInstanceValid(unit)) return;
 
 		if (req.EffectTypeId == "damage_flash") GameContext.FXService.FlashDamageUnit(unit);
 		else GameContext.FXService.FlashHealUnit(unit);
@@ -3314,8 +3336,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private Entity GetEntityById(int entityId)
 	{
 		if (entityId == -1) return Entity.Null;
-		var unit = AllUnits.FirstOrDefault(u => u.Entity.Id == entityId);
-		return unit != null ? unit.Entity : Entity.Null;
+		return EntityIdToUnit3D.TryGetValue(entityId, out var unit) && GodotObject.IsInstanceValid(unit) ? unit.Entity : Entity.Null;
 	}
 
 

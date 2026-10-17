@@ -22,6 +22,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -69,6 +70,8 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 	private int _updateTickCounter = 0;
 	private readonly Dictionary<string, Func<float, float, int, float>?> _formulaFuncCache = new(StringComparer.OrdinalIgnoreCase);
 
+	private long _executingStartTimestamp;
+	private int _executingTimeoutMs;
 	private readonly System.Threading.Timer _watchdogTimer;
 	private readonly bool _isDebugMode;
 
@@ -134,8 +137,17 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 
 			_watchdogTimer = new System.Threading.Timer(_ =>
 			{
-				_engine.IncrementEpoch();
-			}, null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+				long start = Interlocked.Read(ref _executingStartTimestamp);
+				int timeout = _executingTimeoutMs;
+				if (start != 0 && timeout > 0)
+				{
+					double elapsedMs = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+					if (elapsedMs > timeout)
+					{
+						_engine.IncrementEpoch();
+					}
+				}
+			}, null, 100, 100);
 
 			var wasiInitialize = _instance.GetFunction("_initialize");
 			if (wasiInitialize != null)
@@ -171,7 +183,8 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 			_store.SetEpochDeadline(1);
 			if (!_isDebugMode)
 			{
-				_watchdogTimer.Change(timeoutMs, System.Threading.Timeout.Infinite);
+				_executingTimeoutMs = timeoutMs;
+				Interlocked.Exchange(ref _executingStartTimestamp, Stopwatch.GetTimestamp());
 			}
 			action();
 		}
@@ -191,7 +204,7 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		{
 			if (!_isDebugMode)
 			{
-				_watchdogTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+				Interlocked.Exchange(ref _executingStartTimestamp, 0);
 			}
 		}
 	}
@@ -205,7 +218,8 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 			_store.SetEpochDeadline(1);
 			if (!_isDebugMode)
 			{
-				_watchdogTimer.Change(timeoutMs, System.Threading.Timeout.Infinite);
+				_executingTimeoutMs = timeoutMs;
+				Interlocked.Exchange(ref _executingStartTimestamp, Stopwatch.GetTimestamp());
 			}
 			return func();
 		}
@@ -227,7 +241,7 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		{
 			if (!_isDebugMode)
 			{
-				_watchdogTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+				Interlocked.Exchange(ref _executingStartTimestamp, 0);
 			}
 		}
 	}

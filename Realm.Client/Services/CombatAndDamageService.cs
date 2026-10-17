@@ -212,21 +212,51 @@ namespace Realm.Client.Services
 			}
 		}
 
-		private Entity FindWorldEntity()
+		private Entity _cachedWorldEntity = Entity.Null;
+		private Entity ActiveWorldEntity
 		{
-			Entity worldEntity = Entity.Null;
-			var query = QueryCache.AllWorldStateQuery;
-			GameContext.World.Query(in query, (Entity entity) => worldEntity = entity);
-			return worldEntity;
+			get
+			{
+				if (_cachedWorldEntity == Entity.Null || !GameContext.World.IsAlive(_cachedWorldEntity))
+				{
+					if (ECSContext.WorldEntity != Entity.Null && GameContext.World.IsAlive(ECSContext.WorldEntity))
+					{
+						_cachedWorldEntity = ECSContext.WorldEntity;
+					}
+					else
+					{
+						var query = QueryCache.AllWorldStateQuery;
+						GameContext.World.Query(in query, (Entity entity) => _cachedWorldEntity = entity);
+					}
+				}
+				return _cachedWorldEntity;
+			}
 		}
 
-		private Entity FindTerrainEntity()
+		private Entity _cachedTerrainEntity = Entity.Null;
+		private Entity ActiveTerrainEntity
 		{
-			Entity worldEntity = Entity.Null;
-			var query = QueryCache.AllTerrainStateQuery;
-			GameContext.World.Query(in query, (Entity entity) => worldEntity = entity);
-			return worldEntity;
+			get
+			{
+				if (_cachedTerrainEntity == Entity.Null || !GameContext.World.IsAlive(_cachedTerrainEntity))
+				{
+					var we = ActiveWorldEntity;
+					if (we != Entity.Null && GameContext.World.Has<TerrainState>(we))
+					{
+						_cachedTerrainEntity = we;
+					}
+					else
+					{
+						var query = QueryCache.AllTerrainStateQuery;
+						GameContext.World.Query(in query, (Entity entity) => _cachedTerrainEntity = entity);
+					}
+				}
+				return _cachedTerrainEntity;
+			}
 		}
+
+		private Entity FindWorldEntity() => ActiveWorldEntity;
+		private Entity FindTerrainEntity() => ActiveTerrainEntity;
 
 		private int GetTimeOfDayIndex()
 		{
@@ -241,10 +271,7 @@ namespace Realm.Client.Services
 
 		private float GetCombatAlertTimer()
 		{
-			Entity worldEntity = Entity.Null;
-			var query = QueryCache.AllCombatAlertStateQuery;
-			GameContext.World.Query(in query, (Entity entity) => worldEntity = entity);
-
+			Entity worldEntity = ActiveWorldEntity;
 			if (worldEntity != Entity.Null && GameContext.World.Has<CombatAlertState>(worldEntity))
 			{
 				return GameContext.World.Get<CombatAlertState>(worldEntity).UnderAttackAlertTimer;
@@ -255,10 +282,7 @@ namespace Realm.Client.Services
 
 		private void SetCombatAlertTimer(float value)
 		{
-			Entity worldEntity = Entity.Null;
-			var query = QueryCache.AllCombatAlertStateQuery;
-			GameContext.World.Query(in query, (Entity entity) => worldEntity = entity);
-
+			Entity worldEntity = ActiveWorldEntity;
 			if (worldEntity != Entity.Null && GameContext.World.Has<CombatAlertState>(worldEntity))
 			{
 				ref var state = ref GameContext.World.Get<CombatAlertState>(worldEntity);
@@ -268,10 +292,7 @@ namespace Realm.Client.Services
 
 		private void TickCombatAlertTimer(float fDelta)
 		{
-			Entity worldEntity = Entity.Null;
-			var query = QueryCache.AllCombatAlertStateQuery;
-			GameContext.World.Query(in query, (Entity entity) => worldEntity = entity);
-
+			Entity worldEntity = ActiveWorldEntity;
 			if (worldEntity != Entity.Null && GameContext.World.Has<CombatAlertState>(worldEntity))
 			{
 				ref var state = ref GameContext.World.Get<CombatAlertState>(worldEntity);

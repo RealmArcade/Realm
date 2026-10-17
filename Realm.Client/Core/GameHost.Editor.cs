@@ -895,6 +895,7 @@ public partial class GameHost
 		AllVfx.Clear();
 		GameContext.FXService.ClearActivePings();
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
 		EntityToProp3D.Clear();
 		EntityToVfx3D.Clear();
 
@@ -1018,6 +1019,7 @@ public partial class GameHost
 			SelectedUnits.Remove(unit);
 			AllUnits.Remove(unit);
 			EntityToUnit3D.Remove(unit.Entity);
+			EntityIdToUnit3D.Remove(unit.Entity.Id);
 			if (GameContext.World.IsAlive(unit.Entity))
 			{
 				GameContext.World.Destroy(unit.Entity);
@@ -1389,6 +1391,7 @@ public partial class GameHost
 		AllDecals.Clear();
 		AllVfx.Clear();
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
 		EntityToProp3D.Clear();
 
 		ReinitializeEcsAndServices();

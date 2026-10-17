@@ -340,6 +340,25 @@ namespace Realm.Client.Utils
 			return null;
 		}
 
+		public static void PreloadModel(string modelPath)
+		{
+			if (string.IsNullOrEmpty(modelPath)) return;
+			string resolvedPath = ResolveModelPath(modelPath);
+			if (string.IsNullOrEmpty(resolvedPath)) return;
+			if ((_cachedScenes.TryGetValue(resolvedPath, out var s1) && GodotObject.IsInstanceValid(s1)) ||
+			    (_cachedScenes.TryGetValue(modelPath, out var s2) && GodotObject.IsInstanceValid(s2)))
+			{
+				return;
+			}
+
+			PackedScene scene = LoadPackedScene(resolvedPath);
+			if (scene != null)
+			{
+				_cachedScenes[modelPath] = scene;
+				_cachedScenes[resolvedPath] = scene;
+			}
+		}
+
 		private static PackedScene LoadPackedScene(string modelPath)
 		{
 			if (string.IsNullOrEmpty(modelPath)) return null;

@@ -1036,6 +1036,7 @@ namespace Realm.Client.Core
 				SelectedUnits.Remove(unit);
 				AllUnits.Remove(unit);
 				EntityToUnit3D.Remove(unit.Entity);
+				EntityIdToUnit3D.Remove(unit.Entity.Id);
 				if (GameContext.World.IsAlive(unit.Entity))
 				{
 					GameContext.World.Destroy(unit.Entity);
@@ -1166,6 +1167,7 @@ namespace Realm.Client.Core
 				SelectedUnits.Remove(unit);
 				AllUnits.Remove(unit);
 				EntityToUnit3D.Remove(unit.Entity);
+				EntityIdToUnit3D.Remove(unit.Entity.Id);
 				if (GameContext.World.IsAlive(unit.Entity)) GameContext.World.Destroy(unit.Entity);
 				unit.QueueFree();
 				return action;
@@ -1380,6 +1382,7 @@ namespace Realm.Client.Core
 			SelectedUnits.Remove(closestUnit);
 			AllUnits.Remove(closestUnit);
 			EntityToUnit3D.Remove(closestUnit.Entity);
+			EntityIdToUnit3D.Remove(closestUnit.Entity.Id);
 			if (GameContext.World.IsAlive(closestUnit.Entity)) GameContext.World.Destroy(closestUnit.Entity);
 			closestUnit.QueueFree();
 			return action;

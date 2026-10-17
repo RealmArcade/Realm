@@ -67,6 +67,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\Realm.Client.Tests\*.cs" Link="Tests\%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Blake3" Version="2.2.1" />
     <PackageReference Include="Fastenshtein" Version="1.0.12" />
     <PackageReference Include="gdUnit4.api" Version="5.1.0-rc5" />

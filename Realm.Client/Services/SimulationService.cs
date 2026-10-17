@@ -1193,18 +1193,10 @@ public class SimulationService
 			return true;
 		}
 
-		if (GameHost.Instance != null)
+		if (GameHost.EntityIdToUnit3D.TryGetValue(unit.Value, out var u) && GodotObject.IsInstanceValid(u) && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
 		{
-			var allUnits = GameHost.Instance.AllUnits;
-			for (int i = 0; i < allUnits.Count; i++)
-			{
-				var u = allUnits[i];
-				if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.Value && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
-				{
-					entity = u.Entity;
-					return true;
-				}
-			}
+			entity = u.Entity;
+			return true;
 		}
 
 		entity = Entity.Null;
