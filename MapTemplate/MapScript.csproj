@@ -32,6 +32,7 @@
     <DebugType>embedded</DebugType>
     <Optimize>false</Optimize>
     <StripSymbols>false</StripSymbols>
+    <IlcGenerateCompleteTypeMetadata>true</IlcGenerateCompleteTypeMetadata>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DebugSymbols>false</DebugSymbols>
@@ -43,6 +44,7 @@
     <DirectPInvoke Include="env" />
     <LinkerArg Include="-Wl,--allow-undefined" />
     <LinkerArg Include="-g" Condition="'$(Configuration)' == 'Debug'" />
+    <LinkerArg Include="-gdwarf-4" Condition="'$(Configuration)' == 'Debug'" />
   </ItemGroup>
   <Target Name="EnableAotLate" BeforeTargets="ImportRuntimeIlcPackageTarget;IlcCompile;_ComputeAssembliesToCompileToNative">
     <PropertyGroup>

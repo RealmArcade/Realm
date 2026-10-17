@@ -472,41 +472,49 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 				return;
 			}
 
-			IntPtr firstEntryPointer = Marshal.ReadIntPtr(descriptorPointer, 16);
-			if (firstEntryPointer == IntPtr.Zero)
+			IntPtr currentEntryPointer = Marshal.ReadIntPtr(descriptorPointer, 16);
+			if (currentEntryPointer == IntPtr.Zero)
 			{
 				return;
 			}
-
-			IntPtr symbolFileAddress = Marshal.ReadIntPtr(firstEntryPointer, 16);
-			ulong symbolFileSize = (ulong)Marshal.ReadInt64(firstEntryPointer, 24);
-
-			if (symbolFileAddress == IntPtr.Zero || symbolFileSize == 0 || symbolFileSize > 200_000_000)
-			{
-				return;
-			}
-
-			byte[] elfBytes = new byte[symbolFileSize];
-			Marshal.Copy(symbolFileAddress, elfBytes, 0, (int)symbolFileSize);
-
-			if (elfBytes.Length < 4 || elfBytes[0] != 0x7F || elfBytes[1] != 0x45 || elfBytes[2] != 0x4C || elfBytes[3] != 0x46)
-			{
-				return;
-			}
-
-			string publishElfPath = Path.ChangeExtension(wasmPath, ".jit.elf");
-			File.WriteAllBytes(publishElfPath, elfBytes);
 
 			string? workspaceDirectory = ResolveWorkspaceDirectory(wasmPath);
-			if (!string.IsNullOrEmpty(workspaceDirectory) && Directory.Exists(workspaceDirectory))
+			string? directoryName = Path.GetDirectoryName(wasmPath);
+			string baseFileName = Path.GetFileNameWithoutExtension(wasmPath);
+			int exportedCount = 0;
+
+			while (currentEntryPointer != IntPtr.Zero)
 			{
-				string workspaceElfPath = Path.Combine(workspaceDirectory, "MapScript.jit.elf");
-				File.WriteAllBytes(workspaceElfPath, elfBytes);
-				LogToConsole($"[WASM DEBUG] Exported JIT debug symbols to '{workspaceElfPath}'.");
-			}
-			else
-			{
-				LogToConsole($"[WASM DEBUG] Exported JIT debug symbols to '{publishElfPath}'.");
+				IntPtr symbolFileAddress = Marshal.ReadIntPtr(currentEntryPointer, 16);
+				ulong symbolFileSize = (ulong)Marshal.ReadInt64(currentEntryPointer, 24);
+
+				if (symbolFileAddress != IntPtr.Zero && symbolFileSize > 0 && symbolFileSize <= 200_000_000)
+				{
+					byte[] elfBytes = new byte[symbolFileSize];
+					Marshal.Copy(symbolFileAddress, elfBytes, 0, (int)symbolFileSize);
+
+					if (elfBytes.Length >= 4 && elfBytes[0] == 0x7F && elfBytes[1] == 0x45 && elfBytes[2] == 0x4C && elfBytes[3] == 0x46)
+					{
+						string suffix = exportedCount == 0 ? string.Empty : $"_{exportedCount}";
+						string publishElfPath = Path.Combine(directoryName ?? string.Empty, $"{baseFileName}{suffix}.jit.elf");
+						File.WriteAllBytes(publishElfPath, elfBytes);
+
+						if (!string.IsNullOrEmpty(workspaceDirectory) && Directory.Exists(workspaceDirectory))
+						{
+							string workspaceElfPath = Path.Combine(workspaceDirectory, $"MapScript{suffix}.jit.elf");
+							File.WriteAllBytes(workspaceElfPath, elfBytes);
+							LogToConsole($"[WASM DEBUG] Exported JIT debug symbols to '{workspaceElfPath}'.");
+						}
+						else
+						{
+							LogToConsole($"[WASM DEBUG] Exported JIT debug symbols to '{publishElfPath}'.");
+						}
+
+						exportedCount++;
+					}
+				}
+
+				currentEntryPointer = Marshal.ReadIntPtr(currentEntryPointer, 0);
 			}
 		}
 		catch (Exception exception)
