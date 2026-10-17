@@ -294,6 +294,11 @@ public partial class CommandPanel
 	public void Update(InGameHUDViewModel viewModel)
 	{
 		if (_commandGrid == null) return;
+		if (GameHost.Instance?.IsClientSpectator == true)
+		{
+			ClearCommandPanelState();
+			return;
+		}
 
 		int localPlayerIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
 		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy || focusedUnit.Player != localPlayerIndex)
@@ -1192,8 +1197,12 @@ public partial class CommandPanel
 	private bool IsAbilityDisabled(GameHost host, Unit_WasmRuntime unitWrapper, Entity casterEntity, string abilityId, float manaCost)
 	{
 		if (host == null) return false;
-			if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
-		if (host.GetPlayerSpellCooldown(host.LocalViewingPlayerIndex, abilityId) > 0f) return true;
+		if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
+
+		int casterPlayer = GameContext.World != null && GameContext.World.IsAlive(casterEntity) && GameContext.World.Has<UnitOwnerPlayer>(casterEntity)
+			? GameContext.World.Get<UnitOwnerPlayer>(casterEntity).PlayerIndex
+			: host.LocalViewingPlayerIndex;
+		if (host.GetPlayerSpellCooldown(casterPlayer, abilityId) > 0f) return true;
 
 		var world = GameContext.World;
 		if (world == null || casterEntity == Entity.Null || !world.IsAlive(casterEntity)) return false;

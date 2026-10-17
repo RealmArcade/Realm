@@ -194,6 +194,7 @@ public class MinimapPanel
 
 	private void HandleRallyCommand(Vector3 minimapWorldPos)
 	{
+		if (GameHost.Instance == null || GameHost.Instance.IsClientSpectator) return;
 		if (GameHost.Instance.SelectedUnits.Count != 1) return;
 		var unit = GameHost.Instance.SelectedUnits[0];
 		int localPlayer = GameHost.Instance.LocalViewingPlayerIndex;

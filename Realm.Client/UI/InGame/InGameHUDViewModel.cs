@@ -28,11 +28,18 @@ public class InGameHUDViewModel
 		if (IsPlayingNormally())
 			return GameHost.Instance.GetPlayerEntityForPlayerIndex(GameHost.Instance.LocalViewingPlayerIndex);
 
-		int targetPeerId = GetTargetPeerId();
-		if (targetPeerId == -1)
-			return GameHost.Instance.GetPlayerEntityForPlayerIndex(GameHost.Instance.LocalViewingPlayerIndex);
+		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+		{
+			int replayPeerId = ReplayPlaybackManager.Instance.SpectatorPerspective;
+			if (replayPeerId == -1) return Entity.Null;
+			return GetSpectatedPlayer(replayPeerId);
+		}
 
-		return GetSpectatedPlayer(targetPeerId);
+		int livePerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
+		if (livePerspective <= 0)
+			return Entity.Null;
+
+		return GameHost.Instance.GetPlayerEntityForPlayerIndex(livePerspective);
 	}
 
 	private bool IsPlayingNormally()
@@ -40,14 +47,6 @@ public class InGameHUDViewModel
 		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
 		bool isPlayingReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
 		return !isSpectator && !isPlayingReplay;
-	}
-
-	private int GetTargetPeerId()
-	{
-		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
-			return ReplayPlaybackManager.Instance.SpectatorPerspective;
-
-		return InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
 	}
 
 	private Entity GetSpectatedPlayer(int targetPeerId)

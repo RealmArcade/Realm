@@ -2498,22 +2498,22 @@ void fragment() {
 
 		var btnBlue = new Button();
 		btnBlue.Text = TranslationServer.Translate("BLUE");
-		btnBlue.Pressed += () => { LiveSpectatorPerspective = 0; };
+		btnBlue.Pressed += () => { LiveSpectatorPerspective = 1; };
 		specHBox.AddChild(btnBlue);
 
 		var btnRed = new Button();
 		btnRed.Text = TranslationServer.Translate("RED");
-		btnRed.Pressed += () => { LiveSpectatorPerspective = 1; };
+		btnRed.Pressed += () => { LiveSpectatorPerspective = 2; };
 		specHBox.AddChild(btnRed);
 
 		var btnGreen = new Button();
 		btnGreen.Text = TranslationServer.Translate("GREEN");
-		btnGreen.Pressed += () => { LiveSpectatorPerspective = 2; };
+		btnGreen.Pressed += () => { LiveSpectatorPerspective = 3; };
 		specHBox.AddChild(btnGreen);
 
 		var btnYellow = new Button();
 		btnYellow.Text = TranslationServer.Translate("YELLOW");
-		btnYellow.Pressed += () => { LiveSpectatorPerspective = 3; };
+		btnYellow.Pressed += () => { LiveSpectatorPerspective = 4; };
 		specHBox.AddChild(btnYellow);
 
 		AddChild(specPanel);

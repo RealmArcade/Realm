@@ -206,7 +206,7 @@ public class TestWasmMap : IWasmModule
 
 	private Unit3D SetupWorkerAndMove(GameHost gameHost)
 	{
-		Unit3D worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && !u.IsEnemy);
+		Unit3D worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && u.Player == 1);
 		if (worker == null)
 		{
 			return null;
@@ -344,7 +344,7 @@ public class TestWasmMap : IWasmModule
 		Unit3D worker = null;
 		for (int i = 0; i < 50; i++)
 		{
-			worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && !u.IsEnemy);
+			worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && u.Player == 1);
 			if (worker != null)
 			{
 				break;

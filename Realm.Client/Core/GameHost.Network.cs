@@ -262,12 +262,11 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SyncPlayerResources(float gold, float wood, float stone)
+	public void SyncPlayerResources(int playerSlot, float gold, float wood, float stone)
 	{
-		int localSlot = LocalViewingPlayerIndex;
-		((IGameAPI)this).SetPlayerGold(localSlot, gold);
-		((IGameAPI)this).SetPlayerWood(localSlot, wood);
-		((IGameAPI)this).SetPlayerStone(localSlot, stone);
+		((IGameAPI)this).SetPlayerGold(playerSlot, gold);
+		((IGameAPI)this).SetPlayerWood(playerSlot, wood);
+		((IGameAPI)this).SetPlayerStone(playerSlot, stone);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -281,7 +280,13 @@ public partial class GameHost
 		var resources = GameContext.NetworkService.GetServerPlayerResources(_peerIdToPlayerEntityMap, _localPeerId);
 		foreach (var res in resources)
 		{
-			RpcId(res.PeerId, nameof(SyncPlayerResources), res.Gold, res.Wood, res.Stone);
+			if (_peerIdToPlayerEntityMap.TryGetValue(res.PeerId, out var playerEntity) &&
+			    GameContext.World.IsAlive(playerEntity) &&
+			    GameContext.World.Has<UnitOwnerPlayer>(playerEntity))
+			{
+				int slot = GameContext.World.Get<UnitOwnerPlayer>(playerEntity).PlayerIndex;
+				Rpc(nameof(SyncPlayerResources), slot, res.Gold, res.Wood, res.Stone);
+			}
 		}
 	}
 

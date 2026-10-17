@@ -57,12 +57,12 @@ public partial class GameHost
 		HandleMultiplayerUnitDeath(unit);
 
 		string unitId = unit.UnitId;
-		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(LocalViewingPlayerIndex, unit.Player);
+		int unitPlayer = unit.Player;
 
 		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
 
 		PlayDeathEffects(unit, executeDespawnShader, playDeathAnimation, unitId);
-		CheckGameOver(unitId, isEnemy);
+		CheckGameOver(unitId, unitPlayer);
 
 		GD.Print($"Unit {unit.Name} died.");
 	}
@@ -100,13 +100,10 @@ public partial class GameHost
 			GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(playerIndex, Math.Max(0, curPop - (int)popCost));
 		}
 
-		if (NetworkService.ArePlayerIndicesEnemies(LocalViewingPlayerIndex, unit.Player))
-		{
-			HandleEnemyDeathEconomy(unit);
-		}
+		HandleUnitBountyEconomy(unit);
 	}
 
-	private void HandleEnemyDeathEconomy(Unit3D unit)
+	private void HandleUnitBountyEconomy(Unit3D unit)
 	{
 		float resCap = ECSContext.PlayerResourceService.ResourceCap;
 		Entity beneficiaryPlayerEntity = Entity.Null;
@@ -120,19 +117,22 @@ public partial class GameHost
 			}
 		}
 
-		if (beneficiaryPlayerEntity == Entity.Null)
+		if (beneficiaryPlayerEntity == Entity.Null && (LobbyManager.Instance == null || LobbyManager.Instance.IsSinglePlayer))
 		{
 			int localSlot = LocalViewingPlayerIndex;
 			beneficiaryPlayerEntity = GetPlayerEntityForPlayerIndex(localSlot);
 		}
 
-		bool shouldRefresh = GameContext.SimulationService.HandleEnemyDeathEconomyDomain(unit.Entity, unit.UnitId, beneficiaryPlayerEntity, (int)resCap);
-		
-		int localViewingSlot = LocalViewingPlayerIndex;
-		Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(localViewingSlot);
-		if (shouldRefresh && beneficiaryPlayerEntity == localPlayerEntity)
+		if (beneficiaryPlayerEntity != Entity.Null)
 		{
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			bool shouldRefresh = GameContext.SimulationService.HandleEnemyDeathEconomyDomain(unit.Entity, unit.UnitId, beneficiaryPlayerEntity, (int)resCap);
+			
+			int localViewingSlot = LocalViewingPlayerIndex;
+			Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(localViewingSlot);
+			if (shouldRefresh && beneficiaryPlayerEntity == localPlayerEntity)
+			{
+				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			}
 		}
 	}
 
@@ -188,19 +188,32 @@ public partial class GameHost
 		return true;
 	}
 
-	private void CheckGameOver(string unitId, bool isEnemy)
+	private void CheckGameOver(string unitId, int destroyedCastlePlayer)
 	{
-		if (!GameContext.SimulationService.DomainCheckGameOver(unitId, isEnemy)) return;
+		if (unitId != "castle") return;
+		if (!GameContext.SimulationService.DomainCheckGameOver(unitId, false)) return;
 
-		if (isEnemy)
-		{
-			GD.Print("[GameHost] Enemy Castle destroyed! Player wins!");
-			Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
-		}
-		else
+		// In multiplayer client mode, the authoritative server coordinates GameOver state via ClientGameOver RPC
+		if (_multiplayerActive && !Multiplayer.IsServer()) return;
+
+		// Spectators do not receive personal win/loss screens while matches are underway
+		if (IsClientSpectator) return;
+
+		int localPlayerIndex = LocalViewingPlayerIndex;
+		bool isLocalPlayerCastle = destroyedCastlePlayer == localPlayerIndex;
+
+		if (isLocalPlayerCastle)
 		{
 			GD.Print("[GameHost] Player Castle destroyed! Player loses!");
 			Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
+			return;
+		}
+
+		bool anyEnemyCastleAlive = _castlesList.Exists(c => NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, c.Player));
+		if (!anyEnemyCastleAlive)
+		{
+			GD.Print("[GameHost] All Enemy Castles destroyed! Player wins!");
+			Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
 		}
 	}
 

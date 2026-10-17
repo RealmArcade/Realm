@@ -30,7 +30,7 @@ public class ResourceEconomyService
 	private ResourceId _woodResourceId;
 	private ResourceId _stoneResourceId;
 
-	public Action<string, float> OnResourceDepositedForPlayer;
+	public Action<int, string, float>? OnResourceDepositedForPlayer;
 	public Action<Entity> OnClearUnitOrdersRequested;
 	public Action<Entity> OnStopGatheringMovementRequested;
 	public Action<Entity> OnPropDepleted;
@@ -242,12 +242,10 @@ public class ResourceEconomyService
 			}
 		}
 
-		int localViewingSlot = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
-		Entity localPlayerEntity = localViewingSlot > 0 ? (GameHost.Instance?.GetPlayerEntityForPlayerIndex(localViewingSlot) ?? Entity.Null) : Entity.Null;
-		if (localPlayerEntity != Entity.Null && ownerEntity == localPlayerEntity)
-		{
-			OnResourceDepositedForPlayer?.Invoke(gather.ResourceType, carry);
-		}
+		int depositPlayer = GameContext.World.Has<UnitOwnerPlayer>(ownerEntity)
+			? GameContext.World.Get<UnitOwnerPlayer>(ownerEntity).PlayerIndex
+			: 0;
+		OnResourceDepositedForPlayer?.Invoke(depositPlayer, gather.ResourceType, carry);
 	}
 
 	private void HandleNodeAfterDeposit(Entity entity, ref Gatherer gather)

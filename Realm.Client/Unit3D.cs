@@ -209,7 +209,7 @@ public partial class Unit3D : Prop3D
 		{
 			base.IsSelected = value;
 			int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
-			if (IsBuilding && Player == localPlayer)
+			if (IsBuilding && (Player == localPlayer || (GameHost.Instance?.IsClientSpectator == true)))
 			{
 				UpdateRallyVisuals();
 			}
@@ -1784,7 +1784,7 @@ public partial class Unit3D : Prop3D
 	public void UpdateRallyVisuals()
 	{
 		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
-		if (!IsBuilding || Player != localPlayer) return;
+		if (!IsBuilding || (Player != localPlayer && (GameHost.Instance == null || !GameHost.Instance.IsClientSpectator))) return;
 		if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return;
 
 		EnsureRallyVisualsContainer();
@@ -1850,7 +1850,7 @@ public partial class Unit3D : Prop3D
 	public override void _Process(double delta)
 	{
 		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
-		if (IsSelected && Player == localPlayer)
+		if (IsSelected && (Player == localPlayer || (GameHost.Instance != null && GameHost.Instance.IsClientSpectator)))
 		{
 			if (IsBuilding)
 			{

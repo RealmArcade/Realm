@@ -64,12 +64,28 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		get
 		{
+			if (IsClientSpectator)
+			{
+				int specPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
+				if (specPerspective > 0) return specPerspective;
+				return 0;
+			}
+
 			if (LobbyManager.Instance?.PlayerList != null)
 			{
 				var p = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == _localPeerId);
 				if (p != null && p.Slot > 0) return p.Slot;
 			}
 			return 1;
+		}
+	}
+
+	public int LocalControlledPlayerIndex
+	{
+		get
+		{
+			if (IsClientSpectator) return -1;
+			return LocalViewingPlayerIndex;
 		}
 	}
 
@@ -1987,8 +2003,9 @@ public partial class GameHost : Node3D, IGameAPI
 		OnUnitAttacked?.Invoke(GameContext.SimulationService.GetUnitWrapper(attackerEntity), GameContext.SimulationService.GetUnitWrapper(targetEntity));
 	}
 
-	private void HandleUnderAttackAlert(string unitId)
+	private void HandleUnderAttackAlert(int targetPlayer, string unitId)
 	{
+		if (targetPlayer != LocalViewingPlayerIndex) return;
 		string alertMsg = unitId == "castle" ? "⚠️ YOUR CASTLE IS UNDER ATTACK!" : $"⚠️ {unitId.ToUpper()} is under attack!";
 		Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(alertMsg, new Color(1.0f, 0.2f, 0.1f))).CallDeferred();
 		Callable.From(() => UIManager.Instance?.PlayWarningSound()).CallDeferred();
@@ -2006,14 +2023,16 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.SimulationService.OnStopGatheringMovementRequested = StopGatheringMovement;
 		GameContext.SimulationService.OnUiRefreshRequested = () => InGameHUD.Instance?.RefreshUI(SelectedUnits);
 
-		GameContext.SimulationService.OnResourceDepositedForPlayer = (resType, carry) =>
+		GameContext.SimulationService.OnResourceDepositedForPlayer = (playerIndex, resType, carry) =>
 		{
+			if (playerIndex != LocalViewingPlayerIndex) return;
 			string resTypeUpper = resType.ToUpper();
 			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText($"+{carry:F0} {resTypeUpper} deposited", new Color(0.2f, 0.9f, 0.4f))).CallDeferred();
 		};
 
-		GameContext.SimulationService.OnProductionCompleted = unitToSpawn =>
+		GameContext.SimulationService.OnProductionCompleted = (playerIndex, unitToSpawn) =>
 		{
+			if (playerIndex != LocalViewingPlayerIndex) return;
 			string displayName = UnitRegistry.TryGetValue(unitToSpawn, out var nm) ? nm.Name : unitToSpawn.ToUpper();
 			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText($"✓ {displayName} training complete!", new Color(0.3f, 0.9f, 0.4f))).CallDeferred();
 		};
@@ -2599,6 +2618,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)
 	{
+		if (IsClientSpectator) return;
 		if (SelectedUnits.Count == 0 || prop == null || !GodotObject.IsInstanceValid(prop)) return;
 
 		string? resType = GetPropResourceType(prop.PropId);
@@ -2629,7 +2649,8 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void IssueMultiplayerGatherCommand(Prop3D prop, bool isQueued)
 	{
-		int localPlayerIndex = LocalViewingPlayerIndex;
+		int localPlayerIndex = LocalControlledPlayerIndex;
+		if (localPlayerIndex <= 0) return;
 		var targetIds = new List<int>();
 		foreach (var unit in SelectedUnits)
 		{
@@ -2642,7 +2663,8 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void IssueLocalGatherCommand(Prop3D prop, string resType, bool isQueued)
 	{
-		int localPlayerIndex = LocalViewingPlayerIndex;
+		int localPlayerIndex = LocalControlledPlayerIndex;
+		if (localPlayerIndex <= 0) return;
 		foreach (var unit in SelectedUnits)
 		{
 			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
@@ -2709,7 +2731,8 @@ public partial class GameHost : Node3D, IGameAPI
 	private void ApplyGigachadBuffsIfNeeded(Entity entity, int playerIndex)
 	{
 		if (!GameContext.CheatService.GigachadEnabled) return;
-		int localPlayerIndex = LocalViewingPlayerIndex;
+		int localPlayerIndex = LocalControlledPlayerIndex;
+		if (localPlayerIndex <= 0) return;
 		if (NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex)) return;
 		if (GameContext.World.Has<Health>(entity)) GameContext.World.Set(entity, new Health(9000f, 9000f));
 		if (GameContext.World.Has<Attack>(entity))

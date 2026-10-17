@@ -2748,6 +2748,7 @@ public partial class GameHost
 
 	public void IssueMoveCommand(Vector3 targetPos, bool isQueued = false)
 	{
+		if (IsClientSpectator) return;
 		if (SelectedUnits.Count == 0) return;
 
 		ViewShowMoveCommandFeedback(targetPos, isQueued);
@@ -2809,6 +2810,7 @@ public partial class GameHost
 
 	public void IssueAttackCommand(Unit3D target, bool isQueued = false)
 	{
+		if (IsClientSpectator) return;
 		if (SelectedUnits.Count == 0) return;
 
 		ViewShowAttackCommandFeedback(target);
@@ -2859,6 +2861,7 @@ public partial class GameHost
 
 	public void IssueFollowCommand(Unit3D target, bool isQueued = false)
 	{
+		if (IsClientSpectator) return;
 		if (SelectedUnits.Count == 0) return;
 
 		SpawnTargetIndicator(target.GlobalPosition, new Color(0.2f, 0.6f, 1.0f));
@@ -2908,6 +2911,7 @@ public partial class GameHost
 
 	private void SelectAllBuildings()
 	{
+		if (IsClientSpectator) return;
 		ClearSelection();
 		var entities = GameContext.InputService.GetBuildingEntities(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex));
 		int count = 0;
@@ -2949,6 +2953,7 @@ public partial class GameHost
 
 	private void CycleThroughBuildings()
 	{
+		if (IsClientSpectator) return;
 		Entity buildingEntity = GameContext.InputService.CycleThroughBuildings(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex));
 		if (buildingEntity == Entity.Null) return;
 
@@ -2993,6 +2998,7 @@ public partial class GameHost
 
 	public void SelectAllIdleUnits()
 	{
+		if (IsClientSpectator) return;
 		ClearSelection();
 		var entities = GameContext.InputService.GetIdleUnitEntities(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex));
 		int selectedCount = 0;
@@ -3015,6 +3021,7 @@ public partial class GameHost
 
 	public void SelectAllMilitaryUnits()
 	{
+		if (IsClientSpectator) return;
 		ClearSelection();
 		var entities = GameContext.InputService.GetMilitaryUnitEntities(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex));
 		int selectedCount = 0;
@@ -3037,6 +3044,7 @@ public partial class GameHost
 
 	private void PerformDoubleClickSelection(Vector2 clickPos)
 	{
+		if (IsClientSpectator) return;
 		var hit = RaycastFromMouse(clickPos);
 		if (hit == null || !hit.ContainsKey("collider")) return;
 
@@ -3066,6 +3074,7 @@ public partial class GameHost
 
 	public void CenterCameraOnCastle()
 	{
+		if (IsClientSpectator) return;
 		Unit3D castle = null;
 		int localPlayerIndex = LocalViewingPlayerIndex;
 		foreach (var unit in AllUnits)
@@ -3203,6 +3212,7 @@ public partial class GameHost
 
 	private void AssignControlGroup(int index)
 	{
+		if (IsClientSpectator) return;
 		int localPlayerIndex = LocalViewingPlayerIndex;
 		var groupUnits = new List<Unit3D>();
 		foreach (var u in SelectedUnits)
@@ -3223,6 +3233,7 @@ public partial class GameHost
 
 	public void RecallControlGroup(int index)
 	{
+		if (IsClientSpectator) return;
 		var group = _controlGroups[index];
 		if (group == null || group.Count == 0) return;
 
@@ -3275,6 +3286,7 @@ public partial class GameHost
 
 	public void EnterSpellTargeting(string spellId)
 	{
+		if (IsClientSpectator) return;
 		ActiveSpellTargeting = spellId;
 		Input.SetDefaultCursorShape(Input.CursorShape.Cross);
 
@@ -3286,6 +3298,7 @@ public partial class GameHost
 
 	private void ExecuteSpellCast(string spellId, Vector3 position)
 	{
+		if (IsClientSpectator) return;
 		var def = GetAbilityDefinition(spellId);
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
@@ -3378,6 +3391,7 @@ public partial class GameHost
 	// seleccionada como lanzador y su posición como objetivo; sin clic en el suelo.
 	public void CastInstantAbility(string abilityId)
 	{
+		if (IsClientSpectator) return;
 		if (SelectedUnits.Count == 0 || !GameContext.World.IsAlive(SelectedUnits[0].Entity)) return;
 
 		if (GameContext.InputService.TryGetCasterPosition(SelectedUnits[0].Entity, out var pos))
@@ -3388,6 +3402,7 @@ public partial class GameHost
 
 	public void BuyItem(string itemId, Entity castleEntity)
 	{
+		if (IsClientSpectator) return;
 		ResolveItemInfo(itemId, out string itemName, out float costGold);
 
 		if (InGameHUD.Instance == null) return;
@@ -3495,6 +3510,7 @@ public partial class GameHost
 
 	public void EnterBuildingPlacement(string type)
 	{
+		if (IsClientSpectator) return;
 		ActiveBuildingPlacementType = type;
 
 		if (_buildingPreviewMesh != null && GodotObject.IsInstanceValid(_buildingPreviewMesh))
@@ -3588,6 +3604,7 @@ public partial class GameHost
 
 	private void ExecuteBuildingPlacement(string type, Vector3 position)
 	{
+		if (IsClientSpectator) return;
 		bool shiftHeld = Input.IsKeyPressed(Key.Shift);
 		if (!TryGetUnitOrBuildingMetadata(type, out var meta))
 		{
@@ -3835,97 +3852,109 @@ public partial class GameHost
 	public void BuyWeaponsUpgrade(int playerIndex = 0)
 	{
 		if (playerIndex <= 0) playerIndex = LocalViewingPlayerIndex;
+		if (playerIndex <= 0) return;
 		if (HasWeaponsUpgrade(playerIndex)) return;
 
 		float costGold = 150f;
 		float costWood = 100f;
 
-		if (InGameHUD.Instance != null)
-		{
-			if (InGameHUD.Instance.Gold >= costGold && InGameHUD.Instance.Wood >= costWood)
-			{
-				if (GameContext.TechTreeService.BuyWeaponsUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
-				{
-					InGameHUD.Instance.Gold -= costGold;
-					InGameHUD.Instance.Wood -= costWood;
+		float currentGold = ((IGameAPI)this).GetPlayerGold(playerIndex);
+		float currentWood = ((IGameAPI)this).GetPlayerWood(playerIndex);
 
+		if (currentGold >= costGold && currentWood >= costWood)
+		{
+			if (GameContext.TechTreeService.BuyWeaponsUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
+			{
+				((IGameAPI)this).SetPlayerGold(playerIndex, currentGold - costGold);
+				((IGameAPI)this).SetPlayerWood(playerIndex, currentWood - costWood);
+
+				if (playerIndex == LocalViewingPlayerIndex && InGameHUD.Instance != null)
+				{
 					InGameHUD.Instance.ShowFeedbackText("Weapons Upgrade Complete! +3 Damage to all units.", new Color(0.2f, 0.8f, 1.0f));
 					UIManager.Instance?.PlayClickSound();
 					InGameHUD.Instance.RefreshUI(SelectedUnits);
 				}
 			}
-			else
-			{
-				InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
-				UIManager.Instance?.PlayWarningSound();
-			}
+		}
+		else if (playerIndex == LocalViewingPlayerIndex && InGameHUD.Instance != null)
+		{
+			InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
+			UIManager.Instance?.PlayWarningSound();
 		}
 	}
 
 	public void BuyShieldsUpgrade(int playerIndex = 0)
 	{
 		if (playerIndex <= 0) playerIndex = LocalViewingPlayerIndex;
+		if (playerIndex <= 0) return;
 		if (HasShieldsUpgrade(playerIndex)) return;
 
 		float costGold = 150f;
 		float costStone = 100f;
 
-		if (InGameHUD.Instance != null)
-		{
-			if (InGameHUD.Instance.Gold >= costGold && InGameHUD.Instance.Stone >= costStone)
-			{
-				if (GameContext.TechTreeService.BuyShieldsUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
-				{
-					InGameHUD.Instance.Gold -= costGold;
-					InGameHUD.Instance.Stone -= costStone;
+		float currentGold = ((IGameAPI)this).GetPlayerGold(playerIndex);
+		float currentStone = ((IGameAPI)this).GetPlayerStone(playerIndex);
 
+		if (currentGold >= costGold && currentStone >= costStone)
+		{
+			if (GameContext.TechTreeService.BuyShieldsUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
+			{
+				((IGameAPI)this).SetPlayerGold(playerIndex, currentGold - costGold);
+				((IGameAPI)this).SetPlayerStone(playerIndex, currentStone - costStone);
+
+				if (playerIndex == LocalViewingPlayerIndex && InGameHUD.Instance != null)
+				{
 					InGameHUD.Instance.ShowFeedbackText("Plated Armor Upgrade Complete! +2 Armor to all units.", new Color(0.2f, 0.8f, 1.0f));
 					UIManager.Instance?.PlayClickSound();
 					InGameHUD.Instance.RefreshUI(SelectedUnits);
 				}
 			}
-			else
-			{
-				InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
-				UIManager.Instance?.PlayWarningSound();
-			}
+		}
+		else if (playerIndex == LocalViewingPlayerIndex && InGameHUD.Instance != null)
+		{
+			InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
+			UIManager.Instance?.PlayWarningSound();
 		}
 	}
 
 	public void BuyHarvestingUpgrade(int playerIndex = 0)
 	{
 		if (playerIndex <= 0) playerIndex = LocalViewingPlayerIndex;
+		if (playerIndex <= 0) return;
 		if (HasHarvestingUpgrade(playerIndex)) return;
 
 		float costWood = 150f;
 		float costStone = 100f;
 
-		if (InGameHUD.Instance != null)
+		float currentWood = ((IGameAPI)this).GetPlayerWood(playerIndex);
+		float currentStone = ((IGameAPI)this).GetPlayerStone(playerIndex);
+
+		if (currentWood >= costWood && currentStone >= costStone)
 		{
-			if (InGameHUD.Instance.Wood >= costWood && InGameHUD.Instance.Stone >= costStone)
+			if (GameContext.TechTreeService.BuyHarvestingUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
 			{
-				if (GameContext.TechTreeService.BuyHarvestingUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
+				((IGameAPI)this).SetPlayerWood(playerIndex, currentWood - costWood);
+				((IGameAPI)this).SetPlayerStone(playerIndex, currentStone - costStone);
+
+				if (playerIndex == LocalViewingPlayerIndex && InGameHUD.Instance != null)
 				{
-					InGameHUD.Instance.Wood -= costWood;
-					InGameHUD.Instance.Stone -= costStone;
-
 					InGameHUD.Instance.ResourceGatherMultiplier = 1.5f;
-
 					InGameHUD.Instance.ShowFeedbackText("Harvesting Upgrade Complete! Passive resource accumulation +50%.", new Color(0.2f, 0.8f, 1.0f));
 					UIManager.Instance?.PlayClickSound();
 					InGameHUD.Instance.RefreshUI(SelectedUnits);
 				}
 			}
-			else
-			{
-				InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
-				UIManager.Instance?.PlayWarningSound();
-			}
+		}
+		else if (playerIndex == LocalViewingPlayerIndex && InGameHUD.Instance != null)
+		{
+			InGameHUD.Instance.ShowFeedbackText("Cannot upgrade: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
+			UIManager.Instance?.PlayWarningSound();
 		}
 	}
 
 	public void IssueAttackMoveCommand(Vector3 targetPos)
 	{
+		if (IsClientSpectator) return;
 		if (SelectedUnits.Count == 0) return;
 
 		SpawnTargetIndicator(targetPos, new Color(0.9f, 0.5f, 0.1f));
@@ -3948,6 +3977,7 @@ public partial class GameHost
 
 	public void HoldSelectedUnits()
 	{
+		if (IsClientSpectator) return;
 		if (SelectedUnits.Count == 0) return;
 
 		int localPlayerIndex = LocalViewingPlayerIndex;
@@ -3971,6 +4001,7 @@ public partial class GameHost
 
 	public void IssuePatrolCommand(Vector3 targetPos, bool isQueued = false)
 	{
+		if (IsClientSpectator) return;
 		if (SelectedUnits.Count == 0) return;
 
 		SpawnTargetIndicator(targetPos, new Color(0.6f, 0.3f, 1.0f));
@@ -3996,6 +4027,7 @@ public partial class GameHost
 
 	public void IssueAttackMoveCommand(Vector3 targetPos, bool isQueued = false)
 	{
+		if (IsClientSpectator) return;
 		if (SelectedUnits.Count == 0) return;
 
 		SpawnTargetIndicator(targetPos, new Color(0.2f, 0.7f, 1.0f));
@@ -4042,6 +4074,7 @@ public partial class GameHost
 
 	public void TrainUnitAtCastle(string unitId)
 	{
+		if (IsClientSpectator) return;
 		if (InGameHUD.Instance == null) return;
 		var meta = UnitRegistry[unitId];
 
@@ -4193,6 +4226,7 @@ public partial class GameHost
 
 	public void StopSelectedUnits()
 	{
+		if (IsClientSpectator) return;
 		int localPlayerIndex = LocalViewingPlayerIndex;
 		var targetIds = new List<int>();
 		var selectedEntities = new List<Entity>();
@@ -4214,6 +4248,7 @@ public partial class GameHost
 
 	public void CancelQueuedUnitAt(Entity castleEntity, int index)
 	{
+		if (IsClientSpectator) return;
 		if (!GameContext.World.IsAlive(castleEntity) || !GameContext.World.Has<ProductionQueue>(castleEntity)) return;
 
 		int popCost = GetPopCostForIndex(castleEntity, index);
@@ -4362,6 +4397,7 @@ public partial class GameHost
 
 	public void HandleMinimapRightClick(Vector3 minimapWorldPos)
 	{
+		if (IsClientSpectator) return;
 		if (ClearTargetingModesIfActive()) return;
 		int localPlayerIndex = LocalViewingPlayerIndex;
 		if (SelectedUnits.Count == 0 || !SelectedUnits.Exists(su => su.Player == localPlayerIndex)) return;

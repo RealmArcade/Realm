@@ -282,15 +282,29 @@ void fragment() {
 
 	private void HandleReplayOrSpectatorShroud(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, float worldWidth, float worldDepth)
 	{
-		int targetOwnerId = isPlayingReplay ? ReplayPlaybackManager.Instance.SpectatorPerspective : spectatorPerspective;
-		if (targetOwnerId == -1)
+		if (isPlayingReplay)
+		{
+			int targetPeerId = ReplayPlaybackManager.Instance.SpectatorPerspective;
+			if (targetPeerId == -1)
+			{
+				SetAllVisible(allUnits, allProps, allDecals);
+				return;
+			}
+
+			UpdateVisionGridForReplayPeer(allUnits, targetPeerId, worldWidth, worldDepth);
+			ApplyVisionGridToEntitiesForReplayPeer(allUnits, allProps, allDecals, targetPeerId, worldWidth, worldDepth);
+			Update3DShroudMesh();
+			return;
+		}
+
+		if (spectatorPerspective <= 0)
 		{
 			SetAllVisible(allUnits, allProps, allDecals);
 			return;
 		}
 
-		UpdateVisionGridForSpecificTeam(allUnits, targetOwnerId, worldWidth, worldDepth);
-		ApplyVisionGridToEntitiesForTargetTeam(allUnits, allProps, allDecals, targetOwnerId, worldWidth, worldDepth);
+		UpdateVisionGridForSpecificTeam(allUnits, spectatorPerspective, worldWidth, worldDepth);
+		ApplyVisionGridToEntitiesForTargetTeam(allUnits, allProps, allDecals, spectatorPerspective, worldWidth, worldDepth);
 		Update3DShroudMesh();
 	}
 
@@ -335,7 +349,7 @@ void fragment() {
 		ShroudGrid = shroudGrid;
 	}
 
-	private void UpdateVisionGridForSpecificTeam(List<Unit3D> allUnits, int targetOwnerId, float worldWidth, float worldDepth)
+	private void UpdateVisionGridForReplayPeer(List<Unit3D> allUnits, int targetPeerId, float worldWidth, float worldDepth)
 	{
 		ResetGridToState(ShroudState.VisionShroud, ShroudState.Visible);
 		var shroudGrid = ShroudGrid;
@@ -343,7 +357,22 @@ void fragment() {
 		foreach (var unit in allUnits)
 		{
 			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
-			if (GameHost.Instance.GetOwnerPeerId(unit.Entity) != targetOwnerId) continue;
+			if (GameHost.Instance.GetOwnerPeerId(unit.Entity) != targetPeerId) continue;
+			RevealAreaInGrid(unit, shroudGrid, worldWidth, worldDepth);
+		}
+
+		ShroudGrid = shroudGrid;
+	}
+
+	private void UpdateVisionGridForSpecificTeam(List<Unit3D> allUnits, int targetPlayerIndex, float worldWidth, float worldDepth)
+	{
+		ResetGridToState(ShroudState.VisionShroud, ShroudState.Visible);
+		var shroudGrid = ShroudGrid;
+
+		foreach (var unit in allUnits)
+		{
+			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
+			if (unit.Player != targetPlayerIndex && NetworkService.ArePlayerIndicesEnemies(targetPlayerIndex, unit.Player)) continue;
 			RevealAreaInGrid(unit, shroudGrid, worldWidth, worldDepth);
 		}
 
@@ -392,14 +421,30 @@ void fragment() {
 		ApplyGridVisibility(allDecals, shroudGrid, worldWidth, worldDepth, ShroudState.ExplorationShroud, true);
 	}
 
-	private void ApplyVisionGridToEntitiesForTargetTeam(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int targetOwnerId, float worldWidth, float worldDepth)
+	private void ApplyVisionGridToEntitiesForReplayPeer(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int targetPeerId, float worldWidth, float worldDepth)
 	{
 		var shroudGrid = ShroudGrid;
 
 		foreach (var unit in allUnits)
 		{
 			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
-			bool shouldBeVisible = GameHost.Instance.GetOwnerPeerId(unit.Entity) == targetOwnerId || IsVisibleOnGrid(unit.GlobalPosition, shroudGrid, worldWidth, worldDepth);
+			bool shouldBeVisible = GameHost.Instance.GetOwnerPeerId(unit.Entity) == targetPeerId || IsVisibleOnGrid(unit.GlobalPosition, shroudGrid, worldWidth, worldDepth);
+			if (unit.Visible != shouldBeVisible) unit.Visible = shouldBeVisible;
+		}
+
+		ApplyGridVisibility(allProps, shroudGrid, worldWidth, worldDepth, ShroudState.Visible);
+		ApplyGridVisibility(allDecals, shroudGrid, worldWidth, worldDepth, ShroudState.ExplorationShroud, true);
+	}
+
+	private void ApplyVisionGridToEntitiesForTargetTeam(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int targetPlayerIndex, float worldWidth, float worldDepth)
+	{
+		var shroudGrid = ShroudGrid;
+
+		foreach (var unit in allUnits)
+		{
+			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
+			bool isFriendlyToTarget = unit.Player == targetPlayerIndex || !NetworkService.ArePlayerIndicesEnemies(targetPlayerIndex, unit.Player);
+			bool shouldBeVisible = isFriendlyToTarget || IsVisibleOnGrid(unit.GlobalPosition, shroudGrid, worldWidth, worldDepth);
 			if (unit.Visible != shouldBeVisible) unit.Visible = shouldBeVisible;
 		}
 

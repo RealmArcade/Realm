@@ -278,7 +278,7 @@ public class SimulationService
 	public Action<Entity, Entity, float> OnUnitDamagedCallback;
 	public Action<Entity, Entity, float>? OnUnitHealedCallback;
 	public Action<Entity, Entity>? OnUnitAttackedCallback;
-	public Action<string> OnUnderAttackAlertRequested;
+	public Action<int, string> OnUnderAttackAlertRequested;
 	public Action<Entity> OnKillUnitRequested;
 	public Action<string, Vector3, Entity, bool>? OnSpawnUnitFromProductionRequested;
 	public Action<Entity>? OnClearUnitOrdersRequested;
@@ -392,8 +392,8 @@ public class SimulationService
 	}
 
 	public Action<Entity>? OnResourceHarvested;
-	public Action<string, float> OnResourceDepositedForPlayer;
-	public Action<string> OnProductionCompleted;
+	public Action<int, string, float> OnResourceDepositedForPlayer;
+	public Action<int, string> OnProductionCompleted;
 	public Func<string, float> GetProductionBuildTime;
 
 
@@ -429,10 +429,10 @@ public class SimulationService
 		_combatService.OnUnitDamagedCallback = (e1, e2, d) => OnUnitDamagedCallback?.Invoke(e1, e2, d);
 		_combatService.OnUnitHealedCallback = (e1, e2, h) => OnUnitHealedCallback?.Invoke(e1, e2, h);
 		_combatService.OnUnitAttackedCallback = (e1, e2) => OnUnitAttackedCallback?.Invoke(e1, e2);
-		_combatService.OnUnderAttackAlertRequested = id => OnUnderAttackAlertRequested?.Invoke(id);
+		_combatService.OnUnderAttackAlertRequested = (player, id) => OnUnderAttackAlertRequested?.Invoke(player, id);
 		_combatService.OnKillUnitRequested = ent => OnKillUnitRequested?.Invoke(ent);
 
-		_economyService.OnResourceDepositedForPlayer = (res, amount) => OnResourceDepositedForPlayer?.Invoke(res, amount);
+		_economyService.OnResourceDepositedForPlayer = (player, res, amount) => OnResourceDepositedForPlayer?.Invoke(player, res, amount);
 		_economyService.OnClearUnitOrdersRequested = ent => OnClearUnitOrdersRequested?.Invoke(ent);
 		_economyService.OnStopGatheringMovementRequested = ent => OnStopGatheringMovementRequested?.Invoke(ent);
 		_economyService.OnPropDepleted = ent => OnPropDepleted?.Invoke(ent);
@@ -1385,8 +1385,6 @@ public class SimulationService
 		var spawnPos = buildingPos + spawnOffset;
 
 		int buildingPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
-		int localPlayerIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
-		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, buildingPlayerIndex);
 
 		_tickSpawningRequests.Add(new SpawningRequest
 		{
@@ -1396,7 +1394,7 @@ public class SimulationService
 			IsFromQueue = true
 		});
 
-		if (!isEnemy) OnProductionCompleted?.Invoke(unitToSpawn);
+		OnProductionCompleted?.Invoke(buildingPlayerIndex, unitToSpawn);
 	}
 
 	private void InterpolationQueryAction(Entity entity, ref InterpolationTarget target)

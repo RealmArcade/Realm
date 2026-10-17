@@ -427,7 +427,6 @@ public class SaveLoadService
 	{
 		var units = new List<UnitSaveData>();
 		var unitQuery = QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
-		int localPlayerIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
 
 		GameContext.World.Query(in unitQuery, (Entity entity, ref DefinitionId defId, ref Position pos, ref Owner owner) =>
 		{

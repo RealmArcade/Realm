@@ -143,7 +143,7 @@ namespace Realm.Client.Services
 		public Action<Entity, Entity, float>? OnUnitDamagedCallback;
 		public Action<Entity, Entity, float>? OnUnitHealedCallback;
 		public Action<Entity, Entity>? OnUnitAttackedCallback;
-		public Action<string>? OnUnderAttackAlertRequested;
+		public Action<int, string>? OnUnderAttackAlertRequested;
 		public Action<Entity>? OnKillUnitRequested;
 
 		public CombatAndDamageService(Func<bool>? unlimitedPowerProvider = null)
@@ -665,14 +665,11 @@ namespace Realm.Client.Services
 			if (!GameContext.World.Has<DefinitionId>(target)) return;
 
 			int targetPlayer = GameContext.World.Has<UnitOwnerPlayer>(target) ? GameContext.World.Get<UnitOwnerPlayer>(target).PlayerIndex : 0;
-			int localViewingPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
-			if (targetPlayer != localViewingPlayer) return;
-
 			string targetUnitId = GameContext.World.Get<DefinitionId>(target).Value;
 			if (GetCombatAlertTimer() <= 0f)
 			{
 				SetCombatAlertTimer(UnderAttackAlertCooldown);
-				OnUnderAttackAlertRequested?.Invoke(targetUnitId);
+				OnUnderAttackAlertRequested?.Invoke(targetPlayer, targetUnitId);
 			}
 		}
 

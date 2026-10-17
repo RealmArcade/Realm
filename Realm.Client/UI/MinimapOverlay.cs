@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Terrain;
 
@@ -86,6 +87,9 @@ public partial class MinimapOverlay : Control
 
 	private bool IsUnitVisibleOnMinimap(Unit3D unit, float physicalWidth, float physicalDepth)
 	{
+		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
+		if (isSpectator) return true;
+
 		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
 		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
 		if (!isEnemy) return true;
@@ -99,9 +103,18 @@ public partial class MinimapOverlay : Control
 
 	private void DrawUnitIcon(Unit3D unit, Vector2 drawPos, float iconSize)
 	{
-		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
-		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
-		Color color = isEnemy ? new Color(0.9f, 0.1f, 0.1f) : new Color(0.2f, 0.6f, 1.0f);
+		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
+		Color color;
+		if (isSpectator)
+		{
+			color = GetPlayerMinimapColor(unit.Player);
+		}
+		else
+		{
+			int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
+			color = isEnemy ? new Color(0.9f, 0.1f, 0.1f) : new Color(0.2f, 0.6f, 1.0f);
+		}
 
 		if (unit.IsBuilding)
 		{
@@ -115,13 +128,40 @@ public partial class MinimapOverlay : Control
 		DrawCircle(drawPos, iconSize, new Color(0f, 0f, 0f, 0.6f), false, 1.0f);
 	}
 
+	private Color GetPlayerMinimapColor(int playerIndex)
+	{
+		if (LobbyManager.Instance?.PlayerList != null)
+		{
+			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			if (p != null) return p.Color;
+		}
+
+		return playerIndex switch
+		{
+			1 => new Color(0.2f, 0.6f, 1.0f),
+			2 => new Color(0.9f, 0.2f, 0.2f),
+			3 => new Color(0.2f, 0.8f, 0.3f),
+			4 => new Color(0.9f, 0.8f, 0.2f),
+			_ => new Color(0.7f, 0.7f, 0.7f)
+		};
+	}
+
 	private void DrawSelectionRing(Unit3D unit, Vector2 drawPos, float iconSize)
 	{
 		if (!unit.IsSelected) return;
 
-		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
-		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
-		Color selColor = isEnemy ? new Color(0.9f, 0.1f, 0.2f) : new Color(0.22f, 0.54f, 0.26f);
+		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
+		Color selColor;
+		if (isSpectator)
+		{
+			selColor = new Color(1.0f, 1.0f, 1.0f);
+		}
+		else
+		{
+			int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
+			selColor = isEnemy ? new Color(0.9f, 0.1f, 0.2f) : new Color(0.22f, 0.54f, 0.26f);
+		}
 		DrawCircle(drawPos, iconSize + 2.5f, selColor, false, 1.2f);
 	}
 
