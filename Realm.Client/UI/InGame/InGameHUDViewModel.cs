@@ -26,18 +26,18 @@ public class InGameHUDViewModel
 			return Entity.Null;
 
 		if (IsPlayingNormally())
-			return GameHost.Instance.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			return GameHost.Instance.GetPlayerEntityForPlayerIndex(GameHost.Instance.LocalViewingPlayerIndex);
 
 		int targetPeerId = GetTargetPeerId();
 		if (targetPeerId == -1)
-			return GameHost.Instance.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			return GameHost.Instance.GetPlayerEntityForPlayerIndex(GameHost.Instance.LocalViewingPlayerIndex);
 
 		return GetSpectatedPlayer(targetPeerId);
 	}
 
 	private bool IsPlayingNormally()
 	{
-		bool isSpectator = LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
+		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
 		bool isPlayingReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
 		return !isSpectator && !isPlayingReplay;
 	}
@@ -54,7 +54,7 @@ public class InGameHUDViewModel
 	{
 		var world = GameContext.World;
 		var worldEntity = ECSContext.WorldEntity;
-		Entity defaultPlayer = GameHost.Instance?.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1) ?? Entity.Null;
+		Entity defaultPlayer = GameHost.Instance?.GetPlayerEntityForPlayerIndex(GameHost.Instance.LocalViewingPlayerIndex) ?? Entity.Null;
 
 		if (worldEntity == Entity.Null) return defaultPlayer;
 		if (!world.IsAlive(worldEntity)) return defaultPlayer;
@@ -541,8 +541,8 @@ public class InGameHUDViewModel
 		var world = GameContext.World;
 		if (world == null)
 		{
-			CurrentPopulation = GameHost.Instance.CurrentPopulation;
-			MaxPopulation = GameHost.Instance.MaxPopulation;
+			CurrentPopulation = 0;
+			MaxPopulation = 0;
 			return;
 		}
 
@@ -555,8 +555,8 @@ public class InGameHUDViewModel
 			return;
 		}
 
-		CurrentPopulation = GameHost.Instance.CurrentPopulation;
-		MaxPopulation = GameHost.Instance.MaxPopulation;
+		CurrentPopulation = 0;
+		MaxPopulation = 0;
 	}
 
 	private void UpdateClock()
@@ -669,7 +669,9 @@ public class InGameHUDViewModel
 	{
 		info.Entity = u.Entity;
 		info.UnitId = u.UnitId;
-		info.IsEnemy = u.IsEnemy;
+		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+		info.IsEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, u.Player);
+		info.Player = u.Player;
 		info.IsBuilding = u.IsBuilding;
 		info.HasInventory = false;
 		info.Name = u.UnitId;
@@ -807,7 +809,7 @@ public class InGameHUDViewModel
 
 	private void UpdateUnitProduction(World world, Unit3D u, SelectedUnitInfo info)
 	{
-		if (!u.IsEnemy && world.Has<ConstructionState>(u.Entity))
+		if (!info.IsEnemy && world.Has<ConstructionState>(u.Entity))
 		{
 			var cs = world.Get<ConstructionState>(u.Entity);
 			info.HasProduction = true;

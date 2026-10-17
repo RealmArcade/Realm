@@ -832,7 +832,7 @@ public partial class InGameHUD : Control
 			if (_chatPanel != null) _chatPanel.Visible = false;
 		}
 
-		bool isSpectator = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator";
+		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
 		if (isSpectator)
 		{
 			_resourceContainer.Visible = false;
@@ -1297,8 +1297,9 @@ public partial class InGameHUD : Control
 	{
 		if (selectedUnits != null)
 		{
-			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => !u.IsEnemy);
-			bool isSpectator = LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
+			int localPlayerIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
+			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => u.Player == localPlayerIndex);
+			bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
 			bool commandCardAllowed = IsHudElementVisible(HudElement.CommandCard, true);
 			_commandFrame.Visible = !isSpectator && hasPlayerSelection && commandCardAllowed;
 		}
@@ -1535,9 +1536,10 @@ void fragment() {
 		_viewModel.UpdateSelectedUnits(selected);
 
 		// Handle specific visual updates that are not data-bound yet.
+		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
 		foreach (var u in selected)
 		{
-			if (u.IsBuilding && !u.IsEnemy && u.UnitId == "castle")
+			if (u.IsBuilding && u.Player == localPlayer && u.UnitId == "castle")
 			{
 				u.UpdateRallyVisuals();
 			}
@@ -2401,7 +2403,7 @@ void fragment() {
 		bool isMultiplayer = LobbyManager.Instance != null && !LobbyManager.Instance.IsSinglePlayer
 		                                                   && Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
 
-		Entity localPlayerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		Entity localPlayerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(GameHost.Instance.LocalViewingPlayerIndex);
 		var (result, _) = GameContext.CheatService.TryTriggerCheat(
 			text, isMultiplayer, localPlayerEntity, ECSContext.DefinitionManager, selectedEntities);
 
@@ -2548,17 +2550,8 @@ void fragment() {
 
 	private void GetLocalPlayerInfo(out bool isLocalHost, out int localPeerId)
 	{
-		isLocalHost = false;
-		localPeerId = 1;
-
-		var lobby = LobbyManager.Instance;
-		if (lobby == null) return;
-
-		var localPlayer = lobby.LocalPlayer;
-		if (localPlayer == null) return;
-
-		isLocalHost = localPlayer.IsHost;
-		localPeerId = localPlayer.PeerId;
+		localPeerId = GameHost.Instance?.LocalPeerId ?? 1;
+		isLocalHost = LobbyManager.Instance?.IsHost ?? false;
 	}
 
 	private void UpdatePauseTitle()
@@ -2661,7 +2654,7 @@ void fragment() {
 		_pauseReadyCheck.Text = "Ready to Resume";
 		_pauseReadyCheck.Toggled += (buttonPressed) =>
 		{
-			int localPeerId = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null ? LobbyManager.Instance.LocalPlayer.PeerId : 1;
+			int localPeerId = GameHost.Instance?.LocalPeerId ?? 1;
 			GameHost.Instance?.RequestToggleReady(localPeerId, buttonPressed);
 		};
 		actionHBox.AddChild(_pauseReadyCheck);

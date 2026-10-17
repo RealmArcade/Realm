@@ -39,7 +39,7 @@ public class MinimapPanel
 
 	private void OnMinimapGuiInput(InputEvent @event)
 	{
-		bool isSpectator = LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
+		bool isSpectator = GameHost.Instance?.IsClientSpectator ?? false;
 
 		if (ReplayPlaybackManager.Instance.IsPlayingReplay || isSpectator)
 		{
@@ -196,7 +196,8 @@ public class MinimapPanel
 	{
 		if (GameHost.Instance.SelectedUnits.Count != 1) return;
 		var unit = GameHost.Instance.SelectedUnits[0];
-		if (!unit.IsEnemy && unit.IsBuilding)
+		int localPlayer = GameHost.Instance.LocalViewingPlayerIndex;
+		if (unit.Player == localPlayer && unit.IsBuilding)
 		{
 			GameHost.Instance.SetRallyPoint(unit, minimapWorldPos);
 		}

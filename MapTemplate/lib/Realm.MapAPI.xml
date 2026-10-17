@@ -2848,11 +2848,6 @@
             Gets or sets the display name of the unit.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.IUnit.IsEnemy">
-            <summary>
-            Gets or sets a value indicating whether the unit is owned by an enemy player.
-            </summary>
-        </member>
         <member name="P:Realm.MapAPI.IUnit.Player">
             <summary>
             Gets or sets the zero-based player slot index (0-24) that owns this unit.

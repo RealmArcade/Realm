@@ -42,7 +42,7 @@ public class SimulationService
 		}
 		else if (def.Healing > 0f)
 		{
-			HealAOE(position, aoe, def.Healing);
+			HealAOE(position, aoe, def.Healing, casterEnt);
 		}
 	}
 
@@ -280,7 +280,7 @@ public class SimulationService
 	public Action<Entity, Entity>? OnUnitAttackedCallback;
 	public Action<string> OnUnderAttackAlertRequested;
 	public Action<Entity> OnKillUnitRequested;
-	public Action<string, Vector3, bool, Entity, bool>? OnSpawnUnitFromProductionRequested;
+	public Action<string, Vector3, Entity, bool>? OnSpawnUnitFromProductionRequested;
 	public Action<Entity>? OnClearUnitOrdersRequested;
 	public Action<Entity> OnStopGatheringMovementRequested;
 	public Action OnUiRefreshRequested;
@@ -300,9 +300,21 @@ public class SimulationService
 		return Vector3.Zero;
 	}
 
+	private bool TryGetScriptPlayersState(out ScriptPlayersState playersState)
+	{
+		var worldEntity = ECSContext.WorldEntity;
+		if (GameContext.World != null && worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity))
+		{
+			return GameContext.World.TryGet<ScriptPlayersState>(worldEntity, out playersState);
+		}
+
+		playersState = default;
+		return false;
+	}
+
 	public void SetPlayerTeam(int playerIndex, int teamIndex)
 	{
-		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].Team = teamIndex;
 		}
@@ -316,7 +328,7 @@ public class SimulationService
 
 	public int GetPlayerTeam(int playerIndex)
 	{
-		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			return playersState.Players[playerIndex].Team;
 		}
@@ -354,7 +366,7 @@ public class SimulationService
 
 	public void SetPlayerActiveDomain(int playerIndex, bool active)
 	{
-		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].Active = active;
 		}
@@ -842,7 +854,7 @@ public class SimulationService
 	{
 		foreach (var req in _tickSpawningRequests)
 		{
-			OnSpawnUnitFromProductionRequested?.Invoke(req.UnitId, req.Position, req.IsEnemy, req.BuildingEntity, req.IsFromQueue);
+			OnSpawnUnitFromProductionRequested?.Invoke(req.UnitId, req.Position, req.BuildingEntity, req.IsFromQueue);
 		}
 	}
 
@@ -1373,14 +1385,13 @@ public class SimulationService
 		var spawnPos = buildingPos + spawnOffset;
 
 		int buildingPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
-		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		int localPlayerIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
 		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, buildingPlayerIndex);
 
 		_tickSpawningRequests.Add(new SpawningRequest
 		{
 			UnitId = unitToSpawn,
 			Position = spawnPos,
-			IsEnemy = isEnemy,
 			BuildingEntity = entity,
 			IsFromQueue = true
 		});
@@ -1393,7 +1404,9 @@ public class SimulationService
 		if (!GameContext.World.Has<Position>(entity)) return;
 
 		var currentPos = GameContext.World.Get<Position>(entity).Value;
-		bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
+		int localViewingPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+		int unitPlayer = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
+		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localViewingPlayer, unitPlayer);
 
 		Vector3 finalPos;
 		Vector3 finalVel;
@@ -1487,9 +1500,9 @@ public class SimulationService
 		_combatService.DealSpellDamageAOE(position, radius, damage, casterEntity, enemyOnly);
 	}
 
-	public void HealAOE(Vector3 position, float radius, float healAmount)
+	public void HealAOE(Vector3 position, float radius, float healAmount, Entity casterEntity = default)
 	{
-		_combatService.HealAOE(position, radius, healAmount);
+		_combatService.HealAOE(position, radius, healAmount, casterEntity);
 	}
 
 	public int CountUnitsOwnedByPlayer(IEnumerable<IUnit> units)
@@ -1668,15 +1681,15 @@ public class SimulationService
 				float closestDist = range;
 				Vector3 enemyPos = Vector3.Zero;
 
-				bool isAttackerEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
+				int casterPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
 				var enemyQuery = QueryCache.AllPositionAndOwnerNoneDeadQuery;
 
 				GameContext.World.Query(in enemyQuery, (Entity eEnt, ref Position ePos, ref Owner eOwner) =>
 				{
 					if (eOwner.PlayerEntity != casterOwnerEntity)
 					{
-						bool isTargetEnemy = GameContext.World.Has<UnitFaction>(eEnt) && GameContext.World.Get<UnitFaction>(eEnt).IsEnemy;
-						if (isTargetEnemy != isAttackerEnemy)
+						int targetPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(eEnt) ? GameContext.World.Get<UnitOwnerPlayer>(eEnt).PlayerIndex : 0;
+						if (NetworkService.ArePlayerIndicesEnemies(casterPlayerIndex, targetPlayerIndex))
 						{
 							float dist = Vector3.Distance(casterPos, ePos.Value);
 							if (dist <= closestDist)
@@ -1718,7 +1731,7 @@ public class SimulationService
 
 	public void SetPlayerComputerControlled(int playerIndex, bool isProxy)
 	{
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+		if (TryGetScriptPlayersState(out var playersState))
 		{
 			if (playerIndex >= 0 && playerIndex < playersState.Players.Length)
 			{
@@ -1748,7 +1761,7 @@ public class SimulationService
 			else if (def.Healing > 0f)
 			{
 				float aoe = def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 4.0f;
-				HealAOE(targetPosition, aoe, def.Healing);
+				HealAOE(targetPosition, aoe, def.Healing, casterEnt);
 			}
 			else
 			{
@@ -1981,7 +1994,7 @@ public class SimulationService
 	public string GetPlayerNameDomain(int playerIndex)
 	{
 		if (playerIndex == 0) return "Neutral";
-		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			return playersState.Players[playerIndex].Name;
 		}
@@ -1990,7 +2003,7 @@ public class SimulationService
 
 	public bool IsPlayerActiveDomain(int playerIndex)
 	{
-		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			return playersState.Players[playerIndex].Active;
 		}
@@ -1999,7 +2012,7 @@ public class SimulationService
 
 	public float GetPlayerGoldDomain(int playerIndex)
 	{
-		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			return playersState.Players[playerIndex].Gold;
 		}
@@ -2008,7 +2021,7 @@ public class SimulationService
 
 	public void SetPlayerGoldDomain(int playerIndex, float amount, Action<int, float> syncResourceAction)
 	{
-		if (GameContext.World != null && GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].Gold = Math.Max(0f, amount);
 		}
@@ -2018,7 +2031,7 @@ public class SimulationService
 
 	public int GetPlayerKillsDomain(int playerIndex)
 	{
-		if (GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			return playersState.Players[playerIndex].KillCount;
 		}
@@ -2027,7 +2040,7 @@ public class SimulationService
 
 	public void SetPlayerKillsDomain(int playerIndex, int kills)
 	{
-		if (GameContext.World.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].KillCount = kills;
 		}

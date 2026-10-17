@@ -458,7 +458,7 @@ public partial class LobbyRoom : Control
 			return;
 		}
 
-		var localPlayer = LobbyManager.Instance.LocalPlayer;
+		var localPlayer = GetLocalPlayer();
 		bool isReady = localPlayer != null && localPlayer.IsReady;
 		UIStyle.ApplyButtonText(_startButton, isReady ? "NOT READY" : "READY", 22);
 		_startButton.Disabled = false;
@@ -468,7 +468,7 @@ public partial class LobbyRoom : Control
 	private void OnClientReadyTogglePressed()
 	{
 		UIManager.Instance.PlayClickSound();
-		var localPlayer = LobbyManager.Instance.LocalPlayer;
+		var localPlayer = GetLocalPlayer();
 		if (localPlayer != null)
 		{
 			bool newReady = !localPlayer.IsReady;
@@ -1196,9 +1196,14 @@ public partial class LobbyRoom : Control
 
 	private bool CheckIfLocalPlayer(PlayerInfo p)
 	{
-		return (LobbyManager.Instance.LocalPlayer != null && p.PeerId == LobbyManager.Instance.LocalPlayer.PeerId) ||
-		       (LobbyManager.Instance.IsHost && p.PeerId == 1) ||
+		return (LobbyManager.Instance.IsHost && p.PeerId == 1) ||
 		       (p.PeerId == Multiplayer.GetUniqueId());
+	}
+
+	private PlayerInfo? GetLocalPlayer()
+	{
+		if (LobbyManager.Instance?.PlayerList == null) return null;
+		return LobbyManager.Instance.PlayerList.Find(CheckIfLocalPlayer);
 	}
 
 	private PanelContainer CreatePlayerRowPanel()
@@ -1250,11 +1255,6 @@ public partial class LobbyRoom : Control
 	{
 		UIManager.Instance.PlayClickSound();
 		p.IsReady = toggled;
-		if (LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.PeerId == p.PeerId)
-		{
-			LobbyManager.Instance.LocalPlayer.IsReady = toggled;
-		}
-
 		LobbyManager.Instance.UpdateReadyState(p.PeerId, toggled);
 		SetupStartButton();
 	}
@@ -1653,12 +1653,14 @@ public partial class LobbyRoom : Control
 	{
 		if (string.IsNullOrEmpty(text.Trim())) return;
 		_chatInput.Clear();
-		LobbyManager.Instance.SendChatMessage(LobbyManager.Instance.LocalPlayer.Name, text);
+		string myName = GetLocalPlayer()?.Name ?? LobbyManager.Instance.AuthenticatedUsername;
+		LobbyManager.Instance.SendChatMessage(myName, text);
 	}
 
 	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly)
 	{
-		string color = senderName == "System" ? "#ffd700" : (senderName == LobbyManager.Instance.LocalPlayer.Name ? "#5cd6ff" : "#d4a0a0");
+		string myName = GetLocalPlayer()?.Name ?? LobbyManager.Instance.AuthenticatedUsername;
+		string color = senderName == "System" ? "#ffd700" : (senderName == myName ? "#5cd6ff" : "#d4a0a0");
 		_chatLog.Text += $"[color={color}]{senderName}[/color]: {message}\n";
 	}
 

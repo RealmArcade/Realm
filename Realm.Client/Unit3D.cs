@@ -197,26 +197,6 @@ public partial class Unit3D : Prop3D
 
 		SetPlayerColor(resolvedColor);
 	}
-
-	public bool IsEnemy
-	{
-		get
-		{
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity)
-			                              && GameContext.World.Has<UnitFaction>(Entity))
-				return GameContext.World.Get<UnitFaction>(Entity).IsEnemy;
-			return false;
-		}
-		set
-		{
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity))
-			{
-				var world = GameContext.World;
-				world.SetOrAdd(Entity, new UnitFaction(value));
-			}
-		}
-	}
-
 	private Node3D _rallyVisualsContainer;
 	private MeshInstance3D _rallyMarker;
 	private readonly List<MeshInstance3D> _rallyMarkersPool = new();
@@ -228,7 +208,8 @@ public partial class Unit3D : Prop3D
 		set
 		{
 			base.IsSelected = value;
-			if (IsBuilding && !IsEnemy)
+			int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+			if (IsBuilding && Player == localPlayer)
 			{
 				UpdateRallyVisuals();
 			}
@@ -1802,7 +1783,8 @@ public partial class Unit3D : Prop3D
 
 	public void UpdateRallyVisuals()
 	{
-		if (!IsBuilding || IsEnemy) return;
+		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+		if (!IsBuilding || Player != localPlayer) return;
 		if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return;
 
 		EnsureRallyVisualsContainer();
@@ -1837,11 +1819,11 @@ public partial class Unit3D : Prop3D
 	{
 		if (_rallyMarker != null) return;
 
-		_rallyMarker = new MeshInstance3D();
 		var cylinderMesh = new CylinderMesh();
 		cylinderMesh.TopRadius = 0.1f;
 		cylinderMesh.BottomRadius = 0.1f;
 		cylinderMesh.Height = 3.0f;
+		_rallyMarker = new MeshInstance3D();
 		_rallyMarker.Mesh = cylinderMesh;
 
 		var markerMat = new StandardMaterial3D();
@@ -1867,7 +1849,8 @@ public partial class Unit3D : Prop3D
 
 	public override void _Process(double delta)
 	{
-		if (IsSelected && !IsEnemy)
+		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+		if (IsSelected && Player == localPlayer)
 		{
 			if (IsBuilding)
 			{

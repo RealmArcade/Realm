@@ -98,7 +98,7 @@ public class MapResizeAction : IEditorAction
 	{
 		foreach (var u in snapshot.Units)
 		{
-			host.SpawnUnitExternal(u.Id, u.Position, u.IsEnemy, u.RotationY, u.Scale);
+			host.SpawnUnitExternal(u.Id, u.Position, u.RotationY, u.Scale, u.Player);
 		}
 
 		foreach (var p in snapshot.Props)

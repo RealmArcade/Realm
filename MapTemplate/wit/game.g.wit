@@ -174,7 +174,6 @@ interface game-api {
     set-unit-hand-attachment: func(unit-id: s32, hand: string, attachment-id: string);
     set-unit-health: func(id: s32, val: f32);
     set-unit-invulnerable: func(id: s32, val: bool);
-    set-unit-is-enemy: func(id: s32, val: bool);
     set-unit-level: func(unit-id: s32, level: s32);
     set-unit-mana: func(id: s32, val: f32);
     set-unit-mana-regen: func(id: s32, val: f32);
@@ -239,7 +238,6 @@ interface game-api {
     unit-invulnerable: func(id: s32) -> bool;
     unit-is-building: func(id: s32) -> bool;
     unit-is-dead: func(id: s32) -> bool;
-    unit-is-enemy: func(id: s32) -> bool;
     unit-is-hero: func(id: s32) -> bool;
     unit-level: func(id: s32) -> s32;
     unit-mana: func(id: s32) -> f32;

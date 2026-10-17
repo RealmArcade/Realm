@@ -203,7 +203,7 @@ public class ChatPanel
 
 	private void DispatchChatMessage(string trimmedText)
 	{
-		string sender = LobbyManager.Instance?.LocalPlayer?.Name ?? "Player";
+		string sender = LobbyManager.Instance?.AuthenticatedUsername ?? "Player";
 		bool alliesOnly = _currentMode == ChatMode.Allies;
 
 		if (LobbyManager.Instance != null)

@@ -134,14 +134,17 @@ public partial class GameHost
 		{
 			var godotPos = new Vector3(domainRes.BuildPosition.X, domainRes.BuildPosition.Y, domainRes.BuildPosition.Z);
 			var bldEntity = CreateEcsUnit(domainRes.BuildUnitType, domainRes.Name, domainRes.MaxHp, domainRes.Damage, domainRes.Range, domainRes.Armor, 0f, godotPos, domainRes.PlayerOwner);
-			ProcessServerCommandBuildViewLogic(bldEntity, domainRes.BuildUnitType, domainRes.TargetModel, godotPos);
+			ProcessServerCommandBuildViewLogic(bldEntity, domainRes.BuildUnitType, domainRes.TargetModel, godotPos, domainRes.PlayerOwner);
 		}
 	}
 
-	private void ProcessServerCommandBuildViewLogic(Entity bldEntity, string buildUnitType, string targetModel, Vector3 buildPosition)
+	private void ProcessServerCommandBuildViewLogic(Entity bldEntity, string buildUnitType, string targetModel, Vector3 buildPosition, PlayerEntity playerOwner)
 	{
 		string modelPath = GetFallbackModelPath(targetModel, true);
-		SpawnUnit3D(bldEntity, buildUnitType, modelPath, buildPosition, true, false);
+		int playerIndex = (playerOwner.Value != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(playerOwner.Value))
+			? GameContext.World.Get<UnitOwnerPlayer>(playerOwner.Value).PlayerIndex
+			: 0;
+		SpawnUnit3D(bldEntity, buildUnitType, modelPath, buildPosition, true, playerIndex);
 	}
 
 	private IUnit GetSpellCaster(NetworkCommand cmd)
@@ -261,7 +264,7 @@ public partial class GameHost
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void SyncPlayerResources(float gold, float wood, float stone)
 	{
-		int localSlot = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		int localSlot = LocalViewingPlayerIndex;
 		((IGameAPI)this).SetPlayerGold(localSlot, gold);
 		((IGameAPI)this).SetPlayerWood(localSlot, wood);
 		((IGameAPI)this).SetPlayerStone(localSlot, stone);
@@ -318,9 +321,9 @@ public partial class GameHost
 
 	private void SpawnUnitFromSnapshot(UnitSnapshot snap)
 	{
-		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out bool isEnemy);
+		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out int playerIndex);
 		if (entity == Entity.Null) return;
-		SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, isEnemy);
+		SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, playerIndex);
 	}
 
 	private void QueueOrSendPacket(int peerId, string funcName, params object[] args)

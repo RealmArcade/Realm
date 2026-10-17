@@ -86,7 +86,9 @@ public partial class MinimapOverlay : Control
 
 	private bool IsUnitVisibleOnMinimap(Unit3D unit, float physicalWidth, float physicalDepth)
 	{
-		if (!unit.IsEnemy) return true;
+		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
+		if (!isEnemy) return true;
 		if (InGameHUD.Instance == null) return true;
 		if (string.Equals(InGameHUD.Instance.ShroudType, "visible", StringComparison.OrdinalIgnoreCase)) return true;
 
@@ -97,7 +99,9 @@ public partial class MinimapOverlay : Control
 
 	private void DrawUnitIcon(Unit3D unit, Vector2 drawPos, float iconSize)
 	{
-		Color color = unit.IsEnemy ? new Color(0.9f, 0.1f, 0.1f) : new Color(0.2f, 0.6f, 1.0f);
+		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
+		Color color = isEnemy ? new Color(0.9f, 0.1f, 0.1f) : new Color(0.2f, 0.6f, 1.0f);
 
 		if (unit.IsBuilding)
 		{
@@ -115,7 +119,9 @@ public partial class MinimapOverlay : Control
 	{
 		if (!unit.IsSelected) return;
 
-		Color selColor = unit.IsEnemy ? new Color(0.9f, 0.1f, 0.2f) : new Color(0.22f, 0.54f, 0.26f);
+		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
+		Color selColor = isEnemy ? new Color(0.9f, 0.1f, 0.2f) : new Color(0.22f, 0.54f, 0.26f);
 		DrawCircle(drawPos, iconSize + 2.5f, selColor, false, 1.2f);
 	}
 

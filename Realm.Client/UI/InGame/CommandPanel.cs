@@ -242,7 +242,7 @@ public partial class CommandPanel
 
 		if (cdRemaining <= 0f && GameHost.Instance != null)
 		{
-			cdRemaining = GameHost.Instance.GetPlayerSpellCooldown(item.AbilityId);
+			cdRemaining = GameHost.Instance.GetPlayerSpellCooldown(GameHost.Instance.LocalViewingPlayerIndex, item.AbilityId);
 		}
 	}
 
@@ -295,7 +295,8 @@ public partial class CommandPanel
 	{
 		if (_commandGrid == null) return;
 
-		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy)
+		int localPlayerIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
+		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy || focusedUnit.Player != localPlayerIndex)
 		{
 			ClearCommandPanelState();
 			return;
@@ -973,17 +974,18 @@ public partial class CommandPanel
 
 	private void PopulateGlobalUpgrades(List<CommandCardItem> items)
 	{
+		int localViewingIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
 		AddGlobalUpgradeItem(items, "upgrade_weapons", "res://Assets/UI/battle_axe.png",
 			"[W] Upgrade Weapons (Cost: 150 Gold, 100 Wood)\nPermanently increases unit damage by +3",
-			Key.W, () => GameHost.Instance?.BuyWeaponsUpgrade(), () => GameHost.Instance?.HasWeaponsUpgrade ?? false);
+			Key.W, () => GameHost.Instance?.BuyWeaponsUpgrade(localViewingIndex), () => GameHost.Instance?.HasWeaponsUpgrade(localViewingIndex) ?? false);
 
 		AddGlobalUpgradeItem(items, "upgrade_shields", "res://Assets/UI/battle_shield.png",
 			"[G] Upgrade Armor (Cost: 150 Gold, 100 Stone)\nPermanently increases unit armor by +2",
-			Key.G, () => GameHost.Instance?.BuyShieldsUpgrade(), () => GameHost.Instance?.HasShieldsUpgrade ?? false);
+			Key.G, () => GameHost.Instance?.BuyShieldsUpgrade(localViewingIndex), () => GameHost.Instance?.HasShieldsUpgrade(localViewingIndex) ?? false);
 
 		AddGlobalUpgradeItem(items, "upgrade_harvesting", "res://Assets/UI/gold_coin.png",
 			"[T] Upgrade Harvesting (Cost: 150 Wood, 100 Stone)\nPermanently increases passive resource gathering rates by +50%",
-			Key.T, () => GameHost.Instance?.BuyHarvestingUpgrade(), () => GameHost.Instance?.HasHarvestingUpgrade ?? false);
+			Key.T, () => GameHost.Instance?.BuyHarvestingUpgrade(localViewingIndex), () => GameHost.Instance?.HasHarvestingUpgrade(localViewingIndex) ?? false);
 	}
 
 	private void AddGlobalUpgradeItem(List<CommandCardItem> items, string id, string iconPath, string tooltip, Key hotkey, Action callback, Func<bool> hasUpgrade)
@@ -1191,7 +1193,7 @@ public partial class CommandPanel
 	{
 		if (host == null) return false;
 			if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
-		if (host.GetPlayerSpellCooldown(abilityId) > 0f) return true;
+		if (host.GetPlayerSpellCooldown(host.LocalViewingPlayerIndex, abilityId) > 0f) return true;
 
 		var world = GameContext.World;
 		if (world == null || casterEntity == Entity.Null || !world.IsAlive(casterEntity)) return false;

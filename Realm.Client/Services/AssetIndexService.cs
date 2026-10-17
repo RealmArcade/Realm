@@ -9,6 +9,7 @@ using Godot;
 using LiteDB;
 using Realm.Client.Network;
 using Realm.Client.UI.MapEditor;
+using Realm.Client.Utils;
 using Realm.EditorAPI;
 using Realm.Shared;
 using Realm.Shared.Distribution;
@@ -40,7 +41,7 @@ public class AssetIndexService : IDisposable
 
 	private static string GetUserDirectory()
 	{
-		return ProjectSettings.GlobalizePath("user://");
+		return PathUtils.SafeGlobalizeUserPath();
 	}
 
 	public static string GetCacheFilePath()

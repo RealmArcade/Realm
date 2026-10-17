@@ -17,7 +17,7 @@ namespace Realm.Ecs.Tests
 	{
 		private World _world
 		{
-			get { return GameContext.World; }
+			get { return ECSContext.World!; }
 		}
 
 		private CombatAndDamageService _combatService = null!;
@@ -31,12 +31,12 @@ namespace Realm.Ecs.Tests
 		[TearDown]
 		public void TearDown()
 		{
-			GameContext.DisposeAndRecreateServices();
+			ECSContext.DisposeAndRecreateServices();
 		}
 
 		private Entity CreatePlayer(int index)
 		{
-			return _world.Create(new DefinitionId("player_" + index));
+			return _world.Create(new DefinitionId("player_" + index), new UnitOwnerPlayer(index));
 		}
 
 		private Entity SpawnTower(Vector3 pos, float damage, float range, float cooldown, float scanRadius, PlayerEntity owner)
@@ -46,7 +46,6 @@ namespace Realm.Ecs.Tests
 				new Attack(damage, range, cooldown),
 				new Owner(owner),
 				new ScanRadius(scanRadius),
-				new UnitFaction(false),
 				new Health(500, 500),
 				new Armor(5),
 				new DefinitionId("tower"),
@@ -61,7 +60,6 @@ namespace Realm.Ecs.Tests
 				new Health(maxHp, maxHp),
 				new Armor(armor),
 				new Owner(owner),
-				new UnitFaction(true),
 				new DefinitionId("zombie_soldier")
 			);
 		}
@@ -80,7 +78,6 @@ namespace Realm.Ecs.Tests
 				new Attack(damage, range, cooldown),
 				new Owner(owner),
 				new ScanRadius(scanRadius),
-				new UnitFaction(false),
 				new Health(500, 500),
 				new Armor(5),
 				new DefinitionId("soldier"),

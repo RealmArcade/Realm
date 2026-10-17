@@ -242,7 +242,8 @@ public class ResourceEconomyService
 			}
 		}
 
-		Entity localPlayerEntity = GameHost.Instance?.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1) ?? Entity.Null;
+		int localViewingSlot = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+		Entity localPlayerEntity = localViewingSlot > 0 ? (GameHost.Instance?.GetPlayerEntityForPlayerIndex(localViewingSlot) ?? Entity.Null) : Entity.Null;
 		if (localPlayerEntity != Entity.Null && ownerEntity == localPlayerEntity)
 		{
 			OnResourceDepositedForPlayer?.Invoke(gather.ResourceType, carry);
@@ -449,6 +450,26 @@ public class ResourceEconomyService
 		}
 
 		return 0;
+	}
+
+	public void SetPlayerCurrentPopulation(int playerIndex, int current)
+	{
+		if (GameHost.Instance != null)
+		{
+			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity))
+			{
+				if (GameContext.World.Has<PlayerPopulation>(playerEntity))
+				{
+					ref var pop = ref GameContext.World.Get<PlayerPopulation>(playerEntity);
+					GameContext.World.Set(playerEntity, new PlayerPopulation(current, pop.Max));
+				}
+				else
+				{
+					GameContext.World.Add(playerEntity, new PlayerPopulation(current, 0));
+				}
+			}
+		}
 	}
 
 	public void SetPlayerMaxPopulation(int playerIndex, int max)

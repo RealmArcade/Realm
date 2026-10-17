@@ -479,8 +479,8 @@ public partial class GameHost
 
 	private void ProcessUnitSpawnRequests()
 	{
-		GameContext.UnitSpawnService.ProcessUnitSpawnRequestsDomain((unitId, pos, isEnemy, rotY, scale, player) => {
-			SpawnUnitExternal(unitId, new Godot.Vector3(pos.X, pos.Y, pos.Z), isEnemy, rotY, scale, player);
+		GameContext.UnitSpawnService.ProcessUnitSpawnRequestsDomain((unitId, pos, rotY, scale, player) => {
+			SpawnUnitExternal(unitId, new Godot.Vector3(pos.X, pos.Y, pos.Z), rotY, scale, player);
 		});
 	}
 

@@ -170,17 +170,18 @@ public partial class GameHost
 		if (!UnitRegistry.TryGetValue(unitTypeId, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(unitTypeId, out meta)))
 			throw new ArgumentException($"Unit ID '{unitTypeId}' not found in registry.");
 
-		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-		bool actualIsEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 		var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
 
 		if (string.IsNullOrEmpty(meta.ModelPath)) throw new ArgumentException($"Unit ID '{unitTypeId}' has no assigned 3D model asset in registry.");
 		string modelPath = GameContext.UnitSpawnService.GetFallbackModelPath(meta.ModelPath, isBuilding);
-		string name = actualIsEnemy ? GameContext.UnitSpawnService.GetEnemyUnitName(unitTypeId, meta.Name) : meta.Name;
+		string name = meta.Name;
 
-		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, playerOwner.Value, HasShieldsUpgrade, HasWeaponsUpgrade);
+		bool hasShields = GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(playerOwner.Value, u => u.ShieldsUpgrade) ?? false;
+		bool hasWeapons = GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(playerOwner.Value, u => u.WeaponsUpgrade) ?? false;
 
-		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, actualIsEnemy, bypassPopulation, playerIndex, executeSpawnShader);
+		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, playerOwner.Value, hasShields, hasWeapons);
+
+		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, playerIndex, bypassPopulation, executeSpawnShader);
 		return GameContext.SimulationService.GetUnitWrapper(entity);
 	}
 
@@ -809,9 +810,10 @@ public partial class GameHost
 		if (!TryGetUnit3D(wrapper.Entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
 
 		bool isBuilding = unit3D.IsBuilding;
-		if (!unit3D.IsEnemy && UnitRegistry.TryGetValue(unit3D.UnitId, out var destroyMeta) && destroyMeta.PopCost > 0)
+		if (UnitRegistry.TryGetValue(unit3D.UnitId, out var destroyMeta) && destroyMeta.PopCost > 0)
 		{
-			CurrentPopulation = Math.Max(0, CurrentPopulation - destroyMeta.PopCost);
+			int curPop = GameContext.ResourceEconomyService?.GetPlayerCurrentPopulation(unit3D.Player) ?? 0;
+			GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(unit3D.Player, Math.Max(0, curPop - destroyMeta.PopCost));
 		}
 		float radius = GameContext.World.Has<CollisionRadius>(wrapper.Entity) ? GameContext.World.Get<CollisionRadius>(wrapper.Entity).Value : 2.0f;
 		var unitPos = GameContext.World.Has<Position>(wrapper.Entity) ? GameContext.World.Get<Position>(wrapper.Entity).Value : new Vector3(unit3D.Position.X, unit3D.Position.Y, unit3D.Position.Z);

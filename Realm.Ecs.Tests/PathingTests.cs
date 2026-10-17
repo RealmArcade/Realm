@@ -17,18 +17,15 @@ namespace Realm.Ecs.Tests
 	{
 		private World _world
 		{
-			get { return GameContext.World; }
+			get { return ECSContext.World!; }
 		}
 
 		private TerrainNavMeshService _terrainNavMeshService
 		{
-			get { return ECSContext.TerrainNavMeshService; }
+			get { return ECSContext.TerrainNavMeshService!; }
 		}
 
-		private NavMeshPathfinder _pathfinder
-		{
-			get { return GameContext.NavMeshPathfinder; }
-		}
+		private readonly NavMeshPathfinder _pathfinder = new();
 
 		private MovementAndPathfindingService _movementService = null!;
 		private Entity _worldEntity;
@@ -41,7 +38,7 @@ namespace Realm.Ecs.Tests
 		[TearDown]
 		public void TearDown()
 		{
-			_world.Dispose();
+			ECSContext.DisposeAndRecreateServices();
 		}
 
 		private void InitializeTerrain(int width = 64, int depth = 64, float quadSize = 2.0f, float cellSize = 0.5f)

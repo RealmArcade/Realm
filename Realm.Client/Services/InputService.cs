@@ -93,9 +93,9 @@ public class InputService
 		}
 	}
 
-	public void ProcessWorkerTaskAssignment(Entity unitEntity, Entity firstWorkerEntity, bool isBuilding, bool isEnemy, string unitId, string type, Vector3 buildingPos, bool shiftHeld)
+	public void ProcessWorkerTaskAssignment(Entity unitEntity, Entity firstWorkerEntity, bool isBuilding, string unitId, string type, Vector3 buildingPos, bool shiftHeld)
 	{
-		if (!IsValidAdditionalWorker(unitEntity, firstWorkerEntity, isBuilding, isEnemy, unitId)) return;
+		if (!IsValidAdditionalWorker(unitEntity, firstWorkerEntity, isBuilding, unitId)) return;
 
 		if (shiftHeld && ShouldEnqueueWorkerBuild(unitEntity))
 		{
@@ -109,10 +109,10 @@ public class InputService
 		}
 	}
 
-	public bool IsValidAdditionalWorker(Entity unitEntity, Entity firstWorkerEntity, bool isBuilding, bool isEnemy, string unitId)
+	public bool IsValidAdditionalWorker(Entity unitEntity, Entity firstWorkerEntity, bool isBuilding, string unitId)
 	{
 		if (unitEntity == Entity.Null || unitEntity == firstWorkerEntity) return false;
-		if (isBuilding || isEnemy) return false;
+		if (isBuilding) return false;
 		if (unitId != "worker" && unitId != "unit/builder" && unitId != "builder")
 		{
 			if (!GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta) || meta.BuildOptions == null || meta.BuildOptions.Length == 0)
@@ -248,7 +248,6 @@ public class InputService
 	{
 		if (!GameContext.World.IsAlive(entity)) return false;
 		if (GameContext.World.Has<Building>(entity)) return false;
-		if (GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy) return false;
 		return true;
 	}
 
@@ -386,8 +385,7 @@ public class InputService
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
 			bool isBuilding = GameContext.World.Has<Building>(entity);
-			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-			if (isBuilding || isEnemy) continue;
+			if (isBuilding) continue;
 
 			if (isQueued && IsUnitActive(entity))
 			{
@@ -497,8 +495,7 @@ public class InputService
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
 			bool isBuilding = GameContext.World.Has<Building>(entity);
-			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-			if (isBuilding || isEnemy) continue;
+			if (isBuilding) continue;
 
 			if (isQueued && IsUnitActive(entity))
 			{
@@ -526,8 +523,7 @@ public class InputService
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
 			bool isBuilding = GameContext.World.Has<Building>(entity);
-			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-			if (isBuilding || isEnemy) continue;
+			if (isBuilding) continue;
 
 			ClearUnitOrders(entity);
 
@@ -541,8 +537,6 @@ public class InputService
 		foreach (var entity in selectedEntities)
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
-			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-			if (isEnemy) continue;
 
 			ClearUnitOrders(entity);
 		}
@@ -920,8 +914,8 @@ public class InputService
 		if (target == Entity.Null && GameContext.World.IsAlive(selectedUnitEntity))
 		{
 			bool isBuilding = GameContext.World.Has<Building>(selectedUnitEntity);
-			bool isEnemy = GameContext.World.Has<UnitFaction>(selectedUnitEntity) && GameContext.World.Get<UnitFaction>(selectedUnitEntity).IsEnemy;
-			if (!isBuilding && !isEnemy && GameContext.World.Has<Inventory>(selectedUnitEntity))
+			bool isOwnedByPlayer = GameContext.World.Has<Owner>(selectedUnitEntity) && GameContext.World.Get<Owner>(selectedUnitEntity).PlayerEntity.Value == playerEntity;
+			if (!isBuilding && isOwnedByPlayer && GameContext.World.Has<Inventory>(selectedUnitEntity))
 			{
 				target = selectedUnitEntity;
 			}
@@ -1454,7 +1448,7 @@ public class InputService
 		}
 		else if (def.Healing > 0f)
 		{
-			GameContext.SimulationService.HealAOE(simPos, aoe, def.Healing);
+			GameContext.SimulationService.HealAOE(simPos, aoe, def.Healing, target);
 		}
 	}
 

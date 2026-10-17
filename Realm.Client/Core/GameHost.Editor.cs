@@ -1060,13 +1060,11 @@ public partial class GameHost
 		}
 	}
 
-	public Unit3D SpawnUnitExternal(string unitId, Vector3 position, bool isEnemy, float rotationY, float scale, int player = -1)
+	public Unit3D SpawnUnitExternal(string unitId, Vector3 position, float rotationY, float scale, int player = 0)
 	{
 		// Preserve the authored Y (saved maps, pasted/cloned/undone objects). Placement paths
 		// that want feet-on-terrain snap the Y to the terrain before calling this method.
 		int playerIndex = player >= 0 ? player : 0;
-		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-		bool actualIsEnemy = player >= 0 ? NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex) : isEnemy;
 		bool isBuilding = false;
 		if (!UnitRegistry.ContainsKey(unitId) && !BuildingRegistry.ContainsKey(unitId))
 		{
@@ -1094,7 +1092,7 @@ public partial class GameHost
 		string name = meta.Name;
 		var entity = CreateEcsUnit(unitId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, position, playerOwner);
 
-		var unit3D = SpawnUnit3D(entity, unitId, modelPath, position, isBuilding, actualIsEnemy, false, playerIndex);
+		var unit3D = SpawnUnit3D(entity, unitId, modelPath, position, isBuilding, playerIndex);
 		unit3D.RotationDegrees = new Vector3(0.0f, rotationY, 0.0f);
 		unit3D.Scale = Vector3.One * (scale <= 0.001f ? 1.0f : scale);
 		unit3D.Visible = true;
@@ -1315,14 +1313,10 @@ public partial class GameHost
 	{
 		if (GodotObject.IsInstanceValid(unit) && GameContext.World.IsAlive(unit.Entity))
 		{
-			int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 			var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
 			GameContext.World.Set(unit.Entity, new Owner(playerOwner));
 
 			GameContext.World.SetOrAdd(unit.Entity, new UnitOwnerPlayer(playerIndex));
-
-			GameContext.World.SetOrAdd(unit.Entity, new UnitFaction(isEnemy));
 
 			if (TryGetUnitOrBuildingMetadata(unit.UnitId, out var meta))
 			{
@@ -1331,7 +1325,6 @@ public partial class GameHost
 			}
 
 			unit.Player = playerIndex;
-			unit.IsEnemy = isEnemy;
 			unit.UpdatePlayerColorVisual();
 			unit.IsSelected = unit.IsSelected;
 		}
@@ -1342,7 +1335,7 @@ public partial class GameHost
 		int targetPlayer = isEnemy ? 1 : 0;
 		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
 		{
-			int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+			int localPlayerIndex = LocalViewingPlayerIndex;
 			var enemyPlayer = LobbyManager.Instance.PlayerList.Find(p => NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, p.Slot));
 			if (isEnemy && enemyPlayer != null)
 			{
@@ -1374,8 +1367,8 @@ public partial class GameHost
 
 		AllUnits.Clear();
 		_castlesList.Clear();
-		CurrentPopulation = 0;
-		MaxPopulation = 0;
+		SetCurrentPopulation(LocalViewingPlayerIndex, 0);
+		SetMaxPopulation(LocalViewingPlayerIndex, 0);
 
 		foreach (var child in GetChildren())
 		{

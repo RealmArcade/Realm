@@ -354,7 +354,7 @@ public partial class GameHost
 							Id = unit.UnitId,
 							Rotation = unit.RotationDegrees.Y,
 							Scale = unit.Scale.X,
-							IsEnemy = unit.IsEnemy
+							Player = unit.Player
 						});
 						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Unit: {unit.UnitId.ToUpper()}");
 					}
@@ -366,7 +366,7 @@ public partial class GameHost
 							Id = prop.PropId,
 							Rotation = prop.RotationDegrees.Y,
 							Scale = prop.Scale.X,
-							IsEnemy = false
+							Player = 0
 						});
 						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Prop: {prop.PropId.ToUpper()}");
 					}
@@ -379,7 +379,7 @@ public partial class GameHost
 							Id = decalId,
 							Rotation = decal.RotationDegrees.Y,
 							Scale = decal.Scale.X,
-							IsEnemy = false
+							Player = 0
 						});
 						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Decal: {decalId.ToUpper()}");
 					}
@@ -427,10 +427,10 @@ public partial class GameHost
 						IEditorAction action = null;
 						if (cop.Type == "unit")
 						{
-							pastedNode = SpawnUnitExternal(cop.Id, spawnPos, cop.IsEnemy, cop.Rotation, cop.Scale);
+							pastedNode = SpawnUnitExternal(cop.Id, spawnPos, cop.Rotation, cop.Scale, cop.Player);
 							if (pastedNode != null)
 							{
-								action = new ObjectSpawnAction("unit", cop.Id, spawnPos, cop.Rotation, cop.Scale, cop.IsEnemy, pastedNode);
+								action = new ObjectSpawnAction("unit", cop.Id, spawnPos, cop.Rotation, cop.Scale, pastedNode, cop.Player);
 								MapEditorHUD.Instance?.ShowFeedbackExternal($"Pasted Unit: {cop.Id.ToUpper()}");
 							}
 						}
@@ -465,10 +465,10 @@ public partial class GameHost
 									Node mNode = null;
 									if (cop.Type == "unit")
 									{
-										mNode = SpawnUnitExternal(cop.Id, mPos, cop.IsEnemy, t.Rotation, cop.Scale);
+										mNode = SpawnUnitExternal(cop.Id, mPos, t.Rotation, cop.Scale, cop.Player);
 										if (mNode != null)
 										{
-											actionsList.Add(new ObjectSpawnAction("unit", cop.Id, mPos, t.Rotation, cop.Scale, cop.IsEnemy, mNode));
+											actionsList.Add(new ObjectSpawnAction("unit", cop.Id, mPos, t.Rotation, cop.Scale, mNode, cop.Player));
 										}
 									}
 									else if (cop.Type == "prop")
@@ -540,10 +540,10 @@ public partial class GameHost
 					IEditorAction action = null;
 					if (SelectedEditorObject is Unit3D unit)
 					{
-						clonedNode = SpawnUnitExternal(unit.UnitId, spawnPos, unit.IsEnemy, rotY, scaleVal);
+						clonedNode = SpawnUnitExternal(unit.UnitId, spawnPos, rotY, scaleVal, unit.Player);
 						if (clonedNode != null)
 						{
-							action = new ObjectSpawnAction("unit", unit.UnitId, spawnPos, rotY, scaleVal, unit.IsEnemy, clonedNode);
+							action = new ObjectSpawnAction("unit", unit.UnitId, spawnPos, rotY, scaleVal, clonedNode, unit.Player);
 							MapEditorHUD.Instance?.ShowFeedbackExternal($"Duplicated Unit: {unit.UnitId.ToUpper()}");
 						}
 					}
@@ -650,14 +650,11 @@ public partial class GameHost
 					if (valid)
 					{
 						targetPos.Y = GetTerrainHeightAt(targetPos);
-						bool isUnit = node3D is Unit3D;
-						bool isEnemy = isUnit ? (node3D as Unit3D).IsEnemy : false;
 						var action = new ObjectTransformAction(
 							node3D,
 							node3D.Position, targetPos,
 							node3D.RotationDegrees, node3D.RotationDegrees,
-							node3D.Scale, node3D.Scale,
-							isEnemy, isEnemy
+							node3D.Scale, node3D.Scale
 						);
 						node3D.Position = targetPos;
 						if (node3D is Unit3D unit && GameContext.World.IsAlive(unit.Entity))
@@ -842,14 +839,11 @@ public partial class GameHost
 					Vector3 oldRot = node3D.RotationDegrees;
 					Vector3 newRot = oldRot;
 					newRot.Y = (newRot.Y + rotDelta + 360.0f) % 360.0f;
-					bool isUnit = SelectedEditorObject is Unit3D;
-					bool isEnemy = isUnit ? (SelectedEditorObject as Unit3D).IsEnemy : false;
 					var action = new ObjectTransformAction(
 						node3D,
 						node3D.Position, node3D.Position,
 						oldRot, newRot,
-						node3D.Scale, node3D.Scale,
-						isEnemy, isEnemy
+						node3D.Scale, node3D.Scale
 					);
 					node3D.RotationDegrees = newRot;
 					EditorHistoryManager.RecordAction(action);
@@ -874,14 +868,11 @@ public partial class GameHost
 					Vector3 oldScale = node3D.Scale;
 					float newScaleVal = Mathf.Clamp(oldScale.X + scaleDelta, 0.2f, 3.0f);
 					Vector3 newScale = Vector3.One * newScaleVal;
-					bool isUnit = SelectedEditorObject is Unit3D;
-					bool isEnemy = isUnit ? (SelectedEditorObject as Unit3D).IsEnemy : false;
 					var action = new ObjectTransformAction(
 						node3D,
 						node3D.Position, node3D.Position,
 						node3D.RotationDegrees, node3D.RotationDegrees,
-						oldScale, newScale,
-						isEnemy, isEnemy
+						oldScale, newScale
 					);
 					node3D.Scale = newScale;
 					EditorHistoryManager.RecordAction(action);
@@ -1052,12 +1043,13 @@ public partial class GameHost
 
 					spawnPos = finalPos.Value;
 
-					var unit = SpawnUnitExternal(ActivePlaceId, spawnPos, GameContext.EditorService.PlaceUnitIsEnemy, placementRot, scaleVal);
+					int placePlayer = GameContext.EditorService.PlaceUnitIsEnemy ? 1 : 0;
+					var unit = SpawnUnitExternal(ActivePlaceId, spawnPos, placementRot, scaleVal, placePlayer);
 					if (unit != null)
 					{
 						var actions = new List<IEditorAction>
 						{
-							new ObjectSpawnAction("unit", ActivePlaceId, spawnPos, placementRot, scaleVal, GameContext.EditorService.PlaceUnitIsEnemy, unit)
+							new ObjectSpawnAction("unit", ActivePlaceId, spawnPos, placementRot, scaleVal, unit, placePlayer)
 						};
 						if (EditorMirrorMode != MirrorMode.None)
 						{
@@ -1066,10 +1058,10 @@ public partial class GameHost
 								Vector3 mPos = t.Position;
 								mPos.Y = GetTerrainHeightAt(mPos);
 								if (IsPositionBlocked(mPos, radius)) continue;
-								var mUnit = SpawnUnitExternal(ActivePlaceId, mPos, GameContext.EditorService.PlaceUnitIsEnemy, t.Rotation, scaleVal);
+								var mUnit = SpawnUnitExternal(ActivePlaceId, mPos, t.Rotation, scaleVal, placePlayer);
 								if (mUnit != null)
 								{
-									actions.Add(new ObjectSpawnAction("unit", ActivePlaceId, mPos, t.Rotation, scaleVal, GameContext.EditorService.PlaceUnitIsEnemy, mUnit));
+									actions.Add(new ObjectSpawnAction("unit", ActivePlaceId, mPos, t.Rotation, scaleVal, mUnit, placePlayer));
 								}
 							}
 						}
@@ -1379,15 +1371,16 @@ public partial class GameHost
 					{
 						if (clickedNode is Unit3D unit)
 						{
+							bool isEnemy = unit.Player != 0;
 							if (MapEditorHUD.Instance != null)
 							{
-								MapEditorHUD.Instance.SetSpawnAsEnemy(unit.IsEnemy);
+								MapEditorHUD.Instance.SetSpawnAsEnemy(isEnemy);
 								MapEditorHUD.Instance.SelectPickedUnitOrProp(unit.UnitId, unit.IsBuilding);
 							}
 							else
 							{
 								ActivePlaceId = unit.UnitId;
-								GameContext.EditorService.PlaceUnitIsEnemy = unit.IsEnemy;
+								GameContext.EditorService.PlaceUnitIsEnemy = isEnemy;
 								ActiveEditorTool = EditorTool.PlaceUnit;
 							}
 						}
@@ -1777,7 +1770,7 @@ public partial class GameHost
 			return;
 		}
 
-		bool isSpectator = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator";
+		bool isSpectator = IsClientSpectator;
 		if (isSpectator)
 		{
 			if (@event is InputEventKey specKeyEvent && specKeyEvent.Pressed && !specKeyEvent.Echo)
@@ -1850,7 +1843,8 @@ public partial class GameHost
 
 			if (SelectedUnits.Count > 0)
 			{
-				if (SelectedUnits.Count == 1 && !SelectedUnits[0].IsEnemy && SelectedUnits[0].UnitId == "castle")
+				int localPlayer = LocalViewingPlayerIndex;
+				if (SelectedUnits.Count == 1 && SelectedUnits[0].Player == localPlayer && SelectedUnits[0].UnitId == "castle")
 				{
 					var castle = SelectedUnits[0];
 					if (GameContext.World.Has<ProductionQueue>(castle.Entity) && GameContext.World.Get<ProductionQueue>(castle.Entity).UnitIds.Count > 0)
@@ -2033,10 +2027,11 @@ public partial class GameHost
 
 			if (SelectedUnits.Count == 0) goto SkipRightClick;
 
+			int localPlayer = LocalViewingPlayerIndex;
 			bool anyFriendlySelected = false;
 			foreach (var su in SelectedUnits)
 			{
-				if (!su.IsEnemy)
+				if (su.Player == localPlayer)
 				{
 					anyFriendlySelected = true;
 					break;
@@ -2045,7 +2040,7 @@ public partial class GameHost
 
 			if (!anyFriendlySelected) goto SkipRightClick;
 
-			if (SelectedUnits.Count == 1 && !SelectedUnits[0].IsEnemy && CanProduceUnits(SelectedUnits[0]))
+			if (SelectedUnits.Count == 1 && SelectedUnits[0].Player == localPlayer && CanProduceUnits(SelectedUnits[0]))
 			{
 				var hit = RaycastFromMouse(rightBtn.Position);
 				if (hit != null && hit.ContainsKey("position"))
@@ -2066,12 +2061,13 @@ public partial class GameHost
 					var clickedUnit = FindUnit3DInParentChain(collider);
 					var clickedProp = FindProp3DInParentChain(collider);
 					bool shiftHeld = Input.IsKeyPressed(Key.Shift);
+					bool isClickedEnemy = clickedUnit != null && NetworkService.ArePlayerIndicesEnemies(localPlayer, clickedUnit.Player);
 
-					if (clickedUnit != null && clickedUnit.IsEnemy && clickedUnit.Visible)
+					if (clickedUnit != null && isClickedEnemy && clickedUnit.Visible)
 					{
 						IssueAttackCommand(clickedUnit, shiftHeld);
 					}
-					else if (clickedUnit != null && !clickedUnit.IsEnemy && clickedUnit != SelectedUnits.Find(u => !u.IsEnemy))
+					else if (clickedUnit != null && !isClickedEnemy && clickedUnit != SelectedUnits.Find(u => u.Player == localPlayer))
 					{
 						if (clickedUnit.IsBuilding && GameContext.World.Has<UnderConstruction>(clickedUnit.Entity))
 						{
@@ -2199,7 +2195,7 @@ public partial class GameHost
 							}
 							else if (ActiveCommandTargeting == "rally")
 							{
-								if (SelectedUnits.Count == 1 && !SelectedUnits[0].IsEnemy && CanProduceUnits(SelectedUnits[0]))
+								if (SelectedUnits.Count == 1 && SelectedUnits[0].Player == LocalViewingPlayerIndex && CanProduceUnits(SelectedUnits[0]))
 								{
 									SetRallyPoint(SelectedUnits[0], hitPos);
 								}
@@ -2280,7 +2276,8 @@ public partial class GameHost
 					var clickedUnit = FindUnit3DInParentChain(collider);
 					var clickedProp = FindProp3DInParentChain(collider);
 
-					if (SelectedUnits.Count == 1 && !SelectedUnits[0].IsEnemy && CanProduceUnits(SelectedUnits[0]))
+					int localPlayerIndex = LocalViewingPlayerIndex;
+					if (SelectedUnits.Count == 1 && SelectedUnits[0].Player == localPlayerIndex && CanProduceUnits(SelectedUnits[0]))
 					{
 						SetRallyPoint(SelectedUnits[0], hitPos);
 						GetViewport().SetInputAsHandled();
@@ -2289,7 +2286,7 @@ public partial class GameHost
 
 					if (clickedUnit != null && clickedUnit.Entity != Entity.Null)
 					{
-						if (clickedUnit.IsEnemy)
+						if (NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, clickedUnit.Player))
 						{
 							IssueAttackCommand(clickedUnit);
 						}
@@ -2368,7 +2365,8 @@ public partial class GameHost
 			return;
 		}
 
-		if (clickedUnit.IsEnemy)
+		int localPlayerIndex = LocalViewingPlayerIndex;
+		if (clickedUnit.Player != localPlayerIndex)
 		{
 			ClearSelection();
 			SelectUnit(clickedUnit);
@@ -2382,7 +2380,7 @@ public partial class GameHost
 		}
 
 		bool shiftPressed = Input.IsKeyPressed(Key.Shift);
-		bool selectingEnemy = SelectedUnits.Count > 0 && SelectedUnits[0].IsEnemy;
+		bool selectingEnemy = SelectedUnits.Count > 0 && SelectedUnits[0].Player != localPlayerIndex;
 
 		if (selectingEnemy || !shiftPressed)
 		{
@@ -2448,8 +2446,9 @@ public partial class GameHost
 
 	private void HandleBoxSelectionState()
 	{
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		bool shiftPressed = Input.IsKeyPressed(Key.Shift);
-		bool selectingEnemy = SelectedUnits.Count > 0 && SelectedUnits[0].IsEnemy;
+		bool selectingEnemy = SelectedUnits.Count > 0 && SelectedUnits[0].Player != localPlayerIndex;
 
 		if (selectingEnemy || !shiftPressed)
 		{
@@ -2459,6 +2458,7 @@ public partial class GameHost
 
 	private void CollectUnitsInRect(Camera3D camera, Rect2 dragRect, List<Unit3D> friendlyUnits, List<Unit3D> enemyUnits)
 	{
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		foreach (var unit in AllUnits)
 		{
 			if (!IsValidVisibleUnit(unit)) continue;
@@ -2466,7 +2466,7 @@ public partial class GameHost
 			var screenPos = camera.UnprojectPosition(unit.GlobalPosition);
 			if (!dragRect.HasPoint(screenPos)) continue;
 
-			if (unit.IsEnemy)
+			if (unit.Player != localPlayerIndex)
 				enemyUnits.Add(unit);
 			else
 				friendlyUnits.Add(unit);
@@ -2522,13 +2522,14 @@ public partial class GameHost
 
 	private void CollectUnitsForTemporarySelection(Camera3D camera, Rect2 dragRect, List<Unit3D> friendlyUnits, List<Unit3D> enemyUnits)
 	{
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		foreach (var unit in AllUnits)
 		{
 			if (!IsValidVisibleUnit(unit)) continue;
 
 			if (dragRect.HasPoint(camera.UnprojectPosition(unit.GlobalPosition)))
 			{
-				(unit.IsEnemy ? enemyUnits : friendlyUnits).Add(unit);
+				((unit.Player != localPlayerIndex) ? enemyUnits : friendlyUnits).Add(unit);
 			}
 
 			unit.SetTemporarySelectionHighlight(false);
@@ -2788,9 +2789,10 @@ public partial class GameHost
 
 	private void ViewCollectMoveCommandTargets(List<Entity> selectedEntities, List<int> targetIds)
 	{
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.IsEnemy) continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -2837,9 +2839,10 @@ public partial class GameHost
 
 	private void ViewCollectAttackCommandTargets(List<Entity> selectedEntities, List<int> targetIds)
 	{
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.IsEnemy) continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -2886,9 +2889,10 @@ public partial class GameHost
 
 	private void CollectFollowCommandTargets(Unit3D target, List<Entity> selectedEntities, List<int> targetIds)
 	{
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.IsEnemy || unit.Entity == target.Entity) continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.Entity == target.Entity) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -2905,7 +2909,7 @@ public partial class GameHost
 	private void SelectAllBuildings()
 	{
 		ClearSelection();
-		var entities = GameContext.InputService.GetBuildingEntities(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
+		var entities = GameContext.InputService.GetBuildingEntities(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex));
 		int count = 0;
 		foreach (var ent in entities)
 		{
@@ -2945,7 +2949,7 @@ public partial class GameHost
 
 	private void CycleThroughBuildings()
 	{
-		Entity buildingEntity = GameContext.InputService.CycleThroughBuildings(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
+		Entity buildingEntity = GameContext.InputService.CycleThroughBuildings(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex));
 		if (buildingEntity == Entity.Null) return;
 
 		var building = AllUnits.Find(u => u.Entity == buildingEntity);
@@ -2962,7 +2966,8 @@ public partial class GameHost
 	{
 		if (SelectedUnits.Count == 0) return;
 
-		var toDelete = new List<Unit3D>(SelectedUnits.FindAll(u => !u.IsEnemy));
+		int localPlayerIndex = LocalViewingPlayerIndex;
+		var toDelete = new List<Unit3D>(SelectedUnits.FindAll(u => u.Player == localPlayerIndex));
 		var entities = new List<Entity>();
 		foreach (var unit in toDelete)
 		{
@@ -2989,7 +2994,7 @@ public partial class GameHost
 	public void SelectAllIdleUnits()
 	{
 		ClearSelection();
-		var entities = GameContext.InputService.GetIdleUnitEntities(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
+		var entities = GameContext.InputService.GetIdleUnitEntities(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex));
 		int selectedCount = 0;
 		foreach (var ent in entities)
 		{
@@ -3011,7 +3016,7 @@ public partial class GameHost
 	public void SelectAllMilitaryUnits()
 	{
 		ClearSelection();
-		var entities = GameContext.InputService.GetMilitaryUnitEntities(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
+		var entities = GameContext.InputService.GetMilitaryUnitEntities(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex));
 		int selectedCount = 0;
 		foreach (var ent in entities)
 		{
@@ -3035,8 +3040,9 @@ public partial class GameHost
 		var hit = RaycastFromMouse(clickPos);
 		if (hit == null || !hit.ContainsKey("collider")) return;
 
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		var clickedUnit = FindUnit3DInParentChain(hit["collider"].As<Node>());
-		if (clickedUnit == null || clickedUnit.IsEnemy) return;
+		if (clickedUnit == null || clickedUnit.Player != localPlayerIndex) return;
 
 		var camera = GetViewport().GetCamera3D();
 		if (camera == null) return;
@@ -3046,7 +3052,8 @@ public partial class GameHost
 
 	private void SelectSimilarVisibleUnits(string type, Camera3D camera, Rect2 viewportRect)
 	{
-		var visibleUnits = AllUnits.FindAll(u => !u.IsEnemy && !u.IsBuilding && u.UnitId == type && viewportRect.HasPoint(camera.UnprojectPosition(u.GlobalPosition)));
+		int localPlayerIndex = LocalViewingPlayerIndex;
+		var visibleUnits = AllUnits.FindAll(u => u.Player == localPlayerIndex && !u.IsBuilding && u.UnitId == type && viewportRect.HasPoint(camera.UnprojectPosition(u.GlobalPosition)));
 
 		foreach (var u in visibleUnits)
 		{
@@ -3060,9 +3067,10 @@ public partial class GameHost
 	public void CenterCameraOnCastle()
 	{
 		Unit3D castle = null;
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		foreach (var unit in AllUnits)
 		{
-			if (!unit.IsEnemy && unit.UnitId == "castle")
+			if (unit.Player == localPlayerIndex && unit.UnitId == "castle")
 			{
 				castle = unit;
 				break;
@@ -3137,7 +3145,7 @@ public partial class GameHost
 			Id = unit.UnitId,
 			Rotation = unit.RotationDegrees.Y,
 			Scale = unit.Scale.X,
-			IsEnemy = unit.IsEnemy
+			Player = unit.Player
 		});
 		MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Unit: {unit.UnitId.ToUpper()}");
 	}
@@ -3195,10 +3203,11 @@ public partial class GameHost
 
 	private void AssignControlGroup(int index)
 	{
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		var groupUnits = new List<Unit3D>();
 		foreach (var u in SelectedUnits)
 		{
-			if (!u.IsEnemy)
+			if (u.Player == localPlayerIndex)
 			{
 				groupUnits.Add(u);
 			}
@@ -3292,7 +3301,7 @@ public partial class GameHost
 	{
 		if (def != null && def.Cooldown > 0f)
 		{
-			GameContext.InputService.SetSpellCooldown(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), spellId, def.Cooldown);
+			GameContext.InputService.SetSpellCooldown(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex), spellId, def.Cooldown);
 		}
 
 		if (def != null)
@@ -3301,7 +3310,8 @@ public partial class GameHost
 		}
 
 		var targetIds = new List<int>();
-		if (SelectedUnits.Count > 0 && !SelectedUnits[0].IsEnemy)
+		int localPlayerIndex = LocalViewingPlayerIndex;
+		if (SelectedUnits.Count > 0 && SelectedUnits[0].Player == localPlayerIndex)
 		{
 			targetIds.Add(GetServerEntityId(SelectedUnits[0].Entity));
 		}
@@ -3327,7 +3337,7 @@ public partial class GameHost
 
 		if (IsSpellOnCooldown(spellId, def)) return;
 
-		if (GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), casterEntity, spellId, out float maxCd))
+		if (GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex), casterEntity, spellId, out float maxCd))
 		{
 			HandleSpellCastSuccess(spellId, def, position);
 		}
@@ -3335,7 +3345,7 @@ public partial class GameHost
 
 	private bool IsSpellOnCooldown(string spellId, AbilityDefinition def)
 	{
-		float cd = GameContext.InputService.GetSpellCooldown(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), spellId);
+		float cd = GameContext.InputService.GetSpellCooldown(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex), spellId);
 		if (cd <= 0f) return false;
 
 		string displayName = def?.DisplayName ?? spellId;
@@ -3394,7 +3404,7 @@ public partial class GameHost
 		var selectedEntity = SelectedUnits.Count > 0 ? SelectedUnits[0].Entity : Entity.Null;
 		var pos = new System.Numerics.Vector3(castle3D.GlobalPosition.X, castle3D.GlobalPosition.Y, castle3D.GlobalPosition.Z);
 
-		if (GameContext.InputService.BuyItem(itemId, GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), pos, selectedEntity, out Entity targetUnitEntity))
+		if (GameContext.InputService.BuyItem(itemId, GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex), pos, selectedEntity, out Entity targetUnitEntity))
 		{
 			CompleteItemPurchase(itemId, itemName, costGold, targetUnitEntity);
 		}
@@ -3514,7 +3524,7 @@ public partial class GameHost
 			{
 				UnitId = type,
 				IsBuilding = isBuilding,
-				IsEnemy = false,
+				Player = LocalViewingPlayerIndex,
 				IsPreview = true
 			};
 			AddChild(previewUnit);
@@ -3564,7 +3574,7 @@ public partial class GameHost
 
 	private bool CanUnitConstructType(Unit3D u, string type)
 	{
-		if (u == null || u.IsBuilding || u.IsEnemy) return false;
+		if (u == null || u.IsBuilding || u.Player != LocalViewingPlayerIndex) return false;
 		if (u.UnitId == "worker" || u.UnitId == "unit/builder" || u.UnitId == "builder") return true;
 		if (TryGetUnitOrBuildingMetadata(u.UnitId, out var uMeta) && uMeta.BuildOptions != null)
 		{
@@ -3674,7 +3684,7 @@ public partial class GameHost
 	private void ProcessBuildingPlacement(string type, Vector3 position, UnitMetadata meta, bool shiftHeld)
 	{
 		var buildingPos = new System.Numerics.Vector3(position.X, position.Y, position.Z);
-		Unit3D firstWorker = SelectedUnits.Find(u => !u.IsBuilding && !u.IsEnemy && u.UnitId == "worker");
+		Unit3D firstWorker = SelectedUnits.Find(u => !u.IsBuilding && u.Player == LocalViewingPlayerIndex && u.UnitId == "worker");
 
 		if (firstWorker != null)
 		{
@@ -3719,15 +3729,15 @@ public partial class GameHost
 	private void ProcessWorkerTaskAssignment(Unit3D unit, Unit3D firstWorker, string type, System.Numerics.Vector3 buildingPos, bool shiftHeld)
 	{
 		GameContext.InputService.ProcessWorkerTaskAssignment(
-			unit.Entity, firstWorker.Entity, unit.IsBuilding, unit.IsEnemy, unit.UnitId, type, buildingPos, shiftHeld);
+			unit.Entity, firstWorker.Entity, unit.IsBuilding, unit.UnitId, type, buildingPos, shiftHeld);
 	}
 
 
 	private void SpawnInstantBuilding(string type, Vector3 position, UnitMetadata meta)
 	{
-		var bldEntity = GameContext.InputService.CreateInstantBuildingEcsUnit(type, meta, new System.Numerics.Vector3(position.X, position.Y, position.Z), GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
+		var bldEntity = GameContext.InputService.CreateInstantBuildingEcsUnit(type, meta, new System.Numerics.Vector3(position.X, position.Y, position.Z), GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex));
 		string modelPath = GetFallbackModelPath(meta.ModelPath, true);
-		SpawnUnit3D(bldEntity, type, modelPath, position, true, false);
+		SpawnUnit3D(bldEntity, type, modelPath, position, true, LocalViewingPlayerIndex);
 		InGameHUD.Instance?.ShowFeedbackText($"Constructed: {meta.Name}", new Color(0.3f, 0.9f, 0.4f));
 	}
 
@@ -3822,9 +3832,10 @@ public partial class GameHost
 		InGameHUD.Instance?.RefreshUI(SelectedUnits);
 	}
 
-	public void BuyWeaponsUpgrade()
+	public void BuyWeaponsUpgrade(int playerIndex = 0)
 	{
-		if (HasWeaponsUpgrade) return;
+		if (playerIndex <= 0) playerIndex = LocalViewingPlayerIndex;
+		if (HasWeaponsUpgrade(playerIndex)) return;
 
 		float costGold = 150f;
 		float costWood = 100f;
@@ -3833,7 +3844,7 @@ public partial class GameHost
 		{
 			if (InGameHUD.Instance.Gold >= costGold && InGameHUD.Instance.Wood >= costWood)
 			{
-				if (GameContext.TechTreeService.BuyWeaponsUpgrade(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1)))
+				if (GameContext.TechTreeService.BuyWeaponsUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
 				{
 					InGameHUD.Instance.Gold -= costGold;
 					InGameHUD.Instance.Wood -= costWood;
@@ -3851,9 +3862,10 @@ public partial class GameHost
 		}
 	}
 
-	public void BuyShieldsUpgrade()
+	public void BuyShieldsUpgrade(int playerIndex = 0)
 	{
-		if (HasShieldsUpgrade) return;
+		if (playerIndex <= 0) playerIndex = LocalViewingPlayerIndex;
+		if (HasShieldsUpgrade(playerIndex)) return;
 
 		float costGold = 150f;
 		float costStone = 100f;
@@ -3862,7 +3874,7 @@ public partial class GameHost
 		{
 			if (InGameHUD.Instance.Gold >= costGold && InGameHUD.Instance.Stone >= costStone)
 			{
-				if (GameContext.TechTreeService.BuyShieldsUpgrade(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1)))
+				if (GameContext.TechTreeService.BuyShieldsUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
 				{
 					InGameHUD.Instance.Gold -= costGold;
 					InGameHUD.Instance.Stone -= costStone;
@@ -3880,9 +3892,10 @@ public partial class GameHost
 		}
 	}
 
-	public void BuyHarvestingUpgrade()
+	public void BuyHarvestingUpgrade(int playerIndex = 0)
 	{
-		if (HasHarvestingUpgrade) return;
+		if (playerIndex <= 0) playerIndex = LocalViewingPlayerIndex;
+		if (HasHarvestingUpgrade(playerIndex)) return;
 
 		float costWood = 150f;
 		float costStone = 100f;
@@ -3891,7 +3904,7 @@ public partial class GameHost
 		{
 			if (InGameHUD.Instance.Wood >= costWood && InGameHUD.Instance.Stone >= costStone)
 			{
-				if (GameContext.TechTreeService.BuyHarvestingUpgrade(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1)))
+				if (GameContext.TechTreeService.BuyHarvestingUpgrade(GetPlayerEntityForPlayerIndex(playerIndex)))
 				{
 					InGameHUD.Instance.Wood -= costWood;
 					InGameHUD.Instance.Stone -= costStone;
@@ -3922,10 +3935,11 @@ public partial class GameHost
 			InGameHUD.Instance.ShowFeedbackText("Command: Attack-Move to position", new Color(0.9f, 0.5f, 0.1f));
 		}
 
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		var selectedEntities = new List<Entity>();
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.IsEnemy) continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex) continue;
 			selectedEntities.Add(unit.Entity);
 		}
 
@@ -3936,11 +3950,12 @@ public partial class GameHost
 	{
 		if (SelectedUnits.Count == 0) return;
 
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		var targetIds = new List<int>();
 		var selectedEntities = new List<Entity>();
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.IsEnemy) continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 			unit.Velocity = Vector3.Zero;
@@ -3961,11 +3976,12 @@ public partial class GameHost
 		SpawnTargetIndicator(targetPos, new Color(0.6f, 0.3f, 1.0f));
 		InGameHUD.Instance?.ShowFeedbackText("Command: Patrol Route Set", new Color(0.7f, 0.4f, 1.0f));
 
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		var targetIds = new List<int>();
 		var selectedEntities = new List<Entity>();
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.IsEnemy) continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -3985,11 +4001,12 @@ public partial class GameHost
 		SpawnTargetIndicator(targetPos, new Color(0.2f, 0.7f, 1.0f));
 		InGameHUD.Instance?.ShowFeedbackText("Command: Queued Move (Shift+Click)", new Color(0.2f, 0.7f, 1.0f));
 
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		var targetIds = new List<int>();
 		var selectedEntities = new List<Entity>();
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.IsEnemy) continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -4048,7 +4065,7 @@ public partial class GameHost
 			QueueClientCommand("train", new List<int> { GetServerEntityId(targetBuildingEntity) }, Vector3.Zero, 0, unitId);
 			DeductResourcesAndNotify(meta);
 		}
-		else if (GameContext.InputService.TryQueueUnitAtCastle(GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1), targetBuildingEntity, unitId, meta.PopCost, meta.ProductionTime))
+		else if (GameContext.InputService.TryQueueUnitAtCastle(GetPlayerEntityForPlayerIndex(LocalViewingPlayerIndex), targetBuildingEntity, unitId, meta.PopCost, meta.ProductionTime))
 		{
 			DeductResourcesAndNotify(meta);
 		}
@@ -4056,7 +4073,8 @@ public partial class GameHost
 
 	private bool TryGetCandidateBuilding(out Entity targetBuildingEntity)
 	{
-		var candidateBuildingEntities = SelectedUnits.FindAll(u => !u.IsEnemy && u.IsBuilding && GameContext.World.IsAlive(u.Entity) && CanProduceUnits(u)).ConvertAll(u => u.Entity);
+		int localPlayerIndex = LocalViewingPlayerIndex;
+		var candidateBuildingEntities = SelectedUnits.FindAll(u => u.Player == localPlayerIndex && u.IsBuilding && GameContext.World.IsAlive(u.Entity) && CanProduceUnits(u)).ConvertAll(u => u.Entity);
 
 		var result = GameContext.InputService.TryGetCandidateBuilding(candidateBuildingEntities, out targetBuildingEntity);
 
@@ -4076,11 +4094,14 @@ public partial class GameHost
 
 	private bool ValidateTrainingConstraints(UnitMetadata meta)
 	{
-		var result = GameContext.InputService.ValidateTrainingConstraints(meta, CurrentPopulation, MaxPopulation);
+		int localSlot = LocalViewingPlayerIndex;
+		int curPop = GetCurrentPopulation(localSlot);
+		int maxPop = GetMaxPopulation(localSlot);
+		var result = GameContext.InputService.ValidateTrainingConstraints(meta, curPop, maxPop);
 
 		if (result == InputService.ValidateTrainingConstraintsResult.PopulationCapReached)
 		{
-			string msg = string.Format(TranslationServer.Translate("Population cap reached! ({0}/{1})"), CurrentPopulation, MaxPopulation);
+			string msg = string.Format(TranslationServer.Translate("Population cap reached! ({0}/{1})"), curPop, maxPop);
 			ShowTrainingFeedback(msg, new Color(1f, 0.3f, 0.3f), isWarning: true);
 			return false;
 		}
@@ -4100,7 +4121,10 @@ public partial class GameHost
 		InGameHUD.Instance.Wood = wood;
 		InGameHUD.Instance.Stone = stone;
 
-		string msg = string.Format(TranslationServer.Translate("Queued {0} ({1}/{2} pop)"), meta.Name, CurrentPopulation, MaxPopulation);
+		int localSlot = LocalViewingPlayerIndex;
+		int curPop = GetCurrentPopulation(localSlot);
+		int maxPop = GetMaxPopulation(localSlot);
+		string msg = string.Format(TranslationServer.Translate("Queued {0} ({1}/{2} pop)"), meta.Name, curPop, maxPop);
 		ShowTrainingFeedback(msg, new Color(0.2f, 0.8f, 1f), isWarning: false);
 		InGameHUD.Instance.RefreshUI(SelectedUnits);
 	}
@@ -4169,11 +4193,12 @@ public partial class GameHost
 
 	public void StopSelectedUnits()
 	{
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		var targetIds = new List<int>();
 		var selectedEntities = new List<Entity>();
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsEnemy) continue;
+			if (unit.Player != localPlayerIndex) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 			unit.Velocity = Vector3.Zero;
@@ -4221,7 +4246,9 @@ public partial class GameHost
 		InGameHUD.Instance.Gold += meta.CostGold;
 		InGameHUD.Instance.Wood += meta.CostWood;
 		InGameHUD.Instance.Stone += meta.CostStone;
-		CurrentPopulation = Math.Max(0, CurrentPopulation - meta.PopCost);
+		int localSlot = LocalViewingPlayerIndex;
+		int curPop = GetCurrentPopulation(localSlot);
+		SetCurrentPopulation(localSlot, Math.Max(0, curPop - meta.PopCost));
 		InGameHUD.Instance.ShowFeedbackText($"Cancelled {meta.Name} (Refunded {meta.CostGold}G, {meta.CostWood}W, {meta.CostStone}S)", new Color(1f, 0.8f, 0.2f));
 	}
 
@@ -4263,25 +4290,22 @@ public partial class GameHost
 		return GameContext.InputService.IsPositionBlocked(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), radius, ignoreEntity);
 	}
 
-	public Unit3D SpawnUnitFromProduction(string unitId, System.Numerics.Vector3 position, bool isEnemy, Entity buildingEntity, bool isFromQueue = false)
+	public Unit3D SpawnUnitFromProduction(string unitId, System.Numerics.Vector3 position, Entity buildingEntity, bool isFromQueue = false)
 	{
 		if (!UnitRegistry.TryGetValue(unitId, out var meta)) return null;
 
-		int ownerPeerId = DetermineOwnerPeerId(isEnemy);
-		bool actualIsEnemy = NetworkService.ArePeersEnemies(_localPeerId, ownerPeerId);
-		Entity playerOwnerEntity = DeterminePlayerOwnerEntity(ownerPeerId, actualIsEnemy);
+		int parentPlayer = ResolveSpawnParentPlayer(buildingEntity);
+		Entity playerOwnerEntity = GetPlayerEntityForPlayerIndex(parentPlayer);
 		var playerOwner = playerOwnerEntity.AsPlayerEntity(GameContext.World);
 
 		string targetModel = meta.ModelPath;
 		string modelPath = GetFallbackModelPath(targetModel, false);
-		string name = actualIsEnemy ? GameContext.UnitSpawnService.GetEnemyUnitName(unitId, meta.Name) : meta.Name;
+		string name = meta.Name;
 		var godotPosition = new Vector3(position.X, position.Y, position.Z);
 
 		var entity = CreateEcsUnit(unitId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, godotPosition, playerOwner);
 
-		int parentPlayer = ResolveSpawnParentPlayer(buildingEntity, ref actualIsEnemy);
-
-		var unit3D = SpawnUnit3D(entity, unitId, modelPath, godotPosition, false, actualIsEnemy, isFromQueue, parentPlayer);
+		var unit3D = SpawnUnit3D(entity, unitId, modelPath, godotPosition, false, parentPlayer, isFromQueue);
 
 		if (meta.Speed > 0f)
 		{
@@ -4291,10 +4315,9 @@ public partial class GameHost
 		return unit3D;
 	}
 
-	private int ResolveSpawnParentPlayer(Entity buildingEntity, ref bool actualIsEnemy)
+	private int ResolveSpawnParentPlayer(Entity buildingEntity)
 	{
-		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-		return GameContext.UnitSpawnService.ResolveSpawnParentPlayer(buildingEntity, localPlayerIndex, ref actualIsEnemy);
+		return GameContext.UnitSpawnService.ResolveSpawnParentPlayer(buildingEntity);
 	}
 
 	private void ApplySpawnRallyPointOrMove(Entity entity, Entity buildingEntity, System.Numerics.Vector3 defaultPosition)
@@ -4305,18 +4328,6 @@ public partial class GameHost
 	private bool TryApplyRallyPoint(Entity entity, Entity buildingEntity)
 	{
 		return GameContext.InputService.TryApplyRallyPoint(entity, buildingEntity);
-	}
-
-	private int DetermineOwnerPeerId(bool isEnemy)
-	{
-		return GameContext.NetworkService.DetermineOwnerPeerId(isEnemy, _localPeerId);
-	}
-
-	private Entity DeterminePlayerOwnerEntity(int ownerPeerId, bool actualIsEnemy)
-	{
-		var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
-		int localSlot = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-		return GameContext.NetworkService.DeterminePlayerOwnerEntity(ownerPeerId, actualIsEnemy, _peerIdToPlayerEntityMap, playerEntities, localSlot);
 	}
 
 	private void IssueResumeConstructionCommand(Unit3D targetBuilding, bool shiftHeld)
@@ -4338,10 +4349,11 @@ public partial class GameHost
 
 	private void AssignResumeTasksToWorkers(Unit3D targetBuilding, System.Numerics.Vector3 bPos, bool shiftHeld)
 	{
+		int localPlayerIndex = LocalViewingPlayerIndex;
 		var workerEntities = new List<Entity>();
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.IsEnemy || unit.UnitId != "worker") continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
 			workerEntities.Add(unit.Entity);
 		}
 
@@ -4351,7 +4363,8 @@ public partial class GameHost
 	public void HandleMinimapRightClick(Vector3 minimapWorldPos)
 	{
 		if (ClearTargetingModesIfActive()) return;
-		if (SelectedUnits.Count == 0 || !SelectedUnits.Exists(su => !su.IsEnemy)) return;
+		int localPlayerIndex = LocalViewingPlayerIndex;
+		if (SelectedUnits.Count == 0 || !SelectedUnits.Exists(su => su.Player == localPlayerIndex)) return;
 		if (TrySetRallyPointForSingleProducer(minimapWorldPos)) return;
 
 		var rayResult = CastMinimapRay(minimapWorldPos);
@@ -4364,13 +4377,15 @@ public partial class GameHost
 
 	private bool TryHandleMinimapAttackOrInteract(MinimapRayResult rayResult, bool shiftHeld)
 	{
-		if (rayResult.ClickedUnit != null && rayResult.ClickedUnit.IsEnemy && rayResult.ClickedUnit.Visible)
+		int localPlayerIndex = LocalViewingPlayerIndex;
+		bool isClickedEnemy = rayResult.ClickedUnit != null && NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, rayResult.ClickedUnit.Player);
+		if (rayResult.ClickedUnit != null && isClickedEnemy && rayResult.ClickedUnit.Visible)
 		{
 			IssueAttackCommand(rayResult.ClickedUnit, shiftHeld);
 			return true;
 		}
 
-		if (rayResult.ClickedUnit != null && !rayResult.ClickedUnit.IsEnemy && rayResult.ClickedUnit != SelectedUnits.Find(u => !u.IsEnemy))
+		if (rayResult.ClickedUnit != null && !isClickedEnemy && rayResult.ClickedUnit != SelectedUnits.Find(u => u.Player == localPlayerIndex))
 		{
 			HandleFriendlyUnitRightClick(rayResult.ClickedUnit, shiftHeld);
 			return true;
@@ -4401,7 +4416,8 @@ public partial class GameHost
 
 	private bool TrySetRallyPointForSingleProducer(Vector3 minimapWorldPos)
 	{
-		if (SelectedUnits.Count == 1 && !SelectedUnits[0].IsEnemy && CanProduceUnits(SelectedUnits[0]))
+		int localPlayerIndex = LocalViewingPlayerIndex;
+		if (SelectedUnits.Count == 1 && SelectedUnits[0].Player == localPlayerIndex && CanProduceUnits(SelectedUnits[0]))
 		{
 			SetRallyPoint(SelectedUnits[0], minimapWorldPos);
 			return true;

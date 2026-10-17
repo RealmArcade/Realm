@@ -201,9 +201,6 @@ public class TestWasmMap : IWasmModule
 			BinaryVersion = RealmVersion.GameBinaryVersion
 		};
 
-		PropertyInfo localPlayerProp = typeof(LobbyManager).GetProperty("LocalPlayer", BindingFlags.Public | BindingFlags.Instance);
-		localPlayerProp?.SetValue(LobbyManager.Instance, playerInfo);
-
 		LobbyManager.Instance.PlayerList.Add(playerInfo);
 	}
 

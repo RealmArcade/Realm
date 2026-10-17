@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Shared.Distribution;
 using Environment = System.Environment;
 
@@ -100,7 +101,7 @@ public static class MapAssetManager
 	{
 		get
 		{
-			string path = ProjectSettings.GlobalizePath("user://p2p_cache");
+			string path = PathUtils.SafeGlobalizeUserPath("p2p_cache");
 			if (!Directory.Exists(path))
 			{
 				Directory.CreateDirectory(path);
@@ -158,7 +159,7 @@ public static class MapAssetManager
 				return configured;
 			}
 
-			return ProjectSettings.GlobalizePath("user://maps");
+			return PathUtils.SafeGlobalizeUserPath("maps");
 		}
 	}
 
@@ -856,6 +857,11 @@ public static class MapAssetManager
 
 	public static void EnsureUgcLicense()
 	{
+		if (!PathUtils.IsGodotInitialized)
+		{
+			return;
+		}
+
 		try
 		{
 			string mapsDir = GlobalArchiveDirectory;

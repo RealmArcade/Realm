@@ -427,7 +427,7 @@ public class SaveLoadService
 	{
 		var units = new List<UnitSaveData>();
 		var unitQuery = QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
-		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+		int localPlayerIndex = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
 
 		GameContext.World.Query(in unitQuery, (Entity entity, ref DefinitionId defId, ref Position pos, ref Owner owner) =>
 		{
@@ -437,8 +437,6 @@ public class SaveLoadService
 			float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
 			int playerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
 
-			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) ? GameContext.World.Get<UnitFaction>(entity).IsEnemy : NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
-
 			units.Add(new UnitSaveData
 			{
 				TemplateId = defId.Value,
@@ -447,7 +445,6 @@ public class SaveLoadService
 				PosZ = pos.Value.Z,
 				RotationY = rotY,
 				Scale = scale,
-				IsEnemy = isEnemy,
 				Player = playerIndex
 			});
 		});
@@ -1064,7 +1061,7 @@ public class SaveLoadService
 				continue;
 			}
 
-			GameContext.World.Add(GameContext.World.Create(), new UnitSpawnRequest(u.TemplateId, new Vector3(u.PosX, u.PosY, u.PosZ), u.RotationY, u.Scale, u.IsEnemy, u.Player));
+			GameContext.World.Add(GameContext.World.Create(), new UnitSpawnRequest(u.TemplateId, new Vector3(u.PosX, u.PosY, u.PosZ), u.RotationY, u.Scale, u.Player));
 		}
 	}
 
@@ -1183,7 +1180,7 @@ public class SaveLoadService
 		if (comparison != 0) return comparison;
 		comparison = a.Player.CompareTo(b.Player);
 		if (comparison != 0) return comparison;
-		return a.IsEnemy.CompareTo(b.IsEnemy);
+		return 0;
 	}
 
 	private static int CompareProps(PropSaveData a, PropSaveData b, float topLeftX, float topLeftZ)

@@ -237,7 +237,7 @@ void fragment() {
 		if (GameHost.Instance != null && !GameContext.SessionState.IsMapEditorMode)
 		{
 			int specPerspective = GameContext.SpectatorService?.GetSpectatorPerspective() ?? -1;
-			UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, specPerspective, ReplayPlaybackManager.Instance.IsPlayingReplay, LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator");
+			UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, specPerspective, ReplayPlaybackManager.Instance.IsPlayingReplay, GameHost.Instance?.IsClientSpectator ?? false);
 			InGameHUD.Instance?.QueueMinimapRedraw();
 		}
 	}
@@ -325,9 +325,10 @@ void fragment() {
 		ResetGridToState(ShroudState.VisionShroud, ShroudState.Visible);
 		var shroudGrid = ShroudGrid;
 
+		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
 		foreach (var unit in allUnits)
 		{
-			if (unit == null || !GodotObject.IsInstanceValid(unit) || unit.IsEnemy) continue;
+			if (unit == null || !GodotObject.IsInstanceValid(unit) || NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player)) continue;
 			RevealAreaInGrid(unit, shroudGrid, worldWidth, worldDepth);
 		}
 
@@ -378,10 +379,12 @@ void fragment() {
 	{
 		var shroudGrid = ShroudGrid;
 
+		int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
 		foreach (var unit in allUnits)
 		{
 			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
-			bool shouldBeVisible = !unit.IsEnemy || IsVisibleOnGrid(unit.GlobalPosition, shroudGrid, worldWidth, worldDepth);
+			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayer, unit.Player);
+			bool shouldBeVisible = !isEnemy || IsVisibleOnGrid(unit.GlobalPosition, shroudGrid, worldWidth, worldDepth);
 			if (unit.Visible != shouldBeVisible) unit.Visible = shouldBeVisible;
 		}
 

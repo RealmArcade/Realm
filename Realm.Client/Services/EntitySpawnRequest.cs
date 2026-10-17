@@ -1,4 +1,4 @@
-﻿using Godot;
+using Godot;
 
 namespace Realm.Client.Services;
 
@@ -9,5 +9,5 @@ public struct EntitySpawnRequest
 	public Vector3 Position;
 	public float Rotation;
 	public float Scale;
-	public bool IsEnemy;
+	public int Player;
 }

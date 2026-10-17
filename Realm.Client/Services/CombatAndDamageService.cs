@@ -10,6 +10,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
+using Realm.Client.Core;
 
 namespace Realm.Client.Services
 {
@@ -51,7 +52,6 @@ namespace Realm.Client.Services
 
 		private Vector3 _scanAttackerPos;
 		private PlayerEntity _scanAttackerOwner;
-		private bool _scanIsAttackerEnemy;
 		private int _scanAttackerPlayerIndex;
 		private bool _scanAttackerIsGroundMelee;
 		private Entity _scanAttacker;
@@ -312,6 +312,20 @@ namespace Realm.Client.Services
 			FindAndSetBestReachableCandidate(entity, ref pos, ref atk);
 		}
 
+		private int GetPlayerIndexForEntity(Entity entity)
+		{
+			if (entity == Entity.Null || !GameContext.World.IsAlive(entity)) return 0;
+			if (GameContext.World.Has<UnitOwnerPlayer>(entity))
+				return GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex;
+			if (GameContext.World.Has<Owner>(entity))
+			{
+				var pEnt = GameContext.World.Get<Owner>(entity).PlayerEntity.Value;
+				if (GameContext.World.IsAlive(pEnt) && GameContext.World.Has<UnitOwnerPlayer>(pEnt))
+					return GameContext.World.Get<UnitOwnerPlayer>(pEnt).PlayerIndex;
+			}
+			return 0;
+		}
+
 		private bool TryGetTargetAcquisitionContext(Entity entity, ref Position pos, ref Attack atk, ref Owner owner)
 		{
 			float scanRadius = GameContext.World.Has<ScanRadius>(entity) ? GameContext.World.Get<ScanRadius>(entity).Value : 15.0f;
@@ -320,10 +334,7 @@ namespace Realm.Client.Services
 			_scanAttackerPos = pos.Value;
 			_scanAttackerOwner = owner.PlayerEntity;
 			_scanAttacker = entity;
-			_scanIsAttackerEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-			_scanAttackerPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity)
-				? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex
-				: (_scanIsAttackerEnemy ? 1 : 0);
+			_scanAttackerPlayerIndex = GetPlayerIndexForEntity(entity);
 
 			// A ground-pathing melee attacker can never hit a unit hovering at flight
 			// altitude, so flyers are excluded from its scan entirely.
@@ -386,9 +397,7 @@ namespace Realm.Client.Services
 		// closest one that is reachable. Flying units are excluded for ground-melee attackers.
 		private void ScanEnemyQueryAction(Entity potentialEnemy, ref Position enemyPos, ref Owner enemyOwner)
 		{
-			int enemyPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(potentialEnemy)
-				? GameContext.World.Get<UnitOwnerPlayer>(potentialEnemy).PlayerIndex
-				: ((GameContext.World.Has<UnitFaction>(potentialEnemy) && GameContext.World.Get<UnitFaction>(potentialEnemy).IsEnemy) ? 1 : 0);
+			int enemyPlayerIndex = GetPlayerIndexForEntity(potentialEnemy);
 
 			if (NetworkService.ArePlayerIndicesEnemies(_scanAttackerPlayerIndex, enemyPlayerIndex))
 			{
@@ -655,11 +664,11 @@ namespace Realm.Client.Services
 		{
 			if (!GameContext.World.Has<DefinitionId>(target)) return;
 
+			int targetPlayer = GameContext.World.Has<UnitOwnerPlayer>(target) ? GameContext.World.Get<UnitOwnerPlayer>(target).PlayerIndex : 0;
+			int localViewingPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 1;
+			if (targetPlayer != localViewingPlayer) return;
+
 			string targetUnitId = GameContext.World.Get<DefinitionId>(target).Value;
-			bool targetIsEnemy = GameContext.World.Has<UnitFaction>(target) && GameContext.World.Get<UnitFaction>(target).IsEnemy;
-
-			if (targetIsEnemy) return;
-
 			if (GetCombatAlertTimer() <= 0f)
 			{
 				SetCombatAlertTimer(UnderAttackAlertCooldown);
@@ -740,7 +749,7 @@ namespace Realm.Client.Services
 
 		private void EvaluateSplashDamage(Entity attacker, Entity primaryTarget, Vector3 impactPos, float baseDamage, Attack atk, Owner attackerOwner)
 		{
-			bool attackerIsEnemy = GameContext.World.Has<UnitFaction>(attacker) && GameContext.World.Get<UnitFaction>(attacker).IsEnemy;
+			int attackerPlayer = GameContext.World.Has<UnitOwnerPlayer>(attacker) ? GameContext.World.Get<UnitOwnerPlayer>(attacker).PlayerIndex : 0;
 			var splashQuery = QueryCache.AllPositionAndHealthAndOwnerNoneDeadQuery;
 
 			GameContext.World.Query(in splashQuery, (Entity splashEnt, ref Position sPos, ref Health sHp, ref Owner sOwner) =>
@@ -750,8 +759,8 @@ namespace Realm.Client.Services
 
 				if (!atk.FriendlyFire)
 				{
-					bool splashIsEnemy = GameContext.World.Has<UnitFaction>(splashEnt) && GameContext.World.Get<UnitFaction>(splashEnt).IsEnemy;
-					if (splashIsEnemy == attackerIsEnemy || sOwner.PlayerEntity == attackerOwner.PlayerEntity) return;
+					int splashPlayer = GameContext.World.Has<UnitOwnerPlayer>(splashEnt) ? GameContext.World.Get<UnitOwnerPlayer>(splashEnt).PlayerIndex : 0;
+					if (!NetworkService.ArePlayerIndicesEnemies(attackerPlayer, splashPlayer) || sOwner.PlayerEntity == attackerOwner.PlayerEntity) return;
 				}
 
 				float distToImpact = Distance(impactPos, sPos.Value);
@@ -1184,21 +1193,22 @@ namespace Realm.Client.Services
 
 		private void ProcessAoeTarget(Entity entity, ref Position pos, ref Health hp, Vector3 position, float radius, float damage, Entity casterEntity, bool enemyOnly)
 		{
-			if (!IsAoeTargetValid(entity, pos.Value, position, radius, enemyOnly)) return;
+			if (!IsAoeTargetValid(entity, pos.Value, position, radius, enemyOnly, casterEntity)) return;
 
 			UpdateAoeLastAttacker(entity, casterEntity);
 
 			ApplyAoeDamage(entity, ref hp, damage, casterEntity);
 		}
 
-		private bool IsAoeTargetValid(Entity entity, Vector3 entityPos, Vector3 aoePosition, float aoeRadius, bool enemyOnly)
+		private bool IsAoeTargetValid(Entity entity, Vector3 entityPos, Vector3 aoePosition, float aoeRadius, bool enemyOnly, Entity casterEntity)
 		{
 			if (GameContext.World.Has<Invulnerable>(entity)) return false;
 
 			if (enemyOnly)
 			{
-				bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-				if (!isEnemy) return false;
+				int casterPlayer = GetPlayerIndexForEntity(casterEntity);
+				int targetPlayer = GetPlayerIndexForEntity(entity);
+				if (!NetworkService.ArePlayerIndicesEnemies(casterPlayer, targetPlayer)) return false;
 			}
 
 			if (Vector3.Distance(entityPos, aoePosition) > aoeRadius) return false;
@@ -1248,20 +1258,22 @@ namespace Realm.Client.Services
 			}
 		}
 
-		public void HealAOE(Vector3 position, float radius, float healAmount)
+		public void HealAOE(Vector3 position, float radius, float healAmount, Entity casterEntity = default)
 		{
+			int casterPlayer = GetPlayerIndexForEntity(casterEntity);
+
 			var query = QueryCache.AllPositionAndHealthNoneDeadQuery;
 			GameContext.World.Query(in query, (Entity entity, ref Position pos, ref Health hp) =>
 			{
-				bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-				if (isEnemy) return;
+				int targetPlayer = GetPlayerIndexForEntity(entity);
+				if (NetworkService.ArePlayerIndicesEnemies(casterPlayer, targetPlayer)) return;
 
 				if (Vector3.Distance(pos.Value, position) <= radius)
 				{
 					float newHp = Math.Min(hp.Max, hp.Current + healAmount);
 					hp.Current = newHp;
 					OnHealFlashRequested?.Invoke(entity);
-					OnUnitHealedCallback?.Invoke(entity, Entity.Null, healAmount);
+					OnUnitHealedCallback?.Invoke(entity, casterEntity, healAmount);
 				}
 			});
 		}

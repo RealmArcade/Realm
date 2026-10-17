@@ -99,11 +99,11 @@ public class ReplayService
 		}
 	}
 
-	public (Entity Entity, string ModelPath, bool IsEnemy) SpawnUnitFromReplaySnapshot(ReplayUnitSnapshot snap)
+	public (Entity Entity, string ModelPath, int Player) SpawnUnitFromReplaySnapshot(ReplayUnitSnapshot snap)
 	{
 		if (!GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta))
 		{
-			return (Entity.Null, "", false);
+			return (Entity.Null, "", 0);
 		}
 
 		Entity worldEntity = Entity.Null;
@@ -112,7 +112,7 @@ public class ReplayService
 
 		if (worldEntity == Entity.Null)
 		{
-			return (Entity.Null, "", false);
+			return (Entity.Null, "", 0);
 		}
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
@@ -131,13 +131,16 @@ public class ReplayService
 			ownerPlayerEntity = mapping.PlayerEntities[1];
 		}
 
-		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(1, snap.OwnerPlayerEntityId >= 0 ? snap.OwnerPlayerEntityId : 1);
+		int playerIndex = (ownerPlayerEntity != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(ownerPlayerEntity))
+			? GameContext.World.Get<UnitOwnerPlayer>(ownerPlayerEntity).PlayerIndex
+			: (snap.OwnerPlayerEntityId >= 0 ? snap.OwnerPlayerEntityId : 1);
 
 		var entity = GameContext.World.Create();
 		GameContext.World.Add(entity, new DefinitionId(snap.UnitId));
 		GameContext.World.Add(entity, new Name(meta.Name));
 		GameContext.World.Add(entity, new Position(snap.Position.ToNumerics()));
 		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
+		GameContext.World.Add(entity, new UnitOwnerPlayer(playerIndex));
 		GameContext.World.Add(entity, new Health(snap.CurrentHp, snap.MaxHp));
 		if (meta.Damage > 0 || snap.UnitId == "priest")
 		{
@@ -170,7 +173,7 @@ public class ReplayService
 		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : snap.UnitId;
 		string fallbackPath = GameContext.UnitSpawnService.GetFallbackModelPath(targetModel, snap.IsBuilding);
 
-		return (entity, fallbackPath, isEnemy);
+		return (entity, fallbackPath, playerIndex);
 	}
 
 	public void RecordGameplayTickDomain(List<(Entity Entity, System.Numerics.Vector3 Position, System.Numerics.Vector3 Velocity, float RotationY)> transforms)

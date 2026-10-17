@@ -96,7 +96,7 @@ public partial class GameHost
 		var result = GameContext.ReplayService.SpawnUnitFromReplaySnapshot(snap);
 		if (result.Entity == default) return;
 
-		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, snap.Position.ToGodot(), snap.IsBuilding, result.IsEnemy);
+		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, snap.Position.ToGodot(), snap.IsBuilding, result.Player);
 	}
 
 	private void RecordGameplayTick()

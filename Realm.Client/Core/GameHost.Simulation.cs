@@ -57,7 +57,7 @@ public partial class GameHost
 		HandleMultiplayerUnitDeath(unit);
 
 		string unitId = unit.UnitId;
-		bool isEnemy = unit.IsEnemy;
+		bool isEnemy = NetworkService.ArePlayerIndicesEnemies(LocalViewingPlayerIndex, unit.Player);
 
 		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
 
@@ -85,39 +85,54 @@ public partial class GameHost
 
 	private void HandleUnitDeathEconomy(Unit3D unit)
 	{
-		if (unit.IsEnemy)
+		var (popCost, isCastle) = GameContext.SimulationService.GetDeathPopulationModifiers(unit.Entity, unit.UnitId);
+		int playerIndex = unit.Player;
+
+		if (isCastle)
 		{
-			HandleEnemyDeathEconomy(unit);
-			return;
+			int maxPop = GameContext.ResourceEconomyService?.GetPlayerMaxPopulation(playerIndex) ?? 0;
+			GameContext.ResourceEconomyService?.SetPlayerMaxPopulation(playerIndex, Math.Max(0, maxPop - 20));
 		}
 
-		HandleFriendlyDeathEconomy(unit);
+		if (popCost > 0)
+		{
+			int curPop = GameContext.ResourceEconomyService?.GetPlayerCurrentPopulation(playerIndex) ?? 0;
+			GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(playerIndex, Math.Max(0, curPop - (int)popCost));
+		}
+
+		if (NetworkService.ArePlayerIndicesEnemies(LocalViewingPlayerIndex, unit.Player))
+		{
+			HandleEnemyDeathEconomy(unit);
+		}
 	}
 
 	private void HandleEnemyDeathEconomy(Unit3D unit)
 	{
 		float resCap = ECSContext.PlayerResourceService.ResourceCap;
-		Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-		bool shouldRefresh = GameContext.SimulationService.HandleEnemyDeathEconomyDomain(unit.Entity, unit.UnitId, localPlayerEntity, (int)resCap);
+		Entity beneficiaryPlayerEntity = Entity.Null;
+
+		if (GameContext.World.IsAlive(unit.Entity) && GameContext.World.Has<LastAttacker>(unit.Entity))
+		{
+			Entity killer = GameContext.World.Get<LastAttacker>(unit.Entity).Value;
+			if (GameContext.World.IsAlive(killer) && GameContext.World.Has<Owner>(killer))
+			{
+				beneficiaryPlayerEntity = GameContext.World.Get<Owner>(killer).PlayerEntity.Value;
+			}
+		}
+
+		if (beneficiaryPlayerEntity == Entity.Null)
+		{
+			int localSlot = LocalViewingPlayerIndex;
+			beneficiaryPlayerEntity = GetPlayerEntityForPlayerIndex(localSlot);
+		}
+
+		bool shouldRefresh = GameContext.SimulationService.HandleEnemyDeathEconomyDomain(unit.Entity, unit.UnitId, beneficiaryPlayerEntity, (int)resCap);
 		
-		if (shouldRefresh)
+		int localViewingSlot = LocalViewingPlayerIndex;
+		Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(localViewingSlot);
+		if (shouldRefresh && beneficiaryPlayerEntity == localPlayerEntity)
 		{
 			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}
-	}
-
-	private void HandleFriendlyDeathEconomy(Unit3D unit)
-	{
-		var (popCost, isCastle) = GameContext.SimulationService.GetDeathPopulationModifiers(unit.Entity, unit.UnitId);
-
-		if (isCastle)
-		{
-			MaxPopulation = Math.Max(0, MaxPopulation - 20);
-		}
-
-		if (popCost > 0)
-		{
-			CurrentPopulation = Math.Max(0, CurrentPopulation - (int)popCost);
 		}
 	}
 
@@ -317,8 +332,8 @@ public partial class GameHost
 		string modelPath = GetFallbackModelPath(targetModel, isBuilding);
 		int ownerPlayer = GameContext.World.Has<UnitOwnerPlayer>(buildingEntity)
 			? GameContext.World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex
-			: (LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, false, false, ownerPlayer);
+			: 0;
+		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, ownerPlayer, false, false);
 
 		if (TryGetUnit3D(buildingEntity, out var bNode) && GodotObject.IsInstanceValid(bNode))
 		{
@@ -527,9 +542,8 @@ public partial class GameHost
 		if (string.IsNullOrEmpty(targetModel)) return;
 		float buildTime = Math.Max(meta.ProductionTime, 0);
 
-		int workerPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(workerEntity)
-			? GameContext.World.Get<UnitOwnerPlayer>(workerEntity).PlayerIndex
-			: (LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		if (!GameContext.World.Has<UnitOwnerPlayer>(workerEntity)) return;
+		int workerPlayerIndex = GameContext.World.Get<UnitOwnerPlayer>(workerEntity).PlayerIndex;
 
 		var playerOwner = GetPlayerEntityForPlayerIndex(workerPlayerIndex).AsPlayerEntity(GameContext.World);
 

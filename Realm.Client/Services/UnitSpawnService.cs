@@ -137,16 +137,14 @@ public class UnitSpawnService
 		}
 	}
 
-	public int ResolveSpawnParentPlayer(Entity buildingEntity, int localPlayerIndex, ref bool actualIsEnemy)
+	public int ResolveSpawnParentPlayer(Entity buildingEntity)
 	{
-		int parentPlayer = actualIsEnemy ? 1 : 0;
 		if (GameContext.World.IsAlive(buildingEntity) && GameContext.World.Has<UnitOwnerPlayer>(buildingEntity))
 		{
-			parentPlayer = GameContext.World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex;
-			actualIsEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, parentPlayer);
+			return GameContext.World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex;
 		}
 
-		return parentPlayer;
+		return 0;
 	}
 
 	
@@ -359,7 +357,7 @@ public class UnitSpawnService
 			}
 		}
 	}
-	public void ProcessUnitSpawnRequestsDomain(Action<string, System.Numerics.Vector3, bool, float, float, int> spawnAction)
+	public void ProcessUnitSpawnRequestsDomain(Action<string, System.Numerics.Vector3, float, float, int> spawnAction)
 	{
 		var unitSpawnQuery = QueryCache.AllUnitSpawnRequestQuery;
 		var unitRequests = new List<Entity>();
@@ -367,7 +365,7 @@ public class UnitSpawnService
 		foreach (var reqEnt in unitRequests)
 		{
 			ref var req = ref GameContext.World.Get<UnitSpawnRequest>(reqEnt);
-			spawnAction(req.UnitId, req.Position, req.IsEnemy, req.RotationY, req.Scale, req.Player);
+			spawnAction(req.UnitId, req.Position, req.RotationY, req.Scale, req.Player);
 			GameContext.World.Destroy(reqEnt);
 		}
 	}

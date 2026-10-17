@@ -95,7 +95,8 @@ public class InventoryPanel
 			() =>
 			{
 				var selected = GameHost.Instance?.SelectedUnits;
-				if (selected != null && selected.Count > focusIdx && !selected[focusIdx].IsEnemy)
+				int localPlayer = GameHost.Instance?.LocalViewingPlayerIndex ?? 0;
+				if (selected != null && selected.Count > focusIdx && selected[focusIdx].Player == localPlayer)
 				{
 					GameHost.Instance.UseItem(selected[focusIdx], capturedItemId);
 				}

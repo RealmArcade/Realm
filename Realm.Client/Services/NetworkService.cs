@@ -386,15 +386,19 @@ public class NetworkService
 	public float ComputeDynamicInterpolationFactor()
 	{
 		float bufferTime = 0.1f;
-		if (LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null)
+		if (LobbyManager.Instance?.PlayerList != null)
 		{
-			string latStr = LobbyManager.Instance.LocalPlayer.Latency;
-			if (!string.IsNullOrEmpty(latStr) && latStr != "--" && latStr.Contains(" ms"))
+			var localPlayer = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == LocalPeerId);
+			if (localPlayer != null)
 			{
-				string numStr = latStr.Replace(" ms", "").Trim();
-				if (float.TryParse(numStr, out float rttMs))
+				string latStr = localPlayer.Latency;
+				if (!string.IsNullOrEmpty(latStr) && latStr != "--" && latStr.Contains(" ms"))
 				{
-					bufferTime = Mathf.Max(0.1f, (rttMs / 1000f) * 1.5f);
+					string numStr = latStr.Replace(" ms", "").Trim();
+					if (float.TryParse(numStr, out float rttMs))
+					{
+						bufferTime = Mathf.Max(0.1f, (rttMs / 1000f) * 1.5f);
+					}
 				}
 			}
 		}
@@ -584,10 +588,10 @@ public class NetworkService
 		return result;
 	}
 
-	public Entity SpawnUnitFromSnapshot(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out bool isEnemy)
+	public Entity SpawnUnitFromSnapshot(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex)
 	{
 		modelPath = string.Empty;
-		isEnemy = false;
+		playerIndex = 0;
 
 		if (!GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta))
 		{
@@ -605,20 +609,16 @@ public class NetworkService
 			ownerPlayerEntity = pe;
 		}
 
-		int localPeerId = 1;
-		var mainLoop = Engine.GetMainLoop();
-		if (mainLoop is SceneTree tree)
-		{
-			localPeerId = tree.GetMultiplayer().GetUniqueId();
-		}
-
-		isEnemy = ArePeersEnemies(localPeerId, snap.OwnerPlayerEntityId);
+		playerIndex = (ownerPlayerEntity != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(ownerPlayerEntity))
+			? GameContext.World.Get<UnitOwnerPlayer>(ownerPlayerEntity).PlayerIndex
+			: (snap.OwnerPlayerEntityId > 0 ? snap.OwnerPlayerEntityId - 1 : 0);
 
 		var entity = GameContext.World.Create();
 		GameContext.World.Add(entity, new DefinitionId(snap.UnitId));
 		GameContext.World.Add(entity, new Name(meta.Name));
 		GameContext.World.Add(entity, new Position(snap.Position.ToNumerics()));
 		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
+		GameContext.World.Add(entity, new UnitOwnerPlayer(playerIndex));
 		GameContext.World.Add(entity, new Health(snap.CurrentHp, snap.MaxHp));
 		if (meta.Damage > 0 || snap.UnitId == "priest")
 		{
@@ -644,7 +644,6 @@ public class NetworkService
 			RotationY = snap.RotationY
 		};
 		GameContext.World.Add(entity, interpolationTarget);
-		GameContext.World.Add(entity, new UnitFaction(isEnemy));
 
 		mapping.ServerToClientEntityMap[snap.EntityId] = entity;
 		mapping.ClientToServerEntityMap[entity.Id] = snap.EntityId;

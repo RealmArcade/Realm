@@ -31,7 +31,7 @@ public static class MapScriptHelpers
 		var range = tower.Range > 0 ? tower.Range : config.Range;
 
 		var target = api.GetUnitsInRadius(tower.Position, range)
-			.Where(unit => !unit.IsDead && unit.IsEnemy != tower.IsEnemy)
+			.Where(unit => !unit.IsDead && !api.ArePlayersAllied(unit.Player, tower.Player))
 			.OrderBy(unit => Vector3.DistanceSquared(unit.Position, tower.Position))
 			.FirstOrDefault();
 

@@ -99,7 +99,7 @@ public class MapStateSnapshot
 				Position = unit.Position,
 				RotationY = unit.RotationDegrees.Y,
 				Scale = unit.Scale.X,
-				IsEnemy = unit.IsEnemy
+				Player = unit.Player
 			});
 		}
 	}

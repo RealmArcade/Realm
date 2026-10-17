@@ -94,18 +94,12 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (!_world.IsAlive(_entity)) return 0;
 			if (_world.Has<UnitOwnerPlayer>(_entity))
 				return _world.Get<UnitOwnerPlayer>(_entity).PlayerIndex;
-			if (_world.Has<UnitFaction>(_entity))
-				return _world.Get<UnitFaction>(_entity).IsEnemy ? 1 : 0;
 			return 0;
 		}
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new UnitOwnerPlayer(value));
-
-			int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, value);
-			_world.SetOrAdd(_entity, new UnitFaction(isEnemy));
 
 			if (_world.Has<Owner>(_entity) && GameHost.Instance != null)
 			{
@@ -116,34 +110,6 @@ public class Unit_WasmRuntime : IUnit, IEcsEntityWrapper
 			if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 			{
 				unit3D.Player = value;
-			}
-		}
-	}
-
-	public bool IsEnemy
-	{
-		get
-		{
-			if (!_world.IsAlive(_entity)) return false;
-			if (_world.Has<UnitFaction>(_entity))
-				return _world.Get<UnitFaction>(_entity).IsEnemy;
-			return false;
-		}
-		set
-		{
-			if (!_world.IsAlive(_entity)) return;
-			_world.SetOrAdd(_entity, new UnitFaction(value));
-			int targetSlot = value ? 2 : (LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			_world.SetOrAdd(_entity, new UnitOwnerPlayer(targetSlot));
-			if (_world.Has<Owner>(_entity) && GameHost.Instance != null)
-			{
-				var playerOwner = GameHost.Instance.GetPlayerEntityForPlayerIndex(targetSlot).AsPlayerEntity(_world);
-				_world.Set(_entity, new Owner(playerOwner));
-			}
-
-			if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
-			{
-				unit3D.Player = targetSlot;
 			}
 		}
 	}
