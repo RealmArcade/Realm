@@ -168,7 +168,7 @@ public partial class GameHost
 		var tween = CreateTween();
 		tween.SetParallel(true);
 		tween.TweenProperty(unit, "position:y", -3.0f, 1.0f);
-		tween.TweenProperty(unit, "scale", Godot.Vector3.Zero, 1.0f);
+		tween.TweenProperty(unit, "scale", new Godot.Vector3(0.001f, 0.001f, 0.001f), 1.0f);
 		tween.Chain().TweenCallback(Callable.From(unit.QueueFree));
 		return true;
 	}
@@ -584,7 +584,10 @@ public partial class GameHost
 		if (CheckNonFinitePositionWarning(entity, posValue, unit3D)) return;
 
 		Godot.Vector3 nextPos = new Godot.Vector3(posValue.X, posValue.Y, posValue.Z);
-		unit3D.GlobalPosition = nextPos;
+		if ((unit3D.GlobalPosition - nextPos).LengthSquared() > 0.0001f)
+		{
+			unit3D.GlobalPosition = nextPos;
+		}
 
 		UpdateVisualVelocity(entity, unit3D);
 		UpdateVisualRotation(entity, unit3D, nextPos, fDelta);
@@ -614,7 +617,8 @@ public partial class GameHost
 	private void UpdateVisualVelocity(Entity entity, Unit3D unit3D)
 	{
 		Godot.Vector3 velVec = Godot.Vector3.Zero;
-		if (GameContext.World.Has<Velocity>(entity))
+		bool hasVelocity = GameContext.World.Has<Velocity>(entity);
+		if (hasVelocity)
 		{
 			var vel = GameContext.World.Get<Velocity>(entity);
 			velVec = new Godot.Vector3(vel.Value.X, vel.Value.Y, vel.Value.Z);
@@ -622,14 +626,17 @@ public partial class GameHost
 
 		if (!GameContext.World.Has<MoveTo>(entity) && !GameContext.World.Has<Follow>(entity) && !GameContext.World.Has<InterpolationTarget>(entity))
 		{
-			velVec = Godot.Vector3.Zero;
-			if (GameContext.World.Has<Velocity>(entity))
+			if (hasVelocity && velVec.LengthSquared() > 0.0001f)
 			{
 				GameContext.World.Set(entity, new Velocity(Vector3.Zero));
 			}
+			velVec = Godot.Vector3.Zero;
 		}
 
-		unit3D.Velocity = velVec;
+		if ((unit3D.Velocity - velVec).LengthSquared() > 0.0001f)
+		{
+			unit3D.Velocity = velVec;
+		}
 	}
 
 	private void UpdateVisualRotation(Entity entity, Unit3D unit3D, Godot.Vector3 nextPos, float fDelta)
@@ -721,11 +728,15 @@ public partial class GameHost
 			if (moveStats.TurnRate > 0f) turnRate = moveStats.TurnRate;
 		}
 
-		rot.Y = Mathf.LerpAngle(rot.Y, angle, turnRate * fDelta);
-		unit3D.Rotation = rot;
-		if (GameContext.World.Has<RotationY>(entity))
+		float nextRotY = Mathf.LerpAngle(rot.Y, angle, turnRate * fDelta);
+		if (Mathf.Abs(rot.Y - nextRotY) > 0.001f)
 		{
-			GameContext.World.Set(entity, new RotationY(rot.Y));
+			rot.Y = nextRotY;
+			unit3D.Rotation = rot;
+			if (GameContext.World.Has<RotationY>(entity))
+			{
+				GameContext.World.Set(entity, new RotationY(rot.Y));
+			}
 		}
 
 		Godot.Vector3 normal = Godot.Vector3.Up;
@@ -734,18 +745,25 @@ public partial class GameHost
 			GroundTerrain.GetHeightAndNormal(nextPos.X, nextPos.Z, out _, out normal);
 		}
 
-		Godot.Vector3 forwardDir = new Godot.Vector3(-Mathf.Sin(unit3D.Rotation.Y), 0f, -Mathf.Cos(unit3D.Rotation.Y));
-		Godot.Vector3 up = normal.Normalized();
-		Godot.Vector3 right = forwardDir.Cross(up);
-		if (right.LengthSquared() > 0.00001f)
+		if (Mathf.Abs(normal.Y - 1f) > 0.02f)
 		{
-			right = right.Normalized();
-			Godot.Vector3 forwardPerp = right.Cross(up).Normalized();
-			Basis targetBasis = new Basis(right, up, forwardPerp);
-			var qTarget = targetBasis.GetRotationQuaternion();
-			var qCurrent = unit3D.Basis.GetRotationQuaternion();
-			var qLerp = qCurrent.Slerp(qTarget, 10f * fDelta);
-			unit3D.Basis = new Basis(qLerp);
+			Godot.Vector3 forwardDir = new Godot.Vector3(-Mathf.Sin(unit3D.Rotation.Y), 0f, -Mathf.Cos(unit3D.Rotation.Y));
+			Godot.Vector3 up = normal.Normalized();
+			Godot.Vector3 right = forwardDir.Cross(up);
+			if (right.LengthSquared() > 0.00001f)
+			{
+				right = right.Normalized();
+				Godot.Vector3 forwardPerp = right.Cross(up).Normalized();
+				Basis targetBasis = new Basis(right, up, forwardPerp);
+				float det = targetBasis.Determinant();
+				if (!float.IsNaN(det) && Mathf.Abs(det) > 0.001f)
+				{
+					var qTarget = targetBasis.GetRotationQuaternion();
+					var qCurrent = unit3D.Basis.GetRotationQuaternion();
+					var qLerp = qCurrent.Slerp(qTarget, 10f * fDelta);
+					unit3D.Basis = new Basis(qLerp);
+				}
+			}
 		}
 	}
 
@@ -764,7 +782,11 @@ public partial class GameHost
 		else
 		{
 			float scaleVal = GameContext.World.Has<CollisionScale>(entity) ? GameContext.World.Get<CollisionScale>(entity).Value : 1.0f;
-			unit3D.Scale = Godot.Vector3.One * Mathf.Max(0.01f, scaleVal);
+			float clampedScale = Mathf.Max(0.01f, scaleVal);
+			if (Mathf.Abs(unit3D.Scale.X - clampedScale) > 0.001f)
+			{
+				unit3D.Scale = new Godot.Vector3(clampedScale, clampedScale, clampedScale);
+			}
 		}
 	}
 

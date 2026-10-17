@@ -388,7 +388,7 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 			_initialize.Invoke();
 			FlushWasiLogFile();
 			LogToConsole("[WASM RUNTIME] Script initialize() completed.");
-		}, "initialize()");
+		}, "initialize()", timeoutMs: 30000);
 	}
 
 	public void Update(IGameAPI api, float delta)

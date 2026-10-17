@@ -236,6 +236,7 @@ public partial class Unit3D : Prop3D
 			return;
 		}
 
+		SetProcess(false);
 		SetNotifyTransform(true);
 
 		var collisionShape = new CollisionShape3D();
@@ -1899,6 +1900,7 @@ public partial class Unit3D : Prop3D
 			{
 				_rallyVisualsContainer.Visible = false;
 			}
+			SetProcess(false);
 		}
 	}
 

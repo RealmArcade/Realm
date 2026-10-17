@@ -252,30 +252,73 @@ public class FXService
 		SpawnWeaponProjectile(parent, start, target, "arrow");
 	}
 
+	private readonly Stack<Label3D> _floatingLabelPool = new();
+	private int _activeFloatingLabelsCount = 0;
+	private const int MaxActiveFloatingLabels = 48;
+
+	private Label3D RentFloatingLabel(Node3D parent)
+	{
+		Label3D label = null;
+		while (_floatingLabelPool.Count > 0)
+		{
+			var cand = _floatingLabelPool.Pop();
+			if (cand != null && GodotObject.IsInstanceValid(cand))
+			{
+				label = cand;
+				break;
+			}
+		}
+
+		if (label == null)
+		{
+			label = new Label3D();
+			label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
+		}
+
+		_activeFloatingLabelsCount++;
+		label.Visible = true;
+		if (label.GetParent() != parent)
+		{
+			if (label.GetParent() != null)
+			{
+				label.GetParent().RemoveChild(label);
+			}
+			parent.AddChild(label);
+		}
+
+		return label;
+	}
+
+	private void ReturnFloatingLabel(Label3D label)
+	{
+		_activeFloatingLabelsCount = Math.Max(0, _activeFloatingLabelsCount - 1);
+		if (label == null || !GodotObject.IsInstanceValid(label)) return;
+		label.Visible = false;
+		_floatingLabelPool.Push(label);
+	}
+
 	public void SpawnDamageNumber(Node3D parent, Vector3 worldPosition, float amount, bool isCritical = false)
 	{
 		if (!GameSettings.FloatingCombatText) return;
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
+		if (_activeFloatingLabelsCount >= MaxActiveFloatingLabels) return;
 
 		int amountInt = (int)Math.Round(amount);
 		if (amountInt <= 0) return;
 
 		bool isHeavyOrCrit = isCritical || amount >= 75f;
 
-		var label = new Label3D();
+		var label = RentFloatingLabel(parent);
 		label.Text = isHeavyOrCrit ? $"CRIT! -{amountInt}" : $"-{amountInt}";
-		label.Modulate = isHeavyOrCrit ? new Color(1.0f, 0.85f, 0.2f) : new Color(1.0f, 0.25f, 0.25f);
+		label.Modulate = isHeavyOrCrit ? new Color(1.0f, 0.85f, 0.2f, 1.0f) : new Color(1.0f, 0.25f, 0.25f, 1.0f);
 		label.OutlineModulate = Colors.Black;
 		label.OutlineSize = isHeavyOrCrit ? 14 : 10;
-		label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
 		label.FontSize = isHeavyOrCrit ? 52 : 38;
 
 		float offsetX = (float)GD.RandRange(-0.25, 0.25);
 		float offsetZ = (float)GD.RandRange(-0.25, 0.25);
 		label.Position = worldPosition + new Vector3(offsetX, 1.8f, offsetZ);
 
-		parent.AddChild(label);
-
 		var tween = parent.CreateTween();
 		tween.SetParallel(true);
 		tween.TweenProperty(label, "position", label.Position + new Vector3(0, 1.6f, 0), 1.0f)
@@ -283,30 +326,28 @@ public class FXService
 			.SetEase(Tween.EaseType.Out);
 		tween.TweenProperty(label, "modulate:a", 0.0f, 1.0f)
 			.SetTrans(Tween.TransitionType.Linear);
-		tween.Chain().TweenCallback(Callable.From(label.QueueFree));
+		tween.Chain().TweenCallback(Callable.From(() => ReturnFloatingLabel(label)));
 	}
 
 	public void SpawnHealNumber(Node3D parent, Vector3 worldPosition, float amount)
 	{
 		if (!GameSettings.FloatingCombatText) return;
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
+		if (_activeFloatingLabelsCount >= MaxActiveFloatingLabels) return;
 
 		int amountInt = (int)Math.Round(amount);
 		if (amountInt <= 0) return;
 
-		var label = new Label3D();
+		var label = RentFloatingLabel(parent);
 		label.Text = $"+{amountInt}";
-		label.Modulate = new Color(0.2f, 0.95f, 0.3f);
+		label.Modulate = new Color(0.2f, 0.95f, 0.3f, 1.0f);
 		label.OutlineModulate = Colors.Black;
 		label.OutlineSize = 10;
-		label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
 		label.FontSize = 38;
 
 		float offsetX = (float)GD.RandRange(-0.25, 0.25);
 		float offsetZ = (float)GD.RandRange(-0.25, 0.25);
 		label.Position = worldPosition + new Vector3(offsetX, 1.8f, offsetZ);
-
-		parent.AddChild(label);
 
 		var tween = parent.CreateTween();
 		tween.SetParallel(true);
@@ -315,7 +356,7 @@ public class FXService
 			.SetEase(Tween.EaseType.Out);
 		tween.TweenProperty(label, "modulate:a", 0.0f, 1.0f)
 			.SetTrans(Tween.TransitionType.Linear);
-		tween.Chain().TweenCallback(Callable.From(label.QueueFree));
+		tween.Chain().TweenCallback(Callable.From(() => ReturnFloatingLabel(label)));
 	}
 
 	public void SpawnTargetIndicator(Node3D parent, Vector3 position, Color color)

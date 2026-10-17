@@ -318,6 +318,7 @@ namespace Realm.Client.Services
 
 		private void TargetAcquisitionQueryAction(Entity entity, ref Position pos, ref Attack atk, ref Owner owner)
 		{
+			if (atk.Damage <= 0f || GameContext.World.Has<Invulnerable>(entity)) return;
 			if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value == "priest") return;
 
 			bool isAutoCombat = GameContext.World.Has<AutoCombatState>(entity) && GameContext.World.Get<AutoCombatState>(entity).Enabled;
@@ -418,6 +419,8 @@ namespace Realm.Client.Services
 		// closest one that is reachable. Flying units are excluded for ground-melee attackers.
 		private void ScanEnemyQueryAction(Entity potentialEnemy, ref Position enemyPos, ref Owner enemyOwner)
 		{
+			if (GameContext.World.Has<Invulnerable>(potentialEnemy)) return;
+
 			int enemyPlayerIndex = GetPlayerIndexForEntity(potentialEnemy);
 
 			if (NetworkService.ArePlayerIndicesEnemies(_scanAttackerPlayerIndex, enemyPlayerIndex))
@@ -571,7 +574,7 @@ namespace Realm.Client.Services
 
 		private void CombatQueryAction(Entity entity, ref Position pos, ref Attack atk, ref AttackTarget target, ref Owner owner)
 		{
-			if (!GameContext.World.IsAlive(target.Target) || GameContext.World.Has<Dead>(target.Target))
+			if (!GameContext.World.IsAlive(target.Target) || GameContext.World.Has<Dead>(target.Target) || GameContext.World.Has<Invulnerable>(target.Target))
 			{
 				_tickActionsToRemoveTarget.Add(entity);
 				return;

@@ -17,6 +17,7 @@ namespace Realm.Client.Utils
 	public static class ModelCache
 	{
 		private static readonly Dictionary<string, PackedScene> _cachedScenes = new(StringComparer.OrdinalIgnoreCase);
+		private static readonly HashSet<string> _failedModelPaths = new(StringComparer.OrdinalIgnoreCase);
 		private static readonly ConcurrentDictionary<string, string> _resolvedModelPaths = new(StringComparer.OrdinalIgnoreCase);
 
 		static ModelCache()
@@ -311,7 +312,7 @@ namespace Realm.Client.Utils
 
 		public static Node GetModel(string modelPath)
 		{
-			if (string.IsNullOrEmpty(modelPath)) return null;
+			if (string.IsNullOrEmpty(modelPath) || _failedModelPaths.Contains(modelPath)) return null;
 
 			if (_cachedScenes.TryGetValue(modelPath, out var cachedScene) && GodotObject.IsInstanceValid(cachedScene))
 			{
@@ -319,7 +320,7 @@ namespace Realm.Client.Utils
 			}
 
 			string resolvedPath = ResolveModelPath(modelPath);
-			if (string.IsNullOrEmpty(resolvedPath))
+			if (string.IsNullOrEmpty(resolvedPath) || _failedModelPaths.Contains(resolvedPath))
 			{
 				return null;
 			}
@@ -337,14 +338,16 @@ namespace Realm.Client.Utils
 				return scene.Instantiate();
 			}
 
+			_failedModelPaths.Add(modelPath);
+			_failedModelPaths.Add(resolvedPath);
 			return null;
 		}
 
 		public static void PreloadModel(string modelPath)
 		{
-			if (string.IsNullOrEmpty(modelPath)) return;
+			if (string.IsNullOrEmpty(modelPath) || _failedModelPaths.Contains(modelPath)) return;
 			string resolvedPath = ResolveModelPath(modelPath);
-			if (string.IsNullOrEmpty(resolvedPath)) return;
+			if (string.IsNullOrEmpty(resolvedPath) || _failedModelPaths.Contains(resolvedPath)) return;
 			if ((_cachedScenes.TryGetValue(resolvedPath, out var s1) && GodotObject.IsInstanceValid(s1)) ||
 			    (_cachedScenes.TryGetValue(modelPath, out var s2) && GodotObject.IsInstanceValid(s2)))
 			{
@@ -356,6 +359,11 @@ namespace Realm.Client.Utils
 			{
 				_cachedScenes[modelPath] = scene;
 				_cachedScenes[resolvedPath] = scene;
+			}
+			else
+			{
+				_failedModelPaths.Add(modelPath);
+				_failedModelPaths.Add(resolvedPath);
 			}
 		}
 
@@ -610,6 +618,7 @@ namespace Realm.Client.Utils
 		public static void Clear()
 		{
 			_cachedScenes.Clear();
+			_failedModelPaths.Clear();
 			_resolvedModelPaths.Clear();
 		}
 
@@ -618,6 +627,7 @@ namespace Realm.Client.Utils
 			if (!string.IsNullOrEmpty(modelPath))
 			{
 				_cachedScenes.Remove(modelPath);
+				_failedModelPaths.Remove(modelPath);
 				_resolvedModelPaths.TryRemove(modelPath, out _);
 			}
 		}
