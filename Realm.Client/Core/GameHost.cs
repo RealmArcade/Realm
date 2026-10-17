@@ -13,6 +13,7 @@ using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.Utils;
 using Realm.Client.VFX;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -1885,6 +1886,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public override void _Ready()
 	{
+		ProcessPerformanceOptimizer.EnforceOptimalPerformance();
 		MainNode = GetTree().Root.GetNodeOrNull("Main");
 		MainCamera = GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
 

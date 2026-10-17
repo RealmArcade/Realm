@@ -19,6 +19,7 @@ using Realm.Client.Core;
 using Realm.Client.ReplaySystem;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.Utils;
 using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Services;
@@ -204,6 +205,7 @@ public partial class LobbyManager : Node
 
 	public override void _Ready()
 	{
+		ProcessPerformanceOptimizer.EnforceOptimalPerformance();
 		Instance = this;
 		ProcessMode = ProcessModeEnum.Always;
 
