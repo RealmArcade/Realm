@@ -24,23 +24,23 @@ public static class ComponentIds
 	/// <summary>Movement stats component identifier.</summary>
 	public const int MovementStats = 57;
 	/// <summary>Player resources component identifier.</summary>
-	public const int PlayerResources = 68;
+	public const int PlayerResources = 69;
 	/// <summary>Building tag component identifier.</summary>
-	public const int Building = 91;
+	public const int Building = 92;
 	/// <summary>Dead tag component identifier.</summary>
-	public const int Dead = 94;
+	public const int Dead = 95;
 	/// <summary>Hero tag component identifier.</summary>
-	public const int Hero = 95;
+	public const int Hero = 96;
 	/// <summary>Invulnerable tag component identifier.</summary>
-	public const int Invulnerable = 96;
+	public const int Invulnerable = 97;
 	/// <summary>Unit tag component identifier.</summary>
-	public const int Unit = 102;
+	public const int Unit = 103;
 	/// <summary>Experience component identifier.</summary>
-	public const int Experience = 103;
+	public const int Experience = 104;
 	/// <summary>Level component identifier.</summary>
-	public const int Level = 105;
+	public const int Level = 106;
 	/// <summary>Model scale component identifier.</summary>
-	public const int ModelScale = 107;
+	public const int ModelScale = 108;
 	/// <summary>Rotation around Y-axis component identifier.</summary>
-	public const int RotationY = 111;
+	public const int RotationY = 112;
 }

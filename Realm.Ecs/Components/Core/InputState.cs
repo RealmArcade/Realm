@@ -50,19 +50,19 @@ public struct InputState
 
 	public string? ActiveSpellTargeting
 	{
-		get => StringRegistry.Get(SpellStringId);
+		get => SpellStringId != 0 ? StringRegistry.Get(SpellStringId) : null;
 		set => SpellStringId = StringRegistry.GetOrAdd(value);
 	}
 
 	public string? ActiveCommandTargeting
 	{
-		get => StringRegistry.Get(CommandStringId);
+		get => CommandStringId != 0 ? StringRegistry.Get(CommandStringId) : null;
 		set => CommandStringId = StringRegistry.GetOrAdd(value);
 	}
 
 	public string? ActiveBuildingPlacementType
 	{
-		get => StringRegistry.Get(BuildingStringId);
+		get => BuildingStringId != 0 ? StringRegistry.Get(BuildingStringId) : null;
 		set => BuildingStringId = StringRegistry.GetOrAdd(value);
 	}
 }
