@@ -46,6 +46,9 @@ public partial class GameHost
 		return GameContext.RegistryService.GetAbilityDefinition(abilityId);
 	}
 
+	bool IGameAPI.IsPredictiveFrame => GameSettings.MovementPrediction && (GameContext.MovementPredictionService?.IsPredictiveFrameContext ?? false);
+	bool IGameAPI.IsAuthoritativeFrame => !((IGameAPI)this).IsPredictiveFrame;
+
 	void IGameAPI.RegisterAbility(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
 		if (GameContext.RegistryService.RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant))

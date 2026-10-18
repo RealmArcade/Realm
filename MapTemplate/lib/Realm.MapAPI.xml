@@ -975,6 +975,16 @@
             Gets the elapsed game time in seconds.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.IGameAPI.IsPredictiveFrame">
+            <summary>
+            Gets a value indicating whether the current frame execution is a predictive local frame.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.IGameAPI.IsAuthoritativeFrame">
+            <summary>
+            Gets a value indicating whether the current frame execution is an authoritative simulation frame.
+            </summary>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SpawnResourceNode(System.String,System.Numerics.Vector3,System.Single)">
             <summary>
             Spawns a resource node at the given position.

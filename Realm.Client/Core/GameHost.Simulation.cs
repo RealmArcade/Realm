@@ -583,7 +583,22 @@ public partial class GameHost
 		var posValue = pos.Value;
 		if (CheckNonFinitePositionWarning(entity, posValue, unit3D)) return;
 
-		Godot.Vector3 nextPos = new Godot.Vector3(posValue.X, posValue.Y, posValue.Z);
+		Godot.Vector3 nextPos;
+		if (GameSettings.MovementPrediction && GameContext.World != null && GameContext.World.Has<RenderPosition>(entity))
+		{
+			ref var renderPos = ref GameContext.World.Get<RenderPosition>(entity);
+			renderPos.Value = System.Numerics.Vector3.Lerp(renderPos.Value, posValue, Math.Min(1.0f, 15.0f * fDelta));
+			nextPos = new Godot.Vector3(renderPos.Value.X, renderPos.Value.Y, renderPos.Value.Z);
+		}
+		else
+		{
+			nextPos = new Godot.Vector3(posValue.X, posValue.Y, posValue.Z);
+			if (GameContext.World != null && GameContext.World.Has<RenderPosition>(entity))
+			{
+				GameContext.World.Set(entity, new RenderPosition(posValue));
+			}
+		}
+
 		if ((unit3D.GlobalPosition - nextPos).LengthSquared() > 0.0001f)
 		{
 			unit3D.GlobalPosition = nextPos;

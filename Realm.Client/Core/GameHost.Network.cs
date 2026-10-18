@@ -47,6 +47,11 @@ public partial class GameHost
 	private void QueueClientCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
+		if (GameSettings.MovementPrediction && (commandType == "MoveTo" || commandType == "AttackMove" || commandType == "Move" || commandType == "Gather"))
+		{
+			GameContext.MovementPredictionService?.ApplyLocalPrediction(GameContext.World, unitIds, targetNumerics);
+		}
+
 		var (_, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
 		RpcId(1, nameof(SubmitCommand), payload);
 	}
@@ -92,6 +97,12 @@ public partial class GameHost
 		}
 
 		GameContext.NetworkService.UpdateClientTickDomain();
+
+		if (GameSettings.MovementPrediction && GameContext.World != null)
+		{
+			int currentTickSeq = (int)(Time.GetTicksMsec() / 33);
+			GameContext.MovementPredictionService?.RecordTick(currentTickSeq, GameContext.World);
+		}
 
 		UpdateClientWorldState(fDelta);
 

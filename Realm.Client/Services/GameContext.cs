@@ -59,6 +59,7 @@ namespace Realm.Client.Services
 		public static NavMeshPathfinder NavMeshPathfinder { get; private set; }
 		public static ResourceEconomyService ResourceEconomyService { get; private set; }
 		public static SimulationService SimulationService { get; private set; }
+		public static MovementPredictionService MovementPredictionService { get; private set; }
 		public static ClientRpcService ClientRPC { get; private set; }
 		public static PerspectiveFilter PerspectiveFilter { get; private set; }
 
@@ -108,6 +109,7 @@ namespace Realm.Client.Services
 			ResourceEconomyService = new();
 			NavMeshPathfinder = new();
 			SimulationService = new();
+			MovementPredictionService = new();
 			InputService = new();
 			ClientRPC = new();
 			PerspectiveFilter = new();
@@ -156,6 +158,8 @@ namespace Realm.Client.Services
 			ResourceEconomyService = null;
 			NavMeshPathfinder = null;
 			SimulationService = null;
+			MovementPredictionService?.Clear();
+			MovementPredictionService = null;
 			InputService = null;
 			ClientRPC = null;
 			PerspectiveFilter = null;

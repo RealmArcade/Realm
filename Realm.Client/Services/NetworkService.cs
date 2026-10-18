@@ -16,6 +16,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
+using Realm.Client.UI;
 using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Services;
@@ -507,6 +508,20 @@ public class NetworkService
 		if (snapshot.IsBaseline)
 		{
 			ProcessBaselineSnapshotMismatches(snapshot, mapping);
+		}
+
+		if (GameSettings.MovementPrediction && GameContext.World != null)
+		{
+			var serverPositions = new Dictionary<int, System.Numerics.Vector3>();
+			foreach (var snap in snapshot.Units)
+			{
+				if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
+				{
+					serverPositions[localEntity.Id] = snap.Position.ToNumerics();
+				}
+			}
+
+			GameContext.MovementPredictionService?.ReconcileServerSnapshot(GameContext.World, snapshot.Sequence, serverPositions);
 		}
 
 		foreach (var snap in snapshot.Units)

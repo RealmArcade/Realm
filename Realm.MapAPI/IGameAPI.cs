@@ -12,6 +12,16 @@ public interface IGameAPI
 	/// </summary>
 	float GameElapsedTime { get; }
 
+	/// <summary>
+	/// Gets a value indicating whether the current frame execution is a predictive local frame.
+	/// </summary>
+	bool IsPredictiveFrame => false;
+
+	/// <summary>
+	/// Gets a value indicating whether the current frame execution is an authoritative simulation frame.
+	/// </summary>
+	bool IsAuthoritativeFrame => !IsPredictiveFrame;
+
 
 	/// <summary>
 	/// Spawns a resource node at the given position.
