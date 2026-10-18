@@ -24,17 +24,17 @@ public static unsafe class RealmSharedMemory
 	/// </summary>
 	public const int BITSET_CHUNKS = MAX_ENTITIES / 64;
 
-	private static readonly IntPtr _basePtr;
-	private static readonly SharedPlayerSlot* _playerSlots;
-	private static readonly SharedEntitySlot* _entitySlots;
-	private static readonly ulong* _activeEntityBitset;
+	private static IntPtr _basePtr;
+	private static SharedPlayerSlot* _playerSlots;
+	private static SharedEntitySlot* _entitySlots;
+	private static ulong* _activeEntityBitset;
 	private static SharedPlayerSlot _dummyPlayerSlot;
 	private static SharedEntitySlot _dummyEntitySlot;
 
 	/// <summary>
-	/// Gets the global base pointer symbol for shared memory linear layout.
+	/// The global static base address pointer for shared memory linear layout visible to native debuggers.
 	/// </summary>
-	public static IntPtr g_realmSharedMemoryBase => _basePtr;
+	public static IntPtr g_realmSharedMemoryBase = IntPtr.Zero;
 
 	/// <summary>
 	/// Gets the raw pointer to the player slots array.
@@ -59,6 +59,7 @@ public static unsafe class RealmSharedMemory
 		int totalSize = playersSize + entitiesSize + bitsetSize;
 
 		_basePtr = Marshal.AllocHGlobal(totalSize);
+		g_realmSharedMemoryBase = _basePtr;
 		new Span<byte>((void*)_basePtr, totalSize).Clear();
 
 		_playerSlots = (SharedPlayerSlot*)_basePtr;

@@ -54,6 +54,7 @@
       "cwd": "${workspaceFolder}/MapTemplate",
       "breakpointMode": "file",
       "initCommands": [
+        "command script import ${workspaceFolder}/realm_lldb.py",
         "settings set plugin.jit-loader.gdb.enable off",
         "settings set target.process.thread.step-in-avoid-nodebug true",
         "settings set target.process.thread.step-avoid-regexp ^(__wasm|wasmtime|cabi_|rhp_|System\\.|GameClientWorld\\.)"

@@ -3393,9 +3393,9 @@
             The number of 64-bit words required to represent active entity bitsets for all entities.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.RealmSharedMemory.g_realmSharedMemoryBase">
+        <member name="F:Realm.MapAPI.RealmSharedMemory.g_realmSharedMemoryBase">
             <summary>
-            Gets the global base pointer symbol for shared memory linear layout.
+            The global static base address pointer for shared memory linear layout visible to native debuggers.
             </summary>
         </member>
         <member name="P:Realm.MapAPI.RealmSharedMemory.PlayerSlots">

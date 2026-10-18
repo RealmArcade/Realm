@@ -48,6 +48,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			GenerateWasmEntryPoint(repoRoot, gameApiSymbol);
 			string templateWitPath = Path.Combine(repoRoot, "MapTemplate", "wit", "game.g.wit");
 			WriteWitContent(templateWitPath, witContent);
+			GenerateLldbScript(repoRoot, compilation);
+			GenerateNatvisFile(repoRoot, compilation);
 		}
 
 		GenerateOutputSources(context, compilation.AssemblyName ?? "", gameApiSymbol, entityInterfaces, manualFunctions);
@@ -2884,6 +2886,270 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		if (type.SpecialType == SpecialType.System_Int16) return "short";
 		if (type.SpecialType == SpecialType.System_String) return "string";
 		return type.Name;
+	}
+
+	private static void GenerateLldbScript(string repoRoot, Compilation compilation)
+	{
+		string targetPath = Path.Combine(repoRoot, "realm_lldb.py");
+		string templatePath = Path.Combine(repoRoot, "Realm.WasmBindgen", "realm_lldb.template.py");
+
+		string templateContent = File.Exists(templatePath)
+			? File.ReadAllText(templatePath)
+			: "";
+
+		if (string.IsNullOrEmpty(templateContent)) return;
+
+		var sharedMemorySymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.RealmSharedMemory");
+		var constants = new List<(string Name, int Value)>();
+		if (sharedMemorySymbol != null)
+		{
+			foreach (var member in sharedMemorySymbol.GetMembers())
+			{
+				if (member is IFieldSymbol fieldSymbol && fieldSymbol.IsConst && fieldSymbol.HasConstantValue && fieldSymbol.ConstantValue is int intVal)
+				{
+					constants.Add((fieldSymbol.Name, intVal));
+				}
+			}
+		}
+
+		var playerSlotSymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.SharedPlayerSlot");
+		var entitySlotSymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.SharedEntitySlot");
+
+		int playerSlotSize = 0;
+		var playerFields = playerSlotSymbol != null
+			? CalculateStructLayout(playerSlotSymbol, out playerSlotSize)
+			: new List<(string Name, int Offset, string TypeName)>();
+
+		int entitySlotSize = 0;
+		var entityFields = entitySlotSymbol != null
+			? CalculateStructLayout(entitySlotSymbol, out entitySlotSize)
+			: new List<(string Name, int Offset, string TypeName)>();
+
+		if (entityFields.Any(f => f.Name == "OwnerPlayerId") && !entityFields.Any(f => f.Name == "Player"))
+		{
+			var ownerField = entityFields.First(f => f.Name == "OwnerPlayerId");
+			entityFields.Add(("Player", ownerField.Offset, ownerField.TypeName));
+		}
+
+		var offsetsBuilder = new StringBuilder();
+		offsetsBuilder.AppendLine("# Constants auto-discovered from RealmSharedMemory");
+		foreach (var (name, value) in constants)
+		{
+			offsetsBuilder.AppendLine($"{name} = {value}");
+		}
+
+		offsetsBuilder.AppendLine();
+		offsetsBuilder.AppendLine("# Slot sizes auto-calculated from struct layouts");
+		offsetsBuilder.AppendLine($"PLAYER_SLOT_SIZE = {playerSlotSize}");
+		offsetsBuilder.AppendLine($"ENTITY_SLOT_SIZE = {entitySlotSize}");
+		offsetsBuilder.AppendLine();
+		offsetsBuilder.AppendLine("PLAYER_TABLE_OFFSET = 0");
+		offsetsBuilder.AppendLine("ENTITY_TABLE_OFFSET = MAX_PLAYERS * PLAYER_SLOT_SIZE");
+		offsetsBuilder.AppendLine("ACTIVE_BITSET_OFFSET = ENTITY_TABLE_OFFSET + (MAX_ENTITIES * ENTITY_SLOT_SIZE)");
+		offsetsBuilder.AppendLine();
+		offsetsBuilder.AppendLine("# Fields auto-discovered from SharedPlayerSlot");
+		offsetsBuilder.Append("PLAYER_FIELDS = ");
+		offsetsBuilder.AppendLine(FormatPythonFieldList(playerFields));
+		offsetsBuilder.AppendLine();
+		offsetsBuilder.AppendLine("# Fields auto-discovered from SharedEntitySlot");
+		offsetsBuilder.Append("ENTITY_FIELDS = ");
+		offsetsBuilder.AppendLine(FormatPythonFieldList(entityFields));
+		offsetsBuilder.AppendLine();
+		offsetsBuilder.AppendLine("PLAYER_OFFSETS = {name: (offset, type_name) for name, offset, type_name in PLAYER_FIELDS}");
+		offsetsBuilder.AppendLine("ENTITY_OFFSETS = {name: (offset, type_name) for name, offset, type_name in ENTITY_FIELDS}");
+
+		string scriptContent = templateContent.Replace("# {{OFFSETS}}", offsetsBuilder.ToString().TrimEnd())
+			.Replace("{{OFFSETS}}", offsetsBuilder.ToString().TrimEnd());
+
+		try
+		{
+			if (!File.Exists(targetPath) || File.ReadAllText(targetPath, Encoding.UTF8) != scriptContent)
+			{
+				File.WriteAllText(targetPath, scriptContent, Encoding.UTF8);
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	private static List<(string Name, int Offset, string TypeName)> CalculateStructLayout(INamedTypeSymbol structSymbol, out int totalSize)
+	{
+		var fields = new List<(string Name, int Offset, string TypeName)>();
+		int currentOffset = 0;
+		int maxAlignment = 1;
+		const int pack = 4;
+
+		foreach (var member in structSymbol.GetMembers())
+		{
+			if (member is IFieldSymbol field && !field.IsStatic)
+			{
+				int fieldSize = GetFieldSize(field.Type);
+				int fieldAlign = Math.Min(GetFieldAlignment(field.Type), pack);
+				currentOffset = (currentOffset + (fieldAlign - 1)) & ~(fieldAlign - 1);
+				maxAlignment = Math.Max(maxAlignment, fieldAlign);
+
+				if (!field.Name.StartsWith("Reserved", StringComparison.OrdinalIgnoreCase))
+				{
+					string pyTypeName = GetPyTypeName(field);
+					fields.Add((field.Name, currentOffset, pyTypeName));
+				}
+
+				currentOffset += fieldSize;
+			}
+		}
+
+		totalSize = (currentOffset + (maxAlignment - 1)) & ~(maxAlignment - 1);
+		return fields;
+	}
+
+	private static int GetFieldSize(ITypeSymbol type)
+	{
+		if (type.SpecialType == SpecialType.System_Boolean || type.SpecialType == SpecialType.System_Byte || type.SpecialType == SpecialType.System_SByte)
+			return 1;
+		if (type.SpecialType == SpecialType.System_Int16 || type.SpecialType == SpecialType.System_UInt16)
+			return 2;
+		if (type.SpecialType == SpecialType.System_Int32 || type.SpecialType == SpecialType.System_UInt32 || type.SpecialType == SpecialType.System_Single)
+			return 4;
+		if (type.SpecialType == SpecialType.System_Int64 || type.SpecialType == SpecialType.System_UInt64 || type.SpecialType == SpecialType.System_Double)
+			return 8;
+		if (type.ToDisplayString() == "System.Numerics.Vector2")
+			return 8;
+		if (type.ToDisplayString() == "System.Numerics.Vector3")
+			return 12;
+		return 4;
+	}
+
+	private static int GetFieldAlignment(ITypeSymbol type)
+	{
+		if (type.SpecialType == SpecialType.System_Boolean || type.SpecialType == SpecialType.System_Byte || type.SpecialType == SpecialType.System_SByte)
+			return 1;
+		if (type.SpecialType == SpecialType.System_Int16 || type.SpecialType == SpecialType.System_UInt16)
+			return 2;
+		if (type.SpecialType == SpecialType.System_Int32 || type.SpecialType == SpecialType.System_UInt32 || type.SpecialType == SpecialType.System_Single)
+			return 4;
+		if (type.SpecialType == SpecialType.System_Int64 || type.SpecialType == SpecialType.System_UInt64 || type.SpecialType == SpecialType.System_Double)
+			return 8;
+		if (type.ToDisplayString() == "System.Numerics.Vector2" || type.ToDisplayString() == "System.Numerics.Vector3")
+			return 4;
+		return 4;
+	}
+
+	private static string GetPyTypeName(IFieldSymbol field)
+	{
+		var type = field.Type;
+		if (type.SpecialType == SpecialType.System_Single) return "float";
+		if (type.SpecialType == SpecialType.System_Boolean) return "bool";
+		if (type.SpecialType == SpecialType.System_Byte)
+		{
+			if (field.Name.StartsWith("Is", StringComparison.Ordinal) || field.Name == "Alive" || field.Name == "Invulnerable")
+				return "bool";
+			return "int";
+		}
+		if (type.SpecialType == SpecialType.System_Int32) return "int";
+		if (type.ToDisplayString() == "System.Numerics.Vector3") return "Vector3";
+		return "float";
+	}
+
+	private static string FormatPythonFieldList(List<(string Name, int Offset, string TypeName)> fields)
+	{
+		var sb = new StringBuilder();
+		sb.AppendLine("[");
+		foreach (var (name, offset, typeName) in fields)
+		{
+			sb.AppendLine($"    (\"{name}\", {offset}, \"{typeName}\"),");
+		}
+		sb.Append("]");
+		return sb.ToString();
+	}
+
+	private static void GenerateNatvisFile(string repoRoot, Compilation compilation)
+	{
+		string targetPath = Path.Combine(repoRoot, "realm.natvis");
+		string templatePath = Path.Combine(repoRoot, "Realm.WasmBindgen", "realm.natvis.template.xml");
+
+		string templateContent = File.Exists(templatePath)
+			? File.ReadAllText(templatePath)
+			: "";
+
+		if (string.IsNullOrEmpty(templateContent)) return;
+
+		var handleTypes = DiscoverHandleTypes(compilation);
+		var sb = new StringBuilder();
+		foreach (var handleType in handleTypes)
+		{
+			string typeName = handleType.Name;
+			string ns = handleType.ContainingNamespace.ToDisplayString();
+			string cleanName = typeName.EndsWith("Id", StringComparison.Ordinal)
+				? typeName.Substring(0, typeName.Length - 2)
+				: typeName;
+			string cppNs = ns.Replace(".", "::");
+
+			sb.AppendLine($"  <Type Name=\"{ns}.{typeName}\">");
+			sb.AppendLine($"    <DisplayString>{cleanName} {{{{Value}}}}</DisplayString>");
+			sb.AppendLine("    <Expand>");
+			sb.AppendLine("      <Item Name=\"Value\">Value</Item>");
+			sb.AppendLine("    </Expand>");
+			sb.AppendLine("  </Type>");
+			sb.AppendLine($"  <Type Name=\"{cppNs}::{typeName}\">");
+			sb.AppendLine($"    <DisplayString>{cleanName} {{{{Value}}}}</DisplayString>");
+			sb.AppendLine("    <Expand>");
+			sb.AppendLine("      <Item Name=\"Value\">Value</Item>");
+			sb.AppendLine("    </Expand>");
+			sb.AppendLine("  </Type>");
+		}
+
+		string natvisContent = templateContent.Replace("{{TEMPLATE}}", sb.ToString().TrimEnd());
+		try
+		{
+			if (!File.Exists(targetPath) || File.ReadAllText(targetPath, Encoding.UTF8) != natvisContent)
+			{
+				File.WriteAllText(targetPath, natvisContent, Encoding.UTF8);
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	private static List<INamedTypeSymbol> DiscoverHandleTypes(Compilation compilation)
+	{
+		var gameApiSymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.IGameAPI");
+		if (gameApiSymbol == null) return new List<INamedTypeSymbol>();
+
+		return GetAllTypes(gameApiSymbol.ContainingAssembly)
+			.Where(t => t.TypeKind == TypeKind.Struct && !t.IsStatic &&
+						t.GetMembers().Any(m => (m is IPropertySymbol p && p.Name == "Value" && p.Type.SpecialType == SpecialType.System_Int32)
+											 || (m is IFieldSymbol f && f.Name == "Value" && f.Type.SpecialType == SpecialType.System_Int32)))
+			.OrderBy(t => t.Name)
+			.ToList();
+	}
+
+	private static IEnumerable<INamedTypeSymbol> GetAllTypes(IAssemblySymbol assembly)
+	{
+		return GetAllTypes(assembly.GlobalNamespace);
+	}
+
+	private static IEnumerable<INamedTypeSymbol> GetAllTypes(INamespaceSymbol namespaceSymbol)
+	{
+		foreach (var member in namespaceSymbol.GetMembers())
+		{
+			if (member is INamespaceSymbol nestedNamespace)
+			{
+				foreach (var type in GetAllTypes(nestedNamespace))
+				{
+					yield return type;
+				}
+			}
+			else if (member is INamedTypeSymbol type)
+			{
+				yield return type;
+				foreach (var nestedType in type.GetTypeMembers())
+				{
+					yield return nestedType;
+				}
+			}
+		}
 	}
 
 	[GeneratedRegex(@"interface\s+game-api\s*\{(.*?)\}", RegexOptions.Singleline)]
