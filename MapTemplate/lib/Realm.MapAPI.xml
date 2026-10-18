@@ -2843,6 +2843,29 @@
             Represents a WebAssembly host runtime executing a guest Wasm module.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.IWasmRuntime.SharedMemoryOffset">
+            <summary>
+            Gets the linear memory offset of the shared memory region in guest WebAssembly linear memory.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IWasmRuntime.GetSharedPlayerSlotsSpan">
+            <summary>
+            Gets a span slice pointing to the shared player slots table in WebAssembly linear memory.
+            </summary>
+            <returns>A span of <see cref="T:Realm.MapAPI.SharedPlayerSlot"/> structs.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IWasmRuntime.GetSharedEntitySlotsSpan">
+            <summary>
+            Gets a span slice pointing to the shared entity slots table in WebAssembly linear memory.
+            </summary>
+            <returns>A span of <see cref="T:Realm.MapAPI.SharedEntitySlot"/> structs.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IWasmRuntime.GetSharedMemoryPointer">
+            <summary>
+            Gets the host pointer address to the shared linear memory region in WebAssembly linear memory.
+            </summary>
+            <returns>The native host memory pointer address.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IWasmRuntime.ExecuteCustomFormula(System.String,System.Single,System.Single,System.Int32)">
             <summary>
             Executes an exported custom formula function from the WebAssembly guest module.
@@ -3541,6 +3564,56 @@
             </summary>
             <returns>A string representation of the player slot index.</returns>
         </member>
+        <member name="T:Realm.MapAPI.RealmSharedMemory">
+            <summary>
+            Manages the zero-allocation shared linear memory region between WebAssembly guest and host runtime contexts.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.RealmSharedMemory.MAX_PLAYERS">
+            <summary>
+            The maximum number of player slots allocated in shared memory.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.RealmSharedMemory.MAX_ENTITIES">
+            <summary>
+            The maximum number of entity slots allocated in shared memory.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.RealmSharedMemory.g_realmSharedMemoryBase">
+            <summary>
+            Gets the global base pointer symbol for shared memory linear layout.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.RealmSharedMemory.PlayerSlots">
+            <summary>
+            Gets the raw pointer to the player slots array.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.RealmSharedMemory.EntitySlots">
+            <summary>
+            Gets the raw pointer to the entity slots array.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.RealmSharedMemory.GetRealmSharedMemoryBase">
+            <summary>
+            Native entry point exported to WebAssembly host to retrieve the linear memory offset of the shared memory region.
+            </summary>
+            <returns>The 32-bit guest linear memory address offset.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.RealmSharedMemory.GetPlayerSlot(System.Int32)">
+            <summary>
+            Retrieves a reference to the shared player slot at the specified index.
+            </summary>
+            <param name="index">The zero-based player slot index.</param>
+            <returns>A reference to the shared player slot structure.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.RealmSharedMemory.GetEntitySlot(System.Int32)">
+            <summary>
+            Retrieves a reference to the shared entity slot at the specified index.
+            </summary>
+            <param name="index">The entity slot index.</param>
+            <returns>A reference to the shared entity slot structure.</returns>
+        </member>
         <member name="T:Realm.MapAPI.ResourceNodeId">
             <summary>
             Represents a strongly-typed, unmanaged identifier for a harvestable resource node in the game world,
@@ -3715,6 +3788,186 @@
             </summary>
             <param name="json">The input JSON string.</param>
             <returns>A normalized canonical JSON string.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.SharedEntitySlot">
+            <summary>
+            Fixed-layout, blittable structure representing shared entity component state in WebAssembly linear memory.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Alive">
+            <summary>
+            Indicates whether this entity slot is alive and active (1 if alive, 0 if dead or unassigned).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.IsBuilding">
+            <summary>
+            Indicates whether this entity is a structural building (1 if building, 0 otherwise).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.IsHero">
+            <summary>
+            Indicates whether this entity is a hero unit (1 if hero, 0 otherwise).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Invulnerable">
+            <summary>
+            Indicates whether this entity is invulnerable to damage (1 if invulnerable, 0 otherwise).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.OwnerPlayerId">
+            <summary>
+            The zero-based player slot index that owns this entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Team">
+            <summary>
+            The team index assigned to this entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Health">
+            <summary>
+            The current health point value of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.MaxHealth">
+            <summary>
+            The maximum health capacity of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Mana">
+            <summary>
+            The current mana points of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.MaxMana">
+            <summary>
+            The maximum mana capacity of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.ManaRegen">
+            <summary>
+            The mana regeneration rate of the entity per second.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Damage">
+            <summary>
+            The base attack damage of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Range">
+            <summary>
+            The attack range of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Armor">
+            <summary>
+            The armor rating of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Speed">
+            <summary>
+            The movement speed of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.AttackSpeed">
+            <summary>
+            The attack speed multiplier of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Position">
+            <summary>
+            The 3D position vector of the entity in world space coordinates.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Scale">
+            <summary>
+            The visual model scaling factor of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Facing">
+            <summary>
+            The facing orientation angle of the entity in radians.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Level">
+            <summary>
+            The experience level of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.Experience">
+            <summary>
+            The total experience points accumulated by the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.XpBounty">
+            <summary>
+            The experience point bounty awarded upon defeating this entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedEntitySlot.GoldBounty">
+            <summary>
+            The gold resource bounty awarded upon defeating this entity.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.SharedPlayerSlot">
+            <summary>
+            Fixed-layout, blittable structure representing shared player state in WebAssembly linear memory.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.IsActive">
+            <summary>
+            Indicates whether this player slot is active (1 if active, 0 otherwise).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.IsComputer">
+            <summary>
+            Indicates whether this player slot is controlled by computer AI (1 if computer, 0 otherwise).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.Reserved0">
+            <summary>
+            Reserved alignment padding byte.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.Reserved1">
+            <summary>
+            Reserved alignment padding byte.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.Team">
+            <summary>
+            The team index assigned to this player slot.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.Gold">
+            <summary>
+            The current gold resource amount for this player slot.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.Wood">
+            <summary>
+            The current wood resource amount for this player slot.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.Stone">
+            <summary>
+            The current stone resource amount for this player slot.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.CurrentPopulation">
+            <summary>
+            The current population count consumed by living units for this player slot.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.MaxPopulation">
+            <summary>
+            The maximum population supply limit for this player slot.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SharedPlayerSlot.Kills">
+            <summary>
+            The total number of enemy unit kills credited to this player slot.
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.TowerDefenseBotConfig">
             <summary>

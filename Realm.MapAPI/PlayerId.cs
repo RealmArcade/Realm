@@ -28,7 +28,7 @@ public readonly record struct PlayerId(int Value)
 	/// <summary>
 	/// Gets a value indicating whether this identifier represents a valid player slot index.
 	/// </summary>
-	public bool IsValid => Value >= 0;
+	public bool IsValid => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS;
 
 	/// <summary>
 	/// Gets the zero-based slot index of this player.
@@ -48,7 +48,7 @@ public readonly record struct PlayerId(int Value)
 	/// <summary>
 	/// Gets a value indicating whether this player slot is occupied by an active human or AI participant.
 	/// </summary>
-	public bool IsActive => GameAPI.Current.IsPlayerActive(Value);
+	public bool IsActive => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS && RealmSharedMemory.GetPlayerSlot(Value).IsActive != 0;
 
 	/// <summary>
 	/// Sets whether this player slot is active in the game session.
@@ -61,7 +61,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public bool IsComputer
 	{
-		get => GameAPI.Current.IsPlayerComputer(Value);
+		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS && RealmSharedMemory.GetPlayerSlot(Value).IsComputer != 0;
 		set => GameAPI.Current.SetPlayerComputerControlled(Value, value);
 	}
 
@@ -70,7 +70,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public int Team
 	{
-		get => GameAPI.Current.GetPlayerTeam(Value);
+		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).Team : 0;
 		set => GameAPI.Current.SetPlayerTeam(Value, value);
 	}
 
@@ -79,7 +79,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public float Gold
 	{
-		get => GameAPI.Current.GetPlayerGold(Value);
+		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).Gold : 0f;
 		set => GameAPI.Current.SetPlayerGold(Value, value);
 	}
 
@@ -94,7 +94,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public float Wood
 	{
-		get => GameAPI.Current.GetPlayerWood(Value);
+		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).Wood : 0f;
 		set => GameAPI.Current.SetPlayerWood(Value, value);
 	}
 
@@ -109,7 +109,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public float Stone
 	{
-		get => GameAPI.Current.GetPlayerStone(Value);
+		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).Stone : 0f;
 		set => GameAPI.Current.SetPlayerStone(Value, value);
 	}
 
@@ -122,14 +122,14 @@ public readonly record struct PlayerId(int Value)
 	/// <summary>
 	/// Gets the current population count consumed by this player's living units.
 	/// </summary>
-	public int CurrentPopulation => GameAPI.Current.GetPlayerCurrentPopulation(Value);
+	public int CurrentPopulation => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).CurrentPopulation : 0;
 
 	/// <summary>
 	/// Gets or sets the maximum population supply capacity for this player.
 	/// </summary>
 	public int MaxPopulation
 	{
-		get => GameAPI.Current.GetPlayerMaxPopulation(Value);
+		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).MaxPopulation : 0;
 		set => GameAPI.Current.SetPlayerMaxPopulation(Value, value);
 	}
 
@@ -138,7 +138,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public int Kills
 	{
-		get => GameAPI.Current.GetPlayerKills(Value);
+		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).Kills : 0;
 		set => GameAPI.Current.SetPlayerKills(Value, value);
 	}
 

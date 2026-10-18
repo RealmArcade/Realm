@@ -1,3 +1,5 @@
+using System;
+
 namespace Realm.MapAPI;
 
 /// <summary>
@@ -5,6 +7,29 @@ namespace Realm.MapAPI;
 /// </summary>
 public interface IWasmRuntime : IMapScript
 {
+	/// <summary>
+	/// Gets the linear memory offset of the shared memory region in guest WebAssembly linear memory.
+	/// </summary>
+	int SharedMemoryOffset { get; }
+
+	/// <summary>
+	/// Gets a span slice pointing to the shared player slots table in WebAssembly linear memory.
+	/// </summary>
+	/// <returns>A span of <see cref="SharedPlayerSlot"/> structs.</returns>
+	Span<SharedPlayerSlot> GetSharedPlayerSlotsSpan();
+
+	/// <summary>
+	/// Gets a span slice pointing to the shared entity slots table in WebAssembly linear memory.
+	/// </summary>
+	/// <returns>A span of <see cref="SharedEntitySlot"/> structs.</returns>
+	Span<SharedEntitySlot> GetSharedEntitySlotsSpan();
+
+	/// <summary>
+	/// Gets the host pointer address to the shared linear memory region in WebAssembly linear memory.
+	/// </summary>
+	/// <returns>The native host memory pointer address.</returns>
+	IntPtr GetSharedMemoryPointer();
+
 	/// <summary>
 	/// Executes an exported custom formula function from the WebAssembly guest module.
 	/// </summary>
