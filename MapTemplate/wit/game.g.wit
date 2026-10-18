@@ -35,7 +35,6 @@ interface game-api {
     get-ability-name: func(ability-id: string) -> string;
     get-active-players: func(exclusive-upper-bound: s32) -> list<s32>;
     get-all-loot-items: func() -> list<s32>;
-    get-all-units: func() -> list<s32>;
     get-coordinate-max-x: func(coordinate-name: string) -> f32;
     get-coordinate-max-y: func(coordinate-name: string) -> f32;
     get-coordinate-max-z: func(coordinate-name: string) -> f32;
@@ -86,8 +85,6 @@ interface game-api {
     get-unit-template-id: func(unit-id: s32) -> string;
     get-unit-type-abilities-count: func(unit-type-id: string) -> s32;
     get-unit-type-abilities-get: func(unit-type-id: string, index: s32) -> string;
-    get-units-in-radius: func(center-x: f32, center-y: f32, center-z: f32, radius: f32) -> list<s32>;
-    get-units-owned-by-player: func(player-index: s32) -> list<s32>;
     get-weather: func() -> string;
     get-zone-center-x: func(zone-handle: s32) -> f32;
     get-zone-center-y: func(zone-handle: s32) -> f32;

@@ -19,9 +19,15 @@ public static unsafe class RealmSharedMemory
 	/// </summary>
 	public const int MAX_ENTITIES = 8192;
 
+	/// <summary>
+	/// The number of 64-bit words required to represent active entity bitsets for all entities.
+	/// </summary>
+	public const int BITSET_CHUNKS = MAX_ENTITIES / 64;
+
 	private static readonly IntPtr _basePtr;
 	private static readonly SharedPlayerSlot* _playerSlots;
 	private static readonly SharedEntitySlot* _entitySlots;
+	private static readonly ulong* _activeEntityBitset;
 	private static SharedPlayerSlot _dummyPlayerSlot;
 	private static SharedEntitySlot _dummyEntitySlot;
 
@@ -40,17 +46,24 @@ public static unsafe class RealmSharedMemory
 	/// </summary>
 	public static SharedEntitySlot* EntitySlots => _entitySlots;
 
+	/// <summary>
+	/// Gets the raw pointer to the active entity bitset words array.
+	/// </summary>
+	public static ulong* ActiveEntityBitset => _activeEntityBitset;
+
 	static RealmSharedMemory()
 	{
 		int playersSize = sizeof(SharedPlayerSlot) * MAX_PLAYERS;
 		int entitiesSize = sizeof(SharedEntitySlot) * MAX_ENTITIES;
-		int totalSize = playersSize + entitiesSize;
+		int bitsetSize = sizeof(ulong) * BITSET_CHUNKS;
+		int totalSize = playersSize + entitiesSize + bitsetSize;
 
 		_basePtr = Marshal.AllocHGlobal(totalSize);
 		new Span<byte>((void*)_basePtr, totalSize).Clear();
 
 		_playerSlots = (SharedPlayerSlot*)_basePtr;
 		_entitySlots = (SharedEntitySlot*)(_basePtr + playersSize);
+		_activeEntityBitset = (ulong*)(_basePtr + playersSize + entitiesSize);
 	}
 
 	/// <summary>
@@ -91,5 +104,15 @@ public static unsafe class RealmSharedMemory
 			return ref _dummyEntitySlot;
 		}
 		return ref _entitySlots[index];
+	}
+
+	/// <summary>
+	/// Retrieves the raw pointer to the active entity bitset array in shared memory.
+	/// </summary>
+	/// <returns>A pointer to the array of 64-bit words representing active entity bitsets.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static ulong* GetActiveEntityBitset()
+	{
+		return _activeEntityBitset;
 	}
 }

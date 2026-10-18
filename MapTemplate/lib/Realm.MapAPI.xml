@@ -3362,6 +3362,17 @@
             </summary>
             <returns>A string representation of the player slot index.</returns>
         </member>
+        <member name="T:Realm.MapAPI.QueryResultBuffer">
+            <summary>
+            Provides ring-buffered unmanaged storage for WASM in-guest unit query results to prevent allocations and avoid overwriting outer query loops during nested calls.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.QueryResultBuffer.AllocateSlice">
+            <summary>
+            Allocates a non-overlapping slice from the static ring buffer for storing unit query result handles.
+            </summary>
+            <returns>A span pointing to the allocated ring buffer slot segment.</returns>
+        </member>
         <member name="T:Realm.MapAPI.RealmSharedMemory">
             <summary>
             Manages the zero-allocation shared linear memory region between WebAssembly guest and host runtime contexts.
@@ -3377,6 +3388,11 @@
             The maximum number of entity slots allocated in shared memory.
             </summary>
         </member>
+        <member name="F:Realm.MapAPI.RealmSharedMemory.BITSET_CHUNKS">
+            <summary>
+            The number of 64-bit words required to represent active entity bitsets for all entities.
+            </summary>
+        </member>
         <member name="P:Realm.MapAPI.RealmSharedMemory.g_realmSharedMemoryBase">
             <summary>
             Gets the global base pointer symbol for shared memory linear layout.
@@ -3390,6 +3406,11 @@
         <member name="P:Realm.MapAPI.RealmSharedMemory.EntitySlots">
             <summary>
             Gets the raw pointer to the entity slots array.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.RealmSharedMemory.ActiveEntityBitset">
+            <summary>
+            Gets the raw pointer to the active entity bitset words array.
             </summary>
         </member>
         <member name="M:Realm.MapAPI.RealmSharedMemory.GetRealmSharedMemoryBase">
@@ -3411,6 +3432,12 @@
             </summary>
             <param name="index">The entity slot index.</param>
             <returns>A reference to the shared entity slot structure.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.RealmSharedMemory.GetActiveEntityBitset">
+            <summary>
+            Retrieves the raw pointer to the active entity bitset array in shared memory.
+            </summary>
+            <returns>A pointer to the array of 64-bit words representing active entity bitsets.</returns>
         </member>
         <member name="T:Realm.MapAPI.ResourceNodeId">
             <summary>
@@ -3766,6 +3793,32 @@
             <summary>
             The total number of enemy unit kills credited to this player slot.
             </summary>
+        </member>
+        <member name="T:Realm.MapAPI.SpatialQueryEngine">
+            <summary>
+            Provides high-frequency in-guest spatial and entity query processing directly over shared WASM linear memory with zero host boundary crossings.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.SpatialQueryEngine.GetAllUnits">
+            <summary>
+            Scans the active entity bitset in WASM linear memory to retrieve all currently living unit handles.
+            </summary>
+            <returns>A read-only span of unit handles.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.SpatialQueryEngine.GetUnitsOwnedByPlayer(System.Int32)">
+            <summary>
+            Scans the active entity bitset in WASM linear memory to retrieve all living units owned by the specified player index.
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+            <returns>A read-only span of unit handles owned by the player.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.SpatialQueryEngine.GetUnitsInRadius(System.Numerics.Vector3,System.Single)">
+            <summary>
+            Scans the active entity bitset in WASM linear memory to retrieve all living units within a specified radius of a 3D position.
+            </summary>
+            <param name="center">The center position vector in 3D world space.</param>
+            <param name="radius">The query radius distance.</param>
+            <returns>A read-only span of unit handles inside the radius.</returns>
         </member>
         <member name="T:Realm.MapAPI.TowerDefenseBotConfig">
             <summary>

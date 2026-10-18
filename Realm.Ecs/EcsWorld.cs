@@ -29,11 +29,13 @@ public class EcsWorld : IDisposable
 	private readonly ComponentBuffer<ComponentMask> _entityMasks = new ComponentBuffer<ComponentMask>(MAX_ENTITIES);
 	private readonly ulong[][] _componentBitsets = new ulong[MAX_COMPONENT_TYPES][];
 	private readonly IComponentBuffer[] _buffers = new IComponentBuffer[MAX_COMPONENT_TYPES];
+	private readonly ulong[] _activeEntityBitset = new ulong[BITSET_CHUNKS];
 
 	public int Count => _count;
 
 	public ComponentBuffer<byte> AliveBuffer => _alive;
 	public ComponentBuffer<ComponentMask> EntityMasksBuffer => _entityMasks;
+	public ulong[] ActiveEntityBitset => _activeEntityBitset;
 
 	public void BindExternalAliveMemory(IntPtr pointer, int lengthInBytes)
 	{
@@ -62,6 +64,7 @@ public class EcsWorld : IDisposable
 		_count = 0;
 		_freeListCount = 0;
 		_nextEntityId = 0;
+		Array.Clear(_activeEntityBitset);
 		ColdPayloadRegistry.ResetAll();
 		StringRegistry.Reset();
 	}
@@ -84,6 +87,9 @@ public class EcsWorld : IDisposable
 
 		_alive.Set(id, (byte)1);
 		_entityMasks.Set(id, ComponentMask.Empty);
+		int chunk = id >> 6;
+		ulong bit = 1UL << (id & 63);
+		_activeEntityBitset[chunk] |= bit;
 		_count++;
 		return new Entity(id);
 	}
@@ -247,6 +253,10 @@ public class EcsWorld : IDisposable
 
 		_alive.Set(id, (byte)0);
 		_entityMasks.Set(id, ComponentMask.Empty);
+		int chunk = id >> 6;
+		ulong bitNot = ~(1UL << (id & 63));
+		_activeEntityBitset[chunk] &= bitNot;
+
 		_freeList[_freeListCount++] = id;
 		_count--;
 	}
@@ -710,23 +720,13 @@ public class EcsWorld : IDisposable
 		}
 
 		Span<byte> aliveDst = destination.Slice(offset, aliveBitsetBytes);
-		aliveDst.Clear();
-		for (int i = 0; i < MAX_ENTITIES; i++)
-		{
-			if (_alive[i])
-			{
-				int chunk = i >> 6;
-				ulong bit = 1UL << (i & 63);
-				ulong current = BinaryPrimitives.ReadUInt64LittleEndian(aliveDst.Slice(chunk * 8, 8));
-				BinaryPrimitives.WriteUInt64LittleEndian(aliveDst.Slice(chunk * 8, 8), current | bit);
-			}
-		}
+		MemoryMarshal.AsBytes(_activeEntityBitset.AsSpan()).CopyTo(aliveDst);
 		offset += aliveBitsetBytes;
 
 		if (_nextEntityId > 0)
 		{
 			Span<byte> masksDst = destination.Slice(offset, entityMasksBytes);
-			MemoryMarshal.AsBytes(_entityMasks.AsSpan(0, _nextEntityId)).CopyTo(masksDst);
+			MemoryMarshal.AsBytes(_entityMasks.AsSpan().Slice(0, _nextEntityId)).CopyTo(masksDst);
 			offset += entityMasksBytes;
 		}
 
@@ -789,29 +789,32 @@ public class EcsWorld : IDisposable
 
 		int aliveBitsetBytes = BITSET_CHUNKS * sizeof(ulong);
 		ReadOnlySpan<byte> aliveSrc = snapshotPayload.Slice(offset, aliveBitsetBytes);
-		Array.Clear(_alive, 0, _alive.Length);
+		_alive.AsSpan().Clear();
+		Array.Clear(_activeEntityBitset, 0, _activeEntityBitset.Length);
+		ReadOnlySpan<ulong> bitsetSrc = MemoryMarshal.Cast<byte, ulong>(aliveSrc);
+		bitsetSrc.CopyTo(_activeEntityBitset);
 		for (int chunk = 0; chunk < BITSET_CHUNKS; chunk++)
 		{
-			ulong bits = BinaryPrimitives.ReadUInt64LittleEndian(aliveSrc.Slice(chunk * 8, 8));
+			ulong bits = _activeEntityBitset[chunk];
 			while (bits != 0)
 			{
 				int bit = BitOperations.TrailingZeroCount(bits);
 				int entityId = (chunk << 6) + bit;
 				if (entityId < MAX_ENTITIES)
 				{
-					_alive[entityId] = true;
+					_alive.Set(entityId, (byte)1);
 				}
 				bits &= bits - 1;
 			}
 		}
 		offset += aliveBitsetBytes;
 
-		Array.Clear(_entityMasks, 0, _entityMasks.Length);
+		_entityMasks.AsSpan().Clear();
 		if (activeEntityMax > 0)
 		{
 			int entityMasksBytes = activeEntityMax * sizeof(ComponentMask);
 			ReadOnlySpan<ComponentMask> masksSrc = MemoryMarshal.Cast<byte, ComponentMask>(snapshotPayload.Slice(offset, entityMasksBytes));
-			masksSrc.CopyTo(_entityMasks.AsSpan(0, activeEntityMax));
+			masksSrc.CopyTo(_entityMasks.AsSpan().Slice(0, activeEntityMax));
 			offset += entityMasksBytes;
 		}
 

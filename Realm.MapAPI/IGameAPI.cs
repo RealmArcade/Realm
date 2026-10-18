@@ -25,7 +25,7 @@ public interface IGameAPI
 	/// Retrieves all units currently alive in the game world.
 	/// </summary>
 	/// <returns>A read-only span of all active unit identifiers.</returns>
-	ReadOnlySpan<UnitId> GetAllUnits();
+	ReadOnlySpan<UnitId> GetAllUnits() => SpatialQueryEngine.GetAllUnits();
 
 	/// <summary>
 	/// Retrieves all active units within the specified radius of a 3D position.
@@ -33,7 +33,7 @@ public interface IGameAPI
 	/// <param name="center">The center point in 3D world space.</param>
 	/// <param name="radius">The radius distance check.</param>
 	/// <returns>A read-only span of unit identifiers within the radius.</returns>
-	ReadOnlySpan<UnitId> GetUnitsInRadius(Vector3 center, float radius);
+	ReadOnlySpan<UnitId> GetUnitsInRadius(Vector3 center, float radius) => SpatialQueryEngine.GetUnitsInRadius(center, radius);
 
 	/// <summary>
 	/// Gets the number of resource nodes.
@@ -472,7 +472,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
 	/// <returns>A read-only span of units belonging to that player.</returns>
-	ReadOnlySpan<UnitId> GetUnitsOwnedByPlayer(int playerIndex);
+	ReadOnlySpan<UnitId> GetUnitsOwnedByPlayer(int playerIndex) => SpatialQueryEngine.GetUnitsOwnedByPlayer(playerIndex);
 
 	/// <summary>
 	/// Triggers the defeat condition for the specified player slot, playing the defeat sequence only for that player.
