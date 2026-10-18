@@ -6,6 +6,7 @@ using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.VFX;
+using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
@@ -640,7 +641,7 @@ public partial class GameHost
 			if (!GodotObject.IsInstanceValid(prop) || !MatchesEntityOrAssetKey(prop, normAssetKey)) continue;
 
 			prop.UpdateCollisionCircleScale(ratio);
-			if (prop.Entity != default && GameContext.World.IsAlive(prop.Entity))
+			if (prop.Entity != Entity.Null && GameContext.World.IsAlive(prop.Entity))
 			{
 				float baseRadius = GetOrCalculateObstacleRadius(prop.PropId, prop) * ratio;
 				GameContext.World.SetOrAdd(prop.Entity, new CollisionRadius(baseRadius));
@@ -655,7 +656,7 @@ public partial class GameHost
 			if (!GodotObject.IsInstanceValid(unit) || !MatchesEntityOrAssetKey(unit, normAssetKey)) continue;
 
 			unit.UpdateCollisionCircleScale(ratio);
-			if (unit.Entity != default && GameContext.World.IsAlive(unit.Entity))
+			if (unit.Entity != Entity.Null && GameContext.World.IsAlive(unit.Entity))
 			{
 				float baseRadius = GetOrCalculateObstacleRadius(unit.UnitId, unit) * ratio;
 				GameContext.World.SetOrAdd(unit.Entity, new CollisionRadius(baseRadius));

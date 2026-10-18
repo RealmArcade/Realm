@@ -412,10 +412,22 @@ public class ResourceEconomyService
 
 	public void SetPlayerWood(int playerIndex, float amount)
 	{
+		float clamped = Math.Max(0f, amount);
 		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
 		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
-			playersState.Players[playerIndex].Wood = Math.Max(0f, amount);
+			playersState.Players[playerIndex].Wood = clamped;
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+		}
+
+		if (GameHost.Instance != null)
+		{
+			var pe = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
+			{
+				ref var res = ref GameContext.World.Get<PlayerResources>(pe);
+				res[ECSContext.PlayerResourceService.WoodResourceId] = (int)clamped;
+			}
 		}
 	}
 
@@ -424,7 +436,7 @@ public class ResourceEconomyService
 		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
 		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
-			playersState.Players[playerIndex].Wood = Math.Max(0f, playersState.Players[playerIndex].Wood + delta);
+			SetPlayerWood(playerIndex, playersState.Players[playerIndex].Wood + delta);
 		}
 	}
 
@@ -437,12 +449,29 @@ public class ResourceEconomyService
 
 	public void SetPlayerStone(int playerIndex, float amount)
 	{
-		_playerStoneState[playerIndex] = Math.Max(0f, amount);
+		float clamped = Math.Max(0f, amount);
+		_playerStoneState[playerIndex] = clamped;
+		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
+		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		{
+			playersState.Players[playerIndex].Stone = clamped;
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+		}
+
+		if (GameHost.Instance != null)
+		{
+			var pe = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
+			{
+				ref var res = ref GameContext.World.Get<PlayerResources>(pe);
+				res[ECSContext.PlayerResourceService.StoneResourceId] = (int)clamped;
+			}
+		}
 	}
 
 	public void AdjustPlayerStone(int playerIndex, float delta)
 	{
-		_playerStoneState[playerIndex] = Math.Max(0f, _playerStoneState.GetValueOrDefault(playerIndex, 0f) + delta);
+		SetPlayerStone(playerIndex, _playerStoneState.GetValueOrDefault(playerIndex, 0f) + delta);
 	}
 
 	public int GetPlayerCurrentPopulation(int playerIndex)

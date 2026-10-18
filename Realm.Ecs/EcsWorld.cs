@@ -84,9 +84,9 @@ public class EcsWorld : IDisposable
 		BindComponent<Experience>(ComponentIds.Experience, MAX_ENTITIES);
 		BindComponent<ModelScale>(ComponentIds.ModelScale, MAX_ENTITIES);
 		BindComponent<RotationY>(ComponentIds.RotationY, MAX_ENTITIES);
-		BindComponent<PlayerResources>(ComponentIds.PlayerResources, MAX_PLAYERS);
+		BindComponent<PlayerResources>(ComponentIds.PlayerResources, MAX_PLAYERS + 1);
 		BindComponent<ScriptPlayer>(ComponentIds.ScriptPlayer, MAX_PLAYERS);
-		BindComponent<PlayerPopulation>(ComponentIds.PlayerPopulation, MAX_PLAYERS);
+		BindComponent<PlayerPopulation>(ComponentIds.PlayerPopulation, MAX_PLAYERS + 1);
 	}
 
 	public Span<byte> GetAliveSpan() => _alive.AsSpan();
@@ -801,9 +801,9 @@ public class EcsWorld : IDisposable
 			CopyBufferToSpan<Experience>(sharedDst, EcsSharedMemory.EXPERIENCE_OFFSET, MAX_ENTITIES);
 			CopyBufferToSpan<ModelScale>(sharedDst, EcsSharedMemory.MODEL_SCALE_OFFSET, MAX_ENTITIES);
 			CopyBufferToSpan<RotationY>(sharedDst, EcsSharedMemory.ROTATION_Y_OFFSET, MAX_ENTITIES);
-			CopyBufferToSpan<PlayerResources>(sharedDst, EcsSharedMemory.PLAYER_RESOURCES_OFFSET, MAX_PLAYERS);
+			CopyBufferToSpan<PlayerResources>(sharedDst, EcsSharedMemory.PLAYER_RESOURCES_OFFSET, MAX_PLAYERS + 1);
 			CopyBufferToSpan<ScriptPlayer>(sharedDst, EcsSharedMemory.SCRIPT_PLAYER_OFFSET, MAX_PLAYERS);
-			CopyBufferToSpan<PlayerPopulation>(sharedDst, EcsSharedMemory.PLAYER_POPULATION_OFFSET, MAX_PLAYERS);
+			CopyBufferToSpan<PlayerPopulation>(sharedDst, EcsSharedMemory.PLAYER_POPULATION_OFFSET, MAX_PLAYERS + 1);
 		}
 		offset += sharedMemoryBytes;
 
@@ -907,9 +907,9 @@ public class EcsWorld : IDisposable
 				RestoreComponentFromTable<Experience>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Experience, MAX_ENTITIES);
 				RestoreComponentFromTable<ModelScale>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.ModelScale, MAX_ENTITIES);
 				RestoreComponentFromTable<RotationY>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.RotationY, MAX_ENTITIES);
-				RestoreComponentFromTable<PlayerResources>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.PlayerResources, MAX_PLAYERS);
+				RestoreComponentFromTable<PlayerResources>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.PlayerResources, MAX_PLAYERS + 1);
 				RestoreComponentFromTable<ScriptPlayer>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.ScriptPlayer, MAX_PLAYERS);
-				RestoreComponentFromTable<PlayerPopulation>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.PlayerPopulation, MAX_PLAYERS);
+				RestoreComponentFromTable<PlayerPopulation>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.PlayerPopulation, MAX_PLAYERS + 1);
 			}
 		}
 	}

@@ -54,6 +54,8 @@ public class WorldInitService
 			ECSContext.PlayerResourceService.StoneResourceId = "stone".AsResourceId(ECSContext.DefinitionManager);
 		}
 
+		var defaultPlayers = CreateDefaultPlayers();
+
 		for (int i = 0; i < 25; i++)
 		{
 			var playerEntity = GameContext.World.Create();
@@ -70,6 +72,7 @@ public class WorldInitService
 			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
 			GameContext.World.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
 			GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(i, in defaultPlayers[i]);
 			mappingState.PlayerEntities[i] = playerEntity;
 		}
 
@@ -119,7 +122,7 @@ public class WorldInitService
 		AddOrSet(worldEntity, new LeaderboardState(false, "", new Dictionary<string, string>()));
 		AddOrSet(worldEntity, new ScriptZonesState(new List<ZoneBounds>()));
 
-		AddOrSet(worldEntity, new ScriptPlayersState(CreateDefaultPlayers()));
+		AddOrSet(worldEntity, new ScriptPlayersState(defaultPlayers));
 		AddOrSet(worldEntity, new CombatAlertState(0f));
 	}
 

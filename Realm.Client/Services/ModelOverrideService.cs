@@ -160,7 +160,7 @@ public class ModelOverrideService
 
 	public void UpdateCollisionRadius(Entity entity, float baseRadius)
 	{
-		if (entity != default && GameContext.World.IsAlive(entity))
+		if (entity != Entity.Null && GameContext.World.IsAlive(entity))
 		{
 			GameContext.World.SetOrAdd(entity, new CollisionRadius(baseRadius));
 		}

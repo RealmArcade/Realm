@@ -182,6 +182,15 @@ public class WasmEntryPoint
         if (_gameApi is GameAPI_WasmModule api) api.TriggerOnUnitSelected(param);
     }
 
+    [UnmanagedCallersOnly(EntryPoint = "get_realm_shared_memory_base")]
+    public static int GetRealmSharedMemoryBase() => EcsSharedMemory.GetRealmSharedMemoryBase();
+
+    [UnmanagedCallersOnly(EntryPoint = "set_realm_shared_memory_table_directory")]
+    public static void SetRealmSharedMemoryTableDirectory(int tableDirectoryGuestOffset) => EcsSharedMemory.SetRealmSharedMemoryTableDirectory(tableDirectoryGuestOffset);
+
+    [UnmanagedCallersOnly(EntryPoint = "set_realm_shared_memory_strides")]
+    public static void SetRealmSharedMemoryStrides(int stridesGuestOffset) => EcsSharedMemory.SetRealmSharedMemoryStrides(stridesGuestOffset);
+
     [UnmanagedCallersOnly(EntryPoint = "cabi_realloc")]
     public static unsafe nint CabiRealloc(nint ptr, int oldSize, int alignment, int newSize)
     {

@@ -11,6 +11,7 @@ using Realm.Client.UI.MapEditor;
 using Realm.Client.VFX;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
@@ -3878,13 +3879,12 @@ public partial class GameHost
 
 		float currentGold = 0f;
 		float currentWood = 0f;
-		unsafe
+		var playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
+		if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerResources>(playerEntity))
 		{
-			if (EcsSharedMemory.PlayerResources != null && playerIndex >= 0 && playerIndex < EcsSharedMemory.MAX_PLAYERS)
-			{
-				currentGold = EcsSharedMemory.PlayerResources[playerIndex].Gold;
-				currentWood = EcsSharedMemory.PlayerResources[playerIndex].Wood;
-			}
+			ref var res = ref GameContext.World.Get<PlayerResources>(playerEntity);
+			currentGold = res.Gold;
+			currentWood = res.Wood;
 		}
 
 		if (currentGold >= costGold && currentWood >= costWood)
@@ -3920,13 +3920,12 @@ public partial class GameHost
 
 		float currentGold = 0f;
 		float currentStone = 0f;
-		unsafe
+		var playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
+		if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerResources>(playerEntity))
 		{
-			if (EcsSharedMemory.PlayerResources != null && playerIndex >= 0 && playerIndex < EcsSharedMemory.MAX_PLAYERS)
-			{
-				currentGold = EcsSharedMemory.PlayerResources[playerIndex].Gold;
-				currentStone = EcsSharedMemory.PlayerResources[playerIndex].Stone;
-			}
+			ref var res = ref GameContext.World.Get<PlayerResources>(playerEntity);
+			currentGold = res.Gold;
+			currentStone = res.Stone;
 		}
 
 		if (currentGold >= costGold && currentStone >= costStone)
@@ -3962,13 +3961,12 @@ public partial class GameHost
 
 		float currentWood = 0f;
 		float currentStone = 0f;
-		unsafe
+		var playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
+		if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerResources>(playerEntity))
 		{
-			if (EcsSharedMemory.PlayerResources != null && playerIndex >= 0 && playerIndex < EcsSharedMemory.MAX_PLAYERS)
-			{
-				currentWood = EcsSharedMemory.PlayerResources[playerIndex].Wood;
-				currentStone = EcsSharedMemory.PlayerResources[playerIndex].Stone;
-			}
+			ref var res = ref GameContext.World.Get<PlayerResources>(playerEntity);
+			currentWood = res.Wood;
+			currentStone = res.Stone;
 		}
 
 		if (currentWood >= costWood && currentStone >= costStone)
@@ -4031,14 +4029,13 @@ public partial class GameHost
 		float currentGold = 0f;
 		float currentWood = 0f;
 		float currentStone = 0f;
-		unsafe
+		var playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
+		if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerResources>(playerEntity))
 		{
-			if (EcsSharedMemory.PlayerResources != null && playerIndex >= 0 && playerIndex < EcsSharedMemory.MAX_PLAYERS)
-			{
-				currentGold = EcsSharedMemory.PlayerResources[playerIndex].Gold;
-				currentWood = EcsSharedMemory.PlayerResources[playerIndex].Wood;
-				currentStone = EcsSharedMemory.PlayerResources[playerIndex].Stone;
-			}
+			ref var res = ref GameContext.World.Get<PlayerResources>(playerEntity);
+			currentGold = res.Gold;
+			currentWood = res.Wood;
+			currentStone = res.Stone;
 		}
 
 		if (currentGold >= costGold && currentWood >= costWood && currentStone >= costStone)

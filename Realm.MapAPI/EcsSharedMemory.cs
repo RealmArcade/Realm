@@ -11,6 +11,8 @@ public static unsafe class EcsSharedMemory
 {
 	/// <summary>The maximum number of player slots allocated in shared memory.</summary>
 	public const int MAX_PLAYERS = 25;
+	/// <summary>The maximum number of player entity slots allocated in shared memory (accounting for entity index 0).</summary>
+	public const int MAX_PLAYER_ENTITIES = MAX_PLAYERS + 1;
 	/// <summary>The maximum number of entity slots allocated in shared memory.</summary>
 	public const int MAX_ENTITIES = 8192;
 	/// <summary>The number of 64-bit words required to represent active entity bitsets for all entities.</summary>
@@ -59,9 +61,9 @@ public static unsafe class EcsSharedMemory
 	/// <summary>Default offset to the player resources array.</summary>
 	public const int PLAYER_RESOURCES_OFFSET = 1649664;
 	/// <summary>Default offset to the script player array.</summary>
-	public const int SCRIPT_PLAYER_OFFSET = 1650864;
+	public const int SCRIPT_PLAYER_OFFSET = 1650912;
 	/// <summary>Default offset to the player population array.</summary>
-	public const int PLAYER_POPULATION_OFFSET = 1651564;
+	public const int PLAYER_POPULATION_OFFSET = 1651612;
 	/// <summary>Total byte capacity of the contiguous shared memory block.</summary>
 	public const int TOTAL_SIZE_BYTES = 4194304;
 
@@ -147,9 +149,9 @@ public static unsafe class EcsSharedMemory
 		RegisterComponent(ComponentIds.Experience, MAX_ENTITIES * sizeof(Experience), sizeof(Experience));
 		RegisterComponent(ComponentIds.ModelScale, MAX_ENTITIES * sizeof(ModelScale), sizeof(ModelScale));
 		RegisterComponent(ComponentIds.RotationY, MAX_ENTITIES * sizeof(RotationY), sizeof(RotationY));
-		RegisterComponent(ComponentIds.PlayerResources, MAX_PLAYERS * sizeof(PlayerResources), sizeof(PlayerResources));
+		RegisterComponent(ComponentIds.PlayerResources, MAX_PLAYER_ENTITIES * sizeof(PlayerResources), sizeof(PlayerResources));
 		RegisterComponent(ComponentIds.ScriptPlayer, MAX_PLAYERS * sizeof(ScriptPlayer), sizeof(ScriptPlayer));
-		RegisterComponent(ComponentIds.PlayerPopulation, MAX_PLAYERS * sizeof(PlayerPopulation), sizeof(PlayerPopulation));
+		RegisterComponent(ComponentIds.PlayerPopulation, MAX_PLAYER_ENTITIES * sizeof(PlayerPopulation), sizeof(PlayerPopulation));
 	}
 
 	/// <summary>
@@ -184,20 +186,18 @@ public static unsafe class EcsSharedMemory
 	}
 
 	/// <summary>
-	/// Native entry point exported to WebAssembly host to retrieve the linear memory offset of the shared memory region.
+	/// Retrieves the linear memory offset of the shared memory region for the WebAssembly host.
 	/// </summary>
 	/// <returns>The 32-bit guest linear memory address offset.</returns>
-	[UnmanagedCallersOnly(EntryPoint = "get_realm_shared_memory_base")]
 	public static int GetRealmSharedMemoryBase()
 	{
 		return (int)_basePtr;
 	}
 
 	/// <summary>
-	/// Native entry point exported to WebAssembly host to pass the component array base offsets runtime table directory.
+	/// Sets the component array base offsets runtime table directory from the WebAssembly host.
 	/// </summary>
 	/// <param name="tableDirectoryGuestOffset">The 32-bit linear memory address of the table directory.</param>
-	[UnmanagedCallersOnly(EntryPoint = "set_realm_shared_memory_table_directory")]
 	public static void SetRealmSharedMemoryTableDirectory(int tableDirectoryGuestOffset)
 	{
 		if (tableDirectoryGuestOffset != 0)
@@ -207,10 +207,9 @@ public static unsafe class EcsSharedMemory
 	}
 
 	/// <summary>
-	/// Native entry point exported to WebAssembly host to pass the component strides runtime directory.
+	/// Sets the component strides runtime directory from the WebAssembly host.
 	/// </summary>
 	/// <param name="stridesGuestOffset">The 32-bit linear memory address of the strides directory.</param>
-	[UnmanagedCallersOnly(EntryPoint = "set_realm_shared_memory_strides")]
 	public static void SetRealmSharedMemoryStrides(int stridesGuestOffset)
 	{
 		if (stridesGuestOffset != 0)

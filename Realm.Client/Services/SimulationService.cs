@@ -318,6 +318,7 @@ public class SimulationService
 		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].Team = teamIndex;
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
 		}
 
 		if (LobbyManager.Instance != null)
@@ -370,6 +371,7 @@ public class SimulationService
 		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].Active = active;
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
 		}
 	}
 
@@ -469,7 +471,7 @@ public class SimulationService
 		_tickAddPathFollow.Clear();
 		_tickNeedsUiRefresh = false;
 
-		if (ActiveWorldEntity != default && GameContext.World.IsAlive(ActiveWorldEntity))
+		if (ActiveWorldEntity != Entity.Null && GameContext.World.IsAlive(ActiveWorldEntity))
 		{
 			if (GameContext.World.Has<WorldState>(ActiveWorldEntity))
 			{
@@ -1787,6 +1789,7 @@ public class SimulationService
 			if (playerIndex >= 0 && playerIndex < playersState.Players.Length)
 			{
 				playersState.Players[playerIndex].IsComputer = isProxy;
+				GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
 			}
 		}
 	}
@@ -2072,6 +2075,7 @@ public class SimulationService
 		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].Gold = Math.Max(0f, amount);
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
 		}
 
 		syncResourceAction(playerIndex, amount);
@@ -2091,6 +2095,7 @@ public class SimulationService
 		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].KillCount = kills;
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
 		}
 	}
 }

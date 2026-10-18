@@ -1263,17 +1263,11 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void SyncPlayerResourceEcs(int playerIndex, float goldAmount)
 	{
-		if (LobbyManager.Instance != null && _peerIdToPlayerEntityMap != null)
+		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
+		if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
 		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && _peerIdToPlayerEntityMap.TryGetValue(p.PeerId, out var pe) && GameContext.World.IsAlive(pe))
-			{
-				if (GameContext.World.Has<PlayerResources>(pe))
-				{
-					ref var res = ref GameContext.World.Get<PlayerResources>(pe);
-					res[ECSContext.PlayerResourceService.GoldResourceId] = (int)Math.Max(0f, goldAmount);
-				}
-			}
+			ref var res = ref GameContext.World.Get<PlayerResources>(pe);
+			res[ECSContext.PlayerResourceService.GoldResourceId] = (int)Math.Max(0f, goldAmount);
 		}
 	}
 
@@ -2133,6 +2127,7 @@ public partial class GameHost : Node3D, IGameAPI
 			players[pIdx].Name = name;
 			players[pIdx].Active = active;
 			players[pIdx].IsComputer = isComputer;
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in players[pIdx]);
 		}
 	}
 

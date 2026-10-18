@@ -437,6 +437,9 @@
         <member name="F:Realm.MapAPI.EcsSharedMemory.MAX_PLAYERS">
             <summary>The maximum number of player slots allocated in shared memory.</summary>
         </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.MAX_PLAYER_ENTITIES">
+            <summary>The maximum number of player entity slots allocated in shared memory (accounting for entity index 0).</summary>
+        </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.MAX_ENTITIES">
             <summary>The maximum number of entity slots allocated in shared memory.</summary>
         </member>
@@ -592,19 +595,19 @@
         </member>
         <member name="M:Realm.MapAPI.EcsSharedMemory.GetRealmSharedMemoryBase">
             <summary>
-            Native entry point exported to WebAssembly host to retrieve the linear memory offset of the shared memory region.
+            Retrieves the linear memory offset of the shared memory region for the WebAssembly host.
             </summary>
             <returns>The 32-bit guest linear memory address offset.</returns>
         </member>
         <member name="M:Realm.MapAPI.EcsSharedMemory.SetRealmSharedMemoryTableDirectory(System.Int32)">
             <summary>
-            Native entry point exported to WebAssembly host to pass the component array base offsets runtime table directory.
+            Sets the component array base offsets runtime table directory from the WebAssembly host.
             </summary>
             <param name="tableDirectoryGuestOffset">The 32-bit linear memory address of the table directory.</param>
         </member>
         <member name="M:Realm.MapAPI.EcsSharedMemory.SetRealmSharedMemoryStrides(System.Int32)">
             <summary>
-            Native entry point exported to WebAssembly host to pass the component strides runtime directory.
+            Sets the component strides runtime directory from the WebAssembly host.
             </summary>
             <param name="stridesGuestOffset">The 32-bit linear memory address of the strides directory.</param>
         </member>

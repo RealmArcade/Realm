@@ -79,7 +79,7 @@ public readonly unsafe record struct PlayerId(int Value)
 	/// </summary>
 	public float Gold
 	{
-		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.GetComponent<PlayerResources>(ComponentIds.PlayerResources, Value)->Gold : 0f;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.GetComponent<PlayerResources>(ComponentIds.PlayerResources, Value + 1)->Gold : 0f;
 		set => GameAPI.Current.SetPlayerGold(Value, value);
 	}
 
@@ -94,7 +94,7 @@ public readonly unsafe record struct PlayerId(int Value)
 	/// </summary>
 	public float Wood
 	{
-		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.GetComponent<PlayerResources>(ComponentIds.PlayerResources, Value)->Wood : 0f;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.GetComponent<PlayerResources>(ComponentIds.PlayerResources, Value + 1)->Wood : 0f;
 		set => GameAPI.Current.SetPlayerWood(Value, value);
 	}
 
@@ -109,7 +109,7 @@ public readonly unsafe record struct PlayerId(int Value)
 	/// </summary>
 	public float Stone
 	{
-		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.GetComponent<PlayerResources>(ComponentIds.PlayerResources, Value)->Stone : 0f;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.GetComponent<PlayerResources>(ComponentIds.PlayerResources, Value + 1)->Stone : 0f;
 		set => GameAPI.Current.SetPlayerStone(Value, value);
 	}
 
@@ -122,14 +122,14 @@ public readonly unsafe record struct PlayerId(int Value)
 	/// <summary>
 	/// Gets the current population count consumed by this player's living units.
 	/// </summary>
-	public int CurrentPopulation => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.GetComponent<PlayerPopulation>(ComponentIds.PlayerPopulation, Value)->Current : 0;
+	public int CurrentPopulation => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.GetComponent<PlayerPopulation>(ComponentIds.PlayerPopulation, Value + 1)->Current : 0;
 
 	/// <summary>
 	/// Gets or sets the maximum population supply capacity for this player.
 	/// </summary>
 	public int MaxPopulation
 	{
-		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.GetComponent<PlayerPopulation>(ComponentIds.PlayerPopulation, Value)->Max : 0;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.GetComponent<PlayerPopulation>(ComponentIds.PlayerPopulation, Value + 1)->Max : 0;
 		set => GameAPI.Current.SetPlayerMaxPopulation(Value, value);
 	}
 

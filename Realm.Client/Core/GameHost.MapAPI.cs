@@ -956,14 +956,9 @@ public partial class GameHost
 
 	void IGameAPI.AdjustPlayerGold(int playerIndex, float delta)
 	{
-		unsafe
-		{
-			float current = EcsSharedMemory.PlayerResources != null && playerIndex >= 0 && playerIndex < EcsSharedMemory.MAX_PLAYERS
-				? EcsSharedMemory.PlayerResources[playerIndex].Gold
-				: 0f;
-			float newAmount = Math.Max(0f, current + delta);
-			((IGameAPI)this).SetPlayerGold(playerIndex, newAmount);
-		}
+		float current = GameContext.SimulationService.GetPlayerGoldDomain(playerIndex);
+		float newAmount = Math.Max(0f, current + delta);
+		((IGameAPI)this).SetPlayerGold(playerIndex, newAmount);
 	}
 
 	UnitId IGameAPI.SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader, bool bypassPopulation)

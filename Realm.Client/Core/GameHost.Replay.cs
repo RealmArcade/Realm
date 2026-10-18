@@ -97,7 +97,7 @@ public partial class GameHost
 	public void SpawnUnitFromReplaySnapshot(ReplayUnitSnapshot snap)
 	{
 		var result = GameContext.ReplayService.SpawnUnitFromReplaySnapshot(snap);
-		if (result.Entity == default) return;
+		if (result.Entity == Entity.Null) return;
 
 		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, snap.Position.ToGodot(), snap.IsBuilding, result.Player);
 	}

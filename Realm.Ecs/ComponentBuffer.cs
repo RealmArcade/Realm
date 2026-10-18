@@ -28,6 +28,9 @@ public unsafe class ComponentBuffer<T> : IComponentBuffer where T : unmanaged
 
 	public void BindExternalMemory(IntPtr pointer, int lengthInBytes, int capacity = -1)
 	{
+		int oldCapacity = _capacity;
+		T* oldPointer = _pointer;
+
 		if (capacity > 0)
 		{
 			_capacity = capacity;
@@ -38,8 +41,19 @@ public unsafe class ComponentBuffer<T> : IComponentBuffer where T : unmanaged
 			_capacity = lengthInBytes / sizeof(T);
 			requiredBytes = _capacity * sizeof(T);
 		}
+
+		T* newPointer = (T*)pointer.ToPointer();
+		if (oldPointer != null && newPointer != null && oldPointer != newPointer)
+		{
+			int copyCount = Math.Min(oldCapacity, _capacity);
+			if (copyCount > 0)
+			{
+				new ReadOnlySpan<T>(oldPointer, copyCount).CopyTo(new Span<T>(newPointer, copyCount));
+			}
+		}
+
 		_pinnedArray = null;
-		_pointer = (T*)pointer.ToPointer();
+		_pointer = newPointer;
 		_isExternal = true;
 	}
 
