@@ -67,6 +67,7 @@ public static unsafe class EcsSharedMemory
 
 	private static IntPtr _basePtr;
 	private static int* _componentArrayBaseOffsets;
+	private static int* _componentStrides;
 	private static ulong* _activeEntityBitset;
 	private static byte* _alive;
 	private static ComponentMask* _entityMasks;
@@ -78,6 +79,8 @@ public static unsafe class EcsSharedMemory
 
 	/// <summary>Gets the raw pointer to the component array base offsets directory table.</summary>
 	public static int* ComponentArrayBaseOffsets => _componentArrayBaseOffsets != null ? _componentArrayBaseOffsets : (int*)(_basePtr + COMPONENT_ARRAY_BASE_OFFSETS_OFFSET);
+	/// <summary>Gets the raw pointer to the component strides directory table.</summary>
+	public static int* ComponentStrides => _componentStrides != null ? _componentStrides : (int*)(_basePtr + COMPONENT_STRIDES_OFFSET);
 	/// <summary>Gets the raw pointer to the active entity bitset words array.</summary>
 	public static ulong* ActiveEntityBitset => _activeEntityBitset;
 	/// <summary>Gets the raw pointer to the entity alive bytes array.</summary>
@@ -120,31 +123,33 @@ public static unsafe class EcsSharedMemory
 		new Span<byte>((void*)_basePtr, TOTAL_SIZE_BYTES).Clear();
 
 		_componentArrayBaseOffsets = (int*)(_basePtr + COMPONENT_ARRAY_BASE_OFFSETS_OFFSET);
+		_componentStrides = (int*)(_basePtr + COMPONENT_STRIDES_OFFSET);
 		_activeEntityBitset = (ulong*)(_basePtr + ACTIVE_ENTITY_BITSET_OFFSET);
 		_alive = (byte*)(_basePtr + ALIVE_OFFSET);
 		_entityMasks = (ComponentMask*)(_basePtr + ENTITY_MASKS_OFFSET);
 
 		int currentOffset = COMPONENTS_START_OFFSET;
-		void RegisterOffset(int componentId, int byteSize)
+		void RegisterComponent(int componentId, int byteSize, int stride)
 		{
 			_componentArrayBaseOffsets[componentId] = (int)(_basePtr + currentOffset);
+			_componentStrides[componentId] = stride;
 			currentOffset += byteSize;
 		}
 
-		RegisterOffset(ComponentIds.Position, MAX_ENTITIES * sizeof(Position));
-		RegisterOffset(ComponentIds.Health, MAX_ENTITIES * sizeof(Health));
-		RegisterOffset(ComponentIds.Mana, MAX_ENTITIES * sizeof(Mana));
-		RegisterOffset(ComponentIds.Attack, MAX_ENTITIES * sizeof(Attack));
-		RegisterOffset(ComponentIds.Armor, MAX_ENTITIES * sizeof(Armor));
-		RegisterOffset(ComponentIds.MovementStats, MAX_ENTITIES * sizeof(MovementStats));
-		RegisterOffset(ComponentIds.UnitOwnerPlayer, MAX_ENTITIES * sizeof(UnitOwnerPlayer));
-		RegisterOffset(ComponentIds.Level, MAX_ENTITIES * sizeof(Level));
-		RegisterOffset(ComponentIds.Experience, MAX_ENTITIES * sizeof(Experience));
-		RegisterOffset(ComponentIds.ModelScale, MAX_ENTITIES * sizeof(ModelScale));
-		RegisterOffset(ComponentIds.RotationY, MAX_ENTITIES * sizeof(RotationY));
-		RegisterOffset(ComponentIds.PlayerResources, MAX_PLAYERS * sizeof(PlayerResources));
-		RegisterOffset(ComponentIds.ScriptPlayer, MAX_PLAYERS * sizeof(ScriptPlayer));
-		RegisterOffset(ComponentIds.PlayerPopulation, MAX_PLAYERS * sizeof(PlayerPopulation));
+		RegisterComponent(ComponentIds.Position, MAX_ENTITIES * sizeof(Position), sizeof(Position));
+		RegisterComponent(ComponentIds.Health, MAX_ENTITIES * sizeof(Health), sizeof(Health));
+		RegisterComponent(ComponentIds.Mana, MAX_ENTITIES * sizeof(Mana), sizeof(Mana));
+		RegisterComponent(ComponentIds.Attack, MAX_ENTITIES * sizeof(Attack), sizeof(Attack));
+		RegisterComponent(ComponentIds.Armor, MAX_ENTITIES * sizeof(Armor), sizeof(Armor));
+		RegisterComponent(ComponentIds.MovementStats, MAX_ENTITIES * sizeof(MovementStats), sizeof(MovementStats));
+		RegisterComponent(ComponentIds.UnitOwnerPlayer, MAX_ENTITIES * sizeof(UnitOwnerPlayer), sizeof(UnitOwnerPlayer));
+		RegisterComponent(ComponentIds.Level, MAX_ENTITIES * sizeof(Level), sizeof(Level));
+		RegisterComponent(ComponentIds.Experience, MAX_ENTITIES * sizeof(Experience), sizeof(Experience));
+		RegisterComponent(ComponentIds.ModelScale, MAX_ENTITIES * sizeof(ModelScale), sizeof(ModelScale));
+		RegisterComponent(ComponentIds.RotationY, MAX_ENTITIES * sizeof(RotationY), sizeof(RotationY));
+		RegisterComponent(ComponentIds.PlayerResources, MAX_PLAYERS * sizeof(PlayerResources), sizeof(PlayerResources));
+		RegisterComponent(ComponentIds.ScriptPlayer, MAX_PLAYERS * sizeof(ScriptPlayer), sizeof(ScriptPlayer));
+		RegisterComponent(ComponentIds.PlayerPopulation, MAX_PLAYERS * sizeof(PlayerPopulation), sizeof(PlayerPopulation));
 	}
 
 	/// <summary>
@@ -161,6 +166,21 @@ public static unsafe class EcsSharedMemory
 			return (void*)entry;
 		}
 		return (void*)((byte*)_basePtr + entry);
+	}
+
+	/// <summary>
+	/// Resolves the pointer to a component struct for a specific entity or player slot using dynamic stride arithmetic.
+	/// </summary>
+	/// <typeparam name="T">The unmanaged component struct type.</typeparam>
+	/// <param name="componentId">The component type identifier.</param>
+	/// <param name="id">The entity identifier or player slot index.</param>
+	/// <returns>A typed pointer to the component instance in shared memory.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static T* GetComponent<T>(int componentId, int id) where T : unmanaged
+	{
+		byte* basePtr = (byte*)GetArrayBasePointer(componentId);
+		int stride = ComponentStrides[componentId];
+		return (T*)(basePtr + (id * stride));
 	}
 
 	/// <summary>
@@ -183,6 +203,19 @@ public static unsafe class EcsSharedMemory
 		if (tableDirectoryGuestOffset != 0)
 		{
 			_componentArrayBaseOffsets = (int*)tableDirectoryGuestOffset;
+		}
+	}
+
+	/// <summary>
+	/// Native entry point exported to WebAssembly host to pass the component strides runtime directory.
+	/// </summary>
+	/// <param name="stridesGuestOffset">The 32-bit linear memory address of the strides directory.</param>
+	[UnmanagedCallersOnly(EntryPoint = "set_realm_shared_memory_strides")]
+	public static void SetRealmSharedMemoryStrides(int stridesGuestOffset)
+	{
+		if (stridesGuestOffset != 0)
+		{
+			_componentStrides = (int*)stridesGuestOffset;
 		}
 	}
 

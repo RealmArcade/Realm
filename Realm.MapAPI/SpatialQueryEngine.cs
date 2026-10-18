@@ -55,7 +55,8 @@ public static unsafe class SpatialQueryEngine
 
 		ulong* activeBitset = EcsSharedMemory.GetActiveEntityBitset();
 		byte* alive = EcsSharedMemory.Alive;
-		UnitOwnerPlayer* owners = EcsSharedMemory.UnitOwnerPlayer;
+		byte* ownersBase = (byte*)EcsSharedMemory.GetArrayBasePointer(ComponentIds.UnitOwnerPlayer);
+		int ownerStride = EcsSharedMemory.ComponentStrides[ComponentIds.UnitOwnerPlayer];
 
 		for (int chunkIndex = 0; chunkIndex < EcsSharedMemory.BITSET_CHUNKS; chunkIndex++)
 		{
@@ -65,7 +66,7 @@ public static unsafe class SpatialQueryEngine
 				int bit = BitOperations.TrailingZeroCount(word);
 				int entityId = (chunkIndex << 6) + bit;
 
-				if (alive[entityId] != 0 && owners[entityId].PlayerIndex == playerIndex)
+				if (alive[entityId] != 0 && ((UnitOwnerPlayer*)(ownersBase + entityId * ownerStride))->PlayerIndex == playerIndex)
 				{
 					buffer[count++] = new UnitId(entityId);
 				}
@@ -92,7 +93,8 @@ public static unsafe class SpatialQueryEngine
 
 		ulong* activeBitset = EcsSharedMemory.GetActiveEntityBitset();
 		byte* alive = EcsSharedMemory.Alive;
-		Position* positions = EcsSharedMemory.Position;
+		byte* positionsBase = (byte*)EcsSharedMemory.GetArrayBasePointer(ComponentIds.Position);
+		int positionStride = EcsSharedMemory.ComponentStrides[ComponentIds.Position];
 
 		for (int chunkIndex = 0; chunkIndex < EcsSharedMemory.BITSET_CHUNKS; chunkIndex++)
 		{
@@ -104,7 +106,7 @@ public static unsafe class SpatialQueryEngine
 
 				if (alive[entityId] != 0)
 				{
-					Vector3 pos = positions[entityId].Value;
+					Vector3 pos = ((Position*)(positionsBase + entityId * positionStride))->Value;
 					float dx = pos.X - center.X;
 					float dy = pos.Y - center.Y;
 					float dz = pos.Z - center.Z;

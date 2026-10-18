@@ -60,6 +60,7 @@ public class EcsWorld : IDisposable
 		_entityMasks.BindExternalMemory(basePtr + EcsSharedMemory.ENTITY_MASKS_OFFSET, MAX_ENTITIES * sizeof(ComponentMask), MAX_ENTITIES);
 
 		int* tableDir = (int*)(basePtr + EcsSharedMemory.COMPONENT_ARRAY_BASE_OFFSETS_OFFSET);
+		int* stridesDir = (int*)(basePtr + EcsSharedMemory.COMPONENT_STRIDES_OFFSET);
 		int baseAddr = guestBaseOffset != 0 ? guestBaseOffset : (int)basePtr;
 
 		int currentOffset = EcsSharedMemory.COMPONENTS_START_OFFSET;
@@ -67,6 +68,7 @@ public class EcsWorld : IDisposable
 		{
 			int offset = currentOffset;
 			tableDir[componentId] = baseAddr + offset;
+			stridesDir[componentId] = sizeof(T);
 			BindExternalComponentMemory<T>(basePtr + offset, count * sizeof(T), count);
 			currentOffset += count * sizeof(T);
 		}
@@ -889,39 +891,57 @@ public class EcsWorld : IDisposable
 				masksSrc.CopyTo(_entityMasks.AsSpan());
 
 				int* tableDir = (int*)(srcPtr + EcsSharedMemory.COMPONENT_ARRAY_BASE_OFFSETS_OFFSET);
+				int* stridesDir = (int*)(srcPtr + EcsSharedMemory.COMPONENT_STRIDES_OFFSET);
 				int posBase = tableDir[ComponentIds.Position];
 				int baseShift = posBase >= EcsSharedMemory.COMPONENTS_START_OFFSET ? posBase - EcsSharedMemory.COMPONENTS_START_OFFSET : 0;
 				int srcLen = sharedSrc.Length;
 
-				RestoreComponentFromTable<Position>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Position, MAX_ENTITIES);
-				RestoreComponentFromTable<Health>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Health, MAX_ENTITIES);
-				RestoreComponentFromTable<Mana>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Mana, MAX_ENTITIES);
-				RestoreComponentFromTable<Attack>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Attack, MAX_ENTITIES);
-				RestoreComponentFromTable<Armor>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Armor, MAX_ENTITIES);
-				RestoreComponentFromTable<MovementStats>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.MovementStats, MAX_ENTITIES);
-				RestoreComponentFromTable<UnitOwnerPlayer>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.UnitOwnerPlayer, MAX_ENTITIES);
-				RestoreComponentFromTable<Level>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Level, MAX_ENTITIES);
-				RestoreComponentFromTable<Experience>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Experience, MAX_ENTITIES);
-				RestoreComponentFromTable<ModelScale>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.ModelScale, MAX_ENTITIES);
-				RestoreComponentFromTable<RotationY>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.RotationY, MAX_ENTITIES);
-				RestoreComponentFromTable<PlayerResources>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.PlayerResources, MAX_PLAYERS);
-				RestoreComponentFromTable<ScriptPlayer>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.ScriptPlayer, MAX_PLAYERS);
-				RestoreComponentFromTable<PlayerPopulation>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.PlayerPopulation, MAX_PLAYERS);
+				RestoreComponentFromTable<Position>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Position, MAX_ENTITIES);
+				RestoreComponentFromTable<Health>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Health, MAX_ENTITIES);
+				RestoreComponentFromTable<Mana>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Mana, MAX_ENTITIES);
+				RestoreComponentFromTable<Attack>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Attack, MAX_ENTITIES);
+				RestoreComponentFromTable<Armor>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Armor, MAX_ENTITIES);
+				RestoreComponentFromTable<MovementStats>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.MovementStats, MAX_ENTITIES);
+				RestoreComponentFromTable<UnitOwnerPlayer>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.UnitOwnerPlayer, MAX_ENTITIES);
+				RestoreComponentFromTable<Level>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Level, MAX_ENTITIES);
+				RestoreComponentFromTable<Experience>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Experience, MAX_ENTITIES);
+				RestoreComponentFromTable<ModelScale>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.ModelScale, MAX_ENTITIES);
+				RestoreComponentFromTable<RotationY>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.RotationY, MAX_ENTITIES);
+				RestoreComponentFromTable<PlayerResources>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.PlayerResources, MAX_PLAYERS);
+				RestoreComponentFromTable<ScriptPlayer>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.ScriptPlayer, MAX_PLAYERS);
+				RestoreComponentFromTable<PlayerPopulation>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.PlayerPopulation, MAX_PLAYERS);
 			}
 		}
 	}
 
-	private unsafe void RestoreComponentFromTable<T>(byte* srcPtr, int* tableDir, int baseShift, int srcLen, int componentId, int count) where T : unmanaged
+	private unsafe void RestoreComponentFromTable<T>(byte* srcPtr, int* tableDir, int* stridesDir, int baseShift, int srcLen, int componentId, int count) where T : unmanaged
 	{
 		int rawBase = tableDir[componentId];
 		if (rawBase == 0) return;
 		int compOffset = rawBase - baseShift;
-		if (compOffset >= 0 && compOffset + (count * sizeof(T)) <= srcLen)
+		int srcStride = stridesDir != null ? stridesDir[componentId] : sizeof(T);
+		if (srcStride <= 0) srcStride = sizeof(T);
+		if (compOffset >= 0 && compOffset + (count * srcStride) <= srcLen)
 		{
 			int cId = ComponentType<T>.Id;
 			var buffer = GetOrCreateBuffer<T>(cId);
 			int elements = Math.Min(buffer.Capacity, count);
-			new ReadOnlySpan<T>(srcPtr + compOffset, elements).CopyTo(buffer.AsSpan().Slice(0, elements));
+			if (srcStride == sizeof(T))
+			{
+				new ReadOnlySpan<T>(srcPtr + compOffset, elements).CopyTo(buffer.AsSpan().Slice(0, elements));
+			}
+			else
+			{
+				int bytesToCopy = Math.Min(sizeof(T), srcStride);
+				var dstSpan = buffer.AsSpan();
+				for (int i = 0; i < elements; i++)
+				{
+					fixed (T* dstPtr = &dstSpan[i])
+					{
+						Buffer.MemoryCopy(srcPtr + compOffset + (i * srcStride), dstPtr, sizeof(T), bytesToCopy);
+					}
+				}
+			}
 		}
 	}
 

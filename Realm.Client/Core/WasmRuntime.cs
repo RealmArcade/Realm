@@ -186,6 +186,12 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 						{
 							ExecuteGuardedAction(() => setTableDirFn.Invoke(_sharedMemoryOffset + Realm.MapAPI.EcsSharedMemory.COMPONENT_ARRAY_BASE_OFFSETS_OFFSET), "set_realm_shared_memory_table_directory");
 						}
+
+						var setStridesFn = _instance.GetFunction("set_realm_shared_memory_strides");
+						if (setStridesFn != null)
+						{
+							ExecuteGuardedAction(() => setStridesFn.Invoke(_sharedMemoryOffset + Realm.MapAPI.EcsSharedMemory.COMPONENT_STRIDES_OFFSET), "set_realm_shared_memory_strides");
+						}
 					}
 				}
 			}

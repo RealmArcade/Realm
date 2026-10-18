@@ -520,6 +520,9 @@
         <member name="P:Realm.MapAPI.EcsSharedMemory.ComponentArrayBaseOffsets">
             <summary>Gets the raw pointer to the component array base offsets directory table.</summary>
         </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.ComponentStrides">
+            <summary>Gets the raw pointer to the component strides directory table.</summary>
+        </member>
         <member name="P:Realm.MapAPI.EcsSharedMemory.ActiveEntityBitset">
             <summary>Gets the raw pointer to the active entity bitset words array.</summary>
         </member>
@@ -578,6 +581,15 @@
             <param name="componentId">The component type identifier.</param>
             <returns>A pointer to the base of the component array.</returns>
         </member>
+        <member name="M:Realm.MapAPI.EcsSharedMemory.GetComponent``1(System.Int32,System.Int32)">
+            <summary>
+            Resolves the pointer to a component struct for a specific entity or player slot using dynamic stride arithmetic.
+            </summary>
+            <typeparam name="T">The unmanaged component struct type.</typeparam>
+            <param name="componentId">The component type identifier.</param>
+            <param name="id">The entity identifier or player slot index.</param>
+            <returns>A typed pointer to the component instance in shared memory.</returns>
+        </member>
         <member name="M:Realm.MapAPI.EcsSharedMemory.GetRealmSharedMemoryBase">
             <summary>
             Native entry point exported to WebAssembly host to retrieve the linear memory offset of the shared memory region.
@@ -589,6 +601,12 @@
             Native entry point exported to WebAssembly host to pass the component array base offsets runtime table directory.
             </summary>
             <param name="tableDirectoryGuestOffset">The 32-bit linear memory address of the table directory.</param>
+        </member>
+        <member name="M:Realm.MapAPI.EcsSharedMemory.SetRealmSharedMemoryStrides(System.Int32)">
+            <summary>
+            Native entry point exported to WebAssembly host to pass the component strides runtime directory.
+            </summary>
+            <param name="stridesGuestOffset">The 32-bit linear memory address of the strides directory.</param>
         </member>
         <member name="M:Realm.MapAPI.EcsSharedMemory.GetActiveEntityBitset">
             <summary>

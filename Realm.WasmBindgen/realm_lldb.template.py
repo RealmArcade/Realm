@@ -105,6 +105,18 @@ def resolve_array_base(process, base_addr, comp_id, default_offset):
                 return base_addr + val
     return base_addr + default_offset
 
+def resolve_component_stride(process, base_addr, comp_id, default_stride):
+    if base_addr == 0 or comp_id < 0:
+        return default_stride
+    strides_offset = globals().get("COMPONENT_STRIDES_OFFSET", 1024)
+    err = lldb.SBError()
+    val_bytes = process.ReadMemory(base_addr + strides_offset + (comp_id * 4), 4, err)
+    if err.Success() and len(val_bytes) == 4:
+        val = struct.unpack_from("<I", val_bytes, 0)[0]
+        if val > 0:
+            return val
+    return default_stride
+
 def extract_id_value(valobj):
     for candidate in ["Value", "value", "<Value>k__BackingField", "_value"]:
         child = valobj.GetChildMemberWithName(candidate)
@@ -148,11 +160,13 @@ class PlayerIdSyntheticProvider:
         if len(entry) == 6:
             f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
             arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
+            stride = resolve_component_stride(process, base_addr, comp_id, elem_size)
         else:
             f_name, array_offset, elem_size, sub_offset, f_type_name = entry
             arr_base = base_addr + array_offset
+            stride = elem_size
 
-        slot_addr = arr_base + (player_id * elem_size) + sub_offset
+        slot_addr = arr_base + (player_id * stride) + sub_offset
         f_type = target.FindFirstType(f_type_name)
         if not f_type.IsValid():
             if f_type_name == "float":
@@ -200,11 +214,13 @@ class UnitIdSyntheticProvider:
         if len(entry) == 6:
             f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
             arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
+            stride = resolve_component_stride(process, base_addr, comp_id, elem_size)
         else:
             f_name, array_offset, elem_size, sub_offset, f_type_name = entry
             arr_base = base_addr + array_offset
+            stride = elem_size
 
-        slot_addr = arr_base + (unit_id * elem_size) + sub_offset
+        slot_addr = arr_base + (unit_id * stride) + sub_offset
         f_type = target.FindFirstType(f_type_name)
         if not f_type.IsValid() and f_type_name == "Vector3":
             f_type = target.FindFirstType("System.Numerics.Vector3")
@@ -232,7 +248,8 @@ def PlayerIdSummaryProvider(valobj, internal_dict):
     process = target.GetProcess()
 
     res_base = resolve_array_base(process, base_addr, 68, PLAYER_RESOURCES_OFFSET)
-    res_addr = res_base + (player_id * PLAYER_RESOURCES_SIZE)
+    res_stride = resolve_component_stride(process, base_addr, 68, PLAYER_RESOURCES_SIZE)
+    res_addr = res_base + (player_id * res_stride)
     res_bytes = process.ReadMemory(res_addr, 16, error)
     gold = 0
     wood = 0
@@ -241,7 +258,8 @@ def PlayerIdSummaryProvider(valobj, internal_dict):
         wood = struct.unpack_from("<i", res_bytes, 4)[0]
 
     pop_base = resolve_array_base(process, base_addr, 24, PLAYER_POPULATION_OFFSET)
-    pop_addr = pop_base + (player_id * PLAYER_POPULATION_SIZE)
+    pop_stride = resolve_component_stride(process, base_addr, 24, PLAYER_POPULATION_SIZE)
+    pop_addr = pop_base + (player_id * pop_stride)
     pop_bytes = process.ReadMemory(pop_addr, 8, error)
     pop = 0
     max_pop = 0
@@ -265,7 +283,8 @@ def UnitIdSummaryProvider(valobj, internal_dict):
     process = target.GetProcess()
 
     hp_base = resolve_array_base(process, base_addr, 1, HEALTH_OFFSET)
-    hp_addr = hp_base + (unit_id * HEALTH_SIZE)
+    hp_stride = resolve_component_stride(process, base_addr, 1, HEALTH_SIZE)
+    hp_addr = hp_base + (unit_id * hp_stride)
     hp_bytes = process.ReadMemory(hp_addr, 8, error)
     hp = 0.0
     max_hp = 0.0
@@ -274,7 +293,8 @@ def UnitIdSummaryProvider(valobj, internal_dict):
         max_hp = struct.unpack_from("<f", hp_bytes, 4)[0]
 
     pos_base = resolve_array_base(process, base_addr, 0, POSITION_OFFSET)
-    pos_addr = pos_base + (unit_id * POSITION_SIZE)
+    pos_stride = resolve_component_stride(process, base_addr, 0, POSITION_SIZE)
+    pos_addr = pos_base + (unit_id * pos_stride)
     pos_bytes = process.ReadMemory(pos_addr, 12, error)
     pos_x = 0.0
     pos_z = 0.0
