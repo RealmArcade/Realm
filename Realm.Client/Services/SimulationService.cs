@@ -708,7 +708,7 @@ public class SimulationService
 	private bool IsPlayerBot(int pIdx)
 	{
 		if (GameHost.Instance == null) return false;
-		return ((IGameAPI)GameHost.Instance).IsPlayerComputer(pIdx);
+		return GameHost.Instance.IsPlayerComputer(pIdx);
 	}
 
 	private BotController InitializeDefaultBotController(int pIdx)

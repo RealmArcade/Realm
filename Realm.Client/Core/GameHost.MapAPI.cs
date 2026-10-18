@@ -947,15 +947,7 @@ public partial class GameHost
 		return PlayerColorConfig.GetColorHex(playerIndex);
 	}
 
-	bool IGameAPI.IsPlayerActive(int playerIndex)
-	{
-		return GameContext.SimulationService.IsPlayerActiveDomain(playerIndex);
-	}
 
-	float IGameAPI.GetPlayerGold(int playerIndex)
-	{
-		return GameContext.SimulationService.GetPlayerGoldDomain(playerIndex);
-	}
 
 	void IGameAPI.SetPlayerGold(int playerIndex, float amount)
 	{
@@ -964,7 +956,7 @@ public partial class GameHost
 
 	void IGameAPI.AdjustPlayerGold(int playerIndex, float delta)
 	{
-		float current = ((IGameAPI)this).GetPlayerGold(playerIndex);
+		float current = RealmSharedMemory.GetPlayerSlot(playerIndex).Gold;
 		float newAmount = Math.Max(0f, current + delta);
 		((IGameAPI)this).SetPlayerGold(playerIndex, newAmount);
 	}
@@ -1054,20 +1046,12 @@ public partial class GameHost
 		GameContext.SimulationService.SetPlayerTeam(playerIndex, teamIndex);
 	}
 
-	int IGameAPI.GetPlayerTeam(int playerIndex)
-	{
-		return GameContext.SimulationService.GetPlayerTeam(playerIndex);
-	}
 
 	void IGameAPI.SetPlayersAllied(int playerIndex, int otherPlayerIndex, bool allied)
 	{
 		GameContext.SimulationService.SetPlayersAllied(playerIndex, otherPlayerIndex, allied);
 	}
 
-	bool IGameAPI.IsPlayerComputer(int playerIndex)
-	{
-		return IsPlayerComputer(playerIndex);
-	}
 
 	bool IGameAPI.ArePlayersAllied(int playerIndex, int otherPlayerIndex)
 	{
@@ -1196,10 +1180,6 @@ public partial class GameHost
 		InGameHUD.Instance?.SetLeaderboardValue(label, value);
 	}
 
-	float IGameAPI.GetPlayerWood(int playerIndex)
-	{
-		return GameContext.ResourceEconomyService.GetPlayerWood(playerIndex);
-	}
 
 	void IGameAPI.SetPlayerWood(int playerIndex, float amount)
 	{
@@ -1216,15 +1196,7 @@ public partial class GameHost
 		GameContext.SimulationService.SetUnitOwner(unit, playerIndex);
 	}
 
-	int IGameAPI.GetPlayerCurrentPopulation(int playerIndex)
-	{
-		return GameContext.ResourceEconomyService.GetPlayerCurrentPopulation(playerIndex);
-	}
 
-	int IGameAPI.GetPlayerMaxPopulation(int playerIndex)
-	{
-		return GameContext.ResourceEconomyService.GetPlayerMaxPopulation(playerIndex);
-	}
 
 	void IGameAPI.SetPlayerMaxPopulation(int playerIndex, int max)
 	{
@@ -1276,10 +1248,6 @@ public partial class GameHost
 		GameContext.SimulationService.SetUnitLevel(unit, level);
 	}
 
-	int IGameAPI.GetPlayerKills(int playerIndex)
-	{
-		return GameContext.SimulationService.GetPlayerKillsDomain(playerIndex);
-	}
 
 	void IGameAPI.SetPlayerKills(int playerIndex, int kills)
 	{
@@ -1301,10 +1269,6 @@ public partial class GameHost
 		GameContext.SimulationService.SetUnitSpellImmune(unit, immune);
 	}
 
-	float IGameAPI.GetPlayerStone(int playerIndex)
-	{
-		return GameContext.ResourceEconomyService.GetPlayerStone(playerIndex);
-	}
 
 	void IGameAPI.SetPlayerStone(int playerIndex, float amount)
 	{
@@ -1765,12 +1729,6 @@ public partial class GameHost
 		return false;
 	}
 
-	float IGameAPI.GetUnitHealth(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Health;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitHealth(UnitId unit, float value)
 	{
@@ -1778,12 +1736,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Health = value;
 	}
 
-	float IGameAPI.GetUnitMaxHealth(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).MaxHealth;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitMaxHealth(UnitId unit, float value)
 	{
@@ -1791,12 +1743,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).MaxHealth = value;
 	}
 
-	float IGameAPI.GetUnitMana(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Mana;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitMana(UnitId unit, float value)
 	{
@@ -1804,12 +1750,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Mana = value;
 	}
 
-	float IGameAPI.GetUnitMaxMana(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).MaxMana;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitMaxMana(UnitId unit, float value)
 	{
@@ -1817,12 +1757,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).MaxMana = value;
 	}
 
-	float IGameAPI.GetUnitManaRegen(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).ManaRegen;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitManaRegen(UnitId unit, float value)
 	{
@@ -1830,12 +1764,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).ManaRegen = value;
 	}
 
-	float IGameAPI.GetUnitDamage(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Damage;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitDamage(UnitId unit, float value)
 	{
@@ -1843,12 +1771,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Damage = value;
 	}
 
-	float IGameAPI.GetUnitRange(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Range;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitRange(UnitId unit, float value)
 	{
@@ -1856,12 +1778,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Range = value;
 	}
 
-	float IGameAPI.GetUnitArmor(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Armor;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitArmor(UnitId unit, float value)
 	{
@@ -1869,12 +1785,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Armor = value;
 	}
 
-	float IGameAPI.GetUnitSpeed(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Speed;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitSpeed(UnitId unit, float value)
 	{
@@ -1882,12 +1792,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Speed = value;
 	}
 
-	float IGameAPI.GetUnitAttackSpeed(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).AttackSpeed;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitAttackSpeed(UnitId unit, float value)
 	{
@@ -1895,12 +1799,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).AttackSpeed = value;
 	}
 
-	Vector3 IGameAPI.GetUnitPosition(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Position;
-		return Vector3.Zero;
-	}
 
 	string IGameAPI.GetUnitInstanceName(UnitId unit)
 	{
@@ -1922,40 +1820,10 @@ public partial class GameHost
 		return string.Empty;
 	}
 
-	int IGameAPI.GetUnitOwner(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Player;
-		return 0;
-	}
 
-	bool IGameAPI.IsUnitBuilding(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).IsBuilding;
-		return false;
-	}
 
-	bool IGameAPI.IsUnitHero(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).IsHero;
-		return false;
-	}
 
-	int IGameAPI.GetUnitLevel(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Level;
-		return 0;
-	}
 
-	float IGameAPI.GetUnitExperience(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Experience;
-		return 0f;
-	}
 
 	void IGameAPI.SetUnitExperience(UnitId unit, float value)
 	{
@@ -1963,33 +1831,9 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Experience = value;
 	}
 
-	float IGameAPI.GetUnitXpBounty(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).XpBounty;
-		return 0f;
-	}
 
-	float IGameAPI.GetUnitGoldBounty(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).GoldBounty;
-		return 0f;
-	}
 
-	bool IGameAPI.IsUnitDead(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).IsDead;
-		return true;
-	}
 
-	float IGameAPI.GetUnitScale(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Scale;
-		return 1f;
-	}
 
 	void IGameAPI.SetUnitScale(UnitId unit, float value)
 	{
@@ -1997,12 +1841,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Scale = value;
 	}
 
-	bool IGameAPI.IsUnitInvulnerable(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Invulnerable;
-		return false;
-	}
 
 	void IGameAPI.SetUnitInvulnerable(UnitId unit, bool value)
 	{
@@ -2010,12 +1848,6 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Invulnerable = value;
 	}
 
-	float IGameAPI.GetUnitFacing(UnitId unit)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-			return GameContext.SimulationService.GetUnitWrapper(entity).Facing;
-		return 0f;
-	}
 
 	void IGameAPI.IssueAttackOrder(UnitId unit, UnitId target)
 	{

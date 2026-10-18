@@ -1028,18 +1028,6 @@
             </summary>
             <param name="playerIndex">Zero-based player slot index.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IsPlayerActive(System.Int32)">
-            <summary>
-            Returns true if the specified player slot is occupied by an active human or AI participant.
-            </summary>
-            <param name="playerIndex">Zero-based player slot index.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerGold(System.Int32)">
-            <summary>
-            Gets the gold resource for the specified player slot.
-            </summary>
-            <param name="playerIndex">Zero-based player slot index.</param>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerGold(System.Int32,System.Single)">
             <summary>
             Sets the gold resource for the specified player slot.
@@ -1164,12 +1152,6 @@
             <param name="playerIndex">Zero-based player slot index.</param>
             <param name="teamIndex">Zero-based team index.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerTeam(System.Int32)">
-            <summary>
-            Returns the team index that the specified player slot belongs to.
-            </summary>
-            <param name="playerIndex">Zero-based player slot index.</param>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayersAllied(System.Int32,System.Int32,System.Boolean)">
             <summary>
             Configures whether two player slots treat each other as passive allies
@@ -1185,12 +1167,6 @@
             </summary>
             <param name="playerIndex">Index of the first player.</param>
             <param name="otherPlayerIndex">Index of the second player.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IsPlayerComputer(System.Int32)">
-            <summary>
-            Returns true if the specified player slot is controlled by a computer AI.
-            </summary>
-            <param name="playerIndex">Player slot index.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerActive(System.Int32,System.Boolean)">
             <summary>
@@ -1289,12 +1265,6 @@
             <param name="value">Row value text.</param>
             <param name="color">Optional RGB tint for the label text.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerWood(System.Int32)">
-            <summary>
-            Gets the wood (lumber) resource for the specified player slot.
-            </summary>
-            <param name="playerIndex">Zero-based player slot index.</param>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerWood(System.Int32,System.Single)">
             <summary>
             Sets the wood (lumber) resource for the specified player slot.
@@ -1316,18 +1286,6 @@
             </summary>
             <param name="unit">The unit to transfer.</param>
             <param name="playerIndex">Zero-based player slot index of the new owner.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerCurrentPopulation(System.Int32)">
-            <summary>
-            Gets the current population count for the specified player slot.
-            </summary>
-            <param name="playerIndex">Zero-based player slot index.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerMaxPopulation(System.Int32)">
-            <summary>
-            Gets the maximum population capacity for the specified player slot.
-            </summary>
-            <param name="playerIndex">Zero-based player slot index.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerMaxPopulation(System.Int32,System.Int32)">
             <summary>
@@ -1408,12 +1366,6 @@
             Triggered when a player leaves or disconnects from the game.
             The integer argument is the zero-based player slot index.
             </summary>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerKills(System.Int32)">
-            <summary>
-            Returns the number of enemy units killed by the specified player slot.
-            </summary>
-            <param name="playerIndex">Zero-based player slot index.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerKills(System.Int32,System.Int32)">
             <summary>
@@ -1974,12 +1926,6 @@
             <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="P:Realm.MapAPI.IGameAPI.PlayerCount"/>.</param>
             <returns>An enumerable sequence of active player slot indices.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerStone(System.Int32)">
-            <summary>
-            Gets the stone resource for the specified player slot.
-            </summary>
-            <param name="playerIndex">Zero-based player slot index.</param>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerStone(System.Int32,System.Single)">
             <summary>
             Sets the stone resource for the specified player slot.
@@ -2282,26 +2228,12 @@
             <param name="playerIndex">The zero-based player slot index whose unit should collect the item.</param>
             <returns>True if an eligible unit owned by the player successfully collected the item; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitHealth(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the current health points of the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The current health value.</returns>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitHealth(Realm.MapAPI.UnitId,System.Single)">
             <summary>
             Sets the current health points of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new health value.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitMaxHealth(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the maximum health points capacity of the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The maximum health capacity.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitMaxHealth(Realm.MapAPI.UnitId,System.Single)">
             <summary>
@@ -2310,26 +2242,12 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">The new maximum health capacity.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitMana(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the current mana points of the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The current mana value.</returns>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitMana(Realm.MapAPI.UnitId,System.Single)">
             <summary>
             Sets the current mana points of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new mana value.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitMaxMana(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the maximum mana capacity of the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The maximum mana capacity.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitMaxMana(Realm.MapAPI.UnitId,System.Single)">
             <summary>
@@ -2338,26 +2256,12 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">The new maximum mana capacity.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitManaRegen(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the mana regeneration rate of the specified unit per second.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The mana regeneration rate per second.</returns>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitManaRegen(Realm.MapAPI.UnitId,System.Single)">
             <summary>
             Sets the mana regeneration rate of the specified unit per second.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new mana regeneration rate.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitDamage(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the base attack damage of the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The base attack damage.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitDamage(Realm.MapAPI.UnitId,System.Single)">
             <summary>
@@ -2366,26 +2270,12 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">The new attack damage.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitRange(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the attack range of the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The attack range in world units.</returns>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitRange(Realm.MapAPI.UnitId,System.Single)">
             <summary>
             Sets the attack range of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new attack range.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitArmor(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the armor defense rating of the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The armor rating.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitArmor(Realm.MapAPI.UnitId,System.Single)">
             <summary>
@@ -2394,13 +2284,6 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">The new armor rating.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitSpeed(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the movement speed of the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The movement speed.</returns>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitSpeed(Realm.MapAPI.UnitId,System.Single)">
             <summary>
             Sets the movement speed of the specified unit.
@@ -2408,26 +2291,12 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">The new movement speed.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitAttackSpeed(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the attack speed multiplier of the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The attack speed multiplier.</returns>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitAttackSpeed(Realm.MapAPI.UnitId,System.Single)">
             <summary>
             Sets the attack speed multiplier of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new attack speed multiplier.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitPosition(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the current 3D world space position of the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The 3D coordinates of the unit.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitInstanceName(Realm.MapAPI.UnitId)">
             <summary>
@@ -2450,75 +2319,12 @@
             <param name="unit">The unit identifier.</param>
             <returns>The archetype template identifier string.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitOwner(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the zero-based player slot index that owns the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The owning player slot index.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IsUnitBuilding(Realm.MapAPI.UnitId)">
-            <summary>
-            Returns true if the specified unit is a building or structure.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>True if a building; otherwise, false.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IsUnitHero(Realm.MapAPI.UnitId)">
-            <summary>
-            Returns true if the specified unit is classified as a hero unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>True if a hero unit; otherwise, false.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitLevel(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the current experience level of the specified hero unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The current unit level.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitExperience(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the accumulated experience points of the specified hero unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The accumulated experience points.</returns>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitExperience(Realm.MapAPI.UnitId,System.Single)">
             <summary>
             Sets the accumulated experience points of the specified hero unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new experience points value.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitXpBounty(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the experience bounty points awarded upon defeating the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The experience bounty points.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitGoldBounty(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the gold bounty resource amount awarded upon defeating the specified unit.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The gold bounty amount.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IsUnitDead(Realm.MapAPI.UnitId)">
-            <summary>
-            Returns true if the specified unit is dead.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>True if the unit is dead; otherwise, false.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitScale(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the visual scaling multiplier of the specified unit model.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The visual scaling factor.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitScale(Realm.MapAPI.UnitId,System.Single)">
             <summary>
@@ -2527,26 +2333,12 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">The new visual scale factor.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IsUnitInvulnerable(Realm.MapAPI.UnitId)">
-            <summary>
-            Returns true if the specified unit is invulnerable to all damage.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>True if invulnerable; otherwise, false.</returns>
-        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitInvulnerable(Realm.MapAPI.UnitId,System.Boolean)">
             <summary>
             Sets whether the specified unit is invulnerable to all damage.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">True for invulnerability; otherwise, false.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitFacing(Realm.MapAPI.UnitId)">
-            <summary>
-            Retrieves the facing orientation of the specified unit in radians.
-            </summary>
-            <param name="unit">The unit identifier.</param>
-            <returns>The facing orientation in radians.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.IssueAttackOrder(Realm.MapAPI.UnitId,Realm.MapAPI.UnitId)">
             <summary>

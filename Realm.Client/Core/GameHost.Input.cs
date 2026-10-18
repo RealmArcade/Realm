@@ -3876,8 +3876,8 @@ public partial class GameHost
 		float costGold = 150f;
 		float costWood = 100f;
 
-		float currentGold = ((IGameAPI)this).GetPlayerGold(playerIndex);
-		float currentWood = ((IGameAPI)this).GetPlayerWood(playerIndex);
+		float currentGold = RealmSharedMemory.GetPlayerSlot(playerIndex).Gold;
+		float currentWood = RealmSharedMemory.GetPlayerSlot(playerIndex).Wood;
 
 		if (currentGold >= costGold && currentWood >= costWood)
 		{
@@ -3910,8 +3910,8 @@ public partial class GameHost
 		float costGold = 150f;
 		float costStone = 100f;
 
-		float currentGold = ((IGameAPI)this).GetPlayerGold(playerIndex);
-		float currentStone = ((IGameAPI)this).GetPlayerStone(playerIndex);
+		float currentGold = RealmSharedMemory.GetPlayerSlot(playerIndex).Gold;
+		float currentStone = RealmSharedMemory.GetPlayerSlot(playerIndex).Stone;
 
 		if (currentGold >= costGold && currentStone >= costStone)
 		{
@@ -3944,8 +3944,8 @@ public partial class GameHost
 		float costWood = 150f;
 		float costStone = 100f;
 
-		float currentWood = ((IGameAPI)this).GetPlayerWood(playerIndex);
-		float currentStone = ((IGameAPI)this).GetPlayerStone(playerIndex);
+		float currentWood = RealmSharedMemory.GetPlayerSlot(playerIndex).Wood;
+		float currentStone = RealmSharedMemory.GetPlayerSlot(playerIndex).Stone;
 
 		if (currentWood >= costWood && currentStone >= costStone)
 		{
@@ -4004,9 +4004,9 @@ public partial class GameHost
 		float costWood = upgMeta?.CostWood ?? 0f;
 		float costStone = upgMeta?.CostStone ?? 0f;
 
-		float currentGold = ((IGameAPI)this).GetPlayerGold(playerIndex);
-		float currentWood = ((IGameAPI)this).GetPlayerWood(playerIndex);
-		float currentStone = ((IGameAPI)this).GetPlayerStone(playerIndex);
+		float currentGold = RealmSharedMemory.GetPlayerSlot(playerIndex).Gold;
+		float currentWood = RealmSharedMemory.GetPlayerSlot(playerIndex).Wood;
+		float currentStone = RealmSharedMemory.GetPlayerSlot(playerIndex).Stone;
 
 		if (currentGold >= costGold && currentWood >= costWood && currentStone >= costStone)
 		{

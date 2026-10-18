@@ -442,18 +442,6 @@ public interface IGameAPI
 	string GetPlayerName(int playerIndex);
 
 	/// <summary>
-	/// Returns true if the specified player slot is occupied by an active human or AI participant.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	bool IsPlayerActive(int playerIndex);
-
-	/// <summary>
-	/// Gets the gold resource for the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	float GetPlayerGold(int playerIndex);
-
-	/// <summary>
 	/// Sets the gold resource for the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
@@ -601,12 +589,6 @@ public interface IGameAPI
 	void SetPlayerTeam(int playerIndex, int teamIndex);
 
 	/// <summary>
-	/// Returns the team index that the specified player slot belongs to.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	int GetPlayerTeam(int playerIndex);
-
-	/// <summary>
 	/// Configures whether two player slots treat each other as passive allies
 	/// (shared vision, units do not attack each other).
 	/// </summary>
@@ -621,12 +603,6 @@ public interface IGameAPI
 	/// <param name="playerIndex">Index of the first player.</param>
 	/// <param name="otherPlayerIndex">Index of the second player.</param>
 	bool ArePlayersAllied(int playerIndex, int otherPlayerIndex);
-
-	/// <summary>
-	/// Returns true if the specified player slot is controlled by a computer AI.
-	/// </summary>
-	/// <param name="playerIndex">Player slot index.</param>
-	bool IsPlayerComputer(int playerIndex);
 
 	/// <summary>
 	/// Sets whether the specified player slot is active in the game session.
@@ -733,13 +709,6 @@ public interface IGameAPI
 	/// <param name="color">Optional RGB tint for the label text.</param>
 	void AddLeaderboardRow(string label, string value, Vector3? color = null);
 
-
-	/// <summary>
-	/// Gets the wood (lumber) resource for the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	float GetPlayerWood(int playerIndex);
-
 	/// <summary>
 	/// Sets the wood (lumber) resource for the specified player slot.
 	/// </summary>
@@ -762,19 +731,6 @@ public interface IGameAPI
 	/// <param name="unit">The unit to transfer.</param>
 	/// <param name="playerIndex">Zero-based player slot index of the new owner.</param>
 	void SetUnitOwner(UnitId unit, int playerIndex);
-
-
-	/// <summary>
-	/// Gets the current population count for the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	int GetPlayerCurrentPopulation(int playerIndex);
-
-	/// <summary>
-	/// Gets the maximum population capacity for the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	int GetPlayerMaxPopulation(int playerIndex);
 
 	/// <summary>
 	/// Sets the maximum population capacity for the specified player slot.
@@ -861,13 +817,6 @@ public interface IGameAPI
 	/// The integer argument is the zero-based player slot index.
 	/// </summary>
 	event Action<int>? OnPlayerLeft;
-
-
-	/// <summary>
-	/// Returns the number of enemy units killed by the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	int GetPlayerKills(int playerIndex);
 
 	/// <summary>
 	/// Sets the kill count for the specified player slot directly.
@@ -1549,12 +1498,6 @@ public interface IGameAPI
 	}
 
 	/// <summary>
-	/// Gets the stone resource for the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	float GetPlayerStone(int playerIndex);
-
-	/// <summary>
 	/// Sets the stone resource for the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
@@ -1941,25 +1884,11 @@ public interface IGameAPI
 	bool CollectLootItemByPlayer(int lootItemId, int playerIndex);
 
 	/// <summary>
-	/// Retrieves the current health points of the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The current health value.</returns>
-	float GetUnitHealth(UnitId unit);
-
-	/// <summary>
 	/// Sets the current health points of the specified unit.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="value">The new health value.</param>
 	void SetUnitHealth(UnitId unit, float value);
-
-	/// <summary>
-	/// Retrieves the maximum health points capacity of the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The maximum health capacity.</returns>
-	float GetUnitMaxHealth(UnitId unit);
 
 	/// <summary>
 	/// Sets the maximum health points capacity of the specified unit.
@@ -1969,25 +1898,11 @@ public interface IGameAPI
 	void SetUnitMaxHealth(UnitId unit, float value);
 
 	/// <summary>
-	/// Retrieves the current mana points of the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The current mana value.</returns>
-	float GetUnitMana(UnitId unit);
-
-	/// <summary>
 	/// Sets the current mana points of the specified unit.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="value">The new mana value.</param>
 	void SetUnitMana(UnitId unit, float value);
-
-	/// <summary>
-	/// Retrieves the maximum mana capacity of the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The maximum mana capacity.</returns>
-	float GetUnitMaxMana(UnitId unit);
 
 	/// <summary>
 	/// Sets the maximum mana capacity of the specified unit.
@@ -1997,25 +1912,11 @@ public interface IGameAPI
 	void SetUnitMaxMana(UnitId unit, float value);
 
 	/// <summary>
-	/// Retrieves the mana regeneration rate of the specified unit per second.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The mana regeneration rate per second.</returns>
-	float GetUnitManaRegen(UnitId unit);
-
-	/// <summary>
 	/// Sets the mana regeneration rate of the specified unit per second.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="value">The new mana regeneration rate.</param>
 	void SetUnitManaRegen(UnitId unit, float value);
-
-	/// <summary>
-	/// Retrieves the base attack damage of the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The base attack damage.</returns>
-	float GetUnitDamage(UnitId unit);
 
 	/// <summary>
 	/// Sets the base attack damage of the specified unit.
@@ -2025,25 +1926,11 @@ public interface IGameAPI
 	void SetUnitDamage(UnitId unit, float value);
 
 	/// <summary>
-	/// Retrieves the attack range of the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The attack range in world units.</returns>
-	float GetUnitRange(UnitId unit);
-
-	/// <summary>
 	/// Sets the attack range of the specified unit.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="value">The new attack range.</param>
 	void SetUnitRange(UnitId unit, float value);
-
-	/// <summary>
-	/// Retrieves the armor defense rating of the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The armor rating.</returns>
-	float GetUnitArmor(UnitId unit);
 
 	/// <summary>
 	/// Sets the armor defense rating of the specified unit.
@@ -2053,13 +1940,6 @@ public interface IGameAPI
 	void SetUnitArmor(UnitId unit, float value);
 
 	/// <summary>
-	/// Retrieves the movement speed of the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The movement speed.</returns>
-	float GetUnitSpeed(UnitId unit);
-
-	/// <summary>
 	/// Sets the movement speed of the specified unit.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
@@ -2067,25 +1947,11 @@ public interface IGameAPI
 	void SetUnitSpeed(UnitId unit, float value);
 
 	/// <summary>
-	/// Retrieves the attack speed multiplier of the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The attack speed multiplier.</returns>
-	float GetUnitAttackSpeed(UnitId unit);
-
-	/// <summary>
 	/// Sets the attack speed multiplier of the specified unit.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="value">The new attack speed multiplier.</param>
 	void SetUnitAttackSpeed(UnitId unit, float value);
-
-	/// <summary>
-	/// Retrieves the current 3D world space position of the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The 3D coordinates of the unit.</returns>
-	Vector3 GetUnitPosition(UnitId unit);
 
 	/// <summary>
 	/// Retrieves the display name of the specified unit.
@@ -2109,74 +1975,11 @@ public interface IGameAPI
 	string GetUnitTemplateId(UnitId unit);
 
 	/// <summary>
-	/// Retrieves the zero-based player slot index that owns the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The owning player slot index.</returns>
-	int GetUnitOwner(UnitId unit);
-
-	/// <summary>
-	/// Returns true if the specified unit is a building or structure.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>True if a building; otherwise, false.</returns>
-	bool IsUnitBuilding(UnitId unit);
-
-	/// <summary>
-	/// Returns true if the specified unit is classified as a hero unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>True if a hero unit; otherwise, false.</returns>
-	bool IsUnitHero(UnitId unit);
-
-	/// <summary>
-	/// Retrieves the current experience level of the specified hero unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The current unit level.</returns>
-	int GetUnitLevel(UnitId unit);
-
-	/// <summary>
-	/// Retrieves the accumulated experience points of the specified hero unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The accumulated experience points.</returns>
-	float GetUnitExperience(UnitId unit);
-
-	/// <summary>
 	/// Sets the accumulated experience points of the specified hero unit.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="value">The new experience points value.</param>
 	void SetUnitExperience(UnitId unit, float value);
-
-	/// <summary>
-	/// Retrieves the experience bounty points awarded upon defeating the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The experience bounty points.</returns>
-	float GetUnitXpBounty(UnitId unit);
-
-	/// <summary>
-	/// Retrieves the gold bounty resource amount awarded upon defeating the specified unit.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The gold bounty amount.</returns>
-	float GetUnitGoldBounty(UnitId unit);
-
-	/// <summary>
-	/// Returns true if the specified unit is dead.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>True if the unit is dead; otherwise, false.</returns>
-	bool IsUnitDead(UnitId unit);
-
-	/// <summary>
-	/// Retrieves the visual scaling multiplier of the specified unit model.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The visual scaling factor.</returns>
-	float GetUnitScale(UnitId unit);
 
 	/// <summary>
 	/// Sets the visual scaling multiplier of the specified unit model.
@@ -2186,25 +1989,11 @@ public interface IGameAPI
 	void SetUnitScale(UnitId unit, float value);
 
 	/// <summary>
-	/// Returns true if the specified unit is invulnerable to all damage.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>True if invulnerable; otherwise, false.</returns>
-	bool IsUnitInvulnerable(UnitId unit);
-
-	/// <summary>
 	/// Sets whether the specified unit is invulnerable to all damage.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="value">True for invulnerability; otherwise, false.</param>
 	void SetUnitInvulnerable(UnitId unit, bool value);
-
-	/// <summary>
-	/// Retrieves the facing orientation of the specified unit in radians.
-	/// </summary>
-	/// <param name="unit">The unit identifier.</param>
-	/// <returns>The facing orientation in radians.</returns>
-	float GetUnitFacing(UnitId unit);
 
 	/// <summary>
 	/// Issues an attack order targeting a specific enemy unit.
