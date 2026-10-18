@@ -10,8 +10,8 @@ namespace Realm.Ecs.Components.Terrain;
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct TerrainState
 {
-	public const float DefaultQuadSize = 1.0f;
-	public const float DefaultCellSize = 1.0f;
+	public const float DefaultQuadSize = 2.0f;
+	public const float DefaultCellSize = .5f;
 
 	public int Width;
 	public int Depth;
