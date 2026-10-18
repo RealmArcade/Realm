@@ -294,6 +294,12 @@
             "boolean",
             "null"
           ]
+        },
+        "TestRandomSeed": {
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       }
     },

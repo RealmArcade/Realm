@@ -372,6 +372,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void LoadMapProperties(string path)
 	{
+		ApplyTestRandomSeedIfNeeded(path);
 		GameContext.MapPropertiesLoader?.LoadMapProperties(ECSContext.WorldEntity, path);
 		_defaultCameraBoundsCaptured = false;
 		CaptureDefaultCameraBounds();
@@ -2175,8 +2176,27 @@ public partial class GameHost : Node3D, IGameAPI
 		return !isGameStarted || IsServerActive() || GameContext.SessionState.IsMapEditorMode;
 	}
 
+	private void ApplyTestRandomSeedIfNeeded(string rawMapNameOrPath)
+	{
+		bool isSinglePlayerOrTest = (LobbyManager.Instance?.IsSinglePlayer == true) || GameContext.SessionState.IsTestMode || !IsMultiplayerActive();
+		if (!isSinglePlayerOrTest) return;
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string? resolvedDir = !string.IsNullOrEmpty(rawMapNameOrPath) ? ResolveMapDirectory(rawMapNameOrPath) : wsPath;
+		string metadataPath = !string.IsNullOrEmpty(resolvedDir)
+			? resolvedDir
+			: (!string.IsNullOrEmpty(rawMapNameOrPath) ? rawMapNameOrPath : wsPath);
+
+		var metadata = MapFileService.LoadMetadata(metadataPath);
+		if (metadata.MapProperties?.TestRandomSeed != null)
+		{
+			GameContext.RandomService.SetSeed(metadata.MapProperties.TestRandomSeed);
+		}
+	}
+
 	private void ExecuteMapScriptLoading(string rawMapName)
 	{
+		ApplyTestRandomSeedIfNeeded(rawMapName);
 		LoadMapScript(rawMapName);
 		if (_activeMapScript != null && !GameContext.SessionState.IsMapEditorMode)
 		{

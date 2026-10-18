@@ -393,6 +393,9 @@ public partial class LobbyManager : Node
 		var metadata = MapFileService.LoadMetadata(wsPath);
 		int aiCount = Math.Clamp(metadata.MapProperties?.TestAiPlayerCount ?? 1, 0, 23);
 		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
+		int? testSeed = metadata.MapProperties?.TestRandomSeed;
+
+		GameContext.RandomService.SetSeed(testSeed);
 
 		int humanSlot = 1;
 		var aiSlots = new List<int>();
@@ -408,7 +411,7 @@ public partial class LobbyManager : Node
 		else
 		{
 			var available = Enumerable.Range(1, 24).ToList();
-			var rng = new Random();
+			var rng = (testSeed.HasValue && testSeed.Value != 0) ? new Random(testSeed.Value) : new Random();
 			int n = available.Count;
 			while (n > 1)
 			{
