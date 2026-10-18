@@ -1,7 +1,7 @@
 using System.Numerics;
-using Arch.Core;
 using DotRecast.Detour;
 using NUnit.Framework;
+using Realm.Ecs;
 using Realm.Client;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Core;
@@ -15,7 +15,7 @@ namespace Realm.Ecs.Tests
 	[TestFixture]
 	public class PathingTests
 	{
-		private World _world
+		private EcsWorld _world
 		{
 			get { return ECSContext.World!; }
 		}

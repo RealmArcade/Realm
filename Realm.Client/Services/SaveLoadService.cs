@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
@@ -1817,7 +1817,7 @@ public class SaveLoadService
 		return splatData;
 	}
 
-	public float GetUnitPropRotationY(Entity entity, float defaultRotY, World ecsWorld)
+	public float GetUnitPropRotationY(Entity entity, float defaultRotY, EcsWorld ecsWorld)
 	{
 		float rotY = defaultRotY;
 		if (ecsWorld.Has<RotationY>(entity))
@@ -1832,7 +1832,7 @@ public class SaveLoadService
 		return rotY;
 	}
 
-	public float GetUnitPropScale(Entity entity, float defaultScale, World ecsWorld)
+	public float GetUnitPropScale(Entity entity, float defaultScale, EcsWorld ecsWorld)
 	{
 		float scale = defaultScale;
 		if (ecsWorld.Has<ModelScale>(entity))

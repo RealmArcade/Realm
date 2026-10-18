@@ -1,4 +1,4 @@
-﻿namespace Realm.Client.UI;
+namespace Realm.Client.UI;
 
 public struct LobbyData
 {

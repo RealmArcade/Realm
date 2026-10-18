@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Network;
 using Realm.Client.Services;
@@ -490,7 +490,7 @@ public partial class GameHost
 		}
 	}
 
-	private void SetUnitFacingViewLogic(Arch.Core.Entity entity, float facingRadians)
+	private void SetUnitFacingViewLogic(Entity entity, float facingRadians)
 	{
 		if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 		{

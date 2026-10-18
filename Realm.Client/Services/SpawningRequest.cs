@@ -1,5 +1,5 @@
 using System.Numerics;
-using Arch.Core;
+using Realm.Ecs;
 
 namespace Realm.Client.Services;
 

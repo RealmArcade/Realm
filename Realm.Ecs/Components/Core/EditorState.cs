@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Ecs.Components.Core
@@ -5,6 +6,7 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	///     Holds the state and configuration of the map editor, including block modes, camera boundary limits, and file status.
 	/// </summary>
+	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct EditorState
 	{
 		public bool BlockMode;
@@ -13,7 +15,7 @@ namespace Realm.Ecs.Components.Core
 		public float CameraBoundsRight;
 		public float CameraBoundsTop;
 		public float CameraBoundsBottom;
-		public string SkyboxPath;
+		public int SkyboxStringId;
 		public bool HasUnsavedChanges;
 		public MirrorMode MirrorMode;
 		public WaterType WaterMode;
@@ -38,11 +40,17 @@ namespace Realm.Ecs.Components.Core
 			CameraBoundsRight = cameraBoundsRight;
 			CameraBoundsTop = cameraBoundsTop;
 			CameraBoundsBottom = cameraBoundsBottom;
-			SkyboxPath = skyboxPath;
+			SkyboxStringId = StringRegistry.GetOrAdd(skyboxPath);
 			HasUnsavedChanges = hasUnsavedChanges;
 			MirrorMode = mirrorMode;
 			WaterMode = waterMode;
 			WaterProfileIndex = waterProfileIndex;
+		}
+
+		public string SkyboxPath
+		{
+			get => StringRegistry.Get(SkyboxStringId);
+			set => SkyboxStringId = StringRegistry.GetOrAdd(value);
 		}
 	}
 }

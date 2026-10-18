@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
@@ -162,7 +162,7 @@ public class ModelOverrideService
 	{
 		if (entity != default && GameContext.World.IsAlive(entity))
 		{
-			WorldExtensions.SetOrAdd(GameContext.World, entity, new CollisionRadius(baseRadius));
+			GameContext.World.SetOrAdd(entity, new CollisionRadius(baseRadius));
 		}
 	}
 

@@ -1,5 +1,4 @@
 using System.Numerics;
-using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
@@ -79,7 +78,7 @@ public class BotController
 		}
 	}
 
-	public void Tick(World world, int playerIndex, float delta)
+	public void Tick(EcsWorld world, int playerIndex, float delta)
 	{
 		_playerIndex = playerIndex;
 		_timer += delta;

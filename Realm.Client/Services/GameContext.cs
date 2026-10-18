@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Client.Services.ModelOptimization;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
@@ -11,7 +11,7 @@ namespace Realm.Client.Services
 	{
 		public static SessionState SessionState { get; } = new();
 		
-		public static World World => ECSContext.World;
+		public static EcsWorld? World => ECSContext.World;
 		public static Entity WorldEntity
 		{
 			get => ECSContext.WorldEntity;

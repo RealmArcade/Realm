@@ -1,8 +1,10 @@
+using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Core
 {
 	/// <summary>
 	/// Represents the active upgrades purchased by a player entity.
 	/// </summary>
+	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct PlayerUpgrades
 	{
 		public bool WeaponsUpgrade;

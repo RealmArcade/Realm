@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -163,7 +163,7 @@ public class InputService
 		return GameContext.TechTreeService.BuyHarvestingUpgrade(playerEntity);
 	}
 
-	private void RemoveIfHas<T>(Entity entity)
+	private void RemoveIfHas<T>(Entity entity) where T : unmanaged
 	{
 		if (GameContext.World.Has<T>(entity))
 		{

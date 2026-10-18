@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
-using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Combat;
@@ -102,7 +101,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private static int GetOwnerIndex(World world, Entity entity)
+	private static int GetOwnerIndex(EcsWorld world, Entity entity)
 	{
 		if (world.Has<UnitOwnerPlayer>(entity))
 		{
@@ -120,7 +119,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		return -1;
 	}
 
-	private static int GetPlayerGold(World world, Entity playerEntity)
+	private static int GetPlayerGold(EcsWorld world, Entity playerEntity)
 	{
 		if (!world.IsAlive(playerEntity) || !world.Has<PlayerResources>(playerEntity)) return 1000;
 
@@ -128,7 +127,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		return resources.Count > 0 ? resources.Values.FirstOrDefault() : 1000;
 	}
 
-	private static float GetUnitHealthRatio(World world, Entity unit)
+	private static float GetUnitHealthRatio(EcsWorld world, Entity unit)
 	{
 		if (!world.Has<Health>(unit)) return 1.0f;
 
@@ -136,7 +135,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		return Math.Clamp(hp.Current / Math.Max(1.0f, hp.Max), 0f, 1f);
 	}
 
-	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
+	public void ScanAffordances(EcsWorld world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
 	{
 		destinationList.Clear();
 		_friendlyUnits.Clear();
@@ -196,7 +195,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		EvaluateBaseExpansions(playerGold, destinationList);
 	}
 
-	private void EvaluateCombatAffordances(World world, Entity unit, Vector3 unitPos, float healthRatio, Vector3 enemyCenter, List<GenericAffordance> destinationList)
+	private void EvaluateCombatAffordances(EcsWorld world, Entity unit, Vector3 unitPos, float healthRatio, Vector3 enemyCenter, List<GenericAffordance> destinationList)
 	{
 		if (_enemyUnits.Count == 0) return;
 
@@ -230,7 +229,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		destinationList.Add(new GenericAffordance(unit, CommandIntent.MoveTo, Entity.Null, enemyCenter, "threat_centroid", attackCenterVec));
 	}
 
-	private void FindEnemyTargets(World world, Vector3 unitPos, out Entity lowestHpEnemy, out Vector3 closestEnemyPos, out float minEnemyDist)
+	private void FindEnemyTargets(EcsWorld world, Vector3 unitPos, out Entity lowestHpEnemy, out Vector3 closestEnemyPos, out float minEnemyDist)
 	{
 		lowestHpEnemy = Entity.Null;
 		float minHp = float.MaxValue;
@@ -262,7 +261,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private static void EvaluateProductionAffordances(World world, Entity unit, Vector3 unitPos, int playerGold, List<GenericAffordance> destinationList)
+	private static void EvaluateProductionAffordances(EcsWorld world, Entity unit, Vector3 unitPos, int playerGold, List<GenericAffordance> destinationList)
 	{
 		if (!world.Has<ProductionQueue>(unit)) return;
 
@@ -275,7 +274,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private void EvaluateSpellAffordances(World world, Entity unit, float healthRatio, Vector3 enemyCenter, List<GenericAffordance> destinationList)
+	private void EvaluateSpellAffordances(EcsWorld world, Entity unit, float healthRatio, Vector3 enemyCenter, List<GenericAffordance> destinationList)
 	{
 		if (!world.Has<SpellCooldowns>(unit)) return;
 
@@ -303,7 +302,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	public void ExecuteAction(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
 	{
 		if (aff.Intent == CommandIntent.Interact || aff.Intent == CommandIntent.Transact)
 		{
@@ -337,7 +336,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private static void ExecuteAttack(World world, in GenericAffordance aff)
+	private static void ExecuteAttack(EcsWorld world, in GenericAffordance aff)
 	{
 		if (world.IsAlive(aff.TargetEntity))
 		{
@@ -345,7 +344,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private static void ExecuteTrain(World world, in GenericAffordance aff)
+	private static void ExecuteTrain(EcsWorld world, in GenericAffordance aff)
 	{
 		if (!world.Has<ProductionQueue>(aff.SourceEntity)) return;
 
@@ -356,7 +355,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private static void ExecuteCast(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback)
+	private static void ExecuteCast(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback)
 	{
 		if (!string.IsNullOrEmpty(aff.PayloadId) && world.Has<SpellCooldowns>(aff.SourceEntity))
 		{

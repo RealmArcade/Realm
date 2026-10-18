@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Services;
 using Realm.Client.UI;
@@ -223,7 +223,7 @@ public partial class GameHost
 			bool foundWorld = false;
 
 			var worldQuery = QueryCache.AllTerrainStateAndEditorStateQuery;
-			GameContext.World.Query(in worldQuery, (ref TerrainState t, ref EditorState e) =>
+			GameContext.World.Query(in worldQuery, (Entity _, ref TerrainState t, ref EditorState e) =>
 			{
 				terrain = t;
 				editor = e;

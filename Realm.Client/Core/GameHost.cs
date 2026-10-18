@@ -6,7 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
-using Arch.Core;
+using Realm.Ecs;
 using DotRecast.Detour;
 using Godot;
 using Realm.Client.Network;
@@ -2590,7 +2590,7 @@ public partial class GameHost : Node3D, IGameAPI
 		return null;
 	}
 
-	private void RemoveIfHas<T>(Entity entity) where T : struct
+	private void RemoveIfHas<T>(Entity entity) where T : unmanaged
 	{
 		if (GameContext.World.Has<T>(entity)) GameContext.World.Remove<T>(entity);
 	}

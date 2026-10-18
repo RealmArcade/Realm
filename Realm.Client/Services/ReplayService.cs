@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.ReplaySystem;

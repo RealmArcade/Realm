@@ -1,8 +1,10 @@
+using System.Runtime.InteropServices;
 using System.Numerics;
 
 namespace Realm.Ecs.Components.Movement;
 
 /// <summary>Patrol component: unit walks back and forth between PointA and PointB, attacking enemies on sight.</summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Patrol
 {
 	public Vector3 PointA;

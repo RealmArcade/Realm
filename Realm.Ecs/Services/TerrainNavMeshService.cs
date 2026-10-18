@@ -1,5 +1,6 @@
+using System;
+using System.Collections.Generic;
 using System.Numerics;
-using Arch.Core;
 using DotRecast.Core.Numerics;
 using DotRecast.Detour;
 using DotRecast.Recast;
@@ -15,18 +16,17 @@ public class TerrainNavMeshService
 {
 	public Dictionary<string, float> ObstacleRadiusCache { get; set; } = new();
 
-	// Recast/Detour bake tuning. Smaller cell sizes improve path fidelity but increase bake cost.
 	private const float NavMeshCellHeight = 0.1f;
 	private const float AgentRadius = 0.1f;
 	private const float AgentHeight = 2.5f;
 	private const float AgentMaxClimb = 0.9f;
 	private const float AgentMaxSlope = 55.0f;
 
-	private readonly ForEachWithEntity<Position, MoveTo, PathFollow> _invalidatePathsDelegate;
+	private readonly EntityCallback<Position, MoveTo, PathFollow> _invalidatePathsDelegate;
 	private Vector3 _invalidateCenter;
 	private float _invalidateRadiusSq;
 
-	private readonly ForEachWithEntity<Position, CollisionRadius> _checkOtherObstaclesDelegate;
+	private readonly EntityCallback<Position, CollisionRadius> _checkOtherObstaclesDelegate;
 	private float _checkCellX;
 	private float _checkCellZ;
 	private bool _isCellBlockedByOtherObstacle;
@@ -70,13 +70,13 @@ public class TerrainNavMeshService
 	{
 		_invalidateCenter = center;
 		_invalidateRadiusSq = radius * radius;
-		ECSContext.World.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
+		ECSContext.World?.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
 	}
 
 	private void CheckOtherObstaclesQueryAction(Entity entity, ref Position pos, ref CollisionRadius colRad)
 	{
 		if (_isCellBlockedByOtherObstacle) return;
-		float scale = ECSContext.World.Has<CollisionScale>(entity) ? ECSContext.World.Get<CollisionScale>(entity).Value : 1.0f;
+		float scale = (ECSContext.World != null && ECSContext.World.Has<CollisionScale>(entity)) ? ECSContext.World.Get<CollisionScale>(entity).Value : 1.0f;
 		float radius = colRad.Value * scale;
 		float dx = _checkCellX - pos.Value.X;
 		float dz = _checkCellZ - pos.Value.Z;
@@ -91,7 +91,7 @@ public class TerrainNavMeshService
 		_checkCellX = px;
 		_checkCellZ = pz;
 		_isCellBlockedByOtherObstacle = false;
-		ECSContext.World.Query(in QueryCache.AllPositionAndCollisionRadiusQuery, _checkOtherObstaclesDelegate);
+		ECSContext.World?.Query(in QueryCache.AllPositionAndCollisionRadiusQuery, _checkOtherObstaclesDelegate);
 		return _isCellBlockedByOtherObstacle;
 	}
 
@@ -530,9 +530,9 @@ public class TerrainNavMeshService
 	{
 		var obstacles = new List<(Vector3 Pos, float Radius)>();
 		var obstacleQuery = QueryCache.AllPositionAndCollisionRadiusQuery;
-		ECSContext.World.Query(in obstacleQuery, (Entity ent, ref Position pos, ref CollisionRadius colRad) =>
+		ECSContext.World?.Query(in obstacleQuery, (Entity ent, ref Position pos, ref CollisionRadius colRad) =>
 		{
-			float scale = ECSContext.World.Has<CollisionScale>(ent) ? ECSContext.World.Get<CollisionScale>(ent).Value : 1.0f;
+			float scale = (ECSContext.World != null && ECSContext.World.Has<CollisionScale>(ent)) ? ECSContext.World.Get<CollisionScale>(ent).Value : 1.0f;
 			float radius = colRad.Value * scale;
 			obstacles.Add((pos.Value, radius));
 		});

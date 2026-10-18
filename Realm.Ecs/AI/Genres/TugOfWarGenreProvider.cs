@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Text.Json;
-using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Core;
@@ -129,7 +128,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		}
 	}
 
-	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
+	public void ScanAffordances(EcsWorld world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
 	{
 		destinationList.Clear();
 		_friendlySpawners.Clear();
@@ -154,7 +153,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		GenerateSpecialWaveAffordance(destinationList, playerGold, lanePressureRatio, spawnerCapacity);
 	}
 
-	private void GatherEntities(World world, int playerIndex)
+	private void GatherEntities(EcsWorld world, int playerIndex)
 	{
 		world.Query(in _allPositionQuery, (Entity entity, ref Position pos) =>
 		{
@@ -178,7 +177,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		});
 	}
 
-	private static int GetEntityOwnerIndex(World world, Entity entity)
+	private static int GetEntityOwnerIndex(EcsWorld world, Entity entity)
 	{
 		if (world.Has<UnitOwnerPlayer>(entity))
 		{
@@ -196,7 +195,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		return -1;
 	}
 
-	private int GetPlayerGold(World world, int playerIndex)
+	private int GetPlayerGold(EcsWorld world, int playerIndex)
 	{
 		Entity playerEntity = Entity.Null;
 		world.Query(in _playerResourcesQuery, (Entity pe) =>
@@ -217,7 +216,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		return resources.Count > 0 ? resources.Values.FirstOrDefault() : 100;
 	}
 
-	private bool IsSpotOccupied(World world, Vector3 spot)
+	private bool IsSpotOccupied(EcsWorld world, Vector3 spot)
 	{
 		for (int fIdx = 0; fIdx < _friendlySpawners.Count; fIdx++)
 		{
@@ -232,7 +231,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		return false;
 	}
 
-	private void GenerateBuildAffordances(World world, List<GenericAffordance> destinationList, int playerGold, float lanePressureRatio, float spawnerCapacity)
+	private void GenerateBuildAffordances(EcsWorld world, List<GenericAffordance> destinationList, int playerGold, float lanePressureRatio, float spawnerCapacity)
 	{
 		for (int sIdx = 0; sIdx < _buildSpots.Count; sIdx++)
 		{
@@ -259,7 +258,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private void GenerateUpgradeAffordances(World world, List<GenericAffordance> destinationList, int playerGold, float lanePressureRatio, float spawnerCapacity)
+	private void GenerateUpgradeAffordances(EcsWorld world, List<GenericAffordance> destinationList, int playerGold, float lanePressureRatio, float spawnerCapacity)
 	{
 		for (int fIdx = 0; fIdx < _friendlySpawners.Count; fIdx++)
 		{
@@ -294,7 +293,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		destinationList.Add(new GenericAffordance(Entity.Null, CommandIntent.Transact, Entity.Null, _laneTarget, "send_mercenary_wave", waveVec));
 	}
 
-	public void ExecuteAction(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
 	{
 		if (aff.Intent == CommandIntent.Build || aff.Intent == CommandIntent.Transact || aff.Intent == CommandIntent.Interact)
 		{

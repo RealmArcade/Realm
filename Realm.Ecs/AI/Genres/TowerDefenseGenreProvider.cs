@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Text.Json;
-using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Core;
@@ -123,7 +122,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		}
 	}
 
-	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
+	public void ScanAffordances(EcsWorld world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
 	{
 		destinationList.Clear();
 		_existingTowers.Clear();
@@ -146,7 +145,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		EvaluateExistingTowers(world, destinationList, playerGold, creepCenter, creepCount, waveThreat, leakUrgency, interestThreshold);
 	}
 
-	private void AnalyzeEntities(World world, int playerIndex, out Vector3 creepCenter, out float minCreepDistToExit)
+	private void AnalyzeEntities(EcsWorld world, int playerIndex, out Vector3 creepCenter, out float minCreepDistToExit)
 	{
 		Vector3 center = Vector3.Zero;
 		float minDist = float.MaxValue;
@@ -172,7 +171,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		minCreepDistToExit = minDist;
 	}
 
-	private int GetOwnerIndex(World world, Entity e)
+	private int GetOwnerIndex(EcsWorld world, Entity e)
 	{
 		if (world.Has<UnitOwnerPlayer>(e))
 			return world.Get<UnitOwnerPlayer>(e).PlayerIndex;
@@ -187,7 +186,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		return -1;
 	}
 
-	private int GetPlayerGold(World world, int playerIndex)
+	private int GetPlayerGold(EcsWorld world, int playerIndex)
 	{
 		Entity playerEntity = Entity.Null;
 		world.Query(in _playerResourcesQuery, (Entity pe) =>
@@ -207,7 +206,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		return 500;
 	}
 
-	private List<Vector3> GetOccupiedPositions(World world)
+	private List<Vector3> GetOccupiedPositions(EcsWorld world)
 	{
 		var occupiedPositions = new List<Vector3>(_existingTowers.Count);
 		for (int i = 0; i < _existingTowers.Count; i++)
@@ -273,7 +272,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private void EvaluateExistingTowers(World world, List<GenericAffordance> destinationList, int playerGold, Vector3 creepCenter, int creepCount, float waveThreat, float leakUrgency, float interestThreshold)
+	private void EvaluateExistingTowers(EcsWorld world, List<GenericAffordance> destinationList, int playerGold, Vector3 creepCenter, int creepCount, float waveThreat, float leakUrgency, float interestThreshold)
 	{
 		for (int i = 0; i < _existingTowers.Count; i++)
 		{
@@ -328,7 +327,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		destinationList.Add(new GenericAffordance(tower, CommandIntent.Transact, Entity.Null, towerPos, "sell_tower", fVec));
 	}
 
-	public void ExecuteAction(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
 	{
 		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
 	}

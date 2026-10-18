@@ -1,5 +1,6 @@
+using System;
+using System.Collections.Generic;
 using System.Numerics;
-using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
@@ -19,13 +20,13 @@ public class HeadlessSimulationRunner
 	private static readonly QueryDescription ProductionQuery = new QueryDescription().WithAll<ProductionQueue, UnitOwnerPlayer, Position>().WithNone<Dead>();
 	private static readonly QueryDescription AliveUnitsQuery = new QueryDescription().WithAll<UnitOwnerPlayer, Health>().WithNone<Dead>();
 
-	private World _world = null!;
+	private EcsWorld _world = null!;
 	private IAiGenreProvider _genreProvider;
 	private readonly LinearUtilityPolicy _policy = new();
 	private readonly List<GenericAffordance> _affordanceBuffer = new(64);
 	private readonly List<Entity> _deadEntitiesBuffer = new(32);
 
-	public World World => _world;
+	public EcsWorld World => _world;
 
 	public IAiGenreProvider GenreProvider
 	{
@@ -43,8 +44,7 @@ public class HeadlessSimulationRunner
 
 	public void ResetGame(MapSimulationInitializer? customInitializer = null)
 	{
-		_world?.Dispose();
-		_world = World.Create();
+		_world = new EcsWorld();
 
 		if (customInitializer != null)
 		{
@@ -161,8 +161,8 @@ public class HeadlessSimulationRunner
 				if (_world.Has<Health>(target.Target))
 				{
 					ref var hp = ref _world.Get<Health>(target.Target);
-					hp.Current -= atk.Damage * delta;
-					if (hp.Current <= 0f)
+					hp.CurrentHp -= atk.Damage * delta;
+					if (hp.CurrentHp <= 0f)
 					{
 						_deadEntitiesBuffer.Add(target.Target);
 					}

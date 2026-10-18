@@ -1,4 +1,3 @@
-using Arch.Core;
 
 namespace Realm.Ecs.Services;
 
@@ -7,12 +6,12 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public struct FormulaContext
 {
-	public World? World;
+	public EcsWorld? World;
 	public Entity Caster;
 	public Entity Target;
 	public string WASMFunctionName;
 
-	public FormulaContext(World? world, Entity caster = default, Entity target = default, string wasmFunctionName = "")
+	public FormulaContext(EcsWorld? world, Entity caster = default, Entity target = default, string wasmFunctionName = "")
 	{
 		World = world;
 		Caster = caster;

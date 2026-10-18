@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 
 namespace Realm.Ecs.Components.Terrain
@@ -5,6 +6,7 @@ namespace Realm.Ecs.Components.Terrain
 	/// <summary>
 	/// Represents cell quad terrain data including tier, absolute corner heights, and per-cell discrete water state.
 	/// </summary>
+	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct TerrainCell
 	{
 		public const float TIER_HEIGHT = 3.0f;

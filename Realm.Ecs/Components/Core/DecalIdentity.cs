@@ -1,7 +1,20 @@
-namespace Realm.Ecs.Components.Core
+using System.Runtime.InteropServices;
+
+namespace Realm.Ecs.Components.Core;
+
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct DecalIdentity
 {
-	/// <summary>
-	///     Holds the identification of a visual decal in the world.
-	/// </summary>
-	public record struct DecalIdentity(string DecalId);
+	public int StringId;
+
+	public DecalIdentity(string decalId)
+	{
+		StringId = StringRegistry.GetOrAdd(decalId);
+	}
+
+	public string DecalId
+	{
+		get => StringRegistry.Get(StringId);
+		set => StringId = StringRegistry.GetOrAdd(value);
+	}
 }

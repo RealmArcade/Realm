@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Text.Json;
-using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Core;
@@ -116,7 +115,7 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 		}
 	}
 
-	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
+	public void ScanAffordances(EcsWorld world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
 	{
 		destinationList.Clear();
 		_friendlyBoardUnits.Clear();
@@ -133,7 +132,7 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 		ScanLevelUpAffordance(playerGold, hpUrgency, interestThreshold, destinationList);
 	}
 
-	private Entity FindPlayerEntity(World world, int playerIndex)
+	private Entity FindPlayerEntity(EcsWorld world, int playerIndex)
 	{
 		Entity foundEntity = Entity.Null;
 		world.Query(in _playerResourcesQuery, (Entity pe) =>
@@ -150,7 +149,7 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 		return foundEntity;
 	}
 
-	private static (int gold, int health) GetPlayerStats(World world, Entity playerEntity)
+	private static (int gold, int health) GetPlayerStats(EcsWorld world, Entity playerEntity)
 	{
 		int gold = 25;
 		int health = 100;
@@ -263,7 +262,7 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 		));
 	}
 
-	public void ExecuteAction(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
 	{
 		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
 	}

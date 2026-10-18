@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Arch.Core;
+using Realm.Ecs;
 using DotRecast.Detour;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -191,8 +191,8 @@ namespace Realm.Client.Services
 		private readonly QueryDescription _priestScanQuery = QueryCache.AllPositionAndOwnerAndDefinitionIdNoneDeadAndHealingTargetQuery;
 		private readonly QueryDescription _healingExecutionQuery = QueryCache.AllPositionAndAttackAndHealingTargetAndOwnerNoneDeadQuery;
 
-		private ForEachWithEntity<Position, Attack, AttackTarget, Owner> _combatQueryDelegate;
-		private ForEachWithEntity<Position, Attack, HealingTarget, Owner> _healingExecutionQueryDelegate;
+		private EntityCallback<Position, Attack, AttackTarget, Owner> _combatQueryDelegate;
+		private EntityCallback<Position, Attack, HealingTarget, Owner> _healingExecutionQueryDelegate;
 
 		private readonly List<Entity> _tickExpiredAbandonedCooldowns = new();
 		private readonly List<(Entity Attacker, Entity Target)> _staleRouteReachabilityEntries = new();

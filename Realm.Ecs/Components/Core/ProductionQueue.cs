@@ -1,15 +1,25 @@
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+
 namespace Realm.Ecs.Components.Core;
 
-/// <summary>
-///     Manages the production/training queue for RTS structures.
-/// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct ProductionQueue
 {
+	public int Handle;
+	public float CurrentProgress;
+	public float BuildTime;
+
 	public ProductionQueue()
 	{
+		Handle = ColdPayloadRegistry<List<string>>.Register(new List<string>());
+		CurrentProgress = 0f;
+		BuildTime = 10f;
 	}
 
-	public List<string> UnitIds { get; set; } = new List<string>();
-	public float CurrentProgress { get; set; } = 0f;
-	public float BuildTime { get; set; } = 5f;
+	public List<string> UnitIds
+	{
+		get => ColdPayloadRegistry<List<string>>.Get(Handle);
+		set => Handle = ColdPayloadRegistry<List<string>>.Register(value);
+	}
 }

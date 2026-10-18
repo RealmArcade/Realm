@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.UI;
@@ -23,8 +23,8 @@ public class ResourceEconomyService
 	private readonly QueryDescription _gatherQuery = QueryCache.AllPositionAndGathererNoneDeadQuery;
 	private readonly QueryDescription _passiveIncomeQuery = QueryCache.AllPlayerResourcesNoneDeadQuery;
 
-	private ForEachWithEntity<Position, Gatherer> _gatherQueryDelegate = null!;
-	private ForEachWithEntity<PlayerResources> _passiveIncomeQueryDelegate = null!;
+	private EntityCallback<Position, Gatherer> _gatherQueryDelegate = null!;
+	private EntityCallback<PlayerResources> _passiveIncomeQueryDelegate = null!;
 
 	private DefinitionManager _definitionManagerRef;
 	private ResourceId _goldResourceId;

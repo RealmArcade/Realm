@@ -1,6 +1,6 @@
 using System.Numerics;
-using Arch.Core;
 using NUnit.Framework;
+using Realm.Ecs;
 using Realm.Client.Services;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -15,7 +15,7 @@ namespace Realm.Ecs.Tests
 	[TestFixture]
 	public class CombatTests
 	{
-		private World _world
+		private EcsWorld _world
 		{
 			get { return ECSContext.World!; }
 		}

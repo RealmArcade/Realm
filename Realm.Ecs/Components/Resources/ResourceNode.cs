@@ -1,8 +1,10 @@
+using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Resources;
 
 /// <summary>
 ///     A component for harvestable resource node entities storing resource type, amount, capacity, harvest rate, growth rate, and worker slot limits.
 /// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public record struct ResourceNode(
 	Guid ResourceTypeId,
 	float Amount,

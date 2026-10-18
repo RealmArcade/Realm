@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Arch.Core;
+using Realm.Ecs;
 using DotRecast.Detour;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
@@ -20,7 +20,7 @@ public class WorldInitService
 	{
 	}
 
-	private void AddOrSet<T>(Entity entity, T component) where T : struct
+	private void AddOrSet<T>(Entity entity, T component) where T : unmanaged
 	{
 		GameContext.World.SetOrAdd(entity, component);
 	}

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -44,7 +44,7 @@ public static class MapGenerator
 		}
 	}
 
-	private static void InitTerrainState(World world, Entity worldEntity, int width, int depth, float quadSize)
+	private static void InitTerrainState(EcsWorld world, Entity worldEntity, int width, int depth, float quadSize)
 	{
 		if (!world.Has<TerrainState>(worldEntity))
 		{

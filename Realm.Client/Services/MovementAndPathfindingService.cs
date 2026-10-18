@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Arch.Core;
+using Realm.Ecs;
 using DotRecast.Core.Numerics;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
@@ -61,7 +61,7 @@ namespace Realm.Client.Services
 
 		private readonly QueryDescription _movementQuery = QueryCache.AllPositionAndMoveToAndMovementStatsNoneDeadQuery;
 		private readonly QueryDescription _spatialQuery = QueryCache.AllPositionQuery;
-		private ForEachWithEntity<Position, MoveTo, MovementStats> _movementQueryDelegate;
+		private EntityCallback<Position, MoveTo, MovementStats> _movementQueryDelegate;
 
 		private TerrainState _currentTerrainState;
 		private bool _hasTerrainState;
@@ -128,7 +128,7 @@ namespace Realm.Client.Services
 			}
 		}
 
-		public ForEachWithEntity<Position, MoveTo, MovementStats> EditorMovementQueryDelegate => _movementQueryDelegate;
+		public EntityCallback<Position, MoveTo, MovementStats> EditorMovementQueryDelegate => _movementQueryDelegate;
 
 		private static Vector3 MoveTowards(Vector3 from, Vector3 to, float maxDelta)
 		{

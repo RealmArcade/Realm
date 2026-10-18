@@ -1,8 +1,10 @@
+using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Abilities;
 
 /// <summary>
 ///     Stores native auto-cast settings for a unit's abilities.
 /// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct AutoCastState
 {
 	/// <summary>

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Realm.Ecs.Common;
 
 namespace Realm.Ecs.Components.Resources;
@@ -6,4 +7,5 @@ namespace Realm.Ecs.Components.Resources;
 ///     Represents the Gold resource.
 /// </summary>
 [ResourceDefinition("Gold", "Gold", "A primary currency.", "res://icons/gold.png")]
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public readonly record struct Gold;

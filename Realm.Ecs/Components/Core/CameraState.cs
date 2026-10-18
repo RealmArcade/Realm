@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Numerics;
 
 namespace Realm.Ecs.Components.Core;
@@ -5,6 +6,7 @@ namespace Realm.Ecs.Components.Core;
 /// <summary>
 ///     Holds the state and configuration of the game camera.
 /// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct CameraState
 {
 	public float MoveSpeed;

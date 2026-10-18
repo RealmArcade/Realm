@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -164,7 +164,7 @@ public partial class CommandPanel
 		}
 	}
 
-	private void GetCasterState(Entity caster, World world, string abilityId, ref float currentMana, ref float cdRemaining)
+	private void GetCasterState(Entity caster, EcsWorld world, string abilityId, ref float currentMana, ref float cdRemaining)
 	{
 		if (caster == Entity.Null || !world.IsAlive(caster)) return;
 
@@ -1299,7 +1299,7 @@ public partial class CommandPanel
 		return IsAbilityOnCooldownOrOOM(world, casterEntity, abilityId, manaCost);
 	}
 
-	private bool IsAbilityOnCooldownOrOOM(World world, Entity casterEntity, string abilityId, float manaCost)
+	private bool IsAbilityOnCooldownOrOOM(EcsWorld world, Entity casterEntity, string abilityId, float manaCost)
 	{
 		if (world.Has<Mana>(casterEntity))
 		{

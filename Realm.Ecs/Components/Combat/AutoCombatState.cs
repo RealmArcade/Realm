@@ -1,8 +1,10 @@
+using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Combat;
 
 /// <summary>
 ///     Stores native automated combat AI settings for a unit.
 /// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct AutoCombatState
 {
 	/// <summary>

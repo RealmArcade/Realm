@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
@@ -257,19 +257,19 @@ public class SimulationService
 	private readonly QueryDescription _cooldownsQuery = QueryCache.AllCooldownsQuery;
 	private readonly QueryDescription _autoCastQuery = QueryCache.AllAutoCastQuery;
 
-	private ForEachWithEntity<Buffs> _buffsQueryDelegate = null!;
-	private ForEachWithEntity<BuffState> _buffStateQueryDelegate = null!;
-	private ForEachWithEntity<Stats> _statsRecalcQueryDelegate = null!;
-	private ForEachWithEntity<Patrol, Position> _patrolArrivalQueryDelegate = null!;
-	private ForEachWithEntity<Follow, Position> _followQueryDelegate = null!;
-	private ForEachWithEntity<Attack> _attackCooldownQueryDelegate = null!;
-	private ForEachWithEntity<Health> _healthRegenQueryDelegate = null!;
-	private ForEachWithEntity<Mana, ManaRegen> _manaRegenQueryDelegate = null!;
-	private ForEachWithEntity<ProductionQueue> _prodQueryDelegate = null!;
-	private ForEachWithEntity<InterpolationTarget> _interpolationQueryDelegate = null!;
-	private ForEachWithEntity<SpellCooldowns> _spellCooldownQueryDelegate = null!;
-	private ForEachWithEntity<Cooldowns> _cooldownsQueryDelegate = null!;
-	private ForEachWithEntity<AutoCastState, Position, DefinitionId, Owner> _autoCastQueryDelegate = null!;
+	private EntityCallback<Buffs> _buffsQueryDelegate = null!;
+	private EntityCallback<BuffState> _buffStateQueryDelegate = null!;
+	private EntityCallback<Stats> _statsRecalcQueryDelegate = null!;
+	private EntityCallback<Patrol, Position> _patrolArrivalQueryDelegate = null!;
+	private EntityCallback<Follow, Position> _followQueryDelegate = null!;
+	private EntityCallback<Attack> _attackCooldownQueryDelegate = null!;
+	private EntityCallback<Health> _healthRegenQueryDelegate = null!;
+	private EntityCallback<Mana, ManaRegen> _manaRegenQueryDelegate = null!;
+	private EntityCallback<ProductionQueue> _prodQueryDelegate = null!;
+	private EntityCallback<InterpolationTarget> _interpolationQueryDelegate = null!;
+	private EntityCallback<SpellCooldowns> _spellCooldownQueryDelegate = null!;
+	private EntityCallback<Cooldowns> _cooldownsQueryDelegate = null!;
+	private EntityCallback<AutoCastState, Position, DefinitionId, Owner> _autoCastQueryDelegate = null!;
 
 	public Action<Vector3, Vector3> OnArrowProjectileRequested;
 	public Action<Vector3, Vector3, string?, Entity>? OnWeaponProjectileRequested;
@@ -753,8 +753,8 @@ public class SimulationService
 		_fDelta = fDelta;
 	}
 
-	public ForEachWithEntity<Position, MoveTo, MovementStats> EditorMovementQueryDelegate => _movementService.EditorMovementQueryDelegate;
-	public ForEachWithEntity<InterpolationTarget> InterpolationQueryDelegate => _interpolationQueryDelegate;
+	public EntityCallback<Position, MoveTo, MovementStats> EditorMovementQueryDelegate => _movementService.EditorMovementQueryDelegate;
+	public EntityCallback<InterpolationTarget> InterpolationQueryDelegate => _interpolationQueryDelegate;
 
 	public void SetRuntimeReferences(
 		List<Unit3D> allUnits,

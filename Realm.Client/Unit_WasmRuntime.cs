@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
@@ -25,7 +25,7 @@ namespace Realm.Client;
 public class Unit_WasmRuntime : IEcsEntityWrapper
 {
 	private readonly Entity _entity;
-	private readonly World _world;
+	private readonly EcsWorld _world;
 	private bool _hideHealthAndManaBars;
 
 	public bool HideHealthAndManaBars
@@ -34,7 +34,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		set => _hideHealthAndManaBars = value;
 	}
 
-	public Unit_WasmRuntime(Entity entity, World world)
+	public Unit_WasmRuntime(Entity entity, EcsWorld world)
 	{
 		_entity = entity;
 		_world = world;

@@ -1,21 +1,32 @@
-namespace Realm.Ecs.Components.Terrain
+using System.Runtime.InteropServices;
+
+namespace Realm.Ecs.Components.Terrain;
+
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct ShroudState
 {
-	/// <summary>
-	/// Represents the domain data for the strategy shroud grid (ExplorationShroud and VisionShroud).
-	/// </summary>
-	public struct ShroudState
+	public const byte ExplorationShroud = 2;
+	public const byte VisionShroud = 1;
+	public const byte Visible = 0;
+
+	public int GridHandle;
+	public int TypeStringId;
+
+	public ShroudState(byte[,] shroudGrid, string shroudType)
 	{
-		public const byte ExplorationShroud = 0;
-		public const byte VisionShroud = 1;
-		public const byte Visible = 2;
+		GridHandle = ColdPayloadRegistry<byte[,]>.Register(shroudGrid);
+		TypeStringId = StringRegistry.GetOrAdd(shroudType);
+	}
 
-		public byte[,] ShroudGrid;
-		public string ShroudType;
+	public byte[,] ShroudGrid
+	{
+		get => ColdPayloadRegistry<byte[,]>.Get(GridHandle);
+		set => GridHandle = ColdPayloadRegistry<byte[,]>.Register(value);
+	}
 
-		public ShroudState(byte[,] shroudGrid, string shroudType)
-		{
-			ShroudGrid = shroudGrid;
-			ShroudType = shroudType;
-		}
+	public string ShroudType
+	{
+		get => StringRegistry.Get(TypeStringId);
+		set => TypeStringId = StringRegistry.GetOrAdd(value);
 	}
 }

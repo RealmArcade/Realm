@@ -1,8 +1,10 @@
+using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Terrain
 {
 	/// <summary>
 	/// Stores procedural height-blending calibration parameters for a terrain texture swatch.
 	/// </summary>
+	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct TerrainSwatchConfig
 	{
 		public float HeightScale;

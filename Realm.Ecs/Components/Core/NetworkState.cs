@@ -1,8 +1,10 @@
+using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Core
 {
 	/// <summary>
 	///     Holds network synchronization, snapshot sequences, command sequencing, and latency tracking state.
 	/// </summary>
+	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct NetworkState
 	{
 		public int NextCommandId;

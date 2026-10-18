@@ -1,14 +1,17 @@
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+
 namespace Realm.Ecs.Components.Core;
 
-/// <summary>
-/// Stores all script-defined zones in the world entity.
-/// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct ScriptZonesState
 {
+	public int Handle;
+
 	public ScriptZonesState(List<ZoneBounds> zones)
 	{
-		Zones = zones;
+		Handle = ColdPayloadRegistry<List<ZoneBounds>>.Register(zones);
 	}
 
-	public List<ZoneBounds> Zones { get; }
+	public List<ZoneBounds> Zones => ColdPayloadRegistry<List<ZoneBounds>>.Get(Handle);
 }

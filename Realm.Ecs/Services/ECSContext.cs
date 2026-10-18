@@ -1,11 +1,10 @@
 using System.Collections.Generic;
-using Arch.Core;
 
 namespace Realm.Ecs.Services;
 
 public static class ECSContext
 {
-	public static World? World { get; private set; }
+	public static EcsWorld? World { get; private set; }
 	public static Entity WorldEntity { get; set; } = Entity.Null;
 	public static bool IsGameOver { get; set; }
 	public static string ActiveMapName { get; set; } = "";
@@ -30,7 +29,7 @@ public static class ECSContext
 			return;
 		}
 
-		World = World.Create();
+		World = new EcsWorld();
 		WorldEntity = Entity.Null;
 		IsGameOver = false;
 		ActiveMapName = "";
@@ -56,7 +55,6 @@ public static class ECSContext
 		TerrainNavMeshService = null;
 		PlayerResourceService = null;
 		EvaluationEngine = null;
-		World?.Dispose();
 		World = null;
 	}
 
