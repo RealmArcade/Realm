@@ -179,7 +179,13 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 					IntPtr sharedMemPtr = GetSharedMemoryPointer();
 					if (sharedMemPtr != IntPtr.Zero)
 					{
-						Realm.Client.Services.GameContext.World?.BindSharedMemory(sharedMemPtr);
+						Realm.Client.Services.GameContext.World?.BindSharedMemory(sharedMemPtr, _sharedMemoryOffset);
+
+						var setTableDirFn = _instance.GetFunction("set_realm_shared_memory_table_directory");
+						if (setTableDirFn != null)
+						{
+							ExecuteGuardedAction(() => setTableDirFn.Invoke(_sharedMemoryOffset + Realm.MapAPI.EcsSharedMemory.COMPONENT_ARRAY_BASE_OFFSETS_OFFSET), "set_realm_shared_memory_table_directory");
+						}
 					}
 				}
 			}

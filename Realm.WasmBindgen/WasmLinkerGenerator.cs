@@ -2970,37 +2970,37 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			}
 		}
 
-		var playerFields = new List<(string Name, string ArrayOffsetName, string ElemSizeName, int SubOffset, string TypeName)>
+		var playerFields = new List<(string Name, int CompId, string ArrayOffsetName, string ElemSizeName, int SubOffset, string TypeName)>
 		{
-			("Gold", "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 0, "int"),
-			("Wood", "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 4, "int"),
-			("Stone", "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 8, "int"),
-			("Ore", "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 12, "int"),
-			("IsActive", "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 0, "bool"),
-			("IsComputer", "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 1, "bool"),
-			("Team", "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 4, "int"),
-			("CurrentPopulation", "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 0, "int"),
-			("MaxPopulation", "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 4, "int"),
+			("Gold", 68, "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 0, "int"),
+			("Wood", 68, "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 4, "int"),
+			("Stone", 68, "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 8, "int"),
+			("Ore", 68, "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 12, "int"),
+			("IsActive", 31, "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 0, "bool"),
+			("IsComputer", 31, "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 1, "bool"),
+			("Team", 31, "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 4, "int"),
+			("CurrentPopulation", 24, "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 0, "int"),
+			("MaxPopulation", 24, "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 4, "int"),
 		};
 
-		var entityFields = new List<(string Name, string ArrayOffsetName, string ElemSizeName, int SubOffset, string TypeName)>
+		var entityFields = new List<(string Name, int CompId, string ArrayOffsetName, string ElemSizeName, int SubOffset, string TypeName)>
 		{
-			("Health", "HEALTH_OFFSET", "HEALTH_SIZE", 0, "float"),
-			("MaxHealth", "HEALTH_OFFSET", "HEALTH_SIZE", 4, "float"),
-			("Mana", "MANA_OFFSET", "MANA_SIZE", 0, "float"),
-			("MaxMana", "MANA_OFFSET", "MANA_SIZE", 4, "float"),
-			("ManaRegen", "MANA_OFFSET", "MANA_SIZE", 8, "float"),
-			("Damage", "ATTACK_OFFSET", "ATTACK_SIZE", 0, "float"),
-			("Range", "ATTACK_OFFSET", "ATTACK_SIZE", 4, "float"),
-			("AttackSpeed", "ATTACK_OFFSET", "ATTACK_SIZE", 8, "float"),
-			("Armor", "ARMOR_OFFSET", "ARMOR_SIZE", 0, "float"),
-			("Speed", "MOVEMENT_STATS_OFFSET", "MOVEMENT_STATS_SIZE", 0, "float"),
-			("Position", "POSITION_OFFSET", "POSITION_SIZE", 0, "Vector3"),
-			("Player", "UNIT_OWNER_PLAYER_OFFSET", "UNIT_OWNER_PLAYER_SIZE", 0, "int"),
-			("Level", "LEVEL_OFFSET", "LEVEL_SIZE", 0, "int"),
-			("Experience", "EXPERIENCE_OFFSET", "EXPERIENCE_SIZE", 0, "float"),
-			("Scale", "MODEL_SCALE_OFFSET", "MODEL_SCALE_SIZE", 0, "float"),
-			("RotationY", "ROTATION_Y_OFFSET", "ROTATION_Y_SIZE", 0, "float"),
+			("Health", 1, "HEALTH_OFFSET", "HEALTH_SIZE", 0, "float"),
+			("MaxHealth", 1, "HEALTH_OFFSET", "HEALTH_SIZE", 4, "float"),
+			("Mana", 3, "MANA_OFFSET", "MANA_SIZE", 0, "float"),
+			("MaxMana", 3, "MANA_OFFSET", "MANA_SIZE", 4, "float"),
+			("ManaRegen", 3, "MANA_OFFSET", "MANA_SIZE", 8, "float"),
+			("Damage", 43, "ATTACK_OFFSET", "ATTACK_SIZE", 0, "float"),
+			("Range", 43, "ATTACK_OFFSET", "ATTACK_SIZE", 4, "float"),
+			("AttackSpeed", 43, "ATTACK_OFFSET", "ATTACK_SIZE", 8, "float"),
+			("Armor", 48, "ARMOR_OFFSET", "ARMOR_SIZE", 0, "float"),
+			("Speed", 57, "MOVEMENT_STATS_OFFSET", "MOVEMENT_STATS_SIZE", 0, "float"),
+			("Position", 0, "POSITION_OFFSET", "POSITION_SIZE", 0, "Vector3"),
+			("Player", 37, "UNIT_OWNER_PLAYER_OFFSET", "UNIT_OWNER_PLAYER_SIZE", 0, "int"),
+			("Level", 105, "LEVEL_OFFSET", "LEVEL_SIZE", 0, "int"),
+			("Experience", 103, "EXPERIENCE_OFFSET", "EXPERIENCE_SIZE", 0, "float"),
+			("Scale", 107, "MODEL_SCALE_OFFSET", "MODEL_SCALE_SIZE", 0, "float"),
+			("RotationY", 111, "ROTATION_Y_OFFSET", "ROTATION_Y_SIZE", 0, "float"),
 		};
 
 		var offsetsBuilder = new StringBuilder();
@@ -3018,26 +3018,26 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		}
 
 		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("# Fields auto-discovered for PlayerId (name, array_offset, elem_size, sub_offset, type_name)");
+		offsetsBuilder.AppendLine("# Fields auto-discovered for PlayerId (name, comp_id, array_offset, elem_size, sub_offset, type_name)");
 		offsetsBuilder.AppendLine("PLAYER_FIELDS = [");
 		foreach (var f in playerFields)
 		{
-			offsetsBuilder.AppendLine($"    (\"{f.Name}\", {f.ArrayOffsetName}, {f.ElemSizeName}, {f.SubOffset}, \"{f.TypeName}\"),");
+			offsetsBuilder.AppendLine($"    (\"{f.Name}\", {f.CompId}, {f.ArrayOffsetName}, {f.ElemSizeName}, {f.SubOffset}, \"{f.TypeName}\"),");
 		}
 		offsetsBuilder.AppendLine("]");
 
 		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("# Fields auto-discovered for UnitId (name, array_offset, elem_size, sub_offset, type_name)");
+		offsetsBuilder.AppendLine("# Fields auto-discovered for UnitId (name, comp_id, array_offset, elem_size, sub_offset, type_name)");
 		offsetsBuilder.AppendLine("ENTITY_FIELDS = [");
 		foreach (var f in entityFields)
 		{
-			offsetsBuilder.AppendLine($"    (\"{f.Name}\", {f.ArrayOffsetName}, {f.ElemSizeName}, {f.SubOffset}, \"{f.TypeName}\"),");
+			offsetsBuilder.AppendLine($"    (\"{f.Name}\", {f.CompId}, {f.ArrayOffsetName}, {f.ElemSizeName}, {f.SubOffset}, \"{f.TypeName}\"),");
 		}
 		offsetsBuilder.AppendLine("]");
 
 		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("PLAYER_OFFSETS = {name: (array_offset, elem_size, sub_offset, type_name) for name, array_offset, elem_size, sub_offset, type_name in PLAYER_FIELDS}");
-		offsetsBuilder.AppendLine("ENTITY_OFFSETS = {name: (array_offset, elem_size, sub_offset, type_name) for name, array_offset, elem_size, sub_offset, type_name in ENTITY_FIELDS}");
+		offsetsBuilder.AppendLine("PLAYER_OFFSETS = {name: (comp_id, array_offset, elem_size, sub_offset, type_name) for name, comp_id, array_offset, elem_size, sub_offset, type_name in PLAYER_FIELDS}");
+		offsetsBuilder.AppendLine("ENTITY_OFFSETS = {name: (comp_id, array_offset, elem_size, sub_offset, type_name) for name, comp_id, array_offset, elem_size, sub_offset, type_name in ENTITY_FIELDS}");
 
 		string scriptContent = templateContent.Replace("# {{OFFSETS}}", offsetsBuilder.ToString().TrimEnd())
 			.Replace("{{OFFSETS}}", offsetsBuilder.ToString().TrimEnd());

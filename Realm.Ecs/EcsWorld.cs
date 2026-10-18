@@ -49,7 +49,7 @@ public class EcsWorld : IDisposable
 		_entityMasks.BindExternalMemory(pointer, lengthInBytes);
 	}
 
-	public unsafe void BindSharedMemory(IntPtr basePtr)
+	public unsafe void BindSharedMemory(IntPtr basePtr, int guestBaseOffset = 0)
 	{
 		if (basePtr == IntPtr.Zero) return;
 
@@ -59,20 +59,32 @@ public class EcsWorld : IDisposable
 		_alive.BindExternalMemory(basePtr + EcsSharedMemory.ALIVE_OFFSET, MAX_ENTITIES * sizeof(byte), MAX_ENTITIES);
 		_entityMasks.BindExternalMemory(basePtr + EcsSharedMemory.ENTITY_MASKS_OFFSET, MAX_ENTITIES * sizeof(ComponentMask), MAX_ENTITIES);
 
-		BindExternalComponentMemory<Position>(basePtr + EcsSharedMemory.POSITION_OFFSET, MAX_ENTITIES * sizeof(Position), MAX_ENTITIES);
-		BindExternalComponentMemory<Health>(basePtr + EcsSharedMemory.HEALTH_OFFSET, MAX_ENTITIES * sizeof(Health), MAX_ENTITIES);
-		BindExternalComponentMemory<Mana>(basePtr + EcsSharedMemory.MANA_OFFSET, MAX_ENTITIES * sizeof(Mana), MAX_ENTITIES);
-		BindExternalComponentMemory<Attack>(basePtr + EcsSharedMemory.ATTACK_OFFSET, MAX_ENTITIES * sizeof(Attack), MAX_ENTITIES);
-		BindExternalComponentMemory<Armor>(basePtr + EcsSharedMemory.ARMOR_OFFSET, MAX_ENTITIES * sizeof(Armor), MAX_ENTITIES);
-		BindExternalComponentMemory<MovementStats>(basePtr + EcsSharedMemory.MOVEMENT_STATS_OFFSET, MAX_ENTITIES * sizeof(MovementStats), MAX_ENTITIES);
-		BindExternalComponentMemory<UnitOwnerPlayer>(basePtr + EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET, MAX_ENTITIES * sizeof(UnitOwnerPlayer), MAX_ENTITIES);
-		BindExternalComponentMemory<Level>(basePtr + EcsSharedMemory.LEVEL_OFFSET, MAX_ENTITIES * sizeof(Level), MAX_ENTITIES);
-		BindExternalComponentMemory<Experience>(basePtr + EcsSharedMemory.EXPERIENCE_OFFSET, MAX_ENTITIES * sizeof(Experience), MAX_ENTITIES);
-		BindExternalComponentMemory<ModelScale>(basePtr + EcsSharedMemory.MODEL_SCALE_OFFSET, MAX_ENTITIES * sizeof(ModelScale), MAX_ENTITIES);
-		BindExternalComponentMemory<RotationY>(basePtr + EcsSharedMemory.ROTATION_Y_OFFSET, MAX_ENTITIES * sizeof(RotationY), MAX_ENTITIES);
-		BindExternalComponentMemory<PlayerResources>(basePtr + EcsSharedMemory.PLAYER_RESOURCES_OFFSET, MAX_PLAYERS * sizeof(PlayerResources), MAX_PLAYERS);
-		BindExternalComponentMemory<ScriptPlayer>(basePtr + EcsSharedMemory.SCRIPT_PLAYER_OFFSET, MAX_PLAYERS * sizeof(ScriptPlayer), MAX_PLAYERS);
-		BindExternalComponentMemory<PlayerPopulation>(basePtr + EcsSharedMemory.PLAYER_POPULATION_OFFSET, MAX_PLAYERS * sizeof(PlayerPopulation), MAX_PLAYERS);
+		int* tableDir = (int*)(basePtr + EcsSharedMemory.COMPONENT_ARRAY_BASE_OFFSETS_OFFSET);
+		int baseAddr = guestBaseOffset != 0 ? guestBaseOffset : (int)basePtr;
+
+		int currentOffset = EcsSharedMemory.COMPONENTS_START_OFFSET;
+		void BindComponent<T>(int componentId, int count) where T : unmanaged
+		{
+			int offset = currentOffset;
+			tableDir[componentId] = baseAddr + offset;
+			BindExternalComponentMemory<T>(basePtr + offset, count * sizeof(T), count);
+			currentOffset += count * sizeof(T);
+		}
+
+		BindComponent<Position>(ComponentIds.Position, MAX_ENTITIES);
+		BindComponent<Health>(ComponentIds.Health, MAX_ENTITIES);
+		BindComponent<Mana>(ComponentIds.Mana, MAX_ENTITIES);
+		BindComponent<Attack>(ComponentIds.Attack, MAX_ENTITIES);
+		BindComponent<Armor>(ComponentIds.Armor, MAX_ENTITIES);
+		BindComponent<MovementStats>(ComponentIds.MovementStats, MAX_ENTITIES);
+		BindComponent<UnitOwnerPlayer>(ComponentIds.UnitOwnerPlayer, MAX_ENTITIES);
+		BindComponent<Level>(ComponentIds.Level, MAX_ENTITIES);
+		BindComponent<Experience>(ComponentIds.Experience, MAX_ENTITIES);
+		BindComponent<ModelScale>(ComponentIds.ModelScale, MAX_ENTITIES);
+		BindComponent<RotationY>(ComponentIds.RotationY, MAX_ENTITIES);
+		BindComponent<PlayerResources>(ComponentIds.PlayerResources, MAX_PLAYERS);
+		BindComponent<ScriptPlayer>(ComponentIds.ScriptPlayer, MAX_PLAYERS);
+		BindComponent<PlayerPopulation>(ComponentIds.PlayerPopulation, MAX_PLAYERS);
 	}
 
 	public Span<byte> GetAliveSpan() => _alive.AsSpan();
@@ -865,29 +877,51 @@ public class EcsWorld : IDisposable
 		}
 		else
 		{
-			ReadOnlySpan<ulong> bitsetSrc = MemoryMarshal.Cast<byte, ulong>(sharedSrc.Slice(EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET, BITSET_CHUNKS * sizeof(ulong)));
-			bitsetSrc.CopyTo(_activeEntityBitset);
+			fixed (byte* srcPtr = sharedSrc)
+			{
+				ReadOnlySpan<ulong> bitsetSrc = MemoryMarshal.Cast<byte, ulong>(sharedSrc.Slice(EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET, BITSET_CHUNKS * sizeof(ulong)));
+				bitsetSrc.CopyTo(_activeEntityBitset);
 
-			ReadOnlySpan<byte> aliveSrc = sharedSrc.Slice(EcsSharedMemory.ALIVE_OFFSET, MAX_ENTITIES);
-			aliveSrc.CopyTo(_alive.AsSpan());
+				ReadOnlySpan<byte> aliveSrc = sharedSrc.Slice(EcsSharedMemory.ALIVE_OFFSET, MAX_ENTITIES);
+				aliveSrc.CopyTo(_alive.AsSpan());
 
-			ReadOnlySpan<ComponentMask> masksSrc = MemoryMarshal.Cast<byte, ComponentMask>(sharedSrc.Slice(EcsSharedMemory.ENTITY_MASKS_OFFSET, MAX_ENTITIES * sizeof(ComponentMask)));
-			masksSrc.CopyTo(_entityMasks.AsSpan());
+				ReadOnlySpan<ComponentMask> masksSrc = MemoryMarshal.Cast<byte, ComponentMask>(sharedSrc.Slice(EcsSharedMemory.ENTITY_MASKS_OFFSET, MAX_ENTITIES * sizeof(ComponentMask)));
+				masksSrc.CopyTo(_entityMasks.AsSpan());
 
-			CopySpanToBuffer<Position>(sharedSrc, EcsSharedMemory.POSITION_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<Health>(sharedSrc, EcsSharedMemory.HEALTH_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<Mana>(sharedSrc, EcsSharedMemory.MANA_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<Attack>(sharedSrc, EcsSharedMemory.ATTACK_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<Armor>(sharedSrc, EcsSharedMemory.ARMOR_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<MovementStats>(sharedSrc, EcsSharedMemory.MOVEMENT_STATS_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<UnitOwnerPlayer>(sharedSrc, EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<Level>(sharedSrc, EcsSharedMemory.LEVEL_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<Experience>(sharedSrc, EcsSharedMemory.EXPERIENCE_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<ModelScale>(sharedSrc, EcsSharedMemory.MODEL_SCALE_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<RotationY>(sharedSrc, EcsSharedMemory.ROTATION_Y_OFFSET, MAX_ENTITIES);
-			CopySpanToBuffer<PlayerResources>(sharedSrc, EcsSharedMemory.PLAYER_RESOURCES_OFFSET, MAX_PLAYERS);
-			CopySpanToBuffer<ScriptPlayer>(sharedSrc, EcsSharedMemory.SCRIPT_PLAYER_OFFSET, MAX_PLAYERS);
-			CopySpanToBuffer<PlayerPopulation>(sharedSrc, EcsSharedMemory.PLAYER_POPULATION_OFFSET, MAX_PLAYERS);
+				int* tableDir = (int*)(srcPtr + EcsSharedMemory.COMPONENT_ARRAY_BASE_OFFSETS_OFFSET);
+				int posBase = tableDir[ComponentIds.Position];
+				int baseShift = posBase >= EcsSharedMemory.COMPONENTS_START_OFFSET ? posBase - EcsSharedMemory.COMPONENTS_START_OFFSET : 0;
+				int srcLen = sharedSrc.Length;
+
+				RestoreComponentFromTable<Position>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Position, MAX_ENTITIES);
+				RestoreComponentFromTable<Health>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Health, MAX_ENTITIES);
+				RestoreComponentFromTable<Mana>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Mana, MAX_ENTITIES);
+				RestoreComponentFromTable<Attack>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Attack, MAX_ENTITIES);
+				RestoreComponentFromTable<Armor>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Armor, MAX_ENTITIES);
+				RestoreComponentFromTable<MovementStats>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.MovementStats, MAX_ENTITIES);
+				RestoreComponentFromTable<UnitOwnerPlayer>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.UnitOwnerPlayer, MAX_ENTITIES);
+				RestoreComponentFromTable<Level>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Level, MAX_ENTITIES);
+				RestoreComponentFromTable<Experience>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.Experience, MAX_ENTITIES);
+				RestoreComponentFromTable<ModelScale>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.ModelScale, MAX_ENTITIES);
+				RestoreComponentFromTable<RotationY>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.RotationY, MAX_ENTITIES);
+				RestoreComponentFromTable<PlayerResources>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.PlayerResources, MAX_PLAYERS);
+				RestoreComponentFromTable<ScriptPlayer>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.ScriptPlayer, MAX_PLAYERS);
+				RestoreComponentFromTable<PlayerPopulation>(srcPtr, tableDir, baseShift, srcLen, ComponentIds.PlayerPopulation, MAX_PLAYERS);
+			}
+		}
+	}
+
+	private unsafe void RestoreComponentFromTable<T>(byte* srcPtr, int* tableDir, int baseShift, int srcLen, int componentId, int count) where T : unmanaged
+	{
+		int rawBase = tableDir[componentId];
+		if (rawBase == 0) return;
+		int compOffset = rawBase - baseShift;
+		if (compOffset >= 0 && compOffset + (count * sizeof(T)) <= srcLen)
+		{
+			int cId = ComponentType<T>.Id;
+			var buffer = GetOrCreateBuffer<T>(cId);
+			int elements = Math.Min(buffer.Capacity, count);
+			new ReadOnlySpan<T>(srcPtr + compOffset, elements).CopyTo(buffer.AsSpan().Slice(0, elements));
 		}
 	}
 

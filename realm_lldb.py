@@ -5,24 +5,29 @@ import struct
 MAX_PLAYERS = 25
 MAX_ENTITIES = 8192
 BITSET_CHUNKS = 128
-ACTIVE_ENTITY_BITSET_OFFSET = 0
-ALIVE_OFFSET = 1024
-ENTITY_MASKS_OFFSET = 9216
-POSITION_OFFSET = 271360
-HEALTH_OFFSET = 369664
-MANA_OFFSET = 533504
-ATTACK_OFFSET = 631808
-ARMOR_OFFSET = 1221632
-MOVEMENT_STATS_OFFSET = 1319936
-UNIT_OWNER_PLAYER_OFFSET = 1483776
-LEVEL_OFFSET = 1516544
-EXPERIENCE_OFFSET = 1549312
-MODEL_SCALE_OFFSET = 1582080
-ROTATION_Y_OFFSET = 1614848
-PLAYER_RESOURCES_OFFSET = 1647616
-SCRIPT_PLAYER_OFFSET = 1648816
-PLAYER_POPULATION_OFFSET = 1649516
-TOTAL_SIZE_BYTES = 1649716
+MAX_COMPONENT_TYPES = 256
+COMPONENT_ARRAY_BASE_OFFSETS_OFFSET = 0
+COMPONENT_STRIDES_OFFSET = 1024
+HEADER_SIZE = 2048
+ACTIVE_ENTITY_BITSET_OFFSET = 2048
+ALIVE_OFFSET = 3072
+ENTITY_MASKS_OFFSET = 11264
+COMPONENTS_START_OFFSET = 273408
+POSITION_OFFSET = 273408
+HEALTH_OFFSET = 371712
+MANA_OFFSET = 535552
+ATTACK_OFFSET = 633856
+ARMOR_OFFSET = 1223680
+MOVEMENT_STATS_OFFSET = 1321984
+UNIT_OWNER_PLAYER_OFFSET = 1485824
+LEVEL_OFFSET = 1518592
+EXPERIENCE_OFFSET = 1551360
+MODEL_SCALE_OFFSET = 1584128
+ROTATION_Y_OFFSET = 1616896
+PLAYER_RESOURCES_OFFSET = 1649664
+SCRIPT_PLAYER_OFFSET = 1650864
+PLAYER_POPULATION_OFFSET = 1651564
+TOTAL_SIZE_BYTES = 4194304
 
 # Element sizes auto-calculated from struct layouts
 POSITION_SIZE = 12
@@ -40,41 +45,41 @@ PLAYER_RESOURCES_SIZE = 48
 SCRIPT_PLAYER_SIZE = 28
 PLAYER_POPULATION_SIZE = 8
 
-# Fields auto-discovered for PlayerId (name, array_offset, elem_size, sub_offset, type_name)
+# Fields auto-discovered for PlayerId (name, comp_id, array_offset, elem_size, sub_offset, type_name)
 PLAYER_FIELDS = [
-    ("Gold", PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 0, "int"),
-    ("Wood", PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 4, "int"),
-    ("Stone", PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 8, "int"),
-    ("Ore", PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 12, "int"),
-    ("IsActive", SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 0, "bool"),
-    ("IsComputer", SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 1, "bool"),
-    ("Team", SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 4, "int"),
-    ("CurrentPopulation", PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 0, "int"),
-    ("MaxPopulation", PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 4, "int"),
+    ("Gold", 68, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 0, "int"),
+    ("Wood", 68, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 4, "int"),
+    ("Stone", 68, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 8, "int"),
+    ("Ore", 68, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 12, "int"),
+    ("IsActive", 31, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 0, "bool"),
+    ("IsComputer", 31, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 1, "bool"),
+    ("Team", 31, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 4, "int"),
+    ("CurrentPopulation", 24, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 0, "int"),
+    ("MaxPopulation", 24, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 4, "int"),
 ]
 
-# Fields auto-discovered for UnitId (name, array_offset, elem_size, sub_offset, type_name)
+# Fields auto-discovered for UnitId (name, comp_id, array_offset, elem_size, sub_offset, type_name)
 ENTITY_FIELDS = [
-    ("Health", HEALTH_OFFSET, HEALTH_SIZE, 0, "float"),
-    ("MaxHealth", HEALTH_OFFSET, HEALTH_SIZE, 4, "float"),
-    ("Mana", MANA_OFFSET, MANA_SIZE, 0, "float"),
-    ("MaxMana", MANA_OFFSET, MANA_SIZE, 4, "float"),
-    ("ManaRegen", MANA_OFFSET, MANA_SIZE, 8, "float"),
-    ("Damage", ATTACK_OFFSET, ATTACK_SIZE, 0, "float"),
-    ("Range", ATTACK_OFFSET, ATTACK_SIZE, 4, "float"),
-    ("AttackSpeed", ATTACK_OFFSET, ATTACK_SIZE, 8, "float"),
-    ("Armor", ARMOR_OFFSET, ARMOR_SIZE, 0, "float"),
-    ("Speed", MOVEMENT_STATS_OFFSET, MOVEMENT_STATS_SIZE, 0, "float"),
-    ("Position", POSITION_OFFSET, POSITION_SIZE, 0, "Vector3"),
-    ("Player", UNIT_OWNER_PLAYER_OFFSET, UNIT_OWNER_PLAYER_SIZE, 0, "int"),
-    ("Level", LEVEL_OFFSET, LEVEL_SIZE, 0, "int"),
-    ("Experience", EXPERIENCE_OFFSET, EXPERIENCE_SIZE, 0, "float"),
-    ("Scale", MODEL_SCALE_OFFSET, MODEL_SCALE_SIZE, 0, "float"),
-    ("RotationY", ROTATION_Y_OFFSET, ROTATION_Y_SIZE, 0, "float"),
+    ("Health", 1, HEALTH_OFFSET, HEALTH_SIZE, 0, "float"),
+    ("MaxHealth", 1, HEALTH_OFFSET, HEALTH_SIZE, 4, "float"),
+    ("Mana", 3, MANA_OFFSET, MANA_SIZE, 0, "float"),
+    ("MaxMana", 3, MANA_OFFSET, MANA_SIZE, 4, "float"),
+    ("ManaRegen", 3, MANA_OFFSET, MANA_SIZE, 8, "float"),
+    ("Damage", 43, ATTACK_OFFSET, ATTACK_SIZE, 0, "float"),
+    ("Range", 43, ATTACK_OFFSET, ATTACK_SIZE, 4, "float"),
+    ("AttackSpeed", 43, ATTACK_OFFSET, ATTACK_SIZE, 8, "float"),
+    ("Armor", 48, ARMOR_OFFSET, ARMOR_SIZE, 0, "float"),
+    ("Speed", 57, MOVEMENT_STATS_OFFSET, MOVEMENT_STATS_SIZE, 0, "float"),
+    ("Position", 0, POSITION_OFFSET, POSITION_SIZE, 0, "Vector3"),
+    ("Player", 37, UNIT_OWNER_PLAYER_OFFSET, UNIT_OWNER_PLAYER_SIZE, 0, "int"),
+    ("Level", 105, LEVEL_OFFSET, LEVEL_SIZE, 0, "int"),
+    ("Experience", 103, EXPERIENCE_OFFSET, EXPERIENCE_SIZE, 0, "float"),
+    ("Scale", 107, MODEL_SCALE_OFFSET, MODEL_SCALE_SIZE, 0, "float"),
+    ("RotationY", 111, ROTATION_Y_OFFSET, ROTATION_Y_SIZE, 0, "float"),
 ]
 
-PLAYER_OFFSETS = {name: (array_offset, elem_size, sub_offset, type_name) for name, array_offset, elem_size, sub_offset, type_name in PLAYER_FIELDS}
-ENTITY_OFFSETS = {name: (array_offset, elem_size, sub_offset, type_name) for name, array_offset, elem_size, sub_offset, type_name in ENTITY_FIELDS}
+PLAYER_OFFSETS = {name: (comp_id, array_offset, elem_size, sub_offset, type_name) for name, comp_id, array_offset, elem_size, sub_offset, type_name in PLAYER_FIELDS}
+ENTITY_OFFSETS = {name: (comp_id, array_offset, elem_size, sub_offset, type_name) for name, comp_id, array_offset, elem_size, sub_offset, type_name in ENTITY_FIELDS}
 
 _CACHED_BASE_ADDR = 0
 
@@ -164,6 +169,20 @@ def get_shared_memory_base(target):
 
     return raw_base
 
+def resolve_array_base(process, base_addr, comp_id, default_offset):
+    if base_addr == 0:
+        return 0
+    if comp_id >= 0:
+        err = lldb.SBError()
+        val_bytes = process.ReadMemory(base_addr + (comp_id * 4), 4, err)
+        if err.Success() and len(val_bytes) == 4:
+            val = struct.unpack_from("<I", val_bytes, 0)[0]
+            if val != 0:
+                if val >= base_addr:
+                    return val
+                return base_addr + val
+    return base_addr + default_offset
+
 def extract_id_value(valobj):
     for candidate in ["Value", "value", "<Value>k__BackingField", "_value"]:
         child = valobj.GetChildMemberWithName(candidate)
@@ -185,8 +204,8 @@ class PlayerIdSyntheticProvider:
         return len(PLAYER_FIELDS) > 0
 
     def get_child_index(self, name):
-        for idx, (f_name, _, _, _, _) in enumerate(PLAYER_FIELDS):
-            if f_name == name:
+        for idx, entry in enumerate(PLAYER_FIELDS):
+            if entry[0] == name:
                 return idx
         return -1
 
@@ -202,8 +221,16 @@ class PlayerIdSyntheticProvider:
         if player_id < 0 or player_id >= MAX_PLAYERS:
             return None
 
-        f_name, array_offset, elem_size, sub_offset, f_type_name = PLAYER_FIELDS[index]
-        slot_addr = base_addr + array_offset + (player_id * elem_size) + sub_offset
+        process = target.GetProcess()
+        entry = PLAYER_FIELDS[index]
+        if len(entry) == 6:
+            f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
+            arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
+        else:
+            f_name, array_offset, elem_size, sub_offset, f_type_name = entry
+            arr_base = base_addr + array_offset
+
+        slot_addr = arr_base + (player_id * elem_size) + sub_offset
         f_type = target.FindFirstType(f_type_name)
         if not f_type.IsValid():
             if f_type_name == "float":
@@ -229,8 +256,8 @@ class UnitIdSyntheticProvider:
         return len(ENTITY_FIELDS) > 0
 
     def get_child_index(self, name):
-        for idx, (f_name, _, _, _, _) in enumerate(ENTITY_FIELDS):
-            if f_name == name:
+        for idx, entry in enumerate(ENTITY_FIELDS):
+            if entry[0] == name:
                 return idx
         return -1
 
@@ -246,8 +273,16 @@ class UnitIdSyntheticProvider:
         if unit_id < 0 or unit_id >= MAX_ENTITIES:
             return None
 
-        f_name, array_offset, elem_size, sub_offset, f_type_name = ENTITY_FIELDS[index]
-        slot_addr = base_addr + array_offset + (unit_id * elem_size) + sub_offset
+        process = target.GetProcess()
+        entry = ENTITY_FIELDS[index]
+        if len(entry) == 6:
+            f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
+            arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
+        else:
+            f_name, array_offset, elem_size, sub_offset, f_type_name = entry
+            arr_base = base_addr + array_offset
+
+        slot_addr = arr_base + (unit_id * elem_size) + sub_offset
         f_type = target.FindFirstType(f_type_name)
         if not f_type.IsValid() and f_type_name == "Vector3":
             f_type = target.FindFirstType("System.Numerics.Vector3")
@@ -274,7 +309,8 @@ def PlayerIdSummaryProvider(valobj, internal_dict):
     error = lldb.SBError()
     process = target.GetProcess()
 
-    res_addr = base_addr + PLAYER_RESOURCES_OFFSET + (player_id * PLAYER_RESOURCES_SIZE)
+    res_base = resolve_array_base(process, base_addr, 68, PLAYER_RESOURCES_OFFSET)
+    res_addr = res_base + (player_id * PLAYER_RESOURCES_SIZE)
     res_bytes = process.ReadMemory(res_addr, 16, error)
     gold = 0
     wood = 0
@@ -282,7 +318,8 @@ def PlayerIdSummaryProvider(valobj, internal_dict):
         gold = struct.unpack_from("<i", res_bytes, 0)[0]
         wood = struct.unpack_from("<i", res_bytes, 4)[0]
 
-    pop_addr = base_addr + PLAYER_POPULATION_OFFSET + (player_id * PLAYER_POPULATION_SIZE)
+    pop_base = resolve_array_base(process, base_addr, 24, PLAYER_POPULATION_OFFSET)
+    pop_addr = pop_base + (player_id * PLAYER_POPULATION_SIZE)
     pop_bytes = process.ReadMemory(pop_addr, 8, error)
     pop = 0
     max_pop = 0
@@ -305,7 +342,8 @@ def UnitIdSummaryProvider(valobj, internal_dict):
     error = lldb.SBError()
     process = target.GetProcess()
 
-    hp_addr = base_addr + HEALTH_OFFSET + (unit_id * HEALTH_SIZE)
+    hp_base = resolve_array_base(process, base_addr, 1, HEALTH_OFFSET)
+    hp_addr = hp_base + (unit_id * HEALTH_SIZE)
     hp_bytes = process.ReadMemory(hp_addr, 8, error)
     hp = 0.0
     max_hp = 0.0
@@ -313,7 +351,8 @@ def UnitIdSummaryProvider(valobj, internal_dict):
         hp = struct.unpack_from("<f", hp_bytes, 0)[0]
         max_hp = struct.unpack_from("<f", hp_bytes, 4)[0]
 
-    pos_addr = base_addr + POSITION_OFFSET + (unit_id * POSITION_SIZE)
+    pos_base = resolve_array_base(process, base_addr, 0, POSITION_OFFSET)
+    pos_addr = pos_base + (unit_id * POSITION_SIZE)
     pos_bytes = process.ReadMemory(pos_addr, 12, error)
     pos_x = 0.0
     pos_z = 0.0

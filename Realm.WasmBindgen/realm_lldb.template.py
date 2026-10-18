@@ -91,6 +91,20 @@ def get_shared_memory_base(target):
 
     return raw_base
 
+def resolve_array_base(process, base_addr, comp_id, default_offset):
+    if base_addr == 0:
+        return 0
+    if comp_id >= 0:
+        err = lldb.SBError()
+        val_bytes = process.ReadMemory(base_addr + (comp_id * 4), 4, err)
+        if err.Success() and len(val_bytes) == 4:
+            val = struct.unpack_from("<I", val_bytes, 0)[0]
+            if val != 0:
+                if val >= base_addr:
+                    return val
+                return base_addr + val
+    return base_addr + default_offset
+
 def extract_id_value(valobj):
     for candidate in ["Value", "value", "<Value>k__BackingField", "_value"]:
         child = valobj.GetChildMemberWithName(candidate)
@@ -112,8 +126,8 @@ class PlayerIdSyntheticProvider:
         return len(PLAYER_FIELDS) > 0
 
     def get_child_index(self, name):
-        for idx, (f_name, _, _, _, _) in enumerate(PLAYER_FIELDS):
-            if f_name == name:
+        for idx, entry in enumerate(PLAYER_FIELDS):
+            if entry[0] == name:
                 return idx
         return -1
 
@@ -129,8 +143,16 @@ class PlayerIdSyntheticProvider:
         if player_id < 0 or player_id >= MAX_PLAYERS:
             return None
 
-        f_name, array_offset, elem_size, sub_offset, f_type_name = PLAYER_FIELDS[index]
-        slot_addr = base_addr + array_offset + (player_id * elem_size) + sub_offset
+        process = target.GetProcess()
+        entry = PLAYER_FIELDS[index]
+        if len(entry) == 6:
+            f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
+            arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
+        else:
+            f_name, array_offset, elem_size, sub_offset, f_type_name = entry
+            arr_base = base_addr + array_offset
+
+        slot_addr = arr_base + (player_id * elem_size) + sub_offset
         f_type = target.FindFirstType(f_type_name)
         if not f_type.IsValid():
             if f_type_name == "float":
@@ -156,8 +178,8 @@ class UnitIdSyntheticProvider:
         return len(ENTITY_FIELDS) > 0
 
     def get_child_index(self, name):
-        for idx, (f_name, _, _, _, _) in enumerate(ENTITY_FIELDS):
-            if f_name == name:
+        for idx, entry in enumerate(ENTITY_FIELDS):
+            if entry[0] == name:
                 return idx
         return -1
 
@@ -173,8 +195,16 @@ class UnitIdSyntheticProvider:
         if unit_id < 0 or unit_id >= MAX_ENTITIES:
             return None
 
-        f_name, array_offset, elem_size, sub_offset, f_type_name = ENTITY_FIELDS[index]
-        slot_addr = base_addr + array_offset + (unit_id * elem_size) + sub_offset
+        process = target.GetProcess()
+        entry = ENTITY_FIELDS[index]
+        if len(entry) == 6:
+            f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
+            arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
+        else:
+            f_name, array_offset, elem_size, sub_offset, f_type_name = entry
+            arr_base = base_addr + array_offset
+
+        slot_addr = arr_base + (unit_id * elem_size) + sub_offset
         f_type = target.FindFirstType(f_type_name)
         if not f_type.IsValid() and f_type_name == "Vector3":
             f_type = target.FindFirstType("System.Numerics.Vector3")
@@ -201,7 +231,8 @@ def PlayerIdSummaryProvider(valobj, internal_dict):
     error = lldb.SBError()
     process = target.GetProcess()
 
-    res_addr = base_addr + PLAYER_RESOURCES_OFFSET + (player_id * PLAYER_RESOURCES_SIZE)
+    res_base = resolve_array_base(process, base_addr, 68, PLAYER_RESOURCES_OFFSET)
+    res_addr = res_base + (player_id * PLAYER_RESOURCES_SIZE)
     res_bytes = process.ReadMemory(res_addr, 16, error)
     gold = 0
     wood = 0
@@ -209,7 +240,8 @@ def PlayerIdSummaryProvider(valobj, internal_dict):
         gold = struct.unpack_from("<i", res_bytes, 0)[0]
         wood = struct.unpack_from("<i", res_bytes, 4)[0]
 
-    pop_addr = base_addr + PLAYER_POPULATION_OFFSET + (player_id * PLAYER_POPULATION_SIZE)
+    pop_base = resolve_array_base(process, base_addr, 24, PLAYER_POPULATION_OFFSET)
+    pop_addr = pop_base + (player_id * PLAYER_POPULATION_SIZE)
     pop_bytes = process.ReadMemory(pop_addr, 8, error)
     pop = 0
     max_pop = 0
@@ -232,7 +264,8 @@ def UnitIdSummaryProvider(valobj, internal_dict):
     error = lldb.SBError()
     process = target.GetProcess()
 
-    hp_addr = base_addr + HEALTH_OFFSET + (unit_id * HEALTH_SIZE)
+    hp_base = resolve_array_base(process, base_addr, 1, HEALTH_OFFSET)
+    hp_addr = hp_base + (unit_id * HEALTH_SIZE)
     hp_bytes = process.ReadMemory(hp_addr, 8, error)
     hp = 0.0
     max_hp = 0.0
@@ -240,7 +273,8 @@ def UnitIdSummaryProvider(valobj, internal_dict):
         hp = struct.unpack_from("<f", hp_bytes, 0)[0]
         max_hp = struct.unpack_from("<f", hp_bytes, 4)[0]
 
-    pos_addr = base_addr + POSITION_OFFSET + (unit_id * POSITION_SIZE)
+    pos_base = resolve_array_base(process, base_addr, 0, POSITION_OFFSET)
+    pos_addr = pos_base + (unit_id * POSITION_SIZE)
     pos_bytes = process.ReadMemory(pos_addr, 12, error)
     pos_x = 0.0
     pos_z = 0.0

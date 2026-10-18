@@ -443,6 +443,18 @@
         <member name="F:Realm.MapAPI.EcsSharedMemory.BITSET_CHUNKS">
             <summary>The number of 64-bit words required to represent active entity bitsets for all entities.</summary>
         </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.MAX_COMPONENT_TYPES">
+            <summary>The maximum number of distinct component types supported in the table directory.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.COMPONENT_ARRAY_BASE_OFFSETS_OFFSET">
+            <summary>Offset to the component array base offsets directory table.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.COMPONENT_STRIDES_OFFSET">
+            <summary>Offset to the component strides directory table.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.HEADER_SIZE">
+            <summary>Total byte size reserved for the shared memory header.</summary>
+        </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET">
             <summary>Offset to the active entity bitset word array.</summary>
         </member>
@@ -452,47 +464,50 @@
         <member name="F:Realm.MapAPI.EcsSharedMemory.ENTITY_MASKS_OFFSET">
             <summary>Offset to the entity component masks array.</summary>
         </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.COMPONENTS_START_OFFSET">
+            <summary>Offset at which contiguous component arrays begin.</summary>
+        </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.POSITION_OFFSET">
-            <summary>Offset to the entity positions array.</summary>
+            <summary>Default offset to the entity positions array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.HEALTH_OFFSET">
-            <summary>Offset to the entity health components array.</summary>
+            <summary>Default offset to the entity health components array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.MANA_OFFSET">
-            <summary>Offset to the entity mana components array.</summary>
+            <summary>Default offset to the entity mana components array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.ATTACK_OFFSET">
-            <summary>Offset to the entity attack components array.</summary>
+            <summary>Default offset to the entity attack components array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.ARMOR_OFFSET">
-            <summary>Offset to the entity armor components array.</summary>
+            <summary>Default offset to the entity armor components array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.MOVEMENT_STATS_OFFSET">
-            <summary>Offset to the entity movement stats array.</summary>
+            <summary>Default offset to the entity movement stats array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET">
-            <summary>Offset to the entity unit owner player array.</summary>
+            <summary>Default offset to the entity unit owner player array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.LEVEL_OFFSET">
-            <summary>Offset to the entity level array.</summary>
+            <summary>Default offset to the entity level array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.EXPERIENCE_OFFSET">
-            <summary>Offset to the entity experience array.</summary>
+            <summary>Default offset to the entity experience array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.MODEL_SCALE_OFFSET">
-            <summary>Offset to the entity model scale array.</summary>
+            <summary>Default offset to the entity model scale array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.ROTATION_Y_OFFSET">
-            <summary>Offset to the entity rotation Y-axis array.</summary>
+            <summary>Default offset to the entity rotation Y-axis array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.PLAYER_RESOURCES_OFFSET">
-            <summary>Offset to the player resources array.</summary>
+            <summary>Default offset to the player resources array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.SCRIPT_PLAYER_OFFSET">
-            <summary>Offset to the script player array.</summary>
+            <summary>Default offset to the script player array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.PLAYER_POPULATION_OFFSET">
-            <summary>Offset to the player population array.</summary>
+            <summary>Default offset to the player population array.</summary>
         </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.TOTAL_SIZE_BYTES">
             <summary>Total byte capacity of the contiguous shared memory block.</summary>
@@ -501,6 +516,9 @@
             <summary>
             The global static base address pointer for shared memory linear layout visible to native debuggers.
             </summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.ComponentArrayBaseOffsets">
+            <summary>Gets the raw pointer to the component array base offsets directory table.</summary>
         </member>
         <member name="P:Realm.MapAPI.EcsSharedMemory.ActiveEntityBitset">
             <summary>Gets the raw pointer to the active entity bitset words array.</summary>
@@ -553,11 +571,24 @@
         <member name="P:Realm.MapAPI.EcsSharedMemory.PlayerPopulation">
             <summary>Gets the raw pointer to the player population limits array.</summary>
         </member>
+        <member name="M:Realm.MapAPI.EcsSharedMemory.GetArrayBasePointer(System.Int32)">
+            <summary>
+            Resolves the base pointer for a component array from the runtime table directory.
+            </summary>
+            <param name="componentId">The component type identifier.</param>
+            <returns>A pointer to the base of the component array.</returns>
+        </member>
         <member name="M:Realm.MapAPI.EcsSharedMemory.GetRealmSharedMemoryBase">
             <summary>
             Native entry point exported to WebAssembly host to retrieve the linear memory offset of the shared memory region.
             </summary>
             <returns>The 32-bit guest linear memory address offset.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.EcsSharedMemory.SetRealmSharedMemoryTableDirectory(System.Int32)">
+            <summary>
+            Native entry point exported to WebAssembly host to pass the component array base offsets runtime table directory.
+            </summary>
+            <param name="tableDirectoryGuestOffset">The 32-bit linear memory address of the table directory.</param>
         </member>
         <member name="M:Realm.MapAPI.EcsSharedMemory.GetActiveEntityBitset">
             <summary>
