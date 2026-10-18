@@ -1,28 +1,68 @@
-namespace Realm.Ecs.Components.Core
-{
-	/// <summary>
-	/// Holds the current input selection index and targeting/placement mode states.
-	/// </summary>
-	public struct InputState
-	{
-		public int CycleSelectionIndex;
-		public string? ActiveSpellTargeting;
-		public string? ActiveCommandTargeting;
-		public string? ActiveBuildingPlacementType;
-		public bool ActivePingMode;
+using System.Runtime.InteropServices;
 
-		public InputState(
-			int cycleSelectionIndex,
-			string? activeSpellTargeting,
-			string? activeCommandTargeting,
-			string? activeBuildingPlacementType,
-			bool activePingMode)
-		{
-			CycleSelectionIndex = cycleSelectionIndex;
-			ActiveSpellTargeting = activeSpellTargeting;
-			ActiveCommandTargeting = activeCommandTargeting;
-			ActiveBuildingPlacementType = activeBuildingPlacementType;
-			ActivePingMode = activePingMode;
-		}
+namespace Realm.Ecs.Components.Core;
+
+/// <summary>
+/// Holds active user input targeting, command modes, and selection states.
+/// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct InputState
+{
+	public int SpellStringId;
+	public int CommandStringId;
+	public int BuildingStringId;
+	public int CycleSelectionIndex;
+	public byte ActivePingModeByte;
+
+	public bool ActivePingMode
+	{
+		get => ActivePingModeByte != 0;
+		set => ActivePingModeByte = value ? (byte)1 : (byte)0;
+	}
+
+	public InputState(
+		string? activeSpellTargeting,
+		string? activeCommandTargeting,
+		string? activeBuildingPlacementType,
+		bool activePingMode = false,
+		int cycleSelectionIndex = 0)
+	{
+		SpellStringId = StringRegistry.GetOrAdd(activeSpellTargeting);
+		CommandStringId = StringRegistry.GetOrAdd(activeCommandTargeting);
+		BuildingStringId = StringRegistry.GetOrAdd(activeBuildingPlacementType);
+		ActivePingModeByte = activePingMode ? (byte)1 : (byte)0;
+		CycleSelectionIndex = cycleSelectionIndex;
+	}
+
+	public InputState(
+		int spellStringId,
+		string? activeSpellTargeting,
+		string? activeCommandTargeting,
+		string? activeBuildingPlacementType,
+		bool activePingMode)
+	{
+		SpellStringId = spellStringId != 0 ? spellStringId : StringRegistry.GetOrAdd(activeSpellTargeting);
+		CommandStringId = StringRegistry.GetOrAdd(activeCommandTargeting);
+		BuildingStringId = StringRegistry.GetOrAdd(activeBuildingPlacementType);
+		ActivePingModeByte = activePingMode ? (byte)1 : (byte)0;
+		CycleSelectionIndex = 0;
+	}
+
+	public string? ActiveSpellTargeting
+	{
+		get => SpellStringId != 0 ? StringRegistry.Get(SpellStringId) : null;
+		set => SpellStringId = StringRegistry.GetOrAdd(value);
+	}
+
+	public string? ActiveCommandTargeting
+	{
+		get => CommandStringId != 0 ? StringRegistry.Get(CommandStringId) : null;
+		set => CommandStringId = StringRegistry.GetOrAdd(value);
+	}
+
+	public string? ActiveBuildingPlacementType
+	{
+		get => BuildingStringId != 0 ? StringRegistry.Get(BuildingStringId) : null;
+		set => BuildingStringId = StringRegistry.GetOrAdd(value);
 	}
 }

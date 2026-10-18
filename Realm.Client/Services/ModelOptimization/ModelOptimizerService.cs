@@ -10,10 +10,7 @@ namespace Realm.Client.Services.ModelOptimization;
 
 public class ModelOptimizerService
 {
-	static ModelOptimizerService()
-	{
-		GltfDocumentExtensionMsftLod.RegisterExtension();
-	}
+
 
 	public struct OptimizationOptions
 	{
@@ -44,7 +41,6 @@ public class ModelOptimizerService
 
 	public ModelOptimizerService()
 	{
-		GltfDocumentExtensionMsftLod.RegisterExtension();
 	}
 
 	public OptimizationResult OptimizeGlb(byte[] glbBytes, OptimizationOptions options = default)

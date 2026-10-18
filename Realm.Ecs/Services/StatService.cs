@@ -1,4 +1,3 @@
-using Arch.Core;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Stats;
 
@@ -19,7 +18,7 @@ public class StatService
 	/// </summary>
 	public float GetStatValue(Entity entity, StatId statId)
 	{
-		if (!ECSContext.World.Has<Stats>(entity)) return 0f;
+		if (ECSContext.World == null || !ECSContext.World.Has<Stats>(entity)) return 0f;
 
 		var baseStats = ECSContext.World.Get<Stats>(entity).Value;
 		if (!baseStats.TryGetValue(statId, out var currentValue)) return 0f;
@@ -30,7 +29,7 @@ public class StatService
 		var percentMultiplicative = 1.0f;
 		var formulaBonus = 0f;
 
-		ECSContext.World.Query(in query, (ref Entity e, ref StatModifier mod) =>
+		ECSContext.World.Query(in query, (Entity e, ref StatModifier mod) =>
 		{
 			if (e != entity || mod.StatTypeId != statId) return;
 
@@ -46,7 +45,7 @@ public class StatService
 					percentMultiplicative *= mod.Value;
 					break;
 				case ModifierType.CustomFormula:
-					if (!string.IsNullOrWhiteSpace(mod.WASMFunctionName) && ECSContext.EvaluationEngine != null)
+					if (!string.IsNullOrWhiteSpace(mod.WASMFunctionName) && ECSContext.EvaluationEngine != null && ECSContext.World != null)
 					{
 						try
 						{
@@ -70,6 +69,6 @@ public class StatService
 	/// </summary>
 	public void ApplyStatModifier(Entity entity, StatModifier modifier)
 	{
-		ECSContext.World.Add(entity, modifier);
+		ECSContext.World?.Add(entity, modifier);
 	}
 }

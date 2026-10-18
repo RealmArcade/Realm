@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Services;
 using Realm.Client.UI;
@@ -223,7 +223,7 @@ public partial class GameHost
 			bool foundWorld = false;
 
 			var worldQuery = QueryCache.AllTerrainStateAndEditorStateQuery;
-			GameContext.World.Query(in worldQuery, (ref TerrainState t, ref EditorState e) =>
+			GameContext.World.Query(in worldQuery, (Entity _, ref TerrainState t, ref EditorState e) =>
 			{
 				terrain = t;
 				editor = e;
@@ -479,8 +479,8 @@ public partial class GameHost
 
 	private void ProcessUnitSpawnRequests()
 	{
-		GameContext.UnitSpawnService.ProcessUnitSpawnRequestsDomain((unitId, pos, isEnemy, rotY, scale, player) => {
-			SpawnUnitExternal(unitId, new Godot.Vector3(pos.X, pos.Y, pos.Z), isEnemy, rotY, scale, player);
+		GameContext.UnitSpawnService.ProcessUnitSpawnRequestsDomain((unitId, pos, rotY, scale, player) => {
+			SpawnUnitExternal(unitId, new Godot.Vector3(pos.X, pos.Y, pos.Z), rotY, scale, player);
 		});
 	}
 

@@ -201,15 +201,12 @@ public class TestWasmMap : IWasmModule
 			BinaryVersion = RealmVersion.GameBinaryVersion
 		};
 
-		PropertyInfo localPlayerProp = typeof(LobbyManager).GetProperty("LocalPlayer", BindingFlags.Public | BindingFlags.Instance);
-		localPlayerProp?.SetValue(LobbyManager.Instance, playerInfo);
-
 		LobbyManager.Instance.PlayerList.Add(playerInfo);
 	}
 
 	private Unit3D SetupWorkerAndMove(GameHost gameHost)
 	{
-		Unit3D worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && !u.IsEnemy);
+		Unit3D worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && u.Player == 1);
 		if (worker == null)
 		{
 			return null;
@@ -221,7 +218,7 @@ public class TestWasmMap : IWasmModule
 		InGameHUD.Instance?.RefreshUI(GameHost.Instance.SelectedUnits);
 
 		Vector3 destination = new Vector3(-20f, 0f, -50f);
-		IUnit unitWrapper = GameContext.SimulationService.GetUnitWrapper(worker.Entity);
+		var unitWrapper = GameContext.SimulationService.GetUnitWrapper(worker.Entity);
 		unitWrapper.MoveTo(destination);
 		return worker;
 	}
@@ -347,7 +344,7 @@ public class TestWasmMap : IWasmModule
 		Unit3D worker = null;
 		for (int i = 0; i < 50; i++)
 		{
-			worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && !u.IsEnemy);
+			worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && u.Player == 1);
 			if (worker != null)
 			{
 				break;

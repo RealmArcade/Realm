@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -155,13 +155,13 @@ public class TechTreeService
 
 			float totalValue = modDef.Value + (level - 1) * modDef.PerLevelScaling;
 			var statMod = new StatModifier(
-				StatTypeId: statId,
-				Type: modType,
-				Value: totalValue,
-				Duration: -1f,
-				WASMFunctionName: modDef.WASMFunctionName,
-				SourceLevel: level,
-				SourceUpgradeId: techId
+				statTypeId: statId,
+				type: modType,
+				value: totalValue,
+				duration: -1f,
+				wasmFunctionName: modDef.WASMFunctionName,
+				sourceLevel: level,
+				sourceUpgradeId: techId
 			);
 
 			list.Add(statMod);

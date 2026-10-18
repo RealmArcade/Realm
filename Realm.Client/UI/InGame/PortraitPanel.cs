@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -258,17 +258,17 @@ public class PortraitPanel
 
 	private void UpdateProductionBox(SelectedUnitInfo info)
 	{
-		if (info.UnitId != "castle")
+		if (info.ProductionQueue.Count > 0)
 		{
-			UpdateNonCastleProductionBox(info);
+			UpdateQueueProductionBox(info);
 		}
-		else if (info.ProductionQueue.Count > 0)
+		else
 		{
-			UpdateCastleProductionBox(info);
+			UpdateSimpleProductionBox(info);
 		}
 	}
 
-	private void UpdateNonCastleProductionBox(SelectedUnitInfo info)
+	private void UpdateSimpleProductionBox(SelectedUnitInfo info)
 	{
 		_productionTitle.Text = info.ProductionTitle;
 		_productionProgress.Visible = true;
@@ -282,7 +282,7 @@ public class PortraitPanel
 		}
 	}
 
-	private void UpdateCastleProductionBox(SelectedUnitInfo info)
+	private void UpdateQueueProductionBox(SelectedUnitInfo info)
 	{
 		_productionTitle.Text = info.ProductionTitle;
 		_productionProgress.Visible = true;
@@ -472,7 +472,7 @@ public class PortraitPanel
 		return "res://Assets/UI/unit_placeholder.png";
 	}
 
-	private void PopulateQueueSlots(Entity castleEntity, List<string> unitIds)
+	private void PopulateQueueSlots(Entity producerEntity, List<string> unitIds)
 	{
 		if (_queueSlotsContainer == null) return;
 
@@ -480,11 +480,11 @@ public class PortraitPanel
 
 		for (int i = 0; i < unitIds.Count; i++)
 		{
-			CreateQueueSlot(castleEntity, unitIds[i], i);
+			CreateQueueSlot(producerEntity, unitIds[i], i);
 		}
 	}
 
-	private void CreateQueueSlot(Entity castleEntity, string unitId, int index)
+	private void CreateQueueSlot(Entity producerEntity, string unitId, int index)
 	{
 		string unitDisplayName = GetQueueSlotDisplayName(unitId);
 
@@ -492,7 +492,7 @@ public class PortraitPanel
 		var icon = CreateSlotIcon(unitId);
 		var btnCancel = CreateSlotCancelButton();
 
-		slot.GuiInput += (InputEvent e) => HandleQueueSlotInput(e, castleEntity, index);
+		slot.GuiInput += (InputEvent e) => HandleQueueSlotInput(e, producerEntity, index);
 
 		slot.AddChild(icon);
 		slot.AddChild(btnCancel);
@@ -558,13 +558,13 @@ public class PortraitPanel
 		return btnCancel;
 	}
 
-	private void HandleQueueSlotInput(InputEvent e, Entity castleEntity, int index)
+	private void HandleQueueSlotInput(InputEvent e, Entity producerEntity, int index)
 	{
 		if (e is not InputEventMouseButton mouseEvent || !mouseEvent.Pressed) return;
 		if (mouseEvent.ButtonIndex != MouseButton.Left && mouseEvent.ButtonIndex != MouseButton.Right) return;
-		if (GameHost.Instance == null || !GameContext.World.IsAlive(castleEntity)) return;
+		if (GameHost.Instance == null || !GameContext.World.IsAlive(producerEntity)) return;
 
-		GameHost.Instance.CancelQueuedUnitAt(castleEntity, index);
+		GameHost.Instance.CancelQueuedUnitAt(producerEntity, index);
 	}
 
 	private void ClearQueueSlots()

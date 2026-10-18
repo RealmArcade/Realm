@@ -294,6 +294,12 @@
             "boolean",
             "null"
           ]
+        },
+        "TestRandomSeed": {
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       }
     },
@@ -875,6 +881,18 @@
                 }
               },
               "StartingItems": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "ShopItems": {
                 "type": [
                   "array",
                   "null"
@@ -1607,6 +1625,12 @@
                 "type": "string"
               },
               "IconPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Hotkey": {
                 "type": [
                   "string",
                   "null"

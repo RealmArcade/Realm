@@ -1,5 +1,4 @@
 using System.Numerics;
-using Arch.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 
@@ -22,8 +21,8 @@ public class MovementService
 	/// </summary>
 	public void SetMoveTarget(Entity entity, Vector3 targetPosition)
 	{
-		if (!ECSContext.World.Has<Movable>(entity)) return;
+		if (ECSContext.World == null || !ECSContext.World.Has<Movable>(entity)) return;
 
-		ECSContext.World.Set(entity, new MoveTo(targetPosition));
+		ECSContext.World.SetOrAdd(entity, new MoveTo(targetPosition));
 	}
 }

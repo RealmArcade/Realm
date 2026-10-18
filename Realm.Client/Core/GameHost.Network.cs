@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.Json;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using MemoryPack;
 using Realm.Client.Network;
@@ -47,6 +47,11 @@ public partial class GameHost
 	private void QueueClientCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
+		if (GameSettings.MovementPrediction && (commandType == "MoveTo" || commandType == "AttackMove" || commandType == "Move" || commandType == "Gather"))
+		{
+			GameContext.MovementPredictionService?.ApplyLocalPrediction(GameContext.World, unitIds, targetNumerics);
+		}
+
 		var (_, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
 		RpcId(1, nameof(SubmitCommand), payload);
 	}
@@ -93,6 +98,12 @@ public partial class GameHost
 
 		GameContext.NetworkService.UpdateClientTickDomain();
 
+		if (GameSettings.MovementPrediction && GameContext.World != null)
+		{
+			int currentTickSeq = (int)(Time.GetTicksMsec() / 33);
+			GameContext.MovementPredictionService?.RecordTick(currentTickSeq, GameContext.World);
+		}
+
 		UpdateClientWorldState(fDelta);
 
 		var query = QueryCache.AllInterpolationTargetQuery;
@@ -134,20 +145,23 @@ public partial class GameHost
 		{
 			var godotPos = new Vector3(domainRes.BuildPosition.X, domainRes.BuildPosition.Y, domainRes.BuildPosition.Z);
 			var bldEntity = CreateEcsUnit(domainRes.BuildUnitType, domainRes.Name, domainRes.MaxHp, domainRes.Damage, domainRes.Range, domainRes.Armor, 0f, godotPos, domainRes.PlayerOwner);
-			ProcessServerCommandBuildViewLogic(bldEntity, domainRes.BuildUnitType, domainRes.TargetModel, godotPos);
+			ProcessServerCommandBuildViewLogic(bldEntity, domainRes.BuildUnitType, domainRes.TargetModel, godotPos, domainRes.PlayerOwner);
 		}
 	}
 
-	private void ProcessServerCommandBuildViewLogic(Entity bldEntity, string buildUnitType, string targetModel, Vector3 buildPosition)
+	private void ProcessServerCommandBuildViewLogic(Entity bldEntity, string buildUnitType, string targetModel, Vector3 buildPosition, PlayerEntity playerOwner)
 	{
 		string modelPath = GetFallbackModelPath(targetModel, true);
-		SpawnUnit3D(bldEntity, buildUnitType, modelPath, buildPosition, true, false);
+		int playerIndex = (playerOwner.Value != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(playerOwner.Value))
+			? GameContext.World.Get<UnitOwnerPlayer>(playerOwner.Value).PlayerIndex
+			: 0;
+		SpawnUnit3D(bldEntity, buildUnitType, modelPath, buildPosition, true, playerIndex);
 	}
 
-	private IUnit GetSpellCaster(NetworkCommand cmd)
+	private UnitId GetSpellCaster(NetworkCommand cmd)
 	{
 		var casterEntity = GameContext.NetworkService.GetSpellCasterEntityDomain(cmd, AllUnits);
-		return casterEntity != Entity.Null ? GameContext.SimulationService.GetUnitWrapper(casterEntity) : null;
+		return casterEntity != Entity.Null ? (UnitId)casterEntity.Id : UnitId.Invalid;
 	}
 
 	private void ApplySpellEffect(string spellId, Vector3 position, Entity casterEnt)
@@ -172,7 +186,7 @@ public partial class GameHost
 		string spellId = result.SpellId;
 		Vector3 position = result.SpellPosition;
 		var caster = GetSpellCaster(cmd);
-		var casterEnt = caster != null ? ((IEcsEntityWrapper)caster).Entity : Entity.Null;
+		var casterEnt = GameContext.SimulationService.TryGetEntity(caster, out var ce) ? ce : Entity.Null;
 
 		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
 
@@ -259,18 +273,17 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SyncPlayerResources(float gold, float wood, float stone)
+	public void SyncPlayerResources(int playerSlot, float gold, float wood, float stone)
 	{
-		int localSlot = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-		((IGameAPI)this).SetPlayerGold(localSlot, gold);
-		((IGameAPI)this).SetPlayerWood(localSlot, wood);
-		((IGameAPI)this).SetPlayerStone(localSlot, stone);
+		((IGameAPI)this).SetPlayerGold(playerSlot, gold);
+		((IGameAPI)this).SetPlayerWood(playerSlot, wood);
+		((IGameAPI)this).SetPlayerStone(playerSlot, stone);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SyncProductionQueue(int castleServerEntityId, string[] unitIds, float currentProgress, float buildTime)
+	public void SyncProductionQueue(int producerServerEntityId, string[] unitIds, float currentProgress, float buildTime)
 	{
-		GameContext.NetworkService.SyncProductionQueue(castleServerEntityId, unitIds, currentProgress, buildTime);
+		GameContext.NetworkService.SyncProductionQueue(producerServerEntityId, unitIds, currentProgress, buildTime);
 	}
 
 	private void SyncServerPlayerResources()
@@ -278,7 +291,13 @@ public partial class GameHost
 		var resources = GameContext.NetworkService.GetServerPlayerResources(_peerIdToPlayerEntityMap, _localPeerId);
 		foreach (var res in resources)
 		{
-			RpcId(res.PeerId, nameof(SyncPlayerResources), res.Gold, res.Wood, res.Stone);
+			if (_peerIdToPlayerEntityMap.TryGetValue(res.PeerId, out var playerEntity) &&
+			    GameContext.World.IsAlive(playerEntity) &&
+			    GameContext.World.Has<UnitOwnerPlayer>(playerEntity))
+			{
+				int slot = GameContext.World.Get<UnitOwnerPlayer>(playerEntity).PlayerIndex;
+				Rpc(nameof(SyncPlayerResources), slot, res.Gold, res.Wood, res.Stone);
+			}
 		}
 	}
 
@@ -318,9 +337,9 @@ public partial class GameHost
 
 	private void SpawnUnitFromSnapshot(UnitSnapshot snap)
 	{
-		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out bool isEnemy);
+		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out int playerIndex);
 		if (entity == Entity.Null) return;
-		SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, isEnemy);
+		SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, playerIndex);
 	}
 
 	private void QueueOrSendPacket(int peerId, string funcName, params object[] args)

@@ -1,6 +1,24 @@
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
-/// Represents the active buffs on an entity.
+/// Holds state for ongoing buffs and status effects applied to an entity.
 /// </summary>
-public record struct BuffState(Dictionary<string, float> Value);
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct BuffState
+{
+	public int Handle;
+
+	public BuffState(Dictionary<string, float> value)
+	{
+		Handle = ColdPayloadRegistry<Dictionary<string, float>>.Register(value);
+	}
+
+	public Dictionary<string, float> Value
+	{
+		get => ColdPayloadRegistry<Dictionary<string, float>>.Get(Handle);
+		set => Handle = ColdPayloadRegistry<Dictionary<string, float>>.Register(value);
+	}
+}

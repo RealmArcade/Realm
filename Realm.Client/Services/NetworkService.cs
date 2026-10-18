@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using MemoryPack;
 using Realm.Client.Core;
@@ -16,6 +16,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
+using Realm.Client.UI;
 using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Services;
@@ -155,9 +156,9 @@ public class NetworkService
 
 		if (playerEntity == Entity.Null || GameContext.World == null || !GameContext.World.IsAlive(playerEntity) || !GameContext.World.TryGet<PlayerResources>(playerEntity, out var res)) return false;
 
-		gold = res.Value.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var g) ? g : 0;
-		wood = res.Value.TryGetValue(ECSContext.PlayerResourceService.WoodResourceId, out var w) ? w : 0;
-		stone = res.Value.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var s) ? s : 0;
+		gold = res.Gold;
+		wood = res.Wood;
+		stone = res.Stone;
 		return true;
 	}
 
@@ -386,15 +387,19 @@ public class NetworkService
 	public float ComputeDynamicInterpolationFactor()
 	{
 		float bufferTime = 0.1f;
-		if (LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null)
+		if (LobbyManager.Instance?.PlayerList != null)
 		{
-			string latStr = LobbyManager.Instance.LocalPlayer.Latency;
-			if (!string.IsNullOrEmpty(latStr) && latStr != "--" && latStr.Contains(" ms"))
+			var localPlayer = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == LocalPeerId);
+			if (localPlayer != null)
 			{
-				string numStr = latStr.Replace(" ms", "").Trim();
-				if (float.TryParse(numStr, out float rttMs))
+				string latStr = localPlayer.Latency;
+				if (!string.IsNullOrEmpty(latStr) && latStr != "--" && latStr.Contains(" ms"))
 				{
-					bufferTime = Mathf.Max(0.1f, (rttMs / 1000f) * 1.5f);
+					string numStr = latStr.Replace(" ms", "").Trim();
+					if (float.TryParse(numStr, out float rttMs))
+					{
+						bufferTime = Mathf.Max(0.1f, (rttMs / 1000f) * 1.5f);
+					}
 				}
 			}
 		}
@@ -505,6 +510,20 @@ public class NetworkService
 			ProcessBaselineSnapshotMismatches(snapshot, mapping);
 		}
 
+		if (GameSettings.MovementPrediction && GameContext.World != null)
+		{
+			var serverPositions = new Dictionary<int, System.Numerics.Vector3>();
+			foreach (var snap in snapshot.Units)
+			{
+				if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
+				{
+					serverPositions[localEntity.Id] = snap.Position.ToNumerics();
+				}
+			}
+
+			GameContext.MovementPredictionService?.ReconcileServerSnapshot(GameContext.World, snapshot.Sequence, serverPositions);
+		}
+
 		foreach (var snap in snapshot.Units)
 		{
 			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
@@ -584,10 +603,10 @@ public class NetworkService
 		return result;
 	}
 
-	public Entity SpawnUnitFromSnapshot(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out bool isEnemy)
+	public Entity SpawnUnitFromSnapshot(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex)
 	{
 		modelPath = string.Empty;
-		isEnemy = false;
+		playerIndex = 0;
 
 		if (!GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta))
 		{
@@ -605,22 +624,18 @@ public class NetworkService
 			ownerPlayerEntity = pe;
 		}
 
-		int localPeerId = 1;
-		var mainLoop = Engine.GetMainLoop();
-		if (mainLoop is SceneTree tree)
-		{
-			localPeerId = tree.GetMultiplayer().GetUniqueId();
-		}
-
-		isEnemy = ArePeersEnemies(localPeerId, snap.OwnerPlayerEntityId);
+		playerIndex = (ownerPlayerEntity != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(ownerPlayerEntity))
+			? GameContext.World.Get<UnitOwnerPlayer>(ownerPlayerEntity).PlayerIndex
+			: (snap.OwnerPlayerEntityId > 0 ? snap.OwnerPlayerEntityId - 1 : 0);
 
 		var entity = GameContext.World.Create();
 		GameContext.World.Add(entity, new DefinitionId(snap.UnitId));
 		GameContext.World.Add(entity, new Name(meta.Name));
 		GameContext.World.Add(entity, new Position(snap.Position.ToNumerics()));
 		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
+		GameContext.World.Add(entity, new UnitOwnerPlayer(playerIndex));
 		GameContext.World.Add(entity, new Health(snap.CurrentHp, snap.MaxHp));
-		if (meta.Damage > 0 || snap.UnitId == "priest")
+		if (meta.Damage > 0)
 		{
 			GameContext.World.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
 		}
@@ -644,7 +659,6 @@ public class NetworkService
 			RotationY = snap.RotationY
 		};
 		GameContext.World.Add(entity, interpolationTarget);
-		GameContext.World.Add(entity, new UnitFaction(isEnemy));
 
 		mapping.ServerToClientEntityMap[snap.EntityId] = entity;
 		mapping.ClientToServerEntityMap[entity.Id] = snap.EntityId;
@@ -883,11 +897,7 @@ public class NetworkService
 
 		if (!isQueued) ClearUnitOrders(entity);
 
-		if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value == "priest")
-		{
-			GameContext.World.SetOrAdd(entity, new HealingTarget(targetEntity));
-		}
-		else if (GameContext.World.Has<Movable>(entity))
+		if (GameContext.World.Has<Movable>(entity))
 		{
 			GameContext.World.SetOrAdd(entity, new Follow(targetEntity));
 		}
@@ -928,13 +938,7 @@ public class NetworkService
 
 	private string GetPropResourceType(string propId)
 	{
-		return propId switch
-		{
-			"goldmine" => "gold",
-			"tree" => "wood",
-			"rock" => "stone",
-			_ => null
-		};
+		return GameContext.RegistryService.GetResourceTypeForNode(propId);
 	}
 
 	private void HandleStopCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> stopVelocityEntityIds)
@@ -1033,12 +1037,12 @@ public class NetworkService
 		int costWood = (int)meta.CostWood;
 		int costStone = (int)meta.CostStone;
 
-		if (res.Value[goldResourceId] < costGold || res.Value[woodResourceId] < costWood || res.Value[stoneResourceId] < costStone)
+		if (res[goldResourceId] < costGold || res[woodResourceId] < costWood || res[stoneResourceId] < costStone)
 			return;
 
-		res.Value[goldResourceId] -= costGold;
-		res.Value[woodResourceId] -= costWood;
-		res.Value[stoneResourceId] -= costStone;
+		res[goldResourceId] -= costGold;
+		res[woodResourceId] -= costWood;
+		res[stoneResourceId] -= costStone;
 		GameContext.World.Set(ownerEntity, res);
 
 		if (!GameContext.World.Has<ProductionQueue>(entity)) GameContext.World.Add(entity, new ProductionQueue());
@@ -1094,9 +1098,9 @@ public class NetworkService
 
 		if (GameContext.World.TryGet<PlayerResources>(ownerEntity, out var res))
 		{
-			res.Value[new ResourceId("Gold")] += (int)regMeta.CostGold;
-			res.Value[new ResourceId("Wood")] += (int)regMeta.CostWood;
-			res.Value[new ResourceId("Stone")] += (int)regMeta.CostStone;
+			res[new ResourceId("Gold")] += (int)regMeta.CostGold;
+			res[new ResourceId("Wood")] += (int)regMeta.CostWood;
+			res[new ResourceId("Stone")] += (int)regMeta.CostStone;
 			GameContext.World.Set(ownerEntity, res);
 		}
 
@@ -1669,11 +1673,11 @@ public class NetworkService
 		return ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 	}
 
-	public void SyncProductionQueue(int castleServerEntityId, string[] unitIds, float currentProgress, float buildTime)
+	public void SyncProductionQueue(int producerServerEntityId, string[] unitIds, float currentProgress, float buildTime)
 	{
 		if (ECSContext.WorldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity)) return;
 		var mapping = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity);
-		if (mapping.ServerToClientEntityMap.TryGetValue(castleServerEntityId, out var localEntity))
+		if (mapping.ServerToClientEntityMap.TryGetValue(producerServerEntityId, out var localEntity))
 		{
 			if (GameContext.World.IsAlive(localEntity))
 			{
@@ -1702,9 +1706,9 @@ public class NetworkService
 
 			if (GameContext.World.IsAlive(kvp.Value) && GameContext.World.TryGet<PlayerResources>(kvp.Value, out var res))
 			{
-				float gold = res.Value.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var g) ? g : 0;
-				float wood = res.Value.TryGetValue(ECSContext.PlayerResourceService.WoodResourceId, out var w) ? w : 0;
-				float stone = res.Value.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var s) ? s : 0;
+				float gold = res.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var g) ? g : 0;
+				float wood = res.TryGetValue(ECSContext.PlayerResourceService.WoodResourceId, out var w) ? w : 0;
+				float stone = res.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var s) ? s : 0;
 				result.Add((peerId, gold, wood, stone));
 			}
 		}

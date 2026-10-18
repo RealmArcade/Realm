@@ -1,6 +1,20 @@
+using System.Runtime.InteropServices;
+
 namespace Realm.Ecs.Components.Meta;
 
 /// <summary>
-/// Represents the level of an entity, such as a hero.
+/// Tracks current hero advancement level.
 /// </summary>
-public record struct Level(int Value);
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct Level
+{
+	public int Value;
+
+	public Level(int value)
+	{
+		Value = value;
+	}
+
+	public static implicit operator int(Level level) => level.Value;
+	public static implicit operator Level(int value) => new(value);
+}

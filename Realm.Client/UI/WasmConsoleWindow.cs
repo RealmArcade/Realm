@@ -528,7 +528,7 @@ public class WasmConsoleWindow
 				}
 				else if (GodotObject.IsInstanceValid(LobbyManager.Instance))
 				{
-					LobbyManager.Instance.SendChatMessage(LobbyManager.Instance.LocalPlayer?.Name ?? "Player", cmd);
+					LobbyManager.Instance.SendChatMessage(LobbyManager.Instance.AuthenticatedUsername ?? "Player", cmd);
 				}
 			}
 			catch (Exception ex)

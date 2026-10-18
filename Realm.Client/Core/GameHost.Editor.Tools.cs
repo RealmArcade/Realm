@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.ReplaySystem;
 using Realm.Client.Services;
@@ -1036,6 +1036,7 @@ namespace Realm.Client.Core
 				SelectedUnits.Remove(unit);
 				AllUnits.Remove(unit);
 				EntityToUnit3D.Remove(unit.Entity);
+				EntityIdToUnit3D.Remove(unit.Entity.Id);
 				if (GameContext.World.IsAlive(unit.Entity))
 				{
 					GameContext.World.Destroy(unit.Entity);
@@ -1162,10 +1163,11 @@ namespace Realm.Client.Core
 			if (unit != null && GodotObject.IsInstanceValid(unit))
 			{
 				if (unit == _selectedEditorObject || FindUnit3DInParentChain(_selectedEditorObject) == unit) SelectedEditorObject = null;
-				var action = new ObjectDeleteAction("unit", unit.UnitId, unit.Position, unit.RotationDegrees.Y, unit.Scale.X, unit.IsEnemy, unit, unit.Player);
+				var action = new ObjectDeleteAction("unit", unit.UnitId, unit.Position, unit.RotationDegrees.Y, unit.Scale.X, unit, unit.Player);
 				SelectedUnits.Remove(unit);
 				AllUnits.Remove(unit);
 				EntityToUnit3D.Remove(unit.Entity);
+				EntityIdToUnit3D.Remove(unit.Entity.Id);
 				if (GameContext.World.IsAlive(unit.Entity)) GameContext.World.Destroy(unit.Entity);
 				unit.QueueFree();
 				return action;
@@ -1376,10 +1378,11 @@ namespace Realm.Client.Core
 		private IEditorAction ExecuteUnitProximityDelete(Unit3D closestUnit)
 		{
 			if (closestUnit == _selectedEditorObject) SelectedEditorObject = null;
-			var action = new ObjectDeleteAction("unit", closestUnit.UnitId, closestUnit.Position, closestUnit.RotationDegrees.Y, closestUnit.Scale.X, closestUnit.IsEnemy, closestUnit, closestUnit.Player);
+			var action = new ObjectDeleteAction("unit", closestUnit.UnitId, closestUnit.Position, closestUnit.RotationDegrees.Y, closestUnit.Scale.X, closestUnit, closestUnit.Player);
 			SelectedUnits.Remove(closestUnit);
 			AllUnits.Remove(closestUnit);
 			EntityToUnit3D.Remove(closestUnit.Entity);
+			EntityIdToUnit3D.Remove(closestUnit.Entity.Id);
 			if (GameContext.World.IsAlive(closestUnit.Entity)) GameContext.World.Destroy(closestUnit.Entity);
 			closestUnit.QueueFree();
 			return action;
@@ -1502,7 +1505,7 @@ namespace Realm.Client.Core
 				var previewUnit = new Unit3D();
 				previewUnit.UnitId = reqId;
 				previewUnit.IsBuilding = isBuilding;
-				previewUnit.IsEnemy = reqIsEnemy;
+				previewUnit.Player = reqIsEnemy ? 1 : 0;
 				previewUnit.IsPreview = true;
 				AddChild(previewUnit);
 				previewUnit.LoadModel(modelPath);
@@ -2127,8 +2130,6 @@ namespace Realm.Client.Core
 				if (GodotObject.IsInstanceValid(SelectedEditorObject))
 				{
 					var node3D = SelectedEditorObject as Node3D;
-					bool isUnit = SelectedEditorObject is Unit3D;
-					bool isEnemy = isUnit ? (SelectedEditorObject as Unit3D).IsEnemy : false;
 					if (SelectedEditorObject is Prop3D prop && SelectedEditorObject is not Unit3D)
 					{
 						PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
@@ -2136,7 +2137,7 @@ namespace Realm.Client.Core
 
 					if (node3D.Position.DistanceTo(_dragObjectStartPos) > 0.05f)
 					{
-						var action = new ObjectTransformAction(node3D, _dragObjectStartPos, node3D.Position, _dragObjectStartRot, node3D.RotationDegrees, _dragObjectStartScale, node3D.Scale, _dragObjectStartIsEnemy, isEnemy);
+						var action = new ObjectTransformAction(node3D, _dragObjectStartPos, node3D.Position, _dragObjectStartRot, node3D.RotationDegrees, _dragObjectStartScale, node3D.Scale);
 						EditorHistoryManager.RecordAction(action);
 						MapEditorHUD.Instance?.ShowFeedbackExternal("Moved Object");
 						EditorHasUnsavedChanges = true;
@@ -2530,7 +2531,7 @@ namespace Realm.Client.Core
 			{
 				Node spawnedNode = null;
 				if (req.Type == "unit")
-					spawnedNode = SpawnUnitExternal(req.Id, req.Position, req.IsEnemy, req.Rotation, req.Scale);
+					spawnedNode = SpawnUnitExternal(req.Id, req.Position, req.Rotation, req.Scale, req.Player);
 				else if (req.Type == "prop")
 					spawnedNode = SpawnPropExternalWithParams(req.Id, req.Position, req.Rotation, req.Scale);
 				else if (req.Type == "decal")
@@ -2538,7 +2539,7 @@ namespace Realm.Client.Core
 
 				if (spawnedNode != null)
 				{
-					GameContext.EditorService.RecordClumpSpawnAction(new ObjectSpawnAction(req.Type, req.Id, req.Position, req.Rotation, req.Scale, req.IsEnemy, spawnedNode));
+					GameContext.EditorService.RecordClumpSpawnAction(new ObjectSpawnAction(req.Type, req.Id, req.Position, req.Rotation, req.Scale, spawnedNode, req.Player));
 				}
 			}
 		}

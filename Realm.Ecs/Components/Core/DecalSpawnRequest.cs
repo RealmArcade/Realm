@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Numerics;
 
 namespace Realm.Ecs.Components.Core
@@ -5,9 +6,10 @@ namespace Realm.Ecs.Components.Core
 	/// <summary>
 	///     Represents a request to spawn a decal with specified parameters.
 	/// </summary>
+	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct DecalSpawnRequest
 	{
-		public string DecalId;
+		public int StringId;
 		public Vector3 Position;
 		public float RotationX;
 		public float RotationY;
@@ -16,7 +18,7 @@ namespace Realm.Ecs.Components.Core
 
 		public DecalSpawnRequest(string decalId, Vector3 position, float rotationY, float scale)
 		{
-			DecalId = decalId;
+			StringId = StringRegistry.GetOrAdd(decalId);
 			Position = position;
 			RotationX = 0f;
 			RotationY = rotationY;
@@ -26,12 +28,18 @@ namespace Realm.Ecs.Components.Core
 
 		public DecalSpawnRequest(string decalId, Vector3 position, Vector3 rotation, float scale)
 		{
-			DecalId = decalId;
+			StringId = StringRegistry.GetOrAdd(decalId);
 			Position = position;
 			RotationX = rotation.X;
 			RotationY = rotation.Y;
 			RotationZ = rotation.Z;
 			Scale = scale;
+		}
+
+		public string DecalId
+		{
+			get => StringRegistry.Get(StringId);
+			set => StringId = StringRegistry.GetOrAdd(value);
 		}
 	}
 }

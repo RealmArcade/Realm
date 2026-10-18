@@ -1,5 +1,4 @@
 using System.Numerics;
-using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
 
@@ -45,13 +44,13 @@ public class CustomGenreProvider : IAiGenreProvider
 	{
 	}
 
-	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
+	public void ScanAffordances(EcsWorld world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
 	{
 		destinationList.Clear();
 		CustomScanner?.Invoke(world, playerIndex, destinationList, customContext);
 	}
 
-	public void ExecuteAction(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
 	{
 		if (CustomExecutor != null)
 		{

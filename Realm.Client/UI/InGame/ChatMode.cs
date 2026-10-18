@@ -1,4 +1,4 @@
-﻿namespace Realm.Client.UI.InGame;
+namespace Realm.Client.UI.InGame;
 
 public enum ChatMode
 {

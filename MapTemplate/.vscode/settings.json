@@ -3,6 +3,7 @@
 	"dotnet.preferCSharpExtension": true,
 	"dotnet.server.useOmnisharp": false,
 	"dotnet.projects.enableAutomaticRestore": true,
+	"debug.showDisassembly": "never",
 	"json.schemas": [
 		{
 			"fileMatch": [

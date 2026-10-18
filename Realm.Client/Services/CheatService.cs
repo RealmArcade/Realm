@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -71,9 +71,9 @@ public class CheatService
 		var stoneId = "stone".AsResourceId(definitionManager);
 
 		const float resourceCap = 9999f;
-		if (playerRes.Value.TryGetValue(goldId, out var currentGold)) playerRes.Value[goldId] = (int)Math.Min(resourceCap, currentGold + 10000);
-		if (playerRes.Value.TryGetValue(woodId, out var currentWood)) playerRes.Value[woodId] = (int)Math.Min(resourceCap, currentWood + 10000);
-		if (playerRes.Value.TryGetValue(stoneId, out var currentStone)) playerRes.Value[stoneId] = (int)Math.Min(resourceCap, currentStone + 10000);
+		if (playerRes.TryGetValue(goldId, out var currentGold)) playerRes[goldId] = (int)Math.Min(resourceCap, currentGold + 10000);
+		if (playerRes.TryGetValue(woodId, out var currentWood)) playerRes[woodId] = (int)Math.Min(resourceCap, currentWood + 10000);
+		if (playerRes.TryGetValue(stoneId, out var currentStone)) playerRes[stoneId] = (int)Math.Min(resourceCap, currentStone + 10000);
 
 		return (CheatResult.Stonks, 0);
 	}

@@ -55,6 +55,7 @@ public static class GameSettings
 	public static bool DisableShadows { get; set; } = false;
 	public static bool DisableDayNightLighting { get; set; } = false;
 	public static bool FloatingCombatText { get; set; } = true;
+	public static bool MovementPrediction { get; set; } = false;
 	public static string LastOpenedFolder { get; set; } = string.Empty;
 
 	public static int GetSafeScreenIndex()
@@ -100,6 +101,7 @@ public static class GameSettings
 		DisplayFps = false;
 		RecordReplays = false;
 		SeedMapFiles = false;
+		MovementPrediction = false;
 	}
 
 	public static void InitializeResolutions()
@@ -224,6 +226,7 @@ public static class GameSettings
 		DisableShadows = data.DisableShadows;
 		DisableDayNightLighting = data.DisableDayNightLighting;
 		FloatingCombatText = data.FloatingCombatText;
+		MovementPrediction = data.MovementPrediction;
 		ShowHealthBars = data.ShowHealthBars;
 		LastOpenedFolder = data.LastOpenedFolder ?? string.Empty;
 
@@ -274,6 +277,7 @@ public static class GameSettings
 			DisableShadows = DisableShadows,
 			DisableDayNightLighting = DisableDayNightLighting,
 			FloatingCombatText = FloatingCombatText,
+			MovementPrediction = MovementPrediction,
 			LastOpenedFolder = LastOpenedFolder
 		};
 

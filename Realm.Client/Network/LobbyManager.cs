@@ -19,6 +19,7 @@ using Realm.Client.Core;
 using Realm.Client.ReplaySystem;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.Utils;
 using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Services;
@@ -84,9 +85,11 @@ public partial class LobbyManager : Node
 		}
 
 		AuthenticatedUsername = newUsername.Trim();
-		if (LocalPlayer != null)
+		int myId = Multiplayer?.MultiplayerPeer != null ? Multiplayer.GetUniqueId() : 1;
+		var me = PlayerList.Find(p => p.PeerId == myId || (IsHost && p.PeerId == 1));
+		if (me != null)
 		{
-			LocalPlayer.Name = AuthenticatedUsername;
+			me.Name = AuthenticatedUsername;
 		}
 
 		return true;
@@ -110,7 +113,6 @@ public partial class LobbyManager : Node
 
 
 	public List<PlayerInfo> PlayerList { get; } = new();
-	public PlayerInfo LocalPlayer { get; private set; } = new();
 
 
 	private readonly HttpClient _httpClient = new();
@@ -203,6 +205,7 @@ public partial class LobbyManager : Node
 
 	public override void _Ready()
 	{
+		ProcessPerformanceOptimizer.EnforceOptimalPerformance();
 		Instance = this;
 		ProcessMode = ProcessModeEnum.Always;
 
@@ -390,6 +393,9 @@ public partial class LobbyManager : Node
 		var metadata = MapFileService.LoadMetadata(wsPath);
 		int aiCount = Math.Clamp(metadata.MapProperties?.TestAiPlayerCount ?? 1, 0, 23);
 		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
+		int? testSeed = metadata.MapProperties?.TestRandomSeed;
+
+		GameContext.RandomService.SetSeed(testSeed);
 
 		int humanSlot = 1;
 		var aiSlots = new List<int>();
@@ -405,7 +411,7 @@ public partial class LobbyManager : Node
 		else
 		{
 			var available = Enumerable.Range(1, 24).ToList();
-			var rng = new Random();
+			var rng = (testSeed.HasValue && testSeed.Value != 0) ? new Random(testSeed.Value) : new Random();
 			int n = available.Count;
 			while (n > 1)
 			{
@@ -421,7 +427,7 @@ public partial class LobbyManager : Node
 			}
 		}
 
-		LocalPlayer = new PlayerInfo
+		var hostPlayer = new PlayerInfo
 		{
 			PeerId = 1,
 			Slot = humanSlot,
@@ -436,7 +442,7 @@ public partial class LobbyManager : Node
 			BinaryVersion = RealmVersion.GameBinaryVersion,
 			SessionToken = _persistentSessionToken
 		};
-		PlayerList.Add(LocalPlayer);
+		PlayerList.Add(hostPlayer);
 
 		for (int i = 0; i < aiSlots.Count; i++)
 		{
@@ -506,7 +512,7 @@ public partial class LobbyManager : Node
 		ActiveMapName = mapPathName;
 		ActiveMapVersion = !string.IsNullOrWhiteSpace(explicitVersion) ? explicitVersion : "1.0.0";
 
-		LocalPlayer = new PlayerInfo
+		var hostPlayer = new PlayerInfo
 		{
 			PeerId = 1,
 			Slot = 1,
@@ -521,7 +527,7 @@ public partial class LobbyManager : Node
 			BinaryVersion = RealmVersion.GameBinaryVersion,
 			SessionToken = _persistentSessionToken
 		};
-		PlayerList.Add(LocalPlayer);
+		PlayerList.Add(hostPlayer);
 	}
 
 	private async Task<bool> TryCreateENetServerAsync()
@@ -869,19 +875,6 @@ public partial class LobbyManager : Node
 		IsGameStarted = false;
 		ActiveLobbyId = lobbyId;
 		PlayerList.Clear();
-
-		LocalPlayer = new PlayerInfo
-		{
-			PeerId = 0,
-			Slot = -1,
-			Name = AuthenticatedUsername,
-			Faction = "HUMAN",
-			Team = "Team 1",
-			Color = PlayerColorConfig.GetColor(2),
-			IsHost = false,
-			BinaryVersion = RealmVersion.GameBinaryVersion,
-			SessionToken = _persistentSessionToken
-		};
 	}
 
 	private async Task<HttpResponseMessage?> SendJoinRequestAsync(string lobbyId, string clientPublicIp, int clientPublicPort)
@@ -1295,7 +1288,6 @@ public partial class LobbyManager : Node
 	{
 		int myId = Multiplayer.GetUniqueId();
 		GD.Print($"[LobbyManager] Connected to Host. Assigned local ENet ID: {myId}");
-		LocalPlayer.PeerId = myId;
 		_isConnectedToHost = true;
 	}
 
@@ -2191,7 +2183,7 @@ public partial class LobbyManager : Node
 			if (!await WaitForPeerConnectionAsync(peer)) return false;
 
 			GD.Print("[LobbyManager] Connected socket during reconnect. Sending RequestReconnect RPC...");
-			RpcId(1, nameof(RequestReconnect), LocalPlayer!.SessionToken, LocalPlayer.Name, RealmVersion.GameBinaryVersion);
+			RpcId(1, nameof(RequestReconnect), _persistentSessionToken, AuthenticatedUsername, RealmVersion.GameBinaryVersion);
 
 			if (await WaitForReconnectAckAsync()) return true;
 		}
@@ -2304,15 +2296,12 @@ public partial class LobbyManager : Node
 		}
 
 		int myId = Multiplayer.GetUniqueId();
-		LocalPlayer.PeerId = myId;
-		LocalPlayer.Slot = slot;
 
-		var me = PlayerList.Find(p => p.Slot == slot || p.SessionToken == LocalPlayer.SessionToken);
+		var me = PlayerList.Find(p => p.Slot == slot || p.SessionToken == _persistentSessionToken);
 		if (me != null)
 		{
 			me.PeerId = myId;
 			me.IsDisconnected = false;
-			LocalPlayer = me;
 		}
 
 		PlayerListUpdated?.Invoke();
@@ -2339,14 +2328,6 @@ public partial class LobbyManager : Node
 			{
 				PlayerList.Clear();
 				PlayerList.AddRange(newList);
-
-
-				int myId = Multiplayer.GetUniqueId();
-				var me = PlayerList.Find(p => p.PeerId == myId);
-				if (me != null)
-				{
-					LocalPlayer = me;
-				}
 
 				PlayerListUpdated?.Invoke();
 			}
@@ -2454,11 +2435,6 @@ public partial class LobbyManager : Node
 				p.IsReady = isReady;
 			}
 
-			if (LocalPlayer != null && LocalPlayer.PeerId == peerId)
-			{
-				LocalPlayer.IsReady = isReady;
-			}
-
 			RpcId(1, nameof(UpdateReadyStateOnHost), peerId, isReady);
 		}
 	}
@@ -2495,14 +2471,19 @@ public partial class LobbyManager : Node
 
 	public void ReportLocalMapReadyState(bool isMapReady)
 	{
-		if (!IsHost && LocalPlayer != null)
+		if (!IsHost)
 		{
-			LocalPlayer.IsMapReady = isMapReady;
+			int myPeerId = Multiplayer.GetUniqueId();
+			var me = PlayerList.Find(p => p.PeerId == myPeerId);
+			if (me != null)
+			{
+				me.IsMapReady = isMapReady;
+			}
 			if (_isConnectedToHost && Multiplayer.MultiplayerPeer != null)
 			{
 				try
 				{
-					RpcId(1, nameof(ReportMapReadyOnHost), LocalPlayer.PeerId, isMapReady);
+					RpcId(1, nameof(ReportMapReadyOnHost), myPeerId, isMapReady);
 				}
 				catch (Exception ex)
 				{
@@ -2534,7 +2515,9 @@ public partial class LobbyManager : Node
 			}
 			else
 			{
-				ServerChatCommandReceived?.Invoke(LocalPlayer?.Slot ?? 0, message);
+				var senderPlayer = PlayerList.Find(p => p.Name == senderName);
+				int senderSlot = senderPlayer?.Slot ?? 0;
+				ServerChatCommandReceived?.Invoke(senderSlot, message);
 				_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly);
 			}
 		}
@@ -2793,7 +2776,7 @@ public partial class LobbyManager : Node
 				{
 					if (player.Team == senderTeam)
 					{
-						if (player.PeerId == LocalPlayer.PeerId)
+						if (player.PeerId == 1)
 						{
 							ChatReceived?.Invoke(senderName, message, true);
 						}
@@ -3142,9 +3125,11 @@ public partial class LobbyManager : Node
 		AuthenticatedUsername = username;
 		AuthToken = token;
 		AuthProvider = returnedProvider;
-		if (LocalPlayer != null)
+		int myId = Multiplayer?.MultiplayerPeer != null ? Multiplayer.GetUniqueId() : 1;
+		var me = PlayerList.Find(p => p.PeerId == myId || (IsHost && p.PeerId == 1));
+		if (me != null)
 		{
-			LocalPlayer.Name = username;
+			me.Name = username;
 		}
 
 		GD.Print($"[LobbyManager] OAuth Login Success! Provider: {returnedProvider}, User: {username}");

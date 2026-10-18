@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -164,7 +164,7 @@ public partial class CommandPanel
 		}
 	}
 
-	private void GetCasterState(Entity caster, World world, string abilityId, ref float currentMana, ref float cdRemaining)
+	private void GetCasterState(Entity caster, EcsWorld world, string abilityId, ref float currentMana, ref float cdRemaining)
 	{
 		if (caster == Entity.Null || !world.IsAlive(caster)) return;
 
@@ -242,7 +242,7 @@ public partial class CommandPanel
 
 		if (cdRemaining <= 0f && GameHost.Instance != null)
 		{
-			cdRemaining = GameHost.Instance.GetPlayerSpellCooldown(item.AbilityId);
+			cdRemaining = GameHost.Instance.GetPlayerSpellCooldown(GameContext.PerspectiveFilter.ControlledPlayerIndex, item.AbilityId);
 		}
 	}
 
@@ -294,8 +294,14 @@ public partial class CommandPanel
 	public void Update(InGameHUDViewModel viewModel)
 	{
 		if (_commandGrid == null) return;
+		if (GameContext.PerspectiveFilter.IsSpectating)
+		{
+			ClearCommandPanelState();
+			return;
+		}
 
-		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy)
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy || focusedUnit.Player != localPlayerIndex)
 		{
 			ClearCommandPanelState();
 			return;
@@ -718,7 +724,7 @@ public partial class CommandPanel
 			return items;
 		}
 
-		bool hasMetadata = GameHost.UnitRegistry.TryGetValue(focusedUnit.UnitId, out var meta);
+		bool hasMetadata = GameHost.TryGetUnitOrBuildingMetadata(focusedUnit.UnitId, out var meta);
 
 		if (!focusedUnit.IsBuilding)
 		{
@@ -773,6 +779,12 @@ public partial class CommandPanel
 		else
 		{
 			PopulateMobileUnitItems(items, focusedUnit, hasMetadata, meta);
+		}
+
+		if (hasMetadata)
+		{
+			PopulateShopItems(items, meta, focusedUnit);
+			PopulateGlobalUpgrades(items, meta, focusedUnit);
 		}
 	}
 
@@ -925,7 +937,7 @@ public partial class CommandPanel
 			foreach (var opt in meta.BuildOptions) items.Add(CreateTrainOptionItem(opt));
 		}
 
-		if (focusedUnit.UnitId == "castle")
+		if (meta != null && meta.BuildOptions != null && meta.BuildOptions.Length > 0)
 		{
 			items.Add(new CommandCardItem
 			{
@@ -935,9 +947,12 @@ public partial class CommandPanel
 				Hotkey = Key.Y,
 				Callback = () => GameHost.Instance?.EnterCommandTargeting("rally")
 			});
+		}
 
-			PopulateShopItems(items);
-			PopulateGlobalUpgrades(items);
+		if (hasMetadata)
+		{
+			PopulateShopItems(items, meta, focusedUnit);
+			PopulateGlobalUpgrades(items, meta, focusedUnit);
 		}
 
 		foreach (var ab in focusedUnit.Abilities)
@@ -946,58 +961,139 @@ public partial class CommandPanel
 		}
 	}
 
-	private void PopulateShopItems(List<CommandCardItem> items)
+	private void PopulateShopItems(List<CommandCardItem> items, UnitMetadata? meta, SelectedUnitInfo focusedUnit)
 	{
-		if (GameHost.ItemRegistry.Count == 0) return;
+		if (meta?.ShopItems == null || meta.ShopItems.Length == 0) return;
 
-		foreach (var itemMeta in GameHost.ItemRegistry.Values)
+		foreach (var itemId in meta.ShopItems)
 		{
-			string itemId = itemMeta.TemplateID;
-			string itemName = !string.IsNullOrEmpty(itemMeta.Name) ? itemMeta.Name : itemId;
-			string itemDesc = !string.IsNullOrEmpty(itemMeta.Description) ? itemMeta.Description : $"Buy {itemName} for a nearby combat unit";
+			if (string.IsNullOrEmpty(itemId)) continue;
+
+			ItemMetadata? itemMeta = null;
+			if (!GameHost.ItemRegistry.TryGetValue(itemId, out itemMeta))
+			{
+				if (itemId.StartsWith("item/", StringComparison.OrdinalIgnoreCase))
+				{
+					GameHost.ItemRegistry.TryGetValue(itemId.Substring(5), out itemMeta);
+				}
+				else
+				{
+					GameHost.ItemRegistry.TryGetValue("item/" + itemId, out itemMeta);
+				}
+			}
+
+			string itemName = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Name) ? itemMeta.Name : itemId;
+			string itemDesc = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Description) ? itemMeta.Description : $"Buy {itemName} for a nearby combat unit";
+			float costGold = itemMeta?.CostGold ?? 0f;
+			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.png";
+
+			string costStr = costGold > 0f ? $" (Cost: {costGold:F0} Gold)" : "";
+			string tooltip = $"Buy {itemName}{costStr} — {itemDesc}";
 
 			items.Add(new CommandCardItem
 			{
 				Id = "buy_" + itemId,
-				IconPath = !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.png",
-				Tooltip = $"[I] Buy {itemName} (Cost: {itemMeta.CostGold:F0} Gold) — {itemDesc}",
+				IconPath = iconPath,
+				Tooltip = tooltip,
 				Hotkey = Key.None,
 				Callback = () =>
 				{
-					var selected = GameHost.Instance?.SelectedUnits;
-					if (selected?.Count == 1) GameHost.Instance.BuyItem(itemId, selected[0].Entity);
+					var sellerEntity = focusedUnit != null && focusedUnit.Entity != Entity.Null
+						? focusedUnit.Entity
+						: (GameHost.Instance?.SelectedUnits.Count == 1 ? GameHost.Instance.SelectedUnits[0].Entity : Entity.Null);
+
+					if (sellerEntity != Entity.Null)
+					{
+						GameHost.Instance?.BuyItem(itemId, sellerEntity);
+					}
 				}
 			});
 		}
 	}
 
-	private void PopulateGlobalUpgrades(List<CommandCardItem> items)
+	private void PopulateGlobalUpgrades(List<CommandCardItem> items, UnitMetadata? meta, SelectedUnitInfo focusedUnit)
 	{
-		AddGlobalUpgradeItem(items, "upgrade_weapons", "res://Assets/UI/battle_axe.png",
-			"[W] Upgrade Weapons (Cost: 150 Gold, 100 Wood)\nPermanently increases unit damage by +3",
-			Key.W, () => GameHost.Instance?.BuyWeaponsUpgrade(), () => GameHost.Instance?.HasWeaponsUpgrade ?? false);
+		if (meta?.Upgrades == null || meta.Upgrades.Length == 0) return;
 
-		AddGlobalUpgradeItem(items, "upgrade_shields", "res://Assets/UI/battle_shield.png",
-			"[G] Upgrade Armor (Cost: 150 Gold, 100 Stone)\nPermanently increases unit armor by +2",
-			Key.G, () => GameHost.Instance?.BuyShieldsUpgrade(), () => GameHost.Instance?.HasShieldsUpgrade ?? false);
+		int localViewingIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 
-		AddGlobalUpgradeItem(items, "upgrade_harvesting", "res://Assets/UI/gold_coin.png",
-			"[T] Upgrade Harvesting (Cost: 150 Wood, 100 Stone)\nPermanently increases passive resource gathering rates by +50%",
-			Key.T, () => GameHost.Instance?.BuyHarvestingUpgrade(), () => GameHost.Instance?.HasHarvestingUpgrade ?? false);
-	}
-
-	private void AddGlobalUpgradeItem(List<CommandCardItem> items, string id, string iconPath, string tooltip, Key hotkey, Action callback, Func<bool> hasUpgrade)
-	{
-		items.Add(new CommandCardItem
+		foreach (var upgradeId in meta.Upgrades)
 		{
-			Id = id,
-			IconPath = iconPath,
-			Tooltip = tooltip,
-			Hotkey = hotkey,
-			Callback = callback,
-			IsDisabled = hasUpgrade,
-			GetButtonText = () => hasUpgrade() ? TranslationServer.Translate("MAXED") : ""
-		});
+			if (string.IsNullOrEmpty(upgradeId)) continue;
+
+			UpgradeMetadata? upgMeta = null;
+			if (!GameHost.UpgradeRegistry.TryGetValue(upgradeId, out upgMeta))
+			{
+				if (upgradeId.StartsWith("upgrade/", StringComparison.OrdinalIgnoreCase))
+				{
+					GameHost.UpgradeRegistry.TryGetValue(upgradeId.Substring(8), out upgMeta);
+				}
+				else
+				{
+					GameHost.UpgradeRegistry.TryGetValue("upgrade/" + upgradeId, out upgMeta);
+				}
+			}
+
+			string name = upgMeta != null && !string.IsNullOrEmpty(upgMeta.Name) ? upgMeta.Name : upgradeId;
+			string desc = upgMeta?.Description ?? "";
+			float gold = upgMeta?.CostGold ?? 0f;
+			float wood = upgMeta?.CostWood ?? 0f;
+			float stone = upgMeta?.CostStone ?? 0f;
+			int maxLevel = upgMeta != null && upgMeta.MaxLevel > 0 ? upgMeta.MaxLevel : 1;
+			string iconPath = upgMeta != null && !string.IsNullOrEmpty(upgMeta.IconPath) ? upgMeta.IconPath : "res://Assets/UI/magic_upgrade_arrow.png";
+
+			var costParts = new List<string>();
+			if (gold > 0f) costParts.Add($"{gold:F0} Gold");
+			if (wood > 0f) costParts.Add($"{wood:F0} Wood");
+			if (stone > 0f) costParts.Add($"{stone:F0} Stone");
+			string costStr = costParts.Count > 0 ? $" (Cost: {string.Join(", ", costParts)})" : "";
+
+			Key hotkey = Key.None;
+			if (upgMeta != null && !string.IsNullOrEmpty(upgMeta.Hotkey))
+			{
+				hotkey = ParseHotkey(upgMeta.Hotkey);
+			}
+
+			string hotkeyPrefix = hotkey != Key.None ? $"[{hotkey}] " : "";
+			string tooltip = !string.IsNullOrEmpty(desc)
+				? $"{hotkeyPrefix}Upgrade {name}{costStr}\n{desc}"
+				: $"{hotkeyPrefix}Upgrade {name}{costStr}";
+
+			string canonicalId = upgMeta != null && !string.IsNullOrEmpty(upgMeta.TemplateID) ? upgMeta.TemplateID : upgradeId;
+
+			Func<bool> isMaxed = () =>
+			{
+				int lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, canonicalId) ?? 0;
+				if (lvl == 0 && canonicalId != upgradeId)
+				{
+					lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
+				}
+				return lvl >= maxLevel;
+			};
+
+			Func<string> getButtonText = () =>
+			{
+				if (isMaxed()) return TranslationServer.Translate("MAXED");
+				int lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, canonicalId) ?? 0;
+				if (lvl == 0 && canonicalId != upgradeId)
+				{
+					lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
+				}
+				if (lvl > 0 && maxLevel > 1) return $"Lvl {lvl}";
+				return "";
+			};
+
+			items.Add(new CommandCardItem
+			{
+				Id = "upgrade_" + upgradeId,
+				IconPath = iconPath,
+				Tooltip = tooltip,
+				Hotkey = hotkey,
+				Callback = () => GameHost.Instance?.BuyUpgrade(upgradeId, localViewingIndex),
+				IsDisabled = isMaxed,
+				GetButtonText = getButtonText
+			});
+		}
 	}
 
 	private CommandCardItem? CreateBuildOptionItem(string unitId, Entity builderEntity = default)
@@ -1094,7 +1190,7 @@ public partial class CommandPanel
 			IconPath = GetUnitIcon(unitId),
 			Tooltip = finalTooltip,
 			Hotkey = hotkey,
-			Callback = () => GameHost.Instance?.TrainUnitAtCastle(unitId)
+			Callback = () => GameHost.Instance?.TrainUnitAtBuilding(unitId)
 		};
 	}
 
@@ -1190,8 +1286,12 @@ public partial class CommandPanel
 	private bool IsAbilityDisabled(GameHost host, Unit_WasmRuntime unitWrapper, Entity casterEntity, string abilityId, float manaCost)
 	{
 		if (host == null) return false;
-			if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
-		if (host.GetPlayerSpellCooldown(abilityId) > 0f) return true;
+		if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
+
+		int casterPlayer = GameContext.World != null && GameContext.World.IsAlive(casterEntity) && GameContext.World.Has<UnitOwnerPlayer>(casterEntity)
+			? GameContext.World.Get<UnitOwnerPlayer>(casterEntity).PlayerIndex
+			: GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		if (host.GetPlayerSpellCooldown(casterPlayer, abilityId) > 0f) return true;
 
 		var world = GameContext.World;
 		if (world == null || casterEntity == Entity.Null || !world.IsAlive(casterEntity)) return false;
@@ -1199,7 +1299,7 @@ public partial class CommandPanel
 		return IsAbilityOnCooldownOrOOM(world, casterEntity, abilityId, manaCost);
 	}
 
-	private bool IsAbilityOnCooldownOrOOM(World world, Entity casterEntity, string abilityId, float manaCost)
+	private bool IsAbilityOnCooldownOrOOM(EcsWorld world, Entity casterEntity, string abilityId, float manaCost)
 	{
 		if (world.Has<Mana>(casterEntity))
 		{

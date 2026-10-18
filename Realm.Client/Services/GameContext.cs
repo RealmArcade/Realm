@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Client.Services.ModelOptimization;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
@@ -11,7 +11,7 @@ namespace Realm.Client.Services
 	{
 		public static SessionState SessionState { get; } = new();
 		
-		public static World World => ECSContext.World;
+		public static EcsWorld? World => ECSContext.World;
 		public static Entity WorldEntity
 		{
 			get => ECSContext.WorldEntity;
@@ -59,7 +59,9 @@ namespace Realm.Client.Services
 		public static NavMeshPathfinder NavMeshPathfinder { get; private set; }
 		public static ResourceEconomyService ResourceEconomyService { get; private set; }
 		public static SimulationService SimulationService { get; private set; }
+		public static MovementPredictionService MovementPredictionService { get; private set; }
 		public static ClientRpcService ClientRPC { get; private set; }
+		public static PerspectiveFilter PerspectiveFilter { get; private set; }
 
 		public static IEditorAPI IEditorAPI { get; private set; }
 
@@ -107,8 +109,10 @@ namespace Realm.Client.Services
 			ResourceEconomyService = new();
 			NavMeshPathfinder = new();
 			SimulationService = new();
+			MovementPredictionService = new();
 			InputService = new();
 			ClientRPC = new();
+			PerspectiveFilter = new();
 
 			IEditorAPI = EditorService;
 		}
@@ -154,8 +158,11 @@ namespace Realm.Client.Services
 			ResourceEconomyService = null;
 			NavMeshPathfinder = null;
 			SimulationService = null;
+			MovementPredictionService?.Clear();
+			MovementPredictionService = null;
 			InputService = null;
 			ClientRPC = null;
+			PerspectiveFilter = null;
 			IEditorAPI = null;
 
 			ECSContext.DisposeAndRecreateServices();

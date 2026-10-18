@@ -478,6 +478,12 @@ theme_override_constants/icon_max_width = 0
 tooltip_text = "Volunteers a tiny portion of your internet to help players download maps, reducing server costs. Uncheck this if you have a capped internet data plan or a very slow connection"
 text = "Seed map files to other players"
 
+[node name="MovementPredictionChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/h_separation = 8
+text = "Movement prediction (experimental)"
+
 [node name="ButtonsRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer"]
 custom_minimumSize = Vector2(0, 60)
 layout_mode = 2

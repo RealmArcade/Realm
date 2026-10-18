@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Network;
 using Realm.Client.Services;
@@ -24,6 +24,13 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
+	private readonly UnitId[] _cachedUnitsBuffer = new UnitId[4096];
+	private readonly LootItemId[] _cachedLootBuffer = new LootItemId[512];
+	private readonly PlayerId[] _cachedPlayersBuffer = new PlayerId[25];
+	private readonly UnitId[] _cachedSelectedUnitsBuffer = new UnitId[512];
+	private readonly string[] _cachedModifiersBuffer = new string[128];
+	private readonly string[] _cachedItemsBuffer = new string[32];
+
 	public void ResetAbilityCatalog()
 	{
 		GameContext.RegistryService.ResetAbilityCatalog();
@@ -38,6 +45,9 @@ public partial class GameHost
 	{
 		return GameContext.RegistryService.GetAbilityDefinition(abilityId);
 	}
+
+	bool IGameAPI.IsPredictiveFrame => GameSettings.MovementPrediction && (GameContext.MovementPredictionService?.IsPredictiveFrameContext ?? false);
+	bool IGameAPI.IsAuthoritativeFrame => !((IGameAPI)this).IsPredictiveFrame;
 
 	void IGameAPI.RegisterAbility(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
@@ -75,7 +85,7 @@ public partial class GameHost
 		GameContext.RegistryService.SetAbilityGridPosition(abilityId, x, y);
 	}
 
-	void IGameAPI.SetAbilityManaCost(IUnit unit, string abilityId, float manaCost)
+	void IGameAPI.SetAbilityManaCost(UnitId unit, string abilityId, float manaCost)
 	{
 		GameContext.RegistryService.SetAbilityManaCost(unit, abilityId, manaCost);
 	}
@@ -110,16 +120,20 @@ public partial class GameHost
 		return LocalizationManager.TranslateKey(key);
 	}
 
-	void IGameAPI.TriggerMeshImpulse(IUnit unit, float strength, float duration, float frequency)
+	void IGameAPI.TriggerMeshImpulse(UnitId unit, float strength, float duration, float frequency)
 	{
-		if (unit == null) return;
-		unit.TriggerMeshImpulse(strength, duration, frequency);
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+		{
+			Callable.From(() => unit3D.TriggerImpulse(strength, duration, frequency)).CallDeferred();
+		}
 	}
 
-	void IGameAPI.TriggerResourceMeshImpulse(IResourceNode node, float strength, float duration, float frequency)
+	void IGameAPI.TriggerResourceMeshImpulse(ResourceNodeId node, float strength, float duration, float frequency)
 	{
-		if (node == null) return;
-		node.TriggerMeshImpulse(strength, duration, frequency);
+		if (TryGetResourceProp(node, out var prop) && GodotObject.IsInstanceValid(prop))
+		{
+			Callable.From(() => prop.TriggerImpulse(strength, duration, frequency)).CallDeferred();
+		}
 	}
 
 	void IGameAPI.SetAbilityHotkey(string abilityId, string hotkey)
@@ -127,17 +141,17 @@ public partial class GameHost
 		GameContext.RegistryService.SetAbilityHotkey(abilityId, hotkey);
 	}
 
-	void IGameAPI.SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden)
+	void IGameAPI.SetAbilityState(UnitId unit, string abilityId, bool disabled, bool hidden)
 	{
 		GameContext.RegistryService.SetAbilityState(unit, abilityId, disabled, hidden);
 	}
 
-	public bool IsAbilityHiddenForUnit(IUnit unit, string abilityId)
+	public bool IsAbilityHiddenForUnit(UnitId unit, string abilityId)
 	{
 		return GameContext.RegistryService.IsAbilityHiddenForUnit(unit, abilityId);
 	}
 
-	public float GetAbilityManaCostForUnit(IUnit unit, string abilityId)
+	public float GetAbilityManaCostForUnit(UnitId unit, string abilityId)
 	{
 		return GameContext.RegistryService.GetAbilityManaCostForUnit(unit, abilityId);
 	}
@@ -162,7 +176,7 @@ public partial class GameHost
 		GameContext.TechTreeService.AddPlayerTechLevel(playerIndex, techId, delta);
 	}
 
-	private IUnit SpawnUnitInternal(string unitTypeId, Vector3 position, int playerIndex, bool bypassPopulation, bool executeSpawnShader)
+	private UnitId SpawnUnitInternal(string unitTypeId, Vector3 position, int playerIndex, bool bypassPopulation, bool executeSpawnShader)
 	{
 		var pos = new Godot.Vector3(position.X, GetTerrainHeightAt(new Godot.Vector3(position.X, position.Y, position.Z)), position.Z);
 
@@ -170,18 +184,19 @@ public partial class GameHost
 		if (!UnitRegistry.TryGetValue(unitTypeId, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(unitTypeId, out meta)))
 			throw new ArgumentException($"Unit ID '{unitTypeId}' not found in registry.");
 
-		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-		bool actualIsEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 		var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
 
 		if (string.IsNullOrEmpty(meta.ModelPath)) throw new ArgumentException($"Unit ID '{unitTypeId}' has no assigned 3D model asset in registry.");
 		string modelPath = GameContext.UnitSpawnService.GetFallbackModelPath(meta.ModelPath, isBuilding);
-		string name = actualIsEnemy ? GameContext.UnitSpawnService.GetEnemyUnitName(unitTypeId, meta.Name) : meta.Name;
+		string name = meta.Name;
 
-		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, playerOwner.Value, HasShieldsUpgrade, HasWeaponsUpgrade);
+		bool hasShields = GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(playerOwner.Value, u => u.ShieldsUpgrade) ?? false;
+		bool hasWeapons = GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(playerOwner.Value, u => u.WeaponsUpgrade) ?? false;
 
-		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, actualIsEnemy, bypassPopulation, playerIndex, executeSpawnShader);
-		return GameContext.SimulationService.GetUnitWrapper(entity);
+		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, playerOwner.Value, hasShields, hasWeapons);
+
+		SpawnUnit3D(entity, unitTypeId, modelPath, pos, isBuilding, playerIndex, bypassPopulation, executeSpawnShader);
+		return (UnitId)entity.Id;
 	}
 
 	void IGameAPI.SpawnResourceNode(string resourceType, Vector3 position, float amount)
@@ -194,42 +209,52 @@ public partial class GameHost
 		}
 	}
 
-	IEnumerable<IUnit> IGameAPI.GetAllUnits()
+	ReadOnlySpan<UnitId> IGameAPI.GetAllUnits()
 	{
-		var list = new List<IUnit>();
-		foreach (var u in AllUnits)
+		int count = 0;
+		for (int i = 0; i < AllUnits.Count && count < _cachedUnitsBuffer.Length; i++)
 		{
-			if (GodotObject.IsInstanceValid(u) && GameContext.World.IsAlive(u.Entity))
+			var u = AllUnits[i];
+			if (GodotObject.IsInstanceValid(u) && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
 			{
-				list.Add(GameContext.SimulationService.GetUnitWrapper(u.Entity));
+				_cachedUnitsBuffer[count++] = (UnitId)u.Entity.Id;
 			}
 		}
 
-		return list;
+		return new ReadOnlySpan<UnitId>(_cachedUnitsBuffer, 0, count);
 	}
 
-	IEnumerable<IUnit> IGameAPI.GetUnitsInRadius(Vector3 center, float radius)
+	ReadOnlySpan<UnitId> IGameAPI.GetUnitsInRadius(Vector3 center, float radius)
 	{
-		var list = new List<IUnit>();
-		var godotCenter = new Godot.Vector3(center.X, center.Y, center.Z);
-		foreach (var u in AllUnits)
+		int count = 0;
+		float rSq = radius * radius;
+		for (int i = 0; i < AllUnits.Count && count < _cachedUnitsBuffer.Length; i++)
 		{
-			if (GodotObject.IsInstanceValid(u) && GameContext.World.IsAlive(u.Entity) && u.GlobalPosition.DistanceTo(godotCenter) <= radius)
+			var u = AllUnits[i];
+			if (GodotObject.IsInstanceValid(u) && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
 			{
-				list.Add(GameContext.SimulationService.GetUnitWrapper(u.Entity));
+				float dx = u.GlobalPosition.X - center.X;
+				float dy = u.GlobalPosition.Y - center.Y;
+				float dz = u.GlobalPosition.Z - center.Z;
+				if (dx * dx + dy * dy + dz * dz <= rSq)
+				{
+					_cachedUnitsBuffer[count++] = (UnitId)u.Entity.Id;
+				}
 			}
 		}
 
-		return list;
+		return new ReadOnlySpan<UnitId>(_cachedUnitsBuffer, 0, count);
 	}
 
-	int IGameAPI.ResourceNodeCount => GetCachedResourceNodes().Count;
+	int IGameAPI.ResourceNodeCount => GetCachedResourceNodes().Length;
 
-	IResourceNode IGameAPI.GetResourceNode(int index)
+	ResourceNodeId IGameAPI.GetResourceNode(int index)
 	{
-		var list = GetCachedResourceNodes();
-		return (index >= 0 && index < list.Count) ? list[index] : null!;
+		var span = GetCachedResourceNodes();
+		return (index >= 0 && index < span.Length) ? span[index] : ResourceNodeId.Invalid;
 	}
+
+	ReadOnlySpan<ResourceNodeId> IGameAPI.GetResourceNodes() => GetCachedResourceNodes();
 
 	void IGameAPI.ShowFeedbackText(string text, Vector3 color)
 	{
@@ -251,17 +276,14 @@ public partial class GameHost
 		SpawnTargetIndicator(new Godot.Vector3(position.X, position.Y, position.Z), new Color(color.X, color.Y, color.Z));
 	}
 
-	IUnit? IGameAPI.GetUnitById(int uniqueId)
+	UnitId IGameAPI.GetUnitById(int uniqueId)
 	{
-		foreach (var u in AllUnits)
+		if (EntityIdToUnit3D.TryGetValue(uniqueId, out var u) && GodotObject.IsInstanceValid(u) && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
 		{
-			if (GodotObject.IsInstanceValid(u) && u.Entity.Id == uniqueId && GameContext.World.IsAlive(u.Entity))
-			{
-				return GameContext.SimulationService.GetUnitWrapper(u.Entity);
-			}
+			return (UnitId)uniqueId;
 		}
 
-		return null;
+		return UnitId.Invalid;
 	}
 
 	void IGameAPI.GenerateMapDirectory(string mapName, string? targetDirectory)
@@ -290,55 +312,55 @@ public partial class GameHost
 			.ReadSavedData(mapNameOnly, fileName);
 	}
 
-	event Action<IUnit>? IGameAPI.OnUnitCreated
+	event Action<UnitId>? IGameAPI.OnUnitCreated
 	{
 		add => OnUnitCreated += value;
 		remove => OnUnitCreated -= value;
 	}
 
-	event Action<IUnit, IUnit?>? IGameAPI.OnUnitDied
+	event Action<UnitId, UnitId>? IGameAPI.OnUnitDied
 	{
 		add => OnUnitDied += value;
 		remove => OnUnitDied -= value;
 	}
 
-	event Action<IUnit, IUnit, float>? IGameAPI.OnUnitDamaged
+	event Action<UnitId, UnitId, float>? IGameAPI.OnUnitDamaged
 	{
 		add => OnUnitDamaged += value;
 		remove => OnUnitDamaged -= value;
 	}
 
-	event Action<IUnit?, string, Vector3>? IGameAPI.OnSpellCast
+	event Action<UnitId, string, Vector3>? IGameAPI.OnSpellCast
 	{
 		add => OnSpellCast += value;
 		remove => OnSpellCast -= value;
 	}
 
-	event Action<string, IUnit?>? IGameAPI.OnPlayerChatMessage
+	event Action<string, UnitId>? IGameAPI.OnPlayerChatMessage
 	{
 		add => OnPlayerChatMessage += value;
 		remove => OnPlayerChatMessage -= value;
 	}
 
-	event Action<IUnit>? IGameAPI.OnUnitSelected
+	event Action<UnitId>? IGameAPI.OnUnitSelected
 	{
 		add => OnUnitSelected += value;
 		remove => OnUnitSelected -= value;
 	}
 
-	event Action<IUnit, int>? IGameAPI.OnUnitEnterZone
+	event Action<UnitId, int>? IGameAPI.OnUnitEnterZone
 	{
 		add => OnUnitEnterZone += value;
 		remove => OnUnitEnterZone -= value;
 	}
 
-	event Action<IUnit, IUnit>? IGameAPI.OnUnitAttacked
+	event Action<UnitId, UnitId>? IGameAPI.OnUnitAttacked
 	{
 		add => OnUnitAttacked += value;
 		remove => OnUnitAttacked -= value;
 	}
 
-	event Action<ILootItem, IUnit>? IGameAPI.OnLootItemCollected
+	event Action<LootItemId, UnitId>? IGameAPI.OnLootItemCollected
 	{
 		add => OnLootItemCollected += value;
 		remove => OnLootItemCollected -= value;
@@ -423,13 +445,13 @@ public partial class GameHost
 		}).CallDeferred();
 	}
 
-	void IGameAPI.AttachPersistentAura(IUnit unit, string auraVfxId, float scale)
+	void IGameAPI.AttachPersistentAura(UnitId unit, string auraVfxId, float scale)
 	{
 		Callable.From(() =>
 		{
-			if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+			if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 			{
-				if (TryGetUnit3D(wrapper.Entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 				{
 					unit3D.SetSocketAttachment(HumanoidBone.Chest, auraVfxId, null, null, scale, null, null, false);
 				}
@@ -437,41 +459,41 @@ public partial class GameHost
 		}).CallDeferred();
 	}
 
-	public event Action<IUnit, string>? OnItemSold;
+	public event Action<UnitId, string>? OnItemSold;
 
-	event Action<IUnit, string>? IGameAPI.OnItemSold
+	event Action<UnitId, string>? IGameAPI.OnItemSold
 	{
 		add => OnItemSold += value;
 		remove => OnItemSold -= value;
 	}
 
-	public event Action<IUnit>? OnConstructionFinished;
+	public event Action<UnitId>? OnConstructionFinished;
 
-	event Action<IUnit>? IGameAPI.OnConstructionFinished
+	event Action<UnitId>? IGameAPI.OnConstructionFinished
 	{
 		add => OnConstructionFinished += value;
 		remove => OnConstructionFinished -= value;
 	}
 
-	public event Action<IUnit, string, Vector3>? OnUnitOrdered;
+	public event Action<UnitId, string, Vector3>? OnUnitOrdered;
 
-	event Action<IUnit, string, Vector3>? IGameAPI.OnUnitOrdered
+	event Action<UnitId, string, Vector3>? IGameAPI.OnUnitOrdered
 	{
 		add => OnUnitOrdered += value;
 		remove => OnUnitOrdered -= value;
 	}
 
-	void IGameAPI.SetUnitFacing(IUnit unit, float facingRadians)
+	void IGameAPI.SetUnitFacing(UnitId unit, float facingRadians)
 	{
 		GameContext.SimulationService.SetUnitFacingDomain(unit, facingRadians);
 
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			SetUnitFacingViewLogic(wrapper.Entity, facingRadians);
+			SetUnitFacingViewLogic(entity, facingRadians);
 		}
 	}
 
-	private void SetUnitFacingViewLogic(Arch.Core.Entity entity, float facingRadians)
+	private void SetUnitFacingViewLogic(Entity entity, float facingRadians)
 	{
 		if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 		{
@@ -582,7 +604,7 @@ public partial class GameHost
 		}).CallDeferred();
 	}
 
-	void IGameAPI.AddBuff(IUnit unit, string buffId, float duration)
+	void IGameAPI.AddBuff(UnitId unit, string buffId, float duration)
 	{
 		GameContext.SimulationService.AddBuffDomain(unit, buffId, duration);
 	}
@@ -592,7 +614,32 @@ public partial class GameHost
 		GameContext.SimulationService.RegisterBuffModifierDomain(buffId, statName, isPercentage, value);
 	}
 
-	void IGameAPI.CastAbility(IUnit unit, string abilityId, Vector3 targetPosition)
+	void IGameAPI.RegisterPlacementRadius(string definitionKey, float radius)
+	{
+		GameContext.RegistryService.RegisterPlacementRadius(definitionKey, radius);
+	}
+
+	void IGameAPI.RegisterResourceDropoffBuilding(string definitionKey)
+	{
+		GameContext.RegistryService.RegisterResourceDropoffBuilding(definitionKey);
+	}
+
+	void IGameAPI.RegisterResourceWorkerUnit(string unitKey)
+	{
+		GameContext.RegistryService.RegisterResourceWorkerUnit(unitKey);
+	}
+
+	void IGameAPI.RegisterPrimaryBuilding(string definitionId)
+	{
+		GameContext.RegistryService.RegisterPrimaryBuilding(definitionId);
+	}
+
+	void IGameAPI.RegisterResourceNodeType(string nodeDefinitionId, string resourceType)
+	{
+		GameContext.RegistryService.RegisterResourceNodeType(nodeDefinitionId, resourceType);
+	}
+
+	void IGameAPI.CastAbility(UnitId unit, string abilityId, Vector3 targetPosition)
 	{
 		var def = GetAbilityDefinition(abilityId);
 		GameContext.SimulationService.CastAbility(
@@ -602,22 +649,22 @@ public partial class GameHost
 		);
 	}
 
-	float IGameAPI.GetAbilityCooldown(IUnit unit, string abilityId)
+	float IGameAPI.GetAbilityCooldown(UnitId unit, string abilityId)
 	{
 		return GameContext.SimulationService.GetAbilityCooldown(unit, abilityId);
 	}
 
-	void IGameAPI.SetAbilityCooldown(IUnit unit, string abilityId, float cooldown)
+	void IGameAPI.SetAbilityCooldown(UnitId unit, string abilityId, float cooldown)
 	{
 		GameContext.SimulationService.SetAbilityCooldown(unit, abilityId, cooldown);
 	}
 
-	void IGameAPI.RemoveBuff(IUnit unit, string buffId)
+	void IGameAPI.RemoveBuff(UnitId unit, string buffId)
 	{
 		GameContext.SimulationService.RemoveBuff(unit, buffId);
 	}
 
-	IEnumerable<string> IGameAPI.GetModifiers(IUnit unit)
+	IEnumerable<string> IGameAPI.GetModifiers(UnitId unit)
 	{
 		return GameContext.SimulationService.GetModifiers(unit);
 	}
@@ -761,22 +808,22 @@ public partial class GameHost
 		);
 	}
 
-	void IGameAPI.SetUnitAnimation(IUnit unit, string animationName)
+	void IGameAPI.SetUnitAnimation(UnitId unit, string animationName)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			if (TryGetUnit3D(wrapper.Entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+			if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 			{
 				unit3D.PlayAnimation(animationName);
 			}
 		}
 	}
 
-	void IGameAPI.SetUnitHandAttachment(IUnit unit, string hand, string? attachmentId)
+	void IGameAPI.SetUnitHandAttachment(UnitId unit, string hand, string? attachmentId)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			if (TryGetUnit3D(wrapper.Entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+			if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 			{
 				var boneHand = HumanoidBone.RightHand;
 				if (!string.IsNullOrEmpty(hand) && (hand.Equals("LeftHand", StringComparison.OrdinalIgnoreCase) || hand.Equals("left", StringComparison.OrdinalIgnoreCase) || hand.Equals("hand_l", StringComparison.OrdinalIgnoreCase)))
@@ -789,36 +836,37 @@ public partial class GameHost
 		}
 	}
 
-	void IGameAPI.KillUnit(IUnit unit, bool executeDespawnShader, bool playDeathAnimation)
+	void IGameAPI.KillUnit(UnitId unit, bool executeDespawnShader, bool playDeathAnimation)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			if (TryGetUnit3D(wrapper.Entity, out var unit3D))
+			if (TryGetUnit3D(entity, out var unit3D))
 			{
 				if (GodotObject.IsInstanceValid(unit3D))
 				{
-					GameContext.SimulationService?.DomainKillUnit(wrapper.Entity, () => { Callable.From(() => KillUnit(unit3D, executeDespawnShader, playDeathAnimation)).CallDeferred(); });
+					GameContext.SimulationService?.DomainKillUnit(entity, () => { Callable.From(() => KillUnit(unit3D, executeDespawnShader, playDeathAnimation)).CallDeferred(); });
 				}
 			}
 		}
 	}
 
-	void IGameAPI.DestroyUnit(IUnit unit, bool executeDespawnShader, bool playDeathAnimation)
+	void IGameAPI.DestroyUnit(UnitId unit, bool executeDespawnShader, bool playDeathAnimation)
 	{
-		if (unit is not IEcsEntityWrapper wrapper || !GameContext.World.IsAlive(wrapper.Entity)) return;
-		if (!TryGetUnit3D(wrapper.Entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
+		if (!GameContext.SimulationService.TryGetEntity(unit, out var entity) || !GameContext.World.IsAlive(entity)) return;
+		if (!TryGetUnit3D(entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
 
 		bool isBuilding = unit3D.IsBuilding;
-		if (!unit3D.IsEnemy && UnitRegistry.TryGetValue(unit3D.UnitId, out var destroyMeta) && destroyMeta.PopCost > 0)
+		if (UnitRegistry.TryGetValue(unit3D.UnitId, out var destroyMeta) && destroyMeta.PopCost > 0)
 		{
-			CurrentPopulation = Math.Max(0, CurrentPopulation - destroyMeta.PopCost);
+			int curPop = GameContext.ResourceEconomyService?.GetPlayerCurrentPopulation(unit3D.Player) ?? 0;
+			GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(unit3D.Player, Math.Max(0, curPop - destroyMeta.PopCost));
 		}
-		float radius = GameContext.World.Has<CollisionRadius>(wrapper.Entity) ? GameContext.World.Get<CollisionRadius>(wrapper.Entity).Value : 2.0f;
-		var unitPos = GameContext.World.Has<Position>(wrapper.Entity) ? GameContext.World.Get<Position>(wrapper.Entity).Value : new Vector3(unit3D.Position.X, unit3D.Position.Y, unit3D.Position.Z);
+		float radius = GameContext.World.Has<CollisionRadius>(entity) ? GameContext.World.Get<CollisionRadius>(entity).Value : 2.0f;
+		var unitPos = GameContext.World.Has<Position>(entity) ? GameContext.World.Get<Position>(entity).Value : new Vector3(unit3D.Position.X, unit3D.Position.Y, unit3D.Position.Z);
 
-		RemoveUnitFromCollections(unit3D, wrapper.Entity);
+		RemoveUnitFromCollections(unit3D, entity);
 
-		GameContext.SimulationService?.DomainDestroyUnit(wrapper.Entity, isBuilding, radius, unitPos, () =>
+		GameContext.SimulationService?.DomainDestroyUnit(entity, isBuilding, radius, unitPos, () =>
 		{
 			if (GodotObject.IsInstanceValid(unit3D))
 			{
@@ -837,9 +885,10 @@ public partial class GameHost
 		SelectedUnits.Remove(unit3D);
 		AllUnits.Remove(unit3D);
 		EntityToUnit3D.Remove(entity);
-		if (unit3D.UnitId == "castle")
+		EntityIdToUnit3D.Remove(entity.Id);
+		if (PlayerToUnits.TryGetValue(unit3D.Player, out var pList))
 		{
-			_castlesList.Remove(unit3D);
+			pList.Remove(unit3D);
 		}
 	}
 
@@ -901,15 +950,7 @@ public partial class GameHost
 		return PlayerColorConfig.GetColorHex(playerIndex);
 	}
 
-	bool IGameAPI.IsPlayerActive(int playerIndex)
-	{
-		return GameContext.SimulationService.IsPlayerActiveDomain(playerIndex);
-	}
 
-	float IGameAPI.GetPlayerGold(int playerIndex)
-	{
-		return GameContext.SimulationService.GetPlayerGoldDomain(playerIndex);
-	}
 
 	void IGameAPI.SetPlayerGold(int playerIndex, float amount)
 	{
@@ -918,23 +959,33 @@ public partial class GameHost
 
 	void IGameAPI.AdjustPlayerGold(int playerIndex, float delta)
 	{
-		float current = ((IGameAPI)this).GetPlayerGold(playerIndex);
+		float current = GameContext.SimulationService.GetPlayerGoldDomain(playerIndex);
 		float newAmount = Math.Max(0f, current + delta);
 		((IGameAPI)this).SetPlayerGold(playerIndex, newAmount);
 	}
 
-	IUnit IGameAPI.SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader, bool bypassPopulation)
+	UnitId IGameAPI.SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader, bool bypassPopulation)
 	{
 		var position3D = new Vector3(position.X, 0f, position.Y);
 		return SpawnUnitInternal(unitTypeId, position3D, playerIndex, bypassPopulation, executeSpawnShader);
 	}
 
-	IEnumerable<IUnit> IGameAPI.GetUnitsOwnedByPlayer(int playerIndex)
+	ReadOnlySpan<UnitId> IGameAPI.GetUnitsOwnedByPlayer(int playerIndex)
 	{
-		foreach (var unit in ((IGameAPI)this).GetAllUnits())
+		int count = 0;
+		if (PlayerToUnits.TryGetValue(playerIndex, out var pList))
 		{
-			if (unit.Player == playerIndex) yield return unit;
+			for (int i = 0; i < pList.Count && count < _cachedUnitsBuffer.Length; i++)
+			{
+				var u = pList[i];
+				if (GodotObject.IsInstanceValid(u) && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
+				{
+					_cachedUnitsBuffer[count++] = (UnitId)u.Entity.Id;
+				}
+			}
 		}
+
+		return new ReadOnlySpan<UnitId>(_cachedUnitsBuffer, 0, count);
 	}
 
 	void IGameAPI.TriggerPlayerDefeat(int playerIndex, string reason)
@@ -998,20 +1049,12 @@ public partial class GameHost
 		GameContext.SimulationService.SetPlayerTeam(playerIndex, teamIndex);
 	}
 
-	int IGameAPI.GetPlayerTeam(int playerIndex)
-	{
-		return GameContext.SimulationService.GetPlayerTeam(playerIndex);
-	}
 
 	void IGameAPI.SetPlayersAllied(int playerIndex, int otherPlayerIndex, bool allied)
 	{
 		GameContext.SimulationService.SetPlayersAllied(playerIndex, otherPlayerIndex, allied);
 	}
 
-	bool IGameAPI.IsPlayerComputer(int playerIndex)
-	{
-		return IsPlayerComputer(playerIndex);
-	}
 
 	bool IGameAPI.ArePlayersAllied(int playerIndex, int otherPlayerIndex)
 	{
@@ -1096,75 +1139,36 @@ public partial class GameHost
 		return false;
 	}
 
-	void IGameAPI.SetUnitColor(IUnit unit, Vector3 color)
+	void IGameAPI.SetUnitColor(UnitId unit, Vector3 color)
 	{
 		SetUnitColor(unit, color);
 	}
 
-	public void SetUnitColor(IUnit unit, Vector3 color)
+	public void SetUnitColor(UnitId unit, Vector3 color)
 	{
-		if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			if (TryGetUnit3D(wrapper.Entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+			if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 				unit3D.ApplyModelTint(new Color(color.X, color.Y, color.Z));
 		}
 	}
 
-	IEnumerable<IUnit> IGameAPI.GetUnitsInRadius(Vector3 center, float radius, Func<IUnit, bool> filter)
-	{
-		return GetUnitsInRadius(center, radius, filter);
-	}
-
-	public IEnumerable<IUnit> GetUnitsInRadius(Vector3 center, float radius, Func<IUnit, bool> filter)
-	{
-		var godotCenter = new Godot.Vector3(center.X, center.Y, center.Z);
-		var list = new List<IUnit>();
-		foreach (var u in AllUnits)
-		{
-			if (!GodotObject.IsInstanceValid(u) || !GameContext.World.IsAlive(u.Entity)) continue;
-			if (u.GlobalPosition.DistanceTo(godotCenter) > radius) continue;
-			var w = GameContext.SimulationService.GetUnitWrapper(u.Entity);
-			if (filter(w)) list.Add(w);
-		}
-
-		return list;
-	}
-
-	IEnumerable<IUnit> IGameAPI.GetUnitsOwnedByPlayer(int playerIndex, Func<IUnit, bool> filter)
-	{
-		return GetUnitsOwnedByPlayer(playerIndex, filter);
-	}
-
-	public IEnumerable<IUnit> GetUnitsOwnedByPlayer(int playerIndex, Func<IUnit, bool> filter)
-	{
-		var list = new List<IUnit>();
-		foreach (var u in AllUnits)
-		{
-			if (!GodotObject.IsInstanceValid(u) || !GameContext.World.IsAlive(u.Entity)) continue;
-			if (u.Player != playerIndex) continue;
-			var w = GameContext.SimulationService.GetUnitWrapper(u.Entity);
-			if (filter(w)) list.Add(w);
-		}
-
-		return list;
-	}
-
-	void IGameAPI.IssueAttackMoveOrder(IUnit unit, Vector3 destination)
+	void IGameAPI.IssueAttackMoveOrder(UnitId unit, Vector3 destination)
 	{
 		GameContext.SimulationService.IssueAttackMoveOrder(unit, destination, (u, c, d) => OnUnitOrdered?.Invoke(u, c, d));
 	}
 
-	void IGameAPI.IssueCastOrder(IUnit caster, string abilityId, IUnit target)
+	void IGameAPI.IssueCastOrder(UnitId caster, string abilityId, UnitId target)
 	{
 		GameContext.SimulationService.IssueCastOrder(caster, abilityId, target, (u, c, d) => OnUnitOrdered?.Invoke(u, c, d));
 	}
 
-	void IGameAPI.IssueCastOrderAt(IUnit caster, string abilityId, Vector3 position)
+	void IGameAPI.IssueCastOrderAt(UnitId caster, string abilityId, Vector3 position)
 	{
 		GameContext.SimulationService.IssueCastOrderAt(caster, abilityId, position, OnUnitOrdered);
 	}
 
-	void IGameAPI.SetAbilityAutoCast(IUnit unit, string abilityId, bool active)
+	void IGameAPI.SetAbilityAutoCast(UnitId unit, string abilityId, bool active)
 	{
 		GameContext.SimulationService.SetAbilityAutoCast(unit, abilityId, active);
 	}
@@ -1179,10 +1183,6 @@ public partial class GameHost
 		InGameHUD.Instance?.SetLeaderboardValue(label, value);
 	}
 
-	float IGameAPI.GetPlayerWood(int playerIndex)
-	{
-		return GameContext.ResourceEconomyService.GetPlayerWood(playerIndex);
-	}
 
 	void IGameAPI.SetPlayerWood(int playerIndex, float amount)
 	{
@@ -1194,20 +1194,12 @@ public partial class GameHost
 		GameContext.ResourceEconomyService.AdjustPlayerWood(playerIndex, delta);
 	}
 
-	void IGameAPI.SetUnitOwner(IUnit unit, int playerIndex)
+	void IGameAPI.SetUnitOwner(UnitId unit, int playerIndex)
 	{
 		GameContext.SimulationService.SetUnitOwner(unit, playerIndex);
 	}
 
-	int IGameAPI.GetPlayerCurrentPopulation(int playerIndex)
-	{
-		return GameContext.ResourceEconomyService.GetPlayerCurrentPopulation(playerIndex);
-	}
 
-	int IGameAPI.GetPlayerMaxPopulation(int playerIndex)
-	{
-		return GameContext.ResourceEconomyService.GetPlayerMaxPopulation(playerIndex);
-	}
 
 	void IGameAPI.SetPlayerMaxPopulation(int playerIndex, int max)
 	{
@@ -1244,49 +1236,42 @@ public partial class GameHost
 		return GameContext.MapScriptService.GetZoneCenter(zoneHandle);
 	}
 
-	void IGameAPI.SetUnitRouteState(IUnit unit, int state)
+	void IGameAPI.SetUnitRouteState(UnitId unit, int state)
 	{
 		GameContext.SimulationService.SetUnitRouteState(unit, state);
 	}
 
-	int IGameAPI.GetUnitRouteState(IUnit unit)
+	int IGameAPI.GetUnitRouteState(UnitId unit)
 	{
 		return GameContext.SimulationService.GetUnitRouteState(unit);
 	}
 
-	void IGameAPI.SetUnitLevel(IUnit unit, int level)
+	void IGameAPI.SetUnitLevel(UnitId unit, int level)
 	{
 		GameContext.SimulationService.SetUnitLevel(unit, level);
 	}
 
-	int IGameAPI.GetPlayerKills(int playerIndex)
-	{
-		return GameContext.SimulationService.GetPlayerKillsDomain(playerIndex);
-	}
 
 	void IGameAPI.SetPlayerKills(int playerIndex, int kills)
 	{
 		GameContext.SimulationService.SetPlayerKillsDomain(playerIndex, kills);
 	}
 
-	void IGameAPI.IssueMoveOrder(IUnit unit, Vector3 destination)
+	void IGameAPI.IssueMoveOrder(UnitId unit, Vector3 destination)
 	{
-		if (unit != null)
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			unit.MoveTo(destination);
+			var wrapper = GameContext.SimulationService.GetUnitWrapper(entity);
+			wrapper.MoveTo(destination);
 			OnUnitOrdered?.Invoke(unit, "Move", destination);
 		}
 	}
 
-	void IGameAPI.SetUnitSpellImmune(IUnit unit, bool immune)
+	void IGameAPI.SetUnitSpellImmune(UnitId unit, bool immune)
 	{
 		GameContext.SimulationService.SetUnitSpellImmune(unit, immune);
 	}
 
-	float IGameAPI.GetPlayerStone(int playerIndex)
-	{
-		return GameContext.ResourceEconomyService.GetPlayerStone(playerIndex);
-	}
 
 	void IGameAPI.SetPlayerStone(int playerIndex, float amount)
 	{
@@ -1323,7 +1308,7 @@ public partial class GameHost
 		GameContext.ClientRPC.SetPlayerHudElementVisible(playerIndex, element, visible);
 	}
 
-	void IGameAPI.SelectPlayerUnit(int playerIndex, IUnit unit)
+	void IGameAPI.SelectPlayerUnit(int playerIndex, UnitId unit)
 	{
 		GameContext.ClientRPC.SelectUnit(playerIndex, unit);
 	}
@@ -1333,9 +1318,21 @@ public partial class GameHost
 		GameContext.ClientRPC.ClearSelection(playerIndex);
 	}
 
-	IEnumerable<IUnit> IGameAPI.GetPlayerSelectedUnits(int playerIndex)
+	ReadOnlySpan<UnitId> IGameAPI.GetPlayerSelectedUnits(int playerIndex)
 	{
-		return GameContext.ClientRPC.GetSelectedUnits(playerIndex);
+		int count = 0;
+		if (GameContext.PerspectiveFilter.CanControl(playerIndex))
+		{
+			for (int i = 0; i < SelectedUnits.Count && count < _cachedSelectedUnitsBuffer.Length; i++)
+			{
+				var u = SelectedUnits[i];
+				if (GodotObject.IsInstanceValid(u) && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
+				{
+					_cachedSelectedUnitsBuffer[count++] = (UnitId)u.Entity.Id;
+				}
+			}
+		}
+		return new ReadOnlySpan<UnitId>(_cachedSelectedUnitsBuffer, 0, count);
 	}
 
 	void IGameAPI.ShowPlayerFeedbackText(int playerIndex, string text, Vector3 color)
@@ -1403,7 +1400,7 @@ public partial class GameHost
 		return GameContext.RegistryService.GetAbilityName(abilityId);
 	}
 
-	void IGameAPI.EnableUnitAutoCombat(IUnit unit, bool enabled)
+	void IGameAPI.EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
 		GameContext.SimulationService.EnableUnitAutoCombat(unit, enabled);
 	}
@@ -1517,19 +1514,36 @@ public partial class GameHost
 		}
 		return PathingFlags.None;
 	}
-	ILootItem? IGameAPI.SpawnLootItem(string itemTypeId, Vector3 position, int charges, float lifetime)
+	ReadOnlySpan<PlayerId> IGameAPI.GetActivePlayers(int exclusiveUpperBound)
+	{
+		int count = 0;
+		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+		{
+			int maxIndex = exclusiveUpperBound < 0 ? playersState.Players.Length : Math.Min(exclusiveUpperBound, playersState.Players.Length);
+			for (int i = 0; i < maxIndex && count < _cachedPlayersBuffer.Length; i++)
+			{
+				if (playersState.Players[i].Active)
+				{
+					_cachedPlayersBuffer[count++] = (PlayerId)i;
+				}
+			}
+		}
+		return new ReadOnlySpan<PlayerId>(_cachedPlayersBuffer, 0, count);
+	}
+
+	LootItemId IGameAPI.SpawnLootItem(string itemTypeId, Vector3 position, int charges, float lifetime)
 	{
 		return SpawnLootItem(itemTypeId, position, charges, lifetime);
 	}
 
-	public ILootItem? SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f)
+	public LootItemId SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f)
 	{
 		return SpawnLootItemInternal(itemTypeId, position, charges, lifetime, 2.0f, true, -1);
 	}
 
-	public ILootItem? SpawnLootItemInternal(string itemTypeId, Vector3 position, int charges, float lifetime, float pickupRadius, bool autoPickup, int ownerPlayerIndex)
+	public LootItemId SpawnLootItemInternal(string itemTypeId, Vector3 position, int charges, float lifetime, float pickupRadius, bool autoPickup, int ownerPlayerIndex)
 	{
-		if (string.IsNullOrWhiteSpace(itemTypeId)) return null;
+		if (string.IsNullOrWhiteSpace(itemTypeId)) return LootItemId.Invalid;
 
 		float terrainY = GameContext.EditorService?.GetTerrainHeightAt(new Godot.Vector3(position.X, position.Y, position.Z)) ?? position.Y;
 		var finalPos = new Godot.Vector3(position.X, terrainY + 0.1f, position.Z);
@@ -1558,39 +1572,39 @@ public partial class GameHost
 			Rpc(nameof(ClientSpawnLootItemRpc), entity.Id, itemTypeId, finalPos, Math.Max(1, charges));
 		}
 
-		return runtime;
+		return (LootItemId)entity.Id;
 	}
 
-	ILootItem? IGameAPI.GetLootItemById(int uniqueId) => GetLootItemById(uniqueId);
+	LootItemId IGameAPI.GetLootItemById(int uniqueId) => GetLootItemById(uniqueId);
 
-	public ILootItem? GetLootItemById(int uniqueId)
+	public LootItemId GetLootItemById(int uniqueId)
 	{
-		return IdToLootItem.TryGetValue(uniqueId, out var loot) && !loot.IsDespawned ? loot : null;
+		return IdToLootItem.TryGetValue(uniqueId, out var loot) && !loot.IsDespawned ? (LootItemId)uniqueId : LootItemId.Invalid;
 	}
 
-	IEnumerable<ILootItem> IGameAPI.GetAllLootItems() => GetAllLootItems();
+	ReadOnlySpan<LootItemId> IGameAPI.GetAllLootItems() => GetAllLootItems();
 
-	public IEnumerable<ILootItem> GetAllLootItems()
+	public ReadOnlySpan<LootItemId> GetAllLootItems()
 	{
-		var list = new List<ILootItem>();
-		for (int i = 0; i < AllLootItems.Count; i++)
+		int count = 0;
+		for (int i = 0; i < AllLootItems.Count && count < _cachedLootBuffer.Length; i++)
 		{
 			var node = AllLootItems[i];
-			if (GodotObject.IsInstanceValid(node) && !node.IsDespawned && IdToLootItem.TryGetValue(node.UniqueId, out var item))
+			if (GodotObject.IsInstanceValid(node) && !node.IsDespawned && IdToLootItem.TryGetValue(node.UniqueId, out _))
 			{
-				list.Add(item);
+				_cachedLootBuffer[count++] = (LootItemId)node.UniqueId;
 			}
 		}
-		return list;
+		return new ReadOnlySpan<LootItemId>(_cachedLootBuffer, 0, count);
 	}
 
-	IEnumerable<ILootItem> IGameAPI.GetLootItemsInRadius(Vector3 center, float radius) => GetLootItemsInRadius(center, radius);
+	ReadOnlySpan<LootItemId> IGameAPI.GetLootItemsInRadius(Vector3 center, float radius) => GetLootItemsInRadius(center, radius);
 
-	public IEnumerable<ILootItem> GetLootItemsInRadius(Vector3 center, float radius)
+	public ReadOnlySpan<LootItemId> GetLootItemsInRadius(Vector3 center, float radius)
 	{
-		var list = new List<ILootItem>();
+		int count = 0;
 		float rSq = radius * radius;
-		for (int i = 0; i < AllLootItems.Count; i++)
+		for (int i = 0; i < AllLootItems.Count && count < _cachedLootBuffer.Length; i++)
 		{
 			var node = AllLootItems[i];
 			if (GodotObject.IsInstanceValid(node) && !node.IsDespawned)
@@ -1598,13 +1612,13 @@ public partial class GameHost
 				float dx = node.GlobalPosition.X - center.X;
 				float dy = node.GlobalPosition.Y - center.Y;
 				float dz = node.GlobalPosition.Z - center.Z;
-				if (dx * dx + dy * dy + dz * dz <= rSq && IdToLootItem.TryGetValue(node.UniqueId, out var item))
+				if (dx * dx + dy * dy + dz * dz <= rSq && IdToLootItem.TryGetValue(node.UniqueId, out _))
 				{
-					list.Add(item);
+					_cachedLootBuffer[count++] = (LootItemId)node.UniqueId;
 				}
 			}
 		}
-		return list;
+		return new ReadOnlySpan<LootItemId>(_cachedLootBuffer, 0, count);
 	}
 
 	bool IGameAPI.RemoveLootItem(int lootItemId) => RemoveLootItem(lootItemId);
@@ -1641,28 +1655,19 @@ public partial class GameHost
 		}
 	}
 
-	bool IGameAPI.CollectLootItem(int lootItemId, IUnit unit) => CollectLootItem(lootItemId, unit);
+	bool IGameAPI.CollectLootItem(int lootItemId, UnitId unit) => CollectLootItem(lootItemId, unit);
 
-	public bool CollectLootItem(int lootItemId, IUnit unit)
+	public bool CollectLootItem(int lootItemId, UnitId unit)
 	{
-		if (unit == null) return false;
+		if (!unit.IsValid) return false;
 		if (!IdToLootItem.TryGetValue(lootItemId, out var loot) || loot.IsDespawned) return false;
 
-		Unit3D? u3d = null;
-		for (int i = 0; i < AllUnits.Count; i++)
-		{
-			var u = AllUnits[i];
-			if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.UniqueId)
-			{
-				u3d = u;
-				break;
-			}
-		}
-		if (u3d == null) return false;
+		if (!EntityIdToUnit3D.TryGetValue(unit.Value, out var u3d) || !GodotObject.IsInstanceValid(u3d)) return false;
 		var unitEntity = u3d.Entity;
 		if (!GameContext.World.IsAlive(unitEntity) || GameContext.World.Has<Dead>(unitEntity)) return false;
 
-		if (loot.OwnerPlayerIndex >= 0 && unit.Player != loot.OwnerPlayerIndex) return false;
+		var wrapper = GameContext.SimulationService.GetUnitWrapper(unitEntity);
+		if (loot.OwnerPlayerIndex >= 0 && wrapper.Player != loot.OwnerPlayerIndex) return false;
 
 		if (GameContext.World.Has<Inventory>(unitEntity))
 		{
@@ -1679,7 +1684,7 @@ public partial class GameHost
 			InGameHUD.Instance.RefreshUI(SelectedUnits);
 		}
 
-		OnLootItemCollected?.Invoke(loot, unit);
+		OnLootItemCollected?.Invoke((LootItemId)lootItemId, unit);
 		RemoveLootItem(lootItemId);
 		return true;
 	}
@@ -1688,11 +1693,10 @@ public partial class GameHost
 
 	public bool CollectLootItemByPlayer(int lootItemId, int playerIndex)
 	{
-		var loot = GetLootItemById(lootItemId);
-		if (loot == null || loot.IsDespawned) return false;
+		if (!IdToLootItem.TryGetValue(lootItemId, out var loot) || loot.IsDespawned) return false;
 
 		var pos = loot.Position;
-		IUnit? bestUnit = null;
+		UnitId bestUnit = UnitId.Invalid;
 		float bestDistSq = float.MaxValue;
 
 		for (int i = 0; i < AllUnits.Count; i++)
@@ -1716,15 +1720,330 @@ public partial class GameHost
 			if (dsq < bestDistSq)
 			{
 				bestDistSq = dsq;
-				bestUnit = GameContext.SimulationService.GetUnitWrapper(u.Entity);
+				bestUnit = (UnitId)u.Entity.Id;
 			}
 		}
 
-		if (bestUnit != null)
+		if (bestUnit.IsValid)
 		{
 			return CollectLootItem(lootItemId, bestUnit);
 		}
 
 		return false;
+	}
+
+
+	void IGameAPI.SetUnitHealth(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Health = value;
+	}
+
+
+	void IGameAPI.SetUnitMaxHealth(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).MaxHealth = value;
+	}
+
+
+	void IGameAPI.SetUnitMana(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Mana = value;
+	}
+
+
+	void IGameAPI.SetUnitMaxMana(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).MaxMana = value;
+	}
+
+
+	void IGameAPI.SetUnitManaRegen(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).ManaRegen = value;
+	}
+
+
+	void IGameAPI.SetUnitDamage(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Damage = value;
+	}
+
+
+	void IGameAPI.SetUnitRange(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Range = value;
+	}
+
+
+	void IGameAPI.SetUnitArmor(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Armor = value;
+	}
+
+
+	void IGameAPI.SetUnitSpeed(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Speed = value;
+	}
+
+
+	void IGameAPI.SetUnitAttackSpeed(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).AttackSpeed = value;
+	}
+
+
+	string IGameAPI.GetUnitInstanceName(UnitId unit)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).Name;
+		return string.Empty;
+	}
+
+	void IGameAPI.SetUnitName(UnitId unit, string value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Name = value;
+	}
+
+	string IGameAPI.GetUnitTemplateId(UnitId unit)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).TemplateID;
+		return string.Empty;
+	}
+
+
+
+
+
+
+	void IGameAPI.SetUnitExperience(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Experience = value;
+	}
+
+
+
+
+
+	void IGameAPI.SetUnitScale(UnitId unit, float value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Scale = value;
+	}
+
+
+	void IGameAPI.SetUnitInvulnerable(UnitId unit, bool value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Invulnerable = value;
+	}
+
+
+	void IGameAPI.IssueAttackOrder(UnitId unit, UnitId target)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Attack(target);
+	}
+
+	void IGameAPI.IssueGatherOrder(UnitId unit, ResourceNodeId resourceNode)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Gather(resourceNode);
+	}
+
+	void IGameAPI.IssueStopOrder(UnitId unit)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Stop();
+	}
+
+	void IGameAPI.IssueHoldPositionOrder(UnitId unit)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).HoldPosition();
+	}
+
+	void IGameAPI.TeleportUnit(UnitId unit, Vector3 position)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Teleport(position);
+	}
+
+	void IGameAPI.StunUnit(UnitId unit, float duration)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Stun(duration);
+	}
+
+	void IGameAPI.SilenceUnit(UnitId unit, float duration)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).Silence(duration);
+	}
+
+	bool IGameAPI.AddItemToUnit(UnitId unit, string itemId)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).AddItem(itemId);
+		return false;
+	}
+
+	bool IGameAPI.RemoveItemFromUnit(UnitId unit, string itemId)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).RemoveItem(itemId);
+		return false;
+	}
+
+	bool IGameAPI.UnitHasItem(UnitId unit, string itemId)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).HasItem(itemId);
+		return false;
+	}
+
+	IReadOnlyList<string> IGameAPI.GetUnitItems(UnitId unit)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).GetItems();
+		return Array.Empty<string>();
+	}
+
+	bool IGameAPI.UnitHasBuff(UnitId unit, string buffId)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).HasBuff(buffId);
+		return false;
+	}
+
+	void IGameAPI.SetUnitCustomData(UnitId unit, string key, string value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).SetCustomData(key, value);
+	}
+
+	string? IGameAPI.GetUnitCustomData(UnitId unit, string key)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).GetCustomDataString(key);
+		return null;
+	}
+
+	bool IGameAPI.RemoveUnitCustomData(UnitId unit, string key)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).RemoveCustomData(key);
+		return false;
+	}
+
+	bool IGameAPI.UnitHasCustomData(UnitId unit, string key)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).HasCustomData(key);
+		return false;
+	}
+
+	string IGameAPI.GetLootItemTypeId(LootItemId item)
+	{
+		return IdToLootItem.TryGetValue(item.Value, out var loot) ? loot.ItemTypeId : string.Empty;
+	}
+
+	Vector3 IGameAPI.GetLootItemPosition(LootItemId item)
+	{
+		return IdToLootItem.TryGetValue(item.Value, out var loot) ? loot.Position : Vector3.Zero;
+	}
+
+	int IGameAPI.GetLootItemCharges(LootItemId item)
+	{
+		return IdToLootItem.TryGetValue(item.Value, out var loot) ? loot.Charges : 0;
+	}
+
+	float IGameAPI.GetLootItemLifetime(LootItemId item)
+	{
+		return IdToLootItem.TryGetValue(item.Value, out var loot) ? loot.Lifetime : 0f;
+	}
+
+	float IGameAPI.GetLootItemPickupRadius(LootItemId item)
+	{
+		return IdToLootItem.TryGetValue(item.Value, out var loot) ? loot.PickupRadius : 0f;
+	}
+
+	bool IGameAPI.IsLootItemAutoPickup(LootItemId item)
+	{
+		return IdToLootItem.TryGetValue(item.Value, out var loot) && loot.AutoPickup;
+	}
+
+	int IGameAPI.GetLootItemOwner(LootItemId item)
+	{
+		return IdToLootItem.TryGetValue(item.Value, out var loot) ? loot.OwnerPlayerIndex : -1;
+	}
+
+	bool IGameAPI.IsLootItemDespawned(LootItemId item)
+	{
+		return !IdToLootItem.TryGetValue(item.Value, out var loot) || loot.IsDespawned;
+	}
+
+	string IGameAPI.GetResourceNodeType(ResourceNodeId node)
+	{
+		if (TryGetResourceProp(node, out var prop) && GodotObject.IsInstanceValid(prop))
+		{
+			return prop.PropId switch
+			{
+				"goldmine" => "gold",
+				"tree" => "wood",
+				"rock" => "stone",
+				_ => prop.PropId ?? string.Empty
+			};
+		}
+		return string.Empty;
+	}
+
+	Vector3 IGameAPI.GetResourceNodePosition(ResourceNodeId node)
+	{
+		if (TryGetResourceProp(node, out var prop) && GodotObject.IsInstanceValid(prop))
+		{
+			var pos = prop.GlobalPosition;
+			return new Vector3(pos.X, pos.Y, pos.Z);
+		}
+		return Vector3.Zero;
+	}
+
+	float IGameAPI.GetResourceNodeAmount(ResourceNodeId node)
+	{
+		if (TryGetResourceProp(node, out var prop) && GodotObject.IsInstanceValid(prop))
+		{
+			return prop.ResourceAmount;
+		}
+		return 0f;
+	}
+
+	void IGameAPI.SetResourceNodeAmount(ResourceNodeId node, float value)
+	{
+		if (TryGetResourceProp(node, out var prop) && GodotObject.IsInstanceValid(prop))
+		{
+			prop.ResourceAmount = value;
+		}
+	}
+
+	bool IGameAPI.IsResourceNodeDepleted(ResourceNodeId node)
+	{
+		if (TryGetResourceProp(node, out var prop) && GodotObject.IsInstanceValid(prop))
+		{
+			return prop.ResourceAmount <= 0f;
+		}
+		return true;
 	}
 }

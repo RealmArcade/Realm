@@ -1,4 +1,4 @@
-﻿namespace Realm.Client.Network;
+namespace Realm.Client.Network;
 
 public struct HostAssetTransferItem
 {

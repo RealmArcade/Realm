@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client.Services;

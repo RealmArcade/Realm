@@ -141,7 +141,7 @@ namespace Realm.Client.Core
 				var pastedNode = SpawnPastedNode(req);
 				if (pastedNode != null)
 				{
-					spawnActions.Add(new ObjectSpawnAction(req.Type, req.Id, req.Position, req.Rotation, req.Scale, req.IsEnemy, pastedNode));
+					spawnActions.Add(new ObjectSpawnAction(req.Type, req.Id, req.Position, req.Rotation, req.Scale, pastedNode, req.Player));
 				}
 			}
 
@@ -150,7 +150,7 @@ namespace Realm.Client.Core
 
 		private Node SpawnPastedNode(EntitySpawnRequest req)
 		{
-			if (req.Type == "unit") return SpawnUnitExternal(req.Id, req.Position, req.IsEnemy, req.Rotation, req.Scale);
+			if (req.Type == "unit") return SpawnUnitExternal(req.Id, req.Position, req.Rotation, req.Scale, req.Player);
 			if (req.Type == "prop") return SpawnPropExternalWithParams(req.Id, req.Position, req.Rotation, req.Scale);
 			if (req.Type == "decal") return SpawnDecalExternalWithParams(req.Id, req.Position, req.Rotation, req.Scale);
 			return null;

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
@@ -576,7 +576,7 @@ public partial class InGameHUD : Control
 		_minimapControls.AddChild(_btnPing);
 
 		_btnCenter = new Button();
-		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Castle [Space]", () => GameHost.Instance?.CenterCameraOnCastle());
+		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Base [Space]", () => GameHost.Instance?.CenterCameraOnPrimaryBuilding());
 		_minimapControls.AddChild(_btnCenter);
 
 		_btnSelectIdle = new Button();
@@ -832,7 +832,7 @@ public partial class InGameHUD : Control
 			if (_chatPanel != null) _chatPanel.Visible = false;
 		}
 
-		bool isSpectator = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator";
+		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 		if (isSpectator)
 		{
 			_resourceContainer.Visible = false;
@@ -1297,8 +1297,8 @@ public partial class InGameHUD : Control
 	{
 		if (selectedUnits != null)
 		{
-			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => !u.IsEnemy);
-			bool isSpectator = LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
+			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => GameContext.PerspectiveFilter.CanControl(u.Player));
+			bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 			bool commandCardAllowed = IsHudElementVisible(HudElement.CommandCard, true);
 			_commandFrame.Visible = !isSpectator && hasPlayerSelection && commandCardAllowed;
 		}
@@ -1537,7 +1537,7 @@ void fragment() {
 		// Handle specific visual updates that are not data-bound yet.
 		foreach (var u in selected)
 		{
-			if (u.IsBuilding && !u.IsEnemy && u.UnitId == "castle")
+			if (u.IsBuilding && GameContext.PerspectiveFilter.CanObserve(u.Player))
 			{
 				u.UpdateRallyVisuals();
 			}
@@ -2061,7 +2061,7 @@ void fragment() {
 				{
 					("WASD / Edge", "Pan Camera"),
 					("Shift+WASD", "Fast Camera Pan"),
-					("Space", "Center Camera on Castle"),
+					("Space", "Center Camera on Base"),
 					("Z", "Cycle Zoom (Near / Mid / Far)"),
 					("F4", "Toggle Terrain Radar Mode"),
 					("Alt+G", "Ping Map Alert"),
@@ -2401,7 +2401,8 @@ void fragment() {
 		bool isMultiplayer = LobbyManager.Instance != null && !LobbyManager.Instance.IsSinglePlayer
 		                                                   && Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
 
-		Entity localPlayerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		if (GameContext.PerspectiveFilter.IsSpectating) return false;
+		Entity localPlayerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
 		var (result, _) = GameContext.CheatService.TryTriggerCheat(
 			text, isMultiplayer, localPlayerEntity, ECSContext.DefinitionManager, selectedEntities);
 
@@ -2496,22 +2497,22 @@ void fragment() {
 
 		var btnBlue = new Button();
 		btnBlue.Text = TranslationServer.Translate("BLUE");
-		btnBlue.Pressed += () => { LiveSpectatorPerspective = 0; };
+		btnBlue.Pressed += () => { LiveSpectatorPerspective = 1; };
 		specHBox.AddChild(btnBlue);
 
 		var btnRed = new Button();
 		btnRed.Text = TranslationServer.Translate("RED");
-		btnRed.Pressed += () => { LiveSpectatorPerspective = 1; };
+		btnRed.Pressed += () => { LiveSpectatorPerspective = 2; };
 		specHBox.AddChild(btnRed);
 
 		var btnGreen = new Button();
 		btnGreen.Text = TranslationServer.Translate("GREEN");
-		btnGreen.Pressed += () => { LiveSpectatorPerspective = 2; };
+		btnGreen.Pressed += () => { LiveSpectatorPerspective = 3; };
 		specHBox.AddChild(btnGreen);
 
 		var btnYellow = new Button();
 		btnYellow.Text = TranslationServer.Translate("YELLOW");
-		btnYellow.Pressed += () => { LiveSpectatorPerspective = 3; };
+		btnYellow.Pressed += () => { LiveSpectatorPerspective = 4; };
 		specHBox.AddChild(btnYellow);
 
 		AddChild(specPanel);
@@ -2548,17 +2549,8 @@ void fragment() {
 
 	private void GetLocalPlayerInfo(out bool isLocalHost, out int localPeerId)
 	{
-		isLocalHost = false;
-		localPeerId = 1;
-
-		var lobby = LobbyManager.Instance;
-		if (lobby == null) return;
-
-		var localPlayer = lobby.LocalPlayer;
-		if (localPlayer == null) return;
-
-		isLocalHost = localPlayer.IsHost;
-		localPeerId = localPlayer.PeerId;
+		localPeerId = GameHost.Instance?.LocalPeerId ?? 1;
+		isLocalHost = LobbyManager.Instance?.IsHost ?? false;
 	}
 
 	private void UpdatePauseTitle()
@@ -2661,7 +2653,7 @@ void fragment() {
 		_pauseReadyCheck.Text = "Ready to Resume";
 		_pauseReadyCheck.Toggled += (buttonPressed) =>
 		{
-			int localPeerId = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null ? LobbyManager.Instance.LocalPlayer.PeerId : 1;
+			int localPeerId = GameHost.Instance?.LocalPeerId ?? 1;
 			GameHost.Instance?.RequestToggleReady(localPeerId, buttonPressed);
 		};
 		actionHBox.AddChild(_pauseReadyCheck);

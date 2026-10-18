@@ -6,6 +6,7 @@ using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.VFX;
+using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
@@ -640,7 +641,7 @@ public partial class GameHost
 			if (!GodotObject.IsInstanceValid(prop) || !MatchesEntityOrAssetKey(prop, normAssetKey)) continue;
 
 			prop.UpdateCollisionCircleScale(ratio);
-			if (prop.Entity != default && GameContext.World.IsAlive(prop.Entity))
+			if (prop.Entity != Entity.Null && GameContext.World.IsAlive(prop.Entity))
 			{
 				float baseRadius = GetOrCalculateObstacleRadius(prop.PropId, prop) * ratio;
 				GameContext.World.SetOrAdd(prop.Entity, new CollisionRadius(baseRadius));
@@ -655,7 +656,7 @@ public partial class GameHost
 			if (!GodotObject.IsInstanceValid(unit) || !MatchesEntityOrAssetKey(unit, normAssetKey)) continue;
 
 			unit.UpdateCollisionCircleScale(ratio);
-			if (unit.Entity != default && GameContext.World.IsAlive(unit.Entity))
+			if (unit.Entity != Entity.Null && GameContext.World.IsAlive(unit.Entity))
 			{
 				float baseRadius = GetOrCalculateObstacleRadius(unit.UnitId, unit) * ratio;
 				GameContext.World.SetOrAdd(unit.Entity, new CollisionRadius(baseRadius));
@@ -895,6 +896,7 @@ public partial class GameHost
 		AllVfx.Clear();
 		GameContext.FXService.ClearActivePings();
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
 		EntityToProp3D.Clear();
 		EntityToVfx3D.Clear();
 
@@ -1018,6 +1020,7 @@ public partial class GameHost
 			SelectedUnits.Remove(unit);
 			AllUnits.Remove(unit);
 			EntityToUnit3D.Remove(unit.Entity);
+			EntityIdToUnit3D.Remove(unit.Entity.Id);
 			if (GameContext.World.IsAlive(unit.Entity))
 			{
 				GameContext.World.Destroy(unit.Entity);
@@ -1060,13 +1063,11 @@ public partial class GameHost
 		}
 	}
 
-	public Unit3D SpawnUnitExternal(string unitId, Vector3 position, bool isEnemy, float rotationY, float scale, int player = -1)
+	public Unit3D SpawnUnitExternal(string unitId, Vector3 position, float rotationY, float scale, int player = 0)
 	{
 		// Preserve the authored Y (saved maps, pasted/cloned/undone objects). Placement paths
 		// that want feet-on-terrain snap the Y to the terrain before calling this method.
 		int playerIndex = player >= 0 ? player : 0;
-		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-		bool actualIsEnemy = player >= 0 ? NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex) : isEnemy;
 		bool isBuilding = false;
 		if (!UnitRegistry.ContainsKey(unitId) && !BuildingRegistry.ContainsKey(unitId))
 		{
@@ -1094,7 +1095,7 @@ public partial class GameHost
 		string name = meta.Name;
 		var entity = CreateEcsUnit(unitId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, position, playerOwner);
 
-		var unit3D = SpawnUnit3D(entity, unitId, modelPath, position, isBuilding, actualIsEnemy, false, playerIndex);
+		var unit3D = SpawnUnit3D(entity, unitId, modelPath, position, isBuilding, playerIndex);
 		unit3D.RotationDegrees = new Vector3(0.0f, rotationY, 0.0f);
 		unit3D.Scale = Vector3.One * (scale <= 0.001f ? 1.0f : scale);
 		unit3D.Visible = true;
@@ -1315,14 +1316,10 @@ public partial class GameHost
 	{
 		if (GodotObject.IsInstanceValid(unit) && GameContext.World.IsAlive(unit.Entity))
 		{
-			int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-			bool isEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 			var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
 			GameContext.World.Set(unit.Entity, new Owner(playerOwner));
 
 			GameContext.World.SetOrAdd(unit.Entity, new UnitOwnerPlayer(playerIndex));
-
-			GameContext.World.SetOrAdd(unit.Entity, new UnitFaction(isEnemy));
 
 			if (TryGetUnitOrBuildingMetadata(unit.UnitId, out var meta))
 			{
@@ -1331,7 +1328,6 @@ public partial class GameHost
 			}
 
 			unit.Player = playerIndex;
-			unit.IsEnemy = isEnemy;
 			unit.UpdatePlayerColorVisual();
 			unit.IsSelected = unit.IsSelected;
 		}
@@ -1342,7 +1338,7 @@ public partial class GameHost
 		int targetPlayer = isEnemy ? 1 : 0;
 		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
 		{
-			int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
+			int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 			var enemyPlayer = LobbyManager.Instance.PlayerList.Find(p => NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, p.Slot));
 			if (isEnemy && enemyPlayer != null)
 			{
@@ -1373,9 +1369,8 @@ public partial class GameHost
 		}
 
 		AllUnits.Clear();
-		_castlesList.Clear();
-		CurrentPopulation = 0;
-		MaxPopulation = 0;
+		SetCurrentPopulation(GameContext.PerspectiveFilter.ControlledPlayerIndex, 0);
+		SetMaxPopulation(GameContext.PerspectiveFilter.ControlledPlayerIndex, 0);
 
 		foreach (var child in GetChildren())
 		{
@@ -1397,6 +1392,7 @@ public partial class GameHost
 		AllDecals.Clear();
 		AllVfx.Clear();
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
 		EntityToProp3D.Clear();
 
 		ReinitializeEcsAndServices();

@@ -327,6 +327,7 @@ public static partial class MapWorkspaceService
 		EnsureWitFile(directory);
 		EnsureCsproj(directory, mapName);
 		EnsureMapScript(directory, mapName);
+		EnsureMeleeRules(directory);
 		EnsureWasmEntryPoint(directory);
 		EnsureMetadataJson(directory);
 		EnsureLicenseFile(directory);
@@ -830,6 +831,19 @@ public static partial class MapWorkspaceService
 			if (File.Exists(template))
 			{
 				File.WriteAllText(scriptPath, File.ReadAllText(template).Replace("class MapScript", $"class {mapName}"));
+			}
+		}
+	}
+
+	public static void EnsureMeleeRules(string directory)
+	{
+		string meleePath = Path.Combine(directory, "MeleeRules.cs");
+		if (!File.Exists(meleePath) || new FileInfo(meleePath).Length == 0)
+		{
+			string template = GetTemplatePath("MeleeRules.cs");
+			if (File.Exists(template))
+			{
+				File.Copy(template, meleePath, true);
 			}
 		}
 	}

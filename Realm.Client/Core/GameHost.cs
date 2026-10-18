@@ -6,13 +6,14 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
-using Arch.Core;
+using Realm.Ecs;
 using DotRecast.Detour;
 using Godot;
 using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.Utils;
 using Realm.Client.VFX;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -51,12 +52,50 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private int _localPeerId
 	{
-		get => GameContext.NetworkService?.LocalPeerId ?? 1;
+		get => GameContext.NetworkService.LocalPeerId;
 		set
 		{
 			if (GameContext.NetworkService != null) GameContext.NetworkService.LocalPeerId = value;
 		}
 	}
+
+	public int LocalPeerId => _localPeerId;
+
+	private const string SpectatorTeamName = "Spectator";
+
+	private void ConfigurePerspective()
+	{
+		var filter = GameContext.PerspectiveFilter;
+		if (GameContext.SessionState.IsMapEditorMode)
+		{
+			filter.ConfigureParticipant(1);
+			return;
+		}
+
+		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+		{
+			filter.ConfigureSpectator();
+			return;
+		}
+
+		var lobbyPlayers = LobbyManager.Instance?.PlayerList;
+		if (lobbyPlayers == null || lobbyPlayers.Count == 0)
+		{
+			filter.ConfigureParticipant(1);
+			return;
+		}
+
+		int peerId = _localPeerId;
+		var entry = _multiplayerActive
+			? lobbyPlayers.Find(x => x.PeerId == peerId)
+			: lobbyPlayers.Find(x => x.PeerId >= 0 && x.Team != SpectatorTeamName);
+		if (entry == null)
+			throw new InvalidOperationException($"Local peer {peerId} is not present in the lobby player list.");
+
+		if (entry.Team == SpectatorTeamName) filter.ConfigureSpectator();
+		else filter.ConfigureParticipant(entry.Slot);
+	}
+
 
 	private int _nextCommandId
 	{
@@ -127,9 +166,10 @@ public partial class GameHost : Node3D, IGameAPI
 	public static Dictionary<int, LootItem_WasmRuntime> IdToLootItem { get; set; } = new();
 	private readonly List<int> _expiredLootToDespawn = new();
 	private readonly List<(int LootId, Entity UnitEntity)> _collectedLootToProcess = new();
-	private List<Unit3D> _castlesList { get; set; } = new();
 
 	public static Dictionary<Entity, Unit3D> EntityToUnit3D { get; set; } = new();
+	public static Dictionary<int, Unit3D> EntityIdToUnit3D { get; set; } = new();
+	public static Dictionary<int, List<Unit3D>> PlayerToUnits { get; set; } = new();
 	public static Dictionary<Entity, Prop3D> EntityToProp3D { get; set; } = new();
 	public static Dictionary<Entity, ProceduralVfxInstance3D> EntityToVfx3D { get; set; } = new();
 
@@ -214,46 +254,51 @@ public partial class GameHost : Node3D, IGameAPI
 		set => GameContext.InputService?.SetCycleSelectionIndex(value, SelectedUnits.Count);
 	}
 
-	public bool HasWeaponsUpgrade
+	public bool HasWeaponsUpgrade(int playerIndex)
 	{
-		get
-		{
-			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			return GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(pe, u => u.WeaponsUpgrade) ?? false;
-		}
-		set
-		{
-			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			GameContext.World?.Mutate(pe, (ref PlayerUpgrades u) => u.WeaponsUpgrade = value);
-		}
+		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
+		return GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(pe, u => u.WeaponsUpgrade) ?? false;
 	}
 
-	public bool HasShieldsUpgrade
+	public void SetWeaponsUpgrade(int playerIndex, bool value)
 	{
-		get
-		{
-			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			return GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(pe, u => u.ShieldsUpgrade) ?? false;
-		}
-		set
-		{
-			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			GameContext.World?.Mutate(pe, (ref PlayerUpgrades u) => u.ShieldsUpgrade = value);
-		}
+		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
+		GameContext.World?.Mutate(pe, (ref PlayerUpgrades u) => u.WeaponsUpgrade = value);
 	}
 
-	public bool HasHarvestingUpgrade
+	public bool HasShieldsUpgrade(int playerIndex)
 	{
-		get
-		{
-			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			return GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(pe, u => u.HarvestingUpgrade) ?? false;
-		}
-		set
-		{
-			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			GameContext.World?.Mutate(pe, (ref PlayerUpgrades u) => u.HarvestingUpgrade = value);
-		}
+		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
+		return GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(pe, u => u.ShieldsUpgrade) ?? false;
+	}
+
+	public void SetShieldsUpgrade(int playerIndex, bool value)
+	{
+		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
+		GameContext.World?.Mutate(pe, (ref PlayerUpgrades u) => u.ShieldsUpgrade = value);
+	}
+
+	public bool HasHarvestingUpgrade(int playerIndex)
+	{
+		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
+		return GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(pe, u => u.HarvestingUpgrade) ?? false;
+	}
+
+	public void SetHarvestingUpgrade(int playerIndex, bool value)
+	{
+		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
+		GameContext.World?.Mutate(pe, (ref PlayerUpgrades u) => u.HarvestingUpgrade = value);
+	}
+
+	public int GetPlayerTechLevel(int playerIndex, string techId)
+	{
+		if (playerIndex <= 0) throw new ArgumentOutOfRangeException(nameof(playerIndex), playerIndex, "An explicit player index is required.");
+		return GameContext.TechTreeService?.GetPlayerTechLevel(playerIndex, techId) ?? 0;
+	}
+
+	public bool HasUpgrade(int playerIndex, string techId)
+	{
+		return GetPlayerTechLevel(playerIndex, techId) > 0;
 	}
 
 
@@ -327,6 +372,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void LoadMapProperties(string path)
 	{
+		ApplyTestRandomSeedIfNeeded(path);
 		GameContext.MapPropertiesLoader?.LoadMapProperties(ECSContext.WorldEntity, path);
 		_defaultCameraBoundsCaptured = false;
 		CaptureDefaultCameraBounds();
@@ -617,7 +663,6 @@ public partial class GameHost : Node3D, IGameAPI
 	private Vector3 _dragObjectStartPos { get; set; }
 	private Vector3 _dragObjectStartRot { get; set; }
 	private Vector3 _dragObjectStartScale { get; set; }
-	private bool _dragObjectStartIsEnemy { get; set; }
 
 
 	private Node3D _editorPreviewNode { get; set; }
@@ -642,34 +687,24 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 
-	public int MaxPopulation
+	public int GetMaxPopulation(int playerIndex)
 	{
-		get
-		{
-			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			return GameContext.World?.GetFieldOrDefault<PlayerPopulation, int>(pe, p => p.Max) ?? 0;
-		}
-		private set
-		{
-			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			GameContext.World?.Mutate<PlayerPopulation>(pe, (ref PlayerPopulation p) =>
-				GameContext.World.Set(pe, new PlayerPopulation(p.Current, value)));
-		}
+		return GameContext.ResourceEconomyService?.GetPlayerMaxPopulation(playerIndex) ?? 0;
 	}
 
-	public int CurrentPopulation
+	public void SetMaxPopulation(int playerIndex, int max)
 	{
-		get
-		{
-			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			return GameContext.World?.GetFieldOrDefault<PlayerPopulation, int>(pe, p => p.Current) ?? 0;
-		}
-		set
-		{
-			var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-			GameContext.World?.Mutate<PlayerPopulation>(pe, (ref PlayerPopulation p) =>
-				GameContext.World.Set(pe, new PlayerPopulation(value, p.Max)));
-		}
+		GameContext.ResourceEconomyService?.SetPlayerMaxPopulation(playerIndex, max);
+	}
+
+	public int GetCurrentPopulation(int playerIndex)
+	{
+		return GameContext.ResourceEconomyService?.GetPlayerCurrentPopulation(playerIndex) ?? 0;
+	}
+
+	public void SetCurrentPopulation(int playerIndex, int current)
+	{
+		GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(playerIndex, current);
 	}
 
 	public float GameElapsedTime
@@ -690,9 +725,9 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 
-	public float GetPlayerSpellCooldown(string abilityId)
+	public float GetPlayerSpellCooldown(int playerIndex, string abilityId)
 	{
-		var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
 		if (GameContext.World == null || pe == Entity.Null || !GameContext.World.IsAlive(pe)) return 0f;
 		if (GameContext.World.Has<SpellCooldowns>(pe))
 		{
@@ -703,9 +738,9 @@ public partial class GameHost : Node3D, IGameAPI
 		return 0f;
 	}
 
-	public void SetPlayerSpellCooldown(string abilityId, float cooldown)
+	public void SetPlayerSpellCooldown(int playerIndex, string abilityId, float cooldown)
 	{
-		var pe = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
 		if (GameContext.World == null || pe == Entity.Null || !GameContext.World.IsAlive(pe)) return;
 		if (GameContext.World.Has<SpellCooldowns>(pe))
 		{
@@ -798,21 +833,21 @@ public partial class GameHost : Node3D, IGameAPI
 			GameContext.World.Set(ECSContext.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, s.TimeOfDayTimer, value)));
 	}
 
-	public event Action<IUnit>? OnUnitCreated;
-	public event Action<IUnit, IUnit?>? OnUnitDied;
-	public event Action<IUnit, IUnit, float>? OnUnitDamaged;
-	public event Action<IUnit?, string, System.Numerics.Vector3>? OnSpellCast;
-	public event Action<string, IUnit?>? OnPlayerChatMessage;
-	public event Action<IUnit>? OnUnitSelected;
-	public event Action<IUnit, IUnit>? OnUnitAttacked;
-	public event Action<ILootItem, IUnit>? OnLootItemCollected;
+	public event Action<UnitId>? OnUnitCreated;
+	public event Action<UnitId, UnitId>? OnUnitDied;
+	public event Action<UnitId, UnitId, float>? OnUnitDamaged;
+	public event Action<UnitId, string, System.Numerics.Vector3>? OnSpellCast;
+	public event Action<string, UnitId>? OnPlayerChatMessage;
+	public event Action<UnitId>? OnUnitSelected;
+	public event Action<UnitId, UnitId>? OnUnitAttacked;
+	public event Action<LootItemId, UnitId>? OnLootItemCollected;
 
 	public void TriggerPlayerChatMessage(string message)
 	{
-		IUnit? selected = null;
+		UnitId selected = UnitId.Invalid;
 		if (SelectedUnits.Count > 0 && GameContext.World.IsAlive(SelectedUnits[0].Entity))
 		{
-			selected = GameContext.SimulationService.GetUnitWrapper(SelectedUnits[0].Entity);
+			selected = (UnitId)SelectedUnits[0].Entity.Id;
 		}
 
 		OnPlayerChatMessage?.Invoke(message, selected);
@@ -858,42 +893,41 @@ public partial class GameHost : Node3D, IGameAPI
 		);
 	}
 
-	private int GetOwnerPeerId(bool isEnemy)
-	{
-		if (!isEnemy) return _localPeerId;
 
-		if (ECSContext.WorldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
+	private readonly ResourceNodeId[] _cachedResourceNodesBuffer = new ResourceNodeId[4096];
+	private int _cachedResourceNodesCount = 0;
+
+	public ReadOnlySpan<ResourceNodeId> GetCachedResourceNodes()
+	{
+		_cachedResourceNodesCount = 0;
+		for (int i = 0; i < AllProps.Count && _cachedResourceNodesCount < _cachedResourceNodesBuffer.Length; i++)
 		{
-			foreach (var kvp in GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PeerIdToPlayerEntityMap)
-				if (kvp.Key != _localPeerId)
-					return kvp.Key;
-		}
-
-		return -1;
-	}
-
-	private Entity GetPlayerOwner(int ownerPeerId, bool actualIsEnemy)
-	{
-		if (_peerIdToPlayerEntityMap != null && _peerIdToPlayerEntityMap.TryGetValue(ownerPeerId, out var pe) && GameContext.World.IsAlive(pe))
-			return pe;
-		return GetPlayerEntityForPlayerIndex(actualIsEnemy ? 2 : (LobbyManager.Instance?.LocalPlayer?.Slot ?? 1));
-	}
-
-	private List<IResourceNode> GetCachedResourceNodes()
-	{
-		var list = new List<IResourceNode>();
-		foreach (var prop in AllProps)
-		{
+			var prop = AllProps[i];
 			if (GodotObject.IsInstanceValid(prop))
 			{
 				if (prop.PropId == "goldmine" || prop.PropId == "tree" || prop.PropId == "rock")
 				{
-					list.Add(new ResourceNode_WasmRuntime(prop));
+					_cachedResourceNodesBuffer[_cachedResourceNodesCount++] = (ResourceNodeId)prop.Entity.Id;
 				}
 			}
 		}
 
-		return list;
+		return new ReadOnlySpan<ResourceNodeId>(_cachedResourceNodesBuffer, 0, _cachedResourceNodesCount);
+	}
+
+	public bool TryGetResourceProp(ResourceNodeId node, out Prop3D? prop)
+	{
+		for (int i = 0; i < AllProps.Count; i++)
+		{
+			var p = AllProps[i];
+			if (GodotObject.IsInstanceValid(p) && p.Entity.Id == node.Value)
+			{
+				prop = p;
+				return true;
+			}
+		}
+		prop = null;
+		return false;
 	}
 
 	public static void EnsureMapProjectFiles(string mapDir)
@@ -1200,17 +1234,19 @@ public partial class GameHost : Node3D, IGameAPI
 		}).CallDeferred();
 	}
 
-	public void SelectUnitInternal(IUnit unit)
+	public void SelectUnitInternal(UnitId unit)
 	{
 		Callable.From(() =>
 		{
-			if (unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+			for (int i = 0; i < AllUnits.Count; i++)
 			{
-				if (TryGetUnit3D(wrapper.Entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				var u = AllUnits[i];
+				if (GodotObject.IsInstanceValid(u) && u.Entity.Id == unit.Value && GameContext.World != null && GameContext.World.IsAlive(u.Entity))
 				{
 					ClearSelection();
-					SelectUnit(unit3D);
+					SelectUnit(u);
 					InGameHUD.Instance?.RefreshUI(SelectedUnits);
+					break;
 				}
 			}
 		}).CallDeferred();
@@ -1228,20 +1264,15 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void SyncPlayerResourceEcs(int playerIndex, float goldAmount)
 	{
-		if (LobbyManager.Instance != null && _peerIdToPlayerEntityMap != null)
+		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
+		if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
 		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && _peerIdToPlayerEntityMap.TryGetValue(p.PeerId, out var pe) && GameContext.World.IsAlive(pe))
-			{
-				if (GameContext.World.TryGet<PlayerResources>(pe, out var res))
-				{
-					res.Value[ECSContext.PlayerResourceService.GoldResourceId] = (int)Math.Max(0f, goldAmount);
-				}
-			}
+			ref var res = ref GameContext.World.Get<PlayerResources>(pe);
+			res[ECSContext.PlayerResourceService.GoldResourceId] = (int)Math.Max(0f, goldAmount);
 		}
 	}
 
-	public event Action<IUnit, int>? OnUnitEnterZone;
+	public event Action<UnitId, int>? OnUnitEnterZone;
 	public event Action<int>? OnPlayerLeft;
 
 	private void TickZoneTriggers()
@@ -1267,7 +1298,7 @@ public partial class GameHost : Node3D, IGameAPI
 			bool inside = pos.X >= z.MinX && pos.X <= z.MaxX && pos.Z >= z.MinZ && pos.Z <= z.MaxZ;
 
 			if (inside && occupiedZones.Add(i) && TryGetUnit3D(entity, out _))
-				OnUnitEnterZone?.Invoke(GameContext.SimulationService.GetUnitWrapper(entity), i);
+				OnUnitEnterZone?.Invoke((UnitId)entity.Id, i);
 			else if (!inside)
 				occupiedZones.Remove(i);
 		}
@@ -1570,6 +1601,11 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				UnitRegistry[(StringName)meta.TemplateID.Substring(5)] = meta;
 			}
+
+			if (!string.IsNullOrEmpty(meta.ModelPath))
+			{
+				ModelCache.PreloadModel(meta.ModelPath);
+			}
 		}
 	}
 
@@ -1584,6 +1620,11 @@ public partial class GameHost : Node3D, IGameAPI
 			if (meta.TemplateID.StartsWith("building/", StringComparison.OrdinalIgnoreCase))
 			{
 				BuildingRegistry[(StringName)meta.TemplateID.Substring(9)] = meta;
+			}
+
+			if (!string.IsNullOrEmpty(meta.ModelPath))
+			{
+				ModelCache.PreloadModel(meta.ModelPath);
 			}
 		}
 	}
@@ -1841,6 +1882,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public override void _Ready()
 	{
+		ProcessPerformanceOptimizer.EnforceOptimalPerformance();
 		MainNode = GetTree().Root.GetNodeOrNull("Main");
 		MainCamera = GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
 
@@ -1880,6 +1922,7 @@ public partial class GameHost : Node3D, IGameAPI
 		else InitializeSingleplayerPlayers();
 
 		EnsureFallbackPlayers();
+		ConfigurePerspective();
 
 		string rawMapName = LobbyManager.Instance?.ActiveMapName ?? "";
 		if (!string.IsNullOrEmpty(rawMapName)) LoadUnitMetadata(rawMapName);
@@ -1919,7 +1962,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void InitializeSimulationService()
 	{
-		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, _castlesList, ECSContext.DefinitionManager, ECSContext.PlayerResourceService.GoldResourceId, ECSContext.PlayerResourceService.WoodResourceId, ECSContext.PlayerResourceService.StoneResourceId, GroundTerrain);
+		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, ECSContext.DefinitionManager, ECSContext.PlayerResourceService.GoldResourceId, ECSContext.PlayerResourceService.WoodResourceId, ECSContext.PlayerResourceService.StoneResourceId, GroundTerrain);
 		GameContext.SimulationService.Initialize();
 		GameContext.SimulationService.EditorHeightProvider = p => GameContext.EditorService.GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
 
@@ -1964,15 +2007,14 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.SimulationService.OnUnitDamagedCallback = HandleUnitDamaged;
 		GameContext.SimulationService.OnUnitHealedCallback = HandleUnitHealed;
 		GameContext.SimulationService.OnUnitAttackedCallback = HandleUnitAttacked;
-		GameContext.SimulationService.OnUnderAttackAlertRequested = HandleUnderAttackAlert;
 	}
 
 	private void HandleUnitDamaged(Entity targetEntity, Entity attackerEntity, float damage)
 	{
 		if (!GameContext.World.IsAlive(targetEntity)) return;
 
-		IUnit attackerWrapper = GameContext.World.IsAlive(attackerEntity) ? GameContext.SimulationService.GetUnitWrapper(attackerEntity) : null;
-		OnUnitDamaged?.Invoke(GameContext.SimulationService.GetUnitWrapper(targetEntity), attackerWrapper, damage);
+		UnitId attackerId = (attackerEntity != Entity.Null && GameContext.World.IsAlive(attackerEntity)) ? (UnitId)attackerEntity.Id : UnitId.Invalid;
+		OnUnitDamaged?.Invoke((UnitId)targetEntity.Id, attackerId, damage);
 
 		if (TryGetUnit3D(targetEntity, out var targetUnit3D))
 		{
@@ -1993,20 +2035,13 @@ public partial class GameHost : Node3D, IGameAPI
 		if (!GameContext.World.IsAlive(attackerEntity) || !GameContext.World.IsAlive(targetEntity)) return;
 
 		if (TryGetUnit3D(attackerEntity, out var attackerUnit3D)) attackerUnit3D.PlayAnimation("Attack");
-		OnUnitAttacked?.Invoke(GameContext.SimulationService.GetUnitWrapper(attackerEntity), GameContext.SimulationService.GetUnitWrapper(targetEntity));
-	}
-
-	private void HandleUnderAttackAlert(string unitId)
-	{
-		string alertMsg = unitId == "castle" ? "⚠️ YOUR CASTLE IS UNDER ATTACK!" : $"⚠️ {unitId.ToUpper()} is under attack!";
-		Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(alertMsg, new Color(1.0f, 0.2f, 0.1f))).CallDeferred();
-		Callable.From(() => UIManager.Instance?.PlayWarningSound()).CallDeferred();
+		OnUnitAttacked?.Invoke((UnitId)attackerEntity.Id, (UnitId)targetEntity.Id);
 	}
 
 	private void SetupSimulationProductionCallbacks()
 	{
-		GameContext.SimulationService.OnSpawnUnitFromProductionRequested = (unitId, position, isEnemy, buildingEntity, isFromQueue) =>
-			SpawnUnitFromProduction(unitId, position, isEnemy, buildingEntity, isFromQueue);
+		GameContext.SimulationService.OnSpawnUnitFromProductionRequested = (unitId, position, buildingEntity, isFromQueue) =>
+			SpawnUnitFromProduction(unitId, position, buildingEntity, isFromQueue);
 
 		GameContext.SimulationService.GetProductionBuildTime = unitId =>
 			UnitRegistry.TryGetValue(unitId, out var meta) ? meta.ProductionTime : 5f;
@@ -2015,14 +2050,16 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.SimulationService.OnStopGatheringMovementRequested = StopGatheringMovement;
 		GameContext.SimulationService.OnUiRefreshRequested = () => InGameHUD.Instance?.RefreshUI(SelectedUnits);
 
-		GameContext.SimulationService.OnResourceDepositedForPlayer = (resType, carry) =>
+		GameContext.SimulationService.OnResourceDepositedForPlayer = (playerIndex, resType, carry) =>
 		{
+			if (!GameContext.PerspectiveFilter.CanObserve(playerIndex)) return;
 			string resTypeUpper = resType.ToUpper();
 			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText($"+{carry:F0} {resTypeUpper} deposited", new Color(0.2f, 0.9f, 0.4f))).CallDeferred();
 		};
 
-		GameContext.SimulationService.OnProductionCompleted = unitToSpawn =>
+		GameContext.SimulationService.OnProductionCompleted = (playerIndex, unitToSpawn) =>
 		{
+			if (!GameContext.PerspectiveFilter.CanObserve(playerIndex)) return;
 			string displayName = UnitRegistry.TryGetValue(unitToSpawn, out var nm) ? nm.Name : unitToSpawn.ToUpper();
 			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText($"✓ {displayName} training complete!", new Color(0.3f, 0.9f, 0.4f))).CallDeferred();
 		};
@@ -2091,6 +2128,7 @@ public partial class GameHost : Node3D, IGameAPI
 			players[pIdx].Name = name;
 			players[pIdx].Active = active;
 			players[pIdx].IsComputer = isComputer;
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in players[pIdx]);
 		}
 	}
 
@@ -2138,8 +2176,27 @@ public partial class GameHost : Node3D, IGameAPI
 		return !isGameStarted || IsServerActive() || GameContext.SessionState.IsMapEditorMode;
 	}
 
+	private void ApplyTestRandomSeedIfNeeded(string rawMapNameOrPath)
+	{
+		bool isSinglePlayerOrTest = (LobbyManager.Instance?.IsSinglePlayer == true) || GameContext.SessionState.IsTestMode || !IsMultiplayerActive();
+		if (!isSinglePlayerOrTest) return;
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string? resolvedDir = !string.IsNullOrEmpty(rawMapNameOrPath) ? ResolveMapDirectory(rawMapNameOrPath) : wsPath;
+		string metadataPath = !string.IsNullOrEmpty(resolvedDir)
+			? resolvedDir
+			: (!string.IsNullOrEmpty(rawMapNameOrPath) ? rawMapNameOrPath : wsPath);
+
+		var metadata = MapFileService.LoadMetadata(metadataPath);
+		if (metadata.MapProperties?.TestRandomSeed != null)
+		{
+			GameContext.RandomService.SetSeed(metadata.MapProperties.TestRandomSeed);
+		}
+	}
+
 	private void ExecuteMapScriptLoading(string rawMapName)
 	{
+		ApplyTestRandomSeedIfNeeded(rawMapName);
 		LoadMapScript(rawMapName);
 		if (_activeMapScript != null && !GameContext.SessionState.IsMapEditorMode)
 		{
@@ -2250,7 +2307,6 @@ public partial class GameHost : Node3D, IGameAPI
 		IdToLootItem.Clear();
 		ClearStaticText();
 
-		_castlesList.Clear();
 		GameContext.FXService.ActivePings.Clear();
 		ClearAllBuildQueueGhosts();
 
@@ -2263,6 +2319,8 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
+		PlayerToUnits.Clear();
 		EntityToProp3D.Clear();
 		_playerCameraBoundsOverrides.Clear();
 		_playerHudVisibilityOverrides.Clear();
@@ -2285,6 +2343,8 @@ public partial class GameHost : Node3D, IGameAPI
 	private void ReinitializeEcsAndServices()
 	{
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
+		PlayerToUnits.Clear();
 		EntityToProp3D.Clear();
 		ClearNodeCollection(AllLootItems);
 		IdToLootItem.Clear();
@@ -2349,12 +2409,12 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (!IsServerActive()) return;
 
-		IUnit? heroUnit = null;
+		UnitId heroUnit = UnitId.Invalid;
 		foreach (var u in AllUnits)
 		{
 			if (GodotObject.IsInstanceValid(u) && u.Player == slot && GameContext.World != null && GameContext.World.IsAlive(u.Entity) && !GameContext.World.Has<Dead>(u.Entity))
 			{
-				heroUnit = GameContext.SimulationService.GetUnitWrapper(u.Entity);
+				heroUnit = (UnitId)u.Entity.Id;
 				break;
 			}
 		}
@@ -2546,7 +2606,7 @@ public partial class GameHost : Node3D, IGameAPI
 		return null;
 	}
 
-	private void RemoveIfHas<T>(Entity entity) where T : struct
+	private void RemoveIfHas<T>(Entity entity) where T : unmanaged
 	{
 		if (GameContext.World.Has<T>(entity)) GameContext.World.Remove<T>(entity);
 	}
@@ -2608,6 +2668,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)
 	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (SelectedUnits.Count == 0 || prop == null || !GodotObject.IsInstanceValid(prop)) return;
 
 		string? resType = GetPropResourceType(prop.PropId);
@@ -2627,21 +2688,17 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private string? GetPropResourceType(string propId)
 	{
-		return propId switch
-		{
-			"goldmine" => "gold",
-			"tree" => "wood",
-			"rock" => "stone",
-			_ => null
-		};
+		return GameContext.RegistryService.GetResourceTypeForNode(propId);
 	}
 
 	private void IssueMultiplayerGatherCommand(Prop3D prop, bool isQueued)
 	{
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		if (localPlayerIndex <= 0) return;
 		var targetIds = new List<int>();
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.IsEnemy || unit.UnitId != "worker") continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 
@@ -2650,9 +2707,11 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void IssueLocalGatherCommand(Prop3D prop, string resType, bool isQueued)
 	{
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		if (localPlayerIndex <= 0) return;
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.IsEnemy || unit.UnitId != "worker") continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
 
 			if (isQueued && GameContext.InputService != null && GameContext.InputService.IsUnitActive(unit.Entity))
 			{
@@ -2673,9 +2732,12 @@ public partial class GameHost : Node3D, IGameAPI
 		UnitMetadata regMeta = null;
 		if (!UnitRegistry.TryGetValue(id, out regMeta)) TryGetUnitOrBuildingMetadata(id, out regMeta);
 
+		bool hasShields = GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(owner.Value, u => u.ShieldsUpgrade) ?? false;
+		bool hasWeapons = GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(owner.Value, u => u.WeaponsUpgrade) ?? false;
+
 		var entity = regMeta != null
-			? CreateEcsUnitEntityWithMeta(id, name, hp, damage, range, armor, speed, pos, owner, regMeta)
-			: GameContext.UnitSpawnService.CreateEcsUnitEntity(id, name, hp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, owner, owner.Value, HasShieldsUpgrade, HasWeaponsUpgrade, null, 0f, 0f, 0f, 0f, 0f, "unarmored", 0f, 0f, 0f, "normal", 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
+			? CreateEcsUnitEntityWithMeta(id, name, hp, damage, range, armor, speed, pos, owner, regMeta, hasShields, hasWeapons)
+			: GameContext.UnitSpawnService.CreateEcsUnitEntity(id, name, hp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, owner, owner.Value, hasShields, hasWeapons, null, 0f, 0f, 0f, 0f, 0f, "unarmored", 0f, 0f, 0f, "normal", 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
 
 		if (regMeta != null) ApplyUnitAttributes(entity, regMeta);
 
@@ -2683,13 +2745,13 @@ public partial class GameHost : Node3D, IGameAPI
 		return entity;
 	}
 
-	private Entity CreateEcsUnitEntityWithMeta(string id, string name, float hp, float damage, float range, float armor, float speed, Vector3 pos, PlayerEntity owner, UnitMetadata meta)
+	private Entity CreateEcsUnitEntityWithMeta(string id, string name, float hp, float damage, float range, float armor, float speed, Vector3 pos, PlayerEntity owner, UnitMetadata meta, bool hasShields, bool hasWeapons)
 	{
 		return GameContext.UnitSpawnService.CreateEcsUnitEntity(
 			id, name, hp, damage, range, armor, speed,
 			meta.ScanRadius > 0 ? meta.ScanRadius : 15.0f, meta.IsHero,
 			meta.AttackCooldown > 0 ? meta.AttackCooldown : 1.5f, GetUnitPathingFlags(meta), pos, owner,
-			owner.Value, HasShieldsUpgrade, HasWeaponsUpgrade, meta.Targets,
+			owner.Value, hasShields, hasWeapons, meta.Targets,
 			meta.HpRegen, meta.HpRegenCombatDelay, meta.MaxMana, meta.ManaRegen,
 			meta.RatedArmor, !string.IsNullOrEmpty(meta.ArmorType) ? meta.ArmorType : "unarmored",
 			meta.FlatArmorPenetration, meta.PercentArmorPenetration, meta.DamageVariance,
@@ -2710,9 +2772,12 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	private void ApplyGigachadBuffsIfNeeded(Entity entity, bool isEnemy)
+	private void ApplyGigachadBuffsIfNeeded(Entity entity, int playerIndex)
 	{
-		if (!GameContext.CheatService.GigachadEnabled || isEnemy) return;
+		if (!GameContext.CheatService.GigachadEnabled) return;
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		if (localPlayerIndex <= 0) return;
+		if (NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex)) return;
 		if (GameContext.World.Has<Health>(entity)) GameContext.World.Set(entity, new Health(9000f, 9000f));
 		if (GameContext.World.Has<Attack>(entity))
 		{
@@ -2734,15 +2799,13 @@ public partial class GameHost : Node3D, IGameAPI
 		if (!GameContext.SessionState.IsMapEditorMode) CarveObstacle(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), baseRadius);
 	}
 
-	private Unit3D SpawnUnit3D(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, bool isEnemy, bool isFromQueue = false, int player = -1, bool executeSpawnShader = false)
+	private Unit3D SpawnUnit3D(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, int player = 0, bool isFromQueue = false, bool executeSpawnShader = false)
 	{
 		int playerIndex = player >= 0 ? player : 0;
-		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-		bool actualIsEnemy = player >= 0 ? NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, playerIndex) : isEnemy;
 
-		SetupUnitEntityComponents(entity, id, playerIndex, actualIsEnemy);
+		SetupUnitEntityComponents(entity, id, playerIndex);
 
-		var unit3D = CreateAndSetupUnit3DNode(entity, id, modelPath, pos, isBuilding, playerIndex, actualIsEnemy);
+		var unit3D = CreateAndSetupUnit3DNode(entity, id, modelPath, pos, isBuilding, playerIndex);
 
 		if (isBuilding) HandleBuildingSpawn(entity, unit3D, id, pos);
 
@@ -2752,27 +2815,32 @@ public partial class GameHost : Node3D, IGameAPI
 		unit3D.UpdateLodVisibility();
 
 		EntityToUnit3D[entity] = unit3D;
+		EntityIdToUnit3D[entity.Id] = unit3D;
+		if (!PlayerToUnits.TryGetValue(playerIndex, out var pList))
+		{
+			pList = new List<Unit3D>();
+			PlayerToUnits[playerIndex] = pList;
+		}
+		pList.Add(unit3D);
 		AllUnits.Add(unit3D);
 
-		UpdatePopulationStats(id, isEnemy, isFromQueue);
-		if (id == "castle") _castlesList.Add(unit3D);
+		UpdatePopulationStats(id, playerIndex, isFromQueue);
 
 		if (executeSpawnShader) ExecuteSpawnShader(unit3D, id);
 
 		return unit3D;
 	}
 
-	private void SetupUnitEntityComponents(Entity entity, string id, int playerIndex, bool actualIsEnemy)
+	private void SetupUnitEntityComponents(Entity entity, string id, int playerIndex)
 	{
-		GameContext.World.SetOrAdd(entity, new UnitFaction(actualIsEnemy));
 		GameContext.World.SetOrAdd(entity, new UnitOwnerPlayer(playerIndex));
 		GameContext.World.SetOrAdd(entity, new DefinitionId(id));
-		ApplyGigachadBuffsIfNeeded(entity, actualIsEnemy);
+		ApplyGigachadBuffsIfNeeded(entity, playerIndex);
 	}
 
-	private Unit3D CreateAndSetupUnit3DNode(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, int playerIndex, bool actualIsEnemy)
+	private Unit3D CreateAndSetupUnit3DNode(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, int playerIndex)
 	{
-		var unit3D = new Unit3D { Entity = entity, UnitId = id, IsBuilding = isBuilding, Name = $"{id}_{entity.Id}", Player = playerIndex, IsEnemy = actualIsEnemy };
+		var unit3D = new Unit3D { Entity = entity, UnitId = id, IsBuilding = isBuilding, Name = $"{id}_{entity.Id}", Player = playerIndex };
 
 		if (!isBuilding && !GameContext.SessionState.IsMapEditorMode)
 		{
@@ -2796,12 +2864,15 @@ public partial class GameHost : Node3D, IGameAPI
 		unit3D.Scale *= EditorPlacementScale;
 	}
 
-	private void UpdatePopulationStats(string id, bool isEnemy, bool isFromQueue)
+	private void UpdatePopulationStats(string id, int playerIndex, bool isFromQueue)
 	{
-		if (isEnemy || !UnitRegistry.TryGetValue(id, out var popMeta)) return;
+		if (!UnitRegistry.TryGetValue(id, out var popMeta)) return;
 
-		if (id == "castle") MaxPopulation += 20;
-		if (!isFromQueue) CurrentPopulation += popMeta.PopCost;
+		if (!isFromQueue && popMeta.PopCost > 0)
+		{
+			int curPop = GameContext.ResourceEconomyService?.GetPlayerCurrentPopulation(playerIndex) ?? 0;
+			GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(playerIndex, curPop + popMeta.PopCost);
+		}
 	}
 
 	private void ExecuteSpawnShader(Unit3D unit3D, string id)
@@ -2819,7 +2890,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			float fDelta = (float)delta;
 			bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
-			bool isSpectator = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator";
+			bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 			int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
 			GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, spectatorPerspective, isReplay, isSpectator);
 		}
@@ -3274,8 +3345,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private void TryProcessUnitFlash(VFXRequest req)
 	{
 		if (req.EntityId == -1) return;
-		var unit = EntityToUnit3D.FirstOrDefault(kv => kv.Key.Id == req.EntityId).Value;
-		if (unit == null || !GodotObject.IsInstanceValid(unit)) return;
+		if (!EntityIdToUnit3D.TryGetValue(req.EntityId, out var unit) || !GodotObject.IsInstanceValid(unit)) return;
 
 		if (req.EffectTypeId == "damage_flash") GameContext.FXService.FlashDamageUnit(unit);
 		else GameContext.FXService.FlashHealUnit(unit);
@@ -3284,8 +3354,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private Entity GetEntityById(int entityId)
 	{
 		if (entityId == -1) return Entity.Null;
-		var unit = AllUnits.FirstOrDefault(u => u.Entity.Id == entityId);
-		return unit != null ? unit.Entity : Entity.Null;
+		return EntityIdToUnit3D.TryGetValue(entityId, out var unit) && GodotObject.IsInstanceValid(unit) ? unit.Entity : Entity.Null;
 	}
 
 

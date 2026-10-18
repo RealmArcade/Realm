@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Realm.Ecs.Common;
 
 namespace Realm.Ecs.Components.Tags;
@@ -6,4 +7,5 @@ namespace Realm.Ecs.Components.Tags;
 ///     Tag indicating the entity is a static or destructible world object.
 /// </summary>
 [TagDefinition("Prop", "Prop", "Marks the entity as a static or destructible world object.")]
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public readonly record struct Prop;

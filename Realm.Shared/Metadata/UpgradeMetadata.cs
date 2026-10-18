@@ -6,6 +6,7 @@ public class UpgradeMetadata
 	public string Name { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
 	public string? IconPath { get; set; }
+	public string? Hotkey { get; set; }
 	public float CostGold { get; set; }
 	public float CostWood { get; set; }
 	public float CostStone { get; set; }

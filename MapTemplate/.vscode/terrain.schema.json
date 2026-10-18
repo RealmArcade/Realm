@@ -39,9 +39,6 @@
           "Scale": {
             "type": "number"
           },
-          "IsEnemy": {
-            "type": "boolean"
-          },
           "Player": {
             "type": "integer"
           }

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.UI;
@@ -9,6 +9,7 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using static Realm.Ecs.Common.ResourceConstants;
 
@@ -22,15 +23,15 @@ public class ResourceEconomyService
 	private readonly QueryDescription _gatherQuery = QueryCache.AllPositionAndGathererNoneDeadQuery;
 	private readonly QueryDescription _passiveIncomeQuery = QueryCache.AllPlayerResourcesNoneDeadQuery;
 
-	private ForEachWithEntity<Position, Gatherer> _gatherQueryDelegate = null!;
-	private ForEachWithEntity<PlayerResources> _passiveIncomeQueryDelegate = null!;
+	private EntityCallback<Position, Gatherer> _gatherQueryDelegate = null!;
+	private EntityCallback<PlayerResources> _passiveIncomeQueryDelegate = null!;
 
 	private DefinitionManager _definitionManagerRef;
 	private ResourceId _goldResourceId;
 	private ResourceId _woodResourceId;
 	private ResourceId _stoneResourceId;
 
-	public Action<string, float> OnResourceDepositedForPlayer;
+	public Action<int, string, float>? OnResourceDepositedForPlayer;
 	public Action<Entity> OnClearUnitOrdersRequested;
 	public Action<Entity> OnStopGatheringMovementRequested;
 	public Action<Entity> OnPropDepleted;
@@ -104,13 +105,13 @@ public class ResourceEconomyService
 
 	private void AddPassiveResource(ref PlayerResources res, Dictionary<ResourceId, float> acc, ResourceId resourceId, float rate)
 	{
-		if (!res.Value.ContainsKey(resourceId)) return;
+		if (!res.ContainsKey(resourceId)) return;
 
 		float currentAcc = acc.GetValueOrDefault(resourceId) + _fDelta * rate;
 		if (currentAcc >= 1f)
 		{
 			int add = (int)currentAcc;
-			res.Value[resourceId] = (int)Math.Min(ResourceCap, res.Value[resourceId] + add);
+			res[resourceId] = (int)Math.Min(ResourceCap, res[resourceId] + add);
 			currentAcc -= add;
 		}
 
@@ -143,13 +144,7 @@ public class ResourceEconomyService
 		var query = QueryCache.AllPositionAndResourceNodeAndPropIdentityQuery;
 		GameContext.World.Query(in query, (Entity entity, ref Position nodePos, ref PropIdentity identity) =>
 		{
-			string pType = identity.PropId switch
-			{
-				"goldmine" => "gold",
-				"tree" => "wood",
-				"rock" => "stone",
-				_ => null
-			};
+			string pType = GameContext.RegistryService.GetResourceTypeForNode(identity.PropId);
 
 			if (pType == type)
 			{
@@ -181,40 +176,22 @@ public class ResourceEconomyService
 		var currentPos = pos.Value;
 		var wOwner = GameContext.World.Get<Owner>(entity).PlayerEntity;
 
-		Entity nearestCastle = Entity.Null;
-		Vector3 nearestCastlePos = Vector3.Zero;
-		float nearestDist = float.MaxValue;
+		FindNearestDropoff(currentPos, wOwner, out var nearestDropoff, out var nearestDropoffPos, out float dropoffRadius);
 
-		var castleQuery = QueryCache.AllPositionAndDefinitionIdAndOwnerNoneDeadQuery;
-		GameContext.World.Query(in castleQuery, (Entity castleEntity, ref Position castlePos, ref DefinitionId defId, ref Owner ownerComp) =>
-		{
-			if (defId.Value == "castle" && ownerComp.PlayerEntity == wOwner)
-			{
-				float dist = Vector3.Distance(currentPos, castlePos.Value);
-				if (dist < nearestDist)
-				{
-					nearestDist = dist;
-					nearestCastle = castleEntity;
-					nearestCastlePos = castlePos.Value;
-				}
-			}
-		});
-
-		if (nearestCastle == Entity.Null)
+		if (nearestDropoff == Entity.Null)
 		{
 			ResetGathererTarget(entity, ref gather);
 			return;
 		}
 
-		float castleRadius = 6.0f;
-		if (Vector3.Distance(currentPos, nearestCastlePos) <= castleRadius)
+		if (Vector3.Distance(currentPos, nearestDropoffPos) <= dropoffRadius)
 		{
 			DepositResources(entity, ref gather);
 			HandleNodeAfterDeposit(entity, ref gather);
 		}
 		else if (!GameContext.World.Has<MoveTo>(entity))
 		{
-			_tickGatherersToUpdate.Add((entity, gather, nearestCastlePos));
+			_tickGatherersToUpdate.Add((entity, gather, nearestDropoffPos));
 		}
 	}
 
@@ -236,17 +213,16 @@ public class ResourceEconomyService
 		{
 			ref var playerRes = ref GameContext.World.Get<PlayerResources>(ownerEntity);
 			var resId = gather.ResourceType.AsResourceId(_definitionManagerRef);
-			if (playerRes.Value.TryGetValue(resId, out var currentAmount))
+			if (playerRes.TryGetValue(resId, out var currentAmount))
 			{
-				playerRes.Value[resId] = (int)Math.Min(ResourceCap, currentAmount + carry);
+				playerRes[resId] = (int)Math.Min(ResourceCap, currentAmount + carry);
 			}
 		}
 
-		Entity localPlayerEntity = GameHost.Instance?.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1) ?? Entity.Null;
-		if (localPlayerEntity != Entity.Null && ownerEntity == localPlayerEntity)
-		{
-			OnResourceDepositedForPlayer?.Invoke(gather.ResourceType, carry);
-		}
+		int depositPlayer = GameContext.World.Has<UnitOwnerPlayer>(ownerEntity)
+			? GameContext.World.Get<UnitOwnerPlayer>(ownerEntity).PlayerIndex
+			: 0;
+		OnResourceDepositedForPlayer?.Invoke(depositPlayer, gather.ResourceType, carry);
 	}
 
 	private void HandleNodeAfterDeposit(Entity entity, ref Gatherer gather)
@@ -339,7 +315,7 @@ public class ResourceEconomyService
 		if (newState.CarriedAmount >= gather.MaxCapacity)
 		{
 			newState.ReturningToBase = true;
-			FindNearestCastleAndReturn(entity, ref newState, currentPos);
+			FindNearestDropoffAndReturn(entity, ref newState, currentPos);
 		}
 		else
 		{
@@ -359,31 +335,63 @@ public class ResourceEconomyService
 		return mineRate;
 	}
 
-	private void FindNearestCastleAndReturn(Entity entity, ref Gatherer gather, Vector3 currentPos)
+	private void FindNearestDropoff(Vector3 currentPos, PlayerEntity wOwner, out Entity nearestDropoff, out Vector3 nearestDropoffPos, out float dropoffRadius)
 	{
-		Entity nearestCastle = Entity.Null;
-		Vector3 nearestCastlePos = Vector3.Zero;
+		Entity foundDropoff = Entity.Null;
+		Vector3 foundDropoffPos = Vector3.Zero;
+		float foundRadius = 6.0f;
 		float nearestDist = float.MaxValue;
-		var wOwner = GameContext.World.Get<Owner>(entity).PlayerEntity;
 
-		var castleQuery = QueryCache.AllPositionAndDefinitionIdAndOwnerNoneDeadQuery;
-		GameContext.World.Query(in castleQuery, (Entity castleEntity, ref Position castlePos, ref DefinitionId defId, ref Owner ownerComp) =>
+		var buildingQuery = QueryCache.AllPositionAndDefinitionIdAndOwnerNoneDeadQuery;
+		GameContext.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
 		{
-			if (defId.Value == "castle" && ownerComp.PlayerEntity == wOwner)
+			if (ownerComp.PlayerEntity == wOwner && GameContext.RegistryService.IsResourceDropoffBuilding(defId.Value))
 			{
-				float d = Vector3.Distance(currentPos, castlePos.Value);
-				if (d < nearestDist)
+				float dist = Vector3.Distance(currentPos, bldPos.Value);
+				if (dist < nearestDist)
 				{
-					nearestDist = d;
-					nearestCastle = castleEntity;
-					nearestCastlePos = castlePos.Value;
+					nearestDist = dist;
+					foundDropoff = bldEntity;
+					foundDropoffPos = bldPos.Value;
 				}
 			}
 		});
 
-		if (nearestCastle != Entity.Null)
+		if (foundDropoff == Entity.Null)
 		{
-			_tickGatherersToUpdate.Add((entity, gather, nearestCastlePos));
+			GameContext.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
+			{
+				if (ownerComp.PlayerEntity == wOwner && GameContext.World.Has<Building>(bldEntity) && !GameContext.World.Has<ConstructionState>(bldEntity))
+				{
+					float dist = Vector3.Distance(currentPos, bldPos.Value);
+					if (dist < nearestDist)
+					{
+						nearestDist = dist;
+						foundDropoff = bldEntity;
+						foundDropoffPos = bldPos.Value;
+					}
+				}
+			});
+		}
+
+		if (foundDropoff != Entity.Null && GameContext.World.Has<CollisionRadius>(foundDropoff))
+		{
+			foundRadius = Math.Max(4f, GameContext.World.Get<CollisionRadius>(foundDropoff).Value + 2.0f);
+		}
+
+		nearestDropoff = foundDropoff;
+		nearestDropoffPos = foundDropoffPos;
+		dropoffRadius = foundRadius;
+	}
+
+	private void FindNearestDropoffAndReturn(Entity entity, ref Gatherer gather, Vector3 currentPos)
+	{
+		var wOwner = GameContext.World.Get<Owner>(entity).PlayerEntity;
+		FindNearestDropoff(currentPos, wOwner, out var nearestDropoff, out var nearestDropoffPos, out _);
+
+		if (nearestDropoff != Entity.Null)
+		{
+			_tickGatherersToUpdate.Add((entity, gather, nearestDropoffPos));
 		}
 		else
 		{
@@ -404,10 +412,22 @@ public class ResourceEconomyService
 
 	public void SetPlayerWood(int playerIndex, float amount)
 	{
+		float clamped = Math.Max(0f, amount);
 		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
 		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
-			playersState.Players[playerIndex].Wood = Math.Max(0f, amount);
+			playersState.Players[playerIndex].Wood = clamped;
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+		}
+
+		if (GameHost.Instance != null)
+		{
+			var pe = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
+			{
+				ref var res = ref GameContext.World.Get<PlayerResources>(pe);
+				res[ECSContext.PlayerResourceService.WoodResourceId] = (int)clamped;
+			}
 		}
 	}
 
@@ -416,7 +436,7 @@ public class ResourceEconomyService
 		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
 		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
-			playersState.Players[playerIndex].Wood = Math.Max(0f, playersState.Players[playerIndex].Wood + delta);
+			SetPlayerWood(playerIndex, playersState.Players[playerIndex].Wood + delta);
 		}
 	}
 
@@ -429,12 +449,29 @@ public class ResourceEconomyService
 
 	public void SetPlayerStone(int playerIndex, float amount)
 	{
-		_playerStoneState[playerIndex] = Math.Max(0f, amount);
+		float clamped = Math.Max(0f, amount);
+		_playerStoneState[playerIndex] = clamped;
+		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
+		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		{
+			playersState.Players[playerIndex].Stone = clamped;
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+		}
+
+		if (GameHost.Instance != null)
+		{
+			var pe = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
+			{
+				ref var res = ref GameContext.World.Get<PlayerResources>(pe);
+				res[ECSContext.PlayerResourceService.StoneResourceId] = (int)clamped;
+			}
+		}
 	}
 
 	public void AdjustPlayerStone(int playerIndex, float delta)
 	{
-		_playerStoneState[playerIndex] = Math.Max(0f, _playerStoneState.GetValueOrDefault(playerIndex, 0f) + delta);
+		SetPlayerStone(playerIndex, _playerStoneState.GetValueOrDefault(playerIndex, 0f) + delta);
 	}
 
 	public int GetPlayerCurrentPopulation(int playerIndex)
@@ -449,6 +486,26 @@ public class ResourceEconomyService
 		}
 
 		return 0;
+	}
+
+	public void SetPlayerCurrentPopulation(int playerIndex, int current)
+	{
+		if (GameHost.Instance != null)
+		{
+			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity))
+			{
+				if (GameContext.World.Has<PlayerPopulation>(playerEntity))
+				{
+					ref var pop = ref GameContext.World.Get<PlayerPopulation>(playerEntity);
+					GameContext.World.Set(playerEntity, new PlayerPopulation(current, pop.Max));
+				}
+				else
+				{
+					GameContext.World.Add(playerEntity, new PlayerPopulation(current, 0));
+				}
+			}
+		}
 	}
 
 	public void SetPlayerMaxPopulation(int playerIndex, int max)

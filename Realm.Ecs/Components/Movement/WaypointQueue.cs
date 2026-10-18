@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Numerics;
 
 namespace Realm.Ecs.Components.Movement;
@@ -5,6 +6,7 @@ namespace Realm.Ecs.Components.Movement;
 /// <summary>
 /// Stores a queue of pending waypoints for sequential pathing.
 /// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct WaypointQueue
 {
 	public WaypointBuffer Waypoints;

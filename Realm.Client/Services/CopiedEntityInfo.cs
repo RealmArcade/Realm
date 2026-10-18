@@ -1,4 +1,4 @@
-﻿using Godot;
+using Godot;
 
 namespace Realm.Client.Services;
 
@@ -9,5 +9,5 @@ public class CopiedEntityInfo
 	public Vector3 RelativePos;
 	public float Rotation;
 	public float Scale;
-	public bool IsEnemy;
+	public int Player;
 }

@@ -9,7 +9,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Arch" Version="2.1.0" />
     <PackageReference Include="DotRecast.Recast" Version="2025.2.1" />
     <PackageReference Include="DotRecast.Detour" Version="2025.2.1" />
     <PackageReference Include="MemoryPack" Version="1.21.4" />

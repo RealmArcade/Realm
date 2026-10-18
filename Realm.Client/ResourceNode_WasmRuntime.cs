@@ -4,7 +4,7 @@ using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
 
-public class ResourceNode_WasmRuntime : IResourceNode, IEcsPropWrapper
+public class ResourceNode_WasmRuntime : IEcsPropWrapper
 {
 	private readonly Prop3D _prop;
 

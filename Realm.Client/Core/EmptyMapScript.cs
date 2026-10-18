@@ -1,4 +1,4 @@
-﻿using Realm.MapAPI;
+using Realm.MapAPI;
 
 namespace Realm.Client.Core;
 
