@@ -1,7 +1,11 @@
+using System;
 using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Terrain;
 
+/// <summary>
+/// Stores fog of war exploration and visibility grid state.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct ShroudState
 {
@@ -10,12 +14,17 @@ public struct ShroudState
 	public const byte Visible = 0;
 
 	public int GridHandle;
-	public int TypeStringId;
+	public ShroudType Type;
 
-	public ShroudState(byte[,] shroudGrid, string shroudType)
+	public ShroudState(byte[,] shroudGrid, ShroudType shroudType)
 	{
 		GridHandle = ColdPayloadRegistry<byte[,]>.Register(shroudGrid);
-		TypeStringId = StringRegistry.GetOrAdd(shroudType);
+		Type = shroudType;
+	}
+
+	public ShroudState(byte[,] shroudGrid, string shroudType)
+		: this(shroudGrid, ParseShroudType(shroudType))
+	{
 	}
 
 	public byte[,] ShroudGrid
@@ -26,7 +35,19 @@ public struct ShroudState
 
 	public string ShroudType
 	{
-		get => StringRegistry.Get(TypeStringId);
-		set => TypeStringId = StringRegistry.GetOrAdd(value);
+		get => Type switch
+		{
+			Terrain.ShroudType.VisionShroud => "VisionShroud",
+			Terrain.ShroudType.ExplorationShroud => "ExplorationShroud",
+			_ => "visible"
+		};
+		set => Type = ParseShroudType(value);
+	}
+
+	private static ShroudType ParseShroudType(string? type)
+	{
+		if (string.Equals(type, "ExplorationShroud", StringComparison.OrdinalIgnoreCase)) return Terrain.ShroudType.ExplorationShroud;
+		if (string.Equals(type, "VisionShroud", StringComparison.OrdinalIgnoreCase)) return Terrain.ShroudType.VisionShroud;
+		return Terrain.ShroudType.Visible;
 	}
 }

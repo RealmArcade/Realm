@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Core;
 
+/// <summary>
+/// Holds a dictionary tracking individual spell cooldown timers for an entity.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct SpellCooldowns
 {

@@ -11,8 +11,22 @@ public struct ScriptPlayer
 	public float Gold;
 	public float Wood;
 	public float Stone;
-	public bool Active;
-	public bool IsComputer;
+	public byte ActiveByte;
+
+	public bool Active
+	{
+		get => ActiveByte != 0;
+		set => ActiveByte = value ? (byte)1 : (byte)0;
+	}
+
+	public byte IsComputerByte;
+
+	public bool IsComputer
+	{
+		get => IsComputerByte != 0;
+		set => IsComputerByte = value ? (byte)1 : (byte)0;
+	}
+
 	public int Team;
 	public int NameStringId;
 	public int KillCount;

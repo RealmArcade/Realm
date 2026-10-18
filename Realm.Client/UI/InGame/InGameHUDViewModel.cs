@@ -74,9 +74,7 @@ public class InGameHUDViewModel
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
-					var res = world.Get<PlayerResources>(player);
-					var goldId = "gold".AsResourceId(ECSContext.DefinitionManager);
-					if (res.Value.TryGetValue(goldId, out var val)) return val;
+					return world.Get<PlayerResources>(player).Gold;
 				}
 			}
 
@@ -91,8 +89,7 @@ public class InGameHUDViewModel
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					ref var res = ref world.Get<PlayerResources>(player);
-					var goldId = "gold".AsResourceId(ECSContext.DefinitionManager);
-					res.Value[goldId] = (int)value;
+					res.Gold = (int)value;
 				}
 			}
 		}
@@ -108,9 +105,7 @@ public class InGameHUDViewModel
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
-					var res = world.Get<PlayerResources>(player);
-					var woodId = "wood".AsResourceId(ECSContext.DefinitionManager);
-					if (res.Value.TryGetValue(woodId, out var val)) return val;
+					return world.Get<PlayerResources>(player).Wood;
 				}
 			}
 
@@ -125,8 +120,7 @@ public class InGameHUDViewModel
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					ref var res = ref world.Get<PlayerResources>(player);
-					var woodId = "wood".AsResourceId(ECSContext.DefinitionManager);
-					res.Value[woodId] = (int)value;
+					res.Wood = (int)value;
 				}
 			}
 		}
@@ -142,9 +136,7 @@ public class InGameHUDViewModel
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
-					var res = world.Get<PlayerResources>(player);
-					var stoneId = "stone".AsResourceId(ECSContext.DefinitionManager);
-					if (res.Value.TryGetValue(stoneId, out var val)) return val;
+					return world.Get<PlayerResources>(player).Stone;
 				}
 			}
 
@@ -159,8 +151,7 @@ public class InGameHUDViewModel
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					ref var res = ref world.Get<PlayerResources>(player);
-					var stoneId = "stone".AsResourceId(ECSContext.DefinitionManager);
-					res.Value[stoneId] = (int)value;
+					res.Stone = (int)value;
 				}
 			}
 		}

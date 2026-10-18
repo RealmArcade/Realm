@@ -9,14 +9,28 @@ namespace Realm.Ecs.Components.Core
 	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct EditorState
 	{
-		public bool BlockMode;
+		public byte BlockModeByte;
+
+		public bool BlockMode
+		{
+			get => BlockModeByte != 0;
+			set => BlockModeByte = value ? (byte)1 : (byte)0;
+		}
+
 		public float BlockLevelHeight;
 		public float CameraBoundsLeft;
 		public float CameraBoundsRight;
 		public float CameraBoundsTop;
 		public float CameraBoundsBottom;
 		public int SkyboxStringId;
-		public bool HasUnsavedChanges;
+		public byte HasUnsavedChangesByte;
+
+		public bool HasUnsavedChanges
+		{
+			get => HasUnsavedChangesByte != 0;
+			set => HasUnsavedChangesByte = value ? (byte)1 : (byte)0;
+		}
+
 		public MirrorMode MirrorMode;
 		public WaterType WaterMode;
 		public byte WaterProfileIndex;
@@ -34,14 +48,14 @@ namespace Realm.Ecs.Components.Core
 			WaterType waterMode = WaterType.None,
 			byte waterProfileIndex = 0)
 		{
-			BlockMode = blockMode;
+			BlockModeByte = blockMode ? (byte)1 : (byte)0;
 			BlockLevelHeight = blockLevelHeight;
 			CameraBoundsLeft = cameraBoundsLeft;
 			CameraBoundsRight = cameraBoundsRight;
 			CameraBoundsTop = cameraBoundsTop;
 			CameraBoundsBottom = cameraBoundsBottom;
 			SkyboxStringId = StringRegistry.GetOrAdd(skyboxPath);
-			HasUnsavedChanges = hasUnsavedChanges;
+			HasUnsavedChangesByte = hasUnsavedChanges ? (byte)1 : (byte)0;
 			MirrorMode = mirrorMode;
 			WaterMode = waterMode;
 			WaterProfileIndex = waterProfileIndex;

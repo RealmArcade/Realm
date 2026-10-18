@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs;
 
+/// <summary>
+/// Represents an entity handle in the ECS world.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public readonly record struct Entity(int Id) : IEquatable<Entity>
 {

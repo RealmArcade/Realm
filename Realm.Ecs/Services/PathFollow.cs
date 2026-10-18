@@ -14,12 +14,19 @@ public struct PathFollow
 	public Vector3 LastPosition;
 	public float StuckTime;
 	public float TimeSinceLastReplan;
-	public bool IsJitterReplanned;
+	public byte IsJitterReplannedByte;
 
-	/// <summary>
-	///     True when the corridor actually connected the start and end polygons. When false, the
-	///     waypoints are a single fallback point to the nearest polygon and do NOT count as a real
-	///     route — combat reachability uses this to avoid treating an unreachable island as a path.
-	/// </summary>
-	public bool HasValidCorridor;
+	public bool IsJitterReplanned
+	{
+		get => IsJitterReplannedByte != 0;
+		set => IsJitterReplannedByte = value ? (byte)1 : (byte)0;
+	}
+
+	public byte HasValidCorridorByte;
+
+	public bool HasValidCorridor
+	{
+		get => HasValidCorridorByte != 0;
+		set => HasValidCorridorByte = value ? (byte)1 : (byte)0;
+	}
 }

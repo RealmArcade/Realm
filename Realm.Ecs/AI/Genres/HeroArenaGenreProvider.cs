@@ -231,8 +231,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		if (!world.IsAlive(playerEntity) || !world.Has<PlayerResources>(playerEntity))
 			return 500;
 
-		var resources = world.Get<PlayerResources>(playerEntity).Value;
-		return resources.Count > 0 ? resources.Values.FirstOrDefault() : 500;
+		return world.Get<PlayerResources>(playerEntity).Gold;
 	}
 
 	private void ProcessHeroAffordances(EcsWorld world, List<GenericAffordance> destinationList, int playerGold)

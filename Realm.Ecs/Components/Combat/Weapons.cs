@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Combat;
 
+/// <summary>
+/// Holds a collection of weapon slots for an entity.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Weapons
 {

@@ -199,8 +199,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 
 		if (world.IsAlive(playerEntity) && world.Has<PlayerResources>(playerEntity))
 		{
-			var res = world.Get<PlayerResources>(playerEntity).Value;
-			if (res.Count > 0) return res.Values.FirstOrDefault();
+			return world.Get<PlayerResources>(playerEntity).Gold;
 		}
 
 		return 500;

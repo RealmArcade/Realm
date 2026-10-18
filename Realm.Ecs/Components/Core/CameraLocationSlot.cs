@@ -11,5 +11,11 @@ public struct CameraLocationSlot
 {
 	public Vector3 Position;
 	public float ZoomLevel;
-	public bool IsSet;
+	public byte IsSetByte;
+
+	public bool IsSet
+	{
+		get => IsSetByte != 0;
+		set => IsSetByte = value ? (byte)1 : (byte)0;
+	}
 }

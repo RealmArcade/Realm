@@ -105,13 +105,13 @@ public class ResourceEconomyService
 
 	private void AddPassiveResource(ref PlayerResources res, Dictionary<ResourceId, float> acc, ResourceId resourceId, float rate)
 	{
-		if (!res.Value.ContainsKey(resourceId)) return;
+		if (!res.ContainsKey(resourceId)) return;
 
 		float currentAcc = acc.GetValueOrDefault(resourceId) + _fDelta * rate;
 		if (currentAcc >= 1f)
 		{
 			int add = (int)currentAcc;
-			res.Value[resourceId] = (int)Math.Min(ResourceCap, res.Value[resourceId] + add);
+			res[resourceId] = (int)Math.Min(ResourceCap, res[resourceId] + add);
 			currentAcc -= add;
 		}
 
@@ -213,9 +213,9 @@ public class ResourceEconomyService
 		{
 			ref var playerRes = ref GameContext.World.Get<PlayerResources>(ownerEntity);
 			var resId = gather.ResourceType.AsResourceId(_definitionManagerRef);
-			if (playerRes.Value.TryGetValue(resId, out var currentAmount))
+			if (playerRes.TryGetValue(resId, out var currentAmount))
 			{
-				playerRes.Value[resId] = (int)Math.Min(ResourceCap, currentAmount + carry);
+				playerRes[resId] = (int)Math.Min(ResourceCap, currentAmount + carry);
 			}
 		}
 

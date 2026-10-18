@@ -158,8 +158,7 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 
 		if (world.Has<PlayerResources>(playerEntity))
 		{
-			var res = world.Get<PlayerResources>(playerEntity).Value;
-			if (res.Count > 0) gold = res.Values.FirstOrDefault();
+			gold = world.Get<PlayerResources>(playerEntity).Gold;
 		}
 
 		if (world.Has<Health>(playerEntity))

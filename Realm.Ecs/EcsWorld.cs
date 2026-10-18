@@ -10,7 +10,7 @@ public delegate void EntityCallback<T1, T2>(Entity entity, ref T1 c1, ref T2 c2)
 public delegate void EntityCallback<T1, T2, T3>(Entity entity, ref T1 c1, ref T2 c2, ref T3 c3);
 public delegate void EntityCallback<T1, T2, T3, T4>(Entity entity, ref T1 c1, ref T2 c2, ref T3 c3, ref T4 c4);
 
-public class EcsWorld
+public class EcsWorld : IDisposable
 {
 	public const int MAX_ENTITIES = 8192;
 	public const int MAX_PLAYERS = 25;
@@ -22,12 +22,46 @@ public class EcsWorld
 	private int _nextEntityId = 0;
 	private int _count = 0;
 
-	private readonly bool[] _alive = new bool[MAX_ENTITIES];
-	private readonly ComponentMask[] _entityMasks = new ComponentMask[MAX_ENTITIES];
+	private readonly ComponentBuffer<byte> _alive = new ComponentBuffer<byte>(MAX_ENTITIES);
+	private readonly ComponentBuffer<ComponentMask> _entityMasks = new ComponentBuffer<ComponentMask>(MAX_ENTITIES);
 	private readonly ulong[][] _componentBitsets = new ulong[MAX_COMPONENT_TYPES][];
 	private readonly IComponentBuffer[] _buffers = new IComponentBuffer[MAX_COMPONENT_TYPES];
 
 	public int Count => _count;
+
+	public ComponentBuffer<byte> AliveBuffer => _alive;
+	public ComponentBuffer<ComponentMask> EntityMasksBuffer => _entityMasks;
+
+	public void BindExternalAliveMemory(IntPtr pointer, int lengthInBytes)
+	{
+		_alive.BindExternalMemory(pointer, lengthInBytes);
+	}
+
+	public void BindExternalEntityMasksMemory(IntPtr pointer, int lengthInBytes)
+	{
+		_entityMasks.BindExternalMemory(pointer, lengthInBytes);
+	}
+
+	public Span<byte> GetAliveSpan() => _alive.AsSpan();
+	public Span<ComponentMask> GetEntityMasksSpan() => _entityMasks.AsSpan();
+
+	public void Dispose()
+	{
+		for (int index = 0; index < MAX_ENTITIES; index++)
+		{
+			if (_alive.Get(index) != 0)
+			{
+				ClearAllComponents(index);
+				_alive.Set(index, (byte)0);
+				_entityMasks.Set(index, ComponentMask.Empty);
+			}
+		}
+		_count = 0;
+		_freeListCount = 0;
+		_nextEntityId = 0;
+		ColdPayloadRegistry.ResetAll();
+		StringRegistry.Reset();
+	}
 
 	public Entity Create()
 	{
@@ -45,8 +79,8 @@ public class EcsWorld
 			id = _nextEntityId++;
 		}
 
-		_alive[id] = true;
-		_entityMasks[id] = ComponentMask.Empty;
+		_alive.Set(id, (byte)1);
+		_entityMasks.Set(id, ComponentMask.Empty);
 		_count++;
 		return new Entity(id);
 	}
@@ -204,12 +238,12 @@ public class EcsWorld
 	public void Destroy(Entity entity)
 	{
 		int id = entity.Id;
-		if (id < 0 || id >= MAX_ENTITIES || !_alive[id]) return;
+		if (id < 0 || id >= MAX_ENTITIES || _alive.Get(id) == 0) return;
 
 		ClearAllComponents(id);
 
-		_alive[id] = false;
-		_entityMasks[id] = ComponentMask.Empty;
+		_alive.Set(id, (byte)0);
+		_entityMasks.Set(id, ComponentMask.Empty);
 		_freeList[_freeListCount++] = id;
 		_count--;
 	}
@@ -218,7 +252,7 @@ public class EcsWorld
 	public bool IsAlive(Entity entity)
 	{
 		int id = entity.Id;
-		return id >= 0 && id < MAX_ENTITIES && _alive[id];
+		return id >= 0 && id < MAX_ENTITIES && _alive.Get(id) != 0;
 	}
 
 	public ref T Add<T>(Entity entity, in T component = default) where T : unmanaged
@@ -232,7 +266,7 @@ public class EcsWorld
 		ulong bit = 1UL << (id & 63);
 		_componentBitsets[cId][chunk] |= bit;
 
-		_entityMasks[id] |= ComponentMask.FromId(cId);
+		_entityMasks.Set(id, _entityMasks.Get(id) | ComponentMask.FromId(cId));
 		return ref buffer.Get(id);
 	}
 
@@ -256,7 +290,7 @@ public class EcsWorld
 		ulong bit = 1UL << (id & 63);
 		_componentBitsets[cId][chunk] |= bit;
 
-		_entityMasks[id] |= ComponentMask.FromId(cId);
+		_entityMasks.Set(id, _entityMasks.Get(id) | ComponentMask.FromId(cId));
 	}
 
 	public void SetOrAdd<T>(Entity entity, in T component) where T : unmanaged
@@ -288,7 +322,7 @@ public class EcsWorld
 	public bool Has<T>(Entity entity) where T : unmanaged
 	{
 		int id = entity.Id;
-		if (id < 0 || id >= MAX_ENTITIES || !_alive[id]) return false;
+		if (id < 0 || id >= MAX_ENTITIES || _alive.Get(id) == 0) return false;
 		int cId = ComponentType<T>.Id;
 		int chunk = id >> 6;
 		ulong bit = 1UL << (id & 63);
@@ -299,14 +333,14 @@ public class EcsWorld
 	public bool Has(Entity entity, ComponentMask mask)
 	{
 		int id = entity.Id;
-		if (id < 0 || id >= MAX_ENTITIES || !_alive[id]) return false;
-		return _entityMasks[id].HasAll(mask);
+		if (id < 0 || id >= MAX_ENTITIES || _alive.Get(id) == 0) return false;
+		return _entityMasks.Get(id).HasAll(mask);
 	}
 
 	public void Remove<T>(Entity entity) where T : unmanaged
 	{
 		int id = entity.Id;
-		if (id < 0 || id >= MAX_ENTITIES || !_alive[id]) return;
+		if (id < 0 || id >= MAX_ENTITIES || _alive.Get(id) == 0) return;
 		int cId = ComponentType<T>.Id;
 		if (_componentBitsets[cId] == null) return;
 
@@ -315,7 +349,7 @@ public class EcsWorld
 		_componentBitsets[cId][chunk] &= ~bit;
 
 		_buffers[cId]?.Clear(id);
-		_entityMasks[id] = ClearMaskBit(_entityMasks[id], cId);
+		_entityMasks.Set(id, ClearMaskBit(_entityMasks.Get(id), cId));
 	}
 
 	public ComponentBuffer<T> GetBuffer<T>() where T : unmanaged
@@ -498,15 +532,106 @@ public class EcsWorld
 	{
 		if (_buffers[cId] == null)
 		{
-			_buffers[cId] = new ComponentBuffer<T>();
+			var buffer = new ComponentBuffer<T>();
+			AttachCleanupHandler(buffer);
+			_buffers[cId] = buffer;
 			_componentBitsets[cId] = new ulong[BITSET_CHUNKS];
 		}
 		return (ComponentBuffer<T>)_buffers[cId];
 	}
 
+	private static void AttachCleanupHandler<T>(ComponentBuffer<T> buffer) where T : unmanaged
+	{
+		if (typeof(T) == typeof(Realm.Ecs.Components.Stats.Stats))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Stats.Stats>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<Dictionary<Realm.Ecs.Common.StatId, float>>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ModifierState))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ModifierState>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<List<Realm.Ecs.Components.Stats.StatModifier>>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.SpellCooldowns))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.SpellCooldowns>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<Dictionary<string, float>>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.OccupiedZones))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.OccupiedZones>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<HashSet<int>>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ProductionQueue))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ProductionQueue>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<List<string>>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptPlayersState))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ScriptPlayersState>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<Realm.Ecs.Components.Core.ScriptPlayer[]>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptZonesState))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ScriptZonesState>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<List<Realm.Ecs.Components.Core.ZoneBounds>>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.SummaryTableState))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.SummaryTableState>)(object)buffer;
+			b.ClearHandler = id =>
+			{
+				ref var s = ref b.Get(id);
+				ColdPayloadRegistry<string[]>.Free(s.HeadersHandle);
+				ColdPayloadRegistry<Dictionary<string, string[]>>.Free(s.RowsHandle);
+			};
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.VFXQueue))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.VFXQueue>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<List<Realm.Ecs.Components.Core.VFXRequest>>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Terrain.ShroudState))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Terrain.ShroudState>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<byte[,]>.Free(b.Get(id).GridHandle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Terrain.TerrainColorsState))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Terrain.TerrainColorsState>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<string[]>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Terrain.TerrainState))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Terrain.TerrainState>)(object)buffer;
+			b.ClearHandler = id =>
+			{
+				ref var s = ref b.Get(id);
+				ColdPayloadRegistry<Realm.Ecs.Components.Terrain.TerrainCell[,]>.Free(s.CellsHandle);
+				ColdPayloadRegistry<int[,]>.Free(s.PathingCodesHandle);
+				ColdPayloadRegistry<DotRecast.Detour.DtNavMesh>.Free(s.NavMeshHandle);
+				ColdPayloadRegistry<DotRecast.Detour.DtNavMeshQuery>.Free(s.NavMeshQueryHandle);
+				ColdPayloadRegistry<Realm.Ecs.Components.Terrain.TerrainSwatchConfig[]>.Free(s.SwatchConfigsHandle);
+			};
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.NetworkMappingState))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.NetworkMappingState>)(object)buffer;
+			b.ClearHandler = id =>
+			{
+				ref var s = ref b.Get(id);
+				ColdPayloadRegistry<Dictionary<int, Entity>>.Free(s.ServerToClientHandle);
+				ColdPayloadRegistry<Dictionary<int, int>>.Free(s.ClientToServerHandle);
+				ColdPayloadRegistry<Dictionary<int, Entity>>.Free(s.PeerIdToPlayerHandle);
+				ColdPayloadRegistry<Entity[]>.Free(s.PlayerEntitiesHandle);
+			};
+		}
+	}
+
 	private void ClearAllComponents(int id)
 	{
-		ComponentMask mask = _entityMasks[id];
+		ComponentMask mask = _entityMasks.Get(id);
 		int chunk = id >> 6;
 		ulong bitNot = ~(1UL << (id & 63));
 

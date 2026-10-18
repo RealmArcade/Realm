@@ -155,9 +155,9 @@ public class NetworkService
 
 		if (playerEntity == Entity.Null || GameContext.World == null || !GameContext.World.IsAlive(playerEntity) || !GameContext.World.TryGet<PlayerResources>(playerEntity, out var res)) return false;
 
-		gold = res.Value.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var g) ? g : 0;
-		wood = res.Value.TryGetValue(ECSContext.PlayerResourceService.WoodResourceId, out var w) ? w : 0;
-		stone = res.Value.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var s) ? s : 0;
+		gold = res.Gold;
+		wood = res.Wood;
+		stone = res.Stone;
 		return true;
 	}
 
@@ -1022,12 +1022,12 @@ public class NetworkService
 		int costWood = (int)meta.CostWood;
 		int costStone = (int)meta.CostStone;
 
-		if (res.Value[goldResourceId] < costGold || res.Value[woodResourceId] < costWood || res.Value[stoneResourceId] < costStone)
+		if (res[goldResourceId] < costGold || res[woodResourceId] < costWood || res[stoneResourceId] < costStone)
 			return;
 
-		res.Value[goldResourceId] -= costGold;
-		res.Value[woodResourceId] -= costWood;
-		res.Value[stoneResourceId] -= costStone;
+		res[goldResourceId] -= costGold;
+		res[woodResourceId] -= costWood;
+		res[stoneResourceId] -= costStone;
 		GameContext.World.Set(ownerEntity, res);
 
 		if (!GameContext.World.Has<ProductionQueue>(entity)) GameContext.World.Add(entity, new ProductionQueue());
@@ -1083,9 +1083,9 @@ public class NetworkService
 
 		if (GameContext.World.TryGet<PlayerResources>(ownerEntity, out var res))
 		{
-			res.Value[new ResourceId("Gold")] += (int)regMeta.CostGold;
-			res.Value[new ResourceId("Wood")] += (int)regMeta.CostWood;
-			res.Value[new ResourceId("Stone")] += (int)regMeta.CostStone;
+			res[new ResourceId("Gold")] += (int)regMeta.CostGold;
+			res[new ResourceId("Wood")] += (int)regMeta.CostWood;
+			res[new ResourceId("Stone")] += (int)regMeta.CostStone;
 			GameContext.World.Set(ownerEntity, res);
 		}
 
@@ -1691,9 +1691,9 @@ public class NetworkService
 
 			if (GameContext.World.IsAlive(kvp.Value) && GameContext.World.TryGet<PlayerResources>(kvp.Value, out var res))
 			{
-				float gold = res.Value.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var g) ? g : 0;
-				float wood = res.Value.TryGetValue(ECSContext.PlayerResourceService.WoodResourceId, out var w) ? w : 0;
-				float stone = res.Value.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var s) ? s : 0;
+				float gold = res.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var g) ? g : 0;
+				float wood = res.TryGetValue(ECSContext.PlayerResourceService.WoodResourceId, out var w) ? w : 0;
+				float stone = res.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var s) ? s : 0;
 				result.Add((peerId, gold, wood, stone));
 			}
 		}

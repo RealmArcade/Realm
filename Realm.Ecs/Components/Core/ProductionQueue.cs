@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Core;
 
+/// <summary>
+/// Holds the unit production and training queue state for a production building.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct ProductionQueue
 {

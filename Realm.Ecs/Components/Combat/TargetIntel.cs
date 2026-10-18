@@ -2,6 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Combat;
 
+/// <summary>
+/// Defines sight range, acquisition range, stealth detection, and target filtering intelligence for an entity.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct TargetIntel
 {

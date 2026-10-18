@@ -12,6 +12,7 @@ public unsafe class ComponentBuffer<T> : IComponentBuffer where T : unmanaged
 	private readonly int _capacity;
 
 	public int ComponentId { get; }
+	public bool IsExternal => _isExternal;
 
 	public ComponentBuffer(int capacity = EcsWorld.MAX_ENTITIES)
 	{
@@ -46,9 +47,12 @@ public unsafe class ComponentBuffer<T> : IComponentBuffer where T : unmanaged
 		_pointer[entityId] = value;
 	}
 
+	public Action<int>? ClearHandler { get; set; }
+
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Clear(int entityId)
 	{
+		ClearHandler?.Invoke(entityId);
 		_pointer[entityId] = default;
 	}
 

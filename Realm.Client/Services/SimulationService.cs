@@ -1100,8 +1100,7 @@ public class SimulationService
 
 		GameContext.World.Mutate<PlayerResources>(playerEntity, (ref PlayerResources r) =>
 		{
-			if (r.Value.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var currentGold))
-				r.Value[ECSContext.PlayerResourceService.GoldResourceId] = (int)Math.Min(resourceCap, currentGold + bountyMeta.GoldBounty);
+			r.Gold = (int)Math.Min(resourceCap, r.Gold + bountyMeta.GoldBounty);
 		});
 		
 		return true;

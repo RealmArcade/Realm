@@ -123,8 +123,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 	{
 		if (!world.IsAlive(playerEntity) || !world.Has<PlayerResources>(playerEntity)) return 1000;
 
-		var resources = world.Get<PlayerResources>(playerEntity).Value;
-		return resources.Count > 0 ? resources.Values.FirstOrDefault() : 1000;
+		return world.Get<PlayerResources>(playerEntity).Gold;
 	}
 
 	private static float GetUnitHealthRatio(EcsWorld world, Entity unit)

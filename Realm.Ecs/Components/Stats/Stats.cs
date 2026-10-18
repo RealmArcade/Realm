@@ -4,6 +4,9 @@ using Realm.Ecs.Common;
 
 namespace Realm.Ecs.Components.Stats;
 
+/// <summary>
+/// Holds a dictionary mapping stat IDs to current stat values for an entity.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Stats
 {

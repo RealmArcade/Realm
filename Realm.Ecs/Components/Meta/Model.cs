@@ -2,6 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Meta;
 
+/// <summary>
+/// Identifies the 3D visual mesh model path for an entity.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Model
 {

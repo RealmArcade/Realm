@@ -54,8 +54,10 @@ public static class ECSContext
 		StatService = null;
 		TerrainNavMeshService = null;
 		PlayerResourceService = null;
-		EvaluationEngine = null;
+		World?.Dispose();
 		World = null;
+		ColdPayloadRegistry.ResetAll();
+		StringRegistry.Reset();
 	}
 
 	public static void DisposeAndRecreateServices()

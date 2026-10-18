@@ -2,6 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Core;
 
+/// <summary>
+/// Holds active user input targeting, command modes, and selection states.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct InputState
 {

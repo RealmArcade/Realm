@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Core;
 
+/// <summary>
+/// Holds a dictionary mapping active buff IDs to remaining duration for an entity.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Buffs
 {

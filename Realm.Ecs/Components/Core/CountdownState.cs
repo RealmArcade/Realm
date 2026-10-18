@@ -8,13 +8,20 @@ namespace Realm.Ecs.Components.Core
 	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct CountdownState
 	{
-		public bool Active;
+		public byte ActiveByte;
+
+		public bool Active
+		{
+			get => ActiveByte != 0;
+			set => ActiveByte = value ? (byte)1 : (byte)0;
+		}
+
 		public float Duration;
 		public int TextStringId;
 
 		public CountdownState(bool active, float duration, string text)
 		{
-			Active = active;
+			ActiveByte = active ? (byte)1 : (byte)0;
 			Duration = duration;
 			TextStringId = StringRegistry.GetOrAdd(text);
 		}

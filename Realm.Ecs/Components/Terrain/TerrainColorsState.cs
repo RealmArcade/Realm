@@ -2,6 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Terrain;
 
+/// <summary>
+/// Holds the terrain color palette configurations.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct TerrainColorsState
 {

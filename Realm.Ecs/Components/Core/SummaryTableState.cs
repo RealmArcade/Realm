@@ -9,14 +9,21 @@ namespace Realm.Ecs.Components.Core
 	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct SummaryTableState
 	{
-		public bool Visible;
+		public byte VisibleByte;
+
+		public bool Visible
+		{
+			get => VisibleByte != 0;
+			set => VisibleByte = value ? (byte)1 : (byte)0;
+		}
+
 		public int TitleStringId;
 		public int HeadersHandle;
 		public int RowsHandle;
 
 		public SummaryTableState(bool visible, string title, string[] headers, Dictionary<string, string[]> rows)
 		{
-			Visible = visible;
+			VisibleByte = visible ? (byte)1 : (byte)0;
 			TitleStringId = StringRegistry.GetOrAdd(title);
 			HeadersHandle = ColdPayloadRegistry<string[]>.Register(headers);
 			RowsHandle = ColdPayloadRegistry<Dictionary<string, string[]>>.Register(rows);

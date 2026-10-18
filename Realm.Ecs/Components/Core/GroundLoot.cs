@@ -2,6 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Core;
 
+/// <summary>
+/// Represents ground loot item entity state and pickup properties.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct GroundLoot
 {
@@ -10,7 +13,14 @@ public struct GroundLoot
 	public int Charges { get; set; }
 	public float Lifetime { get; set; }
 	public float PickupRadius { get; set; }
-	public bool AutoPickup { get; set; }
+	public byte AutoPickupByte;
+
+	public bool AutoPickup
+	{
+		get => AutoPickupByte != 0;
+		set => AutoPickupByte = value ? (byte)1 : (byte)0;
+	}
+
 	public int OwnerPlayerIndex { get; set; }
 
 	public GroundLoot(int uniqueId, string itemTypeId, int charges, float lifetime, float pickupRadius = 2.0f, bool autoPickup = true, int ownerPlayerIndex = -1)
@@ -20,7 +30,7 @@ public struct GroundLoot
 		Charges = charges;
 		Lifetime = lifetime;
 		PickupRadius = pickupRadius;
-		AutoPickup = autoPickup;
+		AutoPickupByte = autoPickup ? (byte)1 : (byte)0;
 		OwnerPlayerIndex = ownerPlayerIndex;
 	}
 

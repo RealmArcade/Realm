@@ -212,8 +212,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 
 		if (!world.IsAlive(playerEntity) || !world.Has<PlayerResources>(playerEntity)) return 100;
 
-		var resources = world.Get<PlayerResources>(playerEntity).Value;
-		return resources.Count > 0 ? resources.Values.FirstOrDefault() : 100;
+		return world.Get<PlayerResources>(playerEntity).Gold;
 	}
 
 	private bool IsSpotOccupied(EcsWorld world, Vector3 spot)

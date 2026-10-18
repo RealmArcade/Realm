@@ -61,13 +61,13 @@ public class HeadlessSimulationRunner
 		var p0 = _world.Create(
 			new Player(),
 			new UnitOwnerPlayer(0),
-			new PlayerResources(new Dictionary<ResourceId, int> { { new ResourceId("Gold"), 1000 } })
+			new PlayerResources(1000)
 		);
 
 		var p1 = _world.Create(
 			new Player(),
 			new UnitOwnerPlayer(1),
-			new PlayerResources(new Dictionary<ResourceId, int> { { new ResourceId("Gold"), 1000 } })
+			new PlayerResources(1000)
 		);
 
 		SpawnStartingBase(0, new Vector3(-20, 0, 0));

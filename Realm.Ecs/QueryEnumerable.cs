@@ -4,6 +4,9 @@ using System.Runtime.CompilerServices;
 
 namespace Realm.Ecs;
 
+/// <summary>
+/// Provides zero-allocation enumeration over entities matching an ECS query.
+/// </summary>
 public readonly ref struct QueryEnumerable
 {
 	private readonly EcsWorld _world;
@@ -18,6 +21,9 @@ public readonly ref struct QueryEnumerable
 	public QueryEnumerator GetEnumerator() => new QueryEnumerator(_world, _query);
 }
 
+/// <summary>
+/// Enumerator yielding entities that match an ECS query chunk by chunk using bit manipulation.
+/// </summary>
 public ref struct QueryEnumerator
 {
 	private readonly EcsWorld _world;

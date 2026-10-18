@@ -30,4 +30,15 @@ public static class StringRegistry
 			return (id < _idToString.Count) ? _idToString[id] : string.Empty;
 		}
 	}
+
+	public static void Reset()
+	{
+		lock (_lock)
+		{
+			_idToString.Clear();
+			_idToString.Add("");
+			_stringToId.Clear();
+			_stringToId[""] = 0;
+		}
+	}
 }

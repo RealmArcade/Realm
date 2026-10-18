@@ -9,13 +9,20 @@ namespace Realm.Ecs.Components.Core
 	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct LeaderboardState
 	{
-		public bool Visible;
+		public byte VisibleByte;
+
+		public bool Visible
+		{
+			get => VisibleByte != 0;
+			set => VisibleByte = value ? (byte)1 : (byte)0;
+		}
+
 		public int TitleStringId;
 		public int ValuesHandle;
 
 		public LeaderboardState(bool visible, string title, Dictionary<string, string> values)
 		{
-			Visible = visible;
+			VisibleByte = visible ? (byte)1 : (byte)0;
 			TitleStringId = StringRegistry.GetOrAdd(title);
 			ValuesHandle = ColdPayloadRegistry<Dictionary<string, string>>.Register(values);
 		}

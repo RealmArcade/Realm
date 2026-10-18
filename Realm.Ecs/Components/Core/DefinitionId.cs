@@ -2,6 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Core;
 
+/// <summary>
+/// Holds the canonical definition identifier string for an entity template.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct DefinitionId
 {

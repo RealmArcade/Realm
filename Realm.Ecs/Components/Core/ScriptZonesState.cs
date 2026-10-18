@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Core;
 
+/// <summary>
+/// Holds a list of spatial trigger zone boundaries registered in the world.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct ScriptZonesState
 {

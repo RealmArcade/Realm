@@ -2,6 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Combat;
 
+/// <summary>
+/// Defines combat attack parameters including damage, range, cooldowns, and area-of-effect splash.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Attack
 {
@@ -22,7 +25,13 @@ public struct Attack
 	public float SplashInnerRatio;
 	public float SplashMediumRatio;
 	public float SplashOuterRatio;
-	public bool FriendlyFire;
+	public byte FriendlyFireByte;
+
+	public bool FriendlyFire
+	{
+		get => FriendlyFireByte != 0;
+		set => FriendlyFireByte = value ? (byte)1 : (byte)0;
+	}
 
 	public Attack(
 		float damage,
@@ -61,7 +70,7 @@ public struct Attack
 		SplashInnerRatio = splashInnerRatio;
 		SplashMediumRatio = splashMediumRatio;
 		SplashOuterRatio = splashOuterRatio;
-		FriendlyFire = friendlyFire;
+		FriendlyFireByte = friendlyFire ? (byte)1 : (byte)0;
 	}
 
 	public string DamageType

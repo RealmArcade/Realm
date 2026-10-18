@@ -2,6 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Combat;
 
+/// <summary>
+/// Defines combat weapon properties including damage delivery, projectile speed, bursts, and cooldowns.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Weapon
 {
@@ -28,12 +31,25 @@ public struct Weapon
 	public float SplashInnerRatio;
 	public float SplashMediumRatio;
 	public float SplashOuterRatio;
-	public bool FriendlyFire;
+	public byte FriendlyFireByte;
+
+	public bool FriendlyFire
+	{
+		get => FriendlyFireByte != 0;
+		set => FriendlyFireByte = value ? (byte)1 : (byte)0;
+	}
+
 	public float CurrentCooldown;
 	public int CurrentBurstRemaining;
 	public float CurrentBurstTimer;
 	public float WindupTimer;
-	public bool IsWindingUp;
+	public byte IsWindingUpByte;
+
+	public bool IsWindingUp
+	{
+		get => IsWindingUpByte != 0;
+		set => IsWindingUpByte = value ? (byte)1 : (byte)0;
+	}
 
 	public Weapon(
 		float baseDamage,
@@ -89,12 +105,12 @@ public struct Weapon
 		SplashInnerRatio = splashInnerRatio;
 		SplashMediumRatio = splashMediumRatio;
 		SplashOuterRatio = splashOuterRatio;
-		FriendlyFire = friendlyFire;
+		FriendlyFireByte = friendlyFire ? (byte)1 : (byte)0;
 		CurrentCooldown = currentCooldown;
 		CurrentBurstRemaining = currentBurstRemaining;
 		CurrentBurstTimer = currentBurstTimer;
 		WindupTimer = windupTimer;
-		IsWindingUp = isWindingUp;
+		IsWindingUpByte = isWindingUp ? (byte)1 : (byte)0;
 	}
 
 	public string DamageType

@@ -1268,9 +1268,10 @@ public partial class GameHost : Node3D, IGameAPI
 			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
 			if (p != null && _peerIdToPlayerEntityMap.TryGetValue(p.PeerId, out var pe) && GameContext.World.IsAlive(pe))
 			{
-				if (GameContext.World.TryGet<PlayerResources>(pe, out var res))
+				if (GameContext.World.Has<PlayerResources>(pe))
 				{
-					res.Value[ECSContext.PlayerResourceService.GoldResourceId] = (int)Math.Max(0f, goldAmount);
+					ref var res = ref GameContext.World.Get<PlayerResources>(pe);
+					res[ECSContext.PlayerResourceService.GoldResourceId] = (int)Math.Max(0f, goldAmount);
 				}
 			}
 		}

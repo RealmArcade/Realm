@@ -7,10 +7,13 @@ namespace Realm.Ecs.Components.Combat;
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct AutoCombatState
 {
-	/// <summary>
-	///     Indicates whether automated combat AI is active for the unit.
-	/// </summary>
-	public bool Enabled;
+	public byte EnabledByte;
+
+	public bool Enabled
+	{
+		get => EnabledByte != 0;
+		set => EnabledByte = value ? (byte)1 : (byte)0;
+	}
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="AutoCombatState"/> struct.
@@ -18,6 +21,6 @@ public struct AutoCombatState
 	/// <param name="enabled">Whether auto-combat is enabled.</param>
 	public AutoCombatState(bool enabled)
 	{
-		Enabled = enabled;
+		EnabledByte = enabled ? (byte)1 : (byte)0;
 	}
 }

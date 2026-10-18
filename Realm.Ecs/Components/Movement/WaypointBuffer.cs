@@ -4,6 +4,9 @@ using System.Runtime.CompilerServices;
 
 namespace Realm.Ecs.Components.Movement;
 
+/// <summary>
+/// An inline fixed buffer of 16 Vector3 waypoint positions for unit pathing.
+/// </summary>
 [InlineArray(16)]
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct WaypointBuffer

@@ -406,9 +406,9 @@ public class ReplayService
 		Entity playerEnt = mapping.PlayerEntities[1];
 		if (playerEnt == Entity.Null || !GameContext.World.IsAlive(playerEnt) || !GameContext.World.Has<PlayerResources>(playerEnt)) return;
 
-		var dict = GameContext.World.Get<PlayerResources>(playerEnt).Value;
-		if (dict.TryGetValue(new ResourceId("gold"), out var gVal)) gold = gVal;
-		if (dict.TryGetValue(new ResourceId("wood"), out var wVal)) wood = wVal;
-		if (dict.TryGetValue(new ResourceId("stone"), out var sVal)) stone = sVal;
+		var resources = GameContext.World.Get<PlayerResources>(playerEnt);
+		if (resources.TryGetValue(new ResourceId("gold"), out var gVal)) gold = gVal;
+		if (resources.TryGetValue(new ResourceId("wood"), out var wVal)) wood = wVal;
+		if (resources.TryGetValue(new ResourceId("stone"), out var sVal)) stone = sVal;
 	}
 }

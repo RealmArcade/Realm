@@ -4,6 +4,9 @@ using Realm.Ecs.Components.Stats;
 
 namespace Realm.Ecs.Components.Core;
 
+/// <summary>
+/// Holds a list of active stat modifiers applied to an entity.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct ModifierState
 {

@@ -13,7 +13,13 @@ public struct Gatherer
 	public float CarriedAmount;
 	public float MaxCapacity;
 	public Entity TargetEntity;
-	public bool ReturningToBase;
+	public byte ReturningToBaseByte;
+
+	public bool ReturningToBase
+	{
+		get => ReturningToBaseByte != 0;
+		set => ReturningToBaseByte = value ? (byte)1 : (byte)0;
+	}
 
 	public Gatherer(string type, Entity targetEntity)
 	{
@@ -21,7 +27,7 @@ public struct Gatherer
 		CarriedAmount = 0f;
 		MaxCapacity = 15f;
 		TargetEntity = targetEntity;
-		ReturningToBase = false;
+		ReturningToBaseByte = 0;
 	}
 
 	public string ResourceType

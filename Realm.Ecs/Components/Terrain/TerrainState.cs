@@ -4,6 +4,9 @@ using DotRecast.Detour;
 
 namespace Realm.Ecs.Components.Terrain;
 
+/// <summary>
+/// Holds global terrain grid dimensions, height cells, navmesh handles, and pathing codes.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct TerrainState
 {
