@@ -3876,8 +3876,16 @@ public partial class GameHost
 		float costGold = 150f;
 		float costWood = 100f;
 
-		float currentGold = RealmSharedMemory.GetPlayerSlot(playerIndex).Gold;
-		float currentWood = RealmSharedMemory.GetPlayerSlot(playerIndex).Wood;
+		float currentGold = 0f;
+		float currentWood = 0f;
+		unsafe
+		{
+			if (EcsSharedMemory.PlayerResources != null && playerIndex >= 0 && playerIndex < EcsSharedMemory.MAX_PLAYERS)
+			{
+				currentGold = EcsSharedMemory.PlayerResources[playerIndex].Gold;
+				currentWood = EcsSharedMemory.PlayerResources[playerIndex].Wood;
+			}
+		}
 
 		if (currentGold >= costGold && currentWood >= costWood)
 		{
@@ -3910,8 +3918,16 @@ public partial class GameHost
 		float costGold = 150f;
 		float costStone = 100f;
 
-		float currentGold = RealmSharedMemory.GetPlayerSlot(playerIndex).Gold;
-		float currentStone = RealmSharedMemory.GetPlayerSlot(playerIndex).Stone;
+		float currentGold = 0f;
+		float currentStone = 0f;
+		unsafe
+		{
+			if (EcsSharedMemory.PlayerResources != null && playerIndex >= 0 && playerIndex < EcsSharedMemory.MAX_PLAYERS)
+			{
+				currentGold = EcsSharedMemory.PlayerResources[playerIndex].Gold;
+				currentStone = EcsSharedMemory.PlayerResources[playerIndex].Stone;
+			}
+		}
 
 		if (currentGold >= costGold && currentStone >= costStone)
 		{
@@ -3944,8 +3960,16 @@ public partial class GameHost
 		float costWood = 150f;
 		float costStone = 100f;
 
-		float currentWood = RealmSharedMemory.GetPlayerSlot(playerIndex).Wood;
-		float currentStone = RealmSharedMemory.GetPlayerSlot(playerIndex).Stone;
+		float currentWood = 0f;
+		float currentStone = 0f;
+		unsafe
+		{
+			if (EcsSharedMemory.PlayerResources != null && playerIndex >= 0 && playerIndex < EcsSharedMemory.MAX_PLAYERS)
+			{
+				currentWood = EcsSharedMemory.PlayerResources[playerIndex].Wood;
+				currentStone = EcsSharedMemory.PlayerResources[playerIndex].Stone;
+			}
+		}
 
 		if (currentWood >= costWood && currentStone >= costStone)
 		{
@@ -4004,9 +4028,18 @@ public partial class GameHost
 		float costWood = upgMeta?.CostWood ?? 0f;
 		float costStone = upgMeta?.CostStone ?? 0f;
 
-		float currentGold = RealmSharedMemory.GetPlayerSlot(playerIndex).Gold;
-		float currentWood = RealmSharedMemory.GetPlayerSlot(playerIndex).Wood;
-		float currentStone = RealmSharedMemory.GetPlayerSlot(playerIndex).Stone;
+		float currentGold = 0f;
+		float currentWood = 0f;
+		float currentStone = 0f;
+		unsafe
+		{
+			if (EcsSharedMemory.PlayerResources != null && playerIndex >= 0 && playerIndex < EcsSharedMemory.MAX_PLAYERS)
+			{
+				currentGold = EcsSharedMemory.PlayerResources[playerIndex].Gold;
+				currentWood = EcsSharedMemory.PlayerResources[playerIndex].Wood;
+				currentStone = EcsSharedMemory.PlayerResources[playerIndex].Stone;
+			}
+		}
 
 		if (currentGold >= costGold && currentWood >= costWood && currentStone >= costStone)
 		{

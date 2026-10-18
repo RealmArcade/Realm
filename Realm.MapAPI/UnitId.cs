@@ -7,7 +7,7 @@ namespace Realm.MapAPI;
 /// Represents a strongly-typed, unmanaged entity identifier for a unit instance in the game world,
 /// providing zero-allocation fluent access to unit properties and commands.
 /// </summary>
-public readonly record struct UnitId(int Value)
+public readonly unsafe record struct UnitId(int Value)
 {
 	/// <summary>
 	/// Implicitly converts a 32-bit integer identifier into a <see cref="UnitId"/>.
@@ -29,7 +29,7 @@ public readonly record struct UnitId(int Value)
 	/// <summary>
 	/// Gets a value indicating whether this identifier represents a valid unit index.
 	/// </summary>
-	public bool IsValid => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES;
+	public bool IsValid => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES;
 
 	/// <summary>
 	/// Gets the raw integer identifier.
@@ -46,7 +46,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float Health
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Health : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Health[Value].Current : 0f;
 		set => GameAPI.Current.SetUnitHealth(this, value);
 	}
 
@@ -55,7 +55,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float MaxHealth
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).MaxHealth : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Health[Value].Max : 0f;
 		set => GameAPI.Current.SetUnitMaxHealth(this, value);
 	}
 
@@ -64,7 +64,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float Mana
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Mana : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Mana[Value].Current : 0f;
 		set => GameAPI.Current.SetUnitMana(this, value);
 	}
 
@@ -73,7 +73,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float MaxMana
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).MaxMana : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Mana[Value].Max : 0f;
 		set => GameAPI.Current.SetUnitMaxMana(this, value);
 	}
 
@@ -82,7 +82,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float ManaRegen
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).ManaRegen : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Mana[Value].ManaRegen : 0f;
 		set => GameAPI.Current.SetUnitManaRegen(this, value);
 	}
 
@@ -91,7 +91,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float Damage
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Damage : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Attack[Value].Damage : 0f;
 		set => GameAPI.Current.SetUnitDamage(this, value);
 	}
 
@@ -100,7 +100,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float Range
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Range : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Attack[Value].Range : 0f;
 		set => GameAPI.Current.SetUnitRange(this, value);
 	}
 
@@ -109,7 +109,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float Armor
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Armor : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Armor[Value].FlatArmor : 0f;
 		set => GameAPI.Current.SetUnitArmor(this, value);
 	}
 
@@ -118,7 +118,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float Speed
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Speed : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.MovementStats[Value].Speed : 0f;
 		set => GameAPI.Current.SetUnitSpeed(this, value);
 	}
 
@@ -127,14 +127,14 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float AttackSpeed
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).AttackSpeed : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Attack[Value].Cooldown : 0f;
 		set => GameAPI.Current.SetUnitAttackSpeed(this, value);
 	}
 
 	/// <summary>
 	/// Gets the current position of the unit in 3D world space.
 	/// </summary>
-	public Vector3 Position => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Position : Vector3.Zero;
+	public Vector3 Position => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Position[Value].Value : Vector3.Zero;
 
 	/// <summary>
 	/// Gets or sets the display name of the unit.
@@ -170,26 +170,26 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public int Player
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).OwnerPlayerId : -1;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.UnitOwnerPlayer[Value].PlayerIndex : -1;
 		set => GameAPI.Current.SetUnitOwner(this, value);
 	}
 
 	/// <summary>
 	/// Gets a value indicating whether the unit is a structural building.
 	/// </summary>
-	public bool IsBuilding => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 && RealmSharedMemory.GetEntitySlot(Value).IsBuilding != 0;
+	public bool IsBuilding => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.Building);
 
 	/// <summary>
 	/// Gets a value indicating whether the unit is a Hero unit.
 	/// </summary>
-	public bool IsHero => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 && RealmSharedMemory.GetEntitySlot(Value).IsHero != 0;
+	public bool IsHero => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.Hero);
 
 	/// <summary>
 	/// Gets or sets the experience level of the unit.
 	/// </summary>
 	public int Level
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Level : 0;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Level[Value].Value : 0;
 		set => GameAPI.Current.SetUnitLevel(this, value);
 	}
 
@@ -198,31 +198,31 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float Experience
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Experience : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.Experience[Value].Value : 0f;
 		set => GameAPI.Current.SetUnitExperience(this, value);
 	}
 
 	/// <summary>
 	/// Gets the experience point bounty awarded upon defeating this unit.
 	/// </summary>
-	public float XpBounty => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).XpBounty : 0f;
+	public float XpBounty => 0f;
 
 	/// <summary>
 	/// Gets the gold resource bounty awarded upon defeating this unit.
 	/// </summary>
-	public float GoldBounty => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).GoldBounty : 0f;
+	public float GoldBounty => 0f;
 
 	/// <summary>
 	/// Gets a value indicating whether this unit is dead.
 	/// </summary>
-	public bool IsDead => Value <= 0 || Value >= RealmSharedMemory.MAX_ENTITIES || RealmSharedMemory.GetEntitySlot(Value).Alive == 0;
+	public bool IsDead => Value <= 0 || Value >= EcsSharedMemory.MAX_ENTITIES || EcsSharedMemory.Alive[Value] == 0;
 
 	/// <summary>
 	/// Gets or sets the visual scaling factor of the unit model.
 	/// </summary>
 	public float Scale
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Scale : 1f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.ModelScale[Value].Value : 1f;
 		set => GameAPI.Current.SetUnitScale(this, value);
 	}
 
@@ -231,7 +231,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public bool Invulnerable
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 && RealmSharedMemory.GetEntitySlot(Value).Invulnerable != 0;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.Invulnerable);
 		set => GameAPI.Current.SetUnitInvulnerable(this, value);
 	}
 
@@ -249,7 +249,7 @@ public readonly record struct UnitId(int Value)
 	/// </summary>
 	public float Facing
 	{
-		get => Value > 0 && Value < RealmSharedMemory.MAX_ENTITIES && RealmSharedMemory.GetEntitySlot(Value).Alive != 0 ? RealmSharedMemory.GetEntitySlot(Value).Facing : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.RotationY[Value].Value : 0f;
 		set => GameAPI.Current.SetUnitFacing(this, value);
 	}
 

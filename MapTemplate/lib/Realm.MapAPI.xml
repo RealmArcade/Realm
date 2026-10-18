@@ -129,6 +129,112 @@
             Gets or sets custom arbitrary key-value metadata associated with the profile.
             </summary>
         </member>
+        <member name="T:Realm.MapAPI.Armor">
+            <summary>
+            Defines flat and rated armor mitigation values and armor category for an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Armor.FlatArmor">
+            <summary>Flat armor value directly mitigating damage.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Armor.RatedArmor">
+            <summary>Rated armor value providing percentage-based diminishing return damage mitigation.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Armor.StringId">
+            <summary>String registry identifier for the armor category.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Armor.#ctor(System.Single,System.Single,System.String)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.Armor"/> struct.
+            </summary>
+            <param name="flatArmor">Flat armor mitigation.</param>
+            <param name="ratedArmor">Rated armor mitigation.</param>
+            <param name="armorType">Armor category name.</param>
+        </member>
+        <member name="P:Realm.MapAPI.Armor.Value">
+            <summary>
+            Gets the effective flat armor rating (alias for <see cref="F:Realm.MapAPI.Armor.FlatArmor"/>).
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.Armor.ArmorType">
+            <summary>
+            Gets or sets the armor category name.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.Attack">
+            <summary>
+            Defines combat attack parameters including damage, range, cooldowns, and area-of-effect splash.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.Damage">
+            <summary>Base attack damage dealt.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.Range">
+            <summary>Maximum attack range distance in world units.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.Cooldown">
+            <summary>Attack interval or cooldown duration in seconds.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.CurrentCooldown">
+            <summary>Current remaining attack cooldown in seconds.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.DamageVariance">
+            <summary>Damage variance percentage or range.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.DamageTypeId">
+            <summary>String registry identifier for the damage category.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.FlatArmorPenetration">
+            <summary>Flat armor penetration amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.PercentArmorPenetration">
+            <summary>Percent armor penetration ratio (0.0 to 1.0).</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.CritChance">
+            <summary>Critical strike probability ratio (0.0 to 1.0).</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.CritMultiplier">
+            <summary>Critical strike damage multiplier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.SplashType">
+            <summary>Area-of-effect splash falloff style.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.SplashInnerRadius">
+            <summary>Inner splash radius distance in world units.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.SplashMediumRadius">
+            <summary>Medium splash radius distance in world units.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.SplashOuterRadius">
+            <summary>Outer splash radius distance in world units.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.SplashInnerRatio">
+            <summary>Damage multiplier applied within inner splash radius.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.SplashMediumRatio">
+            <summary>Damage multiplier applied within medium splash radius.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.SplashOuterRatio">
+            <summary>Damage multiplier applied within outer splash radius.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Attack.FriendlyFireByte">
+            <summary>Backing byte indicating whether splash damage hurts allied units (1 if true, 0 if false).</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Attack.FriendlyFire">
+            <summary>
+            Gets or sets a value indicating whether splash damage affects friendly units.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.Attack.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single,System.String,System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.SplashType,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Boolean)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.Attack"/> struct.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.Attack.DamageType">
+            <summary>
+            Gets or sets the damage category name.
+            </summary>
+        </member>
         <member name="T:Realm.MapAPI.AutoBattlerBotConfig">
             <summary>
             Configuration parameters for an Auto-Battler AI bot.
@@ -193,6 +299,180 @@
             Gets the default AI bot profile configuration.
             </summary>
         </member>
+        <member name="T:Realm.MapAPI.ComponentIds">
+            <summary>
+            Defines deterministic canonical component type identifiers agreed upon by both host and guest simulation runtimes.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Position">
+            <summary>Position component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Health">
+            <summary>Health component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Mana">
+            <summary>Mana component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.PlayerPopulation">
+            <summary>Player population component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.ScriptPlayer">
+            <summary>Script player component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.UnitOwnerPlayer">
+            <summary>Unit owner player component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Attack">
+            <summary>Attack component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Armor">
+            <summary>Armor component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.MovementStats">
+            <summary>Movement stats component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.PlayerResources">
+            <summary>Player resources component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Building">
+            <summary>Building tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Dead">
+            <summary>Dead tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Hero">
+            <summary>Hero tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Invulnerable">
+            <summary>Invulnerable tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Unit">
+            <summary>Unit tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Experience">
+            <summary>Experience component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Level">
+            <summary>Level component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.ModelScale">
+            <summary>Model scale component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.RotationY">
+            <summary>Rotation around Y-axis component identifier.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.ComponentMask">
+            <summary>
+            Bitmask representing a set of component types for entity filter queries.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentMask.Mask0">
+            <summary>
+            Bitmask word 0 (components 0-63).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentMask.Mask1">
+            <summary>
+            Bitmask word 1 (components 64-127).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentMask.Mask2">
+            <summary>
+            Bitmask word 2 (components 128-191).
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentMask.Mask3">
+            <summary>
+            Bitmask word 3 (components 192-255).
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.#ctor(System.UInt64,System.UInt64,System.UInt64,System.UInt64)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.ComponentMask"/> struct.
+            </summary>
+            <param name="mask0">Bitmask word 0.</param>
+            <param name="mask1">Bitmask word 1.</param>
+            <param name="mask2">Bitmask word 2.</param>
+            <param name="mask3">Bitmask word 3.</param>
+        </member>
+        <member name="P:Realm.MapAPI.ComponentMask.Empty">
+            <summary>
+            Gets an empty component mask with all bits set to 0.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.FromId(System.Int32)">
+            <summary>
+            Creates a component mask from a specific 0-based component type identifier.
+            </summary>
+            <param name="componentId">The component type identifier (0-255).</param>
+            <returns>A new component mask with only the specified component bit set.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.op_BitwiseOr(Realm.MapAPI.ComponentMask,Realm.MapAPI.ComponentMask)">
+            <summary>
+            Computes the bitwise OR union of two component masks.
+            </summary>
+            <param name="left">The first component mask.</param>
+            <param name="right">The second component mask.</param>
+            <returns>The bitwise OR union mask.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.op_BitwiseAnd(Realm.MapAPI.ComponentMask,Realm.MapAPI.ComponentMask)">
+            <summary>
+            Computes the bitwise AND intersection of two component masks.
+            </summary>
+            <param name="left">The first component mask.</param>
+            <param name="right">The second component mask.</param>
+            <returns>The bitwise AND intersection mask.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.HasAll(Realm.MapAPI.ComponentMask)">
+            <summary>
+            Determines whether this mask contains all bits set in the required mask.
+            </summary>
+            <param name="required">The required component mask.</param>
+            <returns>True if all required bits are present; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.HasAny(Realm.MapAPI.ComponentMask)">
+            <summary>
+            Determines whether this mask contains any bits set in the required mask.
+            </summary>
+            <param name="required">The target component mask.</param>
+            <returns>True if any bits intersect; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.Equals(Realm.MapAPI.ComponentMask)">
+            <summary>
+            Indicates whether the current object is equal to another object of the same type.
+            </summary>
+            <param name="other">An object to compare with this object.</param>
+            <returns>True if the current object is equal to the other parameter; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.Equals(System.Object)">
+            <summary>
+            Determines whether the specified object is equal to the current object.
+            </summary>
+            <param name="obj">The object to compare with the current object.</param>
+            <returns>True if the specified object is equal to the current object; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.GetHashCode">
+            <summary>
+            Returns the hash code for this instance.
+            </summary>
+            <returns>A 32-bit signed integer hash code.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.op_Equality(Realm.MapAPI.ComponentMask,Realm.MapAPI.ComponentMask)">
+            <summary>
+            Compares two component masks for equality.
+            </summary>
+            <param name="left">The first component mask.</param>
+            <param name="right">The second component mask.</param>
+            <returns>True if equal; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ComponentMask.op_Inequality(Realm.MapAPI.ComponentMask,Realm.MapAPI.ComponentMask)">
+            <summary>
+            Compares two component masks for inequality.
+            </summary>
+            <param name="left">The first component mask.</param>
+            <param name="right">The second component mask.</param>
+            <returns>True if not equal; otherwise false.</returns>
+        </member>
         <member name="T:Realm.MapAPI.Coordinate">
             <summary>
             Represents a 3D bounding region defined by a minimum and maximum coordinate.
@@ -253,6 +533,174 @@
         <member name="P:Realm.MapAPI.CustomBotDecision.Payload">
             <summary>
             Gets or sets arbitrary payload data or arguments passed to the execution callback.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.EcsSharedMemory">
+            <summary>
+            Manages the zero-allocation Structure-of-Arrays (SoA) shared linear memory region between WebAssembly guest and host runtime contexts.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.MAX_PLAYERS">
+            <summary>The maximum number of player slots allocated in shared memory.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.MAX_ENTITIES">
+            <summary>The maximum number of entity slots allocated in shared memory.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.BITSET_CHUNKS">
+            <summary>The number of 64-bit words required to represent active entity bitsets for all entities.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET">
+            <summary>Offset to the active entity bitset word array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.ALIVE_OFFSET">
+            <summary>Offset to the entity alive bytes array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.ENTITY_MASKS_OFFSET">
+            <summary>Offset to the entity component masks array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.POSITION_OFFSET">
+            <summary>Offset to the entity positions array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.HEALTH_OFFSET">
+            <summary>Offset to the entity health components array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.MANA_OFFSET">
+            <summary>Offset to the entity mana components array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.ATTACK_OFFSET">
+            <summary>Offset to the entity attack components array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.ARMOR_OFFSET">
+            <summary>Offset to the entity armor components array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.MOVEMENT_STATS_OFFSET">
+            <summary>Offset to the entity movement stats array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET">
+            <summary>Offset to the entity unit owner player array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.LEVEL_OFFSET">
+            <summary>Offset to the entity level array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.EXPERIENCE_OFFSET">
+            <summary>Offset to the entity experience array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.MODEL_SCALE_OFFSET">
+            <summary>Offset to the entity model scale array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.ROTATION_Y_OFFSET">
+            <summary>Offset to the entity rotation Y-axis array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.PLAYER_RESOURCES_OFFSET">
+            <summary>Offset to the player resources array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.SCRIPT_PLAYER_OFFSET">
+            <summary>Offset to the script player array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.PLAYER_POPULATION_OFFSET">
+            <summary>Offset to the player population array.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.TOTAL_SIZE_BYTES">
+            <summary>Total byte capacity of the contiguous shared memory block.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.g_realmSharedMemoryBase">
+            <summary>
+            The global static base address pointer for shared memory linear layout visible to native debuggers.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.ActiveEntityBitset">
+            <summary>Gets the raw pointer to the active entity bitset words array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.Alive">
+            <summary>Gets the raw pointer to the entity alive bytes array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.EntityMasks">
+            <summary>Gets the raw pointer to the entity component masks array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.Position">
+            <summary>Gets the raw pointer to the entity position vectors array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.Health">
+            <summary>Gets the raw pointer to the entity health components array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.Mana">
+            <summary>Gets the raw pointer to the entity mana components array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.Attack">
+            <summary>Gets the raw pointer to the entity attack components array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.Armor">
+            <summary>Gets the raw pointer to the entity armor components array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.MovementStats">
+            <summary>Gets the raw pointer to the entity movement stats components array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.UnitOwnerPlayer">
+            <summary>Gets the raw pointer to the unit owner player index array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.Level">
+            <summary>Gets the raw pointer to the unit experience level array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.Experience">
+            <summary>Gets the raw pointer to the unit experience points array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.ModelScale">
+            <summary>Gets the raw pointer to the unit model scale array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.RotationY">
+            <summary>Gets the raw pointer to the unit rotation Y-axis array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.PlayerResources">
+            <summary>Gets the raw pointer to the player resources stockpile array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.ScriptPlayer">
+            <summary>Gets the raw pointer to the script player state array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.PlayerPopulation">
+            <summary>Gets the raw pointer to the player population limits array.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.EcsSharedMemory.GetRealmSharedMemoryBase">
+            <summary>
+            Native entry point exported to WebAssembly host to retrieve the linear memory offset of the shared memory region.
+            </summary>
+            <returns>The 32-bit guest linear memory address offset.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.EcsSharedMemory.GetActiveEntityBitset">
+            <summary>
+            Retrieves the raw pointer to the active entity bitset array in shared memory.
+            </summary>
+            <returns>A pointer to the array of 64-bit words representing active entity bitsets.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.EcsSharedMemory.HasComponent(System.Int32,System.Int32)">
+            <summary>
+            Checks whether an entity has a specific component bit set in its component mask.
+            </summary>
+            <param name="entityId">The entity identifier.</param>
+            <param name="componentId">The component type identifier (0-255).</param>
+            <returns>True if the component bit is present; otherwise false.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.Experience">
+            <summary>
+            Represents the total accumulated experience points of a hero or entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Experience.Value">
+            <summary>The total experience points accumulated.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Experience.#ctor(System.Single)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.Experience"/> struct.
+            </summary>
+            <param name="value">The experience points.</param>
+        </member>
+        <member name="M:Realm.MapAPI.Experience.op_Implicit(System.Single)~Realm.MapAPI.Experience">
+            <summary>
+            Implicitly converts a float into an <see cref="T:Realm.MapAPI.Experience"/> struct.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.Experience.op_Implicit(Realm.MapAPI.Experience)~System.Single">
+            <summary>
+            Implicitly converts an <see cref="T:Realm.MapAPI.Experience"/> struct into a float.
             </summary>
         </member>
         <member name="T:Realm.MapAPI.GameAPI">
@@ -373,6 +821,56 @@
             </summary>
             <param name="unit">The unit to receive items.</param>
             <param name="items">The collection of saved inventory items to add.</param>
+        </member>
+        <member name="T:Realm.MapAPI.Health">
+            <summary>
+            Represents the health point capacity and regeneration state of an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Health.Current">
+            <summary>
+            The current health points of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Health.Max">
+            <summary>
+            The maximum health point capacity of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Health.HpRegen">
+            <summary>
+            Health point regeneration rate per second.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Health.HpRegenCombatDelay">
+            <summary>
+            Delay duration in seconds before health regeneration resumes after taking damage.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Health.TimeSinceLastDamage">
+            <summary>
+            Elapsed time in seconds since the entity last sustained damage.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.Health.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.Health"/> struct.
+            </summary>
+            <param name="current">The current health points.</param>
+            <param name="max">The maximum health capacity.</param>
+            <param name="hpRegen">Health point regeneration rate per second.</param>
+            <param name="hpRegenCombatDelay">Regeneration combat delay in seconds.</param>
+            <param name="timeSinceLastDamage">Time since last damage in seconds.</param>
+        </member>
+        <member name="P:Realm.MapAPI.Health.CurrentHp">
+            <summary>
+            Gets or sets the current health points (alias for <see cref="F:Realm.MapAPI.Health.Current"/>).
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.Health.MaxHp">
+            <summary>
+            Gets or sets the maximum health capacity (alias for <see cref="F:Realm.MapAPI.Health.Max"/>).
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.HeroArenaBotConfig">
             <summary>
@@ -2640,18 +3138,6 @@
             Gets the linear memory offset of the shared memory region in guest WebAssembly linear memory.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.IWasmRuntime.GetSharedPlayerSlotsSpan">
-            <summary>
-            Gets a span slice pointing to the shared player slots table in WebAssembly linear memory.
-            </summary>
-            <returns>A span of <see cref="T:Realm.MapAPI.SharedPlayerSlot"/> structs.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IWasmRuntime.GetSharedEntitySlotsSpan">
-            <summary>
-            Gets a span slice pointing to the shared entity slots table in WebAssembly linear memory.
-            </summary>
-            <returns>A span of <see cref="T:Realm.MapAPI.SharedEntitySlot"/> structs.</returns>
-        </member>
         <member name="M:Realm.MapAPI.IWasmRuntime.GetSharedMemoryPointer">
             <summary>
             Gets the host pointer address to the shared linear memory region in WebAssembly linear memory.
@@ -2673,6 +3159,30 @@
             <param name="modifierValue">The configured value of the modifier.</param>
             <param name="level">The source level of the modifier.</param>
             <returns>The calculated bonus stat value, or zero if execution fails.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.Level">
+            <summary>
+            Represents the hero or unit experience progression level.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Level.Value">
+            <summary>The current level value.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Level.#ctor(System.Int32)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.Level"/> struct.
+            </summary>
+            <param name="value">The level number.</param>
+        </member>
+        <member name="M:Realm.MapAPI.Level.op_Implicit(System.Int32)~Realm.MapAPI.Level">
+            <summary>
+            Implicitly converts an integer into a <see cref="T:Realm.MapAPI.Level"/> struct.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.Level.op_Implicit(Realm.MapAPI.Level)~System.Int32">
+            <summary>
+            Implicitly converts a <see cref="T:Realm.MapAPI.Level"/> struct into an integer.
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.LootItemId">
             <summary>
@@ -2768,6 +3278,44 @@
             Formats the loot item identifier as a string.
             </summary>
             <returns>A string representation of the loot item identifier.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.Mana">
+            <summary>
+            Represents the current, maximum, and regeneration rate of mana for an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Mana.Current">
+            <summary>
+            The current mana points of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Mana.Max">
+            <summary>
+            The maximum mana point capacity of the entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Mana.ManaRegen">
+            <summary>
+            Mana point regeneration rate per second.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.Mana.#ctor(System.Single,System.Single,System.Single)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.Mana"/> struct.
+            </summary>
+            <param name="current">The current mana points.</param>
+            <param name="max">The maximum mana capacity.</param>
+            <param name="manaRegen">Mana point regeneration rate per second.</param>
+        </member>
+        <member name="P:Realm.MapAPI.Mana.CurrentMana">
+            <summary>
+            Gets or sets the current mana points (alias for <see cref="F:Realm.MapAPI.Mana.Current"/>).
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.Mana.MaxMana">
+            <summary>
+            Gets or sets the maximum mana capacity (alias for <see cref="F:Realm.MapAPI.Mana.Max"/>).
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.MapCosmeticSaveData">
             <summary>
@@ -2903,6 +3451,82 @@
             Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
             </summary>
             <returns>A JSON string representation of the configuration parameters.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.ModelScale">
+            <summary>
+            Represents the visual model uniform scaling factor of an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.ModelScale.Value">
+            <summary>The visual scale multiplier.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.ModelScale.#ctor(System.Single)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.ModelScale"/> struct.
+            </summary>
+            <param name="value">The uniform scale factor.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ModelScale.op_Implicit(System.Single)~Realm.MapAPI.ModelScale">
+            <summary>
+            Implicitly converts a float into a <see cref="T:Realm.MapAPI.ModelScale"/> struct.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.ModelScale.op_Implicit(Realm.MapAPI.ModelScale)~System.Single">
+            <summary>
+            Implicitly converts a <see cref="T:Realm.MapAPI.ModelScale"/> struct into a float.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.MovementStats">
+            <summary>
+            Defines the movement, locomotion, and crowd footprint properties of an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.MovementStats.Speed">
+            <summary>Maximum linear traversal speed in world units per second.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.MovementStats.Acceleration">
+            <summary>Acceleration rate in units per second squared.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.MovementStats.TurnRate">
+            <summary>Rotational turning rate in radians per second.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.MovementStats.PushPriority">
+            <summary>Crowd simulation push avoidance priority.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.MovementStats.Type">
+            <summary>Locomotion traversal medium.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.MovementStats.#ctor(System.Single,System.Single,System.Single,System.Int32,Realm.MapAPI.MovementType)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.MovementStats"/> struct.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.MovementStats.#ctor(System.Single,System.Single,System.Single,System.Int32,System.String)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.MovementStats"/> struct with a string movement type.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.MovementStats.MovementType">
+            <summary>
+            Gets or sets the movement type category as a readable string.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.MovementType">
+            <summary>
+            Specifies the locomotion traversal medium for moving entities.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.MovementType.Ground">
+            <summary>Ground-based land locomotion.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.MovementType.Air">
+            <summary>Aerial flight traversal ignoring terrain height.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.MovementType.Water">
+            <summary>Aquatic water surface or submerged traversal.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.MovementType.Hover">
+            <summary>Low-altitude hover traversal passing over minor terrain obstacles.</summary>
         </member>
         <member name="T:Realm.MapAPI.PathingFlags">
             <summary>
@@ -3362,6 +3986,115 @@
             </summary>
             <returns>A string representation of the player slot index.</returns>
         </member>
+        <member name="T:Realm.MapAPI.PlayerPopulation">
+            <summary>
+            Tracks the current unit population count and maximum capacity limit for a player.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PlayerPopulation.Current">
+            <summary>Current population count consumed by living units.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.PlayerPopulation.Max">
+            <summary>Maximum population supply capacity.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerPopulation.#ctor(System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.PlayerPopulation"/> struct.
+            </summary>
+            <param name="current">Current population consumed.</param>
+            <param name="max">Maximum population capacity.</param>
+        </member>
+        <member name="T:Realm.MapAPI.PlayerResources">
+            <summary>
+            A component holding all resource stockpile amounts for a player slot directly in unmanaged memory.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.PlayerResources.MaxCustomSlots">
+            <summary>Maximum custom resource slots supported in fixed buffer.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.PlayerResources.Gold">
+            <summary>Gold resource stockpile amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.PlayerResources.Wood">
+            <summary>Wood resource stockpile amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.PlayerResources.Stone">
+            <summary>Stone resource stockpile amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.PlayerResources.Ore">
+            <summary>Ore resource stockpile amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.PlayerResources.CustomSlots">
+            <summary>Fixed array buffer for custom resource categories.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerResources.#ctor(System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.PlayerResources"/> struct with standard resources.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerResources.#ctor(System.Collections.Generic.IDictionary{Realm.MapAPI.ResourceId,System.Int32})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.PlayerResources"/> struct from a resource dictionary.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerResources.Get(Realm.MapAPI.ResourceId)">
+            <summary>
+            Retrieves the resource amount for the given resource identifier.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerResources.Set(Realm.MapAPI.ResourceId,System.Int32)">
+            <summary>
+            Sets the resource amount for the given resource identifier.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerResources.TryGetValue(Realm.MapAPI.ResourceId,System.Int32@)">
+            <summary>
+            Attempts to retrieve the resource amount for the given resource identifier.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerResources.ContainsKey(Realm.MapAPI.ResourceId)">
+            <summary>
+            Determines whether the resource type is supported.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.PlayerResources.Item(Realm.MapAPI.ResourceId)">
+            <summary>
+            Gets or sets resource amounts by identifier.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.PlayerResources.Value">
+            <summary>
+            Returns a copy of this struct.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.Position">
+            <summary>
+            Represents the 3D world space position vector of an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Position.Value">
+            <summary>
+            The 3D coordinates vector.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.Position.#ctor(System.Numerics.Vector3)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.Position"/> struct.
+            </summary>
+            <param name="value">The 3D coordinates vector.</param>
+        </member>
+        <member name="M:Realm.MapAPI.Position.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Position">
+            <summary>
+            Implicitly converts a <see cref="T:System.Numerics.Vector3"/> into a <see cref="T:Realm.MapAPI.Position"/> struct.
+            </summary>
+            <param name="value">The 3D coordinates vector.</param>
+        </member>
+        <member name="M:Realm.MapAPI.Position.op_Implicit(Realm.MapAPI.Position)~System.Numerics.Vector3">
+            <summary>
+            Implicitly converts a <see cref="T:Realm.MapAPI.Position"/> struct into a <see cref="T:System.Numerics.Vector3"/>.
+            </summary>
+            <param name="position">The position struct.</param>
+        </member>
         <member name="T:Realm.MapAPI.QueryResultBuffer">
             <summary>
             Provides ring-buffered unmanaged storage for WASM in-guest unit query results to prevent allocations and avoid overwriting outer query loops during nested calls.
@@ -3373,71 +4106,33 @@
             </summary>
             <returns>A span pointing to the allocated ring buffer slot segment.</returns>
         </member>
-        <member name="T:Realm.MapAPI.RealmSharedMemory">
+        <member name="T:Realm.MapAPI.ResourceId">
             <summary>
-            Manages the zero-allocation shared linear memory region between WebAssembly guest and host runtime contexts.
+            A type-safe identifier wrapper for a resource category.
             </summary>
         </member>
-        <member name="F:Realm.MapAPI.RealmSharedMemory.MAX_PLAYERS">
+        <member name="P:Realm.MapAPI.ResourceId.Value">
             <summary>
-            The maximum number of player slots allocated in shared memory.
+            Gets the canonical string name of the resource.
             </summary>
         </member>
-        <member name="F:Realm.MapAPI.RealmSharedMemory.MAX_ENTITIES">
+        <member name="M:Realm.MapAPI.ResourceId.#ctor(System.String)">
             <summary>
-            The maximum number of entity slots allocated in shared memory.
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.ResourceId"/> struct.
             </summary>
+            <param name="value">The resource category name.</param>
         </member>
-        <member name="F:Realm.MapAPI.RealmSharedMemory.BITSET_CHUNKS">
+        <member name="M:Realm.MapAPI.ResourceId.op_Implicit(System.String)~Realm.MapAPI.ResourceId">
             <summary>
-            The number of 64-bit words required to represent active entity bitsets for all entities.
+            Implicitly converts a string resource name into a <see cref="T:Realm.MapAPI.ResourceId"/>.
             </summary>
+            <param name="value">The resource category name.</param>
         </member>
-        <member name="F:Realm.MapAPI.RealmSharedMemory.g_realmSharedMemoryBase">
+        <member name="M:Realm.MapAPI.ResourceId.op_Implicit(Realm.MapAPI.ResourceId)~System.String">
             <summary>
-            The global static base address pointer for shared memory linear layout visible to native debuggers.
+            Implicitly converts a <see cref="T:Realm.MapAPI.ResourceId"/> into its string representation.
             </summary>
-        </member>
-        <member name="P:Realm.MapAPI.RealmSharedMemory.PlayerSlots">
-            <summary>
-            Gets the raw pointer to the player slots array.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.RealmSharedMemory.EntitySlots">
-            <summary>
-            Gets the raw pointer to the entity slots array.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.RealmSharedMemory.ActiveEntityBitset">
-            <summary>
-            Gets the raw pointer to the active entity bitset words array.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.RealmSharedMemory.GetRealmSharedMemoryBase">
-            <summary>
-            Native entry point exported to WebAssembly host to retrieve the linear memory offset of the shared memory region.
-            </summary>
-            <returns>The 32-bit guest linear memory address offset.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.RealmSharedMemory.GetPlayerSlot(System.Int32)">
-            <summary>
-            Retrieves a reference to the shared player slot at the specified index.
-            </summary>
-            <param name="index">The zero-based player slot index.</param>
-            <returns>A reference to the shared player slot structure.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.RealmSharedMemory.GetEntitySlot(System.Int32)">
-            <summary>
-            Retrieves a reference to the shared entity slot at the specified index.
-            </summary>
-            <param name="index">The entity slot index.</param>
-            <returns>A reference to the shared entity slot structure.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.RealmSharedMemory.GetActiveEntityBitset">
-            <summary>
-            Retrieves the raw pointer to the active entity bitset array in shared memory.
-            </summary>
-            <returns>A pointer to the array of 64-bit words representing active entity bitsets.</returns>
+            <param name="id">The resource identifier.</param>
         </member>
         <member name="T:Realm.MapAPI.ResourceNodeId">
             <summary>
@@ -3516,6 +4211,30 @@
             Formats the resource node identifier as a string.
             </summary>
             <returns>A string representation of the resource node index.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.RotationY">
+            <summary>
+            Represents the planar facing orientation angle in radians around the vertical Y-axis.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.RotationY.Value">
+            <summary>The rotation angle in radians.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.RotationY.#ctor(System.Single)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.RotationY"/> struct.
+            </summary>
+            <param name="value">The angle in radians.</param>
+        </member>
+        <member name="M:Realm.MapAPI.RotationY.op_Implicit(System.Single)~Realm.MapAPI.RotationY">
+            <summary>
+            Implicitly converts a float into a <see cref="T:Realm.MapAPI.RotationY"/> struct.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.RotationY.op_Implicit(Realm.MapAPI.RotationY)~System.Single">
+            <summary>
+            Implicitly converts a <see cref="T:Realm.MapAPI.RotationY"/> struct into a float.
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.SaveEnvelope`1">
             <summary>
@@ -3614,184 +4333,54 @@
             <param name="json">The input JSON string.</param>
             <returns>A normalized canonical JSON string.</returns>
         </member>
-        <member name="T:Realm.MapAPI.SharedEntitySlot">
+        <member name="T:Realm.MapAPI.ScriptPlayer">
             <summary>
-            Fixed-layout, blittable structure representing shared entity component state in WebAssembly linear memory.
+            Represents the configuration and runtime properties of a player slot within a map script.
             </summary>
         </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Alive">
+        <member name="F:Realm.MapAPI.ScriptPlayer.Gold">
+            <summary>Current gold resource amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ScriptPlayer.Wood">
+            <summary>Current wood resource amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ScriptPlayer.Stone">
+            <summary>Current stone resource amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ScriptPlayer.ActiveByte">
+            <summary>Backing byte indicating whether the player slot is active (1 if active, 0 otherwise).</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ScriptPlayer.IsComputerByte">
+            <summary>Backing byte indicating whether the player is controlled by AI (1 if AI, 0 if human).</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ScriptPlayer.Reserved0">
+            <summary>Reserved alignment padding byte.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ScriptPlayer.Reserved1">
+            <summary>Reserved alignment padding byte.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ScriptPlayer.Team">
+            <summary>Team identifier number.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ScriptPlayer.NameStringId">
+            <summary>String registry identifier for player display name.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ScriptPlayer.KillCount">
+            <summary>Total enemy unit kill count credited to this player.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.ScriptPlayer.Active">
             <summary>
-            Indicates whether this entity slot is alive and active (1 if alive, 0 if dead or unassigned).
+            Gets or sets a value indicating whether this player slot is active.
             </summary>
         </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.IsBuilding">
+        <member name="P:Realm.MapAPI.ScriptPlayer.IsComputer">
             <summary>
-            Indicates whether this entity is a structural building (1 if building, 0 otherwise).
+            Gets or sets a value indicating whether this player slot is controlled by computer AI.
             </summary>
         </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.IsHero">
+        <member name="P:Realm.MapAPI.ScriptPlayer.Name">
             <summary>
-            Indicates whether this entity is a hero unit (1 if hero, 0 otherwise).
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Invulnerable">
-            <summary>
-            Indicates whether this entity is invulnerable to damage (1 if invulnerable, 0 otherwise).
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.OwnerPlayerId">
-            <summary>
-            The zero-based player slot index that owns this entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Team">
-            <summary>
-            The team index assigned to this entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Health">
-            <summary>
-            The current health point value of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.MaxHealth">
-            <summary>
-            The maximum health capacity of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Mana">
-            <summary>
-            The current mana points of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.MaxMana">
-            <summary>
-            The maximum mana capacity of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.ManaRegen">
-            <summary>
-            The mana regeneration rate of the entity per second.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Damage">
-            <summary>
-            The base attack damage of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Range">
-            <summary>
-            The attack range of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Armor">
-            <summary>
-            The armor rating of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Speed">
-            <summary>
-            The movement speed of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.AttackSpeed">
-            <summary>
-            The attack speed multiplier of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Position">
-            <summary>
-            The 3D position vector of the entity in world space coordinates.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Scale">
-            <summary>
-            The visual model scaling factor of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Facing">
-            <summary>
-            The facing orientation angle of the entity in radians.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Level">
-            <summary>
-            The experience level of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.Experience">
-            <summary>
-            The total experience points accumulated by the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.XpBounty">
-            <summary>
-            The experience point bounty awarded upon defeating this entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedEntitySlot.GoldBounty">
-            <summary>
-            The gold resource bounty awarded upon defeating this entity.
-            </summary>
-        </member>
-        <member name="T:Realm.MapAPI.SharedPlayerSlot">
-            <summary>
-            Fixed-layout, blittable structure representing shared player state in WebAssembly linear memory.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.IsActive">
-            <summary>
-            Indicates whether this player slot is active (1 if active, 0 otherwise).
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.IsComputer">
-            <summary>
-            Indicates whether this player slot is controlled by computer AI (1 if computer, 0 otherwise).
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.Reserved0">
-            <summary>
-            Reserved alignment padding byte.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.Reserved1">
-            <summary>
-            Reserved alignment padding byte.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.Team">
-            <summary>
-            The team index assigned to this player slot.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.Gold">
-            <summary>
-            The current gold resource amount for this player slot.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.Wood">
-            <summary>
-            The current wood resource amount for this player slot.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.Stone">
-            <summary>
-            The current stone resource amount for this player slot.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.CurrentPopulation">
-            <summary>
-            The current population count consumed by living units for this player slot.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.MaxPopulation">
-            <summary>
-            The maximum population supply limit for this player slot.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SharedPlayerSlot.Kills">
-            <summary>
-            The total number of enemy unit kills credited to this player slot.
+            Gets or sets the player display name.
             </summary>
         </member>
         <member name="T:Realm.MapAPI.SpatialQueryEngine">
@@ -3819,6 +4408,44 @@
             <param name="center">The center position vector in 3D world space.</param>
             <param name="radius">The query radius distance.</param>
             <returns>A read-only span of unit handles inside the radius.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.SplashType">
+            <summary>
+            Defines splash area damage falloff options for combat attacks.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.SplashType.None">
+            <summary>No area-of-effect splash damage.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.SplashType.RadialStep">
+            <summary>Discrete stepped radial damage falloff.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.SplashType.RadialLinear">
+            <summary>Smooth linear radial damage falloff.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.StringRegistry">
+            <summary>
+            Provides high-performance string interning and integer identifier mappings for unmanaged ECS components.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.GetOrAdd(System.String)">
+            <summary>
+            Gets or registers a string in the registry and returns its unique integer identifier.
+            </summary>
+            <param name="str">The string to intern.</param>
+            <returns>The integer string identifier, or 0 if null or empty.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.Get(System.Int32)">
+            <summary>
+            Retrieves the interned string associated with the specified identifier.
+            </summary>
+            <param name="id">The integer string identifier.</param>
+            <returns>The string value, or empty string if not found.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.Reset">
+            <summary>
+            Resets the string registry, clearing all interned string values.
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.TowerDefenseBotConfig">
             <summary>
@@ -4324,6 +4951,30 @@
             Formats the unit identifier as a string.
             </summary>
             <returns>A string representation of the unit identifier.</returns>
+        </member>
+        <member name="T:Realm.MapAPI.UnitOwnerPlayer">
+            <summary>
+            Represents the zero-based player slot index (0-24) owning a unit or building entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.UnitOwnerPlayer.PlayerIndex">
+            <summary>The zero-based player slot index.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.UnitOwnerPlayer.#ctor(System.Int32)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.MapAPI.UnitOwnerPlayer"/> struct.
+            </summary>
+            <param name="playerIndex">The zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.UnitOwnerPlayer.op_Implicit(System.Int32)~Realm.MapAPI.UnitOwnerPlayer">
+            <summary>
+            Implicitly converts an integer player index into a <see cref="T:Realm.MapAPI.UnitOwnerPlayer"/> struct.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.UnitOwnerPlayer.op_Implicit(Realm.MapAPI.UnitOwnerPlayer)~System.Int32">
+            <summary>
+            Implicitly converts a <see cref="T:Realm.MapAPI.UnitOwnerPlayer"/> struct into an integer player index.
+            </summary>
         </member>
         <member name="T:Realm.MapAPI.WaypointMarchConfig">
             <summary>

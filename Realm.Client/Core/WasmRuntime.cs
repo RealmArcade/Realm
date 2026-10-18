@@ -175,6 +175,12 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 				{
 					_sharedMemoryOffset = offset;
 					LogToConsole($"[WASM RUNTIME] Shared memory handshake succeeded at guest offset 0x{_sharedMemoryOffset:X}.");
+
+					IntPtr sharedMemPtr = GetSharedMemoryPointer();
+					if (sharedMemPtr != IntPtr.Zero)
+					{
+						Realm.Client.Services.GameContext.World?.BindSharedMemory(sharedMemPtr);
+					}
 				}
 			}
 
@@ -518,31 +524,6 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		return ExecuteCustomFormula(context.WASMFunctionName, baseValue, modifierValue, level);
 	}
 
-	public Span<SharedPlayerSlot> GetSharedPlayerSlotsSpan()
-	{
-		var memory = _instance.GetMemory("memory");
-		if (memory == null || _sharedMemoryOffset <= 0) return Span<SharedPlayerSlot>.Empty;
-		unsafe
-		{
-			int playerTableSize = sizeof(SharedPlayerSlot) * RealmSharedMemory.MAX_PLAYERS;
-			Span<byte> byteSpan = memory.GetSpan(_sharedMemoryOffset, playerTableSize);
-			return MemoryMarshal.Cast<byte, SharedPlayerSlot>(byteSpan);
-		}
-	}
-
-	public Span<SharedEntitySlot> GetSharedEntitySlotsSpan()
-	{
-		var memory = _instance.GetMemory("memory");
-		if (memory == null || _sharedMemoryOffset <= 0) return Span<SharedEntitySlot>.Empty;
-		unsafe
-		{
-			int playerTableSize = sizeof(SharedPlayerSlot) * RealmSharedMemory.MAX_PLAYERS;
-			int entityTableSize = sizeof(SharedEntitySlot) * RealmSharedMemory.MAX_ENTITIES;
-			Span<byte> byteSpan = memory.GetSpan(_sharedMemoryOffset + playerTableSize, entityTableSize);
-			return MemoryMarshal.Cast<byte, SharedEntitySlot>(byteSpan);
-		}
-	}
-
 	public IntPtr GetSharedMemoryPointer()
 	{
 		var memory = _instance.GetMemory("memory");
@@ -560,19 +541,15 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		var memory = _instance.GetMemory("memory");
 		if (memory == null || _sharedMemoryOffset <= 0 || snapshotPayload.IsEmpty) return;
 
-		int totalSharedMemorySize = (sizeof(SharedPlayerSlot) * RealmSharedMemory.MAX_PLAYERS) + (sizeof(SharedEntitySlot) * RealmSharedMemory.MAX_ENTITIES);
+		int totalSharedMemorySize = EcsSharedMemory.TOTAL_SIZE_BYTES;
 
 		if (snapshotPayload.Length >= 32 && BinaryPrimitives.ReadUInt32LittleEndian(snapshotPayload.Slice(0, 4)) == 0x53434552)
 		{
-			int activeEntityMax = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(24, 4));
 			int freeListCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(16, 4));
-			int offset = 32 + (freeListCount * sizeof(int)) + (EcsWorld.BITSET_CHUNKS * sizeof(ulong)) + (activeEntityMax * sizeof(ComponentMask));
+			int offset = 32 + (freeListCount * sizeof(int));
+			int payloadSharedBytes = Math.Min(snapshotPayload.Length - offset, totalSharedMemorySize);
 
-			int playerSlotsBytes = sizeof(SharedPlayerSlot) * RealmSharedMemory.MAX_PLAYERS;
-			int entitySlotsBytes = activeEntityMax * sizeof(SharedEntitySlot);
-			int payloadSharedBytes = playerSlotsBytes + entitySlotsBytes;
-
-			if (snapshotPayload.Length >= offset + payloadSharedBytes)
+			if (payloadSharedBytes > 0)
 			{
 				ReadOnlySpan<byte> sharedSrc = snapshotPayload.Slice(offset, payloadSharedBytes);
 				Span<byte> memorySpan = memory.GetSpan(_sharedMemoryOffset, payloadSharedBytes);

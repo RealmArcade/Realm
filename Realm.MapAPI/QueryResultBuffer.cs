@@ -9,7 +9,7 @@ namespace Realm.MapAPI;
 public static class QueryResultBuffer
 {
 	private const int RING_SLOTS = 16;
-	private static readonly UnitId[] s_buffer = new UnitId[RealmSharedMemory.MAX_ENTITIES * RING_SLOTS];
+	private static readonly UnitId[] s_buffer = new UnitId[EcsSharedMemory.MAX_ENTITIES * RING_SLOTS];
 	private static int s_ringIndex = 0;
 
 	/// <summary>
@@ -21,7 +21,7 @@ public static class QueryResultBuffer
 	{
 		int slot = s_ringIndex;
 		s_ringIndex = (s_ringIndex + 1) % RING_SLOTS;
-		int offset = slot * RealmSharedMemory.MAX_ENTITIES;
-		return new Span<UnitId>(s_buffer, offset, RealmSharedMemory.MAX_ENTITIES);
+		int offset = slot * EcsSharedMemory.MAX_ENTITIES;
+		return new Span<UnitId>(s_buffer, offset, EcsSharedMemory.MAX_ENTITIES);
 	}
 }

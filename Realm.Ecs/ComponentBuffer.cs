@@ -9,10 +9,11 @@ public unsafe class ComponentBuffer<T> : IComponentBuffer where T : unmanaged
 	private T[]? _pinnedArray;
 	private T* _pointer;
 	private bool _isExternal;
-	private readonly int _capacity;
+	private int _capacity;
 
 	public int ComponentId { get; }
 	public bool IsExternal => _isExternal;
+	public int Capacity => _capacity;
 
 	public ComponentBuffer(int capacity = EcsWorld.MAX_ENTITIES)
 	{
@@ -23,12 +24,19 @@ public unsafe class ComponentBuffer<T> : IComponentBuffer where T : unmanaged
 		_isExternal = false;
 	}
 
-	public void BindExternalMemory(IntPtr pointer, int lengthInBytes)
+	public void BindExternalMemory(IntPtr pointer, int lengthInBytes) => BindExternalMemory(pointer, lengthInBytes, -1);
+
+	public void BindExternalMemory(IntPtr pointer, int lengthInBytes, int capacity = -1)
 	{
+		if (capacity > 0)
+		{
+			_capacity = capacity;
+		}
 		int requiredBytes = _capacity * sizeof(T);
 		if (lengthInBytes < requiredBytes)
 		{
-			throw new ArgumentException($"Buffer size {lengthInBytes} bytes is less than required {requiredBytes} bytes for {typeof(T).Name}");
+			_capacity = lengthInBytes / sizeof(T);
+			requiredBytes = _capacity * sizeof(T);
 		}
 		_pinnedArray = null;
 		_pointer = (T*)pointer.ToPointer();

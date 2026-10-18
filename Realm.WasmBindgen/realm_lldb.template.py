@@ -16,8 +16,8 @@ def get_shared_memory_base(target):
 
     candidate_names = [
         "g_realmSharedMemoryBase",
-        "Realm_MapAPI_RealmSharedMemory_g_realmSharedMemoryBase",
-        "Realm.MapAPI.RealmSharedMemory.g_realmSharedMemoryBase",
+        "Realm_MapAPI_EcsSharedMemory_g_realmSharedMemoryBase",
+        "Realm.MapAPI.EcsSharedMemory.g_realmSharedMemoryBase",
     ]
 
     process = target.GetProcess()
@@ -98,25 +98,6 @@ def extract_id_value(valobj):
             return child.GetValueAsSigned(-1)
     return valobj.GetValueAsSigned(-1)
 
-def read_unpacked(buffer, offsets_dict, field_name, default_value, sub_offset=0):
-    if field_name not in offsets_dict:
-        return default_value
-    offset, type_name = offsets_dict[field_name]
-    target_offset = offset + sub_offset
-    try:
-        if type_name == "float" or (type_name == "Vector3" and sub_offset in (0, 4, 8)):
-            if target_offset + 4 <= len(buffer):
-                return struct.unpack_from("<f", buffer, target_offset)[0]
-        elif type_name == "int":
-            if target_offset + 4 <= len(buffer):
-                return struct.unpack_from("<i", buffer, target_offset)[0]
-        elif type_name == "bool":
-            if target_offset + 1 <= len(buffer):
-                return struct.unpack_from("<B", buffer, target_offset)[0] != 0
-    except:
-        pass
-    return default_value
-
 class PlayerIdSyntheticProvider:
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -131,7 +112,7 @@ class PlayerIdSyntheticProvider:
         return len(PLAYER_FIELDS) > 0
 
     def get_child_index(self, name):
-        for idx, (f_name, _, _) in enumerate(PLAYER_FIELDS):
+        for idx, (f_name, _, _, _, _) in enumerate(PLAYER_FIELDS):
             if f_name == name:
                 return idx
         return -1
@@ -148,8 +129,8 @@ class PlayerIdSyntheticProvider:
         if player_id < 0 or player_id >= MAX_PLAYERS:
             return None
 
-        f_name, f_offset, f_type_name = PLAYER_FIELDS[index]
-        slot_addr = base_addr + PLAYER_TABLE_OFFSET + (player_id * PLAYER_SLOT_SIZE) + f_offset
+        f_name, array_offset, elem_size, sub_offset, f_type_name = PLAYER_FIELDS[index]
+        slot_addr = base_addr + array_offset + (player_id * elem_size) + sub_offset
         f_type = target.FindFirstType(f_type_name)
         if not f_type.IsValid():
             if f_type_name == "float":
@@ -175,7 +156,7 @@ class UnitIdSyntheticProvider:
         return len(ENTITY_FIELDS) > 0
 
     def get_child_index(self, name):
-        for idx, (f_name, _, _) in enumerate(ENTITY_FIELDS):
+        for idx, (f_name, _, _, _, _) in enumerate(ENTITY_FIELDS):
             if f_name == name:
                 return idx
         return -1
@@ -192,8 +173,8 @@ class UnitIdSyntheticProvider:
         if unit_id < 0 or unit_id >= MAX_ENTITIES:
             return None
 
-        f_name, f_offset, f_type_name = ENTITY_FIELDS[index]
-        slot_addr = base_addr + ENTITY_TABLE_OFFSET + (unit_id * ENTITY_SLOT_SIZE) + f_offset
+        f_name, array_offset, elem_size, sub_offset, f_type_name = ENTITY_FIELDS[index]
+        slot_addr = base_addr + array_offset + (unit_id * elem_size) + sub_offset
         f_type = target.FindFirstType(f_type_name)
         if not f_type.IsValid() and f_type_name == "Vector3":
             f_type = target.FindFirstType("System.Numerics.Vector3")
@@ -217,20 +198,26 @@ def PlayerIdSummaryProvider(valobj, internal_dict):
     if base_addr == 0:
         return f"Player {player_id}"
 
-    slot_base = base_addr + PLAYER_TABLE_OFFSET + (player_id * PLAYER_SLOT_SIZE)
     error = lldb.SBError()
     process = target.GetProcess()
 
-    slot_bytes = process.ReadMemory(slot_base, PLAYER_SLOT_SIZE, error)
-    if not error.Success() or len(slot_bytes) < PLAYER_SLOT_SIZE:
-        return f"Player {player_id}"
+    res_addr = base_addr + PLAYER_RESOURCES_OFFSET + (player_id * PLAYER_RESOURCES_SIZE)
+    res_bytes = process.ReadMemory(res_addr, 16, error)
+    gold = 0
+    wood = 0
+    if error.Success() and len(res_bytes) >= 8:
+        gold = struct.unpack_from("<i", res_bytes, 0)[0]
+        wood = struct.unpack_from("<i", res_bytes, 4)[0]
 
-    gold = read_unpacked(slot_bytes, PLAYER_OFFSETS, "Gold", 0.0)
-    wood = read_unpacked(slot_bytes, PLAYER_OFFSETS, "Wood", 0.0)
-    pop = read_unpacked(slot_bytes, PLAYER_OFFSETS, "CurrentPopulation", 0)
-    max_pop = read_unpacked(slot_bytes, PLAYER_OFFSETS, "MaxPopulation", 0)
+    pop_addr = base_addr + PLAYER_POPULATION_OFFSET + (player_id * PLAYER_POPULATION_SIZE)
+    pop_bytes = process.ReadMemory(pop_addr, 8, error)
+    pop = 0
+    max_pop = 0
+    if error.Success() and len(pop_bytes) >= 8:
+        pop = struct.unpack_from("<i", pop_bytes, 0)[0]
+        max_pop = struct.unpack_from("<i", pop_bytes, 4)[0]
 
-    return f"Player {player_id} [Gold: {int(gold)}, Wood: {int(wood)}, Pop: {pop}/{max_pop}]"
+    return f"Player {player_id} [Gold: {gold}, Wood: {wood}, Pop: {pop}/{max_pop}]"
 
 def UnitIdSummaryProvider(valobj, internal_dict):
     unit_id = extract_id_value(valobj)
@@ -242,18 +229,24 @@ def UnitIdSummaryProvider(valobj, internal_dict):
     if base_addr == 0:
         return f"Unit {unit_id}"
 
-    slot_base = base_addr + ENTITY_TABLE_OFFSET + (unit_id * ENTITY_SLOT_SIZE)
     error = lldb.SBError()
     process = target.GetProcess()
 
-    slot_bytes = process.ReadMemory(slot_base, ENTITY_SLOT_SIZE, error)
-    if not error.Success() or len(slot_bytes) < ENTITY_SLOT_SIZE:
-        return f"Unit {unit_id}"
+    hp_addr = base_addr + HEALTH_OFFSET + (unit_id * HEALTH_SIZE)
+    hp_bytes = process.ReadMemory(hp_addr, 8, error)
+    hp = 0.0
+    max_hp = 0.0
+    if error.Success() and len(hp_bytes) >= 8:
+        hp = struct.unpack_from("<f", hp_bytes, 0)[0]
+        max_hp = struct.unpack_from("<f", hp_bytes, 4)[0]
 
-    hp = read_unpacked(slot_bytes, ENTITY_OFFSETS, "Health", 0.0)
-    max_hp = read_unpacked(slot_bytes, ENTITY_OFFSETS, "MaxHealth", 0.0)
-    pos_x = read_unpacked(slot_bytes, ENTITY_OFFSETS, "Position", 0.0, sub_offset=0)
-    pos_z = read_unpacked(slot_bytes, ENTITY_OFFSETS, "Position", 0.0, sub_offset=8)
+    pos_addr = base_addr + POSITION_OFFSET + (unit_id * POSITION_SIZE)
+    pos_bytes = process.ReadMemory(pos_addr, 12, error)
+    pos_x = 0.0
+    pos_z = 0.0
+    if error.Success() and len(pos_bytes) >= 12:
+        pos_x = struct.unpack_from("<f", pos_bytes, 0)[0]
+        pos_z = struct.unpack_from("<f", pos_bytes, 8)[0]
 
     return f"Unit {unit_id} [Health: {int(hp)}/{int(max_hp)}, Pos: ({pos_x:.1f}, {pos_z:.1f})]"
 

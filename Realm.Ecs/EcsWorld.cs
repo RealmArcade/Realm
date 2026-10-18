@@ -30,12 +30,14 @@ public class EcsWorld : IDisposable
 	private readonly ulong[][] _componentBitsets = new ulong[MAX_COMPONENT_TYPES][];
 	private readonly IComponentBuffer[] _buffers = new IComponentBuffer[MAX_COMPONENT_TYPES];
 	private readonly ulong[] _activeEntityBitset = new ulong[BITSET_CHUNKS];
+	private unsafe ulong* _externalActiveEntityBitset;
 
 	public int Count => _count;
 
 	public ComponentBuffer<byte> AliveBuffer => _alive;
 	public ComponentBuffer<ComponentMask> EntityMasksBuffer => _entityMasks;
 	public ulong[] ActiveEntityBitset => _activeEntityBitset;
+	public unsafe ulong* ExternalActiveEntityBitset => _externalActiveEntityBitset;
 
 	public void BindExternalAliveMemory(IntPtr pointer, int lengthInBytes)
 	{
@@ -45,6 +47,32 @@ public class EcsWorld : IDisposable
 	public void BindExternalEntityMasksMemory(IntPtr pointer, int lengthInBytes)
 	{
 		_entityMasks.BindExternalMemory(pointer, lengthInBytes);
+	}
+
+	public unsafe void BindSharedMemory(IntPtr basePtr)
+	{
+		if (basePtr == IntPtr.Zero) return;
+
+		_externalActiveEntityBitset = (ulong*)(basePtr + EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET);
+		new ReadOnlySpan<ulong>(_activeEntityBitset).CopyTo(new Span<ulong>(_externalActiveEntityBitset, BITSET_CHUNKS));
+
+		_alive.BindExternalMemory(basePtr + EcsSharedMemory.ALIVE_OFFSET, MAX_ENTITIES * sizeof(byte), MAX_ENTITIES);
+		_entityMasks.BindExternalMemory(basePtr + EcsSharedMemory.ENTITY_MASKS_OFFSET, MAX_ENTITIES * sizeof(ComponentMask), MAX_ENTITIES);
+
+		BindExternalComponentMemory<Position>(basePtr + EcsSharedMemory.POSITION_OFFSET, MAX_ENTITIES * sizeof(Position), MAX_ENTITIES);
+		BindExternalComponentMemory<Health>(basePtr + EcsSharedMemory.HEALTH_OFFSET, MAX_ENTITIES * sizeof(Health), MAX_ENTITIES);
+		BindExternalComponentMemory<Mana>(basePtr + EcsSharedMemory.MANA_OFFSET, MAX_ENTITIES * sizeof(Mana), MAX_ENTITIES);
+		BindExternalComponentMemory<Attack>(basePtr + EcsSharedMemory.ATTACK_OFFSET, MAX_ENTITIES * sizeof(Attack), MAX_ENTITIES);
+		BindExternalComponentMemory<Armor>(basePtr + EcsSharedMemory.ARMOR_OFFSET, MAX_ENTITIES * sizeof(Armor), MAX_ENTITIES);
+		BindExternalComponentMemory<MovementStats>(basePtr + EcsSharedMemory.MOVEMENT_STATS_OFFSET, MAX_ENTITIES * sizeof(MovementStats), MAX_ENTITIES);
+		BindExternalComponentMemory<UnitOwnerPlayer>(basePtr + EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET, MAX_ENTITIES * sizeof(UnitOwnerPlayer), MAX_ENTITIES);
+		BindExternalComponentMemory<Level>(basePtr + EcsSharedMemory.LEVEL_OFFSET, MAX_ENTITIES * sizeof(Level), MAX_ENTITIES);
+		BindExternalComponentMemory<Experience>(basePtr + EcsSharedMemory.EXPERIENCE_OFFSET, MAX_ENTITIES * sizeof(Experience), MAX_ENTITIES);
+		BindExternalComponentMemory<ModelScale>(basePtr + EcsSharedMemory.MODEL_SCALE_OFFSET, MAX_ENTITIES * sizeof(ModelScale), MAX_ENTITIES);
+		BindExternalComponentMemory<RotationY>(basePtr + EcsSharedMemory.ROTATION_Y_OFFSET, MAX_ENTITIES * sizeof(RotationY), MAX_ENTITIES);
+		BindExternalComponentMemory<PlayerResources>(basePtr + EcsSharedMemory.PLAYER_RESOURCES_OFFSET, MAX_PLAYERS * sizeof(PlayerResources), MAX_PLAYERS);
+		BindExternalComponentMemory<ScriptPlayer>(basePtr + EcsSharedMemory.SCRIPT_PLAYER_OFFSET, MAX_PLAYERS * sizeof(ScriptPlayer), MAX_PLAYERS);
+		BindExternalComponentMemory<PlayerPopulation>(basePtr + EcsSharedMemory.PLAYER_POPULATION_OFFSET, MAX_PLAYERS * sizeof(PlayerPopulation), MAX_PLAYERS);
 	}
 
 	public Span<byte> GetAliveSpan() => _alive.AsSpan();
@@ -65,6 +93,13 @@ public class EcsWorld : IDisposable
 		_freeListCount = 0;
 		_nextEntityId = 0;
 		Array.Clear(_activeEntityBitset);
+		unsafe
+		{
+			if (_externalActiveEntityBitset != null)
+			{
+				new Span<ulong>(_externalActiveEntityBitset, BITSET_CHUNKS).Clear();
+			}
+		}
 		ColdPayloadRegistry.ResetAll();
 		StringRegistry.Reset();
 	}
@@ -90,6 +125,13 @@ public class EcsWorld : IDisposable
 		int chunk = id >> 6;
 		ulong bit = 1UL << (id & 63);
 		_activeEntityBitset[chunk] |= bit;
+		unsafe
+		{
+			if (_externalActiveEntityBitset != null)
+			{
+				_externalActiveEntityBitset[chunk] |= bit;
+			}
+		}
 		_count++;
 		return new Entity(id);
 	}
@@ -256,6 +298,13 @@ public class EcsWorld : IDisposable
 		int chunk = id >> 6;
 		ulong bitNot = ~(1UL << (id & 63));
 		_activeEntityBitset[chunk] &= bitNot;
+		unsafe
+		{
+			if (_externalActiveEntityBitset != null)
+			{
+				_externalActiveEntityBitset[chunk] &= bitNot;
+			}
+		}
 
 		_freeList[_freeListCount++] = id;
 		_count--;
@@ -371,11 +420,11 @@ public class EcsWorld : IDisposable
 		return GetOrCreateBuffer<T>(cId);
 	}
 
-	public void BindExternalComponentMemory<T>(IntPtr pointer, int lengthInBytes) where T : unmanaged
+	public void BindExternalComponentMemory<T>(IntPtr pointer, int lengthInBytes, int capacity = -1) where T : unmanaged
 	{
 		int cId = ComponentType<T>.Id;
 		var buffer = GetOrCreateBuffer<T>(cId);
-		buffer.BindExternalMemory(pointer, lengthInBytes);
+		buffer.BindExternalMemory(pointer, lengthInBytes, capacity);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -486,10 +535,10 @@ public class EcsWorld : IDisposable
 
 	public QueryEnumerable Query(in QueryDescription query) => new QueryEnumerable(this, query);
 	public QueryEnumerable Query(ComponentMask mask) => new QueryEnumerable(this, mask);
-	public QueryEnumerable Query<T>() where T : unmanaged => Query(ComponentMask.Of<T>());
-	public QueryEnumerable Query<T1, T2>() where T1 : unmanaged where T2 : unmanaged => Query(ComponentMask.Of<T1, T2>());
-	public QueryEnumerable Query<T1, T2, T3>() where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged => Query(ComponentMask.Of<T1, T2, T3>());
-	public QueryEnumerable Query<T1, T2, T3, T4>() where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged where T4 : unmanaged => Query(ComponentMask.Of<T1, T2, T3, T4>());
+	public QueryEnumerable Query<T>() where T : unmanaged => Query(ComponentMasks.Of<T>());
+	public QueryEnumerable Query<T1, T2>() where T1 : unmanaged where T2 : unmanaged => Query(ComponentMasks.Of<T1, T2>());
+	public QueryEnumerable Query<T1, T2, T3>() where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged => Query(ComponentMasks.Of<T1, T2, T3>());
+	public QueryEnumerable Query<T1, T2, T3, T4>() where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged where T4 : unmanaged => Query(ComponentMasks.Of<T1, T2, T3, T4>());
 
 	public void Query(in QueryDescription query, EntityCallback callback)
 	{
@@ -583,7 +632,7 @@ public class EcsWorld : IDisposable
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptPlayersState))
 		{
 			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ScriptPlayersState>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<Realm.Ecs.Components.Core.ScriptPlayer[]>.Free(b.Get(id).Handle);
+			b.ClearHandler = id => ColdPayloadRegistry<Realm.MapAPI.ScriptPlayer[]>.Free(b.Get(id).Handle);
 		}
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptZonesState))
 		{
@@ -689,12 +738,9 @@ public class EcsWorld : IDisposable
 	{
 		int headerSize = 32;
 		int freeListBytes = _freeListCount * sizeof(int);
-		int aliveBitsetBytes = BITSET_CHUNKS * sizeof(ulong);
-		int entityMasksBytes = _nextEntityId * sizeof(ComponentMask);
-		int playerSlotsBytes = sizeof(SharedPlayerSlot) * MAX_PLAYERS;
-		int entitySlotsBytes = _nextEntityId * sizeof(SharedEntitySlot);
+		int sharedMemoryBytes = EcsSharedMemory.TOTAL_SIZE_BYTES;
 
-		int totalBytesNeeded = headerSize + freeListBytes + aliveBitsetBytes + entityMasksBytes + playerSlotsBytes + entitySlotsBytes;
+		int totalBytesNeeded = headerSize + freeListBytes + sharedMemoryBytes;
 		if (destination.Length < totalBytesNeeded)
 		{
 			return -totalBytesNeeded;
@@ -708,7 +754,7 @@ public class EcsWorld : IDisposable
 		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(16, 4), _freeListCount);
 		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(20, 4), MAX_PLAYERS);
 		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(24, 4), _nextEntityId);
-		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(28, 4), 0);
+		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(28, 4), sharedMemoryBytes);
 
 		int offset = headerSize;
 
@@ -719,41 +765,55 @@ public class EcsWorld : IDisposable
 			offset += freeListBytes;
 		}
 
-		Span<byte> aliveDst = destination.Slice(offset, aliveBitsetBytes);
-		MemoryMarshal.AsBytes(_activeEntityBitset.AsSpan()).CopyTo(aliveDst);
-		offset += aliveBitsetBytes;
-
-		if (_nextEntityId > 0)
+		Span<byte> sharedDst = destination.Slice(offset, sharedMemoryBytes);
+		if (_externalActiveEntityBitset != null)
 		{
-			Span<byte> masksDst = destination.Slice(offset, entityMasksBytes);
-			MemoryMarshal.AsBytes(_entityMasks.AsSpan().Slice(0, _nextEntityId)).CopyTo(masksDst);
-			offset += entityMasksBytes;
+			new ReadOnlySpan<byte>((void*)_externalActiveEntityBitset, sharedMemoryBytes).CopyTo(sharedDst);
 		}
-
-		Span<byte> playerDst = destination.Slice(offset, playerSlotsBytes);
-		new ReadOnlySpan<byte>((void*)RealmSharedMemory.PlayerSlots, playerSlotsBytes).CopyTo(playerDst);
-		offset += playerSlotsBytes;
-
-		if (_nextEntityId > 0)
+		else
 		{
-			Span<byte> entityDst = destination.Slice(offset, entitySlotsBytes);
-			new ReadOnlySpan<byte>((void*)RealmSharedMemory.EntitySlots, entitySlotsBytes).CopyTo(entityDst);
-			offset += entitySlotsBytes;
+			sharedDst.Clear();
+			MemoryMarshal.AsBytes(_activeEntityBitset.AsSpan()).CopyTo(sharedDst.Slice(EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET, BITSET_CHUNKS * sizeof(ulong)));
+			_alive.AsSpan().CopyTo(sharedDst.Slice(EcsSharedMemory.ALIVE_OFFSET, MAX_ENTITIES));
+			MemoryMarshal.AsBytes(_entityMasks.AsSpan()).CopyTo(sharedDst.Slice(EcsSharedMemory.ENTITY_MASKS_OFFSET, MAX_ENTITIES * sizeof(ComponentMask)));
+			CopyBufferToSpan<Position>(sharedDst, EcsSharedMemory.POSITION_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<Health>(sharedDst, EcsSharedMemory.HEALTH_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<Mana>(sharedDst, EcsSharedMemory.MANA_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<Attack>(sharedDst, EcsSharedMemory.ATTACK_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<Armor>(sharedDst, EcsSharedMemory.ARMOR_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<MovementStats>(sharedDst, EcsSharedMemory.MOVEMENT_STATS_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<UnitOwnerPlayer>(sharedDst, EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<Level>(sharedDst, EcsSharedMemory.LEVEL_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<Experience>(sharedDst, EcsSharedMemory.EXPERIENCE_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<ModelScale>(sharedDst, EcsSharedMemory.MODEL_SCALE_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<RotationY>(sharedDst, EcsSharedMemory.ROTATION_Y_OFFSET, MAX_ENTITIES);
+			CopyBufferToSpan<PlayerResources>(sharedDst, EcsSharedMemory.PLAYER_RESOURCES_OFFSET, MAX_PLAYERS);
+			CopyBufferToSpan<ScriptPlayer>(sharedDst, EcsSharedMemory.SCRIPT_PLAYER_OFFSET, MAX_PLAYERS);
+			CopyBufferToSpan<PlayerPopulation>(sharedDst, EcsSharedMemory.PLAYER_POPULATION_OFFSET, MAX_PLAYERS);
 		}
+		offset += sharedMemoryBytes;
 
 		return offset;
+	}
+
+	private unsafe void CopyBufferToSpan<T>(Span<byte> sharedDst, int offset, int count) where T : unmanaged
+	{
+		int cId = ComponentType<T>.Id;
+		if (_buffers[cId] is ComponentBuffer<T> buffer)
+		{
+			int elements = Math.Min(buffer.Capacity, count);
+			int bytesToCopy = elements * sizeof(T);
+			MemoryMarshal.AsBytes(buffer.AsSpan().Slice(0, elements)).CopyTo(sharedDst.Slice(offset, bytesToCopy));
+		}
 	}
 
 	public unsafe byte[] ExportBinarySnapshot()
 	{
 		int headerSize = 32;
 		int freeListBytes = _freeListCount * sizeof(int);
-		int aliveBitsetBytes = BITSET_CHUNKS * sizeof(ulong);
-		int entityMasksBytes = _nextEntityId * sizeof(ComponentMask);
-		int playerSlotsBytes = sizeof(SharedPlayerSlot) * MAX_PLAYERS;
-		int entitySlotsBytes = _nextEntityId * sizeof(SharedEntitySlot);
+		int sharedMemoryBytes = EcsSharedMemory.TOTAL_SIZE_BYTES;
 
-		int totalBytesNeeded = headerSize + freeListBytes + aliveBitsetBytes + entityMasksBytes + playerSlotsBytes + entitySlotsBytes;
+		int totalBytesNeeded = headerSize + freeListBytes + sharedMemoryBytes;
 		byte[] buffer = new byte[totalBytesNeeded];
 		ExportBinarySnapshot(buffer);
 		return buffer;
@@ -772,6 +832,11 @@ public class EcsWorld : IDisposable
 		int freeListCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(16, 4));
 		int playerSlotCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(20, 4));
 		int activeEntityMax = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(24, 4));
+		int sharedMemoryBytes = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(28, 4));
+		if (sharedMemoryBytes <= 0)
+		{
+			sharedMemoryBytes = EcsSharedMemory.TOTAL_SIZE_BYTES;
+		}
 
 		_count = count;
 		_nextEntityId = nextEntityId;
@@ -787,62 +852,52 @@ public class EcsWorld : IDisposable
 			offset += freeListBytes;
 		}
 
-		int aliveBitsetBytes = BITSET_CHUNKS * sizeof(ulong);
-		ReadOnlySpan<byte> aliveSrc = snapshotPayload.Slice(offset, aliveBitsetBytes);
-		_alive.AsSpan().Clear();
-		Array.Clear(_activeEntityBitset, 0, _activeEntityBitset.Length);
-		ReadOnlySpan<ulong> bitsetSrc = MemoryMarshal.Cast<byte, ulong>(aliveSrc);
-		bitsetSrc.CopyTo(_activeEntityBitset);
-		for (int chunk = 0; chunk < BITSET_CHUNKS; chunk++)
+		if (snapshotPayload.Length < offset + sharedMemoryBytes) return;
+
+		ReadOnlySpan<byte> sharedSrc = snapshotPayload.Slice(offset, sharedMemoryBytes);
+
+		if (_externalActiveEntityBitset != null)
 		{
-			ulong bits = _activeEntityBitset[chunk];
-			while (bits != 0)
-			{
-				int bit = BitOperations.TrailingZeroCount(bits);
-				int entityId = (chunk << 6) + bit;
-				if (entityId < MAX_ENTITIES)
-				{
-					_alive.Set(entityId, (byte)1);
-				}
-				bits &= bits - 1;
-			}
-		}
-		offset += aliveBitsetBytes;
-
-		_entityMasks.AsSpan().Clear();
-		if (activeEntityMax > 0)
-		{
-			int entityMasksBytes = activeEntityMax * sizeof(ComponentMask);
-			ReadOnlySpan<ComponentMask> masksSrc = MemoryMarshal.Cast<byte, ComponentMask>(snapshotPayload.Slice(offset, entityMasksBytes));
-			masksSrc.CopyTo(_entityMasks.AsSpan().Slice(0, activeEntityMax));
-			offset += entityMasksBytes;
-		}
-
-		int playerSlotsBytes = sizeof(SharedPlayerSlot) * MAX_PLAYERS;
-		ReadOnlySpan<byte> playerSrc = snapshotPayload.Slice(offset, playerSlotsBytes);
-		Span<byte> playerDst = new Span<byte>((void*)RealmSharedMemory.PlayerSlots, playerSlotsBytes);
-		playerSrc.CopyTo(playerDst);
-		offset += playerSlotsBytes;
-
-		if (activeEntityMax > 0)
-		{
-			int entitySlotsBytes = activeEntityMax * sizeof(SharedEntitySlot);
-			ReadOnlySpan<byte> entitySrc = snapshotPayload.Slice(offset, entitySlotsBytes);
-			Span<byte> entityDst = new Span<byte>((void*)RealmSharedMemory.EntitySlots, entitySlotsBytes);
-			entitySrc.CopyTo(entityDst);
-			offset += entitySlotsBytes;
-
-			if (activeEntityMax < MAX_ENTITIES)
-			{
-				int remainingBytes = (MAX_ENTITIES - activeEntityMax) * sizeof(SharedEntitySlot);
-				Span<byte> remainingDst = new Span<byte>((void*)(RealmSharedMemory.EntitySlots + activeEntityMax), remainingBytes);
-				remainingDst.Clear();
-			}
+			Span<byte> sharedDst = new Span<byte>((void*)_externalActiveEntityBitset, sharedMemoryBytes);
+			sharedSrc.CopyTo(sharedDst);
+			ReadOnlySpan<ulong> bitsetSrc = MemoryMarshal.Cast<byte, ulong>(sharedSrc.Slice(EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET, BITSET_CHUNKS * sizeof(ulong)));
+			bitsetSrc.CopyTo(_activeEntityBitset);
 		}
 		else
 		{
-			int totalEntityBytes = MAX_ENTITIES * sizeof(SharedEntitySlot);
-			new Span<byte>((void*)RealmSharedMemory.EntitySlots, totalEntityBytes).Clear();
+			ReadOnlySpan<ulong> bitsetSrc = MemoryMarshal.Cast<byte, ulong>(sharedSrc.Slice(EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET, BITSET_CHUNKS * sizeof(ulong)));
+			bitsetSrc.CopyTo(_activeEntityBitset);
+
+			ReadOnlySpan<byte> aliveSrc = sharedSrc.Slice(EcsSharedMemory.ALIVE_OFFSET, MAX_ENTITIES);
+			aliveSrc.CopyTo(_alive.AsSpan());
+
+			ReadOnlySpan<ComponentMask> masksSrc = MemoryMarshal.Cast<byte, ComponentMask>(sharedSrc.Slice(EcsSharedMemory.ENTITY_MASKS_OFFSET, MAX_ENTITIES * sizeof(ComponentMask)));
+			masksSrc.CopyTo(_entityMasks.AsSpan());
+
+			CopySpanToBuffer<Position>(sharedSrc, EcsSharedMemory.POSITION_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<Health>(sharedSrc, EcsSharedMemory.HEALTH_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<Mana>(sharedSrc, EcsSharedMemory.MANA_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<Attack>(sharedSrc, EcsSharedMemory.ATTACK_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<Armor>(sharedSrc, EcsSharedMemory.ARMOR_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<MovementStats>(sharedSrc, EcsSharedMemory.MOVEMENT_STATS_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<UnitOwnerPlayer>(sharedSrc, EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<Level>(sharedSrc, EcsSharedMemory.LEVEL_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<Experience>(sharedSrc, EcsSharedMemory.EXPERIENCE_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<ModelScale>(sharedSrc, EcsSharedMemory.MODEL_SCALE_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<RotationY>(sharedSrc, EcsSharedMemory.ROTATION_Y_OFFSET, MAX_ENTITIES);
+			CopySpanToBuffer<PlayerResources>(sharedSrc, EcsSharedMemory.PLAYER_RESOURCES_OFFSET, MAX_PLAYERS);
+			CopySpanToBuffer<ScriptPlayer>(sharedSrc, EcsSharedMemory.SCRIPT_PLAYER_OFFSET, MAX_PLAYERS);
+			CopySpanToBuffer<PlayerPopulation>(sharedSrc, EcsSharedMemory.PLAYER_POPULATION_OFFSET, MAX_PLAYERS);
 		}
+	}
+
+	private unsafe void CopySpanToBuffer<T>(ReadOnlySpan<byte> sharedSrc, int offset, int count) where T : unmanaged
+	{
+		int cId = ComponentType<T>.Id;
+		var buffer = GetOrCreateBuffer<T>(cId);
+		int elements = Math.Min(buffer.Capacity, count);
+		int bytesToCopy = elements * sizeof(T);
+		ReadOnlySpan<T> src = MemoryMarshal.Cast<byte, T>(sharedSrc.Slice(offset, bytesToCopy));
+		src.CopyTo(buffer.AsSpan().Slice(0, elements));
 	}
 }

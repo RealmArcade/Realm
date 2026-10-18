@@ -91,7 +91,7 @@ public static class ComponentTypeRegistry
 			typeof(Follow),
 			typeof(HoldPosition),
 			typeof(InterpolationTarget),
-			typeof(PathingFlags),
+			typeof(Realm.Ecs.Components.Movement.PathingFlags),
 			typeof(Patrol),
 			typeof(WaypointBuffer),
 			typeof(WaypointQueue),

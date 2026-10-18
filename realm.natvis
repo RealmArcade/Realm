@@ -1,5 +1,17 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="Realm.MapAPI.Level">
+    <DisplayString>Level {{Value}}</DisplayString>
+    <Expand>
+      <Item Name="Value">Value</Item>
+    </Expand>
+  </Type>
+  <Type Name="Realm::MapAPI::Level">
+    <DisplayString>Level {{Value}}</DisplayString>
+    <Expand>
+      <Item Name="Value">Value</Item>
+    </Expand>
+  </Type>
   <Type Name="Realm.MapAPI.LootItemId">
     <DisplayString>LootItem {{Value}}</DisplayString>
     <Expand>

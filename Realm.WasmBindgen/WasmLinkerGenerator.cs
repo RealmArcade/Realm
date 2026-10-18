@@ -2899,7 +2899,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 		if (string.IsNullOrEmpty(templateContent)) return;
 
-		var sharedMemorySymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.RealmSharedMemory");
+		var sharedMemorySymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.EcsSharedMemory");
 		var constants = new List<(string Name, int Value)>();
 		if (sharedMemorySymbol != null)
 		{
@@ -2912,51 +2912,107 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			}
 		}
 
-		var playerSlotSymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.SharedPlayerSlot");
-		var entitySlotSymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.SharedEntitySlot");
-
-		int playerSlotSize = 0;
-		var playerFields = playerSlotSymbol != null
-			? CalculateStructLayout(playerSlotSymbol, out playerSlotSize)
-			: new List<(string Name, int Offset, string TypeName)>();
-
-		int entitySlotSize = 0;
-		var entityFields = entitySlotSymbol != null
-			? CalculateStructLayout(entitySlotSymbol, out entitySlotSize)
-			: new List<(string Name, int Offset, string TypeName)>();
-
-		if (entityFields.Any(f => f.Name == "OwnerPlayerId") && !entityFields.Any(f => f.Name == "Player"))
+		var structSizes = new Dictionary<string, int>();
+		var structSymbols = new[]
 		{
-			var ownerField = entityFields.First(f => f.Name == "OwnerPlayerId");
-			entityFields.Add(("Player", ownerField.Offset, ownerField.TypeName));
+			("POSITION", "Realm.MapAPI.Position"),
+			("HEALTH", "Realm.MapAPI.Health"),
+			("MANA", "Realm.MapAPI.Mana"),
+			("ATTACK", "Realm.MapAPI.Attack"),
+			("ARMOR", "Realm.MapAPI.Armor"),
+			("MOVEMENT_STATS", "Realm.MapAPI.MovementStats"),
+			("UNIT_OWNER_PLAYER", "Realm.MapAPI.UnitOwnerPlayer"),
+			("LEVEL", "Realm.MapAPI.Level"),
+			("EXPERIENCE", "Realm.MapAPI.Experience"),
+			("MODEL_SCALE", "Realm.MapAPI.ModelScale"),
+			("ROTATION_Y", "Realm.MapAPI.RotationY"),
+			("PLAYER_RESOURCES", "Realm.MapAPI.PlayerResources"),
+			("SCRIPT_PLAYER", "Realm.MapAPI.ScriptPlayer"),
+			("PLAYER_POPULATION", "Realm.MapAPI.PlayerPopulation"),
+		};
+
+		foreach (var (prefix, typeName) in structSymbols)
+		{
+			var sym = compilation.GetTypeByMetadataName(typeName);
+			if (sym != null)
+			{
+				CalculateStructLayout(sym, out int size);
+				structSizes[prefix] = size;
+			}
+			else
+			{
+				structSizes[prefix] = 0;
+			}
 		}
 
+		var playerFields = new List<(string Name, string ArrayOffsetName, string ElemSizeName, int SubOffset, string TypeName)>
+		{
+			("Gold", "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 0, "int"),
+			("Wood", "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 4, "int"),
+			("Stone", "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 8, "int"),
+			("Ore", "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 12, "int"),
+			("IsActive", "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 0, "bool"),
+			("IsComputer", "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 1, "bool"),
+			("Team", "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 4, "int"),
+			("CurrentPopulation", "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 0, "int"),
+			("MaxPopulation", "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 4, "int"),
+		};
+
+		var entityFields = new List<(string Name, string ArrayOffsetName, string ElemSizeName, int SubOffset, string TypeName)>
+		{
+			("Health", "HEALTH_OFFSET", "HEALTH_SIZE", 0, "float"),
+			("MaxHealth", "HEALTH_OFFSET", "HEALTH_SIZE", 4, "float"),
+			("Mana", "MANA_OFFSET", "MANA_SIZE", 0, "float"),
+			("MaxMana", "MANA_OFFSET", "MANA_SIZE", 4, "float"),
+			("ManaRegen", "MANA_OFFSET", "MANA_SIZE", 8, "float"),
+			("Damage", "ATTACK_OFFSET", "ATTACK_SIZE", 0, "float"),
+			("Range", "ATTACK_OFFSET", "ATTACK_SIZE", 4, "float"),
+			("AttackSpeed", "ATTACK_OFFSET", "ATTACK_SIZE", 8, "float"),
+			("Armor", "ARMOR_OFFSET", "ARMOR_SIZE", 0, "float"),
+			("Speed", "MOVEMENT_STATS_OFFSET", "MOVEMENT_STATS_SIZE", 0, "float"),
+			("Position", "POSITION_OFFSET", "POSITION_SIZE", 0, "Vector3"),
+			("Player", "UNIT_OWNER_PLAYER_OFFSET", "UNIT_OWNER_PLAYER_SIZE", 0, "int"),
+			("Level", "LEVEL_OFFSET", "LEVEL_SIZE", 0, "int"),
+			("Experience", "EXPERIENCE_OFFSET", "EXPERIENCE_SIZE", 0, "float"),
+			("Scale", "MODEL_SCALE_OFFSET", "MODEL_SCALE_SIZE", 0, "float"),
+			("RotationY", "ROTATION_Y_OFFSET", "ROTATION_Y_SIZE", 0, "float"),
+		};
+
 		var offsetsBuilder = new StringBuilder();
-		offsetsBuilder.AppendLine("# Constants auto-discovered from RealmSharedMemory");
+		offsetsBuilder.AppendLine("# Constants auto-discovered from EcsSharedMemory");
 		foreach (var (name, value) in constants)
 		{
 			offsetsBuilder.AppendLine($"{name} = {value}");
 		}
 
 		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("# Slot sizes auto-calculated from struct layouts");
-		offsetsBuilder.AppendLine($"PLAYER_SLOT_SIZE = {playerSlotSize}");
-		offsetsBuilder.AppendLine($"ENTITY_SLOT_SIZE = {entitySlotSize}");
+		offsetsBuilder.AppendLine("# Element sizes auto-calculated from struct layouts");
+		foreach (var (prefix, size) in structSizes)
+		{
+			offsetsBuilder.AppendLine($"{prefix}_SIZE = {size}");
+		}
+
 		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("PLAYER_TABLE_OFFSET = 0");
-		offsetsBuilder.AppendLine("ENTITY_TABLE_OFFSET = MAX_PLAYERS * PLAYER_SLOT_SIZE");
-		offsetsBuilder.AppendLine("ACTIVE_BITSET_OFFSET = ENTITY_TABLE_OFFSET + (MAX_ENTITIES * ENTITY_SLOT_SIZE)");
+		offsetsBuilder.AppendLine("# Fields auto-discovered for PlayerId (name, array_offset, elem_size, sub_offset, type_name)");
+		offsetsBuilder.AppendLine("PLAYER_FIELDS = [");
+		foreach (var f in playerFields)
+		{
+			offsetsBuilder.AppendLine($"    (\"{f.Name}\", {f.ArrayOffsetName}, {f.ElemSizeName}, {f.SubOffset}, \"{f.TypeName}\"),");
+		}
+		offsetsBuilder.AppendLine("]");
+
 		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("# Fields auto-discovered from SharedPlayerSlot");
-		offsetsBuilder.Append("PLAYER_FIELDS = ");
-		offsetsBuilder.AppendLine(FormatPythonFieldList(playerFields));
+		offsetsBuilder.AppendLine("# Fields auto-discovered for UnitId (name, array_offset, elem_size, sub_offset, type_name)");
+		offsetsBuilder.AppendLine("ENTITY_FIELDS = [");
+		foreach (var f in entityFields)
+		{
+			offsetsBuilder.AppendLine($"    (\"{f.Name}\", {f.ArrayOffsetName}, {f.ElemSizeName}, {f.SubOffset}, \"{f.TypeName}\"),");
+		}
+		offsetsBuilder.AppendLine("]");
+
 		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("# Fields auto-discovered from SharedEntitySlot");
-		offsetsBuilder.Append("ENTITY_FIELDS = ");
-		offsetsBuilder.AppendLine(FormatPythonFieldList(entityFields));
-		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("PLAYER_OFFSETS = {name: (offset, type_name) for name, offset, type_name in PLAYER_FIELDS}");
-		offsetsBuilder.AppendLine("ENTITY_OFFSETS = {name: (offset, type_name) for name, offset, type_name in ENTITY_FIELDS}");
+		offsetsBuilder.AppendLine("PLAYER_OFFSETS = {name: (array_offset, elem_size, sub_offset, type_name) for name, array_offset, elem_size, sub_offset, type_name in PLAYER_FIELDS}");
+		offsetsBuilder.AppendLine("ENTITY_OFFSETS = {name: (array_offset, elem_size, sub_offset, type_name) for name, array_offset, elem_size, sub_offset, type_name in ENTITY_FIELDS}");
 
 		string scriptContent = templateContent.Replace("# {{OFFSETS}}", offsetsBuilder.ToString().TrimEnd())
 			.Replace("{{OFFSETS}}", offsetsBuilder.ToString().TrimEnd());
@@ -2984,12 +3040,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			if (member is IFieldSymbol field && !field.IsStatic)
 			{
-				int fieldSize = GetFieldSize(field.Type);
+				int fieldSize = field.IsFixedSizeBuffer ? field.FixedSize * 4 : GetFieldSize(field.Type);
 				int fieldAlign = Math.Min(GetFieldAlignment(field.Type), pack);
 				currentOffset = (currentOffset + (fieldAlign - 1)) & ~(fieldAlign - 1);
 				maxAlignment = Math.Max(maxAlignment, fieldAlign);
 
-				if (!field.Name.StartsWith("Reserved", StringComparison.OrdinalIgnoreCase))
+				if (!field.Name.StartsWith("Reserved", StringComparison.OrdinalIgnoreCase) && !field.IsFixedSizeBuffer)
 				{
 					string pyTypeName = GetPyTypeName(field);
 					fields.Add((field.Name, currentOffset, pyTypeName));
@@ -3017,6 +3073,8 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			return 8;
 		if (type.ToDisplayString() == "System.Numerics.Vector3")
 			return 12;
+		if (type.Name.Contains("FixedBuffer"))
+			return 32;
 		return 4;
 	}
 

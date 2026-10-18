@@ -1,62 +1,80 @@
 ﻿import lldb
 import struct
 
-# Constants auto-discovered from RealmSharedMemory
+# Constants auto-discovered from EcsSharedMemory
 MAX_PLAYERS = 25
 MAX_ENTITIES = 8192
 BITSET_CHUNKS = 128
+ACTIVE_ENTITY_BITSET_OFFSET = 0
+ALIVE_OFFSET = 1024
+ENTITY_MASKS_OFFSET = 9216
+POSITION_OFFSET = 271360
+HEALTH_OFFSET = 369664
+MANA_OFFSET = 533504
+ATTACK_OFFSET = 631808
+ARMOR_OFFSET = 1221632
+MOVEMENT_STATS_OFFSET = 1319936
+UNIT_OWNER_PLAYER_OFFSET = 1483776
+LEVEL_OFFSET = 1516544
+EXPERIENCE_OFFSET = 1549312
+MODEL_SCALE_OFFSET = 1582080
+ROTATION_Y_OFFSET = 1614848
+PLAYER_RESOURCES_OFFSET = 1647616
+SCRIPT_PLAYER_OFFSET = 1648816
+PLAYER_POPULATION_OFFSET = 1649516
+TOTAL_SIZE_BYTES = 1649716
 
-# Slot sizes auto-calculated from struct layouts
-PLAYER_SLOT_SIZE = 32
-ENTITY_SLOT_SIZE = 88
+# Element sizes auto-calculated from struct layouts
+POSITION_SIZE = 12
+HEALTH_SIZE = 20
+MANA_SIZE = 12
+ATTACK_SIZE = 72
+ARMOR_SIZE = 12
+MOVEMENT_STATS_SIZE = 20
+UNIT_OWNER_PLAYER_SIZE = 4
+LEVEL_SIZE = 4
+EXPERIENCE_SIZE = 4
+MODEL_SCALE_SIZE = 4
+ROTATION_Y_SIZE = 4
+PLAYER_RESOURCES_SIZE = 48
+SCRIPT_PLAYER_SIZE = 28
+PLAYER_POPULATION_SIZE = 8
 
-PLAYER_TABLE_OFFSET = 0
-ENTITY_TABLE_OFFSET = MAX_PLAYERS * PLAYER_SLOT_SIZE
-ACTIVE_BITSET_OFFSET = ENTITY_TABLE_OFFSET + (MAX_ENTITIES * ENTITY_SLOT_SIZE)
-
-# Fields auto-discovered from SharedPlayerSlot
+# Fields auto-discovered for PlayerId (name, array_offset, elem_size, sub_offset, type_name)
 PLAYER_FIELDS = [
-    ("IsActive", 0, "bool"),
-    ("IsComputer", 1, "bool"),
-    ("Team", 4, "int"),
-    ("Gold", 8, "float"),
-    ("Wood", 12, "float"),
-    ("Stone", 16, "float"),
-    ("CurrentPopulation", 20, "int"),
-    ("MaxPopulation", 24, "int"),
-    ("Kills", 28, "int"),
+    ("Gold", PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 0, "int"),
+    ("Wood", PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 4, "int"),
+    ("Stone", PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 8, "int"),
+    ("Ore", PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 12, "int"),
+    ("IsActive", SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 0, "bool"),
+    ("IsComputer", SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 1, "bool"),
+    ("Team", SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 4, "int"),
+    ("CurrentPopulation", PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 0, "int"),
+    ("MaxPopulation", PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 4, "int"),
 ]
 
-# Fields auto-discovered from SharedEntitySlot
+# Fields auto-discovered for UnitId (name, array_offset, elem_size, sub_offset, type_name)
 ENTITY_FIELDS = [
-    ("Alive", 0, "bool"),
-    ("IsBuilding", 1, "bool"),
-    ("IsHero", 2, "bool"),
-    ("Invulnerable", 3, "bool"),
-    ("OwnerPlayerId", 4, "int"),
-    ("Team", 8, "int"),
-    ("Health", 12, "float"),
-    ("MaxHealth", 16, "float"),
-    ("Mana", 20, "float"),
-    ("MaxMana", 24, "float"),
-    ("ManaRegen", 28, "float"),
-    ("Damage", 32, "float"),
-    ("Range", 36, "float"),
-    ("Armor", 40, "float"),
-    ("Speed", 44, "float"),
-    ("AttackSpeed", 48, "float"),
-    ("Position", 52, "Vector3"),
-    ("Scale", 64, "float"),
-    ("Facing", 68, "float"),
-    ("Level", 72, "int"),
-    ("Experience", 76, "float"),
-    ("XpBounty", 80, "float"),
-    ("GoldBounty", 84, "float"),
-    ("Player", 4, "int"),
+    ("Health", HEALTH_OFFSET, HEALTH_SIZE, 0, "float"),
+    ("MaxHealth", HEALTH_OFFSET, HEALTH_SIZE, 4, "float"),
+    ("Mana", MANA_OFFSET, MANA_SIZE, 0, "float"),
+    ("MaxMana", MANA_OFFSET, MANA_SIZE, 4, "float"),
+    ("ManaRegen", MANA_OFFSET, MANA_SIZE, 8, "float"),
+    ("Damage", ATTACK_OFFSET, ATTACK_SIZE, 0, "float"),
+    ("Range", ATTACK_OFFSET, ATTACK_SIZE, 4, "float"),
+    ("AttackSpeed", ATTACK_OFFSET, ATTACK_SIZE, 8, "float"),
+    ("Armor", ARMOR_OFFSET, ARMOR_SIZE, 0, "float"),
+    ("Speed", MOVEMENT_STATS_OFFSET, MOVEMENT_STATS_SIZE, 0, "float"),
+    ("Position", POSITION_OFFSET, POSITION_SIZE, 0, "Vector3"),
+    ("Player", UNIT_OWNER_PLAYER_OFFSET, UNIT_OWNER_PLAYER_SIZE, 0, "int"),
+    ("Level", LEVEL_OFFSET, LEVEL_SIZE, 0, "int"),
+    ("Experience", EXPERIENCE_OFFSET, EXPERIENCE_SIZE, 0, "float"),
+    ("Scale", MODEL_SCALE_OFFSET, MODEL_SCALE_SIZE, 0, "float"),
+    ("RotationY", ROTATION_Y_OFFSET, ROTATION_Y_SIZE, 0, "float"),
 ]
 
-PLAYER_OFFSETS = {name: (offset, type_name) for name, offset, type_name in PLAYER_FIELDS}
-ENTITY_OFFSETS = {name: (offset, type_name) for name, offset, type_name in ENTITY_FIELDS}
+PLAYER_OFFSETS = {name: (array_offset, elem_size, sub_offset, type_name) for name, array_offset, elem_size, sub_offset, type_name in PLAYER_FIELDS}
+ENTITY_OFFSETS = {name: (array_offset, elem_size, sub_offset, type_name) for name, array_offset, elem_size, sub_offset, type_name in ENTITY_FIELDS}
 
 _CACHED_BASE_ADDR = 0
 
@@ -71,8 +89,8 @@ def get_shared_memory_base(target):
 
     candidate_names = [
         "g_realmSharedMemoryBase",
-        "Realm_MapAPI_RealmSharedMemory_g_realmSharedMemoryBase",
-        "Realm.MapAPI.RealmSharedMemory.g_realmSharedMemoryBase",
+        "Realm_MapAPI_EcsSharedMemory_g_realmSharedMemoryBase",
+        "Realm.MapAPI.EcsSharedMemory.g_realmSharedMemoryBase",
     ]
 
     process = target.GetProcess()
@@ -153,25 +171,6 @@ def extract_id_value(valobj):
             return child.GetValueAsSigned(-1)
     return valobj.GetValueAsSigned(-1)
 
-def read_unpacked(buffer, offsets_dict, field_name, default_value, sub_offset=0):
-    if field_name not in offsets_dict:
-        return default_value
-    offset, type_name = offsets_dict[field_name]
-    target_offset = offset + sub_offset
-    try:
-        if type_name == "float" or (type_name == "Vector3" and sub_offset in (0, 4, 8)):
-            if target_offset + 4 <= len(buffer):
-                return struct.unpack_from("<f", buffer, target_offset)[0]
-        elif type_name == "int":
-            if target_offset + 4 <= len(buffer):
-                return struct.unpack_from("<i", buffer, target_offset)[0]
-        elif type_name == "bool":
-            if target_offset + 1 <= len(buffer):
-                return struct.unpack_from("<B", buffer, target_offset)[0] != 0
-    except:
-        pass
-    return default_value
-
 class PlayerIdSyntheticProvider:
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -186,7 +185,7 @@ class PlayerIdSyntheticProvider:
         return len(PLAYER_FIELDS) > 0
 
     def get_child_index(self, name):
-        for idx, (f_name, _, _) in enumerate(PLAYER_FIELDS):
+        for idx, (f_name, _, _, _, _) in enumerate(PLAYER_FIELDS):
             if f_name == name:
                 return idx
         return -1
@@ -203,8 +202,8 @@ class PlayerIdSyntheticProvider:
         if player_id < 0 or player_id >= MAX_PLAYERS:
             return None
 
-        f_name, f_offset, f_type_name = PLAYER_FIELDS[index]
-        slot_addr = base_addr + PLAYER_TABLE_OFFSET + (player_id * PLAYER_SLOT_SIZE) + f_offset
+        f_name, array_offset, elem_size, sub_offset, f_type_name = PLAYER_FIELDS[index]
+        slot_addr = base_addr + array_offset + (player_id * elem_size) + sub_offset
         f_type = target.FindFirstType(f_type_name)
         if not f_type.IsValid():
             if f_type_name == "float":
@@ -230,7 +229,7 @@ class UnitIdSyntheticProvider:
         return len(ENTITY_FIELDS) > 0
 
     def get_child_index(self, name):
-        for idx, (f_name, _, _) in enumerate(ENTITY_FIELDS):
+        for idx, (f_name, _, _, _, _) in enumerate(ENTITY_FIELDS):
             if f_name == name:
                 return idx
         return -1
@@ -247,8 +246,8 @@ class UnitIdSyntheticProvider:
         if unit_id < 0 or unit_id >= MAX_ENTITIES:
             return None
 
-        f_name, f_offset, f_type_name = ENTITY_FIELDS[index]
-        slot_addr = base_addr + ENTITY_TABLE_OFFSET + (unit_id * ENTITY_SLOT_SIZE) + f_offset
+        f_name, array_offset, elem_size, sub_offset, f_type_name = ENTITY_FIELDS[index]
+        slot_addr = base_addr + array_offset + (unit_id * elem_size) + sub_offset
         f_type = target.FindFirstType(f_type_name)
         if not f_type.IsValid() and f_type_name == "Vector3":
             f_type = target.FindFirstType("System.Numerics.Vector3")
@@ -272,20 +271,26 @@ def PlayerIdSummaryProvider(valobj, internal_dict):
     if base_addr == 0:
         return f"Player {player_id}"
 
-    slot_base = base_addr + PLAYER_TABLE_OFFSET + (player_id * PLAYER_SLOT_SIZE)
     error = lldb.SBError()
     process = target.GetProcess()
 
-    slot_bytes = process.ReadMemory(slot_base, PLAYER_SLOT_SIZE, error)
-    if not error.Success() or len(slot_bytes) < PLAYER_SLOT_SIZE:
-        return f"Player {player_id}"
+    res_addr = base_addr + PLAYER_RESOURCES_OFFSET + (player_id * PLAYER_RESOURCES_SIZE)
+    res_bytes = process.ReadMemory(res_addr, 16, error)
+    gold = 0
+    wood = 0
+    if error.Success() and len(res_bytes) >= 8:
+        gold = struct.unpack_from("<i", res_bytes, 0)[0]
+        wood = struct.unpack_from("<i", res_bytes, 4)[0]
 
-    gold = read_unpacked(slot_bytes, PLAYER_OFFSETS, "Gold", 0.0)
-    wood = read_unpacked(slot_bytes, PLAYER_OFFSETS, "Wood", 0.0)
-    pop = read_unpacked(slot_bytes, PLAYER_OFFSETS, "CurrentPopulation", 0)
-    max_pop = read_unpacked(slot_bytes, PLAYER_OFFSETS, "MaxPopulation", 0)
+    pop_addr = base_addr + PLAYER_POPULATION_OFFSET + (player_id * PLAYER_POPULATION_SIZE)
+    pop_bytes = process.ReadMemory(pop_addr, 8, error)
+    pop = 0
+    max_pop = 0
+    if error.Success() and len(pop_bytes) >= 8:
+        pop = struct.unpack_from("<i", pop_bytes, 0)[0]
+        max_pop = struct.unpack_from("<i", pop_bytes, 4)[0]
 
-    return f"Player {player_id} [Gold: {int(gold)}, Wood: {int(wood)}, Pop: {pop}/{max_pop}]"
+    return f"Player {player_id} [Gold: {gold}, Wood: {wood}, Pop: {pop}/{max_pop}]"
 
 def UnitIdSummaryProvider(valobj, internal_dict):
     unit_id = extract_id_value(valobj)
@@ -297,18 +302,24 @@ def UnitIdSummaryProvider(valobj, internal_dict):
     if base_addr == 0:
         return f"Unit {unit_id}"
 
-    slot_base = base_addr + ENTITY_TABLE_OFFSET + (unit_id * ENTITY_SLOT_SIZE)
     error = lldb.SBError()
     process = target.GetProcess()
 
-    slot_bytes = process.ReadMemory(slot_base, ENTITY_SLOT_SIZE, error)
-    if not error.Success() or len(slot_bytes) < ENTITY_SLOT_SIZE:
-        return f"Unit {unit_id}"
+    hp_addr = base_addr + HEALTH_OFFSET + (unit_id * HEALTH_SIZE)
+    hp_bytes = process.ReadMemory(hp_addr, 8, error)
+    hp = 0.0
+    max_hp = 0.0
+    if error.Success() and len(hp_bytes) >= 8:
+        hp = struct.unpack_from("<f", hp_bytes, 0)[0]
+        max_hp = struct.unpack_from("<f", hp_bytes, 4)[0]
 
-    hp = read_unpacked(slot_bytes, ENTITY_OFFSETS, "Health", 0.0)
-    max_hp = read_unpacked(slot_bytes, ENTITY_OFFSETS, "MaxHealth", 0.0)
-    pos_x = read_unpacked(slot_bytes, ENTITY_OFFSETS, "Position", 0.0, sub_offset=0)
-    pos_z = read_unpacked(slot_bytes, ENTITY_OFFSETS, "Position", 0.0, sub_offset=8)
+    pos_addr = base_addr + POSITION_OFFSET + (unit_id * POSITION_SIZE)
+    pos_bytes = process.ReadMemory(pos_addr, 12, error)
+    pos_x = 0.0
+    pos_z = 0.0
+    if error.Success() and len(pos_bytes) >= 12:
+        pos_x = struct.unpack_from("<f", pos_bytes, 0)[0]
+        pos_z = struct.unpack_from("<f", pos_bytes, 8)[0]
 
     return f"Unit {unit_id} [Health: {int(hp)}/{int(max_hp)}, Pos: ({pos_x:.1f}, {pos_z:.1f})]"
 

@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Client.Core;
+using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Client.Services
 {

@@ -6,7 +6,7 @@ namespace Realm.MapAPI;
 /// Represents a strongly-typed, unmanaged identifier for a player slot in the game session,
 /// providing zero-allocation fluent access to player resources, units, and camera actions.
 /// </summary>
-public readonly record struct PlayerId(int Value)
+public readonly unsafe record struct PlayerId(int Value)
 {
 	/// <summary>
 	/// Implicitly converts a 32-bit integer slot index into a <see cref="PlayerId"/>.
@@ -28,7 +28,7 @@ public readonly record struct PlayerId(int Value)
 	/// <summary>
 	/// Gets a value indicating whether this identifier represents a valid player slot index.
 	/// </summary>
-	public bool IsValid => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS;
+	public bool IsValid => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS;
 
 	/// <summary>
 	/// Gets the zero-based slot index of this player.
@@ -48,7 +48,7 @@ public readonly record struct PlayerId(int Value)
 	/// <summary>
 	/// Gets a value indicating whether this player slot is occupied by an active human or AI participant.
 	/// </summary>
-	public bool IsActive => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS && RealmSharedMemory.GetPlayerSlot(Value).IsActive != 0;
+	public bool IsActive => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS && EcsSharedMemory.ScriptPlayer[Value].Active;
 
 	/// <summary>
 	/// Sets whether this player slot is active in the game session.
@@ -61,7 +61,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public bool IsComputer
 	{
-		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS && RealmSharedMemory.GetPlayerSlot(Value).IsComputer != 0;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS && EcsSharedMemory.ScriptPlayer[Value].IsComputer;
 		set => GameAPI.Current.SetPlayerComputerControlled(Value, value);
 	}
 
@@ -70,7 +70,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public int Team
 	{
-		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).Team : 0;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.ScriptPlayer[Value].Team : 0;
 		set => GameAPI.Current.SetPlayerTeam(Value, value);
 	}
 
@@ -79,7 +79,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public float Gold
 	{
-		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).Gold : 0f;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.PlayerResources[Value].Gold : 0f;
 		set => GameAPI.Current.SetPlayerGold(Value, value);
 	}
 
@@ -94,7 +94,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public float Wood
 	{
-		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).Wood : 0f;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.PlayerResources[Value].Wood : 0f;
 		set => GameAPI.Current.SetPlayerWood(Value, value);
 	}
 
@@ -109,7 +109,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public float Stone
 	{
-		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).Stone : 0f;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.PlayerResources[Value].Stone : 0f;
 		set => GameAPI.Current.SetPlayerStone(Value, value);
 	}
 
@@ -122,14 +122,14 @@ public readonly record struct PlayerId(int Value)
 	/// <summary>
 	/// Gets the current population count consumed by this player's living units.
 	/// </summary>
-	public int CurrentPopulation => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).CurrentPopulation : 0;
+	public int CurrentPopulation => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.PlayerPopulation[Value].Current : 0;
 
 	/// <summary>
 	/// Gets or sets the maximum population supply capacity for this player.
 	/// </summary>
 	public int MaxPopulation
 	{
-		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).MaxPopulation : 0;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.PlayerPopulation[Value].Max : 0;
 		set => GameAPI.Current.SetPlayerMaxPopulation(Value, value);
 	}
 
@@ -138,7 +138,7 @@ public readonly record struct PlayerId(int Value)
 	/// </summary>
 	public int Kills
 	{
-		get => Value >= 0 && Value < RealmSharedMemory.MAX_PLAYERS ? RealmSharedMemory.GetPlayerSlot(Value).Kills : 0;
+		get => Value >= 0 && Value < EcsSharedMemory.MAX_PLAYERS ? EcsSharedMemory.ScriptPlayer[Value].KillCount : 0;
 		set => GameAPI.Current.SetPlayerKills(Value, value);
 	}
 

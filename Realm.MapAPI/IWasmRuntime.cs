@@ -13,18 +13,6 @@ public interface IWasmRuntime : IMapScript
 	int SharedMemoryOffset { get; }
 
 	/// <summary>
-	/// Gets a span slice pointing to the shared player slots table in WebAssembly linear memory.
-	/// </summary>
-	/// <returns>A span of <see cref="SharedPlayerSlot"/> structs.</returns>
-	Span<SharedPlayerSlot> GetSharedPlayerSlotsSpan();
-
-	/// <summary>
-	/// Gets a span slice pointing to the shared entity slots table in WebAssembly linear memory.
-	/// </summary>
-	/// <returns>A span of <see cref="SharedEntitySlot"/> structs.</returns>
-	Span<SharedEntitySlot> GetSharedEntitySlotsSpan();
-
-	/// <summary>
 	/// Gets the host pointer address to the shared linear memory region in WebAssembly linear memory.
 	/// </summary>
 	/// <returns>The native host memory pointer address.</returns>

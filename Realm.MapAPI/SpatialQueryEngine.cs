@@ -19,10 +19,10 @@ public static unsafe class SpatialQueryEngine
 		Span<UnitId> buffer = QueryResultBuffer.AllocateSlice();
 		int count = 0;
 
-		ulong* activeBitset = RealmSharedMemory.GetActiveEntityBitset();
-		SharedEntitySlot* slots = RealmSharedMemory.EntitySlots;
+		ulong* activeBitset = EcsSharedMemory.GetActiveEntityBitset();
+		byte* alive = EcsSharedMemory.Alive;
 
-		for (int chunkIndex = 0; chunkIndex < RealmSharedMemory.BITSET_CHUNKS; chunkIndex++)
+		for (int chunkIndex = 0; chunkIndex < EcsSharedMemory.BITSET_CHUNKS; chunkIndex++)
 		{
 			ulong word = activeBitset[chunkIndex];
 			while (word != 0)
@@ -30,7 +30,7 @@ public static unsafe class SpatialQueryEngine
 				int bit = BitOperations.TrailingZeroCount(word);
 				int entityId = (chunkIndex << 6) + bit;
 
-				if (slots[entityId].Alive != 0)
+				if (alive[entityId] != 0)
 				{
 					buffer[count++] = new UnitId(entityId);
 				}
@@ -53,10 +53,11 @@ public static unsafe class SpatialQueryEngine
 		Span<UnitId> buffer = QueryResultBuffer.AllocateSlice();
 		int count = 0;
 
-		ulong* activeBitset = RealmSharedMemory.GetActiveEntityBitset();
-		SharedEntitySlot* slots = RealmSharedMemory.EntitySlots;
+		ulong* activeBitset = EcsSharedMemory.GetActiveEntityBitset();
+		byte* alive = EcsSharedMemory.Alive;
+		UnitOwnerPlayer* owners = EcsSharedMemory.UnitOwnerPlayer;
 
-		for (int chunkIndex = 0; chunkIndex < RealmSharedMemory.BITSET_CHUNKS; chunkIndex++)
+		for (int chunkIndex = 0; chunkIndex < EcsSharedMemory.BITSET_CHUNKS; chunkIndex++)
 		{
 			ulong word = activeBitset[chunkIndex];
 			while (word != 0)
@@ -64,7 +65,7 @@ public static unsafe class SpatialQueryEngine
 				int bit = BitOperations.TrailingZeroCount(word);
 				int entityId = (chunkIndex << 6) + bit;
 
-				if (slots[entityId].Alive != 0 && slots[entityId].OwnerPlayerId == playerIndex)
+				if (alive[entityId] != 0 && owners[entityId].PlayerIndex == playerIndex)
 				{
 					buffer[count++] = new UnitId(entityId);
 				}
@@ -89,10 +90,11 @@ public static unsafe class SpatialQueryEngine
 		int count = 0;
 		float radiusSq = radius * radius;
 
-		ulong* activeBitset = RealmSharedMemory.GetActiveEntityBitset();
-		SharedEntitySlot* slots = RealmSharedMemory.EntitySlots;
+		ulong* activeBitset = EcsSharedMemory.GetActiveEntityBitset();
+		byte* alive = EcsSharedMemory.Alive;
+		Position* positions = EcsSharedMemory.Position;
 
-		for (int chunkIndex = 0; chunkIndex < RealmSharedMemory.BITSET_CHUNKS; chunkIndex++)
+		for (int chunkIndex = 0; chunkIndex < EcsSharedMemory.BITSET_CHUNKS; chunkIndex++)
 		{
 			ulong word = activeBitset[chunkIndex];
 			while (word != 0)
@@ -100,9 +102,9 @@ public static unsafe class SpatialQueryEngine
 				int bit = BitOperations.TrailingZeroCount(word);
 				int entityId = (chunkIndex << 6) + bit;
 
-				if (slots[entityId].Alive != 0)
+				if (alive[entityId] != 0)
 				{
-					Vector3 pos = slots[entityId].Position;
+					Vector3 pos = positions[entityId].Value;
 					float dx = pos.X - center.X;
 					float dy = pos.Y - center.Y;
 					float dz = pos.Z - center.Z;

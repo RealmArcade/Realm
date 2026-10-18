@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using FileAccess = Godot.FileAccess;
+using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Client.Services;
 

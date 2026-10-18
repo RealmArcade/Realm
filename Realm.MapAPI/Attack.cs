@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Realm.Ecs.Components.Combat;
+namespace Realm.MapAPI;
 
 /// <summary>
 /// Defines combat attack parameters including damage, range, cooldowns, and area-of-effect splash.
@@ -8,31 +8,55 @@ namespace Realm.Ecs.Components.Combat;
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Attack
 {
+	/// <summary>Base attack damage dealt.</summary>
 	public float Damage;
+	/// <summary>Maximum attack range distance in world units.</summary>
 	public float Range;
+	/// <summary>Attack interval or cooldown duration in seconds.</summary>
 	public float Cooldown;
+	/// <summary>Current remaining attack cooldown in seconds.</summary>
 	public float CurrentCooldown;
+	/// <summary>Damage variance percentage or range.</summary>
 	public float DamageVariance;
+	/// <summary>String registry identifier for the damage category.</summary>
 	public int DamageTypeId;
+	/// <summary>Flat armor penetration amount.</summary>
 	public float FlatArmorPenetration;
+	/// <summary>Percent armor penetration ratio (0.0 to 1.0).</summary>
 	public float PercentArmorPenetration;
+	/// <summary>Critical strike probability ratio (0.0 to 1.0).</summary>
 	public float CritChance;
+	/// <summary>Critical strike damage multiplier.</summary>
 	public float CritMultiplier;
+	/// <summary>Area-of-effect splash falloff style.</summary>
 	public SplashType SplashType;
+	/// <summary>Inner splash radius distance in world units.</summary>
 	public float SplashInnerRadius;
+	/// <summary>Medium splash radius distance in world units.</summary>
 	public float SplashMediumRadius;
+	/// <summary>Outer splash radius distance in world units.</summary>
 	public float SplashOuterRadius;
+	/// <summary>Damage multiplier applied within inner splash radius.</summary>
 	public float SplashInnerRatio;
+	/// <summary>Damage multiplier applied within medium splash radius.</summary>
 	public float SplashMediumRatio;
+	/// <summary>Damage multiplier applied within outer splash radius.</summary>
 	public float SplashOuterRatio;
+	/// <summary>Backing byte indicating whether splash damage hurts allied units (1 if true, 0 if false).</summary>
 	public byte FriendlyFireByte;
 
+	/// <summary>
+	/// Gets or sets a value indicating whether splash damage affects friendly units.
+	/// </summary>
 	public bool FriendlyFire
 	{
 		get => FriendlyFireByte != 0;
 		set => FriendlyFireByte = value ? (byte)1 : (byte)0;
 	}
 
+	/// <summary>
+	/// Initializes a new instance of the <see cref="Attack"/> struct.
+	/// </summary>
 	public Attack(
 		float damage,
 		float range,
@@ -73,34 +97,12 @@ public struct Attack
 		FriendlyFireByte = friendlyFire ? (byte)1 : (byte)0;
 	}
 
+	/// <summary>
+	/// Gets or sets the damage category name.
+	/// </summary>
 	public string DamageType
 	{
 		get => StringRegistry.Get(DamageTypeId);
 		set => DamageTypeId = StringRegistry.GetOrAdd(value);
-	}
-
-	public readonly Weapon ToWeapon()
-	{
-		return new Weapon(
-			baseDamage: Damage,
-			damageVariance: DamageVariance,
-			damageType: DamageType,
-			minRange: 0f,
-			maxRange: Range,
-			attackInterval: Cooldown,
-			currentCooldown: CurrentCooldown,
-			flatArmorPenetration: FlatArmorPenetration,
-			percentArmorPenetration: PercentArmorPenetration,
-			critChance: CritChance,
-			critMultiplier: CritMultiplier,
-			splashType: SplashType,
-			splashInnerRadius: SplashInnerRadius,
-			splashMediumRadius: SplashMediumRadius,
-			splashOuterRadius: SplashOuterRadius,
-			splashInnerRatio: SplashInnerRatio,
-			splashMediumRatio: SplashMediumRatio,
-			splashOuterRatio: SplashOuterRatio,
-			friendlyFire: FriendlyFire
-		);
 	}
 }
