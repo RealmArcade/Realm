@@ -1,12 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
-  <Type Name="Realm.MapAPI.Level">
+  <Type Name="Realm.MapAPI.Components.Level">
     <DisplayString>Level {{Value}}</DisplayString>
     <Expand>
       <Item Name="Value">Value</Item>
     </Expand>
   </Type>
-  <Type Name="Realm::MapAPI::Level">
+  <Type Name="Realm::MapAPI::Components::Level">
     <DisplayString>Level {{Value}}</DisplayString>
     <Expand>
       <Item Name="Value">Value</Item>
@@ -56,6 +56,18 @@
   </Type>
   <Type Name="Realm::MapAPI::UnitId">
     <DisplayString>Unit {{Value}}</DisplayString>
+    <Expand>
+      <Item Name="Value">Value</Item>
+    </Expand>
+  </Type>
+  <Type Name="Realm.MapAPI.Components.UnitOwnerPlayer">
+    <DisplayString>UnitOwnerPlayer {{Value}}</DisplayString>
+    <Expand>
+      <Item Name="Value">Value</Item>
+    </Expand>
+  </Type>
+  <Type Name="Realm::MapAPI::Components::UnitOwnerPlayer">
+    <DisplayString>UnitOwnerPlayer {{Value}}</DisplayString>
     <Expand>
       <Item Name="Value">Value</Item>
     </Expand>

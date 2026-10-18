@@ -129,112 +129,6 @@
             Gets or sets custom arbitrary key-value metadata associated with the profile.
             </summary>
         </member>
-        <member name="T:Realm.MapAPI.Armor">
-            <summary>
-            Defines flat and rated armor mitigation values and armor category for an entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Armor.FlatArmor">
-            <summary>Flat armor value directly mitigating damage.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Armor.RatedArmor">
-            <summary>Rated armor value providing percentage-based diminishing return damage mitigation.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Armor.StringId">
-            <summary>String registry identifier for the armor category.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Armor.#ctor(System.Single,System.Single,System.String)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.Armor"/> struct.
-            </summary>
-            <param name="flatArmor">Flat armor mitigation.</param>
-            <param name="ratedArmor">Rated armor mitigation.</param>
-            <param name="armorType">Armor category name.</param>
-        </member>
-        <member name="P:Realm.MapAPI.Armor.Value">
-            <summary>
-            Gets the effective flat armor rating (alias for <see cref="F:Realm.MapAPI.Armor.FlatArmor"/>).
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.Armor.ArmorType">
-            <summary>
-            Gets or sets the armor category name.
-            </summary>
-        </member>
-        <member name="T:Realm.MapAPI.Attack">
-            <summary>
-            Defines combat attack parameters including damage, range, cooldowns, and area-of-effect splash.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.Damage">
-            <summary>Base attack damage dealt.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.Range">
-            <summary>Maximum attack range distance in world units.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.Cooldown">
-            <summary>Attack interval or cooldown duration in seconds.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.CurrentCooldown">
-            <summary>Current remaining attack cooldown in seconds.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.DamageVariance">
-            <summary>Damage variance percentage or range.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.DamageTypeId">
-            <summary>String registry identifier for the damage category.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.FlatArmorPenetration">
-            <summary>Flat armor penetration amount.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.PercentArmorPenetration">
-            <summary>Percent armor penetration ratio (0.0 to 1.0).</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.CritChance">
-            <summary>Critical strike probability ratio (0.0 to 1.0).</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.CritMultiplier">
-            <summary>Critical strike damage multiplier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.SplashType">
-            <summary>Area-of-effect splash falloff style.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.SplashInnerRadius">
-            <summary>Inner splash radius distance in world units.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.SplashMediumRadius">
-            <summary>Medium splash radius distance in world units.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.SplashOuterRadius">
-            <summary>Outer splash radius distance in world units.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.SplashInnerRatio">
-            <summary>Damage multiplier applied within inner splash radius.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.SplashMediumRatio">
-            <summary>Damage multiplier applied within medium splash radius.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.SplashOuterRatio">
-            <summary>Damage multiplier applied within outer splash radius.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Attack.FriendlyFireByte">
-            <summary>Backing byte indicating whether splash damage hurts allied units (1 if true, 0 if false).</summary>
-        </member>
-        <member name="P:Realm.MapAPI.Attack.FriendlyFire">
-            <summary>
-            Gets or sets a value indicating whether splash damage affects friendly units.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.Attack.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single,System.String,System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.SplashType,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Boolean)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.Attack"/> struct.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.Attack.DamageType">
-            <summary>
-            Gets or sets the damage category name.
-            </summary>
-        </member>
         <member name="T:Realm.MapAPI.AutoBattlerBotConfig">
             <summary>
             Configuration parameters for an Auto-Battler AI bot.
@@ -679,30 +573,6 @@
             <param name="componentId">The component type identifier (0-255).</param>
             <returns>True if the component bit is present; otherwise false.</returns>
         </member>
-        <member name="T:Realm.MapAPI.Experience">
-            <summary>
-            Represents the total accumulated experience points of a hero or entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Experience.Value">
-            <summary>The total experience points accumulated.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Experience.#ctor(System.Single)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.Experience"/> struct.
-            </summary>
-            <param name="value">The experience points.</param>
-        </member>
-        <member name="M:Realm.MapAPI.Experience.op_Implicit(System.Single)~Realm.MapAPI.Experience">
-            <summary>
-            Implicitly converts a float into an <see cref="T:Realm.MapAPI.Experience"/> struct.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.Experience.op_Implicit(Realm.MapAPI.Experience)~System.Single">
-            <summary>
-            Implicitly converts an <see cref="T:Realm.MapAPI.Experience"/> struct into a float.
-            </summary>
-        </member>
         <member name="T:Realm.MapAPI.GameAPI">
             <summary>
             Provides global access to the current <see cref="T:Realm.MapAPI.IGameAPI"/> instance within the WebAssembly or host runtime execution context.
@@ -821,56 +691,6 @@
             </summary>
             <param name="unit">The unit to receive items.</param>
             <param name="items">The collection of saved inventory items to add.</param>
-        </member>
-        <member name="T:Realm.MapAPI.Health">
-            <summary>
-            Represents the health point capacity and regeneration state of an entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Health.Current">
-            <summary>
-            The current health points of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Health.Max">
-            <summary>
-            The maximum health point capacity of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Health.HpRegen">
-            <summary>
-            Health point regeneration rate per second.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Health.HpRegenCombatDelay">
-            <summary>
-            Delay duration in seconds before health regeneration resumes after taking damage.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Health.TimeSinceLastDamage">
-            <summary>
-            Elapsed time in seconds since the entity last sustained damage.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.Health.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.Health"/> struct.
-            </summary>
-            <param name="current">The current health points.</param>
-            <param name="max">The maximum health capacity.</param>
-            <param name="hpRegen">Health point regeneration rate per second.</param>
-            <param name="hpRegenCombatDelay">Regeneration combat delay in seconds.</param>
-            <param name="timeSinceLastDamage">Time since last damage in seconds.</param>
-        </member>
-        <member name="P:Realm.MapAPI.Health.CurrentHp">
-            <summary>
-            Gets or sets the current health points (alias for <see cref="F:Realm.MapAPI.Health.Current"/>).
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.Health.MaxHp">
-            <summary>
-            Gets or sets the maximum health capacity (alias for <see cref="F:Realm.MapAPI.Health.Max"/>).
-            </summary>
         </member>
         <member name="T:Realm.MapAPI.HeroArenaBotConfig">
             <summary>
@@ -3160,30 +2980,6 @@
             <param name="level">The source level of the modifier.</param>
             <returns>The calculated bonus stat value, or zero if execution fails.</returns>
         </member>
-        <member name="T:Realm.MapAPI.Level">
-            <summary>
-            Represents the hero or unit experience progression level.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Level.Value">
-            <summary>The current level value.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Level.#ctor(System.Int32)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.Level"/> struct.
-            </summary>
-            <param name="value">The level number.</param>
-        </member>
-        <member name="M:Realm.MapAPI.Level.op_Implicit(System.Int32)~Realm.MapAPI.Level">
-            <summary>
-            Implicitly converts an integer into a <see cref="T:Realm.MapAPI.Level"/> struct.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.Level.op_Implicit(Realm.MapAPI.Level)~System.Int32">
-            <summary>
-            Implicitly converts a <see cref="T:Realm.MapAPI.Level"/> struct into an integer.
-            </summary>
-        </member>
         <member name="T:Realm.MapAPI.LootItemId">
             <summary>
             Represents a strongly-typed, unmanaged entity identifier for a dropped loot item in the game world,
@@ -3278,44 +3074,6 @@
             Formats the loot item identifier as a string.
             </summary>
             <returns>A string representation of the loot item identifier.</returns>
-        </member>
-        <member name="T:Realm.MapAPI.Mana">
-            <summary>
-            Represents the current, maximum, and regeneration rate of mana for an entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Mana.Current">
-            <summary>
-            The current mana points of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Mana.Max">
-            <summary>
-            The maximum mana point capacity of the entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Mana.ManaRegen">
-            <summary>
-            Mana point regeneration rate per second.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.Mana.#ctor(System.Single,System.Single,System.Single)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.Mana"/> struct.
-            </summary>
-            <param name="current">The current mana points.</param>
-            <param name="max">The maximum mana capacity.</param>
-            <param name="manaRegen">Mana point regeneration rate per second.</param>
-        </member>
-        <member name="P:Realm.MapAPI.Mana.CurrentMana">
-            <summary>
-            Gets or sets the current mana points (alias for <see cref="F:Realm.MapAPI.Mana.Current"/>).
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.Mana.MaxMana">
-            <summary>
-            Gets or sets the maximum mana capacity (alias for <see cref="F:Realm.MapAPI.Mana.Max"/>).
-            </summary>
         </member>
         <member name="T:Realm.MapAPI.MapCosmeticSaveData">
             <summary>
@@ -3451,82 +3209,6 @@
             Converts this configuration into a JSON dictionary string for injection into the AI bot provider.
             </summary>
             <returns>A JSON string representation of the configuration parameters.</returns>
-        </member>
-        <member name="T:Realm.MapAPI.ModelScale">
-            <summary>
-            Represents the visual model uniform scaling factor of an entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.ModelScale.Value">
-            <summary>The visual scale multiplier.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.ModelScale.#ctor(System.Single)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.ModelScale"/> struct.
-            </summary>
-            <param name="value">The uniform scale factor.</param>
-        </member>
-        <member name="M:Realm.MapAPI.ModelScale.op_Implicit(System.Single)~Realm.MapAPI.ModelScale">
-            <summary>
-            Implicitly converts a float into a <see cref="T:Realm.MapAPI.ModelScale"/> struct.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.ModelScale.op_Implicit(Realm.MapAPI.ModelScale)~System.Single">
-            <summary>
-            Implicitly converts a <see cref="T:Realm.MapAPI.ModelScale"/> struct into a float.
-            </summary>
-        </member>
-        <member name="T:Realm.MapAPI.MovementStats">
-            <summary>
-            Defines the movement, locomotion, and crowd footprint properties of an entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.MovementStats.Speed">
-            <summary>Maximum linear traversal speed in world units per second.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.MovementStats.Acceleration">
-            <summary>Acceleration rate in units per second squared.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.MovementStats.TurnRate">
-            <summary>Rotational turning rate in radians per second.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.MovementStats.PushPriority">
-            <summary>Crowd simulation push avoidance priority.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.MovementStats.Type">
-            <summary>Locomotion traversal medium.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.MovementStats.#ctor(System.Single,System.Single,System.Single,System.Int32,Realm.MapAPI.MovementType)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.MovementStats"/> struct.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.MovementStats.#ctor(System.Single,System.Single,System.Single,System.Int32,System.String)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.MovementStats"/> struct with a string movement type.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.MovementStats.MovementType">
-            <summary>
-            Gets or sets the movement type category as a readable string.
-            </summary>
-        </member>
-        <member name="T:Realm.MapAPI.MovementType">
-            <summary>
-            Specifies the locomotion traversal medium for moving entities.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.MovementType.Ground">
-            <summary>Ground-based land locomotion.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.MovementType.Air">
-            <summary>Aerial flight traversal ignoring terrain height.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.MovementType.Water">
-            <summary>Aquatic water surface or submerged traversal.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.MovementType.Hover">
-            <summary>Low-altitude hover traversal passing over minor terrain obstacles.</summary>
         </member>
         <member name="T:Realm.MapAPI.PathingFlags">
             <summary>
@@ -3986,115 +3668,6 @@
             </summary>
             <returns>A string representation of the player slot index.</returns>
         </member>
-        <member name="T:Realm.MapAPI.PlayerPopulation">
-            <summary>
-            Tracks the current unit population count and maximum capacity limit for a player.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.PlayerPopulation.Current">
-            <summary>Current population count consumed by living units.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.PlayerPopulation.Max">
-            <summary>Maximum population supply capacity.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerPopulation.#ctor(System.Int32,System.Int32)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.PlayerPopulation"/> struct.
-            </summary>
-            <param name="current">Current population consumed.</param>
-            <param name="max">Maximum population capacity.</param>
-        </member>
-        <member name="T:Realm.MapAPI.PlayerResources">
-            <summary>
-            A component holding all resource stockpile amounts for a player slot directly in unmanaged memory.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.PlayerResources.MaxCustomSlots">
-            <summary>Maximum custom resource slots supported in fixed buffer.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.PlayerResources.Gold">
-            <summary>Gold resource stockpile amount.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.PlayerResources.Wood">
-            <summary>Wood resource stockpile amount.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.PlayerResources.Stone">
-            <summary>Stone resource stockpile amount.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.PlayerResources.Ore">
-            <summary>Ore resource stockpile amount.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.PlayerResources.CustomSlots">
-            <summary>Fixed array buffer for custom resource categories.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerResources.#ctor(System.Int32,System.Int32,System.Int32,System.Int32)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.PlayerResources"/> struct with standard resources.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerResources.#ctor(System.Collections.Generic.IDictionary{Realm.MapAPI.ResourceId,System.Int32})">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.PlayerResources"/> struct from a resource dictionary.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerResources.Get(Realm.MapAPI.ResourceId)">
-            <summary>
-            Retrieves the resource amount for the given resource identifier.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerResources.Set(Realm.MapAPI.ResourceId,System.Int32)">
-            <summary>
-            Sets the resource amount for the given resource identifier.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerResources.TryGetValue(Realm.MapAPI.ResourceId,System.Int32@)">
-            <summary>
-            Attempts to retrieve the resource amount for the given resource identifier.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerResources.ContainsKey(Realm.MapAPI.ResourceId)">
-            <summary>
-            Determines whether the resource type is supported.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.PlayerResources.Item(Realm.MapAPI.ResourceId)">
-            <summary>
-            Gets or sets resource amounts by identifier.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.PlayerResources.Value">
-            <summary>
-            Returns a copy of this struct.
-            </summary>
-        </member>
-        <member name="T:Realm.MapAPI.Position">
-            <summary>
-            Represents the 3D world space position vector of an entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Position.Value">
-            <summary>
-            The 3D coordinates vector.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.Position.#ctor(System.Numerics.Vector3)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.Position"/> struct.
-            </summary>
-            <param name="value">The 3D coordinates vector.</param>
-        </member>
-        <member name="M:Realm.MapAPI.Position.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Position">
-            <summary>
-            Implicitly converts a <see cref="T:System.Numerics.Vector3"/> into a <see cref="T:Realm.MapAPI.Position"/> struct.
-            </summary>
-            <param name="value">The 3D coordinates vector.</param>
-        </member>
-        <member name="M:Realm.MapAPI.Position.op_Implicit(Realm.MapAPI.Position)~System.Numerics.Vector3">
-            <summary>
-            Implicitly converts a <see cref="T:Realm.MapAPI.Position"/> struct into a <see cref="T:System.Numerics.Vector3"/>.
-            </summary>
-            <param name="position">The position struct.</param>
-        </member>
         <member name="T:Realm.MapAPI.QueryResultBuffer">
             <summary>
             Provides ring-buffered unmanaged storage for WASM in-guest unit query results to prevent allocations and avoid overwriting outer query loops during nested calls.
@@ -4105,34 +3678,6 @@
             Allocates a non-overlapping slice from the static ring buffer for storing unit query result handles.
             </summary>
             <returns>A span pointing to the allocated ring buffer slot segment.</returns>
-        </member>
-        <member name="T:Realm.MapAPI.ResourceId">
-            <summary>
-            A type-safe identifier wrapper for a resource category.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.ResourceId.Value">
-            <summary>
-            Gets the canonical string name of the resource.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.ResourceId.#ctor(System.String)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.ResourceId"/> struct.
-            </summary>
-            <param name="value">The resource category name.</param>
-        </member>
-        <member name="M:Realm.MapAPI.ResourceId.op_Implicit(System.String)~Realm.MapAPI.ResourceId">
-            <summary>
-            Implicitly converts a string resource name into a <see cref="T:Realm.MapAPI.ResourceId"/>.
-            </summary>
-            <param name="value">The resource category name.</param>
-        </member>
-        <member name="M:Realm.MapAPI.ResourceId.op_Implicit(Realm.MapAPI.ResourceId)~System.String">
-            <summary>
-            Implicitly converts a <see cref="T:Realm.MapAPI.ResourceId"/> into its string representation.
-            </summary>
-            <param name="id">The resource identifier.</param>
         </member>
         <member name="T:Realm.MapAPI.ResourceNodeId">
             <summary>
@@ -4211,30 +3756,6 @@
             Formats the resource node identifier as a string.
             </summary>
             <returns>A string representation of the resource node index.</returns>
-        </member>
-        <member name="T:Realm.MapAPI.RotationY">
-            <summary>
-            Represents the planar facing orientation angle in radians around the vertical Y-axis.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.RotationY.Value">
-            <summary>The rotation angle in radians.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.RotationY.#ctor(System.Single)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.RotationY"/> struct.
-            </summary>
-            <param name="value">The angle in radians.</param>
-        </member>
-        <member name="M:Realm.MapAPI.RotationY.op_Implicit(System.Single)~Realm.MapAPI.RotationY">
-            <summary>
-            Implicitly converts a float into a <see cref="T:Realm.MapAPI.RotationY"/> struct.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.RotationY.op_Implicit(Realm.MapAPI.RotationY)~System.Single">
-            <summary>
-            Implicitly converts a <see cref="T:Realm.MapAPI.RotationY"/> struct into a float.
-            </summary>
         </member>
         <member name="T:Realm.MapAPI.SaveEnvelope`1">
             <summary>
@@ -4333,56 +3854,6 @@
             <param name="json">The input JSON string.</param>
             <returns>A normalized canonical JSON string.</returns>
         </member>
-        <member name="T:Realm.MapAPI.ScriptPlayer">
-            <summary>
-            Represents the configuration and runtime properties of a player slot within a map script.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.ScriptPlayer.Gold">
-            <summary>Current gold resource amount.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ScriptPlayer.Wood">
-            <summary>Current wood resource amount.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ScriptPlayer.Stone">
-            <summary>Current stone resource amount.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ScriptPlayer.ActiveByte">
-            <summary>Backing byte indicating whether the player slot is active (1 if active, 0 otherwise).</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ScriptPlayer.IsComputerByte">
-            <summary>Backing byte indicating whether the player is controlled by AI (1 if AI, 0 if human).</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ScriptPlayer.Reserved0">
-            <summary>Reserved alignment padding byte.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ScriptPlayer.Reserved1">
-            <summary>Reserved alignment padding byte.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ScriptPlayer.Team">
-            <summary>Team identifier number.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ScriptPlayer.NameStringId">
-            <summary>String registry identifier for player display name.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ScriptPlayer.KillCount">
-            <summary>Total enemy unit kill count credited to this player.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.ScriptPlayer.Active">
-            <summary>
-            Gets or sets a value indicating whether this player slot is active.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.ScriptPlayer.IsComputer">
-            <summary>
-            Gets or sets a value indicating whether this player slot is controlled by computer AI.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.ScriptPlayer.Name">
-            <summary>
-            Gets or sets the player display name.
-            </summary>
-        </member>
         <member name="T:Realm.MapAPI.SpatialQueryEngine">
             <summary>
             Provides high-frequency in-guest spatial and entity query processing directly over shared WASM linear memory with zero host boundary crossings.
@@ -4408,20 +3879,6 @@
             <param name="center">The center position vector in 3D world space.</param>
             <param name="radius">The query radius distance.</param>
             <returns>A read-only span of unit handles inside the radius.</returns>
-        </member>
-        <member name="T:Realm.MapAPI.SplashType">
-            <summary>
-            Defines splash area damage falloff options for combat attacks.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.SplashType.None">
-            <summary>No area-of-effect splash damage.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.SplashType.RadialStep">
-            <summary>Discrete stepped radial damage falloff.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.SplashType.RadialLinear">
-            <summary>Smooth linear radial damage falloff.</summary>
         </member>
         <member name="T:Realm.MapAPI.StringRegistry">
             <summary>
@@ -4952,30 +4409,6 @@
             </summary>
             <returns>A string representation of the unit identifier.</returns>
         </member>
-        <member name="T:Realm.MapAPI.UnitOwnerPlayer">
-            <summary>
-            Represents the zero-based player slot index (0-24) owning a unit or building entity.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.UnitOwnerPlayer.PlayerIndex">
-            <summary>The zero-based player slot index.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.UnitOwnerPlayer.#ctor(System.Int32)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.UnitOwnerPlayer"/> struct.
-            </summary>
-            <param name="playerIndex">The zero-based player slot index.</param>
-        </member>
-        <member name="M:Realm.MapAPI.UnitOwnerPlayer.op_Implicit(System.Int32)~Realm.MapAPI.UnitOwnerPlayer">
-            <summary>
-            Implicitly converts an integer player index into a <see cref="T:Realm.MapAPI.UnitOwnerPlayer"/> struct.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.UnitOwnerPlayer.op_Implicit(Realm.MapAPI.UnitOwnerPlayer)~System.Int32">
-            <summary>
-            Implicitly converts a <see cref="T:Realm.MapAPI.UnitOwnerPlayer"/> struct into an integer player index.
-            </summary>
-        </member>
         <member name="T:Realm.MapAPI.WaypointMarchConfig">
             <summary>
             Configuration settings for automated waypoint navigation and lane combat behavior.
@@ -5027,6 +4460,433 @@
             </summary>
             <param name="api">The game API instance used to query targets and issue orders.</param>
             <param name="delta">The time elapsed since the previous simulation tick, in seconds.</param>
+        </member>
+        <member name="T:Realm.MapAPI.Components.ResourceId">
+            <summary>
+            A type-safe unmanaged identifier wrapper for a resource category.
+            </summary>
+            <summary>
+            A type-safe unmanaged identifier wrapper for a resource category.
+            </summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.SplashType">
+            <summary>
+            Defines area-of-effect splash damage distribution patterns.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.SplashType.None">
+            <summary>None enumeration value.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.SplashType.RadialStep">
+            <summary>RadialStep enumeration value.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.SplashType.RadialLinear">
+            <summary>RadialLinear enumeration value.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.Attack">
+            <summary>
+            Defines combat attack parameters including damage, range, cooldowns, and area-of-effect splash.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.Damage">
+            <summary>Base attack damage dealt.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.Range">
+            <summary>Maximum attack range distance in world units.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.Cooldown">
+            <summary>Attack interval or cooldown duration in seconds.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.CurrentCooldown">
+            <summary>Current remaining attack cooldown in seconds.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.DamageVariance">
+            <summary>Damage variance percentage or range.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.DamageTypeId">
+            <summary>String registry identifier for the damage category.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.FlatArmorPenetration">
+            <summary>Flat armor penetration amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.PercentArmorPenetration">
+            <summary>Percent armor penetration ratio (0.0 to 1.0).</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.CritChance">
+            <summary>Critical strike probability ratio (0.0 to 1.0).</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.CritMultiplier">
+            <summary>Critical strike damage multiplier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.SplashType">
+            <summary>Area-of-effect splash falloff style.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.SplashInnerRadius">
+            <summary>Inner splash radius distance in world units.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.SplashMediumRadius">
+            <summary>Medium splash radius distance in world units.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.SplashOuterRadius">
+            <summary>Outer splash radius distance in world units.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.SplashInnerRatio">
+            <summary>Damage multiplier applied within inner splash radius.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.SplashMediumRatio">
+            <summary>Damage multiplier applied within medium splash radius.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.SplashOuterRatio">
+            <summary>Damage multiplier applied within outer splash radius.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Attack.FriendlyFireByte">
+            <summary>Backing byte indicating whether splash damage hurts allied units (1 if true, 0 if false).</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.Attack.FriendlyFire">
+            <summary>Gets or sets a value indicating whether splash damage affects friendly units.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Attack.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single,System.String,System.Single,System.Single,System.Single,System.Single,Realm.MapAPI.Components.SplashType,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Boolean)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Attack"/> struct.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.Attack.DamageType">
+            <summary>Gets or sets the damage category name.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.Armor">
+            <summary>
+            Defines flat and rated armor mitigation values and armor category for an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Armor.FlatArmor">
+            <summary>Flat armor value directly mitigating damage.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Armor.RatedArmor">
+            <summary>Rated armor value providing percentage-based diminishing return damage mitigation.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Armor.StringId">
+            <summary>String registry identifier for the armor category.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Armor.#ctor(System.Single,System.Single,System.String)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Armor"/> struct.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.Armor.Value">
+            <summary>Gets the effective flat armor rating (alias for FlatArmor).</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.Armor.ArmorType">
+            <summary>Gets or sets the armor category name.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.Position">
+            <summary>
+            Defines 3D spatial world position vector coordinates of an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Position.Value">
+            <summary>The 3D world coordinate position vector.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Position.#ctor(System.Numerics.Vector3)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Position"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Position.#ctor(System.Single,System.Single,System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Position"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Position.op_Implicit(Realm.MapAPI.Components.Position)~System.Numerics.Vector3">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Position.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Components.Position">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.Health">
+            <summary>
+            Represents the health point capacity and regeneration state of an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Health.Current">
+            <summary>The current health points of the entity.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Health.Max">
+            <summary>The maximum health point capacity of the entity.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Health.HpRegen">
+            <summary>Health point regeneration rate per second.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Health.HpRegenCombatDelay">
+            <summary>Delay duration in seconds before health regeneration resumes after taking damage.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Health.TimeSinceLastDamage">
+            <summary>Elapsed time in seconds since the entity last sustained damage.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Health.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Health"/> struct.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.Health.CurrentHp">
+            <summary>Gets or sets the current health points (alias for Current).</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.Health.MaxHp">
+            <summary>Gets or sets the maximum health capacity (alias for Max).</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.Mana">
+            <summary>
+            Represents the mana energy capacity and regeneration rate of an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Mana.Current">
+            <summary>The current mana points of the entity.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Mana.Max">
+            <summary>The maximum mana capacity of the entity.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Mana.ManaRegen">
+            <summary>Mana point regeneration rate per second.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Mana.#ctor(System.Single,System.Single,System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Mana"/> struct.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.Mana.CurrentMana">
+            <summary>Gets or sets the current mana points (alias for Current).</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.Mana.MaxMana">
+            <summary>Gets or sets the maximum mana capacity (alias for Max).</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.PlayerPopulation">
+            <summary>
+            Tracks current and maximum food population unit capacities for a player.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PlayerPopulation.Current">
+            <summary>Current food population consumed.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PlayerPopulation.Max">
+            <summary>Maximum food population capacity.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PlayerPopulation.#ctor(System.Int32,System.Int32)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PlayerPopulation"/> struct.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.ScriptPlayer">
+            <summary>
+            Represents the configuration and runtime properties of a player slot.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.Gold">
+            <summary>Current gold resource amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.Wood">
+            <summary>Current wood resource amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.Stone">
+            <summary>Current stone resource amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.ActiveByte">
+            <summary>Backing byte indicating whether the player slot is active (1 if active, 0 otherwise).</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.IsComputerByte">
+            <summary>Backing byte indicating whether the player is controlled by AI (1 if AI, 0 if human).</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.Reserved0">
+            <summary>Reserved alignment padding byte.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.Reserved1">
+            <summary>Reserved alignment padding byte.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.Team">
+            <summary>Team identifier number.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.NameStringId">
+            <summary>String registry identifier for player display name.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.KillCount">
+            <summary>Total enemy unit kill count credited to this player.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.ScriptPlayer.Active">
+            <summary>Gets or sets a value indicating whether this player slot is active.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.ScriptPlayer.IsComputer">
+            <summary>Gets or sets a value indicating whether this player slot is controlled by computer AI.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.ScriptPlayer.Name">
+            <summary>Gets or sets the player display name.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.UnitOwnerPlayer">
+            <summary>
+            Associates an entity with its controlling player slot index.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.UnitOwnerPlayer.Value">
+            <summary>Controlling player slot index value.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.UnitOwnerPlayer.#ctor(System.Int32)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.UnitOwnerPlayer"/> struct.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.UnitOwnerPlayer.PlayerIndex">
+            <summary>Gets or sets the PlayerIndex property.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.UnitOwnerPlayer.op_Implicit(Realm.MapAPI.Components.UnitOwnerPlayer)~System.Int32">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.UnitOwnerPlayer.op_Implicit(System.Int32)~Realm.MapAPI.Components.UnitOwnerPlayer">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.Experience">
+            <summary>
+            Tracks accumulated hero experience points.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Experience.Current">
+            <summary>Current accumulated experience points value.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Experience.#ctor(System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Experience"/> struct.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.Experience.Value">
+            <summary>Gets or sets the Value property.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Experience.op_Implicit(Realm.MapAPI.Components.Experience)~System.Single">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Experience.op_Implicit(System.Single)~Realm.MapAPI.Components.Experience">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.Level">
+            <summary>
+            Tracks current hero advancement level.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Level.Value">
+            <summary>Current hero advancement level value.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Level.#ctor(System.Int32)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Level"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Level.op_Implicit(Realm.MapAPI.Components.Level)~System.Int32">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Level.op_Implicit(System.Int32)~Realm.MapAPI.Components.Level">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.ModelScale">
+            <summary>
+            Defines visual mesh scaling factor for an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.ModelScale.Value">
+            <summary>Mesh scaling factor value.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.ModelScale.#ctor(System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.ModelScale"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.ModelScale.op_Implicit(Realm.MapAPI.Components.ModelScale)~System.Single">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.ModelScale.op_Implicit(System.Single)~Realm.MapAPI.Components.ModelScale">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.RotationY">
+            <summary>
+            Tracks rotational azimuth heading around the vertical Y-axis in radians.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.RotationY.Value">
+            <summary>Rotational azimuth heading around vertical Y-axis in radians.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.RotationY.#ctor(System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.RotationY"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.RotationY.op_Implicit(Realm.MapAPI.Components.RotationY)~System.Single">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.RotationY.op_Implicit(System.Single)~Realm.MapAPI.Components.RotationY">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.MovementType">
+            <summary>
+            Specifies the locomotion medium traversed by a moving entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementType.Ground">
+            <summary>Ground enumeration value.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementType.Air">
+            <summary>Air enumeration value.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementType.Water">
+            <summary>Water enumeration value.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementType.Hover">
+            <summary>Hover enumeration value.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.MovementStats">
+            <summary>
+            Defines the movement, locomotion, and crowd footprint properties of an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementStats.Speed">
+            <summary>Maximum linear traversal speed in world units per second.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementStats.Acceleration">
+            <summary>Acceleration rate in units per second squared.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementStats.TurnRate">
+            <summary>Rotational turning rate in radians per second.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementStats.PushPriority">
+            <summary>Crowd simulation push avoidance priority.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementStats.Type">
+            <summary>Locomotion traversal medium.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.MovementStats.#ctor(System.Single,System.Single,System.Single,System.Int32,Realm.MapAPI.Components.MovementType)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.MovementStats"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.MovementStats.#ctor(System.Single,System.Single,System.Single,System.Int32,System.String)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.MovementStats"/> struct.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.MovementStats.MovementType">
+            <summary>Gets or sets the movement type category as a readable string.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.MovementStats.ParseMovementType(System.String)">
+            <summary>Executes the ParseMovementType operation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.PlayerResources">
+            <summary>
+            A component holding all resource stockpile amounts for a player slot directly in unmanaged memory.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PlayerResources.MaxCustomSlots">
+            <summary>Maximum custom resource slots supported in fixed buffer.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PlayerResources.Gold">
+            <summary>Gold resource stockpile amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PlayerResources.Wood">
+            <summary>Wood resource stockpile amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PlayerResources.Stone">
+            <summary>Stone resource stockpile amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PlayerResources.Ore">
+            <summary>Ore resource stockpile amount.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PlayerResources.CustomSlots">
+            <summary>Fixed array buffer for custom resource categories.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PlayerResources.#ctor(System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PlayerResources"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PlayerResources.#ctor(System.Collections.Generic.IDictionary{Realm.MapAPI.Components.ResourceId,System.Int32})">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PlayerResources"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PlayerResources.Get(Realm.MapAPI.Components.ResourceId)">
+            <summary>Executes the Get operation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PlayerResources.Set(Realm.MapAPI.Components.ResourceId,System.Int32)">
+            <summary>Executes the Set operation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PlayerResources.TryGetValue(Realm.MapAPI.Components.ResourceId,System.Int32@)">
+            <summary>Executes the TryGetValue operation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PlayerResources.ContainsKey(Realm.MapAPI.Components.ResourceId)">
+            <summary>Executes the ContainsKey operation.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.PlayerResources.Value">
+            <summary>Gets or sets the Value property.</summary>
         </member>
     </members>
 </doc>

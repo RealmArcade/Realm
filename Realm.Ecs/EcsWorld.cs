@@ -632,7 +632,7 @@ public class EcsWorld : IDisposable
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptPlayersState))
 		{
 			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ScriptPlayersState>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<Realm.MapAPI.ScriptPlayer[]>.Free(b.Get(id).Handle);
+			b.ClearHandler = id => ColdPayloadRegistry<Realm.Ecs.Components.Core.ScriptPlayer[]>.Free(b.Get(id).Handle);
 		}
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptZonesState))
 		{

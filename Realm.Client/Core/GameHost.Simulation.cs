@@ -15,7 +15,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
+using UnitId = Realm.MapAPI.UnitId;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Core;
