@@ -31,6 +31,12 @@ public interface IWasmRuntime : IMapScript
 	IntPtr GetSharedMemoryPointer();
 
 	/// <summary>
+	/// Imports a raw binary ECS snapshot payload directly into WebAssembly linear memory at the shared memory base address.
+	/// </summary>
+	/// <param name="snapshotPayload">The raw byte payload representing the binary snapshot.</param>
+	void ImportBinarySnapshot(ReadOnlySpan<byte> snapshotPayload);
+
+	/// <summary>
 	/// Executes an exported custom formula function from the WebAssembly guest module.
 	/// </summary>
 	/// <param name="functionName">The name of the exported function in the WebAssembly module.</param>

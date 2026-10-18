@@ -1,6 +1,9 @@
 using System;
+using System.Buffers.Binary;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using Realm.MapAPI;
 
 namespace Realm.Ecs;
 
@@ -670,5 +673,173 @@ public class EcsWorld : IDisposable
 			3 => new ComponentMask(mask.Mask0, mask.Mask1, mask.Mask2, mask.Mask3 & bitNot),
 			_ => mask
 		};
+	}
+
+	public unsafe int ExportBinarySnapshot(Span<byte> destination)
+	{
+		int headerSize = 32;
+		int freeListBytes = _freeListCount * sizeof(int);
+		int aliveBitsetBytes = BITSET_CHUNKS * sizeof(ulong);
+		int entityMasksBytes = _nextEntityId * sizeof(ComponentMask);
+		int playerSlotsBytes = sizeof(SharedPlayerSlot) * MAX_PLAYERS;
+		int entitySlotsBytes = _nextEntityId * sizeof(SharedEntitySlot);
+
+		int totalBytesNeeded = headerSize + freeListBytes + aliveBitsetBytes + entityMasksBytes + playerSlotsBytes + entitySlotsBytes;
+		if (destination.Length < totalBytesNeeded)
+		{
+			return -totalBytesNeeded;
+		}
+
+		Span<byte> headerSpan = destination.Slice(0, headerSize);
+		BinaryPrimitives.WriteUInt32LittleEndian(headerSpan.Slice(0, 4), 0x53434552);
+		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(4, 4), 1);
+		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(8, 4), _count);
+		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(12, 4), _nextEntityId);
+		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(16, 4), _freeListCount);
+		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(20, 4), MAX_PLAYERS);
+		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(24, 4), _nextEntityId);
+		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(28, 4), 0);
+
+		int offset = headerSize;
+
+		if (_freeListCount > 0)
+		{
+			Span<byte> freeListDst = destination.Slice(offset, freeListBytes);
+			MemoryMarshal.AsBytes(_freeList.AsSpan(0, _freeListCount)).CopyTo(freeListDst);
+			offset += freeListBytes;
+		}
+
+		Span<byte> aliveDst = destination.Slice(offset, aliveBitsetBytes);
+		aliveDst.Clear();
+		for (int i = 0; i < MAX_ENTITIES; i++)
+		{
+			if (_alive[i])
+			{
+				int chunk = i >> 6;
+				ulong bit = 1UL << (i & 63);
+				ulong current = BinaryPrimitives.ReadUInt64LittleEndian(aliveDst.Slice(chunk * 8, 8));
+				BinaryPrimitives.WriteUInt64LittleEndian(aliveDst.Slice(chunk * 8, 8), current | bit);
+			}
+		}
+		offset += aliveBitsetBytes;
+
+		if (_nextEntityId > 0)
+		{
+			Span<byte> masksDst = destination.Slice(offset, entityMasksBytes);
+			MemoryMarshal.AsBytes(_entityMasks.AsSpan(0, _nextEntityId)).CopyTo(masksDst);
+			offset += entityMasksBytes;
+		}
+
+		Span<byte> playerDst = destination.Slice(offset, playerSlotsBytes);
+		new ReadOnlySpan<byte>((void*)RealmSharedMemory.PlayerSlots, playerSlotsBytes).CopyTo(playerDst);
+		offset += playerSlotsBytes;
+
+		if (_nextEntityId > 0)
+		{
+			Span<byte> entityDst = destination.Slice(offset, entitySlotsBytes);
+			new ReadOnlySpan<byte>((void*)RealmSharedMemory.EntitySlots, entitySlotsBytes).CopyTo(entityDst);
+			offset += entitySlotsBytes;
+		}
+
+		return offset;
+	}
+
+	public unsafe byte[] ExportBinarySnapshot()
+	{
+		int headerSize = 32;
+		int freeListBytes = _freeListCount * sizeof(int);
+		int aliveBitsetBytes = BITSET_CHUNKS * sizeof(ulong);
+		int entityMasksBytes = _nextEntityId * sizeof(ComponentMask);
+		int playerSlotsBytes = sizeof(SharedPlayerSlot) * MAX_PLAYERS;
+		int entitySlotsBytes = _nextEntityId * sizeof(SharedEntitySlot);
+
+		int totalBytesNeeded = headerSize + freeListBytes + aliveBitsetBytes + entityMasksBytes + playerSlotsBytes + entitySlotsBytes;
+		byte[] buffer = new byte[totalBytesNeeded];
+		ExportBinarySnapshot(buffer);
+		return buffer;
+	}
+
+	public unsafe void ImportBinarySnapshot(ReadOnlySpan<byte> snapshotPayload)
+	{
+		if (snapshotPayload.Length < 32) return;
+
+		uint magic = BinaryPrimitives.ReadUInt32LittleEndian(snapshotPayload.Slice(0, 4));
+		if (magic != 0x53434552) return;
+
+		int version = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(4, 4));
+		int count = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(8, 4));
+		int nextEntityId = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(12, 4));
+		int freeListCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(16, 4));
+		int playerSlotCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(20, 4));
+		int activeEntityMax = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(24, 4));
+
+		_count = count;
+		_nextEntityId = nextEntityId;
+		_freeListCount = freeListCount;
+
+		int offset = 32;
+
+		if (_freeListCount > 0)
+		{
+			int freeListBytes = _freeListCount * sizeof(int);
+			ReadOnlySpan<int> srcFreeList = MemoryMarshal.Cast<byte, int>(snapshotPayload.Slice(offset, freeListBytes));
+			srcFreeList.CopyTo(_freeList);
+			offset += freeListBytes;
+		}
+
+		int aliveBitsetBytes = BITSET_CHUNKS * sizeof(ulong);
+		ReadOnlySpan<byte> aliveSrc = snapshotPayload.Slice(offset, aliveBitsetBytes);
+		Array.Clear(_alive, 0, _alive.Length);
+		for (int chunk = 0; chunk < BITSET_CHUNKS; chunk++)
+		{
+			ulong bits = BinaryPrimitives.ReadUInt64LittleEndian(aliveSrc.Slice(chunk * 8, 8));
+			while (bits != 0)
+			{
+				int bit = BitOperations.TrailingZeroCount(bits);
+				int entityId = (chunk << 6) + bit;
+				if (entityId < MAX_ENTITIES)
+				{
+					_alive[entityId] = true;
+				}
+				bits &= bits - 1;
+			}
+		}
+		offset += aliveBitsetBytes;
+
+		Array.Clear(_entityMasks, 0, _entityMasks.Length);
+		if (activeEntityMax > 0)
+		{
+			int entityMasksBytes = activeEntityMax * sizeof(ComponentMask);
+			ReadOnlySpan<ComponentMask> masksSrc = MemoryMarshal.Cast<byte, ComponentMask>(snapshotPayload.Slice(offset, entityMasksBytes));
+			masksSrc.CopyTo(_entityMasks.AsSpan(0, activeEntityMax));
+			offset += entityMasksBytes;
+		}
+
+		int playerSlotsBytes = sizeof(SharedPlayerSlot) * MAX_PLAYERS;
+		ReadOnlySpan<byte> playerSrc = snapshotPayload.Slice(offset, playerSlotsBytes);
+		Span<byte> playerDst = new Span<byte>((void*)RealmSharedMemory.PlayerSlots, playerSlotsBytes);
+		playerSrc.CopyTo(playerDst);
+		offset += playerSlotsBytes;
+
+		if (activeEntityMax > 0)
+		{
+			int entitySlotsBytes = activeEntityMax * sizeof(SharedEntitySlot);
+			ReadOnlySpan<byte> entitySrc = snapshotPayload.Slice(offset, entitySlotsBytes);
+			Span<byte> entityDst = new Span<byte>((void*)RealmSharedMemory.EntitySlots, entitySlotsBytes);
+			entitySrc.CopyTo(entityDst);
+			offset += entitySlotsBytes;
+
+			if (activeEntityMax < MAX_ENTITIES)
+			{
+				int remainingBytes = (MAX_ENTITIES - activeEntityMax) * sizeof(SharedEntitySlot);
+				Span<byte> remainingDst = new Span<byte>((void*)(RealmSharedMemory.EntitySlots + activeEntityMax), remainingBytes);
+				remainingDst.Clear();
+			}
+		}
+		else
+		{
+			int totalEntityBytes = MAX_ENTITIES * sizeof(SharedEntitySlot);
+			new Span<byte>((void*)RealmSharedMemory.EntitySlots, totalEntityBytes).Clear();
+		}
 	}
 }

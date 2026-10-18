@@ -2866,6 +2866,12 @@
             </summary>
             <returns>The native host memory pointer address.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IWasmRuntime.ImportBinarySnapshot(System.ReadOnlySpan{System.Byte})">
+            <summary>
+            Imports a raw binary ECS snapshot payload directly into WebAssembly linear memory at the shared memory base address.
+            </summary>
+            <param name="snapshotPayload">The raw byte payload representing the binary snapshot.</param>
+        </member>
         <member name="M:Realm.MapAPI.IWasmRuntime.ExecuteCustomFormula(System.String,System.Single,System.Single,System.Int32)">
             <summary>
             Executes an exported custom formula function from the WebAssembly guest module.

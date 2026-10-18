@@ -28,6 +28,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Godot;
 using Realm.MapAPI;
+using Realm.Ecs;
 using Realm.Ecs.Services;
 using Realm.Client.Services;
 using Wasmtime;
@@ -551,6 +552,50 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		unsafe
 		{
 			return (IntPtr)Unsafe.AsPointer(ref byteSpan[0]);
+		}
+	}
+
+	public unsafe void ImportBinarySnapshot(ReadOnlySpan<byte> snapshotPayload)
+	{
+		var memory = _instance.GetMemory("memory");
+		if (memory == null || _sharedMemoryOffset <= 0 || snapshotPayload.IsEmpty) return;
+
+		int totalSharedMemorySize = (sizeof(SharedPlayerSlot) * RealmSharedMemory.MAX_PLAYERS) + (sizeof(SharedEntitySlot) * RealmSharedMemory.MAX_ENTITIES);
+
+		if (snapshotPayload.Length >= 32 && BinaryPrimitives.ReadUInt32LittleEndian(snapshotPayload.Slice(0, 4)) == 0x53434552)
+		{
+			int activeEntityMax = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(24, 4));
+			int freeListCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(16, 4));
+			int offset = 32 + (freeListCount * sizeof(int)) + (EcsWorld.BITSET_CHUNKS * sizeof(ulong)) + (activeEntityMax * sizeof(ComponentMask));
+
+			int playerSlotsBytes = sizeof(SharedPlayerSlot) * RealmSharedMemory.MAX_PLAYERS;
+			int entitySlotsBytes = activeEntityMax * sizeof(SharedEntitySlot);
+			int payloadSharedBytes = playerSlotsBytes + entitySlotsBytes;
+
+			if (snapshotPayload.Length >= offset + payloadSharedBytes)
+			{
+				ReadOnlySpan<byte> sharedSrc = snapshotPayload.Slice(offset, payloadSharedBytes);
+				Span<byte> memorySpan = memory.GetSpan(_sharedMemoryOffset, payloadSharedBytes);
+				sharedSrc.CopyTo(memorySpan);
+
+				if (payloadSharedBytes < totalSharedMemorySize)
+				{
+					int remaining = totalSharedMemorySize - payloadSharedBytes;
+					Span<byte> remainingSpan = memory.GetSpan(_sharedMemoryOffset + payloadSharedBytes, remaining);
+					remainingSpan.Clear();
+				}
+				return;
+			}
+		}
+
+		int bytesToCopy = Math.Min(snapshotPayload.Length, totalSharedMemorySize);
+		Span<byte> destSpan = memory.GetSpan(_sharedMemoryOffset, bytesToCopy);
+		snapshotPayload.Slice(0, bytesToCopy).CopyTo(destSpan);
+
+		if (bytesToCopy < totalSharedMemorySize)
+		{
+			Span<byte> tailSpan = memory.GetSpan(_sharedMemoryOffset + bytesToCopy, totalSharedMemorySize - bytesToCopy);
+			tailSpan.Clear();
 		}
 	}
 
