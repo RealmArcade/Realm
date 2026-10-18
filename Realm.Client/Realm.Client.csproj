@@ -68,6 +68,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\Realm.Client.Tests\*.cs" Link="Tests\%(Filename)%(Extension)" />
+    <Compile Include="..\Realm.Client.Tests\gdunit4_testadapter_v5\GdUnit4TestRunnerScene.cs" Link="gdunit4_testadapter_v5\GdUnit4TestRunnerScene.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Blake3" Version="2.2.1" />
