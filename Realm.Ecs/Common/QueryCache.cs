@@ -28,7 +28,6 @@ public static class QueryCache
 	public static readonly QueryDescription AllPositionAndHealthAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Position, Health, Owner>().WithNone<Dead>();
 	public static readonly QueryDescription AllPositionAndAttackAndOwnerNoneAttackTargetAndDeadQuery = new QueryDescription().WithAll<Position, Attack, Owner>().WithNone<AttackTarget, Dead>();
 	public static readonly QueryDescription AllPositionAndAttackAndAttackTargetAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Position, Attack, AttackTarget, Owner>().WithNone<Dead>();
-	public static readonly QueryDescription AllPositionAndOwnerAndDefinitionIdNoneDeadAndHealingTargetQuery = new QueryDescription().WithAll<Position, Owner, DefinitionId>().WithNone<Dead, HealingTarget>();
 	public static readonly QueryDescription AllPositionAndAttackAndHealingTargetAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Position, Attack, HealingTarget, Owner>().WithNone<Dead>();
 	public static readonly QueryDescription AllWorldStateQuery = new QueryDescription().WithAll<WorldState>();
 	public static readonly QueryDescription AllCombatAlertStateQuery = new QueryDescription().WithAll<CombatAlertState>();

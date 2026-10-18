@@ -417,12 +417,7 @@ public class InputService
 			ClearUnitOrders(entity);
 		}
 
-		if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value == "priest")
-		{
-			var healTarget = new HealingTarget(targetEntity);
-			GameContext.World.SetOrAdd(entity, healTarget);
-		}
-		else if (GameContext.World.Has<Movable>(entity))
+		if (GameContext.World.Has<Movable>(entity))
 		{
 			var follow = new Follow(targetEntity);
 			GameContext.World.SetOrAdd(entity, follow);

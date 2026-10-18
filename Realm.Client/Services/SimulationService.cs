@@ -1963,17 +1963,8 @@ public class SimulationService
 	{
 		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return false;
 
-		if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value == "priest")
-		{
-			var healTarget = new HealingTarget(targetEntity);
-			GameContext.World.SetOrAdd(entity, healTarget);
-		}
-		else
-		{
-			var follow = new Follow(targetEntity);
-			GameContext.World.SetOrAdd(entity, follow);
-		}
-
+		var follow = new Follow(targetEntity);
+		GameContext.World.SetOrAdd(entity, follow);
 		return true;
 	}
 

@@ -142,7 +142,7 @@ public class ReplayService
 		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
 		GameContext.World.Add(entity, new UnitOwnerPlayer(playerIndex));
 		GameContext.World.Add(entity, new Health(snap.CurrentHp, snap.MaxHp));
-		if (meta.Damage > 0 || snap.UnitId == "priest")
+		if (meta.Damage > 0)
 		{
 			GameContext.World.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
 		}

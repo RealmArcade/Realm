@@ -620,7 +620,7 @@ public class NetworkService
 		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
 		GameContext.World.Add(entity, new UnitOwnerPlayer(playerIndex));
 		GameContext.World.Add(entity, new Health(snap.CurrentHp, snap.MaxHp));
-		if (meta.Damage > 0 || snap.UnitId == "priest")
+		if (meta.Damage > 0)
 		{
 			GameContext.World.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
 		}
@@ -882,11 +882,7 @@ public class NetworkService
 
 		if (!isQueued) ClearUnitOrders(entity);
 
-		if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value == "priest")
-		{
-			GameContext.World.SetOrAdd(entity, new HealingTarget(targetEntity));
-		}
-		else if (GameContext.World.Has<Movable>(entity))
+		if (GameContext.World.Has<Movable>(entity))
 		{
 			GameContext.World.SetOrAdd(entity, new Follow(targetEntity));
 		}

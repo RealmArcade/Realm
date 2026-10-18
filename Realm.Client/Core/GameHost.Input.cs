@@ -2870,15 +2870,7 @@ public partial class GameHost
 	{
 		if (InGameHUD.Instance == null) return;
 
-		bool hasPriest = SelectedUnits.Exists(u => GameContext.World.Has<DefinitionId>(u.Entity) && GameContext.World.Get<DefinitionId>(u.Entity).Value == "priest");
-		if (hasPriest)
-		{
-			InGameHUD.Instance.ShowFeedbackText($"Priest: Healing support target {target.UnitId.ToUpper()}", new Color(0.2f, 0.9f, 0.3f));
-		}
-		else
-		{
-			InGameHUD.Instance.ShowFeedbackText($"Command: Follow {target.UnitId.ToUpper()}", new Color(0.2f, 0.6f, 1.0f));
-		}
+		InGameHUD.Instance.ShowFeedbackText($"Command: Follow {target.UnitId.ToUpper()}", new Color(0.2f, 0.6f, 1.0f));
 	}
 
 	private void CollectFollowCommandTargets(Unit3D target, List<Entity> selectedEntities, List<int> targetIds)

@@ -98,37 +98,10 @@ namespace Realm.Client.Services
 			public float DistSq;
 		}
 
-		public readonly struct DamagedFriendlySnapshot
-		{
-			public readonly Entity Entity;
-			public readonly Vector3 Position;
-			public readonly PlayerEntity Owner;
-
-			public DamagedFriendlySnapshot(Entity entity, Vector3 position, PlayerEntity owner)
-			{
-				Entity = entity;
-				Position = position;
-				Owner = owner;
-			}
-		}
-
-		public struct PriestScanSnapshot
-		{
-			public Entity Entity;
-			public Vector3 Position;
-			public PlayerEntity Owner;
-			public Entity SelectedTarget;
-		}
-
 		private TargetCandidateSnapshot[] _targetCandidateArray = new TargetCandidateSnapshot[512];
 		private int _targetCandidateCount = 0;
 		private AttackerSnapshot[] _attackerArray = new AttackerSnapshot[256];
 		private int _attackerCount = 0;
-
-		private DamagedFriendlySnapshot[] _damagedFriendlyArray = new DamagedFriendlySnapshot[256];
-		private int _damagedFriendlyCount = 0;
-		private PriestScanSnapshot[] _priestScanArray = new PriestScanSnapshot[64];
-		private int _priestScanCount = 0;
 
 		private readonly ReaderWriterLockSlim _routeCacheLock = new();
 		private readonly ReaderWriterLockSlim _abandonedCooldownLock = new();
@@ -141,9 +114,8 @@ namespace Realm.Client.Services
 		private readonly List<(Entity Attacker, Vector3 TargetPos)> _tickActionsToChase = new();
 		private readonly List<Entity> _tickActionsToStopChasing = new();
 		private readonly List<Entity> _tickUnitsToKill = new();
-		private readonly List<(Entity Priest, HealingTarget Target)> _tickNewHealingTargets = new();
 		private readonly List<Entity> _tickHealRemoveTargets = new();
-		private readonly List<(Entity Priest, Vector3 TargetPos)> _tickHealChaseTargets = new();
+		private readonly List<(Entity Healer, Vector3 TargetPos)> _tickHealChaseTargets = new();
 		private readonly List<Entity> _tickHealStopChasing = new();
 
 		private float _combatDelta = 0f;
@@ -185,10 +157,8 @@ namespace Realm.Client.Services
 		private const int MaxAcquisitionCandidates = 4;
 
 		private readonly QueryDescription _enemyQuery = QueryCache.AllPositionAndOwnerNoneDeadQuery;
-		private readonly QueryDescription _friendlyScanQuery = QueryCache.AllPositionAndHealthAndOwnerNoneDeadQuery;
 		private readonly QueryDescription _targetAcquisitionQuery = QueryCache.AllPositionAndAttackAndOwnerNoneAttackTargetAndDeadQuery;
 		private readonly QueryDescription _combatQuery = QueryCache.AllPositionAndAttackAndAttackTargetAndOwnerNoneDeadQuery;
-		private readonly QueryDescription _priestScanQuery = QueryCache.AllPositionAndOwnerAndDefinitionIdNoneDeadAndHealingTargetQuery;
 		private readonly QueryDescription _healingExecutionQuery = QueryCache.AllPositionAndAttackAndHealingTargetAndOwnerNoneDeadQuery;
 
 		private EntityCallback<Position, Attack, AttackTarget, Owner> _combatQueryDelegate;
@@ -409,7 +379,6 @@ namespace Realm.Client.Services
 			GameContext.World.Query(in _targetAcquisitionQuery, (Entity entity, ref Position pos, ref Attack atk, ref Owner owner) =>
 			{
 				if (atk.Damage <= 0f || GameContext.World.Has<Invulnerable>(entity)) return;
-				if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value == "priest") return;
 
 				bool isAutoCombat = GameContext.World.Has<AutoCombatState>(entity) && GameContext.World.Get<AutoCombatState>(entity).Enabled;
 				bool isAttackMove = GameContext.World.Has<AttackMove>(entity);
@@ -1235,10 +1204,6 @@ namespace Realm.Client.Services
 
 		private void ProcessHealingTicks()
 		{
-			_tickNewHealingTargets.Clear();
-			ProcessPriestTargetAcquisition();
-			ProcessNewHealingTargets();
-
 			_tickHealRemoveTargets.Clear();
 			_tickHealChaseTargets.Clear();
 			_tickHealStopChasing.Clear();
@@ -1247,97 +1212,6 @@ namespace Realm.Client.Services
 			ProcessHealRemovals();
 			ProcessHealChases();
 			ProcessHealStopChasing();
-		}
-
-		private void ProcessPriestTargetAcquisition()
-		{
-			_damagedFriendlyCount = 0;
-			GameContext.World.Query(in _friendlyScanQuery, (Entity potentialFriendly, ref Position fPosComp, ref Health fHealth, ref Owner fOwner) =>
-			{
-				if (fHealth.Current < fHealth.Max)
-				{
-					if (_damagedFriendlyCount >= _damagedFriendlyArray.Length)
-						Array.Resize(ref _damagedFriendlyArray, _damagedFriendlyArray.Length * 2);
-
-					_damagedFriendlyArray[_damagedFriendlyCount++] = new DamagedFriendlySnapshot(potentialFriendly, fPosComp.Value, fOwner.PlayerEntity);
-				}
-			});
-
-			if (_damagedFriendlyCount == 0) return;
-
-			_priestScanCount = 0;
-			GameContext.World.Query(in _priestScanQuery, (Entity entity, ref Position pos, ref Owner owner, ref DefinitionId defId) =>
-			{
-				if (defId.Value == "priest" && !GameContext.World.Has<MoveTo>(entity))
-				{
-					if (_priestScanCount >= _priestScanArray.Length)
-						Array.Resize(ref _priestScanArray, _priestScanArray.Length * 2);
-
-					_priestScanArray[_priestScanCount++] = new PriestScanSnapshot
-					{
-						Entity = entity,
-						Position = pos.Value,
-						Owner = owner.PlayerEntity,
-						SelectedTarget = Entity.Null
-					};
-				}
-			});
-
-			if (_priestScanCount == 0) return;
-
-			if (_priestScanCount >= 4)
-			{
-				Parallel.For(0, _priestScanCount, i =>
-				{
-					EvaluatePriestTarget(ref _priestScanArray[i], _damagedFriendlyArray, _damagedFriendlyCount);
-				});
-			}
-			else
-			{
-				for (int i = 0; i < _priestScanCount; i++)
-				{
-					EvaluatePriestTarget(ref _priestScanArray[i], _damagedFriendlyArray, _damagedFriendlyCount);
-				}
-			}
-
-			for (int i = 0; i < _priestScanCount; i++)
-			{
-				ref readonly var priest = ref _priestScanArray[i];
-				if (priest.SelectedTarget != Entity.Null && GameContext.World.IsAlive(priest.Entity))
-				{
-					_tickNewHealingTargets.Add((priest.Entity, new HealingTarget(priest.SelectedTarget)));
-				}
-			}
-		}
-
-		private static void EvaluatePriestTarget(ref PriestScanSnapshot priest, DamagedFriendlySnapshot[] friendlySnapshots, int friendlyCount)
-		{
-			float closestDist = 15.0f;
-			Entity closestDamaged = Entity.Null;
-
-			for (int i = 0; i < friendlyCount; i++)
-			{
-				ref readonly var friendly = ref friendlySnapshots[i];
-				if (friendly.Owner == priest.Owner)
-				{
-					float dist = (priest.Position - friendly.Position).Length();
-					if (dist < closestDist)
-					{
-						closestDist = dist;
-						closestDamaged = friendly.Entity;
-					}
-				}
-			}
-
-			priest.SelectedTarget = closestDamaged;
-		}
-
-		private void ProcessNewHealingTargets()
-		{
-			foreach (var (priest, target) in _tickNewHealingTargets)
-			{
-				if (GameContext.World.IsAlive(priest)) GameContext.World.SetOrAdd(priest, target);
-			}
 		}
 
 		private void ProcessHealRemovals()
@@ -1353,29 +1227,29 @@ namespace Realm.Client.Services
 
 		private void ProcessHealChases()
 		{
-			foreach (var (priest, targetPos) in _tickHealChaseTargets)
+			foreach (var (healer, targetPos) in _tickHealChaseTargets)
 			{
-				if (!GameContext.World.IsAlive(priest)) continue;
+				if (!GameContext.World.IsAlive(healer)) continue;
 
 				bool needsRetarget = true;
-				if (GameContext.World.Has<MoveTo>(priest))
+				if (GameContext.World.Has<MoveTo>(healer))
 				{
-					var existingTarget = GameContext.World.Get<MoveTo>(priest).Target;
+					var existingTarget = GameContext.World.Get<MoveTo>(healer).Target;
 					if (Distance(existingTarget, targetPos) < ChaseRetargetDistance) needsRetarget = false;
 				}
 
-				if (needsRetarget) GameContext.World.SetOrAdd(priest, new MoveTo(targetPos));
+				if (needsRetarget) GameContext.World.SetOrAdd(healer, new MoveTo(targetPos));
 			}
 		}
 
 		private void ProcessHealStopChasing()
 		{
-			foreach (var priest in _tickHealStopChasing)
+			foreach (var healer in _tickHealStopChasing)
 			{
-				if (!GameContext.World.IsAlive(priest)) continue;
+				if (!GameContext.World.IsAlive(healer)) continue;
 
-				if (GameContext.World.Has<MoveTo>(priest)) GameContext.World.Remove<MoveTo>(priest);
-				if (GameContext.World.Has<Velocity>(priest)) GameContext.World.Set(priest, new Velocity(Vector3.Zero));
+				if (GameContext.World.Has<MoveTo>(healer)) GameContext.World.Remove<MoveTo>(healer);
+				if (GameContext.World.Has<Velocity>(healer)) GameContext.World.Set(healer, new Velocity(Vector3.Zero));
 			}
 		}
 
