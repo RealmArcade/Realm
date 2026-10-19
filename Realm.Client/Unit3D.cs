@@ -285,9 +285,16 @@ public partial class Unit3D : Node3D
 	private bool _isCulled = false;
 	private float _culledGameTime = 0f;
 	private bool _hasEvaluatedFrustum = false;
+	private float _animStepAccumulator = 0f;
 	private Aabb _cachedLocalAabb = new Aabb(new Vector3(-1.5f, 0f, -1.5f), new Vector3(3f, 4f, 3f));
 
 	public bool IsCulled => _isCulled;
+	public bool HasEvaluatedFrustum
+	{
+		get => _hasEvaluatedFrustum;
+		set => _hasEvaluatedFrustum = value;
+	}
+	public Aabb CachedLocalAabb => _cachedLocalAabb;
 
 	public bool EvaluateFrustumCulling(bool hasFrustum, ReadOnlySpan<Plane> frustumPlanes, float currentGameTime, bool cameraFrustumChanged, bool transformChanged)
 	{
@@ -310,6 +317,22 @@ public partial class Unit3D : Node3D
 		return _isCulled;
 	}
 
+	public void StepManualAnimation(float fDelta)
+	{
+		if (_isCulled || !Visible || _animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer))
+			return;
+
+		if (!_animationPlayer.IsPlaying())
+			return;
+
+		_animStepAccumulator += fDelta;
+		if (_animStepAccumulator >= GameplayConstants.UnitAnimationStepIntervalSeconds)
+		{
+			_animationPlayer.Advance(_animStepAccumulator);
+			_animStepAccumulator = 0f;
+		}
+	}
+
 	public void SetCulledState(bool shouldCull, float currentGameTime)
 	{
 		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer))
@@ -322,6 +345,7 @@ public partial class Unit3D : Node3D
 		{
 			_isCulled = true;
 			_culledGameTime = currentGameTime;
+			_animStepAccumulator = 0f;
 			_animationPlayer.ProcessMode = ProcessModeEnum.Disabled;
 			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
 			{
@@ -331,6 +355,7 @@ public partial class Unit3D : Node3D
 		else if (!shouldCull && _isCulled)
 		{
 			_isCulled = false;
+			_animStepAccumulator = 0f;
 			float elapsed = currentGameTime - _culledGameTime;
 			_animationPlayer.ProcessMode = ProcessModeEnum.Inherit;
 			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
@@ -358,18 +383,18 @@ public partial class Unit3D : Node3D
 					if (isLooping)
 					{
 						float newPos = (currentPos + elapsed) % animLength;
-						_animationPlayer.Seek(newPos, update: false);
+						_animationPlayer.Seek(newPos, update: true);
 					}
 					else
 					{
 						float newPos = currentPos + elapsed;
 						if (newPos >= animLength)
 						{
-							_animationPlayer.Seek(animLength, update: false);
+							_animationPlayer.Seek(animLength, update: true);
 						}
 						else
 						{
-							_animationPlayer.Seek(newPos, update: false);
+							_animationPlayer.Seek(newPos, update: true);
 						}
 					}
 				}
@@ -815,6 +840,8 @@ public partial class Unit3D : Node3D
 		_modelNode = null;
 		_cachedSkeleton = null;
 		_isCulled = false;
+		_hasEvaluatedFrustum = false;
+		_animStepAccumulator = 0f;
 		_isLaborPulsing = false;
 		_rightHandAttachment = null;
 		_leftHandAttachment = null;
@@ -852,6 +879,10 @@ public partial class Unit3D : Node3D
 		{
 			if (_modelNode == null) return;
 			_animationPlayer = AnimationRetargetingService.FindOrCreateAnimationPlayer(_modelNode);
+			if (_animationPlayer != null && !IsPreview)
+			{
+				_animationPlayer.CallbackModeProcess = AnimationMixer.AnimationCallbackModeProcess.Manual;
+			}
 			AnimationRetargetingService.LoadAndBindUnitAnimations(_modelNode, UnitId, modelPath);
 			SeekToIdleFirstFrame();
 		}
@@ -1048,8 +1079,17 @@ public partial class Unit3D : Node3D
 			_culledGameTime = GameHost.Instance?.GameElapsedTime ?? 0f;
 		}
 
+		_animStepAccumulator = 0f;
+		if (!IsPreview)
+		{
+			_animationPlayer.CallbackModeProcess = AnimationMixer.AnimationCallbackModeProcess.Manual;
+		}
 		_animationPlayer.ProcessMode = _isCulled ? ProcessModeEnum.Disabled : ProcessModeEnum.Inherit;
 		_animationPlayer.Play(resolved);
+		if (!_isCulled)
+		{
+			_animationPlayer.Advance(0.0);
+		}
 	}
 
 	public void UpdateFrustumCulling(bool hasFrustum, ReadOnlySpan<Plane> frustumPlanes, float currentGameTime)

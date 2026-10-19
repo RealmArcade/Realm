@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using Realm.Ecs;
 using DotRecast.Core.Numerics;
+using DotRecast.Detour;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
@@ -40,15 +42,16 @@ namespace Realm.Client.Services
 
 		private float _fDelta;
 		private readonly float _collisionCellSize = GameplayConstants.PathfindingGridSize;
+		public float CollisionCellSize => _collisionCellSize;
 
-		// Collision separation factor is defined in GameplayConstants so combat melee reach
-		// can use the same value.
+		public bool TryGetUnitGridCell(int cx, int cz, out List<SpatialGridEntry>? list)
+		{
+			long key = ((long)cx << 32) | (uint)cz;
+			return _unitGrid.TryGetValue(key, out list);
+		}
+
 		private const float StuckEscalationTime = 1.5f;
 
-		// Maximum climb between a unit's current position and the navmesh polygon it snaps
-		// to. Kept low so units are not dragged across terrace/mountain lips (the navmesh
-		// excludes the slope walls themselves, but a wide nearest-poly search can otherwise
-		// pull a unit a whole tier step up a stepped hillside).
 		private const float NavMeshMaxSnapClimb = 0.5f;
 		private static readonly RcVec3f NavMeshSnapExtents = new RcVec3f(1.5f, 2.0f, 1.5f);
 		private const float VerticalFollowRate = 30f;
@@ -130,6 +133,30 @@ namespace Realm.Client.Services
 			}
 		}
 
+		private struct MovementWorkItem
+		{
+			public Entity Entity;
+			public Vector3 PosValue;
+			public Vector3 MoveTarget;
+			public MovementStats Stats;
+			public ushort PathingFlags;
+			public bool IsFlying;
+			public bool HasPf;
+			public PathFollow Pf;
+			public float ActualSpeed;
+
+			public bool HasArrived;
+			public Vector3 NextPosition;
+			public Vector3 NextVelocity;
+		}
+
+		private MovementWorkItem[] _movementWorkItems = new MovementWorkItem[256];
+		private int _movementWorkCount = 0;
+		private readonly Action<int> _processMovementWorkItemDelegate;
+		private readonly EntityCallback<Position, MoveTo, MovementStats> _collectMovementWorkItemDelegate;
+		private readonly ThreadLocal<NavMeshPathfinder> _threadLocalPathfinder = new(() => new NavMeshPathfinder());
+		private readonly ThreadLocal<(DtNavMesh? Mesh, DtNavMeshQuery? Query)> _threadLocalNavQuery = new();
+
 		private readonly Dictionary<long, List<SpatialGridEntry>> _unitGrid = new();
 		private readonly Dictionary<long, List<SpatialGridEntry>> _propGrid = new();
 		private readonly List<List<SpatialGridEntry>> _listPool = new();
@@ -159,6 +186,8 @@ namespace Realm.Client.Services
 		public MovementAndPathfindingService()
 		{
 			_movementQueryDelegate = MovementQueryAction;
+			_collectMovementWorkItemDelegate = CollectMovementWorkItemAction;
+			_processMovementWorkItemDelegate = ProcessMovementWorkItemParallel;
 			_unitSpatialQueryDelegate = UnitSpatialGridQueryAction;
 			_propSpatialQueryDelegate = PropSpatialGridQueryAction;
 		}
@@ -177,7 +206,34 @@ namespace Realm.Client.Services
 
 			RebuildSpatialGrid();
 
-			GameContext.World.Query(in _movementQuery, _movementQueryDelegate);
+			_movementWorkCount = 0;
+			GameContext.World.Query(in _movementQuery, _collectMovementWorkItemDelegate);
+
+			if (_movementWorkCount > 0)
+			{
+				ParallelRunner.Execute(_movementWorkCount, _processMovementWorkItemDelegate);
+
+				var world = GameContext.World;
+				for (int i = 0; i < _movementWorkCount; i++)
+				{
+					ref var item = ref _movementWorkItems[i];
+					if (!world.IsAlive(item.Entity))
+						continue;
+
+					SavePathFollow(item.HasPf, item.Entity, item.Pf);
+
+					if (item.HasArrived)
+					{
+						_tickArrivedUnits.Add(item.Entity);
+						world.SetOrAdd(item.Entity, new Velocity(Vector3.Zero));
+					}
+					else
+					{
+						world.Set(item.Entity, new Position(item.NextPosition));
+						world.SetOrAdd(item.Entity, new Velocity(item.NextVelocity));
+					}
+				}
+			}
 
 			foreach (var entity in _tickArrivedUnits)
 			{
@@ -328,6 +384,216 @@ namespace Realm.Client.Services
 			list.Add(new SpatialGridEntry(entity, pos, Vector3.Zero, radius, false));
 		}
 
+		private void CollectMovementWorkItemAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)
+		{
+			if (TryHandleStun(entity)) return;
+
+			ushort pathingFlags = (ushort)(GameContext.World.Has<PathingFlags>(entity) ? GameContext.World.Get<PathingFlags>(entity).Value : 8);
+			bool isFlying = ((TerrainPathingFlags)pathingFlags & TerrainPathingFlags.Flying) != 0;
+			bool hasPf = GameContext.World.Has<PathFollow>(entity);
+			PathFollow pf = GetOrCreatePathFollow(hasPf, entity, pos.Value, moveTo.Target);
+
+			if (_movementWorkCount >= _movementWorkItems.Length)
+			{
+				Array.Resize(ref _movementWorkItems, _movementWorkItems.Length * 2);
+			}
+
+			_movementWorkItems[_movementWorkCount++] = new MovementWorkItem
+			{
+				Entity = entity,
+				PosValue = pos.Value,
+				MoveTarget = moveTo.Target,
+				Stats = stats,
+				PathingFlags = pathingFlags,
+				IsFlying = isFlying,
+				HasPf = hasPf,
+				Pf = pf,
+				ActualSpeed = GetActualSpeed(entity, stats)
+			};
+		}
+
+		private DtNavMeshQuery? GetThreadLocalNavMeshQuery()
+		{
+			if (!_hasTerrainState || _currentTerrainState.NavMesh == null)
+				return null;
+
+			var targetMesh = _currentTerrainState.NavMesh;
+			var local = _threadLocalNavQuery.Value;
+			if (!ReferenceEquals(local.Mesh, targetMesh) || local.Query == null)
+			{
+				local = (targetMesh, new DtNavMeshQuery(targetMesh));
+				_threadLocalNavQuery.Value = local;
+			}
+			return local.Query;
+		}
+
+		private void ProcessMovementWorkItemParallel(int index)
+		{
+			ref var item = ref _movementWorkItems[index];
+			Entity entity = item.Entity;
+			Vector3 posValue = item.PosValue;
+			Vector3 moveTarget = item.MoveTarget;
+			MovementStats stats = item.Stats;
+			ushort pathingFlags = item.PathingFlags;
+			bool isFlying = item.IsFlying;
+			bool hasPf = item.HasPf;
+			ref PathFollow pf = ref item.Pf;
+			float actualSpeed = item.ActualSpeed;
+
+			bool forceReplan = UpdateStuckStateParallel(hasPf, posValue, actualSpeed, ref pf);
+			UpdatePathIfNeededParallel(pathingFlags, isFlying, posValue, moveTarget, forceReplan, ref pf);
+
+			Vector3 currentTarget = GetCurrentWaypointTarget(moveTarget, pf);
+			float diffX = posValue.X - currentTarget.X;
+			float diffZ = posValue.Z - currentTarget.Z;
+			float horizontalDist = MathF.Sqrt(diffX * diffX + diffZ * diffZ);
+			float arrivalThreshold = Math.Max(0.5f, stats.Speed * _fDelta * 1.2f);
+
+			if (horizontalDist < arrivalThreshold)
+			{
+				pf.CurrentWaypointIndex++;
+			}
+
+			if (pf.CurrentWaypointIndex >= pf.WaypointCount)
+			{
+				item.HasArrived = true;
+				return;
+			}
+
+			currentTarget = GetCurrentWaypointTarget(moveTarget, pf);
+			Vector3 toTarget = currentTarget - posValue;
+			if (isFlying) toTarget.Y = 0f;
+
+			Vector3 desiredVelocity = toTarget.LengthSquared() < 0.000001f
+				? Vector3.Zero
+				: Vector3.Normalize(toTarget) * actualSpeed;
+
+			Vector3 steering = CalculateSteering(entity, posValue, desiredVelocity, actualSpeed, pf.StuckTime >= StuckEscalationTime);
+			Vector3 currentVelocity = GameContext.World.Has<Velocity>(entity) ? GameContext.World.Get<Velocity>(entity).Value : Vector3.Zero;
+
+			Vector3 velocity = stats.Acceleration > 0f ? MoveTowards(currentVelocity, steering, stats.Acceleration * _fDelta) : steering;
+			Vector3 nextPos = posValue + velocity * _fDelta;
+
+			if (!isFlying)
+			{
+				ApplyCollisionAvoidance(entity, posValue, ref nextPos);
+			}
+
+			ApplyVerticalFollowParallel(posValue, isFlying, ref nextPos, ref velocity);
+
+			item.NextPosition = nextPos;
+			item.NextVelocity = velocity;
+		}
+
+		private bool UpdateStuckStateParallel(bool hasPf, Vector3 posValue, float actualSpeed, ref PathFollow pf)
+		{
+			if (!hasPf)
+			{
+				pf.LastPosition = posValue;
+				pf.StuckTime = 0f;
+				pf.TimeSinceLastReplan = 0f;
+				pf.IsJitterReplanned = false;
+				return false;
+			}
+
+			float distMoved = Vector3.Distance(posValue, pf.LastPosition);
+			pf.LastPosition = posValue;
+
+			float expectedDist = actualSpeed * _fDelta;
+
+			if (distMoved >= expectedDist * 0.1f)
+			{
+				pf.StuckTime = 0f;
+				pf.TimeSinceLastReplan = 0f;
+				pf.IsJitterReplanned = false;
+				return false;
+			}
+
+			pf.StuckTime += _fDelta;
+			if (pf.StuckTime < 0.1f) return false;
+
+			pf.TimeSinceLastReplan += _fDelta;
+			if (pf.TimeSinceLastReplan < 1.5f) return false;
+
+			pf.TimeSinceLastReplan = 0f;
+			pf.IsJitterReplanned = false;
+			return true;
+		}
+
+		private void UpdatePathIfNeededParallel(ushort pathingFlags, bool isFlying, Vector3 start, Vector3 target, bool forceReplan, ref PathFollow pf)
+		{
+			if (pf.Target == target && pf.WaypointCount != 0 && !forceReplan) return;
+			if (!_hasTerrainState) return;
+
+			if (isFlying)
+			{
+				pf.WaypointCount = 1;
+				pf.CurrentWaypointIndex = 0;
+				pf.Waypoints[0] = target;
+			}
+			else
+			{
+				var navQuery = GetThreadLocalNavMeshQuery() ?? _currentTerrainState.NavMeshQuery;
+				var pathfinder = _threadLocalPathfinder.Value!;
+				pathfinder.ComputePath(navQuery, start, target, pathingFlags, ref pf);
+			}
+
+			pf.Target = target;
+		}
+
+		private void ApplyVerticalFollowParallel(Vector3 currentPos, bool isFlying, ref Vector3 nextPos, ref Vector3 velocity)
+		{
+			bool snappedToNavMesh = false;
+			float snappedSurfaceY = nextPos.Y;
+
+			if (_hasTerrainState && !isFlying)
+			{
+				var navQuery = GetThreadLocalNavMeshQuery() ?? _currentTerrainState.NavMeshQuery;
+				if (navQuery != null)
+				{
+					var pathfinder = _threadLocalPathfinder.Value!;
+					var snapPos = new RcVec3f(nextPos.X, nextPos.Y, nextPos.Z);
+					navQuery.FindNearestPoly(snapPos, NavMeshSnapExtents, pathfinder.Filter, out long snapRef, out var snappedPt, out _);
+					if (snapRef != 0)
+					{
+						float climb = MathF.Abs(snappedPt.Y - nextPos.Y);
+						if (climb <= NavMeshMaxSnapClimb)
+						{
+							nextPos.X = snappedPt.X;
+							nextPos.Z = snappedPt.Z;
+							snappedToNavMesh = true;
+							snappedSurfaceY = snappedPt.Y;
+						}
+					}
+				}
+			}
+
+			float desiredY;
+			if (snappedToNavMesh)
+			{
+				desiredY = snappedSurfaceY;
+				velocity.Y = 0f;
+			}
+			else if (_hasTerrainState)
+			{
+				ECSContext.TerrainNavMeshService.GetHeightAndNormal(in _currentTerrainState, nextPos.X, nextPos.Z, out float groundHeight, out _);
+				desiredY = groundHeight;
+				velocity.Y = 0f;
+			}
+			else if (_editorHeightProvider != null)
+			{
+				desiredY = _editorHeightProvider(nextPos);
+				velocity.Y = 0f;
+			}
+			else
+			{
+				desiredY = currentPos.Y;
+			}
+
+			float followFactor = Math.Clamp(VerticalFollowRate * _fDelta, 0f, 1f);
+			nextPos.Y = currentPos.Y + (desiredY - currentPos.Y) * followFactor;
+		}
+
 		private void MovementQueryAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)
 		{
 			if (TryHandleStun(entity)) return;
@@ -383,38 +649,8 @@ namespace Realm.Client.Services
 
 		private bool UpdateStuckState(bool hasPf, Entity entity, Vector3 posValue, MovementStats stats, ref PathFollow pf)
 		{
-			if (!hasPf)
-			{
-				pf.LastPosition = posValue;
-				pf.StuckTime = 0f;
-				pf.TimeSinceLastReplan = 0f;
-				pf.IsJitterReplanned = false;
-				return false;
-			}
-
-			float distMoved = Vector3.Distance(posValue, pf.LastPosition);
-			pf.LastPosition = posValue;
-
 			float actualSpeed = GetActualSpeed(entity, stats);
-			float expectedDist = actualSpeed * _fDelta;
-
-			if (distMoved >= expectedDist * 0.1f)
-			{
-				pf.StuckTime = 0f;
-				pf.TimeSinceLastReplan = 0f;
-				pf.IsJitterReplanned = false;
-				return false;
-			}
-
-			pf.StuckTime += _fDelta;
-			if (pf.StuckTime < 0.1f) return false;
-
-			pf.TimeSinceLastReplan += _fDelta;
-			if (pf.TimeSinceLastReplan < 1.5f) return false;
-
-			pf.TimeSinceLastReplan = 0f;
-			pf.IsJitterReplanned = false;
-			return true;
+			return UpdateStuckStateParallel(hasPf, posValue, actualSpeed, ref pf);
 		}
 
 		private void UpdatePathIfNeeded(ushort pathingFlags, bool isFlying, Vector3 start, Vector3 target, bool forceReplan, ref PathFollow pf)
@@ -658,50 +894,7 @@ namespace Realm.Client.Services
 
 		private void ApplyVerticalFollow(Vector3 currentPos, bool isFlying, ref Vector3 nextPos, ref Vector3 velocity)
 		{
-			bool snappedToNavMesh = false;
-			float snappedSurfaceY = nextPos.Y;
-
-			if (_hasTerrainState && _currentTerrainState.NavMeshQuery != null && !isFlying)
-			{
-				var snapPos = new RcVec3f(nextPos.X, nextPos.Y, nextPos.Z);
-				_currentTerrainState.NavMeshQuery.FindNearestPoly(snapPos, NavMeshSnapExtents, GameContext.NavMeshPathfinder.Filter, out long snapRef, out var snappedPt, out _);
-				if (snapRef != 0)
-				{
-					float climb = MathF.Abs(snappedPt.Y - nextPos.Y);
-					if (climb <= NavMeshMaxSnapClimb)
-					{
-						nextPos.X = snappedPt.X;
-						nextPos.Z = snappedPt.Z;
-						snappedToNavMesh = true;
-						snappedSurfaceY = snappedPt.Y;
-					}
-				}
-			}
-
-			float desiredY;
-			if (snappedToNavMesh)
-			{
-				desiredY = snappedSurfaceY;
-				velocity.Y = 0f;
-			}
-			else if (_hasTerrainState)
-			{
-				ECSContext.TerrainNavMeshService.GetHeightAndNormal(in _currentTerrainState, nextPos.X, nextPos.Z, out float groundHeight, out _);
-				desiredY = groundHeight;
-				velocity.Y = 0f;
-			}
-			else if (_editorHeightProvider != null)
-			{
-				desiredY = _editorHeightProvider(nextPos);
-				velocity.Y = 0f;
-			}
-			else
-			{
-				desiredY = currentPos.Y;
-			}
-
-			float followFactor = Math.Clamp(VerticalFollowRate * _fDelta, 0f, 1f);
-			nextPos.Y = currentPos.Y + (desiredY - currentPos.Y) * followFactor;
+			ApplyVerticalFollowParallel(currentPos, isFlying, ref nextPos, ref velocity);
 		}
 
 		private void SavePathFollow(bool hasPf, Entity entity, PathFollow pf)

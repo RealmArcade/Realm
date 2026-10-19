@@ -198,10 +198,8 @@ namespace Realm.Client.Services
 		private int _healCasterPlayer;
 		private readonly MovementAndPathfindingService.SpatialGridEntryCallback _healCandidateCallback;
 
-		private AttackerSnapshot _currentScanAttacker;
-		private readonly LocalScanCandidate[] _scanCandidatesArray = new LocalScanCandidate[MaxAcquisitionCandidates];
-		private int _scanCandidatesCount = 0;
-		private readonly MovementAndPathfindingService.SpatialGridEntryCallback _scanCandidateCallback;
+		private readonly Action<int> _evaluateAttackerSpatialDelegate;
+		private readonly Action<int> _evaluateAttackerFallbackDelegate;
 
 		public Action<Vector3, Vector3>? OnArrowProjectileRequested;
 		public Action<Vector3, Vector3, string?, Entity>? OnWeaponProjectileRequested;
@@ -224,7 +222,8 @@ namespace Realm.Client.Services
 			_splashCandidateCallback = OnSplashCandidateFound;
 			_aoeDamageCandidateCallback = OnAoeDamageCandidateFound;
 			_healCandidateCallback = OnAoeHealCandidateFound;
-			_scanCandidateCallback = OnTargetAcquisitionCandidateFound;
+			_evaluateAttackerSpatialDelegate = EvaluateAttackerSpatialAction;
+			_evaluateAttackerFallbackDelegate = EvaluateAttackerFallbackAction;
 		}
 
 		public void StepCombat(float delta, MovementAndPathfindingService? movementService = null)
@@ -455,30 +454,13 @@ namespace Realm.Client.Services
 
 			if (_currentMovementService != null)
 			{
-				for (int i = 0; i < _attackerCount; i++)
-				{
-					EvaluateAttackerTargetWithSpatialGrid(ref _attackerArray[i]);
-				}
+				ParallelRunner.Execute(_attackerCount, _evaluateAttackerSpatialDelegate);
 			}
 			else
 			{
-				if (_attackerCount >= 4)
-				{
-					Parallel.For(0, _attackerCount, i =>
-					{
-						EvaluateAttackerTarget(ref _attackerArray[i], _targetCandidateArray, _targetCandidateCount);
-					});
-				}
-				else
-				{
-					for (int i = 0; i < _attackerCount; i++)
-					{
-						EvaluateAttackerTarget(ref _attackerArray[i], _targetCandidateArray, _targetCandidateCount);
-					}
-				}
+				ParallelRunner.Execute(_attackerCount, _evaluateAttackerFallbackDelegate);
 			}
 
-			// Apply results on main thread
 			for (int i = 0; i < _attackerCount; i++)
 			{
 				ref readonly var attacker = ref _attackerArray[i];
@@ -489,17 +471,69 @@ namespace Realm.Client.Services
 			}
 		}
 
+		private void EvaluateAttackerSpatialAction(int index)
+		{
+			EvaluateAttackerTargetWithSpatialGrid(ref _attackerArray[index]);
+		}
+
+		private void EvaluateAttackerFallbackAction(int index)
+		{
+			EvaluateAttackerTarget(ref _attackerArray[index], _targetCandidateArray, _targetCandidateCount);
+		}
+
 		private void EvaluateAttackerTargetWithSpatialGrid(ref AttackerSnapshot attacker)
 		{
-			_currentScanAttacker = attacker;
-			_scanCandidatesCount = 0;
+			var movementService = _currentMovementService;
+			if (movementService == null)
+				return;
+
+			Span<LocalScanCandidate> localCandidates = stackalloc LocalScanCandidate[MaxAcquisitionCandidates];
+			int candidateCount = 0;
 			float scanRadius = MathF.Sqrt(attacker.ScanMaxDistSq);
+			float cellSize = movementService.CollisionCellSize;
+			var center = attacker.Position;
+			var world = GameContext.World;
 
-			_currentMovementService!.QueryUnitsInRadius(attacker.Position, scanRadius, _scanCandidateCallback);
+			int minCx = (int)Math.Floor((center.X - scanRadius) / cellSize);
+			int maxCx = (int)Math.Floor((center.X + scanRadius) / cellSize);
+			int minCz = (int)Math.Floor((center.Z - scanRadius) / cellSize);
+			int maxCz = (int)Math.Floor((center.Z + scanRadius) / cellSize);
 
-			for (int i = 0; i < _scanCandidatesCount; i++)
+			for (int cx = minCx; cx <= maxCx; cx++)
 			{
-				ref readonly var cand = ref _scanCandidatesArray[i];
+				for (int cz = minCz; cz <= maxCz; cz++)
+				{
+					if (!movementService.TryGetUnitGridCell(cx, cz, out var list) || list == null)
+						continue;
+
+					for (int idx = 0; idx < list.Count; idx++)
+					{
+						var entry = list[idx];
+						Entity potentialEnemy = entry.Entity;
+						if (potentialEnemy == attacker.Entity) continue;
+						if (!world.IsAlive(potentialEnemy) || world.Has<Dead>(potentialEnemy) || world.Has<Invulnerable>(potentialEnemy)) continue;
+
+						int candidatePlayer = GetPlayerIndexForEntity(potentialEnemy);
+						if (!NetworkService.ArePlayerIndicesEnemies(attacker.PlayerIndex, candidatePlayer)) continue;
+
+						bool flying = IsFlying(potentialEnemy);
+						if (flying && (attacker.IsGroundMelee || !attacker.CanTargetAir)) continue;
+
+						float distSq = (center - entry.Position).LengthSquared();
+						if (distSq < attacker.ScanMaxDistSq)
+						{
+							float colRadius = GetTargetCollisionRadius(potentialEnemy);
+							float contactRadius = GetUnitContactRadius(potentialEnemy);
+							TargetCandidateSnapshot candidate = new TargetCandidateSnapshot(potentialEnemy, entry.Position, candidatePlayer, flying, colRadius, contactRadius);
+							InsertLocalCandidate(localCandidates, ref candidateCount, candidate, distSq);
+						}
+					}
+				}
+			}
+
+			for (int i = 0; i < candidateCount; i++)
+			{
+				ref readonly var cand = ref localCandidates[i];
 				if (cand.Enemy == Entity.Null) continue;
 				if (IsTargetStillAbandoned(attacker.Entity, cand.Enemy)) continue;
 
@@ -523,28 +557,6 @@ namespace Realm.Client.Services
 
 				attacker.SelectedTarget = cand.Enemy;
 				break;
-			}
-		}
-
-		private void OnTargetAcquisitionCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
-		{
-			Entity potentialEnemy = entry.Entity;
-			if (potentialEnemy == _currentScanAttacker.Entity) return;
-			if (!GameContext.World.IsAlive(potentialEnemy) || GameContext.World.Has<Dead>(potentialEnemy) || GameContext.World.Has<Invulnerable>(potentialEnemy)) return;
-
-			int candidatePlayer = GetPlayerIndexForEntity(potentialEnemy);
-			if (!NetworkService.ArePlayerIndicesEnemies(_currentScanAttacker.PlayerIndex, candidatePlayer)) return;
-
-			bool flying = IsFlying(potentialEnemy);
-			if (flying && (_currentScanAttacker.IsGroundMelee || !_currentScanAttacker.CanTargetAir)) return;
-
-			float distSq = (_currentScanAttacker.Position - entry.Position).LengthSquared();
-			if (distSq < _currentScanAttacker.ScanMaxDistSq)
-			{
-				float colRadius = GetTargetCollisionRadius(potentialEnemy);
-				float contactRadius = GetUnitContactRadius(potentialEnemy);
-				TargetCandidateSnapshot candidate = new TargetCandidateSnapshot(potentialEnemy, entry.Position, candidatePlayer, flying, colRadius, contactRadius);
-				InsertLocalCandidate(_scanCandidatesArray, ref _scanCandidatesCount, candidate, distSq);
 			}
 		}
 
