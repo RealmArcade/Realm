@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
@@ -56,13 +55,13 @@ public partial class CommandPanel
 		return s_whiteTexture;
 	}
 
-	[GeneratedRegex(@"^\[.*?\] ")]
-	private static partial Regex HotkeyPrefixRegex();
-
-
 	private int _pageIndex = 0;
 	private List<CommandCardItem> _activeItems = new();
 	private Entity _lastFocusedEntity = Entity.Null;
+	private string _lastFocusedUnitId = null;
+	private bool _lastIsUnderConstruction = false;
+	private bool _lastIsMobile = false;
+	private int _lastAbilityCount = -1;
 	private int _lastPageIndex = -1;
 	private bool _lastIsBuildSubMenuOpen = false;
 
@@ -286,6 +285,10 @@ public partial class CommandPanel
 		}
 
 		_lastFocusedEntity = Entity.Null;
+		_lastFocusedUnitId = null;
+		_lastIsUnderConstruction = false;
+		_lastIsMobile = false;
+		_lastAbilityCount = -1;
 		_pageIndex = 0;
 		_activeItems.Clear();
 		_lastIsBuildSubMenuOpen = false;
@@ -320,38 +323,42 @@ public partial class CommandPanel
 
 	private void UpdateCommandPanelState(SelectedUnitInfo focusedUnit, bool subMenuOpen)
 	{
+		bool isMobile = focusedUnit.Speed > 0.001f;
+		int abilityCount = focusedUnit.Abilities?.Count ?? 0;
+
 		bool focusedUnitChanged = focusedUnit.Entity != _lastFocusedEntity;
+		bool unitStateChanged = focusedUnitChanged
+			|| focusedUnit.UnitId != _lastFocusedUnitId
+			|| focusedUnit.IsUnderConstruction != _lastIsUnderConstruction
+			|| isMobile != _lastIsMobile
+			|| abilityCount != _lastAbilityCount;
+
 		bool subMenuChanged = subMenuOpen != _lastIsBuildSubMenuOpen;
 
 		if (focusedUnitChanged)
 		{
 			_pageIndex = 0;
-			_lastFocusedEntity = focusedUnit.Entity;
 		}
 
-		_lastIsBuildSubMenuOpen = subMenuOpen;
-		var prevItems = _activeItems;
-		_activeItems = GetCommandCardItems(focusedUnit, subMenuOpen);
+		bool needRebuildItems = unitStateChanged || subMenuChanged;
 
-		bool itemsChanged = prevItems.Count != _activeItems.Count;
-		if (!itemsChanged)
+		if (needRebuildItems)
 		{
-			for (int i = 0; i < _activeItems.Count; i++)
-			{
-				if (prevItems[i].Id != _activeItems[i].Id)
-				{
-					itemsChanged = true;
-					break;
-				}
-			}
-		}
+			_lastFocusedEntity = focusedUnit.Entity;
+			_lastFocusedUnitId = focusedUnit.UnitId;
+			_lastIsUnderConstruction = focusedUnit.IsUnderConstruction;
+			_lastIsMobile = isMobile;
+			_lastAbilityCount = abilityCount;
+			_lastIsBuildSubMenuOpen = subMenuOpen;
 
-		UpdateItemHotkeys();
+			_activeItems = GetCommandCardItems(focusedUnit, subMenuOpen);
+			UpdateItemHotkeys();
+		}
 
 		bool pageChanged = _pageIndex != _lastPageIndex;
 		_lastPageIndex = _pageIndex;
 
-		if (focusedUnitChanged || subMenuChanged || pageChanged || itemsChanged || _commandGrid.GetChildCount() == 0)
+		if (needRebuildItems || pageChanged || _commandGrid.GetChildCount() == 0)
 		{
 			RebuildCommandGrid();
 		}
@@ -383,9 +390,19 @@ public partial class CommandPanel
 				{
 					_activeItems[i].Hotkey = gridHotkeys[localIdx];
 				}
-				_activeItems[i].Tooltip = HotkeyPrefixRegex().Replace(_activeItems[i].Tooltip, $"[{_activeItems[i].Hotkey}] ");
+				FormatItemTooltipHotkey(_activeItems[i]);
 			}
 		}
+	}
+
+	private void FormatItemTooltipHotkey(CommandCardItem item)
+	{
+		if (item == null || item.Hotkey == Key.None || string.IsNullOrEmpty(item.Tooltip)) return;
+
+		string tooltip = item.Tooltip;
+		if (tooltip.StartsWith("[")) return;
+
+		item.Tooltip = $"[{item.Hotkey}] {tooltip}";
 	}
 
 	private int GetLocalGridIndex(int globalIndex, int totalItems, int pageOffset)
@@ -464,7 +481,7 @@ public partial class CommandPanel
 				{
 					item.Hotkey = gridHotkeys[i];
 				}
-				item.Tooltip = HotkeyPrefixRegex().Replace(item.Tooltip, $"[{item.Hotkey}] ");
+				FormatItemTooltipHotkey(item);
 				_commandGrid.AddChild(CreateButtonForItem(item));
 			}
 			else

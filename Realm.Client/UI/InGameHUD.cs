@@ -1506,7 +1506,6 @@ public partial class InGameHUD : Control
 			_resourcePanelController?.Update(_viewModel);
 			UpdateFogTimer(accumulated);
 			UpdateIdleUnitButton(accumulated);
-			QueueMinimapRedraw();
 		}
 
 		// 4. Ambient Cadence (~2Hz) - Leaderboard and match summary statistics
@@ -1527,15 +1526,6 @@ public partial class InGameHUD : Control
 
 		var selected = GameHost.Instance.SelectedUnits;
 		_viewModel.UpdateSelectedUnits(selected);
-
-		// Handle specific visual updates that are not data-bound yet.
-		foreach (var u in selected)
-		{
-			if (u.IsBuilding && GameContext.PerspectiveFilter.CanObserve(u.Player))
-			{
-				u.UpdateRallyVisuals();
-			}
-		}
 	}
 
 	private void UpdateFogTimer(double delta)
