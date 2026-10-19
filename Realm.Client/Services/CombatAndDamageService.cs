@@ -171,6 +171,38 @@ namespace Realm.Client.Services
 		private readonly List<Entity> _aoeKillList = new();
 		private readonly List<(Entity Target, Entity Attacker)> _aoeLastAttackerList = new();
 
+		private int _combatTickCount = 0;
+		private MovementAndPathfindingService? _currentMovementService;
+
+		private Entity _splashAttacker;
+		private Entity _splashPrimaryTarget;
+		private Vector3 _splashImpactPos;
+		private float _splashBaseDamage;
+		private Attack _splashAtk;
+		private Owner _splashAttackerOwner;
+		private int _splashAttackerPlayer;
+		private readonly MovementAndPathfindingService.SpatialGridEntryCallback _splashCandidateCallback;
+
+		private Vector3 _aoePosition;
+		private float _aoeRadius;
+		private float _aoeDamage;
+		private Entity _aoeCasterEntity;
+		private bool _aoeEnemyOnly;
+		private int _aoeCasterPlayer;
+		private readonly MovementAndPathfindingService.SpatialGridEntryCallback _aoeDamageCandidateCallback;
+
+		private Vector3 _healPosition;
+		private float _healRadius;
+		private float _healAmount;
+		private Entity _healCasterEntity;
+		private int _healCasterPlayer;
+		private readonly MovementAndPathfindingService.SpatialGridEntryCallback _healCandidateCallback;
+
+		private AttackerSnapshot _currentScanAttacker;
+		private readonly LocalScanCandidate[] _scanCandidatesArray = new LocalScanCandidate[MaxAcquisitionCandidates];
+		private int _scanCandidatesCount = 0;
+		private readonly MovementAndPathfindingService.SpatialGridEntryCallback _scanCandidateCallback;
+
 		public Action<Vector3, Vector3>? OnArrowProjectileRequested;
 		public Action<Vector3, Vector3, string?, Entity>? OnWeaponProjectileRequested;
 		public Func<string, string[]?>? UnitWeaponsProvider;
@@ -188,15 +220,26 @@ namespace Realm.Client.Services
 			_unlimitedPowerProvider = unlimitedPowerProvider;
 			_combatQueryDelegate = CombatQueryAction;
 			_healingExecutionQueryDelegate = HealingExecutionQueryAction;
+
+			_splashCandidateCallback = OnSplashCandidateFound;
+			_aoeDamageCandidateCallback = OnAoeDamageCandidateFound;
+			_healCandidateCallback = OnAoeHealCandidateFound;
+			_scanCandidateCallback = OnTargetAcquisitionCandidateFound;
 		}
 
-		public void StepCombat(float delta)
+		public void StepCombat(float delta, MovementAndPathfindingService? movementService = null)
 		{
+			_currentMovementService = movementService;
+			_combatTickCount++;
 			_combatDelta = delta;
 			_combatTotalTime += delta;
 			TickCombatAlertTimer(delta);
 			TickAbandonedTargetCooldowns(delta);
-			PruneRouteReachabilityCache();
+
+			if (_combatTickCount % 30 == 0)
+			{
+				PruneRouteReachabilityCache();
+			}
 
 			if (!TryGetNavMeshQuery(out _currentNavMeshQuery, out _currentNavMesh))
 			{
@@ -344,22 +387,25 @@ namespace Realm.Client.Services
 
 		private void ProcessTargetAcquisition()
 		{
-			_targetCandidateCount = 0;
-			GameContext.World.Query(in _enemyQuery, (Entity potentialEnemy, ref Position enemyPos, ref Owner enemyOwner) =>
+			if (_currentMovementService == null)
 			{
-				if (GameContext.World.Has<Invulnerable>(potentialEnemy)) return;
-				int pIdx = GetPlayerIndexForEntity(potentialEnemy);
-				bool flying = IsFlying(potentialEnemy);
-				float colRadius = GetTargetCollisionRadius(potentialEnemy);
-				float contactRadius = GetUnitContactRadius(potentialEnemy);
+				_targetCandidateCount = 0;
+				GameContext.World.Query(in _enemyQuery, (Entity potentialEnemy, ref Position enemyPos, ref Owner enemyOwner) =>
+				{
+					if (GameContext.World.Has<Invulnerable>(potentialEnemy)) return;
+					int pIdx = GetPlayerIndexForEntity(potentialEnemy);
+					bool flying = IsFlying(potentialEnemy);
+					float colRadius = GetTargetCollisionRadius(potentialEnemy);
+					float contactRadius = GetUnitContactRadius(potentialEnemy);
 
-				if (_targetCandidateCount >= _targetCandidateArray.Length)
-					Array.Resize(ref _targetCandidateArray, _targetCandidateArray.Length * 2);
+					if (_targetCandidateCount >= _targetCandidateArray.Length)
+						Array.Resize(ref _targetCandidateArray, _targetCandidateArray.Length * 2);
 
-				_targetCandidateArray[_targetCandidateCount++] = new TargetCandidateSnapshot(potentialEnemy, enemyPos.Value, pIdx, flying, colRadius, contactRadius);
-			});
+					_targetCandidateArray[_targetCandidateCount++] = new TargetCandidateSnapshot(potentialEnemy, enemyPos.Value, pIdx, flying, colRadius, contactRadius);
+				});
 
-			if (_targetCandidateCount == 0) return;
+				if (_targetCandidateCount == 0) return;
+			}
 
 			_attackerCount = 0;
 			int timeOfDay = GetTimeOfDayIndex();
@@ -373,6 +419,9 @@ namespace Realm.Client.Services
 				bool isIdle = !GameContext.World.Has<MoveTo>(entity) && !isAttackMove;
 
 				if (!isIdle && !isAttackMove && !isPatrol && !isAutoCombat) return;
+
+				// Stagger target acquisition across ticks in simulation so idle entities do not all scan simultaneously on every 30Hz tick
+				if (_currentMovementService != null && (entity.Id + _combatTickCount) % 4 != 0) return;
 
 				float scanRadius = GameContext.World.Has<ScanRadius>(entity) ? GameContext.World.Get<ScanRadius>(entity).Value : 15.0f;
 				if (timeOfDay == 2) scanRadius *= 0.7f;
@@ -404,18 +453,28 @@ namespace Realm.Client.Services
 
 			if (_attackerCount == 0) return;
 
-			if (_attackerCount >= 4)
-			{
-				Parallel.For(0, _attackerCount, i =>
-				{
-					EvaluateAttackerTarget(ref _attackerArray[i], _targetCandidateArray, _targetCandidateCount);
-				});
-			}
-			else
+			if (_currentMovementService != null)
 			{
 				for (int i = 0; i < _attackerCount; i++)
 				{
-					EvaluateAttackerTarget(ref _attackerArray[i], _targetCandidateArray, _targetCandidateCount);
+					EvaluateAttackerTargetWithSpatialGrid(ref _attackerArray[i]);
+				}
+			}
+			else
+			{
+				if (_attackerCount >= 4)
+				{
+					Parallel.For(0, _attackerCount, i =>
+					{
+						EvaluateAttackerTarget(ref _attackerArray[i], _targetCandidateArray, _targetCandidateCount);
+					});
+				}
+				else
+				{
+					for (int i = 0; i < _attackerCount; i++)
+					{
+						EvaluateAttackerTarget(ref _attackerArray[i], _targetCandidateArray, _targetCandidateCount);
+					}
 				}
 			}
 
@@ -427,6 +486,65 @@ namespace Realm.Client.Services
 				{
 					GameContext.World.SetOrAdd(attacker.Entity, new AttackTarget(attacker.SelectedTarget));
 				}
+			}
+		}
+
+		private void EvaluateAttackerTargetWithSpatialGrid(ref AttackerSnapshot attacker)
+		{
+			_currentScanAttacker = attacker;
+			_scanCandidatesCount = 0;
+			float scanRadius = MathF.Sqrt(attacker.ScanMaxDistSq);
+
+			_currentMovementService!.QueryUnitsInRadius(attacker.Position, scanRadius, _scanCandidateCallback);
+
+			for (int i = 0; i < _scanCandidatesCount; i++)
+			{
+				ref readonly var cand = ref _scanCandidatesArray[i];
+				if (cand.Enemy == Entity.Null) continue;
+				if (IsTargetStillAbandoned(attacker.Entity, cand.Enemy)) continue;
+
+				float reach = attacker.AttackRange + cand.TargetCollisionRadius + attacker.TargetCollisionRadius;
+				bool isMelee = !attacker.IsFlying && !cand.IsFlying && attacker.AttackRange <= MeleeRangeThreshold;
+				float meleeVerticalReach = Math.Max(attacker.AttackRange, DefaultMeleeVerticalReach);
+				if (isMelee)
+				{
+					float contactReach = (attacker.UnitContactRadius + cand.UnitContactRadius)
+										 * GameplayConstants.CollisionSeparationFactor * MeleeContactReachSafetyMargin;
+					if (reach < contactReach)
+					{
+						reach = contactReach;
+					}
+				}
+
+				if (!IsReachableWithinRangeThreadSafe(attacker.Entity, cand.Enemy, attacker.Position, cand.Position, reach, isMelee, meleeVerticalReach, attacker.IsFlying, attacker.IncludeFlags))
+				{
+					continue;
+				}
+
+				attacker.SelectedTarget = cand.Enemy;
+				break;
+			}
+		}
+
+		private void OnTargetAcquisitionCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
+		{
+			Entity potentialEnemy = entry.Entity;
+			if (potentialEnemy == _currentScanAttacker.Entity) return;
+			if (!GameContext.World.IsAlive(potentialEnemy) || GameContext.World.Has<Dead>(potentialEnemy) || GameContext.World.Has<Invulnerable>(potentialEnemy)) return;
+
+			int candidatePlayer = GetPlayerIndexForEntity(potentialEnemy);
+			if (!NetworkService.ArePlayerIndicesEnemies(_currentScanAttacker.PlayerIndex, candidatePlayer)) return;
+
+			bool flying = IsFlying(potentialEnemy);
+			if (flying && (_currentScanAttacker.IsGroundMelee || !_currentScanAttacker.CanTargetAir)) return;
+
+			float distSq = (_currentScanAttacker.Position - entry.Position).LengthSquared();
+			if (distSq < _currentScanAttacker.ScanMaxDistSq)
+			{
+				float colRadius = GetTargetCollisionRadius(potentialEnemy);
+				float contactRadius = GetUnitContactRadius(potentialEnemy);
+				TargetCandidateSnapshot candidate = new TargetCandidateSnapshot(potentialEnemy, entry.Position, candidatePlayer, flying, colRadius, contactRadius);
+				InsertLocalCandidate(_scanCandidatesArray, ref _scanCandidatesCount, candidate, distSq);
 			}
 		}
 
@@ -874,6 +992,21 @@ namespace Realm.Client.Services
 		private void EvaluateSplashDamage(Entity attacker, Entity primaryTarget, Vector3 impactPos, float baseDamage, Attack atk, Owner attackerOwner)
 		{
 			int attackerPlayer = GameContext.World.Has<UnitOwnerPlayer>(attacker) ? GameContext.World.Get<UnitOwnerPlayer>(attacker).PlayerIndex : 0;
+
+			if (_currentMovementService != null)
+			{
+				_splashAttacker = attacker;
+				_splashPrimaryTarget = primaryTarget;
+				_splashImpactPos = impactPos;
+				_splashBaseDamage = baseDamage;
+				_splashAtk = atk;
+				_splashAttackerOwner = attackerOwner;
+				_splashAttackerPlayer = attackerPlayer;
+
+				_currentMovementService.QueryUnitsInRadius(impactPos, atk.SplashOuterRadius, _splashCandidateCallback);
+				return;
+			}
+
 			var splashQuery = QueryCache.AllPositionAndHealthAndOwnerNoneDeadQuery;
 
 			GameContext.World.Query(in splashQuery, (Entity splashEnt, ref Position sPos, ref Health sHp, ref Owner sOwner) =>
@@ -899,6 +1032,35 @@ namespace Realm.Client.Services
 					ApplySplashDamage(attacker, splashEnt, splashRatio, baseDamage, ref atk, ref sHp);
 				}
 			});
+		}
+
+		private void OnSplashCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
+		{
+			Entity splashEnt = entry.Entity;
+			if (splashEnt == _splashPrimaryTarget || splashEnt == _splashAttacker) return;
+			if (!GameContext.World.IsAlive(splashEnt) || GameContext.World.Has<Dead>(splashEnt) || !GameContext.World.Has<Health>(splashEnt)) return;
+			if (GameContext.World.Has<Invulnerable>(splashEnt)) return;
+
+			Owner sOwner = GameContext.World.Has<Owner>(splashEnt) ? GameContext.World.Get<Owner>(splashEnt) : default;
+
+			if (!_splashAtk.FriendlyFire)
+			{
+				int splashPlayer = GameContext.World.Has<UnitOwnerPlayer>(splashEnt) ? GameContext.World.Get<UnitOwnerPlayer>(splashEnt).PlayerIndex : 0;
+				if (!NetworkService.ArePlayerIndicesEnemies(_splashAttackerPlayer, splashPlayer) || sOwner.PlayerEntity == _splashAttackerOwner.PlayerEntity) return;
+			}
+
+			float distToImpact = Distance(_splashImpactPos, entry.Position);
+			float splashRatio = CombatResolver.CalculateSplashRatio(
+				distToImpact, _splashAtk.SplashType,
+				_splashAtk.SplashInnerRadius, _splashAtk.SplashMediumRadius, _splashAtk.SplashOuterRadius,
+				_splashAtk.SplashInnerRatio, _splashAtk.SplashMediumRatio, _splashAtk.SplashOuterRatio
+			);
+
+			if (splashRatio > 0f)
+			{
+				ref var sHp = ref GameContext.World.Get<Health>(splashEnt);
+				ApplySplashDamage(_splashAttacker, splashEnt, splashRatio, _splashBaseDamage, ref _splashAtk, ref sHp);
+			}
 		}
 
 		private void ApplySplashDamage(Entity attacker, Entity splashEnt, float splashRatio, float baseDamage, ref Attack atk, ref Health sHp)
@@ -1282,13 +1444,48 @@ namespace Realm.Client.Services
 
 		public void DealSpellDamageAOE(Vector3 position, float radius, float damage, Entity casterEntity, bool enemyOnly = true)
 		{
-			var query = QueryCache.AllPositionAndHealthNoneDeadQuery;
 			_aoeKillList.Clear();
 			_aoeLastAttackerList.Clear();
-			GameContext.World.Query(in query, (Entity entity, ref Position pos, ref Health hp) => { ProcessAoeTarget(entity, ref pos, ref hp, position, radius, damage, casterEntity, enemyOnly); });
+
+			int casterPlayer = GetPlayerIndexForEntity(casterEntity);
+
+			if (_currentMovementService != null)
+			{
+				_aoePosition = position;
+				_aoeRadius = radius;
+				_aoeDamage = damage;
+				_aoeCasterEntity = casterEntity;
+				_aoeEnemyOnly = enemyOnly;
+				_aoeCasterPlayer = casterPlayer;
+
+				_currentMovementService.QueryUnitsInRadius(position, radius, _aoeDamageCandidateCallback);
+			}
+			else
+			{
+				var query = QueryCache.AllPositionAndHealthNoneDeadQuery;
+				GameContext.World.Query(in query, (Entity entity, ref Position pos, ref Health hp) => { ProcessAoeTarget(entity, ref pos, ref hp, position, radius, damage, casterEntity, enemyOnly); });
+			}
 
 			ProcessAoeLastAttackers();
 			ProcessAoeKillList();
+		}
+
+		private void OnAoeDamageCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
+		{
+			Entity entity = entry.Entity;
+			if (!GameContext.World.IsAlive(entity) || GameContext.World.Has<Dead>(entity) || !GameContext.World.Has<Health>(entity)) return;
+
+			ref var hp = ref GameContext.World.Get<Health>(entity);
+			ProcessAoeTarget(entity, ref hp, _aoeDamage, _aoeCasterEntity, entry.Position, _aoePosition, _aoeRadius, _aoeEnemyOnly);
+		}
+
+		private void ProcessAoeTarget(Entity entity, ref Health hp, float damage, Entity casterEntity, Vector3 entityPos, Vector3 position, float radius, bool enemyOnly)
+		{
+			if (!IsAoeTargetValid(entity, entityPos, position, radius, enemyOnly, casterEntity)) return;
+
+			UpdateAoeLastAttacker(entity, casterEntity);
+
+			ApplyAoeDamage(entity, ref hp, damage, casterEntity);
 		}
 
 		private void ProcessAoeTarget(Entity entity, ref Position pos, ref Health hp, Vector3 position, float radius, float damage, Entity casterEntity, bool enemyOnly)
@@ -1362,6 +1559,18 @@ namespace Realm.Client.Services
 		{
 			int casterPlayer = GetPlayerIndexForEntity(casterEntity);
 
+			if (_currentMovementService != null)
+			{
+				_healPosition = position;
+				_healRadius = radius;
+				_healAmount = healAmount;
+				_healCasterEntity = casterEntity;
+				_healCasterPlayer = casterPlayer;
+
+				_currentMovementService.QueryUnitsInRadius(position, radius, _healCandidateCallback);
+				return;
+			}
+
 			var query = QueryCache.AllPositionAndHealthNoneDeadQuery;
 			GameContext.World.Query(in query, (Entity entity, ref Position pos, ref Health hp) =>
 			{
@@ -1376,6 +1585,24 @@ namespace Realm.Client.Services
 					OnUnitHealedCallback?.Invoke(entity, casterEntity, healAmount);
 				}
 			});
+		}
+
+		private void OnAoeHealCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
+		{
+			Entity entity = entry.Entity;
+			if (!GameContext.World.IsAlive(entity) || GameContext.World.Has<Dead>(entity) || !GameContext.World.Has<Health>(entity)) return;
+
+			int targetPlayer = GetPlayerIndexForEntity(entity);
+			if (NetworkService.ArePlayerIndicesEnemies(_healCasterPlayer, targetPlayer)) return;
+
+			if (Vector3.Distance(entry.Position, _healPosition) <= _healRadius)
+			{
+				ref var hp = ref GameContext.World.Get<Health>(entity);
+				float newHp = Math.Min(hp.Max, hp.Current + _healAmount);
+				hp.Current = newHp;
+				OnHealFlashRequested?.Invoke(entity);
+				OnUnitHealedCallback?.Invoke(entity, _healCasterEntity, _healAmount);
+			}
 		}
 	}
 }

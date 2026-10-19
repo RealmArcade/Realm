@@ -229,6 +229,22 @@ public class SimulationService
 	private readonly ResourceEconomyService _economyService;
 
 	private float _fDelta;
+	private int _tickCount = 0;
+
+	private PlayerEntity _autoCastCasterOwnerEntity;
+	private Entity _autoCastBestFriendlyEntity;
+	private float _autoCastBestFriendlyHp;
+	private Vector3 _autoCastBestFriendlyPos;
+	private float _autoCastRange;
+	private Vector3 _autoCastCasterPos;
+	private readonly MovementAndPathfindingService.SpatialGridEntryCallback _autoCastFriendlyCallback;
+
+	private PlayerEntity _autoCastCasterOwnerEntityEnemyCheck;
+	private int _autoCastCasterPlayerIndex;
+	private Entity _autoCastBestEnemyEntity;
+	private float _autoCastClosestDist;
+	private Vector3 _autoCastBestEnemyPos;
+	private readonly MovementAndPathfindingService.SpatialGridEntryCallback _autoCastEnemyCallback;
 
 	private readonly List<string> _tickExpiredBuffs = new();
 	private readonly List<string> _tickBuffKeys = new();
@@ -640,6 +656,9 @@ public class SimulationService
 		_economyService.OnStopGatheringMovementRequested = ent => OnStopGatheringMovementRequested?.Invoke(ent);
 		_economyService.OnPropDepleted = ent => OnPropDepleted?.Invoke(ent);
 		_economyService.OnResourceHarvested = ent => OnResourceHarvested?.Invoke(ent);
+
+		_autoCastFriendlyCallback = OnAutoCastFriendlyCandidateFound;
+		_autoCastEnemyCallback = OnAutoCastEnemyCandidateFound;
 	}
 
 	public void Initialize()
@@ -662,6 +681,7 @@ public class SimulationService
 	public void TickEcs(float fDelta)
 	{
 		_fDelta = fDelta;
+		_tickCount++;
 		_tickEntitiesToClearOrders.Clear();
 		_tickEntitiesToStopGathering.Clear();
 		_tickSpawningRequests.Clear();
@@ -728,7 +748,7 @@ public class SimulationService
 
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationCombatStep))
 		{
-			_combatService.StepCombat(fDelta);
+			_combatService.StepCombat(fDelta, _movementService);
 		}
 
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationEconomyStep))
@@ -1232,6 +1252,11 @@ public class SimulationService
 			return;
 		}
 
+		if (!hadExpiredModifiers && ((entity.Id + _tickCount) % 6 != 0))
+		{
+			return;
+		}
+
 		float flatArmor = 0f, percentArmor = 1f;
 		float flatAttack = 0f, percentAttack = 1f;
 		float flatSpeed = 0f, percentSpeed = 1f;
@@ -1584,6 +1609,8 @@ public class SimulationService
 		}
 	}
 
+	private const float FollowRetargetThreshold = 1.0f;
+
 	private void FollowQueryAction(Entity entity, ref Follow follow, ref Position pos)
 	{
 		if (!GameContext.World.IsAlive(follow.Target) || GameContext.World.Has<Dead>(follow.Target))
@@ -1605,7 +1632,28 @@ public class SimulationService
 		}
 		else
 		{
-			_tickFollowToMove.Add((entity, targetPos));
+			bool needsRetarget = true;
+			if (GameContext.World.Has<MoveTo>(entity))
+			{
+				var existingTarget = GameContext.World.Get<MoveTo>(entity).Target;
+				if (Vector3.Distance(existingTarget, targetPos) < FollowRetargetThreshold)
+				{
+					needsRetarget = false;
+				}
+			}
+			else if (GameContext.World.Has<PathFollow>(entity))
+			{
+				var existingTarget = GameContext.World.Get<PathFollow>(entity).Target;
+				if (Vector3.Distance(existingTarget, targetPos) < FollowRetargetThreshold)
+				{
+					needsRetarget = false;
+				}
+			}
+
+			if (needsRetarget)
+			{
+				_tickFollowToMove.Add((entity, targetPos));
+			}
 		}
 	}
 
@@ -1945,9 +1993,56 @@ public class SimulationService
 		}
 	}
 
+	private void OnAutoCastFriendlyCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
+	{
+		Entity fEnt = entry.Entity;
+		if (!GameContext.World.IsAlive(fEnt) || GameContext.World.Has<Dead>(fEnt) || !GameContext.World.Has<Health>(fEnt) || !GameContext.World.Has<Owner>(fEnt)) return;
+
+		Owner fOwner = GameContext.World.Get<Owner>(fEnt);
+		if (fOwner.PlayerEntity == _autoCastCasterOwnerEntity)
+		{
+			Health fHp = GameContext.World.Get<Health>(fEnt);
+			if (fHp.Current < fHp.Max)
+			{
+				float dist = Vector3.Distance(_autoCastCasterPos, entry.Position);
+				if (dist <= _autoCastRange && fHp.Current < _autoCastBestFriendlyHp)
+				{
+					_autoCastBestFriendlyHp = fHp.Current;
+					_autoCastBestFriendlyEntity = fEnt;
+					_autoCastBestFriendlyPos = entry.Position;
+				}
+			}
+		}
+	}
+
+	private void OnAutoCastEnemyCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
+	{
+		Entity eEnt = entry.Entity;
+		if (!GameContext.World.IsAlive(eEnt) || GameContext.World.Has<Dead>(eEnt) || !GameContext.World.Has<Owner>(eEnt)) return;
+
+		Owner eOwner = GameContext.World.Get<Owner>(eEnt);
+		if (eOwner.PlayerEntity != _autoCastCasterOwnerEntityEnemyCheck)
+		{
+			int targetPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(eEnt) ? GameContext.World.Get<UnitOwnerPlayer>(eEnt).PlayerIndex : 0;
+			if (NetworkService.ArePlayerIndicesEnemies(_autoCastCasterPlayerIndex, targetPlayerIndex))
+			{
+				float dist = Vector3.Distance(_autoCastCasterPos, entry.Position);
+				if (dist <= _autoCastClosestDist)
+				{
+					_autoCastClosestDist = dist;
+					_autoCastBestEnemyEntity = eEnt;
+					_autoCastBestEnemyPos = entry.Position;
+				}
+			}
+		}
+	}
+
 	private void AutoCastQueryAction(Entity entity, ref AutoCastState autoCast, ref Position pos, ref DefinitionId defId, ref Owner owner)
 	{
 		if (!autoCast.Enabled || autoCast.ActiveAbilityBitmask == 0) return;
+
+		// Stagger auto-cast checks per entity across ticks so idle units do not all scan simultaneously
+		if ((entity.Id + _tickCount) % 4 != 0) return;
 
 		if (GameContext.World.Has<BuffState>(entity))
 		{
@@ -1989,61 +2084,37 @@ public class SimulationService
 
 			if (def.Healing > 0f)
 			{
-				Entity bestFriendly = Entity.Null;
-				float bestHp = float.MaxValue;
-				Vector3 friendlyPos = Vector3.Zero;
+				_autoCastCasterOwnerEntity = casterOwnerEntity;
+				_autoCastBestFriendlyEntity = Entity.Null;
+				_autoCastBestFriendlyHp = float.MaxValue;
+				_autoCastBestFriendlyPos = Vector3.Zero;
+				_autoCastRange = range;
+				_autoCastCasterPos = casterPos;
 
-				var friendlyQuery = QueryCache.AllPositionAndHealthAndOwnerNoneDeadQuery;
-				GameContext.World.Query(in friendlyQuery, (Entity fEnt, ref Position fPos, ref Health fHp, ref Owner fOwner) =>
-				{
-					if (fOwner.PlayerEntity == casterOwnerEntity && fHp.Current < fHp.Max)
-					{
-						float dist = Vector3.Distance(casterPos, fPos.Value);
-						if (dist <= range && fHp.Current < bestHp)
-						{
-							bestHp = fHp.Current;
-							bestFriendly = fEnt;
-							friendlyPos = fPos.Value;
-						}
-					}
-				});
+				_movementService.QueryUnitsInRadius(casterPos, range, _autoCastFriendlyCallback);
 
-				if (bestFriendly != Entity.Null)
+				if (_autoCastBestFriendlyEntity != Entity.Null)
 				{
-					targetPos = friendlyPos;
+					targetPos = _autoCastBestFriendlyPos;
 					targetFound = true;
 				}
 			}
 			else if (def.Damage > 0f || !def.IsInstant)
 			{
-				Entity bestEnemy = Entity.Null;
-				float closestDist = range;
-				Vector3 enemyPos = Vector3.Zero;
-
 				int casterPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
-				var enemyQuery = QueryCache.AllPositionAndOwnerNoneDeadQuery;
 
-				GameContext.World.Query(in enemyQuery, (Entity eEnt, ref Position ePos, ref Owner eOwner) =>
-				{
-					if (eOwner.PlayerEntity != casterOwnerEntity)
-					{
-						int targetPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(eEnt) ? GameContext.World.Get<UnitOwnerPlayer>(eEnt).PlayerIndex : 0;
-						if (NetworkService.ArePlayerIndicesEnemies(casterPlayerIndex, targetPlayerIndex))
-						{
-							float dist = Vector3.Distance(casterPos, ePos.Value);
-							if (dist <= closestDist)
-							{
-								closestDist = dist;
-								bestEnemy = eEnt;
-								enemyPos = ePos.Value;
-							}
-						}
-					}
-				});
+				_autoCastCasterOwnerEntityEnemyCheck = casterOwnerEntity;
+				_autoCastCasterPlayerIndex = casterPlayerIndex;
+				_autoCastBestEnemyEntity = Entity.Null;
+				_autoCastClosestDist = range;
+				_autoCastBestEnemyPos = Vector3.Zero;
+				_autoCastCasterPos = casterPos;
 
-				if (bestEnemy != Entity.Null)
+				_movementService.QueryUnitsInRadius(casterPos, range, _autoCastEnemyCallback);
+
+				if (_autoCastBestEnemyEntity != Entity.Null)
 				{
-					targetPos = enemyPos;
+					targetPos = _autoCastBestEnemyPos;
 					targetFound = true;
 				}
 			}

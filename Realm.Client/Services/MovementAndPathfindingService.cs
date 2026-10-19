@@ -54,7 +54,7 @@ namespace Realm.Client.Services
 		private const float VerticalFollowRate = 30f;
 		private const float DefaultAcceleration = 25f;
 
-		private readonly struct SpatialGridEntry
+		public readonly struct SpatialGridEntry
 		{
 			public readonly Entity Entity;
 			public readonly Vector3 Position;
@@ -69,6 +69,64 @@ namespace Realm.Client.Services
 				Velocity = velocity;
 				CollisionRadius = collisionRadius;
 				HasVelocity = hasVelocity;
+			}
+		}
+
+		public delegate void SpatialGridEntryCallback(in SpatialGridEntry entry);
+
+		public void QueryUnitsInRadius(Vector3 center, float radius, SpatialGridEntryCallback callback)
+		{
+			float radiusSq = radius * radius;
+			int minCx = (int)Math.Floor((center.X - radius) / _collisionCellSize);
+			int maxCx = (int)Math.Floor((center.X + radius) / _collisionCellSize);
+			int minCz = (int)Math.Floor((center.Z - radius) / _collisionCellSize);
+			int maxCz = (int)Math.Floor((center.Z + radius) / _collisionCellSize);
+
+			for (int cx = minCx; cx <= maxCx; cx++)
+			{
+				for (int cz = minCz; cz <= maxCz; cz++)
+				{
+					long key = ((long)cx << 32) | (uint)cz;
+					if (_unitGrid.TryGetValue(key, out var list))
+					{
+						for (int i = 0; i < list.Count; i++)
+						{
+							var item = list[i];
+							if ((item.Position - center).LengthSquared() <= radiusSq)
+							{
+								callback(in item);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		public void QueryPropsInRadius(Vector3 center, float radius, SpatialGridEntryCallback callback)
+		{
+			float radiusSq = radius * radius;
+			int minCx = (int)Math.Floor((center.X - radius) / _collisionCellSize);
+			int maxCx = (int)Math.Floor((center.X + radius) / _collisionCellSize);
+			int minCz = (int)Math.Floor((center.Z - radius) / _collisionCellSize);
+			int maxCz = (int)Math.Floor((center.Z + radius) / _collisionCellSize);
+
+			for (int cx = minCx; cx <= maxCx; cx++)
+			{
+				for (int cz = minCz; cz <= maxCz; cz++)
+				{
+					long key = ((long)cx << 32) | (uint)cz;
+					if (_propGrid.TryGetValue(key, out var list))
+					{
+						for (int i = 0; i < list.Count; i++)
+						{
+							var item = list[i];
+							if ((item.Position - center).LengthSquared() <= radiusSq)
+							{
+								callback(in item);
+							}
+						}
+					}
+				}
 			}
 		}
 
