@@ -19,7 +19,7 @@ using Array = Godot.Collections.Array;
 
 namespace Realm.Client;
 
-public partial class RuntimeTerrain : StaticBody3D
+public partial class RuntimeTerrain : Node3D
 {
 	public const uint TerrainCollisionLayer = 2;
 	public const uint TerrainVisualLayer = 1 | (1 << 2);
@@ -35,7 +35,6 @@ public partial class RuntimeTerrain : StaticBody3D
 	public RuntimeTerrain()
 	{
 		Instance = this;
-		CollisionLayer = 1U | TerrainCollisionLayer;
 	}
 
 	protected virtual bool IsRuntimeOnly => true;
@@ -576,6 +575,7 @@ public partial class RuntimeTerrain : StaticBody3D
 
 
 	protected List<TerrainChunk> _chunks = new List<TerrainChunk>();
+	public IReadOnlyList<TerrainChunk> Chunks => _chunks;
 	protected ShaderMaterial _material;
 	public ShaderMaterial Material => _material;
 	protected ShaderMaterial _shallowWaterMaterial;
@@ -2864,7 +2864,6 @@ void fragment() {
 		foreach (var chunk in _chunks)
 		{
 			if (GodotObject.IsInstanceValid(chunk.MeshInstance)) chunk.MeshInstance.QueueFree();
-			if (GodotObject.IsInstanceValid(chunk.CollisionShape)) chunk.CollisionShape.QueueFree();
 			if (chunk.ProfileWaterMeshes != null)
 			{
 				foreach (var (pMesh, _) in chunk.ProfileWaterMeshes.Values)
@@ -2905,15 +2904,6 @@ void fragment() {
 				chunk.MeshInstance.MaterialOverride = _material;
 				chunk.MeshInstance.Layers = TerrainVisualLayer;
 				AddChild(chunk.MeshInstance);
-
-				chunk.CollisionShape = new CollisionShape3D();
-				chunk.CollisionShape.Name = $"TerrainCollision_{x}_{z}";
-
-				float lx = (x + (ex - x) / 2.0f - w / 2.0f) * QuadSize;
-				float lz = (z + (ez - z) / 2.0f - d / 2.0f) * QuadSize;
-				chunk.CollisionShape.Position = new Vector3(lx, 0.0f, lz);
-
-				AddChild(chunk.CollisionShape);
 
 				_chunks.Add(chunk);
 			}
@@ -3405,68 +3395,6 @@ void fragment() {
 
 	public void UpdatePhysics(Rect2I? affectedRegion = null)
 	{
-		foreach (var chunk in _chunks)
-		{
-			if (affectedRegion.HasValue)
-			{
-				var region = affectedRegion.Value;
-				if (chunk.EndX < region.Position.X || chunk.StartX > region.Position.X + region.Size.X ||
-				    chunk.EndZ < region.Position.Y || chunk.StartZ > region.Position.Y + region.Size.Y)
-				{
-					continue;
-				}
-			}
-
-			UpdateChunkPhysics(chunk);
-		}
-	}
-
-	protected void UpdateChunkPhysics(TerrainChunk chunk)
-	{
-		int cellWidth = chunk.EndX - chunk.StartX;
-		int cellDepth = chunk.EndZ - chunk.StartZ;
-
-		int mapDataCount = (cellWidth + 1) * (cellDepth + 1);
-		if (chunk.MapDataCache == null || chunk.MapDataCache.Length != mapDataCount)
-		{
-			chunk.MapDataCache = new float[mapDataCount];
-		}
-
-		bool mapDataChanged = false;
-		int idx = 0;
-
-		for (int z = 0; z <= cellDepth; z++)
-		{
-			for (int x = 0; x <= cellWidth; x++)
-			{
-				int vx = chunk.StartX + x;
-				int vz = chunk.StartZ + z;
-				float h = GetGridNodeHeight(vx, vz);
-
-				if (Math.Abs(chunk.MapDataCache[idx] - h) > 0.0001f)
-				{
-					chunk.MapDataCache[idx] = h;
-					mapDataChanged = true;
-				}
-
-				idx++;
-			}
-		}
-
-		if (mapDataChanged || chunk.CollisionShape.Shape == null)
-		{
-			var heightMapShape = new HeightMapShape3D();
-			heightMapShape.MapWidth = cellWidth + 1;
-			heightMapShape.MapDepth = cellDepth + 1;
-			heightMapShape.MapData = chunk.MapDataCache;
-
-			chunk.CollisionShape.Shape = heightMapShape;
-
-			float offsetX = (chunk.StartX + cellWidth / 2.0f - Width / 2.0f) * QuadSize;
-			float offsetZ = (chunk.StartZ + cellDepth / 2.0f - Depth / 2.0f) * QuadSize;
-			chunk.CollisionShape.Position = new Vector3(offsetX, 0, offsetZ);
-			chunk.CollisionShape.Scale = new Vector3(QuadSize, 1.0f, QuadSize);
-		}
 	}
 
 	protected void UpdateChunkMesh(TerrainChunk chunk, bool rebuildPhysics)
@@ -3644,10 +3572,6 @@ void fragment() {
 			}
 		}
 
-		if (rebuildPhysics || chunk.CollisionShape.Shape == null)
-		{
-			UpdateChunkPhysics(chunk);
-		}
 	}
 
 	private void ClearChunkCaches(TerrainChunk chunk)

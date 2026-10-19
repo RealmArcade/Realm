@@ -62,6 +62,7 @@ namespace Realm.Client.Services
 		public static MovementPredictionService MovementPredictionService { get; private set; }
 		public static ClientRpcService ClientRPC { get; private set; }
 		public static PerspectiveFilter PerspectiveFilter { get; private set; }
+		public static RaycastService RaycastService { get; private set; }
 
 		public static IEditorAPI IEditorAPI { get; private set; }
 
@@ -113,6 +114,7 @@ namespace Realm.Client.Services
 			InputService = new();
 			ClientRPC = new();
 			PerspectiveFilter = new();
+			RaycastService = new();
 
 			IEditorAPI = EditorService;
 		}
@@ -165,6 +167,7 @@ namespace Realm.Client.Services
 			InputService = null;
 			ClientRPC = null;
 			PerspectiveFilter = null;
+			RaycastService = null;
 			IEditorAPI = null;
 
 			ECSContext.DisposeAndRecreateServices();

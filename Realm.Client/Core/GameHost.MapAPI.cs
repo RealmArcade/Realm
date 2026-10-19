@@ -870,8 +870,6 @@ public partial class GameHost
 		{
 			if (GodotObject.IsInstanceValid(unit3D))
 			{
-				unit3D.CollisionLayer = 0;
-				unit3D.CollisionMask = 0;
 
 				if (playDeathAnimation) unit3D.PlayAnimation("Death");
 

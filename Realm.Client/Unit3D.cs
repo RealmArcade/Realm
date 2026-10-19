@@ -8,6 +8,7 @@ using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.Services.ModelOptimization;
 using Realm.Client.VFX;
+using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -19,12 +20,48 @@ using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
-public partial class Unit3D : Prop3D
+public partial class Unit3D : Node3D
 {
+	public Entity Entity { get; set; }
+
+	private Vector3 _velocity = Vector3.Zero;
+	public bool HasProceduralAnimation { get; set; }
+
+	public Vector3 Velocity
+	{
+		get => _velocity;
+		set
+		{
+			if (_velocity != value)
+			{
+				_velocity = value;
+				if (HasProceduralAnimation)
+				{
+					ModelShaderManager.SetProceduralAnimationVelocity(this, value);
+				}
+			}
+		}
+	}
+
+	private float _impulseStrength = 0f;
+	private float _impulseDuration = 0.5f;
+	private float _impulseTime = 0f;
+	private float _impulseFrequency = 12.0f;
+
+	public void TriggerImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
+	{
+		if (!HasProceduralAnimation) return;
+		_impulseStrength = strength;
+		_impulseDuration = duration <= 0.001f ? 0.001f : duration;
+		_impulseTime = _impulseDuration;
+		_impulseFrequency = frequency;
+		SetProcess(true);
+	}
+
 	private string _objectId = "unit/worker";
 
 	[Export]
-	public override string TemplateID
+	public string TemplateID
 	{
 		get
 		{
@@ -50,7 +87,7 @@ public partial class Unit3D : Prop3D
 		set => TemplateID = value;
 	}
 
-	public override string PropId
+	public string PropId
 	{
 		get => TemplateID;
 		set => TemplateID = value;
@@ -88,7 +125,7 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
-	public override bool IsResource
+	public bool IsResource
 	{
 		get
 		{
@@ -100,10 +137,12 @@ public partial class Unit3D : Prop3D
 
 			if (GameHost.ResourceRegistry != null && !string.IsNullOrEmpty(UnitId) && GameHost.ResourceRegistry.ContainsKey(UnitId))
 				return true;
-			return base.IsResource;
+			return _isResource;
 		}
-		set { base.IsResource = value; }
+		set { _isResource = value; }
 	}
+
+	private bool _isResource;
 
 	private Node3D _modelNode;
 	private AnimationPlayer _animationPlayer;
@@ -204,12 +243,43 @@ public partial class Unit3D : Prop3D
 	private readonly List<MeshInstance3D> _rallyMarkersPool = new();
 	private readonly List<MeshInstance3D> _rallyLinesPool = new();
 
-	public override bool IsSelected
+	private MeshInstance3D _selectionRing;
+	private bool _isSelected = false;
+	private MeshInstance3D _hoverRing;
+	private bool _isHovered = false;
+
+	private static readonly Dictionary<string, TorusMesh> _sharedTorusMeshes = new(StringComparer.OrdinalIgnoreCase);
+	private static StandardMaterial3D _sharedSelectionMaterial;
+	private static StandardMaterial3D _sharedHoverMaterial;
+
+	public bool IsPreview { get; set; } = false;
+
+	public bool IsSelected
 	{
-		get => base.IsSelected;
+		get => _isSelected;
 		set
 		{
-			base.IsSelected = value;
+			_isSelected = value;
+			if (_selectionRing == null && _isSelected)
+			{
+				CreateSelectionRing();
+			}
+
+			if (_selectionRing != null)
+			{
+				if (_isSelected)
+				{
+					UpdateSelectionRingTransform();
+				}
+
+				_selectionRing.Visible = _isSelected;
+			}
+
+			if (_hoverRing != null)
+			{
+				_hoverRing.Visible = _isHovered && !_isSelected;
+			}
+
 			if (IsBuilding && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
 			{
 				UpdateRallyVisuals();
@@ -228,11 +298,190 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
-	private static readonly CapsuleShape3D _defaultUnitCapsuleShape = new()
+	public bool IsHovered
 	{
-		Radius = 1.0f,
-		Height = 2.5f
-	};
+		get => _isHovered;
+		set
+		{
+			_isHovered = value;
+			if (_hoverRing == null && _isHovered)
+			{
+				CreateHoverRing();
+			}
+
+			if (_hoverRing != null)
+			{
+				if (_isHovered)
+				{
+					UpdateSelectionRingTransform();
+				}
+
+				_hoverRing.Visible = _isHovered && !IsSelected;
+			}
+		}
+	}
+
+	private static TorusMesh GetOrCreateTorusMesh(float radius)
+	{
+		float r = Mathf.Max(0.4f, (float)Math.Round(radius, 2));
+		string key = r.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+		if (!_sharedTorusMeshes.TryGetValue(key, out var mesh) || !GodotObject.IsInstanceValid(mesh))
+		{
+			mesh = new TorusMesh
+			{
+				InnerRadius = Mathf.Max(0.1f, r - 0.25f),
+				OuterRadius = r
+			};
+			_sharedTorusMeshes[key] = mesh;
+		}
+
+		return mesh;
+	}
+
+	private static StandardMaterial3D GetOrCreateSelectionMaterial(Color color)
+	{
+		if (_sharedSelectionMaterial == null || !GodotObject.IsInstanceValid(_sharedSelectionMaterial))
+		{
+			_sharedSelectionMaterial = new StandardMaterial3D
+			{
+				AlbedoColor = color,
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				DisableReceiveShadows = true,
+				EmissionEnabled = false,
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
+			};
+		}
+
+		return _sharedSelectionMaterial;
+	}
+
+	private static StandardMaterial3D GetOrCreateHoverMaterial()
+	{
+		if (_sharedHoverMaterial == null || !GodotObject.IsInstanceValid(_sharedHoverMaterial))
+		{
+			_sharedHoverMaterial = new StandardMaterial3D
+			{
+				AlbedoColor = new Color(0.88f, 0.88f, 0.88f, 0.22f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				DisableReceiveShadows = true,
+				EmissionEnabled = false,
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
+			};
+		}
+
+		return _sharedHoverMaterial;
+	}
+
+	private void UpdateSelectionRingTransform()
+	{
+		if (_selectionRing == null && _hoverRing == null) return;
+
+		float sx = Mathf.Abs(Scale.X) > 0.001f ? Scale.X : 1.0f;
+		float sy = Mathf.Abs(Scale.Y) > 0.001f ? Scale.Y : 1.0f;
+		float sz = Mathf.Abs(Scale.Z) > 0.001f ? Scale.Z : 1.0f;
+
+		Vector3 ringScale = new Vector3(1.0f / sx, 1.0f / sy, 1.0f / sz);
+		Vector3 ringPos = new Vector3(0, 0.05f / sy, 0);
+
+		float ratio = GameHost.Instance != null ? GameHost.Instance.GetModelCollisionCircleRatio(GameHost.Instance.GetModelAssetKey(this)) : 1.0f;
+		if (ratio <= 0.001f) ratio = 1.0f;
+
+		float baseRadius = GetBaseObstacleRadius();
+		float worldRadius = baseRadius * ratio * Mathf.Abs(sx);
+		var torusMesh = GetOrCreateTorusMesh(worldRadius);
+
+		if (_selectionRing != null)
+		{
+			_selectionRing.Mesh = torusMesh;
+			_selectionRing.Scale = ringScale;
+			_selectionRing.Position = ringPos;
+		}
+
+		if (_hoverRing != null)
+		{
+			_hoverRing.Mesh = torusMesh;
+			_hoverRing.Scale = ringScale;
+			_hoverRing.Position = ringPos;
+		}
+	}
+
+	private void CreateHoverRing()
+	{
+		if (_hoverRing != null) return;
+		_hoverRing = new MeshInstance3D
+		{
+			Name = "_hover_ring",
+			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
+			MaterialOverride = GetOrCreateHoverMaterial(),
+			Visible = _isHovered && !IsSelected
+		};
+		AddChild(_hoverRing);
+		UpdateSelectionRingTransform();
+	}
+
+	public void UpdateCollisionCircleScale(float ratio)
+	{
+		UpdateSelectionRingTransform();
+		if (_selectionRing != null)
+		{
+			_selectionRing.Visible = _isSelected;
+		}
+
+		if (_hoverRing != null)
+		{
+			_hoverRing.Visible = _isHovered && !_isSelected;
+		}
+	}
+
+	public void SetTemporarySelectionHighlight(bool highlight)
+	{
+		if (_selectionRing == null && highlight)
+		{
+			CreateSelectionRing();
+		}
+
+		if (_selectionRing != null)
+		{
+			if (highlight || _isSelected)
+			{
+				UpdateSelectionRingTransform();
+			}
+
+			_selectionRing.Visible = highlight || _isSelected;
+		}
+	}
+
+	private void CreateSelectionRing()
+	{
+		if (_selectionRing != null) return;
+		_selectionRing = new MeshInstance3D
+		{
+			Name = "_selection_ring",
+			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
+			MaterialOverride = GetOrCreateSelectionMaterial(GetSelectionRingColor()),
+			Visible = _isSelected
+		};
+		AddChild(_selectionRing);
+		UpdateSelectionRingTransform();
+	}
+
+	private Vector3 _lastNotifiedScale = new Vector3(-1f, -1f, -1f);
+
+	public override void _Notification(int what)
+	{
+		if (what == NotificationTransformChanged)
+		{
+			Vector3 currentScale = Scale;
+			if (!currentScale.IsEqualApprox(_lastNotifiedScale))
+			{
+				_lastNotifiedScale = currentScale;
+				UpdateLodVisibility();
+				UpdateSelectionRingTransform();
+			}
+		}
+	}
 
 	public override void _Ready()
 	{
@@ -245,41 +494,12 @@ public partial class Unit3D : Prop3D
 		SetProcess(false);
 		SetNotifyTransform(true);
 
-		var collisionShape = new CollisionShape3D();
-		collisionShape.Name = "CollisionShape";
-		if (IsBuilding)
-		{
-			var boxShape = new BoxShape3D();
-			float size = 3f;
-			if (GameHost.TryGetUnitOrBuildingMetadata(UnitId, out var bMeta))
-			{
-				if (bMeta.ObstacleRadius.HasValue && bMeta.ObstacleRadius.Value > 0)
-				{
-					size = Math.Max(2f, bMeta.ObstacleRadius.Value);
-				}
-				else if (bMeta.CollisionCircle > 0)
-				{
-					size = Math.Max(2f, bMeta.CollisionCircle);
-				}
-			}
-			boxShape.Size = new Vector3(size, size, size);
-			collisionShape.Shape = boxShape;
-			collisionShape.Position = new Vector3(0, size * 0.5f, 0);
-		}
-		else
-		{
-			collisionShape.Shape = _defaultUnitCapsuleShape;
-			collisionShape.Position = new Vector3(0, 1.25f, 0);
-		}
-
-		AddChild(collisionShape);
-
 		CreateSelectionRing();
 	}
 
 	private float _lastUnitEffectiveLodScale = -1f;
 
-	public override void UpdateLodVisibility()
+	public void UpdateLodVisibility()
 	{
 		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
 		{
@@ -297,8 +517,8 @@ public partial class Unit3D : Prop3D
 	public Node3D ModelNode => _modelNode;
 	public bool IsFlashingScale { get; set; }
 
-	public override void UpdateVisualYOffset(float yOffset) => UpdateModelYOffset(yOffset);
-	public override void UpdateVisualScale(float globalScale) => UpdateModelScale(globalScale);
+	public void UpdateVisualYOffset(float yOffset) => UpdateModelYOffset(yOffset);
+	public void UpdateVisualScale(float globalScale) => UpdateModelScale(globalScale);
 
 	public void UpdateModelYOffset(float yOffset)
 	{
@@ -327,7 +547,7 @@ public partial class Unit3D : Prop3D
 
 		CleanupExistingModel();
 
-		string resolved = ResolvePropModelPath(modelPath);
+		string resolved = ModelCache.ResolveModelPath(modelPath);
 		if (string.IsNullOrEmpty(resolved))
 		{
 			resolved = modelPath;
@@ -348,7 +568,6 @@ public partial class Unit3D : Prop3D
 		ApplyAttachmentsSafely();
 		ApplyTransformations();
 		ApplyVisuals(modelPath);
-		UpdateCollisionShape();
 		UpdateDropShadow();
 		UpdateSlopeAlignment();
 	}
@@ -450,43 +669,7 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
-	private static readonly Dictionary<string, (Shape3D Shape, Vector3 Offset)> _cachedAnalyticalShapes = new(StringComparer.OrdinalIgnoreCase);
-
-	private void UpdateCollisionShape()
-	{
-		try
-		{
-			var colShapeNode = GetNodeOrNull<CollisionShape3D>("CollisionShape");
-			if (colShapeNode != null && _modelNode != null)
-			{
-				string cacheKey = $"{ModelPath ?? string.Empty}|{IsBuilding}|{_modelNode.Scale.Y:F3}";
-				if (_cachedAnalyticalShapes.TryGetValue(cacheKey, out var cached) && cached.Shape != null && GodotObject.IsInstanceValid(cached.Shape))
-				{
-					colShapeNode.Shape = cached.Shape;
-					colShapeNode.Position = cached.Offset;
-					return;
-				}
-
-				Aabb modelAabb = GetCombinedAabb(_modelNode);
-				if (modelAabb.Size.LengthSquared() > 0.01f)
-				{
-					var (analShape, analOffset) = ModelOptimizerService.GenerateAnalyticalCollisionShape(modelAabb, IsBuilding);
-					if (analShape != null)
-					{
-						_cachedAnalyticalShapes[cacheKey] = (analShape, analOffset);
-						colShapeNode.Shape = analShape;
-						colShapeNode.Position = analOffset;
-					}
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"Error generating collision shape for unit '{UnitId}': {ex.Message}");
-		}
-	}
-
-	public override bool IsSlopeAligned
+	public bool IsSlopeAligned
 	{
 		get
 		{
@@ -504,12 +687,28 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
-	public override void UpdateSlopeAlignment()
+	public void UpdateSlopeAlignment()
 	{
 		ApplySlopeAlignment(_modelNode);
 	}
 
-	public override float GetBaseObstacleRadius()
+	protected void ApplySlopeAlignment(Node3D? visualNode)
+	{
+		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && visualNode != null && GodotObject.IsInstanceValid(visualNode))
+		{
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
+			if (normal.LengthSquared() > 0.01f)
+			{
+				normal = normal.Normalized();
+				Vector3 up = normal;
+				Vector3 forward = MathF.Abs(up.Y) < 0.99f ? Vector3.Up.Cross(up).Cross(up).Normalized() : -Vector3.Forward;
+				Vector3 right = up.Cross(forward).Normalized();
+				visualNode.Basis = new Basis(right, up, -forward);
+			}
+		}
+	}
+
+	public float GetBaseObstacleRadius()
 	{
 		if (GameHost.Instance != null)
 		{
@@ -1620,7 +1819,7 @@ public partial class Unit3D : Prop3D
 	}
 
 
-	protected override Color GetSelectionRingColor()
+	protected Color GetSelectionRingColor()
 	{
 		return new Color(0.22f, 0.54f, 0.26f);
 	}
@@ -1893,8 +2092,6 @@ public partial class Unit3D : Prop3D
 	{
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.Unit3DProcess))
 		{
-			base._Process(delta);
-
 			if (IsSelected && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
 			{
 				if (IsBuilding)

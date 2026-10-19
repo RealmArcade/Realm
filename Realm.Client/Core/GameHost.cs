@@ -2884,8 +2884,6 @@ public partial class GameHost : Node3D, IGameAPI
 
 		if (!isBuilding && !GameContext.SessionState.IsMapEditorMode)
 		{
-			unit3D.CollisionLayer = 1;
-			unit3D.CollisionMask = 0;
 		}
 
 		AddChild(unit3D);

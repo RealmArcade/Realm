@@ -137,8 +137,6 @@ public partial class GameHost
 			unit.PlayAnimation("Death");
 		}
 
-		unit.CollisionLayer = 0;
-		unit.CollisionMask = 0;
 
 		if (executeDespawnShader && TryExecuteDeathShader(unit, unitId)) return;
 		if (playDeathAnimation && TryPlayDeathTween(unit)) return;

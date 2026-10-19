@@ -15,7 +15,7 @@ using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
-public partial class Prop3D : StaticBody3D
+public partial class Prop3D : Node3D
 {
 	public Entity Entity { get; set; }
 
@@ -374,125 +374,6 @@ public partial class Prop3D : StaticBody3D
 		UpdateSelectionRingTransform();
 	}
 
-	private static readonly Dictionary<string, (Shape3D Shape, Vector3 Offset)> _modelShapeCache = new(StringComparer.OrdinalIgnoreCase);
-
-	protected static Aabb GetCombinedAabb(Node root)
-	{
-		Aabb totalAabb = new Aabb();
-		bool first = true;
-		CollectAabbRecursive(root, Transform3D.Identity, ref totalAabb, ref first);
-		return totalAabb;
-	}
-
-	private static void CollectAabbRecursive(Node node, Transform3D currentTransform, ref Aabb totalAabb, ref bool first)
-	{
-		if (node == null) return;
-
-		if (node is MeshInstance3D mi && mi.Mesh != null)
-		{
-			Aabb localAabb = mi.Mesh.GetAabb();
-			if (localAabb.Size != Vector3.Zero)
-			{
-				for (int i = 0; i < 8; i++)
-				{
-					Vector3 corner = currentTransform * localAabb.GetEndpoint(i);
-					if (first)
-					{
-						totalAabb = new Aabb(corner, Vector3.Zero);
-						first = false;
-					}
-					else
-					{
-						totalAabb = totalAabb.Expand(corner);
-					}
-				}
-			}
-		}
-
-		foreach (var child in node.GetChildren())
-		{
-			if (child is Node3D child3D)
-			{
-				CollectAabbRecursive(child, currentTransform * child3D.Transform, ref totalAabb, ref first);
-			}
-		}
-	}
-
-	private (Shape3D Shape, Vector3 Offset) GetOrCreateCollisionShape()
-	{
-		string propIdKey = PropId ?? string.Empty;
-		if (!string.IsNullOrEmpty(propIdKey) && _modelShapeCache.TryGetValue(propIdKey, out var cachedProp))
-			return cachedProp;
-
-		string modelPath = ResolvePropModelPath(PropId);
-		if (!string.IsNullOrEmpty(modelPath) && _modelShapeCache.TryGetValue(modelPath, out var cached))
-		{
-			if (!string.IsNullOrEmpty(propIdKey))
-				_modelShapeCache[propIdKey] = cached;
-			return cached;
-		}
-
-		if (TryGenerateAnalyticalShape(modelPath, out var shapeResult))
-		{
-			if (!string.IsNullOrEmpty(propIdKey)) _modelShapeCache[propIdKey] = shapeResult;
-			if (!string.IsNullOrEmpty(modelPath)) _modelShapeCache[modelPath] = shapeResult;
-			return shapeResult;
-		}
-
-		return CreateFallbackCollisionShape(propIdKey, modelPath);
-	}
-
-	private bool TryGenerateAnalyticalShape(string modelPath, out (Shape3D Shape, Vector3 Offset) result)
-	{
-		result = default;
-		if (string.IsNullOrEmpty(modelPath))
-			return false;
-
-		try
-		{
-			Node modelNode = ModelCache.GetModel(modelPath);
-			if (modelNode == null)
-				return false;
-
-			Aabb modelAabb = GetCombinedAabb(modelNode);
-			modelNode.Free();
-
-			if (modelAabb.Size.LengthSquared() <= 0.01f)
-				return false;
-
-			var (analShape, analOffset) = ModelOptimizerService.GenerateAnalyticalCollisionShape(modelAabb, isBuilding: true);
-			if (analShape == null)
-				return false;
-
-			result = (analShape, analOffset);
-			return true;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"Failed to compute analytical collision shape for '{PropId}': {ex.Message}");
-			return false;
-		}
-	}
-
-	private (Shape3D Shape, Vector3 Offset) CreateFallbackCollisionShape(string propIdKey, string modelPath)
-	{
-		float radius = GetBaseObstacleRadius();
-		float height = Math.Max(1.0f, radius * 2.5f);
-		var fallbackBox = new BoxShape3D
-		{
-			Size = new Vector3(radius * 2.0f, height, radius * 2.0f)
-		};
-		var shapeResult = (fallbackBox, new Vector3(0, height * 0.5f, 0));
-
-		if (!string.IsNullOrEmpty(propIdKey))
-			_modelShapeCache[propIdKey] = shapeResult;
-
-		if (!string.IsNullOrEmpty(modelPath))
-			_modelShapeCache[modelPath] = shapeResult;
-
-		return shapeResult;
-	}
-
 	public bool IsPreview { get; set; } = false;
 
 	public override void _Ready()
@@ -500,21 +381,6 @@ public partial class Prop3D : StaticBody3D
 		Name = $"Prop_{PropId}_{Guid.NewGuid().ToString().Substring(0, 4)}";
 
 		SetNotifyTransform(true);
-
-		if (IsPreview)
-		{
-			CreatePropVisual();
-			SetProcess(false);
-			return;
-		}
-
-		var collisionShape = new CollisionShape3D();
-		collisionShape.Name = "CollisionShape";
-		AddChild(collisionShape);
-
-		var (shape, offset) = GetOrCreateCollisionShape();
-		collisionShape.Shape = shape;
-		collisionShape.Position = offset;
 
 		CreatePropVisual();
 		SetProcess(false);
@@ -728,13 +594,11 @@ public partial class Prop3D : StaticBody3D
 	{
 		if (string.IsNullOrEmpty(propId)) return;
 		_resolvedModelPathCache.Remove(propId);
-		_modelShapeCache.Remove(propId);
 	}
 
 	public static void ClearModelPathCache()
 	{
 		_resolvedModelPathCache.Clear();
-		_modelShapeCache.Clear();
 		_sharedTorusMeshes.Clear();
 	}
 

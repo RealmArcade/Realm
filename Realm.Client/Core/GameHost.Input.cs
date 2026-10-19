@@ -2661,7 +2661,7 @@ public partial class GameHost
 
 	public bool TryRaycastTerrainFromMousePosition(Vector2 mousePos, out Vector3 position)
 	{
-		return TryRaycastFromMousePosition(mousePos, out position, EditableTerrain.TerrainCollisionLayer);
+		return TryRaycastFromMousePosition(mousePos, out position, RaycastService.TerrainLayer);
 	}
 
 	public bool TryRaycastFromMousePosition(Vector2 mousePos, out Vector3 position, uint collisionMask = uint.MaxValue)
@@ -2673,23 +2673,17 @@ public partial class GameHost
 		var from = camera.ProjectRayOrigin(mousePos);
 		var to = from + camera.ProjectRayNormal(mousePos) * 1000f;
 
-		var spaceState = GetWorld3D()?.DirectSpaceState;
-		if (spaceState == null) return false;
+		if (GameContext.RaycastService.TryRaycast(from, to, collisionMask, out position, out _, out _))
+		{
+			return true;
+		}
 
-		_cachedRaycastQuery ??= new PhysicsRayQueryParameters3D();
-		_cachedRaycastQuery.From = from;
-		_cachedRaycastQuery.To = to;
-		_cachedRaycastQuery.CollisionMask = collisionMask;
-		var result = spaceState.IntersectRay(_cachedRaycastQuery);
-
-		if (result.Count == 0 || !result.ContainsKey("position")) return false;
-		position = result["position"].AsVector3();
-		return true;
+		return false;
 	}
 
 	public Dictionary RaycastTerrainFromMouse(Vector2 mousePos)
 	{
-		return RaycastFromMouse(mousePos, EditableTerrain.TerrainCollisionLayer);
+		return RaycastFromMouse(mousePos, RaycastService.TerrainLayer);
 	}
 
 	public Dictionary RaycastFromMouse(Vector2 mousePos, uint collisionMask = uint.MaxValue)
@@ -2700,17 +2694,10 @@ public partial class GameHost
 		var from = camera.ProjectRayOrigin(mousePos);
 		var to = from + camera.ProjectRayNormal(mousePos) * 1000f;
 
-		var spaceState = GetWorld3D()?.DirectSpaceState;
-		if (spaceState == null) return null;
+		var result = GameContext.RaycastService.Raycast(from, to, collisionMask);
+		if (result == null || !result.HasHit) return null;
 
-		_cachedRaycastQuery ??= new PhysicsRayQueryParameters3D();
-		_cachedRaycastQuery.From = from;
-		_cachedRaycastQuery.To = to;
-		_cachedRaycastQuery.CollisionMask = collisionMask;
-		var result = spaceState.IntersectRay(_cachedRaycastQuery);
-
-		if (result.Count == 0) return null;
-		return result;
+		return result.ToGodotDictionary();
 	}
 
 	public void EnterCommandTargeting(string mode)
@@ -4591,22 +4578,15 @@ public partial class GameHost
 
 		var from = new Vector3(minimapWorldPos.X, 200f, minimapWorldPos.Z);
 		var to = new Vector3(minimapWorldPos.X, -100f, minimapWorldPos.Z);
-		var spaceState = GetWorld3D().DirectSpaceState;
 
-		_cachedRaycastQuery ??= new PhysicsRayQueryParameters3D();
-		_cachedRaycastQuery.From = from;
-		_cachedRaycastQuery.To = to;
-
-		var queryResult = spaceState.IntersectRay(_cachedRaycastQuery);
-
-		if (queryResult != null && queryResult.Count > 0)
+		var rayResult = GameContext.RaycastService.Raycast(from, to);
+		if (rayResult != null && rayResult.HasHit)
 		{
-			if (queryResult.ContainsKey("position")) result.HitPos = queryResult["position"].AsVector3();
-			if (queryResult.ContainsKey("collider"))
+			result.HitPos = rayResult.Position;
+			if (rayResult.Collider != null)
 			{
-				var collider = queryResult["collider"].As<Node>();
-				result.ClickedUnit = FindUnit3DInParentChain(collider);
-				result.ClickedProp = FindProp3DInParentChain(collider);
+				result.ClickedUnit = FindUnit3DInParentChain(rayResult.Collider);
+				result.ClickedProp = FindProp3DInParentChain(rayResult.Collider);
 			}
 		}
 
