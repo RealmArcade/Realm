@@ -128,6 +128,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 	{
 		if (_previewModelRoot != null && GodotObject.IsInstanceValid(_previewModelRoot))
 		{
+			_previewModelRoot.GetParent()?.RemoveChild(_previewModelRoot);
 			_previewModelRoot.QueueFree();
 			_previewModelRoot = null;
 		}
@@ -177,6 +178,8 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 	private void Load3DModelPreview(Node3D node3D, string modelPath, string resolvedPath)
 	{
 		var cloned = (Node3D)node3D.Duplicate((int)DuplicateFlags.UseInstantiation);
+		node3D.QueueFree();
+
 		cloned.Position = Vector3.Zero;
 		cloned.Rotation = Vector3.Zero;
 		cloned.Scale = Vector3.One;
@@ -231,6 +234,11 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		{
 			Load3DModelPreview(node3D, modelPath, resolvedPath);
 			return;
+		}
+
+		if (loaded != null)
+		{
+			loaded.QueueFree();
 		}
 
 		if (_lblStatus != null)

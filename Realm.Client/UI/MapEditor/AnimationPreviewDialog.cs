@@ -239,11 +239,13 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		{
 			var loaded = ModelCache.GetModel(modelPath);
 			if (loaded is Node3D node3D) loadedModel = node3D;
+			else if (loaded != null) loaded.QueueFree();
 		}
 
 		if (loadedModel != null)
 		{
 			SetupPreviewModel(loadedModel);
+			loadedModel.QueueFree();
 		}
 
 		RebuildConfiguredAttachmentsUI();
@@ -685,6 +687,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 				_animPlayer.Stop(true);
 			}
 
+			_previewModelRoot.GetParent()?.RemoveChild(_previewModelRoot);
 			_previewModelRoot.QueueFree();
 			_previewModelRoot = null;
 			_animPlayer = null;

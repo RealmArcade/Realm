@@ -363,6 +363,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	public override void CloseDialog()
 	{
 		ClearPreviewProjectile();
+		ClearPreviewNodes();
 		base.CloseDialog();
 	}
 
@@ -2029,7 +2030,11 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	{
 		if (_currentModelRoot != null && GodotObject.IsInstanceValid(_currentModelRoot))
 		{
-			foreach (Node child in _currentModelRoot.GetChildren()) child.QueueFree();
+			foreach (Node child in _currentModelRoot.GetChildren())
+			{
+				_currentModelRoot.RemoveChild(child);
+				child.QueueFree();
+			}
 		}
 
 		if (_vfxSprite != null && GodotObject.IsInstanceValid(_vfxSprite))
@@ -2260,6 +2265,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		var loaded = ModelCache.GetModel(modelPath) ?? ModelCache.GetModel(meshKey);
 		if (loaded is Node3D n) return n;
+		if (loaded != null) loaded.QueueFree();
 
 		var gltfDoc = new GltfDocument();
 		var gltfState = new GltfState();
@@ -2269,6 +2275,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		{
 			var node = gltfDoc.GenerateScene(gltfState);
 			if (node is Node3D n3d) return n3d;
+			if (node != null) node.QueueFree();
 		}
 
 		return null;
@@ -2333,9 +2340,10 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_previewAudioContainer.Visible = false;
 		PreviewSubViewport.GetParent<Control>().Visible = true;
 
+		Node mesh = null;
 		try
 		{
-			Node mesh = ModelCache.GetModel(item.ModelPath);
+			mesh = ModelCache.GetModel(item.ModelPath);
 			if (mesh != null)
 			{
 				_currentModelRoot.AddChild(mesh);
@@ -2345,6 +2353,10 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		}
 		catch
 		{
+			if (mesh != null && mesh.GetParent() == null)
+			{
+				mesh.QueueFree();
+			}
 		}
 	}
 

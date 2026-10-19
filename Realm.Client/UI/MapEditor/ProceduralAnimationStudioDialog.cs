@@ -705,6 +705,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	{
 		foreach (Node child in _currentModelRoot.GetChildren())
 		{
+			_currentModelRoot.RemoveChild(child);
 			child.QueueFree();
 		}
 	}
@@ -760,11 +761,19 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		}
 		else
 		{
+			loaded?.QueueFree();
 			string resolved = ModelCache.ResolveModelPath(assetPath);
 			if (!string.IsNullOrEmpty(resolved))
 			{
 				loaded = ModelCache.GetModel(resolved);
-				if (loaded is Node3D nResolved) loadedNode3D = nResolved;
+				if (loaded is Node3D nResolved)
+				{
+					loadedNode3D = nResolved;
+				}
+				else
+				{
+					loaded?.QueueFree();
+				}
 			}
 		}
 
@@ -792,6 +801,10 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			if (loaded is Node3D n)
 			{
 				loadedNode3D = n;
+			}
+			else
+			{
+				loaded?.QueueFree();
 			}
 		}
 
@@ -830,6 +843,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	{
 		var loaded = ModelCache.GetModel(resolvedDiskPath) ?? ModelCache.GetModel(assetPath);
 		if (loaded is Node3D n) return n;
+		if (loaded != null) loaded.QueueFree();
 
 		var gltfDoc = new GltfDocument();
 		var gltfState = new GltfState();
@@ -839,6 +853,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		{
 			var node = gltfDoc.GenerateScene(gltfState);
 			if (node is Node3D n3d) return n3d;
+			if (node != null) node.QueueFree();
 		}
 
 		return null;
@@ -897,5 +912,11 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	{
 		_config = _snapshot.Clone();
 		CloseDialog();
+	}
+
+	public override void CloseDialog()
+	{
+		ClearCurrentModelRoot();
+		base.CloseDialog();
 	}
 }

@@ -507,6 +507,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		if (_currentModelRoot == null) return;
 		foreach (Node child in _currentModelRoot.GetChildren())
 		{
+			_currentModelRoot.RemoveChild(child);
 			child.QueueFree();
 		}
 
@@ -565,6 +566,12 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	{
 		_config = _snapshot.Clone();
 		CloseDialog();
+	}
+
+	public override void CloseDialog()
+	{
+		LoadPreviewModel(string.Empty);
+		base.CloseDialog();
 	}
 
 	private void UpdateAnimationTime(float speed, float dur)
@@ -695,6 +702,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		var loaded = ModelCache.GetModel(modelPath) ?? ModelCache.GetModel(key);
 		if (loaded is Node3D n) return n;
+		if (loaded != null) loaded.QueueFree();
 
 		var gltfDoc = new GltfDocument();
 		var gltfState = new GltfState();
@@ -704,6 +712,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		{
 			var node = gltfDoc.GenerateScene(gltfState);
 			if (node is Node3D n3d) return n3d;
+			if (node != null) node.QueueFree();
 		}
 
 		return null;

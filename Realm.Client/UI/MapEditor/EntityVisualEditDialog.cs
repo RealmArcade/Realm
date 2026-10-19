@@ -653,8 +653,15 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		if (loadedNode != null)
 		{
-			isRigged = SkeletonValidator.FindSkeleton(loadedNode) != null;
-			return true;
+			try
+			{
+				isRigged = SkeletonValidator.FindSkeleton(loadedNode) != null;
+				return true;
+			}
+			finally
+			{
+				loadedNode.QueueFree();
+			}
 		}
 
 		return false;

@@ -1059,13 +1059,23 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		ClearUncommittedPreview();
 		if (_previewModel != null && GodotObject.IsInstanceValid(_previewModel))
 		{
+			_previewModel.GetParent()?.RemoveChild(_previewModel);
 			_previewModel.QueueFree();
 			_previewModel = null;
 		}
 
+		foreach (var kvp in _activeAttachmentVisuals)
+		{
+			if (kvp.Value != null && GodotObject.IsInstanceValid(kvp.Value))
+			{
+				kvp.Value.GetParent()?.RemoveChild(kvp.Value);
+				kvp.Value.QueueFree();
+			}
+		}
+		_activeAttachmentVisuals.Clear();
+
 		_socketAnchorNodes.Clear();
 		_socketModelNodes.Clear();
-		_activeAttachmentVisuals.Clear();
 		_currentActiveModelNode = null;
 		_uncommittedPreviewNode = null;
 		_uncommittedPreviewKey = null;
@@ -1104,7 +1114,12 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		var cached = ModelCache.GetModel(modelPath);
 		if (cached is Node3D n3d)
 		{
-			return (Node3D)n3d.Duplicate((int)DuplicateFlags.UseInstantiation);
+			return n3d;
+		}
+
+		if (cached != null)
+		{
+			cached.QueueFree();
 		}
 
 		return null;

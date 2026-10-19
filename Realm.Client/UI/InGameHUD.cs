@@ -451,7 +451,10 @@ public partial class InGameHUD : Control
 		_unitsContainer = GetNode<HBoxContainer>("BottomConsole/HBox/SelectionFrame/UnitsContainer");
 
 		foreach (Node child in _unitsContainer.GetChildren())
+		{
 			_unitsContainer.RemoveChild(child);
+			child.QueueFree();
+		}
 		_unitButtons.Clear();
 
 		for (int i = 0; i < 12; i++)

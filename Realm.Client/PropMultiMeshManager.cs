@@ -581,25 +581,30 @@ public partial class PropMultiMeshManager : Node3D
 		Node prototype = ModelCache.GetModel(modelPath);
 		if (prototype == null) return null;
 
-		float globalModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(normAssetKey) : 1.0f;
-		float scaleMultiplier = Math.Max(0.01f, globalModelScale);
-		GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(prototype, scaleMultiplier);
+		try
+		{
+			float globalModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(normAssetKey) : 1.0f;
+			float scaleMultiplier = Math.Max(0.01f, globalModelScale);
+			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(prototype, scaleMultiplier);
 
-		var meshNodes = new List<MeshInstance3D>();
-		FindMeshInstancesRecursive(prototype, meshNodes);
+			var meshNodes = new List<MeshInstance3D>();
+			FindMeshInstancesRecursive(prototype, meshNodes);
 
-		if (meshNodes.Count == 0)
+			if (meshNodes.Count == 0)
+			{
+				return null;
+			}
+
+			var group = new PropModelGroup { AssetKey = normAssetKey };
+			PopulateSubMeshes(group, meshNodes, prototype);
+			ConfigureVisibilityRanges(group);
+
+			return group.SubMeshes.Count > 0 ? group : null;
+		}
+		finally
 		{
 			prototype.QueueFree();
-			return null;
 		}
-
-		var group = new PropModelGroup { AssetKey = normAssetKey };
-		PopulateSubMeshes(group, meshNodes, prototype);
-		ConfigureVisibilityRanges(group);
-
-		prototype.QueueFree();
-		return group.SubMeshes.Count > 0 ? group : null;
 	}
 
 	private static void PopulateSubMeshes(PropModelGroup group, List<MeshInstance3D> meshNodes, Node prototype)

@@ -489,14 +489,19 @@ namespace Realm.Client.Utils
 			Node generatedNode = doc.GenerateScene(state);
 			if (generatedNode == null) return null;
 
-			GltfDocumentExtensionMsftLod.ProcessImportedScene(state, generatedNode);
-			SetOwnerRecursive(generatedNode, generatedNode);
+			try
+			{
+				GltfDocumentExtensionMsftLod.ProcessImportedScene(state, generatedNode);
+				SetOwnerRecursive(generatedNode, generatedNode);
 
-			var packedScene = new PackedScene();
-			Error packErr = packedScene.Pack(generatedNode);
-			generatedNode.Free();
-
-			return packErr == Error.Ok ? packedScene : null;
+				var packedScene = new PackedScene();
+				Error packErr = packedScene.Pack(generatedNode);
+				return packErr == Error.Ok ? packedScene : null;
+			}
+			finally
+			{
+				generatedNode.Free();
+			}
 		}
 
 		private static PackedScene BuildPrimitiveMeshScene(string texturePath)
@@ -600,12 +605,17 @@ namespace Realm.Client.Utils
 			meshInstance.MaterialOverride = mat;
 			rootNode.AddChild(meshInstance);
 
-			SetOwnerRecursive(rootNode, rootNode);
-			var packedScene = new PackedScene();
-			Error packErr = packedScene.Pack(rootNode);
-			rootNode.Free();
-
-			return packErr == Error.Ok ? packedScene : null;
+			try
+			{
+				SetOwnerRecursive(rootNode, rootNode);
+				var packedScene = new PackedScene();
+				Error packErr = packedScene.Pack(rootNode);
+				return packErr == Error.Ok ? packedScene : null;
+			}
+			finally
+			{
+				rootNode.Free();
+			}
 		}
 
 		private static void SetOwnerRecursive(Node node, Node owner)
@@ -635,13 +645,18 @@ namespace Realm.Client.Utils
 
 				if (node != null)
 				{
-					float minY = Unit3D.GetMinY(node, Transform3D.Identity);
-					node.Free();
-
-					if (float.IsFinite(minY) && Math.Abs(minY) > 0.0001f)
+					try
 					{
-						float yOffset = (float)Math.Round(-minY * scale, 4);
-						return (minY, yOffset);
+						float minY = Unit3D.GetMinY(node, Transform3D.Identity);
+						if (float.IsFinite(minY) && Math.Abs(minY) > 0.0001f)
+						{
+							float yOffset = (float)Math.Round(-minY * scale, 4);
+							return (minY, yOffset);
+						}
+					}
+					finally
+					{
+						node.Free();
 					}
 				}
 			}

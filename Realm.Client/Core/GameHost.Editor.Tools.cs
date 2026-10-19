@@ -588,12 +588,24 @@ namespace Realm.Client.Core
 			if (string.IsNullOrEmpty(lookupKey)) return false;
 
 			var modelNode = ModelCache.GetModel(lookupKey) as Node;
-			if (modelNode != null && !ModelShaderManager.ModelHasPlayerMask(modelNode))
+			if (modelNode != null)
 			{
-				GameContext.ModelOverrideService.ModelIgnorePlayerColor[lookupKey] = true;
-				GameContext.EditorService.ModelYOffsetSavePending = true;
-				EditorHasUnsavedChanges = true;
-				return true;
+				try
+				{
+					if (!ModelShaderManager.ModelHasPlayerMask(modelNode))
+					{
+						GameContext.ModelOverrideService.ModelIgnorePlayerColor[lookupKey] = true;
+						GameContext.EditorService.ModelYOffsetSavePending = true;
+						EditorHasUnsavedChanges = true;
+						return true;
+					}
+
+					GameContext.ModelOverrideService.ModelIgnorePlayerColor[lookupKey] = false;
+				}
+				finally
+				{
+					modelNode.QueueFree();
+				}
 			}
 
 			return false;
@@ -1707,6 +1719,10 @@ namespace Realm.Client.Core
 		{
 			if (_editorPreviewNode != null && GodotObject.IsInstanceValid(_editorPreviewNode))
 			{
+				if (_editorPreviewNode.GetParent() != null)
+				{
+					_editorPreviewNode.GetParent().RemoveChild(_editorPreviewNode);
+				}
 				_editorPreviewNode.QueueFree();
 			}
 

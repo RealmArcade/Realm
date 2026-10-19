@@ -1380,7 +1380,11 @@ public partial class GameHost
 
 		foreach (var child in GetChildren())
 		{
-			if (child is Prop3D prop)
+			if (child is Unit3D unit)
+			{
+				unit.QueueFree();
+			}
+			else if (child is Prop3D prop)
 			{
 				prop.QueueFree();
 			}

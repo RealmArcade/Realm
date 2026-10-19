@@ -287,7 +287,12 @@ public partial class VisualProjectile3D : Node3D
 		}
 
 		var loaded = ModelCache.GetModel(modelPath);
-		return loaded is Node3D n ? n : null;
+		if (loaded is Node3D n)
+		{
+			return n;
+		}
+		loaded?.QueueFree();
+		return null;
 	}
 
 	private void UpdateModel()

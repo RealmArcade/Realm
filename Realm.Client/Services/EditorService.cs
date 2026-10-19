@@ -6770,15 +6770,24 @@ public class {mapName} : IMapScript
 				if (!GameContext.ModelOverrideService.ModelObstacleRadii.ContainsKey(normKey))
 				{
 					string modelPath = Path.Combine(wsPath, "Assets", "models", subCategory ?? "", fileName);
-					Node3D modelNode = ModelCache.GetModel(modelPath) as Node3D;
-					if (modelNode != null)
+					Node rawModelNode = ModelCache.GetModel(modelPath);
+					if (rawModelNode != null)
 					{
-						float radius = GameHost.Instance.MeasureModelRadius(modelNode);
-						modelNode.Free();
-						if (radius > 0f)
+						try
 						{
-							float rounded = (float)Math.Round(radius, 2);
-							GameContext.ModelOverrideService.ModelObstacleRadii[normKey] = rounded;
+							if (rawModelNode is Node3D modelNode)
+							{
+								float radius = GameHost.Instance.MeasureModelRadius(modelNode);
+								if (radius > 0f)
+								{
+									float rounded = (float)Math.Round(radius, 2);
+									GameContext.ModelOverrideService.ModelObstacleRadii[normKey] = rounded;
+								}
+							}
+						}
+						finally
+						{
+							rawModelNode.Free();
 						}
 					}
 				}

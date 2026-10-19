@@ -523,9 +523,10 @@ public partial class Prop3D : Node3D
 		if (string.IsNullOrEmpty(modelPath))
 			return;
 
+		Node node = null;
 		try
 		{
-			Node node = ModelCache.GetModel(modelPath);
+			node = ModelCache.GetModel(modelPath);
 			if (node == null)
 				return;
 
@@ -541,6 +542,10 @@ public partial class Prop3D : Node3D
 		catch (Exception ex)
 		{
 			GD.PrintErr($"Failed to load prop visual for '{PropId}' ({modelPath}): {ex.Message}");
+			if (node != null && node.GetParent() == null)
+			{
+				node.QueueFree();
+			}
 		}
 	}
 

@@ -618,13 +618,18 @@ public partial class Unit3D : Node3D
 
 	private Node3D? ResolveAndGetModelNode(string modelPath, string resolved)
 	{
-		var node = ModelCache.GetModel(modelPath) as Node3D;
-		if (node == null && !string.IsNullOrEmpty(resolved) && !resolved.Equals(modelPath, StringComparison.OrdinalIgnoreCase))
+		var rawNode = ModelCache.GetModel(modelPath);
+		if (rawNode is Node3D node3D) return node3D;
+		if (rawNode != null) rawNode.QueueFree();
+
+		if (!string.IsNullOrEmpty(resolved) && !resolved.Equals(modelPath, StringComparison.OrdinalIgnoreCase))
 		{
-			node = ModelCache.GetModel(resolved) as Node3D;
+			rawNode = ModelCache.GetModel(resolved);
+			if (rawNode is Node3D resolvedNode3D) return resolvedNode3D;
+			if (rawNode != null) rawNode.QueueFree();
 		}
 
-		return node;
+		return null;
 	}
 
 	private void ConfigureAnimations(string modelPath)
@@ -1703,7 +1708,9 @@ public partial class Unit3D : Node3D
 	{
 		Node? loaded = !string.IsNullOrEmpty(modelPath) ? ModelCache.GetModel(modelPath) : null;
 		if (loaded == null) loaded = ModelCache.GetModel(attachmentId);
-		return loaded as Node3D;
+		if (loaded is Node3D n) return n;
+		if (loaded != null) loaded.QueueFree();
+		return null;
 	}
 
 	private static void ApplyChildVfx(Node3D loadedNode, AttachmentMetadata attMeta)

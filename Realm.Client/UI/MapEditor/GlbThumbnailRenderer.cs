@@ -383,6 +383,7 @@ public partial class GlbThumbnailRenderer : Node
 			return;
 		}
 
+		Node scene = null;
 		try
 		{
 			GltfDocumentExtensionMsftLod.RegisterExtension();
@@ -405,7 +406,7 @@ public partial class GlbThumbnailRenderer : Node
 				return;
 			}
 
-			var scene = doc.GenerateScene(state);
+			scene = doc.GenerateScene(state);
 			if (scene == null)
 			{
 				HandleLoadFailure(request.FilePath);
@@ -426,6 +427,11 @@ public partial class GlbThumbnailRenderer : Node
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[GlbThumbnailRenderer] Error preparing {request.FilePath}: {ex.Message}");
+			if (scene != null && scene.GetParent() == null)
+			{
+				scene.QueueFree();
+			}
+			CleanupCurrentCapture();
 			HandleLoadFailure(request.FilePath);
 		}
 	}
@@ -636,5 +642,11 @@ public partial class GlbThumbnailRenderer : Node
 	private static RealmAnimationData? GetIdleAnimationData()
 	{
 		return AnimationRetargetingService.GetIdleAnimationData();
+	}
+
+	public override void _ExitTree()
+	{
+		CleanupCurrentCapture();
+		base._ExitTree();
 	}
 }
