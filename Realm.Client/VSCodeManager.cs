@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -19,7 +18,6 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
-using Microsoft.Web.WebView2.Core;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
@@ -63,14 +61,6 @@ public partial class VSCodeManager
 	private bool _installCompleted = false;
 	private Task _installTask;
 	private readonly object _installLock = new object();
-	private int _vscodePort = 8089;
-
-	private static readonly HttpClient _localProxyHttpClient = new HttpClient(new SocketsHttpHandler
-	{
-		AllowAutoRedirect = false,
-		UseCookies = false,
-		AutomaticDecompression = DecompressionMethods.All
-	});
 
 	private static readonly string[] RequiredExtensions = new[]
 	{
@@ -167,24 +157,23 @@ public partial class VSCodeManager
 		string embedDir = GetVSCodeDirectory();
 		string exePath = Path.Combine(embedDir, "editor", "bin", "codium.exe");
 		string completedMarkerPath = Path.Combine(embedDir, "install_completed.marker");
-		string bypassMarkerPath = Path.Combine(embedDir, "bypass_completed.marker");
 		string wasiPath = WasiSdkResolver.ResolveWasiSdkPath();
 		string wasiClangPath = !string.IsNullOrEmpty(wasiPath) ? Path.Combine(wasiPath, "bin", "clang.exe") : string.Empty;
 		string extVersion = GetRealmMapEditorVersion();
 		string extDir = Path.Combine(embedDir, "user-data-dir", "extensions", $"speige.realm-map-editor-{extVersion}");
 		string extensionsDir = Path.Combine(embedDir, "user-data-dir", "extensions");
 
-		if (!AreBasePathsValid(exePath, completedMarkerPath, bypassMarkerPath, wasiClangPath, extDir))
+		if (!AreBasePathsValid(exePath, completedMarkerPath, wasiClangPath, extDir))
 			return false;
 
 		return AreExtensionsInstalled(extensionsDir);
 	}
 
-	private bool AreBasePathsValid(string exePath, string completedMarkerPath, string bypassMarkerPath, string wasiClangPath, string extDir)
+	private bool AreBasePathsValid(string exePath, string completedMarkerPath, string wasiClangPath, string extDir)
 	{
 		if (!File.Exists(exePath) || new FileInfo(exePath).Length == 0)
 			return false;
-		if (!File.Exists(completedMarkerPath) && !File.Exists(bypassMarkerPath))
+		if (!File.Exists(completedMarkerPath))
 			return false;
 		if (string.IsNullOrEmpty(wasiClangPath) || !File.Exists(wasiClangPath) || new FileInfo(wasiClangPath).Length == 0)
 			return false;
@@ -273,7 +262,6 @@ public partial class VSCodeManager
 
 			if (File.Exists(exePath))
 			{
-				RunBypassAndVerify(exePath, embedDir);
 				InstallMissingExtensions(exePath, embedDir);
 			}
 		}
@@ -315,53 +303,7 @@ public partial class VSCodeManager
 		}
 	}
 
-	public const uint WM_USER = 0x0400;
-	public const uint WM_WAKEUP = WM_USER + 1;
-	public const uint WM_CLOSE = 0x0010;
-	public const int SW_HIDE = 0;
-	public const int SW_SHOW = 5;
-	public const int SW_SHOWMAXIMIZED = 3;
 	public const int SW_RESTORE = 9;
-
-	public const uint WS_OVERLAPPEDWINDOW = 0x00CF0000;
-	public const uint WS_VISIBLE = 0x10000000;
-
-
-	private WndProcDelegate _customWndProcDelegate;
-
-
-	[DllImport("user32.dll")]
-	public static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
-
-	[DllImport("user32.dll")]
-	public static extern bool TranslateMessage(ref MSG lpMsg);
-
-	[DllImport("user32.dll")]
-	public static extern IntPtr DispatchMessage(ref MSG lpMsg);
-
-	[DllImport("user32.dll")]
-	public static extern short GetKeyState(int nVirtKey);
-
-	[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "CreateWindowExW")]
-	public static extern IntPtr CreateWindowEx(
-		uint dwExStyle,
-		string lpClassName,
-		string lpWindowName,
-		uint dwStyle,
-		int x,
-		int y,
-		int nWidth,
-		int nHeight,
-		IntPtr hWndParent,
-		IntPtr hMenu,
-		IntPtr hInstance,
-		IntPtr lpParam);
-
-	[DllImport("user32.dll", SetLastError = true)]
-	public static extern bool DestroyWindow(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
 	[DllImport("user32.dll")]
 	public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -401,7 +343,7 @@ public partial class VSCodeManager
 					if (rawHandle != 0)
 					{
 						IntPtr hWnd = (IntPtr)rawHandle;
-						ShowWindow(hWnd, 9); // SW_RESTORE
+						ShowWindow(hWnd, SW_RESTORE);
 						SwitchToThisWindow(hWnd, true);
 						SetForegroundWindow(hWnd);
 						BringWindowToTop(hWnd);
@@ -414,18 +356,6 @@ public partial class VSCodeManager
 			}
 		}).CallDeferred();
 	}
-
-	[DllImport("user32.dll")]
-	public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
-	[DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "RegisterClassExW")]
-	public static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
-
-	[DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "DefWindowProcW")]
-	public static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-	[DllImport("kernel32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetModuleHandleW")]
-	public static extern IntPtr GetModuleHandle(string lpModuleName);
 
 	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
 	public static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string lpName);
@@ -2096,250 +2026,6 @@ public partial class VSCodeManager
 		}
 
 		_isInitialized = false;
-	}
-
-	private void RunBypassAndVerify(string exePath, string embedDir)
-	{
-		string serverDataDir = Path.Combine(embedDir, "user-data-dir");
-		string extensionsDir = Path.Combine(serverDataDir, "extensions");
-
-		Process tempProcess = new Process();
-		tempProcess.StartInfo.FileName = Path.ChangeExtension(exePath, ".cmd");
-		tempProcess.StartInfo.Arguments = $"--extensions-dir \"{extensionsDir}\" serve-web --port 8089 --server-data-dir \"{serverDataDir}\" --accept-server-license-terms --without-connection-token";
-		tempProcess.StartInfo.CreateNoWindow = true;
-		tempProcess.StartInfo.UseShellExecute = false;
-		tempProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS"] = extensionsDir;
-		tempProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
-		tempProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
-		tempProcess.Start();
-		AddProcessToJob(tempProcess);
-
-		Thread.Sleep(2000);
-
-		var tcs = new TaskCompletionSource<bool>();
-		var thread = new Thread(() =>
-		{
-			try
-			{
-				RunBypassSTA(tcs, embedDir);
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr("Bypass STA thread failed: " + ex.Message);
-				tcs.TrySetException(ex);
-			}
-		});
-		thread.SetApartmentState(ApartmentState.STA);
-		thread.Start();
-
-		bool success = false;
-		if (tcs.Task.Wait(45000))
-		{
-			success = tcs.Task.Result;
-		}
-		else
-		{
-			GD.PrintErr("Bypass task timed out.");
-		}
-
-		try
-		{
-			if (!tempProcess.HasExited)
-			{
-				tempProcess.Kill(true);
-			}
-		}
-		catch
-		{
-		}
-
-		if (success)
-		{
-			try
-			{
-				string markerPath = Path.Combine(embedDir, "bypass_completed.marker");
-				File.WriteAllText(markerPath, "completed");
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr("Failed to write bypass marker file: " + ex.Message);
-			}
-		}
-	}
-
-	private void RunBypassSTA(TaskCompletionSource<bool> tcs, string embedDir)
-	{
-		var syncContext = new SingleThreadSynchronizationContext();
-		SynchronizationContext.SetSynchronizationContext(syncContext);
-
-		var wndClass = new WNDCLASSEX();
-		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
-		wndClass.style = 0;
-		WndProcDelegate bypassWndProc = BypassWndProc;
-		wndClass.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(bypassWndProc);
-		wndClass.cbClsExtra = 0;
-		wndClass.cbWndExtra = 0;
-		wndClass.hInstance = GetModuleHandle(null);
-		wndClass.hIcon = IntPtr.Zero;
-		wndClass.hCursor = IntPtr.Zero;
-		wndClass.hbrBackground = IntPtr.Zero;
-		wndClass.lpszMenuName = null;
-		wndClass.lpszClassName = "VSCodeBypassWindow";
-		wndClass.hIconSm = IntPtr.Zero;
-
-		RegisterClassEx(ref wndClass);
-
-		IntPtr bypassHwnd = CreateWindowEx(
-			0,
-			"VSCodeBypassWindow",
-			"Bypass Window",
-			0,
-			0,
-			0,
-			100,
-			100,
-			IntPtr.Zero,
-			IntPtr.Zero,
-			GetModuleHandle(null),
-			IntPtr.Zero);
-
-		if (bypassHwnd == IntPtr.Zero)
-		{
-			tcs.TrySetResult(false);
-			return;
-		}
-
-		syncContext.SetTargetHwnd(bypassHwnd);
-
-		CoreWebView2Controller controller = null;
-		bool running = true;
-
-		Action closeAction = () =>
-		{
-			if (controller != null)
-			{
-				controller.Close();
-				controller = null;
-			}
-
-			running = false;
-			PostMessage(bypassHwnd, WM_USER + 1, IntPtr.Zero, IntPtr.Zero);
-		};
-
-		InitializeBypassWebView(
-			bypassHwnd,
-			tcs,
-			syncContext,
-			c => { controller = c; },
-			closeAction,
-			embedDir
-		);
-
-		MSG msg;
-		while (running && GetMessage(out msg, IntPtr.Zero, 0, 0) > 0)
-		{
-			if (msg.message == 0x0010)
-			{
-				running = false;
-				break;
-			}
-
-			TranslateMessage(ref msg);
-			DispatchMessage(ref msg);
-			syncContext.RunPending();
-		}
-	}
-
-	private static IntPtr BypassWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
-	{
-		return DefWindowProc(hWnd, msg, wParam, lParam);
-	}
-
-	private async void InitializeBypassWebView(IntPtr hwnd, TaskCompletionSource<bool> tcs, SingleThreadSynchronizationContext syncContext, Action<CoreWebView2Controller> setController, Action closeAction, string embedDir)
-	{
-		try
-		{
-			string cachePath = Path.Combine(embedDir, "user-data-dir", "webview-cache");
-			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath);
-			var localController = await env.CreateCoreWebView2ControllerAsync(hwnd);
-
-			setController(localController);
-			localController.Bounds = new Rectangle(0, 0, 100, 100);
-			localController.IsVisible = false;
-
-			int navigationCount = 0;
-			int retryCount = 0;
-
-			localController.CoreWebView2.NavigationCompleted += async (sender, args) =>
-			{
-				await HandleBypassNavigationCompleted(args, localController, tcs, closeAction, navigationCount, retryCount);
-				if (args.IsSuccess) navigationCount++;
-				if (!args.IsSuccess && navigationCount == 0 && retryCount < 10) retryCount++;
-			};
-
-			localController.CoreWebView2.Navigate($"http://127.0.0.1:{_vscodePort}/");
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr("InitializeBypassWebView failed: " + ex.Message);
-			tcs.TrySetResult(false);
-			closeAction();
-		}
-	}
-
-	private async Task HandleBypassNavigationCompleted(CoreWebView2NavigationCompletedEventArgs args, CoreWebView2Controller localController, TaskCompletionSource<bool> tcs, Action closeAction, int navigationCount, int retryCount)
-	{
-		if (!args.IsSuccess)
-		{
-			if (navigationCount == 0 && retryCount < 10)
-			{
-				await Task.Delay(500);
-				localController.CoreWebView2.Navigate($"http://127.0.0.1:{_vscodePort}/");
-			}
-			else
-			{
-				GD.PrintErr($"Bypass navigation failed: {args.WebErrorStatus}");
-				tcs.TrySetResult(false);
-				closeAction();
-			}
-
-			return;
-		}
-
-		if (navigationCount == 0) // Next will be 1
-		{
-			string jsScript = GetBypassTrustScript();
-			try
-			{
-				await localController.CoreWebView2.ExecuteScriptAsync(jsScript);
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr("ExecuteScriptAsync failed: " + ex.Message);
-				tcs.TrySetResult(false);
-				closeAction();
-			}
-		}
-		else if (navigationCount == 1) // Next will be 2
-		{
-			tcs.TrySetResult(true);
-			closeAction();
-		}
-	}
-
-	private string GetBypassTrustScript()
-	{
-		const string templatePath = "res://Templates/vscode_bypass_trust.js";
-		if (FileAccess.FileExists(templatePath))
-		{
-			using var file = FileAccess.Open(templatePath, FileAccess.ModeFlags.Read);
-			if (file != null) return file.GetAsText();
-		}
-
-		string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "vscode_bypass_trust.js");
-		if (File.Exists(diskPath)) return File.ReadAllText(diskPath);
-
-		return string.Empty;
 	}
 
 	private void InstallMissingExtensions(string exePath, string embedDir)
