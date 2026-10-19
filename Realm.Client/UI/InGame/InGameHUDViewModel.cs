@@ -504,9 +504,24 @@ public class InGameHUDViewModel
 	private int _lastClockMins = -1;
 	private int _lastClockSecs = -1;
 	private int _lastClockPhase = -1;
-	private double _idleCountUpdateTimer;
 
 	public void Update(double delta)
+	{
+		UpdateTactical(delta);
+		UpdateMacro(delta);
+		UpdateAmbient(delta);
+	}
+
+	public void UpdateTactical(double delta)
+	{
+		if (GameHost.Instance == null)
+			return;
+
+		IsConnectionLost = GameHost.Instance.IsConnectionLost;
+		CycleSelectionIndex = GameHost.Instance.CycleSelectionIndex;
+	}
+
+	public void UpdateMacro(double delta)
 	{
 		GoldPerSec = 1.5f * ResourceGatherMultiplier;
 		WoodPerSec = 1.0f * ResourceGatherMultiplier;
@@ -517,16 +532,11 @@ public class InGameHUDViewModel
 
 		UpdatePopulation();
 		UpdateClock();
+		UpdateIdleCount();
+	}
 
-		IsConnectionLost = GameHost.Instance.IsConnectionLost;
-		CycleSelectionIndex = GameHost.Instance.CycleSelectionIndex;
-
-		_idleCountUpdateTimer += delta;
-		if (_idleCountUpdateTimer >= 0.1)
-		{
-			_idleCountUpdateTimer = 0.0;
-			UpdateIdleCount();
-		}
+	public void UpdateAmbient(double delta)
+	{
 	}
 
 	private void UpdatePopulation()

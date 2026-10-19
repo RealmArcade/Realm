@@ -340,6 +340,20 @@ public partial class InGameHUD : Control
 
 	private MinimapOverlay _minimapOverlay;
 
+	private const float TacticalInterval = 0.04f;
+	private const float MacroInterval = 0.1f;
+	private const float AmbientInterval = 0.5f;
+
+	private float _tacticalTimer = TacticalInterval;
+	private float _macroTimer = MacroInterval;
+	private float _ambientTimer = AmbientInterval;
+
+	public void InvalidateCadence(bool tactical = true, bool macro = false)
+	{
+		if (tactical) _tacticalTimer = TacticalInterval;
+		if (macro) _macroTimer = MacroInterval;
+	}
+
 	public override void _Ready()
 	{
 		Instance = this;
@@ -1295,6 +1309,8 @@ public partial class InGameHUD : Control
 
 	public void RefreshUI(List<Unit3D> selectedUnits)
 	{
+		InvalidateCadence(tactical: true, macro: false);
+
 		if (selectedUnits != null)
 		{
 			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => GameContext.PerspectiveFilter.CanControl(u.Player));
@@ -1504,27 +1520,52 @@ void fragment() {
 
 	public override void _Process(double delta)
 	{
-		_viewModel.Update(delta);
+		float dt = (float)delta;
 
-		UpdateSelectedUnitVisuals();
-		UpdateFogTimer(delta);
-
-		_portraitPanelController?.Update(_viewModel);
-		_commandPanelController?.Update(_viewModel);
-		_resourcePanelController?.Update(_viewModel);
-		_leaderboardPanelController?.Update(_viewModel);
-		_summaryTablePanelController?.Update(_viewModel);
-
+		// 1. Per-Frame / Immediate updates (Frustum indicator & connection warning)
+		_minimapPanelController?.UpdateMinimapIndicator();
 		if (_connectionWarningLabel != null)
 		{
 			_connectionWarningLabel.Visible = _viewModel.IsConnectionLost;
 		}
 
-		UpdateIdleUnitButton(delta);
+		// 2. Tactical Cadence (~25Hz) - Health/mana vitals, command panel, portrait, selection visuals, control groups
+		_tacticalTimer += dt;
+		if (_tacticalTimer >= TacticalInterval)
+		{
+			float accumulated = _tacticalTimer;
+			_tacticalTimer -= TacticalInterval;
+			_viewModel.UpdateTactical(accumulated);
+			UpdateSelectedUnitVisuals();
+			_portraitPanelController?.Update(_viewModel);
+			_commandPanelController?.Update(_viewModel);
+			_inventoryPanelController?.Update(_viewModel);
+			_controlGroupsUIController?.Update();
+		}
 
-		_minimapPanelController?.UpdateMinimapIndicator();
+		// 3. Macro Cadence (~10Hz) - Resource panel, clock, idle count, fog/minimap shroud redraw
+		_macroTimer += dt;
+		if (_macroTimer >= MacroInterval)
+		{
+			float accumulated = _macroTimer;
+			_macroTimer -= MacroInterval;
+			_viewModel.UpdateMacro(accumulated);
+			_resourcePanelController?.Update(_viewModel);
+			UpdateFogTimer(accumulated);
+			UpdateIdleUnitButton(accumulated);
+			QueueMinimapRedraw();
+		}
 
-		_controlGroupsUIController?.Update();
+		// 4. Ambient Cadence (~2Hz) - Leaderboard and match summary statistics
+		_ambientTimer += dt;
+		if (_ambientTimer >= AmbientInterval)
+		{
+			float accumulated = _ambientTimer;
+			_ambientTimer -= AmbientInterval;
+			_viewModel.UpdateAmbient(accumulated);
+			_leaderboardPanelController?.Update(_viewModel);
+			_summaryTablePanelController?.Update(_viewModel);
+		}
 	}
 
 	private void UpdateSelectedUnitVisuals()
@@ -2443,7 +2484,12 @@ void fragment() {
 	public bool HandleCommandCardHotkey(Key keycode)
 	{
 		if (_commandPanelController == null) return false;
-		return _commandPanelController.HandleHotkey(keycode);
+		bool handled = _commandPanelController.HandleHotkey(keycode);
+		if (handled)
+		{
+			InvalidateCadence(tactical: true, macro: false);
+		}
+		return handled;
 	}
 
 	private void SetupCommandCard()
