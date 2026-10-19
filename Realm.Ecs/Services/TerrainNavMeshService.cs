@@ -162,10 +162,11 @@ public class TerrainNavMeshService
 		});
 	}
 
-	private void ProcessNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, float quadSize, Action<TerrainState, long, int, float, float> processPoly)
+	private delegate void ProcessPolyDelegate(ref TerrainState state, DtMeshTile tile, DtPoly poly, long polyRefBase, int p);
+
+	private void IterateNavMeshPolys(ref TerrainState state, ProcessPolyDelegate processPoly)
 	{
 		int maxTiles = state.NavMesh.GetMaxTiles();
-		float effRadiusSq = (radius + quadSize * 0.5f) * (radius + quadSize * 0.5f);
 		for (int t = 0; t < maxTiles; t++)
 		{
 			var tile = state.NavMesh.GetTile(t);
@@ -174,16 +175,25 @@ public class TerrainNavMeshService
 			for (int p = 0; p < tile.data.header.polyCount; p++)
 			{
 				var poly = tile.data.polys[p];
-				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
-				float dx = avgX - pos.X;
-				float dz = avgZ - pos.Z;
-
-				if (dx * dx + dz * dz <= effRadiusSq)
-				{
-					processPoly(state, polyRefBase, p, avgX, avgZ);
-				}
+				processPoly(ref state, tile, poly, polyRefBase, p);
 			}
 		}
+	}
+
+	private void ProcessNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, float quadSize, Action<TerrainState, long, int, float, float> processPoly)
+	{
+		float effRadiusSq = (radius + quadSize * 0.5f) * (radius + quadSize * 0.5f);
+		IterateNavMeshPolys(ref state, (ref TerrainState s, DtMeshTile tile, DtPoly poly, long polyRefBase, int p) =>
+		{
+			GetPolyCenter(tile, poly, out float avgX, out float avgZ);
+			float dx = avgX - pos.X;
+			float dz = avgZ - pos.Z;
+
+			if (dx * dx + dz * dz <= effRadiusSq)
+			{
+				processPoly(s, polyRefBase, p, avgX, avgZ);
+			}
+		});
 	}
 
 	private void CarveNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, float quadSize)
@@ -427,31 +437,23 @@ public class TerrainNavMeshService
 
 		if (state.NavMesh != null)
 		{
-			int maxTiles = state.NavMesh.GetMaxTiles();
 			float pad = quadSize * 0.5f;
-			for (int t = 0; t < maxTiles; t++)
+			IterateNavMeshPolys(ref state, (ref TerrainState s, DtMeshTile tile, DtPoly poly, long polyRefBase, int p) =>
 			{
-				var tile = state.NavMesh.GetTile(t);
-				if (tile?.data?.header == null) continue;
-				long polyRefBase = state.NavMesh.GetPolyRefBase(tile);
-				for (int p = 0; p < tile.data.header.polyCount; p++)
-				{
-					var poly = tile.data.polys[p];
-					GetPolyCenter(tile, poly, out float avgX, out float avgZ);
+				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
 
-					if (avgX < x1 - pad || avgX > x2 + pad || avgZ < z1 - pad || avgZ > z2 + pad)
-						continue;
+				if (avgX < x1 - pad || avgX > x2 + pad || avgZ < z1 - pad || avgZ > z2 + pad)
+					return;
 
-					int xGrid = Math.Clamp((int)Math.Floor((avgX + halfW) / quadSize), 0, width - 1);
-					int zGrid = Math.Clamp((int)Math.Floor((avgZ + halfD) / quadSize), 0, depth - 1);
-					int cellFlags = state.PathingCodes[xGrid, zGrid];
+				int xGrid = Math.Clamp((int)Math.Floor((avgX + halfW) / quadSize), 0, width - 1);
+				int zGrid = Math.Clamp((int)Math.Floor((avgZ + halfD) / quadSize), 0, depth - 1);
+				int cellFlags = s.PathingCodes[xGrid, zGrid];
 
-					long polyRef = polyRefBase | (long)p;
-					state.NavMesh.SetPolyFlags(polyRef, cellFlags);
-					bool isWalkable = (cellFlags & (int)TerrainPathingFlags.Ground) != 0;
-					state.NavMesh.SetPolyArea(polyRef, isWalkable ? (char)1 : (char)0);
-				}
-			}
+				long polyRef = polyRefBase | (long)p;
+				s.NavMesh.SetPolyFlags(polyRef, cellFlags);
+				bool isWalkable = (cellFlags & (int)TerrainPathingFlags.Ground) != 0;
+				s.NavMesh.SetPolyArea(polyRef, isWalkable ? (char)1 : (char)0);
+			});
 		}
 
 		float cx = (x1 + x2) * 0.5f;
