@@ -1591,8 +1591,8 @@ public class NetworkService
 		if (peerId1 == peerId2) return false;
 		if (!HasActiveLobby()) return true;
 
-		string t1 = GetTeamForPeer(peerId1, "Team 1");
-		string t2 = GetTeamForPeer(peerId2, "Team 2");
+		int t1 = GetTeamIndexForPeer(peerId1, 1);
+		int t2 = GetTeamIndexForPeer(peerId2, 2);
 		return t1 != t2;
 	}
 
@@ -1643,21 +1643,13 @@ public class NetworkService
 
 		if (GameContext.SimulationService != null)
 		{
-			if (GameContext.SimulationService.ArePlayersAllied(playerIndex1, playerIndex2))
-				return false;
-
-			int simTeam1 = GameContext.SimulationService.GetPlayerTeam(playerIndex1);
-			int simTeam2 = GameContext.SimulationService.GetPlayerTeam(playerIndex2);
-			if (simTeam1 != 0 && simTeam2 != 0)
-			{
-				return simTeam1 != simTeam2;
-			}
+			return GameContext.SimulationService.ArePlayersEnemies(playerIndex1, playerIndex2);
 		}
 
 		if (!HasActiveLobby()) return playerIndex1 != playerIndex2;
 
-		string t1 = GetTeamForPlayerIndex(playerIndex1, $"Team {playerIndex1}");
-		string t2 = GetTeamForPlayerIndex(playerIndex2, $"Team {playerIndex2}");
+		int t1 = GetTeamIndexForPlayerIndex(playerIndex1, playerIndex1);
+		int t2 = GetTeamIndexForPlayerIndex(playerIndex2, playerIndex2);
 		return t1 != t2;
 	}
 
@@ -1668,18 +1660,30 @@ public class NetworkService
 		return LobbyManager.Instance.PlayerList.Count > 0;
 	}
 
-	private static string GetTeamForPeer(int peerId, string defaultTeam)
+	private static int GetTeamIndexForPeer(int peerId, int defaultTeam)
 	{
-		var p = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId);
-		if (p == null) return defaultTeam;
-		return p.Team;
+		var list = LobbyManager.Instance.PlayerList;
+		for (int i = 0; i < list.Count; i++)
+		{
+			if (list[i].PeerId == peerId)
+			{
+				return list[i].TeamIndex;
+			}
+		}
+		return defaultTeam;
 	}
 
-	private static string GetTeamForPlayerIndex(int playerIndex, string defaultTeam)
+	private static int GetTeamIndexForPlayerIndex(int playerIndex, int defaultTeam)
 	{
-		var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-		if (p == null) return defaultTeam;
-		return p.Team;
+		var list = LobbyManager.Instance.PlayerList;
+		for (int i = 0; i < list.Count; i++)
+		{
+			if (list[i].Slot == playerIndex)
+			{
+				return list[i].TeamIndex;
+			}
+		}
+		return defaultTeam;
 	}
 
 	public static bool IsPlayerEnemy(int playerIndex, int localPlayerIndex)

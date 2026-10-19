@@ -146,7 +146,9 @@ public static class ComponentTypeRegistry
 			typeof(TerrainPathingFlags),
 			typeof(TerrainState),
 			typeof(TerrainSwatchConfig),
-			typeof(WeatherState)
+			typeof(WeatherState),
+			typeof(PlayerRelationshipMatrix),
+			typeof(PlayerTeam)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

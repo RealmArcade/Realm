@@ -72,6 +72,7 @@ public class WorldInitService
 			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
 			GameContext.World.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
 			GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
+			GameContext.World.Add(playerEntity, new PlayerTeam(defaultPlayers[i].Team, defaultPlayers[i].TeamNameStringId));
 			GameContext.World.GetBuffer<ScriptPlayer>().Set(i, in defaultPlayers[i]);
 			mappingState.PlayerEntities[i] = playerEntity;
 		}
@@ -124,6 +125,8 @@ public class WorldInitService
 
 		AddOrSet(worldEntity, new ScriptPlayersState(defaultPlayers));
 		AddOrSet(worldEntity, new CombatAlertState(0f));
+		AddOrSet(worldEntity, new PlayerRelationshipMatrix());
+		GameContext.SimulationService?.RecalculatePlayerRelationships();
 	}
 
 	private static ScriptPlayer[] CreateDefaultPlayers()
@@ -140,7 +143,8 @@ public class WorldInitService
 			IsComputer = true,
 			Team = 0,
 			Name = "Neutral",
-			KillCount = 0
+			KillCount = 0,
+			TeamNameStringId = StringRegistry.GetOrAdd("Neutral")
 		};
 
 		// Slots 1 to 24 are match participants
@@ -155,7 +159,8 @@ public class WorldInitService
 				IsComputer = false,
 				Team = i,
 				Name = $"Player {i}",
-				KillCount = 0
+				KillCount = 0,
+				TeamNameStringId = StringRegistry.GetOrAdd($"Team {i}")
 			};
 		}
 

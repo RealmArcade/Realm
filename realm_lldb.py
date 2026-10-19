@@ -44,7 +44,7 @@ EXPERIENCE_SIZE = 4
 MODEL_SCALE_SIZE = 4
 ROTATION_Y_SIZE = 4
 PLAYER_RESOURCES_SIZE = 48
-SCRIPT_PLAYER_SIZE = 28
+SCRIPT_PLAYER_SIZE = 32
 PLAYER_POPULATION_SIZE = 8
 
 # Fields auto-discovered for PlayerId (name, comp_id, array_offset, elem_size, sub_offset, type_name)

@@ -288,6 +288,7 @@ public class SimulationService
 	public Action<Entity> OnPropDepleted;
 
 	private readonly HashSet<long> _alliedPairs = new();
+	private readonly Dictionary<long, PlayerRelationship> _explicitRelationships = new();
 
 	private static long MakePairKey(int p1, int p2)
 	{
@@ -315,48 +316,167 @@ public class SimulationService
 
 	public void SetPlayerTeam(int playerIndex, int teamIndex)
 	{
+		int stringId = StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
+
 		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			playersState.Players[playerIndex].Team = teamIndex;
+			playersState.Players[playerIndex].TeamNameStringId = stringId;
 			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
 		}
 
-		if (LobbyManager.Instance != null)
+		var worldEntity = ECSContext.WorldEntity;
+		if (GameContext.World != null && worldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(worldEntity))
 		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null) p.Team = $"Team {teamIndex}";
+			var playerEntities = GameContext.World.Get<NetworkMappingState>(worldEntity).PlayerEntities;
+			if (playerIndex >= 0 && playerIndex < playerEntities.Length && playerEntities[playerIndex] != Entity.Null && GameContext.World.IsAlive(playerEntities[playerIndex]))
+			{
+				if (GameContext.World.Has<PlayerTeam>(playerEntities[playerIndex]))
+				{
+					ref var pt = ref GameContext.World.Get<PlayerTeam>(playerEntities[playerIndex]);
+					pt.TeamIndex = teamIndex;
+					pt.TeamNameStringId = stringId;
+				}
+				else
+				{
+					GameContext.World.Add(playerEntities[playerIndex], new PlayerTeam(teamIndex, stringId));
+				}
+			}
 		}
+
+		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList != null)
+		{
+			var list = LobbyManager.Instance.PlayerList;
+			for (int i = 0; i < list.Count; i++)
+			{
+				if (list[i].Slot == playerIndex)
+				{
+					list[i].TeamIndex = teamIndex;
+					list[i].Team = teamIndex == 0 ? "Neutral" : $"Team {teamIndex}";
+					break;
+				}
+			}
+		}
+
+		RecalculatePlayerRelationships();
 	}
 
 	public int GetPlayerTeam(int playerIndex)
 	{
+		if (playerIndex >= 0 && playerIndex < 25 && GameContext.World != null)
+		{
+			var buffer = GameContext.World.GetBuffer<ScriptPlayer>();
+			if (buffer != null)
+			{
+				return buffer.Get(playerIndex).Team;
+			}
+		}
+
 		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
 			return playersState.Players[playerIndex].Team;
 		}
 
-		if (LobbyManager.Instance != null)
+		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList != null)
 		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null && p.Team.StartsWith("Team ") && int.TryParse(p.Team[5..], out int teamVal))
-				return teamVal;
+			var list = LobbyManager.Instance.PlayerList;
+			for (int i = 0; i < list.Count; i++)
+			{
+				if (list[i].Slot == playerIndex)
+				{
+					return list[i].TeamIndex;
+				}
+			}
 		}
 
 		return 0;
+	}
+
+	public string GetPlayerTeamName(int playerIndex)
+	{
+		if (playerIndex >= 0 && playerIndex < 25 && GameContext.World != null)
+		{
+			var buffer = GameContext.World.GetBuffer<ScriptPlayer>();
+			if (buffer != null)
+			{
+				int stringId = buffer.Get(playerIndex).TeamNameStringId;
+				if (stringId != 0)
+				{
+					return StringRegistry.Get(stringId);
+				}
+			}
+		}
+
+		int teamIndex = GetPlayerTeam(playerIndex);
+		return teamIndex == 0 ? "Neutral" : $"Team {teamIndex}";
 	}
 
 	public void SetPlayersAllied(int playerIndex, int otherPlayerIndex, bool allied)
 	{
 		long key = MakePairKey(playerIndex, otherPlayerIndex);
 		if (allied)
+		{
 			_alliedPairs.Add(key);
+			_explicitRelationships[key] = PlayerRelationship.Ally;
+		}
 		else
+		{
 			_alliedPairs.Remove(key);
+			_explicitRelationships.Remove(key);
+		}
+
+		RecalculatePlayerRelationships();
+	}
+
+	public void SetPlayerRelationship(int playerIndex, int otherPlayerIndex, PlayerRelationship relationship)
+	{
+		long key = MakePairKey(playerIndex, otherPlayerIndex);
+		_explicitRelationships[key] = relationship;
+		if (relationship == PlayerRelationship.Ally)
+		{
+			_alliedPairs.Add(key);
+		}
+		else
+		{
+			_alliedPairs.Remove(key);
+		}
+
+		RecalculatePlayerRelationships();
+	}
+
+	public PlayerRelationship GetPlayerRelationship(int playerIndex, int otherPlayerIndex)
+	{
+		if (playerIndex == otherPlayerIndex) return PlayerRelationship.Ally;
+
+		var worldEntity = ActiveWorldEntity;
+		if (GameContext.World != null && worldEntity != Entity.Null && GameContext.World.Has<PlayerRelationshipMatrix>(worldEntity))
+		{
+			return GameContext.World.Get<PlayerRelationshipMatrix>(worldEntity).GetRelationship(playerIndex, otherPlayerIndex);
+		}
+
+		if (ArePlayersAllied(playerIndex, otherPlayerIndex))
+		{
+			return PlayerRelationship.Ally;
+		}
+
+		if (ArePlayersEnemies(playerIndex, otherPlayerIndex))
+		{
+			return PlayerRelationship.Enemy;
+		}
+
+		return PlayerRelationship.Neutral;
 	}
 
 	public bool ArePlayersAllied(int playerIndex, int otherPlayerIndex)
 	{
 		if (playerIndex == otherPlayerIndex) return true;
+
+		var worldEntity = ActiveWorldEntity;
+		if (GameContext.World != null && worldEntity != Entity.Null && GameContext.World.Has<PlayerRelationshipMatrix>(worldEntity))
+		{
+			return GameContext.World.Get<PlayerRelationshipMatrix>(worldEntity).AreAllied(playerIndex, otherPlayerIndex);
+		}
+
 		if (_alliedPairs.Contains(MakePairKey(playerIndex, otherPlayerIndex))) return true;
 
 		int t1 = GetPlayerTeam(playerIndex);
@@ -364,6 +484,84 @@ public class SimulationService
 		if (t1 != 0 && t2 != 0 && t1 == t2) return true;
 
 		return false;
+	}
+
+	public bool ArePlayersEnemies(int playerIndex, int otherPlayerIndex)
+	{
+		if (playerIndex == otherPlayerIndex) return false;
+
+		var worldEntity = ActiveWorldEntity;
+		if (GameContext.World != null && worldEntity != Entity.Null && GameContext.World.Has<PlayerRelationshipMatrix>(worldEntity))
+		{
+			return GameContext.World.Get<PlayerRelationshipMatrix>(worldEntity).AreEnemies(playerIndex, otherPlayerIndex);
+		}
+
+		if (_alliedPairs.Contains(MakePairKey(playerIndex, otherPlayerIndex))) return false;
+
+		int t1 = GetPlayerTeam(playerIndex);
+		int t2 = GetPlayerTeam(otherPlayerIndex);
+		if (t1 != 0 && t2 != 0)
+		{
+			return t1 != t2;
+		}
+
+		return playerIndex != otherPlayerIndex;
+	}
+
+	public void RecalculatePlayerRelationships()
+	{
+		var worldEntity = ActiveWorldEntity;
+		if (GameContext.World == null || worldEntity == Entity.Null || !GameContext.World.IsAlive(worldEntity)) return;
+
+		PlayerRelationshipMatrix matrix = default;
+
+		for (int i = 0; i < PlayerRelationshipMatrix.MaxPlayers; i++)
+		{
+			for (int j = 0; j < PlayerRelationshipMatrix.MaxPlayers; j++)
+			{
+				if (i == j)
+				{
+					matrix.SetRelationship(i, j, PlayerRelationship.Ally);
+					continue;
+				}
+
+				long key = MakePairKey(i, j);
+				if (_explicitRelationships.TryGetValue(key, out var explicitRel))
+				{
+					matrix.SetRelationship(i, j, explicitRel);
+				}
+				else if (_alliedPairs.Contains(key))
+				{
+					matrix.SetRelationship(i, j, PlayerRelationship.Ally);
+				}
+				else
+				{
+					int t1 = GetPlayerTeam(i);
+					int t2 = GetPlayerTeam(j);
+					if (t1 != 0 && t2 != 0)
+					{
+						matrix.SetRelationship(i, j, t1 == t2 ? PlayerRelationship.Ally : PlayerRelationship.Enemy);
+					}
+					else if (t1 == 0 && t2 == 0)
+					{
+						matrix.SetRelationship(i, j, PlayerRelationship.Neutral);
+					}
+					else
+					{
+						matrix.SetRelationship(i, j, PlayerRelationship.Enemy);
+					}
+				}
+			}
+		}
+
+		if (GameContext.World.Has<PlayerRelationshipMatrix>(worldEntity))
+		{
+			GameContext.World.Set(worldEntity, matrix);
+		}
+		else
+		{
+			GameContext.World.Add(worldEntity, matrix);
+		}
 	}
 
 	public void SetPlayerActiveDomain(int playerIndex, bool active)

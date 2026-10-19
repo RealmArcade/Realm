@@ -4765,6 +4765,15 @@
         <member name="F:Realm.MapAPI.Components.ScriptPlayer.KillCount">
             <summary>Total enemy unit kill count credited to this player.</summary>
         </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.TeamNameStringId">
+            <summary>The TeamNameStringId field.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.ScriptPlayer.TeamIndex">
+            <summary>Gets or sets the TeamIndex property.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.ScriptPlayer.TeamName">
+            <summary>Gets or sets the TeamName property.</summary>
+        </member>
         <member name="P:Realm.MapAPI.Components.ScriptPlayer.Active">
             <summary>Gets or sets a value indicating whether this player slot is active.</summary>
         </member>

@@ -2087,7 +2087,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
 		_peerIdToPlayerEntityMap[0] = playerEntities[0];
-		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true);
+		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true, teamIndex: 0);
 
 		foreach (var p in LobbyManager.Instance.PlayerList)
 		{
@@ -2099,9 +2099,11 @@ public partial class GameHost : Node3D, IGameAPI
 				{
 					GameContext.World.Set(playerEntity, new Name(p.Name));
 				}
-				UpdateScriptPlayerState(p.Slot, p.Name, active: true, isComputer: p.PeerId < 0);
+				UpdateScriptPlayerState(p.Slot, p.Name, active: true, isComputer: p.PeerId < 0, teamIndex: p.TeamIndex);
 			}
 		}
+
+		GameContext.SimulationService?.RecalculatePlayerRelationships();
 	}
 
 	private void InitializeSingleplayerPlayers()
@@ -2119,12 +2121,14 @@ public partial class GameHost : Node3D, IGameAPI
 		_peerIdToPlayerEntityMap[1] = playerEntities[1];
 		_peerIdToPlayerEntityMap[-1] = playerEntities[2];
 
-		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true);
-		UpdateScriptPlayerState(1, "Horaid_Topa", active: true, isComputer: false);
-		UpdateScriptPlayerState(2, "Enemy_AI", active: true, isComputer: true);
+		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true, teamIndex: 0);
+		UpdateScriptPlayerState(1, "Horaid_Topa", active: true, isComputer: false, teamIndex: 1);
+		UpdateScriptPlayerState(2, "Enemy_AI", active: true, isComputer: true, teamIndex: 2);
+
+		GameContext.SimulationService?.RecalculatePlayerRelationships();
 	}
 
-	private void UpdateScriptPlayerState(int pIdx, string name, bool active = true, bool isComputer = false)
+	private void UpdateScriptPlayerState(int pIdx, string name, bool active = true, bool isComputer = false, int teamIndex = -1)
 	{
 		if (!GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity)) return;
 
@@ -2134,7 +2138,31 @@ public partial class GameHost : Node3D, IGameAPI
 			players[pIdx].Name = name;
 			players[pIdx].Active = active;
 			players[pIdx].IsComputer = isComputer;
+			if (teamIndex >= 0)
+			{
+				players[pIdx].TeamIndex = teamIndex;
+				players[pIdx].TeamNameStringId = Realm.Ecs.StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
+			}
 			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in players[pIdx]);
+
+			if (teamIndex >= 0 && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
+			{
+				var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+				if (pIdx < playerEntities.Length && playerEntities[pIdx] != Entity.Null && GameContext.World.IsAlive(playerEntities[pIdx]))
+				{
+					int stringId = players[pIdx].TeamNameStringId;
+					if (GameContext.World.Has<PlayerTeam>(playerEntities[pIdx]))
+					{
+						ref var pt = ref GameContext.World.Get<PlayerTeam>(playerEntities[pIdx]);
+						pt.TeamIndex = teamIndex;
+						pt.TeamNameStringId = stringId;
+					}
+					else
+					{
+						GameContext.World.Add(playerEntities[pIdx], new PlayerTeam(teamIndex, stringId));
+					}
+				}
+			}
 		}
 	}
 
