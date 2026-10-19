@@ -322,27 +322,7 @@ public partial class EnetMapTransferService : Node
 
 	private Dictionary<string, string> GetLocalFileMap(string mapName, string mapVersion, MapManifest? manifest)
 	{
-		var localFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		string? manifestPath = MapAssetManager.FindManifestPath(mapName, mapVersion);
-
-		if (string.IsNullOrEmpty(manifestPath) || !File.Exists(manifestPath) || manifest == null || manifest.Files == null)
-		{
-			return localFileMap;
-		}
-
-		string mapDir = Path.GetDirectoryName(manifestPath)!;
-		foreach (var kvp in manifest.Files)
-		{
-			string normKvp = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
-			string relPath = kvp.Key.Replace("res://", "").TrimStart('/', '\\');
-			string localFilePath = Path.Combine(mapDir, relPath);
-			if (File.Exists(localFilePath))
-			{
-				localFileMap[normKvp] = localFilePath;
-			}
-		}
-
-		return localFileMap;
+		return MapTransferHelper.BuildLocalFileMap(mapName, mapVersion, manifest);
 	}
 
 	private List<HostAssetTransferItem> GatherItemsToPack(string[] missingHashes, Dictionary<string, string> localFileMap)
@@ -595,56 +575,18 @@ public partial class EnetMapTransferService : Node
 
 	private void FinalizeReceivedChunk(int chunkIndex, int totalChunks)
 	{
-		byte[] chunkBytes = _currentClientTransfer!.CurrentChunkStream.ToArray();
-		_currentClientTransfer.CurrentChunkStream.SetLength(0);
-		_currentClientTransfer.CurrentChunkStream.Position = 0;
-		_currentClientTransfer.ReceivedPacketsInCurrentChunk = 0;
+		byte[] chunkBytes = MapTransferHelper.PopChunkBytes(_currentClientTransfer!);
 
-		_ = ProcessReceivedChunkAsync(_currentClientTransfer, chunkIndex, totalChunks, chunkBytes);
-	}
-
-
-	private async Task ProcessReceivedChunkAsync(ClientTransferSession transferSession, int chunkIndex, int totalChunks, byte[] chunkBytes)
-	{
-		try
-		{
-			var extractedAssets = await Task.Run(() => ZstdAssetBundleHelper.ExtractBundleBytes(chunkBytes));
-			transferSession.LastActivityTimeUtc = DateTime.UtcNow;
-
-			await Task.Run(() =>
-			{
-				foreach (var (assetKey, data, metadata) in extractedAssets)
-				{
-					string ext = Path.GetExtension(assetKey);
-					MapAssetManager.Storage.StoreAsset(data, ext, metadata, precomputedBlake3: assetKey);
-				}
-			});
-
-			transferSession.LastActivityTimeUtc = DateTime.UtcNow;
-
-			if (chunkIndex + 1 < totalChunks)
-			{
-				Callable.From(() => RpcId(1, nameof(RequestNextMapTransferChunkRpc), transferSession.TransferId, chunkIndex + 1)).CallDeferred();
-			}
-			else
-			{
-				string targetMapDir = MapAssetManager.GetMapDirectory(transferSession.MapName, transferSession.MapVersion);
-				await Task.Run(() =>
-				{
-					MapAssetManager.ExtractManifestFiles(transferSession.Manifest, targetMapDir);
-					string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
-					GameContext.AssetIndexService.RegisterManifest(transferSession.Manifest, localManifestPath);
-				});
-
-				Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferSession.TransferId)).CallDeferred();
-				_transferCompleteTcs?.TrySetResult(true);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[EnetMapTransferService] Decompression failed: {ex.Message}");
-			_transferCompleteTcs?.TrySetException(ex);
-		}
+		_ = MapTransferHelper.ProcessReceivedChunkAsync(
+			_currentClientTransfer!,
+			chunkIndex,
+			totalChunks,
+			chunkBytes,
+			nextChunkIndex => RpcId(1, nameof(RequestNextMapTransferChunkRpc), _currentClientTransfer!.TransferId, nextChunkIndex),
+			() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), _currentClientTransfer!.TransferId),
+			_transferCompleteTcs,
+			"EnetMapTransferService"
+		);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

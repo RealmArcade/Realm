@@ -10,6 +10,7 @@ using Realm.AdminServer.Services;
 using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
+using Realm.AdminServer.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -1808,75 +1809,7 @@ app.MapPost("/api/admin/remove_manifest", async (HttpRequest request, ClusterEve
 
 app.MapDelete("/api/admin/manifests/{mapTitle}", (string mapTitle, HttpRequest request, ClusterEventService clusterEvents, DataStoreService db, ContentAddressableStorage cas, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
-	if (string.IsNullOrWhiteSpace(mapTitle))
-	{
-		return Results.BadRequest(new RemoveManifestResponseDto { Success = false, Message = "MapTitle is required." });
-	}
-
-	if (adminPublicKeys.Count == 0)
-	{
-		return Results.Json(new RemoveManifestResponseDto { Success = false, Message = "Server has no AdminPublicKeys configured." }, statusCode: StatusCodes.Status403Forbidden);
-	}
-
-	string? bypassHeader = request.Headers["X-Admin-Bypass"];
-	string? sigHeader = request.Headers["X-Cluster-Signature"];
-	string? pubKeyHeader = request.Headers["X-Admin-PublicKey"];
-
-	string callerPubKey = pubKeyHeader?.ToString() ?? "";
-	string callerSig = sigHeader?.ToString() ?? "";
-
-	string sigPayload1 = $"remove_manifest:{mapTitle.Trim().ToLowerInvariant()}:all";
-	string sigPayload2 = $"remove_manifest:{mapTitle.Trim().ToLowerInvariant()}";
-
-	bool isAuth = false;
-
-	if (!string.IsNullOrEmpty(bypassHeader))
-	{
-		isAuth = AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, "all", bypassHeader)
-		         || AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "remove_manifest", bypassHeader)
-		         || AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, "*", bypassHeader);
-	}
-
-	if (!isAuth && !string.IsNullOrEmpty(callerSig))
-	{
-		if (!string.IsNullOrEmpty(callerPubKey) && adminPublicKeys.Contains(callerPubKey.Trim()))
-		{
-			isAuth = AuthorSignatureHelper.VerifySignature(callerPubKey.Trim(), sigPayload1, callerSig)
-			         || AuthorSignatureHelper.VerifySignature(callerPubKey.Trim(), sigPayload2, callerSig)
-			         || AdminBypassAuth.VerifyBypassToken(callerPubKey.Trim(), mapTitle, "all", callerSig);
-		}
-		else
-		{
-			isAuth = AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, sigPayload1, callerSig)
-			         || AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, sigPayload2, callerSig)
-			         || AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, "all", callerSig);
-		}
-	}
-
-	if (!isAuth)
-	{
-		return Results.Json(new RemoveManifestResponseDto { Success = false, Message = "Unauthorized admin request." }, statusCode: StatusCodes.Status401Unauthorized);
-	}
-
-	var result = clusterEvents.RemoveManifest(cas, db, mapTitle, null);
-
-	var removeEvent = new ClusterEventDto
-	{
-		EventType = "admin_remove_manifest",
-		PublicKey = !string.IsNullOrEmpty(callerPubKey) ? callerPubKey.Trim() : (adminPublicKeys.FirstOrDefault() ?? ""),
-		Signature = callerSig,
-		PayloadJson = JsonSerializer.Serialize(new AdminRemoveManifestEventPayload
-		{
-			MapTitle = mapTitle,
-			MapVersion = null,
-			AdminPublicKey = callerPubKey,
-			Signature = callerSig
-		})
-	};
-	clusterEvents.MarkEventProcessed(removeEvent.EventId, db);
-	clusterEvents.BroadcastEvent(removeEvent, registeredPeers, httpClientFactory);
-
-	return Results.Ok(result);
+	return AdminEndpointsHelper.HandleRemoveManifest(mapTitle, null, request, clusterEvents, db, cas, registeredPeers, httpClientFactory, adminPublicKeys.ToList());
 });
 
 app.MapDelete("/api/admin/manifests/{mapTitle}/{mapVersion}", (string mapTitle, string mapVersion, HttpRequest request, ClusterEventService clusterEvents, DataStoreService db, ContentAddressableStorage cas, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
@@ -1954,16 +1887,7 @@ app.MapPost("/api/cluster/sync_metrics", async (HttpRequest request, ClusterEven
 	using var reader = new StreamReader(request.Body, Encoding.UTF8);
 	string body = await reader.ReadToEndAsync();
 
-	string? sigHeader = request.Headers["X-Cluster-Signature"];
-	string? pubKeyHeader = request.Headers["X-Admin-PublicKey"];
-	string? bypassHeader = request.Headers["X-Admin-Bypass"];
-
-	bool isAuth = (!string.IsNullOrEmpty(bypassHeader) && adminPublicKeys.Count > 0 && AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "cluster", "sync", bypassHeader))
-	              || (!string.IsNullOrEmpty(sigHeader) && (
-		              (!string.IsNullOrEmpty(pubKeyHeader) && adminPublicKeys.Contains(pubKeyHeader.ToString().Trim()) && (AuthorSignatureHelper.VerifySignature(pubKeyHeader.ToString().Trim(), "sync_metrics", sigHeader.ToString()) || AuthorSignatureHelper.VerifySignature(pubKeyHeader.ToString().Trim(), body, sigHeader.ToString())))
-		              || AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, "sync_metrics", sigHeader.ToString())
-		              || AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, body, sigHeader.ToString())
-	              ));
+	bool isAuth = await AdminEndpointsHelper.VerifyClusterSyncRequest(request, body, adminPublicKeys.ToList());
 
 	if (!isAuth)
 	{
@@ -2509,119 +2433,9 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 				}
 			}
 
-			string engineVersion = "Godot Realm Engine v1.0";
-			string maxPlayers = "8 Players";
-			string genre = tags.Count > 0 ? tags[0] : "Custom Map";
-
-			if (!string.IsNullOrEmpty(metadataFileHash))
-			{
-				string? metaFilePath = cas.FindAssetFilePath(metadataFileHash);
-				if (metaFilePath != null && File.Exists(metaFilePath))
-				{
-					try
-					{
-						var metaDoc = JsonDocument.Parse(File.ReadAllText(metaFilePath));
-						var metaRoot = metaDoc.RootElement;
-						if (metaRoot.TryGetProperty("MapProperties", out var mp) && mp.ValueKind == JsonValueKind.Object)
-						{
-							if (string.IsNullOrEmpty(description) && mp.TryGetProperty("MapDescription", out var md))
-							{
-								string? mdStr = md.GetString();
-								if (!string.IsNullOrEmpty(mdStr)) description = mdStr;
-							}
-
-							if (string.IsNullOrEmpty(description) && mp.TryGetProperty("HowToPlayObjective", out var htp))
-							{
-								string? htpStr = htp.GetString();
-								if (!string.IsNullOrEmpty(htpStr)) description = htpStr;
-							}
-
-							if (mp.TryGetProperty("Tags", out var metaTags) && metaTags.ValueKind == JsonValueKind.Array)
-							{
-								foreach (var t in metaTags.EnumerateArray())
-								{
-									string? s = t.GetString();
-									if (!string.IsNullOrEmpty(s) && !tags.Contains(s)) tags.Add(s);
-								}
-							}
-
-							if (mp.TryGetProperty("PlayerSlots", out var slotsProp) && slotsProp.ValueKind == JsonValueKind.Array && slotsProp.GetArrayLength() > 0)
-							{
-								maxPlayers = $"{slotsProp.GetArrayLength()} Players";
-							}
-							else if (mp.TryGetProperty("SuggestedPlayers", out var sp) && !string.IsNullOrEmpty(sp.GetString()))
-							{
-								maxPlayers = sp.GetString()!;
-							}
-
-							if (mp.TryGetProperty("MapType", out var mt) && !string.IsNullOrEmpty(mt.GetString()))
-							{
-								genre = mt.GetString()!;
-							}
-						}
-
-						if (metaRoot.TryGetProperty("Templates", out var templatesObj) && templatesObj.ValueKind == JsonValueKind.Object)
-						{
-							if (templatesObj.TryGetProperty("Units", out var cu) && cu.ValueKind == JsonValueKind.Array && cu.GetArrayLength() > 0)
-							{
-								if (!tags.Contains("Custom Units")) tags.Add("Custom Units");
-							}
-
-							if (templatesObj.TryGetProperty("Buildings", out var cb) && cb.ValueKind == JsonValueKind.Array && cb.GetArrayLength() > 0)
-							{
-								if (!tags.Contains("Custom Buildings")) tags.Add("Custom Buildings");
-							}
-
-							if (templatesObj.TryGetProperty("Abilities", out var ca) && ca.ValueKind == JsonValueKind.Array && ca.GetArrayLength() > 0)
-							{
-								if (!tags.Contains("Custom Abilities")) tags.Add("Custom Abilities");
-							}
-
-							if (templatesObj.TryGetProperty("Weapons", out var cw) && cw.ValueKind == JsonValueKind.Array && cw.GetArrayLength() > 0)
-							{
-								if (!tags.Contains("Custom Weapons")) tags.Add("Custom Weapons");
-							}
-
-							if (templatesObj.TryGetProperty("Upgrades", out var cup) && cup.ValueKind == JsonValueKind.Array && cup.GetArrayLength() > 0)
-							{
-								if (!tags.Contains("Custom Upgrades")) tags.Add("Custom Upgrades");
-							}
-
-							if (templatesObj.TryGetProperty("Props", out var cpr) && cpr.ValueKind == JsonValueKind.Array && cpr.GetArrayLength() > 0)
-							{
-								if (!tags.Contains("Custom Props")) tags.Add("Custom Props");
-							}
-
-							if (templatesObj.TryGetProperty("Items", out var ci) && ci.ValueKind == JsonValueKind.Array && ci.GetArrayLength() > 0)
-							{
-								if (!tags.Contains("Custom Items")) tags.Add("Custom Items");
-							}
-
-							if (templatesObj.TryGetProperty("Attachments", out var cat) && cat.ValueKind == JsonValueKind.Array && cat.GetArrayLength() > 0)
-							{
-								if (!tags.Contains("Custom Attachments")) tags.Add("Custom Attachments");
-							}
-
-							if (templatesObj.TryGetProperty("Vfx", out var cvfx) && cvfx.ValueKind == JsonValueKind.Array && cvfx.GetArrayLength() > 0)
-							{
-								if (!tags.Contains("Custom VFX")) tags.Add("Custom VFX");
-							}
-						}
-
-						if (metaRoot.TryGetProperty("EngineVersion", out var ev) && !string.IsNullOrEmpty(ev.GetString()))
-						{
-							engineVersion = ev.GetString()!;
-						}
-						else if (metaRoot.TryGetProperty("GameBuildNumber", out var gb) && !string.IsNullOrEmpty(gb.GetString()))
-						{
-							engineVersion = $"Build {gb.GetString()}";
-						}
-					}
-					catch
-					{
-					}
-				}
-			}
+			MapMetadataHelper.ParseMapMetadataDetails(
+				cas, metadataFileHash, ref description, tags,
+				out string engineVersion, out string maxPlayers, out string genre);
 
 			if (string.IsNullOrEmpty(thumbnailHash) && screenshotHashes.Count > 0)
 			{
@@ -3055,176 +2869,12 @@ app.MapGet("/api/maps/{mapTitle}/maintainers", (string mapTitle, DataStoreServic
 
 app.MapPost("/api/maps/{mapTitle}/maintainers/add", (string mapTitle, AddMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
-	try
-	{
-		string targetMap = !string.IsNullOrWhiteSpace(req.MapTitle) ? req.MapTitle : mapTitle;
-		if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
-		{
-			return Results.BadRequest(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
-			});
-		}
-
-		bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
-		bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
-
-		if (!isAdmin && !isMaintainer)
-		{
-			return Results.Json(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
-			}, statusCode: StatusCodes.Status403Forbidden);
-		}
-
-		string canonicalPayload = $"add_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
-		string fallbackPayload1 = $"add_maintainer:{targetMap}:{req.MaintainerPublicKey}";
-		string fallbackPayload2 = $"add:{targetMap}:{req.MaintainerPublicKey}";
-
-		bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
-		                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
-		                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
-
-		if (!isSigValid)
-		{
-			return Results.BadRequest(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = "Invalid signature for adding maintainer."
-			});
-		}
-
-		var updatedMaintainers = MapMaintainerHelper.AddMaintainer(db, targetMap, req.MaintainerPublicKey);
-		string owner = MapMaintainerHelper.GetOwner(db, targetMap);
-
-		var clusterEvt = new ClusterEventDto
-		{
-			EventType = "map_maintainers_updated",
-			PublicKey = req.RequesterPublicKey,
-			Signature = req.Signature,
-			PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
-			{
-				MapTitle = targetMap,
-				Action = "add",
-				MaintainerPublicKey = req.MaintainerPublicKey,
-				MaintainerUsername = req.MaintainerUsername,
-				RequesterPublicKey = req.RequesterPublicKey,
-				Signature = req.Signature
-			})
-		};
-		clusterEvents.RecordEvent(clusterEvt, db);
-		clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
-
-		return Results.Ok(new MapMaintainersResponseDto
-		{
-			Success = true,
-			MapTitle = targetMap,
-			OwnerPublicKey = owner,
-			Maintainers = updatedMaintainers,
-			Message = $"Successfully added maintainer '{req.MaintainerPublicKey}' to map '{targetMap}'."
-		});
-	}
-	catch (Exception ex)
-	{
-		return Results.BadRequest(new MapMaintainersResponseDto
-		{
-			Success = false,
-			MapTitle = mapTitle,
-			Message = ex.Message
-		});
-	}
+	return MapMaintainerEndpointsHelper.HandleAddMapMaintainer(req.MapTitle, mapTitle, req, db, clusterEvents, registeredPeers, httpClientFactory, adminPublicKeys);
 });
 
 app.MapPost("/api/maps/maintainers/add", (AddMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
-	try
-	{
-		string targetMap = req.MapTitle;
-		if (string.IsNullOrWhiteSpace(targetMap) || string.IsNullOrWhiteSpace(req.MaintainerPublicKey) || string.IsNullOrWhiteSpace(req.RequesterPublicKey) || string.IsNullOrWhiteSpace(req.Signature))
-		{
-			return Results.BadRequest(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = "MapTitle, MaintainerPublicKey, RequesterPublicKey, and Signature are required."
-			});
-		}
-
-		bool isAdmin = adminPublicKeys.Count > 0 && adminPublicKeys.Contains(req.RequesterPublicKey.Trim());
-		bool isMaintainer = MapMaintainerHelper.IsAuthorizedMaintainer(db, targetMap, req.RequesterPublicKey);
-
-		if (!isAdmin && !isMaintainer)
-		{
-			return Results.Json(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = $"Requester public key is not an authorized maintainer of map '{targetMap}'."
-			}, statusCode: StatusCodes.Status403Forbidden);
-		}
-
-		string canonicalPayload = $"add_maintainer:{targetMap.ToLowerInvariant()}:{req.MaintainerPublicKey.Trim()}";
-		string fallbackPayload1 = $"add_maintainer:{targetMap}:{req.MaintainerPublicKey}";
-		string fallbackPayload2 = $"add:{targetMap}:{req.MaintainerPublicKey}";
-
-		bool isSigValid = AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), canonicalPayload, req.Signature)
-		                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload1, req.Signature)
-		                  || AuthorSignatureHelper.VerifySignature(req.RequesterPublicKey.Trim(), fallbackPayload2, req.Signature);
-
-		if (!isSigValid)
-		{
-			return Results.BadRequest(new MapMaintainersResponseDto
-			{
-				Success = false,
-				MapTitle = targetMap,
-				Message = "Invalid signature for adding maintainer."
-			});
-		}
-
-		var updatedMaintainers = MapMaintainerHelper.AddMaintainer(db, targetMap, req.MaintainerPublicKey);
-		string owner = MapMaintainerHelper.GetOwner(db, targetMap);
-
-		var clusterEvt = new ClusterEventDto
-		{
-			EventType = "map_maintainers_updated",
-			PublicKey = req.RequesterPublicKey,
-			Signature = req.Signature,
-			PayloadJson = JsonSerializer.Serialize(new MapMaintainersUpdatedEventPayload
-			{
-				MapTitle = targetMap,
-				Action = "add",
-				MaintainerPublicKey = req.MaintainerPublicKey,
-				MaintainerUsername = req.MaintainerUsername,
-				RequesterPublicKey = req.RequesterPublicKey,
-				Signature = req.Signature
-			})
-		};
-		clusterEvents.RecordEvent(clusterEvt, db);
-		clusterEvents.BroadcastEvent(clusterEvt, registeredPeers, httpClientFactory);
-
-		return Results.Ok(new MapMaintainersResponseDto
-		{
-			Success = true,
-			MapTitle = targetMap,
-			OwnerPublicKey = owner,
-			Maintainers = updatedMaintainers,
-			Message = $"Successfully added maintainer '{req.MaintainerPublicKey}' to map '{targetMap}'."
-		});
-	}
-	catch (Exception ex)
-	{
-		return Results.BadRequest(new MapMaintainersResponseDto
-		{
-			Success = false,
-			MapTitle = req.MapTitle,
-			Message = ex.Message
-		});
-	}
+	return MapMaintainerEndpointsHelper.HandleAddMapMaintainer(req.MapTitle, req.MapTitle, req, db, clusterEvents, registeredPeers, httpClientFactory, adminPublicKeys);
 });
 
 app.MapPost("/api/maps/{mapTitle}/maintainers/remove", (string mapTitle, RemoveMapMaintainerRequest req, DataStoreService db, ClusterEventService clusterEvents, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>

@@ -596,7 +596,12 @@ public partial class Prop3D : StaticBody3D
 	public virtual void UpdateSlopeAlignment()
 	{
 		var visual = GetNodeOrNull<Node3D>("VisualModel");
-		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && visual != null && GodotObject.IsInstanceValid(visual))
+		ApplySlopeAlignment(visual);
+	}
+
+	protected void ApplySlopeAlignment(Node3D? visualNode)
+	{
+		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && visualNode != null && GodotObject.IsInstanceValid(visualNode))
 		{
 			GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
 			if (normal.LengthSquared() > 0.01f)
@@ -605,7 +610,7 @@ public partial class Prop3D : StaticBody3D
 				Vector3 up = normal;
 				Vector3 forward = MathF.Abs(up.Y) < 0.99f ? Vector3.Up.Cross(up).Cross(up).Normalized() : -Vector3.Forward;
 				Vector3 right = up.Cross(forward).Normalized();
-				visual.Basis = new Basis(right, up, -forward);
+				visualNode.Basis = new Basis(right, up, -forward);
 			}
 		}
 	}

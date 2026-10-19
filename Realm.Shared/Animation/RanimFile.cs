@@ -1,4 +1,4 @@
-using MemoryPack;
+﻿using MemoryPack;
 using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Animation;
@@ -49,12 +49,4 @@ public class RanimFile : RealmContainerFile
 		return Build(metadataJson, memoryPackBytes, compressed, version);
 	}
 
-	public static string? ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, MagicBytes);
-	public static string? ExtractMetadata(Stream stream) => ExtractMetadataFromStream(stream, MagicBytes);
-	public static string? ExtractMetadataFromFile(string filePath) => ExtractMetadataFromPath(filePath, MagicBytes);
-
-	public static byte[] SetMetadata(ReadOnlySpan<byte> bytes, string? newMetadataJson)
-	{
-		return SetContainerMetadata(bytes, MagicBytes, Name, Format, newMetadataJson, configureMetadata: metaObj => metaObj["asset_type"] ??= "Animation");
-	}
 }

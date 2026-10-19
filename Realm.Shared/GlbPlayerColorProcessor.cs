@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json.Nodes;
 using Assimp;
 using Realm.Shared.Metadata;
@@ -178,6 +178,28 @@ public static class GlbPlayerColorProcessor
 		return AutoDetectChromaKey(albedoImg);
 	}
 
+	
+	private delegate void PixelOklabAction(SkiaSharp.SKColor pixel, float pL, float pA, float pB);
+
+	private static void IterateOklabPixels(SkiaSharp.SKBitmap albedoImg, PixelOklabAction action)
+	{
+		for (int y = 0; y < albedoImg.Height; y++)
+		{
+			for (int x = 0; x < albedoImg.Width; x++)
+			{
+				var pixel = albedoImg.GetPixel(x, y);
+				if (pixel.Alpha < 128) continue;
+
+				float r = pixel.Red / 255f;
+				float g = pixel.Green / 255f;
+				float b = pixel.Blue / 255f;
+
+				var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+				action(pixel, pL, pA, pB);
+			}
+		}
+	}
+
 	public static string AutoDetectChromaKey(SKBitmap albedoImg)
 	{
 		string? result = DetectDominantChromaKeyWithThreshold(albedoImg, 0.15f);
@@ -192,32 +214,21 @@ public static class GlbPlayerColorProcessor
 	private static int ProcessCandidatePixelsForChromaKey(SKBitmap albedoImg, float targetHueUnitX, float targetHueUnitY, Dictionary<int, int> candidateColorCounts)
 	{
 		int totalCandidatePixels = 0;
-		for (int y = 0; y < albedoImg.Height; y++)
+		IterateOklabPixels(albedoImg, (pixel, pL, pA, pB) =>
 		{
-			for (int x = 0; x < albedoImg.Width; x++)
-			{
-				var pixel = albedoImg.GetPixel(x, y);
-				if (pixel.Alpha < 128) continue;
+			float pChromaSquared = pA * pA + pB * pB;
 
-				float r = pixel.Red / 255f;
-				float g = pixel.Green / 255f;
-				float b = pixel.Blue / 255f;
+			if (pChromaSquared < 0.0036f || pL < 0.08f || pL > 0.98f) return;
 
-				var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
-				float pChromaSquared = pA * pA + pB * pB;
+			float pChroma = MathF.Sqrt(pChromaSquared);
+			float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
 
-				if (pChromaSquared < 0.0036f || pL < 0.08f || pL > 0.98f) continue;
+			if (hueDot < 0.75f) return;
 
-				float pChroma = MathF.Sqrt(pChromaSquared);
-				float hueDot = (pA * targetHueUnitX + pB * targetHueUnitY) / pChroma;
-
-				if (hueDot < 0.75f) continue;
-
-				int rgbKey = (pixel.Red << 16) | (pixel.Green << 8) | pixel.Blue;
-				candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
-				totalCandidatePixels++;
-			}
-		}
+			int rgbKey = (pixel.Red << 16) | (pixel.Green << 8) | pixel.Blue;
+			candidateColorCounts[rgbKey] = candidateColorCounts.GetValueOrDefault(rgbKey) + 1;
+			totalCandidatePixels++;
+		});
 
 		return totalCandidatePixels;
 	}
@@ -341,36 +352,24 @@ public static class GlbPlayerColorProcessor
 		float minGridCoord, float cellSize, int gridDimension)
 	{
 		float minChromaSquared = minChroma * minChroma;
-		for (int y = 0; y < albedoImg.Height; y++)
+		IterateOklabPixels(albedoImg, (pixel, pL, pA, pB) =>
 		{
-			for (int x = 0; x < albedoImg.Width; x++)
-			{
-				var pixel = albedoImg.GetPixel(x, y);
-				if (pixel.Alpha < 128) continue;
+			float chromaSquared = pA * pA + pB * pB;
+			if (chromaSquared < minChromaSquared) return;
+			if (pL < 0.10f || pL > 0.95f) return;
 
-				float r = pixel.Red / 255f;
-				float g = pixel.Green / 255f;
-				float b = pixel.Blue / 255f;
+			int gridX = Math.Clamp((int)((pA - minGridCoord) / cellSize), 0, gridDimension - 1);
+			int gridY = Math.Clamp((int)((pB - minGridCoord) / cellSize), 0, gridDimension - 1);
+			int binIndex = gridY * gridDimension + gridX;
 
-				var (pL, pA, pB) = ConvertRgbToOklab(r, g, b);
+			float weight = chromaSquared * chromaSquared;
 
-				float chromaSquared = pA * pA + pB * pB;
-				if (chromaSquared < minChromaSquared) continue;
-				if (pL < 0.10f || pL > 0.95f) continue;
-
-				int gridX = Math.Clamp((int)((pA - minGridCoord) / cellSize), 0, gridDimension - 1);
-				int gridY = Math.Clamp((int)((pB - minGridCoord) / cellSize), 0, gridDimension - 1);
-				int binIndex = gridY * gridDimension + gridX;
-
-				float weight = chromaSquared * chromaSquared;
-
-				binTotalWeight[binIndex] += weight;
-				binSumLightness[binIndex] += pL * weight;
-				binSumA[binIndex] += pA * weight;
-				binSumB[binIndex] += pB * weight;
-				binPixelCount[binIndex]++;
-			}
-		}
+			binTotalWeight[binIndex] += weight;
+			binSumLightness[binIndex] += pL * weight;
+			binSumA[binIndex] += pA * weight;
+			binSumB[binIndex] += pB * weight;
+			binPixelCount[binIndex]++;
+		});
 	}
 
 	private static (int bestGridX, int bestGridY) FindBestChromaCluster(float[] binTotalWeight, int gridDimension)
@@ -585,16 +584,22 @@ public static class GlbPlayerColorProcessor
 		}
 	}
 
+	private static (int minX, int maxX, int minY, int maxY) GetTriangleBounds(Vector2 uv0, Vector2 uv1, Vector2 uv2, int texW, int texH)
+	{
+		int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
+		int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
+		int minY = Math.Clamp((int)(Math.Min(Math.Min(uv0.Y, uv1.Y), uv2.Y) * texH), 0, texH - 1);
+		int maxY = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.Y, uv1.Y), uv2.Y) * texH)), 0, texH - 1);
+		return (minX, maxX, minY, maxY);
+	}
+
 	private static void RasterizeFace(
 		int faceIdx, Vector2 uv0, Vector2 uv1, Vector2 uv2,
 		int texW, int texH, bool isConfirmed,
 		bool[] floodFillMask, bool[] seedMask,
 		bool[] isConfirmedPolygonTexel, float[] globalMask, bool[] isNonPlayerFaceTexel)
 	{
-		int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
-		int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
-		int minY = Math.Clamp((int)(Math.Min(Math.Min(uv0.Y, uv1.Y), uv2.Y) * texH), 0, texH - 1);
-		int maxY = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.Y, uv1.Y), uv2.Y) * texH)), 0, texH - 1);
+		var (minX, maxX, minY, maxY) = GetTriangleBounds(uv0, uv1, uv2, texW, texH);
 
 		for (int py = minY; py <= maxY; py++)
 		{
@@ -858,10 +863,7 @@ public static class GlbPlayerColorProcessor
 
 	private static (int SeedHits, int FloodHits, int TotalSampled) SampleTriangleMasks(Vector2 uv0, Vector2 uv1, Vector2 uv2, bool[] seedMask, bool[] floodFillMask, int texW, int texH)
 	{
-		int minX = Math.Clamp((int)(Math.Min(Math.Min(uv0.X, uv1.X), uv2.X) * texW), 0, texW - 1);
-		int maxX = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.X, uv1.X), uv2.X) * texW)), 0, texW - 1);
-		int minY = Math.Clamp((int)(Math.Min(Math.Min(uv0.Y, uv1.Y), uv2.Y) * texH), 0, texH - 1);
-		int maxY = Math.Clamp((int)(Math.Ceiling(Math.Max(Math.Max(uv0.Y, uv1.Y), uv2.Y) * texH)), 0, texH - 1);
+		var (minX, maxX, minY, maxY) = GetTriangleBounds(uv0, uv1, uv2, texW, texH);
 
 		int seedHits = 0;
 		int floodHits = 0;
@@ -1299,7 +1301,7 @@ public static class GlbPlayerColorProcessor
 		return (cb, cr);
 	}
 
-	private static void AppendIndexedVec2Faces(List<(Vector2, Vector2, Vector2)> result, List<Vector2> data, List<int> indices)
+	private static void AppendIndexedFaces<T>(List<(T, T, T)> result, List<T> data, List<int> indices)
 	{
 		for (int i = 0; i + 2 < indices.Count; i += 3)
 		{
@@ -1311,7 +1313,7 @@ public static class GlbPlayerColorProcessor
 		}
 	}
 
-	private static void AppendSequentialVec2Faces(List<(Vector2, Vector2, Vector2)> result, List<Vector2> data)
+	private static void AppendSequentialFaces<T>(List<(T, T, T)> result, List<T> data)
 	{
 		for (int i = 0; i + 2 < data.Count; i += 3)
 		{
@@ -1338,35 +1340,17 @@ public static class GlbPlayerColorProcessor
 		if (indexAccessorIndex >= 0 && indexAccessorIndex < accessors.Count)
 		{
 			var indices = ReadAccessorIndices(accessors, bufferViews, bin, indexAccessorIndex);
-			AppendIndexedVec2Faces(result, uvData, indices);
+			AppendIndexedFaces(result, uvData, indices);
 		}
 		else
 		{
-			AppendSequentialVec2Faces(result, uvData);
+			AppendSequentialFaces(result, uvData);
 		}
 
 		return result;
 	}
 
-	private static void AppendIndexedVec3Faces(List<(Vector3, Vector3, Vector3)> result, List<Vector3> data, List<int> indices)
-	{
-		for (int i = 0; i + 2 < indices.Count; i += 3)
-		{
-			int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
-			if (i0 < data.Count && i1 < data.Count && i2 < data.Count)
-			{
-				result.Add((data[i0], data[i1], data[i2]));
-			}
-		}
-	}
 
-	private static void AppendSequentialVec3Faces(List<(Vector3, Vector3, Vector3)> result, List<Vector3> data)
-	{
-		for (int i = 0; i + 2 < data.Count; i += 3)
-		{
-			result.Add((data[i], data[i + 1], data[i + 2]));
-		}
-	}
 
 	private static List<(Vector3 Pos0, Vector3 Pos1, Vector3 Pos2)> ExtractFacePositionData(
 		JsonObject primObj,
@@ -1387,11 +1371,11 @@ public static class GlbPlayerColorProcessor
 		if (indexAccessorIndex >= 0 && indexAccessorIndex < accessors.Count)
 		{
 			var indices = ReadAccessorIndices(accessors, bufferViews, bin, indexAccessorIndex);
-			AppendIndexedVec3Faces(result, posData, indices);
+			AppendIndexedFaces(result, posData, indices);
 		}
 		else
 		{
-			AppendSequentialVec3Faces(result, posData);
+			AppendSequentialFaces(result, posData);
 		}
 
 		return result;

@@ -775,11 +775,29 @@ public class NetworkService
 		}
 	}
 
-	private void HandleMoveCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	private struct GroupMovementContext
+	{
+		public System.Numerics.Vector3 MoveDir;
+		public System.Numerics.Vector3 Right;
+		public int Cols;
+		public float Spacing;
+	}
+
+	private GroupMovementContext CreateMovementContext(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
 	{
 		CalculateGroupMovement(peerId, cmd.UnitEntityIds, allUnits, cmd.TargetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right);
-		int cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count));
-		float spacing = 2.2f;
+		return new GroupMovementContext
+		{
+			MoveDir = moveDir,
+			Right = right,
+			Cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count)),
+			Spacing = 2.2f
+		};
+	}
+
+	private void HandleMoveCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	{
+		var ctx = CreateMovementContext(peerId, cmd, allUnits);
 		int unitIndex = 0;
 
 		foreach (int serverId in cmd.UnitEntityIds)
@@ -788,7 +806,7 @@ public class NetworkService
 			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
 
 			ClearUnitOrders(entity);
-			var scattered = CalculateScatteredPosition(cmd.TargetPosition, moveDir, right, unitIndex, cols, spacing);
+			var scattered = CalculateScatteredPosition(cmd.TargetPosition, ctx.MoveDir, ctx.Right, unitIndex, ctx.Cols, ctx.Spacing);
 			var moveTo = new MoveTo(scattered);
 			GameContext.World.SetOrAdd(entity, moveTo);
 			unitIndex++;
@@ -797,9 +815,7 @@ public class NetworkService
 
 	private void HandleMoveQueuedCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
 	{
-		CalculateGroupMovement(peerId, cmd.UnitEntityIds, allUnits, cmd.TargetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right);
-		int cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count));
-		float spacing = 2.2f;
+		var ctx = CreateMovementContext(peerId, cmd, allUnits);
 		int unitIndex = 0;
 
 		foreach (int serverId in cmd.UnitEntityIds)
@@ -808,7 +824,7 @@ public class NetworkService
 			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
 			if (!GameContext.World.Has<Movable>(entity)) continue;
 
-			var scattered = CalculateScatteredPosition(cmd.TargetPosition, moveDir, right, unitIndex, cols, spacing);
+			var scattered = CalculateScatteredPosition(cmd.TargetPosition, ctx.MoveDir, ctx.Right, unitIndex, ctx.Cols, ctx.Spacing);
 			ProcessQueuedMoveForEntity(entity, scattered);
 			unitIndex++;
 		}
@@ -969,9 +985,7 @@ public class NetworkService
 
 	private void HandlePatrolCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
 	{
-		CalculateGroupMovement(peerId, cmd.UnitEntityIds, allUnits, cmd.TargetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right);
-		int cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count));
-		float spacing = 2.2f;
+		var ctx = CreateMovementContext(peerId, cmd, allUnits);
 		int unitIndex = 0;
 
 		foreach (int serverId in cmd.UnitEntityIds)
@@ -980,7 +994,7 @@ public class NetworkService
 			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
 			if (!GameContext.World.Has<Movable>(entity)) continue;
 
-			var scattered = CalculateScatteredPosition(cmd.TargetPosition, moveDir, right, unitIndex, cols, spacing);
+			var scattered = CalculateScatteredPosition(cmd.TargetPosition, ctx.MoveDir, ctx.Right, unitIndex, ctx.Cols, ctx.Spacing);
 			var unitPos = GetUnitPosition(entity, allUnits);
 			var patrolA = new System.Numerics.Vector3(unitPos.X, unitPos.Y, unitPos.Z);
 

@@ -533,11 +533,7 @@ public static class TextureConverter
 		}
 	}
 
-	public static TextureConversionResult ProcessAndSaveTerrainTexture(
-		string rawImagePath,
-		string outputRtexPath,
-		float? forcedScaleFactor = null,
-		bool enableRdo = true)
+	private static (TextureConversionResult Result, SKBitmap? SourceImage, byte[]? OriginalBits, string? OriginalBlake3) LoadAndDecodeSourceImage(string rawImagePath, string outputRtexPath)
 	{
 		var result = new TextureConversionResult
 		{
@@ -549,7 +545,7 @@ public static class TextureConverter
 		{
 			result.Success = false;
 			result.ErrorMessage = $"Input file not found: {rawImagePath}";
-			return result;
+			return (result, null, null, null);
 		}
 
 		try
@@ -557,40 +553,64 @@ public static class TextureConverter
 			byte[] originalBits = File.ReadAllBytes(result.InputPath);
 			string originalBlake3 = RealmMetadataHelper.ComputeBlake3(originalBits, Path.GetExtension(result.InputPath));
 
-			using var sourceImage = SKBitmap.Decode(result.InputPath);
+			var sourceImage = SKBitmap.Decode(result.InputPath);
 			if (sourceImage == null)
 			{
 				result.Success = false;
 				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
-				return result;
+				return (result, null, originalBits, originalBlake3);
 			}
 
-			float scaleFactor = forcedScaleFactor ?? CalculateLuminanceScaleFactor(sourceImage);
-			result.ScaleFactor = scaleFactor;
+			return (result, sourceImage, originalBits, originalBlake3);
+		}
+		catch (Exception ex)
+		{
+			result.Success = false;
+			result.ErrorMessage = ex.Message;
+			return (result, null, null, null);
+		}
+	}
 
-			ProcessTerrainPbr(sourceImage, isDecal: false, out var layer0, out var layer1);
+	public static TextureConversionResult ProcessAndSaveTerrainTexture(
+		string rawImagePath,
+		string outputRtexPath,
+		float? forcedScaleFactor = null,
+		bool enableRdo = true)
+	{
+		var (result, sourceImage, originalBits, originalBlake3) = LoadAndDecodeSourceImage(rawImagePath, outputRtexPath);
+		if (!result.Success || sourceImage == null) return result;
 
-			using var l0 = layer0;
-			using var l1 = layer1;
-
-			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"terrain_texture\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", CultureInfo.InvariantCulture)},\"layers\":2}}";
-			bool encodeOk = EncodeTwoLayerPbrRtex(
-				layer0,
-				layer1,
-				result.OutputPath,
-				metadataJson,
-				out string errorMsg,
-				compressAlbedo: true);
-
-			if (!encodeOk)
+		try
+		{
+			using (sourceImage)
 			{
-				result.Success = false;
-				result.ErrorMessage = errorMsg;
+				float scaleFactor = forcedScaleFactor ?? CalculateLuminanceScaleFactor(sourceImage);
+				result.ScaleFactor = scaleFactor;
+
+				ProcessTerrainPbr(sourceImage, isDecal: false, out var layer0, out var layer1);
+
+				using var l0 = layer0;
+				using var l1 = layer1;
+
+				string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"terrain_texture\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", CultureInfo.InvariantCulture)},\"layers\":2}}";
+				bool encodeOk = EncodeTwoLayerPbrRtex(
+					layer0,
+					layer1,
+					result.OutputPath,
+					metadataJson,
+					out string errorMsg,
+					compressAlbedo: true);
+
+				if (!encodeOk)
+				{
+					result.Success = false;
+					result.ErrorMessage = errorMsg;
+					return result;
+				}
+
+				result.Success = true;
 				return result;
 			}
-
-			result.Success = true;
-			return result;
 		}
 		catch (Exception ex)
 		{
@@ -608,61 +628,43 @@ public static class TextureConverter
 		int columns = 1,
 		int rows = 1)
 	{
-		var result = new TextureConversionResult
-		{
-			InputPath = Path.GetFullPath(rawImagePath),
-			OutputPath = Path.GetFullPath(outputRtexPath)
-		};
-
-		if (!File.Exists(result.InputPath))
-		{
-			result.Success = false;
-			result.ErrorMessage = $"Input file not found: {rawImagePath}";
-			return result;
-		}
+		var (result, sourceImage, originalBits, originalBlake3) = LoadAndDecodeSourceImage(rawImagePath, outputRtexPath);
+		if (!result.Success || sourceImage == null) return result;
 
 		try
 		{
-			byte[] originalBits = File.ReadAllBytes(result.InputPath);
-			string originalBlake3 = RealmMetadataHelper.ComputeBlake3(originalBits, Path.GetExtension(result.InputPath));
-
-			using var sourceImage = SKBitmap.Decode(result.InputPath);
-			if (sourceImage == null)
+			using (sourceImage)
 			{
-				result.Success = false;
-				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
+				float scaleFactor = forcedScaleFactor ?? CalculateLuminanceScaleFactor(sourceImage);
+				result.ScaleFactor = scaleFactor;
+
+				int safeCols = Math.Max(1, columns);
+				int safeRows = Math.Max(1, rows);
+
+				ProcessTerrainPbr(sourceImage, isDecal: true, out var layer0, out var layer1);
+
+				using var l0 = layer0;
+				using var l1 = layer1;
+
+				string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"decal\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", CultureInfo.InvariantCulture)},\"columns\":{safeCols},\"rows\":{safeRows},\"layers\":2}}";
+				bool encodeOk = EncodeTwoLayerPbrRtex(
+					layer0,
+					layer1,
+					result.OutputPath,
+					metadataJson,
+					out string errorMsg,
+					compressAlbedo: true);
+
+				if (!encodeOk)
+				{
+					result.Success = false;
+					result.ErrorMessage = errorMsg;
+					return result;
+				}
+
+				result.Success = true;
 				return result;
 			}
-
-			float scaleFactor = forcedScaleFactor ?? CalculateLuminanceScaleFactor(sourceImage);
-			result.ScaleFactor = scaleFactor;
-
-			int safeCols = Math.Max(1, columns);
-			int safeRows = Math.Max(1, rows);
-
-			ProcessTerrainPbr(sourceImage, isDecal: true, out var layer0, out var layer1);
-
-			using var l0 = layer0;
-			using var l1 = layer1;
-
-			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"decal\",\"canonical_blake3\":\"{originalBlake3}\",\"scale_factor\":{scaleFactor.ToString("F4", CultureInfo.InvariantCulture)},\"columns\":{safeCols},\"rows\":{safeRows},\"layers\":2}}";
-			bool encodeOk = EncodeTwoLayerPbrRtex(
-				layer0,
-				layer1,
-				result.OutputPath,
-				metadataJson,
-				out string errorMsg,
-				compressAlbedo: true);
-
-			if (!encodeOk)
-			{
-				result.Success = false;
-				result.ErrorMessage = errorMsg;
-				return result;
-			}
-
-			result.Success = true;
-			return result;
 		}
 		catch (Exception ex)
 		{
@@ -680,51 +682,33 @@ public static class TextureConverter
 		float fps = 20.0f,
 		bool enableRdo = false)
 	{
-		var result = new TextureConversionResult
-		{
-			InputPath = Path.GetFullPath(rawImagePath),
-			OutputPath = Path.GetFullPath(outputRtexPath)
-		};
-
-		if (!File.Exists(result.InputPath))
-		{
-			result.Success = false;
-			result.ErrorMessage = $"Input file not found: {rawImagePath}";
-			return result;
-		}
+		var (result, sourceImage, originalBits, originalBlake3) = LoadAndDecodeSourceImage(rawImagePath, outputRtexPath);
+		if (!result.Success || sourceImage == null) return result;
 
 		try
 		{
-			byte[] originalBits = File.ReadAllBytes(result.InputPath);
-			string originalBlake3 = RealmMetadataHelper.ComputeBlake3(originalBits, Path.GetExtension(result.InputPath));
-
-			using var sourceImage = SKBitmap.Decode(result.InputPath);
-			if (sourceImage == null)
+			using (sourceImage)
 			{
-				result.Success = false;
-				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
+				string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"vfx_spritesheet\",\"canonical_blake3\":\"{originalBlake3}\",\"columns\":{columns},\"rows\":{rows},\"fps\":{fps.ToString("F2", CultureInfo.InvariantCulture)},\"layers\":1}}";
+
+				bool encodeOk = EncodeSingleLayerRtex(
+					sourceImage,
+					result.OutputPath,
+					metadataJson,
+					out string errorMsg,
+					lossless: false,
+					quality: 90);
+
+				if (!encodeOk)
+				{
+					result.Success = false;
+					result.ErrorMessage = errorMsg;
+					return result;
+				}
+
+				result.Success = true;
 				return result;
 			}
-
-			string metadataJson = $"{{\"created_utc\":\"{DateTime.UtcNow:O}\",\"type\":\"vfx_spritesheet\",\"canonical_blake3\":\"{originalBlake3}\",\"columns\":{columns},\"rows\":{rows},\"fps\":{fps.ToString("F2", CultureInfo.InvariantCulture)},\"layers\":1}}";
-
-			bool encodeOk = EncodeSingleLayerRtex(
-				sourceImage,
-				result.OutputPath,
-				metadataJson,
-				out string errorMsg,
-				lossless: false,
-				quality: 90);
-
-			if (!encodeOk)
-			{
-				result.Success = false;
-				result.ErrorMessage = errorMsg;
-				return result;
-			}
-
-			result.Success = true;
-			return result;
 		}
 		catch (Exception ex)
 		{
@@ -872,51 +856,33 @@ public static class TextureConverter
 		bool enableRdo = false,
 		string? customMetadataJson = null)
 	{
-		var result = new TextureConversionResult
-		{
-			InputPath = Path.GetFullPath(rawImagePath),
-			OutputPath = Path.GetFullPath(outputRtexPath)
-		};
-
-		if (!File.Exists(result.InputPath))
-		{
-			result.Success = false;
-			result.ErrorMessage = $"Input file not found: {rawImagePath}";
-			return result;
-		}
+		var (result, sourceImage, originalBits, originalBlake3) = LoadAndDecodeSourceImage(rawImagePath, outputRtexPath);
+		if (!result.Success || sourceImage == null) return result;
 
 		try
 		{
-			byte[] originalBits = File.ReadAllBytes(result.InputPath);
-			string originalBlake3 = RealmMetadataHelper.ComputeBlake3(originalBits, Path.GetExtension(result.InputPath));
-
-			using var sourceImage = SKBitmap.Decode(result.InputPath);
-			if (sourceImage == null)
+			using (sourceImage)
 			{
-				result.Success = false;
-				result.ErrorMessage = $"Failed to decode image file: {rawImagePath}";
+				string metadataJson = BuildSingleLayerMetadata(assetType, originalBlake3, customMetadataJson);
+
+				bool encodeOk = EncodeSingleLayerRtex(
+					sourceImage,
+					result.OutputPath,
+					metadataJson,
+					out string errorMsg,
+					lossless: false,
+					quality: 90);
+
+				if (!encodeOk)
+				{
+					result.Success = false;
+					result.ErrorMessage = errorMsg;
+					return result;
+				}
+
+				result.Success = true;
 				return result;
 			}
-
-			string metadataJson = BuildSingleLayerMetadata(assetType, originalBlake3, customMetadataJson);
-
-			bool encodeOk = EncodeSingleLayerRtex(
-				sourceImage,
-				result.OutputPath,
-				metadataJson,
-				out string errorMsg,
-				lossless: false,
-				quality: 90);
-
-			if (!encodeOk)
-			{
-				result.Success = false;
-				result.ErrorMessage = errorMsg;
-				return result;
-			}
-
-			result.Success = true;
-			return result;
 		}
 		catch (Exception ex)
 		{

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -1393,7 +1393,7 @@ public partial class VSCodeManager
 			if (File.Exists(inputPath))
 			{
 				byte[] rtexBytes = File.ReadAllBytes(inputPath);
-				string? metaJson = RtexFile.ExtractMetadata(rtexBytes);
+				string? metaJson = RealmContainerFile.ExtractMetadataFromBytes(rtexBytes, RtexFile.MagicBytes);
 				if (!string.IsNullOrEmpty(metaJson))
 				{
 					responseObj["metadata"] = JsonNode.Parse(metaJson);

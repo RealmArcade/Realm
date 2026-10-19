@@ -278,36 +278,12 @@ public static class RealmMetadataHelper
 
 	public static bool SetAssetType(string filePath, string assetType)
 	{
-		if (!File.Exists(filePath)) return false;
 		if (!IsValidAssetTypeForExtension(filePath, assetType, out string canonical, out _))
 		{
 			return false;
 		}
 
-		string? existingMeta = ExtractMetadata(filePath);
-		JsonObject metaObj;
-		if (!string.IsNullOrEmpty(existingMeta))
-		{
-			try
-			{
-				metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-			string ext = Path.GetExtension(filePath).ToLowerInvariant();
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			metaObj["format"] = ext.TrimStart('.');
-		}
-
-		metaObj["asset_type"] = canonical;
-		metaObj["blake3"] = ComputeBlake3(filePath);
-		return AddMetadata(filePath, metaObj.ToJsonString());
+		return UpdateMetadataField(filePath, meta => meta["asset_type"] = canonical);
 	}
 
 	public static string? ExtractAuthor(string filePath)
@@ -326,7 +302,7 @@ public static class RealmMetadataHelper
 		return null;
 	}
 
-	public static bool SetAuthor(string filePath, string author)
+	private static bool UpdateMetadataField(string filePath, Action<JsonObject> updateAction)
 	{
 		if (!File.Exists(filePath)) return false;
 		string? existingMeta = ExtractMetadata(filePath);
@@ -350,9 +326,14 @@ public static class RealmMetadataHelper
 			metaObj["format"] = ext.TrimStart('.');
 		}
 
-		metaObj["author"] = author;
+		updateAction(metaObj);
 		metaObj["blake3"] = ComputeBlake3(filePath);
 		return AddMetadata(filePath, metaObj.ToJsonString());
+	}
+
+	public static bool SetAuthor(string filePath, string author)
+	{
+		return UpdateMetadataField(filePath, meta => meta["author"] = author);
 	}
 
 	public static string? ExtractPreferredFileName(string filePath)
@@ -373,31 +354,7 @@ public static class RealmMetadataHelper
 
 	public static bool SetPreferredFileName(string filePath, string preferredFileName)
 	{
-		if (!File.Exists(filePath)) return false;
-		string? existingMeta = ExtractMetadata(filePath);
-		JsonObject metaObj;
-		if (!string.IsNullOrEmpty(existingMeta))
-		{
-			try
-			{
-				metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-			string ext = Path.GetExtension(filePath).ToLowerInvariant();
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			metaObj["format"] = ext.TrimStart('.');
-		}
-
-		metaObj["preferred_file_name"] = preferredFileName;
-		metaObj["blake3"] = ComputeBlake3(filePath);
-		return AddMetadata(filePath, metaObj.ToJsonString());
+		return UpdateMetadataField(filePath, meta => meta["preferred_file_name"] = preferredFileName);
 	}
 
 	public static bool ExtractSupportsTeamColorFromMetadataJson(string? metaJson)
@@ -532,31 +489,7 @@ public static class RealmMetadataHelper
 
 	public static bool SetSupportsTeamColor(string filePath, bool supportsTeamColor)
 	{
-		if (!File.Exists(filePath)) return false;
-		string? existingMeta = ExtractMetadata(filePath);
-		JsonObject metaObj;
-		if (!string.IsNullOrEmpty(existingMeta))
-		{
-			try
-			{
-				metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-			string ext = Path.GetExtension(filePath).ToLowerInvariant();
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			metaObj["format"] = ext.TrimStart('.');
-		}
-
-		metaObj["team_color"] = supportsTeamColor;
-		metaObj["blake3"] = ComputeBlake3(filePath);
-		return AddMetadata(filePath, metaObj.ToJsonString());
+		return UpdateMetadataField(filePath, meta => meta["team_color"] = supportsTeamColor);
 	}
 
 	public static string? ExtractChromaKey(string filePath)
@@ -591,31 +524,7 @@ public static class RealmMetadataHelper
 
 	public static bool SetChromaKey(string filePath, string chromaKey)
 	{
-		if (!File.Exists(filePath)) return false;
-		string? existingMeta = ExtractMetadata(filePath);
-		JsonObject metaObj;
-		if (!string.IsNullOrEmpty(existingMeta))
-		{
-			try
-			{
-				metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-			string ext = Path.GetExtension(filePath).ToLowerInvariant();
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			metaObj["format"] = ext.TrimStart('.');
-		}
-
-		metaObj["chroma_key"] = chromaKey;
-		metaObj["blake3"] = ComputeBlake3(filePath);
-		return AddMetadata(filePath, metaObj.ToJsonString());
+		return UpdateMetadataField(filePath, meta => meta["chroma_key"] = chromaKey);
 	}
 
 	public static List<string> ExtractTags(string filePath)
@@ -647,40 +556,20 @@ public static class RealmMetadataHelper
 
 	public static bool SetTags(string filePath, IEnumerable<string> tags)
 	{
-		if (!File.Exists(filePath)) return false;
 		string ext = Path.GetExtension(filePath).ToLowerInvariant();
 		if (ext is not (".rtex" or ".ranim" or ".rmesh" or ".raud")) return false;
 
-		string? existingMeta = ExtractMetadata(filePath);
-		JsonObject metaObj;
-		if (!string.IsNullOrEmpty(existingMeta))
+		return UpdateMetadataField(filePath, metaObj =>
 		{
-			try
-			{
-				metaObj = JsonNode.Parse(existingMeta)?.AsObject() ?? new JsonObject();
-			}
-			catch
-			{
-				metaObj = new JsonObject();
-			}
-		}
-		else
-		{
-			metaObj = new JsonObject();
-			metaObj["created_utc"] = DateTime.UtcNow.ToString("O");
-			metaObj["format"] = ext.TrimStart('.');
-		}
+			var cleanTags = (tags ?? Array.Empty<string>())
+				.Where(t => !string.IsNullOrWhiteSpace(t))
+				.Select(t => t.Trim().ToLowerInvariant())
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.Select(t => (JsonNode)JsonValue.Create(t)!)
+				.ToArray();
 
-		var cleanTags = (tags ?? Array.Empty<string>())
-			.Where(t => !string.IsNullOrWhiteSpace(t))
-			.Select(t => t.Trim().ToLowerInvariant())
-			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.Select(t => (JsonNode)JsonValue.Create(t)!)
-			.ToArray();
-
-		metaObj["tags"] = new JsonArray(cleanTags);
-		metaObj["blake3"] = ComputeBlake3(filePath);
-		return AddMetadata(filePath, metaObj.ToJsonString());
+			metaObj["tags"] = new JsonArray(cleanTags);
+		});
 	}
 
 	public static bool AddMetadata(string filePath, string realmMetadataJson)
@@ -737,77 +626,77 @@ public static class RealmMetadataHelper
 
 	public static string? ExtractMetadataFromRmesh(string filePath)
 	{
-		return RmeshFile.ExtractMetadataFromFile(filePath);
+		return RealmContainerFile.ExtractMetadataFromPath(filePath, RmeshFile.Magic);
 	}
 
 	public static void AddMetadataToRmesh(string filePath, string realmMetadataJson)
 	{
 		byte[] bytes = File.ReadAllBytes(filePath);
-		byte[] updated = RmeshFile.SetMetadata(bytes, realmMetadataJson);
+		byte[] updated = RealmContainerFile.SetContainerMetadata(bytes, RmeshFile.Magic, RmeshFile.Name, RmeshFile.Format, realmMetadataJson);
 		File.WriteAllBytes(filePath, updated);
 	}
 
 	public static void RemoveMetadataFromRmesh(string filePath)
 	{
 		byte[] bytes = File.ReadAllBytes(filePath);
-		byte[] updated = RmeshFile.SetMetadata(bytes, null);
+		byte[] updated = RealmContainerFile.SetContainerMetadata(bytes, RmeshFile.Magic, RmeshFile.Name, RmeshFile.Format, null);
 		File.WriteAllBytes(filePath, updated);
 	}
 
 	public static string? ExtractMetadataFromRaud(string filePath)
 	{
-		return RaudFile.ExtractMetadataFromFile(filePath);
+		return RealmContainerFile.ExtractMetadataFromPath(filePath, RaudFile.Magic);
 	}
 
 	public static void AddMetadataToRaud(string filePath, string realmMetadataJson)
 	{
 		byte[] bytes = File.ReadAllBytes(filePath);
-		byte[] updated = RaudFile.SetMetadata(bytes, realmMetadataJson);
+		byte[] updated = RealmContainerFile.SetContainerMetadata(bytes, RaudFile.Magic, RaudFile.Name, RaudFile.Format, realmMetadataJson);
 		File.WriteAllBytes(filePath, updated);
 	}
 
 	public static void RemoveMetadataFromRaud(string filePath)
 	{
 		byte[] bytes = File.ReadAllBytes(filePath);
-		byte[] updated = RaudFile.SetMetadata(bytes, null);
+		byte[] updated = RealmContainerFile.SetContainerMetadata(bytes, RaudFile.Magic, RaudFile.Name, RaudFile.Format, null);
 		File.WriteAllBytes(filePath, updated);
 	}
 
 	public static string? ExtractMetadataFromRtex(string filePath)
 	{
-		return RtexFile.ExtractMetadataFromFile(filePath);
+		return RealmContainerFile.ExtractMetadataFromPath(filePath, RtexFile.Magic);
 	}
 
 	public static void AddMetadataToRtex(string filePath, string realmMetadataJson)
 	{
 		byte[] bytes = File.ReadAllBytes(filePath);
-		byte[] updated = RtexFile.SetMetadata(bytes, realmMetadataJson);
+		byte[] updated = RealmContainerFile.SetContainerMetadata(bytes, RtexFile.Magic, RtexFile.Name, RtexFile.Format, realmMetadataJson);
 		File.WriteAllBytes(filePath, updated);
 	}
 
 	public static void RemoveMetadataFromRtex(string filePath)
 	{
 		byte[] bytes = File.ReadAllBytes(filePath);
-		byte[] updated = RtexFile.SetMetadata(bytes, null);
+		byte[] updated = RealmContainerFile.SetContainerMetadata(bytes, RtexFile.Magic, RtexFile.Name, RtexFile.Format, null);
 		File.WriteAllBytes(filePath, updated);
 	}
 
 	public static string? ExtractMetadataFromRkey(string filePath)
 	{
-		return RkeyFile.ExtractMetadataFromFile(filePath);
+		return RealmContainerFile.ExtractMetadataFromPath(filePath, RkeyFile.Magic);
 	}
 
 	public static void AddMetadataToRkey(string filePath, string realmMetadataJson)
 	{
 		byte[] bytes = File.ReadAllBytes(filePath);
-		byte[] updated = RkeyFile.SetMetadata(bytes, realmMetadataJson);
+		byte[] updated = RealmContainerHeader.SetMetadata(bytes, RkeyFile.Magic, realmMetadataJson, RkeyFile.Name);
 		File.WriteAllBytes(filePath, updated);
 	}
 
 	public static void RemoveMetadataFromRkey(string filePath)
 	{
 		byte[] bytes = File.ReadAllBytes(filePath);
-		byte[] updated = RkeyFile.SetMetadata(bytes, null);
+		byte[] updated = RealmContainerHeader.SetMetadata(bytes, RkeyFile.Magic, null, RkeyFile.Name);
 		File.WriteAllBytes(filePath, updated);
 	}
 
@@ -866,12 +755,12 @@ public static class RealmMetadataHelper
 
 	public static string? ExtractMetadataFromRanim(string filePath)
 	{
-		return RanimFile.ExtractMetadataFromFile(filePath);
+		return RealmContainerFile.ExtractMetadataFromPath(filePath, RanimFile.Magic);
 	}
 
 	public static string? ExtractMetadataFromRanimBytes(ReadOnlySpan<byte> bytes)
 	{
-		return RanimFile.ExtractMetadata(bytes);
+		return RealmContainerFile.ExtractMetadataFromBytes(bytes, RanimFile.Magic);
 	}
 
 	public static void AddMetadataToRanim(string filePath, string realmMetadataJson)
@@ -883,7 +772,7 @@ public static class RealmMetadataHelper
 
 	public static byte[] AddMetadataToRanimBytes(byte[] bytes, string realmMetadataJson)
 	{
-		return RanimFile.SetMetadata(bytes, realmMetadataJson);
+		return RealmContainerFile.SetContainerMetadata(bytes, RanimFile.Magic, RanimFile.Name, RanimFile.Format, realmMetadataJson, configureMetadata: metaObj => metaObj["asset_type"] ??= "Animation");
 	}
 
 	public static void RemoveMetadataFromRanim(string filePath)
@@ -895,7 +784,7 @@ public static class RealmMetadataHelper
 
 	public static byte[] RemoveMetadataFromRanimBytes(byte[] bytes)
 	{
-		return RanimFile.SetMetadata(bytes, null);
+		return RealmContainerFile.SetContainerMetadata(bytes, RanimFile.Magic, RanimFile.Name, RanimFile.Format, null, configureMetadata: metaObj => metaObj["asset_type"] ??= "Animation");
 	}
 
 	public static bool IsRanimBytes(ReadOnlySpan<byte> bytes)
@@ -922,11 +811,11 @@ public static class RealmMetadataHelper
 	{
 		try
 		{
-			if (ShouldProcessFormat(extension, bytes, ".rmesh", RmeshFile.IsRmeshBytes)) return StripFormatMetadata(bytes, RmeshFile.Magic, RmeshFile.SetMetadata);
-			if (ShouldProcessFormat(extension, bytes, ".raud", RaudFile.IsRaudBytes)) return StripFormatMetadata(bytes, RaudFile.Magic, RaudFile.SetMetadata);
-			if (ShouldProcessFormat(extension, bytes, ".rtex", RtexFile.IsRtexBytes)) return StripFormatMetadata(bytes, RtexFile.Magic, RtexFile.SetMetadata);
-			if (ShouldProcessFormat(extension, bytes, ".ranim", RanimFile.IsRanimBytes)) return StripFormatMetadata(bytes, RanimFile.Magic, RanimFile.SetMetadata);
-			if (ShouldProcessFormat(extension, bytes, ".rkey", RkeyFile.IsRkeyBytes)) return StripFormatMetadata(bytes, RkeyFile.Magic, RkeyFile.SetMetadata);
+			if (ShouldProcessFormat(extension, bytes, ".rmesh", RmeshFile.IsRmeshBytes)) return StripFormatMetadata(bytes, RmeshFile.Magic, (b, m) => RealmContainerFile.SetContainerMetadata(b, RmeshFile.Magic, RmeshFile.Name, RmeshFile.Format, m));
+			if (ShouldProcessFormat(extension, bytes, ".raud", RaudFile.IsRaudBytes)) return StripFormatMetadata(bytes, RaudFile.Magic, (b, m) => RealmContainerFile.SetContainerMetadata(b, RaudFile.Magic, RaudFile.Name, RaudFile.Format, m));
+			if (ShouldProcessFormat(extension, bytes, ".rtex", RtexFile.IsRtexBytes)) return StripFormatMetadata(bytes, RtexFile.Magic, (b, m) => RealmContainerFile.SetContainerMetadata(b, RtexFile.Magic, RtexFile.Name, RtexFile.Format, m));
+			if (ShouldProcessFormat(extension, bytes, ".ranim", RanimFile.IsRanimBytes)) return StripFormatMetadata(bytes, RanimFile.Magic, (b, m) => RealmContainerFile.SetContainerMetadata(b, RanimFile.Magic, RanimFile.Name, RanimFile.Format, m, configureMetadata: metaObj => metaObj["asset_type"] ??= "Animation"));
+			if (ShouldProcessFormat(extension, bytes, ".rkey", RkeyFile.IsRkeyBytes)) return StripFormatMetadata(bytes, RkeyFile.Magic, (b, m) => RealmContainerHeader.SetMetadata(b, RkeyFile.Magic, m, RkeyFile.Name));
 		}
 		catch
 		{
@@ -1090,11 +979,11 @@ public static class RealmMetadataHelper
 	{
 		return ext switch
 		{
-			".rmesh" => RmeshFile.ExtractMetadata(bytes),
-			".rtex" => RtexFile.ExtractMetadata(bytes),
-			".ranim" => RanimFile.ExtractMetadata(bytes),
-			".raud" => RaudFile.ExtractMetadata(bytes),
-			".rkey" => RkeyFile.ExtractMetadata(bytes),
+			".rmesh" => RealmContainerFile.ExtractMetadataFromBytes(bytes, RmeshFile.Magic),
+			".rtex" => RealmContainerFile.ExtractMetadataFromBytes(bytes, RtexFile.Magic),
+			".ranim" => RealmContainerFile.ExtractMetadataFromBytes(bytes, RanimFile.Magic),
+			".raud" => RealmContainerFile.ExtractMetadataFromBytes(bytes, RaudFile.Magic),
+			".rkey" => RealmContainerFile.ExtractMetadataFromBytes(bytes, RkeyFile.Magic),
 			_ => null
 		};
 	}
@@ -1103,11 +992,11 @@ public static class RealmMetadataHelper
 	{
 		return ext switch
 		{
-			".rmesh" => RmeshFile.SetMetadata(bytes, newMetaJson),
-			".rtex" => RtexFile.SetMetadata(bytes, newMetaJson),
-			".ranim" => RanimFile.SetMetadata(bytes, newMetaJson),
-			".raud" => RaudFile.SetMetadata(bytes, newMetaJson),
-			".rkey" => RkeyFile.SetMetadata(bytes, newMetaJson),
+			".rmesh" => RealmContainerFile.SetContainerMetadata(bytes, RmeshFile.Magic, RmeshFile.Name, RmeshFile.Format, newMetaJson),
+			".rtex" => RealmContainerFile.SetContainerMetadata(bytes, RtexFile.Magic, RtexFile.Name, RtexFile.Format, newMetaJson),
+			".ranim" => RealmContainerFile.SetContainerMetadata(bytes, RanimFile.Magic, RanimFile.Name, RanimFile.Format, newMetaJson, configureMetadata: metaObj => metaObj["asset_type"] ??= "Animation"),
+			".raud" => RealmContainerFile.SetContainerMetadata(bytes, RaudFile.Magic, RaudFile.Name, RaudFile.Format, newMetaJson),
+			".rkey" => RealmContainerHeader.SetMetadata(bytes, RkeyFile.Magic, newMetaJson, RkeyFile.Name),
 			_ => bytes
 		};
 	}

@@ -78,11 +78,9 @@ public class ZstdAssetBundleHelper
 		zstdStream.Flush();
 	}
 
-	public static List<(string AssetKey, byte[] Data, string? Metadata)> ExtractBundleFromFile(string sourceFilePath)
+	private static List<(string AssetKey, byte[] Data, string? Metadata)> ExtractBundleFromStream(Stream uncompressedStream)
 	{
-		using var fileStream = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, ChunkSize);
-		using var zstdStream = new DecompressionStream(fileStream);
-		using var bufferedStream = new BufferedStream(zstdStream, ChunkSize);
+		using var bufferedStream = new BufferedStream(uncompressedStream, ChunkSize);
 		using var reader = new BinaryReader(bufferedStream, Encoding.UTF8, leaveOpen: true);
 
 		int count = reader.ReadInt32();
@@ -99,6 +97,13 @@ public class ZstdAssetBundleHelper
 		}
 
 		return result;
+	}
+
+	public static List<(string AssetKey, byte[] Data, string? Metadata)> ExtractBundleFromFile(string sourceFilePath)
+	{
+		using var fileStream = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, ChunkSize);
+		using var zstdStream = new DecompressionStream(fileStream);
+		return ExtractBundleFromStream(zstdStream);
 	}
 
 	public static byte[] CreateBundleBytes(
@@ -128,23 +133,7 @@ public class ZstdAssetBundleHelper
 	{
 		using var memoryStream = new MemoryStream(compressedBytes);
 		using var zstdStream = new DecompressionStream(memoryStream);
-		using var bufferedStream = new BufferedStream(zstdStream, ChunkSize);
-		using var reader = new BinaryReader(bufferedStream, Encoding.UTF8, leaveOpen: true);
-
-		int count = reader.ReadInt32();
-		var result = new List<(string AssetKey, byte[] Data, string? Metadata)>(count);
-
-		for (int i = 0; i < count; i++)
-		{
-			string assetKey = reader.ReadString();
-			string metadata = reader.ReadString();
-			int dataLength = reader.ReadInt32();
-			byte[] data = ReadExactBytes(bufferedStream, dataLength);
-
-			result.Add((assetKey, data, string.IsNullOrEmpty(metadata) ? null : metadata));
-		}
-
-		return result;
+		return ExtractBundleFromStream(zstdStream);
 	}
 
 	private static byte[] ReadExactBytes(Stream stream, int count)
