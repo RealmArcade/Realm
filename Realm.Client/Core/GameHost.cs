@@ -2359,12 +2359,17 @@ public partial class GameHost : Node3D, IGameAPI
 
 		bool wasMapEditorMode = GameContext.SessionState.IsMapEditorMode;
 		bool wasLoadingMap = GameContext.SaveLoadService.IsLoadingMap;
+		bool wasProfilingEnabled = GameContext.PerformanceTrackingService?.IsFunctionProfilingEnabled ?? false;
 
 		GameContext.DisposeAndRecreateServices();
 		ResolveServices();
 
 		GameContext.SessionState.IsMapEditorMode = wasMapEditorMode;
 		GameContext.SaveLoadService.IsLoadingMap = wasLoadingMap;
+		if (wasProfilingEnabled)
+		{
+			GameContext.PerformanceTrackingService.IsFunctionProfilingEnabled = true;
+		}
 
 		// Do not trigger lazy GroundTerrain creation here: InitializeGameEcs()
 		// builds the ground exactly once (CreateGround at Realm.Client.Core.cs:2751).
@@ -2892,37 +2897,52 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public override void _Process(double delta)
 	{
-		if (GameContext.ShroudService != null)
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotProcess))
 		{
-			float fDelta = (float)delta;
-			bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
-			bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
-			int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
-			GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, spectatorPerspective, isReplay, isSpectator);
-		}
+			if (GameContext.ShroudService != null)
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ShroudServiceTick))
+				{
+					float fDelta = (float)delta;
+					bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
+					bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
+					int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
+					GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, spectatorPerspective, isReplay, isSpectator);
+				}
+			}
 
-		var worldEnv = MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") ?? GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
-		GameContext.EnvironmentService?.UpdateEnvironmentalFog(MainCamera, worldEnv);
-		GameContext.EnvironmentService?.UpdateWeatherParticlePosition(MainCamera);
+			var worldEnv = MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") ?? GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.EnvironmentUpdateFog))
+			{
+				GameContext.EnvironmentService?.UpdateEnvironmentalFog(MainCamera, worldEnv);
+			}
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.EnvironmentUpdateWeatherParticles))
+			{
+				GameContext.EnvironmentService?.UpdateWeatherParticlePosition(MainCamera);
+			}
+		}
 	}
 
 	public override void _PhysicsProcess(double delta)
 	{
-		if (!ShouldProcessPhysicsTick()) return;
-
-		float fDelta = (float)delta;
-		if (_wasClientInMultiplayer) UpdateConnectionStatus();
-
-		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotPhysicsProcess))
 		{
-			ProcessReplayTick(fDelta);
-			return;
+			if (!ShouldProcessPhysicsTick()) return;
+
+			float fDelta = (float)delta;
+			if (_wasClientInMultiplayer) UpdateConnectionStatus();
+
+			if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+			{
+				ProcessReplayTick(fDelta);
+				return;
+			}
+
+			if (Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer()) UpdatePauseCountdown(fDelta);
+			if (GameContext.NetworkService.IsPaused) return;
+
+			DispatchPhysicsTick(fDelta);
 		}
-
-		if (Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer()) UpdatePauseCountdown(fDelta);
-		if (GameContext.NetworkService.IsPaused) return;
-
-		DispatchPhysicsTick(fDelta);
 	}
 
 	private bool ShouldProcessPhysicsTick()
@@ -2938,9 +2958,12 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void DispatchPhysicsTick(float fDelta)
 	{
-		if (_multiplayerActive && !IsServerActive()) UpdateClientTick(fDelta);
-		else if (GameContext.SessionState.IsMapEditorMode) ProcessMapEditorTick(fDelta);
-		else ProcessGameplayTick(fDelta);
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.DispatchPhysicsTick))
+		{
+			if (_multiplayerActive && !IsServerActive()) UpdateClientTick(fDelta);
+			else if (GameContext.SessionState.IsMapEditorMode) ProcessMapEditorTick(fDelta);
+			else ProcessGameplayTick(fDelta);
+		}
 	}
 
 	private void UpdatePauseCountdown(float fDelta)
@@ -3198,18 +3221,21 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (ECSContext.IsGameOver) return;
 
-		float actualIntervalMs = BeginTickTracking();
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessGameplayTick))
+		{
+			float actualIntervalMs = BeginTickTracking();
 
-		_fDelta = fDelta;
+			_fDelta = fDelta;
 
-		ProcessCoreSimulation(fDelta);
-		ProcessVisualAndEnvironment(fDelta);
-		ProcessMiscTicks(fDelta);
+			ProcessCoreSimulation(fDelta);
+			ProcessVisualAndEnvironment(fDelta);
+			ProcessMiscTicks(fDelta);
 
-		if (_multiplayerActive && Multiplayer.IsServer())
-			UpdateServerSnapshotTick(fDelta);
+			if (_multiplayerActive && Multiplayer.IsServer())
+				UpdateServerSnapshotTick(fDelta);
 
-		EndTickTracking(actualIntervalMs);
+			EndTickTracking(actualIntervalMs);
+		}
 	}
 
 	private float BeginTickTracking()
@@ -3235,52 +3261,104 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void ProcessCoreSimulation(float fDelta)
 	{
-		GameContext.SimulationService.TickEcs(fDelta);
-		PollVFXQueue();
-		TickConstructionSystem(fDelta);
-		UpdateVisualNodesFromEcs(fDelta);
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessCoreSimulation))
+		{
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationTickEcs))
+			{
+				GameContext.SimulationService.TickEcs(fDelta);
+			}
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PollVfxQueue))
+			{
+				PollVFXQueue();
+			}
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickConstructionSystem))
+			{
+				TickConstructionSystem(fDelta);
+			}
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateVisualNodesFromEcs))
+			{
+				UpdateVisualNodesFromEcs(fDelta);
+			}
+		}
 	}
 
 	private void ProcessVisualAndEnvironment(float fDelta)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessVisualAndEnvironment))
 		{
-			var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
-			if (state.DayNightCycleEnabled && !GameContext.SessionState.IsMapEditorMode)
+			if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
 			{
-				float progress = state.TimeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
-				UpdateDayNightVisuals(progress);
+				var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
+				if (state.DayNightCycleEnabled && !GameContext.SessionState.IsMapEditorMode)
+				{
+					using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateDayNightVisuals))
+					{
+						float progress = state.TimeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
+						UpdateDayNightVisuals(progress);
+					}
+				}
+			}
+
+			if (GameContext.EnvironmentService != null && GameContext.EnvironmentService.IsTransitioning)
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.EnvironmentUpdateTransition))
+				{
+					GameContext.EnvironmentService.UpdateTransition(this, fDelta);
+				}
+			}
+
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateMinimapPings))
+			{
+				UpdateMinimapPings(fDelta);
 			}
 		}
-
-		if (GameContext.EnvironmentService != null && GameContext.EnvironmentService.IsTransitioning)
-			GameContext.EnvironmentService.UpdateTransition(this, fDelta);
-
-		UpdateMinimapPings(fDelta);
 	}
 
 	private void ProcessMiscTicks(float fDelta)
 	{
-		TickScheduledTimers(fDelta);
-		TickZoneTriggers();
-		TickGroundLoot(fDelta);
-
-		if (_activeMapScript != null)
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessMiscTicks))
 		{
-			try
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickScheduledTimers))
 			{
-				_activeMapScript.Update(this, fDelta);
+				TickScheduledTimers(fDelta);
 			}
-			catch (Exception ex)
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickZoneTriggers))
 			{
-				GD.PrintErr($"[GameHost] Exception during active map script Update: {ex.Message}");
+				TickZoneTriggers();
+			}
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickGroundLoot))
+			{
+				TickGroundLoot(fDelta);
+			}
+
+			if (_activeMapScript != null)
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.WasmRuntimeUpdate))
+				{
+					try
+					{
+						_activeMapScript.Update(this, fDelta);
+					}
+					catch (Exception ex)
+					{
+						GD.PrintErr($"[GameHost] Exception during active map script Update: {ex.Message}");
+					}
+				}
+			}
+
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateBuildingPreview))
+			{
+				UpdateBuildingPreview();
+			}
+
+			if (!ReplayPlaybackManager.Instance.IsPlayingReplay && GameSettings.RecordReplays && GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.RecordGameplayTick))
+				{
+					RecordGameplayTick();
+				}
 			}
 		}
-
-		UpdateBuildingPreview();
-
-		if (!ReplayPlaybackManager.Instance.IsPlayingReplay && GameSettings.RecordReplays && GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
-			RecordGameplayTick();
 	}
 
 	private void EndTickTracking(float actualIntervalMs)

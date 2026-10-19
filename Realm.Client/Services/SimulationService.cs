@@ -513,25 +513,56 @@ public class SimulationService
 			}
 		}
 
-		GameContext.World.Query(in _spellCooldownQuery, _spellCooldownQueryDelegate);
-		GameContext.World.Query(in _cooldownsQuery, _cooldownsQueryDelegate);
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationSpellCooldownQuery))
+		{
+			GameContext.World.Query(in _spellCooldownQuery, _spellCooldownQueryDelegate);
+		}
 
-		_movementService.StepMovement(fDelta);
-		_combatService.StepCombat(fDelta);
-		_economyService.StepEconomy(fDelta);
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationCooldownsQuery))
+		{
+			GameContext.World.Query(in _cooldownsQuery, _cooldownsQueryDelegate);
+		}
 
-		GameContext.World.Query(in _buffQuery, _buffsQueryDelegate);
-		GameContext.World.Query(in _buffStateQuery, _buffStateQueryDelegate);
-		GameContext.World.Query(in _statsRecalcQuery, _statsRecalcQueryDelegate);
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationMovementStep))
+		{
+			_movementService.StepMovement(fDelta);
+		}
 
-		ProcessPatrolArrivals();
-		ProcessFollowMovements();
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationCombatStep))
+		{
+			_combatService.StepCombat(fDelta);
+		}
 
-		GameContext.World.Query(in _attackCooldownQuery, _attackCooldownQueryDelegate);
-		GameContext.World.Query(in _healthRegenQuery, _healthRegenQueryDelegate);
-		GameContext.World.Query(in _manaRegenQuery, _manaRegenQueryDelegate);
-		GameContext.World.Query(in _prodQuery, _prodQueryDelegate);
-		GameContext.World.Query(in _autoCastQuery, _autoCastQueryDelegate);
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationEconomyStep))
+		{
+			_economyService.StepEconomy(fDelta);
+		}
+
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationBuffQueries))
+		{
+			GameContext.World.Query(in _buffQuery, _buffsQueryDelegate);
+			GameContext.World.Query(in _buffStateQuery, _buffStateQueryDelegate);
+			GameContext.World.Query(in _statsRecalcQuery, _statsRecalcQueryDelegate);
+		}
+
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationPatrolArrivals))
+		{
+			ProcessPatrolArrivals();
+		}
+
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationFollowMovements))
+		{
+			ProcessFollowMovements();
+		}
+
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationUnitQueries))
+		{
+			GameContext.World.Query(in _attackCooldownQuery, _attackCooldownQueryDelegate);
+			GameContext.World.Query(in _healthRegenQuery, _healthRegenQueryDelegate);
+			GameContext.World.Query(in _manaRegenQuery, _manaRegenQueryDelegate);
+			GameContext.World.Query(in _prodQuery, _prodQueryDelegate);
+			GameContext.World.Query(in _autoCastQuery, _autoCastQueryDelegate);
+		}
 
 		foreach (var (entity, pf) in _tickAddPathFollow)
 		{
@@ -541,9 +572,15 @@ public class SimulationService
 			}
 		}
 
-		TickBotControllers(fDelta);
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationBotControllers))
+		{
+			TickBotControllers(fDelta);
+		}
 
-		ApplyDeferredTickCommands();
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationDeferredCommands))
+		{
+			ApplyDeferredTickCommands();
+		}
 	}
 
 	private readonly Dictionary<int, List<GenericAffordance>> _customDecisionsPerPlayer = new();

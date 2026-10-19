@@ -1902,25 +1902,28 @@ public partial class Unit3D : Prop3D
 
 	public override void _Process(double delta)
 	{
-		base._Process(delta);
-
-		if (IsSelected && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.Unit3DProcess))
 		{
-			if (IsBuilding)
+			base._Process(delta);
+
+			if (IsSelected && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
 			{
-				UpdateRallyVisuals();
+				if (IsBuilding)
+				{
+					UpdateRallyVisuals();
+				}
+				else
+				{
+					UpdatePathVisuals();
+				}
 			}
 			else
 			{
-				UpdatePathVisuals();
-			}
-		}
-		else
-		{
-			HidePathVisuals();
-			if (_rallyVisualsContainer != null)
-			{
-				_rallyVisualsContainer.Visible = false;
+				HidePathVisuals();
+				if (_rallyVisualsContainer != null)
+				{
+					_rallyVisualsContainer.Visible = false;
+				}
 			}
 		}
 	}
