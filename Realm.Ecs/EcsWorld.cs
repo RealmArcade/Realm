@@ -556,6 +556,22 @@ public class EcsWorld : IDisposable
 	public QueryEnumerable Query<T1, T2, T3>() where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged => Query(ComponentMasks.Of<T1, T2, T3>());
 	public QueryEnumerable Query<T1, T2, T3, T4>() where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged where T4 : unmanaged => Query(ComponentMasks.Of<T1, T2, T3, T4>());
 
+	public int CountEntities(in QueryDescription query)
+	{
+		int count = 0;
+		for (int chunkIndex = 0; chunkIndex < BITSET_CHUNKS; chunkIndex++)
+		{
+			ulong active = _activeEntityBitset[chunkIndex];
+			if (active == 0) continue;
+			ulong match = active & GetMatchingChunk(query, chunkIndex);
+			if (match != 0)
+			{
+				count += BitOperations.PopCount(match);
+			}
+		}
+		return count;
+	}
+
 	public void Query(in QueryDescription query, EntityCallback callback)
 	{
 		foreach (var entity in Query(query))

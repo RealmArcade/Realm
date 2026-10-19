@@ -396,14 +396,20 @@ public partial class GameHost
 		InGameHUD.Instance?.RefreshUI(SelectedUnits);
 	}
 
+	private readonly HashSet<int> _activeBuildGhostWorkerIds = new();
+	private readonly List<int> _inactiveBuildGhostWorkersToRemove = new();
+
 	private void UpdateBuildQueueGhosts()
 	{
 		var workerQuery = QueryCache.AllPositionAndBuildTaskNoneDeadQuery;
-		var activeWorkerIds = new HashSet<int>();
+		_activeBuildGhostWorkerIds.Clear();
 
-		GameContext.World.Query(in workerQuery, (Entity workerEntity, ref BuildTask _) => { ProcessWorkerGhostQueue(workerEntity, activeWorkerIds); });
+		foreach (var workerEntity in GameContext.World.Query(in workerQuery))
+		{
+			ProcessWorkerGhostQueue(workerEntity, _activeBuildGhostWorkerIds);
+		}
 
-		CleanupInactiveGhosts(activeWorkerIds);
+		CleanupInactiveGhosts(_activeBuildGhostWorkerIds);
 	}
 
 	private void ProcessWorkerGhostQueue(Entity workerEntity, HashSet<int> activeWorkerIds)
@@ -457,7 +463,8 @@ public partial class GameHost
 
 	private void CleanupInactiveGhosts(HashSet<int> activeWorkerIds)
 	{
-		var toRemove = new List<int>();
+		if (_buildQueueGhosts.Count == 0) return;
+		_inactiveBuildGhostWorkersToRemove.Clear();
 		foreach (var kv in _buildQueueGhosts)
 		{
 			if (!activeWorkerIds.Contains(kv.Key))
@@ -465,12 +472,12 @@ public partial class GameHost
 				foreach (var ghost in kv.Value)
 					if (GodotObject.IsInstanceValid(ghost))
 						ghost.QueueFree();
-				toRemove.Add(kv.Key);
+				_inactiveBuildGhostWorkersToRemove.Add(kv.Key);
 			}
 		}
 
-		foreach (var id in toRemove)
-			_buildQueueGhosts.Remove(id);
+		for (int i = 0; i < _inactiveBuildGhostWorkersToRemove.Count; i++)
+			_buildQueueGhosts.Remove(_inactiveBuildGhostWorkersToRemove[i]);
 	}
 
 	private MeshInstance3D CreateGhostMesh(string buildType)
@@ -676,33 +683,42 @@ public partial class GameHost
 		Basis targetBasis = ComputeVisualRotationBasis(entity, unit3D, nextPos, lookTargetPos, hasLookTarget, fDelta, fraction, out float targetRotY);
 		UpdateVisualScale(entity, unit3D, isLaborAnimating, clampedScale);
 
-		Godot.Vector3 finalScaleVec = new Godot.Vector3(clampedScale, clampedScale, clampedScale);
-		Basis finalScaledBasis = targetBasis.Scaled(finalScaleVec);
-		Transform3D finalTransform = new Transform3D(finalScaledBasis, nextPos);
+		bool basisChanged = Mathf.Abs(Mathf.AngleDifference(unit3D.CachedRotationY, targetRotY)) > 0.0005f || !targetBasis.IsEqualApprox(unit3D.CachedBasis);
+		if (posChanged || scaleChanged || basisChanged)
+		{
+			Godot.Vector3 finalScaleVec = new Godot.Vector3(clampedScale, clampedScale, clampedScale);
+			Basis finalScaledBasis = targetBasis.Scaled(finalScaleVec);
+			Transform3D finalTransform = new Transform3D(finalScaledBasis, nextPos);
 
-		unit3D.SetTransform3D(finalTransform, nextPos, targetRotY, targetBasis, finalScaleVec, clampedScale);
+			unit3D.SetTransform3D(finalTransform, nextPos, targetRotY, targetBasis, finalScaleVec, clampedScale);
+		}
 	}
+
+	private static readonly QueryDescription _constructionVisualQuery = new QueryDescription().WithAll<ConstructionState>().WithNone<Dead>();
 
 	private void UpdateVisualNodesFromEcs(float fDelta)
 	{
 		var query = QueryCache.AllPositionAndDefinitionIdQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Position _) =>
+		foreach (var entity in GameContext.World.Query(in query))
 		{
 			if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 			{
-				unit3D.PlayAnimation(DetermineUnitAnimation(entity));
+				if (!unit3D.IsCulled && unit3D.Visible)
+				{
+					unit3D.PlayAnimation(DetermineUnitAnimation(entity));
+				}
 			}
-		});
+		}
 
-		var buildingQuery = new QueryDescription().WithAll<ConstructionState>().WithNone<Dead>();
-		GameContext.World.Query(in buildingQuery, (Entity entity, ref ConstructionState construction) =>
+		foreach (var entity in GameContext.World.Query(in _constructionVisualQuery))
 		{
 			if (TryGetUnit3D(entity, out var buildingNode) && GodotObject.IsInstanceValid(buildingNode))
 			{
+				ref var construction = ref GameContext.World.Get<ConstructionState>(entity);
 				float alpha = Mathf.Lerp(0.3f, 1.0f, construction.Progress / Mathf.Max(construction.TotalBuildTime, 0.001f));
 				buildingNode.Modulate = new Color(1f, 1f, 1f, alpha);
 			}
-		});
+		}
 	}
 
 	private bool CheckNonFinitePositionWarning(Entity entity, Vector3 posValue, Unit3D unit3D)

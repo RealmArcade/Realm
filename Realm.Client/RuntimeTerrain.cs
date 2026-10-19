@@ -875,6 +875,8 @@ public partial class RuntimeTerrain : Node3D
 
 		_shallowWaterMaterial = GetWaterMaterial(0);
 		_deepWaterMaterial = GetWaterMaterial(1);
+		_lastAppliedShroudEnabled = null;
+		_lastAppliedShroudTexture = null;
 	}
 
 	protected void CreateWater()
@@ -2134,9 +2136,14 @@ public partial class RuntimeTerrain : Node3D
 	}
 
 	private bool _wasPathingVisibleBeforeMinimap;
+	private bool? _lastAppliedShroudEnabled;
+	private ImageTexture? _lastAppliedShroudTexture;
 
 	public void SetShroudEnabled(bool enabled)
 	{
+		if (_lastAppliedShroudEnabled == enabled) return;
+		_lastAppliedShroudEnabled = enabled;
+
 		if (_material != null)
 		{
 			_material.SetShaderParameter(ShroudEnabledParam, enabled);
@@ -2195,6 +2202,7 @@ public partial class RuntimeTerrain : Node3D
 	public void EndMinimapCapture()
 	{
 		var restoreTex = _currentShroudTexture ?? GetClearShroudTexture();
+		_lastAppliedShroudTexture = restoreTex;
 		if (_material != null)
 		{
 			_material.SetShaderParameter(ShroudTextureParam, restoreTex);
@@ -2220,6 +2228,8 @@ public partial class RuntimeTerrain : Node3D
 		if (shroudTexture == null) return;
 		_currentShroudTexture = shroudTexture;
 		if (IsMinimapRendering) return;
+		if (ReferenceEquals(_lastAppliedShroudTexture, shroudTexture)) return;
+		_lastAppliedShroudTexture = shroudTexture;
 
 		if (_material != null)
 		{

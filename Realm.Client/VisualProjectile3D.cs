@@ -249,8 +249,8 @@ public partial class VisualProjectile3D : Node3D
 		}
 		else
 		{
-			_tumbleAxis = new Vector3(1f, 0.5f, 0.2f).Normalized();
-			_tumbleSpeed = 4.0f;
+			_tumbleAxis = Vector3.Up;
+			_tumbleSpeed = 0.0f;
 		}
 
 		UpdateModel();
@@ -816,13 +816,19 @@ public partial class VisualProjectile3D : Node3D
 			GlobalPosition = nextPos;
 		}
 
-		_meshContainer.RotateObjectLocal(_tumbleAxis, _tumbleSpeed * dt);
+		if (_tumbleSpeed > 0.0001f)
+		{
+			_meshContainer.RotateObjectLocal(_tumbleAxis, _tumbleSpeed * dt);
+		}
 
-		Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
-		Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
-		baseScale = SafeScale(baseScale);
-		float lifetimeScale = Mathf.Max(0.001f, CalculateScaleOverLifetime(rawT, _scaleCurve));
-		_visualTransformContainer.Scale = SafeScale(baseScale * lifetimeScale);
+		if (_scaleCurve != ProjectileScaleCurve.Constant)
+		{
+			Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
+			Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
+			baseScale = SafeScale(baseScale);
+			float lifetimeScale = Mathf.Max(0.001f, CalculateScaleOverLifetime(rawT, _scaleCurve));
+			_visualTransformContainer.Scale = SafeScale(baseScale * lifetimeScale);
+		}
 
 		Vector3 trailPos = _cachedGlobalPosition + _cachedBasis * _weapon.TrailOffset.ToGodotVector3();
 		UpdateTrail(dt, trailPos);

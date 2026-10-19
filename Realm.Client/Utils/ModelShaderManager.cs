@@ -870,8 +870,20 @@ public static class ModelShaderManager
 		img.SetData(img.GetWidth(), img.GetHeight(), false, Image.Format.Rgba8, data);
 	}
 
+	private static bool _hasAppliedShroudParams;
+
 	public static void SetShroudParameters(Texture2D texture, Vector2 worldMin, Vector2 worldSize, bool enabled)
 	{
+		if (_hasAppliedShroudParams &&
+		    ReferenceEquals(_currentShroudTexture, texture) &&
+		    _currentShroudWorldMin == worldMin &&
+		    _currentShroudWorldSize == worldSize &&
+		    _currentShroudEnabled == enabled)
+		{
+			return;
+		}
+
+		_hasAppliedShroudParams = true;
 		_currentShroudTexture = texture;
 		_currentShroudWorldMin = worldMin;
 		_currentShroudWorldSize = worldSize;
@@ -1028,5 +1040,6 @@ public static class ModelShaderManager
 		_materialCache.Clear();
 		_normalizedAlbedoCache.Clear();
 		_playerMaskCheckCache.Clear();
+		_hasAppliedShroudParams = false;
 	}
 }

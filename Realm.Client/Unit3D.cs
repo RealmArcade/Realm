@@ -97,22 +97,26 @@ public partial class Unit3D : Node3D
 		return _cachedGeometryInstances;
 	}
 
+	private float _cachedBaseModelScale = 1.0f;
+	private bool _isLaborPulsing = false;
+
 	public void SetLaborPulseScale(float pulse)
 	{
 		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
 		{
-			float baseModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
-			if (baseModelScale <= 0.001f) baseModelScale = 1.0f;
+			_isLaborPulsing = true;
+			float baseModelScale = _cachedBaseModelScale;
 			_modelNode.Scale = new Vector3(pulse * 0.9f * baseModelScale, (2.0f - pulse) * 0.9f * baseModelScale, pulse * 0.9f * baseModelScale);
 		}
 	}
 
 	public void ResetLaborPulseScale()
 	{
+		if (!_isLaborPulsing) return;
+		_isLaborPulsing = false;
 		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
 		{
-			float baseModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
-			if (baseModelScale <= 0.001f) baseModelScale = 1.0f;
+			float baseModelScale = _cachedBaseModelScale;
 			_modelNode.Scale = new Vector3(baseModelScale, baseModelScale, baseModelScale);
 		}
 	}
@@ -162,13 +166,13 @@ public partial class Unit3D : Node3D
 		{
 			_impulseTime = 0f;
 			_impulseStrength = 0f;
-			ModelShaderManager.SetProceduralAnimationImpulse(this, 0f, _impulseFrequency, 0f);
+			ModelShaderManager.SetProceduralAnimationImpulse(GetCachedGeometryInstances(), 0f, _impulseFrequency, 0f);
 		}
 		else
 		{
 			float progress = 1f - (_impulseTime / _impulseDuration);
 			float currentStrength = _impulseStrength * (1f - progress);
-			ModelShaderManager.SetProceduralAnimationImpulse(this, currentStrength, _impulseFrequency, progress);
+			ModelShaderManager.SetProceduralAnimationImpulse(GetCachedGeometryInstances(), currentStrength, _impulseFrequency, progress);
 		}
 	}
 
@@ -354,18 +358,18 @@ public partial class Unit3D : Node3D
 					if (isLooping)
 					{
 						float newPos = (currentPos + elapsed) % animLength;
-						_animationPlayer.Seek(newPos, update: true);
+						_animationPlayer.Seek(newPos, update: false);
 					}
 					else
 					{
 						float newPos = currentPos + elapsed;
 						if (newPos >= animLength)
 						{
-							_animationPlayer.Seek(animLength, update: true);
+							_animationPlayer.Seek(animLength, update: false);
 						}
 						else
 						{
-							_animationPlayer.Seek(newPos, update: true);
+							_animationPlayer.Seek(newPos, update: false);
 						}
 					}
 				}
@@ -747,9 +751,16 @@ public partial class Unit3D : Node3D
 		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
 		{
 			float safeScale = globalScale <= 0.001f ? 1.0f : globalScale;
+			_cachedBaseModelScale = safeScale;
+			_isLaborPulsing = false;
 			_modelNode.Scale = new Vector3(safeScale, safeScale, safeScale);
 			float yOffset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(this) : 0f;
 			_modelNode.Position = new Vector3(_modelNode.Position.X, yOffset, _modelNode.Position.Z);
+			var calculatedAabb = CalculateModelLocalAabb();
+			if (calculatedAabb.Size.LengthSquared() > 0.001f)
+			{
+				_cachedLocalAabb = new Aabb(calculatedAabb.Position * _cachedBaseModelScale, calculatedAabb.Size * _cachedBaseModelScale);
+			}
 			UpdateLodVisibility();
 		}
 	}
@@ -789,7 +800,7 @@ public partial class Unit3D : Node3D
 		var calculatedAabb = CalculateModelLocalAabb();
 		if (calculatedAabb.Size.LengthSquared() > 0.001f)
 		{
-			_cachedLocalAabb = calculatedAabb;
+			_cachedLocalAabb = new Aabb(calculatedAabb.Position * _cachedBaseModelScale, calculatedAabb.Size * _cachedBaseModelScale);
 		}
 
 		RebuildGeometryInstanceCache();
@@ -804,6 +815,7 @@ public partial class Unit3D : Node3D
 		_modelNode = null;
 		_cachedSkeleton = null;
 		_isCulled = false;
+		_isLaborPulsing = false;
 		_rightHandAttachment = null;
 		_leftHandAttachment = null;
 		_currentRightAttachmentId = null;
@@ -866,6 +878,8 @@ public partial class Unit3D : Node3D
 		if (_modelNode == null) return;
 		float globalScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
 		float safeScale = globalScale <= 0.001f ? 1.0f : globalScale;
+		_cachedBaseModelScale = safeScale;
+		_isLaborPulsing = false;
 		_modelNode.Scale = new Vector3(safeScale, safeScale, safeScale);
 
 		UpdateLodVisibility();
@@ -2611,6 +2625,7 @@ public partial class Unit3D : Node3D
 		get => new Color(1f, 1f, 1f, _modulateAlpha);
 		set
 		{
+			if (Mathf.Abs(_modulateAlpha - value.A) < 0.005f) return;
 			_modulateAlpha = value.A;
 			if (_modelNode != null)
 				SetAlphaRecursive(_modelNode, value.A);
@@ -2621,6 +2636,8 @@ public partial class Unit3D : Node3D
 
 	public void SetConstructionAlpha(float alpha)
 	{
+		if (Mathf.Abs(_modulateAlpha - alpha) < 0.005f) return;
+		_modulateAlpha = alpha;
 		if (_modelNode != null)
 		{
 			SetAlphaRecursive(_modelNode, alpha);
@@ -2634,18 +2651,23 @@ public partial class Unit3D : Node3D
 			Material mat = mesh.MaterialOverride;
 			if (mat is StandardMaterial3D stdMat)
 			{
-				var dup = (StandardMaterial3D)stdMat.Duplicate();
-				dup.Transparency = alpha < 1f ? BaseMaterial3D.TransparencyEnum.Alpha : BaseMaterial3D.TransparencyEnum.Disabled;
-				var c = dup.AlbedoColor;
+				if (!stdMat.HasMeta("AlphaDuplicated"))
+				{
+					stdMat = (StandardMaterial3D)stdMat.Duplicate();
+					stdMat.SetMeta("AlphaDuplicated", true);
+					mesh.MaterialOverride = stdMat;
+				}
+				stdMat.Transparency = alpha < 1f ? BaseMaterial3D.TransparencyEnum.Alpha : BaseMaterial3D.TransparencyEnum.Disabled;
+				var c = stdMat.AlbedoColor;
 				c.A = alpha;
-				dup.AlbedoColor = c;
-				mesh.MaterialOverride = dup;
+				stdMat.AlbedoColor = c;
 			}
 		}
 
-		foreach (var child in node.GetChildren())
+		int childCount = node.GetChildCount();
+		for (int i = 0; i < childCount; i++)
 		{
-			SetAlphaRecursive(child, alpha);
+			SetAlphaRecursive(node.GetChild(i), alpha);
 		}
 	}
 }

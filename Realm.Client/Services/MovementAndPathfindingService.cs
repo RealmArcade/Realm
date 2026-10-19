@@ -137,9 +137,14 @@ namespace Realm.Client.Services
 		private readonly List<Entity> _tickArrivedUnits = new();
 
 		private readonly QueryDescription _movementQuery = QueryCache.AllPositionAndMoveToAndMovementStatsNoneDeadQuery;
-		private readonly QueryDescription _spatialQuery = QueryCache.AllPositionQuery;
+		private readonly QueryDescription _unitSpatialQuery = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
+		private readonly QueryDescription _propSpatialQuery = QueryCache.AllPropIdentityAndPositionQuery;
 		private EntityCallback<Position, MoveTo, MovementStats> _movementQueryDelegate;
-		private EntityCallback<Position> _spatialQueryDelegate;
+		private EntityCallback<Position> _unitSpatialQueryDelegate;
+		private EntityCallback<Position> _propSpatialQueryDelegate;
+		private int _lastPropEntityCount = -1;
+		private EcsWorld? _lastPropWorld;
+		private bool _propGridDirty = true;
 
 		private TerrainState _currentTerrainState;
 		private bool _hasTerrainState;
@@ -154,7 +159,13 @@ namespace Realm.Client.Services
 		public MovementAndPathfindingService()
 		{
 			_movementQueryDelegate = MovementQueryAction;
-			_spatialQueryDelegate = SpatialGridQueryAction;
+			_unitSpatialQueryDelegate = UnitSpatialGridQueryAction;
+			_propSpatialQueryDelegate = PropSpatialGridQueryAction;
+		}
+
+		public void InvalidatePropGrid()
+		{
+			_propGridDirty = true;
 		}
 
 		public void StepMovement(float delta)
@@ -251,18 +262,51 @@ namespace Realm.Client.Services
 
 			_unitGrid.Clear();
 
-			foreach (var list in _propGrid.Values)
+			var world = GameContext.World;
+			world.Query(in _unitSpatialQuery, _unitSpatialQueryDelegate);
+
+			int currentPropCount = world.CountEntities(in _propSpatialQuery);
+			if (_propGridDirty || !ReferenceEquals(_lastPropWorld, world) || currentPropCount != _lastPropEntityCount)
 			{
-				list.Clear();
-				_listPool.Add(list);
+				_propGridDirty = false;
+				_lastPropWorld = world;
+				_lastPropEntityCount = currentPropCount;
+
+				foreach (var list in _propGrid.Values)
+				{
+					list.Clear();
+					_listPool.Add(list);
+				}
+
+				_propGrid.Clear();
+
+				world.Query(in _propSpatialQuery, _propSpatialQueryDelegate);
 			}
-
-			_propGrid.Clear();
-
-			GameContext.World.Query(in _spatialQuery, _spatialQueryDelegate);
 		}
 
-		private void SpatialGridQueryAction(Entity entity, ref Position p)
+		private void UnitSpatialGridQueryAction(Entity entity, ref Position p)
+		{
+			var world = GameContext.World;
+			Vector3 pos = p.Value;
+			long key = GetCellKey(pos.X, pos.Z);
+
+			if (!_unitGrid.TryGetValue(key, out var list))
+			{
+				list = GetEntityListFromPool();
+				_unitGrid[key] = list;
+			}
+
+			float scale = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
+			float radius = world.Has<CollisionRadius>(entity)
+				? world.Get<CollisionRadius>(entity).Value * scale
+				: scale * GameplayConstants.DefaultCollisionRadius;
+			bool hasVel = world.Has<Velocity>(entity);
+			Vector3 vel = hasVel ? world.Get<Velocity>(entity).Value : Vector3.Zero;
+
+			list.Add(new SpatialGridEntry(entity, pos, vel, radius, hasVel));
+		}
+
+		private void PropSpatialGridQueryAction(Entity entity, ref Position p)
 		{
 			var world = GameContext.World;
 			if (world.Has<Dead>(entity)) return;
@@ -270,38 +314,18 @@ namespace Realm.Client.Services
 			Vector3 pos = p.Value;
 			long key = GetCellKey(pos.X, pos.Z);
 
-			if (world.Has<DefinitionId>(entity))
+			if (!_propGrid.TryGetValue(key, out var list))
 			{
-				if (!_unitGrid.TryGetValue(key, out var list))
-				{
-					list = GetEntityListFromPool();
-					_unitGrid[key] = list;
-				}
-
-				float scale = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
-				float radius = world.Has<CollisionRadius>(entity)
-					? world.Get<CollisionRadius>(entity).Value * scale
-					: scale * GameplayConstants.DefaultCollisionRadius;
-				bool hasVel = world.Has<Velocity>(entity);
-				Vector3 vel = hasVel ? world.Get<Velocity>(entity).Value : Vector3.Zero;
-
-				list.Add(new SpatialGridEntry(entity, pos, vel, radius, hasVel));
+				list = GetEntityListFromPool();
+				_propGrid[key] = list;
 			}
-			else if (world.Has<PropIdentity>(entity))
-			{
-				if (!_propGrid.TryGetValue(key, out var list))
-				{
-					list = GetEntityListFromPool();
-					_propGrid[key] = list;
-				}
 
-				float scaleProp = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
-				float radius = world.Has<CollisionRadius>(entity)
-					? world.Get<CollisionRadius>(entity).Value * scaleProp
-					: scaleProp * GameplayConstants.DefaultPropCollisionRadius;
+			float scaleProp = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
+			float radius = world.Has<CollisionRadius>(entity)
+				? world.Get<CollisionRadius>(entity).Value * scaleProp
+				: scaleProp * GameplayConstants.DefaultPropCollisionRadius;
 
-				list.Add(new SpatialGridEntry(entity, pos, Vector3.Zero, radius, false));
-			}
+			list.Add(new SpatialGridEntry(entity, pos, Vector3.Zero, radius, false));
 		}
 
 		private void MovementQueryAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)

@@ -3058,8 +3058,8 @@ public partial class GameHost : Node3D, IGameAPI
 		SyncPreviousTransform(GameContext.World, entity);
 	}
 
-	private static readonly QueryDescription _positionQuery = new QueryDescription().WithAll<Position>();
-	private static readonly QueryDescription _rotationYQuery = new QueryDescription().WithAll<RotationY>();
+	private static readonly QueryDescription _positionQuery = new QueryDescription().WithAll<Position>().WithNone<Building, PropIdentity, Dead>();
+	private static readonly QueryDescription _rotationYQuery = new QueryDescription().WithAll<RotationY>().WithNone<Building, PropIdentity, Dead>();
 
 	public void CapturePreviousStateSnapshots()
 	{
