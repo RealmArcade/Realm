@@ -29,6 +29,9 @@
 - For any text labels that appear on screen, ensure they are translated via `LocalizationManager.cs`.
 - Labels in Containers: When setting autowrap_mode, always set custom_minimum_size.x (explicit width) and size_flags_horizontal = SIZE_EXPAND_FILL. Otherwise Godot calculates custom_minimum_size.y based on single-word wrapping, causing container to stretch excessively tall.
 - Unicode Icons: Never hardcode `\uXXXX` escape sequences inside string literals in UI or HUD scripts. Always reference named glyph constants defined in `UnicodeIcons` (e.g. `${UnicodeIcons.UPLOAD}`).
+- `[GlobalClass]` Registration: Every custom non-generic, top-level C# class that inherits from `GodotObject` (`Node`, `Node3D`, `Control`, `Resource`, etc.) must be marked with the `[GlobalClass]` attribute so it registers as a distinct type in Godot's ObjectDB and profiler rather than falling back to its native C++ base class.
+- Explicit Node Naming: Whenever instantiating a generic Godot node (`new Node3D()`, `new PanelContainer()`, etc.) or scene prefab (`.Instantiate()`) in C#, immediately assign a descriptive `.Name` property identifying its purpose or source system to prevent anonymous `@Type@####` or `Type_####` entries in the SceneTree and ObjectDB profiler.
+- Node Lifecycle & Cleanup: Never leave detached nodes in memory. When removing a node via `RemoveChild()`, either explicitly call `QueueFree()` on it or return it to a managed object pool that properly frees all pooled instances on cleanup.
 
 ### Realm.ECS Data Layer (Flat Bitmask SoA Shared Memory):
 - Core simulation component buffers (`PlayerResource`, `Health`, etc.) are implemented as a custom Flat Bitmask Structure-of-Arrays (SoA) ECS where component arrays are stored in contiguous unmanaged memory mapped directly into WASM linear memory (`Wasmtime.Memory`).
