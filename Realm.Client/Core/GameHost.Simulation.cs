@@ -560,8 +560,9 @@ public partial class GameHost
 
 	private void UpdateVisualNodesFromEcs(float fDelta)
 	{
+		float fraction = (float)Engine.GetPhysicsInterpolationFraction();
 		var query = QueryCache.AllPositionAndDefinitionIdQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Position pos) => { ProcessVisualNode(entity, ref pos, fDelta); });
+		GameContext.World.Query(in query, (Entity entity, ref Position pos) => { ProcessVisualNode(entity, ref pos, fDelta, fraction); });
 
 		var buildingQuery = new QueryDescription().WithAll<ConstructionState>().WithNone<Dead>();
 		GameContext.World.Query(in buildingQuery, (Entity entity, ref ConstructionState construction) =>
@@ -574,26 +575,32 @@ public partial class GameHost
 		});
 	}
 
-	private void ProcessVisualNode(Entity entity, ref Position pos, float fDelta)
+	private void ProcessVisualNode(Entity entity, ref Position pos, float fDelta, float fraction)
 	{
 		if (!TryGetUnit3D(entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
 
 		var posValue = pos.Value;
 		if (CheckNonFinitePositionWarning(entity, posValue, unit3D)) return;
 
+		Vector3 prevPos = GameContext.World.Has<PreviousPosition>(entity)
+			? GameContext.World.Get<PreviousPosition>(entity).Value
+			: posValue;
+
+		Vector3 interpPosVec = Vector3.Lerp(prevPos, posValue, fraction);
+
 		Godot.Vector3 nextPos;
 		if (GameSettings.MovementPrediction && GameContext.World != null && GameContext.World.Has<RenderPosition>(entity))
 		{
 			ref var renderPos = ref GameContext.World.Get<RenderPosition>(entity);
-			renderPos.Value = System.Numerics.Vector3.Lerp(renderPos.Value, posValue, Math.Min(1.0f, 15.0f * fDelta));
+			renderPos.Value = Vector3.Lerp(renderPos.Value, interpPosVec, Math.Min(1.0f, 15.0f * fDelta));
 			nextPos = new Godot.Vector3(renderPos.Value.X, renderPos.Value.Y, renderPos.Value.Z);
 		}
 		else
 		{
-			nextPos = new Godot.Vector3(posValue.X, posValue.Y, posValue.Z);
+			nextPos = new Godot.Vector3(interpPosVec.X, interpPosVec.Y, interpPosVec.Z);
 			if (GameContext.World != null && GameContext.World.Has<RenderPosition>(entity))
 			{
-				GameContext.World.Set(entity, new RenderPosition(posValue));
+				GameContext.World.Set(entity, new RenderPosition(interpPosVec));
 			}
 		}
 
@@ -603,7 +610,7 @@ public partial class GameHost
 		}
 
 		UpdateVisualVelocity(entity, unit3D);
-		UpdateVisualRotation(entity, unit3D, nextPos, fDelta);
+		UpdateVisualRotation(entity, unit3D, nextPos, fDelta, fraction);
 		UpdateVisualScale(entity, unit3D);
 
 		unit3D.PlayAnimation(DetermineUnitAnimation(entity));
@@ -652,7 +659,7 @@ public partial class GameHost
 		}
 	}
 
-	private void UpdateVisualRotation(Entity entity, Unit3D unit3D, Godot.Vector3 nextPos, float fDelta)
+	private void UpdateVisualRotation(Entity entity, Unit3D unit3D, Godot.Vector3 nextPos, float fDelta, float fraction)
 	{
 		bool hasLookTarget = TryGetLookTarget(entity, out Godot.Vector3 lookTargetPos);
 		Godot.Vector3 dir = unit3D.Velocity;
@@ -677,6 +684,10 @@ public partial class GameHost
 			hasDir = dir.LengthSquared() > 0.01f;
 		}
 
+		float currRot = GameContext.World.Has<RotationY>(entity) ? GameContext.World.Get<RotationY>(entity).Value : unit3D.Rotation.Y;
+		float prevRot = GameContext.World.Has<PreviousRotationY>(entity) ? GameContext.World.Get<PreviousRotationY>(entity).Value : currRot;
+		float interpRotY = Mathf.LerpAngle(prevRot, currRot, fraction);
+
 		if (hasDir)
 		{
 			ApplyDirectionalRotation(entity, unit3D, nextPos, dir, fDelta);
@@ -691,6 +702,12 @@ public partial class GameHost
 			{
 				GameContext.World.Set(entity, new RotationY(rot.Y));
 			}
+		}
+		else
+		{
+			var rot = unit3D.Rotation;
+			rot.Y = interpRotY;
+			unit3D.Rotation = rot;
 		}
 	}
 

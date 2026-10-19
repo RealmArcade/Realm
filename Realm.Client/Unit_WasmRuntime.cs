@@ -493,6 +493,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 		var newPosComp = new Position(position);
 		_world.SetOrAdd(_entity, newPosComp);
+		_world.SetOrAdd(_entity, new PreviousPosition(position));
 
 		if (GameHost.TryGetUnit3D(_entity, out var unit3D))
 		{

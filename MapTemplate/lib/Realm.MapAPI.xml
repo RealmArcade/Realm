@@ -255,6 +255,12 @@
         <member name="F:Realm.MapAPI.ComponentIds.RotationY">
             <summary>Rotation around Y-axis component identifier.</summary>
         </member>
+        <member name="F:Realm.MapAPI.ComponentIds.PreviousPosition">
+            <summary>Previous position component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.PreviousRotationY">
+            <summary>Previous rotation around Y-axis component identifier.</summary>
+        </member>
         <member name="T:Realm.MapAPI.ComponentMask">
             <summary>
             Bitmask representing a set of component types for entity filter queries.
@@ -541,6 +547,9 @@
         <member name="P:Realm.MapAPI.EcsSharedMemory.Position">
             <summary>Gets the raw pointer to the entity position vectors array.</summary>
         </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.PreviousPosition">
+            <summary>Gets the raw pointer to the entity previous position vectors array.</summary>
+        </member>
         <member name="P:Realm.MapAPI.EcsSharedMemory.Health">
             <summary>Gets the raw pointer to the entity health components array.</summary>
         </member>
@@ -570,6 +579,9 @@
         </member>
         <member name="P:Realm.MapAPI.EcsSharedMemory.RotationY">
             <summary>Gets the raw pointer to the unit rotation Y-axis array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.PreviousRotationY">
+            <summary>Gets the raw pointer to the unit previous rotation Y-axis array.</summary>
         </member>
         <member name="P:Realm.MapAPI.EcsSharedMemory.PlayerResources">
             <summary>Gets the raw pointer to the player resources stockpile array.</summary>
@@ -4664,6 +4676,26 @@
         <member name="M:Realm.MapAPI.Components.Position.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Components.Position">
             <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
+        <member name="T:Realm.MapAPI.Components.PreviousPosition">
+            <summary>
+            Stores prior simulation tick 3D spatial world position vector coordinates for visual state-snapshot interpolation.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PreviousPosition.Value">
+            <summary>The Value field.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.#ctor(System.Numerics.Vector3)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PreviousPosition"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.#ctor(System.Single,System.Single,System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PreviousPosition"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.op_Implicit(Realm.MapAPI.Components.PreviousPosition)~System.Numerics.Vector3">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Components.PreviousPosition">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
         <member name="T:Realm.MapAPI.Components.Health">
             <summary>
             Represents the health point capacity and regeneration state of an entity.
@@ -4872,6 +4904,23 @@
             <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
         <member name="M:Realm.MapAPI.Components.RotationY.op_Implicit(System.Single)~Realm.MapAPI.Components.RotationY">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.PreviousRotationY">
+            <summary>
+            Stores prior simulation tick rotational azimuth heading around the vertical Y-axis in radians for visual state-snapshot interpolation.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PreviousRotationY.Value">
+            <summary>The Value field.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousRotationY.#ctor(System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PreviousRotationY"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousRotationY.op_Implicit(Realm.MapAPI.Components.PreviousRotationY)~System.Single">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousRotationY.op_Implicit(System.Single)~Realm.MapAPI.Components.PreviousRotationY">
             <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
         <member name="T:Realm.MapAPI.Components.MovementType">

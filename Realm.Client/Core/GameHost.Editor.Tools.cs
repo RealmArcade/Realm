@@ -2057,6 +2057,7 @@ namespace Realm.Client.Core
 			if (GameContext.World.IsAlive(unit.Entity))
 			{
 				GameContext.World.Set(unit.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(GameContext.World, unit.Entity);
 				UpdateEditorCoverageOverlay();
 			}
 		}
@@ -2066,6 +2067,7 @@ namespace Realm.Client.Core
 			if (GameContext.World.IsAlive(prop.Entity))
 			{
 				GameContext.World.Set(prop.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(GameContext.World, prop.Entity);
 			}
 
 			PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
@@ -2076,6 +2078,7 @@ namespace Realm.Client.Core
 			if (GameContext.World.IsAlive(decal3D.Entity))
 			{
 				GameContext.World.Set(decal3D.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(GameContext.World, decal3D.Entity);
 			}
 		}
 
@@ -2084,6 +2087,7 @@ namespace Realm.Client.Core
 			if (GameContext.World.IsAlive(vfxInst.Entity))
 			{
 				GameContext.World.Set(vfxInst.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(GameContext.World, vfxInst.Entity);
 			}
 		}
 

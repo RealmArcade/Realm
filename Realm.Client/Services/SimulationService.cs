@@ -989,6 +989,36 @@ public class SimulationService
 		_fDelta = fDelta;
 	}
 
+	public bool TryGetInterpolatedTransform(Entity entity, float fraction, out Vector3 position, out float rotationY)
+	{
+		position = Vector3.Zero;
+		rotationY = 0f;
+
+		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
+
+		if (GameContext.World.Has<Position>(entity))
+		{
+			Vector3 curPos = GameContext.World.Get<Position>(entity).Value;
+			Vector3 prevPos = GameContext.World.Has<PreviousPosition>(entity) ? GameContext.World.Get<PreviousPosition>(entity).Value : curPos;
+			position = Vector3.Lerp(prevPos, curPos, fraction);
+		}
+
+		if (GameContext.World.Has<RotationY>(entity))
+		{
+			float curRot = GameContext.World.Get<RotationY>(entity).Value;
+			float prevRot = GameContext.World.Has<PreviousRotationY>(entity) ? GameContext.World.Get<PreviousRotationY>(entity).Value : curRot;
+			rotationY = Mathf.LerpAngle(prevRot, curRot, fraction);
+		}
+
+		return true;
+	}
+
+	public (Vector3 Position, float RotationY) GetInterpolatedTransform(Entity entity, float fraction)
+	{
+		TryGetInterpolatedTransform(entity, fraction, out var pos, out var rotY);
+		return (pos, rotY);
+	}
+
 	public EntityCallback<Position, MoveTo, MovementStats> EditorMovementQueryDelegate => _movementService.EditorMovementQueryDelegate;
 	public EntityCallback<InterpolationTarget> InterpolationQueryDelegate => _interpolationQueryDelegate;
 

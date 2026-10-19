@@ -2876,6 +2876,43 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.World.SetOrAdd(entity, new UnitOwnerPlayer(playerIndex));
 		GameContext.World.SetOrAdd(entity, new DefinitionId(id));
 		ApplyGigachadBuffsIfNeeded(entity, playerIndex);
+		SyncPreviousTransform(GameContext.World, entity);
+	}
+
+	private static readonly QueryDescription _positionQuery = new QueryDescription().WithAll<Position>();
+	private static readonly QueryDescription _rotationYQuery = new QueryDescription().WithAll<RotationY>();
+
+	public void CapturePreviousStateSnapshots()
+	{
+		var world = GameContext.World;
+		if (world == null) return;
+
+		foreach (var entity in world.Query(in _positionQuery))
+		{
+			ref var pos = ref world.Get<Position>(entity);
+			world.SetOrAdd(entity, new PreviousPosition(pos.Value));
+		}
+
+		foreach (var entity in world.Query(in _rotationYQuery))
+		{
+			ref var rot = ref world.Get<RotationY>(entity);
+			world.SetOrAdd(entity, new PreviousRotationY(rot.Value));
+		}
+	}
+
+	public static void SyncPreviousTransform(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		if (world.Has<Position>(entity))
+		{
+			world.SetOrAdd(entity, new PreviousPosition(world.Get<Position>(entity).Value));
+		}
+
+		if (world.Has<RotationY>(entity))
+		{
+			world.SetOrAdd(entity, new PreviousRotationY(world.Get<RotationY>(entity).Value));
+		}
 	}
 
 	private Unit3D CreateAndSetupUnit3DNode(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, int playerIndex)
@@ -2922,15 +2959,41 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 
+	public bool TryGetInterpolatedTransform(Entity entity, float fraction, out System.Numerics.Vector3 position, out float rotationY)
+	{
+		if (GameContext.SimulationService != null)
+		{
+			return GameContext.SimulationService.TryGetInterpolatedTransform(entity, fraction, out position, out rotationY);
+		}
+
+		position = System.Numerics.Vector3.Zero;
+		rotationY = 0f;
+		return false;
+	}
+
+	public (System.Numerics.Vector3 Position, float RotationY) GetInterpolatedTransform(Entity entity, float fraction)
+	{
+		return GameContext.SimulationService?.GetInterpolatedTransform(entity, fraction) ?? (System.Numerics.Vector3.Zero, 0f);
+	}
+
 	public override void _Process(double delta)
 	{
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotProcess))
 		{
+			float fDelta = (float)delta;
+
+			if (GameContext.World != null)
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateVisualNodesFromEcs))
+				{
+					UpdateVisualNodesFromEcs(fDelta);
+				}
+			}
+
 			if (GameContext.ShroudService != null)
 			{
 				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ShroudServiceTick))
 				{
-					float fDelta = (float)delta;
 					bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
 					bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 					int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
@@ -2979,8 +3042,8 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void ProcessReplayTick(float fDelta)
 	{
+		CapturePreviousStateSnapshots();
 		ReplayPlaybackManager.Instance.Update(fDelta);
-		UpdateVisualNodesFromEcs(fDelta);
 	}
 
 	private void DispatchPhysicsTick(float fDelta)
@@ -3248,6 +3311,8 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (ECSContext.IsGameOver) return;
 
+		CapturePreviousStateSnapshots();
+
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessGameplayTick))
 		{
 			float actualIntervalMs = BeginTickTracking();
@@ -3301,10 +3366,6 @@ public partial class GameHost : Node3D, IGameAPI
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickConstructionSystem))
 			{
 				TickConstructionSystem(fDelta);
-			}
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateVisualNodesFromEcs))
-			{
-				UpdateVisualNodesFromEcs(fDelta);
 			}
 		}
 	}

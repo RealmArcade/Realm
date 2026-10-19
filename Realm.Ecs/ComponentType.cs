@@ -28,6 +28,7 @@ public static class ComponentTypeRegistry
 		var canonicalTypes = new[]
 		{
 			typeof(Position),
+			typeof(PreviousPosition),
 			typeof(Health),
 			typeof(Owner),
 			typeof(Mana),
@@ -140,6 +141,7 @@ public static class ComponentTypeRegistry
 			typeof(ReplayAnimationState),
 			typeof(Rotation3D),
 			typeof(RotationY),
+			typeof(PreviousRotationY),
 			typeof(ShroudState),
 			typeof(TerrainCell),
 			typeof(TerrainColorsState),
