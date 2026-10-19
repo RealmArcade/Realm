@@ -888,14 +888,18 @@ namespace Realm.Client.UI
 				_swatchHighlightPanel.AddThemeStyleboxOverride("panel", style);
 			}
 
-			if (_swatchHighlightPanel.GetParent() != null)
-			{
-				_swatchHighlightPanel.GetParent().RemoveChild(_swatchHighlightPanel);
-			}
-
 			if (selectedSwatch != null)
 			{
-				selectedSwatch.AddChild(_swatchHighlightPanel);
+				if (_swatchHighlightPanel.GetParent() != selectedSwatch)
+				{
+					_swatchHighlightPanel.GetParent()?.RemoveChild(_swatchHighlightPanel);
+					selectedSwatch.AddChild(_swatchHighlightPanel);
+				}
+				_swatchHighlightPanel.Visible = true;
+			}
+			else
+			{
+				_swatchHighlightPanel.Visible = false;
 			}
 		}
 
@@ -921,14 +925,18 @@ namespace Realm.Client.UI
 				_swatchCliffHighlightPanel.AddThemeStyleboxOverride("panel", style);
 			}
 
-			if (_swatchCliffHighlightPanel.GetParent() != null)
-			{
-				_swatchCliffHighlightPanel.GetParent().RemoveChild(_swatchCliffHighlightPanel);
-			}
-
 			if (selectedSwatch != null)
 			{
-				selectedSwatch.AddChild(_swatchCliffHighlightPanel);
+				if (_swatchCliffHighlightPanel.GetParent() != selectedSwatch)
+				{
+					_swatchCliffHighlightPanel.GetParent()?.RemoveChild(_swatchCliffHighlightPanel);
+					selectedSwatch.AddChild(_swatchCliffHighlightPanel);
+				}
+				_swatchCliffHighlightPanel.Visible = true;
+			}
+			else
+			{
+				_swatchCliffHighlightPanel.Visible = false;
 			}
 		}
 

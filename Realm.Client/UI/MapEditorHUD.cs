@@ -146,10 +146,7 @@ public partial class MapEditorHUD : Control
 	private Control _gridSwatches { get; set; }
 	private Button _btnReplaceTexture { get; set; }
 
-	private Panel _leftPillar { get; set; }
-	private Panel _rightPillar { get; set; }
 	private PanelContainer _topBar { get; set; }
-	private HBoxContainer _topToolbar { get; set; }
 	private VBoxContainer _middleRightBox { get; set; }
 	private HBoxContainer _topLeftBox { get; set; }
 	private TextureRect _screenFrameRect { get; set; }
@@ -157,12 +154,6 @@ public partial class MapEditorHUD : Control
 	private bool _is3DInteractionActive { get; set; } = false;
 
 	private Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters { get; set; } = new();
-
-	private PanelContainer _panelTextures { get; set; }
-	private PanelContainer _panelEntityPalette { get; set; }
-	private PanelContainer _panelTerrain { get; set; }
-	private PanelContainer _panelDeco { get; set; }
-	private PanelContainer _panelEnv { get; set; }
 
 	private Button _btnBackToHub { get; set; }
 	private Button _btnPublish { get; set; }
@@ -299,7 +290,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnRamp { get; set; }
 	private OptionButton _optMirrorMode { get; set; }
 	private OptionButton _optPlacementMirrorMode { get; set; }
-	private Button _btnClumpBrush { get; set; }
 	private HSlider _sldClumpDensity { get; set; }
 	private Label _lblClumpDensityValue { get; set; }
 	private HSlider _sldClumpScaleVar { get; set; }
@@ -752,9 +742,6 @@ public partial class MapEditorHUD : Control
 
 	private void UpdatePanelVisibilityForToolPathing(EditorTool tool)
 	{
-		if (_panelTextures != null) _panelTextures.Visible = false;
-		if (_panelEntityPalette != null) _panelEntityPalette.Visible = false;
-
 		if (tool == EditorTool.DrawCoordinate && _btnCommitCoordinate != null)
 		{
 			_btnCommitCoordinate.Visible = false;
@@ -892,7 +879,6 @@ public partial class MapEditorHUD : Control
 	private void SetSettingsVisibilities(EditorModule module)
 	{
 		if (_containerTextureSettings != null) _containerTextureSettings.Visible = (module == EditorModule.Terrain || module == EditorModule.TextureDeco);
-		if (_panelEnv != null) _panelEnv.Visible = (module == EditorModule.TextureDeco);
 		if (_containerPathingSettings != null) _containerPathingSettings.Visible = (module == EditorModule.Pathing);
 		if (_containerPasteSettings != null) _containerPasteSettings.Visible = (module == EditorModule.Clipboard);
 		if (_containerCategorySelector != null) _containerCategorySelector.Visible = (module == EditorModule.Objects);
@@ -1137,7 +1123,7 @@ public partial class MapEditorHUD : Control
 			_btnLeftTab, _btnRightTab,
 			GetNodeOrNull<Control>("TopLeftBox"),
 			GetNodeOrNull<Control>("TopBar"),
-			_topToolbar, _middleRightBox, _scaleMapDialog,
+			_middleRightBox, _scaleMapDialog,
 			GetNodeOrNull<Control>("GenerationOverlay")
 		};
 

@@ -15,7 +15,10 @@ namespace Realm.Client.UI.MapEditor;
 [GlobalClass]
 public partial class FloatingDialogBase : PanelContainer
 {
-	public FloatingDialogBase() { }
+	public FloatingDialogBase()
+	{
+		Name = GetType().Name;
+	}
 
 	private static readonly List<FloatingDialogBase> _openDialogs = new();
 	public static bool HasAnyDialogOpen => _openDialogs.Count > 0;
@@ -82,9 +85,14 @@ public partial class FloatingDialogBase : PanelContainer
 
 	public FloatingDialogBase(MapEditorHUD hud, string titleText, Vector2 minSize)
 	{
+		Name = GetType().Name;
 		Hud = hud;
 		CustomMinimumSize = minSize;
 		Visible = false;
+		if (hud != null && GetParent() == null)
+		{
+			hud.AddChild(this);
+		}
 		AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		GuiInput += (ev) =>
 		{
@@ -500,10 +508,6 @@ public partial class FloatingDialogBase : PanelContainer
 
 		_openDialogs.Remove(this);
 		Visible = false;
-		if (GetParent() != null)
-		{
-			GetParent().RemoveChild(this);
-		}
 
 		DialogClosed?.Invoke();
 	}

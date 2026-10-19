@@ -86,26 +86,6 @@ namespace Realm.Client.UI
 			_topLeftBox = GetNodeOrNull<HBoxContainer>("TopLeftBox");
 			_topBar = GetNodeOrNull<PanelContainer>("TopBar");
 
-			_leftPillar = new Panel();
-			_leftPillar.Name = "LeftPillar_Panel";
-			_rightPillar = new Panel();
-			_rightPillar.Name = "RightPillar_Panel";
-			_topToolbar = new HBoxContainer();
-			_topToolbar.Name = "TopToolbar_HBoxContainer";
-
-			_panelTextures = new PanelContainer();
-			_panelTextures.Name = "PanelTextures_PanelContainer";
-			_panelEntityPalette = new PanelContainer();
-			_panelEntityPalette.Name = "PanelEntityPalette_PanelContainer";
-			_panelTerrain = new PanelContainer();
-			_panelTerrain.Name = "PanelTerrain_PanelContainer";
-			_panelDeco = new PanelContainer();
-			_panelDeco.Name = "PanelDeco_PanelContainer";
-			_panelEnv = new PanelContainer();
-			_panelEnv.Name = "PanelEnv_PanelContainer";
-			_btnClumpBrush = new Button();
-			_btnClumpBrush.Name = "BtnClumpBrush_Button";
-
 			_panelLeft = GetNode<Panel>("LeftSlidePanel");
 			_panelRight = GetNode<Panel>("RightSlidePanel");
 			if (_panelLeft != null) _panelLeft.MouseFilter = MouseFilterEnum.Ignore;
@@ -763,7 +743,6 @@ namespace Realm.Client.UI
 				_cameraIndicator = GetNode<MapEditorCameraIndicator>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/MinimapFrame/MinimapArea/CameraIndicator");
 
 				_mapSettingsDialog = new MapSettingsDialog(this);
-				AddChild(_mapSettingsDialog);
 
 				_btnTapeMeasure = new Button();
 				_btnTapeMeasure.Name = "BtnTapeMeasure";
@@ -2136,7 +2115,6 @@ namespace Realm.Client.UI
 				EditorTool.DeleteObject => _btnDeleteObject,
 				EditorTool.PaintTexture => GetTextureSwatchButton(placeId),
 				EditorTool.FloodFill => _btnFloodFill,
-				EditorTool.PlacePropClump => _btnClumpBrush,
 				EditorTool.Eyedropper => _btnEyedropper,
 				_ => null
 			};

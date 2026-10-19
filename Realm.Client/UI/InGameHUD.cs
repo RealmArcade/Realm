@@ -98,10 +98,6 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private Button _btnCancelBuild;
-
-	private Button _btnSetRally;
-
 	private VBoxContainer _productionBox;
 	private Label _productionTitle;
 	private ProgressBar _productionProgress;
@@ -274,9 +270,7 @@ public partial class InGameHUD : Control
 	private Button _btnMove;
 	private Button _btnStop;
 	private Button _btnHold;
-	private Button _btnAttack;
 	private Button _btnBuild;
-	private Button _btnPatrol;
 
 	private Label _feedbackLabel;
 	private Label _connectionWarningLabel;
@@ -513,22 +507,6 @@ public partial class InGameHUD : Control
 		_btnStop = GetNode<Button>("BottomConsole/HBox/CommandFrame/GridContainer/BtnStop");
 		_btnHold = GetNode<Button>("BottomConsole/HBox/CommandFrame/GridContainer/BtnHold");
 		_btnBuild = GetNode<Button>("BottomConsole/HBox/CommandFrame/GridContainer/BtnBuild");
-
-		_btnAttack = new Button();
-		_btnAttack.Name = "BtnAttack";
-		_btnAttack.CustomMinimumSize = new Vector2(48, 48);
-		_btnAttack.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_btnAttack.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_btnAttack.FocusMode = FocusModeEnum.None;
-		_btnAttack.AddThemeConstantOverride("icon_max_width", 42);
-
-		_btnPatrol = new Button();
-		_btnPatrol.Name = "BtnPatrol";
-		_btnPatrol.CustomMinimumSize = new Vector2(48, 48);
-		_btnPatrol.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_btnPatrol.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_btnPatrol.FocusMode = FocusModeEnum.None;
-		_btnPatrol.AddThemeConstantOverride("icon_max_width", 42);
 	}
 
 	private void SetupWarningLabel()
@@ -2478,17 +2456,7 @@ public partial class InGameHUD : Control
 			ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
 			GameHost.Instance?.HoldSelectedUnits();
 		});
-		SetupHUDButton(_btnAttack, "res://Assets/UI/battle_axe.png", TranslationServer.Translate("[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move"), () => GameHost.Instance?.EnterCommandTargeting("attack"));
-		SetupHUDButton(_btnPatrol, "res://Assets/UI/patrol.jpg", TranslationServer.Translate("[P] Patrol — Unit patrols between current position and target, engaging enemies"), () => GameHost.Instance?.EnterCommandTargeting("patrol"));
 		SetupHUDButton(_btnBuild, "res://Assets/UI/golden_hammers.png", TranslationServer.Translate("[B] Build Structure"), () => EnterBuildSubMenu());
-
-		_btnCancelBuild = new Button();
-		_btnCancelBuild.Name = "BtnCancelBuild_Button";
-		SetupHUDButton(_btnCancelBuild, "res://Assets/UI/cancel_button_2.png", TranslationServer.Translate("[Esc] Cancel"), () => ExitBuildSubMenu());
-
-		_btnSetRally = new Button();
-		_btnSetRally.Name = "BtnSetRally_Button";
-		SetupHUDButton(_btnSetRally, "res://Assets/UI/alliance_flag.png", TranslationServer.Translate("[Y] Set Rally Point — Set location where new units will walk"), () => GameHost.Instance?.EnterCommandTargeting("rally"));
 	}
 
 	private void CreateSpectatorPerspectiveUI()

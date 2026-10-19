@@ -1250,7 +1250,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		}
 
 		var dialog = new TagEditorDialog(Hud, _selectedAsset, OnTagsSaved);
-		Hud?.AddChild(dialog);
+		dialog.DialogClosed += () => dialog.QueueFree();
 		dialog.OpenDialog();
 	}
 
@@ -1273,7 +1273,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	{
 		if (_selectedAsset == null) return;
 		var dialog = new AssetTypeEditorDialog(Hud, _selectedAsset, OnAssetTypeSaved);
-		Hud?.AddChild(dialog);
+		dialog.DialogClosed += () => dialog.QueueFree();
 		dialog.OpenDialog();
 	}
 

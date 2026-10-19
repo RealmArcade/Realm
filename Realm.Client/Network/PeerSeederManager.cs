@@ -13,8 +13,7 @@ using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 
-[GlobalClass]
-public partial class PeerSeederManager : Node
+public class PeerSeederManager
 {
 	private static PeerSeederManager? _instance;
 	public static PeerSeederManager Instance => _instance ??= new PeerSeederManager();
@@ -41,11 +40,6 @@ public partial class PeerSeederManager : Node
 		{
 			GD.Print("[PeerSeeder] Machine cannot host (Symmetric NAT). Seeding disabled.");
 			return;
-		}
-
-		if (GetParent() == null)
-		{
-			LobbyManager.Instance.AddChild(this);
 		}
 
 		_isSeeding = true;
