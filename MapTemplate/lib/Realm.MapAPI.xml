@@ -455,6 +455,9 @@
         <member name="F:Realm.MapAPI.EcsSharedMemory.COMPONENT_STRIDES_OFFSET">
             <summary>Offset to the component strides directory table.</summary>
         </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.RANDOM_SEED_OFFSET">
+            <summary>Offset to the global random seed in the shared memory header.</summary>
+        </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.HEADER_SIZE">
             <summary>Total byte size reserved for the shared memory header.</summary>
         </member>
@@ -576,6 +579,11 @@
         </member>
         <member name="P:Realm.MapAPI.EcsSharedMemory.PlayerPopulation">
             <summary>Gets the raw pointer to the player population limits array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.RandomSeed">
+            <summary>
+            Gets or sets the global random seed stored in shared memory between WebAssembly guest and host runtime contexts.
+            </summary>
         </member>
         <member name="M:Realm.MapAPI.EcsSharedMemory.GetArrayBasePointer(System.Int32)">
             <summary>

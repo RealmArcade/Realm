@@ -24,6 +24,8 @@ public static unsafe class EcsSharedMemory
 	public const int COMPONENT_ARRAY_BASE_OFFSETS_OFFSET = 0;
 	/// <summary>Offset to the component strides directory table.</summary>
 	public const int COMPONENT_STRIDES_OFFSET = 1024;
+	/// <summary>Offset to the global random seed in the shared memory header.</summary>
+	public const int RANDOM_SEED_OFFSET = 2044;
 	/// <summary>Total byte size reserved for the shared memory header.</summary>
 	public const int HEADER_SIZE = 2048;
 
@@ -117,6 +119,17 @@ public static unsafe class EcsSharedMemory
 	public static ScriptPlayer* ScriptPlayer => (ScriptPlayer*)GetArrayBasePointer(ComponentIds.ScriptPlayer);
 	/// <summary>Gets the raw pointer to the player population limits array.</summary>
 	public static PlayerPopulation* PlayerPopulation => (PlayerPopulation*)GetArrayBasePointer(ComponentIds.PlayerPopulation);
+
+	/// <summary>
+	/// Gets or sets the global random seed stored in shared memory between WebAssembly guest and host runtime contexts.
+	/// </summary>
+	public static int RandomSeed
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => *(int*)(_basePtr + RANDOM_SEED_OFFSET);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		set => *(int*)(_basePtr + RANDOM_SEED_OFFSET) = value;
+	}
 
 	static EcsSharedMemory()
 	{
