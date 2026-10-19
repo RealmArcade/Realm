@@ -1,36 +1,35 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
-using System.Runtime.InteropServices;
-using System.Text.Json;
-using System.Threading;
 using Godot;
-using Microsoft.Web.WebView2.Core;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Color = Godot.Color;
-using Environment = System.Environment;
 using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client.UI;
 
-public class WasmConsoleWindow
+public partial class WasmConsoleWindow : Window
 {
 	private static WasmConsoleWindow? _instance;
-	public static WasmConsoleWindow Instance => _instance ??= new WasmConsoleWindow();
 
-	private Thread? _staThread;
-	private IntPtr _childHwnd;
-	private CoreWebView2Controller? _controller;
-	private bool _isWebViewReady;
-	private bool _isVisible;
-	public bool IsVisible => _isVisible;
-	public bool Visible => _isVisible;
+	public static WasmConsoleWindow Instance
+	{
+		get
+		{
+			if (_instance == null || !GodotObject.IsInstanceValid(_instance))
+			{
+				_instance = new WasmConsoleWindow();
+				EnsureInTree();
+			}
 
-	private string _logFilePath = "";
+			return _instance;
+		}
+	}
+
+	public new bool IsVisible => Visible;
+
 	private bool _hasErrors = false;
 
 	public bool HasErrors
@@ -39,85 +38,16 @@ public class WasmConsoleWindow
 		set => _hasErrors = value;
 	}
 
-	private readonly ConcurrentQueue<Action> _actionQueue = new ConcurrentQueue<Action>();
+	private string _logFilePath = "";
 	private readonly List<string> _bufferedLogs = new List<string>();
 	private string _bufferedStatus = "Initializing compilation pipeline...";
 	private string _bufferedStatusColor = "#00e5ff";
 	private readonly object _logLock = new object();
 
-	public const uint WM_USER = 0x0400;
-	public const uint WM_WAKEUP = WM_USER + 1;
-	public const uint WM_CLOSE = 0x0010;
-	public const uint WM_SIZE = 0x0005;
-	public const int SW_HIDE = 0;
-	public const int SW_SHOW = 5;
-	public const int SW_RESTORE = 9;
-
-	public const uint WS_OVERLAPPEDWINDOW = 0x00CF0000;
-	public const uint SWP_NOSIZE = 0x0001;
-	public const uint SWP_NOMOVE = 0x0002;
-	public const uint SWP_NOZORDER = 0x0004;
-	public const uint SWP_NOACTIVATE = 0x0010;
-	public const uint SWP_SHOWWINDOW = 0x0040;
-	public const uint SWP_HIDEWINDOW = 0x0080;
-
-
-	private WndProcDelegate? _customWndProcDelegate;
-
-
-	[DllImport("user32.dll")]
-	public static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
-
-	[DllImport("user32.dll")]
-	public static extern bool TranslateMessage(ref MSG lpMsg);
-
-	[DllImport("user32.dll")]
-	public static extern IntPtr DispatchMessage(ref MSG lpMsg);
-
-	[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "CreateWindowExW")]
-	public static extern IntPtr CreateWindowEx(
-		uint dwExStyle,
-		string lpClassName,
-		string lpWindowName,
-		uint dwStyle,
-		int x,
-		int y,
-		int nWidth,
-		int nHeight,
-		IntPtr hWndParent,
-		IntPtr hMenu,
-		IntPtr hInstance,
-		IntPtr lpParam);
-
-	[DllImport("user32.dll", SetLastError = true)]
-	public static extern bool DestroyWindow(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-	[DllImport("user32.dll")]
-	public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-	[DllImport("user32.dll")]
-	public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
-	[DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "RegisterClassExW")]
-	public static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
-
-	[DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "DefWindowProcW")]
-	public static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-	[DllImport("kernel32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetModuleHandleW")]
-	public static extern IntPtr GetModuleHandle(string lpModuleName);
-
-	[DllImport("user32.dll")]
-	public static extern bool SetForegroundWindow(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern bool IsWindowVisible(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern bool IsIconic(IntPtr hWnd);
+	private ColorRect? _statusIndicator;
+	private Label? _statusLabel;
+	private RichTextLabel? _logLabel;
+	private LineEdit? _commandInput;
 
 	public static bool IsSinglePlayerOrTestMode()
 	{
@@ -129,7 +59,18 @@ public class WasmConsoleWindow
 
 	public WasmConsoleWindow()
 	{
-		if (!OperatingSystem.IsWindows()) return;
+		Title = "⚙️ WASM COMPILATION & RUNTIME CONSOLE";
+		Size = new Vector2I(760, 520);
+		MinSize = new Vector2I(400, 300);
+		Transient = false;
+		Exclusive = false;
+		Unresizable = false;
+		WrapControls = false;
+		Visible = false;
+		InitialPosition = WindowInitialPosition.CenterMainWindowScreen;
+
+		CloseRequested += OnCloseRequested;
+
 		try
 		{
 			string userDir = ProjectSettings.GlobalizePath("user://");
@@ -140,311 +81,126 @@ public class WasmConsoleWindow
 			_logFilePath = "";
 		}
 
-		// Global listener for WASM runtime output
+		BuildUI();
+
 		WasmRuntime.OnWasmLog += line => AppendLog(line);
-
-		EnsureInitialized();
 	}
 
-	private readonly object _initLock = new object();
-
-	[DllImport("user32.dll")]
-	public static extern void PostQuitMessage(int nExitCode);
-
-	private void EnsureInitialized()
+	private static void EnsureInTree()
 	{
-		if (!OperatingSystem.IsWindows()) return;
-		lock (_initLock)
+		if (_instance == null) return;
+		var mainLoop = Engine.GetMainLoop();
+		if (mainLoop is SceneTree tree && tree.Root != null)
 		{
-			if (_staThread != null && _staThread.IsAlive) return;
-
-			_staThread = new Thread(STAThreadLoop);
-			_staThread.SetApartmentState(ApartmentState.STA);
-			_staThread.IsBackground = true;
-			_staThread.Start();
-		}
-	}
-
-	private void STAThreadLoop()
-	{
-		var wndClass = new WNDCLASSEX();
-		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
-		wndClass.style = 0;
-		_customWndProcDelegate = CustomWndProc;
-		wndClass.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_customWndProcDelegate);
-		wndClass.cbClsExtra = 0;
-		wndClass.cbWndExtra = 0;
-		wndClass.hInstance = GetModuleHandle(null);
-		wndClass.hIcon = IntPtr.Zero;
-		wndClass.hCursor = IntPtr.Zero;
-		wndClass.hbrBackground = IntPtr.Zero;
-		wndClass.lpszMenuName = null;
-		wndClass.lpszClassName = "WasmConsoleEmbedWindow";
-		wndClass.hIconSm = IntPtr.Zero;
-
-		RegisterClassEx(ref wndClass);
-
-		_childHwnd = CreateWindowEx(
-			0,
-			"WasmConsoleEmbedWindow",
-			"⚙️ WASM COMPILATION & RUNTIME CONSOLE",
-			WS_OVERLAPPEDWINDOW,
-			0,
-			0,
-			760,
-			520,
-			IntPtr.Zero,
-			IntPtr.Zero,
-			GetModuleHandle(null),
-			IntPtr.Zero);
-
-		if (_childHwnd == IntPtr.Zero)
-		{
-			GD.PrintErr("Failed to create WasmConsole native child window.");
-			return;
-		}
-
-		SynchronizationContext.SetSynchronizationContext(
-			new STASynchronizationContext(_actionQueue, _childHwnd, Environment.CurrentManagedThreadId));
-
-		PositionOnScreen();
-		InitializeWebView();
-
-		MSG msg;
-		while (GetMessage(out msg, IntPtr.Zero, 0, 0) > 0)
-		{
-			TranslateMessage(ref msg);
-			DispatchMessage(ref msg);
-
-			while (_actionQueue.TryDequeue(out var action))
+			if (_instance.GetParent() == null)
 			{
-				try
-				{
-					action();
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr("Error executing WasmConsole action on STA thread: " + ex.Message);
-				}
+				tree.Root.CallDeferred(Node.MethodName.AddChild, _instance);
 			}
 		}
 	}
 
-	private IntPtr CustomWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+	private void BuildUI()
 	{
-		if (msg == WM_SIZE)
-		{
-			return HandleWmSize(hWnd, msg, wParam, lParam);
-		}
+		var mainPanel = new PanelContainer();
+		mainPanel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 
-		if (msg == WM_CLOSE)
-		{
-			return HandleWmClose(hWnd);
-		}
+		var panelStyle = new StyleBoxFlat();
+		panelStyle.BgColor = UIStyle.ColorBgDark;
+		mainPanel.AddThemeStyleboxOverride("panel", panelStyle);
 
-		return DefWindowProc(hWnd, msg, wParam, lParam);
+		AddChild(mainPanel);
+
+		var marginContainer = new MarginContainer();
+		marginContainer.AddThemeConstantOverride("margin_left", 12);
+		marginContainer.AddThemeConstantOverride("margin_top", 12);
+		marginContainer.AddThemeConstantOverride("margin_right", 12);
+		marginContainer.AddThemeConstantOverride("margin_bottom", 12);
+		mainPanel.AddChild(marginContainer);
+
+		var mainVBox = new VBoxContainer();
+		mainVBox.AddThemeConstantOverride("separation", 8);
+		marginContainer.AddChild(mainVBox);
+
+		var headerHBox = new HBoxContainer();
+		headerHBox.AddThemeConstantOverride("separation", 8);
+		mainVBox.AddChild(headerHBox);
+
+		_statusIndicator = new ColorRect();
+		_statusIndicator.CustomMinimumSize = new Vector2(12, 12);
+		_statusIndicator.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		_statusIndicator.Color = new Color(_bufferedStatusColor);
+		headerHBox.AddChild(_statusIndicator);
+
+		_statusLabel = new Label();
+		_statusLabel.Text = _bufferedStatus;
+		_statusLabel.Modulate = new Color(_bufferedStatusColor);
+		_statusLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_statusLabel.VerticalAlignment = VerticalAlignment.Center;
+		headerHBox.AddChild(_statusLabel);
+
+		_logLabel = new RichTextLabel();
+		_logLabel.SelectionEnabled = true;
+		_logLabel.FocusMode = Control.FocusModeEnum.Click;
+		_logLabel.BbcodeEnabled = true;
+		_logLabel.ScrollFollowing = true;
+		_logLabel.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+		_logLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_logLabel.CustomMinimumSize = new Vector2(0, 200);
+
+		var logAreaStyle = new StyleBoxFlat();
+		logAreaStyle.BgColor = new Color(0.05f, 0.05f, 0.07f, 1.0f);
+		logAreaStyle.SetCornerRadiusAll(4);
+		logAreaStyle.ContentMarginLeft = 8;
+		logAreaStyle.ContentMarginTop = 8;
+		logAreaStyle.ContentMarginRight = 8;
+		logAreaStyle.ContentMarginBottom = 8;
+		_logLabel.AddThemeStyleboxOverride("normal", logAreaStyle);
+
+		mainVBox.AddChild(_logLabel);
+
+		var bottomHBox = new HBoxContainer();
+		bottomHBox.AddThemeConstantOverride("separation", 8);
+		mainVBox.AddChild(bottomHBox);
+
+		_commandInput = new LineEdit();
+		_commandInput.PlaceholderText = "Enter command or chat message...";
+		_commandInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_commandInput.TextSubmitted += OnCommandSubmitted;
+		bottomHBox.AddChild(_commandInput);
+
+		var copyButton = new Button();
+		copyButton.Text = "Copy Logs";
+		copyButton.Pressed += CopyLogsToClipboard;
+		bottomHBox.AddChild(copyButton);
+
+		var clearButton = new Button();
+		clearButton.Text = "Clear";
+		clearButton.Pressed += ClearLogs;
+		bottomHBox.AddChild(clearButton);
+
+		FlushLogsToUI();
 	}
 
-	private IntPtr HandleWmSize(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+	private void OnCloseRequested()
 	{
-		int w = (int)(lParam.ToInt64() & 0xFFFF);
-		int h = (int)((lParam.ToInt64() >> 16) & 0xFFFF);
-		long sizeType = wParam.ToInt64();
+		Hide();
+	}
 
-		if (sizeType == 1) // SIZE_MINIMIZED
+	public override void _UnhandledInput(InputEvent @event)
+	{
+		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo)
 		{
-			_isVisible = false;
-			return DefWindowProc(hWnd, msg, wParam, lParam);
-		}
-
-		if (sizeType == 0 || sizeType == 2) // SIZE_RESTORED or SIZE_MAXIMIZED
-		{
-			if (w > 0 && h > 0 && IsWindowVisible(hWnd))
+			if (keyEvent.Keycode == Key.Quoteleft || keyEvent.Keycode == Key.Escape)
 			{
-				_isVisible = true;
+				GetViewport()?.SetInputAsHandled();
+				Hide();
 			}
-		}
-
-		if (_controller != null)
-		{
-			_controller.Bounds = new Rectangle(0, 0, w, h);
-		}
-
-		return DefWindowProc(hWnd, msg, wParam, lParam);
-	}
-
-	private IntPtr HandleWmClose(IntPtr hWnd)
-	{
-		_actionQueue.Enqueue(() =>
-		{
-			ShowWindow(hWnd, SW_HIDE);
-			_isVisible = false;
-			RestoreGodotFocus();
-		});
-		PostMessage(hWnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-		return IntPtr.Zero;
-	}
-
-	private async void InitializeWebView()
-	{
-		try
-		{
-			string userDir = ProjectSettings.GlobalizePath("user://");
-			string cachePath = Path.Combine(userDir, "wasm_console_webview_cache");
-
-			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath);
-			_controller = await env.CreateCoreWebView2ControllerAsync(_childHwnd);
-			_controller.Bounds = new Rectangle(0, 0, 760, 520);
-			_controller.IsVisible = false;
-
-			_controller.AcceleratorKeyPressed += HandleAcceleratorKey;
-			_controller.CoreWebView2.WebMessageReceived += HandleWebMessage;
-			_controller.CoreWebView2.NavigationCompleted += HandleNavigationCompleted;
-
-			_controller.CoreWebView2.NavigateToString(GetConsoleHtml());
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr("Failed to initialize WasmConsole WebView2: " + ex.Message);
-		}
-	}
-
-	private void HandleAcceleratorKey(object? sender, CoreWebView2AcceleratorKeyPressedEventArgs args)
-	{
-		if (args.VirtualKey != 0xC0 && args.VirtualKey != 0xDF && args.VirtualKey != 0x1B) // VK_OEM_3 (~), VK_OEM_8, or VK_ESCAPE
-		{
-			return;
-		}
-
-		if (args.KeyEventKind != CoreWebView2KeyEventKind.KeyDown && args.KeyEventKind != CoreWebView2KeyEventKind.SystemKeyDown)
-		{
-			return;
-		}
-
-		args.Handled = true;
-		_actionQueue.Enqueue(() =>
-		{
-			SetVisible(false);
-			RestoreGodotFocus();
-		});
-		PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-	}
-
-	private void HandleWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs args)
-	{
-		try
-		{
-			string rawJson = args.WebMessageAsJson;
-			using var doc = JsonDocument.Parse(rawJson);
-			var root = doc.RootElement;
-			if (!root.TryGetProperty("action", out var actionProp))
-			{
-				return;
-			}
-
-			string action = actionProp.GetString() ?? "";
-			HandleWebViewAction(action, root);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr("Error handling WebView message: " + ex.Message);
-		}
-	}
-
-	private void HandleWebViewAction(string action, JsonElement root)
-	{
-		if (action == "sendCommand" && root.TryGetProperty("text", out var textProp))
-		{
-			SendCommand(textProp.GetString() ?? "");
-			return;
-		}
-
-		if (action == "copyLogs" && root.TryGetProperty("text", out var copyTextProp))
-		{
-			string textToCopy = copyTextProp.GetString() ?? "";
-			Callable.From(() => DisplayServer.ClipboardSet(textToCopy)).CallDeferred();
-			SetStatus("✓ Console output copied to clipboard!", new Color(0, 0.9f, 1.0f));
-			return;
-		}
-
-		if (action == "hideConsole")
-		{
-			SetVisible(false);
-			RestoreGodotFocus();
-			return;
-		}
-	}
-
-	private void HandleNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs args)
-	{
-		_isWebViewReady = true;
-		FlushBufferedLogs();
-
-		if (!_isVisible)
-		{
-			ShowWindow(_childHwnd, SW_HIDE);
-			return;
-		}
-
-		PositionOnScreen();
-		ShowWindow(_childHwnd, SW_SHOW);
-		ShowWindow(_childHwnd, SW_RESTORE);
-		SetForegroundWindow(_childHwnd);
-		if (_controller != null)
-		{
-			_controller.IsVisible = true;
-		}
-	}
-
-	private void FlushBufferedLogs()
-	{
-		lock (_logLock)
-		{
-			if (_controller == null || _controller.CoreWebView2 == null) return;
-
-			string jsStatus = $"setStatus({JsonSerializer.Serialize(_bufferedStatus)}, {JsonSerializer.Serialize(_bufferedStatusColor)});";
-			_controller.CoreWebView2.ExecuteScriptAsync(jsStatus);
-
-			foreach (var line in _bufferedLogs)
-			{
-				string jsLine = $"appendLog({JsonSerializer.Serialize(line)});";
-				_controller.CoreWebView2.ExecuteScriptAsync(jsLine);
-			}
-
-			_bufferedLogs.Clear();
-		}
-	}
-
-	private void PositionOnScreen()
-	{
-		try
-		{
-			int currentScreen = DisplayServer.WindowGetCurrentScreen();
-			Vector2I screenPos = DisplayServer.ScreenGetPosition(currentScreen);
-			Vector2I screenSize = DisplayServer.ScreenGetSize(currentScreen);
-
-			int width = 760;
-			int height = 520;
-			int x = screenPos.X + (screenSize.X - width) / 2;
-			int y = screenPos.Y + (screenSize.Y - height) / 2;
-
-			uint windowFlags = SWP_NOZORDER | SWP_NOACTIVATE;
-			if (_isVisible)
-			{
-				windowFlags |= SWP_SHOWWINDOW;
-			}
-
-			SetWindowPos(_childHwnd, IntPtr.Zero, x, y, width, height, windowFlags);
-		}
-		catch
-		{
 		}
 	}
 
 	public void ToggleVisibility()
 	{
-		bool currentlyVisible = _childHwnd != IntPtr.Zero && IsWindowVisible(_childHwnd) && !IsIconic(_childHwnd);
-		SetVisible(!currentlyVisible);
+		SetVisible(!Visible);
 	}
 
 	public void ShowConsole()
@@ -452,69 +208,43 @@ public class WasmConsoleWindow
 		SetVisible(true);
 	}
 
-	public void Show()
+	public new void Show()
 	{
 		SetVisible(true);
 	}
 
-	public void Hide()
+	public new void Hide()
 	{
 		SetVisible(false);
 	}
 
-	public void SetVisible(bool visible)
+	public new void SetVisible(bool visible)
 	{
-		if (!OperatingSystem.IsWindows()) return;
-		_isVisible = visible;
-		EnsureInitialized();
-		_actionQueue.Enqueue(() =>
+		Callable.From(() =>
 		{
-			if (_childHwnd != IntPtr.Zero)
+			EnsureInTree();
+			Visible = visible;
+			if (visible)
 			{
-				if (visible)
+				PopupCentered();
+				GrabFocus();
+				if (_commandInput != null)
 				{
-					if (_isWebViewReady)
-					{
-						PositionOnScreen();
-						ShowWindow(_childHwnd, SW_SHOW);
-						ShowWindow(_childHwnd, SW_RESTORE);
-						SetForegroundWindow(_childHwnd);
-						if (_controller != null) _controller.IsVisible = true;
-					}
-				}
-				else
-				{
-					if (_controller != null) _controller.IsVisible = false;
-					ShowWindow(_childHwnd, SW_HIDE);
-					RestoreGodotFocus();
+					_commandInput.GrabFocus();
 				}
 			}
-		});
-		if (_childHwnd != IntPtr.Zero)
-		{
-			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-		}
+		}).CallDeferred();
 	}
 
-	private void RestoreGodotFocus()
-	{
-		try
-		{
-			long godotHandle = DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle);
-			if (godotHandle != 0)
-			{
-				SetForegroundWindow(new IntPtr(godotHandle));
-			}
-		}
-		catch
-		{
-		}
-	}
-
-	private void SendCommand(string text)
+	private void OnCommandSubmitted(string text)
 	{
 		if (string.IsNullOrWhiteSpace(text)) return;
 		string cmd = text.Trim();
+
+		if (_commandInput != null)
+		{
+			_commandInput.Text = "";
+		}
 
 		AppendLog($"> {cmd}");
 
@@ -540,19 +270,12 @@ public class WasmConsoleWindow
 
 	public void CopyLogsToClipboard()
 	{
-		if (!OperatingSystem.IsWindows()) return;
-		EnsureInitialized();
-		_actionQueue.Enqueue(() =>
+		Callable.From(() =>
 		{
-			if (_controller != null && _controller.CoreWebView2 != null)
-			{
-				_controller.CoreWebView2.ExecuteScriptAsync("copyLogs();");
-			}
-		});
-		if (_childHwnd != IntPtr.Zero)
-		{
-			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-		}
+			string textToCopy = _logLabel != null ? _logLabel.GetParsedText() : string.Join("\n", _bufferedLogs);
+			DisplayServer.ClipboardSet(textToCopy);
+			SetStatus("✓ Console output copied to clipboard!", new Color(0, 0.9f, 1.0f));
+		}).CallDeferred();
 	}
 
 	public void ClearLogs()
@@ -572,19 +295,13 @@ public class WasmConsoleWindow
 		{
 		}
 
-		if (!OperatingSystem.IsWindows()) return;
-		EnsureInitialized();
-		_actionQueue.Enqueue(() =>
+		Callable.From(() =>
 		{
-			if (_controller != null && _controller.CoreWebView2 != null)
+			if (_logLabel != null)
 			{
-				_controller.CoreWebView2.ExecuteScriptAsync("clearLogs();");
+				_logLabel.Clear();
 			}
-		});
-		if (_childHwnd != IntPtr.Zero)
-		{
-			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
-		}
+		}).CallDeferred();
 	}
 
 	public void AppendLog(string line)
@@ -602,36 +319,32 @@ public class WasmConsoleWindow
 			}
 		}
 
-		if (!OperatingSystem.IsWindows()) return;
-
 		lock (_logLock)
 		{
-			if (!_isWebViewReady)
-			{
-				_bufferedLogs.Add(line);
-				return;
-			}
+			_bufferedLogs.Add(line);
 		}
 
-		EnsureInitialized();
-		_actionQueue.Enqueue(() =>
+		Callable.From(FlushLogsToUI).CallDeferred();
+	}
+
+	private void FlushLogsToUI()
+	{
+		lock (_logLock)
 		{
-			if (_controller != null && _controller.CoreWebView2 != null)
+			if (_logLabel == null || _bufferedLogs.Count == 0) return;
+
+			foreach (var line in _bufferedLogs)
 			{
-				string js = $"appendLog({JsonSerializer.Serialize(line)});";
-				_controller.CoreWebView2.ExecuteScriptAsync(js);
+				_logLabel.AppendText(line + "\n");
 			}
-		});
-		if (_childHwnd != IntPtr.Zero)
-		{
-			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+
+			_bufferedLogs.Clear();
 		}
 	}
 
 	public void SetStatus(string statusText, Color color)
 	{
-		string hexColor = $"#{color.ToHtml()}";
-		SetStatus(statusText, hexColor);
+		SetStatus(statusText, $"#{color.ToHtml()}");
 	}
 
 	public void SetStatus(string statusText, string hexColor)
@@ -640,74 +353,37 @@ public class WasmConsoleWindow
 		{
 			_bufferedStatus = statusText;
 			_bufferedStatusColor = hexColor;
-			if (!_isWebViewReady) return;
 		}
 
-		if (!OperatingSystem.IsWindows()) return;
-		EnsureInitialized();
-		_actionQueue.Enqueue(() =>
+		Callable.From(UpdateStatusUI).CallDeferred();
+	}
+
+	private void UpdateStatusUI()
+	{
+		lock (_logLock)
 		{
-			if (_controller != null && _controller.CoreWebView2 != null)
+			if (_statusLabel != null)
 			{
-				string js = $"setStatus({JsonSerializer.Serialize(statusText)}, {JsonSerializer.Serialize(hexColor)});";
-				_controller.CoreWebView2.ExecuteScriptAsync(js);
+				_statusLabel.Text = _bufferedStatus;
+				_statusLabel.Modulate = new Color(_bufferedStatusColor);
 			}
-		});
-		if (_childHwnd != IntPtr.Zero)
-		{
-			PostMessage(_childHwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+
+			if (_statusIndicator != null)
+			{
+				_statusIndicator.Color = new Color(_bufferedStatusColor);
+			}
 		}
 	}
 
 	public void CleanUp()
 	{
-		if (!OperatingSystem.IsWindows()) return;
-		lock (_initLock)
+		Callable.From(() =>
 		{
-			IntPtr hwnd = _childHwnd;
-			_actionQueue.Enqueue(() =>
+			if (GodotObject.IsInstanceValid(this))
 			{
-				if (_controller != null)
-				{
-					_controller.Close();
-					_controller = null;
-				}
-
-				if (_childHwnd != IntPtr.Zero)
-				{
-					DestroyWindow(_childHwnd);
-					_childHwnd = IntPtr.Zero;
-				}
-
-				PostQuitMessage(0);
-			});
-			if (hwnd != IntPtr.Zero)
-			{
-				PostMessage(hwnd, WM_WAKEUP, IntPtr.Zero, IntPtr.Zero);
+				QueueFree();
 			}
-
-			_isWebViewReady = false;
-		}
-	}
-
-	private static string GetConsoleHtml()
-	{
-		const string templatePath = "res://Templates/wasm_console.html";
-		if (FileAccess.FileExists(templatePath))
-		{
-			using var file = FileAccess.Open(templatePath, FileAccess.ModeFlags.Read);
-			if (file != null)
-			{
-				return file.GetAsText();
-			}
-		}
-
-		string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "wasm_console.html");
-		if (File.Exists(diskPath))
-		{
-			return File.ReadAllText(diskPath);
-		}
-
-		return string.Empty;
+			_instance = null;
+		}).CallDeferred();
 	}
 }
