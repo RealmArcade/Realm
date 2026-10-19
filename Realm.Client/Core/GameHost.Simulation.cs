@@ -59,6 +59,7 @@ public partial class GameHost
 	private void RemoveUnitFromCollections(Unit3D unit)
 	{
 		SelectedUnits.Remove(unit);
+		_activeImpulseUnits.Remove(unit);
 		AllUnits.Remove(unit);
 		EntityToUnit3D.Remove(unit.Entity);
 		EntityIdToUnit3D.Remove(unit.Entity.Id);

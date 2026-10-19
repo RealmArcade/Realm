@@ -159,6 +159,40 @@ public partial class GameHost : Node3D, IGameAPI
 		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, int>>(ECSContext.WorldEntity, s => s.ClientToServerEntityMap);
 
 	public List<Unit3D> SelectedUnits { get; set; } = new List<Unit3D>();
+	private readonly List<Unit3D> _activeImpulseUnits = new();
+
+	public void RegisterActiveImpulseUnit(Unit3D unit)
+	{
+		if (unit != null && !_activeImpulseUnits.Contains(unit))
+		{
+			_activeImpulseUnits.Add(unit);
+		}
+	}
+
+	private void UpdateSelectedAndImpulseUnitVisuals(float fDelta)
+	{
+		for (int i = 0; i < SelectedUnits.Count; i++)
+		{
+			var selected = SelectedUnits[i];
+			if (GodotObject.IsInstanceValid(selected))
+			{
+				selected.UpdateSelectedVisuals(fDelta);
+			}
+		}
+
+		for (int i = _activeImpulseUnits.Count - 1; i >= 0; i--)
+		{
+			var unit = _activeImpulseUnits[i];
+			if (!GodotObject.IsInstanceValid(unit) || !unit.HasActiveImpulse)
+			{
+				_activeImpulseUnits.RemoveAt(i);
+				continue;
+			}
+
+			unit.UpdateImpulseVisuals(fDelta);
+		}
+	}
+
 	public List<Unit3D> AllUnits { get; set; } = new List<Unit3D>();
 	public List<Prop3D> AllProps { get; set; } = new List<Prop3D>();
 	public List<Decal> AllDecals { get; set; } = new List<Decal>();
@@ -2463,6 +2497,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 		ClearNodeCollection(AllUnits);
 		SelectedUnits.Clear();
+		_activeImpulseUnits.Clear();
 		ClearNodeCollection(AllProps);
 		ClearNodeCollection(AllDecals);
 		ClearNodeCollection(AllLootItems);
@@ -3131,6 +3166,7 @@ public partial class GameHost : Node3D, IGameAPI
 				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateVisualNodesFromEcs))
 				{
 					UpdateRenderFrameTransforms(fDelta);
+					UpdateSelectedAndImpulseUnitVisuals(fDelta);
 				}
 			}
 

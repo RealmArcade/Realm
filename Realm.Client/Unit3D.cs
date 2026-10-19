@@ -141,6 +141,8 @@ public partial class Unit3D : Node3D
 	private float _impulseTime = 0f;
 	private float _impulseFrequency = 12.0f;
 
+	public bool HasActiveImpulse => _impulseTime > 0f;
+
 	public void TriggerImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
 	{
 		if (!HasProceduralAnimation) return;
@@ -148,7 +150,26 @@ public partial class Unit3D : Node3D
 		_impulseDuration = duration <= 0.001f ? 0.001f : duration;
 		_impulseTime = _impulseDuration;
 		_impulseFrequency = frequency;
-		SetProcess(true);
+		GameHost.Instance?.RegisterActiveImpulseUnit(this);
+	}
+
+	public void UpdateImpulseVisuals(float fDelta)
+	{
+		if (_impulseTime <= 0f) return;
+
+		_impulseTime -= fDelta;
+		if (_impulseTime <= 0f)
+		{
+			_impulseTime = 0f;
+			_impulseStrength = 0f;
+			ModelShaderManager.SetProceduralAnimationImpulse(this, 0f, _impulseFrequency, 0f);
+		}
+		else
+		{
+			float progress = 1f - (_impulseTime / _impulseDuration);
+			float currentStrength = _impulseStrength * (1f - progress);
+			ModelShaderManager.SetProceduralAnimationImpulse(this, currentStrength, _impulseFrequency, progress);
+		}
 	}
 
 	private string _objectId = "unit/worker";
@@ -252,6 +273,10 @@ public partial class Unit3D : Node3D
 	private Node3D _pathVisualsContainer;
 	private readonly List<MeshInstance3D> _pathMarkersPool = new();
 	private readonly List<MeshInstance3D> _pathLinesPool = new();
+	private readonly List<Vector3> _pathPointsBuffer = new();
+	private Vector3 _lastPathRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
+	private bool _lastPathRenderIsAttackPath = false;
+	private readonly List<Vector3> _lastRenderedPathPoints = new();
 
 	private bool _isCulled = false;
 	private float _culledGameTime = 0f;
@@ -431,6 +456,9 @@ public partial class Unit3D : Node3D
 	private MeshInstance3D _rallyMarker;
 	private readonly List<MeshInstance3D> _rallyMarkersPool = new();
 	private readonly List<MeshInstance3D> _rallyLinesPool = new();
+	private readonly List<Vector3> _rallyPointsBuffer = new();
+	private Vector3 _lastRallyRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
+	private readonly List<Vector3> _lastRenderedRallyPoints = new();
 
 	private MeshInstance3D _selectionRing;
 	private bool _isSelected = false;
@@ -483,14 +511,6 @@ public partial class Unit3D : Node3D
 				}
 			}
 
-			if (value)
-			{
-				SetProcess(true);
-			}
-			else if (_impulseTime <= 0f)
-			{
-				SetProcess(false);
-			}
 		}
 	}
 
@@ -689,8 +709,6 @@ public partial class Unit3D : Node3D
 
 		SetProcess(false);
 		SetNotifyTransform(true);
-
-		CreateSelectionRing();
 	}
 
 	private float _lastUnitEffectiveLodScale = -1f;
@@ -2104,13 +2122,25 @@ public partial class Unit3D : Node3D
 		}
 	}
 
+	private Vector3 GetEcsOrLocalPosition()
+	{
+		if (GameHost.Instance != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity) && GameContext.World.Has<Position>(Entity))
+		{
+			var p = GameContext.World.Get<Position>(Entity).Value;
+			return new Vector3(p.X, p.Y, p.Z);
+		}
+
+		return Position;
+	}
+
 	private void GetRemainingRallyPoints(List<Vector3> points)
 	{
 		points.Clear();
 		if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return;
 
 		var world = GameContext.World;
-		points.Add(GlobalPosition);
+		Vector3 currentPos = GetEcsOrLocalPosition();
+		points.Add(currentPos);
 
 		if (world.Has<RallyPoint>(Entity))
 		{
@@ -2122,7 +2152,7 @@ public partial class Unit3D : Node3D
 		}
 		else
 		{
-			points.Add(GlobalPosition + new Vector3(0, 0, 8));
+			points.Add(currentPos + new Vector3(0, 0, 8));
 		}
 	}
 
@@ -2251,6 +2281,17 @@ public partial class Unit3D : Node3D
 		}
 	}
 
+	private static bool PointsListEqual(List<Vector3> a, List<Vector3> b)
+	{
+		if (a.Count != b.Count) return false;
+		for (int i = 0; i < a.Count; i++)
+		{
+			if (a[i].DistanceSquaredTo(b[i]) > 0.0001f) return false;
+		}
+
+		return true;
+	}
+
 	public void UpdateRallyVisuals()
 	{
 		if (!IsBuilding || !GameContext.PerspectiveFilter.CanSeeOwnedUi(Player)) return;
@@ -2266,22 +2307,33 @@ public partial class Unit3D : Node3D
 		_rallyVisualsContainer.Visible = IsSelected;
 		if (!IsSelected) return;
 
-		var points = new List<Vector3>();
-		GetRemainingRallyPoints(points);
+		GetRemainingRallyPoints(_rallyPointsBuffer);
 
-		if (points.Count <= 1)
+		if (_rallyPointsBuffer.Count <= 1)
 		{
 			if (_rallyMarker != null) _rallyMarker.Visible = false;
+			_lastRallyRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
+			_lastRenderedRallyPoints.Clear();
 			return;
 		}
+
+		Vector3 currentPos = _rallyPointsBuffer[0];
+		bool posUnchanged = !float.IsNaN(_lastRallyRenderPos.X) && currentPos.DistanceSquaredTo(_lastRallyRenderPos) < 0.0025f;
+		bool pointsUnchanged = PointsListEqual(_rallyPointsBuffer, _lastRenderedRallyPoints);
+
+		if (posUnchanged && pointsUnchanged) return;
+
+		_lastRallyRenderPos = currentPos;
+		_lastRenderedRallyPoints.Clear();
+		_lastRenderedRallyPoints.AddRange(_rallyPointsBuffer);
 
 		EnsureRallyMarkerExists();
 		_rallyMarker.Visible = true;
 
-		PositionRallyMarker(points[points.Count - 1]);
+		PositionRallyMarker(_rallyPointsBuffer[_rallyPointsBuffer.Count - 1]);
 
-		UpdateRallyMarkers(points, points.Count - 2);
-		UpdateRallyLines(points, points.Count - 1);
+		UpdateRallyMarkers(_rallyPointsBuffer, _rallyPointsBuffer.Count - 2);
+		UpdateRallyLines(_rallyPointsBuffer, _rallyPointsBuffer.Count - 1);
 	}
 
 	private void EnsureRallyMarkerExists()
@@ -2317,51 +2369,25 @@ public partial class Unit3D : Node3D
 	}
 
 
-	public override void _Process(double delta)
+	public void UpdateSelectedVisuals(float fDelta)
 	{
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.Unit3DProcess))
+		if (IsSelected && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
 		{
-			float fDelta = (float)delta;
-			if (_impulseTime > 0f)
+			if (IsBuilding)
 			{
-				_impulseTime -= fDelta;
-				if (_impulseTime <= 0f)
-				{
-					_impulseTime = 0f;
-					_impulseStrength = 0f;
-					ModelShaderManager.SetProceduralAnimationImpulse(this, 0f, _impulseFrequency, 0f);
-				}
-				else
-				{
-					float progress = 1f - (_impulseTime / _impulseDuration);
-					float currentStrength = _impulseStrength * (1f - progress);
-					ModelShaderManager.SetProceduralAnimationImpulse(this, currentStrength, _impulseFrequency, progress);
-				}
-			}
-
-			if (IsSelected && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
-			{
-				if (IsBuilding)
-				{
-					UpdateRallyVisuals();
-				}
-				else
-				{
-					UpdatePathVisuals();
-				}
+				UpdateRallyVisuals();
 			}
 			else
 			{
-				HidePathVisuals();
-				if (_rallyVisualsContainer != null)
-				{
-					_rallyVisualsContainer.Visible = false;
-				}
+				UpdatePathVisuals();
 			}
-
-			if (!IsSelected && _impulseTime <= 0f)
+		}
+		else
+		{
+			HidePathVisuals();
+			if (_rallyVisualsContainer != null)
 			{
-				SetProcess(false);
+				_rallyVisualsContainer.Visible = false;
 			}
 		}
 	}
@@ -2391,7 +2417,7 @@ public partial class Unit3D : Node3D
 			IsAttackPath = true;
 		}
 
-		points.Add(GlobalPosition);
+		points.Add(GetEcsOrLocalPosition());
 
 		if (world.Has<PathFollow>(Entity))
 		{
@@ -2422,21 +2448,34 @@ public partial class Unit3D : Node3D
 		EnsurePathVisualsContainer();
 		_pathVisualsContainer.Visible = true;
 
-		var points = new List<Vector3>();
-		GetRemainingPathPoints(points);
+		GetRemainingPathPoints(_pathPointsBuffer);
 
-		if (points.Count <= 1)
+		if (_pathPointsBuffer.Count <= 1)
 		{
 			HidePathVisuals();
+			_lastPathRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
+			_lastRenderedPathPoints.Clear();
 			return;
 		}
 
-		int markerCountNeeded = points.Count - 1;
+		Vector3 currentPos = _pathPointsBuffer[0];
+		bool posUnchanged = !float.IsNaN(_lastPathRenderPos.X) && currentPos.DistanceSquaredTo(_lastPathRenderPos) < 0.0025f;
+		bool attackModeUnchanged = IsAttackPath == _lastPathRenderIsAttackPath;
+		bool pointsUnchanged = PointsListEqual(_pathPointsBuffer, _lastRenderedPathPoints);
+
+		if (posUnchanged && attackModeUnchanged && pointsUnchanged) return;
+
+		_lastPathRenderPos = currentPos;
+		_lastPathRenderIsAttackPath = IsAttackPath;
+		_lastRenderedPathPoints.Clear();
+		_lastRenderedPathPoints.AddRange(_pathPointsBuffer);
+
+		int markerCountNeeded = _pathPointsBuffer.Count - 1;
 		for (int i = 0; i < markerCountNeeded; i++)
 		{
 			var marker = GetOrCreateMarker(i);
 			marker.Visible = true;
-			Vector3 pos = points[i + 1];
+			Vector3 pos = _pathPointsBuffer[i + 1];
 			if (GameHost.Instance.GroundTerrain != null)
 			{
 				GameHost.Instance.GroundTerrain.GetHeightAndNormal(pos.X, pos.Z, out float h, out _);
@@ -2451,14 +2490,14 @@ public partial class Unit3D : Node3D
 			_pathMarkersPool[i].Visible = false;
 		}
 
-		int lineCountNeeded = points.Count - 1;
+		int lineCountNeeded = _pathPointsBuffer.Count - 1;
 		for (int i = 0; i < lineCountNeeded; i++)
 		{
 			var line = GetOrCreateLine(i);
 			line.Visible = true;
 
-			Vector3 start = points[i];
-			Vector3 end = points[i + 1];
+			Vector3 start = _pathPointsBuffer[i];
+			Vector3 end = _pathPointsBuffer[i + 1];
 
 			if (GameHost.Instance.GroundTerrain != null)
 			{
