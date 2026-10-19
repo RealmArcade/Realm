@@ -3010,6 +3010,8 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				GameContext.EnvironmentService?.UpdateWeatherParticlePosition(MainCamera);
 			}
+
+			GameContext.FXService?.RenderBatchedRibbonTrails(MainCamera);
 		}
 	}
 

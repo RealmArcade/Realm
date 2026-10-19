@@ -27,6 +27,32 @@ public class FXService
 	private int _activeTargetIndicatorsCount = 0;
 	private const int MaxActiveTargetIndicators = 24;
 
+	public bool EnableProjectileLights { get; set; } = true;
+	public int MaxActiveProjectileLights { get; set; } = 16;
+	private int _activeProjectileLightsCount = 0;
+
+	private ImmediateMesh? _batchedAddImmediateMesh;
+	private MeshInstance3D? _batchedAddMeshInstance;
+	private StandardMaterial3D? _batchedAddMaterial;
+
+	private ImmediateMesh? _batchedMixImmediateMesh;
+	private MeshInstance3D? _batchedMixMeshInstance;
+	private StandardMaterial3D? _batchedMixMaterial;
+
+	public bool TryAcquireProjectileLight()
+	{
+		if (!EnableProjectileLights) return false;
+		if (_activeProjectileLightsCount >= MaxActiveProjectileLights) return false;
+
+		_activeProjectileLightsCount++;
+		return true;
+	}
+
+	public void ReleaseProjectileLight()
+	{
+		_activeProjectileLightsCount = Math.Max(0, _activeProjectileLightsCount - 1);
+	}
+
 	public List<MinimapPing> ActivePings { get; set; } = new();
 
 	public void ClearActivePings()
@@ -587,5 +613,173 @@ public class FXService
 			InGameHUD.Instance.ShowFeedbackText($"[ALERT PING] Signal at: {position.X:F0}, {position.Z:F0}", new Color(1.0f, 0.1f, 0.2f));
 			UIManager.Instance?.PlayClickSound();
 		}
+	}
+
+	private void EnsureBatchedRibbonNodes(Node parent)
+	{
+		if (_batchedAddMeshInstance == null || !GodotObject.IsInstanceValid(_batchedAddMeshInstance))
+		{
+			_batchedAddImmediateMesh = new ImmediateMesh();
+			_batchedAddMaterial = new StandardMaterial3D
+			{
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				BlendMode = BaseMaterial3D.BlendModeEnum.Add,
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+				CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+				TextureFilter = BaseMaterial3D.TextureFilterEnum.Linear,
+				VertexColorUseAsAlbedo = true
+			};
+			_batchedAddMeshInstance = new MeshInstance3D
+			{
+				Name = "BatchedAddRibbonMesh",
+				Mesh = _batchedAddImmediateMesh,
+				MaterialOverride = _batchedAddMaterial,
+				TopLevel = true,
+				GlobalPosition = Vector3.Zero,
+				GlobalRotation = Vector3.Zero
+			};
+		}
+
+		if (_batchedAddMeshInstance.GetParent() != parent)
+		{
+			if (_batchedAddMeshInstance.GetParent() != null) _batchedAddMeshInstance.GetParent().RemoveChild(_batchedAddMeshInstance);
+			parent.AddChild(_batchedAddMeshInstance);
+		}
+
+		if (_batchedMixMeshInstance == null || !GodotObject.IsInstanceValid(_batchedMixMeshInstance))
+		{
+			_batchedMixImmediateMesh = new ImmediateMesh();
+			_batchedMixMaterial = new StandardMaterial3D
+			{
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				BlendMode = BaseMaterial3D.BlendModeEnum.Mix,
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+				CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+				TextureFilter = BaseMaterial3D.TextureFilterEnum.Linear,
+				VertexColorUseAsAlbedo = true
+			};
+			_batchedMixMeshInstance = new MeshInstance3D
+			{
+				Name = "BatchedMixRibbonMesh",
+				Mesh = _batchedMixImmediateMesh,
+				MaterialOverride = _batchedMixMaterial,
+				TopLevel = true,
+				GlobalPosition = Vector3.Zero,
+				GlobalRotation = Vector3.Zero
+			};
+		}
+
+		if (_batchedMixMeshInstance.GetParent() != parent)
+		{
+			if (_batchedMixMeshInstance.GetParent() != null) _batchedMixMeshInstance.GetParent().RemoveChild(_batchedMixMeshInstance);
+			parent.AddChild(_batchedMixMeshInstance);
+		}
+	}
+
+	public void RenderBatchedRibbonTrails(Camera3D camera)
+	{
+		Node parent = GameHost.Instance ?? (Node)camera?.GetViewport();
+		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
+
+		EnsureBatchedRibbonNodes(parent);
+
+		if (_batchedAddImmediateMesh == null || _batchedMixImmediateMesh == null || _batchedAddMaterial == null || _batchedMixMaterial == null) return;
+
+		_batchedAddImmediateMesh.ClearSurfaces();
+		_batchedMixImmediateMesh.ClearSurfaces();
+
+		var projectiles = VisualProjectilePool.Instance?.AllProjectiles;
+		if (projectiles == null || projectiles.Count == 0) return;
+
+		Vector3 camPos = camera != null && GodotObject.IsInstanceValid(camera)
+			? camera.GlobalPosition
+			: new Vector3(0, 10, 10);
+
+		bool addSurfaceStarted = false;
+		bool mixSurfaceStarted = false;
+
+		for (int pIdx = 0; pIdx < projectiles.Count; pIdx++)
+		{
+			var proj = projectiles[pIdx];
+			if (proj == null || !GodotObject.IsInstanceValid(proj) || !proj.IsActive || !proj.HasRibbonTrail || proj.TrailPointCount < 2)
+				continue;
+
+			bool isAdditive = proj.Weapon.RibbonAdditive;
+			if (isAdditive)
+			{
+				if (!addSurfaceStarted)
+				{
+					_batchedAddImmediateMesh.SurfaceBegin(Mesh.PrimitiveType.Triangles, _batchedAddMaterial);
+					addSurfaceStarted = true;
+				}
+			}
+			else
+			{
+				if (!mixSurfaceStarted)
+				{
+					_batchedMixImmediateMesh.SurfaceBegin(Mesh.PrimitiveType.Triangles, _batchedMixMaterial);
+					mixSurfaceStarted = true;
+				}
+			}
+
+			var mesh = isAdditive ? _batchedAddImmediateMesh : _batchedMixImmediateMesh;
+
+			var points = proj.TrailPoints;
+			int count = proj.TrailPointCount;
+			float lifetime = proj.Weapon.RibbonLifetime > 0 ? proj.Weapon.RibbonLifetime : 0.5f;
+			float baseWidth = proj.Weapon.RibbonWidth > 0 ? proj.Weapon.RibbonWidth : 0.4f;
+			Color baseCol = proj.ParsedRibbonColor;
+			if (isAdditive)
+			{
+				baseCol = new Color(baseCol.R * 2.2f, baseCol.G * 2.2f, baseCol.B * 2.2f, baseCol.A);
+			}
+
+			float scrollSpeed = proj.Weapon.RibbonScrollSpeed;
+			bool taper = proj.Weapon.RibbonTaper;
+			float elapsedTime = proj.ElapsedFlightTime;
+
+			for (int i = 0; i < count - 1; i++)
+			{
+				Vector3 p0 = points[i].Position;
+				Vector3 p1 = points[i + 1].Position;
+
+				float t0 = Mathf.Clamp(points[i].Age / lifetime, 0.0f, 1.0f);
+				float t1 = Mathf.Clamp(points[i + 1].Age / lifetime, 0.0f, 1.0f);
+
+				Vector3 fwd0 = proj.CalculateRibbonForwardIndex(i);
+				Vector3 fwd1 = proj.CalculateRibbonForwardIndex(i + 1);
+
+				Vector3 side0 = proj.CalculateRibbonSideDirection(fwd0, p0, camPos);
+				Vector3 side1 = proj.CalculateRibbonSideDirection(fwd1, p1, camPos);
+
+				float w0 = baseWidth * (taper ? (1.0f - t0) : 1.0f);
+				float w1 = baseWidth * (taper ? (1.0f - t1) : 1.0f);
+
+				Vector3 halfSide0 = side0 * (w0 * 0.5f);
+				Vector3 halfSide1 = side1 * (w1 * 0.5f);
+
+				float u0 = t0 + (scrollSpeed * elapsedTime);
+				float u1 = t1 + (scrollSpeed * elapsedTime);
+
+				Color col0 = new Color(baseCol.R, baseCol.G, baseCol.B, baseCol.A * (1.0f - t0));
+				Color col1 = new Color(baseCol.R, baseCol.G, baseCol.B, baseCol.A * (1.0f - t1));
+
+				Vector3 v0_left = p0 - halfSide0;
+				Vector3 v0_right = p0 + halfSide0;
+				Vector3 v1_left = p1 - halfSide1;
+				Vector3 v1_right = p1 + halfSide1;
+
+				mesh.SurfaceSetColor(col0); mesh.SurfaceSetUV(new Vector2(u0, 0f)); mesh.SurfaceAddVertex(v0_left);
+				mesh.SurfaceSetColor(col0); mesh.SurfaceSetUV(new Vector2(u0, 1f)); mesh.SurfaceAddVertex(v0_right);
+				mesh.SurfaceSetColor(col1); mesh.SurfaceSetUV(new Vector2(u1, 0f)); mesh.SurfaceAddVertex(v1_left);
+
+				mesh.SurfaceSetColor(col0); mesh.SurfaceSetUV(new Vector2(u0, 1f)); mesh.SurfaceAddVertex(v0_right);
+				mesh.SurfaceSetColor(col1); mesh.SurfaceSetUV(new Vector2(u1, 1f)); mesh.SurfaceAddVertex(v1_right);
+				mesh.SurfaceSetColor(col1); mesh.SurfaceSetUV(new Vector2(u1, 0f)); mesh.SurfaceAddVertex(v1_left);
+			}
+		}
+
+		if (addSurfaceStarted) _batchedAddImmediateMesh.SurfaceEnd();
+		if (mixSurfaceStarted) _batchedMixImmediateMesh.SurfaceEnd();
 	}
 }
