@@ -900,10 +900,10 @@ public class TestWasmMap : IWasmModule
 
 	private async Task LoadChaosArenaFolder(MapEditorHUD hud, ISceneRunner runner)
 	{
-		string chaosArenaFolder = Path.GetFullPath("../Realm_ChaosArena");
+		string chaosArenaFolder = Path.GetFullPath("../ugc-ChaosArena");
 		if (!Directory.Exists(chaosArenaFolder))
 		{
-			chaosArenaFolder = Path.GetFullPath("D:/git/Realm/Realm_ChaosArena");
+			chaosArenaFolder = Path.GetFullPath("D:/git/Realm/ugc-ChaosArena");
 		}
 
 		bool loadOk = hud.LoadMapFolder(chaosArenaFolder);
