@@ -71,6 +71,10 @@ public partial class InGameHUD : Control
 	private PanelContainer _inventoryFrame;
 	private readonly Dictionary<HudElement, bool> _hudElementVisibility = new();
 
+	private Shader _hudPanelTopShader;
+	private Shader _hudPanelBottomShader;
+	private Shader _hudPortraitMaskShader;
+
 	private GridContainer _commandGrid;
 	private GridContainer _inventoryGrid;
 	public bool IsBuildSubMenuOpen => _viewModel.IsBuildSubMenuOpen;
@@ -1360,37 +1364,9 @@ public partial class InGameHUD : Control
 			var topTexture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelTop.png");
 			_resourceBackground.Texture = topTexture;
 
-			var topShader = new Shader();
-			topShader.Code = @"
-shader_type canvas_item;
-
-uniform vec2 u_panel_size = vec2(840.0, 76.0);
-
-void fragment() {
-	float x = UV.x * u_panel_size.x;
-	float h = u_panel_size.y;
-	float s = h / 434.0;
-	float w_left = 280.0 * s;
-	float w_right = 280.0 * s;
-
-	float tex_x = 0.0;
-	if (x < w_left) {
-		tex_x = x / s;
-	} else if (x > u_panel_size.x - w_right) {
-		float rx = x - (u_panel_size.x - w_right);
-		tex_x = (2624.0 - 280.0) + (rx / s);
-	} else {
-		float center_w = max(u_panel_size.x - w_left - w_right, 1.0);
-		float t = (x - w_left) / center_w;
-		tex_x = 280.0 + t * (2344.0 - 280.0);
-	}
-
-	vec2 mapped_uv = vec2(clamp(tex_x / 2624.0, 0.0, 1.0), UV.y);
-	COLOR = texture(TEXTURE, mapped_uv);
-}
-";
+			_hudPanelTopShader ??= GD.Load<Shader>("res://Assets/shaders/hud_panel_top.gdshader");
 			var topMaterial = new ShaderMaterial();
-			topMaterial.Shader = topShader;
+			topMaterial.Shader = _hudPanelTopShader;
 			topMaterial.SetShaderParameter("u_panel_size", new Vector2(840.0f, 76.0f));
 			_resourceBackground.Material = topMaterial;
 		}
@@ -1404,37 +1380,9 @@ void fragment() {
 			}
 			_consoleBackground.Texture = texture;
 
-			var consoleShader = new Shader();
-			consoleShader.Code = @"
-shader_type canvas_item;
-
-uniform vec2 u_console_size = vec2(1920.0, 240.0);
-
-void fragment() {
-	float x = UV.x * u_console_size.x;
-	float h = u_console_size.y;
-	float s = h / 433.0;
-	float w_left = 935.0 * s;
-	float w_right = 912.0 * s;
-
-	float tex_x = 0.0;
-	if (x < w_left) {
-		tex_x = x / s;
-	} else if (x > u_console_size.x - w_right) {
-		float rx = x - (u_console_size.x - w_right);
-		tex_x = (2752.0 - 912.0) + (rx / s);
-	} else {
-		float center_w = max(u_console_size.x - w_left - w_right, 1.0);
-		float t = (x - w_left) / center_w;
-		tex_x = 935.0 + t * (1840.0 - 935.0);
-	}
-
-	vec2 mapped_uv = vec2(clamp(tex_x / 2752.0, 0.0, 1.0), UV.y);
-	COLOR = texture(TEXTURE, mapped_uv);
-}
-";
+			_hudPanelBottomShader ??= GD.Load<Shader>("res://Assets/shaders/hud_panel_bottom.gdshader");
 			var consoleMaterial = new ShaderMaterial();
-			consoleMaterial.Shader = consoleShader;
+			consoleMaterial.Shader = _hudPanelBottomShader;
 			_consoleBackground.Material = consoleMaterial;
 		}
 
@@ -1734,20 +1682,9 @@ void fragment() {
 		if (pTexture != null)
 		{
 			pTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/alliance_flag.png");
-			var portraitMaskShader = new Shader();
-			portraitMaskShader.Code = @"
-shader_type canvas_item;
-
-void fragment() {
-	vec2 center = UV - vec2(0.5);
-	if (dot(center, center) > 0.25) {
-		discard;
-	}
-	COLOR = texture(TEXTURE, UV);
-}
-";
+			_hudPortraitMaskShader ??= GD.Load<Shader>("res://Assets/shaders/hud_portrait_mask.gdshader");
 			var portraitMaskMaterial = new ShaderMaterial();
-			portraitMaskMaterial.Shader = portraitMaskShader;
+			portraitMaskMaterial.Shader = _hudPortraitMaskShader;
 			pTexture.Material = portraitMaskMaterial;
 		}
 
