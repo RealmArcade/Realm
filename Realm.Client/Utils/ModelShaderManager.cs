@@ -945,6 +945,21 @@ public static class ModelShaderManager
 		}
 	}
 
+	public static void SetProceduralAnimationImpulse(IReadOnlyList<GeometryInstance3D> geometryInstances, float impulseStrength, float impulseFrequency, float impulseTime, bool showDebugMask = false)
+	{
+		if (geometryInstances == null) return;
+		Vector4 pImp = new Vector4(impulseStrength, impulseFrequency, impulseTime, showDebugMask ? 1.0f : 0.0f);
+		int count = geometryInstances.Count;
+		for (int i = 0; i < count; i++)
+		{
+			var geom = geometryInstances[i];
+			if (GodotObject.IsInstanceValid(geom))
+			{
+				geom.SetInstanceShaderParameter(_paramProcAnimImpulse, pImp);
+			}
+		}
+	}
+
 	public static void SetProceduralAnimationImpulse(Node rootNode, float impulseStrength, float impulseFrequency, float impulseTime, bool showDebugMask = false)
 	{
 		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
@@ -963,6 +978,20 @@ public static class ModelShaderManager
 		for (int i = 0; i < count; i++)
 		{
 			SetProceduralAnimationImpulseRecursive(node.GetChild(i), pImp);
+		}
+	}
+
+	public static void SetProceduralAnimationVelocity(IReadOnlyList<GeometryInstance3D> geometryInstances, Vector3 velocity)
+	{
+		if (geometryInstances == null) return;
+		int count = geometryInstances.Count;
+		for (int i = 0; i < count; i++)
+		{
+			var geom = geometryInstances[i];
+			if (GodotObject.IsInstanceValid(geom))
+			{
+				geom.SetInstanceShaderParameter(_paramProcAnimVelocity, velocity);
+			}
 		}
 	}
 

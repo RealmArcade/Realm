@@ -25,6 +25,98 @@ public partial class Unit3D : Node3D
 {
 	public Entity Entity { get; set; }
 
+	private Vector3 _cachedPosition = Vector3.Zero;
+	private float _cachedRotationY = 0f;
+	private Basis _cachedBasis = Basis.Identity;
+	private Vector3 _cachedScale = Vector3.One;
+	private float _cachedBaseScale = 1.0f;
+	private Transform3D _cachedTransform = Transform3D.Identity;
+	private bool _hasCachedTransform = false;
+
+	public Vector3 CachedPosition => _hasCachedTransform ? _cachedPosition : GlobalPosition;
+	public float CachedRotationY => _hasCachedTransform ? _cachedRotationY : Rotation.Y;
+	public Basis CachedBasis => _hasCachedTransform ? _cachedBasis : Basis;
+	public Vector3 CachedScale => _hasCachedTransform ? _cachedScale : Scale;
+	public float CachedBaseScale => _cachedBaseScale;
+	public Transform3D CachedTransform => _hasCachedTransform ? _cachedTransform : GlobalTransform;
+	public bool HasCachedTransform => _hasCachedTransform;
+
+	public void SetTransform3D(in Transform3D xform, in Vector3 pos, float rotY, in Basis basis, in Vector3 scale, float baseScale)
+	{
+		_cachedPosition = pos;
+		_cachedRotationY = rotY;
+		_cachedBasis = basis;
+		_cachedScale = scale;
+		_cachedBaseScale = baseScale;
+		_cachedTransform = xform;
+		_hasCachedTransform = true;
+		Transform = xform;
+	}
+
+	public void SetInitialTransform(in Vector3 pos, float rotY, in Vector3 scale)
+	{
+		_cachedPosition = pos;
+		_cachedRotationY = rotY;
+		_cachedBasis = Basis.FromEuler(new Vector3(0f, rotY, 0f));
+		_cachedScale = scale;
+		_cachedBaseScale = scale.Y;
+		_cachedTransform = new Transform3D(_cachedBasis.Scaled(scale), pos);
+		_hasCachedTransform = true;
+		Transform = _cachedTransform;
+	}
+
+	private readonly List<GeometryInstance3D> _cachedGeometryInstances = new();
+
+	public void RebuildGeometryInstanceCache()
+	{
+		_cachedGeometryInstances.Clear();
+		Node root = (_modelNode != null && GodotObject.IsInstanceValid(_modelNode)) ? _modelNode : this;
+		CollectGeometryInstancesRecursive(root, _cachedGeometryInstances);
+	}
+
+	private static void CollectGeometryInstancesRecursive(Node node, List<GeometryInstance3D> list)
+	{
+		if (node is GeometryInstance3D geom && !ModelShaderManager.IsAttachmentNode(geom))
+		{
+			list.Add(geom);
+		}
+
+		int childCount = node.GetChildCount();
+		for (int i = 0; i < childCount; i++)
+		{
+			CollectGeometryInstancesRecursive(node.GetChild(i), list);
+		}
+	}
+
+	public IReadOnlyList<GeometryInstance3D> GetCachedGeometryInstances()
+	{
+		if (_cachedGeometryInstances.Count == 0)
+		{
+			RebuildGeometryInstanceCache();
+		}
+		return _cachedGeometryInstances;
+	}
+
+	public void SetLaborPulseScale(float pulse)
+	{
+		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
+		{
+			float baseModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
+			if (baseModelScale <= 0.001f) baseModelScale = 1.0f;
+			_modelNode.Scale = new Vector3(pulse * 0.9f * baseModelScale, (2.0f - pulse) * 0.9f * baseModelScale, pulse * 0.9f * baseModelScale);
+		}
+	}
+
+	public void ResetLaborPulseScale()
+	{
+		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
+		{
+			float baseModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
+			if (baseModelScale <= 0.001f) baseModelScale = 1.0f;
+			_modelNode.Scale = new Vector3(baseModelScale, baseModelScale, baseModelScale);
+		}
+	}
+
 	private Vector3 _velocity = Vector3.Zero;
 	public bool HasProceduralAnimation { get; set; }
 
@@ -38,7 +130,7 @@ public partial class Unit3D : Node3D
 				_velocity = value;
 				if (HasProceduralAnimation)
 				{
-					ModelShaderManager.SetProceduralAnimationVelocity(this, value);
+					ModelShaderManager.SetProceduralAnimationVelocity(GetCachedGeometryInstances(), value);
 				}
 			}
 		}
@@ -163,9 +255,98 @@ public partial class Unit3D : Node3D
 
 	private bool _isCulled = false;
 	private float _culledGameTime = 0f;
+	private bool _hasEvaluatedFrustum = false;
 	private Aabb _cachedLocalAabb = new Aabb(new Vector3(-1.5f, 0f, -1.5f), new Vector3(3f, 4f, 3f));
 
 	public bool IsCulled => _isCulled;
+
+	public bool EvaluateFrustumCulling(bool hasFrustum, ReadOnlySpan<Plane> frustumPlanes, float currentGameTime, bool cameraFrustumChanged, bool transformChanged)
+	{
+		if (!hasFrustum)
+		{
+			SetCulledState(false, currentGameTime);
+			return false;
+		}
+
+		if (!_hasEvaluatedFrustum || cameraFrustumChanged || transformChanged)
+		{
+			_hasEvaluatedFrustum = true;
+			Vector3 pos = _hasCachedTransform ? _cachedPosition : GlobalPosition;
+			Vector3 scale = _hasCachedTransform ? _cachedScale : Scale;
+			Aabb worldAabb = new Aabb(pos + _cachedLocalAabb.Position * scale, _cachedLocalAabb.Size * scale);
+			bool isVisible = RuntimeTerrain.IntersectsFrustum(frustumPlanes, worldAabb);
+			SetCulledState(!isVisible, currentGameTime);
+		}
+
+		return _isCulled;
+	}
+
+	public void SetCulledState(bool shouldCull, float currentGameTime)
+	{
+		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer))
+		{
+			_isCulled = shouldCull;
+			return;
+		}
+
+		if (shouldCull && !_isCulled)
+		{
+			_isCulled = true;
+			_culledGameTime = currentGameTime;
+			_animationPlayer.ProcessMode = ProcessModeEnum.Disabled;
+			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
+			{
+				_cachedSkeleton.ProcessMode = ProcessModeEnum.Disabled;
+			}
+		}
+		else if (!shouldCull && _isCulled)
+		{
+			_isCulled = false;
+			float elapsed = currentGameTime - _culledGameTime;
+			_animationPlayer.ProcessMode = ProcessModeEnum.Inherit;
+			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
+			{
+				_cachedSkeleton.ProcessMode = ProcessModeEnum.Inherit;
+			}
+
+			if (elapsed > 0f && _animationPlayer.IsPlaying())
+			{
+				float animLength = (float)_animationPlayer.CurrentAnimationLength;
+				if (animLength > 0.001f)
+				{
+					float currentPos = (float)_animationPlayer.CurrentAnimationPosition;
+					bool isLooping = true;
+					var animName = _animationPlayer.CurrentAnimation;
+					if (!string.IsNullOrEmpty(animName) && _animationPlayer.HasAnimation(animName))
+					{
+						var anim = _animationPlayer.GetAnimation(animName);
+						if (anim != null)
+						{
+							isLooping = anim.LoopMode != Godot.Animation.LoopModeEnum.None;
+						}
+					}
+
+					if (isLooping)
+					{
+						float newPos = (currentPos + elapsed) % animLength;
+						_animationPlayer.Seek(newPos, update: true);
+					}
+					else
+					{
+						float newPos = currentPos + elapsed;
+						if (newPos >= animLength)
+						{
+							_animationPlayer.Seek(animLength, update: true);
+						}
+						else
+						{
+							_animationPlayer.Seek(newPos, update: true);
+						}
+					}
+				}
+			}
+		}
+	}
 
 	private int _player = 0;
 
@@ -592,6 +773,8 @@ public partial class Unit3D : Node3D
 		{
 			_cachedLocalAabb = calculatedAabb;
 		}
+
+		RebuildGeometryInstanceCache();
 	}
 
 	private void CleanupExistingModel()
@@ -839,76 +1022,7 @@ public partial class Unit3D : Node3D
 
 	public void UpdateFrustumCulling(bool hasFrustum, ReadOnlySpan<Plane> frustumPlanes, float currentGameTime)
 	{
-		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
-
-		bool isVisible = true;
-		if (hasFrustum)
-		{
-			Vector3 pos = GlobalPosition;
-			Vector3 scale = Scale;
-			Aabb worldAabb = new Aabb(pos + _cachedLocalAabb.Position * scale, _cachedLocalAabb.Size * scale);
-			isVisible = RuntimeTerrain.IntersectsFrustum(frustumPlanes, worldAabb);
-		}
-
-		bool shouldCull = !isVisible;
-
-		if (shouldCull && !_isCulled)
-		{
-			_isCulled = true;
-			_culledGameTime = currentGameTime;
-			_animationPlayer.ProcessMode = ProcessModeEnum.Disabled;
-			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
-			{
-				_cachedSkeleton.ProcessMode = ProcessModeEnum.Disabled;
-			}
-		}
-		else if (!shouldCull && _isCulled)
-		{
-			_isCulled = false;
-			float elapsed = currentGameTime - _culledGameTime;
-			_animationPlayer.ProcessMode = ProcessModeEnum.Inherit;
-			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
-			{
-				_cachedSkeleton.ProcessMode = ProcessModeEnum.Inherit;
-			}
-
-			if (elapsed > 0f && _animationPlayer.IsPlaying())
-			{
-				float animLength = (float)_animationPlayer.CurrentAnimationLength;
-				if (animLength > 0.001f)
-				{
-					float currentPos = (float)_animationPlayer.CurrentAnimationPosition;
-					bool isLooping = true;
-					var animName = _animationPlayer.CurrentAnimation;
-					if (!string.IsNullOrEmpty(animName) && _animationPlayer.HasAnimation(animName))
-					{
-						var anim = _animationPlayer.GetAnimation(animName);
-						if (anim != null)
-						{
-							isLooping = anim.LoopMode != Godot.Animation.LoopModeEnum.None;
-						}
-					}
-
-					if (isLooping)
-					{
-						float newPos = (currentPos + elapsed) % animLength;
-						_animationPlayer.Seek(newPos, update: true);
-					}
-					else
-					{
-						float newPos = currentPos + elapsed;
-						if (newPos >= animLength)
-						{
-							_animationPlayer.Seek(animLength, update: true);
-						}
-						else
-						{
-							_animationPlayer.Seek(newPos, update: true);
-						}
-					}
-				}
-			}
-		}
+		EvaluateFrustumCulling(hasFrustum, frustumPlanes, currentGameTime, true, true);
 	}
 
 	private void SeekToIdleFirstFrame()
@@ -1175,6 +1289,7 @@ public partial class Unit3D : Node3D
 		}
 
 		_currentPseudoSocketAttachmentIds.Clear();
+		RebuildGeometryInstanceCache();
 	}
 
 	public virtual void ApplyAllConfiguredAttachments()
