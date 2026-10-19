@@ -112,7 +112,13 @@ public partial class LootItem3D : Node3D
 
 	public override void _Process(double delta)
 	{
-		if (_visualRoot == null || !IsInstanceValid(_visualRoot)) return;
+		if (_visualRoot == null || !IsInstanceValid(_visualRoot) || !Visible) return;
+
+		var camera = GetViewport()?.GetCamera3D();
+		if (camera != null && GodotObject.IsInstanceValid(camera) && !camera.IsPositionInFrustum(GlobalPosition))
+		{
+			return;
+		}
 
 		_hoverTimer += (float)delta;
 		_visualRoot.RotationDegrees = new Vector3(0, _hoverTimer * 50f % 360f, 0);

@@ -283,10 +283,12 @@ public class EnvironmentService
 
 	private Entity FindWorldEntity()
 	{
-		Entity worldEntity = Entity.Null;
-		var query = QueryCache.AllWeatherStateQuery;
-		GameContext.World.Query(in query, entity => worldEntity = entity);
-		return worldEntity;
+		if (ECSContext.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity))
+		{
+			return ECSContext.WorldEntity;
+		}
+
+		return Entity.Null;
 	}
 
 	public string GetCurrentWeather()
@@ -335,15 +337,33 @@ public class EnvironmentService
 	{
 		if (worldEnv?.Environment == null) return;
 
-		if (!ShouldEnableFog())
+		var env = worldEnv.Environment;
+		bool enableFog = ShouldEnableFog();
+
+		if (!enableFog)
 		{
-			worldEnv.Environment.FogEnabled = false;
+			if (env.FogEnabled)
+			{
+				env.FogEnabled = false;
+			}
 			return;
 		}
 
-		worldEnv.Environment.FogEnabled = true;
-		worldEnv.Environment.FogLightColor = _currentState.FogColor;
-		worldEnv.Environment.FogDensity = CalculateFogDensity(camera3D, GetBaseFogDensity());
+		if (!env.FogEnabled)
+		{
+			env.FogEnabled = true;
+		}
+
+		if (env.FogLightColor != _currentState.FogColor)
+		{
+			env.FogLightColor = _currentState.FogColor;
+		}
+
+		float targetDensity = CalculateFogDensity(camera3D, GetBaseFogDensity());
+		if (Mathf.Abs(env.FogDensity - targetDensity) > 0.00001f)
+		{
+			env.FogDensity = targetDensity;
+		}
 	}
 
 	private bool ShouldEnableFog()

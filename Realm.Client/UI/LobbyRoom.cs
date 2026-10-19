@@ -26,10 +26,6 @@ public partial class LobbyRoom : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	public override void _Process(double delta)
-	{
-	}
-
 	private Panel _bgPanel;
 	private Panel _leftPillar;
 	private Panel _rightPillar;

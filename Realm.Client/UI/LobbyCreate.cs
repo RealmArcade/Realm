@@ -25,10 +25,6 @@ public partial class LobbyCreate : Control
 	{
 	}
 
-	public override void _Process(double delta)
-	{
-	}
-
 	private Panel _bgPanel;
 	private Panel _leftPillar;
 	private Panel _rightPillar;

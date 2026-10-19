@@ -99,6 +99,7 @@ public partial class GlbThumbnailRenderer : Node
 	public override void _Ready()
 	{
 		SetupViewport();
+		SetProcess(false);
 	}
 
 	private void SetupViewport()
@@ -343,6 +344,17 @@ public partial class GlbThumbnailRenderer : Node
 		}
 
 		EnsureInTreeDeferred();
+		if (_instance != null && GodotObject.IsInstanceValid(_instance))
+		{
+			if (Environment.CurrentManagedThreadId == 1)
+			{
+				_instance.SetProcess(true);
+			}
+			else
+			{
+				Callable.From(() => _instance?.SetProcess(true)).CallDeferred();
+			}
+		}
 	}
 
 	public override void _Process(double delta)
@@ -368,6 +380,10 @@ public partial class GlbThumbnailRenderer : Node
 				{
 					LoadGlbForCapture(_currentRequest);
 				}
+			}
+			else
+			{
+				SetProcess(false);
 			}
 		}
 	}

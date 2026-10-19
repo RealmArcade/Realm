@@ -46,6 +46,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public static GameHost Instance { get; set; }
 
 	private float _fDelta { get; set; }
+	private WorldEnvironment? _cachedWorldEnvironment;
 
 
 	private bool _multiplayerActive => Multiplayer.MultiplayerPeer != null && Multiplayer.MultiplayerPeer is not OfflineMultiplayerPeer;
@@ -2486,6 +2487,7 @@ public partial class GameHost : Node3D, IGameAPI
 		_playerCameraBoundsOverrides.Clear();
 		_playerHudVisibilityOverrides.Clear();
 		LocalHudVisibilityOverrides.Clear();
+		_cachedWorldEnvironment = null;
 		_activeMapScript = null;
 
 		ReinitializeEcsAndServices();
@@ -3143,10 +3145,14 @@ public partial class GameHost : Node3D, IGameAPI
 				}
 			}
 
-			var worldEnv = MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") ?? GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
+			if (_cachedWorldEnvironment == null || !GodotObject.IsInstanceValid(_cachedWorldEnvironment))
+			{
+				_cachedWorldEnvironment = MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") ?? GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
+			}
+
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.EnvironmentUpdateFog))
 			{
-				GameContext.EnvironmentService?.UpdateEnvironmentalFog(MainCamera, worldEnv);
+				GameContext.EnvironmentService?.UpdateEnvironmentalFog(MainCamera, _cachedWorldEnvironment);
 			}
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.EnvironmentUpdateWeatherParticles))
 			{

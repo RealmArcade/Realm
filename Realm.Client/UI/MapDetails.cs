@@ -186,6 +186,7 @@ public partial class MapDetails : Control
 
 		ApplyStyles();
 		RegisterEvents();
+		SetProcess(false);
 	}
 
 	public override void _Process(double delta)

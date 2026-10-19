@@ -94,13 +94,31 @@ namespace Realm.Client.UI
 			UpdateAutoBackup(delta);
 		}
 
+		private float _lastStatusX = float.NaN;
+		private float _lastStatusY = float.NaN;
+		private float _lastStatusZ = float.NaN;
+		private EditorTool? _lastActiveTool = null;
+		private string? _lastActivePlaceId = null;
+
 		private void UpdateTerrainStatus()
 		{
 			var mousePos = GetViewport().GetMousePosition();
 			if (GameHost.Instance.TryRaycastTerrainFromMousePosition(mousePos, out Vector3 pos))
 			{
-				if (GameContext.EditorService.CheckAndUpdateRaycast(pos))
+				float roundX = (float)Math.Round(pos.X, 1);
+				float roundY = (float)Math.Round(pos.Y, 1);
+				float roundZ = (float)Math.Round(pos.Z, 1);
+				EditorTool currentTool = GameHost.Instance.ActiveEditorTool;
+				string currentPlaceId = GameHost.Instance.ActivePlaceId;
+
+				if (roundX != _lastStatusX || roundY != _lastStatusY || roundZ != _lastStatusZ || currentTool != _lastActiveTool || currentPlaceId != _lastActivePlaceId)
 				{
+					_lastStatusX = roundX;
+					_lastStatusY = roundY;
+					_lastStatusZ = roundZ;
+					_lastActiveTool = currentTool;
+					_lastActivePlaceId = currentPlaceId;
+					GameContext.EditorService.CheckAndUpdateRaycast(pos);
 					_viewModel.StatusText = GameHost.Instance.GetTerrainStatusString(pos);
 				}
 			}
