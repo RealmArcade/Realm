@@ -8,6 +8,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.AI.Genres.Common;
 
 namespace Realm.Ecs.AI.Genres;
 
@@ -109,23 +110,6 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private static int GetOwnerIndex(EcsWorld world, Entity entity)
-	{
-		if (world.Has<UnitOwnerPlayer>(entity))
-		{
-			return world.Get<UnitOwnerPlayer>(entity).PlayerIndex;
-		}
-
-		if (!world.Has<Owner>(entity)) return -1;
-
-		var pEnt = world.Get<Owner>(entity).PlayerEntity.Value;
-		if (world.IsAlive(pEnt) && world.Has<UnitOwnerPlayer>(pEnt))
-		{
-			return world.Get<UnitOwnerPlayer>(pEnt).PlayerIndex;
-		}
-
-		return -1;
-	}
 
 	private static int GetPlayerGold(EcsWorld world, Entity playerEntity)
 	{
@@ -157,7 +141,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		foreach (var entity in world.Query(in _allPositionQuery))
 		{
 			ref var pos = ref world.Get<Position>(entity);
-			int ownerIndex = GetOwnerIndex(world, entity);
+			int ownerIndex = AiGenreUtils.GetOwnerIndex(world, entity);
 			if (ownerIndex == playerIndex)
 			{
 				_friendlyUnits.Add((entity, pos.Value));

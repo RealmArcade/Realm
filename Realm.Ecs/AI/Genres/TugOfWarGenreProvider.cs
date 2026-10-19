@@ -5,6 +5,7 @@ using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.AI.Genres.Common;
 
 namespace Realm.Ecs.AI.Genres;
 
@@ -157,7 +158,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 	{
 		world.Query(in _allPositionQuery, (Entity entity, ref Position pos) =>
 		{
-			int ownerIndex = GetEntityOwnerIndex(world, entity);
+			int ownerIndex = AiGenreUtils.GetOwnerIndex(world, entity);
 
 			if (ownerIndex == playerIndex)
 			{
@@ -177,23 +178,6 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		});
 	}
 
-	private static int GetEntityOwnerIndex(EcsWorld world, Entity entity)
-	{
-		if (world.Has<UnitOwnerPlayer>(entity))
-		{
-			return world.Get<UnitOwnerPlayer>(entity).PlayerIndex;
-		}
-
-		if (!world.Has<Owner>(entity)) return -1;
-
-		var pEnt = world.Get<Owner>(entity).PlayerEntity.Value;
-		if (world.IsAlive(pEnt) && world.Has<UnitOwnerPlayer>(pEnt))
-		{
-			return world.Get<UnitOwnerPlayer>(pEnt).PlayerIndex;
-		}
-
-		return -1;
-	}
 
 	private int GetPlayerGold(EcsWorld world, int playerIndex)
 	{

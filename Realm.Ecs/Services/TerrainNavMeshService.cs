@@ -135,7 +135,7 @@ public class TerrainNavMeshService
 		InvalidateIntersectingPaths(pos, maxDim + quadSize * 1.5f);
 	}
 
-	private void ProcessPathingGrid(ref TerrainState state, Vector3 pos, float radius, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize, Action<TerrainState, int, int> processCell)
+	private void ProcessPathingGrid(ref TerrainState state, Vector3 pos, float radius, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize, ProcessPathingCellBoxDelegate processCell)
 	{
 		if (state.PathingCodes == null) return;
 		for (int z = minZ; z <= maxZ; z++)
@@ -148,7 +148,7 @@ public class TerrainNavMeshService
 				float dz = lz - pos.Z;
 				if (dx * dx + dz * dz <= radius * radius)
 				{
-					processCell(state, x, z);
+					processCell(ref state, x, z);
 				}
 			}
 		}
@@ -156,7 +156,7 @@ public class TerrainNavMeshService
 
 	private void CarvePathingGrid(ref TerrainState state, Vector3 pos, float radius, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
 	{
-		ProcessPathingGrid(ref state, pos, radius, minX, maxX, minZ, maxZ, width, depth, quadSize, (s, x, z) =>
+		ProcessPathingGrid(ref state, pos, radius, minX, maxX, minZ, maxZ, width, depth, quadSize, (ref TerrainState s, int x, int z) =>
 		{
 			s.PathingCodes[x, z] &= ~(int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable);
 		});
@@ -180,7 +180,7 @@ public class TerrainNavMeshService
 		}
 	}
 
-	private void ProcessNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, float quadSize, Action<TerrainState, long, int, float, float> processPoly)
+	private void ProcessNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, float quadSize, ProcessPolyBoxDelegate processPoly)
 	{
 		float effRadiusSq = (radius + quadSize * 0.5f) * (radius + quadSize * 0.5f);
 		IterateNavMeshPolys(ref state, (ref TerrainState s, DtMeshTile tile, DtPoly poly, long polyRefBase, int p) =>
@@ -191,7 +191,7 @@ public class TerrainNavMeshService
 
 			if (dx * dx + dz * dz <= effRadiusSq)
 			{
-				processPoly(s, polyRefBase, p, avgX, avgZ);
+				processPoly(ref s, polyRefBase, p, avgX, avgZ);
 			}
 		});
 	}
@@ -232,7 +232,9 @@ public class TerrainNavMeshService
 		}
 	}
 
-	private void CarvePathingGridBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
+	private delegate void ProcessPathingCellBoxDelegate(ref TerrainState state, int x, int z);
+
+	private void ProcessPathingGridBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize, ProcessPathingCellBoxDelegate processCell)
 	{
 		if (state.PathingCodes == null) return;
 		for (int z = minZ; z <= maxZ; z++)
@@ -243,10 +245,18 @@ public class TerrainNavMeshService
 				float lz = (z + 0.5f - depth / 2.0f) * quadSize;
 				if (IsPointInBox(lx, lz, pos, halfWidth, halfDepth))
 				{
-					state.PathingCodes[x, z] &= ~(int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable);
+					processCell(ref state, x, z);
 				}
 			}
 		}
+	}
+
+	private void CarvePathingGridBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
+	{
+		ProcessPathingGridBox(ref state, pos, halfWidth, halfDepth, minX, maxX, minZ, maxZ, width, depth, quadSize, (ref TerrainState s, int x, int z) =>
+		{
+			s.PathingCodes[x, z] &= ~(int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable);
+		});
 	}
 
 	private bool IsPolyInBox(float avgX, float avgZ, Vector3 pos, float halfWidth, float halfDepth, float quadSize)
@@ -275,27 +285,29 @@ public class TerrainNavMeshService
 		avgZ = nv > 0 ? sumZ / nv : 0f;
 	}
 
+	private delegate void ProcessPolyBoxDelegate(ref TerrainState state, long polyRefBase, int p, float avgX, float avgZ);
+
+	private void ProcessNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, float quadSize, ProcessPolyBoxDelegate processPoly)
+	{
+		IterateNavMeshPolys(ref state, (ref TerrainState s, DtMeshTile tile, DtPoly poly, long polyRefBase, int p) =>
+		{
+			GetPolyCenter(tile, poly, out float avgX, out float avgZ);
+
+			if (IsPolyInBox(avgX, avgZ, pos, halfWidth, halfDepth, quadSize))
+			{
+				processPoly(ref s, polyRefBase, p, avgX, avgZ);
+			}
+		});
+	}
+
 	private void CarveNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, float quadSize)
 	{
-		int maxTiles = state.NavMesh.GetMaxTiles();
-		for (int t = 0; t < maxTiles; t++)
+		ProcessNavMeshTilesBox(ref state, pos, halfWidth, halfDepth, quadSize, (ref TerrainState s, long polyRefBase, int p, float avgX, float avgZ) =>
 		{
-			var tile = state.NavMesh.GetTile(t);
-			if (tile?.data?.header == null) continue;
-			long polyRefBase = state.NavMesh.GetPolyRefBase(tile);
-			for (int p = 0; p < tile.data.header.polyCount; p++)
-			{
-				var poly = tile.data.polys[p];
-				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
-
-				if (!IsPolyInBox(avgX, avgZ, pos, halfWidth, halfDepth, quadSize))
-					continue;
-
-				long polyRef = polyRefBase | (long)p;
-				state.NavMesh.SetPolyFlags(polyRef, 0);
-				state.NavMesh.SetPolyArea(polyRef, (char)0);
-			}
-		}
+			long polyRef = polyRefBase | (long)p;
+			s.NavMesh.SetPolyFlags(polyRef, 0);
+			s.NavMesh.SetPolyArea(polyRef, (char)0);
+		});
 	}
 
 	public void UncarveObstacle(ref TerrainState state, Vector3 pos, float radius)
@@ -329,7 +341,7 @@ public class TerrainNavMeshService
 
 	private void UncarvePathingGrid(ref TerrainState state, Vector3 pos, float radius, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
 	{
-		ProcessPathingGrid(ref state, pos, radius, minX, maxX, minZ, maxZ, width, depth, quadSize, (s, x, z) =>
+		ProcessPathingGrid(ref state, pos, radius, minX, maxX, minZ, maxZ, width, depth, quadSize, (ref TerrainState s, int x, int z) =>
 		{
 			float lx = (x + 0.5f - width / 2.0f) * quadSize;
 			float lz = (z + 0.5f - depth / 2.0f) * quadSize;
@@ -342,7 +354,7 @@ public class TerrainNavMeshService
 
 	private void UncarveNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, int width, int depth, float quadSize)
 	{
-		ProcessNavMeshTiles(ref state, pos, radius, quadSize, (s, polyRefBase, p, avgX, avgZ) =>
+		ProcessNavMeshTiles(ref state, pos, radius, quadSize, (ref TerrainState s, long polyRefBase, int p, float avgX, float avgZ) =>
 		{
 			if (IsPointCoveredByAnyObstacle(avgX, avgZ))
 				return;
@@ -353,46 +365,26 @@ public class TerrainNavMeshService
 
 	private void UncarvePathingGridBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int minX, int maxX, int minZ, int maxZ, int width, int depth, float quadSize)
 	{
-		if (state.PathingCodes == null) return;
-		for (int z = minZ; z <= maxZ; z++)
+		ProcessPathingGridBox(ref state, pos, halfWidth, halfDepth, minX, maxX, minZ, maxZ, width, depth, quadSize, (ref TerrainState s, int x, int z) =>
 		{
-			for (int x = minX; x <= maxX; x++)
+			float lx = (x + 0.5f - width / 2.0f) * quadSize;
+			float lz = (z + 0.5f - depth / 2.0f) * quadSize;
+			if (!IsPointCoveredByAnyObstacle(lx, lz))
 			{
-				float lx = (x + 0.5f - width / 2.0f) * quadSize;
-				float lz = (z + 0.5f - depth / 2.0f) * quadSize;
-				if (IsPointInBox(lx, lz, pos, halfWidth, halfDepth))
-				{
-					if (!IsPointCoveredByAnyObstacle(lx, lz))
-					{
-						RestorePathingCell(ref state, x, z);
-					}
-				}
+				RestorePathingCell(ref s, x, z);
 			}
-		}
+		});
 	}
 
 	private void UncarveNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int width, int depth, float quadSize)
 	{
-		int maxTiles = state.NavMesh.GetMaxTiles();
-		for (int t = 0; t < maxTiles; t++)
+		ProcessNavMeshTilesBox(ref state, pos, halfWidth, halfDepth, quadSize, (ref TerrainState s, long polyRefBase, int p, float avgX, float avgZ) =>
 		{
-			var tile = state.NavMesh.GetTile(t);
-			if (tile?.data?.header == null) continue;
-			long polyRefBase = state.NavMesh.GetPolyRefBase(tile);
-			for (int p = 0; p < tile.data.header.polyCount; p++)
+			if (!IsPointCoveredByAnyObstacle(avgX, avgZ))
 			{
-				var poly = tile.data.polys[p];
-				GetPolyCenter(tile, poly, out float avgX, out float avgZ);
-
-				if (!IsPolyInBox(avgX, avgZ, pos, halfWidth, halfDepth, quadSize))
-					continue;
-
-				if (!IsPointCoveredByAnyObstacle(avgX, avgZ))
-				{
-					RestoreNavMeshPoly(ref state, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
-				}
+				RestoreNavMeshPoly(ref s, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
 			}
-		}
+		});
 	}
 
 	private void GetRegionGridBounds(int width, int depth, float quadSize, float minX, float minZ, float maxX, float maxZ, out float x1, out float x2, out float z1, out float z2, out int startX, out int endX, out int startZ, out int endZ, out float halfW, out float halfD)
