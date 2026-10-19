@@ -131,5 +131,39 @@ namespace Realm.AdminServer.Helpers
                 }
             }
         }
+        public static void ParseManifestFileDetails(
+            Realm.Shared.Distribution.ContentAddressableStorage cas,
+            string path,
+            string norm,
+            ref string? metadataFileHash,
+            ref string thumbnailHash,
+            List<string> screenshotHashes,
+            ref long totalBytes)
+        {
+            if (path.Equals("metadata.json", StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith("/metadata.json", StringComparison.OrdinalIgnoreCase))
+            {
+                metadataFileHash = norm;
+            }
+
+            string ext = Path.GetExtension(path).ToLowerInvariant();
+            if (ext is ".png" or ".jpg" or ".jpeg" or ".webp")
+            {
+                if (string.IsNullOrEmpty(thumbnailHash) && (path.Contains("thumb", StringComparison.OrdinalIgnoreCase) || path.Contains("icon", StringComparison.OrdinalIgnoreCase) || path.Contains("cover", StringComparison.OrdinalIgnoreCase) || path.Contains("minimap", StringComparison.OrdinalIgnoreCase)))
+                {
+                    thumbnailHash = norm;
+                }
+                else
+                {
+                    screenshotHashes.Add(norm);
+                }
+            }
+
+            string? assetPath = cas.FindAssetFilePath(norm);
+            if (assetPath != null && File.Exists(assetPath))
+            {
+                totalBytes += new FileInfo(assetPath).Length;
+            }
+        }
     }
 }

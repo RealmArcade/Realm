@@ -102,4 +102,33 @@ public static class MapStatsHelper
 		var stats = GetStats(dataStore, mapTitle, mapVersion, authorPublicKey);
 		return stats != null && stats.IsGreenlit;
 	}
-}
+
+        public static void UpsertMapStats(
+            DataStoreService db, 
+            string mapTitle, 
+            string? authorPublicKey, 
+            string authorCompositeKey, 
+            string compositeKey, 
+            MapStats stats)
+        {
+            db.Upsert("map_stats", authorCompositeKey, stats);
+            db.Upsert("map_stats", authorCompositeKey.ToLowerInvariant(), stats);
+
+            if (!string.IsNullOrEmpty(authorPublicKey))
+            {
+                db.Upsert("map_stats", $"{mapTitle}_{authorPublicKey}", stats);
+                db.Upsert("map_stats", $"{mapTitle}_{authorPublicKey}".ToLowerInvariant(), stats);
+            }
+
+            if (stats.IsGreenlit)
+            {
+                db.Upsert("map_stats", compositeKey, stats);
+                db.Upsert("map_stats", mapTitle, stats);
+                db.Upsert("map_stats", compositeKey.ToLowerInvariant(), stats);
+                db.Upsert("map_stats", mapTitle.ToLowerInvariant(), stats);
+            }
+        }
+
+
+    }
+
