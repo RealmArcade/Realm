@@ -10,6 +10,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class MapDetails : Control
 {
 	public MapDetails()
@@ -156,6 +157,7 @@ public partial class MapDetails : Control
 		_versionContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 
 		_versionLabel = new Label();
+		_versionLabel.Name = "VersionLabel_Label";
 		_versionLabel.Text = Tr("VERSION:");
 		_versionLabel.VerticalAlignment = VerticalAlignment.Center;
 		_versionLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -436,6 +438,7 @@ public partial class MapDetails : Control
 	private void WrapInPanelContainer(Control content, string stylePath)
 	{
 		var wrapper = new PanelContainer();
+		wrapper.Name = "Wrapper_PanelContainer";
 		if (ResourceLoader.Exists(stylePath))
 		{
 			wrapper.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
@@ -855,6 +858,7 @@ public partial class MapDetails : Control
 	private void CreateFeatureRow(string feat, bool isActive)
 	{
 		var rowPanel = new PanelContainer();
+		rowPanel.Name = "RowPanel_PanelContainer";
 		var rowStyle = new StyleBoxFlat();
 		rowStyle.BgColor = isActive ? new Color(0.03f, 0.05f, 0.08f, 0.65f) : new Color(0.02f, 0.03f, 0.04f, 0.35f);
 		rowStyle.BorderColor = isActive ? new Color(0.15f, 0.65f, 1.0f, 0.5f) : new Color(0.35f, 0.3f, 0.22f, 0.25f);
@@ -867,10 +871,12 @@ public partial class MapDetails : Control
 		rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
 
 		var hBox = new HBoxContainer();
+		hBox.Name = "HBox_HBoxContainer";
 		hBox.AddThemeConstantOverride("separation", 10);
 		rowPanel.AddChild(hBox);
 
 		var iconRect = new TextureRect();
+		iconRect.Name = "IconRect_TextureRect";
 		iconRect.CustomMinimumSize = new Vector2(22, 22);
 		iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -878,6 +884,7 @@ public partial class MapDetails : Control
 		hBox.AddChild(iconRect);
 
 		var label = new Label();
+		label.Name = "Label_Label";
 		label.Text = feat;
 		label.VerticalAlignment = VerticalAlignment.Center;
 		label.AddThemeColorOverride("font_color", isActive ? new Color(0.92f, 0.95f, 1.0f) : new Color(0.55f, 0.58f, 0.65f));
@@ -920,6 +927,7 @@ public partial class MapDetails : Control
 		for (int i = 0; i < 5; i++)
 		{
 			var star = new Label();
+			star.Name = "Star_Label";
 			star.Text = i < filledStars ? "★" : "☆";
 			star.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			star.AddThemeFontSizeOverride("font_size", 16);
@@ -939,6 +947,7 @@ public partial class MapDetails : Control
 		foreach (var awardPath in _mapData.Awards)
 		{
 			var badgePanel = new PanelContainer();
+			badgePanel.Name = "BadgePanel_PanelContainer";
 			var badgeStyle = new StyleBoxFlat();
 			badgeStyle.BgColor = new Color(0.08f, 0.09f, 0.12f, 0.85f);
 			badgeStyle.BorderColor = UIStyle.ColorGoldDull;
@@ -951,6 +960,7 @@ public partial class MapDetails : Control
 			badgePanel.AddThemeStyleboxOverride("panel", badgeStyle);
 
 			var rect = new TextureRect();
+			rect.Name = "Rect_TextureRect";
 			rect.CustomMinimumSize = new Vector2(36, 36);
 			rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -990,6 +1000,7 @@ public partial class MapDetails : Control
 	private void AddStatRow(VBoxContainer container, string iconPath, string text)
 	{
 		var rowPanel = new PanelContainer();
+		rowPanel.Name = "RowPanel_PanelContainer";
 		var rowStyle = new StyleBoxFlat();
 		rowStyle.BgColor = new Color(0.02f, 0.03f, 0.04f, 0.5f);
 		rowStyle.BorderColor = new Color(0.45f, 0.38f, 0.25f, 0.35f);
@@ -1002,10 +1013,12 @@ public partial class MapDetails : Control
 		rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
 
 		var hBox = new HBoxContainer();
+		hBox.Name = "HBox_HBoxContainer";
 		hBox.AddThemeConstantOverride("separation", 10);
 		rowPanel.AddChild(hBox);
 
 		var icon = new TextureRect();
+		icon.Name = "Icon_TextureRect";
 		icon.CustomMinimumSize = new Vector2(24, 24);
 		icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -1016,6 +1029,7 @@ public partial class MapDetails : Control
 		if (parts.Length == 2)
 		{
 			var keyLabel = new Label();
+			keyLabel.Name = "KeyLabel_Label";
 			keyLabel.Text = parts[0].Trim() + ":";
 			keyLabel.VerticalAlignment = VerticalAlignment.Center;
 			keyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -1023,6 +1037,7 @@ public partial class MapDetails : Control
 			hBox.AddChild(keyLabel);
 
 			var valueLabel = new Label();
+			valueLabel.Name = "ValueLabel_Label";
 			valueLabel.Text = parts[1].Trim();
 			valueLabel.VerticalAlignment = VerticalAlignment.Center;
 			valueLabel.AddThemeColorOverride("font_color", new Color(0.92f, 0.94f, 0.98f));
@@ -1033,6 +1048,7 @@ public partial class MapDetails : Control
 		else
 		{
 			var label = new Label();
+			label.Name = "Label_Label";
 			label.Text = text;
 			label.VerticalAlignment = VerticalAlignment.Center;
 			label.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
@@ -1050,6 +1066,7 @@ public partial class MapDetails : Control
 		if (titleLabel.GetParent() is PanelContainer) return;
 
 		var card = new PanelContainer();
+		card.Name = "Card_PanelContainer";
 		var cardStyle = new StyleBoxFlat();
 		cardStyle.BgColor = isAccentCard
 			? new Color(0.06f, 0.07f, 0.10f, 0.8f)
@@ -1066,6 +1083,7 @@ public partial class MapDetails : Control
 		card.AddThemeStyleboxOverride("panel", cardStyle);
 
 		var innerVBox = new VBoxContainer();
+		innerVBox.Name = "InnerVBox_VBoxContainer";
 		innerVBox.AddThemeConstantOverride("separation", 8);
 
 		int insertIndex = titleLabel.GetIndex();

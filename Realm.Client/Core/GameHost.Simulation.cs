@@ -475,6 +475,7 @@ public partial class GameHost
 	private MeshInstance3D CreateGhostMesh(string buildType)
 	{
 		var mesh = new MeshInstance3D();
+		mesh.Name = "Mesh_MeshInstance3D";
 		float bWidth = 3.2f;
 		float bHeight = 4f;
 		if (TryGetUnitOrBuildingMetadata(buildType, out var bMeta))

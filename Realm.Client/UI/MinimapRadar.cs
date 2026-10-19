@@ -2,6 +2,7 @@ using Godot;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class MinimapRadar : Control
 {
 	public override void _Draw()

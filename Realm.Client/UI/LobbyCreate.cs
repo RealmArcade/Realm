@@ -9,6 +9,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class LobbyCreate : Control
 {
 	public LobbyCreate()
@@ -112,6 +113,7 @@ public partial class LobbyCreate : Control
 		_versionContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 
 		_versionLabel = new Label();
+		_versionLabel.Name = "VersionLabel_Label";
 		_versionLabel.Text = Tr("VERSION:");
 		_versionLabel.VerticalAlignment = VerticalAlignment.Center;
 		_versionContainer.AddChild(_versionLabel);
@@ -379,17 +381,20 @@ public partial class LobbyCreate : Control
 	private void ShowMapBuildMismatchModal(string mapPath, string mapDisplayName, string mapBuildNumber, string currentBuildNumber)
 	{
 		var warningPopup = new Panel();
+		warningPopup.Name = "WarningPopup_Panel";
 		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		AddChild(warningPopup);
 
 		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
 		cardPanel.CustomMinimumSize = new Vector2(520, 290);
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		warningPopup.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		vbox.CustomMinimumSize = new Vector2(480, 260);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -399,6 +404,7 @@ public partial class LobbyCreate : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, Tr("MAP BUILD MISMATCH"), 20);
 		titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
 		vbox.AddChild(titleLabel);
@@ -408,6 +414,7 @@ public partial class LobbyCreate : Control
 		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(mapBuildNumber));
 
 		var descLabel = new Label();
+		descLabel.Name = "DescLabel_Label";
 		string promptText = Tr("This map is out of date. To host this match, download the matching game build or open the map in the Map Editor to upgrade it.");
 		descLabel.Text = $"{string.Format(Tr("Map: {0}"), mapDisplayName)}\n{string.Format(Tr("Map Build: {0}"), mapBuildNumber)} | {string.Format(Tr("Current Build: {0}"), currentBuildNumber)}\n\n{promptText}";
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -418,11 +425,13 @@ public partial class LobbyCreate : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 		var hBox = new HBoxContainer();
+		hBox.Name = "HBox_HBoxContainer";
 		hBox.Alignment = BoxContainer.AlignmentMode.Center;
 		hBox.AddThemeConstantOverride("separation", 12);
 		vbox.AddChild(hBox);
 
 		var editorBtn = new Button();
+		editorBtn.Name = "EditorBtn_Button";
 		editorBtn.Flat = false;
 		editorBtn.AddThemeConstantOverride("icon_max_width", 0);
 		editorBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -440,6 +449,7 @@ public partial class LobbyCreate : Control
 		hBox.AddChild(editorBtn);
 
 		var versionBtn = new Button();
+		versionBtn.Name = "VersionBtn_Button";
 		versionBtn.Flat = false;
 		versionBtn.AddThemeConstantOverride("icon_max_width", 0);
 		versionBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -463,6 +473,7 @@ public partial class LobbyCreate : Control
 		hBox.AddChild(versionBtn);
 
 		var cancelBtn = new Button();
+		cancelBtn.Name = "CancelBtn_Button";
 		cancelBtn.Flat = false;
 		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
 		cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -482,17 +493,20 @@ public partial class LobbyCreate : Control
 	private void ShowSTUNErrorModal()
 	{
 		var warningPopup = new Panel();
+		warningPopup.Name = "WarningPopup_Panel";
 		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		AddChild(warningPopup);
 
 		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
 		cardPanel.CustomMinimumSize = new Vector2(450, 220);
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		warningPopup.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		vbox.CustomMinimumSize = new Vector2(400, 180);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -502,6 +516,7 @@ public partial class LobbyCreate : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, Tr("HOSTING ERROR"), 20);
 		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 		vbox.AddChild(titleLabel);
@@ -509,6 +524,7 @@ public partial class LobbyCreate : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
 		var descLabel = new Label();
+		descLabel.Name = "DescLabel_Label";
 		descLabel.Text = Tr("STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP.");
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		descLabel.AddThemeFontSizeOverride("font_size", 14);
@@ -518,6 +534,7 @@ public partial class LobbyCreate : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 		var okBtn = new Button();
+		okBtn.Name = "OkBtn_Button";
 		okBtn.Flat = false;
 		okBtn.AddThemeConstantOverride("icon_max_width", 0);
 		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -539,17 +556,20 @@ public partial class LobbyCreate : Control
 	private void ShowHostErrorModal(string errorMessage)
 	{
 		var warningPopup = new Panel();
+		warningPopup.Name = "WarningPopup_Panel";
 		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		AddChild(warningPopup);
 
 		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
 		cardPanel.CustomMinimumSize = new Vector2(480, 240);
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		warningPopup.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		vbox.CustomMinimumSize = new Vector2(440, 200);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -559,6 +579,7 @@ public partial class LobbyCreate : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, Tr("LOBBY CREATION ERROR"), 20);
 		titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.35f, 0.35f));
 		vbox.AddChild(titleLabel);
@@ -566,6 +587,7 @@ public partial class LobbyCreate : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
 		var descLabel = new Label();
+		descLabel.Name = "DescLabel_Label";
 		descLabel.Text = errorMessage;
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -576,6 +598,7 @@ public partial class LobbyCreate : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 		var okBtn = new Button();
+		okBtn.Name = "OkBtn_Button";
 		okBtn.Flat = false;
 		okBtn.AddThemeConstantOverride("icon_max_width", 0);
 		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());

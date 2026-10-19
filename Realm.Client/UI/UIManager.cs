@@ -12,6 +12,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class UIManager : Control
 {
 	public static UIManager Instance { get; private set; }
@@ -84,6 +85,7 @@ public partial class UIManager : Control
 
 #if DEBUG
 		_watermark = new Label();
+		_watermark.Name = "Watermark_Label";
 		_watermark.Text = string.Format(TranslationServer.Translate("Realm {0}"), RealmVersion.GameBinaryVersion);
 		_watermark.AddThemeColorOverride("font_color", new Color(1.0f, 1.0f, 1.0f, 0.5f));
 		_watermark.AddThemeColorOverride("font_outline_color", new Color(0.0f, 0.0f, 0.0f, 0.8f));
@@ -287,12 +289,14 @@ public partial class UIManager : Control
 	private void CreateFadeOverlay()
 	{
 		_fadeOverlay = new ColorRect();
+		_fadeOverlay.Name = "FadeOverlay_ColorRect";
 		_fadeOverlay.Color = new Color(0, 0, 0, 1); // Black
 		_fadeOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		_fadeOverlay.MouseFilter = MouseFilterEnum.Ignore; // Let clicks pass when transparent
 		AddChild(_fadeOverlay);
 
 		_fadeAnim = new AnimationPlayer();
+		_fadeAnim.Name = "FadeAnim_AnimationPlayer";
 		AddChild(_fadeAnim);
 
 
@@ -642,6 +646,7 @@ public partial class UIManager : Control
 		AddChild(overlay);
 
 		var panel = new PanelContainer();
+		panel.Name = "Panel_PanelContainer";
 		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		panel.CustomMinimumSize = new Vector2(400, 200);
 		panel.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
@@ -653,15 +658,18 @@ public partial class UIManager : Control
 		center.AddChild(panel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.AddThemeConstantOverride("separation", 15);
 		panel.AddChild(vbox);
 
 		var lblTitle = new Label();
+		lblTitle.Name = "LblTitle_Label";
 		UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate(showCancel ? "CONFIRMATION REQUIRED" : "NOTIFICATION"), 18);
 		lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		vbox.AddChild(lblTitle);
 
 		var lblMsg = new Label();
+		lblMsg.Name = "LblMsg_Label";
 		lblMsg.Text = TranslationServer.Translate(message);
 		lblMsg.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		lblMsg.HorizontalAlignment = HorizontalAlignment.Center;
@@ -670,11 +678,13 @@ public partial class UIManager : Control
 		vbox.AddChild(lblMsg);
 
 		var hbox = new HBoxContainer();
+		hbox.Name = "Hbox_HBoxContainer";
 		hbox.AddThemeConstantOverride("separation", 20);
 		hbox.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		vbox.AddChild(hbox);
 
 		var btnConfirm = new Button();
+		btnConfirm.Name = "BtnConfirm_Button";
 		btnConfirm.Set("icon_max_width", 0);
 		UIStyle.ApplyButtonText(btnConfirm, TranslationServer.Translate(confirmText), 13);
 		btnConfirm.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -691,6 +701,7 @@ public partial class UIManager : Control
 		if (showCancel)
 		{
 			var btnCancel = new Button();
+			btnCancel.Name = "BtnCancel_Button";
 			btnCancel.Set("icon_max_width", 0);
 			UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate(cancelText), 13);
 			btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -760,20 +771,24 @@ public partial class UIManager : Control
 		overlay.AddChild(center);
 
 		var panel = new PanelContainer();
+		panel.Name = "Panel_PanelContainer";
 		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		panel.CustomMinimumSize = new Vector2(500, 220);
 		center.AddChild(panel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.AddThemeConstantOverride("separation", 12);
 		panel.AddChild(vbox);
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, "📥 " + TranslationServer.Translate("IMPORTING MAP ARCHIVE"), 20);
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
 
 		var fileNameLabel = new Label();
+		fileNameLabel.Name = "FileNameLabel_Label";
 		fileNameLabel.Text = Path.GetFileName(archivePath);
 		fileNameLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		fileNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -781,6 +796,7 @@ public partial class UIManager : Control
 		vbox.AddChild(fileNameLabel);
 
 		progressBar = new ProgressBar();
+		progressBar.Name = "ProgressBar_ProgressBar";
 		progressBar.CustomMinimumSize = new Vector2(440, 22);
 		progressBar.MinValue = 0;
 		progressBar.MaxValue = 100;
@@ -788,6 +804,7 @@ public partial class UIManager : Control
 		vbox.AddChild(progressBar);
 
 		statusLabel = new Label();
+		statusLabel.Name = "StatusLabel_Label";
 		statusLabel.Text = TranslationServer.Translate("Extracting and validating archive contents...");
 		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		statusLabel.AddThemeFontSizeOverride("font_size", 13);

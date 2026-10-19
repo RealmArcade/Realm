@@ -30,6 +30,7 @@ using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 
+[GlobalClass]
 public partial class LobbyManager : Node
 {
 	public static LobbyManager Instance { get; private set; }

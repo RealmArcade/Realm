@@ -9,6 +9,7 @@ using Realm.Shared.Textures;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class EditableTerrain : RuntimeTerrain
 {
 	public new static EditableTerrain Instance => RuntimeTerrain.Instance as EditableTerrain;

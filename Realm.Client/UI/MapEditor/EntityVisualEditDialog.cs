@@ -9,8 +9,11 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class EntityVisualEditDialog : FloatingDialogBase
 {
+	public EntityVisualEditDialog() { }
+
 	private string _category = "units";
 	private string _objectType = "unit";
 	private string _slug = "";
@@ -93,6 +96,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		var scrollBody = CreateScrollBody(600);
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
@@ -116,21 +120,25 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private void BuildIdRow(VBoxContainer contentVBox)
 	{
 		_idRow = new HBoxContainer();
+		_idRow.Name = "IdRow_HBoxContainer";
 		_idRow.AddThemeConstantOverride("separation", 6);
 
 		var lblId = new Label();
+		lblId.Name = "LblId_Label";
 		lblId.Text = TranslationServer.Translate("TemplateID:");
 		lblId.CustomMinimumSize = new Vector2(140, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		_idRow.AddChild(lblId);
 
 		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
 		_lblObjectTypePrefix.Text = "unit/";
 		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_idRow.AddChild(_lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("snake_case_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -144,6 +152,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		contentVBox.AddChild(_idRow);
 
 		_lblSlugValidation = new Label();
+		_lblSlugValidation.Name = "LblSlugValidation_Label";
 		_lblSlugValidation.AddThemeFontSizeOverride("font_size", 10);
 		_lblSlugValidation.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.4f));
 		_lblSlugValidation.Visible = false;
@@ -153,15 +162,18 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private void BuildVisualModeRow(VBoxContainer contentVBox)
 	{
 		_visualModeRow = new HBoxContainer();
+		_visualModeRow.Name = "VisualModeRow_HBoxContainer";
 		_visualModeRow.AddThemeConstantOverride("separation", 8);
 
 		var lblMode = new Label();
+		lblMode.Name = "LblMode_Label";
 		lblMode.Text = TranslationServer.Translate("Visual Primitive:");
 		lblMode.CustomMinimumSize = new Vector2(140, 0);
 		lblMode.AddThemeFontSizeOverride("font_size", 11);
 		_visualModeRow.AddChild(lblMode);
 
 		_optVisualMode = new OptionButton();
+		_optVisualMode.Name = "OptVisualMode_OptionButton";
 		_optVisualMode.CustomMinimumSize = new Vector2(180, 24);
 		_optVisualMode.AddThemeFontSizeOverride("font_size", 11);
 		_optVisualMode.AddItem(TranslationServer.Translate("Ground Plane (Horizontal)"), 0);

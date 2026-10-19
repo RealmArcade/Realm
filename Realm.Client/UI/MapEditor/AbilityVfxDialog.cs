@@ -10,8 +10,11 @@ using Realm.Shared.Textures;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 {
+	public AbilityVfxDialog() { }
+
 	private ProceduralVfxInstance3D _vfxInstance;
 	private MeshInstance3D _aoeRingMesh;
 	private MeshInstance3D _aoeDiskMesh;
@@ -75,6 +78,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		Setup3DEnvironment();
 
 		var topControlsVBox = new VBoxContainer();
+		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
 		topControlsVBox.AddThemeConstantOverride("separation", 6);
 		BodyContainer.AddChild(topControlsVBox);
 
@@ -86,6 +90,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		AddButton(presetRow, "🔥 " + TranslationServer.Translate("Cast Test"), () => TriggerCastTest(), "Simulate casting ability VFX & sound", 10, new Vector2(90, 22));
 
 		var playbackRow = new HBoxContainer();
+		playbackRow.Name = "PlaybackRow_HBoxContainer";
 		playbackRow.AddThemeConstantOverride("separation", 6);
 
 		AddButton(playbackRow, "▶ " + TranslationServer.Translate("Play"), () => PlayVfxAnimation(), "Play VFX", 10, new Vector2(50, 22));
@@ -93,12 +98,14 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		AddButton(playbackRow, "⏹ " + TranslationServer.Translate("Stop"), () => StopVfxAnimation(), "Stop VFX", 10, new Vector2(50, 22));
 
 		var lblSpeed = new Label();
+		lblSpeed.Name = "LblSpeed_Label";
 		lblSpeed.Text = TranslationServer.Translate("Speed:");
 		lblSpeed.AddThemeFontSizeOverride("font_size", 10);
 		lblSpeed.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		playbackRow.AddChild(lblSpeed);
 
 		var sldSpeed = new HSlider();
+		sldSpeed.Name = "SldSpeed_HSlider";
 		sldSpeed.MinValue = 0.25;
 		sldSpeed.MaxValue = 2.50;
 		sldSpeed.Step = 0.05;
@@ -119,6 +126,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		var scrollBody = CreateScrollBody(340);
 		var configVBox = new VBoxContainer();
+		configVBox.Name = "ConfigVBox_VBoxContainer";
 		configVBox.AddThemeConstantOverride("separation", 10);
 		configVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(configVBox);
@@ -127,20 +135,24 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		AddSectionHeader(configVBox, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
 
 		var rowId = new HBoxContainer();
+		rowId.Name = "RowId_HBoxContainer";
 		rowId.AddThemeConstantOverride("separation", 6);
 		var lblId = new Label();
+		lblId.Name = "LblId_Label";
 		lblId.Text = TranslationServer.Translate("TemplateID:");
 		lblId.CustomMinimumSize = new Vector2(140, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		rowId.AddChild(lblId);
 
 		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
 		_lblObjectTypePrefix.Text = "ability/";
 		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		rowId.AddChild(_lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("ability_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -169,13 +181,16 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		AddSectionHeader(configVBox, "🎨 " + TranslationServer.Translate("ABILITY ICON"), new Color(0.95f, 0.8f, 0.4f));
 
 		var iconRow = new HBoxContainer();
+		iconRow.Name = "IconRow_HBoxContainer";
 		iconRow.AddThemeConstantOverride("separation", 8);
 
 		var iconPanel = new PanelContainer();
+		iconPanel.Name = "IconPanel_PanelContainer";
 		iconPanel.CustomMinimumSize = new Vector2(48, 48);
 		iconPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
 		_iconPreviewRect = new TextureRect();
+		_iconPreviewRect.Name = "IconPreviewRect_TextureRect";
 		_iconPreviewRect.CustomMinimumSize = new Vector2(44, 44);
 		_iconPreviewRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_iconPreviewRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -183,6 +198,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		iconRow.AddChild(iconPanel);
 
 		var iconDropdownVBox = new VBoxContainer();
+		iconDropdownVBox.Name = "IconDropdownVBox_VBoxContainer";
 		iconDropdownVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 		(_txtIconPath, _setIconPathValue) = AddAssetFilterDropdown(

@@ -7,8 +7,11 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class ItemUpgradeEditDialog : FloatingDialogBase
 {
+	public ItemUpgradeEditDialog() { }
+
 	private string _category = "items";
 	private string _objectType = "item";
 	private string _slug = "";
@@ -56,6 +59,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 
 		var scrollBody = CreateScrollBody(400);
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
@@ -63,21 +67,25 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & ICON"), new Color(0.95f, 0.8f, 0.4f));
 
 		var idRow = new HBoxContainer();
+		idRow.Name = "IdRow_HBoxContainer";
 		idRow.AddThemeConstantOverride("separation", 6);
 
 		var lblId = new Label();
+		lblId.Name = "LblId_Label";
 		lblId.Text = TranslationServer.Translate("TemplateID:");
 		lblId.CustomMinimumSize = new Vector2(120, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		idRow.AddChild(lblId);
 
 		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
 		_lblObjectTypePrefix.Text = "item/";
 		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		idRow.AddChild(_lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("snake_case_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -90,6 +98,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		contentVBox.AddChild(idRow);
 
 		_lblSlugValidation = new Label();
+		_lblSlugValidation.Name = "LblSlugValidation_Label";
 		_lblSlugValidation.AddThemeFontSizeOverride("font_size", 10);
 		_lblSlugValidation.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.4f));
 		_lblSlugValidation.Visible = false;
@@ -137,16 +146,19 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		AddDescription(contentVBox, TranslationServer.Translate("Custom syntax supported: <b>Bold</b>, <i>Italics</i>, <color=#RRGGBB>Colors</color>, and standard BBCode tags."));
 
 		var previewPanel = new PanelContainer();
+		previewPanel.Name = "PreviewPanel_PanelContainer";
 		previewPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		previewPanel.CustomMinimumSize = new Vector2(0, 80);
 
 		var previewMargin = new MarginContainer();
+		previewMargin.Name = "PreviewMargin_MarginContainer";
 		previewMargin.AddThemeConstantOverride("margin_left", 8);
 		previewMargin.AddThemeConstantOverride("margin_right", 8);
 		previewMargin.AddThemeConstantOverride("margin_top", 8);
 		previewMargin.AddThemeConstantOverride("margin_bottom", 8);
 
 		_previewContainer = new VBoxContainer();
+		_previewContainer.Name = "PreviewContainer_VBoxContainer";
 		_previewContainer.AddThemeConstantOverride("separation", 6);
 		previewMargin.AddChild(_previewContainer);
 		previewPanel.AddChild(previewMargin);
@@ -154,6 +166,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		contentVBox.AddChild(previewPanel);
 
 		_grantedCapabilitiesSection = new VBoxContainer();
+		_grantedCapabilitiesSection.Name = "GrantedCapabilitiesSection_VBoxContainer";
 		_grantedCapabilitiesSection.AddThemeConstantOverride("separation", 10);
 		contentVBox.AddChild(_grantedCapabilitiesSection);
 
@@ -161,10 +174,12 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 
 		AddLabel(_grantedCapabilitiesSection, TranslationServer.Translate("Granted Weapons:"), 11, UIStyle.ColorGold);
 		_vboxGrantedWeapons = new VBoxContainer();
+		_vboxGrantedWeapons.Name = "VboxGrantedWeapons_VBoxContainer";
 		_vboxGrantedWeapons.AddThemeConstantOverride("separation", 4);
 		_grantedCapabilitiesSection.AddChild(_vboxGrantedWeapons);
 
 		var btnAddWeapon = new Button();
+		btnAddWeapon.Name = "BtnAddWeapon_Button";
 		btnAddWeapon.Text = "+ " + TranslationServer.Translate("Add Granted Weapon");
 		btnAddWeapon.AddThemeFontSizeOverride("font_size", 10);
 		btnAddWeapon.FocusMode = FocusModeEnum.None;
@@ -177,10 +192,12 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 
 		AddLabel(_grantedCapabilitiesSection, TranslationServer.Translate("Granted Abilities:"), 11, UIStyle.ColorGold);
 		_vboxGrantedAbilities = new VBoxContainer();
+		_vboxGrantedAbilities.Name = "VboxGrantedAbilities_VBoxContainer";
 		_vboxGrantedAbilities.AddThemeConstantOverride("separation", 4);
 		_grantedCapabilitiesSection.AddChild(_vboxGrantedAbilities);
 
 		var btnAddAbility = new Button();
+		btnAddAbility.Name = "BtnAddAbility_Button";
 		btnAddAbility.Text = "+ " + TranslationServer.Translate("Add Granted Ability");
 		btnAddAbility.AddThemeFontSizeOverride("font_size", 10);
 		btnAddAbility.FocusMode = FocusModeEnum.None;
@@ -193,10 +210,12 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 
 		AddLabel(_grantedCapabilitiesSection, TranslationServer.Translate("Granted Upgrades:"), 11, UIStyle.ColorGold);
 		_vboxGrantedUpgrades = new VBoxContainer();
+		_vboxGrantedUpgrades.Name = "VboxGrantedUpgrades_VBoxContainer";
 		_vboxGrantedUpgrades.AddThemeConstantOverride("separation", 4);
 		_grantedCapabilitiesSection.AddChild(_vboxGrantedUpgrades);
 
 		var btnAddUpgrade = new Button();
+		btnAddUpgrade.Name = "BtnAddUpgrade_Button";
 		btnAddUpgrade.Text = "+ " + TranslationServer.Translate("Add Granted Upgrade");
 		btnAddUpgrade.AddThemeFontSizeOverride("font_size", 10);
 		btnAddUpgrade.FocusMode = FocusModeEnum.None;
@@ -220,9 +239,11 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		{
 			int index = i;
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 			row.AddThemeConstantOverride("separation", 6);
 
 			var txt = new LineEdit();
+			txt.Name = "Txt_LineEdit";
 			txt.Text = _grantedWeapons[index];
 			txt.PlaceholderText = TranslationServer.Translate("Weapon ID (e.g. weapon/sword)");
 			txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -231,6 +252,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 			row.AddChild(txt);
 
 			var btnDel = new Button();
+			btnDel.Name = "BtnDel_Button";
 			btnDel.Text = "✕";
 			btnDel.CustomMinimumSize = new Vector2(24, 24);
 			btnDel.FocusMode = FocusModeEnum.None;
@@ -257,9 +279,11 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		{
 			int index = i;
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 			row.AddThemeConstantOverride("separation", 6);
 
 			var txt = new LineEdit();
+			txt.Name = "Txt_LineEdit";
 			txt.Text = _grantedAbilities[index];
 			txt.PlaceholderText = TranslationServer.Translate("Ability ID (e.g. ability/fireball)");
 			txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -268,6 +292,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 			row.AddChild(txt);
 
 			var btnDel = new Button();
+			btnDel.Name = "BtnDel_Button";
 			btnDel.Text = "✕";
 			btnDel.CustomMinimumSize = new Vector2(24, 24);
 			btnDel.FocusMode = FocusModeEnum.None;
@@ -294,9 +319,11 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		{
 			int index = i;
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 			row.AddThemeConstantOverride("separation", 6);
 
 			var txt = new LineEdit();
+			txt.Name = "Txt_LineEdit";
 			txt.Text = _grantedUpgrades[index];
 			txt.PlaceholderText = TranslationServer.Translate("Upgrade ID (e.g. upgrade/iron_forging)");
 			txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -305,6 +332,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 			row.AddChild(txt);
 
 			var btnDel = new Button();
+			btnDel.Name = "BtnDel_Button";
 			btnDel.Text = "✕";
 			btnDel.CustomMinimumSize = new Vector2(24, 24);
 			btnDel.FocusMode = FocusModeEnum.None;

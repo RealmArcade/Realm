@@ -15,6 +15,7 @@ using Environment = System.Environment;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class GlbThumbnailRenderer : Node
 {
 	private static GlbThumbnailRenderer? _instance;
@@ -105,6 +106,7 @@ public partial class GlbThumbnailRenderer : Node
 		if (_subViewport != null) return;
 
 		_subViewport = new SubViewport();
+		_subViewport.Name = "SubViewport_SubViewport";
 		_subViewport.Size = new Vector2I(128, 128);
 		_subViewport.TransparentBg = false;
 		_subViewport.OwnWorld3D = true;
@@ -125,18 +127,21 @@ public partial class GlbThumbnailRenderer : Node
 		_subViewport.AddChild(_modelContainer);
 
 		_keyLight = new DirectionalLight3D();
+		_keyLight.Name = "KeyLight_DirectionalLight3D";
 		_keyLight.LightColor = new Color(1.0f, 0.96f, 0.90f);
 		_keyLight.LightEnergy = 1.5f;
 		_keyLight.RotationDegrees = new Vector3(-35, 45, 0);
 		_subViewport.AddChild(_keyLight);
 
 		_fillLight = new DirectionalLight3D();
+		_fillLight.Name = "FillLight_DirectionalLight3D";
 		_fillLight.LightColor = new Color(0.55f, 0.70f, 0.95f);
 		_fillLight.LightEnergy = 0.9f;
 		_fillLight.RotationDegrees = new Vector3(25, -135, 0);
 		_subViewport.AddChild(_fillLight);
 
 		_camera = new Camera3D();
+		_camera.Name = "Camera_Camera3D";
 		_camera.Current = true;
 		_camera.Fov = 35.0f;
 		_camera.Near = 0.01f;

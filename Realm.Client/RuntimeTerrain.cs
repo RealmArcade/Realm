@@ -19,6 +19,7 @@ using Array = Godot.Collections.Array;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class RuntimeTerrain : Node3D
 {
 	public const uint TerrainCollisionLayer = 2;

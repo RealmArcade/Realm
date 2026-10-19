@@ -9,8 +9,11 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class EditorSettingsDialog : FloatingDialogBase
 {
+	public EditorSettingsDialog() { }
+
 	private const string SettingsFilePath = "user://editor_settings.json";
 
 	public static EditorPreferencesData CurrentSettings { get; private set; } = new EditorPreferencesData();
@@ -47,11 +50,13 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 	{
 		var scrollBody = CreateScrollBody(400);
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.AddThemeConstantOverride("separation", 12);
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
 
 		var topInfoSpacer = new Control();
+		topInfoSpacer.Name = "TopInfoSpacer_Control";
 		topInfoSpacer.CustomMinimumSize = new Vector2(0, 18);
 		contentVBox.AddChild(topInfoSpacer);
 
@@ -108,6 +113,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 	private void BuildWorkflowSection(VBoxContainer contentVBox)
 	{
 		var spacer1 = new Control();
+		spacer1.Name = "Spacer1_Control";
 		spacer1.CustomMinimumSize = new Vector2(0, 10);
 		contentVBox.AddChild(spacer1);
 
@@ -164,10 +170,12 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		);
 
 		var btnBackupsRow = new HBoxContainer();
+		btnBackupsRow.Name = "BtnBackupsRow_HBoxContainer";
 		btnBackupsRow.AddThemeConstantOverride("separation", 10);
 		contentVBox.AddChild(btnBackupsRow);
 
 		var btnOpenBackups = new Button();
+		btnOpenBackups.Name = "BtnOpenBackups_Button";
 		btnOpenBackups.Set("icon_max_width", 0);
 		btnOpenBackups.Text = "📁 " + TranslationServer.Translate("Open map_backups folder");
 		btnOpenBackups.TooltipText = TranslationServer.Translate("Reveals the map_backups folder in Windows Explorer");
@@ -180,16 +188,19 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 	private void BuildDeveloperToolsSection(VBoxContainer contentVBox)
 	{
 		var spacer2 = new Control();
+		spacer2.Name = "Spacer2_Control";
 		spacer2.CustomMinimumSize = new Vector2(0, 10);
 		contentVBox.AddChild(spacer2);
 
 		AddSectionHeader(contentVBox, "🛠️ " + TranslationServer.Translate("DEVELOPER & EDITOR TOOLS"), new Color(0.6f, 0.85f, 0.95f));
 
 		var btnAuthorSignatureRow = new HBoxContainer();
+		btnAuthorSignatureRow.Name = "BtnAuthorSignatureRow_HBoxContainer";
 		btnAuthorSignatureRow.AddThemeConstantOverride("separation", 10);
 		contentVBox.AddChild(btnAuthorSignatureRow);
 
 		var btnAuthorSignature = new Button();
+		btnAuthorSignature.Name = "BtnAuthorSignature_Button";
 		btnAuthorSignature.Set("icon_max_width", 0);
 		btnAuthorSignature.Text = "✍️ " + TranslationServer.Translate("Author Signature");
 		btnAuthorSignature.TooltipText = TranslationServer.Translate("View author identity key, signature details, and backup location");
@@ -199,10 +210,12 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		btnAuthorSignatureRow.AddChild(btnAuthorSignature);
 
 		var btnRepairRow = new HBoxContainer();
+		btnRepairRow.Name = "BtnRepairRow_HBoxContainer";
 		btnRepairRow.AddThemeConstantOverride("separation", 10);
 		contentVBox.AddChild(btnRepairRow);
 
 		var btnRepairAssetIndex = new Button();
+		btnRepairAssetIndex.Name = "BtnRepairAssetIndex_Button";
 		btnRepairAssetIndex.Set("icon_max_width", 0);
 		btnRepairAssetIndex.Text = "🗄️ " + TranslationServer.Translate("Repair Asset Index");
 		btnRepairAssetIndex.TooltipText = TranslationServer.Translate("Completely deletes and re-creates the asset index database from CAS");
@@ -225,10 +238,12 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 		btnRepairRow.AddChild(btnRepairAssetIndex);
 
 		var btnReinstallRow = new HBoxContainer();
+		btnReinstallRow.Name = "BtnReinstallRow_HBoxContainer";
 		btnReinstallRow.AddThemeConstantOverride("separation", 10);
 		contentVBox.AddChild(btnReinstallRow);
 
 		var btnReinstallVSCode = new Button();
+		btnReinstallVSCode.Name = "BtnReinstallVSCode_Button";
 		btnReinstallVSCode.Set("icon_max_width", 0);
 		btnReinstallVSCode.Text = "🔄 " + TranslationServer.Translate("Reinstall / Repair VS Code");
 		btnReinstallVSCode.TooltipText = TranslationServer.Translate("Forces a fresh download and installation of VS Code and editor dependencies into application user data");

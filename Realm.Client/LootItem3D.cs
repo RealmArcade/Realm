@@ -5,6 +5,7 @@ using Realm.Client.Services;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class LootItem3D : Node3D
 {
 	public int UniqueId { get; set; }
@@ -39,9 +40,11 @@ public partial class LootItem3D : Node3D
 	private void CreateVisuals()
 	{
 		_visualRoot = new Node3D();
+		_visualRoot.Name = "VisualRoot_Node3D";
 		AddChild(_visualRoot);
 
 		var meshInstance = new MeshInstance3D();
+		meshInstance.Name = "MeshInstance_MeshInstance3D";
 		meshInstance.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 		var cylinderMesh = new CylinderMesh
 		{
@@ -88,6 +91,7 @@ public partial class LootItem3D : Node3D
 		}
 
 		var gemInstance = new MeshInstance3D();
+		gemInstance.Name = "GemInstance_MeshInstance3D";
 		var boxMesh = new BoxMesh
 		{
 			Size = new Vector3(0.35f, 0.35f, 0.35f)

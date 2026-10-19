@@ -359,6 +359,7 @@ public class FXService
 	public void SpawnPing3DEffect(Node3D parent, Vector3 position)
 	{
 		var meshInstance = new MeshInstance3D();
+		meshInstance.Name = "MeshInstance_MeshInstance3D";
 		meshInstance.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 		meshInstance.GIMode = GeometryInstance3D.GIModeEnum.Disabled;
 		var torusMesh = new TorusMesh();

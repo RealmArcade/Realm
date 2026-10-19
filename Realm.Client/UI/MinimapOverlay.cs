@@ -7,6 +7,7 @@ using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class MinimapOverlay : Control
 {
 	private static Texture2D? _unitCircleTexture;

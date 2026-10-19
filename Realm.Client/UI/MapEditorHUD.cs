@@ -420,6 +420,7 @@ public partial class MapEditorHUD : Control
 		vbox.AddChild(title);
 
 		var optType = new OptionButton();
+		optType.Name = "OptType_OptionButton";
 		optType.AddItem("Custom Arcade Map", 0);
 		optType.AddItem("Reusable Asset Pack", 1);
 		optType.Selected = _mapSettingsDialog?.SelectedMapTypeIndex ?? 0;
@@ -493,6 +494,7 @@ public partial class MapEditorHUD : Control
 		vbox.SetAnchorsPreset(LayoutPreset.FullRect);
 
 		var margin = new MarginContainer();
+		margin.Name = "Margin_MarginContainer";
 		margin.AddThemeConstantOverride("margin_top", 10);
 		margin.AddThemeConstantOverride("margin_bottom", 10);
 		margin.AddThemeConstantOverride("margin_left", 10);
@@ -519,6 +521,7 @@ public partial class MapEditorHUD : Control
 		if (unprunedCount <= 0 && unnormalizedPotentialCount <= 0) return;
 
 		var tipPanel = new PanelContainer();
+		tipPanel.Name = "TipPanel_PanelContainer";
 		var tipStyle = new StyleBoxFlat
 		{
 			BgColor = new Color(0.2f, 0.17f, 0.1f, 0.95f),
@@ -535,6 +538,7 @@ public partial class MapEditorHUD : Control
 		tipPanel.AddThemeStyleboxOverride("panel", tipStyle);
 
 		var tipMargin = new MarginContainer();
+		tipMargin.Name = "TipMargin_MarginContainer";
 		tipMargin.AddThemeConstantOverride("margin_top", 6);
 		tipMargin.AddThemeConstantOverride("margin_bottom", 6);
 		tipMargin.AddThemeConstantOverride("margin_left", 10);
@@ -558,6 +562,7 @@ public partial class MapEditorHUD : Control
 		string shortPubKey = authorPubKey.Length > 16 ? $"{authorPubKey[..8]}...{authorPubKey[^8..]}" : authorPubKey;
 
 		var identityPanel = new PanelContainer();
+		identityPanel.Name = "IdentityPanel_PanelContainer";
 		var identityStyle = new StyleBoxFlat
 		{
 			BgColor = new Color(0.12f, 0.15f, 0.22f, 0.95f),
@@ -573,6 +578,7 @@ public partial class MapEditorHUD : Control
 		};
 		identityPanel.AddThemeStyleboxOverride("panel", identityStyle);
 		var idMargin = new MarginContainer();
+		idMargin.Name = "IdMargin_MarginContainer";
 		idMargin.AddThemeConstantOverride("margin_top", 8);
 		idMargin.AddThemeConstantOverride("margin_bottom", 8);
 		idMargin.AddThemeConstantOverride("margin_left", 12);
@@ -580,10 +586,12 @@ public partial class MapEditorHUD : Control
 		identityPanel.AddChild(idMargin);
 
 		var idVBox = new VBoxContainer();
+		idVBox.Name = "IdVBox_VBoxContainer";
 		idVBox.AddThemeConstantOverride("separation", 6);
 		idMargin.AddChild(idVBox);
 
 		var idHeaderHBox = new HBoxContainer();
+		idHeaderHBox.Name = "IdHeaderHBox_HBoxContainer";
 		idHeaderHBox.AddThemeConstantOverride("separation", 8);
 		var idHeaderLabel = new Label { Text = "🔑 " + TranslationServer.Translate("AUTHOR IDENTITY & KEY VERIFICATION"), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		idHeaderLabel.AddThemeFontSizeOverride("font_size", 13);

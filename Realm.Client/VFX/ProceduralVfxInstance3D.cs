@@ -6,6 +6,7 @@ using Realm.Client.Services;
 
 namespace Realm.Client.VFX;
 
+[GlobalClass]
 public partial class ProceduralVfxInstance3D : Node3D
 {
 	private Node3D _contentRoot;

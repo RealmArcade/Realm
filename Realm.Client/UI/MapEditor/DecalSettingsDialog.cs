@@ -12,8 +12,11 @@ using Realm.Shared.Textures;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class DecalSettingsDialog : FloatingDialogBase
 {
+	public DecalSettingsDialog() { }
+
 	private string _decalKey = "";
 	private string _texturePath = "";
 	private float _brightness = 1.0f;
@@ -123,11 +126,13 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		var scrollBody = CreateScrollBody(600);
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
 
 		_lblDecalName = new Label();
+		_lblDecalName.Name = "LblDecalName_Label";
 		_lblDecalName.AddThemeFontSizeOverride("font_size", 12);
 		_lblDecalName.AddThemeColorOverride("font_color", new Color(0.95f, 0.82f, 0.55f));
 		_lblDecalName.HorizontalAlignment = HorizontalAlignment.Center;
@@ -143,13 +148,16 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private void BuildPreviewSection(VBoxContainer contentVBox)
 	{
 		var previewPanel = new PanelContainer();
+		previewPanel.Name = "PreviewPanel_PanelContainer";
 		previewPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		previewPanel.CustomMinimumSize = new Vector2(0, 130);
 
 		var previewVBox = new VBoxContainer();
+		previewVBox.Name = "PreviewVBox_VBoxContainer";
 		previewVBox.Alignment = BoxContainer.AlignmentMode.Center;
 
 		_previewRect = new TextureRect();
+		_previewRect.Name = "PreviewRect_TextureRect";
 		_previewRect.CustomMinimumSize = new Vector2(100, 100);
 		_previewRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_previewRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -166,20 +174,24 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		AddSectionHeader(contentVBox, "🖼 " + TranslationServer.Translate("TEXTURE & ASSET"), new Color(0.95f, 0.8f, 0.4f));
 
 		var rowId = new HBoxContainer();
+		rowId.Name = "RowId_HBoxContainer";
 		rowId.AddThemeConstantOverride("separation", 6);
 		var lblId = new Label();
+		lblId.Name = "LblId_Label";
 		lblId.Text = TranslationServer.Translate("TemplateID:");
 		lblId.CustomMinimumSize = new Vector2(140, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		rowId.AddChild(lblId);
 
 		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
 		_lblObjectTypePrefix.Text = "decal/";
 		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		rowId.AddChild(_lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("decal_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -232,8 +244,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		);
 
 		var rowTint = new HBoxContainer();
+		rowTint.Name = "RowTint_HBoxContainer";
 		rowTint.AddThemeConstantOverride("separation", 8);
 		var lblTint = new Label();
+		lblTint.Name = "LblTint_Label";
 		lblTint.Text = TranslationServer.Translate("Tint Color:");
 		lblTint.CustomMinimumSize = new Vector2(140, 0);
 		lblTint.AddThemeFontSizeOverride("font_size", 11);

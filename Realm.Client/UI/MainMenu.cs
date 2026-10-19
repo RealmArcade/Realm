@@ -11,6 +11,7 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class MainMenu : Control
 {
 	public MainMenu()
@@ -384,12 +385,14 @@ public partial class MainMenu : Control
 	private void CreateVersionSelector()
 	{
 		var versionBox = new HBoxContainer();
+		versionBox.Name = "VersionBox_HBoxContainer";
 		versionBox.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
 		versionBox.Position = new Vector2(110, 10);
 		versionBox.AddThemeConstantOverride("separation", 10);
 		AddChild(versionBox);
 
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.Text = "Version: ";
 		lbl.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
 		lbl.AddThemeFontOverride("font", _norseFont);
@@ -398,6 +401,7 @@ public partial class MainMenu : Control
 		versionBox.AddChild(lbl);
 
 		_versionDropdown = new OptionButton();
+		_versionDropdown.Name = "VersionDropdown_OptionButton";
 		_versionDropdown.CustomMinimumSize = new Vector2(160, 32);
 		_versionDropdown.AddThemeFontOverride("font", _norseFont);
 		_versionDropdown.AddThemeFontSizeOverride("font_size", 14);
@@ -406,6 +410,7 @@ public partial class MainMenu : Control
 		versionBox.AddChild(_versionDropdown);
 
 		_outdatedLabel = new Label();
+		_outdatedLabel.Name = "OutdatedLabel_Label";
 		_outdatedLabel.Text = "Outdated";
 		_outdatedLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.35f, 0.35f));
 		_outdatedLabel.AddThemeFontOverride("font", _norseFont);
@@ -415,6 +420,7 @@ public partial class MainMenu : Control
 		versionBox.AddChild(_outdatedLabel);
 
 		var downloadBtn = new Button();
+		downloadBtn.Name = "DownloadBtn_Button";
 		downloadBtn.Text = "DOWNLOAD...";
 		downloadBtn.AddThemeFontOverride("font", _norseBoldFont);
 		downloadBtn.AddThemeFontSizeOverride("font_size", 12);
@@ -743,6 +749,7 @@ public partial class MainMenu : Control
 	private TextureRect CreateIconButtonIcon(string iconPath, Vector2? iconSize)
 	{
 		var iconRect = new TextureRect();
+		iconRect.Name = "IconRect_TextureRect";
 		iconRect.Texture = LoadTrimmedTexture(iconPath);
 		iconRect.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
@@ -759,6 +766,7 @@ public partial class MainMenu : Control
 	private Label CreateIconButtonLabel(string text)
 	{
 		var label = new Label();
+		label.Name = "Label_Label";
 		label.Text = TranslationServer.Translate(text);
 		label.AddThemeFontOverride("font", _norseBoldFont);
 		label.AddThemeFontSizeOverride("font_size", 18);
@@ -911,6 +919,7 @@ public partial class MainMenu : Control
 	private Panel CreateProfilePopupBase()
 	{
 		var popup = new Panel();
+		popup.Name = "Popup_Panel";
 		popup.AnchorLeft = 0.0f;
 		popup.AnchorRight = 1.0f;
 		popup.AnchorTop = 0.0f;
@@ -981,6 +990,7 @@ public partial class MainMenu : Control
 		}
 
 		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
 		cardPanel.CustomMinimumSize = new Vector2(600, 700);
 		cardPanel.AnchorLeft = 0.5f;
 		cardPanel.AnchorRight = 0.5f;
@@ -1000,6 +1010,7 @@ public partial class MainMenu : Control
 	private MarginContainer CreateProfileMarginContainer()
 	{
 		var marginContainer = new MarginContainer();
+		marginContainer.Name = "MarginContainer_MarginContainer";
 		marginContainer.AnchorLeft = 0.0f;
 		marginContainer.AnchorRight = 1.0f;
 		marginContainer.AnchorTop = 0.0f;
@@ -1016,6 +1027,7 @@ public partial class MainMenu : Control
 	private VBoxContainer CreateProfileVBox()
 	{
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
 		vbox.Alignment = BoxContainer.AlignmentMode.Begin;
@@ -1025,6 +1037,7 @@ public partial class MainMenu : Control
 	private Label CreateProfileTitle()
 	{
 		var title = new Label();
+		title.Name = "Title_Label";
 		UIStyle.ApplyTitle(title, "PLAYER PROFILE", 26);
 
 		var titleFont = new SystemFont();
@@ -1040,6 +1053,7 @@ public partial class MainMenu : Control
 	private TextureRect CreateProfileFactionFlag()
 	{
 		var factionFlag = new TextureRect();
+		factionFlag.Name = "FactionFlag_TextureRect";
 		Texture2D flagTexture = LoadTrimmedTexture("res://Assets/UI/alliance_flag.png");
 		if (flagTexture == null && ResourceLoader.Exists("res://Assets/UI/alliance_flag.png"))
 		{
@@ -1082,11 +1096,13 @@ public partial class MainMenu : Control
 		foreach (var row in profileDataRows)
 		{
 			var rowContainer = new HBoxContainer();
+			rowContainer.Name = "RowContainer_HBoxContainer";
 			rowContainer.Alignment = BoxContainer.AlignmentMode.Center;
 			rowContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 			rowContainer.AddThemeConstantOverride("separation", 8);
 
 			var keyLabel = new Label();
+			keyLabel.Name = "KeyLabel_Label";
 			keyLabel.Text = TranslationServer.Translate(row.Key) + ":";
 			keyLabel.HorizontalAlignment = HorizontalAlignment.Right;
 			keyLabel.AddThemeFontOverride("font", profileFont);
@@ -1097,6 +1113,7 @@ public partial class MainMenu : Control
 			rowContainer.AddChild(keyLabel);
 
 			var valueLabel = new Label();
+			valueLabel.Name = "ValueLabel_Label";
 			valueLabel.Text = TranslationServer.Translate(row.Value);
 			valueLabel.HorizontalAlignment = HorizontalAlignment.Left;
 			valueLabel.AddThemeFontOverride("font", profileFont);
@@ -1114,6 +1131,7 @@ public partial class MainMenu : Control
 	private Button CreateProfileBackButton()
 	{
 		var backBtn = new Button();
+		backBtn.Name = "BackBtn_Button";
 
 		backBtn.Flat = false;
 		backBtn.Text = TranslationServer.Translate("BACK");
@@ -1203,17 +1221,20 @@ public partial class MainMenu : Control
 		}
 
 		_installWaitingPopup = new Panel();
+		_installWaitingPopup.Name = "InstallWaitingPopup_Panel";
 		_installWaitingPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		_installWaitingPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		AddChild(_installWaitingPopup);
 
 		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
 		cardPanel.CustomMinimumSize = new Vector2(450, 250);
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		_installWaitingPopup.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		vbox.CustomMinimumSize = new Vector2(400, 200);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -1223,6 +1244,7 @@ public partial class MainMenu : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 		var title = new Label();
+		title.Name = "Title_Label";
 		UIStyle.ApplyTitle(title, "⚠️ EDITOR INSTALLING", 22);
 		title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		vbox.AddChild(title);
@@ -1230,6 +1252,7 @@ public partial class MainMenu : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 		var msg = new Label();
+		msg.Name = "Msg_Label";
 		msg.Text = "The Map Data Editor is currently installing in the background.\nPlease wait for it to complete.";
 		msg.HorizontalAlignment = HorizontalAlignment.Center;
 		msg.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
@@ -1239,6 +1262,7 @@ public partial class MainMenu : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 25) });
 
 		var okBtn = new Button();
+		okBtn.Name = "OkBtn_Button";
 		okBtn.AddThemeConstantOverride("icon_max_width", 0);
 		SetupButton(okBtn, "OK", () =>
 		{

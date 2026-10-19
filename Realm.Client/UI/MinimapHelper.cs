@@ -263,6 +263,7 @@ public static class MinimapHelper
 	private static SubViewport SetupMinimapViewport(Node parentNode, int viewportWidth, int viewportHeight, float physicalDepth, float quadSize)
 	{
 		var viewport = new SubViewport();
+		viewport.Name = "Viewport_SubViewport";
 		viewport.TransparentBg = true;
 		viewport.Size = new Vector2I(viewportWidth, viewportHeight);
 		viewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
@@ -270,6 +271,7 @@ public static class MinimapHelper
 		parentNode.AddChild(viewport);
 
 		var camera = new Camera3D();
+		camera.Name = "Camera_Camera3D";
 		camera.Projection = Camera3D.ProjectionType.Orthogonal;
 		camera.KeepAspect = Camera3D.KeepAspectEnum.Height;
 		camera.Size = physicalDepth;

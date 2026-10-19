@@ -5,6 +5,7 @@ using Realm.Client.Services;
 
 namespace Realm.Client.VFX;
 
+[GlobalClass]
 public partial class SpellParticleInstance3D : Node3D
 {
 	private GpuParticles3D _particles;

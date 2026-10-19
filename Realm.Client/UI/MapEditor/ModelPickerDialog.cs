@@ -6,8 +6,11 @@ using Realm.Client.Core;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 {
+	public ModelPickerDialog() { }
+
 	private Node3D _previewModelRoot;
 
 	private LineEdit _txtModelPath;
@@ -36,6 +39,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		Add3DPreviewViewport(BodyContainer, new Vector2(460, 240));
 
 		var topControlsVBox = new VBoxContainer();
+		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
 		topControlsVBox.AddThemeConstantOverride("separation", 6);
 		BodyContainer.AddChild(topControlsVBox);
 
@@ -62,6 +66,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		);
 
 		_lblStatus = new Label();
+		_lblStatus.Name = "LblStatus_Label";
 		_lblStatus.AddThemeFontSizeOverride("font_size", 11);
 		_lblStatus.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlowDim);
 		_lblStatus.AutowrapMode = TextServer.AutowrapMode.Word;

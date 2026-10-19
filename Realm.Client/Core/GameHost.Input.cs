@@ -3600,6 +3600,7 @@ public partial class GameHost
 		else
 		{
 			var mesh = new MeshInstance3D();
+			mesh.Name = "Mesh_MeshInstance3D";
 			float radius = 1.6f;
 			if (meta != null)
 			{

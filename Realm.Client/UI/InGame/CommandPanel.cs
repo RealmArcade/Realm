@@ -514,6 +514,7 @@ public partial class CommandPanel
 	private Control CreateBlackTile()
 	{
 		var tile = new Panel();
+		tile.Name = "Tile_Panel";
 		var style = new StyleBoxFlat();
 		style.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.35f);
 		style.BorderColor = new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.2f);
@@ -532,6 +533,7 @@ public partial class CommandPanel
 	private Button CreateCycleButton(int numPages)
 	{
 		var btn = new Button();
+		btn.Name = "Btn_Button";
 		btn.Flat = false;
 		btn.Text = "";
 		btn.ExpandIcon = true;
@@ -549,6 +551,7 @@ public partial class CommandPanel
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		var label = new Label();
+		label.Name = "Label_Label";
 		label.Text = TranslationServer.Translate("CYCLE");
 		label.AddThemeFontSizeOverride("font_size", 10);
 		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);

@@ -375,6 +375,7 @@ namespace Realm.Client.Core
 		private void CreateCoverageRing(float radius, Color color)
 		{
 			var meshInstance = new MeshInstance3D();
+			meshInstance.Name = "MeshInstance_MeshInstance3D";
 			meshInstance.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 			meshInstance.GIMode = GeometryInstance3D.GIModeEnum.Disabled;
 			var torusMesh = new TorusMesh();

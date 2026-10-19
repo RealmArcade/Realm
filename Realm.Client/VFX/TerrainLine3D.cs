@@ -4,6 +4,7 @@ using Realm.Client.Core;
 
 namespace Realm.Client.VFX;
 
+[GlobalClass]
 public partial class TerrainLine3D : Node3D
 {
 	private ImmediateMesh _immediateMesh;

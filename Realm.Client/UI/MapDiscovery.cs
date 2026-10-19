@@ -11,6 +11,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class MapDiscovery : Control
 {
 	public MapDiscovery()
@@ -448,6 +449,7 @@ public partial class MapDiscovery : Control
 		if (list.Count == 0)
 		{
 			var noMapsLabel = new Label();
+			noMapsLabel.Name = "NoMapsLabel_Label";
 			noMapsLabel.Text = TranslationServer.Translate("No maps found matching criteria.");
 			noMapsLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
 			noMapsLabel.AddThemeFontSizeOverride("font_size", 16);
@@ -488,6 +490,7 @@ public partial class MapDiscovery : Control
 		EnsureFontsLoaded();
 
 		var card = new PanelContainer();
+		card.Name = "Card_PanelContainer";
 		card.CustomMinimumSize = new Vector2(560, 220);
 		card.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
@@ -504,15 +507,18 @@ public partial class MapDiscovery : Control
 		card.AddThemeStyleboxOverride("panel", cardStyle);
 
 		var hBox = new HBoxContainer();
+		hBox.Name = "HBox_HBoxContainer";
 		hBox.AddThemeConstantOverride("separation", 16);
 		card.AddChild(hBox);
 
 		var imgContainer = new Control();
+		imgContainer.Name = "ImgContainer_Control";
 		imgContainer.CustomMinimumSize = new Vector2(180, 144);
 		imgContainer.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		imgContainer.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		var thumbnail = new TextureRect();
+		thumbnail.Name = "Thumbnail_TextureRect";
 		thumbnail.SetAnchorsPreset(LayoutPreset.FullRect);
 		thumbnail.OffsetLeft = 12;
 		thumbnail.OffsetTop = 12;
@@ -526,6 +532,7 @@ public partial class MapDiscovery : Control
 		imgContainer.AddChild(thumbnail);
 
 		var frameOverlay = new TextureRect();
+		frameOverlay.Name = "FrameOverlay_TextureRect";
 		frameOverlay.SetAnchorsPreset(LayoutPreset.FullRect);
 		frameOverlay.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		frameOverlay.StretchMode = TextureRect.StretchModeEnum.Scale;
@@ -536,16 +543,19 @@ public partial class MapDiscovery : Control
 		hBox.AddChild(imgContainer);
 
 		var vBox = new VBoxContainer();
+		vBox.Name = "VBox_VBoxContainer";
 		vBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vBox.SizeFlagsVertical = SizeFlags.ExpandFill;
 		vBox.AddThemeConstantOverride("separation", 2);
 		hBox.AddChild(vBox);
 
 		var headerBox = new HBoxContainer();
+		headerBox.Name = "HeaderBox_HBoxContainer";
 		headerBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vBox.AddChild(headerBox);
 
 		var title = new Label();
+		title.Name = "Title_Label";
 		title.Text = map.Title;
 		if (_fontNorseBold != null) title.AddThemeFontOverride("font", _fontNorseBold);
 		title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -556,6 +566,7 @@ public partial class MapDiscovery : Control
 		headerBox.AddChild(title);
 
 		var ratingLabel = new Label();
+		ratingLabel.Name = "RatingLabel_Label";
 		ratingLabel.Text = $"★ {map.RatingStars:F1}";
 		if (_fontNorseBold != null) ratingLabel.AddThemeFontOverride("font", _fontNorseBold);
 		ratingLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -565,6 +576,7 @@ public partial class MapDiscovery : Control
 		headerBox.AddChild(ratingLabel);
 
 		var creator = new Label();
+		creator.Name = "Creator_Label";
 		creator.Text = $"By: {map.Creator}  •  {map.Genre}";
 		if (_fontNorseBold != null) creator.AddThemeFontOverride("font", _fontNorseBold);
 		creator.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -572,6 +584,7 @@ public partial class MapDiscovery : Control
 		vBox.AddChild(creator);
 
 		var desc = new Label();
+		desc.Name = "Desc_Label";
 		desc.Text = map.Description;
 		desc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		desc.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -581,10 +594,12 @@ public partial class MapDiscovery : Control
 		vBox.AddChild(desc);
 
 		var footer = new HBoxContainer();
+		footer.Name = "Footer_HBoxContainer";
 		footer.Alignment = BoxContainer.AlignmentMode.End;
 		vBox.AddChild(footer);
 
 		var btnDetails = new Button();
+		btnDetails.Name = "BtnDetails_Button";
 		btnDetails.CustomMinimumSize = new Vector2(110, 32);
 		btnDetails.Text = TranslationServer.Translate("DETAILS");
 		if (_fontNorseBold != null) btnDetails.AddThemeFontOverride("font", _fontNorseBold);

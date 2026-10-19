@@ -7,6 +7,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class SettingsMenu : Control
 {
 	public SettingsMenu()

@@ -10,6 +10,7 @@ using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class WasmConsoleWindow : Window
 {
 	private static WasmConsoleWindow? _instance;
@@ -102,6 +103,7 @@ public partial class WasmConsoleWindow : Window
 	private void BuildUI()
 	{
 		var mainPanel = new PanelContainer();
+		mainPanel.Name = "MainPanel_PanelContainer";
 		mainPanel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 
 		var panelStyle = new StyleBoxFlat();
@@ -111,6 +113,7 @@ public partial class WasmConsoleWindow : Window
 		AddChild(mainPanel);
 
 		var marginContainer = new MarginContainer();
+		marginContainer.Name = "MarginContainer_MarginContainer";
 		marginContainer.AddThemeConstantOverride("margin_left", 12);
 		marginContainer.AddThemeConstantOverride("margin_top", 12);
 		marginContainer.AddThemeConstantOverride("margin_right", 12);
@@ -118,20 +121,24 @@ public partial class WasmConsoleWindow : Window
 		mainPanel.AddChild(marginContainer);
 
 		var mainVBox = new VBoxContainer();
+		mainVBox.Name = "MainVBox_VBoxContainer";
 		mainVBox.AddThemeConstantOverride("separation", 8);
 		marginContainer.AddChild(mainVBox);
 
 		var headerHBox = new HBoxContainer();
+		headerHBox.Name = "HeaderHBox_HBoxContainer";
 		headerHBox.AddThemeConstantOverride("separation", 8);
 		mainVBox.AddChild(headerHBox);
 
 		_statusIndicator = new ColorRect();
+		_statusIndicator.Name = "StatusIndicator_ColorRect";
 		_statusIndicator.CustomMinimumSize = new Vector2(12, 12);
 		_statusIndicator.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
 		_statusIndicator.Color = new Color(_bufferedStatusColor);
 		headerHBox.AddChild(_statusIndicator);
 
 		_statusLabel = new Label();
+		_statusLabel.Name = "StatusLabel_Label";
 		_statusLabel.Text = _bufferedStatus;
 		_statusLabel.Modulate = new Color(_bufferedStatusColor);
 		_statusLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -139,6 +146,7 @@ public partial class WasmConsoleWindow : Window
 		headerHBox.AddChild(_statusLabel);
 
 		_logLabel = new RichTextLabel();
+		_logLabel.Name = "LogLabel_RichTextLabel";
 		_logLabel.SelectionEnabled = true;
 		_logLabel.FocusMode = Control.FocusModeEnum.Click;
 		_logLabel.BbcodeEnabled = true;
@@ -159,21 +167,25 @@ public partial class WasmConsoleWindow : Window
 		mainVBox.AddChild(_logLabel);
 
 		var bottomHBox = new HBoxContainer();
+		bottomHBox.Name = "BottomHBox_HBoxContainer";
 		bottomHBox.AddThemeConstantOverride("separation", 8);
 		mainVBox.AddChild(bottomHBox);
 
 		_commandInput = new LineEdit();
+		_commandInput.Name = "CommandInput_LineEdit";
 		_commandInput.PlaceholderText = "Enter command or chat message...";
 		_commandInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		_commandInput.TextSubmitted += OnCommandSubmitted;
 		bottomHBox.AddChild(_commandInput);
 
 		var copyButton = new Button();
+		copyButton.Name = "CopyButton_Button";
 		copyButton.Text = "Copy Logs";
 		copyButton.Pressed += CopyLogsToClipboard;
 		bottomHBox.AddChild(copyButton);
 
 		var clearButton = new Button();
+		clearButton.Name = "ClearButton_Button";
 		clearButton.Text = "Clear";
 		clearButton.Pressed += ClearLogs;
 		bottomHBox.AddChild(clearButton);

@@ -105,6 +105,7 @@ public class InventoryPanel
 		);
 
 		var countLabel = new Label();
+		countLabel.Name = "CountLabel_Label";
 		countLabel.Text = count.ToString();
 		countLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
 		countLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -121,6 +122,7 @@ public class InventoryPanel
 	private Control CreateBlackTile()
 	{
 		var tile = new Panel();
+		tile.Name = "Tile_Panel";
 		var style = new StyleBoxFlat();
 		style.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.35f);
 		style.BorderColor = new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.25f);
@@ -137,6 +139,7 @@ public class InventoryPanel
 	private Button CreateButton(string iconPath, string tooltip, string text, Action callback)
 	{
 		var btn = new Button();
+		btn.Name = "Btn_Button";
 		btn.Flat = false;
 		btn.Text = text;
 		btn.ExpandIcon = true;

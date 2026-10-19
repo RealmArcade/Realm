@@ -87,15 +87,24 @@ namespace Realm.Client.UI
 			_topBar = GetNodeOrNull<PanelContainer>("TopBar");
 
 			_leftPillar = new Panel();
+			_leftPillar.Name = "LeftPillar_Panel";
 			_rightPillar = new Panel();
+			_rightPillar.Name = "RightPillar_Panel";
 			_topToolbar = new HBoxContainer();
+			_topToolbar.Name = "TopToolbar_HBoxContainer";
 
 			_panelTextures = new PanelContainer();
+			_panelTextures.Name = "PanelTextures_PanelContainer";
 			_panelEntityPalette = new PanelContainer();
+			_panelEntityPalette.Name = "PanelEntityPalette_PanelContainer";
 			_panelTerrain = new PanelContainer();
+			_panelTerrain.Name = "PanelTerrain_PanelContainer";
 			_panelDeco = new PanelContainer();
+			_panelDeco.Name = "PanelDeco_PanelContainer";
 			_panelEnv = new PanelContainer();
+			_panelEnv.Name = "PanelEnv_PanelContainer";
 			_btnClumpBrush = new Button();
+			_btnClumpBrush.Name = "BtnClumpBrush_Button";
 
 			_panelLeft = GetNode<Panel>("LeftSlidePanel");
 			_panelRight = GetNode<Panel>("RightSlidePanel");
@@ -148,6 +157,7 @@ namespace Realm.Client.UI
 				};
 
 				var mapNameHBox = new HBoxContainer();
+				mapNameHBox.Name = "MapNameHBox_HBoxContainer";
 				mapNameHBox.Alignment = BoxContainer.AlignmentMode.Center;
 				mapNameHBox.AddThemeConstantOverride("separation", 6);
 				_mapNameHeaderPanel.AddChild(mapNameHBox);
@@ -193,6 +203,7 @@ namespace Realm.Client.UI
 				_popupEditors.AddThemeStyleboxOverride("panel", editorsPopupStyle);
 
 				var editorsVBox = new VBoxContainer();
+				editorsVBox.Name = "EditorsVBox_VBoxContainer";
 				editorsVBox.AddThemeConstantOverride("separation", 6);
 				editorsVBox.CustomMinimumSize = new Vector2(170, 0);
 				_popupEditors.AddChild(editorsVBox);
@@ -424,6 +435,7 @@ namespace Realm.Client.UI
 				saveMorePopupStyle.SetContentMarginAll(10);
 				_popupSaveMore.AddThemeStyleboxOverride("panel", saveMorePopupStyle);
 				var saveMoreVBox = new VBoxContainer();
+				saveMoreVBox.Name = "SaveMoreVBox_VBoxContainer";
 				saveMoreVBox.AddThemeConstantOverride("separation", 6);
 				saveMoreVBox.CustomMinimumSize = new Vector2(170, 0);
 				_popupSaveMore.AddChild(saveMoreVBox);
@@ -469,6 +481,7 @@ namespace Realm.Client.UI
 				randomGenPopupStyle.SetContentMarginAll(10);
 				_popupRandomGen.AddThemeStyleboxOverride("panel", randomGenPopupStyle);
 				var randomGenVBox = new VBoxContainer();
+				randomGenVBox.Name = "RandomGenVBox_VBoxContainer";
 				randomGenVBox.AddThemeConstantOverride("separation", 6);
 				randomGenVBox.CustomMinimumSize = new Vector2(170, 0);
 				_popupRandomGen.AddChild(randomGenVBox);
@@ -2159,17 +2172,20 @@ namespace Realm.Client.UI
 			var tcs = new TaskCompletionSource<bool>();
 
 			var popup = new Panel();
+			popup.Name = "Popup_Panel";
 			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 			AddChild(popup);
 
 			var cardPanel = new Panel();
+			cardPanel.Name = "CardPanel_Panel";
 			cardPanel.CustomMinimumSize = new Vector2(540, 290);
 			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 			popup.AddChild(cardPanel);
 
 			var vbox = new VBoxContainer();
+			vbox.Name = "Vbox_VBoxContainer";
 			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			vbox.CustomMinimumSize = new Vector2(500, 260);
 			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -2179,6 +2195,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 			var titleLabel = new Label();
+			titleLabel.Name = "TitleLabel_Label";
 			UIStyle.ApplyTitle(titleLabel, Tr("MAP BUILD MISMATCH"), 20);
 			titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
 			vbox.AddChild(titleLabel);
@@ -2186,6 +2203,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
 
 			var descLabel = new Label();
+			descLabel.Name = "DescLabel_Label";
 			descLabel.Text = $"{string.Format(Tr("Map: {0}"), Path.GetFileName(selectedFolder))}\n{string.Format(Tr("Map Build: {0} | Editor Build: {1}"), currentVersion, targetVersion)}\n\n{Tr("This map format needs to be upgraded before it can be opened. Would you like to upgrade now?")}";
 			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			descLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -2193,6 +2211,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(descLabel);
 
 			var progressBar = new ProgressBar();
+			progressBar.Name = "ProgressBar_ProgressBar";
 			progressBar.CustomMinimumSize = new Vector2(460, 20);
 			progressBar.MinValue = 0;
 			progressBar.MaxValue = 100;
@@ -2201,6 +2220,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(progressBar);
 
 			var statusLabel = new Label();
+			statusLabel.Name = "StatusLabel_Label";
 			statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			statusLabel.AddThemeFontSizeOverride("font_size", 12);
 			statusLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -2210,11 +2230,13 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 12) });
 
 			var buttonRow = new HBoxContainer();
+			buttonRow.Name = "ButtonRow_HBoxContainer";
 			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
 			buttonRow.AddThemeConstantOverride("separation", 20);
 			vbox.AddChild(buttonRow);
 
 			var upgradeBtn = new Button();
+			upgradeBtn.Name = "UpgradeBtn_Button";
 			upgradeBtn.Flat = false;
 			upgradeBtn.AddThemeConstantOverride("icon_max_width", 0);
 			upgradeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -2226,6 +2248,7 @@ namespace Realm.Client.UI
 			buttonRow.AddChild(upgradeBtn);
 
 			var cancelBtn = new Button();
+			cancelBtn.Name = "CancelBtn_Button";
 			cancelBtn.Flat = false;
 			cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
 			cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -2282,17 +2305,20 @@ namespace Realm.Client.UI
 		private void ShowInvalidMapFolderErrorDialog(string selectedFolder)
 		{
 			var popup = new Panel();
+			popup.Name = "Popup_Panel";
 			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 			AddChild(popup);
 
 			var cardPanel = new Panel();
+			cardPanel.Name = "CardPanel_Panel";
 			cardPanel.CustomMinimumSize = new Vector2(520, 240);
 			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 			popup.AddChild(cardPanel);
 
 			var vbox = new VBoxContainer();
+			vbox.Name = "Vbox_VBoxContainer";
 			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			vbox.CustomMinimumSize = new Vector2(480, 210);
 			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -2302,6 +2328,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 			var titleLabel = new Label();
+			titleLabel.Name = "TitleLabel_Label";
 			UIStyle.ApplyTitle(titleLabel, Tr("INVALID MAP FOLDER"), 20);
 			titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
 			vbox.AddChild(titleLabel);
@@ -2309,6 +2336,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
 
 			var descLabel = new Label();
+			descLabel.Name = "DescLabel_Label";
 			descLabel.Text = $"{string.Format(Tr("Folder: {0}"), Path.GetFileName(selectedFolder))}\n\n{Tr("The selected folder is not a valid map. Required files metadata.json and manifest.json were not found.")}";
 			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -2319,10 +2347,12 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
 
 			var buttonRow = new HBoxContainer();
+			buttonRow.Name = "ButtonRow_HBoxContainer";
 			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
 			vbox.AddChild(buttonRow);
 
 			var closeBtn = new Button();
+			closeBtn.Name = "CloseBtn_Button";
 			closeBtn.Flat = false;
 			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
 			closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -2343,17 +2373,20 @@ namespace Realm.Client.UI
 		private void ShowCorruptMapFileErrorDialog(string selectedFolder, string fileName, string errorMsg)
 		{
 			var popup = new Panel();
+			popup.Name = "Popup_Panel";
 			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 			AddChild(popup);
 
 			var cardPanel = new Panel();
+			cardPanel.Name = "CardPanel_Panel";
 			cardPanel.CustomMinimumSize = new Vector2(540, 260);
 			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 			popup.AddChild(cardPanel);
 
 			var vbox = new VBoxContainer();
+			vbox.Name = "Vbox_VBoxContainer";
 			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			vbox.CustomMinimumSize = new Vector2(500, 230);
 			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -2363,6 +2396,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 			var titleLabel = new Label();
+			titleLabel.Name = "TitleLabel_Label";
 			UIStyle.ApplyTitle(titleLabel, Tr("CORRUPT MAP FILE"), 20);
 			titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
 			vbox.AddChild(titleLabel);
@@ -2370,6 +2404,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
 
 			var descLabel = new Label();
+			descLabel.Name = "DescLabel_Label";
 			descLabel.Text = $"{string.Format(Tr("Folder: {0}"), Path.GetFileName(selectedFolder))}\n\n{string.Format(Tr("The map file '{0}' is corrupt or contains invalid JSON syntax and failed to parse."), fileName)}\n{string.Format(Tr("Error: {0}"), errorMsg)}";
 			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -2380,10 +2415,12 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
 
 			var buttonRow = new HBoxContainer();
+			buttonRow.Name = "ButtonRow_HBoxContainer";
 			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
 			vbox.AddChild(buttonRow);
 
 			var closeBtn = new Button();
+			closeBtn.Name = "CloseBtn_Button";
 			closeBtn.Flat = false;
 			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
 			closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -2404,18 +2441,21 @@ namespace Realm.Client.UI
 		private void InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn)
 		{
 			popup = new Panel();
+			popup.Name = "Popup_Panel";
 			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 			popup.ZIndex = 1100;
 			AddChild(popup);
 
 			var cardPanel = new Panel();
+			cardPanel.Name = "CardPanel_Panel";
 			cardPanel.CustomMinimumSize = new Vector2(580, 280);
 			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 			popup.AddChild(cardPanel);
 
 			vbox = new VBoxContainer();
+			vbox.Name = "Vbox_VBoxContainer";
 			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			vbox.CustomMinimumSize = new Vector2(540, 240);
 			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -2426,6 +2466,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
 			var titleLabel = new Label();
+			titleLabel.Name = "TitleLabel_Label";
 			UIStyle.ApplyTitle(titleLabel, "🚀 " + TranslationServer.Translate("PUBLISHING MAP PACKAGE"), 20);
 			titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			vbox.AddChild(titleLabel);
@@ -2436,6 +2477,7 @@ namespace Realm.Client.UI
 			if (string.IsNullOrWhiteSpace(mapVersion)) mapVersion = "1.0.0";
 
 			var descLabel = new Label();
+			descLabel.Name = "DescLabel_Label";
 			descLabel.Text = string.Format(TranslationServer.Translate("Map: {0} (v{1})"), mapTitle, mapVersion);
 			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			descLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -2445,6 +2487,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
 			progressBar = new ProgressBar();
+			progressBar.Name = "ProgressBar_ProgressBar";
 			progressBar.CustomMinimumSize = new Vector2(480, 24);
 			progressBar.MinValue = 0;
 			progressBar.MaxValue = 100;
@@ -2452,6 +2495,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(progressBar);
 
 			statusLabel = new Label();
+			statusLabel.Name = "StatusLabel_Label";
 			statusLabel.Text = TranslationServer.Translate("Checking publish eligibility...");
 			statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			statusLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -2462,10 +2506,12 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
 			var buttonRow = new HBoxContainer();
+			buttonRow.Name = "ButtonRow_HBoxContainer";
 			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
 			vbox.AddChild(buttonRow);
 
 			closeBtn = new Button();
+			closeBtn.Name = "CloseBtn_Button";
 			closeBtn.Flat = false;
 			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
 			closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -2967,20 +3013,24 @@ namespace Realm.Client.UI
 			overlay.AddChild(center);
 
 			var panel = new PanelContainer();
+			panel.Name = "Panel_PanelContainer";
 			panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 			panel.CustomMinimumSize = new Vector2(520, 220);
 			center.AddChild(panel);
 
 			var vbox = new VBoxContainer();
+			vbox.Name = "Vbox_VBoxContainer";
 			vbox.AddThemeConstantOverride("separation", 12);
 			panel.AddChild(vbox);
 
 			var titleLabel = new Label();
+			titleLabel.Name = "TitleLabel_Label";
 			UIStyle.ApplyTitle(titleLabel, "🗄️ " + TranslationServer.Translate("REPAIRING ASSET INDEX"), 20);
 			titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			vbox.AddChild(titleLabel);
 
 			var descLabel = new Label();
+			descLabel.Name = "DescLabel_Label";
 			descLabel.Text = TranslationServer.Translate("Rebuilding asset index database from CAS manifests...");
 			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			descLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -2988,6 +3038,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(descLabel);
 
 			var progressBar = new ProgressBar();
+			progressBar.Name = "ProgressBar_ProgressBar";
 			progressBar.CustomMinimumSize = new Vector2(460, 22);
 			progressBar.MinValue = 0;
 			progressBar.MaxValue = 100;
@@ -2995,6 +3046,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(progressBar);
 
 			var statusLabel = new Label();
+			statusLabel.Name = "StatusLabel_Label";
 			statusLabel.Text = TranslationServer.Translate("Initializing asset database rebuild...");
 			statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			statusLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -3593,6 +3645,7 @@ namespace Realm.Client.UI
 				saveLoadRow.AddChild(saveGroupRow);
 
 				var fileGrid2 = new GridContainer();
+				fileGrid2.Name = "FileGrid2_GridContainer";
 				fileGrid2.Columns = 2;
 				fileGrid2.AddThemeConstantOverride("h_separation", 6);
 				fileGrid2.AddThemeConstantOverride("v_separation", 6);
@@ -3688,6 +3741,7 @@ namespace Realm.Client.UI
 			if (_panelTerrainVBox != null)
 			{
 				var terrainGrid = new GridContainer();
+				terrainGrid.Name = "TerrainGrid_GridContainer";
 				terrainGrid.Columns = 3;
 				terrainGrid.AddThemeConstantOverride("h_separation", 6);
 				terrainGrid.AddThemeConstantOverride("v_separation", 8);
@@ -3710,6 +3764,7 @@ namespace Realm.Client.UI
 			if (_panelDecoVBox != null)
 			{
 				var decoGrid = new GridContainer();
+				decoGrid.Name = "DecoGrid_GridContainer";
 				decoGrid.Columns = 3;
 				decoGrid.AddThemeConstantOverride("h_separation", 6);
 				decoGrid.AddThemeConstantOverride("v_separation", 8);
@@ -3726,6 +3781,7 @@ namespace Realm.Client.UI
 			if (_panelPathingVBox != null)
 			{
 				var pathGrid = new GridContainer();
+				pathGrid.Name = "PathGrid_GridContainer";
 				pathGrid.Columns = 3;
 				pathGrid.AddThemeConstantOverride("h_separation", 6);
 				pathGrid.AddThemeConstantOverride("v_separation", 8);
@@ -3742,6 +3798,7 @@ namespace Realm.Client.UI
 			if (_panelObjects != null)
 			{
 				var objGrid = new GridContainer();
+				objGrid.Name = "ObjGrid_GridContainer";
 				objGrid.Columns = 3;
 				objGrid.AddThemeConstantOverride("h_separation", 6);
 				objGrid.AddThemeConstantOverride("v_separation", 8);
@@ -3759,6 +3816,7 @@ namespace Realm.Client.UI
 			if (_panelClipboard != null)
 			{
 				var clipGrid = new GridContainer();
+				clipGrid.Name = "ClipGrid_GridContainer";
 				clipGrid.Columns = 3;
 				clipGrid.AddThemeConstantOverride("h_separation", 6);
 				clipGrid.AddThemeConstantOverride("v_separation", 8);
@@ -3779,6 +3837,7 @@ namespace Realm.Client.UI
 			if (targetInspector != null)
 			{
 				var inspGrid = new GridContainer();
+				inspGrid.Name = "InspGrid_GridContainer";
 				inspGrid.Columns = 2;
 				inspGrid.AddThemeConstantOverride("h_separation", 6);
 				inspGrid.AddThemeConstantOverride("v_separation", 6);
@@ -3792,6 +3851,7 @@ namespace Realm.Client.UI
 				SafeReparent(_btnInspectorDelete, inspGrid);
 
 				var inspBox = new VBoxContainer();
+				inspBox.Name = "InspBox_VBoxContainer";
 				inspBox.AddChild(inspGrid);
 				StyleSubContainer(inspBox, "Transform Controls");
 				targetInspector.AddChild(inspBox);
@@ -4245,38 +4305,45 @@ namespace Realm.Client.UI
 		private GridContainer CreateScaleDialogSizeGrid()
 		{
 			var sizeGrid = new GridContainer();
+			sizeGrid.Name = "SizeGrid_GridContainer";
 			sizeGrid.Columns = 3;
 			sizeGrid.AddThemeConstantOverride("h_separation", 8);
 			sizeGrid.AddThemeConstantOverride("v_separation", 6);
 
 			_lblScalePreviewWidth = new Label();
+			_lblScalePreviewWidth.Name = "LblScalePreviewWidth_Label";
 			_lblScalePreviewWidth.AddThemeFontSizeOverride("font_size", 11);
 			_lblScalePreviewWidth.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 			_lblScalePreviewWidth.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			sizeGrid.AddChild(_lblScalePreviewWidth);
 
 			var btnW_Dec = new Button();
+			btnW_Dec.Name = "BtnW_Dec_Button";
 			btnW_Dec.Set("icon_max_width", 0);
 			SetupOptionButton(btnW_Dec, UnicodeIcons.MINUS, DecreaseScaleDialogWidth, 10, "Decrease target width");
 			sizeGrid.AddChild(btnW_Dec);
 
 			var btnW_Inc = new Button();
+			btnW_Inc.Name = "BtnW_Inc_Button";
 			btnW_Inc.Set("icon_max_width", 0);
 			SetupOptionButton(btnW_Inc, UnicodeIcons.PLUS, IncreaseScaleDialogWidth, 10, "Increase target width");
 			sizeGrid.AddChild(btnW_Inc);
 
 			_lblScalePreviewHeight = new Label();
+			_lblScalePreviewHeight.Name = "LblScalePreviewHeight_Label";
 			_lblScalePreviewHeight.AddThemeFontSizeOverride("font_size", 11);
 			_lblScalePreviewHeight.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 			_lblScalePreviewHeight.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			sizeGrid.AddChild(_lblScalePreviewHeight);
 
 			var btnH_Dec = new Button();
+			btnH_Dec.Name = "BtnH_Dec_Button";
 			btnH_Dec.Set("icon_max_width", 0);
 			SetupOptionButton(btnH_Dec, UnicodeIcons.MINUS, DecreaseScaleDialogDepth, 10, "Decrease target depth");
 			sizeGrid.AddChild(btnH_Dec);
 
 			var btnH_Inc = new Button();
+			btnH_Inc.Name = "BtnH_Inc_Button";
 			btnH_Inc.Set("icon_max_width", 0);
 			SetupOptionButton(btnH_Inc, UnicodeIcons.PLUS, IncreaseScaleDialogDepth, 10, "Increase target depth");
 			sizeGrid.AddChild(btnH_Inc);
@@ -4286,9 +4353,11 @@ namespace Realm.Client.UI
 		private HBoxContainer CreateScaleDialogButtonRow()
 		{
 			var buttonRow = new HBoxContainer();
+			buttonRow.Name = "ButtonRow_HBoxContainer";
 			buttonRow.AddThemeConstantOverride("separation", 8);
 
 			var btnCancel = new Button();
+			btnCancel.Name = "BtnCancel_Button";
 			btnCancel.Set("icon_max_width", 0);
 			btnCancel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			SetupButton(btnCancel, "✖ CANCEL", () =>
@@ -4299,6 +4368,7 @@ namespace Realm.Client.UI
 			buttonRow.AddChild(btnCancel);
 
 			var btnApply = new Button();
+			btnApply.Name = "BtnApply_Button";
 			btnApply.Set("icon_max_width", 0);
 			btnApply.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			SetupButton(btnApply, "✔ APPLY", () =>
@@ -4329,6 +4399,7 @@ namespace Realm.Client.UI
 			_scaleMapDialog.MoveToFront();
 
 			var margin = new MarginContainer();
+			margin.Name = "Margin_MarginContainer";
 			margin.AddThemeConstantOverride("margin_left", 16);
 			margin.AddThemeConstantOverride("margin_right", 16);
 			margin.AddThemeConstantOverride("margin_top", 14);
@@ -4336,10 +4407,12 @@ namespace Realm.Client.UI
 			_scaleMapDialog.AddChild(margin);
 
 			var innerVBox = new VBoxContainer();
+			innerVBox.Name = "InnerVBox_VBoxContainer";
 			innerVBox.AddThemeConstantOverride("separation", 12);
 			margin.AddChild(innerVBox);
 
 			var titleLabel = new Label();
+			titleLabel.Name = "TitleLabel_Label";
 			titleLabel.Text = TranslationServer.Translate("⚖ Scale Map");
 			titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 			titleLabel.AddThemeFontSizeOverride("font_size", 14);
@@ -4347,6 +4420,7 @@ namespace Realm.Client.UI
 			innerVBox.AddChild(titleLabel);
 
 			var hintLabel = new Label();
+			hintLabel.Name = "HintLabel_Label";
 			hintLabel.Text = TranslationServer.Translate("Sets the new size. All terrain and entity\npositions will be scaled proportionally.");
 			hintLabel.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.75f));
 			hintLabel.AddThemeFontSizeOverride("font_size", 10);
@@ -4506,6 +4580,7 @@ namespace Realm.Client.UI
 			SetupButton(_btnInspectorDelete, $"{UnicodeIcons.TRASH_ALT} ERASE", () => DeleteSelectedObjectAction(), 12, "Erase selected unit, prop, or decal");
 
 			_btnShowCoverage = new Button();
+			_btnShowCoverage.Name = "BtnShowCoverage_Button";
 			_btnShowCoverage.Text = TranslationServer.Translate($"{UnicodeIcons.EYE} RANGES: OFF");
 			var fontCoverage = GetFontAwesomeFont();
 			if (fontCoverage != null) _btnShowCoverage.AddThemeFontOverride("font", fontCoverage);
@@ -4530,6 +4605,7 @@ namespace Realm.Client.UI
 			_playerOwnerContainer.Visible = false;
 
 			var lblPlayer = new Label();
+			lblPlayer.Name = "LblPlayer_Label";
 			lblPlayer.Text = TranslationServer.Translate("Player");
 			lblPlayer.CustomMinimumSize = new Vector2(50, 0);
 			lblPlayer.AddThemeFontSizeOverride("font_size", 11);
@@ -4977,14 +5053,17 @@ namespace Realm.Client.UI
 		private HSlider CreateSliderRow(VBoxContainer parent, string labelText, float min, float max, float step, float initialVal, Action<float> onChanged, string format = "0.0#", float labelWidth = 70f)
 		{
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 
 			var lblName = new Label();
+			lblName.Name = "LblName_Label";
 			lblName.Text = labelText;
 			lblName.CustomMinimumSize = new Vector2(labelWidth, 0);
 			lblName.AddThemeFontSizeOverride("font_size", 11);
 			row.AddChild(lblName);
 
 			var slider = new HSlider();
+			slider.Name = "Slider_HSlider";
 			slider.MinValue = min;
 			slider.MaxValue = max;
 			slider.Step = step;
@@ -4995,6 +5074,7 @@ namespace Realm.Client.UI
 			row.AddChild(slider);
 
 			var lblVal = new Label();
+			lblVal.Name = "LblVal_Label";
 			lblVal.Text = initialVal.ToString(format, CultureInfo.InvariantCulture);
 			lblVal.CustomMinimumSize = new Vector2(34, 0);
 			lblVal.HorizontalAlignment = HorizontalAlignment.Right;

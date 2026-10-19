@@ -13,6 +13,7 @@ using Environment = System.Environment;
 
 namespace Realm.Client.Network;
 
+[GlobalClass]
 public partial class EnetMapTransferService : Node
 {
 	public static EnetMapTransferService Instance { get; private set; } = null!;

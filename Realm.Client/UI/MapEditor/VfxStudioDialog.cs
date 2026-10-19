@@ -9,8 +9,11 @@ using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 {
+	public VfxStudioDialog() { }
+
 	private ProceduralVfxInstance3D _previewVfxInstance;
 	private MeshInstance3D _previewGroundGrid;
 
@@ -175,6 +178,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private void BuildTopToolbar(Control parent)
 	{
 		var topToolbar = new HBoxContainer();
+		topToolbar.Name = "TopToolbar_HBoxContainer";
 		topToolbar.AddThemeConstantOverride("separation", 4);
 
 		AddButton(topToolbar, $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("VFX"), () => RestartPreviewVfx(), "Restart procedural effect", 10, new Vector2(0, 22));
@@ -201,6 +205,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private void BuildSubToolbar(Control parent)
 	{
 		var rowRandomize = new HBoxContainer();
+		rowRandomize.Name = "RowRandomize_HBoxContainer";
 		var btnRandomize = AddButton(rowRandomize, $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize All"), () => { RandomizeAllParameters(); }, "Randomize all noise masks, shapes, uv scrolling, and color parameters completely");
 		btnRandomize.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
@@ -211,20 +216,24 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private void BuildBasicSettings(VBoxContainer parent)
 	{
 		var rowId = new HBoxContainer();
+		rowId.Name = "RowId_HBoxContainer";
 		rowId.AddThemeConstantOverride("separation", 6);
 		var lblId = new Label();
+		lblId.Name = "LblId_Label";
 		lblId.Text = TranslationServer.Translate("TemplateID:");
 		lblId.CustomMinimumSize = new Vector2(140, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		rowId.AddChild(lblId);
 
 		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
 		_lblObjectTypePrefix.Text = "vfx/";
 		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		rowId.AddChild(_lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("vfx_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -402,6 +411,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private void BuildShaderSettings(VBoxContainer parent)
 	{
 		_uberShaderContainer = new VBoxContainer();
+		_uberShaderContainer.Name = "UberShaderContainer_VBoxContainer";
 		parent.AddChild(_uberShaderContainer);
 
 		AddSectionHeader(_uberShaderContainer, "🔳 " + TranslationServer.Translate("Mask & Distortion"));
@@ -836,6 +846,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		BuildFalloffSettings(_uberShaderContainer);
 
 		_particleContainer = new VBoxContainer();
+		_particleContainer.Name = "ParticleContainer_VBoxContainer";
 		scrollBody.AddChild(_particleContainer);
 		BuildParticleControls(_particleContainer);
 

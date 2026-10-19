@@ -13,6 +13,7 @@ using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class PropMultiMeshManager : Node3D
 {
 	public static PropMultiMeshManager Instance { get; private set; }

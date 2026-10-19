@@ -13,6 +13,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class CreatorDiscovery : Control
 {
 	public CreatorDiscovery()
@@ -80,22 +81,26 @@ public partial class CreatorDiscovery : Control
 	public override void _Ready()
 	{
 		var bgPanel = new Panel();
+		bgPanel.Name = "BgPanel_Panel";
 		bgPanel.SetAnchorsPreset(LayoutPreset.FullRect);
 		bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateCreatorDiscoveryBg());
 		AddChild(bgPanel);
 
 		var topHeaderPanel = new PanelContainer();
+		topHeaderPanel.Name = "TopHeaderPanel_PanelContainer";
 		topHeaderPanel.SetAnchorsPreset(LayoutPreset.TopWide);
 		topHeaderPanel.CustomMinimumSize = new Vector2(0, 70);
 		topHeaderPanel.AddThemeStyleboxOverride("panel", CreateHeaderPanelStyle());
 		AddChild(topHeaderPanel);
 
 		var topHeaderHBox = new HBoxContainer();
+		topHeaderHBox.Name = "TopHeaderHBox_HBoxContainer";
 		topHeaderHBox.AddThemeConstantOverride("separation", 20);
 		topHeaderHBox.Alignment = BoxContainer.AlignmentMode.Begin;
 		topHeaderPanel.AddChild(topHeaderHBox);
 
 		_backButton = new Button();
+		_backButton.Name = "BackButton_Button";
 		_backButton.AddThemeConstantOverride("icon_max_width", 24);
 		_backButton.CustomMinimumSize = new Vector2(120, 42);
 		UIStyle.ApplyButtonText(_backButton, "◀ BACK", 16);
@@ -106,14 +111,17 @@ public partial class CreatorDiscovery : Control
 		topHeaderHBox.AddChild(_backButton);
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, "CREATOR DISCOVERY", 28);
 		titleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Left;
 		topHeaderHBox.AddChild(titleLabel);
 
 		var badgePanel = new PanelContainer();
+		badgePanel.Name = "BadgePanel_PanelContainer";
 		badgePanel.AddThemeStyleboxOverride("panel", CreateBadgeStyle());
 		var badgeLabel = new Label();
+		badgeLabel.Name = "BadgeLabel_Label";
 		badgeLabel.Text = TranslationServer.Translate("COMMUNITY HUB");
 		badgeLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		badgeLabel.AddThemeFontSizeOverride("font_size", 12);
@@ -121,6 +129,7 @@ public partial class CreatorDiscovery : Control
 		topHeaderHBox.AddChild(badgePanel);
 
 		var centerVBox = new VBoxContainer();
+		centerVBox.Name = "CenterVBox_VBoxContainer";
 		centerVBox.AnchorLeft = 0.12f;
 		centerVBox.AnchorRight = 0.88f;
 		centerVBox.AnchorTop = 0.12f;
@@ -135,11 +144,13 @@ public partial class CreatorDiscovery : Control
 		AddChild(centerVBox);
 
 		var navHBox = new HBoxContainer();
+		navHBox.Name = "NavHBox_HBoxContainer";
 		navHBox.Alignment = BoxContainer.AlignmentMode.Center;
 		navHBox.AddThemeConstantOverride("separation", 16);
 		centerVBox.AddChild(navHBox);
 
 		_forYouTabBtn = new Button();
+		_forYouTabBtn.Name = "ForYouTabBtn_Button";
 		_forYouTabBtn.AddThemeConstantOverride("icon_max_width", 20);
 		_forYouTabBtn.CustomMinimumSize = new Vector2(150, 38);
 		UIStyle.ApplyButtonText(_forYouTabBtn, "FOR YOU", 14);
@@ -147,6 +158,7 @@ public partial class CreatorDiscovery : Control
 		navHBox.AddChild(_forYouTabBtn);
 
 		_portfolioTabBtn = new Button();
+		_portfolioTabBtn.Name = "PortfolioTabBtn_Button";
 		_portfolioTabBtn.AddThemeConstantOverride("icon_max_width", 20);
 		_portfolioTabBtn.CustomMinimumSize = new Vector2(180, 38);
 		UIStyle.ApplyButtonText(_portfolioTabBtn, "PORTFOLIO BROWSER", 14);
@@ -154,6 +166,7 @@ public partial class CreatorDiscovery : Control
 		navHBox.AddChild(_portfolioTabBtn);
 
 		_tabContainer = new TabContainer();
+		_tabContainer.Name = "TabContainer_TabContainer";
 		_tabContainer.TabsVisible = false;
 		_tabContainer.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		_tabContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -217,14 +230,17 @@ public partial class CreatorDiscovery : Control
 		_tabContainer.AddChild(forYouTab);
 
 		var forYouVBox = new VBoxContainer();
+		forYouVBox.Name = "ForYouVBox_VBoxContainer";
 		forYouVBox.AddThemeConstantOverride("separation", 20);
 		forYouTab.AddChild(forYouVBox);
 
 		var bannerPanel = new PanelContainer();
+		bannerPanel.Name = "BannerPanel_PanelContainer";
 		bannerPanel.AddThemeStyleboxOverride("panel", CreateCardStyle(new Color(0.14f, 0.16f, 0.20f, 0.9f), UIStyle.ColorCyanGlowDim));
 		forYouVBox.AddChild(bannerPanel);
 
 		var bannerHBox = new HBoxContainer();
+		bannerHBox.Name = "BannerHBox_HBoxContainer";
 		bannerHBox.AddThemeConstantOverride("separation", 16);
 		bannerPanel.AddChild(bannerHBox);
 
@@ -232,16 +248,19 @@ public partial class CreatorDiscovery : Control
 		bannerHBox.AddChild(bannerIconBox);
 
 		var bannerVBox = new VBoxContainer();
+		bannerVBox.Name = "BannerVBox_VBoxContainer";
 		bannerVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		bannerHBox.AddChild(bannerVBox);
 
 		var bannerTitle = new Label();
+		bannerTitle.Name = "BannerTitle_Label";
 		bannerTitle.Text = TranslationServer.Translate("RECOMMENDED COMMUNITY CREATORS");
 		bannerTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		bannerTitle.AddThemeFontSizeOverride("font_size", 16);
 		bannerVBox.AddChild(bannerTitle);
 
 		var bannerSub = new Label();
+		bannerSub.Name = "BannerSub_Label";
 		bannerSub.Text = TranslationServer.Translate("Based on your playtime, here are the top creators who contributed to the maps you love!");
 		bannerSub.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		bannerSub.AddThemeColorOverride("font_color", new Color(0.8f, 0.82f, 0.88f));
@@ -249,11 +268,13 @@ public partial class CreatorDiscovery : Control
 		bannerVBox.AddChild(bannerSub);
 
 		var scrollContainer = new ScrollContainer();
+		scrollContainer.Name = "ScrollContainer_ScrollContainer";
 		scrollContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 		forYouVBox.AddChild(scrollContainer);
 
 		_forYouGrid = new GridContainer();
+		_forYouGrid.Name = "ForYouGrid_GridContainer";
 		_forYouGrid.Columns = 2;
 		_forYouGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_forYouGrid.AddThemeConstantOverride("h_separation", 20);
@@ -272,28 +293,34 @@ public partial class CreatorDiscovery : Control
 		_tabContainer.AddChild(portfolioTab);
 
 		var portVBox = new VBoxContainer();
+		portVBox.Name = "PortVBox_VBoxContainer";
 		portVBox.AddThemeConstantOverride("separation", 16);
 		portfolioTab.AddChild(portVBox);
 
 		var profileHeaderPanel = new PanelContainer();
+		profileHeaderPanel.Name = "ProfileHeaderPanel_PanelContainer";
 		profileHeaderPanel.AddThemeStyleboxOverride("panel", CreateCardStyle(new Color(0.12f, 0.13f, 0.17f, 0.95f), UIStyle.ColorBronze));
 		portVBox.AddChild(profileHeaderPanel);
 
 		var profileVBox = new VBoxContainer();
+		profileVBox.Name = "ProfileVBox_VBoxContainer";
 		profileVBox.AddThemeConstantOverride("separation", 12);
 		profileHeaderPanel.AddChild(profileVBox);
 
 		var topBarHBox = new HBoxContainer();
+		topBarHBox.Name = "TopBarHBox_HBoxContainer";
 		topBarHBox.AddThemeConstantOverride("separation", 16);
 		profileVBox.AddChild(topBarHBox);
 
 		var selectLbl = new Label();
+		selectLbl.Name = "SelectLbl_Label";
 		selectLbl.Text = TranslationServer.Translate("Select Creator:");
 		selectLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		selectLbl.AddThemeFontSizeOverride("font_size", 14);
 		topBarHBox.AddChild(selectLbl);
 
 		_creatorDropdown = new OptionButton();
+		_creatorDropdown.Name = "CreatorDropdown_OptionButton";
 		_creatorDropdown.CustomMinimumSize = new Vector2(240, 36);
 		_creatorDropdown.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
 		_creatorDropdown.AddThemeStyleboxOverride("hover", UIStyle.CreateDropdownStyle(true, false));
@@ -301,6 +328,7 @@ public partial class CreatorDiscovery : Control
 		topBarHBox.AddChild(_creatorDropdown);
 
 		_selectedCreatorNameLabel = new Label();
+		_selectedCreatorNameLabel.Name = "SelectedCreatorNameLabel_Label";
 		_selectedCreatorNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		_selectedCreatorNameLabel.AddThemeFontSizeOverride("font_size", 18);
 		_selectedCreatorNameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -308,6 +336,7 @@ public partial class CreatorDiscovery : Control
 		topBarHBox.AddChild(_selectedCreatorNameLabel);
 
 		var bioHBox = new HBoxContainer();
+		bioHBox.Name = "BioHBox_HBoxContainer";
 		bioHBox.AddThemeConstantOverride("separation", 16);
 		profileVBox.AddChild(bioHBox);
 
@@ -315,6 +344,7 @@ public partial class CreatorDiscovery : Control
 		bioHBox.AddChild(avatarBox);
 
 		_contactInfo = new RichTextLabel();
+		_contactInfo.Name = "ContactInfo_RichTextLabel";
 		_contactInfo.BbcodeEnabled = true;
 		_contactInfo.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_contactInfo.CustomMinimumSize = new Vector2(0, 70);
@@ -322,17 +352,20 @@ public partial class CreatorDiscovery : Control
 		bioHBox.AddChild(_contactInfo);
 
 		var showcaseHeader = new Label();
+		showcaseHeader.Name = "ShowcaseHeader_Label";
 		showcaseHeader.Text = TranslationServer.Translate("PUBLISHED ASSET PACKS & GREENLIT MAPS");
 		showcaseHeader.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		showcaseHeader.AddThemeFontSizeOverride("font_size", 15);
 		portVBox.AddChild(showcaseHeader);
 
 		var portfolioScroll = new ScrollContainer();
+		portfolioScroll.Name = "PortfolioScroll_ScrollContainer";
 		portfolioScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		portfolioScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 		portVBox.AddChild(portfolioScroll);
 
 		_portfolioGrid = new GridContainer();
+		_portfolioGrid.Name = "PortfolioGrid_GridContainer";
 		_portfolioGrid.Columns = 3;
 		_portfolioGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_portfolioGrid.AddThemeConstantOverride("h_separation", 20);
@@ -374,11 +407,13 @@ public partial class CreatorDiscovery : Control
 		foreach (var kvp in localCreators)
 		{
 			var cardPanel = new PanelContainer();
+			cardPanel.Name = "CardPanel_PanelContainer";
 			cardPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 			cardPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			cardPanel.AddThemeStyleboxOverride("panel", CreateCardStyle(new Color(0.12f, 0.14f, 0.17f, 0.95f), UIStyle.ColorBronze));
 
 			var cardHBox = new HBoxContainer();
+			cardHBox.Name = "CardHBox_HBoxContainer";
 			cardHBox.AddThemeConstantOverride("separation", 14);
 			cardPanel.AddChild(cardHBox);
 
@@ -386,19 +421,23 @@ public partial class CreatorDiscovery : Control
 			cardHBox.AddChild(avatarBox);
 
 			var infoVBox = new VBoxContainer();
+			infoVBox.Name = "InfoVBox_VBoxContainer";
 			infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			infoVBox.Alignment = BoxContainer.AlignmentMode.Center;
 			cardHBox.AddChild(infoVBox);
 
 			var nameLbl = new Label();
+			nameLbl.Name = "NameLbl_Label";
 			nameLbl.Text = kvp.Key;
 			nameLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			nameLbl.AddThemeFontSizeOverride("font_size", 16);
 			infoVBox.AddChild(nameLbl);
 
 			var chipPanel = new PanelContainer();
+			chipPanel.Name = "ChipPanel_PanelContainer";
 			chipPanel.AddThemeStyleboxOverride("panel", CreateChipStyle());
 			var ptLbl = new Label();
+			ptLbl.Name = "PtLbl_Label";
 			ptLbl.Text = $"{kvp.Value} {TranslationServer.Translate("mins played on maps/assets")}";
 			ptLbl.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 			ptLbl.AddThemeFontSizeOverride("font_size", 12);
@@ -406,6 +445,7 @@ public partial class CreatorDiscovery : Control
 			infoVBox.AddChild(chipPanel);
 
 			var actionBtn = new Button();
+			actionBtn.Name = "ActionBtn_Button";
 			actionBtn.AddThemeConstantOverride("icon_max_width", 20);
 			actionBtn.CustomMinimumSize = new Vector2(110, 36);
 			actionBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
@@ -532,8 +572,10 @@ public partial class CreatorDiscovery : Control
 	{
 		var emptyPanel = CreateCardStyle(new Color(0.1f, 0.11f, 0.14f, 0.7f), new Color(0.3f, 0.3f, 0.35f));
 		var emptyBox = new PanelContainer();
+		emptyBox.Name = "EmptyBox_PanelContainer";
 		emptyBox.AddThemeStyleboxOverride("panel", emptyPanel);
 		var emptyLbl = new Label();
+		emptyLbl.Name = "EmptyLbl_Label";
 		emptyLbl.Text = TranslationServer.Translate("No greenlit assets found in portfolio.");
 		emptyLbl.HorizontalAlignment = HorizontalAlignment.Center;
 		emptyBox.AddChild(emptyLbl);
@@ -588,12 +630,14 @@ public partial class CreatorDiscovery : Control
 	private PanelContainer CreateAssetCard(string title, string hash)
 	{
 		var cardPanel = new PanelContainer();
+		cardPanel.Name = "CardPanel_PanelContainer";
 		cardPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		cardPanel.CustomMinimumSize = new Vector2(210, 190);
 		cardPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateCreatorDiscoveryMapFrameStyle());
 
 		var cardVBox = new VBoxContainer();
+		cardVBox.Name = "CardVBox_VBoxContainer";
 		cardVBox.AddThemeConstantOverride("separation", 8);
 		cardPanel.AddChild(cardVBox);
 
@@ -601,6 +645,7 @@ public partial class CreatorDiscovery : Control
 		cardVBox.AddChild(thumbContainer);
 
 		var titleLbl = new Label();
+		titleLbl.Name = "TitleLbl_Label";
 		titleLbl.Text = title;
 		titleLbl.HorizontalAlignment = HorizontalAlignment.Center;
 		titleLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -608,6 +653,7 @@ public partial class CreatorDiscovery : Control
 		cardVBox.AddChild(titleLbl);
 
 		var hashLbl = new Label();
+		hashLbl.Name = "HashLbl_Label";
 		string displayHash = hash.Length > 12 ? hash.Substring(0, 12) + "..." : hash;
 		hashLbl.Text = displayHash;
 		hashLbl.HorizontalAlignment = HorizontalAlignment.Center;
@@ -621,6 +667,7 @@ public partial class CreatorDiscovery : Control
 	private PanelContainer CreateAvatarPlaceholder(int size)
 	{
 		var container = new PanelContainer();
+		container.Name = "Container_PanelContainer";
 		container.CustomMinimumSize = new Vector2(size, size);
 
 		var style = new StyleBoxFlat();
@@ -634,6 +681,7 @@ public partial class CreatorDiscovery : Control
 		container.AddThemeStyleboxOverride("panel", style);
 
 		var textureRect = new TextureRect();
+		textureRect.Name = "TextureRect_TextureRect";
 		textureRect.SetAnchorsPreset(LayoutPreset.FullRect);
 		textureRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		textureRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -645,6 +693,7 @@ public partial class CreatorDiscovery : Control
 	private PanelContainer CreateThumbnailPlaceholder(int width, int height)
 	{
 		var container = new PanelContainer();
+		container.Name = "Container_PanelContainer";
 		container.CustomMinimumSize = new Vector2(width, height);
 
 		var style = new StyleBoxFlat();
@@ -658,12 +707,14 @@ public partial class CreatorDiscovery : Control
 		container.AddThemeStyleboxOverride("panel", style);
 
 		var textureRect = new TextureRect();
+		textureRect.Name = "TextureRect_TextureRect";
 		textureRect.SetAnchorsPreset(LayoutPreset.FullRect);
 		textureRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		textureRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
 		container.AddChild(textureRect);
 
 		var badgePanel = new PanelContainer();
+		badgePanel.Name = "BadgePanel_PanelContainer";
 		badgePanel.SetAnchorsPreset(LayoutPreset.TopRight);
 		badgePanel.OffsetLeft = -65;
 		badgePanel.OffsetTop = 6;
@@ -672,6 +723,7 @@ public partial class CreatorDiscovery : Control
 		badgePanel.AddThemeStyleboxOverride("panel", CreateBadgeStyle());
 
 		var badgeLabel = new Label();
+		badgeLabel.Name = "BadgeLabel_Label";
 		badgeLabel.Text = TranslationServer.Translate("GREENLIT");
 		badgeLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		badgeLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);

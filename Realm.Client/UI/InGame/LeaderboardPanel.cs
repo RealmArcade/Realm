@@ -76,14 +76,17 @@ public class LeaderboardPanel
 			if (rowIdx >= _rows.Count)
 			{
 				var row = new HBoxContainer();
+				row.Name = "Row_HBoxContainer";
 				row.AddThemeConstantOverride("separation", 20);
 
 				var nameLbl = new Label();
+				nameLbl.Name = "NameLbl_Label";
 				nameLbl.AddThemeFontSizeOverride("font_size", 12);
 				nameLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 				row.AddChild(nameLbl);
 
 				var valLbl = new Label();
+				valLbl.Name = "ValLbl_Label";
 				valLbl.AddThemeFontSizeOverride("font_size", 12);
 				valLbl.AddThemeColorOverride("font_color", Colors.White);
 				valLbl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;

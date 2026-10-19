@@ -12,8 +12,11 @@ using Environment = Godot.Environment;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class FloatingDialogBase : PanelContainer
 {
+	public FloatingDialogBase() { }
+
 	private static readonly List<FloatingDialogBase> _openDialogs = new();
 	public static bool HasAnyDialogOpen => _openDialogs.Count > 0;
 
@@ -92,10 +95,12 @@ public partial class FloatingDialogBase : PanelContainer
 		};
 
 		MainVBox = new VBoxContainer();
+		MainVBox.Name = "MainVBox_VBoxContainer";
 		MainVBox.AddThemeConstantOverride("separation", 10);
 		AddChild(MainVBox);
 
 		HeaderHBox = new HBoxContainer();
+		HeaderHBox.Name = "HeaderHBox_HBoxContainer";
 		HeaderHBox.AddThemeConstantOverride("separation", 8);
 		HeaderHBox.GuiInput += OnHeaderGuiInput;
 		HeaderHBox.MouseFilter = MouseFilterEnum.Stop;
@@ -103,6 +108,7 @@ public partial class FloatingDialogBase : PanelContainer
 		MainVBox.AddChild(HeaderHBox);
 
 		TitleLabel = new Label();
+		TitleLabel.Name = "TitleLabel_Label";
 		TitleLabel.Text = titleText;
 		TitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		TitleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -111,6 +117,7 @@ public partial class FloatingDialogBase : PanelContainer
 		TitleLabel.MouseFilter = MouseFilterEnum.Pass;
 
 		var titleMargin = new MarginContainer();
+		titleMargin.Name = "TitleMargin_MarginContainer";
 		titleMargin.AddThemeConstantOverride("margin_top", -14);
 		titleMargin.AddThemeConstantOverride("margin_bottom", 0);
 		titleMargin.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -118,6 +125,7 @@ public partial class FloatingDialogBase : PanelContainer
 		HeaderHBox.AddChild(titleMargin);
 
 		CloseButton = new Button();
+		CloseButton.Name = "CloseButton_Button";
 		CloseButton.Set("icon_max_width", 0);
 		CloseButton.Text = "✕";
 		CloseButton.CustomMinimumSize = new Vector2(26, 26);
@@ -125,22 +133,26 @@ public partial class FloatingDialogBase : PanelContainer
 		CloseButton.Pressed += () => CancelAndClose();
 
 		var closeMargin = new MarginContainer();
+		closeMargin.Name = "CloseMargin_MarginContainer";
 		closeMargin.AddThemeConstantOverride("margin_right", -35);
 		closeMargin.AddThemeConstantOverride("margin_left", 10);
 		closeMargin.AddChild(CloseButton);
 		HeaderHBox.AddChild(closeMargin);
 
 		BodyContainer = new VBoxContainer();
+		BodyContainer.Name = "BodyContainer_VBoxContainer";
 		BodyContainer.AddThemeConstantOverride("separation", 8);
 		BodyContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		MainVBox.AddChild(BodyContainer);
 
 		FooterHBox = new HBoxContainer();
+		FooterHBox.Name = "FooterHBox_HBoxContainer";
 		FooterHBox.AddThemeConstantOverride("separation", 12);
 		FooterHBox.Alignment = BoxContainer.AlignmentMode.End;
 		MainVBox.AddChild(FooterHBox);
 
 		CancelButton = new Button();
+		CancelButton.Name = "CancelButton_Button";
 		CancelButton.Set("icon_max_width", 0);
 		CancelButton.Text = TranslationServer.Translate("CANCEL");
 		CancelButton.CustomMinimumSize = new Vector2(90, 30);
@@ -149,6 +161,7 @@ public partial class FloatingDialogBase : PanelContainer
 		FooterHBox.AddChild(CancelButton);
 
 		ApplyButton = new Button();
+		ApplyButton.Name = "ApplyButton_Button";
 		ApplyButton.Set("icon_max_width", 0);
 		ApplyButton.Text = TranslationServer.Translate("APPLY");
 		ApplyButton.CustomMinimumSize = new Vector2(90, 30);
@@ -163,6 +176,7 @@ public partial class FloatingDialogBase : PanelContainer
 		if (ApplyButton != null) ApplyButton.Visible = false;
 
 		var btnClose = new Button();
+		btnClose.Name = "BtnClose_Button";
 		btnClose.Set("icon_max_width", 0);
 		btnClose.Text = TranslationServer.Translate(closeText);
 		btnClose.CustomMinimumSize = new Vector2(90, 30);
@@ -226,6 +240,7 @@ public partial class FloatingDialogBase : PanelContainer
 		if (RandomizeAssetsButton == null)
 		{
 			RandomizeAssetsButton = new Button();
+			RandomizeAssetsButton.Name = "RandomizeAssetsButton_Button";
 			RandomizeAssetsButton.Set("icon_max_width", 0);
 			RandomizeAssetsButton.Text = $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize Assets");
 			RandomizeAssetsButton.CustomMinimumSize = new Vector2(160, 28);
@@ -283,6 +298,7 @@ public partial class FloatingDialogBase : PanelContainer
 		if (BackgroundTextureRect == null)
 		{
 			BackgroundTextureRect = new TextureRect();
+			BackgroundTextureRect.Name = "BackgroundTextureRect_TextureRect";
 			BackgroundTextureRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			BackgroundTextureRect.StretchMode = TextureRect.StretchModeEnum.Scale;
 			BackgroundTextureRect.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -300,6 +316,7 @@ public partial class FloatingDialogBase : PanelContainer
 		{
 			RemoveChild(MainVBox);
 			DialogMarginContainer = new MarginContainer();
+			DialogMarginContainer.Name = "DialogMarginContainer_MarginContainer";
 			DialogMarginContainer.SetAnchorsPreset(LayoutPreset.FullRect);
 			DialogMarginContainer.AddChild(MainVBox);
 			AddChild(DialogMarginContainer);
@@ -525,6 +542,7 @@ public partial class FloatingDialogBase : PanelContainer
 	public Label AddSectionHeader(Control parent, string titleText, Color? color = null)
 	{
 		var header = new Label();
+		header.Name = "Header_Label";
 		header.Text = titleText;
 		header.AddThemeColorOverride("font_color", color ?? UIStyle.ColorGold);
 		header.AddThemeFontSizeOverride("font_size", 12);
@@ -535,6 +553,7 @@ public partial class FloatingDialogBase : PanelContainer
 	public Label AddLabel(Control parent, string text, int fontSize = 11, Color? color = null)
 	{
 		var label = new Label();
+		label.Name = "Label_Label";
 		label.Text = text;
 		label.AddThemeFontSizeOverride("font_size", fontSize);
 		if (color.HasValue)
@@ -549,6 +568,7 @@ public partial class FloatingDialogBase : PanelContainer
 	public Label AddDescription(Control parent, string text)
 	{
 		var desc = new Label();
+		desc.Name = "Desc_Label";
 		desc.Text = text;
 		desc.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		desc.AddThemeFontSizeOverride("font_size", 11);
@@ -571,15 +591,18 @@ public partial class FloatingDialogBase : PanelContainer
 		float labelWidth = 110.0f)
 	{
 		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
 		row.AddThemeConstantOverride("separation", 6);
 
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.Text = labelText;
 		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
 		lbl.AddThemeFontSizeOverride("font_size", 11);
 		row.AddChild(lbl);
 
 		var slider = new HSlider();
+		slider.Name = "Slider_HSlider";
 		slider.MinValue = min;
 		slider.MaxValue = max;
 		slider.Step = step;
@@ -588,6 +611,7 @@ public partial class FloatingDialogBase : PanelContainer
 		row.AddChild(slider);
 
 		var valLbl = new Label();
+		valLbl.Name = "ValLbl_Label";
 		valLbl.Text = initialValue.ToString(format);
 		valLbl.CustomMinimumSize = new Vector2(45, 0);
 		valLbl.AddThemeFontSizeOverride("font_size", 11);
@@ -611,15 +635,18 @@ public partial class FloatingDialogBase : PanelContainer
 		float labelWidth = 110.0f)
 	{
 		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
 		row.AddThemeConstantOverride("separation", 6);
 
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.Text = labelText;
 		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
 		lbl.AddThemeFontSizeOverride("font_size", 11);
 		row.AddChild(lbl);
 
 		var hueSlider = new HSlider();
+		hueSlider.Name = "HueSlider_HSlider";
 		hueSlider.MinValue = 0.0f;
 		hueSlider.MaxValue = 1.0f;
 		hueSlider.Step = 0.01f;
@@ -680,6 +707,7 @@ public partial class FloatingDialogBase : PanelContainer
 		string tooltip = "")
 	{
 		var chk = new CheckBox();
+		chk.Name = "Chk_CheckBox";
 		chk.Text = labelText;
 		chk.ButtonPressed = initialValue;
 		chk.AddThemeFontSizeOverride("font_size", 11);
@@ -698,15 +726,18 @@ public partial class FloatingDialogBase : PanelContainer
 		float labelWidth = 110.0f)
 	{
 		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
 		row.AddThemeConstantOverride("separation", 6);
 
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.Text = labelText;
 		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
 		lbl.AddThemeFontSizeOverride("font_size", 11);
 		row.AddChild(lbl);
 
 		var opt = new OptionButton();
+		opt.Name = "Opt_OptionButton";
 		opt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		opt.AddThemeFontSizeOverride("font_size", 11);
 		for (int i = 0; i < options.Length; i++)
@@ -735,15 +766,18 @@ public partial class FloatingDialogBase : PanelContainer
 		float labelWidth = 110.0f)
 	{
 		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
 		row.AddThemeConstantOverride("separation", 6);
 
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.Text = labelText;
 		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
 		lbl.AddThemeFontSizeOverride("font_size", 11);
 		row.AddChild(lbl);
 
 		var txt = new LineEdit();
+		txt.Name = "Txt_LineEdit";
 		txt.Text = initialText ?? string.Empty;
 		txt.PlaceholderText = placeholder;
 		txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -765,15 +799,18 @@ public partial class FloatingDialogBase : PanelContainer
 		float labelWidth = 110.0f)
 	{
 		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
 		row.AddThemeConstantOverride("separation", 6);
 
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.Text = labelText;
 		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
 		lbl.AddThemeFontSizeOverride("font_size", 11);
 		row.AddChild(lbl);
 
 		var txt = new LineEdit();
+		txt.Name = "Txt_LineEdit";
 		txt.Text = initialValue.ToString("0.##");
 		txt.PlaceholderText = placeholder;
 		txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -819,9 +856,11 @@ public partial class FloatingDialogBase : PanelContainer
 		float labelWidth = 110.0f)
 	{
 		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
 		row.AddThemeConstantOverride("separation", 6);
 
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.Text = labelText;
 		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
 		lbl.AddThemeFontSizeOverride("font_size", 11);
@@ -865,9 +904,11 @@ public partial class FloatingDialogBase : PanelContainer
 		float labelWidth = 110.0f)
 	{
 		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
 		row.AddThemeConstantOverride("separation", 6);
 
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.Text = labelText;
 		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
 		lbl.AddThemeFontSizeOverride("font_size", 11);
@@ -911,9 +952,11 @@ public partial class FloatingDialogBase : PanelContainer
 		Action<string> onPlaySound = null)
 	{
 		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
 		row.AddThemeConstantOverride("separation", 4);
 
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.Text = labelText;
 		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
 		lbl.AddThemeFontSizeOverride("font_size", 11);
@@ -935,6 +978,7 @@ public partial class FloatingDialogBase : PanelContainer
 		row.AddChild(state.Txt);
 
 		var btnDropdown = new Button();
+		btnDropdown.Name = "BtnDropdown_Button";
 		btnDropdown.Set("icon_max_width", 0);
 		btnDropdown.Text = "▼";
 		btnDropdown.CustomMinimumSize = new Vector2(24, 22);
@@ -976,6 +1020,7 @@ public partial class FloatingDialogBase : PanelContainer
 		if (!hasAllFoldersCheckbox) return;
 
 		var chkAll = new CheckBox();
+		chkAll.Name = "ChkAll_CheckBox";
 		chkAll.Text = TranslationServer.Translate("All folders");
 		chkAll.AddThemeFontSizeOverride("font_size", 10);
 		chkAll.TooltipText = TranslationServer.Translate("Include models outside of projectiles folder");
@@ -988,6 +1033,7 @@ public partial class FloatingDialogBase : PanelContainer
 		if (onPlaySound == null) return;
 
 		var btnPlay = new Button();
+		btnPlay.Name = "BtnPlay_Button";
 		btnPlay.Set("icon_max_width", 0);
 		btnPlay.Text = "▶";
 		btnPlay.CustomMinimumSize = new Vector2(26, 22);
@@ -1696,6 +1742,7 @@ public partial class FloatingDialogBase : PanelContainer
 		Vector2? minSize = null)
 	{
 		var btn = new Button();
+		btn.Name = "Btn_Button";
 		btn.Set("icon_max_width", 0);
 		btn.Text = text;
 		var font = Hud?.GetFontAwesomeFont();
@@ -1734,6 +1781,7 @@ public partial class FloatingDialogBase : PanelContainer
 		container.Stretch = true;
 
 		subViewport = new SubViewport();
+		subViewport.Name = "SubViewport_SubViewport";
 		subViewport.Size = new Vector2I((int)minSize.X, (int)minSize.Y);
 		subViewport.TransparentBg = false;
 		subViewport.OwnWorld3D = true;
@@ -1749,11 +1797,13 @@ public partial class FloatingDialogBase : PanelContainer
 		subViewport.World3D = world;
 
 		light = new DirectionalLight3D();
+		light.Name = "Light_DirectionalLight3D";
 		light.RotationDegrees = new Vector3(-30, 30, 0);
 		light.LightEnergy = 0.75f;
 		subViewport.AddChild(light);
 
 		camera = new Camera3D();
+		camera.Name = "Camera_Camera3D";
 		camera.Position = new Vector3(0, 1.2f, 2.8f);
 		subViewport.AddChild(camera);
 
@@ -1765,11 +1815,13 @@ public partial class FloatingDialogBase : PanelContainer
 	public VBoxContainer CreateScrollBody(int minHeight = 350)
 	{
 		var scroll = new ScrollContainer();
+		scroll.Name = "Scroll_ScrollContainer";
 		scroll.CustomMinimumSize = new Vector2(0, minHeight);
 		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 
 		var innerVBox = new VBoxContainer();
+		innerVBox.Name = "InnerVBox_VBoxContainer";
 		innerVBox.AddThemeConstantOverride("separation", 8);
 		innerVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		innerVBox.SizeFlagsVertical = SizeFlags.ExpandFill;

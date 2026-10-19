@@ -14,6 +14,7 @@ using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class VisualProjectile3D : Node3D
 {
 	private const int MaxTrailPoints = 128;

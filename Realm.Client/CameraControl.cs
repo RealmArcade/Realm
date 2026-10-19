@@ -7,6 +7,7 @@ using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class CameraControl : Camera3D
 {
 	public CameraControl()

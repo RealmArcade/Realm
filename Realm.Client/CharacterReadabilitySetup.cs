@@ -15,6 +15,7 @@ namespace Realm.Client;
 ///     drives energy dynamically via EnvironmentService.UpdateDayNightVisuals,
 ///     peaking at 0.42 during Night so characters outshine the terrain.
 /// </summary>
+[GlobalClass]
 public partial class CharacterReadabilitySetup : Node3D
 {
 	/// <summary>

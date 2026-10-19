@@ -8,8 +8,11 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 {
+	public AnimationPreviewDialog() { }
+
 	private static readonly string[] StandardActionTypes = new[]
 	{
 		"Idle",
@@ -71,6 +74,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		Add3DPreviewViewport(BodyContainer, new Vector2(480, 220));
 
 		var topControlsVBox = new VBoxContainer();
+		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
 		topControlsVBox.AddThemeConstantOverride("separation", 6);
 		BodyContainer.AddChild(topControlsVBox);
 
@@ -84,6 +88,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		AddButton(presetRow, "⏹ " + TranslationServer.Translate("Stop"), () => StopAnimation(), "Stop Animation", 10, new Vector2(0, 22));
 
 		var animInputSection = new VBoxContainer();
+		animInputSection.Name = "AnimInputSection_VBoxContainer";
 		animInputSection.AddThemeConstantOverride("separation", 4);
 
 		AddSectionHeader(animInputSection, "🎬 " + TranslationServer.Translate("ANIMATION PREVIEW & ASSIGNMENT"), new Color(0.35f, 0.75f, 0.9f));
@@ -106,9 +111,11 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		);
 
 		var attHeaderRow = new HBoxContainer();
+		attHeaderRow.Name = "AttHeaderRow_HBoxContainer";
 		attHeaderRow.AddThemeConstantOverride("separation", 6);
 
 		var lblAttHeader = new Label();
+		lblAttHeader.Name = "LblAttHeader_Label";
 		lblAttHeader.Text = "📎 " + TranslationServer.Translate("PREVIEW ATTACHMENTS & SOCKETS");
 		lblAttHeader.AddThemeColorOverride("font_color", new Color(0.85f, 0.75f, 0.4f));
 		lblAttHeader.AddThemeFontSizeOverride("font_size", 11);
@@ -119,20 +126,24 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		animInputSection.AddChild(attHeaderRow);
 
 		_configuredAttachmentsContainer = new VBoxContainer();
+		_configuredAttachmentsContainer.Name = "ConfiguredAttachmentsContainer_VBoxContainer";
 		_configuredAttachmentsContainer.AddThemeConstantOverride("separation", 4);
 		_configuredAttachmentsContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		animInputSection.AddChild(_configuredAttachmentsContainer);
 
 		var addActionRow = new HBoxContainer();
+		addActionRow.Name = "AddActionRow_HBoxContainer";
 		addActionRow.AddThemeConstantOverride("separation", 6);
 
 		var lblAssign = new Label();
+		lblAssign.Name = "LblAssign_Label";
 		lblAssign.Text = TranslationServer.Translate("Assign to Action:");
 		lblAssign.CustomMinimumSize = new Vector2(130, 0);
 		lblAssign.AddThemeFontSizeOverride("font_size", 11);
 		addActionRow.AddChild(lblAssign);
 
 		_optTargetAction = new OptionButton();
+		_optTargetAction.Name = "OptTargetAction_OptionButton";
 		_optTargetAction.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optTargetAction.AddThemeFontSizeOverride("font_size", 11);
 		for (int i = 0; i < StandardActionTypes.Length; i++)
@@ -153,6 +164,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 		var scrollBody = CreateScrollBody(250);
 		_actionListContainer = new VBoxContainer();
+		_actionListContainer.Name = "ActionListContainer_VBoxContainer";
 		_actionListContainer.AddThemeConstantOverride("separation", 10);
 		_actionListContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(_actionListContainer);
@@ -300,9 +312,11 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 	private void BuildAttachmentCardUI(ConfiguredAttachmentEntry entry, string key, bool isVisible)
 	{
 		var card = new PanelContainer();
+		card.Name = "Card_PanelContainer";
 		card.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
 		var row = new HBoxContainer();
+		row.Name = "Row_HBoxContainer";
 		row.AddThemeConstantOverride("separation", 6);
 
 		row.AddChild(CreateVisibilityButton(key, isVisible));
@@ -317,6 +331,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 	private Button CreateVisibilityButton(string key, bool isVisible)
 	{
 		var btnEye = new Button();
+		btnEye.Name = "BtnEye_Button";
 		btnEye.Set("icon_max_width", 0);
 		btnEye.Text = isVisible ? "👁️" : "🚫";
 		btnEye.TooltipText = TranslationServer.Translate("Toggle attachment preview visibility");
@@ -382,6 +397,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		string capturedSocket = entry.SocketId;
 		string capturedAtt = entry.AttachmentId;
 		var btnEdit = new Button();
+		btnEdit.Name = "BtnEdit_Button";
 		btnEdit.Set("icon_max_width", 0);
 		btnEdit.Text = "✏️";
 		btnEdit.TooltipText = TranslationServer.Translate("Edit in Socket & VFX Studio");
@@ -486,9 +502,11 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		string animFile = entry.Animation;
 
 		var itemRow = new HBoxContainer();
+		itemRow.Name = "ItemRow_HBoxContainer";
 		itemRow.AddThemeConstantOverride("separation", 6);
 
 		var badge = new Label();
+		badge.Name = "Badge_Label";
 		badge.Text = $"{actionType}_{index}";
 		badge.CustomMinimumSize = new Vector2(55, 0);
 		badge.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
@@ -496,6 +514,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		itemRow.AddChild(badge);
 
 		var nameLbl = new Label();
+		nameLbl.Name = "NameLbl_Label";
 		nameLbl.Text = animFile;
 		nameLbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		nameLbl.AddThemeFontSizeOverride("font_size", 11);
@@ -527,17 +546,21 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 	private void BuildActionCardUI(string actionType)
 	{
 		var actionCard = new PanelContainer();
+		actionCard.Name = "ActionCard_PanelContainer";
 		actionCard.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
 		var cardVBox = new VBoxContainer();
+		cardVBox.Name = "CardVBox_VBoxContainer";
 		cardVBox.AddThemeConstantOverride("separation", 6);
 		actionCard.AddChild(cardVBox);
 
 		var headerRow = new HBoxContainer();
+		headerRow.Name = "HeaderRow_HBoxContainer";
 		headerRow.AddThemeConstantOverride("separation", 6);
 
 		string icon = ActionIcons.TryGetValue(actionType, out var ic) ? ic : "⚡";
 		var lblHeader = new Label();
+		lblHeader.Name = "LblHeader_Label";
 		lblHeader.Text = $"{icon} {actionType}";
 		lblHeader.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		lblHeader.AddThemeFontSizeOverride("font_size", 12);
@@ -547,6 +570,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		_workingAnimations.TryGetValue(actionType, out var animList);
 		int count = animList?.Count ?? 0;
 		var countBadge = new Label();
+		countBadge.Name = "CountBadge_Label";
 		countBadge.Text = count == 1 ? "1 anim" : $"{count} anims";
 		countBadge.AddThemeColorOverride("font_color", count > 0 ? UIStyle.ColorCyanGlow : UIStyle.ColorGoldDull);
 		countBadge.AddThemeFontSizeOverride("font_size", 10);
@@ -557,6 +581,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		if (animList == null || animList.Count == 0)
 		{
 			var fallbackLbl = new Label();
+			fallbackLbl.Name = "FallbackLbl_Label";
 			fallbackLbl.Text = TranslationServer.Translate($"[Default fallback: {actionType.ToLowerInvariant()}.ranim]");
 			fallbackLbl.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.65f, 0.7f));
 			fallbackLbl.AddThemeFontSizeOverride("font_size", 11);

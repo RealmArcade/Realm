@@ -20,6 +20,7 @@ using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class Unit3D : Node3D
 {
 	public Entity Entity { get; set; }
@@ -2015,6 +2016,7 @@ public partial class Unit3D : Node3D
 		if (_rallyVisualsContainer == null)
 		{
 			_rallyVisualsContainer = new Node3D();
+			_rallyVisualsContainer.Name = "RallyVisualsContainer_Node3D";
 			_rallyVisualsContainer.TopLevel = true;
 			AddChild(_rallyVisualsContainer);
 		}
@@ -2025,6 +2027,7 @@ public partial class Unit3D : Node3D
 		while (_rallyMarkersPool.Count <= index)
 		{
 			var marker = new MeshInstance3D();
+			marker.Name = "Marker_MeshInstance3D";
 			var cylinderMesh = new CylinderMesh();
 			cylinderMesh.TopRadius = 0.25f;
 			cylinderMesh.BottomRadius = 0.25f;
@@ -2050,6 +2053,7 @@ public partial class Unit3D : Node3D
 		while (_rallyLinesPool.Count <= index)
 		{
 			var line = new MeshInstance3D();
+			line.Name = "Line_MeshInstance3D";
 			var boxMesh = new BoxMesh();
 			boxMesh.Size = new Vector3(0.1f, 0.05f, 1.0f);
 			line.Mesh = boxMesh;
@@ -2174,6 +2178,7 @@ public partial class Unit3D : Node3D
 		cylinderMesh.BottomRadius = 0.1f;
 		cylinderMesh.Height = 3.0f;
 		_rallyMarker = new MeshInstance3D();
+		_rallyMarker.Name = "RallyMarker_MeshInstance3D";
 		_rallyMarker.Mesh = cylinderMesh;
 
 		var markerMat = new StandardMaterial3D();
@@ -2251,6 +2256,7 @@ public partial class Unit3D : Node3D
 		if (_pathVisualsContainer == null)
 		{
 			_pathVisualsContainer = new Node3D();
+			_pathVisualsContainer.Name = "PathVisualsContainer_Node3D";
 			_pathVisualsContainer.TopLevel = true;
 			AddChild(_pathVisualsContainer);
 		}
@@ -2383,6 +2389,7 @@ public partial class Unit3D : Node3D
 		while (_pathMarkersPool.Count <= index)
 		{
 			var marker = new MeshInstance3D();
+			marker.Name = "Marker_MeshInstance3D";
 			var cylinderMesh = new CylinderMesh();
 			cylinderMesh.TopRadius = 0.25f;
 			cylinderMesh.BottomRadius = 0.25f;
@@ -2416,6 +2423,7 @@ public partial class Unit3D : Node3D
 		while (_pathLinesPool.Count <= index)
 		{
 			var line = new MeshInstance3D();
+			line.Name = "Line_MeshInstance3D";
 			var boxMesh = new BoxMesh();
 			boxMesh.Size = new Vector3(0.1f, 0.05f, 1.0f);
 			line.Mesh = boxMesh;

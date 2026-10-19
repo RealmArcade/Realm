@@ -13,6 +13,7 @@ using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 
+[GlobalClass]
 public partial class PeerSeederManager : Node
 {
 	private static PeerSeederManager? _instance;

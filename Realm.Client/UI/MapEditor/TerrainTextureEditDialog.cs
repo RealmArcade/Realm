@@ -11,8 +11,11 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class TerrainTextureEditDialog : FloatingDialogBase
 {
+	public TerrainTextureEditDialog() { }
+
 	private string _textureFileName = "";
 	private string _objectType = "terrain";
 	private string _slug = "";
@@ -99,6 +102,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	{
 		var scrollBody = CreateScrollBody(580);
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
@@ -120,20 +124,24 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & TEXTURE ASSET"), new Color(0.95f, 0.8f, 0.4f));
 
 		var rowId = new HBoxContainer();
+		rowId.Name = "RowId_HBoxContainer";
 		rowId.AddThemeConstantOverride("separation", 6);
 		var lblId = new Label();
+		lblId.Name = "LblId_Label";
 		lblId.Text = TranslationServer.Translate("TemplateID:");
 		lblId.CustomMinimumSize = new Vector2(140, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		rowId.AddChild(lblId);
 
 		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
 		_lblObjectTypePrefix.Text = "terrain/";
 		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		rowId.AddChild(_lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("terrain_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -173,8 +181,10 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		);
 
 		var rowTint = new HBoxContainer();
+		rowTint.Name = "RowTint_HBoxContainer";
 		rowTint.AddThemeConstantOverride("separation", 8);
 		var lblTint = new Label();
+		lblTint.Name = "LblTint_Label";
 		lblTint.Text = TranslationServer.Translate("Tint Color:");
 		lblTint.CustomMinimumSize = new Vector2(140, 0);
 		lblTint.AddThemeFontSizeOverride("font_size", 11);
@@ -364,6 +374,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		AddSectionHeader(contentVBox, "🎯 " + TranslationServer.Translate("PROCEDURAL DECAL BOMBING"), new Color(0.9f, 0.5f, 0.7f));
 		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered decals placed at terrain elevation during texture painting:"));
 		var decalListRow = new HBoxContainer();
+		decalListRow.Name = "DecalListRow_HBoxContainer";
 		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_lstDecals.ItemSelected += OnDecalItemSelected;
 		decalListRow.AddChild(_lstDecals);
@@ -426,6 +437,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		AddSectionHeader(contentVBox, "✨ " + TranslationServer.Translate("PROCEDURAL VFX BOMBING"), new Color(0.4f, 0.7f, 1.0f));
 		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered particle systems placed at terrain elevation during painting:"));
 		var vfxListRow = new HBoxContainer();
+		vfxListRow.Name = "VfxListRow_HBoxContainer";
 		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_lstVfx.ItemSelected += OnVfxItemSelected;
 		vfxListRow.AddChild(_lstVfx);
@@ -630,6 +642,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	private Label CreateHelpTooltipIcon(HSlider slider)
 	{
 		var helpIcon = new Label();
+		helpIcon.Name = "HelpIcon_Label";
 		helpIcon.Text = "❓";
 		helpIcon.TooltipText = TranslationServer.Translate("NOTE: unavailable on your current graphics preset");
 		helpIcon.MouseFilter = MouseFilterEnum.Stop;

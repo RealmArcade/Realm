@@ -334,6 +334,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private Node3D CreateRingNode(Color color)
 	{
 		var meshInst = new MeshInstance3D();
+		meshInst.Name = "MeshInst_MeshInstance3D";
 		var torus = new TorusMesh
 		{
 			InnerRadius = 0.95f,

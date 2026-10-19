@@ -12,6 +12,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class StorageMenu : Control
 {
 	public StorageMenu()
@@ -61,30 +62,35 @@ public partial class StorageMenu : Control
 	private void BuildLayout()
 	{
 		var bgPanel = new Panel();
+		bgPanel.Name = "BgPanel_Panel";
 		bgPanel.SetAnchorsPreset(LayoutPreset.FullRect);
 		bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateEntranceBgTexture());
 		bgPanel.MouseFilter = MouseFilterEnum.Ignore;
 		AddChild(bgPanel);
 
 		var rootVBox = new VBoxContainer();
+		rootVBox.Name = "RootVBox_VBoxContainer";
 		rootVBox.SetAnchorsPreset(LayoutPreset.FullRect);
 		rootVBox.AddThemeConstantOverride("separation", 0);
 		rootVBox.MouseFilter = MouseFilterEnum.Pass;
 		AddChild(rootVBox);
 
 		var topHeaderPanel = new PanelContainer();
+		topHeaderPanel.Name = "TopHeaderPanel_PanelContainer";
 		topHeaderPanel.CustomMinimumSize = new Vector2(0, 70);
 		topHeaderPanel.AddThemeStyleboxOverride("panel", CreateHeaderPanelStyle());
 		topHeaderPanel.MouseFilter = MouseFilterEnum.Pass;
 		rootVBox.AddChild(topHeaderPanel);
 
 		var topHeaderHBox = new HBoxContainer();
+		topHeaderHBox.Name = "TopHeaderHBox_HBoxContainer";
 		topHeaderHBox.AddThemeConstantOverride("separation", 20);
 		topHeaderHBox.Alignment = BoxContainer.AlignmentMode.Begin;
 		topHeaderHBox.MouseFilter = MouseFilterEnum.Pass;
 		topHeaderPanel.AddChild(topHeaderHBox);
 
 		_backButton = new Button();
+		_backButton.Name = "BackButton_Button";
 		_backButton.AddThemeConstantOverride("icon_max_width", 24);
 		_backButton.CustomMinimumSize = new Vector2(130, 42);
 		UIStyle.ApplyButtonText(_backButton, "◀ " + TranslationServer.Translate("BACK"), 16);
@@ -102,6 +108,7 @@ public partial class StorageMenu : Control
 		topHeaderHBox.AddChild(_backButton);
 
 		_titleLabel = new Label();
+		_titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(_titleLabel, TranslationServer.Translate("MAP STORAGE"), 28);
 		_titleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -109,6 +116,7 @@ public partial class StorageMenu : Control
 		topHeaderHBox.AddChild(_titleLabel);
 
 		_importMapButton = new Button();
+		_importMapButton.Name = "ImportMapButton_Button";
 		_importMapButton.AddThemeConstantOverride("icon_max_width", 24);
 		_importMapButton.CustomMinimumSize = new Vector2(210, 42);
 		UIStyle.ApplyButtonText(_importMapButton, "📥 " + TranslationServer.Translate("IMPORT MAP (.RMAP)"), 14);
@@ -126,6 +134,7 @@ public partial class StorageMenu : Control
 		topHeaderHBox.AddChild(_importMapButton);
 
 		var mainMargin = new MarginContainer();
+		mainMargin.Name = "MainMargin_MarginContainer";
 		mainMargin.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		mainMargin.SizeFlagsVertical = SizeFlags.ExpandFill;
 		mainMargin.AddThemeConstantOverride("margin_left", 35);
@@ -136,6 +145,7 @@ public partial class StorageMenu : Control
 		rootVBox.AddChild(mainMargin);
 
 		var mainHBox = new HBoxContainer();
+		mainHBox.Name = "MainHBox_HBoxContainer";
 		mainHBox.AddThemeConstantOverride("separation", 20);
 		mainHBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		mainHBox.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -149,6 +159,7 @@ public partial class StorageMenu : Control
 	private void BuildLeftNav(HBoxContainer parent)
 	{
 		var leftPanelContainer = new PanelContainer();
+		leftPanelContainer.Name = "LeftPanelContainer_PanelContainer";
 		leftPanelContainer.CustomMinimumSize = new Vector2(380, 0);
 		leftPanelContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		leftPanelContainer.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
@@ -157,6 +168,7 @@ public partial class StorageMenu : Control
 		parent.AddChild(leftPanelContainer);
 
 		var leftVBox = new VBoxContainer();
+		leftVBox.Name = "LeftVBox_VBoxContainer";
 		leftVBox.AddThemeConstantOverride("separation", 12);
 		leftVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		leftVBox.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -164,6 +176,7 @@ public partial class StorageMenu : Control
 		leftPanelContainer.AddChild(leftVBox);
 
 		_searchBar = new LineEdit();
+		_searchBar.Name = "SearchBar_LineEdit";
 		_searchBar.PlaceholderText = TranslationServer.Translate("Search Maps...");
 		_searchBar.CustomMinimumSize = new Vector2(0, 40);
 		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
@@ -179,12 +192,14 @@ public partial class StorageMenu : Control
 		leftVBox.AddChild(_searchBar);
 
 		var mapCountMargin = new MarginContainer();
+		mapCountMargin.Name = "MapCountMargin_MarginContainer";
 		mapCountMargin.AddThemeConstantOverride("margin_top", 24);
 		mapCountMargin.AddThemeConstantOverride("margin_bottom", 4);
 		mapCountMargin.MouseFilter = MouseFilterEnum.Ignore;
 		leftVBox.AddChild(mapCountMargin);
 
 		_mapCountLabel = new Label();
+		_mapCountLabel.Name = "MapCountLabel_Label";
 		_mapCountLabel.Text = string.Format(TranslationServer.Translate("Downloaded Maps ({0})"), 0);
 		_mapCountLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_mapCountLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -192,6 +207,7 @@ public partial class StorageMenu : Control
 		mapCountMargin.AddChild(_mapCountLabel);
 
 		var scrollContainer = new ScrollContainer();
+		scrollContainer.Name = "ScrollContainer_ScrollContainer";
 		scrollContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
@@ -199,6 +215,7 @@ public partial class StorageMenu : Control
 		leftVBox.AddChild(scrollContainer);
 
 		_mapListContainer = new VBoxContainer();
+		_mapListContainer.Name = "MapListContainer_VBoxContainer";
 		_mapListContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_mapListContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_mapListContainer.AddThemeConstantOverride("separation", 8);
@@ -209,6 +226,7 @@ public partial class StorageMenu : Control
 	private void BuildRightNav(HBoxContainer parent)
 	{
 		_rightNavPanel = new PanelContainer();
+		_rightNavPanel.Name = "RightNavPanel_PanelContainer";
 		_rightNavPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_rightNavPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_rightNavPanel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
@@ -217,6 +235,7 @@ public partial class StorageMenu : Control
 		parent.AddChild(_rightNavPanel);
 
 		_emptySelectionLabel = new Label();
+		_emptySelectionLabel.Name = "EmptySelectionLabel_Label";
 		_emptySelectionLabel.Text = TranslationServer.Translate("Select a map to view details.");
 		_emptySelectionLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_emptySelectionLabel.VerticalAlignment = VerticalAlignment.Center;
@@ -228,6 +247,7 @@ public partial class StorageMenu : Control
 		_rightNavPanel.AddChild(_emptySelectionLabel);
 
 		_selectedMapContainer = new VBoxContainer();
+		_selectedMapContainer.Name = "SelectedMapContainer_VBoxContainer";
 		_selectedMapContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_selectedMapContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_selectedMapContainer.AddThemeConstantOverride("separation", 16);
@@ -236,11 +256,13 @@ public partial class StorageMenu : Control
 		_rightNavPanel.AddChild(_selectedMapContainer);
 
 		var topDetailsHBox = new HBoxContainer();
+		topDetailsHBox.Name = "TopDetailsHBox_HBoxContainer";
 		topDetailsHBox.AddThemeConstantOverride("separation", 16);
 		topDetailsHBox.MouseFilter = MouseFilterEnum.Pass;
 		_selectedMapContainer.AddChild(topDetailsHBox);
 
 		_mapThumbnail = new TextureRect();
+		_mapThumbnail.Name = "MapThumbnail_TextureRect";
 		_mapThumbnail.CustomMinimumSize = new Vector2(140, 100);
 		_mapThumbnail.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_mapThumbnail.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
@@ -250,17 +272,20 @@ public partial class StorageMenu : Control
 		topDetailsHBox.AddChild(_mapThumbnail);
 
 		var metaVBox = new VBoxContainer();
+		metaVBox.Name = "MetaVBox_VBoxContainer";
 		metaVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		metaVBox.AddThemeConstantOverride("separation", 4);
 		metaVBox.MouseFilter = MouseFilterEnum.Pass;
 		topDetailsHBox.AddChild(metaVBox);
 
 		_selectedTitleLabel = new Label();
+		_selectedTitleLabel.Name = "SelectedTitleLabel_Label";
 		UIStyle.ApplyTitle(_selectedTitleLabel, "Map Title", 22);
 		_selectedTitleLabel.MouseFilter = MouseFilterEnum.Ignore;
 		metaVBox.AddChild(_selectedTitleLabel);
 
 		_selectedAuthorLabel = new Label();
+		_selectedAuthorLabel.Name = "SelectedAuthorLabel_Label";
 		_selectedAuthorLabel.Text = "Author: Unknown";
 		_selectedAuthorLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_selectedAuthorLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -268,18 +293,21 @@ public partial class StorageMenu : Control
 		metaVBox.AddChild(_selectedAuthorLabel);
 
 		_selectedGenreLabel = new Label();
+		_selectedGenreLabel.Name = "SelectedGenreLabel_Label";
 		_selectedGenreLabel.Text = "Genre: Custom Map";
 		_selectedGenreLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		_selectedGenreLabel.AddThemeFontSizeOverride("font_size", 12);
 		metaVBox.AddChild(_selectedGenreLabel);
 
 		_selectedTotalSizeLabel = new Label();
+		_selectedTotalSizeLabel.Name = "SelectedTotalSizeLabel_Label";
 		_selectedTotalSizeLabel.Text = "Total Storage: 0 MB";
 		_selectedTotalSizeLabel.AddThemeColorOverride("font_color", new Color(0.8f, 0.8f, 0.8f));
 		_selectedTotalSizeLabel.AddThemeFontSizeOverride("font_size", 12);
 		metaVBox.AddChild(_selectedTotalSizeLabel);
 
 		_selectedDescriptionLabel = new Label();
+		_selectedDescriptionLabel.Name = "SelectedDescriptionLabel_Label";
 		_selectedDescriptionLabel.Text = "";
 		_selectedDescriptionLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_selectedDescriptionLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.85f));
@@ -288,11 +316,13 @@ public partial class StorageMenu : Control
 		_selectedMapContainer.AddChild(_selectedDescriptionLabel);
 
 		var actionsHBox = new HBoxContainer();
+		actionsHBox.Name = "ActionsHBox_HBoxContainer";
 		actionsHBox.AddThemeConstantOverride("separation", 14);
 		actionsHBox.MouseFilter = MouseFilterEnum.Pass;
 		_selectedMapContainer.AddChild(actionsHBox);
 
 		_downloadUpdateButton = new Button();
+		_downloadUpdateButton.Name = "DownloadUpdateButton_Button";
 		_downloadUpdateButton.AddThemeConstantOverride("icon_max_width", 20);
 		_downloadUpdateButton.CustomMinimumSize = new Vector2(240, 38);
 		UIStyle.ApplyButtonText(_downloadUpdateButton, "⚡ " + TranslationServer.Translate("DOWNLOAD UPDATED VERSION"), 14);
@@ -315,11 +345,13 @@ public partial class StorageMenu : Control
 		_selectedMapContainer.AddChild(separator);
 
 		var versionsHeaderLabel = new Label();
+		versionsHeaderLabel.Name = "VersionsHeaderLabel_Label";
 		UIStyle.ApplyTitle(versionsHeaderLabel, TranslationServer.Translate("INSTALLED VERSIONS"), 16);
 		versionsHeaderLabel.MouseFilter = MouseFilterEnum.Ignore;
 		_selectedMapContainer.AddChild(versionsHeaderLabel);
 
 		var versionsScroll = new ScrollContainer();
+		versionsScroll.Name = "VersionsScroll_ScrollContainer";
 		versionsScroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		versionsScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		versionsScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
@@ -327,6 +359,7 @@ public partial class StorageMenu : Control
 		_selectedMapContainer.AddChild(versionsScroll);
 
 		_versionsListContainer = new VBoxContainer();
+		_versionsListContainer.Name = "VersionsListContainer_VBoxContainer";
 		_versionsListContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_versionsListContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_versionsListContainer.AddThemeConstantOverride("separation", 10);
@@ -384,6 +417,7 @@ public partial class StorageMenu : Control
 		if (filteredMaps.Count == 0)
 		{
 			var emptyLabel = new Label();
+			emptyLabel.Name = "EmptyLabel_Label";
 			emptyLabel.Text = TranslationServer.Translate("No maps currently downloaded to storage.");
 			emptyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 			emptyLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -403,6 +437,7 @@ public partial class StorageMenu : Control
 	private Button CreateMapCard(DownloadedMapInfo map)
 	{
 		var btn = new Button();
+		btn.Name = "Btn_Button";
 		btn.AddThemeConstantOverride("icon_max_width", 0);
 		btn.CustomMinimumSize = new Vector2(0, 60);
 		btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -416,6 +451,7 @@ public partial class StorageMenu : Control
 		btn.AddThemeStyleboxOverride("pressed", CreateCardStyle(true, false));
 
 		var hbox = new HBoxContainer();
+		hbox.Name = "Hbox_HBoxContainer";
 		hbox.SetAnchorsPreset(LayoutPreset.FullRect);
 		hbox.AddThemeConstantOverride("margin_left", 8);
 		hbox.AddThemeConstantOverride("margin_right", 8);
@@ -424,6 +460,7 @@ public partial class StorageMenu : Control
 		btn.AddChild(hbox);
 
 		var cardVBox = new VBoxContainer();
+		cardVBox.Name = "CardVBox_VBoxContainer";
 		cardVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		cardVBox.Alignment = BoxContainer.AlignmentMode.Center;
 		cardVBox.AddThemeConstantOverride("separation", 2);
@@ -431,6 +468,7 @@ public partial class StorageMenu : Control
 		hbox.AddChild(cardVBox);
 
 		var titleLbl = new Label();
+		titleLbl.Name = "TitleLbl_Label";
 		titleLbl.Text = map.Title;
 		titleLbl.AddThemeColorOverride("font_color", isSelected ? UIStyle.ColorGold : new Color(0.95f, 0.95f, 0.95f));
 		titleLbl.AddThemeFontSizeOverride("font_size", 14);
@@ -439,6 +477,7 @@ public partial class StorageMenu : Control
 		cardVBox.AddChild(titleLbl);
 
 		var subLbl = new Label();
+		subLbl.Name = "SubLbl_Label";
 		string versionsText = map.Versions.Count == 1 ? "1 Version" : $"{map.Versions.Count} Versions";
 		subLbl.Text = $"{map.Author} • {versionsText} • {map.FormattedTotalSize}";
 		subLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -516,16 +555,19 @@ public partial class StorageMenu : Control
 	private PanelContainer CreateVersionRow(DownloadedMapInfo map, DownloadedMapVersionInfo version)
 	{
 		var panel = new PanelContainer();
+		panel.Name = "Panel_PanelContainer";
 		panel.AddThemeStyleboxOverride("panel", CreateVersionRowStyle());
 		panel.CustomMinimumSize = new Vector2(0, 52);
 		panel.MouseFilter = MouseFilterEnum.Pass;
 
 		var hbox = new HBoxContainer();
+		hbox.Name = "Hbox_HBoxContainer";
 		hbox.AddThemeConstantOverride("separation", 12);
 		hbox.MouseFilter = MouseFilterEnum.Pass;
 		panel.AddChild(hbox);
 
 		var infoVBox = new VBoxContainer();
+		infoVBox.Name = "InfoVBox_VBoxContainer";
 		infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		infoVBox.Alignment = BoxContainer.AlignmentMode.Center;
 		infoVBox.AddThemeConstantOverride("separation", 2);
@@ -533,6 +575,7 @@ public partial class StorageMenu : Control
 		hbox.AddChild(infoVBox);
 
 		var verLabel = new Label();
+		verLabel.Name = "VerLabel_Label";
 		verLabel.Text = $"Version {version.Version}";
 		verLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		verLabel.AddThemeFontSizeOverride("font_size", 14);
@@ -540,6 +583,7 @@ public partial class StorageMenu : Control
 		infoVBox.AddChild(verLabel);
 
 		var detailsLabel = new Label();
+		detailsLabel.Name = "DetailsLabel_Label";
 		string shortHash = version.ManifestHash.Length >= 12 ? version.ManifestHash.Substring(0, 12) + "..." : version.ManifestHash;
 		detailsLabel.Text = $"BLAKE3: {shortHash}  •  Size: {version.FormattedSize}  •  Modified: {version.LastModified:yyyy-MM-dd HH:mm}";
 		detailsLabel.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
@@ -548,6 +592,7 @@ public partial class StorageMenu : Control
 		infoVBox.AddChild(detailsLabel);
 
 		var openInEditorBtn = new Button();
+		openInEditorBtn.Name = "OpenInEditorBtn_Button";
 		openInEditorBtn.AddThemeConstantOverride("icon_max_width", 20);
 		openInEditorBtn.CustomMinimumSize = new Vector2(140, 36);
 		openInEditorBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
@@ -568,6 +613,7 @@ public partial class StorageMenu : Control
 		hbox.AddChild(openInEditorBtn);
 
 		var exportBtn = new Button();
+		exportBtn.Name = "ExportBtn_Button";
 		exportBtn.AddThemeConstantOverride("icon_max_width", 20);
 		exportBtn.CustomMinimumSize = new Vector2(140, 36);
 		exportBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
@@ -588,6 +634,7 @@ public partial class StorageMenu : Control
 		hbox.AddChild(exportBtn);
 
 		var deleteBtn = new Button();
+		deleteBtn.Name = "DeleteBtn_Button";
 		deleteBtn.AddThemeConstantOverride("icon_max_width", 24);
 		deleteBtn.CustomMinimumSize = new Vector2(36, 36);
 		deleteBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
@@ -827,18 +874,21 @@ public partial class StorageMenu : Control
 	private (Panel popup, ProgressBar progressBar, Label statusLabel, Button closeBtn) ShowExportProgressUI(string destinationPath)
 	{
 		var popup = new Panel();
+		popup.Name = "Popup_Panel";
 		popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		popup.ZIndex = 1100;
 		AddChild(popup);
 
 		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
 		cardPanel.CustomMinimumSize = new Vector2(560, 260);
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		popup.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		vbox.CustomMinimumSize = new Vector2(520, 220);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -849,11 +899,13 @@ public partial class StorageMenu : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, "📦 " + TranslationServer.Translate("EXPORTING MAP PACKAGE (.RMAP)"), 20);
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
 
 		var descLabel = new Label();
+		descLabel.Name = "DescLabel_Label";
 		descLabel.Text = string.Format(TranslationServer.Translate("Destination: {0}"), Path.GetFileName(destinationPath));
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		descLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -863,6 +915,7 @@ public partial class StorageMenu : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
 		var progressBar = new ProgressBar();
+		progressBar.Name = "ProgressBar_ProgressBar";
 		progressBar.CustomMinimumSize = new Vector2(480, 24);
 		progressBar.MinValue = 0;
 		progressBar.MaxValue = 100;
@@ -870,6 +923,7 @@ public partial class StorageMenu : Control
 		vbox.AddChild(progressBar);
 
 		var statusLabel = new Label();
+		statusLabel.Name = "StatusLabel_Label";
 		statusLabel.Text = TranslationServer.Translate("Preparing export...");
 		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		statusLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -879,10 +933,12 @@ public partial class StorageMenu : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
 		var buttonRow = new HBoxContainer();
+		buttonRow.Name = "ButtonRow_HBoxContainer";
 		buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
 		vbox.AddChild(buttonRow);
 
 		var closeBtn = new Button();
+		closeBtn.Name = "CloseBtn_Button";
 		closeBtn.Flat = false;
 		closeBtn.AddThemeConstantOverride("icon_max_width", 0);
 		closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());

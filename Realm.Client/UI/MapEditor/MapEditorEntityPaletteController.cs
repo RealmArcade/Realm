@@ -161,6 +161,7 @@ public class MapEditorEntityPaletteController
 
 
 		var categoryGrid = new GridContainer();
+		categoryGrid.Name = "CategoryGrid_GridContainer";
 		categoryGrid.Columns = 2;
 		categoryGrid.AddThemeConstantOverride("h_separation", 6);
 		categoryGrid.AddThemeConstantOverride("v_separation", 6);
@@ -180,31 +181,37 @@ public class MapEditorEntityPaletteController
 		};
 
 		_btnChars = new Button();
+		_btnChars.Name = "BtnChars_Button";
 		_btnChars.Set("icon_max_width", 0);
 		SetupButton(_btnChars, "👥 Units", () => SelectCategory("Units"), 12, "Select Units category");
 		categoryGrid.AddChild(_btnChars);
 
 		_btnBuilds = new Button();
+		_btnBuilds.Name = "BtnBuilds_Button";
 		_btnBuilds.Set("icon_max_width", 0);
 		SetupButton(_btnBuilds, "🏢 Buildings", () => SelectCategory("Buildings"), 12, "Select Buildings category");
 		categoryGrid.AddChild(_btnBuilds);
 
 		_btnEnv = new Button();
+		_btnEnv.Name = "BtnEnv_Button";
 		_btnEnv.Set("icon_max_width", 0);
 		SetupButton(_btnEnv, "🪵 Resources", () => SelectCategory("Resources"), 12, "Select Resources category");
 		categoryGrid.AddChild(_btnEnv);
 
 		_btnProps = new Button();
+		_btnProps.Name = "BtnProps_Button";
 		_btnProps.Set("icon_max_width", 0);
 		SetupButton(_btnProps, "📦 Props", () => SelectCategory("Props"), 12, "Select Props category");
 		categoryGrid.AddChild(_btnProps);
 
 		_btnDecals = new Button();
+		_btnDecals.Name = "BtnDecals_Button";
 		_btnDecals.Set("icon_max_width", 0);
 		SetupButton(_btnDecals, "🎨 Decals", () => SelectCategory("Decals"), 12, "Select Decals category");
 		categoryGrid.AddChild(_btnDecals);
 
 		_btnVfx = new Button();
+		_btnVfx.Name = "BtnVfx_Button";
 		_btnVfx.Set("icon_max_width", 0);
 		SetupButton(_btnVfx, "✨ VFX", () => SelectCategory("VFX"), 12, "Select VFX category");
 		categoryGrid.AddChild(_btnVfx);

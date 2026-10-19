@@ -9,6 +9,7 @@ using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class Decal3D : Decal
 {
 	public Entity Entity { get; set; }

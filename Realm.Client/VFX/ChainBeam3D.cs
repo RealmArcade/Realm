@@ -4,6 +4,7 @@ using Godot;
 
 namespace Realm.Client.VFX;
 
+[GlobalClass]
 public partial class ChainBeam3D : Node3D
 {
 	private readonly List<Vector3> _targetPositions = new();

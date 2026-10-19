@@ -8,8 +8,11 @@ using Realm.Shared.Distribution;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class NoiseTextureDialog : FloatingDialogBase
 {
+	public NoiseTextureDialog() { }
+
 	[GeneratedRegex(@"^(.*)_(\d+)$")]
 	private static partial Regex TrailingIndexRegex();
 
@@ -69,17 +72,20 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 	private void BuildDialogUi()
 	{
 		var contentHBox = new HBoxContainer();
+		contentHBox.Name = "ContentHBox_HBoxContainer";
 		contentHBox.AddThemeConstantOverride("separation", 14);
 		contentHBox.SizeFlagsVertical = SizeFlags.ExpandFill;
 		BodyContainer.AddChild(contentHBox);
 
 		var scrollLeft = new ScrollContainer();
+		scrollLeft.Name = "ScrollLeft_ScrollContainer";
 		scrollLeft.CustomMinimumSize = new Vector2(400, 0);
 		scrollLeft.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollLeft.SizeFlagsVertical = SizeFlags.ExpandFill;
 		contentHBox.AddChild(scrollLeft);
 
 		var leftVBox = new VBoxContainer();
+		leftVBox.Name = "LeftVBox_VBoxContainer";
 		leftVBox.AddThemeConstantOverride("separation", 8);
 		leftVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollLeft.AddChild(leftVBox);
@@ -98,10 +104,12 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		}, 120f);
 
 		_colorRampRow = new HBoxContainer();
+		_colorRampRow.Name = "ColorRampRow_HBoxContainer";
 		_colorRampRow.AddThemeConstantOverride("separation", 8);
 		_colorRampRow.Visible = false;
 
 		var lblColorRamp = new Label();
+		lblColorRamp.Name = "LblColorRamp_Label";
 		lblColorRamp.Text = TranslationServer.Translate("Ramp Colors:");
 		lblColorRamp.CustomMinimumSize = new Vector2(120f, 0);
 		lblColorRamp.AddThemeFontSizeOverride("font_size", 11);
@@ -128,6 +136,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		_chkFlowMap = AddCheckBox(leftVBox, TranslationServer.Translate("Flow Map"), false, (_) => SchedulePreviewUpdate());
 
 		var btnRandomizeAll = new Button();
+		btnRandomizeAll.Name = "BtnRandomizeAll_Button";
 		btnRandomizeAll.Set("icon_max_width", 0);
 		btnRandomizeAll.Text = "🎲 " + TranslationServer.Translate("Randomize All");
 		btnRandomizeAll.CustomMinimumSize = new Vector2(0, 28);
@@ -165,14 +174,17 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		}, 120f);
 
 		var seedRow = new HBoxContainer();
+		seedRow.Name = "SeedRow_HBoxContainer";
 		seedRow.AddThemeConstantOverride("separation", 6);
 		var lblSeed = new Label();
+		lblSeed.Name = "LblSeed_Label";
 		lblSeed.Text = TranslationServer.Translate("Seed:");
 		lblSeed.CustomMinimumSize = new Vector2(120f, 0);
 		lblSeed.AddThemeFontSizeOverride("font_size", 11);
 		seedRow.AddChild(lblSeed);
 
 		_txtSeed = new LineEdit();
+		_txtSeed.Name = "TxtSeed_LineEdit";
 		_txtSeed.Text = "1337";
 		_txtSeed.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSeed.AddThemeFontSizeOverride("font_size", 11);
@@ -180,6 +192,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		seedRow.AddChild(_txtSeed);
 
 		_btnRandomizeSeed = new Button();
+		_btnRandomizeSeed.Name = "BtnRandomizeSeed_Button";
 		_btnRandomizeSeed.Set("icon_max_width", 0);
 		_btnRandomizeSeed.Text = "🎲 " + TranslationServer.Translate("Random");
 		_btnRandomizeSeed.CustomMinimumSize = new Vector2(70, 22);
@@ -203,6 +216,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		(_sliderWeightedStrength, _lblWeightedStrengthVal) = AddSlider(leftVBox, TranslationServer.Translate("Weighted Strength:"), 0.0f, 1.0f, 0.05f, 0.0f, (_) => SchedulePreviewUpdate(), "0.00", 120f);
 
 		_cellularGroup = new VBoxContainer();
+		_cellularGroup.Name = "CellularGroup_VBoxContainer";
 		_cellularGroup.AddThemeConstantOverride("separation", 6);
 		_cellularGroup.Visible = false;
 		AddSectionHeader(_cellularGroup, TranslationServer.Translate("CELLULAR SETTINGS"));
@@ -217,6 +231,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		leftVBox.AddChild(_cellularGroup);
 
 		_domainWarpGroup = new VBoxContainer();
+		_domainWarpGroup.Name = "DomainWarpGroup_VBoxContainer";
 		_domainWarpGroup.AddThemeConstantOverride("separation", 6);
 		AddSectionHeader(_domainWarpGroup, TranslationServer.Translate("DOMAIN WARP"));
 
@@ -235,6 +250,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		leftVBox.AddChild(_domainWarpGroup);
 
 		var rightVBox = new VBoxContainer();
+		rightVBox.Name = "RightVBox_VBoxContainer";
 		rightVBox.CustomMinimumSize = new Vector2(280, 0);
 		rightVBox.AddThemeConstantOverride("separation", 10);
 		rightVBox.Alignment = BoxContainer.AlignmentMode.Center;
@@ -243,11 +259,13 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		AddSectionHeader(rightVBox, TranslationServer.Translate("LIVE PREVIEW"));
 
 		var previewPanel = new PanelContainer();
+		previewPanel.Name = "PreviewPanel_PanelContainer";
 		previewPanel.CustomMinimumSize = new Vector2(256, 256);
 		previewPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(false));
 		previewPanel.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 
 		_previewTextureRect = new TextureRect();
+		_previewTextureRect.Name = "PreviewTextureRect_TextureRect";
 		_previewTextureRect.CustomMinimumSize = new Vector2(256, 256);
 		_previewTextureRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_previewTextureRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -256,6 +274,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		rightVBox.AddChild(previewPanel);
 
 		_lblPreviewInfo = new Label();
+		_lblPreviewInfo.Name = "LblPreviewInfo_Label";
 		_lblPreviewInfo.Text = "512 x 512 | FastNoiseLite";
 		_lblPreviewInfo.HorizontalAlignment = HorizontalAlignment.Center;
 		_lblPreviewInfo.AddThemeFontSizeOverride("font_size", 11);

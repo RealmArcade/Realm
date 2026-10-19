@@ -15,6 +15,7 @@ using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class Prop3D : Node3D
 {
 	public Entity Entity { get; set; }

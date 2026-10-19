@@ -3,8 +3,11 @@ using Realm.Ecs;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class PropEntityProxyNode : Node3D
 {
+	public PropEntityProxyNode() { }
+
 	public Entity Entity { get; }
 	public string PropId { get; }
 

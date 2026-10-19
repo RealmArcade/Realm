@@ -35,6 +35,7 @@ public class MapEditorGenerationDialog
 		_hud.AddChild(overlay);
 
 		var panel = new PanelContainer();
+		panel.Name = "Panel_PanelContainer";
 		panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 		panel.CustomMinimumSize = new Vector2(510, 490);
 		panel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
@@ -46,6 +47,7 @@ public class MapEditorGenerationDialog
 		center.AddChild(panel);
 
 		var bgTex = new TextureRect();
+		bgTex.Name = "BgTex_TextureRect";
 		bgTex.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/map_editor_random_generator.png");
 		bgTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		bgTex.StretchMode = TextureRect.StretchModeEnum.Scale;
@@ -53,6 +55,7 @@ public class MapEditorGenerationDialog
 		panel.AddChild(bgTex);
 
 		var margin = new MarginContainer();
+		margin.Name = "Margin_MarginContainer";
 		margin.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 		margin.AddThemeConstantOverride("margin_top", 55);
 		margin.AddThemeConstantOverride("margin_bottom", 25);
@@ -61,29 +64,35 @@ public class MapEditorGenerationDialog
 		panel.AddChild(margin);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.AddThemeConstantOverride("separation", 10);
 		margin.AddChild(vbox);
 
 		var lblTitle = new Label();
+		lblTitle.Name = "LblTitle_Label";
 		UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate("RANDOM MAP GENERATOR"), 18);
 		lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		vbox.AddChild(lblTitle);
 
 		var titleSpacer = new Control();
+		titleSpacer.Name = "TitleSpacer_Control";
 		titleSpacer.CustomMinimumSize = new Vector2(0, 18);
 		vbox.AddChild(titleSpacer);
 
 		var seedHBox = new HBoxContainer();
+		seedHBox.Name = "SeedHBox_HBoxContainer";
 		seedHBox.AddThemeConstantOverride("separation", 10);
 		vbox.AddChild(seedHBox);
 
 		var lblSeed = new Label();
+		lblSeed.Name = "LblSeed_Label";
 		lblSeed.Text = TranslationServer.Translate("Map Seed:");
 		lblSeed.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		lblSeed.AddThemeFontSizeOverride("font_size", 12);
 		seedHBox.AddChild(lblSeed);
 
 		var txtSeed = new LineEdit();
+		txtSeed.Name = "TxtSeed_LineEdit";
 		txtSeed.Text = _genSeed;
 		txtSeed.CustomMinimumSize = new Vector2(150, 30);
 		txtSeed.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -95,6 +104,7 @@ public class MapEditorGenerationDialog
 		seedHBox.AddChild(txtSeed);
 
 		var btnRoll = new Button();
+		btnRoll.Name = "BtnRoll_Button";
 		btnRoll.Set("icon_max_width", 0);
 		SetupButton(btnRoll, TranslationServer.Translate("ROLL"), () =>
 		{
@@ -105,6 +115,7 @@ public class MapEditorGenerationDialog
 		seedHBox.AddChild(btnRoll);
 
 		var grid = new GridContainer();
+		grid.Name = "Grid_GridContainer";
 		grid.Columns = 3;
 		grid.AddThemeConstantOverride("h_separation", 10);
 		grid.AddThemeConstantOverride("v_separation", 8);
@@ -119,6 +130,7 @@ public class MapEditorGenerationDialog
 		var sldResourceAbundance = AddSliderRow(grid, "Resource Abundance", _genResourceAbundance, (val) => _genResourceAbundance = val);
 		var sldDecoDensity = AddSliderRow(grid, "Decorative Prop Density", _genDecoDensity, (val) => _genDecoDensity = val);
 		var btnRandomize = new Button();
+		btnRandomize.Name = "BtnRandomize_Button";
 		btnRandomize.Set("icon_max_width", 0);
 		SetupButton(btnRandomize, TranslationServer.Translate("RANDOMIZE SLIDERS"), () =>
 		{
@@ -135,11 +147,13 @@ public class MapEditorGenerationDialog
 		vbox.AddChild(btnRandomize);
 
 		var btnHBox = new HBoxContainer();
+		btnHBox.Name = "BtnHBox_HBoxContainer";
 		btnHBox.AddThemeConstantOverride("separation", 20);
 		btnHBox.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		vbox.AddChild(btnHBox);
 
 		var btnGen = new Button();
+		btnGen.Name = "BtnGen_Button";
 		btnGen.Set("icon_max_width", 0);
 		SetupButton(btnGen, TranslationServer.Translate("GENERATE"), () =>
 		{
@@ -166,6 +180,7 @@ public class MapEditorGenerationDialog
 		btnHBox.AddChild(btnGen);
 
 		var btnCancel = new Button();
+		btnCancel.Name = "BtnCancel_Button";
 		btnCancel.Set("icon_max_width", 0);
 		SetupButton(btnCancel, TranslationServer.Translate("CLOSE"), () => { overlay.QueueFree(); }, 13, "Close dialog without generating");
 		btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
@@ -175,12 +190,14 @@ public class MapEditorGenerationDialog
 	private HSlider AddSliderRow(GridContainer grid, string title, int initialValue, Action<int> onValueChanged)
 	{
 		var lblName = new Label();
+		lblName.Name = "LblName_Label";
 		lblName.Text = TranslationServer.Translate(title);
 		lblName.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		lblName.AddThemeFontSizeOverride("font_size", 12);
 		grid.AddChild(lblName);
 
 		var sld = new HSlider();
+		sld.Name = "Sld_HSlider";
 		sld.MinValue = 1;
 		sld.MaxValue = 10;
 		sld.Step = 1;
@@ -190,6 +207,7 @@ public class MapEditorGenerationDialog
 		grid.AddChild(sld);
 
 		var lblVal = new Label();
+		lblVal.Name = "LblVal_Label";
 		lblVal.Text = initialValue.ToString();
 		lblVal.CustomMinimumSize = new Vector2(30, 0);
 		lblVal.HorizontalAlignment = HorizontalAlignment.Right;

@@ -74,6 +74,7 @@ public class SummaryTablePanel
 		if (_headerRow == null || !GodotObject.IsInstanceValid(_headerRow))
 		{
 			_headerRow = new HBoxContainer();
+			_headerRow.Name = "HeaderRow_HBoxContainer";
 			_headerRow.AddThemeConstantOverride("separation", 15);
 			_rowsContainer.AddChild(_headerRow);
 			_headerLabels.Clear();
@@ -83,6 +84,7 @@ public class SummaryTablePanel
 		{
 			int colIdx = _headerLabels.Count;
 			var colLabel = new Label();
+			colLabel.Name = "ColLabel_Label";
 			colLabel.AddThemeFontSizeOverride("font_size", 12);
 			colLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			if (colIdx == 0)
@@ -137,6 +139,7 @@ public class SummaryTablePanel
 			if (rowIdx >= _dataRows.Count)
 			{
 				var newRow = new HBoxContainer();
+				newRow.Name = "NewRow_HBoxContainer";
 				newRow.AddThemeConstantOverride("separation", 15);
 				_rowsContainer.AddChild(newRow);
 				_dataRows.Add(newRow);
@@ -154,6 +157,7 @@ public class SummaryTablePanel
 			{
 				int colIdx = labels.Count;
 				var cellLbl = new Label();
+				cellLbl.Name = "CellLbl_Label";
 				cellLbl.AddThemeFontSizeOverride("font_size", 12);
 				if (colIdx == 0)
 				{

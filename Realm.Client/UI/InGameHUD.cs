@@ -20,6 +20,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class InGameHUD : Control
 {
 	public InGameHUD()
@@ -562,6 +563,7 @@ public partial class InGameHUD : Control
 	private void SetupMinimapControls()
 	{
 		_minimapControls = new VBoxContainer();
+		_minimapControls.Name = "MinimapControls_VBoxContainer";
 		_minimapControls.Alignment = BoxContainer.AlignmentMode.Center;
 		_minimapControls.AddThemeConstantOverride("separation", 3);
 		_minimapControls.AnchorLeft = 0.1773f;
@@ -578,14 +580,17 @@ public partial class InGameHUD : Control
 		slotsContainer.AddChild(_minimapControls);
 
 		_btnZoom = new Button();
+		_btnZoom.Name = "BtnZoom_Button";
 		SetupMinimapButton(_btnZoom, UnicodeIcons.ZOOM_IN, "Toggle Camera Zoom (Near / Mid / Far) [Z]", () => GameHost.Instance?.CycleCameraZoom());
 		_minimapControls.AddChild(_btnZoom);
 
 		_btnToggleTerrain = new Button();
+		_btnToggleTerrain.Name = "BtnToggleTerrain_Button";
 		SetupMinimapButton(_btnToggleTerrain, UnicodeIcons.MAP_IMAGE, "Toggle Terrain Overlay (Radar Mode) [F4]", () => ToggleMinimapTerrain());
 		_minimapControls.AddChild(_btnToggleTerrain);
 
 		_btnPing = new Button();
+		_btnPing.Name = "BtnPing_Button";
 		SetupMinimapButton(_btnPing, UnicodeIcons.CROSSHAIRS_TARGET, "Send Alert Ping on Map [Alt+G]", () =>
 		{
 			if (GameHost.Instance != null)
@@ -597,18 +602,22 @@ public partial class InGameHUD : Control
 		_minimapControls.AddChild(_btnPing);
 
 		_btnCenter = new Button();
+		_btnCenter.Name = "BtnCenter_Button";
 		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Base [Space]", () => GameHost.Instance?.CenterCameraOnPrimaryBuilding());
 		_minimapControls.AddChild(_btnCenter);
 
 		_btnSelectIdle = new Button();
+		_btnSelectIdle.Name = "BtnSelectIdle_Button";
 		SetupMinimapButton(_btnSelectIdle, UnicodeIcons.USER_CLOCK, "Select All Idle Units [F1]", () => GameHost.Instance?.SelectAllIdleUnits());
 		_minimapControls.AddChild(_btnSelectIdle);
 
 		_btnSelectArmy = new Button();
+		_btnSelectArmy.Name = "BtnSelectArmy_Button";
 		SetupMinimapButton(_btnSelectArmy, UnicodeIcons.SHIELD, "Select All Army Units [F2]", () => GameHost.Instance?.SelectAllMilitaryUnits());
 		_minimapControls.AddChild(_btnSelectArmy);
 
 		var btnHotkeys = new Button();
+		btnHotkeys.Name = "BtnHotkeys_Button";
 		SetupMinimapButton(btnHotkeys, UnicodeIcons.KEYBOARD, "Hotkey Reference", () => ToggleHotkeyPanel());
 		_minimapControls.AddChild(btnHotkeys);
 	}
@@ -733,6 +742,7 @@ public partial class InGameHUD : Control
 		_leaderboardPanel.AddThemeStyleboxOverride("panel", leaderboardStyle);
 
 		var lbVBox = new VBoxContainer();
+		lbVBox.Name = "LbVBox_VBoxContainer";
 		_leaderboardPanel.AddChild(lbVBox);
 
 		_leaderboardTitleLabel = new Label();
@@ -769,6 +779,7 @@ public partial class InGameHUD : Control
 		_summaryPanel.AddThemeStyleboxOverride("panel", summaryStyle);
 
 		var summaryVBox = new VBoxContainer();
+		summaryVBox.Name = "SummaryVBox_VBoxContainer";
 		_summaryPanel.AddChild(summaryVBox);
 
 		_summaryTitleLabel = new Label();
@@ -1122,6 +1133,7 @@ public partial class InGameHUD : Control
 	private void CreateStatsContainer()
 	{
 		_statsContainer = new HBoxContainer();
+		_statsContainer.Name = "StatsContainer_HBoxContainer";
 		_statsContainer.LayoutMode = 2;
 		_statsContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_statsContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -1140,11 +1152,13 @@ public partial class InGameHUD : Control
 		_statsContainer.AddChild(statsScroll);
 
 		var statsVBox = new VBoxContainer();
+		statsVBox.Name = "StatsVBox_VBoxContainer";
 		statsVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		statsVBox.SizeFlagsVertical = SizeFlags.ShrinkBegin;
 		statsScroll.AddChild(statsVBox);
 
 		_statsLabel = new Label();
+		_statsLabel.Name = "StatsLabel_Label";
 		_statsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_statsLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_statsLabel.CustomMinimumSize = new Vector2(300, 0);
@@ -1194,26 +1208,31 @@ public partial class InGameHUD : Control
 		}
 
 		_itemsBox = new VBoxContainer();
+		_itemsBox.Name = "ItemsBox_VBoxContainer";
 		_itemsBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_itemsBox.Alignment = BoxContainer.AlignmentMode.Center;
 		_itemsBox.Visible = false;
 		_statsContainer.AddChild(_itemsBox);
 
 		var itemsTitle = new Label();
+		itemsTitle.Name = "ItemsTitle_Label";
 		itemsTitle.Text = TranslationServer.Translate("ITEMS");
 		UIStyle.ApplyTitle(itemsTitle, TranslationServer.Translate("ITEMS"), 12);
 		itemsTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
 		_itemsBox.AddChild(itemsTitle);
 
 		var itemsHBox = new HBoxContainer();
+		itemsHBox.Name = "ItemsHBox_HBoxContainer";
 		itemsHBox.AddThemeConstantOverride("separation", 8);
 		_itemsBox.AddChild(itemsHBox);
 
 		var itemAxe = new TextureRect();
+		itemAxe.Name = "ItemAxe_TextureRect";
 		SetupItemIcon(itemAxe, "res://Assets/UI/battle_axe.png", "Battle Axe\n+5 Attack Damage (Equipped)");
 		itemsHBox.AddChild(itemAxe);
 
 		var itemShield = new TextureRect();
+		itemShield.Name = "ItemShield_TextureRect";
 		SetupItemIcon(itemShield, "res://Assets/UI/battle_shield.png", "Battle Shield\n+3 Armor Block (Equipped)");
 		itemsHBox.AddChild(itemShield);
 
@@ -1231,18 +1250,21 @@ public partial class InGameHUD : Control
 		potHotkeyLabel.MouseFilter = MouseFilterEnum.Ignore;
 
 		_productionBox = new VBoxContainer();
+		_productionBox.Name = "ProductionBox_VBoxContainer";
 		_productionBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_productionBox.Alignment = BoxContainer.AlignmentMode.Center;
 		_statsContainer.AddChild(_productionBox);
 		_productionBox.Visible = false;
 
 		_productionTitle = new Label();
+		_productionTitle.Name = "ProductionTitle_Label";
 		_productionTitle.Text = TranslationServer.Translate("PRODUCTION");
 		UIStyle.ApplyTitle(_productionTitle, TranslationServer.Translate("PRODUCTION"), 12);
 		_productionTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
 		_productionBox.AddChild(_productionTitle);
 
 		_productionProgress = new ProgressBar();
+		_productionProgress.Name = "ProductionProgress_ProgressBar";
 		_productionProgress.CustomMinimumSize = new Vector2(120, 16);
 		_productionProgress.ShowPercentage = true;
 		_productionProgress.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
@@ -1250,6 +1272,7 @@ public partial class InGameHUD : Control
 		_productionBox.AddChild(_productionProgress);
 
 		_productionQueueLabel = new Label();
+		_productionQueueLabel.Name = "ProductionQueueLabel_Label";
 		_productionQueueLabel.Text = string.Format(TranslationServer.Translate("Queue: {0}"), 0);
 		_productionQueueLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_productionQueueLabel.AddThemeFontSizeOverride("font_size", 11);
@@ -1257,6 +1280,7 @@ public partial class InGameHUD : Control
 		_productionBox.AddChild(_productionQueueLabel);
 
 		_queueSlotsContainer = new HBoxContainer();
+		_queueSlotsContainer.Name = "QueueSlotsContainer_HBoxContainer";
 		_queueSlotsContainer.Alignment = BoxContainer.AlignmentMode.Center;
 		_queueSlotsContainer.AddThemeConstantOverride("separation", 6);
 		_productionBox.AddChild(_queueSlotsContainer);
@@ -2000,6 +2024,7 @@ public partial class InGameHUD : Control
 		}
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vbox.AddThemeConstantOverride("separation", 3);
 		scroll.AddChild(vbox);
@@ -2069,11 +2094,13 @@ public partial class InGameHUD : Control
 			if (groupIndex > 0)
 			{
 				var groupSpacer = new Control();
+				groupSpacer.Name = "GroupSpacer_Control";
 				groupSpacer.CustomMinimumSize = new Vector2(0, 6);
 				vbox.AddChild(groupSpacer);
 			}
 
 			var catHeader = new PanelContainer();
+			catHeader.Name = "CatHeader_PanelContainer";
 			var catHeaderStyle = new StyleBoxFlat();
 			catHeaderStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.85f);
 			catHeaderStyle.BorderColor = new Color(0.6f, 0.5f, 0.35f, 0.5f);
@@ -2089,6 +2116,7 @@ public partial class InGameHUD : Control
 			catHeader.AddThemeStyleboxOverride("panel", catHeaderStyle);
 
 			var catTitleLbl = new Label();
+			catTitleLbl.Name = "CatTitleLbl_Label";
 			catTitleLbl.Text = TranslationServer.Translate(groupTitle);
 			catTitleLbl.AddThemeFontOverride("font", UIStyle.FontNorseBold);
 			catTitleLbl.AddThemeFontSizeOverride("font_size", 13);
@@ -2105,6 +2133,7 @@ public partial class InGameHUD : Control
 				var (key, desc) = items[i];
 
 				var rowPanel = new PanelContainer();
+				rowPanel.Name = "RowPanel_PanelContainer";
 				var rowStyle = new StyleBoxFlat();
 				rowStyle.BgColor = (i % 2 == 0)
 					? new Color(0.12f, 0.13f, 0.15f, 0.35f)
@@ -2120,10 +2149,12 @@ public partial class InGameHUD : Control
 				rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
 
 				var row = new HBoxContainer();
+				row.Name = "Row_HBoxContainer";
 				row.AddThemeConstantOverride("separation", 6);
 				row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 				var keyBadge = new PanelContainer();
+				keyBadge.Name = "KeyBadge_PanelContainer";
 				var badgeStyle = new StyleBoxFlat();
 				badgeStyle.BgColor = new Color(0.08f, 0.10f, 0.14f, 0.85f);
 				badgeStyle.BorderColor = new Color(0.35f, 0.45f, 0.55f, 0.5f);
@@ -2140,6 +2171,7 @@ public partial class InGameHUD : Control
 				keyBadge.CustomMinimumSize = new Vector2(86, 0);
 
 				var keyLbl = new Label();
+				keyLbl.Name = "KeyLbl_Label";
 				keyLbl.Text = TranslationServer.Translate(key);
 				keyLbl.AddThemeFontSizeOverride("font_size", 10);
 				keyLbl.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
@@ -2151,6 +2183,7 @@ public partial class InGameHUD : Control
 				row.AddChild(keyBadge);
 
 				var descLbl = new Label();
+				descLbl.Name = "DescLbl_Label";
 				descLbl.Text = TranslationServer.Translate(desc);
 				descLbl.AddThemeFontSizeOverride("font_size", 11);
 				descLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -2450,9 +2483,11 @@ public partial class InGameHUD : Control
 		SetupHUDButton(_btnBuild, "res://Assets/UI/golden_hammers.png", TranslationServer.Translate("[B] Build Structure"), () => EnterBuildSubMenu());
 
 		_btnCancelBuild = new Button();
+		_btnCancelBuild.Name = "BtnCancelBuild_Button";
 		SetupHUDButton(_btnCancelBuild, "res://Assets/UI/cancel_button_2.png", TranslationServer.Translate("[Esc] Cancel"), () => ExitBuildSubMenu());
 
 		_btnSetRally = new Button();
+		_btnSetRally.Name = "BtnSetRally_Button";
 		SetupHUDButton(_btnSetRally, "res://Assets/UI/alliance_flag.png", TranslationServer.Translate("[Y] Set Rally Point — Set location where new units will walk"), () => GameHost.Instance?.EnterCommandTargeting("rally"));
 	}
 
@@ -2463,40 +2498,48 @@ public partial class InGameHUD : Control
 		specPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel());
 
 		var specVBox = new VBoxContainer();
+		specVBox.Name = "SpecVBox_VBoxContainer";
 		specPanel.AddChild(specVBox);
 
 		var title = new Label();
+		title.Name = "Title_Label";
 		title.Text = TranslationServer.Translate("SPECTATOR MODE");
 		UIStyle.ApplyTitle(title, TranslationServer.Translate("SPECTATOR MODE"), 12);
 		title.HorizontalAlignment = HorizontalAlignment.Center;
 		specVBox.AddChild(title);
 
 		var specHBox = new HBoxContainer();
+		specHBox.Name = "SpecHBox_HBoxContainer";
 		specHBox.Alignment = BoxContainer.AlignmentMode.Center;
 		specHBox.AddThemeConstantOverride("separation", 10);
 		specVBox.AddChild(specHBox);
 
 		var btnAll = new Button();
+		btnAll.Name = "BtnAll_Button";
 		btnAll.Text = TranslationServer.Translate("ALL");
 		btnAll.Pressed += () => { LiveSpectatorPerspective = -1; };
 		specHBox.AddChild(btnAll);
 
 		var btnBlue = new Button();
+		btnBlue.Name = "BtnBlue_Button";
 		btnBlue.Text = TranslationServer.Translate("BLUE");
 		btnBlue.Pressed += () => { LiveSpectatorPerspective = 1; };
 		specHBox.AddChild(btnBlue);
 
 		var btnRed = new Button();
+		btnRed.Name = "BtnRed_Button";
 		btnRed.Text = TranslationServer.Translate("RED");
 		btnRed.Pressed += () => { LiveSpectatorPerspective = 2; };
 		specHBox.AddChild(btnRed);
 
 		var btnGreen = new Button();
+		btnGreen.Name = "BtnGreen_Button";
 		btnGreen.Text = TranslationServer.Translate("GREEN");
 		btnGreen.Pressed += () => { LiveSpectatorPerspective = 3; };
 		specHBox.AddChild(btnGreen);
 
 		var btnYellow = new Button();
+		btnYellow.Name = "BtnYellow_Button";
 		btnYellow.Text = TranslationServer.Translate("YELLOW");
 		btnYellow.Pressed += () => { LiveSpectatorPerspective = 4; };
 		specHBox.AddChild(btnYellow);
@@ -2555,6 +2598,7 @@ public partial class InGameHUD : Control
 			if (player.Team == "Spectator") continue;
 
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 			row.AddThemeConstantOverride("separation", 15);
 
 			var nameLabel = new Label { Text = player.Name, CustomMinimumSize = new Vector2(150, 0) };
@@ -2613,24 +2657,29 @@ public partial class InGameHUD : Control
 		_pausePanel.GrowVertical = GrowDirection.Both;
 
 		var mainVBox = new VBoxContainer();
+		mainVBox.Name = "MainVBox_VBoxContainer";
 		mainVBox.AddThemeConstantOverride("separation", 15);
 		_pausePanel.AddChild(mainVBox);
 
 		_pauseTitleLabel = new Label();
+		_pauseTitleLabel.Name = "PauseTitleLabel_Label";
 		_pauseTitleLabel.Text = "Game Paused";
 		_pauseTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_pauseTitleLabel.AddThemeFontSizeOverride("font_size", 24);
 		mainVBox.AddChild(_pauseTitleLabel);
 
 		var scroll = new ScrollContainer();
+		scroll.Name = "Scroll_ScrollContainer";
 		scroll.CustomMinimumSize = new Vector2(450, 150);
 		mainVBox.AddChild(scroll);
 
 		_pausePlayerListContainer = new VBoxContainer();
+		_pausePlayerListContainer.Name = "PausePlayerListContainer_VBoxContainer";
 		_pausePlayerListContainer.AddThemeConstantOverride("separation", 10);
 		scroll.AddChild(_pausePlayerListContainer);
 
 		var actionHBox = new HBoxContainer();
+		actionHBox.Name = "ActionHBox_HBoxContainer";
 		actionHBox.AddThemeConstantOverride("separation", 20);
 		actionHBox.Alignment = BoxContainer.AlignmentMode.Center;
 		mainVBox.AddChild(actionHBox);
@@ -2645,6 +2694,7 @@ public partial class InGameHUD : Control
 		actionHBox.AddChild(_pauseReadyCheck);
 
 		_pauseForceResumeBtn = new Button();
+		_pauseForceResumeBtn.Name = "PauseForceResumeBtn_Button";
 		_pauseForceResumeBtn.Text = "Force Resume";
 		_pauseForceResumeBtn.Pressed += OnForceResumePressed;
 		actionHBox.AddChild(_pauseForceResumeBtn);

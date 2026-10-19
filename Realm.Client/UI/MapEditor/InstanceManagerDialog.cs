@@ -9,8 +9,11 @@ using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class InstanceManagerDialog : FloatingDialogBase
 {
+	public InstanceManagerDialog() { }
+
 	private Tree _objectTree;
 	private LineEdit _filterInput;
 	private OptionButton _typeFilterOpt;
@@ -37,15 +40,18 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	private void BuildControls()
 	{
 		var topHBox = new HBoxContainer();
+		topHBox.Name = "TopHBox_HBoxContainer";
 		topHBox.AddThemeConstantOverride("separation", 8);
 
 		var searchLabel = new Label();
+		searchLabel.Name = "SearchLabel_Label";
 		searchLabel.Text = TranslationServer.Translate("Filter:");
 		searchLabel.AddThemeFontSizeOverride("font_size", 11);
 		searchLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		topHBox.AddChild(searchLabel);
 
 		_typeFilterOpt = new OptionButton();
+		_typeFilterOpt.Name = "TypeFilterOpt_OptionButton";
 		_typeFilterOpt.CustomMinimumSize = new Vector2(110, 26);
 		_typeFilterOpt.AddThemeFontSizeOverride("font_size", 11);
 		_typeFilterOpt.AddItem(TranslationServer.Translate("All Types"), 0);
@@ -61,6 +67,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		topHBox.AddChild(_typeFilterOpt);
 
 		_filterInput = new LineEdit();
+		_filterInput.Name = "FilterInput_LineEdit";
 		_filterInput.PlaceholderText = TranslationServer.Translate("Search by name, ID, or category...");
 		_filterInput.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_filterInput.AddThemeFontSizeOverride("font_size", 11);
@@ -76,11 +83,13 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		BodyContainer.AddChild(topHBox);
 
 		_summaryLabel = new Label();
+		_summaryLabel.Name = "SummaryLabel_Label";
 		_summaryLabel.AddThemeFontSizeOverride("font_size", 11);
 		_summaryLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		BodyContainer.AddChild(_summaryLabel);
 
 		_objectTree = new Tree();
+		_objectTree.Name = "ObjectTree_Tree";
 		_objectTree.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_objectTree.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_objectTree.CustomMinimumSize = new Vector2(0, 420);

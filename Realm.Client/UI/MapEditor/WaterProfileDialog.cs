@@ -7,8 +7,11 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class WaterProfileDialog : FloatingDialogBase
 {
+	public WaterProfileDialog() { }
+
 	private List<WaterProfileSaveData> _profiles = new();
 	private int _selectedProfileIdx = 0;
 	private WaterProfileSaveData _activeProfile;
@@ -94,6 +97,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		BuildTopRow();
 
 		var tabContainer = new TabContainer();
+		tabContainer.Name = "TabContainer_TabContainer";
 		tabContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		tabContainer.CustomMinimumSize = new Vector2(580, 520);
 		BodyContainer.AddChild(tabContainer);
@@ -107,25 +111,30 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private void BuildTopRow()
 	{
 		var topRow = new HBoxContainer();
+		topRow.Name = "TopRow_HBoxContainer";
 		topRow.AddThemeConstantOverride("separation", 8);
 
 		var lblProf = new Label();
+		lblProf.Name = "LblProf_Label";
 		lblProf.Text = TranslationServer.Translate("Profile:");
 		lblProf.AddThemeFontSizeOverride("font_size", 12);
 		topRow.AddChild(lblProf);
 
 		_optProfileSelect = new OptionButton();
+		_optProfileSelect.Name = "OptProfileSelect_OptionButton";
 		_optProfileSelect.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optProfileSelect.ItemSelected += (idx) => SelectProfile((int)idx);
 		topRow.AddChild(_optProfileSelect);
 
 		_btnAddProfile = new Button();
+		_btnAddProfile.Name = "BtnAddProfile_Button";
 		_btnAddProfile.Set("icon_max_width", 0);
 		_btnAddProfile.Text = "+ " + TranslationServer.Translate("NEW");
 		_btnAddProfile.Pressed += OnAddProfileClicked;
 		topRow.AddChild(_btnAddProfile);
 
 		_btnDeleteProfile = new Button();
+		_btnDeleteProfile.Name = "BtnDeleteProfile_Button";
 		_btnDeleteProfile.Set("icon_max_width", 0);
 		_btnDeleteProfile.Text = TranslationServer.Translate("DELETE");
 		_btnDeleteProfile.Pressed += OnDeleteProfileClicked;
@@ -139,6 +148,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		var tabGeneral = new ScrollContainer();
 		tabGeneral.Name = TranslationServer.Translate("General & Colors");
 		var vGeneral = new VBoxContainer();
+		vGeneral.Name = "VGeneral_VBoxContainer";
 		vGeneral.AddThemeConstantOverride("separation", 6);
 		vGeneral.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabGeneral.AddChild(vGeneral);
@@ -146,6 +156,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 		AddSectionHeader(vGeneral, TranslationServer.Translate("Profile Identity"));
 		var nameRow = new HBoxContainer();
+		nameRow.Name = "NameRow_HBoxContainer";
 		nameRow.AddChild(new Label { Text = TranslationServer.Translate("Display Name:"), CustomMinimumSize = new Vector2(110, 0) });
 		_txtName = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_txtName.TextChanged += (text) =>
@@ -213,6 +224,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		var tabNormals = new ScrollContainer();
 		tabNormals.Name = TranslationServer.Translate("Flow & Optics");
 		var vNormals = new VBoxContainer();
+		vNormals.Name = "VNormals_VBoxContainer";
 		vNormals.AddThemeConstantOverride("separation", 6);
 		vNormals.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabNormals.AddChild(vNormals);
@@ -339,6 +351,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		var tabEmissive = new ScrollContainer();
 		tabEmissive.Name = TranslationServer.Translate("Emission & Surface");
 		var vEmissive = new VBoxContainer();
+		vEmissive.Name = "VEmissive_VBoxContainer";
 		vEmissive.AddThemeConstantOverride("separation", 6);
 		vEmissive.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabEmissive.AddChild(vEmissive);
@@ -430,8 +443,10 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private void BuildTabEmissive_TileMode(VBoxContainer vEmissive)
 	{
 		var tileModeRow = new HBoxContainer();
+		tileModeRow.Name = "TileModeRow_HBoxContainer";
 		tileModeRow.AddChild(new Label { Text = TranslationServer.Translate("Tile Mode:"), CustomMinimumSize = new Vector2(110, 0) });
 		_optDetailTileMode = new OptionButton();
+		_optDetailTileMode.Name = "OptDetailTileMode_OptionButton";
 		_optDetailTileMode.AddItem(TranslationServer.Translate("Grid"), 0);
 		_optDetailTileMode.AddItem(TranslationServer.Translate("Stochastic"), 1);
 		_optDetailTileMode.Selected = 1;
@@ -506,8 +521,10 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private void BuildTabEmissive_BlendMode(VBoxContainer vEmissive)
 	{
 		var blendRow = new HBoxContainer();
+		blendRow.Name = "BlendRow_HBoxContainer";
 		blendRow.AddChild(new Label { Text = TranslationServer.Translate("Blend Mode:"), CustomMinimumSize = new Vector2(110, 0) });
 		_optDetailBlend = new OptionButton();
+		_optDetailBlend.Name = "OptDetailBlend_OptionButton";
 		_optDetailBlend.AddItem(TranslationServer.Translate("Alpha Mix"), 0);
 		_optDetailBlend.AddItem(TranslationServer.Translate("Additive"), 1);
 		_optDetailBlend.AddItem(TranslationServer.Translate("Multiply"), 2);
@@ -525,6 +542,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		var tabPathingAndBombing = new ScrollContainer();
 		tabPathingAndBombing.Name = TranslationServer.Translate("Pathing & Bombing");
 		var vBombing = new VBoxContainer();
+		vBombing.Name = "VBombing_VBoxContainer";
 		vBombing.AddThemeConstantOverride("separation", 6);
 		vBombing.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabPathingAndBombing.AddChild(vBombing);
@@ -552,6 +570,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered decals placed at liquid elevation during painting:"));
 
 		var decalListRow = new HBoxContainer();
+		decalListRow.Name = "DecalListRow_HBoxContainer";
 		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_lstDecals.ItemSelected += OnDecalItemSelected;
 		decalListRow.AddChild(_lstDecals);
@@ -601,6 +620,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered particle systems & ribbons (bubbles, steam, foam, smoke) placed at liquid elevation:"));
 
 		var vfxListRow = new HBoxContainer();
+		vfxListRow.Name = "VfxListRow_HBoxContainer";
 		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_lstVfx.ItemSelected += OnVfxItemSelected;
 		vfxListRow.AddChild(_lstVfx);
@@ -669,6 +689,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private Button CreateRandomizeButton(Action onPressed)
 	{
 		var btn = new Button();
+		btn.Name = "Btn_Button";
 		btn.Set("icon_max_width", 0);
 		btn.Text = "🎲 " + TranslationServer.Translate("Randomize All");
 		btn.CustomMinimumSize = new Vector2(0, 28);

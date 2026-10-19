@@ -1432,18 +1432,21 @@ namespace Realm.Client.UI
 		private (Panel popup, ProgressBar progressBar, Label statusLabel, Button closeBtn) CreateExportUI(string destinationPath)
 		{
 			var popup = new Panel();
+			popup.Name = "Popup_Panel";
 			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 			popup.ZIndex = 1100;
 			AddChild(popup);
 
 			var cardPanel = new Panel();
+			cardPanel.Name = "CardPanel_Panel";
 			cardPanel.CustomMinimumSize = new Vector2(560, 260);
 			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 			popup.AddChild(cardPanel);
 
 			var vbox = new VBoxContainer();
+			vbox.Name = "Vbox_VBoxContainer";
 			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 			vbox.CustomMinimumSize = new Vector2(520, 220);
 			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -1454,11 +1457,13 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
 			var titleLabel = new Label();
+			titleLabel.Name = "TitleLabel_Label";
 			UIStyle.ApplyTitle(titleLabel, "📦 " + TranslationServer.Translate("EXPORTING MAP PACKAGE (.RMAP)"), 20);
 			titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			vbox.AddChild(titleLabel);
 
 			var descLabel = new Label();
+			descLabel.Name = "DescLabel_Label";
 			descLabel.Text = string.Format(TranslationServer.Translate("Destination: {0}"), Path.GetFileName(destinationPath));
 			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			descLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -1468,6 +1473,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
 			var progressBar = new ProgressBar();
+			progressBar.Name = "ProgressBar_ProgressBar";
 			progressBar.CustomMinimumSize = new Vector2(480, 24);
 			progressBar.MinValue = 0;
 			progressBar.MaxValue = 100;
@@ -1475,6 +1481,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(progressBar);
 
 			var statusLabel = new Label();
+			statusLabel.Name = "StatusLabel_Label";
 			statusLabel.Text = TranslationServer.Translate("Preparing export...");
 			statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 			statusLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -1484,10 +1491,12 @@ namespace Realm.Client.UI
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
 			var buttonRow = new HBoxContainer();
+			buttonRow.Name = "ButtonRow_HBoxContainer";
 			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
 			vbox.AddChild(buttonRow);
 
 			var closeBtn = new Button();
+			closeBtn.Name = "CloseBtn_Button";
 			closeBtn.Flat = false;
 			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
 			closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());

@@ -513,6 +513,7 @@ public class PortraitPanel
 	private PanelContainer CreateSlotPanel(string unitDisplayName)
 	{
 		var slot = new PanelContainer();
+		slot.Name = "Slot_PanelContainer";
 		slot.CustomMinimumSize = new Vector2(32, 32);
 		slot.MouseFilter = Control.MouseFilterEnum.Stop;
 		slot.TooltipText = $"{unitDisplayName}\n" + TranslationServer.Translate("Click to cancel & refund");
@@ -529,6 +530,7 @@ public class PortraitPanel
 	private TextureRect CreateSlotIcon(string unitId)
 	{
 		var icon = new TextureRect();
+		icon.Name = "Icon_TextureRect";
 		icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		icon.Texture = RtexIconLoader.Load(GetUnitIcon(unitId));
 		icon.MouseFilter = Control.MouseFilterEnum.Pass;
@@ -538,6 +540,7 @@ public class PortraitPanel
 	private Button CreateSlotCancelButton()
 	{
 		var btnCancel = new Button();
+		btnCancel.Name = "BtnCancel_Button";
 		btnCancel.Text = "×";
 		btnCancel.FocusMode = Control.FocusModeEnum.None;
 		btnCancel.MouseFilter = Control.MouseFilterEnum.Ignore;
