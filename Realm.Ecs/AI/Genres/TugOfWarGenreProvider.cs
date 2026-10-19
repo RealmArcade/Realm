@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;

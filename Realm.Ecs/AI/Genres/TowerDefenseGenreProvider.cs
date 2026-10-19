@@ -1,5 +1,6 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json;
+using Realm.Ecs.AI.Genres.Common;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Core;
@@ -133,7 +134,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		int creepCount = _activeCreeps.Count;
 		if (creepCount > 0) creepCenter /= creepCount;
 
-		int playerGold = GetPlayerGold(world, playerIndex);
+		int playerGold = AiGenreUtils.GetPlayerGold(world, playerIndex, _playerResourcesQuery, 500);
 
 		float waveThreat = Math.Clamp(creepCount / 20.0f, 0f, 1f);
 		float leakUrgency = creepCount > 0 ? Math.Clamp((50.0f - minCreepDistToExit) / 50.0f, 0f, 1f) : 0f;
@@ -152,7 +153,7 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 
 		world.Query(in _enemyCreepQuery, (Entity e, ref Position p, ref Health hp) =>
 		{
-			int ownerIndex = GetOwnerIndex(world, e);
+			int ownerIndex = AiGenreUtils.GetOwnerIndex(world, e);
 
 			if (ownerIndex == playerIndex)
 			{
@@ -169,40 +170,6 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 
 		creepCenter = center;
 		minCreepDistToExit = minDist;
-	}
-
-	private int GetOwnerIndex(EcsWorld world, Entity e)
-	{
-		if (world.Has<UnitOwnerPlayer>(e))
-			return world.Get<UnitOwnerPlayer>(e).PlayerIndex;
-
-		if (world.Has<Owner>(e))
-		{
-			var pEnt = world.Get<Owner>(e).PlayerEntity.Value;
-			if (world.IsAlive(pEnt) && world.Has<UnitOwnerPlayer>(pEnt))
-				return world.Get<UnitOwnerPlayer>(pEnt).PlayerIndex;
-		}
-
-		return -1;
-	}
-
-	private int GetPlayerGold(EcsWorld world, int playerIndex)
-	{
-		Entity playerEntity = Entity.Null;
-		world.Query(in _playerResourcesQuery, (Entity pe) =>
-		{
-			if (world.Has<UnitOwnerPlayer>(pe) && world.Get<UnitOwnerPlayer>(pe).PlayerIndex == playerIndex)
-				playerEntity = pe;
-			else if (playerEntity == Entity.Null)
-				playerEntity = pe;
-		});
-
-		if (world.IsAlive(playerEntity) && world.Has<PlayerResources>(playerEntity))
-		{
-			return world.Get<PlayerResources>(playerEntity).Gold;
-		}
-
-		return 500;
 	}
 
 	private List<Vector3> GetOccupiedPositions(EcsWorld world)
