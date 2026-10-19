@@ -14,6 +14,42 @@ using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client;
 
+public enum ProjectileTrajectoryType
+{
+	Parabolic = 0,
+	Linear = 1,
+	Boomerang = 2,
+	SwarmOrbit = 3
+}
+
+public enum ProjectileSpeedCurve
+{
+	Constant = 0,
+	Accelerate = 1,
+	Decelerate = 2,
+	EaseInOut = 3,
+	RocketBoost = 4,
+	Burst = 5
+}
+
+public enum ProjectileScaleCurve
+{
+	Constant = 0,
+	Grow = 1,
+	Shrink = 2,
+	GrowShrink = 3,
+	SquashStretch = 4,
+	ImpactShrink = 5
+}
+
+public enum ProjectileEaseCurve
+{
+	Linear = 0,
+	EaseIn = 1,
+	EaseOut = 2,
+	EaseInOut = 3
+}
+
 [GlobalClass]
 public partial class VisualProjectile3D : Node3D
 {
@@ -51,12 +87,19 @@ public partial class VisualProjectile3D : Node3D
 	private float _fadeTimer;
 	private float _fadeDuration;
 
+	private ProjectileTrajectoryType _trajectoryType;
+	private ProjectileSpeedCurve _speedCurve;
+	private ProjectileScaleCurve _scaleCurve;
+	private ProjectileEaseCurve _easeCurve;
+
+	private Vector3 _cachedGlobalPosition;
+	private Basis _cachedBasis = Basis.Identity;
+
 	private Vector3 _currentFlightPosition;
 	private Vector3 _currentFlightDirection;
 	private Vector3 _tumbleAxis;
 	private float _tumbleSpeed;
 	private string _currentLoadedModelPath;
-	private string _currentLoadedRibbonPath;
 
 	public bool IsActive => _isFlying || _isImpacted;
 	public bool IsFlying => _isFlying;
@@ -139,7 +182,6 @@ public partial class VisualProjectile3D : Node3D
 		}
 	}
 
-
 	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
@@ -173,6 +215,11 @@ public partial class VisualProjectile3D : Node3D
 		_initialTargetPosition = target;
 		_targetEntity = targetEntity;
 
+		_trajectoryType = ParseTrajectoryType(weapon.TrajectoryType);
+		_speedCurve = ParseSpeedCurve(weapon.SpeedCurve);
+		_scaleCurve = ParseScaleCurve(weapon.ScaleCurve);
+		_easeCurve = ParseEaseCurve(weapon.EaseCurve);
+
 		_speed = weapon.ProjectileSpeed > 0 ? weapon.ProjectileSpeed : 25.0f;
 		float distance = _startPosition.DistanceTo(_targetPosition);
 		_totalFlightDuration = Mathf.Max(0.05f, distance / _speed);
@@ -186,6 +233,8 @@ public partial class VisualProjectile3D : Node3D
 		Vector3 toTarget = _targetPosition - _startPosition;
 		_currentFlightDirection = toTarget.LengthSquared() > 0.001f ? toTarget.Normalized() : Vector3.Forward;
 
+		_cachedGlobalPosition = _startPosition;
+		_cachedBasis = Basis.Identity;
 		GlobalPosition = _startPosition;
 		_meshContainer.Visible = true;
 		_meshContainer.Rotation = Vector3.Zero;
@@ -211,7 +260,59 @@ public partial class VisualProjectile3D : Node3D
 
 		_trailPointCount = 0;
 		Visible = true;
-		SetProcess(true);
+		SetProcess(false);
+	}
+
+	private static ProjectileTrajectoryType ParseTrajectoryType(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileTrajectoryType.Parabolic;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"linearvector" or "linear" or "piercing" => ProjectileTrajectoryType.Linear,
+			"boomerang" => ProjectileTrajectoryType.Boomerang,
+			"swarmorbit" or "swarm" => ProjectileTrajectoryType.SwarmOrbit,
+			_ => ProjectileTrajectoryType.Parabolic,
+		};
+	}
+
+	private static ProjectileSpeedCurve ParseSpeedCurve(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileSpeedCurve.Constant;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"accelerate" or "ease_in" => ProjectileSpeedCurve.Accelerate,
+			"decelerate" or "ease_out" => ProjectileSpeedCurve.Decelerate,
+			"ease_in_out" => ProjectileSpeedCurve.EaseInOut,
+			"rocket_boost" => ProjectileSpeedCurve.RocketBoost,
+			"burst" => ProjectileSpeedCurve.Burst,
+			_ => ProjectileSpeedCurve.Constant,
+		};
+	}
+
+	private static ProjectileScaleCurve ParseScaleCurve(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileScaleCurve.Constant;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"grow" => ProjectileScaleCurve.Grow,
+			"shrink" => ProjectileScaleCurve.Shrink,
+			"grow_shrink" => ProjectileScaleCurve.GrowShrink,
+			"squash_stretch" => ProjectileScaleCurve.SquashStretch,
+			"impact_shrink" => ProjectileScaleCurve.ImpactShrink,
+			_ => ProjectileScaleCurve.Constant,
+		};
+	}
+
+	private static ProjectileEaseCurve ParseEaseCurve(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileEaseCurve.Linear;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"ease_in" => ProjectileEaseCurve.EaseIn,
+			"ease_out" => ProjectileEaseCurve.EaseOut,
+			"ease_in_out" => ProjectileEaseCurve.EaseInOut,
+			_ => ProjectileEaseCurve.Linear,
+		};
 	}
 
 	private void UpdateVisualTransform()
@@ -229,7 +330,7 @@ public partial class VisualProjectile3D : Node3D
 		Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
 		Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
 		baseScale = SafeScale(baseScale);
-		float initialScaleFactor = Mathf.Max(0.001f, CalculateScaleOverLifetime(0.0f, _weapon.ScaleCurve));
+		float initialScaleFactor = Mathf.Max(0.001f, CalculateScaleOverLifetime(0.0f, _scaleCurve));
 		_visualTransformContainer.Scale = SafeScale(baseScale * initialScaleFactor);
 	}
 
@@ -516,7 +617,6 @@ public partial class VisualProjectile3D : Node3D
 			_isFlying = true;
 			_meshContainer.Visible = true;
 			_pointLight.Visible = _hasAcquiredLight;
-			SetProcess(true);
 		}
 
 		float sign = Mathf.Sign(deltaSeconds);
@@ -543,7 +643,6 @@ public partial class VisualProjectile3D : Node3D
 		_fadeTimer += dt;
 		if (_fadeTimer >= _fadeDuration)
 		{
-			SetProcess(false);
 			_isImpacted = false;
 			Visible = false;
 			OnRecycleRequested?.Invoke(this);
@@ -553,7 +652,7 @@ public partial class VisualProjectile3D : Node3D
 	private bool CheckFlightFailsafes()
 	{
 		if (_weapon.MaxLifetime > 0.0f && _elapsedTime >= _weapon.MaxLifetime) return true;
-		if (_weapon.FailsafeRange > 0.0f && GlobalPosition.DistanceTo(_startPosition) >= _weapon.FailsafeRange) return true;
+		if (_weapon.FailsafeRange > 0.0f && _cachedGlobalPosition.DistanceTo(_startPosition) >= _weapon.FailsafeRange) return true;
 		if (_elapsedTime >= _totalFlightDuration * 3.0f + 5.0f) return true;
 		return false;
 	}
@@ -589,7 +688,7 @@ public partial class VisualProjectile3D : Node3D
 		if (_elapsedTime <= outboundDuration)
 		{
 			float bOutT = Mathf.Clamp(_elapsedTime / outboundDuration, 0.0f, 1.0f);
-			_currentFlightPosition = _startPosition.Lerp(currentTarget, ApplyEaseCurve(bOutT, _weapon.EaseCurve));
+			_currentFlightPosition = _startPosition.Lerp(currentTarget, ApplyEaseCurve(bOutT, _easeCurve));
 			return false;
 		}
 
@@ -602,7 +701,7 @@ public partial class VisualProjectile3D : Node3D
 		if (_elapsedTime <= outboundDuration + delay + returnDuration)
 		{
 			float bRetT = Mathf.Clamp((_elapsedTime - outboundDuration - delay) / returnDuration, 0.0f, 1.0f);
-			_currentFlightPosition = currentTarget.Lerp(_startPosition, ApplyEaseCurve(bRetT, _weapon.EaseCurve));
+			_currentFlightPosition = currentTarget.Lerp(_startPosition, ApplyEaseCurve(bRetT, _easeCurve));
 			return false;
 		}
 
@@ -611,7 +710,7 @@ public partial class VisualProjectile3D : Node3D
 
 	private bool ProcessHomingOrParabolicTrajectory(Vector3 currentTarget, float currentSpeed, float dt, float rawT)
 	{
-		float easedT = ApplyEaseCurve(rawT, _weapon.EaseCurve);
+		float easedT = ApplyEaseCurve(rawT, _easeCurve);
 
 		if (_weapon.TurnRateLimit > 0.0f && _weapon.HomingWeight > 0.0f)
 		{
@@ -638,16 +737,14 @@ public partial class VisualProjectile3D : Node3D
 		return rawT >= 1.0f;
 	}
 
-	private bool UpdateFlightTrajectory(string trajType, Vector3 currentTarget, float currentSpeed, float dt, float rawT)
+	private bool UpdateFlightTrajectory(ProjectileTrajectoryType trajType, Vector3 currentTarget, float currentSpeed, float dt, float rawT)
 	{
-		bool isLinearVector = string.Equals(trajType, "LinearVector", StringComparison.OrdinalIgnoreCase) ||
-		                      string.Equals(trajType, "Linear", StringComparison.OrdinalIgnoreCase) ||
-		                      string.Equals(trajType, "Piercing", StringComparison.OrdinalIgnoreCase);
-		bool isBoomerang = string.Equals(trajType, "Boomerang", StringComparison.OrdinalIgnoreCase);
-
-		if (isLinearVector) return ProcessLinearTrajectory(currentSpeed, dt, rawT);
-		if (isBoomerang) return ProcessBoomerangTrajectory(currentTarget);
-		return ProcessHomingOrParabolicTrajectory(currentTarget, currentSpeed, dt, rawT);
+		return trajType switch
+		{
+			ProjectileTrajectoryType.Linear => ProcessLinearTrajectory(currentSpeed, dt, rawT),
+			ProjectileTrajectoryType.Boomerang => ProcessBoomerangTrajectory(currentTarget),
+			_ => ProcessHomingOrParabolicTrajectory(currentTarget, currentSpeed, dt, rawT),
+		};
 	}
 
 	private float CalculateArcY(float rawT)
@@ -684,11 +781,9 @@ public partial class VisualProjectile3D : Node3D
 		return right * (Mathf.Sin(phi) * _weapon.ZigzagAmplitude);
 	}
 
-	private Vector3 CalculateOrbitOffset(string trajType, Vector3 right, Vector3 up)
+	private Vector3 CalculateOrbitOffset(ProjectileTrajectoryType trajType, Vector3 right, Vector3 up)
 	{
-		bool isOrbit = string.Equals(trajType, "SwarmOrbit", StringComparison.OrdinalIgnoreCase) ||
-		               string.Equals(trajType, "Swarm", StringComparison.OrdinalIgnoreCase);
-		if (!isOrbit) return Vector3.Zero;
+		if (trajType != ProjectileTrajectoryType.SwarmOrbit) return Vector3.Zero;
 
 		float radius = _weapon.OrbitRadius > 0.0f ? _weapon.OrbitRadius : 1.0f;
 		float speed = _weapon.OrbitSpeed > 0.0f ? _weapon.OrbitSpeed : 10.0f;
@@ -700,20 +795,24 @@ public partial class VisualProjectile3D : Node3D
 	{
 		if (_weapon.OrientToTrajectory)
 		{
-			Vector3 velocityDelta = nextPos - GlobalPosition;
+			Vector3 velocityDelta = nextPos - _cachedGlobalPosition;
 			if (velocityDelta.LengthSquared() > 0.0001f)
 			{
 				Vector3 dir = velocityDelta.Normalized();
 				Vector3 upVector = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-				LookAtFromPosition(nextPos, nextPos + dir, upVector);
+				_cachedBasis = Basis.LookingAt(dir, upVector);
+				_cachedGlobalPosition = nextPos;
+				GlobalTransform = new Transform3D(_cachedBasis, _cachedGlobalPosition);
 			}
 			else
 			{
+				_cachedGlobalPosition = nextPos;
 				GlobalPosition = nextPos;
 			}
 		}
 		else
 		{
+			_cachedGlobalPosition = nextPos;
 			GlobalPosition = nextPos;
 		}
 
@@ -722,10 +821,10 @@ public partial class VisualProjectile3D : Node3D
 		Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
 		Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
 		baseScale = SafeScale(baseScale);
-		float lifetimeScale = Mathf.Max(0.001f, CalculateScaleOverLifetime(rawT, _weapon.ScaleCurve));
+		float lifetimeScale = Mathf.Max(0.001f, CalculateScaleOverLifetime(rawT, _scaleCurve));
 		_visualTransformContainer.Scale = SafeScale(baseScale * lifetimeScale);
 
-		Vector3 trailPos = GlobalPosition + GlobalTransform.Basis * _weapon.TrailOffset.ToGodotVector3();
+		Vector3 trailPos = _cachedGlobalPosition + _cachedBasis * _weapon.TrailOffset.ToGodotVector3();
 		UpdateTrail(dt, trailPos);
 	}
 
@@ -741,18 +840,16 @@ public partial class VisualProjectile3D : Node3D
 
 		if (CheckFlightFailsafes())
 		{
-			HandleImpact(GlobalPosition);
+			HandleImpact(_cachedGlobalPosition);
 			return;
 		}
 
 		Vector3 currentTarget = GetCurrentTargetPosition();
-		float currentSpeed = CalculateSpeed(_speed, _elapsedTime, _totalFlightDuration, _weapon.SpeedCurve, _weapon.Acceleration);
+		float currentSpeed = CalculateSpeed(_speed, _elapsedTime, _totalFlightDuration, _speedCurve, _weapon.Acceleration);
 		_elapsedTime += dt;
 		float rawT = Mathf.Clamp(_elapsedTime / _totalFlightDuration, 0.0f, 1.0f);
 
-		string trajType = _weapon.TrajectoryType ?? "Parabolic";
-
-		bool impactOccurred = UpdateFlightTrajectory(trajType, currentTarget, currentSpeed, dt, rawT);
+		bool impactOccurred = UpdateFlightTrajectory(_trajectoryType, currentTarget, currentSpeed, dt, rawT);
 		if (impactOccurred)
 		{
 			HandleImpact(_currentFlightPosition);
@@ -766,7 +863,7 @@ public partial class VisualProjectile3D : Node3D
 
 		Vector3 spiralOffset = CalculateSpiralOffset(right, up);
 		Vector3 zigzagOffset = CalculateZigzagOffset(right);
-		Vector3 orbitOffset = CalculateOrbitOffset(trajType, right, up);
+		Vector3 orbitOffset = CalculateOrbitOffset(_trajectoryType, right, up);
 
 		Vector3 nextPos = _currentFlightPosition + new Vector3(0, arcY, 0) + spiralOffset + zigzagOffset + orbitOffset;
 		UpdateVisualTransforms(nextPos, dt, rawT);
@@ -806,9 +903,9 @@ public partial class VisualProjectile3D : Node3D
 			if (addNew)
 			{
 				int moveCount = Math.Min(_trailPointCount, MaxTrailPoints - 1);
-				for (int i = moveCount; i > 0; i--)
+				if (moveCount > 0)
 				{
-					_trailPoints[i] = _trailPoints[i - 1];
+					Array.Copy(_trailPoints, 0, _trailPoints, 1, moveCount);
 				}
 
 				_trailPoints[0] = new TrailPoint
@@ -819,7 +916,6 @@ public partial class VisualProjectile3D : Node3D
 				_trailPointCount = Math.Min(_trailPointCount + 1, MaxTrailPoints);
 			}
 		}
-
 	}
 
 	public Vector3 CalculateRibbonForwardIndex(int index)
@@ -876,22 +972,22 @@ public partial class VisualProjectile3D : Node3D
 		}
 	}
 
-	private static float CalculateSpeed(float baseSpeed, float elapsedTime, float totalDuration, string speedCurve, float acceleration)
+	private static float CalculateSpeed(float baseSpeed, float elapsedTime, float totalDuration, ProjectileSpeedCurve speedCurve, float acceleration)
 	{
 		float speed = Mathf.Max(0.1f, baseSpeed + (acceleration * elapsedTime));
 
-		if (string.IsNullOrEmpty(speedCurve) || speedCurve == "constant")
+		if (speedCurve == ProjectileSpeedCurve.Constant)
 			return speed;
 
 		float progress = Mathf.Clamp(elapsedTime / Mathf.Max(0.001f, totalDuration), 0.0f, 1.0f);
 
-		return speedCurve.ToLowerInvariant() switch
+		return speedCurve switch
 		{
-			"accelerate" or "ease_in" => speed * (0.3f + 1.4f * progress * progress),
-			"decelerate" or "ease_out" => speed * (1.7f - 1.4f * progress * progress),
-			"ease_in_out" => speed * (0.4f + 1.2f * (progress * progress * (3.0f - 2.0f * progress))),
-			"rocket_boost" => speed * (0.15f + 2.35f * Mathf.Pow(progress, 3.0f)),
-			"burst" => speed * (1.0f + 1.5f * Mathf.Exp(-4.0f * progress)),
+			ProjectileSpeedCurve.Accelerate => speed * (0.3f + 1.4f * progress * progress),
+			ProjectileSpeedCurve.Decelerate => speed * (1.7f - 1.4f * progress * progress),
+			ProjectileSpeedCurve.EaseInOut => speed * (0.4f + 1.2f * (progress * progress * (3.0f - 2.0f * progress))),
+			ProjectileSpeedCurve.RocketBoost => speed * (0.15f + 2.35f * Mathf.Pow(progress, 3.0f)),
+			ProjectileSpeedCurve.Burst => speed * (1.0f + 1.5f * Mathf.Exp(-4.0f * progress)),
 			_ => speed,
 		};
 	}
@@ -904,36 +1000,31 @@ public partial class VisualProjectile3D : Node3D
 		return 1.0f;
 	}
 
-	private static float CalculateScaleOverLifetime(float t, string scaleCurve)
+	private static float CalculateScaleOverLifetime(float t, ProjectileScaleCurve scaleCurve)
 	{
-		if (string.IsNullOrEmpty(scaleCurve) || scaleCurve == "constant" || scaleCurve == "none")
+		if (scaleCurve == ProjectileScaleCurve.Constant)
 			return 1.0f;
 
-		return scaleCurve.ToLowerInvariant() switch
+		return scaleCurve switch
 		{
-			"grow" => Mathf.Clamp(t * 1.5f, 0.001f, 1.0f),
-			"shrink" => Mathf.Clamp(1.0f - t, 0.001f, 1.0f),
-			"grow_shrink" => Mathf.Max(0.001f, Mathf.Sin(Mathf.Clamp(t, 0.0f, 1.0f) * Mathf.Pi)),
-			"squash_stretch" => CalculateSquashStretchScale(t),
-			"impact_shrink" => t > 0.8f ? Mathf.Clamp((1.0f - t) / 0.2f, 0.001f, 1.0f) : 1.0f,
+			ProjectileScaleCurve.Grow => Mathf.Clamp(t * 1.5f, 0.001f, 1.0f),
+			ProjectileScaleCurve.Shrink => Mathf.Clamp(1.0f - t, 0.001f, 1.0f),
+			ProjectileScaleCurve.GrowShrink => Mathf.Max(0.001f, Mathf.Sin(Mathf.Clamp(t, 0.0f, 1.0f) * Mathf.Pi)),
+			ProjectileScaleCurve.SquashStretch => CalculateSquashStretchScale(t),
+			ProjectileScaleCurve.ImpactShrink => t > 0.8f ? Mathf.Clamp((1.0f - t) / 0.2f, 0.001f, 1.0f) : 1.0f,
 			_ => 1.0f,
 		};
 	}
 
-	private static float ApplyEaseCurve(float t, string easeCurve)
+	private static float ApplyEaseCurve(float t, ProjectileEaseCurve easeCurve)
 	{
-		if (string.IsNullOrEmpty(easeCurve)) return t;
-		switch (easeCurve.ToLowerInvariant())
+		return easeCurve switch
 		{
-			case "ease_in":
-				return t * t;
-			case "ease_out":
-				return 1.0f - (1.0f - t) * (1.0f - t);
-			case "ease_in_out":
-				return t < 0.5f ? 2.0f * t * t : 1.0f - Mathf.Pow(-2.0f * t + 2.0f, 2.0f) / 2.0f;
-			default:
-				return t;
-		}
+			ProjectileEaseCurve.EaseIn => t * t,
+			ProjectileEaseCurve.EaseOut => 1.0f - (1.0f - t) * (1.0f - t),
+			ProjectileEaseCurve.EaseInOut => t < 0.5f ? 2.0f * t * t : 1.0f - Mathf.Pow(-2.0f * t + 2.0f, 2.0f) / 2.0f,
+			_ => t,
+		};
 	}
 
 	private static Color ParseColor(string hex, Color fallback)

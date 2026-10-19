@@ -39,6 +39,9 @@ public class FXService
 	private MeshInstance3D? _batchedMixMeshInstance;
 	private StandardMaterial3D? _batchedMixMaterial;
 
+	private bool _hasDrawnAddRibbons;
+	private bool _hasDrawnMixRibbons;
+
 	public bool TryAcquireProjectileLight()
 	{
 		if (!EnableProjectileLights) return false;
@@ -686,11 +689,23 @@ public class FXService
 
 		if (_batchedAddImmediateMesh == null || _batchedMixImmediateMesh == null || _batchedAddMaterial == null || _batchedMixMaterial == null) return;
 
-		_batchedAddImmediateMesh.ClearSurfaces();
-		_batchedMixImmediateMesh.ClearSurfaces();
+		var projectiles = VisualProjectilePool.Instance?.ActiveProjectiles;
+		if (projectiles == null || projectiles.Count == 0)
+		{
+			if (_hasDrawnAddRibbons)
+			{
+				_batchedAddImmediateMesh.ClearSurfaces();
+				_hasDrawnAddRibbons = false;
+			}
 
-		var projectiles = VisualProjectilePool.Instance?.AllProjectiles;
-		if (projectiles == null || projectiles.Count == 0) return;
+			if (_hasDrawnMixRibbons)
+			{
+				_batchedMixImmediateMesh.ClearSurfaces();
+				_hasDrawnMixRibbons = false;
+			}
+
+			return;
+		}
 
 		Vector3 camPos = camera != null && GodotObject.IsInstanceValid(camera)
 			? camera.GlobalPosition
@@ -710,6 +725,7 @@ public class FXService
 			{
 				if (!addSurfaceStarted)
 				{
+					_batchedAddImmediateMesh.ClearSurfaces();
 					_batchedAddImmediateMesh.SurfaceBegin(Mesh.PrimitiveType.Triangles, _batchedAddMaterial);
 					addSurfaceStarted = true;
 				}
@@ -718,6 +734,7 @@ public class FXService
 			{
 				if (!mixSurfaceStarted)
 				{
+					_batchedMixImmediateMesh.ClearSurfaces();
 					_batchedMixImmediateMesh.SurfaceBegin(Mesh.PrimitiveType.Triangles, _batchedMixMaterial);
 					mixSurfaceStarted = true;
 				}
@@ -780,7 +797,26 @@ public class FXService
 			}
 		}
 
-		if (addSurfaceStarted) _batchedAddImmediateMesh.SurfaceEnd();
-		if (mixSurfaceStarted) _batchedMixImmediateMesh.SurfaceEnd();
+		if (addSurfaceStarted)
+		{
+			_batchedAddImmediateMesh.SurfaceEnd();
+			_hasDrawnAddRibbons = true;
+		}
+		else if (_hasDrawnAddRibbons)
+		{
+			_batchedAddImmediateMesh.ClearSurfaces();
+			_hasDrawnAddRibbons = false;
+		}
+
+		if (mixSurfaceStarted)
+		{
+			_batchedMixImmediateMesh.SurfaceEnd();
+			_hasDrawnMixRibbons = true;
+		}
+		else if (_hasDrawnMixRibbons)
+		{
+			_batchedMixImmediateMesh.ClearSurfaces();
+			_hasDrawnMixRibbons = false;
+		}
 	}
 }
