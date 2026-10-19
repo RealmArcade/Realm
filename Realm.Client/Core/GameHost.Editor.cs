@@ -498,11 +498,17 @@ public partial class GameHost
 			var cfg = ProceduralAnimationManager.GetConfig(procAnimId);
 			if (cfg != null)
 			{
+				if (node is Prop3D propWithAnim) propWithAnim.HasProceduralAnimation = true;
 				ModelShaderManager.SetProceduralAnimation(node, cfg);
 				return;
 			}
 		}
 
+		if (node is Prop3D propNoAnim)
+		{
+			if (!propNoAnim.HasProceduralAnimation) return;
+			propNoAnim.HasProceduralAnimation = false;
+		}
 		ModelShaderManager.DisableProceduralAnimation(node);
 	}
 

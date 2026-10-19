@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using Realm.MapAPI;
 
@@ -9,6 +10,13 @@ public class SummaryTablePanel
 	private Label _titleLabel;
 	private VBoxContainer _rowsContainer;
 
+	private HBoxContainer? _headerRow;
+	private readonly List<Label> _headerLabels = new();
+	private HSeparator? _separator;
+	private readonly List<HBoxContainer> _dataRows = new();
+	private readonly List<List<Label>> _dataRowLabels = new();
+	private string? _lastTitle;
+
 	public SummaryTablePanel(PanelContainer summaryPanel, Label titleLabel, VBoxContainer rowsContainer)
 	{
 		_summaryPanel = summaryPanel;
@@ -19,32 +27,29 @@ public class SummaryTablePanel
 	public void Update(InGameHUDViewModel viewModel)
 	{
 		bool allowSummary = InGameHUD.Instance?.IsHudElementVisible(HudElement.SummaryTable, true) ?? true;
-		_summaryPanel.Visible = viewModel.SummaryTableVisible && allowSummary;
-		if (!viewModel.SummaryTableVisible || !allowSummary)
+		bool visible = viewModel.SummaryTableVisible && allowSummary;
+		if (_summaryPanel.Visible != visible)
+		{
+			_summaryPanel.Visible = visible;
+		}
+		if (!visible)
 		{
 			return;
 		}
 
-		_titleLabel.Text = viewModel.SummaryTableTitle;
-
-		ClearRows();
+		string title = viewModel.SummaryTableTitle ?? string.Empty;
+		if (_lastTitle != title)
+		{
+			_titleLabel.Text = title;
+			_lastTitle = title;
+		}
 
 		string[] headers = GetHeaders(viewModel);
-
-		CreateHeaderRow(headers);
-		CreateSeparator();
+		UpdateHeaderRow(headers);
+		EnsureSeparator();
 
 		int expectedMetrics = headers.Length > 0 ? headers.Length - 1 : 0;
-		CreateDataRows(viewModel, expectedMetrics);
-	}
-
-	private void ClearRows()
-	{
-		foreach (Node child in _rowsContainer.GetChildren())
-		{
-			_rowsContainer.RemoveChild(child);
-			child.QueueFree();
-		}
+		UpdateDataRows(viewModel, expectedMetrics);
 	}
 
 	private string[] GetHeaders(InGameHUDViewModel viewModel)
@@ -64,18 +69,23 @@ public class SummaryTablePanel
 		return headers;
 	}
 
-	private void CreateHeaderRow(string[] headers)
+	private void UpdateHeaderRow(string[] headers)
 	{
-		var headerRow = new HBoxContainer();
-		headerRow.AddThemeConstantOverride("separation", 15);
-
-		for (int i = 0; i < headers.Length; i++)
+		if (_headerRow == null || !GodotObject.IsInstanceValid(_headerRow))
 		{
-			var colLabel = new Label { Text = headers[i] };
+			_headerRow = new HBoxContainer();
+			_headerRow.AddThemeConstantOverride("separation", 15);
+			_rowsContainer.AddChild(_headerRow);
+			_headerLabels.Clear();
+		}
+
+		while (_headerLabels.Count < headers.Length)
+		{
+			int colIdx = _headerLabels.Count;
+			var colLabel = new Label();
 			colLabel.AddThemeFontSizeOverride("font_size", 12);
 			colLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-
-			if (i == 0)
+			if (colIdx == 0)
 			{
 				colLabel.CustomMinimumSize = new Vector2(100, 0);
 			}
@@ -84,46 +94,122 @@ public class SummaryTablePanel
 				colLabel.CustomMinimumSize = new Vector2(80, 0);
 				colLabel.HorizontalAlignment = HorizontalAlignment.Right;
 			}
-
-			headerRow.AddChild(colLabel);
+			_headerRow.AddChild(colLabel);
+			_headerLabels.Add(colLabel);
 		}
 
-		_rowsContainer.AddChild(headerRow);
+		for (int i = 0; i < _headerLabels.Count; i++)
+		{
+			var lbl = _headerLabels[i];
+			bool colVisible = i < headers.Length;
+			if (lbl.Visible != colVisible)
+			{
+				lbl.Visible = colVisible;
+			}
+			if (colVisible)
+			{
+				string text = headers[i] ?? string.Empty;
+				if (lbl.Text != text)
+				{
+					lbl.Text = text;
+				}
+			}
+		}
 	}
 
-	private void CreateSeparator()
+	private void EnsureSeparator()
 	{
-		var sep = new HSeparator();
-		sep.AddThemeColorOverride("separator_color", UIStyle.ColorBronze);
-		_rowsContainer.AddChild(sep);
+		if (_separator == null || !GodotObject.IsInstanceValid(_separator))
+		{
+			_separator = new HSeparator();
+			_separator.AddThemeColorOverride("separator_color", UIStyle.ColorBronze);
+			_rowsContainer.AddChild(_separator);
+		}
 	}
 
-	private void CreateDataRows(InGameHUDViewModel viewModel, int expectedMetrics)
+	private void UpdateDataRows(InGameHUDViewModel viewModel, int expectedMetrics)
 	{
+		int totalCols = 1 + expectedMetrics;
+		int rowIdx = 0;
+
 		foreach (var kvp in viewModel.SummaryTableRows)
 		{
-			var row = new HBoxContainer();
-			row.AddThemeConstantOverride("separation", 15);
-
-			var playerLbl = new Label { Text = kvp.Key };
-			playerLbl.AddThemeFontSizeOverride("font_size", 12);
-			playerLbl.AddThemeColorOverride("font_color", Colors.White);
-			playerLbl.CustomMinimumSize = new Vector2(100, 0);
-			row.AddChild(playerLbl);
-
-			string[] values = kvp.Value;
-			for (int i = 0; i < expectedMetrics; i++)
+			if (rowIdx >= _dataRows.Count)
 			{
-				string cellText = (values != null && i < values.Length) ? (values[i] ?? "") : "";
-				var cellLbl = new Label { Text = cellText };
-				cellLbl.AddThemeFontSizeOverride("font_size", 12);
-				cellLbl.AddThemeColorOverride("font_color", (i == expectedMetrics - 1) ? Colors.White : UIStyle.ColorGoldDull);
-				cellLbl.CustomMinimumSize = new Vector2(80, 0);
-				cellLbl.HorizontalAlignment = HorizontalAlignment.Right;
-				row.AddChild(cellLbl);
+				var newRow = new HBoxContainer();
+				newRow.AddThemeConstantOverride("separation", 15);
+				_rowsContainer.AddChild(newRow);
+				_dataRows.Add(newRow);
+				_dataRowLabels.Add(new List<Label>());
 			}
 
-			_rowsContainer.AddChild(row);
+			var row = _dataRows[rowIdx];
+			var labels = _dataRowLabels[rowIdx];
+			if (!row.Visible)
+			{
+				row.Visible = true;
+			}
+
+			while (labels.Count < totalCols)
+			{
+				int colIdx = labels.Count;
+				var cellLbl = new Label();
+				cellLbl.AddThemeFontSizeOverride("font_size", 12);
+				if (colIdx == 0)
+				{
+					cellLbl.AddThemeColorOverride("font_color", Colors.White);
+					cellLbl.CustomMinimumSize = new Vector2(100, 0);
+				}
+				else
+				{
+					cellLbl.CustomMinimumSize = new Vector2(80, 0);
+					cellLbl.HorizontalAlignment = HorizontalAlignment.Right;
+				}
+				row.AddChild(cellLbl);
+				labels.Add(cellLbl);
+			}
+
+			for (int c = 0; c < labels.Count; c++)
+			{
+				var cellLbl = labels[c];
+				bool colVisible = c < totalCols;
+				if (cellLbl.Visible != colVisible)
+				{
+					cellLbl.Visible = colVisible;
+				}
+				if (!colVisible) continue;
+
+				if (c == 0)
+				{
+					string playerText = kvp.Key ?? string.Empty;
+					if (cellLbl.Text != playerText)
+					{
+						cellLbl.Text = playerText;
+					}
+				}
+				else
+				{
+					int metricIdx = c - 1;
+					string[] values = kvp.Value;
+					string cellText = (values != null && metricIdx < values.Length) ? (values[metricIdx] ?? string.Empty) : string.Empty;
+					if (cellLbl.Text != cellText)
+					{
+						cellLbl.Text = cellText;
+					}
+					Color desiredColor = (metricIdx == expectedMetrics - 1) ? Colors.White : UIStyle.ColorGoldDull;
+					cellLbl.AddThemeColorOverride("font_color", desiredColor);
+				}
+			}
+
+			rowIdx++;
+		}
+
+		for (int i = rowIdx; i < _dataRows.Count; i++)
+		{
+			if (_dataRows[i].Visible)
+			{
+				_dataRows[i].Visible = false;
+			}
 		}
 	}
 }

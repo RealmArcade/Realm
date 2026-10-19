@@ -784,6 +784,8 @@ public partial class GameHost
 
 	private void UpdateVisualScale(Entity entity, Unit3D unit3D)
 	{
+		if (unit3D.IsFlashingScale) return;
+
 		bool isLaborAnimating = (GameContext.World.Has<Gatherer>(entity) && !GameContext.World.Get<Gatherer>(entity).ReturningToBase)
 		                        || (GameContext.World.Has<BuildTask>(entity) && !GameContext.World.Has<MoveTo>(entity));
 

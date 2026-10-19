@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Services.ModelOptimization;
 using Realm.Client.VFX;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
@@ -22,6 +24,8 @@ public partial class VisualProjectile3D : Node3D
 	private Node3D _visualTransformContainer;
 	private MeshInstance3D _fallbackMeshInstance;
 	private Node3D _customModelInstance;
+	private readonly Dictionary<string, Node3D> _loadedModelsByPath = new(StringComparer.OrdinalIgnoreCase);
+	private static readonly Dictionary<string, Texture2D?> _textureCache = new(StringComparer.OrdinalIgnoreCase);
 	private OmniLight3D _pointLight;
 	private GpuParticles3D _trailEmitter;
 	private ImmediateMesh _ribbonImmediateMesh;
@@ -33,6 +37,7 @@ public partial class VisualProjectile3D : Node3D
 	public static void ClearSharedShaderCache()
 	{
 		_sharedUberShader = null;
+		_textureCache.Clear();
 	}
 
 	private WeaponMetadata _weapon;
@@ -305,11 +310,11 @@ public partial class VisualProjectile3D : Node3D
 		}
 	}
 
-	private void ClearCustomModelInstance()
+	private void HideCustomModelInstance()
 	{
 		if (_customModelInstance != null && GodotObject.IsInstanceValid(_customModelInstance))
 		{
-			_customModelInstance.QueueFree();
+			_customModelInstance.Visible = false;
 			_customModelInstance = null;
 		}
 	}
@@ -338,7 +343,7 @@ public partial class VisualProjectile3D : Node3D
 		string modelPath = _weapon.ProjectileModelPath;
 		if (string.IsNullOrEmpty(modelPath))
 		{
-			ClearCustomModelInstance();
+			HideCustomModelInstance();
 			_currentLoadedModelPath = null;
 			EnableFallbackMesh();
 			return;
@@ -347,12 +352,22 @@ public partial class VisualProjectile3D : Node3D
 		bool needsReload = modelPath != _currentLoadedModelPath || _customModelInstance == null || !GodotObject.IsInstanceValid(_customModelInstance);
 		if (!needsReload)
 		{
+			_customModelInstance.Visible = true;
 			_fallbackMeshInstance.Visible = false;
 			return;
 		}
 
-		ClearCustomModelInstance();
+		HideCustomModelInstance();
 		_currentLoadedModelPath = modelPath;
+
+		if (_loadedModelsByPath.TryGetValue(modelPath, out var cachedNode) && cachedNode != null && GodotObject.IsInstanceValid(cachedNode))
+		{
+			_customModelInstance = cachedNode;
+			_customModelInstance.Visible = true;
+			_fallbackMeshInstance.Visible = false;
+			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(_customModelInstance, Math.Max(0.01f, _visualTransformContainer.Scale.Y));
+			return;
+		}
 
 		Node3D node3D = LoadModelPath(modelPath);
 		if (node3D == null)
@@ -361,9 +376,11 @@ public partial class VisualProjectile3D : Node3D
 			return;
 		}
 
+		_loadedModelsByPath[modelPath] = node3D;
 		_customModelInstance = node3D;
 		_visualTransformContainer.AddChild(_customModelInstance);
 		_fallbackMeshInstance.Visible = false;
+		GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(_customModelInstance, Math.Max(0.01f, _visualTransformContainer.Scale.Y));
 
 		if (node3D is not ProceduralVfxInstance3D)
 		{
@@ -479,18 +496,22 @@ public partial class VisualProjectile3D : Node3D
 		}
 	}
 
+	private Color _parsedRibbonColor = new(1.0f, 0.65f, 0.2f);
+	private bool _hasRibbonTrail = true;
+
 	private void UpdateRibbonTrail()
 	{
-		Color ribbonCol = ParseColor(_weapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f));
+		_parsedRibbonColor = ParseColor(_weapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f));
+		_hasRibbonTrail = _weapon.RibbonLifetime >= 0f && _weapon.RibbonWidth >= 0f && !string.Equals(_weapon.RibbonColor, "none", StringComparison.OrdinalIgnoreCase);
 
 		if (_weapon.RibbonAdditive)
 		{
-			_ribbonMaterial.AlbedoColor = new Color(ribbonCol.R * 2.2f, ribbonCol.G * 2.2f, ribbonCol.B * 2.2f, ribbonCol.A);
+			_ribbonMaterial.AlbedoColor = new Color(_parsedRibbonColor.R * 2.2f, _parsedRibbonColor.G * 2.2f, _parsedRibbonColor.B * 2.2f, _parsedRibbonColor.A);
 			_ribbonMaterial.BlendMode = BaseMaterial3D.BlendModeEnum.Add;
 		}
 		else
 		{
-			_ribbonMaterial.AlbedoColor = ribbonCol;
+			_ribbonMaterial.AlbedoColor = _parsedRibbonColor;
 			_ribbonMaterial.BlendMode = BaseMaterial3D.BlendModeEnum.Mix;
 		}
 
@@ -897,13 +918,13 @@ public partial class VisualProjectile3D : Node3D
 	{
 		if (_ribbonImmediateMesh == null) return;
 		_ribbonImmediateMesh.ClearSurfaces();
-		if (_trailPointCount < 2) return;
+		if (!_hasRibbonTrail || _trailPointCount < 2) return;
 
-		Camera3D camera = GetViewport()?.GetCamera3D();
+		Camera3D camera = GameHost.Instance?.MainCamera ?? GetViewport()?.GetCamera3D();
 		Vector3 camPos = camera != null && GodotObject.IsInstanceValid(camera) ? camera.GlobalPosition : (GlobalPosition + new Vector3(0, 5, 10));
 
 		float baseWidth = _weapon.RibbonWidth > 0 ? _weapon.RibbonWidth : 0.4f;
-		Color baseCol = ParseColor(_weapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f));
+		Color baseCol = _parsedRibbonColor;
 
 		_ribbonImmediateMesh.SurfaceBegin(Mesh.PrimitiveType.TriangleStrip, _ribbonMaterial);
 
@@ -1022,38 +1043,49 @@ public partial class VisualProjectile3D : Node3D
 	{
 		if (string.IsNullOrEmpty(path)) return null;
 
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string cacheKey = $"{wsPath}|{path}";
+		if (_textureCache.TryGetValue(cacheKey, out var cached) && (cached == null || GodotObject.IsInstanceValid(cached)))
+		{
+			return cached;
+		}
+
+		Texture2D? result = null;
 		if (path.StartsWith("res://") || path.StartsWith("user://"))
 		{
 			if (ResourceLoader.Exists(path))
 			{
-				return GD.Load<Texture2D>(path);
+				result = GD.Load<Texture2D>(path);
 			}
 		}
-
-		string resolvedPath = ModelCache.ResolveModelPath(path);
-		if (!string.IsNullOrEmpty(resolvedPath) && File.Exists(resolvedPath))
+		else
 		{
-			if (resolvedPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			string resolvedPath = ModelCache.ResolveModelPath(path);
+			if (!string.IsNullOrEmpty(resolvedPath) && File.Exists(resolvedPath))
 			{
-				var img = LoadImageFromRtex(resolvedPath);
-				if (img != null)
+				if (resolvedPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 				{
-					img.GenerateMipmaps();
-					return ImageTexture.CreateFromImage(img);
+					var img = LoadImageFromRtex(resolvedPath);
+					if (img != null)
+					{
+						img.GenerateMipmaps();
+						result = ImageTexture.CreateFromImage(img);
+					}
 				}
-			}
-			else
-			{
-				var img = Image.LoadFromFile(resolvedPath);
-				if (img != null)
+				else
 				{
-					img.GenerateMipmaps();
-					return ImageTexture.CreateFromImage(img);
+					var img = Image.LoadFromFile(resolvedPath);
+					if (img != null)
+					{
+						img.GenerateMipmaps();
+						result = ImageTexture.CreateFromImage(img);
+					}
 				}
 			}
 		}
 
-		return null;
+		_textureCache[cacheKey] = result;
+		return result;
 	}
 
 	private static Image? LoadImageFromRtex(string rtexPath, int layer = 0)

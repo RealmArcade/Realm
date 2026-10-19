@@ -36,8 +36,16 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 	private readonly List<Vector3> _expansionLocations = new(8);
 	private readonly List<Vector3> _rallyPoints = new(8);
 
-	private readonly List<Entity> _friendlyUnits = new(64);
-	private readonly List<Entity> _enemyUnits = new(64);
+	private readonly List<(Entity Entity, Vector3 Position)> _friendlyUnits = new(64);
+	private int _enemyUnitCount;
+	private Entity _lowestHpEnemy;
+	private float _lowestEnemyHp;
+	private Vector3 _lowestHpEnemyPos;
+	private Vector3 _enemyCenter;
+	private Vector3 _friendlyCenter;
+	private int _scanPlayerIndex;
+	private Entity _scanPlayerEntity;
+
 	private readonly QueryDescription _allPositionQuery = new QueryDescription().WithAll<Position>().WithNone<Dead>();
 	private readonly QueryDescription _playerResourcesQuery = new QueryDescription().WithAll<PlayerResources>();
 
@@ -138,52 +146,71 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 	{
 		destinationList.Clear();
 		_friendlyUnits.Clear();
-		_enemyUnits.Clear();
 
-		Vector3 friendlyCenter = Vector3.Zero;
-		Vector3 enemyCenter = Vector3.Zero;
+		Vector3 friendlyCenterAcc = Vector3.Zero;
+		Vector3 enemyCenterAcc = Vector3.Zero;
+		int enemyCount = 0;
+		Entity lowestHpEnemy = Entity.Null;
+		float lowestEnemyHp = float.MaxValue;
+		Vector3 lowestHpEnemyPos = Vector3.Zero;
 
-		world.Query(in _allPositionQuery, (Entity entity, ref Position pos) =>
+		foreach (var entity in world.Query(in _allPositionQuery))
 		{
+			ref var pos = ref world.Get<Position>(entity);
 			int ownerIndex = GetOwnerIndex(world, entity);
-
 			if (ownerIndex == playerIndex)
 			{
-				_friendlyUnits.Add(entity);
-				friendlyCenter += pos.Value;
+				_friendlyUnits.Add((entity, pos.Value));
+				friendlyCenterAcc += pos.Value;
 			}
-			else if (ownerIndex >= 0)
+			else if (ownerIndex > 0)
 			{
-				_enemyUnits.Add(entity);
-				enemyCenter += pos.Value;
+				enemyCount++;
+				enemyCenterAcc += pos.Value;
+				if (world.Has<Health>(entity))
+				{
+					float eHp = world.Get<Health>(entity).Current;
+					if (eHp < lowestEnemyHp)
+					{
+						lowestEnemyHp = eHp;
+						lowestHpEnemy = entity;
+						lowestHpEnemyPos = pos.Value;
+					}
+				}
 			}
-		});
+		}
 
-		if (_friendlyUnits.Count > 0) friendlyCenter /= _friendlyUnits.Count;
-		if (_enemyUnits.Count > 0) enemyCenter /= _enemyUnits.Count;
+		_enemyUnitCount = enemyCount;
+		_lowestHpEnemy = lowestHpEnemy;
+		_lowestHpEnemyPos = lowestHpEnemyPos;
 
-		Entity playerEntity = Entity.Null;
-		world.Query(in _playerResourcesQuery, (Entity pe) =>
+		Vector3 friendlyCenter = _friendlyUnits.Count > 0 ? friendlyCenterAcc / _friendlyUnits.Count : Vector3.Zero;
+		Vector3 enemyCenter = _enemyUnitCount > 0 ? enemyCenterAcc / _enemyUnitCount : Vector3.Zero;
+		_friendlyCenter = friendlyCenter;
+		_enemyCenter = enemyCenter;
+
+		Entity foundPlayerEntity = Entity.Null;
+		foreach (var pe in world.Query(in _playerResourcesQuery))
 		{
-			if (playerEntity == Entity.Null)
+			if (foundPlayerEntity == Entity.Null)
 			{
-				playerEntity = pe;
+				foundPlayerEntity = pe;
 			}
 
 			if (world.Has<UnitOwnerPlayer>(pe) && world.Get<UnitOwnerPlayer>(pe).PlayerIndex == playerIndex)
 			{
-				playerEntity = pe;
+				foundPlayerEntity = pe;
+				break;
 			}
-		});
+		}
 
-		int playerGold = GetPlayerGold(world, playerEntity);
+		int playerGold = GetPlayerGold(world, foundPlayerEntity);
 
 		for (int i = 0; i < _friendlyUnits.Count; i++)
 		{
-			var unit = _friendlyUnits[i];
+			var (unit, unitPos) = _friendlyUnits[i];
 			if (!world.IsAlive(unit)) continue;
 
-			var unitPos = world.Get<Position>(unit).Value;
 			float healthRatio = GetUnitHealthRatio(world, unit);
 
 			EvaluateCombatAffordances(world, unit, unitPos, healthRatio, enemyCenter, destinationList);
@@ -196,28 +223,34 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 
 	private void EvaluateCombatAffordances(EcsWorld world, Entity unit, Vector3 unitPos, float healthRatio, Vector3 enemyCenter, List<GenericAffordance> destinationList)
 	{
-		if (_enemyUnits.Count == 0) return;
+		if (_enemyUnitCount == 0) return;
 
-		FindEnemyTargets(world, unitPos, out Entity lowestHpEnemy, out Vector3 closestEnemyPos, out float minEnemyDist);
+		Entity lowestHpEnemy = _lowestHpEnemy;
+		Vector3 closestEnemyPos = lowestHpEnemy != Entity.Null ? _lowestHpEnemyPos : enemyCenter;
+		float minEnemyDist = Vector3.Distance(unitPos, closestEnemyPos);
 
 		if (world.IsAlive(lowestHpEnemy))
 		{
 			float threatScore = Math.Clamp(0.9f * _aggressionBias, 0f, 1f);
 			float[] fVec = CreateFeatureVector(0.0f, threatScore, Math.Clamp(minEnemyDist / 50.0f, 0f, 1f), healthRatio, 1.0f, 0.0f, 0.8f, 0.5f);
-			destinationList.Add(new GenericAffordance(unit, CommandIntent.Attack, lowestHpEnemy, world.Get<Position>(lowestHpEnemy).Value, "focus_low_hp", fVec));
+			destinationList.Add(new GenericAffordance(unit, CommandIntent.Attack, lowestHpEnemy, _lowestHpEnemyPos, "focus_low_hp", fVec));
 		}
 
 		float kitingThreshold = 10.0f * _kitingDistanceBias;
 		if (minEnemyDist < kitingThreshold)
 		{
-			Vector3 retreatVector = Vector3.Normalize(unitPos - closestEnemyPos) * (15.0f * _kitingDistanceBias) + unitPos;
+			Vector3 diff = unitPos - closestEnemyPos;
+			Vector3 dir = diff.LengthSquared() > 0.0001f ? Vector3.Normalize(diff) : Vector3.UnitX;
+			Vector3 retreatVector = dir * (15.0f * _kitingDistanceBias) + unitPos;
 			float[] fVec = CreateFeatureVector(0.0f, 0.2f, 0.1f, healthRatio, 0.3f, 0.0f, 0.9f, 0.1f);
 			destinationList.Add(new GenericAffordance(unit, CommandIntent.MoveTo, Entity.Null, retreatVector, "kiting_retreat", fVec));
 		}
 
 		if (healthRatio <= _retreatHealthPercent)
 		{
-			Vector3 rallyDest = _rallyPoints.Count > 0 ? _rallyPoints[0] : (Vector3.Normalize(unitPos - closestEnemyPos) * 20.0f + unitPos);
+			Vector3 diff = unitPos - closestEnemyPos;
+			Vector3 dir = diff.LengthSquared() > 0.0001f ? Vector3.Normalize(diff) : Vector3.UnitX;
+			Vector3 rallyDest = _rallyPoints.Count > 0 ? _rallyPoints[0] : (dir * 20.0f + unitPos);
 			float retreatUrgency = Math.Clamp((_retreatHealthPercent - healthRatio) / _retreatHealthPercent + 0.5f, 0.5f, 1.0f);
 			float[] fVec = CreateFeatureVector(0.0f, 0.1f, 0.1f, healthRatio, 0.2f, 0.0f, retreatUrgency, 0.1f);
 			destinationList.Add(new GenericAffordance(unit, CommandIntent.MoveTo, Entity.Null, rallyDest, "emergency_retreat", fVec));
@@ -226,38 +259,6 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		float aggCenterScore = Math.Clamp(0.8f * _aggressionBias, 0f, 1f);
 		float[] attackCenterVec = CreateFeatureVector(0.0f, aggCenterScore, Math.Clamp(Vector3.Distance(unitPos, enemyCenter) / 50.0f, 0f, 1f), healthRatio, 0.8f, 0.0f, 0.5f, 0.5f);
 		destinationList.Add(new GenericAffordance(unit, CommandIntent.MoveTo, Entity.Null, enemyCenter, "threat_centroid", attackCenterVec));
-	}
-
-	private void FindEnemyTargets(EcsWorld world, Vector3 unitPos, out Entity lowestHpEnemy, out Vector3 closestEnemyPos, out float minEnemyDist)
-	{
-		lowestHpEnemy = Entity.Null;
-		float minHp = float.MaxValue;
-		closestEnemyPos = Vector3.Zero;
-		minEnemyDist = float.MaxValue;
-
-		for (int eIdx = 0; eIdx < _enemyUnits.Count; eIdx++)
-		{
-			var enemy = _enemyUnits[eIdx];
-			if (!world.IsAlive(enemy)) continue;
-
-			var ePos = world.Get<Position>(enemy).Value;
-			float dist = Vector3.Distance(unitPos, ePos);
-			if (dist < minEnemyDist)
-			{
-				minEnemyDist = dist;
-				closestEnemyPos = ePos;
-			}
-
-			if (world.Has<Health>(enemy))
-			{
-				float eHp = world.Get<Health>(enemy).Current;
-				if (eHp < minHp)
-				{
-					minHp = eHp;
-					lowestHpEnemy = enemy;
-				}
-			}
-		}
 	}
 
 	private static void EvaluateProductionAffordances(EcsWorld world, Entity unit, Vector3 unitPos, int playerGold, List<GenericAffordance> destinationList)
@@ -283,7 +284,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 			if (kvp.Value <= 0.0f)
 			{
 				float[] fVec = CreateFeatureVector(0.1f, 0.9f, 0.2f, healthRatio, 0.9f, 1.0f, 0.1f, 0.9f);
-				destinationList.Add(new GenericAffordance(unit, CommandIntent.Cast, _enemyUnits.Count > 0 ? _enemyUnits[0] : Entity.Null, enemyCenter, kvp.Key, fVec));
+				destinationList.Add(new GenericAffordance(unit, CommandIntent.Cast, _lowestHpEnemy, enemyCenter, kvp.Key, fVec));
 			}
 		}
 	}
@@ -297,7 +298,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 			var expPos = _expansionLocations[expIdx];
 			float costRatio = Math.Clamp(400.0f / Math.Max(1, playerGold), 0f, 1f);
 			float[] fVec = CreateFeatureVector(costRatio, 0.3f, 0.5f, 1.0f, 0.9f, 0.0f, 0.0f, 0.8f);
-			destinationList.Add(new GenericAffordance(_friendlyUnits[0], CommandIntent.MoveTo, Entity.Null, expPos, $"expand_base_{expIdx}", fVec));
+			destinationList.Add(new GenericAffordance(_friendlyUnits[0].Entity, CommandIntent.MoveTo, Entity.Null, expPos, $"expand_base_{expIdx}", fVec));
 		}
 	}
 

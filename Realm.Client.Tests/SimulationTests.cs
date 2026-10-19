@@ -175,6 +175,124 @@ public class TestWasmMap : IWasmModule
 		VerifyAllUnitsKilled();
 	}
 
+	[TestCase]
+	public async Task TestChaosArenaPerformanceBenchmark()
+	{
+		if (LobbyManager.Instance == null)
+		{
+			return;
+		}
+
+		GameSettings.QualityIdx = GraphicsQuality.Low;
+		GameSettings.Vsync = false;
+		DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
+		Engine.MaxFps = 0;
+
+		string chaosArenaDir = @"D:\git\realm\ugc-ChaosArena";
+		string wasmPath = Path.Combine(chaosArenaDir, "bin", "Release", "net10.0", "wasi-wasm", "publish", "MapScript.wasm");
+
+		LobbyManager.Instance.IsSinglePlayer = true;
+		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
+		isHostProp?.SetValue(LobbyManager.Instance, true);
+		LobbyManager.Instance.IsGameStarted = true;
+		LobbyManager.Instance.ActiveMapName = chaosArenaDir;
+		LobbyManager.Instance.PlayerList.Clear();
+
+		LobbyManager.Instance.PlayerList.Add(new PlayerInfo
+		{
+			PeerId = 1,
+			Slot = 1,
+			Name = "Human_Player",
+			Faction = "HUMAN",
+			Team = "Team 1",
+			Color = new Color(0.8f, 0.1f, 0.1f),
+			IsHost = true,
+			Latency = "0 ms",
+			Jitter = "0 ms",
+			PacketLoss = "0%",
+			BinaryVersion = RealmVersion.GameBinaryVersion
+		});
+
+		for (int slot = 2; slot <= 12; slot++)
+		{
+			LobbyManager.Instance.PlayerList.Add(new PlayerInfo
+			{
+				PeerId = -(slot + 100),
+				Slot = slot,
+				Name = $"AI_Player_{slot}",
+				Faction = "HUMAN",
+				Team = $"Team {slot}",
+				Color = new Color((slot * 0.17f) % 1f, (slot * 0.31f) % 1f, (slot * 0.53f) % 1f),
+				IsHost = false,
+				Latency = "0 ms",
+				Jitter = "0 ms",
+				PacketLoss = "0%",
+				BinaryVersion = RealmVersion.GameBinaryVersion
+			});
+		}
+
+		GameHost.PendingMapScriptPath = wasmPath;
+		UIManager.Instance?.TransitionTo(GameScreen.InGameHUD);
+
+		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
+		await runner.AwaitMillis(500);
+
+		GameHost gameHost = GameHost.Instance;
+		if (gameHost == null)
+		{
+			throw new Exception("GameHost.Instance was null.");
+		}
+
+		var camera = gameHost.MainCamera;
+		if (camera != null)
+		{
+			camera.Position = new Godot.Vector3(0f, 55f, 45f);
+		}
+
+		int nextReportSec = 10;
+		var sw = Stopwatch.StartNew();
+		ulong lastFrames = Engine.GetProcessFrames();
+		double lastWallSec = 0.0;
+
+		while (gameHost.GameElapsedTime < 120.5f)
+		{
+			await runner.SimulateFrames(30);
+			float gameSec = gameHost.GameElapsedTime;
+			if (gameSec >= nextReportSec)
+			{
+				ulong curFrames = Engine.GetProcessFrames();
+				double curWallSec = sw.Elapsed.TotalSeconds;
+				double deltaWall = Math.Max(0.0001, curWallSec - lastWallSec);
+				double avgFpsWindow = (curFrames - lastFrames) / deltaWall;
+				double engineFps = Engine.GetFramesPerSecond();
+				int unitCount = gameHost.AllUnits.Count;
+				var tickList = GameContext.PerformanceTrackingService.TrackerTickDurations;
+				var apiList = GameContext.PerformanceTrackingService.TrackerApiDurations;
+				float recentTickAvg = 0f;
+				if (tickList != null && tickList.Count > 0)
+				{
+					int startIdx = Math.Max(0, tickList.Count - 300);
+					float sum = 0f;
+					for (int i = startIdx; i < tickList.Count; i++) sum += tickList[i];
+					recentTickAvg = sum / (tickList.Count - startIdx);
+				}
+				float recentApiAvg = 0f;
+				if (apiList != null && apiList.Count > 0)
+				{
+					int startIdx = Math.Max(0, apiList.Count - 300);
+					float sum = 0f;
+					for (int i = startIdx; i < apiList.Count; i++) sum += apiList[i];
+					recentApiAvg = sum / (apiList.Count - startIdx);
+				}
+
+				GD.Print($"[PERF_BENCH] GameTime={gameSec:F1}s | Units={unitCount} | WindowFPS={avgFpsWindow:F1} | EngineFPS={engineFps:F1} | TickAvgMs={recentTickAvg:F2} | ApiAvgMs={recentApiAvg:F2}");
+				lastFrames = curFrames;
+				lastWallSec = curWallSec;
+				nextReportSec += 10;
+			}
+		}
+	}
+
 	private void SetupSinglePlayerLobby(string mapName)
 	{
 		LobbyManager.Instance.IsSinglePlayer = true;

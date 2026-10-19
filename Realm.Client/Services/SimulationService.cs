@@ -419,7 +419,6 @@ public class SimulationService
 		_combatService.OnWeaponProjectileRequested = (p1, p2, weaponId, targetEnt) =>
 		{
 			EnqueueVFXRequest(weaponId ?? "arrow", p1, p2, 1.0f, 40f, targetEnt.Id);
-			OnWeaponProjectileRequested?.Invoke(p1, p2, weaponId, targetEnt);
 		};
 		_combatService.OnDamageFlashRequested = ent =>
 		{
@@ -928,8 +927,9 @@ public class SimulationService
 		}
 	}
 
-	private void UpdateModifiers(Entity entity, ref ModifierState modState)
+	private bool UpdateModifiers(Entity entity, ref ModifierState modState)
 	{
+		bool removedAny = false;
 		var list = modState.Value;
 		for (int i = list.Count - 1; i >= 0; i--)
 		{
@@ -940,6 +940,7 @@ public class SimulationService
 				if (newDur <= 0f)
 				{
 					list.RemoveAt(i);
+					removedAny = true;
 				}
 				else
 				{
@@ -947,31 +948,51 @@ public class SimulationService
 				}
 			}
 		}
+		return removedAny;
 	}
+
+	private static readonly StatId ArmorStatId = new StatId("Armor");
+	private static readonly StatId AttackStatId = new StatId("Attack");
+	private static readonly StatId MovementSpeedStatId = new StatId("MovementSpeed");
 
 	private void StatsRecalcQueryAction(Entity entity, ref Stats stats)
 	{
-		UpdateEntityModifiers(entity);
+		bool hadExpiredModifiers = UpdateEntityModifiers(entity);
+
+		bool hasModifiers = GameContext.World.Has<ModifierState>(entity) && GameContext.World.Get<ModifierState>(entity).Value.Count > 0;
+		bool hasBuffs = GameContext.World.Has<BuffState>(entity) && GameContext.World.Get<BuffState>(entity).Value.Count > 0;
+
+		if (!hasModifiers && !hasBuffs && !hadExpiredModifiers)
+		{
+			return;
+		}
 
 		float flatArmor = 0f, percentArmor = 1f;
 		float flatAttack = 0f, percentAttack = 1f;
 		float flatSpeed = 0f, percentSpeed = 1f;
 
-		ApplyEntityModifiers(entity, ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
-		ApplyEntityBuffModifiers(entity, ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
+		if (hasModifiers)
+		{
+			ApplyEntityModifiers(entity, ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
+		}
+		if (hasBuffs)
+		{
+			ApplyEntityBuffModifiers(entity, ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
+		}
 
 		ApplyCalculatedArmor(entity, stats.Value, flatArmor, percentArmor);
 		ApplyCalculatedAttack(entity, stats.Value, flatAttack, percentAttack);
 		ApplyCalculatedSpeed(entity, stats.Value, flatSpeed, percentSpeed);
 	}
 
-	private void UpdateEntityModifiers(Entity entity)
+	private bool UpdateEntityModifiers(Entity entity)
 	{
 		if (GameContext.World.Has<ModifierState>(entity))
 		{
 			ref var modState = ref GameContext.World.Get<ModifierState>(entity);
-			UpdateModifiers(entity, ref modState);
+			return UpdateModifiers(entity, ref modState);
 		}
+		return false;
 	}
 
 	private void ApplyEntityModifiers(Entity entity, ref float flatArmor, ref float percentArmor, ref float flatAttack, ref float percentAttack, ref float flatSpeed, ref float percentSpeed)
@@ -995,14 +1016,14 @@ public class SimulationService
 
 	private void ApplyCalculatedArmor(Entity entity, Dictionary<StatId, float> baseStats, float flatArmor, float percentArmor)
 	{
-		if (!baseStats.TryGetValue(new StatId("Armor"), out var baseArmor)) return;
+		if (!baseStats.TryGetValue(ArmorStatId, out var baseArmor)) return;
 		float finalArmor = (baseArmor + flatArmor) * percentArmor;
 		if (GameContext.World.Has<Armor>(entity)) GameContext.World.Set(entity, new Armor(finalArmor));
 	}
 
 	private void ApplyCalculatedAttack(Entity entity, Dictionary<StatId, float> baseStats, float flatAttack, float percentAttack)
 	{
-		if (!baseStats.TryGetValue(new StatId("Attack"), out var baseAttack)) return;
+		if (!baseStats.TryGetValue(AttackStatId, out var baseAttack)) return;
 		float finalAttack = (baseAttack + flatAttack) * percentAttack;
 		if (GameContext.World.Has<Attack>(entity))
 		{
@@ -1013,7 +1034,7 @@ public class SimulationService
 
 	private void ApplyCalculatedSpeed(Entity entity, Dictionary<StatId, float> baseStats, float flatSpeed, float percentSpeed)
 	{
-		if (!baseStats.TryGetValue(new StatId("MovementSpeed"), out var baseSpeed)) return;
+		if (!baseStats.TryGetValue(MovementSpeedStatId, out var baseSpeed)) return;
 		float finalSpeed = (baseSpeed + flatSpeed) * percentSpeed;
 		if (GameContext.World.Has<MovementStats>(entity))
 		{

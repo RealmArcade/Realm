@@ -504,7 +504,7 @@ public class InGameHUDViewModel
 	private int _lastClockMins = -1;
 	private int _lastClockSecs = -1;
 	private int _lastClockPhase = -1;
-
+	private double _idleCountUpdateTimer;
 
 	public void Update(double delta)
 	{
@@ -521,7 +521,12 @@ public class InGameHUDViewModel
 		IsConnectionLost = GameHost.Instance.IsConnectionLost;
 		CycleSelectionIndex = GameHost.Instance.CycleSelectionIndex;
 
-		UpdateIdleCount();
+		_idleCountUpdateTimer += delta;
+		if (_idleCountUpdateTimer >= 0.1)
+		{
+			_idleCountUpdateTimer = 0.0;
+			UpdateIdleCount();
+		}
 	}
 
 	private void UpdatePopulation()
@@ -587,14 +592,16 @@ public class InGameHUDViewModel
 			return;
 		}
 
-		int idleCount = 0;
-		world.Query(in QueryCache.AllIdleMovableQuery, (Entity entity, ref Owner owner) =>
+		int idle = 0;
+		foreach (var entity in world.Query(in QueryCache.AllIdleMovableQuery))
 		{
-			if (owner.PlayerEntity.Value == targetPlayer)
-				idleCount++;
-		});
+			if (world.Get<Owner>(entity).PlayerEntity.Value == targetPlayer)
+			{
+				idle++;
+			}
+		}
 
-		IdleCount = idleCount;
+		IdleCount = idle;
 	}
 
 	public void UpdateSelectedUnits(List<Unit3D> selectedUnits)

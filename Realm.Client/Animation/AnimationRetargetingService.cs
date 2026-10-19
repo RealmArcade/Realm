@@ -490,14 +490,30 @@ public static class AnimationRetargetingService
 	{
 		if (modelRoot == null) return false;
 
+		var player = FindOrCreateAnimationPlayer(modelRoot);
+		if (player == null) return false;
+
+		string cacheKey = $"{unitId ?? string.Empty}|{modelPath ?? string.Empty}|{MapWorkspaceService.GetActiveWorkspacePath() ?? string.Empty}";
+		if (!string.IsNullOrEmpty(unitId) && !string.IsNullOrEmpty(modelPath) &&
+		    InMemoryRetargetedLibraries.TryGetValue(cacheKey, out var cachedLib) &&
+		    cachedLib != null && GodotObject.IsInstanceValid(cachedLib))
+		{
+			DetermineAnimMixerRoot(player, modelRoot);
+			var libs = player.GetAnimationLibraryList();
+			foreach (var libName in libs)
+			{
+				player.RemoveAnimationLibrary(libName);
+			}
+
+			player.AddAnimationLibrary(string.Empty, cachedLib);
+			return true;
+		}
+
 		var validation = SkeletonValidator.Validate(modelRoot);
 		if (!validation.IsValid)
 		{
 			return false;
 		}
-
-		var player = FindOrCreateAnimationPlayer(modelRoot);
-		if (player == null) return false;
 
 		var existingLibs = player.GetAnimationLibraryList();
 		foreach (var libName in existingLibs)
@@ -505,7 +521,8 @@ public static class AnimationRetargetingService
 			player.RemoveAnimationLibrary(libName);
 		}
 
-		player.AddAnimationLibrary(string.Empty, new AnimationLibrary());
+		var newLib = new AnimationLibrary();
+		player.AddAnimationLibrary(string.Empty, newLib);
 
 		var customAnimations = GetCustomAnimations(unitId);
 		string[] standardAnimations = new[] { "Idle", "Walk", "Attack", "Death", "Labor", "Spell_Cast", "Dance" };
@@ -513,6 +530,11 @@ public static class AnimationRetargetingService
 		foreach (var animType in standardAnimations)
 		{
 			ProcessUnitAnimation(animType, customAnimations, unitId, modelRoot);
+		}
+
+		if (!string.IsNullOrEmpty(unitId) && !string.IsNullOrEmpty(modelPath))
+		{
+			InMemoryRetargetedLibraries[cacheKey] = newLib;
 		}
 
 		return true;

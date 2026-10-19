@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
@@ -104,10 +105,10 @@ namespace Realm.Client.Services
 		private AttackerSnapshot[] _attackerArray = new AttackerSnapshot[256];
 		private int _attackerCount = 0;
 
-		private readonly ReaderWriterLockSlim _routeCacheLock = new();
-		private readonly ReaderWriterLockSlim _abandonedCooldownLock = new();
-		private readonly ReaderWriterLockSlim _pathfinderLock = new();
+		private DtNavMesh? _currentNavMesh;
 		private DtNavMeshQuery? _currentNavMeshQuery;
+		private readonly ThreadLocal<NavMeshPathfinder> _threadLocalPathfinder = new(() => new NavMeshPathfinder());
+		private readonly ThreadLocal<(DtNavMesh? Mesh, DtNavMeshQuery? Query)> _threadLocalNavQuery = new();
 
 		private readonly List<(Entity Attacker, AttackTarget Target)> _tickNewAttackTargets = new();
 		private readonly List<(Entity Target, Entity Attacker)> _tickActionsToAddLastAttacker = new();
@@ -138,7 +139,7 @@ namespace Realm.Client.Services
 		private const float ChaseRetargetDistance = 1.0f;
 		private readonly Dictionary<Entity, float> _chaseStuckTime = new();
 		private readonly Dictionary<Entity, float> _lastChaseDist = new();
-		private readonly Dictionary<Entity, (Entity Target, float Remaining)> _abandonedTargetCooldown = new();
+		private readonly ConcurrentDictionary<Entity, (Entity Target, float Remaining)> _abandonedTargetCooldown = new();
 
 		// Route reachability is cached per (attacker, target) pair so the real navmesh route is
 		// NOT recomputed every combat tick. The cache is invalidated only when geometry changes:
@@ -150,7 +151,7 @@ namespace Realm.Client.Services
 		private const float RouteCacheTargetMoveLimit = 4.0f;
 		private const float RouteReachMargin = 1.5f;
 		private const float RouteCacheMaxAge = 1.5f;
-		private readonly Dictionary<(Entity Attacker, Entity Target), RouteReachabilityEntry> _routeReachabilityCache = new();
+		private readonly ConcurrentDictionary<(Entity Attacker, Entity Target), RouteReachabilityEntry> _routeReachabilityCache = new();
 
 		// Acquisition considers the few closest enemies, not just the single closest one.
 		// The closest candidate can be unreachable (a flyer at altitude, a unit on a plateau) and
@@ -197,9 +198,10 @@ namespace Realm.Client.Services
 			TickAbandonedTargetCooldowns(delta);
 			PruneRouteReachabilityCache();
 
-			if (!TryGetNavMeshQuery(out _currentNavMeshQuery))
+			if (!TryGetNavMeshQuery(out _currentNavMeshQuery, out _currentNavMesh))
 			{
 				_currentNavMeshQuery = null;
+				_currentNavMesh = null;
 			}
 
 			ProcessTargetAcquisition();
@@ -209,59 +211,43 @@ namespace Realm.Client.Services
 
 		private void PruneRouteReachabilityCache()
 		{
-			_routeCacheLock.EnterWriteLock();
-			try
+			if (_routeReachabilityCache.IsEmpty) return;
+			_staleRouteReachabilityEntries.Clear();
+			foreach (var kvp in _routeReachabilityCache)
 			{
-				if (_routeReachabilityCache.Count == 0) return;
-				_staleRouteReachabilityEntries.Clear();
-				foreach (var kvp in _routeReachabilityCache)
+				if (!GameContext.World.IsAlive(kvp.Key.Attacker) || !GameContext.World.IsAlive(kvp.Key.Target))
 				{
-					if (!GameContext.World.IsAlive(kvp.Key.Attacker) || !GameContext.World.IsAlive(kvp.Key.Target))
-					{
-						_staleRouteReachabilityEntries.Add(kvp.Key);
-					}
-				}
-
-				for (int i = 0; i < _staleRouteReachabilityEntries.Count; i++)
-				{
-					_routeReachabilityCache.Remove(_staleRouteReachabilityEntries[i]);
+					_staleRouteReachabilityEntries.Add(kvp.Key);
 				}
 			}
-			finally
+
+			for (int i = 0; i < _staleRouteReachabilityEntries.Count; i++)
 			{
-				_routeCacheLock.ExitWriteLock();
+				_routeReachabilityCache.TryRemove(_staleRouteReachabilityEntries[i], out _);
 			}
 		}
 
 		private void TickAbandonedTargetCooldowns(float delta)
 		{
-			_abandonedCooldownLock.EnterWriteLock();
-			try
+			if (_abandonedTargetCooldown.IsEmpty) return;
+			_tickExpiredAbandonedCooldowns.Clear();
+			foreach (var kvp in _abandonedTargetCooldown)
 			{
-				if (_abandonedTargetCooldown.Count == 0) return;
-				_tickExpiredAbandonedCooldowns.Clear();
-				foreach (var kvp in _abandonedTargetCooldown)
+				var entry = kvp.Value;
+				entry.Remaining -= delta;
+				if (entry.Remaining <= 0f)
 				{
-					var entry = kvp.Value;
-					entry.Remaining -= delta;
-					if (entry.Remaining <= 0f)
-					{
-						_tickExpiredAbandonedCooldowns.Add(kvp.Key);
-					}
-					else
-					{
-						_abandonedTargetCooldown[kvp.Key] = entry;
-					}
+					_tickExpiredAbandonedCooldowns.Add(kvp.Key);
 				}
-
-				for (int i = 0; i < _tickExpiredAbandonedCooldowns.Count; i++)
+				else
 				{
-					_abandonedTargetCooldown.Remove(_tickExpiredAbandonedCooldowns[i]);
+					_abandonedTargetCooldown[kvp.Key] = entry;
 				}
 			}
-			finally
+
+			for (int i = 0; i < _tickExpiredAbandonedCooldowns.Count; i++)
 			{
-				_abandonedCooldownLock.ExitWriteLock();
+				_abandonedTargetCooldown.TryRemove(_tickExpiredAbandonedCooldowns[i], out _);
 			}
 		}
 
@@ -543,17 +529,9 @@ namespace Realm.Client.Services
 
 		private bool IsTargetStillAbandoned(Entity attacker, Entity target)
 		{
-			_abandonedCooldownLock.EnterReadLock();
-			try
-			{
-				return _abandonedTargetCooldown.TryGetValue(attacker, out var entry)
-				       && entry.Remaining > 0f
-				       && entry.Target == target;
-			}
-			finally
-			{
-				_abandonedCooldownLock.ExitReadLock();
-			}
+			return _abandonedTargetCooldown.TryGetValue(attacker, out var entry)
+			       && entry.Remaining > 0f
+			       && entry.Target == target;
 		}
 
 		private void RegisterAbandonedTarget(Entity attacker, Entity target)
@@ -563,15 +541,7 @@ namespace Realm.Client.Services
 
 		private void RegisterAbandonedTarget(Entity attacker, Entity target, float cooldownSeconds)
 		{
-			_abandonedCooldownLock.EnterWriteLock();
-			try
-			{
-				_abandonedTargetCooldown[attacker] = (target, cooldownSeconds);
-			}
-			finally
-			{
-				_abandonedCooldownLock.ExitWriteLock();
-			}
+			_abandonedTargetCooldown[attacker] = (target, cooldownSeconds);
 		}
 
 		private void ClearChaseTracking(Entity entity)
@@ -627,15 +597,7 @@ namespace Realm.Client.Services
 			foreach (var targetEntity in _tickUnitsToKill)
 			{
 				ClearChaseTracking(targetEntity);
-				_abandonedCooldownLock.EnterWriteLock();
-				try
-				{
-					_abandonedTargetCooldown.Remove(targetEntity);
-				}
-				finally
-				{
-					_abandonedCooldownLock.ExitWriteLock();
-				}
+				_abandonedTargetCooldown.TryRemove(targetEntity, out _);
 				if (!GameContext.World.IsAlive(targetEntity) || GameContext.World.Has<Dead>(targetEntity)) continue;
 
 				GameContext.World.Add<Dead>(targetEntity);
@@ -1064,6 +1026,18 @@ namespace Realm.Client.Services
 			return IsReachableWithinRangeThreadSafe(attacker, target, attackerPos, targetPos, effectiveRange, isMelee, meleeVerticalReach, attackerIsFlying, includeFlags);
 		}
 
+		private DtNavMeshQuery? GetThreadLocalNavMeshQuery(DtNavMeshQuery fallbackQuery, DtNavMesh? navMesh)
+		{
+			if (navMesh == null) return fallbackQuery;
+			var local = _threadLocalNavQuery.Value;
+			if (local.Mesh != navMesh || local.Query == null)
+			{
+				local = (navMesh, new DtNavMeshQuery(navMesh));
+				_threadLocalNavQuery.Value = local;
+			}
+			return local.Query;
+		}
+
 		private bool IsReachableWithinRangeThreadSafe(Entity attacker, Entity target, Vector3 attackerPos, Vector3 targetPos, float effectiveRange, bool isMelee, float meleeVerticalReach, bool attackerIsFlying, int includeFlags)
 		{
 			if (attackerIsFlying || !isMelee)
@@ -1089,16 +1063,11 @@ namespace Realm.Client.Services
 				return cachedResult;
 			}
 
+			var threadQuery = GetThreadLocalNavMeshQuery(navMeshQuery, _currentNavMesh) ?? navMeshQuery;
+			var threadPathfinder = _threadLocalPathfinder.Value ?? GameContext.NavMeshPathfinder;
+
 			PathFollow pf = default;
-			_pathfinderLock.EnterWriteLock();
-			try
-			{
-				GameContext.NavMeshPathfinder.ComputePath(navMeshQuery, attackerPos, targetPos, (ushort)includeFlags, ref pf);
-			}
-			finally
-			{
-				_pathfinderLock.ExitWriteLock();
-			}
+			threadPathfinder.ComputePath(threadQuery, attackerPos, targetPos, (ushort)includeFlags, ref pf);
 
 			bool reachable = pf.HasValidCorridor && pf.WaypointCount > 0;
 			if (reachable)
@@ -1109,22 +1078,15 @@ namespace Realm.Client.Services
 					: Distance(last, targetPos) <= effectiveRange + RouteReachMargin;
 			}
 
-			_routeCacheLock.EnterWriteLock();
-			try
-			{
-				_routeReachabilityCache[key] = new RouteReachabilityEntry(reachable, attackerPos, targetPos, navMeshQuery, _combatTotalTime);
-			}
-			finally
-			{
-				_routeCacheLock.ExitWriteLock();
-			}
+			_routeReachabilityCache[key] = new RouteReachabilityEntry(reachable, attackerPos, targetPos, navMeshQuery, _combatTotalTime);
 
 			return reachable;
 		}
 
-		private bool TryGetNavMeshQuery(out DtNavMeshQuery navMeshQuery)
+		private bool TryGetNavMeshQuery(out DtNavMeshQuery navMeshQuery, out DtNavMesh navMesh)
 		{
 			navMeshQuery = null;
+			navMesh = null;
 			Entity terrainEntity = FindTerrainEntity();
 			if (terrainEntity == Entity.Null || !GameContext.World.Has<TerrainState>(terrainEntity)) return false;
 
@@ -1132,28 +1094,21 @@ namespace Realm.Client.Services
 			if (ts.NavMeshQuery == null) return false;
 
 			navMeshQuery = ts.NavMeshQuery;
+			navMesh = ts.NavMesh;
 			return true;
 		}
 
 		private bool IsRouteReachabilityCached((Entity, Entity) key, DtNavMeshQuery navMeshQuery, Vector3 attackerPos, Vector3 targetPos, out bool reachable)
 		{
 			reachable = false;
-			_routeCacheLock.EnterReadLock();
-			try
-			{
-				if (!_routeReachabilityCache.TryGetValue(key, out var cached)) return false;
-				if (cached.Query != navMeshQuery) return false;
-				if (Distance(cached.AttackerPos, attackerPos) > RouteCacheAttackerMoveLimit) return false;
-				if (Distance(cached.TargetPos, targetPos) > RouteCacheTargetMoveLimit) return false;
-				if (cached.Reachable && _combatTotalTime - cached.Timestamp > RouteCacheMaxAge) return false;
+			if (!_routeReachabilityCache.TryGetValue(key, out var cached)) return false;
+			if (cached.Query != navMeshQuery) return false;
+			if (Distance(cached.AttackerPos, attackerPos) > RouteCacheAttackerMoveLimit) return false;
+			if (Distance(cached.TargetPos, targetPos) > RouteCacheTargetMoveLimit) return false;
+			if (cached.Reachable && _combatTotalTime - cached.Timestamp > RouteCacheMaxAge) return false;
 
-				reachable = cached.Reachable;
-				return true;
-			}
-			finally
-			{
-				_routeCacheLock.ExitReadLock();
-			}
+			reachable = cached.Reachable;
+			return true;
 		}
 
 		private bool EvaluateMeleeReachability(Vector3 last, Vector3 targetPos, float effectiveRange, float meleeVerticalReach)

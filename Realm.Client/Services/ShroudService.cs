@@ -254,7 +254,10 @@ void fragment() {
 		_shroudImage = null;
 		_shroudTexture = null;
 		_cachedWorldEntity = Entity.Null;
+		_isAllVisibleApplied = false;
 	}
+
+	private bool _isAllVisibleApplied;
 
 	private void UpdateShroud(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
 	{
@@ -275,6 +278,7 @@ void fragment() {
 			return;
 		}
 
+		_isAllVisibleApplied = false;
 		UpdateVisionGridForTeam(allUnits, worldWidth, worldDepth);
 		ApplyVisionGridToEntities(allUnits, allProps, allDecals, worldWidth, worldDepth);
 		Update3DShroudMesh();
@@ -291,6 +295,7 @@ void fragment() {
 				return;
 			}
 
+			_isAllVisibleApplied = false;
 			UpdateVisionGridForReplayPeer(allUnits, targetPeerId, worldWidth, worldDepth);
 			ApplyVisionGridToEntitiesForReplayPeer(allUnits, allProps, allDecals, targetPeerId, worldWidth, worldDepth);
 			Update3DShroudMesh();
@@ -303,6 +308,7 @@ void fragment() {
 			return;
 		}
 
+		_isAllVisibleApplied = false;
 		UpdateVisionGridForSpecificTeam(allUnits, spectatorPerspective, worldWidth, worldDepth);
 		ApplyVisionGridToEntitiesForTargetTeam(allUnits, allProps, allDecals, spectatorPerspective, worldWidth, worldDepth);
 		Update3DShroudMesh();
@@ -310,8 +316,14 @@ void fragment() {
 
 	private void SetAllVisible(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
 	{
-		ResetGridToState(ShroudState.Visible);
 		SetVisible(allUnits);
+		if (_isAllVisibleApplied)
+		{
+			return;
+		}
+
+		_isAllVisibleApplied = true;
+		ResetGridToState(ShroudState.Visible);
 		SetVisible(allProps);
 		SetVisible(allDecals);
 		Update3DShroudMesh();

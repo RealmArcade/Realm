@@ -54,15 +54,34 @@ namespace Realm.Client.Services
 		private const float VerticalFollowRate = 30f;
 		private const float DefaultAcceleration = 25f;
 
-		private readonly Dictionary<long, List<Entity>> _unitGrid = new();
-		private readonly Dictionary<long, List<Entity>> _propGrid = new();
-		private readonly List<List<Entity>> _listPool = new();
+		private readonly struct SpatialGridEntry
+		{
+			public readonly Entity Entity;
+			public readonly Vector3 Position;
+			public readonly Vector3 Velocity;
+			public readonly float CollisionRadius;
+			public readonly bool HasVelocity;
+
+			public SpatialGridEntry(Entity entity, Vector3 position, Vector3 velocity, float collisionRadius, bool hasVelocity)
+			{
+				Entity = entity;
+				Position = position;
+				Velocity = velocity;
+				CollisionRadius = collisionRadius;
+				HasVelocity = hasVelocity;
+			}
+		}
+
+		private readonly Dictionary<long, List<SpatialGridEntry>> _unitGrid = new();
+		private readonly Dictionary<long, List<SpatialGridEntry>> _propGrid = new();
+		private readonly List<List<SpatialGridEntry>> _listPool = new();
 
 		private readonly List<Entity> _tickArrivedUnits = new();
 
 		private readonly QueryDescription _movementQuery = QueryCache.AllPositionAndMoveToAndMovementStatsNoneDeadQuery;
 		private readonly QueryDescription _spatialQuery = QueryCache.AllPositionQuery;
 		private EntityCallback<Position, MoveTo, MovementStats> _movementQueryDelegate;
+		private EntityCallback<Position> _spatialQueryDelegate;
 
 		private TerrainState _currentTerrainState;
 		private bool _hasTerrainState;
@@ -77,6 +96,7 @@ namespace Realm.Client.Services
 		public MovementAndPathfindingService()
 		{
 			_movementQueryDelegate = MovementQueryAction;
+			_spatialQueryDelegate = SpatialGridQueryAction;
 		}
 
 		public void StepMovement(float delta)
@@ -150,7 +170,7 @@ namespace Realm.Client.Services
 			return ((long)cx << 32) | (uint)cz;
 		}
 
-		private List<Entity> GetEntityListFromPool()
+		private List<SpatialGridEntry> GetEntityListFromPool()
 		{
 			if (_listPool.Count > 0)
 			{
@@ -160,7 +180,7 @@ namespace Realm.Client.Services
 				return list;
 			}
 
-			return new List<Entity>(16);
+			return new List<SpatialGridEntry>(16);
 		}
 
 		private void RebuildSpatialGrid()
@@ -181,35 +201,49 @@ namespace Realm.Client.Services
 
 			_propGrid.Clear();
 
-			GameContext.World.Query(in _spatialQuery, (Entity entity, ref Position p) =>
+			GameContext.World.Query(in _spatialQuery, _spatialQueryDelegate);
+		}
+
+		private void SpatialGridQueryAction(Entity entity, ref Position p)
+		{
+			var world = GameContext.World;
+			if (world.Has<Dead>(entity)) return;
+
+			Vector3 pos = p.Value;
+			long key = GetCellKey(pos.X, pos.Z);
+
+			if (world.Has<DefinitionId>(entity))
 			{
-				if (GameContext.World.Has<Dead>(entity)) return;
-
-				float x = p.Value.X;
-				float z = p.Value.Z;
-				long key = GetCellKey(x, z);
-
-				if (GameContext.World.Has<DefinitionId>(entity))
+				if (!_unitGrid.TryGetValue(key, out var list))
 				{
-					if (!_unitGrid.TryGetValue(key, out var list))
-					{
-						list = GetEntityListFromPool();
-						_unitGrid[key] = list;
-					}
-
-					list.Add(entity);
+					list = GetEntityListFromPool();
+					_unitGrid[key] = list;
 				}
-				else if (GameContext.World.Has<PropIdentity>(entity))
+
+				float scale = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
+				float radius = world.Has<CollisionRadius>(entity)
+					? world.Get<CollisionRadius>(entity).Value * scale
+					: scale * GameplayConstants.DefaultCollisionRadius;
+				bool hasVel = world.Has<Velocity>(entity);
+				Vector3 vel = hasVel ? world.Get<Velocity>(entity).Value : Vector3.Zero;
+
+				list.Add(new SpatialGridEntry(entity, pos, vel, radius, hasVel));
+			}
+			else if (world.Has<PropIdentity>(entity))
+			{
+				if (!_propGrid.TryGetValue(key, out var list))
 				{
-					if (!_propGrid.TryGetValue(key, out var list))
-					{
-						list = GetEntityListFromPool();
-						_propGrid[key] = list;
-					}
-
-					list.Add(entity);
+					list = GetEntityListFromPool();
+					_propGrid[key] = list;
 				}
-			});
+
+				float scaleProp = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
+				float radius = world.Has<CollisionRadius>(entity)
+					? world.Get<CollisionRadius>(entity).Value * scaleProp
+					: scaleProp * GameplayConstants.DefaultPropCollisionRadius;
+
+				list.Add(new SpatialGridEntry(entity, pos, Vector3.Zero, radius, false));
+			}
 		}
 
 		private void MovementQueryAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)
@@ -354,9 +388,16 @@ namespace Realm.Client.Services
 			return finalTarget;
 		}
 
+		private static readonly StatId MovementSpeedStatId = new StatId("MovementSpeed");
+
 		private float GetActualSpeed(Entity entity, MovementStats stats)
 		{
-			float actualSpeed = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(entity, new StatId("MovementSpeed")) : 0f;
+			if (stats.Speed > 0f)
+			{
+				return stats.Speed;
+			}
+
+			float actualSpeed = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(entity, MovementSpeedStatId) : 0f;
 			return actualSpeed <= 0 ? stats.Speed : actualSpeed;
 		}
 
@@ -418,27 +459,29 @@ namespace Realm.Client.Services
 		{
 			if (!_unitGrid.TryGetValue(key, out var list)) return;
 
-			foreach (var other in list)
+			for (int i = 0; i < list.Count; i++)
 			{
-				ProcessNeighborSteering(entity, current, other, ref cohesion, ref alignment, ref separation, ref neighborCount);
+				var other = list[i];
+				ProcessNeighborSteering(entity, current, in other, ref cohesion, ref alignment, ref separation, ref neighborCount);
 			}
 		}
 
-		private void ProcessNeighborSteering(Entity entity, Vector3 current, Entity other, ref Vector3 cohesion, ref Vector3 alignment, ref Vector3 separation, ref int neighborCount)
+		private void ProcessNeighborSteering(Entity entity, Vector3 current, in SpatialGridEntry other, ref Vector3 cohesion, ref Vector3 alignment, ref Vector3 separation, ref int neighborCount)
 		{
-			if (other == entity || !GameContext.World.Has<Position>(other)) return;
+			if (other.Entity == entity) return;
 
-			var otherPos = GameContext.World.Get<Position>(other).Value;
-			float neighborDist = Vector3.Distance(current, otherPos);
-			if (neighborDist <= 0f || neighborDist >= 4.0f) return;
+			Vector3 otherPos = other.Position;
+			Vector3 diff = current - otherPos;
+			float distSq = diff.LengthSquared();
+			if (distSq <= 0f || distSq >= 16.0f) return;
 
 			cohesion += otherPos;
-			if (GameContext.World.Has<Velocity>(other))
+			if (other.HasVelocity)
 			{
-				alignment += GameContext.World.Get<Velocity>(other).Value;
+				alignment += other.Velocity;
 			}
 
-			separation += Vector3.Normalize(current - otherPos) / neighborDist;
+			separation += diff / distSq;
 			neighborCount++;
 		}
 
@@ -482,16 +525,12 @@ namespace Realm.Client.Services
 					long key = ((long)(baseCx + dx) << 32) | (uint)(baseCz + dz);
 					if (!_unitGrid.TryGetValue(key, out var list)) continue;
 
-					foreach (var otherEntity in list)
+					for (int i = 0; i < list.Count; i++)
 					{
-						if (otherEntity == entity) continue;
+						var other = list[i];
+						if (other.Entity == entity) continue;
 
-						float scale2 = GameContext.World.Has<CollisionScale>(otherEntity) ? GameContext.World.Get<CollisionScale>(otherEntity).Value : 1.0f;
-						float r2 = GameContext.World.Has<CollisionRadius>(otherEntity)
-							? GameContext.World.Get<CollisionRadius>(otherEntity).Value * scale2
-							: scale2 * GameplayConstants.DefaultCollisionRadius;
-
-						ResolveCollision(r1, r2, GameContext.World.Get<Position>(otherEntity).Value, ref nextPos);
+						ResolveCollision(r1, other.CollisionRadius, other.Position, ref nextPos);
 					}
 				}
 			}
@@ -506,14 +545,10 @@ namespace Realm.Client.Services
 					long key = ((long)(baseCx + dx) << 32) | (uint)(baseCz + dz);
 					if (!_propGrid.TryGetValue(key, out var list)) continue;
 
-					foreach (var propEntity in list)
+					for (int i = 0; i < list.Count; i++)
 					{
-						float scaleProp = GameContext.World.Has<CollisionScale>(propEntity) ? GameContext.World.Get<CollisionScale>(propEntity).Value : 1.0f;
-						float r2 = GameContext.World.Has<CollisionRadius>(propEntity)
-							? GameContext.World.Get<CollisionRadius>(propEntity).Value * scaleProp
-							: scaleProp * GameplayConstants.DefaultPropCollisionRadius;
-
-						ResolveCollision(r1, r2, GameContext.World.Get<Position>(propEntity).Value, ref nextPos);
+						var prop = list[i];
+						ResolveCollision(r1, prop.CollisionRadius, prop.Position, ref nextPos);
 					}
 				}
 			}

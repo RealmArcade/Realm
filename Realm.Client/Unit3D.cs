@@ -228,6 +228,12 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
+	private static readonly CapsuleShape3D _defaultUnitCapsuleShape = new()
+	{
+		Radius = 1.0f,
+		Height = 2.5f
+	};
+
 	public override void _Ready()
 	{
 		if (IsPreview)
@@ -262,32 +268,34 @@ public partial class Unit3D : Prop3D
 		}
 		else
 		{
-			var capsuleShape = new CapsuleShape3D();
-			capsuleShape.Radius = 1.0f;
-			capsuleShape.Height = 2.5f;
-			collisionShape.Shape = capsuleShape;
+			collisionShape.Shape = _defaultUnitCapsuleShape;
 			collisionShape.Position = new Vector3(0, 1.25f, 0);
 		}
 
 		AddChild(collisionShape);
 
-
 		CreateSelectionRing();
-		SetProcess(false);
 	}
+
+	private float _lastUnitEffectiveLodScale = -1f;
 
 	public override void UpdateLodVisibility()
 	{
 		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
 		{
 			float effectiveScale = Math.Max(0.01f, Scale.Y * _modelNode.Scale.Y);
-			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(_modelNode, effectiveScale);
+			if (MathF.Abs(effectiveScale - _lastUnitEffectiveLodScale) > 0.0005f)
+			{
+				_lastUnitEffectiveLodScale = effectiveScale;
+				GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(_modelNode, effectiveScale);
+			}
 		}
 	}
 
 	public float BaseModelYOffset => 0f;
 	public string ModelPath { get; private set; }
 	public Node3D ModelNode => _modelNode;
+	public bool IsFlashingScale { get; set; }
 
 	public override void UpdateVisualYOffset(float yOffset) => UpdateModelYOffset(yOffset);
 	public override void UpdateVisualScale(float globalScale) => UpdateModelScale(globalScale);
@@ -363,6 +371,7 @@ public partial class Unit3D : Prop3D
 		_resolvedAnimCache.Clear();
 		_lastRequestedAnimName = null;
 		_currentAnimation = string.Empty;
+		_lastUnitEffectiveLodScale = -1f;
 	}
 
 	private Node3D? ResolveAndGetModelNode(string modelPath, string resolved)
@@ -441,6 +450,8 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
+	private static readonly Dictionary<string, (Shape3D Shape, Vector3 Offset)> _cachedAnalyticalShapes = new(StringComparer.OrdinalIgnoreCase);
+
 	private void UpdateCollisionShape()
 	{
 		try
@@ -448,12 +459,21 @@ public partial class Unit3D : Prop3D
 			var colShapeNode = GetNodeOrNull<CollisionShape3D>("CollisionShape");
 			if (colShapeNode != null && _modelNode != null)
 			{
+				string cacheKey = $"{ModelPath ?? string.Empty}|{IsBuilding}|{_modelNode.Scale.Y:F3}";
+				if (_cachedAnalyticalShapes.TryGetValue(cacheKey, out var cached) && cached.Shape != null && GodotObject.IsInstanceValid(cached.Shape))
+				{
+					colShapeNode.Shape = cached.Shape;
+					colShapeNode.Position = cached.Offset;
+					return;
+				}
+
 				Aabb modelAabb = GetCombinedAabb(_modelNode);
 				if (modelAabb.Size.LengthSquared() > 0.01f)
 				{
 					var (analShape, analOffset) = ModelOptimizerService.GenerateAnalyticalCollisionShape(modelAabb, IsBuilding);
 					if (analShape != null)
 					{
+						_cachedAnalyticalShapes[cacheKey] = (analShape, analOffset);
 						colShapeNode.Shape = analShape;
 						colShapeNode.Position = analOffset;
 					}
@@ -1882,6 +1902,8 @@ public partial class Unit3D : Prop3D
 
 	public override void _Process(double delta)
 	{
+		base._Process(delta);
+
 		if (IsSelected && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
 		{
 			if (IsBuilding)
@@ -1900,7 +1922,6 @@ public partial class Unit3D : Prop3D
 			{
 				_rallyVisualsContainer.Visible = false;
 			}
-			SetProcess(false);
 		}
 	}
 

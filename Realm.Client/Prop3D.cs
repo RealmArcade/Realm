@@ -20,6 +20,7 @@ public partial class Prop3D : StaticBody3D
 	public Entity Entity { get; set; }
 
 	private Vector3 _velocity = Vector3.Zero;
+	public bool HasProceduralAnimation { get; set; }
 
 	public Vector3 Velocity
 	{
@@ -29,7 +30,10 @@ public partial class Prop3D : StaticBody3D
 			if (_velocity != value)
 			{
 				_velocity = value;
-				ModelShaderManager.SetProceduralAnimationVelocity(this, value);
+				if (HasProceduralAnimation)
+				{
+					ModelShaderManager.SetProceduralAnimationVelocity(this, value);
+				}
 			}
 		}
 	}
@@ -41,6 +45,7 @@ public partial class Prop3D : StaticBody3D
 
 	public virtual void TriggerImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
 	{
+		if (!HasProceduralAnimation) return;
 		_impulseStrength = strength;
 		_impulseDuration = duration <= 0.001f ? 0.001f : duration;
 		_impulseTime = _impulseDuration;
@@ -532,6 +537,10 @@ public partial class Prop3D : StaticBody3D
 				}
 			}
 		}
+		else if (!IsSelected)
+		{
+			SetProcess(false);
+		}
 	}
 
 	public virtual void UpdateVisualYOffset(float yOffset)
@@ -664,12 +673,20 @@ public partial class Prop3D : StaticBody3D
 		}
 	}
 
+	private Vector3 _lastNotifiedScale = new Vector3(-1f, -1f, -1f);
+	private float _lastEffectiveLodScale = -1f;
+
 	public override void _Notification(int what)
 	{
 		if (what == NotificationTransformChanged)
 		{
-			UpdateLodVisibility();
-			UpdateSelectionRingTransform();
+			Vector3 currentScale = Scale;
+			if (!currentScale.IsEqualApprox(_lastNotifiedScale))
+			{
+				_lastNotifiedScale = currentScale;
+				UpdateLodVisibility();
+				UpdateSelectionRingTransform();
+			}
 		}
 	}
 
@@ -679,7 +696,11 @@ public partial class Prop3D : StaticBody3D
 		if (visual != null && GodotObject.IsInstanceValid(visual))
 		{
 			float effectiveScale = Math.Max(0.01f, Scale.Y * visual.Scale.Y);
-			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(visual, effectiveScale);
+			if (MathF.Abs(effectiveScale - _lastEffectiveLodScale) > 0.0005f)
+			{
+				_lastEffectiveLodScale = effectiveScale;
+				GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(visual, effectiveScale);
+			}
 		}
 	}
 

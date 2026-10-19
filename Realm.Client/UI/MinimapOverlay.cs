@@ -128,10 +128,17 @@ public partial class MinimapOverlay : Control
 
 	private Color GetPlayerMinimapColor(int playerIndex)
 	{
-		if (LobbyManager.Instance?.PlayerList != null)
+		var playerList = LobbyManager.Instance?.PlayerList;
+		if (playerList != null)
 		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
-			if (p != null) return p.Color;
+			for (int i = 0; i < playerList.Count; i++)
+			{
+				var p = playerList[i];
+				if (p != null && p.Slot == playerIndex)
+				{
+					return p.Color;
+				}
+			}
 		}
 
 		return playerIndex switch

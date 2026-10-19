@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Realm.MapAPI;
 
@@ -12,6 +13,13 @@ public class LeaderboardPanel
 	private PanelContainer _leaderboardPanel;
 	private Label _leaderboardTitleLabel;
 	private VBoxContainer _leaderboardContent;
+
+	private readonly List<HBoxContainer> _rows = new();
+	private readonly List<Label> _nameLabels = new();
+	private readonly List<Label> _valueLabels = new();
+	private string? _lastCountdownText;
+	private int _lastCountdownSeconds = int.MinValue;
+	private string? _lastLeaderboardTitle;
 
 	public LeaderboardPanel(VBoxContainer customUIPanel, PanelContainer countdownPanel, Label countdownLabel,
 		PanelContainer leaderboardPanel, Label leaderboardTitleLabel, VBoxContainer leaderboardContent)
@@ -27,41 +35,55 @@ public class LeaderboardPanel
 	public void Update(InGameHUDViewModel viewModel)
 	{
 		bool allowCountdown = InGameHUD.Instance?.IsHudElementVisible(HudElement.CountdownTimer, true) ?? true;
-		if (viewModel.CountdownActive && allowCountdown)
+		bool countdownVisible = viewModel.CountdownActive && allowCountdown;
+		if (_countdownPanel.Visible != countdownVisible)
 		{
-			_countdownPanel.Visible = true;
-			_countdownLabel.Text = $"{viewModel.CountdownText}: {(int)Math.Ceiling(viewModel.CountdownDuration)}s";
+			_countdownPanel.Visible = countdownVisible;
 		}
-		else
+		if (countdownVisible)
 		{
-			_countdownPanel.Visible = false;
+			int secs = (int)Math.Ceiling(viewModel.CountdownDuration);
+			string text = viewModel.CountdownText ?? string.Empty;
+			if (secs != _lastCountdownSeconds || text != _lastCountdownText)
+			{
+				_countdownLabel.Text = $"{text}: {secs}s";
+				_lastCountdownSeconds = secs;
+				_lastCountdownText = text;
+			}
 		}
 
 		bool allowLeaderboard = InGameHUD.Instance?.IsHudElementVisible(HudElement.Leaderboard, true) ?? true;
-		_leaderboardPanel.Visible = viewModel.LeaderboardVisible && allowLeaderboard;
-		if (viewModel.LeaderboardVisible && allowLeaderboard)
+		bool leaderboardVisible = viewModel.LeaderboardVisible && allowLeaderboard;
+		if (_leaderboardPanel.Visible != leaderboardVisible)
 		{
-			_leaderboardTitleLabel.Text = viewModel.LeaderboardTitle;
+			_leaderboardPanel.Visible = leaderboardVisible;
+		}
+		if (!leaderboardVisible)
+		{
+			return;
+		}
 
-			foreach (Node child in _leaderboardContent.GetChildren())
-			{
-				_leaderboardContent.RemoveChild(child);
-				child.QueueFree();
-			}
+		string title = viewModel.LeaderboardTitle ?? string.Empty;
+		if (_lastLeaderboardTitle != title)
+		{
+			_leaderboardTitleLabel.Text = title;
+			_lastLeaderboardTitle = title;
+		}
 
-			foreach (var kvp in viewModel.LeaderboardValues)
+		int rowIdx = 0;
+		foreach (var kvp in viewModel.LeaderboardValues)
+		{
+			if (rowIdx >= _rows.Count)
 			{
 				var row = new HBoxContainer();
 				row.AddThemeConstantOverride("separation", 20);
 
 				var nameLbl = new Label();
-				nameLbl.Text = kvp.Key;
 				nameLbl.AddThemeFontSizeOverride("font_size", 12);
 				nameLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 				row.AddChild(nameLbl);
 
 				var valLbl = new Label();
-				valLbl.Text = kvp.Value;
 				valLbl.AddThemeFontSizeOverride("font_size", 12);
 				valLbl.AddThemeColorOverride("font_color", Colors.White);
 				valLbl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -69,6 +91,39 @@ public class LeaderboardPanel
 				row.AddChild(valLbl);
 
 				_leaderboardContent.AddChild(row);
+				_rows.Add(row);
+				_nameLabels.Add(nameLbl);
+				_valueLabels.Add(valLbl);
+			}
+
+			var curRow = _rows[rowIdx];
+			if (!curRow.Visible)
+			{
+				curRow.Visible = true;
+			}
+
+			var curName = _nameLabels[rowIdx];
+			string keyText = kvp.Key ?? string.Empty;
+			if (curName.Text != keyText)
+			{
+				curName.Text = keyText;
+			}
+
+			var curVal = _valueLabels[rowIdx];
+			string valText = kvp.Value ?? string.Empty;
+			if (curVal.Text != valText)
+			{
+				curVal.Text = valText;
+			}
+
+			rowIdx++;
+		}
+
+		for (int i = rowIdx; i < _rows.Count; i++)
+		{
+			if (_rows[i].Visible)
+			{
+				_rows[i].Visible = false;
 			}
 		}
 	}

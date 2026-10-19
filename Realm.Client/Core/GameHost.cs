@@ -1975,12 +1975,18 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.SimulationService.OnWeaponProjectileRequested = (start, target, weaponId, targetEnt) => SpawnWeaponProjectile(new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z), weaponId, targetEnt);
 		GameContext.SimulationService.OnDamageFlashRequested = entity =>
 		{
-			if (TryGetUnit3D(entity, out var unit3D)) Callable.From(() => FlashDamageUnit(unit3D)).CallDeferred();
+			if (TryGetUnit3D(entity, out var unit3D) && unit3D != null && unit3D.Visible && !unit3D.IsFlashingScale)
+			{
+				Callable.From(() => FlashDamageUnit(unit3D)).CallDeferred();
+			}
 		};
 		GameContext.SimulationService.OnHealEffectRequested = (start, target) => SpawnHealVisualEffect(new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z));
 		GameContext.SimulationService.OnHealFlashRequested = entity =>
 		{
-			if (TryGetUnit3D(entity, out var unit3D)) Callable.From(() => FlashHealUnit(unit3D)).CallDeferred();
+			if (TryGetUnit3D(entity, out var unit3D) && unit3D != null && unit3D.Visible && !unit3D.IsFlashingScale)
+			{
+				Callable.From(() => FlashHealUnit(unit3D)).CallDeferred();
+			}
 		};
 
 		GameContext.SimulationService.OnKillUnitRequested = entity =>

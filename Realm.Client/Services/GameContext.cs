@@ -127,6 +127,8 @@ namespace Realm.Client.Services
 			RegistryService?.ClearAll();
 			MapScriptService?.ClearAll();
 			Core.GameHost.Instance?.ClearStaticText();
+			VisualProjectilePool.Instance.Clear();
+			VisualProjectile3D.ClearSharedShaderCache();
 
 			AudioService = null;
 			FXService = null;
