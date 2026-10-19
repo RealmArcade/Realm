@@ -558,24 +558,37 @@ public partial class GameHost
 			GameContext.World.Set(workerEntity, new MoveTo(buildingPos));
 	}
 
-	private void UpdateVisualNodesFromEcs(float fDelta)
+	private readonly Plane[] _cachedCameraFrustumPlanes = new Plane[6];
+
+	private void UpdateRenderFrameTransforms(float fDelta)
 	{
+		var camera = MainCamera ?? GetViewport()?.GetCamera3D();
+		bool hasFrustum = false;
+		if (camera != null && GodotObject.IsInstanceValid(camera))
+		{
+			var frustum = camera.GetFrustum();
+			if (frustum != null && frustum.Count >= 6)
+			{
+				for (int i = 0; i < 6; i++)
+				{
+					_cachedCameraFrustumPlanes[i] = frustum[i];
+				}
+				hasFrustum = true;
+			}
+		}
+
+		Plane[] frustumPlanes = hasFrustum ? _cachedCameraFrustumPlanes : Array.Empty<Plane>();
+		float currentGameTime = GameElapsedTime;
+
 		float fraction = (float)Engine.GetPhysicsInterpolationFraction();
 		var query = QueryCache.AllPositionAndDefinitionIdQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Position pos) => { ProcessVisualNode(entity, ref pos, fDelta, fraction); });
-
-		var buildingQuery = new QueryDescription().WithAll<ConstructionState>().WithNone<Dead>();
-		GameContext.World.Query(in buildingQuery, (Entity entity, ref ConstructionState construction) =>
+		GameContext.World.Query(in query, (Entity entity, ref Position pos) =>
 		{
-			if (TryGetUnit3D(entity, out var buildingNode) && GodotObject.IsInstanceValid(buildingNode))
-			{
-				float alpha = Mathf.Lerp(0.3f, 1.0f, construction.Progress / Mathf.Max(construction.TotalBuildTime, 0.001f));
-				buildingNode.Modulate = new Color(1f, 1f, 1f, alpha);
-			}
+			ProcessRenderFrameTransform(entity, ref pos, fDelta, fraction, hasFrustum, frustumPlanes, currentGameTime);
 		});
 	}
 
-	private void ProcessVisualNode(Entity entity, ref Position pos, float fDelta, float fraction)
+	private void ProcessRenderFrameTransform(Entity entity, ref Position pos, float fDelta, float fraction, bool hasFrustum, Plane[] frustumPlanes, float currentGameTime)
 	{
 		if (!TryGetUnit3D(entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
 
@@ -613,7 +626,29 @@ public partial class GameHost
 		UpdateVisualRotation(entity, unit3D, nextPos, fDelta, fraction);
 		UpdateVisualScale(entity, unit3D);
 
-		unit3D.PlayAnimation(DetermineUnitAnimation(entity));
+		unit3D.UpdateFrustumCulling(hasFrustum, frustumPlanes, currentGameTime);
+	}
+
+	private void UpdateVisualNodesFromEcs(float fDelta)
+	{
+		var query = QueryCache.AllPositionAndDefinitionIdQuery;
+		GameContext.World.Query(in query, (Entity entity, ref Position _) =>
+		{
+			if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+			{
+				unit3D.PlayAnimation(DetermineUnitAnimation(entity));
+			}
+		});
+
+		var buildingQuery = new QueryDescription().WithAll<ConstructionState>().WithNone<Dead>();
+		GameContext.World.Query(in buildingQuery, (Entity entity, ref ConstructionState construction) =>
+		{
+			if (TryGetUnit3D(entity, out var buildingNode) && GodotObject.IsInstanceValid(buildingNode))
+			{
+				float alpha = Mathf.Lerp(0.3f, 1.0f, construction.Progress / Mathf.Max(construction.TotalBuildTime, 0.001f));
+				buildingNode.Modulate = new Color(1f, 1f, 1f, alpha);
+			}
+		});
 	}
 
 	private bool CheckNonFinitePositionWarning(Entity entity, Vector3 posValue, Unit3D unit3D)

@@ -45,6 +45,25 @@ public static class ModelShaderManager
 	private static readonly StringName _paramProcAnimParams3 = new("proc_anim_params3");
 	private static readonly StringName _paramProcAnimImpulse = new("proc_anim_impulse");
 	private static readonly StringName _paramProcAnimVelocity = new("proc_anim_velocity");
+	private static readonly StringName _paramTextureAlbedo = new("texture_albedo");
+	private static readonly StringName _paramTextureOrm = new("texture_orm");
+	private static readonly StringName _paramHasOrmTexture = new("has_orm_texture");
+	private static readonly StringName _paramHasPlayerMask = new("has_player_mask");
+	private static readonly StringName _paramTextureNormal = new("texture_normal");
+	private static readonly StringName _paramHasNormalTexture = new("has_normal_texture");
+	private static readonly StringName _paramTextureEmission = new("texture_emission");
+	private static readonly StringName _paramHasEmissionTexture = new("has_emission_texture");
+	private static readonly StringName _paramUseAlphaBlend = new("use_alpha_blend");
+	private static readonly StringName _paramUseAlphaScissor = new("use_alpha_scissor");
+	private static readonly StringName _paramAlphaScissorThreshold = new("alpha_scissor_threshold");
+	private static readonly StringName _paramAlbedoColor = new("albedo_color");
+	private static readonly StringName _paramEmissionColor = new("emission_color");
+	private static readonly StringName _paramEmissionEnergy = new("emission_energy");
+	private static readonly StringName _paramRoughnessValue = new("roughness_value");
+	private static readonly StringName _paramMetallicValue = new("metallic_value");
+	private static readonly StringName _paramSpecularValue = new("specular_value");
+	private static readonly StringName _paramUv1Scale = new("uv1_scale");
+	private static readonly StringName _paramUv1Offset = new("uv1_offset");
 
 	private static Texture2D _currentShroudTexture;
 	private static Vector2 _currentShroudWorldMin = new(-125.0f, -125.0f);
@@ -494,53 +513,53 @@ public static class ModelShaderManager
 	{
 		if (albedoTexture != null)
 		{
-			material.SetShaderParameter("texture_albedo", albedoTexture);
+			material.SetShaderParameter(_paramTextureAlbedo, albedoTexture);
 		}
 
 		if (p.OrmTexture != null)
 		{
-			material.SetShaderParameter("texture_orm", p.OrmTexture);
-			material.SetShaderParameter("has_orm_texture", true);
-			material.SetShaderParameter("has_player_mask", hasPlayerMask);
+			material.SetShaderParameter(_paramTextureOrm, p.OrmTexture);
+			material.SetShaderParameter(_paramHasOrmTexture, true);
+			material.SetShaderParameter(_paramHasPlayerMask, hasPlayerMask);
 		}
 		else
 		{
-			material.SetShaderParameter("has_orm_texture", false);
-			material.SetShaderParameter("has_player_mask", false);
+			material.SetShaderParameter(_paramHasOrmTexture, false);
+			material.SetShaderParameter(_paramHasPlayerMask, false);
 		}
 
 		if (p.NormalTexture != null)
 		{
-			material.SetShaderParameter("texture_normal", p.NormalTexture);
-			material.SetShaderParameter("has_normal_texture", true);
+			material.SetShaderParameter(_paramTextureNormal, p.NormalTexture);
+			material.SetShaderParameter(_paramHasNormalTexture, true);
 		}
 		else
 		{
-			material.SetShaderParameter("has_normal_texture", false);
+			material.SetShaderParameter(_paramHasNormalTexture, false);
 		}
 
 		if (p.EmissionTexture != null)
 		{
-			material.SetShaderParameter("texture_emission", p.EmissionTexture);
-			material.SetShaderParameter("has_emission_texture", true);
+			material.SetShaderParameter(_paramTextureEmission, p.EmissionTexture);
+			material.SetShaderParameter(_paramHasEmissionTexture, true);
 		}
 		else
 		{
-			material.SetShaderParameter("has_emission_texture", false);
+			material.SetShaderParameter(_paramHasEmissionTexture, false);
 		}
 
-		material.SetShaderParameter("use_alpha_blend", p.UseAlphaBlend);
-		material.SetShaderParameter("use_alpha_scissor", p.UseAlphaScissor);
-		material.SetShaderParameter("alpha_scissor_threshold", p.AlphaScissorThreshold);
+		material.SetShaderParameter(_paramUseAlphaBlend, p.UseAlphaBlend);
+		material.SetShaderParameter(_paramUseAlphaScissor, p.UseAlphaScissor);
+		material.SetShaderParameter(_paramAlphaScissorThreshold, p.AlphaScissorThreshold);
 
-		material.SetShaderParameter("albedo_color", p.AlbedoColor);
-		material.SetShaderParameter("emission_color", p.EmissionColor);
-		material.SetShaderParameter("emission_energy", p.EmissionEnergy);
-		material.SetShaderParameter("roughness_value", p.Roughness);
-		material.SetShaderParameter("metallic_value", p.Metallic);
-		material.SetShaderParameter("specular_value", p.Specular);
-		material.SetShaderParameter("uv1_scale", p.Uv1Scale);
-		material.SetShaderParameter("uv1_offset", p.Uv1Offset);
+		material.SetShaderParameter(_paramAlbedoColor, p.AlbedoColor);
+		material.SetShaderParameter(_paramEmissionColor, p.EmissionColor);
+		material.SetShaderParameter(_paramEmissionEnergy, p.EmissionEnergy);
+		material.SetShaderParameter(_paramRoughnessValue, p.Roughness);
+		material.SetShaderParameter(_paramMetallicValue, p.Metallic);
+		material.SetShaderParameter(_paramSpecularValue, p.Specular);
+		material.SetShaderParameter(_paramUv1Scale, p.Uv1Scale);
+		material.SetShaderParameter(_paramUv1Offset, p.Uv1Offset);
 
 		if (_currentShroudTexture != null)
 		{

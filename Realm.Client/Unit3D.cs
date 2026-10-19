@@ -146,6 +146,7 @@ public partial class Unit3D : Node3D
 
 	private Node3D _modelNode;
 	private AnimationPlayer _animationPlayer;
+	private Skeleton3D? _cachedSkeleton;
 	private string _currentAnimation = string.Empty;
 	private string? _lastRequestedAnimName;
 	private readonly Dictionary<string, StringName?> _resolvedAnimCache = new(StringComparer.OrdinalIgnoreCase);
@@ -158,6 +159,12 @@ public partial class Unit3D : Node3D
 	private Node3D _pathVisualsContainer;
 	private readonly List<MeshInstance3D> _pathMarkersPool = new();
 	private readonly List<MeshInstance3D> _pathLinesPool = new();
+
+	private bool _isCulled = false;
+	private float _culledGameTime = 0f;
+	private Aabb _cachedLocalAabb = new Aabb(new Vector3(-1.5f, 0f, -1.5f), new Vector3(3f, 4f, 3f));
+
+	public bool IsCulled => _isCulled;
 
 	private int _player = 0;
 
@@ -294,7 +301,14 @@ public partial class Unit3D : Node3D
 				}
 			}
 
-			SetProcess(value);
+			if (value)
+			{
+				SetProcess(true);
+			}
+			else if (_impulseTime <= 0f)
+			{
+				SetProcess(false);
+			}
 		}
 	}
 
@@ -564,12 +578,19 @@ public partial class Unit3D : Node3D
 		_modelNode.Name = "VisualModel";
 		AddChild(_modelNode);
 
+		_cachedSkeleton = FindSkeleton(_modelNode);
 		ConfigureAnimations(modelPath);
 		ApplyAttachmentsSafely();
 		ApplyTransformations();
 		ApplyVisuals(modelPath);
 		UpdateDropShadow();
 		UpdateSlopeAlignment();
+
+		var calculatedAabb = CalculateModelLocalAabb();
+		if (calculatedAabb.Size.LengthSquared() > 0.001f)
+		{
+			_cachedLocalAabb = calculatedAabb;
+		}
 	}
 
 	private void CleanupExistingModel()
@@ -579,6 +600,8 @@ public partial class Unit3D : Node3D
 		RemoveChild(_modelNode);
 		_modelNode.QueueFree();
 		_modelNode = null;
+		_cachedSkeleton = null;
+		_isCulled = false;
 		_rightHandAttachment = null;
 		_leftHandAttachment = null;
 		_currentRightAttachmentId = null;
@@ -799,8 +822,87 @@ public partial class Unit3D : Node3D
 			}
 		}
 
-		_animationPlayer.ProcessMode = ProcessModeEnum.Inherit;
+		if (_isCulled)
+		{
+			_culledGameTime = GameHost.Instance?.GameElapsedTime ?? 0f;
+		}
+
+		_animationPlayer.ProcessMode = _isCulled ? ProcessModeEnum.Disabled : ProcessModeEnum.Inherit;
 		_animationPlayer.Play(resolved);
+	}
+
+	public void UpdateFrustumCulling(bool hasFrustum, ReadOnlySpan<Plane> frustumPlanes, float currentGameTime)
+	{
+		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
+
+		bool isVisible = true;
+		if (hasFrustum)
+		{
+			Vector3 pos = GlobalPosition;
+			Vector3 scale = Scale;
+			Aabb worldAabb = new Aabb(pos + _cachedLocalAabb.Position * scale, _cachedLocalAabb.Size * scale);
+			isVisible = RuntimeTerrain.IntersectsFrustum(frustumPlanes, worldAabb);
+		}
+
+		bool shouldCull = !isVisible;
+
+		if (shouldCull && !_isCulled)
+		{
+			_isCulled = true;
+			_culledGameTime = currentGameTime;
+			_animationPlayer.ProcessMode = ProcessModeEnum.Disabled;
+			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
+			{
+				_cachedSkeleton.ProcessMode = ProcessModeEnum.Disabled;
+			}
+		}
+		else if (!shouldCull && _isCulled)
+		{
+			_isCulled = false;
+			float elapsed = currentGameTime - _culledGameTime;
+			_animationPlayer.ProcessMode = ProcessModeEnum.Inherit;
+			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
+			{
+				_cachedSkeleton.ProcessMode = ProcessModeEnum.Inherit;
+			}
+
+			if (elapsed > 0f && _animationPlayer.IsPlaying())
+			{
+				float animLength = (float)_animationPlayer.CurrentAnimationLength;
+				if (animLength > 0.001f)
+				{
+					float currentPos = (float)_animationPlayer.CurrentAnimationPosition;
+					bool isLooping = true;
+					var animName = _animationPlayer.CurrentAnimation;
+					if (!string.IsNullOrEmpty(animName) && _animationPlayer.HasAnimation(animName))
+					{
+						var anim = _animationPlayer.GetAnimation(animName);
+						if (anim != null)
+						{
+							isLooping = anim.LoopMode != Godot.Animation.LoopModeEnum.None;
+						}
+					}
+
+					if (isLooping)
+					{
+						float newPos = (currentPos + elapsed) % animLength;
+						_animationPlayer.Seek(newPos, update: true);
+					}
+					else
+					{
+						float newPos = currentPos + elapsed;
+						if (newPos >= animLength)
+						{
+							_animationPlayer.Seek(animLength, update: true);
+						}
+						else
+						{
+							_animationPlayer.Seek(newPos, update: true);
+						}
+					}
+				}
+			}
+		}
 	}
 
 	private void SeekToIdleFirstFrame()
@@ -2092,6 +2194,24 @@ public partial class Unit3D : Node3D
 	{
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.Unit3DProcess))
 		{
+			float fDelta = (float)delta;
+			if (_impulseTime > 0f)
+			{
+				_impulseTime -= fDelta;
+				if (_impulseTime <= 0f)
+				{
+					_impulseTime = 0f;
+					_impulseStrength = 0f;
+					ModelShaderManager.SetProceduralAnimationImpulse(this, 0f, _impulseFrequency, 0f);
+				}
+				else
+				{
+					float progress = 1f - (_impulseTime / _impulseDuration);
+					float currentStrength = _impulseStrength * (1f - progress);
+					ModelShaderManager.SetProceduralAnimationImpulse(this, currentStrength, _impulseFrequency, progress);
+				}
+			}
+
 			if (IsSelected && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
 			{
 				if (IsBuilding)
@@ -2110,6 +2230,11 @@ public partial class Unit3D : Node3D
 				{
 					_rallyVisualsContainer.Visible = false;
 				}
+			}
+
+			if (!IsSelected && _impulseTime <= 0f)
+			{
+				SetProcess(false);
 			}
 		}
 	}

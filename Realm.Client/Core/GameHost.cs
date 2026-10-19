@@ -2986,7 +2986,7 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateVisualNodesFromEcs))
 				{
-					UpdateVisualNodesFromEcs(fDelta);
+					UpdateRenderFrameTransforms(fDelta);
 				}
 			}
 
