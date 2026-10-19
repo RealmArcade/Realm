@@ -19,7 +19,12 @@ public class ShroudService
 	private float _shroudUpdateTimer;
 	private Image _shroudImage;
 	private ImageTexture _shroudTexture;
+	private Image _shroudMinimapImage;
+	private ImageTexture _shroudMinimapTexture;
 	private bool _isEditorShroudInitialized;
+
+	public ImageTexture? ShroudTexture => _shroudTexture;
+	public ImageTexture? ShroudMinimapTexture => _shroudMinimapTexture;
 
 	public ShroudService()
 	{
@@ -178,7 +183,7 @@ void fragment() {
 			_shroudImage = Image.CreateEmpty(32, 32, false, Image.Format.Rf);
 		}
 
-		_shroudImage.Fill(new Color(0f, 0f, 0f, 1f));
+		_shroudImage.Fill(new Color(1f, 0f, 0f, 1f));
 		if (_shroudTexture == null)
 		{
 			_shroudTexture = ImageTexture.CreateFromImage(_shroudImage);
@@ -186,6 +191,21 @@ void fragment() {
 		else
 		{
 			_shroudTexture.Update(_shroudImage);
+		}
+
+		if (_shroudMinimapImage == null)
+		{
+			_shroudMinimapImage = Image.CreateEmpty(32, 32, false, Image.Format.Rgba8);
+		}
+
+		_shroudMinimapImage.Fill(new Color(0f, 0f, 0f, 0f));
+		if (_shroudMinimapTexture == null)
+		{
+			_shroudMinimapTexture = ImageTexture.CreateFromImage(_shroudMinimapImage);
+		}
+		else
+		{
+			_shroudMinimapTexture.Update(_shroudMinimapImage);
 		}
 
 		GameHost.Instance.GroundTerrain.SetShroudTexture(_shroudTexture);
@@ -253,6 +273,8 @@ void fragment() {
 
 		_shroudImage = null;
 		_shroudTexture = null;
+		_shroudMinimapImage = null;
+		_shroudMinimapTexture = null;
 		_cachedWorldEntity = Entity.Null;
 		_isAllVisibleApplied = false;
 	}
@@ -525,6 +547,11 @@ void fragment() {
 			_shroudImage = Image.CreateEmpty(32, 32, false, Image.Format.Rf);
 		}
 
+		if (_shroudMinimapImage == null)
+		{
+			_shroudMinimapImage = Image.CreateEmpty(32, 32, false, Image.Format.Rgba8);
+		}
+
 		var shroudGrid = ShroudGrid;
 		for (int gz = 0; gz < 32; gz++)
 		{
@@ -538,7 +565,16 @@ void fragment() {
 					ShroudState.Visible => 0.0f,
 					_ => 1.0f
 				};
-				_shroudImage.SetPixel(gx, gz, new Color(alpha, alpha, alpha, 1f));
+				_shroudImage.SetPixel(gx, gz, new Color(alpha, 0f, 0f, 1f));
+
+				float minimapAlpha = val switch
+				{
+					ShroudState.ExplorationShroud => 1.0f,
+					ShroudState.VisionShroud => 0.33f,
+					ShroudState.Visible => 0.0f,
+					_ => 1.0f
+				};
+				_shroudMinimapImage.SetPixel(gx, gz, new Color(0f, 0f, 0f, minimapAlpha));
 			}
 		}
 
@@ -549,6 +585,15 @@ void fragment() {
 		else
 		{
 			_shroudTexture.Update(_shroudImage);
+		}
+
+		if (_shroudMinimapTexture == null)
+		{
+			_shroudMinimapTexture = ImageTexture.CreateFromImage(_shroudMinimapImage);
+		}
+		else
+		{
+			_shroudMinimapTexture.Update(_shroudMinimapImage);
 		}
 	}
 

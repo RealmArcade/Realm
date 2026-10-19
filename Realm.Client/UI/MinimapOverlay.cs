@@ -10,6 +10,9 @@ namespace Realm.Client.UI;
 public partial class MinimapOverlay : Control
 {
 	private static Texture2D? _unitCircleTexture;
+	private static Texture2D? _selectionRingTexture;
+	private static Texture2D? _radarTexture;
+	private static Texture2D? _pingTexture;
 	private const float UnitCircleTextureScale = 32f / 30f;
 
 	private static readonly Color EnemyColor = new Color(0.9f, 0.1f, 0.1f);
@@ -44,42 +47,18 @@ public partial class MinimapOverlay : Control
 	{
 		if (InGameHUD.Instance == null || InGameHUD.Instance.ShowMinimapTerrain) return;
 
-		DrawRect(new Rect2(Vector2.Zero, size), new Color(0.04f, 0.08f, 0.04f), true);
-		Color radarGridColor = new Color(0.1f, 0.4f, 0.15f, 0.3f);
-
-		DrawLine(new Vector2(size.X / 2f, 0), new Vector2(size.X / 2f, size.Y), radarGridColor, 1.0f);
-		DrawLine(new Vector2(0, size.Y / 2f), new Vector2(size.X, size.Y / 2f), radarGridColor, 1.0f);
-
-		DrawCircle(size / 2f, size.X * 0.45f, radarGridColor, false, 1.5f);
-		DrawCircle(size / 2f, size.X * 0.3f, radarGridColor, false, 1.0f);
-		DrawCircle(size / 2f, size.X * 0.15f, radarGridColor, false, 1.0f);
-
-		DrawRect(new Rect2(Vector2.Zero, size), UIStyle.ColorBronze, false, 1.2f);
+		var radarTex = GetRadarTexture();
+		DrawTextureRect(radarTex, new Rect2(Vector2.Zero, size), false);
 	}
 
 	private void DrawShroudGrid(Vector2 size)
 	{
 		if (InGameHUD.Instance == null || string.Equals(InGameHUD.Instance.ShroudType, "visible", StringComparison.OrdinalIgnoreCase)) return;
 
-		float cellWidth = size.X / 32f;
-		float cellHeight = size.Y / 32f;
-		var grid = InGameHUD.Instance.ShroudGrid;
-		for (int x = 0; x < 32; x++)
+		var shroudTex = GameContext.ShroudService?.ShroudMinimapTexture;
+		if (shroudTex != null && GodotObject.IsInstanceValid(shroudTex))
 		{
-			for (int z = 0; z < 32; z++)
-			{
-				byte val = grid[x, z];
-				if (val == ShroudState.ExplorationShroud)
-				{
-					var rect = new Rect2(x * cellWidth, z * cellHeight, cellWidth, cellHeight);
-					DrawRect(rect, ExplorationShroudColor, true);
-				}
-				else if (val == ShroudState.VisionShroud)
-				{
-					var rect = new Rect2(x * cellWidth, z * cellHeight, cellWidth, cellHeight);
-					DrawRect(rect, VisionShroudColor, true);
-				}
-			}
+			DrawTextureRect(shroudTex, new Rect2(Vector2.Zero, size), false);
 		}
 	}
 
@@ -288,7 +267,10 @@ public partial class MinimapOverlay : Control
 			bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player);
 			selColor = isEnemy ? SelectedEnemyColor : SelectedAllyColor;
 		}
-		DrawCircle(drawPos, iconSize + 2.5f, selColor, false, 1.2f);
+
+		float ringRadius = iconSize + 2.5f;
+		var ringRect = new Rect2(drawPos.X - ringRadius, drawPos.Y - ringRadius, ringRadius * 2f, ringRadius * 2f);
+		DrawTextureRect(GetSelectionRingTexture(), ringRect, false, selColor);
 	}
 
 	private void DrawSelectionRing(Unit3D unit, Vector2 drawPos, float iconSize)
@@ -298,6 +280,7 @@ public partial class MinimapOverlay : Control
 
 	private void DrawActivePings(Vector2 size)
 	{
+		var pingTex = GetPingTexture();
 		foreach (var ping in GameContext.FXService.ActivePings)
 		{
 			Vector2 drawPos = MinimapHelper.WorldToMinimap(ping.WorldPos, size);
@@ -305,8 +288,152 @@ public partial class MinimapOverlay : Control
 			float pulse = Mathf.Sin(ping.LifeTime * 15f) * 0.5f + 1.0f;
 			float radius = 12f * pulse;
 
-			DrawCircle(drawPos, radius, new Color(1f, 0.1f, 0.1f, 0.5f), false, 2.0f);
-			DrawCircle(drawPos, radius - 4f, new Color(1f, 0.1f, 0.1f, 0.2f), true);
+			var pingRect = new Rect2(drawPos.X - radius, drawPos.Y - radius, radius * 2f, radius * 2f);
+			DrawTextureRect(pingTex, pingRect, false, new Color(1f, 0.1f, 0.1f, 0.8f));
 		}
+	}
+
+	public static Texture2D GetSelectionRingTexture()
+	{
+		if (_selectionRingTexture != null && GodotObject.IsInstanceValid(_selectionRingTexture))
+		{
+			return _selectionRingTexture;
+		}
+
+		const int textureSize = 64;
+		const float center = textureSize * 0.5f;
+		const float outerRadius = 30f;
+		const float strokeWidth = 5f;
+		const float innerRadius = outerRadius - strokeWidth;
+		const float antialiasMargin = 0.75f;
+
+		var image = Image.CreateEmpty(textureSize, textureSize, false, Image.Format.Rgba8);
+		for (int y = 0; y < textureSize; y++)
+		{
+			for (int x = 0; x < textureSize; x++)
+			{
+				float deltaX = x + 0.5f - center;
+				float deltaY = y + 0.5f - center;
+				float dist = Mathf.Sqrt(deltaX * deltaX + deltaY * deltaY);
+
+				if (dist >= innerRadius - antialiasMargin && dist <= outerRadius + antialiasMargin)
+				{
+					float alpha = 1f;
+					if (dist < innerRadius + antialiasMargin)
+					{
+						alpha = (dist - (innerRadius - antialiasMargin)) / (antialiasMargin * 2f);
+					}
+					else if (dist > outerRadius - antialiasMargin)
+					{
+						alpha = 1f - (dist - (outerRadius - antialiasMargin)) / (antialiasMargin * 2f);
+					}
+
+					image.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+				}
+				else
+				{
+					image.SetPixel(x, y, new Color(0f, 0f, 0f, 0f));
+				}
+			}
+		}
+
+		image.GenerateMipmaps();
+		_selectionRingTexture = ImageTexture.CreateFromImage(image);
+		return _selectionRingTexture;
+	}
+
+	public static Texture2D GetRadarTexture()
+	{
+		if (_radarTexture != null && GodotObject.IsInstanceValid(_radarTexture))
+		{
+			return _radarTexture;
+		}
+
+		const int textureSize = 256;
+		const float center = textureSize * 0.5f;
+		Color bgColor = new Color(0.04f, 0.08f, 0.04f, 1.0f);
+		Color radarGridRawColor = new Color(0.1f, 0.4f, 0.15f, 0.3f);
+		Color blendedGridColor = bgColor.Blend(radarGridRawColor);
+		Color bronzeColor = UIStyle.ColorBronze;
+
+		var image = Image.CreateEmpty(textureSize, textureSize, false, Image.Format.Rgba8);
+		image.Fill(bgColor);
+
+		float r1 = textureSize * 0.45f;
+		float r2 = textureSize * 0.3f;
+		float r3 = textureSize * 0.15f;
+
+		for (int y = 0; y < textureSize; y++)
+		{
+			for (int x = 0; x < textureSize; x++)
+			{
+				if (x == 0 || x == textureSize - 1 || y == 0 || y == textureSize - 1)
+				{
+					image.SetPixel(x, y, bronzeColor);
+					continue;
+				}
+
+				if (x == textureSize / 2 || y == textureSize / 2)
+				{
+					image.SetPixel(x, y, blendedGridColor);
+					continue;
+				}
+
+				float deltaX = x + 0.5f - center;
+				float deltaY = y + 0.5f - center;
+				float dist = Mathf.Sqrt(deltaX * deltaX + deltaY * deltaY);
+
+				if (Mathf.Abs(dist - r1) <= 1.0f || Mathf.Abs(dist - r2) <= 0.75f || Mathf.Abs(dist - r3) <= 0.75f)
+				{
+					image.SetPixel(x, y, blendedGridColor);
+				}
+			}
+		}
+
+		_radarTexture = ImageTexture.CreateFromImage(image);
+		return _radarTexture;
+	}
+
+	public static Texture2D GetPingTexture()
+	{
+		if (_pingTexture != null && GodotObject.IsInstanceValid(_pingTexture))
+		{
+			return _pingTexture;
+		}
+
+		const int textureSize = 64;
+		const float center = textureSize * 0.5f;
+		const float outerRadius = 30f;
+		const float ringWidth = 5f;
+		const float innerRingRadius = outerRadius - ringWidth;
+
+		var image = Image.CreateEmpty(textureSize, textureSize, false, Image.Format.Rgba8);
+		for (int y = 0; y < textureSize; y++)
+		{
+			for (int x = 0; x < textureSize; x++)
+			{
+				float deltaX = x + 0.5f - center;
+				float deltaY = y + 0.5f - center;
+				float dist = Mathf.Sqrt(deltaX * deltaX + deltaY * deltaY);
+
+				if (dist > outerRadius)
+				{
+					image.SetPixel(x, y, new Color(0f, 0f, 0f, 0f));
+				}
+				else if (dist >= innerRingRadius)
+				{
+					image.SetPixel(x, y, new Color(1f, 1f, 1f, 0.6f));
+				}
+				else
+				{
+					float fillFactor = 1f - (dist / innerRingRadius);
+					image.SetPixel(x, y, new Color(1f, 1f, 1f, 0.25f * fillFactor));
+				}
+			}
+		}
+
+		image.GenerateMipmaps();
+		_pingTexture = ImageTexture.CreateFromImage(image);
+		return _pingTexture;
 	}
 }
