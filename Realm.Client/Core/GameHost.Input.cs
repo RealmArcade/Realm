@@ -11,6 +11,8 @@ using Realm.Client.UI.MapEditor;
 using Realm.Client.VFX;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
@@ -359,6 +361,18 @@ public partial class GameHost
 						});
 						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Unit: {unit.UnitId.ToUpper()}");
 					}
+					else if (SelectedEditorObject is PropEntityProxyNode propProxy)
+					{
+						GameContext.EditorService.SetCopiedObject(new CopiedObjectTemplate
+						{
+							Type = "prop",
+							Id = propProxy.PropId,
+							Rotation = propProxy.RotationDegrees.Y,
+							Scale = propProxy.Scale.X,
+							Player = 0
+						});
+						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Prop: {propProxy.PropId.ToUpper()}");
+					}
 					else if (SelectedEditorObject is Prop3D prop)
 					{
 						GameContext.EditorService.SetCopiedObject(new CopiedObjectTemplate
@@ -548,6 +562,15 @@ public partial class GameHost
 							MapEditorHUD.Instance?.ShowFeedbackExternal($"Duplicated Unit: {unit.UnitId.ToUpper()}");
 						}
 					}
+					else if (SelectedEditorObject is PropEntityProxyNode propProxy)
+					{
+						clonedNode = SpawnPropExternalWithParams(propProxy.PropId, spawnPos, rotY, scaleVal);
+						if (clonedNode != null)
+						{
+							action = new ObjectSpawnAction("prop", propProxy.PropId, spawnPos, rotY, scaleVal, false, clonedNode);
+							MapEditorHUD.Instance?.ShowFeedbackExternal($"Duplicated Prop: {propProxy.PropId.ToUpper()}");
+						}
+					}
 					else if (SelectedEditorObject is Prop3D prop)
 					{
 						clonedNode = SpawnPropExternalWithParams(prop.PropId, spawnPos, rotY, scaleVal);
@@ -640,6 +663,7 @@ public partial class GameHost
 					{
 						float radius = 1.0f;
 						if (node3D is Unit3D u) radius = GameContext.InputService.GetPlacementRadius(u.UnitId, u.Scale.X);
+						else if (node3D is PropEntityProxyNode px) radius = GameContext.InputService.GetPlacementRadius(px.PropId, px.Scale.X);
 						else if (node3D is Prop3D p) radius = GameContext.InputService.GetPlacementRadius(p.PropId, p.Scale.X);
 
 						if (IsPositionBlocked(targetPos, radius, node3D))
@@ -661,6 +685,12 @@ public partial class GameHost
 						if (node3D is Unit3D unit && GameContext.World.IsAlive(unit.Entity))
 						{
 							GameContext.InputService.SetEntityPosition(unit.Entity, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z));
+						}
+						else if (node3D is PropEntityProxyNode propProxy && GameContext.World.IsAlive(propProxy.Entity))
+						{
+							GameContext.World.Set(propProxy.Entity, new Position(new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z)));
+							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxy.Entity, targetPos, propProxy.RotationDegrees.Y, propProxy.Scale.X);
+							UpdateSelectedPropRingPosition(targetPos);
 						}
 						else if (node3D is Prop3D prop)
 						{
@@ -847,6 +877,14 @@ public partial class GameHost
 						node3D.Scale, node3D.Scale
 					);
 					node3D.RotationDegrees = newRot;
+					if (SelectedEditorObject is PropEntityProxyNode propProxyRot)
+					{
+						if (GameContext.World != null && GameContext.World.IsAlive(propProxyRot.Entity))
+						{
+							GameContext.World.Set(propProxyRot.Entity, new RotationY(newRot.Y));
+							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxyRot.Entity, propProxyRot.Position, newRot.Y, propProxyRot.Scale.X);
+						}
+					}
 					EditorHistoryManager.RecordAction(action);
 					MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
 				}
@@ -876,6 +914,14 @@ public partial class GameHost
 						oldScale, newScale
 					);
 					node3D.Scale = newScale;
+					if (SelectedEditorObject is PropEntityProxyNode propProxyScale)
+					{
+						if (GameContext.World != null && GameContext.World.IsAlive(propProxyScale.Entity))
+						{
+							GameContext.World.Set(propProxyScale.Entity, new ModelScale(newScaleVal));
+							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxyScale.Entity, propProxyScale.Position, propProxyScale.RotationDegrees.Y, newScaleVal);
+						}
+					}
 					EditorHistoryManager.RecordAction(action);
 					MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
 				}
@@ -1306,7 +1352,11 @@ public partial class GameHost
 							clickedNode = FindUnit3DInParentChain(collider);
 							if (clickedNode == null)
 							{
-								clickedNode = FindProp3DInParentChain(collider);
+								clickedNode = (Node)(collider as PropEntityProxyNode);
+								if (clickedNode == null)
+								{
+									clickedNode = FindProp3DInParentChain(collider);
+								}
 							}
 						}
 
@@ -1383,6 +1433,18 @@ public partial class GameHost
 								ActivePlaceId = unit.UnitId;
 								GameContext.EditorService.PlaceUnitIsEnemy = isEnemy;
 								ActiveEditorTool = EditorTool.PlaceUnit;
+							}
+						}
+						else if (clickedNode is PropEntityProxyNode propProxy)
+						{
+							if (MapEditorHUD.Instance != null)
+							{
+								MapEditorHUD.Instance.SelectPickedUnitOrProp(propProxy.PropId, false);
+							}
+							else
+							{
+								ActivePlaceId = propProxy.PropId;
+								ActiveEditorTool = EditorTool.PlaceProp;
 							}
 						}
 						else if (clickedNode is Prop3D prop)
@@ -1475,7 +1537,11 @@ public partial class GameHost
 						clickedNode = FindUnit3DInParentChain(collider);
 						if (clickedNode == null)
 						{
-							clickedNode = FindProp3DInParentChain(collider);
+							clickedNode = (Node)(collider as PropEntityProxyNode);
+							if (clickedNode == null)
+							{
+								clickedNode = FindProp3DInParentChain(collider);
+							}
 						}
 
 						if (clickedNode == null)
@@ -3102,6 +3168,13 @@ public partial class GameHost
 		if (SelectedEditorObject is Unit3D unit)
 		{
 			CopyEditorUnit(unit);
+			return;
+		}
+
+		if (SelectedEditorObject is PropEntityProxyNode propProxy)
+		{
+			GameContext.EditorService.CopyEditorPropDomain(propProxy.PropId, propProxy.RotationDegrees.Y, propProxy.Scale.X);
+			MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Prop: {propProxy.PropId.ToUpper()}");
 			return;
 		}
 

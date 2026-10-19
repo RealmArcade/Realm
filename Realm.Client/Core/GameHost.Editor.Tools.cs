@@ -1051,6 +1051,21 @@ namespace Realm.Client.Core
 
 		private bool DeletePropExternal(Node node)
 		{
+			var proxy = node as PropEntityProxyNode;
+			if (proxy != null && GodotObject.IsInstanceValid(proxy))
+			{
+				if (proxy == _selectedEditorObject) SelectedEditorObject = null;
+				string propId = proxy.PropId;
+				if (GameContext.World != null && GameContext.World.IsAlive(proxy.Entity))
+				{
+					GameContext.World.Destroy(proxy.Entity);
+				}
+
+				proxy.QueueFree();
+				PropMultiMeshManager.Instance?.MarkDirty(propId);
+				return true;
+			}
+
 			var prop = (node as Prop3D) ?? FindProp3DInParentChain(node);
 			if (prop != null && GodotObject.IsInstanceValid(prop))
 			{
@@ -1178,6 +1193,18 @@ namespace Realm.Client.Core
 
 		private IEditorAction TryDeletePropFromParent(Node collider)
 		{
+			var proxy = collider as PropEntityProxyNode;
+			if (proxy != null && GodotObject.IsInstanceValid(proxy))
+			{
+				if (proxy == _selectedEditorObject) SelectedEditorObject = null;
+				string propId = proxy.PropId;
+				var action = new ObjectDeleteAction("prop", propId, proxy.Position, proxy.RotationDegrees.Y, proxy.Scale.X, false, null);
+				if (GameContext.World != null && GameContext.World.IsAlive(proxy.Entity)) GameContext.World.Destroy(proxy.Entity);
+				proxy.QueueFree();
+				PropMultiMeshManager.Instance?.MarkDirty(propId);
+				return action;
+			}
+
 			var prop = (collider as Prop3D) ?? FindProp3DInParentChain(collider);
 			if (prop != null && GodotObject.IsInstanceValid(prop))
 			{
@@ -1904,6 +1931,7 @@ namespace Realm.Client.Core
 			if (collider != null)
 			{
 				newHovered = FindUnit3DInParentChain(collider);
+				if (newHovered == null) newHovered = collider as PropEntityProxyNode;
 				if (newHovered == null) newHovered = FindProp3DInParentChain(collider);
 			}
 
@@ -1918,9 +1946,14 @@ namespace Realm.Client.Core
 			if (GodotObject.IsInstanceValid(node))
 			{
 				if (node is Unit3D u) u.IsHovered = isHovered;
+				else if (node is PropEntityProxyNode propProxy) SetHoveredPropEntity(isHovered ? propProxy.Entity : Entity.Null, isHovered ? propProxy.PropId : "");
 				else if (node is Prop3D p) p.IsHovered = isHovered;
 				else if (node is Decal d) UpdateDecalHoverRing(d, isHovered);
 				else if (node is ProceduralVfxInstance3D v) v.IsHovered = isHovered;
+			}
+			else if (!isHovered)
+			{
+				SetHoveredPropEntity(Entity.Null, "");
 			}
 		}
 
@@ -2036,6 +2069,10 @@ namespace Realm.Client.Core
 			{
 				UpdateDraggedUnitECS(unit, dragPos);
 			}
+			else if (SelectedEditorObject is PropEntityProxyNode propProxy)
+			{
+				UpdateDraggedPropProxyECS(propProxy, dragPos);
+			}
 			else if (SelectedEditorObject is Prop3D prop)
 			{
 				UpdateDraggedPropECS(prop, dragPos);
@@ -2059,6 +2096,16 @@ namespace Realm.Client.Core
 				GameContext.World.Set(unit.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
 				SyncPreviousTransform(GameContext.World, unit.Entity);
 				UpdateEditorCoverageOverlay();
+			}
+		}
+
+		private void UpdateDraggedPropProxyECS(PropEntityProxyNode propProxy, Vector3 dragPos)
+		{
+			if (GameContext.World != null && GameContext.World.IsAlive(propProxy.Entity))
+			{
+				GameContext.World.Set(propProxy.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxy.Entity, dragPos, propProxy.RotationDegrees.Y, propProxy.Scale.X);
+				UpdateSelectedPropRingPosition(dragPos);
 			}
 		}
 
@@ -2134,7 +2181,11 @@ namespace Realm.Client.Core
 				if (GodotObject.IsInstanceValid(SelectedEditorObject))
 				{
 					var node3D = SelectedEditorObject as Node3D;
-					if (SelectedEditorObject is Prop3D prop && SelectedEditorObject is not Unit3D)
+					if (SelectedEditorObject is PropEntityProxyNode propProxy)
+					{
+						PropMultiMeshManager.Instance?.MarkDirty(propProxy.PropId);
+					}
+					else if (SelectedEditorObject is Prop3D prop && SelectedEditorObject is not Unit3D)
 					{
 						PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
 					}

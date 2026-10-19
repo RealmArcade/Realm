@@ -239,6 +239,119 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public Prop3D? SelectedProp { get; set; }
 
+	private Node3D? _sharedPropSelectionRing;
+	private Node3D? _sharedPropHoverRing;
+	public Entity SelectedPropEntity { get; private set; } = Entity.Null;
+	public string SelectedPropId { get; private set; } = "";
+	public Entity HoveredPropEntity { get; private set; } = Entity.Null;
+	public string HoveredPropId { get; private set; } = "";
+
+	public void SetSelectedPropEntity(Entity entity, string propId)
+	{
+		SelectedPropEntity = entity;
+		SelectedPropId = propId;
+		if (entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<Position>(entity))
+		{
+			var posComp = GameContext.World.Get<Position>(entity);
+			Vector3 pos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
+			float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
+			EnsurePropSelectionRing();
+			if (_sharedPropSelectionRing != null)
+			{
+				_sharedPropSelectionRing.Position = pos;
+				_sharedPropSelectionRing.Scale = Vector3.One * scale;
+				_sharedPropSelectionRing.Visible = true;
+			}
+		}
+		else
+		{
+			ClearSelectedPropEntity();
+		}
+	}
+
+	public void ClearSelectedPropEntity()
+	{
+		SelectedPropEntity = Entity.Null;
+		SelectedPropId = "";
+		if (_sharedPropSelectionRing != null)
+		{
+			_sharedPropSelectionRing.Visible = false;
+		}
+	}
+
+	public void UpdateSelectedPropRingPosition(Vector3 pos)
+	{
+		if (_sharedPropSelectionRing != null && _sharedPropSelectionRing.Visible)
+		{
+			_sharedPropSelectionRing.Position = pos;
+		}
+	}
+
+	public void SetHoveredPropEntity(Entity entity, string propId)
+	{
+		HoveredPropEntity = entity;
+		HoveredPropId = propId;
+		if (entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<Position>(entity))
+		{
+			var posComp = GameContext.World.Get<Position>(entity);
+			Vector3 pos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
+			float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
+			EnsurePropHoverRing();
+			if (_sharedPropHoverRing != null)
+			{
+				_sharedPropHoverRing.Position = pos;
+				_sharedPropHoverRing.Scale = Vector3.One * scale;
+				_sharedPropHoverRing.Visible = true;
+			}
+		}
+		else
+		{
+			if (_sharedPropHoverRing != null)
+			{
+				_sharedPropHoverRing.Visible = false;
+			}
+		}
+	}
+
+	private void EnsurePropSelectionRing()
+	{
+		if (_sharedPropSelectionRing != null && GodotObject.IsInstanceValid(_sharedPropSelectionRing)) return;
+		_sharedPropSelectionRing = CreateRingNode(new Color(0.15f, 0.65f, 1.0f, 0.8f));
+		_sharedPropSelectionRing.Name = "SharedPropSelectionRing";
+		AddChild(_sharedPropSelectionRing);
+		_sharedPropSelectionRing.Visible = false;
+	}
+
+	private void EnsurePropHoverRing()
+	{
+		if (_sharedPropHoverRing != null && GodotObject.IsInstanceValid(_sharedPropHoverRing)) return;
+		_sharedPropHoverRing = CreateRingNode(new Color(1.0f, 0.85f, 0.2f, 0.6f));
+		_sharedPropHoverRing.Name = "SharedPropHoverRing";
+		AddChild(_sharedPropHoverRing);
+		_sharedPropHoverRing.Visible = false;
+	}
+
+	private Node3D CreateRingNode(Color color)
+	{
+		var meshInst = new MeshInstance3D();
+		var torus = new TorusMesh
+		{
+			InnerRadius = 0.95f,
+			OuterRadius = 1.05f
+		};
+		meshInst.Mesh = torus;
+		var mat = new StandardMaterial3D
+		{
+			AlbedoColor = color,
+			Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+			EmissionEnabled = true,
+			Emission = color * 0.5f,
+			ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
+		};
+		meshInst.MaterialOverride = mat;
+		return meshInst;
+	}
+
 	public string? ActiveBuildingPlacementType
 	{
 		get => GameContext.InputService?.ActiveBuildingPlacementType;
@@ -600,9 +713,9 @@ public partial class GameHost : Node3D, IGameAPI
 				{
 					oldUnit.IsSelected = false;
 				}
-				else if (_selectedEditorObject is Prop3D oldProp)
+				else if (_selectedEditorObject is PropEntityProxyNode || _selectedEditorObject is Prop3D)
 				{
-					oldProp.IsSelected = false;
+					ClearSelectedPropEntity();
 				}
 				else if ((_selectedEditorObject as Decal ?? FindDecalInParentChain(_selectedEditorObject)) is Decal oldDecal)
 				{
@@ -621,9 +734,13 @@ public partial class GameHost : Node3D, IGameAPI
 				{
 					newUnit.IsSelected = true;
 				}
+				else if (_selectedEditorObject is PropEntityProxyNode newPropProxy)
+				{
+					SetSelectedPropEntity(newPropProxy.Entity, newPropProxy.PropId);
+				}
 				else if (_selectedEditorObject is Prop3D newProp)
 				{
-					newProp.IsSelected = true;
+					SetSelectedPropEntity(newProp.Entity, newProp.PropId);
 				}
 				else if ((_selectedEditorObject as Decal ?? FindDecalInParentChain(_selectedEditorObject)) is Decal newDecal)
 				{
@@ -1997,11 +2114,19 @@ public partial class GameHost : Node3D, IGameAPI
 
 		GameContext.SimulationService.OnPropDepleted = entity =>
 		{
-			if (TryGetProp3D(entity, out var prop3D)) Callable.From(() => DepleteProp(prop3D)).CallDeferred();
+			if (GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<PropIdentity>(entity))
+			{
+				string propId = GameContext.World.Get<PropIdentity>(entity).PropId;
+				PropMultiMeshManager.Instance?.MarkDirty(propId);
+			}
+			else
+			{
+				PropMultiMeshManager.Instance?.MarkAllDirty();
+			}
 		};
 		GameContext.SimulationService.OnResourceHarvested = entity =>
 		{
-			if (TryGetProp3D(entity, out var prop3D)) prop3D.TriggerImpulse(0.35f, 0.45f);
+			PropMultiMeshManager.Instance?.SetInstanceCustomData(entity, new Color(1f, 0f, 0f, 0f));
 		};
 
 		SetupSimulationCombatCallbacks();
@@ -2706,24 +2831,32 @@ public partial class GameHost : Node3D, IGameAPI
 		return closest;
 	}
 
-	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)
+	public void IssueGatherCommand(Entity propEntity, bool isQueued = false)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		if (SelectedUnits.Count == 0 || prop == null || !GodotObject.IsInstanceValid(prop)) return;
+		if (SelectedUnits.Count == 0 || propEntity == Entity.Null || !GameContext.World.IsAlive(propEntity)) return;
 
-		string? resType = GetPropResourceType(prop.PropId);
+		string propId = GameContext.World.Has<PropIdentity>(propEntity) ? GameContext.World.Get<PropIdentity>(propEntity).PropId : "";
+		string? resType = GetPropResourceType(propId);
 		if (resType == null) return;
 
-		SpawnTargetIndicator(prop.GlobalPosition, new Color(0.9f, 0.8f, 0.1f));
-		InGameHUD.Instance?.ShowFeedbackText($"Gathering {resType.ToUpper()} from {prop.PropId}", new Color(0.9f, 0.8f, 0.1f));
+		Vector3 propPos = Vector3.Zero;
+		if (GameContext.World.Has<Position>(propEntity))
+		{
+			var p = GameContext.World.Get<Position>(propEntity).Value;
+			propPos = new Vector3(p.X, p.Y, p.Z);
+		}
+
+		SpawnTargetIndicator(propPos, new Color(0.9f, 0.8f, 0.1f));
+		InGameHUD.Instance?.ShowFeedbackText($"Gathering {resType.ToUpper()} from {propId}", new Color(0.9f, 0.8f, 0.1f));
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
-			IssueMultiplayerGatherCommand(prop, isQueued);
+			IssueMultiplayerGatherCommand(propEntity, propPos, isQueued);
 			return;
 		}
 
-		IssueLocalGatherCommand(prop, resType, isQueued);
+		IssueLocalGatherCommand(propEntity, propPos, resType, isQueued);
 	}
 
 	private string? GetPropResourceType(string propId)
@@ -2731,7 +2864,7 @@ public partial class GameHost : Node3D, IGameAPI
 		return GameContext.RegistryService.GetResourceTypeForNode(propId);
 	}
 
-	private void IssueMultiplayerGatherCommand(Prop3D prop, bool isQueued)
+	private void IssueMultiplayerGatherCommand(Entity propEntity, Vector3 propPos, bool isQueued)
 	{
 		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (localPlayerIndex <= 0) return;
@@ -2742,10 +2875,10 @@ public partial class GameHost : Node3D, IGameAPI
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 
-		QueueClientCommand(isQueued ? "gather_queued" : "gather", targetIds, prop.GlobalPosition, GetServerEntityId(prop.Entity), "");
+		QueueClientCommand(isQueued ? "gather_queued" : "gather", targetIds, propPos, GetServerEntityId(propEntity), "");
 	}
 
-	private void IssueLocalGatherCommand(Prop3D prop, string resType, bool isQueued)
+	private void IssueLocalGatherCommand(Entity propEntity, Vector3 propPos, string resType, bool isQueued)
 	{
 		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (localPlayerIndex <= 0) return;
@@ -2755,15 +2888,23 @@ public partial class GameHost : Node3D, IGameAPI
 
 			if (isQueued && GameContext.InputService != null && GameContext.InputService.IsUnitActive(unit.Entity))
 			{
-				GameContext.InputService.EnqueueCommand(unit.Entity, "gather", new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z), prop.Entity);
+				GameContext.InputService.EnqueueCommand(unit.Entity, "gather", new System.Numerics.Vector3(propPos.X, propPos.Y, propPos.Z), propEntity);
 			}
 			else
 			{
 				if (!isQueued) ClearUnitOrders(unit.Entity);
 
-				GameContext.World.SetOrAdd(unit.Entity, new Gatherer(resType, prop.Entity));
-				GameContext.World.SetOrAdd(unit.Entity, new MoveTo(new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z)));
+				GameContext.World.SetOrAdd(unit.Entity, new Gatherer(resType, propEntity));
+				GameContext.World.SetOrAdd(unit.Entity, new MoveTo(new System.Numerics.Vector3(propPos.X, propPos.Y, propPos.Z)));
 			}
+		}
+	}
+
+	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)
+	{
+		if (prop != null && GodotObject.IsInstanceValid(prop))
+		{
+			IssueGatherCommand(prop.Entity, isQueued);
 		}
 	}
 
