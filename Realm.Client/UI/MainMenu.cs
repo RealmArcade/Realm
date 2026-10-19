@@ -65,7 +65,6 @@ public partial class MainMenu : Control
 		StylePanels();
 		SetupButtons();
 		SetupSocialPopover();
-		ApplyDevelopmentVisibility();
 
 		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
@@ -210,17 +209,6 @@ public partial class MainMenu : Control
 		if (!mouseEvent.Pressed) return;
 		if (mouseEvent.ButtonIndex != MouseButton.Left) return;
 		HideSocialPopover();
-	}
-
-	private void ApplyDevelopmentVisibility()
-	{
-		if (PathUtils.IsDevelopmentBuild) return;
-
-		if (_playButton != null) _playButton.Visible = false;
-		if (_singlePlayerButton != null) _singlePlayerButton.Visible = false;
-		if (_creatorDiscoveryButton != null) _creatorDiscoveryButton.Visible = false;
-		if (_replaysButton != null) _replaysButton.Visible = false;
-		if (_profileButton != null) _profileButton.Visible = false;
 	}
 
 	private void ToggleSocialPopover()
