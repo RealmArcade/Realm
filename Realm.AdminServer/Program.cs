@@ -2215,6 +2215,41 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 		return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
 	}
 
+		DiscoveryMapDto CreateDiscoveryMapDto(string compositeKey, string title, string version, string creator, string desc, string gen, string thumb, List<string> screens, List<string> fAndT, long bytes, string eVer, string mPlayers, bool greenlit, MapStats? s)
+		{
+			float rStars = s != null && s.AverageRating > 0 ? (float)s.AverageRating : 4.5f;
+			int tReviews = s != null ? s.ReviewsCount : 0;
+			int vReviews = s != null ? s.VerifiedGoodReviewsCount : 0;
+			int pMinutes = s != null ? (int)s.TotalPlaytimeMinutes : 0;
+			int gPlayed = s != null ? s.TotalGamesPlayed : 0;
+
+			return new DiscoveryMapDto
+			{
+				MapId = compositeKey,
+				Title = title,
+				Version = version,
+				Creator = creator,
+				Description = desc,
+				Genre = gen,
+				ThumbnailHash = thumb,
+				Screenshots = screens,
+				Features = fAndT,
+				Tags = fAndT,
+				RatingStars = rStars,
+				TotalReviews = tReviews,
+				VerifiedGoodReviews = vReviews,
+				AverageRating = rStars,
+				PlaytimeMinutes = pMinutes,
+				GamesPlayed = gPlayed,
+				TotalSizeBytes = bytes,
+				FileSizeFormatted = FormatByteSize(bytes),
+				EngineVersion = eVer,
+				MaxPlayers = mPlayers,
+				IsGreenlit = greenlit,
+				Awards = MapAwardsHelper.GetAwards(s)
+			};
+		}
+
 	var publishedDocs = db.GetAll<JsonDocument>("published_maps");
 	foreach (var doc in publishedDocs)
 	{
@@ -2312,39 +2347,9 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 				thumbnailHash = screenshotHashes[0];
 			}
 
-			float ratingStars = stats != null && stats.AverageRating > 0 ? (float)stats.AverageRating : 4.5f;
-			int totalReviews = stats != null ? stats.ReviewsCount : 0;
-			int verifiedReviews = stats != null ? stats.VerifiedGoodReviewsCount : 0;
-			int playtimeMinutes = stats != null ? (int)stats.TotalPlaytimeMinutes : 0;
-			int gamesPlayed = stats != null ? stats.TotalGamesPlayed : 0;
-
-			var awards = MapAwardsHelper.GetAwards(stats);
-
-			discoveryList.Add(new DiscoveryMapDto
-			{
-				MapId = compositeKey,
-				Title = mapTitle,
-				Version = mapVersion,
-				Creator = creator,
-				Description = description,
-				Genre = genre,
-				ThumbnailHash = thumbnailHash,
-				Screenshots = screenshotHashes,
-				Features = tags,
-				Tags = tags,
-				RatingStars = ratingStars,
-				TotalReviews = totalReviews,
-				VerifiedGoodReviews = verifiedReviews,
-				AverageRating = ratingStars,
-				PlaytimeMinutes = playtimeMinutes,
-				GamesPlayed = gamesPlayed,
-				TotalSizeBytes = totalBytes,
-				FileSizeFormatted = FormatByteSize(totalBytes),
-				EngineVersion = engineVersion,
-				MaxPlayers = maxPlayers,
-				IsGreenlit = isGreenlit,
-				Awards = awards
-			});
+							discoveryList.Add(CreateDiscoveryMapDto(
+					compositeKey, mapTitle, mapVersion, creator, description, genre,
+					thumbnailHash, screenshotHashes, tags, totalBytes, engineVersion, maxPlayers, isGreenlit, stats));
 		}
 		catch
 		{
@@ -2398,39 +2403,11 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 					cas, metadataFileHash ?? "", ref description, tags,
 					out engineVersion, out maxPlayers, out genre);
 
-				float ratingStars = stats != null && stats.AverageRating > 0 ? (float)stats.AverageRating : 4.5f;
-				int totalReviews = stats != null ? stats.ReviewsCount : 0;
-				int verifiedReviews = stats != null ? stats.VerifiedGoodReviewsCount : 0;
-				int playtimeMinutes = stats != null ? (int)stats.TotalPlaytimeMinutes : 0;
-				int gamesPlayed = stats != null ? stats.TotalGamesPlayed : 0;
-
-				var awards = MapAwardsHelper.GetAwards(stats);
-
-				discoveryList.Add(new DiscoveryMapDto
-				{
-					MapId = compositeKey,
-					Title = manifest.MapName,
-					Version = manifest.Version,
-					Creator = !string.IsNullOrEmpty(manifest.Author) ? manifest.Author : "Realm Builder",
-					Description = description,
-					Genre = genre,
-					ThumbnailHash = thumbnailHash,
-					Screenshots = screenshotHashes,
-					Features = tags,
-					Tags = tags,
-					RatingStars = ratingStars,
-					TotalReviews = totalReviews,
-					VerifiedGoodReviews = verifiedReviews,
-					AverageRating = ratingStars,
-					PlaytimeMinutes = playtimeMinutes,
-					GamesPlayed = gamesPlayed,
-					TotalSizeBytes = totalBytes,
-					FileSizeFormatted = FormatByteSize(totalBytes),
-					EngineVersion = engineVersion,
-					MaxPlayers = maxPlayers,
-					IsGreenlit = isGreenlit,
-					Awards = awards
-				});
+									discoveryList.Add(CreateDiscoveryMapDto(
+						compositeKey, manifest.MapName, manifest.Version,
+						!string.IsNullOrEmpty(manifest.Author) ? manifest.Author : "Realm Builder",
+						description, genre, thumbnailHash, screenshotHashes, tags, totalBytes,
+						engineVersion, maxPlayers, isGreenlit, stats));
 			}
 			catch
 			{
