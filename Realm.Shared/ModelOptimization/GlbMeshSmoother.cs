@@ -64,9 +64,11 @@ public static unsafe class GlbMeshSmoother
 		using var newBinStream = new MemoryStream();
 		CopyRetainedBufferViews(bufferViews, retainedBufferViews, binChunk, newBinStream);
 
+		byte[] compactedBinChunk = newBinStream.ToArray();
+
 		for (int m = 0; m < meshes.Count; m++)
 		{
-			ProcessMesh(meshes[m], accessors, bufferViews, binChunk, cosThreshold, newBinStream);
+			ProcessMesh(meshes[m], accessors, bufferViews, compactedBinChunk, cosThreshold, newBinStream);
 		}
 
 		while ((newBinStream.Position % 4) != 0) newBinStream.WriteByte(0);
