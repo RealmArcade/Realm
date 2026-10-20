@@ -743,6 +743,24 @@ public class FXService
 		}
 	}
 
+	public void ClearProjectileTrails()
+	{
+		VisualProjectilePool.Instance.DeactivateAll();
+
+		if (_batchedAddImmediateMesh != null && GodotObject.IsInstanceValid(_batchedAddImmediateMesh))
+		{
+			_batchedAddImmediateMesh.ClearSurfaces();
+		}
+
+		if (_batchedMixImmediateMesh != null && GodotObject.IsInstanceValid(_batchedMixImmediateMesh))
+		{
+			_batchedMixImmediateMesh.ClearSurfaces();
+		}
+
+		_hasDrawnAddRibbons = false;
+		_hasDrawnMixRibbons = false;
+	}
+
 	public void RenderBatchedRibbonTrails(Camera3D camera)
 	{
 		Node parent = GameHost.Instance ?? (Node)camera?.GetViewport();

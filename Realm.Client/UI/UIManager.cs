@@ -369,6 +369,11 @@ public partial class UIManager : Control
 
 	private void HandlePreTransitionState(GameScreen screen)
 	{
+		if (screen == GameScreen.MapEditorHUD)
+		{
+			GameContext.FXService?.ClearProjectileTrails();
+		}
+
 		if (RequiresReplayReset(screen))
 		{
 			if (ReplayPlaybackManager.Instance.IsPlayingReplay)

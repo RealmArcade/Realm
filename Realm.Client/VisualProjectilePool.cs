@@ -75,6 +75,21 @@ public class VisualProjectilePool
 		}
 	}
 
+	public void DeactivateAll()
+	{
+		for (int i = _activeProjectiles.Count - 1; i >= 0; i--)
+		{
+			var projectile = _activeProjectiles[i];
+			if (projectile == null || !GodotObject.IsInstanceValid(projectile))
+			{
+				_activeProjectiles.RemoveAt(i);
+				continue;
+			}
+
+			ReturnInternal(projectile);
+		}
+	}
+
 	public void AdvanceActiveProjectiles(float deltaSeconds)
 	{
 		for (int i = _activeProjectiles.Count - 1; i >= 0; i--)
