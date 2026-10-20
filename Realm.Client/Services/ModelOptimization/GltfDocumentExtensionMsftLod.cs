@@ -44,7 +44,8 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		var gltfNodes = state.GetNodes();
 		if (gltfNodes == null || gltfNodes.Count == 0) return;
 
-		var existingRoots = new HashSet<int>(state.GetRootNodes());
+		var rootNodes = state.GetRootNodes();
+		var existingRoots = rootNodes != null ? new HashSet<int>(rootNodes) : new HashSet<int>();
 		var childNodes = new HashSet<int>();
 
 		for (int i = 0; i < gltfNodes.Count; i++)
@@ -61,19 +62,32 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 			}
 		}
 
-		var newRoots = new List<int>(existingRoots);
+		var unparentedIndices = new List<int>();
 		for (int i = 0; i < gltfNodes.Count; i++)
 		{
 			if (!existingRoots.Contains(i) && !childNodes.Contains(i))
 			{
-				newRoots.Add(i);
+				unparentedIndices.Add(i);
 			}
 		}
 
-		if (newRoots.Count > existingRoots.Count)
+		if (unparentedIndices.Count == 0) return;
+
+		if (rootNodes != null && rootNodes.Length > 0)
 		{
-			state.SetRootNodes(newRoots.ToArray());
+			int primaryRootIdx = rootNodes[0];
+			if (primaryRootIdx >= 0 && primaryRootIdx < gltfNodes.Count && gltfNodes[primaryRootIdx] is GltfNode primaryRootNode)
+			{
+				var currentChildren = new List<int>(primaryRootNode.Children ?? System.Array.Empty<int>());
+				currentChildren.AddRange(unparentedIndices);
+				primaryRootNode.Children = currentChildren.ToArray();
+				return;
+			}
 		}
+
+		var newRoots = new List<int>(existingRoots);
+		newRoots.AddRange(unparentedIndices);
+		state.SetRootNodes(newRoots.ToArray());
 	}
 
 	public override Error _ParseNodeExtensions(GltfState state, GltfNode gltfNode, Dictionary extensions)

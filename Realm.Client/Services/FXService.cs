@@ -702,8 +702,8 @@ public class FXService
 				Mesh = _batchedAddImmediateMesh,
 				MaterialOverride = _batchedAddMaterial,
 				TopLevel = true,
-				GlobalPosition = Vector3.Zero,
-				GlobalRotation = Vector3.Zero
+				Position = Vector3.Zero,
+				Rotation = Vector3.Zero
 			};
 		}
 
@@ -731,8 +731,8 @@ public class FXService
 				Mesh = _batchedMixImmediateMesh,
 				MaterialOverride = _batchedMixMaterial,
 				TopLevel = true,
-				GlobalPosition = Vector3.Zero,
-				GlobalRotation = Vector3.Zero
+				Position = Vector3.Zero,
+				Rotation = Vector3.Zero
 			};
 		}
 

@@ -135,24 +135,26 @@ public static unsafe class GlbMeshSmoother
 
 	private static void CleanNodes(JsonObject root)
 	{
-		if (root["nodes"] is not JsonArray nodes) return;
-		for (int i = nodes.Count - 1; i >= 0; i--)
+		GlbManifestUtils.RemoveAndRemapNodes(root, nodeObj =>
 		{
-			if (nodes[i] is not JsonObject nodeObj) continue;
 			string nodeName = nodeObj["name"]?.GetValue<string>() ?? string.Empty;
+			return IsLodNode(nodeName);
+		});
 
-			if (IsLodNode(nodeName))
+		if (root["nodes"] is JsonArray remainingNodes)
+		{
+			foreach (var n in remainingNodes)
 			{
-				nodes.RemoveAt(i);
-				continue;
-			}
+				if (n is not JsonObject nodeObj) continue;
+				string nodeName = nodeObj["name"]?.GetValue<string>() ?? string.Empty;
 
-			if (IsLod0Node(nodeName))
-			{
-				CleanLod0Node(nodeObj, nodeName);
-			}
+				if (IsLod0Node(nodeName))
+				{
+					CleanLod0Node(nodeObj, nodeName);
+				}
 
-			CleanExtensions(nodeObj);
+				CleanExtensions(nodeObj);
+			}
 		}
 	}
 
