@@ -630,12 +630,6 @@ public partial class Unit3D : Node3D
 		if (_selectionRing == null && _hoverRing == null) return;
 
 		float sx = Mathf.Abs(Scale.X) > 0.001f ? Scale.X : 1.0f;
-		float sy = Mathf.Abs(Scale.Y) > 0.001f ? Scale.Y : 1.0f;
-		float sz = Mathf.Abs(Scale.Z) > 0.001f ? Scale.Z : 1.0f;
-
-		Vector3 ringScale = new Vector3(1.0f / sx, 1.0f / sy, 1.0f / sz);
-		Vector3 ringPos = new Vector3(0, 0.05f / sy, 0);
-
 		float ratio = GameHost.Instance != null ? GameHost.Instance.GetModelCollisionCircleRatio(GameHost.Instance.GetModelAssetKey(this)) : 1.0f;
 		if (ratio <= 0.001f) ratio = 1.0f;
 
@@ -643,19 +637,7 @@ public partial class Unit3D : Node3D
 		float worldRadius = baseRadius * ratio * Mathf.Abs(sx);
 		var torusMesh = GetOrCreateTorusMesh(worldRadius);
 
-		if (_selectionRing != null)
-		{
-			_selectionRing.Mesh = torusMesh;
-			_selectionRing.Scale = ringScale;
-			_selectionRing.Position = ringPos;
-		}
-
-		if (_hoverRing != null)
-		{
-			_hoverRing.Mesh = torusMesh;
-			_hoverRing.Scale = ringScale;
-			_hoverRing.Position = ringPos;
-		}
+		Realm.Client.Utils.VisualSelectionHelper.UpdateSelectionRingTransform(_selectionRing, _hoverRing, torusMesh, Scale, baseRadius, ratio);
 	}
 
 	private void CreateHoverRing()
@@ -2297,6 +2279,33 @@ public partial class Unit3D : Node3D
 		}
 	}
 
+	private void UpdateLineTransform(MeshInstance3D line, Vector3 start, Vector3 end)
+	{
+		if (GameHost.Instance.GroundTerrain != null)
+		{
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
+			start.Y = hStart + 0.1f;
+
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
+			end.Y = hEnd + 0.1f;
+		}
+
+		Vector3 diff = end - start;
+		float length = diff.Length();
+
+		if (length > 0.05f)
+		{
+			Vector3 direction = diff.Normalized();
+			Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
+			var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
+			line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
+		}
+		else
+		{
+			line.Visible = false;
+		}
+	}
+
 	private void UpdateRallyLines(List<Vector3> points, int lineCountNeeded)
 	{
 		for (int i = 0; i < lineCountNeeded; i++)
@@ -2307,29 +2316,7 @@ public partial class Unit3D : Node3D
 			Vector3 start = points[i];
 			Vector3 end = points[i + 1];
 
-			if (GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
-				start.Y = hStart + 0.1f;
-
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
-				end.Y = hEnd + 0.1f;
-			}
-
-			Vector3 diff = end - start;
-			float length = diff.Length();
-
-			if (length > 0.05f)
-			{
-				Vector3 direction = diff.Normalized();
-				Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-				var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
-				line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
-			}
-			else
-			{
-				line.Visible = false;
-			}
+			UpdateLineTransform(line, start, end);
 		}
 
 		for (int i = lineCountNeeded; i < _rallyLinesPool.Count; i++)
@@ -2556,29 +2543,7 @@ public partial class Unit3D : Node3D
 			Vector3 start = _pathPointsBuffer[i];
 			Vector3 end = _pathPointsBuffer[i + 1];
 
-			if (GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
-				start.Y = hStart + 0.1f;
-
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
-				end.Y = hEnd + 0.1f;
-			}
-
-			Vector3 diff = end - start;
-			float length = diff.Length();
-
-			if (length > 0.05f)
-			{
-				Vector3 direction = diff.Normalized();
-				Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-				var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
-				line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
-			}
-			else
-			{
-				line.Visible = false;
-			}
+			UpdateLineTransform(line, start, end);
 		}
 
 		for (int i = lineCountNeeded; i < _pathLinesPool.Count; i++)

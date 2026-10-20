@@ -1285,7 +1285,39 @@ public static class UIStyle
 	}
 
 
-	public static void ApplyTitle(Label label, string text, int fontSize = 36)
+		public static void AddWarningPopupContent(Control vbox, string message, Action onOkPressed)
+	{
+		var descLabel = new Label();
+		descLabel.Name = "DescLabel_Label";
+		descLabel.Text = message;
+		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		descLabel.AddThemeFontSizeOverride("font_size", 14);
+		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
+		vbox.AddChild(descLabel);
+
+		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+
+		var okBtn = new Button();
+		okBtn.Name = "OkBtn_Button";
+		okBtn.Flat = false;
+		okBtn.AddThemeConstantOverride("icon_max_width", 0);
+		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(okBtn, Godot.TranslationServer.Translate("OK"), 14);
+		okBtn.CustomMinimumSize = new Vector2(160, 40);
+		okBtn.SizeFlagsHorizontal = Godot.Control.SizeFlags.ShrinkCenter;
+		okBtn.Pressed += () =>
+		{
+			UIManager.Instance.PlayClickSound();
+			onOkPressed?.Invoke();
+		};
+		vbox.AddChild(okBtn);
+	}
+
+public static void ApplyTitle(Label label, string text, int fontSize = 36)
 	{
 		label.Text = TranslationServer.Translate(text);
 		var font = FontNorseBold;

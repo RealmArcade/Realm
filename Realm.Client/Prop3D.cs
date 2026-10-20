@@ -229,12 +229,6 @@ public partial class Prop3D : Node3D
 		if (_selectionRing == null && _hoverRing == null) return;
 
 		float sx = Mathf.Abs(Scale.X) > 0.001f ? Scale.X : 1.0f;
-		float sy = Mathf.Abs(Scale.Y) > 0.001f ? Scale.Y : 1.0f;
-		float sz = Mathf.Abs(Scale.Z) > 0.001f ? Scale.Z : 1.0f;
-
-		Vector3 ringScale = new Vector3(1.0f / sx, 1.0f / sy, 1.0f / sz);
-		Vector3 ringPos = new Vector3(0, 0.05f / sy, 0);
-
 		float ratio = GameHost.Instance != null ? GameHost.Instance.GetModelCollisionCircleRatio(GameHost.Instance.GetModelAssetKey(this)) : 1.0f;
 		if (ratio <= 0.001f) ratio = 1.0f;
 
@@ -242,19 +236,7 @@ public partial class Prop3D : Node3D
 		float worldRadius = baseRadius * ratio * Mathf.Abs(sx);
 		var torusMesh = GetOrCreateTorusMesh(worldRadius);
 
-		if (_selectionRing != null)
-		{
-			_selectionRing.Mesh = torusMesh;
-			_selectionRing.Scale = ringScale;
-			_selectionRing.Position = ringPos;
-		}
-
-		if (_hoverRing != null)
-		{
-			_hoverRing.Mesh = torusMesh;
-			_hoverRing.Scale = ringScale;
-			_hoverRing.Position = ringPos;
-		}
+		Realm.Client.Utils.VisualSelectionHelper.UpdateSelectionRingTransform(_selectionRing, _hoverRing, torusMesh, Scale, baseRadius, ratio);
 	}
 
 	public bool IsHovered

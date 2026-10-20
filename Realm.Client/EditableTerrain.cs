@@ -83,14 +83,22 @@ public partial class EditableTerrain : RuntimeTerrain
 		_material.SetShaderParameter("pathing_texture", tex);
 	}
 
+	private bool TryInitializeResizeOrScale(int newWidth, int newDepth, out int clampedWidth, out int clampedDepth, out TerrainState state)
+	{
+		clampedWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
+		clampedDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
+		state = default;
+
+		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return false;
+		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return false;
+
+		state = GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+		return true;
+	}
+
 	public override void ResizeTerrain(int newWidth, int newDepth)
 	{
-		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return;
-		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return;
-
-		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
-		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
-
+		if (!TryInitializeResizeOrScale(newWidth, newDepth, out var clampedWidth, out var clampedDepth, out var stateVal)) return;
 		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 
 		int oldWidth = state.Width;
@@ -100,6 +108,9 @@ public partial class EditableTerrain : RuntimeTerrain
 		TerrainSplatWeights[,] oldSplatMap = SplatMap;
 
 		TerrainSplatWeights[,] oldCliffSplatMap = CliffSplatMap;
+
+		newWidth = clampedWidth;
+		newDepth = clampedDepth;
 
 		var newCells = new TerrainCell[newWidth, newDepth];
 		int[,] newPathing = new int[newWidth, newDepth];
@@ -315,12 +326,7 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	public override void ScaleTerrainData(int newWidth, int newDepth)
 	{
-		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return;
-		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return;
-
-		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
-		newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
-
+		if (!TryInitializeResizeOrScale(newWidth, newDepth, out var clampedWidth, out var clampedDepth, out var stateVal)) return;
 		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 
 		int oldWidth = state.Width;
@@ -329,6 +335,9 @@ public partial class EditableTerrain : RuntimeTerrain
 		int[,] oldPathing = state.PathingCodes;
 		TerrainSplatWeights[,] oldSplatMap = SplatMap;
 		TerrainSplatWeights[,] oldCliffSplatMap = CliffSplatMap;
+
+		newWidth = clampedWidth;
+		newDepth = clampedDepth;
 
 		var newCells = new TerrainCell[newWidth, newDepth];
 		int[,] newPathing = new int[newWidth, newDepth];

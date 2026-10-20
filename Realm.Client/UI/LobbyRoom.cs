@@ -619,35 +619,13 @@ public partial class LobbyRoom : Control
 
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
-		var descLabel = new Label();
-		descLabel.Name = "DescLabel_Label";
-		descLabel.Text = $"{string.Format(Tr("Host Version: {0}"), hostVersion)}\n{string.Format(Tr("Client Version: {0}"), clientVersion)}\n\n{Tr("Connection aborted.")}";
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var okBtn = new Button();
-		okBtn.Name = "OkBtn_Button";
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, Tr("OK"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		okBtn.Pressed += () =>
+		string msg = $"{string.Format(Tr("Host Version: {0}"), hostVersion)}\n{string.Format(Tr("Client Version: {0}"), clientVersion)}\n\n{Tr("Connection aborted.")}";
+		UIStyle.AddWarningPopupContent(vbox, msg, () =>
 		{
-			UIManager.Instance.PlayClickSound();
 			warningPopup.QueueFree();
 			LobbyManager.Instance.Disconnect();
 			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
-		};
-		vbox.AddChild(okBtn);
+		});
 	}
 
 	private void ShowStartWarningPopup(string mapName)
@@ -1747,38 +1725,12 @@ public partial class LobbyRoom : Control
 			displayReason = $"{Tr("Direct connection handshake failed.")}\n\n{Tr("The host's router may be blocking incoming UDP traffic on port 8999. Ensure UPnP is enabled on the host's router, configure UDP port 8999 forwarding, or connect via a Virtual LAN (Tailscale / Radmin).")}";
 		}
 
-		var descLabel = new Label();
-		descLabel.Name = "DescLabel_Label";
-		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		descLabel.CustomMinimumSize = new Vector2(480, 0);
-		descLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		descLabel.Text = $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}";
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 13);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var okBtn = new Button();
-		okBtn.Name = "OkBtn_Button";
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, Tr("OK"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		okBtn.Pressed += () =>
+		UIStyle.AddWarningPopupContent(vbox, $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}", () =>
 		{
-			UIManager.Instance.PlayClickSound();
 			warningPopup.QueueFree();
 			LobbyManager.Instance.Disconnect();
 			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
-		};
-		vbox.AddChild(okBtn);
+		});
 	}
 
 	private void OnLobbyKickReceived(string reason)

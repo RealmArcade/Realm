@@ -1059,6 +1059,40 @@ public partial class RuntimeTerrain : Node3D
 		geom.indices.Add(baseIdx + 3);
 	}
 
+	private void AddWallGeometry(
+		System.Collections.Generic.List<Vector3> verts, System.Collections.Generic.List<Vector3> norms, 
+		System.Collections.Generic.List<Vector2> uvs, System.Collections.Generic.List<int> indices,
+		int wBase, Vector3 v0, Vector3 v1, Vector3 v2, Vector3 v3, Vector3 wallNorm)
+	{
+		verts.Add(v0);
+		verts.Add(v1);
+		verts.Add(v2);
+		verts.Add(v3);
+
+		norms.Add(wallNorm);
+		norms.Add(wallNorm);
+		norms.Add(wallNorm);
+		norms.Add(wallNorm);
+
+		uvs.Add(new Vector2(0, 0));
+		uvs.Add(new Vector2(1, 0));
+		uvs.Add(new Vector2(1, 1));
+		uvs.Add(new Vector2(0, 1));
+
+		indices.Add(wBase + 0);
+		indices.Add(wBase + 1);
+		indices.Add(wBase + 2);
+		indices.Add(wBase + 0);
+		indices.Add(wBase + 2);
+		indices.Add(wBase + 3);
+		indices.Add(wBase + 0);
+		indices.Add(wBase + 2);
+		indices.Add(wBase + 1);
+		indices.Add(wBase + 0);
+		indices.Add(wBase + 3);
+		indices.Add(wBase + 2);
+	}
+
 	private void AddWaterWallX(
 		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
@@ -1075,33 +1109,9 @@ public partial class RuntimeTerrain : Node3D
 		var wGeom = GetGeomLists(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices);
 
 		int wBase = wGeom.verts.Count;
-		wGeom.verts.Add(new Vector3(wallX, yMin, z0));
-		wGeom.verts.Add(new Vector3(wallX, yMin, z1));
-		wGeom.verts.Add(new Vector3(wallX, yMax, z1));
-		wGeom.verts.Add(new Vector3(wallX, yMax, z0));
-
 		Vector3 wallNorm = (waterY1 > waterY2) ? Vector3.Right : Vector3.Left;
-		wGeom.norms.Add(wallNorm);
-		wGeom.norms.Add(wallNorm);
-		wGeom.norms.Add(wallNorm);
-		wGeom.norms.Add(wallNorm);
-		wGeom.uvs.Add(new Vector2(0, 0));
-		wGeom.uvs.Add(new Vector2(1, 0));
-		wGeom.uvs.Add(new Vector2(1, 1));
-		wGeom.uvs.Add(new Vector2(0, 1));
-
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 1);
-		wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 3);
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 1);
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 3);
-		wGeom.indices.Add(wBase + 2);
+		AddWallGeometry(wGeom.verts, wGeom.norms, wGeom.uvs, wGeom.indices, wBase,
+			new Vector3(wallX, yMin, z0), new Vector3(wallX, yMin, z1), new Vector3(wallX, yMax, z1), new Vector3(wallX, yMax, z0), wallNorm);
 	}
 
 	private void AddWaterWallZ(
@@ -1120,33 +1130,9 @@ public partial class RuntimeTerrain : Node3D
 		var wGeom = GetGeomLists(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices);
 
 		int wBase = wGeom.verts.Count;
-		wGeom.verts.Add(new Vector3(x0, yMin, wallZ));
-		wGeom.verts.Add(new Vector3(x1, yMin, wallZ));
-		wGeom.verts.Add(new Vector3(x1, yMax, wallZ));
-		wGeom.verts.Add(new Vector3(x0, yMax, wallZ));
-
 		Vector3 wallNorm = (waterY1 > waterY2) ? Vector3.Back : Vector3.Forward;
-		wGeom.norms.Add(wallNorm);
-		wGeom.norms.Add(wallNorm);
-		wGeom.norms.Add(wallNorm);
-		wGeom.norms.Add(wallNorm);
-		wGeom.uvs.Add(new Vector2(0, 0));
-		wGeom.uvs.Add(new Vector2(1, 0));
-		wGeom.uvs.Add(new Vector2(1, 1));
-		wGeom.uvs.Add(new Vector2(0, 1));
-
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 1);
-		wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 3);
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 2);
-		wGeom.indices.Add(wBase + 1);
-		wGeom.indices.Add(wBase + 0);
-		wGeom.indices.Add(wBase + 3);
-		wGeom.indices.Add(wBase + 2);
+		AddWallGeometry(wGeom.verts, wGeom.norms, wGeom.uvs, wGeom.indices, wBase,
+			new Vector3(x0, yMin, wallZ), new Vector3(x1, yMin, wallZ), new Vector3(x1, yMax, wallZ), new Vector3(x0, yMax, wallZ), wallNorm);
 	}
 
 	private void UpdateWaterMeshesForChunk(
