@@ -203,11 +203,11 @@ public static unsafe class GlbLodGenerator
 			return;
 		}
 
-		var posData = GetPositionData(primObj, root, binBytes);
-		if (posData == null) return;
+		var geometry = GetGeometry(primObj, root, binBytes);
+		if (geometry == null) return;
 
-		uint[]? originalIndices = GetOriginalIndices(primObj, root, binBytes, posData.Value.posCount);
-		if (!IsOriginalIndicesValid(originalIndices, posData.Value.posCount))
+		uint[]? originalIndices = GetOriginalIndices(primObj, root, binBytes, geometry.Value.PositionCount);
+		if (!IsOriginalIndicesValid(originalIndices, geometry.Value.PositionCount))
 		{
 			newPrimitives.Add(primObj.DeepClone());
 			return;
@@ -220,7 +220,7 @@ public static unsafe class GlbLodGenerator
 			return;
 		}
 
-		var simplifiedIndices = SimplifyIndices(originalIndices, posData.Value, targetIndexCount, t, binBytes);
+		var simplifiedIndices = SimplifyIndices(originalIndices, geometry.Value, targetIndexCount, t, binBytes);
 		if (simplifiedIndices == null)
 		{
 			newPrimitives.Add(primObj.DeepClone());
@@ -250,7 +250,23 @@ public static unsafe class GlbLodGenerator
 		return targetIndexCount >= 3 && targetIndexCount < originalLength;
 	}
 
-	private static (int posByteOffset, int posCount, int posStride)? GetPositionData(JsonObject primObj, JsonObject root, byte[] binBytes)
+	private const float WeldEpsilon = 0.0001f;
+
+	private readonly record struct AttributeStream(int ByteOffset, int ByteStride, int ElementSize);
+
+	private readonly record struct TexCoordStream(int ByteOffset, int ByteStride, int ComponentType, bool Normalized);
+
+	private readonly record struct VertexWeldKey(int PositionX, int PositionY, int PositionZ, int TexCoordU, int TexCoordV, ulong OtherAttributesHash);
+
+	private readonly record struct PrimitiveGeometry(
+		int PositionByteOffset,
+		int PositionCount,
+		int PositionByteStride,
+		bool HasTexCoords,
+		TexCoordStream TexCoords,
+		AttributeStream[] OtherAttributes);
+
+	private static PrimitiveGeometry? GetGeometry(JsonObject primObj, JsonObject root, byte[] binBytes)
 	{
 		var accessors = root["accessors"] as JsonArray;
 		var bufferViews = root["bufferViews"] as JsonArray;
@@ -262,7 +278,131 @@ public static unsafe class GlbLodGenerator
 		var posBv = GetValidBufferView(posAcc, bufferViews);
 		if (posBv == null) return null;
 
-		return ValidateAndCreatePositionData(posAcc, posBv, binBytes);
+		var positions = ValidateAndCreatePositionData(posAcc, posBv, binBytes);
+		if (positions == null) return null;
+
+		if (!TryGetTexCoordStream(primObj, accessors, bufferViews, positions.Value.posCount, binBytes, out TexCoordStream texCoords, out bool hasTexCoords)) return null;
+
+		var otherAttributes = CollectOtherAttributes(primObj, accessors, bufferViews, positions.Value.posCount, binBytes);
+		if (otherAttributes == null) return null;
+
+		return new PrimitiveGeometry(
+			positions.Value.posByteOffset,
+			positions.Value.posCount,
+			positions.Value.posStride,
+			hasTexCoords,
+			texCoords,
+			otherAttributes);
+	}
+
+	private static bool TryGetTexCoordStream(JsonObject primObj, JsonArray accessors, JsonArray bufferViews, int vertexCount, byte[] binBytes, out TexCoordStream texCoords, out bool hasTexCoords)
+	{
+		texCoords = default;
+		hasTexCoords = false;
+
+		int accessorIndex = GetAttributeIndex(primObj, "TEXCOORD_0");
+		if (accessorIndex < 0) return true;
+		if (accessorIndex >= accessors.Count) return false;
+		if (accessors[accessorIndex] is not JsonObject accessor) return false;
+		if (accessor.ContainsKey("sparse")) return false;
+		if ((accessor["type"]?.GetValue<string>() ?? string.Empty) != "VEC2") return false;
+
+		int componentType = accessor["componentType"]?.GetValue<int>() ?? 0;
+		if (componentType != 5121 && componentType != 5122 && componentType != 5123 && componentType != 5126) return false;
+
+		int accessorCount = accessor["count"]?.GetValue<int>() ?? 0;
+		if (accessorCount != vertexCount) return false;
+
+		if (GetValidBufferView(accessor, bufferViews) is not JsonObject bufferView) return false;
+
+		int byteOffset = (accessor["byteOffset"]?.GetValue<int>() ?? 0) + (bufferView["byteOffset"]?.GetValue<int>() ?? 0);
+		int byteStride = bufferView["byteStride"]?.GetValue<int>() ?? GetElementByteSize(accessor);
+		if (!IsValidAttributeStream(byteOffset, byteStride, vertexCount, binBytes.Length)) return false;
+
+		texCoords = new TexCoordStream(byteOffset, byteStride, componentType, accessor["normalized"]?.GetValue<bool>() ?? false);
+		hasTexCoords = true;
+		return true;
+	}
+
+	private static AttributeStream[]? CollectOtherAttributes(JsonObject primObj, JsonArray accessors, JsonArray bufferViews, int vertexCount, byte[] binBytes)
+	{
+		if (primObj["attributes"] is not JsonObject attributes) return null;
+
+		var streams = new List<AttributeStream>(attributes.Count);
+		foreach (var attribute in attributes)
+		{
+			if (attribute.Key is "POSITION" or "NORMAL" or "TANGENT" or "TEXCOORD_0") continue;
+
+			if (!TryCreateAttributeStream(accessors, bufferViews, attribute.Value, vertexCount, binBytes, out AttributeStream stream, out bool isConstant)) return null;
+			if (!isConstant) streams.Add(stream);
+		}
+
+		return streams.ToArray();
+	}
+
+	private static bool TryCreateAttributeStream(JsonArray accessors, JsonArray bufferViews, JsonNode? attributeValue, int vertexCount, byte[] binBytes, out AttributeStream stream, out bool isConstant)
+	{
+		stream = default;
+		isConstant = false;
+
+		int accessorIndex = attributeValue?.GetValue<int>() ?? -1;
+		if (accessorIndex < 0 || accessorIndex >= accessors.Count) return false;
+		if (accessors[accessorIndex] is not JsonObject accessor) return false;
+		if (accessor.ContainsKey("sparse")) return false;
+
+		if (!accessor.ContainsKey("bufferView"))
+		{
+			isConstant = true;
+			return true;
+		}
+
+		if ((accessor["count"]?.GetValue<int>() ?? 0) != vertexCount) return false;
+
+		if (GetValidBufferView(accessor, bufferViews) is not JsonObject bufferView) return false;
+
+		int elementSize = GetElementByteSize(accessor);
+		if (elementSize <= 0) return false;
+
+		int byteOffset = (accessor["byteOffset"]?.GetValue<int>() ?? 0) + (bufferView["byteOffset"]?.GetValue<int>() ?? 0);
+		int byteStride = bufferView["byteStride"]?.GetValue<int>() ?? elementSize;
+		if (!IsValidAttributeStream(byteOffset, byteStride, vertexCount, binBytes.Length)) return false;
+
+		stream = new AttributeStream(byteOffset, byteStride, elementSize);
+		return true;
+	}
+
+	private static int GetElementByteSize(JsonObject accessor)
+	{
+		int componentSize = (accessor["componentType"]?.GetValue<int>() ?? 0) switch
+		{
+			5120 or 5121 => 1,
+			5122 or 5123 => 2,
+			5125 or 5126 => 4,
+			_ => 0
+		};
+
+		int componentCount = (accessor["type"]?.GetValue<string>() ?? string.Empty) switch
+		{
+			"SCALAR" => 1,
+			"VEC2" => 2,
+			"VEC3" => 3,
+			"VEC4" => 4,
+			"MAT2" => 4,
+			"MAT3" => 9,
+			"MAT4" => 16,
+			_ => 0
+		};
+
+		return componentSize * componentCount;
+	}
+
+	private static bool IsValidAttributeStream(int byteOffset, int byteStride, int vertexCount, int binBytesLength)
+	{
+		if (byteOffset < 0) return false;
+		if (byteStride <= 0 || byteStride > 256) return false;
+
+		long endOffset = (long)byteOffset + ((long)vertexCount * byteStride);
+		return endOffset <= binBytesLength;
 	}
 
 	private static JsonObject? GetValidAccessor(JsonObject primObj, JsonArray accessors, string attributeKey, string expectedType, int expectedCompType)
@@ -421,23 +561,27 @@ public static unsafe class GlbLodGenerator
 		return false;
 	}
 
-	private static uint[]? SimplifyIndices(uint[] originalIndices, (int posByteOffset, int posCount, int posStride) posData, int targetIndexCount, int t, byte[] binBytes)
+	private static uint[]? SimplifyIndices(uint[] originalIndices, PrimitiveGeometry geometry, int targetIndexCount, int t, byte[] binBytes)
 	{
-		float[] weldedPositions = new float[posData.posCount * 3];
+		float[] weldedPositions = new float[geometry.PositionCount * 3];
+		float[] weldedTexCoords = new float[geometry.PositionCount * 2];
 		uint[] weldedIndices = new uint[originalIndices.Length];
-		uint[] representatives = new uint[posData.posCount];
-		int weldedVertexCount = BuildPositionWeldedMesh(weldedIndices, weldedPositions, representatives, originalIndices, posData, binBytes);
+		uint[] representatives = new uint[geometry.PositionCount];
+		int weldedVertexCount = BuildPositionTexCoordWeldedMesh(weldedIndices, weldedPositions, weldedTexCoords, representatives, originalIndices, geometry, binBytes);
 
 		uint[] simplifiedIndices = new uint[originalIndices.Length];
 		nuint simplifiedCount = 0;
 
 		fixed (uint* pWelded = weldedIndices)
 		fixed (float* pWeldedPositions = weldedPositions)
+		fixed (float* pWeldedTexCoords = weldedTexCoords)
 		fixed (uint* pRepresentatives = representatives)
 		fixed (uint* pDest = simplifiedIndices)
 		fixed (byte* pBin = binBytes)
 		{
-			simplifiedCount = DoSimplifyIndices(pWelded, pDest, pWeldedPositions, (nuint)weldedVertexCount, targetIndexCount, t, (nuint)originalIndices.Length);
+			float* pAttributeWeights = stackalloc float[2] { 1.0f, 1.0f };
+
+			simplifiedCount = DoSimplifyIndices(pWelded, pDest, pWeldedPositions, (nuint)weldedVertexCount, pWeldedTexCoords, pAttributeWeights, geometry.HasTexCoords, targetIndexCount, t, (nuint)originalIndices.Length);
 
 			if (simplifiedCount < 3 || (simplifiedCount % 3) != 0 || simplifiedCount >= (nuint)originalIndices.Length) return null;
 
@@ -446,9 +590,9 @@ public static unsafe class GlbLodGenerator
 				pDest[i] = pRepresentatives[pDest[i]];
 			}
 
-			float* pPos = (float*)(pBin + posData.posByteOffset);
-			MeshOptimizerNative.meshopt_optimizeVertexCache(pDest, pDest, simplifiedCount, (nuint)posData.posCount);
-			MeshOptimizerNative.meshopt_optimizeOverdraw(pDest, pDest, simplifiedCount, pPos, (nuint)posData.posCount, (nuint)posData.posStride, 1.05f);
+			float* pPositions = (float*)(pBin + geometry.PositionByteOffset);
+			MeshOptimizerNative.meshopt_optimizeVertexCache(pDest, pDest, simplifiedCount, (nuint)geometry.PositionCount);
+			MeshOptimizerNative.meshopt_optimizeOverdraw(pDest, pDest, simplifiedCount, pPositions, (nuint)geometry.PositionCount, (nuint)geometry.PositionByteStride, 1.05f);
 		}
 
 		uint[] finalIndices = new uint[(int)simplifiedCount];
@@ -456,52 +600,139 @@ public static unsafe class GlbLodGenerator
 		return finalIndices;
 	}
 
-	private static int BuildPositionWeldedMesh(uint[] weldedIndices, float[] weldedPositions, uint[] representatives, uint[] originalIndices, (int posByteOffset, int posCount, int posStride) posData, byte[] binBytes)
+	private static int BuildPositionTexCoordWeldedMesh(uint[] weldedIndices, float[] weldedPositions, float[] weldedTexCoords, uint[] representatives, uint[] originalIndices, PrimitiveGeometry geometry, byte[] binBytes)
 	{
-		var positionLookup = new Dictionary<(float X, float Y, float Z), int>(posData.posCount);
-		var positionRemap = new uint[posData.posCount];
+		var vertexLookup = new Dictionary<VertexWeldKey, int>(geometry.PositionCount);
+		var vertexRemap = new uint[geometry.PositionCount];
 		int weldedVertexCount = 0;
 
-		for (int i = 0; i < posData.posCount; i++)
+		for (int vertexIndex = 0; vertexIndex < geometry.PositionCount; vertexIndex++)
 		{
-			int sourceOffset = posData.posByteOffset + (i * posData.posStride);
-			float x = BinaryPrimitives.ReadSingleLittleEndian(binBytes.AsSpan(sourceOffset, 4));
-			float y = BinaryPrimitives.ReadSingleLittleEndian(binBytes.AsSpan(sourceOffset + 4, 4));
-			float z = BinaryPrimitives.ReadSingleLittleEndian(binBytes.AsSpan(sourceOffset + 8, 4));
+			float x = ReadSingle(binBytes, geometry.PositionByteOffset + (vertexIndex * geometry.PositionByteStride));
+			float y = ReadSingle(binBytes, geometry.PositionByteOffset + (vertexIndex * geometry.PositionByteStride) + 4);
+			float z = ReadSingle(binBytes, geometry.PositionByteOffset + (vertexIndex * geometry.PositionByteStride) + 8);
+			float u = 0f;
+			float v = 0f;
 
-			var position = (x, y, z);
-			if (!positionLookup.TryGetValue(position, out int weldedIndex))
+			if (geometry.HasTexCoords)
+			{
+				int texCoordOffset = geometry.TexCoords.ByteOffset + (vertexIndex * geometry.TexCoords.ByteStride);
+				int componentSize = GetComponentByteSize(geometry.TexCoords.ComponentType);
+				u = ReadTexCoordComponent(binBytes, texCoordOffset, geometry.TexCoords);
+				v = ReadTexCoordComponent(binBytes, texCoordOffset + componentSize, geometry.TexCoords);
+			}
+
+			var weldKey = new VertexWeldKey(
+				QuantizeWeldValue(x),
+				QuantizeWeldValue(y),
+				QuantizeWeldValue(z),
+				QuantizeWeldValue(u),
+				QuantizeWeldValue(v),
+				ComputeOtherAttributesHash(geometry.OtherAttributes, vertexIndex, binBytes));
+
+			if (!vertexLookup.TryGetValue(weldKey, out int weldedIndex))
 			{
 				weldedIndex = weldedVertexCount++;
-				positionLookup[position] = weldedIndex;
+				vertexLookup[weldKey] = weldedIndex;
 				weldedPositions[(weldedIndex * 3)] = x;
 				weldedPositions[(weldedIndex * 3) + 1] = y;
 				weldedPositions[(weldedIndex * 3) + 2] = z;
-				representatives[weldedIndex] = (uint)i;
+				weldedTexCoords[(weldedIndex * 2)] = u;
+				weldedTexCoords[(weldedIndex * 2) + 1] = v;
+				representatives[weldedIndex] = (uint)vertexIndex;
 			}
 
-			positionRemap[i] = (uint)weldedIndex;
+			vertexRemap[vertexIndex] = (uint)weldedIndex;
 		}
 
 		for (int i = 0; i < originalIndices.Length; i++)
 		{
-			weldedIndices[i] = positionRemap[originalIndices[i]];
+			weldedIndices[i] = vertexRemap[originalIndices[i]];
 		}
 
 		return weldedVertexCount;
 	}
 
-	private static nuint DoSimplifyIndices(uint* pOrig, uint* pDest, float* pPos, nuint vertexCount, int targetIndexCount, int t, nuint origLength)
+	private static int QuantizeWeldValue(float value)
 	{
-		float resultError = 0f;
-		nuint simplifiedCount = MeshOptimizerNative.meshopt_simplify(pDest, pOrig, origLength, pPos, vertexCount, 3 * sizeof(float), (nuint)targetIndexCount, 0.02f * t, 0, &resultError);
+		return (int)MathF.Round(value / WeldEpsilon);
+	}
 
-		if (simplifiedCount >= origLength || simplifiedCount < 3)
+	private static ulong ComputeOtherAttributesHash(AttributeStream[] streams, int vertexIndex, byte[] binBytes)
+	{
+		ulong hash = 14695981039346656037UL;
+
+		foreach (var stream in streams)
 		{
-			simplifiedCount = MeshOptimizerNative.meshopt_simplifySloppy(pDest, pOrig, origLength, pPos, vertexCount, 3 * sizeof(float), null, (nuint)targetIndexCount, 0.05f * t, &resultError);
+			int offset = stream.ByteOffset + (vertexIndex * stream.ByteStride);
+			for (int b = 0; b < stream.ElementSize; b++)
+			{
+				hash ^= binBytes[offset + b];
+				hash *= 1099511628211UL;
+			}
 		}
 
-		return simplifiedCount;
+		return hash;
+	}
+
+	private static float ReadSingle(byte[] binBytes, int offset)
+	{
+		return BinaryPrimitives.ReadSingleLittleEndian(binBytes.AsSpan(offset, 4));
+	}
+
+	private static float ReadTexCoordComponent(byte[] binBytes, int offset, TexCoordStream texCoords)
+	{
+		switch (texCoords.ComponentType)
+		{
+			case 5126:
+				return ReadSingle(binBytes, offset);
+			case 5123:
+				ushort unsignedShortValue = BinaryPrimitives.ReadUInt16LittleEndian(binBytes.AsSpan(offset, 2));
+				return texCoords.Normalized ? unsignedShortValue / 65535f : unsignedShortValue;
+			case 5122:
+				short shortValue = BinaryPrimitives.ReadInt16LittleEndian(binBytes.AsSpan(offset, 2));
+				return texCoords.Normalized ? MathF.Max(shortValue / 32767f, -1f) : shortValue;
+			default:
+				byte byteValue = binBytes[offset];
+				return texCoords.Normalized ? byteValue / 255f : byteValue;
+		}
+	}
+
+	private static int GetComponentByteSize(int componentType)
+	{
+		return componentType switch
+		{
+			5120 or 5121 => 1,
+			5122 or 5123 => 2,
+			_ => 4
+		};
+	}
+
+	private static nuint DoSimplifyIndices(uint* pWelded, uint* pDest, float* pWeldedPositions, nuint weldedVertexCount, float* pWeldedTexCoords, float* pAttributeWeights, bool hasTexCoords, int targetIndexCount, int t, nuint origLength)
+	{
+		float resultError = 0f;
+		float targetError = GetLodTargetError(t);
+
+		if (!hasTexCoords)
+		{
+			return MeshOptimizerNative.meshopt_simplify(pDest, pWelded, origLength, pWeldedPositions, weldedVertexCount, 3 * sizeof(float), (nuint)targetIndexCount, targetError, MeshOptimizerNative.SimplifyPrune, &resultError);
+		}
+
+		return MeshOptimizerNative.meshopt_simplifyWithAttributes(
+			pDest, pWelded, origLength,
+			pWeldedPositions, weldedVertexCount, 3 * sizeof(float),
+			pWeldedTexCoords, 2 * sizeof(float), pAttributeWeights, 2,
+			null, (nuint)targetIndexCount, targetError, MeshOptimizerNative.SimplifyPrune, &resultError);
+	}
+
+	private static float GetLodTargetError(int lodTier)
+	{
+		return lodTier switch
+		{
+			1 => 0.05f,
+			2 => 0.15f,
+			_ => 0.5f
+		};
 	}
 
 	private static void AppendSimplifiedPrimitive(JsonObject primObj, uint[] simplifiedIndices, JsonObject root, MemoryStream newBinStream, JsonArray newPrimitives)

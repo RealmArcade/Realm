@@ -7,6 +7,8 @@ public static unsafe class MeshOptimizerNative
 {
 	private const string LibraryName = "meshoptimizer";
 
+	public const uint SimplifyPrune = 1 << 3;
+
 	static MeshOptimizerNative()
 	{
 		NativeLibrary.SetDllImportResolver(typeof(MeshOptimizerNative).Assembly, ResolveDll);
