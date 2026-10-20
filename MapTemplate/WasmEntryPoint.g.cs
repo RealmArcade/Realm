@@ -5,8 +5,6 @@
 
 #nullable enable
 
-global using Random = GameClientWorld.WasmRandomProxy;
-
 namespace GameClientWorld;
 
 using System;
