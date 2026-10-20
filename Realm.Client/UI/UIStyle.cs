@@ -20,7 +20,6 @@ public static class UIStyle
 	public static readonly Color ColorCyanGlowDim = new Color(0.15f, 0.65f, 1.0f, 0.4f);
 
 	public static readonly Font FontNorseBold = GD.Load<Font>("res://Assets/UI/Norse-Bold.otf");
-	public static readonly Font FontCinzelBold = GD.Load<Font>("res://Assets/UI/Cinzel-Bold.ttf");
 	public static readonly Font FontAwesome = GD.Load<Font>("res://Assets/UI/fa-solid-900.ttf");
 
 	private static readonly Dictionary<string, Texture2D> _unicodeIconTextureCache = new();
@@ -53,16 +52,12 @@ public static class UIStyle
 
 	public static StyleBox CreateBgGradient()
 	{
-		return CreateBgTexture("res://Assets/UI/menu_background_with_frame.jpg");
+		return CreateBgTexture("res://Assets/UI/menu_background_with_frame.webp");
 	}
 
 	public static StyleBox CreateLobbyRoomBg()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_background.jpg");
-		if (tex == null)
-		{
-			tex = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_background.png");
-		}
+		var tex = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_background.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -77,7 +72,7 @@ public static class UIStyle
 		var tex = LoadTextureWithFallback("res://Assets/UI/GameStarting_Panel.webp");
 		if (tex == null)
 		{
-			tex = LoadTextureWithFallback("res://Assets/UI/GameStarting_Panel.jpg");
+			tex = LoadTextureWithFallback("res://Assets/UI/GameStarting_Panel.webp");
 		}
 		if (tex != null)
 		{
@@ -90,7 +85,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCustomMatchBg()
 	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_match_bg.jpg");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_match_bg.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -103,7 +98,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCreatorDiscoveryBg()
 	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/creator_discovery_bg.jpg");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/creator_discovery_bg.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -116,7 +111,7 @@ public static class UIStyle
 
 	public static StyleBox CreateGameOverBg()
 	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/GameOver_Background.jpg");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/GameOver_Background.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -658,7 +653,7 @@ public static class UIStyle
 	public static StyleBox CreateStonePanel(bool isLight = false)
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/stone_slate_panel.jpg");
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/stone_slate_panel.webp");
 
 		if (isLight)
 		{
@@ -727,7 +722,7 @@ public static class UIStyle
 		var texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
 		if (texture == null)
 		{
-			texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.jpg");
+			texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
 		}
 		if (texture != null)
 		{
@@ -1245,8 +1240,8 @@ public static class UIStyle
 
 	public static void ApplyCheckboxStyle(CheckBox cb)
 	{
-		var checkedTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/checked_box.jpg");
-		var uncheckedTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/unchecked_box.jpg");
+		var checkedTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/checked_box.webp");
+		var uncheckedTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/unchecked_box.webp");
 
 		cb.AddThemeIconOverride("checked", checkedTex);
 		cb.AddThemeIconOverride("unchecked", uncheckedTex);
@@ -1293,7 +1288,7 @@ public static class UIStyle
 	public static void ApplyTitle(Label label, string text, int fontSize = 36)
 	{
 		label.Text = TranslationServer.Translate(text);
-		var font = FontNorseBold ?? FontCinzelBold;
+		var font = FontNorseBold;
 		if (font != null)
 		{
 			label.AddThemeFontOverride("font", font);
@@ -1310,7 +1305,7 @@ public static class UIStyle
 	public static void ApplyButtonText(Button button, string text, int fontSize = 18)
 	{
 		button.Text = TranslationServer.Translate(text);
-		var font = FontNorseBold ?? FontCinzelBold;
+		var font = FontNorseBold;
 		if (font != null)
 		{
 			button.AddThemeFontOverride("font", font);

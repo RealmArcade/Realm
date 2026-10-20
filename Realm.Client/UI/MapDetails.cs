@@ -365,7 +365,7 @@ public partial class MapDetails : Control
 	private void ApplyBackgroundStyles()
 	{
 		Texture2D bgTexture = null;
-		string[] bgPaths = { "res://Assets/UI/map_details_bg.webp", "res://Assets/UI/map_details_bg.jpg", "res://Assets/UI/map_discovery_background.webp" };
+		string[] bgPaths = { "res://Assets/UI/map_details_bg.webp", "res://Assets/UI/map_discovery_background.webp" };
 
 		foreach (var path in bgPaths)
 		{
@@ -500,7 +500,7 @@ public partial class MapDetails : Control
 
 	private void ApplyMapFrame()
 	{
-		Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
+		Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp");
 
 		if (mapFrameTex == null)
 		{
@@ -552,14 +552,14 @@ public partial class MapDetails : Control
 
 	private void ApplyCarouselButtons()
 	{
-		Texture2D arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.webp") ?? LoadTextureSafe("res://Assets/UI/map_details_prev_next.jpg");
+		Texture2D arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.webp");
 
 		if (arrowTex != null)
 		{
 			ApplyImageCarouselButton(_btnLeftArrow, arrowTex, true);
 			ApplyImageCarouselButton(_btnRightArrow, arrowTex, false);
 
-			Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
+			Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp");
 			if (mapFrameTex != null)
 			{
 				_btnLeftArrow.Position = new Vector2(132, 155);
@@ -776,7 +776,7 @@ public partial class MapDetails : Control
 
 	private bool CheckForMapFrame()
 	{
-		return LoadTextureSafe("res://Assets/UI/map_details_map.webp") != null || LoadTextureSafe("res://Assets/UI/map_details_map.jpg") != null;
+		return LoadTextureSafe("res://Assets/UI/map_details_map.webp") != null;
 	}
 
 	private void UpdatePeekVisibilities(bool isVisible)
@@ -852,7 +852,7 @@ public partial class MapDetails : Control
 		iconRect.CustomMinimumSize = new Vector2(22, 22);
 		iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		iconRect.Texture = LoadTextureSafe(isActive ? "res://Assets/UI/checked_box.jpg" : "res://Assets/UI/unchecked_box.jpg");
+		iconRect.Texture = LoadTextureSafe(isActive ? "res://Assets/UI/checked_box.webp" : "res://Assets/UI/unchecked_box.webp");
 		hBox.AddChild(iconRect);
 
 		var label = new Label();

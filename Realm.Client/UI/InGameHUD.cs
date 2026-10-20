@@ -1365,7 +1365,7 @@ public partial class InGameHUD : Control
 			var texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
 			if (texture == null)
 			{
-				texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.jpg");
+				texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
 			}
 			_consoleBackground.Texture = texture;
 

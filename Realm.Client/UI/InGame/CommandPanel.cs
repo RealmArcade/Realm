@@ -881,7 +881,7 @@ public partial class CommandPanel
 		items.Add(new CommandCardItem
 		{
 			Id = "patrol",
-			IconPath = "res://Assets/UI/patrol.jpg",
+			IconPath = "res://Assets/UI/patrol.webp",
 			Tooltip = "[P] Patrol — Unit patrols between current position and target, engaging enemies",
 			Hotkey = Key.P,
 			Callback = () => GameHost.Instance?.EnterCommandTargeting("patrol")

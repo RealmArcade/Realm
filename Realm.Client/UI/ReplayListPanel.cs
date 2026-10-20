@@ -92,7 +92,7 @@ public partial class ReplayListPanel : Control
 		var bgTexture = GetNodeOrNull<TextureRect>("BackgroundTexture");
 		if (bgTexture != null)
 		{
-			bgTexture.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/replays_bg.jpg");
+			bgTexture.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/replays_bg.webp");
 			bgTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTexture.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
 		}

@@ -680,7 +680,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 		if (_skyboxFiles.Count == 0)
 		{
-			_skyboxFiles.Add("skybox_panoramic.jpg");
+			_skyboxFiles.Add("skybox_panoramic.rtex");
 			_optSkybox.AddItem(TranslationServer.Translate("Default Panoramic"));
 		}
 	}

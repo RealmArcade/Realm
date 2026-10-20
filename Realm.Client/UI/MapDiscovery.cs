@@ -169,8 +169,8 @@ public partial class MapDiscovery : Control
 		string[] bgPaths = new string[]
 		{
 			"res://Assets/UI/procedural_bg.webp",
-			"res://Assets/UI/map_discovery_bg_rpg_grey2.jpg",
-			"res://Assets/UI/map_discovery_bg_fortress2.jpg"
+			"res://Assets/UI/map_discovery_bg_rpg_grey2.webp",
+			"res://Assets/UI/map_discovery_bg_fortress2.webp"
 		};
 
 		foreach (var path in bgPaths)

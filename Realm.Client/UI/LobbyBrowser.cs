@@ -149,26 +149,9 @@ public partial class LobbyBrowser : Control
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
 	}
 
-	private static Texture2D LoadFirstAvailableTexture(params string[] paths)
-	{
-		foreach (var path in paths)
-		{
-			if (!ResourceLoader.Exists(path)) continue;
-			var tex = TrimmedTextureLoader.LoadTrimmedTexture(path);
-			if (tex != null) return tex;
-		}
-
-		return null;
-	}
-
 	private void ApplyBackgroundStyle()
 	{
-		Texture2D bgTexture = LoadFirstAvailableTexture(
-			"res://Assets/UI/custom_lobby_bg.webp",
-			"res://Assets/UI/custom_lobby_bg.jpg",
-			"res://Assets/UI/procedural_bg.webp",
-			"res://Assets/UI/lobby_bg_forest.webp"
-		);
+		Texture2D bgTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_bg.webp");
 
 		if (bgTexture != null)
 		{
@@ -184,12 +167,7 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyFilterPanelStyle()
 	{
-		Texture2D filterPanelTex = LoadFirstAvailableTexture(
-			"res://Assets/UI/custom_lobby_panel_filter.webp",
-			"res://Assets/UI/custom_panel_filter.png",
-			"res://Assets/UI/procedural_filter_panel.webp",
-			"res://Assets/UI/lobby_filter_panel.webp"
-		);
+		Texture2D filterPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_filter.webp");
 
 		if (filterPanelTex != null)
 		{
@@ -216,11 +194,7 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyMainPanelStyle()
 	{
-		Texture2D mainPanelTex = LoadFirstAvailableTexture(
-			"res://Assets/UI/custom_lobby_panel_main.webp",
-			"res://Assets/UI/procedural_main_panel.webp",
-			"res://Assets/UI/lobby_central_panel.webp"
-		);
+		Texture2D mainPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_main.webp");
 
 		if (mainPanelTex != null)
 		{

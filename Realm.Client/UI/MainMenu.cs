@@ -151,7 +151,7 @@ public partial class MainMenu : Control
 
 		if (_storageButton != null)
 		{
-			SetupMenuButton(_storageButton, "STORAGE", () => UIManager.Instance.TransitionTo(GameScreen.Storage), "res://Assets/UI/menu_storage_button.jpg");
+			SetupMenuButton(_storageButton, "STORAGE", () => UIManager.Instance.TransitionTo(GameScreen.Storage), "res://Assets/UI/menu_storage_button.webp");
 			_storageButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 

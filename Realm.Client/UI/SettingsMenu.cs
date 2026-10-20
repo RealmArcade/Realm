@@ -174,8 +174,7 @@ public partial class SettingsMenu : Control
 		string[] bgPaths = new string[]
 		{
 			"res://Assets/UI/options_bg.webp",
-			"res://Assets/UI/options_bg.jpg",
-			"res://Assets/UI/menu_background_with_frame.jpg"
+			"res://Assets/UI/menu_background_with_frame.webp"
 		};
 
 		foreach (var path in bgPaths)
