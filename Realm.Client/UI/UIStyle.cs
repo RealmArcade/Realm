@@ -1334,6 +1334,44 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		label.VerticalAlignment = VerticalAlignment.Center;
 	}
 
+		public static (HBoxContainer row, ColorPickerButton btn) CreateColorPickerRow(string labelText, Color initialColor, Action<Color> onColorChanged)
+		{
+			var row = new HBoxContainer();
+			row.Name = "RowTint_HBoxContainer";
+			row.AddThemeConstantOverride("separation", 8);
+
+			var lbl = new Label();
+			lbl.Name = "LblTint_Label";
+			lbl.Text = TranslationServer.Translate(labelText);
+			lbl.CustomMinimumSize = new Vector2(140, 0);
+			lbl.AddThemeFontSizeOverride("font_size", 11);
+			row.AddChild(lbl);
+
+			var btn = new ColorPickerButton();
+			btn.CustomMinimumSize = new Vector2(90, 24);
+			btn.Color = initialColor;
+			btn.ColorChanged += (newCol) => onColorChanged?.Invoke(newCol);
+			row.AddChild(btn);
+
+			return (row, btn);
+		}
+
+		public static Button CreateCloseButton()
+		{
+			var closeBtn = new Button();
+			closeBtn.Name = "CloseBtn_Button";
+			closeBtn.Flat = false;
+			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
+			closeBtn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+			closeBtn.AddThemeStyleboxOverride("hover", CreateButtonHover());
+			closeBtn.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+			closeBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			ApplyButtonText(closeBtn, Godot.TranslationServer.Translate("CLOSE"), 14);
+			closeBtn.CustomMinimumSize = new Vector2(130, 36);
+			closeBtn.Visible = false;
+			return closeBtn;
+		}
+
 	public static void ApplyButtonText(Button button, string text, int fontSize = 18)
 	{
 		button.Text = TranslationServer.Translate(text);

@@ -677,16 +677,10 @@ namespace Realm.Client.Utils
 			return (0f, 0f);
 		}
 
-		private static Node TryGenerateNodeFromRmesh(string resolvedPath)
+		public static Node TryGenerateNodeFromRmeshOrGlbBytes(byte[] rmeshBytes)
 		{
-			if (string.IsNullOrEmpty(resolvedPath) || !resolvedPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !File.Exists(resolvedPath))
-			{
-				return null;
-			}
-
 			var doc = new GltfDocument();
 			var state = new GltfState();
-			byte[] rmeshBytes = File.ReadAllBytes(resolvedPath);
 			byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
 
 			Error err = doc.AppendFromBuffer(glbBytes, "", state);
@@ -698,12 +692,23 @@ namespace Realm.Client.Utils
 				}
 				catch (Exception ex)
 				{
-					GD.PrintErr($"[ModelCache] GenerateScene failed for '{resolvedPath}': {ex.Message}");
+					GD.PrintErr($"[ModelCache] GenerateScene failed: {ex.Message}");
 					return null;
 				}
 			}
 
 			return null;
+		}
+
+		private static Node TryGenerateNodeFromRmesh(string resolvedPath)
+		{
+			if (string.IsNullOrEmpty(resolvedPath) || !resolvedPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !File.Exists(resolvedPath))
+			{
+				return null;
+			}
+
+			byte[] rmeshBytes = File.ReadAllBytes(resolvedPath);
+			return TryGenerateNodeFromRmeshOrGlbBytes(rmeshBytes);
 		}
 
 		public static void Clear()

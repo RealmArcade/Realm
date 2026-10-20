@@ -121,7 +121,7 @@ public partial class MapDiscovery : Control
 					.GroupBy(m => string.IsNullOrWhiteSpace(m.Title) ? m.MapId : m.Title.Trim(), StringComparer.OrdinalIgnoreCase)
 					.Select(group =>
 					{
-						var versions = group.OrderByDescending(v => ParseVersion(v.Version)).ToList();
+						var versions = group.OrderByDescending(v => MapInfoHelper.ParseVersion(v.Version)).ToList();
 						var primary = versions[0];
 						primary.AvailableVersions = versions;
 						foreach (var v in versions)
@@ -625,28 +625,5 @@ public partial class MapDiscovery : Control
 	private static Texture2D LoadTextureSafe(string resPath)
 	{
 		return TrimmedTextureLoader.LoadTrimmedTexture(resPath);
-	}
-
-	private static Version ParseVersion(string versionStr)
-	{
-		if (string.IsNullOrWhiteSpace(versionStr)) return new Version(1, 0, 0);
-		string cleaned = versionStr.TrimStart('v', 'V').Trim();
-		if (Version.TryParse(cleaned, out var v))
-		{
-			return v;
-		}
-
-		var parts = cleaned.Split('.');
-		if (parts.Length == 1 && int.TryParse(parts[0], out int major))
-		{
-			return new Version(major, 0, 0);
-		}
-
-		if (parts.Length == 2 && int.TryParse(parts[0], out int maj) && int.TryParse(parts[1], out int min))
-		{
-			return new Version(maj, min, 0);
-		}
-
-		return new Version(0, 0, 0);
 	}
 }

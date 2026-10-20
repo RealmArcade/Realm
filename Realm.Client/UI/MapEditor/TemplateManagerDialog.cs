@@ -2306,16 +2306,10 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (loaded is Node3D n) return n;
 		if (loaded != null) loaded.QueueFree();
 
-		var gltfDoc = new GltfDocument();
-		var gltfState = new GltfState();
 		byte[] rmeshBytes = File.ReadAllBytes(modelPath);
-		byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
-		if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
-		{
-			var node = gltfDoc.GenerateScene(gltfState);
+			var node = ModelCache.TryGenerateNodeFromRmeshOrGlbBytes(rmeshBytes);
 			if (node is Node3D n3d) return n3d;
 			if (node != null) node.QueueFree();
-		}
 
 		return null;
 	}

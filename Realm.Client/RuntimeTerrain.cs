@@ -428,6 +428,36 @@ public partial class RuntimeTerrain : Node3D
 	protected TerrainCell[,] _localCells;
 	protected int[,] _localPathingCodes;
 
+		private void UpdateTerrainState(TerrainCell[,] newCells, int[,] newPathingCodes)
+		{
+			if (GameHost.Instance != null &&
+			    GameContext.World != null &&
+			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+			{
+				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+				
+				int targetWidth = state.Width;
+				int targetDepth = state.Depth;
+				
+				if (newCells != null)
+				{
+					targetWidth = newCells.GetLength(0);
+					targetDepth = newCells.GetLength(1);
+				}
+				else if (newPathingCodes != null)
+				{
+					targetWidth = newPathingCodes.GetLength(0);
+					targetDepth = newPathingCodes.GetLength(1);
+				}
+
+				GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+					targetWidth, targetDepth, state.QuadSize, state.CellSize,
+					newCells ?? state.Cells, newPathingCodes ?? state.PathingCodes, state.NavMesh, state.NavMeshQuery
+				));
+			}
+		}
+
 	public TerrainCell[,] Cells
 	{
 		get
@@ -456,19 +486,7 @@ public partial class RuntimeTerrain : Node3D
 		set
 		{
 			_localCells = value;
-			if (GameHost.Instance != null &&
-			    GameContext.World != null &&
-			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
-			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-				int targetWidth = value != null ? value.GetLength(0) : state.Width;
-				int targetDepth = value != null ? value.GetLength(1) : state.Depth;
-				GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
-					targetWidth, targetDepth, state.QuadSize, state.CellSize,
-					value, state.PathingCodes, state.NavMesh, state.NavMeshQuery
-				));
-			}
+				UpdateTerrainState(value, null);
 		}
 	}
 
@@ -554,19 +572,7 @@ public partial class RuntimeTerrain : Node3D
 		set
 		{
 			_localPathingCodes = value;
-			if (GameHost.Instance != null &&
-			    GameContext.World != null &&
-			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
-			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-				int targetWidth = value != null ? value.GetLength(0) : state.Width;
-				int targetDepth = value != null ? value.GetLength(1) : state.Depth;
-				GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
-					targetWidth, targetDepth, state.QuadSize, state.CellSize,
-					state.Cells, value, state.NavMesh, state.NavMeshQuery
-				));
-			}
+				UpdateTerrainState(null, value);
 		}
 	}
 
@@ -1355,7 +1361,7 @@ public partial class RuntimeTerrain : Node3D
 		UpdateEcsTerrainSwatchConfig(targetIndex, heightScale, heightOffset, crevicePower, normalScale);
 	}
 
-	private void UpdateLiveSwatchOverrides(string cleanName, string tileMode, float uvScale, float stochasticTileSize, float crossFade, float? brightness, string? tintStr, float heightScale, float heightOffset, float crevicePower, float normalScale, float roughnessScale)
+		private (float tm, float uv, float stoch, float cf, float hs, float ho, float cp, float ns) ClampSwatchParams(string tileMode, float uvScale, float stochasticTileSize, float crossFade, float heightScale, float heightOffset, float crevicePower, float normalScale)
 	{
 		float tm = string.Equals(tileMode, "Grid", StringComparison.OrdinalIgnoreCase) ? 0.0f : 1.0f;
 		float uv = Math.Clamp(uvScale, 0.1f, 4.0f);
@@ -1366,22 +1372,28 @@ public partial class RuntimeTerrain : Node3D
 		float ho = Math.Clamp(heightOffset, -1.0f, 1.0f);
 		float cp = Math.Clamp(crevicePower, 0.5f, 4.0f);
 		float ns = Math.Clamp(normalScale, 0.0f, 3.0f);
+			return (tm, uv, stoch, cf, hs, ho, cp, ns);
+		}
+
+		private void UpdateLiveSwatchOverrides(string cleanName, string tileMode, float uvScale, float stochasticTileSize, float crossFade, float? brightness, string? tintStr, float heightScale, float heightOffset, float crevicePower, float normalScale, float roughnessScale)
+		{
+			var clamped = ClampSwatchParams(tileMode, uvScale, stochasticTileSize, crossFade, heightScale, heightOffset, crevicePower, normalScale);
 		float rs = Math.Clamp(roughnessScale, 0.1f, 3.0f);
 
 		Color? parsedTint = (!string.IsNullOrEmpty(tintStr) && Color.HtmlIsValid(tintStr)) ? Color.FromHtml(tintStr) : null;
 
 		_liveSwatchOverrides[cleanName] = new SwatchLiveConfig
 		{
-			TileMode = tm,
-			UvScale = uv,
-			StochasticTileSize = stoch,
-			CrossFade = cf,
+				TileMode = clamped.tm,
+				UvScale = clamped.uv,
+				StochasticTileSize = clamped.stoch,
+				CrossFade = clamped.cf,
 			Brightness = brightness,
 			Tint = parsedTint,
-			HeightScale = hs,
-			HeightOffset = ho,
-			CrevicePower = cp,
-			NormalScale = ns,
+				HeightScale = clamped.hs,
+				HeightOffset = clamped.ho,
+				CrevicePower = clamped.cp,
+				NormalScale = clamped.ns,
 			RoughnessScale = rs
 		};
 	}

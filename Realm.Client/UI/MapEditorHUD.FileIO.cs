@@ -1501,17 +1501,7 @@ namespace Realm.Client.UI
 			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
 			vbox.AddChild(buttonRow);
 
-			var closeBtn = new Button();
-			closeBtn.Name = "CloseBtn_Button";
-			closeBtn.Flat = false;
-			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
-			closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			closeBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			closeBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			closeBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			UIStyle.ApplyButtonText(closeBtn, TranslationServer.Translate("CLOSE"), 14);
-			closeBtn.CustomMinimumSize = new Vector2(130, 36);
-			closeBtn.Visible = false;
+			var closeBtn = UIStyle.CreateCloseButton();
 			buttonRow.AddChild(closeBtn);
 
 			closeBtn.Pressed += () =>

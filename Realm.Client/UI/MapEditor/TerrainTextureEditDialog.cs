@@ -180,25 +180,12 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			140f
 		);
 
-		var rowTint = new HBoxContainer();
-		rowTint.Name = "RowTint_HBoxContainer";
-		rowTint.AddThemeConstantOverride("separation", 8);
-		var lblTint = new Label();
-		lblTint.Name = "LblTint_Label";
-		lblTint.Text = TranslationServer.Translate("Tint Color:");
-		lblTint.CustomMinimumSize = new Vector2(140, 0);
-		lblTint.AddThemeFontSizeOverride("font_size", 11);
-		rowTint.AddChild(lblTint);
-
-		_btnTint = new ColorPickerButton();
-		_btnTint.CustomMinimumSize = new Vector2(90, 24);
-		_btnTint.Color = _tint;
-		_btnTint.ColorChanged += (newCol) =>
+			HBoxContainer rowTint;
+			(rowTint, _btnTint) = UIStyle.CreateColorPickerRow("Tint Color:", _tint, (newCol) =>
 		{
 			_tint = newCol;
 			ApplyLiveTerrainUpdate();
-		};
-		rowTint.AddChild(_btnTint);
+			});
 		contentVBox.AddChild(rowTint);
 
 		(_sldRoughnessScale, _lblRoughnessScale) = AddSlider(

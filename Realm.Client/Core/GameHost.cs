@@ -46,6 +46,21 @@ public partial class GameHost : Node3D, IGameAPI
 	public static GameHost Instance { get; set; }
 	public int LocalPlayerIndex => GameContext.PerspectiveFilter.ControlledPlayerIndex;
 
+		public (int minX, int minZ, int maxX, int maxZ) GetClampedCoordinateBounds(EditorCoordinate coord)
+		{
+			if (GroundTerrain == null) return (0, 0, 0, 0);
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+			float quadSize = GroundTerrain.QuadSize;
+
+			int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
+			int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
+			int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
+			int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
+
+			return (minX, minZ, maxX, maxZ);
+		}
+
 	private float _fDelta { get; set; }
 	private WorldEnvironment? _cachedWorldEnvironment;
 
