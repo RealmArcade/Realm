@@ -2363,10 +2363,20 @@ public partial class GameHost
 			return;
 		}
 
-		if (!GameContext.PerspectiveFilter.CanControl(clickedUnit.Player))
+		var filter = GameContext.PerspectiveFilter;
+
+		if (filter.IsSpectating)
 		{
 			ClearSelection();
 			SelectUnit(clickedUnit);
+			return;
+		}
+
+		if (!filter.CanControl(clickedUnit.Player))
+		{
+			ClearSelection();
+			if (filter.IsHostileToObserved(clickedUnit.Player))
+				SelectUnit(clickedUnit);
 			return;
 		}
 
@@ -2383,7 +2393,7 @@ public partial class GameHost
 		}
 
 		bool shiftPressed = Input.IsKeyPressed(Key.Shift);
-		bool selectingEnemy = SelectedUnits.Count > 0 && !GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player);
+		bool selectingEnemy = SelectedUnits.Count > 0 && !filter.CanControl(SelectedUnits[0].Player);
 
 		if (selectingEnemy || !shiftPressed)
 		{
@@ -2428,12 +2438,9 @@ public partial class GameHost
 		{
 			SelectUnits(friendlyUnits);
 		}
-		else if (enemyUnits.Count > 0)
-		{
-			SelectUnits(enemyUnits);
-		}
 		else
 		{
+			ClearSelection();
 			SelectResourcePropInRect(camera, dragRect);
 		}
 
@@ -2460,6 +2467,8 @@ public partial class GameHost
 
 	private void CollectUnitsInRect(Camera3D camera, Rect2 dragRect, List<Unit3D> friendlyUnits, List<Unit3D> enemyUnits)
 	{
+		var filter = GameContext.PerspectiveFilter;
+
 		foreach (var unit in AllUnits)
 		{
 			if (!IsValidVisibleUnit(unit)) continue;
@@ -2467,10 +2476,20 @@ public partial class GameHost
 			var screenPos = camera.UnprojectPosition(unit.GlobalPosition);
 			if (!dragRect.HasPoint(screenPos)) continue;
 
-			if (!GameContext.PerspectiveFilter.CanControl(unit.Player))
+			if (filter.IsSpectating)
+			{
+				if (filter.CanObserve(unit.Player)) friendlyUnits.Add(unit);
+				continue;
+			}
+
+			if (filter.CanControl(unit.Player))
+			{
+				if (IsSelectableByLocalPlayer(unit)) friendlyUnits.Add(unit);
+				continue;
+			}
+
+			if (filter.IsHostileToObserved(unit.Player))
 				enemyUnits.Add(unit);
-			else if (IsSelectableByLocalPlayer(unit))
-				friendlyUnits.Add(unit);
 		}
 	}
 
@@ -2482,8 +2501,8 @@ public partial class GameHost
 	private bool IsSelectableByLocalPlayer(Unit3D unit)
 	{
 		if (unit == null) return false;
-		if (!_multiplayerActive) return true;
-		return unit.Player == LocalPlayerIndex;
+		var filter = GameContext.PerspectiveFilter;
+		return filter.IsConfigured && filter.CanControl(unit.Player);
 	}
 
 	private void SelectUnits(List<Unit3D> units)

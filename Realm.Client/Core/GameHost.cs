@@ -67,11 +67,6 @@ public partial class GameHost : Node3D, IGameAPI
 	private void ConfigurePerspective()
 	{
 		var filter = GameContext.PerspectiveFilter;
-		if (GameContext.SessionState.IsMapEditorMode)
-		{
-			filter.ConfigureParticipant(1);
-			return;
-		}
 
 		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
 		{
@@ -90,8 +85,15 @@ public partial class GameHost : Node3D, IGameAPI
 		var entry = _multiplayerActive
 			? lobbyPlayers.Find(x => x.PeerId == peerId)
 			: lobbyPlayers.Find(x => x.PeerId >= 0 && x.Team != SpectatorTeamName);
+
 		if (entry == null)
-			throw new InvalidOperationException($"Local peer {peerId} is not present in the lobby player list.");
+		{
+			if (_multiplayerActive)
+				throw new InvalidOperationException($"Local peer {peerId} is not present in the lobby player list.");
+
+			filter.ConfigureParticipant(1);
+			return;
+		}
 
 		if (entry.Team == SpectatorTeamName) filter.ConfigureSpectator();
 		else filter.ConfigureParticipant(entry.Slot);
