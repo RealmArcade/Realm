@@ -1064,17 +1064,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 			return AnimationRetargetingService.GetOrLoadRanimData(filePath);
 		}
 
-		return animName switch
-		{
-			"Idle" => RealmDefaultAnimations.Idle,
-			"Walk" => RealmDefaultAnimations.Walk,
-			"Attack" => RealmDefaultAnimations.Attack,
-			"Death" => RealmDefaultAnimations.Death,
-			"Labor" => RealmDefaultAnimations.Labor,
-			"Spell_Cast" => RealmDefaultAnimations.Spell_Cast,
-			"Dance" => RealmDefaultAnimations.Dance,
-			_ => null
-		};
+		return AnimationRetargetingService.GetFallbackAnimationData(animName, _currentUnitId);
 	}
 
 	public void PlayAnimationFile(string animFileName)

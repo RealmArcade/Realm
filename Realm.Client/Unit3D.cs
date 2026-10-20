@@ -17,6 +17,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
+using Realm.Shared.Animation;
 
 namespace Realm.Client;
 
@@ -2056,19 +2057,14 @@ public partial class Unit3D : Node3D
 		return false;
 	}
 
+	private RealmAnimationData? GetFallbackAnimationData(RealmAnimationType animType)
+	{
+		return AnimationRetargetingService.GetFallbackAnimationData(animType, UnitId);
+	}
+
 	private RealmAnimationData? GetFallbackAnimationData(string animName)
 	{
-		return animName switch
-		{
-			"Idle" => AnimationRetargetingService.GetIdleAnimationData(UnitId),
-			"Walk" => RealmDefaultAnimations.Walk,
-			"Attack" => RealmDefaultAnimations.Attack,
-			"Death" => RealmDefaultAnimations.Death,
-			"Labor" => RealmDefaultAnimations.Labor,
-			"Spell_Cast" => RealmDefaultAnimations.Spell_Cast,
-			"Dance" => RealmDefaultAnimations.Dance,
-			_ => null
-		};
+		return AnimationRetargetingService.GetFallbackAnimationData(animName, UnitId);
 	}
 
 

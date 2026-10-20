@@ -6,6 +6,7 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Ecs.Services;
+using Realm.Shared.Animation;
 using GAnimation = Godot.Animation;
 
 namespace Realm.Client.Animation;
@@ -579,7 +580,16 @@ public static class AnimationRetargetingService
 		player.AddAnimationLibrary(string.Empty, newLib);
 
 		var customAnimations = GetCustomAnimations(unitId);
-		string[] standardAnimations = new[] { "Idle", "Walk", "Attack", "Death", "Labor", "Spell_Cast", "Dance" };
+		var standardAnimations = new[]
+		{
+			RealmAnimationType.Idle,
+			RealmAnimationType.Walk,
+			RealmAnimationType.Attack,
+			RealmAnimationType.Death,
+			RealmAnimationType.Labor,
+			RealmAnimationType.Spell_Cast,
+			RealmAnimationType.Dance
+		};
 
 		foreach (var animType in standardAnimations)
 		{
@@ -604,9 +614,61 @@ public static class AnimationRetargetingService
 		return null;
 	}
 
-	private static void ProcessUnitAnimation(string animType, Dictionary<string, List<UnitAnimationEntry>>? customAnimations, string unitId, Node modelRoot)
+	public static bool TryParseAnimationType(string? name, out RealmAnimationType type)
 	{
-		if (customAnimations != null && customAnimations.TryGetValue(animType, out var animFiles) && animFiles != null && animFiles.Count > 0)
+		type = RealmAnimationType.Unknown;
+		if (string.IsNullOrWhiteSpace(name)) return false;
+
+		if (Enum.TryParse<RealmAnimationType>(name, true, out type) && type != RealmAnimationType.Unknown)
+		{
+			return true;
+		}
+
+		string cleaned = name.Replace("_", string.Empty).ToLowerInvariant();
+		switch (cleaned)
+		{
+			case "idle": type = RealmAnimationType.Idle; return true;
+			case "walk": type = RealmAnimationType.Walk; return true;
+			case "attack": type = RealmAnimationType.Attack; return true;
+			case "death": type = RealmAnimationType.Death; return true;
+			case "labor": type = RealmAnimationType.Labor; return true;
+			case "spellcast": type = RealmAnimationType.Spell_Cast; return true;
+			case "dance": type = RealmAnimationType.Dance; return true;
+			default:
+				type = RealmAnimationType.Unknown;
+				return false;
+		}
+	}
+
+	public static RealmAnimationData? GetFallbackAnimationData(RealmAnimationType animType, string? unitId = null)
+	{
+		return animType switch
+		{
+			RealmAnimationType.Idle => GetIdleAnimationData(unitId),
+			RealmAnimationType.Walk => RealmDefaultAnimations.Walk,
+			RealmAnimationType.Attack => RealmDefaultAnimations.Attack,
+			RealmAnimationType.Death => RealmDefaultAnimations.Death,
+			RealmAnimationType.Labor => RealmDefaultAnimations.Labor,
+			RealmAnimationType.Spell_Cast => RealmDefaultAnimations.Spell_Cast,
+			RealmAnimationType.Dance => RealmDefaultAnimations.Dance,
+			_ => null
+		};
+	}
+
+	public static RealmAnimationData? GetFallbackAnimationData(string animName, string? unitId = null)
+	{
+		if (TryParseAnimationType(animName, out var animType))
+		{
+			return GetFallbackAnimationData(animType, unitId);
+		}
+
+		return null;
+	}
+
+	private static void ProcessUnitAnimation(RealmAnimationType animType, Dictionary<string, List<UnitAnimationEntry>>? customAnimations, string unitId, Node modelRoot)
+	{
+		string animName = animType.ToString();
+		if (customAnimations != null && customAnimations.TryGetValue(animName, out var animFiles) && animFiles != null && animFiles.Count > 0)
 		{
 			BindCustomAnimations(animFiles, animType, unitId, modelRoot);
 		}
@@ -616,12 +678,13 @@ public static class AnimationRetargetingService
 		}
 	}
 
-	private static void BindCustomAnimations(List<UnitAnimationEntry> animFiles, string animType, string unitId, Node modelRoot)
+	private static void BindCustomAnimations(List<UnitAnimationEntry> animFiles, RealmAnimationType animType, string unitId, Node modelRoot)
 	{
+		string animName = animType.ToString();
 		for (int i = 0; i < animFiles.Count; i++)
 		{
 			string animFile = animFiles[i].Animation;
-			string variantName = $"{animType}_{i}";
+			string variantName = $"{animName}_{i}";
 			string filePath = ResolveAnimationFilePath(animFile, unitId);
 
 			if (string.IsNullOrEmpty(filePath)) continue;
@@ -632,22 +695,23 @@ public static class AnimationRetargetingService
 				RetargetAndBind(animData, modelRoot, variantName, out _);
 				if (i == 0)
 				{
-					RetargetAndBind(animData, modelRoot, animType, out _);
+					RetargetAndBind(animData, modelRoot, animName, out _);
 				}
 			}
 		}
 	}
 
-	private static void BindStandardAnimation(string animType, string unitId, Node modelRoot)
+	private static void BindStandardAnimation(RealmAnimationType animType, string unitId, Node modelRoot)
 	{
-		string filePath = ResolveAnimationFilePath(animType, unitId);
+		string animName = animType.ToString();
+		string filePath = ResolveAnimationFilePath(animName, unitId);
 		if (!string.IsNullOrEmpty(filePath))
 		{
 			var animData = GetOrLoadRanimData(filePath);
 			if (animData != null)
 			{
-				RetargetAndBind(animData, modelRoot, animType, out _);
-				RetargetAndBind(animData, modelRoot, $"{animType}_0", out _);
+				RetargetAndBind(animData, modelRoot, animName, out _);
+				RetargetAndBind(animData, modelRoot, $"{animName}_0", out _);
 				return;
 			}
 		}
@@ -655,24 +719,23 @@ public static class AnimationRetargetingService
 		BindFallbackAnimation(animType, modelRoot, unitId);
 	}
 
-	private static void BindFallbackAnimation(string animType, Node modelRoot, string unitId)
+	public static void BindFallbackAnimation(RealmAnimationType animType, Node modelRoot, string? unitId = null)
 	{
-		RealmAnimationData? fallbackAnim = animType switch
-		{
-			"Idle" => GetIdleAnimationData(unitId),
-			"Walk" => RealmDefaultAnimations.Walk,
-			"Attack" => RealmDefaultAnimations.Attack,
-			"Death" => RealmDefaultAnimations.Death,
-			"Labor" => RealmDefaultAnimations.Labor,
-			"Spell_Cast" => RealmDefaultAnimations.Spell_Cast,
-			"Dance" => RealmDefaultAnimations.Dance,
-			_ => null
-		};
+		RealmAnimationData? fallbackAnim = GetFallbackAnimationData(animType, unitId);
 
 		if (fallbackAnim != null)
 		{
-			RetargetAndBind(fallbackAnim, modelRoot, animType, out _);
-			RetargetAndBind(fallbackAnim, modelRoot, $"{animType}_0", out _);
+			string animName = animType.ToString();
+			RetargetAndBind(fallbackAnim, modelRoot, animName, out _);
+			RetargetAndBind(fallbackAnim, modelRoot, $"{animName}_0", out _);
+		}
+	}
+
+	public static void BindFallbackAnimation(string animType, Node modelRoot, string? unitId = null)
+	{
+		if (TryParseAnimationType(animType, out var type))
+		{
+			BindFallbackAnimation(type, modelRoot, unitId);
 		}
 	}
 
