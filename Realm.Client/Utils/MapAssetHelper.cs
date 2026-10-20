@@ -33,7 +33,7 @@ public static class MapAssetHelper
 	};
 
 	private static readonly string[] IgnoredPrefixes = { "bin/", "obj/", ".git/", ".vscode/", ".godot/", ".sidecarcache/", ".backups/" };
-	private static readonly string[] IgnoredExtensions = { ".tmp", ".rmap", ".7z", ".zip", ".rar", ".tar", ".gz", ".bak", ".backup", ".rkey" };
+	private static readonly string[] IgnoredExtensions = { ".tmp", ".rmap", ".7z", ".zip", ".rar", ".tar", ".gz", ".bak", ".backup", ".rkey", ".elf", ".jit.elf" };
 
 	public static MapManifestAssets LoadAssets(string mapDirectory)
 	{
