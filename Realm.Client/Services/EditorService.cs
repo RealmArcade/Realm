@@ -941,6 +941,13 @@ public partial class EditorService : IEditorAPI
 	public Dictionary<string, DecalAssetData> DecalAssetCache { get; set; } = new();
 	public Dictionary<(int, int), ImageTexture> DecalOrmCache { get; set; } = new();
 	public Dictionary<string, ImageTexture> DecalNormalCache { get; set; } = new();
+
+	public void ClearDecalCaches()
+	{
+		DecalOrmCache.Clear();
+		DecalNormalCache.Clear();
+		DecalAssetCache.Clear();
+	}
 	public List<EditorCoordinate> EditorCoordinates { get; set; } = new();
 	public int PendingCoordinateMinX { get; set; }
 	public int PendingCoordinateMinZ { get; set; }

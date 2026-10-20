@@ -437,4 +437,12 @@ public partial class MinimapOverlay : Control
 		_pingTexture = ImageTexture.CreateFromImage(image);
 		return _pingTexture;
 	}
+
+	public static void ClearCache()
+	{
+		_unitCircleTexture = null;
+		_selectionRingTexture = null;
+		_radarTexture = null;
+		_pingTexture = null;
+	}
 }

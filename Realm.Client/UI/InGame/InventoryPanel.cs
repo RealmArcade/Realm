@@ -282,4 +282,13 @@ public class InventoryPanel
 			_lastItemSlots[i] = default;
 		}
 	}
+
+	public static void ClearCache()
+	{
+		s_blackTileStyle = null;
+		s_buttonNormal = null;
+		s_buttonHover = null;
+		s_buttonPressed = null;
+		s_buttonFocus = null;
+	}
 }

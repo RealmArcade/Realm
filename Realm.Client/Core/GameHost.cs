@@ -1237,6 +1237,12 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 		_staticTextLabels.Clear();
 		_nextStaticTextHandle = 1;
+		SharedShadowGradient = null;
+	}
+
+	public static void ClearCache()
+	{
+		SharedShadowGradient = null;
 	}
 
 	public void PanCameraInternal(Vector3 position, float duration)

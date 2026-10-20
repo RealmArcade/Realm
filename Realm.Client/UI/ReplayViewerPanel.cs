@@ -341,4 +341,9 @@ public partial class ReplayViewerPanel : PanelContainer
 			UpdateSpeedButtonHighlights();
 		}
 	}
+
+	public static void ClearCache()
+	{
+		_activeSpeedStyle = null;
+	}
 }

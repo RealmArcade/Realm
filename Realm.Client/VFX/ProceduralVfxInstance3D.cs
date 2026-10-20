@@ -458,6 +458,13 @@ public partial class ProceduralVfxInstance3D : Node3D
 		return _sharedHoverMaterial;
 	}
 
+	public static void ClearCache()
+	{
+		_sharedSelectionMaterial = null;
+		_sharedHoverMaterial = null;
+		_sharedEditorBaseMaterial = null;
+	}
+
 	private static TorusMesh CreateTorusMesh(float radius)
 	{
 		float outer = Mathf.Max(0.5f, radius);

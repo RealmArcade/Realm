@@ -74,6 +74,8 @@ public partial class VisualProjectile3D : Node3D
 		_textureCache.Clear();
 	}
 
+	public static void ClearCache() => ClearSharedShaderCache();
+
 	private WeaponMetadata _weapon;
 	private Vector3 _startPosition;
 	private Vector3 _targetPosition;

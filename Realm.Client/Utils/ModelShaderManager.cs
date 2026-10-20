@@ -1040,6 +1040,8 @@ public static class ModelShaderManager
 		_materialCache.Clear();
 		_normalizedAlbedoCache.Clear();
 		_playerMaskCheckCache.Clear();
+		_sharedShader = null;
+		_currentShroudTexture = null;
 		_hasAppliedShroudParams = false;
 	}
 }

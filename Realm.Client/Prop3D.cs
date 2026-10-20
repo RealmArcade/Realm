@@ -606,7 +606,11 @@ public partial class Prop3D : Node3D
 	{
 		_resolvedModelPathCache.Clear();
 		_sharedTorusMeshes.Clear();
+		_sharedSelectionMaterial = null;
+		_sharedHoverMaterial = null;
 	}
+
+	public static void ClearCache() => ClearModelPathCache();
 
 	private string ResolvePropModelPathInternal(string propId)
 	{

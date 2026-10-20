@@ -2170,6 +2170,15 @@ public partial class RuntimeTerrain : Node3D
 		return _clearShroudTexture;
 	}
 
+	public static void ClearCache()
+	{
+		_cachedAlbedoTextureArray = null;
+		_cachedNormalRoughnessTextureArray = null;
+		_cachedMapDir = null;
+		_clearShroudTexture = null;
+		_liveSwatchOverrides.Clear();
+	}
+
 	public void BeginMinimapCapture()
 	{
 		var clearTex = GetClearShroudTexture();

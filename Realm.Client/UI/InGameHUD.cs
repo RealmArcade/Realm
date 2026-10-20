@@ -1214,19 +1214,6 @@ public partial class InGameHUD : Control
 		SetupItemIcon(itemShield, "res://Assets/UI/battle_shield.png", "Battle Shield\n+3 Armor Block (Equipped)");
 		itemsHBox.AddChild(itemShield);
 
-
-		var potHotkeyLabel = new Label();
-		potHotkeyLabel.Name = "HotkeyLabel";
-		potHotkeyLabel.Text = TranslationServer.Translate("I");
-		potHotkeyLabel.AddThemeFontSizeOverride("font_size", 10);
-		potHotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		potHotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-		potHotkeyLabel.AddThemeConstantOverride("outline_size", 4);
-		potHotkeyLabel.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-		potHotkeyLabel.OffsetLeft = 4;
-		potHotkeyLabel.OffsetTop = 3;
-		potHotkeyLabel.MouseFilter = MouseFilterEnum.Ignore;
-
 		_productionBox = new VBoxContainer();
 		_productionBox.Name = "ProductionBox_VBoxContainer";
 		_productionBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;

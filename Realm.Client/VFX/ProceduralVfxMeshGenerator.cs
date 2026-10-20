@@ -32,6 +32,8 @@ public class ProceduralVfxMeshGenerator
 		}
 	}
 
+	public static void ClearCache() => ClearMeshCache();
+
 	private static readonly Dictionary<VfxPrimitiveType, Func<ArrayMesh>> PrimitiveBuilders = new()
 	{
 		{ VfxPrimitiveType.VortexDisc, BuildVortexDiscMesh },

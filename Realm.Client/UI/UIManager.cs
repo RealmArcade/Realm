@@ -125,6 +125,12 @@ public partial class UIManager : Control
 			LocalizationManager.FlushPendingWrites();
 		}
 
+		if (what == unchecked((int)Node.NotificationWMCloseRequest) ||
+		    what == (int)Node.NotificationPredelete)
+		{
+			ClientCacheCleaner.ClearAllCaches();
+		}
+
 		if (what == unchecked((int)Node.NotificationWMCloseRequest))
 		{
 			if (MapEditorHUD.Instance != null && GodotObject.IsInstanceValid(MapEditorHUD.Instance) && MapEditorHUD.Instance.IsInsideTree())

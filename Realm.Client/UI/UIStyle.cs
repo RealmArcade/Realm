@@ -1661,4 +1661,10 @@ public static class UIStyle
 	{
 		return x >= size / 2 - 1 && x <= size / 2 + 1 && y >= 5 && y <= size - 6;
 	}
+
+	public static void ClearCache()
+	{
+		_unicodeIconTextureCache.Clear();
+		_emptyBlackTexture = null;
+	}
 }

@@ -1399,4 +1399,9 @@ public partial class CommandPanel
 
 		btn.Pressed += () => onClick?.Invoke();
 	}
+
+	public static void ClearCache()
+	{
+		s_whiteTexture = null;
+	}
 }

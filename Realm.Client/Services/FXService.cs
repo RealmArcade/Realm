@@ -23,6 +23,14 @@ public class FXService
 	private readonly Stack<MeshInstance3D> _healOrbPool = new();
 
 	private static TorusMesh? _sharedTargetIndicatorMesh;
+
+	public static void ClearCache()
+	{
+		_sharedHealSphereMesh = null;
+		_sharedHealOrbMaterial = null;
+		_sharedTargetIndicatorMesh = null;
+	}
+
 	private readonly Stack<(MeshInstance3D Mesh, StandardMaterial3D Material)> _targetIndicatorPool = new();
 	private int _activeTargetIndicatorsCount = 0;
 	private const int MaxActiveTargetIndicators = 24;

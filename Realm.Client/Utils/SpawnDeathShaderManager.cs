@@ -40,6 +40,7 @@ public static class SpawnDeathShaderManager
 
 	public static void ClearCache()
 	{
+		_shader = null;
 		_cachedWorkspaceShaders.Clear();
 	}
 

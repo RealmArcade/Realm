@@ -617,6 +617,13 @@ public partial class Unit3D : Node3D
 		return _sharedHoverMaterial;
 	}
 
+	public static void ClearCache()
+	{
+		_sharedTorusMeshes.Clear();
+		_sharedSelectionMaterial = null;
+		_sharedHoverMaterial = null;
+	}
+
 	private void UpdateSelectionRingTransform()
 	{
 		if (_selectionRing == null && _hoverRing == null) return;
