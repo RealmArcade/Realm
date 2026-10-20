@@ -290,10 +290,8 @@ public static class MapJsonFormatter
 		return result.TrimEnd() + "\n";
 	}
 
-	public static void SaveFormattedJson(string filePath, string jsonText)
+	private static void WriteFormattedJson(string filePath, string formatted, string lineEnding)
 	{
-		string formatted = FormatJson(jsonText);
-		string lineEnding = DetectLineEnding(filePath, jsonText);
 		if (lineEnding == "\r\n")
 		{
 			formatted = formatted.Replace("\r\n", "\n").Replace("\n", "\r\n");
@@ -314,27 +312,17 @@ public static class MapJsonFormatter
 		File.WriteAllText(filePath, formatted);
 	}
 
+	public static void SaveFormattedJson(string filePath, string jsonText)
+	{
+		string formatted = FormatJson(jsonText);
+		string lineEnding = DetectLineEnding(filePath, jsonText);
+		WriteFormattedJson(filePath, formatted, lineEnding);
+	}
+
 	public static void SaveFormattedJson(string filePath, JsonNode node)
 	{
 		string formatted = FormatNode(node);
 		string lineEnding = DetectLineEnding(filePath);
-		if (lineEnding == "\r\n")
-		{
-			formatted = formatted.Replace("\r\n", "\n").Replace("\n", "\r\n");
-		}
-
-		string directory = Path.GetDirectoryName(filePath);
-		if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-		{
-			Directory.CreateDirectory(directory);
-		}
-
-		if (File.Exists(filePath) && File.ReadAllText(filePath) == formatted)
-		{
-			return;
-		}
-
-		EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
-		File.WriteAllText(filePath, formatted);
+		WriteFormattedJson(filePath, formatted, lineEnding);
 	}
 }

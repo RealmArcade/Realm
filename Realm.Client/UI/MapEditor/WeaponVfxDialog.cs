@@ -292,22 +292,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		// SECTION 0: IDENTITY
 		AddSectionHeader(scrollBody, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
 
-		var rowId = new HBoxContainer();
-		rowId.Name = "RowId_HBoxContainer";
-		rowId.AddThemeConstantOverride("separation", 6);
-		var lblId = new Label();
-		lblId.Name = "LblId_Label";
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(140, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		rowId.AddChild(lblId);
-
-		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
-		_lblObjectTypePrefix.Text = "weapon/";
-		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
-		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		rowId.AddChild(_lblObjectTypePrefix);
+		var rowId = BuildIdentityRow(scrollBody, "weapon/", out _lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
 		_txtSlug.Name = "TxtSlug_LineEdit";
@@ -322,7 +307,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			_currentWeapon.TemplateID = _weaponId;
 		};
 		rowId.AddChild(_txtSlug);
-		scrollBody.AddChild(rowId);
+		
 
 		_txtName = AddTextInput(
 			scrollBody,

@@ -288,25 +288,7 @@ public static class UIStyle
 
 	public static StyleBox CreateMapEditorManualPanel()
 	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_manual.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-			style.TextureMarginLeft = 140;
-			style.TextureMarginRight = 140;
-			style.TextureMarginTop = 140;
-			style.TextureMarginBottom = 140;
-			style.ContentMarginLeft = 45;
-			style.ContentMarginRight = 45;
-			style.ContentMarginTop = 45;
-			style.ContentMarginBottom = 45;
-			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
-			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
-			return style;
-		}
-
-		return CreateStonePanel(true);
+		return CreateTexturedPanel("res://Assets/UI/map_editor_manual.webp", 140, true);
 	}
 
 	public static StyleBox CreateConfirmationPanel()
@@ -398,17 +380,17 @@ public static class UIStyle
 		return CreateStonePanel(true);
 	}
 
-	public static StyleBox CreateRandomGeneratorPanel()
+		private static StyleBox CreateTexturedPanel(string texturePath, float margin, bool useTrimmedLoader = false)
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_random_generator.webp");
+		Texture2D? tex = useTrimmedLoader ? TrimmedTextureLoader.LoadTrimmedTexture(texturePath) : LoadTextureWithFallback(texturePath);
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
 			style.Texture = tex;
-			style.TextureMarginLeft = 80;
-			style.TextureMarginRight = 80;
-			style.TextureMarginTop = 80;
-			style.TextureMarginBottom = 80;
+			style.TextureMarginLeft = margin;
+			style.TextureMarginRight = margin;
+			style.TextureMarginTop = margin;
+			style.TextureMarginBottom = margin;
 			style.ContentMarginLeft = 45;
 			style.ContentMarginRight = 45;
 			style.ContentMarginTop = 45;
@@ -418,116 +400,36 @@ public static class UIStyle
 			return style;
 		}
 		return CreateStonePanel(true);
+	}
+
+	public static StyleBox CreateRandomGeneratorPanel()
+	{
+		return CreateTexturedPanel("res://Assets/UI/map_editor_random_generator.webp", 80);
 	}
 
 	public static StyleBox CreateUsabilitySettingsPanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_usability_settings.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-			style.TextureMarginLeft = 80;
-			style.TextureMarginRight = 80;
-			style.TextureMarginTop = 80;
-			style.TextureMarginBottom = 80;
-			style.ContentMarginLeft = 45;
-			style.ContentMarginRight = 45;
-			style.ContentMarginTop = 45;
-			style.ContentMarginBottom = 45;
-			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
-			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
-			return style;
-		}
-		return CreateStonePanel(true);
+		return CreateTexturedPanel("res://Assets/UI/map_editor_usability_settings.webp", 80);
 	}
 
 	public static StyleBox CreateRegisterProfilePanel()
 	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_register_profile.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-			style.TextureMarginLeft = 80;
-			style.TextureMarginRight = 80;
-			style.TextureMarginTop = 80;
-			style.TextureMarginBottom = 80;
-			style.ContentMarginLeft = 45;
-			style.ContentMarginRight = 45;
-			style.ContentMarginTop = 45;
-			style.ContentMarginBottom = 45;
-			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
-			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
-			return style;
-		}
-		return CreateStonePanel(true);
+		return CreateTexturedPanel("res://Assets/UI/map_editor_register_profile.webp", 80, true);
 	}
 
 	public static StyleBox CreatePlacedObjectsPanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_placed_objects.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-			style.TextureMarginLeft = 80;
-			style.TextureMarginRight = 80;
-			style.TextureMarginTop = 80;
-			style.TextureMarginBottom = 80;
-			style.ContentMarginLeft = 45;
-			style.ContentMarginRight = 45;
-			style.ContentMarginTop = 45;
-			style.ContentMarginBottom = 45;
-			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
-			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
-			return style;
-		}
-		return CreateStonePanel(true);
+		return CreateTexturedPanel("res://Assets/UI/map_editor_placed_objects.webp", 80);
 	}
 
 	public static StyleBox CreateAuthorSignaturePanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_author_signature.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-			style.TextureMarginLeft = 80;
-			style.TextureMarginRight = 80;
-			style.TextureMarginTop = 80;
-			style.TextureMarginBottom = 80;
-			style.ContentMarginLeft = 45;
-			style.ContentMarginRight = 45;
-			style.ContentMarginTop = 45;
-			style.ContentMarginBottom = 45;
-			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
-			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
-			return style;
-		}
-		return CreateStonePanel(true);
+		return CreateTexturedPanel("res://Assets/UI/map_editor_author_signature.webp", 80);
 	}
 
 	public static StyleBox CreatePublishMapInstructionsPanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_publish.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-			style.TextureMarginLeft = 140;
-			style.TextureMarginRight = 140;
-			style.TextureMarginTop = 140;
-			style.TextureMarginBottom = 140;
-			style.ContentMarginLeft = 45;
-			style.ContentMarginRight = 45;
-			style.ContentMarginTop = 45;
-			style.ContentMarginBottom = 45;
-			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
-			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
-			return style;
-		}
-		return CreateStonePanel(true);
+		return CreateTexturedPanel("res://Assets/UI/map_editor_publish.webp", 140);
 	}
 
 	public static Texture2D LoadTextureWithFallback(string path)

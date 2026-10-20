@@ -163,15 +163,6 @@ public class InputService
 		return GameContext.TechTreeService.BuyHarvestingUpgrade(playerEntity);
 	}
 
-	private void RemoveIfHas<T>(Entity entity) where T : unmanaged
-	{
-		if (GameContext.World.Has<T>(entity))
-		{
-			GameContext.World.Remove<T>(entity);
-		}
-	}
-
-
 	public void AssignResumeTasksToWorkers(IEnumerable<Entity> selectedWorkerEntities, Entity targetBuildingEntity, string targetBuildingUnitId, Vector3 bPos, bool shiftHeld)
 	{
 		foreach (var workerEntity in selectedWorkerEntities)
@@ -188,7 +179,7 @@ public class InputService
 			}
 			else
 			{
-				ClearUnitOrders(workerEntity);
+				GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(workerEntity);
 
 				if (GameContext.World.Has<ConstructionState>(targetBuildingEntity))
 				{
@@ -202,22 +193,6 @@ public class InputService
 				}
 			}
 		}
-	}
-
-	public void ClearUnitOrders(Entity entity)
-	{
-		RemoveIfHas<MoveTo>(entity);
-		RemoveIfHas<PathFollow>(entity);
-		RemoveIfHas<AttackTarget>(entity);
-		RemoveIfHas<AttackMove>(entity);
-		RemoveIfHas<HoldPosition>(entity);
-		RemoveIfHas<Follow>(entity);
-		RemoveIfHas<Patrol>(entity);
-		RemoveIfHas<HealingTarget>(entity);
-		RemoveIfHas<WaypointQueue>(entity);
-		RemoveIfHas<Gatherer>(entity);
-		RemoveIfHas<BuildTask>(entity);
-		RemoveIfHas<BuildQueue>(entity);
 	}
 
 	public bool IsUnitActive(Entity entity)
@@ -316,7 +291,7 @@ public class InputService
 		}
 		else
 		{
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 			var moveTo = new MoveTo(scattered);
 			GameContext.World.Add(entity, moveTo);
 		}
@@ -334,7 +309,7 @@ public class InputService
 		{
 			if (!IsControllableUnit(entity)) continue;
 
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 
 			if (GameContext.World.Has<Movable>(entity))
 			{
@@ -395,7 +370,7 @@ public class InputService
 			{
 				if (!isQueued)
 				{
-					ClearUnitOrders(entity);
+					GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 				}
 
 				var attackTarget = new AttackTarget(targetEntity);
@@ -414,7 +389,7 @@ public class InputService
 
 		if (!isQueued)
 		{
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 		}
 
 		if (GameContext.World.Has<Movable>(entity))
@@ -446,7 +421,7 @@ public class InputService
 
 		if (!isQueued)
 		{
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 		}
 
 		if (GameContext.World.Has<Movable>(entity))
@@ -500,7 +475,7 @@ public class InputService
 			{
 				if (!isQueued)
 				{
-					ClearUnitOrders(entity);
+					GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 				}
 
 				var attackMove = new AttackMove(targetPos);
@@ -520,7 +495,7 @@ public class InputService
 			bool isBuilding = GameContext.World.Has<Building>(entity);
 			if (isBuilding) continue;
 
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 
 			if (!GameContext.World.Has<HoldPosition>(entity))
 				GameContext.World.Add<HoldPosition>(entity);
@@ -533,7 +508,7 @@ public class InputService
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
 
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 		}
 	}
 

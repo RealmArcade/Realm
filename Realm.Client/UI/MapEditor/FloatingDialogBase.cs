@@ -631,6 +631,29 @@ public partial class FloatingDialogBase : PanelContainer
 		return (slider, valLbl);
 	}
 
+	public HBoxContainer BuildIdentityRow(Control parent, string prefixText, out Label prefixLabel)
+	{
+		var rowId = new HBoxContainer();
+		rowId.Name = "RowId_HBoxContainer";
+		rowId.AddThemeConstantOverride("separation", 6);
+		var lblId = new Label();
+		lblId.Name = "LblId_Label";
+		lblId.Text = TranslationServer.Translate("TemplateID:");
+		lblId.CustomMinimumSize = new Vector2(140, 0);
+		lblId.AddThemeFontSizeOverride("font_size", 11);
+		rowId.AddChild(lblId);
+
+		prefixLabel = new Label();
+		prefixLabel.Name = "LblObjectTypePrefix_Label";
+		prefixLabel.Text = prefixText;
+		prefixLabel.AddThemeFontSizeOverride("font_size", 11);
+		prefixLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		rowId.AddChild(prefixLabel);
+
+		parent.AddChild(rowId);
+		return rowId;
+	}
+
 	public (ColorPickerButton Picker, HSlider HueSlider) AddColorPicker(
 		VBoxContainer parent,
 		string labelText,

@@ -119,23 +119,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private void BuildIdRow(VBoxContainer contentVBox)
 	{
-		_idRow = new HBoxContainer();
-		_idRow.Name = "IdRow_HBoxContainer";
-		_idRow.AddThemeConstantOverride("separation", 6);
-
-		var lblId = new Label();
-		lblId.Name = "LblId_Label";
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(140, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		_idRow.AddChild(lblId);
-
-		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
-		_lblObjectTypePrefix.Text = "unit/";
-		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
-		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_idRow.AddChild(_lblObjectTypePrefix);
+		_idRow = BuildIdentityRow(contentVBox, "unit/", out _lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
 		_txtSlug.Name = "TxtSlug_LineEdit";
@@ -149,7 +133,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			ValidateSlug();
 		};
 		_idRow.AddChild(_txtSlug);
-		contentVBox.AddChild(_idRow);
+		
 
 		_lblSlugValidation = new Label();
 		_lblSlugValidation.Name = "LblSlugValidation_Label";

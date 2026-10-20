@@ -1250,16 +1250,8 @@ public partial class Unit3D : Node3D
 		}
 	}
 
-	private void ApplySocketAttachmentInstance(Node3D model, string attachmentId, Node3D attachTarget, Node3D parentNode, string? parentAttachmentId, HumanoidBone bone, float defScale, Vector3 defPos, Vector3 defRot, Vector3? posOffsetOverride, Vector3? rotOffsetOverride, float? scaleOverride, Vector3? scaleVectorOverride, float? normalOffsetOverride)
+	private void ApplyEffectiveTransformAndMetadata(Node3D model, string attachmentId, Node3D targetParent, Vector3 effectivePos, Vector3 effectiveRot, Vector3 effectiveScaleVec, float effectiveNormalOffset)
 	{
-		float effectiveScale = scaleOverride ?? defScale;
-		Vector3 effectivePos = posOffsetOverride ?? defPos;
-		Vector3 effectiveRot = rotOffsetOverride ?? defRot;
-		Vector3 effectiveScaleVec = scaleVectorOverride ?? (Vector3.One * (effectiveScale <= 0f ? 1.0f : effectiveScale));
-		float effectiveNormalOffset = normalOffsetOverride ?? 0.0f;
-
-		ApplyUnitAttachmentOverrides(bone, attachmentId, ref effectivePos, ref effectiveRot, ref effectiveScaleVec, ref effectiveNormalOffset, scaleOverride.HasValue, scaleVectorOverride.HasValue, posOffsetOverride.HasValue, rotOffsetOverride.HasValue, normalOffsetOverride.HasValue);
-
 		if (effectiveNormalOffset != 0.0f) effectivePos += Vector3.Up * effectiveNormalOffset;
 
 		model.Position = effectivePos;
@@ -1271,10 +1263,23 @@ public partial class Unit3D : Node3D
 		model.SetMeta("AttachmentId", attachmentId);
 		model.SetMeta("CleanAttachmentId", cleanAttId);
 
-		Node3D targetParent = ResolveSocketTargetParent(attachTarget, parentNode, parentAttachmentId);
 		targetParent.AddChild(model);
 
 		ApplyModelShaders(model);
+	}
+
+	private void ApplySocketAttachmentInstance(Node3D model, string attachmentId, Node3D attachTarget, Node3D parentNode, string? parentAttachmentId, HumanoidBone bone, float defScale, Vector3 defPos, Vector3 defRot, Vector3? posOffsetOverride, Vector3? rotOffsetOverride, float? scaleOverride, Vector3? scaleVectorOverride, float? normalOffsetOverride)
+	{
+		float effectiveScale = scaleOverride ?? defScale;
+		Vector3 effectivePos = posOffsetOverride ?? defPos;
+		Vector3 effectiveRot = rotOffsetOverride ?? defRot;
+		Vector3 effectiveScaleVec = scaleVectorOverride ?? (Vector3.One * (effectiveScale <= 0f ? 1.0f : effectiveScale));
+		float effectiveNormalOffset = normalOffsetOverride ?? 0.0f;
+
+		ApplyUnitAttachmentOverrides(bone, attachmentId, ref effectivePos, ref effectiveRot, ref effectiveScaleVec, ref effectiveNormalOffset, scaleOverride.HasValue, scaleVectorOverride.HasValue, posOffsetOverride.HasValue, rotOffsetOverride.HasValue, normalOffsetOverride.HasValue);
+
+		Node3D targetParent = ResolveSocketTargetParent(attachTarget, parentNode, parentAttachmentId);
+		ApplyEffectiveTransformAndMetadata(model, attachmentId, targetParent, effectivePos, effectiveRot, effectiveScaleVec, effectiveNormalOffset);
 	}
 
 	private void ApplyUnitAttachmentOverrides(HumanoidBone bone, string attachmentId, ref Vector3 effectivePos, ref Vector3 effectiveRot, ref Vector3 effectiveScaleVec, ref float effectiveNormalOffset, bool hasScaleOverride, bool hasScaleVecOverride, bool hasPosOverride, bool hasRotOverride, bool hasNormalOverride)
@@ -1683,21 +1688,8 @@ public partial class Unit3D : Node3D
 
 		ApplyPseudoSocketUnitOverrides(normSocket, attachmentId, ref effectivePos, ref effectiveRot, ref effectiveScaleVec, ref effectiveNormalOffset, scaleOverride.HasValue, scaleVectorOverride.HasValue, posOffsetOverride.HasValue, rotOffsetOverride.HasValue, normalOffsetOverride.HasValue);
 
-		if (effectiveNormalOffset != 0.0f) effectivePos += Vector3.Up * effectiveNormalOffset;
-
-		model.Position = effectivePos;
-		model.RotationDegrees = effectiveRot;
-		model.Scale = effectiveScaleVec;
-
-		string cleanAttId = GetCleanAttachmentId(attachmentId);
-		model.Name = $"Att_{cleanAttId}";
-		model.SetMeta("AttachmentId", attachmentId);
-		model.SetMeta("CleanAttachmentId", cleanAttId);
-
 		Node3D targetParent = ResolvePseudoSocketTargetParent(socketNode, visual, parentAttachmentId);
-		targetParent.AddChild(model);
-
-		ApplyModelShaders(model);
+		ApplyEffectiveTransformAndMetadata(model, attachmentId, targetParent, effectivePos, effectiveRot, effectiveScaleVec, effectiveNormalOffset);
 	}
 
 	private void ApplyPseudoSocketUnitOverrides(string normSocket, string attachmentId, ref Vector3 effectivePos, ref Vector3 effectiveRot, ref Vector3 effectiveScaleVec, ref float effectiveNormalOffset, bool hasScaleOverride, bool hasScaleVecOverride, bool hasPosOverride, bool hasRotOverride, bool hasNormalOverride)

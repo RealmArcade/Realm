@@ -410,13 +410,15 @@ public class ResourceEconomyService
 		return 0f;
 	}
 
-	public void SetPlayerWood(int playerIndex, float amount)
+	private void UpdatePlayerResourceECS(int playerIndex, float amount, bool isWood)
 	{
-		float clamped = Math.Max(0f, amount);
 		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
 		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
 		{
-			playersState.Players[playerIndex].Wood = clamped;
+			if (isWood)
+				playersState.Players[playerIndex].Wood = amount;
+			else
+				playersState.Players[playerIndex].Stone = amount;
 			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
 		}
 
@@ -426,9 +428,15 @@ public class ResourceEconomyService
 			if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
 			{
 				ref var res = ref GameContext.World.Get<PlayerResources>(pe);
-				res[ECSContext.PlayerResourceService.WoodResourceId] = (int)clamped;
+				res[isWood ? ECSContext.PlayerResourceService.WoodResourceId : ECSContext.PlayerResourceService.StoneResourceId] = (int)amount;
 			}
 		}
+	}
+
+	public void SetPlayerWood(int playerIndex, float amount)
+	{
+		float clamped = Math.Max(0f, amount);
+		UpdatePlayerResourceECS(playerIndex, clamped, true);
 	}
 
 	public void AdjustPlayerWood(int playerIndex, float delta)
@@ -451,22 +459,7 @@ public class ResourceEconomyService
 	{
 		float clamped = Math.Max(0f, amount);
 		_playerStoneState[playerIndex] = clamped;
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
-		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
-		{
-			playersState.Players[playerIndex].Stone = clamped;
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
-		}
-
-		if (GameHost.Instance != null)
-		{
-			var pe = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
-			if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
-			{
-				ref var res = ref GameContext.World.Get<PlayerResources>(pe);
-				res[ECSContext.PlayerResourceService.StoneResourceId] = (int)clamped;
-			}
-		}
+		UpdatePlayerResourceECS(playerIndex, clamped, false);
 	}
 
 	public void AdjustPlayerStone(int playerIndex, float delta)
