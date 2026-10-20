@@ -279,7 +279,7 @@ public class UxSceneTests
 			if (extension == ".svg")
 			{
 				skippedCount++;
-				imageReportLines.Add($"{fileName}\tsource={record.SourceWidth}x{record.SourceHeight}\tskipped=svg-not-decodable");
+				imageReportLines.Add($"{fileName}\tsource={record.SourceWidth}x{record.SourceHeight}\tskipped=svg-vector-source");
 				continue;
 			}
 

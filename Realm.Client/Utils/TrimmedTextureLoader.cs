@@ -90,7 +90,7 @@ public static class TrimmedTextureLoader
 		{
 			if (FileAccess.FileExists(resourcePath) || System.IO.File.Exists(resourcePath))
 			{
-				Image image = Image.LoadFromFile(resourcePath);
+				Image image = DecodeImageFile(resourcePath);
 				if (image != null && !image.IsEmpty())
 				{
 					int sourceWidth = image.GetWidth();
@@ -126,6 +126,42 @@ public static class TrimmedTextureLoader
 			GD.PrintErr($"[TrimmedTextureLoader] Failed to load '{resourcePath}': {exception.Message}");
 			return null;
 		}
+	}
+
+	private static Image DecodeImageFile(string resourcePath)
+	{
+		byte[] fileBytes = FileAccess.GetFileAsBytes(resourcePath);
+		if (fileBytes == null || fileBytes.Length == 0)
+		{
+			return null;
+		}
+
+		string extension = System.IO.Path.GetExtension(resourcePath).ToLowerInvariant();
+		if (extension != ".webp" && extension != ".png" && extension != ".jpg" && extension != ".jpeg" && extension != ".bmp" && extension != ".tga" && extension != ".svg")
+		{
+			return Image.LoadFromFile(resourcePath);
+		}
+
+		var image = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+		Error decodeError = extension switch
+		{
+			".webp" => image.LoadWebpFromBuffer(fileBytes),
+			".png" => image.LoadPngFromBuffer(fileBytes),
+			".jpg" => image.LoadJpgFromBuffer(fileBytes),
+			".jpeg" => image.LoadJpgFromBuffer(fileBytes),
+			".bmp" => image.LoadBmpFromBuffer(fileBytes),
+			".svg" => image.LoadSvgFromBuffer(fileBytes, 1.0f),
+			_ => image.LoadTgaFromBuffer(fileBytes)
+		};
+
+		if (decodeError != Error.Ok)
+		{
+			GD.PrintErr($"[TrimmedTextureLoader] Failed to decode '{resourcePath}': {decodeError}");
+			image.Dispose();
+			return null;
+		}
+
+		return image;
 	}
 
 	private static Image DownscaleImage(Image image, int maxDimension)

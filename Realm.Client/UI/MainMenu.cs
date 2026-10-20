@@ -155,7 +155,7 @@ public partial class MainMenu : Control
 			_storageButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
-		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.webp", () => UIManager.Instance.OpenSettingsOverlay(), new Vector2(22, 22), true);
+		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.webp", () => UIManager.Instance.OpenSettingsOverlay(), new Vector2(22, 22));
 		SetupAvatarButton(_profileButton, () => ShowProfilePopup());
 		SetupButton(_quitButton, "QUIT GAME", () => GetTree().Quit());
 
@@ -683,7 +683,7 @@ public partial class MainMenu : Control
 		};
 	}
 
-	private void SetupIconButton(Button button, string text, string iconPath, Action onClick, Vector2? iconSize = null, bool rotateOnHover = false)
+	private void SetupIconButton(Button button, string text, string iconPath, Action onClick, Vector2? iconSize = null)
 	{
 		button.Flat = false;
 		button.Icon = null;
@@ -712,7 +712,7 @@ public partial class MainMenu : Control
 
 		button.AddChild(container);
 
-		BindIconButtonEvents(button, label, iconRect, rotateOnHover, onClick);
+		BindIconButtonEvents(button, label, iconRect, onClick);
 	}
 
 	private HBoxContainer CreateIconButtonContainer()
@@ -761,7 +761,7 @@ public partial class MainMenu : Control
 		return label;
 	}
 
-	private void BindIconButtonEvents(Button button, Label label, TextureRect iconRect, bool rotateOnHover, Action onClick)
+	private void BindIconButtonEvents(Button button, Label label, TextureRect iconRect, Action onClick)
 	{
 		Tween scaleTween = null;
 		Tween rotationTween = null;
@@ -771,15 +771,6 @@ public partial class MainMenu : Control
 			PlayHoverSound();
 			label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			iconRect.Modulate = UIStyle.ColorGold;
-
-			if (rotateOnHover)
-			{
-				rotationTween?.Kill();
-				rotationTween = button.CreateTween();
-				rotationTween.TweenProperty(iconRect, "rotation", Mathf.Pi * 0.25f, 0.3f)
-					.SetTrans(Tween.TransitionType.Quad)
-					.SetEase(Tween.EaseType.Out);
-			}
 
 			scaleTween?.Kill();
 			scaleTween = button.CreateTween();
@@ -792,15 +783,6 @@ public partial class MainMenu : Control
 		{
 			label.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
 			iconRect.Modulate = UIStyle.ColorGoldDull;
-
-			if (rotateOnHover)
-			{
-				rotationTween?.Kill();
-				rotationTween = button.CreateTween();
-				rotationTween.TweenProperty(iconRect, "rotation", 0.0f, 0.3f)
-					.SetTrans(Tween.TransitionType.Quad)
-					.SetEase(Tween.EaseType.Out);
-			}
 
 			scaleTween?.Kill();
 			scaleTween = button.CreateTween();
