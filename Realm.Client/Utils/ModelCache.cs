@@ -483,14 +483,7 @@ namespace Realm.Client.Utils
 				glbBytes = GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);
 			}
 
-			var (json, bin, ver) = GlbManifestUtils.ParseGlb(glbBytes);
-			if (json is System.Text.Json.Nodes.JsonObject rootObj)
-			{
-				if (GlbManifestUtils.RemoveNodeMsftLodExtensions(rootObj))
-				{
-					glbBytes = GlbManifestUtils.BuildGlb(rootObj, bin, ver);
-				}
-			}
+			glbBytes = PrepareGlbForImport(glbBytes);
 
 			Error err = doc.AppendFromBuffer(glbBytes, "", state);
 			if (err != Error.Ok) return null;
@@ -686,6 +679,17 @@ namespace Realm.Client.Utils
 			return (0f, 0f);
 		}
 
+		private static byte[] PrepareGlbForImport(byte[] glbBytes)
+		{
+			var (json, bin, ver) = GlbManifestUtils.ParseGlb(glbBytes);
+			if (json is not System.Text.Json.Nodes.JsonObject rootObj) return glbBytes;
+
+			bool modified = GlbManifestUtils.RemoveNodeMsftLodExtensions(rootObj);
+			modified |= GlbManifestUtils.ReparentLodChildrenAsSiblings(rootObj);
+
+			return modified ? GlbManifestUtils.BuildGlb(rootObj, bin, ver) : glbBytes;
+		}
+
 		private static Node TryGenerateNodeFromRmesh(string resolvedPath)
 		{
 			if (string.IsNullOrEmpty(resolvedPath) || !resolvedPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !File.Exists(resolvedPath))
@@ -698,14 +702,7 @@ namespace Realm.Client.Utils
 			byte[] rmeshBytes = File.ReadAllBytes(resolvedPath);
 			byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
 
-			var (json, bin, ver) = GlbManifestUtils.ParseGlb(glbBytes);
-			if (json is System.Text.Json.Nodes.JsonObject rootObj)
-			{
-				if (GlbManifestUtils.RemoveNodeMsftLodExtensions(rootObj))
-				{
-					glbBytes = GlbManifestUtils.BuildGlb(rootObj, bin, ver);
-				}
-			}
+			glbBytes = PrepareGlbForImport(glbBytes);
 
 			Error err = doc.AppendFromBuffer(glbBytes, "", state);
 			if (err == Error.Ok)

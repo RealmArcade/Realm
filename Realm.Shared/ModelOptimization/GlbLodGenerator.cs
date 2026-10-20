@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Text.Json.Nodes;
 
 namespace Realm.Shared.ModelOptimization;
@@ -423,38 +424,82 @@ public static unsafe class GlbLodGenerator
 
 	private static uint[]? SimplifyIndices(uint[] originalIndices, (int posByteOffset, int posCount, int posStride) posData, int targetIndexCount, int t, byte[] binBytes)
 	{
+		float[] weldedPositions = new float[posData.posCount * 3];
+		uint[] weldedIndices = new uint[originalIndices.Length];
+		uint[] representatives = new uint[posData.posCount];
+		int weldedVertexCount = BuildPositionWeldedMesh(weldedIndices, weldedPositions, representatives, originalIndices, posData, binBytes);
+
 		uint[] simplifiedIndices = new uint[originalIndices.Length];
 		nuint simplifiedCount = 0;
 
-		fixed (uint* pOrig = originalIndices)
+		fixed (uint* pWelded = weldedIndices)
+		fixed (float* pWeldedPositions = weldedPositions)
+		fixed (uint* pRepresentatives = representatives)
 		fixed (uint* pDest = simplifiedIndices)
 		fixed (byte* pBin = binBytes)
 		{
-			float* pPos = (float*)(pBin + posData.posByteOffset);
-			simplifiedCount = DoSimplifyIndices(pOrig, pDest, pPos, posData, targetIndexCount, t, (nuint)originalIndices.Length);
-		}
+			simplifiedCount = DoSimplifyIndices(pWelded, pDest, pWeldedPositions, (nuint)weldedVertexCount, targetIndexCount, t, (nuint)originalIndices.Length);
 
-		if (simplifiedCount < 3 || (simplifiedCount % 3) != 0 || simplifiedCount >= (nuint)originalIndices.Length) return null;
+			if (simplifiedCount < 3 || (simplifiedCount % 3) != 0 || simplifiedCount >= (nuint)originalIndices.Length) return null;
+
+			for (nuint i = 0; i < simplifiedCount; i++)
+			{
+				pDest[i] = pRepresentatives[pDest[i]];
+			}
+
+			float* pPos = (float*)(pBin + posData.posByteOffset);
+			MeshOptimizerNative.meshopt_optimizeVertexCache(pDest, pDest, simplifiedCount, (nuint)posData.posCount);
+			MeshOptimizerNative.meshopt_optimizeOverdraw(pDest, pDest, simplifiedCount, pPos, (nuint)posData.posCount, (nuint)posData.posStride, 1.05f);
+		}
 
 		uint[] finalIndices = new uint[(int)simplifiedCount];
 		Array.Copy(simplifiedIndices, finalIndices, (int)simplifiedCount);
 		return finalIndices;
 	}
 
-	private static nuint DoSimplifyIndices(uint* pOrig, uint* pDest, float* pPos, (int posByteOffset, int posCount, int posStride) posData, int targetIndexCount, int t, nuint origLength)
+	private static int BuildPositionWeldedMesh(uint[] weldedIndices, float[] weldedPositions, uint[] representatives, uint[] originalIndices, (int posByteOffset, int posCount, int posStride) posData, byte[] binBytes)
+	{
+		var positionLookup = new Dictionary<(float X, float Y, float Z), int>(posData.posCount);
+		var positionRemap = new uint[posData.posCount];
+		int weldedVertexCount = 0;
+
+		for (int i = 0; i < posData.posCount; i++)
+		{
+			int sourceOffset = posData.posByteOffset + (i * posData.posStride);
+			float x = BinaryPrimitives.ReadSingleLittleEndian(binBytes.AsSpan(sourceOffset, 4));
+			float y = BinaryPrimitives.ReadSingleLittleEndian(binBytes.AsSpan(sourceOffset + 4, 4));
+			float z = BinaryPrimitives.ReadSingleLittleEndian(binBytes.AsSpan(sourceOffset + 8, 4));
+
+			var position = (x, y, z);
+			if (!positionLookup.TryGetValue(position, out int weldedIndex))
+			{
+				weldedIndex = weldedVertexCount++;
+				positionLookup[position] = weldedIndex;
+				weldedPositions[(weldedIndex * 3)] = x;
+				weldedPositions[(weldedIndex * 3) + 1] = y;
+				weldedPositions[(weldedIndex * 3) + 2] = z;
+				representatives[weldedIndex] = (uint)i;
+			}
+
+			positionRemap[i] = (uint)weldedIndex;
+		}
+
+		for (int i = 0; i < originalIndices.Length; i++)
+		{
+			weldedIndices[i] = positionRemap[originalIndices[i]];
+		}
+
+		return weldedVertexCount;
+	}
+
+	private static nuint DoSimplifyIndices(uint* pOrig, uint* pDest, float* pPos, nuint vertexCount, int targetIndexCount, int t, nuint origLength)
 	{
 		float resultError = 0f;
-		nuint simplifiedCount = MeshOptimizerNative.meshopt_simplify(pDest, pOrig, origLength, pPos, (nuint)posData.posCount, (nuint)posData.posStride, (nuint)targetIndexCount, 0.02f * t, 0, &resultError);
+		nuint simplifiedCount = MeshOptimizerNative.meshopt_simplify(pDest, pOrig, origLength, pPos, vertexCount, 3 * sizeof(float), (nuint)targetIndexCount, 0.02f * t, 0, &resultError);
 
 		if (simplifiedCount >= origLength || simplifiedCount < 3)
 		{
-			simplifiedCount = MeshOptimizerNative.meshopt_simplifySloppy(pDest, pOrig, origLength, pPos, (nuint)posData.posCount, (nuint)posData.posStride, null, (nuint)targetIndexCount, 0.05f * t, &resultError);
-		}
-
-		if (simplifiedCount >= 3 && (simplifiedCount % 3) == 0 && simplifiedCount < origLength)
-		{
-			MeshOptimizerNative.meshopt_optimizeVertexCache(pDest, pDest, simplifiedCount, (nuint)posData.posCount);
-			MeshOptimizerNative.meshopt_optimizeOverdraw(pDest, pDest, simplifiedCount, pPos, (nuint)posData.posCount, (nuint)posData.posStride, 1.05f);
+			simplifiedCount = MeshOptimizerNative.meshopt_simplifySloppy(pDest, pOrig, origLength, pPos, vertexCount, 3 * sizeof(float), null, (nuint)targetIndexCount, 0.05f * t, &resultError);
 		}
 
 		return simplifiedCount;

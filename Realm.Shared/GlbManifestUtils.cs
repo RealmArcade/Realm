@@ -290,50 +290,33 @@ public static class GlbManifestUtils
 		bool modified = false;
 		if (root.TryGetPropertyValue("nodes", out var nodesNode) && nodesNode is JsonArray nodesArray)
 		{
-			foreach (var n in nodesArray)
+			var parentNodeIndices = BuildParentNodeIndexMap(nodesArray);
+			for (int n = 0; n < nodesArray.Count; n++)
 			{
-				if (n is JsonObject nodeObj && nodeObj.TryGetPropertyValue("extensions", out var extVal) && extVal is JsonObject extObj)
+				if (nodesArray[n] is not JsonObject nodeObj || !nodeObj.TryGetPropertyValue("extensions", out var extVal) || extVal is not JsonObject extObj)
+					continue;
+
+				if (extObj.TryGetPropertyValue("MSFT_lod", out var msftLodVal) && msftLodVal is JsonObject msftLodObj)
 				{
-					if (extObj.TryGetPropertyValue("MSFT_lod", out var msftLodVal) && msftLodVal is JsonObject msftLodObj)
+					if (msftLodObj.TryGetPropertyValue("ids", out var idsVal) && idsVal is JsonArray idsArr)
 					{
-						if (msftLodObj.TryGetPropertyValue("ids", out var idsVal) && idsVal is JsonArray idsArr)
+						var siblingNodeIndices = ResolveSiblingNodeIndices(root, nodesArray, n, parentNodeIndices) ?? GetOrCreateNodeChildren(nodeObj);
+						foreach (var idItem in idsArr)
 						{
-							if (!nodeObj.TryGetPropertyValue("children", out var childrenVal) || childrenVal is not JsonArray childrenArr)
+							if (idItem is JsonValue jv && jv.TryGetValue(out int lodIdx) && lodIdx >= 0 && lodIdx < nodesArray.Count)
 							{
-								childrenArr = new JsonArray();
-								nodeObj["children"] = childrenArr;
-							}
-
-							HashSet<int> existingChildren = new HashSet<int>();
-							foreach (var childItem in childrenArr)
-							{
-								if (childItem is JsonValue jv && jv.TryGetValue(out int cIdx))
-								{
-									existingChildren.Add(cIdx);
-								}
-							}
-
-							foreach (var idItem in idsArr)
-							{
-								if (idItem is JsonValue jv && jv.TryGetValue(out int lodIdx) && lodIdx >= 0 && lodIdx < nodesArray.Count)
-								{
-									if (existingChildren.Add(lodIdx))
-									{
-										childrenArr.Add(lodIdx);
-										modified = true;
-									}
-								}
+								modified |= AppendNodeIndexIfMissing(siblingNodeIndices, lodIdx);
 							}
 						}
 					}
+				}
 
-					if (extObj.Remove("MSFT_lod"))
+				if (extObj.Remove("MSFT_lod"))
+				{
+					modified = true;
+					if (extObj.Count == 0)
 					{
-						modified = true;
-						if (extObj.Count == 0)
-						{
-							nodeObj.Remove("extensions");
-						}
+						nodeObj.Remove("extensions");
 					}
 				}
 			}
@@ -341,6 +324,154 @@ public static class GlbManifestUtils
 
 		modified |= EnsureAllNodesParentedOrInScene(root);
 		return modified;
+	}
+
+	public static bool ReparentLodChildrenAsSiblings(JsonObject root)
+	{
+		if (!root.TryGetPropertyValue("nodes", out var nodesNode) || nodesNode is not JsonArray nodesArray) return false;
+
+		var parentNodeIndices = BuildParentNodeIndexMap(nodesArray);
+		bool modified = false;
+		int initialNodeCount = nodesArray.Count;
+		for (int n = 0; n < initialNodeCount; n++)
+		{
+			if (nodesArray[n] is not JsonObject masterNode) continue;
+			if (!masterNode.TryGetPropertyValue("children", out var childrenVal) || childrenVal is not JsonArray masterChildren) continue;
+			if (!TryParseLodNodeName(masterNode["name"]?.GetValue<string>(), out string masterPrefix, out int masterLevel) || masterLevel != 0) continue;
+
+			var lodChildIndices = CollectLodChildIndices(masterChildren, nodesArray, masterPrefix);
+			if (lodChildIndices.Count == 0) continue;
+
+			var siblingNodeIndices = ResolveSiblingNodeIndices(root, nodesArray, n, parentNodeIndices);
+			if (siblingNodeIndices == null || ReferenceEquals(siblingNodeIndices, masterChildren)) continue;
+
+			foreach (int lodChildIndex in lodChildIndices)
+			{
+				AppendNodeIndexIfMissing(siblingNodeIndices, lodChildIndex);
+				RemoveNodeIndex(masterChildren, lodChildIndex);
+			}
+
+			if (masterChildren.Count == 0) masterNode.Remove("children");
+			modified = true;
+		}
+
+		return modified;
+	}
+
+	private static Dictionary<int, int> BuildParentNodeIndexMap(JsonArray nodes)
+	{
+		var parentNodeIndices = new Dictionary<int, int>();
+		for (int n = 0; n < nodes.Count; n++)
+		{
+			if (nodes[n] is not JsonObject nodeObj || nodeObj["children"] is not JsonArray children) continue;
+
+			foreach (var childItem in children)
+			{
+				if (childItem is not JsonValue childValue || !childValue.TryGetValue(out int childIndex)) continue;
+				if (childIndex < 0 || parentNodeIndices.ContainsKey(childIndex)) continue;
+
+				parentNodeIndices[childIndex] = n;
+			}
+		}
+
+		return parentNodeIndices;
+	}
+
+	private static JsonArray? ResolveSiblingNodeIndices(JsonObject root, JsonArray nodes, int nodeIndex, Dictionary<int, int> parentNodeIndices)
+	{
+		if (parentNodeIndices.TryGetValue(nodeIndex, out int parentIndex) && parentIndex >= 0 && parentIndex < nodes.Count && nodes[parentIndex] is JsonObject parentObj)
+		{
+			return GetOrCreateNodeChildren(parentObj);
+		}
+
+		if (root["scenes"] is JsonArray scenes)
+		{
+			foreach (var sceneItem in scenes)
+			{
+				if (sceneItem is not JsonObject sceneObj || sceneObj["nodes"] is not JsonArray sceneNodes) continue;
+				if (!ContainsNodeIndex(sceneNodes, nodeIndex)) continue;
+
+				return sceneNodes;
+			}
+		}
+
+		return null;
+	}
+
+	private static JsonArray GetOrCreateNodeChildren(JsonObject nodeObj)
+	{
+		if (nodeObj["children"] is JsonArray existingChildren) return existingChildren;
+
+		var childrenArray = new JsonArray();
+		nodeObj["children"] = childrenArray;
+		return childrenArray;
+	}
+
+	private static bool ContainsNodeIndex(JsonArray nodeIndices, int nodeIndex)
+	{
+		foreach (var item in nodeIndices)
+		{
+			if (item is JsonValue value && value.TryGetValue(out int existingIndex) && existingIndex == nodeIndex) return true;
+		}
+
+		return false;
+	}
+
+	private static bool AppendNodeIndexIfMissing(JsonArray nodeIndices, int nodeIndex)
+	{
+		if (ContainsNodeIndex(nodeIndices, nodeIndex)) return false;
+
+		nodeIndices.Add(nodeIndex);
+		return true;
+	}
+
+	private static void RemoveNodeIndex(JsonArray nodeIndices, int nodeIndex)
+	{
+		for (int i = nodeIndices.Count - 1; i >= 0; i--)
+		{
+			if (nodeIndices[i] is JsonValue value && value.TryGetValue(out int existingIndex) && existingIndex == nodeIndex)
+			{
+				nodeIndices.RemoveAt(i);
+			}
+		}
+	}
+
+	private static List<int> CollectLodChildIndices(JsonArray children, JsonArray nodes, string masterPrefix)
+	{
+		var lodChildIndices = new List<int>();
+		foreach (var childItem in children)
+		{
+			if (childItem is not JsonValue childValue || !childValue.TryGetValue(out int childIndex)) continue;
+			if (childIndex < 0 || childIndex >= nodes.Count || nodes[childIndex] is not JsonObject childNode) continue;
+			if (!TryParseLodNodeName(childNode["name"]?.GetValue<string>(), out string childPrefix, out int childLevel)) continue;
+			if (childLevel <= 0) continue;
+			if (!string.Equals(childPrefix, masterPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+
+			lodChildIndices.Add(childIndex);
+		}
+
+		return lodChildIndices;
+	}
+
+	private static bool TryParseLodNodeName(string? name, out string prefix, out int level)
+	{
+		prefix = string.Empty;
+		level = 0;
+		if (string.IsNullOrEmpty(name)) return false;
+
+		int lodIndex = name.LastIndexOf("_LOD", StringComparison.OrdinalIgnoreCase);
+		int tagLength = 4;
+		if (lodIndex < 0)
+		{
+			lodIndex = name.LastIndexOf("LOD", StringComparison.OrdinalIgnoreCase);
+			tagLength = 3;
+		}
+
+		if (lodIndex < 0 || lodIndex + tagLength >= name.Length) return false;
+		if (!int.TryParse(name.AsSpan(lodIndex + tagLength), out level)) return false;
+
+		prefix = name.Substring(0, lodIndex);
+		return true;
 	}
 
 	public static bool EnsureAllNodesParentedOrInScene(JsonObject root)
