@@ -47,16 +47,10 @@ public partial class MapDiscovery : Control
 	private string _searchQuery = "";
 
 	private static Font _fontNorseBold;
-	private static Font _fontCinzel;
-	private static Font _fontOutfit;
-	private static Font _fontOutfitBold;
 
 	private static void EnsureFontsLoaded()
 	{
 		_fontNorseBold ??= LoadFont("res://Assets/UI/Norse-Bold.otf");
-		_fontCinzel ??= LoadFont("res://Assets/UI/Cinzel-Bold.ttf") ?? _fontNorseBold;
-		_fontOutfit ??= LoadFont("res://Assets/UI/Outfit-Medium.ttf") ?? _fontNorseBold;
-		_fontOutfitBold ??= LoadFont("res://Assets/UI/Outfit-Bold.ttf") ?? _fontNorseBold;
 	}
 
 	private static Font LoadFont(string path)
