@@ -77,7 +77,7 @@ public partial class GameOver : Control
 		_btnWriteReview = GetNode<Button>("BottomButtons/BtnWriteReview");
 
 		_tableRowsContainer = GetNode<VBoxContainer>("MainPanel/VBox/TableFrame/VBox/TableRowsContainer");
-		_graphContainer = GetNode<Control>("MainPanel/VBox/GraphFrame/TimelineGraph");
+		_graphContainer = GetNode<Control>("MainPanel/VBox/GraphFrame/VBox/TimelineGraph");
 
 
 		_playerColHeader = GetNode<Label>("MainPanel/VBox/TableFrame/VBox/TableHeader/PlayerCol");
