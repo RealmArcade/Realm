@@ -1,4 +1,4 @@
-using Arch.Core;
+using System;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -139,27 +139,20 @@ public static class AttributeStatCalculator
 		);
 	}
 
-	public static DerivedCombatStats RecalculateEntityStats(World world, Entity entity, float additionalAttackSpeedModifiers = 0f)
+	public static DerivedCombatStats RecalculateEntityStats(EcsWorld world, Entity entity, float additionalAttackSpeedModifiers = 0f)
 	{
 		if (!world.IsAlive(entity))
 		{
 			return default;
 		}
 
-		// Step 1: Base Attribute Resolution
 		var baseAttrs = world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity) : new UnitAttributes();
-
-		// Step 2: Attribute Modifier Phase
 		var modifiedAttrs = ApplyAttributeModifiers(world, entity, baseAttrs);
-
-		// Step 3: Derived Stats Computation
 		var baseStats = GetOrCreateUnitBaseStats(world, entity);
 		var derived = CalculateDerivedStats(in modifiedAttrs, in baseStats, additionalAttackSpeedModifiers);
 
-		// Step 4: Direct Stat Modifier Phase
 		derived = ApplyDirectStatModifiers(world, entity, derived, baseStats);
 
-		// Step 5: Entity Component Synchronization
 		world.SetOrAdd(entity, derived);
 
 		UpdateHealth(world, entity, in derived);
@@ -172,7 +165,7 @@ public static class AttributeStatCalculator
 		return derived;
 	}
 
-	private static UnitAttributes ApplyAttributeModifiers(World world, Entity entity, UnitAttributes baseAttrs)
+	private static UnitAttributes ApplyAttributeModifiers(EcsWorld world, Entity entity, UnitAttributes baseAttrs)
 	{
 		float strFlat = 0f, strPctAdd = 0f, strPctMult = 1f, strFormula = 0f;
 		float agiFlat = 0f, agiPctAdd = 0f, agiPctMult = 1f, agiFormula = 0f;
@@ -198,7 +191,7 @@ public static class AttributeStatCalculator
 		return new UnitAttributes(str, agi, vit, intel, wis, fort);
 	}
 
-	private static DerivedCombatStats ApplyDirectStatModifiers(World world, Entity entity, DerivedCombatStats derived, UnitBaseStats baseStats)
+	private static DerivedCombatStats ApplyDirectStatModifiers(EcsWorld world, Entity entity, DerivedCombatStats derived, UnitBaseStats baseStats)
 	{
 		float hpFlat = 0f, hpPctAdd = 0f, hpPctMult = 1f, hpFormula = 0f;
 		float hpRegenFlat = 0f, hpRegenPctAdd = 0f, hpRegenPctMult = 1f, hpRegenFormula = 0f;
@@ -228,22 +221,22 @@ public static class AttributeStatCalculator
 		};
 	}
 
-	private static void AccumulateModifiersForStat(World world, Entity entity, AttributeType attribute, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
+	private static void AccumulateModifiersForStat(EcsWorld world, Entity entity, AttributeType attribute, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
 	{
 		AccumulateModifiersForStat(world, entity, new StatId(attribute), ref flat, ref pctAdd, ref pctMult, ref formulaBonus, baseValue);
 	}
 
-	private static void AccumulateModifiersForStat(World world, Entity entity, CombatStatType combatStat, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
+	private static void AccumulateModifiersForStat(EcsWorld world, Entity entity, CombatStatType combatStat, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
 	{
 		AccumulateModifiersForStat(world, entity, new StatId(combatStat), ref flat, ref pctAdd, ref pctMult, ref formulaBonus, baseValue);
 	}
 
-	private static void AccumulateModifiersForStat(World world, Entity entity, StatId statId, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
+	private static void AccumulateModifiersForStat(EcsWorld world, Entity entity, StatId statId, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
 	{
 		AccumulateModifiersForStat(world, entity, statId.Value, ref flat, ref pctAdd, ref pctMult, ref formulaBonus, baseValue);
 	}
 
-	private static void AccumulateModifiersForStat(World world, Entity entity, string statName, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
+	private static void AccumulateModifiersForStat(EcsWorld world, Entity entity, string statName, ref float flat, ref float pctAdd, ref float pctMult, ref float formulaBonus, float baseValue)
 	{
 		if (!world.Has<ModifierState>(entity)) return;
 
@@ -287,7 +280,7 @@ public static class AttributeStatCalculator
 		return (baseVal + flatSum) * (1.0f + pctAddSum) * pctMultProd + formulaBonus;
 	}
 
-	private static UnitBaseStats GetOrCreateUnitBaseStats(World world, Entity entity)
+	private static UnitBaseStats GetOrCreateUnitBaseStats(EcsWorld world, Entity entity)
 	{
 		if (world.Has<UnitBaseStats>(entity))
 		{
@@ -299,7 +292,7 @@ public static class AttributeStatCalculator
 		if (world.Has<Health>(entity))
 		{
 			var health = world.Get<Health>(entity);
-			bHp = health.Max;
+			bHp = health.MaxHp;
 			bHpReg = health.HpRegen;
 		}
 
@@ -308,7 +301,7 @@ public static class AttributeStatCalculator
 		if (world.Has<Mana>(entity))
 		{
 			var mana = world.Get<Mana>(entity);
-			bMana = mana.Max;
+			bMana = mana.MaxMana;
 			bManaReg = mana.ManaRegen;
 		}
 
@@ -350,7 +343,7 @@ public static class AttributeStatCalculator
 		return baseStats;
 	}
 
-	private static void UpdateHealth(World world, Entity entity, in DerivedCombatStats derived)
+	private static void UpdateHealth(EcsWorld world, Entity entity, in DerivedCombatStats derived)
 	{
 		if (!world.Has<Health>(entity))
 		{
@@ -358,15 +351,15 @@ public static class AttributeStatCalculator
 		}
 
 		ref var health = ref world.Get<Health>(entity);
-		float oldMax = health.Max;
-		float oldCurrent = health.Current;
+		float oldMax = health.MaxHp;
+		float oldCurrent = health.CurrentHp;
 		float newMax = derived.MaxHp;
 		float newCurrent = oldMax > 0f ? MathF.Min(newMax, oldCurrent * (newMax / oldMax)) : newMax;
 
 		world.Set(entity, new Health(newCurrent, newMax, derived.HpRegen, health.HpRegenCombatDelay, health.TimeSinceLastDamage));
 	}
 
-	private static void UpdateMana(World world, Entity entity, in DerivedCombatStats derived)
+	private static void UpdateMana(EcsWorld world, Entity entity, in DerivedCombatStats derived)
 	{
 		if (derived.MaxMana <= 0f && !world.Has<Mana>(entity))
 		{
@@ -376,7 +369,7 @@ public static class AttributeStatCalculator
 		if (world.Has<Mana>(entity))
 		{
 			ref var mana = ref world.Get<Mana>(entity);
-			float newCurrent = MathF.Min(derived.MaxMana, mana.Current);
+			float newCurrent = MathF.Min(derived.MaxMana, mana.CurrentMana);
 			world.Set(entity, new Mana(newCurrent, derived.MaxMana, derived.ManaRegen));
 			return;
 		}
@@ -384,7 +377,7 @@ public static class AttributeStatCalculator
 		world.Add(entity, new Mana(derived.MaxMana, derived.MaxMana, derived.ManaRegen));
 	}
 
-	private static void UpdateArmor(World world, Entity entity, in DerivedCombatStats derived)
+	private static void UpdateArmor(EcsWorld world, Entity entity, in DerivedCombatStats derived)
 	{
 		if (!world.Has<Armor>(entity))
 		{
@@ -395,7 +388,7 @@ public static class AttributeStatCalculator
 		world.Set(entity, new Armor(derived.TotalArmor, armor.RatedArmor, armor.ArmorType));
 	}
 
-	private static void UpdateAttack(World world, Entity entity, in DerivedCombatStats derived)
+	private static void UpdateAttack(EcsWorld world, Entity entity, in DerivedCombatStats derived)
 	{
 		if (!world.Has<Attack>(entity))
 		{
@@ -404,28 +397,28 @@ public static class AttributeStatCalculator
 
 		ref var attack = ref world.Get<Attack>(entity);
 		world.Set(entity, new Attack(
-			Damage: derived.TotalAttackDamage,
-			Range: attack.Range,
-			Cooldown: derived.AttackDelay,
-			CurrentCooldown: attack.CurrentCooldown,
-			DamageVariance: attack.DamageVariance,
-			DamageType: attack.DamageType,
-			FlatArmorPenetration: derived.FlatArmorPenetration,
-			PercentArmorPenetration: attack.PercentArmorPenetration,
-			CritChance: derived.CritChance,
-			CritMultiplier: derived.CritMultiplier,
-			SplashType: attack.SplashType,
-			SplashInnerRadius: attack.SplashInnerRadius,
-			SplashMediumRadius: attack.SplashMediumRadius,
-			SplashOuterRadius: attack.SplashOuterRadius,
-			SplashInnerRatio: attack.SplashInnerRatio,
-			SplashMediumRatio: attack.SplashMediumRatio,
-			SplashOuterRatio: attack.SplashOuterRatio,
-			FriendlyFire: attack.FriendlyFire
+			damage: derived.TotalAttackDamage,
+			range: attack.Range,
+			cooldown: derived.AttackDelay,
+			currentCooldown: attack.CurrentCooldown,
+			damageVariance: attack.DamageVariance,
+			damageType: attack.DamageType,
+			flatArmorPenetration: derived.FlatArmorPenetration,
+			percentArmorPenetration: attack.PercentArmorPenetration,
+			critChance: derived.CritChance,
+			critMultiplier: derived.CritMultiplier,
+			splashType: attack.SplashType,
+			splashInnerRadius: attack.SplashInnerRadius,
+			splashMediumRadius: attack.SplashMediumRadius,
+			splashOuterRadius: attack.SplashOuterRadius,
+			splashInnerRatio: attack.SplashInnerRatio,
+			splashMediumRatio: attack.SplashMediumRatio,
+			splashOuterRatio: attack.SplashOuterRatio,
+			friendlyFire: attack.FriendlyFire
 		));
 	}
 
-	private static void UpdateMovementStats(World world, Entity entity, in DerivedCombatStats derived)
+	private static void UpdateMovementStats(EcsWorld world, Entity entity, in DerivedCombatStats derived)
 	{
 		if (!world.Has<MovementStats>(entity))
 		{
@@ -436,7 +429,7 @@ public static class AttributeStatCalculator
 		world.Set(entity, new MovementStats(derived.MovementSpeed, move.Acceleration, move.TurnRate, move.PushPriority, move.MovementType));
 	}
 
-	private static void UpdateStatsDictionary(World world, Entity entity, in DerivedCombatStats derived)
+	private static void UpdateStatsDictionary(EcsWorld world, Entity entity, in DerivedCombatStats derived)
 	{
 		if (!world.Has<Stats>(entity))
 		{

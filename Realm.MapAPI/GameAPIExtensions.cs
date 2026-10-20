@@ -253,11 +253,11 @@ public static class GameAPIExtensions
 	/// <param name="experience">Optional experience value to assign.</param>
 	/// <param name="skillPoints">Optional unspent skill points to assign.</param>
 	/// <returns>A new <see cref="HeroSaveData"/> containing the unit's current state.</returns>
-	public static HeroSaveData SnapshotHero(this IUnit unit, float experience = 0f, int skillPoints = 0)
+	public static HeroSaveData SnapshotHero(this UnitId unit, float experience = 0f, int skillPoints = 0)
 	{
 		var hero = new HeroSaveData
 		{
-			HeroTypeId = unit.UnitId,
+			HeroTypeId = unit.TemplateID,
 			Name = unit.Name,
 			Level = unit.Level > 0 ? unit.Level : 1,
 			Experience = unit.Experience > 0 ? unit.Experience : experience,
@@ -279,7 +279,7 @@ public static class GameAPIExtensions
 	/// </summary>
 	/// <param name="unit">The target unit to update.</param>
 	/// <param name="heroData">The saved hero progression data to apply.</param>
-	public static void RestoreHero(this IUnit unit, HeroSaveData heroData)
+	public static void RestoreHero(this UnitId unit, HeroSaveData heroData)
 	{
 		if (heroData == null) return;
 
@@ -288,7 +288,7 @@ public static class GameAPIExtensions
 		RestoreHeroCustomData(unit, heroData);
 	}
 
-	private static void RestoreHeroCoreStats(IUnit unit, HeroSaveData heroData)
+	private static void RestoreHeroCoreStats(UnitId unit, HeroSaveData heroData)
 	{
 		if (!string.IsNullOrWhiteSpace(heroData.Name))
 			unit.Name = heroData.Name;
@@ -306,7 +306,7 @@ public static class GameAPIExtensions
 			unit.Health = heroData.Health;
 	}
 
-	private static void RestoreHeroCombatStats(IUnit unit, HeroSaveData heroData)
+	private static void RestoreHeroCombatStats(UnitId unit, HeroSaveData heroData)
 	{
 		if (heroData.MaxMana > 0)
 			unit.MaxMana = heroData.MaxMana;
@@ -324,7 +324,7 @@ public static class GameAPIExtensions
 			unit.Speed = heroData.Speed;
 	}
 
-	private static void RestoreHeroCustomData(IUnit unit, HeroSaveData heroData)
+	private static void RestoreHeroCustomData(UnitId unit, HeroSaveData heroData)
 	{
 		if (heroData.CustomData == null) return;
 
@@ -339,7 +339,7 @@ public static class GameAPIExtensions
 	/// </summary>
 	/// <param name="unit">The unit whose inventory will be snapshotted.</param>
 	/// <returns>A list of persistent inventory item records.</returns>
-	public static List<InventoryItemSaveData> SnapshotInventory(this IUnit unit)
+	public static List<InventoryItemSaveData> SnapshotInventory(this UnitId unit)
 	{
 		var result = new List<InventoryItemSaveData>();
 		int slotIndex = 0;
@@ -362,7 +362,7 @@ public static class GameAPIExtensions
 	/// </summary>
 	/// <param name="unit">The unit to receive items.</param>
 	/// <param name="items">The collection of saved inventory items to add.</param>
-	public static void RestoreInventory(this IUnit unit, IEnumerable<InventoryItemSaveData> items)
+	public static void RestoreInventory(this UnitId unit, IEnumerable<InventoryItemSaveData> items)
 	{
 		if (items == null)
 		{

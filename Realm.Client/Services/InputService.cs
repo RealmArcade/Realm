@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -16,9 +16,9 @@ namespace Realm.Client.Services;
 
 public class InputService
 {
-	public int GetPopCostForIndex(Entity castleEntity, int index)
+	public int GetPopCostForIndex(Entity buildingEntity, int index)
 	{
-		var prod = GameContext.World.Get<ProductionQueue>(castleEntity);
+		var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
 		if (index >= 0 && index < prod.UnitIds.Count)
 		{
 			string peekCancelledId = prod.UnitIds[index];
@@ -32,16 +32,16 @@ public class InputService
 	}
 
 
-	public void UpdateProductionQueueAfterCancel(Entity castleEntity, int index, string? nextUnitId, bool isMultiplayerClient)
+	public void UpdateProductionQueueAfterCancel(Entity buildingEntity, int index, string? nextUnitId, bool isMultiplayerClient)
 	{
 		if (index == 0 && nextUnitId != null && !isMultiplayerClient)
 		{
 			var nextMeta = GameHost.UnitRegistry[nextUnitId];
-			if (GameContext.World.Has<ProductionQueue>(castleEntity))
+			if (GameContext.World.Has<ProductionQueue>(buildingEntity))
 			{
-				var p = GameContext.World.Get<ProductionQueue>(castleEntity);
+				var p = GameContext.World.Get<ProductionQueue>(buildingEntity);
 				p.BuildTime = nextMeta.ProductionTime;
-				GameContext.World.Set(castleEntity, p);
+				GameContext.World.Set(buildingEntity, p);
 			}
 		}
 	}
@@ -93,9 +93,9 @@ public class InputService
 		}
 	}
 
-	public void ProcessWorkerTaskAssignment(Entity unitEntity, Entity firstWorkerEntity, bool isBuilding, bool isEnemy, string unitId, string type, Vector3 buildingPos, bool shiftHeld)
+	public void ProcessWorkerTaskAssignment(Entity unitEntity, Entity firstWorkerEntity, bool isBuilding, string unitId, string type, Vector3 buildingPos, bool shiftHeld)
 	{
-		if (!IsValidAdditionalWorker(unitEntity, firstWorkerEntity, isBuilding, isEnemy, unitId)) return;
+		if (!IsValidAdditionalWorker(unitEntity, firstWorkerEntity, isBuilding, unitId)) return;
 
 		if (shiftHeld && ShouldEnqueueWorkerBuild(unitEntity))
 		{
@@ -109,10 +109,10 @@ public class InputService
 		}
 	}
 
-	public bool IsValidAdditionalWorker(Entity unitEntity, Entity firstWorkerEntity, bool isBuilding, bool isEnemy, string unitId)
+	public bool IsValidAdditionalWorker(Entity unitEntity, Entity firstWorkerEntity, bool isBuilding, string unitId)
 	{
 		if (unitEntity == Entity.Null || unitEntity == firstWorkerEntity) return false;
-		if (isBuilding || isEnemy) return false;
+		if (isBuilding) return false;
 		if (unitId != "worker" && unitId != "unit/builder" && unitId != "builder")
 		{
 			if (!GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta) || meta.BuildOptions == null || meta.BuildOptions.Length == 0)
@@ -163,7 +163,7 @@ public class InputService
 		return GameContext.TechTreeService.BuyHarvestingUpgrade(playerEntity);
 	}
 
-	private void RemoveIfHas<T>(Entity entity)
+	private void RemoveIfHas<T>(Entity entity) where T : unmanaged
 	{
 		if (GameContext.World.Has<T>(entity))
 		{
@@ -248,7 +248,6 @@ public class InputService
 	{
 		if (!GameContext.World.IsAlive(entity)) return false;
 		if (GameContext.World.Has<Building>(entity)) return false;
-		if (GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy) return false;
 		return true;
 	}
 
@@ -386,8 +385,7 @@ public class InputService
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
 			bool isBuilding = GameContext.World.Has<Building>(entity);
-			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-			if (isBuilding || isEnemy) continue;
+			if (isBuilding) continue;
 
 			if (isQueued && IsUnitActive(entity))
 			{
@@ -419,12 +417,7 @@ public class InputService
 			ClearUnitOrders(entity);
 		}
 
-		if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value == "priest")
-		{
-			var healTarget = new HealingTarget(targetEntity);
-			GameContext.World.SetOrAdd(entity, healTarget);
-		}
-		else if (GameContext.World.Has<Movable>(entity))
+		if (GameContext.World.Has<Movable>(entity))
 		{
 			var follow = new Follow(targetEntity);
 			GameContext.World.SetOrAdd(entity, follow);
@@ -497,8 +490,7 @@ public class InputService
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
 			bool isBuilding = GameContext.World.Has<Building>(entity);
-			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-			if (isBuilding || isEnemy) continue;
+			if (isBuilding) continue;
 
 			if (isQueued && IsUnitActive(entity))
 			{
@@ -526,8 +518,7 @@ public class InputService
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
 			bool isBuilding = GameContext.World.Has<Building>(entity);
-			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-			if (isBuilding || isEnemy) continue;
+			if (isBuilding) continue;
 
 			ClearUnitOrders(entity);
 
@@ -541,8 +532,6 @@ public class InputService
 		foreach (var entity in selectedEntities)
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
-			bool isEnemy = GameContext.World.Has<UnitFaction>(entity) && GameContext.World.Get<UnitFaction>(entity).IsEnemy;
-			if (isEnemy) continue;
 
 			ClearUnitOrders(entity);
 		}
@@ -792,14 +781,7 @@ public class InputService
 
 	public float GetPlacementRadius(string placeId, float scale = 1.0f)
 	{
-		if (string.IsNullOrEmpty(placeId)) return 1.2f * scale;
-		string lowerId = placeId.ToLower();
-		float baseRadius = 1.2f;
-		if (lowerId.Contains("castle")) baseRadius = 5.0f;
-		else if (lowerId.Contains("tower")) baseRadius = 2.5f;
-		else if (lowerId.Contains("goldmine")) baseRadius = 4.0f;
-		else if (lowerId.Contains("logo") || lowerId.Contains("flag") || lowerId.Contains("rune")) baseRadius = 1.0f;
-		return baseRadius * scale;
+		return GameContext.RegistryService.GetPlacementRadius(placeId, scale);
 	}
 
 	public Vector3? FindNearestFreePosition(Vector3 startPos, float checkRadius, float maxSearchDist = 20.0f, float terrainQuadSize = 2.0f, int terrainWidth = 256, int terrainDepth = 256)
@@ -911,17 +893,17 @@ public class InputService
 		return true;
 	}
 
-	public bool BuyItem(string itemId, Entity playerEntity, Vector3 castlePos, Entity selectedUnitEntity, out Entity targetUnitEntity)
+	public bool BuyItem(string itemId, Entity playerEntity, Vector3 shopPosition, Entity selectedUnitEntity, out Entity targetUnitEntity)
 	{
 		targetUnitEntity = Entity.Null;
 
-		Entity target = FindClosestFriendlyCombatUnit(castlePos, playerEntity, 20.0f);
+		Entity target = FindClosestFriendlyCombatUnit(shopPosition, playerEntity, 20.0f);
 
 		if (target == Entity.Null && GameContext.World.IsAlive(selectedUnitEntity))
 		{
 			bool isBuilding = GameContext.World.Has<Building>(selectedUnitEntity);
-			bool isEnemy = GameContext.World.Has<UnitFaction>(selectedUnitEntity) && GameContext.World.Get<UnitFaction>(selectedUnitEntity).IsEnemy;
-			if (!isBuilding && !isEnemy && GameContext.World.Has<Inventory>(selectedUnitEntity))
+			bool isOwnedByPlayer = GameContext.World.Has<Owner>(selectedUnitEntity) && GameContext.World.Get<Owner>(selectedUnitEntity).PlayerEntity.Value == playerEntity;
+			if (!isBuilding && isOwnedByPlayer && GameContext.World.Has<Inventory>(selectedUnitEntity))
 			{
 				target = selectedUnitEntity;
 			}
@@ -937,7 +919,7 @@ public class InputService
 		return false;
 	}
 
-	private Entity FindClosestFriendlyCombatUnit(Vector3 castlePos, Entity playerEntity, float maxDistance)
+	private Entity FindClosestFriendlyCombatUnit(Vector3 originPos, Entity playerEntity, float maxDistance)
 	{
 		Entity closestUnit = Entity.Null;
 		float closestDist = maxDistance;
@@ -947,7 +929,7 @@ public class InputService
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
-				float dist = Vector3.Distance(castlePos, pos.Value);
+				float dist = Vector3.Distance(originPos, pos.Value);
 				if (dist < closestDist)
 				{
 					closestDist = dist;
@@ -1177,9 +1159,9 @@ public class InputService
 		return Entity.Null;
 	}
 
-	public bool TryQueueUnitAtCastle(Entity playerEntity, Entity castleEntity, string unitId, int popCost, float productionTime)
+	public bool TryQueueUnit(Entity playerEntity, Entity buildingEntity, string unitId, int popCost, float productionTime)
 	{
-		if (!GameContext.World.IsAlive(playerEntity) || !GameContext.World.IsAlive(castleEntity)) return false;
+		if (!GameContext.World.IsAlive(playerEntity) || !GameContext.World.IsAlive(buildingEntity)) return false;
 
 		if (GameContext.World.Has<PlayerPopulation>(playerEntity))
 		{
@@ -1192,9 +1174,9 @@ public class InputService
 			pop.Current += popCost;
 		}
 
-		ref var prod = ref GameContext.World.Has<ProductionQueue>(castleEntity)
-			? ref GameContext.World.Get<ProductionQueue>(castleEntity)
-			: ref CreateProductionQueue(castleEntity);
+		ref var prod = ref GameContext.World.Has<ProductionQueue>(buildingEntity)
+			? ref GameContext.World.Get<ProductionQueue>(buildingEntity)
+			: ref CreateProductionQueue(buildingEntity);
 
 		if (prod.UnitIds.Count >= 5) return false;
 
@@ -1204,23 +1186,23 @@ public class InputService
 		}
 
 		prod.UnitIds.Add(unitId);
-		GameContext.World.Set(castleEntity, prod);
+		GameContext.World.Set(buildingEntity, prod);
 
 		return true;
 	}
 
-	private ref ProductionQueue CreateProductionQueue(Entity castleEntity)
+	private ref ProductionQueue CreateProductionQueue(Entity buildingEntity)
 	{
-		GameContext.World.Add(castleEntity, new ProductionQueue());
-		return ref GameContext.World.Get<ProductionQueue>(castleEntity);
+		GameContext.World.Add(buildingEntity, new ProductionQueue());
+		return ref GameContext.World.Get<ProductionQueue>(buildingEntity);
 	}
 
-	private void RefundPopulationCost(Entity castleEntity, int popCost)
+	private void RefundPopulationCost(Entity buildingEntity, int popCost)
 	{
 		if (popCost <= 0) return;
-		if (!GameContext.World.Has<Owner>(castleEntity)) return;
+		if (!GameContext.World.Has<Owner>(buildingEntity)) return;
 
-		var ownerPlayerEntity = GameContext.World.Get<Owner>(castleEntity).PlayerEntity.Value;
+		var ownerPlayerEntity = GameContext.World.Get<Owner>(buildingEntity).PlayerEntity.Value;
 		if (GameContext.World.IsAlive(ownerPlayerEntity) && GameContext.World.Has<PlayerPopulation>(ownerPlayerEntity))
 		{
 			ref var pop = ref GameContext.World.Get<PlayerPopulation>(ownerPlayerEntity);
@@ -1228,15 +1210,15 @@ public class InputService
 		}
 	}
 
-	public bool CancelQueuedUnitAt(Entity castleEntity, int index, out string? cancelledUnitId, out string? nextUnitId, int popCost = 0)
+	public bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId, int popCost = 0)
 	{
 		cancelledUnitId = null;
 		nextUnitId = null;
 
-		if (!GameContext.World.IsAlive(castleEntity) || !GameContext.World.Has<ProductionQueue>(castleEntity))
+		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity))
 			return false;
 
-		var prod = GameContext.World.Get<ProductionQueue>(castleEntity);
+		var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
 		if (index < 0 || index >= prod.UnitIds.Count)
 			return false;
 
@@ -1252,9 +1234,9 @@ public class InputService
 			}
 		}
 
-		RefundPopulationCost(castleEntity, popCost);
+		RefundPopulationCost(buildingEntity, popCost);
 
-		GameContext.World.Set(castleEntity, prod);
+		GameContext.World.Set(buildingEntity, prod);
 		return true;
 	}
 
@@ -1454,7 +1436,7 @@ public class InputService
 		}
 		else if (def.Healing > 0f)
 		{
-			GameContext.SimulationService.HealAOE(simPos, aoe, def.Healing);
+			GameContext.SimulationService.HealAOE(simPos, aoe, def.Healing, target);
 		}
 	}
 

@@ -1,4 +1,4 @@
-﻿namespace Realm.Client.Services;
+namespace Realm.Client.Services;
 
 public struct CopiedObjectTemplate
 {
@@ -6,5 +6,5 @@ public struct CopiedObjectTemplate
 	public string Id;
 	public float Rotation;
 	public float Scale;
-	public bool IsEnemy;
+	public int Player;
 }

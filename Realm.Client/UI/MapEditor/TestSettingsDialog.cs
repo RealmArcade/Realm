@@ -9,9 +9,10 @@ public partial class TestSettingsDialog : FloatingDialogBase
 {
 	private SpinBox _numAiPlayers;
 	private CheckBox _chkRandomizeSlots;
+	private SpinBox _numRandomSeed;
 
 	public TestSettingsDialog(MapEditorHUD hud)
-		: base(hud, TranslationServer.Translate("Test Settings"), new Vector2(340, 220))
+		: base(hud, TranslationServer.Translate("Test Settings"), new Vector2(340, 260))
 	{
 		SetUncompressedPanelTexture("res://Assets/UI/map_editor_usability_settings.png", 55, 15, 60, 60);
 		if (TitleLabel?.GetParent() is MarginContainer titleMargin)
@@ -69,6 +70,21 @@ public partial class TestSettingsDialog : FloatingDialogBase
 		_chkRandomizeSlots.Toggled += (toggled) => SaveSettings();
 		grid.AddChild(_chkRandomizeSlots);
 
+		var lblSeed = new Label();
+		lblSeed.Text = TranslationServer.Translate("Random Seed:");
+		lblSeed.AddThemeFontSizeOverride("font_size", 11);
+		lblSeed.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		grid.AddChild(lblSeed);
+
+		_numRandomSeed = new SpinBox();
+		_numRandomSeed.MinValue = 0;
+		_numRandomSeed.MaxValue = int.MaxValue;
+		_numRandomSeed.Step = 1;
+		_numRandomSeed.Value = 0;
+		_numRandomSeed.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_numRandomSeed.ValueChanged += (val) => SaveSettings();
+		grid.AddChild(_numRandomSeed);
+
 		LoadSettings();
 	}
 
@@ -76,11 +92,18 @@ public partial class TestSettingsDialog : FloatingDialogBase
 	{
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var metadata = MapFileService.LoadMetadata(wsPath);
-		int aiCount = metadata.MapProperties?.TestAiPlayerCount ?? 1;
+		int maxAi = Math.Max(0, (metadata.MapProperties?.MaxTestPlayers ?? 24) - 1);
+		int aiCount = Math.Min(metadata.MapProperties?.TestAiPlayerCount ?? 1, maxAi);
 		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
+		int seed = metadata.MapProperties?.TestRandomSeed ?? 0;
 
-		if (_numAiPlayers != null) _numAiPlayers.Value = aiCount;
+		if (_numAiPlayers != null)
+		{
+			_numAiPlayers.MaxValue = maxAi;
+			_numAiPlayers.Value = aiCount;
+		}
 		if (_chkRandomizeSlots != null) _chkRandomizeSlots.ButtonPressed = randomize;
+		if (_numRandomSeed != null) _numRandomSeed.Value = seed;
 	}
 
 	public void SaveSettings()
@@ -88,11 +111,14 @@ public partial class TestSettingsDialog : FloatingDialogBase
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		int aiCount = (int)(_numAiPlayers?.Value ?? 1);
 		bool randomize = _chkRandomizeSlots?.ButtonPressed ?? false;
+		int seedVal = (int)(_numRandomSeed?.Value ?? 0);
+		int? testSeed = seedVal != 0 ? seedVal : null;
 
 		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 		{
 			meta.MapProperties.TestAiPlayerCount = aiCount;
 			meta.MapProperties.TestRandomizeSlots = randomize;
+			meta.MapProperties.TestRandomSeed = testSeed;
 		});
 	}
 

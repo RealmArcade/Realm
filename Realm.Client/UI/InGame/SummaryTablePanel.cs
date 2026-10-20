@@ -1,4 +1,5 @@
 using Godot;
+using Realm.MapAPI;
 
 namespace Realm.Client.UI.InGame;
 
@@ -17,8 +18,9 @@ public class SummaryTablePanel
 
 	public void Update(InGameHUDViewModel viewModel)
 	{
-		_summaryPanel.Visible = viewModel.SummaryTableVisible;
-		if (!viewModel.SummaryTableVisible)
+		bool allowSummary = InGameHUD.Instance?.IsHudElementVisible(HudElement.SummaryTable, true) ?? true;
+		_summaryPanel.Visible = viewModel.SummaryTableVisible && allowSummary;
+		if (!viewModel.SummaryTableVisible || !allowSummary)
 		{
 			return;
 		}

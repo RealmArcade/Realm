@@ -1,6 +1,23 @@
+using System.Runtime.InteropServices;
+
 namespace Realm.Ecs.Components.Meta;
 
 /// <summary>
-///     The icon for an entity, used in UI.
+/// Identifies the UI icon resource path for an entity.
 /// </summary>
-public record struct Icon(string Path);
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct Icon
+{
+	public int StringId;
+
+	public Icon(string path)
+	{
+		StringId = StringRegistry.GetOrAdd(path);
+	}
+
+	public string Path
+	{
+		get => StringRegistry.Get(StringId);
+		set => StringId = StringRegistry.GetOrAdd(value);
+	}
+}

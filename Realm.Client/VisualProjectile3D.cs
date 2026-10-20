@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -348,11 +348,6 @@ public partial class VisualProjectile3D : Node3D
 		if (!needsReload)
 		{
 			_fallbackMeshInstance.Visible = false;
-			if (_customModelInstance is not ProceduralVfxInstance3D)
-			{
-				ApplyUberMaterialRecursively(_customModelInstance);
-			}
-
 			return;
 		}
 

@@ -15,7 +15,6 @@ public class ObjectSpawnAction : IEditorAction
 	private readonly Vector3 _rotationDegrees;
 	private readonly float _rotationY;
 	private readonly float _scale;
-	private readonly bool _isEnemy;
 	private readonly int _player;
 	private Node _spawnedNode;
 
@@ -23,12 +22,17 @@ public class ObjectSpawnAction : IEditorAction
 	public float Scale => _scale;
 	public Node SpawnedNode => _spawnedNode;
 
-	public ObjectSpawnAction(string objectType, string objectId, Vector3 position, float rotationY, float scale, bool isEnemy, Node spawnedNode, int player = -1)
-		: this(objectType, objectId, position, new Vector3(0f, rotationY, 0f), scale, isEnemy, spawnedNode, player)
+	public ObjectSpawnAction(string objectType, string objectId, Vector3 position, float rotationY, float scale, Node spawnedNode, int player = -1)
+		: this(objectType, objectId, position, new Vector3(0f, rotationY, 0f), scale, spawnedNode, player)
 	{
 	}
 
-	public ObjectSpawnAction(string objectType, string objectId, Vector3 position, Vector3 rotationDegrees, float scale, bool isEnemy, Node spawnedNode, int player = -1)
+	public ObjectSpawnAction(string objectType, string objectId, Vector3 position, float rotationY, float scale, bool isEnemy, Node spawnedNode, int player = -1)
+		: this(objectType, objectId, position, new Vector3(0f, rotationY, 0f), scale, spawnedNode, player >= 0 ? player : (isEnemy ? 1 : 0))
+	{
+	}
+
+	public ObjectSpawnAction(string objectType, string objectId, Vector3 position, Vector3 rotationDegrees, float scale, Node spawnedNode, int player = -1)
 	{
 		_objectType = objectType;
 		_objectId = objectId;
@@ -37,8 +41,12 @@ public class ObjectSpawnAction : IEditorAction
 		_rotationY = rotationDegrees.Y;
 		_scale = scale;
 		_player = player >= 0 ? player : ((spawnedNode as Unit3D)?.Player ?? 0);
-		_isEnemy = NetworkService.ArePlayerIndicesEnemies(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1, _player);
 		_spawnedNode = spawnedNode;
+	}
+
+	public ObjectSpawnAction(string objectType, string objectId, Vector3 position, Vector3 rotationDegrees, float scale, bool isEnemy, Node spawnedNode, int player = -1)
+		: this(objectType, objectId, position, rotationDegrees, scale, spawnedNode, player >= 0 ? player : (isEnemy ? 1 : 0))
+	{
 	}
 
 	public void Undo()
@@ -57,7 +65,7 @@ public class ObjectSpawnAction : IEditorAction
 	{
 		if (_objectType == "unit")
 		{
-			_spawnedNode = GameHost.Instance?.SpawnUnitExternal(_objectId, _position, _isEnemy, _rotationY, _scale, _player);
+			_spawnedNode = GameHost.Instance?.SpawnUnitExternal(_objectId, _position, _rotationY, _scale, _player);
 		}
 		else if (_objectType == "prop")
 		{

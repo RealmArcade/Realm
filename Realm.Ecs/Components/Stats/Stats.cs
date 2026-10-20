@@ -1,8 +1,25 @@
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Realm.Ecs.Common;
 
 namespace Realm.Ecs.Components.Stats;
 
 /// <summary>
-///     A component holding all base stat values for an entity.
+/// Holds a dictionary mapping stat IDs to current stat values for an entity.
 /// </summary>
-public record struct Stats(Dictionary<StatId, float> Value);
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct Stats
+{
+	public int Handle;
+
+	public Stats(Dictionary<StatId, float> value)
+	{
+		Handle = ColdPayloadRegistry<Dictionary<StatId, float>>.Register(value);
+	}
+
+	public Dictionary<StatId, float> Value
+	{
+		get => ColdPayloadRegistry<Dictionary<StatId, float>>.Get(Handle);
+		set => Handle = ColdPayloadRegistry<Dictionary<StatId, float>>.Register(value);
+	}
+}

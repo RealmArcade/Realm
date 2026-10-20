@@ -12,6 +12,16 @@ public interface IGameAPI
 	/// </summary>
 	float GameElapsedTime { get; }
 
+	/// <summary>
+	/// Gets a value indicating whether the current frame execution is a predictive local frame.
+	/// </summary>
+	bool IsPredictiveFrame => false;
+
+	/// <summary>
+	/// Gets a value indicating whether the current frame execution is an authoritative simulation frame.
+	/// </summary>
+	bool IsAuthoritativeFrame => !IsPredictiveFrame;
+
 
 	/// <summary>
 	/// Spawns a resource node at the given position.
@@ -24,16 +34,16 @@ public interface IGameAPI
 	/// <summary>
 	/// Retrieves all units currently alive in the game world.
 	/// </summary>
-	/// <returns>A collection of all active units.</returns>
-	IEnumerable<IUnit> GetAllUnits();
+	/// <returns>A read-only span of all active unit identifiers.</returns>
+	ReadOnlySpan<UnitId> GetAllUnits() => SpatialQueryEngine.GetAllUnits();
 
 	/// <summary>
 	/// Retrieves all active units within the specified radius of a 3D position.
 	/// </summary>
 	/// <param name="center">The center point in 3D world space.</param>
 	/// <param name="radius">The radius distance check.</param>
-	/// <returns>A collection of units within the radius.</returns>
-	IEnumerable<IUnit> GetUnitsInRadius(Vector3 center, float radius);
+	/// <returns>A read-only span of unit identifiers within the radius.</returns>
+	ReadOnlySpan<UnitId> GetUnitsInRadius(Vector3 center, float radius) => SpatialQueryEngine.GetUnitsInRadius(center, radius);
 
 	/// <summary>
 	/// Gets the number of resource nodes.
@@ -43,18 +53,15 @@ public interface IGameAPI
 	/// <summary>
 	/// Retrieves a resource node by its index.
 	/// </summary>
-	IResourceNode GetResourceNode(int index);
+	/// <param name="index">The zero-based index of the resource node.</param>
+	/// <returns>The resource node identifier.</returns>
+	ResourceNodeId GetResourceNode(int index);
 
 	/// <summary>
 	/// Retrieves all active resource nodes in the game world.
 	/// </summary>
-	/// <returns>A collection of all active resource nodes.</returns>
-	IEnumerable<IResourceNode> GetResourceNodes()
-	{
-		int count = ResourceNodeCount;
-		for (int i = 0; i < count; i++)
-			yield return GetResourceNode(i);
-	}
+	/// <returns>A read-only span of all active resource node identifiers.</returns>
+	ReadOnlySpan<ResourceNodeId> GetResourceNodes();
 
 	/// <summary>
 	/// Displays floating feedback text on the player's screen.
@@ -84,8 +91,8 @@ public interface IGameAPI
 	/// Retrieves a unit by its unique runtime identifier.
 	/// </summary>
 	/// <param name="uniqueId">The unique ID of the unit to retrieve.</param>
-	/// <returns>The unit wrapper if alive, or null.</returns>
-	IUnit? GetUnitById(int uniqueId);
+	/// <returns>The unit identifier.</returns>
+	UnitId GetUnitById(int uniqueId);
 
 	/// <summary>
 	/// Generates a new map directory containing boilerplate files for a custom map.
@@ -97,37 +104,42 @@ public interface IGameAPI
 	/// <summary>
 	/// Triggered when a unit is spawned in the game world.
 	/// </summary>
-	event Action<IUnit>? OnUnitCreated;
+	event Action<UnitId>? OnUnitCreated;
 
 	/// <summary>
 	/// Triggered when a unit dies. Passes the dying unit and the killer unit if available.
 	/// </summary>
-	event Action<IUnit, IUnit?>? OnUnitDied;
+	event Action<UnitId, UnitId>? OnUnitDied;
 
 	/// <summary>
 	/// Triggered when a unit takes damage. Passes the victim unit, the attacker unit, and the damage amount.
 	/// </summary>
-	event Action<IUnit, IUnit, float>? OnUnitDamaged;
+	event Action<UnitId, UnitId, float>? OnUnitDamaged;
 
 	/// <summary>
 	/// Triggered when a unit casts or channels a spell. Passes the caster unit, the spell ID, and the target position.
 	/// </summary>
-	event Action<IUnit?, string, Vector3>? OnSpellCast;
+	event Action<UnitId, string, Vector3>? OnSpellCast;
 
 	/// <summary>
 	/// Triggered when a player types a chat message. Passes the message and the first selected unit if any.
 	/// </summary>
-	event Action<string, IUnit?>? OnPlayerChatMessage;
+	event Action<string, UnitId>? OnPlayerChatMessage;
 
 	/// <summary>
 	/// Triggered when the player selects a unit.
 	/// </summary>
-	event Action<IUnit>? OnUnitSelected;
+	event Action<UnitId>? OnUnitSelected;
 
 	/// <summary>
 	/// Triggered when a unit attacks another unit. Passes the attacker unit and the target unit.
 	/// </summary>
-	event Action<IUnit, IUnit>? OnUnitAttacked;
+	event Action<UnitId, UnitId>? OnUnitAttacked;
+
+	/// <summary>
+	/// Triggered when a ground loot item is collected by a unit. Passes the collected loot item and the collecting unit.
+	/// </summary>
+	event Action<LootItemId, UnitId>? OnLootItemCollected;
 
 	/// <summary>
 	/// Spawns floating text in the 3D world that drifts upwards and fades out.
@@ -217,18 +229,18 @@ public interface IGameAPI
 	/// <summary>
 	/// Attaches a persistent volume shield or aura visual effect to a unit.
 	/// </summary>
-	/// <param name="unit">The target unit wrapper to attach the aura to.</param>
+	/// <param name="unit">The target unit identifier.</param>
 	/// <param name="auraVfxId">The identifier of the visual effect or attachment configuration.</param>
 	/// <param name="scale">The visual scale multiplier.</param>
-	void AttachPersistentAura(IUnit unit, string auraVfxId, float scale = 1.0f);
+	void AttachPersistentAura(UnitId unit, string auraVfxId, float scale = 1.0f);
 
 	/// <summary>
 	/// Adds a buff to a unit.
 	/// </summary>
-	/// <param name="unit">The target unit.</param>
+	/// <param name="unit">The target unit identifier.</param>
 	/// <param name="buffId">The identifier of the buff.</param>
 	/// <param name="duration">The duration of the buff in seconds.</param>
-	void AddBuff(IUnit unit, string buffId, float duration);
+	void AddBuff(UnitId unit, string buffId, float duration);
 
 	/// <summary>
 	/// Registers a stat modifier for a buff type.
@@ -240,42 +252,74 @@ public interface IGameAPI
 	void RegisterBuffModifier(string buffId, string statName, bool isPercentage, float value);
 
 	/// <summary>
+	/// Registers the footprint radius used when placing or checking for overlap with a unit, building, or prop.
+	/// </summary>
+	/// <param name="definitionKey">A case-insensitive fragment that must be contained in the definition identifier for the rule to apply. Rules are evaluated in registration order and the first match wins.</param>
+	/// <param name="radius">The base footprint radius in world units, before the object's scale is applied.</param>
+	void RegisterPlacementRadius(string definitionKey, float radius);
+
+	/// <summary>
+	/// Registers a building definition as a drop-off point where workers deliver gathered resources.
+	/// </summary>
+	/// <param name="definitionKey">A case-insensitive fragment that must be contained in the building definition identifier.</param>
+	void RegisterResourceDropoffBuilding(string definitionKey);
+
+	/// <summary>
+	/// Registers a unit definition fragment identifying workers; any building able to produce a matching unit is treated as a resource drop-off point.
+	/// </summary>
+	/// <param name="unitKey">A case-sensitive fragment that must be contained in the unit definition identifier in a building's build options.</param>
+	void RegisterResourceWorkerUnit(string unitKey);
+
+	/// <summary>
+	/// Registers a building definition as a player's primary building, which camera shortcuts focus on.
+	/// </summary>
+	/// <param name="definitionId">The exact, case-insensitive building definition identifier.</param>
+	void RegisterPrimaryBuilding(string definitionId);
+
+	/// <summary>
+	/// Declares which resource type a harvestable node prop yields.
+	/// </summary>
+	/// <param name="nodeDefinitionId">The prop definition identifier of the harvestable node (case-insensitive).</param>
+	/// <param name="resourceType">The resource type gathered from the node, such as "gold", "wood" or "stone".</param>
+	void RegisterResourceNodeType(string nodeDefinitionId, string resourceType);
+
+	/// <summary>
 	/// Executes an ability generically by ID on a unit targeting a position.
 	/// </summary>
 	/// <param name="unit">The unit casting the ability.</param>
 	/// <param name="abilityId">The identifier of the ability.</param>
 	/// <param name="targetPosition">The target position in 3D world space.</param>
-	void CastAbility(IUnit unit, string abilityId, Vector3 targetPosition);
+	void CastAbility(UnitId unit, string abilityId, Vector3 targetPosition);
 
 	/// <summary>
 	/// Gets the remaining cooldown of a unit's ability in seconds.
 	/// </summary>
-	/// <param name="unit">The unit to check.</param>
+	/// <param name="unit">The unit identifier.</param>
 	/// <param name="abilityId">The identifier of the ability.</param>
 	/// <returns>Remaining cooldown in seconds, or 0 if ready or not found.</returns>
-	float GetAbilityCooldown(IUnit unit, string abilityId);
+	float GetAbilityCooldown(UnitId unit, string abilityId);
 
 	/// <summary>
 	/// Sets the cooldown of a unit's ability.
 	/// </summary>
-	/// <param name="unit">The unit.</param>
+	/// <param name="unit">The unit identifier.</param>
 	/// <param name="abilityId">The identifier of the ability.</param>
 	/// <param name="cooldown">The cooldown duration in seconds.</param>
-	void SetAbilityCooldown(IUnit unit, string abilityId, float cooldown);
+	void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown);
 
 	/// <summary>
 	/// Removes a buff from a unit.
 	/// </summary>
-	/// <param name="unit">The target unit.</param>
+	/// <param name="unit">The target unit identifier.</param>
 	/// <param name="buffId">The identifier of the buff to remove.</param>
-	void RemoveBuff(IUnit unit, string buffId);
+	void RemoveBuff(UnitId unit, string buffId);
 
 	/// <summary>
 	/// Gets active modifiers on a unit.
 	/// </summary>
-	/// <param name="unit">The target unit.</param>
+	/// <param name="unit">The target unit identifier.</param>
 	/// <returns>A collection of modifier description strings.</returns>
-	IEnumerable<string> GetModifiers(IUnit unit);
+	IEnumerable<string> GetModifiers(UnitId unit);
 
 	/// <summary>
 	/// Spawns a visual projectile moving from a starting position to a target position.
@@ -384,7 +428,7 @@ public interface IGameAPI
 	/// <param name="unit">The unit to kill.</param>
 	/// <param name="executeDespawnShader">True to execute the despawn or death shader effect if configured, false to skip.</param>
 	/// <param name="playDeathAnimation">True to play the death animation if available, false to skip.</param>
-	void KillUnit(IUnit unit, bool executeDespawnShader = true, bool playDeathAnimation = true);
+	void KillUnit(UnitId unit, bool executeDespawnShader = true, bool playDeathAnimation = true);
 
 	/// <summary>
 	/// Instantly removes the specified unit from the game.
@@ -392,7 +436,7 @@ public interface IGameAPI
 	/// <param name="unit">The unit to destroy.</param>
 	/// <param name="executeDespawnShader">True to execute the despawn or death shader effect if configured, false to skip.</param>
 	/// <param name="playDeathAnimation">True to play the death animation if available, false to skip.</param>
-	void DestroyUnit(IUnit unit, bool executeDespawnShader = true, bool playDeathAnimation = true);
+	void DestroyUnit(UnitId unit, bool executeDespawnShader = true, bool playDeathAnimation = true);
 
 
 	/// <summary>
@@ -406,18 +450,6 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
 	string GetPlayerName(int playerIndex);
-
-	/// <summary>
-	/// Returns true if the specified player slot is occupied by an active human or AI participant.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	bool IsPlayerActive(int playerIndex);
-
-	/// <summary>
-	/// Gets the gold resource for the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	float GetPlayerGold(int playerIndex);
 
 	/// <summary>
 	/// Sets the gold resource for the specified player slot.
@@ -442,15 +474,15 @@ public interface IGameAPI
 	/// <param name="playerIndex">Zero-based player slot index that will own the unit.</param>
 	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
 	/// <param name="bypassPopulation">True to bypass population cap limits when spawning, false to enforce population limits.</param>
-	/// <returns>A reference to the spawned unit.</returns>
-	IUnit SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false);
+	/// <returns>The spawned unit identifier.</returns>
+	UnitId SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false);
 
 	/// <summary>
 	/// Retrieves all alive units owned by the specified player slot.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
-	/// <returns>A lazily-evaluated sequence of units belonging to that player.</returns>
-	IEnumerable<IUnit> GetUnitsOwnedByPlayer(int playerIndex);
+	/// <returns>A read-only span of units belonging to that player.</returns>
+	ReadOnlySpan<UnitId> GetUnitsOwnedByPlayer(int playerIndex) => SpatialQueryEngine.GetUnitsOwnedByPlayer(playerIndex);
 
 	/// <summary>
 	/// Triggers the defeat condition for the specified player slot, playing the defeat sequence only for that player.
@@ -567,12 +599,6 @@ public interface IGameAPI
 	void SetPlayerTeam(int playerIndex, int teamIndex);
 
 	/// <summary>
-	/// Returns the team index that the specified player slot belongs to.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	int GetPlayerTeam(int playerIndex);
-
-	/// <summary>
 	/// Configures whether two player slots treat each other as passive allies
 	/// (shared vision, units do not attack each other).
 	/// </summary>
@@ -587,12 +613,6 @@ public interface IGameAPI
 	/// <param name="playerIndex">Index of the first player.</param>
 	/// <param name="otherPlayerIndex">Index of the second player.</param>
 	bool ArePlayersAllied(int playerIndex, int otherPlayerIndex);
-
-	/// <summary>
-	/// Returns true if the specified player slot is controlled by a computer AI.
-	/// </summary>
-	/// <param name="playerIndex">Player slot index.</param>
-	bool IsPlayerComputer(int playerIndex);
 
 	/// <summary>
 	/// Sets whether the specified player slot is active in the game session.
@@ -624,49 +644,26 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit to tint.</param>
 	/// <param name="color">RGB color values in the range [0, 1].</param>
-	void SetUnitColor(IUnit unit, Vector3 color);
+	void SetUnitColor(UnitId unit, Vector3 color);
 
 	/// <summary>
 	/// Sets the rotation angle or facing direction of the unit in radians or towards a target direction.
 	/// </summary>
 	/// <param name="unit">The unit whose facing direction is being set.</param>
 	/// <param name="facingRadians">The target facing angle in radians around the vertical axis.</param>
-	void SetUnitFacing(IUnit unit, float facingRadians);
+	void SetUnitFacing(UnitId unit, float facingRadians);
 
 	/// <summary>
 	/// Sets the facing direction of the unit to look at the specified target position.
 	/// </summary>
 	/// <param name="unit">The unit to rotate.</param>
 	/// <param name="targetPosition">The 3D coordinates in world space to face towards.</param>
-	void SetUnitFacing(IUnit unit, Vector3 targetPosition)
+	void SetUnitFacing(UnitId unit, Vector3 targetPosition)
 	{
 		Vector3 delta = targetPosition - unit.Position;
 		float angle = MathF.Atan2(delta.X, delta.Z);
 		SetUnitFacing(unit, angle);
 	}
-
-
-	/// <summary>
-	/// Retrieves all alive units within the specified radius of a 3D position
-	/// that satisfy the given filter predicate.
-	/// </summary>
-	/// <param name="center">The center point in 3D world space.</param>
-	/// <param name="radius">The search radius.</param>
-	/// <param name="filter">A predicate function that returns true for units to include.</param>
-	/// <returns>A lazily-evaluated sequence of matching units.</returns>
-	IEnumerable<IUnit> GetUnitsInRadius(Vector3 center, float radius, Func<IUnit, bool> filter)
-		=> GetUnitsInRadius(center, radius).Where(filter);
-
-	/// <summary>
-	/// Retrieves all alive units owned by the specified player slot
-	/// that satisfy the given filter predicate.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	/// <param name="filter">A predicate that returns true for units to include.</param>
-	/// <returns>A lazily-evaluated sequence of matching units.</returns>
-	IEnumerable<IUnit> GetUnitsOwnedByPlayer(int playerIndex, Func<IUnit, bool> filter)
-		=> GetUnitsOwnedByPlayer(playerIndex).Where(filter);
-
 
 	/// <summary>
 	/// Orders the unit to attack-move to the specified world position.
@@ -674,7 +671,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit to command.</param>
 	/// <param name="destination">The destination position in world coordinates.</param>
-	void IssueAttackMoveOrder(IUnit unit, Vector3 destination);
+	void IssueAttackMoveOrder(UnitId unit, Vector3 destination);
 
 	/// <summary>
 	/// Orders the unit to cast a targeted spell on a specific enemy unit.
@@ -683,7 +680,7 @@ public interface IGameAPI
 	/// <param name="caster">The casting unit.</param>
 	/// <param name="abilityId">The ability identifier string.</param>
 	/// <param name="target">The target unit.</param>
-	void IssueCastOrder(IUnit caster, string abilityId, IUnit target);
+	void IssueCastOrder(UnitId caster, string abilityId, UnitId target);
 
 	/// <summary>
 	/// Orders the unit to cast a ground-targeted spell at the specified world position.
@@ -692,7 +689,7 @@ public interface IGameAPI
 	/// <param name="caster">The casting unit.</param>
 	/// <param name="abilityId">The ability identifier string.</param>
 	/// <param name="position">The target position in world coordinates.</param>
-	void IssueCastOrderAt(IUnit caster, string abilityId, Vector3 position);
+	void IssueCastOrderAt(UnitId caster, string abilityId, Vector3 position);
 
 	/// <summary>
 	/// Orders the unit to activate or deactivate an auto-cast ability.
@@ -700,7 +697,7 @@ public interface IGameAPI
 	/// <param name="unit">The unit that owns the ability.</param>
 	/// <param name="abilityId">The ability identifier string.</param>
 	/// <param name="active">True to activate auto-cast; false to deactivate.</param>
-	void SetAbilityAutoCast(IUnit unit, string abilityId, bool active);
+	void SetAbilityAutoCast(UnitId unit, string abilityId, bool active);
 
 
 	/// <summary>
@@ -721,13 +718,6 @@ public interface IGameAPI
 	/// <param name="value">Row value text.</param>
 	/// <param name="color">Optional RGB tint for the label text.</param>
 	void AddLeaderboardRow(string label, string value, Vector3? color = null);
-
-
-	/// <summary>
-	/// Gets the wood (lumber) resource for the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	float GetPlayerWood(int playerIndex);
 
 	/// <summary>
 	/// Sets the wood (lumber) resource for the specified player slot.
@@ -750,20 +740,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit to transfer.</param>
 	/// <param name="playerIndex">Zero-based player slot index of the new owner.</param>
-	void SetUnitOwner(IUnit unit, int playerIndex);
-
-
-	/// <summary>
-	/// Gets the current population count for the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	int GetPlayerCurrentPopulation(int playerIndex);
-
-	/// <summary>
-	/// Gets the maximum population capacity for the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	int GetPlayerMaxPopulation(int playerIndex);
+	void SetUnitOwner(UnitId unit, int playerIndex);
 
 	/// <summary>
 	/// Sets the maximum population capacity for the specified player slot.
@@ -794,14 +771,6 @@ public interface IGameAPI
 	/// <param name="playerIndex">Zero-based player slot index.</param>
 	int CountUnitsOwnedByPlayer(int playerIndex);
 
-	/// <summary>
-	/// Returns the number of units owned by the specified player that match the optional filter.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	/// <param name="filter">Optional predicate; pass null to count all units.</param>
-	int CountUnitsOwnedByPlayer(int playerIndex, Func<IUnit, bool>? filter = null)
-		=> filter == null ? CountUnitsOwnedByPlayer(playerIndex) : GetUnitsOwnedByPlayer(playerIndex).Count(filter);
-
 
 	/// <summary>
 	/// Defines a named rectangular zone in 2D map space (X/Z axes).
@@ -825,7 +794,7 @@ public interface IGameAPI
 	/// Triggered whenever a unit enters the specified zone.
 	/// The callback receives the unit that entered and the zone handle it entered.
 	/// </summary>
-	event Action<IUnit, int>? OnUnitEnterZone;
+	event Action<UnitId, int>? OnUnitEnterZone;
 
 
 	/// <summary>
@@ -834,14 +803,14 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit to tag.</param>
 	/// <param name="state">An arbitrary integer value meaningful to the caller.</param>
-	void SetUnitRouteState(IUnit unit, int state);
+	void SetUnitRouteState(UnitId unit, int state);
 
 	/// <summary>
 	/// Retrieves the integer route-state value previously set on the unit,
 	/// or 0 if none has been set.
 	/// </summary>
 	/// <param name="unit">The unit to query.</param>
-	int GetUnitRouteState(IUnit unit);
+	int GetUnitRouteState(UnitId unit);
 
 
 	/// <summary>
@@ -850,7 +819,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The hero unit whose level should be changed.</param>
 	/// <param name="level">The new level value.</param>
-	void SetUnitLevel(IUnit unit, int level);
+	void SetUnitLevel(UnitId unit, int level);
 
 
 	/// <summary>
@@ -858,13 +827,6 @@ public interface IGameAPI
 	/// The integer argument is the zero-based player slot index.
 	/// </summary>
 	event Action<int>? OnPlayerLeft;
-
-
-	/// <summary>
-	/// Returns the number of enemy units killed by the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	int GetPlayerKills(int playerIndex);
 
 	/// <summary>
 	/// Sets the kill count for the specified player slot directly.
@@ -876,11 +838,11 @@ public interface IGameAPI
 
 	/// <summary>
 	/// Orders the unit to move to the specified destination without attacking anything en route.
-	/// Unlike <see cref="IssueAttackMoveOrder(IUnit, Vector3)"/>, this is a pure positional move command.
+	/// Unlike <see cref="IssueAttackMoveOrder(UnitId, Vector3)"/>, this is a pure positional move command.
 	/// </summary>
 	/// <param name="unit">The unit to command.</param>
 	/// <param name="destination">The destination in world coordinates.</param>
-	void IssueMoveOrder(IUnit unit, Vector3 destination);
+	void IssueMoveOrder(UnitId unit, Vector3 destination);
 
 
 	/// <summary>
@@ -889,7 +851,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit to modify.</param>
 	/// <param name="immune">True to make the unit spell-immune; false to remove the immunity.</param>
-	void SetUnitSpellImmune(IUnit unit, bool immune);
+	void SetUnitSpellImmune(UnitId unit, bool immune);
 
 	/// <summary>
 	/// Checks if a named coordinate box exists.
@@ -986,8 +948,8 @@ public interface IGameAPI
 	/// <param name="playerIndex">The player index who will own the unit.</param>
 	/// <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
 	/// <param name="bypassPopulation">True to bypass population cap limits when spawning, false to enforce population limits.</param>
-	/// <returns>The spawned <see cref="IUnit"/>.</returns>
-	IUnit SpawnUnitForPlayer(string unitTypeId, Coordinate coordinate, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false)
+	/// <returns>The spawned <see cref="UnitId"/>.</returns>
+	UnitId SpawnUnitForPlayer(string unitTypeId, Coordinate coordinate, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false)
 	{
 		return SpawnUnitForPlayer(unitTypeId, new Vector2(coordinate.Center.X, coordinate.Center.Z), playerIndex, executeSpawnShader, bypassPopulation);
 	}
@@ -997,7 +959,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit to order.</param>
 	/// <param name="destination">The coordinate region to move to.</param>
-	void IssueMoveOrder(IUnit unit, Coordinate destination)
+	void IssueMoveOrder(UnitId unit, Coordinate destination)
 	{
 		IssueMoveOrder(unit, destination.Center);
 	}
@@ -1007,9 +969,150 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit to order.</param>
 	/// <param name="destination">The coordinate region to attack-move towards.</param>
-	void IssueAttackMoveOrder(IUnit unit, Coordinate destination)
+	void IssueAttackMoveOrder(UnitId unit, Coordinate destination)
 	{
 		IssueAttackMoveOrder(unit, destination.Center);
+	}
+
+	/// <summary>
+	/// Dynamically alters the movement-type pathing flags for a designated rectangular region on the terrain navmesh.
+	/// </summary>
+	/// <param name="minX">The minimum X coordinate in world space.</param>
+	/// <param name="minZ">The minimum Z coordinate in world space.</param>
+	/// <param name="maxX">The maximum X coordinate in world space.</param>
+	/// <param name="maxZ">The maximum Z coordinate in world space.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+	/// <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+	void SetRegionPathing(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags, bool blocked);
+
+	/// <summary>
+	/// Dynamically alters the movement-type pathing flags for a named coordinate region.
+	/// </summary>
+	/// <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+	/// <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+	void SetRegionPathing(string coordinateName, PathingFlags pathingFlags, bool blocked)
+	{
+		if (TryGetCoordinate(coordinateName, out var coord))
+		{
+			SetRegionPathing(coord, pathingFlags, blocked);
+		}
+	}
+
+	/// <summary>
+	/// Dynamically alters the movement-type pathing flags for a coordinate bounding region.
+	/// </summary>
+	/// <param name="coordinate">The coordinate bounding region.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to allow or block (e.g. Ground, Flying, ShallowWater).</param>
+	/// <param name="blocked">True to block/remove the specified pathing flags; false to allow/restore them.</param>
+	void SetRegionPathing(Coordinate coordinate, PathingFlags pathingFlags, bool blocked)
+	{
+		SetRegionPathing(
+			MathF.Min(coordinate.Min.X, coordinate.Max.X),
+			MathF.Min(coordinate.Min.Z, coordinate.Max.Z),
+			MathF.Max(coordinate.Min.X, coordinate.Max.X),
+			MathF.Max(coordinate.Min.Z, coordinate.Max.Z),
+			pathingFlags,
+			blocked);
+	}
+
+	/// <summary>
+	/// Updates the traversability status of a rectangular world boundary region (alias for <see cref="SetRegionPathing(float, float, float, float, PathingFlags, bool)"/>).
+	/// </summary>
+	/// <param name="minX">The minimum X coordinate in world space.</param>
+	/// <param name="minZ">The minimum Z coordinate in world space.</param>
+	/// <param name="maxX">The maximum X coordinate in world space.</param>
+	/// <param name="maxZ">The maximum Z coordinate in world space.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to allow or block.</param>
+	/// <param name="blocked">True to block the boundary; false to open/restore traversability.</param>
+	void UpdateWorldBoundaryStatus(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags, bool blocked)
+	{
+		SetRegionPathing(minX, minZ, maxX, maxZ, pathingFlags, blocked);
+	}
+
+	/// <summary>
+	/// Updates the traversability status of a named world boundary region (alias for <see cref="SetRegionPathing(string, PathingFlags, bool)"/>).
+	/// </summary>
+	/// <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to allow or block.</param>
+	/// <param name="blocked">True to block the boundary; false to open/restore traversability.</param>
+	void UpdateWorldBoundaryStatus(string coordinateName, PathingFlags pathingFlags, bool blocked)
+	{
+		SetRegionPathing(coordinateName, pathingFlags, blocked);
+	}
+
+	/// <summary>
+	/// Retrieves the combined active pathing flags across the specified rectangular region.
+	/// </summary>
+	/// <param name="minX">The minimum X coordinate in world space.</param>
+	/// <param name="minZ">The minimum Z coordinate in world space.</param>
+	/// <param name="maxX">The maximum X coordinate in world space.</param>
+	/// <param name="maxZ">The maximum Z coordinate in world space.</param>
+	/// <returns>A bitmask of <see cref="PathingFlags"/> representing traversability across the region.</returns>
+	PathingFlags GetRegionPathing(float minX, float minZ, float maxX, float maxZ);
+
+	/// <summary>
+	/// Retrieves the combined active pathing flags across a named coordinate region.
+	/// </summary>
+	/// <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+	/// <returns>A bitmask of <see cref="PathingFlags"/> representing traversability across the region.</returns>
+	PathingFlags GetRegionPathing(string coordinateName)
+	{
+		if (TryGetCoordinate(coordinateName, out var coord))
+		{
+			return GetRegionPathing(coord);
+		}
+		return PathingFlags.None;
+	}
+
+	/// <summary>
+	/// Retrieves the combined active pathing flags across a coordinate bounding region.
+	/// </summary>
+	/// <param name="coordinate">The coordinate bounding region.</param>
+	/// <returns>A bitmask of <see cref="PathingFlags"/> representing traversability across the region.</returns>
+	PathingFlags GetRegionPathing(Coordinate coordinate)
+	{
+		return GetRegionPathing(
+			MathF.Min(coordinate.Min.X, coordinate.Max.X),
+			MathF.Min(coordinate.Min.Z, coordinate.Max.Z),
+			MathF.Max(coordinate.Min.X, coordinate.Max.X),
+			MathF.Max(coordinate.Min.Z, coordinate.Max.Z));
+	}
+
+	/// <summary>
+	/// Checks whether the specified pathing flags are currently blocked in the designated rectangular region.
+	/// </summary>
+	/// <param name="minX">The minimum X coordinate in world space.</param>
+	/// <param name="minZ">The minimum Z coordinate in world space.</param>
+	/// <param name="maxX">The maximum X coordinate in world space.</param>
+	/// <param name="maxZ">The maximum Z coordinate in world space.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+	/// <returns>True if the specified flags are blocked; false if passable.</returns>
+	bool IsRegionPathingBlocked(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags = PathingFlags.Ground)
+	{
+		return (GetRegionPathing(minX, minZ, maxX, maxZ) & pathingFlags) == 0;
+	}
+
+	/// <summary>
+	/// Checks whether the specified pathing flags are currently blocked in a named coordinate region.
+	/// </summary>
+	/// <param name="coordinateName">The name of the coordinate region defined in the map editor.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+	/// <returns>True if the specified flags are blocked; false if passable.</returns>
+	bool IsRegionPathingBlocked(string coordinateName, PathingFlags pathingFlags = PathingFlags.Ground)
+	{
+		return (GetRegionPathing(coordinateName) & pathingFlags) == 0;
+	}
+
+	/// <summary>
+	/// Checks whether the specified pathing flags are currently blocked in a coordinate bounding region.
+	/// </summary>
+	/// <param name="coordinate">The coordinate bounding region.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+	/// <returns>True if the specified flags are blocked; false if passable.</returns>
+	bool IsRegionPathingBlocked(Coordinate coordinate, PathingFlags pathingFlags = PathingFlags.Ground)
+	{
+		return (GetRegionPathing(coordinate) & pathingFlags) == 0;
 	}
 
 	/// <summary>
@@ -1045,7 +1148,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit to modify.</param>
 	/// <param name="enabled">True to enable autonomous combat AI; false to disable.</param>
-	void EnableUnitAutoCombat(IUnit unit, bool enabled);
+	void EnableUnitAutoCombat(UnitId unit, bool enabled);
 
 	/// <summary>
 	/// Writes string content to a file in the whitelisted, map-specific subfolder in AppData saved_data directory.
@@ -1067,17 +1170,17 @@ public interface IGameAPI
 	/// <summary>
 	/// Triggered when a unit buys or receives an item from a shop or altar.
 	/// </summary>
-	event Action<IUnit, string>? OnItemSold;
+	event Action<UnitId, string>? OnItemSold;
 
 	/// <summary>
 	/// Triggered when a structure finishes construction.
 	/// </summary>
-	event Action<IUnit>? OnConstructionFinished;
+	event Action<UnitId>? OnConstructionFinished;
 
 	/// <summary>
 	/// Triggered when a unit is issued an order.
 	/// </summary>
-	event Action<IUnit, string, Vector3>? OnUnitOrdered;
+	event Action<UnitId, string, Vector3>? OnUnitOrdered;
 
 	/// <summary>
 	/// Gets the research level of a technology upgrade for the specified player slot.
@@ -1154,19 +1257,19 @@ public interface IGameAPI
 	/// <summary>
 	/// Sets whether an ability on a unit is disabled or hidden in the UI.
 	/// </summary>
-	void SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden);
+	void SetAbilityState(UnitId unit, string abilityId, bool disabled, bool hidden);
 
 	/// <summary>
 	/// Sets the mana cost of a unit's ability.
 	/// </summary>
-	void SetAbilityManaCost(IUnit unit, string abilityId, float manaCost);
+	void SetAbilityManaCost(UnitId unit, string abilityId, float manaCost);
 
 	/// <summary>
 	/// Plays a named visual animation on the unit's 3D model and equips any configured hand attachments for that animation.
 	/// </summary>
 	/// <param name="unit">The unit to animate.</param>
 	/// <param name="animationName">The animation name (e.g., "Idle", "Labor", "Attack").</param>
-	void SetUnitAnimation(IUnit unit, string animationName);
+	void SetUnitAnimation(UnitId unit, string animationName);
 
 	/// <summary>
 	/// Attaches or removes a 3D model object on the specified hand bone of the unit's rigged skeleton.
@@ -1174,28 +1277,28 @@ public interface IGameAPI
 	/// <param name="unit">The target unit.</param>
 	/// <param name="hand">The target hand ("RightHand" or "LeftHand").</param>
 	/// <param name="attachmentId">The attachment identifier or model filename, or null/empty to clear the hand attachment.</param>
-	void SetUnitHandAttachment(IUnit unit, string hand, string? attachmentId);
+	void SetUnitHandAttachment(UnitId unit, string hand, string? attachmentId);
 
 	/// <summary>
 	/// Orders the unit to move to a world position without attacking along the way.
-	/// Generic alias for <see cref="IssueMoveOrder(IUnit, Vector3)"/>.
+	/// Generic alias for <see cref="IssueMoveOrder(UnitId, Vector3)"/>.
 	/// </summary>
-	void MoveUnit(IUnit unit, Vector3 destination) => IssueMoveOrder(unit, destination);
+	void MoveUnit(UnitId unit, Vector3 destination) => IssueMoveOrder(unit, destination);
 
 	/// <summary>
 	/// Returns living units within <paramref name="radius"/> of <paramref name="center"/>.
 	/// Generic alias for <see cref="GetUnitsInRadius(Vector3, float)"/>.
 	/// </summary>
-	IEnumerable<IUnit> GetUnitsInRange(Vector3 center, float radius) =>
+	ReadOnlySpan<UnitId> GetUnitsInRange(Vector3 center, float radius) =>
 		GetUnitsInRadius(center, radius);
 
 	/// <summary>
 	/// Subtracts <paramref name="damage"/> from the target's health. Kills the target at 0 HP.
 	/// Does not apply armor. Safe to call from any map script.
 	/// </summary>
-	void DealDamage(IUnit attacker, IUnit target, float damage)
+	void DealDamage(UnitId attacker, UnitId target, float damage)
 	{
-		if (target == null || target.IsDead || damage <= 0f)
+		if (!target.IsValid || target.IsDead || damage <= 0f)
 			return;
 		_ = attacker;
 		float next = target.Health - damage;
@@ -1217,7 +1320,7 @@ public interface IGameAPI
 	/// <param name="position">The spawn coordinates in 3D world space.</param>
 	/// <param name="playerIndex">The zero-based player index to own the revived unit.</param>
 	/// <returns>The revived unit instance.</returns>
-	IUnit ReviveUnit(string unitTypeId, Vector3 position, int playerIndex) =>
+	UnitId ReviveUnit(string unitTypeId, Vector3 position, int playerIndex) =>
 		SpawnUnitForPlayer(unitTypeId, new Vector2(position.X, position.Z), playerIndex);
 
 	/// <summary>
@@ -1226,9 +1329,9 @@ public interface IGameAPI
 	/// <param name="unit">The existing unit to replace.</param>
 	/// <param name="position">The spawn coordinates in 3D world space.</param>
 	/// <returns>The revived unit instance.</returns>
-	IUnit ReviveUnit(IUnit unit, Vector3 position)
+	UnitId ReviveUnit(UnitId unit, Vector3 position)
 	{
-		string typeId = unit.UnitId;
+		string typeId = unit.TemplateID;
 		int playerIndex = unit.Player;
 		DestroyUnit(unit);
 		return SpawnUnitForPlayer(typeId, new Vector2(position.X, position.Z), playerIndex);
@@ -1241,7 +1344,7 @@ public interface IGameAPI
 	/// <param name="strength">The peak strength of the impulse deformation.</param>
 	/// <param name="duration">The duration of the impulse oscillation in seconds.</param>
 	/// <param name="frequency">The oscillation frequency in Hz.</param>
-	void TriggerMeshImpulse(IUnit unit, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
+	void TriggerMeshImpulse(UnitId unit, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
 
 	/// <summary>
 	/// Triggers a transient mesh deformation or harvest shake impulse on a resource node.
@@ -1250,7 +1353,7 @@ public interface IGameAPI
 	/// <param name="strength">The peak strength of the impulse deformation.</param>
 	/// <param name="duration">The duration of the impulse oscillation in seconds.</param>
 	/// <param name="frequency">The oscillation frequency in Hz.</param>
-	void TriggerResourceMeshImpulse(IResourceNode node, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
+	void TriggerResourceMeshImpulse(ResourceNodeId node, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f);
 
 	/// <summary>
 	/// Configures the AI decision profile for the specified player slot using a serialized JSON string.
@@ -1385,44 +1488,35 @@ public interface IGameAPI
 	void DestroyStaticText(int handle);
 
 	/// <summary>
-	/// Enumerates the zero-based indices of all active player slots below the given exclusive upper bound.
+	/// Retrieves a <see cref="PlayerId"/> identifier for the specified zero-based player slot index,
+	/// providing fluent zero-allocation access to player state and actions.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <returns>A <see cref="PlayerId"/> bound to the specified player slot.</returns>
+	PlayerId GetPlayer(int playerIndex) => new(playerIndex);
+
+	/// <summary>
+	/// Retrieves all active player slot identifiers in the current session.
 	/// </summary>
 	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
-	/// <returns>A lazily-evaluated sequence of active player slot indices in ascending order.</returns>
+	/// <returns>A read-only span of active <see cref="PlayerId"/> identifiers in ascending slot order.</returns>
+	ReadOnlySpan<PlayerId> GetActivePlayers(int exclusiveUpperBound = -1);
+
+	/// <summary>
+	/// Returns the zero-based slot indices of all active players.
+	/// </summary>
+	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
+	/// <returns>An enumerable sequence of active player slot indices.</returns>
 	IEnumerable<int> GetActivePlayerIndices(int exclusiveUpperBound = -1)
 	{
-		int limit = exclusiveUpperBound < 0 ? 25 : Math.Min(exclusiveUpperBound, 25);
-		for (int playerIndex = 1; playerIndex < limit; playerIndex++)
+		var players = GetActivePlayers(exclusiveUpperBound);
+		var result = new List<int>(players.Length);
+		for (int i = 0; i < players.Length; i++)
 		{
-			if (IsPlayerActive(playerIndex))
-				yield return playerIndex;
+			result.Add(players[i].Value);
 		}
+		return result;
 	}
-
-	/// <summary>
-	/// Retrieves an <see cref="IPlayer"/> facade for the specified zero-based player slot index,
-	/// providing unified access to both authoritative player state and client-targeted RPC actions.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	/// <returns>An <see cref="IPlayer"/> facade bound to the specified player slot.</returns>
-	IPlayer GetPlayer(int playerIndex) => new PlayerFacade(this, playerIndex);
-
-	/// <summary>
-	/// Enumerates <see cref="IPlayer"/> facades for all active player slots below the given exclusive upper bound.
-	/// </summary>
-	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
-	/// <returns>A lazily-evaluated sequence of active <see cref="IPlayer"/> facades in ascending slot order.</returns>
-	IEnumerable<IPlayer> GetActivePlayers(int exclusiveUpperBound = -1)
-	{
-		foreach (int playerIndex in GetActivePlayerIndices(exclusiveUpperBound))
-			yield return GetPlayer(playerIndex);
-	}
-
-	/// <summary>
-	/// Gets the stone resource for the specified player slot.
-	/// </summary>
-	/// <param name="playerIndex">Zero-based player slot index.</param>
-	float GetPlayerStone(int playerIndex);
 
 	/// <summary>
 	/// Sets the stone resource for the specified player slot.
@@ -1456,11 +1550,91 @@ public interface IGameAPI
 	void ShakePlayerCamera(int playerIndex, float intensity, float duration);
 
 	/// <summary>
+	/// Restricts the specified player's camera movement limits in world space coordinates.
+	/// Clamps the camera position immediately if currently out of bounds.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="minX">The minimum X world boundary.</param>
+	/// <param name="minZ">The minimum Z world boundary.</param>
+	/// <param name="maxX">The maximum X world boundary.</param>
+	/// <param name="maxZ">The maximum Z world boundary.</param>
+	void SetPlayerCameraBounds(int playerIndex, float minX, float minZ, float maxX, float maxZ);
+
+	/// <summary>
+	/// Restricts the specified player's camera movement limits to the specified named coordinate marker.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="coordinateName">The name of the authored coordinate marker defining the camera bounds.</param>
+	void SetPlayerCameraBounds(int playerIndex, string coordinateName)
+	{
+		if (TryGetCoordinate(coordinateName, out var coord))
+		{
+			SetPlayerCameraBounds(playerIndex, coord);
+		}
+	}
+
+	/// <summary>
+	/// Restricts the specified player's camera movement limits to the specified coordinate bounding region.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="coordinate">The coordinate bounding region defining the camera bounds.</param>
+	void SetPlayerCameraBounds(int playerIndex, Coordinate coordinate)
+	{
+		SetPlayerCameraBounds(
+			playerIndex,
+			MathF.Min(coordinate.Min.X, coordinate.Max.X),
+			MathF.Min(coordinate.Min.Z, coordinate.Max.Z),
+			MathF.Max(coordinate.Min.X, coordinate.Max.X),
+			MathF.Max(coordinate.Min.Z, coordinate.Max.Z));
+	}
+
+	/// <summary>
+	/// Restricts the specified player's camera movement limits in world space coordinates (alias for <see cref="SetPlayerCameraBounds(int, float, float, float, float)"/>).
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="minX">The minimum X world boundary.</param>
+	/// <param name="minZ">The minimum Z world boundary.</param>
+	/// <param name="maxX">The maximum X world boundary.</param>
+	/// <param name="maxZ">The maximum Z world boundary.</param>
+	void SetMapCameraBoundaries(int playerIndex, float minX, float minZ, float maxX, float maxZ) =>
+		SetPlayerCameraBounds(playerIndex, minX, minZ, maxX, maxZ);
+
+	/// <summary>
+	/// Resets the specified player's camera movement boundaries back to the map default boundaries defined in metadata.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void ResetPlayerCameraBounds(int playerIndex);
+
+	/// <summary>
+	/// Resets the specified player's camera movement boundaries back to the map default boundaries (alias for <see cref="ResetPlayerCameraBounds(int)"/>).
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void ResetMapCameraBoundaries(int playerIndex) => ResetPlayerCameraBounds(playerIndex);
+
+	/// <summary>
+	/// Sets whether a specific built-in HUD element is visible for the designated player.
+	/// Persists across HUD refreshes and reconnects.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="element">The HUD element to show or hide.</param>
+	/// <param name="visible">True to make the element visible; false to hide it.</param>
+	void SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible);
+
+	/// <summary>
+	/// Toggles whether a specific built-in HUD element is visible for the designated player (alias for <see cref="SetPlayerHudElementVisible(int, HudElement, bool)"/>).
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="element">The HUD element to show or hide.</param>
+	/// <param name="visible">True to make the element visible; false to hide it.</param>
+	void ToggleUserInterfaceElement(int playerIndex, HudElement element, bool visible) =>
+		SetPlayerHudElementVisible(playerIndex, element, visible);
+
+	/// <summary>
 	/// Selects the specified unit on the given player's client, clearing their previous selection.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
 	/// <param name="unit">The unit to select.</param>
-	void SelectPlayerUnit(int playerIndex, IUnit unit);
+	void SelectPlayerUnit(int playerIndex, UnitId unit);
 
 	/// <summary>
 	/// Clears the unit selection on the specified player's client.
@@ -1472,8 +1646,8 @@ public interface IGameAPI
 	/// Retrieves all units currently selected by the specified player.
 	/// </summary>
 	/// <param name="playerIndex">Zero-based player slot index.</param>
-	/// <returns>A collection of units currently selected by that player.</returns>
-	IEnumerable<IUnit> GetPlayerSelectedUnits(int playerIndex);
+	/// <returns>A read-only span of units currently selected by that player.</returns>
+	ReadOnlySpan<UnitId> GetPlayerSelectedUnits(int playerIndex);
 
 	/// <summary>
 	/// Displays floating feedback text on the specified player's screen.
@@ -1542,20 +1716,39 @@ public interface IGameAPI
 	/// <param name="center">The center point in 3D world space.</param>
 	/// <param name="radius">The search radius.</param>
 	/// <param name="filter">Optional predicate that returns true for eligible units.</param>
-	/// <returns>A random matching unit, or null if none qualify.</returns>
-	IUnit? GetRandomUnitInRadius(Vector3 center, float radius, Func<IUnit, bool>? filter = null)
+	/// <returns>A random matching unit, or UnitId.Invalid if none qualify.</returns>
+	UnitId GetRandomUnitInRadius(Vector3 center, float radius, Func<UnitId, bool>? filter = null)
 	{
-		var candidates = new List<IUnit>();
-		foreach (IUnit unit in GetUnitsInRadius(center, radius))
+		var units = GetUnitsInRadius(center, radius);
+		int matchCount = 0;
+		for (int i = 0; i < units.Length; i++)
 		{
-			if (unit.IsDead)
+			var u = units[i];
+			if (u.IsDead)
 				continue;
-			if (filter != null && !filter(unit))
+			if (filter != null && !filter(u))
 				continue;
-			candidates.Add(unit);
+			matchCount++;
 		}
 
-		return PickRandom(candidates);
+		if (matchCount == 0)
+			return UnitId.Invalid;
+
+		int pickIndex = RandomInt(0, matchCount - 1);
+		int current = 0;
+		for (int i = 0; i < units.Length; i++)
+		{
+			var u = units[i];
+			if (u.IsDead)
+				continue;
+			if (filter != null && !filter(u))
+				continue;
+			if (current == pickIndex)
+				return u;
+			current++;
+		}
+
+		return UnitId.Invalid;
 	}
 
 	/// <summary>
@@ -1563,9 +1756,9 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit to heal.</param>
 	/// <param name="amount">The amount of health to restore.</param>
-	void HealUnit(IUnit unit, float amount)
+	void HealUnit(UnitId unit, float amount)
 	{
-		if (unit == null || unit.IsDead || amount <= 0f)
+		if (!unit.IsValid || unit.IsDead || amount <= 0f)
 			return;
 		unit.Health = MathF.Min(unit.MaxHealth, unit.Health + amount);
 	}
@@ -1575,7 +1768,7 @@ public interface IGameAPI
 	/// </summary>
 	/// <param name="first">The first unit.</param>
 	/// <param name="second">The second unit.</param>
-	void SwapUnitPositions(IUnit first, IUnit second)
+	void SwapUnitPositions(UnitId first, UnitId second)
 	{
 		Vector3 firstPosition = first.Position;
 		Vector3 secondPosition = second.Position;
@@ -1615,4 +1808,420 @@ public interface IGameAPI
 		string color = GetPlayerColorHex(playerIndex);
 		return $"[color=#{color}]{name}[/color]";
 	}
+	/// <summary>
+	/// Spawns a pickup loot item at the specified 3D world space coordinates.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item identifier.</returns>
+	LootItemId SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f);
+
+	/// <summary>
+	/// Spawns a pickup loot item at the specified 3D world space coordinates.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item identifier.</returns>
+	LootItemId SpawnLootItemAtLocation(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f) =>
+		SpawnLootItem(itemTypeId, position, charges, lifetime);
+
+	/// <summary>
+	/// Spawns a pickup loot item at the specified named coordinate marker.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="coordinateName">The name of the authored coordinate marker where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item identifier.</returns>
+	LootItemId SpawnLootItem(string itemTypeId, string coordinateName, int charges = 1, float lifetime = 0f) =>
+		TryGetCoordinate(coordinateName, out var coord)
+			? SpawnLootItem(itemTypeId, coord.Center, charges, lifetime)
+			: LootItemId.Invalid;
+
+	/// <summary>
+	/// Spawns a pickup loot item at the specified coordinate.
+	/// </summary>
+	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
+	/// <param name="coordinate">The coordinate marker where the item will be spawned.</param>
+	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
+	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
+	/// <returns>The spawned loot item identifier.</returns>
+	LootItemId SpawnLootItem(string itemTypeId, Coordinate coordinate, int charges = 1, float lifetime = 0f) =>
+		SpawnLootItem(itemTypeId, coordinate.Center, charges, lifetime);
+
+	/// <summary>
+	/// Retrieves an active ground loot item by its unique runtime identifier.
+	/// </summary>
+	/// <param name="uniqueId">The unique ID of the loot item entity.</param>
+	/// <returns>The loot item identifier.</returns>
+	LootItemId GetLootItemById(int uniqueId);
+
+	/// <summary>
+	/// Retrieves all active ground loot items in the game world.
+	/// </summary>
+	/// <returns>A read-only span of all active ground loot item identifiers.</returns>
+	ReadOnlySpan<LootItemId> GetAllLootItems();
+
+	/// <summary>
+	/// Retrieves all active ground loot items within the specified radial distance of a 3D position.
+	/// </summary>
+	/// <param name="center">The center point in 3D world space coordinates.</param>
+	/// <param name="radius">The radial distance check.</param>
+	/// <returns>A read-only span of ground loot item identifiers within the radius.</returns>
+	ReadOnlySpan<LootItemId> GetLootItemsInRadius(Vector3 center, float radius);
+
+	/// <summary>
+	/// Removes and despawns a ground loot item from the game world by its unique identifier.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the loot item to remove.</param>
+	/// <returns>True if the loot item was found and removed; otherwise, false.</returns>
+	bool RemoveLootItem(int lootItemId);
+
+	/// <summary>
+	/// Despawns and removes a ground loot item from the game world by its unique identifier.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the loot item to despawn.</param>
+	/// <returns>True if the loot item was found and despawned; otherwise, false.</returns>
+	bool DespawnLootItem(int lootItemId) => RemoveLootItem(lootItemId);
+
+	/// <summary>
+	/// Attempts to collect a ground loot item using the specified unit.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+	/// <param name="unit">The collecting unit.</param>
+	/// <returns>True if the unit successfully collected the loot item into inventory; otherwise, false.</returns>
+	bool CollectLootItem(int lootItemId, UnitId unit);
+
+	/// <summary>
+	/// Attempts to collect a ground loot item using the most suitable eligible unit owned by the specified player.
+	/// </summary>
+	/// <param name="lootItemId">The unique identifier of the ground loot item to collect.</param>
+	/// <param name="playerIndex">The zero-based player slot index whose unit should collect the item.</param>
+	/// <returns>True if an eligible unit owned by the player successfully collected the item; otherwise, false.</returns>
+	bool CollectLootItemByPlayer(int lootItemId, int playerIndex);
+
+	/// <summary>
+	/// Sets the current health points of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new health value.</param>
+	void SetUnitHealth(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets the maximum health points capacity of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new maximum health capacity.</param>
+	void SetUnitMaxHealth(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets the current mana points of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new mana value.</param>
+	void SetUnitMana(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets the maximum mana capacity of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new maximum mana capacity.</param>
+	void SetUnitMaxMana(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets the mana regeneration rate of the specified unit per second.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new mana regeneration rate.</param>
+	void SetUnitManaRegen(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets the base attack damage of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new attack damage.</param>
+	void SetUnitDamage(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets the attack range of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new attack range.</param>
+	void SetUnitRange(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets the armor defense rating of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new armor rating.</param>
+	void SetUnitArmor(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets the movement speed of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new movement speed.</param>
+	void SetUnitSpeed(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets the attack speed multiplier of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new attack speed multiplier.</param>
+	void SetUnitAttackSpeed(UnitId unit, float value);
+
+	/// <summary>
+	/// Retrieves the display name of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <returns>The unit display name.</returns>
+	string GetUnitInstanceName(UnitId unit);
+
+	/// <summary>
+	/// Sets the display name of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new display name.</param>
+	void SetUnitName(UnitId unit, string value);
+
+	/// <summary>
+	/// Retrieves the canonical archetype template identifier of the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <returns>The archetype template identifier string.</returns>
+	string GetUnitTemplateId(UnitId unit);
+
+	/// <summary>
+	/// Sets the accumulated experience points of the specified hero unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new experience points value.</param>
+	void SetUnitExperience(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets the visual scaling multiplier of the specified unit model.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">The new visual scale factor.</param>
+	void SetUnitScale(UnitId unit, float value);
+
+	/// <summary>
+	/// Sets whether the specified unit is invulnerable to all damage.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">True for invulnerability; otherwise, false.</param>
+	void SetUnitInvulnerable(UnitId unit, bool value);
+
+	/// <summary>
+	/// Issues an attack order targeting a specific enemy unit.
+	/// </summary>
+	/// <param name="unit">The attacking unit.</param>
+	/// <param name="target">The target enemy unit.</param>
+	void IssueAttackOrder(UnitId unit, UnitId target);
+
+	/// <summary>
+	/// Issues a resource gathering order targeting a harvestable resource node.
+	/// </summary>
+	/// <param name="unit">The harvesting unit.</param>
+	/// <param name="resourceNode">The target resource node.</param>
+	void IssueGatherOrder(UnitId unit, ResourceNodeId resourceNode);
+
+	/// <summary>
+	/// Orders the unit to stop its current action immediately.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	void IssueStopOrder(UnitId unit);
+
+	/// <summary>
+	/// Orders the unit to hold its ground and defend itself without moving.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	void IssueHoldPositionOrder(UnitId unit);
+
+	/// <summary>
+	/// Teleports the specified unit to the given coordinates in 3D world space.
+	/// </summary>
+	/// <param name="unit">The unit to teleport.</param>
+	/// <param name="position">The destination coordinates in 3D world space.</param>
+	void TeleportUnit(UnitId unit, Vector3 position);
+
+	/// <summary>
+	/// Stuns the specified unit for the given duration in seconds.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="duration">The stun duration in seconds.</param>
+	void StunUnit(UnitId unit, float duration);
+
+	/// <summary>
+	/// Silences the specified unit, preventing ability casting for the given duration in seconds.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="duration">The silence duration in seconds.</param>
+	void SilenceUnit(UnitId unit, float duration);
+
+	/// <summary>
+	/// Adds an item archetype to the specified unit's inventory.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="itemId">The item definition identifier.</param>
+	/// <returns>True if added successfully; otherwise, false.</returns>
+	bool AddItemToUnit(UnitId unit, string itemId);
+
+	/// <summary>
+	/// Removes an item archetype from the specified unit's inventory.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="itemId">The item definition identifier.</param>
+	/// <returns>True if removed successfully; otherwise, false.</returns>
+	bool RemoveItemFromUnit(UnitId unit, string itemId);
+
+	/// <summary>
+	/// Returns true if the specified unit's inventory carries the item.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="itemId">The item definition identifier.</param>
+	/// <returns>True if carried; otherwise, false.</returns>
+	bool UnitHasItem(UnitId unit, string itemId);
+
+	/// <summary>
+	/// Retrieves the item archetype identifiers currently held in the unit's inventory.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <returns>A read-only collection of item archetype identifiers.</returns>
+	IReadOnlyList<string> GetUnitItems(UnitId unit);
+
+	/// <summary>
+	/// Returns true if the specified unit currently has an active buff with the given identifier.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="buffId">The buff identifier.</param>
+	/// <returns>True if active; otherwise, false.</returns>
+	bool UnitHasBuff(UnitId unit, string buffId);
+
+	/// <summary>
+	/// Stores custom string metadata associated with the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="key">The custom data key.</param>
+	/// <param name="value">The custom data value.</param>
+	void SetUnitCustomData(UnitId unit, string key, string value);
+
+	/// <summary>
+	/// Retrieves custom string metadata associated with the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="key">The custom data key.</param>
+	/// <returns>The stored string value, or null if not found.</returns>
+	string? GetUnitCustomData(UnitId unit, string key);
+
+	/// <summary>
+	/// Removes custom string metadata associated with the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="key">The custom data key.</param>
+	/// <returns>True if found and removed; otherwise, false.</returns>
+	bool RemoveUnitCustomData(UnitId unit, string key);
+
+	/// <summary>
+	/// Returns true if custom string metadata exists for the given key on the specified unit.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="key">The custom data key.</param>
+	/// <returns>True if data exists; otherwise, false.</returns>
+	bool UnitHasCustomData(UnitId unit, string key);
+
+	/// <summary>
+	/// Retrieves the item type identifier of the specified ground loot item.
+	/// </summary>
+	/// <param name="item">The loot item identifier.</param>
+	/// <returns>The item type identifier.</returns>
+	string GetLootItemTypeId(LootItemId item);
+
+	/// <summary>
+	/// Retrieves the 3D world space position of the specified ground loot item.
+	/// </summary>
+	/// <param name="item">The loot item identifier.</param>
+	/// <returns>The 3D coordinates of the loot item.</returns>
+	Vector3 GetLootItemPosition(LootItemId item);
+
+	/// <summary>
+	/// Retrieves the remaining charge count for the specified ground loot item.
+	/// </summary>
+	/// <param name="item">The loot item identifier.</param>
+	/// <returns>The charge count.</returns>
+	int GetLootItemCharges(LootItemId item);
+
+	/// <summary>
+	/// Retrieves the configured lifespan duration of the specified ground loot item in seconds.
+	/// </summary>
+	/// <param name="item">The loot item identifier.</param>
+	/// <returns>The lifespan duration in seconds.</returns>
+	float GetLootItemLifetime(LootItemId item);
+
+	/// <summary>
+	/// Retrieves the pickup trigger radius of the specified ground loot item in world units.
+	/// </summary>
+	/// <param name="item">The loot item identifier.</param>
+	/// <returns>The pickup trigger radius.</returns>
+	float GetLootItemPickupRadius(LootItemId item);
+
+	/// <summary>
+	/// Returns true if the specified ground loot item automatically triggers pickup upon proximity.
+	/// </summary>
+	/// <param name="item">The loot item identifier.</param>
+	/// <returns>True if auto-pickup is enabled; otherwise, false.</returns>
+	bool IsLootItemAutoPickup(LootItemId item);
+
+	/// <summary>
+	/// Retrieves the owning player slot index restricted to collect the specified loot item, or -1 for unowned items.
+	/// </summary>
+	/// <param name="item">The loot item identifier.</param>
+	/// <returns>The owning player slot index, or -1.</returns>
+	int GetLootItemOwner(LootItemId item);
+
+	/// <summary>
+	/// Returns true if the specified ground loot item has already despawned.
+	/// </summary>
+	/// <param name="item">The loot item identifier.</param>
+	/// <returns>True if despawned; otherwise, false.</returns>
+	bool IsLootItemDespawned(LootItemId item);
+
+	/// <summary>
+	/// Retrieves the resource type identifier provided by the specified resource node (e.g. "gold", "wood", "stone").
+	/// </summary>
+	/// <param name="node">The resource node identifier.</param>
+	/// <returns>The resource type string.</returns>
+	string GetResourceNodeType(ResourceNodeId node);
+
+	/// <summary>
+	/// Retrieves the 3D world space position of the specified resource node.
+	/// </summary>
+	/// <param name="node">The resource node identifier.</param>
+	/// <returns>The 3D coordinates of the resource node.</returns>
+	Vector3 GetResourceNodePosition(ResourceNodeId node);
+
+	/// <summary>
+	/// Retrieves the remaining harvestable resource amount in the specified resource node.
+	/// </summary>
+	/// <param name="node">The resource node identifier.</param>
+	/// <returns>The remaining resource amount.</returns>
+	float GetResourceNodeAmount(ResourceNodeId node);
+
+	/// <summary>
+	/// Sets the remaining harvestable resource amount in the specified resource node.
+	/// </summary>
+	/// <param name="node">The resource node identifier.</param>
+	/// <param name="value">The new resource amount.</param>
+	void SetResourceNodeAmount(ResourceNodeId node, float value);
+
+	/// <summary>
+	/// Returns true if the specified resource node is fully depleted of resources.
+	/// </summary>
+	/// <param name="node">The resource node identifier.</param>
+	/// <returns>True if depleted; otherwise, false.</returns>
+	bool IsResourceNodeDepleted(ResourceNodeId node);
 }

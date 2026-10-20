@@ -1,4 +1,4 @@
-using Arch.Core;
+using System;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
@@ -21,7 +21,7 @@ public class CombatService
 	/// </summary>
 	public void PerformAttack(Entity attacker, Entity defender)
 	{
-		if (!ECSContext.World.Has<Attack>(attacker) || !ECSContext.World.Has<Health>(defender)) return;
+		if (ECSContext.World == null || !ECSContext.World.Has<Attack>(attacker) || !ECSContext.World.Has<Health>(defender)) return;
 		if (ECSContext.World.Has<Invulnerable>(defender)) return;
 
 		var attack = ECSContext.World.Get<Attack>(attacker);
@@ -41,14 +41,17 @@ public class CombatService
 			armorType: armor.ArmorType
 		);
 
-		health.Current -= result.FinalDamage;
+		health.CurrentHp -= result.FinalDamage;
 		health.TimeSinceLastDamage = 0f;
 
-		if (health.Current <= 0)
+		if (health.CurrentHp <= 0)
 		{
-			health.Current = 0;
+			health.CurrentHp = 0;
 			ECSContext.World.Add<Dead>(defender);
-			Console.WriteLine($"{ECSContext.World.Get<Name>(defender).Value} has been slain!");
+			if (ECSContext.World.Has<Name>(defender))
+			{
+				Console.WriteLine($"{ECSContext.World.Get<Name>(defender).Value} has been slain!");
+			}
 		}
 
 		ECSContext.World.Set(defender, health);

@@ -18,7 +18,7 @@ public static class MapScriptHelpers
 	/// <returns><see langword="true"/> if the tower attacked a target during this tick; otherwise, <see langword="false"/>.</returns>
 	public static bool RunTowerDefenseTick(
 		IGameAPI api,
-		IUnit tower,
+		UnitId tower,
 		TowerDefenseConfig config,
 		ref float cooldownRemaining,
 		float delta)
@@ -29,18 +29,32 @@ public static class MapScriptHelpers
 		cooldownRemaining = MathF.Max(0f, cooldownRemaining - delta);
 
 		var range = tower.Range > 0 ? tower.Range : config.Range;
+		var rangeSq = range * range;
 
-		var target = api.GetUnitsInRadius(tower.Position, range)
-			.Where(unit => !unit.IsDead && unit.IsEnemy != tower.IsEnemy)
-			.OrderBy(unit => Vector3.DistanceSquared(unit.Position, tower.Position))
-			.FirstOrDefault();
+		UnitId bestTarget = UnitId.Invalid;
+		float bestDistanceSq = float.MaxValue;
 
-		if (target == null || cooldownRemaining > 0)
+		var units = api.GetUnitsInRadius(tower.Position, range);
+		for (int i = 0; i < units.Length; i++)
+		{
+			var unit = units[i];
+			if (!unit.IsDead && !api.ArePlayersAllied(unit.Player, tower.Player))
+			{
+				float distSq = Vector3.DistanceSquared(unit.Position, tower.Position);
+				if (distSq <= rangeSq && distSq < bestDistanceSq)
+				{
+					bestDistanceSq = distSq;
+					bestTarget = unit;
+				}
+			}
+		}
+
+		if (!bestTarget.IsValid || cooldownRemaining > 0)
 			return false;
 
-		tower.Attack(target);
+		tower.Attack(bestTarget);
 		if (!string.IsNullOrEmpty(config.VisualEffectId))
-			api.SpawnVisualEffect(config.VisualEffectId, target.Position, 0.35f);
+			api.SpawnVisualEffect(config.VisualEffectId, bestTarget.Position, 0.35f);
 
 		cooldownRemaining = config.AttackCooldownSeconds;
 		return true;

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Realm.EditorAPI;
 
 namespace Realm.Client.Services;

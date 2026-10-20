@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Godot;
+using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
 
 namespace Realm.Client.Utils;
@@ -22,6 +23,11 @@ public static class PathUtils
 #if DEBUG
 			return true;
 #else
+			if (!IsGodotInitialized)
+			{
+				return true;
+			}
+
 			string baseDir = AppDomain.CurrentDomain.BaseDirectory.Replace("\\", "/").TrimEnd('/');
 			if (baseDir.Contains("data_Realm_windows_x86_64", StringComparison.OrdinalIgnoreCase))
 			{
@@ -40,6 +46,51 @@ public static class PathUtils
 
 			return true;
 #endif
+		}
+	}
+
+	public static bool IsGodotInitialized
+	{
+		get
+		{
+			string friendlyName = AppDomain.CurrentDomain.FriendlyName;
+			if (friendlyName.Contains("testhost", StringComparison.OrdinalIgnoreCase) ||
+			    friendlyName.Contains("vstest", StringComparison.OrdinalIgnoreCase))
+			{
+				return false;
+			}
+
+			string? proc = Environment.ProcessPath;
+			if (!string.IsNullOrEmpty(proc))
+			{
+				string procName = Path.GetFileNameWithoutExtension(proc).ToLowerInvariant();
+				if (procName.Contains("testhost") || procName.Contains("vstest") || procName.Contains("dotnet"))
+				{
+					return false;
+				}
+			}
+
+			return true;
+		}
+	}
+
+	public static string SafeGlobalizeUserPath(string subPath = "")
+	{
+		if (!IsGodotInitialized)
+		{
+			string fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Godot", "app_userdata", "Realm");
+			return string.IsNullOrEmpty(subPath) ? fallback : Path.Combine(fallback, subPath.TrimStart('/', '\\'));
+		}
+
+		try
+		{
+			string godotPath = string.IsNullOrEmpty(subPath) ? "user://" : $"user://{subPath.TrimStart('/', '\\')}";
+			return ProjectSettings.GlobalizePath(godotPath);
+		}
+		catch
+		{
+			string fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Godot", "app_userdata", "Realm");
+			return string.IsNullOrEmpty(subPath) ? fallback : Path.Combine(fallback, subPath.TrimStart('/', '\\'));
 		}
 	}
 
@@ -73,7 +124,7 @@ public static class PathUtils
 
 	private static string ResolveProjectRoot()
 	{
-		if (Engine.GetMainLoop() != null)
+		if (IsGodotInitialized && Engine.GetMainLoop() != null)
 		{
 			string resPath = ProjectSettings.GlobalizePath("res://");
 			if (!string.IsNullOrWhiteSpace(resPath) && resPath != "." && resPath != "./" && Directory.Exists(resPath))
@@ -88,7 +139,7 @@ public static class PathUtils
 			return baseDir;
 		}
 
-		if (Engine.GetMainLoop() != null)
+		if (IsGodotInitialized && Engine.GetMainLoop() != null)
 		{
 			string exeDir = OS.GetExecutablePath().GetBaseDir().Replace("\\", "/").TrimEnd('/');
 			if (!string.IsNullOrWhiteSpace(exeDir) && Directory.Exists(exeDir))
@@ -178,7 +229,7 @@ public static class PathUtils
 
 	private static string ResolveFromExeDir(string normalizedRelative)
 	{
-		if (Engine.GetMainLoop() == null)
+		if (!IsGodotInitialized || Engine.GetMainLoop() == null)
 		{
 			return null;
 		}
@@ -206,7 +257,7 @@ public static class PathUtils
 
 	private static string ResolveFromGlobalizedRes(string normalizedRelative)
 	{
-		if (Engine.GetMainLoop() == null)
+		if (!IsGodotInitialized || Engine.GetMainLoop() == null)
 		{
 			return null;
 		}
@@ -265,7 +316,7 @@ public static class PathUtils
 			return FindPath(subPath);
 		}
 
-		if (Engine.GetMainLoop() == null)
+		if (!IsGodotInitialized || Engine.GetMainLoop() == null)
 		{
 			return Path.GetFullPath(path);
 		}

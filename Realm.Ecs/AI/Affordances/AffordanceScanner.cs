@@ -1,4 +1,3 @@
-using Arch.Core;
 using Realm.Ecs.AI.Genres;
 
 namespace Realm.Ecs.AI.Affordances;
@@ -11,14 +10,14 @@ public class AffordanceScanner : StandardRtsGenreProvider, IAffordanceScanner
 {
 	public new const int FeatureCount = StandardFeatureCount;
 
-	public List<GenericAffordance> ScanAffordances(World world, int playerIndex)
+	public List<GenericAffordance> ScanAffordances(EcsWorld world, int playerIndex)
 	{
 		var affordances = new List<GenericAffordance>(32);
 		ScanAffordances(world, playerIndex, affordances, null);
 		return affordances;
 	}
 
-	public List<GenericAffordance> ScanAffordances(World world, int playerIndex, object? definitionManager)
+	public List<GenericAffordance> ScanAffordances(EcsWorld world, int playerIndex, object? definitionManager)
 	{
 		if (definitionManager is List<GenericAffordance> destList)
 		{
@@ -31,7 +30,7 @@ public class AffordanceScanner : StandardRtsGenreProvider, IAffordanceScanner
 		return affordances;
 	}
 
-	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList)
+	public void ScanAffordances(EcsWorld world, int playerIndex, List<GenericAffordance> destinationList)
 	{
 		ScanAffordances(world, playerIndex, destinationList, null);
 	}

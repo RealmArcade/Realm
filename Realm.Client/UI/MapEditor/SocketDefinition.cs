@@ -1,4 +1,4 @@
-﻿namespace Realm.Client.UI.MapEditor;
+namespace Realm.Client.UI.MapEditor;
 
 public struct SocketDefinition
 {

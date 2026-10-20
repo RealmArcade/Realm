@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using FileAccess = Godot.FileAccess;
+using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Client.Services;
 
@@ -137,16 +138,14 @@ public class UnitSpawnService
 		}
 	}
 
-	public int ResolveSpawnParentPlayer(Entity buildingEntity, int localPlayerIndex, ref bool actualIsEnemy)
+	public int ResolveSpawnParentPlayer(Entity buildingEntity)
 	{
-		int parentPlayer = actualIsEnemy ? 1 : 0;
 		if (GameContext.World.IsAlive(buildingEntity) && GameContext.World.Has<UnitOwnerPlayer>(buildingEntity))
 		{
-			parentPlayer = GameContext.World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex;
-			actualIsEnemy = NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, parentPlayer);
+			return GameContext.World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex;
 		}
 
-		return parentPlayer;
+		return 0;
 	}
 
 	
@@ -245,24 +244,24 @@ public class UnitSpawnService
 		if (damage > 0)
 		{
 			GameContext.World.Add(entity, new Attack(
-				Damage: damage,
-				Range: range,
-				Cooldown: attackCooldown,
-				CurrentCooldown: 0f,
-				DamageVariance: damageVariance,
-				DamageType: string.IsNullOrEmpty(damageType) ? "normal" : damageType,
-				FlatArmorPenetration: flatArmorPen,
-				PercentArmorPenetration: percentArmorPen,
-				CritChance: critChance,
-				CritMultiplier: critMultiplier,
-				SplashType: splashType,
-				SplashInnerRadius: splashInnerRadius,
-				SplashMediumRadius: splashMediumRadius,
-				SplashOuterRadius: splashOuterRadius,
-				SplashInnerRatio: splashInnerRatio,
-				SplashMediumRatio: splashMediumRatio,
-				SplashOuterRatio: splashOuterRatio,
-				FriendlyFire: friendlyFire
+				damage: damage,
+				range: range,
+				cooldown: attackCooldown,
+				currentCooldown: 0f,
+				damageVariance: damageVariance,
+				damageType: string.IsNullOrEmpty(damageType) ? "normal" : damageType,
+				flatArmorPenetration: flatArmorPen,
+				percentArmorPenetration: percentArmorPen,
+				critChance: critChance,
+				critMultiplier: critMultiplier,
+				splashType: splashType,
+				splashInnerRadius: splashInnerRadius,
+				splashMediumRadius: splashMediumRadius,
+				splashOuterRadius: splashOuterRadius,
+				splashInnerRatio: splashInnerRatio,
+				splashMediumRatio: splashMediumRatio,
+				splashOuterRatio: splashOuterRatio,
+				friendlyFire: friendlyFire
 			));
 		}
 
@@ -359,7 +358,7 @@ public class UnitSpawnService
 			}
 		}
 	}
-	public void ProcessUnitSpawnRequestsDomain(Action<string, System.Numerics.Vector3, bool, float, float, int> spawnAction)
+	public void ProcessUnitSpawnRequestsDomain(Action<string, System.Numerics.Vector3, float, float, int> spawnAction)
 	{
 		var unitSpawnQuery = QueryCache.AllUnitSpawnRequestQuery;
 		var unitRequests = new List<Entity>();
@@ -367,7 +366,7 @@ public class UnitSpawnService
 		foreach (var reqEnt in unitRequests)
 		{
 			ref var req = ref GameContext.World.Get<UnitSpawnRequest>(reqEnt);
-			spawnAction(req.UnitId, req.Position, req.IsEnemy, req.RotationY, req.Scale, req.Player);
+			spawnAction(req.UnitId, req.Position, req.RotationY, req.Scale, req.Player);
 			GameContext.World.Destroy(reqEnt);
 		}
 	}

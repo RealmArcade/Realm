@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Ecs.Common;
@@ -15,7 +15,7 @@ namespace Realm.Client.Utils;
 
 public static class ItemGrantingUtility
 {
-	public static bool EquipItem(World world, Entity entity, string itemId, int charges = 1)
+	public static bool EquipItem(EcsWorld world, Entity entity, string itemId, int charges = 1)
 	{
 		if (world == null || !world.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId))
 			return false;
@@ -27,13 +27,13 @@ public static class ItemGrantingUtility
 
 		ref var inv = ref world.Get<Inventory>(entity);
 		int current = inv.GetItemCount(itemId);
-		inv.SetItemCount(itemId, current > 0 ? current : Math.Max(1, charges));
+		inv.SetItemCount(itemId, current > 0 ? current + Math.Max(1, charges) : Math.Max(1, charges));
 
 		ApplyItemGrants(world, entity, itemId);
 		return true;
 	}
 
-	public static bool UnequipItem(World world, Entity entity, string itemId)
+	public static bool UnequipItem(EcsWorld world, Entity entity, string itemId)
 	{
 		if (world == null || !world.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId))
 			return false;
@@ -51,7 +51,7 @@ public static class ItemGrantingUtility
 		return true;
 	}
 
-	public static bool IsItemEquipped(World world, Entity entity, string itemId)
+	public static bool IsItemEquipped(EcsWorld world, Entity entity, string itemId)
 	{
 		if (world == null || !world.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId))
 			return false;
@@ -63,7 +63,7 @@ public static class ItemGrantingUtility
 		return inv.HasItem(itemId);
 	}
 
-	public static IEnumerable<string> GetEquippedItems(World world, Entity entity)
+	public static IEnumerable<string> GetEquippedItems(EcsWorld world, Entity entity)
 	{
 		if (world == null || !world.IsAlive(entity) || !world.Has<Inventory>(entity))
 			return Array.Empty<string>();
@@ -72,7 +72,7 @@ public static class ItemGrantingUtility
 		return inv.Items != null ? inv.Items.Keys.ToArray() : Array.Empty<string>();
 	}
 
-	private static void ApplyItemGrants(World world, Entity entity, string itemId)
+	public static void ApplyItemGrants(EcsWorld world, Entity entity, string itemId)
 	{
 		if (GameContext.RegistryService?.ItemRegistry == null || !GameContext.RegistryService.ItemRegistry.TryGetValue(itemId, out var itemMeta) || itemMeta == null)
 			return;
@@ -98,13 +98,22 @@ public static class ItemGrantingUtility
 
 		if (itemMeta.GrantedUpgrades != null && itemMeta.GrantedUpgrades.Length > 0)
 		{
+			int copies = world.Has<Inventory>(entity)
+				? Math.Max(1, world.Get<Inventory>(entity).GetItemCount(itemId))
+				: 1;
+
+			RemoveItemModifiers(world, entity, itemId);
+
 			foreach (var upgId in itemMeta.GrantedUpgrades)
 			{
 				if (string.IsNullOrWhiteSpace(upgId)) continue;
 				if (GameContext.RegistryService.UpgradeRegistry.TryGetValue(upgId, out var upgMeta) && upgMeta != null)
 				{
-					string sourceId = $"item:{itemId}:{upgId}";
-					Services.TechTreeService.ApplyUpgradeModifiersToEntity(entity, sourceId, level: 1, upgMeta);
+					for (int copy = 0; copy < copies; copy++)
+					{
+						string sourceId = $"item:{itemId}:{upgId}:{copy}";
+						Services.TechTreeService.ApplyUpgradeModifiersToEntity(entity, sourceId, level: 1, upgMeta);
+					}
 				}
 			}
 
@@ -117,29 +126,34 @@ public static class ItemGrantingUtility
 		}
 	}
 
-	private static void RemoveItemGrants(World world, Entity entity, string itemId)
+	private static void RemoveItemModifiers(EcsWorld world, Entity entity, string itemId)
+	{
+		if (!world.Has<ModifierState>(entity)) return;
+
+		ref var modState = ref world.Get<ModifierState>(entity);
+		if (modState.Value == null) return;
+
+		string itemPrefix = $"item:{itemId}:";
+		for (int i = modState.Value.Count - 1; i >= 0; i--)
+		{
+			var mod = modState.Value[i];
+			if (mod.SourceUpgradeId != null && mod.SourceUpgradeId.StartsWith(itemPrefix, StringComparison.OrdinalIgnoreCase))
+			{
+				modState.Value.RemoveAt(i);
+			}
+		}
+	}
+
+	public static void RemoveItemGrants(EcsWorld world, Entity entity, string itemId)
 	{
 		if (world.Has<ModifierState>(entity))
 		{
-			ref var modState = ref world.Get<ModifierState>(entity);
-			if (modState.Value != null)
-			{
-				string itemPrefix = $"item:{itemId}:";
-				for (int i = modState.Value.Count - 1; i >= 0; i--)
-				{
-					var mod = modState.Value[i];
-					if (mod.SourceUpgradeId != null && mod.SourceUpgradeId.StartsWith(itemPrefix, StringComparison.OrdinalIgnoreCase))
-					{
-						modState.Value.RemoveAt(i);
-					}
-				}
-			}
-
+			RemoveItemModifiers(world, entity, itemId);
 			AttributeStatCalculator.RecalculateEntityStats(world, entity);
 		}
 	}
 
-	public static void RebuildEntityCapabilities(World world, Entity entity)
+	public static void RebuildEntityCapabilities(EcsWorld world, Entity entity)
 	{
 		if (world == null || !world.IsAlive(entity)) return;
 
@@ -176,7 +190,7 @@ public static class ItemGrantingUtility
 		AttributeStatCalculator.RecalculateEntityStats(world, entity);
 	}
 
-	private static void ApplyGrantedWeapons(World world, Entity entity)
+	private static void ApplyGrantedWeapons(EcsWorld world, Entity entity)
 	{
 		var weaponSlots = new List<Weapon>();
 		var equippedItems = GetEquippedItems(world, entity);
@@ -191,35 +205,35 @@ public static class ItemGrantingUtility
 					if (GameContext.RegistryService.WeaponRegistry.TryGetValue(wId, out var wMeta) && wMeta != null)
 					{
 						weaponSlots.Add(new Weapon(
-							BaseDamage: wMeta.Damage,
-							MaxRange: wMeta.Range,
-							AttackInterval: wMeta.AttackCooldown > 0 ? wMeta.AttackCooldown : 1.5f,
-							ProjectileSpeed: wMeta.ProjectileSpeed > 0 ? wMeta.ProjectileSpeed : 20f,
-							DamageType: !string.IsNullOrEmpty(wMeta.AttackType) ? wMeta.AttackType : "normal"
+							baseDamage: wMeta.Damage,
+							maxRange: wMeta.Range,
+							attackInterval: wMeta.AttackCooldown > 0 ? wMeta.AttackCooldown : 1.5f,
+							projectileSpeed: wMeta.ProjectileSpeed > 0 ? wMeta.ProjectileSpeed : 20f,
+							damageType: !string.IsNullOrEmpty(wMeta.AttackType) ? wMeta.AttackType : "normal"
 						));
 
 						if (world.Has<Attack>(entity))
 						{
 							ref var atk = ref world.Get<Attack>(entity);
 							world.Set(entity, new Attack(
-								Damage: wMeta.Damage > 0 ? wMeta.Damage : atk.Damage,
-								Range: wMeta.Range > 0 ? wMeta.Range : atk.Range,
-								Cooldown: wMeta.AttackCooldown > 0 ? wMeta.AttackCooldown : atk.Cooldown,
-								CurrentCooldown: atk.CurrentCooldown,
-								DamageVariance: atk.DamageVariance,
-								DamageType: !string.IsNullOrEmpty(wMeta.AttackType) ? wMeta.AttackType : atk.DamageType,
-								FlatArmorPenetration: atk.FlatArmorPenetration,
-								PercentArmorPenetration: atk.PercentArmorPenetration,
-								CritChance: atk.CritChance,
-								CritMultiplier: atk.CritMultiplier,
-								SplashType: atk.SplashType,
-								SplashInnerRadius: atk.SplashInnerRadius,
-								SplashMediumRadius: atk.SplashMediumRadius,
-								SplashOuterRadius: atk.SplashOuterRadius,
-								SplashInnerRatio: atk.SplashInnerRatio,
-								SplashMediumRatio: atk.SplashMediumRatio,
-								SplashOuterRatio: atk.SplashOuterRatio,
-								FriendlyFire: atk.FriendlyFire
+								damage: wMeta.Damage > 0 ? wMeta.Damage : atk.Damage,
+								range: wMeta.Range > 0 ? wMeta.Range : atk.Range,
+								cooldown: wMeta.AttackCooldown > 0 ? wMeta.AttackCooldown : atk.Cooldown,
+								currentCooldown: atk.CurrentCooldown,
+								damageVariance: atk.DamageVariance,
+								damageType: !string.IsNullOrEmpty(wMeta.AttackType) ? wMeta.AttackType : atk.DamageType,
+								flatArmorPenetration: atk.FlatArmorPenetration,
+								percentArmorPenetration: atk.PercentArmorPenetration,
+								critChance: atk.CritChance,
+								critMultiplier: atk.CritMultiplier,
+								splashType: atk.SplashType,
+								splashInnerRadius: atk.SplashInnerRadius,
+								splashMediumRadius: atk.SplashMediumRadius,
+								splashOuterRadius: atk.SplashOuterRadius,
+								splashInnerRatio: atk.SplashInnerRatio,
+								splashMediumRatio: atk.SplashMediumRatio,
+								splashOuterRatio: atk.SplashOuterRatio,
+								friendlyFire: atk.FriendlyFire
 							));
 						}
 					}

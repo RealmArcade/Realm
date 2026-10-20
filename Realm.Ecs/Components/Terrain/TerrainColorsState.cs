@@ -1,15 +1,23 @@
-namespace Realm.Ecs.Components.Terrain
-{
-	/// <summary>
-	///     Holds the terrain color data in HTML format.
-	/// </summary>
-	public struct TerrainColorsState
-	{
-		public string[] Colors;
+using System.Runtime.InteropServices;
 
-		public TerrainColorsState(string[] colors)
-		{
-			Colors = colors;
-		}
+namespace Realm.Ecs.Components.Terrain;
+
+/// <summary>
+/// Holds the terrain color palette configurations.
+/// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct TerrainColorsState
+{
+	public int Handle;
+
+	public TerrainColorsState(string[] colors)
+	{
+		Handle = ColdPayloadRegistry<string[]>.Register(colors);
+	}
+
+	public string[] Colors
+	{
+		get => ColdPayloadRegistry<string[]>.Get(Handle);
+		set => Handle = ColdPayloadRegistry<string[]>.Register(value);
 	}
 }

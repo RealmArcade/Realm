@@ -294,6 +294,18 @@
             "boolean",
             "null"
           ]
+        },
+        "TestRandomSeed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "MaxTestPlayers": {
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       }
     },
@@ -886,6 +898,18 @@
                   ]
                 }
               },
+              "ShopItems": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
               "Upgrades": {
                 "type": [
                   "array",
@@ -951,6 +975,9 @@
                   "string",
                   "null"
                 ]
+              },
+              "ConstructionRange": {
+                "type": "number"
               }
             }
           }
@@ -1604,6 +1631,12 @@
                 "type": "string"
               },
               "IconPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Hotkey": {
                 "type": [
                   "string",
                   "null"

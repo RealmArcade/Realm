@@ -8,5 +8,5 @@ public class SavedUnit
 	public Vector3 Position;
 	public float RotationY;
 	public float Scale;
-	public bool IsEnemy;
+	public int Player;
 }

@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
-using Arch.Core;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.Components.Combat;
@@ -155,7 +154,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		}
 	}
 
-	public void ScanAffordances(World world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
+	public void ScanAffordances(EcsWorld world, int playerIndex, List<GenericAffordance> destinationList, object? customContext = null)
 	{
 		destinationList.Clear();
 		PopulateEntityLists(world, playerIndex);
@@ -166,7 +165,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		ProcessHeroAffordances(world, destinationList, playerGold);
 	}
 
-	private void PopulateEntityLists(World world, int playerIndex)
+	private void PopulateEntityLists(EcsWorld world, int playerIndex)
 	{
 		_friendlyHeroes.Clear();
 		_enemyHeroes.Clear();
@@ -191,7 +190,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		});
 	}
 
-	private int GetOwnerIndex(World world, Entity entity)
+	private int GetOwnerIndex(EcsWorld world, Entity entity)
 	{
 		if (world.Has<UnitOwnerPlayer>(entity))
 		{
@@ -210,7 +209,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		return -1;
 	}
 
-	private Entity GetPlayerEntity(World world, int playerIndex)
+	private Entity GetPlayerEntity(EcsWorld world, int playerIndex)
 	{
 		Entity playerEntity = Entity.Null;
 		world.Query(in _playerResourcesQuery, (Entity pe) =>
@@ -227,16 +226,15 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		return playerEntity;
 	}
 
-	private int GetPlayerGold(World world, Entity playerEntity)
+	private int GetPlayerGold(EcsWorld world, Entity playerEntity)
 	{
 		if (!world.IsAlive(playerEntity) || !world.Has<PlayerResources>(playerEntity))
 			return 500;
 
-		var resources = world.Get<PlayerResources>(playerEntity).Value;
-		return resources.Count > 0 ? resources.Values.FirstOrDefault() : 500;
+		return world.Get<PlayerResources>(playerEntity).Gold;
 	}
 
-	private void ProcessHeroAffordances(World world, List<GenericAffordance> destinationList, int playerGold)
+	private void ProcessHeroAffordances(EcsWorld world, List<GenericAffordance> destinationList, int playerGold)
 	{
 		for (int hIdx = 0; hIdx < _friendlyHeroes.Count; hIdx++)
 		{
@@ -257,7 +255,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private float GetHealthRatio(World world, Entity entity)
+	private float GetHealthRatio(EcsWorld world, Entity entity)
 	{
 		if (!world.Has<Health>(entity))
 			return 1.0f;
@@ -275,7 +273,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		destinationList.Add(new GenericAffordance(hero, CommandIntent.MoveTo, Entity.Null, _fountainPosition, "retreat_fountain", retreatVec));
 	}
 
-	private void EvaluateEnemyCombat(World world, List<GenericAffordance> destinationList, Entity hero, Vector3 heroPos, float hpRatio, float fountainDistRatio)
+	private void EvaluateEnemyCombat(EcsWorld world, List<GenericAffordance> destinationList, Entity hero, Vector3 heroPos, float hpRatio, float fountainDistRatio)
 	{
 		for (int eIdx = 0; eIdx < _enemyHeroes.Count; eIdx++)
 		{
@@ -294,7 +292,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private void EvaluateSpellsAgainstEnemy(World world, List<GenericAffordance> destinationList, Entity hero, Entity enemy, Vector3 ePos, float hpRatio, float killThreat, float fountainDistRatio)
+	private void EvaluateSpellsAgainstEnemy(EcsWorld world, List<GenericAffordance> destinationList, Entity hero, Entity enemy, Vector3 ePos, float hpRatio, float killThreat, float fountainDistRatio)
 	{
 		if (!world.Has<SpellCooldowns>(hero)) return;
 
@@ -309,7 +307,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private void EvaluateCreepLastHits(World world, List<GenericAffordance> destinationList, Entity hero, Vector3 heroPos, float hpRatio, float fountainDistRatio)
+	private void EvaluateCreepLastHits(EcsWorld world, List<GenericAffordance> destinationList, Entity hero, Vector3 heroPos, float hpRatio, float fountainDistRatio)
 	{
 		for (int cIdx = 0; cIdx < _laneCreeps.Count; cIdx++)
 		{
@@ -360,7 +358,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		}
 	}
 
-	public void ExecuteAction(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
 	{
 		if (IsCustomAction(aff.Intent))
 		{
@@ -392,7 +390,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		return intent == CommandIntent.Transact || intent == CommandIntent.Interact;
 	}
 
-	private void HandleAttackIntent(World world, in GenericAffordance aff)
+	private void HandleAttackIntent(EcsWorld world, in GenericAffordance aff)
 	{
 		if (world.IsAlive(aff.TargetEntity))
 		{
@@ -400,7 +398,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private void HandleCastIntent(World world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback)
+	private void HandleCastIntent(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback)
 	{
 		if (!string.IsNullOrEmpty(aff.PayloadId) && world.Has<SpellCooldowns>(aff.SourceEntity))
 		{

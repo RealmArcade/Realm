@@ -1,4 +1,4 @@
-﻿namespace Realm.Client.Core;
+namespace Realm.Client.Core;
 
 public enum AssetCategory
 {

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using Realm.Ecs;
 using Realm.Client.ReplaySystem;
 using Realm.Client.Services;
 using Realm.Ecs.Common;
@@ -48,6 +49,7 @@ public partial class GameHost
 		AllProps.Clear();
 
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
 		EntityToProp3D.Clear();
 	}
 
@@ -64,7 +66,7 @@ public partial class GameHost
 			GD.PrintErr($"[GameHost.Replay] Exception during active map script Initialize: {ex.Message}");
 		}
 
-		var entitiesToDestroy = new List<Arch.Core.Entity>();
+		var entitiesToDestroy = new List<Entity>();
 		foreach (var unit in AllUnits)
 		{
 			entitiesToDestroy.Add(unit.Entity);
@@ -75,6 +77,7 @@ public partial class GameHost
 
 		AllUnits.Clear();
 		EntityToUnit3D.Clear();
+		EntityIdToUnit3D.Clear();
 	}
 
 	private void SetupReplayPlayers()
@@ -94,14 +97,14 @@ public partial class GameHost
 	public void SpawnUnitFromReplaySnapshot(ReplayUnitSnapshot snap)
 	{
 		var result = GameContext.ReplayService.SpawnUnitFromReplaySnapshot(snap);
-		if (result.Entity == default) return;
+		if (result.Entity == Entity.Null) return;
 
-		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, snap.Position.ToGodot(), snap.IsBuilding, result.IsEnemy);
+		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, snap.Position.ToGodot(), snap.IsBuilding, result.Player);
 	}
 
 	private void RecordGameplayTick()
 	{
-		var transforms = new List<(Arch.Core.Entity Entity, System.Numerics.Vector3 Position, System.Numerics.Vector3 Velocity, float RotationY)>();
+		var transforms = new List<(Entity Entity, System.Numerics.Vector3 Position, System.Numerics.Vector3 Velocity, float RotationY)>();
 		foreach (var unit in AllUnits)
 		{
 			if (!GodotObject.IsInstanceValid(unit)) continue;

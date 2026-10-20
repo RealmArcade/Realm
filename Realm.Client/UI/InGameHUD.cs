@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
@@ -13,6 +13,7 @@ using Realm.Client.Utils;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
+using Realm.MapAPI;
 using Vector3 = Godot.Vector3;
 using static Godot.Control;
 using static Godot.CanvasItem;
@@ -67,6 +68,8 @@ public partial class InGameHUD : Control
 	private PanelContainer _portraitFrame;
 	private PanelContainer _selectionFrame;
 	private PanelContainer _commandFrame;
+	private PanelContainer _inventoryFrame;
+	private readonly Dictionary<HudElement, bool> _hudElementVisibility = new();
 
 	private GridContainer _commandGrid;
 	private GridContainer _inventoryGrid;
@@ -373,6 +376,7 @@ public partial class InGameHUD : Control
 		GenerateDynamicMinimap();
 
 		ApplySpectatorAndReplayOverrides();
+		ApplySavedHudVisibilityOverrides();
 	}
 
 	private void InitializeReferences()
@@ -385,6 +389,7 @@ public partial class InGameHUD : Control
 		_portraitFrame = GetNode<PanelContainer>("BottomConsole/HBox/PortraitFrame");
 		_selectionFrame = GetNode<PanelContainer>("BottomConsole/HBox/SelectionFrame");
 		_commandFrame = GetNode<PanelContainer>("BottomConsole/HBox/CommandFrame");
+		_inventoryFrame = GetNodeOrNull<PanelContainer>("BottomConsole/HBox/InventoryFrame");
 
 		_goldLabel = GetNode<Label>("ResourceContainer/HBox/GoldBox/GoldLabel");
 		_woodLabel = GetNode<Label>("ResourceContainer/HBox/WoodBox/WoodLabel");
@@ -571,7 +576,7 @@ public partial class InGameHUD : Control
 		_minimapControls.AddChild(_btnPing);
 
 		_btnCenter = new Button();
-		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Castle [Space]", () => GameHost.Instance?.CenterCameraOnCastle());
+		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Base [Space]", () => GameHost.Instance?.CenterCameraOnPrimaryBuilding());
 		_minimapControls.AddChild(_btnCenter);
 
 		_btnSelectIdle = new Button();
@@ -827,7 +832,7 @@ public partial class InGameHUD : Control
 			if (_chatPanel != null) _chatPanel.Visible = false;
 		}
 
-		bool isSpectator = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null && LobbyManager.Instance.LocalPlayer.Team == "Spectator";
+		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 		if (isSpectator)
 		{
 			_resourceContainer.Visible = false;
@@ -1292,9 +1297,10 @@ public partial class InGameHUD : Control
 	{
 		if (selectedUnits != null)
 		{
-			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => !u.IsEnemy);
-			bool isSpectator = LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
-			_commandFrame.Visible = !isSpectator && hasPlayerSelection;
+			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => GameContext.PerspectiveFilter.CanControl(u.Player));
+			bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
+			bool commandCardAllowed = IsHudElementVisible(HudElement.CommandCard, true);
+			_commandFrame.Visible = !isSpectator && hasPlayerSelection && commandCardAllowed;
 		}
 
 		_viewModel.SelectedProp = GameHost.Instance?.SelectedProp;
@@ -1302,6 +1308,28 @@ public partial class InGameHUD : Control
 		_portraitPanelController?.Update(_viewModel);
 		_commandPanelController?.Update(_viewModel);
 		_inventoryPanelController?.Update(_viewModel);
+
+		if (!IsHudElementVisible(HudElement.UnitPortrait, true) && _portraitFrame != null)
+		{
+			_portraitFrame.Visible = false;
+		}
+		if (!IsHudElementVisible(HudElement.CommandCard, true) && _commandFrame != null)
+		{
+			_commandFrame.Visible = false;
+		}
+		if (!IsHudElementVisible(HudElement.Minimap, true) && _minimapFrame != null)
+		{
+			_minimapFrame.Visible = false;
+		}
+		if (!IsHudElementVisible(HudElement.ResourceBar, true) && _resourceContainer != null)
+		{
+			_resourceContainer.Visible = false;
+		}
+		if (!IsHudElementVisible(HudElement.Inventory, true))
+		{
+			if (_inventoryFrame != null) _inventoryFrame.Visible = false;
+			if (_inventoryGrid != null) _inventoryGrid.Visible = false;
+		}
 	}
 
 	private void ApplyThemeStyles()
@@ -1509,7 +1537,7 @@ void fragment() {
 		// Handle specific visual updates that are not data-bound yet.
 		foreach (var u in selected)
 		{
-			if (u.IsBuilding && !u.IsEnemy && u.UnitId == "castle")
+			if (u.IsBuilding && GameContext.PerspectiveFilter.CanObserve(u.Player))
 			{
 				u.UpdateRallyVisuals();
 			}
@@ -1817,6 +1845,7 @@ void fragment() {
 	private bool HandleEnterKey(InputEventKey keyEvent)
 	{
 		if (keyEvent.Keycode != Key.Enter || IsChatActive) return false;
+		if (!IsHudElementVisible(HudElement.Chat, true)) return false;
 
 		_chatPanelController?.ShowChatInput(keyEvent.ShiftPressed);
 		GetViewport().SetInputAsHandled();
@@ -2032,7 +2061,7 @@ void fragment() {
 				{
 					("WASD / Edge", "Pan Camera"),
 					("Shift+WASD", "Fast Camera Pan"),
-					("Space", "Center Camera on Castle"),
+					("Space", "Center Camera on Base"),
 					("Z", "Cycle Zoom (Near / Mid / Far)"),
 					("F4", "Toggle Terrain Radar Mode"),
 					("Alt+G", "Ping Map Alert"),
@@ -2187,6 +2216,93 @@ void fragment() {
 		_viewModel.CountdownText = labelText;
 	}
 
+	public bool IsHudElementVisible(HudElement element, bool defaultValue = true)
+	{
+		return _hudElementVisibility.TryGetValue(element, out bool v) ? v : defaultValue;
+	}
+
+	public void SetHudElementVisible(HudElement element, bool visible)
+	{
+		_hudElementVisibility[element] = visible;
+		if (GameHost.Instance != null)
+		{
+			GameHost.Instance.LocalHudVisibilityOverrides[element] = visible;
+		}
+		ApplyHudElementVisibility(element);
+	}
+
+	public void ApplyHudElementVisibility(HudElement element)
+	{
+		bool visible = IsHudElementVisible(element, true);
+		switch (element)
+		{
+			case HudElement.Minimap:
+				if (_minimapFrame != null) _minimapFrame.Visible = visible;
+				if (_minimapControls != null) _minimapControls.Visible = visible;
+				break;
+			case HudElement.ResourceBar:
+				if (_resourceContainer != null) _resourceContainer.Visible = visible;
+				break;
+			case HudElement.CommandCard:
+				if (!visible && _commandFrame != null)
+				{
+					_commandFrame.Visible = false;
+				}
+				else if (visible && GameHost.Instance != null)
+				{
+					RefreshUI(GameHost.Instance.SelectedUnits);
+				}
+				break;
+			case HudElement.UnitPortrait:
+				if (!visible && _portraitFrame != null)
+				{
+					_portraitFrame.Visible = false;
+				}
+				else if (visible && _portraitFrame != null)
+				{
+					_portraitFrame.Visible = true;
+				}
+				break;
+			case HudElement.Chat:
+				if (_chatPanel != null) _chatPanel.Visible = visible;
+				break;
+			case HudElement.Leaderboard:
+				if (_leaderboardPanel != null)
+				{
+					_leaderboardPanel.Visible = visible && _viewModel.LeaderboardVisible;
+				}
+				break;
+			case HudElement.SummaryTable:
+				if (_summaryPanel != null)
+				{
+					_summaryPanel.Visible = visible && _viewModel.SummaryTableVisible;
+				}
+				break;
+			case HudElement.Inventory:
+				if (_inventoryFrame != null) _inventoryFrame.Visible = visible;
+				if (_inventoryGrid != null) _inventoryGrid.Visible = visible;
+				break;
+			case HudElement.CountdownTimer:
+				if (_countdownPanel != null)
+				{
+					_countdownPanel.Visible = visible && _viewModel.CountdownActive;
+				}
+				break;
+		}
+	}
+
+	public void ApplySavedHudVisibilityOverrides()
+	{
+		if (GameHost.Instance != null)
+		{
+			foreach (var kvp in GameHost.Instance.LocalHudVisibilityOverrides)
+			{
+				_hudElementVisibility[kvp.Key] = kvp.Value;
+				ApplyHudElementVisibility(kvp.Key);
+			}
+		}
+	}
+
 	public void SetLeaderboardVisible(string title, bool visible)
 	{
 		_viewModel.LeaderboardTitle = title;
@@ -2285,7 +2401,8 @@ void fragment() {
 		bool isMultiplayer = LobbyManager.Instance != null && !LobbyManager.Instance.IsSinglePlayer
 		                                                   && Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
 
-		Entity localPlayerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		if (GameContext.PerspectiveFilter.IsSpectating) return false;
+		Entity localPlayerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
 		var (result, _) = GameContext.CheatService.TryTriggerCheat(
 			text, isMultiplayer, localPlayerEntity, ECSContext.DefinitionManager, selectedEntities);
 
@@ -2380,22 +2497,22 @@ void fragment() {
 
 		var btnBlue = new Button();
 		btnBlue.Text = TranslationServer.Translate("BLUE");
-		btnBlue.Pressed += () => { LiveSpectatorPerspective = 0; };
+		btnBlue.Pressed += () => { LiveSpectatorPerspective = 1; };
 		specHBox.AddChild(btnBlue);
 
 		var btnRed = new Button();
 		btnRed.Text = TranslationServer.Translate("RED");
-		btnRed.Pressed += () => { LiveSpectatorPerspective = 1; };
+		btnRed.Pressed += () => { LiveSpectatorPerspective = 2; };
 		specHBox.AddChild(btnRed);
 
 		var btnGreen = new Button();
 		btnGreen.Text = TranslationServer.Translate("GREEN");
-		btnGreen.Pressed += () => { LiveSpectatorPerspective = 2; };
+		btnGreen.Pressed += () => { LiveSpectatorPerspective = 3; };
 		specHBox.AddChild(btnGreen);
 
 		var btnYellow = new Button();
 		btnYellow.Text = TranslationServer.Translate("YELLOW");
-		btnYellow.Pressed += () => { LiveSpectatorPerspective = 3; };
+		btnYellow.Pressed += () => { LiveSpectatorPerspective = 4; };
 		specHBox.AddChild(btnYellow);
 
 		AddChild(specPanel);
@@ -2432,17 +2549,8 @@ void fragment() {
 
 	private void GetLocalPlayerInfo(out bool isLocalHost, out int localPeerId)
 	{
-		isLocalHost = false;
-		localPeerId = 1;
-
-		var lobby = LobbyManager.Instance;
-		if (lobby == null) return;
-
-		var localPlayer = lobby.LocalPlayer;
-		if (localPlayer == null) return;
-
-		isLocalHost = localPlayer.IsHost;
-		localPeerId = localPlayer.PeerId;
+		localPeerId = GameHost.Instance?.LocalPeerId ?? 1;
+		isLocalHost = LobbyManager.Instance?.IsHost ?? false;
 	}
 
 	private void UpdatePauseTitle()
@@ -2545,7 +2653,7 @@ void fragment() {
 		_pauseReadyCheck.Text = "Ready to Resume";
 		_pauseReadyCheck.Toggled += (buttonPressed) =>
 		{
-			int localPeerId = LobbyManager.Instance != null && LobbyManager.Instance.LocalPlayer != null ? LobbyManager.Instance.LocalPlayer.PeerId : 1;
+			int localPeerId = GameHost.Instance?.LocalPeerId ?? 1;
 			GameHost.Instance?.RequestToggleReady(localPeerId, buttonPressed);
 		};
 		actionHBox.AddChild(_pauseReadyCheck);

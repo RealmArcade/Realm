@@ -10,5 +10,11 @@ public struct DamageResult
 	public float EffectiveRatedArmor;
 	public float MitigatedDamage;
 	public float FinalDamage;
-	public bool IsCritical;
+	public byte IsCriticalByte;
+
+	public bool IsCritical
+	{
+		get => IsCriticalByte != 0;
+		set => IsCriticalByte = value ? (byte)1 : (byte)0;
+	}
 }

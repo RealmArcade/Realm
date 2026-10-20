@@ -1,4 +1,4 @@
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -19,17 +19,10 @@ public class ObjectTransformAction : IEditorAction
 	private readonly Vector3 _afterRot;
 	private readonly Vector3 _beforeScale;
 	private readonly Vector3 _afterScale;
-	private readonly bool _beforeIsEnemy;
-	private readonly bool _afterIsEnemy;
 	private readonly int _beforePlayer;
 	private readonly int _afterPlayer;
 
-	public ObjectTransformAction(Node3D targetNode, Vector3 beforePos, Vector3 afterPos, Vector3 beforeRot, Vector3 afterRot, Vector3 beforeScale, Vector3 afterScale, bool beforeIsEnemy, bool afterIsEnemy)
-		: this(targetNode, beforePos, afterPos, beforeRot, afterRot, beforeScale, afterScale, beforeIsEnemy, afterIsEnemy, (targetNode as Unit3D)?.Player ?? (beforeIsEnemy ? 1 : 0), (targetNode as Unit3D)?.Player ?? (afterIsEnemy ? 1 : 0))
-	{
-	}
-
-	public ObjectTransformAction(Node3D targetNode, Vector3 beforePos, Vector3 afterPos, Vector3 beforeRot, Vector3 afterRot, Vector3 beforeScale, Vector3 afterScale, bool beforeIsEnemy, bool afterIsEnemy, int beforePlayer, int afterPlayer)
+	public ObjectTransformAction(Node3D targetNode, Vector3 beforePos, Vector3 afterPos, Vector3 beforeRot, Vector3 afterRot, Vector3 beforeScale, Vector3 afterScale, int beforePlayer = -1, int afterPlayer = -1)
 	{
 		_targetNode = targetNode;
 		_beforePos = beforePos;
@@ -38,10 +31,13 @@ public class ObjectTransformAction : IEditorAction
 		_afterRot = afterRot;
 		_beforeScale = beforeScale;
 		_afterScale = afterScale;
-		_beforeIsEnemy = beforeIsEnemy;
-		_afterIsEnemy = afterIsEnemy;
-		_beforePlayer = beforePlayer;
-		_afterPlayer = afterPlayer;
+		_beforePlayer = beforePlayer >= 0 ? beforePlayer : ((targetNode as Unit3D)?.Player ?? 0);
+		_afterPlayer = afterPlayer >= 0 ? afterPlayer : ((targetNode as Unit3D)?.Player ?? 0);
+	}
+
+	public ObjectTransformAction(Node3D targetNode, Vector3 beforePos, Vector3 afterPos, Vector3 beforeRot, Vector3 afterRot, Vector3 beforeScale, Vector3 afterScale, bool beforeIsEnemy, bool afterIsEnemy, int beforePlayer = -1, int afterPlayer = -1)
+		: this(targetNode, beforePos, afterPos, beforeRot, afterRot, beforeScale, afterScale, beforePlayer >= 0 ? beforePlayer : (beforeIsEnemy ? 1 : 0), afterPlayer >= 0 ? afterPlayer : (afterIsEnemy ? 1 : 0))
+	{
 	}
 
 	public void Undo()

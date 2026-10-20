@@ -29,6 +29,7 @@ public class WasmEntryPoint
         try
         {
             _gameApi = new GameAPI_WasmModule();
+            GameAPI.Current = _gameApi;
             _gameApi.BroadcastMessage("Guest Initialize started");
 
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -70,7 +71,7 @@ public class WasmEntryPoint
     {
         try
         {
-			if (_mapScript != null && _gameApi != null && delta > 0f)
+			if (_mapScript != null && _gameApi != null)
                 _mapScript.Update(_gameApi, delta);
         }
         catch (Exception ex)
@@ -85,6 +86,15 @@ public class WasmEntryPoint
     }
 
 {{GENERATED_EVENT_HANDLERS}}
+
+    [UnmanagedCallersOnly(EntryPoint = "get_realm_shared_memory_base")]
+    public static int GetRealmSharedMemoryBase() => EcsSharedMemory.GetRealmSharedMemoryBase();
+
+    [UnmanagedCallersOnly(EntryPoint = "set_realm_shared_memory_table_directory")]
+    public static void SetRealmSharedMemoryTableDirectory(int tableDirectoryGuestOffset) => EcsSharedMemory.SetRealmSharedMemoryTableDirectory(tableDirectoryGuestOffset);
+
+    [UnmanagedCallersOnly(EntryPoint = "set_realm_shared_memory_strides")]
+    public static void SetRealmSharedMemoryStrides(int stridesGuestOffset) => EcsSharedMemory.SetRealmSharedMemoryStrides(stridesGuestOffset);
 
     [UnmanagedCallersOnly(EntryPoint = "cabi_realloc")]
     public static unsafe nint CabiRealloc(nint ptr, int oldSize, int alignment, int newSize)

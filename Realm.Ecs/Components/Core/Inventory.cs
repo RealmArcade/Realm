@@ -1,28 +1,37 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
 /// A component for holding unit inventory item contents and charges.
 /// </summary>
-public record struct Inventory
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct Inventory
 {
-	public Dictionary<string, int> Items { get; set; }
+	public int Handle;
 
 	public Inventory()
 	{
-		Items = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+		Handle = ColdPayloadRegistry<Dictionary<string, int>>.Register(new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
 	}
 
 	public Inventory(Dictionary<string, int> items)
 	{
-		Items = items ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+		Handle = ColdPayloadRegistry<Dictionary<string, int>>.Register(items ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
+	}
+
+	public Dictionary<string, int> Items
+	{
+		get => ColdPayloadRegistry<Dictionary<string, int>>.Get(Handle);
+		set => Handle = ColdPayloadRegistry<Dictionary<string, int>>.Register(value);
 	}
 
 	public int GetItemCount(string itemId)
 	{
-		if (Items != null && !string.IsNullOrEmpty(itemId) && Items.TryGetValue(itemId, out int count))
+		var items = Items;
+		if (items != null && !string.IsNullOrEmpty(itemId) && items.TryGetValue(itemId, out int count))
 		{
 			return count;
 		}
@@ -32,16 +41,17 @@ public record struct Inventory
 
 	public void SetItemCount(string itemId, int count)
 	{
-		Items ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+		var items = Items ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 		if (string.IsNullOrEmpty(itemId)) return;
 		if (count <= 0)
 		{
-			Items.Remove(itemId);
+			items.Remove(itemId);
 		}
 		else
 		{
-			Items[itemId] = count;
+			items[itemId] = count;
 		}
+		Items = items;
 	}
 
 	public bool HasItem(string itemId)

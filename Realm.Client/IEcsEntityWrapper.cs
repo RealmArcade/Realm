@@ -1,4 +1,4 @@
-using Arch.Core;
+using Realm.Ecs;
 
 namespace Realm.Client;
 

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Numerics;
 using Realm.Ecs.Components.Movement;
 
@@ -6,6 +7,7 @@ namespace Realm.Ecs.Components.Core;
 /// <summary>
 ///     Represents a rally point with a queue of waypoints for trained units to move along upon spawning.
 /// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct RallyPoint
 {
 	public WaypointBuffer Waypoints;

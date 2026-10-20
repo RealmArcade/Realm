@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.UI;
@@ -17,6 +17,92 @@ namespace Realm.Client.Services;
 
 public class RegistryService
 {
+	private const float DefaultPlacementRadius = 1.2f;
+
+	private readonly List<(string DefinitionKey, float Radius)> _placementRadiusRules = new();
+	private readonly List<string> _resourceDropoffBuildingKeys = new();
+	private readonly List<string> _resourceWorkerUnitKeys = new();
+	private readonly List<string> _primaryBuildingIds = new();
+	private readonly Dictionary<string, string> _resourceTypeByNodeId = new(StringComparer.OrdinalIgnoreCase);
+
+	public void RegisterPlacementRadius(string definitionKey, float radius)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(definitionKey);
+		_placementRadiusRules.Add((definitionKey, radius));
+	}
+
+	public float GetPlacementRadius(string placeId, float scale)
+	{
+		if (string.IsNullOrEmpty(placeId)) return DefaultPlacementRadius * scale;
+		foreach (var (definitionKey, radius) in _placementRadiusRules)
+		{
+			if (placeId.Contains(definitionKey, StringComparison.OrdinalIgnoreCase)) return radius * scale;
+		}
+
+		return DefaultPlacementRadius * scale;
+	}
+
+	public void RegisterResourceDropoffBuilding(string definitionKey)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(definitionKey);
+		_resourceDropoffBuildingKeys.Add(definitionKey);
+	}
+
+	public void RegisterResourceWorkerUnit(string unitKey)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(unitKey);
+		_resourceWorkerUnitKeys.Add(unitKey);
+	}
+
+	public bool IsResourceDropoffBuilding(string definitionId)
+	{
+		if (string.IsNullOrEmpty(definitionId)) return false;
+		foreach (var key in _resourceDropoffBuildingKeys)
+		{
+			if (definitionId.Contains(key, StringComparison.OrdinalIgnoreCase)) return true;
+		}
+
+		if (!BuildingRegistry.TryGetValue(definitionId, out var meta) || meta.BuildOptions == null) return false;
+		foreach (var option in meta.BuildOptions)
+		{
+			foreach (var workerKey in _resourceWorkerUnitKeys)
+			{
+				if (option.Contains(workerKey, StringComparison.Ordinal)) return true;
+			}
+		}
+
+		return false;
+	}
+
+	public void RegisterPrimaryBuilding(string definitionId)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(definitionId);
+		_primaryBuildingIds.Add(definitionId);
+	}
+
+	public bool IsPrimaryBuilding(string definitionId)
+	{
+		if (string.IsNullOrEmpty(definitionId)) return false;
+		foreach (var primaryId in _primaryBuildingIds)
+		{
+			if (string.Equals(definitionId, primaryId, StringComparison.OrdinalIgnoreCase)) return true;
+		}
+
+		return false;
+	}
+
+	public void RegisterResourceNodeType(string nodeDefinitionId, string resourceType)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(nodeDefinitionId);
+		ArgumentException.ThrowIfNullOrEmpty(resourceType);
+		_resourceTypeByNodeId[nodeDefinitionId] = resourceType;
+	}
+
+	public string? GetResourceTypeForNode(string nodeDefinitionId)
+	{
+		return _resourceTypeByNodeId.TryGetValue(nodeDefinitionId, out var resourceType) ? resourceType : null;
+	}
+
 	public bool UnitHasAbility(string unitId, string abilityId)
 	{
 		if (GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
@@ -454,12 +540,12 @@ public class RegistryService
 		def.Hotkey = hotkey ?? "";
 	}
 
-	public void SetAbilityState(IUnit unit, string abilityId, bool disabled, bool hidden)
+	public void SetAbilityState(UnitId unit, string abilityId, bool disabled, bool hidden)
 	{
-		if (unit == null || string.IsNullOrEmpty(abilityId)) return;
+		if (!unit.IsValid || string.IsNullOrEmpty(abilityId)) return;
 		foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 		{
-			UnitAbilityStates[(unit.UniqueId, key)] = (disabled, hidden);
+			UnitAbilityStates[(unit.Value, key)] = (disabled, hidden);
 		}
 		if (GameHost.Instance != null)
 		{
@@ -467,13 +553,18 @@ public class RegistryService
 		}
 	}
 
-	public bool IsAbilityDisabledForUnit(IUnit unit, string abilityId)
+	public void SetAbilityState(Unit_WasmRuntime unit, string abilityId, bool disabled, bool hidden)
 	{
-		if (unit != null && !string.IsNullOrEmpty(abilityId))
+		if (unit != null) SetAbilityState((UnitId)unit.UniqueId, abilityId, disabled, hidden);
+	}
+
+	public bool IsAbilityDisabledForUnit(UnitId unit, string abilityId)
+	{
+		if (unit.IsValid && !string.IsNullOrEmpty(abilityId))
 		{
 			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 			{
-				if (UnitAbilityStates.TryGetValue((unit.UniqueId, key), out var state))
+				if (UnitAbilityStates.TryGetValue((unit.Value, key), out var state))
 				{
 					return state.Disabled;
 				}
@@ -483,13 +574,18 @@ public class RegistryService
 		return false;
 	}
 
-	public bool IsAbilityHiddenForUnit(IUnit unit, string abilityId)
+	public bool IsAbilityDisabledForUnit(Unit_WasmRuntime unit, string abilityId)
 	{
-		if (unit != null && !string.IsNullOrEmpty(abilityId))
+		return unit != null && IsAbilityDisabledForUnit((UnitId)unit.UniqueId, abilityId);
+	}
+
+	public bool IsAbilityHiddenForUnit(UnitId unit, string abilityId)
+	{
+		if (unit.IsValid && !string.IsNullOrEmpty(abilityId))
 		{
 			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 			{
-				if (UnitAbilityStates.TryGetValue((unit.UniqueId, key), out var state))
+				if (UnitAbilityStates.TryGetValue((unit.Value, key), out var state))
 				{
 					return state.Hidden;
 				}
@@ -497,6 +593,11 @@ public class RegistryService
 		}
 
 		return false;
+	}
+
+	public bool IsAbilityHiddenForUnit(Unit_WasmRuntime unit, string abilityId)
+	{
+		return unit != null && IsAbilityHiddenForUnit((UnitId)unit.UniqueId, abilityId);
 	}
 
 	public void SetAbilityTooltip(string abilityId, string tooltip)
@@ -612,28 +713,33 @@ public class RegistryService
 		def.GridY = y;
 	}
 
-	public void SetAbilityManaCost(IUnit unit, string abilityId, float manaCost)
+	public void SetAbilityManaCost(UnitId unit, string abilityId, float manaCost)
 	{
 		if (string.IsNullOrEmpty(abilityId)) return;
 
 		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.ManaCost = manaCost;
-		if (unit != null)
+		if (unit.IsValid)
 		{
 			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 			{
-				UnitAbilityManaCosts[(unit.UniqueId, key)] = manaCost;
+				UnitAbilityManaCosts[(unit.Value, key)] = manaCost;
 			}
 		}
 	}
 
-	public float GetAbilityManaCostForUnit(IUnit unit, string abilityId)
+	public void SetAbilityManaCost(Unit_WasmRuntime unit, string abilityId, float manaCost)
 	{
-		if (unit != null && !string.IsNullOrEmpty(abilityId))
+		if (unit != null) SetAbilityManaCost((UnitId)unit.UniqueId, abilityId, manaCost);
+	}
+
+	public float GetAbilityManaCostForUnit(UnitId unit, string abilityId)
+	{
+		if (unit.IsValid && !string.IsNullOrEmpty(abilityId))
 		{
 			foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 			{
-				if (UnitAbilityManaCosts.TryGetValue((unit.UniqueId, key), out float cost))
+				if (UnitAbilityManaCosts.TryGetValue((unit.Value, key), out float cost))
 				{
 					return cost;
 				}
@@ -642,6 +748,11 @@ public class RegistryService
 
 		var def = GetAbilityDefinition(abilityId);
 		return def?.ManaCost ?? 0f;
+	}
+
+	public float GetAbilityManaCostForUnit(Unit_WasmRuntime unit, string abilityId)
+	{
+		return unit != null ? GetAbilityManaCostForUnit((UnitId)unit.UniqueId, abilityId) : 0f;
 	}
 
 	public void SetItemTooltip(string itemId, string tooltip)

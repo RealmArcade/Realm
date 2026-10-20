@@ -76,6 +76,7 @@ public class UnitMetadata
 	public UnitObjectAttachments? ObjectAttachments { get; set; }
 	public UnitSoundsMetadata? Sounds { get; set; }
 	public string[]? StartingItems { get; set; }
+	public string[]? ShopItems { get; set; }
 	public string[]? Upgrades { get; set; }
 	public string[]? StatusEffects { get; set; }
 	public string[]? SoundEvents { get; set; }
@@ -89,6 +90,10 @@ public class UnitMetadata
 		get => DeathShader;
 		set => DeathShader = value;
 	}
+
+	public const float DefaultConstructionRange = 4f;
+
+	public float ConstructionRange { get; set; } = DefaultConstructionRange;
 
 	public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation? orientation)
 	{

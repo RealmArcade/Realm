@@ -1,5 +1,6 @@
+using System;
+using System.Collections.Generic;
 using System.Numerics;
-using Arch.Core;
 using DotRecast.Core.Numerics;
 using DotRecast.Detour;
 using DotRecast.Recast;
@@ -15,18 +16,17 @@ public class TerrainNavMeshService
 {
 	public Dictionary<string, float> ObstacleRadiusCache { get; set; } = new();
 
-	// Recast/Detour bake tuning. Smaller cell sizes improve path fidelity but increase bake cost.
 	private const float NavMeshCellHeight = 0.1f;
 	private const float AgentRadius = 0.1f;
 	private const float AgentHeight = 2.5f;
 	private const float AgentMaxClimb = 0.9f;
 	private const float AgentMaxSlope = 55.0f;
 
-	private readonly ForEachWithEntity<Position, MoveTo, PathFollow> _invalidatePathsDelegate;
+	private readonly EntityCallback<Position, MoveTo, PathFollow> _invalidatePathsDelegate;
 	private Vector3 _invalidateCenter;
 	private float _invalidateRadiusSq;
 
-	private readonly ForEachWithEntity<Position, CollisionRadius> _checkOtherObstaclesDelegate;
+	private readonly EntityCallback<Position, CollisionRadius> _checkOtherObstaclesDelegate;
 	private float _checkCellX;
 	private float _checkCellZ;
 	private bool _isCellBlockedByOtherObstacle;
@@ -70,13 +70,13 @@ public class TerrainNavMeshService
 	{
 		_invalidateCenter = center;
 		_invalidateRadiusSq = radius * radius;
-		ECSContext.World.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
+		ECSContext.World?.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
 	}
 
 	private void CheckOtherObstaclesQueryAction(Entity entity, ref Position pos, ref CollisionRadius colRad)
 	{
 		if (_isCellBlockedByOtherObstacle) return;
-		float scale = ECSContext.World.Has<CollisionScale>(entity) ? ECSContext.World.Get<CollisionScale>(entity).Value : 1.0f;
+		float scale = (ECSContext.World != null && ECSContext.World.Has<CollisionScale>(entity)) ? ECSContext.World.Get<CollisionScale>(entity).Value : 1.0f;
 		float radius = colRad.Value * scale;
 		float dx = _checkCellX - pos.Value.X;
 		float dz = _checkCellZ - pos.Value.Z;
@@ -91,7 +91,7 @@ public class TerrainNavMeshService
 		_checkCellX = px;
 		_checkCellZ = pz;
 		_isCellBlockedByOtherObstacle = false;
-		ECSContext.World.Query(in QueryCache.AllPositionAndCollisionRadiusQuery, _checkOtherObstaclesDelegate);
+		ECSContext.World?.Query(in QueryCache.AllPositionAndCollisionRadiusQuery, _checkOtherObstaclesDelegate);
 		return _isCellBlockedByOtherObstacle;
 	}
 
@@ -378,6 +378,112 @@ public class TerrainNavMeshService
 		}
 	}
 
+	public void SetRegionPathing(ref TerrainState state, float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)
+	{
+		if (state.PathingCodes == null) return;
+
+		float x1 = Math.Min(minX, maxX);
+		float x2 = Math.Max(minX, maxX);
+		float z1 = Math.Min(minZ, maxZ);
+		float z2 = Math.Max(minZ, maxZ);
+
+		int width = state.Width;
+		int depth = state.Depth;
+		float quadSize = state.QuadSize;
+		float halfW = width / 2.0f * quadSize;
+		float halfD = depth / 2.0f * quadSize;
+
+		int startX = Math.Clamp((int)Math.Floor((x1 + halfW) / quadSize), 0, width - 1);
+		int endX = Math.Clamp((int)Math.Ceiling((x2 + halfW) / quadSize), 0, width - 1);
+		int startZ = Math.Clamp((int)Math.Floor((z1 + halfD) / quadSize), 0, depth - 1);
+		int endZ = Math.Clamp((int)Math.Ceiling((z2 + halfD) / quadSize), 0, depth - 1);
+
+		for (int z = startZ; z <= endZ; z++)
+		{
+			for (int x = startX; x <= endX; x++)
+			{
+				if (blocked)
+				{
+					state.PathingCodes[x, z] &= ~flags;
+				}
+				else
+				{
+					state.PathingCodes[x, z] |= flags;
+				}
+			}
+		}
+
+		if (state.NavMesh != null)
+		{
+			int maxTiles = state.NavMesh.GetMaxTiles();
+			float pad = quadSize * 0.5f;
+			for (int t = 0; t < maxTiles; t++)
+			{
+				var tile = state.NavMesh.GetTile(t);
+				if (tile?.data?.header == null) continue;
+				long polyRefBase = state.NavMesh.GetPolyRefBase(tile);
+				for (int p = 0; p < tile.data.header.polyCount; p++)
+				{
+					var poly = tile.data.polys[p];
+					GetPolyCenter(tile, poly, out float avgX, out float avgZ);
+
+					if (avgX < x1 - pad || avgX > x2 + pad || avgZ < z1 - pad || avgZ > z2 + pad)
+						continue;
+
+					int xGrid = Math.Clamp((int)Math.Floor((avgX + halfW) / quadSize), 0, width - 1);
+					int zGrid = Math.Clamp((int)Math.Floor((avgZ + halfD) / quadSize), 0, depth - 1);
+					int cellFlags = state.PathingCodes[xGrid, zGrid];
+
+					long polyRef = polyRefBase | (long)p;
+					state.NavMesh.SetPolyFlags(polyRef, cellFlags);
+					bool isWalkable = (cellFlags & (int)TerrainPathingFlags.Ground) != 0;
+					state.NavMesh.SetPolyArea(polyRef, isWalkable ? (char)1 : (char)0);
+				}
+			}
+		}
+
+		float cx = (x1 + x2) * 0.5f;
+		float cz = (z1 + z2) * 0.5f;
+		float halfWidth = (x2 - x1) * 0.5f;
+		float halfDepth = (z2 - z1) * 0.5f;
+		float maxDim = Math.Max(halfWidth, halfDepth);
+		InvalidateIntersectingPaths(new Vector3(cx, 0, cz), maxDim + quadSize * 2f);
+	}
+
+	public int GetRegionPathing(in TerrainState state, float minX, float minZ, float maxX, float maxZ)
+	{
+		if (state.PathingCodes == null) return (int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable | TerrainPathingFlags.Flying);
+
+		float x1 = Math.Min(minX, maxX);
+		float x2 = Math.Max(minX, maxX);
+		float z1 = Math.Min(minZ, maxZ);
+		float z2 = Math.Max(minZ, maxZ);
+
+		int width = state.Width;
+		int depth = state.Depth;
+		float quadSize = state.QuadSize;
+		float halfW = width / 2.0f * quadSize;
+		float halfD = depth / 2.0f * quadSize;
+
+		int startX = Math.Clamp((int)Math.Floor((x1 + halfW) / quadSize), 0, width - 1);
+		int endX = Math.Clamp((int)Math.Ceiling((x2 + halfW) / quadSize), 0, width - 1);
+		int startZ = Math.Clamp((int)Math.Floor((z1 + halfD) / quadSize), 0, depth - 1);
+		int endZ = Math.Clamp((int)Math.Ceiling((z2 + halfD) / quadSize), 0, depth - 1);
+
+		if (startX > endX || startZ > endZ) return 0;
+
+		int combinedFlags = 0xFF;
+		for (int z = startZ; z <= endZ; z++)
+		{
+			for (int x = startX; x <= endX; x++)
+			{
+				combinedFlags &= state.PathingCodes[x, z];
+			}
+		}
+
+		return combinedFlags;
+	}
+
 	private void RestorePathingCell(ref TerrainState state, int x, int z)
 	{
 		if (state.PathingCodes == null) return;
@@ -424,9 +530,9 @@ public class TerrainNavMeshService
 	{
 		var obstacles = new List<(Vector3 Pos, float Radius)>();
 		var obstacleQuery = QueryCache.AllPositionAndCollisionRadiusQuery;
-		ECSContext.World.Query(in obstacleQuery, (Entity ent, ref Position pos, ref CollisionRadius colRad) =>
+		ECSContext.World?.Query(in obstacleQuery, (Entity ent, ref Position pos, ref CollisionRadius colRad) =>
 		{
-			float scale = ECSContext.World.Has<CollisionScale>(ent) ? ECSContext.World.Get<CollisionScale>(ent).Value : 1.0f;
+			float scale = (ECSContext.World != null && ECSContext.World.Has<CollisionScale>(ent)) ? ECSContext.World.Get<CollisionScale>(ent).Value : 1.0f;
 			float radius = colRad.Value * scale;
 			obstacles.Add((pos.Value, radius));
 		});

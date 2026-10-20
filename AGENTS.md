@@ -1,7 +1,7 @@
 # Project: Realm
 
 ## General Project Overview:
-- RTS Game using Godot with C# and the Arch ECS framework.
+- RTS Game using Godot with C# and a custom Flat Bitmask Structure-of-Arrays (SoA) ECS shared directly with WASM linear memory.
 
 ## Overall Coding Style:
 
@@ -30,20 +30,29 @@
 - Labels in Containers: When setting autowrap_mode, always set custom_minimum_size.x (explicit width) and size_flags_horizontal = SIZE_EXPAND_FILL. Otherwise Godot calculates custom_minimum_size.y based on single-word wrapping, causing container to stretch excessively tall.
 - Unicode Icons: Never hardcode `\uXXXX` escape sequences inside string literals in UI or HUD scripts. Always reference named glyph constants defined in `UnicodeIcons` (e.g. `${UnicodeIcons.UPLOAD}`).
 
-### Realm.ECS Data Layer:
+### Realm.ECS Data Layer (Flat Bitmask SoA Shared Memory):
+- Core simulation component buffers (`PlayerResource`, `Health`, etc.) are implemented as a custom Flat Bitmask Structure-of-Arrays (SoA) ECS where component arrays are stored in contiguous unmanaged memory mapped directly into WASM linear memory (`Wasmtime.Memory`).
 - Keep system logic separated from presentation. Physics process query loops in `GameHost.cs` should inspect and manipulate ECS data via components, updating `Unit3D` / `Prop3D` nodes accordingly.
-- Do not store Godot lifecycle elements, scene nodes, or UI references directly inside ECS components. Components must remain pure unmanaged data.
-- All QueryDescription instances should be created 1x as public readonly fields in `QueryCache.cs` and re-used across the application
+- Do not store Godot lifecycle elements, scene nodes, or UI references directly inside ECS components. Components must remain pure unmanaged, blittable data structures (`[StructLayout(LayoutKind.Sequential, Pack = 4)]`).
+- Entity creation, lifecycle recycling, and queries use hardware bit manipulation (`BitOperations.TrailingZeroCount`) over entity bitmasks for zero-allocation performance.
 
 ### Logic Services:
 - Classes inheriting from Godot should have minimal orchestration logic, deferring complex logic to domain-specific services.
 - Decoupled Communication: Avoid using DTOs to communicate between orchestrators (`GameHost`) and services. Communication should be minimal and limited to simple ephemeral primitive parameters and return values. All persistent shared data must be stored directly in the ECS, allowing both services and `GameHost` to query and write to the ECS independently to coordinate.
 - Services should never be instantiated directly, they should always be accessed via the global GameContext
 
-### Realm.MapAPI:
+### Realm.MapAPI & WASM Zero-Allocation Shared Memory Architecture:
 - Only expose safe APIs to map authors and external tools to prevent direct manipulation of raw Godot nodes or C# ECS structures.
 - All map scripting operations proxy through `IGameAPI`, while map editing operations proxy through `IEditorAPI`.
+- APIs must generate zero heap allocations and zero GC pressure.
+- Do not use `yield return` keyword inside WASM layer because it compiles to a GC heap allocation.
+- Use `ReadOnlySpan<T>` over facade types for enumeration rather than `T[]` or `List<T>`.
 - Everything in `Realm.MapAPI` (including `IGameAPI` and `IEditorAPI`) must have full, comprehensive XML-doc comments for public consumption.
+- Zero-Allocation Facade Pattern & 0ns Direct Reads:
+	- `IGameAPI` should strictly require integer IDs as parameters, never full objects.
+	- Facade handles exposed to map scripts (e.g. `PlayerId`, `UnitId`) must be defined as `readonly record struct PlayerId(int Value)` with implicit type-cast 'FROM int' but NEVER 'TO int'.
+	- Primitive property getters (`get => EcsSharedMemory.PlayerResources[Value].Gold;`) perform **0ns direct memory reads** straight from the shared WASM linear memory ECS arrays without crossing the host boundary.
+	- Property setters (`set => GameAPI.Current.Set...`) and commands route through authoritative Host imports, executing full domain rules and side-effects in-place.
 
 ### Map Workspaces & WASM Compilation (Portability):
 - The map temp workspace is compiled to WASM via `dotnet publish`. Workspaces and saved map folders MUST be machine-portable: never write absolute paths into generated/saved `.csproj` files.
@@ -57,7 +66,7 @@
 - `GameBuildNumber`: Every `metadata.json` must include a `GameBuildNumber` string matching `RealmVersion.GameBuildNumber`. This value is hardcoded and only changed manually when publishing and tagging an official release. Matches in the game lobby are locked to the map's `GameBuildNumber`.
 
 ## AI "Vibe" Coding & Maintenance Instructions:
-- Avoid using proprietary or copyrighted terms from other games
+- Avoid using proprietary or copyrighted terms from other games.
 - For fast lookup during queries without breaking the PURE DATA PRINCIPLE, do not put Godot Nodes inside components. Instead, map the relationship using unique entity IDs, or look up corresponding visual nodes via a managed registry outside the ECS system arrays.
 - Don't write unit or integration tests unless explicitly instructed to do so.
 - Always compile code after making changes to ensure there are no errors.

@@ -1,6 +1,24 @@
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
-///     Tracks cooldown timers for commander abilities/spells.
+/// Holds a dictionary tracking individual spell cooldown timers for an entity.
 /// </summary>
-public record struct SpellCooldowns(Dictionary<string, float> Value);
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct SpellCooldowns
+{
+	public int Handle;
+
+	public SpellCooldowns(Dictionary<string, float> value)
+	{
+		Handle = ColdPayloadRegistry<Dictionary<string, float>>.Register(value);
+	}
+
+	public Dictionary<string, float> Value
+	{
+		get => ColdPayloadRegistry<Dictionary<string, float>>.Get(Handle);
+		set => Handle = ColdPayloadRegistry<Dictionary<string, float>>.Register(value);
+	}
+}

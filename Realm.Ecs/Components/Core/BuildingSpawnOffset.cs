@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Numerics;
 
 namespace Realm.Ecs.Components.Core;
@@ -8,4 +9,5 @@ namespace Realm.Ecs.Components.Core;
 ///     that production logic can derive spawn positions purely from ECS data without
 ///     touching any Godot scene nodes.
 /// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public record struct BuildingSpawnOffset(Vector3 Value);

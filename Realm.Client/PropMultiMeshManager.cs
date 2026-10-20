@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -142,7 +142,7 @@ public partial class PropMultiMeshManager : Node3D
 	{
 		if (GameContext.World == null) return;
 		var query = QueryCache.AllPropIdentityAndPositionQuery;
-		GameContext.World.Query(in query, (ref PropIdentity propIdComp) =>
+		GameContext.World.Query(in query, (Entity _, ref PropIdentity propIdComp) =>
 		{
 			string key = GameHost.Instance.GetModelAssetKey(propIdComp.PropId);
 			if (!string.IsNullOrEmpty(key))

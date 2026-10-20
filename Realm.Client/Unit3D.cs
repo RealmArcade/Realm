@@ -108,6 +108,8 @@ public partial class Unit3D : Prop3D
 	private Node3D _modelNode;
 	private AnimationPlayer _animationPlayer;
 	private string _currentAnimation = string.Empty;
+	private string? _lastRequestedAnimName;
+	private readonly Dictionary<string, StringName?> _resolvedAnimCache = new(StringComparer.OrdinalIgnoreCase);
 	private BoneAttachment3D? _rightHandAttachment;
 	private BoneAttachment3D? _leftHandAttachment;
 	private string? _currentRightAttachmentId;
@@ -197,26 +199,6 @@ public partial class Unit3D : Prop3D
 
 		SetPlayerColor(resolvedColor);
 	}
-
-	public bool IsEnemy
-	{
-		get
-		{
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity)
-			                              && GameContext.World.Has<UnitFaction>(Entity))
-				return GameContext.World.Get<UnitFaction>(Entity).IsEnemy;
-			return false;
-		}
-		set
-		{
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity))
-			{
-				var world = GameContext.World;
-				world.SetOrAdd(Entity, new UnitFaction(value));
-			}
-		}
-	}
-
 	private Node3D _rallyVisualsContainer;
 	private MeshInstance3D _rallyMarker;
 	private readonly List<MeshInstance3D> _rallyMarkersPool = new();
@@ -228,7 +210,7 @@ public partial class Unit3D : Prop3D
 		set
 		{
 			base.IsSelected = value;
-			if (IsBuilding && !IsEnemy)
+			if (IsBuilding && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
 			{
 				UpdateRallyVisuals();
 			}
@@ -254,6 +236,7 @@ public partial class Unit3D : Prop3D
 			return;
 		}
 
+		SetProcess(false);
 		SetNotifyTransform(true);
 
 		var collisionShape = new CollisionShape3D();
@@ -261,7 +244,18 @@ public partial class Unit3D : Prop3D
 		if (IsBuilding)
 		{
 			var boxShape = new BoxShape3D();
-			float size = (UnitId == "castle") ? 4f : 3f;
+			float size = 3f;
+			if (GameHost.TryGetUnitOrBuildingMetadata(UnitId, out var bMeta))
+			{
+				if (bMeta.ObstacleRadius.HasValue && bMeta.ObstacleRadius.Value > 0)
+				{
+					size = Math.Max(2f, bMeta.ObstacleRadius.Value);
+				}
+				else if (bMeta.CollisionCircle > 0)
+				{
+					size = Math.Max(2f, bMeta.CollisionCircle);
+				}
+			}
 			boxShape.Size = new Vector3(size, size, size);
 			collisionShape.Shape = boxShape;
 			collisionShape.Position = new Vector3(0, size * 0.5f, 0);
@@ -366,6 +360,9 @@ public partial class Unit3D : Prop3D
 		_currentBoneAttachmentIds.Clear();
 		_pseudoSockets.Clear();
 		_currentPseudoSocketAttachmentIds.Clear();
+		_resolvedAnimCache.Clear();
+		_lastRequestedAnimName = null;
+		_currentAnimation = string.Empty;
 	}
 
 	private Node3D? ResolveAndGetModelNode(string modelPath, string resolved)
@@ -564,14 +561,22 @@ public partial class Unit3D : Prop3D
 		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
 		if (string.IsNullOrEmpty(animName)) return;
 
+		if (string.Equals(_lastRequestedAnimName, animName, StringComparison.Ordinal) && _animationPlayer.IsPlaying())
+		{
+			return;
+		}
+
+		_lastRequestedAnimName = animName;
+
 		StringName resolved = ResolveAnimationName(animName);
 		if (resolved == null) return;
 
-		UpdateHandAttachmentsForAnimation(animName, resolved.ToString());
+		string resolvedStr = resolved.ToString();
+		UpdateHandAttachmentsForAnimation(animName, resolvedStr);
 
-		if (_currentAnimation == resolved.ToString() && _animationPlayer.IsPlaying()) return;
+		if (_currentAnimation == resolvedStr && _animationPlayer.IsPlaying()) return;
 
-		_currentAnimation = resolved.ToString();
+		_currentAnimation = resolvedStr;
 
 		var animResource = _animationPlayer.GetAnimation(resolved);
 		if (animResource != null)
@@ -1558,36 +1563,46 @@ public partial class Unit3D : Prop3D
 	private StringName ResolveAnimationName(string animName)
 	{
 		if (_animationPlayer == null) return null;
+		if (_resolvedAnimCache.TryGetValue(animName, out var cached)) return cached;
 
 		var animations = _animationPlayer.GetAnimationList();
+		StringName? result = null;
 
 		if (!animName.Contains('_'))
 		{
 			var randomVariant = ResolveRandomAnimationVariant(animName, animations);
-			if (randomVariant != null) return randomVariant;
+			if (randomVariant != null) result = randomVariant;
 		}
 
-		StringName direct = new StringName(animName);
-		if (_animationPlayer.HasAnimation(direct))
+		if (result == null)
 		{
-			return direct;
+			StringName direct = new StringName(animName);
+			if (_animationPlayer.HasAnimation(direct))
+			{
+				result = direct;
+			}
+			else
+			{
+				foreach (var name in animations)
+				{
+					if (name.ToString().Equals(animName, StringComparison.OrdinalIgnoreCase))
+					{
+						result = name;
+						break;
+					}
+				}
+
+				if (result == null)
+				{
+					var retargeted = TryRetargetAnimation(animName, direct);
+					if (retargeted != null) result = retargeted;
+					else if (animations.Length > 0) result = animations[0];
+				}
+			}
 		}
 
-		foreach (var name in animations)
-		{
-			if (name.ToString().Equals(animName, StringComparison.OrdinalIgnoreCase))
-				return name;
-		}
-
-		var retargeted = TryRetargetAnimation(animName, direct);
-		if (retargeted != null) return retargeted;
-
-		if (animations.Length > 0)
-		{
-			return animations[0];
-		}
-
-		return null;
+		_resolvedAnimCache[animName] = result;
+		return result;
 	}
 
 	public void ApplyModelTint(Color color)
@@ -1802,7 +1817,7 @@ public partial class Unit3D : Prop3D
 
 	public void UpdateRallyVisuals()
 	{
-		if (!IsBuilding || IsEnemy) return;
+		if (!IsBuilding || !GameContext.PerspectiveFilter.CanSeeOwnedUi(Player)) return;
 		if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return;
 
 		EnsureRallyVisualsContainer();
@@ -1837,11 +1852,11 @@ public partial class Unit3D : Prop3D
 	{
 		if (_rallyMarker != null) return;
 
-		_rallyMarker = new MeshInstance3D();
 		var cylinderMesh = new CylinderMesh();
 		cylinderMesh.TopRadius = 0.1f;
 		cylinderMesh.BottomRadius = 0.1f;
 		cylinderMesh.Height = 3.0f;
+		_rallyMarker = new MeshInstance3D();
 		_rallyMarker.Mesh = cylinderMesh;
 
 		var markerMat = new StandardMaterial3D();
@@ -1867,7 +1882,7 @@ public partial class Unit3D : Prop3D
 
 	public override void _Process(double delta)
 	{
-		if (IsSelected && !IsEnemy)
+		if (IsSelected && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
 		{
 			if (IsBuilding)
 			{
@@ -1885,6 +1900,7 @@ public partial class Unit3D : Prop3D
 			{
 				_rallyVisualsContainer.Visible = false;
 			}
+			SetProcess(false);
 		}
 	}
 

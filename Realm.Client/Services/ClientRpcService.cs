@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
@@ -36,8 +36,7 @@ public class ClientRpcService
 		if (host.IsPlayerComputer(playerIndex))
 			return false;
 
-		int localPlayerIndex = LobbyManager.Instance?.LocalPlayer?.Slot ?? 1;
-		if (playerIndex == localPlayerIndex)
+		if (GameContext.PerspectiveFilter.CanControl(playerIndex))
 		{
 			isLocal = true;
 			return true;
@@ -100,9 +99,72 @@ public class ClientRpcService
 		}
 	}
 
-	public void SelectUnit(int playerIndex, IUnit unit)
+	public void SetPlayerCameraBounds(int playerIndex, float minX, float minZ, float maxX, float maxZ)
 	{
-		if (unit == null)
+		var host = GameHost.Instance;
+		if (host != null)
+		{
+			host.RecordPlayerCameraBoundsOverride(playerIndex, minX, minZ, maxX, maxZ);
+		}
+
+		if (!TryResolveTargetClient(playerIndex, out host, out bool isLocal, out int remotePeerId))
+			return;
+
+		if (isLocal)
+		{
+			host.SetCameraBoundsInternal(minX, minZ, maxX, maxZ);
+		}
+		else if (remotePeerId > 1)
+		{
+			host.RpcId(remotePeerId, nameof(GameHost.ClientSetCameraBounds), minX, minZ, maxX, maxZ);
+		}
+	}
+
+	public void ResetPlayerCameraBounds(int playerIndex)
+	{
+		var host = GameHost.Instance;
+		if (host != null)
+		{
+			host.ClearPlayerCameraBoundsOverride(playerIndex);
+		}
+
+		if (!TryResolveTargetClient(playerIndex, out host, out bool isLocal, out int remotePeerId))
+			return;
+
+		if (isLocal)
+		{
+			host.ResetCameraBoundsInternal();
+		}
+		else if (remotePeerId > 1)
+		{
+			host.RpcId(remotePeerId, nameof(GameHost.ClientResetCameraBounds));
+		}
+	}
+
+	public void SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible)
+	{
+		var host = GameHost.Instance;
+		if (host != null)
+		{
+			host.RecordPlayerHudVisibility(playerIndex, element, visible);
+		}
+
+		if (!TryResolveTargetClient(playerIndex, out host, out bool isLocal, out int remotePeerId))
+			return;
+
+		if (isLocal)
+		{
+			host.SetHudElementVisibleInternal(element, visible);
+		}
+		else if (remotePeerId > 1)
+		{
+			host.RpcId(remotePeerId, nameof(GameHost.ClientSetHudElementVisible), (int)element, visible);
+		}
+	}
+
+	public void SelectUnit(int playerIndex, UnitId unit)
+	{
+		if (!unit.IsValid)
 			return;
 
 		if (!TryResolveTargetClient(playerIndex, out var host, out bool isLocal, out int remotePeerId))
@@ -112,9 +174,9 @@ public class ClientRpcService
 		{
 			host.SelectUnitInternal(unit);
 		}
-		else if (remotePeerId > 1 && unit is IEcsEntityWrapper wrapper && GameContext.World.IsAlive(wrapper.Entity))
+		else if (remotePeerId > 1)
 		{
-			host.RpcId(remotePeerId, nameof(GameHost.ClientSelectUnit), wrapper.Entity.Id);
+			host.RpcId(remotePeerId, nameof(GameHost.ClientSelectUnit), unit.Value);
 		}
 	}
 
@@ -131,26 +193,6 @@ public class ClientRpcService
 		{
 			host.RpcId(remotePeerId, nameof(GameHost.ClientClearSelection));
 		}
-	}
-
-	public IEnumerable<IUnit> GetSelectedUnits(int playerIndex)
-	{
-		if (!TryResolveTargetClient(playerIndex, out var host, out bool isLocal, out _))
-			return Array.Empty<IUnit>();
-
-		if (!isLocal)
-			return Array.Empty<IUnit>();
-
-		var list = new List<IUnit>();
-		foreach (var u in host.SelectedUnits)
-		{
-			if (GodotObject.IsInstanceValid(u) && GameContext.World.IsAlive(u.Entity))
-			{
-				list.Add(GameContext.SimulationService.GetUnitWrapper(u.Entity));
-			}
-		}
-
-		return list;
 	}
 
 	public void SendMessage(int playerIndex, string message)

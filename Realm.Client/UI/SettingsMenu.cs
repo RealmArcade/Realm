@@ -47,6 +47,7 @@ public partial class SettingsMenu : Control
 	private CheckBox _displayFpsChk;
 	private CheckBox _recordReplaysChk;
 	private CheckBox _seedMapFilesChk;
+	private CheckBox _movementPredictionChk;
 
 	private HSlider _masterSlider;
 	private HSlider _musicSlider;
@@ -126,6 +127,7 @@ public partial class SettingsMenu : Control
 		_displayFpsChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/DisplayFpsChk");
 		_recordReplaysChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/RecordReplaysChk");
 		_seedMapFilesChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/SeedMapFilesChk");
+		_movementPredictionChk = GetNodeOrNull<CheckBox>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/MovementPredictionChk");
 
 		_scrollSpeedSlider = GetNode<HSlider>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/ScrollRow/ScrollSpeedSlider");
 		_mouseSensSlider = GetNode<HSlider>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/SensRow/MouseSensSlider");
@@ -405,6 +407,11 @@ public partial class SettingsMenu : Control
 		UIStyle.ApplyCheckboxStyle(_seedMapFilesChk);
 		_seedMapFilesChk.Text = TranslationServer.Translate(_seedMapFilesChk.Text);
 		_seedMapFilesChk.TooltipText = TranslationServer.Translate(_seedMapFilesChk.TooltipText);
+		if (_movementPredictionChk != null)
+		{
+			UIStyle.ApplyCheckboxStyle(_movementPredictionChk);
+			_movementPredictionChk.Text = TranslationServer.Translate(_movementPredictionChk.Text);
+		}
 	}
 
 	private void PopulateDropdowns()
@@ -524,6 +531,11 @@ public partial class SettingsMenu : Control
 		_recordReplaysChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 		_seedMapFilesChk.Pressed += () => UIManager.Instance.PlayClickSound();
 		_seedMapFilesChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		if (_movementPredictionChk != null)
+		{
+			_movementPredictionChk.Pressed += () => UIManager.Instance.PlayClickSound();
+			_movementPredictionChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		}
 	}
 
 	private void SetupNatTestEvent()
@@ -775,6 +787,10 @@ public partial class SettingsMenu : Control
 
 		_healthBarsOpt.Select((int)GameSettings.ShowHealthBars);
 		_languageOpt.Select((int)GameSettings.Language);
+		if (_movementPredictionChk != null)
+		{
+			_movementPredictionChk.ButtonPressed = GameSettings.MovementPrediction;
+		}
 	}
 
 	private async void ApplySettings()
@@ -868,6 +884,10 @@ public partial class SettingsMenu : Control
 		GameSettings.DisplayFps = _displayFpsChk.ButtonPressed;
 		GameSettings.RecordReplays = _recordReplaysChk.ButtonPressed;
 		GameSettings.SeedMapFiles = _seedMapFilesChk.ButtonPressed;
+		if (_movementPredictionChk != null)
+		{
+			GameSettings.MovementPrediction = _movementPredictionChk.ButtonPressed;
+		}
 		GameSettings.ShowHealthBars = (HealthBarMode)_healthBarsOpt.Selected;
 	}
 

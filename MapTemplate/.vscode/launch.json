@@ -9,9 +9,18 @@
 			"cwd": "${workspaceFolder}",
 			"breakpointMode": "file",
 			"initCommands": [
-				"settings set plugin.jit-loader.gdb.enable on"
+				"settings set plugin.jit-loader.gdb.enable off",
+				"settings set target.process.thread.step-in-avoid-nodebug true",
+				"settings set target.process.thread.step-avoid-regexp ^(__wasm|wasmtime|cabi_|rhp_|System\\.|GameClientWorld\\.)"
+			],
+			"postAttachCommands": [
+				"target modules add \"${workspaceFolder}/MapScript.jit.elf\"",
+				"target modules load --file \"${workspaceFolder}/MapScript.jit.elf\" --slide 0",
+				"continue"
 			],
 			"postRunCommands": [
+				"target modules add \"${workspaceFolder}/MapScript.jit.elf\"",
+				"target modules load --file \"${workspaceFolder}/MapScript.jit.elf\" --slide 0",
 				"continue"
 			],
 			"env": {

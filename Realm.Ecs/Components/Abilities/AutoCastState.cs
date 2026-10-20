@@ -1,14 +1,19 @@
+using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Abilities;
 
 /// <summary>
 ///     Stores native auto-cast settings for a unit's abilities.
 /// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct AutoCastState
 {
-	/// <summary>
-	///     Indicates whether auto-cast is active for the unit.
-	/// </summary>
-	public bool Enabled;
+	public byte EnabledByte;
+
+	public bool Enabled
+	{
+		get => EnabledByte != 0;
+		set => EnabledByte = value ? (byte)1 : (byte)0;
+	}
 
 	/// <summary>
 	///     Bitmask of active auto-cast ability slots.
@@ -22,7 +27,7 @@ public struct AutoCastState
 	/// <param name="activeAbilityBitmask">Bitmask of active ability slots.</param>
 	public AutoCastState(bool enabled, uint activeAbilityBitmask = 1u)
 	{
-		Enabled = enabled;
+		EnabledByte = enabled ? (byte)1 : (byte)0;
 		ActiveAbilityBitmask = activeAbilityBitmask;
 	}
 }

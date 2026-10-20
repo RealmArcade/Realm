@@ -1,6 +1,20 @@
+using System.Runtime.InteropServices;
+
 namespace Realm.Ecs.Components.Meta;
 
 /// <summary>
-///     Represents the visual scale multiplier applied to the entity's 3D model.
+/// Defines visual mesh scaling factor for an entity.
 /// </summary>
-public record struct ModelScale(float Value);
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct ModelScale
+{
+	public float Value;
+
+	public ModelScale(float value)
+	{
+		Value = value;
+	}
+
+	public static implicit operator float(ModelScale scale) => scale.Value;
+	public static implicit operator ModelScale(float value) => new(value);
+}

@@ -1,4 +1,4 @@
-﻿namespace Realm.Client.Services;
+namespace Realm.Client.Services;
 
 public struct DelayedPacket
 {

@@ -1,8 +1,10 @@
+using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Stats;
 
 /// <summary>
 /// Represents the baseline un-modified combat stats for an entity before RPG attribute contributions.
 /// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public record struct UnitBaseStats(
 	float BaseMaxHp = 100f,
 	float BaseHpRegen = 0f,

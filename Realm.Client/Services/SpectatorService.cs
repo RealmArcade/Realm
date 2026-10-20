@@ -1,4 +1,4 @@
-using Arch.Core;
+using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 

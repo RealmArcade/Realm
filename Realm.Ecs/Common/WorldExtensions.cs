@@ -1,106 +1,105 @@
-using Arch.Core;
+using System;
 
 namespace Realm.Ecs.Common;
 
 public static class WorldExtensions
 {
-	/// <summary>
-	///     Returns the component value for <paramref name="entity"/> when the entity is alive
-	///     and the component exists; otherwise returns <paramref name="fallback"/>.
-	/// </summary>
 	public static TComponent GetOrDefault<TComponent>(
-		this World world,
+		this EcsWorld world,
 		Entity entity,
 		TComponent fallback = default)
-		where TComponent : struct
+		where TComponent : unmanaged
 	{
 		if (world.IsAlive(entity) && world.Has<TComponent>(entity))
 			return world.Get<TComponent>(entity);
 		return fallback;
 	}
 
-	/// <summary>
-	///     Selects a single field from the component for <paramref name="entity"/> when the entity
-	///     is alive and the component exists; otherwise returns <paramref name="fallback"/>.
-	/// </summary>
 	public static TField GetFieldOrDefault<TComponent, TField>(
-		this World world,
+		this EcsWorld world,
 		Entity entity,
 		Func<TComponent, TField> selector,
 		TField fallback = default!)
-		where TComponent : struct
+		where TComponent : unmanaged
 	{
 		if (world.IsAlive(entity) && world.Has<TComponent>(entity))
 			return selector(world.Get<TComponent>(entity));
 		return fallback;
 	}
 
-	/// <summary>
-	///     Returns <see langword="true"/> and writes the component into <paramref name="value"/>
-	///     when the entity is alive and carries the component; otherwise returns
-	///     <see langword="false"/> and leaves <paramref name="value"/> at <see langword="default"/>.
-	/// </summary>
-	public static bool TryGet<TComponent>(
-		this World world,
-		Entity entity,
-		out TComponent value)
-		where TComponent : struct
-	{
-		if (world.IsAlive(entity) && world.Has<TComponent>(entity))
-		{
-			value = world.Get<TComponent>(entity);
-			return true;
-		}
-
-		value = default;
-		return false;
-	}
-
-	/// <summary>
-	///     Mutates a component on <paramref name="entity"/> via <paramref name="mutator"/> when
-	///     the entity is alive and the component exists. The mutation receives a
-	///     <see langword="ref"/> to the live component so no copy is required.
-	/// </summary>
 	public static void Mutate<TComponent>(
-		this World world,
+		this EcsWorld world,
 		Entity entity,
 		ComponentMutator<TComponent> mutator)
-		where TComponent : struct
+		where TComponent : unmanaged
 	{
 		if (world.IsAlive(entity) && world.Has<TComponent>(entity))
 			mutator(ref world.Get<TComponent>(entity));
 	}
 
-	/// <summary>
-	///     Replaces the component on <paramref name="entity"/> with <paramref name="newValue"/>
-	///     when the entity is alive and the component exists. Has no effect otherwise.
-	/// </summary>
 	public static void SetIfAlive<TComponent>(
-		this World world,
+		this EcsWorld world,
 		Entity entity,
 		TComponent newValue)
-		where TComponent : struct
+		where TComponent : unmanaged
 	{
 		if (world.IsAlive(entity) && world.Has<TComponent>(entity))
 			world.Set(entity, newValue);
 	}
 
-	/// <summary>
-	///     Sets the component if present or adds it if absent on <paramref name="entity"/>
-	///     when the entity is alive.
-	/// </summary>
-	public static void SetOrAdd<TComponent>(
-		this World world,
+	public static ref TComponent AddOrGet<TComponent>(
+		this EcsWorld world,
 		Entity entity,
-		TComponent component)
-		where TComponent : struct
+		in TComponent component = default)
+		where TComponent : unmanaged
 	{
-		if (!world.IsAlive(entity))
-			return;
-
 		if (world.Has<TComponent>(entity))
-			world.Set(entity, component);
-		else
-			world.Add(entity, component);
+			return ref world.Get<TComponent>(entity);
+		return ref world.Add(entity, component);
+	}
+
+	public static Entity Create<T1>(this EcsWorld world, in T1 c1) where T1 : unmanaged
+	{
+		Entity e = world.Create();
+		world.Add(e, c1);
+		return e;
+	}
+
+	public static Entity Create<T1, T2>(this EcsWorld world, in T1 c1, in T2 c2) where T1 : unmanaged where T2 : unmanaged
+	{
+		Entity e = world.Create();
+		world.Add(e, c1);
+		world.Add(e, c2);
+		return e;
+	}
+
+	public static Entity Create<T1, T2, T3>(this EcsWorld world, in T1 c1, in T2 c2, in T3 c3) where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged
+	{
+		Entity e = world.Create();
+		world.Add(e, c1);
+		world.Add(e, c2);
+		world.Add(e, c3);
+		return e;
+	}
+
+	public static Entity Create<T1, T2, T3, T4>(this EcsWorld world, in T1 c1, in T2 c2, in T3 c3, in T4 c4) where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged where T4 : unmanaged
+	{
+		Entity e = world.Create();
+		world.Add(e, c1);
+		world.Add(e, c2);
+		world.Add(e, c3);
+		world.Add(e, c4);
+		return e;
+	}
+
+	public static Entity Create<T1, T2, T3, T4, T5>(this EcsWorld world, in T1 c1, in T2 c2, in T3 c3, in T4 c4, in T5 c5) where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged where T4 : unmanaged where T5 : unmanaged
+	{
+		Entity e = world.Create();
+		world.Add(e, c1);
+		world.Add(e, c2);
+		world.Add(e, c3);
+		world.Add(e, c4);
+		world.Add(e, c5);
+		return e;
 	}
 }

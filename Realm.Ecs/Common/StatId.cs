@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Realm.Ecs.Components.Stats;
 
 namespace Realm.Ecs.Common;
@@ -5,16 +6,19 @@ namespace Realm.Ecs.Common;
 /// <summary>
 ///     A type-safe wrapper for a Stat ID.
 /// </summary>
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
 public readonly record struct StatId
 {
+	public int StringId { get; }
+
 	public StatId(string value)
 	{
-		Value = value;
+		StringId = StringRegistry.GetOrAdd(value);
 	}
 
 	public StatId(AttributeType attribute)
 	{
-		Value = attribute switch
+		string val = attribute switch
 		{
 			AttributeType.Strength => nameof(AttributeType.Strength),
 			AttributeType.Agility => nameof(AttributeType.Agility),
@@ -24,11 +28,12 @@ public readonly record struct StatId
 			AttributeType.Fortune => nameof(AttributeType.Fortune),
 			_ => attribute.ToString()
 		};
+		StringId = StringRegistry.GetOrAdd(val);
 	}
 
 	public StatId(CombatStatType combatStat)
 	{
-		Value = combatStat switch
+		string val = combatStat switch
 		{
 			CombatStatType.MaxHp => nameof(CombatStatType.MaxHp),
 			CombatStatType.HpRegen => nameof(CombatStatType.HpRegen),
@@ -50,7 +55,8 @@ public readonly record struct StatId
 			CombatStatType.BountyMultiplier => nameof(CombatStatType.BountyMultiplier),
 			_ => combatStat.ToString()
 		};
+		StringId = StringRegistry.GetOrAdd(val);
 	}
 
-	public string Value { get; }
+	public string Value => StringRegistry.Get(StringId);
 }

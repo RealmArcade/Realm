@@ -1,4 +1,4 @@
-﻿namespace Realm.Client.UI;
+namespace Realm.Client.UI;
 
 public class SettingsData
 {
@@ -23,5 +23,6 @@ public class SettingsData
 	public bool DisableShadows { get; set; } = false;
 	public bool DisableDayNightLighting { get; set; } = false;
 	public bool FloatingCombatText { get; set; } = true;
+	public bool MovementPrediction { get; set; } = false;
 	public string? LastOpenedFolder { get; set; }
 }

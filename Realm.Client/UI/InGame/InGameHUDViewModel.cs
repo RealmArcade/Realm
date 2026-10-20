@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
@@ -26,43 +26,40 @@ public class InGameHUDViewModel
 			return Entity.Null;
 
 		if (IsPlayingNormally())
-			return GameHost.Instance.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+			return GameHost.Instance.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
 
-		int targetPeerId = GetTargetPeerId();
-		if (targetPeerId == -1)
-			return GameHost.Instance.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+		{
+			int replayPeerId = ReplayPlaybackManager.Instance.SpectatorPerspective;
+			if (replayPeerId == -1) return Entity.Null;
+			return GetSpectatedPlayer(replayPeerId);
+		}
 
-		return GetSpectatedPlayer(targetPeerId);
+		int livePerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
+		if (livePerspective <= 0)
+			return Entity.Null;
+
+		return GameHost.Instance.GetPlayerEntityForPlayerIndex(livePerspective);
 	}
 
 	private bool IsPlayingNormally()
 	{
-		bool isSpectator = LobbyManager.Instance?.LocalPlayer?.Team == "Spectator";
+		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 		bool isPlayingReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
 		return !isSpectator && !isPlayingReplay;
-	}
-
-	private int GetTargetPeerId()
-	{
-		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
-			return ReplayPlaybackManager.Instance.SpectatorPerspective;
-
-		return InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
 	}
 
 	private Entity GetSpectatedPlayer(int targetPeerId)
 	{
 		var world = GameContext.World;
 		var worldEntity = ECSContext.WorldEntity;
-		Entity defaultPlayer = GameHost.Instance?.GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1) ?? Entity.Null;
-
-		if (worldEntity == Entity.Null) return defaultPlayer;
-		if (!world.IsAlive(worldEntity)) return defaultPlayer;
-		if (!world.Has<NetworkMappingState>(worldEntity)) return defaultPlayer;
+		if (worldEntity == Entity.Null) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
+		if (!world.IsAlive(worldEntity)) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
+		if (!world.Has<NetworkMappingState>(worldEntity)) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
 
 		var mapping = world.Get<NetworkMappingState>(worldEntity);
-		if (mapping.PeerIdToPlayerEntityMap == null) return defaultPlayer;
-		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var spectatedPlayer)) return defaultPlayer;
+		if (mapping.PeerIdToPlayerEntityMap == null) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
+		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var spectatedPlayer)) throw new InvalidOperationException($"No player entity is mapped for peer {targetPeerId}.");
 
 		return spectatedPlayer;
 	}
@@ -77,9 +74,7 @@ public class InGameHUDViewModel
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
-					var res = world.Get<PlayerResources>(player);
-					var goldId = "gold".AsResourceId(ECSContext.DefinitionManager);
-					if (res.Value.TryGetValue(goldId, out var val)) return val;
+					return world.Get<PlayerResources>(player).Gold;
 				}
 			}
 
@@ -94,8 +89,7 @@ public class InGameHUDViewModel
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					ref var res = ref world.Get<PlayerResources>(player);
-					var goldId = "gold".AsResourceId(ECSContext.DefinitionManager);
-					res.Value[goldId] = (int)value;
+					res.Gold = (int)value;
 				}
 			}
 		}
@@ -111,9 +105,7 @@ public class InGameHUDViewModel
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
-					var res = world.Get<PlayerResources>(player);
-					var woodId = "wood".AsResourceId(ECSContext.DefinitionManager);
-					if (res.Value.TryGetValue(woodId, out var val)) return val;
+					return world.Get<PlayerResources>(player).Wood;
 				}
 			}
 
@@ -128,8 +120,7 @@ public class InGameHUDViewModel
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					ref var res = ref world.Get<PlayerResources>(player);
-					var woodId = "wood".AsResourceId(ECSContext.DefinitionManager);
-					res.Value[woodId] = (int)value;
+					res.Wood = (int)value;
 				}
 			}
 		}
@@ -145,9 +136,7 @@ public class InGameHUDViewModel
 				var player = GetTargetPlayerEntity();
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
-					var res = world.Get<PlayerResources>(player);
-					var stoneId = "stone".AsResourceId(ECSContext.DefinitionManager);
-					if (res.Value.TryGetValue(stoneId, out var val)) return val;
+					return world.Get<PlayerResources>(player).Stone;
 				}
 			}
 
@@ -162,8 +151,7 @@ public class InGameHUDViewModel
 				if (player != Entity.Null && world.IsAlive(player) && world.Has<PlayerResources>(player))
 				{
 					ref var res = ref world.Get<PlayerResources>(player);
-					var stoneId = "stone".AsResourceId(ECSContext.DefinitionManager);
-					res.Value[stoneId] = (int)value;
+					res.Stone = (int)value;
 				}
 			}
 		}
@@ -372,7 +360,7 @@ public class InGameHUDViewModel
 		}
 	}
 
-	private static ref SummaryTableState EnsureSummaryTableState(World world, Entity entity)
+	private static ref SummaryTableState EnsureSummaryTableState(EcsWorld world, Entity entity)
 	{
 		if (!world.Has<SummaryTableState>(entity))
 		{
@@ -541,8 +529,8 @@ public class InGameHUDViewModel
 		var world = GameContext.World;
 		if (world == null)
 		{
-			CurrentPopulation = GameHost.Instance.CurrentPopulation;
-			MaxPopulation = GameHost.Instance.MaxPopulation;
+			CurrentPopulation = 0;
+			MaxPopulation = 0;
 			return;
 		}
 
@@ -555,8 +543,8 @@ public class InGameHUDViewModel
 			return;
 		}
 
-		CurrentPopulation = GameHost.Instance.CurrentPopulation;
-		MaxPopulation = GameHost.Instance.MaxPopulation;
+		CurrentPopulation = 0;
+		MaxPopulation = 0;
 	}
 
 	private void UpdateClock()
@@ -669,8 +657,8 @@ public class InGameHUDViewModel
 	{
 		info.Entity = u.Entity;
 		info.UnitId = u.UnitId;
+		info.IsEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(u.Player);
 		info.Player = u.Player;
-		info.IsEnemy = u.IsEnemy;
 		info.IsBuilding = u.IsBuilding;
 		info.HasInventory = false;
 		info.Name = u.UnitId;
@@ -698,7 +686,7 @@ public class InGameHUDViewModel
 		info.Dps = 0f;
 	}
 
-	private void UpdateUnitBasicStats(World world, Unit3D u, SelectedUnitInfo info)
+	private void UpdateUnitBasicStats(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
 		if (world.Has<Name>(u.Entity))
 			info.Name = world.Get<Name>(u.Entity).Value;
@@ -729,7 +717,7 @@ public class InGameHUDViewModel
 			info.Speed = world.Get<MovementStats>(u.Entity).Speed;
 	}
 
-	private void UpdateUnitStateText(World world, Unit3D u, SelectedUnitInfo info)
+	private void UpdateUnitStateText(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
 		info.StateText = GetBaseStateText(world, u);
 
@@ -740,7 +728,7 @@ public class InGameHUDViewModel
 		}
 	}
 
-	private string GetBaseStateText(World world, Unit3D u)
+	private string GetBaseStateText(EcsWorld world, Unit3D u)
 	{
 		if (world.Has<Gatherer>(u.Entity))
 			return GetGathererStateText(world.Get<Gatherer>(u.Entity));
@@ -766,7 +754,7 @@ public class InGameHUDViewModel
 		return $"🔨 {cachedConstructing} ({pct}%)";
 	}
 
-	private string GetMovementOrAttackStateText(World world, Entity entity)
+	private string GetMovementOrAttackStateText(EcsWorld world, Entity entity)
 	{
 		if (world.Has<HoldPosition>(entity))
 			return "● " + TranslationServer.Translate("HOLDING");
@@ -789,7 +777,7 @@ public class InGameHUDViewModel
 		return "○ " + TranslationServer.Translate("IDLE");
 	}
 
-	private void UpdateUnitInventory(World world, Unit3D u, SelectedUnitInfo info)
+	private void UpdateUnitInventory(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
 		info.InventoryItems.Clear();
 		info.HasInventory = world.Has<Inventory>(u.Entity);
@@ -806,12 +794,9 @@ public class InGameHUDViewModel
 		}
 	}
 
-	private void UpdateUnitProduction(World world, Unit3D u, SelectedUnitInfo info)
+	private void UpdateUnitProduction(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
-		if (!u.IsBuilding)
-			return;
-
-		if (!u.IsEnemy && world.Has<ConstructionState>(u.Entity))
+		if (!info.IsEnemy && world.Has<ConstructionState>(u.Entity))
 		{
 			var cs = world.Get<ConstructionState>(u.Entity);
 			info.HasProduction = true;
@@ -819,7 +804,7 @@ public class InGameHUDViewModel
 			info.ProductionProgress = cs.Progress;
 			info.ProductionMaxProgress = cs.TotalBuildTime;
 		}
-		else if (u.UnitId == "castle" && world.Has<ProductionQueue>(u.Entity))
+		else if (!info.IsEnemy && world.Has<ProductionQueue>(u.Entity))
 		{
 			var prod = world.Get<ProductionQueue>(u.Entity);
 			info.HasProduction = true;
@@ -865,7 +850,7 @@ public class InGameHUDViewModel
 		}
 	}
 
-	private void UpdateUnitAbilities(World world, Unit3D u, SelectedUnitInfo info)
+	private void UpdateUnitAbilities(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
 		info.Abilities.Clear();
 

@@ -1,8 +1,10 @@
+using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Core
 {
 	/// <summary>
 	///     Holds network synchronization, snapshot sequences, command sequencing, and latency tracking state.
 	/// </summary>
+	[StructLayout(LayoutKind.Sequential, Pack = 4)]
 	public struct NetworkState
 	{
 		public int NextCommandId;
@@ -10,7 +12,14 @@ namespace Realm.Ecs.Components.Core
 		public ulong LastSnapshotReceivedTime;
 		public int LastAppliedSnapshotSequence;
 		public int LastReceivedBaselineSeq;
-		public bool HasReceivedInitialBaseline;
+		public byte HasReceivedInitialBaselineByte;
+
+		public bool HasReceivedInitialBaseline
+		{
+			get => HasReceivedInitialBaselineByte != 0;
+			set => HasReceivedInitialBaselineByte = value ? (byte)1 : (byte)0;
+		}
+
 		public int SnapshotSequence;
 		public int LocalPeerId;
 		public float DynamicInterpolationFactor;
@@ -30,7 +39,7 @@ namespace Realm.Ecs.Components.Core
 			LastSnapshotReceivedTime = lastSnapshotReceivedTime;
 			LastAppliedSnapshotSequence = lastAppliedSnapshotSequence;
 			LastReceivedBaselineSeq = lastReceivedBaselineSeq;
-			HasReceivedInitialBaseline = hasReceivedInitialBaseline;
+			HasReceivedInitialBaselineByte = hasReceivedInitialBaseline ? (byte)1 : (byte)0;
 			SnapshotSequence = snapshotSequence;
 			LocalPeerId = localPeerId;
 			DynamicInterpolationFactor = 10f;

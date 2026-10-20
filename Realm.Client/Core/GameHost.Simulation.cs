@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using Realm.Client.ReplaySystem;
 using Realm.Client.Network;
@@ -15,7 +15,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
+using UnitId = Realm.MapAPI.UnitId;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Core;
@@ -32,23 +32,13 @@ public partial class GameHost
 
 	private void KillUnit(Unit3D unit, bool executeDespawnShader, bool playDeathAnimation)
 	{
-		IUnit victimWrapper = null;
-		if (GameContext.World.IsAlive(unit.Entity))
-		{
-			victimWrapper = GameContext.SimulationService.GetUnitWrapper(unit.Entity);
-		}
-
+		UnitId victimId = GameContext.World.IsAlive(unit.Entity) ? (UnitId)unit.Entity.Id : UnitId.Invalid;
 		Entity killerEntity = GameContext.SimulationService.GetKillerEntityDomain(unit.Entity);
-		
-		IUnit killerWrapper = null;
-		if (killerEntity != Entity.Null && GameContext.World.IsAlive(killerEntity))
-		{
-			killerWrapper = GameContext.SimulationService.GetUnitWrapper(killerEntity);
-		}
+		UnitId killerId = (killerEntity != Entity.Null && GameContext.World.IsAlive(killerEntity)) ? (UnitId)killerEntity.Id : UnitId.Invalid;
 
-		if (victimWrapper != null)
+		if (victimId.IsValid)
 		{
-			OnUnitDied?.Invoke(victimWrapper, killerWrapper);
+			OnUnitDied?.Invoke(victimId, killerId);
 		}
 
 		GameContext.AudioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Death, unit.GlobalPosition);
@@ -57,12 +47,11 @@ public partial class GameHost
 		HandleMultiplayerUnitDeath(unit);
 
 		string unitId = unit.UnitId;
-		bool isEnemy = unit.IsEnemy;
+		int unitPlayer = unit.Player;
 
 		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
 
 		PlayDeathEffects(unit, executeDespawnShader, playDeathAnimation, unitId);
-		CheckGameOver(unitId, isEnemy);
 
 		GD.Print($"Unit {unit.Name} died.");
 	}
@@ -71,9 +60,11 @@ public partial class GameHost
 	{
 		SelectedUnits.Remove(unit);
 		AllUnits.Remove(unit);
-		if (unit.UnitId == "castle")
+		EntityToUnit3D.Remove(unit.Entity);
+		EntityIdToUnit3D.Remove(unit.Entity.Id);
+		if (PlayerToUnits.TryGetValue(unit.Player, out var pList))
 		{
-			_castlesList.Remove(unit);
+			pList.Remove(unit);
 		}
 
 		if (!unit.IsBuilding) return;
@@ -85,39 +76,48 @@ public partial class GameHost
 
 	private void HandleUnitDeathEconomy(Unit3D unit)
 	{
-		if (unit.IsEnemy)
-		{
-			HandleEnemyDeathEconomy(unit);
-			return;
-		}
-
-		HandleFriendlyDeathEconomy(unit);
-	}
-
-	private void HandleEnemyDeathEconomy(Unit3D unit)
-	{
-		float resCap = ECSContext.PlayerResourceService.ResourceCap;
-		Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-		bool shouldRefresh = GameContext.SimulationService.HandleEnemyDeathEconomyDomain(unit.Entity, unit.UnitId, localPlayerEntity, (int)resCap);
-		
-		if (shouldRefresh)
-		{
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
-		}
-	}
-
-	private void HandleFriendlyDeathEconomy(Unit3D unit)
-	{
-		var (popCost, isCastle) = GameContext.SimulationService.GetDeathPopulationModifiers(unit.Entity, unit.UnitId);
-
-		if (isCastle)
-		{
-			MaxPopulation = Math.Max(0, MaxPopulation - 20);
-		}
+		int popCost = GameContext.SimulationService.GetDeathPopulationCost(unit.Entity, unit.UnitId);
+		int playerIndex = unit.Player;
 
 		if (popCost > 0)
 		{
-			CurrentPopulation = Math.Max(0, CurrentPopulation - (int)popCost);
+			int curPop = GameContext.ResourceEconomyService?.GetPlayerCurrentPopulation(playerIndex) ?? 0;
+			GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(playerIndex, Math.Max(0, curPop - (int)popCost));
+		}
+
+		HandleUnitBountyEconomy(unit);
+	}
+
+	private void HandleUnitBountyEconomy(Unit3D unit)
+	{
+		float resCap = ECSContext.PlayerResourceService.ResourceCap;
+		Entity beneficiaryPlayerEntity = Entity.Null;
+
+		if (GameContext.World.IsAlive(unit.Entity) && GameContext.World.Has<LastAttacker>(unit.Entity))
+		{
+			Entity killer = GameContext.World.Get<LastAttacker>(unit.Entity).Value;
+			if (GameContext.World.IsAlive(killer) && GameContext.World.Has<Owner>(killer))
+			{
+				beneficiaryPlayerEntity = GameContext.World.Get<Owner>(killer).PlayerEntity.Value;
+			}
+		}
+
+		if (beneficiaryPlayerEntity == Entity.Null && (LobbyManager.Instance == null || LobbyManager.Instance.IsSinglePlayer))
+		{
+			int localSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+			beneficiaryPlayerEntity = GetPlayerEntityForPlayerIndex(localSlot);
+		}
+
+		if (beneficiaryPlayerEntity != Entity.Null)
+		{
+			bool shouldRefresh = GameContext.SimulationService.HandleEnemyDeathEconomyDomain(unit.Entity, unit.UnitId, beneficiaryPlayerEntity, (int)resCap);
+			
+			int localViewingSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+			Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(localViewingSlot);
+			if (shouldRefresh && beneficiaryPlayerEntity == localPlayerEntity)
+			{
+				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			}
 		}
 	}
 
@@ -168,25 +168,9 @@ public partial class GameHost
 		var tween = CreateTween();
 		tween.SetParallel(true);
 		tween.TweenProperty(unit, "position:y", -3.0f, 1.0f);
-		tween.TweenProperty(unit, "scale", Godot.Vector3.Zero, 1.0f);
+		tween.TweenProperty(unit, "scale", new Godot.Vector3(0.001f, 0.001f, 0.001f), 1.0f);
 		tween.Chain().TweenCallback(Callable.From(unit.QueueFree));
 		return true;
-	}
-
-	private void CheckGameOver(string unitId, bool isEnemy)
-	{
-		if (!GameContext.SimulationService.DomainCheckGameOver(unitId, isEnemy)) return;
-
-		if (isEnemy)
-		{
-			GD.Print("[GameHost] Enemy Castle destroyed! Player wins!");
-			Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
-		}
-		else
-		{
-			GD.Print("[GameHost] Player Castle destroyed! Player loses!");
-			Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
-		}
 	}
 
 	private void DepleteProp(Prop3D prop)
@@ -258,8 +242,22 @@ public partial class GameHost
 			? GameContext.World.Get<Position>(buildTask.BuildingEntity).Value
 			: workerPos.Value;
 
+		float constructionRange = UnitMetadata.DefaultConstructionRange;
+		if (GameContext.World.Has<DefinitionId>(workerEntity))
+		{
+			string workerType = GameContext.World.Get<DefinitionId>(workerEntity).Value;
+			if (!UnitRegistry.TryGetValue(workerType, out var workerMeta))
+				BuildingRegistry.TryGetValue(workerType, out workerMeta);
+			if (workerMeta != null)
+				constructionRange = workerMeta.ConstructionRange;
+		}
+
+		float buildingCollisionRadius = GameContext.World.Has<CollisionRadius>(buildTask.BuildingEntity)
+			? GameContext.World.Get<CollisionRadius>(buildTask.BuildingEntity).Value
+			: 0f;
+		float effectiveRange = constructionRange + buildingCollisionRadius;
 		float distSq = Vector3.DistanceSquared(workerPos.Value, buildingPos);
-		bool inRange = distSq <= 16f;
+		bool inRange = distSq <= effectiveRange * effectiveRange;
 
 		if (!inRange)
 		{
@@ -303,8 +301,8 @@ public partial class GameHost
 		string modelPath = GetFallbackModelPath(targetModel, isBuilding);
 		int ownerPlayer = GameContext.World.Has<UnitOwnerPlayer>(buildingEntity)
 			? GameContext.World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex
-			: (LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
-		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, false, false, ownerPlayer);
+			: 0;
+		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, ownerPlayer, false, false);
 
 		if (TryGetUnit3D(buildingEntity, out var bNode) && GodotObject.IsInstanceValid(bNode))
 		{
@@ -390,10 +388,9 @@ public partial class GameHost
 
 	private void NotifyConstructionFinished(Entity buildingEntity)
 	{
-		var buildingUnit = GameContext.World.IsAlive(buildingEntity) ? GameContext.SimulationService.GetUnitWrapper(buildingEntity) : null;
-		if (buildingUnit != null)
+		if (GameContext.World.IsAlive(buildingEntity))
 		{
-			OnConstructionFinished?.Invoke(buildingUnit);
+			OnConstructionFinished?.Invoke((UnitId)buildingEntity.Id);
 		}
 
 		InGameHUD.Instance?.ShowFeedbackText("Construction complete!", new Color(0.3f, 0.9f, 0.4f));
@@ -480,8 +477,23 @@ public partial class GameHost
 	private MeshInstance3D CreateGhostMesh(string buildType)
 	{
 		var mesh = new MeshInstance3D();
+		float bWidth = 3.2f;
+		float bHeight = 4f;
+		if (TryGetUnitOrBuildingMetadata(buildType, out var bMeta))
+		{
+			if (bMeta.ObstacleRadius.HasValue && bMeta.ObstacleRadius.Value > 0)
+			{
+				bWidth = bMeta.ObstacleRadius.Value * 2f;
+				bHeight = Math.Max(4f, bMeta.ObstacleRadius.Value);
+			}
+			else if (bMeta.CollisionCircle > 0)
+			{
+				bWidth = bMeta.CollisionCircle * 2f;
+				bHeight = Math.Max(4f, bMeta.CollisionCircle);
+			}
+		}
 		var box = new BoxMesh();
-		box.Size = buildType == "castle" ? new Godot.Vector3(10f, 6f, 10f) : new Godot.Vector3(3.2f, 4f, 3.2f);
+		box.Size = new Godot.Vector3(bWidth, bHeight, bWidth);
 		mesh.Mesh = box;
 
 		var mat = new StandardMaterial3D();
@@ -511,11 +523,10 @@ public partial class GameHost
 		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(buildType, out meta))) return;
 		string targetModel = meta.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
-		float buildTime = meta.ProductionTime > 0f ? meta.ProductionTime : 1.5f;
+		float buildTime = Math.Max(meta.ProductionTime, 0);
 
-		int workerPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(workerEntity)
-			? GameContext.World.Get<UnitOwnerPlayer>(workerEntity).PlayerIndex
-			: (LobbyManager.Instance?.LocalPlayer?.Slot ?? 1);
+		if (!GameContext.World.Has<UnitOwnerPlayer>(workerEntity)) return;
+		int workerPlayerIndex = GameContext.World.Get<UnitOwnerPlayer>(workerEntity).PlayerIndex;
 
 		var playerOwner = GetPlayerEntityForPlayerIndex(workerPlayerIndex).AsPlayerEntity(GameContext.World);
 
@@ -572,8 +583,26 @@ public partial class GameHost
 		var posValue = pos.Value;
 		if (CheckNonFinitePositionWarning(entity, posValue, unit3D)) return;
 
-		Godot.Vector3 nextPos = new Godot.Vector3(posValue.X, posValue.Y, posValue.Z);
-		unit3D.GlobalPosition = nextPos;
+		Godot.Vector3 nextPos;
+		if (GameSettings.MovementPrediction && GameContext.World != null && GameContext.World.Has<RenderPosition>(entity))
+		{
+			ref var renderPos = ref GameContext.World.Get<RenderPosition>(entity);
+			renderPos.Value = System.Numerics.Vector3.Lerp(renderPos.Value, posValue, Math.Min(1.0f, 15.0f * fDelta));
+			nextPos = new Godot.Vector3(renderPos.Value.X, renderPos.Value.Y, renderPos.Value.Z);
+		}
+		else
+		{
+			nextPos = new Godot.Vector3(posValue.X, posValue.Y, posValue.Z);
+			if (GameContext.World != null && GameContext.World.Has<RenderPosition>(entity))
+			{
+				GameContext.World.Set(entity, new RenderPosition(posValue));
+			}
+		}
+
+		if ((unit3D.GlobalPosition - nextPos).LengthSquared() > 0.0001f)
+		{
+			unit3D.GlobalPosition = nextPos;
+		}
 
 		UpdateVisualVelocity(entity, unit3D);
 		UpdateVisualRotation(entity, unit3D, nextPos, fDelta);
@@ -603,7 +632,8 @@ public partial class GameHost
 	private void UpdateVisualVelocity(Entity entity, Unit3D unit3D)
 	{
 		Godot.Vector3 velVec = Godot.Vector3.Zero;
-		if (GameContext.World.Has<Velocity>(entity))
+		bool hasVelocity = GameContext.World.Has<Velocity>(entity);
+		if (hasVelocity)
 		{
 			var vel = GameContext.World.Get<Velocity>(entity);
 			velVec = new Godot.Vector3(vel.Value.X, vel.Value.Y, vel.Value.Z);
@@ -611,14 +641,17 @@ public partial class GameHost
 
 		if (!GameContext.World.Has<MoveTo>(entity) && !GameContext.World.Has<Follow>(entity) && !GameContext.World.Has<InterpolationTarget>(entity))
 		{
-			velVec = Godot.Vector3.Zero;
-			if (GameContext.World.Has<Velocity>(entity))
+			if (hasVelocity && velVec.LengthSquared() > 0.0001f)
 			{
 				GameContext.World.Set(entity, new Velocity(Vector3.Zero));
 			}
+			velVec = Godot.Vector3.Zero;
 		}
 
-		unit3D.Velocity = velVec;
+		if ((unit3D.Velocity - velVec).LengthSquared() > 0.0001f)
+		{
+			unit3D.Velocity = velVec;
+		}
 	}
 
 	private void UpdateVisualRotation(Entity entity, Unit3D unit3D, Godot.Vector3 nextPos, float fDelta)
@@ -701,8 +734,8 @@ public partial class GameHost
 		float angle = Mathf.Atan2(-dir.X, -dir.Z) + Mathf.Pi;
 		var rot = unit3D.Rotation;
 
-		bool isFlying = GameContext.World.Has<PathingFlags>(entity)
-		                && ((TerrainPathingFlags)GameContext.World.Get<PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
+		bool isFlying = GameContext.World.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)
+		                && ((TerrainPathingFlags)GameContext.World.Get<Realm.Ecs.Components.Movement.PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
 		float turnRate = 10f;
 		if (GameContext.World.Has<MovementStats>(entity))
 		{
@@ -710,11 +743,15 @@ public partial class GameHost
 			if (moveStats.TurnRate > 0f) turnRate = moveStats.TurnRate;
 		}
 
-		rot.Y = Mathf.LerpAngle(rot.Y, angle, turnRate * fDelta);
-		unit3D.Rotation = rot;
-		if (GameContext.World.Has<RotationY>(entity))
+		float nextRotY = Mathf.LerpAngle(rot.Y, angle, turnRate * fDelta);
+		if (Mathf.Abs(rot.Y - nextRotY) > 0.001f)
 		{
-			GameContext.World.Set(entity, new RotationY(rot.Y));
+			rot.Y = nextRotY;
+			unit3D.Rotation = rot;
+			if (GameContext.World.Has<RotationY>(entity))
+			{
+				GameContext.World.Set(entity, new RotationY(rot.Y));
+			}
 		}
 
 		Godot.Vector3 normal = Godot.Vector3.Up;
@@ -723,18 +760,25 @@ public partial class GameHost
 			GroundTerrain.GetHeightAndNormal(nextPos.X, nextPos.Z, out _, out normal);
 		}
 
-		Godot.Vector3 forwardDir = new Godot.Vector3(-Mathf.Sin(unit3D.Rotation.Y), 0f, -Mathf.Cos(unit3D.Rotation.Y));
-		Godot.Vector3 up = normal.Normalized();
-		Godot.Vector3 right = forwardDir.Cross(up);
-		if (right.LengthSquared() > 0.00001f)
+		if (Mathf.Abs(normal.Y - 1f) > 0.02f)
 		{
-			right = right.Normalized();
-			Godot.Vector3 forwardPerp = right.Cross(up).Normalized();
-			Basis targetBasis = new Basis(right, up, forwardPerp);
-			var qTarget = targetBasis.GetRotationQuaternion();
-			var qCurrent = unit3D.Basis.GetRotationQuaternion();
-			var qLerp = qCurrent.Slerp(qTarget, 10f * fDelta);
-			unit3D.Basis = new Basis(qLerp);
+			Godot.Vector3 forwardDir = new Godot.Vector3(-Mathf.Sin(unit3D.Rotation.Y), 0f, -Mathf.Cos(unit3D.Rotation.Y));
+			Godot.Vector3 up = normal.Normalized();
+			Godot.Vector3 right = forwardDir.Cross(up);
+			if (right.LengthSquared() > 0.00001f)
+			{
+				right = right.Normalized();
+				Godot.Vector3 forwardPerp = right.Cross(up).Normalized();
+				Basis targetBasis = new Basis(right, up, forwardPerp);
+				float det = targetBasis.Determinant();
+				if (!float.IsNaN(det) && Mathf.Abs(det) > 0.001f)
+				{
+					var qTarget = targetBasis.GetRotationQuaternion();
+					var qCurrent = unit3D.Basis.GetRotationQuaternion();
+					var qLerp = qCurrent.Slerp(qTarget, 10f * fDelta);
+					unit3D.Basis = new Basis(qLerp);
+				}
+			}
 		}
 	}
 
@@ -753,7 +797,11 @@ public partial class GameHost
 		else
 		{
 			float scaleVal = GameContext.World.Has<CollisionScale>(entity) ? GameContext.World.Get<CollisionScale>(entity).Value : 1.0f;
-			unit3D.Scale = Godot.Vector3.One * Mathf.Max(0.01f, scaleVal);
+			float clampedScale = Mathf.Max(0.01f, scaleVal);
+			if (Mathf.Abs(unit3D.Scale.X - clampedScale) > 0.001f)
+			{
+				unit3D.Scale = new Godot.Vector3(clampedScale, clampedScale, clampedScale);
+			}
 		}
 	}
 

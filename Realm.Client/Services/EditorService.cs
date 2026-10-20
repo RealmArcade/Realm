@@ -9,7 +9,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
-using Arch.Core;
+using Realm.Ecs;
 using Godot;
 using NSec.Cryptography;
 using Realm.Client.Animation;
@@ -22,7 +22,6 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Tags;
-using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
@@ -1305,7 +1304,7 @@ public partial class EditorService : IEditorAPI
 			Id = propId,
 			Rotation = rotation,
 			Scale = scale,
-			IsEnemy = false
+			Player = 0
 		});
 	}
 
@@ -1317,7 +1316,7 @@ public partial class EditorService : IEditorAPI
 			Id = decalId,
 			Rotation = rotation,
 			Scale = scale,
-			IsEnemy = false
+			Player = 0
 		});
 	}
 
@@ -1331,7 +1330,7 @@ public partial class EditorService : IEditorAPI
 		{
 			case "unit":
 				newTool = EditorTool.PlaceUnit;
-				PlaceUnitIsEnemy = copiedObj.IsEnemy;
+				PlaceUnitIsEnemy = copiedObj.Player != 0;
 				break;
 			case "prop":
 				newTool = EditorTool.PlaceProp;
@@ -2706,7 +2705,7 @@ public partial class EditorService : IEditorAPI
 				string spawnType = activeTool == EditorTool.PlaceUnit ? "unit"
 					: activeTool == EditorTool.PlaceProp ? "prop"
 					: "decal";
-				bool isEnemy = activeTool == EditorTool.PlaceUnit && placeUnitIsEnemy;
+				int playerIndex = (activeTool == EditorTool.PlaceUnit && placeUnitIsEnemy) ? 1 : 0;
 
 				requests.Add(new EntitySpawnRequest
 				{
@@ -2715,12 +2714,12 @@ public partial class EditorService : IEditorAPI
 					Position = spawnPos,
 					Rotation = rotY,
 					Scale = scaleVal,
-					IsEnemy = isEnemy
+					Player = playerIndex
 				});
 
 				if (mirrorMode != MirrorMode.None)
 				{
-					AddMirroredRequests(requests, spawnType, activePlaceId, spawnPos, rotY, scaleVal, isEnemy, mirrorMode);
+					AddMirroredRequests(requests, spawnType, activePlaceId, spawnPos, rotY, scaleVal, playerIndex, mirrorMode);
 				}
 
 				placed = true;
@@ -3106,7 +3105,7 @@ public partial class EditorService : IEditorAPI
 						RelativePos = pos - origin,
 						Rotation = unit.RotationDegrees.Y,
 						Scale = unit.Scale.X,
-						IsEnemy = unit.IsEnemy
+						Player = unit.Player
 					});
 				}
 				else if (n3d is Prop3D prop)
@@ -3118,7 +3117,7 @@ public partial class EditorService : IEditorAPI
 						RelativePos = pos - origin,
 						Rotation = prop.RotationDegrees.Y,
 						Scale = prop.Scale.X,
-						IsEnemy = false
+						Player = 0
 					});
 				}
 				else if (n3d is Decal decal)
@@ -3131,7 +3130,7 @@ public partial class EditorService : IEditorAPI
 						RelativePos = pos - origin,
 						Rotation = decal.RotationDegrees.Y,
 						Scale = decal.Scale.X,
-						IsEnemy = false
+						Player = 0
 					});
 				}
 			}
@@ -3165,7 +3164,7 @@ public partial class EditorService : IEditorAPI
 						RelativePos = worldPos - origin,
 						Rotation = rotY,
 						Scale = scale,
-						IsEnemy = false
+						Player = 0
 					});
 				}
 			});
@@ -3338,10 +3337,10 @@ public partial class EditorService : IEditorAPI
 					Position = destPos,
 					Rotation = finalRot,
 					Scale = ent.Scale,
-					IsEnemy = ent.IsEnemy
+					Player = ent.Player
 				});
 
-				AddMirroredRequests(result.SpawnRequests, ent.Type, ent.Id, destPos, finalRot, ent.Scale, ent.IsEnemy, mirrorMode);
+				AddMirroredRequests(result.SpawnRequests, ent.Type, ent.Id, destPos, finalRot, ent.Scale, ent.Player, mirrorMode);
 			}
 		}
 
@@ -4325,7 +4324,7 @@ public partial class EditorService : IEditorAPI
 		List<EntitySpawnRequest> requests,
 		string type, string id,
 		Godot.Vector3 pos, float rotation, float scale,
-		bool isEnemy,
+		int player,
 		MirrorMode mirrorMode)
 	{
 		var mirrored = GetMirroredTransforms(pos, rotation, mirrorMode);
@@ -4333,7 +4332,7 @@ public partial class EditorService : IEditorAPI
 		{
 			Godot.Vector3 mPos = m.Position;
 			mPos.Y = GetTerrainHeightAt(mPos);
-			requests.Add(new EntitySpawnRequest { Type = type, Id = id, Position = mPos, Rotation = m.Rotation, Scale = scale, IsEnemy = isEnemy });
+			requests.Add(new EntitySpawnRequest { Type = type, Id = id, Position = mPos, Rotation = m.Rotation, Scale = scale, Player = player });
 		}
 	}
 
@@ -5424,14 +5423,11 @@ public partial class EditorService : IEditorAPI
 
 			Godot.Vector3 oldScale = node3D.Scale;
 			Godot.Vector3 newScale = Godot.Vector3.One;
-			bool isUnit = selected is Unit3D;
-			bool isEnemy = isUnit ? (selected as Unit3D).IsEnemy : false;
 			var action = new ObjectTransformAction(
 				node3D,
 				node3D.Position, node3D.Position,
 				node3D.RotationDegrees, node3D.RotationDegrees,
-				oldScale, newScale,
-				isEnemy, isEnemy
+				oldScale, newScale
 			);
 			node3D.Scale = newScale;
 			if (selected is Prop3D propReset)
@@ -5458,14 +5454,11 @@ public partial class EditorService : IEditorAPI
 			Godot.Vector3 oldScale = node3D.Scale;
 			float newScaleVal = Mathf.Clamp(oldScale.X + scaleDelta, 0.2f, 4.0f);
 			Godot.Vector3 newScale = Godot.Vector3.One * newScaleVal;
-			bool isUnit = selected is Unit3D;
-			bool isEnemy = isUnit ? (selected as Unit3D).IsEnemy : false;
 			var action = new ObjectTransformAction(
 				node3D,
 				node3D.Position, node3D.Position,
 				node3D.RotationDegrees, node3D.RotationDegrees,
-				oldScale, newScale,
-				isEnemy, isEnemy
+				oldScale, newScale
 			);
 			node3D.Scale = newScale;
 			if (selected is Prop3D propScale)
@@ -5492,14 +5485,11 @@ public partial class EditorService : IEditorAPI
 			Godot.Vector3 oldRot = node3D.RotationDegrees;
 			Godot.Vector3 newRot = oldRot;
 			newRot.Y = (newRot.Y + angleDelta + 360.0f) % 360.0f;
-			bool isUnit = selected is Unit3D;
-			bool isEnemy = isUnit ? (selected as Unit3D).IsEnemy : false;
 			var action = new ObjectTransformAction(
 				node3D,
 				node3D.Position, node3D.Position,
 				oldRot, newRot,
-				node3D.Scale, node3D.Scale,
-				isEnemy, isEnemy
+				node3D.Scale, node3D.Scale
 			);
 			node3D.RotationDegrees = newRot;
 			if (selected is Prop3D propRot)

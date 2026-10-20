@@ -1,7 +1,7 @@
 using System.Numerics;
-using Arch.Core;
 using DotRecast.Detour;
 using NUnit.Framework;
+using Realm.Ecs;
 using Realm.Client;
 using Realm.Client.Services;
 using Realm.Ecs.Common;
@@ -23,20 +23,17 @@ namespace Realm.Ecs.Tests
 	[TestFixture]
 	public class MeleeChaseIntegrationTests
 	{
-		private World _world
+		private EcsWorld _world
 		{
-			get { return GameContext.World; }
+			get { return ECSContext.World!; }
 		}
 
 		private TerrainNavMeshService _terrainNavMeshService
 		{
-			get { return ECSContext.TerrainNavMeshService; }
+			get { return ECSContext.TerrainNavMeshService!; }
 		}
 
-		private NavMeshPathfinder _pathfinder
-		{
-			get { return GameContext.NavMeshPathfinder; }
-		}
+		private readonly NavMeshPathfinder _pathfinder = new();
 
 		private MovementAndPathfindingService _movementService = null!;
 		private CombatAndDamageService _combatService = null!;
@@ -53,7 +50,7 @@ namespace Realm.Ecs.Tests
 		[TearDown]
 		public void TearDown()
 		{
-			_world.Dispose();
+			ECSContext.DisposeAndRecreateServices();
 		}
 
 		private void InitializeFlatTerrain(int width = 128, int depth = 128, float quadSize = 2.0f, float cellSize = 0.5f)
@@ -133,7 +130,7 @@ namespace Realm.Ecs.Tests
 
 		private Entity CreatePlayer(int index)
 		{
-			return _world.Create(new DefinitionId("player_" + index));
+			return _world.Create(new DefinitionId("player_" + index), new UnitOwnerPlayer(index));
 		}
 
 		/// <summary>
@@ -147,7 +144,6 @@ namespace Realm.Ecs.Tests
 				new Attack(damage, range, cooldown),
 				new Owner(owner),
 				new ScanRadius(scanRadius),
-				new UnitFaction(false),
 				new Health(400, 400),
 				new Armor(5),
 				new DefinitionId("adventurer"),
@@ -171,7 +167,6 @@ namespace Realm.Ecs.Tests
 				new Health(maxHp, maxHp),
 				new Armor(armor),
 				new Owner(owner),
-				new UnitFaction(true),
 				new DefinitionId("zombie_soldier"),
 				new Attack(damage, range, 1.4f),
 				new ScanRadius(scanRadius),
@@ -194,7 +189,6 @@ namespace Realm.Ecs.Tests
 				new Attack(damage, range, cooldown),
 				new Owner(owner),
 				new ScanRadius(scanRadius),
-				new UnitFaction(false),
 				new Health(800, 800),
 				new Armor(5),
 				new DefinitionId("arrow_tower"),
@@ -216,7 +210,6 @@ namespace Realm.Ecs.Tests
 				new Health(maxHp, maxHp),
 				new Armor(armor),
 				new Owner(owner),
-				new UnitFaction(true),
 				new DefinitionId("zombie_warrior"),
 				new ScanRadius(0),
 				new MovementStats(0f, 20f, 10f),
@@ -236,7 +229,6 @@ namespace Realm.Ecs.Tests
 				new Health(2000, 2000),
 				new Armor(5),
 				new Owner(owner),
-				new UnitFaction(true),
 				new DefinitionId("castle"),
 				new Building(),
 				new CollisionRadius(collisionRadius),
@@ -256,7 +248,6 @@ namespace Realm.Ecs.Tests
 				new Health(300, 300),
 				new Armor(10),
 				new Owner(owner),
-				new UnitFaction(true),
 				new DefinitionId("cyber_dragon"),
 				new ScanRadius(40),
 				new PathingFlags((int)TerrainPathingFlags.Flying)
