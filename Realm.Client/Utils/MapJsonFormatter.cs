@@ -110,9 +110,9 @@ public static class MapJsonFormatter
 		return array != null && array.All(item => item is JsonObject);
 	}
 
-	private static JsonArray SortUnits(JsonArray unitsArr, float topLeftX, float topLeftZ)
+	private static IOrderedEnumerable<JsonObject> GetBaseEntitySort(JsonArray entitiesArr, float topLeftX, float topLeftZ)
 	{
-		var sortedList = unitsArr.OfType<JsonObject>()
+		return entitiesArr.OfType<JsonObject>()
 			.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
 			.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
 			.ThenBy(item => CalculateDistance(item, "PosX", "PosZ", topLeftX, topLeftZ))
@@ -122,7 +122,12 @@ public static class MapJsonFormatter
 			.ThenBy(item => GetFloatProperty(item, "RotationX"))
 			.ThenBy(item => GetFloatProperty(item, "RotationY"))
 			.ThenBy(item => GetFloatProperty(item, "RotationZ"))
-			.ThenBy(item => GetFloatProperty(item, "Scale"))
+			.ThenBy(item => GetFloatProperty(item, "Scale"));
+	}
+
+	private static JsonArray SortUnits(JsonArray unitsArr, float topLeftX, float topLeftZ)
+	{
+		var sortedList = GetBaseEntitySort(unitsArr, topLeftX, topLeftZ)
 			.ThenBy(item => GetFloatProperty(item, "Player"))
 			.ThenBy(item => GetBoolProperty(item, "IsEnemy"))
 			.ToList();
@@ -132,17 +137,7 @@ public static class MapJsonFormatter
 
 	private static JsonArray SortProps(JsonArray propsArr, float topLeftX, float topLeftZ)
 	{
-		var sortedList = propsArr.OfType<JsonObject>()
-			.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
-			.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
-			.ThenBy(item => CalculateDistance(item, "PosX", "PosZ", topLeftX, topLeftZ))
-			.ThenBy(item => GetFloatProperty(item, "PosX"))
-			.ThenBy(item => GetFloatProperty(item, "PosZ"))
-			.ThenBy(item => GetFloatProperty(item, "PosY"))
-			.ThenBy(item => GetFloatProperty(item, "RotationX"))
-			.ThenBy(item => GetFloatProperty(item, "RotationY"))
-			.ThenBy(item => GetFloatProperty(item, "RotationZ"))
-			.ThenBy(item => GetFloatProperty(item, "Scale"))
+		var sortedList = GetBaseEntitySort(propsArr, topLeftX, topLeftZ)
 			.ToList();
 
 		return CreateSortedArray(sortedList);

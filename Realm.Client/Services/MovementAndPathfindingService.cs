@@ -77,7 +77,7 @@ namespace Realm.Client.Services
 
 		public delegate void SpatialGridEntryCallback(in SpatialGridEntry entry);
 
-		public void QueryUnitsInRadius(Vector3 center, float radius, SpatialGridEntryCallback callback)
+		private void QueryGridInRadius(Dictionary<long, List<SpatialGridEntry>> grid, Vector3 center, float radius, SpatialGridEntryCallback callback)
 		{
 			float radiusSq = radius * radius;
 			int minCx = (int)Math.Floor((center.X - radius) / _collisionCellSize);
@@ -90,7 +90,7 @@ namespace Realm.Client.Services
 				for (int cz = minCz; cz <= maxCz; cz++)
 				{
 					long key = ((long)cx << 32) | (uint)cz;
-					if (_unitGrid.TryGetValue(key, out var list))
+					if (grid.TryGetValue(key, out var list))
 					{
 						for (int i = 0; i < list.Count; i++)
 						{
@@ -105,32 +105,14 @@ namespace Realm.Client.Services
 			}
 		}
 
+		public void QueryUnitsInRadius(Vector3 center, float radius, SpatialGridEntryCallback callback)
+		{
+			QueryGridInRadius(_unitGrid, center, radius, callback);
+		}
+
 		public void QueryPropsInRadius(Vector3 center, float radius, SpatialGridEntryCallback callback)
 		{
-			float radiusSq = radius * radius;
-			int minCx = (int)Math.Floor((center.X - radius) / _collisionCellSize);
-			int maxCx = (int)Math.Floor((center.X + radius) / _collisionCellSize);
-			int minCz = (int)Math.Floor((center.Z - radius) / _collisionCellSize);
-			int maxCz = (int)Math.Floor((center.Z + radius) / _collisionCellSize);
-
-			for (int cx = minCx; cx <= maxCx; cx++)
-			{
-				for (int cz = minCz; cz <= maxCz; cz++)
-				{
-					long key = ((long)cx << 32) | (uint)cz;
-					if (_propGrid.TryGetValue(key, out var list))
-					{
-						for (int i = 0; i < list.Count; i++)
-						{
-							var item = list[i];
-							if ((item.Position - center).LengthSquared() <= radiusSq)
-							{
-								callback(in item);
-							}
-						}
-					}
-				}
-			}
+			QueryGridInRadius(_propGrid, center, radius, callback);
 		}
 
 		private struct MovementWorkItem
