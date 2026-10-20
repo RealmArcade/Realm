@@ -449,27 +449,34 @@ app.MapPost("/lobbies/propagate-close", async (CloseLobbyRequest req, LobbyRegis
 });
 
 
-app.MapPost("/lobbies/join", async (JoinRequest req, LobbyRegistry registry, IHttpClientFactory httpClientFactory) =>
+app.MapPost("/lobbies/join", async (JoinRequest req, LobbyRegistry registry, IHttpClientFactory httpClientFactory, HttpContext context) =>
 {
 	if (!registry.TryGet(req.LobbyId, out var lobby) || lobby == null)
 	{
 		return Results.NotFound(new { Message = "Lobby not found" });
 	}
 
+	var clientIp = req.ClientPublicIP;
+	if (string.IsNullOrWhiteSpace(clientIp) || clientIp == "127.0.0.1" || clientIp == "0.0.0.0")
+	{
+		clientIp = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? clientIp;
+	}
+
+	var effectiveReq = req with { ClientPublicIP = clientIp };
 
 	if (hostConnections.TryGetValue(req.LobbyId, out var hostSocket) && hostSocket.State == WebSocketState.Open)
 	{
 		var msg = JsonSerializer.Serialize(new
 		{
 			Action = "Punch",
-			ClientIP = req.ClientPublicIP,
+			ClientIP = clientIp,
 			ClientPort = req.ClientPublicPort
 		});
 
 		var bytes = Encoding.UTF8.GetBytes(msg);
 		await hostSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
 
-		Console.WriteLine($"[Registry] Relayed punch request to host {lobby.LobbyId} for client {req.ClientPublicIP}:{req.ClientPublicPort}");
+		Console.WriteLine($"[Registry] Relayed punch request to host {lobby.LobbyId} for client {clientIp}:{req.ClientPublicPort}");
 
 		return Results.Ok(new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP));
 	}
@@ -481,7 +488,7 @@ app.MapPost("/lobbies/join", async (JoinRequest req, LobbyRegistry registry, IHt
 			try
 			{
 				using var httpClient = httpClientFactory.CreateClient();
-				var content = new StringContent(JsonSerializer.Serialize(req), Encoding.UTF8, "application/json");
+				var content = new StringContent(JsonSerializer.Serialize(effectiveReq), Encoding.UTF8, "application/json");
 				var response = await httpClient.PostAsync($"{lobby.OriginServerUri.TrimEnd('/')}/lobbies/join", content);
 				if (response.IsSuccessStatusCode)
 				{

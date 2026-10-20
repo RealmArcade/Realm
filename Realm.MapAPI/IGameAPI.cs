@@ -1208,6 +1208,17 @@ public interface IGameAPI
 	void RegisterAbility(string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false);
 
 	/// <summary>
+	/// Registers an ability with display metadata and execution behavior for a specific player slot.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index whose command card should register the ability.</param>
+	/// <param name="abilityId">Unique identifier of the ability.</param>
+	/// <param name="displayName">User-facing name of the ability.</param>
+	/// <param name="tooltip">Detailed description displayed on hover.</param>
+	/// <param name="iconPath">Resource path to the ability icon texture.</param>
+	/// <param name="isInstant">True if the ability executes immediately without ground targeting.</param>
+	void RegisterPlayerAbility(int playerIndex, string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false);
+
+	/// <summary>
 	/// Sets whether an ability executes immediately without requiring ground targeting.
 	/// </summary>
 	/// <param name="abilityId">Unique identifier of the ability.</param>

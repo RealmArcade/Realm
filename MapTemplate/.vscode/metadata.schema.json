@@ -300,6 +300,12 @@
             "integer",
             "null"
           ]
+        },
+        "MaxTestPlayers": {
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       }
     },

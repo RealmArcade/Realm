@@ -115,6 +115,7 @@ interface game-api {
     register-ability: func(ability-id: string, display-name: string, tooltip: string, icon-path: string, is-instant: bool);
     register-buff-modifier: func(buff-id: string, stat-name: string, is-percentage: bool, value: f32);
     register-placement-radius: func(definition-key: string, radius: f32);
+    register-player-ability: func(player-index: s32, ability-id: string, display-name: string, tooltip: string, icon-path: string, is-instant: bool);
     register-primary-building: func(definition-id: string);
     register-resource-dropoff-building: func(definition-key: string);
     register-resource-node-type: func(node-definition-id: string, resource-type: string);

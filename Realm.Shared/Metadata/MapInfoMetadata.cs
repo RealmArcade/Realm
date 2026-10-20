@@ -38,6 +38,7 @@ public class MapInfoMetadata
 	public int? TestAiPlayerCount { get; set; }
 	public bool? TestRandomizeSlots { get; set; }
 	public int? TestRandomSeed { get; set; }
+	public int? MaxTestPlayers { get; set; }
 
 	[JsonExtensionData] public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }

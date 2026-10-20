@@ -313,6 +313,17 @@ public readonly unsafe record struct PlayerId(int Value)
 	public void ShowFeedbackText(string text, Vector3 color) => GameAPI.Current.ShowPlayerFeedbackText(Value, text, color);
 
 	/// <summary>
+	/// Registers an ability with display metadata and execution behavior for this player's command card.
+	/// </summary>
+	/// <param name="abilityId">Unique identifier of the ability.</param>
+	/// <param name="displayName">User-facing name of the ability.</param>
+	/// <param name="tooltip">Detailed description displayed on hover.</param>
+	/// <param name="iconPath">Resource path to the ability icon texture.</param>
+	/// <param name="isInstant">True if the ability executes immediately without ground targeting.</param>
+	public void RegisterAbility(string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false) =>
+		GameAPI.Current.RegisterPlayerAbility(Value, abilityId, displayName, tooltip, iconPath, isInstant);
+
+	/// <summary>
 	/// Spawns a minimap ping on this player's client at the specified 3D world position.
 	/// </summary>
 	/// <param name="position">The coordinates of the ping.</param>

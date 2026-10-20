@@ -294,6 +294,18 @@
             "boolean",
             "null"
           ]
+        },
+        "TestRandomSeed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "MaxTestPlayers": {
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       }
     },

@@ -57,6 +57,11 @@ public partial class GameHost
 		}
 	}
 
+	void IGameAPI.RegisterPlayerAbility(int playerIndex, string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
+	{
+		GameContext.ClientRPC.RegisterAbility(playerIndex, abilityId, displayName, tooltip, iconPath, isInstant);
+	}
+
 	private void RegisterAbilityView(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
 		if (_multiplayerActive && IsServerActive())

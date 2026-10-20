@@ -27,6 +27,11 @@ public class NatTypeTester
 		}
 	}
 
+	public static async Task<StunResult> QueryStunOnPortAsync(IPAddress serverIp, int serverPort, int localPort)
+	{
+		return await QueryStunAsync(serverIp, serverPort, localPort);
+	}
+
 	private static async Task<NatType> EvaluateNatTypeAsync(IPAddress serverIp1, IPAddress serverIp2, int testLocalPort)
 	{
 		var test1 = await QueryStunAsync(serverIp1, 19302, testLocalPort);

@@ -16,8 +16,8 @@ public class SelectedUnitInfo
 	public float Armor { get; set; }
 	public float Speed { get; set; }
 	public float Dps { get; set; }
-	public bool IsEnemy { get; set; }
 	public int Player { get; set; }
+	public bool IsEnemy { get; set; }
 	public bool IsBuilding { get; set; }
 	public bool IsUnderConstruction { get; set; }
 	public string StateText { get; set; }

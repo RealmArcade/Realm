@@ -20,6 +20,7 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
+	private int _pendingSelectUnitServerId = -1;
 	public int GetOwnerPeerId(Entity unitEntity) => GameContext.NetworkService.GetOwnerPeerId(unitEntity);
 
 	private int GetServerEntityId(Entity localEntity) =>
@@ -339,7 +340,14 @@ public partial class GameHost
 	{
 		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out int playerIndex);
 		if (entity == Entity.Null) return;
-		SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, playerIndex);
+		var unit3D = SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, playerIndex);
+		if (_pendingSelectUnitServerId == snap.EntityId && GodotObject.IsInstanceValid(unit3D))
+		{
+			ClearSelection();
+			SelectUnit(unit3D);
+			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			_pendingSelectUnitServerId = -1;
+		}
 	}
 
 	private void QueueOrSendPacket(int peerId, string funcName, params object[] args)
@@ -742,6 +750,10 @@ public partial class GameHost
 				ClearSelection();
 				SelectUnit(unit3D);
 				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			}
+			else
+			{
+				_pendingSelectUnitServerId = serverEntityId;
 			}
 		}).CallDeferred();
 	}
