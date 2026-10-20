@@ -281,6 +281,31 @@ public static class GlbManifestUtils
 		bool modified = false;
 		modified |= RemoveExtension(root, "extensionsUsed", "MSFT_lod");
 		modified |= RemoveExtension(root, "extensionsRequired", "MSFT_lod");
+		modified |= RemoveNodeMsftLodExtensions(root);
+		return modified;
+	}
+
+	public static bool RemoveNodeMsftLodExtensions(JsonObject root)
+	{
+		bool modified = false;
+		if (root.TryGetPropertyValue("nodes", out var nodesNode) && nodesNode is JsonArray nodesArray)
+		{
+			foreach (var n in nodesArray)
+			{
+				if (n is JsonObject nodeObj && nodeObj.TryGetPropertyValue("extensions", out var extVal) && extVal is JsonObject extObj)
+				{
+					if (extObj.Remove("MSFT_lod"))
+					{
+						modified = true;
+						if (extObj.Count == 0)
+						{
+							nodeObj.Remove("extensions");
+						}
+					}
+				}
+			}
+		}
+
 		return modified;
 	}
 

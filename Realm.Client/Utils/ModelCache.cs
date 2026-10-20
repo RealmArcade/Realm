@@ -483,15 +483,33 @@ namespace Realm.Client.Utils
 				glbBytes = GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);
 			}
 
+			var (json, bin, ver) = GlbManifestUtils.ParseGlb(glbBytes);
+			if (json is System.Text.Json.Nodes.JsonObject rootObj)
+			{
+				if (GlbManifestUtils.RemoveNodeMsftLodExtensions(rootObj))
+				{
+					glbBytes = GlbManifestUtils.BuildGlb(rootObj, bin, ver);
+				}
+			}
+
 			Error err = doc.AppendFromBuffer(glbBytes, "", state);
 			if (err != Error.Ok) return null;
 
-			Node generatedNode = doc.GenerateScene(state);
+			Node generatedNode = null;
+			try
+			{
+				generatedNode = doc.GenerateScene(state);
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[ModelCache] GenerateScene failed for '{modelPath}': {ex.Message}");
+				return null;
+			}
+
 			if (generatedNode == null) return null;
 
 			try
 			{
-				GltfDocumentExtensionMsftLod.ProcessImportedScene(state, generatedNode);
 				SetOwnerRecursive(generatedNode, generatedNode);
 
 				var packedScene = new PackedScene();
@@ -680,10 +698,27 @@ namespace Realm.Client.Utils
 			byte[] rmeshBytes = File.ReadAllBytes(resolvedPath);
 			byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
 
+			var (json, bin, ver) = GlbManifestUtils.ParseGlb(glbBytes);
+			if (json is System.Text.Json.Nodes.JsonObject rootObj)
+			{
+				if (GlbManifestUtils.RemoveNodeMsftLodExtensions(rootObj))
+				{
+					glbBytes = GlbManifestUtils.BuildGlb(rootObj, bin, ver);
+				}
+			}
+
 			Error err = doc.AppendFromBuffer(glbBytes, "", state);
 			if (err == Error.Ok)
 			{
-				return doc.GenerateScene(state);
+				try
+				{
+					return doc.GenerateScene(state);
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr($"[ModelCache] GenerateScene failed for '{resolvedPath}': {ex.Message}");
+					return null;
+				}
 			}
 
 			return null;

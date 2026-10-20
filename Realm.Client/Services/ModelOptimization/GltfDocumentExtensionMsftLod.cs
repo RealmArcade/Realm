@@ -32,6 +32,50 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		return Error.Ok;
 	}
 
+	public override Error _ImportPostParse(GltfState state)
+	{
+		EnsureAllNodesInRootOrChildren(state);
+		return Error.Ok;
+	}
+
+	private static void EnsureAllNodesInRootOrChildren(GltfState state)
+	{
+		if (state == null) return;
+		var gltfNodes = state.GetNodes();
+		if (gltfNodes == null || gltfNodes.Count == 0) return;
+
+		var existingRoots = new HashSet<int>(state.GetRootNodes());
+		var childNodes = new HashSet<int>();
+
+		for (int i = 0; i < gltfNodes.Count; i++)
+		{
+			var node = gltfNodes[i];
+			if (node == null) continue;
+			var children = node.Children;
+			if (children != null)
+			{
+				foreach (int childIdx in children)
+				{
+					childNodes.Add(childIdx);
+				}
+			}
+		}
+
+		var newRoots = new List<int>(existingRoots);
+		for (int i = 0; i < gltfNodes.Count; i++)
+		{
+			if (!existingRoots.Contains(i) && !childNodes.Contains(i))
+			{
+				newRoots.Add(i);
+			}
+		}
+
+		if (newRoots.Count > existingRoots.Count)
+		{
+			state.SetRootNodes(newRoots.ToArray());
+		}
+	}
+
 	public override Error _ParseNodeExtensions(GltfState state, GltfNode gltfNode, Dictionary extensions)
 	{
 		if (extensions != null && extensions.ContainsKey("MSFT_lod"))
@@ -42,11 +86,6 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		return Error.Ok;
 	}
 
-	public override Error _ImportPost(GltfState state, Node root)
-	{
-		ProcessImportedScene(state, root);
-		return Error.Ok;
-	}
 
 	public static void ProcessImportedScene(GltfState state, Node root)
 	{
@@ -81,9 +120,12 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 	private static void CategorizeGltfNodes(
 		Array<GltfNode> gltfNodes, System.Collections.Generic.Dictionary<string, (int NodeIndex, GltfNode Node)> masterGltfNodes, System.Collections.Generic.Dictionary<string, SortedDictionary<int, (int NodeIndex, GltfNode Node)>> companionLodNodes)
 	{
+		if (gltfNodes == null) return;
+
 		for (int n = 0; n < gltfNodes.Count; n++)
 		{
 			var gNode = gltfNodes[n];
+			if (gNode == null) continue;
 			string rawName = !string.IsNullOrEmpty(gNode.OriginalName) ? gNode.OriginalName : gNode.ResourceName;
 			if (string.IsNullOrEmpty(rawName))
 				continue;
@@ -119,9 +161,9 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		string masterNodeName = !string.IsNullOrEmpty(masterData.Node.OriginalName) ? masterData.Node.OriginalName : masterData.Node.ResourceName;
 		MeshInstance3D masterInstance = FindMeshInstanceByNameOrIndex(meshInstances, masterNodeName, masterData.NodeIndex);
 
-		if (masterInstance == null && meshInstances.Count == 1)
+		if (masterInstance == null)
 		{
-			masterInstance = meshInstances[0];
+			masterInstance = FindByLod0(meshInstances) ?? (meshInstances.Count > 0 ? meshInstances[0] : null);
 		}
 
 		if (masterInstance == null)
@@ -236,16 +278,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 			if (byName != null) return byName;
 		}
 
-		if (index >= 0 && index < instances.Count)
-			return instances[index];
-
-		if (instances.Count == 1)
-			return instances[0];
-
-		var byLod0 = FindByLod0(instances);
-		if (byLod0 != null) return byLod0;
-
-		return instances[0];
+		return null;
 	}
 
 	private static MeshInstance3D FindByName(List<MeshInstance3D> instances, string name)

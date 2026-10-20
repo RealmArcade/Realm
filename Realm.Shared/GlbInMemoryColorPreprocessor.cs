@@ -632,6 +632,7 @@ public static class GlbInMemoryColorPreprocessor
 			buf0["byteLength"] = (int)newBinStream.Position;
 		}
 
+		GlbManifestUtils.RemoveNodeMsftLodExtensions(root);
 		byte[] newBin = newBinStream.ToArray();
 		return GlbManifestUtils.BuildGlb(root, newBin, glbVersion);
 	}

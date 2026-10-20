@@ -48,8 +48,9 @@ public static unsafe class GlbLodGenerator
 			return (false, input, "Failed to parse glTF JSON root");
 
 		CleanEarlyExtensions(root);
+		int originalNodeCount = (root["nodes"] as JsonArray)?.Count ?? 0;
 		var removedIndices = CleanEarlyNodes(root);
-		CleanEarlyScenes(root, removedIndices);
+		RemapNodeIndicesInGltf(root, originalNodeCount, removedIndices);
 
 		if (!HasRequiredGlbArrays(root))
 			return (true, input, string.Empty);
@@ -135,40 +136,133 @@ public static unsafe class GlbLodGenerator
 		return false;
 	}
 
-	private static void CleanEarlyScenes(JsonObject root, HashSet<int> removedIndices)
+	private static void RemapNodeIndicesInGltf(JsonObject root, int originalNodeCount, HashSet<int> removedIndices)
 	{
-		if (root["scenes"] is not JsonArray scenes) return;
-		int nodeCount = (root["nodes"] as JsonArray)?.Count ?? 0;
+		if (removedIndices.Count == 0 || originalNodeCount <= 0) return;
 
-		foreach (var sc in scenes)
+		int[] remap = new int[originalNodeCount];
+		int shift = 0;
+		for (int i = 0; i < originalNodeCount; i++)
 		{
-			CleanScene(sc, removedIndices, nodeCount);
+			if (removedIndices.Contains(i))
+			{
+				remap[i] = -1;
+				shift++;
+			}
+			else
+			{
+				remap[i] = i - shift;
+			}
+		}
+
+		if (root["scenes"] is JsonArray scenes)
+		{
+			foreach (var sc in scenes)
+			{
+				if (sc is JsonObject scObj && scObj["nodes"] is JsonArray scNodes)
+				{
+					RemapJsonIntArray(scNodes, remap);
+				}
+			}
+		}
+
+		if (root["nodes"] is JsonArray nodes)
+		{
+			foreach (var n in nodes)
+			{
+				if (n is not JsonObject nObj) continue;
+
+				if (nObj["children"] is JsonArray children)
+				{
+					RemapJsonIntArray(children, remap);
+					if (children.Count == 0)
+					{
+						nObj.Remove("children");
+					}
+				}
+
+				if (nObj["extensions"] is JsonObject nExts && nExts["MSFT_lod"] is JsonObject msftLod && msftLod["ids"] is JsonArray ids)
+				{
+					RemapJsonIntArray(ids, remap);
+					if (ids.Count == 0)
+					{
+						nExts.Remove("MSFT_lod");
+					}
+				}
+			}
+		}
+
+		if (root["skins"] is JsonArray skins)
+		{
+			foreach (var sk in skins)
+			{
+				if (sk is not JsonObject skObj) continue;
+
+				if (skObj["joints"] is JsonArray joints)
+				{
+					RemapJsonIntArray(joints, remap);
+				}
+
+				if (skObj.TryGetPropertyValue("skeleton", out var skelVal) && skelVal is JsonValue jv && jv.TryGetValue(out int skelIdx))
+				{
+					if (skelIdx >= 0 && skelIdx < originalNodeCount && remap[skelIdx] != -1)
+					{
+						skObj["skeleton"] = remap[skelIdx];
+					}
+					else
+					{
+						skObj.Remove("skeleton");
+					}
+				}
+			}
+		}
+
+		if (root["animations"] is JsonArray animations)
+		{
+			foreach (var anim in animations)
+			{
+				if (anim is not JsonObject animObj || animObj["channels"] is not JsonArray channels) continue;
+
+				for (int i = channels.Count - 1; i >= 0; i--)
+				{
+					if (channels[i] is JsonObject chObj && chObj["target"] is JsonObject targetObj && targetObj.TryGetPropertyValue("node", out var nodeVal) && nodeVal is JsonValue jv && jv.TryGetValue(out int targetNodeIdx))
+					{
+						if (targetNodeIdx >= 0 && targetNodeIdx < originalNodeCount)
+						{
+							int newIdx = remap[targetNodeIdx];
+							if (newIdx != -1)
+							{
+								targetObj["node"] = newIdx;
+							}
+							else
+							{
+								channels.RemoveAt(i);
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
-	private static void CleanScene(JsonNode? sc, HashSet<int> removedIndices, int nodeCount)
+	private static void RemapJsonIntArray(JsonArray arr, int[] remap)
 	{
-		if (sc is not JsonObject scObj || scObj["nodes"] is not JsonArray scNodes) return;
-		scObj["nodes"] = GetCleanSceneNodes(scNodes, removedIndices, nodeCount);
-	}
-
-	private static JsonArray GetCleanSceneNodes(JsonArray scNodes, HashSet<int> removedIndices, int nodeCount)
-	{
-		var cleanNodes = new JsonArray();
 		var seen = new HashSet<int>();
-		foreach (var item in scNodes)
+		for (int i = arr.Count - 1; i >= 0; i--)
 		{
-			TryAddCleanNode(item, cleanNodes, removedIndices, nodeCount, seen);
+			if (arr[i] is JsonValue jv && jv.TryGetValue(out int idx) && idx >= 0 && idx < remap.Length)
+			{
+				int newIdx = remap[idx];
+				if (newIdx != -1 && seen.Add(newIdx))
+				{
+					arr[i] = newIdx;
+				}
+				else
+				{
+					arr.RemoveAt(i);
+				}
+			}
 		}
-
-		return cleanNodes;
-	}
-
-	private static void TryAddCleanNode(JsonNode? item, JsonArray cleanNodes, HashSet<int> removedIndices, int nodeCount, HashSet<int> seen)
-	{
-		if (item is not JsonValue jv || !jv.TryGetValue(out int nodeIdx)) return;
-		if (!removedIndices.Contains(nodeIdx) && nodeIdx >= 0 && nodeIdx < nodeCount && seen.Add(nodeIdx))
-			cleanNodes.Add(nodeIdx);
 	}
 
 	private static bool HasRequiredGlbArrays(JsonObject root)
@@ -669,15 +763,14 @@ public static unsafe class GlbLodGenerator
 
 	private static void UpdateNodeExtensionsWithLod(JsonObject nodeObj, JsonArray lodNodeIndices, float visBegin, float visEnd)
 	{
-		if (nodeObj["extensions"] is not JsonObject nodeExts)
+		if (nodeObj["extensions"] is JsonObject nodeExts)
 		{
-			nodeExts = new JsonObject();
-			nodeObj["extensions"] = nodeExts;
+			nodeExts.Remove("MSFT_lod");
+			if (nodeExts.Count == 0)
+			{
+				nodeObj.Remove("extensions");
+			}
 		}
-
-		var msftLod = new JsonObject();
-		msftLod["ids"] = lodNodeIndices;
-		nodeExts["MSFT_lod"] = msftLod;
 
 		if (nodeObj["extras"] is not JsonObject nExtras)
 		{
