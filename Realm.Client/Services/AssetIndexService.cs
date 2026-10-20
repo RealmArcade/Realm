@@ -157,7 +157,8 @@ public class AssetIndexService : IDisposable
 				{
 					["_id"] = 1,
 					["GameBuildNumber"] = gameBuildNumber,
-					["IndexSchemaVersion"] = IndexSchemaVersion
+					["IndexSchemaVersion"] = IndexSchemaVersion,
+					["RequiresContentRebuild"] = false
 				};
 				metaCol.Upsert(doc);
 				_database.Checkpoint();
@@ -165,6 +166,50 @@ public class AssetIndexService : IDisposable
 			catch
 			{
 			}
+		}
+	}
+
+	private void MarkIndexContentRebuildRequired()
+	{
+		lock (_syncLock)
+		{
+			try
+			{
+				var metaCol = _database.GetCollection<BsonDocument>("_metadata");
+				var doc = new BsonDocument
+				{
+					["_id"] = 1,
+					["GameBuildNumber"] = RealmVersion.GameBuildNumber,
+					["IndexSchemaVersion"] = IndexSchemaVersion,
+					["RequiresContentRebuild"] = true
+				};
+				metaCol.Upsert(doc);
+				_database.Checkpoint();
+			}
+			catch
+			{
+			}
+		}
+	}
+
+	private bool IsContentRebuildRequired()
+	{
+		lock (_syncLock)
+		{
+			try
+			{
+				var metaCol = _database.GetCollection<BsonDocument>("_metadata");
+				var doc = metaCol.FindById(1);
+				if (doc != null && doc.TryGetValue("RequiresContentRebuild", out var val) && val.IsBoolean)
+				{
+					return val.AsBoolean;
+				}
+			}
+			catch
+			{
+			}
+
+			return false;
 		}
 	}
 
@@ -176,7 +221,12 @@ public class AssetIndexService : IDisposable
 			return true;
 		}
 
-		return GetIndexSchemaVersion() != IndexSchemaVersion;
+		if (GetIndexSchemaVersion() != IndexSchemaVersion)
+		{
+			return true;
+		}
+
+		return IsContentRebuildRequired();
 	}
 
 	public bool HasIncorrectlyIndexedSample()
@@ -636,7 +686,7 @@ public class AssetIndexService : IDisposable
 
 		if (forceRebuild)
 		{
-			SetIndexGameBuildNumber(RealmVersion.GameBuildNumber);
+			MarkIndexContentRebuildRequired();
 			InitializeDefaultDirectories();
 			return;
 		}

@@ -324,6 +324,8 @@ public partial class LobbyManager : Node
 	public async Task RunNatTypeTestAsync()
 	{
 		GD.Print("[LobbyManager] Starting STUN NAT Type Test...");
+		_hostPublicIp = null;
+		_hostPublicPort = 0;
 		LocalNatType = await NatTypeTester.DetermineNatTypeAsync(0);
 		GD.Print($"[LobbyManager] NAT Type Classified: {LocalNatType}");
 
@@ -369,8 +371,9 @@ public partial class LobbyManager : Node
 
 				if (result != null && result.Success && result.MappedEndPoint != null)
 				{
+					bool mappedFromEnetPort = result.LocalEndPoint != null && result.LocalEndPoint.Port == ENetPort;
 					_hostPublicIp = result.MappedEndPoint.Address.ToString();
-					_hostPublicPort = result.MappedEndPoint.Port;
+					_hostPublicPort = mappedFromEnetPort ? result.MappedEndPoint.Port : ENetPort;
 					GD.Print($"[STUN] Local {ENetPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
 				}
 			}
@@ -1015,6 +1018,18 @@ public partial class LobbyManager : Node
 			}
 
 			GD.PrintErr($"[LobbyManager] Connection handshake to {connectIp}:{connectPort} timed out on attempt {attempt}.");
+		}
+
+		if (Multiplayer.MultiplayerPeer != null)
+		{
+			try
+			{
+				Multiplayer.MultiplayerPeer.Close();
+			}
+			catch
+			{
+			}
+			Multiplayer.MultiplayerPeer = null;
 		}
 
 		LobbyJoinError = "Direct connection handshake failed. The host could not be reached.";
