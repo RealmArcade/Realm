@@ -599,7 +599,6 @@ public partial class MainMenu : Control
 		// Load custom textures
 		var frameNormal = LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
 		var nameplateNormal = LoadTrimmedTexture("res://Assets/UI/profile_nameplate_normal.webp");
-		var badgeNormal = LoadTrimmedTexture("res://Assets/UI/profile_badge_normal.webp");
 		var backdropNormal = LoadTrimmedTexture("res://Assets/UI/profile_backdrop_normal.webp");
 
 		// Fetch nodes
@@ -608,7 +607,6 @@ public partial class MainMenu : Control
 		var frame = button.GetNode<TextureRect>("Frame");
 		var nameplate = button.GetNode<TextureRect>("Nameplate");
 		var nameLabel = button.GetNode<Label>("Nameplate/Label");
-		var badge = button.GetNode<TextureRect>("Badge");
 		var levelLabel = button.GetNode<Label>("Badge/Label");
 
 		backdrop.Texture = backdropNormal;
@@ -625,11 +623,6 @@ public partial class MainMenu : Control
 		nameplate.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		nameplate.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		nameplate.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-
-		badge.Texture = badgeNormal;
-		badge.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		badge.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		badge.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		avatar.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		avatar.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -849,11 +842,6 @@ public partial class MainMenu : Control
 				if (usedRect.Size.X > 0 && usedRect.Size.Y > 0 && (usedRect.Size.X < img.GetWidth() || usedRect.Size.Y < img.GetHeight()))
 				{
 					img = img.GetRegion(usedRect);
-				}
-
-				if (!img.HasMipmaps())
-				{
-					img.GenerateMipmaps();
 				}
 
 				return ImageTexture.CreateFromImage(img);
