@@ -48,7 +48,7 @@ public class MapEditorGenerationDialog
 
 		var bgTex = new TextureRect();
 		bgTex.Name = "BgTex_TextureRect";
-		bgTex.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/map_editor_random_generator.png");
+		bgTex.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/map_editor_random_generator.webp");
 		bgTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		bgTex.StretchMode = TextureRect.StretchModeEnum.Scale;
 		bgTex.SetAnchorsPreset(Control.LayoutPreset.FullRect);

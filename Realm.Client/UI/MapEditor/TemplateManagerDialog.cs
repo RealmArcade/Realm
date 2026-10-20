@@ -66,7 +66,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	public TemplateManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Templates Manager"), new Vector2(720, 780))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 34, 40, 60, 60);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 34, 40, 60, 60);
 
 		_entityVisualEditDialog = new EntityVisualEditDialog(hud);
 		_weaponVfxDialog = new WeaponVfxDialog(hud);

@@ -65,7 +65,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 	public AssetBrowserDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Asset Browser"), new Vector2(780, 640))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 30, 45, 70, 70);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 30, 45, 70, 70);
 
 		_audioPlayer = new AudioStreamPlayer();
 		_audioPlayer.Finished += OnAudioFinished;
@@ -460,7 +460,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		if (!string.IsNullOrEmpty(titleText) && titleText.Contains("Minimap", StringComparison.OrdinalIgnoreCase))
 		{
 			CustomMinimumSize = new Vector2(800, 520);
-			SetUncompressedPanelTexture("res://Assets/UI/map_editor_publish.png", 78, 38, 75, 75);
+			SetUncompressedPanelTexture("res://Assets/UI/map_editor_publish.webp", 78, 38, 75, 75);
 			_gridPanel.CustomMinimumSize = new Vector2(0, 180);
 			if (TitleLabel?.GetParent() is MarginContainer titleMargin)
 			{
@@ -479,7 +479,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		else
 		{
 			CustomMinimumSize = new Vector2(780, 640);
-			SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 30, 45, 70, 70);
+			SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 30, 45, 70, 70);
 			_gridPanel.CustomMinimumSize = new Vector2(0, 320);
 			if (TitleLabel?.GetParent() is MarginContainer titleMargin)
 			{

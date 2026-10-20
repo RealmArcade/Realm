@@ -15,11 +15,11 @@ namespace Realm.AdminServer.Helpers
             bool isGreenlit = stats != null && stats.IsGreenlit;
 
             var awards = new List<string>();
-            if (isGreenlit) awards.Add("res://Assets/UI/victory_flag.png");
-            if (ratingStars >= 4.5f) awards.Add("res://Assets/UI/gold_coin.png");
-            if (verifiedReviews >= 5 || totalReviews >= 20) awards.Add("res://Assets/UI/battle_shield.png");
-            if (gamesPlayed >= 10 || playtimeMinutes >= 30) awards.Add("res://Assets/UI/battle_axe.png");
-            if (awards.Count == 0) awards.Add("res://Assets/UI/gold_coin.png");
+            if (isGreenlit) awards.Add("res://Assets/UI/victory_flag.webp");
+            if (ratingStars >= 4.5f) awards.Add("res://Assets/UI/gold_coin.webp");
+            if (verifiedReviews >= 5 || totalReviews >= 20) awards.Add("res://Assets/UI/battle_shield.webp");
+            if (gamesPlayed >= 10 || playtimeMinutes >= 30) awards.Add("res://Assets/UI/battle_axe.webp");
+            if (awards.Count == 0) awards.Add("res://Assets/UI/gold_coin.webp");
 
             return awards;
         }

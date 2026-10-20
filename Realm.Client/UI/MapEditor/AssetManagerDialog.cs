@@ -90,7 +90,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	public AssetManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Asset Manager"), new Vector2(860, 720))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 34, 40, 60, 60);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 34, 40, 60, 60);
 
 		_spritesheetEditDialog = new SpritesheetAssetEditDialog(hud);
 		_textureEditDialog = new TerrainTextureEditDialog(hud);
@@ -212,9 +212,9 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		btnWebAi.ExpandIcon = false;
 		btnWebAi.IconAlignment = HorizontalAlignment.Center;
 		btnWebAi.VerticalIconAlignment = VerticalAlignment.Center;
-		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.png"))
+		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.webp"))
 		{
-			btnWebAi.Icon = GD.Load<Texture2D>("res://Assets/UI/globe_icon.png");
+			btnWebAi.Icon = GD.Load<Texture2D>("res://Assets/UI/globe_icon.webp");
 		}
 		else
 		{

@@ -79,7 +79,7 @@ public partial class MainMenu : Control
 		_rightPillar = GetNode<Panel>("RightPillar");
 		_centralPanel = GetNode<PanelContainer>("CentralPanel");
 		_gameLogo = GetNode<TextureRect>("GameLogo");
-		_gameLogo.Texture = LoadTrimmedTexture("res://Assets/UI/Logo.png");
+		_gameLogo.Texture = LoadTrimmedTexture("res://Assets/UI/Logo.webp");
 		_gameLogo.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		CreateVersionSelector();
@@ -130,21 +130,21 @@ public partial class MainMenu : Control
 				GameContext.SessionState.IsTestMode = false;
 				if (LobbyManager.Instance != null) LobbyManager.Instance.IsSinglePlayer = true;
 				UIManager.Instance.TransitionTo(GameScreen.LobbyCreate);
-			}, "res://Assets/UI/menu_single_player_button.png");
+			}, "res://Assets/UI/menu_single_player_button.webp");
 			_singlePlayerButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
-		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.png");
+		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.webp");
 		if (_creatorDiscoveryButton != null)
 		{
-			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => UIManager.Instance.TransitionTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.png");
+			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => UIManager.Instance.TransitionTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.webp");
 			_creatorDiscoveryButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
-		SetupMenuButton(_mapEditorButton, "MAP EDITOR", () => OnMapEditorPressed(), "res://Assets/UI/menu_editor_button.png");
+		SetupMenuButton(_mapEditorButton, "MAP EDITOR", () => OnMapEditorPressed(), "res://Assets/UI/menu_editor_button.webp");
 		if (_replaysButton != null)
 		{
-			SetupMenuButton(_replaysButton, "REPLAYS", () => UIManager.Instance.TransitionTo(GameScreen.ReplayList), "res://Assets/UI/menu_replays_button.png");
+			SetupMenuButton(_replaysButton, "REPLAYS", () => UIManager.Instance.TransitionTo(GameScreen.ReplayList), "res://Assets/UI/menu_replays_button.webp");
 			_replaysButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
@@ -154,7 +154,7 @@ public partial class MainMenu : Control
 			_storageButton.AddThemeConstantOverride("icon_max_width", 28);
 		}
 
-		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.png", () => UIManager.Instance.OpenSettingsOverlay(), new Vector2(22, 22), true);
+		SetupIconButton(_settingsButton, "OPTIONS", "res://Assets/UI/gear_icon.webp", () => UIManager.Instance.OpenSettingsOverlay(), new Vector2(22, 22), true);
 		SetupAvatarButton(_profileButton, () => ShowProfilePopup());
 		SetupButton(_quitButton, "QUIT GAME", () => GetTree().Quit());
 
@@ -167,7 +167,7 @@ public partial class MainMenu : Control
 	{
 		if (_socialButton == null || _socialPopover == null || _socialPopoverOverlay == null) return;
 
-		SetupIconButton(_socialButton, "", "res://Assets/UI/social_icon.png", () => ToggleSocialPopover(), new Vector2(32, 32));
+		SetupIconButton(_socialButton, "", "res://Assets/UI/social_icon.webp", () => ToggleSocialPopover(), new Vector2(32, 32));
 		ConfigurePopoverBackground();
 		SetupSocialButtons();
 		_socialPopoverOverlay.GuiInput += OnSocialPopoverOverlayGuiInput;
@@ -177,7 +177,7 @@ public partial class MainMenu : Control
 	{
 		var popoverBg = _socialPopover.GetNodeOrNull<TextureRect>("Background");
 		if (popoverBg == null) return;
-		popoverBg.Texture = LoadTrimmedTexture("res://Assets/UI/menu_popup.png");
+		popoverBg.Texture = LoadTrimmedTexture("res://Assets/UI/menu_popup.webp");
 		popoverBg.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		popoverBg.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		popoverBg.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -185,12 +185,12 @@ public partial class MainMenu : Control
 
 	private void SetupSocialButtons()
 	{
-		SetupSocialLinkButton(_websiteButton, "WEBSITE", "https://www.realm-game.com/", "res://Assets/UI/globe_icon.png");
-		SetupSocialLinkButton(_discordButton, "DISCORD", "http://discord.realm-game.com", "res://Assets/UI/discord_icon.png");
-		SetupSocialLinkButton(_youtubeButton, "YOUTUBE", "https://www.youtube.com/@Realm-Game", "res://Assets/UI/youtube_icon.png");
-		SetupSocialLinkButton(_donateButton, "DONATE", "http://realm-game.com/#donate", "res://Assets/UI/donate_icon.png");
-		SetupSocialLinkButton(_announcementsButton, "ANNOUNCEMENTS", "https://realm-game.com/#subscribe", "res://Assets/UI/email_icon.png");
-		SetupSocialLinkButton(_bugReportButton, "BUG REPORT", "https://github.com/RealmArcade/Realm/issues", "res://Assets/UI/bug_icon.png");
+		SetupSocialLinkButton(_websiteButton, "WEBSITE", "https://www.realm-game.com/", "res://Assets/UI/globe_icon.webp");
+		SetupSocialLinkButton(_discordButton, "DISCORD", "http://discord.realm-game.com", "res://Assets/UI/discord_icon.webp");
+		SetupSocialLinkButton(_youtubeButton, "YOUTUBE", "https://www.youtube.com/@Realm-Game", "res://Assets/UI/youtube_icon.webp");
+		SetupSocialLinkButton(_donateButton, "DONATE", "http://realm-game.com/#donate", "res://Assets/UI/donate_icon.webp");
+		SetupSocialLinkButton(_announcementsButton, "ANNOUNCEMENTS", "https://realm-game.com/#subscribe", "res://Assets/UI/email_icon.webp");
+		SetupSocialLinkButton(_bugReportButton, "BUG REPORT", "https://github.com/RealmArcade/Realm/issues", "res://Assets/UI/bug_icon.webp");
 	}
 
 	private void SetupSocialLinkButton(Button button, string text, string url, string iconPath)
@@ -200,7 +200,7 @@ public partial class MainMenu : Control
 		{
 			OS.ShellOpen(url);
 			HideSocialPopover();
-		}, "res://Assets/UI/options_menu_button.png", null, iconPath);
+		}, "res://Assets/UI/options_menu_button.webp", null, iconPath);
 	}
 
 	private void OnSocialPopoverOverlayGuiInput(InputEvent @event)
@@ -328,9 +328,9 @@ public partial class MainMenu : Control
 
 	private void ApplyMenuButtonStyleBoxes(Button button, string texturePath)
 	{
-		var normalStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_normal.png", texturePath, null);
-		var hoverStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_hover.png", texturePath, new Color(1.12f, 1.10f, 0.96f));
-		var pressedStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_pressed.png", texturePath, new Color(0.85f, 0.82f, 0.75f));
+		var normalStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_normal.webp", texturePath, null);
+		var hoverStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_hover.webp", texturePath, new Color(1.12f, 1.10f, 0.96f));
+		var pressedStyle = CreateMenuButtonStyleBox(texturePath ?? "res://Assets/UI/menu_button_pressed.webp", texturePath, new Color(0.85f, 0.82f, 0.75f));
 
 		button.AddThemeStyleboxOverride("normal", normalStyle);
 		button.AddThemeStyleboxOverride("hover", hoverStyle);
@@ -520,7 +520,7 @@ public partial class MainMenu : Control
 		button.AddThemeConstantOverride("shadow_offset_y", 2);
 
 		var playNormalStyle = new StyleBoxTexture();
-		playNormalStyle.Texture = LoadTrimmedTexture("res://Assets/UI/menu_play_button.png");
+		playNormalStyle.Texture = LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
 		playNormalStyle.TextureMarginLeft = 0;
 		playNormalStyle.TextureMarginRight = 0;
 		playNormalStyle.TextureMarginTop = 0;
@@ -531,7 +531,7 @@ public partial class MainMenu : Control
 		playNormalStyle.ContentMarginBottom = 6;
 
 		var playHoverStyle = new StyleBoxTexture();
-		playHoverStyle.Texture = LoadTrimmedTexture("res://Assets/UI/menu_play_button.png");
+		playHoverStyle.Texture = LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
 		playHoverStyle.ModulateColor = new Color(1.12f, 1.10f, 0.96f);
 		playHoverStyle.TextureMarginLeft = 0;
 		playHoverStyle.TextureMarginRight = 0;
@@ -543,7 +543,7 @@ public partial class MainMenu : Control
 		playHoverStyle.ContentMarginBottom = 6;
 
 		var playPressedStyle = new StyleBoxTexture();
-		playPressedStyle.Texture = LoadTrimmedTexture("res://Assets/UI/menu_play_button.png");
+		playPressedStyle.Texture = LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
 		playPressedStyle.ModulateColor = new Color(0.85f, 0.82f, 0.75f);
 		playPressedStyle.TextureMarginLeft = 0;
 		playPressedStyle.TextureMarginRight = 0;
@@ -597,10 +597,10 @@ public partial class MainMenu : Control
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		// Load custom textures
-		var frameNormal = LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.png");
-		var nameplateNormal = LoadTrimmedTexture("res://Assets/UI/profile_nameplate_normal.png");
-		var badgeNormal = LoadTrimmedTexture("res://Assets/UI/profile_badge_normal.png");
-		var backdropNormal = LoadTrimmedTexture("res://Assets/UI/profile_backdrop_normal.png");
+		var frameNormal = LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
+		var nameplateNormal = LoadTrimmedTexture("res://Assets/UI/profile_nameplate_normal.webp");
+		var badgeNormal = LoadTrimmedTexture("res://Assets/UI/profile_badge_normal.webp");
+		var backdropNormal = LoadTrimmedTexture("res://Assets/UI/profile_backdrop_normal.webp");
 
 		// Fetch nodes
 		var backdrop = button.GetNode<TextureRect>("Backdrop");
@@ -920,7 +920,7 @@ public partial class MainMenu : Control
 		popup.GrowVertical = GrowDirection.Both;
 
 		Texture2D profileBgTexture = null;
-		string profileBgPath = "res://Assets/UI/player_profile_bg.png";
+		string profileBgPath = "res://Assets/UI/player_profile_bg.webp";
 		if (ResourceLoader.Exists(profileBgPath))
 		{
 			profileBgTexture = GD.Load<Texture2D>(profileBgPath);
@@ -944,7 +944,7 @@ public partial class MainMenu : Control
 	private Panel CreateProfileCardPanel()
 	{
 		Texture2D cardTexture = null;
-		string targetPath = ProjectSettings.GlobalizePath("res://Assets/UI/player_profile_card_bg.png");
+		string targetPath = ProjectSettings.GlobalizePath("res://Assets/UI/player_profile_card_bg.webp");
 		if (File.Exists(targetPath))
 		{
 			var img = Image.LoadFromFile(targetPath);
@@ -1042,15 +1042,15 @@ public partial class MainMenu : Control
 	{
 		var factionFlag = new TextureRect();
 		factionFlag.Name = "FactionFlag_TextureRect";
-		Texture2D flagTexture = LoadTrimmedTexture("res://Assets/UI/alliance_flag.png");
-		if (flagTexture == null && ResourceLoader.Exists("res://Assets/UI/alliance_flag.png"))
+		Texture2D flagTexture = LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
+		if (flagTexture == null && ResourceLoader.Exists("res://Assets/UI/alliance_flag.webp"))
 		{
-			flagTexture = GD.Load<Texture2D>("res://Assets/UI/alliance_flag.png");
+			flagTexture = GD.Load<Texture2D>("res://Assets/UI/alliance_flag.webp");
 		}
 
 		if (flagTexture == null)
 		{
-			flagTexture = GD.Load<Texture2D>("res://Assets/UI/profile_frame_normal.png");
+			flagTexture = GD.Load<Texture2D>("res://Assets/UI/profile_frame_normal.webp");
 		}
 
 		factionFlag.Texture = flagTexture;
@@ -1133,7 +1133,7 @@ public partial class MainMenu : Control
 		backBtn.MouseEntered += () => PlayHoverSound();
 
 		Texture2D profileBtnTex = null;
-		string profileBtnPath = "res://Assets/UI/player_profile_button.png";
+		string profileBtnPath = "res://Assets/UI/player_profile_button.webp";
 		if (ResourceLoader.Exists(profileBtnPath))
 		{
 			profileBtnTex = GD.Load<Texture2D>(profileBtnPath);

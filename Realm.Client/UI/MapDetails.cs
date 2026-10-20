@@ -364,7 +364,7 @@ public partial class MapDetails : Control
 	private void ApplyBackgroundStyles()
 	{
 		Texture2D bgTexture = null;
-		string[] bgPaths = { "res://Assets/UI/map_details_bg.png", "res://Assets/UI/map_details_bg.jpg", "res://Assets/UI/map_discovery_background.png" };
+		string[] bgPaths = { "res://Assets/UI/map_details_bg.webp", "res://Assets/UI/map_details_bg.jpg", "res://Assets/UI/map_discovery_background.webp" };
 
 		foreach (var path in bgPaths)
 		{
@@ -392,10 +392,10 @@ public partial class MapDetails : Control
 
 	private void ApplyPanelStyles()
 	{
-		ApplyStyleBox(_headerPanel, "res://Assets/UI/map_details_header.png", 0, 0, 0, 0);
-		ApplyStyleBox(_descriptionPanel, "res://Assets/UI/map_details_panel_description.png", 52, 52, 38, 42);
-		ApplyStyleBox(_featuresPanel, "res://Assets/UI/map_details_panel_features.png", 40, 40, 38, 35);
-		ApplyStyleBox(_statsPanel, "res://Assets/UI/map_details_info_panel.png", 45, 50, 48, 38);
+		ApplyStyleBox(_headerPanel, "res://Assets/UI/map_details_header.webp", 0, 0, 0, 0);
+		ApplyStyleBox(_descriptionPanel, "res://Assets/UI/map_details_panel_description.webp", 52, 52, 38, 42);
+		ApplyStyleBox(_featuresPanel, "res://Assets/UI/map_details_panel_features.webp", 40, 40, 38, 35);
+		ApplyStyleBox(_statsPanel, "res://Assets/UI/map_details_info_panel.webp", 45, 50, 48, 38);
 	}
 
 	private void ApplyStyleBox(Control panel, string path, int left, int right, int top, int bottom)
@@ -421,19 +421,19 @@ public partial class MapDetails : Control
 	{
 		var descVBox = _descriptionPanel.GetNode<VBoxContainer>("VBoxContainer");
 		descVBox.AddThemeConstantOverride("separation", 16);
-		WrapInPanelContainer(descVBox, "res://Assets/UI/map_details_panel_description.png");
+		WrapInPanelContainer(descVBox, "res://Assets/UI/map_details_panel_description.webp");
 
 		var featuresVBox = _featuresPanel.GetNode<VBoxContainer>("VBoxContainer");
-		if (ResourceLoader.Exists("res://Assets/UI/map_details_panel_features.png"))
+		if (ResourceLoader.Exists("res://Assets/UI/map_details_panel_features.webp"))
 		{
 			featuresVBox.AddThemeConstantOverride("separation", 16);
 		}
 
-		WrapInPanelContainer(featuresVBox, "res://Assets/UI/map_details_panel_features.png");
+		WrapInPanelContainer(featuresVBox, "res://Assets/UI/map_details_panel_features.webp");
 
 		var statsVBox = _statsPanel.GetNode<VBoxContainer>("VBoxContainer");
 		statsVBox.AddThemeConstantOverride("separation", 18);
-		WrapInPanelContainer(statsVBox, "res://Assets/UI/map_details_info_panel.png");
+		WrapInPanelContainer(statsVBox, "res://Assets/UI/map_details_info_panel.webp");
 	}
 
 	private void WrapInPanelContainer(Control content, string stylePath)
@@ -499,7 +499,7 @@ public partial class MapDetails : Control
 
 	private void ApplyMapFrame()
 	{
-		Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.png") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
+		Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
 
 		if (mapFrameTex == null)
 		{
@@ -551,14 +551,14 @@ public partial class MapDetails : Control
 
 	private void ApplyCarouselButtons()
 	{
-		Texture2D arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.png") ?? LoadTextureSafe("res://Assets/UI/map_details_prev_next.jpg");
+		Texture2D arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.webp") ?? LoadTextureSafe("res://Assets/UI/map_details_prev_next.jpg");
 
 		if (arrowTex != null)
 		{
 			ApplyImageCarouselButton(_btnLeftArrow, arrowTex, true);
 			ApplyImageCarouselButton(_btnRightArrow, arrowTex, false);
 
-			Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.png") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
+			Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
 			if (mapFrameTex != null)
 			{
 				_btnLeftArrow.Position = new Vector2(132, 155);
@@ -775,7 +775,7 @@ public partial class MapDetails : Control
 
 	private bool CheckForMapFrame()
 	{
-		return LoadTextureSafe("res://Assets/UI/map_details_map.png") != null || LoadTextureSafe("res://Assets/UI/map_details_map.jpg") != null;
+		return LoadTextureSafe("res://Assets/UI/map_details_map.webp") != null || LoadTextureSafe("res://Assets/UI/map_details_map.jpg") != null;
 	}
 
 	private void UpdatePeekVisibilities(bool isVisible)
@@ -965,7 +965,7 @@ public partial class MapDetails : Control
 			rect.CustomMinimumSize = new Vector2(36, 36);
 			rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			rect.Texture = LoadTextureSafe(awardPath) ?? LoadTextureSafe("res://Assets/UI/gold_coin.png");
+			rect.Texture = LoadTextureSafe(awardPath) ?? LoadTextureSafe("res://Assets/UI/gold_coin.webp");
 
 			badgePanel.AddChild(rect);
 			AttachHoverAnimation(badgePanel, 1.10f, UIStyle.ColorGold, UIStyle.ColorGoldDull);
@@ -980,9 +980,9 @@ public partial class MapDetails : Control
 			child.QueueFree();
 		}
 
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/clock.png", $"AVG PLAYTIME: {_mapData.AvgPlaytime}");
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/alliance_flag.png", $"PLAYER COUNT: {_mapData.PlayerCount}");
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/victory_flag.png", $"COMPLETION RATE: {_mapData.CompletionRate}");
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/clock.webp", $"AVG PLAYTIME: {_mapData.AvgPlaytime}");
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/alliance_flag.webp", $"PLAYER COUNT: {_mapData.PlayerCount}");
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/victory_flag.webp", $"COMPLETION RATE: {_mapData.CompletionRate}");
 	}
 
 	private void PopulateTechInfo()
@@ -992,10 +992,10 @@ public partial class MapDetails : Control
 			child.QueueFree();
 		}
 
-		AddStatRow(_techInfoContainer, "res://Assets/UI/wood_logs.png", $"FILE SIZE: {_mapData.FileSize}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/gold_g.png", $"ENGINE VERSION: {_mapData.EngineVersion}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_shield.png", $"MAX PLAYERS: {_mapData.MaxPlayers}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_axe.png", $"GENRE: {_mapData.Genre}");
+		AddStatRow(_techInfoContainer, "res://Assets/UI/wood_logs.webp", $"FILE SIZE: {_mapData.FileSize}");
+		AddStatRow(_techInfoContainer, "res://Assets/UI/gold_g.webp", $"ENGINE VERSION: {_mapData.EngineVersion}");
+		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_shield.webp", $"MAX PLAYERS: {_mapData.MaxPlayers}");
+		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_axe.webp", $"GENRE: {_mapData.Genre}");
 	}
 
 	private void AddStatRow(VBoxContainer container, string iconPath, string text)

@@ -172,7 +172,7 @@ public partial class SettingsMenu : Control
 		Texture2D bgTexture = null;
 		string[] bgPaths = new string[]
 		{
-			"res://Assets/UI/options_bg.png",
+			"res://Assets/UI/options_bg.webp",
 			"res://Assets/UI/options_bg.jpg",
 			"res://Assets/UI/menu_background_with_frame.jpg"
 		};

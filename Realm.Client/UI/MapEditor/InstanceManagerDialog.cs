@@ -32,7 +32,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	public InstanceManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Placed Objects"), new Vector2(720, 680))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_placed_objects.png", 55, 60, 135, 135);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_placed_objects.webp", 55, 60, 135, 135);
 		BuildControls();
 		SetFooterCloseOnly();
 	}

@@ -55,7 +55,7 @@ public partial class LobbyCreate : Control
 		_centralPanel = GetNode<PanelContainer>("CentralPanel");
 
 		var cardBg = GetNode<TextureRect>("CentralPanel/CardBg");
-		cardBg.Texture = GD.Load<Texture2D>("res://Assets/UI/custom_match_card.png");
+		cardBg.Texture = GD.Load<Texture2D>("res://Assets/UI/custom_match_card.webp");
 		cardBg.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		cardBg.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		cardBg.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
@@ -185,7 +185,7 @@ public partial class LobbyCreate : Control
 		var frameOverlay = new TextureRect();
 		frameOverlay.Name = "FrameOverlay";
 		frameOverlay.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-		frameOverlay.Texture = GD.Load<Texture2D>("res://Assets/UI/custom_match_map.png");
+		frameOverlay.Texture = GD.Load<Texture2D>("res://Assets/UI/custom_match_map.webp");
 		frameOverlay.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		frameOverlay.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		frameOverlay.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;

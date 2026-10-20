@@ -73,7 +73,7 @@ public static class UIStyle
 
 	public static StyleBox CreateGameStartingPanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/GameStarting_Panel.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/GameStarting_Panel.webp");
 		if (tex == null)
 		{
 			tex = LoadTextureWithFallback("res://Assets/UI/GameStarting_Panel.jpg");
@@ -127,7 +127,7 @@ public static class UIStyle
 
 	public static StyleBox CreateGameOverMainPanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/GameOver_main_panel.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/GameOver_main_panel.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -155,7 +155,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCreatorDiscoveryPanelStyle()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/creator_discovery_panel.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/creator_discovery_panel.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -182,7 +182,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCreatorDiscoveryTabButtonStyle(bool isActive, bool isHover = false, bool isPressed = false)
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/creator_discovery_button_option.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/creator_discovery_button_option.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -219,7 +219,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCreatorDiscoveryMapFrameStyle()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/creator_discovery_map.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/creator_discovery_map.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -246,7 +246,7 @@ public static class UIStyle
 
 	public static StyleBox CreateAgreementPanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_agreement.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_agreement.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -269,7 +269,7 @@ public static class UIStyle
 
 	public static StyleBox CreateAssetsImporterPanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_assets_importer.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_assets_importer.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -292,7 +292,7 @@ public static class UIStyle
 
 	public static StyleBox CreateMapEditorManualPanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_manual.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_manual.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -315,7 +315,7 @@ public static class UIStyle
 
 	public static StyleBox CreateConfirmationPanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_test.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_test.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -338,7 +338,7 @@ public static class UIStyle
 
 	public static StyleBox CreateMapStorageMainPanelStyle()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_storage_main_panel.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_storage_main_panel.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -360,7 +360,7 @@ public static class UIStyle
 
 	public static StyleBox CreateMapStorageFilterPanelStyle()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_storage_filter_panel.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_storage_filter_panel.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -382,7 +382,7 @@ public static class UIStyle
 
 	public static StyleBox CreatePublishPanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_publish.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_publish.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -404,7 +404,7 @@ public static class UIStyle
 
 	public static StyleBox CreateRandomGeneratorPanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_random_generator.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_random_generator.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -426,7 +426,7 @@ public static class UIStyle
 
 	public static StyleBox CreateUsabilitySettingsPanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_usability_settings.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_usability_settings.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -448,7 +448,7 @@ public static class UIStyle
 
 	public static StyleBox CreateRegisterProfilePanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_register_profile.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_register_profile.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -470,7 +470,7 @@ public static class UIStyle
 
 	public static StyleBox CreatePlacedObjectsPanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_placed_objects.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_placed_objects.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -492,7 +492,7 @@ public static class UIStyle
 
 	public static StyleBox CreateAuthorSignaturePanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_author_signature.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_author_signature.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -514,7 +514,7 @@ public static class UIStyle
 
 	public static StyleBox CreatePublishMapInstructionsPanel()
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_publish.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/map_editor_publish.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -758,7 +758,7 @@ public static class UIStyle
 
 	public static StyleBox CreateReplayPanel()
 	{
-		var texture = GD.Load<Texture2D>("res://Assets/UI/replays_panel.png");
+		var texture = GD.Load<Texture2D>("res://Assets/UI/replays_panel.webp");
 		if (texture != null)
 		{
 			var style = new StyleBoxTexture();
@@ -788,7 +788,7 @@ public static class UIStyle
 
 	public static StyleBox CreateMatchViewBottomPanel()
 	{
-		var texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.png");
+		var texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
 		if (texture == null)
 		{
 			texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.jpg");
@@ -814,7 +814,7 @@ public static class UIStyle
 
 	public static StyleBox CreateHotkeyReferencePanelStyle()
 	{
-		var texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.png");
+		var texture = LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.webp");
 		if (texture != null)
 		{
 			var style = new StyleBoxTexture();
@@ -837,7 +837,7 @@ public static class UIStyle
 
 	public static StyleBox CreateLobbyRoomMainPanel()
 	{
-		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_MainPanel.png");
+		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_MainPanel.webp");
 		if (texture != null)
 		{
 			var style = new StyleBoxTexture();
@@ -866,7 +866,7 @@ public static class UIStyle
 
 	public static StyleBox CreateLobbyRoomSecondPanel()
 	{
-		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_SecondPanel.png");
+		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_SecondPanel.webp");
 		if (texture != null)
 		{
 			var style = new StyleBoxTexture();
@@ -892,7 +892,7 @@ public static class UIStyle
 
 	public static StyleBox CreateLobbyRoomChatPanel()
 	{
-		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_ChatPanel.png");
+		var texture = LoadTextureWithFallback("res://Assets/UI/LobbyRoom_ChatPanel.webp");
 		if (texture != null)
 		{
 			var style = new StyleBoxTexture();
@@ -936,7 +936,7 @@ public static class UIStyle
 	public static StyleBox CreateHUDPillarPanel(bool isLeft)
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/hud_stone_pillar.png");
+		style.Texture = GD.Load<Texture2D>("res://Assets/UI/hud_stone_pillar.webp");
 		style.TextureMarginLeft = 40;
 		style.TextureMarginRight = 40;
 		style.TextureMarginTop = 150;
@@ -948,7 +948,7 @@ public static class UIStyle
 	public static StyleBox CreateButtonNormal()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/options_menu_button.png");
+		style.Texture = GD.Load<Texture2D>("res://Assets/UI/options_menu_button.webp");
 		style.TextureMarginLeft = 0;
 		style.TextureMarginRight = 0;
 		style.TextureMarginTop = 0;
@@ -966,7 +966,7 @@ public static class UIStyle
 	public static StyleBox CreateButtonHover()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/options_menu_button.png");
+		style.Texture = GD.Load<Texture2D>("res://Assets/UI/options_menu_button.webp");
 		style.TextureMarginLeft = 0;
 		style.TextureMarginRight = 0;
 		style.TextureMarginTop = 0;
@@ -984,7 +984,7 @@ public static class UIStyle
 	public static StyleBox CreateButtonPressed()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/options_menu_button.png");
+		style.Texture = GD.Load<Texture2D>("res://Assets/UI/options_menu_button.webp");
 		style.TextureMarginLeft = 0;
 		style.TextureMarginRight = 0;
 		style.TextureMarginTop = 0;
@@ -1052,7 +1052,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCustomLobbyStartGameButton(bool isHover = false, bool isPressed = false)
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_lobby_start_game.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_lobby_start_game.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -1087,7 +1087,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCustomLobbyBackButton(bool isHover = false, bool isPressed = false)
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_lobby_back_button.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_lobby_back_button.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -1122,7 +1122,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCustomLobbyRechargeButton(bool isHover = false, bool isPressed = false)
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_lobby_recharge_button.png");
+		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_lobby_recharge_button.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -1171,7 +1171,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCustomLobbySearchInput(bool hasFocus = false)
 	{
-		var tex = LoadTextureWithFallback("res://Assets/UI/custom_lobby_search.png");
+		var tex = LoadTextureWithFallback("res://Assets/UI/custom_lobby_search.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -1390,14 +1390,14 @@ public static class UIStyle
 	public static StyleBox CreateEntranceBgTexture()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/menu_entrance_background.png");
+		style.Texture = GD.Load<Texture2D>("res://Assets/UI/menu_entrance_background.webp");
 		return style;
 	}
 
 	public static StyleBox CreateLightStonePanel()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/stone_panel_background.png");
+		style.Texture = GD.Load<Texture2D>("res://Assets/UI/stone_panel_background.webp");
 		style.TextureMarginLeft = 60;
 		style.TextureMarginRight = 60;
 		style.TextureMarginTop = 60;
@@ -1452,7 +1452,7 @@ public static class UIStyle
 	public static StyleBox CreateLightTitleBadge()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/title_banner.png");
+		style.Texture = GD.Load<Texture2D>("res://Assets/UI/title_banner.webp");
 		style.TextureMarginLeft = 140;
 		style.TextureMarginRight = 140;
 		style.TextureMarginTop = 20;

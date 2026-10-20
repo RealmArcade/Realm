@@ -173,7 +173,7 @@ public partial class MapDiscovery : Control
 		Texture2D bgTexture = null;
 		string[] bgPaths = new string[]
 		{
-			"res://Assets/UI/procedural_bg.png",
+			"res://Assets/UI/procedural_bg.webp",
 			"res://Assets/UI/map_discovery_bg_rpg_grey2.jpg",
 			"res://Assets/UI/map_discovery_bg_fortress2.jpg"
 		};
@@ -206,7 +206,7 @@ public partial class MapDiscovery : Control
 	private void ApplyPanelStyles()
 	{
 		var filterPanelStyle = new StyleBoxTexture();
-		filterPanelStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_filter_panel.png");
+		filterPanelStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_filter_panel.webp");
 		filterPanelStyle.TextureMarginLeft = 0;
 		filterPanelStyle.TextureMarginRight = 0;
 		filterPanelStyle.TextureMarginTop = 0;
@@ -219,7 +219,7 @@ public partial class MapDiscovery : Control
 		_filterPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		var lobbyPanelStyle = new StyleBoxTexture();
-		lobbyPanelStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_main_panel.png");
+		lobbyPanelStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_main_panel.webp");
 		lobbyPanelStyle.TextureMarginLeft = 0;
 		lobbyPanelStyle.TextureMarginRight = 0;
 		lobbyPanelStyle.TextureMarginTop = 0;
@@ -289,7 +289,7 @@ public partial class MapDiscovery : Control
 	private void ApplySearchBarStyle()
 	{
 		var searchStyle = new StyleBoxTexture();
-		searchStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_search_bar.png");
+		searchStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_search_bar.webp");
 		searchStyle.TextureMarginLeft = 0;
 		searchStyle.TextureMarginRight = 0;
 		searchStyle.TextureMarginTop = 0;
@@ -370,7 +370,7 @@ public partial class MapDiscovery : Control
 			button.AddThemeColorOverride("font_outline_color", new Color(0.22f, 0.16f, 0.04f));
 
 			var activeStyle = new StyleBoxTexture();
-			activeStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_btn_normal.png");
+			activeStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_btn_normal.webp");
 			activeStyle.TextureMarginLeft = 0;
 			activeStyle.TextureMarginRight = 0;
 			activeStyle.TextureMarginTop = 0;
@@ -401,7 +401,7 @@ public partial class MapDiscovery : Control
 			button.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.06f, 0.08f));
 
 			var normalStyle = new StyleBoxTexture();
-			normalStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_btn_normal.png");
+			normalStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_btn_normal.webp");
 			normalStyle.TextureMarginLeft = 0;
 			normalStyle.TextureMarginRight = 0;
 			normalStyle.TextureMarginTop = 0;
@@ -495,7 +495,7 @@ public partial class MapDiscovery : Control
 		card.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		var cardStyle = new StyleBoxTexture();
-		cardStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_card_bg.png");
+		cardStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_card_bg.webp");
 		cardStyle.TextureMarginLeft = 0;
 		cardStyle.TextureMarginRight = 0;
 		cardStyle.TextureMarginTop = 0;
@@ -537,7 +537,7 @@ public partial class MapDiscovery : Control
 		frameOverlay.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		frameOverlay.StretchMode = TextureRect.StretchModeEnum.Scale;
 		frameOverlay.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		frameOverlay.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_card_img.png");
+		frameOverlay.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_card_img.webp");
 		imgContainer.AddChild(frameOverlay);
 
 		hBox.AddChild(imgContainer);

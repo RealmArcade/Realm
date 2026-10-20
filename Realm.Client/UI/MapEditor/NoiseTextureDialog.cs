@@ -143,7 +143,7 @@ public partial class NoiseTextureDialog : FloatingDialogBase
 		btnRandomizeAll.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		btnRandomizeAll.AddThemeFontSizeOverride("font_size", 11);
 		{
-			var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
+			var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.webp");
 			if (mapEdBtnTex != null)
 			{
 				var normalSb = new StyleBoxTexture { Texture = mapEdBtnTex, ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };

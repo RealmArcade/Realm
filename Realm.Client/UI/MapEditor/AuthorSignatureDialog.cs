@@ -20,7 +20,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 	public AuthorSignatureDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Author Signature"), new Vector2(540, 360))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_author_signature.png", 42, 25, 55, 55);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_author_signature.webp", 42, 25, 55, 55);
 		if (TitleLabel?.GetParent() is MarginContainer titleMargin)
 		{
 			titleMargin.AddThemeConstantOverride("margin_top", -42);

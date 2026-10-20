@@ -104,7 +104,7 @@ public partial class ReplayListPanel : Control
 		var panelTexture = GetNodeOrNull<TextureRect>("CenterContainer/MainFrame/PanelTexture");
 		if (panelTexture != null)
 		{
-			panelTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/replays_panel.png");
+			panelTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/replays_panel.webp");
 			panelTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			panelTexture.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 			panelTexture.TextureFilter = TextureFilterEnum.LinearWithMipmaps;

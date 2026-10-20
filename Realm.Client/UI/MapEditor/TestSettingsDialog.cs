@@ -17,7 +17,7 @@ public partial class TestSettingsDialog : FloatingDialogBase
 	public TestSettingsDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Test Settings"), new Vector2(340, 260))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_usability_settings.png", 55, 15, 60, 60);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_usability_settings.webp", 55, 15, 60, 60);
 		if (TitleLabel?.GetParent() is MarginContainer titleMargin)
 		{
 			titleMargin.AddThemeConstantOverride("margin_top", -42);

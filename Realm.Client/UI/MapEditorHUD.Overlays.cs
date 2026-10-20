@@ -394,7 +394,7 @@ namespace Realm.Client.UI
 
 		private StyleBox CreateTopBarStylebox()
 		{
-			var posTexture = GD.Load<Texture2D>("res://Assets/UI/map_editor_pos.png");
+			var posTexture = GD.Load<Texture2D>("res://Assets/UI/map_editor_pos.webp");
 			if (posTexture != null)
 			{
 				var posStyle = new StyleBoxTexture();
@@ -1185,7 +1185,7 @@ namespace Realm.Client.UI
 
 			var bgTex = new TextureRect();
 			bgTex.Name = "BgTex_TextureRect";
-			bgTex.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_test.png");
+			bgTex.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_test.webp");
 			bgTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTex.StretchMode = TextureRect.StretchModeEnum.Scale;
 			bgTex.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -1321,7 +1321,7 @@ namespace Realm.Client.UI
 
 			var bgTex = new TextureRect();
 			bgTex.Name = "BgTex_TextureRect";
-			bgTex.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_manual.png");
+			bgTex.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_manual.webp");
 			bgTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTex.StretchMode = TextureRect.StretchModeEnum.Scale;
 			bgTex.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -2079,7 +2079,7 @@ namespace Realm.Client.UI
 		private void StyleMapEditorTopButton(Button btn)
 		{
 			if (btn == null) return;
-			var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
+			var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.webp");
 			if (tex != null)
 			{
 				var normalStyle = new StyleBoxTexture();
@@ -2128,7 +2128,7 @@ namespace Realm.Client.UI
 		private void StyleCompactMapEditorTopButton(Button btn, int horizontalMargin = 4)
 		{
 			if (btn == null) return;
-			var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
+			var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.webp");
 			if (tex != null)
 			{
 				var normalStyle = new StyleBoxTexture();
@@ -2913,7 +2913,7 @@ namespace Realm.Client.UI
 
 			var bgTexRect = new TextureRect();
 			bgTexRect.Name = "BgTexRect_TextureRect";
-			bgTexRect.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_agreement.png");
+			bgTexRect.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_agreement.webp");
 			bgTexRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTexRect.StretchMode = TextureRect.StretchModeEnum.Scale;
 			bgTexRect.SetAnchorsPreset(LayoutPreset.FullRect);

@@ -221,7 +221,7 @@ public partial class GameOver : Control
 	private void SetupCloseButton()
 	{
 		_btnClose.Flat = false;
-		_btnClose.Icon = GD.Load<Texture2D>("res://Assets/UI/cancel_button_2.png");
+		_btnClose.Icon = GD.Load<Texture2D>("res://Assets/UI/cancel_button_2.webp");
 		_btnClose.ExpandIcon = true;
 
 		string closeText = GameContext.SessionState.IsTestMode ? "Back to Editor" : "Close";

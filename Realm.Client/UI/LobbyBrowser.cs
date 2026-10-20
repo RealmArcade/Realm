@@ -163,10 +163,10 @@ public partial class LobbyBrowser : Control
 	private void ApplyBackgroundStyle()
 	{
 		Texture2D bgTexture = LoadFirstAvailableTexture(
-			"res://Assets/UI/custom_lobby_bg.png",
+			"res://Assets/UI/custom_lobby_bg.webp",
 			"res://Assets/UI/custom_lobby_bg.jpg",
-			"res://Assets/UI/procedural_bg.png",
-			"res://Assets/UI/lobby_bg_forest.png"
+			"res://Assets/UI/procedural_bg.webp",
+			"res://Assets/UI/lobby_bg_forest.webp"
 		);
 
 		if (bgTexture != null)
@@ -184,10 +184,10 @@ public partial class LobbyBrowser : Control
 	private void ApplyFilterPanelStyle()
 	{
 		Texture2D filterPanelTex = LoadFirstAvailableTexture(
-			"res://Assets/UI/custom_lobby_panel_filter.png",
+			"res://Assets/UI/custom_lobby_panel_filter.webp",
 			"res://Assets/UI/custom_panel_filter.png",
-			"res://Assets/UI/procedural_filter_panel.png",
-			"res://Assets/UI/lobby_filter_panel.png"
+			"res://Assets/UI/procedural_filter_panel.webp",
+			"res://Assets/UI/lobby_filter_panel.webp"
 		);
 
 		if (filterPanelTex != null)
@@ -216,9 +216,9 @@ public partial class LobbyBrowser : Control
 	private void ApplyMainPanelStyle()
 	{
 		Texture2D mainPanelTex = LoadFirstAvailableTexture(
-			"res://Assets/UI/custom_lobby_panel_main.png",
-			"res://Assets/UI/procedural_main_panel.png",
-			"res://Assets/UI/lobby_central_panel.png"
+			"res://Assets/UI/custom_lobby_panel_main.webp",
+			"res://Assets/UI/procedural_main_panel.webp",
+			"res://Assets/UI/lobby_central_panel.webp"
 		);
 
 		if (mainPanelTex != null)

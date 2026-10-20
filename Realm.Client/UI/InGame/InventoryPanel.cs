@@ -245,7 +245,7 @@ public class InventoryPanel
 	{
 		string name = itemId.ToUpper();
 		string desc = "Item";
-		string iconPath = "res://Assets/UI/alliance_flag.png";
+		string iconPath = "res://Assets/UI/alliance_flag.webp";
 
 		if (GameHost.ItemRegistry.TryGetValue(itemId, out var itemMeta))
 		{

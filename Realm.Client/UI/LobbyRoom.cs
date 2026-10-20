@@ -196,7 +196,7 @@ public partial class LobbyRoom : Control
 
 		var mapImage = new TextureRect();
 		mapImage.Name = "MapImage_TextureRect";
-		mapImage.Texture = GD.Load<Texture2D>("res://Assets/UI/snowy_forest_path.png");
+		mapImage.Texture = GD.Load<Texture2D>("res://Assets/UI/snowy_forest_path.webp");
 		mapImage.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		mapImage.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
 		_mapFrame.AddChild(mapImage);

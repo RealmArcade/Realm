@@ -32,7 +32,7 @@ public partial class EditorSettingsDialog : FloatingDialogBase
 	public EditorSettingsDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Map Editor Usability Settings"), new Vector2(510, 500))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_usability_settings.png", 55, 15, 60, 60);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_usability_settings.webp", 55, 15, 60, 60);
 		if (TitleLabel?.GetParent() is MarginContainer titleMargin)
 		{
 			titleMargin.AddThemeConstantOverride("margin_top", -42);

@@ -237,15 +237,7 @@ public class PortraitPanel
 
 	private string GetPropIconPath(string propId)
 	{
-		string iconPath = propId switch
-		{
-			"goldmine" => "res://Assets/UI/goldmine_icon.png",
-			"tree" => "res://Assets/UI/tree_icon.png",
-			"rock" => "res://Assets/UI/rock_icon.png",
-			_ => "res://Assets/UI/unit_placeholder.png"
-		};
-		if (!ResourceLoader.Exists(iconPath)) iconPath = "res://Assets/UI/unit_placeholder.png";
-		return iconPath;
+		return "res://Assets/UI/unit_placeholder.webp";
 	}
 
 	private float GetPropRemainingAmount(Prop3D selectedProp)
@@ -272,7 +264,7 @@ public class PortraitPanel
 			_unitNameLabel.Text = TranslationServer.Translate("No Selection");
 			if (_portraitTexture != null)
 			{
-				_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.png");
+				_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 			}
 		}
 	}
@@ -442,7 +434,7 @@ public class PortraitPanel
 			_lastSelectionType = SelectionType.Multi;
 			if (_portraitTexture != null)
 			{
-				_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.png");
+				_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 			}
 		}
 
@@ -603,7 +595,7 @@ public class PortraitPanel
 
 	private string GetUnitIcon(string unitId)
 	{
-		return "res://Assets/UI/unit_placeholder.png";
+		return "res://Assets/UI/unit_placeholder.webp";
 	}
 
 	private void PopulateQueueSlots(Entity producerEntity, List<string> unitIds)

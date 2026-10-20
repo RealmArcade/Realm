@@ -21,14 +21,14 @@ public class UxSceneTests
 				Title = "CASTLE TD",
 				Version = "1.0.0",
 				Creator = "Realm Builder",
-				ThumbnailPath = "res://Assets/UI/moonlit_castle.png",
+				ThumbnailPath = "res://Assets/UI/moonlit_castle.webp",
 				Description = "Defend the last fortress against waves of ancient evil! Includes the sintepres sucitoure unit. Features deep mountain passes, branching paths, unique hero units, and custom tower designs. Can you withstand the boss waves?",
 				Screenshots = new string[]
 				{
-					"res://Assets/UI/moonlit_castle.png",
-					"res://Assets/UI/moonlit_forest.png",
-					"res://Assets/UI/forest_path.png",
-					"res://Assets/UI/snowy_forest_path.png"
+					"res://Assets/UI/moonlit_castle.webp",
+					"res://Assets/UI/moonlit_forest.webp",
+					"res://Assets/UI/forest_path.webp",
+					"res://Assets/UI/snowy_forest_path.webp"
 				},
 				Features = new string[]
 				{
@@ -51,10 +51,10 @@ public class UxSceneTests
 				Genre = "Campaign / TD",
 				Awards = new string[]
 				{
-					"res://Assets/UI/gold_coin.png",
-					"res://Assets/UI/victory_flag.png",
-					"res://Assets/UI/battle_shield.png",
-					"res://Assets/UI/battle_axe.png"
+					"res://Assets/UI/gold_coin.webp",
+					"res://Assets/UI/victory_flag.webp",
+					"res://Assets/UI/battle_shield.webp",
+					"res://Assets/UI/battle_axe.webp"
 				}
 			}
 		};

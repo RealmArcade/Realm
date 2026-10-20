@@ -554,7 +554,7 @@ public partial class CommandPanel
 		btn.Flat = false;
 		btn.Text = "";
 		btn.ExpandIcon = true;
-		btn.Icon = GD.Load<Texture2D>("res://Assets/UI/command_card_next_arrow.png");
+		btn.Icon = GD.Load<Texture2D>("res://Assets/UI/command_card_next_arrow.webp");
 		btn.TooltipText = TranslationServer.Translate("Cycle Abilities / Commands");
 		btn.CustomMinimumSize = new Vector2(56, 56);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -599,7 +599,7 @@ public partial class CommandPanel
 		if (tex == null)
 		{
 			GD.PushWarning($"[CommandPanel] Failed to load ability icon at '{iconPath}', using fallback.");
-			tex = RtexIconLoader.Load("res://Assets/UI/alliance_flag.png");
+			tex = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 		}
 
 		return tex;
@@ -764,7 +764,7 @@ public partial class CommandPanel
 		return new CommandCardItem
 		{
 			Id = "stop",
-			IconPath = "res://Assets/UI/cancel_button_2.png",
+			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[S] Cancel Construction",
 			Hotkey = Key.S,
 			Callback = () => { }
@@ -789,7 +789,7 @@ public partial class CommandPanel
 				items.Add(new CommandCardItem
 				{
 					Id = "build",
-					IconPath = "res://Assets/UI/golden_hammers.png",
+					IconPath = "res://Assets/UI/golden_hammers.webp",
 					Tooltip = "[B] Build Structure",
 					Hotkey = Key.B,
 					Callback = () => InGameHUD.Instance?.EnterBuildSubMenu()
@@ -823,7 +823,7 @@ public partial class CommandPanel
 		items.Add(new CommandCardItem
 		{
 			Id = "cancel_build",
-			IconPath = "res://Assets/UI/cancel_button_2.png",
+			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[Esc] Cancel",
 			Hotkey = Key.Escape,
 			Callback = () => InGameHUD.Instance?.ExitBuildSubMenu()
@@ -859,7 +859,7 @@ public partial class CommandPanel
 		items.Add(new CommandCardItem
 		{
 			Id = "move",
-			IconPath = "res://Assets/UI/move_speed.png",
+			IconPath = "res://Assets/UI/move_speed.webp",
 			Tooltip = "[M] Move / Right-Click Ground",
 			Hotkey = Key.M,
 			Callback = () => GameHost.Instance?.EnterCommandTargeting("move")
@@ -871,7 +871,7 @@ public partial class CommandPanel
 		items.Add(new CommandCardItem
 		{
 			Id = "attack",
-			IconPath = "res://Assets/UI/battle_axe.png",
+			IconPath = "res://Assets/UI/battle_axe.webp",
 			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
 			Hotkey = Key.A,
 			Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
@@ -891,7 +891,7 @@ public partial class CommandPanel
 			items.Add(new CommandCardItem
 			{
 				Id = "build",
-				IconPath = "res://Assets/UI/golden_hammers.png",
+				IconPath = "res://Assets/UI/golden_hammers.webp",
 				Tooltip = "[B] Build Structure",
 				Hotkey = Key.B,
 				Callback = () => InGameHUD.Instance?.EnterBuildSubMenu()
@@ -909,7 +909,7 @@ public partial class CommandPanel
 		items.Add(new CommandCardItem
 		{
 			Id = "attack",
-			IconPath = "res://Assets/UI/battle_axe.png",
+			IconPath = "res://Assets/UI/battle_axe.webp",
 			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
 			Hotkey = Key.A,
 			Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
@@ -923,7 +923,7 @@ public partial class CommandPanel
 		return new CommandCardItem
 		{
 			Id = "stop",
-			IconPath = "res://Assets/UI/cancel_button_2.png",
+			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[S] Stop Selected Units",
 			Hotkey = Key.S,
 			Callback = () =>
@@ -939,7 +939,7 @@ public partial class CommandPanel
 		return new CommandCardItem
 		{
 			Id = "hold",
-			IconPath = "res://Assets/UI/magic_upgrade_arrow.png",
+			IconPath = "res://Assets/UI/magic_upgrade_arrow.webp",
 			Tooltip = "[H] Hold Position — Unit stays put and attacks in place",
 			Hotkey = Key.H,
 			Callback = () =>
@@ -962,7 +962,7 @@ public partial class CommandPanel
 			items.Add(new CommandCardItem
 			{
 				Id = "set_rally",
-				IconPath = "res://Assets/UI/alliance_flag.png",
+				IconPath = "res://Assets/UI/alliance_flag.webp",
 				Tooltip = "[Y] Set Rally Point — Set location where new units will walk",
 				Hotkey = Key.Y,
 				Callback = () => GameHost.Instance?.EnterCommandTargeting("rally")
@@ -1005,7 +1005,7 @@ public partial class CommandPanel
 			string itemName = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Name) ? itemMeta.Name : itemId;
 			string itemDesc = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Description) ? itemMeta.Description : $"Buy {itemName} for a nearby combat unit";
 			float costGold = itemMeta?.CostGold ?? 0f;
-			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.png";
+			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.webp";
 
 			string costStr = costGold > 0f ? $" (Cost: {costGold:F0} Gold)" : "";
 			string tooltip = $"Buy {itemName}{costStr} — {itemDesc}";
@@ -1060,7 +1060,7 @@ public partial class CommandPanel
 			float wood = upgMeta?.CostWood ?? 0f;
 			float stone = upgMeta?.CostStone ?? 0f;
 			int maxLevel = upgMeta != null && upgMeta.MaxLevel > 0 ? upgMeta.MaxLevel : 1;
-			string iconPath = upgMeta != null && !string.IsNullOrEmpty(upgMeta.IconPath) ? upgMeta.IconPath : "res://Assets/UI/magic_upgrade_arrow.png";
+			string iconPath = upgMeta != null && !string.IsNullOrEmpty(upgMeta.IconPath) ? upgMeta.IconPath : "res://Assets/UI/magic_upgrade_arrow.webp";
 
 			var costParts = new List<string>();
 			if (gold > 0f) costParts.Add($"{gold:F0} Gold");
@@ -1216,7 +1216,7 @@ public partial class CommandPanel
 
 	private string GetDefaultAbilityIcon(string abilityId)
 	{
-		return "res://Assets/UI/alliance_flag.png";
+		return "res://Assets/UI/alliance_flag.webp";
 	}
 
 	private string GetDefaultAbilityTooltip(string abilityId)
@@ -1357,7 +1357,7 @@ public partial class CommandPanel
 
 	private string GetUnitIcon(string unitId)
 	{
-		return "res://Assets/UI/unit_placeholder.png";
+		return "res://Assets/UI/unit_placeholder.webp";
 	}
 
 	private void SetupHUDButton(Button btn, string iconPath, string tooltip, Action onClick)

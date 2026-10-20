@@ -695,7 +695,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		btn.CustomMinimumSize = new Vector2(0, 28);
 		btn.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		btn.AddThemeFontSizeOverride("font_size", 11);
-		var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
+		var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.webp");
 		if (mapEdBtnTex != null)
 		{
 			var normalSb = new StyleBoxTexture { Texture = mapEdBtnTex, ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };

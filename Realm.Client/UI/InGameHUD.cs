@@ -425,7 +425,7 @@ public partial class InGameHUD : Control
 		if (_btnSettings != null)
 		{
 			_btnSettings.ExpandIcon = true;
-			_btnSettings.Icon = UIStyle.LoadCrispIcon("res://Assets/UI/gear_icon.png", 128);
+			_btnSettings.Icon = UIStyle.LoadCrispIcon("res://Assets/UI/gear_icon.webp", 128);
 			_btnSettings.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 			_btnSettings.AddThemeConstantOverride("icon_max_width", 22);
 			_btnSettings.TooltipText = TranslationServer.Translate("Settings (Esc)");
@@ -1206,12 +1206,12 @@ public partial class InGameHUD : Control
 
 		var itemAxe = new TextureRect();
 		itemAxe.Name = "ItemAxe_TextureRect";
-		SetupItemIcon(itemAxe, "res://Assets/UI/battle_axe.png", "Battle Axe\n+5 Attack Damage (Equipped)");
+		SetupItemIcon(itemAxe, "res://Assets/UI/battle_axe.webp", "Battle Axe\n+5 Attack Damage (Equipped)");
 		itemsHBox.AddChild(itemAxe);
 
 		var itemShield = new TextureRect();
 		itemShield.Name = "ItemShield_TextureRect";
-		SetupItemIcon(itemShield, "res://Assets/UI/battle_shield.png", "Battle Shield\n+3 Armor Block (Equipped)");
+		SetupItemIcon(itemShield, "res://Assets/UI/battle_shield.webp", "Battle Shield\n+3 Armor Block (Equipped)");
 		itemsHBox.AddChild(itemShield);
 
 		_productionBox = new VBoxContainer();
@@ -1350,7 +1350,7 @@ public partial class InGameHUD : Control
 
 		if (_resourceBackground != null)
 		{
-			var topTexture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelTop.png");
+			var topTexture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelTop.webp");
 			_resourceBackground.Texture = topTexture;
 
 			_hudPanelTopShader ??= GD.Load<Shader>("res://Assets/shaders/hud_panel_top.gdshader");
@@ -1362,7 +1362,7 @@ public partial class InGameHUD : Control
 
 		if (_consoleBackground != null)
 		{
-			var texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.png");
+			var texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
 			if (texture == null)
 			{
 				texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.jpg");
@@ -1394,11 +1394,11 @@ public partial class InGameHUD : Control
 
 		var resourceIcons = new (string nodePath, string assetPath)[]
 		{
-			("ResourceContainer/HBox/GoldBox/GoldIcon", "res://Assets/UI/gold_coin.png"),
-			("ResourceContainer/HBox/WoodBox/WoodIcon", "res://Assets/UI/wood_logs.png"),
-			("ResourceContainer/HBox/StoneBox/StoneIcon", "res://Assets/UI/stone.png"),
-			("ResourceContainer/HBox/SupplyBox/SupplyIcon", "res://Assets/UI/Supplies.png"),
-			("ResourceContainer/HBox/ClockBox/ClockIcon", "res://Assets/UI/clock.png"),
+			("ResourceContainer/HBox/GoldBox/GoldIcon", "res://Assets/UI/gold_coin.webp"),
+			("ResourceContainer/HBox/WoodBox/WoodIcon", "res://Assets/UI/wood_logs.webp"),
+			("ResourceContainer/HBox/StoneBox/StoneIcon", "res://Assets/UI/stone.webp"),
+			("ResourceContainer/HBox/SupplyBox/SupplyIcon", "res://Assets/UI/Supplies.webp"),
+			("ResourceContainer/HBox/ClockBox/ClockIcon", "res://Assets/UI/clock.webp"),
 		};
 
 		foreach (var (nodePath, assetPath) in resourceIcons)
@@ -1660,7 +1660,7 @@ public partial class InGameHUD : Control
 		var pTexture = GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture");
 		if (pTexture != null)
 		{
-			pTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/alliance_flag.png");
+			pTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/alliance_flag.webp");
 			_hudPortraitMaskShader ??= GD.Load<Shader>("res://Assets/shaders/hud_portrait_mask.gdshader");
 			var portraitMaskMaterial = new ShaderMaterial();
 			portraitMaskMaterial.Shader = _hudPortraitMaskShader;
@@ -1865,7 +1865,7 @@ public partial class InGameHUD : Control
 
 		var bgTexture = new TextureRect();
 		bgTexture.Name = "Background";
-		bgTexture.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.png");
+		bgTexture.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.webp");
 		bgTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		bgTexture.StretchMode = TextureRect.StretchModeEnum.Scale;
 		bgTexture.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -2422,18 +2422,18 @@ public partial class InGameHUD : Control
 
 	private void SetupCommandCard()
 	{
-		SetupHUDButton(_btnMove, "res://Assets/UI/move_speed.png", TranslationServer.Translate("[M] Move / Right-Click Ground"), () => GameHost.Instance?.EnterCommandTargeting("move"));
-		SetupHUDButton(_btnStop, "res://Assets/UI/cancel_button_2.png", TranslationServer.Translate("[S] Stop Selected Units"), () =>
+		SetupHUDButton(_btnMove, "res://Assets/UI/move_speed.webp", TranslationServer.Translate("[M] Move / Right-Click Ground"), () => GameHost.Instance?.EnterCommandTargeting("move"));
+		SetupHUDButton(_btnStop, "res://Assets/UI/cancel_button_2.webp", TranslationServer.Translate("[S] Stop Selected Units"), () =>
 		{
 			ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
 			GameHost.Instance?.StopSelectedUnits();
 		});
-		SetupHUDButton(_btnHold, "res://Assets/UI/magic_upgrade_arrow.png", TranslationServer.Translate("[H] Hold Position — Unit stays put and attacks in place"), () =>
+		SetupHUDButton(_btnHold, "res://Assets/UI/magic_upgrade_arrow.webp", TranslationServer.Translate("[H] Hold Position — Unit stays put and attacks in place"), () =>
 		{
 			ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
 			GameHost.Instance?.HoldSelectedUnits();
 		});
-		SetupHUDButton(_btnBuild, "res://Assets/UI/golden_hammers.png", TranslationServer.Translate("[B] Build Structure"), () => EnterBuildSubMenu());
+		SetupHUDButton(_btnBuild, "res://Assets/UI/golden_hammers.webp", TranslationServer.Translate("[B] Build Structure"), () => EnterBuildSubMenu());
 	}
 
 	private void CreateSpectatorPerspectiveUI()

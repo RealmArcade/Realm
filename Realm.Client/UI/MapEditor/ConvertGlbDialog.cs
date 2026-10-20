@@ -47,9 +47,9 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		btnWebAi.ExpandIcon = false;
 		btnWebAi.IconAlignment = HorizontalAlignment.Center;
 		btnWebAi.VerticalIconAlignment = VerticalAlignment.Center;
-		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.png"))
+		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.webp"))
 		{
-			btnWebAi.Icon = GD.Load<Texture2D>("res://Assets/UI/globe_icon.png");
+			btnWebAi.Icon = GD.Load<Texture2D>("res://Assets/UI/globe_icon.webp");
 		}
 		else
 		{

@@ -64,7 +64,7 @@ namespace Realm.Client.UI
 			_highlightStyle.ContentMarginTop = 4;
 			_highlightStyle.ContentMarginBottom = 4;
 
-			var panelTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_panel.png");
+			var panelTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_panel.webp");
 			if (panelTex != null)
 			{
 				var frameRect = new TextureRect();
@@ -281,7 +281,7 @@ namespace Realm.Client.UI
 				_btnGameSettings = GetNodeOrNull<Button>("TopLeftBox/BtnSettings");
 				if (_btnGameSettings != null)
 				{
-					SetupIconButton(_btnGameSettings, "res://Assets/UI/gear_icon.png", () => { UIManager.Instance?.OpenSettingsOverlay(); }, "Game Settings");
+					SetupIconButton(_btnGameSettings, "res://Assets/UI/gear_icon.webp", () => { UIManager.Instance?.OpenSettingsOverlay(); }, "Game Settings");
 					StyleMapEditorTopButton(_btnGameSettings);
 				}
 
@@ -3313,7 +3313,7 @@ namespace Realm.Client.UI
 				btn.AddThemeFontOverride("font", font);
 			}
 
-			var headerTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_options_header.png");
+			var headerTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_options_header.webp");
 			if (headerTex != null)
 			{
 				var headerNormal = new StyleBoxTexture();
