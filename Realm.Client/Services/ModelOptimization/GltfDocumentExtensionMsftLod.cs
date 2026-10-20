@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
+using Realm.Shared.ModelOptimization;
 
 namespace Realm.Client.Services.ModelOptimization;
 
@@ -348,34 +349,51 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		return null;
 	}
 
+	private const string GltfExtrasMetadataKey = "extras";
+	private const string VisibilityRangeBeginExtraKey = "visibility_range_begin";
+	private const string VisibilityRangeEndExtraKey = "visibility_range_end";
+
 	private static void ConfigureExistingLodNodes(List<MeshInstance3D> meshInstances)
 	{
-		var maxLodPerPrefix = new System.Collections.Generic.Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-		foreach (var mi in meshInstances)
+		ApplyLodSettingsToAll(meshInstances, 1.0f);
+	}
+
+	private static void ApplyLodSettingsToAll(List<MeshInstance3D> meshInstances, float scaleMultiplier)
+	{
+		var maxLodLevelPerPrefix = ComputeMaxLodLevelPerPrefix(meshInstances);
+
+		foreach (var meshInstance in meshInstances)
 		{
-			var info = TryParseLodInfo(mi.Name.ToString());
-			if (info.HasValue)
+			var lodInfo = TryParseLodInfo(meshInstance.Name.ToString());
+			if (!lodInfo.HasValue)
 			{
-				string p = info.Value.Prefix;
-				int l = info.Value.Level;
-				if (!maxLodPerPrefix.TryGetValue(p, out int currMax) || l > currMax)
-				{
-					maxLodPerPrefix[p] = l;
-				}
+				continue;
+			}
+
+			int lodLevel = lodInfo.Value.Level;
+			int maxLodLevel = maxLodLevelPerPrefix.TryGetValue(lodInfo.Value.Prefix, out int prefixMaxLodLevel) ? prefixMaxLodLevel : lodLevel;
+			ApplyLodSettings(meshInstance, lodLevel, lodLevel >= maxLodLevel, scaleMultiplier);
+		}
+	}
+
+	private static System.Collections.Generic.Dictionary<string, int> ComputeMaxLodLevelPerPrefix(List<MeshInstance3D> meshInstances)
+	{
+		var maxLodLevelPerPrefix = new System.Collections.Generic.Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+		foreach (var meshInstance in meshInstances)
+		{
+			var lodInfo = TryParseLodInfo(meshInstance.Name.ToString());
+			if (!lodInfo.HasValue)
+			{
+				continue;
+			}
+
+			if (!maxLodLevelPerPrefix.TryGetValue(lodInfo.Value.Prefix, out int currentMaxLevel) || lodInfo.Value.Level > currentMaxLevel)
+			{
+				maxLodLevelPerPrefix[lodInfo.Value.Prefix] = lodInfo.Value.Level;
 			}
 		}
 
-		foreach (var mi in meshInstances)
-		{
-			var info = TryParseLodInfo(mi.Name.ToString());
-			if (info.HasValue)
-			{
-				int level = info.Value.Level;
-				int maxLevel = maxLodPerPrefix.TryGetValue(info.Value.Prefix, out int ml) ? ml : 0;
-				bool isLast = (level >= maxLevel);
-				ApplyLodSettings(mi, level, isLast, 1.0f);
-			}
-		}
+		return maxLodLevelPerPrefix;
 	}
 
 	public static void ApplyLodSettings(MeshInstance3D meshInstance, int lodLevel, bool isLastLod = false, float scaleMultiplier = 1.0f)
@@ -393,38 +411,41 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		meshInstance.VisibilityRangeEndMargin = margin;
 		meshInstance.CastShadow = GeometryInstance3D.ShadowCastingSetting.On;
 
-		if (isLastLod || lodLevel >= 3)
+		var (rangeBeginUnits, rangeEndUnits) = GetLodRangeUnits(meshInstance, lodLevel);
+		meshInstance.VisibilityRangeBegin = rangeBeginUnits * scale;
+		meshInstance.VisibilityRangeEnd = isLastLod ? 0f : rangeEndUnits * scale;
+	}
+
+	private static (float RangeBeginUnits, float RangeEndUnits) GetLodRangeUnits(Node lodNode, int lodLevel)
+	{
+		if (TryGetAuthoredLodRangeUnits(lodNode, out float authoredRangeBegin, out float authoredRangeEnd))
 		{
-			meshInstance.VisibilityRangeBegin = lodLevel switch
-			{
-				0 => 0f,
-				1 => 45f * scale,
-				2 => 90f * scale,
-				_ => 150f * scale
-			};
-			meshInstance.VisibilityRangeEnd = 0f;
-			return;
+			return (authoredRangeBegin, authoredRangeEnd);
 		}
 
-		switch (lodLevel)
+		int clampedLodLevel = Math.Clamp(lodLevel, 0, GlbLodGenerator.DefaultVisibilityBegins.Length - 1);
+		return (GlbLodGenerator.DefaultVisibilityBegins[clampedLodLevel], GlbLodGenerator.DefaultVisibilityEnds[clampedLodLevel]);
+	}
+
+	private static bool TryGetAuthoredLodRangeUnits(Node lodNode, out float rangeBeginUnits, out float rangeEndUnits)
+	{
+		rangeBeginUnits = 0f;
+		rangeEndUnits = 0f;
+
+		if (!lodNode.HasMeta(GltfExtrasMetadataKey))
 		{
-			case 0:
-				meshInstance.VisibilityRangeBegin = 0f;
-				meshInstance.VisibilityRangeEnd = 45f * scale;
-				break;
-			case 1:
-				meshInstance.VisibilityRangeBegin = 45f * scale;
-				meshInstance.VisibilityRangeEnd = 90f * scale;
-				break;
-			case 2:
-				meshInstance.VisibilityRangeBegin = 90f * scale;
-				meshInstance.VisibilityRangeEnd = 150f * scale;
-				break;
-			default:
-				meshInstance.VisibilityRangeBegin = 150f * scale;
-				meshInstance.VisibilityRangeEnd = 0f;
-				break;
+			return false;
 		}
+
+		var extras = lodNode.GetMeta(GltfExtrasMetadataKey).AsGodotDictionary();
+		if (extras == null || !extras.TryGetValue(VisibilityRangeBeginExtraKey, out Variant rangeBeginValue) || !extras.TryGetValue(VisibilityRangeEndExtraKey, out Variant rangeEndValue))
+		{
+			return false;
+		}
+
+		rangeBeginUnits = rangeBeginValue.AsSingle();
+		rangeEndUnits = rangeEndValue.AsSingle();
+		return true;
 	}
 
 	public static void UpdateLodVisibilityRanges(Node rootNode, float scaleMultiplier)
@@ -436,32 +457,6 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 
 		var meshInstances = new List<MeshInstance3D>();
 		CollectMeshInstances(rootNode, meshInstances);
-
-		var maxLodPerPrefix = new System.Collections.Generic.Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-		foreach (var mi in meshInstances)
-		{
-			var info = TryParseLodInfo(mi.Name.ToString());
-			if (info.HasValue)
-			{
-				string p = info.Value.Prefix;
-				int l = info.Value.Level;
-				if (!maxLodPerPrefix.TryGetValue(p, out int currMax) || l > currMax)
-				{
-					maxLodPerPrefix[p] = l;
-				}
-			}
-		}
-
-		foreach (var mi in meshInstances)
-		{
-			var info = TryParseLodInfo(mi.Name.ToString());
-			if (info.HasValue)
-			{
-				int level = info.Value.Level;
-				int maxLevel = maxLodPerPrefix.TryGetValue(info.Value.Prefix, out int ml) ? ml : 0;
-				bool isLast = (level >= maxLevel);
-				ApplyLodSettings(mi, level, isLast, scaleMultiplier);
-			}
-		}
+		ApplyLodSettingsToAll(meshInstances, scaleMultiplier);
 	}
 }

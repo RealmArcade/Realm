@@ -326,38 +326,6 @@ public static class GlbManifestUtils
 		return modified;
 	}
 
-	public static bool ReparentLodChildrenAsSiblings(JsonObject root)
-	{
-		if (!root.TryGetPropertyValue("nodes", out var nodesNode) || nodesNode is not JsonArray nodesArray) return false;
-
-		var parentNodeIndices = BuildParentNodeIndexMap(nodesArray);
-		bool modified = false;
-		int initialNodeCount = nodesArray.Count;
-		for (int n = 0; n < initialNodeCount; n++)
-		{
-			if (nodesArray[n] is not JsonObject masterNode) continue;
-			if (!masterNode.TryGetPropertyValue("children", out var childrenVal) || childrenVal is not JsonArray masterChildren) continue;
-			if (!TryParseLodNodeName(masterNode["name"]?.GetValue<string>(), out string masterPrefix, out int masterLevel) || masterLevel != 0) continue;
-
-			var lodChildIndices = CollectLodChildIndices(masterChildren, nodesArray, masterPrefix);
-			if (lodChildIndices.Count == 0) continue;
-
-			var siblingNodeIndices = ResolveSiblingNodeIndices(root, nodesArray, n, parentNodeIndices);
-			if (siblingNodeIndices == null || ReferenceEquals(siblingNodeIndices, masterChildren)) continue;
-
-			foreach (int lodChildIndex in lodChildIndices)
-			{
-				AppendNodeIndexIfMissing(siblingNodeIndices, lodChildIndex);
-				RemoveNodeIndex(masterChildren, lodChildIndex);
-			}
-
-			if (masterChildren.Count == 0) masterNode.Remove("children");
-			modified = true;
-		}
-
-		return modified;
-	}
-
 	private static Dictionary<int, int> BuildParentNodeIndexMap(JsonArray nodes)
 	{
 		var parentNodeIndices = new Dictionary<int, int>();
@@ -423,17 +391,6 @@ public static class GlbManifestUtils
 
 		nodeIndices.Add(nodeIndex);
 		return true;
-	}
-
-	private static void RemoveNodeIndex(JsonArray nodeIndices, int nodeIndex)
-	{
-		for (int i = nodeIndices.Count - 1; i >= 0; i--)
-		{
-			if (nodeIndices[i] is JsonValue value && value.TryGetValue(out int existingIndex) && existingIndex == nodeIndex)
-			{
-				nodeIndices.RemoveAt(i);
-			}
-		}
 	}
 
 	private static List<int> CollectLodChildIndices(JsonArray children, JsonArray nodes, string masterPrefix)
