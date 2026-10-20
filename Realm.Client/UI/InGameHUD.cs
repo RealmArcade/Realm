@@ -1256,7 +1256,7 @@ public partial class InGameHUD : Control
 		btn.Flat = false;
 		btn.Text = "";
 		btn.ExpandIcon = true;
-		btn.Icon = GD.Load<Texture2D>(iconPath);
+		btn.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		btn.TooltipText = tooltip;
 		btn.CustomMinimumSize = new Vector2(48, 48);
 		btn.ClipContents = true;
@@ -1296,7 +1296,7 @@ public partial class InGameHUD : Control
 
 	private void SetupItemIcon(TextureRect rect, string iconPath, string tooltip)
 	{
-		rect.Texture = GD.Load<Texture2D>(iconPath);
+		rect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		rect.CustomMinimumSize = new Vector2(60, 60);
@@ -1619,7 +1619,7 @@ public partial class InGameHUD : Control
 		btn.Flat = false;
 		btn.Text = "";
 		btn.ExpandIcon = true;
-		btn.Icon = GD.Load<Texture2D>(iconPath);
+		btn.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		string trans = TranslationServer.Translate(tooltip);
 		btn.TooltipText = string.IsNullOrEmpty(trans) ? tooltip : trans;
 		btn.CustomMinimumSize = new Vector2(48, 48);
@@ -1660,7 +1660,7 @@ public partial class InGameHUD : Control
 		var pTexture = GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture");
 		if (pTexture != null)
 		{
-			pTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/alliance_flag.webp");
+			pTexture.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
 			_hudPortraitMaskShader ??= GD.Load<Shader>("res://Assets/shaders/hud_portrait_mask.gdshader");
 			var portraitMaskMaterial = new ShaderMaterial();
 			portraitMaskMaterial.Shader = _hudPortraitMaskShader;

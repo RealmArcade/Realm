@@ -11,6 +11,7 @@ using Realm.Shared;
 using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
@@ -196,7 +197,7 @@ public partial class LobbyRoom : Control
 
 		var mapImage = new TextureRect();
 		mapImage.Name = "MapImage_TextureRect";
-		mapImage.Texture = GD.Load<Texture2D>("res://Assets/UI/snowy_forest_path.webp");
+		mapImage.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/snowy_forest_path.webp");
 		mapImage.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		mapImage.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
 		_mapFrame.AddChild(mapImage);

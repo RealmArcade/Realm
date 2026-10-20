@@ -7,6 +7,7 @@ using Realm.Client.Services;
 using Realm.Client.VFX;
 using Realm.Shared.Audio;
 using Realm.Shared.Textures;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -582,7 +583,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		{
 			if (path.StartsWith("res://") && ResourceLoader.Exists(path))
 			{
-				return GD.Load<Texture2D>(path);
+				return TrimmedTextureLoader.LoadTrimmedTexture(path);
 			}
 
 			Texture2D tex = TryLoadTextureFromWorkspace(path) ?? TryLoadTextureFromResCandidates(path);
@@ -651,11 +652,6 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 		if (img != null)
 		{
-			if (!img.HasMipmaps())
-			{
-				img.GenerateMipmaps();
-			}
-
 			return ImageTexture.CreateFromImage(img);
 		}
 
@@ -681,7 +677,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		{
 			if (ResourceLoader.Exists(resPath))
 			{
-				return GD.Load<Texture2D>(resPath);
+				return TrimmedTextureLoader.LoadTrimmedTexture(resPath);
 			}
 		}
 

@@ -19,6 +19,7 @@ using Environment = System.Environment;
 using HttpClient = System.Net.Http.HttpClient;
 using Key = NSec.Cryptography.Key;
 using static Godot.Control;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI
 {
@@ -1791,7 +1792,7 @@ namespace Realm.Client.UI
 
 			if (i >= 0 && i < GameContext.EditorService.SwatchPaths.Count && ResourceLoader.Exists(GameContext.EditorService.SwatchPaths[i]))
 			{
-				return GD.Load<Texture2D>(GameContext.EditorService.SwatchPaths[i]);
+				return TrimmedTextureLoader.LoadTrimmedTexture(GameContext.EditorService.SwatchPaths[i]);
 			}
 
 			return null;

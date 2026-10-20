@@ -314,7 +314,7 @@ public partial class FloatingDialogBase : PanelContainer
 			MoveChild(BackgroundTextureRect, 0);
 		}
 
-		var tex = GD.Load<Texture2D>(texturePath);
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture(texturePath);
 		if (tex != null)
 		{
 			BackgroundTextureRect.Texture = tex;

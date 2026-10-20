@@ -2,6 +2,7 @@ using Godot;
 using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 
 namespace Realm.Client;
 
@@ -74,7 +75,7 @@ public partial class LootItem3D : Node3D
 
 		if (!string.IsNullOrEmpty(iconPath) && ResourceLoader.Exists(iconPath))
 		{
-			var texture = GD.Load<Texture2D>(iconPath);
+			var texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 			if (texture != null)
 			{
 				var sprite = new Sprite3D

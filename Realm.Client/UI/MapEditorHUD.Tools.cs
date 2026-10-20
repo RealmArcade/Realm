@@ -32,6 +32,7 @@ using TerrainCell = Realm.Ecs.Components.Terrain.TerrainCell;
 using WaterType = Realm.Ecs.Components.Terrain.WaterType;
 
 using static Godot.Control;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI
 {
@@ -64,7 +65,7 @@ namespace Realm.Client.UI
 			_highlightStyle.ContentMarginTop = 4;
 			_highlightStyle.ContentMarginBottom = 4;
 
-			var panelTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_panel.webp");
+			var panelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_panel.webp");
 			if (panelTex != null)
 			{
 				var frameRect = new TextureRect();
@@ -3313,7 +3314,7 @@ namespace Realm.Client.UI
 				btn.AddThemeFontOverride("font", font);
 			}
 
-			var headerTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_options_header.webp");
+			var headerTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_options_header.webp");
 			if (headerTex != null)
 			{
 				var headerNormal = new StyleBoxTexture();

@@ -8,6 +8,7 @@ using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
@@ -79,7 +80,7 @@ public partial class MainMenu : Control
 		_rightPillar = GetNode<Panel>("RightPillar");
 		_centralPanel = GetNode<PanelContainer>("CentralPanel");
 		_gameLogo = GetNode<TextureRect>("GameLogo");
-		_gameLogo.Texture = LoadTrimmedTexture("res://Assets/UI/Logo.webp");
+		_gameLogo.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/Logo.webp");
 		_gameLogo.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		CreateVersionSelector();
@@ -177,7 +178,7 @@ public partial class MainMenu : Control
 	{
 		var popoverBg = _socialPopover.GetNodeOrNull<TextureRect>("Background");
 		if (popoverBg == null) return;
-		popoverBg.Texture = LoadTrimmedTexture("res://Assets/UI/menu_popup.webp");
+		popoverBg.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_popup.webp");
 		popoverBg.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		popoverBg.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		popoverBg.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -296,7 +297,7 @@ public partial class MainMenu : Control
 	{
 		if (!string.IsNullOrEmpty(iconPath))
 		{
-			button.Icon = LoadTrimmedTexture(iconPath);
+			button.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		}
 
 		if (button.Icon == null) return;
@@ -341,7 +342,7 @@ public partial class MainMenu : Control
 	private StyleBoxTexture CreateMenuButtonStyleBox(string texPath, string customPath, Color? modColor)
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = LoadTrimmedTexture(texPath);
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture(texPath);
 		if (customPath != null && modColor.HasValue) style.ModulateColor = modColor.Value;
 
 		if (customPath != null)
@@ -520,7 +521,7 @@ public partial class MainMenu : Control
 		button.AddThemeConstantOverride("shadow_offset_y", 2);
 
 		var playNormalStyle = new StyleBoxTexture();
-		playNormalStyle.Texture = LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
+		playNormalStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
 		playNormalStyle.TextureMarginLeft = 0;
 		playNormalStyle.TextureMarginRight = 0;
 		playNormalStyle.TextureMarginTop = 0;
@@ -531,7 +532,7 @@ public partial class MainMenu : Control
 		playNormalStyle.ContentMarginBottom = 6;
 
 		var playHoverStyle = new StyleBoxTexture();
-		playHoverStyle.Texture = LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
+		playHoverStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
 		playHoverStyle.ModulateColor = new Color(1.12f, 1.10f, 0.96f);
 		playHoverStyle.TextureMarginLeft = 0;
 		playHoverStyle.TextureMarginRight = 0;
@@ -543,7 +544,7 @@ public partial class MainMenu : Control
 		playHoverStyle.ContentMarginBottom = 6;
 
 		var playPressedStyle = new StyleBoxTexture();
-		playPressedStyle.Texture = LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
+		playPressedStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_play_button.webp");
 		playPressedStyle.ModulateColor = new Color(0.85f, 0.82f, 0.75f);
 		playPressedStyle.TextureMarginLeft = 0;
 		playPressedStyle.TextureMarginRight = 0;
@@ -597,9 +598,9 @@ public partial class MainMenu : Control
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		// Load custom textures
-		var frameNormal = LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
-		var nameplateNormal = LoadTrimmedTexture("res://Assets/UI/profile_nameplate_normal.webp");
-		var backdropNormal = LoadTrimmedTexture("res://Assets/UI/profile_backdrop_normal.webp");
+		var frameNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
+		var nameplateNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_nameplate_normal.webp");
+		var backdropNormal = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_backdrop_normal.webp");
 
 		// Fetch nodes
 		var backdrop = button.GetNode<TextureRect>("Backdrop");
@@ -624,6 +625,7 @@ public partial class MainMenu : Control
 		nameplate.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		nameplate.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
+		avatar.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/avatar_icon.webp");
 		avatar.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		avatar.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		avatar.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
@@ -731,7 +733,7 @@ public partial class MainMenu : Control
 	{
 		var iconRect = new TextureRect();
 		iconRect.Name = "IconRect_TextureRect";
-		iconRect.Texture = LoadTrimmedTexture(iconPath);
+		iconRect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		iconRect.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -830,27 +832,6 @@ public partial class MainMenu : Control
 		container.Visible = false;
 	}
 
-	private static Texture2D LoadTrimmedTexture(string resourcePath)
-	{
-		string globalPath = ProjectSettings.GlobalizePath(resourcePath);
-		if (File.Exists(globalPath))
-		{
-			var img = Image.LoadFromFile(globalPath);
-			if (img != null)
-			{
-				var usedRect = img.GetUsedRect();
-				if (usedRect.Size.X > 0 && usedRect.Size.Y > 0 && (usedRect.Size.X < img.GetWidth() || usedRect.Size.Y < img.GetHeight()))
-				{
-					img = img.GetRegion(usedRect);
-				}
-
-				return ImageTexture.CreateFromImage(img);
-			}
-		}
-
-		return GD.Load<Texture2D>(resourcePath);
-	}
-
 	private void PlayHoverSound()
 	{
 		UIManager.Instance.PlayHoverSound();
@@ -907,12 +888,7 @@ public partial class MainMenu : Control
 		popup.GrowHorizontal = GrowDirection.Both;
 		popup.GrowVertical = GrowDirection.Both;
 
-		Texture2D profileBgTexture = null;
-		string profileBgPath = "res://Assets/UI/player_profile_bg.webp";
-		if (ResourceLoader.Exists(profileBgPath))
-		{
-			profileBgTexture = GD.Load<Texture2D>(profileBgPath);
-		}
+		Texture2D profileBgTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_bg.webp");
 
 		if (profileBgTexture != null)
 		{
@@ -931,16 +907,7 @@ public partial class MainMenu : Control
 
 	private Panel CreateProfileCardPanel()
 	{
-		Texture2D cardTexture = null;
-		string targetPath = ProjectSettings.GlobalizePath("res://Assets/UI/player_profile_card_bg.webp");
-		if (File.Exists(targetPath))
-		{
-			var img = Image.LoadFromFile(targetPath);
-			if (img != null)
-			{
-				cardTexture = ImageTexture.CreateFromImage(img);
-			}
-		}
+		Texture2D cardTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_card_bg.webp");
 
 		var cardStyle = new StyleBoxTexture();
 		if (cardTexture != null)
@@ -1030,15 +997,10 @@ public partial class MainMenu : Control
 	{
 		var factionFlag = new TextureRect();
 		factionFlag.Name = "FactionFlag_TextureRect";
-		Texture2D flagTexture = LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
-		if (flagTexture == null && ResourceLoader.Exists("res://Assets/UI/alliance_flag.webp"))
-		{
-			flagTexture = GD.Load<Texture2D>("res://Assets/UI/alliance_flag.webp");
-		}
-
+		Texture2D flagTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
 		if (flagTexture == null)
 		{
-			flagTexture = GD.Load<Texture2D>("res://Assets/UI/profile_frame_normal.webp");
+			flagTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
 		}
 
 		factionFlag.Texture = flagTexture;
@@ -1120,12 +1082,7 @@ public partial class MainMenu : Control
 		};
 		backBtn.MouseEntered += () => PlayHoverSound();
 
-		Texture2D profileBtnTex = null;
-		string profileBtnPath = "res://Assets/UI/player_profile_button.webp";
-		if (ResourceLoader.Exists(profileBtnPath))
-		{
-			profileBtnTex = GD.Load<Texture2D>(profileBtnPath);
-		}
+		Texture2D profileBtnTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_button.webp");
 
 		backBtn.CustomMinimumSize = new Vector2(210, 48);
 		backBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;

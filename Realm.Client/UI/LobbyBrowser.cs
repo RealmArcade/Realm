@@ -11,6 +11,7 @@ using HttpClient = System.Net.Http.HttpClient;
 using Timer = Godot.Timer;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
@@ -153,7 +154,7 @@ public partial class LobbyBrowser : Control
 		foreach (var path in paths)
 		{
 			if (!ResourceLoader.Exists(path)) continue;
-			var tex = GD.Load<Texture2D>(path);
+			var tex = TrimmedTextureLoader.LoadTrimmedTexture(path);
 			if (tex != null) return tex;
 		}
 

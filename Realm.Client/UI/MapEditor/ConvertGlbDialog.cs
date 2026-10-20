@@ -6,6 +6,7 @@ using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Shared;
 using Realm.Shared.ModelOptimization;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -49,7 +50,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		btnWebAi.VerticalIconAlignment = VerticalAlignment.Center;
 		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.webp"))
 		{
-			btnWebAi.Icon = GD.Load<Texture2D>("res://Assets/UI/globe_icon.webp");
+			btnWebAi.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/globe_icon.webp");
 		}
 		else
 		{

@@ -1,21 +1,6 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://UI/MainMenu.cs" id="1_script"]
-[ext_resource type="Texture2D" path="res://Assets/UI/gear_icon.webp" id="2_gear"]
-[ext_resource type="Texture2D" path="res://Assets/UI/Logo.webp" id="3_logo"]
-[ext_resource type="Texture2D" path="res://Assets/UI/play_button_stylized.webp" id="4_play"]
-[ext_resource type="Texture2D" path="res://Assets/UI/discord_icon.webp" id="5_discord"]
-[ext_resource type="Texture2D" path="res://Assets/UI/donate_icon.webp" id="6_donate"]
-[ext_resource type="Texture2D" path="res://Assets/UI/globe_icon.webp" id="7_globe"]
-[ext_resource type="Texture2D" path="res://Assets/UI/scroll_icon.webp" id="8_scroll"]
-[ext_resource type="Texture2D" path="res://Assets/UI/avatar_icon.webp" id="9_avatar"]
-[ext_resource type="Texture2D" path="res://Assets/UI/social_icon.webp" id="10_social"]
-[ext_resource type="Texture2D" path="res://Assets/UI/coding_icon.webp" id="11_coding"]
-[ext_resource type="Texture2D" path="res://Assets/UI/youtube_icon.webp" id="12_youtube"]
-[ext_resource type="Texture2D" path="res://Assets/UI/github_icon.webp" id="13_github"]
-[ext_resource type="Texture2D" path="res://Assets/UI/bug_icon.webp" id="14_bug"]
-[ext_resource type="Texture2D" path="res://Assets/UI/seed_node_icon.webp" id="15_seed_node"]
-[ext_resource type="Texture2D" path="res://Assets/UI/email_icon.webp" id="16_email"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -81,7 +66,6 @@ offset_top = 20.0
 offset_right = 260.0
 offset_bottom = 160.0
 grow_horizontal = 2
-texture = ExtResource("3_logo")
 expand_mode = 1
 stretch_mode = 5
 
@@ -175,7 +159,6 @@ offset_right = 200.0
 offset_bottom = -40.0
 grow_vertical = 0
 focus_mode = 0
-icon = ExtResource("10_social")
 
 [node name="SocialPopoverOverlay" type="Control" parent="."]
 visible = false
@@ -230,42 +213,36 @@ custom_minimumSize = Vector2(270, 44)
 layout_mode = 2
 size_flags_horizontal = 4
 focus_mode = 0
-icon = ExtResource("7_globe")
 
 [node name="DiscordButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
 custom_minimumSize = Vector2(270, 44)
 layout_mode = 2
 size_flags_horizontal = 4
 focus_mode = 0
-icon = ExtResource("5_discord")
 
 [node name="YoutubeButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
 custom_minimumSize = Vector2(270, 44)
 layout_mode = 2
 size_flags_horizontal = 4
 focus_mode = 0
-icon = ExtResource("12_youtube")
 
 [node name="DonateButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
 custom_minimumSize = Vector2(270, 44)
 layout_mode = 2
 size_flags_horizontal = 4
 focus_mode = 0
-icon = ExtResource("6_donate")
 
 [node name="AnnouncementsButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
 custom_minimumSize = Vector2(270, 44)
 layout_mode = 2
 size_flags_horizontal = 4
 focus_mode = 0
-icon = ExtResource("16_email")
 
 [node name="BugReportButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
 custom_minimumSize = Vector2(270, 44)
 layout_mode = 2
 size_flags_horizontal = 4
 focus_mode = 0
-icon = ExtResource("14_bug")
 
 [node name="SettingsButton" type="Button" parent="."]
 custom_minimumSize = Vector2(206, 68)
@@ -321,7 +298,6 @@ offset_top = 28.0
 offset_right = 60.0
 offset_bottom = 148.0
 grow_horizontal = 2
-texture = ExtResource("9_avatar")
 expand_mode = 1
 stretch_mode = 5
 

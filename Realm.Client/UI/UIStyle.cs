@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using SkiaSharp;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
@@ -44,7 +45,7 @@ public static class UIStyle
 
 	public static StyleBox CreateBgTexture(string path)
 	{
-		var texture = GD.Load<Texture2D>(path);
+		var texture = TrimmedTextureLoader.LoadTrimmedTexture(path);
 		var style = new StyleBoxTexture();
 		style.Texture = texture;
 		return style;
@@ -89,7 +90,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCustomMatchBg()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_match_bg.jpg");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_match_bg.jpg");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -102,7 +103,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCreatorDiscoveryBg()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/creator_discovery_bg.jpg");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/creator_discovery_bg.jpg");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -115,7 +116,7 @@ public static class UIStyle
 
 	public static StyleBox CreateGameOverBg()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/GameOver_Background.jpg");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/GameOver_Background.jpg");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -155,7 +156,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCreatorDiscoveryPanelStyle()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/creator_discovery_panel.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/creator_discovery_panel.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -182,7 +183,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCreatorDiscoveryTabButtonStyle(bool isActive, bool isHover = false, bool isPressed = false)
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/creator_discovery_button_option.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/creator_discovery_button_option.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -219,7 +220,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCreatorDiscoveryMapFrameStyle()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/creator_discovery_map.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/creator_discovery_map.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -246,7 +247,7 @@ public static class UIStyle
 
 	public static StyleBox CreateAgreementPanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_agreement.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_agreement.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -269,7 +270,7 @@ public static class UIStyle
 
 	public static StyleBox CreateAssetsImporterPanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_assets_importer.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_assets_importer.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -292,7 +293,7 @@ public static class UIStyle
 
 	public static StyleBox CreateMapEditorManualPanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_manual.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_manual.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -315,7 +316,7 @@ public static class UIStyle
 
 	public static StyleBox CreateConfirmationPanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_test.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_test.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -382,7 +383,7 @@ public static class UIStyle
 
 	public static StyleBox CreatePublishPanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_publish.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_publish.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -448,7 +449,7 @@ public static class UIStyle
 
 	public static StyleBox CreateRegisterProfilePanel()
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_register_profile.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_register_profile.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -536,77 +537,12 @@ public static class UIStyle
 
 	public static Texture2D LoadTextureWithFallback(string path)
 	{
-		if (!string.IsNullOrEmpty(path))
-		{
-			string globalPath = ProjectSettings.GlobalizePath(path);
-			if (System.IO.File.Exists(globalPath))
-			{
-				try
-				{
-					var img = Image.LoadFromFile(globalPath);
-					if (img != null)
-					{
-						img.GenerateMipmaps();
-						return ImageTexture.CreateFromImage(img);
-					}
-				}
-				catch { }
-			}
-		}
-
-		try
-		{
-			return GD.Load<Texture2D>(path);
-		}
-		catch
-		{
-			return null;
-		}
+		return TrimmedTextureLoader.LoadTrimmedTexture(path);
 	}
 
 	public static Texture2D LoadCrispIcon(string path, int targetSize = 256)
 	{
-		if (!string.IsNullOrEmpty(path))
-		{
-			string globalPath = ProjectSettings.GlobalizePath(path);
-			if (System.IO.File.Exists(globalPath))
-			{
-				try
-				{
-					var img = Image.LoadFromFile(globalPath);
-					if (img != null && !img.IsEmpty())
-					{
-						if (img.GetFormat() != Image.Format.Rgba8)
-						{
-							img.Convert(Image.Format.Rgba8);
-						}
-
-						int w = img.GetWidth();
-						int h = img.GetHeight();
-						if (w > targetSize || h > targetSize)
-						{
-							float aspect = (float)w / h;
-							int newW = aspect >= 1.0f ? targetSize : Mathf.RoundToInt(targetSize * aspect);
-							int newH = aspect <= 1.0f ? targetSize : Mathf.RoundToInt(targetSize / aspect);
-							img.Resize(newW, newH, Image.Interpolation.Lanczos);
-						}
-
-						img.GenerateMipmaps();
-						return ImageTexture.CreateFromImage(img);
-					}
-				}
-				catch { }
-			}
-		}
-
-		try
-		{
-			return GD.Load<Texture2D>(path);
-		}
-		catch
-		{
-			return null;
-		}
+		return TrimmedTextureLoader.LoadTrimmedTexture(path, targetSize);
 	}
 
 	private static SKTypeface? GetFontAwesomeTypeface()
@@ -722,7 +658,7 @@ public static class UIStyle
 	public static StyleBox CreateStonePanel(bool isLight = false)
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/stone_slate_panel.jpg");
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/stone_slate_panel.jpg");
 
 		if (isLight)
 		{
@@ -758,7 +694,7 @@ public static class UIStyle
 
 	public static StyleBox CreateReplayPanel()
 	{
-		var texture = GD.Load<Texture2D>("res://Assets/UI/replays_panel.webp");
+		var texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/replays_panel.webp");
 		if (texture != null)
 		{
 			var style = new StyleBoxTexture();
@@ -936,7 +872,7 @@ public static class UIStyle
 	public static StyleBox CreateHUDPillarPanel(bool isLeft)
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/hud_stone_pillar.webp");
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/hud_stone_pillar.webp");
 		style.TextureMarginLeft = 40;
 		style.TextureMarginRight = 40;
 		style.TextureMarginTop = 150;
@@ -948,7 +884,7 @@ public static class UIStyle
 	public static StyleBox CreateButtonNormal()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/options_menu_button.webp");
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/options_menu_button.webp");
 		style.TextureMarginLeft = 0;
 		style.TextureMarginRight = 0;
 		style.TextureMarginTop = 0;
@@ -966,7 +902,7 @@ public static class UIStyle
 	public static StyleBox CreateButtonHover()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/options_menu_button.webp");
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/options_menu_button.webp");
 		style.TextureMarginLeft = 0;
 		style.TextureMarginRight = 0;
 		style.TextureMarginTop = 0;
@@ -984,7 +920,7 @@ public static class UIStyle
 	public static StyleBox CreateButtonPressed()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/options_menu_button.webp");
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/options_menu_button.webp");
 		style.TextureMarginLeft = 0;
 		style.TextureMarginRight = 0;
 		style.TextureMarginTop = 0;
@@ -1052,7 +988,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCustomLobbyStartGameButton(bool isHover = false, bool isPressed = false)
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_lobby_start_game.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_start_game.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -1087,7 +1023,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCustomLobbyBackButton(bool isHover = false, bool isPressed = false)
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_lobby_back_button.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_back_button.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -1122,7 +1058,7 @@ public static class UIStyle
 
 	public static StyleBox CreateCustomLobbyRechargeButton(bool isHover = false, bool isPressed = false)
 	{
-		var tex = GD.Load<Texture2D>("res://Assets/UI/custom_lobby_recharge_button.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_recharge_button.webp");
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -1309,8 +1245,8 @@ public static class UIStyle
 
 	public static void ApplyCheckboxStyle(CheckBox cb)
 	{
-		var checkedTex = GD.Load<Texture2D>("res://Assets/UI/checked_box.jpg");
-		var uncheckedTex = GD.Load<Texture2D>("res://Assets/UI/unchecked_box.jpg");
+		var checkedTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/checked_box.jpg");
+		var uncheckedTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/unchecked_box.jpg");
 
 		cb.AddThemeIconOverride("checked", checkedTex);
 		cb.AddThemeIconOverride("unchecked", uncheckedTex);
@@ -1390,14 +1326,14 @@ public static class UIStyle
 	public static StyleBox CreateEntranceBgTexture()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/menu_entrance_background.webp");
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/menu_entrance_background.webp");
 		return style;
 	}
 
 	public static StyleBox CreateLightStonePanel()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/stone_panel_background.webp");
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/stone_panel_background.webp");
 		style.TextureMarginLeft = 60;
 		style.TextureMarginRight = 60;
 		style.TextureMarginTop = 60;
@@ -1452,7 +1388,7 @@ public static class UIStyle
 	public static StyleBox CreateLightTitleBadge()
 	{
 		var style = new StyleBoxTexture();
-		style.Texture = GD.Load<Texture2D>("res://Assets/UI/title_banner.webp");
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/title_banner.webp");
 		style.TextureMarginLeft = 140;
 		style.TextureMarginRight = 140;
 		style.TextureMarginTop = 20;

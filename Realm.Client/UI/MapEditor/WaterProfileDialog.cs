@@ -4,6 +4,7 @@ using System.IO;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -695,7 +696,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		btn.CustomMinimumSize = new Vector2(0, 28);
 		btn.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		btn.AddThemeFontSizeOverride("font_size", 11);
-		var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.webp");
+		var mapEdBtnTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_button.webp");
 		if (mapEdBtnTex != null)
 		{
 			var normalSb = new StyleBoxTexture { Texture = mapEdBtnTex, ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };

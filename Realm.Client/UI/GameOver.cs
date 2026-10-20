@@ -12,6 +12,7 @@ using Realm.Shared.Distribution;
 using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
@@ -221,7 +222,7 @@ public partial class GameOver : Control
 	private void SetupCloseButton()
 	{
 		_btnClose.Flat = false;
-		_btnClose.Icon = GD.Load<Texture2D>("res://Assets/UI/cancel_button_2.webp");
+		_btnClose.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/cancel_button_2.webp");
 		_btnClose.ExpandIcon = true;
 
 		string closeText = GameContext.SessionState.IsTestMode ? "Back to Editor" : "Close";

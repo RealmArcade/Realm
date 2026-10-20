@@ -10,6 +10,7 @@ using Realm.Client.Services;
 using Realm.EditorAPI;
 using Realm.Shared.Audio;
 using Realm.Shared.Textures;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -214,7 +215,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		btnWebAi.VerticalIconAlignment = VerticalAlignment.Center;
 		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.webp"))
 		{
-			btnWebAi.Icon = GD.Load<Texture2D>("res://Assets/UI/globe_icon.webp");
+			btnWebAi.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/globe_icon.webp");
 		}
 		else
 		{

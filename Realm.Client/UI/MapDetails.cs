@@ -7,6 +7,7 @@ using Realm.Shared.Distribution;
 using FileAccess = Godot.FileAccess;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
@@ -370,7 +371,7 @@ public partial class MapDetails : Control
 		{
 			if (ResourceLoader.Exists(path))
 			{
-				bgTexture = GD.Load<Texture2D>(path);
+				bgTexture = TrimmedTextureLoader.LoadTrimmedTexture(path);
 				if (bgTexture != null) break;
 			}
 		}
@@ -403,7 +404,7 @@ public partial class MapDetails : Control
 		if (ResourceLoader.Exists(path))
 		{
 			var style = new StyleBoxTexture();
-			style.Texture = GD.Load<Texture2D>(path);
+			style.Texture = TrimmedTextureLoader.LoadTrimmedTexture(path);
 			style.ContentMarginLeft = left;
 			style.ContentMarginRight = right;
 			style.ContentMarginTop = top;
@@ -796,37 +797,7 @@ public partial class MapDetails : Control
 
 	private Texture2D LoadTextureSafe(string resPath)
 	{
-		if (string.IsNullOrEmpty(resPath)) return null;
-
-		try
-		{
-			if (ResourceLoader.Exists(resPath))
-			{
-				var tex = GD.Load<Texture2D>(resPath);
-				if (tex != null) return tex;
-			}
-		}
-		catch
-		{
-		}
-
-		try
-		{
-			string globalPath = ProjectSettings.GlobalizePath(resPath);
-			if (File.Exists(globalPath))
-			{
-				var image = Image.LoadFromFile(globalPath);
-				if (image != null)
-				{
-					return ImageTexture.CreateFromImage(image);
-				}
-			}
-		}
-		catch
-		{
-		}
-
-		return null;
+		return TrimmedTextureLoader.LoadTrimmedTexture(resPath);
 	}
 
 	private void PopulateFeatures()
@@ -1023,7 +994,7 @@ public partial class MapDetails : Control
 		icon.CustomMinimumSize = new Vector2(24, 24);
 		icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		icon.Texture = GD.Load<Texture2D>(iconPath);
+		icon.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		hBox.AddChild(icon);
 
 		string[] parts = text.Split(new char[] { ':' }, 2);

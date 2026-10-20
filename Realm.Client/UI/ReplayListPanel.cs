@@ -7,6 +7,7 @@ using Realm.Client.ReplaySystem;
 using Realm.Shared;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
@@ -91,7 +92,7 @@ public partial class ReplayListPanel : Control
 		var bgTexture = GetNodeOrNull<TextureRect>("BackgroundTexture");
 		if (bgTexture != null)
 		{
-			bgTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/replays_bg.jpg");
+			bgTexture.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/replays_bg.jpg");
 			bgTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTexture.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
 		}
@@ -104,7 +105,7 @@ public partial class ReplayListPanel : Control
 		var panelTexture = GetNodeOrNull<TextureRect>("CenterContainer/MainFrame/PanelTexture");
 		if (panelTexture != null)
 		{
-			panelTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/replays_panel.webp");
+			panelTexture.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/replays_panel.webp");
 			panelTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			panelTexture.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 			panelTexture.TextureFilter = TextureFilterEnum.LinearWithMipmaps;

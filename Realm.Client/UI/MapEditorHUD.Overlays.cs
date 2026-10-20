@@ -21,6 +21,7 @@ using Key = NSec.Cryptography.Key;
 using MirrorMode = Realm.Ecs.Components.Core.MirrorMode;
 using WaterType = Realm.Ecs.Components.Terrain.WaterType;
 using static Godot.Control;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI
 {
@@ -394,7 +395,7 @@ namespace Realm.Client.UI
 
 		private StyleBox CreateTopBarStylebox()
 		{
-			var posTexture = GD.Load<Texture2D>("res://Assets/UI/map_editor_pos.webp");
+			var posTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_pos.webp");
 			if (posTexture != null)
 			{
 				var posStyle = new StyleBoxTexture();
@@ -1185,7 +1186,7 @@ namespace Realm.Client.UI
 
 			var bgTex = new TextureRect();
 			bgTex.Name = "BgTex_TextureRect";
-			bgTex.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_test.webp");
+			bgTex.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_test.webp");
 			bgTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTex.StretchMode = TextureRect.StretchModeEnum.Scale;
 			bgTex.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -1321,7 +1322,7 @@ namespace Realm.Client.UI
 
 			var bgTex = new TextureRect();
 			bgTex.Name = "BgTex_TextureRect";
-			bgTex.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_manual.webp");
+			bgTex.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_manual.webp");
 			bgTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTex.StretchMode = TextureRect.StretchModeEnum.Scale;
 			bgTex.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -2079,7 +2080,7 @@ namespace Realm.Client.UI
 		private void StyleMapEditorTopButton(Button btn)
 		{
 			if (btn == null) return;
-			var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.webp");
+			var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_button.webp");
 			if (tex != null)
 			{
 				var normalStyle = new StyleBoxTexture();
@@ -2128,7 +2129,7 @@ namespace Realm.Client.UI
 		private void StyleCompactMapEditorTopButton(Button btn, int horizontalMargin = 4)
 		{
 			if (btn == null) return;
-			var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.webp");
+			var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_button.webp");
 			if (tex != null)
 			{
 				var normalStyle = new StyleBoxTexture();
@@ -2462,7 +2463,7 @@ namespace Realm.Client.UI
 
 			var iconRect = new TextureRect();
 			iconRect.Name = "IconRect";
-			iconRect.Texture = GD.Load<Texture2D>(iconPath);
+			iconRect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 			iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 			iconRect.MouseFilter = MouseFilterEnum.Ignore;
@@ -2913,7 +2914,7 @@ namespace Realm.Client.UI
 
 			var bgTexRect = new TextureRect();
 			bgTexRect.Name = "BgTexRect_TextureRect";
-			bgTexRect.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_agreement.webp");
+			bgTexRect.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_agreement.webp");
 			bgTexRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTexRect.StretchMode = TextureRect.StretchModeEnum.Scale;
 			bgTexRect.SetAnchorsPreset(LayoutPreset.FullRect);

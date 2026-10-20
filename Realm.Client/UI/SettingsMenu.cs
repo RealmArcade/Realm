@@ -4,6 +4,7 @@ using Godot;
 using Realm.Client.Network;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
@@ -142,9 +143,9 @@ public partial class SettingsMenu : Control
 		_cancelBtn = GetNode<Button>("CenterContainer/MainFrame/VBoxContainer/ButtonsRow/CancelButton");
 		_resetBtn = GetNode<Button>("CenterContainer/MainFrame/VBoxContainer/ButtonsRow/ResetButton");
 
-		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/TitleBox/HBox/TitleIcon").Texture = GD.Load<Texture2D>("res://Assets/UI/icon_video.svg");
-		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/TitleBox/HBox/TitleIcon").Texture = GD.Load<Texture2D>("res://Assets/UI/icon_audio.svg");
-		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/TitleBox/HBox/TitleIcon").Texture = GD.Load<Texture2D>("res://Assets/UI/icon_gameplay.svg");
+		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/TitleBox/HBox/TitleIcon").Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/icon_video.svg");
+		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/TitleBox/HBox/TitleIcon").Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/icon_audio.svg");
+		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/TitleBox/HBox/TitleIcon").Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/icon_gameplay.svg");
 
 		ApplyThemeStyles();
 		PopulateDropdowns();
@@ -180,7 +181,7 @@ public partial class SettingsMenu : Control
 		foreach (var path in bgPaths)
 		{
 			if (!ResourceLoader.Exists(path)) continue;
-			bgTexture = GD.Load<Texture2D>(path);
+			bgTexture = TrimmedTextureLoader.LoadTrimmedTexture(path);
 			if (bgTexture != null) break;
 		}
 

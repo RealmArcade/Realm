@@ -6,6 +6,7 @@ using Realm.Client.Animation;
 using Realm.Client.Services;
 using Realm.Shared.Distribution;
 using Realm.Shared.ModelOptimization;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -229,7 +230,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		btnRandomizeAll.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		btnRandomizeAll.AddThemeFontSizeOverride("font_size", 11);
 		{
-			var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.webp");
+			var mapEdBtnTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_button.webp");
 			if (mapEdBtnTex != null)
 			{
 				var normalSb = new StyleBoxTexture { Texture = mapEdBtnTex, ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };

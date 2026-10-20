@@ -34,6 +34,7 @@
 - Node Lifecycle & Cleanup: Never leave detached nodes in memory. When removing a node via `RemoveChild()`, either explicitly call `QueueFree()` on it or return it to a managed object pool that properly frees all pooled instances on cleanup.
 - One-Way C# to Godot Transform Pipeline: Avoid unnecessary c# to godot c++ marshaling. Treat ECS as the source of truth. Never read fields such as `Position` from godot nodes when available in ECS. Batch update godot fields in a single `Transform` when possible and only update if field is dirty.
 - Don't enable `_Process` overrides on node subclasses with many instances, instead code a centralized manager for active entities to handle per-frame updates in bulk.
+- Menu scene 2D UX images should be downscaled to their maximum rendered size and encoded with cwebp 90 quality with this .import file value to avoid re-compression in PCK file: importer="keep"
 
 ### Realm.ECS Data Layer (Flat Bitmask SoA Shared Memory):
 - Core simulation component buffers (`PlayerResource`, `Health`, etc.) are implemented as a custom Flat Bitmask Structure-of-Arrays (SoA) ECS where component arrays are stored in contiguous unmanaged memory mapped directly into WASM linear memory (`Wasmtime.Memory`).

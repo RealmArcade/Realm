@@ -6,6 +6,7 @@ using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.InGame;
 
@@ -554,7 +555,7 @@ public partial class CommandPanel
 		btn.Flat = false;
 		btn.Text = "";
 		btn.ExpandIcon = true;
-		btn.Icon = GD.Load<Texture2D>("res://Assets/UI/command_card_next_arrow.webp");
+		btn.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/command_card_next_arrow.webp");
 		btn.TooltipText = TranslationServer.Translate("Cycle Abilities / Commands");
 		btn.CustomMinimumSize = new Vector2(56, 56);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
