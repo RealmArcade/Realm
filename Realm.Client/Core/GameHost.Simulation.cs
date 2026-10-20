@@ -612,6 +612,7 @@ public partial class GameHost
 
 	private UnitRenderWorkItem[] _renderWorkItems = new UnitRenderWorkItem[256];
 	private int _renderWorkItemCount = 0;
+	private float _animationSelectionAccumulator = 0f;
 	private float _renderFDelta;
 	private float _renderFraction;
 	private bool _renderHasFrustum;
@@ -660,6 +661,13 @@ public partial class GameHost
 				}
 				_previousCameraFrustumPlanes[i] = _cachedCameraFrustumPlanes[i];
 			}
+		}
+
+		_animationSelectionAccumulator += fDelta;
+		bool shouldDriveUnitAnimations = !GameContext.SessionState.IsMapEditorMode && _animationSelectionAccumulator >= GameplayConstants.UnitAnimationStepIntervalSeconds;
+		if (shouldDriveUnitAnimations)
+		{
+			_animationSelectionAccumulator = 0f;
 		}
 
 		_renderFDelta = fDelta;
@@ -762,6 +770,11 @@ public partial class GameHost
 			if (item.ShouldSetTransform)
 			{
 				unit3D.SetTransform3D(in item.FinalTransform, in item.NextPos, item.TargetRotY, in item.TargetBasis, in item.FinalScaleVec, item.ClampedScale);
+			}
+
+			if (shouldDriveUnitAnimations && !unit3D.IsCulled && unit3D.Visible)
+			{
+				unit3D.PlayAnimation(DetermineUnitAnimation(item.Entity));
 			}
 
 			unit3D.StepManualAnimation(fDelta);
@@ -916,18 +929,6 @@ public partial class GameHost
 
 	private void UpdateVisualNodesFromEcs(float fDelta)
 	{
-		var query = QueryCache.AllPositionAndDefinitionIdQuery;
-		foreach (var entity in GameContext.World.Query(in query))
-		{
-			if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
-			{
-				if (!unit3D.IsCulled && unit3D.Visible)
-				{
-					unit3D.PlayAnimation(DetermineUnitAnimation(entity));
-				}
-			}
-		}
-
 		foreach (var entity in GameContext.World.Query(in _constructionVisualQuery))
 		{
 			if (TryGetUnit3D(entity, out var buildingNode) && GodotObject.IsInstanceValid(buildingNode))
