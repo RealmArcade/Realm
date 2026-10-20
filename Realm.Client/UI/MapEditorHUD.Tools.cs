@@ -2699,6 +2699,8 @@ namespace Realm.Client.UI
 					}
 				}
 
+				GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(workspace);
+
 				progressBar.Value = 35;
 				statusLabel.Text = TranslationServer.Translate("Optimizing 3D assets...");
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

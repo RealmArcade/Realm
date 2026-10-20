@@ -547,7 +547,9 @@ public class MapManifest
 		return relativePath.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
 		       relativePath.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
 		       relativePath.EndsWith(".backup", StringComparison.OrdinalIgnoreCase) ||
-		       relativePath.EndsWith(".rkey", StringComparison.OrdinalIgnoreCase);
+		       relativePath.EndsWith(".rkey", StringComparison.OrdinalIgnoreCase) ||
+		       relativePath.EndsWith(".elf", StringComparison.OrdinalIgnoreCase) ||
+		       relativePath.EndsWith(".jit.elf", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static MapManifestAssets? LoadAndMergeExistingManifest(string manifestJsonPath, MapManifest manifest)

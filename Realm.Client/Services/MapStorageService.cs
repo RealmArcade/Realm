@@ -1348,6 +1348,11 @@ public class MapStorageService
 		return true;
 	}
 
+	public void DeduplicateWorkspaceBuildArtifacts(string tempWorkspacePath)
+	{
+		MapWorkspaceService.DeduplicateWorkspaceBuildArtifacts(tempWorkspacePath);
+	}
+
 	public async Task OptimizeMapAssetsCooperativeAsync(string tempWorkspacePath, Func<int, int, string, Task> progressCallback)
 	{
 		await MapWorkspaceService.EnsureGlbAssetsOptimizedCooperativeAsync(tempWorkspacePath, progressCallback);

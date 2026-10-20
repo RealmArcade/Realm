@@ -36,6 +36,8 @@ public static partial class MapWorkspaceService
 			normalized.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".log", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".elf", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".jit.elf", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase) ||
 			Path.GetFileName(normalized).StartsWith("~", StringComparison.OrdinalIgnoreCase) ||
 			Path.GetFileName(normalized).Equals("WasmEntryPoint.cs", StringComparison.OrdinalIgnoreCase))
@@ -1871,5 +1873,10 @@ please visit the URL above.
 		{
 			GD.PrintErr($"[MapWorkspaceService] Failed to update manifest.json for {animFileName}: {ex.Message}");
 		}
+	}
+
+	public static void DeduplicateWorkspaceBuildArtifacts(string workspacePath)
+	{
+		MapArchiveHelper.DeduplicateWorkspaceBuildArtifacts(workspacePath);
 	}
 }

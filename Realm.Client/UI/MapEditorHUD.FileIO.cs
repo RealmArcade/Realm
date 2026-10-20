@@ -959,6 +959,11 @@ namespace Realm.Client.UI
 			_wasmHasErrors = false;
 
 			bool compiledSuccessfully = await PerformCompilationStepAsync(workspace, skipAttribution, isDebug);
+			if (compiledSuccessfully)
+			{
+				GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(workspace);
+			}
+
 			if (!compiledSuccessfully || skipAttribution) return;
 
 			await PerformSigningStepAsync(workspace);
@@ -1537,6 +1542,8 @@ namespace Realm.Client.UI
 			if (!await VerifyMapAssetsAsync(progressBar, statusLabel, closeBtn)) return false;
 
 			if (!await CompileMapScriptAsync(progressBar, statusLabel, closeBtn)) return false;
+
+			GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(GameContext.EditorService._tempWorkspacePath);
 
 			await OptimizeMapAssetsAsync(progressBar, statusLabel);
 
