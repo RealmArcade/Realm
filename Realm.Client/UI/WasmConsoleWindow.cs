@@ -29,6 +29,8 @@ public partial class WasmConsoleWindow : Window
 		}
 	}
 
+	public static bool Exists => _instance != null && GodotObject.IsInstanceValid(_instance);
+
 	public new bool IsVisible => Visible;
 
 	private bool _hasErrors = false;

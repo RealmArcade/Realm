@@ -1286,7 +1286,10 @@ namespace Realm.Client.UI
 
 		public void CloseWasmConsoleModal()
 		{
-			// WasmConsoleWindow remains open as a persistent window across scene transitions.
+			if (WasmConsoleWindow.Exists)
+			{
+				WasmConsoleWindow.Instance.Hide();
+			}
 		}
 
 		public void ToggleHelpPanelExternal()
