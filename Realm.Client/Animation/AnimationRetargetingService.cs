@@ -23,7 +23,7 @@ public static class AnimationRetargetingService
 
 	public static RealmAnimationData? GetOrLoadRanimData(string filePath)
 	{
-		if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
+		if (string.IsNullOrEmpty(filePath)) return null;
 
 		if (CachedRanimData.TryGetValue(filePath, out var cached))
 		{
@@ -32,7 +32,32 @@ public static class AnimationRetargetingService
 
 		try
 		{
-			var data = RealmAnimationSerializer.LoadFromFile(filePath);
+			RealmAnimationData? data = null;
+			if (filePath.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ||
+			    filePath.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+			{
+				if (Godot.FileAccess.FileExists(filePath))
+				{
+					byte[] bytes = Godot.FileAccess.GetFileAsBytes(filePath);
+					if (bytes != null && bytes.Length > 0)
+					{
+						data = RealmAnimationSerializer.Deserialize(bytes);
+					}
+				}
+			}
+			else if (File.Exists(filePath))
+			{
+				data = RealmAnimationSerializer.LoadFromFile(filePath);
+			}
+			else if (Godot.FileAccess.FileExists(filePath))
+			{
+				byte[] bytes = Godot.FileAccess.GetFileAsBytes(filePath);
+				if (bytes != null && bytes.Length > 0)
+				{
+					data = RealmAnimationSerializer.Deserialize(bytes);
+				}
+			}
+
 			if (data != null)
 			{
 				CachedRanimData[filePath] = data;
@@ -52,11 +77,15 @@ public static class AnimationRetargetingService
 		if (string.IsNullOrEmpty(animName)) return null;
 		if (File.Exists(animName)) return animName;
 
-		if (animName.StartsWith("res://") || animName.StartsWith("user://"))
+		if (animName.StartsWith("res://", StringComparison.OrdinalIgnoreCase) || animName.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
 		{
+			if (Godot.FileAccess.FileExists(animName)) return animName;
 			string globalized = ProjectSettings.GlobalizePath(animName);
 			if (File.Exists(globalized)) return globalized;
 		}
+
+		string directRes = $"res://{animName.TrimStart('/')}";
+		if (Godot.FileAccess.FileExists(directRes)) return directRes;
 
 		var candidateNames = BuildCandidateNames(animName, unitId);
 
@@ -69,6 +98,9 @@ public static class AnimationRetargetingService
 		string resDir = ProjectSettings.GlobalizePath("res://");
 		foreach (var candName in candidateNames)
 		{
+			string resPath = $"res://Assets/animations/{candName}";
+			if (Godot.FileAccess.FileExists(resPath)) return resPath;
+
 			string p = Path.Combine(resDir, "Assets", "animations", candName);
 			if (File.Exists(p)) return p;
 		}
@@ -148,18 +180,40 @@ public static class AnimationRetargetingService
 		if (result != null) return result;
 
 		string mapDir = ProjectSettings.GlobalizePath($"user://maps/{activeMap}");
-		return TryResolveInDirectory(mapDir, candidateNames);
+		result = TryResolveInDirectory(mapDir, candidateNames);
+		if (result != null) return result;
+
+		string resMapDir = $"res://Maps/{activeMap}";
+		return TryResolveInDirectory(resMapDir, candidateNames);
 	}
 
 	private static string TryResolveInDirectory(string directory, List<string> candidateNames)
 	{
 		if (string.IsNullOrEmpty(directory)) return null;
+
+		if (directory.StartsWith("res://", StringComparison.OrdinalIgnoreCase) || directory.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+		{
+			foreach (var candName in candidateNames)
+			{
+				string p = $"{directory.TrimEnd('/')}/Assets/animations/{candName}";
+				if (Godot.FileAccess.FileExists(p)) return p;
+
+				string directP = $"{directory.TrimEnd('/')}/{candName}";
+				if (Godot.FileAccess.FileExists(directP)) return directP;
+			}
+
+			return null;
+		}
+
 		if (!Directory.Exists(directory)) return null;
 
 		foreach (var candName in candidateNames)
 		{
 			string p = Path.Combine(directory, "Assets", "animations", candName);
 			if (File.Exists(p)) return p;
+
+			string directP = Path.Combine(directory, candName);
+			if (File.Exists(directP)) return directP;
 		}
 
 		return null;
@@ -627,7 +681,7 @@ public static class AnimationRetargetingService
 		if (!string.IsNullOrEmpty(unitId))
 		{
 			string? customPath = ResolveAnimationFilePath("Idle", unitId);
-			if (!string.IsNullOrEmpty(customPath) && File.Exists(customPath))
+			if (!string.IsNullOrEmpty(customPath))
 			{
 				var data = GetOrLoadRanimData(customPath);
 				if (data != null) return data;
@@ -642,14 +696,22 @@ public static class AnimationRetargetingService
 		string? filePath = ResolveAnimationFilePath("idle.ranim", unitId);
 		if (string.IsNullOrEmpty(filePath))
 		{
-			string resPath = ProjectSettings.GlobalizePath("res://Assets/animations/idle.ranim");
-			if (File.Exists(resPath))
+			string resPath = "res://Assets/animations/idle.ranim";
+			if (Godot.FileAccess.FileExists(resPath))
 			{
 				filePath = resPath;
 			}
+			else
+			{
+				string globalResPath = ProjectSettings.GlobalizePath(resPath);
+				if (File.Exists(globalResPath))
+				{
+					filePath = globalResPath;
+				}
+			}
 		}
 
-		if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+		if (!string.IsNullOrEmpty(filePath))
 		{
 			return GetOrLoadRanimData(filePath);
 		}
