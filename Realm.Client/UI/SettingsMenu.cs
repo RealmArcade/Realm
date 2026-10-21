@@ -790,7 +790,10 @@ public partial class SettingsMenu : Control
 		_languageOpt.Select((int)GameSettings.Language);
 		if (_movementPredictionChk != null)
 		{
-			_movementPredictionChk.ButtonPressed = GameSettings.MovementPrediction;
+			bool movementPredictionAvailable = PathUtils.IsDevelopmentBuild;
+			_movementPredictionChk.Visible = movementPredictionAvailable;
+			_movementPredictionChk.Disabled = !movementPredictionAvailable;
+			_movementPredictionChk.ButtonPressed = movementPredictionAvailable && GameSettings.MovementPrediction;
 		}
 	}
 
@@ -887,7 +890,7 @@ public partial class SettingsMenu : Control
 		GameSettings.SeedMapFiles = _seedMapFilesChk.ButtonPressed;
 		if (_movementPredictionChk != null)
 		{
-			GameSettings.MovementPrediction = _movementPredictionChk.ButtonPressed;
+			GameSettings.MovementPrediction = PathUtils.IsDevelopmentBuild && _movementPredictionChk.ButtonPressed;
 		}
 		GameSettings.ShowHealthBars = (HealthBarMode)_healthBarsOpt.Selected;
 	}

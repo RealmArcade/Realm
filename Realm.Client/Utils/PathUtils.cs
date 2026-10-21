@@ -16,6 +16,39 @@ public static class PathUtils
 	private static string[] _cachedDataDirs;
 	private static readonly ConcurrentDictionary<string, string> _cachedPaths = new(StringComparer.OrdinalIgnoreCase);
 
+	public static bool IsDevelopmentBuild
+	{
+		get
+		{
+#if DEBUG
+			return true;
+#else
+			if (!IsGodotInitialized)
+			{
+				return true;
+			}
+
+			string baseDir = AppDomain.CurrentDomain.BaseDirectory.Replace("\\", "/").TrimEnd('/');
+			if (baseDir.Contains("data_Realm_windows_x86_64", StringComparison.OrdinalIgnoreCase))
+			{
+				return false;
+			}
+
+			string exeDir = OS.GetExecutablePath().GetBaseDir().Replace("\\", "/").TrimEnd('/');
+			if (Directory.Exists(exeDir))
+			{
+				string[] dataDirs = GetDataDirs(exeDir);
+				if (dataDirs.Length > 0 && baseDir.Equals(dataDirs[0].Replace("\\", "/").TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+				{
+					return false;
+				}
+			}
+
+			return true;
+#endif
+		}
+	}
+	
 	public static bool IsGodotInitialized
 	{
 		get

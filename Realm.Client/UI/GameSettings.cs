@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
 using Environment = Godot.Environment;
@@ -56,7 +57,15 @@ public static class GameSettings
 	public static bool DisableShadows { get; set; } = false;
 	public static bool DisableDayNightLighting { get; set; } = false;
 	public static bool FloatingCombatText { get; set; } = true;
-	public static bool MovementPrediction { get; set; } = false;
+
+	private static readonly bool MovementPredictionSupported = PathUtils.IsDevelopmentBuild;
+	private static bool _movementPrediction;
+
+	public static bool MovementPrediction
+	{
+		get => MovementPredictionSupported && _movementPrediction;
+		set => _movementPrediction = value && MovementPredictionSupported;
+	}
 	public static string LastOpenedFolder { get; set; } = string.Empty;
 
 	public static int GetSafeScreenIndex()
