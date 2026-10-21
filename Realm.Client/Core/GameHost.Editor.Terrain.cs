@@ -157,6 +157,12 @@ namespace Realm.Client.Core
 
 		public float GetTerrainHeightAt(Vector3 worldPos)
 		{
+			if (GroundTerrain != null)
+			{
+				GroundTerrain.GetHeightAndNormal(worldPos.X, worldPos.Z, out float h, out _);
+				return h;
+			}
+
 			return GameContext.EditorService.GetTerrainHeightAt(worldPos);
 		}
 
