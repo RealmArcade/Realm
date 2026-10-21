@@ -301,7 +301,7 @@
             "null"
           ]
         },
-        "MaxTestPlayers": {
+        "PlayablePlayerSlots": {
           "type": [
             "integer",
             "null"
@@ -1867,6 +1867,9 @@
                   "string",
                   "null"
                 ]
+              },
+              "IgnorePlayerColor": {
+                "type": "boolean"
               },
               "ChildVfxPosition": {
                 "type": "object",
