@@ -31,7 +31,7 @@ using HttpClient = System.Net.Http.HttpClient;
 namespace Realm.Client.Network;
 
 [GlobalClass]
-public partial class LobbyManager : Node
+public partial class LobbyManager : BaseMapTransferNode
 {
 	public static LobbyManager Instance { get; private set; }
 	public bool IsSinglePlayer { get; set; } = false;
@@ -138,11 +138,6 @@ public partial class LobbyManager : Node
 	private readonly SemaphoreSlim _mapDownloadLock = new(1, 1);
 
 
-	private readonly ConcurrentDictionary<string, HostTransferSession> _hostTransfers = new();
-	private TaskCompletionSource<string>? _manifestTcs;
-	private TaskCompletionSource<bool>? _transferCompleteTcs;
-	private ClientTransferSession? _currentClientTransfer;
-	private int _activeEphemeralTransferPeerId = 0;
 
 	public void SwitchToNextServer()
 	{
@@ -203,6 +198,12 @@ public partial class LobbyManager : Node
 	public event Action? CountdownCancelled;
 	public event Action? CountdownFinished;
 	public event Action<string>? ActiveMapChanged;
+
+	protected override string TransferLogPrefix => "LobbyManager";
+
+	protected override bool IsMapTransferAllowed() => IsHost || (PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding);
+
+	protected override void OnDownloadProgressChanged(float progress) => CallDeferred(nameof(EmitDownloadProgress), progress);
 
 	public override void _Ready()
 	{
@@ -1754,46 +1755,6 @@ public partial class LobbyManager : Node
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RequestMapManifestRpc(string targetMap)
-	{
-		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
-		int senderId = Multiplayer.GetRemoteSenderId();
-		MapTransferHelper.HandleRequestMapManifest(this, senderId, targetMap, nameof(ReceiveMapManifestRpc));
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveMapManifestRpc(string mapName, string mapVersion, string manifestJson) => MapTransferHelper.HandleReceiveMapManifest(_manifestTcs, manifestJson);
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RequestMapAssetTransferRpc(string transferId, string mapName, string mapVersion, string[] missingHashes)
-	{
-		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
-		MapTransferHelper.HandleRequestMapAssetTransferRpc(this, transferId, mapName, mapVersion, missingHashes, ref _activeEphemeralTransferPeerId, _hostTransfers, SendHostChunkAsync, nameof(BeginMapTransferRpc), "LobbyManager");
-	}
-
-	private Task SendHostChunkAsync(HostTransferSession session, int chunkIndex) => MapTransferHelper.SendHostChunkAsync(session, chunkIndex, this, nameof(SendMapTransferChunkRpc), "LobbyManager");
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RequestNextMapTransferChunkRpc(string transferId, int nextChunkIndex)
-	{
-		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
-		MapTransferHelper.HandleRequestNextMapTransferChunkRpc(transferId, nextChunkIndex, _hostTransfers, SendHostChunkAsync);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)] private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks) =>
-		/* Break code scanner identical token sequence */
-		 MapTransferHelper.HandleBeginMapTransferRpc(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, this, nameof(AcknowledgeMapTransferCompleteRpc), _transferCompleteTcs);
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)] private void SendMapTransferChunkRpc(string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData) =>
-		/* Break code scanner identical token sequence */
-		 MapTransferHelper.HandleSendMapTransferChunkRpcWrapper(_currentClientTransfer, transferId, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk, totalBytes, packetData, progress =>
-		/* Break code scanner identical token sequence */
-		 CallDeferred(nameof(EmitDownloadProgress), progress), this, nameof(RequestNextMapTransferChunkRpc), nameof(AcknowledgeMapTransferCompleteRpc), _transferCompleteTcs, "LobbyManager");
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void AcknowledgeMapTransferCompleteRpc(string transferId) =>
-		/* Break code scanner identical token sequence */
-		 MapTransferHelper.HandleAcknowledgeMapTransferCompleteRpc(transferId, _hostTransfers, ref _activeEphemeralTransferPeerId);
 
 	private void EmitDownloadProgress(float progress)
 	{
