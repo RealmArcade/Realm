@@ -22,6 +22,7 @@ using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
 using Realm.Shared.Distribution;
+using Realm.Shared.Metadata;
 using Realm.Shared.Services;
 using SharpToken;
 using Environment = System.Environment;
@@ -72,7 +73,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	private int _currentServerIndex = 0;
 	public string RegistryServerUrl => OfficialServers.Count > 0 && _currentServerIndex < OfficialServers.Count && !string.IsNullOrWhiteSpace(OfficialServers[_currentServerIndex]) ? OfficialServers[_currentServerIndex] : ServersConfigHelper.GetDefaultServerUrl();
 	public int ENetPort { get; private set; } = 8999;
-	public int MaxPlayers { get; set; } = 8;
+	public int MaxPlayers { get; private set; } = MapInfoMetadata.DefaultPlayablePlayerSlots;
+	public string? LastLobbyWarning { get; private set; }
 
 	public string AuthenticatedUsername { get; set; } = "Horaid_Topa";
 	public string? AuthToken { get; set; }
@@ -407,11 +409,19 @@ public partial class LobbyManager : BaseMapTransferNode
 		ActiveMapName = mapPathName;
 		ActiveMapVersion = !string.IsNullOrWhiteSpace(mapVersion) ? mapVersion : "1.0.0";
 		PlayerList.Clear();
+		LastLobbyWarning = null;
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var metadata = MapFileService.LoadMetadata(wsPath);
-		int maxTestPlayers = Math.Clamp(metadata.MapProperties?.MaxTestPlayers ?? 24, 1, 24);
-		int aiCount = Math.Clamp(metadata.MapProperties?.TestAiPlayerCount ?? 1, 0, Math.Max(0, maxTestPlayers - 1));
+		MaxPlayers = metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
+		int requestedAiCount = Math.Max(0, metadata.MapProperties?.TestAiPlayerCount ?? 1);
+		int aiCount = Math.Min(requestedAiCount, Math.Max(0, MaxPlayers - 1));
+		if (aiCount < requestedAiCount)
+		{
+			LastLobbyWarning = string.Format(Tr("Only {0} of {1} requested AI players fit into the {2} playable slots of this map."), aiCount, requestedAiCount, MaxPlayers);
+			GD.PushWarning($"[LobbyManager] {LastLobbyWarning}");
+		}
+
 		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
 		int? testSeed = metadata.MapProperties?.TestRandomSeed;
 
@@ -430,7 +440,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 		else
 		{
-			var available = Enumerable.Range(1, maxTestPlayers).ToList();
+			var available = Enumerable.Range(1, MaxPlayers).ToList();
 			var rng = (testSeed.HasValue && testSeed.Value != 0) ? new Random(testSeed.Value) : new Random();
 			int n = available.Count;
 			while (n > 1)
@@ -521,9 +531,39 @@ public partial class LobbyManager : BaseMapTransferNode
 		return true;
 	}
 
+	private static int ResolvePlayablePlayerSlots(string mapPathName, string? version)
+	{
+		try
+		{
+			string? manifestPath = MapAssetManager.FindManifestPath(mapPathName, version);
+			string? mapDirectory = string.IsNullOrEmpty(manifestPath) ? null : Path.GetDirectoryName(manifestPath);
+			if (string.IsNullOrEmpty(mapDirectory)) return MapInfoMetadata.DefaultPlayablePlayerSlots;
+
+			var metadata = MapFileService.LoadMetadata(mapDirectory);
+			return metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Failed to resolve playable player slots for '{mapPathName}': {ex.Message}");
+			return MapInfoMetadata.DefaultPlayablePlayerSlots;
+		}
+	}
+
+	private int FindNextFreePlayableSlot()
+	{
+		for (int slot = 1; slot <= MaxPlayers; slot++)
+		{
+			if (!PlayerList.Any(p => p.Slot == slot)) return slot;
+		}
+
+		return -1;
+	}
+
 	private void InitializeHostState(string mapPathName, string? explicitVersion)
 	{
 		IsHost = true;
+		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
+		LastLobbyWarning = null;
 		HostStability = HostStabilityTracker.GetOverallStability();
 		IsGameStarted = false;
 		SpectatorDelay = false;
@@ -1303,8 +1343,10 @@ public partial class LobbyManager : BaseMapTransferNode
 
 			if (PlayerList.Count >= MaxPlayers)
 			{
-				GD.Print($"[LobbyManager] Rejecting peer {id}: Lobby is full.");
-				RpcId(id, nameof(RejectConnection), "Lobby is full");
+				string rejectionReason = string.Format(Tr("Lobby is full ({0} of {0} playable slots in use)."), MaxPlayers);
+				LastLobbyWarning = rejectionReason;
+				GD.Print($"[LobbyManager] Rejecting peer {id}: {rejectionReason}");
+				RpcId(id, nameof(RejectConnection), rejectionReason);
 
 
 				var timer = GetTree().CreateTimer(0.1f);
@@ -1319,8 +1361,22 @@ public partial class LobbyManager : BaseMapTransferNode
 			}
 
 
-			int nextSlot = 1;
-			while (PlayerList.Any(p => p.Slot == nextSlot)) nextSlot++;
+			int nextSlot = FindNextFreePlayableSlot();
+			if (nextSlot < 0)
+			{
+				LastLobbyWarning = Tr("No free playable player slot is available.");
+				RpcId(id, nameof(RejectConnection), LastLobbyWarning);
+
+				var slotTimer = GetTree().CreateTimer(0.1f);
+				slotTimer.Timeout += () =>
+				{
+					if (Multiplayer.MultiplayerPeer != null)
+					{
+						Multiplayer.MultiplayerPeer.DisconnectPeer(id);
+					}
+				};
+				return;
+			}
 
 			var newPlayer = new PlayerInfo
 			{
@@ -2652,37 +2708,44 @@ public partial class LobbyManager : BaseMapTransferNode
 		CountdownCancelled?.Invoke();
 	}
 
-	public void AddAIBot()
+	public bool AddAIBot()
 	{
-		if (IsHost && PlayerList.Count < MaxPlayers)
+		if (!IsHost) return false;
+
+		if (PlayerList.Count >= MaxPlayers || FindNextFreePlayableSlot() < 0)
 		{
-			int botId = -100;
-			while (PlayerList.Exists(x => x.PeerId == botId))
-			{
-				botId--;
-			}
-
-			int nextSlot = 1;
-			while (PlayerList.Any(p => p.Slot == nextSlot)) nextSlot++;
-
-			var botPlayer = new PlayerInfo
-			{
-				PeerId = botId,
-				Slot = nextSlot,
-				Name = $"AI Bot {Math.Abs(botId) - 99}",
-				Faction = "ORC",
-				Team = "Team 2",
-				Color = GetNextColor(),
-				IsHost = false,
-				Latency = "0 ms",
-				Jitter = "0 ms",
-				PacketLoss = "0%",
-				BinaryVersion = RealmVersion.GameBinaryVersion
-			};
-			PlayerList.Add(botPlayer);
-			BroadcastPlayerList();
-			SendChatMessage("System", string.Format(Tr("{0} added to the lobby."), botPlayer.Name));
+			LastLobbyWarning = string.Format(Tr("Cannot add an AI player: all {0} playable slots are taken."), MaxPlayers);
+			SendChatMessage("System", LastLobbyWarning);
+			return false;
 		}
+
+		int botId = -100;
+		while (PlayerList.Exists(x => x.PeerId == botId))
+		{
+			botId--;
+		}
+
+		int nextSlot = FindNextFreePlayableSlot();
+
+		var botPlayer = new PlayerInfo
+		{
+			PeerId = botId,
+			Slot = nextSlot,
+			Name = $"AI Bot {Math.Abs(botId) - 99}",
+			Faction = "ORC",
+			Team = "Team 2",
+			Color = GetNextColor(),
+			IsHost = false,
+			Latency = "0 ms",
+			Jitter = "0 ms",
+			PacketLoss = "0%",
+			BinaryVersion = RealmVersion.GameBinaryVersion
+		};
+		PlayerList.Add(botPlayer);
+		BroadcastPlayerList();
+		SendChatMessage("System", string.Format(Tr("{0} added to the lobby."), botPlayer.Name));
+
+		return true;
 	}
 
 	public void BootPlayer(int peerId)

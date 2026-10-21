@@ -529,6 +529,11 @@ public partial class InGameHUD : Control
 		_chatInput.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
 		_chatLog.Text = $"[color=#ffd700]{TranslationServer.Translate("Chat log initialized. Press Enter to type a message.")}[/color]\n";
 
+		if (!string.IsNullOrEmpty(LobbyManager.Instance?.LastLobbyWarning))
+		{
+			_chatLog.AppendText($"[color=#ffb347]{LobbyManager.Instance.LastLobbyWarning}[/color]\n");
+		}
+
 		if (LobbyManager.Instance != null)
 		{
 			LobbyManager.Instance.ChatReceived += OnLobbyChatReceived;

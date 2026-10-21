@@ -126,6 +126,7 @@ public class MetadataService
 
 		ValidateDependencies(metadata.Dependencies, result);
 		ValidatePlayerSlots(metadata.MapProperties?.PlayerSlots, result);
+		ValidatePlayablePlayerSlots(metadata.MapProperties, result);
 
 		return result;
 	}
@@ -170,6 +171,23 @@ public class MetadataService
 			{
 				result.Warnings.Add($"Duplicate dependency Id '{dep.Id}'.");
 			}
+		}
+	}
+
+	private static void ValidatePlayablePlayerSlots(MapInfoMetadata? mapProperties, MapValidationResult result)
+	{
+		if (mapProperties?.PlayablePlayerSlots is not int declaredSlots) return;
+
+		if (declaredSlots < MapInfoMetadata.MinPlayablePlayerSlots || declaredSlots > MapInfoMetadata.MaxPlayablePlayerSlots)
+		{
+			result.Errors.Add($"PlayablePlayerSlots must be between {MapInfoMetadata.MinPlayablePlayerSlots} and {MapInfoMetadata.MaxPlayablePlayerSlots}; found {declaredSlots}.");
+			return;
+		}
+
+		var declaredPlayerSlots = mapProperties.PlayerSlots;
+		if (declaredPlayerSlots != null && declaredPlayerSlots.Count > declaredSlots)
+		{
+			result.Errors.Add($"PlayerSlots declares {declaredPlayerSlots.Count} slots but PlayablePlayerSlots is {declaredSlots}.");
 		}
 	}
 

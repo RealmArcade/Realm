@@ -305,7 +305,17 @@
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "description": "Deprecated test-only AI cap. Prefer PlayablePlayerSlots, which is the authoritative playable slot declaration."
+        },
+        "PlayablePlayerSlots": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 24,
+          "description": "Number of player slots (1-based, starting at slot 1) that the map accepts for humans and AI. Slots above this number are engine bookkeeping (for example proxy players) and are never offered to players. Defaults to 8 when omitted."
         }
       }
     },

@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using Realm.Client.Services;
+using Realm.Shared.Metadata;
 using Realm.Shared.Services;
 
 namespace Realm.Client.UI.MapEditor;
@@ -103,7 +104,8 @@ public partial class TestSettingsDialog : FloatingDialogBase
 	{
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var metadata = MapFileService.LoadMetadata(wsPath);
-		int maxAi = Math.Max(0, (metadata.MapProperties?.MaxTestPlayers ?? 24) - 1);
+		int playableSlots = metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
+		int maxAi = Math.Max(0, playableSlots - 1);
 		int aiCount = Math.Min(metadata.MapProperties?.TestAiPlayerCount ?? 1, maxAi);
 		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
 		int seed = metadata.MapProperties?.TestRandomSeed ?? 0;

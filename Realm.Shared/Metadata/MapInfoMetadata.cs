@@ -5,6 +5,10 @@ namespace Realm.Shared.Metadata;
 
 public class MapInfoMetadata
 {
+	public const int DefaultPlayablePlayerSlots = 8;
+	public const int MaxPlayablePlayerSlots = 24;
+	public const int MinPlayablePlayerSlots = 1;
+
 	public string? MapName { get; set; }
 	public string? MapDescription { get; set; }
 	public string? Author { get; set; }
@@ -39,6 +43,14 @@ public class MapInfoMetadata
 	public bool? TestRandomizeSlots { get; set; }
 	public int? TestRandomSeed { get; set; }
 	public int? MaxTestPlayers { get; set; }
+	public int? PlayablePlayerSlots { get; set; }
 
 	[JsonExtensionData] public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+
+	public int GetPlayablePlayerSlots()
+	{
+		int declaredSlots = PlayablePlayerSlots ?? MaxTestPlayers ?? DefaultPlayablePlayerSlots;
+		return Math.Clamp(declaredSlots, MinPlayablePlayerSlots, MaxPlayablePlayerSlots);
+	}
+
 }

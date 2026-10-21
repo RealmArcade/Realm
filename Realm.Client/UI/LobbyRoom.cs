@@ -910,7 +910,18 @@ public partial class LobbyRoom : Control
 
 		CleanupStalePlayerRows(existingRows, activePeerIds);
 
+		UpdateAddBotAvailability();
 		SetupStartButton();
+	}
+
+	private void UpdateAddBotAvailability()
+	{
+		if (_addBotButton == null || !GodotObject.IsInstanceValid(_addBotButton)) return;
+		if (!LobbyManager.Instance.IsHost) return;
+
+		bool lobbyHasFreeSlot = LobbyManager.Instance.PlayerList.Count < LobbyManager.Instance.MaxPlayers;
+		_addBotButton.Disabled = !lobbyHasFreeSlot;
+		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({LobbyManager.Instance.PlayerList.Count}/{LobbyManager.Instance.MaxPlayers})";
 	}
 
 	private bool CheckHostVersionMismatch()
