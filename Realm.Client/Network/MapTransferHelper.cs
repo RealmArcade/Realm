@@ -238,4 +238,43 @@ public static class MapTransferHelper
 		}
 		return true;
 	}
+
+	public static void CancelHostTransfersForPeer(int peerId, System.Collections.Concurrent.ConcurrentDictionary<string, HostTransferSession> hostTransfers)
+	{
+		foreach (var kvp in hostTransfers)
+		{
+			if (kvp.Value.PeerId == peerId)
+			{
+				kvp.Value.Cts.Cancel();
+				hostTransfers.TryRemove(kvp.Key, out _);
+			}
+		}
+	}
+
+	public static float CalculateOverallTransferProgress(ClientTransferSession session, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk)
+	{
+		float chunkFraction = totalPacketsInChunk > 0 ? (float)(packetIndex + 1) / totalPacketsInChunk : 1.0f;
+		float sessionFraction = totalChunks > 0
+			? Math.Clamp(((float)chunkIndex + chunkFraction) / totalChunks, 0.0f, 1.0f)
+			: 1.0f;
+
+		if (session.TotalAssetsInManifest > 0)
+		{
+			float downloadedAssetsInSession = sessionFraction * session.SessionMissingAssets;
+			return Math.Clamp((session.AlreadyPresentAssets + downloadedAssetsInSession) / session.TotalAssetsInManifest, 0.0f, 1.0f);
+		}
+
+		return sessionFraction;
+	}
+
+	public static void EmitTransferProgressIfRequired(ClientTransferSession session, float overallProgress, bool isChunkEnd, Action<float> emitAction)
+	{
+		long nowTicks = System.Environment.TickCount64;
+		if (isChunkEnd || overallProgress >= 1.0f || Math.Abs(overallProgress - session.LastEmittedProgress) >= 0.005f || (nowTicks - session.LastProgressEmitTicks) >= 100)
+		{
+			session.LastEmittedProgress = overallProgress;
+			session.LastProgressEmitTicks = nowTicks;
+			emitAction(overallProgress);
+		}
+	}
 }

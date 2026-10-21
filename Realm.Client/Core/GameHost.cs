@@ -303,11 +303,8 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		SelectedPropEntity = entity;
 		SelectedPropId = propId;
-		if (entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<Position>(entity))
+		if (TryUpdatePropRingState(entity, out var pos, out var scale))
 		{
-			var posComp = GameContext.World.Get<Position>(entity);
-			Vector3 pos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
-			float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
 			EnsurePropSelectionRing();
 			if (_sharedPropSelectionRing != null)
 			{
@@ -344,11 +341,8 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		HoveredPropEntity = entity;
 		HoveredPropId = propId;
-		if (entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<Position>(entity))
+		if (TryUpdatePropRingState(entity, out var pos, out var scale))
 		{
-			var posComp = GameContext.World.Get<Position>(entity);
-			Vector3 pos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
-			float scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
 			EnsurePropHoverRing();
 			if (_sharedPropHoverRing != null)
 			{
@@ -364,6 +358,20 @@ public partial class GameHost : Node3D, IGameAPI
 				_sharedPropHoverRing.Visible = false;
 			}
 		}
+	}
+
+	private bool TryUpdatePropRingState(Entity entity, out Vector3 pos, out float scale)
+	{
+		pos = Vector3.Zero;
+		scale = 1f;
+		if (entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<Position>(entity))
+		{
+			var posComp = GameContext.World.Get<Position>(entity);
+			pos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
+			scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
+			return true;
+		}
+		return false;
 	}
 
 	private void EnsurePropSelectionRing()

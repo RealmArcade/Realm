@@ -233,7 +233,7 @@ public partial class EnetMapTransferService : Node
 	private void RequestMapManifestRpc(string targetMap)
 	{
 		int senderId = Multiplayer.GetRemoteSenderId();
-			MapTransferHelper.HandleRequestMapManifest(this, senderId, targetMap, nameof(ReceiveMapManifestRpc));
+		MapTransferHelper.HandleRequestMapManifest(this, senderId, targetMap, nameof(ReceiveMapManifestRpc));
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -248,14 +248,7 @@ public partial class EnetMapTransferService : Node
 		int senderId = Multiplayer.GetRemoteSenderId();
 		if (!MapTransferHelper.HandleBeginMapTransfer(this, senderId, transferId, ref _activeEphemeralTransferPeerId)) return;
 
-		foreach (var kvp in _hostTransfers)
-		{
-			if (kvp.Value.PeerId == senderId)
-			{
-				kvp.Value.Cts.Cancel();
-				_hostTransfers.TryRemove(kvp.Key, out _);
-			}
-		}
+		MapTransferHelper.CancelHostTransfersForPeer(senderId, _hostTransfers);
 
 		_ = HandleHostAssetTransferAsync(senderId, transferId, mapName, mapVersion, missingHashes);
 	}
@@ -279,7 +272,7 @@ public partial class EnetMapTransferService : Node
 			await Task.Run(() =>
 			{
 				var manifest = MapAssetManager.FindHostManifest(mapName, mapVersion);
-				var localFileMap = GetLocalFileMap(mapName, mapVersion, manifest);
+				var localFileMap = MapTransferHelper.BuildLocalFileMap(mapName, mapVersion, manifest);
 				var itemsToPack = MapTransferHelper.GatherItemsToPack(missingHashes, localFileMap);
 				var chunkList = MapTransferHelper.ChunkTransferItems(itemsToPack);
 
@@ -302,15 +295,6 @@ public partial class EnetMapTransferService : Node
 			GD.PrintErr($"[EnetMapTransferService] Transfer error: {ex.Message}");
 		}
 	}
-
-	private Dictionary<string, string> GetLocalFileMap(string mapName, string mapVersion, MapManifest? manifest)
-	{
-		return MapTransferHelper.BuildLocalFileMap(mapName, mapVersion, manifest);
-	}
-
-
-
-
 
 	private async Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
 	{
@@ -404,10 +388,13 @@ public partial class EnetMapTransferService : Node
 		{
 			UpdateClientTransferSessionData(chunkIndex, totalChunks, totalBytes, packetData);
 
-			float overallProgress = CalculateOverallTransferProgress(chunkIndex, totalChunks, packetIndex, totalPacketsInChunk);
+			float overallProgress = MapTransferHelper.CalculateOverallTransferProgress(_currentClientTransfer, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk);
 			bool isChunkEnd = packetIndex + 1 >= totalPacketsInChunk;
 
-			EmitTransferProgressIfRequired(overallProgress, isChunkEnd);
+			MapTransferHelper.EmitTransferProgressIfRequired(_currentClientTransfer, overallProgress, isChunkEnd, progress => {
+				_currentClientTransfer.ProgressCallback?.Invoke(progress);
+				DownloadProgressChanged?.Invoke(progress);
+			});
 
 			if (isChunkEnd)
 			{
@@ -431,34 +418,6 @@ public partial class EnetMapTransferService : Node
 		_currentClientTransfer.CurrentChunkStream.Write(packetData, 0, packetData.Length);
 		_currentClientTransfer.ReceivedPacketsInCurrentChunk++;
 		_currentClientTransfer.TotalReceivedBytes += packetData.Length;
-	}
-
-	private float CalculateOverallTransferProgress(int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk)
-	{
-		float chunkFraction = totalPacketsInChunk > 0 ? (float)(packetIndex + 1) / totalPacketsInChunk : 1.0f;
-		float sessionFraction = totalChunks > 0
-			? Math.Clamp(((float)chunkIndex + chunkFraction) / totalChunks, 0.0f, 1.0f)
-			: 1.0f;
-
-		if (_currentClientTransfer!.TotalAssetsInManifest > 0)
-		{
-			float downloadedAssetsInSession = sessionFraction * _currentClientTransfer.SessionMissingAssets;
-			return Math.Clamp((_currentClientTransfer.AlreadyPresentAssets + downloadedAssetsInSession) / _currentClientTransfer.TotalAssetsInManifest, 0.0f, 1.0f);
-		}
-
-		return sessionFraction;
-	}
-
-	private void EmitTransferProgressIfRequired(float overallProgress, bool isChunkEnd)
-	{
-		long nowTicks = Environment.TickCount64;
-		if (isChunkEnd || overallProgress >= 1.0f || Math.Abs(overallProgress - _currentClientTransfer!.LastEmittedProgress) >= 0.005f || (nowTicks - _currentClientTransfer.LastProgressEmitTicks) >= 100)
-		{
-			_currentClientTransfer!.LastEmittedProgress = overallProgress;
-			_currentClientTransfer.LastProgressEmitTicks = nowTicks;
-			_currentClientTransfer.ProgressCallback?.Invoke(overallProgress);
-			DownloadProgressChanged?.Invoke(overallProgress);
-		}
 	}
 
 	private void FinalizeReceivedChunk(int chunkIndex, int totalChunks)

@@ -1759,7 +1759,7 @@ public partial class LobbyManager : Node
 	{
 		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
 		int senderId = Multiplayer.GetRemoteSenderId();
-			MapTransferHelper.HandleRequestMapManifest(this, senderId, targetMap, nameof(ReceiveMapManifestRpc));
+		MapTransferHelper.HandleRequestMapManifest(this, senderId, targetMap, nameof(ReceiveMapManifestRpc));
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -1775,14 +1775,7 @@ public partial class LobbyManager : Node
 		int senderId = Multiplayer.GetRemoteSenderId();
 		if (!MapTransferHelper.HandleBeginMapTransfer(this, senderId, transferId, ref _activeEphemeralTransferPeerId)) return;
 
-		foreach (var kvp in _hostTransfers)
-		{
-			if (kvp.Value.PeerId == senderId)
-			{
-				kvp.Value.Cts.Cancel();
-				_hostTransfers.TryRemove(kvp.Key, out _);
-			}
-		}
+		MapTransferHelper.CancelHostTransfersForPeer(senderId, _hostTransfers);
 
 		_ = HandleHostAssetTransferAsync(senderId, transferId, mapName, mapVersion, missingHashes);
 	}
@@ -1922,10 +1915,12 @@ public partial class LobbyManager : Node
 		{
 			UpdateTransferState(chunkIndex, totalChunks, totalBytes, packetData);
 
-			float overallProgress = CalculateTransferProgress(chunkIndex, totalChunks, packetIndex, totalPacketsInChunk);
+			float overallProgress = MapTransferHelper.CalculateOverallTransferProgress(_currentClientTransfer, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk);
 			bool isChunkEnd = packetIndex + 1 >= totalPacketsInChunk;
 
-			EmitProgressIfNeeded(overallProgress, isChunkEnd);
+			MapTransferHelper.EmitTransferProgressIfRequired(_currentClientTransfer, overallProgress, isChunkEnd, progress => {
+				CallDeferred(nameof(EmitDownloadProgress), progress);
+			});
 
 			if (isChunkEnd)
 			{
@@ -1949,33 +1944,6 @@ public partial class LobbyManager : Node
 		_currentClientTransfer.CurrentChunkStream.Write(packetData, 0, packetData.Length);
 		_currentClientTransfer.ReceivedPacketsInCurrentChunk++;
 		_currentClientTransfer.TotalReceivedBytes += packetData.Length;
-	}
-
-	private float CalculateTransferProgress(int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk)
-	{
-		float chunkFraction = totalPacketsInChunk > 0 ? (float)(packetIndex + 1) / totalPacketsInChunk : 1.0f;
-		float sessionFraction = totalChunks > 0
-			? Math.Clamp(((float)chunkIndex + chunkFraction) / totalChunks, 0.0f, 1.0f)
-			: 1.0f;
-
-		if (_currentClientTransfer!.TotalAssetsInManifest > 0)
-		{
-			float downloadedAssetsInSession = sessionFraction * _currentClientTransfer.SessionMissingAssets;
-			return Math.Clamp((_currentClientTransfer.AlreadyPresentAssets + downloadedAssetsInSession) / _currentClientTransfer.TotalAssetsInManifest, 0.0f, 1.0f);
-		}
-
-		return sessionFraction;
-	}
-
-	private void EmitProgressIfNeeded(float overallProgress, bool isChunkEnd)
-	{
-		long nowTicks = Environment.TickCount64;
-		if (isChunkEnd || overallProgress >= 1.0f || Math.Abs(overallProgress - _currentClientTransfer!.LastEmittedProgress) >= 0.005f || (nowTicks - _currentClientTransfer.LastProgressEmitTicks) >= 100)
-		{
-			_currentClientTransfer!.LastEmittedProgress = overallProgress;
-			_currentClientTransfer.LastProgressEmitTicks = nowTicks;
-			CallDeferred(nameof(EmitDownloadProgress), overallProgress);
-		}
 	}
 
 	private void ProcessCompletedChunk(int chunkIndex, int totalChunks)
