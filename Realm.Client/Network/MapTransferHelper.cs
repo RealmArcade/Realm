@@ -13,6 +13,11 @@ namespace Realm.Client.Network;
 
 public static class MapTransferHelper
 {
+	public static void HandleReceiveMapManifest(TaskCompletionSource<string>? tcs, string manifestJson)
+	{
+		tcs?.TrySetResult(manifestJson);
+	}
+
 	public static void HandleRequestMapManifest(Node rpcNode, int senderId, string targetMap, string receiveRpcMethodName)
 	{
 		var manifest = MapAssetManager.FindHostManifest(targetMap);

@@ -1765,7 +1765,7 @@ public partial class LobbyManager : Node
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void ReceiveMapManifestRpc(string mapName, string mapVersion, string manifestJson)
 	{
-		_manifestTcs?.TrySetResult(manifestJson);
+		MapTransferHelper.HandleReceiveMapManifest(_manifestTcs, manifestJson);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

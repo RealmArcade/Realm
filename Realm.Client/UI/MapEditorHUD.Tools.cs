@@ -2446,12 +2446,8 @@ namespace Realm.Client.UI
 				return;
 			}
 
-			var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(workspace);
-			if (!sizesValid)
+			if (!CheckAssetSizeValidation(workspace))
 			{
-				string oversizedSummary = string.Join("\n", oversizedAssets.Take(4).Select(o => $"• {o.RelativePath} ({o.SizeMB:F2} MB > 15 MB)")) + (oversizedAssets.Count > 4 ? "\n..." : "");
-				ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Assets exceed maximum 15 MB size limit:\n{0}"), oversizedSummary));
-				AppendWasmConsoleLog($"[ERROR] Publish failed. Assets exceed maximum 15 MB size limit:\n{string.Join("\n", oversizedAssets.Select(o => $"  {o.RelativePath} ({o.SizeMB:F2} MB)"))}");
 				GameContext.EditorService.IsSyncing = false;
 				if (GameContext.EditorService != null) GameContext.EditorService.IsPaused = false;
 				return;
@@ -2564,16 +2560,12 @@ namespace Realm.Client.UI
 					return;
 				}
 
-				(sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(workspace);
-				if (!sizesValid)
+				if (!CheckAssetSizeValidation(workspace))
 				{
 					progressBar.Value = 100;
 					statusLabel.Text = "❌ " + TranslationServer.Translate("Asset exceeds 15 MB size limit. Publish aborted.");
 					statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.3f, 0.3f));
 					closeBtn.Visible = true;
-					string oversizedSummary = string.Join("\n", oversizedAssets.Take(4).Select(o => $"• {o.RelativePath} ({o.SizeMB:F2} MB > 15 MB)")) + (oversizedAssets.Count > 4 ? "\n..." : "");
-					ShowFeedback(string.Format(TranslationServer.Translate("Publish failed: Assets exceed maximum 15 MB size limit:\n{0}"), oversizedSummary));
-					AppendWasmConsoleLog($"[ERROR] Publish aborted. Assets exceed maximum 15 MB size limit:\n{string.Join("\n", oversizedAssets.Select(o => $"  {o.RelativePath} ({o.SizeMB:F2} MB)"))}");
 					return;
 				}
 

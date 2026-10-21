@@ -445,7 +445,17 @@ public partial class MapEditorHUD : Control
 			return false;
 		}
 
-		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(wsPath);
+		if (!CheckAssetSizeValidation(wsPath))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	private bool CheckAssetSizeValidation(string workspace)
+	{
+		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(workspace);
 		if (!sizesValid)
 		{
 			string oversizedSummary = string.Join("\n", oversizedAssets.Take(4).Select(o => $"• {o.RelativePath} ({o.SizeMB:F2} MB > 15 MB)")) + (oversizedAssets.Count > 4 ? "\n..." : "");
@@ -453,7 +463,6 @@ public partial class MapEditorHUD : Control
 			AppendWasmConsoleLog($"[ERROR] Publish failed. Assets exceed maximum 15 MB size limit:\n{string.Join("\n", oversizedAssets.Select(o => $"  {o.RelativePath} ({o.SizeMB:F2} MB)"))}");
 			return false;
 		}
-
 		return true;
 	}
 

@@ -62,21 +62,26 @@ public class SaveLoadService
 				int srcWgtZ = wgtD == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(wgtD - 1) / Math.Max(1, splatD - 1)), 0, wgtD - 1);
 				int weightOffset = (srcWgtZ * wgtW + srcWgtX) * 4;
 
-				splatMap[x, z] = new TerrainSplatWeights
-				{
-					Index0 = (int)Math.Round(idxData[idxOffset + 0]),
-					Index1 = (int)Math.Round(idxData[idxOffset + 1]),
-					Index2 = (int)Math.Round(idxData[idxOffset + 2]),
-					Index3 = (int)Math.Round(idxData[idxOffset + 3]),
-					Weight0 = wgtData[weightOffset + 0],
-					Weight1 = wgtData[weightOffset + 1],
-					Weight2 = wgtData[weightOffset + 2],
-					Weight3 = wgtData[weightOffset + 3]
-				};
+				splatMap[x, z] = CreateTerrainSplatWeights(idxData, idxOffset, wgtData, weightOffset);
 			}
 		}
 
 		return splatMap;
+	}
+
+	private TerrainSplatWeights CreateTerrainSplatWeights(ReadOnlySpan<float> idxData, int idxOffset, ReadOnlySpan<float> wgtData, int weightOffset)
+	{
+		return new TerrainSplatWeights
+		{
+			Index0 = (int)Math.Round(idxData[idxOffset + 0]),
+			Index1 = (int)Math.Round(idxData[idxOffset + 1]),
+			Index2 = (int)Math.Round(idxData[idxOffset + 2]),
+			Index3 = (int)Math.Round(idxData[idxOffset + 3]),
+			Weight0 = wgtData[weightOffset + 0],
+			Weight1 = wgtData[weightOffset + 1],
+			Weight2 = wgtData[weightOffset + 2],
+			Weight3 = wgtData[weightOffset + 3]
+		};
 	}
 
 	public TerrainSplatWeights[,] GenerateFallbackSplatMap(int splatW, int splatD, int width, int depth)
@@ -1000,17 +1005,7 @@ public class SaveLoadService
 				int srcWgtZ = wgtH == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(wgtH - 1) / Math.Max(1, splatD - 1)), 0, wgtH - 1);
 				int weightOffset = (srcWgtZ * wgtW + srcWgtX) * 4;
 
-				var s = new TerrainSplatWeights
-				{
-					Index0 = (int)Math.Round(idxData[idxOffset + 0]),
-					Index1 = (int)Math.Round(idxData[idxOffset + 1]),
-					Index2 = (int)Math.Round(idxData[idxOffset + 2]),
-					Index3 = (int)Math.Round(idxData[idxOffset + 3]),
-					Weight0 = wgtData[weightOffset + 0],
-					Weight1 = wgtData[weightOffset + 1],
-					Weight2 = wgtData[weightOffset + 2],
-					Weight3 = wgtData[weightOffset + 3]
-				};
+				var s = CreateTerrainSplatWeights(idxData, idxOffset, wgtData, weightOffset);
 
 				loadedColors[z * splatW + x] = s.Serialize();
 			}
