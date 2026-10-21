@@ -243,11 +243,8 @@ public partial class EnetMapTransferService : Node
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void RequestNextMapTransferChunkRpc(string transferId, int nextChunkIndex) => MapTransferHelper.HandleRequestNextMapTransferChunkRpc(transferId, nextChunkIndex, _hostTransfers, SendHostChunkAsync);
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks) => MapTransferHelper.HandleBeginMapTransferRpc(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, this, nameof(AcknowledgeMapTransferCompleteRpc), _transferCompleteTcs);
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void SendMapTransferChunkRpc(string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData) => MapTransferHelper.HandleSendMapTransferChunkRpcWrapper(_currentClientTransfer, transferId, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk, totalBytes, packetData, OnDownloadProgress, this, nameof(RequestNextMapTransferChunkRpc), nameof(AcknowledgeMapTransferCompleteRpc), _transferCompleteTcs, "EnetMapTransferService");
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)] private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks) => MapTransferHelper.HandleBeginMapTransferRpc(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, this, nameof(AcknowledgeMapTransferCompleteRpc), _transferCompleteTcs);
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)] private void SendMapTransferChunkRpc(string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData) => MapTransferHelper.HandleSendMapTransferChunkRpcWrapper(_currentClientTransfer, transferId, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk, totalBytes, packetData, OnDownloadProgress, this, nameof(RequestNextMapTransferChunkRpc), nameof(AcknowledgeMapTransferCompleteRpc), _transferCompleteTcs, "EnetMapTransferService");
 
 	private void OnDownloadProgress(float progress)
 	{
