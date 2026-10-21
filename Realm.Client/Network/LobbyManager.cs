@@ -1772,117 +1772,15 @@ public partial class LobbyManager : Node
 	private void RequestMapAssetTransferRpc(string transferId, string mapName, string mapVersion, string[] missingHashes)
 	{
 		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
-		int senderId = Multiplayer.GetRemoteSenderId();
-		if (!MapTransferHelper.HandleBeginMapTransfer(this, senderId, transferId, ref _activeEphemeralTransferPeerId)) return;
-
-		MapTransferHelper.CancelHostTransfersForPeer(senderId, _hostTransfers);
-
-		_ = HandleHostAssetTransferAsync(senderId, transferId, mapName, mapVersion, missingHashes);
+		MapTransferHelper.HandleRequestMapAssetTransferRpc(
+			this, transferId, mapName, mapVersion, missingHashes, 
+			ref _activeEphemeralTransferPeerId, _hostTransfers, SendHostChunkAsync, 
+			nameof(BeginMapTransferRpc), "LobbyManager");
 	}
 
-	private async Task HandleHostAssetTransferAsync(int peerId, string transferId, string mapName, string mapVersion, string[] missingHashes)
+	private Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
 	{
-		var session = new HostTransferSession
-		{
-			TransferId = transferId,
-			PeerId = peerId,
-			MapName = mapName,
-			MapVersion = mapVersion,
-			Cts = new CancellationTokenSource()
-		};
-		_hostTransfers[transferId] = session;
-
-		try
-		{
-			await Task.Run(() => PrepareHostTransferSession(session, mapName, mapVersion, missingHashes), session.Cts.Token);
-
-			Callable.From(() => RpcId(peerId, nameof(BeginMapTransferRpc), transferId, mapName, mapVersion, session.TotalRawBytes, session.TotalChunks)).CallDeferred();
-
-			if (session.TotalChunks > 0)
-			{
-				await SendHostChunkAsync(session, 0);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error during host asset transfer {transferId} to peer {peerId}: {ex.Message}");
-		}
-	}
-
-	private void PrepareHostTransferSession(HostTransferSession session, string mapName, string mapVersion, string[] missingHashes)
-	{
-		var localFileMap = BuildLocalFileMap(mapName, mapVersion);
-		var itemsToPack = MapTransferHelper.GatherItemsToPack(missingHashes, localFileMap);
-
-		session.ChunkItems = MapTransferHelper.ChunkTransferItems(itemsToPack);
-		session.TotalRawBytes = itemsToPack.Sum(a => a.Size);
-	}
-
-	private Dictionary<string, string> BuildLocalFileMap(string mapName, string mapVersion)
-	{
-		var manifest = MapAssetManager.FindHostManifest(mapName, mapVersion);
-		return MapTransferHelper.BuildLocalFileMap(mapName, mapVersion, manifest);
-	}
-
-
-
-
-	private async Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
-	{
-		if (chunkIndex < 0 || chunkIndex >= session.ChunkItems.Count || session.Cts.IsCancellationRequested) return;
-
-		try
-		{
-			byte[] compressedChunkBytes = await MapTransferHelper.CompressChunkAsync(session, chunkIndex);
-
-			int totalPacketsInChunk = (int)Math.Ceiling((double)compressedChunkBytes.Length / ZstdAssetBundleHelper.PacketChunkSize);
-			if (totalPacketsInChunk <= 0) totalPacketsInChunk = 1;
-
-			await SendChunkPacketsAsync(session, chunkIndex, compressedChunkBytes, totalPacketsInChunk);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error sending chunk {chunkIndex} for transfer {session.TransferId}: {ex.Message}");
-		}
-	}
-
-	private async Task SendChunkPacketsAsync(HostTransferSession session, int chunkIndex, byte[] compressedChunkBytes, int totalPacketsInChunk)
-	{
-		int packetIndex = 0;
-		int offset = 0;
-
-		while (offset < compressedChunkBytes.Length)
-		{
-			if (session.Cts.IsCancellationRequested) break;
-
-			int packetSize = Math.Min(ZstdAssetBundleHelper.PacketChunkSize, compressedChunkBytes.Length - offset);
-			byte[] packetData = new byte[packetSize];
-			Buffer.BlockCopy(compressedChunkBytes, offset, packetData, 0, packetSize);
-
-			int currentPacketIndex = packetIndex;
-			int currentChunkIndex = chunkIndex;
-			int totalChunks = session.TotalChunks;
-			long totalBytes = session.TotalRawBytes;
-
-			Callable.From(() => RpcId(
-				session.PeerId,
-				nameof(SendMapTransferChunkRpc),
-				session.TransferId,
-				currentChunkIndex,
-				totalChunks,
-				currentPacketIndex,
-				totalPacketsInChunk,
-				totalBytes,
-				packetData)).CallDeferred();
-
-			offset += packetSize;
-			packetIndex++;
-
-			if (packetIndex % 2 == 0)
-			{
-				await Task.Delay(1, session.Cts.Token);
-			}
-		}
+		return MapTransferHelper.SendHostChunkAsync(session, chunkIndex, this, nameof(SendMapTransferChunkRpc), "LobbyManager");
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -1915,14 +1813,7 @@ public partial class LobbyManager : Node
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void AcknowledgeMapTransferCompleteRpc(string transferId)
 	{
-		if (_hostTransfers.TryRemove(transferId, out var session))
-		{
-			session.Cts.Cancel();
-			if (_activeEphemeralTransferPeerId == session.PeerId)
-			{
-				_activeEphemeralTransferPeerId = 0;
-			}
-		}
+		MapTransferHelper.HandleAcknowledgeMapTransferCompleteRpc(transferId, _hostTransfers, ref _activeEphemeralTransferPeerId);
 	}
 
 	private void EmitDownloadProgress(float progress)

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using Godot;
@@ -237,6 +239,161 @@ public static class MapTransferHelper
 			activeEphemeralTransferPeerId = senderId;
 		}
 		return true;
+	}
+
+	public static void HandleRequestMapAssetTransferRpc(
+		Node rpcNode,
+		string transferId,
+		string mapName,
+		string mapVersion,
+		string[] missingHashes,
+		ref int activeEphemeralTransferPeerId,
+		System.Collections.Concurrent.ConcurrentDictionary<string, HostTransferSession> hostTransfers,
+		Func<HostTransferSession, int, Task> sendHostChunkAsync,
+		string beginMapTransferRpcName,
+		string logPrefix)
+	{
+		int senderId = rpcNode.Multiplayer.GetRemoteSenderId();
+		if (!HandleBeginMapTransfer(rpcNode, senderId, transferId, ref activeEphemeralTransferPeerId)) return;
+
+		CancelHostTransfersForPeer(senderId, hostTransfers);
+
+		_ = HandleHostAssetTransferAsync(rpcNode, senderId, transferId, mapName, mapVersion, missingHashes, hostTransfers, sendHostChunkAsync, beginMapTransferRpcName, logPrefix);
+	}
+
+	public static async Task HandleHostAssetTransferAsync(
+		Node rpcNode,
+		int peerId,
+		string transferId,
+		string mapName,
+		string mapVersion,
+		string[] missingHashes,
+		System.Collections.Concurrent.ConcurrentDictionary<string, HostTransferSession> hostTransfers,
+		Func<HostTransferSession, int, Task> sendHostChunkAsync,
+		string beginMapTransferRpcName,
+		string logPrefix)
+	{
+		var session = new HostTransferSession
+		{
+			TransferId = transferId,
+			PeerId = peerId,
+			MapName = mapName,
+			MapVersion = mapVersion,
+			Cts = new CancellationTokenSource()
+		};
+		hostTransfers[transferId] = session;
+
+		try
+		{
+			await Task.Run(() =>
+			{
+				var manifest = MapAssetManager.FindHostManifest(mapName, mapVersion);
+				var localFileMap = BuildLocalFileMap(mapName, mapVersion, manifest);
+				var itemsToPack = GatherItemsToPack(missingHashes, localFileMap);
+				var chunkList = ChunkTransferItems(itemsToPack);
+
+				session.ChunkItems = chunkList;
+				session.TotalRawBytes = itemsToPack.Sum(a => a.Size);
+			}, session.Cts.Token);
+
+			int totalChunks = session.TotalChunks;
+			long totalBytes = session.TotalRawBytes;
+
+			Callable.From(() => rpcNode.RpcId(peerId, beginMapTransferRpcName, transferId, mapName, mapVersion, totalBytes, totalChunks)).CallDeferred();
+
+			if (totalChunks > 0)
+			{
+				await sendHostChunkAsync(session, 0);
+			}
+		}
+		catch (Exception ex)
+		{
+			Godot.GD.PrintErr($"[{logPrefix}] Error during host asset transfer {transferId} to peer {peerId}: {ex.Message}");
+		}
+	}
+
+	public static async Task SendHostChunkAsync(
+		HostTransferSession session,
+		int chunkIndex,
+		Node rpcNode,
+		string sendMapTransferChunkRpcName,
+		string logPrefix)
+	{
+		if (chunkIndex < 0 || chunkIndex >= session.ChunkItems.Count || session.Cts.IsCancellationRequested) return;
+
+		try
+		{
+			byte[] compressedChunkBytes = await CompressChunkAsync(session, chunkIndex);
+
+			int totalPacketsInChunk = (int)Math.Ceiling((double)compressedChunkBytes.Length / ZstdAssetBundleHelper.PacketChunkSize);
+			if (totalPacketsInChunk <= 0) totalPacketsInChunk = 1;
+
+			await SendChunkPacketsAsync(session, chunkIndex, compressedChunkBytes, totalPacketsInChunk, rpcNode, sendMapTransferChunkRpcName);
+		}
+		catch (Exception ex)
+		{
+			Godot.GD.PrintErr($"[{logPrefix}] Error sending chunk {chunkIndex} for transfer {session.TransferId}: {ex.Message}");
+		}
+	}
+
+	public static async Task SendChunkPacketsAsync(
+		HostTransferSession session,
+		int chunkIndex,
+		byte[] compressedChunkBytes,
+		int totalPacketsInChunk,
+		Node rpcNode,
+		string sendMapTransferChunkRpcName)
+	{
+		int packetIndex = 0;
+		int offset = 0;
+
+		while (offset < compressedChunkBytes.Length)
+		{
+			if (session.Cts.IsCancellationRequested) break;
+
+			int packetSize = Math.Min(ZstdAssetBundleHelper.PacketChunkSize, compressedChunkBytes.Length - offset);
+			byte[] packetData = new byte[packetSize];
+			Buffer.BlockCopy(compressedChunkBytes, offset, packetData, 0, packetSize);
+
+			int currentPacketIndex = packetIndex;
+			int currentChunkIndex = chunkIndex;
+			int totalChunks = session.TotalChunks;
+			long totalBytes = session.TotalRawBytes;
+
+			Callable.From(() => rpcNode.RpcId(
+				session.PeerId,
+				sendMapTransferChunkRpcName,
+				session.TransferId,
+				currentChunkIndex,
+				totalChunks,
+				currentPacketIndex,
+				totalPacketsInChunk,
+				totalBytes,
+				packetData)).CallDeferred();
+
+			offset += packetSize;
+			packetIndex++;
+
+			if (packetIndex % 2 == 0)
+			{
+				await Task.Delay(1, session.Cts.Token);
+			}
+		}
+	}
+
+	public static void HandleAcknowledgeMapTransferCompleteRpc(
+		string transferId,
+		System.Collections.Concurrent.ConcurrentDictionary<string, HostTransferSession> hostTransfers,
+		ref int activeEphemeralTransferPeerId)
+	{
+		if (hostTransfers.TryRemove(transferId, out var session))
+		{
+			session.Cts.Cancel();
+			if (activeEphemeralTransferPeerId == session.PeerId)
+			{
+				activeEphemeralTransferPeerId = 0;
+			}
+		}
 	}
 
 	public static void CancelHostTransfersForPeer(int peerId, System.Collections.Concurrent.ConcurrentDictionary<string, HostTransferSession> hostTransfers)
