@@ -4,11 +4,17 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Core;
 using Realm.Shared.Textures;
+using SkiaSharp;
 
 namespace Realm.Client.UI.MapEditor;
 
 public class MapEditorMinimap
 {
+	public const string ThumbnailFileName = "thumbnail.webp";
+	public const string LegacyThumbnailFileName = "thumbnail.png";
+	private const int ThumbnailSize = 512;
+	private const int ThumbnailWebpQuality = 90;
+
 	private PanelContainer _minimapFrame;
 	private Control _minimapArea;
 	private MapEditorCameraIndicator _cameraIndicator;
@@ -160,7 +166,7 @@ public class MapEditorMinimap
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to capture minimap thumbnail.png: {ex.Message}");
+			GD.PrintErr($"Failed to capture minimap thumbnail: {ex.Message}");
 		}
 
 		return false;
@@ -173,17 +179,23 @@ public class MapEditorMinimap
 			img.Convert(Image.Format.Rgba8);
 		}
 
-		if (img.GetWidth() != 512 || img.GetHeight() != 512)
+		if (img.GetWidth() != ThumbnailSize || img.GetHeight() != ThumbnailSize)
 		{
-			img.Resize(512, 512, Image.Interpolation.Bilinear);
+			img.Resize(ThumbnailSize, ThumbnailSize, Image.Interpolation.Bilinear);
 		}
 
-		string destinationPngPath = Path.Combine(workspacePath, "thumbnail.png");
-		IndexedPngHelper.SaveAs256ColorPng(
-			img.GetData(),
-			img.GetWidth(),
-			img.GetHeight(),
-			destinationPngPath);
+		using var bitmap = SKBitmap.Decode(img.SavePngToBuffer());
+		if (bitmap == null) return false;
+
+		byte[] encodedThumbnail = TextureConverter.EncodeWebp(bitmap, lossless: false, quality: ThumbnailWebpQuality);
+		string destinationWebpPath = Path.Combine(workspacePath, ThumbnailFileName);
+		File.WriteAllBytes(destinationWebpPath, encodedThumbnail);
+
+		string stalePngPath = Path.Combine(workspacePath, LegacyThumbnailFileName);
+		if (File.Exists(stalePngPath))
+		{
+			File.Delete(stalePngPath);
+		}
 
 		return true;
 	}

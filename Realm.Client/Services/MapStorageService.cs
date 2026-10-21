@@ -1159,10 +1159,16 @@ public class MapStorageService
 
 	private static string FindThumbnailPath(string versionDirectory)
 	{
-		string p = Path.Combine(versionDirectory, "thumbnail.png");
-		if (File.Exists(p))
+		string webpPath = Path.Combine(versionDirectory, "thumbnail.webp");
+		if (File.Exists(webpPath))
 		{
-			return p;
+			return webpPath;
+		}
+
+		string legacyPngPath = Path.Combine(versionDirectory, "thumbnail.png");
+		if (File.Exists(legacyPngPath))
+		{
+			return legacyPngPath;
 		}
 
 		return string.Empty;

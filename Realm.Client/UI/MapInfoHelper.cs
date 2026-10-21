@@ -224,8 +224,8 @@ public static class MapInfoHelper
 
 			if (!string.IsNullOrEmpty(versionDir))
 			{
-				string localThumb = Path.Combine(versionDir, "thumbnail.png");
-				if (File.Exists(localThumb)) thumbPath = localThumb;
+				string localThumb = ResolveThumbnailPath(versionDir);
+				if (!string.IsNullOrEmpty(localThumb)) thumbPath = localThumb;
 			}
 
 			details = new MapBriefingDetails
@@ -326,8 +326,8 @@ public static class MapInfoHelper
 			string manifestHash = TryGetManifestHash(globalPath);
 
 			string thumbPath = FindThumbnailForMap(mapFolder, version);
-			string localThumb = Path.Combine(mapFolderPath, "thumbnail.png");
-			if (File.Exists(localThumb)) thumbPath = localThumb;
+			string localThumb = ResolveThumbnailPath(mapFolderPath);
+			if (!string.IsNullOrEmpty(localThumb)) thumbPath = localThumb;
 
 			result = new MapBriefingDetails
 			{
@@ -708,15 +708,26 @@ public static class MapInfoHelper
 		return new Version(0, 0, 0);
 	}
 
+	private static string ResolveThumbnailPath(string directory)
+	{
+		string webpThumb = Path.Combine(directory, "thumbnail.webp");
+		if (File.Exists(webpThumb)) return webpThumb;
+
+		string legacyPngThumb = Path.Combine(directory, "thumbnail.png");
+		if (File.Exists(legacyPngThumb)) return legacyPngThumb;
+
+		return string.Empty;
+	}
+
 	private static string SearchSubdirsForThumb(string basePath)
 	{
-		string thumb = Path.Combine(basePath, "thumbnail.png");
-		if (File.Exists(thumb)) return thumb;
+		string thumb = ResolveThumbnailPath(basePath);
+		if (!string.IsNullOrEmpty(thumb)) return thumb;
 
 		foreach (var sub in Directory.GetDirectories(basePath))
 		{
-			string subThumb = Path.Combine(sub, "thumbnail.png");
-			if (File.Exists(subThumb)) return subThumb;
+			string subThumb = ResolveThumbnailPath(sub);
+			if (!string.IsNullOrEmpty(subThumb)) return subThumb;
 		}
 
 		return string.Empty;
@@ -737,8 +748,8 @@ public static class MapInfoHelper
 		string candidateMapDir = Path.Combine(globalArchive, mapFolderOrName);
 		if (!Directory.Exists(candidateMapDir)) return string.Empty;
 
-		string thumb = Path.Combine(candidateMapDir, "thumbnail.png");
-		if (File.Exists(thumb)) return thumb;
+		string thumb = ResolveThumbnailPath(candidateMapDir);
+		if (!string.IsNullOrEmpty(thumb)) return thumb;
 
 		foreach (var verDir in Directory.GetDirectories(candidateMapDir))
 		{
@@ -753,8 +764,8 @@ public static class MapInfoHelper
 	{
 		try
 		{
-			string resMap = ProjectSettings.GlobalizePath($"res://Maps/{mapFolderOrName}/thumbnail.png");
-			if (File.Exists(resMap)) return resMap;
+			string resMap = ResolveThumbnailPath(ProjectSettings.GlobalizePath($"res://Maps/{mapFolderOrName}"));
+			if (!string.IsNullOrEmpty(resMap)) return resMap;
 		}
 		catch
 		{
@@ -762,8 +773,8 @@ public static class MapInfoHelper
 
 		try
 		{
-			string userMap = ProjectSettings.GlobalizePath($"user://maps/{mapFolderOrName}/thumbnail.png");
-			if (File.Exists(userMap)) return userMap;
+			string userMap = ResolveThumbnailPath(ProjectSettings.GlobalizePath($"user://maps/{mapFolderOrName}"));
+			if (!string.IsNullOrEmpty(userMap)) return userMap;
 		}
 		catch
 		{
@@ -791,8 +802,8 @@ public static class MapInfoHelper
 
 		if (Directory.Exists(mapFolderOrName))
 		{
-			string directThumb = Path.Combine(mapFolderOrName, "thumbnail.png");
-			if (File.Exists(directThumb)) return directThumb;
+			string directThumb = ResolveThumbnailPath(mapFolderOrName);
+			if (!string.IsNullOrEmpty(directThumb)) return directThumb;
 		}
 
 		return string.Empty;
