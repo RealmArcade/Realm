@@ -41,10 +41,12 @@ public static class ShroudSimulationService
 		}
 
 		Span<byte> playerGroups = stackalloc byte[ShroudGrid.MaxGroups];
-		ComputeGroupAssignment(world, worldEntity, playerGroups);
+		int assignedGroupCount = ComputeGroupAssignment(world, worldEntity, playerGroups);
 
 		bool reallocated = grid.EnsureLayout(worldWidth, worldDepth);
 		if (!grid.IsAllocated) return;
+
+		grid.EnsureGroupCapacity(assignedGroupCount);
 
 		bool groupAssignmentChanged = reallocated;
 		if (!groupAssignmentChanged)

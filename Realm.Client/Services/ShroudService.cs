@@ -142,6 +142,12 @@ public class ShroudService
 		                    || grid == null
 		                    || !grid.IsAllocated;
 
+		int observedGroupIndex = isOmniscient ? -1 : grid.GetGroupIndex(observedPlayerIndex);
+		if (!isOmniscient && (uint)observedGroupIndex >= (uint)grid.GroupCount)
+		{
+			isOmniscient = true;
+		}
+
 		if (isOmniscient)
 		{
 			ApplyRevealAllPresentation(allUnits, allProps, allDecals);
@@ -150,7 +156,7 @@ public class ShroudService
 
 		_isRevealAll = false;
 		_hasAppliedRevealAllPresentation = false;
-		_observedGroup = grid.GetGroupIndex(observedPlayerIndex);
+		_observedGroup = observedGroupIndex;
 		SetGlobalBounds(grid.WorldMinX, grid.WorldMinZ, grid.WorldWidth, grid.WorldDepth);
 		ApplyGlobalTexture();
 
