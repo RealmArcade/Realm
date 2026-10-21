@@ -7,6 +7,7 @@ public class SessionState
 	public bool IsMapEditorMode { get; set; }
 	public bool IsTestMode { get; set; } = false;
 	public bool ReturningFromTest { get; set; } = false;
+	public bool SavedEditorHasUnsavedChanges { get; set; } = false;
 	public Godot.Vector3 SavedCameraPosition { get; set; }
 	public float SavedTargetHeight { get; set; }
 	public float SavedCurrentHeight { get; set; }

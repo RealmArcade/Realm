@@ -2329,6 +2329,7 @@ namespace Realm.Client.Core
 			try
 			{
 				LoadMapFromFile(GameContext.EditorService.TempWorkspaceGodotPath + "/terrain.json");
+				RestoreEditorDirtyStateAfterTest();
 
 				GameContext.EditorService.EditorGridMode = GameContext.SessionState.SavedGridMode;
 				GameContext.EditorService.EditorCameraBoundsVisible = GameContext.SessionState.SavedCameraBoundsVisible;
@@ -2359,6 +2360,14 @@ namespace Realm.Client.Core
 				ResetWorldAndState();
 				ClearMapEntirely();
 			}
+		}
+
+		private void RestoreEditorDirtyStateAfterTest()
+		{
+			EditorHasUnsavedChanges = GameContext.SessionState.SavedEditorHasUnsavedChanges;
+			GameContext.EditorService.CurrentDirectoryBlake3 = MapWorkspaceService.ComputeDirectoryBlake3Domain(
+				ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath),
+				MapEditorHUD.IsIgnoredPath);
 		}
 
 		public void ExitMapEditorMode()

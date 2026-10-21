@@ -38,6 +38,9 @@ public static partial class MapWorkspaceService
 			normalized.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".elf", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".jit.elf", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase) ||
 			Path.GetFileName(normalized).StartsWith("~", StringComparison.OrdinalIgnoreCase) ||
 			Path.GetFileName(normalized).Equals("WasmEntryPoint.cs", StringComparison.OrdinalIgnoreCase))
@@ -50,7 +53,7 @@ public static partial class MapWorkspaceService
 
 	public static bool IsIgnoredDirectoryDomain(string normalized)
 	{
-		string[] ignoredDirs = { ".git", ".vs", ".godot", ".idea", "bin", "obj", "map_backups", "map_upgrades", "backups", ".backups", ".dotnet", ".wasi", ".sidecarcache", ".cache" };
+		string[] ignoredDirs = { ".git", ".vs", ".godot", ".idea", "bin", "obj", "lib", "map_backups", "map_upgrades", "backups", ".backups", ".dotnet", ".wasi", ".sidecarcache", ".cache" };
 		foreach (var dir in ignoredDirs)
 		{
 			if (normalized.StartsWith(dir + "/", StringComparison.OrdinalIgnoreCase) ||

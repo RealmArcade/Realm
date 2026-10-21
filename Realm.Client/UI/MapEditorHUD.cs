@@ -1239,6 +1239,7 @@ public partial class MapEditorHUD : Control
 		GameContext.SessionState.SavedActivePlaceId = host.ActivePlaceId;
 		GameContext.SessionState.SavedCameraBoundsVisible = GameContext.EditorService.EditorCameraBoundsVisible;
 		GameContext.SessionState.SavedDisableShadows = GameContext.EditorService.EditorDisableShadows;
+		GameContext.SessionState.SavedEditorHasUnsavedChanges = host.EditorHasUnsavedChanges;
 		GameContext.SessionState.SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
 		GameContext.SessionState.SavedBrushRadius = (float)(_sldBrushSize?.Value ?? 1f);
 		float val = (float)(_sldBrushStrength?.Value ?? 1f);
