@@ -792,36 +792,15 @@ public partial class FloatingDialogBase : PanelContainer
 		string placeholder = "",
 		float labelWidth = 110.0f)
 	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
-
-		var lbl = new Label();
-		lbl.Name = "Lbl_Label";
-		lbl.Text = labelText;
-		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
-		lbl.AddThemeFontSizeOverride("font_size", 11);
-		row.AddChild(lbl);
-
-		var txt = new LineEdit();
-		txt.Name = "Txt_LineEdit";
-		txt.Text = initialText ?? string.Empty;
-		txt.PlaceholderText = placeholder;
-		txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		txt.AddThemeFontSizeOverride("font_size", 11);
-		txt.TextChanged += (val) => onChanged(val);
-		row.AddChild(txt);
-
+		var row = BuildNameRow(labelText, initialText, onChanged, placeholder, labelWidth);
 		parent.AddChild(row);
-		return txt;
+		return (LineEdit)row.GetChild(1);
 	}
 
-	public (LineEdit Edit, Action<float> SetValue) AddNumberInput(
-		VBoxContainer parent,
+	public static HBoxContainer BuildNameRow(
 		string labelText,
-		float initialValue,
-		Action<float> onChanged,
-		float step = 0.5f,
+		string? initialText,
+		Action<string> onChanged,
 		string placeholder = "",
 		float labelWidth = 110.0f)
 	{
@@ -838,20 +817,35 @@ public partial class FloatingDialogBase : PanelContainer
 
 		var txt = new LineEdit();
 		txt.Name = "Txt_LineEdit";
-		txt.Text = initialValue.ToString("0.##");
-		txt.PlaceholderText = placeholder;
-		txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		txt.Text = initialText ?? string.Empty;
+		if (!string.IsNullOrEmpty(placeholder)) txt.PlaceholderText = placeholder;
+		txt.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		txt.AddThemeFontSizeOverride("font_size", 11);
-		txt.TextChanged += (val) =>
+		txt.TextChanged += (newText) => onChanged?.Invoke(newText);
+		row.AddChild(txt);
+
+		return row;
+	}
+
+	public (LineEdit Edit, Action<float> SetValue) AddNumberInput(
+		VBoxContainer parent,
+		string labelText,
+		float initialValue,
+		Action<float> onChanged,
+		float step = 0.5f,
+		string placeholder = "",
+		float labelWidth = 110.0f)
+	{
+		var row = BuildNameRow(labelText, initialValue.ToString("0.##"), (val) =>
 		{
 			if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed))
 			{
 				onChanged(parsed);
 			}
-		};
-		row.AddChild(txt);
+		}, placeholder, labelWidth);
 
 		parent.AddChild(row);
+		var txt = (LineEdit)row.GetChild(1);
 		return (txt, (val) => txt.Text = val.ToString("0.##"));
 	}
 

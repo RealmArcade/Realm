@@ -426,36 +426,12 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	private static StandardMaterial3D GetOrCreateSelectionMaterial()
 	{
-		if (_sharedSelectionMaterial == null || !GodotObject.IsInstanceValid(_sharedSelectionMaterial))
-		{
-			_sharedSelectionMaterial = new StandardMaterial3D
-			{
-				AlbedoColor = new Color(0.22f, 0.54f, 0.26f),
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				DisableReceiveShadows = true,
-				EmissionEnabled = false,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-		}
-
-		return _sharedSelectionMaterial;
+		return Realm.Client.Utils.SharedMaterials.GetOrCreateSelectionMaterial(new Color(0.22f, 0.54f, 0.26f));
 	}
 
 	private static StandardMaterial3D GetOrCreateHoverMaterial()
 	{
-		if (_sharedHoverMaterial == null || !GodotObject.IsInstanceValid(_sharedHoverMaterial))
-		{
-			_sharedHoverMaterial = new StandardMaterial3D
-			{
-				AlbedoColor = new Color(0.88f, 0.88f, 0.88f, 0.22f),
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				DisableReceiveShadows = true,
-				EmissionEnabled = false,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-		}
-
-		return _sharedHoverMaterial;
+		return Realm.Client.Utils.SharedMaterials.GetOrCreateHoverMaterial();
 	}
 
 	public static void ClearCache()

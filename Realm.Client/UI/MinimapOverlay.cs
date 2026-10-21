@@ -128,52 +128,7 @@ public partial class MinimapOverlay : Control
 			return _unitCircleTexture;
 		}
 
-		const int textureSize = 64;
-		const float center = textureSize * 0.5f;
-		const float outerRadius = 30f;
-		const float strokeWidth = 6f;
-		const float innerRadius = outerRadius - strokeWidth;
-		const float antialiasMargin = 0.75f;
-
-		var image = Image.CreateEmpty(textureSize, textureSize, false, Image.Format.Rgba8);
-		for (int y = 0; y < textureSize; y++)
-		{
-			for (int x = 0; x < textureSize; x++)
-			{
-				float deltaX = x + 0.5f - center;
-				float deltaY = y + 0.5f - center;
-				float dist = Mathf.Sqrt(deltaX * deltaX + deltaY * deltaY);
-
-				if (dist <= innerRadius - antialiasMargin)
-				{
-					image.SetPixel(x, y, new Color(1f, 1f, 1f, 1f));
-				}
-				else if (dist < innerRadius + antialiasMargin)
-				{
-					float factor = (dist - (innerRadius - antialiasMargin)) / (antialiasMargin * 2f);
-					float brightness = 1f - factor;
-					float alpha = 1f - 0.4f * factor;
-					image.SetPixel(x, y, new Color(brightness, brightness, brightness, alpha));
-				}
-				else if (dist <= outerRadius - antialiasMargin)
-				{
-					image.SetPixel(x, y, new Color(0f, 0f, 0f, 0.6f));
-				}
-				else if (dist < outerRadius + antialiasMargin)
-				{
-					float factor = (dist - (outerRadius - antialiasMargin)) / (antialiasMargin * 2f);
-					float alpha = 0.6f * (1f - factor);
-					image.SetPixel(x, y, new Color(0f, 0f, 0f, alpha));
-				}
-				else
-				{
-					image.SetPixel(x, y, new Color(0f, 0f, 0f, 0f));
-				}
-			}
-		}
-
-		image.GenerateMipmaps();
-		_unitCircleTexture = ImageTexture.CreateFromImage(image);
+		_unitCircleTexture = GenerateCircleTexture(strokeWidth: 6f, isSolidCore: true);
 		return _unitCircleTexture;
 	}
 
@@ -244,11 +199,16 @@ public partial class MinimapOverlay : Control
 			return _selectionRingTexture;
 		}
 
+		_selectionRingTexture = GenerateCircleTexture(strokeWidth: 5f, isSolidCore: false);
+		return _selectionRingTexture;
+	}
+
+	private static ImageTexture GenerateCircleTexture(float strokeWidth, bool isSolidCore)
+	{
 		const int textureSize = 64;
 		const float center = textureSize * 0.5f;
 		const float outerRadius = 30f;
-		const float strokeWidth = 5f;
-		const float innerRadius = outerRadius - strokeWidth;
+		float innerRadius = outerRadius - strokeWidth;
 		const float antialiasMargin = 0.75f;
 
 		var image = Image.CreateEmpty(textureSize, textureSize, false, Image.Format.Rgba8);
@@ -260,30 +220,59 @@ public partial class MinimapOverlay : Control
 				float deltaY = y + 0.5f - center;
 				float dist = Mathf.Sqrt(deltaX * deltaX + deltaY * deltaY);
 
-				if (dist >= innerRadius - antialiasMargin && dist <= outerRadius + antialiasMargin)
+				if (isSolidCore)
 				{
-					float alpha = 1f;
-					if (dist < innerRadius + antialiasMargin)
+					if (dist <= innerRadius - antialiasMargin)
 					{
-						alpha = (dist - (innerRadius - antialiasMargin)) / (antialiasMargin * 2f);
+						image.SetPixel(x, y, new Color(1f, 1f, 1f, 1f));
 					}
-					else if (dist > outerRadius - antialiasMargin)
+					else if (dist < innerRadius + antialiasMargin)
 					{
-						alpha = 1f - (dist - (outerRadius - antialiasMargin)) / (antialiasMargin * 2f);
+						float factor = (dist - (innerRadius - antialiasMargin)) / (antialiasMargin * 2f);
+						float brightness = 1f - factor;
+						float alpha = 1f - 0.4f * factor;
+						image.SetPixel(x, y, new Color(brightness, brightness, brightness, alpha));
 					}
-
-					image.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+					else if (dist <= outerRadius - antialiasMargin)
+					{
+						image.SetPixel(x, y, new Color(0f, 0f, 0f, 0.6f));
+					}
+					else if (dist < outerRadius + antialiasMargin)
+					{
+						float factor = (dist - (outerRadius - antialiasMargin)) / (antialiasMargin * 2f);
+						float alpha = 0.6f * (1f - factor);
+						image.SetPixel(x, y, new Color(0f, 0f, 0f, alpha));
+					}
+					else
+					{
+						image.SetPixel(x, y, new Color(0f, 0f, 0f, 0f));
+					}
 				}
 				else
 				{
-					image.SetPixel(x, y, new Color(0f, 0f, 0f, 0f));
+					if (dist >= innerRadius - antialiasMargin && dist <= outerRadius + antialiasMargin)
+					{
+						float alpha = 1f;
+						if (dist < innerRadius + antialiasMargin)
+						{
+							alpha = (dist - (innerRadius - antialiasMargin)) / (antialiasMargin * 2f);
+						}
+						else if (dist > outerRadius - antialiasMargin)
+						{
+							alpha = 1f - (dist - (outerRadius - antialiasMargin)) / (antialiasMargin * 2f);
+						}
+						image.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+					}
+					else
+					{
+						image.SetPixel(x, y, new Color(0f, 0f, 0f, 0f));
+					}
 				}
 			}
 		}
 
 		image.GenerateMipmaps();
-		_selectionRingTexture = ImageTexture.CreateFromImage(image);
-		return _selectionRingTexture;
+		return ImageTexture.CreateFromImage(image);
 	}
 
 	public static Texture2D GetRadarTexture()

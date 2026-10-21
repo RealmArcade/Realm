@@ -815,7 +815,9 @@ public class NetworkService
 		};
 	}
 
-	private void HandleMoveCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	private delegate void GroupCommandAction(Entity entity, System.Numerics.Vector3 scattered);
+
+	private void ProcessGroupMovementCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, GroupCommandAction processAction, bool requireMovable = true)
 	{
 		var ctx = CreateMovementContext(peerId, cmd, allUnits);
 		int unitIndex = 0;
@@ -824,30 +826,30 @@ public class NetworkService
 		{
 			var entity = FindServerEntity(serverId, allUnits);
 			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (requireMovable && !GameContext.World.Has<Movable>(entity)) continue;
 
-			ClearUnitOrders(entity);
 			var scattered = CalculateScatteredPosition(cmd.TargetPosition, ctx.MoveDir, ctx.Right, unitIndex, ctx.Cols, ctx.Spacing);
-			var moveTo = new MoveTo(scattered);
-			GameContext.World.SetOrAdd(entity, moveTo);
+			processAction(entity, scattered);
 			unitIndex++;
 		}
 	}
 
+	private void HandleMoveCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	{
+		ProcessGroupMovementCommand(peerId, cmd, allUnits, (entity, scattered) =>
+		{
+			ClearUnitOrders(entity);
+			var moveTo = new MoveTo(scattered);
+			GameContext.World.SetOrAdd(entity, moveTo);
+		}, requireMovable: false);
+	}
+
 	private void HandleMoveQueuedCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
 	{
-		var ctx = CreateMovementContext(peerId, cmd, allUnits);
-		int unitIndex = 0;
-
-		foreach (int serverId in cmd.UnitEntityIds)
+		ProcessGroupMovementCommand(peerId, cmd, allUnits, (entity, scattered) =>
 		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			if (!GameContext.World.Has<Movable>(entity)) continue;
-
-			var scattered = CalculateScatteredPosition(cmd.TargetPosition, ctx.MoveDir, ctx.Right, unitIndex, ctx.Cols, ctx.Spacing);
 			ProcessQueuedMoveForEntity(entity, scattered);
-			unitIndex++;
-		}
+		});
 	}
 
 	private void ProcessQueuedMoveForEntity(Entity entity, System.Numerics.Vector3 scattered)
@@ -1005,16 +1007,8 @@ public class NetworkService
 
 	private void HandlePatrolCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
 	{
-		var ctx = CreateMovementContext(peerId, cmd, allUnits);
-		int unitIndex = 0;
-
-		foreach (int serverId in cmd.UnitEntityIds)
+		ProcessGroupMovementCommand(peerId, cmd, allUnits, (entity, scattered) =>
 		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			if (!GameContext.World.Has<Movable>(entity)) continue;
-
-			var scattered = CalculateScatteredPosition(cmd.TargetPosition, ctx.MoveDir, ctx.Right, unitIndex, ctx.Cols, ctx.Spacing);
 			var unitPos = GetUnitPosition(entity, allUnits);
 			var patrolA = new System.Numerics.Vector3(unitPos.X, unitPos.Y, unitPos.Z);
 
@@ -1028,9 +1022,7 @@ public class NetworkService
 				GameContext.World.SetOrAdd(entity, new Patrol(patrolA, scattered));
 				GameContext.World.SetOrAdd(entity, new MoveTo(scattered));
 			}
-
-			unitIndex++;
-		}
+		});
 	}
 
 	private Vector3 GetUnitPosition(Entity entity, List<Unit3D> allUnits)
