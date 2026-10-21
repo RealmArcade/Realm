@@ -31,6 +31,13 @@ public partial class GameHost
 	private readonly string[] _cachedModifiersBuffer = new string[128];
 	private readonly string[] _cachedItemsBuffer = new string[32];
 
+	private readonly List<(string Label, string Value)> _pendingLeaderboardRows = new();
+	private bool _pendingLeaderboardClear;
+	private bool _pendingLeaderboardVisibilitySet;
+	private string _pendingLeaderboardTitle = string.Empty;
+	private bool _pendingLeaderboardVisible;
+	private bool _leaderboardFlushQueued;
+
 	public void ResetAbilityCatalog()
 	{
 		GameContext.RegistryService.ResetAbilityCatalog();
@@ -692,17 +699,68 @@ public partial class GameHost
 
 	void IGameAPI.SetLeaderboardVisible(string title, bool visible)
 	{
-		Callable.From(() => InGameHUD.Instance?.SetLeaderboardVisible(title, visible)).CallDeferred();
+		_pendingLeaderboardTitle = title;
+		_pendingLeaderboardVisible = visible;
+		_pendingLeaderboardVisibilitySet = true;
+		QueueLeaderboardFlush();
 	}
 
 	void IGameAPI.SetLeaderboardValue(string label, string value)
 	{
-		Callable.From(() => InGameHUD.Instance?.SetLeaderboardValue(label, value)).CallDeferred();
+		_pendingLeaderboardRows.Add((label, value));
+		QueueLeaderboardFlush();
 	}
 
 	void IGameAPI.ClearLeaderboard()
 	{
-		Callable.From(() => InGameHUD.Instance?.ClearLeaderboard()).CallDeferred();
+		_pendingLeaderboardClear = true;
+		_pendingLeaderboardRows.Clear();
+		QueueLeaderboardFlush();
+	}
+
+	private void QueueLeaderboardFlush()
+	{
+		if (_leaderboardFlushQueued) return;
+
+		_leaderboardFlushQueued = true;
+		Callable.From(FlushLeaderboardUpdates).CallDeferred();
+	}
+
+	private void FlushLeaderboardUpdates()
+	{
+		_leaderboardFlushQueued = false;
+
+		var hud = InGameHUD.Instance;
+		bool clearRequested = _pendingLeaderboardClear;
+		bool visibilityRequested = _pendingLeaderboardVisibilitySet;
+		string title = _pendingLeaderboardTitle;
+		bool visible = _pendingLeaderboardVisible;
+		_pendingLeaderboardClear = false;
+		_pendingLeaderboardVisibilitySet = false;
+
+		if (hud == null || !GodotObject.IsInstanceValid(hud))
+		{
+			_pendingLeaderboardRows.Clear();
+			return;
+		}
+
+		if (clearRequested)
+		{
+			hud.ClearLeaderboard();
+		}
+
+		for (int i = 0; i < _pendingLeaderboardRows.Count; i++)
+		{
+			var row = _pendingLeaderboardRows[i];
+			hud.SetLeaderboardValue(row.Label, row.Value);
+		}
+
+		_pendingLeaderboardRows.Clear();
+
+		if (visibilityRequested)
+		{
+			hud.SetLeaderboardVisible(title, visible);
+		}
 	}
 
 	void IGameAPI.StartCountdownTimer(float duration, string label)
@@ -1183,7 +1241,8 @@ public partial class GameHost
 
 	void IGameAPI.AddLeaderboardRow(string label, string value, Vector3? color)
 	{
-		InGameHUD.Instance?.SetLeaderboardValue(label, value);
+		_pendingLeaderboardRows.Add((label, value));
+		QueueLeaderboardFlush();
 	}
 
 
