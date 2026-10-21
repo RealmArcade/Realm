@@ -264,6 +264,9 @@
         <member name="F:Realm.MapAPI.ComponentIds.Frozen">
             <summary>Frozen tag component identifier.</summary>
         </member>
+        <member name="F:Realm.MapAPI.ComponentIds.OverheadBarsHidden">
+            <summary>Overhead bars hidden tag component identifier.</summary>
+        </member>
         <member name="T:Realm.MapAPI.ComponentMask">
             <summary>
             Bitmask representing a set of component types for entity filter queries.
@@ -2770,6 +2773,18 @@
             </remarks>
             <param name="unit">The unit identifier.</param>
             <param name="value">True to freeze the unit in place; false to let it act normally again.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitHideHealthAndManaBars(Realm.MapAPI.UnitId,System.Boolean)">
+            <summary>
+            Shows or hides the overhead health and mana bars for a single unit.
+            </summary>
+            <remarks>
+            Hidden bars stay hidden in every health-bar display mode, including the ones that show bars for
+            every living unit, so map-authored statues and scenery units never advertise hit points. The flag
+            lives on the unit entity and is cleared when that entity is destroyed.
+            </remarks>
+            <param name="unit">The unit identifier.</param>
+            <param name="value">True to never draw bars for the unit; false to draw them according to the player's settings.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.IssueAttackOrder(Realm.MapAPI.UnitId,Realm.MapAPI.UnitId)">
             <summary>

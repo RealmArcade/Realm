@@ -151,7 +151,8 @@ public static class ComponentTypeRegistry
 			typeof(WeatherState),
 			typeof(PlayerRelationshipMatrix),
 			typeof(PlayerTeam),
-			typeof(Frozen)
+			typeof(Frozen),
+			typeof(OverheadBarsHidden)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

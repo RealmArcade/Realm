@@ -2034,6 +2034,18 @@ public interface IGameAPI
 	void SetUnitFrozen(UnitId unit, bool value);
 
 	/// <summary>
+	/// Shows or hides the overhead health and mana bars for a single unit.
+	/// </summary>
+	/// <remarks>
+	/// Hidden bars stay hidden in every health-bar display mode, including the ones that show bars for
+	/// every living unit, so map-authored statues and scenery units never advertise hit points. The flag
+	/// lives on the unit entity and is cleared when that entity is destroyed.
+	/// </remarks>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">True to never draw bars for the unit; false to draw them according to the player's settings.</param>
+	void SetUnitHideHealthAndManaBars(UnitId unit, bool value);
+
+	/// <summary>
 	/// Issues an attack order targeting a specific enemy unit.
 	/// </summary>
 	/// <param name="unit">The attacking unit.</param>

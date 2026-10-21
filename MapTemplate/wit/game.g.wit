@@ -176,6 +176,7 @@ interface game-api {
     set-unit-frozen: func(unit-id: s32, value: bool);
     set-unit-hand-attachment: func(unit-id: s32, hand: string, attachment-id: string);
     set-unit-health: func(unit-id: s32, value: f32);
+    set-unit-hide-health-and-mana-bars: func(unit-id: s32, value: bool);
     set-unit-invulnerable: func(unit-id: s32, value: bool);
     set-unit-level: func(unit-id: s32, level: s32);
     set-unit-mana: func(unit-id: s32, value: f32);

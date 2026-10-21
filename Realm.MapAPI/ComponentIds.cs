@@ -49,4 +49,6 @@ public static class ComponentIds
 	public const int PreviousRotationY = 114;
 	/// <summary>Frozen tag component identifier.</summary>
 	public const int Frozen = 124;
+	/// <summary>Overhead bars hidden tag component identifier.</summary>
+	public const int OverheadBarsHidden = 125;
 }

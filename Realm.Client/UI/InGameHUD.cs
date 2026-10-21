@@ -230,6 +230,7 @@ public partial class InGameHUD : Control
 	private ControlGroupsUIController _controlGroupsUIController;
 
 	private MinimapOverlay _minimapOverlay;
+	private UnitHealthBarOverlay _unitHealthBarOverlay;
 
 	private const float TacticalInterval = 0.04f;
 	private const float MacroInterval = 0.1f;
@@ -250,6 +251,7 @@ public partial class InGameHUD : Control
 		Instance = this;
 
 		InitializeReferences();
+		SetupUnitHealthBarOverlay();
 		SetupResourcePanel();
 		SetupSelectionFrame();
 		SetupCommandAndInventoryGrids();
@@ -282,6 +284,17 @@ public partial class InGameHUD : Control
 
 		ApplySpectatorAndReplayOverrides();
 		ApplySavedHudVisibilityOverrides();
+	}
+
+	private void SetupUnitHealthBarOverlay()
+	{
+		var overlay = new UnitHealthBarOverlay();
+		overlay.Name = "UnitHealthBarOverlay";
+		overlay.MouseFilter = MouseFilterEnum.Ignore;
+		AddChild(overlay);
+		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		MoveChild(overlay, 0);
+		_unitHealthBarOverlay = overlay;
 	}
 
 	private void InitializeReferences()
@@ -1340,6 +1353,7 @@ public partial class InGameHUD : Control
 		float dt = (float)delta;
 
 		// 1. Per-Frame / Immediate updates (Frustum indicator & connection warning)
+		_unitHealthBarOverlay?.Refresh(_camera3D ?? GetViewport()?.GetCamera3D());
 		_minimapPanelController?.UpdateMinimapIndicator();
 		if (_connectionWarningLabel != null)
 		{

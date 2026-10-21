@@ -1919,6 +1919,12 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Frozen = value;
 	}
 
+	void IGameAPI.SetUnitHideHealthAndManaBars(UnitId unit, bool value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).HideHealthAndManaBars = value;
+	}
+
 
 	void IGameAPI.IssueAttackOrder(UnitId unit, UnitId target)
 	{

@@ -257,8 +257,8 @@ public readonly unsafe record struct UnitId(int Value)
 	/// </summary>
 	public bool HideHealthAndManaBars
 	{
-		get => false;
-		set { }
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.OverheadBarsHidden);
+		set => GameAPI.Current.SetUnitHideHealthAndManaBars(this, value);
 	}
 
 	/// <summary>

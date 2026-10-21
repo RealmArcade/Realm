@@ -26,12 +26,25 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 {
 	private readonly Entity _entity;
 	private readonly EcsWorld _world;
-	private bool _hideHealthAndManaBars;
-
 	public bool HideHealthAndManaBars
 	{
-		get => _hideHealthAndManaBars;
-		set => _hideHealthAndManaBars = value;
+		get => _world.IsAlive(_entity) && _world.Has<OverheadBarsHidden>(_entity);
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+
+			if (value)
+			{
+				if (!_world.Has<OverheadBarsHidden>(_entity))
+				{
+					_world.Add<OverheadBarsHidden>(_entity);
+				}
+			}
+			else if (_world.Has<OverheadBarsHidden>(_entity))
+			{
+				_world.Remove<OverheadBarsHidden>(_entity);
+			}
+		}
 	}
 
 	public Unit_WasmRuntime(Entity entity, EcsWorld world)
