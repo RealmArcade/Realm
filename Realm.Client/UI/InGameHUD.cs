@@ -107,10 +107,12 @@ public partial class InGameHUD : Control
 	private VBoxContainer _minimapControls;
 	private Button _btnZoom;
 	private Button _btnToggleTerrain;
+	private Button _btnToggleColorScheme;
 	private Button _btnPing;
 	private Button _btnCenter;
 	private Button _btnSettings;
 	public bool ShowMinimapTerrain => _viewModel.ShowMinimapTerrain;
+	public MinimapColorScheme MinimapColorScheme => _viewModel.MinimapColorScheme;
 
 
 	private float _shroudMinimapRefreshTimer = 0f;
@@ -472,6 +474,11 @@ public partial class InGameHUD : Control
 		_btnToggleTerrain.Name = "BtnToggleTerrain_Button";
 		SetupMinimapButton(_btnToggleTerrain, UnicodeIcons.MAP_IMAGE, "Toggle Terrain Overlay (Radar Mode) [F4]", () => ToggleMinimapTerrain());
 		_minimapControls.AddChild(_btnToggleTerrain);
+
+		_btnToggleColorScheme = new Button();
+		_btnToggleColorScheme.Name = "BtnToggleColorScheme_Button";
+		SetupMinimapButton(_btnToggleColorScheme, UnicodeIcons.PALETTE, "Toggle Minimap Color Scheme (Team / Player Colors)", () => ToggleMinimapColorScheme());
+		_minimapControls.AddChild(_btnToggleColorScheme);
 
 		_btnPing = new Button();
 		_btnPing.Name = "BtnPing_Button";
@@ -1469,6 +1476,20 @@ public partial class InGameHUD : Control
 	public void ToggleMinimapTerrain()
 	{
 		_viewModel.ShowMinimapTerrain = !_viewModel.ShowMinimapTerrain;
+	}
+
+	public void ToggleMinimapColorScheme()
+	{
+		_viewModel.MinimapColorScheme = _viewModel.MinimapColorScheme == MinimapColorScheme.TeamColors
+			? MinimapColorScheme.PlayerColors
+			: MinimapColorScheme.TeamColors;
+
+		string schemeName = _viewModel.MinimapColorScheme == MinimapColorScheme.TeamColors
+			? TranslationServer.Translate("Team Colors")
+			: TranslationServer.Translate("Player Colors");
+
+		ShowFeedbackText(string.Format(TranslationServer.Translate("Minimap Colors: {0}"), schemeName), UIStyle.ColorGold);
+		QueueMinimapRedraw();
 	}
 
 	private void SetupMinimapButton(Button btn, string iconGlyph, string tooltip, Action onClick)

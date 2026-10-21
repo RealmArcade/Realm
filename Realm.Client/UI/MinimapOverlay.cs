@@ -14,9 +14,12 @@ public partial class MinimapOverlay : Control
 	private static Texture2D? _radarTexture;
 	private static Texture2D? _pingTexture;
 	private const float UnitCircleTextureScale = 32f / 30f;
+	private const float UnitCircleRadius = 2.5f;
+	private const float BuildingSquareEdge = 6.0f;
 
 	private static readonly Color EnemyColor = new Color(0.9f, 0.1f, 0.1f);
-	private static readonly Color AllyColor = new Color(0.2f, 0.6f, 1.0f);
+	private static readonly Color OwnedColor = new Color(0.2f, 0.6f, 1.0f);
+	private static readonly Color FriendlyColor = new Color(1.0f, 1.0f, 1.0f);
 	private static readonly Color BuildingOutlineColor = new Color(0f, 0f, 0f, 0.6f);
 	private static readonly Color SelectedSpectatorColor = new Color(1.0f, 1.0f, 1.0f);
 	private static readonly Color SelectedEnemyColor = new Color(0.9f, 0.1f, 0.2f);
@@ -66,17 +69,18 @@ public partial class MinimapOverlay : Control
 		if (allUnits == null || allUnits.Count == 0) return;
 
 		var circleTexture = GetUnitCircleTexture();
+		bool usesPlayerColors = IsUsingPlayerColors();
 		float invPhysicalWidth = physicalWidth > 0f ? 1f / physicalWidth : 0f;
 		float invPhysicalDepth = physicalDepth > 0f ? 1f / physicalDepth : 0f;
 
 		int count = allUnits.Count;
 		for (int i = 0; i < count; i++)
 		{
-			DrawSingleUnit(allUnits[i], size, invPhysicalWidth, invPhysicalDepth, circleTexture);
+			DrawSingleUnit(allUnits[i], size, invPhysicalWidth, invPhysicalDepth, circleTexture, usesPlayerColors);
 		}
 	}
 
-	private void DrawSingleUnit(Unit3D unit, Vector2 size, float invPhysicalWidth, float invPhysicalDepth, Texture2D circleTexture)
+	private void DrawSingleUnit(Unit3D unit, Vector2 size, float invPhysicalWidth, float invPhysicalDepth, Texture2D circleTexture, bool usesPlayerColors)
 	{
 		if (unit == null || !GodotObject.IsInstanceValid(unit)) return;
 
@@ -89,34 +93,51 @@ public partial class MinimapOverlay : Control
 		float drawX = Mathf.Clamp(normX, 0f, 1f) * size.X;
 		float drawY = Mathf.Clamp(normZ, 0f, 1f) * size.Y;
 		var drawPos = new Vector2(drawX, drawY);
-		float iconSize = unit.IsBuilding ? 8.0f : 5.0f;
 
-		DrawUnitIcon(unit, drawPos, iconSize, circleTexture, GameContext.PerspectiveFilter.IsSpectating);
-		DrawSelectionRing(unit, drawPos, iconSize, GameContext.PerspectiveFilter.IsSpectating);
+		DrawUnitIcon(unit, drawPos, circleTexture, usesPlayerColors);
+		DrawSelectionRing(unit, drawPos, unit.IsBuilding ? BuildingSquareEdge : UnitCircleRadius);
 	}
 
-	private void DrawUnitIcon(Unit3D unit, Vector2 drawPos, float iconSize, Texture2D circleTexture, bool isSpectator)
+	private static bool IsUsingPlayerColors()
 	{
-		Color color;
-		if (isSpectator)
+		InGameHUD hud = InGameHUD.Instance;
+		return hud != null && hud.MinimapColorScheme == MinimapColorScheme.PlayerColors;
+	}
+
+	private Color ResolveUnitColor(int playerIndex, bool usesPlayerColors)
+	{
+		if (usesPlayerColors)
 		{
-			color = GetPlayerMinimapColor(unit.Player);
+			return GetPlayerMinimapColor(playerIndex);
 		}
-		else
+
+		var perspective = GameContext.PerspectiveFilter;
+		if (perspective.ObservesAllPlayers)
 		{
-			bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player);
-			color = isEnemy ? EnemyColor : AllyColor;
+			return FriendlyColor;
 		}
+
+		if (perspective.ObservedPlayerIndex == playerIndex)
+		{
+			return OwnedColor;
+		}
+
+		return perspective.IsHostileToObserved(playerIndex) ? EnemyColor : FriendlyColor;
+	}
+
+	private void DrawUnitIcon(Unit3D unit, Vector2 drawPos, Texture2D circleTexture, bool usesPlayerColors)
+	{
+		Color color = ResolveUnitColor(unit.Player, usesPlayerColors);
 
 		if (unit.IsBuilding)
 		{
-			var rect = new Rect2(drawPos.X - iconSize * 0.5f, drawPos.Y - iconSize * 0.5f, iconSize, iconSize);
+			var rect = new Rect2(drawPos.X - BuildingSquareEdge * 0.5f, drawPos.Y - BuildingSquareEdge * 0.5f, BuildingSquareEdge, BuildingSquareEdge);
 			DrawRect(rect, color, true);
 			DrawRect(rect, BuildingOutlineColor, false, 1.0f);
 			return;
 		}
 
-		float halfExtent = iconSize * UnitCircleTextureScale;
+		float halfExtent = UnitCircleRadius * UnitCircleTextureScale;
 		var circleRect = new Rect2(drawPos.X - halfExtent, drawPos.Y - halfExtent, halfExtent * 2f, halfExtent * 2f);
 		DrawTextureRect(circleTexture, circleRect, false, color);
 	}
@@ -157,12 +178,12 @@ public partial class MinimapOverlay : Control
 		};
 	}
 
-	private void DrawSelectionRing(Unit3D unit, Vector2 drawPos, float iconSize, bool isSpectator)
+	private void DrawSelectionRing(Unit3D unit, Vector2 drawPos, float iconSize)
 	{
 		if (!unit.IsSelected) return;
 
 		Color selColor;
-		if (isSpectator)
+		if (GameContext.PerspectiveFilter.IsSpectating)
 		{
 			selColor = SelectedSpectatorColor;
 		}

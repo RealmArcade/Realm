@@ -447,6 +447,7 @@ public class InGameHUDViewModel
 
 	public string CurrentWeather { get; set; } = "clear";
 	public bool ShowMinimapTerrain { get; set; } = true;
+	public MinimapColorScheme MinimapColorScheme { get; set; } = MinimapColorScheme.TeamColors;
 
 	public int IdleCount { get; set; }
 
