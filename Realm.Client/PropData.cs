@@ -10,4 +10,5 @@ public struct PropData
 	public Vector3 Position;
 	public float RotationY;
 	public float Scale;
+	public float YOffset;
 }
