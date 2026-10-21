@@ -279,6 +279,7 @@ public partial class Unit3D : Node3D
 	private readonly List<MeshInstance3D> _pathMarkersPool = new();
 	private readonly List<MeshInstance3D> _pathLinesPool = new();
 	private readonly List<Vector3> _pathPointsBuffer = new();
+	private readonly List<Vector3> _pathSampledPoints = new();
 	private Vector3 _lastPathRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
 	private bool _lastPathRenderIsAttackPath = false;
 	private readonly List<Vector3> _lastRenderedPathPoints = new();
@@ -953,6 +954,8 @@ public partial class Unit3D : Node3D
 		AddChild(shadowDecal);
 	}
 
+	private const double AnimationTransitionSeconds = 0.15;
+
 	public bool AnimationsFrozen { get; private set; }
 
 	public void SetAnimationsFrozen(bool frozen)
@@ -1027,7 +1030,7 @@ public partial class Unit3D : Node3D
 			_animationPlayer.CallbackModeProcess = AnimationMixer.AnimationCallbackModeProcess.Manual;
 		}
 		_animationPlayer.ProcessMode = _isCulled ? ProcessModeEnum.Disabled : ProcessModeEnum.Inherit;
-		_animationPlayer.Play(resolved);
+		_animationPlayer.Play(resolved, AnimationTransitionSeconds);
 		if (!_isCulled)
 		{
 			_animationPlayer.Advance(0.0);
@@ -2208,30 +2211,26 @@ public partial class Unit3D : Node3D
 		}
 	}
 
-	private void UpdateLineTransform(MeshInstance3D line, Vector3 start, Vector3 end)
+	private void UpdateLineTransform(MeshInstance3D line, Vector3 start, Vector3 end, float width, Color color, float alpha)
 	{
-		if (GameHost.Instance.GroundTerrain != null)
-		{
-			GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
-			start.Y = hStart + 0.1f;
-
-			GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
-			end.Y = hEnd + 0.1f;
-		}
-
 		Vector3 diff = end - start;
 		float length = diff.Length();
 
-		if (length > 0.05f)
-		{
-			Vector3 direction = diff.Normalized();
-			Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-			var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
-			line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
-		}
-		else
+		if (length <= 0.02f)
 		{
 			line.Visible = false;
+			return;
+		}
+
+		Vector3 direction = diff.Normalized();
+		Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
+		var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(width / 0.1f, 1f, length));
+		line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
+
+		if (line.MaterialOverride is StandardMaterial3D lineMaterial)
+		{
+			lineMaterial.AlbedoColor = new Color(color.R, color.G, color.B, alpha * 0.75f);
+			lineMaterial.Emission = new Color(color.R, color.G, color.B);
 		}
 	}
 
@@ -2242,10 +2241,10 @@ public partial class Unit3D : Node3D
 			var line = GetOrCreateRallyLine(i);
 			line.Visible = true;
 
-			Vector3 start = points[i];
-			Vector3 end = points[i + 1];
+			Vector3 start = SamplePathGround(points[i]);
+			Vector3 end = SamplePathGround(points[i + 1]);
 
-			UpdateLineTransform(line, start, end);
+			UpdateLineTransform(line, start, end, PathBaseWidth, new Color(0.95f, 0.85f, 0.25f), 0.85f);
 		}
 
 		for (int i = lineCountNeeded; i < _rallyLinesPool.Count; i++)
@@ -2416,6 +2415,48 @@ public partial class Unit3D : Node3D
 		}
 	}
 
+	private const float PathSampleSpacing = 1.5f;
+	private const float PathMarkerSpacing = 4.5f;
+	private const float PathGroundOffset = 0.12f;
+	private const float PathBaseWidth = 0.14f;
+	private const float PathTaperLengthRatio = 0.55f;
+	private const float PathFadeLengthRatio = 0.6f;
+
+	private Vector3 SamplePathGround(Vector3 point)
+	{
+		if (GameHost.Instance?.GroundTerrain != null)
+		{
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(point.X, point.Z, out float height, out _);
+			return new Vector3(point.X, height + PathGroundOffset, point.Z);
+		}
+
+		return new Vector3(point.X, point.Y + PathGroundOffset, point.Z);
+	}
+
+	private void BuildSampledPath()
+	{
+		_pathSampledPoints.Clear();
+
+		if (_pathPointsBuffer.Count <= 1)
+			return;
+
+		_pathSampledPoints.Add(SamplePathGround(_pathPointsBuffer[1]));
+
+		for (int segment = 1; segment + 1 < _pathPointsBuffer.Count; segment++)
+		{
+			Vector3 start = _pathPointsBuffer[segment];
+			Vector3 end = _pathPointsBuffer[segment + 1];
+			float horizontalLength = new Vector3(end.X - start.X, 0f, end.Z - start.Z).Length();
+			int steps = Mathf.Max(1, Mathf.CeilToInt(horizontalLength / PathSampleSpacing));
+
+			for (int step = 1; step <= steps; step++)
+			{
+				Vector3 point = start.Lerp(end, step / (float)steps);
+				_pathSampledPoints.Add(SamplePathGround(point));
+			}
+		}
+	}
+
 	private void UpdatePathVisuals()
 	{
 		EnsurePathVisualsContainer();
@@ -2426,59 +2467,91 @@ public partial class Unit3D : Node3D
 		if (_pathPointsBuffer.Count <= 1)
 		{
 			HidePathVisuals();
-			_lastPathRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
+			_lastPathRenderIsAttackPath = IsAttackPath;
 			_lastRenderedPathPoints.Clear();
+			_pathSampledPoints.Clear();
 			return;
 		}
 
-		Vector3 currentPos = _pathPointsBuffer[0];
-		bool posUnchanged = !float.IsNaN(_lastPathRenderPos.X) && currentPos.DistanceSquaredTo(_lastPathRenderPos) < 0.0025f;
 		bool attackModeUnchanged = IsAttackPath == _lastPathRenderIsAttackPath;
 		bool pointsUnchanged = PointsListEqual(_pathPointsBuffer, _lastRenderedPathPoints);
 
-		if (posUnchanged && attackModeUnchanged && pointsUnchanged) return;
+		if (attackModeUnchanged && pointsUnchanged && _pathSampledPoints.Count > 0) return;
 
-		_lastPathRenderPos = currentPos;
+		_lastPathRenderPos = _pathPointsBuffer[1];
 		_lastPathRenderIsAttackPath = IsAttackPath;
 		_lastRenderedPathPoints.Clear();
 		_lastRenderedPathPoints.AddRange(_pathPointsBuffer);
 
-		int markerCountNeeded = _pathPointsBuffer.Count - 1;
-		for (int i = 0; i < markerCountNeeded; i++)
-		{
-			var marker = GetOrCreateMarker(i);
-			marker.Visible = true;
-			Vector3 pos = _pathPointsBuffer[i + 1];
-			if (GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(pos.X, pos.Z, out float h, out _);
-				pos.Y = h + 0.1f;
-			}
+		BuildSampledPath();
 
-			marker.GlobalPosition = pos;
+		Color pathColor = IsAttackPath ? new Color(0.9f, 0.22f, 0.18f) : new Color(0.22f, 0.62f, 1f);
+		int sampleCount = _pathSampledPoints.Count;
+
+		float totalLength = 0f;
+		for (int i = 1; i < sampleCount; i++)
+		{
+			totalLength += _pathSampledPoints[i].DistanceTo(_pathSampledPoints[i - 1]);
 		}
 
-		for (int i = markerCountNeeded; i < _pathMarkersPool.Count; i++)
+		int lineIndex = 0;
+		float travelled = 0f;
+		for (int i = 1; i < sampleCount; i++)
 		{
-			_pathMarkersPool[i].Visible = false;
-		}
+			Vector3 start = _pathSampledPoints[i - 1];
+			Vector3 end = _pathSampledPoints[i];
+			float segmentLength = start.DistanceTo(end);
+			travelled += segmentLength;
 
-		int lineCountNeeded = _pathPointsBuffer.Count - 1;
-		for (int i = 0; i < lineCountNeeded; i++)
-		{
-			var line = GetOrCreateLine(i);
+			float progress = totalLength > 0.001f ? travelled / totalLength : 0f;
+			float width = PathBaseWidth * (1f - PathTaperLengthRatio * progress);
+			float alpha = 1f - PathFadeLengthRatio * progress;
+
+			var line = GetOrCreateLine(lineIndex);
 			line.Visible = true;
-
-			Vector3 start = _pathPointsBuffer[i];
-			Vector3 end = _pathPointsBuffer[i + 1];
-
-			UpdateLineTransform(line, start, end);
+			UpdateLineTransform(line, start, end, width, pathColor, alpha);
+			lineIndex++;
 		}
 
-		for (int i = lineCountNeeded; i < _pathLinesPool.Count; i++)
+		for (int i = lineIndex; i < _pathLinesPool.Count; i++)
 		{
 			_pathLinesPool[i].Visible = false;
 		}
+
+		int markerIndex = 0;
+		travelled = 0f;
+		float sinceLastMarker = 0f;
+		for (int i = 1; i < sampleCount; i++)
+		{
+			float segmentLength = _pathSampledPoints[i].DistanceTo(_pathSampledPoints[i - 1]);
+			travelled += segmentLength;
+			sinceLastMarker += segmentLength;
+
+			if (sinceLastMarker < PathMarkerSpacing)
+				continue;
+
+			sinceLastMarker = 0f;
+			float progress = totalLength > 0.001f ? travelled / totalLength : 0f;
+			var marker = GetOrCreateMarker(markerIndex);
+			marker.Visible = true;
+			marker.GlobalPosition = _pathSampledPoints[i];
+			SetMarkerColor(marker, pathColor, 1f - PathFadeLengthRatio * progress);
+			markerIndex++;
+		}
+
+		for (int i = markerIndex; i < _pathMarkersPool.Count; i++)
+		{
+			_pathMarkersPool[i].Visible = false;
+		}
+	}
+
+	private static void SetMarkerColor(MeshInstance3D marker, Color color, float alpha)
+	{
+		if (marker.MaterialOverride is not StandardMaterial3D markerMaterial) return;
+
+		Color shaded = new Color(color.R, color.G, color.B, alpha);
+		markerMaterial.AlbedoColor = shaded;
+		markerMaterial.Emission = new Color(color.R, color.G, color.B);
 	}
 
 	private void HidePathVisuals()
@@ -2503,6 +2576,7 @@ public partial class Unit3D : Node3D
 
 			var mat = new StandardMaterial3D();
 			mat.AlbedoColor = new Color(0.2f, 0.6f, 1.0f);
+			mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
 			mat.EmissionEnabled = true;
 			mat.Emission = new Color(0.2f, 0.6f, 1.0f);
 			mat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
