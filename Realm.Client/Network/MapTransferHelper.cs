@@ -277,4 +277,66 @@ public static class MapTransferHelper
 			emitAction(overallProgress);
 		}
 	}
+
+	public static void UpdateTransferState(ClientTransferSession session, int chunkIndex, int totalChunks, long totalBytes, byte[] packetData)
+	{
+		session.LastActivityTimeUtc = DateTime.UtcNow;
+		session.ExpectedTotalChunks = totalChunks;
+		session.ExpectedTotalBytes = totalBytes;
+		session.CurrentChunkIndex = chunkIndex;
+
+		session.CurrentChunkStream.Write(packetData, 0, packetData.Length);
+		session.ReceivedPacketsInCurrentChunk++;
+		session.TotalReceivedBytes += packetData.Length;
+	}
+
+	public static void HandleSendMapTransferChunkRpc(
+		ClientTransferSession? session,
+		string transferId,
+		int chunkIndex,
+		int totalChunks,
+		int packetIndex,
+		int totalPacketsInChunk,
+		long totalBytes,
+		byte[] packetData,
+		Action<float> emitProgress,
+		Action finalizeChunkAction,
+		TaskCompletionSource<bool>? transferCompleteTcs,
+		string logPrefix)
+	{
+		if (session == null || session.TransferId != transferId) return;
+
+		try
+		{
+			UpdateTransferState(session, chunkIndex, totalChunks, totalBytes, packetData);
+
+			float overallProgress = CalculateOverallTransferProgress(session, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk);
+			bool isChunkEnd = packetIndex + 1 >= totalPacketsInChunk;
+
+			EmitTransferProgressIfRequired(session, overallProgress, isChunkEnd, emitProgress);
+
+			if (isChunkEnd)
+			{
+				finalizeChunkAction();
+			}
+		}
+		catch (Exception ex)
+		{
+			Godot.GD.PrintErr($"[{logPrefix}] Chunk write error: {ex.Message}");
+			transferCompleteTcs?.TrySetException(ex);
+		}
+	}
+
+	public static void HandleRequestNextMapTransferChunkRpc(
+		string transferId, 
+		int nextChunkIndex, 
+		System.Collections.Concurrent.ConcurrentDictionary<string, HostTransferSession> hostTransfers, 
+		Func<HostTransferSession, int, Task> sendHostChunkAsync)
+	{
+		if (hostTransfers.TryGetValue(transferId, out var session) && !session.Cts.IsCancellationRequested)
+		{
+			session.CurrentChunkIndex = nextChunkIndex;
+			_ = sendHostChunkAsync(session, nextChunkIndex);
+		}
+	}
 }

@@ -366,14 +366,28 @@ namespace Realm.Client.Services
 			list.Add(new SpatialGridEntry(entity, pos, Vector3.Zero, radius, false));
 		}
 
+		private bool TryGetMovementContext(Entity entity, Vector3 pos, Vector3 target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)
+		{
+			if (TryHandleStun(entity))
+			{
+				pathingFlags = 0;
+				isFlying = false;
+				hasPf = false;
+				pf = default;
+				return false;
+			}
+
+			pathingFlags = (ushort)(GameContext.World.Has<PathingFlags>(entity) ? GameContext.World.Get<PathingFlags>(entity).Value : 8);
+			isFlying = ((TerrainPathingFlags)pathingFlags & TerrainPathingFlags.Flying) != 0;
+			hasPf = GameContext.World.Has<PathFollow>(entity);
+			pf = GetOrCreatePathFollow(hasPf, entity, pos, target);
+
+			return true;
+		}
+
 		private void CollectMovementWorkItemAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)
 		{
-			if (TryHandleStun(entity)) return;
-
-			ushort pathingFlags = (ushort)(GameContext.World.Has<PathingFlags>(entity) ? GameContext.World.Get<PathingFlags>(entity).Value : 8);
-			bool isFlying = ((TerrainPathingFlags)pathingFlags & TerrainPathingFlags.Flying) != 0;
-			bool hasPf = GameContext.World.Has<PathFollow>(entity);
-			PathFollow pf = GetOrCreatePathFollow(hasPf, entity, pos.Value, moveTo.Target);
+			if (!TryGetMovementContext(entity, pos.Value, moveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
 
 			if (_movementWorkCount >= _movementWorkItems.Length)
 			{
@@ -578,13 +592,7 @@ namespace Realm.Client.Services
 
 		private void MovementQueryAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)
 		{
-			if (TryHandleStun(entity)) return;
-
-			ushort pathingFlags = (ushort)(GameContext.World.Has<PathingFlags>(entity) ? GameContext.World.Get<PathingFlags>(entity).Value : 8);
-			bool isFlying = ((TerrainPathingFlags)pathingFlags & TerrainPathingFlags.Flying) != 0;
-
-			bool hasPf = GameContext.World.Has<PathFollow>(entity);
-			PathFollow pf = GetOrCreatePathFollow(hasPf, entity, pos.Value, moveTo.Target);
+			if (!TryGetMovementContext(entity, pos.Value, moveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
 
 			bool forceReplan = UpdateStuckState(hasPf, entity, pos.Value, stats, ref pf);
 

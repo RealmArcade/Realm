@@ -2588,19 +2588,7 @@ namespace Realm.Client.UI
 				var csprojFiles = Directory.GetFiles(workspace, "*.csproj", SearchOption.TopDirectoryOnly);
 				if (csprojFiles.Length > 0 || File.Exists(Path.Combine(workspace, "MapScript.cs")))
 				{
-					string binDir = Path.Combine(workspace, "bin");
-					string wasmPath = null;
-					if (Directory.Exists(binDir))
-					{
-						var wasmFiles = Directory.GetFiles(
-							binDir,
-							"*.wasm",
-							SearchOption.AllDirectories
-						).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
-
-						wasmPath = wasmFiles.FirstOrDefault(f => f.Contains("publish"))
-						           ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
-					}
+					string wasmPath = MapStorageService.FindWasmPath(workspace);
 
 					if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
 					{

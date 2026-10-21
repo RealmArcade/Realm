@@ -171,14 +171,7 @@ public partial class Prop3D : Node3D
 
 	private void UpdateSelectionRingTransform()
 	{
-		if (_selectionRing == null && _hoverRing == null) return;
-
-		string assetKey = GameHost.Instance?.GetModelAssetKey(this) ?? string.Empty;
-		float baseRadius = GetBaseObstacleRadius();
-		Realm.Client.Utils.VisualSelectionHelper.CalculateSelectionRingParams(Scale, assetKey, baseRadius, out float sx, out float ratio, out float worldRadius);
-
-		var torusMesh = Realm.Client.Utils.VisualSelectionHelper.GetOrCreateTorusMesh(worldRadius);
-		Realm.Client.Utils.VisualSelectionHelper.UpdateSelectionRingTransform(_selectionRing, _hoverRing, torusMesh, Scale, baseRadius, ratio);
+		Realm.Client.Utils.VisualSelectionHelper.UpdateSelectionRing(this, _selectionRing, _hoverRing, Scale, GetBaseObstacleRadius());
 	}
 
 	public bool IsHovered

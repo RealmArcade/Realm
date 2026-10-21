@@ -177,16 +177,7 @@ public static class SpawnDeathShaderManager
 
 		if (config != null)
 		{
-			mat.SetShaderParameter(_paramTransitionMode, config.TransitionMode);
-			mat.SetShaderParameter(_paramDirection, config.Direction);
-			mat.SetShaderParameter(_paramEdgeColor, config.EdgeColor);
-			mat.SetShaderParameter(_paramEdgeWidth, config.EdgeWidth);
-			mat.SetShaderParameter(_paramEdgeEmission, config.EdgeEmission);
-			mat.SetShaderParameter(_paramNoiseScale, config.NoiseScale);
-			mat.SetShaderParameter(_paramNoiseRoughness, config.NoiseRoughness);
-			mat.SetShaderParameter(_paramFresnelPower, config.FresnelPower);
-			mat.SetShaderParameter(_paramVertexDisplacement, config.VertexDisplacement);
-			mat.SetShaderParameter(_paramAlphaFade, config.AlphaFade);
+			SetShaderParameters(mat, config);
 		}
 
 		if (albedoTex != null)
@@ -285,16 +276,7 @@ public static class SpawnDeathShaderManager
 			}
 			else
 			{
-				mat.SetShaderParameter(_paramTransitionMode, config.TransitionMode);
-				mat.SetShaderParameter(_paramDirection, config.Direction);
-				mat.SetShaderParameter(_paramEdgeColor, config.EdgeColor);
-				mat.SetShaderParameter(_paramEdgeWidth, config.EdgeWidth);
-				mat.SetShaderParameter(_paramEdgeEmission, config.EdgeEmission);
-				mat.SetShaderParameter(_paramNoiseScale, config.NoiseScale);
-				mat.SetShaderParameter(_paramNoiseRoughness, config.NoiseRoughness);
-				mat.SetShaderParameter(_paramFresnelPower, config.FresnelPower);
-				mat.SetShaderParameter(_paramVertexDisplacement, config.VertexDisplacement);
-				mat.SetShaderParameter(_paramAlphaFade, config.AlphaFade);
+				SetShaderParameters(mat, config);
 				mat.SetShaderParameter(_paramModelBoundsMin, aabb.Position);
 				mat.SetShaderParameter(_paramModelBoundsMax, aabb.Position + aabb.Size);
 			}
@@ -308,6 +290,20 @@ public static class SpawnDeathShaderManager
 		{
 			ApplyShaderToMeshNode(node.GetChild(i), config, aabb, progress, shader, collectedMaterials);
 		}
+	}
+
+	private static void SetShaderParameters(ShaderMaterial mat, CustomShaderConfig config)
+	{
+		mat.SetShaderParameter(_paramTransitionMode, config.TransitionMode);
+		mat.SetShaderParameter(_paramDirection, config.Direction);
+		mat.SetShaderParameter(_paramEdgeColor, config.EdgeColor);
+		mat.SetShaderParameter(_paramEdgeWidth, config.EdgeWidth);
+		mat.SetShaderParameter(_paramEdgeEmission, config.EdgeEmission);
+		mat.SetShaderParameter(_paramNoiseScale, config.NoiseScale);
+		mat.SetShaderParameter(_paramNoiseRoughness, config.NoiseRoughness);
+		mat.SetShaderParameter(_paramFresnelPower, config.FresnelPower);
+		mat.SetShaderParameter(_paramVertexDisplacement, config.VertexDisplacement);
+		mat.SetShaderParameter(_paramAlphaFade, config.AlphaFade);
 	}
 
 	public static void ApplyShaderPreview(Node3D targetNode, CustomShaderConfig config, float progress)

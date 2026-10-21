@@ -1083,24 +1083,42 @@ public partial class RuntimeTerrain : Node3D
 		indices.Add(wBase + 2);
 	}
 
+	private bool TryGetWaterWallBounds(
+		float waterY1, float waterY2, WaterType activeWaterMode2, byte activeWaterProfile1, byte activeWaterProfile2,
+		out float yMin, out float yMax, out byte wallProfile, out Vector3 wallNorm, bool isXAxis)
+	{
+		yMin = 0; yMax = 0; wallProfile = 0; wallNorm = Vector3.Zero;
+		if (activeWaterMode2 == WaterType.None || MathF.Abs(waterY1 - waterY2) <= 0.01f) return false;
+
+		yMin = MathF.Min(waterY1, waterY2);
+		yMax = MathF.Max(waterY1, waterY2);
+		wallProfile = (waterY1 >= waterY2) ? activeWaterProfile1 : activeWaterProfile2;
+		wallNorm = isXAxis ? ((waterY1 > waterY2) ? Vector3.Right : Vector3.Left) : ((waterY1 > waterY2) ? Vector3.Back : Vector3.Forward);
+		
+		return true;
+	}
+
+	private void AddWaterWallGeometry(
+		byte wallProfile, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices,
+		Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, Vector3 wallNorm)
+	{
+		var wGeom = GetGeomLists(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices);
+		int wBase = wGeom.verts.Count;
+		AddWallGeometry(wGeom.verts, wGeom.norms, wGeom.uvs, wGeom.indices, wBase, p0, p1, p2, p3, wallNorm);
+	}
+
 	private void AddWaterWallX(
 		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
 		var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(x + 1, z, cells, w, d);
-		if (activeWaterMode2 == WaterType.None || MathF.Abs(waterY1 - waterY2) <= 0.01f) return;
+		
+		if (!TryGetWaterWallBounds(waterY1, waterY2, activeWaterMode2, activeWaterProfile1, activeWaterProfile2, out float yMin, out float yMax, out byte wallProfile, out Vector3 wallNorm, true)) return;
 
-		float yMin = MathF.Min(waterY1, waterY2);
-		float yMax = MathF.Max(waterY1, waterY2);
 		float wallX = (x + 1) * quadSize - halfWQuadSize;
 		float z0 = z * quadSize - halfDQuadSize;
 		float z1 = (z + 1) * quadSize - halfDQuadSize;
 
-		byte wallProfile = (waterY1 >= waterY2) ? activeWaterProfile1 : activeWaterProfile2;
-		var wGeom = GetGeomLists(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices);
-
-		int wBase = wGeom.verts.Count;
-		Vector3 wallNorm = (waterY1 > waterY2) ? Vector3.Right : Vector3.Left;
-		AddWallGeometry(wGeom.verts, wGeom.norms, wGeom.uvs, wGeom.indices, wBase,
+		AddWaterWallGeometry(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices,
 			new Vector3(wallX, yMin, z0), new Vector3(wallX, yMin, z1), new Vector3(wallX, yMax, z1), new Vector3(wallX, yMax, z0), wallNorm);
 	}
 
@@ -1108,20 +1126,14 @@ public partial class RuntimeTerrain : Node3D
 		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
 	{
 		var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(x, z + 1, cells, w, d);
-		if (activeWaterMode2 == WaterType.None || MathF.Abs(waterY1 - waterY2) <= 0.01f) return;
+		
+		if (!TryGetWaterWallBounds(waterY1, waterY2, activeWaterMode2, activeWaterProfile1, activeWaterProfile2, out float yMin, out float yMax, out byte wallProfile, out Vector3 wallNorm, false)) return;
 
-		float yMin = MathF.Min(waterY1, waterY2);
-		float yMax = MathF.Max(waterY1, waterY2);
 		float wallZ = (z + 1) * quadSize - halfDQuadSize;
 		float x0 = x * quadSize - halfWQuadSize;
 		float x1 = (x + 1) * quadSize - halfWQuadSize;
 
-		byte wallProfile = (waterY1 >= waterY2) ? activeWaterProfile1 : activeWaterProfile2;
-		var wGeom = GetGeomLists(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices);
-
-		int wBase = wGeom.verts.Count;
-		Vector3 wallNorm = (waterY1 > waterY2) ? Vector3.Back : Vector3.Forward;
-		AddWallGeometry(wGeom.verts, wGeom.norms, wGeom.uvs, wGeom.indices, wBase,
+		AddWaterWallGeometry(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices,
 			new Vector3(x0, yMin, wallZ), new Vector3(x1, yMin, wallZ), new Vector3(x1, yMax, wallZ), new Vector3(x0, yMax, wallZ), wallNorm);
 	}
 

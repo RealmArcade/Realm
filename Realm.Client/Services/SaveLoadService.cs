@@ -1166,14 +1166,19 @@ public class SaveLoadService
 		return aRotY.CompareTo(bRotY);
 	}
 
-	private static int CompareUnits(UnitSaveData a, UnitSaveData b, float topLeftX, float topLeftZ)
+	private static int CompareBaseProperties(string aTemplateId, string bTemplateId, float aPosX, float aPosY, float aPosZ, float aRotY, float bPosX, float bPosY, float bPosZ, float bRotY, float topLeftX, float topLeftZ)
 	{
-		int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
+		int comparison = string.Compare(aTemplateId, bTemplateId, StringComparison.OrdinalIgnoreCase);
 		if (comparison != 0) return comparison;
-		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
+		comparison = string.Compare(aTemplateId, bTemplateId, StringComparison.Ordinal);
 		if (comparison != 0) return comparison;
 
-		comparison = CompareDistanceAndPosition(a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
+		return CompareDistanceAndPosition(aPosX, aPosY, aPosZ, aRotY, bPosX, bPosY, bPosZ, bRotY, topLeftX, topLeftZ);
+	}
+
+	private static int CompareUnits(UnitSaveData a, UnitSaveData b, float topLeftX, float topLeftZ)
+	{
+		int comparison = CompareBaseProperties(a.TemplateId, b.TemplateId, a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
 		comparison = a.Scale.CompareTo(b.Scale);
@@ -1185,12 +1190,7 @@ public class SaveLoadService
 
 	private static int CompareProps(PropSaveData a, PropSaveData b, float topLeftX, float topLeftZ)
 	{
-		int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
-		if (comparison != 0) return comparison;
-		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
-		if (comparison != 0) return comparison;
-
-		comparison = CompareDistanceAndPosition(a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
+		int comparison = CompareBaseProperties(a.TemplateId, b.TemplateId, a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
 		return a.Scale.CompareTo(b.Scale);
@@ -1198,12 +1198,7 @@ public class SaveLoadService
 
 	private static int CompareDecals(DecalSaveData a, DecalSaveData b, float topLeftX, float topLeftZ)
 	{
-		int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
-		if (comparison != 0) return comparison;
-		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
-		if (comparison != 0) return comparison;
-
-		comparison = CompareDistanceAndPosition(a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
+		int comparison = CompareBaseProperties(a.TemplateId, b.TemplateId, a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
 		return a.Scale.CompareTo(b.Scale);

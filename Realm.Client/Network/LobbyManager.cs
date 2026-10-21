@@ -1889,11 +1889,7 @@ public partial class LobbyManager : Node
 	private void RequestNextMapTransferChunkRpc(string transferId, int nextChunkIndex)
 	{
 		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
-		if (_hostTransfers.TryGetValue(transferId, out var session) && !session.Cts.IsCancellationRequested)
-		{
-			session.CurrentChunkIndex = nextChunkIndex;
-			_ = SendHostChunkAsync(session, nextChunkIndex);
-		}
+		MapTransferHelper.HandleRequestNextMapTransferChunkRpc(transferId, nextChunkIndex, _hostTransfers, SendHostChunkAsync);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -1909,41 +1905,13 @@ public partial class LobbyManager : Node
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void SendMapTransferChunkRpc(string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData)
 	{
-		if (_currentClientTransfer == null || _currentClientTransfer.TransferId != transferId) return;
-
-		try
-		{
-			UpdateTransferState(chunkIndex, totalChunks, totalBytes, packetData);
-
-			float overallProgress = MapTransferHelper.CalculateOverallTransferProgress(_currentClientTransfer, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk);
-			bool isChunkEnd = packetIndex + 1 >= totalPacketsInChunk;
-
-			MapTransferHelper.EmitTransferProgressIfRequired(_currentClientTransfer, overallProgress, isChunkEnd, progress => {
-				CallDeferred(nameof(EmitDownloadProgress), progress);
-			});
-
-			if (isChunkEnd)
-			{
-				ProcessCompletedChunk(chunkIndex, totalChunks);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error writing transfer packet: {ex.Message}");
-			_transferCompleteTcs?.TrySetException(ex);
-		}
-	}
-
-	private void UpdateTransferState(int chunkIndex, int totalChunks, long totalBytes, byte[] packetData)
-	{
-		_currentClientTransfer!.LastActivityTimeUtc = DateTime.UtcNow;
-		_currentClientTransfer.ExpectedTotalChunks = totalChunks;
-		_currentClientTransfer.ExpectedTotalBytes = totalBytes;
-		_currentClientTransfer.CurrentChunkIndex = chunkIndex;
-
-		_currentClientTransfer.CurrentChunkStream.Write(packetData, 0, packetData.Length);
-		_currentClientTransfer.ReceivedPacketsInCurrentChunk++;
-		_currentClientTransfer.TotalReceivedBytes += packetData.Length;
+		MapTransferHelper.HandleSendMapTransferChunkRpc(
+			_currentClientTransfer, transferId, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk, totalBytes, packetData,
+			progress => CallDeferred(nameof(EmitDownloadProgress), progress),
+			() => ProcessCompletedChunk(chunkIndex, totalChunks),
+			_transferCompleteTcs,
+			"LobbyManager"
+		);
 	}
 
 	private void ProcessCompletedChunk(int chunkIndex, int totalChunks)

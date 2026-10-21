@@ -886,7 +886,7 @@ public class NetworkService
 		}
 	}
 
-	private void HandleAttackCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
+	private void HandleTargetedCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued, Action<Entity, Entity, System.Numerics.Vector3, bool> applyAction)
 	{
 		var targetEntity = FindServerEntity(cmd.TargetEntityId, allUnits);
 		if (targetEntity == Entity.Null) return;
@@ -896,32 +896,31 @@ public class NetworkService
 		{
 			var entity = FindServerEntity(serverId, allUnits);
 			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (entity == targetEntity) continue;
 
-				if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
+			applyAction(entity, targetEntity, targetPos, isQueued);
+		}
+	}
+
+	private void HandleAttackCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
+	{
+		HandleTargetedCommand(peerId, cmd, allUnits, isQueued, (entity, targetEntity, targetPos, queued) =>
+		{
+			if (queued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
 			{
 				EnqueueCommand(entity, "attack", targetPos, targetEntity);
 			}
 			else
 			{
-				if (!isQueued) ClearUnitOrders(entity);
+				if (!queued) ClearUnitOrders(entity);
 				GameContext.World.SetOrAdd(entity, new AttackTarget(targetEntity));
 			}
-		}
+		});
 	}
 
 	private void HandleFollowCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
 	{
-		var targetEntity = FindServerEntity(cmd.TargetEntityId, allUnits);
-		if (targetEntity == Entity.Null) return;
-
-		var targetPos = GameContext.World.Has<Position>(targetEntity) ? GameContext.World.Get<Position>(targetEntity).Value : System.Numerics.Vector3.Zero;
-		foreach (int serverId in cmd.UnitEntityIds)
-		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity) || entity == targetEntity) continue;
-
-			ApplyFollowOrder(entity, targetEntity, targetPos, isQueued);
-		}
+		HandleTargetedCommand(peerId, cmd, allUnits, isQueued, ApplyFollowOrder);
 	}
 
 	private void ApplyFollowOrder(Entity entity, Entity targetEntity, System.Numerics.Vector3 targetPos, bool isQueued)

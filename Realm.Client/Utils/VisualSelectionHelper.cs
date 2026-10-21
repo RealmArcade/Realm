@@ -38,6 +38,17 @@ public static class VisualSelectionHelper
 		worldRadius = baseRadius * ratio * Mathf.Abs(sx);
 	}
 
+	public static void UpdateSelectionRing(Node3D node, MeshInstance3D? selectionRing, MeshInstance3D? hoverRing, Vector3 scale, float baseRadius)
+	{
+		if (selectionRing == null && hoverRing == null) return;
+
+		string assetKey = Realm.Client.Core.GameHost.Instance?.GetModelAssetKey(node) ?? string.Empty;
+		CalculateSelectionRingParams(scale, assetKey, baseRadius, out float sx, out float ratio, out float worldRadius);
+
+		var torusMesh = GetOrCreateTorusMesh(worldRadius);
+		UpdateSelectionRingTransform(selectionRing, hoverRing, torusMesh, scale, baseRadius, ratio);
+	}
+
     public static void UpdateSelectionRingTransform(MeshInstance3D? selectionRing, MeshInstance3D? hoverRing, TorusMesh torusMesh, Vector3 scale, float baseRadius, float ratio)
     {
         if (selectionRing == null && hoverRing == null) return;
