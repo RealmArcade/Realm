@@ -784,6 +784,44 @@ public partial class FloatingDialogBase : PanelContainer
 		return opt;
 	}
 
+	public (ItemList, LineEdit, Action<string>) AddAssetRuleList(
+		VBoxContainer contentVBox,
+		string itemName,
+		string assetFilterType,
+		string translationKeyId,
+		ItemList.ItemSelectedEventHandler onItemSelected,
+		Action onAddAction,
+		Action onRemoveAction)
+	{
+		var listRow = new HBoxContainer();
+		listRow.Name = $"{itemName}ListRow_HBoxContainer";
+		var list = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		list.ItemSelected += onItemSelected;
+		listRow.AddChild(list);
+
+		var btnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		var filterResult = AddAssetFilterDropdown(
+			btnBox, string.Empty, string.Empty, (all) => ScanAvailableAssets(assetFilterType, all), (val) => { }, TranslationServer.Translate(translationKeyId), 0f);
+		
+		var txtId = filterResult.Input;
+		var setIdValue = filterResult.SetValue;
+
+		var btnAdd = new Button { Text = "+ " + TranslationServer.Translate($"Add {itemName}") };
+		btnAdd.Set("icon_max_width", 0);
+		btnAdd.Pressed += onAddAction;
+		btnBox.AddChild(btnAdd);
+
+		var btnRemove = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
+		btnRemove.Set("icon_max_width", 0);
+		btnRemove.Pressed += onRemoveAction;
+		btnBox.AddChild(btnRemove);
+
+		listRow.AddChild(btnBox);
+		contentVBox.AddChild(listRow);
+
+		return (list, txtId, setIdValue);
+	}
+
 	public LineEdit AddTextInput(
 		VBoxContainer parent,
 		string labelText,

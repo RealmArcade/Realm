@@ -624,24 +624,36 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return Entity.Null;
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
+		return ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.Velocity.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex);
+	}
 
+	public static Entity ApplySnapshotToEntity(string unitId, int entityId, int ownerPlayerEntityId, System.Numerics.Vector3 position, System.Numerics.Vector3 velocity, float rotationY, float currentHp, float maxHp, bool isBuilding, UnitMetadata meta, ref NetworkMappingState mapping, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex)
+	{
 		Entity ownerPlayerEntity = mapping.PlayerEntities != null && mapping.PlayerEntities.Length > 1 ? mapping.PlayerEntities[1] : Entity.Null;
-		if (mapping.PeerIdToPlayerEntityMap.TryGetValue(snap.OwnerPlayerEntityId, out var pe))
+		if (ownerPlayerEntityId >= 0 && mapping.PlayerEntities != null && ownerPlayerEntityId < mapping.PlayerEntities.Length)
+		{
+			ownerPlayerEntity = mapping.PlayerEntities[ownerPlayerEntityId];
+		}
+		if (mapping.PeerIdToPlayerEntityMap.TryGetValue(ownerPlayerEntityId, out var pe))
 		{
 			ownerPlayerEntity = pe;
+		}
+		if (ownerPlayerEntity == Entity.Null && mapping.PlayerEntities != null && mapping.PlayerEntities.Length > 1)
+		{
+			ownerPlayerEntity = mapping.PlayerEntities[1];
 		}
 
 		playerIndex = (ownerPlayerEntity != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(ownerPlayerEntity))
 			? GameContext.World.Get<UnitOwnerPlayer>(ownerPlayerEntity).PlayerIndex
-			: (snap.OwnerPlayerEntityId > 0 ? snap.OwnerPlayerEntityId - 1 : 0);
+			: (ownerPlayerEntityId > 0 ? ownerPlayerEntityId - 1 : 0);
 
 		var entity = GameContext.World.Create();
-		GameContext.World.Add(entity, new DefinitionId(snap.UnitId));
+		GameContext.World.Add(entity, new DefinitionId(unitId));
 		GameContext.World.Add(entity, new Name(meta.Name));
-		GameContext.World.Add(entity, new Position(snap.Position.ToNumerics()));
+		GameContext.World.Add(entity, new Position(position));
 		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
 		GameContext.World.Add(entity, new UnitOwnerPlayer(playerIndex));
-		GameContext.World.Add(entity, new Health(snap.CurrentHp, snap.MaxHp));
+		GameContext.World.Add(entity, new Health(currentHp, maxHp));
 		if (meta.Damage > 0)
 		{
 			GameContext.World.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
@@ -661,17 +673,17 @@ public class NetworkService
 
 		var interpolationTarget = new InterpolationTarget
 		{
-			Position = snap.Position.ToNumerics(),
-			Velocity = snap.Velocity.ToNumerics(),
-			RotationY = snap.RotationY
+			Position = position,
+			Velocity = velocity,
+			RotationY = rotationY
 		};
 		GameContext.World.Add(entity, interpolationTarget);
 
-		mapping.ServerToClientEntityMap[snap.EntityId] = entity;
-		mapping.ClientToServerEntityMap[entity.Id] = snap.EntityId;
+		mapping.ServerToClientEntityMap[entityId] = entity;
+		mapping.ClientToServerEntityMap[entity.Id] = entityId;
 
-		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : snap.UnitId;
-		modelPath = getFallbackModelPath(targetModel, snap.IsBuilding);
+		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : unitId;
+		modelPath = getFallbackModelPath(targetModel, isBuilding);
 		return entity;
 	}
 

@@ -1906,27 +1906,11 @@ public partial class LobbyManager : Node
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks)
 	{
-		if (_currentClientTransfer != null && _currentClientTransfer.TransferId == transferId)
+		MapTransferHelper.HandleBeginMapTransfer(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, tId =>
 		{
-			_currentClientTransfer.LastActivityTimeUtc = DateTime.UtcNow;
-			_currentClientTransfer.ExpectedTotalBytes = totalBytes;
-			_currentClientTransfer.ExpectedTotalChunks = totalChunks;
-			_currentClientTransfer.CurrentChunkIndex = 0;
-			_currentClientTransfer.ReceivedPacketsInCurrentChunk = 0;
-			_currentClientTransfer.CurrentChunkStream.SetLength(0);
-			_currentClientTransfer.CurrentChunkStream.Position = 0;
-
-			if (totalChunks == 0)
-			{
-				string targetMapDir = MapAssetManager.GetMapDirectory(mapName, mapVersion);
-				MapAssetManager.ExtractManifestFiles(_currentClientTransfer.Manifest, targetMapDir);
-				string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
-				GameContext.AssetIndexService.RegisterManifest(_currentClientTransfer.Manifest, localManifestPath);
-
-				Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferId)).CallDeferred();
-				_transferCompleteTcs?.TrySetResult(true);
-			}
-		}
+			Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), tId)).CallDeferred();
+			_transferCompleteTcs?.TrySetResult(true);
+		});
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

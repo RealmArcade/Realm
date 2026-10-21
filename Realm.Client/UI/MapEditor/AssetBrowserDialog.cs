@@ -545,62 +545,8 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 
 	public void OpenForImport(string titleText, IEnumerable<string> allowedExtensions, Action<string, string?> onAssetSelected, bool requireRealmMetadata = false, string? requiredAssetType = null)
 	{
-		_onAssetSelectedCallback = null;
+		OpenForImport(titleText, allowedExtensions, (Action<string>)null!, requireRealmMetadata, requiredAssetType);
 		_onAssetSelectedWithPreferredNameCallback = onAssetSelected;
-		_selectedAsset = null;
-		_txtSearch.Text = string.Empty;
-		if (_chkHasPlayerColorMask != null)
-		{
-			_chkHasPlayerColorMask.ButtonPressed = false;
-		}
-
-		_requireRealmMetadata = requireRealmMetadata;
-		_selectedAssetTypeFilter = requiredAssetType;
-
-		TitleLabel.Text = string.IsNullOrWhiteSpace(titleText)
-			? TranslationServer.Translate("Asset Browser")
-			: TranslationServer.Translate(titleText);
-
-		_allowedExtensions = (allowedExtensions ?? Array.Empty<string>())
-			.Select(e => e.Trim().ToLowerInvariant())
-			.Select(e => e.StartsWith(".") ? e : "." + e)
-			.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-		if (_allowedExtensions.Contains(".rmesh"))
-		{
-			requireRealmMetadata = true;
-		}
-
-		_requireRealmMetadata = requireRealmMetadata;
-
-		if (_allowedExtensions.Count > 0)
-		{
-			_lblFilterExtensions.Text = $"{TranslationServer.Translate("Extensions")}: {string.Join(", ", _allowedExtensions)}";
-			_lblFilterExtensions.Visible = true;
-		}
-		else
-		{
-			_lblFilterExtensions.Visible = false;
-		}
-
-		if (!_hasAutoRescannedOnFirstOpen || GameContext.AssetIndexService.GetAssetCount() == 0)
-		{
-			_hasAutoRescannedOnFirstOpen = true;
-			GameContext.AssetIndexService.RescanAllDirectories();
-		}
-
-		OpenDialog();
-
-		RefreshFolderChips();
-		RefreshAssetTypeFilterOptions();
-		RefreshSearchResults();
-		UpdateSelectedAssetDisplay();
-
-		Callable.From(() =>
-		{
-			UpdateVirtualGridSize(_matchingAssets.Count);
-			UpdateVisibleGridCells();
-		}).CallDeferred();
 	}
 
 	private void RefreshFolderChips()

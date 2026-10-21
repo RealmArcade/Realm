@@ -32,6 +32,30 @@ public static class MapTransferHelper
 		}
 	}
 
+	public static void HandleBeginMapTransfer(ClientTransferSession? currentTransfer, string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks, Action<string> acknowledgeCompleteAction)
+	{
+		if (currentTransfer != null && currentTransfer.TransferId == transferId)
+		{
+			currentTransfer.LastActivityTimeUtc = DateTime.UtcNow;
+			currentTransfer.ExpectedTotalBytes = totalBytes;
+			currentTransfer.ExpectedTotalChunks = totalChunks;
+			currentTransfer.CurrentChunkIndex = 0;
+			currentTransfer.ReceivedPacketsInCurrentChunk = 0;
+			currentTransfer.CurrentChunkStream.SetLength(0);
+			currentTransfer.CurrentChunkStream.Position = 0;
+
+			if (totalChunks == 0)
+			{
+				string targetMapDir = MapAssetManager.GetMapDirectory(mapName, mapVersion);
+				MapAssetManager.ExtractManifestFiles(currentTransfer.Manifest, targetMapDir);
+				string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
+				GameContext.AssetIndexService.RegisterManifest(currentTransfer.Manifest, localManifestPath);
+
+				acknowledgeCompleteAction?.Invoke(transferId);
+			}
+		}
+	}
+
 	public static Dictionary<string, string> BuildLocalFileMap(string mapName, string mapVersion, MapManifest? manifest)
 	{
 		var localFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

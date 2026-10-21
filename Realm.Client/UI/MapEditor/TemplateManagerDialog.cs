@@ -1932,55 +1932,36 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		return references;
 	}
 
-	private void RemoveTerrainTexture(MapMetadata meta, ObjectItemInfo item, string delSlug)
+	private void RemoveKeysFromDict<T>(Dictionary<string, T>? dict, string category, ObjectItemInfo item, string delSlug)
 	{
-		if (meta.Textures == null) return;
-		var keysToRemove = meta.Textures.Keys.Where(k =>
+		if (dict == null) return;
+		var keysToRemove = dict.Keys.Where(k =>
 			string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
 			string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
 			(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
 			(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
-			string.Equals(TemplateIDHelper.NormalizeTemplateID("terrain", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
+			string.Equals(TemplateIDHelper.NormalizeTemplateID(category, k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
 		).ToList();
 
 		foreach (var k in keysToRemove)
 		{
-			meta.Textures.Remove(k);
+			dict.Remove(k);
 		}
+	}
+
+	private void RemoveTerrainTexture(MapMetadata meta, ObjectItemInfo item, string delSlug)
+	{
+		RemoveKeysFromDict(meta.Textures, "terrain", item, delSlug);
 	}
 
 	private void RemoveSpritesheet(MapMetadata meta, ObjectItemInfo item, string delSlug)
 	{
-		if (meta.VfxSpritesheets == null) return;
-		var keysToRemove = meta.VfxSpritesheets.Keys.Where(k =>
-			string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
-			(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
-			(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
-			string.Equals(TemplateIDHelper.NormalizeTemplateID("spritesheet", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
-		).ToList();
-
-		foreach (var k in keysToRemove)
-		{
-			meta.VfxSpritesheets.Remove(k);
-		}
+		RemoveKeysFromDict(meta.VfxSpritesheets, "spritesheet", item, delSlug);
 	}
 
 	private void RemoveDecal(MapMetadata meta, ObjectItemInfo item, string delSlug)
 	{
-		if (meta.Decals == null) return;
-		var keysToRemove = meta.Decals.Keys.Where(k =>
-			string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
-			(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
-			(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
-			string.Equals(TemplateIDHelper.NormalizeTemplateID("decal", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
-		).ToList();
-
-		foreach (var k in keysToRemove)
-		{
-			meta.Decals.Remove(k);
-		}
+		RemoveKeysFromDict(meta.Decals, "decal", item, delSlug);
 	}
 
 	private void RemoveSpawnShader(MapMetadata meta, ObjectItemInfo item, string delSlug)
