@@ -1155,6 +1155,22 @@ public class SaveLoadService
 		}
 	}
 
+	private static int CompareDistanceAndPosition(float aPosX, float aPosY, float aPosZ, float aRotY, float bPosX, float bPosY, float bPosZ, float bRotY, float topLeftX, float topLeftZ)
+	{
+		float distanceA = MathF.Sqrt(MathF.Pow(aPosX - topLeftX, 2) + MathF.Pow(aPosZ - topLeftZ, 2));
+		float distanceB = MathF.Sqrt(MathF.Pow(bPosX - topLeftX, 2) + MathF.Pow(bPosZ - topLeftZ, 2));
+		int comparison = distanceA.CompareTo(distanceB);
+		if (comparison != 0) return comparison;
+
+		comparison = aPosX.CompareTo(bPosX);
+		if (comparison != 0) return comparison;
+		comparison = aPosZ.CompareTo(bPosZ);
+		if (comparison != 0) return comparison;
+		comparison = aPosY.CompareTo(bPosY);
+		if (comparison != 0) return comparison;
+		return aRotY.CompareTo(bRotY);
+	}
+
 	private static int CompareUnits(UnitSaveData a, UnitSaveData b, float topLeftX, float topLeftZ)
 	{
 		int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
@@ -1162,19 +1178,9 @@ public class SaveLoadService
 		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
 		if (comparison != 0) return comparison;
 
-		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-		comparison = distanceA.CompareTo(distanceB);
+		comparison = CompareDistanceAndPosition(a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
-		comparison = a.PosX.CompareTo(b.PosX);
-		if (comparison != 0) return comparison;
-		comparison = a.PosZ.CompareTo(b.PosZ);
-		if (comparison != 0) return comparison;
-		comparison = a.PosY.CompareTo(b.PosY);
-		if (comparison != 0) return comparison;
-		comparison = a.RotationY.CompareTo(b.RotationY);
-		if (comparison != 0) return comparison;
 		comparison = a.Scale.CompareTo(b.Scale);
 		if (comparison != 0) return comparison;
 		comparison = a.Player.CompareTo(b.Player);
@@ -1189,19 +1195,9 @@ public class SaveLoadService
 		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
 		if (comparison != 0) return comparison;
 
-		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-		comparison = distanceA.CompareTo(distanceB);
+		comparison = CompareDistanceAndPosition(a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
-		comparison = a.PosX.CompareTo(b.PosX);
-		if (comparison != 0) return comparison;
-		comparison = a.PosZ.CompareTo(b.PosZ);
-		if (comparison != 0) return comparison;
-		comparison = a.PosY.CompareTo(b.PosY);
-		if (comparison != 0) return comparison;
-		comparison = a.RotationY.CompareTo(b.RotationY);
-		if (comparison != 0) return comparison;
 		return a.Scale.CompareTo(b.Scale);
 	}
 
@@ -1212,19 +1208,9 @@ public class SaveLoadService
 		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
 		if (comparison != 0) return comparison;
 
-		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-		comparison = distanceA.CompareTo(distanceB);
+		comparison = CompareDistanceAndPosition(a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
-		comparison = a.PosX.CompareTo(b.PosX);
-		if (comparison != 0) return comparison;
-		comparison = a.PosZ.CompareTo(b.PosZ);
-		if (comparison != 0) return comparison;
-		comparison = a.PosY.CompareTo(b.PosY);
-		if (comparison != 0) return comparison;
-		comparison = a.RotationY.CompareTo(b.RotationY);
-		if (comparison != 0) return comparison;
 		return a.Scale.CompareTo(b.Scale);
 	}
 
@@ -1235,19 +1221,9 @@ public class SaveLoadService
 		comparison = string.Compare(a.VfxId, b.VfxId, StringComparison.Ordinal);
 		if (comparison != 0) return comparison;
 
-		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-		comparison = distanceA.CompareTo(distanceB);
+		comparison = CompareDistanceAndPosition(a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
-		comparison = a.PosX.CompareTo(b.PosX);
-		if (comparison != 0) return comparison;
-		comparison = a.PosZ.CompareTo(b.PosZ);
-		if (comparison != 0) return comparison;
-		comparison = a.PosY.CompareTo(b.PosY);
-		if (comparison != 0) return comparison;
-		comparison = a.RotationY.CompareTo(b.RotationY);
-		if (comparison != 0) return comparison;
 		return a.ScaleX.CompareTo(b.ScaleX);
 	}
 

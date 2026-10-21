@@ -1,0 +1,5 @@
+<<<<<<< SEARCH
+		UpdateVirtualGridSize();
+=======
+		UpdateVirtualGridSize(_matchingAssets.Count);
+>>>>>>> REPLACE

@@ -1049,31 +1049,15 @@ public partial class GameHost
 					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
 
 					Vector3 spawnPos = hitPos;
-					spawnPos.Y = GetTerrainHeightAt(spawnPos);
-					float radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
-					var finalPos = FindNearestFreePosition(spawnPos, radius);
-					if (finalPos == null)
-					{
-						if (scaleVal > 1.5f)
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
-						}
-						else
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal("invalid location");
-						}
-
-						UIManager.Instance?.PlayWarningSound();
-						GetViewport().SetInputAsHandled();
-						return;
-					}
-
+						var finalPos = TryGetValidPlacementLocation(spawnPos, scaleVal);
+						if (finalPos == null) return;
 					spawnPos = finalPos.Value;
 
 					int placePlayer = GameContext.EditorService.PlaceUnitIsEnemy ? 1 : 0;
 					var unit = SpawnUnitExternal(ActivePlaceId, spawnPos, placementRot, scaleVal, placePlayer);
 					if (unit != null)
 					{
+							float radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
 						var actions = new List<IEditorAction>
 						{
 							new ObjectSpawnAction("unit", ActivePlaceId, spawnPos, placementRot, scaleVal, unit, placePlayer)
@@ -1110,25 +1094,8 @@ public partial class GameHost
 					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
 
 					Vector3 spawnPos = hitPos;
-					spawnPos.Y = GetTerrainHeightAt(spawnPos);
-					float radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
-					var finalPos = FindNearestFreePosition(spawnPos, radius);
-					if (finalPos == null)
-					{
-						if (scaleVal > 1.5f)
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
-						}
-						else
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal("invalid location");
-						}
-
-						UIManager.Instance?.PlayWarningSound();
-						GetViewport().SetInputAsHandled();
-						return;
-					}
-
+						var finalPos = TryGetValidPlacementLocation(spawnPos, scaleVal);
+						if (finalPos == null) return;
 					spawnPos = finalPos.Value;
 
 					var prop = SpawnPropExternalWithParams(ActivePlaceId, spawnPos, placementRot, scaleVal);
@@ -1140,11 +1107,12 @@ public partial class GameHost
 						};
 						if (EditorMirrorMode != MirrorMode.None)
 						{
+								float propRadius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
 							foreach (var t in GetMirroredTransforms(spawnPos, placementRot))
 							{
 								Vector3 mPos = t.Position;
 								mPos.Y = GetTerrainHeightAt(mPos);
-								if (IsPositionBlocked(mPos, radius)) continue;
+									if (IsPositionBlocked(mPos, propRadius)) continue;
 								var mProp = SpawnPropExternalWithParams(ActivePlaceId, mPos, t.Rotation, scaleVal);
 								if (mProp != null)
 								{
@@ -4711,4 +4679,28 @@ public partial class GameHost
 		}
 		return spawnPos;
 	}
+
+		private Vector3? TryGetValidPlacementLocation(Vector3 spawnPos, float scaleVal)
+		{
+			spawnPos.Y = GetTerrainHeightAt(spawnPos);
+			float radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
+			var finalPos = FindNearestFreePosition(spawnPos, radius);
+			if (finalPos == null)
+			{
+				if (scaleVal > 1.5f)
+				{
+					MapEditorHUD.Instance?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
+				}
+				else
+				{
+					MapEditorHUD.Instance?.ShowFeedbackExternal("invalid location");
+				}
+
+				UIManager.Instance?.PlayWarningSound();
+				GetViewport().SetInputAsHandled();
+				return null;
+			}
+
+			return finalPos;
+		}
 }

@@ -233,16 +233,7 @@ public partial class EnetMapTransferService : Node
 	private void RequestMapManifestRpc(string targetMap)
 	{
 		int senderId = Multiplayer.GetRemoteSenderId();
-		var manifest = MapAssetManager.FindHostManifest(targetMap);
-		if (manifest != null)
-		{
-			string json = JsonSerializer.Serialize(manifest);
-			Callable.From(() => RpcId(senderId, nameof(ReceiveMapManifestRpc), targetMap, manifest.Version ?? "1.0.0", json)).CallDeferred();
-		}
-		else
-		{
-			Callable.From(() => RpcId(senderId, nameof(ReceiveMapManifestRpc), targetMap, "", "")).CallDeferred();
-		}
+			MapTransferHelper.HandleRequestMapManifest(this, senderId, targetMap, nameof(ReceiveMapManifestRpc));
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

@@ -15,15 +15,16 @@ using Realm.Client.Utils;
 namespace Realm.Client.UI.MapEditor;
 
 [GlobalClass]
-public partial class AssetManagerDialog : FloatingDialogBase
+public partial class AssetManagerDialog : AssetGridDialogBase
 {
-	public AssetManagerDialog() { }
-
-	private const float CellWidth = 120.0f;
-	private const float CellHeight = 140.0f;
-	private const float SpacingX = 10.0f;
-	private const float SpacingY = 10.0f;
-	private const float GridPadding = 10.0f;
+	public AssetManagerDialog()
+	{
+		CellWidth = 120.0f;
+		CellHeight = 140.0f;
+		SpacingX = 10.0f;
+		SpacingY = 10.0f;
+		GridPadding = 10.0f;
+	}
 
 	private OptionButton _optAssetTypeFilter;
 	private LineEdit _txtSearchFilter;
@@ -125,7 +126,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	{
 		base.OpenDialog();
 		RefreshAssetList();
-		UpdateVirtualGridSize();
+		UpdateVirtualGridSize(_matchingAssets.Count);
 		UpdateVisibleGridCells();
 	}
 
@@ -252,7 +253,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		_scrollContainer.GetVScrollBar().ValueChanged += (_) => UpdateVisibleGridCells();
 		_scrollContainer.Resized += () =>
 		{
-			UpdateVirtualGridSize();
+			UpdateVirtualGridSize(_matchingAssets.Count);
 			UpdateVisibleGridCells();
 		};
 
@@ -416,7 +417,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		{
 			_lblAssetCount.Text = "0 " + TranslationServer.Translate("assets");
 			_lblEmptyState.Visible = true;
-			UpdateVirtualGridSize();
+			UpdateVirtualGridSize(_matchingAssets.Count);
 			UpdateVisibleGridCells();
 			UpdateSelectedAssetDisplay();
 			return;
@@ -445,7 +446,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			_selectedAsset = null;
 		}
 
-		UpdateVirtualGridSize();
+		UpdateVirtualGridSize(_matchingAssets.Count);
 		UpdateVisibleGridCells();
 		UpdateSelectedAssetDisplay();
 	}
@@ -657,110 +658,20 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 	}
 
-	private void UpdateVirtualGridSize()
-	{
-		float availableWidth = Mathf.Max(100.0f, _scrollContainer.Size.X - GridPadding * 2.0f);
-		int columns = Math.Max(1, (int)((availableWidth + SpacingX) / (CellWidth + SpacingX)));
-		int totalRows = (_matchingAssets.Count + columns - 1) / columns;
-		float totalHeight = _matchingAssets.Count > 0
-			? (GridPadding * 2.0f + totalRows * CellHeight + Math.Max(0, totalRows - 1) * SpacingY)
-			: 0;
-
-		_virtualGridContent.CustomMinimumSize = new Vector2(0, totalHeight);
-	}
 
 	private void UpdateVisibleGridCells()
 	{
-		float availableWidth = Mathf.Max(100.0f, _scrollContainer.Size.X - GridPadding * 2.0f);
-		int columns = Math.Max(1, (int)((availableWidth + SpacingX) / (CellWidth + SpacingX)));
-		int totalRows = (_matchingAssets.Count + columns - 1) / columns;
-
-		UpdateVirtualGridHeight(totalRows);
-
-		if (_matchingAssets.Count == 0)
-		{
-			HideAllGridCells();
-			return;
-		}
-
-		UpdateVisibleCellsForScroll(columns, totalRows);
-	}
-
-	private void UpdateVirtualGridHeight(int totalRows)
-	{
-		float totalHeight = _matchingAssets.Count > 0
-			? (GridPadding * 2.0f + totalRows * CellHeight + Math.Max(0, totalRows - 1) * SpacingY)
-			: 0;
-
-		if (Math.Abs(_virtualGridContent.CustomMinimumSize.Y - totalHeight) > 0.5f)
-		{
-			_virtualGridContent.CustomMinimumSize = new Vector2(0, totalHeight);
-		}
-	}
-
-	private void HideAllGridCells()
-	{
-		foreach (var cell in _cellPool)
-		{
-			cell.Visible = false;
-		}
-	}
-
-	private void UpdateVisibleCellsForScroll(int columns, int totalRows)
-	{
-		float scrollY = (float)_scrollContainer.GetVScrollBar().Value;
-		float viewHeight = _scrollContainer.Size.Y > 0 ? _scrollContainer.Size.Y : 360.0f;
-
-		int startRow = Math.Max(0, (int)((scrollY - GridPadding) / (CellHeight + SpacingY)) - 1);
-		int endRow = Math.Min(totalRows - 1, (int)((scrollY + viewHeight - GridPadding) / (CellHeight + SpacingY)) + 1);
-
-		int startIndex = Math.Max(0, startRow * columns);
-		int endIndex = Math.Min(_matchingAssets.Count - 1, (endRow + 1) * columns - 1);
-		int visibleCount = endIndex >= startIndex ? (endIndex - startIndex + 1) : 0;
+			UpdateVisibleCellsForScroll(
+				_scrollContainer,
+				_matchingAssets.Count,
+				out int startIndex,
+				out int visibleCount,
+				out int columns
+			);
 
 		EnsureCellPoolCapacity(visibleCount);
-		BindVisibleGridCells(startIndex, visibleCount, columns);
+		BindVisibleGridCells(startIndex, visibleCount, columns, _matchingAssets, _selectedAsset, OnAssetCellClicked);
 		HideUnusedGridCells(visibleCount);
-	}
-
-	private void EnsureCellPoolCapacity(int requiredCapacity)
-	{
-		while (_cellPool.Count < requiredCapacity)
-		{
-			var newCell = new AssetGridCell();
-			_cellPool.Add(newCell);
-			_virtualGridContent.AddChild(newCell);
-		}
-	}
-
-	private void BindVisibleGridCells(int startIndex, int visibleCount, int columns)
-	{
-		for (int i = 0; i < visibleCount; i++)
-		{
-			int assetIndex = startIndex + i;
-			var asset = _matchingAssets[assetIndex];
-			int row = assetIndex / columns;
-			int col = assetIndex % columns;
-
-			float posX = GridPadding + col * (CellWidth + SpacingX);
-			float posY = GridPadding + row * (CellHeight + SpacingY);
-
-			var cell = _cellPool[i];
-			cell.Position = new Vector2(posX, posY);
-			cell.Size = new Vector2(CellWidth, CellHeight);
-			cell.Visible = true;
-
-			bool isSelected = _selectedAsset != null && string.Equals(_selectedAsset.FilePath, asset.FilePath, StringComparison.OrdinalIgnoreCase);
-			cell.Bind(asset, isSelected, OnAssetCellClicked);
-		}
-	}
-
-	private void HideUnusedGridCells(int visibleCount)
-	{
-		for (int i = visibleCount; i < _cellPool.Count; i++)
-		{
-			_cellPool[i].Visible = false;
-		}
 	}
 
 	private void OnAssetCellClicked(IndexedAsset asset, bool isDoubleClick)

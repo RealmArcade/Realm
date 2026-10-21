@@ -1,0 +1,18 @@
+<<<<<<< SEARCH
+using System;
+using System.Collections.Generic;
+using Godot;
+
+namespace Realm.Client.UI.MapEditor;
+
+public partial class AssetGridDialogBase : FloatingDialogBase
+=======
+using System;
+using System.Collections.Generic;
+using Godot;
+using Realm.Shared.Textures;
+
+namespace Realm.Client.UI.MapEditor;
+
+public partial class AssetGridDialogBase : FloatingDialogBase
+>>>>>>> REPLACE

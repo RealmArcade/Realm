@@ -1759,16 +1759,7 @@ public partial class LobbyManager : Node
 	{
 		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
 		int senderId = Multiplayer.GetRemoteSenderId();
-		var manifest = MapAssetManager.FindHostManifest(targetMap);
-		if (manifest != null)
-		{
-			string json = JsonSerializer.Serialize(manifest);
-			Callable.From(() => RpcId(senderId, nameof(ReceiveMapManifestRpc), targetMap, manifest.Version ?? "1.0.0", json)).CallDeferred();
-		}
-		else
-		{
-			Callable.From(() => RpcId(senderId, nameof(ReceiveMapManifestRpc), targetMap, "", "")).CallDeferred();
-		}
+			MapTransferHelper.HandleRequestMapManifest(this, senderId, targetMap, nameof(ReceiveMapManifestRpc));
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

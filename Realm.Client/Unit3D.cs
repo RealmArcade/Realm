@@ -1509,22 +1509,6 @@ public partial class Unit3D : Node3D
 		return relXform;
 	}
 
-	private Vector3[] GetMeshAabbCorners(Aabb mAabb)
-	{
-		Vector3 min = mAabb.Position;
-		Vector3 max = mAabb.End;
-		return new[]
-		{
-			new Vector3(min.X, min.Y, min.Z),
-			new Vector3(min.X, min.Y, max.Z),
-			new Vector3(min.X, max.Y, min.Z),
-			new Vector3(min.X, max.Y, max.Z),
-			new Vector3(max.X, min.Y, min.Z),
-			new Vector3(max.X, min.Y, max.Z),
-			new Vector3(max.X, max.Y, min.Z),
-			new Vector3(max.X, max.Y, max.Z)
-		};
-	}
 
 
 	public void SetPseudoSocketAttachment(

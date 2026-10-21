@@ -4698,37 +4698,31 @@ public partial class EditorService : IEditorAPI
 		_terrainProceduralObjects.Remove(key);
 	}
 
-	private void ProcessWaterDecalRules(WaterProfileSaveData prof, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList)
+	private void ProcessBombingRules(IEnumerable<dynamic> rules, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList, bool isVfx)
 	{
-		if (prof.DecalBombingRules == null || prof.DecalBombingRules.Count == 0) return;
-		foreach (var rule in prof.DecalBombingRules)
+		if (rules == null) return;
+		foreach (var rule in rules)
 		{
-			if (string.IsNullOrWhiteSpace(rule.DecalId)) continue;
+			string id = isVfx ? rule.VfxId : rule.DecalId;
+			if (string.IsNullOrWhiteSpace(id)) continue;
 			if (Random.Shared.NextSingle() > (rule.Density * 0.05f)) continue;
 			float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
 			float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
 			float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
 			float rotY = Random.Shared.NextSingle() * 360f;
 			var pos = new Godot.Vector3(cellCenterX + jx, waterY, cellCenterZ + jz);
-			var decal = GameHost.Instance?.SpawnDecalExternalWithParams(rule.DecalId, pos, new Godot.Vector3(0, rotY, 0), scale);
-			if (decal != null) spawnedList.Add(decal);
-		}
-	}
 
-	private void ProcessWaterVfxRules(WaterProfileSaveData prof, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList)
-	{
-		if (prof.VfxBombingRules == null || prof.VfxBombingRules.Count == 0) return;
-		foreach (var rule in prof.VfxBombingRules)
-		{
-			if (string.IsNullOrWhiteSpace(rule.VfxId)) continue;
-			if (Random.Shared.NextSingle() > (rule.Density * 0.05f)) continue;
-			float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
-			float rotY = Random.Shared.NextSingle() * 360f;
-			var pos = new Godot.Vector3(cellCenterX + jx, waterY, cellCenterZ + jz);
-			var vfx = GameHost.Instance?.SpawnVfxExternalWithParams(rule.VfxId, pos, new Godot.Vector3(0, rotY, 0), new Godot.Vector3(scale, scale, scale));
-			if (vfx != null) spawnedList.Add(vfx);
+			Node spawnedObj = null;
+			if (isVfx)
+			{
+				spawnedObj = GameHost.Instance?.SpawnVfxExternalWithParams(id, pos, new Godot.Vector3(0, rotY, 0), new Godot.Vector3(scale, scale, scale));
+			}
+			else
+			{
+				spawnedObj = GameHost.Instance?.SpawnDecalExternalWithParams(id, pos, new Godot.Vector3(0, rotY, 0), scale);
+			}
+
+			if (spawnedObj != null) spawnedList.Add(spawnedObj);
 		}
 	}
 
@@ -4743,8 +4737,8 @@ public partial class EditorService : IEditorAPI
 		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
 		var spawnedList = new List<Node>();
 
-		ProcessWaterDecalRules(prof, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList);
-		ProcessWaterVfxRules(prof, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList);
+		ProcessBombingRules(prof.DecalBombingRules, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList, false);
+		ProcessBombingRules(prof.VfxBombingRules, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList, true);
 
 		if (spawnedList.Count > 0)
 		{

@@ -27,6 +27,28 @@ public static class UIStyle
 
 	private static Texture2D? _emptyBlackTexture;
 
+	public static void SetupButton(Godot.Button btn, string text, Action onClick, int fontSize = 13, string tooltip = "")
+	{
+		btn.Text = Godot.TranslationServer.Translate(text);
+		btn.CustomMinimumSize = new Godot.Vector2(0, 32);
+		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		btn.AddThemeStyleboxOverride("focus", new Godot.StyleBoxEmpty());
+		btn.AddThemeFontSizeOverride("font_size", fontSize);
+		btn.FocusMode = Godot.Control.FocusModeEnum.None;
+		if (!string.IsNullOrEmpty(tooltip))
+		{
+			btn.TooltipText = Godot.TranslationServer.Translate(tooltip);
+		}
+
+		btn.Pressed += () =>
+		{
+			Realm.Client.UI.UIManager.Instance?.PlayClickSound();
+			onClick?.Invoke();
+		};
+	}
+
 	public static Texture2D EmptyBlackTexture
 	{
 		get

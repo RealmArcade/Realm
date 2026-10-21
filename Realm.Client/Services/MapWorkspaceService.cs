@@ -1073,42 +1073,9 @@ please visit the URL above.
 		string fileName = Path.GetFileName(glbPath);
 		GD.Print($"[MapWorkspaceService] GLB asset '{fileName}' is missing realm_optimize_completed extras. Optimizing into workspace...");
 
-		glbBytes = ExtractAndStripAnimations(glbPath, workspacePath, fileName) ?? glbBytes;
+		glbBytes = ExtractAndStripAnimations(workspacePath, glbPath, fileName, glbBytes);
 
 		return PerformGlbOptimization(glbPath, workspacePath, fileName, glbBytes, optimizer, options, lastWrite);
-	}
-
-	private static byte[] ExtractAndStripAnimations(string glbPath, string workspacePath, string fileName)
-	{
-		try
-		{
-			string animsDir = Path.Combine(workspacePath, "Assets", "animations");
-			Directory.CreateDirectory(animsDir);
-			var extractedAnims = MixamoAnimationImporter.ExtractAnimationsFromGlb(glbPath);
-
-			foreach (var (animName, animData) in extractedAnims)
-			{
-				string animFileName = $"{animName.ToLowerInvariant()}.ranim";
-				string animFilePath = Path.Combine(animsDir, animFileName);
-				if (!File.Exists(animFilePath))
-				{
-					RealmAnimationSerializer.SaveToFile(animFilePath, animData);
-					UpdateMetadataAnimationHash(workspacePath, animFileName, RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(animFilePath), ".ranim"));
-				}
-			}
-
-			if (extractedAnims.Count > 0)
-			{
-				MixamoAnimationImporter.StripAnimationsFromGlb(glbPath, glbPath);
-				return File.ReadAllBytes(glbPath);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MapWorkspaceService] Animation extraction error for {fileName}: {ex.Message}");
-		}
-
-		return null;
 	}
 
 	private static bool PerformGlbOptimization(string glbPath, string workspacePath, string fileName, byte[] glbBytes, GlbOptimizer optimizer, OptimizationOptions options, DateTime lastWrite)

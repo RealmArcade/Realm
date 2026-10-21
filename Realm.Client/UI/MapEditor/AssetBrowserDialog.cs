@@ -9,15 +9,16 @@ using Realm.Shared.Audio;
 namespace Realm.Client.UI.MapEditor;
 
 [GlobalClass]
-public partial class AssetBrowserDialog : FloatingDialogBase
+public partial class AssetBrowserDialog : AssetGridDialogBase
 {
-	public AssetBrowserDialog() { }
-
-	private const float CellWidth = 130.0f;
-	private const float CellHeight = 150.0f;
-	private const float SpacingX = 10.0f;
-	private const float SpacingY = 10.0f;
-	private const float GridPadding = 10.0f;
+	public AssetBrowserDialog()
+	{
+		CellWidth = 130.0f;
+		CellHeight = 150.0f;
+		SpacingX = 10.0f;
+		SpacingY = 10.0f;
+		GridPadding = 10.0f;
+	}
 
 	private HBoxContainer _folderChipsContainer;
 	private Button _btnAddFolder;
@@ -294,7 +295,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		_scrollContainer.GetVScrollBar().ValueChanged += (_) => UpdateVisibleGridCells();
 		_scrollContainer.Resized += () =>
 		{
-			UpdateVirtualGridSize();
+			UpdateVirtualGridSize(_matchingAssets.Count);
 			UpdateVisibleGridCells();
 		};
 
@@ -537,7 +538,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 		Callable.From(() =>
 		{
-			UpdateVirtualGridSize();
+			UpdateVirtualGridSize(_matchingAssets.Count);
 			UpdateVisibleGridCells();
 		}).CallDeferred();
 	}
@@ -597,7 +598,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 
 		Callable.From(() =>
 		{
-			UpdateVirtualGridSize();
+			UpdateVirtualGridSize(_matchingAssets.Count);
 			UpdateVisibleGridCells();
 		}).CallDeferred();
 	}
@@ -974,7 +975,7 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 				UpdateSelectedAssetDisplay();
 			}
 
-			UpdateVirtualGridSize();
+			UpdateVirtualGridSize(_matchingAssets.Count);
 			UpdateVisibleGridCells();
 		}
 		catch (Exception ex)
@@ -983,17 +984,6 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		}
 	}
 
-	private void UpdateVirtualGridSize()
-	{
-		float availableWidth = Mathf.Max(100.0f, _scrollContainer.Size.X - GridPadding * 2.0f);
-		int columns = Math.Max(1, (int)((availableWidth + SpacingX) / (CellWidth + SpacingX)));
-		int totalRows = (_matchingAssets.Count + columns - 1) / columns;
-		float totalHeight = _matchingAssets.Count > 0
-			? (GridPadding * 2.0f + totalRows * CellHeight + Math.Max(0, totalRows - 1) * SpacingY)
-			: 0;
-
-		_virtualGridContent.CustomMinimumSize = new Vector2(0, totalHeight);
-	}
 
 	private void UpdateVisibleGridCells()
 	{
@@ -1042,45 +1032,9 @@ public partial class AssetBrowserDialog : FloatingDialogBase
 		int endIndex = Math.Min(_matchingAssets.Count - 1, (endRow + 1) * columns - 1);
 		int visibleCount = endIndex >= startIndex ? (endIndex - startIndex + 1) : 0;
 
-		EnsureCellPoolSize(visibleCount);
-		BindVisibleGridCells(startIndex, visibleCount, columns);
-
-		for (int i = visibleCount; i < _cellPool.Count; i++)
-		{
-			_cellPool[i].Visible = false;
-		}
-	}
-
-	private void EnsureCellPoolSize(int visibleCount)
-	{
-		while (_cellPool.Count < visibleCount)
-		{
-			var newCell = new AssetGridCell();
-			_cellPool.Add(newCell);
-			_virtualGridContent.AddChild(newCell);
-		}
-	}
-
-	private void BindVisibleGridCells(int startIndex, int visibleCount, int columns)
-	{
-		for (int i = 0; i < visibleCount; i++)
-		{
-			int assetIndex = startIndex + i;
-			var asset = _matchingAssets[assetIndex];
-			int row = assetIndex / columns;
-			int col = assetIndex % columns;
-
-			float posX = GridPadding + col * (CellWidth + SpacingX);
-			float posY = GridPadding + row * (CellHeight + SpacingY);
-
-			var cell = _cellPool[i];
-			cell.Position = new Vector2(posX, posY);
-			cell.Size = new Vector2(CellWidth, CellHeight);
-			cell.Visible = true;
-
-			bool isSelected = _selectedAsset != null && string.Equals(_selectedAsset.FilePath, asset.FilePath, StringComparison.OrdinalIgnoreCase);
-			cell.Bind(asset, isSelected, OnAssetCellClicked);
-		}
+		EnsureCellPoolCapacity(visibleCount);
+		BindVisibleGridCells(startIndex, visibleCount, columns, _matchingAssets, _selectedAsset, OnAssetCellClicked);
+		HideUnusedGridCells(visibleCount);
 	}
 
 	private void OnAssetCellClicked(IndexedAsset asset, bool isDoubleClick)

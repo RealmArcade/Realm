@@ -96,6 +96,14 @@ public partial class EditableTerrain : RuntimeTerrain
 		return true;
 	}
 
+		private void InitializeNewTerrainArrays(int newWidth, int newDepth, out TerrainCell[,] newCells, out int[,] newPathing, out TerrainSplatWeights[,] newSplatMap, out TerrainSplatWeights[,] newCliffSplatMap)
+		{
+			newCells = new TerrainCell[newWidth, newDepth];
+			newPathing = new int[newWidth, newDepth];
+			newSplatMap = new TerrainSplatWeights[newWidth + 1, newDepth + 1];
+			newCliffSplatMap = CliffSplatMap != null ? new TerrainSplatWeights[newWidth + 1, newDepth + 1] : null;
+		}
+
 	public override void ResizeTerrain(int newWidth, int newDepth)
 	{
 		if (!TryInitializeResizeOrScale(newWidth, newDepth, out var clampedWidth, out var clampedDepth, out var stateVal)) return;
@@ -106,16 +114,12 @@ public partial class EditableTerrain : RuntimeTerrain
 		var oldCells = Cells;
 		int[,] oldPathing = state.PathingCodes;
 		TerrainSplatWeights[,] oldSplatMap = SplatMap;
-
 		TerrainSplatWeights[,] oldCliffSplatMap = CliffSplatMap;
 
 		newWidth = clampedWidth;
 		newDepth = clampedDepth;
 
-		var newCells = new TerrainCell[newWidth, newDepth];
-		int[,] newPathing = new int[newWidth, newDepth];
-		TerrainSplatWeights[,] newSplatMap = new TerrainSplatWeights[newWidth + 1, newDepth + 1];
-		TerrainSplatWeights[,] newCliffSplatMap = oldCliffSplatMap != null ? new TerrainSplatWeights[newWidth + 1, newDepth + 1] : null;
+			InitializeNewTerrainArrays(newWidth, newDepth, out var newCells, out var newPathing, out var newSplatMap, out var newCliffSplatMap);
 
 		int offsetX = (newWidth - oldWidth) / 2;
 		int offsetZ = (newDepth - oldDepth) / 2;
@@ -339,10 +343,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		newWidth = clampedWidth;
 		newDepth = clampedDepth;
 
-		var newCells = new TerrainCell[newWidth, newDepth];
-		int[,] newPathing = new int[newWidth, newDepth];
-		TerrainSplatWeights[,] newSplatMap = new TerrainSplatWeights[newWidth + 1, newDepth + 1];
-		TerrainSplatWeights[,] newCliffSplatMap = oldCliffSplatMap != null ? new TerrainSplatWeights[newWidth + 1, newDepth + 1] : null;
+			InitializeNewTerrainArrays(newWidth, newDepth, out var newCells, out var newPathing, out var newSplatMap, out var newCliffSplatMap);
 
 		float[,] newGridHeights = CalculateScaledGridHeights(newWidth, newDepth, oldWidth, oldDepth, oldCells);
 		PopulateScaledCellsAndPathing(newWidth, newDepth, oldWidth, oldDepth, newGridHeights, oldPathing, newCells, newPathing);

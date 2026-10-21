@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using System.Text.Json;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -12,6 +13,20 @@ namespace Realm.Client.Network;
 
 public static class MapTransferHelper
 {
+	public static void HandleRequestMapManifest(Node rpcNode, int senderId, string targetMap, string receiveRpcMethodName)
+	{
+		var manifest = MapAssetManager.FindHostManifest(targetMap);
+		if (manifest != null)
+		{
+			string json = JsonSerializer.Serialize(manifest);
+			Callable.From(() => rpcNode.RpcId(senderId, receiveRpcMethodName, targetMap, manifest.Version ?? "1.0.0", json)).CallDeferred();
+		}
+		else
+		{
+			Callable.From(() => rpcNode.RpcId(senderId, receiveRpcMethodName, targetMap, "", "")).CallDeferred();
+		}
+	}
+
 	public static Dictionary<string, string> BuildLocalFileMap(string mapName, string mapVersion, MapManifest? manifest)
 	{
 		var localFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
