@@ -732,6 +732,12 @@ namespace Realm.Client.Core
 			var vertices = BuildHighlightMeshVertices(selWidth, selDepth, minX, minZ);
 			var indices = BuildHighlightMeshIndices(selWidth, selDepth, minX, minZ, maxX, maxZ);
 
+			if (indices.Length == 0)
+			{
+				meshInst.Visible = false;
+				return;
+			}
+
 			var arrays = new Array();
 			arrays.Resize((int)Mesh.ArrayType.Max);
 			arrays[(int)Mesh.ArrayType.Vertex] = vertices;

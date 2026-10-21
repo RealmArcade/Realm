@@ -2711,7 +2711,6 @@ namespace Realm.Client.Core
 
 					var meshInst = GetOrCreateSymmetryHighlightMesh(i);
 					BuildHighlightMeshForBounds(meshInst, rMinX, rMinZ, rMaxX, rMaxZ);
-					meshInst.Visible = true;
 				}
 			}
 
