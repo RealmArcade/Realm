@@ -1104,6 +1104,13 @@ public partial class CommandPanel
 				return "";
 			};
 
+			Func<bool> cannotAfford = () =>
+			{
+				var hud = InGameHUD.Instance;
+				if (hud == null) return false;
+				return hud.Gold < gold || hud.Wood < wood || hud.Stone < stone;
+			};
+
 			items.Add(new CommandCardItem
 			{
 				Id = "upgrade_" + upgradeId,
@@ -1111,7 +1118,7 @@ public partial class CommandPanel
 				Tooltip = tooltip,
 				Hotkey = hotkey,
 				Callback = () => GameHost.Instance?.BuyUpgrade(upgradeId, localViewingIndex),
-				IsDisabled = isMaxed,
+				IsDisabled = () => isMaxed() || cannotAfford(),
 				GetButtonText = getButtonText
 			});
 		}
