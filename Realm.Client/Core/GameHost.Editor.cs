@@ -18,6 +18,27 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
+	public Node? SpawnObjectExternal(string objectType, string objectId, Vector3 position, float rotationY, Vector3 rotationDegrees, float scale, int player)
+	{
+		if (objectType == "unit")
+		{
+			return SpawnUnitExternal(objectId, position, rotationY, scale, player);
+		}
+		else if (objectType == "prop")
+		{
+			return SpawnPropExternalWithParams(objectId, position, rotationY, scale);
+		}
+		else if (objectType == "decal")
+		{
+			return SpawnDecalExternalWithParams(objectId, position, rotationDegrees, scale);
+		}
+		else if (objectType == "vfx")
+		{
+			return SpawnVfxExternalWithParams(objectId, position, rotationDegrees, Vector3.One * (scale <= 0f ? 1.0f : scale));
+		}
+		return null;
+	}
+
 	private bool MatchesUnit3DKey(Unit3D unit, string normTarget)
 	{
 		return GameContext.RegistryService.MatchesUnitKey(unit.UnitId, unit.ModelPath, normTarget, IsMatch);

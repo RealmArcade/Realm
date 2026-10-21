@@ -1510,6 +1510,52 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 		return x >= size / 2 - 1 && x <= size / 2 + 1 && y >= 5 && y <= size - 6;
 	}
 
+	public static void SetupHUDButton(Button btn, string tooltip, bool showHotkey = true)
+	{
+		btn.CustomMinimumSize = new Vector2(48, 48);
+		btn.ClipContents = true;
+		btn.AddThemeConstantOverride("icon_max_width", 42);
+
+		if (showHotkey && tooltip.StartsWith('[') && tooltip.Contains(']'))
+		{
+			int end = tooltip.IndexOf(']');
+			string hotkeyText = tooltip.Substring(1, end - 1);
+			var hotkeyLabel = new Label();
+			hotkeyLabel.Name = "HotkeyLabel";
+			hotkeyLabel.Text = hotkeyText;
+			hotkeyLabel.AddThemeFontSizeOverride("font_size", 12);
+			hotkeyLabel.AddThemeColorOverride("font_color", ColorGold);
+			hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
+			hotkeyLabel.AddThemeConstantOverride("outline_size", 4);
+			hotkeyLabel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
+			hotkeyLabel.OffsetLeft = 4;
+			hotkeyLabel.OffsetTop = 3;
+			hotkeyLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+			btn.AddChild(hotkeyLabel);
+		}
+	}
+
+	public static void ApplyMapEditorRandomizeButtonStyle(Button btn)
+	{
+		var mapEdBtnTex = Utils.TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_button.webp");
+		if (mapEdBtnTex != null)
+		{
+			var normalSb = new StyleBoxTexture { Texture = mapEdBtnTex, ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
+			var hoverSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(1.25f, 1.2f, 1.0f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
+			var pressedSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(0.85f, 0.8f, 0.7f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
+			btn.AddThemeStyleboxOverride("normal", normalSb);
+			btn.AddThemeStyleboxOverride("hover", hoverSb);
+			btn.AddThemeStyleboxOverride("pressed", pressedSb);
+			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		}
+		else
+		{
+			btn.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+			btn.AddThemeStyleboxOverride("hover", CreateButtonHover());
+			btn.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		}
+	}
+
 	public static void ClearCache()
 	{
 		_unicodeIconTextureCache.Clear();

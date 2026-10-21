@@ -1166,37 +1166,16 @@ public class SimulationService
 
 	private void UpdateBuffsQueryAction(Entity entity, ref Buffs buffs)
 	{
-		var buffsDict = buffs.Value;
-		_tickBuffKeys.Clear();
-		_tickExpiredBuffs.Clear();
-		foreach (var key in buffsDict.Keys)
-		{
-			_tickBuffKeys.Add(key);
-		}
-
-		for (int i = 0; i < _tickBuffKeys.Count; i++)
-		{
-			string key = _tickBuffKeys[i];
-			float newTime = buffsDict[key] - _fDelta;
-			if (newTime <= 0)
-			{
-				_tickExpiredBuffs.Add(key);
-			}
-			else
-			{
-				buffsDict[key] = newTime;
-			}
-		}
-
-		for (int i = 0; i < _tickExpiredBuffs.Count; i++)
-		{
-			buffsDict.Remove(_tickExpiredBuffs[i]);
-		}
+		UpdateBuffDictionary(buffs.Value, _fDelta);
 	}
 
 	private void UpdateBuffStateQueryAction(Entity entity, ref BuffState buffs)
 	{
-		var buffsDict = buffs.Value;
+		UpdateBuffDictionary(buffs.Value, _fDelta);
+	}
+
+	private void UpdateBuffDictionary(Dictionary<string, float> buffsDict, float delta)
+	{
 		_tickBuffKeys.Clear();
 		_tickExpiredBuffs.Clear();
 		foreach (var key in buffsDict.Keys)
@@ -1207,7 +1186,7 @@ public class SimulationService
 		for (int i = 0; i < _tickBuffKeys.Count; i++)
 		{
 			string key = _tickBuffKeys[i];
-			float newTime = buffsDict[key] - _fDelta;
+			float newTime = buffsDict[key] - delta;
 			if (newTime <= 0)
 			{
 				_tickExpiredBuffs.Add(key);

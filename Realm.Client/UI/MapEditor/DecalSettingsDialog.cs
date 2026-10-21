@@ -1183,18 +1183,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 				currentScale = Mathf.Lerp(_minScaleRatio, _maxScaleRatio, sine);
 			}
 
-			float r = _tint.R * _brightness * (1.0f + currentEmission * 0.5f);
-			float g = _tint.G * _brightness * (1.0f + currentEmission * 0.5f);
-			float b = _tint.B * _brightness * (1.0f + currentEmission * 0.5f);
-
-			float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-			r = lum + (r - lum) * _saturation;
-			g = lum + (g - lum) * _saturation;
-			b = lum + (b - lum) * _saturation;
-
-			r = (r - 0.5f) * _contrast + 0.5f;
-			g = (g - 0.5f) * _contrast + 0.5f;
-			b = (b - 0.5f) * _contrast + 0.5f;
+			Color modColor = CalculateModulateColor(currentEmission, currentOpacity);
+			float r = modColor.R, g = modColor.G, b = modColor.B;
 
 			_previewRect.Modulate = new Color(Mathf.Clamp(r, 0f, 4f), Mathf.Clamp(g, 0f, 4f), Mathf.Clamp(b, 0f, 4f), Mathf.Clamp(currentOpacity, 0f, 1f));
 			_previewRect.Scale = new Vector2(currentScale, currentScale);
@@ -1270,18 +1260,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		if (_previewRect == null) return;
 
-		float r = _tint.R * _brightness;
-		float g = _tint.G * _brightness;
-		float b = _tint.B * _brightness;
-
-		float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-		r = lum + (r - lum) * _saturation;
-		g = lum + (g - lum) * _saturation;
-		b = lum + (b - lum) * _saturation;
-
-		r = (r - 0.5f) * _contrast + 0.5f;
-		g = (g - 0.5f) * _contrast + 0.5f;
-		b = (b - 0.5f) * _contrast + 0.5f;
+		Color modColor = CalculateModulateColor(0f, _opacity);
+		float r = modColor.R, g = modColor.G, b = modColor.B;
 
 		_previewRect.Modulate = new Color(Mathf.Clamp(r, 0f, 4f), Mathf.Clamp(g, 0f, 4f), Mathf.Clamp(b, 0f, 4f), Mathf.Clamp(_opacity, 0f, 1f));
 		_previewRect.Texture = _baseTexture;
@@ -1299,6 +1279,24 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			"Screen" => CanvasItemMaterial.BlendModeEnum.Add,
 			_ => CanvasItemMaterial.BlendModeEnum.Mix
 		};
+	}
+
+	private Color CalculateModulateColor(float emission, float opacity)
+	{
+		float r = _tint.R * _brightness * (1.0f + emission * 0.5f);
+		float g = _tint.G * _brightness * (1.0f + emission * 0.5f);
+		float b = _tint.B * _brightness * (1.0f + emission * 0.5f);
+
+		float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+		r = lum + (r - lum) * _saturation;
+		g = lum + (g - lum) * _saturation;
+		b = lum + (b - lum) * _saturation;
+
+		r = (r - 0.5f) * _contrast + 0.5f;
+		g = (g - 0.5f) * _contrast + 0.5f;
+		b = (b - 0.5f) * _contrast + 0.5f;
+
+		return new Color(r, g, b, opacity);
 	}
 
 	private void UpdateGameHostDecals()

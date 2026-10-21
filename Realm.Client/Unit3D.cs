@@ -605,14 +605,11 @@ public partial class Unit3D : Node3D
 	{
 		if (_selectionRing == null && _hoverRing == null) return;
 
-		float sx = Mathf.Abs(Scale.X) > 0.001f ? Scale.X : 1.0f;
-		float ratio = GameHost.Instance != null ? GameHost.Instance.GetModelCollisionCircleRatio(GameHost.Instance.GetModelAssetKey(this)) : 1.0f;
-		if (ratio <= 0.001f) ratio = 1.0f;
-
+		string assetKey = GameHost.Instance?.GetModelAssetKey(this) ?? string.Empty;
 		float baseRadius = GetBaseObstacleRadius();
-		float worldRadius = baseRadius * ratio * Mathf.Abs(sx);
-		var torusMesh = GetOrCreateTorusMesh(worldRadius);
+		Realm.Client.Utils.VisualSelectionHelper.CalculateSelectionRingParams(Scale, assetKey, baseRadius, out float sx, out float ratio, out float worldRadius);
 
+		var torusMesh = GetOrCreateTorusMesh(worldRadius);
 		Realm.Client.Utils.VisualSelectionHelper.UpdateSelectionRingTransform(_selectionRing, _hoverRing, torusMesh, Scale, baseRadius, ratio);
 	}
 

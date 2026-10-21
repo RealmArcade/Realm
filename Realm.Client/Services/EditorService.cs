@@ -2975,6 +2975,18 @@ public partial class EditorService : IEditorAPI
 		};
 	}
 
+	private void CalculateWorldBounds(int minX, int minZ, int maxX, int maxZ, int width, int depth, float quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld)
+	{
+		minWorldX = (minX - width / 2.0f) * quadSize - quadSize * 0.5f;
+		maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
+		minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
+		maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
+		centerWorldX = (minWorldX + maxWorldX) * 0.5f;
+		centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
+		rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
+		rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
+	}
+
 	public List<CopiedEntityInfo> BuildCopiedEntityList(
 		int minX, int minZ, int maxX, int maxZ,
 		IEnumerable<Node3D> sceneChildren,
@@ -2987,14 +2999,7 @@ public partial class EditorService : IEditorAPI
 		int depth = terrain.Depth;
 		float quadSize = terrain.QuadSize;
 
-		float minWorldX = (minX - width / 2.0f) * quadSize - quadSize * 0.5f;
-		float maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
-		float minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
-		float maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
-		float centerWorldX = (minWorldX + maxWorldX) * 0.5f;
-		float centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
-		float rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
-		float rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
+		CalculateWorldBounds(minX, minZ, maxX, maxZ, width, depth, quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld);
 		Godot.Vector3 origin = new Godot.Vector3((minX - width / 2.0f) * quadSize, 0.0f, (minZ - depth / 2.0f) * quadSize);
 
 		var entities = new List<CopiedEntityInfo>();
@@ -3428,14 +3433,7 @@ public partial class EditorService : IEditorAPI
 
 	private void ProcessEntityErase(int minX, int minZ, int maxX, int maxZ, int width, int depth, float quadSize, bool isSquare, IEnumerable<Node3D> sceneChildren, Node3D previewNode, List<Node3D> nodesToDelete)
 	{
-		float minWorldX = (minX - width / 2.0f) * quadSize - quadSize * 0.5f;
-		float maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
-		float minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
-		float maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
-		float centerWorldX = (minWorldX + maxWorldX) * 0.5f;
-		float centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
-		float rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
-		float rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
+		CalculateWorldBounds(minX, minZ, maxX, maxZ, width, depth, quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld);
 
 		foreach (var n3d in sceneChildren)
 		{

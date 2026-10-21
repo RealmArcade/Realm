@@ -159,4 +159,24 @@ public static class MapTransferHelper
 			transferCompleteTcs?.TrySetException(ex);
 		}
 	}
+
+	public static Task<byte[]> CompressChunkAsync(HostTransferSession session, int chunkIndex)
+	{
+		return Task.Run(() =>
+		{
+			var chunkItems = session.ChunkItems[chunkIndex];
+			var chunkAssets = new System.Collections.Generic.List<(string AssetKey, byte[] Data, string? Metadata)>(chunkItems.Count);
+			foreach (var item in chunkItems)
+			{
+				if (session.Cts.IsCancellationRequested) break;
+				if (System.IO.File.Exists(item.SourceFilePath))
+				{
+					byte[] data = System.IO.File.ReadAllBytes(item.SourceFilePath);
+					chunkAssets.Add((item.AssetKey, data, item.Metadata));
+				}
+			}
+
+			return ZstdAssetBundleHelper.CreateBundleBytes(chunkAssets, 1);
+		}, session.Cts.Token);
+	}
 }

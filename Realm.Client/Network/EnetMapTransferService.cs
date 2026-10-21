@@ -339,33 +339,13 @@ public partial class EnetMapTransferService : Node
 
 		try
 		{
-			byte[] compressedChunkBytes = await CreateCompressedChunkAsync(session, chunkIndex);
+			byte[] compressedChunkBytes = await MapTransferHelper.CompressChunkAsync(session, chunkIndex);
 			await TransmitChunkPacketsAsync(session, chunkIndex, compressedChunkBytes);
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[EnetMapTransferService] Error sending chunk {chunkIndex} for transfer {session.TransferId}: {ex.Message}");
 		}
-	}
-
-	private async Task<byte[]> CreateCompressedChunkAsync(HostTransferSession session, int chunkIndex)
-	{
-		return await Task.Run(() =>
-		{
-			var chunkItems = session.ChunkItems[chunkIndex];
-			var chunkAssets = new List<(string AssetKey, byte[] Data, string? Metadata)>(chunkItems.Count);
-			foreach (var item in chunkItems)
-			{
-				if (session.Cts.IsCancellationRequested) break;
-				if (File.Exists(item.SourceFilePath))
-				{
-					byte[] data = File.ReadAllBytes(item.SourceFilePath);
-					chunkAssets.Add((item.AssetKey, data, item.Metadata));
-				}
-			}
-
-			return ZstdAssetBundleHelper.CreateBundleBytes(chunkAssets, 1);
-		}, session.Cts.Token);
 	}
 
 	private async Task TransmitChunkPacketsAsync(HostTransferSession session, int chunkIndex, byte[] compressedChunkBytes)

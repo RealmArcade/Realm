@@ -4,6 +4,15 @@ namespace Realm.Client.Utils;
 
 public static class VisualSelectionHelper
 {
+	public static void CalculateSelectionRingParams(Vector3 scale, string assetKey, float baseRadius, out float sx, out float ratio, out float worldRadius)
+	{
+		sx = Mathf.Abs(scale.X) > 0.001f ? scale.X : 1.0f;
+		ratio = Core.GameHost.Instance != null ? Core.GameHost.Instance.GetModelCollisionCircleRatio(assetKey) : 1.0f;
+		if (ratio <= 0.001f) ratio = 1.0f;
+
+		worldRadius = baseRadius * ratio * Mathf.Abs(sx);
+	}
+
     public static void UpdateSelectionRingTransform(MeshInstance3D? selectionRing, MeshInstance3D? hoverRing, TorusMesh torusMesh, Vector3 scale, float baseRadius, float ratio)
     {
         if (selectionRing == null && hoverRing == null) return;

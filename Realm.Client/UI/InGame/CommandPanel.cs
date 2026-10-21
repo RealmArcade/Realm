@@ -1372,26 +1372,7 @@ public partial class CommandPanel
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		btn.FocusMode = Control.FocusModeEnum.None;
-		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 42);
-
-		if (tooltip.StartsWith('[') && tooltip.Contains(']'))
-		{
-			int end = tooltip.IndexOf(']');
-			string hotkeyText = tooltip.Substring(1, end - 1);
-			var hotkeyLabel = new Label();
-			hotkeyLabel.Name = "HotkeyLabel";
-			hotkeyLabel.Text = hotkeyText;
-			hotkeyLabel.AddThemeFontSizeOverride("font_size", 12);
-			hotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-			hotkeyLabel.AddThemeConstantOverride("outline_size", 4);
-			hotkeyLabel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
-			hotkeyLabel.OffsetLeft = 4;
-			hotkeyLabel.OffsetTop = 3;
-			hotkeyLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
-			btn.AddChild(hotkeyLabel);
-		}
+		UIStyle.SetupHUDButton(btn, tooltip);
 
 		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
 		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
