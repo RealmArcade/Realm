@@ -94,7 +94,7 @@ public class WorldInitService
 			MoveSpeed = 35.0f,
 			ZoomSpeed = 10.0f,
 			MinZoom = 10.0f,
-			MaxZoom = 60.0f,
+			MaxZoom = 120.0f,
 			ZoomStep = 4.0f,
 			EdgePanMargin = 20.0f,
 			EnableEdgePanning = true,

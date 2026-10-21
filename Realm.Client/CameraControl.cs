@@ -66,7 +66,7 @@ public partial class CameraControl : Camera3D
 
 	public float MaxZoom
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).MaxZoom : 60.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).MaxZoom : 120.0f;
 		set
 		{
 			if (HasCameraState)
