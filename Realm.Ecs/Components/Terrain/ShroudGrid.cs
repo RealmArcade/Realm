@@ -86,52 +86,17 @@ public static class ShroudGrid
 	public static unsafe bool AddVisionDisc(byte* exploredCells, byte* visibleCells, byte* visibleCounts, int cellCount, int groupIndex, int centerCellX, int centerCellZ, int radiusCells, int gridWidth, int gridHeight)
 	{
 		if (exploredCells == null || visibleCells == null || visibleCounts == null || cellCount <= 0) return false;
-		if (radiusCells < 1) radiusCells = 1;
-		if (radiusCells > MaxVisionRadiusCells) radiusCells = MaxVisionRadiusCells;
-
-		int groupOffset = groupIndex * cellCount;
-		int radiusSquared = radiusCells * radiusCells;
-		int startX = Math.Max(0, centerCellX - radiusCells);
-		int endX = Math.Min(gridWidth - 1, centerCellX + radiusCells);
-		int startZ = Math.Max(0, centerCellZ - radiusCells);
-		int endZ = Math.Min(gridHeight - 1, centerCellZ + radiusCells);
-		bool changed = false;
-
-		for (int cellZ = startZ; cellZ <= endZ; cellZ++)
-		{
-			int offsetZ = cellZ - centerCellZ;
-			int rowOffset = offsetZ * offsetZ;
-			int rowStart = groupOffset + cellZ * gridWidth;
-
-			for (int cellX = startX; cellX <= endX; cellX++)
-			{
-				int offsetX = cellX - centerCellX;
-				if ((offsetX * offsetX + rowOffset) > radiusSquared) continue;
-
-				int index = rowStart + cellX;
-				if (exploredCells[index] == 0)
-				{
-					exploredCells[index] = 1;
-					changed = true;
-				}
-
-				byte coverage = visibleCounts[index];
-				if (coverage == 0)
-				{
-					visibleCells[index] = 1;
-					changed = true;
-				}
-
-				if (coverage < byte.MaxValue) visibleCounts[index] = (byte)(coverage + 1);
-			}
-		}
-
-		return changed;
+		return ModifyVisionDisc(true, exploredCells, visibleCells, visibleCounts, cellCount, groupIndex, centerCellX, centerCellZ, radiusCells, gridWidth, gridHeight);
 	}
 
 	public static unsafe bool RemoveVisionDisc(byte* visibleCells, byte* visibleCounts, int cellCount, int groupIndex, int centerCellX, int centerCellZ, int radiusCells, int gridWidth, int gridHeight)
 	{
 		if (visibleCells == null || visibleCounts == null || cellCount <= 0) return false;
+		return ModifyVisionDisc(false, null, visibleCells, visibleCounts, cellCount, groupIndex, centerCellX, centerCellZ, radiusCells, gridWidth, gridHeight);
+	}
+
+	private static unsafe bool ModifyVisionDisc(bool isAdd, byte* exploredCells, byte* visibleCells, byte* visibleCounts, int cellCount, int groupIndex, int centerCellX, int centerCellZ, int radiusCells, int gridWidth, int gridHeight)
+	{
 		if (radiusCells < 1) radiusCells = 1;
 		if (radiusCells > MaxVisionRadiusCells) radiusCells = MaxVisionRadiusCells;
 
@@ -155,15 +120,36 @@ public static class ShroudGrid
 				if ((offsetX * offsetX + rowOffset) > radiusSquared) continue;
 
 				int index = rowStart + cellX;
-				byte coverage = visibleCounts[index];
-				if (coverage == 0) continue;
 
-				coverage--;
-				visibleCounts[index] = coverage;
-				if (coverage == 0)
+				if (isAdd)
 				{
-					visibleCells[index] = 0;
-					changed = true;
+					if (exploredCells[index] == 0)
+					{
+						exploredCells[index] = 1;
+						changed = true;
+					}
+
+					byte coverage = visibleCounts[index];
+					if (coverage == 0)
+					{
+						visibleCells[index] = 1;
+						changed = true;
+					}
+
+					if (coverage < byte.MaxValue) visibleCounts[index] = (byte)(coverage + 1);
+				}
+				else
+				{
+					byte coverage = visibleCounts[index];
+					if (coverage == 0) continue;
+
+					coverage--;
+					visibleCounts[index] = coverage;
+					if (coverage == 0)
+					{
+						visibleCells[index] = 0;
+						changed = true;
+					}
 				}
 			}
 		}
