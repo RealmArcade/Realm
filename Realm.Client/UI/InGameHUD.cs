@@ -1483,7 +1483,7 @@ public partial class InGameHUD : Control
 			_controlGroupsUIController?.Update();
 		}
 
-		// 3. Macro Cadence (~10Hz) - Resource panel, clock, idle count, fog/minimap shroud redraw
+		// 3. Macro Cadence (~10Hz) - Resource panel, clock, idle count, minimap shroud redraw
 		_macroTimer += dt;
 		if (_macroTimer >= MacroInterval)
 		{

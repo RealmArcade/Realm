@@ -1452,7 +1452,7 @@ public interface IGameAPI
 	string GetWeather();
 
 	/// <summary>
-	/// Disables the vision shroud and fog of war, making the entire map and all entities fully visible.
+	/// Disables the vision shroud, making the entire map and all entities fully visible.
 	/// </summary>
 	void DisableShroud();
 

@@ -133,7 +133,7 @@ public class ShroudService
 		shroudMesh.Mesh = new ArrayMesh();
 
 		var shaderMaterial = new ShaderMaterial();
-		_shroudShader ??= GD.Load<Shader>("res://Assets/shaders/shroud_fog.gdshader");
+		_shroudShader ??= GD.Load<Shader>("res://Assets/shaders/shroud.gdshader");
 		shaderMaterial.Shader = _shroudShader;
 		shroudMesh.MaterialOverride = shaderMaterial;
 		mainNode.AddChild(shroudMesh);

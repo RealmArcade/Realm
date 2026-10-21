@@ -2252,8 +2252,6 @@ public partial class RuntimeTerrain : Node3D
 		}
 	}
 
-	public void SetFogTexture(ImageTexture fogTexture) => SetShroudTexture(fogTexture);
-
 	public void UpdateMeshAndPhysics(bool rebuildPhysics = true, bool rebuildNavMesh = true, Rect2I? affectedRegion = null, bool rebuildWater = true)
 	{
 		UpdateMeshAndPhysics(rebuildPhysics, rebuildNavMesh, affectedRegion.HasValue ? new[] { affectedRegion.Value } : (IEnumerable<Rect2I>?)null, rebuildWater);
