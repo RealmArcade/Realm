@@ -5,6 +5,7 @@ namespace Realm.Client.Utils;
 public static class VisualSelectionHelper
 {
 	private static readonly System.Collections.Generic.Dictionary<string, TorusMesh> _sharedTorusMeshes = new(System.StringComparer.OrdinalIgnoreCase);
+	private static readonly System.Collections.Generic.Dictionary<string, TorusMesh> _sharedPlayerColorRingMeshes = new(System.StringComparer.OrdinalIgnoreCase);
 
 	public static TorusMesh GetOrCreateTorusMesh(float radius)
 	{
@@ -23,9 +24,29 @@ public static class VisualSelectionHelper
 		return mesh;
 	}
 
+	public static TorusMesh GetOrCreatePlayerColorRingMesh(float radius)
+	{
+		float r = Mathf.Max(0.4f, (float)System.Math.Round(radius, 2));
+		string key = r.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+		if (!_sharedPlayerColorRingMeshes.TryGetValue(key, out var mesh) || !GodotObject.IsInstanceValid(mesh))
+		{
+			mesh = new TorusMesh
+			{
+				InnerRadius = Mathf.Max(0.1f, r - 0.16f),
+				OuterRadius = r,
+				Rings = 32,
+				RingSegments = 8
+			};
+			_sharedPlayerColorRingMeshes[key] = mesh;
+		}
+
+		return mesh;
+	}
+
 	public static void ClearCache()
 	{
 		_sharedTorusMeshes.Clear();
+		_sharedPlayerColorRingMeshes.Clear();
 		SharedMaterials.ClearCache();
 	}
 

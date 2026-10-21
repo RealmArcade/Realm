@@ -451,6 +451,11 @@ public partial class Unit3D : Node3D
 			ModelShaderManager.SetPlayerColorOnAttachments(_modelNode, color);
 			ModelShaderManager.SetIgnorePlayerColor(_modelNode, ignorePlayerColor);
 		}
+
+		if (_playerColorRing != null && GodotObject.IsInstanceValid(_playerColorRing))
+		{
+			_playerColorRing.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorRingMaterial(color);
+		}
 	}
 
 	public void InterpolatePlayerColor(Color targetColor, float weight)
@@ -496,6 +501,7 @@ public partial class Unit3D : Node3D
 	private bool _isSelected = false;
 	private MeshInstance3D _hoverRing;
 	private bool _isHovered = false;
+	private MeshInstance3D _playerColorRing;
 
 	public bool IsPreview { get; set; } = false;
 
@@ -573,6 +579,54 @@ public partial class Unit3D : Node3D
 	private void UpdateSelectionRingTransform()
 	{
 		Realm.Client.Utils.VisualSelectionHelper.UpdateSelectionRing(this, _selectionRing, _hoverRing, Scale, GetBaseObstacleRadius());
+		UpdatePlayerColorRing();
+	}
+
+	private void UpdatePlayerColorRing()
+	{
+		if (IsPreview || IsBuilding)
+		{
+			if (_playerColorRing != null) _playerColorRing.Visible = false;
+			return;
+		}
+
+		if (UI.GameSettings.QualityIdx == UI.GraphicsQuality.Low)
+		{
+			if (_playerColorRing != null) _playerColorRing.Visible = false;
+			return;
+		}
+
+		float baseRadius = GetBaseObstacleRadius();
+		if (baseRadius <= 0.001f)
+		{
+			if (_playerColorRing != null) _playerColorRing.Visible = false;
+			return;
+		}
+
+		EnsurePlayerColorRing();
+
+		Realm.Client.Utils.VisualSelectionHelper.CalculateSelectionRingParams(Scale, ModelPath, baseRadius, out float sx, out float ratio, out float worldRadius);
+
+		float sy = Mathf.Abs(Scale.Y) > 0.001f ? Mathf.Abs(Scale.Y) : 1.0f;
+		_playerColorRing.Mesh = Realm.Client.Utils.VisualSelectionHelper.GetOrCreatePlayerColorRingMesh(worldRadius * 1.08f);
+		_playerColorRing.Scale = new Vector3(1.0f / sx, 1.0f / sy, 1.0f / sx);
+		_playerColorRing.Position = new Vector3(0f, 0.04f / sy, 0f);
+		_playerColorRing.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorRingMaterial(PlayerColor);
+		_playerColorRing.Visible = !IsSelected && !IsHovered;
+	}
+
+	private void EnsurePlayerColorRing()
+	{
+		if (_playerColorRing != null) return;
+
+		_playerColorRing = new MeshInstance3D
+		{
+			Name = "PlayerColorRing_MeshInstance3D",
+			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
+			Visible = false
+		};
+		AddChild(_playerColorRing);
 	}
 
 	private void CreateHoverRing()
