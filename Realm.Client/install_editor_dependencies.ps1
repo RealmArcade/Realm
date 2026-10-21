@@ -562,6 +562,25 @@ if ($resolvedOpencodeCli) {
     Write-Warning "opencode CLI is unavailable. The OpenCode Panel extension cannot start its backend until opencode is installed or 'opencui.binaryPath' points to a valid binary."
 }
 
+$opencuiDirs = Get-ChildItem -Path $extsDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "haoyangzeng.opencui*" }
+foreach ($opencuiDir in $opencuiDirs) {
+    $opencuiPackagePath = Join-Path $opencuiDir.FullName "package.json"
+    if (-not (Test-Path -LiteralPath $opencuiPackagePath)) { continue }
+    try {
+        $opencuiPackage = [System.IO.File]::ReadAllText($opencuiPackagePath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+        $activationEvents = @($opencuiPackage.activationEvents | Where-Object { $_ })
+        if ($activationEvents -notcontains "onStartupFinished") {
+            $activationEvents += "onStartupFinished"
+            $opencuiPackage | Add-Member -MemberType NoteProperty -Name "activationEvents" -Value $activationEvents -Force
+            $opencuiJson = $opencuiPackage | ConvertTo-Json -Depth 100
+            [System.IO.File]::WriteAllText($opencuiPackagePath, $opencuiJson, [System.Text.UTF8Encoding]::new($false))
+            Write-Host "Enabled startup activation for the OpenCode Panel extension in $($opencuiDir.FullName)"
+        }
+    } catch {
+        Write-Warning "Failed to enable startup activation for the OpenCode Panel extension: $($_.Exception.Message)"
+    }
+}
+
 $userDir = Join-Path $userDataDir "User"
 New-Item -ItemType Directory -Force -Path $userDir | Out-Null
 $userSettingsPath = Join-Path $userDir "settings.json"

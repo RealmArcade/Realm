@@ -1583,8 +1583,17 @@ public partial class VSCodeManager
 		}
 	}
 
-	private void LaunchOrFocusEditor()
+	private bool _isLaunchingEditor;
+
+	private async void LaunchOrFocusEditor()
 	{
+		if (_isLaunchingEditor)
+		{
+			return;
+		}
+
+		_isLaunchingEditor = true;
+
 		try
 		{
 			string projectRoot = PathUtils.GetProjectRoot();
@@ -1605,14 +1614,17 @@ public partial class VSCodeManager
 			string extensionsDir = Path.Combine(serverDataDir, "extensions");
 			string workspacePath = GetMapFolderToOpen(projectRoot);
 
+			await EnsureOpencodeCliInstalledAsync();
+
 			EnsureWorkspaceMapApiDll(projectRoot);
 			EnsureVSCodiumSettings(serverDataDir, workspacePath);
 			EnsureOhziExtensionPatched(extensionsDir);
+			EnsureOpencuiExtensionAutoStarts(extensionsDir);
 			PatchVSCodiumConfiguration(embedDir);
 
-			if (IsInstalling)
+			if (IsInstalling && _installTask != null)
 			{
-				_installTask?.Wait();
+				await _installTask;
 			}
 
 			StartIpcHttpListener();
@@ -1662,6 +1674,24 @@ public partial class VSCodeManager
 		catch (Exception ex)
 		{
 			GD.PrintErr("Failed to launch or focus VSCodium: " + ex.Message);
+		}
+		finally
+		{
+			_isLaunchingEditor = false;
+		}
+	}
+
+	private static async Task EnsureOpencodeCliInstalledAsync()
+	{
+		if (OpencodeCliResolver.IsAvailable())
+		{
+			return;
+		}
+
+		bool installed = await OpencodeCliInstaller.EnsureInstalledAsync();
+		if (!installed)
+		{
+			GD.PrintErr("[VSCodeManager] opencode CLI is unavailable. The OpenCode Panel extension cannot start its backend.");
 		}
 	}
 
@@ -1956,6 +1986,60 @@ public partial class VSCodeManager
 		{
 			GD.PrintErr($"VS Code: Failed to patch OHZI extension: {ex.Message}");
 		}
+	}
+
+	private static void EnsureOpencuiExtensionAutoStarts(string extensionsDir)
+	{
+		if (string.IsNullOrEmpty(extensionsDir) || !Directory.Exists(extensionsDir))
+		{
+			return;
+		}
+
+		try
+		{
+			foreach (string extensionDirectory in Directory.GetDirectories(extensionsDir, "haoyangzeng.opencui*"))
+			{
+				string packageJsonPath = Path.Combine(extensionDirectory, "package.json");
+				if (!File.Exists(packageJsonPath))
+				{
+					continue;
+				}
+
+				JsonObject packageJson = JsonNode.Parse(File.ReadAllText(packageJsonPath, Encoding.UTF8))?.AsObject();
+				if (packageJson == null)
+				{
+					continue;
+				}
+
+				JsonArray activationEvents = packageJson["activationEvents"] as JsonArray ?? new JsonArray();
+				if (ContainsActivationEvent(activationEvents, "onStartupFinished"))
+				{
+					continue;
+				}
+
+				activationEvents.Add("onStartupFinished");
+				packageJson["activationEvents"] = activationEvents;
+				File.WriteAllText(packageJsonPath, packageJson.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
+				GD.Print($"VS Code: Enabled startup activation for the OpenCode Panel extension in {extensionDirectory}");
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to enable startup activation for the OpenCode Panel extension: {ex.Message}");
+		}
+	}
+
+	private static bool ContainsActivationEvent(JsonArray activationEvents, string activationEvent)
+	{
+		foreach (JsonNode existingEvent in activationEvents)
+		{
+			if (string.Equals(existingEvent?.ToString(), activationEvent, StringComparison.Ordinal))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public void SaveRecentMapDir(string dirPath)
