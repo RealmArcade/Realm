@@ -4,6 +4,31 @@ namespace Realm.Client.Utils;
 
 public static class VisualSelectionHelper
 {
+	private static readonly System.Collections.Generic.Dictionary<string, TorusMesh> _sharedTorusMeshes = new(System.StringComparer.OrdinalIgnoreCase);
+
+	public static TorusMesh GetOrCreateTorusMesh(float radius)
+	{
+		float r = Mathf.Max(0.4f, (float)System.Math.Round(radius, 2));
+		string key = r.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+		if (!_sharedTorusMeshes.TryGetValue(key, out var mesh) || !GodotObject.IsInstanceValid(mesh))
+		{
+			mesh = new TorusMesh
+			{
+				InnerRadius = Mathf.Max(0.1f, r - 0.25f),
+				OuterRadius = r
+			};
+			_sharedTorusMeshes[key] = mesh;
+		}
+
+		return mesh;
+	}
+
+	public static void ClearCache()
+	{
+		_sharedTorusMeshes.Clear();
+		SharedMaterials.ClearCache();
+	}
+
 	public static void CalculateSelectionRingParams(Vector3 scale, string assetKey, float baseRadius, out float sx, out float ratio, out float worldRadius)
 	{
 		sx = Mathf.Abs(scale.X) > 0.001f ? scale.X : 1.0f;

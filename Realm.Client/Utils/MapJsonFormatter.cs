@@ -145,17 +145,7 @@ public static class MapJsonFormatter
 
 	private static JsonArray SortDecals(JsonArray decalsArr, float topLeftX, float topLeftZ)
 	{
-		var sortedList = decalsArr.OfType<JsonObject>()
-			.OrderBy(item => GetStringProperty(item, "TemplateId"), StringComparer.OrdinalIgnoreCase)
-			.ThenBy(item => GetStringProperty(item, "TemplateId"), StringComparer.Ordinal)
-			.ThenBy(item => CalculateDistance(item, "PosX", "PosZ", topLeftX, topLeftZ))
-			.ThenBy(item => GetFloatProperty(item, "PosX"))
-			.ThenBy(item => GetFloatProperty(item, "PosZ"))
-			.ThenBy(item => GetFloatProperty(item, "PosY"))
-			.ThenBy(item => GetFloatProperty(item, "RotationY"))
-			.ThenBy(item => GetFloatProperty(item, "Scale"))
-			.ToList();
-
+		var sortedList = GetBaseEntitySort(decalsArr, topLeftX, topLeftZ).ToList();
 		return CreateSortedArray(sortedList);
 	}
 

@@ -246,16 +246,7 @@ public partial class EnetMapTransferService : Node
 	private void RequestMapAssetTransferRpc(string transferId, string mapName, string mapVersion, string[] missingHashes)
 	{
 		int senderId = Multiplayer.GetRemoteSenderId();
-		if (PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding)
-		{
-			if (_activeEphemeralTransferPeerId != 0 && _activeEphemeralTransferPeerId != senderId)
-			{
-				GD.Print($"[EnetMapTransferService] Rejecting map transfer {transferId} from peer {senderId}: Seeder busy with peer {_activeEphemeralTransferPeerId}.");
-				return;
-			}
-
-			_activeEphemeralTransferPeerId = senderId;
-		}
+		if (!MapTransferHelper.HandleBeginMapTransfer(this, senderId, transferId, ref _activeEphemeralTransferPeerId)) return;
 
 		foreach (var kvp in _hostTransfers)
 		{

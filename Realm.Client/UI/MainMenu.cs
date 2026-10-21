@@ -244,28 +244,9 @@ public partial class MainMenu : Control
 		button.AddThemeConstantOverride("icon_max_width", 32);
 		button.AddThemeConstantOverride("h_separation", 2);
 
-		button.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		button.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxes(button);
 
-		Tween scaleTween = null;
-		button.MouseEntered += () =>
-		{
-			PlayHoverSound();
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			button.PivotOffset = button.Size / 2;
-			scaleTween.TweenProperty(button, "scale", new Vector2(1.03f, 1.03f), 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
-		button.MouseExited += () =>
-		{
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			scaleTween.TweenProperty(button, "scale", Vector2.One, 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
+		ApplyButtonAnimations(button, 1.03f);
 
 		button.Pressed += () =>
 		{
@@ -561,23 +542,7 @@ public partial class MainMenu : Control
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		// Scale-up on hover for premium feel
-		Tween scaleTween = null;
-		button.MouseEntered += () =>
-		{
-			PlayHoverSound();
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			button.PivotOffset = button.Size / 2;
-			scaleTween.TweenProperty(button, "scale", new Vector2(1.04f, 1.04f), 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
-		button.MouseExited += () =>
-		{
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			scaleTween.TweenProperty(button, "scale", Vector2.One, 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-		};
+		ApplyButtonAnimations(button, 1.04f);
 
 		button.Pressed += () =>
 		{
@@ -689,10 +654,7 @@ public partial class MainMenu : Control
 		button.Icon = null;
 		button.Text = "";
 
-		button.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		button.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxes(button);
 
 		foreach (Node child in button.GetChildren())
 		{
@@ -766,28 +728,18 @@ public partial class MainMenu : Control
 		Tween scaleTween = null;
 		Tween rotationTween = null;
 
+				ApplyButtonAnimations(button, 1.03f);
+
 		button.MouseEntered += () =>
 		{
-			PlayHoverSound();
 			label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			iconRect.Modulate = UIStyle.ColorGold;
-
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			button.PivotOffset = button.Size / 2;
-			scaleTween.TweenProperty(button, "scale", new Vector2(1.03f, 1.03f), 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 		};
 
 		button.MouseExited += () =>
 		{
 			label.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
 			iconRect.Modulate = UIStyle.ColorGoldDull;
-
-			scaleTween?.Kill();
-			scaleTween = button.CreateTween();
-			scaleTween.TweenProperty(button, "scale", Vector2.One, 0.15f)
-				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 		};
 
 		button.ButtonDown += () =>
@@ -806,6 +758,27 @@ public partial class MainMenu : Control
 		{
 			PlayClickSound();
 			onClick?.Invoke();
+		};
+	}
+
+	private void ApplyButtonAnimations(Button button, float hoverScale)
+	{
+		Tween scaleTween = null;
+		button.MouseEntered += () =>
+		{
+			PlayHoverSound();
+			scaleTween?.Kill();
+			scaleTween = button.CreateTween();
+			button.PivotOffset = button.Size / 2;
+			scaleTween.TweenProperty(button, "scale", new Vector2(hoverScale, hoverScale), 0.15f)
+				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+		};
+		button.MouseExited += () =>
+		{
+			scaleTween?.Kill();
+			scaleTween = button.CreateTween();
+			scaleTween.TweenProperty(button, "scale", Vector2.One, 0.15f)
+				.SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 		};
 	}
 

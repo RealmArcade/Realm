@@ -1043,15 +1043,7 @@ public partial class GameHost
 
 				if (ActiveEditorTool == EditorTool.PlaceUnit)
 				{
-					if (EditorClumpMode) return;
-					if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
-					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
-
-					Vector3 spawnPos = hitPos;
-						var finalPos = TryGetValidPlacementLocation(spawnPos, scaleVal);
-						if (finalPos == null) return;
-					spawnPos = finalPos.Value;
+					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
 
 					int placePlayer = GameContext.EditorService.PlaceUnitIsEnemy ? 1 : 0;
 					var unit = SpawnUnitExternal(ActivePlaceId, spawnPos, placementRot, scaleVal, placePlayer);
@@ -1088,15 +1080,7 @@ public partial class GameHost
 				}
 				else if (ActiveEditorTool == EditorTool.PlaceProp)
 				{
-					if (EditorClumpMode) return;
-					if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
-					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
-
-					Vector3 spawnPos = hitPos;
-						var finalPos = TryGetValidPlacementLocation(spawnPos, scaleVal);
-						if (finalPos == null) return;
-					spawnPos = finalPos.Value;
+					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
 
 					var prop = SpawnPropExternalWithParams(ActivePlaceId, spawnPos, placementRot, scaleVal);
 					if (prop != null)
@@ -1132,10 +1116,7 @@ public partial class GameHost
 				}
 				else if (ActiveEditorTool == EditorTool.PlaceDecal)
 				{
-					if (EditorClumpMode) return;
-					if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
-					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
+					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
 
 					Vector3 hitNormal = (terrainHit != null && terrainHit.ContainsKey("normal")) ? terrainHit["normal"].AsVector3() : (hit.ContainsKey("normal") ? hit["normal"].AsVector3() : GetTerrainNormalAt(hitPos));
 					Basis alignedBasis = CreateAlignedBasis(hitNormal);
@@ -4679,6 +4660,27 @@ public partial class GameHost
 		}
 		return spawnPos;
 	}
+
+
+
+		private bool TryGetValidPlacementContext(Vector3 hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)
+		{
+			placementRot = 0f;
+			scaleVal = 1f;
+			spawnPos = hitPos;
+
+			if (EditorClumpMode) return false;
+			if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
+			
+			placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
+			scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
+
+			var finalPos = TryGetValidPlacementLocation(spawnPos, scaleVal);
+			if (finalPos == null) return false;
+			
+			spawnPos = finalPos.Value;
+			return true;
+		}
 
 		private Vector3? TryGetValidPlacementLocation(Vector3 spawnPos, float scaleVal)
 		{

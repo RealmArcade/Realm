@@ -31,10 +31,7 @@ public static class UIStyle
 	{
 		btn.Text = Godot.TranslationServer.Translate(text);
 		btn.CustomMinimumSize = new Godot.Vector2(0, 32);
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new Godot.StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxes(btn);
 		btn.AddThemeFontSizeOverride("font_size", fontSize);
 		btn.FocusMode = Godot.Control.FocusModeEnum.None;
 		if (!string.IsNullOrEmpty(tooltip))
@@ -1240,6 +1237,32 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 			closeBtn.Visible = false;
 			return closeBtn;
 		}
+
+	public static void ApplyButtonStyleBoxes(Button button)
+	{
+		button.AddThemeStyleboxOverride("normal", CreateButtonNormal());
+		button.AddThemeStyleboxOverride("hover", CreateButtonHover());
+		button.AddThemeStyleboxOverride("pressed", CreateButtonPressed());
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
+	public static Texture2D LoadTextureSafe(string path)
+	{
+		if (string.IsNullOrEmpty(path)) return null;
+		if (path.StartsWith("res://") && !ResourceLoader.Exists(path)) return null;
+		if (path.StartsWith("user://") && !FileAccess.FileExists(path)) return null;
+		
+		try
+		{
+			return GD.Load<Texture2D>(path);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+
 
 	public static void ApplyButtonText(Button button, string text, int fontSize = 18)
 	{

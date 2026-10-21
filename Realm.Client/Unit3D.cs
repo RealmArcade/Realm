@@ -495,10 +495,6 @@ public partial class Unit3D : Node3D
 	private MeshInstance3D _hoverRing;
 	private bool _isHovered = false;
 
-	private static readonly Dictionary<string, TorusMesh> _sharedTorusMeshes = new(StringComparer.OrdinalIgnoreCase);
-	private static StandardMaterial3D _sharedSelectionMaterial;
-	private static StandardMaterial3D _sharedHoverMaterial;
-
 	public bool IsPreview { get; set; } = false;
 
 	public bool IsSelected
@@ -567,38 +563,9 @@ public partial class Unit3D : Node3D
 		}
 	}
 
-	private static TorusMesh GetOrCreateTorusMesh(float radius)
-	{
-		float r = Mathf.Max(0.4f, (float)Math.Round(radius, 2));
-		string key = r.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
-		if (!_sharedTorusMeshes.TryGetValue(key, out var mesh) || !GodotObject.IsInstanceValid(mesh))
-		{
-			mesh = new TorusMesh
-			{
-				InnerRadius = Mathf.Max(0.1f, r - 0.25f),
-				OuterRadius = r
-			};
-			_sharedTorusMeshes[key] = mesh;
-		}
-
-		return mesh;
-	}
-
-	private static StandardMaterial3D GetOrCreateSelectionMaterial(Color color)
-	{
-		return Realm.Client.Utils.SharedMaterials.GetOrCreateSelectionMaterial(color);
-	}
-
-	private static StandardMaterial3D GetOrCreateHoverMaterial()
-	{
-		return Realm.Client.Utils.SharedMaterials.GetOrCreateHoverMaterial();
-	}
-
 	public static void ClearCache()
 	{
-		_sharedTorusMeshes.Clear();
-		_sharedSelectionMaterial = null;
-		_sharedHoverMaterial = null;
+		Realm.Client.Utils.VisualSelectionHelper.ClearCache();
 	}
 
 	private void UpdateSelectionRingTransform()
@@ -609,7 +576,7 @@ public partial class Unit3D : Node3D
 		float baseRadius = GetBaseObstacleRadius();
 		Realm.Client.Utils.VisualSelectionHelper.CalculateSelectionRingParams(Scale, assetKey, baseRadius, out float sx, out float ratio, out float worldRadius);
 
-		var torusMesh = GetOrCreateTorusMesh(worldRadius);
+		var torusMesh = Realm.Client.Utils.VisualSelectionHelper.GetOrCreateTorusMesh(worldRadius);
 		Realm.Client.Utils.VisualSelectionHelper.UpdateSelectionRingTransform(_selectionRing, _hoverRing, torusMesh, Scale, baseRadius, ratio);
 	}
 
@@ -621,7 +588,7 @@ public partial class Unit3D : Node3D
 			Name = "_hover_ring",
 			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
-			MaterialOverride = GetOrCreateHoverMaterial(),
+			MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreateHoverMaterial(),
 			Visible = _isHovered && !IsSelected
 		};
 		AddChild(_hoverRing);
@@ -668,7 +635,7 @@ public partial class Unit3D : Node3D
 			Name = "_selection_ring",
 			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
-			MaterialOverride = GetOrCreateSelectionMaterial(GetSelectionRingColor()),
+			MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreateSelectionMaterial(GetSelectionRingColor()),
 			Visible = _isSelected
 		};
 		AddChild(_selectionRing);

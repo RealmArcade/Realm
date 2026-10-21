@@ -2218,10 +2218,7 @@ namespace Realm.Client.UI
 			upgradeBtn.Name = "UpgradeBtn_Button";
 			upgradeBtn.Flat = false;
 			upgradeBtn.AddThemeConstantOverride("icon_max_width", 0);
-			upgradeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			upgradeBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			upgradeBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			upgradeBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyButtonStyleBoxes(upgradeBtn);
 			UIStyle.ApplyButtonText(upgradeBtn, Tr("UPGRADE MAP"), 14);
 			upgradeBtn.CustomMinimumSize = new Vector2(160, 38);
 			buttonRow.AddChild(upgradeBtn);
@@ -2230,10 +2227,7 @@ namespace Realm.Client.UI
 			cancelBtn.Name = "CancelBtn_Button";
 			cancelBtn.Flat = false;
 			cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-			cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyButtonStyleBoxes(cancelBtn);
 			UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
 			cancelBtn.CustomMinimumSize = new Vector2(120, 38);
 			buttonRow.AddChild(cancelBtn);
@@ -2424,10 +2418,7 @@ namespace Realm.Client.UI
 			closeBtn.Name = "CloseBtn_Button";
 			closeBtn.Flat = false;
 			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
-			closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			closeBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			closeBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			closeBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyButtonStyleBoxes(closeBtn);
 			UIStyle.ApplyButtonText(closeBtn, TranslationServer.Translate("CLOSE"), 14);
 			closeBtn.CustomMinimumSize = new Vector2(130, 36);
 			closeBtn.Visible = false;
@@ -4371,10 +4362,7 @@ namespace Realm.Client.UI
 			}
 
 			btn.CustomMinimumSize = new Vector2(0, 32);
-			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyButtonStyleBoxes(btn);
 			btn.AddThemeFontSizeOverride("font_size", fontSize);
 			btn.FocusMode = FocusModeEnum.None;
 			if (!string.IsNullOrEmpty(tooltip))

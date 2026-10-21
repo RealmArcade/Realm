@@ -1773,17 +1773,7 @@ public partial class LobbyManager : Node
 	{
 		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
 		int senderId = Multiplayer.GetRemoteSenderId();
-
-		if (PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding)
-		{
-			if (_activeEphemeralTransferPeerId != 0 && _activeEphemeralTransferPeerId != senderId)
-			{
-				GD.Print($"[LobbyManager] Rejecting map transfer {transferId} from peer {senderId}: Seeder is currently serving peer {_activeEphemeralTransferPeerId}.");
-				return;
-			}
-
-			_activeEphemeralTransferPeerId = senderId;
-		}
+		if (!MapTransferHelper.HandleBeginMapTransfer(this, senderId, transferId, ref _activeEphemeralTransferPeerId)) return;
 
 		foreach (var kvp in _hostTransfers)
 		{

@@ -131,24 +131,7 @@ public partial class EditableTerrain : RuntimeTerrain
 			PopulateResizedSplatMap(newWidth, newDepth, offsetX, offsetZ, oldCliffSplatMap, newCliffSplatMap, 1);
 		}
 
-		GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
-			newWidth, newDepth, state.QuadSize, state.CellSize,
-			newCells, newPathing, state.NavMesh, state.NavMeshQuery
-		));
-
-		_localCells = newCells;
-		_localPathingCodes = newPathing;
-		SplatMap = newSplatMap;
-		CliffSplatMap = newCliffSplatMap;
-
-		if (_material != null)
-		{
-			_material.SetShaderParameter("terrain_size", new Vector2(newWidth * state.QuadSize, newDepth * state.QuadSize));
-		}
-
-		CreateChunks();
-		UpdateWaterSize();
-		UpdateMeshAndPhysics();
+		ApplyNewTerrainState(newWidth, newDepth, state.QuadSize, newCells, newPathing, newSplatMap, newCliffSplatMap);
 	}
 
 	public override void RemapSplatIndices(IReadOnlyDictionary<int, int> remap)
@@ -356,24 +339,7 @@ public partial class EditableTerrain : RuntimeTerrain
 			PopulateScaledSplatMaps(newWidth, newDepth, oldCliffSplatMap, newCliffSplatMap, 1);
 		}
 
-		GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
-			newWidth, newDepth, state.QuadSize, state.CellSize,
-			newCells, newPathing, state.NavMesh, state.NavMeshQuery
-		));
-
-		_localCells = newCells;
-		_localPathingCodes = newPathing;
-		SplatMap = newSplatMap;
-		CliffSplatMap = newCliffSplatMap;
-
-		if (_material != null)
-		{
-			_material.SetShaderParameter("terrain_size", new Vector2(newWidth * state.QuadSize, newDepth * state.QuadSize));
-		}
-
-		CreateChunks();
-		UpdateWaterSize();
-		UpdateMeshAndPhysics();
+		ApplyNewTerrainState(newWidth, newDepth, state.QuadSize, newCells, newPathing, newSplatMap, newCliffSplatMap);
 	}
 
 	private bool ValidateAndClampDimensions(ref int newWidth, ref int newDepth)
@@ -388,24 +354,33 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	private void ApplySnapshotData(int newWidth, int newDepth, float quadSize, TerrainCell[,] calculatedCells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap)
 	{
-		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-
 		int[,] clonedPathing = pathingCodes != null ? (int[,])pathingCodes.Clone() : new int[newWidth, newDepth];
 		TerrainSplatWeights[,] clonedSplatMap = splatMap != null ? (TerrainSplatWeights[,])splatMap.Clone() : new TerrainSplatWeights[newWidth + 1, newDepth + 1];
 		TerrainSplatWeights[,] clonedCliffSplatMap = cliffSplatMap != null ? (TerrainSplatWeights[,])cliffSplatMap.Clone() : null;
 
+		ApplyNewTerrainState(newWidth, newDepth, quadSize, calculatedCells, clonedPathing, clonedSplatMap, clonedCliffSplatMap);
+		UpdateWaterTransform();
+	}
+
+	private void ApplyNewTerrainState(int newWidth, int newDepth, float quadSize, TerrainCell[,] newCells, int[,] newPathing, TerrainSplatWeights[,] newSplatMap, TerrainSplatWeights[,] newCliffSplatMap)
+	{
+		ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 		GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
 			newWidth, newDepth, quadSize, state.CellSize,
-			calculatedCells, clonedPathing, state.NavMesh, state.NavMeshQuery
+			newCells, newPathing, state.NavMesh, state.NavMeshQuery
 		));
 
-		_localCells = calculatedCells;
-		_localPathingCodes = clonedPathing;
-		SplatMap = clonedSplatMap;
-		CliffSplatMap = clonedCliffSplatMap;
+		_localCells = newCells;
+		_localPathingCodes = newPathing;
+		SplatMap = newSplatMap;
+		CliffSplatMap = newCliffSplatMap;
+
+		if (_material != null)
+		{
+			_material.SetShaderParameter("terrain_size", new Vector2(newWidth * quadSize, newDepth * quadSize));
+		}
 
 		CreateChunks();
-		UpdateWaterTransform();
 		UpdateWaterSize();
 		UpdateMeshAndPhysics();
 	}

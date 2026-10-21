@@ -194,4 +194,19 @@ public static class MapTransferHelper
 			return ZstdAssetBundleHelper.CreateBundleBytes(chunkAssets, 1);
 		}, session.Cts.Token);
 	}
+
+	public static bool HandleBeginMapTransfer(Godot.Node context, int senderId, string transferId, ref int activeEphemeralTransferPeerId)
+	{
+		if (PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding)
+		{
+			if (activeEphemeralTransferPeerId != 0 && activeEphemeralTransferPeerId != senderId)
+			{
+				Godot.GD.Print($"[{context.GetType().Name}] Rejecting map transfer {transferId} from peer {senderId}: Seeder busy with peer {activeEphemeralTransferPeerId}.");
+				return false;
+			}
+
+			activeEphemeralTransferPeerId = senderId;
+		}
+		return true;
+	}
 }

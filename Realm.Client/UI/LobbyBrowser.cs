@@ -404,10 +404,7 @@ public partial class LobbyBrowser : Control
 		cancelBtn.Name = "CancelBtn_Button";
 		cancelBtn.Flat = false;
 		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxes(cancelBtn);
 		UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
 		cancelBtn.CustomMinimumSize = new Vector2(140, 38);
 		cancelBtn.Pressed += () =>
@@ -421,10 +418,7 @@ public partial class LobbyBrowser : Control
 		connectBtn.Name = "ConnectBtn_Button";
 		connectBtn.Flat = false;
 		connectBtn.AddThemeConstantOverride("icon_max_width", 0);
-		connectBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		connectBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		connectBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		connectBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxes(connectBtn);
 		UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
 		connectBtn.CustomMinimumSize = new Vector2(140, 38);
 		connectBtn.Pressed += async () =>
