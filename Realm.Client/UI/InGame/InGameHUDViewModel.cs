@@ -285,7 +285,7 @@ public class InGameHUDViewModel
 		}
 	}
 
-	public bool LeaderboardVisible
+	public LeaderboardBoards Leaderboards
 	{
 		get
 		{
@@ -294,71 +294,32 @@ public class InGameHUDViewModel
 				var world = GameContext.World;
 				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
 				{
-					return world.Get<LeaderboardState>(ECSContext.WorldEntity).Visible;
+					LeaderboardBoards? boards = world.Get<LeaderboardState>(ECSContext.WorldEntity).Boards;
+					if (boards != null)
+						return boards;
 				}
+			}
+
+			return EmptyLeaderboards;
+		}
+	}
+
+	public bool HasVisibleLeaderboard
+	{
+		get
+		{
+			IReadOnlyList<LeaderboardBoard> boards = Leaderboards.Boards;
+			for (int index = 0; index < boards.Count; index++)
+			{
+				if (boards[index].Visible)
+					return true;
 			}
 
 			return false;
 		}
-		set
-		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
-			{
-				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
-				{
-					ref var lb = ref world.Get<LeaderboardState>(ECSContext.WorldEntity);
-					lb.Visible = value;
-				}
-			}
-		}
 	}
 
-	public string LeaderboardTitle
-	{
-		get
-		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
-			{
-				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
-				{
-					return world.Get<LeaderboardState>(ECSContext.WorldEntity).Title;
-				}
-			}
-
-			return "";
-		}
-		set
-		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
-			{
-				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
-				{
-					ref var lb = ref world.Get<LeaderboardState>(ECSContext.WorldEntity);
-					lb.Title = value;
-				}
-			}
-		}
-	}
-
-	public Dictionary<string, string> LeaderboardValues
-	{
-		get
-		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
-			{
-				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
-				{
-					return world.Get<LeaderboardState>(ECSContext.WorldEntity).Values;
-				}
-			}
-
-			return new Dictionary<string, string>();
-		}
-	}
+	private static readonly LeaderboardBoards EmptyLeaderboards = new();
 
 	private static ref SummaryTableState EnsureSummaryTableState(EcsWorld world, Entity entity)
 	{

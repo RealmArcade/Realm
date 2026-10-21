@@ -174,6 +174,7 @@ public partial class InGameHUD : Control
 
 	private VBoxContainer _customUIPanel;
 	private PanelContainer _leaderboardPanel;
+	private VBoxContainer _leaderboardSelectors;
 	private VBoxContainer _leaderboardContent;
 	private Label _leaderboardTitleLabel;
 	private PanelContainer _countdownPanel;
@@ -640,6 +641,11 @@ public partial class InGameHUD : Control
 		_leaderboardTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		lbVBox.AddChild(_leaderboardTitleLabel);
 
+		_leaderboardSelectors = new VBoxContainer();
+		_leaderboardSelectors.Name = "LeaderboardSelectors";
+		_leaderboardSelectors.AddThemeConstantOverride("separation", 4);
+		lbVBox.AddChild(_leaderboardSelectors);
+
 		_leaderboardContent = new VBoxContainer();
 		_leaderboardContent.Name = "LeaderboardContent";
 		lbVBox.AddChild(_leaderboardContent);
@@ -724,7 +730,7 @@ public partial class InGameHUD : Control
 		_camera3D = GameHost.Instance?.MainCamera;
 		_minimapPanelController = new MinimapPanel(_minimapFrame, _minimapArea, _cameraIndicator, _camera3D);
 		_chatPanelController = new ChatPanel(_chatPanel, _chatInput, _chatLog);
-		_leaderboardPanelController = new LeaderboardPanel(_customUIPanel, _countdownPanel, _countdownLabel, _leaderboardPanel, _leaderboardTitleLabel, _leaderboardContent);
+		_leaderboardPanelController = new LeaderboardPanel(_customUIPanel, _countdownPanel, _countdownLabel, _leaderboardPanel, _leaderboardTitleLabel, _leaderboardSelectors, _leaderboardContent);
 		_summaryTablePanelController = new SummaryTablePanel(_summaryPanel, _summaryTitleLabel, _summaryContent);
 
 		_portraitPanelController = new PortraitPanel(
@@ -2110,7 +2116,7 @@ public partial class InGameHUD : Control
 			case HudElement.Leaderboard:
 				if (_leaderboardPanel != null)
 				{
-					_leaderboardPanel.Visible = visible && _viewModel.LeaderboardVisible;
+					_leaderboardPanel.Visible = visible && _viewModel.HasVisibleLeaderboard;
 				}
 				break;
 			case HudElement.SummaryTable:
@@ -2144,20 +2150,29 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	public void SetLeaderboardVisible(string title, bool visible)
+	public void SetLeaderboardBoard(string boardId, string title, bool visible)
 	{
-		_viewModel.LeaderboardTitle = title;
-		_viewModel.LeaderboardVisible = visible;
+		_viewModel.Leaderboards.SetBoard(boardId, title, visible);
 	}
 
-	public void ClearLeaderboard()
+	public void ClearLeaderboardBoards()
 	{
-		_viewModel.LeaderboardValues.Clear();
+		_viewModel.Leaderboards.ClearAll();
 	}
 
-	public void SetLeaderboardValue(string label, string value)
+	public void ClearLeaderboardBoard(string boardId)
 	{
-		_viewModel.LeaderboardValues[label] = value;
+		_viewModel.Leaderboards.ClearBoard(boardId);
+	}
+
+	public void SetLeaderboardBoardGroup(string boardId, int groupPlayerIndex, string groupTitle)
+	{
+		_viewModel.Leaderboards.SetGroup(boardId, groupPlayerIndex, groupTitle);
+	}
+
+	public void AddLeaderboardBoardRow(string boardId, int groupPlayerIndex, string groupTitle, string label, string value)
+	{
+		_viewModel.Leaderboards.AddRow(boardId, groupPlayerIndex, groupTitle, label, value);
 	}
 
 	public void ShowSummaryTable(string title, bool visible)

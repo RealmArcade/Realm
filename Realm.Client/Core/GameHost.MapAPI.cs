@@ -31,11 +31,30 @@ public partial class GameHost
 	private readonly string[] _cachedModifiersBuffer = new string[128];
 	private readonly string[] _cachedItemsBuffer = new string[32];
 
-	private readonly List<(string Label, string Value)> _pendingLeaderboardRows = new();
-	private bool _pendingLeaderboardClear;
-	private bool _pendingLeaderboardVisibilitySet;
-	private string _pendingLeaderboardTitle = string.Empty;
-	private bool _pendingLeaderboardVisible;
+	private const string DefaultLeaderboardBoardId = "default";
+
+	private enum LeaderboardOperationKind : byte
+	{
+		ClearAll,
+		ClearBoard,
+		SetBoard,
+		SetGroup,
+		AddRow
+	}
+
+	private struct LeaderboardOperation
+	{
+		public LeaderboardOperationKind Kind;
+		public string BoardId;
+		public string Title;
+		public string GroupTitle;
+		public string Label;
+		public string Value;
+		public int GroupPlayerIndex;
+		public bool Visible;
+	}
+
+	private readonly List<LeaderboardOperation> _pendingLeaderboardOperations = new();
 	private bool _leaderboardFlushQueued;
 
 	public void ResetAbilityCatalog()
@@ -697,24 +716,68 @@ public partial class GameHost
 		);
 	}
 
+	void IGameAPI.SetLeaderboardBoard(string boardId, string title, bool visible)
+	{
+		QueueLeaderboardOperation(new LeaderboardOperation
+		{
+			Kind = LeaderboardOperationKind.SetBoard,
+			BoardId = boardId,
+			Title = title,
+			Visible = visible
+		});
+	}
+
+	void IGameAPI.ClearLeaderboardBoard(string boardId)
+	{
+		QueueLeaderboardOperation(new LeaderboardOperation
+		{
+			Kind = LeaderboardOperationKind.ClearBoard,
+			BoardId = boardId
+		});
+	}
+
+	void IGameAPI.SetLeaderboardBoardGroup(string boardId, int groupPlayerIndex, string groupTitle)
+	{
+		QueueLeaderboardOperation(new LeaderboardOperation
+		{
+			Kind = LeaderboardOperationKind.SetGroup,
+			BoardId = boardId,
+			GroupPlayerIndex = groupPlayerIndex,
+			GroupTitle = groupTitle
+		});
+	}
+
+	void IGameAPI.AddLeaderboardBoardRow(string boardId, int groupPlayerIndex, string groupTitle, string label, string value)
+	{
+		QueueLeaderboardOperation(new LeaderboardOperation
+		{
+			Kind = LeaderboardOperationKind.AddRow,
+			BoardId = boardId,
+			GroupPlayerIndex = groupPlayerIndex,
+			GroupTitle = groupTitle,
+			Label = label,
+			Value = value
+		});
+	}
+
 	void IGameAPI.SetLeaderboardVisible(string title, bool visible)
 	{
-		_pendingLeaderboardTitle = title;
-		_pendingLeaderboardVisible = visible;
-		_pendingLeaderboardVisibilitySet = true;
-		QueueLeaderboardFlush();
+		((IGameAPI)this).SetLeaderboardBoard(DefaultLeaderboardBoardId, title, visible);
 	}
 
 	void IGameAPI.SetLeaderboardValue(string label, string value)
 	{
-		_pendingLeaderboardRows.Add((label, value));
-		QueueLeaderboardFlush();
+		((IGameAPI)this).AddLeaderboardBoardRow(DefaultLeaderboardBoardId, -1, string.Empty, label, value);
 	}
 
 	void IGameAPI.ClearLeaderboard()
 	{
-		_pendingLeaderboardClear = true;
-		_pendingLeaderboardRows.Clear();
+		QueueLeaderboardOperation(new LeaderboardOperation { Kind = LeaderboardOperationKind.ClearAll });
+	}
+
+	private void QueueLeaderboardOperation(LeaderboardOperation operation)
+	{
+		_pendingLeaderboardOperations.Add(operation);
 		QueueLeaderboardFlush();
 	}
 
@@ -731,36 +794,36 @@ public partial class GameHost
 		_leaderboardFlushQueued = false;
 
 		var hud = InGameHUD.Instance;
-		bool clearRequested = _pendingLeaderboardClear;
-		bool visibilityRequested = _pendingLeaderboardVisibilitySet;
-		string title = _pendingLeaderboardTitle;
-		bool visible = _pendingLeaderboardVisible;
-		_pendingLeaderboardClear = false;
-		_pendingLeaderboardVisibilitySet = false;
-
 		if (hud == null || !GodotObject.IsInstanceValid(hud))
 		{
-			_pendingLeaderboardRows.Clear();
+			_pendingLeaderboardOperations.Clear();
 			return;
 		}
 
-		if (clearRequested)
+		for (int i = 0; i < _pendingLeaderboardOperations.Count; i++)
 		{
-			hud.ClearLeaderboard();
+			LeaderboardOperation operation = _pendingLeaderboardOperations[i];
+			switch (operation.Kind)
+			{
+				case LeaderboardOperationKind.ClearAll:
+					hud.ClearLeaderboardBoards();
+					break;
+				case LeaderboardOperationKind.ClearBoard:
+					hud.ClearLeaderboardBoard(operation.BoardId);
+					break;
+				case LeaderboardOperationKind.SetBoard:
+					hud.SetLeaderboardBoard(operation.BoardId, operation.Title, operation.Visible);
+					break;
+				case LeaderboardOperationKind.SetGroup:
+					hud.SetLeaderboardBoardGroup(operation.BoardId, operation.GroupPlayerIndex, operation.GroupTitle);
+					break;
+				case LeaderboardOperationKind.AddRow:
+					hud.AddLeaderboardBoardRow(operation.BoardId, operation.GroupPlayerIndex, operation.GroupTitle, operation.Label, operation.Value);
+					break;
+			}
 		}
 
-		for (int i = 0; i < _pendingLeaderboardRows.Count; i++)
-		{
-			var row = _pendingLeaderboardRows[i];
-			hud.SetLeaderboardValue(row.Label, row.Value);
-		}
-
-		_pendingLeaderboardRows.Clear();
-
-		if (visibilityRequested)
-		{
-			hud.SetLeaderboardVisible(title, visible);
-		}
+		_pendingLeaderboardOperations.Clear();
 	}
 
 	void IGameAPI.StartCountdownTimer(float duration, string label)
@@ -1241,8 +1304,7 @@ public partial class GameHost
 
 	void IGameAPI.AddLeaderboardRow(string label, string value, Vector3? color)
 	{
-		_pendingLeaderboardRows.Add((label, value));
-		QueueLeaderboardFlush();
+		((IGameAPI)this).AddLeaderboardBoardRow(DefaultLeaderboardBoardId, -1, string.Empty, label, value);
 	}
 
 
@@ -1975,6 +2037,13 @@ public partial class GameHost
 		return false;
 	}
 
+	bool IGameAPI.AddItemToUnitWithCharges(UnitId unit, string itemId, int charges)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).AddItem(itemId, Math.Max(1, charges));
+		return false;
+	}
+
 	bool IGameAPI.RemoveItemFromUnit(UnitId unit, string itemId)
 	{
 		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
@@ -1994,6 +2063,19 @@ public partial class GameHost
 		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 			return GameContext.SimulationService.GetUnitWrapper(entity).GetItems();
 		return Array.Empty<string>();
+	}
+
+	int IGameAPI.GetUnitItemCharges(UnitId unit, string itemId)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			return GameContext.SimulationService.GetUnitWrapper(entity).GetItemCharges(itemId);
+		return 0;
+	}
+
+	void IGameAPI.SetUnitItemCharges(UnitId unit, string itemId, int charges)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).SetItemCharges(itemId, charges);
 	}
 
 	bool IGameAPI.UnitHasBuff(UnitId unit, string buffId)

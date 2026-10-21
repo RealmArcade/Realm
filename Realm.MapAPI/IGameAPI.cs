@@ -331,7 +331,7 @@ public interface IGameAPI
 	void SpawnProjectile(string projectileTypeId, Vector3 start, Vector3 target, float speed);
 
 	/// <summary>
-	/// Displays or hides a custom leaderboard panel on the player's screen.
+	/// Declares the default leaderboard board used by maps that publish a single table.
 	/// </summary>
 	/// <param name="title">The header title of the leaderboard.</param>
 	/// <param name="visible">True to display the leaderboard, false to hide it.</param>
@@ -345,9 +345,46 @@ public interface IGameAPI
 	void SetLeaderboardValue(string label, string value);
 
 	/// <summary>
-	/// Clears all entries from the current leaderboard.
+	/// Clears every leaderboard board and its rows.
 	/// </summary>
 	void ClearLeaderboard();
+
+	/// <summary>
+	/// Declares or updates a named leaderboard board that every client can switch between.
+	/// Clients render one visible board at a time and keep their own board selection, so publishing
+	/// several boards never changes what another player is looking at.
+	/// </summary>
+	/// <param name="boardId">Stable identifier for the board, reused across updates.</param>
+	/// <param name="title">Header title shown for the board; the client passes it through localisation.</param>
+	/// <param name="visible">True to offer the board to clients, false to withdraw it.</param>
+	void SetLeaderboardBoard(string boardId, string title, bool visible);
+
+	/// <summary>
+	/// Clears every row of one leaderboard board while keeping its title and visibility.
+	/// </summary>
+	/// <param name="boardId">Identifier of the board to clear.</param>
+	void ClearLeaderboardBoard(string boardId);
+
+	/// <summary>
+	/// Declares a player group on a leaderboard board so it appears in the client group selector even when it has no rows.
+	/// Clients default the group selector for a board to their own player slot.
+	/// </summary>
+	/// <param name="boardId">Identifier of the board that owns the group.</param>
+	/// <param name="groupPlayerIndex">Zero-based player slot the group represents.</param>
+	/// <param name="groupTitle">Label shown for the group in the client selector.</param>
+	void SetLeaderboardBoardGroup(string boardId, int groupPlayerIndex, string groupTitle);
+
+	/// <summary>
+	/// Appends a row to a leaderboard board, optionally scoped to a player group.
+	/// Boards whose rows use groups gain a second client-side selector, and each client defaults that
+	/// selector to its own player slot.
+	/// </summary>
+	/// <param name="boardId">Identifier of the board that receives the row.</param>
+	/// <param name="groupPlayerIndex">Zero-based player slot the row belongs to, or -1 for an ungrouped row.</param>
+	/// <param name="groupTitle">Label shown for the group in the client selector.</param>
+	/// <param name="label">Row label text.</param>
+	/// <param name="value">Row value text.</param>
+	void AddLeaderboardBoardRow(string boardId, int groupPlayerIndex, string groupTitle, string label, string value);
 
 	/// <summary>
 	/// Displays or hides the multi-column stats summary table on all players' screens.
@@ -711,7 +748,7 @@ public interface IGameAPI
 
 
 	/// <summary>
-	/// Appends a new row to the leaderboard panel with the given label and value.
+	/// Appends a new row to the default leaderboard board with the given label and value.
 	/// Must call <see cref="SetLeaderboardVisible"/> first to make the panel visible.
 	/// </summary>
 	/// <param name="label">Row label text.</param>
@@ -2101,6 +2138,15 @@ public interface IGameAPI
 	bool AddItemToUnit(UnitId unit, string itemId);
 
 	/// <summary>
+	/// Adds an item archetype to the specified unit's inventory with a stack of the given charge count.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="itemId">The item definition identifier.</param>
+	/// <param name="charges">The number of stacked charges to grant; values below one are treated as one.</param>
+	/// <returns>True if added successfully; otherwise, false.</returns>
+	bool AddItemToUnitWithCharges(UnitId unit, string itemId, int charges);
+
+	/// <summary>
 	/// Removes an item archetype from the specified unit's inventory.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
@@ -2122,6 +2168,22 @@ public interface IGameAPI
 	/// <param name="unit">The unit identifier.</param>
 	/// <returns>A read-only collection of item archetype identifiers.</returns>
 	IReadOnlyList<string> GetUnitItems(UnitId unit);
+
+	/// <summary>
+	/// Returns the stacked charge count of an item in the specified unit's inventory.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="itemId">The item definition identifier.</param>
+	/// <returns>The charge count, or zero when the unit does not carry the item.</returns>
+	int GetUnitItemCharges(UnitId unit, string itemId);
+
+	/// <summary>
+	/// Sets the stacked charge count of an item in the specified unit's inventory and reapplies its grants.
+	/// </summary>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="itemId">The item definition identifier.</param>
+	/// <param name="charges">The new charge count; zero removes the item's grants.</param>
+	void SetUnitItemCharges(UnitId unit, string itemId, int charges);
 
 	/// <summary>
 	/// Returns true if the specified unit currently has an active buff with the given identifier.

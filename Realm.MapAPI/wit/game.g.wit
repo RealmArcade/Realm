@@ -4,6 +4,8 @@ interface game-api {
     add-buff: func(unit-id: s32, buff-id: string, duration: f32);
     add-computer-player: func(player-index: s32, name: string, team-index: s32) -> bool;
     add-item-to-unit: func(unit-id: s32, item-id: string) -> bool;
+    add-item-to-unit-with-charges: func(unit-id: s32, item-id: string, charges: s32) -> bool;
+    add-leaderboard-board-row: func(board-id: string, group-player-index: s32, group-title: string, label: string, value: string);
     add-leaderboard-row: func(label: string, value: string, color-r: f32, color-g: f32, color-b: f32, color-has-color: bool);
     add-player-tech-level: func(player-index: s32, tech-id: string, delta: s32);
     add-unit-type-ability: func(unit-type-id: string, ability-id: string);
@@ -17,6 +19,7 @@ interface game-api {
     cast-ability: func(unit-id: s32, ability-id: string, target-position-x: f32, target-position-y: f32, target-position-z: f32);
     clear-custom-bot-decisions: func(player-index: s32);
     clear-leaderboard: func();
+    clear-leaderboard-board: func(board-id: string);
     clear-player-selection: func(player-index: s32);
     clear-summary-table: func();
     collect-loot-item: func(loot-item-id: s32, unit-id: s32) -> bool;
@@ -78,6 +81,7 @@ interface game-api {
     get-unit-by-id: func(unique-id: s32) -> s32;
     get-unit-custom-data: func(unit-id: s32, key: string) -> string;
     get-unit-instance-name: func(unit-id: s32) -> string;
+    get-unit-item-charges: func(unit-id: s32, item-id: string) -> s32;
     get-unit-items-count: func(unit-id: s32) -> s32;
     get-unit-items-get: func(unit-id: s32, index: s32) -> string;
     get-unit-name: func(unit-type-id: string) -> string;
@@ -142,6 +146,8 @@ interface game-api {
     set-day-night-cycle-enabled: func(enabled: bool);
     set-environment-preset: func(preset-id: string);
     set-item-tooltip: func(item-id: string, tooltip: string);
+    set-leaderboard-board: func(board-id: string, title: string, visible: bool);
+    set-leaderboard-board-group: func(board-id: string, group-player-index: s32, group-title: string);
     set-leaderboard-value: func(label: string, value: string);
     set-leaderboard-visible: func(title: string, visible: bool);
     set-player-active: func(player-index: s32, active: bool);
@@ -178,6 +184,7 @@ interface game-api {
     set-unit-health: func(unit-id: s32, value: f32);
     set-unit-hide-health-and-mana-bars: func(unit-id: s32, value: bool);
     set-unit-invulnerable: func(unit-id: s32, value: bool);
+    set-unit-item-charges: func(unit-id: s32, item-id: string, charges: s32);
     set-unit-level: func(unit-id: s32, level: s32);
     set-unit-mana: func(unit-id: s32, value: f32);
     set-unit-mana-regen: func(unit-id: s32, value: f32);

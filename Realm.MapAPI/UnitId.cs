@@ -369,21 +369,21 @@ public readonly unsafe record struct UnitId(int Value)
 	/// <param name="itemId">The identifier of the item definition to grant.</param>
 	/// <param name="charges">The initial charge count for the item.</param>
 	/// <returns>True if the item was successfully added; otherwise false.</returns>
-	public bool AddItem(string itemId, int charges) => AddItem(itemId);
+	public bool AddItem(string itemId, int charges) => GameAPI.Current.AddItemToUnitWithCharges(this, itemId, charges);
 
 	/// <summary>
 	/// Gets the number of charges for the specified item in the unit's inventory.
 	/// </summary>
 	/// <param name="itemId">The identifier of the item.</param>
-	/// <returns>The charge count, or 1 if the item is present without specific charges, or 0 if not present.</returns>
-	public int GetItemCharges(string itemId) => HasItem(itemId) ? 1 : 0;
+	/// <returns>The charge count, or 0 if the unit does not carry the item.</returns>
+	public int GetItemCharges(string itemId) => GameAPI.Current.GetUnitItemCharges(this, itemId);
 
 	/// <summary>
 	/// Sets the number of charges for the specified item in the unit's inventory.
 	/// </summary>
 	/// <param name="itemId">The identifier of the item.</param>
-	/// <param name="charges">The new charge count.</param>
-	public void SetItemCharges(string itemId, int charges) { }
+	/// <param name="charges">The new charge count; zero removes the item's grants.</param>
+	public void SetItemCharges(string itemId, int charges) => GameAPI.Current.SetUnitItemCharges(this, itemId, charges);
 
 	/// <summary>
 	/// Removes an item from the unit's inventory.

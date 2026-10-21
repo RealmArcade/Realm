@@ -125,7 +125,7 @@ public class WorldInitService
 		AddOrSet(worldEntity, new WeatherState("clear", 0f));
 		AddOrSet(worldEntity, new SpectatorPerspective(-1));
 		AddOrSet(worldEntity, new CountdownState(false, 0f, ""));
-		AddOrSet(worldEntity, new LeaderboardState(false, "", new Dictionary<string, string>()));
+		AddOrSet(worldEntity, new LeaderboardState(new LeaderboardBoards()));
 		AddOrSet(worldEntity, new ScriptZonesState(new List<ZoneBounds>()));
 
 		AddOrSet(worldEntity, new ScriptPlayersState(defaultPlayers));
