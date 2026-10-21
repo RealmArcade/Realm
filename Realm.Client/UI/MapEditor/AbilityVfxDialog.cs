@@ -57,7 +57,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	public AbilityVfxDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Ability VFX & Audio Studio"), new Vector2(500, 720))
 	{
-		_sfxPlayer = new AudioStreamPlayer();
+		_sfxPlayer = new AudioStreamPlayer { Name = "AbilityPreviewSfx", Bus = AudioService.SfxBusName };
 		AddChild(_sfxPlayer);
 
 		DefaultDistance = 8.0f;

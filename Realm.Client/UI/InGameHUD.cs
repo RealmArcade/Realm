@@ -1694,9 +1694,9 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly)
+	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
-		_chatPanelController?.OnLobbyChatReceived(senderName, message, alliesOnly);
+		_chatPanelController?.OnLobbyChatReceived(senderName, message, alliesOnly, timestampUtcTicks);
 	}
 
 	private void BuildHotkeyReferencePanel()

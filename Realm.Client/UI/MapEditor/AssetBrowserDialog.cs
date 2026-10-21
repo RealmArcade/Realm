@@ -68,7 +68,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	{
 		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 30, 45, 70, 70);
 
-		_audioPlayer = new AudioStreamPlayer();
+		_audioPlayer = new AudioStreamPlayer { Name = "AssetPreviewAudio", Bus = AudioService.SfxBusName };
 		_audioPlayer.Finished += OnAudioFinished;
 		AddChild(_audioPlayer);
 

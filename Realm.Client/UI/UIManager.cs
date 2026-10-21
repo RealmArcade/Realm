@@ -72,10 +72,10 @@ public partial class UIManager : Control
 		MouseFilter = MouseFilterEnum.Ignore;
 
 
-		_musicPlayer = new AudioStreamPlayer();
+		_musicPlayer = new AudioStreamPlayer { Name = "MusicPlayer", Bus = AudioService.MusicBusName };
 		AddChild(_musicPlayer);
 
-		_sfxPlayer = new AudioStreamPlayer();
+		_sfxPlayer = new AudioStreamPlayer { Name = "SfxPlayer", Bus = AudioService.SfxBusName };
 		AddChild(_sfxPlayer);
 
 		await ApplyStartupSettings();
@@ -275,21 +275,7 @@ public partial class UIManager : Control
 
 	public void UpdateAudioVolumes()
 	{
-		if (_musicPlayer != null)
-		{
-			float master = GameSettings.MasterVolume / 100f;
-			float music = GameSettings.MusicVolume / 100f;
-			float combined = master * music;
-			_musicPlayer.VolumeDb = combined <= 0f ? -80f : Mathf.LinearToDb(combined);
-		}
-
-		if (_sfxPlayer != null)
-		{
-			float master = GameSettings.MasterVolume / 100f;
-			float sfx = GameSettings.SfxVolume / 100f;
-			float combined = master * sfx;
-			_sfxPlayer.VolumeDb = combined <= 0f ? -80f : Mathf.LinearToDb(combined);
-		}
+		AudioService.ApplyVolumeSettings();
 	}
 
 	private void CreateFadeOverlay()

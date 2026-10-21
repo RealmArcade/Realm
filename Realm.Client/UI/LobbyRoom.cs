@@ -12,6 +12,7 @@ using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
+using Realm.Client.UI.InGame;
 
 namespace Realm.Client.UI;
 
@@ -1479,11 +1480,12 @@ public partial class LobbyRoom : Control
 		LobbyManager.Instance.SendChatMessage(myName, text);
 	}
 
-	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly)
+	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
 		string myName = GetLocalPlayer()?.Name ?? LobbyManager.Instance.AuthenticatedUsername;
 		string color = senderName == "System" ? "#ffd700" : (senderName == myName ? "#5cd6ff" : "#d4a0a0");
-		_chatLog.Text += $"[color={color}]{senderName}[/color]: {message}\n";
+		string timestamp = ChatPanel.FormatTimestamp(timestampUtcTicks);
+		_chatLog.Text += $"[color=#a0a0a0][{timestamp}][/color] [color={color}]{senderName}[/color]: {message}\n";
 	}
 
 	private void OnLobbyConnectionFailed(string reason)

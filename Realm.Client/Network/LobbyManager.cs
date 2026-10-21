@@ -131,7 +131,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private int _countdownRemaining;
 	private SceneTreeTimer? _countdownTimer;
 	private SceneTreeTimer? _diagnosticsTimer;
-	private readonly List<(string Sender, string Message, bool IsMuted)> _chatHistory = new();
+	private readonly List<(string Sender, string Message, bool IsMuted, long TimestampUtcTicks)> _chatHistory = new();
 	private static InferenceSession? _onnxSession;
 	private static Dictionary<string, int>? _vocab;
 	private static readonly object _sessionLock = new();
@@ -184,7 +184,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 
 	public event Action? PlayerListUpdated;
-	public event Action<string, string, bool>? ChatReceived;
+	public event Action<string, string, bool, long>? ChatReceived;
 	public event Action<int, string>? ServerChatCommandReceived;
 	public event Action<string>? ConnectionFailed;
 	public event Action<string>? KickReceived;
@@ -2194,27 +2194,28 @@ public partial class LobbyManager : BaseMapTransferNode
 		return "Team 1";
 	}
 
-	public void SendChatMessage(string senderName, string message, bool alliesOnly = false)
+	public void SendChatMessage(string senderName, string message, bool alliesOnly = false, long timestampUtcTicks = 0)
 	{
+		long sentAtUtcTicks = timestampUtcTicks > 0 ? timestampUtcTicks : DateTime.UtcNow.Ticks;
 		if (IsHost)
 		{
 			if (senderName == "System")
 			{
-				_chatHistory.Add((senderName, message, false));
-				Rpc(nameof(ReceiveChatMessage), senderName, message, alliesOnly);
-				ChatReceived?.Invoke(senderName, message, alliesOnly);
+				_chatHistory.Add((senderName, message, false, sentAtUtcTicks));
+				Rpc(nameof(ReceiveChatMessage), senderName, message, alliesOnly, sentAtUtcTicks);
+				ChatReceived?.Invoke(senderName, message, alliesOnly, sentAtUtcTicks);
 			}
 			else
 			{
 				var senderPlayer = PlayerList.Find(p => p.Name == senderName);
 				int senderSlot = senderPlayer?.Slot ?? 0;
 				ServerChatCommandReceived?.Invoke(senderSlot, message);
-				_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly);
+				_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly, sentAtUtcTicks);
 			}
 		}
 		else
 		{
-			RpcId(1, nameof(ReceiveChatMessage), senderName, message, alliesOnly);
+			RpcId(1, nameof(ReceiveChatMessage), senderName, message, alliesOnly, sentAtUtcTicks);
 		}
 	}
 
@@ -2453,10 +2454,10 @@ public partial class LobbyManager : BaseMapTransferNode
 		return false;
 	}
 
-	private async Task ProcessAndSendChatMessageAsync(string senderName, string message, bool alliesOnly)
+	private async Task ProcessAndSendChatMessageAsync(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
 		bool isToxic = await IsMessageToxicAsync(message);
-		_chatHistory.Add((senderName, message, isToxic));
+		_chatHistory.Add((senderName, message, isToxic, timestampUtcTicks));
 
 		if (!isToxic)
 		{
@@ -2469,25 +2470,25 @@ public partial class LobbyManager : BaseMapTransferNode
 					{
 						if (player.PeerId == 1)
 						{
-							ChatReceived?.Invoke(senderName, message, true);
+							ChatReceived?.Invoke(senderName, message, true, timestampUtcTicks);
 						}
 						else
 						{
-							RpcId(player.PeerId, nameof(ReceiveChatMessage), senderName, message, true);
+							RpcId(player.PeerId, nameof(ReceiveChatMessage), senderName, message, true, timestampUtcTicks);
 						}
 					}
 				}
 			}
 			else
 			{
-				Rpc(nameof(ReceiveChatMessage), senderName, message, false);
-				ChatReceived?.Invoke(senderName, message, false);
+				Rpc(nameof(ReceiveChatMessage), senderName, message, false, timestampUtcTicks);
+				ChatReceived?.Invoke(senderName, message, false, timestampUtcTicks);
 			}
 		}
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveChatMessage(string senderName, string message, bool alliesOnly)
+	private void ReceiveChatMessage(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
 		if (IsHost)
 		{
@@ -2496,11 +2497,11 @@ public partial class LobbyManager : BaseMapTransferNode
 			var senderPlayer = PlayerList.Find(p => p.PeerId == senderPeerId);
 			int senderSlot = senderPlayer?.Slot ?? 0;
 			ServerChatCommandReceived?.Invoke(senderSlot, message);
-			_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly);
+			_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly, timestampUtcTicks);
 		}
 		else
 		{
-			ChatReceived?.Invoke(senderName, message, alliesOnly);
+			ChatReceived?.Invoke(senderName, message, alliesOnly, timestampUtcTicks);
 		}
 	}
 
@@ -2522,7 +2523,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			{
 				if (!chat.IsMuted)
 				{
-					RpcId(senderId, nameof(ReceiveChatMessage), chat.Sender, chat.Message, false);
+					RpcId(senderId, nameof(ReceiveChatMessage), chat.Sender, chat.Message, false, chat.TimestampUtcTicks);
 				}
 			}
 		}

@@ -99,7 +99,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		_decalEditDialog = new DecalSettingsDialog(hud);
 		_shaderEditDialog = new ShaderEditorDialog(hud);
 
-		_audioPlayer = new AudioStreamPlayer();
+		_audioPlayer = new AudioStreamPlayer { Name = "AssetManagerPreviewAudio", Bus = AudioService.SfxBusName };
 		_audioPlayer.Finished += OnAudioFinished;
 		AddChild(_audioPlayer);
 
