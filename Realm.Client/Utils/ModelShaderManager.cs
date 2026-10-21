@@ -36,10 +36,6 @@ public static class ModelShaderManager
 	private static readonly StringName _paramUnitAmbientBoost = new("unit_ambient_boost");
 	private static readonly StringName _paramUnitRimIntensity = new("unit_rim_intensity");
 	private static readonly StringName _paramHideInShroud = new("hide_in_shroud");
-	private static readonly StringName _paramShroudTexture = new("shroud_texture");
-	private static readonly StringName _paramShroudWorldMin = new("shroud_world_min");
-	private static readonly StringName _paramShroudWorldSize = new("shroud_world_size");
-	private static readonly StringName _paramShroudEnabled = new("shroud_enabled");
 	private static readonly StringName _paramProcAnimParams1 = new("proc_anim_params1");
 	private static readonly StringName _paramProcAnimParams2 = new("proc_anim_params2");
 	private static readonly StringName _paramProcAnimParams3 = new("proc_anim_params3");
@@ -64,11 +60,6 @@ public static class ModelShaderManager
 	private static readonly StringName _paramSpecularValue = new("specular_value");
 	private static readonly StringName _paramUv1Scale = new("uv1_scale");
 	private static readonly StringName _paramUv1Offset = new("uv1_offset");
-
-	private static Texture2D _currentShroudTexture;
-	private static Vector2 _currentShroudWorldMin = new(-125.0f, -125.0f);
-	private static Vector2 _currentShroudWorldSize = new(250.0f, 250.0f);
-	private static bool _currentShroudEnabled = false;
 
 	private const string ShaderPath = "res://Assets/shaders/player_color_spatial.gdshader";
 
@@ -560,15 +551,6 @@ public static class ModelShaderManager
 		material.SetShaderParameter(_paramSpecularValue, p.Specular);
 		material.SetShaderParameter(_paramUv1Scale, p.Uv1Scale);
 		material.SetShaderParameter(_paramUv1Offset, p.Uv1Offset);
-
-		if (_currentShroudTexture != null)
-		{
-			material.SetShaderParameter(_paramShroudTexture, _currentShroudTexture);
-		}
-
-		material.SetShaderParameter(_paramShroudWorldMin, _currentShroudWorldMin);
-		material.SetShaderParameter(_paramShroudWorldSize, _currentShroudWorldSize);
-		material.SetShaderParameter(_paramShroudEnabled, _currentShroudEnabled);
 	}
 
 	public static ShaderMaterial GetOrCreateShaderMaterial(Material sourceMaterial, bool normalizeLuminance = true)
@@ -870,41 +852,6 @@ public static class ModelShaderManager
 		img.SetData(img.GetWidth(), img.GetHeight(), false, Image.Format.Rgba8, data);
 	}
 
-	private static bool _hasAppliedShroudParams;
-
-	public static void SetShroudParameters(Texture2D texture, Vector2 worldMin, Vector2 worldSize, bool enabled)
-	{
-		if (_hasAppliedShroudParams &&
-		    ReferenceEquals(_currentShroudTexture, texture) &&
-		    _currentShroudWorldMin == worldMin &&
-		    _currentShroudWorldSize == worldSize &&
-		    _currentShroudEnabled == enabled)
-		{
-			return;
-		}
-
-		_hasAppliedShroudParams = true;
-		_currentShroudTexture = texture;
-		_currentShroudWorldMin = worldMin;
-		_currentShroudWorldSize = worldSize;
-		_currentShroudEnabled = enabled;
-
-		foreach (var material in _materialCache.Values)
-		{
-			if (GodotObject.IsInstanceValid(material))
-			{
-				if (texture != null)
-				{
-					material.SetShaderParameter(_paramShroudTexture, texture);
-				}
-
-				material.SetShaderParameter(_paramShroudWorldMin, worldMin);
-				material.SetShaderParameter(_paramShroudWorldSize, worldSize);
-				material.SetShaderParameter(_paramShroudEnabled, enabled);
-			}
-		}
-	}
-
 	public static void SetHideInShroud(Node node, bool hideInShroud)
 	{
 		if (node == null || !GodotObject.IsInstanceValid(node)) return;
@@ -1041,7 +988,5 @@ public static class ModelShaderManager
 		_normalizedAlbedoCache.Clear();
 		_playerMaskCheckCache.Clear();
 		_sharedShader = null;
-		_currentShroudTexture = null;
-		_hasAppliedShroudParams = false;
 	}
 }

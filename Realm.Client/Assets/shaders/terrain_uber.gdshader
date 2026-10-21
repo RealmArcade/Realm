@@ -1,6 +1,8 @@
 shader_type spatial;
 render_mode blend_mix;
 
+#include "res://Assets/shaders/shroud.gdshaderinc"
+
 uniform sampler2DArray terrain_textures : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2DArray terrain_normals_pbr : hint_default_white, filter_linear_mipmap_anisotropic;
 uniform float blend_softness = 0.04;
@@ -8,11 +10,6 @@ uniform float blend_noise_strength = 0.22;
 uniform float blend_noise_scale = 0.22;
 uniform float cliff_jitter_strength = 1.0;
 uniform float cliff_jitter_scale = 0.20;
-uniform sampler2D shroud_texture : hint_default_black;
-uniform vec2 shroud_world_min = vec2(-125.0, -125.0);
-uniform vec2 shroud_world_size = vec2(250.0, 250.0);
-uniform bool shroud_enabled = false;
-
 uniform sampler2D pathing_texture : hint_default_transparent, filter_nearest;
 uniform bool pathing_visible = false;
 
@@ -840,17 +837,18 @@ void fragment() {
 		final_roughness = clamp(blended_roughness, 0.05, 1.0);
 	}
 
-	vec2 shroud_uv = (v_world_pos.xz - shroud_world_min) / shroud_world_size;
-	float shroud_factor = shroud_enabled ? texture(shroud_texture, clamp(shroud_uv, 0.0, 1.0)).r : 0.0;
-	final_albedo *= (1.0 - shroud_factor * 0.98);
-	emission_color *= (1.0 - shroud_factor * 0.98);
+	vec2 shroud_state = rts_shroud_sample(v_world_pos.xz);
+	float shroud_light = rts_shroud_light_from_state(shroud_state);
+	float shroud_explored_mask = rts_shroud_explored_mask(shroud_state);
+	final_albedo *= shroud_light;
+	emission_color *= shroud_light;
 
 	ALBEDO = final_albedo;
 	NORMAL = normalize((VIEW_MATRIX * vec4(blended_world_normal, 0.0)).xyz);
-	AO = blended_ao * (1.0 - shroud_factor * 0.98);
-	ROUGHNESS = mix(final_roughness, 1.0, shroud_factor);
+	AO = blended_ao * shroud_light;
+	ROUGHNESS = mix(final_roughness, 1.0, shroud_explored_mask);
 	METALLIC = 0.0;                 
-	SPECULAR = specular_amt * (1.0 - shroud_factor * 0.98);
+	SPECULAR = specular_amt * shroud_light;
 	EMISSION = emission_color;
 }
 

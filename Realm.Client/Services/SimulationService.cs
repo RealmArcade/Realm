@@ -1369,7 +1369,7 @@ public class SimulationService
 
 		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
 		{
-			GameContext.World.Mutate<ShroudState>(worldEntity, (ref ShroudState state) => { state.ShroudType = "visible"; });
+			GameContext.World.Mutate<ShroudState>(worldEntity, (ref ShroudState state) => { state.VisibilityMode = ShroudVisibilityMode.Revealed; });
 		}
 
 		viewAction?.Invoke();

@@ -90,8 +90,16 @@ public class MapPropertiesLoader
 		if (mapProps.TryGetProperty("ShroudType", out var shroudTypeProp) && shroudTypeProp.ValueKind == JsonValueKind.String)
 		{
 			string val = shroudTypeProp.GetString() ?? "VisionShroud";
-			GameContext.World.Mutate<ShroudState>(worldEntity, (ref ShroudState s) => s.ShroudType = val);
+			ShroudVisibilityMode mode = ParseShroudVisibilityMode(val);
+			GameContext.World.Mutate<ShroudState>(worldEntity, (ref ShroudState s) => s.VisibilityMode = mode);
 		}
+	}
+
+	private static ShroudVisibilityMode ParseShroudVisibilityMode(string shroudType)
+	{
+		if (string.Equals(shroudType, "VisionShroud", StringComparison.OrdinalIgnoreCase)) return ShroudVisibilityMode.Enabled;
+		if (string.Equals(shroudType, "ExplorationShroud", StringComparison.OrdinalIgnoreCase)) return ShroudVisibilityMode.Enabled;
+		return ShroudVisibilityMode.Enabled;
 	}
 
 	private void TryUpdateWeather(Entity worldEntity, JsonElement mapProps)

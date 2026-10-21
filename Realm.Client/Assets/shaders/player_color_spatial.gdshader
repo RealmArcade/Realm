@@ -1,6 +1,8 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
 
+#include "res://Assets/shaders/shroud.gdshaderinc"
+
 uniform sampler2D texture_albedo : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D texture_orm : hint_default_black, filter_linear_mipmap, repeat_enable;
 uniform bool has_orm_texture = false;
@@ -26,11 +28,6 @@ uniform float alpha_scissor_threshold : hint_range(0.0, 1.0) = 0.5;
 
 uniform vec3 uv1_scale = vec3(1.0, 1.0, 1.0);
 uniform vec3 uv1_offset = vec3(0.0, 0.0, 0.0);
-
-uniform sampler2D shroud_texture : hint_default_black, filter_linear_mipmap, repeat_disable;
-uniform vec2 shroud_world_min = vec2(-125.0, -125.0);
-uniform vec2 shroud_world_size = vec2(250.0, 250.0);
-uniform bool shroud_enabled = false;
 
 instance uniform vec4 player_color : source_color = vec4(0.620, 0.541, 0.431, 1.0);
 instance uniform float model_brightness : hint_range(0.10, 2.0) = 0.5;
@@ -183,12 +180,10 @@ vec3 convert_oklab_to_rgb(vec3 oklab) {
 }
 
 void fragment() {
-	if (shroud_enabled && hide_in_shroud > 0.5) {
-		vec2 shroud_uv = (v_world_pos.xz - shroud_world_min) / shroud_world_size;
-		float shroud_factor = texture(shroud_texture, clamp(shroud_uv, 0.0, 1.0)).r;
-		if (shroud_factor > 0.8) {
-			discard;
-		}
+	vec2 shroud_state = rts_shroud_sample(v_world_pos.xz);
+	float shroud_light = rts_shroud_light_from_state(shroud_state);
+	if (hide_in_shroud > 0.5 && shroud_state.x < 0.5) {
+		discard;
 	}
 
 	if (!FRONT_FACING) {
@@ -257,7 +252,7 @@ void fragment() {
 		final_color = mix(final_color, heatmap, 0.75);
 	}
 
-	ALBEDO = final_color;
+	ALBEDO = final_color * shroud_light;
 
 	if (use_alpha_scissor) {
 		ALPHA_SCISSOR_THRESHOLD = alpha_scissor_threshold;
@@ -266,9 +261,9 @@ void fragment() {
 		ALPHA = albedo_tex.a * albedo_color.a;
 	}
 
-	ROUGHNESS = roughness;
+	ROUGHNESS = mix(roughness, 1.0, rts_shroud_explored_mask(shroud_state));
 	METALLIC = metallic;
-	SPECULAR = specular;
+	SPECULAR = specular * shroud_light;
 
 	if (has_normal_texture) {
 		vec3 normal_sample = texture(texture_normal, base_uv).rgb;
@@ -291,5 +286,5 @@ void fragment() {
 	}
 
 	vec3 player_color_ambient = final_color * 0.15 * player_mask;
-	EMISSION = base_emission + terrain_separation_ambient + rim_glow + player_color_ambient;
+	EMISSION = (base_emission + terrain_separation_ambient + rim_glow + player_color_ambient) * shroud_light;
 }

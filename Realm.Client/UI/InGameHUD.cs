@@ -113,115 +113,7 @@ public partial class InGameHUD : Control
 	public bool ShowMinimapTerrain => _viewModel.ShowMinimapTerrain;
 
 
-	private float _fogUpdateTimer = 0f;
-
-	private static readonly byte[,] _emptyShroudGrid = new byte[32, 32];
-
-	public byte[,] ShroudGrid
-	{
-		get
-		{
-			if (GameHost.Instance != null && GameContext.World != null)
-			{
-				var worldEntity = ECSContext.WorldEntity;
-				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
-				{
-					return GameContext.World.Get<ShroudState>(worldEntity).ShroudGrid;
-				}
-
-				Entity fallback = Entity.Null;
-				var query = QueryCache.AllShroudStateQuery;
-				GameContext.World.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
-				{
-					return GameContext.World.Get<ShroudState>(fallback).ShroudGrid;
-				}
-			}
-
-			return _emptyShroudGrid;
-		}
-		set
-		{
-			if (GameHost.Instance != null && GameContext.World != null)
-			{
-				var worldEntity = ECSContext.WorldEntity;
-				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
-				{
-					ref var state = ref GameContext.World.Get<ShroudState>(worldEntity);
-					state.ShroudGrid = value;
-					return;
-				}
-
-				Entity fallback = Entity.Null;
-				var query = QueryCache.AllShroudStateQuery;
-				GameContext.World.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
-				{
-					ref var state = ref GameContext.World.Get<ShroudState>(fallback);
-					state.ShroudGrid = value;
-				}
-			}
-		}
-	}
-
-	public byte[,] FogGrid
-	{
-		get => ShroudGrid;
-		set => ShroudGrid = value;
-	}
-
-	private byte[,] _fogGrid
-	{
-		get => ShroudGrid;
-		set => ShroudGrid = value;
-	}
-
-	public string ShroudType
-	{
-		get
-		{
-			if (GameHost.Instance != null && GameContext.World != null)
-			{
-				var worldEntity = ECSContext.WorldEntity;
-				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
-				{
-					return GameContext.World.Get<ShroudState>(worldEntity).ShroudType;
-				}
-
-				Entity fallback = Entity.Null;
-				var query = QueryCache.AllShroudStateQuery;
-				GameContext.World.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
-				{
-					return GameContext.World.Get<ShroudState>(fallback).ShroudType;
-				}
-			}
-
-			return "VisionShroud";
-		}
-		set
-		{
-			if (GameHost.Instance != null && GameContext.World != null)
-			{
-				var worldEntity = ECSContext.WorldEntity;
-				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
-				{
-					ref var state = ref GameContext.World.Get<ShroudState>(worldEntity);
-					state.ShroudType = value;
-					return;
-				}
-
-				Entity fallback = Entity.Null;
-				var query = QueryCache.AllShroudStateQuery;
-				GameContext.World.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
-				{
-					ref var state = ref GameContext.World.Get<ShroudState>(fallback);
-					state.ShroudType = value;
-				}
-			}
-		}
-	}
+	private float _shroudMinimapRefreshTimer = 0f;
 
 	private string _currentWeather
 	{
@@ -1491,7 +1383,7 @@ public partial class InGameHUD : Control
 			_macroTimer -= MacroInterval;
 			_viewModel.UpdateMacro(accumulated);
 			_resourcePanelController?.Update(_viewModel);
-			UpdateFogTimer(accumulated);
+			UpdateShroudMinimapTimer(accumulated);
 			UpdateIdleUnitButton(accumulated);
 		}
 
@@ -1515,12 +1407,12 @@ public partial class InGameHUD : Control
 		_viewModel.UpdateSelectedUnits(selected);
 	}
 
-	private void UpdateFogTimer(double delta)
+	private void UpdateShroudMinimapTimer(double delta)
 	{
-		_fogUpdateTimer += (float)delta;
-		if (_fogUpdateTimer >= 0.1f)
+		_shroudMinimapRefreshTimer += (float)delta;
+		if (_shroudMinimapRefreshTimer >= 0.1f)
 		{
-			_fogUpdateTimer = 0f;
+			_shroudMinimapRefreshTimer = 0f;
 			QueueMinimapRedraw();
 		}
 	}

@@ -698,7 +698,6 @@ public partial class RuntimeTerrain : Node3D
 		ApplyWaterFlowAndCaustics(mat, profile);
 		ApplyWaterSubsurface(mat, profile);
 		ApplyWaterDetail(mat, profile);
-		ApplyWaterShroud(mat);
 	}
 
 	private void ApplyWaterColors(ShaderMaterial mat, WaterProfileSaveData profile)
@@ -780,19 +779,6 @@ public partial class RuntimeTerrain : Node3D
 		mat.SetShaderParameter("detail_cross_fade", Math.Clamp(profile.DetailCrossFade * 0.01f, 0.0f, 0.10f));
 		mat.SetShaderParameter("detail_alpha", profile.DetailAlpha);
 		mat.SetShaderParameter("detail_blend_mode", profile.DetailBlendMode);
-	}
-
-	private void ApplyWaterShroud(ShaderMaterial mat)
-	{
-		if (_currentShroudTexture != null)
-		{
-			mat.SetShaderParameter("shroud_texture", _currentShroudTexture);
-			mat.SetShaderParameter("shroud_enabled", GameHost.Instance == null || !GameContext.SessionState.IsMapEditorMode);
-			float halfW = (Width * QuadSize) * 0.5f;
-			float halfD = (Depth * QuadSize) * 0.5f;
-			mat.SetShaderParameter("shroud_world_min", new Vector2(-halfW, -halfD));
-			mat.SetShaderParameter("shroud_world_size", new Vector2(Width * QuadSize, Depth * QuadSize));
-		}
 	}
 
 	private Texture2D? LoadTextureFromActiveWorkspace(string texturePath, bool preferNormal = false)
@@ -881,8 +867,6 @@ public partial class RuntimeTerrain : Node3D
 
 		_shallowWaterMaterial = GetWaterMaterial(0);
 		_deepWaterMaterial = GetWaterMaterial(1);
-		_lastAppliedShroudEnabled = null;
-		_lastAppliedShroudTexture = null;
 	}
 
 	protected void CreateWater()
@@ -1219,26 +1203,12 @@ public partial class RuntimeTerrain : Node3D
 
 	public void UpdateWaterTransform()
 	{
-		float halfW = (Width * QuadSize) * 0.5f;
-		float halfD = (Depth * QuadSize) * 0.5f;
-		var shroudMin = new Vector2(-halfW, -halfD);
-		var shroudSize = new Vector2(Width * QuadSize, Depth * QuadSize);
+		var worldSize = new Vector2(Width * QuadSize, Depth * QuadSize);
 
 		if (_material != null)
 		{
-			_material.SetShaderParameter("shroud_world_min", shroudMin);
-			_material.SetShaderParameter("shroud_world_size", shroudSize);
-			_material.SetShaderParameter("terrain_size", shroudSize);
+			_material.SetShaderParameter("terrain_size", worldSize);
 			_material.SetShaderParameter("grid_spacing", QuadSize);
-		}
-
-		foreach (var wMat in _waterMaterials.Values)
-		{
-			if (wMat != null)
-			{
-				wMat.SetShaderParameter("shroud_world_min", shroudMin);
-				wMat.SetShaderParameter("shroud_world_size", shroudSize);
-			}
 		}
 	}
 
@@ -1259,18 +1229,6 @@ public partial class RuntimeTerrain : Node3D
 
 		ReloadTerrainTextures();
 		CreatePolarOverlayMaterial();
-
-		var defaultShroudImage = Image.CreateEmpty(32, 32, false, Image.Format.Rf);
-		defaultShroudImage.Fill(new Color(0f, 0f, 0f, 1f));
-		var defaultShroudTexture = ImageTexture.CreateFromImage(defaultShroudImage);
-		_currentShroudTexture = defaultShroudTexture;
-		_material.SetShaderParameter("shroud_texture", defaultShroudTexture);
-		_material.SetShaderParameter("shroud_enabled", GameHost.Instance == null || !GameContext.SessionState.IsMapEditorMode);
-
-		float halfW = (Width * QuadSize) * 0.5f;
-		float halfD = (Depth * QuadSize) * 0.5f;
-		_material.SetShaderParameter("shroud_world_min", new Vector2(-halfW, -halfD));
-		_material.SetShaderParameter("shroud_world_size", new Vector2(Width * QuadSize, Depth * QuadSize));
 
 		_material.SetShaderParameter("grid_spacing", QuadSize);
 		_material.SetShaderParameter("terrain_size", new Vector2(Width * QuadSize, Depth * QuadSize));
@@ -2055,19 +2013,11 @@ public partial class RuntimeTerrain : Node3D
 
 		if (_material != null)
 		{
-			float halfW = (w * QuadSize) * 0.5f;
-			float halfD = (d * QuadSize) * 0.5f;
-			_material.SetShaderParameter("shroud_world_min", new Vector2(-halfW, -halfD));
-			_material.SetShaderParameter("shroud_world_size", new Vector2(w * QuadSize, d * QuadSize));
 			_material.SetShaderParameter("terrain_size", new Vector2(w * QuadSize, d * QuadSize));
 			_material.SetShaderParameter("grid_spacing", QuadSize);
 		}
 	}
 
-	protected static readonly StringName ShroudTextureParam = "shroud_texture";
-	protected static readonly StringName ShroudEnabledParam = "shroud_enabled";
-	protected ImageTexture _currentShroudTexture = null;
-	protected static ImageTexture _clearShroudTexture = null;
 	protected ShaderMaterial _polarOverlayMaterial;
 	private Shader _terrainUberShader;
 	private Shader _polarOverlayShader;
@@ -2134,56 +2084,19 @@ public partial class RuntimeTerrain : Node3D
 	}
 
 	private bool _wasPathingVisibleBeforeMinimap;
-	private bool? _lastAppliedShroudEnabled;
-	private ImageTexture? _lastAppliedShroudTexture;
-
-	public void SetShroudEnabled(bool enabled)
-	{
-		if (_lastAppliedShroudEnabled == enabled) return;
-		_lastAppliedShroudEnabled = enabled;
-
-		if (_material != null)
-		{
-			_material.SetShaderParameter(ShroudEnabledParam, enabled);
-		}
-
-		foreach (var wMat in _waterMaterials.Values)
-		{
-			if (wMat != null)
-			{
-				wMat.SetShaderParameter(ShroudEnabledParam, enabled);
-			}
-		}
-	}
-
-	public static ImageTexture GetClearShroudTexture()
-	{
-		if (_clearShroudTexture == null)
-		{
-			var img = Image.CreateEmpty(32, 32, false, Image.Format.Rf);
-			img.Fill(new Color(0f, 0f, 0f, 1f));
-			_clearShroudTexture = ImageTexture.CreateFromImage(img);
-		}
-
-		return _clearShroudTexture;
-	}
 
 	public static void ClearCache()
 	{
 		_cachedAlbedoTextureArray = null;
 		_cachedNormalRoughnessTextureArray = null;
 		_cachedMapDir = null;
-		_clearShroudTexture = null;
 		_liveSwatchOverrides.Clear();
 	}
 
 	public void BeginMinimapCapture()
 	{
-		var clearTex = GetClearShroudTexture();
 		if (_material != null)
 		{
-			_material.SetShaderParameter(ShroudTextureParam, clearTex);
-
 			_overlaySuppressed = true;
 			ApplyOverlayPass();
 
@@ -2195,59 +2108,18 @@ public partial class RuntimeTerrain : Node3D
 			}
 		}
 
-		foreach (var wMat in _waterMaterials.Values)
-		{
-			if (wMat != null)
-			{
-				wMat.SetShaderParameter(ShroudTextureParam, clearTex);
-			}
-		}
-
 		SetAllChunksVisible(true);
 	}
 
 	public void EndMinimapCapture()
 	{
-		var restoreTex = _currentShroudTexture ?? GetClearShroudTexture();
-		_lastAppliedShroudTexture = restoreTex;
 		if (_material != null)
 		{
-			_material.SetShaderParameter(ShroudTextureParam, restoreTex);
 			_overlaySuppressed = false;
 			ApplyOverlayPass();
 			if (_wasPathingVisibleBeforeMinimap)
 			{
 				_material.SetShaderParameter("pathing_visible", true);
-			}
-		}
-
-		foreach (var wMat in _waterMaterials.Values)
-		{
-			if (wMat != null)
-			{
-				wMat.SetShaderParameter(ShroudTextureParam, restoreTex);
-			}
-		}
-	}
-
-	public void SetShroudTexture(ImageTexture shroudTexture)
-	{
-		if (shroudTexture == null) return;
-		_currentShroudTexture = shroudTexture;
-		if (IsMinimapRendering) return;
-		if (ReferenceEquals(_lastAppliedShroudTexture, shroudTexture)) return;
-		_lastAppliedShroudTexture = shroudTexture;
-
-		if (_material != null)
-		{
-			_material.SetShaderParameter(ShroudTextureParam, shroudTexture);
-		}
-
-		foreach (var wMat in _waterMaterials.Values)
-		{
-			if (wMat != null)
-			{
-				wMat.SetShaderParameter(ShroudTextureParam, shroudTexture);
 			}
 		}
 	}

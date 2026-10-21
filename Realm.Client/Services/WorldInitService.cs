@@ -116,7 +116,12 @@ public class WorldInitService
 			PitchSwing = 0.0f
 		});
 
-		AddOrSet(worldEntity, new ShroudState(new byte[32, 32], "VisionShroud"));
+		if (GameContext.World.Has<ShroudState>(worldEntity))
+		{
+			GameContext.World.Get<ShroudState>(worldEntity).Release();
+		}
+
+		AddOrSet(worldEntity, new ShroudState());
 		AddOrSet(worldEntity, new WeatherState("clear", 0f));
 		AddOrSet(worldEntity, new SpectatorPerspective(-1));
 		AddOrSet(worldEntity, new CountdownState(false, 0f, ""));

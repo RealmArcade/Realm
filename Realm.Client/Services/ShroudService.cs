@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
@@ -9,536 +7,258 @@ using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
 using Realm.Client.UI;
 using Realm.Ecs.Common;
-using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
+using Realm.Ecs.Services;
 
 namespace Realm.Client.Services;
 
 public class ShroudService
 {
-	private MeshInstance3D _shroudMeshInstance;
-	private ShaderMaterial _shroudMeshMaterial;
-	private float _shroudUpdateTimer;
+	private const float ShroudTickInterval = 0.1f;
+	private const byte ExploredChannelValue = 255;
+	private const byte VisionShroudMinimapAlpha = 84;
+	private const byte ExplorationShroudMinimapAlpha = 255;
+
+	private static readonly StringName ShroudTextureParameter = new("rts_shroud_texture");
+	private static readonly StringName ShroudWorldBoundsParameter = new("rts_shroud_world_bounds");
+	private static readonly StringName ShroudLerpParameter = new("rts_shroud_lerp");
+
 	private Image _shroudImage;
 	private ImageTexture _shroudTexture;
 	private Image _shroudMinimapImage;
 	private ImageTexture _shroudMinimapTexture;
-	private bool _isEditorShroudInitialized;
-	private Shader _shroudShader;
+	private Texture2D _appliedGlobalTexture;
+	private Vector4 _appliedGlobalBounds;
+	private static ImageTexture _fullyRevealedTexture;
 
-	private readonly byte[] _shroudByteBuffer = new byte[32 * 32 * 4];
-	private readonly byte[] _shroudMinimapByteBuffer = new byte[32 * 32 * 4];
+	private readonly byte[] _shroudPixelBuffer = new byte[ShroudGrid.CellCount * 4];
+	private readonly byte[] _shroudMinimapPixelBuffer = new byte[ShroudGrid.CellCount * 4];
+
+	private float _shroudTimer;
 	private ulong _lastShroudChecksum;
-	private bool _isShroudTextureDirty = true;
+	private ulong _lastMinimapChecksum;
+	private ushort _observedMask = ShroudGrid.AllPlayerMask;
+	private ushort _hostileMask;
+	private int _observedPlayerIndex = -1;
+	private bool _isRevealAll = true;
+	private bool _hasPresentedShroud;
+	private bool _isMapEditorPresentationInitialized;
+	private bool _isPresentationSuspended;
+	private Entity _cachedWorldEntity = Entity.Null;
 
 	public ImageTexture? ShroudTexture => _shroudTexture;
 	public ImageTexture? ShroudMinimapTexture => _shroudMinimapTexture;
-
-	public ShroudService()
-	{
-	}
-
-	private Entity _cachedWorldEntity = Entity.Null;
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static Vector3 GetUnitPosition(Unit3D unit)
-	{
-		if (unit != null && unit.Entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(unit.Entity) && GameContext.World.Has<Position>(unit.Entity))
-		{
-			var p = GameContext.World.Get<Position>(unit.Entity).Value;
-			return new Vector3(p.X, p.Y, p.Z);
-		}
-
-		return unit != null ? unit.GlobalPosition : Vector3.Zero;
-	}
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private static Vector3 GetPropPosition(Prop3D prop)
-	{
-		if (prop != null && prop.Entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(prop.Entity) && GameContext.World.Has<Position>(prop.Entity))
-		{
-			var p = GameContext.World.Get<Position>(prop.Entity).Value;
-			return new Vector3(p.X, p.Y, p.Z);
-		}
-
-		return prop != null ? prop.GlobalPosition : Vector3.Zero;
-	}
-
-	private Entity FindWorldEntity()
-	{
-		if (_cachedWorldEntity != Entity.Null && GameContext.World.IsAlive(_cachedWorldEntity) && GameContext.World.Has<ShroudState>(_cachedWorldEntity))
-		{
-			return _cachedWorldEntity;
-		}
-
-		Entity worldEntity = Entity.Null;
-		var query = QueryCache.AllShroudStateQuery;
-		GameContext.World.Query(in query, (Entity entity) => worldEntity = entity);
-		_cachedWorldEntity = worldEntity;
-		return _cachedWorldEntity;
-	}
-
-	private byte[,] ShroudGrid
-	{
-		get
-		{
-			var worldEntity = FindWorldEntity();
-			if (worldEntity != Entity.Null && GameContext.World.Has<ShroudState>(worldEntity))
-				return GameContext.World.Get<ShroudState>(worldEntity).ShroudGrid;
-			return new byte[32, 32];
-		}
-		set
-		{
-			var worldEntity = FindWorldEntity();
-			if (worldEntity != Entity.Null && GameContext.World.Has<ShroudState>(worldEntity))
-			{
-				ref var state = ref GameContext.World.Get<ShroudState>(worldEntity);
-				state.ShroudGrid = value;
-			}
-		}
-	}
-
-	private string ShroudType
-	{
-		get
-		{
-			var worldEntity = FindWorldEntity();
-			if (worldEntity != Entity.Null && GameContext.World.Has<ShroudState>(worldEntity))
-				return GameContext.World.Get<ShroudState>(worldEntity).ShroudType;
-			return "VisionShroud";
-		}
-	}
+	public bool IsRevealAll => _isRevealAll;
 
 	public void Initialize(Node mainNode)
 	{
-		if (mainNode == null) return;
-
-		var existingShroud = mainNode.GetNodeOrNull<MeshInstance3D>("3DShroudMesh");
-		if (GodotObject.IsInstanceValid(existingShroud))
+		if (mainNode != null)
 		{
-			mainNode.RemoveChild(existingShroud);
-			existingShroud.QueueFree();
+			RemoveLegacyShroudNodes(mainNode);
 		}
 
-		var existingFog = mainNode.GetNodeOrNull<MeshInstance3D>("3DFogMesh");
-		if (GodotObject.IsInstanceValid(existingFog))
-		{
-			mainNode.RemoveChild(existingFog);
-			existingFog.QueueFree();
-		}
+		EnsureTextures();
+		ApplyGlobalTexture();
+		RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, 0f);
+		_shroudTimer = 0f;
+		_lastShroudChecksum = 0UL;
+		_lastMinimapChecksum = 0UL;
+		_hasPresentedShroud = false;
+		TriggerImmediateUpdate();
+	}
 
-		var shroudMesh = new MeshInstance3D();
-		shroudMesh.Name = "3DShroudMesh";
-		shroudMesh.Mesh = new ArrayMesh();
+	private static void RemoveLegacyShroudNodes(Node mainNode)
+	{
+		RemoveLegacyNode(mainNode, "3DShroudMesh");
+		RemoveLegacyNode(mainNode, "3DFogMesh");
+	}
 
-		var shaderMaterial = new ShaderMaterial();
-		_shroudShader ??= GD.Load<Shader>("res://Assets/shaders/shroud.gdshader");
-		shaderMaterial.Shader = _shroudShader;
-		shroudMesh.MaterialOverride = shaderMaterial;
-		mainNode.AddChild(shroudMesh);
-		shroudMesh.GlobalPosition = new Vector3(0, 60.0f, 0);
-		_shroudMeshInstance = shroudMesh;
-		_shroudMeshMaterial = shaderMaterial;
+	private static void RemoveLegacyNode(Node mainNode, string nodeName)
+	{
+		var legacyNode = mainNode.GetNodeOrNull<Node3D>(nodeName);
+		if (legacyNode == null || !GodotObject.IsInstanceValid(legacyNode)) return;
+		mainNode.RemoveChild(legacyNode);
+		legacyNode.QueueFree();
 	}
 
 	public void Tick(float delta, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
 	{
-		if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode)
+		if (_isPresentationSuspended) return;
+
+		if (GameContext.SessionState.IsMapEditorMode)
 		{
 			TickMapEditorMode(allUnits, allProps, allDecals);
 			return;
 		}
 
-		TickGameplayMode(delta, allUnits, allProps, allDecals, spectatorPerspective, isPlayingReplay, isSpectator);
+		if (_isMapEditorPresentationInitialized)
+		{
+			_isMapEditorPresentationInitialized = false;
+			_hasPresentedShroud = false;
+		}
+
+		int observedPlayerIndex = ResolveObservedPlayerIndex(spectatorPerspective, isPlayingReplay, isSpectator);
+		_shroudTimer += delta;
+		if (!_hasPresentedShroud || observedPlayerIndex != _observedPlayerIndex)
+		{
+			_shroudTimer = ShroudTickInterval;
+		}
+
+		if (_shroudTimer >= ShroudTickInterval)
+		{
+			_shroudTimer = 0f;
+			UpdateShroud(allUnits, allProps, allDecals, observedPlayerIndex);
+		}
+
+		RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, Mathf.Clamp(_shroudTimer / ShroudTickInterval, 0f, 1f));
 	}
 
 	private void TickMapEditorMode(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
 	{
-		if (_isEditorShroudInitialized) return;
+		if (_isMapEditorPresentationInitialized) return;
+		_isMapEditorPresentationInitialized = true;
+		_hasPresentedShroud = true;
+		_isRevealAll = true;
+		_observedMask = ShroudGrid.AllPlayerMask;
+		_observedPlayerIndex = -1;
+		_hostileMask = 0;
 
-		if (GodotObject.IsInstanceValid(_shroudMeshInstance) && _shroudMeshInstance.Visible)
-		{
-			_shroudMeshInstance.Visible = false;
-		}
+		SetNodesVisible(allUnits);
+		SetNodesVisible(allProps);
+		SetNodesVisible(allDecals);
 
-		SetVisible(allUnits);
-		SetVisible(allProps);
-		SetVisible(allDecals);
+		EnsureTextures();
+		WriteRevealedShroudPixels();
+		UploadShroudTexture();
+		WriteRevealedMinimapPixels();
+		UploadMinimapTexture();
 
 		if (GameHost.Instance?.GroundTerrain != null)
 		{
-			GameHost.Instance.GroundTerrain.SetShroudEnabled(false);
-			InitializeEditorShroud();
+			float worldWidth = GameHost.Instance.GroundTerrain.Width * GameHost.Instance.GroundTerrain.QuadSize;
+			float worldDepth = GameHost.Instance.GroundTerrain.Depth * GameHost.Instance.GroundTerrain.QuadSize;
+			SetGlobalBounds(worldWidth * -0.5f, worldDepth * -0.5f, worldWidth, worldDepth);
 		}
+
+		RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, 1f);
 	}
 
-	private void SetVisible<T>(List<T> items) where T : Node3D
+	private void UpdateShroud(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int observedPlayerIndex)
 	{
-		foreach (var item in items)
-		{
-			if (item != null && GodotObject.IsInstanceValid(item) && !item.Visible)
-			{
-				item.Visible = true;
-			}
-		}
-	}
-
-	private void InitializeEditorShroud()
-	{
-		_isEditorShroudInitialized = true;
-
-		Span<float> shroudFloats = MemoryMarshal.Cast<byte, float>(_shroudByteBuffer.AsSpan());
-		shroudFloats.Fill(1.0f);
-
-		if (_shroudImage == null)
-		{
-			_shroudImage = Image.CreateEmpty(32, 32, false, Image.Format.Rf);
-		}
-		_shroudImage.SetData(32, 32, false, Image.Format.Rf, _shroudByteBuffer);
-
-		if (_shroudTexture == null)
-		{
-			_shroudTexture = ImageTexture.CreateFromImage(_shroudImage);
-		}
-		else
-		{
-			_shroudTexture.Update(_shroudImage);
-		}
-
-		Array.Clear(_shroudMinimapByteBuffer, 0, _shroudMinimapByteBuffer.Length);
-
-		if (_shroudMinimapImage == null)
-		{
-			_shroudMinimapImage = Image.CreateEmpty(32, 32, false, Image.Format.Rgba8);
-		}
-		_shroudMinimapImage.SetData(32, 32, false, Image.Format.Rgba8, _shroudMinimapByteBuffer);
-
-		if (_shroudMinimapTexture == null)
-		{
-			_shroudMinimapTexture = ImageTexture.CreateFromImage(_shroudMinimapImage);
-		}
-		else
-		{
-			_shroudMinimapTexture.Update(_shroudMinimapImage);
-		}
-
-		GameHost.Instance.GroundTerrain.SetShroudTexture(_shroudTexture);
-		ModelShaderManager.SetShroudParameters(null, Vector2.Zero, Vector2.Zero, false);
-	}
-
-	private void TickGameplayMode(float delta, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
-	{
-		_isEditorShroudInitialized = false;
-		if (GameHost.Instance?.GroundTerrain != null)
-		{
-			GameHost.Instance.GroundTerrain.SetShroudEnabled(true);
-		}
-
-		if (GodotObject.IsInstanceValid(_shroudMeshInstance))
-		{
-			_shroudMeshInstance.Visible = ShouldMeshBeVisible(spectatorPerspective, isPlayingReplay, isSpectator);
-		}
-
-		_shroudUpdateTimer += delta;
-		if (_shroudUpdateTimer >= 0.1f)
-		{
-			_shroudUpdateTimer = 0f;
-			UpdateShroud(allUnits, allProps, allDecals, spectatorPerspective, isPlayingReplay, isSpectator);
-		}
-	}
-
-	private bool ShouldMeshBeVisible(int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
-	{
-		string shroudType = ShroudType;
-		bool shouldMeshBeVisible = !string.Equals(shroudType, "visible", StringComparison.OrdinalIgnoreCase) && !EditableTerrain.IsMinimapRendering;
-
-		if (!shouldMeshBeVisible || !(isPlayingReplay || isSpectator))
-		{
-			return shouldMeshBeVisible;
-		}
-
-		int targetOwnerId = isPlayingReplay ? ReplayPlaybackManager.Instance.SpectatorPerspective : spectatorPerspective;
-		if (targetOwnerId == -1)
-		{
-			return false;
-		}
-
-		return shouldMeshBeVisible;
-	}
-
-	public void TriggerImmediateUpdate()
-	{
-		_isShroudTextureDirty = true;
-		if (GameHost.Instance != null && !GameContext.SessionState.IsMapEditorMode)
-		{
-			int specPerspective = GameContext.SpectatorService?.GetSpectatorPerspective() ?? -1;
-			UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, specPerspective, ReplayPlaybackManager.Instance.IsPlayingReplay, GameContext.PerspectiveFilter.IsSpectating);
-			InGameHUD.Instance?.QueueMinimapRedraw();
-		}
-	}
-
-	public void CleanUp()
-	{
-		_isEditorShroudInitialized = false;
-		_isShroudTextureDirty = true;
-		_lastShroudChecksum = 0;
-		if (GodotObject.IsInstanceValid(_shroudMeshInstance))
-		{
-			_shroudMeshInstance.QueueFree();
-			_shroudMeshInstance = null;
-		}
-
-		_shroudImage = null;
-		_shroudTexture = null;
-		_shroudMinimapImage = null;
-		_shroudMinimapTexture = null;
-		_cachedWorldEntity = Entity.Null;
-		_isAllVisibleApplied = false;
-	}
-
-	private bool _isAllVisibleApplied;
-
-	private void UpdateShroud(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
-	{
-		if (GameHost.Instance == null) return;
+		if (GameHost.Instance == null || GameContext.World == null) return;
 
 		float worldWidth = GameHost.Instance.GroundTerrain != null ? GameHost.Instance.GroundTerrain.Width * GameHost.Instance.GroundTerrain.QuadSize : 250f;
 		float worldDepth = GameHost.Instance.GroundTerrain != null ? GameHost.Instance.GroundTerrain.Depth * GameHost.Instance.GroundTerrain.QuadSize : 250f;
+		ShroudGrid.ConfigureWorld(worldWidth, worldDepth);
 
-		if (isPlayingReplay || isSpectator)
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<ShroudState>(worldEntity))
 		{
-			HandleReplayOrSpectatorShroud(allUnits, allProps, allDecals, spectatorPerspective, isPlayingReplay, worldWidth, worldDepth);
+			ApplyRevealAllPresentation(allUnits, allProps, allDecals);
+			SetGlobalBounds(worldWidth * -0.5f, worldDepth * -0.5f, worldWidth, worldDepth);
+			_hasPresentedShroud = true;
 			return;
 		}
 
-		if (string.Equals(ShroudType, "visible", StringComparison.OrdinalIgnoreCase))
+		ref var shroud = ref GameContext.World.Get<ShroudState>(worldEntity);
+		shroud.EnsureAllocated(worldWidth, worldDepth);
+		ShroudSimulationService.Tick(GameContext.World, worldEntity);
+
+		_observedPlayerIndex = observedPlayerIndex;
+		_observedMask = BuildObservedMask(worldEntity, observedPlayerIndex);
+		_hostileMask = BuildHostileMask(worldEntity, observedPlayerIndex);
+		_isRevealAll = observedPlayerIndex < 0;
+		_hasPresentedShroud = true;
+
+		SetGlobalBounds(shroud.WorldMinX, shroud.WorldMinZ, shroud.WorldWidth, shroud.WorldDepth);
+		EnsureTextures();
+
+		if (_isRevealAll)
 		{
-			SetAllVisible(allUnits, allProps, allDecals);
+			ApplyRevealAllPresentation(allUnits, allProps, allDecals);
+			WriteRevealedShroudPixels();
+			UploadShroudTexture();
+			WriteRevealedMinimapPixels();
+			UploadMinimapTexture();
 			return;
 		}
 
-		_isAllVisibleApplied = false;
-		UpdateVisionGridForTeam(allUnits, worldWidth, worldDepth);
-		ApplyVisionGridToEntities(allUnits, allProps, allDecals, worldWidth, worldDepth);
-		Update3DShroudMesh();
+		UpdateShroudTexture(in shroud);
+		UpdateMinimapTexture(in shroud);
+		ApplyEntityVisibility(in shroud, allUnits, allProps, allDecals);
 	}
 
-	private void HandleReplayOrSpectatorShroud(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, float worldWidth, float worldDepth)
+	private void ApplyRevealAllPresentation(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
 	{
-		if (isPlayingReplay)
+		_isRevealAll = true;
+		SetNodesVisible(allUnits);
+		SetNodesVisible(allProps);
+		SetNodesVisible(allDecals);
+	}
+
+	private static void SetNodesVisible<T>(List<T> nodes) where T : Node3D
+	{
+		for (int index = 0; index < nodes.Count; index++)
 		{
-			int targetPeerId = ReplayPlaybackManager.Instance.SpectatorPerspective;
-			if (targetPeerId == -1)
+			var node = nodes[index];
+			if (node == null || !GodotObject.IsInstanceValid(node) || node.Visible) continue;
+			node.Visible = true;
+		}
+	}
+
+	private void ApplyEntityVisibility(in ShroudState shroud, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
+	{
+		var world = GameContext.World;
+
+		for (int index = 0; index < allUnits.Count; index++)
+		{
+			var unit = allUnits[index];
+			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
+
+			bool shouldBeVisible = !IsUnitPlayerHostile(unit.Player);
+			if (!shouldBeVisible && unit.Entity != Entity.Null && world.IsAlive(unit.Entity) && world.Has<Position>(unit.Entity))
 			{
-				SetAllVisible(allUnits, allProps, allDecals);
-				return;
+				ref var position = ref world.Get<Position>(unit.Entity);
+				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex) && shroud.IsVisible(cellIndex, _observedMask);
 			}
 
-			_isAllVisibleApplied = false;
-			UpdateVisionGridForReplayPeer(allUnits, targetPeerId, worldWidth, worldDepth);
-			ApplyVisionGridToEntitiesForReplayPeer(allUnits, allProps, allDecals, targetPeerId, worldWidth, worldDepth);
-			Update3DShroudMesh();
-			return;
-		}
-
-		if (spectatorPerspective <= 0)
-		{
-			SetAllVisible(allUnits, allProps, allDecals);
-			return;
-		}
-
-		_isAllVisibleApplied = false;
-		UpdateVisionGridForSpecificTeam(allUnits, spectatorPerspective, worldWidth, worldDepth);
-		ApplyVisionGridToEntitiesForTargetTeam(allUnits, allProps, allDecals, spectatorPerspective, worldWidth, worldDepth);
-		Update3DShroudMesh();
-	}
-
-	private void SetAllVisible(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
-	{
-		SetVisible(allUnits);
-		if (_isAllVisibleApplied)
-		{
-			return;
-		}
-
-		_isAllVisibleApplied = true;
-		ResetGridToState(ShroudState.Visible);
-		SetVisible(allProps);
-		SetVisible(allDecals);
-		Update3DShroudMesh();
-	}
-
-	private void ResetGridToState(byte stateToSet, byte? onlyIfState = null)
-	{
-		var shroudGrid = ShroudGrid;
-		for (int x = 0; x < 32; x++)
-		{
-			for (int z = 0; z < 32; z++)
+			if (unit.Visible != shouldBeVisible)
 			{
-				if (onlyIfState == null || shroudGrid[x, z] == onlyIfState.Value)
-				{
-					shroudGrid[x, z] = stateToSet;
-				}
+				unit.Visible = shouldBeVisible;
 			}
 		}
 
-		ShroudGrid = shroudGrid;
-	}
-
-	private void UpdateVisionGridForTeam(List<Unit3D> allUnits, float worldWidth, float worldDepth)
-	{
-		ResetGridToState(ShroudState.VisionShroud, ShroudState.Visible);
-		var shroudGrid = ShroudGrid;
-
-		foreach (var unit in allUnits)
+		for (int index = 0; index < allProps.Count; index++)
 		{
-			if (unit == null || !GodotObject.IsInstanceValid(unit) || GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player)) continue;
-			RevealAreaInGrid(unit, shroudGrid, worldWidth, worldDepth);
-		}
-
-		ShroudGrid = shroudGrid;
-	}
-
-	private void UpdateVisionGridForReplayPeer(List<Unit3D> allUnits, int targetPeerId, float worldWidth, float worldDepth)
-	{
-		ResetGridToState(ShroudState.VisionShroud, ShroudState.Visible);
-		var shroudGrid = ShroudGrid;
-
-		foreach (var unit in allUnits)
-		{
-			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
-			if (GameHost.Instance.GetOwnerPeerId(unit.Entity) != targetPeerId) continue;
-			RevealAreaInGrid(unit, shroudGrid, worldWidth, worldDepth);
-		}
-
-		ShroudGrid = shroudGrid;
-	}
-
-	private void UpdateVisionGridForSpecificTeam(List<Unit3D> allUnits, int targetPlayerIndex, float worldWidth, float worldDepth)
-	{
-		ResetGridToState(ShroudState.VisionShroud, ShroudState.Visible);
-		var shroudGrid = ShroudGrid;
-
-		foreach (var unit in allUnits)
-		{
-			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
-			if (unit.Player != targetPlayerIndex && NetworkService.ArePlayerIndicesEnemies(targetPlayerIndex, unit.Player)) continue;
-			RevealAreaInGrid(unit, shroudGrid, worldWidth, worldDepth);
-		}
-
-		ShroudGrid = shroudGrid;
-	}
-
-	private void RevealAreaInGrid(Unit3D unit, byte[,] shroudGrid, float worldWidth, float worldDepth)
-	{
-		Vector3 pos = GetUnitPosition(unit);
-		int gx = (int)Mathf.Clamp((pos.X / worldWidth + 0.5f) * 32, 0, 31);
-		int gz = (int)Mathf.Clamp((pos.Z / worldDepth + 0.5f) * 32, 0, 31);
-
-		float scanRadius = (GameContext.World.IsAlive(unit.Entity) && GameContext.World.Has<ScanRadius>(unit.Entity))
-			? GameContext.World.Get<ScanRadius>(unit.Entity).Value
-			: 15.0f;
-
-		int rGrid = (int)Math.Max(1, Math.Ceiling(scanRadius / (worldWidth / 32f)));
-		for (int dx = -rGrid; dx <= rGrid; dx++)
-		{
-			for (int dz = -rGrid; dz <= rGrid; dz++)
-			{
-				int nx = gx + dx;
-				int nz = gz + dz;
-				if (nx >= 0 && nx < 32 && nz >= 0 && nz < 32 && dx * dx + dz * dz <= rGrid * rGrid)
-				{
-					shroudGrid[nx, nz] = ShroudState.Visible;
-				}
-			}
-		}
-	}
-
-	private void ApplyVisionGridToEntities(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, float worldWidth, float worldDepth)
-	{
-		var shroudGrid = ShroudGrid;
-
-		foreach (var unit in allUnits)
-		{
-			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
-			bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player);
-			Vector3 pos = GetUnitPosition(unit);
-			bool shouldBeVisible = !isEnemy || IsVisibleOnGrid(pos, shroudGrid, worldWidth, worldDepth);
-			if (unit.Visible != shouldBeVisible) unit.Visible = shouldBeVisible;
-		}
-
-		ApplyPropGridVisibility(allProps, shroudGrid, worldWidth, worldDepth, ShroudState.Visible);
-		ApplyDecalGridVisibility(allDecals, shroudGrid, worldWidth, worldDepth, ShroudState.ExplorationShroud, true);
-	}
-
-	private void ApplyVisionGridToEntitiesForReplayPeer(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int targetPeerId, float worldWidth, float worldDepth)
-	{
-		var shroudGrid = ShroudGrid;
-
-		foreach (var unit in allUnits)
-		{
-			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
-			Vector3 pos = GetUnitPosition(unit);
-			bool shouldBeVisible = GameHost.Instance.GetOwnerPeerId(unit.Entity) == targetPeerId || IsVisibleOnGrid(pos, shroudGrid, worldWidth, worldDepth);
-			if (unit.Visible != shouldBeVisible) unit.Visible = shouldBeVisible;
-		}
-
-		ApplyPropGridVisibility(allProps, shroudGrid, worldWidth, worldDepth, ShroudState.Visible);
-		ApplyDecalGridVisibility(allDecals, shroudGrid, worldWidth, worldDepth, ShroudState.ExplorationShroud, true);
-	}
-
-	private void ApplyVisionGridToEntitiesForTargetTeam(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int targetPlayerIndex, float worldWidth, float worldDepth)
-	{
-		var shroudGrid = ShroudGrid;
-
-		foreach (var unit in allUnits)
-		{
-			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
-			bool isFriendlyToTarget = unit.Player == targetPlayerIndex || !NetworkService.ArePlayerIndicesEnemies(targetPlayerIndex, unit.Player);
-			Vector3 pos = GetUnitPosition(unit);
-			bool shouldBeVisible = isFriendlyToTarget || IsVisibleOnGrid(pos, shroudGrid, worldWidth, worldDepth);
-			if (unit.Visible != shouldBeVisible) unit.Visible = shouldBeVisible;
-		}
-
-		ApplyPropGridVisibility(allProps, shroudGrid, worldWidth, worldDepth, ShroudState.Visible);
-		ApplyDecalGridVisibility(allDecals, shroudGrid, worldWidth, worldDepth, ShroudState.ExplorationShroud, true);
-	}
-
-	private bool IsVisibleOnGrid(Vector3 pos, byte[,] shroudGrid, float worldWidth, float worldDepth)
-	{
-		int gx = (int)Mathf.Clamp((pos.X / worldWidth + 0.5f) * 32, 0, 31);
-		int gz = (int)Mathf.Clamp((pos.Z / worldDepth + 0.5f) * 32, 0, 31);
-		return shroudGrid[gx, gz] == ShroudState.Visible;
-	}
-
-	private void ApplyPropGridVisibility(List<Prop3D> props, byte[,] shroudGrid, float worldWidth, float worldDepth, byte targetState, bool notEqual = false)
-	{
-		foreach (var prop in props)
-		{
+			var prop = allProps[index];
 			if (prop == null || !GodotObject.IsInstanceValid(prop)) continue;
-			Vector3 pos = GetPropPosition(prop);
-			int gx = (int)Mathf.Clamp((pos.X / worldWidth + 0.5f) * 32, 0, 31);
-			int gz = (int)Mathf.Clamp((pos.Z / worldDepth + 0.5f) * 32, 0, 31);
 
-			bool shouldBeVisible = notEqual ? shroudGrid[gx, gz] != targetState : shroudGrid[gx, gz] == targetState;
+			bool shouldBeVisible = true;
+			if (prop.Entity != Entity.Null && world.IsAlive(prop.Entity) && world.Has<Position>(prop.Entity))
+			{
+				ref var position = ref world.Get<Position>(prop.Entity);
+				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex) && shroud.IsExplored(cellIndex, _observedMask);
+			}
+
 			if (prop.Visible != shouldBeVisible)
 			{
 				prop.Visible = shouldBeVisible;
 			}
 		}
-	}
 
-	private void ApplyDecalGridVisibility(List<Decal> decals, byte[,] shroudGrid, float worldWidth, float worldDepth, byte targetState, bool notEqual = false)
-	{
-		foreach (var decal in decals)
+		for (int index = 0; index < allDecals.Count; index++)
 		{
+			var decal = allDecals[index];
 			if (decal == null || !GodotObject.IsInstanceValid(decal)) continue;
-			Vector3 pos = decal.GlobalPosition;
-			int gx = (int)Mathf.Clamp((pos.X / worldWidth + 0.5f) * 32, 0, 31);
-			int gz = (int)Mathf.Clamp((pos.Z / worldDepth + 0.5f) * 32, 0, 31);
 
-			bool shouldBeVisible = notEqual ? shroudGrid[gx, gz] != targetState : shroudGrid[gx, gz] == targetState;
+			bool shouldBeVisible = true;
+			if (decal is Decal3D decal3D && decal3D.Entity != Entity.Null && world.IsAlive(decal3D.Entity) && world.Has<Position>(decal3D.Entity))
+			{
+				ref var position = ref world.Get<Position>(decal3D.Entity);
+				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex) && shroud.IsExplored(cellIndex, _observedMask);
+			}
+
 			if (decal.Visible != shouldBeVisible)
 			{
 				decal.Visible = shouldBeVisible;
@@ -546,149 +266,347 @@ public class ShroudService
 		}
 	}
 
-	private void Update3DShroudMesh()
+	private bool IsUnitPlayerHostile(int playerIndex)
 	{
-		ResizeShroudMesh();
-		UpdateShroudImagePixels();
+		if ((uint)playerIndex >= ShroudSimulationService.MaxBitmaskPlayers) return false;
+		return (_hostileMask & (1 << playerIndex)) != 0;
 	}
 
-	private void ResizeShroudMesh()
+	public bool IsUnitVisibleOnMinimap(Unit3D unit)
 	{
-		if (!GodotObject.IsInstanceValid(_shroudMeshInstance) || GameHost.Instance?.GroundTerrain == null)
-		{
-			return;
-		}
+		if (unit == null || !GodotObject.IsInstanceValid(unit)) return false;
+		if (_isRevealAll || !_hasPresentedShroud) return true;
+		if (!IsUnitPlayerHostile(unit.Player)) return true;
 
-		Vector2 targetSize = new Vector2(
-			GameHost.Instance.GroundTerrain.Width * GameHost.Instance.GroundTerrain.QuadSize,
-			GameHost.Instance.GroundTerrain.Depth * GameHost.Instance.GroundTerrain.QuadSize
-		);
+		var world = GameContext.World;
+		if (world == null || unit.Entity == Entity.Null || !world.IsAlive(unit.Entity) || !world.Has<Position>(unit.Entity)) return true;
 
-		if (_shroudMeshInstance.Mesh is PlaneMesh planeMesh)
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<ShroudState>(worldEntity)) return true;
+
+		ref var shroud = ref world.Get<ShroudState>(worldEntity);
+		ref var position = ref world.Get<Position>(unit.Entity);
+		return shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex) && shroud.IsVisible(cellIndex, _observedMask);
+	}
+
+	private int ResolveObservedPlayerIndex(int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
+	{
+		if (isPlayingReplay) return ResolveReplayPerspectivePlayerIndex();
+		if (isSpectator) return spectatorPerspective <= 0 ? -1 : spectatorPerspective;
+
+		var perspectiveFilter = GameContext.PerspectiveFilter;
+		if (perspectiveFilter == null || !perspectiveFilter.IsConfigured || perspectiveFilter.IsSpectating) return -1;
+		return perspectiveFilter.ControlledPlayerIndex;
+	}
+
+	private static int ResolveReplayPerspectivePlayerIndex()
+	{
+		int peerId = ReplayPlaybackManager.Instance.SpectatorPerspective;
+		if (peerId == -1) return -1;
+
+		var lobby = LobbyManager.Instance;
+		if (lobby != null)
 		{
-			if (planeMesh.Size != targetSize)
+			var players = lobby.PlayerList;
+			for (int index = 0; index < players.Count; index++)
 			{
-				planeMesh.Size = targetSize;
+				if (players[index].PeerId == peerId) return players[index].Slot;
 			}
 		}
-		else
-		{
-			_shroudMeshInstance.Mesh = new PlaneMesh { Size = targetSize };
-		}
+
+		var world = GameContext.World;
+		Entity worldEntity = ECSContext.WorldEntity;
+		if (world == null || worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<NetworkMappingState>(worldEntity)) return -1;
+
+		var mapping = world.Get<NetworkMappingState>(worldEntity);
+		if (mapping.PeerIdToPlayerEntityMap == null || !mapping.PeerIdToPlayerEntityMap.TryGetValue(peerId, out var playerEntity)) return -1;
+		if (!world.IsAlive(playerEntity) || !world.Has<UnitOwnerPlayer>(playerEntity)) return -1;
+
+		return world.Get<UnitOwnerPlayer>(playerEntity).PlayerIndex;
 	}
 
-	private static ulong CalculateGridChecksum(byte[,] shroudGrid)
+	private static ushort BuildObservedMask(Entity worldEntity, int observedPlayerIndex)
 	{
-		ulong hash = 14695981039346656037UL;
-		for (int gz = 0; gz < 32; gz++)
+		if ((uint)observedPlayerIndex >= ShroudSimulationService.MaxBitmaskPlayers) return ShroudGrid.AllPlayerMask;
+
+		ushort observedMask = (ushort)(1 << observedPlayerIndex);
+		var world = GameContext.World;
+		if (world == null || !world.IsAlive(worldEntity) || !world.Has<PlayerRelationshipMatrix>(worldEntity)) return observedMask;
+
+		ref var relationships = ref world.Get<PlayerRelationshipMatrix>(worldEntity);
+		for (int playerIndex = 0; playerIndex < ShroudSimulationService.MaxBitmaskPlayers; playerIndex++)
 		{
-			for (int gx = 0; gx < 32; gx++)
+			if (relationships.AreEnemies(observedPlayerIndex, playerIndex)) continue;
+			observedMask |= (ushort)(1 << playerIndex);
+		}
+
+		return observedMask;
+	}
+
+	private static ushort BuildHostileMask(Entity worldEntity, int observedPlayerIndex)
+	{
+		if ((uint)observedPlayerIndex >= ShroudSimulationService.MaxBitmaskPlayers) return 0;
+
+		ushort hostileMask = 0;
+		var world = GameContext.World;
+		if (world == null || !world.IsAlive(worldEntity) || !world.Has<PlayerRelationshipMatrix>(worldEntity))
+		{
+			for (int playerIndex = 0; playerIndex < ShroudSimulationService.MaxBitmaskPlayers; playerIndex++)
 			{
-				hash = (hash ^ shroudGrid[gx, gz]) * 1099511628211UL;
+				if (NetworkService.ArePlayerIndicesEnemies(observedPlayerIndex, playerIndex)) hostileMask |= (ushort)(1 << playerIndex);
 			}
+			return hostileMask;
 		}
 
-		return hash;
+		ref var relationships = ref world.Get<PlayerRelationshipMatrix>(worldEntity);
+		for (int playerIndex = 0; playerIndex < ShroudSimulationService.MaxBitmaskPlayers; playerIndex++)
+		{
+			if (relationships.AreEnemies(observedPlayerIndex, playerIndex)) hostileMask |= (ushort)(1 << playerIndex);
+		}
+
+		return hostileMask;
 	}
 
-	private void UpdateShroudImagePixels()
+	private unsafe void UpdateShroudTexture(in ShroudState shroud)
 	{
-		var shroudGrid = ShroudGrid;
-		ulong checksum = CalculateGridChecksum(shroudGrid);
-
-		if (checksum == _lastShroudChecksum && !_isShroudTextureDirty)
-		{
-			return;
-		}
-
+		ulong checksum = ComputeMaskChecksum(shroud.ExploredBitmask, shroud.VisibleBitmask, _observedMask);
+		if (checksum == _lastShroudChecksum) return;
 		_lastShroudChecksum = checksum;
-		_isShroudTextureDirty = false;
 
-		Span<float> shroudFloats = MemoryMarshal.Cast<byte, float>(_shroudByteBuffer.AsSpan());
-
-		for (int gz = 0; gz < 32; gz++)
+		unsafe
 		{
-			for (int gx = 0; gx < 32; gx++)
+			byte[] pixels = _shroudPixelBuffer;
+			for (int cellIndex = 0; cellIndex < ShroudGrid.CellCount; cellIndex++)
 			{
-				int pixelIdx = gz * 32 + gx;
-				byte val = shroudGrid[gx, gz];
+				bool isExplored = (shroud.ExploredBitmask[cellIndex] & _observedMask) != 0;
+				bool isVisible = (shroud.VisibleBitmask[cellIndex] & _observedMask) != 0;
+				int byteIndex = cellIndex * 4;
 
-				float alpha = val switch
-				{
-					ShroudState.ExplorationShroud => 1.0f,
-					ShroudState.VisionShroud => 0.48f,
-					ShroudState.Visible => 0.0f,
-					_ => 1.0f
-				};
-				shroudFloats[pixelIdx] = alpha;
-
-				float minimapAlpha = val switch
-				{
-					ShroudState.ExplorationShroud => 1.0f,
-					ShroudState.VisionShroud => 0.33f,
-					ShroudState.Visible => 0.0f,
-					_ => 1.0f
-				};
-
-				int byteIdx = pixelIdx * 4;
-				_shroudMinimapByteBuffer[byteIdx] = 0;
-				_shroudMinimapByteBuffer[byteIdx + 1] = 0;
-				_shroudMinimapByteBuffer[byteIdx + 2] = 0;
-				_shroudMinimapByteBuffer[byteIdx + 3] = (byte)Math.Clamp((int)MathF.Round(minimapAlpha * 255.0f), 0, 255);
+				pixels[byteIndex + 2] = pixels[byteIndex];
+				pixels[byteIndex + 3] = pixels[byteIndex + 1];
+				pixels[byteIndex] = isExplored ? ExploredChannelValue : (byte)0;
+				pixels[byteIndex + 1] = isVisible ? ExploredChannelValue : (byte)0;
 			}
 		}
 
-		if (_shroudImage == null)
-		{
-			_shroudImage = Image.CreateEmpty(32, 32, false, Image.Format.Rf);
-		}
-		_shroudImage.SetData(32, 32, false, Image.Format.Rf, _shroudByteBuffer);
+		UploadShroudTexture();
+	}
 
-		if (_shroudMinimapImage == null)
+	private void UpdateMinimapTexture(in ShroudState shroud)
+	{
+		unsafe
 		{
-			_shroudMinimapImage = Image.CreateEmpty(32, 32, false, Image.Format.Rgba8);
-		}
-		_shroudMinimapImage.SetData(32, 32, false, Image.Format.Rgba8, _shroudMinimapByteBuffer);
+			byte[] pixels = _shroudMinimapPixelBuffer;
+			for (int cellIndex = 0; cellIndex < ShroudGrid.CellCount; cellIndex++)
+			{
+				bool isExplored = (shroud.ExploredBitmask[cellIndex] & _observedMask) != 0;
+				bool isVisible = (shroud.VisibleBitmask[cellIndex] & _observedMask) != 0;
+				int byteIndex = cellIndex * 4;
 
-		if (_shroudTexture == null)
+				pixels[byteIndex] = 0;
+				pixels[byteIndex + 1] = 0;
+				pixels[byteIndex + 2] = 0;
+				pixels[byteIndex + 3] = !isExplored ? ExplorationShroudMinimapAlpha : isVisible ? (byte)0 : VisionShroudMinimapAlpha;
+			}
+		}
+
+		ulong checksum = ComputeByteChecksum(_shroudMinimapPixelBuffer);
+		if (checksum == _lastMinimapChecksum) return;
+		_lastMinimapChecksum = checksum;
+		UploadMinimapTexture();
+	}
+
+	private static unsafe ulong ComputeMaskChecksum(ushort* exploredBitmask, ushort* visibleBitmask, ushort observedMask)
+	{
+		ulong checksum = 14695981039346656037UL;
+		for (int cellIndex = 0; cellIndex < ShroudGrid.CellCount; cellIndex++)
 		{
+			checksum = (checksum ^ (ushort)(exploredBitmask[cellIndex] & observedMask)) * 1099511628211UL;
+			checksum = (checksum ^ (ushort)(visibleBitmask[cellIndex] & observedMask)) * 1099511628211UL;
+		}
+
+		return (checksum ^ observedMask) * 1099511628211UL;
+	}
+
+	private static ulong ComputeByteChecksum(byte[] buffer)
+	{
+		ulong checksum = 14695981039346656037UL;
+		for (int index = 0; index < buffer.Length; index++)
+		{
+			checksum = (checksum ^ buffer[index]) * 1099511628211UL;
+		}
+
+		return checksum;
+	}
+
+	private void WriteRevealedShroudPixels()
+	{
+		byte[] pixels = _shroudPixelBuffer;
+		for (int index = 0; index < pixels.Length; index++)
+		{
+			pixels[index] = 255;
+		}
+	}
+
+	private void WriteRevealedMinimapPixels()
+	{
+		Array.Clear(_shroudMinimapPixelBuffer, 0, _shroudMinimapPixelBuffer.Length);
+	}
+
+	private void EnsureTextures()
+	{
+		if (_shroudImage == null || _shroudTexture == null || !GodotObject.IsInstanceValid(_shroudTexture))
+		{
+			_shroudImage = Image.CreateEmpty(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8);
+			_shroudImage.SetData(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8, _shroudPixelBuffer);
 			_shroudTexture = ImageTexture.CreateFromImage(_shroudImage);
 		}
-		else
-		{
-			_shroudTexture.Update(_shroudImage);
-		}
 
-		if (_shroudMinimapTexture == null)
+		if (_shroudMinimapImage == null || _shroudMinimapTexture == null || !GodotObject.IsInstanceValid(_shroudMinimapTexture))
 		{
+			_shroudMinimapImage = Image.CreateEmpty(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8);
+			_shroudMinimapImage.SetData(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8, _shroudMinimapPixelBuffer);
 			_shroudMinimapTexture = ImageTexture.CreateFromImage(_shroudMinimapImage);
 		}
-		else
-		{
-			_shroudMinimapTexture.Update(_shroudMinimapImage);
-		}
-
-		ApplyShroudTextureAndShader();
 	}
 
-	private void ApplyShroudTextureAndShader()
+	private void UploadShroudTexture()
 	{
-		float halfW = 125.0f;
-		float halfD = 125.0f;
-		bool shroudEnabled = GameHost.Instance == null || !GameContext.SessionState.IsMapEditorMode;
+		EnsureTextures();
+		_shroudImage.SetData(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8, _shroudPixelBuffer);
+		_shroudTexture.Update(_shroudImage);
+		ApplyGlobalTexture();
+	}
 
-		if (GameHost.Instance?.GroundTerrain != null)
+	private void UploadMinimapTexture()
+	{
+		EnsureTextures();
+		_shroudMinimapImage.SetData(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8, _shroudMinimapPixelBuffer);
+		_shroudMinimapTexture.Update(_shroudMinimapImage);
+	}
+
+	private void ApplyGlobalTexture()
+	{
+		Texture2D texture = _isPresentationSuspended || _shroudTexture == null ? GetFullyRevealedTexture() : _shroudTexture;
+		if (ReferenceEquals(_appliedGlobalTexture, texture)) return;
+		_appliedGlobalTexture = texture;
+		RenderingServer.GlobalShaderParameterSet(ShroudTextureParameter, texture);
+	}
+
+	private void SetGlobalBounds(float worldMinX, float worldMinZ, float worldWidth, float worldDepth)
+	{
+		var bounds = new Vector4(
+			worldMinX,
+			worldMinZ,
+			worldWidth > 0.0001f ? 1f / worldWidth : 0f,
+			worldDepth > 0.0001f ? 1f / worldDepth : 0f);
+
+		if (bounds == _appliedGlobalBounds) return;
+		_appliedGlobalBounds = bounds;
+		RenderingServer.GlobalShaderParameterSet(ShroudWorldBoundsParameter, bounds);
+	}
+
+	public void SetPresentationSuspended(bool suspended)
+	{
+		if (_isPresentationSuspended == suspended) return;
+		_isPresentationSuspended = suspended;
+		_appliedGlobalTexture = null;
+		ApplyGlobalTexture();
+
+		if (suspended)
 		{
-			halfW = (GameHost.Instance.GroundTerrain.Width * GameHost.Instance.GroundTerrain.QuadSize) * 0.5f;
-			halfD = (GameHost.Instance.GroundTerrain.Depth * GameHost.Instance.GroundTerrain.QuadSize) * 0.5f;
-			GameHost.Instance.GroundTerrain.SetShroudTexture(_shroudTexture);
-			GameHost.Instance.GroundTerrain.SetShroudEnabled(shroudEnabled);
+			RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, 1f);
+		}
+	}
+
+	public void TriggerImmediateUpdate()
+	{
+		if (GameHost.Instance == null || GameContext.World == null) return;
+		if (GameContext.SessionState.IsMapEditorMode) return;
+
+		_shroudTimer = 0f;
+		_lastShroudChecksum = 0UL;
+		_lastMinimapChecksum = 0UL;
+
+		var perspectiveFilter = GameContext.PerspectiveFilter;
+		bool isSpectator = perspectiveFilter != null && perspectiveFilter.IsConfigured && perspectiveFilter.IsSpectating;
+		bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
+		int spectatorPerspective = GameContext.SpectatorService?.GetSpectatorPerspective() ?? -1;
+
+		UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, ResolveObservedPlayerIndex(spectatorPerspective, isReplay, isSpectator));
+		InGameHUD.Instance?.QueueMinimapRedraw();
+	}
+
+	public void CleanUp()
+	{
+		ReleaseShroudGrid();
+
+		_isMapEditorPresentationInitialized = false;
+		_hasPresentedShroud = false;
+		_isPresentationSuspended = false;
+		_isRevealAll = true;
+		_observedMask = ShroudGrid.AllPlayerMask;
+		_hostileMask = 0;
+		_observedPlayerIndex = -1;
+		_shroudTimer = 0f;
+		_lastShroudChecksum = 0UL;
+		_lastMinimapChecksum = 0UL;
+		_cachedWorldEntity = Entity.Null;
+
+		_shroudImage = null;
+		_shroudTexture = null;
+		_shroudMinimapImage = null;
+		_shroudMinimapTexture = null;
+		_appliedGlobalTexture = null;
+		_appliedGlobalBounds = Vector4.Zero;
+
+		RenderingServer.GlobalShaderParameterSet(ShroudWorldBoundsParameter, Vector4.Zero);
+		RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, 1f);
+		RenderingServer.GlobalShaderParameterSet(ShroudTextureParameter, GetFullyRevealedTexture());
+	}
+
+	private void ReleaseShroudGrid()
+	{
+		var world = GameContext.World;
+		if (world == null) return;
+
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<ShroudState>(worldEntity)) return;
+		world.Get<ShroudState>(worldEntity).Release();
+	}
+
+	public static ImageTexture GetFullyRevealedTexture()
+	{
+		if (_fullyRevealedTexture != null && GodotObject.IsInstanceValid(_fullyRevealedTexture))
+		{
+			return _fullyRevealedTexture;
 		}
 
-		Vector2 worldMin = new Vector2(-halfW, -halfD);
-		Vector2 worldSize = new Vector2(halfW * 2f, halfD * 2f);
-		ModelShaderManager.SetShroudParameters(_shroudTexture, worldMin, worldSize, shroudEnabled);
+		var image = Image.CreateEmpty(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8);
+		image.Fill(Colors.White);
+		_fullyRevealedTexture = ImageTexture.CreateFromImage(image);
+		return _fullyRevealedTexture;
+	}
 
-		_shroudMeshMaterial?.SetShaderParameter("shroud_texture", _shroudTexture);
+	private Entity FindWorldEntity()
+	{
+		var world = GameContext.World;
+		if (world == null) return Entity.Null;
+
+		if (_cachedWorldEntity != Entity.Null && world.IsAlive(_cachedWorldEntity) && world.Has<ShroudState>(_cachedWorldEntity))
+		{
+			return _cachedWorldEntity;
+		}
+
+		Entity worldEntity = Entity.Null;
+		var query = QueryCache.AllShroudStateQuery;
+		foreach (var entity in world.Query(in query))
+		{
+			worldEntity = entity;
+			break;
+		}
+
+		_cachedWorldEntity = worldEntity;
+		return worldEntity;
 	}
 }

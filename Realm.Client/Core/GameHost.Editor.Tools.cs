@@ -2311,7 +2311,6 @@ namespace Realm.Client.Core
 			InitializeCameraBoundsOverlay();
 			UpdateEditorShadows();
 			UpdateDayNightVisuals(0.0f);
-			GroundTerrain?.SetShroudEnabled(false);
 
 			if (AllVfx != null)
 			{
@@ -2391,7 +2390,6 @@ namespace Realm.Client.Core
 			{
 				GroundTerrain.SetGridVisible(false);
 				GroundTerrain.SetPathingVisible(false);
-				GroundTerrain.SetShroudEnabled(true);
 			}
 
 			if (_cameraBoundsOverlayMesh != null)

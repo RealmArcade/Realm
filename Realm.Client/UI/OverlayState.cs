@@ -6,8 +6,6 @@ namespace Realm.Client.UI;
 
 public class OverlayState
 {
-	public MeshInstance3D ShroudMesh;
-	public bool WasShroudVisible;
 	public bool WasBrushVisible;
 	public GridOverlayMode WasGridMode;
 	public bool WasPathingVisible;

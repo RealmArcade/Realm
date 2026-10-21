@@ -1,53 +1,84 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Terrain;
 
 /// <summary>
-/// Stores fog of war exploration and visibility grid state.
+/// Stores per-player exploration and active vision bitmasks for the 128x128 shroud grid.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
-public struct ShroudState
+public unsafe struct ShroudState
 {
-	public const byte ExplorationShroud = 2;
-	public const byte VisionShroud = 1;
-	public const byte Visible = 0;
+	public const int Resolution = ShroudGrid.Resolution;
+	public const int CellCount = ShroudGrid.CellCount;
 
-	public int GridHandle;
-	public ShroudType Type;
+	public ushort* ExploredBitmask;
+	public ushort* VisibleBitmask;
+	public float WorldMinX;
+	public float WorldMinZ;
+	public float WorldWidth;
+	public float WorldDepth;
+	public ShroudVisibilityMode VisibilityMode;
 
-	public ShroudState(byte[,] shroudGrid, ShroudType shroudType)
+	public bool IsAllocated => ExploredBitmask != null && VisibleBitmask != null;
+
+	public void EnsureAllocated(float worldWidth, float worldDepth)
 	{
-		GridHandle = ColdPayloadRegistry<byte[,]>.Register(shroudGrid);
-		Type = shroudType;
+		if (worldWidth <= 0.0001f) worldWidth = 1f;
+		if (worldDepth <= 0.0001f) worldDepth = 1f;
+		if (IsAllocated && WorldWidth == worldWidth && WorldDepth == worldDepth) return;
+
+		Release();
+
+		ExploredBitmask = ShroudGrid.AllocateCellMask();
+		VisibleBitmask = ShroudGrid.AllocateCellMask();
+		WorldWidth = worldWidth;
+		WorldDepth = worldDepth;
+		WorldMinX = worldWidth * -0.5f;
+		WorldMinZ = worldDepth * -0.5f;
 	}
 
-	public ShroudState(byte[,] shroudGrid, string shroudType)
-		: this(shroudGrid, ParseShroudType(shroudType))
+	public void Release()
 	{
+		ShroudGrid.FreeCellMask(ExploredBitmask);
+		ShroudGrid.FreeCellMask(VisibleBitmask);
+		ExploredBitmask = null;
+		VisibleBitmask = null;
+		WorldMinX = 0f;
+		WorldMinZ = 0f;
+		WorldWidth = 0f;
+		WorldDepth = 0f;
 	}
 
-	public byte[,] ShroudGrid
+	public void FillAllCells(ushort playerMask)
 	{
-		get => ColdPayloadRegistry<byte[,]>.Get(GridHandle);
-		set => GridHandle = ColdPayloadRegistry<byte[,]>.Register(value);
+		if (!IsAllocated) return;
+		new Span<ushort>(ExploredBitmask, CellCount).Fill(playerMask);
+		new Span<ushort>(VisibleBitmask, CellCount).Fill(playerMask);
 	}
 
-	public string ShroudType
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool TryGetCellIndex(float worldX, float worldZ, out int cellIndex)
 	{
-		get => Type switch
+		if (!IsAllocated || WorldWidth <= 0f || WorldDepth <= 0f)
 		{
-			Terrain.ShroudType.VisionShroud => "VisionShroud",
-			Terrain.ShroudType.ExplorationShroud => "ExplorationShroud",
-			_ => "visible"
-		};
-		set => Type = ParseShroudType(value);
+			cellIndex = -1;
+			return false;
+		}
+
+		return ShroudGrid.TryGetCellIndex(worldX, worldZ, WorldMinX, WorldMinZ, WorldWidth, WorldDepth, out cellIndex);
 	}
 
-	private static ShroudType ParseShroudType(string? type)
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool IsExplored(int cellIndex, ushort observedMask)
 	{
-		if (string.Equals(type, "ExplorationShroud", StringComparison.OrdinalIgnoreCase)) return Terrain.ShroudType.ExplorationShroud;
-		if (string.Equals(type, "VisionShroud", StringComparison.OrdinalIgnoreCase)) return Terrain.ShroudType.VisionShroud;
-		return Terrain.ShroudType.Visible;
+		return IsAllocated && cellIndex >= 0 && cellIndex < CellCount && (ExploredBitmask[cellIndex] & observedMask) != 0;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool IsVisible(int cellIndex, ushort observedMask)
+	{
+		return IsAllocated && cellIndex >= 0 && cellIndex < CellCount && (VisibleBitmask[cellIndex] & observedMask) != 0;
 	}
 }

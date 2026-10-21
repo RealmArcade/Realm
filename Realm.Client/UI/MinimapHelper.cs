@@ -138,17 +138,6 @@ public static class MinimapHelper
 		return node != null && GodotObject.IsInstanceValid(node);
 	}
 
-	private static void HideShroudMesh(OverlayState state, GameHost gameHost)
-	{
-		state.ShroudMesh = gameHost?.MainNode?.GetNodeOrNull<MeshInstance3D>("3DShroudMesh")
-		                   ?? gameHost?.MainNode?.GetNodeOrNull<MeshInstance3D>("3DFogMesh");
-
-		if (!IsNodeValid(state.ShroudMesh)) return;
-
-		state.WasShroudVisible = state.ShroudMesh.Visible;
-		state.ShroudMesh.Visible = false;
-	}
-
 	private static void HideBrushIndicator(OverlayState state, GameHost gameHost)
 	{
 		if (!IsNodeValid((gameHost != null ? GameHost.Instance._brushIndicatorMesh : null))) return;
@@ -199,7 +188,6 @@ public static class MinimapHelper
 		var state = new OverlayState();
 		var gameHost = GameHost.Instance;
 
-		HideShroudMesh(state, gameHost);
 		HideBrushIndicator(state, gameHost);
 		HideGridAndPathing(state, gameHost);
 		HidePathingMesh(state, gameHost);
@@ -210,11 +198,6 @@ public static class MinimapHelper
 
 	private static void RestoreOverlays(OverlayState state)
 	{
-		if (IsNodeValid(state.ShroudMesh))
-		{
-			state.ShroudMesh.Visible = state.WasShroudVisible;
-		}
-
 		if (IsNodeValid(state.PathingMesh))
 		{
 			state.PathingMesh.Visible = state.WasPathingMeshVisible;
@@ -299,6 +282,7 @@ public static class MinimapHelper
 		RuntimeTerrain.IsMinimapRendering = true;
 		RuntimeTerrain.Instance?.BeginMinimapCapture();
 		GameHost.Instance?.BeginMinimapCapture();
+		GameContext.ShroudService?.SetPresentationSuspended(true);
 		PropMultiMeshManager.Instance?.SetAllNodesVisible(true);
 
 		try
@@ -311,6 +295,7 @@ public static class MinimapHelper
 			RuntimeTerrain.IsMinimapRendering = false;
 			GameHost.Instance?.EndMinimapCapture();
 			RuntimeTerrain.Instance?.EndMinimapCapture();
+			GameContext.ShroudService?.SetPresentationSuspended(false);
 		}
 	}
 

@@ -3,7 +3,6 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
-using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client.UI;
 
@@ -22,8 +21,6 @@ public partial class MinimapOverlay : Control
 	private static readonly Color SelectedSpectatorColor = new Color(1.0f, 1.0f, 1.0f);
 	private static readonly Color SelectedEnemyColor = new Color(0.9f, 0.1f, 0.2f);
 	private static readonly Color SelectedAllyColor = new Color(0.22f, 0.54f, 0.26f);
-	private static readonly Color ExplorationShroudColor = new Color(0f, 0f, 0f, 1.0f);
-	private static readonly Color VisionShroudColor = new Color(0f, 0f, 0f, 0.33f);
 
 	private static readonly Color PlayerOneColor = new Color(0.2f, 0.6f, 1.0f);
 	private static readonly Color PlayerTwoColor = new Color(0.9f, 0.2f, 0.2f);
@@ -54,13 +51,13 @@ public partial class MinimapOverlay : Control
 
 	private void DrawShroudGrid(Vector2 size)
 	{
-		if (InGameHUD.Instance == null || string.Equals(InGameHUD.Instance.ShroudType, "visible", StringComparison.OrdinalIgnoreCase)) return;
+		var shroudService = GameContext.ShroudService;
+		if (shroudService == null) return;
 
-		var shroudTex = GameContext.ShroudService?.ShroudMinimapTexture;
-		if (shroudTex != null && GodotObject.IsInstanceValid(shroudTex))
-		{
-			DrawTextureRect(shroudTex, new Rect2(Vector2.Zero, size), false);
-		}
+		var shroudTexture = shroudService.ShroudMinimapTexture;
+		if (shroudTexture == null || !GodotObject.IsInstanceValid(shroudTexture)) return;
+
+		DrawTextureRect(shroudTexture, new Rect2(Vector2.Zero, size), false);
 	}
 
 	private void DrawAllUnits(Vector2 size, float physicalWidth, float physicalDepth)
@@ -69,77 +66,33 @@ public partial class MinimapOverlay : Control
 		if (allUnits == null || allUnits.Count == 0) return;
 
 		var circleTexture = GetUnitCircleTexture();
-		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
-		var hud = InGameHUD.Instance;
-		bool isAlwaysVisible = hud == null || string.Equals(hud.ShroudType, "visible", StringComparison.OrdinalIgnoreCase);
-		var shroudGrid = isAlwaysVisible ? null : hud?.ShroudGrid;
 		float invPhysicalWidth = physicalWidth > 0f ? 1f / physicalWidth : 0f;
 		float invPhysicalDepth = physicalDepth > 0f ? 1f / physicalDepth : 0f;
 
 		int count = allUnits.Count;
 		for (int i = 0; i < count; i++)
 		{
-			var unit = allUnits[i];
-			DrawSingleUnit(unit, size, invPhysicalWidth, invPhysicalDepth, isSpectator, shroudGrid, circleTexture);
+			DrawSingleUnit(allUnits[i], size, invPhysicalWidth, invPhysicalDepth, circleTexture);
 		}
 	}
 
-	private void DrawSingleUnit(Unit3D unit, Vector2 size, float invPhysicalWidth, float invPhysicalDepth, bool isSpectator, byte[,]? shroudGrid, Texture2D circleTexture)
+	private void DrawSingleUnit(Unit3D unit, Vector2 size, float invPhysicalWidth, float invPhysicalDepth, Texture2D circleTexture)
 	{
 		if (unit == null || !GodotObject.IsInstanceValid(unit)) return;
+
+		var shroudService = GameContext.ShroudService;
+		if (shroudService != null && !shroudService.IsUnitVisibleOnMinimap(unit)) return;
 
 		var pos = unit.GlobalPosition;
 		float normX = pos.X * invPhysicalWidth + 0.5f;
 		float normZ = pos.Z * invPhysicalDepth + 0.5f;
-
-		if (!isSpectator && shroudGrid != null)
-		{
-			bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player);
-			if (isEnemy)
-			{
-				int gx = (int)Mathf.Clamp(normX * 32f, 0f, 31f);
-				int gz = (int)Mathf.Clamp(normZ * 32f, 0f, 31f);
-				if (shroudGrid[gx, gz] != ShroudState.Visible)
-				{
-					return;
-				}
-			}
-		}
-
 		float drawX = Mathf.Clamp(normX, 0f, 1f) * size.X;
 		float drawY = Mathf.Clamp(normZ, 0f, 1f) * size.Y;
 		var drawPos = new Vector2(drawX, drawY);
 		float iconSize = unit.IsBuilding ? 8.0f : 5.0f;
 
-		DrawUnitIcon(unit, drawPos, iconSize, circleTexture, isSpectator);
-		DrawSelectionRing(unit, drawPos, iconSize, isSpectator);
-	}
-
-	private void DrawSingleUnit(Unit3D unit, Vector2 size, float physicalWidth, float physicalDepth)
-	{
-		if (unit == null || !GodotObject.IsInstanceValid(unit)) return;
-		if (!IsUnitVisibleOnMinimap(unit, physicalWidth, physicalDepth)) return;
-
-		Vector2 drawPos = MinimapHelper.WorldToMinimap(unit.GlobalPosition, size);
-		float iconSize = unit.IsBuilding ? 8.0f : 5.0f;
-
-		DrawUnitIcon(unit, drawPos, iconSize);
-		DrawSelectionRing(unit, drawPos, iconSize);
-	}
-
-	private bool IsUnitVisibleOnMinimap(Unit3D unit, float physicalWidth, float physicalDepth)
-	{
-		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
-		if (isSpectator) return true;
-
-		bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unit.Player);
-		if (!isEnemy) return true;
-		if (InGameHUD.Instance == null) return true;
-		if (string.Equals(InGameHUD.Instance.ShroudType, "visible", StringComparison.OrdinalIgnoreCase)) return true;
-
-		int gx = (int)Mathf.Clamp((unit.GlobalPosition.X / physicalWidth + 0.5f) * 32, 0, 31);
-		int gz = (int)Mathf.Clamp((unit.GlobalPosition.Z / physicalDepth + 0.5f) * 32, 0, 31);
-		return InGameHUD.Instance.ShroudGrid[gx, gz] == ShroudState.Visible;
+		DrawUnitIcon(unit, drawPos, iconSize, circleTexture, GameContext.PerspectiveFilter.IsSpectating);
+		DrawSelectionRing(unit, drawPos, iconSize, GameContext.PerspectiveFilter.IsSpectating);
 	}
 
 	private void DrawUnitIcon(Unit3D unit, Vector2 drawPos, float iconSize, Texture2D circleTexture, bool isSpectator)
@@ -166,11 +119,6 @@ public partial class MinimapOverlay : Control
 		float halfExtent = iconSize * UnitCircleTextureScale;
 		var circleRect = new Rect2(drawPos.X - halfExtent, drawPos.Y - halfExtent, halfExtent * 2f, halfExtent * 2f);
 		DrawTextureRect(circleTexture, circleRect, false, color);
-	}
-
-	private void DrawUnitIcon(Unit3D unit, Vector2 drawPos, float iconSize)
-	{
-		DrawUnitIcon(unit, drawPos, iconSize, GetUnitCircleTexture(), GameContext.PerspectiveFilter.IsSpectating);
 	}
 
 	private static Texture2D GetUnitCircleTexture()
@@ -272,11 +220,6 @@ public partial class MinimapOverlay : Control
 		float ringRadius = iconSize + 2.5f;
 		var ringRect = new Rect2(drawPos.X - ringRadius, drawPos.Y - ringRadius, ringRadius * 2f, ringRadius * 2f);
 		DrawTextureRect(GetSelectionRingTexture(), ringRect, false, selColor);
-	}
-
-	private void DrawSelectionRing(Unit3D unit, Vector2 drawPos, float iconSize)
-	{
-		DrawSelectionRing(unit, drawPos, iconSize, GameContext.PerspectiveFilter.IsSpectating);
 	}
 
 	private void DrawActivePings(Vector2 size)
