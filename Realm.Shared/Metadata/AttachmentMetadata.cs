@@ -12,6 +12,7 @@ public class AttachmentMetadata
 	public Vector3Data RotationOffset { get; set; }
 	public string DefaultHand { get; set; } = "RightHand";
 	public string? ChildVfxId { get; set; }
+	public bool IgnorePlayerColor { get; set; }
 	public Vector3Data ChildVfxPosition { get; set; }
 	public Vector3Data ChildVfxRotation { get; set; }
 	public Vector3Data ChildVfxScale { get; set; } = Vector3Data.One;

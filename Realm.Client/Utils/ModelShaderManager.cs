@@ -771,6 +771,44 @@ public static class ModelShaderManager
 		}
 	}
 
+	public static void SetPlayerColorOnAttachments(Node rootNode, Color playerColor)
+	{
+		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
+		SetPlayerColorOnAttachmentsRecursive(rootNode, playerColor);
+	}
+
+	private static void SetPlayerColorOnAttachmentsRecursive(Node node, Color playerColor)
+	{
+		foreach (var child in node.GetChildren())
+		{
+			if (child is not Node childNode) continue;
+
+			if (IsAttachmentNode(childNode))
+			{
+				SetPlayerColorForSubtree(childNode, playerColor);
+				continue;
+			}
+
+			SetPlayerColorOnAttachmentsRecursive(childNode, playerColor);
+		}
+	}
+
+	private static void SetPlayerColorForSubtree(Node node, Color playerColor)
+	{
+		if (node is GeometryInstance3D geomInst && !IsExcludedMesh(geomInst))
+		{
+			geomInst.SetInstanceShaderParameter(_paramPlayerColor, playerColor);
+		}
+
+		foreach (var child in node.GetChildren())
+		{
+			if (child is Node childNode)
+			{
+				SetPlayerColorForSubtree(childNode, playerColor);
+			}
+		}
+	}
+
 	public static void SetIgnorePlayerColor(Node rootNode, bool ignorePlayerColor)
 	{
 		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;

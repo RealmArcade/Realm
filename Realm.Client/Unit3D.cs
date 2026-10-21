@@ -447,6 +447,7 @@ public partial class Unit3D : Node3D
 		{
 			bool ignorePlayerColor = GameHost.Instance != null && (GameHost.Instance.GetModelIgnorePlayerColor(ModelPath) || GameHost.Instance.GetModelIgnorePlayerColor(UnitId));
 			ModelShaderManager.SetPlayerColor(_modelNode, color);
+			ModelShaderManager.SetPlayerColorOnAttachments(_modelNode, color);
 			ModelShaderManager.SetIgnorePlayerColor(_modelNode, ignorePlayerColor);
 		}
 	}
@@ -1198,7 +1199,7 @@ public partial class Unit3D : Node3D
 
 		targetParent.AddChild(model);
 
-		ApplyModelShaders(model);
+		ApplyModelShaders(model, attachmentId);
 	}
 
 	private void ApplySocketAttachmentInstance(Node3D model, string attachmentId, Node3D attachTarget, Node3D parentNode, string? parentAttachmentId, HumanoidBone bone, float defScale, Vector3 defPos, Vector3 defRot, Vector3? posOffsetOverride, Vector3? rotOffsetOverride, float? scaleOverride, Vector3? scaleVectorOverride, float? normalOffsetOverride)
@@ -1240,11 +1241,12 @@ public partial class Unit3D : Node3D
 		return parentMesh ?? attachTarget;
 	}
 
-	private void ApplyModelShaders(Node3D model)
+	private void ApplyModelShaders(Node3D model, string attachmentId)
 	{
 		if (model is ProceduralVfxInstance3D) return;
-		ModelShaderManager.ApplyPlayerColorShader(model, PlayerColor, true, true, false);
-		ModelShaderManager.SetIgnorePlayerColor(model, true);
+		bool ignorePlayerColor = GameHost.Instance != null && GameHost.Instance.GetModelIgnorePlayerColor(attachmentId);
+		ModelShaderManager.ApplyPlayerColorShader(model, PlayerColor, ignorePlayerColor, true, false);
+		ModelShaderManager.SetIgnorePlayerColor(model, ignorePlayerColor);
 	}
 
 

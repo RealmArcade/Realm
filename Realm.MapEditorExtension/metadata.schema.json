@@ -549,7 +549,8 @@
                 "type": "boolean"
               },
               "IgnorePlayerColor": {
-                "type": "boolean"
+                "type": "boolean",
+                "description": "Keeps the model's own meshes in their authored colours. Attached objects (weapons, shields, equipment) still receive the owner's player colour unless the attachment itself sets IgnorePlayerColor."
               },
               "DespillPlayerColor": {
                 "type": "boolean"
@@ -1067,7 +1068,8 @@
                 "type": "boolean"
               },
               "IgnorePlayerColor": {
-                "type": "boolean"
+                "type": "boolean",
+                "description": "Keeps the model's own meshes in their authored colours. Attached objects (weapons, shields, equipment) still receive the owner's player colour unless the attachment itself sets IgnorePlayerColor."
               },
               "DespillPlayerColor": {
                 "type": "boolean"
@@ -1153,7 +1155,8 @@
                 "type": "boolean"
               },
               "IgnorePlayerColor": {
-                "type": "boolean"
+                "type": "boolean",
+                "description": "Keeps the model's own meshes in their authored colours. Attached objects (weapons, shields, equipment) still receive the owner's player colour unless the attachment itself sets IgnorePlayerColor."
               },
               "DespillPlayerColor": {
                 "type": "boolean"
@@ -1877,6 +1880,10 @@
                   "string",
                   "null"
                 ]
+              },
+              "IgnorePlayerColor": {
+                "type": "boolean",
+                "description": "Keeps this attached model in its authored colours instead of inheriting the owning unit's player colour."
               },
               "ChildVfxPosition": {
                 "type": "object",

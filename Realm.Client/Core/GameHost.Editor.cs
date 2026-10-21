@@ -323,7 +323,7 @@ public partial class GameHost
 		if (string.IsNullOrEmpty(normAsset)) return false;
 		if (ResourceRegistry.TryGetValue(normAsset, out var resMeta2)) return resMeta2.IgnorePlayerColor;
 		if (PropRegistry.TryGetValue(normAsset, out var propMeta2)) return propMeta2.IgnorePlayerColor;
-		if (AttachmentRegistry.TryGetValue(normAsset, out _)) return true;
+		if (AttachmentRegistry.TryGetValue(normAsset, out var attachmentMeta)) return attachmentMeta.IgnorePlayerColor;
 		return false;
 	}
 
@@ -332,8 +332,6 @@ public partial class GameHost
 		if (objOrId is Prop3D) return true;
 		if (IsPropOrResourceKey(normPrimary)) return true;
 		if (!string.IsNullOrEmpty(normAsset) && !string.Equals(normAsset, normPrimary, StringComparison.OrdinalIgnoreCase) && IsPropOrResourceKey(normAsset)) return true;
-		if (IsAttachmentKey(normPrimary)) return true;
-		if (!string.IsNullOrEmpty(normAsset) && !string.Equals(normAsset, normPrimary, StringComparison.OrdinalIgnoreCase) && IsAttachmentKey(normAsset)) return true;
 		return false;
 	}
 

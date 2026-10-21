@@ -390,7 +390,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			}
 		});
 
-		_chkIgnorePlayerColor = AddCheckBox(contentVBox, TranslationServer.Translate("Ignore Player Color"), _ignorePlayerColor, (val) =>
+		_chkIgnorePlayerColor = AddCheckBox(contentVBox, TranslationServer.Translate("Ignore Player Color (model only)"), _ignorePlayerColor, (val) =>
 		{
 			if (_isSyncing) return;
 			_ignorePlayerColor = val;
