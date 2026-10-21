@@ -1763,25 +1763,16 @@ public partial class LobbyManager : Node
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveMapManifestRpc(string mapName, string mapVersion, string manifestJson)
-	{
-		MapTransferHelper.HandleReceiveMapManifest(_manifestTcs, manifestJson);
-	}
+	private void ReceiveMapManifestRpc(string mapName, string mapVersion, string manifestJson) => MapTransferHelper.HandleReceiveMapManifest(_manifestTcs, manifestJson);
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void RequestMapAssetTransferRpc(string transferId, string mapName, string mapVersion, string[] missingHashes)
 	{
 		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
-		MapTransferHelper.HandleRequestMapAssetTransferRpc(
-			this, transferId, mapName, mapVersion, missingHashes, 
-			ref _activeEphemeralTransferPeerId, _hostTransfers, SendHostChunkAsync, 
-			nameof(BeginMapTransferRpc), "LobbyManager");
+		MapTransferHelper.HandleRequestMapAssetTransferRpc(this, transferId, mapName, mapVersion, missingHashes, ref _activeEphemeralTransferPeerId, _hostTransfers, SendHostChunkAsync, nameof(BeginMapTransferRpc), "LobbyManager");
 	}
 
-	private Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
-	{
-		return MapTransferHelper.SendHostChunkAsync(session, chunkIndex, this, nameof(SendMapTransferChunkRpc), "LobbyManager");
-	}
+	private Task SendHostChunkAsync(HostTransferSession session, int chunkIndex) => MapTransferHelper.SendHostChunkAsync(session, chunkIndex, this, nameof(SendMapTransferChunkRpc), "LobbyManager");
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void RequestNextMapTransferChunkRpc(string transferId, int nextChunkIndex)
@@ -1791,30 +1782,13 @@ public partial class LobbyManager : Node
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks)
-	{
-		MapTransferHelper.HandleBeginMapTransferRpc(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, this, nameof(AcknowledgeMapTransferCompleteRpc), _transferCompleteTcs);
-	}
+	private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks) => MapTransferHelper.HandleBeginMapTransferRpc(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, this, nameof(AcknowledgeMapTransferCompleteRpc), _transferCompleteTcs);
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void SendMapTransferChunkRpc(string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData)
-	{
-		MapTransferHelper.HandleSendMapTransferChunkRpcWrapper(
-			_currentClientTransfer, transferId, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk, totalBytes, packetData,
-			progress => CallDeferred(nameof(EmitDownloadProgress), progress),
-			this,
-			nameof(RequestNextMapTransferChunkRpc),
-			nameof(AcknowledgeMapTransferCompleteRpc),
-			_transferCompleteTcs,
-			"LobbyManager"
-		);
-	}
+	private void SendMapTransferChunkRpc(string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData) => MapTransferHelper.HandleSendMapTransferChunkRpcWrapper(_currentClientTransfer, transferId, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk, totalBytes, packetData, progress => CallDeferred(nameof(EmitDownloadProgress), progress), this, nameof(RequestNextMapTransferChunkRpc), nameof(AcknowledgeMapTransferCompleteRpc), _transferCompleteTcs, "LobbyManager");
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void AcknowledgeMapTransferCompleteRpc(string transferId)
-	{
-		MapTransferHelper.HandleAcknowledgeMapTransferCompleteRpc(transferId, _hostTransfers, ref _activeEphemeralTransferPeerId);
-	}
+	private void AcknowledgeMapTransferCompleteRpc(string transferId) => MapTransferHelper.HandleAcknowledgeMapTransferCompleteRpc(transferId, _hostTransfers, ref _activeEphemeralTransferPeerId);
 
 	private void EmitDownloadProgress(float progress)
 	{
