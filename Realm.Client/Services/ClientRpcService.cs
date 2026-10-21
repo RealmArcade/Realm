@@ -392,4 +392,22 @@ public class ClientRpcService
 			host.Rpc(nameof(GameHost.ClientGameOver), false);
 		}
 	}
+
+	public void RegisterAbility(int playerIndex, string abilityId, string displayName,
+		string tooltip, string iconPath = "", bool isInstant = false)
+	{
+		if (!TryResolveTargetClient(playerIndex, out var host, out bool isLocal, out int remotePeerId))
+			return;
+		if (isLocal)
+		{
+			if (GameContext.RegistryService.RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant))
+				InGameHUD.Instance?.RefreshUI(host.SelectedUnits);
+		}
+		else if (remotePeerId > 1)
+		{
+			host.RpcId(remotePeerId, nameof(GameHost.ClientRegisterAbility),
+				abilityId, displayName ?? "", tooltip ?? "", iconPath ?? "", isInstant);
+		}
+	}
 }
+

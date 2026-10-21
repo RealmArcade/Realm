@@ -26,6 +26,8 @@ public class AssetIndexService : IDisposable
 		"weapon", "upgrade", "terrain", "spritesheet", "decal", "SpawnShader"
 	};
 
+	private const int IndexSchemaVersion = 1;
+
 	public event Action<string, bool>? DirectoryIndexingStateChanged;
 	public event Action<string>? DirectoryScanCompleted;
 
@@ -53,6 +55,33 @@ public class AssetIndexService : IDisposable
 		}
 
 		return Path.Combine(userDirectory, "asset_index.cache");
+	}
+
+	private static void DeleteCacheFiles(string cacheFilePath)
+	{
+		try
+		{
+			if (File.Exists(cacheFilePath))
+			{
+				File.Delete(cacheFilePath);
+			}
+
+			string logFile = cacheFilePath + "-log";
+			if (File.Exists(logFile))
+			{
+				File.Delete(logFile);
+			}
+
+			string tempFile = cacheFilePath + "-temp";
+			if (File.Exists(tempFile))
+			{
+				File.Delete(tempFile);
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetIndexService] Failed to delete cache files: {ex.Message}");
+		}
 	}
 
 	private void EnsureIndexes()
@@ -96,6 +125,27 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
+	public int GetIndexSchemaVersion()
+	{
+		lock (_syncLock)
+		{
+			try
+			{
+				var metaCol = _database.GetCollection<BsonDocument>("_metadata");
+				var doc = metaCol.FindById(1);
+				if (doc != null && doc.TryGetValue("IndexSchemaVersion", out var val) && val.IsInt32)
+				{
+					return val.AsInt32;
+				}
+			}
+			catch
+			{
+			}
+
+			return 0;
+		}
+	}
+
 	public void SetIndexGameBuildNumber(string gameBuildNumber)
 	{
 		lock (_syncLock)
@@ -106,7 +156,9 @@ public class AssetIndexService : IDisposable
 				var doc = new BsonDocument
 				{
 					["_id"] = 1,
-					["GameBuildNumber"] = gameBuildNumber
+					["GameBuildNumber"] = gameBuildNumber,
+					["IndexSchemaVersion"] = IndexSchemaVersion,
+					["RequiresContentRebuild"] = false
 				};
 				metaCol.Upsert(doc);
 				_database.Checkpoint();
@@ -117,10 +169,64 @@ public class AssetIndexService : IDisposable
 		}
 	}
 
+	private void MarkIndexContentRebuildRequired()
+	{
+		lock (_syncLock)
+		{
+			try
+			{
+				var metaCol = _database.GetCollection<BsonDocument>("_metadata");
+				var doc = new BsonDocument
+				{
+					["_id"] = 1,
+					["GameBuildNumber"] = RealmVersion.GameBuildNumber,
+					["IndexSchemaVersion"] = IndexSchemaVersion,
+					["RequiresContentRebuild"] = true
+				};
+				metaCol.Upsert(doc);
+				_database.Checkpoint();
+			}
+			catch
+			{
+			}
+		}
+	}
+
+	private bool IsContentRebuildRequired()
+	{
+		lock (_syncLock)
+		{
+			try
+			{
+				var metaCol = _database.GetCollection<BsonDocument>("_metadata");
+				var doc = metaCol.FindById(1);
+				if (doc != null && doc.TryGetValue("RequiresContentRebuild", out var val) && val.IsBoolean)
+				{
+					return val.AsBoolean;
+				}
+			}
+			catch
+			{
+			}
+
+			return false;
+		}
+	}
+
 	public bool IsIndexVersionMismatch()
 	{
 		string currentIndexVersion = GetIndexGameBuildNumber();
-		return !string.Equals(currentIndexVersion, RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase);
+		if (!string.Equals(currentIndexVersion, RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase))
+		{
+			return true;
+		}
+
+		if (GetIndexSchemaVersion() != IndexSchemaVersion)
+		{
+			return true;
+		}
+
+		return IsContentRebuildRequired();
 	}
 
 	public bool HasIncorrectlyIndexedSample()
@@ -493,29 +599,7 @@ public class AssetIndexService : IDisposable
 			ClearP2PIndex();
 
 			string cacheFilePath = GetCacheFilePath();
-			try
-			{
-				if (File.Exists(cacheFilePath))
-				{
-					File.Delete(cacheFilePath);
-				}
-
-				string logFile = cacheFilePath + "-log";
-				if (File.Exists(logFile))
-				{
-					File.Delete(logFile);
-				}
-
-				string tempFile = cacheFilePath + "-temp";
-				if (File.Exists(tempFile))
-				{
-					File.Delete(tempFile);
-				}
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[AssetIndexService] Failed to delete cache files during rebuild: {ex.Message}");
-			}
+			DeleteCacheFiles(cacheFilePath);
 
 			progress?.Report(new AssetIndexProgressUpdate(0.18, TranslationServer.Translate("Initializing database schema and indexes...")));
 
@@ -542,7 +626,51 @@ public class AssetIndexService : IDisposable
 
 	public AssetIndexService()
 	{
+		if (TryOpenIndexDatabase())
+		{
+			return;
+		}
+
+		RebuildIndexDatabase();
+	}
+
+	private bool TryOpenIndexDatabase()
+	{
+		try
+		{
+			OpenIndexDatabase(GetCacheFilePath(), false);
+			return true;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetIndexService] Failed to open asset index cache, rebuilding: {ex.Message}");
+			DisposeIndexDatabase();
+			return false;
+		}
+	}
+
+	private void RebuildIndexDatabase()
+	{
 		string cacheFilePath = GetCacheFilePath();
+
+		DisposeIndexDatabase();
+		ClearP2PIndex();
+		DeleteCacheFiles(cacheFilePath);
+
+		try
+		{
+			OpenIndexDatabase(cacheFilePath, true);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetIndexService] Failed to rebuild asset index cache, using in-memory index: {ex.Message}");
+			DisposeIndexDatabase();
+			OpenInMemoryIndexDatabase();
+		}
+	}
+
+	private void OpenIndexDatabase(string cacheFilePath, bool forceRebuild)
+	{
 		var connectionString = new ConnectionString
 		{
 			Filename = cacheFilePath,
@@ -556,10 +684,56 @@ public class AssetIndexService : IDisposable
 
 		EnsureIndexes();
 
+		if (forceRebuild)
+		{
+			MarkIndexContentRebuildRequired();
+			InitializeDefaultDirectories();
+			return;
+		}
+
+		if (GetIndexSchemaVersion() != IndexSchemaVersion)
+		{
+			throw new InvalidOperationException("Asset index cache schema is outdated.");
+		}
+
 		if (!IsIndexVersionMismatch())
 		{
 			InitializeDefaultDirectories();
 		}
+	}
+
+	private void OpenInMemoryIndexDatabase()
+	{
+		try
+		{
+			_database = new LiteDatabase(new MemoryStream());
+			_assetCollection = _database.GetCollection<IndexedAsset>("assets");
+			_folderCollection = _database.GetCollection<IndexedFolder>("folders");
+			_mapPackageCollection = _database.GetCollection<IndexedMapPackage>("map_packages");
+
+			EnsureIndexes();
+			InitializeDefaultDirectories();
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[AssetIndexService] In-memory asset index database failed: {ex.Message}");
+		}
+	}
+
+	private void DisposeIndexDatabase()
+	{
+		try
+		{
+			_database?.Dispose();
+		}
+		catch
+		{
+		}
+
+		_database = null!;
+		_assetCollection = null!;
+		_folderCollection = null!;
+		_mapPackageCollection = null!;
 	}
 
 	private LiteDatabase GetP2PDatabase()
@@ -570,21 +744,57 @@ public class AssetIndexService : IDisposable
 			string p2pDir = MapAssetManager.P2PArchiveDirectory;
 			if (!Directory.Exists(p2pDir)) Directory.CreateDirectory(p2pDir);
 			string cacheFilePath = Path.Combine(p2pDir, "p2p_asset_index.cache");
+
+			try
+			{
+				_p2pDatabase = OpenP2PDatabase(cacheFilePath);
+				return _p2pDatabase;
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[AssetIndexService] Failed to open P2P asset index cache, rebuilding: {ex.Message}");
+				try
+				{
+					_p2pDatabase?.Dispose();
+				}
+				catch
+				{
+				}
+
+				_p2pDatabase = null;
+				DeleteCacheFiles(cacheFilePath);
+				_p2pDatabase = OpenP2PDatabase(cacheFilePath);
+				return _p2pDatabase;
+			}
+		}
+	}
+
+	private static LiteDatabase OpenP2PDatabase(string cacheFilePath)
+	{
+		LiteDatabase? database = null;
+		try
+		{
 			var connectionString = new ConnectionString
 			{
 				Filename = cacheFilePath,
 				Connection = ConnectionType.Shared
 			};
-			_p2pDatabase = new LiteDatabase(connectionString);
-			var p2pAssetCol = _p2pDatabase.GetCollection<IndexedAsset>("assets");
-			var p2pMapCol = _p2pDatabase.GetCollection<IndexedMapPackage>("map_packages");
+			database = new LiteDatabase(connectionString);
+			var p2pAssetCol = database.GetCollection<IndexedAsset>("assets");
+			var p2pMapCol = database.GetCollection<IndexedMapPackage>("map_packages");
 			p2pAssetCol.EnsureIndex(x => x.FilePath, true);
 			p2pAssetCol.EnsureIndex(x => x.MapName);
 			p2pAssetCol.EnsureIndex(x => x.MapVersion);
 			p2pAssetCol.EnsureIndex(x => x.HasPlayerColorMask);
 			p2pMapCol.EnsureIndex(x => x.MapName);
 			p2pMapCol.EnsureIndex(x => x.MapVersion);
-			return _p2pDatabase;
+			p2pAssetCol.Find(Query.All(), 0, 1).ToList();
+			return database;
+		}
+		catch
+		{
+			database?.Dispose();
+			throw;
 		}
 	}
 
@@ -2273,6 +2483,6 @@ public class AssetIndexService : IDisposable
 			_p2pDatabase = null;
 		}
 
-		_database.Dispose();
+		_database?.Dispose();
 	}
 }

@@ -904,8 +904,16 @@ public partial class LobbyBrowser : Control
 				}
 
 				panel.MouseFilter = MouseFilterEnum.Ignore;
+				var connectingOverlay = ShowConnectingPopup();
+
 				LobbyManager.Instance.ActiveMapName = data.Map;
 				bool success = await LobbyManager.Instance.JoinLobbyAsync(data.LobbyId);
+
+				if (connectingOverlay != null && GodotObject.IsInstanceValid(connectingOverlay))
+				{
+					connectingOverlay.QueueFree();
+				}
+
 				if (success)
 				{
 					UIManager.Instance.TransitionTo(GameScreen.LobbyRoom);
@@ -914,6 +922,11 @@ public partial class LobbyBrowser : Control
 				{
 					UIManager.Instance.PlayWarningSound();
 					panel.MouseFilter = MouseFilterEnum.Stop;
+					string errMsg = !string.IsNullOrEmpty(LobbyManager.Instance.LobbyJoinError)
+						? LobbyManager.Instance.LobbyJoinError
+						: "Direct connection handshake failed. The host could not be reached.";
+					LobbyManager.Instance.LobbyJoinError = null;
+					ShowLobbyJoinErrorPopup(errMsg);
 				}
 			}
 		};
@@ -1075,6 +1088,40 @@ public partial class LobbyBrowser : Control
 
 		_httpClient?.Dispose();
 		base._ExitTree();
+	}
+
+	private Panel ShowConnectingPopup()
+	{
+		var overlay = new Panel();
+		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
+		AddChild(overlay);
+
+		var cardPanel = new Panel();
+		cardPanel.CustomMinimumSize = new Vector2(440, 160);
+		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
+		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
+		overlay.AddChild(cardPanel);
+
+		var vbox = new VBoxContainer();
+		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		vbox.Alignment = BoxContainer.AlignmentMode.Center;
+		cardPanel.AddChild(vbox);
+
+		var titleLabel = new Label();
+		UIStyle.ApplyTitle(titleLabel, Tr("CONNECTING TO LOBBY ..."), 22);
+		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		vbox.AddChild(titleLabel);
+
+		var statusLabel = new Label();
+		statusLabel.Text = Tr("Traversing NAT and establishing connection...");
+		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		statusLabel.AddThemeFontSizeOverride("font_size", 13);
+		statusLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
+		vbox.AddChild(statusLabel);
+
+		return overlay;
 	}
 
 	private void ShowLobbyJoinErrorPopup(string message)

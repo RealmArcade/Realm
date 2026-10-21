@@ -325,40 +325,57 @@ public partial class LobbyManager : Node
 	public async Task RunNatTypeTestAsync()
 	{
 		GD.Print("[LobbyManager] Starting STUN NAT Type Test...");
+		_hostPublicIp = null;
+		_hostPublicPort = 0;
 		LocalNatType = await NatTypeTester.DetermineNatTypeAsync(0);
 		GD.Print($"[LobbyManager] NAT Type Classified: {LocalNatType}");
-
 
 		try
 		{
 			var dnsAddresses = await Dns.GetHostAddressesAsync("stun.l.google.com");
 			if (dnsAddresses.Length > 0)
 			{
-				using var udp = new UdpClient();
-				udp.ExclusiveAddressUse = false;
-				udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-				udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+				StunResult? result = null;
 
-				var serverEp = new IPEndPoint(dnsAddresses[0], 19302);
-				byte[] req = new byte[20];
-				req[0] = 0x00;
-				req[1] = 0x01; // Binding Request
-				new Random().NextBytes(new Span<byte>(req, 4, 16));
-
-				await udp.SendAsync(req, req.Length, serverEp);
-				var receiveTask = udp.ReceiveAsync();
-				var timeoutTask = Task.Delay(1000);
-				if (await Task.WhenAny(receiveTask, timeoutTask) == receiveTask)
+				try
 				{
-					var response = await receiveTask;
-					var result = new StunResult();
-					NatTypeTester.ParseStunResponse(response.Buffer, result);
-					if (result.Success && result.MappedEndPoint != null)
+					result = await NatTypeTester.QueryStunOnPortAsync(dnsAddresses[0], 19302, ENetPort);
+				}
+				catch (Exception ex)
+				{
+					GD.Print($"[LobbyManager] Direct STUN on port {ENetPort} failed: {ex.Message}");
+				}
+
+				if (result == null || !result.Success || result.MappedEndPoint == null)
+				{
+					using var udp = new UdpClient();
+					udp.ExclusiveAddressUse = false;
+					udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+					udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+
+					var serverEp = new IPEndPoint(dnsAddresses[0], 19302);
+					byte[] req = new byte[20];
+					req[0] = 0x00;
+					req[1] = 0x01; // Binding Request
+					new Random().NextBytes(new Span<byte>(req, 4, 16));
+
+					await udp.SendAsync(req, req.Length, serverEp);
+					var receiveTask = udp.ReceiveAsync();
+					var timeoutTask = Task.Delay(1000);
+					if (await Task.WhenAny(receiveTask, timeoutTask) == receiveTask)
 					{
-						_hostPublicIp = result.MappedEndPoint.Address.ToString();
-						_hostPublicPort = ENetPort;
-						GD.Print($"[LobbyManager] Public Endpoint Mapped: {_hostPublicIp}:{_hostPublicPort}");
+						var response = await receiveTask;
+						result = new StunResult();
+						NatTypeTester.ParseStunResponse(response.Buffer, result);
 					}
+				}
+
+				if (result != null && result.Success && result.MappedEndPoint != null)
+				{
+					bool mappedFromEnetPort = result.LocalEndPoint != null && result.LocalEndPoint.Port == ENetPort;
+					_hostPublicIp = result.MappedEndPoint.Address.ToString();
+					_hostPublicPort = mappedFromEnetPort ? result.MappedEndPoint.Port : ENetPort;
+					GD.Print($"[STUN] Local {ENetPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
 				}
 			}
 		}
@@ -392,7 +409,8 @@ public partial class LobbyManager : Node
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var metadata = MapFileService.LoadMetadata(wsPath);
-		int aiCount = Math.Clamp(metadata.MapProperties?.TestAiPlayerCount ?? 1, 0, 23);
+		int maxTestPlayers = Math.Clamp(metadata.MapProperties?.MaxTestPlayers ?? 24, 1, 24);
+		int aiCount = Math.Clamp(metadata.MapProperties?.TestAiPlayerCount ?? 1, 0, Math.Max(0, maxTestPlayers - 1));
 		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
 		int? testSeed = metadata.MapProperties?.TestRandomSeed;
 
@@ -411,7 +429,7 @@ public partial class LobbyManager : Node
 		}
 		else
 		{
-			var available = Enumerable.Range(1, 24).ToList();
+			var available = Enumerable.Range(1, maxTestPlayers).ToList();
 			var rng = (testSeed.HasValue && testSeed.Value != 0) ? new Random(testSeed.Value) : new Random();
 			int n = available.Count;
 			while (n > 1)
@@ -834,7 +852,7 @@ public partial class LobbyManager : Node
 		await RunNatTypeTestAsync();
 
 		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
-		int clientPublicPort = ENetPort;
+		int clientPublicPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
 
 		try
 		{
@@ -937,34 +955,112 @@ public partial class LobbyManager : Node
 	private async Task<bool> EstablishClientConnectionAsync(string connectIp, int connectPort)
 	{
 		bool isLocalConnection = IsPrivateIp(connectIp);
-		if (!isLocalConnection)
+		int maxAttempts = isLocalConnection ? 1 : 2;
+
+		for (int attempt = 1; attempt <= maxAttempts; attempt++)
 		{
-			await UdpHolePuncher.PunchHoleAsync(connectIp, connectPort, ENetPort);
+			if (attempt > 1)
+			{
+				GD.Print($"[LobbyManager] Retrying connection to {connectIp}:{connectPort} (Attempt {attempt}/{maxAttempts})...");
+				if (Multiplayer.MultiplayerPeer != null)
+				{
+					try
+					{
+						Multiplayer.MultiplayerPeer.Close();
+					}
+					catch
+					{
+					}
+					Multiplayer.MultiplayerPeer = null;
+				}
+				await Task.Delay(500);
+			}
+
+			if (!isLocalConnection)
+			{
+				await UdpHolePuncher.PunchHoleAsync(connectIp, connectPort, ENetPort);
+			}
+
+			var peer = new ENetMultiplayerPeer();
+			var err = peer.CreateClient(connectIp, connectPort, localPort: isLocalConnection ? 0 : ENetPort);
+			if (err != Error.Ok && !isLocalConnection)
+			{
+				GD.Print($"[LobbyManager] CreateClient on port {ENetPort} failed ({err}), falling back to port 0...");
+				err = peer.CreateClient(connectIp, connectPort, localPort: 0);
+			}
+
+			if (err != Error.Ok)
+			{
+				GD.PrintErr($"[LobbyManager] Failed to create ENet Client: {err}");
+				ConnectionFailed?.Invoke("Failed to bind network socket.");
+				return false;
+			}
+
+			var packetPeer = peer.GetPeer(1);
+			if (packetPeer != null)
+			{
+				packetPeer.SetTimeout(32, 10000, 20000);
+			}
+
+			Multiplayer.MultiplayerPeer = peer;
+			if (Multiplayer is SceneMultiplayer sceneMultiplayer)
+			{
+				sceneMultiplayer.ServerRelay = false;
+			}
+
+			GD.Print($"[LobbyManager] ENet Client initialized. Awaiting handshake with {connectIp}:{connectPort} (Timeout 10s)...");
+
+			using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+			bool connected = await WaitForClientHandshakeAsync(cts.Token);
+			if (connected)
+			{
+				GD.Print($"[LobbyManager] Successfully established handshake with {connectIp}:{connectPort}");
+				return true;
+			}
+
+			GD.PrintErr($"[LobbyManager] Connection handshake to {connectIp}:{connectPort} timed out on attempt {attempt}.");
 		}
 
-		var peer = new ENetMultiplayerPeer();
-		var err = peer.CreateClient(connectIp, connectPort, localPort: isLocalConnection ? 0 : ENetPort);
-		if (err != Error.Ok)
+		if (Multiplayer.MultiplayerPeer != null)
 		{
-			GD.PrintErr($"[LobbyManager] Failed to create ENet Client: {err}");
-			ConnectionFailed?.Invoke("Failed to bind network socket.");
+			try
+			{
+				Multiplayer.MultiplayerPeer.Close();
+			}
+			catch
+			{
+			}
+			Multiplayer.MultiplayerPeer = null;
+		}
+
+		LobbyJoinError = "Direct connection handshake failed. The host could not be reached.";
+		ConnectionFailed?.Invoke("Direct connection handshake failed.");
+		return false;
+	}
+
+	private async Task<bool> WaitForClientHandshakeAsync(CancellationToken cancellationToken)
+	{
+		var connectedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		void OnConnected() => connectedTcs.TrySetResult(true);
+		void OnFailed() => connectedTcs.TrySetResult(false);
+
+		Multiplayer.ConnectedToServer += OnConnected;
+		Multiplayer.ConnectionFailed += OnFailed;
+
+		try
+		{
+			var completedTask = await Task.WhenAny(connectedTcs.Task, Task.Delay(-1, cancellationToken));
+			return completedTask == connectedTcs.Task && connectedTcs.Task.Result;
+		}
+		catch
+		{
 			return false;
 		}
-
-		var packetPeer = peer.GetPeer(1);
-		if (packetPeer != null)
+		finally
 		{
-			packetPeer.SetTimeout(32, 5000, 15000);
+			Multiplayer.ConnectedToServer -= OnConnected;
+			Multiplayer.ConnectionFailed -= OnFailed;
 		}
-
-		Multiplayer.MultiplayerPeer = peer;
-		if (Multiplayer is SceneMultiplayer sceneMultiplayer)
-		{
-			sceneMultiplayer.ServerRelay = false;
-		}
-
-		GD.Print($"[LobbyManager] ENet Client initialized. Connecting to {connectIp}:{connectPort}...");
-		return true;
 	}
 
 	public void UnregisterActiveLobbyFromRegistry()
@@ -1109,31 +1205,52 @@ public partial class LobbyManager : Node
 		}
 	}
 
-	private void PunchHostToClient(string clientIp, int clientPort)
+	private async void PunchHostToClient(string clientIp, int clientPort)
 	{
 		try
 		{
-			if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer enetPeer)
+			byte[] punchPacket = Encoding.UTF8.GetBytes("PUNCH");
+			int initialPeerCount = PlayerList.Count;
+
+			for (int burst = 0; burst < 20; burst++)
 			{
+				if (!IsHost || Multiplayer.MultiplayerPeer is not ENetMultiplayerPeer enetPeer)
+				{
+					break;
+				}
+
 				var host = enetPeer.GetHost();
-				if (host != null)
+				if (host == null)
 				{
-					byte[] punchPacket = Encoding.UTF8.GetBytes("PUNCH");
-					for (int i = 0; i < 5; i++)
-					{
-						host.SocketSend(clientIp, clientPort, punchPacket);
-					}
-					GD.Print($"[LobbyManager] Sent native ENet socket punch to {clientIp}:{clientPort} from port {ENetPort}");
+					break;
 				}
-				else
+
+				for (int i = 0; i < 4; i++)
 				{
-					GD.PrintErr("[LobbyManager] Native ENet punch failed: ENetConnection host instance is null.");
+					host.SocketSend(clientIp, clientPort, punchPacket);
 				}
+
+				if (burst == 0)
+				{
+					GD.Print($"[LobbyManager] Sent initial native ENet socket punch pulse to {clientIp}:{clientPort} from port {ENetPort}");
+				}
+
+				if (PlayerList.Count > initialPeerCount)
+				{
+					GD.Print($"[LobbyManager] Client connected. Stopping punch pulse to {clientIp}:{clientPort}.");
+					break;
+				}
+
+				var tree = GetTree();
+				if (tree == null)
+				{
+					break;
+				}
+
+				await ToSignal(tree.CreateTimer(0.25f), SceneTreeTimer.SignalName.Timeout);
 			}
-			else
-			{
-				GD.PrintErr("[LobbyManager] Native ENet punch failed: MultiplayerPeer is not an active ENetMultiplayerPeer.");
-			}
+
+			GD.Print($"[LobbyManager] Completed punch pulsing to {clientIp}:{clientPort}");
 		}
 		catch (Exception ex)
 		{

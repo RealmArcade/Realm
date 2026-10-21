@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
@@ -304,8 +305,7 @@ public partial class CommandPanel
 			return;
 		}
 
-		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
-		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy || focusedUnit.Player != localPlayerIndex)
+		if (viewModel.SelectedUnits.Count == 0 || GetFocusedUnit(viewModel, out var focusedUnit) || focusedUnit.IsEnemy || !GameContext.PerspectiveFilter.CanControl(focusedUnit.Player))
 		{
 			ClearCommandPanelState();
 			return;

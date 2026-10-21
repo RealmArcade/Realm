@@ -220,6 +220,8 @@ public class NetworkService
 		_spectatorDelayedPackets.Clear();
 		_pendingUnitSpawns.Clear();
 		_pendingUnitKills.Clear();
+		_playerTeams.Clear();
+		_alliances.Clear();
 	}
 
 	public int GetServerEntityId(int localEntityId)
@@ -302,11 +304,29 @@ public class NetworkService
 
 	public int GetOwnerPeerId(Entity unitEntity)
 	{
-		if (!GameContext.World.Has<Owner>(unitEntity)) return -1;
-		var owner = GameContext.World.Get<Owner>(unitEntity).PlayerEntity;
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return -1;
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+
+		if (GameContext.World.Has<UnitOwnerPlayer>(unitEntity))
+		{
+			int playerIndex = GameContext.World.Get<UnitOwnerPlayer>(unitEntity).PlayerIndex;
+			var lobby = LobbyManager.Instance;
+			if (lobby != null)
+			{
+				var players = lobby.PlayerList;
+				for (int i = 0; i < players.Count; i++)
+				{
+					if (players[i].Slot == playerIndex)
+					{
+						return players[i].PeerId;
+					}
+				}
+			}
+		}
+
+		if (!GameContext.World.Has<Owner>(unitEntity)) return -1;
+		var owner = GameContext.World.Get<Owner>(unitEntity).PlayerEntity;
 		foreach (var kvp in mapping.PeerIdToPlayerEntityMap)
 		{
 			if (kvp.Value == owner.Value)
@@ -1586,9 +1606,40 @@ public class NetworkService
 		IsConnectionLost = isLost;
 	}
 
+	private static readonly Dictionary<int, int> _playerTeams = new();
+	private static readonly Dictionary<(int, int), bool> _alliances = new();
+
+	public static void SetPlayerTeam(int playerIndex, int teamIndex)
+	{
+		_playerTeams[playerIndex] = teamIndex;
+	}
+
+	public static int GetPlayerTeam(int playerIndex)
+	{
+		if (_playerTeams.TryGetValue(playerIndex, out int team)) return team;
+		return playerIndex;
+	}
+
+	public static void SetPlayersAllied(int playerIndex1, int playerIndex2, bool allied)
+	{
+		_alliances[(playerIndex1, playerIndex2)] = allied;
+		_alliances[(playerIndex2, playerIndex1)] = allied;
+	}
+
 	public static bool ArePeersEnemies(int peerId1, int peerId2)
 	{
 		if (peerId1 == peerId2) return false;
+
+		if (LobbyManager.Instance?.PlayerList != null)
+		{
+			var p1 = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId1);
+			var p2 = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId2);
+			if (p1 != null && p2 != null)
+			{
+				return ArePlayerIndicesEnemies(p1.Slot, p2.Slot);
+			}
+		}
+
 		if (!HasActiveLobby()) return true;
 
 		int t1 = GetTeamIndexForPeer(peerId1, 1);

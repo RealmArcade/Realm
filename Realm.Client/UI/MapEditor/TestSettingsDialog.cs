@@ -103,11 +103,16 @@ public partial class TestSettingsDialog : FloatingDialogBase
 	{
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var metadata = MapFileService.LoadMetadata(wsPath);
-		int aiCount = metadata.MapProperties?.TestAiPlayerCount ?? 1;
+		int maxAi = Math.Max(0, (metadata.MapProperties?.MaxTestPlayers ?? 24) - 1);
+		int aiCount = Math.Min(metadata.MapProperties?.TestAiPlayerCount ?? 1, maxAi);
 		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
 		int seed = metadata.MapProperties?.TestRandomSeed ?? 0;
 
-		if (_numAiPlayers != null) _numAiPlayers.Value = aiCount;
+		if (_numAiPlayers != null)
+		{
+			_numAiPlayers.MaxValue = maxAi;
+			_numAiPlayers.Value = aiCount;
+		}
 		if (_chkRandomizeSlots != null) _chkRandomizeSlots.ButtonPressed = randomize;
 		if (_numRandomSeed != null) _numRandomSeed.Value = seed;
 	}

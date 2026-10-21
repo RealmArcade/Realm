@@ -43,6 +43,7 @@ public class MapStorageService
 
 	public (bool Success, List<string> MissingAssets, List<(string RelativePath, long SizeBytes, double SizeMB)> OversizedAssets) ValidateWorkspaceForExportDomain(string wsPath)
 	{
+		MapAssetHelper.PruneNonExistentAssetsFromManifest(wsPath);
 		var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(wsPath);
 		if (!assetsValid)
 		{
@@ -1315,6 +1316,7 @@ public class MapStorageService
 
 	public (bool assetsValid, List<string> missingAssets, bool sizesValid, List<(string RelativePath, long SizeBytes, double SizeMB)> oversizedAssets) ValidateMapAssetsForExport(string tempWorkspacePath)
 	{
+		MapAssetHelper.PruneNonExistentAssetsFromManifest(tempWorkspacePath);
 		var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(tempWorkspacePath);
 		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(tempWorkspacePath);
 		return (assetsValid, missingAssets, sizesValid, oversizedAssets);

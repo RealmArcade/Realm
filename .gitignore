@@ -29,3 +29,4 @@ Realm.AdminServer/appsettings.json
 .codegraph/
 Realm.MapEditorExtension/dist/
 *.jit.elf
+godot_test_output.txt
