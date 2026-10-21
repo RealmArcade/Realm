@@ -732,6 +732,12 @@ public partial class Unit3D : Node3D
 
 	private float _lastUnitEffectiveLodScale = -1f;
 
+	public void RefreshLodVisibilityDistances()
+	{
+		_lastUnitEffectiveLodScale = -1f;
+		UpdateLodVisibility();
+	}
+
 	public void UpdateLodVisibility()
 	{
 		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))

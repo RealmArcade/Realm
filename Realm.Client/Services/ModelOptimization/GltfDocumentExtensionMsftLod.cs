@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
+using Realm.Client.UI;
 using Realm.Shared.ModelOptimization;
 
 namespace Realm.Client.Services.ModelOptimization;
@@ -404,6 +405,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		}
 
 		float scale = Math.Max(0.01f, scaleMultiplier);
+		float distanceScale = scale * GameSettings.LodDistanceScale;
 		float margin = 2.0f * scale;
 
 		meshInstance.VisibilityRangeFadeMode = GeometryInstance3D.VisibilityRangeFadeModeEnum.Disabled;
@@ -412,8 +414,8 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		meshInstance.CastShadow = GeometryInstance3D.ShadowCastingSetting.On;
 
 		var (rangeBeginUnits, rangeEndUnits) = GetLodRangeUnits(meshInstance, lodLevel);
-		meshInstance.VisibilityRangeBegin = rangeBeginUnits * scale;
-		meshInstance.VisibilityRangeEnd = isLastLod ? 0f : rangeEndUnits * scale;
+		meshInstance.VisibilityRangeBegin = rangeBeginUnits * distanceScale;
+		meshInstance.VisibilityRangeEnd = isLastLod ? 0f : rangeEndUnits * distanceScale;
 	}
 
 	private static (float RangeBeginUnits, float RangeEndUnits) GetLodRangeUnits(Node lodNode, int lodLevel)

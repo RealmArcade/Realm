@@ -6,6 +6,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.Services.ModelOptimization;
+using Realm.Client.UI;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
@@ -33,11 +34,60 @@ public partial class PropMultiMeshManager : Node3D
 	private readonly HashSet<string> _reusableKeysToRebuild = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<Entity, (PropChunkGroup ChunkGroup, int Index, PropModelGroup ModelGroup)> _entityIndexMap = new();
 	private bool _allDirty = false;
+	private float _appliedLodDistanceScale = 0f;
 
 	public override void _Ready()
 	{
 		Instance = this;
 		Name = "PropMultiMeshManager";
+		_appliedLodDistanceScale = GameSettings.LodDistanceScale;
+	}
+
+	public void RefreshLodVisibilityDistances()
+	{
+		float targetDistanceScale = GameSettings.LodDistanceScale;
+		if (_appliedLodDistanceScale <= 0f)
+		{
+			_appliedLodDistanceScale = targetDistanceScale;
+			return;
+		}
+
+		if (MathF.Abs(targetDistanceScale - _appliedLodDistanceScale) <= 0.0005f)
+		{
+			return;
+		}
+
+		float distanceRatio = targetDistanceScale / _appliedLodDistanceScale;
+		_appliedLodDistanceScale = targetDistanceScale;
+
+		foreach (var group in _groups.Values)
+		{
+			if (group == null) continue;
+			ScaleGroupVisibilityRanges(group, distanceRatio);
+		}
+	}
+
+	private static void ScaleGroupVisibilityRanges(PropModelGroup group, float distanceRatio)
+	{
+		for (int subIdx = 0; subIdx < group.SubMeshes.Count; subIdx++)
+		{
+			MeshSubInfo subInfo = group.SubMeshes[subIdx];
+			subInfo.VisibilityRangeBegin *= distanceRatio;
+			subInfo.VisibilityRangeEnd *= distanceRatio;
+		}
+
+		foreach (var chunkGroup in group.ChunkGroups.Values)
+		{
+			for (int subIdx = 0; subIdx < group.SubMeshes.Count && subIdx < chunkGroup.MultiMeshNodes.Count; subIdx++)
+			{
+				MultiMeshInstance3D node = chunkGroup.MultiMeshNodes[subIdx];
+				if (node == null || !GodotObject.IsInstanceValid(node)) continue;
+
+				MeshSubInfo subInfo = group.SubMeshes[subIdx];
+				node.VisibilityRangeBegin = subInfo.VisibilityRangeBegin;
+				node.VisibilityRangeEnd = subInfo.VisibilityRangeEnd;
+			}
+		}
 	}
 
 	public override void _ExitTree()

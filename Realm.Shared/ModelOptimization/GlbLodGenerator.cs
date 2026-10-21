@@ -6,8 +6,8 @@ namespace Realm.Shared.ModelOptimization;
 public static unsafe class GlbLodGenerator
 {
 	public static readonly float[] DefaultLodRatios = new float[] { 1.0f, 0.50f, 0.25f, 0.10f };
-	public static readonly float[] DefaultVisibilityBegins = new float[] { 0f, 45f, 90f, 150f };
-	public static readonly float[] DefaultVisibilityEnds = new float[] { 45f, 90f, 150f, 0f };
+	public static readonly float[] DefaultVisibilityBegins = new float[] { 0f, 9f, 19f, 40f };
+	public static readonly float[] DefaultVisibilityEnds = new float[] { 9f, 19f, 40f, 0f };
 
 	public static (bool Success, byte[] OutputGlbBytes, string ErrorMessage) GenerateLods(
 		byte[] inputGlbBytes,

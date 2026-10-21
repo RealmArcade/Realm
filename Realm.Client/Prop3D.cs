@@ -533,6 +533,12 @@ public partial class Prop3D : Node3D
 		}
 	}
 
+	public void RefreshLodVisibilityDistances()
+	{
+		_lastEffectiveLodScale = -1f;
+		UpdateLodVisibility();
+	}
+
 	public virtual void UpdateLodVisibility()
 	{
 		var visual = GetNodeOrNull<Node3D>("VisualModel");
