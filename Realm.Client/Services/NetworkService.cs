@@ -1347,22 +1347,7 @@ public class NetworkService
 		if (!GodotObject.IsInstanceValid(unit)) return;
 		if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity, allUnits)) return;
 
-		float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
-		bool isDetailed = distToCamera <= 35.0f;
-		var currentSnap = new UnitSnapshot
-		{
-			EntityId = unit.Entity.Id,
-			UnitId = unit.UnitId,
-			OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
-			Position = new NetworkVector3(unit.GlobalPosition),
-			RotationY = unit.GlobalRotation.Y,
-			CurrentHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Current : 0f,
-			MaxHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Max : 0f,
-			IsDead = GameContext.World.Has<Dead>(unit.Entity),
-			IsBuilding = unit.IsBuilding,
-			IsDetailed = isDetailed,
-			Velocity = new NetworkVector3(unit.Velocity)
-		};
+		var currentSnap = CreateUnitSnapshot(unit, cameraPos, out _);
 		snapshotUnits.Add(currentSnap);
 		nextBaselineMap[unit.Entity.Id] = currentSnap;
 	}

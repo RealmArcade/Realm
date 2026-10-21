@@ -883,9 +883,9 @@ public static class UIStyle
 		return style;
 	}
 
-	public static StyleBox CreateCustomLobbyStartGameButton(bool isHover = false, bool isPressed = false)
+	public static StyleBox CreateCustomLobbyButtonTexture(string path, int contentMarginX, int contentMarginY, bool isHover, bool isPressed)
 	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_start_game.webp");
+		var tex = TrimmedTextureLoader.LoadTrimmedTexture(path);
 		if (tex != null)
 		{
 			var style = new StyleBoxTexture();
@@ -894,10 +894,10 @@ public static class UIStyle
 			style.TextureMarginRight = 0;
 			style.TextureMarginTop = 0;
 			style.TextureMarginBottom = 0;
-			style.ContentMarginLeft = 20;
-			style.ContentMarginRight = 20;
-			style.ContentMarginTop = 10;
-			style.ContentMarginBottom = 10;
+			style.ContentMarginLeft = contentMarginX;
+			style.ContentMarginRight = contentMarginX;
+			style.ContentMarginTop = contentMarginY;
+			style.ContentMarginBottom = contentMarginY;
 
 			if (isPressed)
 			{
@@ -916,76 +916,21 @@ public static class UIStyle
 		}
 
 		return isPressed ? CreateButtonPressed() : (isHover ? CreateButtonHover() : CreateButtonNormal());
+	}
+
+	public static StyleBox CreateCustomLobbyStartGameButton(bool isHover = false, bool isPressed = false)
+	{
+		return CreateCustomLobbyButtonTexture("res://Assets/UI/custom_lobby_start_game.webp", 20, 10, isHover, isPressed);
 	}
 
 	public static StyleBox CreateCustomLobbyBackButton(bool isHover = false, bool isPressed = false)
 	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_back_button.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-			style.TextureMarginLeft = 0;
-			style.TextureMarginRight = 0;
-			style.TextureMarginTop = 0;
-			style.TextureMarginBottom = 0;
-			style.ContentMarginLeft = 0;
-			style.ContentMarginRight = 0;
-			style.ContentMarginTop = 0;
-			style.ContentMarginBottom = 0;
-
-			if (isPressed)
-			{
-				style.ModulateColor = new Color(0.85f, 0.85f, 0.9f);
-			}
-			else if (isHover)
-			{
-				style.ModulateColor = new Color(1.18f, 1.18f, 1.25f);
-			}
-			else
-			{
-				style.ModulateColor = Colors.White;
-			}
-
-			return style;
-		}
-
-		return isPressed ? CreateButtonPressed() : (isHover ? CreateButtonHover() : CreateButtonNormal());
+		return CreateCustomLobbyButtonTexture("res://Assets/UI/custom_lobby_back_button.webp", 0, 0, isHover, isPressed);
 	}
 
 	public static StyleBox CreateCustomLobbyRechargeButton(bool isHover = false, bool isPressed = false)
 	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_recharge_button.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-			style.TextureMarginLeft = 0;
-			style.TextureMarginRight = 0;
-			style.TextureMarginTop = 0;
-			style.TextureMarginBottom = 0;
-			style.ContentMarginLeft = 0;
-			style.ContentMarginRight = 0;
-			style.ContentMarginTop = 0;
-			style.ContentMarginBottom = 0;
-
-			if (isPressed)
-			{
-				style.ModulateColor = new Color(0.85f, 0.85f, 0.9f);
-			}
-			else if (isHover)
-			{
-				style.ModulateColor = new Color(1.18f, 1.18f, 1.25f);
-			}
-			else
-			{
-				style.ModulateColor = Colors.White;
-			}
-
-			return style;
-		}
-
-		return isPressed ? CreateButtonPressed() : (isHover ? CreateButtonHover() : CreateButtonNormal());
+		return CreateCustomLobbyButtonTexture("res://Assets/UI/custom_lobby_recharge_button.webp", 0, 0, isHover, isPressed);
 	}
 
 
@@ -1569,5 +1514,33 @@ public static void ApplyTitle(Label label, string text, int fontSize = 36)
 	{
 		_unicodeIconTextureCache.Clear();
 		_emptyBlackTexture = null;
+	}
+
+	public static Button CreateWebAiButton()
+	{
+		var btnWebAi = new Button();
+		btnWebAi.Name = "BtnWebAi_Button";
+		btnWebAi.Set("icon_max_width", 16);
+		btnWebAi.AddThemeConstantOverride("icon_max_width", 16);
+		btnWebAi.ExpandIcon = false;
+		btnWebAi.IconAlignment = HorizontalAlignment.Center;
+		btnWebAi.VerticalIconAlignment = VerticalAlignment.Center;
+		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.webp"))
+		{
+			btnWebAi.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/globe_icon.webp");
+		}
+		else
+		{
+			btnWebAi.Text = "🌐";
+		}
+
+		btnWebAi.TooltipText = TranslationServer.Translate("Generate 3D Model with AI Online");
+		btnWebAi.CustomMinimumSize = new Vector2(24, 24);
+		btnWebAi.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		btnWebAi.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		btnWebAi.FocusMode = Control.FocusModeEnum.None;
+		btnWebAi.Pressed += () => OS.ShellOpen("https://3d.hunyuanglobal.com");
+		
+		return btnWebAi;
 	}
 }

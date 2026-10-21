@@ -791,18 +791,18 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		if (d is Decal3D d3dAnim)
 		{
-			result["animate_opacity"] = d3dAnim.AnimateOpacity;
-			result["opacity_pulse_speed"] = d3dAnim.OpacityPulseSpeed;
-			result["min_opacity"] = d3dAnim.MinOpacity;
-			result["max_opacity"] = d3dAnim.MaxOpacity;
-			result["animate_emission"] = d3dAnim.AnimateEmission;
-			result["emission_pulse_speed"] = d3dAnim.EmissionPulseSpeed;
-			result["min_emission"] = d3dAnim.MinEmission;
-			result["max_emission"] = d3dAnim.MaxEmission;
-			result["animate_scale"] = d3dAnim.AnimateScale;
-			result["scale_pulse_speed"] = d3dAnim.ScalePulseSpeed;
-			result["min_scale_ratio"] = d3dAnim.MinScaleRatio;
-			result["max_scale_ratio"] = d3dAnim.MaxScaleRatio;
+			result["animate_opacity"] = d3dAnim.Animation.AnimateOpacity;
+			result["opacity_pulse_speed"] = d3dAnim.Animation.OpacityPulseSpeed;
+			result["min_opacity"] = d3dAnim.Animation.MinOpacity;
+			result["max_opacity"] = d3dAnim.Animation.MaxOpacity;
+			result["animate_emission"] = d3dAnim.Animation.AnimateEmission;
+			result["emission_pulse_speed"] = d3dAnim.Animation.EmissionPulseSpeed;
+			result["min_emission"] = d3dAnim.Animation.MinEmission;
+			result["max_emission"] = d3dAnim.Animation.MaxEmission;
+			result["animate_scale"] = d3dAnim.Animation.AnimateScale;
+			result["scale_pulse_speed"] = d3dAnim.Animation.ScalePulseSpeed;
+			result["min_scale_ratio"] = d3dAnim.Animation.MinScaleRatio;
+			result["max_scale_ratio"] = d3dAnim.Animation.MaxScaleRatio;
 		}
 	}
 
@@ -1003,18 +1003,21 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			Roughness = _roughness,
 			Metallic = _metallic,
 			BlendMode = _blendMode,
-			AnimateOpacity = _animateOpacity,
-			OpacityPulseSpeed = _opacityPulseSpeed,
-			MinOpacity = _minOpacity,
-			MaxOpacity = _maxOpacity,
-			AnimateEmission = _animateEmission,
-			EmissionPulseSpeed = _emissionPulseSpeed,
-			MinEmission = _minEmission,
-			MaxEmission = _maxEmission,
-			AnimateScale = _animateScale,
-			ScalePulseSpeed = _scalePulseSpeed,
-			MinScaleRatio = _minScaleRatio,
-			MaxScaleRatio = _maxScaleRatio,
+			Animation = new DecalAnimationConfig
+			{
+				AnimateOpacity = _animateOpacity,
+				OpacityPulseSpeed = _opacityPulseSpeed,
+				MinOpacity = _minOpacity,
+				MaxOpacity = _maxOpacity,
+				AnimateEmission = _animateEmission,
+				EmissionPulseSpeed = _emissionPulseSpeed,
+				MinEmission = _minEmission,
+				MaxEmission = _maxEmission,
+				AnimateScale = _animateScale,
+				ScalePulseSpeed = _scalePulseSpeed,
+				MinScaleRatio = _minScaleRatio,
+				MaxScaleRatio = _maxScaleRatio
+			},
 			UpperFade = _upperFade,
 			LowerFade = _lowerFade
 		};
@@ -1479,18 +1482,18 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_roughness = _initialSnapshot.Roughness;
 		_metallic = _initialSnapshot.Metallic;
 		_blendMode = _initialSnapshot.BlendMode;
-		_animateOpacity = _initialSnapshot.AnimateOpacity;
-		_opacityPulseSpeed = _initialSnapshot.OpacityPulseSpeed;
-		_minOpacity = _initialSnapshot.MinOpacity;
-		_maxOpacity = _initialSnapshot.MaxOpacity;
-		_animateEmission = _initialSnapshot.AnimateEmission;
-		_emissionPulseSpeed = _initialSnapshot.EmissionPulseSpeed;
-		_minEmission = _initialSnapshot.MinEmission;
-		_maxEmission = _initialSnapshot.MaxEmission;
-		_animateScale = _initialSnapshot.AnimateScale;
-		_scalePulseSpeed = _initialSnapshot.ScalePulseSpeed;
-		_minScaleRatio = _initialSnapshot.MinScaleRatio;
-		_maxScaleRatio = _initialSnapshot.MaxScaleRatio;
+		_animateOpacity = _initialSnapshot.Animation.AnimateOpacity;
+		_opacityPulseSpeed = _initialSnapshot.Animation.OpacityPulseSpeed;
+		_minOpacity = _initialSnapshot.Animation.MinOpacity;
+		_maxOpacity = _initialSnapshot.Animation.MaxOpacity;
+		_animateEmission = _initialSnapshot.Animation.AnimateEmission;
+		_emissionPulseSpeed = _initialSnapshot.Animation.EmissionPulseSpeed;
+		_minEmission = _initialSnapshot.Animation.MinEmission;
+		_maxEmission = _initialSnapshot.Animation.MaxEmission;
+		_animateScale = _initialSnapshot.Animation.AnimateScale;
+		_scalePulseSpeed = _initialSnapshot.Animation.ScalePulseSpeed;
+		_minScaleRatio = _initialSnapshot.Animation.MinScaleRatio;
+		_maxScaleRatio = _initialSnapshot.Animation.MaxScaleRatio;
 		_upperFade = _initialSnapshot.UpperFade;
 		_lowerFade = _initialSnapshot.LowerFade;
 

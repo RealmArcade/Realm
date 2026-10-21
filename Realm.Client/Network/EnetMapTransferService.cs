@@ -298,7 +298,7 @@ public partial class EnetMapTransferService : Node
 			{
 				var manifest = MapAssetManager.FindHostManifest(mapName, mapVersion);
 				var localFileMap = GetLocalFileMap(mapName, mapVersion, manifest);
-				var itemsToPack = GatherItemsToPack(missingHashes, localFileMap);
+				var itemsToPack = MapTransferHelper.GatherItemsToPack(missingHashes, localFileMap);
 				var chunkList = MapTransferHelper.ChunkTransferItems(itemsToPack);
 
 				session.ChunkItems = chunkList;
@@ -326,39 +326,6 @@ public partial class EnetMapTransferService : Node
 		return MapTransferHelper.BuildLocalFileMap(mapName, mapVersion, manifest);
 	}
 
-	private List<HostAssetTransferItem> GatherItemsToPack(string[] missingHashes, Dictionary<string, string> localFileMap)
-	{
-		var itemsToPack = new List<HostAssetTransferItem>(missingHashes.Length);
-		foreach (var hash in missingHashes)
-		{
-			string norm = ContentAddressableStorage.NormalizeBlake3Hash(hash);
-			string? filePath = MapAssetManager.Storage.FindAssetFilePath(norm) ?? MapAssetManager.P2PStorage.FindAssetFilePath(norm);
-			string? meta = null;
-
-			if (filePath != null && File.Exists(filePath))
-			{
-				meta = MapAssetManager.Storage.GetAssetMetadata(norm);
-			}
-			else if (localFileMap.TryGetValue(norm, out var localPath) && File.Exists(localPath))
-			{
-				filePath = localPath;
-			}
-
-			if (filePath != null && File.Exists(filePath))
-			{
-				long size = new FileInfo(filePath).Length;
-				itemsToPack.Add(new HostAssetTransferItem
-				{
-					AssetKey = hash,
-					SourceFilePath = filePath,
-					Metadata = meta,
-					Size = size
-				});
-			}
-		}
-
-		return itemsToPack;
-	}
 
 
 

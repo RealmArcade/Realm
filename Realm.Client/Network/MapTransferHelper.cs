@@ -37,6 +37,40 @@ public static class MapTransferHelper
 		return localFileMap;
 	}
 
+	public static List<HostAssetTransferItem> GatherItemsToPack(string[] missingHashes, Dictionary<string, string> localFileMap)
+	{
+		var itemsToPack = new List<HostAssetTransferItem>(missingHashes.Length);
+		foreach (var hash in missingHashes)
+		{
+			string norm = ContentAddressableStorage.NormalizeBlake3Hash(hash);
+			string? filePath = MapAssetManager.Storage.FindAssetFilePath(norm) ?? MapAssetManager.P2PStorage.FindAssetFilePath(norm);
+			string? meta = null;
+
+			if (filePath != null && File.Exists(filePath))
+			{
+				meta = MapAssetManager.Storage.GetAssetMetadata(norm);
+			}
+			else if (localFileMap.TryGetValue(norm, out var localPath) && File.Exists(localPath))
+			{
+				filePath = localPath;
+			}
+
+			if (filePath != null && File.Exists(filePath))
+			{
+				long size = new FileInfo(filePath).Length;
+				itemsToPack.Add(new HostAssetTransferItem
+				{
+					AssetKey = hash,
+					SourceFilePath = filePath,
+					Metadata = meta,
+					Size = size
+				});
+			}
+		}
+
+		return itemsToPack;
+	}
+
 	public static List<List<HostAssetTransferItem>> ChunkTransferItems(List<HostAssetTransferItem> itemsToPack)
 	{
 		var chunkList = new List<List<HostAssetTransferItem>>();

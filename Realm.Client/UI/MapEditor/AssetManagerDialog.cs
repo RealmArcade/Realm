@@ -206,28 +206,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		_btnConvertAudio = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert Audio (.raud)"), () => OnConvertAudioPressed(), "Convert audio file to Realm RAUD/OGG format", 11, new Vector2(145, 26));
 		_btnConvert3DModel = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert 3D Model (.rmesh)"), () => OnConvert3DModelPressed(), "Optimize and convert 3D model to RMESH format", 11, new Vector2(165, 26));
 
-		var btnWebAi = new Button();
-		btnWebAi.Name = "BtnWebAi_Button";
-		btnWebAi.Set("icon_max_width", 16);
-		btnWebAi.AddThemeConstantOverride("icon_max_width", 16);
-		btnWebAi.ExpandIcon = false;
-		btnWebAi.IconAlignment = HorizontalAlignment.Center;
-		btnWebAi.VerticalIconAlignment = VerticalAlignment.Center;
-		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.webp"))
-		{
-			btnWebAi.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/globe_icon.webp");
-		}
-		else
-		{
-			btnWebAi.Text = "🌐";
-		}
-
-		btnWebAi.TooltipText = TranslationServer.Translate("Generate 3D Model with AI Online");
-		btnWebAi.CustomMinimumSize = new Vector2(24, 24);
-		btnWebAi.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		btnWebAi.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		btnWebAi.FocusMode = FocusModeEnum.None;
-		btnWebAi.Pressed += () => OS.ShellOpen("https://3d.hunyuanglobal.com");
+		var btnWebAi = UIStyle.CreateWebAiButton();
 		actionsRow.AddChild(btnWebAi);
 		_btnConvertMixamo = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert Mixamo (.ranim)"), () => OnConvertMixamoPressed(), "Extract and convert Mixamo animations to RANIM format", 11, new Vector2(165, 26));
 		_btnGenerateNoise = AddButton(actionsRow, "🎲 " + TranslationServer.Translate("Generate Noise"), () => Hud?.OpenNoiseTextureDialog((_) => RefreshAssetList()), "Generate procedural noise texture", 11, new Vector2(120, 26));

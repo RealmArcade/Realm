@@ -1,0 +1,20 @@
+<<<<<<< SEARCH
+}
+=======
+	private Vector3 CalculatePlacementPosition(Vector3 hitPos)
+	{
+		Vector3 spawnPos = hitPos;
+		if (EditorSnapToGrid && GroundTerrain != null)
+		{
+			float quadSize = GroundTerrain.QuadSize;
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+			float fx = Mathf.Round(spawnPos.X / quadSize + (width - 1) / 2.0f);
+			spawnPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
+			float fz = Mathf.Round(spawnPos.Z / quadSize + (depth - 1) / 2.0f);
+			spawnPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
+		}
+		return spawnPos;
+	}
+}
+>>>>>>> REPLACE

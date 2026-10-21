@@ -386,7 +386,7 @@ public static class MapInfoHelper
 		return false;
 	}
 
-	private static string FormatMapDisplayName(string rawName)
+	public static string FormatMapDisplayName(string rawName)
 	{
 		if (string.IsNullOrEmpty(rawName))
 		{

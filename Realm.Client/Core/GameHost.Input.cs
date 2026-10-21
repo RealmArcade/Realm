@@ -424,17 +424,7 @@ public partial class GameHost
 					var hit = RaycastTerrainFromMouse(GetViewport().GetMousePosition());
 					if (hit != null && hit.ContainsKey("position"))
 					{
-						Vector3 spawnPos = hit["position"].AsVector3();
-						if (EditorSnapToGrid && GroundTerrain != null)
-						{
-							float quadSize = GroundTerrain.QuadSize;
-							int width = GroundTerrain.Width;
-							int depth = GroundTerrain.Depth;
-							float fx = Mathf.Round(spawnPos.X / quadSize + (width - 1) / 2.0f);
-							spawnPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
-							float fz = Mathf.Round(spawnPos.Z / quadSize + (depth - 1) / 2.0f);
-							spawnPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
-						}
+						Vector3 spawnPos = CalculatePlacementPosition(hit["position"].AsVector3());
 
 						spawnPos.Y = GetTerrainHeightAt(spawnPos);
 						var cop = copiedObj.Value;
@@ -531,17 +521,7 @@ public partial class GameHost
 					var hit = RaycastTerrainFromMouse(GetViewport().GetMousePosition());
 					if (hit != null && hit.ContainsKey("position"))
 					{
-						spawnPos = hit["position"].AsVector3();
-						if (EditorSnapToGrid && GroundTerrain != null)
-						{
-							float quadSize = GroundTerrain.QuadSize;
-							int width = GroundTerrain.Width;
-							int depth = GroundTerrain.Depth;
-							float fx = Mathf.Round(spawnPos.X / quadSize + (width - 1) / 2.0f);
-							spawnPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
-							float fz = Mathf.Round(spawnPos.Z / quadSize + (depth - 1) / 2.0f);
-							spawnPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
-						}
+						spawnPos = CalculatePlacementPosition(hit["position"].AsVector3());
 					}
 					else
 					{
@@ -4714,5 +4694,21 @@ public partial class GameHost
 		}
 
 		IssueFollowCommand(clickedUnit, shiftHeld);
+	}
+
+	private Vector3 CalculatePlacementPosition(Vector3 hitPos)
+	{
+		Vector3 spawnPos = hitPos;
+		if (EditorSnapToGrid && GroundTerrain != null)
+		{
+			float quadSize = GroundTerrain.QuadSize;
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+			float fx = Mathf.Round(spawnPos.X / quadSize + (width - 1) / 2.0f);
+			spawnPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
+			float fz = Mathf.Round(spawnPos.Z / quadSize + (depth - 1) / 2.0f);
+			spawnPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
+		}
+		return spawnPos;
 	}
 }

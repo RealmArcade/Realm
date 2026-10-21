@@ -23,20 +23,7 @@ public partial class Decal3D : Decal
 	private float _shroudLightFactor = 1f;
 	private double _animTime = 0.0;
 
-	public bool AnimateOpacity { get; set; } = false;
-	public float OpacityPulseSpeed { get; set; } = 1.0f;
-	public float MinOpacity { get; set; } = 0.2f;
-	public float MaxOpacity { get; set; } = 1.0f;
-
-	public bool AnimateEmission { get; set; } = false;
-	public float EmissionPulseSpeed { get; set; } = 1.0f;
-	public float MinEmission { get; set; } = 0.0f;
-	public float MaxEmission { get; set; } = 2.0f;
-
-	public bool AnimateScale { get; set; } = false;
-	public float ScalePulseSpeed { get; set; } = 1.0f;
-	public float MinScaleRatio { get; set; } = 0.8f;
-	public float MaxScaleRatio { get; set; } = 1.2f;
+	public DecalAnimationConfig Animation { get; set; } = new();
 
 	public bool NormalEnabled
 	{
@@ -126,20 +113,20 @@ public partial class Decal3D : Decal
 		bool animateScale, float scalePulseSpeed, float minScaleRatio, float maxScaleRatio,
 		float upperFade = 0.3f, float lowerFade = 0.3f)
 	{
-		AnimateOpacity = animateOpacity;
-		OpacityPulseSpeed = opacityPulseSpeed;
-		MinOpacity = minOpacity;
-		MaxOpacity = maxOpacity;
+		Animation.AnimateOpacity = animateOpacity;
+		Animation.OpacityPulseSpeed = opacityPulseSpeed;
+		Animation.MinOpacity = minOpacity;
+		Animation.MaxOpacity = maxOpacity;
 
-		AnimateEmission = animateEmission;
-		EmissionPulseSpeed = emissionPulseSpeed;
-		MinEmission = minEmission;
-		MaxEmission = maxEmission;
+		Animation.AnimateEmission = animateEmission;
+		Animation.EmissionPulseSpeed = emissionPulseSpeed;
+		Animation.MinEmission = minEmission;
+		Animation.MaxEmission = maxEmission;
 
-		AnimateScale = animateScale;
-		ScalePulseSpeed = scalePulseSpeed;
-		MinScaleRatio = minScaleRatio;
-		MaxScaleRatio = maxScaleRatio;
+		Animation.AnimateScale = animateScale;
+		Animation.ScalePulseSpeed = scalePulseSpeed;
+		Animation.MinScaleRatio = minScaleRatio;
+		Animation.MaxScaleRatio = maxScaleRatio;
 
 		UpperFade = upperFade;
 		LowerFade = lowerFade;
@@ -149,7 +136,7 @@ public partial class Decal3D : Decal
 
 	public void UpdateProcessState()
 	{
-		bool shouldProcess = AnimateOpacity || AnimateEmission || AnimateScale;
+		bool shouldProcess = Animation.AnimateOpacity || Animation.AnimateEmission || Animation.AnimateScale;
 		SetProcess(shouldProcess);
 		if (!shouldProcess)
 		{
@@ -164,7 +151,7 @@ public partial class Decal3D : Decal
 
 	public override void _Process(double delta)
 	{
-		if (!AnimateOpacity && !AnimateEmission && !AnimateScale)
+		if (!Animation.AnimateOpacity && !Animation.AnimateEmission && !Animation.AnimateScale)
 		{
 			SetProcess(false);
 			return;
@@ -173,10 +160,10 @@ public partial class Decal3D : Decal
 		_animTime += delta;
 		float time = (float)_animTime;
 
-		if (AnimateOpacity)
+		if (Animation.AnimateOpacity)
 		{
-			float sine = (MathF.Sin(time * OpacityPulseSpeed * MathF.PI * 2.0f) + 1.0f) * 0.5f;
-			float alpha = Mathf.Lerp(MinOpacity, MaxOpacity, sine);
+			float sine = (MathF.Sin(time * Animation.OpacityPulseSpeed * MathF.PI * 2.0f) + 1.0f) * 0.5f;
+			float alpha = Mathf.Lerp(Animation.MinOpacity, Animation.MaxOpacity, sine);
 			var col = _baseModulate;
 			col.A = Mathf.Clamp(alpha, 0.0f, 1.0f);
 			ApplyShroudModulate(col);
@@ -186,20 +173,20 @@ public partial class Decal3D : Decal
 			ApplyShroudModulate(_baseModulate);
 		}
 
-		if (AnimateEmission)
+		if (Animation.AnimateEmission)
 		{
-			float sine = (MathF.Sin(time * EmissionPulseSpeed * MathF.PI * 2.0f) + 1.0f) * 0.5f;
-			EmissionEnergy = Mathf.Lerp(MinEmission, MaxEmission, sine);
+			float sine = (MathF.Sin(time * Animation.EmissionPulseSpeed * MathF.PI * 2.0f) + 1.0f) * 0.5f;
+			EmissionEnergy = Mathf.Lerp(Animation.MinEmission, Animation.MaxEmission, sine);
 		}
 		else
 		{
 			EmissionEnergy = _baseEmissionEnergy;
 		}
 
-		if (AnimateScale && _baseSize.X > 0.001f)
+		if (Animation.AnimateScale && _baseSize.X > 0.001f)
 		{
-			float sine = (MathF.Sin(time * ScalePulseSpeed * MathF.PI * 2.0f) + 1.0f) * 0.5f;
-			float ratio = Mathf.Lerp(MinScaleRatio, MaxScaleRatio, sine);
+			float sine = (MathF.Sin(time * Animation.ScalePulseSpeed * MathF.PI * 2.0f) + 1.0f) * 0.5f;
+			float ratio = Mathf.Lerp(Animation.MinScaleRatio, Animation.MaxScaleRatio, sine);
 			Size = new Vector3(_baseSize.X * ratio, _baseSize.Y, _baseSize.Z * ratio);
 		}
 	}

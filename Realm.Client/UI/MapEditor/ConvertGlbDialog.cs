@@ -41,28 +41,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 
 	private void BuildDialogUi()
 	{
-		var btnWebAi = new Button();
-		btnWebAi.Name = "BtnWebAi_Button";
-		btnWebAi.Set("icon_max_width", 16);
-		btnWebAi.AddThemeConstantOverride("icon_max_width", 16);
-		btnWebAi.ExpandIcon = false;
-		btnWebAi.IconAlignment = HorizontalAlignment.Center;
-		btnWebAi.VerticalIconAlignment = VerticalAlignment.Center;
-		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.webp"))
-		{
-			btnWebAi.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/globe_icon.webp");
-		}
-		else
-		{
-			btnWebAi.Text = "🌐";
-		}
-
-		btnWebAi.TooltipText = TranslationServer.Translate("Generate 3D Model with AI Online");
-		btnWebAi.CustomMinimumSize = new Vector2(24, 24);
-		btnWebAi.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		btnWebAi.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		btnWebAi.FocusMode = FocusModeEnum.None;
-		btnWebAi.Pressed += () => OS.ShellOpen("https://3d.hunyuanglobal.com");
+		var btnWebAi = UIStyle.CreateWebAiButton();
 		HeaderHBox.AddChild(btnWebAi);
 		HeaderHBox.MoveChild(btnWebAi, HeaderHBox.GetChildCount() - 2);
 

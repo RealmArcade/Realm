@@ -1,0 +1,9 @@
+<<<<<<< SEARCH
+		btnWebAi.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		btnWebAi.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		btnWebAi.FocusMode = FocusModeEnum.None;
+=======
+		btnWebAi.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		btnWebAi.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		btnWebAi.FocusMode = Control.FocusModeEnum.None;
+>>>>>>> REPLACE

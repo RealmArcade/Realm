@@ -112,16 +112,7 @@ public class MapStorageService
 	{
 		if (Directory.Exists(destinationPath))
 		{
-			string cleanMapName = string.Join("_", mapTitle.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-			if (string.IsNullOrEmpty(cleanMapName) || cleanMapName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) cleanMapName = "MapExport";
-
-			string cleanMapVersion = string.Join("_", mapVersion.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-			if (string.IsNullOrEmpty(cleanMapVersion)) cleanMapVersion = "1.0.0";
-
-			string normHash = !string.IsNullOrEmpty(manifestBlake3) ? ContentAddressableStorage.NormalizeBlake3Hash(manifestBlake3) : string.Empty;
-			string shortHash = normHash.Length >= 4 ? normHash.Substring(0, 4) : (normHash.Length > 0 ? normHash : "0000");
-
-			return Path.Combine(destinationPath, $"{cleanMapName}_{cleanMapVersion}_{shortHash}.rmap");
+			return Path.Combine(destinationPath, GetExportMapDefaultFileName(mapTitle, mapVersion, manifestBlake3));
 		}
 
 		return destinationPath;
