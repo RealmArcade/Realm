@@ -367,40 +367,22 @@ public partial class EnetMapTransferService : Node
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks)
 	{
-		MapTransferHelper.HandleBeginMapTransfer(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, tId =>
-		{
-			Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), tId)).CallDeferred();
-			_transferCompleteTcs?.TrySetResult(true);
-		});
+		MapTransferHelper.HandleBeginMapTransferRpc(_currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, this, nameof(AcknowledgeMapTransferCompleteRpc), _transferCompleteTcs);
 	}
 
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void SendMapTransferChunkRpc(string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData)
 	{
-		MapTransferHelper.HandleSendMapTransferChunkRpc(
+		MapTransferHelper.HandleSendMapTransferChunkRpcWrapper(
 			_currentClientTransfer, transferId, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk, totalBytes, packetData,
 			progress => {
 				_currentClientTransfer?.ProgressCallback?.Invoke(progress);
 				DownloadProgressChanged?.Invoke(progress);
 			},
-			() => FinalizeReceivedChunk(chunkIndex, totalChunks),
-			_transferCompleteTcs,
-			"EnetMapTransferService"
-		);
-	}
-
-	private void FinalizeReceivedChunk(int chunkIndex, int totalChunks)
-	{
-		byte[] chunkBytes = MapTransferHelper.PopChunkBytes(_currentClientTransfer!);
-
-		_ = MapTransferHelper.ProcessReceivedChunkAsync(
-			_currentClientTransfer!,
-			chunkIndex,
-			totalChunks,
-			chunkBytes,
-			nextChunkIndex => RpcId(1, nameof(RequestNextMapTransferChunkRpc), _currentClientTransfer!.TransferId, nextChunkIndex),
-			() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), _currentClientTransfer!.TransferId),
+			this,
+			nameof(RequestNextMapTransferChunkRpc),
+			nameof(AcknowledgeMapTransferCompleteRpc),
 			_transferCompleteTcs,
 			"EnetMapTransferService"
 		);

@@ -1007,12 +1007,12 @@ public partial class RuntimeTerrain : Node3D
 
 		if (x + 1 < w)
 		{
-			AddWaterWallX(x, z, waterY1, activeWaterProfile1, cells, w, d, quadSize, halfWQuadSize, halfDQuadSize, profileVerts, profileNorms, profileUvs, profileIndices);
+			AddWaterWall(x, z, waterY1, activeWaterProfile1, cells, w, d, quadSize, halfWQuadSize, halfDQuadSize, profileVerts, profileNorms, profileUvs, profileIndices, true);
 		}
 
 		if (z + 1 < d)
 		{
-			AddWaterWallZ(x, z, waterY1, activeWaterProfile1, cells, w, d, quadSize, halfWQuadSize, halfDQuadSize, profileVerts, profileNorms, profileUvs, profileIndices);
+			AddWaterWall(x, z, waterY1, activeWaterProfile1, cells, w, d, quadSize, halfWQuadSize, halfDQuadSize, profileVerts, profileNorms, profileUvs, profileIndices, false);
 		}
 	}
 
@@ -1107,34 +1107,29 @@ public partial class RuntimeTerrain : Node3D
 		AddWallGeometry(wGeom.verts, wGeom.norms, wGeom.uvs, wGeom.indices, wBase, p0, p1, p2, p3, wallNorm);
 	}
 
-	private void AddWaterWallX(
-		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
+	private void AddWaterWall(
+		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices, bool isX)
 	{
-		var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(x + 1, z, cells, w, d);
+		var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(isX ? x + 1 : x, isX ? z : z + 1, cells, w, d);
 		
-		if (!TryGetWaterWallBounds(waterY1, waterY2, activeWaterMode2, activeWaterProfile1, activeWaterProfile2, out float yMin, out float yMax, out byte wallProfile, out Vector3 wallNorm, true)) return;
+		if (!TryGetWaterWallBounds(waterY1, waterY2, activeWaterMode2, activeWaterProfile1, activeWaterProfile2, out float yMin, out float yMax, out byte wallProfile, out Vector3 wallNorm, isX)) return;
 
-		float wallX = (x + 1) * quadSize - halfWQuadSize;
-		float z0 = z * quadSize - halfDQuadSize;
-		float z1 = (z + 1) * quadSize - halfDQuadSize;
-
-		AddWaterWallGeometry(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices,
-			new Vector3(wallX, yMin, z0), new Vector3(wallX, yMin, z1), new Vector3(wallX, yMax, z1), new Vector3(wallX, yMax, z0), wallNorm);
-	}
-
-	private void AddWaterWallZ(
-		int x, int z, float waterY1, byte activeWaterProfile1, TerrainCell[,] cells, int w, int d, float quadSize, float halfWQuadSize, float halfDQuadSize, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileVerts, System.Collections.Generic.Dictionary<byte, List<Vector3>> profileNorms, System.Collections.Generic.Dictionary<byte, List<Vector2>> profileUvs, System.Collections.Generic.Dictionary<byte, List<int>> profileIndices)
-	{
-		var (waterY2, activeWaterMode2, activeWaterProfile2) = GetCellWaterInfo(x, z + 1, cells, w, d);
-		
-		if (!TryGetWaterWallBounds(waterY1, waterY2, activeWaterMode2, activeWaterProfile1, activeWaterProfile2, out float yMin, out float yMax, out byte wallProfile, out Vector3 wallNorm, false)) return;
-
-		float wallZ = (z + 1) * quadSize - halfDQuadSize;
-		float x0 = x * quadSize - halfWQuadSize;
-		float x1 = (x + 1) * quadSize - halfWQuadSize;
-
-		AddWaterWallGeometry(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices,
-			new Vector3(x0, yMin, wallZ), new Vector3(x1, yMin, wallZ), new Vector3(x1, yMax, wallZ), new Vector3(x0, yMax, wallZ), wallNorm);
+		if (isX)
+		{
+			float wallX = (x + 1) * quadSize - halfWQuadSize;
+			float z0 = z * quadSize - halfDQuadSize;
+			float z1 = (z + 1) * quadSize - halfDQuadSize;
+			AddWaterWallGeometry(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices,
+				new Vector3(wallX, yMin, z0), new Vector3(wallX, yMin, z1), new Vector3(wallX, yMax, z1), new Vector3(wallX, yMax, z0), wallNorm);
+		}
+		else
+		{
+			float wallZ = (z + 1) * quadSize - halfDQuadSize;
+			float x0 = x * quadSize - halfWQuadSize;
+			float x1 = (x + 1) * quadSize - halfWQuadSize;
+			AddWaterWallGeometry(wallProfile, profileVerts, profileNorms, profileUvs, profileIndices,
+				new Vector3(x0, yMin, wallZ), new Vector3(x1, yMin, wallZ), new Vector3(x1, yMax, wallZ), new Vector3(x0, yMax, wallZ), wallNorm);
+		}
 	}
 
 	private void UpdateWaterMeshesForChunk(

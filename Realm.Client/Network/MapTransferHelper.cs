@@ -339,4 +339,40 @@ public static class MapTransferHelper
 			_ = sendHostChunkAsync(session, nextChunkIndex);
 		}
 	}
+
+	public static void HandleBeginMapTransferRpc(ClientTransferSession? currentClientTransfer, string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks, Node rpcNode, string acknowledgeCompleteRpcName, TaskCompletionSource<bool>? transferCompleteTcs)
+	{
+		HandleBeginMapTransfer(currentClientTransfer, transferId, mapName, mapVersion, totalBytes, totalChunks, tId =>
+		{
+			Callable.From(() => rpcNode.RpcId(1, acknowledgeCompleteRpcName, tId)).CallDeferred();
+			transferCompleteTcs?.TrySetResult(true);
+		});
+	}
+
+	public static void ProcessCompletedChunk(ClientTransferSession currentClientTransfer, int chunkIndex, int totalChunks, Node rpcNode, string requestNextChunkRpcName, string acknowledgeCompleteRpcName, TaskCompletionSource<bool>? transferCompleteTcs, string logPrefix)
+	{
+		byte[] chunkBytes = PopChunkBytes(currentClientTransfer);
+
+		_ = ProcessReceivedChunkAsync(
+			currentClientTransfer,
+			chunkIndex,
+			totalChunks,
+			chunkBytes,
+			nextChunkIndex => rpcNode.RpcId(1, requestNextChunkRpcName, currentClientTransfer.TransferId, nextChunkIndex),
+			() => rpcNode.RpcId(1, acknowledgeCompleteRpcName, currentClientTransfer.TransferId),
+			transferCompleteTcs,
+			logPrefix
+		);
+	}
+
+	public static void HandleSendMapTransferChunkRpcWrapper(ClientTransferSession? currentClientTransfer, string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData, Action<float> emitProgress, Node rpcNode, string requestNextChunkRpcName, string acknowledgeCompleteRpcName, TaskCompletionSource<bool>? transferCompleteTcs, string logPrefix)
+	{
+		HandleSendMapTransferChunkRpc(
+			currentClientTransfer, transferId, chunkIndex, totalChunks, packetIndex, totalPacketsInChunk, totalBytes, packetData,
+			emitProgress,
+			() => ProcessCompletedChunk(currentClientTransfer!, chunkIndex, totalChunks, rpcNode, requestNextChunkRpcName, acknowledgeCompleteRpcName, transferCompleteTcs, logPrefix),
+			transferCompleteTcs,
+			logPrefix
+		);
+	}
 }
