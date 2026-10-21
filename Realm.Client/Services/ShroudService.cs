@@ -15,7 +15,7 @@ namespace Realm.Client.Services;
 
 public class ShroudService
 {
-	private const float ShroudTickInterval = 0.1f;
+	private const float PresentationInterval = 0.1f;
 	private const byte ExploredChannelValue = 255;
 	private const byte VisionShroudMinimapAlpha = 84;
 	private const byte ExplorationShroudMinimapAlpha = 255;
@@ -32,18 +32,19 @@ public class ShroudService
 	private Vector4 _appliedGlobalBounds;
 	private static ImageTexture _fullyRevealedTexture;
 
-	private readonly byte[] _shroudPixelBuffer = new byte[ShroudGrid.CellCount * 4];
-	private readonly byte[] _shroudMinimapPixelBuffer = new byte[ShroudGrid.CellCount * 4];
+	private byte[] _shroudPixelBuffer = Array.Empty<byte>();
+	private byte[] _shroudMinimapPixelBuffer = Array.Empty<byte>();
+	private int _textureWidth;
+	private int _textureHeight;
 
 	private float _shroudTimer;
-	private ulong _lastShroudChecksum;
-	private ulong _lastMinimapChecksum;
-	private ushort _observedMask = ShroudGrid.AllPlayerMask;
-	private ushort _hostileMask;
+	private int _observedGroup = -1;
 	private int _observedPlayerIndex = -1;
+	private int _lastAppliedVersion = -1;
+	private int _lastAppliedGroup = -2;
 	private bool _isRevealAll = true;
 	private bool _hasPresentedShroud;
-	private bool _isMapEditorPresentationInitialized;
+	private bool _hasAppliedRevealAllPresentation;
 	private bool _isPresentationSuspended;
 	private Entity _cachedWorldEntity = Entity.Null;
 
@@ -58,13 +59,13 @@ public class ShroudService
 			RemoveLegacyShroudNodes(mainNode);
 		}
 
-		EnsureTextures();
-		ApplyGlobalTexture();
+		EnsureTextures(1, 1);
 		RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, 0f);
-		_shroudTimer = 0f;
-		_lastShroudChecksum = 0UL;
-		_lastMinimapChecksum = 0UL;
+		_shroudTimer = PresentationInterval;
+		_lastAppliedVersion = -1;
+		_lastAppliedGroup = -2;
 		_hasPresentedShroud = false;
+		_hasAppliedRevealAllPresentation = false;
 		TriggerImmediateUpdate();
 	}
 
@@ -84,117 +85,114 @@ public class ShroudService
 
 	public void Tick(float delta, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
 	{
-		if (_isPresentationSuspended) return;
-
-		if (GameContext.SessionState.IsMapEditorMode)
+		if (_isPresentationSuspended)
 		{
-			TickMapEditorMode(allUnits, allProps, allDecals);
+			RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, 1f);
 			return;
 		}
 
-		if (_isMapEditorPresentationInitialized)
+		if (!_hasPresentedShroud)
 		{
-			_isMapEditorPresentationInitialized = false;
-			_hasPresentedShroud = false;
+			_shroudTimer = PresentationInterval;
 		}
 
-		int observedPlayerIndex = ResolveObservedPlayerIndex(spectatorPerspective, isPlayingReplay, isSpectator);
 		_shroudTimer += delta;
-		if (!_hasPresentedShroud || observedPlayerIndex != _observedPlayerIndex)
+		if (_shroudTimer < PresentationInterval)
 		{
-			_shroudTimer = ShroudTickInterval;
+			RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, Mathf.Clamp(_shroudTimer / PresentationInterval, 0f, 1f));
+			return;
 		}
 
-		if (_shroudTimer >= ShroudTickInterval)
+		_shroudTimer = 0f;
+		int observedPlayerIndex = ResolveObservedPlayerIndex(spectatorPerspective, isPlayingReplay, isSpectator);
+		if (observedPlayerIndex != _observedPlayerIndex)
 		{
-			_shroudTimer = 0f;
-			UpdateShroud(allUnits, allProps, allDecals, observedPlayerIndex);
+			_lastAppliedVersion = -1;
+			_lastAppliedGroup = -2;
 		}
 
-		RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, Mathf.Clamp(_shroudTimer / ShroudTickInterval, 0f, 1f));
-	}
-
-	private void TickMapEditorMode(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
-	{
-		if (_isMapEditorPresentationInitialized) return;
-		_isMapEditorPresentationInitialized = true;
-		_hasPresentedShroud = true;
-		_isRevealAll = true;
-		_observedMask = ShroudGrid.AllPlayerMask;
-		_observedPlayerIndex = -1;
-		_hostileMask = 0;
-
-		SetNodesVisible(allUnits);
-		SetNodesVisible(allProps);
-		SetNodesVisible(allDecals);
-
-		EnsureTextures();
-		WriteRevealedShroudPixels();
-		UploadShroudTexture();
-		WriteRevealedMinimapPixels();
-		UploadMinimapTexture();
-
-		if (GameHost.Instance?.GroundTerrain != null)
-		{
-			float worldWidth = GameHost.Instance.GroundTerrain.Width * GameHost.Instance.GroundTerrain.QuadSize;
-			float worldDepth = GameHost.Instance.GroundTerrain.Depth * GameHost.Instance.GroundTerrain.QuadSize;
-			SetGlobalBounds(worldWidth * -0.5f, worldDepth * -0.5f, worldWidth, worldDepth);
-		}
-
-		RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, 1f);
+		_observedPlayerIndex = observedPlayerIndex;
+		UpdateShroud(allUnits, allProps, allDecals, observedPlayerIndex);
 	}
 
 	private void UpdateShroud(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int observedPlayerIndex)
 	{
-		if (GameHost.Instance == null || GameContext.World == null) return;
-
-		float worldWidth = GameHost.Instance.GroundTerrain != null ? GameHost.Instance.GroundTerrain.Width * GameHost.Instance.GroundTerrain.QuadSize : 250f;
-		float worldDepth = GameHost.Instance.GroundTerrain != null ? GameHost.Instance.GroundTerrain.Depth * GameHost.Instance.GroundTerrain.QuadSize : 250f;
-		ShroudGrid.ConfigureWorld(worldWidth, worldDepth);
-
-		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<ShroudState>(worldEntity))
-		{
-			ApplyRevealAllPresentation(allUnits, allProps, allDecals);
-			SetGlobalBounds(worldWidth * -0.5f, worldDepth * -0.5f, worldWidth, worldDepth);
-			_hasPresentedShroud = true;
-			return;
-		}
-
-		ref var shroud = ref GameContext.World.Get<ShroudState>(worldEntity);
-		shroud.EnsureAllocated(worldWidth, worldDepth);
-		ShroudSimulationService.Tick(GameContext.World, worldEntity);
-
-		_observedPlayerIndex = observedPlayerIndex;
-		_observedMask = BuildObservedMask(worldEntity, observedPlayerIndex);
-		_hostileMask = BuildHostileMask(worldEntity, observedPlayerIndex);
-		_isRevealAll = observedPlayerIndex < 0;
 		_hasPresentedShroud = true;
 
-		SetGlobalBounds(shroud.WorldMinX, shroud.WorldMinZ, shroud.WorldWidth, shroud.WorldDepth);
-		EnsureTextures();
-
-		if (_isRevealAll)
+		var world = GameContext.World;
+		if (world == null)
 		{
 			ApplyRevealAllPresentation(allUnits, allProps, allDecals);
-			WriteRevealedShroudPixels();
-			UploadShroudTexture();
-			WriteRevealedMinimapPixels();
-			UploadMinimapTexture();
 			return;
 		}
 
-		UpdateShroudTexture(in shroud);
-		UpdateMinimapTexture(in shroud);
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<ShroudState>(worldEntity))
+		{
+			ApplyRevealAllPresentation(allUnits, allProps, allDecals);
+			return;
+		}
+
+		ref var shroud = ref world.Get<ShroudState>(worldEntity);
+		bool isOmniscient = observedPlayerIndex < 0
+		                    || (uint)observedPlayerIndex >= ShroudGrid.MaxGroups
+		                    || GameContext.SessionState.IsMapEditorMode
+		                    || shroud.VisibilityMode == ShroudVisibilityMode.Revealed
+		                    || !shroud.IsAllocated;
+
+		if (isOmniscient)
+		{
+			ApplyRevealAllPresentation(allUnits, allProps, allDecals);
+			return;
+		}
+
+		_isRevealAll = false;
+		_hasAppliedRevealAllPresentation = false;
+		_observedGroup = shroud.GetGroupIndex(observedPlayerIndex);
+		SetGlobalBounds(shroud.WorldMinX, shroud.WorldMinZ, shroud.WorldWidth, shroud.WorldDepth);
+		ApplyGlobalTexture();
+
+		bool contentChanged = _observedGroup != _lastAppliedGroup
+		                     || shroud.Version != _lastAppliedVersion
+		                     || shroud.GridWidth != _textureWidth
+		                     || shroud.GridHeight != _textureHeight;
+
+		if (contentChanged)
+		{
+			EnsureTextures(shroud.GridWidth, shroud.GridHeight);
+			WriteShroudPixels(in shroud);
+			UploadShroudTexture();
+			WriteMinimapPixels(in shroud);
+			UploadMinimapTexture();
+			_lastAppliedGroup = _observedGroup;
+			_lastAppliedVersion = shroud.Version;
+		}
+
 		ApplyEntityVisibility(in shroud, allUnits, allProps, allDecals);
 	}
 
 	private void ApplyRevealAllPresentation(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
 	{
 		_isRevealAll = true;
+		_observedGroup = -1;
+		_lastAppliedGroup = -1;
+		_lastAppliedVersion = -1;
+
 		SetNodesVisible(allUnits);
 		SetNodesVisible(allProps);
 		SetNodesVisible(allDecals);
+
+		SetGlobalBounds(0f, 0f, 0f, 0f);
+		ApplyGlobalTexture();
+
+		if (_hasAppliedRevealAllPresentation) return;
+		_hasAppliedRevealAllPresentation = true;
+
+		EnsureTextures(1, 1);
+		WriteRevealedShroudPixels();
+		UploadShroudTexture();
+		WriteRevealedMinimapPixels();
+		UploadMinimapTexture();
 	}
 
 	private static void SetNodesVisible<T>(List<T> nodes) where T : Node3D
@@ -202,7 +200,8 @@ public class ShroudService
 		for (int index = 0; index < nodes.Count; index++)
 		{
 			var node = nodes[index];
-			if (node == null || !GodotObject.IsInstanceValid(node) || node.Visible) continue;
+			if (node == null || !GodotObject.IsInstanceValid(node)) continue;
+			if (node.Visible) continue;
 			node.Visible = true;
 		}
 	}
@@ -210,17 +209,19 @@ public class ShroudService
 	private void ApplyEntityVisibility(in ShroudState shroud, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
 	{
 		var world = GameContext.World;
+		int observedGroup = _observedGroup;
 
 		for (int index = 0; index < allUnits.Count; index++)
 		{
 			var unit = allUnits[index];
 			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
 
-			bool shouldBeVisible = !IsUnitPlayerHostile(unit.Player);
+			bool shouldBeVisible = IsPlayerInObservedGroup(in shroud, unit.Player, observedGroup);
 			if (!shouldBeVisible && unit.Entity != Entity.Null && world.IsAlive(unit.Entity) && world.Has<Position>(unit.Entity))
 			{
 				ref var position = ref world.Get<Position>(unit.Entity);
-				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex) && shroud.IsVisible(cellIndex, _observedMask);
+				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
+				                  && shroud.IsVisible(cellIndex, observedGroup);
 			}
 
 			if (unit.Visible != shouldBeVisible)
@@ -238,7 +239,8 @@ public class ShroudService
 			if (prop.Entity != Entity.Null && world.IsAlive(prop.Entity) && world.Has<Position>(prop.Entity))
 			{
 				ref var position = ref world.Get<Position>(prop.Entity);
-				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex) && shroud.IsExplored(cellIndex, _observedMask);
+				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
+				                  && shroud.IsExplored(cellIndex, observedGroup);
 			}
 
 			if (prop.Visible != shouldBeVisible)
@@ -256,7 +258,8 @@ public class ShroudService
 			if (decal is Decal3D decal3D && decal3D.Entity != Entity.Null && world.IsAlive(decal3D.Entity) && world.Has<Position>(decal3D.Entity))
 			{
 				ref var position = ref world.Get<Position>(decal3D.Entity);
-				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex) && shroud.IsExplored(cellIndex, _observedMask);
+				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
+				                  && shroud.IsExplored(cellIndex, observedGroup);
 			}
 
 			if (decal.Visible != shouldBeVisible)
@@ -266,27 +269,31 @@ public class ShroudService
 		}
 	}
 
-	private bool IsUnitPlayerHostile(int playerIndex)
+	private static unsafe bool IsPlayerInObservedGroup(in ShroudState shroud, int playerIndex, int observedGroup)
 	{
-		if ((uint)playerIndex >= ShroudSimulationService.MaxBitmaskPlayers) return false;
-		return (_hostileMask & (1 << playerIndex)) != 0;
+		if ((uint)playerIndex >= ShroudGrid.MaxGroups) return true;
+		return shroud.GroupOfPlayer[playerIndex] == observedGroup;
 	}
 
 	public bool IsUnitVisibleOnMinimap(Unit3D unit)
 	{
 		if (unit == null || !GodotObject.IsInstanceValid(unit)) return false;
 		if (_isRevealAll || !_hasPresentedShroud) return true;
-		if (!IsUnitPlayerHostile(unit.Player)) return true;
 
 		var world = GameContext.World;
-		if (world == null || unit.Entity == Entity.Null || !world.IsAlive(unit.Entity) || !world.Has<Position>(unit.Entity)) return true;
+		if (world == null) return true;
 
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<ShroudState>(worldEntity)) return true;
 
 		ref var shroud = ref world.Get<ShroudState>(worldEntity);
+		if (!shroud.IsAllocated) return true;
+		if (IsPlayerInObservedGroup(in shroud, unit.Player, _observedGroup)) return true;
+		if (unit.Entity == Entity.Null || !world.IsAlive(unit.Entity) || !world.Has<Position>(unit.Entity)) return true;
+
 		ref var position = ref world.Get<Position>(unit.Entity);
-		return shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex) && shroud.IsVisible(cellIndex, _observedMask);
+		return shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
+		       && shroud.IsVisible(cellIndex, _observedGroup);
 	}
 
 	private int ResolveObservedPlayerIndex(int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
@@ -325,127 +332,47 @@ public class ShroudService
 		return world.Get<UnitOwnerPlayer>(playerEntity).PlayerIndex;
 	}
 
-	private static ushort BuildObservedMask(Entity worldEntity, int observedPlayerIndex)
+	private unsafe void WriteShroudPixels(in ShroudState shroud)
 	{
-		if ((uint)observedPlayerIndex >= ShroudSimulationService.MaxBitmaskPlayers) return ShroudGrid.AllPlayerMask;
+		byte[] pixels = _shroudPixelBuffer;
+		int groupOffset = _observedGroup * shroud.CellCount;
 
-		ushort observedMask = (ushort)(1 << observedPlayerIndex);
-		var world = GameContext.World;
-		if (world == null || !world.IsAlive(worldEntity) || !world.Has<PlayerRelationshipMatrix>(worldEntity)) return observedMask;
-
-		ref var relationships = ref world.Get<PlayerRelationshipMatrix>(worldEntity);
-		for (int playerIndex = 0; playerIndex < ShroudSimulationService.MaxBitmaskPlayers; playerIndex++)
+		for (int cellIndex = 0; cellIndex < shroud.CellCount; cellIndex++)
 		{
-			if (relationships.AreEnemies(observedPlayerIndex, playerIndex)) continue;
-			observedMask |= (ushort)(1 << playerIndex);
-		}
+			int sourceIndex = groupOffset + cellIndex;
+			bool isExplored = shroud.ExploredCells[sourceIndex] != 0;
+			bool isVisible = shroud.VisibleCells[sourceIndex] != 0;
+			int byteIndex = cellIndex * 4;
 
-		return observedMask;
+			pixels[byteIndex + 2] = pixels[byteIndex];
+			pixels[byteIndex + 3] = pixels[byteIndex + 1];
+			pixels[byteIndex] = isExplored ? ExploredChannelValue : (byte)0;
+			pixels[byteIndex + 1] = isVisible ? ExploredChannelValue : (byte)0;
+		}
 	}
 
-	private static ushort BuildHostileMask(Entity worldEntity, int observedPlayerIndex)
+	private unsafe void WriteMinimapPixels(in ShroudState shroud)
 	{
-		if ((uint)observedPlayerIndex >= ShroudSimulationService.MaxBitmaskPlayers) return 0;
+		byte[] pixels = _shroudMinimapPixelBuffer;
+		int groupOffset = _observedGroup * shroud.CellCount;
 
-		ushort hostileMask = 0;
-		var world = GameContext.World;
-		if (world == null || !world.IsAlive(worldEntity) || !world.Has<PlayerRelationshipMatrix>(worldEntity))
+		for (int cellIndex = 0; cellIndex < shroud.CellCount; cellIndex++)
 		{
-			for (int playerIndex = 0; playerIndex < ShroudSimulationService.MaxBitmaskPlayers; playerIndex++)
-			{
-				if (NetworkService.ArePlayerIndicesEnemies(observedPlayerIndex, playerIndex)) hostileMask |= (ushort)(1 << playerIndex);
-			}
-			return hostileMask;
+			int sourceIndex = groupOffset + cellIndex;
+			bool isExplored = shroud.ExploredCells[sourceIndex] != 0;
+			bool isVisible = shroud.VisibleCells[sourceIndex] != 0;
+			int byteIndex = cellIndex * 4;
+
+			pixels[byteIndex] = 0;
+			pixels[byteIndex + 1] = 0;
+			pixels[byteIndex + 2] = 0;
+			pixels[byteIndex + 3] = !isExplored ? ExplorationShroudMinimapAlpha : isVisible ? (byte)0 : VisionShroudMinimapAlpha;
 		}
-
-		ref var relationships = ref world.Get<PlayerRelationshipMatrix>(worldEntity);
-		for (int playerIndex = 0; playerIndex < ShroudSimulationService.MaxBitmaskPlayers; playerIndex++)
-		{
-			if (relationships.AreEnemies(observedPlayerIndex, playerIndex)) hostileMask |= (ushort)(1 << playerIndex);
-		}
-
-		return hostileMask;
-	}
-
-	private unsafe void UpdateShroudTexture(in ShroudState shroud)
-	{
-		ulong checksum = ComputeMaskChecksum(shroud.ExploredBitmask, shroud.VisibleBitmask, _observedMask);
-		if (checksum == _lastShroudChecksum) return;
-		_lastShroudChecksum = checksum;
-
-		unsafe
-		{
-			byte[] pixels = _shroudPixelBuffer;
-			for (int cellIndex = 0; cellIndex < ShroudGrid.CellCount; cellIndex++)
-			{
-				bool isExplored = (shroud.ExploredBitmask[cellIndex] & _observedMask) != 0;
-				bool isVisible = (shroud.VisibleBitmask[cellIndex] & _observedMask) != 0;
-				int byteIndex = cellIndex * 4;
-
-				pixels[byteIndex + 2] = pixels[byteIndex];
-				pixels[byteIndex + 3] = pixels[byteIndex + 1];
-				pixels[byteIndex] = isExplored ? ExploredChannelValue : (byte)0;
-				pixels[byteIndex + 1] = isVisible ? ExploredChannelValue : (byte)0;
-			}
-		}
-
-		UploadShroudTexture();
-	}
-
-	private void UpdateMinimapTexture(in ShroudState shroud)
-	{
-		unsafe
-		{
-			byte[] pixels = _shroudMinimapPixelBuffer;
-			for (int cellIndex = 0; cellIndex < ShroudGrid.CellCount; cellIndex++)
-			{
-				bool isExplored = (shroud.ExploredBitmask[cellIndex] & _observedMask) != 0;
-				bool isVisible = (shroud.VisibleBitmask[cellIndex] & _observedMask) != 0;
-				int byteIndex = cellIndex * 4;
-
-				pixels[byteIndex] = 0;
-				pixels[byteIndex + 1] = 0;
-				pixels[byteIndex + 2] = 0;
-				pixels[byteIndex + 3] = !isExplored ? ExplorationShroudMinimapAlpha : isVisible ? (byte)0 : VisionShroudMinimapAlpha;
-			}
-		}
-
-		ulong checksum = ComputeByteChecksum(_shroudMinimapPixelBuffer);
-		if (checksum == _lastMinimapChecksum) return;
-		_lastMinimapChecksum = checksum;
-		UploadMinimapTexture();
-	}
-
-	private static unsafe ulong ComputeMaskChecksum(ushort* exploredBitmask, ushort* visibleBitmask, ushort observedMask)
-	{
-		ulong checksum = 14695981039346656037UL;
-		for (int cellIndex = 0; cellIndex < ShroudGrid.CellCount; cellIndex++)
-		{
-			checksum = (checksum ^ (ushort)(exploredBitmask[cellIndex] & observedMask)) * 1099511628211UL;
-			checksum = (checksum ^ (ushort)(visibleBitmask[cellIndex] & observedMask)) * 1099511628211UL;
-		}
-
-		return (checksum ^ observedMask) * 1099511628211UL;
-	}
-
-	private static ulong ComputeByteChecksum(byte[] buffer)
-	{
-		ulong checksum = 14695981039346656037UL;
-		for (int index = 0; index < buffer.Length; index++)
-		{
-			checksum = (checksum ^ buffer[index]) * 1099511628211UL;
-		}
-
-		return checksum;
 	}
 
 	private void WriteRevealedShroudPixels()
 	{
-		byte[] pixels = _shroudPixelBuffer;
-		for (int index = 0; index < pixels.Length; index++)
-		{
-			pixels[index] = 255;
-		}
+		Array.Fill(_shroudPixelBuffer, (byte)255);
 	}
 
 	private void WriteRevealedMinimapPixels()
@@ -453,41 +380,58 @@ public class ShroudService
 		Array.Clear(_shroudMinimapPixelBuffer, 0, _shroudMinimapPixelBuffer.Length);
 	}
 
-	private void EnsureTextures()
+	private void EnsureTextures(int width, int height)
 	{
-		if (_shroudImage == null || _shroudTexture == null || !GodotObject.IsInstanceValid(_shroudTexture))
+		if (width < 1) width = 1;
+		if (height < 1) height = 1;
+
+		int byteLength = width * height * 4;
+		if (_shroudPixelBuffer.Length != byteLength)
 		{
-			_shroudImage = Image.CreateEmpty(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8);
-			_shroudImage.SetData(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8, _shroudPixelBuffer);
+			_shroudPixelBuffer = new byte[byteLength];
+		}
+
+		if (_shroudMinimapPixelBuffer.Length != byteLength)
+		{
+			_shroudMinimapPixelBuffer = new byte[byteLength];
+		}
+
+		if (_shroudImage == null || _shroudTexture == null || !GodotObject.IsInstanceValid(_shroudTexture) || _textureWidth != width || _textureHeight != height)
+		{
+			_textureWidth = width;
+			_textureHeight = height;
+			_shroudImage = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
+			_shroudImage.SetData(width, height, false, Image.Format.Rgba8, _shroudPixelBuffer);
 			_shroudTexture = ImageTexture.CreateFromImage(_shroudImage);
 		}
 
 		if (_shroudMinimapImage == null || _shroudMinimapTexture == null || !GodotObject.IsInstanceValid(_shroudMinimapTexture))
 		{
-			_shroudMinimapImage = Image.CreateEmpty(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8);
-			_shroudMinimapImage.SetData(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8, _shroudMinimapPixelBuffer);
+			_shroudMinimapImage = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
+			_shroudMinimapImage.SetData(width, height, false, Image.Format.Rgba8, _shroudMinimapPixelBuffer);
 			_shroudMinimapTexture = ImageTexture.CreateFromImage(_shroudMinimapImage);
 		}
 	}
 
 	private void UploadShroudTexture()
 	{
-		EnsureTextures();
-		_shroudImage.SetData(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8, _shroudPixelBuffer);
+		EnsureTextures(_textureWidth, _textureHeight);
+		_shroudImage.SetData(_textureWidth, _textureHeight, false, Image.Format.Rgba8, _shroudPixelBuffer);
 		_shroudTexture.Update(_shroudImage);
 		ApplyGlobalTexture();
+		RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, 0f);
 	}
 
 	private void UploadMinimapTexture()
 	{
-		EnsureTextures();
-		_shroudMinimapImage.SetData(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8, _shroudMinimapPixelBuffer);
+		EnsureTextures(_textureWidth, _textureHeight);
+		_shroudMinimapImage.SetData(_textureWidth, _textureHeight, false, Image.Format.Rgba8, _shroudMinimapPixelBuffer);
 		_shroudMinimapTexture.Update(_shroudMinimapImage);
 	}
 
 	private void ApplyGlobalTexture()
 	{
-		Texture2D texture = _isPresentationSuspended || _shroudTexture == null ? GetFullyRevealedTexture() : _shroudTexture;
+		Texture2D texture = _isPresentationSuspended || _isRevealAll || _shroudTexture == null ? GetFullyRevealedTexture() : _shroudTexture;
 		if (ReferenceEquals(_appliedGlobalTexture, texture)) return;
 		_appliedGlobalTexture = texture;
 		RenderingServer.GlobalShaderParameterSet(ShroudTextureParameter, texture);
@@ -522,57 +466,48 @@ public class ShroudService
 	public void TriggerImmediateUpdate()
 	{
 		if (GameHost.Instance == null || GameContext.World == null) return;
-		if (GameContext.SessionState.IsMapEditorMode) return;
 
-		_shroudTimer = 0f;
-		_lastShroudChecksum = 0UL;
-		_lastMinimapChecksum = 0UL;
+		_shroudTimer = PresentationInterval;
+		_lastAppliedVersion = -1;
+		_lastAppliedGroup = -2;
+		_hasAppliedRevealAllPresentation = false;
 
 		var perspectiveFilter = GameContext.PerspectiveFilter;
 		bool isSpectator = perspectiveFilter != null && perspectiveFilter.IsConfigured && perspectiveFilter.IsSpectating;
 		bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
 		int spectatorPerspective = GameContext.SpectatorService?.GetSpectatorPerspective() ?? -1;
+		int observedPlayerIndex = ResolveObservedPlayerIndex(spectatorPerspective, isReplay, isSpectator);
+		_observedPlayerIndex = observedPlayerIndex;
 
-		UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, ResolveObservedPlayerIndex(spectatorPerspective, isReplay, isSpectator));
+		UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, observedPlayerIndex);
 		InGameHUD.Instance?.QueueMinimapRedraw();
 	}
 
 	public void CleanUp()
 	{
-		ReleaseShroudGrid();
-
-		_isMapEditorPresentationInitialized = false;
 		_hasPresentedShroud = false;
+		_hasAppliedRevealAllPresentation = false;
 		_isPresentationSuspended = false;
 		_isRevealAll = true;
-		_observedMask = ShroudGrid.AllPlayerMask;
-		_hostileMask = 0;
+		_observedGroup = -1;
 		_observedPlayerIndex = -1;
+		_lastAppliedVersion = -1;
+		_lastAppliedGroup = -2;
 		_shroudTimer = 0f;
-		_lastShroudChecksum = 0UL;
-		_lastMinimapChecksum = 0UL;
 		_cachedWorldEntity = Entity.Null;
 
 		_shroudImage = null;
 		_shroudTexture = null;
 		_shroudMinimapImage = null;
 		_shroudMinimapTexture = null;
+		_textureWidth = 0;
+		_textureHeight = 0;
 		_appliedGlobalTexture = null;
 		_appliedGlobalBounds = Vector4.Zero;
 
 		RenderingServer.GlobalShaderParameterSet(ShroudWorldBoundsParameter, Vector4.Zero);
 		RenderingServer.GlobalShaderParameterSet(ShroudLerpParameter, 1f);
 		RenderingServer.GlobalShaderParameterSet(ShroudTextureParameter, GetFullyRevealedTexture());
-	}
-
-	private void ReleaseShroudGrid()
-	{
-		var world = GameContext.World;
-		if (world == null) return;
-
-		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<ShroudState>(worldEntity)) return;
-		world.Get<ShroudState>(worldEntity).Release();
 	}
 
 	public static ImageTexture GetFullyRevealedTexture()
@@ -582,7 +517,7 @@ public class ShroudService
 			return _fullyRevealedTexture;
 		}
 
-		var image = Image.CreateEmpty(ShroudGrid.Resolution, ShroudGrid.Resolution, false, Image.Format.Rgba8);
+		var image = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
 		image.Fill(Colors.White);
 		_fullyRevealedTexture = ImageTexture.CreateFromImage(image);
 		return _fullyRevealedTexture;

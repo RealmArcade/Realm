@@ -4,9 +4,9 @@ using System.IO;
 using System.Text.Json.Nodes;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
-using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client.VFX;
 
@@ -43,7 +43,7 @@ public class VfxShaderManager
 				{
 					if (_shaderProjectorAdd == null)
 					{
-						_shaderProjectorAdd = LoadShaderFromFile("res://Assets/shaders/vfx_projector_add.gdshader", "Assets/shaders/vfx_projector_add.gdshader");
+						_shaderProjectorAdd = LoadShaderFromFile("res://Assets/shaders/vfx_projector_add.gdshader");
 					}
 
 					return _shaderProjectorAdd;
@@ -52,7 +52,7 @@ public class VfxShaderManager
 				{
 					if (_shaderProjectorMix == null)
 					{
-						_shaderProjectorMix = LoadShaderFromFile("res://Assets/shaders/vfx_projector_mix.gdshader", "Assets/shaders/vfx_projector_mix.gdshader");
+						_shaderProjectorMix = LoadShaderFromFile("res://Assets/shaders/vfx_projector_mix.gdshader");
 					}
 
 					return _shaderProjectorMix;
@@ -63,7 +63,7 @@ public class VfxShaderManager
 			{
 				if (_shaderAdd == null)
 				{
-					_shaderAdd = LoadShaderFromFile("res://Assets/shaders/vfx_uber_add.gdshader", "Assets/shaders/vfx_uber_add.gdshader");
+					_shaderAdd = LoadShaderFromFile("res://Assets/shaders/vfx_uber_add.gdshader");
 				}
 
 				return _shaderAdd;
@@ -72,7 +72,7 @@ public class VfxShaderManager
 			{
 				if (_shaderMix == null)
 				{
-					_shaderMix = LoadShaderFromFile("res://Assets/shaders/vfx_uber_mix.gdshader", "Assets/shaders/vfx_uber_mix.gdshader");
+					_shaderMix = LoadShaderFromFile("res://Assets/shaders/vfx_uber_mix.gdshader");
 				}
 
 				return _shaderMix;
@@ -80,34 +80,9 @@ public class VfxShaderManager
 		}
 	}
 
-	private static Shader LoadShaderFromFile(string resPath, string fallbackRelPath)
+	private static Shader LoadShaderFromFile(string resPath)
 	{
-		string shaderCode = "";
-		if (FileAccess.FileExists(resPath))
-		{
-			using var file = FileAccess.Open(resPath, FileAccess.ModeFlags.Read);
-			shaderCode = file?.GetAsText() ?? "";
-		}
-
-		if (string.IsNullOrEmpty(shaderCode))
-		{
-			string[] candidatePaths = new[]
-			{
-				fallbackRelPath,
-				Path.Combine("Realm.Client", fallbackRelPath),
-				Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fallbackRelPath)
-			};
-
-			foreach (var path in candidatePaths)
-			{
-				if (File.Exists(path))
-				{
-					shaderCode = File.ReadAllText(path);
-					break;
-				}
-			}
-		}
-
+		string shaderCode = ShaderIncludeExpander.LoadExpandedShader(resPath);
 		if (!string.IsNullOrEmpty(shaderCode))
 		{
 			return new Shader { Code = shaderCode };

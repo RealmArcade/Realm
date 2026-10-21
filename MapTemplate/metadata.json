@@ -7,7 +7,7 @@
     "Author": null,
     "SuggestedPlayers": null,
     "MinimapImage": null,
-    "ShroudType": null,
+    "ShroudType": "ExplorationShroud",
     "WeatherType": null,
     "TerrainBaseHeight": null,
     "ShadowIntensity": null,

@@ -29,6 +29,8 @@ namespace Realm.Client.Services;
 
 public class SimulationService
 {
+	private float _shroudSimulationTimer;
+
 	public void ApplySpellEffectDomain(string spellId, Vector3 position, Entity casterEnt)
 	{
 		GameContext.RegistryService.AbilityDefinitions.TryGetValue(spellId, out var def);
@@ -754,6 +756,16 @@ public class SimulationService
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationEconomyStep))
 		{
 			_economyService.StepEconomy(fDelta);
+		}
+
+		_shroudSimulationTimer += fDelta;
+		if (_shroudSimulationTimer >= ShroudSimulationService.UpdateInterval)
+		{
+			_shroudSimulationTimer = 0f;
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationShroudStep))
+			{
+				ShroudSimulationService.Tick(GameContext.World, ActiveWorldEntity);
+			}
 		}
 
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationBuffQueries))

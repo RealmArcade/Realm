@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -7,124 +6,179 @@ namespace Realm.Ecs.Components.Terrain;
 
 public static class ShroudGrid
 {
-	public const int Resolution = 128;
-	public const int CellCount = Resolution * Resolution;
+	public const float TargetCellSize = 2f;
+	public const int MaxCellsPerAxis = 256;
+	public const int MaxGroups = 25;
 	public const int MaxVisionRadiusCells = 96;
-	public const int PrewarmedVisionRadiusCells = 24;
-	public const int ResolutionShift = 7;
-	public const int ResolutionMask = Resolution - 1;
-	public const ushort AllPlayerMask = 0xFFFF;
+	public const int MaxTrackedEntities = EcsWorld.MAX_ENTITIES;
+	private const int MaxGroupFieldShift = 8;
+	private const int GroupFieldMask = 0xFF;
 
-	private static readonly int[][] _visionOffsets = new int[MaxVisionRadiusCells + 1][];
-	private static float _worldWidth = 0f;
-	private static float _worldDepth = 0f;
-
-	public static void ConfigureWorld(float worldWidth, float worldDepth)
+	public static void ResolveGrid(float worldWidth, float worldDepth, out float cellSize, out int gridWidth, out int gridHeight)
 	{
 		if (worldWidth <= 0.0001f) worldWidth = 1f;
 		if (worldDepth <= 0.0001f) worldDepth = 1f;
-		if (MathF.Abs(_worldWidth - worldWidth) < 0.0001f && MathF.Abs(_worldDepth - worldDepth) < 0.0001f) return;
 
-		_worldWidth = worldWidth;
-		_worldDepth = worldDepth;
-		Array.Clear(_visionOffsets);
+		cellSize = TargetCellSize;
+		float requiredCellSize = MathF.Max(worldWidth, worldDepth) / MaxCellsPerAxis;
+		if (requiredCellSize > cellSize) cellSize = requiredCellSize;
 
-		for (int radiusCells = 0; radiusCells <= PrewarmedVisionRadiusCells; radiusCells++)
-		{
-			_visionOffsets[radiusCells] = BuildVisionOffsets(radiusCells);
-		}
-	}
-
-	public static ReadOnlySpan<int> GetVisionOffsets(int radiusCells)
-	{
-		if (radiusCells < 0) radiusCells = 0;
-		if (radiusCells > MaxVisionRadiusCells) radiusCells = MaxVisionRadiusCells;
-
-		int[] offsets = _visionOffsets[radiusCells];
-		if (offsets == null)
-		{
-			offsets = BuildVisionOffsets(radiusCells);
-			_visionOffsets[radiusCells] = offsets;
-		}
-
-		return offsets;
-	}
-
-	private static int[] BuildVisionOffsets(int radiusCells)
-	{
-		if (radiusCells == 0)
-		{
-			return new[] { 0, 0 };
-		}
-
-		float aspectDepth = _worldWidth > 0f ? _worldWidth / _worldDepth : 1f;
-		int radiusCellsDepth = Math.Max(1, (int)MathF.Round(radiusCells * aspectDepth));
-		float radiusSquared = radiusCells * radiusCells;
-		var offsets = new List<int>(radiusCells * radiusCells * 3 + 1);
-
-		for (int offsetX = -radiusCells; offsetX <= radiusCells; offsetX++)
-		{
-			float remaining = radiusSquared - (offsetX * offsetX);
-			if (remaining < 0f) continue;
-
-			int halfDepth = (int)MathF.Round(MathF.Sqrt(remaining) * radiusCellsDepth / radiusCells);
-			for (int offsetZ = -halfDepth; offsetZ <= halfDepth; offsetZ++)
-			{
-				offsets.Add(offsetX);
-				offsets.Add(offsetZ);
-			}
-		}
-
-		return offsets.ToArray();
+		gridWidth = (int)MathF.Ceiling(worldWidth / cellSize);
+		gridHeight = (int)MathF.Ceiling(worldDepth / cellSize);
+		if (gridWidth < 1) gridWidth = 1;
+		if (gridWidth > MaxCellsPerAxis) gridWidth = MaxCellsPerAxis;
+		if (gridHeight < 1) gridHeight = 1;
+		if (gridHeight > MaxCellsPerAxis) gridHeight = MaxCellsPerAxis;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static bool TryGetCellIndex(float worldX, float worldZ, float worldMinX, float worldMinZ, float worldWidth, float worldDepth, out int cellIndex)
+	public static bool TryGetCellIndex(float worldX, float worldZ, float worldMinX, float worldMinZ, float cellSize, int gridWidth, int gridHeight, out int cellIndex)
 	{
-		int cellX = (int)MathF.Floor((worldX - worldMinX) * (Resolution / worldWidth));
-		int cellZ = (int)MathF.Floor((worldZ - worldMinZ) * (Resolution / worldDepth));
-
-		if ((uint)cellX > ResolutionMask || (uint)cellZ > ResolutionMask)
+		if (cellSize <= 0f || gridWidth <= 0 || gridHeight <= 0)
 		{
 			cellIndex = -1;
 			return false;
 		}
 
-		cellIndex = cellZ * Resolution + cellX;
+		int cellX = (int)MathF.Floor((worldX - worldMinX) / cellSize);
+		int cellZ = (int)MathF.Floor((worldZ - worldMinZ) / cellSize);
+		if ((uint)cellX >= (uint)gridWidth || (uint)cellZ >= (uint)gridHeight)
+		{
+			cellIndex = -1;
+			return false;
+		}
+
+		cellIndex = cellZ * gridWidth + cellX;
 		return true;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static int GetCellX(int cellIndex) => cellIndex & ResolutionMask;
+	public static int GetCellX(int cellIndex, int gridWidth)
+	{
+		return gridWidth > 0 ? cellIndex % gridWidth : 0;
+	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static int GetCellZ(int cellIndex) => cellIndex >> ResolutionShift;
-
-	public static unsafe void RasterizeVision(ushort* visibleBitmask, ushort* exploredBitmask, ushort playerBit, int centerCellX, int centerCellZ, int radiusCells)
+	public static int GetCellZ(int cellIndex, int gridWidth)
 	{
-		ReadOnlySpan<int> offsets = GetVisionOffsets(radiusCells);
+		return gridWidth > 0 ? cellIndex / gridWidth : 0;
+	}
 
-		for (int index = 0; index < offsets.Length; index += 2)
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static ushort PackSourceMeta(int groupIndex, int radiusCells)
+	{
+		return (ushort)((radiusCells & GroupFieldMask) | ((groupIndex & GroupFieldMask) << MaxGroupFieldShift));
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static int GetSourceRadius(ushort sourceMeta)
+	{
+		return sourceMeta & GroupFieldMask;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static int GetSourceGroup(ushort sourceMeta)
+	{
+		return (sourceMeta >> MaxGroupFieldShift) & GroupFieldMask;
+	}
+
+	public static unsafe bool AddVisionDisc(byte* exploredCells, byte* visibleCells, byte* visibleCounts, int cellCount, int groupIndex, int centerCellX, int centerCellZ, int radiusCells, int gridWidth, int gridHeight)
+	{
+		if (exploredCells == null || visibleCells == null || visibleCounts == null || cellCount <= 0) return false;
+		if (radiusCells < 1) radiusCells = 1;
+		if (radiusCells > MaxVisionRadiusCells) radiusCells = MaxVisionRadiusCells;
+
+		int groupOffset = groupIndex * cellCount;
+		int radiusSquared = radiusCells * radiusCells;
+		int startX = Math.Max(0, centerCellX - radiusCells);
+		int endX = Math.Min(gridWidth - 1, centerCellX + radiusCells);
+		int startZ = Math.Max(0, centerCellZ - radiusCells);
+		int endZ = Math.Min(gridHeight - 1, centerCellZ + radiusCells);
+		bool changed = false;
+
+		for (int cellZ = startZ; cellZ <= endZ; cellZ++)
 		{
-			int cellX = centerCellX + offsets[index];
-			int cellZ = centerCellZ + offsets[index + 1];
+			int offsetZ = cellZ - centerCellZ;
+			int rowOffset = offsetZ * offsetZ;
+			int rowStart = groupOffset + cellZ * gridWidth;
 
-			if ((uint)cellX > ResolutionMask || (uint)cellZ > ResolutionMask) continue;
+			for (int cellX = startX; cellX <= endX; cellX++)
+			{
+				int offsetX = cellX - centerCellX;
+				if ((offsetX * offsetX + rowOffset) > radiusSquared) continue;
 
-			int cellIndex = cellZ * Resolution + cellX;
-			visibleBitmask[cellIndex] |= playerBit;
-			exploredBitmask[cellIndex] |= playerBit;
+				int index = rowStart + cellX;
+				if (exploredCells[index] == 0)
+				{
+					exploredCells[index] = 1;
+					changed = true;
+				}
+
+				byte coverage = visibleCounts[index];
+				if (coverage == 0)
+				{
+					visibleCells[index] = 1;
+					changed = true;
+				}
+
+				if (coverage < byte.MaxValue) visibleCounts[index] = (byte)(coverage + 1);
+			}
 		}
+
+		return changed;
 	}
 
-	public static unsafe ushort* AllocateCellMask()
+	public static unsafe bool RemoveVisionDisc(byte* visibleCells, byte* visibleCounts, int cellCount, int groupIndex, int centerCellX, int centerCellZ, int radiusCells, int gridWidth, int gridHeight)
 	{
-		return (ushort*)NativeMemory.AllocZeroed((nuint)(CellCount * sizeof(ushort)));
+		if (visibleCells == null || visibleCounts == null || cellCount <= 0) return false;
+		if (radiusCells < 1) radiusCells = 1;
+		if (radiusCells > MaxVisionRadiusCells) radiusCells = MaxVisionRadiusCells;
+
+		int groupOffset = groupIndex * cellCount;
+		int radiusSquared = radiusCells * radiusCells;
+		int startX = Math.Max(0, centerCellX - radiusCells);
+		int endX = Math.Min(gridWidth - 1, centerCellX + radiusCells);
+		int startZ = Math.Max(0, centerCellZ - radiusCells);
+		int endZ = Math.Min(gridHeight - 1, centerCellZ + radiusCells);
+		bool changed = false;
+
+		for (int cellZ = startZ; cellZ <= endZ; cellZ++)
+		{
+			int offsetZ = cellZ - centerCellZ;
+			int rowOffset = offsetZ * offsetZ;
+			int rowStart = groupOffset + cellZ * gridWidth;
+
+			for (int cellX = startX; cellX <= endX; cellX++)
+			{
+				int offsetX = cellX - centerCellX;
+				if ((offsetX * offsetX + rowOffset) > radiusSquared) continue;
+
+				int index = rowStart + cellX;
+				byte coverage = visibleCounts[index];
+				if (coverage == 0) continue;
+
+				coverage--;
+				visibleCounts[index] = coverage;
+				if (coverage == 0)
+				{
+					visibleCells[index] = 0;
+					changed = true;
+				}
+			}
+		}
+
+		return changed;
 	}
 
-	public static unsafe void FreeCellMask(ushort* bitmask)
+	public static unsafe void* AllocateZeroed(nuint byteCount)
 	{
-		if (bitmask == null) return;
-		NativeMemory.Free(bitmask);
+		if (byteCount == 0) return null;
+		return NativeMemory.AllocZeroed(byteCount);
+	}
+
+	public static unsafe void Free(void* memory)
+	{
+		if (memory == null) return;
+		NativeMemory.Free(memory);
 	}
 }

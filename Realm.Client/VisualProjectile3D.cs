@@ -6,6 +6,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.Services.ModelOptimization;
+using Realm.Client.Utils;
 using Realm.Client.VFX;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
@@ -156,32 +157,12 @@ public partial class VisualProjectile3D : Node3D
 
 	private static void EnsureSharedShader()
 	{
-		if (_sharedUberShader == null)
-		{
-			string shaderCode = "";
-			if (FileAccess.FileExists("res://Assets/shaders/projectile_fx.gdshader"))
-			{
-				using var fa = FileAccess.Open("res://Assets/shaders/projectile_fx.gdshader", FileAccess.ModeFlags.Read);
-				shaderCode = fa?.GetAsText() ?? "";
-			}
-			else if (File.Exists("Assets/shaders/projectile_fx.gdshader"))
-			{
-				shaderCode = File.ReadAllText("Assets/shaders/projectile_fx.gdshader");
-			}
-			else if (File.Exists("Realm.ClientAssets/shaders/projectile_fx.gdshader"))
-			{
-				shaderCode = File.ReadAllText("Realm.ClientAssets/shaders/projectile_fx.gdshader");
-			}
+		if (_sharedUberShader != null) return;
 
-			if (!string.IsNullOrEmpty(shaderCode))
-			{
-				_sharedUberShader = new Shader { Code = shaderCode };
-			}
-			else
-			{
-				_sharedUberShader = GD.Load<Shader>("res://Assets/shaders/projectile_fx.gdshader");
-			}
-		}
+		string shaderCode = ShaderIncludeExpander.LoadExpandedShader("res://Assets/shaders/projectile_fx.gdshader");
+		_sharedUberShader = string.IsNullOrEmpty(shaderCode)
+			? GD.Load<Shader>("res://Assets/shaders/projectile_fx.gdshader")
+			: new Shader { Code = shaderCode };
 	}
 
 	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null)

@@ -41,7 +41,8 @@ public enum ProfileFunctionId
 	ShroudServiceTick = 31,
 	EnvironmentUpdateFog = 32,
 	EnvironmentUpdateWeatherParticles = 33,
-	Unit3DProcess = 34
+	Unit3DProcess = 34,
+	SimulationShroudStep = 35
 }
 
 public struct FunctionProfileMetric
@@ -108,6 +109,7 @@ public class PerformanceTrackingService
 		RegisterMetric(ProfileFunctionId.SimulationMovementStep, "MovementService.StepMovement", "SimulationService.TickEcs");
 		RegisterMetric(ProfileFunctionId.SimulationCombatStep, "CombatService.StepCombat", "SimulationService.TickEcs");
 		RegisterMetric(ProfileFunctionId.SimulationEconomyStep, "EconomyService.StepEconomy", "SimulationService.TickEcs");
+		RegisterMetric(ProfileFunctionId.SimulationShroudStep, "ShroudSimulationService.Tick", "SimulationService.TickEcs");
 		RegisterMetric(ProfileFunctionId.SimulationBuffQueries, "WorldQueries.BuffsAndStats", "SimulationService.TickEcs");
 		RegisterMetric(ProfileFunctionId.SimulationPatrolArrivals, "ProcessPatrolArrivals", "SimulationService.TickEcs");
 		RegisterMetric(ProfileFunctionId.SimulationFollowMovements, "ProcessFollowMovements", "SimulationService.TickEcs");
