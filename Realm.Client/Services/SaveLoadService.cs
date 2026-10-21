@@ -1819,55 +1819,32 @@ public class SaveLoadService
 
 	public float GetUnitPropRotationY(Entity entity, float defaultRotY, EcsWorld ecsWorld)
 	{
-		float rotY = defaultRotY;
-		if (ecsWorld.Has<RotationY>(entity))
-		{
-			float existingRotY = ecsWorld.Get<RotationY>(entity).Value;
-			if (MathF.Abs(rotY - existingRotY) < 0.001f || MathF.Abs(MathF.Abs(rotY - existingRotY) - 360f) < 0.001f)
-			{
-				rotY = existingRotY;
-			}
-		}
-
-		return rotY;
+		return ecsWorld.Has<RotationY>(entity) ? ecsWorld.Get<RotationY>(entity).Value : defaultRotY;
 	}
 
 	public float GetUnitPropScale(Entity entity, float defaultScale, EcsWorld ecsWorld)
 	{
-		float scale = defaultScale;
-		if (ecsWorld.Has<ModelScale>(entity))
-		{
-			float existingScale = ecsWorld.Get<ModelScale>(entity).Value;
-			if (MathF.Abs(scale - existingScale) < 0.0001f)
-			{
-				scale = existingScale;
-			}
-		}
-
-		return scale;
+		return ecsWorld.Has<ModelScale>(entity) ? ecsWorld.Get<ModelScale>(entity).Value : defaultScale;
 	}
 
 	public float GetDecalScale(Entity entity, float visualScaleX, float decalSizeX)
 	{
-		float scale = visualScaleX != 1.0f
-			? visualScaleX
-			: (GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : (decalSizeX / 6.0f));
-		return GetUnitPropScale(entity, scale, GameContext.World);
+		if (visualScaleX != 1.0f)
+		{
+			return visualScaleX;
+		}
+
+		if (GameContext.World.Has<ModelScale>(entity))
+		{
+			return GameContext.World.Get<ModelScale>(entity).Value;
+		}
+
+		return decalSizeX / 6.0f;
 	}
 
 	public Vector3 GetDecalPosition(Entity entity, Vector3 rawPosition)
 	{
-		var pos = rawPosition;
-		if (GameContext.World.Has<Position>(entity))
-		{
-			var existingPos = GameContext.World.Get<Position>(entity).Value;
-			if ((pos - existingPos).Length() < 0.0001f)
-			{
-				pos = existingPos;
-			}
-		}
-
-		return pos;
+		return GameContext.World.Has<Position>(entity) ? GameContext.World.Get<Position>(entity).Value : rawPosition;
 	}
 
 	public List<CoordinateSaveData> GetCoordinatesData()

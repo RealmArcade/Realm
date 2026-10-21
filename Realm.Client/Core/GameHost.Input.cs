@@ -877,11 +877,11 @@ public partial class GameHost
 						node3D.Scale, node3D.Scale
 					);
 					node3D.RotationDegrees = newRot;
+					ObjectTransformAction.PersistTransformToEcs(node3D);
 					if (SelectedEditorObject is PropEntityProxyNode propProxyRot)
 					{
 						if (GameContext.World != null && GameContext.World.IsAlive(propProxyRot.Entity))
 						{
-							GameContext.World.Set(propProxyRot.Entity, new RotationY(newRot.Y));
 							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxyRot.Entity, propProxyRot.Position, newRot.Y, propProxyRot.Scale.X);
 						}
 					}
@@ -914,11 +914,11 @@ public partial class GameHost
 						oldScale, newScale
 					);
 					node3D.Scale = newScale;
+					ObjectTransformAction.PersistTransformToEcs(node3D);
 					if (SelectedEditorObject is PropEntityProxyNode propProxyScale)
 					{
 						if (GameContext.World != null && GameContext.World.IsAlive(propProxyScale.Entity))
 						{
-							GameContext.World.Set(propProxyScale.Entity, new ModelScale(newScaleVal));
 							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxyScale.Entity, propProxyScale.Position, propProxyScale.RotationDegrees.Y, newScaleVal);
 						}
 					}

@@ -142,8 +142,7 @@ public partial class PropMultiMeshManager : Node3D
 			float yOffset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(info.ModelGroup.AssetKey) : 0f;
 			float globalModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(info.ModelGroup.AssetKey) : 1f;
 
-			Vector3 localCenter = info.ChunkGroup.Bounds.GetCenter();
-			Vector3 pos = position - localCenter;
+			Vector3 pos = position;
 			pos.Y += yOffset * scale;
 
 			float propScale = Mathf.Max(0.01f, scale * globalModelScale);
@@ -552,7 +551,7 @@ public partial class PropMultiMeshManager : Node3D
 			}
 
 			EnsureMultiMeshAllocated(node, subInfo.Mesh, chunkProps.Count);
-			SetMultiMeshTransforms(node.Multimesh, chunkProps, subInfo.RelativeTransform, yOffset, globalModelScale, chunkGroup.Bounds.GetCenter());
+			SetMultiMeshTransforms(node.Multimesh, chunkProps, subInfo.RelativeTransform, yOffset, globalModelScale);
 		}
 
 		HideExtraMultiMeshNodes(group, chunkGroup);
@@ -596,12 +595,12 @@ public partial class PropMultiMeshManager : Node3D
 		node.Multimesh.VisibleInstanceCount = instanceCount;
 	}
 
-	private static void SetMultiMeshTransforms(MultiMesh mm, List<PropData> chunkProps, Transform3D relativeTransform, float yOffset, float globalModelScale, Vector3 chunkCenter)
+	private static void SetMultiMeshTransforms(MultiMesh mm, List<PropData> chunkProps, Transform3D relativeTransform, float yOffset, float globalModelScale)
 	{
 		for (int i = 0; i < chunkProps.Count; i++)
 		{
 			var prop = chunkProps[i];
-			Vector3 pos = prop.Position - chunkCenter;
+			Vector3 pos = prop.Position;
 			pos.Y += yOffset * prop.Scale;
 
 			float propScale = Mathf.Max(0.01f, prop.Scale * globalModelScale);

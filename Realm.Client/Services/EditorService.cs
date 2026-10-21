@@ -5345,6 +5345,7 @@ public partial class EditorService : IEditorAPI
 				oldScale, newScale
 			);
 			node3D.Scale = newScale;
+			ObjectTransformAction.PersistTransformToEcs(node3D);
 			if (selected is Prop3D propReset)
 			{
 				PropMultiMeshManager.Instance?.MarkDirty(propReset.PropId);
@@ -5376,6 +5377,7 @@ public partial class EditorService : IEditorAPI
 				oldScale, newScale
 			);
 			node3D.Scale = newScale;
+			ObjectTransformAction.PersistTransformToEcs(node3D);
 			if (selected is Prop3D propScale)
 			{
 				PropMultiMeshManager.Instance?.MarkDirty(propScale.PropId);
@@ -5407,6 +5409,7 @@ public partial class EditorService : IEditorAPI
 				node3D.Scale, node3D.Scale
 			);
 			node3D.RotationDegrees = newRot;
+			ObjectTransformAction.PersistTransformToEcs(node3D);
 			if (selected is Prop3D propRot)
 			{
 				PropMultiMeshManager.Instance?.MarkDirty(propRot.PropId);

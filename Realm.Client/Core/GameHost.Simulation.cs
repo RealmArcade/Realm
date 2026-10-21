@@ -706,7 +706,7 @@ public partial class GameHost
 				CachedScale = hasCached ? unit3D.CachedScale : unit3D.Scale,
 				CachedBaseScale = unit3D.CachedBaseScale,
 				CachedRotationY = hasCached ? unit3D.CachedRotationY : unit3D.Rotation.Y,
-				CachedBasis = hasCached ? unit3D.CachedBasis : unit3D.Basis,
+				CachedBasis = hasCached ? unit3D.CachedBasis.Orthonormalized() : unit3D.Basis.Orthonormalized(),
 				CachedUnitVelocity = unit3D.Velocity,
 				CachedLocalAabb = unit3D.CachedLocalAabb,
 				HasEvaluatedFrustum = unit3D.HasEvaluatedFrustum,
@@ -864,12 +864,13 @@ public partial class GameHost
 			if (posChanged || scaleChanged)
 			{
 				Godot.Vector3 scaleVec = new Godot.Vector3(clampedScale, clampedScale, clampedScale);
-				Basis scaledBasis = item.CachedBasis.Scaled(scaleVec);
+				Basis unscaledBasis = item.CachedBasis.Orthonormalized();
+				Basis scaledBasis = unscaledBasis.Scaled(scaleVec);
 				item.ShouldSetTransform = true;
 				item.FinalTransform = new Transform3D(scaledBasis, nextPos);
 				item.NextPos = nextPos;
 				item.TargetRotY = item.CachedRotationY;
-				item.TargetBasis = item.CachedBasis;
+				item.TargetBasis = unscaledBasis;
 				item.FinalScaleVec = scaleVec;
 				item.ClampedScale = clampedScale;
 			}
