@@ -338,6 +338,18 @@ public partial class GameHost
 				}
 			}
 
+			if (editorKeyEvent.Keycode == Key.R && !ctrlPressed && !shiftPressed)
+			{
+				if (MainCamera is CameraControl freeCameraCtrl && freeCameraCtrl.IsFreeCamera)
+				{
+					return;
+				}
+
+				MainCamera?.Rotate90Degrees();
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			if (editorKeyEvent.Keycode == Key.C && ctrlPressed)
 			{
 				if (ActiveEditorTool == EditorTool.SelectArea)
@@ -708,6 +720,13 @@ public partial class GameHost
 				return;
 			}
 
+			if (editorKeyEvent.Keycode == Key.Key0)
+			{
+				MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.Water);
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			if (editorKeyEvent.Keycode >= Key.Key1 && editorKeyEvent.Keycode <= Key.Key9)
 			{
 				int toolIndex = (int)(editorKeyEvent.Keycode - Key.Key1);
@@ -924,7 +943,7 @@ public partial class GameHost
 				return;
 			}
 
-			if (GroundTerrain != null && GameContext.EditorService.EditorPolarOverlayVisible)
+			if (GroundTerrain != null && (EditorMirrorMode != MirrorMode.None || GameContext.EditorService.EditorPolarOverlayVisible))
 			{
 				var terrainHit = RaycastTerrainFromMouse(editorRightMouseBtn.Position);
 				if (terrainHit != null && terrainHit.ContainsKey("position"))
@@ -972,15 +991,6 @@ public partial class GameHost
 				MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
 				HideSelectionHighlight();
 				MapEditorHUD.Instance?.ClearPasteTelemetry();
-				GetViewport().SetInputAsHandled();
-				return;
-			}
-
-			if (ActiveEditorTool != EditorTool.SelectMove)
-			{
-				ActiveEditorTool = EditorTool.SelectMove;
-				MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectMove);
-				HideSelectionHighlight();
 				GetViewport().SetInputAsHandled();
 				return;
 			}

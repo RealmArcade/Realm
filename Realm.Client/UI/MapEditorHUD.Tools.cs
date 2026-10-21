@@ -270,12 +270,12 @@ namespace Realm.Client.UI
 
 				_optModule = GetNode<OptionButton>("TopLeftBox/OptModule");
 				StyleOptionButtonPopup(_optModule);
-				_optModule.AddItem($"{UnicodeIcons.MOUNTAIN} " + TranslationServer.Translate("TERRAIN"), (int)EditorModule.Terrain);
-				_optModule.AddItem($"{UnicodeIcons.PAINT_BRUSH} " + TranslationServer.Translate("TEXTURE"), (int)EditorModule.TextureDeco);
-				_optModule.AddItem($"{UnicodeIcons.VECTOR_SQUARE} " + TranslationServer.Translate("PATHING"), (int)EditorModule.Pathing);
-				_optModule.AddItem($"{UnicodeIcons.CUBE} " + TranslationServer.Translate("OBJECTS"), (int)EditorModule.Objects);
-				_optModule.AddItem($"{UnicodeIcons.DRAW_POLYGON} " + TranslationServer.Translate("COORDINATES"), (int)EditorModule.Coordinates);
-				_optModule.AddItem($"{UnicodeIcons.PASTE} " + TranslationServer.Translate("CLIPBOARD"), (int)EditorModule.Clipboard);
+				_optModule.AddItem($"{UnicodeIcons.MOUNTAIN} " + TranslationServer.Translate("TERRAIN") + " (F1)", (int)EditorModule.Terrain);
+				_optModule.AddItem($"{UnicodeIcons.PAINT_BRUSH} " + TranslationServer.Translate("TEXTURE") + " (F2)", (int)EditorModule.TextureDeco);
+				_optModule.AddItem($"{UnicodeIcons.VECTOR_SQUARE} " + TranslationServer.Translate("PATHING") + " (F3)", (int)EditorModule.Pathing);
+				_optModule.AddItem($"{UnicodeIcons.CUBE} " + TranslationServer.Translate("OBJECTS") + " (F4)", (int)EditorModule.Objects);
+				_optModule.AddItem($"{UnicodeIcons.DRAW_POLYGON} " + TranslationServer.Translate("COORDINATES") + " (F5)", (int)EditorModule.Coordinates);
+				_optModule.AddItem($"{UnicodeIcons.PASTE} " + TranslationServer.Translate("CLIPBOARD") + " (F6)", (int)EditorModule.Clipboard);
 				_optModule.ItemSelected += (index) => SwitchModuleView((EditorModule)index);
 				StyleMapEditorTopButton(_optModule);
 
@@ -498,13 +498,14 @@ namespace Realm.Client.UI
 				_popupOverlayMode = new PopupMenu();
 				_popupOverlayMode.Name = "PopupOverlayMode";
 				_popupOverlayMode.HideOnCheckableItemSelection = false;
-				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Grid"), 0);
-				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Polar"), 1);
+				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Grid") + " (V)", 0);
+				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Polar") + " (V)", 1);
 				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Camera Bounds"), 2);
-				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Wireframe"), 3);
+				_popupOverlayMode.AddCheckItem(TranslationServer.Translate("Wireframe") + " (F7)", 3);
 				StylePopupMenu(_popupOverlayMode);
 				_popupOverlayMode.IdPressed += (long id) =>
 				{
+					_popupOverlayMode.Hide();
 					if (GameHost.Instance == null) return;
 					int idx = _popupOverlayMode.GetItemIndex((int)id);
 					if (idx < 0) return;
@@ -593,7 +594,11 @@ namespace Realm.Client.UI
 				_optEnvLighting.CustomMinimumSize = new Vector2(0, 24);
 				_optEnvLighting.ClipText = true;
 				SetupEnvLightingDropdown(_optEnvLighting);
-				_optEnvLighting.ItemSelected += (idx) => SetEnvironmentLighting((int)idx);
+				_optEnvLighting.ItemSelected += (idx) =>
+				{
+					SetEnvironmentLighting((int)idx);
+					_popupEnvironment.Hide();
+				};
 				envVBox.AddChild(_optEnvLighting);
 
 				_optEnvWeather = new OptionButton();
@@ -602,7 +607,11 @@ namespace Realm.Client.UI
 				_optEnvWeather.CustomMinimumSize = new Vector2(0, 24);
 				_optEnvWeather.ClipText = true;
 				SetupEnvWeatherDropdown(_optEnvWeather);
-				_optEnvWeather.ItemSelected += (idx) => SetEnvironmentWeather((int)idx);
+				_optEnvWeather.ItemSelected += (idx) =>
+				{
+					SetEnvironmentWeather((int)idx);
+					_popupEnvironment.Hide();
+				};
 				envVBox.AddChild(_optEnvWeather);
 
 				_chkEnvShadows = new CheckBox();
@@ -627,6 +636,7 @@ namespace Realm.Client.UI
 								: TranslationServer.Translate("Shadows: ON"));
 						}
 					}
+					_popupEnvironment.Hide();
 				};
 				envVBox.AddChild(_chkEnvShadows);
 
@@ -669,6 +679,7 @@ namespace Realm.Client.UI
 					UIManager.Instance?.PlayClickSound();
 					var camera = GameHost.Instance?.MainCamera;
 					camera?.Rotate90Degrees();
+					_popupCamera.Hide();
 				};
 				camVBox.AddChild(_btnRotate);
 
@@ -684,6 +695,7 @@ namespace Realm.Client.UI
 					{
 						UpdateCameraAngleButtonText(camera.IsTopDown());
 					}
+					_popupCamera.Hide();
 				};
 				camVBox.AddChild(_btnCameraAngle);
 
@@ -695,6 +707,7 @@ namespace Realm.Client.UI
 				{
 					UIManager.Instance?.PlayClickSound();
 					GameHost.Instance?.MainCamera?.ZoomIn();
+					_popupCamera.Hide();
 				};
 				camVBox.AddChild(_btnZoomIn);
 
@@ -706,6 +719,7 @@ namespace Realm.Client.UI
 				{
 					UIManager.Instance?.PlayClickSound();
 					GameHost.Instance?.MainCamera?.ZoomOut();
+					_popupCamera.Hide();
 				};
 				camVBox.AddChild(_btnZoomOut);
 
@@ -723,6 +737,7 @@ namespace Realm.Client.UI
 					{
 						ToggleFreeCamera();
 					}
+					_popupCamera.Hide();
 				};
 				camVBox.AddChild(_chkFreeCamera);
 
@@ -871,7 +886,7 @@ namespace Realm.Client.UI
 
 				_btnWater = new Button();
 				_btnWater.Name = "BtnWater";
-				_cardWater = CreateToolCardView(_btnWater, UnicodeIcons.WATER, "Water", () => TriggerToolSelection(EditorTool.Water, _btnWater), "Flood fill water mesh bounded by cliff walls");
+				_cardWater = CreateToolCardView(_btnWater, UnicodeIcons.WATER, "Water", () => TriggerToolSelection(EditorTool.Water, _btnWater), "Flood fill water mesh bounded by cliff walls (0)");
 
 				_btnTextureBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox/BtnTextureBrush");
 				_cardTextureBrush = CreateToolCardView(_btnTextureBrush, UnicodeIcons.PAINT_BRUSH, "Paint", () => TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush), "Paint terrain texture (8)");
@@ -955,6 +970,7 @@ namespace Realm.Client.UI
 
 				_sldBrushSize = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox/SldBrushSize");
 				_lblBrushSizeValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox/Header/LblBrushSizeValue");
+				_brushSizeBox = GetNodeOrNull<Control>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BrushSizeBox");
 				_sldBrushSize.DragStarted += () => _isDraggingSlider = true;
 				_sldBrushSize.DragEnded += (valueChanged) => _isDraggingSlider = false;
 
@@ -1346,7 +1362,7 @@ namespace Realm.Client.UI
 				chkPasteTextures.Text = TranslationServer.Translate("Textures");
 				chkPasteTextures.ButtonPressed = true;
 				var chkPasteEntities = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPasteEntities");
-				chkPasteEntities.Text = TranslationServer.Translate("Units / Props / Decals");
+				chkPasteEntities.Text = TranslationServer.Translate("Objects");
 				chkPasteEntities.ButtonPressed = true;
 				var chkPastePathing = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox/ChkPastePathing");
 				chkPastePathing.Text = TranslationServer.Translate("Pathing");
@@ -1454,6 +1470,10 @@ namespace Realm.Client.UI
 				_lblPlacementRotateValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header/LblPlacementRotateValue");
 				_sldPlacementScale = GetNode<Slider>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/SldPlacementScale");
 				_lblPlacementScaleValue = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header/LblPlacementScaleValue");
+				var lblPlacementRotateTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementRotateBox/Header/LblRotateTitle");
+				if (lblPlacementRotateTitle != null) lblPlacementRotateTitle.Text = TranslationServer.Translate("Rotation (Shift + Mouse_Wheel)");
+				var lblPlacementScaleTitle = GetNodeOrNull<Label>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/PlacementScaleBox/Header/LblScaleTitle");
+				if (lblPlacementScaleTitle != null) lblPlacementScaleTitle.Text = TranslationServer.Translate("Scale (Alt + Mouse_Wheel)");
 
 				_btnToggleSnap = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/BtnToggleSnap");
 				SetupOptionButton(_btnToggleSnap, $"{UnicodeIcons.TABLE} SNAP TO GRID: OFF", () =>
@@ -3004,7 +3024,7 @@ namespace Realm.Client.UI
 			opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.ARROWS_V} MIRROR: VERTICAL"), (int)MirrorMode.Vertical);
 			opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.ARROWS_H} MIRROR: HORIZONTAL"), (int)MirrorMode.Horizontal);
 			opt.AddItem(TranslationServer.Translate($"{UnicodeIcons.GRID_QUAD} MIRROR: QUAD"), (int)MirrorMode.Both);
-			opt.AddItem(string.Format(TranslationServer.Translate($"{UnicodeIcons.ROTATE} ROTATIONAL ({0}-FOLD)"), folds), (int)MirrorMode.Rotational);
+			opt.AddItem($"{UnicodeIcons.ROTATE} " + string.Format(TranslationServer.Translate("ROTATIONAL ({0}-FOLD)"), folds), (int)MirrorMode.Rotational);
 
 			if (!string.IsNullOrEmpty(tooltip))
 			{
@@ -3052,7 +3072,7 @@ namespace Realm.Client.UI
 		{
 			if (opt == null) return;
 
-			string rotText = string.Format(TranslationServer.Translate($"{UnicodeIcons.ROTATE} ROTATIONAL ({0}-FOLD)"), folds);
+			string rotText = $"{UnicodeIcons.ROTATE} " + string.Format(TranslationServer.Translate("ROTATIONAL ({0}-FOLD)"), folds);
 			for (int i = 0; i < opt.ItemCount; i++)
 			{
 				if (opt.GetItemId(i) == (int)MirrorMode.Rotational)
@@ -3101,7 +3121,7 @@ namespace Realm.Client.UI
 			for (int i = 0; i < EditorService.PolarRingSpacingOptions.Length; i++)
 			{
 				float spacing = EditorService.PolarRingSpacingOptions[i];
-				opt.AddItem(string.Format(TranslationServer.Translate($"{UnicodeIcons.CIRCLE} RINGS: {0:F0}T"), spacing), (int)spacing);
+				opt.AddItem($"{UnicodeIcons.CIRCLE} " + string.Format(TranslationServer.Translate("RINGS: {0:F0}T"), spacing), (int)spacing);
 			}
 
 			if (!string.IsNullOrEmpty(tooltip))
@@ -3612,9 +3632,11 @@ namespace Realm.Client.UI
 					_btnResetPivotToCenter.AddThemeFontSizeOverride("font_size", 9);
 				}
 
-				bool isPolarMode = GameHost.Instance != null &&
-				                   (GameHost.Instance.EditorMirrorMode == MirrorMode.Rotational || GameContext.EditorService.EditorGridMode == GridOverlayMode.Polar || GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
-				_rowPolarConfig.Visible = isPolarMode;
+				bool isSymmetryActive = GameHost.Instance != null &&
+				                        (GameHost.Instance.EditorMirrorMode != MirrorMode.None ||
+				                         GameContext.EditorService.EditorGridMode == GridOverlayMode.Polar ||
+				                         GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
+				_rowPolarConfig.Visible = isSymmetryActive;
 
 				targetViewport.AddChild(vpBox);
 				targetViewport.AddChild(_rowPolarConfig);
@@ -3945,6 +3967,8 @@ namespace Realm.Client.UI
 			if (_accordionBrush != null)
 			{
 				_accordionBrush.Visible = isBrush;
+				UpdateBrushSizeVisibility();
+				UpdateBrushShapeVisibility();
 				UpdateBrushStrengthVisibility();
 				bool isTextureMode = tool == EditorTool.PaintTexture;
 				if (_chkBlockMode != null)
@@ -4401,6 +4425,22 @@ namespace Realm.Client.UI
 			}
 		}
 
+		private void UpdateBrushSizeVisibility()
+		{
+			if (_brushSizeBox == null || GameHost.Instance == null) return;
+
+			var tool = GameHost.Instance.ActiveEditorTool;
+			_brushSizeBox.Visible = tool != EditorTool.FloodFill && tool != EditorTool.FloodFillPathing;
+		}
+
+		private void UpdateBrushShapeVisibility()
+		{
+			if (_btnBrushShape == null || GameHost.Instance == null) return;
+
+			var tool = GameHost.Instance.ActiveEditorTool;
+			_btnBrushShape.Visible = tool != EditorTool.FloodFill && tool != EditorTool.FloodFillPathing;
+		}
+
 		private void UpdateBrushStrengthVisibility()
 		{
 			if (_sldBrushStrength != null && _sldBrushStrength.GetParent() is Control strengthParent)
@@ -4439,16 +4479,16 @@ namespace Realm.Client.UI
 			_lblInspectorPos = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/LblInspectorPos");
 
 			_btnInspectorRotLeft = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorRotLeft");
-			SetupButton(_btnInspectorRotLeft, $"{UnicodeIcons.UNDO} ROT -15°", () => RotateSelectedObjectAction(-15f), 11, "Rotate object counter-clockwise");
+			SetupButton(_btnInspectorRotLeft, $"{UnicodeIcons.UNDO} ROT -15°", () => RotateSelectedObjectAction(-15f), 11, "Rotate object counter-clockwise (Shift + Mouse_Wheel)");
 
 			_btnInspectorRotRight = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorRotRight");
-			SetupButton(_btnInspectorRotRight, $"{UnicodeIcons.ROTATE} ROT +15°", () => RotateSelectedObjectAction(15f), 11, "Rotate object clockwise");
+			SetupButton(_btnInspectorRotRight, $"{UnicodeIcons.ROTATE} ROT +15°", () => RotateSelectedObjectAction(15f), 11, "Rotate object clockwise (Shift + Mouse_Wheel)");
 
 			_btnInspectorScaleDown = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorScaleDown");
-			SetupButton(_btnInspectorScaleDown, $"{UnicodeIcons.MINUS} SCALE DOWN", () => ScaleSelectedObjectAction(0.9f), 11, "Shrink object size by 10%");
+			SetupButton(_btnInspectorScaleDown, $"{UnicodeIcons.MINUS} SCALE DOWN", () => ScaleSelectedObjectAction(0.9f), 11, "Shrink object size by 10% (Alt + Mouse_Wheel)");
 
 			_btnInspectorScaleUp = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorScaleUp");
-			SetupButton(_btnInspectorScaleUp, $"{UnicodeIcons.PLUS} SCALE UP", () => ScaleSelectedObjectAction(1.1f), 11, "Enlarge object size by 10%");
+			SetupButton(_btnInspectorScaleUp, $"{UnicodeIcons.PLUS} SCALE UP", () => ScaleSelectedObjectAction(1.1f), 11, "Enlarge object size by 10% (Alt + Mouse_Wheel)");
 
 			_btnInspectorScaleReset = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/BtnInspectorScaleReset");
 			SetupButton(_btnInspectorScaleReset, $"{UnicodeIcons.UNDO} RESET SCALE", () => ScaleSelectedObjectAction(-1f), 12, "Reset object scale size to 1.0x");

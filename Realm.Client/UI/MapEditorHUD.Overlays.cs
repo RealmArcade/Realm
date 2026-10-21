@@ -538,9 +538,14 @@ namespace Realm.Client.UI
 		{
 			MirrorMode mirrorMode = GameHost.Instance?.EditorMirrorMode ?? MirrorMode.None;
 			bool isPolar = GameContext.EditorService.IsPolarGridActive(mode, mirrorMode);
+			bool showResetPivot = isPolar || mirrorMode != MirrorMode.None;
+
+			if (_optPolarRingSpacing != null) _optPolarRingSpacing.Visible = isPolar;
+			if (_optPolarRadialStep != null) _optPolarRadialStep.Visible = isPolar;
+			if (_btnResetPivotToCenter != null) _btnResetPivotToCenter.Visible = showResetPivot;
 			if (_rowPolarConfig != null)
 			{
-				_rowPolarConfig.Visible = isPolar;
+				_rowPolarConfig.Visible = showResetPivot;
 			}
 		}
 
@@ -581,8 +586,8 @@ namespace Realm.Client.UI
 				}
 			}
 
-			string text = string.Format(
-				TranslationServer.Translate($"{UnicodeIcons.RULER} MEASURE: Manhattan: {0:F1}T | Euclidean: {1:F1}T ({2:F1}m) | Angle: {3:F1}° | Slope: {4}"),
+			string text = $"{UnicodeIcons.RULER} " + string.Format(
+				TranslationServer.Translate("MEASURE: Manhattan: {0:F1}T | Euclidean: {1:F1}T ({2:F1}m) | Angle: {3:F1}° | Slope: {4}"),
 				manhattanTiles, eucTiles, eucWorld, angleDeg, slopeStr);
 
 			if (Mathf.Abs(dy) > 0.01f)
@@ -1336,6 +1341,7 @@ namespace Realm.Client.UI
 			AddHelpShortcutRow(grid, "7", TranslationServer.Translate("Roughen (Noise) Tool"));
 			AddHelpShortcutRow(grid, "8", TranslationServer.Translate("Texture Painter Brush"));
 			AddHelpShortcutRow(grid, "9", TranslationServer.Translate("Add Objects"));
+			AddHelpShortcutRow(grid, "0", TranslationServer.Translate("Water Tool"));
 			AddHelpShortcutRow(grid, "Q", TranslationServer.Translate("Select / Move Tool"));
 			AddHelpShortcutRow(grid, "I", TranslationServer.Translate("Eyedropper Picker"));
 
@@ -1594,7 +1600,7 @@ namespace Realm.Client.UI
 			for (int i = 0; i < EditorService.SpokeCountOptions.Length; i++)
 			{
 				int count = EditorService.SpokeCountOptions[i];
-				opt.AddItem(string.Format(TranslationServer.Translate($"{UnicodeIcons.COMPASS} SPOKES: {0}"), count), count);
+				opt.AddItem($"{UnicodeIcons.COMPASS} " + string.Format(TranslationServer.Translate("SPOKES: {0}"), count), count);
 			}
 
 			if (!string.IsNullOrEmpty(tooltip))
@@ -2797,6 +2803,7 @@ namespace Realm.Client.UI
 			TweenHudElement(_panelRight, targetAlpha, duration);
 			TweenHudElement(_topBar, targetAlpha, duration);
 			TweenHudElement(_panelMeasurementHUD, targetAlpha, duration);
+			TweenHudElement(_screenFrameRect, targetAlpha, duration);
 
 			foreach (var card in _cardDragMap.Keys)
 			{

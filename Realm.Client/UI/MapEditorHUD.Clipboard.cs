@@ -40,7 +40,7 @@ namespace Realm.Client.UI
 		{
 			if (_btnPasteAnchor != null)
 			{
-				_btnPasteAnchor.Text = string.Format(TranslationServer.Translate($"{UnicodeIcons.MOUSE_POINTER} ANCHOR: {0}"), TranslationServer.Translate(EditorService.PasteAnchorNames[GameContext.EditorService.CurrentPasteAnchorIndex]));
+				_btnPasteAnchor.Text = $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(EditorService.PasteAnchorNames[GameContext.EditorService.CurrentPasteAnchorIndex]));
 			}
 		}
 
@@ -56,7 +56,7 @@ namespace Realm.Client.UI
 		{
 			if (_btnPasteReflection != null && GameHost.Instance != null)
 			{
-				_btnPasteReflection.Text = string.Format(TranslationServer.Translate($"{UnicodeIcons.ARROWS_H} REFLECT: {0}"), TranslationServer.Translate(GameContext.EditorService.EditorPasteReflection.ToString().ToUpperInvariant()));
+				_btnPasteReflection.Text = $"{UnicodeIcons.ARROWS_H} " + string.Format(TranslationServer.Translate("REFLECT: {0}"), TranslationServer.Translate(GameContext.EditorService.EditorPasteReflection.ToString().ToUpperInvariant()));
 			}
 		}
 	}

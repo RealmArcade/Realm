@@ -3053,6 +3053,18 @@ public partial class EditorService : IEditorAPI
 						Player = 0
 					});
 				}
+				else if (n3d is ProceduralVfxInstance3D vfx)
+				{
+					entities.Add(new CopiedEntityInfo
+					{
+						Type = "vfx",
+						Id = string.IsNullOrEmpty(vfx.VfxId) ? "vfx" : vfx.VfxId,
+						RelativePos = pos - origin,
+						Rotation = vfx.RotationDegrees.Y,
+						Scale = vfx.Scale.X,
+						Player = 0
+					});
+				}
 			}
 		}
 
@@ -3441,7 +3453,7 @@ public partial class EditorService : IEditorAPI
 			if (n3d.Position.X >= minWorldX && n3d.Position.X <= maxWorldX && n3d.Position.Z >= minWorldZ && n3d.Position.Z <= maxWorldZ)
 			{
 				if (!IsPointInEllipse(n3d.Position.X, n3d.Position.Z, centerWorldX, centerWorldZ, rxWorld, rzWorld, isSquare, 1.0f)) continue;
-				if (n3d is Unit3D || n3d is Prop3D || n3d is Decal) nodesToDelete.Add(n3d);
+				if (n3d is Unit3D || n3d is Prop3D || n3d is Decal || n3d is ProceduralVfxInstance3D) nodesToDelete.Add(n3d);
 			}
 		}
 

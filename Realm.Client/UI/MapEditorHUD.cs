@@ -178,6 +178,7 @@ public partial class MapEditorHUD : Control
 
 	private Slider _sldBrushSize { get; set; }
 	private Label _lblBrushSizeValue { get; set; }
+	private Control _brushSizeBox { get; set; }
 	private Slider _sldBrushStrength { get; set; }
 	private Label _lblBrushStrengthValue { get; set; }
 

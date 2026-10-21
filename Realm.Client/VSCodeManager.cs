@@ -14,7 +14,6 @@ using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
@@ -64,7 +63,6 @@ public partial class VSCodeManager
 
 	private static readonly string[] RequiredExtensions = new[]
 	{
-		"google.google-antigravity",
 		"muhammad-sammy.csharp",
 		"OHZIInteractiveStudio.ohzi-vscode-glb-viewer",
 		"Gruntfuggly.todo-tree",
@@ -1618,6 +1616,7 @@ public partial class VSCodeManager
 
 			EnsureWorkspaceMapApiDll(projectRoot);
 			EnsureVSCodiumSettings(serverDataDir, workspacePath);
+			RemoveAntigravityExtension(extensionsDir);
 			EnsureOhziExtensionPatched(extensionsDir);
 			EnsureOpencuiExtensionAutoStarts(extensionsDir);
 			PatchVSCodiumConfiguration(embedDir);
@@ -2042,6 +2041,75 @@ public partial class VSCodeManager
 		return false;
 	}
 
+	private static void RemoveAntigravityExtension(string extensionsDir)
+	{
+		if (string.IsNullOrEmpty(extensionsDir) || !Directory.Exists(extensionsDir))
+		{
+			return;
+		}
+
+		try
+		{
+			foreach (string extensionDirectory in Directory.GetDirectories(extensionsDir, "google.google-antigravity*"))
+			{
+				try
+				{
+					Directory.Delete(extensionDirectory, recursive: true);
+					GD.Print($"VS Code: Removed the deprecated antigravity extension at {extensionDirectory}");
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr($"VS Code: Failed to delete {extensionDirectory}: {ex.Message}");
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to enumerate deprecated antigravity extensions: {ex.Message}");
+		}
+
+		RemoveExtensionFromCache(Path.Combine(extensionsDir, "extensions.json"), "google.google-antigravity");
+	}
+
+	private static void RemoveExtensionFromCache(string extensionsJsonPath, string extensionId)
+	{
+		if (!File.Exists(extensionsJsonPath))
+		{
+			return;
+		}
+
+		try
+		{
+			JsonArray cachedExtensions = JsonNode.Parse(File.ReadAllText(extensionsJsonPath, Encoding.UTF8))?.AsArray();
+			if (cachedExtensions == null)
+			{
+				return;
+			}
+
+			bool removed = false;
+			for (int index = cachedExtensions.Count - 1; index >= 0; index--)
+			{
+				string cachedExtensionId = cachedExtensions[index]?["identifier"]?["id"]?.ToString();
+				if (!string.Equals(cachedExtensionId, extensionId, StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
+
+				cachedExtensions.RemoveAt(index);
+				removed = true;
+			}
+
+			if (removed)
+			{
+				File.WriteAllText(extensionsJsonPath, cachedExtensions.ToJsonString(new JsonSerializerOptions { WriteIndented = false }), new UTF8Encoding(false));
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to update {extensionsJsonPath}: {ex.Message}");
+		}
+	}
+
 	public void SaveRecentMapDir(string dirPath)
 	{
 		try
@@ -2204,26 +2272,6 @@ public partial class VSCodeManager
 	}
 
 
-	[GeneratedRegex(@"\bframe-ancestors\s+[^;]+;?", RegexOptions.IgnoreCase)]
-	private static partial Regex FrameAncestorsRegex();
-
-	[GeneratedRegex(@"hostMessaging\.onMessage\('did-load-resource'[\s\S]*?assertIsDefined\(navigator\.serviceWorker\.controller\)\.postMessage\(\{ channel: 'did-load-resource',\s*data \}[^\n\r;]*\);(?:\s*\}\s*catch[^\}]*\})?\s*\}\);")]
-	private static partial Regex DidLoadResourceRegex();
-
-	[GeneratedRegex(@"script-src\s+[^;]+;")]
-	private static partial Regex IndexHtmlScriptCspRegex();
-
-	private static string RelaxContentSecurityPolicy(string csp)
-	{
-		if (string.IsNullOrWhiteSpace(csp)) return "frame-ancestors *;";
-		if (FrameAncestorsRegex().IsMatch(csp))
-		{
-			return FrameAncestorsRegex().Replace(csp, "frame-ancestors *;");
-		}
-
-		return csp.TrimEnd(';', ' ') + "; frame-ancestors *;";
-	}
-
 	private static IEnumerable<string> GetVSCodeTargetDirectories(string embedDir)
 	{
 		var targets = new List<string>();
@@ -2278,12 +2326,6 @@ public partial class VSCodeManager
 				{
 					PatchProductJson(productJsonPath);
 				}
-
-				string outDir = Path.Combine(root, "out");
-				if (Directory.Exists(outDir))
-				{
-					PatchWebviewOutDirectory(outDir);
-				}
 			}
 		}
 		catch (Exception ex)
@@ -2315,11 +2357,9 @@ public partial class VSCodeManager
 				needsUpdate = true;
 			}
 
-			if (productJsonPath.Contains("editor", StringComparison.OrdinalIgnoreCase) &&
-			    productJsonPath.Contains("resources", StringComparison.OrdinalIgnoreCase) &&
-			    jsonNode.AsObject().ContainsKey("webviewContentExternalBaseUrlTemplate"))
+			var extensionKindDefaults = jsonNode["extensionKind"]?.AsObject();
+			if (extensionKindDefaults != null && extensionKindDefaults.Remove("google.google-antigravity"))
 			{
-				jsonNode.AsObject().Remove("webviewContentExternalBaseUrlTemplate");
 				needsUpdate = true;
 			}
 
@@ -2379,104 +2419,6 @@ public partial class VSCodeManager
 
 		apiArray.Add(extensionName);
 		return true;
-	}
-
-	private static string PatchWorkbenchJsContent(string content)
-	{
-		if (string.IsNullOrEmpty(content)) return content;
-
-		string wbTargetEndpoint = "get webviewExternalEndpoint(){const i=this.options.webviewEndpoint||this.productService.webviewContentExternalBaseUrlTemplate||\"https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/\",e=this.payload?.get(\"webviewExternalEndpointCommit\");return i.replace(\"{{commit}}\",e??this.productService.commit??\"ef65ac1ba57f57f2a3961bfe94aa20481caca4c6\").replace(\"{{quality}}\",(e?\"insider\":this.productService.quality)??\"insider\")}";
-		string wbReplEndpoint = "get webviewExternalEndpoint(){return (window.location.origin + \"/static/out/vs/workbench/contrib/webview/browser/pre/\");}";
-		if (content.Contains(wbTargetEndpoint, StringComparison.Ordinal))
-		{
-			content = content.Replace(wbTargetEndpoint, wbReplEndpoint, StringComparison.Ordinal);
-		}
-
-		if (content.Contains("t.port1.postMessage(e,[e])", StringComparison.Ordinal))
-		{
-			content = content.Replace("try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}", "try{return!1}catch{return!1}", StringComparison.Ordinal);
-		}
-
-		return content;
-	}
-
-	private static string PatchIndexHtmlContent(string content)
-	{
-		if (string.IsNullOrEmpty(content)) return content;
-
-		string hostCheckTarget = "if (hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {";
-		string hostCheckRepl = "if (hostname === '127.0.0.1' || hostname === 'localhost' || hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {";
-		if (content.Contains(hostCheckTarget, StringComparison.Ordinal))
-		{
-			content = content.Replace(hostCheckTarget, hostCheckRepl, StringComparison.Ordinal);
-		}
-
-		if (IndexHtmlScriptCspRegex().IsMatch(content) && !content.Contains("script-src 'self' 'unsafe-inline';", StringComparison.Ordinal))
-		{
-			content = IndexHtmlScriptCspRegex().Replace(content, "script-src 'self' 'unsafe-inline';");
-		}
-
-		string cspTarget = "frame-src 'self';";
-		string cspRepl = "frame-src 'self' http://127.0.0.1:* http://localhost:* vscode-webview:;";
-		if (content.Contains(cspTarget, StringComparison.Ordinal))
-		{
-			content = content.Replace(cspTarget, cspRepl, StringComparison.Ordinal);
-		}
-
-		if (DidLoadResourceRegex().IsMatch(content))
-		{
-			string replacement = "hostMessaging.onMessage('did-load-resource', (_event, data) => {\n\t\t\t\tif (data && data.stream) { try { data.stream.cancel().catch(() => {}); } catch {} delete data.stream; }\n\t\t\t\ttry { if (navigator.serviceWorker && navigator.serviceWorker.controller) { navigator.serviceWorker.controller.postMessage({ channel: 'did-load-resource', data }); } } catch (e) { console.warn('SW did-load-resource postMessage failed:', e); }\n\t\t\t});";
-			content = DidLoadResourceRegex().Replace(content, replacement);
-		}
-
-
-		return content;
-	}
-
-	private static void PatchWebviewOutDirectory(string outDir)
-	{
-		try
-		{
-			string jsPath = Path.Combine(outDir, "vs", "code", "browser", "workbench", "workbench.js");
-			if (File.Exists(jsPath))
-			{
-				try
-				{
-					string content = File.ReadAllText(jsPath, Encoding.UTF8);
-					string patched = PatchWorkbenchJsContent(content);
-					if (patched != content)
-					{
-						File.WriteAllText(jsPath, patched, new UTF8Encoding(false));
-						GD.Print($"VS Code: Patched transferable stream support in {jsPath}");
-					}
-				}
-				catch
-				{
-				}
-			}
-
-			string htmlPath = Path.Combine(outDir, "vs", "workbench", "contrib", "webview", "browser", "pre", "index.html");
-			if (File.Exists(htmlPath))
-			{
-				try
-				{
-					string content = File.ReadAllText(htmlPath, Encoding.UTF8);
-					string patched = PatchIndexHtmlContent(content);
-					if (patched != content)
-					{
-						File.WriteAllText(htmlPath, patched, new UTF8Encoding(false));
-						GD.Print($"VS Code: Patched service worker postMessage error guard in {htmlPath}");
-					}
-				}
-				catch
-				{
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"VS Code: Failed to patch webview out directory {outDir}: {ex.Message}");
-		}
 	}
 
 	private static void CopyItemIfExists(string src, string dst)
