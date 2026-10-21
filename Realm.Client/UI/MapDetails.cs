@@ -345,7 +345,7 @@ public partial class MapDetails : Control
 		ApplyWrapperStyles();
 		ApplyTextStyles();
 
-		SetupPillarButton(_backButton, "◀ BACK", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery));
+		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀ BACK", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery));
 
 		_downloadButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_downloadButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
@@ -604,20 +604,6 @@ public partial class MapDetails : Control
 		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateFlatButtonStyle(false, true));
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		UIStyle.ApplyButtonText(button, text, 24);
-	}
-
-	private void SetupPillarButton(Button button, string text, Action onClick)
-	{
-		UIStyle.ApplyButtonText(button, text, 18);
-		button.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		button.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		button.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			onClick?.Invoke();
-		};
-		button.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 	}
 
 	private void RegisterEvents()

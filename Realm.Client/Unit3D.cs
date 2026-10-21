@@ -1480,7 +1480,7 @@ public partial class Unit3D : Node3D
 		if (Mathf.Abs(relXform.Basis.Determinant()) <= 0.0001f) return;
 
 		Aabb mAabb = meshInst.Mesh.GetAabb();
-		Vector3[] corners = GetMeshAabbCorners(mAabb);
+		Vector3[] corners = Realm.Client.Utils.MathUtils.GetAabbCorners(mAabb);
 		for (int i = 0; i < 8; i++)
 		{
 			Vector3 pt = relXform * corners[i];

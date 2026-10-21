@@ -231,7 +231,7 @@ public partial class LobbyCreate : Control
 		UIStyle.ApplyTitle(_titleLabel, LobbyManager.Instance.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
 		UIStyle.ApplyTitle(_mapSelectLabel, "SELECT MAP", 20);
 
-		SetupPillarButton(_backButton, "◀", () => UIManager.Instance.TransitionTo(LobbyManager.Instance.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
+		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀", () => UIManager.Instance.TransitionTo(LobbyManager.Instance.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
 
 		_mapSelectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
@@ -261,29 +261,6 @@ public partial class LobbyCreate : Control
 
 		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
-	}
-
-	private void SetupPillarButton(Button btn, string text, Action onClick)
-	{
-		btn.Flat = false;
-		btn.Text = text;
-		btn.AddThemeConstantOverride("icon_max_width", 0);
-		btn.AddThemeFontSizeOverride("font_size", 24);
-		btn.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btn.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			onClick?.Invoke();
-		};
-		btn.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 	}
 
 	private void SetupCreateButton()
@@ -326,7 +303,7 @@ public partial class LobbyCreate : Control
 		if (LobbyManager.Instance.LocalNatType == NatType.Symmetric)
 		{
 			UIManager.Instance.PlayWarningSound();
-			ShowSTUNErrorModal();
+			ShowNatErrorModal();
 			return;
 		}
 
@@ -377,216 +354,34 @@ public partial class LobbyCreate : Control
 
 	private void ShowMapBuildMismatchModal(string mapPath, string mapDisplayName, string mapBuildNumber, string currentBuildNumber)
 	{
-		var warningPopup = new Panel();
-		warningPopup.Name = "WarningPopup_Panel";
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(520, 290);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(480, 260);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var titleLabel = new Label();
-		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, Tr("MAP BUILD MISMATCH"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
-
 		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(mapBuildNumber));
 
-		var descLabel = new Label();
-		descLabel.Name = "DescLabel_Label";
 		string promptText = Tr("This map is out of date. To host this match, download the matching game build or open the map in the Map Editor to upgrade it.");
-		descLabel.Text = $"{string.Format(Tr("Map: {0}"), mapDisplayName)}\n{string.Format(Tr("Map Build: {0}"), mapBuildNumber)} | {string.Format(Tr("Current Build: {0}"), currentBuildNumber)}\n\n{promptText}";
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 13);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
+		string message = $"{string.Format(Tr("Map: {0}"), mapDisplayName)}\n{string.Format(Tr("Map Build: {0}"), mapBuildNumber)} | {string.Format(Tr("Current Build: {0}"), currentBuildNumber)}\n\n{promptText}";
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var hBox = new HBoxContainer();
-		hBox.Name = "HBox_HBoxContainer";
-		hBox.Alignment = BoxContainer.AlignmentMode.Center;
-		hBox.AddThemeConstantOverride("separation", 12);
-		vbox.AddChild(hBox);
-
-		var editorBtn = new Button();
-		editorBtn.Name = "EditorBtn_Button";
-		editorBtn.Flat = false;
-		editorBtn.AddThemeConstantOverride("icon_max_width", 0);
-		editorBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		editorBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		editorBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		editorBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(editorBtn, Tr("OPEN MAP EDITOR"), 13);
-		editorBtn.CustomMinimumSize = new Vector2(140, 38);
-		editorBtn.Pressed += () =>
+		UIManager.Instance?.ShowConfirmationDialog(message, () =>
 		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
-			UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
-		};
-		hBox.AddChild(editorBtn);
-
-		var versionBtn = new Button();
-		versionBtn.Name = "VersionBtn_Button";
-		versionBtn.Flat = false;
-		versionBtn.AddThemeConstantOverride("icon_max_width", 0);
-		versionBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		versionBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		versionBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		versionBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		string btnText = versionExistsLocally ? string.Format(Tr("LAUNCH {0}"), mapBuildNumber) : string.Format(Tr("DOWNLOAD {0}"), mapBuildNumber);
-		UIStyle.ApplyButtonText(versionBtn, btnText, 13);
-		versionBtn.CustomMinimumSize = new Vector2(140, 38);
-		versionBtn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
 			if (versionExistsLocally)
 			{
 				string exePath = LobbyManager.GetVersionExecutablePath(mapBuildNumber);
 				OS.CreateProcess(exePath, Array.Empty<string>());
 				GetTree().Quit();
 			}
-		};
-		hBox.AddChild(versionBtn);
-
-		var cancelBtn = new Button();
-		cancelBtn.Name = "CancelBtn_Button";
-		cancelBtn.Flat = false;
-		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 13);
-		cancelBtn.CustomMinimumSize = new Vector2(100, 38);
-		cancelBtn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
-		};
-		hBox.AddChild(cancelBtn);
+			}, confirmText: versionExistsLocally ? string.Format(Tr("LAUNCH {0}"), mapBuildNumber) : string.Format(Tr("DOWNLOAD {0}"), mapBuildNumber),
+			cancelText: "CANCEL", titleOverride: "MAP BUILD MISMATCH");
 	}
 
-	private void ShowSTUNErrorModal()
+	private void ShowNatErrorModal()
 	{
-		var warningPopup = new Panel();
-		warningPopup.Name = "WarningPopup_Panel";
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(450, 220);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(400, 180);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, Tr("HOSTING ERROR"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-		var descLabel = new Label();
-		descLabel.Name = "DescLabel_Label";
-		descLabel.Text = Tr("STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP.");
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var okBtn = new Button();
-		okBtn.Name = "OkBtn_Button";
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, Tr("OK"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		okBtn.Pressed += () =>
+		UIManager.Instance?.ShowPopupMessage("HOSTING ERROR", "STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP.", () =>
 		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
 			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
-		};
-		vbox.AddChild(okBtn);
+		});
 	}
 
 	private void ShowHostErrorModal(string errorMessage)
 	{
-		var warningPopup = new Panel();
-		warningPopup.Name = "WarningPopup_Panel";
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(480, 240);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(440, 200);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, Tr("LOBBY CREATION ERROR"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.35f, 0.35f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-		UIStyle.AddWarningPopupContent(vbox, errorMessage, () =>
-		{
-			warningPopup.QueueFree();
-		});
+		UIManager.Instance?.ShowPopupMessage("LOBBY CREATION ERROR", errorMessage);
 	}
 
 	private void RefreshAvailableMaps(string? selectMapName = null, string? selectMapVersion = null)

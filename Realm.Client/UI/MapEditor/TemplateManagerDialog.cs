@@ -1446,6 +1446,22 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	}
 
 
+		private static readonly Action<TemplateManagerDialog, MapMetadata, ObjectItemInfo, string, string> SpawnShaderDuplicateHandler = (dialog, m, item, newId, newSlug) =>
+		{
+			m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
+			m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
+			if (orig == null)
+			{
+				var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+				if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
+			}
+			SpawnShaderMetadata copy = orig != null
+				? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
+				: new SpawnShaderMetadata();
+			copy.Name = newSlug;
+			m.SpawnShaders[newId] = copy;
+		};
+
 	private static readonly Dictionary<string, Action<TemplateManagerDialog, MapMetadata, ObjectItemInfo, string, string>> DuplicateMetadataHandlers = new(StringComparer.OrdinalIgnoreCase)
 	{
 		{
@@ -1576,72 +1592,16 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			}
 		},
 		{
-			"shaders", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+				"shaders", SpawnShaderDuplicateHandler
 		},
 		{
-			"shader", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+				"shader", SpawnShaderDuplicateHandler
 		},
 		{
-			"spawnshader", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+				"spawnshader", SpawnShaderDuplicateHandler
 		},
 		{
-			"spawnshaders", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+				"spawnshaders", SpawnShaderDuplicateHandler
 		},
 		{
 			"vfx", (dialog, m, item, newId, newSlug) =>

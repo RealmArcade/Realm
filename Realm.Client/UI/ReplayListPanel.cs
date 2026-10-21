@@ -334,90 +334,15 @@ public partial class ReplayListPanel : Control
 
 	private void ShowVersionMismatchPopup(string replayVersion, string currentVersion, string path)
 	{
-		var warningPopup = new Panel();
-		warningPopup.Name = "WarningPopup_Panel";
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(500, 260);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(450, 220);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, Tr("VERSION MISMATCH"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
 		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(replayVersion));
 
-		var descLabel = new Label();
-		descLabel.Name = "DescLabel_Label";
 		string promptText = versionExistsLocally
 			? Tr("The running game version doesn't match the replay file. Re-launch game with correct version?")
 			: Tr("The required game version is not installed. Download it?");
-		descLabel.Text = $"{string.Format(Tr("Replay Version: {0}"), replayVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
+		string message = $"{string.Format(Tr("Replay Version: {0}"), replayVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var hBox = new HBoxContainer();
-		hBox.Name = "HBox_HBoxContainer";
-		hBox.Alignment = BoxContainer.AlignmentMode.Center;
-		hBox.AddThemeConstantOverride("separation", 20);
-		vbox.AddChild(hBox);
-
-		var cancelBtn = new Button();
-		cancelBtn.Name = "CancelBtn_Button";
-		cancelBtn.Flat = false;
-		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
-		cancelBtn.CustomMinimumSize = new Vector2(160, 40);
-		cancelBtn.Pressed += () =>
+		UIManager.Instance?.ShowConfirmationDialog(message, () =>
 		{
-			UIManager.Instance?.PlayClickSound();
-			warningPopup.QueueFree();
-		};
-		hBox.AddChild(cancelBtn);
-
-		var okBtn = new Button();
-		okBtn.Name = "OkBtn_Button";
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, versionExistsLocally ? Tr("RELAUNCH") : Tr("DOWNLOAD"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			warningPopup.QueueFree();
-
 			if (versionExistsLocally)
 			{
 				string targetExe = LobbyManager.GetVersionExecutablePath(replayVersion);
@@ -428,8 +353,7 @@ public partial class ReplayListPanel : Control
 			{
 				OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
 			}
-		};
-		hBox.AddChild(okBtn);
+		}, confirmText: versionExistsLocally ? "RELAUNCH" : "DOWNLOAD", titleOverride: "VERSION MISMATCH");
 	}
 
 	private void OnPlayReplayPressed(string path)

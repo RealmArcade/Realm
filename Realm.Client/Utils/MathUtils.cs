@@ -4,12 +4,11 @@ namespace Realm.Client.Utils;
 
 public static class MathUtils
 {
-    public static void UpdateAabbWithMeshCorners(ref Aabb combinedAabb, ref bool hasAabb, MeshInstance3D meshInst, Transform3D relXform)
+    public static Vector3[] GetAabbCorners(Aabb mAabb)
     {
-        Aabb mAabb = meshInst.Mesh.GetAabb();
         Vector3 min = mAabb.Position;
         Vector3 max = mAabb.End;
-        Vector3[] corners = new[]
+        return new[]
         {
             new Vector3(min.X, min.Y, min.Z),
             new Vector3(min.X, min.Y, max.Z),
@@ -20,6 +19,12 @@ public static class MathUtils
             new Vector3(max.X, max.Y, min.Z),
             new Vector3(max.X, max.Y, max.Z)
         };
+    }
+
+    public static void UpdateAabbWithMeshCorners(ref Aabb combinedAabb, ref bool hasAabb, MeshInstance3D meshInst, Transform3D relXform)
+    {
+        Aabb mAabb = meshInst.Mesh.GetAabb();
+        Vector3[] corners = GetAabbCorners(mAabb);
         for (int i = 0; i < 8; i++)
         {
             Vector3 pt = relXform * corners[i];

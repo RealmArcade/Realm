@@ -1125,18 +1125,6 @@ public partial class CommandPanel
 
 		var hotkey = Key.None;
 
-		string name = unitId.ToUpper();
-		float gold = 0, wood = 0, stone = 0;
-		string desc = "";
-		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var structureMeta))
-		{
-			if (!string.IsNullOrEmpty(structureMeta.Name)) name = structureMeta.Name;
-			gold = structureMeta.CostGold;
-			wood = structureMeta.CostWood;
-			stone = structureMeta.CostStone;
-			desc = structureMeta.Description ?? "";
-		}
-
 		var abilityDef = host?.GetAbilityDefinition(unitId);
 		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.Hotkey))
 		{
@@ -1148,17 +1136,9 @@ public partial class CommandPanel
 		{
 			finalTooltip = abilityDef.Tooltip;
 		}
-		else if (gold == 0 && wood == 0 && stone == 0 && !string.IsNullOrEmpty(desc))
-		{
-			finalTooltip = hotkey != Key.None
-				? $"[{hotkey}] Build {name} — {desc}"
-				: $"Build {name} — {desc}";
-		}
 		else
 		{
-			finalTooltip = hotkey != Key.None
-				? string.Format(TranslationServer.Translate("[{0}] Build {1} (Cost: {2} Gold, {3} Wood, {4} Stone)"), hotkey.ToString(), name, gold, wood, stone)
-				: string.Format(TranslationServer.Translate("Build {0} (Cost: {1} Gold, {2} Wood, {3} Stone)"), name, gold, wood, stone);
+				finalTooltip = UIHelper.GetUnitCostTooltip(unitId, hotkey, "Build");
 		}
 
 		string iconPath = abilityDef != null && !string.IsNullOrEmpty(abilityDef.IconPath)
@@ -1182,28 +1162,7 @@ public partial class CommandPanel
 	{
 		var hotkey = Key.None;
 
-		string name = unitId.ToUpper();
-		float gold = 0, wood = 0, stone = 0;
-		int pop = 0;
-		string desc = "";
-		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
-		{
-			name = meta.Name;
-			gold = meta.CostGold;
-			wood = meta.CostWood;
-			stone = meta.CostStone;
-			pop = meta.PopCost;
-			desc = meta.Description;
-		}
-
-		string costStr = $"Cost: {gold} Gold";
-		if (wood > 0) costStr += $", {wood} Wood";
-		if (stone > 0) costStr += $", {stone} Stone";
-		if (pop > 0) costStr += $", {pop} Pop";
-
-		string finalTooltip = hotkey != Key.None
-			? string.Format(TranslationServer.Translate("[{0}] Train {1} ({2}) — {3}"), hotkey.ToString(), name, costStr, desc)
-			: string.Format(TranslationServer.Translate("Train {0} ({1}) — {2}"), name, costStr, desc);
+			string finalTooltip = UIHelper.GetUnitCostTooltip(unitId, hotkey, "Train");
 
 		return new CommandCardItem
 		{

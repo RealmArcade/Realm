@@ -2951,7 +2951,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
 
-			if (isQueued && GameContext.InputService != null && GameContext.InputService.IsUnitActive(unit.Entity))
+				if (isQueued && GameContext.InputService != null && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(unit.Entity))
 			{
 				GameContext.InputService.EnqueueCommand(unit.Entity, "gather", new System.Numerics.Vector3(propPos.X, propPos.Y, propPos.Z), propEntity);
 			}

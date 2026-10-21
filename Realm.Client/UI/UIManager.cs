@@ -648,7 +648,12 @@ public partial class UIManager : Control
 	}
 
 
-	public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, bool showCancel = true)
+	public void ShowPopupMessage(string title, string message, Action onOkPressed = null)
+	{
+		ShowConfirmationDialog(message, onOkPressed, confirmText: "OK", showCancel: false, titleOverride: title);
+	}
+
+	public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, bool showCancel = true, string titleOverride = null)
 	{
 		var overlay = new ColorRect();
 		overlay.Name = "ConfirmationOverlay";
@@ -675,8 +680,8 @@ public partial class UIManager : Control
 
 		var lblTitle = new Label();
 		lblTitle.Name = "LblTitle_Label";
-		UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate(showCancel ? "CONFIRMATION REQUIRED" : "NOTIFICATION"), 18);
-		lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate(titleOverride ?? (showCancel ? "CONFIRMATION REQUIRED" : "NOTIFICATION")), 18);
+		lblTitle.AddThemeColorOverride("font_color", titleOverride != null && (titleOverride.Contains("ERROR") || titleOverride.Contains("MISMATCH") || titleOverride.Contains("FAILED") || titleOverride.Contains("CORRUPT")) ? new Color(0.9f, 0.3f, 0.3f) : UIStyle.ColorGold);
 		vbox.AddChild(lblTitle);
 
 		var lblMsg = new Label();

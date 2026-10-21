@@ -564,41 +564,9 @@ public partial class LobbyRoom : Control
 
 	private void ShowVersionMismatchPopup(string hostVersion, string clientVersion)
 	{
-		var warningPopup = new Panel();
-		warningPopup.Name = "WarningPopup_Panel";
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(450, 220);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(400, 180);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, Tr("VERSION MISMATCH"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
 		string msg = $"{string.Format(Tr("Host Version: {0}"), hostVersion)}\n{string.Format(Tr("Client Version: {0}"), clientVersion)}\n\n{Tr("Connection aborted.")}";
-		UIStyle.AddWarningPopupContent(vbox, msg, () =>
+		UIManager.Instance?.ShowPopupMessage(Tr("VERSION MISMATCH"), msg, () =>
 		{
-			warningPopup.QueueFree();
 			LobbyManager.Instance.Disconnect();
 			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
 		});
@@ -606,151 +574,15 @@ public partial class LobbyRoom : Control
 
 	private void ShowStartWarningPopup(string mapName)
 	{
-		var warningPopup = new Panel();
-		warningPopup.Name = "WarningPopup_Panel";
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(450, 220);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(400, 180);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, Tr("NOT ALL PLAYERS READY"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-		var descLabel = new Label();
-		descLabel.Name = "DescLabel_Label";
-		descLabel.Text = Tr("Not all players are ready, start anyway?");
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 15);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var hbox = new HBoxContainer();
-		hbox.Name = "Hbox_HBoxContainer";
-		hbox.Alignment = BoxContainer.AlignmentMode.Center;
-		vbox.AddChild(hbox);
-
-		var startBtn = new Button();
-		startBtn.Name = "StartBtn_Button";
-		startBtn.Flat = false;
-		startBtn.AddThemeConstantOverride("icon_max_width", 0);
-		startBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		startBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		startBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		startBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(startBtn, "START GAME", 14);
-		startBtn.CustomMinimumSize = new Vector2(160, 40);
-		startBtn.Pressed += () =>
+		UIManager.Instance?.ShowConfirmationDialog(Tr("Not all players are ready, start anyway?"), () =>
 		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
 			LobbyManager.Instance.StartGame(mapName);
-		};
-		hbox.AddChild(startBtn);
-
-		var spacer = new Control { CustomMinimumSize = new Vector2(20, 0) };
-		hbox.AddChild(spacer);
-
-		var cancelBtn = new Button();
-		cancelBtn.Name = "CancelBtn_Button";
-		cancelBtn.Flat = false;
-		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(cancelBtn, "CANCEL", 14);
-		cancelBtn.CustomMinimumSize = new Vector2(160, 40);
-		cancelBtn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
-		};
-		hbox.AddChild(cancelBtn);
+		}, confirmText: "START GAME", cancelText: "CANCEL", titleOverride: "NOT ALL PLAYERS READY");
 	}
 
 	private void ShowDownloadingClientsPopup()
 	{
-		var warningPopup = new Panel();
-		warningPopup.Name = "WarningPopup_Panel";
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(480, 220);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(440, 180);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, Tr("CLIENTS DOWNLOADING MAP"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.6f, 0.1f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-		var descLabel = new Label();
-		descLabel.Name = "DescLabel_Label";
-		descLabel.Text = Tr("Some players are still downloading the map.\nWait for them or Kick them before starting the game.");
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var okBtn = new Button();
-		okBtn.Name = "OkBtn_Button";
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, Tr("OK"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		okBtn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
-		};
-		vbox.AddChild(okBtn);
+		UIManager.Instance?.ShowPopupMessage(Tr("CLIENTS DOWNLOADING MAP"), Tr("Some players are still downloading the map.\nWait for them or Kick them before starting the game."));
 	}
 
 	private void OnActiveMapChanged(string mapName)
@@ -1664,46 +1496,14 @@ public partial class LobbyRoom : Control
 
 	private void ShowConnectionFailedPopup(string reason)
 	{
-		var warningPopup = new Panel();
-		warningPopup.Name = "WarningPopup_Panel";
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(540, 280);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(500, 240);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, Tr("CONNECTION FAILED"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
 		string displayReason = reason;
 		if (reason == "Direct connection handshake failed.")
 		{
 			displayReason = $"{Tr("Direct connection handshake failed.")}\n\n{Tr("The host's router may be blocking incoming UDP traffic on port 8999. Ensure UPnP is enabled on the host's router, configure UDP port 8999 forwarding, or connect via a Virtual LAN (Tailscale / Radmin).")}";
 		}
 
-		UIStyle.AddWarningPopupContent(vbox, $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}", () =>
+		UIManager.Instance?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}", () =>
 		{
-			warningPopup.QueueFree();
 			LobbyManager.Instance.Disconnect();
 			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
 		});
