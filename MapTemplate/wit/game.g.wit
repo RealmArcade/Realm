@@ -173,6 +173,7 @@ interface game-api {
     set-unit-damage: func(unit-id: s32, value: f32);
     set-unit-experience: func(unit-id: s32, value: f32);
     set-unit-facing: func(unit-id: s32, facing-radians: f32);
+    set-unit-frozen: func(unit-id: s32, value: bool);
     set-unit-hand-attachment: func(unit-id: s32, hand: string, attachment-id: string);
     set-unit-health: func(unit-id: s32, value: f32);
     set-unit-invulnerable: func(unit-id: s32, value: bool);

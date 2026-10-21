@@ -953,8 +953,36 @@ public partial class Unit3D : Node3D
 		AddChild(shadowDecal);
 	}
 
+	public bool AnimationsFrozen { get; private set; }
+
+	public void SetAnimationsFrozen(bool frozen)
+	{
+		if (AnimationsFrozen == frozen) return;
+		AnimationsFrozen = frozen;
+
+		_lastRequestedAnimName = string.Empty;
+		_currentAnimation = string.Empty;
+
+		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
+
+		if (frozen)
+		{
+			_animationPlayer.Pause();
+			GameHost.Instance?.SuspendProceduralAnimation(this);
+		}
+		else
+		{
+			_animationPlayer.Play();
+			if (HasProceduralAnimation)
+			{
+				GameHost.Instance?.ReapplyProceduralAnimation(this);
+			}
+		}
+	}
+
 	public void PlayAnimation(string animName)
 	{
+		if (AnimationsFrozen) return;
 		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
 		if (string.IsNullOrEmpty(animName)) return;
 

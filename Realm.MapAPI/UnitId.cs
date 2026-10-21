@@ -236,6 +236,23 @@ public readonly unsafe record struct UnitId(int Value)
 	}
 
 	/// <summary>
+	/// Gets or sets a value indicating whether the unit is frozen in place with its animation suspended.
+	/// </summary>
+	/// <remarks>
+	/// A frozen unit keeps its current position and pose: it ignores orders, does not acquire targets or
+	/// cast abilities, and plays no locomotion, attack, idle or death animation, including procedural
+	/// sway. Setting the property to the value it already has does nothing. The flag lives on the entity,
+	/// so it survives level changes, element swaps and unit swaps until the entity is destroyed or the
+	/// flag is cleared, and it does not conflict with <see cref="Invulnerable"/>, <see cref="Facing"/> or
+	/// <see cref="HideHealthAndManaBars"/>.
+	/// </remarks>
+	public bool Frozen
+	{
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.Frozen);
+		set => GameAPI.Current.SetUnitFrozen(this, value);
+	}
+
+	/// <summary>
 	/// Gets or sets a value indicating whether overhead health and mana bars are hidden for this unit.
 	/// </summary>
 	public bool HideHealthAndManaBars

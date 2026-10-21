@@ -510,6 +510,12 @@ public partial class GameHost
 		ApplyMaterialOverridesToNode(prop, brightness, tint, normalizeLuminance, ignorePlayerColor, false);
 	}
 
+	public void ReapplyProceduralAnimation(Unit3D unit) =>
+		ApplyProceduralAnimation(unit, GetModelEnableProceduralAnimation(unit), GetModelProceduralAnimation(unit));
+
+	public void SuspendProceduralAnimation(Node3D node) =>
+		ModelShaderManager.DisableProceduralAnimation(node);
+
 	private void ApplyProceduralAnimation(Node3D node, bool enable, string procAnimId)
 	{
 		if (enable && !string.IsNullOrEmpty(procAnimId))

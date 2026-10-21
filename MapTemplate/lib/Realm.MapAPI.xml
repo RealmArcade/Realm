@@ -261,6 +261,9 @@
         <member name="F:Realm.MapAPI.ComponentIds.PreviousRotationY">
             <summary>Previous rotation around Y-axis component identifier.</summary>
         </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Frozen">
+            <summary>Frozen tag component identifier.</summary>
+        </member>
         <member name="T:Realm.MapAPI.ComponentMask">
             <summary>
             Bitmask representing a set of component types for entity filter queries.
@@ -2751,6 +2754,23 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">True for invulnerability; otherwise, false.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitFrozen(Realm.MapAPI.UnitId,System.Boolean)">
+            <summary>
+            Pins a unit in place, or releases it again.
+            </summary>
+            <remarks>
+            A frozen unit never moves, never rotates in response to orders, never acquires targets, never
+            casts abilities, and holds a single pose because locomotion, attack, idle and death animation
+            playback is suspended together with any procedural sway. Existing orders and targets are
+            cleared when the unit freezes, and unfreezing restores normal behaviour immediately.
+            Freezing is idempotent, cheap, and composes with <see cref="M:Realm.MapAPI.IGameAPI.SetUnitInvulnerable(Realm.MapAPI.UnitId,System.Boolean)"/>, facing and
+            the health-bar visibility flags, so a map can build statues out of real units. The state lives
+            on the unit entity, so it survives tile level changes, element swaps, unit swaps and re-drafting
+            until the entity is destroyed or unfrozen.
+            </remarks>
+            <param name="unit">The unit identifier.</param>
+            <param name="value">True to freeze the unit in place; false to let it act normally again.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.IssueAttackOrder(Realm.MapAPI.UnitId,Realm.MapAPI.UnitId)">
             <summary>
             Issues an attack order targeting a specific enemy unit.
@@ -4271,6 +4291,19 @@
             <summary>
             Gets or sets a value indicating whether the unit is invulnerable to all damage.
             </summary>
+        </member>
+        <member name="P:Realm.MapAPI.UnitId.Frozen">
+            <summary>
+            Gets or sets a value indicating whether the unit is frozen in place with its animation suspended.
+            </summary>
+            <remarks>
+            A frozen unit keeps its current position and pose: it ignores orders, does not acquire targets or
+            cast abilities, and plays no locomotion, attack, idle or death animation, including procedural
+            sway. Setting the property to the value it already has does nothing. The flag lives on the entity,
+            so it survives level changes, element swaps and unit swaps until the entity is destroyed or the
+            flag is cleared, and it does not conflict with <see cref="P:Realm.MapAPI.UnitId.Invulnerable"/>, <see cref="P:Realm.MapAPI.UnitId.Facing"/> or
+            <see cref="P:Realm.MapAPI.UnitId.HideHealthAndManaBars"/>.
+            </remarks>
         </member>
         <member name="P:Realm.MapAPI.UnitId.HideHealthAndManaBars">
             <summary>

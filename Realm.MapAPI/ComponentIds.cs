@@ -47,4 +47,6 @@ public static class ComponentIds
 	public const int PreviousPosition = 113;
 	/// <summary>Previous rotation around Y-axis component identifier.</summary>
 	public const int PreviousRotationY = 114;
+	/// <summary>Frozen tag component identifier.</summary>
+	public const int Frozen = 124;
 }

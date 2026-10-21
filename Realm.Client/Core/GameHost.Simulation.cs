@@ -1110,6 +1110,7 @@ public partial class GameHost
 
 	private string DetermineUnitAnimation(Entity entity)
 	{
+		if (GameContext.World.Has<Frozen>(entity)) return "Idle";
 		if (TryGetReplayAnimation(entity, out string replayAnim)) return replayAnim;
 		if (GameContext.World.Has<Dead>(entity)) return "Death";
 		if (IsEntityMoving(entity)) return "Walk";

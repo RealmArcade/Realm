@@ -646,6 +646,40 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		}
 	}
 
+	public bool Frozen
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return false;
+			return _world.Has<Frozen>(_entity);
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			bool isFrozen = _world.Has<Frozen>(_entity);
+			if (value == isFrozen) return;
+
+			if (value)
+			{
+				_world.Add<Frozen>(_entity);
+				Stop();
+				if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				{
+					unit3D.Velocity = Godot.Vector3.Zero;
+					unit3D.SetAnimationsFrozen(true);
+				}
+			}
+			else
+			{
+				_world.Remove<Frozen>(_entity);
+				if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				{
+					unit3D.SetAnimationsFrozen(false);
+				}
+			}
+		}
+	}
+
 	public float Facing
 	{
 		get

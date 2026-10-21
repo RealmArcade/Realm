@@ -410,7 +410,7 @@ namespace Realm.Client.Services
 			int timeOfDay = GetTimeOfDayIndex();
 			GameContext.World.Query(in _targetAcquisitionQuery, (Entity entity, ref Position pos, ref Attack atk, ref Owner owner) =>
 			{
-				if (atk.Damage <= 0f || GameContext.World.Has<Invulnerable>(entity)) return;
+				if (atk.Damage <= 0f || GameContext.World.Has<Invulnerable>(entity) || GameContext.World.Has<Frozen>(entity)) return;
 
 				bool isAutoCombat = GameContext.World.Has<AutoCombatState>(entity) && GameContext.World.Get<AutoCombatState>(entity).Enabled;
 				bool isAttackMove = GameContext.World.Has<AttackMove>(entity);

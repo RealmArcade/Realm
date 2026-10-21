@@ -2017,6 +2017,23 @@ public interface IGameAPI
 	void SetUnitInvulnerable(UnitId unit, bool value);
 
 	/// <summary>
+	/// Pins a unit in place, or releases it again.
+	/// </summary>
+	/// <remarks>
+	/// A frozen unit never moves, never rotates in response to orders, never acquires targets, never
+	/// casts abilities, and holds a single pose because locomotion, attack, idle and death animation
+	/// playback is suspended together with any procedural sway. Existing orders and targets are
+	/// cleared when the unit freezes, and unfreezing restores normal behaviour immediately.
+	/// Freezing is idempotent, cheap, and composes with <see cref="SetUnitInvulnerable"/>, facing and
+	/// the health-bar visibility flags, so a map can build statues out of real units. The state lives
+	/// on the unit entity, so it survives tile level changes, element swaps, unit swaps and re-drafting
+	/// until the entity is destroyed or unfrozen.
+	/// </remarks>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">True to freeze the unit in place; false to let it act normally again.</param>
+	void SetUnitFrozen(UnitId unit, bool value);
+
+	/// <summary>
 	/// Issues an attack order targeting a specific enemy unit.
 	/// </summary>
 	/// <param name="unit">The attacking unit.</param>
