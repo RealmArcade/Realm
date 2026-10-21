@@ -134,11 +134,13 @@ public class ShroudService
 		}
 
 		ref var shroud = ref world.Get<ShroudState>(worldEntity);
+		var grid = ShroudGridRegistry.Get(shroud.GridHandle);
 		bool isOmniscient = observedPlayerIndex < 0
 		                    || (uint)observedPlayerIndex >= ShroudGrid.MaxGroups
 		                    || GameContext.SessionState.IsMapEditorMode
 		                    || shroud.VisibilityMode == ShroudVisibilityMode.Revealed
-		                    || !shroud.IsAllocated;
+		                    || grid == null
+		                    || !grid.IsAllocated;
 
 		if (isOmniscient)
 		{
@@ -148,27 +150,27 @@ public class ShroudService
 
 		_isRevealAll = false;
 		_hasAppliedRevealAllPresentation = false;
-		_observedGroup = shroud.GetGroupIndex(observedPlayerIndex);
-		SetGlobalBounds(shroud.WorldMinX, shroud.WorldMinZ, shroud.WorldWidth, shroud.WorldDepth);
+		_observedGroup = grid.GetGroupIndex(observedPlayerIndex);
+		SetGlobalBounds(grid.WorldMinX, grid.WorldMinZ, grid.WorldWidth, grid.WorldDepth);
 		ApplyGlobalTexture();
 
 		bool contentChanged = _observedGroup != _lastAppliedGroup
-		                     || shroud.Version != _lastAppliedVersion
-		                     || shroud.GridWidth != _textureWidth
-		                     || shroud.GridHeight != _textureHeight;
+		                     || grid.Version != _lastAppliedVersion
+		                     || grid.GridWidth != _textureWidth
+		                     || grid.GridHeight != _textureHeight;
 
 		if (contentChanged)
 		{
-			EnsureTextures(shroud.GridWidth, shroud.GridHeight);
-			WriteShroudPixels(in shroud);
+			EnsureTextures(grid.GridWidth, grid.GridHeight);
+			WriteShroudPixels(grid);
 			UploadShroudTexture();
-			WriteMinimapPixels(in shroud);
+			WriteMinimapPixels(grid);
 			UploadMinimapTexture();
 			_lastAppliedGroup = _observedGroup;
-			_lastAppliedVersion = shroud.Version;
+			_lastAppliedVersion = grid.Version;
 		}
 
-		ApplyEntityVisibility(in shroud, allUnits, allProps, allDecals);
+		ApplyEntityVisibility(grid, allUnits, allProps, allDecals);
 	}
 
 	private void ApplyRevealAllPresentation(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
@@ -181,6 +183,7 @@ public class ShroudService
 		SetNodesVisible(allUnits);
 		SetNodesVisible(allProps);
 		SetNodesVisible(allDecals);
+		ResetDecalShroudLight(allDecals);
 
 		SetGlobalBounds(0f, 0f, 0f, 0f);
 		ApplyGlobalTexture();
@@ -206,7 +209,18 @@ public class ShroudService
 		}
 	}
 
-	private void ApplyEntityVisibility(in ShroudState shroud, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
+	private static void ResetDecalShroudLight(List<Decal> allDecals)
+	{
+		for (int index = 0; index < allDecals.Count; index++)
+		{
+			if (allDecals[index] is Decal3D decal3D && GodotObject.IsInstanceValid(decal3D))
+			{
+				decal3D.SetShroudLightFactor(1f);
+			}
+		}
+	}
+
+	private void ApplyEntityVisibility(ShroudGridData grid, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
 	{
 		var world = GameContext.World;
 		int observedGroup = _observedGroup;
@@ -216,12 +230,12 @@ public class ShroudService
 			var unit = allUnits[index];
 			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
 
-			bool shouldBeVisible = IsPlayerInObservedGroup(in shroud, unit.Player, observedGroup);
+			bool shouldBeVisible = IsPlayerInObservedGroup(grid, unit.Player, observedGroup);
 			if (!shouldBeVisible && unit.Entity != Entity.Null && world.IsAlive(unit.Entity) && world.Has<Position>(unit.Entity))
 			{
 				ref var position = ref world.Get<Position>(unit.Entity);
-				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
-				                  && shroud.IsVisible(cellIndex, observedGroup);
+				shouldBeVisible = grid.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
+				                  && grid.IsVisible(cellIndex, observedGroup);
 			}
 
 			if (unit.Visible != shouldBeVisible)
@@ -239,8 +253,8 @@ public class ShroudService
 			if (prop.Entity != Entity.Null && world.IsAlive(prop.Entity) && world.Has<Position>(prop.Entity))
 			{
 				ref var position = ref world.Get<Position>(prop.Entity);
-				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
-				                  && shroud.IsExplored(cellIndex, observedGroup);
+				shouldBeVisible = grid.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
+				                  && grid.IsExplored(cellIndex, observedGroup);
 			}
 
 			if (prop.Visible != shouldBeVisible)
@@ -255,11 +269,14 @@ public class ShroudService
 			if (decal == null || !GodotObject.IsInstanceValid(decal)) continue;
 
 			bool shouldBeVisible = true;
+			float decalLightFactor = 1f;
 			if (decal is Decal3D decal3D && decal3D.Entity != Entity.Null && world.IsAlive(decal3D.Entity) && world.Has<Position>(decal3D.Entity))
 			{
 				ref var position = ref world.Get<Position>(decal3D.Entity);
-				shouldBeVisible = shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
-				                  && shroud.IsExplored(cellIndex, observedGroup);
+				bool isInGrid = grid.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex);
+				shouldBeVisible = isInGrid && grid.IsExplored(cellIndex, observedGroup);
+				if (!isInGrid || !grid.IsVisible(cellIndex, observedGroup)) decalLightFactor = ShroudGrid.ExploredLightFactor;
+				decal3D.SetShroudLightFactor(decalLightFactor);
 			}
 
 			if (decal.Visible != shouldBeVisible)
@@ -269,10 +286,10 @@ public class ShroudService
 		}
 	}
 
-	private static unsafe bool IsPlayerInObservedGroup(in ShroudState shroud, int playerIndex, int observedGroup)
+	private static bool IsPlayerInObservedGroup(ShroudGridData grid, int playerIndex, int observedGroup)
 	{
 		if ((uint)playerIndex >= ShroudGrid.MaxGroups) return true;
-		return shroud.GroupOfPlayer[playerIndex] == observedGroup;
+		return grid.GetGroupIndex(playerIndex) == observedGroup;
 	}
 
 	public bool IsUnitVisibleOnMinimap(Unit3D unit)
@@ -286,14 +303,14 @@ public class ShroudService
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<ShroudState>(worldEntity)) return true;
 
-		ref var shroud = ref world.Get<ShroudState>(worldEntity);
-		if (!shroud.IsAllocated) return true;
-		if (IsPlayerInObservedGroup(in shroud, unit.Player, _observedGroup)) return true;
+		var grid = ShroudGridRegistry.Get(world.Get<ShroudState>(worldEntity).GridHandle);
+		if (grid == null || !grid.IsAllocated) return true;
+		if (IsPlayerInObservedGroup(grid, unit.Player, _observedGroup)) return true;
 		if (unit.Entity == Entity.Null || !world.IsAlive(unit.Entity) || !world.Has<Position>(unit.Entity)) return true;
 
 		ref var position = ref world.Get<Position>(unit.Entity);
-		return shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
-		       && shroud.IsVisible(cellIndex, _observedGroup);
+		return grid.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
+		       && grid.IsVisible(cellIndex, _observedGroup);
 	}
 
 	private int ResolveObservedPlayerIndex(int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
@@ -332,16 +349,16 @@ public class ShroudService
 		return world.Get<UnitOwnerPlayer>(playerEntity).PlayerIndex;
 	}
 
-	private unsafe void WriteShroudPixels(in ShroudState shroud)
+	private unsafe void WriteShroudPixels(ShroudGridData grid)
 	{
 		byte[] pixels = _shroudPixelBuffer;
-		int groupOffset = _observedGroup * shroud.CellCount;
+		int groupOffset = _observedGroup * grid.CellCount;
 
-		for (int cellIndex = 0; cellIndex < shroud.CellCount; cellIndex++)
+		for (int cellIndex = 0; cellIndex < grid.CellCount; cellIndex++)
 		{
 			int sourceIndex = groupOffset + cellIndex;
-			bool isExplored = shroud.ExploredCells[sourceIndex] != 0;
-			bool isVisible = shroud.VisibleCells[sourceIndex] != 0;
+			bool isExplored = grid.ExploredCells[sourceIndex] != 0;
+			bool isVisible = grid.VisibleCells[sourceIndex] != 0;
 			int byteIndex = cellIndex * 4;
 
 			pixels[byteIndex + 2] = pixels[byteIndex];
@@ -351,16 +368,16 @@ public class ShroudService
 		}
 	}
 
-	private unsafe void WriteMinimapPixels(in ShroudState shroud)
+	private unsafe void WriteMinimapPixels(ShroudGridData grid)
 	{
 		byte[] pixels = _shroudMinimapPixelBuffer;
-		int groupOffset = _observedGroup * shroud.CellCount;
+		int groupOffset = _observedGroup * grid.CellCount;
 
-		for (int cellIndex = 0; cellIndex < shroud.CellCount; cellIndex++)
+		for (int cellIndex = 0; cellIndex < grid.CellCount; cellIndex++)
 		{
 			int sourceIndex = groupOffset + cellIndex;
-			bool isExplored = shroud.ExploredCells[sourceIndex] != 0;
-			bool isVisible = shroud.VisibleCells[sourceIndex] != 0;
+			bool isExplored = grid.ExploredCells[sourceIndex] != 0;
+			bool isVisible = grid.VisibleCells[sourceIndex] != 0;
 			int byteIndex = cellIndex * 4;
 
 			pixels[byteIndex] = 0;
@@ -385,6 +402,10 @@ public class ShroudService
 		if (width < 1) width = 1;
 		if (height < 1) height = 1;
 
+		bool sizeChanged = _textureWidth != width || _textureHeight != height;
+		_textureWidth = width;
+		_textureHeight = height;
+
 		int byteLength = width * height * 4;
 		if (_shroudPixelBuffer.Length != byteLength)
 		{
@@ -396,16 +417,14 @@ public class ShroudService
 			_shroudMinimapPixelBuffer = new byte[byteLength];
 		}
 
-		if (_shroudImage == null || _shroudTexture == null || !GodotObject.IsInstanceValid(_shroudTexture) || _textureWidth != width || _textureHeight != height)
+		if (sizeChanged || _shroudImage == null || _shroudTexture == null || !GodotObject.IsInstanceValid(_shroudTexture))
 		{
-			_textureWidth = width;
-			_textureHeight = height;
 			_shroudImage = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
 			_shroudImage.SetData(width, height, false, Image.Format.Rgba8, _shroudPixelBuffer);
 			_shroudTexture = ImageTexture.CreateFromImage(_shroudImage);
 		}
 
-		if (_shroudMinimapImage == null || _shroudMinimapTexture == null || !GodotObject.IsInstanceValid(_shroudMinimapTexture))
+		if (sizeChanged || _shroudMinimapImage == null || _shroudMinimapTexture == null || !GodotObject.IsInstanceValid(_shroudMinimapTexture))
 		{
 			_shroudMinimapImage = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
 			_shroudMinimapImage.SetData(width, height, false, Image.Format.Rgba8, _shroudMinimapPixelBuffer);

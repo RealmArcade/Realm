@@ -20,6 +20,7 @@ public partial class Decal3D : Decal
 	private Vector3 _baseSize;
 	private Color _baseModulate = Colors.White;
 	private float _baseEmissionEnergy = 0.0f;
+	private float _shroudLightFactor = 1f;
 	private double _animTime = 0.0;
 
 	public bool AnimateOpacity { get; set; } = false;
@@ -96,6 +97,29 @@ public partial class Decal3D : Decal
 		UpdateProcessState();
 	}
 
+	public void SetShroudLightFactor(float factor)
+	{
+		factor = Mathf.Clamp(factor, 0f, 1f);
+		if (Mathf.IsEqualApprox(_shroudLightFactor, factor)) return;
+		_shroudLightFactor = factor;
+		ApplyShroudModulate(_baseModulate);
+	}
+
+	private void ApplyShroudModulate(Color baseColor)
+	{
+		if (_shroudLightFactor >= 1f)
+		{
+			Modulate = baseColor;
+			return;
+		}
+
+		Modulate = new Color(
+			baseColor.R * _shroudLightFactor,
+			baseColor.G * _shroudLightFactor,
+			baseColor.B * _shroudLightFactor,
+			baseColor.A);
+	}
+
 	public void SetPropertyAnimation(
 		bool animateOpacity, float opacityPulseSpeed, float minOpacity, float maxOpacity,
 		bool animateEmission, float emissionPulseSpeed, float minEmission, float maxEmission,
@@ -129,7 +153,7 @@ public partial class Decal3D : Decal
 		SetProcess(shouldProcess);
 		if (!shouldProcess)
 		{
-			Modulate = _baseModulate;
+			ApplyShroudModulate(_baseModulate);
 			EmissionEnergy = _baseEmissionEnergy;
 			if (_baseSize.X > 0.001f && _baseSize.Z > 0.001f)
 			{
@@ -155,11 +179,11 @@ public partial class Decal3D : Decal
 			float alpha = Mathf.Lerp(MinOpacity, MaxOpacity, sine);
 			var col = _baseModulate;
 			col.A = Mathf.Clamp(alpha, 0.0f, 1.0f);
-			Modulate = col;
+			ApplyShroudModulate(col);
 		}
 		else
 		{
-			Modulate = _baseModulate;
+			ApplyShroudModulate(_baseModulate);
 		}
 
 		if (AnimateEmission)

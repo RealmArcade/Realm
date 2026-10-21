@@ -10,6 +10,7 @@ public static class ShroudGrid
 	public const int MaxCellsPerAxis = 256;
 	public const int MaxGroups = 25;
 	public const int MaxVisionRadiusCells = 96;
+	public const float ExploredLightFactor = 0.45f;
 	public const int MaxTrackedEntities = EcsWorld.MAX_ENTITIES;
 	private const int MaxGroupFieldShift = 8;
 	private const int GroupFieldMask = 0xFF;

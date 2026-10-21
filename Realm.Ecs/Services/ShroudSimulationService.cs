@@ -14,6 +14,23 @@ public static class ShroudSimulationService
 	{
 		if (world == null || !world.IsAlive(worldEntity) || !world.Has<ShroudState>(worldEntity)) return;
 
+		ref var shroud = ref world.Get<ShroudState>(worldEntity);
+
+		if (shroud.VisibilityMode == ShroudVisibilityMode.Revealed)
+		{
+			var revealedGrid = ShroudGridRegistry.Get(shroud.GridHandle);
+			if (revealedGrid != null) revealedGrid.AppliedVisibilityMode = ShroudVisibilityMode.Revealed;
+			return;
+		}
+
+		var grid = ShroudGridRegistry.Get(shroud.GridHandle);
+		if (grid == null)
+		{
+			shroud.GridHandle = ShroudGridRegistry.Create();
+			grid = ShroudGridRegistry.Get(shroud.GridHandle);
+			if (grid == null) return;
+		}
+
 		float worldWidth = 1f;
 		float worldDepth = 1f;
 		if (world.Has<TerrainState>(worldEntity))
@@ -23,25 +40,18 @@ public static class ShroudSimulationService
 			worldDepth = terrain.Depth * terrain.QuadSize;
 		}
 
-		ref var shroud = ref world.Get<ShroudState>(worldEntity);
-		if (shroud.VisibilityMode == ShroudVisibilityMode.Revealed)
-		{
-			shroud.AppliedVisibilityMode = ShroudVisibilityMode.Revealed;
-			return;
-		}
-
 		Span<byte> playerGroups = stackalloc byte[ShroudGrid.MaxGroups];
 		ComputeGroupAssignment(world, worldEntity, playerGroups);
 
-		bool reallocated = shroud.EnsureAllocated(worldWidth, worldDepth);
-		if (!shroud.IsAllocated) return;
+		bool reallocated = grid.EnsureLayout(worldWidth, worldDepth);
+		if (!grid.IsAllocated) return;
 
 		bool groupAssignmentChanged = reallocated;
 		if (!groupAssignmentChanged)
 		{
 			for (int playerIndex = 0; playerIndex < ShroudGrid.MaxGroups; playerIndex++)
 			{
-				if (shroud.GroupOfPlayer[playerIndex] == playerGroups[playerIndex]) continue;
+				if (grid.GroupOfPlayer[playerIndex] == playerGroups[playerIndex]) continue;
 				groupAssignmentChanged = true;
 				break;
 			}
@@ -51,18 +61,18 @@ public static class ShroudSimulationService
 		{
 			for (int playerIndex = 0; playerIndex < ShroudGrid.MaxGroups; playerIndex++)
 			{
-				shroud.GroupOfPlayer[playerIndex] = playerGroups[playerIndex];
+				grid.GroupOfPlayer[playerIndex] = playerGroups[playerIndex];
 			}
 
-			shroud.ResetGroupData(shroud.VisibilityMode);
+			grid.ResetGroupData(shroud.VisibilityMode);
 		}
-		else if (shroud.AppliedVisibilityMode != shroud.VisibilityMode)
+		else if (grid.AppliedVisibilityMode != shroud.VisibilityMode)
 		{
-			shroud.ResetGroupData(shroud.VisibilityMode);
+			grid.ResetGroupData(shroud.VisibilityMode);
 		}
 
-		int currentTick = shroud.LastSeenTick + 1;
-		shroud.LastSeenTick = currentTick;
+		int currentTick = grid.LastSeenTick + 1;
+		grid.LastSeenTick = currentTick;
 		bool versionChanged = false;
 
 		var query = QueryCache.AllShroudVisionSourceQuery;
@@ -77,12 +87,12 @@ public static class ShroudSimulationService
 			float scanRadius = world.Has<ScanRadius>(entity) ? world.Get<ScanRadius>(entity).Value : 0f;
 			if (scanRadius <= 0f) continue;
 
-			if (!shroud.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)) continue;
+			if (!grid.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)) continue;
 
-			int groupIndex = shroud.GetGroupIndex(playerIndex);
+			int groupIndex = grid.GetGroupIndex(playerIndex);
 			if (groupIndex < 0) continue;
 
-			int radiusCells = (int)MathF.Ceiling(scanRadius / shroud.CellSize);
+			int radiusCells = (int)MathF.Ceiling(scanRadius / grid.CellSize);
 			if (radiusCells < 1) radiusCells = 1;
 			if (radiusCells > ShroudGrid.MaxVisionRadiusCells) radiusCells = ShroudGrid.MaxVisionRadiusCells;
 
@@ -90,69 +100,69 @@ public static class ShroudSimulationService
 			if ((uint)entityId >= (uint)ShroudGrid.MaxTrackedEntities) continue;
 
 			ushort sourceMeta = ShroudGrid.PackSourceMeta(groupIndex, radiusCells);
-			int previousCellIndex = shroud.SourceCells[entityId];
-			ushort previousSourceMeta = shroud.SourceMeta[entityId];
-			shroud.SourceLastSeenTick[entityId] = currentTick;
+			int previousCellIndex = grid.SourceCells[entityId];
+			ushort previousSourceMeta = grid.SourceMeta[entityId];
+			grid.SourceLastSeenTick[entityId] = currentTick;
 
 			if (previousCellIndex == cellIndex && previousSourceMeta == sourceMeta) continue;
 
 			if (previousCellIndex >= 0)
 			{
 				ShroudGrid.RemoveVisionDisc(
-					shroud.VisibleCells,
-					shroud.VisibleCoverage,
-					shroud.CellCount,
+					grid.VisibleCells,
+					grid.VisibleCoverage,
+					grid.CellCount,
 					ShroudGrid.GetSourceGroup(previousSourceMeta),
-					ShroudGrid.GetCellX(previousCellIndex, shroud.GridWidth),
-					ShroudGrid.GetCellZ(previousCellIndex, shroud.GridWidth),
+					ShroudGrid.GetCellX(previousCellIndex, grid.GridWidth),
+					ShroudGrid.GetCellZ(previousCellIndex, grid.GridWidth),
 					ShroudGrid.GetSourceRadius(previousSourceMeta),
-					shroud.GridWidth,
-					shroud.GridHeight);
+					grid.GridWidth,
+					grid.GridHeight);
 			}
 
-			shroud.EnsureGroupCapacity(groupIndex + 1);
+			grid.EnsureGroupCapacity(groupIndex + 1);
 
 			ShroudGrid.AddVisionDisc(
-				shroud.ExploredCells,
-				shroud.VisibleCells,
-				shroud.VisibleCoverage,
-				shroud.CellCount,
+				grid.ExploredCells,
+				grid.VisibleCells,
+				grid.VisibleCoverage,
+				grid.CellCount,
 				groupIndex,
-				ShroudGrid.GetCellX(cellIndex, shroud.GridWidth),
-				ShroudGrid.GetCellZ(cellIndex, shroud.GridWidth),
+				ShroudGrid.GetCellX(cellIndex, grid.GridWidth),
+				ShroudGrid.GetCellZ(cellIndex, grid.GridWidth),
 				radiusCells,
-				shroud.GridWidth,
-				shroud.GridHeight);
+				grid.GridWidth,
+				grid.GridHeight);
 
-			shroud.SourceCells[entityId] = cellIndex;
-			shroud.SourceMeta[entityId] = sourceMeta;
+			grid.SourceCells[entityId] = cellIndex;
+			grid.SourceMeta[entityId] = sourceMeta;
 			versionChanged = true;
 		}
 
 		for (int entityId = 0; entityId < ShroudGrid.MaxTrackedEntities; entityId++)
 		{
-			int previousCellIndex = shroud.SourceCells[entityId];
+			int previousCellIndex = grid.SourceCells[entityId];
 			if (previousCellIndex < 0) continue;
-			if (shroud.SourceLastSeenTick[entityId] == currentTick) continue;
+			if (grid.SourceLastSeenTick[entityId] == currentTick) continue;
 
-			ushort previousSourceMeta = shroud.SourceMeta[entityId];
+			ushort previousSourceMeta = grid.SourceMeta[entityId];
 			ShroudGrid.RemoveVisionDisc(
-				shroud.VisibleCells,
-				shroud.VisibleCoverage,
-				shroud.CellCount,
+				grid.VisibleCells,
+				grid.VisibleCoverage,
+				grid.CellCount,
 				ShroudGrid.GetSourceGroup(previousSourceMeta),
-				ShroudGrid.GetCellX(previousCellIndex, shroud.GridWidth),
-				ShroudGrid.GetCellZ(previousCellIndex, shroud.GridWidth),
+				ShroudGrid.GetCellX(previousCellIndex, grid.GridWidth),
+				ShroudGrid.GetCellZ(previousCellIndex, grid.GridWidth),
 				ShroudGrid.GetSourceRadius(previousSourceMeta),
-				shroud.GridWidth,
-				shroud.GridHeight);
+				grid.GridWidth,
+				grid.GridHeight);
 
-			shroud.SourceCells[entityId] = -1;
-			shroud.SourceMeta[entityId] = 0;
+			grid.SourceCells[entityId] = -1;
+			grid.SourceMeta[entityId] = 0;
 			versionChanged = true;
 		}
 
-		if (versionChanged) shroud.Version++;
+		if (versionChanged) grid.Version++;
 	}
 
 	private static int ComputeGroupAssignment(EcsWorld world, Entity worldEntity, Span<byte> playerGroups)

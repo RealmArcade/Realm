@@ -118,7 +118,7 @@ public class WorldInitService
 
 		if (GameContext.World.Has<ShroudState>(worldEntity))
 		{
-			GameContext.World.Get<ShroudState>(worldEntity).Release();
+			ShroudGridRegistry.Release(GameContext.World.Get<ShroudState>(worldEntity).GridHandle);
 		}
 
 		AddOrSet(worldEntity, new ShroudState());

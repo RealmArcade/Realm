@@ -689,7 +689,7 @@ public class EcsWorld : IDisposable
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Terrain.ShroudState))
 		{
 			var b = (ComponentBuffer<Realm.Ecs.Components.Terrain.ShroudState>)(object)buffer;
-			b.ClearHandler = id => b.Get(id).Release();
+			b.ClearHandler = id => Realm.Ecs.Components.Terrain.ShroudGridRegistry.Release(b.Get(id).GridHandle);
 		}
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Terrain.TerrainColorsState))
 		{
