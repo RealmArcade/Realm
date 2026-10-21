@@ -362,6 +362,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 	private static void ApplyLodSettingsToAll(List<MeshInstance3D> meshInstances, float scaleMultiplier)
 	{
 		var maxLodLevelPerPrefix = ComputeMaxLodLevelPerPrefix(meshInstances);
+		var lodBeginUnitsPerPrefix = ComputeLodBeginUnitsPerPrefix(meshInstances);
 
 		foreach (var meshInstance in meshInstances)
 		{
@@ -373,8 +374,54 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 
 			int lodLevel = lodInfo.Value.Level;
 			int maxLodLevel = maxLodLevelPerPrefix.TryGetValue(lodInfo.Value.Prefix, out int prefixMaxLodLevel) ? prefixMaxLodLevel : lodLevel;
-			ApplyLodSettings(meshInstance, lodLevel, lodLevel >= maxLodLevel, scaleMultiplier);
+			bool hasNextLod = TryGetNextLodBeginUnits(lodBeginUnitsPerPrefix, lodInfo.Value.Prefix, lodLevel, out float nextLodBeginUnits);
+			ApplyLodSettings(meshInstance, lodLevel, lodLevel >= maxLodLevel, scaleMultiplier, hasNextLod ? nextLodBeginUnits : null);
 		}
+	}
+
+	private static System.Collections.Generic.Dictionary<string, SortedDictionary<int, float>> ComputeLodBeginUnitsPerPrefix(List<MeshInstance3D> meshInstances)
+	{
+		var lodBeginUnitsPerPrefix = new System.Collections.Generic.Dictionary<string, SortedDictionary<int, float>>(StringComparer.OrdinalIgnoreCase);
+		foreach (var meshInstance in meshInstances)
+		{
+			var lodInfo = TryParseLodInfo(meshInstance.Name.ToString());
+			if (!lodInfo.HasValue)
+			{
+				continue;
+			}
+
+			if (!lodBeginUnitsPerPrefix.TryGetValue(lodInfo.Value.Prefix, out var beginUnitsPerLevel))
+			{
+				beginUnitsPerLevel = new SortedDictionary<int, float>();
+				lodBeginUnitsPerPrefix[lodInfo.Value.Prefix] = beginUnitsPerLevel;
+			}
+
+			beginUnitsPerLevel[lodInfo.Value.Level] = GetLodRangeUnits(meshInstance, lodInfo.Value.Level).RangeBeginUnits;
+		}
+
+		return lodBeginUnitsPerPrefix;
+	}
+
+	private static bool TryGetNextLodBeginUnits(System.Collections.Generic.Dictionary<string, SortedDictionary<int, float>> lodBeginUnitsPerPrefix, string prefix, int lodLevel, out float nextLodBeginUnits)
+	{
+		nextLodBeginUnits = 0f;
+		if (!lodBeginUnitsPerPrefix.TryGetValue(prefix, out var beginUnitsPerLevel))
+		{
+			return false;
+		}
+
+		foreach (var levelEntry in beginUnitsPerLevel)
+		{
+			if (levelEntry.Key <= lodLevel)
+			{
+				continue;
+			}
+
+			nextLodBeginUnits = levelEntry.Value;
+			return true;
+		}
+
+		return false;
 	}
 
 	private static System.Collections.Generic.Dictionary<string, int> ComputeMaxLodLevelPerPrefix(List<MeshInstance3D> meshInstances)
@@ -397,7 +444,7 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 		return maxLodLevelPerPrefix;
 	}
 
-	public static void ApplyLodSettings(MeshInstance3D meshInstance, int lodLevel, bool isLastLod = false, float scaleMultiplier = 1.0f)
+	public static void ApplyLodSettings(MeshInstance3D meshInstance, int lodLevel, bool isLastLod = false, float scaleMultiplier = 1.0f, float? nextLodBeginUnits = null)
 	{
 		if (meshInstance == null)
 		{
@@ -406,14 +453,18 @@ public partial class GltfDocumentExtensionMsftLod : GltfDocumentExtension
 
 		float scale = Math.Max(0.01f, scaleMultiplier);
 		float distanceScale = scale * GameSettings.LodDistanceScale;
-		float margin = 2.0f * scale;
 
 		meshInstance.VisibilityRangeFadeMode = GeometryInstance3D.VisibilityRangeFadeModeEnum.Disabled;
-		meshInstance.VisibilityRangeBeginMargin = margin;
-		meshInstance.VisibilityRangeEndMargin = margin;
+		meshInstance.VisibilityRangeBeginMargin = 0f;
+		meshInstance.VisibilityRangeEndMargin = 0f;
 		meshInstance.CastShadow = GeometryInstance3D.ShadowCastingSetting.On;
 
 		var (rangeBeginUnits, rangeEndUnits) = GetLodRangeUnits(meshInstance, lodLevel);
+		if (nextLodBeginUnits.HasValue)
+		{
+			rangeEndUnits = Math.Max(rangeEndUnits, nextLodBeginUnits.Value);
+		}
+
 		meshInstance.VisibilityRangeBegin = rangeBeginUnits * distanceScale;
 		meshInstance.VisibilityRangeEnd = isLastLod ? 0f : rangeEndUnits * distanceScale;
 	}
