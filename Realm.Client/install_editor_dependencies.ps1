@@ -109,7 +109,7 @@ function Patch-ProductJson {
             $changed = $true
         }
 
-        $workspaceExts = @("google.google-antigravity", "muhammad-sammy.csharp", "patcx.vscode-nuget-gallery", "speige.realm-map-editor", "vadimcn.vscode-lldb")
+        $workspaceExts = @("google.google-antigravity", "muhammad-sammy.csharp", "patcx.vscode-nuget-gallery", "speige.realm-map-editor", "vadimcn.vscode-lldb", "haoyangzeng.opencui")
         foreach ($ext in $workspaceExts) {
             if (-not $pj.extensionKind.$ext) {
                 $pj.extensionKind | Add-Member -MemberType NoteProperty -Name $ext -Value @("workspace") -Force
@@ -425,7 +425,8 @@ $requiredExtensions = @(
 	# "mechatroner.rainbow-json",
     "patcx.vscode-nuget-gallery",
     "AykutSarac.jsoncrack-vscode",
-    "vadimcn.vscode-lldb"
+    "vadimcn.vscode-lldb",
+    "haoyangzeng.opencui"
 	# "akondratiuk1-dev.texture-viewer"
 )
 
@@ -463,6 +464,104 @@ if (Test-Path $ohziPatchFile) {
     }
 }
 
+$opencodeCliDir = Join-Path $appDataDir "opencode_cli"
+$opencodeCliExe = Join-Path $opencodeCliDir "bin\opencode.exe"
+
+function Test-OpencodeExecutable {
+    param([string]$CandidatePath)
+
+    if (-not $CandidatePath) { return $false }
+    if (-not (Test-Path -LiteralPath $CandidatePath -PathType Leaf)) { return $false }
+    return ((Get-Item -LiteralPath $CandidatePath).Length -gt 0)
+}
+
+function Find-OpencodeExecutable {
+    $candidates = @(
+        $opencodeCliExe,
+        (Join-Path $env:USERPROFILE ".opencode\bin\opencode.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\@opencodedesktop\resources\opencode-cli.exe"),
+        (Join-Path $env:APPDATA "npm\opencode.cmd")
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-OpencodeExecutable $candidate) { return $candidate }
+    }
+
+    $onPath = Get-Command "opencode" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($onPath) { return $onPath.Source }
+
+    return $null
+}
+
+function Install-OpencodeCli {
+    try {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/sst/opencode/releases/latest" -UserAgent "Mozilla/5.0" -TimeoutSec 15 -ErrorAction Stop
+    } catch {
+        Write-Warning "Failed to query opencode releases: $($_.Exception.Message)"
+        return $false
+    }
+
+    $asset = $release.assets | Where-Object { $_.name -eq "opencode-windows-x64.zip" } | Select-Object -First 1
+    if (-not $asset) {
+        Write-Warning "opencode-windows-x64.zip not found in release $($release.tag_name)."
+        return $false
+    }
+
+    $archivePath = Join-Path $opencodeCliDir "opencode-windows-x64.zip"
+    $extractDir = Join-Path $opencodeCliDir "extract"
+    New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($opencodeCliExe)) | Out-Null
+
+    try {
+        curl.exe -sS -L $asset.browser_download_url -o $archivePath
+        if (-not (Test-Path -LiteralPath $archivePath) -or (Get-Item -LiteralPath $archivePath).Length -eq 0) {
+            Write-Warning "opencode CLI download failed (release $($release.tag_name))."
+            return $false
+        }
+
+        if (Test-Path -LiteralPath $extractDir) {
+            Remove-Item -LiteralPath $extractDir -Recurse -Force
+        }
+        Expand-Archive -LiteralPath $archivePath -DestinationPath $extractDir -Force
+
+        $extractedExe = Get-ChildItem -LiteralPath $extractDir -Filter "opencode.exe" -Recurse -File | Select-Object -First 1
+        if (-not $extractedExe) {
+            Write-Warning "opencode.exe not found inside the release archive."
+            return $false
+        }
+
+        Copy-Item -LiteralPath $extractedExe.FullName -Destination $opencodeCliExe -Force
+        Write-Host "opencode CLI ($($release.tag_name)) installed to $opencodeCliExe"
+        return $true
+    } catch {
+        Write-Warning "Failed to install opencode CLI: $($_.Exception.Message)"
+        return $false
+    } finally {
+        if (Test-Path -LiteralPath $archivePath) { Remove-Item -LiteralPath $archivePath -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $extractDir) { Remove-Item -LiteralPath $extractDir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+$resolvedOpencodeCli = $null
+if (Test-OpencodeExecutable $opencodeCliExe) {
+    $resolvedOpencodeCli = $opencodeCliExe
+} else {
+    Write-Host "Managed opencode CLI not found. Downloading opencode CLI..."
+    if (Install-OpencodeCli) {
+        $resolvedOpencodeCli = $opencodeCliExe
+    } else {
+        $resolvedOpencodeCli = Find-OpencodeExecutable
+        if ($resolvedOpencodeCli) {
+            Write-Warning "Falling back to the locally installed opencode CLI at $resolvedOpencodeCli. Compatibility depends on its version."
+        }
+    }
+}
+
+if ($resolvedOpencodeCli) {
+    Write-Host "opencode CLI resolved at $resolvedOpencodeCli"
+} else {
+    Write-Warning "opencode CLI is unavailable. The OpenCode Panel extension cannot start its backend until opencode is installed or 'opencui.binaryPath' points to a valid binary."
+}
+
 $userDir = Join-Path $userDataDir "User"
 New-Item -ItemType Directory -Force -Path $userDir | Out-Null
 $userSettingsPath = Join-Path $userDir "settings.json"
@@ -472,6 +571,9 @@ $settingsObj = [ordered]@{
     "security.workspace.trust.banner" = "never"
     "security.workspace.trust.emptyWindow" = $false
     "security.workspace.trust.untrustedFiles" = "open"
+}
+if ($resolvedOpencodeCli) {
+    $settingsObj["opencui.binaryPath"] = $resolvedOpencodeCli
 }
 if (Test-Path $userSettingsPath) {
     try {

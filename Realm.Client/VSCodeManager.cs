@@ -71,7 +71,8 @@ public partial class VSCodeManager
 		// "mechatroner.rainbow-json",
 		"patcx.vscode-nuget-gallery",
 		"AykutSarac.jsoncrack-vscode",
-		"vadimcn.vscode-lldb"
+		"vadimcn.vscode-lldb",
+		"haoyangzeng.opencui"
 		// "akondratiuk1-dev.texture-viewer",
 	};
 
@@ -164,6 +165,9 @@ public partial class VSCodeManager
 		string extensionsDir = Path.Combine(embedDir, "user-data-dir", "extensions");
 
 		if (!AreBasePathsValid(exePath, completedMarkerPath, wasiClangPath, extDir))
+			return false;
+
+		if (!OpencodeCliResolver.IsAvailable())
 			return false;
 
 		return AreExtensionsInstalled(extensionsDir);
@@ -1624,6 +1628,7 @@ public partial class VSCodeManager
 				_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
 				_vscodeProcess.StartInfo.EnvironmentVariables["REALM_IPC_PORT"] = _ipcHttpPort.ToString();
 				_vscodeProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
+				ApplyOpencodeEnvironmentVariables(_vscodeProcess.StartInfo);
 				_vscodeProcess.Start();
 				AddProcessToJob(_vscodeProcess);
 				AttachWindowGrouping(_vscodeProcess);
@@ -1657,6 +1662,20 @@ public partial class VSCodeManager
 		catch (Exception ex)
 		{
 			GD.PrintErr("Failed to launch or focus VSCodium: " + ex.Message);
+		}
+	}
+
+	private static void ApplyOpencodeEnvironmentVariables(ProcessStartInfo startInfo)
+	{
+		try
+		{
+			string opencodeDataDirectory = OpencodeCliResolver.GetDataDirectory();
+			Directory.CreateDirectory(opencodeDataDirectory);
+			startInfo.EnvironmentVariables["XDG_DATA_HOME"] = opencodeDataDirectory;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Failed to prepare opencode data directory: {ex.Message}");
 		}
 	}
 
@@ -1818,6 +1837,8 @@ public partial class VSCodeManager
 			settings["security.workspace.trust.emptyWindow"] = false;
 			settings["security.workspace.trust.untrustedFiles"] = "open";
 
+			EnsureOpencodeBinarySetting(settings);
+
 			File.WriteAllText(userSettingsFile, settings.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
 
 			if (!string.IsNullOrEmpty(workspacePath) && Directory.Exists(workspacePath))
@@ -1849,6 +1870,30 @@ public partial class VSCodeManager
 		{
 			GD.PrintErr($"Failed to ensure VSCodium settings: {ex.Message}");
 		}
+	}
+
+	private static void EnsureOpencodeBinarySetting(JsonObject settings)
+	{
+		string managedBinaryPath = OpencodeCliResolver.GetManagedCliExecutablePath();
+		if (File.Exists(managedBinaryPath))
+		{
+			settings["opencui.binaryPath"] = managedBinaryPath;
+			return;
+		}
+
+		string resolvedBinaryPath = OpencodeCliResolver.ResolveExecutablePath();
+		if (string.IsNullOrEmpty(resolvedBinaryPath))
+		{
+			return;
+		}
+
+		string configuredBinaryPath = settings["opencui.binaryPath"]?.ToString();
+		if (!string.IsNullOrEmpty(configuredBinaryPath) && File.Exists(configuredBinaryPath))
+		{
+			return;
+		}
+
+		settings["opencui.binaryPath"] = resolvedBinaryPath;
 	}
 
 	private static string GetOhziPatchContent()
