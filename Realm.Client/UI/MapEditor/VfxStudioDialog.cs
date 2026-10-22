@@ -29,6 +29,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private Control _rowPrimitive;
 	private OptionButton _optBlendMode;
 	private OptionButton _optPlacementMode;
+	private CheckBox _chkTintWithPlayerColor;
 	private Control _rowBaseTexture;
 	private Control _rowParticleTexture;
 	private Control _rowParticleMesh;
@@ -311,6 +312,19 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			if (_isUpdatingUI) return;
 			_currentConfig.PlacementMode = (VfxPlacementMode)idx;
 		}, 140f);
+
+		_chkTintWithPlayerColor = AddCheckBox(
+			parent,
+			TranslationServer.Translate("Tint with player color"),
+			_currentConfig.TintWithPlayerColor,
+			(val) =>
+			{
+				if (_isUpdatingUI) return;
+				_currentConfig.TintWithPlayerColor = val;
+				RestartPreviewVfx();
+			},
+			TranslationServer.Translate("Tints ground-level glows with the owning player's color instead of the authored effect colors")
+		);
 
 		string[] renderModes = Enum.GetNames<SpellParticleRenderMode>();
 		_optParticleRenderMode = AddOptionDropdown(parent, TranslationServer.Translate("Render Mode"), renderModes, _currentConfig.ParticleConfig != null ? (int)_currentConfig.ParticleConfig.RenderMode : 0, (idx) =>
@@ -1197,6 +1211,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		if (_optBlendMode != null) _optBlendMode.Selected = (int)_currentConfig.BlendMode;
 		if (_optPlacementMode != null) _optPlacementMode.Selected = (int)_currentConfig.PlacementMode;
+		if (_chkTintWithPlayerColor != null) _chkTintWithPlayerColor.ButtonPressed = _currentConfig.TintWithPlayerColor;
 	}
 
 
@@ -1483,6 +1498,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		if (_optBlendMode != null) _currentConfig.BlendMode = (VfxBlendMode)_optBlendMode.Selected;
 		if (_optPlacementMode != null) _currentConfig.PlacementMode = (VfxPlacementMode)_optPlacementMode.Selected;
+		if (_chkTintWithPlayerColor != null) _currentConfig.TintWithPlayerColor = _chkTintWithPlayerColor.ButtonPressed;
 	}
 
 	private void SyncVfxId()

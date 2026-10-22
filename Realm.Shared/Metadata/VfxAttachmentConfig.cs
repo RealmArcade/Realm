@@ -12,6 +12,7 @@ public class VfxAttachmentConfig
 	public List<VfxStageMetadata>? Stages { get; set; }
 	public VfxBlendMode BlendMode { get; set; } = VfxBlendMode.Additive;
 	public VfxPlacementMode PlacementMode { get; set; } = VfxPlacementMode.SurfaceSnap;
+	public bool TintWithPlayerColor { get; set; } = true;
 	public string TargetSocket { get; set; } = "Root";
 
 	public string BaseTexture { get; set; } = "";
@@ -76,6 +77,7 @@ public class VfxAttachmentConfig
 			PrimitiveType = PrimitiveType,
 			BlendMode = BlendMode,
 			PlacementMode = PlacementMode,
+			TintWithPlayerColor = TintWithPlayerColor,
 			TargetSocket = TargetSocket,
 			BaseTexture = BaseTexture,
 			NoiseTexture = NoiseTexture,

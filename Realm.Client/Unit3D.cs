@@ -464,6 +464,28 @@ public partial class Unit3D : Node3D
 				glowingSocket.Value.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorGlowMaterial(color);
 			}
 		}
+
+		foreach (var socket in _pseudoSockets.Values)
+		{
+			if (socket == null || !GodotObject.IsInstanceValid(socket)) continue;
+			ApplyPlayerColorToGroundAuraVfx(socket, color);
+		}
+	}
+
+	private static void ApplyPlayerColorToGroundAuraVfx(Node node, Color color)
+	{
+		if (node is ProceduralVfxInstance3D vfx)
+		{
+			vfx.SetPlayerColor(color);
+		}
+
+		foreach (Node child in node.GetChildren())
+		{
+			if (GodotObject.IsInstanceValid(child))
+			{
+				ApplyPlayerColorToGroundAuraVfx(child, color);
+			}
+		}
 	}
 
 	public void InterpolatePlayerColor(Color targetColor, float weight)
@@ -1639,6 +1661,11 @@ public partial class Unit3D : Node3D
 		Node3D? model = ResolveAndInstantiateAttachment(attachmentId, out float defScale, out Vector3 defPos, out Vector3 defRot);
 		if (model == null) return;
 
+		if (model is ProceduralVfxInstance3D vfxAttachment && IsGroundSocket(normSocket))
+		{
+			vfxAttachment.ConfigureAsGroundAura(PlayerColor);
+		}
+
 		ApplyPseudoSocketInstance(model, attachmentId, socketNode, visual, parentAttachmentId, normSocket, defScale, defPos, defRot, posOffsetOverride, rotOffsetOverride, scaleOverride, scaleVectorOverride, normalOffsetOverride);
 	}
 
@@ -1746,6 +1773,11 @@ public partial class Unit3D : Node3D
 		Aabb aabb = CalculateModelLocalAabb();
 		bool isNonRigged = IsBuilding || FindSkeleton(GetParentModelNode()) == null;
 		return new PseudoSocketPoint(canonicalId, canonicalId, CalculateLegacyPseudoSocketAnchorPos(canonicalId, aabb, isNonRigged), Vector3.Zero, PseudoSocketSource.Generated);
+	}
+
+	private static bool IsGroundSocket(string normSocket)
+	{
+		return normSocket is "ground" or "base" or "footprint";
 	}
 
 	private static string NormalizeSocketName(string socketName)

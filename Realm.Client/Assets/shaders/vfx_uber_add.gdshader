@@ -53,6 +53,9 @@ uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
 
 uniform float surface_normal_offset : hint_range(-0.5, 0.5) = 0.01;
 
+uniform bool use_player_color = false;
+uniform vec4 player_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
@@ -178,6 +181,11 @@ void fragment() {
 	if (enable_fresnel) {
 		color += secondary_color.rgb * fresnel_factor * emission_boost;
 		mask = max(mask, clamp(fresnel_factor, 0.0, 1.0));
+	}
+
+	if (use_player_color) {
+		float glow_luminance = max(dot(color, vec3(0.2126, 0.7152, 0.0722)), 0.0001);
+		color = player_color.rgb * glow_luminance;
 	}
 
 	float out_alpha = clamp(mask * base_color.a, 0.0, 1.0);

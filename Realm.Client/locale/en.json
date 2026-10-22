@@ -1820,6 +1820,8 @@
   "Threshold Smoothness": "Threshold Smoothness",
   "Tile Mode:": "Tile Mode:",
   "Tint Color:": "Tint Color:",
+  "Tint with player color": "Tint with player color",
+  "Tints ground-level glows with the owning player's color instead of the authored effect colors": "Tints ground-level glows with the owning player's color instead of the authored effect colors",
   "Toggle Add/Delete Controls": "Toggle Add/Delete Controls",
   "Toggle Camera Zoom (Near / Mid / Far) [Z]": "Toggle Camera Zoom (Near / Mid / Far) [Z]",
   "Toggle Debug JSON View": "Toggle Debug JSON View",
