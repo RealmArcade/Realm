@@ -684,8 +684,13 @@ public partial class SettingsMenu : Control
 		_hudScaleSlider.Step = 5;
 
 		_fpsLimitSlider.MinValue = 0;
-		_fpsLimitSlider.MaxValue = GameSettings.FpsLimitOptions.Length - 1;
+		_fpsLimitSlider.MaxValue = GameSettings.MaxFpsLimit;
 		_fpsLimitSlider.Step = 1;
+
+		string fpsLimitTooltip = TranslationServer.Translate("Recommended: Match your monitor's refresh rate (or leave Unlimited with V-Sync ON).\nMobile Devices: Cap at 60 FPS to save battery life.\nStreamers: Match your recording software.");
+		_fpsLimitSlider.TooltipText = fpsLimitTooltip;
+		_fpsLimitValLabel.TooltipText = fpsLimitTooltip;
+		GetNode<Label>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FpsRow/FpsLimitLabel").TooltipText = fpsLimitTooltip;
 
 		var sliders = new[] { _masterSlider, _musicSlider, _sfxSlider, _voiceSlider, _scrollSpeedSlider, _mouseSensSlider, _hudScaleSlider, _fpsLimitSlider };
 
@@ -750,13 +755,26 @@ public partial class SettingsMenu : Control
 		{
 			_fpsLimitValLabel.Text = FormatFpsLimitValue((int)val);
 		};
+		_fpsLimitSlider.DragEnded += (valueChanged) =>
+		{
+			int snappedFpsLimit = NormalizeFpsLimit((int)_fpsLimitSlider.Value);
+			if ((int)_fpsLimitSlider.Value != snappedFpsLimit)
+			{
+				_fpsLimitSlider.Value = snappedFpsLimit;
+			}
+		};
 	}
 
-	private static string FormatFpsLimitValue(int optionIndex)
+	private static int NormalizeFpsLimit(int fpsLimit)
 	{
-		int clampedIndex = Math.Clamp(optionIndex, 0, GameSettings.FpsLimitOptions.Length - 1);
-		int fpsLimit = GameSettings.FpsLimitOptions[clampedIndex];
-		return fpsLimit <= 0 ? TranslationServer.Translate("Unlimited") : fpsLimit.ToString();
+		if (fpsLimit <= 0) return 0;
+		return Math.Clamp(fpsLimit, GameSettings.MinFpsLimit, GameSettings.MaxFpsLimit);
+	}
+
+	private static string FormatFpsLimitValue(int fpsLimit)
+	{
+		int normalizedFpsLimit = NormalizeFpsLimit(fpsLimit);
+		return normalizedFpsLimit <= 0 ? TranslationServer.Translate("Unlimited") : normalizedFpsLimit.ToString();
 	}
 
 	private void SetupButtons()
@@ -828,9 +846,9 @@ public partial class SettingsMenu : Control
 		_windowModeOpt.Select((int)GameSettings.WindowModeIdx);
 		_vsyncOpt.Select(GameSettings.Vsync ? 0 : 1);
 
-		int fpsLimitOptionIndex = GetFpsLimitOptionIndex();
-		_fpsLimitSlider.Value = fpsLimitOptionIndex;
-		_fpsLimitValLabel.Text = FormatFpsLimitValue(fpsLimitOptionIndex);
+		int fpsLimit = NormalizeFpsLimit(GameSettings.FpsLimit);
+		_fpsLimitSlider.Value = fpsLimit;
+		_fpsLimitValLabel.Text = FormatFpsLimitValue(fpsLimit);
 
 		_masterSlider.Value = GameSettings.MasterVolume;
 		_musicSlider.Value = GameSettings.MusicVolume;
@@ -960,14 +978,7 @@ public partial class SettingsMenu : Control
 		GameSettings.WeatherEffectsEnabled = _disableWeatherEffectsChk.ButtonPressed;
 		GameSettings.FloatingCombatText = _floatingCombatTextChk.ButtonPressed;
 
-		int fpsOptionIndex = Math.Clamp((int)_fpsLimitSlider.Value, 0, GameSettings.FpsLimitOptions.Length - 1);
-		GameSettings.FpsLimit = GameSettings.FpsLimitOptions[fpsOptionIndex];
-	}
-
-	private static int GetFpsLimitOptionIndex()
-	{
-		int index = Array.IndexOf(GameSettings.FpsLimitOptions, GameSettings.FpsLimit);
-		return index >= 0 ? index : 0;
+		GameSettings.FpsLimit = NormalizeFpsLimit((int)_fpsLimitSlider.Value);
 	}
 
 	private void SaveGameplaySettings()

@@ -291,7 +291,7 @@ namespace Realm.Client.UI
 
 		private void ApplyActionButtonsStyles()
 		{
-			foreach (var btn in new[] { _btnLoad, _btnSave, _btnSaveMore })
+			foreach (var btn in new[] { _btnLoad, _btnSave, _btnLoadMore, _btnSaveMore })
 			{
 				if (btn == null) continue;
 				StyleRowButton(btn);
@@ -456,7 +456,7 @@ namespace Realm.Client.UI
 		{
 			if (_statusLabel != null)
 			{
-				_statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
+				_statusLabel.HorizontalAlignment = HorizontalAlignment.Left;
 				_statusLabel.VerticalAlignment = VerticalAlignment.Center;
 				_statusLabel.AddThemeFontSizeOverride("font_size", 13);
 				_statusLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -469,7 +469,7 @@ namespace Realm.Client.UI
 
 			if (_lblMeasureTelemetry != null)
 			{
-				_lblMeasureTelemetry.HorizontalAlignment = HorizontalAlignment.Center;
+				_lblMeasureTelemetry.HorizontalAlignment = HorizontalAlignment.Left;
 				_lblMeasureTelemetry.VerticalAlignment = VerticalAlignment.Center;
 				_lblMeasureTelemetry.AddThemeFontSizeOverride("font_size", 13);
 				_lblMeasureTelemetry.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -597,7 +597,7 @@ namespace Realm.Client.UI
 				text += string.Format(TranslationServer.Translate(" | Elev: {0:+0.0;-0.0;0.0}m ({1:F1}%)"), dy, slopePct);
 			}
 
-			_lblMeasureTelemetry.Text = text;
+			_measureLabelWidth.Apply(_lblMeasureTelemetry, text);
 		}
 
 		public void ClearMeasureTelemetry()
@@ -606,6 +606,8 @@ namespace Realm.Client.UI
 			{
 				_panelMeasurementHUD.Visible = false;
 			}
+
+			_measureLabelWidth.Reset(_lblMeasureTelemetry);
 		}
 
 		public void UpdatePasteTelemetry(int deltaX, int deltaZ, float distTiles, float distWorld, float angleDeg)

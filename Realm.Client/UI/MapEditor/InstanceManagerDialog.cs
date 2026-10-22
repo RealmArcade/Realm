@@ -5,13 +5,14 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.Utils;
-using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
 
 [GlobalClass]
 public partial class InstanceManagerDialog : FloatingDialogBase
 {
+	private const float TopLeftCornerMargin = 20.0f;
+
 	public InstanceManagerDialog() { }
 
 	private Tree _objectTree;
@@ -77,8 +78,6 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 			RefreshObjectTree();
 		};
 		topHBox.AddChild(_filterInput);
-
-		AddButton(topHBox, $"{UnicodeIcons.REFRESH} " + TranslationServer.Translate("Refresh"), () => RefreshObjectTree(), "Refresh object list", 11, new Vector2(85, 26));
 
 		BodyContainer.AddChild(topHBox);
 
@@ -181,6 +180,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		}
 
 		base.OpenDialog();
+		Position = new Vector2(TopLeftCornerMargin, TopLeftCornerMargin);
 		RefreshObjectTree();
 	}
 
@@ -319,7 +319,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		CollectUnits(result);
 		CollectProps(result);
 		CollectDecals(result);
-		CollectVfxObjectsRecursive(GameContext.Host, result);
+		CollectVfx(result);
 		CollectCoordinates(result);
 
 		return result;
@@ -406,23 +406,18 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		}
 	}
 
-	private void CollectVfxObjectsRecursive(Node parentNode, List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> resultList)
+	private void CollectVfx(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
-		if (parentNode == null) return;
+		if (GameContext.Host.AllVfx == null) return;
 
-		foreach (Node childNode in parentNode.GetChildren())
+		foreach (var vfx in GameContext.Host.AllVfx)
 		{
-			if (childNode is ProceduralVfxInstance3D vfx && GodotObject.IsInstanceValid(vfx))
-			{
-				string resolvedName = !string.IsNullOrEmpty(vfx.Config?.Name)
-					? vfx.Config.Name
-					: vfx.Config?.PrimitiveType.ToString() ?? "VFX";
-				resultList.Add((resolvedName, "VFX / Effects", vfx, null, null));
-			}
-			else
-			{
-				CollectVfxObjectsRecursive(childNode, resultList);
-			}
+			if (!GodotObject.IsInstanceValid(vfx)) continue;
+
+			string resolvedName = !string.IsNullOrEmpty(vfx.Config?.Name)
+				? vfx.Config.Name
+				: vfx.Config?.PrimitiveType.ToString() ?? "VFX";
+			result.Add((resolvedName, "VFX / Effects", vfx, null, null));
 		}
 	}
 

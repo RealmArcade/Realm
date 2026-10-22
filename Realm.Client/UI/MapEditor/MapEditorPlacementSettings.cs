@@ -17,6 +17,7 @@ public class MapEditorPlacementSettings
 	private Label _lblClumpCountValue;
 	private Slider _sldClumpScale;
 	private Label _lblClumpScaleValue;
+	private bool _randomRotationBeforeClumpMode;
 
 	public MapEditorPlacementSettings(Slider sldPlacementRotate, Label lblPlacementRotateValue, Slider sldPlacementScale, Label lblPlacementScaleValue,
 		CheckBox chkRandomRotation, CheckBox chkRandomScale, CheckBox chkClumpMode,
@@ -60,10 +61,18 @@ public class MapEditorPlacementSettings
 
 		_chkClumpMode.Toggled += (buttonPressed) =>
 		{
-			if (buttonPressed && !_chkRandomRotation.ButtonPressed)
+			if (buttonPressed)
 			{
-				_chkRandomRotation.ButtonPressed = true;
-				if (GameContext.Host != null) GameContext.EditorService.EditorRandomRotation = true;
+				_randomRotationBeforeClumpMode = _chkRandomRotation.ButtonPressed;
+				if (!_chkRandomRotation.ButtonPressed)
+				{
+					_chkRandomRotation.SetPressedNoSignal(true);
+					if (GameContext.Host != null) GameContext.EditorService.EditorRandomRotation = true;
+				}
+			}
+			else
+			{
+				RestoreRandomRotationAfterClumpMode();
 			}
 
 			if (GameContext.Host != null) GameContext.Host.EditorClumpMode = buttonPressed;
@@ -89,6 +98,14 @@ public class MapEditorPlacementSettings
 		}
 
 		UpdateVisibility();
+	}
+
+	private void RestoreRandomRotationAfterClumpMode()
+	{
+		if (_chkRandomRotation.ButtonPressed == _randomRotationBeforeClumpMode) return;
+
+		_chkRandomRotation.SetPressedNoSignal(_randomRotationBeforeClumpMode);
+		if (GameContext.Host != null) GameContext.EditorService.EditorRandomRotation = _randomRotationBeforeClumpMode;
 	}
 
 	private void UpdateVisibility()

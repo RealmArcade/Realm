@@ -1168,10 +1168,7 @@ namespace Realm.Client.Core
 				AllUnits.Remove(unit);
 				EntityToUnit3D.Remove(unit.Entity);
 				EntityIdToUnit3D.Remove(unit.Entity.Id);
-				if (GameContext.World.IsAlive(unit.Entity))
-				{
-					GameContext.World.Destroy(unit.Entity);
-				}
+				DestroyMapEntity(unit.Entity);
 
 				unit.QueueFree();
 				return true;
@@ -1187,10 +1184,7 @@ namespace Realm.Client.Core
 			{
 				if (proxy == _selectedEditorObject) SelectedEditorObject = null;
 				string propId = proxy.PropId;
-				if (GameContext.World != null && GameContext.World.IsAlive(proxy.Entity))
-				{
-					GameContext.World.Destroy(proxy.Entity);
-				}
+				DestroyMapEntity(proxy.Entity);
 
 				proxy.QueueFree();
 				GameContext.PropMultiMesh?.MarkDirty(propId);
@@ -1208,10 +1202,7 @@ namespace Realm.Client.Core
 				string propId = prop.PropId;
 				AllProps.Remove(prop);
 				EntityToProp3D.Remove(prop.Entity);
-				if (GameContext.World.IsAlive(prop.Entity))
-				{
-					GameContext.World.Destroy(prop.Entity);
-				}
+				DestroyMapEntity(prop.Entity);
 
 				prop.QueueFree();
 				GameContext.PropMultiMesh?.MarkDirty(propId);
@@ -1232,9 +1223,9 @@ namespace Realm.Client.Core
 				}
 
 				AllDecals.Remove(decal);
-				if (decal is Decal3D decal3D && GameContext.World.IsAlive(decal3D.Entity))
+				if (decal is Decal3D decal3D)
 				{
-					GameContext.World.Destroy(decal3D.Entity);
+					DestroyMapEntity(decal3D.Entity);
 				}
 
 				decal.QueueFree();
@@ -1256,16 +1247,28 @@ namespace Realm.Client.Core
 
 				AllVfx.Remove(vfx);
 				EntityToVfx3D.Remove(vfx.Entity);
-				if (GameContext.World.IsAlive(vfx.Entity))
-				{
-					GameContext.World.Destroy(vfx.Entity);
-				}
+				DestroyMapVfxEntity(vfx);
 
 				vfx.QueueFree();
 				return true;
 			}
 
 			return false;
+		}
+
+		private static void DestroyMapEntity(Entity entity)
+		{
+			if (entity.IsNull || entity == ECSContext.WorldEntity) return;
+			if (GameContext.World != null && GameContext.World.IsAlive(entity))
+			{
+				GameContext.World.Destroy(entity);
+			}
+		}
+
+		private static void DestroyMapVfxEntity(ProceduralVfxInstance3D vfx)
+		{
+			if (vfx.IsPreview) return;
+			DestroyMapEntity(vfx.Entity);
 		}
 
 		public IEditorAction DeleteObjectAtWithUndo(Node collider, Vector3 hitPos)
@@ -1314,7 +1317,7 @@ namespace Realm.Client.Core
 				AllUnits.Remove(unit);
 				EntityToUnit3D.Remove(unit.Entity);
 				EntityIdToUnit3D.Remove(unit.Entity.Id);
-				if (GameContext.World.IsAlive(unit.Entity)) GameContext.World.Destroy(unit.Entity);
+				DestroyMapEntity(unit.Entity);
 				unit.QueueFree();
 				return action;
 			}
@@ -1330,7 +1333,7 @@ namespace Realm.Client.Core
 				if (proxy == _selectedEditorObject) SelectedEditorObject = null;
 				string propId = proxy.PropId;
 				var action = new ObjectDeleteAction("prop", propId, proxy.Position, proxy.RotationDegrees.Y, proxy.Scale.X, false, null);
-				if (GameContext.World != null && GameContext.World.IsAlive(proxy.Entity)) GameContext.World.Destroy(proxy.Entity);
+				DestroyMapEntity(proxy.Entity);
 				proxy.QueueFree();
 				GameContext.PropMultiMesh?.MarkDirty(propId);
 				return action;
@@ -1344,7 +1347,7 @@ namespace Realm.Client.Core
 				var action = new ObjectDeleteAction("prop", propId, prop.Position, prop.RotationDegrees.Y, prop.Scale.X, false, prop);
 				AllProps.Remove(prop);
 				EntityToProp3D.Remove(prop.Entity);
-				if (GameContext.World.IsAlive(prop.Entity)) GameContext.World.Destroy(prop.Entity);
+				DestroyMapEntity(prop.Entity);
 				prop.QueueFree();
 				GameContext.PropMultiMesh?.MarkDirty(propId);
 				return action;
@@ -1362,7 +1365,7 @@ namespace Realm.Client.Core
 				string decalId = decal is Decal3D d3d ? d3d.DecalId : "logo";
 				var action = new ObjectDeleteAction("decal", decalId, decal.Position, decal.RotationDegrees.Y, decal.Scale.X, false, decal);
 				AllDecals.Remove(decal);
-				if (decal is Decal3D d3 && GameContext.World.IsAlive(d3.Entity)) GameContext.World.Destroy(d3.Entity);
+				if (decal is Decal3D d3) DestroyMapEntity(d3.Entity);
 				decal.QueueFree();
 				return action;
 			}
@@ -1380,7 +1383,7 @@ namespace Realm.Client.Core
 				var action = new ObjectDeleteAction("vfx", vfxId, vfx.Position, vfx.RotationDegrees.Y, vfx.Scale.X, false, vfx);
 				AllVfx.Remove(vfx);
 				EntityToVfx3D.Remove(vfx.Entity);
-				if (GameContext.World.IsAlive(vfx.Entity)) GameContext.World.Destroy(vfx.Entity);
+				DestroyMapVfxEntity(vfx);
 				vfx.QueueFree();
 				return action;
 			}
@@ -1585,7 +1588,7 @@ namespace Realm.Client.Core
 			var action = new ObjectDeleteAction("vfx", vfxId, closestVfx.Position, closestVfx.RotationDegrees.Y, closestVfx.Scale.X, false, closestVfx);
 			AllVfx.Remove(closestVfx);
 			EntityToVfx3D.Remove(closestVfx.Entity);
-			if (GameContext.World.IsAlive(closestVfx.Entity)) GameContext.World.Destroy(closestVfx.Entity);
+			DestroyMapVfxEntity(closestVfx);
 			closestVfx.QueueFree();
 			return action;
 		}

@@ -136,6 +136,7 @@ public partial class MapEditorHUD : Control
 
 	private PanelContainer _panelMeasurementHUD { get; set; }
 	private Label _lblMeasureTelemetry { get; set; }
+	private ThrottledLabelWidth _measureLabelWidth { get; set; } = new();
 
 	private Button _btnPasteAnchor { get; set; }
 	private Label _lblPasteTelemetry { get; set; }
@@ -165,6 +166,9 @@ public partial class MapEditorHUD : Control
 	private OptionButton _optTestSettings { get; set; }
 	private Button _btnExportMap { get; set; }
 	private Button _btnLoad { get; set; }
+	private Button _btnLoadMore { get; set; }
+	private PopupPanel _popupLoadMore { get; set; }
+	private Button _btnImportArchive { get; set; }
 	private Button _btnDeleteObject { get; set; }
 	private Button _btnUndo { get; set; }
 	private Button _btnRedo { get; set; }
@@ -1034,6 +1038,7 @@ public partial class MapEditorHUD : Control
 			_popupCamera,
 			_popupEditors,
 			_popupSaveMore,
+			_popupLoadMore,
 			_popupRandomGen
 		);
 	}

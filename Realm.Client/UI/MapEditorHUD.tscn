@@ -128,7 +128,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
 text = "ACTIVE TOOL: NONE"
-horizontal_alignment = 1
 
 [node name="LeftSlidePanel" type="Panel" parent="."]
 custom_minimum_size = Vector2(325, 0)
@@ -201,11 +200,24 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="BtnLoad" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad"]
+[node name="RowLoadGroup" type="HBoxContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+theme_override_constants/separation = 0
+
+[node name="BtnLoad" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 text = "📂 LOAD"
+
+[node name="BtnLoadMore" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup"]
+custom_minimum_size = Vector2(24, 30)
+layout_mode = 2
+size_flags_horizontal = 8
+focus_mode = 0
+text = "▼"
 
 [node name="RowSaveGroup" type="HBoxContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad"]
 layout_mode = 2
@@ -1008,6 +1020,17 @@ focus_mode = 0
 max_value = 1.0
 step = 0.05
 value = 0.3
+
+[node name="PopupLoadMore" type="PopupPanel" parent="."]
+
+[node name="LoadMoreVBox_VBoxContainer" type="VBoxContainer" parent="PopupLoadMore"]
+custom_minimum_size = Vector2(170, 0)
+theme_override_constants/separation = 6
+
+[node name="BtnImportArchive" type="Button" parent="PopupLoadMore/LoadMoreVBox_VBoxContainer"]
+layout_mode = 2
+focus_mode = 0
+text = "📦 IMPORT (.RMAP)"
 
 [node name="PopupSaveMore" type="PopupPanel" parent="."]
 

@@ -31,6 +31,8 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	private Label _lblMapHeightVal;
 	private Button _btnScaleMap;
 
+	private const float CameraBoundsShiftStep = 5.0f;
+
 	public int SelectedMapTypeIndex => _optMapType?.Selected ?? 0;
 
 	public MapSettingsDialog(MapEditorHUD hud)
@@ -209,114 +211,82 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 	private void BuildCameraBoundsLeftControls(GridContainer camGrid)
 	{
-		_lblCamLeftVal = CreateBadgeLabel();
-		var btnLeftDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Left boundary further left (West)", () =>
-		{
-			if (GameContext.Host?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float minX = -GameContext.Host.GroundTerrain.Width;
-			GameContext.Host.EditorCameraBoundsLeft = Mathf.Max(minX, GameContext.Host.EditorCameraBoundsLeft - 5.0f);
-			GameContext.Host.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		var btnLeftInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Left boundary further right (East)", () =>
-		{
-			if (GameContext.Host?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float maxX = GameContext.Host.EditorCameraBoundsRight;
-			GameContext.Host.EditorCameraBoundsLeft = Mathf.Min(maxX, GameContext.Host.EditorCameraBoundsLeft + 5.0f);
-			GameContext.Host.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		camGrid.AddChild(_lblCamLeftVal);
-		camGrid.AddChild(btnLeftDec);
-		camGrid.AddChild(btnLeftInc);
+		_lblCamLeftVal = BuildCameraBoundsControls(
+			camGrid,
+			() => GameContext.Host.EditorCameraBoundsLeft,
+			value => GameContext.Host.EditorCameraBoundsLeft = value,
+			() => -GameContext.Host.GroundTerrain.Width,
+			() => GameContext.Host.EditorCameraBoundsRight,
+			"Move Left boundary further left (West)",
+			"Move Left boundary further right (East)");
 	}
 
 	private void BuildCameraBoundsRightControls(GridContainer camGrid)
 	{
-		_lblCamRightVal = CreateBadgeLabel();
-		var btnRightDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Right boundary further left (West)", () =>
-		{
-			if (GameContext.Host?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float minX = GameContext.Host.EditorCameraBoundsLeft;
-			GameContext.Host.EditorCameraBoundsRight = Mathf.Max(minX, GameContext.Host.EditorCameraBoundsRight - 5.0f);
-			GameContext.Host.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		var btnRightInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Right boundary further right (East)", () =>
-		{
-			if (GameContext.Host?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float maxX = (float)GameContext.Host.GroundTerrain.Width;
-			GameContext.Host.EditorCameraBoundsRight = Mathf.Min(maxX, GameContext.Host.EditorCameraBoundsRight + 5.0f);
-			GameContext.Host.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		camGrid.AddChild(_lblCamRightVal);
-		camGrid.AddChild(btnRightDec);
-		camGrid.AddChild(btnRightInc);
+		_lblCamRightVal = BuildCameraBoundsControls(
+			camGrid,
+			() => GameContext.Host.EditorCameraBoundsRight,
+			value => GameContext.Host.EditorCameraBoundsRight = value,
+			() => GameContext.Host.EditorCameraBoundsLeft,
+			() => GameContext.Host.GroundTerrain.Width,
+			"Move Right boundary further left (West)",
+			"Move Right boundary further right (East)");
 	}
 
 	private void BuildCameraBoundsTopControls(GridContainer camGrid)
 	{
-		_lblCamTopVal = CreateBadgeLabel();
-		var btnTopDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Top boundary further North (Up)", () =>
-		{
-			if (GameContext.Host?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float minZ = -GameContext.Host.GroundTerrain.Depth;
-			GameContext.Host.EditorCameraBoundsTop = Mathf.Max(minZ, GameContext.Host.EditorCameraBoundsTop - 5.0f);
-			GameContext.Host.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		var btnTopInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Top boundary further South (Down)", () =>
-		{
-			if (GameContext.Host?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float maxZ = GameContext.Host.EditorCameraBoundsTop;
-			GameContext.Host.EditorCameraBoundsTop = Mathf.Min(maxZ, GameContext.Host.EditorCameraBoundsTop + 5.0f);
-			GameContext.Host.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		camGrid.AddChild(_lblCamTopVal);
-		camGrid.AddChild(btnTopDec);
-		camGrid.AddChild(btnTopInc);
+		_lblCamTopVal = BuildCameraBoundsControls(
+			camGrid,
+			() => GameContext.Host.EditorCameraBoundsTop,
+			value => GameContext.Host.EditorCameraBoundsTop = value,
+			() => -GameContext.Host.GroundTerrain.Depth,
+			() => GameContext.Host.EditorCameraBoundsBottom,
+			"Move Top boundary further North (Up)",
+			"Move Top boundary further South (Down)");
 	}
 
 	private void BuildCameraBoundsBottomControls(GridContainer camGrid)
 	{
-		_lblCamBottomVal = CreateBadgeLabel();
-		var btnBottomDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Bottom boundary further North (Up)", () =>
-		{
-			if (GameContext.Host?.GroundTerrain == null) return;
+		_lblCamBottomVal = BuildCameraBoundsControls(
+			camGrid,
+			() => GameContext.Host.EditorCameraBoundsBottom,
+			value => GameContext.Host.EditorCameraBoundsBottom = value,
+			() => GameContext.Host.EditorCameraBoundsTop,
+			() => GameContext.Host.GroundTerrain.Depth,
+			"Move Bottom boundary further North (Up)",
+			"Move Bottom boundary further South (Down)");
+	}
 
-			Hud?.EnsureCameraBoundsVisible();
-			float minZ = GameContext.Host.EditorCameraBoundsTop;
-			GameContext.Host.EditorCameraBoundsBottom = Mathf.Max(minZ, GameContext.Host.EditorCameraBoundsBottom - 5.0f);
-			GameContext.Host.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		var btnBottomInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Bottom boundary further South (Down)", () =>
-		{
-			if (GameContext.Host?.GroundTerrain == null) return;
+	private Label BuildCameraBoundsControls(
+		GridContainer camGrid,
+		Func<float> readBound,
+		Action<float> writeBound,
+		Func<float> readLowerLimit,
+		Func<float> readUpperLimit,
+		string decreaseTooltip,
+		string increaseTooltip)
+	{
+		var valueLabel = CreateBadgeLabel();
+		var decreaseButton = CreateControlButton(UnicodeIcons.ARROW_LEFT, decreaseTooltip, () => ShiftCameraBounds(readBound, writeBound, readLowerLimit, -CameraBoundsShiftStep));
+		var increaseButton = CreateControlButton(UnicodeIcons.ARROW_RIGHT, increaseTooltip, () => ShiftCameraBounds(readBound, writeBound, readUpperLimit, CameraBoundsShiftStep));
 
-			Hud?.EnsureCameraBoundsVisible();
-			float maxZ = (float)GameContext.Host.GroundTerrain.Depth;
-			GameContext.Host.EditorCameraBoundsBottom = Mathf.Min(maxZ, GameContext.Host.EditorCameraBoundsBottom + 5.0f);
-			GameContext.Host.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		camGrid.AddChild(_lblCamBottomVal);
-		camGrid.AddChild(btnBottomDec);
-		camGrid.AddChild(btnBottomInc);
+		camGrid.AddChild(valueLabel);
+		camGrid.AddChild(decreaseButton);
+		camGrid.AddChild(increaseButton);
+
+		return valueLabel;
+	}
+
+	private void ShiftCameraBounds(Func<float> readBound, Action<float> writeBound, Func<float> readLimit, float delta)
+	{
+		if (GameContext.Host?.GroundTerrain == null) return;
+
+		Hud?.EnsureCameraBoundsVisible();
+		float shiftedBound = readBound() + delta;
+		float limit = readLimit();
+		writeBound(delta < 0.0f ? Mathf.Max(limit, shiftedBound) : Mathf.Min(limit, shiftedBound));
+		GameContext.Host.RebuildCameraBoundsOverlay();
+		UpdateCameraBoundsUI();
 	}
 
 	private void BuildMapSizePanel(VBoxContainer contentVBox)
@@ -612,11 +582,11 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		string[] tags;
 		if (_optMapType != null && _optMapType.Selected == 1)
 		{
-			tags = new[] { "3D Models", "Audio", "Code Scripts", "Terrain PBR", "UI Components" };
+			tags = new[] { "3D Models", "Audio", "Code Scripts", "Terrain", "UI Components" };
 		}
 		else
 		{
-			tags = new[] { "Tower Defense", "Campaign", "Melee", "Coop / Survival", "Tutorial / Skirmish" };
+			tags = new[] { "Tower Defense", "Campaign", "Melee", "Survival", "Tutorial" };
 		}
 
 		foreach (var tag in tags)

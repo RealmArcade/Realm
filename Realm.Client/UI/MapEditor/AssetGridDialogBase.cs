@@ -55,6 +55,7 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 			float posY = GridPadding + row * (CellHeight + SpacingY);
 
 			var cell = _cellPool[i];
+			cell.CustomMinimumSize = new Vector2(CellWidth, CellHeight);
 			cell.Position = new Vector2(posX, posY);
 			cell.Size = new Vector2(CellWidth, CellHeight);
 			cell.Visible = true;

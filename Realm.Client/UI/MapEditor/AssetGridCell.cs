@@ -23,9 +23,9 @@ public partial class AssetGridCell : PanelContainer
 
 	public AssetGridCell()
 	{
-		CustomMinimumSize = new Vector2(130, 150);
 		MouseFilter = MouseFilterEnum.Stop;
 		MouseDefaultCursorShape = CursorShape.PointingHand;
+		ClipContents = true;
 
 		AddThemeStyleboxOverride("panel", CreatePanelStyle(false, false));
 
@@ -37,7 +37,8 @@ public partial class AssetGridCell : PanelContainer
 
 		var thumbContainer = new PanelContainer();
 		thumbContainer.Name = "ThumbContainer_PanelContainer";
-		thumbContainer.CustomMinimumSize = new Vector2(110, 90);
+		thumbContainer.CustomMinimumSize = new Vector2(0, 56);
+		thumbContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		thumbContainer.MouseFilter = MouseFilterEnum.Pass;
 		var thumbStyle = new StyleBoxFlat();
 		thumbStyle.BgColor = new Color(0.06f, 0.07f, 0.09f, 0.8f);
@@ -52,7 +53,7 @@ public partial class AssetGridCell : PanelContainer
 		_thumbnailRect.Name = "ThumbnailRect_TextureRect";
 		_thumbnailRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_thumbnailRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		_thumbnailRect.CustomMinimumSize = new Vector2(100, 84);
+		_thumbnailRect.CustomMinimumSize = new Vector2(0, 0);
 		_thumbnailRect.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_thumbnailRect.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_thumbnailRect.MouseFilter = MouseFilterEnum.Pass;
@@ -64,6 +65,7 @@ public partial class AssetGridCell : PanelContainer
 		_titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_titleLabel.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		_titleLabel.ClipText = true;
 		_titleLabel.MouseFilter = MouseFilterEnum.Pass;
 		mainVBox.AddChild(_titleLabel);
 
@@ -73,6 +75,7 @@ public partial class AssetGridCell : PanelContainer
 		_badgeLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_badgeLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_badgeLabel.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		_badgeLabel.ClipText = true;
 		_badgeLabel.MouseFilter = MouseFilterEnum.Pass;
 		mainVBox.AddChild(_badgeLabel);
 

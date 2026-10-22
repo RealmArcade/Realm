@@ -387,15 +387,30 @@ namespace Realm.Client.UI
 				StyleAccordionHeader(_btnHeaderFile);
 				SetupAccordion(_btnHeaderFile, _contentFile, TranslationServer.Translate("File"));
 
-				_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/BtnLoad");
+				_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup/BtnLoad");
 				SetupOptionButton(_btnLoad, $"{UnicodeIcons.FOLDER_OPEN} LOAD", () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
 
-				var btnOpenArchive = new Button();
-				btnOpenArchive.Name = "BtnOpenArchive";
-				btnOpenArchive.Set("icon_max_width", 0);
-				SetupOptionButton(btnOpenArchive, $"{UnicodeIcons.FILE_IMPORT} OPEN (.RMAP)", () => OpenMapArchiveAction(), 13, "Open a map package (.rmap) directly; editing happens in a sibling folder and saving writes back into the package");
-				_contentFile.AddChild(btnOpenArchive);
-				_contentFile.MoveChild(btnOpenArchive, 0);
+				_popupLoadMore = GetNode<PopupPanel>("PopupLoadMore");
+				var loadMorePopupStyle = new StyleBoxFlat();
+				loadMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
+				loadMorePopupStyle.BorderColor = UIStyle.ColorGold;
+				loadMorePopupStyle.SetBorderWidthAll(1);
+				loadMorePopupStyle.SetCornerRadiusAll(4);
+				loadMorePopupStyle.SetContentMarginAll(10);
+				_popupLoadMore.AddThemeStyleboxOverride("panel", loadMorePopupStyle);
+
+				_btnImportArchive = GetNode<Button>("PopupLoadMore/LoadMoreVBox_VBoxContainer/BtnImportArchive");
+				_btnImportArchive.Set("icon_max_width", 0);
+				SetupOptionButton(_btnImportArchive, $"{UnicodeIcons.FILE_IMPORT} IMPORT (.RMAP)", () => OpenMapArchiveAction(), 13, "Import a map package (.rmap) directly; editing happens in a sibling folder and saving writes back into the package");
+				_btnImportArchive.Pressed += () => _popupLoadMore.Hide();
+
+				_btnLoadMore = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup/BtnLoadMore");
+				_btnLoadMore.Set("icon_max_width", 0);
+				SetupOptionButton(_btnLoadMore, UnicodeIcons.CHEVRON_DOWN, () =>
+				{
+					var popupPosition = _btnLoadMore.GetScreenPosition() + new Vector2(0, _btnLoadMore.Size.Y);
+					_popupLoadMore.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
+				}, 10, "More load options (Import map package)");
 
 				_btnSave = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSave");
 				SetupOptionButton(_btnSave, $"{UnicodeIcons.SAVE} SAVE", () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
@@ -688,7 +703,7 @@ namespace Realm.Client.UI
 				_btnZoomIn = new Button();
 				_btnZoomIn.Name = "BtnZoomIn";
 				_btnZoomIn.Set("icon_max_width", 0);
-				StylePopupButton(_btnZoomIn, $"{UnicodeIcons.ZOOM_IN} Zoom In (+)", "Zoom camera in (+)");
+				StylePopupButton(_btnZoomIn, $"{UnicodeIcons.ZOOM_IN} Zoom In (Mouse_Wheel)", "Zoom camera in (Mouse Wheel)");
 				_btnZoomIn.Pressed += () =>
 				{
 					GameContext.UserInterface?.PlayClickSound();
@@ -700,7 +715,7 @@ namespace Realm.Client.UI
 				_btnZoomOut = new Button();
 				_btnZoomOut.Name = "BtnZoomOut";
 				_btnZoomOut.Set("icon_max_width", 0);
-				StylePopupButton(_btnZoomOut, $"{UnicodeIcons.ZOOM_OUT} Zoom Out (-)", "Zoom camera out (-)");
+				StylePopupButton(_btnZoomOut, $"{UnicodeIcons.ZOOM_OUT} Zoom Out (Mouse_Wheel)", "Zoom camera out (Mouse Wheel)");
 				_btnZoomOut.Pressed += () =>
 				{
 					GameContext.UserInterface?.PlayClickSound();
@@ -803,7 +818,7 @@ namespace Realm.Client.UI
 
 				_lblMeasureTelemetry = new Label();
 				_lblMeasureTelemetry.Name = "LblMeasureTelemetry";
-				_lblMeasureTelemetry.HorizontalAlignment = HorizontalAlignment.Center;
+				_lblMeasureTelemetry.HorizontalAlignment = HorizontalAlignment.Left;
 				_lblMeasureTelemetry.VerticalAlignment = VerticalAlignment.Center;
 				_lblMeasureTelemetry.AddThemeFontSizeOverride("font_size", 13);
 				_lblMeasureTelemetry.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -3529,6 +3544,9 @@ namespace Realm.Client.UI
 			{
 				_btnLoad.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 				_btnLoad.SizeFlagsStretchRatio = 1.0f;
+
+				_btnLoadMore.CustomMinimumSize = new Vector2(24, 30);
+				_btnLoadMore.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
 
 				_btnSave.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 				_btnSave.SizeFlagsStretchRatio = 1.0f;

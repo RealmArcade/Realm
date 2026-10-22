@@ -77,7 +77,8 @@ public static class GameSettings
 	}
 
 	public static int FpsLimit { get; set; } = 0;
-	public static readonly int[] FpsLimitOptions = { 0, 30, 60, 90, 120, 144, 240 };
+	public const int MinFpsLimit = 30;
+	public const int MaxFpsLimit = 360;
 	public static bool FloatingCombatText { get; set; } = true;
 	public static bool OccludedUnitOutlines { get; set; } = true;
 
@@ -365,7 +366,7 @@ public static class GameSettings
 
 	public static bool IsSupportedFpsLimit(int fpsLimit)
 	{
-		return Array.IndexOf(FpsLimitOptions, fpsLimit) >= 0;
+		return fpsLimit == 0 || (fpsLimit >= MinFpsLimit && fpsLimit <= MaxFpsLimit);
 	}
 
 	private static float GetLodDistanceScale(GraphicsQuality quality)
