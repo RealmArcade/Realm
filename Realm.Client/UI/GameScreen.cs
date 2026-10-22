@@ -6,6 +6,7 @@ public enum GameScreen
 	LobbyBrowser,
 	LobbyRoom,
 	Settings,
+	Loading,
 	InGameHUD,
 	GameOver,
 	MapDiscovery,

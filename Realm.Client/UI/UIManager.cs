@@ -108,7 +108,7 @@ public partial class UIManager : Control
 
 		if (LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted)
 		{
-			TransitionTo(GameScreen.InGameHUD);
+			TransitionTo(ShouldShowLoadingScreen() ? GameScreen.Loading : GameScreen.InGameHUD);
 		}
 		else
 		{
@@ -312,6 +312,11 @@ public partial class UIManager : Control
 
 		_fadeAnim.AddAnimationLibrary("", library);
 		_fadeOverlay.Color = new Color(0, 0, 0, 0); // Start clear
+	}
+
+	private static bool ShouldShowLoadingScreen()
+	{
+		return !GameContext.SessionState.IsTestMode && !ReplayPlaybackManager.Instance.IsPlayingReplay;
 	}
 
 	public void TransitionTo(GameScreen screen, bool isVictory = true)
@@ -575,6 +580,7 @@ public partial class UIManager : Control
 		return screen switch
 		{
 			GameScreen.Settings => GetSceneOrLoad(SettingsScene, "res://UI/SettingsMenu.tscn"),
+			GameScreen.Loading => GetSceneOrLoad(null, "res://UI/LoadingScreen.tscn"),
 			GameScreen.InGameHUD => GetSceneOrLoad(InGameHUDScene, "res://UI/InGameHUD.tscn"),
 			GameScreen.GameOver => GetSceneOrLoad(GameOverScene, "res://UI/GameOver.tscn"),
 			GameScreen.CreatorDiscovery => GetSceneOrLoad(null, "res://UI/CreatorDiscovery.tscn"),
