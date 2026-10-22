@@ -50,6 +50,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	private Label _lblSelectedSize;
 	private Label _lblSelectedDetails;
 	private Button _btnAudioPlay;
+	private OptionButton _optRaudEntries;
 	private Button _btnDeleteAsset;
 
 	private AudioStreamPlayer _audioPlayer;
@@ -64,6 +65,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	private string _selectedAssetType = "All";
 	private string _searchFilterText = string.Empty;
 	private IndexedAsset? _selectedAsset;
+	private string? _selectedRaudEntryName;
 
 	private static readonly string[] ValidAssetTypes = new[]
 	{
@@ -326,6 +328,17 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		_btnAudioPlay.Pressed += OnAudioPlayPausePressed;
 		_btnAudioPlay.Visible = false;
 		titleRow.AddChild(_btnAudioPlay);
+
+		_optRaudEntries = new OptionButton();
+		_optRaudEntries.Name = "OptRaudEntries_OptionButton";
+		_optRaudEntries.Set("icon_max_width", 0);
+		_optRaudEntries.AddThemeFontSizeOverride("font_size", 10);
+		_optRaudEntries.CustomMinimumSize = new Vector2(140, 22);
+		_optRaudEntries.FocusMode = FocusModeEnum.None;
+		_optRaudEntries.TooltipText = TranslationServer.Translate("Select the voice line inside the audio container");
+		_optRaudEntries.ItemSelected += OnRaudEntrySelected;
+		_optRaudEntries.Visible = false;
+		titleRow.AddChild(_optRaudEntries);
 
 		footerInfoVBox.AddChild(titleRow);
 
@@ -706,6 +719,9 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		_lblSelectedDetails.Text = string.Empty;
 		_footerThumbnail.Texture = null;
 		_btnAudioPlay.Visible = false;
+		_optRaudEntries.Visible = false;
+		_optRaudEntries.Clear();
+		_selectedRaudEntryName = null;
 		_btnDeleteAsset.Disabled = true;
 	}
 
@@ -745,10 +761,24 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		if (!isAudio || !File.Exists(_selectedAsset.FilePath))
 		{
 			_btnAudioPlay.Visible = false;
+			_optRaudEntries.Visible = false;
+			_optRaudEntries.Clear();
+			_selectedRaudEntryName = null;
 			return;
 		}
 
-		LoadAudioStream(ext, _selectedAsset.FilePath);
+		if (ext == ".raud")
+		{
+			PopulateRaudEntrySelector(_selectedAsset.FilePath);
+		}
+		else
+		{
+			_optRaudEntries.Visible = false;
+			_optRaudEntries.Clear();
+			_selectedRaudEntryName = null;
+		}
+
+		LoadAudioStream(ext, _selectedAsset.FilePath, _selectedRaudEntryName);
 
 		_btnAudioPlay.Visible = _audioPlayer.Stream != null;
 		if (_btnAudioPlay.Visible)
@@ -757,13 +787,50 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 	}
 
-	private void LoadAudioStream(string ext, string filePath)
+	private void PopulateRaudEntrySelector(string filePath)
+	{
+		_optRaudEntries.Clear();
+		_selectedRaudEntryName = null;
+
+		List<string> entryNames = RaudFile.GetEntryNamesFromFile(filePath);
+		bool showSelector = entryNames.Count > 1;
+		_optRaudEntries.Visible = showSelector;
+		if (!showSelector) return;
+
+		foreach (string entryName in entryNames)
+		{
+			_optRaudEntries.AddItem(entryName);
+		}
+
+		_optRaudEntries.Select(0);
+		_selectedRaudEntryName = entryNames[0];
+	}
+
+	private void OnRaudEntrySelected(long index)
+	{
+		if (_selectedAsset == null) return;
+
+		List<string> entryNames = RaudFile.GetEntryNamesFromFile(_selectedAsset.FilePath);
+		if (index < 0 || index >= entryNames.Count) return;
+
+		StopAudio();
+		_selectedRaudEntryName = entryNames[(int)index];
+		LoadAudioStream(".raud", _selectedAsset.FilePath, _selectedRaudEntryName);
+
+		_btnAudioPlay.Visible = _audioPlayer.Stream != null;
+		if (_btnAudioPlay.Visible)
+		{
+			_btnAudioPlay.Text = "▶ " + TranslationServer.Translate("Play");
+		}
+	}
+
+	private void LoadAudioStream(string ext, string filePath, string? entryName = null)
 	{
 		try
 		{
 			if (ext == ".raud")
 			{
-				LoadRaudStream(filePath);
+				LoadRaudStream(filePath, entryName);
 			}
 			else if (ext == ".ogg")
 			{
@@ -780,10 +847,10 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		}
 	}
 
-	private void LoadRaudStream(string filePath)
+	private void LoadRaudStream(string filePath, string? entryName = null)
 	{
 		byte[] raudBytes = File.ReadAllBytes(filePath);
-		byte[]? oggBytes = RaudFile.GetTrack(raudBytes, 0);
+		byte[]? oggBytes = RaudFile.GetEntry(raudBytes, entryName);
 		if (oggBytes == null || oggBytes.Length == 0) return;
 
 		var oggStream = AudioStreamOggVorbis.LoadFromBuffer(oggBytes);

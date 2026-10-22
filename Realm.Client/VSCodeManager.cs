@@ -1477,22 +1477,22 @@ public partial class VSCodeManager
 			}
 
 			byte[] raudBytes = File.ReadAllBytes(inputPath);
-			var (metaJson, tracks, _) = RaudFile.Parse(raudBytes);
+			var (metaJson, entries, _) = RaudFile.Parse(raudBytes);
 
-			if (tracks.Count <= trackIndex)
+			if (entries.Count <= trackIndex)
 			{
 				PopulateErrorResponse(responseObj, "convertRaudResult", $"Audio track {trackIndex} not found in RAUD file.");
 				return;
 			}
 
-			if (tracks[trackIndex].Length == 0)
+			if (entries[trackIndex].Data.Length == 0)
 			{
 				PopulateErrorResponse(responseObj, "convertRaudResult", $"Audio track {trackIndex} not found in RAUD file.");
 				return;
 			}
 
-			SaveAudioTrack(outputPath, tracks[trackIndex]);
-			PopulateRaudConversionResponse(responseObj, outputPath, tracks.Count, metaJson);
+			SaveAudioTrack(outputPath, entries[trackIndex].Data);
+			PopulateRaudConversionResponse(responseObj, outputPath, entries.Count, metaJson);
 		}
 		catch (Exception ex)
 		{

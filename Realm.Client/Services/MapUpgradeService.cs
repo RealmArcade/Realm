@@ -27,6 +27,7 @@ public class MapUpgradeService
 		_migrations.Add(new Migration_0_0_2_NormalizeModelProperties());
 		_migrations.Add(new Migration_0_0_3_WaterProfilesAndShaders());
 		_migrations.Add(new Migration_0_0_4_TemplateIDPrefixes());
+		_migrations.Add(new Migration_0_0_5_VoiceLinesIntoRaud());
 	}
 
 	public string? GetMapBuildNumber(string mapDirectory)

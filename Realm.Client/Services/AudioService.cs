@@ -14,6 +14,7 @@ public class AudioService
 	public const string MusicBusName = "Music";
 	public const string SfxBusName = "SFX";
 	public const string VoiceBusName = "Voice";
+	public const char RaudEntrySeparator = '#';
 
 	private const int Max2DPlayers = 16;
 	public const int MaxPositionalVoices = 16;
@@ -163,6 +164,11 @@ public class AudioService
 		return busIndex;
 	}
 
+	public static string BuildRaudEntryKey(string assetPath, string entryName)
+	{
+		return string.IsNullOrWhiteSpace(entryName) ? assetPath : $"{assetPath}{RaudEntrySeparator}{entryName}";
+	}
+
 	public AudioStream? LoadAudioStream(string soundPath)
 	{
 		if (string.IsNullOrWhiteSpace(soundPath)) return null;
@@ -172,23 +178,25 @@ public class AudioService
 			return cachedStream;
 		}
 
+		SplitRaudEntryKey(soundPath, out string assetPath, out string? entryName);
+
 		AudioStream? stream = null;
 		try
 		{
-			if (soundPath.StartsWith("res://") || soundPath.StartsWith("user://"))
+			if (assetPath.StartsWith("res://") || assetPath.StartsWith("user://"))
 			{
-				stream = TryLoadFromResourcePath(soundPath);
+				stream = TryLoadFromResourcePath(assetPath);
 			}
 			else
 			{
-				string fullPath = ResolveExternalAudioPath(soundPath);
+				string fullPath = ResolveExternalAudioPath(assetPath);
 				if (File.Exists(fullPath))
 				{
-					stream = LoadStreamFromFile(fullPath);
+					stream = LoadStreamFromFile(fullPath, entryName);
 				}
 				else
 				{
-					stream = TryLoadFallbackResource(soundPath);
+					stream = TryLoadFallbackResource(assetPath);
 				}
 			}
 		}
@@ -203,6 +211,18 @@ public class AudioService
 		}
 
 		return stream;
+	}
+
+	private static void SplitRaudEntryKey(string soundPath, out string assetPath, out string? entryName)
+	{
+		assetPath = soundPath;
+		entryName = null;
+
+		int separatorIndex = soundPath.IndexOf(RaudEntrySeparator, StringComparison.Ordinal);
+		if (separatorIndex < 0) return;
+
+		assetPath = soundPath[..separatorIndex];
+		entryName = soundPath[(separatorIndex + 1)..];
 	}
 
 	private AudioStream? TryLoadFromResourcePath(string soundPath)
@@ -237,11 +257,11 @@ public class AudioService
 		return ProjectSettings.GlobalizePath($"res://Assets/Audio/{soundPath}");
 	}
 
-	private AudioStream? LoadStreamFromFile(string fullPath)
+	private AudioStream? LoadStreamFromFile(string fullPath, string? entryName = null)
 	{
 		if (fullPath.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
 		{
-			return LoadRaudStream(fullPath);
+			return LoadRaudStream(fullPath, entryName);
 		}
 
 		if (fullPath.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
@@ -252,10 +272,10 @@ public class AudioService
 		return GD.Load<AudioStream>(fullPath);
 	}
 
-	private AudioStream? LoadRaudStream(string fullPath)
+	private AudioStream? LoadRaudStream(string fullPath, string? entryName = null)
 	{
 		byte[] raudBytes = File.ReadAllBytes(fullPath);
-		byte[]? oggBytes = RaudFile.GetTrack(raudBytes, 0);
+		byte[]? oggBytes = RaudFile.GetEntry(raudBytes, entryName);
 		if (oggBytes != null && oggBytes.Length > 0)
 		{
 			return AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
@@ -492,10 +512,13 @@ public class AudioService
 		if (pool == null || pool.Length == 0) return;
 
 		string clip = pool.Length == 1 ? pool[0] : pool[_random.Next(pool.Length)];
-		if (!string.IsNullOrEmpty(clip))
-		{
-			PlaySound3D(clip, position, volumeDb, 0.08f);
-		}
+		if (string.IsNullOrEmpty(clip)) return;
+
+		string soundKey = string.IsNullOrWhiteSpace(meta.Sounds.VoiceAsset)
+			? clip
+			: BuildRaudEntryKey(meta.Sounds.VoiceAsset, clip);
+
+		PlaySound3D(soundKey, position, volumeDb, 0.08f);
 	}
 
 	private string[]? GetSoundPool(UnitSoundsMetadata sounds, UnitSoundEvent eventType)

@@ -863,6 +863,12 @@
                   "null"
                 ],
                 "properties": {
+                  "VoiceAsset": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "OnSelect": {
                     "type": [
                       "array",
@@ -2407,6 +2413,9 @@
               "PlacementMode": {
                 "type": "integer"
               },
+              "TintWithPlayerColor": {
+                "type": "boolean"
+              },
               "TargetSocket": {
                 "type": "string"
               },
@@ -2980,6 +2989,9 @@
                     },
                     "PlacementMode": {
                       "type": "integer"
+                    },
+                    "TintWithPlayerColor": {
+                      "type": "boolean"
                     },
                     "TargetSocket": {
                       "type": "string"
