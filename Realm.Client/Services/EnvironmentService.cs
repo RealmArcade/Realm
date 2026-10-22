@@ -24,9 +24,6 @@ public class EnvironmentService
 	}
 
 	public float TimeOfDayCycleDuration { get; set; } = 90f;
-	public float TuneCliffJitterStrength { get; set; } = 1.0f;
-	public float TuneCliffJitterScale { get; set; } = 0.20f;
-	public float TuneCliffRimNoiseStrength { get; set; } = 0.30f;
 	public float TuneHeightBlendSoftness { get; set; } = 0.04f;
 	public float TuneBlendNoiseStrength { get; set; } = 0.22f;
 	public float TuneBlendNoiseScale { get; set; } = 0.22f;
@@ -943,15 +940,10 @@ public class EnvironmentService
 	{
 		if (terrain?.Material != null)
 		{
-			terrain.CliffJitterStrength = TuneCliffJitterStrength;
-			terrain.CliffJitterScale = TuneCliffJitterScale;
-			terrain.CliffRimNoiseStrength = TuneCliffRimNoiseStrength;
 			terrain.BlendSoftness = TuneHeightBlendSoftness;
 			terrain.BlendNoiseStrength = TuneBlendNoiseStrength;
 			terrain.BlendNoiseScale = TuneBlendNoiseScale;
 
-			terrain.Material.SetShaderParameter("cliff_jitter_strength", TuneCliffJitterStrength);
-			terrain.Material.SetShaderParameter("cliff_jitter_scale", TuneCliffJitterScale);
 			terrain.Material.SetShaderParameter("blend_softness", TuneHeightBlendSoftness);
 			terrain.Material.SetShaderParameter("blend_noise_strength", TuneBlendNoiseStrength);
 			terrain.Material.SetShaderParameter("blend_noise_scale", TuneBlendNoiseScale);

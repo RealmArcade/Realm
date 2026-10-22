@@ -521,9 +521,6 @@ public partial class RuntimeTerrain : Node3D
 	public TerrainSplatWeights[,] SplatMap { get; set; }
 	public TerrainSplatWeights[,] CliffSplatMap { get; set; }
 
-	public float CliffJitterStrength { get; set; } = 1.0f;
-	public float CliffJitterScale { get; set; } = 0.20f;
-	public float CliffRimNoiseStrength { get; set; } = 0.30f;
 	public float BlendSoftness { get; set; } = 0.04f;
 	public float BlendNoiseStrength { get; set; } = 0.22f;
 	public float BlendNoiseScale { get; set; } = 0.22f;
@@ -1240,8 +1237,6 @@ public partial class RuntimeTerrain : Node3D
 		_material.SetShaderParameter("grid_spacing", QuadSize);
 		_material.SetShaderParameter("terrain_size", new Vector2(Width * QuadSize, Depth * QuadSize));
 		_material.SetShaderParameter("texture_scale", 1.0f / QuadSize);
-		_material.SetShaderParameter("cliff_jitter_strength", CliffJitterStrength);
-		_material.SetShaderParameter("cliff_jitter_scale", CliffJitterScale);
 		_material.SetShaderParameter("blend_softness", BlendSoftness);
 		_material.SetShaderParameter("blend_noise_strength", BlendNoiseStrength);
 		_material.SetShaderParameter("blend_noise_scale", BlendNoiseScale);
@@ -1281,9 +1276,7 @@ public partial class RuntimeTerrain : Node3D
 				break;
 		}
 
-		_material.SetShaderParameter("cliff_jitter_strength", CliffJitterStrength);
 		_material.SetShaderParameter("blend_noise_strength", BlendNoiseStrength);
-		_material.SetShaderParameter("cliff_jitter_scale", CliffJitterScale);
 		_material.SetShaderParameter("blend_noise_scale", BlendNoiseScale);
 	}
 

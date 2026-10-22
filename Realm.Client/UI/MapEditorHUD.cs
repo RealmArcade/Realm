@@ -1348,9 +1348,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnHeaderLightingTuning { get; set; }
 	private VBoxContainer _contentLightingTuning { get; set; }
 
-	private HSlider _sldCliffJitterStrength { get; set; }
-	private HSlider _sldCliffJitterScale { get; set; }
-	private HSlider _sldCliffRimNoiseStrength { get; set; }
 	private HSlider _sldHeightBlendSoftness { get; set; }
 	private HSlider _sldBlendNoiseStrength { get; set; }
 	private HSlider _sldBlendNoiseScale { get; set; }

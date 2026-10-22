@@ -3348,23 +3348,6 @@ namespace Realm.Client.UI
 			StyleAccordionHeader(_btnHeaderLightingTuning);
 			SetupAccordion(_btnHeaderLightingTuning, _contentLightingTuning, "💡 Lighting Tuning (Live Override)");
 
-			CreateSectionHeader(_contentLightingTuning, "--- TERRAIN CLIFFS & SILHOUETTES ---");
-			_sldCliffJitterStrength = CreateSliderRow(_contentLightingTuning, "Cliff Jitter Str", 0f, 2f, 0.02f, GameContext.EnvironmentService.TuneCliffJitterStrength, val =>
-			{
-				GameContext.EnvironmentService.TuneCliffJitterStrength = val;
-				ApplyLiveLightingTuning();
-			});
-			_sldCliffJitterScale = CreateSliderRow(_contentLightingTuning, "Cliff Jitter Scl", 0.01f, 0.5f, 0.005f, GameContext.EnvironmentService.TuneCliffJitterScale, val =>
-			{
-				GameContext.EnvironmentService.TuneCliffJitterScale = val;
-				ApplyLiveLightingTuning();
-			}, "0.00#");
-			_sldCliffRimNoiseStrength = CreateSliderRow(_contentLightingTuning, "Cliff Rim Str", 0f, 1f, 0.02f, GameContext.EnvironmentService.TuneCliffRimNoiseStrength, val =>
-			{
-				GameContext.EnvironmentService.TuneCliffRimNoiseStrength = val;
-				ApplyLiveLightingTuning();
-			});
-
 			CreateSectionHeader(_contentLightingTuning, "--- TERRAIN TEXTURE BLENDING ---");
 			_sldHeightBlendSoftness = CreateSliderRow(_contentLightingTuning, "Blend Softness", 0.001f, 0.20f, 0.002f, GameContext.EnvironmentService.TuneHeightBlendSoftness, val =>
 			{
