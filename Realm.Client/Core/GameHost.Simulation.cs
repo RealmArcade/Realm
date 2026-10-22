@@ -49,6 +49,7 @@ public partial class GameHost
 		string unitId = unit.UnitId;
 		int unitPlayer = unit.Player;
 
+		GameContext.FXService.NotifyVfxTargetDied(unit.Entity.Id);
 		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
 
 		PlayDeathEffects(unit, executeDespawnShader, playDeathAnimation, unitId);

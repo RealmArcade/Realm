@@ -15,6 +15,8 @@ public class WeaponMetadata
 	public string? AttackSound { get; set; }
 	public string? ProjectileModelPath { get; set; }
 	public string? ImpactVisualEffect { get; set; }
+	public string? ImpactParticleEffect { get; set; }
+	public float ImpactParticleScale { get; set; } = 1.0f;
 	public string? ImpactSound { get; set; }
 
 	public string? TrajectoryType { get; set; } = "Parabolic";

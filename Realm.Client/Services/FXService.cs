@@ -5,6 +5,8 @@ using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.UI;
+using Realm.Client.VFX;
+using Realm.Shared.Metadata;
 using Realm.Shared.Textures;
 
 namespace Realm.Client.Services;
@@ -63,6 +65,8 @@ public class FXService
 	{
 		_activeProjectileLightsCount = Math.Max(0, _activeProjectileLightsCount - 1);
 	}
+
+	private readonly List<VfxSequenceInstance3D> _activeVfxSequences = new();
 
 	public List<MinimapPing> ActivePings { get; set; } = new();
 
@@ -142,6 +146,120 @@ public class FXService
 		cachedFrames = (frames, frameWidth);
 		_spriteFramesCache[framesKey] = cachedFrames;
 		return cachedFrames;
+	}
+
+	public VfxSequenceInstance3D? SpawnVfxSequence(VfxAttachmentConfig? sequenceConfig, Node parent, Vector3 worldPosition, float scaleMultiplier, int targetEntityId = -1, Node3D? anchor = null)
+	{
+		if (sequenceConfig?.Stages == null || sequenceConfig.Stages.Count == 0) return null;
+		if (parent == null || !GodotObject.IsInstanceValid(parent)) return null;
+
+		var sequence = new VfxSequenceInstance3D();
+		sequence.Initialize(sequenceConfig, worldPosition, scaleMultiplier, targetEntityId, anchor);
+		parent.AddChild(sequence);
+		_activeVfxSequences.Add(sequence);
+		return sequence;
+	}
+
+	public void UpdateVfxSequences(float deltaSeconds)
+	{
+		for (int index = _activeVfxSequences.Count - 1; index >= 0; index--)
+		{
+			var sequence = _activeVfxSequences[index];
+			if (sequence == null || !GodotObject.IsInstanceValid(sequence))
+			{
+				_activeVfxSequences.RemoveAt(index);
+				continue;
+			}
+
+			sequence.Advance(deltaSeconds);
+			if (!sequence.IsFinished) continue;
+
+			_activeVfxSequences.RemoveAt(index);
+			sequence.QueueFree();
+		}
+	}
+
+	public void NotifyVfxTargetDied(int entityId)
+	{
+		if (entityId == -1) return;
+
+		foreach (var sequence in _activeVfxSequences)
+		{
+			if (sequence == null || !GodotObject.IsInstanceValid(sequence)) continue;
+			if (sequence.TargetEntityId != entityId) continue;
+			sequence.NotifyTargetDeath();
+		}
+	}
+
+	public void SpawnVfxStage(Node parent, VfxStageMetadata stage, Vector3 worldPosition, float scaleMultiplier)
+	{
+		if (stage == null) return;
+
+		if (stage.SingleInstance || stage.ParticleConfig != null)
+		{
+			SpawnOneShotParticleImpact(parent, stage.ParticleConfig ?? ResolveParticleConfig(stage.EffectId), worldPosition, scaleMultiplier);
+			return;
+		}
+
+		var stageConfig = ResolveVfxConfig(stage.EffectId);
+		if (stageConfig != null)
+		{
+			var instance = new ProceduralVfxInstance3D(stageConfig);
+			instance.Name = $"VfxStage_{stage.EffectId.Replace('/', '_')}";
+			parent.AddChild(instance);
+			instance.GlobalPosition = worldPosition;
+			instance.Scale = Vector3.One * Math.Max(0.01f, scaleMultiplier);
+			return;
+		}
+
+		SpawnOneShotParticleImpact(parent, ResolveParticleConfig(stage.EffectId), worldPosition, scaleMultiplier);
+	}
+
+	public void SpawnSingleParticleImpact(Node parent, string effectId, Vector3 worldPosition, float scaleMultiplier)
+	{
+		SpawnOneShotParticleImpact(parent, ResolveParticleConfig(effectId), worldPosition, scaleMultiplier);
+	}
+
+	public void SpawnOneShotParticleImpact(Node parent, SpellParticleConfig? particleConfig, Vector3 worldPosition, float scaleMultiplier)
+	{
+		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
+
+		SpellParticleConfig config = particleConfig?.Clone() ?? new SpellParticleConfig();
+		var instance = new SpellParticleInstance3D(config);
+		instance.Name = "ParticleImpact";
+		parent.AddChild(instance);
+		instance.GlobalPosition = worldPosition;
+		instance.Scale = Vector3.One * Math.Max(0.01f, scaleMultiplier);
+		instance.PlayOneShot();
+
+		var tree = parent.GetTree();
+		if (tree == null) return;
+
+		float releaseDelaySeconds = Math.Max(0.25f, config.Lifetime + 0.5f);
+		var releaseTimer = tree.CreateTimer(releaseDelaySeconds);
+		releaseTimer.Timeout += () =>
+		{
+			if (GodotObject.IsInstanceValid(instance)) instance.QueueFree();
+		};
+	}
+
+	private static SpellParticleConfig ResolveParticleConfig(string effectId)
+	{
+		if (string.IsNullOrWhiteSpace(effectId)) return SpellParticleConfig.CreatePreset("fire_sparks");
+
+		var stageConfig = ResolveVfxConfig(effectId);
+		if (stageConfig?.ParticleConfig != null) return stageConfig.ParticleConfig.Clone();
+
+		return SpellParticleConfig.CreatePreset(effectId);
+	}
+
+	private static VfxAttachmentConfig? ResolveVfxConfig(string effectId)
+	{
+		if (string.IsNullOrWhiteSpace(effectId)) return null;
+
+		var registry = GameContext.RegistryService?.VfxRegistry;
+		if (registry == null) return null;
+		return registry.TryGetValue(effectId, out var config) && config != null ? config.Clone() : null;
 	}
 
 	public void SpawnSpritesheetEffect(Node parent, string texturePath, Vector3 worldPosition, int columns, int rows, float secondsPerFrame, float sizeInWorldUnits)

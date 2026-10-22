@@ -1404,6 +1404,15 @@
                   "null"
                 ]
               },
+              "ImpactParticleEffect": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ImpactParticleScale": {
+                "type": "number"
+              },
               "ImpactSound": {
                 "type": [
                   "string",
@@ -2223,6 +2232,151 @@
                   }
                 }
               },
+              "Stages": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "EffectId": {
+                      "type": "string"
+                    },
+                    "Trigger": {
+                      "type": "integer"
+                    },
+                    "DelaySeconds": {
+                      "type": "number"
+                    },
+                    "Scale": {
+                      "type": "number"
+                    },
+                    "SingleInstance": {
+                      "type": "boolean"
+                    },
+                    "ParticleConfig": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "ParticleId": {
+                          "type": "string"
+                        },
+                        "Name": {
+                          "type": "string"
+                        },
+                        "Amount": {
+                          "type": "integer"
+                        },
+                        "Lifetime": {
+                          "type": "number"
+                        },
+                        "Explosiveness": {
+                          "type": "number"
+                        },
+                        "Randomness": {
+                          "type": "number"
+                        },
+                        "LocalCoords": {
+                          "type": "boolean"
+                        },
+                        "EmitterShape": {
+                          "type": "integer"
+                        },
+                        "SphereRadius": {
+                          "type": "number"
+                        },
+                        "BoxExtents": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/BoxExtents"
+                        },
+                        "RingRadius": {
+                          "type": "number"
+                        },
+                        "RingInnerRadius": {
+                          "type": "number"
+                        },
+                        "RingHeight": {
+                          "type": "number"
+                        },
+                        "Direction": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/Direction"
+                        },
+                        "SpreadDegrees": {
+                          "type": "number"
+                        },
+                        "InitialVelocityMin": {
+                          "type": "number"
+                        },
+                        "InitialVelocityMax": {
+                          "type": "number"
+                        },
+                        "Gravity": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/Gravity"
+                        },
+                        "LinearAccel": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/LinearAccel"
+                        },
+                        "RadialAccel": {
+                          "type": "number"
+                        },
+                        "TangentialAccel": {
+                          "type": "number"
+                        },
+                        "Damping": {
+                          "type": "number"
+                        },
+                        "InitialScaleMin": {
+                          "type": "number"
+                        },
+                        "InitialScaleMax": {
+                          "type": "number"
+                        },
+                        "EndScaleRatio": {
+                          "type": "number"
+                        },
+                        "ColorStart": {
+                          "type": "string"
+                        },
+                        "ColorMid": {
+                          "type": "string"
+                        },
+                        "ColorEnd": {
+                          "type": "string"
+                        },
+                        "AlphaStart": {
+                          "type": "number"
+                        },
+                        "AlphaMid": {
+                          "type": "number"
+                        },
+                        "AlphaEnd": {
+                          "type": "number"
+                        },
+                        "EmissionEnergy": {
+                          "type": "number"
+                        },
+                        "RenderMode": {
+                          "type": "integer"
+                        },
+                        "BlendMode": {
+                          "type": "integer"
+                        },
+                        "ParticleTexture": {
+                          "type": "string"
+                        },
+                        "MeshAssetPath": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
               "BlendMode": {
                 "type": "integer"
               },
@@ -2721,6 +2875,9 @@
                     },
                     "ParticleConfig": {
                       "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig"
+                    },
+                    "Stages": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/Stages"
                     },
                     "BlendMode": {
                       "type": "integer"

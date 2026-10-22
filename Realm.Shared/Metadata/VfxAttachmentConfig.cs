@@ -9,6 +9,7 @@ public class VfxAttachmentConfig
 
 	public VfxPrimitiveType PrimitiveType { get; set; } = VfxPrimitiveType.VortexDisc;
 	public SpellParticleConfig? ParticleConfig { get; set; }
+	public List<VfxStageMetadata>? Stages { get; set; }
 	public VfxBlendMode BlendMode { get; set; } = VfxBlendMode.Additive;
 	public VfxPlacementMode PlacementMode { get; set; } = VfxPlacementMode.SurfaceSnap;
 	public string TargetSocket { get; set; } = "Root";
@@ -117,7 +118,8 @@ public class VfxAttachmentConfig
 			PositionOffset = PositionOffset,
 			RotationOffset = RotationOffset,
 			ScaleOffset = ScaleOffset,
-			ParticleConfig = ParticleConfig?.Clone()
+			ParticleConfig = ParticleConfig?.Clone(),
+			Stages = Stages?.Select(stage => stage.Clone()).ToList()
 		};
 	}
 }

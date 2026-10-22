@@ -94,6 +94,18 @@ public partial class SpellParticleInstance3D : Node3D
 		}
 	}
 
+	public void PlayOneShot()
+	{
+		EnsureComponents();
+		ApplyConfig();
+
+		if (_particles == null) return;
+
+		_particles.OneShot = true;
+		_particles.Emitting = true;
+		_particles.Restart();
+	}
+
 	public float SpeedScale
 	{
 		get => (float)(_particles?.SpeedScale ?? 1.0);

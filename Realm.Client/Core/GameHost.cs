@@ -3718,6 +3718,8 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				UpdateMinimapPings(fDelta);
 			}
+
+			GameContext.FXService.UpdateVfxSequences(fDelta);
 		}
 	}
 
@@ -3802,10 +3804,21 @@ public partial class GameHost : Node3D, IGameAPI
 		var godotPos = new Vector3(req.Position.X, req.Position.Y, req.Position.Z);
 		var godotTarget = new Vector3(req.TargetPosition.X, req.TargetPosition.Y, req.TargetPosition.Z);
 
+		if (TryProcessStagedVfx(req, godotPos)) return;
 		if (TryProcessAbilityVfx(req, godotPos)) return;
 		if (TryProcessProjectileVfx(req, godotPos, godotTarget)) return;
 
 		ProcessMiscVfx(req, godotPos, godotTarget);
+	}
+
+	private bool TryProcessStagedVfx(VFXRequest req, Vector3 godotPos)
+	{
+		var registry = GameContext.RegistryService?.VfxRegistry;
+		if (registry == null || !registry.TryGetValue(req.EffectTypeId, out var sequenceConfig)) return false;
+		if (sequenceConfig?.Stages == null || sequenceConfig.Stages.Count == 0) return false;
+
+		GameContext.FXService.SpawnVfxSequence(sequenceConfig, this, godotPos, req.Scale <= 0f ? 1.0f : req.Scale, req.EntityId);
+		return true;
 	}
 
 	private bool TryProcessAbilityVfx(VFXRequest req, Vector3 godotPos)
