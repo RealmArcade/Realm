@@ -37,10 +37,6 @@ public class NetworkService
 	public int ResumeCountdownSeconds { get; set; } = -1;
 	public float ResumeCountdownTimer { get; set; } = 0f;
 
-	public NetworkService()
-	{
-	}
-
 	public bool CountdownForcedByHost { get; set; } = false;
 	public readonly Dictionary<int, bool> PlayerReadyStates = new();
 	public readonly Dictionary<int, bool> DisallowedPausePeers = new();

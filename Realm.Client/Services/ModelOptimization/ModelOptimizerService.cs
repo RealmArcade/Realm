@@ -14,6 +14,11 @@ public class ModelOptimizerService
 
 	public struct OptimizationOptions
 	{
+		// Required by the language: a struct with property initializers needs an explicit parameterless constructor.
+		public OptimizationOptions()
+		{
+		}
+
 		public float AllowedPixelError { get; set; } = 1.5f;
 		public float CreaseAngleDegrees { get; set; } = GlbMeshSmoother.DefaultCreaseAngleDegrees;
 		public int MaxTextureResolution { get; set; } = 1024;
@@ -23,9 +28,6 @@ public class ModelOptimizerService
 		public bool ReduceUvIslands { get; set; } = true;
 		public float UvChartMergeTolerance { get; set; } = UvChartReducer.DefaultTexCoordTolerance;
 
-		public OptimizationOptions()
-		{
-		}
 	}
 
 	public struct OptimizationResult
@@ -43,10 +45,6 @@ public class ModelOptimizerService
 		public int UvIslandCountAfter;
 		public float UvChartMergeTolerance;
 		public string ErrorMessage;
-	}
-
-	public ModelOptimizerService()
-	{
 	}
 
 	public OptimizationResult OptimizeGlb(byte[] glbBytes, OptimizationOptions options = default)

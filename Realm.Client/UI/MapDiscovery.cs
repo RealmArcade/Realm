@@ -16,10 +16,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class MapDiscovery : Control
 {
-	public MapDiscovery()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();

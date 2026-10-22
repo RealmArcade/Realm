@@ -75,10 +75,6 @@ public class FXService
 		ActivePings.Clear();
 	}
 
-	public FXService()
-	{
-	}
-
 	public void SpawnAbilityEffect(Node3D parent, AbilityDefinition def, Vector3 position, float scale = 1.0f)
 	{
 		if (parent == null || !GodotObject.IsInstanceValid(parent) || def == null) return;

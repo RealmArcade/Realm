@@ -57,10 +57,6 @@ public class AudioService
 		return names;
 	}
 
-	public AudioService()
-	{
-	}
-
 	public static void ApplyVolumeSettings()
 	{
 		EnsureAudioBuses();

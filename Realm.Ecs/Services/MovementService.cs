@@ -9,10 +9,6 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public class MovementService
 {
-	public MovementService()
-	{
-	}
-
 	/// <summary>
 	/// Sets or updates the movement target for an entity.
 	/// This demonstrates the "intent" pattern. You don't move the entity here.

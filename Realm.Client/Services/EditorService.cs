@@ -1249,10 +1249,6 @@ public partial class EditorService : IEditorAPI
 		_ => false
 	};
 
-	public EditorService()
-	{
-	}
-
 	public void SetTerrainSplatMap(TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
 	{
 		_terrainSplatMap = splatMap;

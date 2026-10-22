@@ -269,11 +269,4 @@ public partial class Decal3D : Decal
 		}
 	}
 
-	public void SetEditorCollisionEnabled(bool enabled)
-	{
-	}
-
-	public void UpdateCollisionShape()
-	{
-	}
 }

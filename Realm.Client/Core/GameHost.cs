@@ -789,12 +789,6 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	public IReadOnlyList<Node> SelectedEditorObjects => GameContext.EditorService.SelectedEditorObjects;
-
-	public int SelectedEditorObjectCount => GameContext.EditorService.SelectedEditorObjectCount;
-
-	public bool IsEditorObjectSelected(Node node) => GameContext.EditorService.IsEditorObjectSelected(node);
-
 	public void SetEditorObjectSelection(IEnumerable<Node> nodes)
 	{
 		ClearEditorSelectionVisuals();
@@ -810,7 +804,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void AddEditorObjectToSelection(Node node)
 	{
-		if (node == null || IsEditorObjectSelected(node)) return;
+		if (node == null || GameContext.EditorService.IsEditorObjectSelected(node)) return;
 		if (!GameContext.EditorService.AddSelectedEditorObject(node)) return;
 
 		ClearSelectedPropEntity();
@@ -823,7 +817,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void RemoveEditorObjectFromSelection(Node node)
 	{
-		if (node == null || !IsEditorObjectSelected(node)) return;
+		if (node == null || !GameContext.EditorService.IsEditorObjectSelected(node)) return;
 
 		ApplyEditorSelectionVisual(node, false);
 		GameContext.EditorService.RemoveSelectedEditorObject(node);
@@ -841,7 +835,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (node == null) return;
 
-		if (remove || IsEditorObjectSelected(node))
+		if (remove || GameContext.EditorService.IsEditorObjectSelected(node))
 		{
 			RemoveEditorObjectFromSelection(node);
 		}

@@ -180,10 +180,6 @@ public class MapStorageService
 
 	public string CurrentMapDirectory { get; set; } = string.Empty;
 
-	public MapStorageService()
-	{
-	}
-
 	public static string FormatBytes(long bytes)
 	{
 		if (bytes < 1024) return $"{bytes} B";

@@ -12,10 +12,6 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public class CombatService
 {
-	public CombatService()
-	{
-	}
-
 	/// <summary>
 	///     Makes one entity attack another using the 3-stage combat resolution pipeline.
 	/// </summary>

@@ -19,10 +19,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class LobbyBrowser : Control
 {
-	public LobbyBrowser()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();

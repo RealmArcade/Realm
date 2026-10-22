@@ -461,7 +461,6 @@ public class InGameHUDViewModel
 	{
 		UpdateTactical(delta);
 		UpdateMacro(delta);
-		UpdateAmbient(delta);
 	}
 
 	public void UpdateTactical(double delta)
@@ -485,10 +484,6 @@ public class InGameHUDViewModel
 		UpdatePopulation();
 		UpdateClock();
 		UpdateIdleCount();
-	}
-
-	public void UpdateAmbient(double delta)
-	{
 	}
 
 	private void UpdatePopulation()

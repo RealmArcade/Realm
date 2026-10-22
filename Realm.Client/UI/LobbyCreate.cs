@@ -15,17 +15,9 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class LobbyCreate : Control
 {
-	public LobbyCreate()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
-	}
-
-	public override void _ExitTree()
-	{
 	}
 
 	private Panel _bgPanel;

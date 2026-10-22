@@ -49,10 +49,6 @@ public class InputService
 	private int _buildingCycleIndex;
 	private int _productionRoundRobinIndex;
 
-	public InputService()
-	{
-	}
-
 	private Entity GetWorldEntity()
 	{
 		Entity worldEntity = Entity.Null;
@@ -66,11 +62,6 @@ public class InputService
 		return ref GameContext.World.Get<InputState>(worldEntity);
 	}
 
-
-	public void ExecuteClientBuildingPlacement(UnitMetadata bldMeta, string type, Vector3 position)
-	{
-		// Domain logic can be extended here if needed
-	}
 
 	public void DeductResourcesForBuilding(UnitMetadata meta, Action<float> deductGold, Action<float> deductWood, Action<float> deductStone)
 	{

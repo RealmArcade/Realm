@@ -197,7 +197,6 @@ public class TerrainModifyAction : IEditorAction
 		if (heightsChanged)
 		{
 			GameContext.Host.AlignAllEntitiesToTerrainExternal(affected);
-			GameContext.Host.RebuildGridOverlayMeshExternal();
 		}
 
 		terrain.UpdateMeshAndPhysics(heightsChanged, false, affected, heightsChanged);

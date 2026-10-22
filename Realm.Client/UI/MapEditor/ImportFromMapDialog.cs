@@ -9,10 +9,6 @@ namespace Realm.Client.UI.MapEditor;
 [GlobalClass]
 public partial class ImportFromMapDialog : FloatingDialogBase
 {
-	public ImportFromMapDialog()
-	{
-	}
-
 	private OptionButton _optMapSource;
 	private LineEdit _txtSearch;
 	private CheckBox _chkOnlyMissing;

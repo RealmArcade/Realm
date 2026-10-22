@@ -1401,9 +1401,7 @@ public partial class InGameHUD : Control
 		_ambientTimer += dt;
 		if (_ambientTimer >= AmbientInterval)
 		{
-			float accumulated = _ambientTimer;
 			_ambientTimer -= AmbientInterval;
-			_viewModel.UpdateAmbient(accumulated);
 			_leaderboardPanelController?.Update(_viewModel);
 			_summaryTablePanelController?.Update(_viewModel);
 		}

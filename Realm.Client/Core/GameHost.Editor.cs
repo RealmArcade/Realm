@@ -802,7 +802,6 @@ public partial class GameHost
 
 	private void UpdateMetadataModelOverrides(MapMetadata meta)
 	{
-		GameContext.ModelOverrideService.UpdateMetadataModelOverrides(meta);
 		if (meta.Templates != null)
 		{
 			UpdateEntityOverrides(meta.Templates.Units);
@@ -915,8 +914,6 @@ public partial class GameHost
 		bool temp = false;
 		GameContext.EditorService.ClearHistoryAndState(ref temp);
 		EditorHasUnsavedChanges = temp;
-
-		RebuildGridOverlayMeshExternal();
 
 		MapCameraBounds resetCameraBounds = GroundTerrain != null
 			? MapCameraBounds.FromTerrain(GroundTerrain.Width, GroundTerrain.Depth, GroundTerrain.QuadSize)

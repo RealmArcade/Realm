@@ -2482,8 +2482,6 @@ namespace Realm.Client.Core
 
 				if (IsTerrainHeightsTool(ActiveEditorTool))
 				{
-					GroundTerrain.UpdatePhysics();
-					RebuildGridOverlayMeshExternal();
 					UpdatePathingOverlay();
 				}
 

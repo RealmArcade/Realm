@@ -1582,12 +1582,12 @@ public partial class GameHost
 						{
 							ToggleEditorObjectSelection(clickedNode, ctrlPressed);
 						}
-						else if (!(SelectedEditorObjectCount > 1 && IsEditorObjectSelected(clickedNode)))
+						else if (!(GameContext.EditorService.SelectedEditorObjectCount > 1 && GameContext.EditorService.IsEditorObjectSelected(clickedNode)))
 						{
 							SelectedEditorObject = clickedNode;
 						}
 
-						if (IsEditorObjectSelected(clickedNode))
+						if (GameContext.EditorService.IsEditorObjectSelected(clickedNode))
 						{
 							BeginEditorObjectDrag(terrainHitPos, editorMouseBtn.Position);
 						}
@@ -3694,7 +3694,6 @@ public partial class GameHost
 				GameContext.InGameHud.ShowFeedbackText($"Constructing {meta.Name}...", new Color(0.3f, 0.9f, 0.4f));
 			}
 
-			GameContext.InputService.ExecuteClientBuildingPlacement(meta, type, new System.Numerics.Vector3(position.X, position.Y, position.Z));
 			QueueClientCommand("build", new List<int>(), position, 0, type);
 
 			if (!shiftHeld) ClearBuildingPlacementState();
@@ -3749,7 +3748,6 @@ public partial class GameHost
 			GameContext.InGameHud.ShowFeedbackText($"Constructing {bldMeta.Name}...", new Color(0.3f, 0.9f, 0.4f));
 		}
 
-		GameContext.InputService.ExecuteClientBuildingPlacement(bldMeta, type, new System.Numerics.Vector3(position.X, position.Y, position.Z));
 		QueueClientCommand("build", new List<int>(), position, 0, type);
 
 		if (!shiftHeld) ClearBuildingPlacementState();

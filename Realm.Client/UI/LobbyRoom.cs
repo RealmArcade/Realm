@@ -20,10 +20,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class LobbyRoom : Control
 {
-	public LobbyRoom()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
@@ -67,7 +63,6 @@ public partial class LobbyRoom : Control
 
 	private static readonly HttpClient _sharedHttpClient = new HttpClient();
 	public const int NEUTRAL_PLAYER_INDEX = PlayerColorConfig.NEUTRAL_PLAYER_INDEX;
-	public static List<Color> AvailableColors => PlayerColorConfig.AvailableColors;
 	public static Color GetPlayerColor(int playerIndex) => PlayerColorConfig.GetColor(playerIndex);
 	public static string GetPlayerColorName(int playerIndex) => PlayerColorConfig.GetName(playerIndex);
 
@@ -1202,8 +1197,8 @@ public partial class LobbyRoom : Control
 	private void OnColorButtonPressed(PlayerInfo p, StyleBoxFlat colorStyle, Button colorBtn)
 	{
 		GameContext.UserInterface.PlayClickSound();
-		int nextIdx = (PlayerColorConfig.GetColorIndex(p.Color) + 1) % AvailableColors.Count;
-		p.Color = AvailableColors[nextIdx];
+		int nextIdx = (PlayerColorConfig.GetColorIndex(p.Color) + 1) % PlayerColorConfig.AvailableColors.Count;
+		p.Color = PlayerColorConfig.AvailableColors[nextIdx];
 		colorStyle.BgColor = p.Color;
 		colorBtn.AddThemeStyleboxOverride("normal", colorStyle);
 

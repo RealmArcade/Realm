@@ -216,7 +216,6 @@ namespace Realm.Client.UI
 									ToggleVSCodeEditor();
 								}
 
-								GameContext.VSCode.OpenDevTools();
 								GetViewport().SetInputAsHandled();
 							}
 						}
@@ -5057,7 +5056,6 @@ namespace Realm.Client.UI
 				}
 
 				_entityPaletteController?.SelectCategory(_entityPaletteController.CurrentCategory, triggerAddObject: false);
-				PopulateAnimationPreviewDropdown();
 
 				if (result.ExtractedAnimationFiles != null && result.ExtractedAnimationFiles.Count > 0)
 				{

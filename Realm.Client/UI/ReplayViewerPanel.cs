@@ -12,10 +12,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class ReplayViewerPanel : PanelContainer
 {
-	public ReplayViewerPanel()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();

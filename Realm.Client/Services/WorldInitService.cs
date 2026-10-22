@@ -16,10 +16,6 @@ namespace Realm.Client.Services;
 
 public class WorldInitService
 {
-	public WorldInitService()
-	{
-	}
-
 	private void AddOrSet<T>(Entity entity, T component) where T : unmanaged
 	{
 		GameContext.World.SetOrAdd(entity, component);

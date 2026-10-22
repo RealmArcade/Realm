@@ -1537,14 +1537,6 @@ public partial class VSCodeManager
 		LaunchOrFocusEditor();
 	}
 
-	public void OpenDevTools()
-	{
-	}
-
-	public void UpdateBounds()
-	{
-	}
-
 	public void OpenFile(string relativePath)
 	{
 		try

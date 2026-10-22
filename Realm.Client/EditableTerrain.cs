@@ -12,10 +12,6 @@ namespace Realm.Client;
 [GlobalClass]
 public partial class EditableTerrain : RuntimeTerrain
 {
-	public EditableTerrain() : base()
-	{
-	}
-
 	protected override bool IsRuntimeOnly => false;
 
 	public override void ProcessAndSaveRawTexture(string rawPngPath, string outputRtexPath)

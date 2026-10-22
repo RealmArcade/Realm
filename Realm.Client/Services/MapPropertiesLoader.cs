@@ -12,10 +12,6 @@ namespace Realm.Client.Services;
 
 public class MapPropertiesLoader
 {
-	public MapPropertiesLoader()
-	{
-	}
-
 	public void LoadMapProperties(Entity worldEntity, string path)
 	{
 		if (!FileAccess.FileExists(path))

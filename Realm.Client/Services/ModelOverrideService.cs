@@ -24,10 +24,6 @@ public class ModelOverrideService
 		return GameContext.RegistryService.GetRegistryCollisionCircleRatio(primaryKey);
 	}
 
-	public void UpdateMetadataModelOverrides(MapMetadata meta)
-	{
-	}
-
 	public Color GetModelColorTint(string primaryKey, string assetKey, Func<string, string> normalizeAssetKeyFunc)
 	{
 		if (TryGetModelColorTint(primaryKey, normalizeAssetKeyFunc, out Color c1)) return c1;

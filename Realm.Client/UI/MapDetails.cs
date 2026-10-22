@@ -15,10 +15,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class MapDetails : Control
 {
-	public MapDetails()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();

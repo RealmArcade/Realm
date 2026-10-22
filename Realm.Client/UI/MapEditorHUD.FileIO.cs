@@ -2241,7 +2241,6 @@ namespace Realm.Client.UI
 				}
 			}
 
-			PopulateAnimationPreviewDropdown();
 			if (result.ImportedCount > 0)
 			{
 				ShowFeedback(string.Format(TranslationServer.Translate("Successfully imported {0} animation(s) (.ranim)!"), result.ImportedCount));
@@ -2263,13 +2262,11 @@ namespace Realm.Client.UI
 			if (result.Success)
 			{
 				UpdateMetadataJsonAsset("animations", result.FinalFileName, result.NewHash);
-				PopulateAnimationPreviewDropdown();
 				ShowFeedback(string.Format(TranslationServer.Translate("Imported animation {0}"), result.FinalFileName));
 			}
 			else
 			{
 				UpdateMetadataJsonAsset("animations", result.FinalFileName, result.NewHash);
-				PopulateAnimationPreviewDropdown();
 				ShowFeedback(TranslationServer.Translate("Animation already imported (identical BLAKE3 hash)."));
 			}
 		}

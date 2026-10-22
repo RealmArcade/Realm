@@ -17,10 +17,6 @@ namespace Realm.Client.Services;
 
 public class CheatService
 {
-	public CheatService()
-	{
-	}
-
 	public bool UnlimitedPowerEnabled { get; set; } = false;
 	public bool GigachadEnabled { get; set; } = false;
 

@@ -326,9 +326,9 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 	private partial void UnsubscribeAutoEvents();
 	private partial void InitializeManualBindings();
 
+	// Partial-method hook required by the WASM linker generator; empty when there are no manual bindings.
 	private partial void InitializeManualBindings()
 	{
-		// Add manual host registrations here if needed.
 	}
 
 	public readonly struct ApiProfileScope : IDisposable

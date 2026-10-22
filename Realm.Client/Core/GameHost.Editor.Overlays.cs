@@ -655,11 +655,6 @@ namespace Realm.Client.Core
 			GroundTerrain.UpdatePathingTexture();
 		}
 
-		public void RebuildGridOverlayMeshExternal()
-		{
-			// No longer needed, grid is on shader
-		}
-
 		public void UpdateGridOverlayVisibility()
 		{
 			if (GroundTerrain != null)

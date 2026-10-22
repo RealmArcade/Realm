@@ -8,10 +8,6 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public class StatService
 {
-	public StatService()
-	{
-	}
-
 	/// <summary>
 	///     Gets the final calculated value of a stat after all modifiers are applied.
 	///     An entity can have multiple StatModifier components.

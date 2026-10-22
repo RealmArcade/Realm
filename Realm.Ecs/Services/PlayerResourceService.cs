@@ -12,7 +12,4 @@ public class PlayerResourceService
 	public ResourceId WoodResourceId { get; set; }
 	public ResourceId StoneResourceId { get; set; }
 
-	public PlayerResourceService()
-	{
-	}
 }

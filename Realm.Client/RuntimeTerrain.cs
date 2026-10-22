@@ -2290,6 +2290,7 @@ public partial class RuntimeTerrain : Node3D
 		return heights[cellX, cellZ];
 	}
 
+	// Overridable no-op hook: only the editable terrain has a pathing overlay to show.
 	public virtual void SetPathingVisible(bool visible)
 	{
 	}
@@ -2327,10 +2328,6 @@ public partial class RuntimeTerrain : Node3D
 	}
 
 	public virtual void ProcessAndSaveRawTexture(string rawPngPath, string outputRtexPath)
-	{
-	}
-
-	public void UpdatePhysics(Rect2I? affectedRegion = null)
 	{
 	}
 

@@ -22,10 +22,6 @@ public class ReplayService
 	private readonly Dictionary<int, ReplayUnitSnapshot> _lastRecordedUnits = new();
 	private readonly List<ReplayProjectileSnapshot> _tickProjectiles = new();
 
-	public ReplayService()
-	{
-	}
-
 	public bool IsResettingForReplay { get; set; } = false;
 	public bool IsRecording => _replayRecorder != null;
 

@@ -15,10 +15,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class MainMenu : Control
 {
-	public MainMenu()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();

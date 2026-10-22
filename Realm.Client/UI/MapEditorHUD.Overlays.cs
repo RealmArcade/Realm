@@ -766,10 +766,6 @@ namespace Realm.Client.UI
 			}
 		}
 
-		public void UpdatePathingOverlayExternal(bool visible)
-		{
-		}
-
 		public void BackToHubAction()
 		{
 			if (HasUnsavedChanges())
@@ -1704,10 +1700,6 @@ namespace Realm.Client.UI
 					_optPolarRadialStep.TooltipText = TranslationServer.Translate("Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
 				}
 			}
-		}
-
-		private void RebuildHUDLayout()
-		{
 		}
 
 		private void UpdateCardScrollState(Control contentControl, float maxHeight = 300f, bool allowExpandBtn = true)
@@ -3338,10 +3330,6 @@ namespace Realm.Client.UI
 			{
 				_lblMapNameHeader.TooltipText = tooltipText;
 			}
-		}
-
-		public void PopulateAnimationPreviewDropdown()
-		{
 		}
 
 		private void SetupLightingTuningUI()

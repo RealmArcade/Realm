@@ -21,7 +21,6 @@ namespace Realm.Client.Core;
 public partial class GameHost
 {
 	private int _pendingSelectUnitServerId = -1;
-	public int GetOwnerPeerId(Entity unitEntity) => GameContext.NetworkService.GetOwnerPeerId(unitEntity);
 
 	private int GetServerEntityId(Entity localEntity) =>
 		GameContext.NetworkService.GetServerEntityId(localEntity.Id);

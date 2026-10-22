@@ -40,10 +40,6 @@ public class SaveLoadService
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
-	public SaveLoadService()
-	{
-	}
-
 	public TerrainSplatWeights[,] GenerateSplatMapFromImages(byte[] idxBytes, byte[] wgtBytes, int splatW, int splatD, int sW, int sD, int wgtW, int wgtD)
 	{
 		var splatMap = new TerrainSplatWeights[splatW, splatD];

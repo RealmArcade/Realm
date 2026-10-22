@@ -19,10 +19,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class GameOver : Control
 {
-	public GameOver()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();

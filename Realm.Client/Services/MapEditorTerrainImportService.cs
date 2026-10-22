@@ -12,10 +12,6 @@ namespace Realm.Client.Services;
 
 public class MapEditorTerrainImportService
 {
-	public MapEditorTerrainImportService()
-	{
-	}
-
 	public bool ImportTerrain(
 		Entity worldEntity,
 		string selectedPath,

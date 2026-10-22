@@ -17,10 +17,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class CreatorDiscovery : Control
 {
-	public CreatorDiscovery()
-	{
-	}
-
 	private Button _backButton;
 	private TabContainer _tabContainer;
 	private GridContainer _forYouGrid;
