@@ -897,10 +897,10 @@ public partial class GameHost
 
 		RebuildGridOverlayMeshExternal();
 
-		EditorCameraBoundsLeft = -95.0f;
-		EditorCameraBoundsRight = 95.0f;
-		EditorCameraBoundsTop = -95.0f;
-		EditorCameraBoundsBottom = 125.0f;
+		MapCameraBounds resetCameraBounds = GroundTerrain != null
+			? MapCameraBounds.FromTerrain(GroundTerrain.Width, GroundTerrain.Depth, GroundTerrain.QuadSize)
+			: MapCameraBounds.LegacyDefaults;
+		GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, resetCameraBounds);
 		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
 		RebuildCameraBoundsOverlay();
 
@@ -1515,17 +1515,17 @@ public partial class GameHost
 
 		ScaleCoordinateBounds(scaleX, scaleZ);
 
-		EditorCameraBoundsLeft *= scaleX;
-		EditorCameraBoundsRight *= scaleX;
-		EditorCameraBoundsTop *= scaleZ;
-		EditorCameraBoundsBottom *= scaleZ;
+		MapCameraBounds oldMapBounds = MapCameraBounds.FromTerrain(oldWidth, oldDepth, quadSize);
+		MapCameraBounds newMapBounds = MapCameraBounds.FromTerrain(newWidth, newDepth, quadSize);
+		MapCameraBounds scaledCameraBounds = new MapCameraBounds(EditorCameraBoundsLeft, EditorCameraBoundsRight, EditorCameraBoundsTop, EditorCameraBoundsBottom).MapTo(oldMapBounds, newMapBounds);
+		GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, scaledCameraBounds);
 
 		DeleteEntitiesOutsideBounds();
 		PropMultiMeshManager.Instance?.RebuildAll();
 
 		GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 
-		UpdateScaleMetadata(newWidth, newDepth);
+		UpdateScaleMetadata(newWidth, newDepth, scaledCameraBounds);
 		RefreshUIForMapScale(newWidth, newDepth);
 
 		var after = MapStateSnapshot.CreateSnapshot();
@@ -1596,9 +1596,9 @@ public partial class GameHost
 		GameContext.EditorService.ScaleCoordinateBounds(scaleX, scaleZ);
 	}
 
-	private void UpdateScaleMetadata(int newWidth, int newDepth)
+	private void UpdateScaleMetadata(int newWidth, int newDepth, MapCameraBounds cameraBounds)
 	{
-		GameContext.EditorService.UpdateScaleMetadata(newWidth, newDepth);
+		GameContext.EditorService.UpdateScaleMetadata(newWidth, newDepth, cameraBounds);
 	}
 
 	private void RefreshUIForMapScale(int newWidth, int newDepth)

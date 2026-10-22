@@ -262,6 +262,7 @@ public partial class GameHost
 			LoadCliffSplatMapsView(absolutePath);
 			GameContext.EditorService?.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 			AlignTerrainSplatMapExternal();
+			NormalizeCameraBoundsToMap();
 
 			if (!terrainOnly)
 			{
@@ -284,6 +285,18 @@ public partial class GameHost
 		}
 	}
 
+	private void NormalizeCameraBoundsToMap()
+	{
+		if (GroundTerrain == null) return;
+
+		MapCameraBounds mapBounds = MapCameraBounds.FromTerrain(GroundTerrain.Width, GroundTerrain.Depth, GroundTerrain.QuadSize);
+		var currentBounds = new MapCameraBounds(EditorCameraBoundsLeft, EditorCameraBoundsRight, EditorCameraBoundsTop, EditorCameraBoundsBottom);
+		if (!currentBounds.Matches(MapCameraBounds.LegacyDefaults) || currentBounds.Matches(mapBounds)) return;
+
+		GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, mapBounds);
+		RebuildCameraBoundsOverlay();
+	}
+
 	private string ResolveMapDirectory(string customPath, bool ensureGlbOptimized)
 	{
 		string currentDir = GameContext.MapStorageService.CurrentMapDirectory;
@@ -300,6 +313,7 @@ public partial class GameHost
 		InitializeDefaultTerrainState(defaultWidth, defaultDepth);
 		ResetGroundTerrainView(defaultWidth, defaultDepth);
 		ResetEditorUIView();
+		NormalizeCameraBoundsToMap();
 
 		return false;
 	}

@@ -303,7 +303,7 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	public void UpdateScaleMetadata(int newWidth, int newDepth)
+	public void UpdateScaleMetadata(int newWidth, int newDepth, MapCameraBounds cameraBounds)
 	{
 		string scaleWsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string scaleMetaPath = MetadataService.ResolveMetadataPath(scaleWsPath);
@@ -316,12 +316,40 @@ public partial class EditorService : IEditorAPI
 				{
 					meta.MapProperties.MapWidth = newWidth;
 					meta.MapProperties.MapHeight = newDepth;
+					meta.MapProperties.CameraBoundsLeft = cameraBounds.Left;
+					meta.MapProperties.CameraBoundsRight = cameraBounds.Right;
+					meta.MapProperties.CameraBoundsTop = cameraBounds.Top;
+					meta.MapProperties.CameraBoundsBottom = cameraBounds.Bottom;
 				});
 			}
 			catch (Exception ex)
 			{
 				GD.PrintErr($"Failed to update metadata.json map dimensions during scale: {ex.Message}");
 			}
+		}
+	}
+
+	public void SetCameraBounds(Entity worldEntity, MapCameraBounds cameraBounds)
+	{
+		if (GameContext.World == null || !GameContext.World.IsAlive(worldEntity)) return;
+
+		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState state) =>
+		{
+			state.CameraBoundsLeft = cameraBounds.Left;
+			state.CameraBoundsRight = cameraBounds.Right;
+			state.CameraBoundsTop = cameraBounds.Top;
+			state.CameraBoundsBottom = cameraBounds.Bottom;
+		});
+
+		if (GameContext.World.Has<CameraState>(worldEntity))
+		{
+			GameContext.World.Mutate<CameraState>(worldEntity, (ref CameraState cameraState) =>
+			{
+				cameraState.LimitLeft = cameraBounds.Left;
+				cameraState.LimitRight = cameraBounds.Right;
+				cameraState.LimitTop = cameraBounds.Top;
+				cameraState.LimitBottom = cameraBounds.Bottom;
+			});
 		}
 	}
 

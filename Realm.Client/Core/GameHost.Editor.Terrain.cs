@@ -425,14 +425,12 @@ namespace Realm.Client.Core
 
 			int oldWidth = GroundTerrain.Width;
 			int oldDepth = GroundTerrain.Depth;
+			float quadSize = GroundTerrain.QuadSize;
 
-			float diffWidth = (newWidth - oldWidth) * GroundTerrain.QuadSize;
-			float diffDepth = (newDepth - oldDepth) * GroundTerrain.QuadSize;
-
-			EditorCameraBoundsLeft -= diffWidth / 2.0f;
-			EditorCameraBoundsRight += diffWidth / 2.0f;
-			EditorCameraBoundsTop -= diffDepth / 2.0f;
-			EditorCameraBoundsBottom += diffDepth / 2.0f;
+			MapCameraBounds oldMapBounds = MapCameraBounds.FromTerrain(oldWidth, oldDepth, quadSize);
+			MapCameraBounds newMapBounds = MapCameraBounds.FromTerrain(newWidth, newDepth, quadSize);
+			MapCameraBounds resizedCameraBounds = new MapCameraBounds(EditorCameraBoundsLeft, EditorCameraBoundsRight, EditorCameraBoundsTop, EditorCameraBoundsBottom).MapTo(oldMapBounds, newMapBounds);
+			GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, resizedCameraBounds);
 
 			GroundTerrain.ResizeTerrain(newWidth, newDepth);
 
@@ -444,23 +442,7 @@ namespace Realm.Client.Core
 			MapEditorHUD.Instance?.UpdateCameraBoundsUI();
 			MapEditorHUD.Instance?.RegenerateMinimap();
 
-			string activeWsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			string metaPath = MetadataService.ResolveMetadataPath(activeWsPath);
-			if (File.Exists(metaPath))
-			{
-				try
-				{
-					GameContext.MetadataService.UpdateMetadata(activeWsPath, meta =>
-					{
-						meta.MapProperties.MapWidth = newWidth;
-						meta.MapProperties.MapHeight = newDepth;
-					});
-				}
-				catch (Exception ex)
-				{
-					GD.PrintErr($"Failed to update metadata.json map dimensions: {ex.Message}");
-				}
-			}
+			GameContext.EditorService.UpdateScaleMetadata(newWidth, newDepth, resizedCameraBounds);
 
 			EditorHasUnsavedChanges = true;
 			MapEditorHUD.Instance?.ShowFeedbackExternal($"Map resized to {newWidth}x{newDepth}");

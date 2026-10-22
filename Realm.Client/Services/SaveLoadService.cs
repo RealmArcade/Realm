@@ -1016,10 +1016,11 @@ public class SaveLoadService
 
 	private void LoadEditorAndCameraState(Entity worldEntity, MapSaveData saveData)
 	{
-		float left = saveData.CameraBoundsLeft ?? -95.0f;
-		float right = saveData.CameraBoundsRight ?? 95.0f;
-		float top = saveData.CameraBoundsTop ?? -95.0f;
-		float bottom = saveData.CameraBoundsBottom ?? 125.0f;
+		MapCameraBounds defaultBounds = MapCameraBounds.FromTerrain(saveData.Width, saveData.Depth, RuntimeTerrain.DefaultQuadSize);
+		float left = saveData.CameraBoundsLeft ?? defaultBounds.Left;
+		float right = saveData.CameraBoundsRight ?? defaultBounds.Right;
+		float top = saveData.CameraBoundsTop ?? defaultBounds.Top;
+		float bottom = saveData.CameraBoundsBottom ?? defaultBounds.Bottom;
 
 		WaterType currentWaterMode = GameContext.World.Has<EditorState>(worldEntity) ? GameContext.World.Get<EditorState>(worldEntity).WaterMode : WaterType.None;
 		byte currentWaterProf = GameContext.World.Has<EditorState>(worldEntity) ? GameContext.World.Get<EditorState>(worldEntity).WaterProfileIndex : (byte)0;
