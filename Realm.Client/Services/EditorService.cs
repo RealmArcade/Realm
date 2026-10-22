@@ -1295,6 +1295,16 @@ public partial class EditorService : IEditorAPI
 
 	public Godot.Vector3? RampStartPos => _rampStartPos;
 	public bool IsDrawingTerrain => _isDrawingTerrain;
+	public EditorPaintSurface ActivePaintSurface { get; private set; } = EditorPaintSurface.None;
+
+	private EditorPaintSurface ResolvePaintSurfaceAt(Godot.Vector3 worldPos)
+	{
+		var terrain = Core.GameHost.Instance?.GroundTerrain;
+		if (terrain == null) return EditorPaintSurface.None;
+
+		terrain.GetHeightAndNormal(worldPos.X, worldPos.Z, out _, out Godot.Vector3 normal);
+		return RuntimeTerrain.GetCliffFactor(normal) >= 0.5f ? EditorPaintSurface.Cliff : EditorPaintSurface.Ground;
+	}
 	public bool IsDrawingClump => _isDrawingClump;
 
 	public CopiedObjectTemplate? GetCopiedObject() => _copiedObject;
@@ -1543,6 +1553,12 @@ public partial class EditorService : IEditorAPI
 
 		if (!isHeights && !isPaint && !isPathing) return default;
 		if (isFirstClick) ResetPaintThrottle();
+
+		if (isPaint)
+		{
+			if (ActivePaintSurface == EditorPaintSurface.Cliff) applyGroundTexture = false;
+			else if (ActivePaintSurface == EditorPaintSurface.Ground) applyCliffTexture = false;
+		}
 
 		var ctx = new ContinuousEditContext
 		{
@@ -2095,6 +2111,7 @@ public partial class EditorService : IEditorAPI
 		_terrainSplatMapBefore = currentSplatMap != null ? (TerrainSplatWeights[,])currentSplatMap.Clone() : null;
 		_terrainCliffSplatMapBefore = currentCliffSplatMap != null ? (TerrainSplatWeights[,])currentCliffSplatMap.Clone() : null;
 		_terrainPathingBefore = currentPathing != null ? (int[,])currentPathing.Clone() : null;
+		ActivePaintSurface = activeTool == EditorTool.PaintTexture ? ResolvePaintSurfaceAt(hitPos) : EditorPaintSurface.None;
 
 		float startHeight = GetTerrainHeightAt(hitPos);
 
@@ -2313,6 +2330,7 @@ public partial class EditorService : IEditorAPI
 	{
 		_isDrawingTerrain = false;
 		_hasBlockTargetHeight = false;
+		ActivePaintSurface = EditorPaintSurface.None;
 		_activePlateauHeight = null;
 		_activePlateauWaterMode = WaterType.None;
 		_activePlateauWaterProfile = 0;

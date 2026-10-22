@@ -2047,9 +2047,25 @@ namespace Realm.Client.Core
 				firstClick = true;
 				float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
 				GameContext.EditorService.BeginTerrainDraw(hitPos, ActiveEditorTool, EditorBlockMode, targetBlockHeight, null, GroundTerrain.SplatMap, GroundTerrain.PathingCodes, GroundTerrain.CliffSplatMap);
+				ShowPaintSurfaceLockFeedback();
 			}
 
 			ApplyContinuousTerrainEditing(hitPos, fDelta, firstClick);
+		}
+
+		private void ShowPaintSurfaceLockFeedback()
+		{
+			if (ActiveEditorTool != EditorTool.PaintTexture) return;
+
+			string? surfaceName = GameContext.EditorService.ActivePaintSurface switch
+			{
+				EditorPaintSurface.Cliff => TranslationServer.Translate("cliff faces"),
+				EditorPaintSurface.Ground => TranslationServer.Translate("flat ground"),
+				_ => null
+			};
+
+			if (surfaceName == null) return;
+			MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Paint locked to {0} for this stroke."), surfaceName));
 		}
 
 		private bool IsTerrainEditingTool(EditorTool tool)
