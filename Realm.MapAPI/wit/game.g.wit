@@ -38,6 +38,7 @@ interface game-api {
     get-ability-name: func(ability-id: string) -> string;
     get-active-players: func(exclusive-upper-bound: s32) -> list<s32>;
     get-all-loot-items: func() -> list<s32>;
+    get-cheats-enabled: func() -> bool;
     get-coordinate-max-x: func(coordinate-name: string) -> f32;
     get-coordinate-max-y: func(coordinate-name: string) -> f32;
     get-coordinate-max-z: func(coordinate-name: string) -> f32;

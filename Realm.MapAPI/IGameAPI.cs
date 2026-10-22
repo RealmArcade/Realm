@@ -22,6 +22,12 @@ public interface IGameAPI
 	/// </summary>
 	bool IsAuthoritativeFrame => !IsPredictiveFrame;
 
+	/// <summary>
+	/// Gets a value indicating whether cheats are available in the current session. Read-only: only the
+	/// engine can enable cheats, which are available in the map editor, in test mode and in single player.
+	/// </summary>
+	bool CheatsEnabled { get; }
+
 
 	/// <summary>
 	/// Spawns a resource node at the given position.

@@ -886,6 +886,9 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(playerIndex, current);
 	}
 
+	public bool CheatsEnabled
+		=> GameContext.SessionState.IsMapEditorMode || GameContext.SessionState.IsTestMode || (LobbyManager.Instance?.IsSinglePlayer ?? false);
+
 	public float GameElapsedTime
 	{
 		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(ECSContext.WorldEntity, s => s.GameElapsedTime) ?? 0f;

@@ -1017,6 +1017,12 @@
             Gets a value indicating whether the current frame execution is an authoritative simulation frame.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.IGameAPI.CheatsEnabled">
+            <summary>
+            Gets a value indicating whether cheats are available in the current session. Read-only: only the
+            engine can enable cheats, which are available in the map editor, in test mode and in single player.
+            </summary>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SpawnResourceNode(System.String,System.Numerics.Vector3,System.Single)">
             <summary>
             Spawns a resource node at the given position.

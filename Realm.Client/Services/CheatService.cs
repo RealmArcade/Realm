@@ -44,7 +44,7 @@ public class CheatService
 		DefinitionManager definitionManager,
 		IEnumerable<Entity> selectedEntities)
 	{
-		if (isMultiplayer)
+		if (isMultiplayer || !(GameHost.Instance?.CheatsEnabled ?? false))
 		{
 			return (CheatResult.None, 0);
 		}
