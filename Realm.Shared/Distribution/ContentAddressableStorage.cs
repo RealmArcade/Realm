@@ -90,6 +90,30 @@ public class ContentAddressableStorage
 		return FindAssetFilePath(blake3Hash) != null;
 	}
 
+	public static bool FilesHaveIdenticalContent(string firstFilePath, string secondFilePath)
+	{
+		if (!File.Exists(firstFilePath) || !File.Exists(secondFilePath)) return false;
+
+		var firstInfo = new FileInfo(firstFilePath);
+		var secondInfo = new FileInfo(secondFilePath);
+		if (firstInfo.Length != secondInfo.Length) return false;
+
+		using var firstStream = new FileStream(firstFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan);
+		using var secondStream = new FileStream(secondFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan);
+
+		byte[] firstBuffer = new byte[81920];
+		byte[] secondBuffer = new byte[81920];
+
+		while (true)
+		{
+			int firstRead = firstStream.Read(firstBuffer, 0, firstBuffer.Length);
+			int secondRead = secondStream.Read(secondBuffer, 0, secondBuffer.Length);
+			if (firstRead != secondRead) return false;
+			if (firstRead == 0) return true;
+			if (!firstBuffer.AsSpan(0, firstRead).SequenceEqual(secondBuffer.AsSpan(0, secondRead))) return false;
+		}
+	}
+
 	public byte[]? GetAssetBytes(string blake3Hash)
 	{
 		string? filePath = FindAssetFilePath(blake3Hash);

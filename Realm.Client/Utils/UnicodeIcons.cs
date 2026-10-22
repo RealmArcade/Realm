@@ -69,6 +69,7 @@ public static class UnicodeIcons
 	public static readonly string RULER = char.ConvertFromUtf32(0xF545);
 	public static readonly string BRUSH_ALT = char.ConvertFromUtf32(0xF54B);
 	public static readonly string FILE_EXPORT = char.ConvertFromUtf32(0xF56E);
+	public static readonly string FILE_IMPORT = char.ConvertFromUtf32(0xF56F);
 	public static readonly string FILL_DRIP = char.ConvertFromUtf32(0xF576);
 	public static readonly string HORIZON_SUN = char.ConvertFromUtf32(0xF6C3);
 	public static readonly string CLOUD_SUN = char.ConvertFromUtf32(0xF6C4);

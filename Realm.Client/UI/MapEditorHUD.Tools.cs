@@ -391,6 +391,13 @@ namespace Realm.Client.UI
 				_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnLoad");
 				SetupOptionButton(_btnLoad, $"{UnicodeIcons.FOLDER_OPEN} LOAD", () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
 
+				var btnOpenArchive = new Button();
+				btnOpenArchive.Name = "BtnOpenArchive";
+				btnOpenArchive.Set("icon_max_width", 0);
+				SetupOptionButton(btnOpenArchive, $"{UnicodeIcons.FILE_IMPORT} OPEN (.RMAP)", () => OpenMapArchiveAction(), 13, "Open a map package (.rmap) directly; editing happens in a sibling folder and saving writes back into the package");
+				_contentFile.AddChild(btnOpenArchive);
+				_contentFile.MoveChild(btnOpenArchive, _btnLoad.GetIndex() + 1);
+
 				_btnSave = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnSave");
 				SetupOptionButton(_btnSave, $"{UnicodeIcons.SAVE} SAVE", () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
 
