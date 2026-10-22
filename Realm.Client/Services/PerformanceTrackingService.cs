@@ -44,7 +44,8 @@ public enum ProfileFunctionId
 	Unit3DProcess = 34,
 	SimulationShroudStep = 35,
 	AudioPositionalUpdate = 36,
-	PredictionPerformanceSample = 37
+	PredictionPerformanceSample = 37,
+	UnitOcclusionOutlineTick = 38
 }
 
 public struct FunctionProfileMetric
@@ -139,6 +140,7 @@ public class PerformanceTrackingService
 		RegisterMetric(ProfileFunctionId.Unit3DProcess, "Unit3D._Process", "Godot.Process");
 		RegisterMetric(ProfileFunctionId.AudioPositionalUpdate, "AudioService.UpdatePositionalVoices", "Godot.Process");
 		RegisterMetric(ProfileFunctionId.PredictionPerformanceSample, "PredictionPerformanceMonitor.Sample", "Godot.Process");
+		RegisterMetric(ProfileFunctionId.UnitOcclusionOutlineTick, "UnitOcclusionOutlineService.Tick", "Godot.Process");
 	}
 
 	private void RegisterMetric(ProfileFunctionId id, string name, string parentName)

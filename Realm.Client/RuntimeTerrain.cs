@@ -3424,6 +3424,37 @@ public partial class RuntimeTerrain : Node3D
 		}
 	}
 
+	public bool TrySampleHeight(float worldX, float worldZ, out float height)
+	{
+		height = 0.0f;
+
+		TerrainCell[,] cells = Cells;
+		if (cells == null) return false;
+
+		int cellWidth = cells.GetLength(0);
+		int cellDepth = cells.GetLength(1);
+		if (cellWidth <= 0 || cellDepth <= 0) return false;
+
+		float quadSize = QuadSize;
+		if (quadSize <= 0.0f) return false;
+
+		float localX = (worldX + (cellWidth / 2.0f) * quadSize) / quadSize;
+		float localZ = (worldZ + (cellDepth / 2.0f) * quadSize) / quadSize;
+
+		int x0 = Math.Clamp((int)MathF.Floor(localX), 0, cellWidth - 1);
+		int z0 = Math.Clamp((int)MathF.Floor(localZ), 0, cellDepth - 1);
+
+		float tx = Math.Clamp(localX - x0, 0.0f, 1.0f);
+		float tz = Math.Clamp(localZ - z0, 0.0f, 1.0f);
+
+		TerrainCell cell = cells[x0, z0];
+		height = (1 - tx) * (1 - tz) * cell.Y_NW
+		         + tx * (1 - tz) * cell.Y_NE
+		         + (1 - tx) * tz * cell.Y_SW
+		         + tx * tz * cell.Y_SE;
+		return true;
+	}
+
 	public void GetHeightAndNormal(float worldX, float worldZ, out float height, out Vector3 normal)
 	{
 		var cells = Cells;

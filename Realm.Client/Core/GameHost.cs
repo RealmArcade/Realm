@@ -63,6 +63,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private float _fDelta { get; set; }
 	private WorldEnvironment? _cachedWorldEnvironment;
+	private UnitOcclusionOutlineService _unitOcclusionOutlineService;
 
 
 	private bool _multiplayerActive => Multiplayer.MultiplayerPeer != null && Multiplayer.MultiplayerPeer is not OfflineMultiplayerPeer;
@@ -2091,6 +2092,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 		CreateGround();
 		EnsurePropMultiMeshManager();
+		EnsureUnitOcclusionOutlineService();
 		SetupWorldEntityComponents();
 
 		if (GroundTerrain != null) GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
@@ -2135,6 +2137,17 @@ public partial class GameHost : Node3D, IGameAPI
 
 		var propMultiMeshManager = new PropMultiMeshManager();
 		AddChild(propMultiMeshManager);
+	}
+
+	private void EnsureUnitOcclusionOutlineService()
+	{
+		if (_unitOcclusionOutlineService != null && GodotObject.IsInstanceValid(_unitOcclusionOutlineService)) return;
+
+		_unitOcclusionOutlineService = GetNodeOrNull<UnitOcclusionOutlineService>("UnitOcclusionOutlineService");
+		if (_unitOcclusionOutlineService != null && GodotObject.IsInstanceValid(_unitOcclusionOutlineService)) return;
+
+		_unitOcclusionOutlineService = new UnitOcclusionOutlineService { Name = "UnitOcclusionOutlineService" };
+		AddChild(_unitOcclusionOutlineService);
 	}
 
 	private void InitializeResourceIds()
@@ -3229,6 +3242,14 @@ public partial class GameHost : Node3D, IGameAPI
 					bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 					int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
 					GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, AllVfx, VisualProjectilePool.Instance.ActiveProjectiles, spectatorPerspective, isReplay, isSpectator);
+				}
+			}
+
+			if (_unitOcclusionOutlineService != null && GodotObject.IsInstanceValid(_unitOcclusionOutlineService))
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UnitOcclusionOutlineTick))
+				{
+					_unitOcclusionOutlineService.Tick(fDelta, MainCamera, AllUnits);
 				}
 			}
 

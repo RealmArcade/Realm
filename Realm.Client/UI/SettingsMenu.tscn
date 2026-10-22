@@ -464,6 +464,14 @@ focus_mode = 0
 theme_override_constants/h_separation = 8
 text = "Display FPS"
 
+[node name="UnitOutlineChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/h_separation = 8
+theme_override_constants/icon_max_width = 0
+tooltip_text = "Draw a coloured outline around units that terrain, cliffs or buildings hide from view. Disabled automatically on the Low quality preset."
+text = "Occluded Unit Outlines"
+
 [node name="RecordReplaysChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
 layout_mode = 2
 focus_mode = 0

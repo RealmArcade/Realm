@@ -57,6 +57,7 @@ public static class GameSettings
 	public static bool DisableShadows { get; set; } = false;
 	public static bool DisableDayNightLighting { get; set; } = false;
 	public static bool FloatingCombatText { get; set; } = true;
+	public static bool OccludedUnitOutlines { get; set; } = true;
 
 	private static readonly bool MovementPredictionSupported = PathUtils.IsDevelopmentBuild;
 	private static bool _movementPrediction;
@@ -102,6 +103,7 @@ public static class GameSettings
 		DisableShadows = false;
 		DisableDayNightLighting = false;
 		FloatingCombatText = true;
+		OccludedUnitOutlines = true;
 		MasterVolume = 80f;
 		MusicVolume = 70f;
 		SfxVolume = 90f;
@@ -241,6 +243,7 @@ public static class GameSettings
 		DisableShadows = data.DisableShadows;
 		DisableDayNightLighting = data.DisableDayNightLighting;
 		FloatingCombatText = data.FloatingCombatText;
+		OccludedUnitOutlines = data.OccludedUnitOutlines;
 		MovementPrediction = data.MovementPrediction;
 		MovementPredictionPerformanceOverride = data.MovementPredictionPerformanceOverride;
 		MovementPredictionCostThresholdMs = data.MovementPredictionCostThresholdMs > 0f
@@ -296,6 +299,7 @@ public static class GameSettings
 			DisableShadows = DisableShadows,
 			DisableDayNightLighting = DisableDayNightLighting,
 			FloatingCombatText = FloatingCombatText,
+			OccludedUnitOutlines = OccludedUnitOutlines,
 			MovementPrediction = MovementPrediction,
 			MovementPredictionPerformanceOverride = MovementPredictionPerformanceOverride,
 			MovementPredictionCostThresholdMs = MovementPredictionCostThresholdMs,
