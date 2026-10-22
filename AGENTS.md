@@ -80,3 +80,6 @@
 ## Test CLI example
 dotnet test Realm.Client.Tests/Realm.Client.Tests.csproj -e GODOT_BIN="C:\Program Files\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64.exe" --filter "FullyQualifiedName~Realm.Client.Tests.MapEditorUxTests.TestCustomWeaponProjectileLayersAndVisualRendering"
 - Don't run tests unless explicitly told to do so
+
+## git commit rules
+- NEVER add automated footer tags like "Generated with {{ToolName}}" or "Co-Authored-By: {{Agent}}" to Git commit messages. 
