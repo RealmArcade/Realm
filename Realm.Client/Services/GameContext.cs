@@ -47,6 +47,7 @@ namespace Realm.Client.Services
 		public static AssetIndexService AssetIndexService => GlobalScope.Get<AssetIndexService>();
 		public static MetadataService MetadataService => GlobalScope.Get<MetadataService>();
 		public static MapUpgradeService MapUpgradeService => GlobalScope.Get<MapUpgradeService>();
+		public static MapCatalogService MapCatalogService => GlobalScope.Get<MapCatalogService>();
 		public static MapStorageService MapStorageService => GlobalScope.Get<MapStorageService>();
 		public static MapAssetImportService MapAssetImportService => GlobalScope.Get<MapAssetImportService>();
 		public static ModelOptimizerService ModelOptimizerService => GlobalScope.Get<ModelOptimizerService>();

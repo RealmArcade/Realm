@@ -47,6 +47,7 @@ public partial class LobbyBrowser : Control
 	private CheckBox _meleeCheck;
 	private CheckBox _tutorialCheck;
 	private CheckBox _arcadeCheck;
+	private CheckBox _unofficialMapsCheck;
 	private VBoxContainer _lobbyListContainer;
 
 	private Label _browserTitle;
@@ -85,6 +86,7 @@ public partial class LobbyBrowser : Control
 		_meleeCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/MeleeCheck");
 		_tutorialCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/TutorialCheck");
 		_arcadeCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/ArcadeCheck");
+		_unofficialMapsCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/UnofficialMapsCheck");
 		_lobbyListContainer = GetNode<VBoxContainer>("LobbyPanel/VBoxContainer/ScrollContainer/LobbyListContainer");
 
 
@@ -241,7 +243,11 @@ public partial class LobbyBrowser : Control
 
 	private void SetupCheckboxes()
 	{
-		var checkBoxes = new[] { _campaignCheck, _meleeCheck, _tutorialCheck, _arcadeCheck };
+		_unofficialMapsCheck.Text = Tr("Show unofficial maps");
+		_unofficialMapsCheck.TooltipText = Tr("Also list lobbies for maps that are not available for download on the discovery screen");
+		_unofficialMapsCheck.ButtonPressed = false;
+
+		var checkBoxes = new[] { _campaignCheck, _meleeCheck, _tutorialCheck, _arcadeCheck, _unofficialMapsCheck };
 		foreach (var cb in checkBoxes)
 		{
 			cb.Pressed += () =>
@@ -515,10 +521,12 @@ public partial class LobbyBrowser : Control
 	private void FetchLobbiesFromRegistry()
 	{
 		LobbyManager.Instance.RandomizeServerIndex();
+		var mapCatalogService = Realm.Client.Services.GameContext.MapCatalogService;
 		Task.Run(async () =>
 		{
 			try
 			{
+				await mapCatalogService.RefreshAsync(LobbyManager.Instance.RegistryServerUrl);
 				var json = await LobbyManager.Instance.FetchLobbiesRawAsync();
 				if (json == null)
 				{
@@ -684,6 +692,13 @@ public partial class LobbyBrowser : Control
 			_filteredLobbies = _filteredLobbies.Where(x => activeModes.Contains(x.Mode.ToLower())).ToList();
 		}
 
+		if (!_unofficialMapsCheck.ButtonPressed)
+		{
+			_filteredLobbies = _filteredLobbies
+				.Where(x => Realm.Client.Services.GameContext.MapCatalogService.IsAvailableForDownload(x.Map))
+				.ToList();
+		}
+
 		RefreshLobbyDisplay();
 	}
 
@@ -766,11 +781,13 @@ public partial class LobbyBrowser : Control
 		hBox.Name = "HBox_HBoxContainer";
 		panel.AddChild(hBox);
 
+		bool isAvailableForDownload = Realm.Client.Services.GameContext.MapCatalogService.IsAvailableForDownload(data.Map);
+
 		var lblMap = new Label();
 		lblMap.Name = "LblMap_Label";
-		lblMap.Text = $"  {data.Map}";
+		lblMap.Text = isAvailableForDownload ? $"  {data.Map}" : $"  [{Tr("Unofficial")}] {data.Map}";
 		lblMap.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblMap.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
+		lblMap.AddThemeColorOverride("font_color", isAvailableForDownload ? new Color(0.9f, 0.85f, 0.7f) : new Color(0.95f, 0.6f, 0.35f));
 		lblMap.AddThemeFontSizeOverride("font_size", 16);
 		lblMap.VerticalAlignment = VerticalAlignment.Center;
 		hBox.AddChild(lblMap);
