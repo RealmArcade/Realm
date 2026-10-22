@@ -18,6 +18,63 @@ public static class ImageFormatConverter
 		return Array.Exists(SupportedExtensions, e => e.Equals(ext, StringComparison.OrdinalIgnoreCase));
 	}
 
+	public static byte[] EncodeWebpBytes(string inputImagePath, int quality = 90)
+	{
+		string fullInput = Path.GetFullPath(inputImagePath);
+		if (!File.Exists(fullInput))
+		{
+			throw new FileNotFoundException($"Source image file not found: {inputImagePath}", inputImagePath);
+		}
+
+		string extension = Path.GetExtension(fullInput).ToLowerInvariant();
+		if (extension == ".rtex")
+		{
+			return EncodeRtexLayerWebpBytes(fullInput, quality);
+		}
+
+		using var image = SKBitmap.Decode(fullInput);
+		if (image == null)
+		{
+			throw new InvalidOperationException($"Failed to load image file '{fullInput}'.");
+		}
+
+		return TextureConverter.EncodeWebp(image, lossless: false, quality: quality);
+	}
+
+	private static byte[] EncodeRtexLayerWebpBytes(string fullInput, int quality)
+	{
+		string tempWebp = Path.Combine(Path.GetTempPath(), $"realm_source_{Guid.NewGuid():N}.webp");
+		try
+		{
+			var extractResult = TextureConverter.ExtractWebpFromRtex(fullInput, tempWebp, layer: 0);
+			if (!extractResult.Success || !File.Exists(tempWebp))
+			{
+				throw new InvalidOperationException($"Failed to extract WebP from RTEX '{fullInput}': {extractResult.ErrorMessage}");
+			}
+
+			using var image = SKBitmap.Decode(tempWebp);
+			if (image == null)
+			{
+				throw new InvalidOperationException($"Failed to decode RTEX layer from '{fullInput}'.");
+			}
+
+			return TextureConverter.EncodeWebp(image, lossless: false, quality: quality);
+		}
+		finally
+		{
+			if (File.Exists(tempWebp))
+			{
+				try
+				{
+					File.Delete(tempWebp);
+				}
+				catch
+				{
+				}
+			}
+		}
+	}
+
 	public static string ConvertToWebp(string inputImagePath, string? outputWebpPath = null)
 	{
 		string fullInput = Path.GetFullPath(inputImagePath);

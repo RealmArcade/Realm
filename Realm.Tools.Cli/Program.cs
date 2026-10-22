@@ -936,6 +936,25 @@ public static class Program
 			options.AssetType = canonical;
 		}
 
+		if (!string.IsNullOrEmpty(options.ExtractSourceImage) && Directory.Exists(options.Input))
+		{
+			Console.Error.WriteLine("Error: --extract_source_image requires a single .rmesh input file.");
+			return 1;
+		}
+
+		if (!string.IsNullOrEmpty(options.SourceImage))
+		{
+			try
+			{
+				options.SourceProfileImageWebp = ImageFormatConverter.EncodeWebpBytes(options.SourceImage, RmeshFile.SourceProfileImageQuality);
+			}
+			catch (Exception ex)
+			{
+				Console.Error.WriteLine($"Error: Failed to encode source image '{options.SourceImage}': {ex.Message}");
+				return 1;
+			}
+		}
+
 		return ProcessTraversedFiles(
 			options.Input,
 			options.Output,
@@ -951,6 +970,12 @@ public static class Program
 	{
 		string fileExt = Path.GetExtension(inputFile).ToLowerInvariant();
 		string targetExt = Path.GetExtension(targetFile).ToLowerInvariant();
+
+		if (!string.IsNullOrEmpty(options.ExtractSourceImage))
+		{
+			int extractExitCode = ExtractSourceProfileImage(inputFile, options.ExtractSourceImage);
+			if (extractExitCode != 0) return extractExitCode;
+		}
 
 		if (fileExt == ".rmesh" && !targetExt.Equals(".rmesh", StringComparison.OrdinalIgnoreCase))
 		{
@@ -968,6 +993,38 @@ public static class Program
 		}
 
 		return ExecuteModelToRmeshConversion(inputFile, targetFile, options);
+	}
+
+	private static int ExtractSourceProfileImage(string inputFile, string targetPath)
+	{
+		if (!string.Equals(Path.GetExtension(inputFile), ".rmesh", StringComparison.OrdinalIgnoreCase))
+		{
+			Console.Error.WriteLine($"Error: --extract_source_image requires an .rmesh input, got '{inputFile}'.");
+			return 1;
+		}
+
+		byte[]? imageBytes = RmeshFile.GetSourceProfileImageWebpFromFile(inputFile);
+		if (imageBytes == null || imageBytes.Length == 0)
+		{
+			Console.Error.WriteLine($"Error: '{inputFile}' has no embedded source reference image.");
+			return 1;
+		}
+
+		try
+		{
+			string fullTargetPath = Path.GetFullPath(targetPath);
+			string? targetDirectory = Path.GetDirectoryName(fullTargetPath);
+			if (!string.IsNullOrEmpty(targetDirectory)) Directory.CreateDirectory(targetDirectory);
+
+			File.WriteAllBytes(fullTargetPath, imageBytes);
+			Console.WriteLine($"Successfully extracted source reference image: {inputFile} -> {fullTargetPath} ({imageBytes.Length} bytes)");
+			return 0;
+		}
+		catch (Exception ex)
+		{
+			Console.Error.WriteLine($"Failed to write source reference image '{targetPath}': {ex.Message}");
+			return 1;
+		}
 	}
 
 	private static int ExtractGlbFromRmesh(string inputFile, string targetFile)
@@ -1024,7 +1081,9 @@ public static class Program
 			targetFile,
 			options.AssetType,
 			options.Force,
-			chromaKey: options.ChromaKey);
+			chromaKey: options.ChromaKey,
+			sourceProfileImageWebp: options.SourceProfileImageWebp,
+			stripSourceProfileImage: options.StripSourceImage);
 
 		if (res.Success)
 		{

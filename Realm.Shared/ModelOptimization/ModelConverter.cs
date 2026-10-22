@@ -155,7 +155,9 @@ public static class ModelConverter
 		OptimizationOptions? options = null,
 		string? author = null,
 		string? chromaKey = null,
-		string? existingMetadataJson = null)
+		string? existingMetadataJson = null,
+		byte[]? sourceProfileImageWebp = null,
+		bool stripSourceProfileImage = false)
 	{
 		string fullInput = Path.GetFullPath(inputPath);
 		var result = new ModelConversionResult { InputPath = fullInput };
@@ -179,7 +181,7 @@ public static class ModelConverter
 			result.OriginalSize = inputBytes.Length;
 
 			string fileName = Path.GetFileName(fullInput);
-			var convRes = ConvertToRmesh(inputBytes, fullInput, assetType, force, options, author, chromaKey, existingMetadataJson);
+			var convRes = ConvertToRmesh(inputBytes, fullInput, assetType, force, options, author, chromaKey, existingMetadataJson, sourceProfileImageWebp, stripSourceProfileImage);
 			if (!convRes.Success || convRes.OutputBytes == null)
 			{
 				result.Success = false;
@@ -225,9 +227,10 @@ public static class ModelConverter
 		JsonObject metaObj,
 		byte[] finalGlbBytes,
 		bool supportsTeamColor,
-		string effectiveAssetType)
+		string effectiveAssetType,
+		byte[]? sourceProfileImageWebp)
 	{
-		byte[] rmeshBytes = RmeshFile.Build(metaObj.ToJsonString(), finalGlbBytes, compressed: true);
+		byte[] rmeshBytes = RmeshFile.Build(metaObj.ToJsonString(), finalGlbBytes, compressed: true, sourceProfileImageWebp: sourceProfileImageWebp);
 		result.Success = true;
 		result.OutputBytes = rmeshBytes;
 		result.OptimizedSize = rmeshBytes.Length;
@@ -245,7 +248,8 @@ public static class ModelConverter
 		string? author,
 		string? chromaKey,
 		byte[] finalGlbBytes,
-		bool supportsTeamColor)
+		bool supportsTeamColor,
+		byte[]? sourceProfileImageWebp)
 	{
 		UpdateCreatedUtc(metaObj);
 
@@ -257,6 +261,24 @@ public static class ModelConverter
 		UpdatePreferredFileName(metaObj, inputFileName);
 		UpdateAuthor(metaObj, author);
 		UpdateChromaKey(metaObj, chromaKey, finalGlbBytes);
+		UpdateSourceProfileImage(metaObj, sourceProfileImageWebp);
+	}
+
+	private static void UpdateSourceProfileImage(JsonObject metaObj, byte[]? sourceProfileImageWebp)
+	{
+		if (sourceProfileImageWebp == null || sourceProfileImageWebp.Length == 0)
+		{
+			metaObj.Remove("source_profile_image");
+			return;
+		}
+
+		metaObj["source_profile_image"] = new JsonObject
+		{
+			["format"] = "webp",
+			["quality"] = RmeshFile.SourceProfileImageQuality,
+			["length"] = sourceProfileImageWebp.Length,
+			["embedded"] = true
+		};
 	}
 
 	private static void UpdateCreatedUtc(JsonObject metaObj)
@@ -319,7 +341,9 @@ public static class ModelConverter
 		OptimizationOptions? options = null,
 		string? author = null,
 		string? chromaKey = null,
-		string? existingMetadataJson = null)
+		string? existingMetadataJson = null,
+		byte[]? sourceProfileImageWebp = null,
+		bool stripSourceProfileImage = false)
 	{
 		var result = new ModelConversionResult
 		{
@@ -357,10 +381,11 @@ public static class ModelConverter
 
 			byte[] finalGlbBytes = optRes.OutputGlb;
 			bool supportsTeamColor = GlbPlayerColorProcessor.DetectSupportsTeamColor(finalGlbBytes);
+			byte[]? effectiveSourceProfileImage = ResolveSourceProfileImage(inputBytes, sourceProfileImageWebp, stripSourceProfileImage);
 
-			UpdateMetadataObject(metaObj, inputFileName, effectiveAssetType, author, chromaKey, finalGlbBytes, supportsTeamColor);
+			UpdateMetadataObject(metaObj, inputFileName, effectiveAssetType, author, chromaKey, finalGlbBytes, supportsTeamColor, effectiveSourceProfileImage);
 
-			return BuildFinalRmeshResult(result, metaObj, finalGlbBytes, supportsTeamColor, effectiveAssetType);
+			return BuildFinalRmeshResult(result, metaObj, finalGlbBytes, supportsTeamColor, effectiveAssetType, effectiveSourceProfileImage);
 		}
 		catch (Exception ex)
 		{
@@ -368,6 +393,19 @@ public static class ModelConverter
 			result.ErrorMessage = ex.Message;
 			return result;
 		}
+	}
+
+	private static byte[]? ResolveSourceProfileImage(ReadOnlySpan<byte> inputBytes, byte[]? providedSourceImageWebp, bool stripSourceProfileImage)
+	{
+		if (stripSourceProfileImage) return null;
+		if (providedSourceImageWebp is { Length: > 0 }) return providedSourceImageWebp;
+
+		if (RmeshFile.IsRmeshBytes(inputBytes) && RmeshFile.TryGetSourceProfileImageWebp(inputBytes, out byte[] existingImageWebp))
+		{
+			return existingImageWebp;
+		}
+
+		return null;
 	}
 
 	public static byte[]? ExtractGlbFromRmesh(ReadOnlySpan<byte> rmeshBytes)

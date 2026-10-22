@@ -25,4 +25,15 @@ public class MeshConvertOptions
 
 	[Option("chroma_key", Required = false, HelpText = "Chroma key color in hex (e.g. #FF00FF) or 'auto' to automatically detect the dominant vibrant chroma key.")]
 	public string? ChromaKey { get; set; }
+
+	[Option("source_image", Required = false, HelpText = "Path to the source reference image to embed in the produced .rmesh as lossy WebP at quality 80. Embedding is disabled by default.")]
+	public string? SourceImage { get; set; }
+
+	[Option("strip_source_image", Required = false, Default = false, HelpText = "Drop an existing embedded source reference image instead of carrying it forward when re-converting an .rmesh.")]
+	public bool StripSourceImage { get; set; }
+
+	[Option("extract_source_image", Required = false, HelpText = "Path to write the embedded source reference image (WebP) of an .rmesh input.")]
+	public string? ExtractSourceImage { get; set; }
+
+	public byte[]? SourceProfileImageWebp { get; set; }
 }
