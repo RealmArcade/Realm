@@ -22,8 +22,17 @@ public partial class Decal3D : Decal
 	private float _baseEmissionEnergy = 0.0f;
 	private float _shroudLightFactor = 1f;
 	private double _animTime = 0.0;
+	private bool _groundProjected;
+	private float _groundOffset = 0.05f;
+	private float _groundProjectedYawDegrees;
+	private bool _hasAuthoredRotation;
+	private Vector3 _authoredRotationDegrees;
 
 	public DecalAnimationConfig Animation { get; set; } = new();
+
+	public bool GroundProjected => _groundProjected;
+
+	public float GroundOffset => _groundOffset;
 
 	public bool NormalEnabled
 	{
@@ -134,9 +143,73 @@ public partial class Decal3D : Decal
 		UpdateProcessState();
 	}
 
+	public void SetProjectionBox(float footprintSize, float projectionHeight)
+	{
+		if (footprintSize <= 0.001f) return;
+
+		float height = projectionHeight > 0.001f ? projectionHeight : footprintSize;
+		SetBaseProperties(_baseModulate, _baseEmissionEnergy, new Vector3(footprintSize, footprintSize, height));
+		Size = _baseSize;
+	}
+
+	public void SetNormalFade(float normalFade)
+	{
+		NormalFade = Mathf.Clamp(normalFade, 0.0f, 1.0f);
+	}
+
+	public void SetDistanceFade(bool enabled, float begin, float end)
+	{
+		float clampedBegin = Mathf.Max(0.0f, begin);
+		DistanceFadeEnabled = enabled;
+		DistanceFadeBegin = clampedBegin;
+		DistanceFadeLength = Mathf.Max(0.1f, end - clampedBegin);
+	}
+
+	public void SetGroundProjection(bool enabled, float groundOffset)
+	{
+		_groundOffset = Mathf.Max(0.0f, groundOffset);
+
+		if (enabled == _groundProjected)
+		{
+			UpdateProcessState();
+			return;
+		}
+
+		_groundProjected = enabled;
+		if (enabled)
+		{
+			_authoredRotationDegrees = RotationDegrees;
+			_groundProjectedYawDegrees = RotationDegrees.Y;
+			_hasAuthoredRotation = true;
+			UpdateGroundProjectedTransform();
+		}
+		else if (_hasAuthoredRotation)
+		{
+			RotationDegrees = _authoredRotationDegrees;
+			_hasAuthoredRotation = false;
+		}
+
+		UpdateProcessState();
+	}
+
+	private void UpdateGroundProjectedTransform()
+	{
+		if (!_groundProjected || !IsInsideTree()) return;
+
+		var editorService = GameContext.EditorService;
+		if (editorService == null) return;
+
+		Vector3 globalPosition = GlobalPosition;
+		float groundHeight = editorService.GetTerrainHeightAt(globalPosition) + _groundOffset;
+		float yawDegrees = GetParent() is Node3D parent ? parent.GlobalRotationDegrees.Y : _groundProjectedYawDegrees;
+
+		Basis flatBasis = new Basis(Vector3.Up, Mathf.DegToRad(yawDegrees)) * new Basis(Vector3.Right, Mathf.DegToRad(-90.0f));
+		GlobalTransform = new Transform3D(flatBasis, new Vector3(globalPosition.X, groundHeight, globalPosition.Z));
+	}
+
 	public void UpdateProcessState()
 	{
-		bool shouldProcess = Animation.AnimateOpacity || Animation.AnimateEmission || Animation.AnimateScale;
+		bool shouldProcess = Animation.AnimateOpacity || Animation.AnimateEmission || Animation.AnimateScale || _groundProjected;
 		SetProcess(shouldProcess);
 		if (!shouldProcess)
 		{
@@ -151,9 +224,14 @@ public partial class Decal3D : Decal
 
 	public override void _Process(double delta)
 	{
+		if (_groundProjected)
+		{
+			UpdateGroundProjectedTransform();
+		}
+
 		if (!Animation.AnimateOpacity && !Animation.AnimateEmission && !Animation.AnimateScale)
 		{
-			SetProcess(false);
+			SetProcess(_groundProjected);
 			return;
 		}
 

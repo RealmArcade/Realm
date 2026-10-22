@@ -209,7 +209,15 @@ namespace Realm.Client.Core
 			float minScaleRatio = 0.8f,
 			float maxScaleRatio = 1.2f,
 			float upperFade = 0.3f,
-			float lowerFade = 0.3f)
+			float lowerFade = 0.3f,
+			VfxPlacementMode placementMode = VfxPlacementMode.Free,
+			float projectionSize = 0.0f,
+			float projectionHeight = 0.0f,
+			float groundOffset = 0.05f,
+			float normalFade = 0.0f,
+			bool distanceFadeEnabled = false,
+			float distanceFadeBegin = 10.0f,
+			float distanceFadeEnd = 30.0f)
 		{
 			if (string.IsNullOrEmpty(decalKey) || AllDecals == null) return;
 			string baseKey = Path.GetFileNameWithoutExtension(decalKey);
@@ -251,6 +259,17 @@ namespace Realm.Client.Core
 							decal.UpperFade = upperFade;
 							decal.LowerFade = lowerFade;
 						}
+
+						ApplyDecalPlacement(
+							decal,
+							placementMode,
+							projectionSize,
+							projectionHeight,
+							groundOffset,
+							normalFade,
+							distanceFadeEnabled,
+							distanceFadeBegin,
+							distanceFadeEnd);
 					}
 				}
 			}

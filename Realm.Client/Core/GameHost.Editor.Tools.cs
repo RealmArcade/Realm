@@ -894,6 +894,40 @@ namespace Realm.Client.Core
 			DecalMetadata meta = LoadAndGetDecalMetadata(decalId);
 			ApplyDecalRendering(decal, decalId, meta, hasNormal);
 			ApplyDecalAnimation(decal, meta);
+			ApplyDecalPlacement(decal, meta);
+		}
+
+		private void ApplyDecalPlacement(Decal decal, DecalMetadata meta)
+		{
+			ApplyDecalPlacement(
+				decal,
+				meta?.PlacementMode ?? VfxPlacementMode.Free,
+				meta?.ProjectionSize ?? 0.0f,
+				meta?.ProjectionHeight ?? 0.0f,
+				meta?.GroundOffset ?? 0.05f,
+				meta?.NormalFade ?? 0.0f,
+				meta?.DistanceFadeEnabled ?? false,
+				meta?.DistanceFadeBegin ?? 10.0f,
+				meta?.DistanceFadeEnd ?? 30.0f);
+		}
+
+		private void ApplyDecalPlacement(Decal decal, VfxPlacementMode placementMode, float projectionSize, float projectionHeight, float groundOffset, float normalFade, bool distanceFadeEnabled, float distanceFadeBegin, float distanceFadeEnd)
+		{
+			if (decal == null || !GodotObject.IsInstanceValid(decal)) return;
+
+			if (decal is Decal3D decal3D)
+			{
+				decal3D.SetNormalFade(normalFade);
+				decal3D.SetDistanceFade(distanceFadeEnabled, distanceFadeBegin, distanceFadeEnd);
+				decal3D.SetProjectionBox(projectionSize, projectionHeight);
+				decal3D.SetGroundProjection(placementMode == VfxPlacementMode.GroundProjected, groundOffset);
+				return;
+			}
+
+			decal.NormalFade = Mathf.Clamp(normalFade, 0.0f, 1.0f);
+			decal.DistanceFadeEnabled = distanceFadeEnabled;
+			decal.DistanceFadeBegin = Mathf.Max(0.0f, distanceFadeBegin);
+			decal.DistanceFadeLength = Mathf.Max(0.1f, distanceFadeEnd - decal.DistanceFadeBegin);
 		}
 
 		private void ApplyDecalTextures(Decal decal, string decalId, out bool hasNormal)

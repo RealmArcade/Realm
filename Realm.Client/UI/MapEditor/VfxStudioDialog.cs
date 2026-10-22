@@ -36,6 +36,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private VBoxContainer _uberShaderContainer;
 	private VBoxContainer _particleContainer;
 	private static readonly VfxPrimitiveType[] _primitiveTypes = Enum.GetValues<VfxPrimitiveType>().Where(p => p != VfxPrimitiveType.ParticleSystem).ToArray();
+	private static readonly VfxPlacementMode[] _particlePlacementModes = { VfxPlacementMode.SurfaceSnap, VfxPlacementMode.Free };
 
 	private OptionButton _optParticleShape;
 	private OptionButton _optParticleRenderMode;
@@ -306,11 +307,16 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			RestartPreviewVfx();
 		}, 140f);
 
-		string[] placementModes = Enum.GetNames<VfxPlacementMode>();
-		_optPlacementMode = AddOptionDropdown(parent, TranslationServer.Translate("Placement Mode"), placementModes, (int)_currentConfig.PlacementMode, (idx) =>
+		string[] placementModes = new string[_particlePlacementModes.Length];
+		for (int placementIndex = 0; placementIndex < _particlePlacementModes.Length; placementIndex++)
+		{
+			placementModes[placementIndex] = _particlePlacementModes[placementIndex].ToString();
+		}
+
+		_optPlacementMode = AddOptionDropdown(parent, TranslationServer.Translate("Placement Mode"), placementModes, GetParticlePlacementModeIndex(_currentConfig.PlacementMode), (idx) =>
 		{
 			if (_isUpdatingUI) return;
-			_currentConfig.PlacementMode = (VfxPlacementMode)idx;
+			_currentConfig.PlacementMode = _particlePlacementModes[Math.Clamp(idx, 0, _particlePlacementModes.Length - 1)];
 		}, 140f);
 
 		_chkTintWithPlayerColor = AddCheckBox(
@@ -1210,7 +1216,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 
 		if (_optBlendMode != null) _optBlendMode.Selected = (int)_currentConfig.BlendMode;
-		if (_optPlacementMode != null) _optPlacementMode.Selected = (int)_currentConfig.PlacementMode;
+		if (_optPlacementMode != null) _optPlacementMode.Selected = GetParticlePlacementModeIndex(_currentConfig.PlacementMode);
 		if (_chkTintWithPlayerColor != null) _chkTintWithPlayerColor.ButtonPressed = _currentConfig.TintWithPlayerColor;
 	}
 
@@ -1490,6 +1496,16 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 	}
 
+	private static int GetParticlePlacementModeIndex(VfxPlacementMode placementMode)
+	{
+		for (int placementIndex = 0; placementIndex < _particlePlacementModes.Length; placementIndex++)
+		{
+			if (_particlePlacementModes[placementIndex] == placementMode) return placementIndex;
+		}
+
+		return _particlePlacementModes.Length - 1;
+	}
+
 	private void SyncBasicSettings()
 	{
 		SyncVfxId();
@@ -1497,7 +1513,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		SyncPrimitiveMode();
 
 		if (_optBlendMode != null) _currentConfig.BlendMode = (VfxBlendMode)_optBlendMode.Selected;
-		if (_optPlacementMode != null) _currentConfig.PlacementMode = (VfxPlacementMode)_optPlacementMode.Selected;
+		if (_optPlacementMode != null) _currentConfig.PlacementMode = _particlePlacementModes[Math.Clamp(_optPlacementMode.Selected, 0, _particlePlacementModes.Length - 1)];
 		if (_chkTintWithPlayerColor != null) _currentConfig.TintWithPlayerColor = _chkTintWithPlayerColor.ButtonPressed;
 	}
 
