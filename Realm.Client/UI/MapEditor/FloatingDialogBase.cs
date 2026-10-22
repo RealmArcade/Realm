@@ -1026,8 +1026,7 @@ public partial class FloatingDialogBase : PanelContainer
 			CommittedValue = initialText ?? string.Empty,
 			ItemsProvider = itemsProvider,
 			OnChanged = onChanged,
-			Txt = new LineEdit(),
-			Popup = new PopupMenu()
+			Txt = new LineEdit()
 		};
 
 		state.Txt.Text = state.CommittedValue;
@@ -1049,13 +1048,16 @@ public partial class FloatingDialogBase : PanelContainer
 		AddAssetFilterAllFoldersCheckbox(row, state, hasAllFoldersCheckbox);
 		AddAssetFilterPlaySoundButton(row, state, onPlaySound);
 
-		state.Popup.AddThemeFontSizeOverride("font_size", 11);
-		state.Popup.Unfocusable = true;
-		AddChild(state.Popup);
+		Node dropdownOwner = Hud != null ? Hud : parent.GetViewport();
+		if (dropdownOwner != null)
+		{
+			state.InitializeDropdown(dropdownOwner, state.CommittedValue);
+		}
+
+		VisibilityChanged += () => { if (!Visible) state.HideDropdown(); };
+		TreeExiting += state.FreeDropdown;
 
 		btnDropdown.Pressed += () => HandleAssetDropdownPressed(state);
-		state.Popup.PopupHide += () => state.IsShowingAll = false;
-		state.Popup.IdPressed += (long id) => HandleAssetPopupIdPressed(state, id);
 
 		state.Txt.FocusEntered += () => Callable.From(state.Txt.SelectAll).CallDeferred();
 		state.Txt.TextChanged += (val) =>
@@ -1105,10 +1107,9 @@ public partial class FloatingDialogBase : PanelContainer
 
 	private void HandleAssetDropdownPressed(AssetFilterDropdownState state)
 	{
-		if (state.Popup.Visible && state.IsShowingAll)
+		if (state.IsDropdownVisible && state.IsShowingAll)
 		{
-			state.Popup.Hide();
-			state.IsShowingAll = false;
+			state.HideDropdown();
 		}
 		else
 		{
@@ -1116,28 +1117,15 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	private void HandleAssetPopupIdPressed(AssetFilterDropdownState state, long id)
-	{
-		int idx = (int)id;
-		if (idx < 0 || idx >= state.CurrentFilteredItems.Count) return;
-
-		string selected = state.CurrentFilteredItems[idx];
-		state.IsPopupSelectionInProgress = true;
-		state.CommitSelection(selected);
-		state.Popup.Hide();
-		Callable.From(() => state.IsPopupSelectionInProgress = false).CallDeferred();
-	}
-
 	private void HandleAssetTxtFocusExited(AssetFilterDropdownState state)
 	{
-		if (state.IsPopupOpening) return;
-
 		Callable.From(() =>
 		{
+			if (state.IsPopupOpening) return;
 			if (state.IsPopupSelectionInProgress) return;
 			if (string.Equals(state.Txt.Text, state.CommittedValue, StringComparison.Ordinal))
 			{
-				state.Popup.Hide();
+				state.HideDropdown();
 				return;
 			}
 
@@ -1158,6 +1146,8 @@ public partial class FloatingDialogBase : PanelContainer
 		{
 			state.IsUpdatingTextProgrammatically = false;
 		}
+
+		state.SyncProgrammaticText(safeVal);
 	}
 
 	public static string FindClosestMatch(string query, List<string> allItems, string fallbackValue = "")
