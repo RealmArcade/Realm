@@ -321,6 +321,110 @@ namespace Realm.Client.UI
 		}
 
 
+		private readonly HashSet<string> _pendingBaseMapFolderChanges = new(StringComparer.OrdinalIgnoreCase);
+		private bool _baseMapFolderWarningVisible;
+
+		private void StartBaseMapFolderMonitor(string baseFolder)
+		{
+			var watchService = GameContext.BaseMapFolderWatchService;
+			if (watchService == null || string.IsNullOrWhiteSpace(baseFolder))
+			{
+				return;
+			}
+
+			string workspace = GameContext.EditorService._tempWorkspacePath;
+			try
+			{
+				if (!string.IsNullOrWhiteSpace(workspace) && string.Equals(Path.GetFullPath(baseFolder), Path.GetFullPath(workspace), StringComparison.OrdinalIgnoreCase))
+				{
+					watchService.Stop();
+					return;
+				}
+			}
+			catch
+			{
+			}
+
+			watchService.Start(baseFolder, workspace);
+		}
+
+		private void OnBaseMapFolderFilesChanged(IReadOnlyList<string> relativePaths)
+		{
+			if (relativePaths == null || relativePaths.Count == 0) return;
+
+			foreach (string relativePath in relativePaths)
+			{
+				_pendingBaseMapFolderChanges.Add(relativePath);
+			}
+
+			TryShowPendingBaseMapFolderWarning();
+		}
+
+		private void TryShowPendingBaseMapFolderWarning()
+		{
+			if (_pendingBaseMapFolderChanges.Count == 0 || _baseMapFolderWarningVisible) return;
+			if (FloatingDialogBase.HasAnyDialogOpen) return;
+
+			var changedFiles = Enumerable.OrderBy(_pendingBaseMapFolderChanges, relativePath => relativePath, StringComparer.OrdinalIgnoreCase).ToList();
+			_pendingBaseMapFolderChanges.Clear();
+			ShowBaseMapFolderChangeWarning(changedFiles);
+		}
+
+		private void ShowBaseMapFolderChangeWarning(IReadOnlyList<string> relativePaths)
+		{
+			const int maxListedFiles = 6;
+
+			string fileListing = string.Join("\n", Enumerable.Take(relativePaths, maxListedFiles).Select(relativePath => "• " + relativePath));
+			if (relativePaths.Count > maxListedFiles)
+			{
+				fileListing += "\n" + string.Format(TranslationServer.Translate("...and {0} more file(s)."), relativePaths.Count - maxListedFiles);
+			}
+
+			string message = TranslationServer.Translate("The map folder changed outside the editor. The editor is working on a copy in its temporary workspace, so these changes are not applied yet:")
+			                 + "\n\n" + fileListing + "\n\n"
+			                 + TranslationServer.Translate("Reload them into the editor? Choosing IGNORE keeps the editor copy, and the next save will overwrite the map folder copy.");
+
+			_baseMapFolderWarningVisible = true;
+			ShowConfirmationDialog(
+				message,
+				onConfirm: () =>
+				{
+					_baseMapFolderWarningVisible = false;
+					ReloadBaseMapFolderChanges(relativePaths);
+				},
+				confirmText: TranslationServer.Translate("RELOAD"),
+				cancelText: TranslationServer.Translate("IGNORE"),
+				onCancel: () =>
+				{
+					_baseMapFolderWarningVisible = false;
+					ShowFeedback(TranslationServer.Translate("Ignored the external map folder changes. The editor copy still differs from the map folder and the next save will overwrite it."));
+				},
+				onDismissed: () => { _baseMapFolderWarningVisible = false; });
+		}
+
+		private void ReloadBaseMapFolderChanges(IReadOnlyList<string> relativePaths)
+		{
+			var watchService = GameContext.BaseMapFolderWatchService;
+			int reloadedCount = watchService?.ReloadChangedFiles(relativePaths) ?? 0;
+			watchService?.MarkInternalWrite();
+
+			bool terrainChanged = relativePaths.Any(relativePath => string.Equals(relativePath, "terrain.json", StringComparison.OrdinalIgnoreCase));
+			bool metadataChanged = relativePaths.Any(relativePath => string.Equals(relativePath, "metadata.json", StringComparison.OrdinalIgnoreCase) || string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase));
+
+			if (terrainChanged && GameHost.Instance != null)
+			{
+				string terrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
+				GameHost.Instance.LoadMapFromFile(terrainPath, ensureGlbOptimized: false);
+			}
+
+			if (metadataChanged)
+			{
+				ReadMetadataAndRefreshTextures();
+			}
+
+			ShowFeedback(string.Format(TranslationServer.Translate("Reloaded {0} file(s) from the map folder into the editor copy."), reloadedCount));
+		}
+
 		public static bool IsIgnoredPath(string relativePath)
 		{
 			return MapWorkspaceService.IsIgnoredPathDomain(relativePath);
@@ -462,6 +566,7 @@ namespace Realm.Client.UI
 
 			try
 			{
+				GameContext.BaseMapFolderWatchService?.MarkInternalWrite();
 				await Task.Run(() => CopyTempWorkspaceToFolder(targetFolder));
 
 				MapWorkspaceService.EnsureLicenseFile(targetFolder);
@@ -471,6 +576,7 @@ namespace Realm.Client.UI
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(tempTerrainPath);
 				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(GameContext.EditorService._tempWorkspacePath, "metadata.json"));
 				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
+				GameContext.BaseMapFolderWatchService?.MarkInternalWrite();
 
 				ShowFeedback(string.Format(TranslationServer.Translate("Map saved successfully to folder {0}!"), Path.GetFileName(targetFolder)));
 			}
@@ -615,6 +721,7 @@ namespace Realm.Client.UI
 			defaultSaveFolder = fullSelectedPath;
 			mapSaveFolder = fullSelectedPath;
 
+			StartBaseMapFolderMonitor(fullSelectedPath);
 			_ = SaveMapToFolderAsync(fullSelectedPath);
 		}
 
@@ -741,6 +848,7 @@ namespace Realm.Client.UI
 			GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
 			GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(Path.Combine(GameContext.EditorService._tempWorkspacePath, "metadata.json"));
 			GameContext.EditorService?.StartWorkspaceWatcher(GameContext.EditorService._tempWorkspacePath);
+			StartBaseMapFolderMonitor(selectedFolder);
 			ShowFeedback(string.Format(TranslationServer.Translate("Map loaded successfully from folder {0}!"), Path.GetFileName(selectedFolder)));
 			SaveCurrentDirectoryBlake3();
 		}
@@ -855,6 +963,7 @@ namespace Realm.Client.UI
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
 				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
 				GameContext.EditorService?.StartWorkspaceWatcher(GameContext.EditorService._tempWorkspacePath);
+				StartBaseMapFolderMonitor(selectedFolder);
 				ShowFeedback(string.Format(TranslationServer.Translate("Map loaded successfully from folder {0}!"), Path.GetFileName(selectedFolder)));
 				SaveCurrentDirectoryBlake3();
 			}
@@ -868,6 +977,7 @@ namespace Realm.Client.UI
 
 		public static void ResetFolderLocations()
 		{
+			GameContext.BaseMapFolderWatchService?.Stop();
 			mapSaveFolder = null;
 			defaultSaveFolder = GetDocumentsDirectory();
 			GameContext.EditorService.LastUsedFolder = null;

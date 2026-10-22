@@ -42,6 +42,12 @@ namespace Realm.Client.UI
 		{
 			Instance = this;
 			GameContext.MetadataService.MetadataSaved += OnMetadataSaved;
+			if (GameContext.BaseMapFolderWatchService != null)
+			{
+				GameContext.BaseMapFolderWatchService.BaseFolderFilesChanged -= OnBaseMapFolderFilesChanged;
+				GameContext.BaseMapFolderWatchService.BaseFolderFilesChanged += OnBaseMapFolderFilesChanged;
+			}
+
 			UpdateFPSVisibility();
 
 			_camera3D = (GameHost.Instance?.MainCamera);

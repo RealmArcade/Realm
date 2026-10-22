@@ -63,6 +63,7 @@ namespace Realm.Client.Services
 		public static ClientRpcService ClientRPC { get; private set; }
 		public static PerspectiveFilter PerspectiveFilter { get; private set; }
 		public static RaycastService RaycastService { get; private set; }
+		public static BaseMapFolderWatchService BaseMapFolderWatchService { get; private set; }
 
 		public static IEditorAPI IEditorAPI { get; private set; }
 
@@ -115,6 +116,7 @@ namespace Realm.Client.Services
 			ClientRPC = new();
 			PerspectiveFilter = new();
 			RaycastService = new();
+			BaseMapFolderWatchService = new();
 
 			IEditorAPI = EditorService;
 		}
@@ -168,6 +170,8 @@ namespace Realm.Client.Services
 			ClientRPC = null;
 			PerspectiveFilter = null;
 			RaycastService = null;
+			BaseMapFolderWatchService?.Dispose();
+			BaseMapFolderWatchService = null;
 			IEditorAPI = null;
 
 			ECSContext.DisposeAndRecreateServices();

@@ -30,6 +30,8 @@ namespace Realm.Client.UI
 		public override void _ExitTree()
 		{
 			GameContext.MetadataService.MetadataSaved -= OnMetadataSaved;
+			GameContext.BaseMapFolderWatchService?.BaseFolderFilesChanged -= OnBaseMapFolderFilesChanged;
+			GameContext.BaseMapFolderWatchService?.Stop();
 			GameContext.EditorService?.StopWorkspaceWatcher();
 			CloseWasmConsoleModal();
 			if (Instance == this)
@@ -93,6 +95,7 @@ namespace Realm.Client.UI
 			}
 
 			UpdateAutoBackup(delta);
+			TryShowPendingBaseMapFolderWarning();
 		}
 
 		private float _lastStatusX = float.NaN;
