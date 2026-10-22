@@ -70,7 +70,7 @@ public class MapEditorEntityPaletteController
 			return false;
 		}
 
-		if (GameContext.RegistryService.VfxRegistry.TryGetValue(key, out var meta))
+		if (GameContext.RegistryService.TryGetVfxConfig(key, out var meta))
 		{
 			if (!string.IsNullOrEmpty(meta.Name))
 			{

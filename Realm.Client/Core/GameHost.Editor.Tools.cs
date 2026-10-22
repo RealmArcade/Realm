@@ -1599,7 +1599,7 @@ namespace Realm.Client.Core
 		private void CreateOrUpdatePreviewVfx(string reqId)
 		{
 			VfxAttachmentConfig config;
-			if (GameContext.RegistryService.VfxRegistry.TryGetValue(reqId, out var regCfg))
+			if (GameContext.RegistryService.TryGetVfxConfig(reqId, out var regCfg))
 			{
 				config = regCfg.Clone();
 			}

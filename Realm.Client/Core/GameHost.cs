@@ -1716,11 +1716,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (!string.IsNullOrEmpty(cfg.VfxId))
 			{
-				GameContext.RegistryService.VfxRegistry[cfg.VfxId] = cfg;
-				if (cfg.VfxId.StartsWith("vfx/", StringComparison.OrdinalIgnoreCase))
-				{
-					GameContext.RegistryService.VfxRegistry[cfg.VfxId.Substring(4)] = cfg;
-				}
+				GameContext.RegistryService.RegisterVfxConfig(cfg.VfxId, cfg);
 			}
 		}
 	}

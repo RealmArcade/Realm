@@ -1285,8 +1285,7 @@ public partial class GameHost
 		string cleanId = vfxId ?? string.Empty;
 		if (cleanId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)) cleanId = cleanId.Substring(4);
 
-		if (!string.IsNullOrEmpty(vfxId) && GameContext.RegistryService.VfxRegistry.TryGetValue(vfxId, out var regCfg)) return regCfg.Clone();
-		if (!string.IsNullOrEmpty(cleanId) && GameContext.RegistryService.VfxRegistry.TryGetValue(cleanId, out var regCfg2)) return regCfg2.Clone();
+		if (GameContext.RegistryService.TryGetVfxConfig(vfxId, out var regCfg)) return regCfg.Clone();
 
 		var cfgFromCleanId = TryCreateVfxConfigFromPrimitive(cleanId);
 		if (cfgFromCleanId != null) return cfgFromCleanId;

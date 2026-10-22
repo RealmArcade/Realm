@@ -1175,7 +1175,7 @@ public partial class GameHost
 					float safeScale = scaleVal <= 0.001f ? 1.0f : scaleVal;
 
 					VfxAttachmentConfig config;
-					if (GameContext.RegistryService.VfxRegistry.TryGetValue(ActivePlaceId, out var regCfg))
+					if (GameContext.RegistryService.TryGetVfxConfig(ActivePlaceId, out var regCfg))
 					{
 						config = regCfg.Clone();
 					}

@@ -4641,7 +4641,13 @@ namespace Realm.Client.UI
 			{
 				if (GameHost.Instance != null && GodotObject.IsInstanceValid(GameHost.Instance.SelectedEditorObject) && GameHost.Instance.SelectedEditorObject is ProceduralVfxInstance3D vfx)
 				{
-					OpenVfxStudioDialog(vfx.Config, (newCfg) => { vfx.UpdateConfig(newCfg); });
+					VfxAttachmentConfig editConfig = vfx.Config;
+					if (GameContext.RegistryService.TryGetVfxConfig(editConfig?.VfxId, out var templateConfig))
+					{
+						editConfig = templateConfig.Clone();
+					}
+
+					OpenVfxStudioDialog(editConfig, (newCfg) => { vfx.UpdateConfig(newCfg); });
 				}
 			};
 			inspectorVBox.AddChild(BtnEditVfx);
