@@ -1432,7 +1432,12 @@ public partial class EditorService : IEditorAPI
 
 	public float GetTerrainHeightAt(Godot.Vector3 worldPos)
 	{
-		ref var terrain = ref GetTerrainState();
+		if (!TryGetTerrainState(out Entity terrainEntity))
+		{
+			return 0.0f;
+		}
+
+		ref var terrain = ref GameContext.World.Get<TerrainState>(terrainEntity);
 		var cells = terrain.Cells;
 		if (cells == null) return 0.0f;
 
@@ -4182,17 +4187,26 @@ public partial class EditorService : IEditorAPI
 		return (vx, vz);
 	}
 
+	private bool TryGetTerrainState(out Entity terrainEntity)
+	{
+		terrainEntity = Entity.Null;
+		if (GameContext.World == null) return false;
+
+		var worldQuery = QueryCache.AllTerrainStateQuery;
+		Entity foundEntity = Entity.Null;
+		GameContext.World.Query(in worldQuery, (Entity entity) => foundEntity = entity);
+		terrainEntity = foundEntity;
+		return terrainEntity != Entity.Null && GameContext.World.IsAlive(terrainEntity);
+	}
+
 	private ref TerrainState GetTerrainState()
 	{
-		var worldQuery = QueryCache.AllTerrainStateQuery;
-		Entity worldEntity = Entity.Null;
-		GameContext.World.Query(in worldQuery, (Entity entity) => worldEntity = entity);
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity))
+		if (!TryGetTerrainState(out Entity terrainEntity))
 		{
-			return ref GameContext.World.Get<TerrainState>(worldEntity);
+			throw new InvalidOperationException("TerrainState entity not found in ECS world.");
 		}
 
-		throw new InvalidOperationException("TerrainState entity not found in ECS world.");
+		return ref GameContext.World.Get<TerrainState>(terrainEntity);
 	}
 
 	private float GetMinHeightInBrushBoundsInternal(Godot.Vector3 worldPos, float brushRadius = -1f, bool brushIsSquare = false)

@@ -53,6 +53,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private string _currentCategory = "units";
 	private string _searchFilter = "";
 	private string _currentPreviewTemplateID = "";
+	private string _pendingNewVfxTemplateId = "";
+	private bool _pendingNewVfxWasApplied;
 
 	private HBoxContainer _previewMeshRow;
 	private OptionButton _optPreviewMesh;
@@ -82,6 +84,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_weaponVfxDialog.DialogClosed += ReloadCurrentPreview;
 		_abilityVfxDialog.DialogClosed += ReloadCurrentPreview;
 		_vfxStudioDialog.DialogClosed += ReloadCurrentPreview;
+		_vfxStudioDialog.DialogClosed += HandleVfxStudioDialogClosed;
 		_decalEditDialog.DialogClosed += ReloadCurrentPreview;
 		_shaderEditDialog.DialogClosed += ReloadCurrentPreview;
 		_spritesheetEditDialog.DialogClosed += ReloadCurrentPreview;
@@ -1407,11 +1410,35 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 						m.AddOrUpdateVfx(updatedCfg);
 					});
+					if (!string.IsNullOrEmpty(_pendingNewVfxTemplateId) &&
+					    (string.Equals(item.TemplateID, _pendingNewVfxTemplateId, StringComparison.OrdinalIgnoreCase) ||
+					     string.Equals(updatedCfg.VfxId, _pendingNewVfxTemplateId, StringComparison.OrdinalIgnoreCase)))
+					{
+						_pendingNewVfxWasApplied = true;
+					}
+
 					_currentPreviewTemplateID = updatedCfg.VfxId;
 					RefreshObjectList();
 				});
 			}
 		}
+	}
+
+	private void HandleVfxStudioDialogClosed()
+	{
+		if (string.IsNullOrEmpty(_pendingNewVfxTemplateId)) return;
+
+		string pendingTemplateId = _pendingNewVfxTemplateId;
+		bool wasApplied = _pendingNewVfxWasApplied;
+		_pendingNewVfxTemplateId = "";
+		_pendingNewVfxWasApplied = false;
+
+		if (wasApplied) return;
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		GameContext.RegistryService.UnregisterVfxConfig(pendingTemplateId);
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta => meta.RemoveVfx(pendingTemplateId));
+		RefreshObjectList();
 	}
 
 	private void OpenDefaultEditDialog(ObjectItemInfo item)
@@ -1661,6 +1688,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		string newTemplateID = TemplateIDHelper.GenerateTemplateID(objectType, $"new_{objectType}", existingIDs);
 		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(newTemplateID);
 
+		if (category == "vfx")
+		{
+			_pendingNewVfxTemplateId = newTemplateID;
+			_pendingNewVfxWasApplied = false;
+		}
+
 		GameContext.MetadataService.UpdateMetadata(wsPath, m => { AddMetadataForCategory(m, category, newTemplateID, parsedSlug); });
 
 		HandlePostAddObject(category, newTemplateID, parsedSlug);
@@ -1888,6 +1921,11 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		Hud?.ShowConfirmationDialog(message, () =>
 		{
+			if (item.Category == "vfx")
+			{
+				GameContext.RegistryService.UnregisterVfxConfig(item.TemplateID);
+			}
+
 			GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 			{
 				var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);

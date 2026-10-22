@@ -302,7 +302,15 @@ public class MapEditorEntityPaletteController
 
 	private void RestorePreviousSelection(string previousSelectedId)
 	{
-		if (_optCategoryItems.ItemCount == 0) return;
+		if (_optCategoryItems.ItemCount == 0)
+		{
+			if (GameHost.Instance != null)
+			{
+				GameHost.Instance.ActivePlaceId = "";
+			}
+
+			return;
+		}
 
 		int targetIndex = 0;
 		if (!string.IsNullOrEmpty(previousSelectedId))
