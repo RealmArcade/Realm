@@ -454,7 +454,7 @@ public partial class Unit3D : Node3D
 
 		if (_playerColorRing != null && GodotObject.IsInstanceValid(_playerColorRing))
 		{
-			_playerColorRing.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorRingMaterial(color);
+			_playerColorRing.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorGlowMaterial(color);
 		}
 	}
 
@@ -608,10 +608,10 @@ public partial class Unit3D : Node3D
 		Realm.Client.Utils.VisualSelectionHelper.CalculateSelectionRingParams(Scale, ModelPath, baseRadius, out float sx, out float ratio, out float worldRadius);
 
 		float sy = Mathf.Abs(Scale.Y) > 0.001f ? Mathf.Abs(Scale.Y) : 1.0f;
-		_playerColorRing.Mesh = Realm.Client.Utils.VisualSelectionHelper.GetOrCreatePlayerColorRingMesh(worldRadius * 1.08f);
+		_playerColorRing.Mesh = Realm.Client.Utils.VisualSelectionHelper.GetOrCreatePlayerColorGlowMesh(worldRadius);
 		_playerColorRing.Scale = new Vector3(1.0f / sx, 1.0f / sy, 1.0f / sx);
 		_playerColorRing.Position = new Vector3(0f, 0.04f / sy, 0f);
-		_playerColorRing.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorRingMaterial(PlayerColor);
+		_playerColorRing.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorGlowMaterial(PlayerColor);
 		_playerColorRing.Visible = !IsSelected && !IsHovered;
 	}
 
@@ -621,7 +621,7 @@ public partial class Unit3D : Node3D
 
 		_playerColorRing = new MeshInstance3D
 		{
-			Name = "PlayerColorRing_MeshInstance3D",
+			Name = "PlayerColorGlow_MeshInstance3D",
 			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
 			Visible = false
