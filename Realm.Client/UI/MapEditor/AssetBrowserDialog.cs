@@ -59,6 +59,13 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	private IndexedAsset? _selectedAsset;
 	private Action<string>? _onAssetSelectedCallback;
 	private Action<string, string?>? _onAssetSelectedWithPreferredNameCallback;
+	private Action<IReadOnlyList<AssetBrowserSelection>>? _onAssetsSelectedCallback;
+
+	private readonly HashSet<string> _selectedAssetPaths = new(StringComparer.OrdinalIgnoreCase);
+	private bool _multiSelectEnabled;
+	private Button _btnSelectAll;
+	private Button _btnClearSelection;
+	private Label _lblSelectionCount;
 
 	public AssetBrowserDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Asset Browser"), new Vector2(780, 640))
@@ -256,6 +263,37 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		_lblFilterExtensions.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		infoBar.AddChild(_lblFilterExtensions);
 
+		_lblSelectionCount = new Label();
+		_lblSelectionCount.Name = "LblSelectionCount_Label";
+		_lblSelectionCount.AddThemeFontSizeOverride("font_size", 10);
+		_lblSelectionCount.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		_lblSelectionCount.Visible = false;
+		infoBar.AddChild(_lblSelectionCount);
+
+		_btnSelectAll = new Button();
+		_btnSelectAll.Name = "BtnSelectAll_Button";
+		_btnSelectAll.Set("icon_max_width", 0);
+		_btnSelectAll.Text = TranslationServer.Translate("Select All");
+		_btnSelectAll.AddThemeFontSizeOverride("font_size", 10);
+		_btnSelectAll.CustomMinimumSize = new Vector2(90, 22);
+		_btnSelectAll.FocusMode = FocusModeEnum.None;
+		_btnSelectAll.TooltipText = TranslationServer.Translate("Select every asset matching the current filters");
+		_btnSelectAll.Pressed += OnSelectAllPressed;
+		_btnSelectAll.Visible = false;
+		infoBar.AddChild(_btnSelectAll);
+
+		_btnClearSelection = new Button();
+		_btnClearSelection.Name = "BtnClearSelection_Button";
+		_btnClearSelection.Set("icon_max_width", 0);
+		_btnClearSelection.Text = TranslationServer.Translate("Clear Selection");
+		_btnClearSelection.AddThemeFontSizeOverride("font_size", 10);
+		_btnClearSelection.CustomMinimumSize = new Vector2(100, 22);
+		_btnClearSelection.FocusMode = FocusModeEnum.None;
+		_btnClearSelection.TooltipText = TranslationServer.Translate("Deselect all assets");
+		_btnClearSelection.Pressed += OnClearSelectionPressed;
+		_btnClearSelection.Visible = false;
+		infoBar.AddChild(_btnClearSelection);
+
 		_gridPanel = new PanelContainer();
 		_gridPanel.Name = "GridPanel_PanelContainer";
 		_gridPanel.CustomMinimumSize = new Vector2(0, 320);
@@ -441,8 +479,17 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	{
 		_onAssetSelectedCallback = onAssetSelected;
 		_onAssetSelectedWithPreferredNameCallback = null;
+		_onAssetsSelectedCallback = null;
+		_multiSelectEnabled = false;
+		_selectedAssetPaths.Clear();
 		_selectedAsset = null;
 		_txtSearch.Text = string.Empty;
+
+		if (_btnSelectAll != null) _btnSelectAll.Visible = false;
+		if (_btnClearSelection != null) _btnClearSelection.Visible = false;
+		if (_lblSelectionCount != null) _lblSelectionCount.Visible = false;
+		if (ApplyButton != null) ApplyButton.Text = TranslationServer.Translate("Select");
+
 		if (_chkHasPlayerColorMask != null)
 		{
 			_chkHasPlayerColorMask.ButtonPressed = false;
@@ -544,6 +591,20 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	{
 		OpenForImport(titleText, allowedExtensions, (Action<string>)null!, requireRealmMetadata, requiredAssetType);
 		_onAssetSelectedWithPreferredNameCallback = onAssetSelected;
+	}
+
+	public void OpenForImport(string titleText, IEnumerable<string> allowedExtensions, Action<IReadOnlyList<AssetBrowserSelection>> onAssetsSelected, bool requireRealmMetadata = false, string? requiredAssetType = null, bool allowMultiSelect = true)
+	{
+		OpenForImport(titleText, allowedExtensions, (Action<string>)null!, requireRealmMetadata, requiredAssetType);
+		_onAssetsSelectedCallback = onAssetsSelected;
+		_multiSelectEnabled = allowMultiSelect && onAssetsSelected != null;
+
+		if (_btnSelectAll != null) _btnSelectAll.Visible = _multiSelectEnabled;
+		if (_btnClearSelection != null) _btnClearSelection.Visible = _multiSelectEnabled;
+		if (_lblSelectionCount != null) _lblSelectionCount.Visible = _multiSelectEnabled;
+
+		UpdateSelectionIndicators();
+		UpdateVisibleGridCells();
 	}
 
 	private void RefreshFolderChips()
@@ -911,6 +972,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 
 			_lblResultsCount.Text = $"{_matchingAssets.Count} {TranslationServer.Translate("items found")}";
 			_lblEmptyState.Visible = _matchingAssets.Count == 0;
+			UpdateSelectionIndicators();
 
 			if (_selectedAsset != null && !_matchingAssets.Any(a => string.Equals(a.FilePath, _selectedAsset.FilePath, StringComparison.OrdinalIgnoreCase)))
 			{
@@ -979,12 +1041,28 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		int visibleCount = endIndex >= startIndex ? (endIndex - startIndex + 1) : 0;
 
 		EnsureCellPoolCapacity(visibleCount);
-		BindVisibleGridCells(startIndex, visibleCount, columns, _matchingAssets, _selectedAsset, OnAssetCellClicked);
+		BindVisibleGridCells(startIndex, visibleCount, columns, _matchingAssets, IsAssetSelected, OnAssetCellClicked);
 		HideUnusedGridCells(visibleCount);
+	}
+
+	private bool IsAssetSelected(IndexedAsset asset)
+	{
+		if (_multiSelectEnabled)
+		{
+			return _selectedAssetPaths.Contains(asset.FilePath);
+		}
+
+		return _selectedAsset != null && string.Equals(_selectedAsset.FilePath, asset.FilePath, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private void OnAssetCellClicked(IndexedAsset asset, bool isDoubleClick)
 	{
+		if (_multiSelectEnabled)
+		{
+			ApplyMultiSelectClick(asset, isDoubleClick);
+			return;
+		}
+
 		_selectedAsset = asset;
 		UpdateSelectedAssetDisplay();
 		UpdateVisibleGridCells();
@@ -992,6 +1070,86 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 		if (isDoubleClick)
 		{
 			ApplyAndClose();
+		}
+	}
+
+	private void ApplyMultiSelectClick(IndexedAsset asset, bool isDoubleClick)
+	{
+		bool additive = Input.IsKeyPressed(Key.Ctrl) || Input.IsKeyPressed(Key.Shift);
+
+		if (isDoubleClick)
+		{
+			_selectedAsset = asset;
+			_selectedAssetPaths.Add(asset.FilePath);
+			UpdateSelectedAssetDisplay();
+			UpdateSelectionIndicators();
+			UpdateVisibleGridCells();
+			ApplyAndClose();
+			return;
+		}
+
+		if (additive && _selectedAssetPaths.Contains(asset.FilePath))
+		{
+			_selectedAssetPaths.Remove(asset.FilePath);
+		}
+		else if (additive)
+		{
+			_selectedAssetPaths.Add(asset.FilePath);
+		}
+		else
+		{
+			_selectedAssetPaths.Clear();
+			_selectedAssetPaths.Add(asset.FilePath);
+		}
+
+		_selectedAsset = asset;
+		UpdateSelectedAssetDisplay();
+		UpdateSelectionIndicators();
+		UpdateVisibleGridCells();
+	}
+
+	private void OnSelectAllPressed()
+	{
+		foreach (var asset in _matchingAssets)
+		{
+			_selectedAssetPaths.Add(asset.FilePath);
+		}
+
+		UpdateSelectionIndicators();
+		UpdateVisibleGridCells();
+	}
+
+	private void OnClearSelectionPressed()
+	{
+		_selectedAssetPaths.Clear();
+		UpdateSelectionIndicators();
+		UpdateVisibleGridCells();
+	}
+
+	private void UpdateSelectionIndicators()
+	{
+		int selectedCount = _selectedAssetPaths.Count;
+		if (_lblSelectionCount != null)
+		{
+			_lblSelectionCount.Text = string.Format(TranslationServer.Translate("{0} selected"), selectedCount);
+		}
+
+		if (_btnSelectAll != null)
+		{
+			_btnSelectAll.Disabled = _matchingAssets.Count == 0;
+			_btnSelectAll.Text = string.Format(TranslationServer.Translate("Select All ({0})"), _matchingAssets.Count);
+		}
+
+		if (_btnClearSelection != null)
+		{
+			_btnClearSelection.Disabled = selectedCount == 0;
+		}
+
+		if (ApplyButton != null)
+		{
+			ApplyButton.Text = selectedCount > 0
+				? string.Format(TranslationServer.Translate("Select ({0})"), selectedCount)
+				: TranslationServer.Translate("Select");
 		}
 	}
 
@@ -1190,12 +1348,38 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	protected override void OnApply()
 	{
 		StopAudio();
+
+		if (_multiSelectEnabled && _selectedAssetPaths.Count > 0)
+		{
+			ApplyMultiSelectImport();
+			return;
+		}
+
 		if (_selectedAsset != null && File.Exists(_selectedAsset.FilePath))
 		{
 			RealmMetadataHelper.EnsureMetadata(_selectedAsset.FilePath);
 			_onAssetSelectedWithPreferredNameCallback?.Invoke(_selectedAsset.FilePath, _selectedAsset.FileName);
 			_onAssetSelectedCallback?.Invoke(_selectedAsset.FilePath);
 		}
+	}
+
+	private void ApplyMultiSelectImport()
+	{
+		var selections = new List<AssetBrowserSelection>(_selectedAssetPaths.Count);
+		foreach (string path in _selectedAssetPaths)
+		{
+			if (string.IsNullOrEmpty(path) || !File.Exists(path)) continue;
+
+			RealmMetadataHelper.EnsureMetadata(path);
+			selections.Add(new AssetBrowserSelection(path, Path.GetFileName(path)));
+		}
+
+		if (selections.Count == 0)
+		{
+			return;
+		}
+
+		_onAssetsSelectedCallback?.Invoke(selections);
 	}
 
 	private static string FormatFileSize(long bytes)

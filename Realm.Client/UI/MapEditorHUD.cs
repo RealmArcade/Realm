@@ -216,6 +216,7 @@ public partial class MapEditorHUD : Control
 	private ModelPickerDialog _modelPickerDialog { get; set; }
 	private AbilityVfxDialog _abilityVfxDialog { get; set; }
 	private AssetManagerDialog _assetManagerDialog { get; set; }
+	private ImportFromMapDialog _importFromMapDialog { get; set; }
 	private TemplateManagerDialog _templateManagerDialog { get; set; }
 	private InstanceManagerDialog _instanceManagerDialog { get; set; }
 	private AssetBrowserDialog _assetBrowserDialog { get; set; }

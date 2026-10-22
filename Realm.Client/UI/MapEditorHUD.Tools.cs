@@ -4634,6 +4634,7 @@ namespace Realm.Client.UI
 			_modelPickerDialog = new ModelPickerDialog(this);
 			_abilityVfxDialog = new AbilityVfxDialog(this);
 			_assetManagerDialog = new AssetManagerDialog(this);
+			_importFromMapDialog = new ImportFromMapDialog(this);
 			_templateManagerDialog = new TemplateManagerDialog(this);
 			_instanceManagerDialog = new InstanceManagerDialog(this);
 			_assetBrowserDialog = new AssetBrowserDialog(this);

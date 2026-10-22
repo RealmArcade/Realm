@@ -31,6 +31,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	private Label _lblAssetCount;
 
 	private Button _btnImportAsset;
+	private Button _btnImportFromMap;
 	private Button _btnImportShader;
 	private Button _btnConvertImage;
 	private Button _btnConvertAudio;
@@ -199,6 +200,9 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		actionsRow.AddThemeConstantOverride("separation", 6);
 
 		_btnImportAsset = AddButton(actionsRow, "📥 " + TranslationServer.Translate("Import Asset"), () => OpenImportFileDialog(), "Import an asset from asset index or disk", 11, new Vector2(110, 26));
+		_btnImportAsset.Name = "BtnImportAsset_Button";
+		_btnImportFromMap = AddButton(actionsRow, "🗺 " + TranslationServer.Translate("Import From Map"), () => OnImportFromMapPressed(), "Copy assets from another map into this map", 11, new Vector2(135, 26));
+		_btnImportFromMap.Name = "BtnImportFromMap_Button";
 		_btnImportShader = AddButton(actionsRow, "✨ " + TranslationServer.Translate("Import Shader"), () => OnImportShaderPressed(), "Import shader configuration file", 11, new Vector2(115, 26));
 		_btnConvertImage = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert Image (.rtex)"), () => OnConvertImagePressed(), "Convert image to Realm RTEX format", 11, new Vector2(150, 26));
 		_btnConvertAudio = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert Audio (.raud)"), () => OnConvertAudioPressed(), "Convert audio file to Realm RAUD/OGG format", 11, new Vector2(145, 26));
@@ -1022,12 +1026,65 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		};
 
 		string? requiredType = _selectedAssetType == "All" ? null : _selectedAssetType;
-		Hud?.OpenAssetBrowser($"Import Asset ({_selectedAssetType})", extensions, (filePath, preferredName) => OnImportFileSelected(filePath, preferredName), requireRealmMetadata: true, requiredAssetType: requiredType);
+		Hud?.OpenAssetBrowser($"Import Asset ({_selectedAssetType})", extensions, (IReadOnlyList<AssetBrowserSelection> selections) => OnImportFilesSelected(selections), requireRealmMetadata: true, requiredAssetType: requiredType);
 	}
 
-	private void OnImportFileSelected(string sourceFilePath, string? preferredFileName = null)
+	private void OnImportFromMapPressed()
 	{
-		if (string.IsNullOrEmpty(sourceFilePath) || !File.Exists(sourceFilePath)) return;
+		Hud?.OpenImportFromMapDialog(RefreshAssetList);
+	}
+
+	private enum AssetImportOutcome
+	{
+		Imported,
+		Skipped,
+		Failed
+	}
+
+	private void OnImportFilesSelected(IReadOnlyList<AssetBrowserSelection> selections)
+	{
+		if (selections == null || selections.Count == 0) return;
+
+		if (selections.Count == 1)
+		{
+			OnImportFileSelected(selections[0].FilePath, selections[0].PreferredFileName);
+			return;
+		}
+
+		var importedNames = new List<string>();
+		int skippedCount = 0;
+		int failedCount = 0;
+
+		foreach (var selection in selections)
+		{
+			switch (OnImportFileSelected(selection.FilePath, selection.PreferredFileName, showFeedback: false))
+			{
+				case AssetImportOutcome.Imported:
+					importedNames.Add(DetermineImportFileName(selection.FilePath, selection.PreferredFileName));
+					break;
+				case AssetImportOutcome.Skipped:
+					skippedCount++;
+					break;
+				default:
+					failedCount++;
+					break;
+			}
+		}
+
+		RefreshAssetList();
+
+		string summary = string.Format(
+			TranslationServer.Translate("Imported {0} assets, skipped {1} already present, {2} failed."),
+			importedNames.Count,
+			skippedCount,
+			failedCount);
+
+		Hud?.ShowFeedback(summary);
+	}
+
+	private AssetImportOutcome OnImportFileSelected(string sourceFilePath, string? preferredFileName = null, bool showFeedback = true)
+	{
+		if (string.IsNullOrEmpty(sourceFilePath) || !File.Exists(sourceFilePath)) return AssetImportOutcome.Failed;
 
 		string wsPath = GetWorkspacePath();
 		string fileName = DetermineImportFileName(sourceFilePath, preferredFileName);
@@ -1042,6 +1099,12 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 			Directory.CreateDirectory(destDir);
 			string destPath = Path.Combine(destDir, fileName);
 
+			string sourceHash = RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(sourceFilePath), ext);
+			if (File.Exists(destPath) && string.Equals(RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(destPath), ext), sourceHash, StringComparison.OrdinalIgnoreCase))
+			{
+				return AssetImportOutcome.Skipped;
+			}
+
 			File.Copy(sourceFilePath, destPath, true);
 			RealmMetadataHelper.EnsureMetadata(destPath);
 
@@ -1051,13 +1114,23 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 			MapAssetHelper.UpdateManifestAsset(wsPath, targetCategory, fileName, hash);
 			EnsureTemplateForAsset(wsPath, targetCategory, fileName, hash);
 
-			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported asset '{0}' into {1}"), fileName, targetCategory));
-			RefreshAssetListAndSelect(fileName);
+			if (showFeedback)
+			{
+				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Imported asset '{0}' into {1}"), fileName, targetCategory));
+				RefreshAssetListAndSelect(fileName);
+			}
+
+			return AssetImportOutcome.Imported;
 		}
 		catch (Exception ex)
 		{
 			GD.PrintErr($"[AssetManagerDialog] OnImportFileSelected error: {ex.Message}");
-			Hud?.ShowFeedback($"Error importing asset: {ex.Message}");
+			if (showFeedback)
+			{
+				Hud?.ShowFeedback($"Error importing asset: {ex.Message}");
+			}
+
+			return AssetImportOutcome.Failed;
 		}
 	}
 

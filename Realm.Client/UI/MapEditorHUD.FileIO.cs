@@ -1413,6 +1413,26 @@ namespace Realm.Client.UI
 			_assetBrowserDialog.OpenForImport(title, allowedExtensions, onAssetSelected, requireRealmMetadata, requiredAssetType);
 		}
 
+		public void OpenAssetBrowser(string title, IEnumerable<string> allowedExtensions, Action<IReadOnlyList<AssetBrowserSelection>> onAssetsSelected, bool requireRealmMetadata = false, string? requiredAssetType = null, bool allowMultiSelect = true)
+		{
+			if (_assetBrowserDialog == null)
+			{
+				_assetBrowserDialog = new AssetBrowserDialog(this);
+			}
+
+			_assetBrowserDialog.OpenForImport(title, allowedExtensions, onAssetsSelected, requireRealmMetadata, requiredAssetType, allowMultiSelect);
+		}
+
+		public void OpenImportFromMapDialog(Action? onImportCompleted = null)
+		{
+			if (_importFromMapDialog == null)
+			{
+				_importFromMapDialog = new ImportFromMapDialog(this);
+			}
+
+			_importFromMapDialog.OpenForWorkspace(onImportCompleted);
+		}
+
 		public void ImportTerrainFromMinimapDialog()
 		{
 			string initialDir = GetInitialDirectory();

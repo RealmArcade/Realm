@@ -50,6 +50,7 @@ namespace Realm.Client.Services
 		public static MetadataService MetadataService { get; private set; }
 		public static MapUpgradeService MapUpgradeService { get; private set; }
 		public static MapStorageService MapStorageService { get; private set; }
+		public static MapAssetImportService MapAssetImportService { get; private set; }
 		public static MapSaveDataService MapSaveDataService { get; private set; }
 		public static RegistryService RegistryService { get; private set; }
 		public static MapScriptService MapScriptService { get; private set; }
@@ -103,6 +104,7 @@ namespace Realm.Client.Services
 			MetadataService = new();
 			MapUpgradeService = new();
 			MapStorageService = new();
+			MapAssetImportService = new();
 			MapSaveDataService = new();
 			RegistryService = new();
 			MapScriptService = new();
