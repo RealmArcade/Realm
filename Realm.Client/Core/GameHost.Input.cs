@@ -3582,18 +3582,7 @@ public partial class GameHost
 		{
 			var mesh = new MeshInstance3D();
 			mesh.Name = "Mesh_MeshInstance3D";
-			float radius = 1.6f;
-			if (meta != null)
-			{
-				if (meta.ObstacleRadius > 0.01f)
-				{
-					radius = meta.ObstacleRadius.Value;
-				}
-				else if (meta.CollisionCircle > 0.01f)
-				{
-					radius = meta.CollisionCircle;
-				}
-			}
+			float radius = ResolveTemplateBodyRadius(type, null);
 			float side = radius * 2f;
 			var box = new BoxMesh
 			{
@@ -3672,26 +3661,7 @@ public partial class GameHost
 
 		if (InGameHUD.Instance == null) return;
 
-		float clearance = 1.5f;
-		if (meta != null)
-		{
-			if (meta.ObstacleRadius > 0.01f)
-			{
-				clearance = meta.ObstacleRadius.Value * 1.5f;
-			}
-			else if (meta.CollisionCircle > 0.01f)
-			{
-				clearance = meta.CollisionCircle * 1.5f;
-			}
-			else if (BuildingRegistry.ContainsKey(type))
-			{
-				clearance = 4f;
-			}
-		}
-		else if (BuildingRegistry.ContainsKey(type))
-		{
-			clearance = 4f;
-		}
+		float clearance = Math.Max(ResolveTemplateBodyRadius(type, _buildingPreviewMesh) * 1.5f, 1.5f);
 		if (!GameContext.InputService.TryPlaceBuilding(new System.Numerics.Vector3(position.X, position.Y, position.Z), clearance))
 		{
 			ViewHandleObstructedPlacement();
@@ -4215,26 +4185,7 @@ public partial class GameHost
 			_buildingPreviewMesh.GlobalPosition = pos;
 
 			string activeType = ActiveBuildingPlacementType ?? "";
-			float clearance = 1.5f;
-			if (TryGetUnitOrBuildingMetadata(activeType, out var activeMeta))
-			{
-				if (activeMeta.ObstacleRadius > 0.01f)
-				{
-					clearance = activeMeta.ObstacleRadius.Value * 1.5f;
-				}
-				else if (activeMeta.CollisionCircle > 0.01f)
-				{
-					clearance = activeMeta.CollisionCircle * 1.5f;
-				}
-				else if (BuildingRegistry.ContainsKey(activeType))
-				{
-					clearance = 4f;
-				}
-			}
-			else if (BuildingRegistry.ContainsKey(activeType))
-			{
-				clearance = 4f;
-			}
+			float clearance = Math.Max(ResolveTemplateBodyRadius(activeType, _buildingPreviewMesh) * 1.5f, 1.5f);
 			bool blocked = GameContext.InputService.IsAreaObstructed(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), clearance);
 
 			Color targetColor = blocked ? new Color(0.9f, 0.2f, 0.2f) : new Color(0.15f, 0.65f, 1.0f);

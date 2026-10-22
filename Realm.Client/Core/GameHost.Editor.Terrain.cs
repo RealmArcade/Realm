@@ -136,7 +136,7 @@ namespace Realm.Client.Core
 			AddChild(decal);
 			AllDecals.Add(decal);
 
-			position.Y = GameContext.EditorService.GetTerrainHeightAt(position);
+			position.Y = GetTerrainHeightAt(position);
 			decal.Position = position;
 
 			GameContext.World.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
@@ -157,6 +157,13 @@ namespace Realm.Client.Core
 
 		public float GetTerrainHeightAt(Vector3 worldPos)
 		{
+			var groundTerrain = GroundTerrain;
+			if (groundTerrain != null && groundTerrain.Cells != null)
+			{
+				groundTerrain.GetHeightAndNormal(worldPos.X, worldPos.Z, out float height, out _);
+				return height;
+			}
+
 			return GameContext.EditorService.GetTerrainHeightAt(worldPos);
 		}
 
@@ -195,7 +202,7 @@ namespace Realm.Client.Core
 				var pos = unit.GlobalPosition;
 				if (!IsPositionInRegion(pos, affectedRegion, quadSize, halfW, halfD)) continue;
 
-				float targetY = GameContext.EditorService.GetTerrainHeightAt(pos);
+				float targetY = GetTerrainHeightAt(pos);
 				if (MathF.Abs(pos.Y - targetY) > 0.001f)
 				{
 					pos.Y = targetY;
@@ -231,7 +238,7 @@ namespace Realm.Client.Core
 			var pos = prop.GlobalPosition;
 			if (!IsPositionInRegion(pos, affectedRegion, quadSize, halfW, halfD)) return false;
 
-			float targetY = GameContext.EditorService.GetTerrainHeightAt(pos);
+			float targetY = GetTerrainHeightAt(pos);
 			if (MathF.Abs(pos.Y - targetY) <= 0.001f) return false;
 
 			pos.Y = targetY;
@@ -245,7 +252,7 @@ namespace Realm.Client.Core
 			var pos = decal.GlobalPosition;
 			if (!IsPositionInRegion(pos, affectedRegion, quadSize, halfW, halfD)) return;
 
-			float targetY = GameContext.EditorService.GetTerrainHeightAt(pos);
+			float targetY = GetTerrainHeightAt(pos);
 			if (MathF.Abs(pos.Y - targetY) <= 0.001f) return;
 
 			pos.Y = targetY;
@@ -282,17 +289,17 @@ namespace Realm.Client.Core
 		public Decal SpawnDecalExternalWithParams(string decalId, Vector3 position, float rotationY, float scale)
 		{
 			Vector3 pos = position;
-			pos.Y = GameContext.EditorService.GetTerrainHeightAt(pos);
+			pos.Y = GetTerrainHeightAt(pos);
 			return SpawnDecalExternalWithParams(decalId, pos, new Vector3(0.0f, rotationY, 0.0f), scale);
 		}
 
 		public Vector3 GetTerrainNormalAt(Vector3 pos)
 		{
 			float step = 0.5f;
-			float hL = GameContext.EditorService.GetTerrainHeightAt(new Vector3(pos.X - step, 0f, pos.Z));
-			float hR = GameContext.EditorService.GetTerrainHeightAt(new Vector3(pos.X + step, 0f, pos.Z));
-			float hD = GameContext.EditorService.GetTerrainHeightAt(new Vector3(pos.X, 0f, pos.Z - step));
-			float hU = GameContext.EditorService.GetTerrainHeightAt(new Vector3(pos.X, 0f, pos.Z + step));
+			float hL = GetTerrainHeightAt(new Vector3(pos.X - step, 0f, pos.Z));
+			float hR = GetTerrainHeightAt(new Vector3(pos.X + step, 0f, pos.Z));
+			float hD = GetTerrainHeightAt(new Vector3(pos.X, 0f, pos.Z - step));
+			float hU = GetTerrainHeightAt(new Vector3(pos.X, 0f, pos.Z + step));
 			return new Vector3(hL - hR, 2f * step, hD - hU).Normalized();
 		}
 

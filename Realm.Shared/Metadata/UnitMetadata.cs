@@ -68,7 +68,6 @@ public class UnitMetadata
 	public float XpBounty { get; set; }
 	public string[]? PathingCapabilities { get; set; }
 	public int PathingType { get; set; }
-	public float? ObstacleRadius { get; set; }
 	public string[]? Targets { get; set; }
 	public string[]? Weapons { get; set; }
 	public string? ProjectileModelPath { get; set; }

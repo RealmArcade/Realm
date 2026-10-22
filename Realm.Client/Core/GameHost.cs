@@ -2148,7 +2148,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, ECSContext.DefinitionManager, ECSContext.PlayerResourceService.GoldResourceId, ECSContext.PlayerResourceService.WoodResourceId, ECSContext.PlayerResourceService.StoneResourceId, GroundTerrain);
 		GameContext.SimulationService.Initialize();
-		GameContext.SimulationService.EditorHeightProvider = p => GameContext.EditorService.GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
+		GameContext.SimulationService.EditorHeightProvider = p => GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
 
 		SetupSimulationServiceCallbacks();
 	}
@@ -3047,7 +3047,7 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 
 		GameContext.World.SetOrAdd(entity, new BuildingSpawnOffset(new System.Numerics.Vector3(0f, 0f, 8f)));
-		float baseRadius = GetOrCalculateObstacleRadius(id, unit3D, true) * GetModelCollisionCircleRatio(GetModelAssetKey(unit3D));
+		float baseRadius = GetOrCalculateObstacleRadius(id, unit3D) * GetModelCollisionCircleRatio(GetModelAssetKey(unit3D));
 		GameContext.World.SetOrAdd(entity, new CollisionRadius(baseRadius));
 		if (!GameContext.SessionState.IsMapEditorMode) CarveObstacle(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), baseRadius);
 	}
@@ -3350,56 +3350,127 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 
-	public float GetOrCalculateObstacleRadius(string id, Node3D node, bool isBuilding = false)
+	private const float DefaultObstacleRadius = 0.5f;
+
+	public float GetOrCalculateObstacleRadius(string id, Node3D node)
 	{
 		if (ECSContext.TerrainNavMeshService.ObstacleRadiusCache.TryGetValue(id, out float cachedRadius))
 		{
 			return cachedRadius;
 		}
 
-		if (UnitRegistry.TryGetValue(id, out var meta) && meta.ObstacleRadius.HasValue)
-		{
-			float radius = meta.ObstacleRadius.Value;
-			ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = radius;
-			return radius;
-		}
-
 		string modelKey = node != null ? GetModelAssetKey(node) : GetModelAssetKey(id);
 		if (!string.IsNullOrEmpty(modelKey) && GameContext.ModelOverrideService.ModelObstacleRadii.TryGetValue(modelKey, out float measuredRadius) && measuredRadius > 0f)
 		{
-			ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = measuredRadius;
-			return measuredRadius;
+			float modelScale = GetModelScale(id);
+			if (modelScale <= 0f) modelScale = 1f;
+
+			float scaledRadius = measuredRadius * modelScale;
+			ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = scaledRadius;
+			return scaledRadius;
 		}
 
-		float calculatedRadius = 0.5f;
-		if (node != null)
+		if (node == null)
 		{
-			calculatedRadius = CalculateNodeRadius(node);
+			if (TryMeasureModelAssetRadius(id, modelKey, out float assetRadius))
+			{
+				ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = assetRadius;
+				return assetRadius;
+			}
+
+			return DefaultObstacleRadius;
 		}
 
+		float calculatedRadius = CalculateNodeRadius(node);
 		ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = calculatedRadius;
 		return calculatedRadius;
 	}
 
+	private bool TryMeasureModelAssetRadius(string id, string modelKey, out float radius)
+	{
+		radius = 0f;
+		string modelPath = GetTemplateModelPath(id);
+		if (string.IsNullOrEmpty(modelPath)) return false;
+
+		Node modelNode = ModelCache.GetModel(modelPath);
+		if (modelNode == null) return false;
+
+		try
+		{
+			if (modelNode is not Node3D modelRoot) return false;
+
+			float rawRadius = MeasureModelRadius(modelRoot);
+			if (rawRadius <= 0f) return false;
+
+			float modelScale = GetModelScale(id);
+			if (modelScale <= 0f) modelScale = 1f;
+
+			if (!string.IsNullOrEmpty(modelKey)) GameContext.ModelOverrideService.ModelObstacleRadii[modelKey] = rawRadius;
+			radius = rawRadius * modelScale;
+			return true;
+		}
+		finally
+		{
+			modelNode.Free();
+		}
+	}
+
+	private string GetTemplateModelPath(string id)
+	{
+		if (UnitRegistry.TryGetValue(id, out var unitMeta) && !string.IsNullOrEmpty(unitMeta.ModelPath)) return unitMeta.ModelPath;
+		if (BuildingRegistry.TryGetValue(id, out var buildingMeta) && !string.IsNullOrEmpty(buildingMeta.ModelPath)) return buildingMeta.ModelPath;
+		if (PropRegistry.TryGetValue(id, out var propMeta) && !string.IsNullOrEmpty(propMeta.ModelPath)) return propMeta.ModelPath;
+		if (ResourceRegistry.TryGetValue(id, out var resourceMeta) && !string.IsNullOrEmpty(resourceMeta.ModelPath)) return resourceMeta.ModelPath;
+		return null;
+	}
+
+	public float ResolveTemplateBodyRadius(string templateId, Node3D node)
+	{
+		float radius = GetOrCalculateObstacleRadius(templateId, node) * GetModelCollisionCircleRatio(templateId);
+		if (radius <= GameplayConstants.MinimumAuthoredCollisionRadius) return GameplayConstants.DefaultCollisionRadius;
+		return radius;
+	}
+
 	private float CalculateNodeRadius(Node node)
 	{
-		float maxRadius = 0.5f;
+		if (node is not Node3D root) return DefaultObstacleRadius;
+
+		float maxRadius = DefaultObstacleRadius;
+		var toRoot = root.GlobalTransform.AffineInverse();
 
 		foreach (var shapeNode in FindChildrenOfType<CollisionShape3D>(node))
 		{
 			if (shapeNode.Shape == null) continue;
-			float r = GetShapeRadius(shapeNode.Shape) * Math.Max(shapeNode.Scale.X, shapeNode.Scale.Z);
+			float r = GetShapeRadius(shapeNode.Shape) * GetScaleRelativeToRoot(root, shapeNode);
 			if (r > maxRadius) maxRadius = r;
 		}
 
 		foreach (var meshNode in FindChildrenOfType<MeshInstance3D>(node))
 		{
 			if (meshNode.Mesh == null) continue;
-			float r = Math.Max(meshNode.Mesh.GetAabb().Size.X, meshNode.Mesh.GetAabb().Size.Z) * 0.5f * Math.Max(meshNode.Scale.X, meshNode.Scale.Z);
-			if (r > maxRadius) maxRadius = r;
+
+			var aabb = meshNode.Mesh.GetAabb();
+			if (aabb.Size == Vector3.Zero) continue;
+
+			var meshTransform = toRoot * meshNode.GlobalTransform;
+			for (int i = 0; i < 8; i++)
+			{
+				var corner = meshTransform * aabb.GetEndpoint(i);
+				float r = MathF.Sqrt(corner.X * corner.X + corner.Z * corner.Z);
+				if (r > maxRadius) maxRadius = r;
+			}
 		}
 
 		return maxRadius;
+	}
+
+	private static float GetScaleRelativeToRoot(Node3D root, Node3D child)
+	{
+		var rootBasis = root.GlobalTransform.Basis;
+		var childBasis = child.GlobalTransform.Basis;
+		float rootScale = Math.Max(Math.Abs(rootBasis.Scale.X), Math.Abs(rootBasis.Scale.Z));
+		float childScale = Math.Max(Math.Abs(childBasis.Scale.X), Math.Abs(childBasis.Scale.Z));
+		return rootScale > 0.0001f ? childScale / rootScale : childScale;
 	}
 
 	private float GetShapeRadius(Shape3D shape)

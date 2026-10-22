@@ -662,24 +662,13 @@ public class InputService
 		{
 			if (obstructed) return;
 
-			float entityRadius = GameContext.World.Has<CollisionRadius>(entity)
-				? GameContext.World.Get<CollisionRadius>(entity).Value
-				: 1.0f;
-
 			if (GameContext.World.Has<DefinitionId>(entity))
 			{
 				string defId = GameContext.World.Get<DefinitionId>(entity).Value;
-				if (GameHost.TryGetUnitOrBuildingMetadata(defId, out var meta))
+				if (GameHost.TryGetUnitOrBuildingMetadata(defId, out var meta) &&
+				    (meta.PathingType == 16 || string.Equals(meta.VisualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase)))
 				{
-					if (meta.PathingType == 16 || string.Equals(meta.VisualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase))
-					{
-						return;
-					}
-
-					if (meta.CollisionCircle > 0f)
-					{
-						entityRadius = MathF.Max(entityRadius, meta.CollisionCircle * (meta.Scale > 0f ? meta.Scale : 1.0f) * 0.5f);
-					}
+					return;
 				}
 			}
 			else if (!GameContext.World.Has<PropIdentity>(entity))
@@ -687,6 +676,8 @@ public class InputService
 				return;
 			}
 
+			float defaultRadius = GameContext.World.Has<PropIdentity>(entity) ? GameplayConstants.DefaultPropCollisionRadius : GameplayConstants.DefaultCollisionRadius;
+			float entityRadius = GameplayConstants.ResolveBodyRadius(GameContext.World, entity, defaultRadius);
 			float minDist = MathF.Max(clearance, entityRadius + 0.5f);
 			float dx = position.X - pos.Value.X;
 			float dz = position.Z - pos.Value.Z;

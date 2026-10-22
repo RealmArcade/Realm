@@ -14,11 +14,11 @@ public class ModelOverrideService
 	public float GetModelCollisionCircleRatio(string primaryKey, string assetKey, Func<string, string> normalizeAssetKeyFunc)
 	{
 		string normPrimary = normalizeAssetKeyFunc(primaryKey);
-		if (!string.IsNullOrEmpty(normPrimary) && ModelCollisionCircleRatios.TryGetValue(normPrimary, out float val1))
+		if (!string.IsNullOrEmpty(normPrimary) && ModelCollisionCircleRatios.TryGetValue(normPrimary, out float val1) && val1 > 0f)
 			return val1;
 
 		string normAsset = normalizeAssetKeyFunc(assetKey);
-		if (!string.IsNullOrEmpty(normAsset) && ModelCollisionCircleRatios.TryGetValue(normAsset, out float val2))
+		if (!string.IsNullOrEmpty(normAsset) && ModelCollisionCircleRatios.TryGetValue(normAsset, out float val2) && val2 > 0f)
 			return val2;
 
 		return GameContext.RegistryService.GetRegistryCollisionCircleRatio(primaryKey);

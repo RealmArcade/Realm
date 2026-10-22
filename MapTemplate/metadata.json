@@ -101,7 +101,6 @@
         "XpBounty": 0,
         "PathingCapabilities": null,
         "PathingType": 9,
-        "ObstacleRadius": null,
         "Targets": null,
         "Weapons": null,
         "ProjectileModelPath": null,
@@ -182,7 +181,6 @@
         "XpBounty": 0,
         "PathingCapabilities": null,
         "PathingType": 9,
-        "ObstacleRadius": null,
         "Targets": null,
         "Weapons": null,
         "ProjectileModelPath": null,
@@ -265,7 +263,6 @@
         "XpBounty": 0,
         "PathingCapabilities": null,
         "PathingType": 32,
-        "ObstacleRadius": null,
         "Targets": null,
         "Weapons": null,
         "ProjectileModelPath": null,
@@ -345,7 +342,6 @@
         "XpBounty": 0,
         "PathingCapabilities": null,
         "PathingType": 32,
-        "ObstacleRadius": null,
         "Targets": null,
         "Weapons": null,
         "ProjectileModelPath": null,
@@ -796,132 +792,6 @@
   ],
   "CustomEnvironmentPresets": [],
   "DefaultEnvironmentPreset": null,
-  "Models": {
-    "building/clock_tower": {
-      "Brightness": 0.5,
-      "CollisionCircleRatios": 0.8,
-      "DespillPlayerColor": false,
-      "IgnorePlayerColor": false,
-      "NormalizeLuminance": true,
-      "Offsets": 1.5021,
-      "Scales": 1.5
-    },
-    "building/timber_framed_house": {
-      "Brightness": 0.5,
-      "CollisionCircleRatios": 1.25,
-      "ColorTint": "#ffffff",
-      "DespillPlayerColor": false,
-      "IgnorePlayerColor": false,
-      "NormalizeLuminance": true,
-      "Offsets": 1.5000001,
-      "Scales": 1.5
-    },
-    "clocktower.rmesh": {
-      "Brightness": 0.5,
-      "CollisionCircleRatios": 0.8,
-      "ColorTint": "#ffffff",
-      "DespillPlayerColor": false,
-      "IgnorePlayerColor": false,
-      "NormalizeLuminance": true,
-      "Offsets": 3.0000002,
-      "Scales": 3
-    },
-    "ice_castle_1.rmesh": {
-      "DespillPlayerColor": false
-    },
-    "ornate_spear_1.rmesh": {
-      "DespillPlayerColor": false,
-      "IgnorePlayerColor": false
-    },
-    "prop/crystal_cluster_29": {
-      "Brightness": 0.5,
-      "CollisionCircleRatios": 2.6000001,
-      "ColorTint": "#ffffff",
-      "DespillPlayerColor": false,
-      "IgnorePlayerColor": true,
-      "NormalizeLuminance": true,
-      "Offsets": 1.2500001,
-      "Scales": 1.25
-    },
-    "prop/spiked_wooden_stake": {
-      "Brightness": 0.5,
-      "CollisionCircleRatios": 0.95,
-      "ColorTint": "#ffffff",
-      "DespillPlayerColor": false,
-      "IgnorePlayerColor": true,
-      "NormalizeLuminance": true,
-      "Offsets": 1.2000002,
-      "Scales": 1.25
-    },
-    "resource/coniferous_tree_1": {
-      "Brightness": 0.5,
-      "CollisionCircleRatios": 3.3,
-      "ColorTint": "#ffffff",
-      "DespillPlayerColor": false,
-      "IgnorePlayerColor": true,
-      "NormalizeLuminance": true,
-      "Offsets": 2.7500002,
-      "Scales": 2.75
-    },
-    "resource/palm_tree": {
-      "Brightness": 0.5,
-      "CollisionCircleRatios": 3.9,
-      "ColorTint": "#ffffff",
-      "DespillPlayerColor": false,
-      "IgnorePlayerColor": true,
-      "NormalizeLuminance": true,
-      "Offsets": 2.7500002,
-      "Scales": 2.75
-    },
-    "unit/chad": {
-      "Brightness": 0.5,
-      "CollisionCircleRatios": 0.75,
-      "ColorTint": "#ffffff",
-      "DespillPlayerColor": true,
-      "IgnorePlayerColor": false,
-      "NormalizeLuminance": true,
-      "Offsets": 0.85000014,
-      "Scales": 1
-    },
-    "unit/kevin": {
-      "Brightness": 0.5,
-      "CollisionCircleRatios": 0.65000004,
-      "ColorTint": "#ffffff",
-      "DespillPlayerColor": false,
-      "IgnorePlayerColor": false,
-      "NormalizeLuminance": true,
-      "Offsets": 0.90000015,
-      "Scales": 1
-    },
-    "wooden_spear_2.rmesh": {
-      "DespillPlayerColor": false,
-      "IgnorePlayerColor": true
-    },
-    "coniferous_tree_1.rmesh": {
-      "Scales": 2.75
-    },
-    "palm_tree.rmesh": {
-      "Scales": 2.75
-    },
-    "clock_tower_building.rmesh": {
-      "Scales": 1.5
-    },
-    "timber_framed_house.rmesh": {
-      "Scales": 1.5
-    },
-    "crystal_cluster_29.rmesh": {
-      "Scales": 1.25
-    },
-    "spiked_wooden_stake.rmesh": {
-      "Scales": 1.25
-    },
-    "orc_warrior_7.rmesh": {
-      "Scales": 1
-    },
-    "fantasy_warrior_unit_1.rmesh": {
-      "Scales": 1
-    }
-  },
   "textures": {
     "terrain/abyssal_trench_void_clay": {
       "SwatchIndex": 12,
