@@ -5,11 +5,16 @@ namespace Realm.Shared.Distribution;
 
 public static class AuthorshipKeyHelper
 {
-	public const string DefaultKeyFileName = "authorship_key_DO-NOT-SHARE.rkey";
-	public const string LegacyKeyFileName = "authorship_key.pem";
+	public const string DefaultAuthorshipKeyFileName = "authorship_key_DO-NOT-SHARE.rkey";
+	public const string DefaultAdminKeyFileName = "server_admin_key_DO-NOT-SHARE.rkey";
 
-	public static string GetDefaultKeysDirectory()
+	public static string GetDefaultKeysDirectory(string? customDirectory = null)
 	{
+		if (!string.IsNullOrWhiteSpace(customDirectory))
+		{
+			return customDirectory;
+		}
+
 		return Path.Combine(
 			Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
 			"Godot",
@@ -20,10 +25,14 @@ public static class AuthorshipKeyHelper
 		);
 	}
 
-	public static string GetDefaultKeyPath(string? customDirectory = null)
+	public static string GetDefaultAuthorshipKeyPath(string? customDirectory = null)
 	{
-		string dir = string.IsNullOrWhiteSpace(customDirectory) ? GetDefaultKeysDirectory() : customDirectory;
-		return Path.Combine(dir, DefaultKeyFileName);
+		return Path.Combine(GetDefaultKeysDirectory(), DefaultAuthorshipKeyFileName);
+	}
+
+	public static string GetDefaultAdminKeyPath()
+	{
+		return Path.Combine(GetDefaultKeysDirectory(), DefaultAdminKeyFileName);
 	}
 
 	public static (NSec.Cryptography.Key Key, AuthorshipKeyData Data, string Path, bool CreatedNew) GetOrGenerateKeyInfo(string? keyDirectory = null, string defaultUserName = "")
@@ -34,15 +43,9 @@ public static class AuthorshipKeyHelper
 			Directory.CreateDirectory(dir);
 		}
 
-		string keyPath = Path.Combine(dir, DefaultKeyFileName);
-		string legacyPath = Path.Combine(dir, LegacyKeyFileName);
+		string keyPath = Path.Combine(dir, DefaultAuthorshipKeyFileName);
 
 		if (TryLoadKey(keyPath, out Key? key, out AuthorshipKeyData? data))
-		{
-			return (key!, data!, keyPath, false);
-		}
-
-		if (TryLoadLegacyKey(legacyPath, keyPath, defaultUserName, out key, out data))
 		{
 			return (key!, data!, keyPath, false);
 		}
@@ -92,43 +95,6 @@ public static class AuthorshipKeyHelper
 		}
 	}
 
-	private static bool TryLoadLegacyKey(string legacyPath, string keyPath, string defaultUserName, out Key? key, out AuthorshipKeyData? data)
-	{
-		key = null;
-		data = null;
-
-		if (!File.Exists(legacyPath))
-		{
-			return false;
-		}
-
-		try
-		{
-			byte[] legacyBytes = File.ReadAllBytes(legacyPath);
-			key = Key.Import(
-				SignatureAlgorithm.Ed25519,
-				legacyBytes,
-				KeyBlobFormat.RawPrivateKey,
-				new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport }
-			);
-			byte[] privBytes = key.Export(KeyBlobFormat.RawPrivateKey);
-			byte[] pubBytes = key.PublicKey.Export(KeyBlobFormat.RawPublicKey);
-			data = new AuthorshipKeyData
-			{
-				UserName = defaultUserName,
-				PublicKey = Convert.ToBase64String(pubBytes),
-				PrivateKey = Convert.ToBase64String(privBytes)
-			};
-			byte[] rkeyBytes = RkeyFile.Build(data.UserName, data.PublicKey, data.PrivateKey);
-			File.WriteAllBytes(keyPath, rkeyBytes);
-			return true;
-		}
-		catch
-		{
-			return false;
-		}
-	}
-
 	private static (Key Key, AuthorshipKeyData Data, string Path, bool CreatedNew) GenerateNewKey(string keyPath, string defaultUserName)
 	{
 		var newKey = Key.Create(
@@ -159,7 +125,7 @@ public static class AuthorshipKeyHelper
 	public static void UpdateUserName(string? keyDirectory, string newUserName)
 	{
 		string dir = string.IsNullOrWhiteSpace(keyDirectory) ? GetDefaultKeysDirectory() : keyDirectory;
-		string keyPath = Path.Combine(dir, DefaultKeyFileName);
+		string keyPath = Path.Combine(dir, DefaultAuthorshipKeyFileName);
 
 		if (!File.Exists(keyPath))
 		{

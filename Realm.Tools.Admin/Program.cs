@@ -62,7 +62,7 @@ public static class Program
 
 	private static (string privateKeyBase64, string publicKeyBase64)? ParseAdminKey(string? keyInput)
 	{
-		string keyPath = string.IsNullOrWhiteSpace(keyInput) ? AuthorshipKeyHelper.GetDefaultKeyPath() : keyInput.Trim();
+		string keyPath = string.IsNullOrWhiteSpace(keyInput) ? AuthorshipKeyHelper.GetDefaultAdminKeyPath() : keyInput.Trim();
 
 		if (!File.Exists(keyPath))
 		{

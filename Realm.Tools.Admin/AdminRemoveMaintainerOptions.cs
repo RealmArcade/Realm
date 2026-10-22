@@ -14,7 +14,7 @@ public class AdminRemoveMaintainerOptions
 	[Option('p', "pubkey", Required = false, HelpText = "Maintainer's Ed25519 public key in Base64 to remove.")]
 	public string? PubKey { get; set; }
 
-	[Option('k', "key", Required = false, HelpText = "Path to author or admin .rkey file. If omitted, defaults to %appdata%\\Godot\\app_userdata\\Realm\\appdata\\keys\\authorship_key_DO-NOT-SHARE.rkey")]
+	[Option('k', "key", Required = false, HelpText = "Path to author or admin .rkey file. If omitted, defaults to %appdata%\\Godot\\app_userdata\\Realm\\appdata\\keys\\server_admin_key_DO-NOT-SHARE.rkey")]
 	public string? Key { get; set; }
 
 	[Option('s', "server", Required = false, HelpText = "Registry server URL.")]

@@ -1438,7 +1438,7 @@ public static class Program
 
 		string outputPath = !string.IsNullOrWhiteSpace(options.Output)
 			? options.Output.Trim()
-			: AuthorshipKeyHelper.GetDefaultKeyPath();
+			: AuthorshipKeyHelper.GetDefaultAuthorshipKeyPath();
 
 		string? outDir = Path.GetDirectoryName(outputPath);
 		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir))

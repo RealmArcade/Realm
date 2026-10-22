@@ -8,7 +8,7 @@ public class AdminUnlockNameOptions
 	[Option('u', "username", Required = true, HelpText = "Creator's Username")]
 	public string Username { get; set; } = string.Empty;
 
-	[Option('k', "key", Required = false, HelpText = "Path to admin .rkey key file. If omitted, defaults to %appdata%\\Godot\\app_userdata\\Realm\\appdata\\keys\\authorship_key_DO-NOT-SHARE.rkey")]
+	[Option('k', "key", Required = false, HelpText = "Path to admin .rkey key file. If omitted, defaults to %appdata%\\Godot\\app_userdata\\Realm\\appdata\\keys\\server_admin_key_DO-NOT-SHARE.rkey")]
 	public string? Key { get; set; }
 
 	[Option("target-key", Required = true, HelpText = "Path to the target user's .rkey key file.")]
