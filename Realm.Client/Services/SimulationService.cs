@@ -603,7 +603,6 @@ public class SimulationService
 
 	public void IssueCastOrder(UnitId caster, string abilityId, UnitId target, Action<UnitId, string, Vector3>? onUnitOrdered)
 	{
-		if (IsFrozenUnit(caster)) return;
 
 		var casterWrapper = GetUnitWrapper(caster);
 		if (casterWrapper != null)
@@ -1484,9 +1483,6 @@ public class SimulationService
 		return wrapper;
 	}
 
-	public bool IsFrozenUnit(UnitId unit) =>
-		TryGetEntity(unit, out var frozenEntity) && GameContext.World.IsAlive(frozenEntity) && GameContext.World.Has<Frozen>(frozenEntity);
-
 	public bool TryGetEntity(UnitId unit, out Entity entity)
 	{
 		if (!unit.IsValid)
@@ -1930,7 +1926,6 @@ public class SimulationService
 
 	public void IssueCastOrderAt(UnitId caster, string abilityId, Vector3 position, Action<UnitId, string, Vector3>? onUnitOrdered)
 	{
-		if (IsFrozenUnit(caster)) return;
 
 		var wrapper = GetUnitWrapper(caster);
 		if (wrapper != null)

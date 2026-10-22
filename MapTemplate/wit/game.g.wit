@@ -176,9 +176,11 @@ interface game-api {
     set-summary-table-row: func(row-key: string, cell-values: list<string>);
     set-time-of-day: func(time: f32);
     set-unit-animation: func(unit-id: s32, animation-name: string);
+    set-unit-animations-frozen: func(unit-id: s32, value: bool);
     set-unit-armor: func(unit-id: s32, value: f32);
     set-unit-attack-speed: func(unit-id: s32, value: f32);
     set-unit-color: func(unit-id: s32, color-x: f32, color-y: f32, color-z: f32);
+    set-unit-commands-frozen: func(unit-id: s32, value: bool);
     set-unit-custom-data: func(unit-id: s32, key: string, value: string);
     set-unit-damage: func(unit-id: s32, value: f32);
     set-unit-experience: func(unit-id: s32, value: f32);

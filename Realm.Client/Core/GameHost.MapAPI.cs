@@ -1997,6 +1997,18 @@ public partial class GameHost
 			GameContext.SimulationService.GetUnitWrapper(entity).Invulnerable = value;
 	}
 
+	void IGameAPI.SetUnitAnimationsFrozen(UnitId unit, bool value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).AnimationsFrozen = value;
+	}
+
+	void IGameAPI.SetUnitCommandsFrozen(UnitId unit, bool value)
+	{
+		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
+			GameContext.SimulationService.GetUnitWrapper(entity).CommandsFrozen = value;
+	}
+
 	void IGameAPI.SetUnitFrozen(UnitId unit, bool value)
 	{
 		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))

@@ -659,37 +659,79 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		}
 	}
 
-	public bool Frozen
+	public bool AnimationsFrozen
 	{
 		get
 		{
 			if (!_world.IsAlive(_entity)) return false;
-			return _world.Has<Frozen>(_entity);
+			return _world.Has<AnimationsFrozen>(_entity);
 		}
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
-			bool isFrozen = _world.Has<Frozen>(_entity);
+			bool isFrozen = _world.Has<AnimationsFrozen>(_entity);
 			if (value == isFrozen) return;
 
 			if (value)
 			{
-				_world.Add<Frozen>(_entity);
-				Stop();
+				_world.Add<AnimationsFrozen>(_entity);
 				if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 				{
-					unit3D.Velocity = Godot.Vector3.Zero;
 					unit3D.SetAnimationsFrozen(true);
 				}
 			}
 			else
 			{
-				_world.Remove<Frozen>(_entity);
+				_world.Remove<AnimationsFrozen>(_entity);
 				if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
 				{
 					unit3D.SetAnimationsFrozen(false);
 				}
 			}
+		}
+	}
+
+	public bool CommandsFrozen
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return false;
+			return _world.Has<CommandsFrozen>(_entity);
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			bool isFrozen = _world.Has<CommandsFrozen>(_entity);
+			if (value == isFrozen) return;
+
+			if (value)
+			{
+				_world.Add<CommandsFrozen>(_entity);
+				Stop();
+				if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				{
+					unit3D.Velocity = Godot.Vector3.Zero;
+				}
+			}
+			else
+			{
+				_world.Remove<CommandsFrozen>(_entity);
+			}
+		}
+	}
+
+	public bool Frozen
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return false;
+			return _world.Has<CommandsFrozen>(_entity) || _world.Has<AnimationsFrozen>(_entity);
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			AnimationsFrozen = value;
+			CommandsFrozen = value;
 		}
 	}
 

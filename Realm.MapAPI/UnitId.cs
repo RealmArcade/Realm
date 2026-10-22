@@ -236,19 +236,49 @@ public readonly unsafe record struct UnitId(int Value)
 	}
 
 	/// <summary>
+	/// Gets or sets a value indicating whether the unit holds its current animation pose.
+	/// </summary>
+	/// <remarks>
+	/// An animations-frozen unit plays no locomotion, attack, idle or death animation, including
+	/// procedural sway, but it can still receive movement, attack and ability orders. Combine it with
+	/// <see cref="CommandsFrozen"/> to pin a unit in place, or use <see cref="Frozen"/> to set both.
+	/// </remarks>
+	public bool AnimationsFrozen
+	{
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.AnimationsFrozen);
+		set => GameAPI.Current.SetUnitAnimationsFrozen(this, value);
+	}
+
+	/// <summary>
+	/// Gets or sets a value indicating whether the unit ignores movement, attack and hold orders.
+	/// </summary>
+	/// <remarks>
+	/// A commands-frozen unit keeps its current position, does not acquire targets and does not respond
+	/// to move, stop, hold or attack commands, and clients hide those command buttons for it. Ability
+	/// casting and ability buttons stay available, so map-authored abilities such as rerolls keep
+	/// working. Setting the property to the value it already has does nothing.
+	/// </remarks>
+	public bool CommandsFrozen
+	{
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.CommandsFrozen);
+		set => GameAPI.Current.SetUnitCommandsFrozen(this, value);
+	}
+
+	/// <summary>
 	/// Gets or sets a value indicating whether the unit is frozen in place with its animation suspended.
 	/// </summary>
 	/// <remarks>
-	/// A frozen unit keeps its current position and pose: it ignores orders, does not acquire targets or
-	/// cast abilities, and plays no locomotion, attack, idle or death animation, including procedural
-	/// sway. Setting the property to the value it already has does nothing. The flag lives on the entity,
-	/// so it survives level changes, element swaps and unit swaps until the entity is destroyed or the
-	/// flag is cleared, and it does not conflict with <see cref="Invulnerable"/>, <see cref="Facing"/> or
+	/// This sets both <see cref="AnimationsFrozen"/> and <see cref="CommandsFrozen"/>. A frozen unit keeps
+	/// its current position and pose and ignores orders, and it does not acquire targets. Setting the
+	/// property to the value it already has does nothing. The flag lives on the entity, so it survives
+	/// level changes, element swaps and unit swaps until the entity is destroyed or the flag is cleared,
+	/// and it does not conflict with <see cref="Invulnerable"/>, <see cref="Facing"/> or
 	/// <see cref="HideHealthAndManaBars"/>.
 	/// </remarks>
 	public bool Frozen
 	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.Frozen);
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0
+			&& (EcsSharedMemory.HasComponent(Value, ComponentIds.CommandsFrozen) || EcsSharedMemory.HasComponent(Value, ComponentIds.AnimationsFrozen));
 		set => GameAPI.Current.SetUnitFrozen(this, value);
 	}
 

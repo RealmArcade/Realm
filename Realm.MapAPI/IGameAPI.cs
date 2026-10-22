@@ -2068,17 +2068,45 @@ public interface IGameAPI
 	void SetUnitInvulnerable(UnitId unit, bool value);
 
 	/// <summary>
+	/// Suspends or resumes animation playback for a unit.
+	/// </summary>
+	/// <remarks>
+	/// An animations-frozen unit holds a single pose because locomotion, attack, idle and death
+	/// animation playback is suspended together with any procedural sway. It can still move, attack
+	/// and cast, so combine this with <see cref="SetUnitCommandsFrozen"/> to build a statue. The state
+	/// lives on the unit entity, so it survives tile level changes, element swaps and re-drafting until
+	/// the entity is destroyed or unfrozen.
+	/// </remarks>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">True to hold the current pose; false to resume animation playback.</param>
+	void SetUnitAnimationsFrozen(UnitId unit, bool value);
+
+	/// <summary>
+	/// Makes a unit ignore movement, attack and hold orders, or releases it again.
+	/// </summary>
+	/// <remarks>
+	/// A commands-frozen unit keeps its current position, never acquires targets and ignores move, stop,
+	/// hold and attack orders, and clients hide those command buttons for it. Ability casting and ability
+	/// buttons stay available, so map-authored abilities such as tile rerolls keep working. Existing
+	/// orders and targets are cleared when the unit freezes, and unfreezing restores normal behaviour
+	/// immediately. The state lives on the unit entity, so it survives tile level changes, element swaps
+	/// and re-drafting until the entity is destroyed or unfrozen.
+	/// </remarks>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="value">True to ignore movement and attack orders; false to accept them again.</param>
+	void SetUnitCommandsFrozen(UnitId unit, bool value);
+
+	/// <summary>
 	/// Pins a unit in place, or releases it again.
 	/// </summary>
 	/// <remarks>
-	/// A frozen unit never moves, never rotates in response to orders, never acquires targets, never
-	/// casts abilities, and holds a single pose because locomotion, attack, idle and death animation
-	/// playback is suspended together with any procedural sway. Existing orders and targets are
-	/// cleared when the unit freezes, and unfreezing restores normal behaviour immediately.
-	/// Freezing is idempotent, cheap, and composes with <see cref="SetUnitInvulnerable"/>, facing and
-	/// the health-bar visibility flags, so a map can build statues out of real units. The state lives
-	/// on the unit entity, so it survives tile level changes, element swaps, unit swaps and re-drafting
-	/// until the entity is destroyed or unfrozen.
+	/// This sets both <see cref="SetUnitAnimationsFrozen"/> and <see cref="SetUnitCommandsFrozen"/>.
+	/// A frozen unit never moves, never rotates in response to orders, never acquires targets, and holds
+	/// a single pose. Existing orders and targets are cleared when the unit freezes, and unfreezing
+	/// restores normal behaviour immediately. Freezing is idempotent, cheap, and composes with
+	/// <see cref="SetUnitInvulnerable"/>, facing and the health-bar visibility flags, so a map can build
+	/// statues out of real units. The state lives on the unit entity, so it survives tile level changes,
+	/// element swaps, unit swaps and re-drafting until the entity is destroyed or unfrozen.
 	/// </remarks>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="value">True to freeze the unit in place; false to let it act normally again.</param>

@@ -387,7 +387,7 @@ namespace Realm.Client.Services
 
 		private void CollectMovementWorkItemAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)
 		{
-			if (GameContext.World.Has<Frozen>(entity)) return;
+			if (GameContext.World.Has<CommandsFrozen>(entity)) return;
 
 			if (!TryGetMovementContext(entity, pos.Value, moveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
 

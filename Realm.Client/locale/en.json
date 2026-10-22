@@ -1708,7 +1708,6 @@
   "This map format needs to be upgraded before it can be opened. Would you like to upgrade now?": "This map format needs to be upgraded before it can be opened. Would you like to upgrade now?",
   "This map is out of date. To host this match, download the matching game build or open the map in the Map Editor to upgrade it.": "This map is out of date. To host this match, download the matching game build or open the map in the Map Editor to upgrade it.",
   "This map was created with a newer version of the game. Downgrading maps is not supported.\nPlease update the game to open this map.": "This map was created with a newer version of the game. Downgrading maps is not supported.\nPlease update the game to open this map.",
-  "This unit is frozen and cannot cast.": "This unit is frozen and cannot cast.",
   "Threshold Cutoff": "Threshold Cutoff",
   "Threshold Smoothness": "Threshold Smoothness",
   "Tile Mode:": "Tile Mode:",

@@ -6,6 +6,7 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Client.Utils;
 
@@ -83,6 +84,11 @@ public partial class CommandPanel
 		{
 			child.QueueFree();
 		}
+	}
+
+	private static bool IsCommandsFrozen(Entity entity)
+	{
+		return entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<CommandsFrozen>(entity);
 	}
 
 	private CommandCardItem GetActiveItemForIndex(int index, int totalItems, int pageOffset)
@@ -845,47 +851,50 @@ public partial class CommandPanel
 		if (perkAbilities.Count > 0)
 		{
 			foreach (var ab in perkAbilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
-			AddStandardCombatCommands(items);
+			AddStandardCombatCommands(items, focusedUnit.Entity);
 			foreach (var ab in otherAbilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
 		}
 		else
 		{
 			foreach (var ab in focusedUnit.Abilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
-			AddStandardCombatCommands(items);
+			AddStandardCombatCommands(items, focusedUnit.Entity);
 		}
 	}
 
 	private void PopulateMobileUnitItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, bool hasMetadata, UnitMetadata meta)
 	{
-		items.Add(new CommandCardItem
+		if (!IsCommandsFrozen(focusedUnit.Entity))
 		{
-			Id = "move",
-			IconPath = "res://Assets/UI/move_speed.webp",
-			Tooltip = "[M] Move / Right-Click Ground",
-			Hotkey = Key.M,
-			Callback = () => GameHost.Instance?.EnterCommandTargeting("move")
-		});
+			items.Add(new CommandCardItem
+			{
+				Id = "move",
+				IconPath = "res://Assets/UI/move_speed.webp",
+				Tooltip = "[M] Move / Right-Click Ground",
+				Hotkey = Key.M,
+				Callback = () => GameHost.Instance?.EnterCommandTargeting("move")
+			});
 
-		items.Add(CreateStopCommand());
-		items.Add(CreateHoldCommand());
+			items.Add(CreateStopCommand());
+			items.Add(CreateHoldCommand());
 
-		items.Add(new CommandCardItem
-		{
-			Id = "attack",
-			IconPath = "res://Assets/UI/battle_axe.webp",
-			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
-			Hotkey = Key.A,
-			Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
-		});
+			items.Add(new CommandCardItem
+			{
+				Id = "attack",
+				IconPath = "res://Assets/UI/battle_axe.webp",
+				Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
+				Hotkey = Key.A,
+				Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
+			});
 
-		items.Add(new CommandCardItem
-		{
-			Id = "patrol",
-			IconPath = "res://Assets/UI/patrol.webp",
-			Tooltip = "[P] Patrol — Unit patrols between current position and target, engaging enemies",
-			Hotkey = Key.P,
-			Callback = () => GameHost.Instance?.EnterCommandTargeting("patrol")
-		});
+			items.Add(new CommandCardItem
+			{
+				Id = "patrol",
+				IconPath = "res://Assets/UI/patrol.webp",
+				Tooltip = "[P] Patrol — Unit patrols between current position and target, engaging enemies",
+				Hotkey = Key.P,
+				Callback = () => GameHost.Instance?.EnterCommandTargeting("patrol")
+			});
+		}
 
 		if (hasMetadata && meta.BuildOptions?.Length > 0)
 		{
@@ -905,8 +914,11 @@ public partial class CommandPanel
 		}
 	}
 
-	private void AddStandardCombatCommands(List<CommandCardItem> items)
+	private void AddStandardCombatCommands(List<CommandCardItem> items, Entity entity)
 	{
+		if (IsCommandsFrozen(entity))
+			return;
+
 		items.Add(new CommandCardItem
 		{
 			Id = "attack",

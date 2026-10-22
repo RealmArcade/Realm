@@ -261,8 +261,14 @@
         <member name="F:Realm.MapAPI.ComponentIds.PreviousRotationY">
             <summary>Previous rotation around Y-axis component identifier.</summary>
         </member>
+        <member name="F:Realm.MapAPI.ComponentIds.CommandsFrozen">
+            <summary>Commands frozen tag component identifier, marking units that ignore movement and attack orders.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.AnimationsFrozen">
+            <summary>Animations frozen tag component identifier, marking units that hold their current animation pose.</summary>
+        </member>
         <member name="F:Realm.MapAPI.ComponentIds.Frozen">
-            <summary>Frozen tag component identifier.</summary>
+            <summary>Frozen tag component identifier kept for maps that need the commands-frozen slot.</summary>
         </member>
         <member name="F:Realm.MapAPI.ComponentIds.OverheadBarsHidden">
             <summary>Overhead bars hidden tag component identifier.</summary>
@@ -2808,19 +2814,47 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">True for invulnerability; otherwise, false.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitAnimationsFrozen(Realm.MapAPI.UnitId,System.Boolean)">
+            <summary>
+            Suspends or resumes animation playback for a unit.
+            </summary>
+            <remarks>
+            An animations-frozen unit holds a single pose because locomotion, attack, idle and death
+            animation playback is suspended together with any procedural sway. It can still move, attack
+            and cast, so combine this with <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.MapAPI.UnitId,System.Boolean)"/> to build a statue. The state
+            lives on the unit entity, so it survives tile level changes, element swaps and re-drafting until
+            the entity is destroyed or unfrozen.
+            </remarks>
+            <param name="unit">The unit identifier.</param>
+            <param name="value">True to hold the current pose; false to resume animation playback.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.MapAPI.UnitId,System.Boolean)">
+            <summary>
+            Makes a unit ignore movement, attack and hold orders, or releases it again.
+            </summary>
+            <remarks>
+            A commands-frozen unit keeps its current position, never acquires targets and ignores move, stop,
+            hold and attack orders, and clients hide those command buttons for it. Ability casting and ability
+            buttons stay available, so map-authored abilities such as tile rerolls keep working. Existing
+            orders and targets are cleared when the unit freezes, and unfreezing restores normal behaviour
+            immediately. The state lives on the unit entity, so it survives tile level changes, element swaps
+            and re-drafting until the entity is destroyed or unfrozen.
+            </remarks>
+            <param name="unit">The unit identifier.</param>
+            <param name="value">True to ignore movement and attack orders; false to accept them again.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitFrozen(Realm.MapAPI.UnitId,System.Boolean)">
             <summary>
             Pins a unit in place, or releases it again.
             </summary>
             <remarks>
-            A frozen unit never moves, never rotates in response to orders, never acquires targets, never
-            casts abilities, and holds a single pose because locomotion, attack, idle and death animation
-            playback is suspended together with any procedural sway. Existing orders and targets are
-            cleared when the unit freezes, and unfreezing restores normal behaviour immediately.
-            Freezing is idempotent, cheap, and composes with <see cref="M:Realm.MapAPI.IGameAPI.SetUnitInvulnerable(Realm.MapAPI.UnitId,System.Boolean)"/>, facing and
-            the health-bar visibility flags, so a map can build statues out of real units. The state lives
-            on the unit entity, so it survives tile level changes, element swaps, unit swaps and re-drafting
-            until the entity is destroyed or unfrozen.
+            This sets both <see cref="M:Realm.MapAPI.IGameAPI.SetUnitAnimationsFrozen(Realm.MapAPI.UnitId,System.Boolean)"/> and <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.MapAPI.UnitId,System.Boolean)"/>.
+            A frozen unit never moves, never rotates in response to orders, never acquires targets, and holds
+            a single pose. Existing orders and targets are cleared when the unit freezes, and unfreezing
+            restores normal behaviour immediately. Freezing is idempotent, cheap, and composes with
+            <see cref="M:Realm.MapAPI.IGameAPI.SetUnitInvulnerable(Realm.MapAPI.UnitId,System.Boolean)"/>, facing and the health-bar visibility flags, so a map can build
+            statues out of real units. The state lives on the unit entity, so it survives tile level changes,
+            element swaps, unit swaps and re-drafting until the entity is destroyed or unfrozen.
             </remarks>
             <param name="unit">The unit identifier.</param>
             <param name="value">True to freeze the unit in place; false to let it act normally again.</param>
@@ -4388,16 +4422,37 @@
             Gets or sets a value indicating whether the unit is invulnerable to all damage.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.UnitId.AnimationsFrozen">
+            <summary>
+            Gets or sets a value indicating whether the unit holds its current animation pose.
+            </summary>
+            <remarks>
+            An animations-frozen unit plays no locomotion, attack, idle or death animation, including
+            procedural sway, but it can still receive movement, attack and ability orders. Combine it with
+            <see cref="P:Realm.MapAPI.UnitId.CommandsFrozen"/> to pin a unit in place, or use <see cref="P:Realm.MapAPI.UnitId.Frozen"/> to set both.
+            </remarks>
+        </member>
+        <member name="P:Realm.MapAPI.UnitId.CommandsFrozen">
+            <summary>
+            Gets or sets a value indicating whether the unit ignores movement, attack and hold orders.
+            </summary>
+            <remarks>
+            A commands-frozen unit keeps its current position, does not acquire targets and does not respond
+            to move, stop, hold or attack commands, and clients hide those command buttons for it. Ability
+            casting and ability buttons stay available, so map-authored abilities such as rerolls keep
+            working. Setting the property to the value it already has does nothing.
+            </remarks>
+        </member>
         <member name="P:Realm.MapAPI.UnitId.Frozen">
             <summary>
             Gets or sets a value indicating whether the unit is frozen in place with its animation suspended.
             </summary>
             <remarks>
-            A frozen unit keeps its current position and pose: it ignores orders, does not acquire targets or
-            cast abilities, and plays no locomotion, attack, idle or death animation, including procedural
-            sway. Setting the property to the value it already has does nothing. The flag lives on the entity,
-            so it survives level changes, element swaps and unit swaps until the entity is destroyed or the
-            flag is cleared, and it does not conflict with <see cref="P:Realm.MapAPI.UnitId.Invulnerable"/>, <see cref="P:Realm.MapAPI.UnitId.Facing"/> or
+            This sets both <see cref="P:Realm.MapAPI.UnitId.AnimationsFrozen"/> and <see cref="P:Realm.MapAPI.UnitId.CommandsFrozen"/>. A frozen unit keeps
+            its current position and pose and ignores orders, and it does not acquire targets. Setting the
+            property to the value it already has does nothing. The flag lives on the entity, so it survives
+            level changes, element swaps and unit swaps until the entity is destroyed or the flag is cleared,
+            and it does not conflict with <see cref="P:Realm.MapAPI.UnitId.Invulnerable"/>, <see cref="P:Realm.MapAPI.UnitId.Facing"/> or
             <see cref="P:Realm.MapAPI.UnitId.HideHealthAndManaBars"/>.
             </remarks>
         </member>

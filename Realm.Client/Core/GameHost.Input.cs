@@ -3353,12 +3353,6 @@ public partial class GameHost
 
 		if (_multiplayerActive && focusedUnit != null && !GameContext.PerspectiveFilter.CanControl(focusedUnit.Player)) return;
 
-		if (focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity) && GameContext.World.Has<Frozen>(focusedUnit.Entity))
-		{
-			InGameHUD.Instance?.ShowFeedbackText(TranslationServer.Translate("This unit is frozen and cannot cast."), new Color(1f, 0.2f, 0.2f));
-			return;
-		}
-
 		UnitId caster = UnitId.Invalid;
 		if (focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity))
 		{
