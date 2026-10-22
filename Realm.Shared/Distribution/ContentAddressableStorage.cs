@@ -51,14 +51,13 @@ public class ContentAddressableStorage
 
 		if (_assetPathCache.TryGetValue(normalizedHash, out string? cachedPath))
 		{
-			return string.IsNullOrEmpty(cachedPath) ? null : cachedPath;
+			return cachedPath;
 		}
 
 		string shard = normalizedHash.Substring(0, 2);
 		string shardDirectory = Path.Combine(_assetsDirectory, shard);
 		if (!Directory.Exists(shardDirectory))
 		{
-			_assetPathCache[normalizedHash] = string.Empty;
 			return null;
 		}
 
@@ -81,8 +80,17 @@ public class ContentAddressableStorage
 			return foundPath;
 		}
 
-		_assetPathCache[normalizedHash] = string.Empty;
 		return null;
+	}
+
+	public void InvalidateAssetPath(string blake3Hash)
+	{
+		_assetPathCache.TryRemove(NormalizeBlake3Hash(blake3Hash), out _);
+	}
+
+	public void InvalidateAllAssetPaths()
+	{
+		_assetPathCache.Clear();
 	}
 
 	public bool HasAsset(string blake3Hash)

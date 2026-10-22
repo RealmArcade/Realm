@@ -37,6 +37,7 @@ public class AssetIndexService : IDisposable
 	private ILiteCollection<IndexedMapPackage> _mapPackageCollection;
 	private readonly object _syncLock = new();
 	private readonly HashSet<string> _indexingDirectories = new(StringComparer.OrdinalIgnoreCase);
+	private HashSet<string> _lastVerificationFailurePaths = new(StringComparer.OrdinalIgnoreCase);
 
 	private LiteDatabase? _p2pDatabase;
 	private readonly object _p2pSyncLock = new();
@@ -229,154 +230,378 @@ public class AssetIndexService : IDisposable
 		return IsContentRebuildRequired();
 	}
 
-	public bool HasIncorrectlyIndexedSample()
+	public const int DefaultVerificationSampleSize = 64;
+
+	public AssetIndexVerificationResult VerifyIndex(int sampleSize = DefaultVerificationSampleSize)
+	{
+		if (sampleSize <= 0)
+		{
+			throw new ArgumentOutOfRangeException(nameof(sampleSize));
+		}
+
+		lock (_syncLock)
+		{
+			var assets = _assetCollection.FindAll()
+				.OrderBy(a => a.FilePath, StringComparer.Ordinal)
+				.ToList();
+
+			var sampledAssets = SelectDeterministicSample(assets, sampleSize);
+			var checkedPaths = new List<string>(sampledAssets.Count);
+			var failures = new List<AssetIndexVerificationFailure>();
+
+			foreach (var asset in sampledAssets)
+			{
+				checkedPaths.Add(asset.FilePath);
+				string? failureReason = InspectIndexedAsset(asset, verifyContentHash: false);
+				if (failureReason != null)
+				{
+					failures.Add(new AssetIndexVerificationFailure(asset.FilePath, failureReason));
+				}
+			}
+
+			int previousFailureCount = _lastVerificationFailurePaths.Count;
+			_lastVerificationFailurePaths = failures.Select(f => f.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+			int stride = CalculateSampleStride(assets.Count, sampleSize);
+			string strategy = $"Deterministic stride sample of up to {sampleSize} of {assets.Count} indexed file(s) ordered by path (stride {stride}), always including the {previousFailureCount} file(s) that failed the previous verification.";
+			LogVerificationOutcome("sample", strategy, checkedPaths.Count, failures);
+
+			return new AssetIndexVerificationResult(checkedPaths.Count, assets.Count, strategy, checkedPaths, failures);
+		}
+	}
+
+	public AssetIndexVerificationResult VerifyAllIndexedAssets(bool verifyContentHash, IProgress<AssetIndexProgressUpdate>? progress = null, double progressStart = 0.0, double progressEnd = 1.0)
 	{
 		lock (_syncLock)
 		{
-			try
+			var assets = _assetCollection.FindAll()
+				.OrderBy(a => a.FilePath, StringComparer.Ordinal)
+				.ToList();
+
+			var checkedPaths = new List<string>(assets.Count);
+			var failures = new List<AssetIndexVerificationFailure>();
+			int total = Math.Max(1, assets.Count);
+
+			for (int i = 0; i < assets.Count; i++)
 			{
-				if (HasIncorrectlyIndexedManifestSample()) return true;
-				if (HasIncorrectlyIndexedCategorySample()) return true;
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[AssetIndexService] Error verifying asset index sample integrity: {ex.Message}");
-				return true;
+				var asset = assets[i];
+				checkedPaths.Add(asset.FilePath);
+
+				string? failureReason = InspectIndexedAsset(asset, verifyContentHash);
+				if (failureReason != null)
+				{
+					failures.Add(new AssetIndexVerificationFailure(asset.FilePath, failureReason));
+				}
+
+				if (progress != null && (i % 128 == 0 || i == assets.Count - 1))
+				{
+					double fraction = (double)(i + 1) / total;
+					progress.Report(new AssetIndexProgressUpdate(progressStart + (progressEnd - progressStart) * fraction, string.Format(TranslationServer.Translate("Verifying indexed file {0}/{1}..."), i + 1, assets.Count)));
+				}
 			}
 
-			return false;
+			_lastVerificationFailurePaths = failures.Select(f => f.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+			string strategy = verifyContentHash
+				? "Full verification of every indexed file, including its content hash."
+				: "Full verification of every indexed file.";
+			LogVerificationOutcome("full", strategy, checkedPaths.Count, failures);
+
+			return new AssetIndexVerificationResult(checkedPaths.Count, assets.Count, strategy, checkedPaths, failures);
 		}
 	}
 
-	private bool HasIncorrectlyIndexedManifestSample()
+	public int RepairIndexedAssets(IReadOnlyList<AssetIndexVerificationFailure> failures, IProgress<AssetIndexProgressUpdate>? progress = null, double progressStart = 0.0, double progressEnd = 1.0)
 	{
-		if (!Directory.Exists(MapAssetManager.GlobalArchiveDirectory)) return false;
+		if (failures == null || failures.Count == 0) return 0;
 
-		var manifestFiles = Directory.GetFiles(MapAssetManager.GlobalArchiveDirectory, "manifest.json", SearchOption.AllDirectories);
-		if (manifestFiles.Length == 0) return false;
-
-		string randomManifest = manifestFiles[Random.Shared.Next(manifestFiles.Length)];
-		var manifest = MapManifest.LoadFromFile(randomManifest);
-		if (manifest?.Files == null || manifest.Files.Count == 0) return false;
-
-		var validEntries = manifest.Files
-			.Where(kvp => !kvp.Key.EndsWith("manifest.json", StringComparison.OrdinalIgnoreCase) &&
-			              !string.IsNullOrEmpty(kvp.Value) &&
-			              ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value).Length >= 2)
-			.ToList();
-
-		if (validEntries.Count == 0) return false;
-
-		var randomEntry = validEntries[Random.Shared.Next(validEntries.Count)];
-		return IsManifestEntryIncorrect(randomManifest, randomEntry);
-	}
-
-	private bool IsManifestEntryIncorrect(string manifestPath, KeyValuePair<string, string> entry)
-	{
-		string normBlake = ContentAddressableStorage.NormalizeBlake3Hash(entry.Value);
-		string mapDir = Path.GetDirectoryName(manifestPath) ?? string.Empty;
-		string mapRel = entry.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
-			? entry.Key.Substring(6)
-			: entry.Key;
-		mapRel = mapRel.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar);
-		string mapFilePath = Path.Combine(mapDir, mapRel);
-
-		if (!File.Exists(mapFilePath)) return true;
-
-		string? casPath = MapAssetManager.Storage.FindAssetFilePath(normBlake);
-		if (casPath == null || !File.Exists(casPath)) return true;
-
-		string casSidecarPath = Path.Combine(MapAssetManager.Storage.SidecarCacheDirectory, normBlake.Substring(0, 2), $"{normBlake}.json");
-		string mapSidecarPath = Path.Combine(mapDir, ".sidecarcache", normBlake.Substring(0, 2), $"{normBlake}.json");
-		string mapFlatSidecarPath = Path.Combine(mapDir, ".sidecarcache", $"{normBlake}.json");
-
-		return !File.Exists(casSidecarPath) && !File.Exists(mapSidecarPath) && !File.Exists(mapFlatSidecarPath);
-	}
-
-	private bool HasIncorrectlyIndexedCategorySample()
-	{
-		var categories = _assetCollection.Find(Query.Not("AssetType", BsonValue.Null))
-			.Select(a => a.AssetType)
-			.Where(t => t.HasValue)
-			.Select(t => t!.Value)
-			.Distinct()
-			.ToList();
-
-		if (categories.Count == 0) return false;
-
-		foreach (var category in categories)
+		int repairedCount = 0;
+		lock (_syncLock)
 		{
-			var matchingAssets = _assetCollection.Find(x => x.AssetType == category).ToList();
-			if (matchingAssets.Count == 0) continue;
+			for (int i = 0; i < failures.Count; i++)
+			{
+				double fraction = (double)(i + 1) / failures.Count;
+				progress?.Report(new AssetIndexProgressUpdate(progressStart + (progressEnd - progressStart) * fraction, string.Format(TranslationServer.Translate("Repairing indexed file {0}/{1}..."), i + 1, failures.Count)));
+				if (RepairIndexedAsset(failures[i].FilePath))
+				{
+					repairedCount++;
+				}
+			}
 
-			var sampledAsset = matchingAssets[Random.Shared.Next(matchingAssets.Count)];
-			if (IsSampledAssetIncorrect(sampledAsset)) return true;
+			if (repairedCount > 0)
+			{
+				_database.Checkpoint();
+			}
 		}
 
-		return false;
+		return repairedCount;
 	}
 
-	private bool IsSampledAssetIncorrect(IndexedAsset sampledAsset)
+	private List<IndexedAsset> SelectDeterministicSample(List<IndexedAsset> assets, int sampleSize)
 	{
-		if (string.IsNullOrEmpty(sampledAsset.FilePath) || !File.Exists(sampledAsset.FilePath)) return true;
+		var sampledAssets = new List<IndexedAsset>();
+		var sampledPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		var fileInfo = new FileInfo(sampledAsset.FilePath);
-		if (fileInfo.Length != sampledAsset.FileSizeBytes) return true;
+		foreach (var asset in assets)
+		{
+			if (sampledAssets.Count >= sampleSize) break;
+			if (_lastVerificationFailurePaths.Contains(asset.FilePath) && sampledPaths.Add(asset.FilePath))
+			{
+				sampledAssets.Add(asset);
+			}
+		}
 
-		string diskExtension = Path.GetExtension(sampledAsset.FilePath).ToLowerInvariant();
-		if (!string.Equals(diskExtension, sampledAsset.Extension, StringComparison.OrdinalIgnoreCase)) return true;
+		int stride = CalculateSampleStride(assets.Count, sampleSize);
+		for (int i = 0; i < assets.Count && sampledAssets.Count < sampleSize; i += stride)
+		{
+			if (sampledPaths.Add(assets[i].FilePath))
+			{
+				sampledAssets.Add(assets[i]);
+			}
+		}
 
-		string? diskMetadataJson = RealmMetadataHelper.ExtractMetadata(sampledAsset.FilePath);
-		bool diskHasMetadata = !string.IsNullOrEmpty(diskMetadataJson);
-
-		if (diskHasMetadata != sampledAsset.HasRealmMetadata) return true;
-
-		if (IsAssetTypeIncorrect(sampledAsset)) return true;
-		if (IsBlake3Incorrect(sampledAsset, diskHasMetadata, diskMetadataJson)) return true;
-
-		return false;
+		return sampledAssets;
 	}
 
-	private bool IsAssetTypeIncorrect(IndexedAsset sampledAsset)
+	private static int CalculateSampleStride(int assetCount, int sampleSize)
 	{
-		string? diskAssetTypeStr = RealmMetadataHelper.ExtractAssetType(sampledAsset.FilePath);
-		AssetType? diskAssetType = RealmMetadataHelper.NormalizeAssetType(diskAssetTypeStr);
+		if (assetCount <= sampleSize) return 1;
+		return (int)Math.Ceiling((double)assetCount / sampleSize);
+	}
+
+	private static void LogVerificationOutcome(string passName, string strategy, int checkedCount, List<AssetIndexVerificationFailure> failures)
+	{
+		GD.Print($"[AssetIndexService] {passName} verification checked {checkedCount} file(s). {strategy} Problems: {failures.Count}.");
+		foreach (var failure in failures)
+		{
+			GD.PrintErr($"[AssetIndexService] Verification problem in {failure.FilePath}: {failure.Reason}");
+		}
+	}
+
+	private string? InspectIndexedAsset(IndexedAsset asset, bool verifyContentHash)
+	{
+		if (string.IsNullOrEmpty(asset.FilePath) || !File.Exists(asset.FilePath))
+		{
+			return "file is missing on disk";
+		}
+
+		var fileInfo = new FileInfo(asset.FilePath);
+		if (fileInfo.Length != asset.FileSizeBytes)
+		{
+			return $"recorded size {asset.FileSizeBytes} does not match {fileInfo.Length} byte(s) on disk";
+		}
+
+		string diskExtension = Path.GetExtension(asset.FilePath).ToLowerInvariant();
+		if (!string.Equals(diskExtension, asset.Extension, StringComparison.OrdinalIgnoreCase))
+		{
+			return $"recorded extension '{asset.Extension}' does not match '{diskExtension}' on disk";
+		}
+
+		if (string.IsNullOrEmpty(asset.Blake3))
+		{
+			return "recorded hash is empty";
+		}
+
+		string recordedHash = ContentAddressableStorage.NormalizeBlake3Hash(asset.Blake3);
+		if (IsCasAsset(asset))
+		{
+			string pathHash = ContentAddressableStorage.NormalizeBlake3Hash(Path.GetFileName(asset.FilePath));
+			if (!string.Equals(pathHash, recordedHash, StringComparison.OrdinalIgnoreCase))
+			{
+				return $"recorded hash {recordedHash} does not match the hash {pathHash} encoded in its path";
+			}
+		}
+
+		if (verifyContentHash)
+		{
+			string contentHash = ContentAddressableStorage.NormalizeBlake3Hash(RealmMetadataHelper.ComputeBlake3(asset.FilePath));
+			if (!string.Equals(contentHash, recordedHash, StringComparison.OrdinalIgnoreCase))
+			{
+				return $"recorded hash {recordedHash} does not match the content hash {contentHash} of the file on disk";
+			}
+		}
+
+		string? diskMetadataJson = RealmMetadataHelper.ExtractMetadata(asset.FilePath);
+
+		AssetType? diskAssetType = RealmMetadataHelper.NormalizeAssetType(RealmMetadataHelper.ExtractAssetType(asset.FilePath));
 		if (diskAssetType.HasValue)
 		{
-			return diskAssetType.Value != sampledAsset.AssetType;
+			if (diskAssetType.Value != asset.AssetType)
+			{
+				return $"recorded asset type '{asset.AssetType}' does not match '{diskAssetType.Value}' in the file metadata";
+			}
 		}
-
-		if (!sampledAsset.AssetType.HasValue || !RealmMetadataHelper.IsValidAssetTypeForExtension(sampledAsset.FilePath, sampledAsset.AssetType.Value, out _))
+		else if (asset.AssetType.HasValue &&
+		         RealmMetadataHelper.GetValidAssetTypesForExtension(asset.FilePath).Count > 0 &&
+		         !RealmMetadataHelper.IsValidAssetTypeForExtension(asset.FilePath, asset.AssetType.Value, out _))
 		{
-			return true;
+			return $"recorded asset type '{asset.AssetType.Value}' is not valid for '{diskExtension}'";
 		}
 
-		return false;
+		return InspectEmbeddedHash(diskMetadataJson, recordedHash);
 	}
 
-	private bool IsBlake3Incorrect(IndexedAsset sampledAsset, bool diskHasMetadata, string? diskMetadataJson)
+	private static string? InspectEmbeddedHash(string? diskMetadataJson, string recordedHash)
 	{
-		if (string.IsNullOrEmpty(sampledAsset.Blake3) || !diskHasMetadata || diskMetadataJson == null) return false;
+		if (string.IsNullOrEmpty(diskMetadataJson)) return null;
 
 		try
 		{
-			var node = JsonNode.Parse(diskMetadataJson);
-			if (node is JsonObject obj && obj.ContainsKey("blake3"))
+			if (JsonNode.Parse(diskMetadataJson) is JsonObject obj && obj.ContainsKey("blake3"))
 			{
-				string? metaBlake3 = obj["blake3"]?.ToString();
-				if (!string.IsNullOrEmpty(metaBlake3) && !string.Equals(metaBlake3, sampledAsset.Blake3, StringComparison.OrdinalIgnoreCase))
+				string? embeddedHash = obj["blake3"]?.ToString();
+				if (!string.IsNullOrEmpty(embeddedHash) &&
+				    !string.Equals(ContentAddressableStorage.NormalizeBlake3Hash(embeddedHash), recordedHash, StringComparison.OrdinalIgnoreCase))
 				{
-					return true;
+					return $"recorded hash {recordedHash} does not match the embedded metadata hash {embeddedHash}";
 				}
 			}
 		}
 		catch
 		{
+			return "embedded metadata is not valid JSON";
+		}
+
+		return null;
+	}
+
+	private bool RepairIndexedAsset(string filePath)
+	{
+		if (string.IsNullOrWhiteSpace(filePath)) return false;
+
+		string normalizedFilePath = NormalizePath(filePath);
+		var asset = _assetCollection.FindOne(x => x.FilePath == normalizedFilePath);
+		if (asset == null) return false;
+
+		if (!RestoreCasAssetFileIfNeeded(asset))
+		{
+			_assetCollection.Delete(asset.Id);
 			return true;
+		}
+
+		ReindexAssetFromDisk(asset, normalizedFilePath);
+		_assetCollection.Update(asset);
+		return true;
+	}
+
+	private bool RestoreCasAssetFileIfNeeded(IndexedAsset asset)
+	{
+		if (!IsCasAsset(asset)) return true;
+
+		string hash = ContentAddressableStorage.NormalizeBlake3Hash(asset.Blake3 ?? Path.GetFileName(asset.FilePath));
+		if (hash.Length < 2) return false;
+
+		if (File.Exists(asset.FilePath) && ContentMatchesHash(asset.FilePath, hash)) return true;
+
+		return TryRestoreCasAssetFile(hash, asset.FilePath);
+	}
+
+	private static bool TryRestoreCasAssetFile(string hash, string casFilePath)
+	{
+		foreach (string archiveDirectory in GetArchiveDirectories())
+		{
+			string[] manifestFiles = Directory.GetFiles(archiveDirectory, "manifest.json", SearchOption.AllDirectories);
+			foreach (string manifestFile in manifestFiles)
+			{
+				string? sourceFilePath = FindManifestSourceForHash(manifestFile, hash);
+				if (sourceFilePath == null || !ContentMatchesHash(sourceFilePath, hash)) continue;
+
+				HardLinkHelper.CreateHardLinkOrCopy(casFilePath, sourceFilePath);
+				MapAssetManager.Storage.InvalidateAssetPath(hash);
+				return File.Exists(casFilePath);
+			}
 		}
 
 		return false;
 	}
+
+	private static IReadOnlyList<string> GetArchiveDirectories()
+	{
+		var archiveDirectories = new List<string>();
+		if (Directory.Exists(MapAssetManager.GlobalArchiveDirectory))
+		{
+			archiveDirectories.Add(MapAssetManager.GlobalArchiveDirectory);
+		}
+
+		if (Directory.Exists(MapAssetManager.P2PArchiveDirectory))
+		{
+			archiveDirectories.Add(MapAssetManager.P2PArchiveDirectory);
+		}
+
+		return archiveDirectories;
+	}
+
+	private static string? FindManifestSourceForHash(string manifestFile, string hash)
+	{
+		var manifest = MapManifest.LoadFromFile(manifestFile);
+		if (manifest?.Files == null || manifest.Files.Count == 0) return null;
+
+		string mapDirectory = Path.GetDirectoryName(manifestFile) ?? string.Empty;
+		foreach (var entry in manifest.Files)
+		{
+			if (!string.Equals(ContentAddressableStorage.NormalizeBlake3Hash(entry.Value), hash, StringComparison.OrdinalIgnoreCase)) continue;
+
+			string relativePath = entry.Key.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ? entry.Key.Substring(6) : entry.Key;
+			relativePath = relativePath.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar);
+
+			string candidateFilePath = Path.Combine(mapDirectory, relativePath);
+			if (File.Exists(candidateFilePath)) return candidateFilePath;
+		}
+
+		return null;
+	}
+
+	private static bool ContentMatchesHash(string filePath, string hash)
+	{
+		try
+		{
+			string contentHash = ContentAddressableStorage.NormalizeBlake3Hash(RealmMetadataHelper.ComputeBlake3(filePath));
+			return string.Equals(contentHash, hash, StringComparison.OrdinalIgnoreCase);
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
+	private void ReindexAssetFromDisk(IndexedAsset asset, string normalizedFilePath)
+	{
+		var fileInfo = new FileInfo(normalizedFilePath);
+		string diskExtension = Path.GetExtension(normalizedFilePath).ToLowerInvariant();
+
+		if (IsCasAsset(asset))
+		{
+			asset.FileSizeBytes = fileInfo.Length;
+			asset.LastModifiedUtc = fileInfo.LastWriteTimeUtc;
+			asset.Extension = diskExtension;
+			asset.Blake3 = ContentAddressableStorage.NormalizeBlake3Hash(Path.GetFileName(normalizedFilePath));
+
+			AssetType? diskAssetType = RealmMetadataHelper.NormalizeAssetType(RealmMetadataHelper.ExtractAssetType(normalizedFilePath));
+			if (diskAssetType.HasValue)
+			{
+				asset.AssetType = diskAssetType;
+			}
+
+			asset.HasRealmMetadata = asset.HasRealmMetadata || !string.IsNullOrEmpty(RealmMetadataHelper.ExtractMetadata(normalizedFilePath));
+			return;
+		}
+
+		AssetType? expectedDirType = GetExpectedAssetTypeFromDirectory(normalizedFilePath);
+		GenerateIndexedAssetFromFile(normalizedFilePath, asset.DirectoryPath, fileInfo, diskExtension, expectedDirType, asset);
+	}
+
+	private static bool IsCasAsset(IndexedAsset asset)
+	{
+		string p2pCasAssetsDirectory = P2PCasAssetsDirectory;
+		if (string.Equals(asset.DirectoryPath, GlobalCasAssetsDirectory, StringComparison.OrdinalIgnoreCase)) return true;
+		if (string.Equals(asset.DirectoryPath, p2pCasAssetsDirectory, StringComparison.OrdinalIgnoreCase)) return true;
+		if (string.IsNullOrEmpty(asset.FilePath)) return false;
+
+		string normalizedFilePath = NormalizePath(asset.FilePath);
+		return normalizedFilePath.StartsWith(GlobalCasAssetsDirectory + "/", StringComparison.OrdinalIgnoreCase) ||
+		       normalizedFilePath.StartsWith(p2pCasAssetsDirectory + "/", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static string P2PCasAssetsDirectory => NormalizePath(Path.Combine(MapAssetManager.P2PArchiveDirectory, "assets"));
 
 
 	public void SynchronizeCasAndMapPackages(IProgress<AssetIndexProgressUpdate>? progress = null)
@@ -447,25 +672,39 @@ public class AssetIndexService : IDisposable
 	{
 		if (casFilePath != null && File.Exists(casFilePath)) return casFilePath;
 
-		string? sourceFile = FindSourceFileForCas(mapDir, virtualPath, mapFilePath);
-		if (sourceFile == null || !File.Exists(sourceFile)) return null;
-
 		string extension = Path.GetExtension(virtualPath);
-		if (string.IsNullOrEmpty(extension)) extension = Path.GetExtension(sourceFile);
+		if (string.IsNullOrEmpty(extension)) extension = Path.GetExtension(mapFilePath);
+		if (string.IsNullOrEmpty(extension)) extension = ".bin";
 
 		string shard = blake3.Substring(0, 2);
 		string shardDirectory = Path.Combine(cas.AssetsDirectory, shard);
 		if (!Directory.Exists(shardDirectory)) Directory.CreateDirectory(shardDirectory);
 
 		string targetCasPath = Path.Combine(shardDirectory, $"{blake3}{extension.ToLowerInvariant()}");
-		HardLinkHelper.CreateHardLinkOrCopy(targetCasPath, sourceFile);
-
-		if (!File.Exists(mapFilePath))
+		if (File.Exists(targetCasPath))
 		{
-			HardLinkHelper.CreateHardLinkOrCopy(mapFilePath, targetCasPath);
+			cas.InvalidateAssetPath(blake3);
+			return targetCasPath;
 		}
 
-		return targetCasPath;
+		string? sourceFile = FindSourceFileForCas(mapDir, virtualPath, mapFilePath);
+		if (sourceFile == null || !File.Exists(sourceFile)) return null;
+
+		if (!ContentMatchesHash(sourceFile, blake3))
+		{
+			GD.PrintErr($"[AssetIndexService] Refusing to restore {targetCasPath}: {sourceFile} does not match its recorded hash {blake3}.");
+			return null;
+		}
+
+		HardLinkHelper.CreateHardLinkOrCopy(targetCasPath, sourceFile, overwrite: false);
+		cas.InvalidateAssetPath(blake3);
+
+		if (!File.Exists(mapFilePath) && File.Exists(targetCasPath))
+		{
+			HardLinkHelper.CreateHardLinkOrCopy(mapFilePath, targetCasPath, overwrite: false);
+		}
+
+		return File.Exists(targetCasPath) ? targetCasPath : null;
 	}
 
 	private string? FindSourceFileForCas(string mapDir, string virtualPath, string mapFilePath)
@@ -618,10 +857,44 @@ public class AssetIndexService : IDisposable
 			SetIndexGameBuildNumber(RealmVersion.GameBuildNumber);
 
 			InitializeDefaultDirectories();
+			InvalidateCasPathCaches();
 			ScanAllCasManifests(progress);
+
+			progress?.Report(new AssetIndexProgressUpdate(0.95, TranslationServer.Translate("Verifying every indexed file...")));
+			var verification = VerifyAllIndexedAssets(verifyContentHash: true, progress, 0.95, 0.98);
+			progress?.Report(new AssetIndexProgressUpdate(0.98, string.Format(TranslationServer.Translate("Verified {0} indexed file(s): {1} problem(s) found."), verification.CheckedCount, verification.Failures.Count)));
+
+			if (verification.Failures.Count > 0)
+			{
+				int repairedCount = RepairIndexedAssets(verification.Failures, progress, 0.98, 0.99);
+				int remainingCount = CountRemainingVerificationFailures(verification.Failures);
+				progress?.Report(new AssetIndexProgressUpdate(0.99, string.Format(TranslationServer.Translate("Repaired {0} indexed file(s); {1} problem(s) remain."), repairedCount, remainingCount)));
+			}
 
 			progress?.Report(new AssetIndexProgressUpdate(1.0, TranslationServer.Translate("Asset index repair complete!")));
 		}
+	}
+
+	private static void InvalidateCasPathCaches()
+	{
+		MapAssetManager.Storage.InvalidateAllAssetPaths();
+		if (Directory.Exists(MapAssetManager.P2PArchiveDirectory))
+		{
+			MapAssetManager.P2PStorage.InvalidateAllAssetPaths();
+		}
+	}
+
+	private int CountRemainingVerificationFailures(IReadOnlyList<AssetIndexVerificationFailure> failures)
+	{
+		int remainingCount = 0;
+		foreach (var failure in failures)
+		{
+			var asset = GetAssetByPath(failure.FilePath);
+			if (asset == null) continue;
+			if (InspectIndexedAsset(asset, verifyContentHash: true) != null) remainingCount++;
+		}
+
+		return remainingCount;
 	}
 
 	public AssetIndexService()

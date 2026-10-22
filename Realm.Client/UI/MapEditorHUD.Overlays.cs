@@ -971,14 +971,41 @@ namespace Realm.Client.UI
 
 		private void CheckPostLaunchPrompts()
 		{
-			if (GameContext.AssetIndexService.IsIndexVersionMismatch() || GameContext.AssetIndexService.HasIncorrectlyIndexedSample())
+			if (GameContext.AssetIndexService.IsIndexVersionMismatch())
 			{
 				_ = ShowAssetIndexRepairModalAsync(() => { CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); }); });
+				return;
 			}
-			else
+
+			var verification = GameContext.AssetIndexService.VerifyIndex();
+			if (verification.IsHealthy)
 			{
 				CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); });
+				return;
 			}
+
+			_ = RepairFailedAssetIndexEntriesAsync(verification, () => { CheckUnsavedSessionOnLaunch(() => { CheckCreatorRegistrationAndPrompt(); }); });
+		}
+
+		private async Task RepairFailedAssetIndexEntriesAsync(AssetIndexVerificationResult verification, Action onCompleted)
+		{
+			int repairedCount = 0;
+			try
+			{
+				repairedCount = await Task.Run(() => GameContext.AssetIndexService.RepairIndexedAssets(verification.Failures));
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[MapEditorHUD] Asset index sample repair error: {ex.Message}");
+			}
+
+			if (repairedCount > 0)
+			{
+				GD.Print($"[MapEditorHUD] Repaired {repairedCount} asset index record(s) without rebuilding the whole index.");
+				ShowFeedback(string.Format(TranslationServer.Translate("Repaired {0} asset index record(s)."), repairedCount));
+			}
+
+			onCompleted?.Invoke();
 		}
 
 		private void SetPanelExpanded(string panelPath, string buttonPath, string contentPath, bool expand)
