@@ -235,6 +235,11 @@ public partial class MapDetails : Control
 		{
 			var vData = _mapData.AvailableVersions[i];
 			string vLabel = !string.IsNullOrWhiteSpace(vData.Version) ? $"v{vData.Version}" : "v1.0.0";
+			if (vData.IsTestVersion)
+			{
+				vLabel += " " + TranslationServer.Translate("(Test)");
+			}
+
 			_versionDropdown.AddItem(vLabel, i);
 			if (string.Equals(vData.Version, _mapData.Version, StringComparison.OrdinalIgnoreCase) ||
 			    string.Equals(vData.MapId, _mapData.MapId, StringComparison.OrdinalIgnoreCase))

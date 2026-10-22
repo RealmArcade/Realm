@@ -2368,7 +2368,7 @@ namespace Realm.Client.UI
 			UIManager.Instance?.ShowPopupMessage("CORRUPT MAP FILE", msg);
 		}
 
-		private void InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn)
+		private void InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn, out CheckBox testVersionCheck, out LineEdit officialVersionEdit)
 		{
 			popup = new Panel();
 			popup.Name = "Popup_Panel";
@@ -2413,6 +2413,49 @@ namespace Realm.Client.UI
 			descLabel.AddThemeFontSizeOverride("font_size", 13);
 			descLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			vbox.AddChild(descLabel);
+
+			var publishOptionsRow = new HBoxContainer();
+			publishOptionsRow.Name = "PublishOptions_HBoxContainer";
+			publishOptionsRow.AddThemeConstantOverride("separation", 12);
+			publishOptionsRow.Alignment = BoxContainer.AlignmentMode.Center;
+
+			testVersionCheck = new CheckBox
+			{
+				Name = "TestVersionCheck_CheckBox",
+				Text = TranslationServer.Translate("Publish as test version"),
+				TooltipText = TranslationServer.Translate("Test versions are listed separately and never replace the official version players download.")
+			};
+			testVersionCheck.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+			publishOptionsRow.AddChild(testVersionCheck);
+
+			var officialVersionLabel = new Label { Text = TranslationServer.Translate("Official version:") };
+			officialVersionLabel.AddThemeFontSizeOverride("font_size", 12);
+			officialVersionLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			publishOptionsRow.AddChild(officialVersionLabel);
+
+			officialVersionEdit = new LineEdit
+			{
+				Name = "OfficialVersionEdit_LineEdit",
+				Text = mapVersion,
+				CustomMinimumSize = new Vector2(90, 24),
+				TooltipText = TranslationServer.Translate("Version number players download. Test versions never change it unless you edit it here.")
+			};
+			officialVersionEdit.AddThemeFontSizeOverride("font_size", 12);
+			publishOptionsRow.AddChild(officialVersionEdit);
+
+			vbox.AddChild(publishOptionsRow);
+
+			var maintainerInfoLabel = new Label
+			{
+				Name = "MaintainerInfo_Label",
+				Text = TranslationServer.Translate("Maintainer keys: every listed key can publish this map. Keys are added or revoked by an existing key holder through the registry maintainer endpoints; revocations take effect immediately and are recorded in the admin audit log."),
+				AutowrapMode = TextServer.AutowrapMode.Word,
+				CustomMinimumSize = new Vector2(520, 0),
+				SizeFlagsHorizontal = SizeFlags.ExpandFill
+			};
+			maintainerInfoLabel.AddThemeFontSizeOverride("font_size", 11);
+			maintainerInfoLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+			vbox.AddChild(maintainerInfoLabel);
 
 			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
@@ -2490,7 +2533,7 @@ namespace Realm.Client.UI
 			string tempTerrainPath = Path.Combine(workspace, "terrain.json");
 			string manifestJsonPath = Path.Combine(workspace, "manifest.json");
 
-			InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn);
+			InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn, out CheckBox testVersionCheck, out LineEdit officialVersionEdit);
 
 			closeBtn.Pressed += () =>
 			{
@@ -2694,6 +2737,8 @@ namespace Realm.Client.UI
 				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
 				var manifest = MapManifest.CreateFromDirectory(workspace, mapTitle, currentUsername, mapVersion);
+				manifest.IsTestVersion = testVersionCheck.ButtonPressed;
+				manifest.OfficialVersion = officialVersionEdit.Text.Trim();
 				manifestJsonPath = Path.Combine(workspace, "manifest.json");
 				string manifestJsonContent = manifest.ToJson();
 				File.WriteAllText(manifestJsonPath, manifestJsonContent);
@@ -2755,7 +2800,9 @@ namespace Realm.Client.UI
 					MapVersion = mapVersion,
 					PublicKey = pubKeyBase64,
 					Signature = manifestSigBase64,
-					ReferencedHashes = manifest.Files.Values.ToList()
+					ReferencedHashes = manifest.Files.Values.ToList(),
+					IsTestVersion = testVersionCheck.ButtonPressed,
+					OfficialVersion = officialVersionEdit.Text.Trim()
 				};
 
 				var initRes = await distClient.InitiatePublishAsync(initReq);
@@ -2836,7 +2883,9 @@ namespace Realm.Client.UI
 					MapTitle = mapTitle,
 					MapVersion = mapVersion,
 					PublicKey = pubKeyBase64,
-					Signature = manifestSigBase64
+					Signature = manifestSigBase64,
+					IsTestVersion = testVersionCheck.ButtonPressed,
+					OfficialVersion = officialVersionEdit.Text.Trim()
 				};
 
 				var finalRes = await distClient.FinalizePublishAsync(finalizeReq);

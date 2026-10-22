@@ -7,4 +7,6 @@ public class PublishMapFinalizeRequest
 	public string MapVersion { get; set; } = "1.0";
 	public string PublicKey { get; set; } = string.Empty;
 	public string Signature { get; set; } = string.Empty;
+	public bool IsTestVersion { get; set; }
+	public string? OfficialVersion { get; set; }
 }
