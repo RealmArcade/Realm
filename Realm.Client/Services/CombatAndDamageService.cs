@@ -202,7 +202,7 @@ namespace Realm.Client.Services
 		private readonly Action<int> _evaluateAttackerFallbackDelegate;
 
 		public Action<Vector3, Vector3>? OnArrowProjectileRequested;
-		public Action<Vector3, Vector3, string?, Entity>? OnWeaponProjectileRequested;
+		public Action<Vector3, Vector3, string?, Entity, int>? OnWeaponProjectileRequested;
 		public Func<string, string[]?>? UnitWeaponsProvider;
 		public Action<Entity>? OnDamageFlashRequested;
 		public Action<Vector3, Vector3>? OnHealEffectRequested;
@@ -951,7 +951,7 @@ namespace Realm.Client.Services
 				weaponId = (weapons != null && weapons.Length > 0) ? weapons[0] : defId;
 			}
 
-			OnWeaponProjectileRequested?.Invoke(currentPos, targetPos, weaponId, target);
+			OnWeaponProjectileRequested?.Invoke(currentPos, targetPos, weaponId, target, GetPlayerIndexForEntity(entity));
 		}
 
 		private void HandleOutOfRangeAction(Entity entity, Entity target, Vector3 currentPos, Vector3 targetPos, float effectiveRange, bool isMelee, float meleeVerticalReach)

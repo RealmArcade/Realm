@@ -56,6 +56,8 @@ namespace Realm.Client.UI
 			{
 				MapTemplateGeneratorService.EnsureMapTemplates(wsPath);
 			}
+
+			RefreshEntityPalette();
 		}
 
 		public void PerformAutoBackup()

@@ -3211,7 +3211,7 @@ public partial class GameHost : Node3D, IGameAPI
 					bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
 					bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 					int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
-					GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, spectatorPerspective, isReplay, isSpectator);
+					GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, AllVfx, VisualProjectilePool.Instance.ActiveProjectiles, spectatorPerspective, isReplay, isSpectator);
 				}
 			}
 
@@ -3726,7 +3726,7 @@ public partial class GameHost : Node3D, IGameAPI
 		if (req.EffectTypeId != "arrow" && !WeaponRegistry.ContainsKey(req.EffectTypeId) && !req.EffectTypeId.StartsWith("proj:")) return false;
 
 		string weaponId = req.EffectTypeId.StartsWith("proj:") ? req.EffectTypeId.Substring(5) : req.EffectTypeId;
-		SpawnWeaponProjectile(godotPos, godotTarget, weaponId, GetEntityById(req.EntityId));
+		SpawnWeaponProjectile(godotPos, godotTarget, weaponId, GetEntityById(req.EntityId), req.OwnerPlayerIndex);
 		return true;
 	}
 
@@ -3830,9 +3830,9 @@ public partial class GameHost : Node3D, IGameAPI
 		SpawnWeaponProjectile(start, target, "arrow");
 	}
 
-	public void SpawnWeaponProjectile(Vector3 start, Vector3 target, string? weaponId = null, Entity targetEntity = default)
+	public void SpawnWeaponProjectile(Vector3 start, Vector3 target, string? weaponId = null, Entity targetEntity = default, int ownerPlayerIndex = 0)
 	{
-		GameContext.FXService.SpawnWeaponProjectile(this, start, target, weaponId, targetEntity);
+		GameContext.FXService.SpawnWeaponProjectile(this, start, target, weaponId, targetEntity, ownerPlayerIndex);
 		if (GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
 		{
 			GameContext.ReplayService.RecordProjectile(weaponId ?? "arrow", new System.Numerics.Vector3(start.X, start.Y, start.Z), new System.Numerics.Vector3(target.X, target.Y, target.Z));

@@ -5,6 +5,7 @@ using Godot;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.Utils;
 using Realm.Client.VFX;
 using Realm.Ecs;
 using Realm.Ecs.Common;
@@ -1249,7 +1250,8 @@ public partial class GameHost
 		Vector3 rotationDegrees,
 		Vector3 scale,
 		float normalOffset = 0f,
-		VfxAttachmentConfig customConfig = null)
+		VfxAttachmentConfig customConfig = null,
+		int ownerPlayerIndex = 0)
 	{
 		var entity = GameContext.World.Create();
 		var config = customConfig != null ? customConfig.Clone() : ResolveVfxConfig(vfxId);
@@ -1264,6 +1266,7 @@ public partial class GameHost
 		var vfx = new ProceduralVfxInstance3D(config)
 		{
 			Entity = entity,
+			PlayerIndex = ownerPlayerIndex,
 			Position = position,
 			RotationDegrees = rotationDegrees,
 			Scale = safeScale
@@ -1278,6 +1281,27 @@ public partial class GameHost
 		GameContext.World.Add(entity, new ModelScale(safeScale.X));
 
 		return vfx;
+	}
+
+	public void RefreshVfxTemplateInstances(string previousTemplateId, VfxAttachmentConfig updatedConfig)
+	{
+		if (updatedConfig == null || AllVfx == null) return;
+
+		string previousSlug = TemplateIDHelper.ParseTemplateID(previousTemplateId).Slug;
+		string updatedSlug = TemplateIDHelper.ParseTemplateID(updatedConfig.VfxId).Slug;
+
+		for (int index = 0; index < AllVfx.Count; index++)
+		{
+			var instance = AllVfx[index];
+			if (instance == null || !GodotObject.IsInstanceValid(instance)) continue;
+
+			string instanceSlug = TemplateIDHelper.ParseTemplateID(instance.VfxId).Slug;
+			bool matchesPrevious = !string.IsNullOrEmpty(previousSlug) && string.Equals(instanceSlug, previousSlug, StringComparison.OrdinalIgnoreCase);
+			bool matchesUpdated = !string.IsNullOrEmpty(updatedSlug) && string.Equals(instanceSlug, updatedSlug, StringComparison.OrdinalIgnoreCase);
+			if (!matchesPrevious && !matchesUpdated) continue;
+
+			instance.UpdateConfig(updatedConfig);
+		}
 	}
 
 	private VfxAttachmentConfig ResolveVfxConfig(string vfxId)

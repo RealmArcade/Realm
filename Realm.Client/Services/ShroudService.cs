@@ -6,6 +6,7 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
 using Realm.Client.UI;
+using Realm.Client.VFX;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
@@ -83,7 +84,7 @@ public class ShroudService
 		legacyNode.QueueFree();
 	}
 
-	public void Tick(float delta, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
+	public void Tick(float delta, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, List<ProceduralVfxInstance3D> allVfx, IReadOnlyList<VisualProjectile3D> allProjectiles, int spectatorPerspective, bool isPlayingReplay, bool isSpectator)
 	{
 		if (_isPresentationSuspended)
 		{
@@ -112,24 +113,24 @@ public class ShroudService
 		}
 
 		_observedPlayerIndex = observedPlayerIndex;
-		UpdateShroud(allUnits, allProps, allDecals, observedPlayerIndex);
+		UpdateShroud(allUnits, allProps, allDecals, allVfx, allProjectiles, observedPlayerIndex);
 	}
 
-	private void UpdateShroud(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, int observedPlayerIndex)
+	private void UpdateShroud(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, List<ProceduralVfxInstance3D> allVfx, IReadOnlyList<VisualProjectile3D> allProjectiles, int observedPlayerIndex)
 	{
 		_hasPresentedShroud = true;
 
 		var world = GameContext.World;
 		if (world == null)
 		{
-			ApplyRevealAllPresentation(allUnits, allProps, allDecals);
+			ApplyRevealAllPresentation(allUnits, allProps, allDecals, allVfx, allProjectiles);
 			return;
 		}
 
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<ShroudState>(worldEntity))
 		{
-			ApplyRevealAllPresentation(allUnits, allProps, allDecals);
+			ApplyRevealAllPresentation(allUnits, allProps, allDecals, allVfx, allProjectiles);
 			return;
 		}
 
@@ -150,7 +151,7 @@ public class ShroudService
 
 		if (isOmniscient)
 		{
-			ApplyRevealAllPresentation(allUnits, allProps, allDecals);
+			ApplyRevealAllPresentation(allUnits, allProps, allDecals, allVfx, allProjectiles);
 			return;
 		}
 
@@ -176,10 +177,10 @@ public class ShroudService
 			_lastAppliedVersion = grid.Version;
 		}
 
-		ApplyEntityVisibility(grid, allUnits, allProps, allDecals);
+		ApplyEntityVisibility(grid, allUnits, allProps, allDecals, allVfx, allProjectiles);
 	}
 
-	private void ApplyRevealAllPresentation(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
+	private void ApplyRevealAllPresentation(List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, List<ProceduralVfxInstance3D> allVfx, IReadOnlyList<VisualProjectile3D> allProjectiles)
 	{
 		_isRevealAll = true;
 		_observedGroup = -1;
@@ -189,6 +190,8 @@ public class ShroudService
 		SetNodesVisible(allUnits);
 		SetNodesVisible(allProps);
 		SetNodesVisible(allDecals);
+		SetNodesVisible(allVfx);
+		SetNodesVisible(allProjectiles);
 		ResetDecalShroudLight(allDecals);
 
 		SetGlobalBounds(0f, 0f, 0f, 0f);
@@ -204,7 +207,7 @@ public class ShroudService
 		UploadMinimapTexture();
 	}
 
-	private static void SetNodesVisible<T>(List<T> nodes) where T : Node3D
+	private static void SetNodesVisible<T>(IReadOnlyList<T> nodes) where T : Node3D
 	{
 		for (int index = 0; index < nodes.Count; index++)
 		{
@@ -226,7 +229,7 @@ public class ShroudService
 		}
 	}
 
-	private void ApplyEntityVisibility(ShroudGridData grid, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals)
+	private void ApplyEntityVisibility(ShroudGridData grid, List<Unit3D> allUnits, List<Prop3D> allProps, List<Decal> allDecals, List<ProceduralVfxInstance3D> allVfx, IReadOnlyList<VisualProjectile3D> allProjectiles)
 	{
 		var world = GameContext.World;
 		int observedGroup = _observedGroup;
@@ -288,6 +291,53 @@ public class ShroudService
 			if (decal.Visible != shouldBeVisible)
 			{
 				decal.Visible = shouldBeVisible;
+			}
+		}
+
+		for (int index = 0; index < allVfx.Count; index++)
+		{
+			var vfx = allVfx[index];
+			if (vfx == null || !GodotObject.IsInstanceValid(vfx)) continue;
+
+			bool shouldBeVisible = IsPlayerInObservedGroup(grid, vfx.PlayerIndex, observedGroup);
+			if (!shouldBeVisible)
+			{
+				if (vfx.Entity != Entity.Null && world.IsAlive(vfx.Entity) && world.Has<Position>(vfx.Entity))
+				{
+					ref var position = ref world.Get<Position>(vfx.Entity);
+					shouldBeVisible = grid.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
+					                  && grid.IsVisible(cellIndex, observedGroup);
+				}
+				else
+				{
+					Vector3 worldPosition = vfx.GlobalPosition;
+					shouldBeVisible = grid.TryGetCellIndex(worldPosition.X, worldPosition.Z, out int cellIndex)
+					                  && grid.IsVisible(cellIndex, observedGroup);
+				}
+			}
+
+			if (vfx.Visible != shouldBeVisible)
+			{
+				vfx.Visible = shouldBeVisible;
+			}
+		}
+
+		for (int index = 0; index < allProjectiles.Count; index++)
+		{
+			var projectile = allProjectiles[index];
+			if (projectile == null || !GodotObject.IsInstanceValid(projectile)) continue;
+
+			bool shouldBeVisible = IsPlayerInObservedGroup(grid, projectile.PlayerIndex, observedGroup);
+			if (!shouldBeVisible)
+			{
+				Vector3 worldPosition = projectile.GlobalPosition;
+				shouldBeVisible = grid.TryGetCellIndex(worldPosition.X, worldPosition.Z, out int cellIndex)
+				                  && grid.IsVisible(cellIndex, observedGroup);
+			}
+
+			if (projectile.Visible != shouldBeVisible)
+			{
+				projectile.Visible = shouldBeVisible;
 			}
 		}
 	}
@@ -504,7 +554,7 @@ public class ShroudService
 		int observedPlayerIndex = ResolveObservedPlayerIndex(spectatorPerspective, isReplay, isSpectator);
 		_observedPlayerIndex = observedPlayerIndex;
 
-		UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, observedPlayerIndex);
+		UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, GameHost.Instance.AllVfx, VisualProjectilePool.Instance.ActiveProjectiles, observedPlayerIndex);
 		InGameHUD.Instance?.QueueMinimapRedraw();
 	}
 

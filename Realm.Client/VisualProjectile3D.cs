@@ -116,6 +116,7 @@ public partial class VisualProjectile3D : Node3D
 	public OmniLight3D PointLight => _pointLight;
 	public ShaderMaterial UberShaderMaterial => _uberShaderMaterial;
 	public WeaponMetadata Weapon => _weapon;
+	public int PlayerIndex { get; set; } = 0;
 	public float ElapsedFlightTime => _elapsedTime;
 	public float TotalFlightDuration => _totalFlightDuration;
 	public bool HasRibbonTrail => _hasRibbonTrail;
@@ -165,15 +166,17 @@ public partial class VisualProjectile3D : Node3D
 			: new Shader { Code = shaderCode };
 	}
 
-	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null)
+	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null, int ownerPlayerIndex = 0)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
+		PlayerIndex = ownerPlayerIndex;
 		Initialize(start, target, weapon, targetEntity);
 	}
 
-	public void Initialize(string weaponId, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null)
+	public void Initialize(string weaponId, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null, int ownerPlayerIndex = 0)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
+		PlayerIndex = ownerPlayerIndex;
 		if (GameHost.WeaponRegistry.TryGetValue(weaponId ?? "arrow", out var meta))
 		{
 			Initialize(start, target, meta, targetEntity);
@@ -218,6 +221,7 @@ public partial class VisualProjectile3D : Node3D
 
 		_cachedGlobalPosition = _startPosition;
 		_cachedBasis = Basis.Identity;
+		Visible = true;
 		GlobalPosition = _startPosition;
 		_meshContainer.Visible = true;
 		_meshContainer.Rotation = Vector3.Zero;
@@ -405,6 +409,10 @@ public partial class VisualProjectile3D : Node3D
 		if (_loadedModelsByPath.TryGetValue(modelPath, out var cachedNode) && cachedNode != null && GodotObject.IsInstanceValid(cachedNode))
 		{
 			_customModelInstance = cachedNode;
+			if (_customModelInstance is ProceduralVfxInstance3D cachedVfx)
+			{
+				cachedVfx.PlayerIndex = PlayerIndex;
+			}
 			_customModelInstance.Visible = true;
 			_fallbackMeshInstance.Visible = false;
 			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(_customModelInstance, Math.Max(0.01f, _visualTransformContainer.Scale.Y));
@@ -416,6 +424,11 @@ public partial class VisualProjectile3D : Node3D
 		{
 			EnableFallbackMesh();
 			return;
+		}
+
+		if (node3D is ProceduralVfxInstance3D projectileVfx)
+		{
+			projectileVfx.PlayerIndex = PlayerIndex;
 		}
 
 		_loadedModelsByPath[modelPath] = node3D;

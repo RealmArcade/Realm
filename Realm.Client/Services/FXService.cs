@@ -398,7 +398,7 @@ public class FXService
 		tween.Chain().TweenCallback(Callable.From(meshInstance.QueueFree));
 	}
 
-	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string weaponId = null, Entity targetEntity = default)
+	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string weaponId = null, Entity targetEntity = default, int ownerPlayerIndex = 0)
 	{
 		WeaponMetadata weaponMeta = null;
 		bool hasWeapon = false;
@@ -420,17 +420,17 @@ public class FXService
 
 		if (hasWeapon)
 		{
-			projectile.Initialize(weaponMeta, spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p));
+			projectile.Initialize(weaponMeta, spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex);
 		}
 		else
 		{
-			projectile.Initialize("arrow", spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p));
+			projectile.Initialize("arrow", spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex);
 		}
 	}
 
-	public void SpawnArrowProjectile(Node3D parent, Vector3 start, Vector3 target)
+	public void SpawnArrowProjectile(Node3D parent, Vector3 start, Vector3 target, int ownerPlayerIndex = 0)
 	{
-		SpawnWeaponProjectile(parent, start, target, "arrow");
+		SpawnWeaponProjectile(parent, start, target, "arrow", default, ownerPlayerIndex);
 	}
 
 	private struct ActiveFloatingLabel

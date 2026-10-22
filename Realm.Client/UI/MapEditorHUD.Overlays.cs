@@ -826,7 +826,7 @@ namespace Realm.Client.UI
 
 		public void RefreshEntityPalette()
 		{
-			_entityPaletteController?.SelectCategory(_entityPaletteController.CurrentCategory, triggerAddObject: false);
+			_entityPaletteController?.RefreshCurrentCategoryItems();
 		}
 
 		public void UpdateRotationExternal(float angle)

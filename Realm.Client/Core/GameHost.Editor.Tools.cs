@@ -1478,7 +1478,7 @@ namespace Realm.Client.Core
 			                    ActiveEditorTool == EditorTool.PlaceDecal ||
 			                    ActiveEditorTool == EditorTool.PlaceVfx;
 
-			if (!needsPreview)
+			if (!needsPreview || string.IsNullOrWhiteSpace(ActivePlaceId))
 			{
 				ClearEditorPreview();
 				return;

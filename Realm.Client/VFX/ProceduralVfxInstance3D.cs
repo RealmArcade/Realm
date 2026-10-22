@@ -19,6 +19,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	public Entity Entity { get; set; }
 	public string VfxId { get; set; } = "vfx_primitive";
+	public int PlayerIndex { get; set; } = 0;
 
 	private MeshInstance3D _selectionRing;
 	private bool _isSelected = false;

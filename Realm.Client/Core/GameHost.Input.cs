@@ -1051,6 +1051,13 @@ public partial class GameHost
 					hitPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
 				}
 
+				if (IsObjectPlacementTool(ActiveEditorTool) && string.IsNullOrWhiteSpace(ActivePlaceId))
+				{
+					MapEditorHUD.Instance?.ShowConfirmationDialog("Please create a template first", null, confirmText: "OK", showCancel: false);
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
 				if (ActiveEditorTool == EditorTool.PlaceUnit)
 				{
 					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
@@ -4672,6 +4679,15 @@ public partial class GameHost
 	}
 
 
+
+		private static bool IsObjectPlacementTool(EditorTool tool)
+		{
+			return tool == EditorTool.PlaceUnit ||
+			       tool == EditorTool.PlaceProp ||
+			       tool == EditorTool.PlaceDecal ||
+			       tool == EditorTool.PlaceVfx ||
+			       tool == EditorTool.PlacePropClump;
+		}
 
 		private bool TryGetValidPlacementContext(Vector3 hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)
 		{

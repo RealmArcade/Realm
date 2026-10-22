@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Godot;
+using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.VFX;
 
@@ -2029,6 +2030,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 
 		Hud?.SaveCustomVfxToMetadata(_currentConfig.VfxId, _currentConfig);
+		GameHost.Instance?.RefreshVfxTemplateInstances(_initialConfig.VfxId, _currentConfig);
 		_onAppliedCallback?.Invoke(_currentConfig);
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Saved VFX '{0}' to metadata.json"), _currentConfig.Name));
 	}

@@ -633,9 +633,9 @@ public class SimulationService
 				return meta.Weapons;
 			return null;
 		};
-		_combatService.OnWeaponProjectileRequested = (p1, p2, weaponId, targetEnt) =>
+		_combatService.OnWeaponProjectileRequested = (p1, p2, weaponId, targetEnt, ownerPlayerIndex) =>
 		{
-			EnqueueVFXRequest(weaponId ?? "arrow", p1, p2, 1.0f, 40f, targetEnt.Id);
+			EnqueueVFXRequest(weaponId ?? "arrow", p1, p2, 1.0f, 40f, targetEnt.Id, ownerPlayerIndex);
 		};
 		_combatService.OnDamageFlashRequested = ent =>
 		{
@@ -1581,13 +1581,13 @@ public class SimulationService
 		}
 	}
 
-	public void EnqueueVFXRequest(string effectTypeId, Vector3 position, Vector3 targetPosition, float scale = 1.0f, float speed = 0f, int entityId = -1)
+	public void EnqueueVFXRequest(string effectTypeId, Vector3 position, Vector3 targetPosition, float scale = 1.0f, float speed = 0f, int entityId = -1, int ownerPlayerIndex = 0)
 	{
 		var worldEntity = ActiveWorldEntity;
 		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<VFXQueue>(worldEntity))
 		{
 			ref var queue = ref GameContext.World.Get<VFXQueue>(worldEntity);
-			queue.Requests.Add(new VFXRequest(effectTypeId, position, targetPosition, scale, speed, entityId));
+			queue.Requests.Add(new VFXRequest(effectTypeId, position, targetPosition, scale, speed, entityId, ownerPlayerIndex));
 		}
 	}
 

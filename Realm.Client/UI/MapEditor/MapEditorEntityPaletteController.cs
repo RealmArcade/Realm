@@ -219,6 +219,11 @@ public class MapEditorEntityPaletteController
 		SelectCategory("Units", triggerAddObject: false);
 	}
 
+	public void RefreshCurrentCategoryItems()
+	{
+		SelectCategory(_currentCategory, triggerAddObject: false);
+	}
+
 	public void SelectCategory(string category, bool triggerAddObject = true)
 	{
 		_currentCategory = category;
@@ -494,9 +499,8 @@ public class MapEditorEntityPaletteController
 			return;
 		}
 
-		EditorTool targetTool = GetEditorToolForCategory(_currentCategory);
 		string placeId = GetSelectedCategoryPlaceId();
-
+		EditorTool targetTool = GetEditorToolForCategory(_currentCategory);
 		_hud.TriggerToolSelection(targetTool, _btnAddObject, placeId);
 	}
 
@@ -522,22 +526,18 @@ public class MapEditorEntityPaletteController
 
 	private string GetSelectedCategoryPlaceId()
 	{
-		if (_categoryFiles.Count == 0)
+		if (_categoryFiles.Count == 0 || _optCategoryItems == null)
 		{
 			return "";
 		}
 
-		int selectedIndex = _optCategoryItems != null ? _optCategoryItems.Selected : -1;
-
-		if (selectedIndex >= 0)
+		int selectedIndex = _optCategoryItems.Selected;
+		if (selectedIndex < 0 || selectedIndex >= _categoryFiles.Count)
 		{
-			if (selectedIndex < _categoryFiles.Count)
-			{
-				return _categoryFiles[selectedIndex];
-			}
+			return "";
 		}
 
-		return _categoryFiles[0];
+		return _categoryFiles[selectedIndex];
 	}
 
 	public void SelectCategoryItemExternal(string category, string filename)
