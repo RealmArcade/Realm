@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using Realm.EditorAPI;
 using Realm.Shared.Metadata;
 using Realm.Shared.Serialization;
 using Realm.Shared.Services;
@@ -137,16 +138,16 @@ public class MapManifest
 
 	private static readonly Dictionary<string, string> _audioOrVisualSubFolders = new(StringComparer.OrdinalIgnoreCase)
 	{
-		{ "Animation", "animations" },
-		{ "SoundEffect", "audio/sfx" },
-		{ "Music", "audio/music" },
-		{ "Icon", "icons" },
-		{ "Decal", "decals" },
-		{ "Ribbon", "ribbons" },
-		{ "Noise", "noise" },
-		{ "Skybox", "skyboxes" },
-		{ "Terrain", "textures" },
-		{ "Shader", "shaders" }
+		{ AssetType.Animation.ToCanonicalString(), "animations" },
+		{ AssetType.SoundEffect.ToCanonicalString(), "audio/sfx" },
+		{ AssetType.Music.ToCanonicalString(), "audio/music" },
+		{ AssetType.Icon.ToCanonicalString(), "icons" },
+		{ AssetType.Decal.ToCanonicalString(), "decals" },
+		{ AssetType.Ribbon.ToCanonicalString(), "ribbons" },
+		{ AssetType.Noise.ToCanonicalString(), "noise" },
+		{ AssetType.Skybox.ToCanonicalString(), "skyboxes" },
+		{ AssetType.Terrain.ToCanonicalString(), "textures" },
+		{ AssetType.Shader.ToCanonicalString(), "shaders" }
 	};
 
 	private static string? GetAudioOrVisualSubFolder(string category)
@@ -156,11 +157,12 @@ public class MapManifest
 
 	private static string GetExtensionForCategory(string category)
 	{
-		return category switch
+		AssetType assetType = AssetTypeExtensions.Parse(category);
+		return assetType switch
 		{
-			"Animation" => ".ranim",
-			"SoundEffect" or "Music" => ".raud",
-			"Character" or "Building" or "Prop" or "Item" => ".rmesh",
+			AssetType.Animation => ".ranim",
+			AssetType.SoundEffect or AssetType.Music => ".raud",
+			AssetType.Character or AssetType.Building or AssetType.Prop or AssetType.Item => ".rmesh",
 			_ => ".rtex"
 		};
 	}
@@ -273,14 +275,16 @@ public class MapManifest
 
 	private static string GetCategoryFromModelSubCategory(string subCategory)
 	{
-		return subCategory switch
+		AssetType assetType = subCategory switch
 		{
-			"units" or "characters" => "Character",
-			"buildings" => "Building",
-			"props" or "resources" => "Prop",
-			"items" or "projectiles" or "attachments" or "weapons" => "Item",
-			_ => "Prop"
+			"units" or "characters" => AssetType.Character,
+			"buildings" => AssetType.Building,
+			"props" or "resources" => AssetType.Prop,
+			"items" or "projectiles" or "attachments" or "weapons" => AssetType.Item,
+			_ => AssetType.Prop
 		};
+
+		return assetType.ToCanonicalString();
 	}
 
 	private static void ProcessUnflattenStandard(MapManifestAssets assets, string relativePath, string fileName, string hash)
@@ -291,7 +295,8 @@ public class MapManifest
 
 		var dict = GetOrCreateCategoryDict(assets, category);
 
-		string key = (category is "Music" or "SoundEffect")
+		bool isAudioCategory = category == AssetType.Music.ToCanonicalString() || category == AssetType.SoundEffect.ToCanonicalString();
+		string key = isAudioCategory
 			? (parts.Length > 3 ? string.Join("/", parts.Skip(3)) : fileName)
 			: (parts.Length > 2 ? string.Join("/", parts.Skip(2)) : fileName);
 
@@ -319,9 +324,9 @@ public class MapManifest
 	{
 		return folder switch
 		{
-			"vfx_spritesheets" or "vfx" => "Spritesheet",
-			"vfx_radial" => "vfx_radial",
-			"vfx_vertical" => "vfx_vertical",
+			"vfx_spritesheets" or "vfx" => AssetType.Spritesheet.ToCanonicalString(),
+			"vfx_radial" => AssetType.VfxRadial.ToCanonicalString(),
+			"vfx_vertical" => AssetType.VfxVertical.ToCanonicalString(),
 			_ => null
 		};
 	}
@@ -332,26 +337,26 @@ public class MapManifest
 			return null;
 
 		if (parts.Length >= 4 && parts[2].Equals("music", StringComparison.OrdinalIgnoreCase))
-			return "Music";
+			return AssetType.Music.ToCanonicalString();
 
 		if (parts.Length >= 4 && parts[2].Equals("sfx", StringComparison.OrdinalIgnoreCase))
-			return "SoundEffect";
+			return AssetType.SoundEffect.ToCanonicalString();
 
-		return "SoundEffect";
+		return AssetType.SoundEffect.ToCanonicalString();
 	}
 
 	private static string? GetVisualCategory(string folder)
 	{
 		return folder switch
 		{
-			"animations" => "Animation",
-			"decals" => "Decal",
-			"icons" => "Icon",
-			"ribbons" => "Ribbon",
-			"noise" => "Noise",
-			"skyboxes" => "Skybox",
-			"textures" => "Terrain",
-			"shaders" => "Shader",
+			"animations" => AssetType.Animation.ToCanonicalString(),
+			"decals" => AssetType.Decal.ToCanonicalString(),
+			"icons" => AssetType.Icon.ToCanonicalString(),
+			"ribbons" => AssetType.Ribbon.ToCanonicalString(),
+			"noise" => AssetType.Noise.ToCanonicalString(),
+			"skyboxes" => AssetType.Skybox.ToCanonicalString(),
+			"textures" => AssetType.Terrain.ToCanonicalString(),
+			"shaders" => AssetType.Shader.ToCanonicalString(),
 			_ => null
 		};
 	}

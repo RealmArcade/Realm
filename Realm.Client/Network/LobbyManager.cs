@@ -71,7 +71,10 @@ public partial class LobbyManager : BaseMapTransferNode
 	public List<string> RegistryServers => OfficialServers;
 	private int _currentServerIndex = 0;
 	public string RegistryServerUrl => OfficialServers.Count > 0 && _currentServerIndex < OfficialServers.Count && !string.IsNullOrWhiteSpace(OfficialServers[_currentServerIndex]) ? OfficialServers[_currentServerIndex] : ServersConfigHelper.GetDefaultServerUrl();
-	public int ENetPort { get; private set; } = 8999;
+	private const int DefaultGamePort = 8999;
+	private const int StunPort = 19302;
+
+	public int ENetPort { get; private set; } = DefaultGamePort;
 	public int MaxPlayers { get; private set; } = MapInfoMetadata.DefaultPlayablePlayerSlots;
 	public string? LastLobbyWarning { get; private set; }
 
@@ -344,7 +347,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 				try
 				{
-					result = await NatTypeTester.QueryStunOnPortAsync(dnsAddresses[0], 19302, ENetPort);
+					result = await NatTypeTester.QueryStunOnPortAsync(dnsAddresses[0], StunPort, ENetPort);
 				}
 				catch (Exception ex)
 				{
@@ -923,7 +926,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 	}
 
-	public async Task<bool> JoinByIpAsync(string targetIp, int targetPort = 8999)
+	public async Task<bool> JoinByIpAsync(string targetIp, int targetPort = DefaultGamePort)
 	{
 		string directLobbyId = $"direct-{Guid.NewGuid():N}";
 		InitializeClientState(directLobbyId);

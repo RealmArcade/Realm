@@ -1,3 +1,4 @@
+using Realm.EditorAPI;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -63,46 +64,46 @@ public class MapManifestAssets
 
 	private static readonly Dictionary<string, Func<MapManifestAssets, Dictionary<string, string>?>> CategoryGetters = new(StringComparer.OrdinalIgnoreCase)
 	{
-		{ "Animation", a => a.Animation }, { "animations", a => a.Animation },
-		{ "Building", a => a.Building }, { "buildings", a => a.Building },
-		{ "Character", a => a.Character }, { "characters", a => a.Character }, { "units", a => a.Character },
-		{ "Decal", a => a.Decal }, { "decals", a => a.Decal },
-		{ "Icon", a => a.Icon }, { "icons", a => a.Icon },
-		{ "Item", a => a.Item }, { "items", a => a.Item }, { "projectiles", a => a.Item }, { "attachments", a => a.Item }, { "weapons", a => a.Item },
-		{ "Music", a => a.Music },
-		{ "Noise", a => a.Noise }, { "noise_textures", a => a.Noise },
+		{ AssetType.Animation.ToCanonicalString(), a => a.Animation }, { "animations", a => a.Animation },
+		{ AssetType.Building.ToCanonicalString(), a => a.Building }, { "buildings", a => a.Building },
+		{ AssetType.Character.ToCanonicalString(), a => a.Character }, { "characters", a => a.Character }, { "units", a => a.Character },
+		{ AssetType.Decal.ToCanonicalString(), a => a.Decal }, { "decals", a => a.Decal },
+		{ AssetType.Icon.ToCanonicalString(), a => a.Icon }, { "icons", a => a.Icon },
+		{ AssetType.Item.ToCanonicalString(), a => a.Item }, { "items", a => a.Item }, { "projectiles", a => a.Item }, { "attachments", a => a.Item }, { "weapons", a => a.Item },
+		{ AssetType.Music.ToCanonicalString(), a => a.Music },
+		{ AssetType.Noise.ToCanonicalString(), a => a.Noise }, { "noise_textures", a => a.Noise },
 		{ "Other", a => a.Other },
-		{ "Prop", a => a.Prop }, { "props", a => a.Prop }, { "resources", a => a.Prop },
-		{ "Ribbon", a => a.Ribbon }, { "ribbons", a => a.Ribbon }, { "ribbon_textures", a => a.Ribbon },
-		{ "Shader", a => a.Shader }, { "shaders", a => a.Shader },
-		{ "Skybox", a => a.Skybox }, { "skyboxes", a => a.Skybox },
-		{ "SoundEffect", a => a.SoundEffect }, { "sfx", a => a.SoundEffect }, { "audio", a => a.SoundEffect }, { "sounds", a => a.SoundEffect },
-		{ "Spritesheet", a => a.Spritesheet }, { "spritesheets", a => a.Spritesheet }, { "vfx", a => a.Spritesheet }, { "vfx_spritesheets", a => a.Spritesheet },
-		{ "Terrain", a => a.Terrain }, { "textures", a => a.Terrain },
-		{ "vfx_radial", a => a.VfxRadial },
-		{ "vfx_vertical", a => a.VfxVertical }
+		{ AssetType.Prop.ToCanonicalString(), a => a.Prop }, { "props", a => a.Prop }, { "resources", a => a.Prop },
+		{ AssetType.Ribbon.ToCanonicalString(), a => a.Ribbon }, { "ribbons", a => a.Ribbon }, { "ribbon_textures", a => a.Ribbon },
+		{ AssetType.Shader.ToCanonicalString(), a => a.Shader }, { "shaders", a => a.Shader },
+		{ AssetType.Skybox.ToCanonicalString(), a => a.Skybox }, { "skyboxes", a => a.Skybox },
+		{ AssetType.SoundEffect.ToCanonicalString(), a => a.SoundEffect }, { "sfx", a => a.SoundEffect }, { "audio", a => a.SoundEffect }, { "sounds", a => a.SoundEffect },
+		{ AssetType.Spritesheet.ToCanonicalString(), a => a.Spritesheet }, { "spritesheets", a => a.Spritesheet }, { "vfx", a => a.Spritesheet }, { "vfx_spritesheets", a => a.Spritesheet },
+		{ AssetType.Terrain.ToCanonicalString(), a => a.Terrain }, { "textures", a => a.Terrain },
+		{ AssetType.VfxRadial.ToCanonicalString(), a => a.VfxRadial },
+		{ AssetType.VfxVertical.ToCanonicalString(), a => a.VfxVertical }
 	};
 
 	private static readonly Dictionary<string, Action<MapManifestAssets, Dictionary<string, string>>> CategorySetters = new(StringComparer.OrdinalIgnoreCase)
 	{
-		{ "Animation", (a, d) => a.Animation = d },
-		{ "Building", (a, d) => a.Building = d },
-		{ "Character", (a, d) => a.Character = d },
-		{ "Decal", (a, d) => a.Decal = d },
-		{ "Icon", (a, d) => a.Icon = d },
-		{ "Item", (a, d) => a.Item = d },
-		{ "Music", (a, d) => a.Music = d },
-		{ "Noise", (a, d) => a.Noise = d },
+		{ AssetType.Animation.ToCanonicalString(), (a, d) => a.Animation = d },
+		{ AssetType.Building.ToCanonicalString(), (a, d) => a.Building = d },
+		{ AssetType.Character.ToCanonicalString(), (a, d) => a.Character = d },
+		{ AssetType.Decal.ToCanonicalString(), (a, d) => a.Decal = d },
+		{ AssetType.Icon.ToCanonicalString(), (a, d) => a.Icon = d },
+		{ AssetType.Item.ToCanonicalString(), (a, d) => a.Item = d },
+		{ AssetType.Music.ToCanonicalString(), (a, d) => a.Music = d },
+		{ AssetType.Noise.ToCanonicalString(), (a, d) => a.Noise = d },
 		{ "Other", (a, d) => a.Other = d },
-		{ "Prop", (a, d) => a.Prop = d },
-		{ "Ribbon", (a, d) => a.Ribbon = d },
-		{ "Shader", (a, d) => a.Shader = d },
-		{ "Skybox", (a, d) => a.Skybox = d },
-		{ "SoundEffect", (a, d) => a.SoundEffect = d },
-		{ "Spritesheet", (a, d) => a.Spritesheet = d },
-		{ "Terrain", (a, d) => a.Terrain = d },
-		{ "vfx_radial", (a, d) => a.VfxRadial = d },
-		{ "vfx_vertical", (a, d) => a.VfxVertical = d }
+		{ AssetType.Prop.ToCanonicalString(), (a, d) => a.Prop = d },
+		{ AssetType.Ribbon.ToCanonicalString(), (a, d) => a.Ribbon = d },
+		{ AssetType.Shader.ToCanonicalString(), (a, d) => a.Shader = d },
+		{ AssetType.Skybox.ToCanonicalString(), (a, d) => a.Skybox = d },
+		{ AssetType.SoundEffect.ToCanonicalString(), (a, d) => a.SoundEffect = d },
+		{ AssetType.Spritesheet.ToCanonicalString(), (a, d) => a.Spritesheet = d },
+		{ AssetType.Terrain.ToCanonicalString(), (a, d) => a.Terrain = d },
+		{ AssetType.VfxRadial.ToCanonicalString(), (a, d) => a.VfxRadial = d },
+		{ AssetType.VfxVertical.ToCanonicalString(), (a, d) => a.VfxVertical = d }
 	};
 
 	private static readonly string[] CategoryProperties =
