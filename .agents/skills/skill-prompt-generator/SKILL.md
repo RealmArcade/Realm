@@ -1,6 +1,8 @@
 ---
 name: skill-prompt-generator
 description: Transforms raw user prompt descriptions into zero-code, constraint-driven user story prompts for vibe-coding agents.
+metadata:
+  opencode/slash: "true"
 ---
 
 # Skill: Meta-Prompt Generator (skill-prompt-generator)

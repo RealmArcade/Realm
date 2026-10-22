@@ -1,6 +1,8 @@
 ---
 name: skill-git-diff-code-reviewer
 description: Compares two git commit SHAs to perform a comprehensive code review evaluating merge safety, breaking changes, architectural alignment, performance constraints, and best practices.
+metadata:
+  opencode/slash: "true"
 ---
 
 # Skill: Git Diff Code Reviewer (skill-git-diff-code-reviewer)

@@ -1,6 +1,8 @@
 ---
 name: skill-map-migration-generator
 description: Compares map file schemas, metadata structures, and MapUpgradeService migrations between two GitHub tags to generate sequential IMapMigration classes for upgrading maps to new game builds.
+metadata:
+  opencode/slash: "true"
 ---
 
 # Skill: Map Migration Generator (skill-map-migration-generator)
