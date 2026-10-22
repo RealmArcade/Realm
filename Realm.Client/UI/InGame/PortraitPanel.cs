@@ -292,7 +292,7 @@ public class PortraitPanel
 			}
 		}
 
-		UpdateSingleSelectionStatsLabel(info);
+		UpdateSingleSelectionStatsLabel(info, unitHeaderChanged);
 
 		if (info.IsBuilding)
 		{
@@ -314,10 +314,9 @@ public class PortraitPanel
 		}
 	}
 
-	private void UpdateSingleSelectionStatsLabel(SelectedUnitInfo info)
+	private void UpdateSingleSelectionStatsLabel(SelectedUnitInfo info, bool forceRefresh)
 	{
-		bool statsChanged = _lastSelectionType != SelectionType.Single
-			|| info.Entity != _lastSingleEntity
+		bool statsChanged = forceRefresh
 			|| Math.Abs(info.Health - _lastSingleHp) > 0.1f
 			|| Math.Abs(info.MaxHealth - _lastSingleMaxHp) > 0.1f
 			|| Math.Abs(info.Damage - _lastSingleDamage) > 0.1f
