@@ -43,7 +43,8 @@ public enum ProfileFunctionId
 	EnvironmentUpdateWeatherParticles = 33,
 	Unit3DProcess = 34,
 	SimulationShroudStep = 35,
-	AudioPositionalUpdate = 36
+	AudioPositionalUpdate = 36,
+	PredictionPerformanceSample = 37
 }
 
 public struct FunctionProfileMetric
@@ -136,6 +137,8 @@ public class PerformanceTrackingService
 		RegisterMetric(ProfileFunctionId.EnvironmentUpdateFog, "EnvironmentService.UpdateEnvironmentalFog", "Godot.Process");
 		RegisterMetric(ProfileFunctionId.EnvironmentUpdateWeatherParticles, "EnvironmentService.UpdateWeatherParticlePosition", "Godot.Process");
 		RegisterMetric(ProfileFunctionId.Unit3DProcess, "Unit3D._Process", "Godot.Process");
+		RegisterMetric(ProfileFunctionId.AudioPositionalUpdate, "AudioService.UpdatePositionalVoices", "Godot.Process");
+		RegisterMetric(ProfileFunctionId.PredictionPerformanceSample, "PredictionPerformanceMonitor.Sample", "Godot.Process");
 	}
 
 	private void RegisterMetric(ProfileFunctionId id, string name, string parentName)

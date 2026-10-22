@@ -536,7 +536,36 @@ public partial class SettingsMenu : Control
 		{
 			_movementPredictionChk.Pressed += () => UIManager.Instance.PlayClickSound();
 			_movementPredictionChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+			_movementPredictionChk.Toggled += OnMovementPredictionToggled;
 		}
+	}
+
+	private void OnMovementPredictionToggled(bool pressed)
+	{
+		if (!pressed) return;
+		if (GameSettings.MovementPredictionPerformanceOverride) return;
+
+		var monitor = Realm.Client.Services.GameContext.PredictionPerformanceMonitor;
+		if (monitor == null || !monitor.IsMachineTooSlow) return;
+
+		_movementPredictionChk.ButtonPressed = false;
+		UIManager.Instance?.PlayWarningSound();
+		UIManager.Instance?.ShowConfirmationDialog(
+			string.Format(
+				TranslationServer.Translate("This machine measured too slow for movement prediction ({0:F1} ms prediction update, {1:F1} ms average frame time). Prediction may make movement stutter. Lower graphics quality, close background apps, or keep prediction disabled. Enable prediction anyway?"),
+				monitor.AveragePredictionCostMs,
+				monitor.AverageFrameTimeMs),
+			() =>
+			{
+				GameSettings.MovementPredictionPerformanceOverride = true;
+				if (_movementPredictionChk != null)
+				{
+					_movementPredictionChk.ButtonPressed = true;
+				}
+			},
+			confirmText: TranslationServer.Translate("KEEP ENABLED"),
+			cancelText: TranslationServer.Translate("KEEP DISABLED"),
+			titleOverride: "PERFORMANCE WARNING");
 	}
 
 	private void SetupNatTestEvent()

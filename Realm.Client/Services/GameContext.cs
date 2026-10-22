@@ -60,6 +60,7 @@ namespace Realm.Client.Services
 		public static ResourceEconomyService ResourceEconomyService { get; private set; }
 		public static SimulationService SimulationService { get; private set; }
 		public static MovementPredictionService MovementPredictionService { get; private set; }
+		public static PredictionPerformanceMonitor PredictionPerformanceMonitor { get; private set; }
 		public static ClientRpcService ClientRPC { get; private set; }
 		public static PerspectiveFilter PerspectiveFilter { get; private set; }
 		public static RaycastService RaycastService { get; private set; }
@@ -112,6 +113,7 @@ namespace Realm.Client.Services
 			NavMeshPathfinder = new();
 			SimulationService = new();
 			MovementPredictionService = new();
+			PredictionPerformanceMonitor = new();
 			InputService = new();
 			ClientRPC = new();
 			PerspectiveFilter = new();

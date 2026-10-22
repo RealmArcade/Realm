@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
@@ -278,6 +279,8 @@ public partial class LobbyCreate : Control
 		_createButton.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 	}
 
+	private bool _predictionHostWarningAcknowledged;
+
 	private async void OnCreatePressed()
 	{
 		UIManager.Instance.PlayClickSound();
@@ -292,10 +295,31 @@ public partial class LobbyCreate : Control
 			return;
 		}
 
+		var performanceMonitor = Realm.Client.Services.GameContext.PredictionPerformanceMonitor;
+		if (!_predictionHostWarningAcknowledged && performanceMonitor != null && performanceMonitor.IsMachineTooSlow)
+		{
+			_predictionHostWarningAcknowledged = true;
+			UIManager.Instance.PlayWarningSound();
+			UIManager.Instance.ShowConfirmationDialog(
+				string.Format(
+					TranslationServer.Translate("This machine measured too slow to host smoothly ({0:F1} ms average frame time). Hosting here may cause stutter for every player; lower graphics quality or close background apps first. Host anyway?"),
+					performanceMonitor.AverageFrameTimeMs),
+				() => ContinueHosting(mapInfo.PathName, mapInfo.DisplayName, selectedVersion),
+				confirmText: TranslationServer.Translate("HOST ANYWAY"),
+				cancelText: TranslationServer.Translate("CANCEL"),
+				titleOverride: "PERFORMANCE WARNING");
+			return;
+		}
+
+		await ContinueHosting(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
+	}
+
+	private async Task ContinueHosting(string pathName, string displayName, string selectedVersion)
+	{
 		if (LobbyManager.Instance.IsSinglePlayer)
 		{
 			_createButton.Disabled = true;
-			LobbyManager.Instance.HostSinglePlayerGame(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
+			LobbyManager.Instance.HostSinglePlayerGame(pathName, displayName, selectedVersion);
 			_createButton.Disabled = false;
 			return;
 		}
@@ -308,7 +332,7 @@ public partial class LobbyCreate : Control
 		}
 
 		_createButton.Disabled = true;
-		bool success = await LobbyManager.Instance.HostLobbyAsync(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
+		bool success = await LobbyManager.Instance.HostLobbyAsync(pathName, displayName, selectedVersion);
 		_createButton.Disabled = false;
 
 		if (success)

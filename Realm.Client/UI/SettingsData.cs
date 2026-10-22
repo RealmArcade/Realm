@@ -24,5 +24,7 @@ public class SettingsData
 	public bool DisableDayNightLighting { get; set; } = false;
 	public bool FloatingCombatText { get; set; } = true;
 	public bool MovementPrediction { get; set; } = false;
+	public bool MovementPredictionPerformanceOverride { get; set; } = false;
+	public float MovementPredictionCostThresholdMs { get; set; } = 2.0f;
 	public string? LastOpenedFolder { get; set; }
 }

@@ -66,6 +66,9 @@ public static class GameSettings
 		get => MovementPredictionSupported && _movementPrediction;
 		set => _movementPrediction = value && MovementPredictionSupported;
 	}
+
+	public static bool MovementPredictionPerformanceOverride { get; set; } = false;
+	public static float MovementPredictionCostThresholdMs { get; set; } = Services.PredictionPerformanceMonitor.DefaultPredictionCostThresholdMs;
 	public static string LastOpenedFolder { get; set; } = string.Empty;
 
 	public static int GetSafeScreenIndex()
@@ -112,6 +115,8 @@ public static class GameSettings
 		RecordReplays = false;
 		SeedMapFiles = false;
 		MovementPrediction = false;
+		MovementPredictionPerformanceOverride = false;
+		MovementPredictionCostThresholdMs = Services.PredictionPerformanceMonitor.DefaultPredictionCostThresholdMs;
 	}
 
 	public static void InitializeResolutions()
@@ -237,6 +242,10 @@ public static class GameSettings
 		DisableDayNightLighting = data.DisableDayNightLighting;
 		FloatingCombatText = data.FloatingCombatText;
 		MovementPrediction = data.MovementPrediction;
+		MovementPredictionPerformanceOverride = data.MovementPredictionPerformanceOverride;
+		MovementPredictionCostThresholdMs = data.MovementPredictionCostThresholdMs > 0f
+			? data.MovementPredictionCostThresholdMs
+			: Services.PredictionPerformanceMonitor.DefaultPredictionCostThresholdMs;
 		ShowHealthBars = data.ShowHealthBars;
 		LastOpenedFolder = data.LastOpenedFolder ?? string.Empty;
 
@@ -288,6 +297,8 @@ public static class GameSettings
 			DisableDayNightLighting = DisableDayNightLighting,
 			FloatingCombatText = FloatingCombatText,
 			MovementPrediction = MovementPrediction,
+			MovementPredictionPerformanceOverride = MovementPredictionPerformanceOverride,
+			MovementPredictionCostThresholdMs = MovementPredictionCostThresholdMs,
 			LastOpenedFolder = LastOpenedFolder
 		};
 
