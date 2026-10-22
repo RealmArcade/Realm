@@ -1167,7 +1167,7 @@ public partial class GameHost
 		if (!TryResolvePropExternalId(ref propId, ref cleanId)) return null;
 
 		float defaultAmount = GetDefaultResourceAmount(propId);
-		position.Y = GameContext.EditorService.GetTerrainHeightAt(position);
+		position.Y = GetTerrainHeightAt(position);
 
 		string propAssetKey = GameContext.EditorService.NormalizeModelAssetKey(propId);
 		float autoDetectedRadius = GetOrCalculateObstacleRadius(propId, null);

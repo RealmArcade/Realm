@@ -2148,7 +2148,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, ECSContext.DefinitionManager, ECSContext.PlayerResourceService.GoldResourceId, ECSContext.PlayerResourceService.WoodResourceId, ECSContext.PlayerResourceService.StoneResourceId, GroundTerrain);
 		GameContext.SimulationService.Initialize();
-		GameContext.SimulationService.EditorHeightProvider = p => GameContext.EditorService.GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
+		GameContext.SimulationService.EditorHeightProvider = p => GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
 
 		SetupSimulationServiceCallbacks();
 	}

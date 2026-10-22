@@ -24,6 +24,13 @@ public static class GameplayConstants
 	public const float DefaultPropCollisionRadius = 1.5f;
 
 	/// <summary>
+	///     Authored CollisionRadius values at or below this are treated as "never authored"
+	///     rather than as a real body size. Shared by movement separation and combat so both
+	///     agree on when the default body size applies.
+	/// </summary>
+	public const float MinimumAuthoredCollisionRadius = 0.01f;
+
+	/// <summary>
 	///     Fraction of the combined collision radii at which units start being pushed apart.
 	///     Lower values let units overlap and clump together more (and squeeze through gaps
 	///     narrower than their collision diameter), higher values keep them spread out.
@@ -31,4 +38,16 @@ public static class GameplayConstants
 	///     distance where they can attack.
 	/// </summary>
 	public const float CollisionSeparationFactor = 0.6f;
+
+	/// <summary>
+	///     Resolves the contact radius of a unit body: the authored CollisionRadius scaled by
+	///     CollisionScale, or the default radius when the body size was never authored
+	///     (missing, zero or negative). Combat melee reach must use the same value the movement
+	///     separation uses, otherwise the two disagree on how wide a body is.
+	/// </summary>
+	public static float ResolveUnitContactRadius(float authoredRadius, float scale)
+	{
+		if (authoredRadius > MinimumAuthoredCollisionRadius) return authoredRadius * scale;
+		return scale * DefaultCollisionRadius;
+	}
 }

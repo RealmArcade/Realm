@@ -262,6 +262,13 @@ namespace Realm.Client.Services
 				if (!GameContext.World.IsAlive(kvp.Key.Attacker) || !GameContext.World.IsAlive(kvp.Key.Target))
 				{
 					_staleRouteReachabilityEntries.Add(kvp.Key);
+					continue;
+				}
+
+				float maxAge = kvp.Value.Reachable ? RouteCacheMaxAge : RouteCacheNegativeMaxAge;
+				if (_combatTotalTime - kvp.Value.Timestamp > maxAge)
+				{
+					_staleRouteReachabilityEntries.Add(kvp.Key);
 				}
 			}
 
@@ -579,7 +586,7 @@ namespace Realm.Client.Services
 				float meleeVerticalReach = Math.Max(attacker.AttackRange, DefaultMeleeVerticalReach);
 				if (isMelee)
 				{
-					float contactReach = (attacker.UnitContactRadius + cand.UnitContactRadius) * MeleeContactReachSafetyMargin;
+					float contactReach = GetMinimumMeleeContactReach(attacker.UnitContactRadius, cand.UnitContactRadius);
 					if (reach < contactReach)
 					{
 						reach = contactReach;
@@ -1120,30 +1127,31 @@ namespace Realm.Client.Services
 		///     CollisionRadius scaled by CollisionScale, or the shared default fraction of the
 		///     scale when the unit has no authored radius. A non-positive authored radius means the
 		///     value was never set, so it falls back to the default instead of describing a
-		///     zero-width body. Combat uses the same value so melee reach is consistent with how
+		///     zero-width body. Combat uses the same rule so melee reach is consistent with how
 		///     close units can actually get to each other.
 		/// </summary>
 		private float GetUnitContactRadius(Entity entity)
 		{
 			float scale = GameContext.World.Has<CollisionScale>(entity) ? GameContext.World.Get<CollisionScale>(entity).Value : 1.0f;
-			if (GameContext.World.Has<CollisionRadius>(entity))
-			{
-				float authoredRadius = GameContext.World.Get<CollisionRadius>(entity).Value;
-				if (authoredRadius > 0.01f) return authoredRadius * scale;
-			}
-
-			return scale * GameplayConstants.DefaultCollisionRadius;
+			float authoredRadius = GameContext.World.Has<CollisionRadius>(entity) ? GameContext.World.Get<CollisionRadius>(entity).Value : 0f;
+			return GameplayConstants.ResolveUnitContactRadius(authoredRadius, scale);
 		}
 
 		/// <summary>
-		///     Center distance at which two unit bodies touch: the sum of both contact radii plus a
-		///     small safety margin. Melee reach must never be smaller than this, because movement
-		///     separation keeps bodies that far apart and a crowd of attackers parks the front rank
-		///     just outside their own attack range.
+		///     Distance at which movement separation parks two unit bodies against each other:
+		///     the combined contact radii scaled by CollisionSeparationFactor, plus a small safety
+		///     margin so steering/clump variance never leaves a pair hovering just out of reach.
+		///     Melee reach must never be smaller than the distance the bodies rest at, otherwise a
+		///     crowd of attackers parks the front rank just outside their own attack range.
 		/// </summary>
 		private float GetMinimumMeleeContactReach(Entity a, Entity b)
 		{
-			return (GetUnitContactRadius(a) + GetUnitContactRadius(b)) * MeleeContactReachSafetyMargin;
+			return GetMinimumMeleeContactReach(GetUnitContactRadius(a), GetUnitContactRadius(b));
+		}
+
+		private static float GetMinimumMeleeContactReach(float attackerContactRadius, float targetContactRadius)
+		{
+			return (attackerContactRadius + targetContactRadius) * GameplayConstants.CollisionSeparationFactor * MeleeContactReachSafetyMargin;
 		}
 
 		/// <summary>
@@ -1177,9 +1185,10 @@ namespace Realm.Client.Services
 		// exactly the unreachable case this replaces the crude vertical guess with.
 		// Flying attackers ignore the check.
 		//
-		// The result is cached per (attacker, target). There is NO time-based retry: the verdict is
-		// recomputed only when the attacker or target moved meaningfully or the navmesh was rebuilt,
-		// so an unreachable mountain tower is never re-poked every few seconds.
+		// The result is cached per (attacker, target). Reachable verdicts are recomputed only when
+		// the attacker or target moved meaningfully or the navmesh was rebuilt. Negative verdicts
+		// also expire after RouteCacheNegativeMaxAge, because an attacker that cannot reach its
+		// target never moves far enough to invalidate the entry by position change alone.
 		private bool IsReachableWithinRange(Entity attacker, Entity target, Vector3 attackerPos, Vector3 targetPos, float effectiveRange, bool isMelee, float meleeVerticalReach)
 		{
 			bool attackerIsFlying = IsFlying(attacker);

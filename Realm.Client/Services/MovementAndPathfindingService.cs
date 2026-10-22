@@ -335,9 +335,8 @@ namespace Realm.Client.Services
 			}
 
 			float scale = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
-			float radius = world.Has<CollisionRadius>(entity)
-				? world.Get<CollisionRadius>(entity).Value * scale
-				: scale * GameplayConstants.DefaultCollisionRadius;
+			float authoredRadius = world.Has<CollisionRadius>(entity) ? world.Get<CollisionRadius>(entity).Value : 0f;
+			float radius = GameplayConstants.ResolveUnitContactRadius(authoredRadius, scale);
 			bool hasVel = world.Has<Velocity>(entity);
 			Vector3 vel = hasVel ? world.Get<Velocity>(entity).Value : Vector3.Zero;
 
@@ -555,12 +554,11 @@ namespace Realm.Client.Services
 					if (snapRef != 0)
 					{
 						float climb = MathF.Abs(snappedPt.Y - nextPos.Y);
-					if (climb <= NavMeshMaxSnapClimb)
-					{
-						snappedToNavMesh = true;
-						snappedSurfaceY = snappedPt.Y;
-					}
-
+						if (climb <= NavMeshMaxSnapClimb)
+						{
+							snappedToNavMesh = true;
+							snappedSurfaceY = snappedPt.Y;
+						}
 					}
 				}
 			}
@@ -814,9 +812,8 @@ namespace Realm.Client.Services
 		private void ApplyCollisionAvoidance(Entity entity, Vector3 current, ref Vector3 nextPos)
 		{
 			float scale1 = GameContext.World.Has<CollisionScale>(entity) ? GameContext.World.Get<CollisionScale>(entity).Value : 1.0f;
-			float r1 = GameContext.World.Has<CollisionRadius>(entity)
-				? GameContext.World.Get<CollisionRadius>(entity).Value * scale1
-				: scale1 * GameplayConstants.DefaultCollisionRadius;
+			float authoredRadius = GameContext.World.Has<CollisionRadius>(entity) ? GameContext.World.Get<CollisionRadius>(entity).Value : 0f;
+			float r1 = GameplayConstants.ResolveUnitContactRadius(authoredRadius, scale1);
 
 			int baseCx = (int)Math.Floor(nextPos.X / _collisionCellSize);
 			int baseCz = (int)Math.Floor(nextPos.Z / _collisionCellSize);

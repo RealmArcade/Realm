@@ -1691,7 +1691,7 @@ public partial class GameHost
 	{
 		if (string.IsNullOrWhiteSpace(itemTypeId)) return LootItemId.Invalid;
 
-		float terrainY = GameContext.EditorService?.GetTerrainHeightAt(new Godot.Vector3(position.X, position.Y, position.Z)) ?? position.Y;
+		float terrainY = GetTerrainHeightAt(new Godot.Vector3(position.X, position.Y, position.Z));
 		var finalPos = new Godot.Vector3(position.X, terrainY + 0.1f, position.Z);
 
 		var entity = GameContext.World.Create(

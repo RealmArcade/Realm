@@ -8,6 +8,7 @@ using DotRecast.Recast.Geom;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Ecs.Services;
@@ -26,7 +27,11 @@ public class TerrainNavMeshService
 	private Vector3 _invalidateCenter;
 	private float _invalidateRadiusSq;
 
-	private readonly EntityCallback<Position, CollisionRadius> _checkOtherObstaclesDelegate;
+	private readonly EntityCallback<Position, CollisionRadius, PropIdentity> _collectPropObstacleDelegate;
+	private readonly EntityCallback<Position, CollisionRadius, Building> _collectBuildingObstacleDelegate;
+	private readonly EntityCallback<Position, CollisionRadius, PropIdentity> _checkPropObstacleDelegate;
+	private readonly EntityCallback<Position, CollisionRadius, Building> _checkBuildingObstacleDelegate;
+	private readonly List<(Vector3 Pos, float Radius)> _navMeshObstacles = new();
 	private float _checkCellX;
 	private float _checkCellZ;
 	private bool _isCellBlockedByOtherObstacle;
@@ -34,7 +39,10 @@ public class TerrainNavMeshService
 	public TerrainNavMeshService()
 	{
 		_invalidatePathsDelegate = InvalidatePathsQueryAction;
-		_checkOtherObstaclesDelegate = CheckOtherObstaclesQueryAction;
+		_collectPropObstacleDelegate = CollectPropObstacle;
+		_collectBuildingObstacleDelegate = CollectBuildingObstacle;
+		_checkPropObstacleDelegate = CheckPropObstacle;
+		_checkBuildingObstacleDelegate = CheckBuildingObstacle;
 	}
 
 	private void InvalidatePathsQueryAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref PathFollow pf)
@@ -73,17 +81,50 @@ public class TerrainNavMeshService
 		ECSContext.World?.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
 	}
 
-	private void CheckOtherObstaclesQueryAction(Entity entity, ref Position pos, ref CollisionRadius colRad)
+	private void CollectPropObstacle(Entity entity, ref Position pos, ref CollisionRadius colRad, ref PropIdentity propIdentity)
+	{
+		CollectObstacle(entity, pos.Value, colRad.Value);
+	}
+
+	private void CollectBuildingObstacle(Entity entity, ref Position pos, ref CollisionRadius colRad, ref Building building)
+	{
+		CollectObstacle(entity, pos.Value, colRad.Value);
+	}
+
+	private void CollectObstacle(Entity entity, Vector3 position, float authoredRadius)
+	{
+		float radius = ResolveObstacleRadius(entity, authoredRadius);
+		if (radius <= GameplayConstants.MinimumAuthoredCollisionRadius) return;
+		_navMeshObstacles.Add((position, radius));
+	}
+
+	private void CheckPropObstacle(Entity entity, ref Position pos, ref CollisionRadius colRad, ref PropIdentity propIdentity)
+	{
+		CheckObstacle(entity, pos.Value, colRad.Value);
+	}
+
+	private void CheckBuildingObstacle(Entity entity, ref Position pos, ref CollisionRadius colRad, ref Building building)
+	{
+		CheckObstacle(entity, pos.Value, colRad.Value);
+	}
+
+	private void CheckObstacle(Entity entity, Vector3 position, float authoredRadius)
 	{
 		if (_isCellBlockedByOtherObstacle) return;
-		float scale = (ECSContext.World != null && ECSContext.World.Has<CollisionScale>(entity)) ? ECSContext.World.Get<CollisionScale>(entity).Value : 1.0f;
-		float radius = colRad.Value * scale;
-		float dx = _checkCellX - pos.Value.X;
-		float dz = _checkCellZ - pos.Value.Z;
+		float radius = ResolveObstacleRadius(entity, authoredRadius);
+		if (radius <= GameplayConstants.MinimumAuthoredCollisionRadius) return;
+		float dx = _checkCellX - position.X;
+		float dz = _checkCellZ - position.Z;
 		if (dx * dx + dz * dz <= radius * radius)
 		{
 			_isCellBlockedByOtherObstacle = true;
 		}
+	}
+
+	private static float ResolveObstacleRadius(Entity entity, float authoredRadius)
+	{
+		float scale = (ECSContext.World != null && ECSContext.World.Has<CollisionScale>(entity)) ? ECSContext.World.Get<CollisionScale>(entity).Value : 1.0f;
+		return authoredRadius * scale;
 	}
 
 	private bool IsPointCoveredByAnyObstacle(float px, float pz)
@@ -91,7 +132,11 @@ public class TerrainNavMeshService
 		_checkCellX = px;
 		_checkCellZ = pz;
 		_isCellBlockedByOtherObstacle = false;
-		ECSContext.World?.Query(in QueryCache.AllPositionAndCollisionRadiusQuery, _checkOtherObstaclesDelegate);
+		var world = ECSContext.World;
+		if (world == null) return false;
+
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery, _checkPropObstacleDelegate);
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingQuery, _checkBuildingObstacleDelegate);
 		return _isCellBlockedByOtherObstacle;
 	}
 
@@ -180,7 +225,7 @@ public class TerrainNavMeshService
 		}
 	}
 
-	private void ProcessNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, float quadSize, ProcessPolyBoxDelegate processPoly)
+	private void ProcessNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, float quadSize, ProcessPolyDelegate processPoly)
 	{
 		float effRadiusSq = (radius + quadSize * 0.5f) * (radius + quadSize * 0.5f);
 		IterateNavMeshPolys(ref state, (ref TerrainState s, DtMeshTile tile, DtPoly poly, long polyRefBase, int p) =>
@@ -191,7 +236,7 @@ public class TerrainNavMeshService
 
 			if (dx * dx + dz * dz <= effRadiusSq)
 			{
-				processPoly(ref s, polyRefBase, p, avgX, avgZ);
+				processPoly(ref s, tile, poly, polyRefBase, p);
 			}
 		});
 	}
@@ -285,9 +330,7 @@ public class TerrainNavMeshService
 		avgZ = nv > 0 ? sumZ / nv : 0f;
 	}
 
-	private delegate void ProcessPolyBoxDelegate(ref TerrainState state, long polyRefBase, int p, float avgX, float avgZ);
-
-	private void ProcessNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, float quadSize, ProcessPolyBoxDelegate processPoly)
+	private void ProcessNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, float quadSize, ProcessPolyDelegate processPoly)
 	{
 		IterateNavMeshPolys(ref state, (ref TerrainState s, DtMeshTile tile, DtPoly poly, long polyRefBase, int p) =>
 		{
@@ -295,14 +338,14 @@ public class TerrainNavMeshService
 
 			if (IsPolyInBox(avgX, avgZ, pos, halfWidth, halfDepth, quadSize))
 			{
-				processPoly(ref s, polyRefBase, p, avgX, avgZ);
+				processPoly(ref s, tile, poly, polyRefBase, p);
 			}
 		});
 	}
 
 	private void CarveNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, float quadSize)
 	{
-		ProcessNavMeshTilesBox(ref state, pos, halfWidth, halfDepth, quadSize, (ref TerrainState s, long polyRefBase, int p, float avgX, float avgZ) =>
+		ProcessNavMeshTilesBox(ref state, pos, halfWidth, halfDepth, quadSize, (ref TerrainState s, DtMeshTile tile, DtPoly poly, long polyRefBase, int p) =>
 		{
 			long polyRef = polyRefBase | (long)p;
 			s.NavMesh.SetPolyFlags(polyRef, 0);
@@ -354,12 +397,13 @@ public class TerrainNavMeshService
 
 	private void UncarveNavMeshTiles(ref TerrainState state, Vector3 pos, float radius, int width, int depth, float quadSize)
 	{
-		ProcessNavMeshTiles(ref state, pos, radius, quadSize, (ref TerrainState s, long polyRefBase, int p, float avgX, float avgZ) =>
+		ProcessNavMeshTiles(ref state, pos, radius, quadSize, (ref TerrainState s, DtMeshTile tile, DtPoly poly, long polyRefBase, int p) =>
 		{
+			GetPolyCenter(tile, poly, out float avgX, out float avgZ);
 			if (IsPointCoveredByAnyObstacle(avgX, avgZ))
 				return;
 
-			RestoreNavMeshPoly(ref s, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
+			RestoreNavMeshPoly(ref s, tile, poly, polyRefBase, p, width, depth, quadSize);
 		});
 	}
 
@@ -378,11 +422,12 @@ public class TerrainNavMeshService
 
 	private void UncarveNavMeshTilesBox(ref TerrainState state, Vector3 pos, float halfWidth, float halfDepth, int width, int depth, float quadSize)
 	{
-		ProcessNavMeshTilesBox(ref state, pos, halfWidth, halfDepth, quadSize, (ref TerrainState s, long polyRefBase, int p, float avgX, float avgZ) =>
+		ProcessNavMeshTilesBox(ref state, pos, halfWidth, halfDepth, quadSize, (ref TerrainState s, DtMeshTile tile, DtPoly poly, long polyRefBase, int p) =>
 		{
+			GetPolyCenter(tile, poly, out float avgX, out float avgZ);
 			if (!IsPointCoveredByAnyObstacle(avgX, avgZ))
 			{
-				RestoreNavMeshPoly(ref s, polyRefBase, p, avgX, avgZ, width, depth, quadSize);
+				RestoreNavMeshPoly(ref s, tile, poly, polyRefBase, p, width, depth, quadSize);
 			}
 		});
 	}
@@ -437,9 +482,9 @@ public class TerrainNavMeshService
 				if (avgX < x1 - pad || avgX > x2 + pad || avgZ < z1 - pad || avgZ > z2 + pad)
 					return;
 
-				int xGrid = Math.Clamp((int)Math.Floor((avgX + halfW) / quadSize), 0, width - 1);
-				int zGrid = Math.Clamp((int)Math.Floor((avgZ + halfD) / quadSize), 0, depth - 1);
-				int cellFlags = s.PathingCodes[xGrid, zGrid];
+				Span<Vector2> polygonVertices = stackalloc Vector2[poly.vertCount];
+				int vertexCount = CollectPolygonVertices(tile, poly, polygonVertices);
+				int cellFlags = ClassifyPolygonPathingFlags(s.PathingCodes, width, depth, quadSize, polygonVertices[..vertexCount]);
 
 				long polyRef = polyRefBase | (long)p;
 				s.NavMesh.SetPolyFlags(polyRef, cellFlags);
@@ -492,13 +537,13 @@ public class TerrainNavMeshService
 		state.PathingCodes[x, z] = defaultPath;
 	}
 
-	private void RestoreNavMeshPoly(ref TerrainState state, long polyRefBase, int polyIndex, float avgX, float avgZ, int width, int depth, float quadSize)
+	private void RestoreNavMeshPoly(ref TerrainState state, DtMeshTile tile, DtPoly poly, long polyRefBase, int polyIndex, int width, int depth, float quadSize)
 	{
-		int xGrid = Math.Clamp((int)Math.Floor(avgX / quadSize + width / 2.0f), 0, width - 1);
-		int zGrid = Math.Clamp((int)Math.Floor(avgZ / quadSize + depth / 2.0f), 0, depth - 1);
-		var pathFlags = state.PathingCodes != null ? (TerrainPathingFlags)state.PathingCodes[xGrid, zGrid] : TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable;
+		Span<Vector2> polygonVertices = stackalloc Vector2[poly.vertCount];
+		int vertexCount = CollectPolygonVertices(tile, poly, polygonVertices);
+		int pathFlags = ClassifyPolygonPathingFlags(state.PathingCodes, width, depth, quadSize, polygonVertices[..vertexCount]);
 		long polyRef = polyRefBase | (long)polyIndex;
-		state.NavMesh.SetPolyFlags(polyRef, (int)pathFlags);
+		state.NavMesh.SetPolyFlags(polyRef, pathFlags);
 		state.NavMesh.SetPolyArea(polyRef, (char)1);
 	}
 
@@ -523,16 +568,13 @@ public class TerrainNavMeshService
 
 	private List<(Vector3 Pos, float Radius)> GetNavMeshObstacles()
 	{
-		var obstacles = new List<(Vector3 Pos, float Radius)>();
-		var obstacleQuery = QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery;
-		ECSContext.World?.Query(in obstacleQuery, (Entity ent, ref Position pos, ref CollisionRadius colRad, ref PropIdentity propIdentity) =>
-		{
-			float scale = (ECSContext.World != null && ECSContext.World.Has<CollisionScale>(ent)) ? ECSContext.World.Get<CollisionScale>(ent).Value : 1.0f;
-			float radius = colRad.Value * scale;
-			if (radius <= 0.01f) return;
-			obstacles.Add((pos.Value, radius));
-		});
-		return obstacles;
+		_navMeshObstacles.Clear();
+		var world = ECSContext.World;
+		if (world == null) return _navMeshObstacles;
+
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery, _collectPropObstacleDelegate);
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingQuery, _collectBuildingObstacleDelegate);
+		return _navMeshObstacles;
 	}
 
 	private float[,] GetBakeHeights(in TerrainState state, int width, int depth)
@@ -554,7 +596,7 @@ public class TerrainNavMeshService
 		foreach (var obs in obstacles)
 		{
 			float radius = obs.Radius;
-			if (radius <= 0.01f) continue;
+			if (radius <= GameplayConstants.MinimumAuthoredCollisionRadius) continue;
 
 			int nearestX = Math.Clamp((int)Math.Round((obs.Pos.X + halfW) / quadSize), 0, width);
 			int nearestZ = Math.Clamp((int)Math.Round((obs.Pos.Z + halfD) / quadSize), 0, depth);
@@ -659,10 +701,7 @@ public class TerrainNavMeshService
 		{
 			pars.polyAreas[i] = mesh.areas[i];
 
-			float sumX = 0f;
-			float sumZ = 0f;
 			int nv = 0;
-			int aggregatedFlags = 0;
 			for (int j = 0; j < mesh.nvp; j++)
 			{
 				int vIdx = mesh.polys[i * mesh.nvp * 2 + j];
@@ -671,46 +710,89 @@ public class TerrainNavMeshService
 
 				float wx = bmin.X + mesh.verts[vIdx * 3] * mesh.cs;
 				float wz = bmin.Z + mesh.verts[vIdx * 3 + 2] * mesh.cs;
-				sumX += wx;
-				sumZ += wz;
-
-				if (state.PathingCodes != null)
-				{
-					int vertexGridX = Math.Clamp((int)Math.Floor(wx / quadSize + width / 2.0f), 0, width - 1);
-					int vertexGridZ = Math.Clamp((int)Math.Floor(wz / quadSize + depth / 2.0f), 0, depth - 1);
-					aggregatedFlags |= state.PathingCodes[vertexGridX, vertexGridZ];
-				}
 
 				if (nv < polyVerts.Length)
 					polyVerts[nv++] = new Vector2(wx, wz);
 			}
 
-			float avgX = nv > 0 ? sumX / nv : 0f;
-			float avgZ = nv > 0 ? sumZ / nv : 0f;
-
-			if (state.PathingCodes != null)
-			{
-				int xGrid = Math.Clamp((int)Math.Floor(avgX / quadSize + width / 2.0f), 0, width - 1);
-				int zGrid = Math.Clamp((int)Math.Floor(avgZ / quadSize + depth / 2.0f), 0, depth - 1);
-				aggregatedFlags |= state.PathingCodes[xGrid, zGrid];
-
-				pars.polyFlags[i] = MergePolygonPathingFlags(aggregatedFlags);
-			}
-			else
-			{
-				pars.polyFlags[i] = (int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable);
-			}
+			pars.polyFlags[i] = ClassifyPolygonPathingFlags(state.PathingCodes, width, depth, quadSize, polyVerts[..nv]);
 		}
 	}
 
-	private static int MergePolygonPathingFlags(int aggregatedFlags)
+	private static int ClassifyPolygonPathingFlags(int[,]? pathingCodes, int width, int depth, float quadSize, ReadOnlySpan<Vector2> polygonVertices)
 	{
-		if ((aggregatedFlags & (int)TerrainPathingFlags.Ground) != 0)
+		if (pathingCodes == null) return (int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable);
+		if (polygonVertices.Length == 0) return 0;
+
+		float halfW = width / 2.0f * quadSize;
+		float halfD = depth / 2.0f * quadSize;
+		float minX = float.MaxValue;
+		float maxX = float.MinValue;
+		float minZ = float.MaxValue;
+		float maxZ = float.MinValue;
+		float sumX = 0f;
+		float sumZ = 0f;
+		for (int i = 0; i < polygonVertices.Length; i++)
 		{
-			return (int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable | TerrainPathingFlags.Flying);
+			var vertex = polygonVertices[i];
+			if (vertex.X < minX) minX = vertex.X;
+			if (vertex.X > maxX) maxX = vertex.X;
+			if (vertex.Y < minZ) minZ = vertex.Y;
+			if (vertex.Y > maxZ) maxZ = vertex.Y;
+			sumX += vertex.X;
+			sumZ += vertex.Y;
 		}
 
-		return aggregatedFlags;
+		int startX = Math.Clamp((int)Math.Floor((minX + halfW) / quadSize), 0, width - 1);
+		int endX = Math.Clamp((int)Math.Floor((maxX + halfW) / quadSize), 0, width - 1);
+		int startZ = Math.Clamp((int)Math.Floor((minZ + halfD) / quadSize), 0, depth - 1);
+		int endZ = Math.Clamp((int)Math.Floor((maxZ + halfD) / quadSize), 0, depth - 1);
+
+		int combinedFlags = 0;
+		for (int z = startZ; z <= endZ; z++)
+		{
+			float centreZ = (z + 0.5f - depth / 2.0f) * quadSize;
+			for (int x = startX; x <= endX; x++)
+			{
+				float centreX = (x + 0.5f - width / 2.0f) * quadSize;
+				if (!IsPointInsidePolygon(polygonVertices, centreX, centreZ)) continue;
+				combinedFlags |= pathingCodes[x, z];
+			}
+		}
+
+		int centroidGridX = Math.Clamp((int)Math.Floor((sumX / polygonVertices.Length + halfW) / quadSize), 0, width - 1);
+		int centroidGridZ = Math.Clamp((int)Math.Floor((sumZ / polygonVertices.Length + halfD) / quadSize), 0, depth - 1);
+		combinedFlags |= pathingCodes[centroidGridX, centroidGridZ];
+
+		return combinedFlags;
+	}
+
+	private static bool IsPointInsidePolygon(ReadOnlySpan<Vector2> polygonVertices, float pointX, float pointZ)
+	{
+		bool inside = false;
+		int count = polygonVertices.Length;
+		for (int i = 0, j = count - 1; i < count; j = i++)
+		{
+			var current = polygonVertices[i];
+			var previous = polygonVertices[j];
+			if ((current.Y > pointZ) == (previous.Y > pointZ)) continue;
+			if (pointX >= (previous.X - current.X) * (pointZ - current.Y) / (previous.Y - current.Y) + current.X) continue;
+			inside = !inside;
+		}
+
+		return inside;
+	}
+
+	private static int CollectPolygonVertices(DtMeshTile tile, DtPoly poly, Span<Vector2> destination)
+	{
+		int count = Math.Min(poly.vertCount, destination.Length);
+		for (int i = 0; i < count; i++)
+		{
+			int vertexIndex = poly.verts[i];
+			destination[i] = new Vector2(tile.data.verts[vertexIndex * 3], tile.data.verts[vertexIndex * 3 + 2]);
+		}
+
+		return count;
 	}
 
 	private void BuildNavMesh(ref TerrainState state, SimpleInputGeomProvider geom, int width, int depth, float quadSize)
