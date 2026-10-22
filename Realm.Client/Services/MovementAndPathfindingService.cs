@@ -322,11 +322,6 @@ namespace Realm.Client.Services
 
 		private bool CheckArrival(Entity entity, Vector3 current, Vector3 target, MovementStats stats, ref PathFollow pf)
 		{
-			if (pf.WaypointCount <= 0)
-			{
-				return false;
-			}
-
 			Vector3 currentTarget = GetCurrentWaypointTarget(target, pf);
 
 			float diffX = current.X - currentTarget.X;
