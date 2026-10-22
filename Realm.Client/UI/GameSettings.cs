@@ -57,6 +57,25 @@ public static class GameSettings
 	public static bool DisableShadows { get; set; } = false;
 	public static bool DisableDayNightLighting { get; set; } = false;
 	public static bool DisableWeatherEffects { get; set; } = false;
+
+	public static bool ShadowsEnabled
+	{
+		get => !DisableShadows;
+		set => DisableShadows = !value;
+	}
+
+	public static bool DayNightLightingEnabled
+	{
+		get => !DisableDayNightLighting;
+		set => DisableDayNightLighting = !value;
+	}
+
+	public static bool WeatherEffectsEnabled
+	{
+		get => !DisableWeatherEffects;
+		set => DisableWeatherEffects = !value;
+	}
+
 	public static int FpsLimit { get; set; } = 0;
 	public static readonly int[] FpsLimitOptions = { 0, 30, 60, 90, 120, 144, 240 };
 	public static bool FloatingCombatText { get; set; } = true;
