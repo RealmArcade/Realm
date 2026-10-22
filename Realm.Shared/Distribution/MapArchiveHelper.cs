@@ -47,7 +47,7 @@ public static class MapArchiveHelper
 	private static bool IsIgnoredPath(string relPath)
 	{
 		string[] prefixes = [".git/", ".backups/", "obj/", ".godot/", ".sidecarcache/", ".vscode/", ".vs/"];
-		string[] suffixes = [".tmp", ".rmap", ".zip", ".tar", ".gz", ".bak", ".backup", ".rkey"];
+		string[] suffixes = [".tmp", ".rmap", ".zip", ".tar", ".gz", ".bak", ".backup", ".rkey", ".elf"];
 
 		if (prefixes.Any(p => relPath.StartsWith(p, StringComparison.OrdinalIgnoreCase))) return true;
 		if (suffixes.Any(s => relPath.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;

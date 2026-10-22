@@ -203,7 +203,7 @@ public class PortraitPanel
 		_armyCompositionLabel?.Hide();
 
 		var info = viewModel.SelectedUnits[viewModel.CycleSelectionIndex < viewModel.SelectedUnits.Count ? viewModel.CycleSelectionIndex : 0];
-		_unitNameLabel.Text = info.Name;
+		_unitNameLabel.Text = string.IsNullOrEmpty(info.Name) ? "" : TranslationServer.Translate(info.Name);
 		if (_portraitTexture != null)
 		{
 			_portraitTexture.Texture = RtexIconLoader.Load(GetUnitIcon(info.UnitId));
@@ -250,7 +250,7 @@ public class PortraitPanel
 		statsText += $"\n{info.StateText}";
 		if (!string.IsNullOrEmpty(info.Description))
 		{
-			statsText += $"\n\n{info.Description}";
+			statsText += $"\n\n{TranslationServer.Translate(info.Description)}";
 		}
 
 		_statsLabel.Text = statsText;
