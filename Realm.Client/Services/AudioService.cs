@@ -16,16 +16,45 @@ public class AudioService
 	public const string VoiceBusName = "Voice";
 
 	private const int Max2DPlayers = 16;
-	private const int Max3DPlayers = 32;
+	public const int MaxPositionalVoices = 16;
 	private const int MaxConcurrentPerSound = 4;
+	private const float DefaultPositionalMaxDistance = 60f;
+
+	private static readonly string[] PositionalVoiceBusNames = CreatePositionalVoiceBusNames();
 
 	private readonly Dictionary<string, AudioStream> _streamCache = new(StringComparer.OrdinalIgnoreCase);
 	private readonly List<AudioStreamPlayer> _player2DPool = new();
-	private readonly List<AudioStreamPlayer3D> _player3DPool = new();
-	private readonly Dictionary<AudioStreamPlayer3D, (string SoundKey, Vector3 Position)> _active3DPlayers = new();
+	private readonly AudioStreamPlayer[] _positionalPlayers = new AudioStreamPlayer[MaxPositionalVoices];
+	private readonly AudioEffectPanner?[] _positionalPanners = new AudioEffectPanner?[MaxPositionalVoices];
+	private readonly PositionalVoiceState[] _positionalVoices = new PositionalVoiceState[MaxPositionalVoices];
 	private readonly Random _random = new();
 
+	private AudioListener _listener = AudioListener.Default;
+	private bool _hasConfiguredListener;
+	private bool _followCameraListener = true;
+
 	private Node? _audioRoot;
+
+	private struct PositionalVoiceState
+	{
+		public bool Active;
+		public string SoundKey;
+		public Vector3 Position;
+		public float BaseVolumeDb;
+		public float MaxDistance;
+		public float Priority;
+	}
+
+	private static string[] CreatePositionalVoiceBusNames()
+	{
+		var names = new string[MaxPositionalVoices];
+		for (int index = 0; index < MaxPositionalVoices; index++)
+		{
+			names[index] = $"PositionalVoice_{index}";
+		}
+
+		return names;
+	}
 
 	public AudioService()
 	{
@@ -83,21 +112,55 @@ public class AudioService
 			_player2DPool.Add(p);
 		}
 
-		_player3DPool.Clear();
-		_active3DPlayers.Clear();
-		for (int i = 0; i < Max3DPlayers; i++)
+		InitializePositionalVoices();
+	}
+
+	private void InitializePositionalVoices()
+	{
+		for (int index = 0; index < MaxPositionalVoices; index++)
 		{
-			var p = new AudioStreamPlayer3D
+			AudioServer.SetBusSend(GetOrCreatePositionalVoiceBus(index), SfxBusName);
+
+			var player = new AudioStreamPlayer
 			{
-				Name = $"Audio3D_{i}",
-				Bus = SfxBusName,
-				MaxDistance = 60f,
-				UnitSize = 10f,
-				AttenuationModel = AudioStreamPlayer3D.AttenuationModelEnum.InverseSquareDistance
+				Name = $"AudioPositional_{index}",
+				Bus = PositionalVoiceBusNames[index]
 			};
-			_audioRoot.AddChild(p);
-			_player3DPool.Add(p);
+			_audioRoot!.AddChild(player);
+			_positionalPlayers[index] = player;
+			_positionalVoices[index] = default;
 		}
+	}
+
+	private int GetOrCreatePositionalVoiceBus(int voiceIndex)
+	{
+		string busName = PositionalVoiceBusNames[voiceIndex];
+		int busIndex = AudioServer.GetBusIndex(busName);
+		if (busIndex < 0)
+		{
+			busIndex = AudioServer.BusCount;
+			AudioServer.AddBus(busIndex);
+			AudioServer.SetBusName(busIndex, busName);
+		}
+
+		AudioServer.SetBusSend(busIndex, SfxBusName);
+
+		if (_positionalPanners[voiceIndex] == null || !GodotObject.IsInstanceValid(_positionalPanners[voiceIndex]))
+		{
+			AudioEffectPanner? existingPanner = AudioServer.GetBusEffectCount(busIndex) > 0
+				? AudioServer.GetBusEffect(busIndex, 0) as AudioEffectPanner
+				: null;
+
+			if (existingPanner == null)
+			{
+				existingPanner = new AudioEffectPanner { Pan = 0f };
+				AudioServer.AddBusEffect(busIndex, existingPanner, 0);
+			}
+
+			_positionalPanners[voiceIndex] = existingPanner;
+		}
+
+		return busIndex;
 	}
 
 	public AudioStream? LoadAudioStream(string soundPath)
@@ -247,89 +310,169 @@ public class AudioService
 		}
 	}
 
-	public void PlaySound3D(string soundPath, Vector3 position, float volumeDb = 0f, float pitchVariation = 0.05f, float maxDistance = 60f)
+	public void SetAudioListener(Vector3 position, Vector3 forward, Vector3 up)
+	{
+		Vector3 normalizedForward = forward.LengthSquared() > 0.0001f ? forward.Normalized() : Vector3.Forward;
+		Vector3 normalizedUp = up.LengthSquared() > 0.0001f ? up.Normalized() : Vector3.Up;
+
+		_listener = new AudioListener(position, normalizedForward, normalizedUp);
+		_hasConfiguredListener = true;
+		_followCameraListener = false;
+		UpdatePositionalVoices();
+	}
+
+	public void SetAudioListener(in AudioListener listener)
+	{
+		_listener = listener;
+		_hasConfiguredListener = true;
+		_followCameraListener = false;
+		UpdatePositionalVoices();
+	}
+
+	public void EnableCameraListener()
+	{
+		_followCameraListener = true;
+		_hasConfiguredListener = false;
+	}
+
+	public AudioListener GetAudioListener()
+	{
+		if (_hasConfiguredListener) return _listener;
+
+		Node3D? camera = GameHost.Instance?.MainCamera;
+		if (camera != null && GodotObject.IsInstanceValid(camera))
+		{
+			Basis cameraBasis = camera.GlobalTransform.Basis;
+			return new AudioListener(camera.GlobalPosition, -cameraBasis.Z, cameraBasis.Y);
+		}
+
+		return AudioListener.Default;
+	}
+
+	public void UpdateListenerFromCamera(Node3D? camera)
+	{
+		if (!_followCameraListener) return;
+		if (camera == null || !GodotObject.IsInstanceValid(camera)) return;
+
+		Basis cameraBasis = camera.GlobalTransform.Basis;
+		_listener = new AudioListener(camera.GlobalPosition, -cameraBasis.Z, cameraBasis.Y);
+		_hasConfiguredListener = true;
+		UpdatePositionalVoices();
+	}
+
+	public void UpdatePositionalVoices()
+	{
+		AudioListener listener = GetAudioListener();
+
+		for (int index = 0; index < _positionalVoices.Length; index++)
+		{
+			ref PositionalVoiceState voice = ref _positionalVoices[index];
+			AudioStreamPlayer? player = _positionalPlayers[index];
+			if (!voice.Active || player == null || !GodotObject.IsInstanceValid(player)) continue;
+
+			if (!player.Playing)
+			{
+				voice.Active = false;
+				continue;
+			}
+
+			PositionalAudioMix mix = PositionalAudioMixer.Calculate(listener, voice.Position, voice.MaxDistance, voice.BaseVolumeDb);
+			voice.Priority = mix.GainLinear;
+			player.VolumeDb = mix.VolumeDb;
+
+			AudioEffectPanner? panner = _positionalPanners[index];
+			if (panner != null && GodotObject.IsInstanceValid(panner))
+			{
+				panner.Pan = mix.Pan;
+			}
+		}
+	}
+
+	public void PlaySound3D(string soundPath, Vector3 position, float volumeDb = 0f, float pitchVariation = 0.05f, float maxDistance = DefaultPositionalMaxDistance)
 	{
 		var stream = LoadAudioStream(soundPath);
 		if (stream == null) return;
 
 		EnsureAudioRoot();
 
-		var cameraPos = GameHost.Instance?.MainCamera?.GlobalPosition ?? position;
-		CleanupAndScore3DPlayers(soundPath, cameraPos, out int activeCount, out var furthestPlayer, out float maxDistSq);
+		AudioListener listener = GetAudioListener();
+		PositionalAudioMix mix = PositionalAudioMixer.Calculate(listener, position, maxDistance, volumeDb);
+		if (mix.GainLinear <= 0f) return;
 
-		AudioStreamPlayer3D? player = Get3DPlayer(activeCount, position, cameraPos, furthestPlayer, maxDistSq);
-		if (player == null) return;
+		int slotIndex = ReservePositionalVoice(soundPath, mix.GainLinear);
+		if (slotIndex < 0) return;
+
+		AudioStreamPlayer? player = _positionalPlayers[slotIndex];
+		if (player == null || !GodotObject.IsInstanceValid(player)) return;
+
+		_positionalVoices[slotIndex] = new PositionalVoiceState
+		{
+			Active = true,
+			SoundKey = soundPath,
+			Position = position,
+			BaseVolumeDb = volumeDb,
+			MaxDistance = maxDistance,
+			Priority = mix.GainLinear
+		};
 
 		player.Stream = stream;
-		player.GlobalPosition = position;
-		player.VolumeDb = volumeDb;
-		player.MaxDistance = maxDistance;
+		player.VolumeDb = mix.VolumeDb;
 		player.PitchScale = 1.0f + (pitchVariation > 0 ? (float)(_random.NextDouble() * 2 - 1) * pitchVariation : 0f);
+
+		AudioEffectPanner? panner = _positionalPanners[slotIndex];
+		if (panner != null && GodotObject.IsInstanceValid(panner))
+		{
+			panner.Pan = mix.Pan;
+		}
+
 		player.Play();
-		_active3DPlayers[player] = (soundPath, position);
 	}
 
-	private void CleanupAndScore3DPlayers(string soundPath, Vector3 cameraPos, out int activeCount, out AudioStreamPlayer3D? furthestPlayer, out float maxDistSq)
+	private int ReservePositionalVoice(string soundPath, float newPriority)
 	{
-		List<AudioStreamPlayer3D>? stopped = null;
-		activeCount = 0;
-		furthestPlayer = null;
-		maxDistSq = -1f;
+		int freeSlot = -1;
+		int quietestSlot = -1;
+		float quietestPriority = float.MaxValue;
+		int sameSoundCount = 0;
+		int quietestSameSoundSlot = -1;
+		float quietestSameSoundPriority = float.MaxValue;
 
-		foreach (var (p, info) in _active3DPlayers)
+		for (int index = 0; index < _positionalVoices.Length; index++)
 		{
-			if (!p.Playing)
+			ref PositionalVoiceState voice = ref _positionalVoices[index];
+			AudioStreamPlayer? player = _positionalPlayers[index];
+
+			if (!voice.Active || player == null || !GodotObject.IsInstanceValid(player) || !player.Playing)
 			{
-				stopped ??= new List<AudioStreamPlayer3D>();
-				stopped.Add(p);
+				if (freeSlot < 0) freeSlot = index;
 				continue;
 			}
 
-			if (string.Equals(info.SoundKey, soundPath, StringComparison.OrdinalIgnoreCase))
+			if (voice.Priority < quietestPriority)
 			{
-				activeCount++;
-				float distSq = info.Position.DistanceSquaredTo(cameraPos);
-				if (distSq > maxDistSq)
+				quietestPriority = voice.Priority;
+				quietestSlot = index;
+			}
+
+			if (string.Equals(voice.SoundKey, soundPath, StringComparison.OrdinalIgnoreCase))
+			{
+				sameSoundCount++;
+				if (voice.Priority < quietestSameSoundPriority)
 				{
-					maxDistSq = distSq;
-					furthestPlayer = p;
+					quietestSameSoundPriority = voice.Priority;
+					quietestSameSoundSlot = index;
 				}
 			}
 		}
 
-		if (stopped != null)
+		if (sameSoundCount >= MaxConcurrentPerSound)
 		{
-			foreach (var s in stopped) _active3DPlayers.Remove(s);
-		}
-	}
-
-	private AudioStreamPlayer3D? Get3DPlayer(int activeCount, Vector3 position, Vector3 cameraPos, AudioStreamPlayer3D? furthestPlayer, float maxDistSq)
-	{
-		if (activeCount >= MaxConcurrentPerSound)
-		{
-			float newDistSq = position.DistanceSquaredTo(cameraPos);
-			if (furthestPlayer != null && newDistSq < maxDistSq)
-			{
-				return furthestPlayer;
-			}
-
-			return null;
+			return newPriority > quietestSameSoundPriority ? quietestSameSoundSlot : -1;
 		}
 
-		for (int i = 0; i < _player3DPool.Count; i++)
-		{
-			if (!_player3DPool[i].Playing)
-			{
-				return _player3DPool[i];
-			}
-		}
+		if (freeSlot >= 0) return freeSlot;
 
-		if (_player3DPool.Count > 0)
-		{
-			return _player3DPool[0];
-		}
-
-		return null;
+		return newPriority > quietestPriority ? quietestSlot : -1;
 	}
 
 	public void PlayUnitSound(string unitId, UnitSoundEvent eventType, Vector3 position, float volumeDb = 0f)

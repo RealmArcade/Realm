@@ -42,7 +42,8 @@ public enum ProfileFunctionId
 	EnvironmentUpdateFog = 32,
 	EnvironmentUpdateWeatherParticles = 33,
 	Unit3DProcess = 34,
-	SimulationShroudStep = 35
+	SimulationShroudStep = 35,
+	AudioPositionalUpdate = 36
 }
 
 public struct FunctionProfileMetric

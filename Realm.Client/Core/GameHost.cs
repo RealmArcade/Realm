@@ -3228,6 +3228,10 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				GameContext.EnvironmentService?.UpdateWeatherParticlePosition(MainCamera);
 			}
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.AudioPositionalUpdate))
+			{
+				GameContext.AudioService?.UpdateListenerFromCamera(MainCamera);
+			}
 
 			VisualProjectilePool.Instance?.AdvanceActiveProjectiles(fDelta);
 
