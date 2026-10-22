@@ -50,6 +50,15 @@ public abstract class RealmContainerFile
 		return SetContainerMetadata(bytes, ContainerMagic, ContainerFormatName, ContainerFormatExtension, newMetadataJson, configureMetadata);
 	}
 
+	public string? ExtractMetadata(ReadOnlySpan<byte> bytes) => ExtractMetadataFromBytes(bytes, ContainerMagic);
+	public string? ExtractMetadata(Stream stream) => ExtractMetadataFromStream(stream, ContainerMagic);
+	public string? ExtractMetadataFromFile(string filePath) => ExtractMetadataFromPath(filePath, ContainerMagic);
+
+	public byte[] SetMetadata(ReadOnlySpan<byte> bytes, string? newMetadataJson)
+	{
+		return SetContainerMetadata(bytes, ContainerMagic, ContainerFormatName, ContainerFormatExtension, newMetadataJson);
+	}
+
 	public static bool HasMagic(ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> expectedMagic)
 	{
 		return RealmContainerHeader.HasMagic(bytes, expectedMagic);

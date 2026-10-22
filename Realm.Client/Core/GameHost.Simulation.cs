@@ -59,6 +59,7 @@ public partial class GameHost
 	private void RemoveUnitFromCollections(Unit3D unit)
 	{
 		SelectedUnits.Remove(unit);
+		_activeImpulseUnits.Remove(unit);
 		AllUnits.Remove(unit);
 		EntityToUnit3D.Remove(unit.Entity);
 		EntityIdToUnit3D.Remove(unit.Entity.Id);
@@ -137,8 +138,6 @@ public partial class GameHost
 			unit.PlayAnimation("Death");
 		}
 
-		unit.CollisionLayer = 0;
-		unit.CollisionMask = 0;
 
 		if (executeDespawnShader && TryExecuteDeathShader(unit, unitId)) return;
 		if (playDeathAnimation && TryPlayDeathTween(unit)) return;
@@ -397,14 +396,20 @@ public partial class GameHost
 		InGameHUD.Instance?.RefreshUI(SelectedUnits);
 	}
 
+	private readonly HashSet<int> _activeBuildGhostWorkerIds = new();
+	private readonly List<int> _inactiveBuildGhostWorkersToRemove = new();
+
 	private void UpdateBuildQueueGhosts()
 	{
 		var workerQuery = QueryCache.AllPositionAndBuildTaskNoneDeadQuery;
-		var activeWorkerIds = new HashSet<int>();
+		_activeBuildGhostWorkerIds.Clear();
 
-		GameContext.World.Query(in workerQuery, (Entity workerEntity, ref BuildTask _) => { ProcessWorkerGhostQueue(workerEntity, activeWorkerIds); });
+		foreach (var workerEntity in GameContext.World.Query(in workerQuery))
+		{
+			ProcessWorkerGhostQueue(workerEntity, _activeBuildGhostWorkerIds);
+		}
 
-		CleanupInactiveGhosts(activeWorkerIds);
+		CleanupInactiveGhosts(_activeBuildGhostWorkerIds);
 	}
 
 	private void ProcessWorkerGhostQueue(Entity workerEntity, HashSet<int> activeWorkerIds)
@@ -458,7 +463,8 @@ public partial class GameHost
 
 	private void CleanupInactiveGhosts(HashSet<int> activeWorkerIds)
 	{
-		var toRemove = new List<int>();
+		if (_buildQueueGhosts.Count == 0) return;
+		_inactiveBuildGhostWorkersToRemove.Clear();
 		foreach (var kv in _buildQueueGhosts)
 		{
 			if (!activeWorkerIds.Contains(kv.Key))
@@ -466,17 +472,18 @@ public partial class GameHost
 				foreach (var ghost in kv.Value)
 					if (GodotObject.IsInstanceValid(ghost))
 						ghost.QueueFree();
-				toRemove.Add(kv.Key);
+				_inactiveBuildGhostWorkersToRemove.Add(kv.Key);
 			}
 		}
 
-		foreach (var id in toRemove)
-			_buildQueueGhosts.Remove(id);
+		for (int i = 0; i < _inactiveBuildGhostWorkersToRemove.Count; i++)
+			_buildQueueGhosts.Remove(_inactiveBuildGhostWorkersToRemove[i]);
 	}
 
 	private MeshInstance3D CreateGhostMesh(string buildType)
 	{
 		var mesh = new MeshInstance3D();
+		mesh.Name = "Mesh_MeshInstance3D";
 		float bWidth = 3.2f;
 		float bHeight = 4f;
 		if (TryGetUnitOrBuildingMetadata(buildType, out var bMeta))
@@ -560,55 +567,378 @@ public partial class GameHost
 			GameContext.World.Set(workerEntity, new MoveTo(buildingPos));
 	}
 
-	private void UpdateVisualNodesFromEcs(float fDelta)
+	private struct UnitRenderWorkItem
 	{
-		var query = QueryCache.AllPositionAndDefinitionIdQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Position pos) => { ProcessVisualNode(entity, ref pos, fDelta); });
+		public Entity Entity;
+		public Unit3D Unit;
+		public Vector3 PosValue;
+		public bool HasCachedTransform;
+		public Godot.Vector3 CachedPosition;
+		public Godot.Vector3 CachedScale;
+		public float CachedBaseScale;
+		public float CachedRotationY;
+		public Basis CachedBasis;
+		public Godot.Vector3 CachedUnitVelocity;
+		public Aabb CachedLocalAabb;
+		public bool HasEvaluatedFrustum;
+		public bool IsCulled;
+		public bool IsFlashingScale;
 
-		var buildingQuery = new QueryDescription().WithAll<ConstructionState>().WithNone<Dead>();
-		GameContext.World.Query(in buildingQuery, (Entity entity, ref ConstructionState construction) =>
-		{
-			if (TryGetUnit3D(entity, out var buildingNode) && GodotObject.IsInstanceValid(buildingNode))
-			{
-				float alpha = Mathf.Lerp(0.3f, 1.0f, construction.Progress / Mathf.Max(construction.TotalBuildTime, 0.001f));
-				buildingNode.Modulate = new Color(1f, 1f, 1f, alpha);
-			}
-		});
+		public bool ShouldSetCulledState;
+		public bool NewIsCulled;
+		public bool NewHasEvaluatedFrustum;
+
+		public bool ShouldUpdateRenderPos;
+		public Vector3 NewRenderPos;
+
+		public bool ShouldZeroEcsVelocity;
+		public bool ShouldUpdateUnitVelocity;
+		public Godot.Vector3 NewUnitVelocity;
+
+		public bool ShouldUpdateEcsRotationY;
+		public float NewEcsRotationY;
+
+		public byte LaborScaleAction;
+		public float LaborPulseValue;
+
+		public bool ShouldSetTransform;
+		public Transform3D FinalTransform;
+		public Godot.Vector3 NextPos;
+		public float TargetRotY;
+		public Basis TargetBasis;
+		public Godot.Vector3 FinalScaleVec;
+		public float ClampedScale;
 	}
 
-	private void ProcessVisualNode(Entity entity, ref Position pos, float fDelta)
-	{
-		if (!TryGetUnit3D(entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
+	private UnitRenderWorkItem[] _renderWorkItems = new UnitRenderWorkItem[256];
+	private int _renderWorkItemCount = 0;
+	private float _animationSelectionAccumulator = 0f;
+	private float _renderFDelta;
+	private float _renderFraction;
+	private bool _renderHasFrustum;
+	private Plane[] _renderFrustumPlanes = Array.Empty<Plane>();
+	private bool _renderCameraFrustumChanged;
+	private float _renderCurrentGameTime;
+	private bool _renderMovementPrediction;
+	private RuntimeTerrain? _renderGroundTerrain;
+	private Action<int>? _processRenderWorkItemDelegate;
 
-		var posValue = pos.Value;
-		if (CheckNonFinitePositionWarning(entity, posValue, unit3D)) return;
+	private readonly Plane[] _cachedCameraFrustumPlanes = new Plane[6];
+	private readonly Plane[] _previousCameraFrustumPlanes = new Plane[6];
+	private bool _hadFrustumLastFrame = false;
+
+	private void UpdateRenderFrameTransforms(float fDelta)
+	{
+		var camera = MainCamera ?? GetViewport()?.GetCamera3D();
+		bool hasFrustum = false;
+		if (camera != null && GodotObject.IsInstanceValid(camera))
+		{
+			var frustum = camera.GetFrustum();
+			if (frustum != null && frustum.Count >= 6)
+			{
+				for (int i = 0; i < 6; i++)
+				{
+					_cachedCameraFrustumPlanes[i] = frustum[i];
+				}
+				hasFrustum = true;
+			}
+		}
+
+		bool cameraFrustumChanged = false;
+		if (hasFrustum != _hadFrustumLastFrame)
+		{
+			cameraFrustumChanged = true;
+			_hadFrustumLastFrame = hasFrustum;
+		}
+
+		if (hasFrustum)
+		{
+			for (int i = 0; i < 6; i++)
+			{
+				if (!cameraFrustumChanged && (_cachedCameraFrustumPlanes[i].Normal != _previousCameraFrustumPlanes[i].Normal || Mathf.Abs(_cachedCameraFrustumPlanes[i].D - _previousCameraFrustumPlanes[i].D) > 0.001f))
+				{
+					cameraFrustumChanged = true;
+				}
+				_previousCameraFrustumPlanes[i] = _cachedCameraFrustumPlanes[i];
+			}
+		}
+
+		_animationSelectionAccumulator += fDelta;
+		bool shouldDriveUnitAnimations = !GameContext.SessionState.IsMapEditorMode && _animationSelectionAccumulator >= GameplayConstants.UnitAnimationStepIntervalSeconds;
+		if (shouldDriveUnitAnimations)
+		{
+			_animationSelectionAccumulator = 0f;
+		}
+
+		_renderFDelta = fDelta;
+		_renderFraction = (float)Engine.GetPhysicsInterpolationFraction();
+		_renderHasFrustum = hasFrustum;
+		_renderFrustumPlanes = hasFrustum ? _cachedCameraFrustumPlanes : Array.Empty<Plane>();
+		_renderCameraFrustumChanged = cameraFrustumChanged;
+		_renderCurrentGameTime = GameElapsedTime;
+		_renderMovementPrediction = GameSettings.MovementPrediction;
+		_renderGroundTerrain = (GroundTerrain != null && GodotObject.IsInstanceValid(GroundTerrain)) ? GroundTerrain : null;
+
+		_renderWorkItemCount = 0;
+		var query = QueryCache.AllPositionAndDefinitionIdQuery;
+		GameContext.World.Query(in query, (Entity entity, ref Position pos) =>
+		{
+			if (!TryGetUnit3D(entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D))
+				return;
+
+			var posValue = pos.Value;
+			if (CheckNonFinitePositionWarning(entity, posValue, unit3D))
+				return;
+
+			if (_renderWorkItemCount >= _renderWorkItems.Length)
+			{
+				Array.Resize(ref _renderWorkItems, _renderWorkItems.Length * 2);
+			}
+
+			bool hasCached = unit3D.HasCachedTransform;
+			_renderWorkItems[_renderWorkItemCount++] = new UnitRenderWorkItem
+			{
+				Entity = entity,
+				Unit = unit3D,
+				PosValue = posValue,
+				HasCachedTransform = hasCached,
+				CachedPosition = hasCached ? unit3D.CachedPosition : unit3D.GlobalPosition,
+				CachedScale = hasCached ? unit3D.CachedScale : unit3D.Scale,
+				CachedBaseScale = unit3D.CachedBaseScale,
+				CachedRotationY = hasCached ? unit3D.CachedRotationY : unit3D.Rotation.Y,
+				CachedBasis = hasCached ? unit3D.CachedBasis.Orthonormalized() : unit3D.Basis.Orthonormalized(),
+				CachedUnitVelocity = unit3D.Velocity,
+				CachedLocalAabb = unit3D.CachedLocalAabb,
+				HasEvaluatedFrustum = unit3D.HasEvaluatedFrustum,
+				IsCulled = unit3D.IsCulled,
+				IsFlashingScale = unit3D.IsFlashingScale
+			};
+		});
+
+		if (_renderWorkItemCount == 0)
+			return;
+
+		_processRenderWorkItemDelegate ??= ProcessRenderWorkItemParallel;
+		ParallelRunner.Execute(_renderWorkItemCount, _processRenderWorkItemDelegate);
+
+		var world = GameContext.World;
+		float currentGameTime = _renderCurrentGameTime;
+		for (int i = 0; i < _renderWorkItemCount; i++)
+		{
+			ref var item = ref _renderWorkItems[i];
+			var unit3D = item.Unit;
+
+			if (item.ShouldUpdateRenderPos && world.Has<RenderPosition>(item.Entity))
+			{
+				world.Set(item.Entity, new RenderPosition(item.NewRenderPos));
+			}
+
+			if (item.ShouldZeroEcsVelocity && world.Has<Velocity>(item.Entity))
+			{
+				world.Set(item.Entity, new Velocity(Vector3.Zero));
+			}
+
+			if (item.ShouldUpdateEcsRotationY && world.Has<RotationY>(item.Entity))
+			{
+				world.Set(item.Entity, new RotationY(item.NewEcsRotationY));
+			}
+
+			if (item.NewHasEvaluatedFrustum)
+			{
+				unit3D.HasEvaluatedFrustum = true;
+			}
+
+			if (item.ShouldSetCulledState)
+			{
+				unit3D.SetCulledState(item.NewIsCulled, currentGameTime);
+			}
+
+			if (item.ShouldUpdateUnitVelocity)
+			{
+				unit3D.Velocity = item.NewUnitVelocity;
+			}
+
+			if (item.LaborScaleAction == 1)
+			{
+				unit3D.SetLaborPulseScale(item.LaborPulseValue);
+			}
+			else if (item.LaborScaleAction == 2)
+			{
+				unit3D.ResetLaborPulseScale();
+			}
+
+			if (item.ShouldSetTransform)
+			{
+				unit3D.SetTransform3D(in item.FinalTransform, in item.NextPos, item.TargetRotY, in item.TargetBasis, in item.FinalScaleVec, item.ClampedScale);
+			}
+
+			if (shouldDriveUnitAnimations && !unit3D.IsCulled && unit3D.Visible)
+			{
+				unit3D.PlayAnimation(DetermineUnitAnimation(item.Entity));
+			}
+
+			unit3D.StepManualAnimation(fDelta);
+			item.Unit = null!;
+		}
+	}
+
+	private void ProcessRenderWorkItemParallel(int index)
+	{
+		ref var item = ref _renderWorkItems[index];
+		Entity entity = item.Entity;
+		var world = GameContext.World;
+		float fDelta = _renderFDelta;
+		float fraction = _renderFraction;
+
+		Vector3 posValue = item.PosValue;
+		Vector3 prevPos = world.Has<PreviousPosition>(entity)
+			? world.Get<PreviousPosition>(entity).Value
+			: posValue;
+
+		Vector3 interpPosVec = Vector3.Lerp(prevPos, posValue, fraction);
 
 		Godot.Vector3 nextPos;
-		if (GameSettings.MovementPrediction && GameContext.World != null && GameContext.World.Has<RenderPosition>(entity))
+		if (_renderMovementPrediction && world.Has<RenderPosition>(entity))
 		{
-			ref var renderPos = ref GameContext.World.Get<RenderPosition>(entity);
-			renderPos.Value = System.Numerics.Vector3.Lerp(renderPos.Value, posValue, Math.Min(1.0f, 15.0f * fDelta));
-			nextPos = new Godot.Vector3(renderPos.Value.X, renderPos.Value.Y, renderPos.Value.Z);
+			var currentRenderPos = world.Get<RenderPosition>(entity).Value;
+			var smoothedRenderPos = Vector3.Lerp(currentRenderPos, interpPosVec, Math.Min(1.0f, 15.0f * fDelta));
+			item.ShouldUpdateRenderPos = true;
+			item.NewRenderPos = smoothedRenderPos;
+			nextPos = new Godot.Vector3(smoothedRenderPos.X, smoothedRenderPos.Y, smoothedRenderPos.Z);
 		}
 		else
 		{
-			nextPos = new Godot.Vector3(posValue.X, posValue.Y, posValue.Z);
-			if (GameContext.World != null && GameContext.World.Has<RenderPosition>(entity))
+			nextPos = new Godot.Vector3(interpPosVec.X, interpPosVec.Y, interpPosVec.Z);
+			if (world.Has<RenderPosition>(entity))
 			{
-				GameContext.World.Set(entity, new RenderPosition(posValue));
+				item.ShouldUpdateRenderPos = true;
+				item.NewRenderPos = interpPosVec;
 			}
 		}
 
-		if ((unit3D.GlobalPosition - nextPos).LengthSquared() > 0.0001f)
+		bool posChanged = !item.HasCachedTransform || (nextPos - item.CachedPosition).LengthSquared() > 0.0001f;
+
+		float scaleVal = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
+		float clampedScale = Mathf.Max(0.01f, scaleVal);
+		bool scaleChanged = Mathf.Abs(item.CachedBaseScale - clampedScale) > 0.001f;
+
+		bool isCulled = item.IsCulled;
+		if (!_renderHasFrustum)
 		{
-			unit3D.GlobalPosition = nextPos;
+			item.ShouldSetCulledState = isCulled;
+			item.NewIsCulled = false;
+			isCulled = false;
+		}
+		else if (!item.HasEvaluatedFrustum || _renderCameraFrustumChanged || posChanged || scaleChanged)
+		{
+			item.NewHasEvaluatedFrustum = true;
+			Godot.Vector3 cullPos = item.HasCachedTransform ? item.CachedPosition : nextPos;
+			Godot.Vector3 cullScale = item.HasCachedTransform ? item.CachedScale : new Godot.Vector3(clampedScale, clampedScale, clampedScale);
+			Aabb localAabb = item.CachedLocalAabb;
+			Aabb worldAabb = new Aabb(cullPos + localAabb.Position * cullScale, localAabb.Size * cullScale);
+			bool isVisible = RuntimeTerrain.IntersectsFrustum(_renderFrustumPlanes, worldAabb);
+			bool shouldCull = !isVisible;
+			if (shouldCull != isCulled)
+			{
+				item.ShouldSetCulledState = true;
+				item.NewIsCulled = shouldCull;
+			}
+			isCulled = shouldCull;
 		}
 
-		UpdateVisualVelocity(entity, unit3D);
-		UpdateVisualRotation(entity, unit3D, nextPos, fDelta);
-		UpdateVisualScale(entity, unit3D);
+		bool hasLookTarget = TryGetLookTarget(entity, out Godot.Vector3 lookTargetPos);
+		bool hasMovement = world.Has<MoveTo>(entity) || world.Has<Follow>(entity) || world.Has<InterpolationTarget>(entity);
+		bool hasVelocityComp = world.Has<Velocity>(entity);
+		Vector3 ecsVel = hasVelocityComp ? world.Get<Velocity>(entity).Value : Vector3.Zero;
+		bool hasVelocity = hasVelocityComp && ecsVel.LengthSquared() > 0.0001f;
+		bool isLaborAnimating = (world.Has<Gatherer>(entity) && !world.Get<Gatherer>(entity).ReturningToBase)
+		                        || (world.Has<BuildTask>(entity) && !world.Has<MoveTo>(entity));
 
-		unit3D.PlayAnimation(DetermineUnitAnimation(entity));
+		if (!posChanged && !hasMovement && !hasVelocity && !hasLookTarget && !isLaborAnimating)
+		{
+			return;
+		}
+
+		if (isCulled)
+		{
+			if (posChanged || scaleChanged)
+			{
+				Godot.Vector3 scaleVec = new Godot.Vector3(clampedScale, clampedScale, clampedScale);
+				Basis unscaledBasis = item.CachedBasis.Orthonormalized();
+				Basis scaledBasis = unscaledBasis.Scaled(scaleVec);
+				item.ShouldSetTransform = true;
+				item.FinalTransform = new Transform3D(scaledBasis, nextPos);
+				item.NextPos = nextPos;
+				item.TargetRotY = item.CachedRotationY;
+				item.TargetBasis = unscaledBasis;
+				item.FinalScaleVec = scaleVec;
+				item.ClampedScale = clampedScale;
+			}
+
+			return;
+		}
+
+		Godot.Vector3 velVec = new Godot.Vector3(ecsVel.X, ecsVel.Y, ecsVel.Z);
+		if (!hasMovement)
+		{
+			if (hasVelocity)
+			{
+				item.ShouldZeroEcsVelocity = true;
+			}
+			velVec = Godot.Vector3.Zero;
+		}
+
+		Godot.Vector3 effectiveUnitVelocity = item.CachedUnitVelocity;
+		if ((effectiveUnitVelocity - velVec).LengthSquared() > 0.0001f)
+		{
+			item.ShouldUpdateUnitVelocity = true;
+			item.NewUnitVelocity = velVec;
+			effectiveUnitVelocity = velVec;
+		}
+
+		Basis targetBasis = ComputeVisualRotationBasisParallel(ref item, entity, effectiveUnitVelocity, nextPos, lookTargetPos, hasLookTarget, fDelta, fraction, out float targetRotY);
+
+		if (!item.IsFlashingScale)
+		{
+			if (isLaborAnimating)
+			{
+				item.LaborScaleAction = 1;
+				item.LaborPulseValue = 1.0f + Mathf.Sin(_renderCurrentGameTime * 10f) * 0.1f;
+			}
+			else
+			{
+				item.LaborScaleAction = 2;
+			}
+		}
+
+		bool basisChanged = Mathf.Abs(Mathf.AngleDifference(item.CachedRotationY, targetRotY)) > 0.0005f || !targetBasis.IsEqualApprox(item.CachedBasis);
+		if (posChanged || scaleChanged || basisChanged)
+		{
+			Godot.Vector3 finalScaleVec = new Godot.Vector3(clampedScale, clampedScale, clampedScale);
+			Basis finalScaledBasis = targetBasis.Scaled(finalScaleVec);
+			item.ShouldSetTransform = true;
+			item.FinalTransform = new Transform3D(finalScaledBasis, nextPos);
+			item.NextPos = nextPos;
+			item.TargetRotY = targetRotY;
+			item.TargetBasis = targetBasis;
+			item.FinalScaleVec = finalScaleVec;
+			item.ClampedScale = clampedScale;
+		}
+	}
+
+	private static readonly QueryDescription _constructionVisualQuery = new QueryDescription().WithAll<ConstructionState>().WithNone<Dead>();
+
+	private void UpdateVisualNodesFromEcs(float fDelta)
+	{
+		foreach (var entity in GameContext.World.Query(in _constructionVisualQuery))
+		{
+			if (TryGetUnit3D(entity, out var buildingNode) && GodotObject.IsInstanceValid(buildingNode))
+			{
+				ref var construction = ref GameContext.World.Get<ConstructionState>(entity);
+				float alpha = Mathf.Lerp(0.3f, 1.0f, construction.Progress / Mathf.Max(construction.TotalBuildTime, 0.001f));
+				buildingNode.Modulate = new Color(1f, 1f, 1f, alpha);
+			}
+		}
 	}
 
 	private bool CheckNonFinitePositionWarning(Entity entity, Vector3 posValue, Unit3D unit3D)
@@ -629,35 +959,10 @@ public partial class GameHost
 		return true;
 	}
 
-	private void UpdateVisualVelocity(Entity entity, Unit3D unit3D)
+	private Basis ComputeVisualRotationBasisParallel(ref UnitRenderWorkItem item, Entity entity, Godot.Vector3 unitVelocity, Godot.Vector3 nextPos, Godot.Vector3 lookTargetPos, bool hasLookTarget, float fDelta, float fraction, out float targetRotY)
 	{
-		Godot.Vector3 velVec = Godot.Vector3.Zero;
-		bool hasVelocity = GameContext.World.Has<Velocity>(entity);
-		if (hasVelocity)
-		{
-			var vel = GameContext.World.Get<Velocity>(entity);
-			velVec = new Godot.Vector3(vel.Value.X, vel.Value.Y, vel.Value.Z);
-		}
-
-		if (!GameContext.World.Has<MoveTo>(entity) && !GameContext.World.Has<Follow>(entity) && !GameContext.World.Has<InterpolationTarget>(entity))
-		{
-			if (hasVelocity && velVec.LengthSquared() > 0.0001f)
-			{
-				GameContext.World.Set(entity, new Velocity(Vector3.Zero));
-			}
-			velVec = Godot.Vector3.Zero;
-		}
-
-		if ((unit3D.Velocity - velVec).LengthSquared() > 0.0001f)
-		{
-			unit3D.Velocity = velVec;
-		}
-	}
-
-	private void UpdateVisualRotation(Entity entity, Unit3D unit3D, Godot.Vector3 nextPos, float fDelta)
-	{
-		bool hasLookTarget = TryGetLookTarget(entity, out Godot.Vector3 lookTargetPos);
-		Godot.Vector3 dir = unit3D.Velocity;
+		var world = GameContext.World;
+		Godot.Vector3 dir = unitVelocity;
 		bool hasDir = dir.LengthSquared() > 0.01f;
 
 		bool forceLookTarget = false;
@@ -667,32 +972,47 @@ public partial class GameHost
 			else
 			{
 				float distToLook = lookTargetPos.DistanceTo(nextPos);
-				if (distToLook < SimulationService.LookTargetProximityDistance || GameContext.World.Has<Follow>(entity)) forceLookTarget = true;
+				if (distToLook < SimulationService.LookTargetProximityDistance || world.Has<Follow>(entity)) forceLookTarget = true;
 			}
 		}
 
 		if (forceLookTarget)
 		{
 			dir = (lookTargetPos - nextPos);
-			dir.Y = 0f; // Keep rotation level
+			dir.Y = 0f;
 			dir = dir.Normalized();
 			hasDir = dir.LengthSquared() > 0.01f;
 		}
 
+		float currRot = world.Has<RotationY>(entity) ? world.Get<RotationY>(entity).Value : item.CachedRotationY;
+		float prevRot = world.Has<PreviousRotationY>(entity) ? world.Get<PreviousRotationY>(entity).Value : currRot;
+		float interpRotY = Mathf.LerpAngle(prevRot, currRot, fraction);
+
 		if (hasDir)
 		{
-			ApplyDirectionalRotation(entity, unit3D, nextPos, dir, fDelta);
+			return ComputeDirectionalRotationBasisParallel(ref item, entity, nextPos, dir, fDelta, out targetRotY);
 		}
-		else if (GameContext.World.Has<InterpolationTarget>(entity))
+		else if (world.Has<InterpolationTarget>(entity))
 		{
-			var interp = GameContext.World.Get<InterpolationTarget>(entity);
-			var rot = unit3D.Rotation;
-			rot.Y = Mathf.LerpAngle(rot.Y, interp.RotationY, 10f * fDelta);
-			unit3D.Rotation = rot;
-			if (GameContext.World.Has<RotationY>(entity))
+			var interp = world.Get<InterpolationTarget>(entity);
+			targetRotY = Mathf.LerpAngle(item.CachedRotationY, interp.RotationY, 10f * fDelta);
+
+			if (world.Has<RotationY>(entity))
 			{
-				GameContext.World.Set(entity, new RotationY(rot.Y));
+				float ecsRot = world.Get<RotationY>(entity).Value;
+				if (Mathf.Abs(ecsRot - targetRotY) > 0.001f)
+				{
+					item.ShouldUpdateEcsRotationY = true;
+					item.NewEcsRotationY = targetRotY;
+				}
 			}
+
+			return Basis.FromEuler(new Godot.Vector3(0f, targetRotY, 0f));
+		}
+		else
+		{
+			targetRotY = interpRotY;
+			return Basis.FromEuler(new Godot.Vector3(0f, targetRotY, 0f));
 		}
 	}
 
@@ -728,85 +1048,69 @@ public partial class GameHost
 		return false;
 	}
 
-	private void ApplyDirectionalRotation(Entity entity, Unit3D unit3D, Godot.Vector3 nextPos, Godot.Vector3 dir, float fDelta)
+	private Basis ComputeDirectionalRotationBasisParallel(ref UnitRenderWorkItem item, Entity entity, Godot.Vector3 nextPos, Godot.Vector3 dir, float fDelta, out float targetRotY)
 	{
+		var world = GameContext.World;
 		dir = dir.Normalized();
 		float angle = Mathf.Atan2(-dir.X, -dir.Z) + Mathf.Pi;
-		var rot = unit3D.Rotation;
 
-		bool isFlying = GameContext.World.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)
-		                && ((TerrainPathingFlags)GameContext.World.Get<Realm.Ecs.Components.Movement.PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
+		bool isFlying = world.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)
+		                && ((TerrainPathingFlags)world.Get<Realm.Ecs.Components.Movement.PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
 		float turnRate = 10f;
-		if (GameContext.World.Has<MovementStats>(entity))
+		if (world.Has<MovementStats>(entity))
 		{
-			var moveStats = GameContext.World.Get<MovementStats>(entity);
+			var moveStats = world.Get<MovementStats>(entity);
 			if (moveStats.TurnRate > 0f) turnRate = moveStats.TurnRate;
 		}
 
-		float nextRotY = Mathf.LerpAngle(rot.Y, angle, turnRate * fDelta);
-		if (Mathf.Abs(rot.Y - nextRotY) > 0.001f)
+		targetRotY = Mathf.LerpAngle(item.CachedRotationY, angle, turnRate * fDelta);
+
+		if (world.Has<RotationY>(entity))
 		{
-			rot.Y = nextRotY;
-			unit3D.Rotation = rot;
-			if (GameContext.World.Has<RotationY>(entity))
+			float ecsRot = world.Get<RotationY>(entity).Value;
+			if (Mathf.Abs(ecsRot - targetRotY) > 0.001f)
 			{
-				GameContext.World.Set(entity, new RotationY(rot.Y));
+				item.ShouldUpdateEcsRotationY = true;
+				item.NewEcsRotationY = targetRotY;
 			}
 		}
 
+		Basis currentBasis = Basis.FromEuler(new Godot.Vector3(0f, targetRotY, 0f));
+
 		Godot.Vector3 normal = Godot.Vector3.Up;
-		if (!isFlying && GroundTerrain != null)
+		var terrain = _renderGroundTerrain;
+		if (!isFlying && terrain != null)
 		{
-			GroundTerrain.GetHeightAndNormal(nextPos.X, nextPos.Z, out _, out normal);
+			terrain.GetHeightAndNormal(nextPos.X, nextPos.Z, out _, out normal);
 		}
 
 		if (Mathf.Abs(normal.Y - 1f) > 0.02f)
 		{
-			Godot.Vector3 forwardDir = new Godot.Vector3(-Mathf.Sin(unit3D.Rotation.Y), 0f, -Mathf.Cos(unit3D.Rotation.Y));
+			Godot.Vector3 forwardDir = new Godot.Vector3(-Mathf.Sin(targetRotY), 0f, -Mathf.Cos(targetRotY));
 			Godot.Vector3 up = normal.Normalized();
 			Godot.Vector3 right = forwardDir.Cross(up);
 			if (right.LengthSquared() > 0.00001f)
 			{
 				right = right.Normalized();
 				Godot.Vector3 forwardPerp = right.Cross(up).Normalized();
-				Basis targetBasis = new Basis(right, up, forwardPerp);
-				float det = targetBasis.Determinant();
+				Basis targetTerrainBasis = new Basis(right, up, forwardPerp);
+				float det = targetTerrainBasis.Determinant();
 				if (!float.IsNaN(det) && Mathf.Abs(det) > 0.001f)
 				{
-					var qTarget = targetBasis.GetRotationQuaternion();
-					var qCurrent = unit3D.Basis.GetRotationQuaternion();
+					var qTarget = targetTerrainBasis.GetRotationQuaternion();
+					var qCurrent = item.CachedBasis.GetRotationQuaternion();
 					var qLerp = qCurrent.Slerp(qTarget, 10f * fDelta);
-					unit3D.Basis = new Basis(qLerp);
+					return new Basis(qLerp);
 				}
 			}
 		}
-	}
 
-	private void UpdateVisualScale(Entity entity, Unit3D unit3D)
-	{
-		bool isLaborAnimating = (GameContext.World.Has<Gatherer>(entity) && !GameContext.World.Get<Gatherer>(entity).ReturningToBase)
-		                        || (GameContext.World.Has<BuildTask>(entity) && !GameContext.World.Has<MoveTo>(entity));
-
-		if (isLaborAnimating)
-		{
-			var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
-			float gameElapsed = state.GameElapsedTime;
-			float pulse = 1.0f + Mathf.Sin(gameElapsed * 10f) * 0.1f;
-			unit3D.Scale = new Godot.Vector3(pulse * 0.9f, (2.0f - pulse) * 0.9f, pulse * 0.9f);
-		}
-		else
-		{
-			float scaleVal = GameContext.World.Has<CollisionScale>(entity) ? GameContext.World.Get<CollisionScale>(entity).Value : 1.0f;
-			float clampedScale = Mathf.Max(0.01f, scaleVal);
-			if (Mathf.Abs(unit3D.Scale.X - clampedScale) > 0.001f)
-			{
-				unit3D.Scale = new Godot.Vector3(clampedScale, clampedScale, clampedScale);
-			}
-		}
+		return currentBasis;
 	}
 
 	private string DetermineUnitAnimation(Entity entity)
 	{
+		if (GameContext.World.Has<AnimationsFrozen>(entity)) return "Idle";
 		if (TryGetReplayAnimation(entity, out string replayAnim)) return replayAnim;
 		if (GameContext.World.Has<Dead>(entity)) return "Death";
 		if (IsEntityMoving(entity)) return "Walk";

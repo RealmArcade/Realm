@@ -506,7 +506,7 @@ namespace Realm.Client.Core
 			MapEditorHUD.Instance?.ShowFeedbackExternal(statusMsg);
 		}
 
-		private Vector3[] BuildHighlightMeshVertices(int selWidth, int selDepth, int minX, int minZ)
+		private Vector3[] GenerateGridMeshVertices(int minX, int minZ, int selWidth, int selDepth, float yOffset)
 		{
 			int vertexCount = selWidth * selDepth;
 			var vertices = new Vector3[vertexCount];
@@ -525,14 +525,18 @@ namespace Realm.Client.Core
 				for (int sx = 0; sx < selWidth; sx++)
 				{
 					int mapX = minX + sx;
-					int idx = rowOffset + sx;
 					float lx = (mapX - halfW) * quadSize;
 					float h = EditableTerrain.GetGridNodeHeight(mapX, mapZ, cells, width, depth);
-					vertices[idx] = new Vector3(lx, h + 0.05f, lz);
+					vertices[rowOffset + sx] = new Vector3(lx, h + yOffset, lz);
 				}
 			}
 
 			return vertices;
+		}
+
+		private Vector3[] BuildHighlightMeshVertices(int selWidth, int selDepth, int minX, int minZ)
+		{
+			return GenerateGridMeshVertices(minX, minZ, selWidth, selDepth, 0.05f);
 		}
 
 		private void AddQuadIndices(int[] indices, ref int iIdx, int row0, int row1, int sx)
@@ -563,7 +567,7 @@ namespace Realm.Client.Core
 			}
 
 			int vertexCount = selWidth * selDepth;
-			var vertices = GenerateCoordinateVertices(minX, minZ, selWidth, selDepth, yOffset);
+			var vertices = GenerateGridMeshVertices(minX, minZ, selWidth, selDepth, yOffset);
 			var indices = GenerateCoordinateIndices(selWidth, selDepth);
 			var colors = new Color[vertexCount];
 			Array.Fill(colors, color);
@@ -578,34 +582,6 @@ namespace Realm.Client.Core
 			arrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
 			meshInstance.Mesh = arrayMesh;
 			meshInstance.Visible = true;
-		}
-
-		private Vector3[] GenerateCoordinateVertices(int minX, int minZ, int selWidth, int selDepth, float yOffset)
-		{
-			int vertexCount = selWidth * selDepth;
-			var vertices = new Vector3[vertexCount];
-			int width = GroundTerrain.Width;
-			int depth = GroundTerrain.Depth;
-			float quadSize = GroundTerrain.QuadSize;
-			var cells = GroundTerrain.Cells;
-			float halfW = width * 0.5f;
-			float halfD = depth * 0.5f;
-
-			for (int sz = 0; sz < selDepth; sz++)
-			{
-				int mapZ = minZ + sz;
-				float lz = (mapZ - halfD) * quadSize;
-				int rowOffset = sz * selWidth;
-				for (int sx = 0; sx < selWidth; sx++)
-				{
-					int mapX = minX + sx;
-					float lx = (mapX - halfW) * quadSize;
-					float h = EditableTerrain.GetGridNodeHeight(mapX, mapZ, cells, width, depth);
-					vertices[rowOffset + sx] = new Vector3(lx, h + yOffset, lz);
-				}
-			}
-
-			return vertices;
 		}
 
 		private int[] GenerateCoordinateIndices(int selWidth, int selDepth)

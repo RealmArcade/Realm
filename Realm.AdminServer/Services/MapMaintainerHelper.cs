@@ -195,20 +195,36 @@ public static class MapMaintainerHelper
 		return false;
 	}
 
-	public static List<string> AddMaintainer(DataStoreService db, string mapTitle, string maintainerPublicKey)
+	private static bool PrepareMaintainerModification(DataStoreService db, string mapTitle, string maintainerPublicKey, out string trimmed, out string slug, out string lower, out string norm, out string trimmedKey, out List<string> maintainers)
 	{
+		trimmed = string.Empty;
+		slug = string.Empty;
+		lower = string.Empty;
+		norm = string.Empty;
+		trimmedKey = string.Empty;
+		maintainers = new List<string>();
+
 		if (string.IsNullOrWhiteSpace(mapTitle) || string.IsNullOrWhiteSpace(maintainerPublicKey))
 		{
-			return GetMaintainers(db, mapTitle);
+			maintainers = GetMaintainers(db, mapTitle);
+			return false;
 		}
 
-		string trimmed = mapTitle.Trim();
-		string slug = trimmed.ToLowerInvariant().Replace(" ", "-");
-		string lower = trimmed.ToLowerInvariant();
-		string norm = NameNormalizationHelper.NormalizeMapName(trimmed);
-		string trimmedKey = maintainerPublicKey.Trim();
+		trimmed = mapTitle.Trim();
+		slug = trimmed.ToLowerInvariant().Replace(" ", "-");
+		lower = trimmed.ToLowerInvariant();
+		norm = NameNormalizationHelper.NormalizeMapName(trimmed);
+		trimmedKey = maintainerPublicKey.Trim();
+		maintainers = GetMaintainers(db, mapTitle);
+		return true;
+	}
 
-		var maintainers = GetMaintainers(db, mapTitle);
+	public static List<string> AddMaintainer(DataStoreService db, string mapTitle, string maintainerPublicKey)
+	{
+		if (!PrepareMaintainerModification(db, mapTitle, maintainerPublicKey, out string trimmed, out string slug, out string lower, out string norm, out string trimmedKey, out var maintainers))
+		{
+			return maintainers;
+		}
 		if (!maintainers.Any(m => string.Equals(m, trimmedKey, StringComparison.OrdinalIgnoreCase)))
 		{
 			maintainers.Add(trimmedKey);
@@ -233,18 +249,10 @@ public static class MapMaintainerHelper
 
 	public static List<string> RemoveMaintainer(DataStoreService db, string mapTitle, string maintainerPublicKey)
 	{
-		if (string.IsNullOrWhiteSpace(mapTitle) || string.IsNullOrWhiteSpace(maintainerPublicKey))
+		if (!PrepareMaintainerModification(db, mapTitle, maintainerPublicKey, out string trimmed, out string slug, out string lower, out string norm, out string trimmedKey, out var maintainers))
 		{
-			return GetMaintainers(db, mapTitle);
+			return maintainers;
 		}
-
-		string trimmed = mapTitle.Trim();
-		string slug = trimmed.ToLowerInvariant().Replace(" ", "-");
-		string lower = trimmed.ToLowerInvariant();
-		string norm = NameNormalizationHelper.NormalizeMapName(trimmed);
-		string trimmedKey = maintainerPublicKey.Trim();
-
-		var maintainers = GetMaintainers(db, mapTitle);
 		maintainers.RemoveAll(m => string.Equals(m, trimmedKey, StringComparison.OrdinalIgnoreCase));
 
 		db.Upsert("map_maintainers", trimmed, maintainers);

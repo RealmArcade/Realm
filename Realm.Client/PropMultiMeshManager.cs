@@ -6,6 +6,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.Services.ModelOptimization;
+using Realm.Client.UI;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
@@ -13,6 +14,7 @@ using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class PropMultiMeshManager : Node3D
 {
 	public static PropMultiMeshManager Instance { get; private set; }
@@ -30,12 +32,62 @@ public partial class PropMultiMeshManager : Node3D
 	private readonly List<PropData> _reusableMatchingPropsData = new();
 	private readonly Dictionary<Vector2I, List<PropData>> _reusableChunkBucketsData = new();
 	private readonly HashSet<string> _reusableKeysToRebuild = new(StringComparer.OrdinalIgnoreCase);
+	private readonly Dictionary<Entity, (PropChunkGroup ChunkGroup, int Index, PropModelGroup ModelGroup)> _entityIndexMap = new();
 	private bool _allDirty = false;
+	private float _appliedLodDistanceScale = 0f;
 
 	public override void _Ready()
 	{
 		Instance = this;
 		Name = "PropMultiMeshManager";
+		_appliedLodDistanceScale = GameSettings.LodDistanceScale;
+	}
+
+	public void RefreshLodVisibilityDistances()
+	{
+		float targetDistanceScale = GameSettings.LodDistanceScale;
+		if (_appliedLodDistanceScale <= 0f)
+		{
+			_appliedLodDistanceScale = targetDistanceScale;
+			return;
+		}
+
+		if (MathF.Abs(targetDistanceScale - _appliedLodDistanceScale) <= 0.0005f)
+		{
+			return;
+		}
+
+		float distanceRatio = targetDistanceScale / _appliedLodDistanceScale;
+		_appliedLodDistanceScale = targetDistanceScale;
+
+		foreach (var group in _groups.Values)
+		{
+			if (group == null) continue;
+			ScaleGroupVisibilityRanges(group, distanceRatio);
+		}
+	}
+
+	private static void ScaleGroupVisibilityRanges(PropModelGroup group, float distanceRatio)
+	{
+		for (int subIdx = 0; subIdx < group.SubMeshes.Count; subIdx++)
+		{
+			MeshSubInfo subInfo = group.SubMeshes[subIdx];
+			subInfo.VisibilityRangeBegin *= distanceRatio;
+			subInfo.VisibilityRangeEnd *= distanceRatio;
+		}
+
+		foreach (var chunkGroup in group.ChunkGroups.Values)
+		{
+			for (int subIdx = 0; subIdx < group.SubMeshes.Count && subIdx < chunkGroup.MultiMeshNodes.Count; subIdx++)
+			{
+				MultiMeshInstance3D node = chunkGroup.MultiMeshNodes[subIdx];
+				if (node == null || !GodotObject.IsInstanceValid(node)) continue;
+
+				MeshSubInfo subInfo = group.SubMeshes[subIdx];
+				node.VisibilityRangeBegin = subInfo.VisibilityRangeBegin;
+				node.VisibilityRangeEnd = subInfo.VisibilityRangeEnd;
+			}
+		}
 	}
 
 	public override void _ExitTree()
@@ -64,6 +116,7 @@ public partial class PropMultiMeshManager : Node3D
 	public void Clear()
 	{
 		_dirtyAssetKeys.Clear();
+		_entityIndexMap.Clear();
 		_allDirty = false;
 		foreach (var group in _groups.Values)
 		{
@@ -80,6 +133,62 @@ public partial class PropMultiMeshManager : Node3D
 		}
 
 		_groups.Clear();
+	}
+
+	public void UpdateInstanceTransform(Entity entity, Vector3 position, float rotationY, float scale)
+	{
+		if (_entityIndexMap.TryGetValue(entity, out var info))
+		{
+			float yOffset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(ResolveEntityPropId(entity, info.ModelGroup.AssetKey)) : 0f;
+			float globalModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(info.ModelGroup.AssetKey) : 1f;
+
+			Vector3 pos = position;
+			pos.Y += yOffset * scale;
+
+			float propScale = Mathf.Max(0.01f, scale * globalModelScale);
+			Basis basis = Basis.Identity.Rotated(Vector3.Up, Mathf.DegToRad(rotationY)).Scaled(Vector3.One * propScale);
+
+			for (int subIdx = 0; subIdx < info.ModelGroup.SubMeshes.Count && subIdx < info.ChunkGroup.MultiMeshNodes.Count; subIdx++)
+			{
+				var mmNode = info.ChunkGroup.MultiMeshNodes[subIdx];
+				if (mmNode != null && mmNode.Multimesh != null)
+				{
+					var subInfo = info.ModelGroup.SubMeshes[subIdx];
+					mmNode.Multimesh.SetInstanceTransform(info.Index, new Transform3D(basis, pos) * subInfo.RelativeTransform);
+				}
+			}
+		}
+		else if (GameHost.Instance != null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<PropIdentity>(entity))
+		{
+			string propId = GameContext.World.Get<PropIdentity>(entity).PropId;
+			MarkDirty(propId);
+		}
+	}
+
+	private static string ResolveEntityPropId(Entity entity, string fallbackAssetKey)
+	{
+		if (GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<PropIdentity>(entity))
+		{
+			string propId = GameContext.World.Get<PropIdentity>(entity).PropId;
+			if (!string.IsNullOrEmpty(propId)) return propId;
+		}
+
+		return fallbackAssetKey;
+	}
+
+	public void SetInstanceCustomData(Entity entity, Color customData)
+	{
+		if (_entityIndexMap.TryGetValue(entity, out var info))
+		{
+			for (int subIdx = 0; subIdx < info.ModelGroup.SubMeshes.Count && subIdx < info.ChunkGroup.MultiMeshNodes.Count; subIdx++)
+			{
+				var mmNode = info.ChunkGroup.MultiMeshNodes[subIdx];
+				if (mmNode != null && mmNode.Multimesh != null)
+				{
+					mmNode.Multimesh.SetInstanceCustomData(info.Index, customData);
+				}
+			}
+		}
 	}
 
 	public override void _Process(double delta)
@@ -213,10 +322,12 @@ public partial class PropMultiMeshManager : Node3D
 
 			_reusableMatchingPropsData.Add(new PropData
 			{
+				Entity = entity,
 				PropId = propIdComp.PropId,
 				Position = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z),
 				RotationY = rotY,
-				Scale = scale
+				Scale = scale,
+				YOffset = GameHost.Instance.GetModelYOffset(propIdComp.PropId)
 			});
 		});
 	}
@@ -233,7 +344,8 @@ public partial class PropMultiMeshManager : Node3D
 				PropId = prop.PropId,
 				Position = prop.Position,
 				RotationY = prop.RotationDegrees.Y,
-				Scale = prop.Scale.X
+				Scale = prop.Scale.X,
+				YOffset = GameHost.Instance.GetModelYOffset(prop.PropId)
 			});
 		}
 	}
@@ -298,17 +410,16 @@ public partial class PropMultiMeshManager : Node3D
 
 	private void RebuildActiveChunkGroups(PropModelGroup group, string normAssetKey)
 	{
-		float yOffset = GameHost.Instance.GetModelYOffset(normAssetKey);
 		float globalModelScale = GameHost.Instance.GetModelScale(normAssetKey);
 
 		foreach (var kvp in _reusableChunkBucketsData)
 		{
 			if (kvp.Value.Count == 0) continue;
-			RebuildChunkGroup(group, kvp.Key, kvp.Value, normAssetKey, yOffset, globalModelScale);
+			RebuildChunkGroup(group, kvp.Key, kvp.Value, normAssetKey, globalModelScale);
 		}
 	}
 
-	private void RebuildChunkGroup(PropModelGroup group, Vector2I chunkKey, List<PropData> chunkProps, string normAssetKey, float yOffset, float globalModelScale)
+	private void RebuildChunkGroup(PropModelGroup group, Vector2I chunkKey, List<PropData> chunkProps, string normAssetKey, float globalModelScale)
 	{
 		if (!group.ChunkGroups.TryGetValue(chunkKey, out var chunkGroup))
 		{
@@ -317,18 +428,18 @@ public partial class PropMultiMeshManager : Node3D
 		}
 
 		int instanceCount = chunkProps.Count;
-		ulong dataHash = CalculateChunkDataHash(chunkProps, yOffset, globalModelScale);
+		ulong dataHash = CalculateChunkDataHash(chunkProps, globalModelScale);
 
 		if (CheckMeshesMatch(group, chunkGroup, instanceCount) && chunkGroup.LastInstanceCount == instanceCount && chunkGroup.LastDataHash == dataHash) return;
 
 		chunkGroup.LastInstanceCount = instanceCount;
 		chunkGroup.LastDataHash = dataHash;
 
-		CalculateChunkBounds(group, chunkGroup, chunkProps, yOffset, globalModelScale);
-		UpdateMultiMeshInstances(group, chunkGroup, chunkProps, normAssetKey, yOffset, globalModelScale);
+		CalculateChunkBounds(group, chunkGroup, chunkProps, globalModelScale);
+		UpdateMultiMeshInstances(group, chunkGroup, chunkProps, normAssetKey, globalModelScale);
 	}
 
-	private static ulong CalculateChunkDataHash(List<PropData> chunkProps, float yOffset, float globalModelScale)
+	private static ulong CalculateChunkDataHash(List<PropData> chunkProps, float globalModelScale)
 	{
 		ulong dataHash = 14695981039346656037UL;
 		for (int i = 0; i < chunkProps.Count; i++)
@@ -344,10 +455,10 @@ public partial class PropMultiMeshManager : Node3D
 			dataHash *= 1099511628211UL;
 			dataHash ^= (ulong)prop.Scale.GetHashCode();
 			dataHash *= 1099511628211UL;
+			dataHash ^= (ulong)prop.YOffset.GetHashCode();
+			dataHash *= 1099511628211UL;
 		}
 
-		dataHash ^= (ulong)yOffset.GetHashCode();
-		dataHash *= 1099511628211UL;
 		dataHash ^= (ulong)globalModelScale.GetHashCode();
 		return dataHash;
 	}
@@ -368,7 +479,7 @@ public partial class PropMultiMeshManager : Node3D
 		return true;
 	}
 
-	private static void CalculateChunkBounds(PropModelGroup group, PropChunkGroup chunkGroup, List<PropData> chunkProps, float yOffset, float globalModelScale)
+	private static void CalculateChunkBounds(PropModelGroup group, PropChunkGroup chunkGroup, List<PropData> chunkProps, float globalModelScale)
 	{
 		Aabb totalAabb = new Aabb();
 		bool hasAabb = false;
@@ -383,7 +494,7 @@ public partial class PropMultiMeshManager : Node3D
 			{
 				var prop = chunkProps[i];
 				Vector3 pos = prop.Position;
-				pos.Y += yOffset * prop.Scale;
+				pos.Y += prop.YOffset * prop.Scale;
 
 				float propScale = Mathf.Max(0.01f, prop.Scale * globalModelScale);
 				Basis basis = Basis.Identity.Rotated(Vector3.Up, Mathf.DegToRad(prop.RotationY)).Scaled(Vector3.One * propScale);
@@ -425,8 +536,16 @@ public partial class PropMultiMeshManager : Node3D
 		chunkGroup.Bounds = totalAabb.Grow(2.0f);
 	}
 
-	private void UpdateMultiMeshInstances(PropModelGroup group, PropChunkGroup chunkGroup, List<PropData> chunkProps, string normAssetKey, float yOffset, float globalModelScale)
+	private void UpdateMultiMeshInstances(PropModelGroup group, PropChunkGroup chunkGroup, List<PropData> chunkProps, string normAssetKey, float globalModelScale)
 	{
+		for (int i = 0; i < chunkProps.Count; i++)
+		{
+			if (chunkProps[i].Entity != Entity.Null)
+			{
+				_entityIndexMap[chunkProps[i].Entity] = (chunkGroup, i, group);
+			}
+		}
+
 		for (int subIdx = 0; subIdx < group.SubMeshes.Count; subIdx++)
 		{
 			var subInfo = group.SubMeshes[subIdx];
@@ -444,7 +563,7 @@ public partial class PropMultiMeshManager : Node3D
 			}
 
 			EnsureMultiMeshAllocated(node, subInfo.Mesh, chunkProps.Count);
-			SetMultiMeshTransforms(node.Multimesh, chunkProps, subInfo.RelativeTransform, yOffset, globalModelScale);
+			SetMultiMeshTransforms(node.Multimesh, chunkProps, subInfo.RelativeTransform, globalModelScale);
 		}
 
 		HideExtraMultiMeshNodes(group, chunkGroup);
@@ -488,13 +607,13 @@ public partial class PropMultiMeshManager : Node3D
 		node.Multimesh.VisibleInstanceCount = instanceCount;
 	}
 
-	private static void SetMultiMeshTransforms(MultiMesh mm, List<PropData> chunkProps, Transform3D relativeTransform, float yOffset, float globalModelScale)
+	private static void SetMultiMeshTransforms(MultiMesh mm, List<PropData> chunkProps, Transform3D relativeTransform, float globalModelScale)
 	{
 		for (int i = 0; i < chunkProps.Count; i++)
 		{
 			var prop = chunkProps[i];
 			Vector3 pos = prop.Position;
-			pos.Y += yOffset * prop.Scale;
+			pos.Y += prop.YOffset * prop.Scale;
 
 			float propScale = Mathf.Max(0.01f, prop.Scale * globalModelScale);
 			Basis basis = Basis.Identity.Rotated(Vector3.Up, Mathf.DegToRad(prop.RotationY)).Scaled(Vector3.One * propScale);
@@ -524,25 +643,30 @@ public partial class PropMultiMeshManager : Node3D
 		Node prototype = ModelCache.GetModel(modelPath);
 		if (prototype == null) return null;
 
-		float globalModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(normAssetKey) : 1.0f;
-		float scaleMultiplier = Math.Max(0.01f, globalModelScale);
-		GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(prototype, scaleMultiplier);
+		try
+		{
+			float globalModelScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(normAssetKey) : 1.0f;
+			float scaleMultiplier = Math.Max(0.01f, globalModelScale);
+			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(prototype, scaleMultiplier);
 
-		var meshNodes = new List<MeshInstance3D>();
-		FindMeshInstancesRecursive(prototype, meshNodes);
+			var meshNodes = new List<MeshInstance3D>();
+			FindMeshInstancesRecursive(prototype, meshNodes);
 
-		if (meshNodes.Count == 0)
+			if (meshNodes.Count == 0)
+			{
+				return null;
+			}
+
+			var group = new PropModelGroup { AssetKey = normAssetKey };
+			PopulateSubMeshes(group, meshNodes, prototype);
+			ConfigureVisibilityRanges(group);
+
+			return group.SubMeshes.Count > 0 ? group : null;
+		}
+		finally
 		{
 			prototype.QueueFree();
-			return null;
 		}
-
-		var group = new PropModelGroup { AssetKey = normAssetKey };
-		PopulateSubMeshes(group, meshNodes, prototype);
-		ConfigureVisibilityRanges(group);
-
-		prototype.QueueFree();
-		return group.SubMeshes.Count > 0 ? group : null;
 	}
 
 	private static void PopulateSubMeshes(PropModelGroup group, List<MeshInstance3D> meshNodes, Node prototype)

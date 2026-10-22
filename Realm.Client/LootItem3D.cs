@@ -2,9 +2,11 @@ using Godot;
 using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class LootItem3D : Node3D
 {
 	public int UniqueId { get; set; }
@@ -39,9 +41,11 @@ public partial class LootItem3D : Node3D
 	private void CreateVisuals()
 	{
 		_visualRoot = new Node3D();
+		_visualRoot.Name = "VisualRoot_Node3D";
 		AddChild(_visualRoot);
 
 		var meshInstance = new MeshInstance3D();
+		meshInstance.Name = "MeshInstance_MeshInstance3D";
 		meshInstance.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 		var cylinderMesh = new CylinderMesh
 		{
@@ -71,7 +75,7 @@ public partial class LootItem3D : Node3D
 
 		if (!string.IsNullOrEmpty(iconPath) && ResourceLoader.Exists(iconPath))
 		{
-			var texture = GD.Load<Texture2D>(iconPath);
+			var texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 			if (texture != null)
 			{
 				var sprite = new Sprite3D
@@ -88,6 +92,7 @@ public partial class LootItem3D : Node3D
 		}
 
 		var gemInstance = new MeshInstance3D();
+		gemInstance.Name = "GemInstance_MeshInstance3D";
 		var boxMesh = new BoxMesh
 		{
 			Size = new Vector3(0.35f, 0.35f, 0.35f)
@@ -108,7 +113,13 @@ public partial class LootItem3D : Node3D
 
 	public override void _Process(double delta)
 	{
-		if (_visualRoot == null || !IsInstanceValid(_visualRoot)) return;
+		if (_visualRoot == null || !IsInstanceValid(_visualRoot) || !Visible) return;
+
+		var camera = GetViewport()?.GetCamera3D();
+		if (camera != null && GodotObject.IsInstanceValid(camera) && !camera.IsPositionInFrustum(GlobalPosition))
+		{
+			return;
+		}
 
 		_hoverTimer += (float)delta;
 		_visualRoot.RotationDegrees = new Vector3(0, _hoverTimer * 50f % 360f, 0);

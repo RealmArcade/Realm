@@ -7,8 +7,11 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class TagEditorDialog : FloatingDialogBase
 {
+	public TagEditorDialog() { }
+
 	private readonly IndexedAsset _asset;
 	private readonly Action<List<string>> _onSaveCallback;
 	private readonly List<string> _workingTags = new();
@@ -42,9 +45,11 @@ public partial class TagEditorDialog : FloatingDialogBase
 	private void BuildTagEditorControls()
 	{
 		var addRow = new HBoxContainer();
+		addRow.Name = "AddRow_HBoxContainer";
 		addRow.AddThemeConstantOverride("separation", 6);
 
 		_txtNewTag = new LineEdit();
+		_txtNewTag.Name = "TxtNewTag_LineEdit";
 		_txtNewTag.PlaceholderText = TranslationServer.Translate("Enter tag name...");
 		_txtNewTag.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtNewTag.AddThemeFontSizeOverride("font_size", 11);
@@ -52,6 +57,7 @@ public partial class TagEditorDialog : FloatingDialogBase
 		addRow.AddChild(_txtNewTag);
 
 		_btnAddTag = new Button();
+		_btnAddTag.Name = "BtnAddTag_Button";
 		_btnAddTag.Set("icon_max_width", 0);
 		_btnAddTag.Text = "+";
 		_btnAddTag.CustomMinimumSize = new Vector2(28, 24);
@@ -63,16 +69,19 @@ public partial class TagEditorDialog : FloatingDialogBase
 		BodyContainer.AddChild(addRow);
 
 		var scrollPanel = new PanelContainer();
+		scrollPanel.Name = "ScrollPanel_PanelContainer";
 		scrollPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scrollPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
 		var scroll = new ScrollContainer();
+		scroll.Name = "Scroll_ScrollContainer";
 		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
 
 		_tagsListContainer = new VBoxContainer();
+		_tagsListContainer.Name = "TagsListContainer_VBoxContainer";
 		_tagsListContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_tagsListContainer.AddThemeConstantOverride("separation", 4);
 		scroll.AddChild(_tagsListContainer);
@@ -126,6 +135,7 @@ public partial class TagEditorDialog : FloatingDialogBase
 		if (_workingTags.Count == 0)
 		{
 			var lblEmpty = new Label();
+			lblEmpty.Name = "LblEmpty_Label";
 			lblEmpty.Text = TranslationServer.Translate("No tags assigned yet. Use the input above to add tags.");
 			lblEmpty.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 			lblEmpty.AddThemeFontSizeOverride("font_size", 10);
@@ -138,9 +148,11 @@ public partial class TagEditorDialog : FloatingDialogBase
 		foreach (var tag in _workingTags)
 		{
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 			row.AddThemeConstantOverride("separation", 6);
 
 			var lblTag = new Label();
+			lblTag.Name = "LblTag_Label";
 			lblTag.Text = "🏷 " + tag;
 			lblTag.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			lblTag.AddThemeFontSizeOverride("font_size", 11);
@@ -148,6 +160,7 @@ public partial class TagEditorDialog : FloatingDialogBase
 			row.AddChild(lblTag);
 
 			var btnRemove = new Button();
+			btnRemove.Name = "BtnRemove_Button";
 			btnRemove.Set("icon_max_width", 0);
 			btnRemove.Text = "✕";
 			btnRemove.CustomMinimumSize = new Vector2(22, 20);

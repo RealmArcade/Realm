@@ -84,6 +84,9 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 	private readonly int[] _apiCallCountsPerTick = new int[TotalApiMethodCount];
 	private readonly int[] _lastTickApiCallCounts = new int[TotalApiMethodCount];
 	private readonly long[] _cumulativeApiCallCounts = new long[TotalApiMethodCount];
+	private readonly long[] _apiCallTicksPerTick = new long[TotalApiMethodCount];
+	private readonly long[] _lastTickApiCallTicks = new long[TotalApiMethodCount];
+	private readonly long[] _cumulativeApiCallTicks = new long[TotalApiMethodCount];
 	private int _currentSimulationTick = 0;
 
 	public bool IsFaulted { get; private set; }
@@ -326,6 +329,42 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		// Add manual host registrations here if needed.
 	}
 
+	public readonly struct ApiProfileScope : IDisposable
+	{
+		private readonly WasmRuntime? _runtime;
+		private readonly int _methodIndex;
+		private readonly long _startTimestamp;
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public ApiProfileScope(WasmRuntime runtime, int methodIndex)
+		{
+			_runtime = runtime;
+			_methodIndex = methodIndex;
+			_startTimestamp = Stopwatch.GetTimestamp();
+			runtime._apiCallCountsPerTick[methodIndex]++;
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Dispose()
+		{
+			if (_runtime != null)
+			{
+				_runtime._apiCallTicksPerTick[_methodIndex] += Stopwatch.GetTimestamp() - _startTimestamp;
+			}
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private ApiProfileScope BeginProfileApiCall(int methodIndex)
+	{
+		if (!_isDebugMode)
+		{
+			return default;
+		}
+
+		return new ApiProfileScope(this, methodIndex);
+	}
+
 	private int AllocateInGuest(int size)
 	{
 		if (_cabiRealloc == null) throw new InvalidOperationException("cabi_realloc is not exported by guest.");
@@ -462,9 +501,11 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		for (int index = 0; index < TotalApiMethodCount; index++)
 		{
 			int calls = _apiCallCountsPerTick[index];
+			long ticks = _apiCallTicksPerTick[index];
 			if (calls > 0)
 			{
 				_cumulativeApiCallCounts[index] += calls;
+				_cumulativeApiCallTicks[index] += ticks;
 				if (calls > MAX_WARNING_CALLS_PER_TICK)
 				{
 					string methodName = index < ApiMethodNames.Length ? ApiMethodNames[index] : $"Method #{index}";
@@ -475,28 +516,40 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 
 		Array.Copy(_apiCallCountsPerTick, _lastTickApiCallCounts, TotalApiMethodCount);
 		Array.Clear(_apiCallCountsPerTick, 0, _apiCallCountsPerTick.Length);
+		Array.Copy(_apiCallTicksPerTick, _lastTickApiCallTicks, TotalApiMethodCount);
+		Array.Clear(_apiCallTicksPerTick, 0, _apiCallTicksPerTick.Length);
 	}
 
-	public string GetApiCallProfilingBreakdown(int topCount = 10)
+	public string GetApiCallProfilingBreakdown(int topCount = 50)
 	{
 		if (!_isDebugMode)
 		{
 			return "WASM API profiling is only active when debug mode is enabled.";
 		}
 
-		var methodStats = new List<(string Name, long TotalCalls, int LastTickCalls)>();
+		double frequency = (double)Stopwatch.Frequency;
+		var methodStats = new List<(string Name, long TotalCalls, double TotalMs, double AvgMs, int LastTickCalls, double LastTickMs)>();
 		for (int index = 0; index < TotalApiMethodCount; index++)
 		{
-			long totalCalls = _cumulativeApiCallCounts[index];
+			long totalCalls = _cumulativeApiCallCounts[index] + _apiCallCountsPerTick[index];
+			long totalTicks = _cumulativeApiCallTicks[index] + _apiCallTicksPerTick[index];
 			int lastTickCalls = _lastTickApiCallCounts[index];
+			long lastTickTicks = _lastTickApiCallTicks[index];
 			if (totalCalls > 0 || lastTickCalls > 0)
 			{
 				string methodName = index < ApiMethodNames.Length ? ApiMethodNames[index] : $"Method #{index}";
-				methodStats.Add((methodName, totalCalls, lastTickCalls));
+				double totalMs = (totalTicks * 1000.0) / frequency;
+				double avgMs = totalCalls > 0 ? totalMs / totalCalls : 0.0;
+				double lastTickMs = (lastTickTicks * 1000.0) / frequency;
+				methodStats.Add((methodName, totalCalls, totalMs, avgMs, lastTickCalls, lastTickMs));
 			}
 		}
 
-		methodStats.Sort((first, second) => second.TotalCalls.CompareTo(first.TotalCalls));
+		methodStats.Sort((first, second) =>
+		{
+			int cmp = second.TotalMs.CompareTo(first.TotalMs);
+			return cmp != 0 ? cmp : second.TotalCalls.CompareTo(first.TotalCalls);
+		});
 
 		var builder = new StringBuilder();
 		builder.AppendLine($"=== WASM API Call Profiling Breakdown (Tick #{_currentSimulationTick}) ===");
@@ -510,11 +563,21 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 			for (int index = 0; index < displayCount; index++)
 			{
 				var stat = methodStats[index];
-				builder.AppendLine($"#{index + 1}: {stat.Name} - Total Calls: {stat.TotalCalls:N0} (Last Tick: {stat.LastTickCalls:N0})");
+				builder.AppendLine($"#{index + 1}: {stat.Name} - Calls: {stat.TotalCalls:N0} | Total: {stat.TotalMs:F2}ms | Avg: {stat.AvgMs:F4}ms (Last Tick: {stat.LastTickCalls:N0} / {stat.LastTickMs:F2}ms)");
 			}
 		}
 
 		return builder.ToString();
+	}
+
+	public void ResetApiProfiling()
+	{
+		Array.Clear(_apiCallCountsPerTick, 0, _apiCallCountsPerTick.Length);
+		Array.Clear(_lastTickApiCallCounts, 0, _lastTickApiCallCounts.Length);
+		Array.Clear(_cumulativeApiCallCounts, 0, _cumulativeApiCallCounts.Length);
+		Array.Clear(_apiCallTicksPerTick, 0, _apiCallTicksPerTick.Length);
+		Array.Clear(_lastTickApiCallTicks, 0, _lastTickApiCallTicks.Length);
+		Array.Clear(_cumulativeApiCallTicks, 0, _cumulativeApiCallTicks.Length);
 	}
 
 	public void LogApiCallProfilingBreakdown(int topCount = 10)

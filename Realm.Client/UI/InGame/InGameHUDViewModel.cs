@@ -285,7 +285,7 @@ public class InGameHUDViewModel
 		}
 	}
 
-	public bool LeaderboardVisible
+	public LeaderboardBoards Leaderboards
 	{
 		get
 		{
@@ -294,71 +294,32 @@ public class InGameHUDViewModel
 				var world = GameContext.World;
 				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
 				{
-					return world.Get<LeaderboardState>(ECSContext.WorldEntity).Visible;
+					LeaderboardBoards? boards = world.Get<LeaderboardState>(ECSContext.WorldEntity).Boards;
+					if (boards != null)
+						return boards;
 				}
+			}
+
+			return EmptyLeaderboards;
+		}
+	}
+
+	public bool HasVisibleLeaderboard
+	{
+		get
+		{
+			IReadOnlyList<LeaderboardBoard> boards = Leaderboards.Boards;
+			for (int index = 0; index < boards.Count; index++)
+			{
+				if (boards[index].Visible)
+					return true;
 			}
 
 			return false;
 		}
-		set
-		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
-			{
-				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
-				{
-					ref var lb = ref world.Get<LeaderboardState>(ECSContext.WorldEntity);
-					lb.Visible = value;
-				}
-			}
-		}
 	}
 
-	public string LeaderboardTitle
-	{
-		get
-		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
-			{
-				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
-				{
-					return world.Get<LeaderboardState>(ECSContext.WorldEntity).Title;
-				}
-			}
-
-			return "";
-		}
-		set
-		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
-			{
-				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
-				{
-					ref var lb = ref world.Get<LeaderboardState>(ECSContext.WorldEntity);
-					lb.Title = value;
-				}
-			}
-		}
-	}
-
-	public Dictionary<string, string> LeaderboardValues
-	{
-		get
-		{
-			if (GameHost.Instance != null && GameContext.World != null && ECSContext.WorldEntity != Entity.Null)
-			{
-				var world = GameContext.World;
-				if (world.IsAlive(ECSContext.WorldEntity) && world.Has<LeaderboardState>(ECSContext.WorldEntity))
-				{
-					return world.Get<LeaderboardState>(ECSContext.WorldEntity).Values;
-				}
-			}
-
-			return new Dictionary<string, string>();
-		}
-	}
+	private static readonly LeaderboardBoards EmptyLeaderboards = new();
 
 	private static ref SummaryTableState EnsureSummaryTableState(EcsWorld world, Entity entity)
 	{
@@ -485,17 +446,8 @@ public class InGameHUDViewModel
 
 
 	public string CurrentWeather { get; set; } = "clear";
-	public string ShroudType { get; set; } = "VisionShroud";
 	public bool ShowMinimapTerrain { get; set; } = true;
-
-	private static readonly byte[,] _emptyShroudGrid = new byte[32, 32];
-	public byte[,] ShroudGrid { get; set; } = _emptyShroudGrid;
-
-	public byte[,] FogGrid
-	{
-		get => ShroudGrid;
-		set => ShroudGrid = value;
-	}
+	public MinimapColorScheme MinimapColorScheme { get; set; } = MinimapColorScheme.TeamColors;
 
 	public int IdleCount { get; set; }
 
@@ -505,8 +457,23 @@ public class InGameHUDViewModel
 	private int _lastClockSecs = -1;
 	private int _lastClockPhase = -1;
 
-
 	public void Update(double delta)
+	{
+		UpdateTactical(delta);
+		UpdateMacro(delta);
+		UpdateAmbient(delta);
+	}
+
+	public void UpdateTactical(double delta)
+	{
+		if (GameHost.Instance == null)
+			return;
+
+		IsConnectionLost = GameHost.Instance.IsConnectionLost;
+		CycleSelectionIndex = GameHost.Instance.CycleSelectionIndex;
+	}
+
+	public void UpdateMacro(double delta)
 	{
 		GoldPerSec = 1.5f * ResourceGatherMultiplier;
 		WoodPerSec = 1.0f * ResourceGatherMultiplier;
@@ -517,11 +484,11 @@ public class InGameHUDViewModel
 
 		UpdatePopulation();
 		UpdateClock();
-
-		IsConnectionLost = GameHost.Instance.IsConnectionLost;
-		CycleSelectionIndex = GameHost.Instance.CycleSelectionIndex;
-
 		UpdateIdleCount();
+	}
+
+	public void UpdateAmbient(double delta)
+	{
 	}
 
 	private void UpdatePopulation()
@@ -587,14 +554,16 @@ public class InGameHUDViewModel
 			return;
 		}
 
-		int idleCount = 0;
-		world.Query(in QueryCache.AllIdleMovableQuery, (Entity entity, ref Owner owner) =>
+		int idle = 0;
+		foreach (var entity in world.Query(in QueryCache.AllIdleMovableQuery))
 		{
-			if (owner.PlayerEntity.Value == targetPlayer)
-				idleCount++;
-		});
+			if (world.Get<Owner>(entity).PlayerEntity.Value == targetPlayer)
+			{
+				idle++;
+			}
+		}
 
-		IdleCount = idleCount;
+		IdleCount = idle;
 	}
 
 	public void UpdateSelectedUnits(List<Unit3D> selectedUnits)

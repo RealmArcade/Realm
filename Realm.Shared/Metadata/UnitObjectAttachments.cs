@@ -168,9 +168,8 @@ public class UnitObjectAttachments
 		}
 	}
 
-	public bool TryGetOrientation(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation? orientation)
+	private bool TryFindOrientation(IEnumerable<Dictionary<string, HandAttachmentOrientation>>? list, string attachmentId, out HandAttachmentOrientation? orientation)
 	{
-		var list = GetBoneList(hand);
 		if (list != null && !string.IsNullOrEmpty(attachmentId))
 		{
 			string cleanId = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
@@ -196,6 +195,11 @@ public class UnitObjectAttachments
 
 		orientation = default;
 		return false;
+	}
+
+	public bool TryGetOrientation(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation? orientation)
+	{
+		return TryFindOrientation(GetBoneList(hand), attachmentId, out orientation);
 	}
 
 	public void SetOrientation(HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation)
@@ -215,32 +219,7 @@ public class UnitObjectAttachments
 
 	public bool TryGetSocketOrientation(string socket, string attachmentId, out HandAttachmentOrientation? orientation)
 	{
-		var list = GetSocketList(socket);
-		if (list != null && !string.IsNullOrEmpty(attachmentId))
-		{
-			string cleanId = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
-				? attachmentId
-				: Path.GetFileNameWithoutExtension(attachmentId);
-			foreach (var dict in list)
-			{
-				if (dict != null)
-				{
-					foreach (var kvp in dict)
-					{
-						if (kvp.Key.Equals(attachmentId, StringComparison.OrdinalIgnoreCase) ||
-						    kvp.Key.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
-						    Path.GetFileNameWithoutExtension(kvp.Key).Equals(cleanId, StringComparison.OrdinalIgnoreCase))
-						{
-							orientation = kvp.Value;
-							return true;
-						}
-					}
-				}
-			}
-		}
-
-		orientation = default;
-		return false;
+		return TryFindOrientation(GetSocketList(socket), attachmentId, out orientation);
 	}
 
 	public void SetSocketOrientation(string socket, string attachmentId, HandAttachmentOrientation orientation)

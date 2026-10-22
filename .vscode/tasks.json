@@ -45,24 +45,6 @@
         }
       },
       "problemMatcher": []
-    },
-    {
-      "label": "Build WASM Map Script (Debug)",
-      "type": "shell",
-      "command": "dotnet",
-      "args": [
-        "publish",
-        "${workspaceFolder}/MapTemplate/MapScript.csproj",
-        "-c",
-        "Debug",
-        "-r",
-        "wasi-wasm"
-      ],
-      "group": {
-        "kind": "build"
-      },
-      "problemMatcher": "$msCompile",
-      "detail": "Builds the WASM map script in Debug configuration with DWARF symbols retained."
     }
   ]
 }

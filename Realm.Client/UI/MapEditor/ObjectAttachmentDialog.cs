@@ -9,8 +9,11 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 {
+	public ObjectAttachmentDialog() { }
+
 	private Node3D _previewModel;
 
 	private readonly Dictionary<string, Node3D> _socketAnchorNodes = new(StringComparer.OrdinalIgnoreCase);
@@ -115,6 +118,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		Add3DPreviewViewport(BodyContainer, new Vector2(530, 230));
 
 		var topControlsVBox = new VBoxContainer();
+		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
 		topControlsVBox.AddThemeConstantOverride("separation", 6);
 		BodyContainer.AddChild(topControlsVBox);
 
@@ -134,6 +138,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	private void BuildTopInfoRow(Container parent)
 	{
 		var infoRow = new HBoxContainer();
+		infoRow.Name = "InfoRow_HBoxContainer";
 		infoRow.AddThemeConstantOverride("separation", 8);
 
 		_lblUnitTitle = new Label { Text = TranslationServer.Translate("Unit:") };
@@ -162,6 +167,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	private void BuildSocketRow(Container parent)
 	{
 		var socketRow = new HBoxContainer();
+		socketRow.Name = "SocketRow_HBoxContainer";
 		socketRow.AddThemeConstantOverride("separation", 6);
 
 		var lblSocketTitle = new Label { Text = TranslationServer.Translate("Socket:") };
@@ -170,6 +176,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		socketRow.AddChild(lblSocketTitle);
 
 		_optSocket = new OptionButton();
+		_optSocket.Name = "OptSocket_OptionButton";
 		_optSocket.AddThemeFontSizeOverride("font_size", 11);
 		_optSocket.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optSocket.CustomMinimumSize = new Vector2(160, 24);
@@ -192,6 +199,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		socketRow.AddChild(lblParentTitle);
 
 		_optParent = new OptionButton();
+		_optParent.Name = "OptParent_OptionButton";
 		_optParent.AddThemeFontSizeOverride("font_size", 11);
 		_optParent.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optParent.CustomMinimumSize = new Vector2(160, 24);
@@ -215,6 +223,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	private void BuildAttachmentPickerRow(Container parent)
 	{
 		var pickerRow = new HBoxContainer();
+		pickerRow.Name = "PickerRow_HBoxContainer";
 		pickerRow.AddThemeConstantOverride("separation", 6);
 
 		var lblAttTitle = new Label { Text = TranslationServer.Translate("Attachment / VFX:") };
@@ -223,6 +232,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		pickerRow.AddChild(lblAttTitle);
 
 		_optAttachmentPicker = new OptionButton();
+		_optAttachmentPicker.Name = "OptAttachmentPicker_OptionButton";
 		_optAttachmentPicker.AddThemeFontSizeOverride("font_size", 11);
 		_optAttachmentPicker.CustomMinimumSize = new Vector2(220, 24);
 		_optAttachmentPicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -246,6 +256,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		AddSectionHeader(BodyContainer, "🗡️ " + TranslationServer.Translate("TRANSFORM & NORMAL OFFSET"));
 
 		var transformCols = new HBoxContainer();
+		transformCols.Name = "TransformCols_HBoxContainer";
 		transformCols.AddThemeConstantOverride("separation", 12);
 
 		var leftCol = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -344,6 +355,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		_lblNormalOffset = normalResult.ValueLabel;
 
 		var btnRow = new HBoxContainer();
+		btnRow.Name = "BtnRow_HBoxContainer";
 		btnRow.AddThemeConstantOverride("separation", 8);
 		AddButton(btnRow, "⚡ " + TranslationServer.Translate("Auto Calculate"), () => AutoCalculateAttachmentOrientation(), "Automatically calculate orientation and position based on attachment bounds and camera view", 11, new Vector2(130, 24));
 		AddButton(btnRow, "⟲ " + TranslationServer.Translate("Reset"), () => ResetTransformValues(), "Reset transform to defaults", 11, new Vector2(80, 24));
@@ -991,34 +1003,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 		if (Mathf.Abs(relXform.Basis.Determinant()) <= 0.0001f) return;
 
-		Aabb mAabb = meshInst.Mesh.GetAabb();
-		Vector3 min = mAabb.Position;
-		Vector3 max = mAabb.End;
-		Vector3[] corners = new[]
-		{
-			new Vector3(min.X, min.Y, min.Z),
-			new Vector3(min.X, min.Y, max.Z),
-			new Vector3(min.X, max.Y, min.Z),
-			new Vector3(min.X, max.Y, max.Z),
-			new Vector3(max.X, min.Y, min.Z),
-			new Vector3(max.X, min.Y, max.Z),
-			new Vector3(max.X, max.Y, min.Z),
-			new Vector3(max.X, max.Y, max.Z)
-		};
-
-		for (int i = 0; i < 8; i++)
-		{
-			Vector3 pt = relXform * corners[i];
-			if (!hasAabb)
-			{
-				combinedAabb = new Aabb(pt, Vector3.Zero);
-				hasAabb = true;
-			}
-			else
-			{
-				combinedAabb = combinedAabb.Expand(pt);
-			}
-		}
+		Realm.Client.Utils.MathUtils.UpdateAabbWithMeshCorners(ref combinedAabb, ref hasAabb, meshInst, relXform);
 	}
 
 	private static float NormalizeAngle(float angle)
@@ -1059,13 +1044,23 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		ClearUncommittedPreview();
 		if (_previewModel != null && GodotObject.IsInstanceValid(_previewModel))
 		{
+			_previewModel.GetParent()?.RemoveChild(_previewModel);
 			_previewModel.QueueFree();
 			_previewModel = null;
 		}
 
+		foreach (var kvp in _activeAttachmentVisuals)
+		{
+			if (kvp.Value != null && GodotObject.IsInstanceValid(kvp.Value))
+			{
+				kvp.Value.GetParent()?.RemoveChild(kvp.Value);
+				kvp.Value.QueueFree();
+			}
+		}
+		_activeAttachmentVisuals.Clear();
+
 		_socketAnchorNodes.Clear();
 		_socketModelNodes.Clear();
-		_activeAttachmentVisuals.Clear();
 		_currentActiveModelNode = null;
 		_uncommittedPreviewNode = null;
 		_uncommittedPreviewKey = null;
@@ -1104,7 +1099,12 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		var cached = ModelCache.GetModel(modelPath);
 		if (cached is Node3D n3d)
 		{
-			return (Node3D)n3d.Duplicate((int)DuplicateFlags.UseInstantiation);
+			return n3d;
+		}
+
+		if (cached != null)
+		{
+			cached.QueueFree();
 		}
 
 		return null;
@@ -1604,9 +1604,11 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		{
 			var entry = configured[i];
 			var card = new PanelContainer();
+			card.Name = "Card_PanelContainer";
 			card.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 			row.AddThemeConstantOverride("separation", 8);
 
 			string parentAttId = entry.Orientation.ParentAttachmentId;
@@ -1656,6 +1658,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			int capturedIndex = entry.Index;
 
 			var btnEdit = new Button();
+			btnEdit.Name = "BtnEdit_Button";
 			btnEdit.Set("icon_max_width", 0);
 			btnEdit.Text = "✏️ " + TranslationServer.Translate("Edit");
 			btnEdit.AddThemeFontSizeOverride("font_size", 11);
@@ -1666,6 +1669,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			row.AddChild(btnEdit);
 
 			var btnRemove = new Button();
+			btnRemove.Name = "BtnRemove_Button";
 			btnRemove.Set("icon_max_width", 0);
 			btnRemove.Text = "🗑️ " + TranslationServer.Translate("Remove");
 			btnRemove.AddThemeFontSizeOverride("font_size", 11);

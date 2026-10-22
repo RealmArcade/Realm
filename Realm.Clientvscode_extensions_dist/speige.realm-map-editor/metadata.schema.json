@@ -301,7 +301,7 @@
             "null"
           ]
         },
-        "MaxTestPlayers": {
+        "PlayablePlayerSlots": {
           "type": [
             "integer",
             "null"
@@ -996,6 +996,21 @@
               "null"
             ],
             "properties": {
+              "MaxCapacity": {
+                "type": "number"
+              },
+              "HarvestRate": {
+                "type": "number"
+              },
+              "GrowthRate": {
+                "type": "number"
+              },
+              "MaxWorkers": {
+                "type": "integer"
+              },
+              "Scale": {
+                "type": "number"
+              },
               "TemplateID": {
                 "type": "string"
               },
@@ -1022,21 +1037,6 @@
               },
               "VisualMode": {
                 "type": "string"
-              },
-              "MaxCapacity": {
-                "type": "number"
-              },
-              "HarvestRate": {
-                "type": "number"
-              },
-              "GrowthRate": {
-                "type": "number"
-              },
-              "MaxWorkers": {
-                "type": "integer"
-              },
-              "Scale": {
-                "type": "number"
               },
               "YOffset": {
                 "type": "number"
@@ -1094,6 +1094,9 @@
               "null"
             ],
             "properties": {
+              "Scale": {
+                "type": "number"
+              },
               "TemplateID": {
                 "type": "string"
               },
@@ -1120,9 +1123,6 @@
               },
               "VisualMode": {
                 "type": "string"
-              },
-              "Scale": {
-                "type": "number"
               },
               "YOffset": {
                 "type": "number"
@@ -1867,6 +1867,9 @@
                   "string",
                   "null"
                 ]
+              },
+              "IgnorePlayerColor": {
+                "type": "boolean"
               },
               "ChildVfxPosition": {
                 "type": "object",

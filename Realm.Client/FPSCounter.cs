@@ -3,6 +3,7 @@ using Realm.Client.UI;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class FPSCounter : Label
 {
 	private float _updateTimer = 0f;

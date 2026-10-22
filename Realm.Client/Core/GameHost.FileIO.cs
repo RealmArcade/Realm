@@ -53,6 +53,9 @@ public partial class GameHost
 
 	private EditorSaveState CaptureEditorState()
 	{
+		var camera = MainCamera;
+		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity);
+
 		return new EditorSaveState
 		{
 			WaterProfileIndex = ActiveWaterProfileIndex,
@@ -67,7 +70,11 @@ public partial class GameHost
 			ActivePlaceId = ActivePlaceId,
 			CopiedArea = GameContext.EditorService?.CopiedArea,
 			SelectionStart = GameContext.EditorService?.SelectionStart,
-			SelectionEnd = GameContext.EditorService?.SelectionEnd
+			SelectionEnd = GameContext.EditorService?.SelectionEnd,
+			HasCameraPosition = camera != null,
+			CameraPosition = camera != null ? camera.Position : default,
+			HasCameraState = hasCameraState,
+			CameraStateSnapshot = hasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity) : default
 		};
 	}
 
@@ -177,6 +184,8 @@ public partial class GameHost
 
 	private void RestoreEditorStateAfterSave(EditorSaveState savedState)
 	{
+		RestoreCameraAfterSave(savedState);
+
 		ActiveWaterProfileIndex = savedState.WaterProfileIndex;
 		EditorWaterMode = savedState.WaterMode;
 		EditorBlockMode = savedState.BlockMode;
@@ -197,6 +206,21 @@ public partial class GameHost
 		MapEditorHUD.Instance?.RefreshWaterSwatches();
 		MapEditorHUD.Instance?.UpdateMapNameHeader();
 		MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("Map saved"));
+	}
+
+	private void RestoreCameraAfterSave(EditorSaveState savedState)
+	{
+		if (savedState.HasCameraPosition && MainCamera != null)
+		{
+			MainCamera.Position = savedState.CameraPosition;
+		}
+
+		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity);
+		if (savedState.HasCameraState && hasCameraState)
+		{
+			ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			state = savedState.CameraStateSnapshot;
+		}
 	}
 
 	public bool LoadMapFromFile(string customPath = "", bool terrainOnly = false, bool clearUnits = true, bool ensureGlbOptimized = true)

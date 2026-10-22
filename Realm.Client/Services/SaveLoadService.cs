@@ -62,21 +62,26 @@ public class SaveLoadService
 				int srcWgtZ = wgtD == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(wgtD - 1) / Math.Max(1, splatD - 1)), 0, wgtD - 1);
 				int weightOffset = (srcWgtZ * wgtW + srcWgtX) * 4;
 
-				splatMap[x, z] = new TerrainSplatWeights
-				{
-					Index0 = (int)Math.Round(idxData[idxOffset + 0]),
-					Index1 = (int)Math.Round(idxData[idxOffset + 1]),
-					Index2 = (int)Math.Round(idxData[idxOffset + 2]),
-					Index3 = (int)Math.Round(idxData[idxOffset + 3]),
-					Weight0 = wgtData[weightOffset + 0],
-					Weight1 = wgtData[weightOffset + 1],
-					Weight2 = wgtData[weightOffset + 2],
-					Weight3 = wgtData[weightOffset + 3]
-				};
+				splatMap[x, z] = CreateTerrainSplatWeights(idxData, idxOffset, wgtData, weightOffset);
 			}
 		}
 
 		return splatMap;
+	}
+
+	private TerrainSplatWeights CreateTerrainSplatWeights(ReadOnlySpan<float> idxData, int idxOffset, ReadOnlySpan<float> wgtData, int weightOffset)
+	{
+		return new TerrainSplatWeights
+		{
+			Index0 = (int)Math.Round(idxData[idxOffset + 0]),
+			Index1 = (int)Math.Round(idxData[idxOffset + 1]),
+			Index2 = (int)Math.Round(idxData[idxOffset + 2]),
+			Index3 = (int)Math.Round(idxData[idxOffset + 3]),
+			Weight0 = wgtData[weightOffset + 0],
+			Weight1 = wgtData[weightOffset + 1],
+			Weight2 = wgtData[weightOffset + 2],
+			Weight3 = wgtData[weightOffset + 3]
+		};
 	}
 
 	public TerrainSplatWeights[,] GenerateFallbackSplatMap(int splatW, int splatD, int width, int depth)
@@ -1000,17 +1005,7 @@ public class SaveLoadService
 				int srcWgtZ = wgtH == splatD ? z : Math.Clamp((int)Math.Floor(z * (float)(wgtH - 1) / Math.Max(1, splatD - 1)), 0, wgtH - 1);
 				int weightOffset = (srcWgtZ * wgtW + srcWgtX) * 4;
 
-				var s = new TerrainSplatWeights
-				{
-					Index0 = (int)Math.Round(idxData[idxOffset + 0]),
-					Index1 = (int)Math.Round(idxData[idxOffset + 1]),
-					Index2 = (int)Math.Round(idxData[idxOffset + 2]),
-					Index3 = (int)Math.Round(idxData[idxOffset + 3]),
-					Weight0 = wgtData[weightOffset + 0],
-					Weight1 = wgtData[weightOffset + 1],
-					Weight2 = wgtData[weightOffset + 2],
-					Weight3 = wgtData[weightOffset + 3]
-				};
+				var s = CreateTerrainSplatWeights(idxData, idxOffset, wgtData, weightOffset);
 
 				loadedColors[z * splatW + x] = s.Serialize();
 			}
@@ -1155,26 +1150,37 @@ public class SaveLoadService
 		}
 	}
 
+	private static int CompareDistanceAndPosition(float aPosX, float aPosY, float aPosZ, float aRotY, float bPosX, float bPosY, float bPosZ, float bRotY, float topLeftX, float topLeftZ)
+	{
+		float distanceA = MathF.Sqrt(MathF.Pow(aPosX - topLeftX, 2) + MathF.Pow(aPosZ - topLeftZ, 2));
+		float distanceB = MathF.Sqrt(MathF.Pow(bPosX - topLeftX, 2) + MathF.Pow(bPosZ - topLeftZ, 2));
+		int comparison = distanceA.CompareTo(distanceB);
+		if (comparison != 0) return comparison;
+
+		comparison = aPosX.CompareTo(bPosX);
+		if (comparison != 0) return comparison;
+		comparison = aPosZ.CompareTo(bPosZ);
+		if (comparison != 0) return comparison;
+		comparison = aPosY.CompareTo(bPosY);
+		if (comparison != 0) return comparison;
+		return aRotY.CompareTo(bRotY);
+	}
+
+	private static int CompareBaseProperties(string aTemplateId, string bTemplateId, float aPosX, float aPosY, float aPosZ, float aRotY, float bPosX, float bPosY, float bPosZ, float bRotY, float topLeftX, float topLeftZ)
+	{
+		int comparison = string.Compare(aTemplateId, bTemplateId, StringComparison.OrdinalIgnoreCase);
+		if (comparison != 0) return comparison;
+		comparison = string.Compare(aTemplateId, bTemplateId, StringComparison.Ordinal);
+		if (comparison != 0) return comparison;
+
+		return CompareDistanceAndPosition(aPosX, aPosY, aPosZ, aRotY, bPosX, bPosY, bPosZ, bRotY, topLeftX, topLeftZ);
+	}
+
 	private static int CompareUnits(UnitSaveData a, UnitSaveData b, float topLeftX, float topLeftZ)
 	{
-		int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
-		if (comparison != 0) return comparison;
-		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
+		int comparison = CompareBaseProperties(a.TemplateId, b.TemplateId, a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
-		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-		comparison = distanceA.CompareTo(distanceB);
-		if (comparison != 0) return comparison;
-
-		comparison = a.PosX.CompareTo(b.PosX);
-		if (comparison != 0) return comparison;
-		comparison = a.PosZ.CompareTo(b.PosZ);
-		if (comparison != 0) return comparison;
-		comparison = a.PosY.CompareTo(b.PosY);
-		if (comparison != 0) return comparison;
-		comparison = a.RotationY.CompareTo(b.RotationY);
-		if (comparison != 0) return comparison;
 		comparison = a.Scale.CompareTo(b.Scale);
 		if (comparison != 0) return comparison;
 		comparison = a.Player.CompareTo(b.Player);
@@ -1184,47 +1190,17 @@ public class SaveLoadService
 
 	private static int CompareProps(PropSaveData a, PropSaveData b, float topLeftX, float topLeftZ)
 	{
-		int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
-		if (comparison != 0) return comparison;
-		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
+		int comparison = CompareBaseProperties(a.TemplateId, b.TemplateId, a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
-		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-		comparison = distanceA.CompareTo(distanceB);
-		if (comparison != 0) return comparison;
-
-		comparison = a.PosX.CompareTo(b.PosX);
-		if (comparison != 0) return comparison;
-		comparison = a.PosZ.CompareTo(b.PosZ);
-		if (comparison != 0) return comparison;
-		comparison = a.PosY.CompareTo(b.PosY);
-		if (comparison != 0) return comparison;
-		comparison = a.RotationY.CompareTo(b.RotationY);
-		if (comparison != 0) return comparison;
 		return a.Scale.CompareTo(b.Scale);
 	}
 
 	private static int CompareDecals(DecalSaveData a, DecalSaveData b, float topLeftX, float topLeftZ)
 	{
-		int comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.OrdinalIgnoreCase);
-		if (comparison != 0) return comparison;
-		comparison = string.Compare(a.TemplateId, b.TemplateId, StringComparison.Ordinal);
+		int comparison = CompareBaseProperties(a.TemplateId, b.TemplateId, a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
-		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-		comparison = distanceA.CompareTo(distanceB);
-		if (comparison != 0) return comparison;
-
-		comparison = a.PosX.CompareTo(b.PosX);
-		if (comparison != 0) return comparison;
-		comparison = a.PosZ.CompareTo(b.PosZ);
-		if (comparison != 0) return comparison;
-		comparison = a.PosY.CompareTo(b.PosY);
-		if (comparison != 0) return comparison;
-		comparison = a.RotationY.CompareTo(b.RotationY);
-		if (comparison != 0) return comparison;
 		return a.Scale.CompareTo(b.Scale);
 	}
 
@@ -1235,19 +1211,9 @@ public class SaveLoadService
 		comparison = string.Compare(a.VfxId, b.VfxId, StringComparison.Ordinal);
 		if (comparison != 0) return comparison;
 
-		float distanceA = MathF.Sqrt(MathF.Pow(a.PosX - topLeftX, 2) + MathF.Pow(a.PosZ - topLeftZ, 2));
-		float distanceB = MathF.Sqrt(MathF.Pow(b.PosX - topLeftX, 2) + MathF.Pow(b.PosZ - topLeftZ, 2));
-		comparison = distanceA.CompareTo(distanceB);
+		comparison = CompareDistanceAndPosition(a.PosX, a.PosY, a.PosZ, a.RotationY, b.PosX, b.PosY, b.PosZ, b.RotationY, topLeftX, topLeftZ);
 		if (comparison != 0) return comparison;
 
-		comparison = a.PosX.CompareTo(b.PosX);
-		if (comparison != 0) return comparison;
-		comparison = a.PosZ.CompareTo(b.PosZ);
-		if (comparison != 0) return comparison;
-		comparison = a.PosY.CompareTo(b.PosY);
-		if (comparison != 0) return comparison;
-		comparison = a.RotationY.CompareTo(b.RotationY);
-		if (comparison != 0) return comparison;
 		return a.ScaleX.CompareTo(b.ScaleX);
 	}
 
@@ -1819,55 +1785,32 @@ public class SaveLoadService
 
 	public float GetUnitPropRotationY(Entity entity, float defaultRotY, EcsWorld ecsWorld)
 	{
-		float rotY = defaultRotY;
-		if (ecsWorld.Has<RotationY>(entity))
-		{
-			float existingRotY = ecsWorld.Get<RotationY>(entity).Value;
-			if (MathF.Abs(rotY - existingRotY) < 0.001f || MathF.Abs(MathF.Abs(rotY - existingRotY) - 360f) < 0.001f)
-			{
-				rotY = existingRotY;
-			}
-		}
-
-		return rotY;
+		return ecsWorld.Has<RotationY>(entity) ? ecsWorld.Get<RotationY>(entity).Value : defaultRotY;
 	}
 
 	public float GetUnitPropScale(Entity entity, float defaultScale, EcsWorld ecsWorld)
 	{
-		float scale = defaultScale;
-		if (ecsWorld.Has<ModelScale>(entity))
-		{
-			float existingScale = ecsWorld.Get<ModelScale>(entity).Value;
-			if (MathF.Abs(scale - existingScale) < 0.0001f)
-			{
-				scale = existingScale;
-			}
-		}
-
-		return scale;
+		return ecsWorld.Has<ModelScale>(entity) ? ecsWorld.Get<ModelScale>(entity).Value : defaultScale;
 	}
 
 	public float GetDecalScale(Entity entity, float visualScaleX, float decalSizeX)
 	{
-		float scale = visualScaleX != 1.0f
-			? visualScaleX
-			: (GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : (decalSizeX / 6.0f));
-		return GetUnitPropScale(entity, scale, GameContext.World);
+		if (visualScaleX != 1.0f)
+		{
+			return visualScaleX;
+		}
+
+		if (GameContext.World.Has<ModelScale>(entity))
+		{
+			return GameContext.World.Get<ModelScale>(entity).Value;
+		}
+
+		return decalSizeX / 6.0f;
 	}
 
 	public Vector3 GetDecalPosition(Entity entity, Vector3 rawPosition)
 	{
-		var pos = rawPosition;
-		if (GameContext.World.Has<Position>(entity))
-		{
-			var existingPos = GameContext.World.Get<Position>(entity).Value;
-			if ((pos - existingPos).Length() < 0.0001f)
-			{
-				pos = existingPos;
-			}
-		}
-
-		return pos;
+		return GameContext.World.Has<Position>(entity) ? GameContext.World.Get<Position>(entity).Value : rawPosition;
 	}
 
 	public List<CoordinateSaveData> GetCoordinatesData()

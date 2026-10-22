@@ -26,4 +26,20 @@ public static class ModelExtensions
 	{
 		return Color.HtmlIsValid(config.FogColorHex) ? Color.FromHtml(config.FogColorHex) : new Color(0.550f, 0.650f, 0.750f);
 	}
+
+	public static void ApplySlopeAlignment(Godot.Node3D mainNode, Godot.Node3D? visualNode, bool isSlopeAligned)
+	{
+		if (isSlopeAligned && Realm.Client.Core.GameHost.Instance?.GroundTerrain != null && visualNode != null && Godot.GodotObject.IsInstanceValid(visualNode))
+		{
+			Realm.Client.Core.GameHost.Instance.GroundTerrain.GetHeightAndNormal(mainNode.GlobalPosition.X, mainNode.GlobalPosition.Z, out _, out Godot.Vector3 normal);
+			if (normal.LengthSquared() > 0.01f)
+			{
+				normal = normal.Normalized();
+				Godot.Vector3 up = normal;
+				Godot.Vector3 forward = System.MathF.Abs(up.Y) < 0.99f ? Godot.Vector3.Up.Cross(up).Cross(up).Normalized() : -Godot.Vector3.Forward;
+				Godot.Vector3 right = up.Cross(forward).Normalized();
+				visualNode.Basis = new Godot.Basis(right, up, -forward);
+			}
+		}
+	}
 }

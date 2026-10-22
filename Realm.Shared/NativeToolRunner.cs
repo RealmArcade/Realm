@@ -139,26 +139,11 @@ public static class NativeToolRunner
 		bool isWindows = Environment.OSVersion.Platform == PlatformID.Win32NT;
 		string exeName = isWindows ? "ffmpeg.exe" : "ffmpeg";
 
-		string baseDir = AppContext.BaseDirectory;
-		string cwd = Directory.GetCurrentDirectory();
-
-		string[] candidatePaths = new string[]
+		string? candidatePath = SearchCandidatePaths(exeName);
+		if (candidatePath != null)
 		{
-			Path.Combine(baseDir, exeName),
-			Path.Combine(baseDir, "ThirdPartyBinaries", exeName),
-			Path.Combine(cwd, exeName),
-			Path.Combine(cwd, "ThirdPartyBinaries", exeName),
-			Path.Combine(cwd, "..", "ThirdPartyBinaries", exeName),
-			Path.Combine(cwd, "..", "..", "ThirdPartyBinaries", exeName)
-		};
-
-		foreach (var path in candidatePaths)
-		{
-			if (File.Exists(path))
-			{
-				_cachedFfmpegPath = Path.GetFullPath(path);
-				return _cachedFfmpegPath;
-			}
+			_cachedFfmpegPath = candidatePath;
+			return _cachedFfmpegPath;
 		}
 
 		var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";

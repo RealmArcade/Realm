@@ -7,9 +7,11 @@ using Realm.Shared.Distribution;
 using FileAccess = Godot.FileAccess;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class MapDetails : Control
 {
 	public MapDetails()
@@ -156,6 +158,7 @@ public partial class MapDetails : Control
 		_versionContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 
 		_versionLabel = new Label();
+		_versionLabel.Name = "VersionLabel_Label";
 		_versionLabel.Text = Tr("VERSION:");
 		_versionLabel.VerticalAlignment = VerticalAlignment.Center;
 		_versionLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -184,6 +187,7 @@ public partial class MapDetails : Control
 
 		ApplyStyles();
 		RegisterEvents();
+		SetProcess(false);
 	}
 
 	public override void _Process(double delta)
@@ -341,7 +345,7 @@ public partial class MapDetails : Control
 		ApplyWrapperStyles();
 		ApplyTextStyles();
 
-		SetupPillarButton(_backButton, "◀ BACK", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery));
+		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀ BACK", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery));
 
 		_downloadButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_downloadButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
@@ -361,13 +365,13 @@ public partial class MapDetails : Control
 	private void ApplyBackgroundStyles()
 	{
 		Texture2D bgTexture = null;
-		string[] bgPaths = { "res://Assets/UI/map_details_bg.png", "res://Assets/UI/map_details_bg.jpg", "res://Assets/UI/map_discovery_background.png" };
+		string[] bgPaths = { "res://Assets/UI/map_details_bg.webp", "res://Assets/UI/map_discovery_background.webp" };
 
 		foreach (var path in bgPaths)
 		{
 			if (ResourceLoader.Exists(path))
 			{
-				bgTexture = GD.Load<Texture2D>(path);
+				bgTexture = TrimmedTextureLoader.LoadTrimmedTexture(path);
 				if (bgTexture != null) break;
 			}
 		}
@@ -389,10 +393,10 @@ public partial class MapDetails : Control
 
 	private void ApplyPanelStyles()
 	{
-		ApplyStyleBox(_headerPanel, "res://Assets/UI/map_details_header.png", 0, 0, 0, 0);
-		ApplyStyleBox(_descriptionPanel, "res://Assets/UI/map_details_panel_description.png", 52, 52, 38, 42);
-		ApplyStyleBox(_featuresPanel, "res://Assets/UI/map_details_panel_features.png", 40, 40, 38, 35);
-		ApplyStyleBox(_statsPanel, "res://Assets/UI/map_details_info_panel.png", 45, 50, 48, 38);
+		ApplyStyleBox(_headerPanel, "res://Assets/UI/map_details_header.webp", 0, 0, 0, 0);
+		ApplyStyleBox(_descriptionPanel, "res://Assets/UI/map_details_panel_description.webp", 52, 52, 38, 42);
+		ApplyStyleBox(_featuresPanel, "res://Assets/UI/map_details_panel_features.webp", 40, 40, 38, 35);
+		ApplyStyleBox(_statsPanel, "res://Assets/UI/map_details_info_panel.webp", 45, 50, 48, 38);
 	}
 
 	private void ApplyStyleBox(Control panel, string path, int left, int right, int top, int bottom)
@@ -400,7 +404,7 @@ public partial class MapDetails : Control
 		if (ResourceLoader.Exists(path))
 		{
 			var style = new StyleBoxTexture();
-			style.Texture = GD.Load<Texture2D>(path);
+			style.Texture = TrimmedTextureLoader.LoadTrimmedTexture(path);
 			style.ContentMarginLeft = left;
 			style.ContentMarginRight = right;
 			style.ContentMarginTop = top;
@@ -418,24 +422,25 @@ public partial class MapDetails : Control
 	{
 		var descVBox = _descriptionPanel.GetNode<VBoxContainer>("VBoxContainer");
 		descVBox.AddThemeConstantOverride("separation", 16);
-		WrapInPanelContainer(descVBox, "res://Assets/UI/map_details_panel_description.png");
+		WrapInPanelContainer(descVBox, "res://Assets/UI/map_details_panel_description.webp");
 
 		var featuresVBox = _featuresPanel.GetNode<VBoxContainer>("VBoxContainer");
-		if (ResourceLoader.Exists("res://Assets/UI/map_details_panel_features.png"))
+		if (ResourceLoader.Exists("res://Assets/UI/map_details_panel_features.webp"))
 		{
 			featuresVBox.AddThemeConstantOverride("separation", 16);
 		}
 
-		WrapInPanelContainer(featuresVBox, "res://Assets/UI/map_details_panel_features.png");
+		WrapInPanelContainer(featuresVBox, "res://Assets/UI/map_details_panel_features.webp");
 
 		var statsVBox = _statsPanel.GetNode<VBoxContainer>("VBoxContainer");
 		statsVBox.AddThemeConstantOverride("separation", 18);
-		WrapInPanelContainer(statsVBox, "res://Assets/UI/map_details_info_panel.png");
+		WrapInPanelContainer(statsVBox, "res://Assets/UI/map_details_info_panel.webp");
 	}
 
 	private void WrapInPanelContainer(Control content, string stylePath)
 	{
 		var wrapper = new PanelContainer();
+		wrapper.Name = "Wrapper_PanelContainer";
 		if (ResourceLoader.Exists(stylePath))
 		{
 			wrapper.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
@@ -495,7 +500,7 @@ public partial class MapDetails : Control
 
 	private void ApplyMapFrame()
 	{
-		Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.png") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
+		Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp");
 
 		if (mapFrameTex == null)
 		{
@@ -547,14 +552,14 @@ public partial class MapDetails : Control
 
 	private void ApplyCarouselButtons()
 	{
-		Texture2D arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.png") ?? LoadTextureSafe("res://Assets/UI/map_details_prev_next.jpg");
+		Texture2D arrowTex = LoadTextureSafe("res://Assets/UI/map_details_prev_next.webp");
 
 		if (arrowTex != null)
 		{
 			ApplyImageCarouselButton(_btnLeftArrow, arrowTex, true);
 			ApplyImageCarouselButton(_btnRightArrow, arrowTex, false);
 
-			Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.png") ?? LoadTextureSafe("res://Assets/UI/map_details_map.jpg");
+			Texture2D mapFrameTex = LoadTextureSafe("res://Assets/UI/map_details_map.webp");
 			if (mapFrameTex != null)
 			{
 				_btnLeftArrow.Position = new Vector2(132, 155);
@@ -599,20 +604,6 @@ public partial class MapDetails : Control
 		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateFlatButtonStyle(false, true));
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		UIStyle.ApplyButtonText(button, text, 24);
-	}
-
-	private void SetupPillarButton(Button button, string text, Action onClick)
-	{
-		UIStyle.ApplyButtonText(button, text, 18);
-		button.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		button.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		button.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			onClick?.Invoke();
-		};
-		button.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 	}
 
 	private void RegisterEvents()
@@ -771,7 +762,7 @@ public partial class MapDetails : Control
 
 	private bool CheckForMapFrame()
 	{
-		return LoadTextureSafe("res://Assets/UI/map_details_map.png") != null || LoadTextureSafe("res://Assets/UI/map_details_map.jpg") != null;
+		return LoadTextureSafe("res://Assets/UI/map_details_map.webp") != null;
 	}
 
 	private void UpdatePeekVisibilities(bool isVisible)
@@ -792,37 +783,7 @@ public partial class MapDetails : Control
 
 	private Texture2D LoadTextureSafe(string resPath)
 	{
-		if (string.IsNullOrEmpty(resPath)) return null;
-
-		try
-		{
-			if (ResourceLoader.Exists(resPath))
-			{
-				var tex = GD.Load<Texture2D>(resPath);
-				if (tex != null) return tex;
-			}
-		}
-		catch
-		{
-		}
-
-		try
-		{
-			string globalPath = ProjectSettings.GlobalizePath(resPath);
-			if (File.Exists(globalPath))
-			{
-				var image = Image.LoadFromFile(globalPath);
-				if (image != null)
-				{
-					return ImageTexture.CreateFromImage(image);
-				}
-			}
-		}
-		catch
-		{
-		}
-
-		return null;
+		return TrimmedTextureLoader.LoadTrimmedTexture(resPath);
 	}
 
 	private void PopulateFeatures()
@@ -855,6 +816,7 @@ public partial class MapDetails : Control
 	private void CreateFeatureRow(string feat, bool isActive)
 	{
 		var rowPanel = new PanelContainer();
+		rowPanel.Name = "RowPanel_PanelContainer";
 		var rowStyle = new StyleBoxFlat();
 		rowStyle.BgColor = isActive ? new Color(0.03f, 0.05f, 0.08f, 0.65f) : new Color(0.02f, 0.03f, 0.04f, 0.35f);
 		rowStyle.BorderColor = isActive ? new Color(0.15f, 0.65f, 1.0f, 0.5f) : new Color(0.35f, 0.3f, 0.22f, 0.25f);
@@ -867,17 +829,20 @@ public partial class MapDetails : Control
 		rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
 
 		var hBox = new HBoxContainer();
+		hBox.Name = "HBox_HBoxContainer";
 		hBox.AddThemeConstantOverride("separation", 10);
 		rowPanel.AddChild(hBox);
 
 		var iconRect = new TextureRect();
+		iconRect.Name = "IconRect_TextureRect";
 		iconRect.CustomMinimumSize = new Vector2(22, 22);
 		iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		iconRect.Texture = LoadTextureSafe(isActive ? "res://Assets/UI/checked_box.jpg" : "res://Assets/UI/unchecked_box.jpg");
+		iconRect.Texture = LoadTextureSafe(isActive ? "res://Assets/UI/checked_box.webp" : "res://Assets/UI/unchecked_box.webp");
 		hBox.AddChild(iconRect);
 
 		var label = new Label();
+		label.Name = "Label_Label";
 		label.Text = feat;
 		label.VerticalAlignment = VerticalAlignment.Center;
 		label.AddThemeColorOverride("font_color", isActive ? new Color(0.92f, 0.95f, 1.0f) : new Color(0.55f, 0.58f, 0.65f));
@@ -920,6 +885,7 @@ public partial class MapDetails : Control
 		for (int i = 0; i < 5; i++)
 		{
 			var star = new Label();
+			star.Name = "Star_Label";
 			star.Text = i < filledStars ? "★" : "☆";
 			star.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			star.AddThemeFontSizeOverride("font_size", 16);
@@ -939,6 +905,7 @@ public partial class MapDetails : Control
 		foreach (var awardPath in _mapData.Awards)
 		{
 			var badgePanel = new PanelContainer();
+			badgePanel.Name = "BadgePanel_PanelContainer";
 			var badgeStyle = new StyleBoxFlat();
 			badgeStyle.BgColor = new Color(0.08f, 0.09f, 0.12f, 0.85f);
 			badgeStyle.BorderColor = UIStyle.ColorGoldDull;
@@ -951,10 +918,11 @@ public partial class MapDetails : Control
 			badgePanel.AddThemeStyleboxOverride("panel", badgeStyle);
 
 			var rect = new TextureRect();
+			rect.Name = "Rect_TextureRect";
 			rect.CustomMinimumSize = new Vector2(36, 36);
 			rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			rect.Texture = LoadTextureSafe(awardPath) ?? LoadTextureSafe("res://Assets/UI/gold_coin.png");
+			rect.Texture = LoadTextureSafe(awardPath) ?? LoadTextureSafe("res://Assets/UI/gold_coin.webp");
 
 			badgePanel.AddChild(rect);
 			AttachHoverAnimation(badgePanel, 1.10f, UIStyle.ColorGold, UIStyle.ColorGoldDull);
@@ -969,9 +937,9 @@ public partial class MapDetails : Control
 			child.QueueFree();
 		}
 
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/clock.png", $"AVG PLAYTIME: {_mapData.AvgPlaytime}");
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/alliance_flag.png", $"PLAYER COUNT: {_mapData.PlayerCount}");
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/victory_flag.png", $"COMPLETION RATE: {_mapData.CompletionRate}");
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/clock.webp", $"AVG PLAYTIME: {_mapData.AvgPlaytime}");
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/alliance_flag.webp", $"PLAYER COUNT: {_mapData.PlayerCount}");
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/victory_flag.webp", $"COMPLETION RATE: {_mapData.CompletionRate}");
 	}
 
 	private void PopulateTechInfo()
@@ -981,15 +949,16 @@ public partial class MapDetails : Control
 			child.QueueFree();
 		}
 
-		AddStatRow(_techInfoContainer, "res://Assets/UI/wood_logs.png", $"FILE SIZE: {_mapData.FileSize}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/gold_g.png", $"ENGINE VERSION: {_mapData.EngineVersion}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_shield.png", $"MAX PLAYERS: {_mapData.MaxPlayers}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_axe.png", $"GENRE: {_mapData.Genre}");
+		AddStatRow(_techInfoContainer, "res://Assets/UI/wood_logs.webp", $"FILE SIZE: {_mapData.FileSize}");
+		AddStatRow(_techInfoContainer, "res://Assets/UI/gold_g.webp", $"ENGINE VERSION: {_mapData.EngineVersion}");
+		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_shield.webp", $"MAX PLAYERS: {_mapData.MaxPlayers}");
+		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_axe.webp", $"GENRE: {_mapData.Genre}");
 	}
 
 	private void AddStatRow(VBoxContainer container, string iconPath, string text)
 	{
 		var rowPanel = new PanelContainer();
+		rowPanel.Name = "RowPanel_PanelContainer";
 		var rowStyle = new StyleBoxFlat();
 		rowStyle.BgColor = new Color(0.02f, 0.03f, 0.04f, 0.5f);
 		rowStyle.BorderColor = new Color(0.45f, 0.38f, 0.25f, 0.35f);
@@ -1002,20 +971,23 @@ public partial class MapDetails : Control
 		rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
 
 		var hBox = new HBoxContainer();
+		hBox.Name = "HBox_HBoxContainer";
 		hBox.AddThemeConstantOverride("separation", 10);
 		rowPanel.AddChild(hBox);
 
 		var icon = new TextureRect();
+		icon.Name = "Icon_TextureRect";
 		icon.CustomMinimumSize = new Vector2(24, 24);
 		icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		icon.Texture = GD.Load<Texture2D>(iconPath);
+		icon.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		hBox.AddChild(icon);
 
 		string[] parts = text.Split(new char[] { ':' }, 2);
 		if (parts.Length == 2)
 		{
 			var keyLabel = new Label();
+			keyLabel.Name = "KeyLabel_Label";
 			keyLabel.Text = parts[0].Trim() + ":";
 			keyLabel.VerticalAlignment = VerticalAlignment.Center;
 			keyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -1023,6 +995,7 @@ public partial class MapDetails : Control
 			hBox.AddChild(keyLabel);
 
 			var valueLabel = new Label();
+			valueLabel.Name = "ValueLabel_Label";
 			valueLabel.Text = parts[1].Trim();
 			valueLabel.VerticalAlignment = VerticalAlignment.Center;
 			valueLabel.AddThemeColorOverride("font_color", new Color(0.92f, 0.94f, 0.98f));
@@ -1033,6 +1006,7 @@ public partial class MapDetails : Control
 		else
 		{
 			var label = new Label();
+			label.Name = "Label_Label";
 			label.Text = text;
 			label.VerticalAlignment = VerticalAlignment.Center;
 			label.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
@@ -1050,6 +1024,7 @@ public partial class MapDetails : Control
 		if (titleLabel.GetParent() is PanelContainer) return;
 
 		var card = new PanelContainer();
+		card.Name = "Card_PanelContainer";
 		var cardStyle = new StyleBoxFlat();
 		cardStyle.BgColor = isAccentCard
 			? new Color(0.06f, 0.07f, 0.10f, 0.8f)
@@ -1066,6 +1041,7 @@ public partial class MapDetails : Control
 		card.AddThemeStyleboxOverride("panel", cardStyle);
 
 		var innerVBox = new VBoxContainer();
+		innerVBox.Name = "InnerVBox_VBoxContainer";
 		innerVBox.AddThemeConstantOverride("separation", 8);
 
 		int insertIndex = titleLabel.GetIndex();

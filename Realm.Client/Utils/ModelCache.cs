@@ -486,17 +486,31 @@ namespace Realm.Client.Utils
 			Error err = doc.AppendFromBuffer(glbBytes, "", state);
 			if (err != Error.Ok) return null;
 
-			Node generatedNode = doc.GenerateScene(state);
+			Node generatedNode = null;
+			try
+			{
+				generatedNode = doc.GenerateScene(state);
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[ModelCache] GenerateScene failed for '{modelPath}': {ex.Message}");
+				return null;
+			}
+
 			if (generatedNode == null) return null;
 
-			GltfDocumentExtensionMsftLod.ProcessImportedScene(state, generatedNode);
-			SetOwnerRecursive(generatedNode, generatedNode);
+			try
+			{
+				SetOwnerRecursive(generatedNode, generatedNode);
 
-			var packedScene = new PackedScene();
-			Error packErr = packedScene.Pack(generatedNode);
-			generatedNode.Free();
-
-			return packErr == Error.Ok ? packedScene : null;
+				var packedScene = new PackedScene();
+				Error packErr = packedScene.Pack(generatedNode);
+				return packErr == Error.Ok ? packedScene : null;
+			}
+			finally
+			{
+				generatedNode.Free();
+			}
 		}
 
 		private static PackedScene BuildPrimitiveMeshScene(string texturePath)
@@ -600,12 +614,17 @@ namespace Realm.Client.Utils
 			meshInstance.MaterialOverride = mat;
 			rootNode.AddChild(meshInstance);
 
-			SetOwnerRecursive(rootNode, rootNode);
-			var packedScene = new PackedScene();
-			Error packErr = packedScene.Pack(rootNode);
-			rootNode.Free();
-
-			return packErr == Error.Ok ? packedScene : null;
+			try
+			{
+				SetOwnerRecursive(rootNode, rootNode);
+				var packedScene = new PackedScene();
+				Error packErr = packedScene.Pack(rootNode);
+				return packErr == Error.Ok ? packedScene : null;
+			}
+			finally
+			{
+				rootNode.Free();
+			}
 		}
 
 		private static void SetOwnerRecursive(Node node, Node owner)
@@ -635,13 +654,18 @@ namespace Realm.Client.Utils
 
 				if (node != null)
 				{
-					float minY = Unit3D.GetMinY(node, Transform3D.Identity);
-					node.Free();
-
-					if (float.IsFinite(minY) && Math.Abs(minY) > 0.0001f)
+					try
 					{
-						float yOffset = (float)Math.Round(-minY * scale, 4);
-						return (minY, yOffset);
+						float minY = Unit3D.GetMinY(node, Transform3D.Identity);
+						if (float.IsFinite(minY) && Math.Abs(minY) > 0.0001f)
+						{
+							float yOffset = (float)Math.Round(-minY * scale, 4);
+							return (minY, yOffset);
+						}
+					}
+					finally
+					{
+						node.Free();
 					}
 				}
 			}
@@ -653,6 +677,29 @@ namespace Realm.Client.Utils
 			return (0f, 0f);
 		}
 
+		public static Node TryGenerateNodeFromRmeshOrGlbBytes(byte[] rmeshBytes)
+		{
+			var doc = new GltfDocument();
+			var state = new GltfState();
+			byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
+
+			Error err = doc.AppendFromBuffer(glbBytes, "", state);
+			if (err == Error.Ok)
+			{
+				try
+				{
+					return doc.GenerateScene(state);
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr($"[ModelCache] GenerateScene failed: {ex.Message}");
+					return null;
+				}
+			}
+
+			return null;
+		}
+
 		private static Node TryGenerateNodeFromRmesh(string resolvedPath)
 		{
 			if (string.IsNullOrEmpty(resolvedPath) || !resolvedPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !File.Exists(resolvedPath))
@@ -660,18 +707,8 @@ namespace Realm.Client.Utils
 				return null;
 			}
 
-			var doc = new GltfDocument();
-			var state = new GltfState();
 			byte[] rmeshBytes = File.ReadAllBytes(resolvedPath);
-			byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
-
-			Error err = doc.AppendFromBuffer(glbBytes, "", state);
-			if (err == Error.Ok)
-			{
-				return doc.GenerateScene(state);
-			}
-
-			return null;
+			return TryGenerateNodeFromRmeshOrGlbBytes(rmeshBytes);
 		}
 
 		public static void Clear()

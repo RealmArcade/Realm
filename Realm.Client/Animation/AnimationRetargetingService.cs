@@ -6,6 +6,7 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Ecs.Services;
+using Realm.Shared.Animation;
 using GAnimation = Godot.Animation;
 
 namespace Realm.Client.Animation;
@@ -23,7 +24,7 @@ public static class AnimationRetargetingService
 
 	public static RealmAnimationData? GetOrLoadRanimData(string filePath)
 	{
-		if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
+		if (string.IsNullOrEmpty(filePath)) return null;
 
 		if (CachedRanimData.TryGetValue(filePath, out var cached))
 		{
@@ -32,7 +33,32 @@ public static class AnimationRetargetingService
 
 		try
 		{
-			var data = RealmAnimationSerializer.LoadFromFile(filePath);
+			RealmAnimationData? data = null;
+			if (filePath.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ||
+			    filePath.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+			{
+				if (Godot.FileAccess.FileExists(filePath))
+				{
+					byte[] bytes = Godot.FileAccess.GetFileAsBytes(filePath);
+					if (bytes != null && bytes.Length > 0)
+					{
+						data = RealmAnimationSerializer.Deserialize(bytes);
+					}
+				}
+			}
+			else if (File.Exists(filePath))
+			{
+				data = RealmAnimationSerializer.LoadFromFile(filePath);
+			}
+			else if (Godot.FileAccess.FileExists(filePath))
+			{
+				byte[] bytes = Godot.FileAccess.GetFileAsBytes(filePath);
+				if (bytes != null && bytes.Length > 0)
+				{
+					data = RealmAnimationSerializer.Deserialize(bytes);
+				}
+			}
+
 			if (data != null)
 			{
 				CachedRanimData[filePath] = data;
@@ -52,11 +78,15 @@ public static class AnimationRetargetingService
 		if (string.IsNullOrEmpty(animName)) return null;
 		if (File.Exists(animName)) return animName;
 
-		if (animName.StartsWith("res://") || animName.StartsWith("user://"))
+		if (animName.StartsWith("res://", StringComparison.OrdinalIgnoreCase) || animName.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
 		{
+			if (Godot.FileAccess.FileExists(animName)) return animName;
 			string globalized = ProjectSettings.GlobalizePath(animName);
 			if (File.Exists(globalized)) return globalized;
 		}
+
+		string directRes = $"res://{animName.TrimStart('/')}";
+		if (Godot.FileAccess.FileExists(directRes)) return directRes;
 
 		var candidateNames = BuildCandidateNames(animName, unitId);
 
@@ -69,6 +99,9 @@ public static class AnimationRetargetingService
 		string resDir = ProjectSettings.GlobalizePath("res://");
 		foreach (var candName in candidateNames)
 		{
+			string resPath = $"res://Assets/animations/{candName}";
+			if (Godot.FileAccess.FileExists(resPath)) return resPath;
+
 			string p = Path.Combine(resDir, "Assets", "animations", candName);
 			if (File.Exists(p)) return p;
 		}
@@ -148,18 +181,40 @@ public static class AnimationRetargetingService
 		if (result != null) return result;
 
 		string mapDir = ProjectSettings.GlobalizePath($"user://maps/{activeMap}");
-		return TryResolveInDirectory(mapDir, candidateNames);
+		result = TryResolveInDirectory(mapDir, candidateNames);
+		if (result != null) return result;
+
+		string resMapDir = $"res://Maps/{activeMap}";
+		return TryResolveInDirectory(resMapDir, candidateNames);
 	}
 
 	private static string TryResolveInDirectory(string directory, List<string> candidateNames)
 	{
 		if (string.IsNullOrEmpty(directory)) return null;
+
+		if (directory.StartsWith("res://", StringComparison.OrdinalIgnoreCase) || directory.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+		{
+			foreach (var candName in candidateNames)
+			{
+				string p = $"{directory.TrimEnd('/')}/Assets/animations/{candName}";
+				if (Godot.FileAccess.FileExists(p)) return p;
+
+				string directP = $"{directory.TrimEnd('/')}/{candName}";
+				if (Godot.FileAccess.FileExists(directP)) return directP;
+			}
+
+			return null;
+		}
+
 		if (!Directory.Exists(directory)) return null;
 
 		foreach (var candName in candidateNames)
 		{
 			string p = Path.Combine(directory, "Assets", "animations", candName);
 			if (File.Exists(p)) return p;
+
+			string directP = Path.Combine(directory, candName);
+			if (File.Exists(directP)) return directP;
 		}
 
 		return null;
@@ -490,14 +545,30 @@ public static class AnimationRetargetingService
 	{
 		if (modelRoot == null) return false;
 
+		var player = FindOrCreateAnimationPlayer(modelRoot);
+		if (player == null) return false;
+
+		string cacheKey = $"{unitId ?? string.Empty}|{modelPath ?? string.Empty}|{MapWorkspaceService.GetActiveWorkspacePath() ?? string.Empty}";
+		if (!string.IsNullOrEmpty(unitId) && !string.IsNullOrEmpty(modelPath) &&
+		    InMemoryRetargetedLibraries.TryGetValue(cacheKey, out var cachedLib) &&
+		    cachedLib != null && GodotObject.IsInstanceValid(cachedLib))
+		{
+			DetermineAnimMixerRoot(player, modelRoot);
+			var libs = player.GetAnimationLibraryList();
+			foreach (var libName in libs)
+			{
+				player.RemoveAnimationLibrary(libName);
+			}
+
+			player.AddAnimationLibrary(string.Empty, cachedLib);
+			return true;
+		}
+
 		var validation = SkeletonValidator.Validate(modelRoot);
 		if (!validation.IsValid)
 		{
 			return false;
 		}
-
-		var player = FindOrCreateAnimationPlayer(modelRoot);
-		if (player == null) return false;
 
 		var existingLibs = player.GetAnimationLibraryList();
 		foreach (var libName in existingLibs)
@@ -505,14 +576,29 @@ public static class AnimationRetargetingService
 			player.RemoveAnimationLibrary(libName);
 		}
 
-		player.AddAnimationLibrary(string.Empty, new AnimationLibrary());
+		var newLib = new AnimationLibrary();
+		player.AddAnimationLibrary(string.Empty, newLib);
 
 		var customAnimations = GetCustomAnimations(unitId);
-		string[] standardAnimations = new[] { "Idle", "Walk", "Attack", "Death", "Labor", "Spell_Cast", "Dance" };
+		var standardAnimations = new[]
+		{
+			RealmAnimationType.Idle,
+			RealmAnimationType.Walk,
+			RealmAnimationType.Attack,
+			RealmAnimationType.Death,
+			RealmAnimationType.Labor,
+			RealmAnimationType.Spell_Cast,
+			RealmAnimationType.Dance
+		};
 
 		foreach (var animType in standardAnimations)
 		{
 			ProcessUnitAnimation(animType, customAnimations, unitId, modelRoot);
+		}
+
+		if (!string.IsNullOrEmpty(unitId) && !string.IsNullOrEmpty(modelPath))
+		{
+			InMemoryRetargetedLibraries[cacheKey] = newLib;
 		}
 
 		return true;
@@ -528,9 +614,61 @@ public static class AnimationRetargetingService
 		return null;
 	}
 
-	private static void ProcessUnitAnimation(string animType, Dictionary<string, List<UnitAnimationEntry>>? customAnimations, string unitId, Node modelRoot)
+	public static bool TryParseAnimationType(string? name, out RealmAnimationType type)
 	{
-		if (customAnimations != null && customAnimations.TryGetValue(animType, out var animFiles) && animFiles != null && animFiles.Count > 0)
+		type = RealmAnimationType.Unknown;
+		if (string.IsNullOrWhiteSpace(name)) return false;
+
+		if (Enum.TryParse<RealmAnimationType>(name, true, out type) && type != RealmAnimationType.Unknown)
+		{
+			return true;
+		}
+
+		string cleaned = name.Replace("_", string.Empty).ToLowerInvariant();
+		switch (cleaned)
+		{
+			case "idle": type = RealmAnimationType.Idle; return true;
+			case "walk": type = RealmAnimationType.Walk; return true;
+			case "attack": type = RealmAnimationType.Attack; return true;
+			case "death": type = RealmAnimationType.Death; return true;
+			case "labor": type = RealmAnimationType.Labor; return true;
+			case "spellcast": type = RealmAnimationType.Spell_Cast; return true;
+			case "dance": type = RealmAnimationType.Dance; return true;
+			default:
+				type = RealmAnimationType.Unknown;
+				return false;
+		}
+	}
+
+	public static RealmAnimationData? GetFallbackAnimationData(RealmAnimationType animType, string? unitId = null)
+	{
+		return animType switch
+		{
+			RealmAnimationType.Idle => GetIdleAnimationData(unitId),
+			RealmAnimationType.Walk => RealmDefaultAnimations.Walk,
+			RealmAnimationType.Attack => RealmDefaultAnimations.Attack,
+			RealmAnimationType.Death => RealmDefaultAnimations.Death,
+			RealmAnimationType.Labor => RealmDefaultAnimations.Labor,
+			RealmAnimationType.Spell_Cast => RealmDefaultAnimations.Spell_Cast,
+			RealmAnimationType.Dance => RealmDefaultAnimations.Dance,
+			_ => null
+		};
+	}
+
+	public static RealmAnimationData? GetFallbackAnimationData(string animName, string? unitId = null)
+	{
+		if (TryParseAnimationType(animName, out var animType))
+		{
+			return GetFallbackAnimationData(animType, unitId);
+		}
+
+		return null;
+	}
+
+	private static void ProcessUnitAnimation(RealmAnimationType animType, Dictionary<string, List<UnitAnimationEntry>>? customAnimations, string unitId, Node modelRoot)
+	{
+		string animName = animType.ToString();
+		if (customAnimations != null && customAnimations.TryGetValue(animName, out var animFiles) && animFiles != null && animFiles.Count > 0)
 		{
 			BindCustomAnimations(animFiles, animType, unitId, modelRoot);
 		}
@@ -540,12 +678,13 @@ public static class AnimationRetargetingService
 		}
 	}
 
-	private static void BindCustomAnimations(List<UnitAnimationEntry> animFiles, string animType, string unitId, Node modelRoot)
+	private static void BindCustomAnimations(List<UnitAnimationEntry> animFiles, RealmAnimationType animType, string unitId, Node modelRoot)
 	{
+		string animName = animType.ToString();
 		for (int i = 0; i < animFiles.Count; i++)
 		{
 			string animFile = animFiles[i].Animation;
-			string variantName = $"{animType}_{i}";
+			string variantName = $"{animName}_{i}";
 			string filePath = ResolveAnimationFilePath(animFile, unitId);
 
 			if (string.IsNullOrEmpty(filePath)) continue;
@@ -556,22 +695,23 @@ public static class AnimationRetargetingService
 				RetargetAndBind(animData, modelRoot, variantName, out _);
 				if (i == 0)
 				{
-					RetargetAndBind(animData, modelRoot, animType, out _);
+					RetargetAndBind(animData, modelRoot, animName, out _);
 				}
 			}
 		}
 	}
 
-	private static void BindStandardAnimation(string animType, string unitId, Node modelRoot)
+	private static void BindStandardAnimation(RealmAnimationType animType, string unitId, Node modelRoot)
 	{
-		string filePath = ResolveAnimationFilePath(animType, unitId);
+		string animName = animType.ToString();
+		string filePath = ResolveAnimationFilePath(animName, unitId);
 		if (!string.IsNullOrEmpty(filePath))
 		{
 			var animData = GetOrLoadRanimData(filePath);
 			if (animData != null)
 			{
-				RetargetAndBind(animData, modelRoot, animType, out _);
-				RetargetAndBind(animData, modelRoot, $"{animType}_0", out _);
+				RetargetAndBind(animData, modelRoot, animName, out _);
+				RetargetAndBind(animData, modelRoot, $"{animName}_0", out _);
 				return;
 			}
 		}
@@ -579,24 +719,23 @@ public static class AnimationRetargetingService
 		BindFallbackAnimation(animType, modelRoot, unitId);
 	}
 
-	private static void BindFallbackAnimation(string animType, Node modelRoot, string unitId)
+	public static void BindFallbackAnimation(RealmAnimationType animType, Node modelRoot, string? unitId = null)
 	{
-		RealmAnimationData? fallbackAnim = animType switch
-		{
-			"Idle" => GetIdleAnimationData(unitId),
-			"Walk" => RealmDefaultAnimations.Walk,
-			"Attack" => RealmDefaultAnimations.Attack,
-			"Death" => RealmDefaultAnimations.Death,
-			"Labor" => RealmDefaultAnimations.Labor,
-			"Spell_Cast" => RealmDefaultAnimations.Spell_Cast,
-			"Dance" => RealmDefaultAnimations.Dance,
-			_ => null
-		};
+		RealmAnimationData? fallbackAnim = GetFallbackAnimationData(animType, unitId);
 
 		if (fallbackAnim != null)
 		{
-			RetargetAndBind(fallbackAnim, modelRoot, animType, out _);
-			RetargetAndBind(fallbackAnim, modelRoot, $"{animType}_0", out _);
+			string animName = animType.ToString();
+			RetargetAndBind(fallbackAnim, modelRoot, animName, out _);
+			RetargetAndBind(fallbackAnim, modelRoot, $"{animName}_0", out _);
+		}
+	}
+
+	public static void BindFallbackAnimation(string animType, Node modelRoot, string? unitId = null)
+	{
+		if (TryParseAnimationType(animType, out var type))
+		{
+			BindFallbackAnimation(type, modelRoot, unitId);
 		}
 	}
 
@@ -605,7 +744,7 @@ public static class AnimationRetargetingService
 		if (!string.IsNullOrEmpty(unitId))
 		{
 			string? customPath = ResolveAnimationFilePath("Idle", unitId);
-			if (!string.IsNullOrEmpty(customPath) && File.Exists(customPath))
+			if (!string.IsNullOrEmpty(customPath))
 			{
 				var data = GetOrLoadRanimData(customPath);
 				if (data != null) return data;
@@ -620,14 +759,22 @@ public static class AnimationRetargetingService
 		string? filePath = ResolveAnimationFilePath("idle.ranim", unitId);
 		if (string.IsNullOrEmpty(filePath))
 		{
-			string resPath = ProjectSettings.GlobalizePath("res://Assets/animations/idle.ranim");
-			if (File.Exists(resPath))
+			string resPath = "res://Assets/animations/idle.ranim";
+			if (Godot.FileAccess.FileExists(resPath))
 			{
 				filePath = resPath;
 			}
+			else
+			{
+				string globalResPath = ProjectSettings.GlobalizePath(resPath);
+				if (File.Exists(globalResPath))
+				{
+					filePath = globalResPath;
+				}
+			}
 		}
 
-		if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+		if (!string.IsNullOrEmpty(filePath))
 		{
 			return GetOrLoadRanimData(filePath);
 		}

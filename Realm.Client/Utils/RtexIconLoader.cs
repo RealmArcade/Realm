@@ -49,17 +49,10 @@ public static class RtexIconLoader
 
 	private static Texture2D? LoadGodotResource(string iconPath)
 	{
-		if (!iconPath.StartsWith("res://", StringComparison.OrdinalIgnoreCase) || !ResourceLoader.Exists(iconPath))
+		if (!iconPath.StartsWith("res://", StringComparison.OrdinalIgnoreCase) || !Godot.FileAccess.FileExists(iconPath))
 			return null;
 
-		try
-		{
-			return GD.Load<Texture2D>(iconPath);
-		}
-		catch
-		{
-			return null;
-		}
+		return TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 	}
 
 	private static Texture2D? LoadRtexFile(string resolvedPath)
@@ -88,28 +81,11 @@ public static class RtexIconLoader
 
 	private static Texture2D? LoadStandardImage(string resolvedPath)
 	{
-		try
-		{
-			var image = Image.LoadFromFile(resolvedPath);
-			if (image == null)
-				return null;
-
-			return CreateTextureFromImage(image);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[RtexIconLoader] Failed to load image from '{resolvedPath}': {ex.Message}");
-			return null;
-		}
+		return TrimmedTextureLoader.LoadTrimmedTexture(resolvedPath);
 	}
 
 	private static Texture2D? CreateTextureFromImage(Image image)
 	{
-		if (!image.HasMipmaps())
-		{
-			image.GenerateMipmaps();
-		}
-
 		return ImageTexture.CreateFromImage(image);
 	}
 

@@ -90,6 +90,8 @@ public partial class GameHost
 
 	private void UpdateClientTick(float fDelta)
 	{
+		CapturePreviousStateSnapshots();
+
 		_commandSendTimer += fDelta;
 		if (_commandSendTimer >= 0.05f)
 		{

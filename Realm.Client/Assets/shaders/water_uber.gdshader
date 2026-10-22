@@ -1,6 +1,8 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_always, cull_back;
 
+#include "res://Assets/shaders/shroud.gdshaderinc"
+
 uniform vec4 shallow_color : source_color = vec4(0.05, 0.30, 0.38, 0.55);
 uniform vec4 deep_color : source_color = vec4(0.01, 0.06, 0.14, 0.98);
 uniform vec4 foam_color : source_color = vec4(0.85, 0.95, 1.0, 0.85);
@@ -41,11 +43,6 @@ uniform int detail_blend_mode : hint_range(0, 2) = 0;
 
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
 uniform sampler2D screen_texture : hint_screen_texture, filter_linear_mipmap;
-
-uniform sampler2D shroud_texture : hint_default_black;
-uniform vec2 shroud_world_min = vec2(-125.0, -125.0);
-uniform vec2 shroud_world_size = vec2(250.0, 250.0);
-uniform bool shroud_enabled = false;
 
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
@@ -283,16 +280,17 @@ void fragment() {
 		}
 	}
 
-	vec2 shroud_uv = (v_world_pos.xz - shroud_world_min) / shroud_world_size;
-	float shroud_factor = shroud_enabled ? texture(shroud_texture, clamp(shroud_uv, 0.0, 1.0)).r : 0.0;
-	vec3 final_albedo = base_liquid_rgb * (1.0 - shroud_factor * 0.98);
+	vec2 shroud_state = rts_shroud_sample(v_world_pos.xz);
+	float shroud_light = rts_shroud_light_from_state(shroud_state);
+	float shroud_explored_mask = rts_shroud_explored_mask(shroud_state);
+	vec3 final_albedo = base_liquid_rgb * shroud_light;
 
 	vec3 emissive_out = vec3(0.0);
 	if (emission_boost > 0.001) {
 		float surface_heat_variation = (wave_height_sample * 0.5 + 0.5) * 0.4 + (1.0 - depth_factor) * 0.6;
 		float core_factor = smoothstep(core_threshold, 1.0, surface_heat_variation);
 		vec3 heat_color = mix(emission_color.rgb, core_color.rgb, core_factor);
-		emissive_out = heat_color * emission_boost * (1.0 - shroud_factor * 0.98);
+		emissive_out = heat_color * emission_boost * shroud_light;
 		if (use_detail_texture) {
 			float det_lum = clamp(dot(det_sample.rgb, vec3(0.299, 0.587, 0.114)) * 1.5, 0.1, 2.5);
 			emissive_out *= mix(vec3(1.0), det_sample.rgb * det_lum, clamp(detail_alpha * 0.85, 0.0, 1.0));
@@ -301,14 +299,14 @@ void fragment() {
 
 	if (subsurface_strength > 0.001) {
 		float sss_factor = (1.0 - depth_factor) * subsurface_strength;
-		final_albedo += subsurface_color.rgb * sss_factor * (1.0 - shroud_factor * 0.98);
+		final_albedo += subsurface_color.rgb * sss_factor * shroud_light;
 	}
 
 	ALBEDO = final_albedo;
 	ALPHA = final_alpha;
 	EMISSION = emissive_out;
 
-	ROUGHNESS = mix(mix(0.08, 0.25, waterfall_factor), 0.8, shroud_factor);
+	ROUGHNESS = mix(mix(0.08, 0.25, waterfall_factor), 0.8, shroud_explored_mask);
 	METALLIC = 0.0;
-	SPECULAR = mix(0.45, 0.30, waterfall_factor) * (1.0 - shroud_factor * 0.98);
+	SPECULAR = mix(0.45, 0.30, waterfall_factor) * shroud_light;
 }

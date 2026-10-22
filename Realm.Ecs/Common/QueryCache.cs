@@ -22,6 +22,7 @@ public static class QueryCache
 	public static readonly QueryDescription AllPropSpawnRequestQuery = new QueryDescription().WithAll<PropSpawnRequest>();
 	public static readonly QueryDescription AllDecalSpawnRequestQuery = new QueryDescription().WithAll<DecalSpawnRequest>();
 	public static readonly QueryDescription AllShroudStateQuery = new QueryDescription().WithAll<ShroudState>();
+	public static readonly QueryDescription AllShroudVisionSourceQuery = new QueryDescription().WithAll<Position, UnitOwnerPlayer>().WithNone<Dead>();
 	public static readonly QueryDescription AllWeatherStateQuery = new QueryDescription().WithAll<WeatherState>();
 	public static readonly QueryDescription AllHealthAndOwnerQuery = new QueryDescription().WithAll<Health, Owner>();
 	public static readonly QueryDescription AllPositionAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Position, Owner>().WithNone<Dead>();

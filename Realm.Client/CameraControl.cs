@@ -7,6 +7,7 @@ using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
+[GlobalClass]
 public partial class CameraControl : Camera3D
 {
 	public CameraControl()
@@ -65,7 +66,7 @@ public partial class CameraControl : Camera3D
 
 	public float MaxZoom
 	{
-		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).MaxZoom : 60.0f;
+		get => HasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity).MaxZoom : 90.0f;
 		set
 		{
 			if (HasCameraState)
@@ -541,8 +542,14 @@ public partial class CameraControl : Camera3D
 
 	public void FocusOnPosition(Vector3 targetPos)
 	{
-		float offsetZ = _isTopDown ? 0.0f : 15.0f;
-		Position = new Vector3(targetPos.X, Position.Y, targetPos.Z + offsetZ);
+		float yawRadians = Mathf.DegToRad(_currentYaw);
+		float pitchRadians = Mathf.DegToRad(_currentPitch);
+		Vector3 forwardXZ = new Vector3(-Mathf.Sin(yawRadians), 0.0f, -Mathf.Cos(yawRadians));
+		float heightAboveTarget = Mathf.Max(0.0f, Position.Y - targetPos.Y);
+		float pitchTangent = Mathf.Tan(Mathf.Abs(pitchRadians));
+		float horizontalDistance = pitchTangent > 0.0001f ? heightAboveTarget / pitchTangent : 0.0f;
+		Vector3 focusPosition = new Vector3(targetPos.X, Position.Y, targetPos.Z) - (forwardXZ * horizontalDistance);
+		Position = focusPosition;
 	}
 
 	public override void _Ready()

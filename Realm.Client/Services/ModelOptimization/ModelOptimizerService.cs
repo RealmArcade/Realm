@@ -118,40 +118,4 @@ public class ModelOptimizerService
 		return Math.Clamp(allowedPixelError / viewportHeightPixels, 0.0001f, 0.5f);
 	}
 
-	public static (Shape3D Shape, Vector3 Offset) GenerateAnalyticalCollisionShape(Aabb aabb, bool isBuilding = false, float marginRatio = 1.0f)
-	{
-		Vector3 center = aabb.GetCenter();
-		Vector3 size = aabb.Size * marginRatio;
-
-		if (isBuilding)
-		{
-			var box = new BoxShape3D
-			{
-				Size = new Vector3(Math.Max(1.0f, size.X), Math.Max(1.0f, size.Y), Math.Max(1.0f, size.Z))
-			};
-			return (box, center);
-		}
-
-		float radius = Math.Max(size.X, size.Z) * 0.5f;
-		float height = Math.Max(1.0f, size.Y);
-
-		if (height >= radius * 2.0f)
-		{
-			var capsule = new CapsuleShape3D
-			{
-				Radius = Math.Max(0.2f, radius),
-				Height = height
-			};
-			return (capsule, center);
-		}
-		else
-		{
-			var cylShape = new CylinderShape3D
-			{
-				Radius = Math.Max(0.2f, radius),
-				Height = height
-			};
-			return (cylShape, center);
-		}
-	}
 }

@@ -15,8 +15,9 @@ public struct VFXRequest
 	public float Scale;
 	public float Speed;
 	public int EntityId;
+	public int OwnerPlayerIndex;
 
-	public VFXRequest(string effectTypeId, Vector3 position, Vector3 targetPosition, float scale, float speed, int entityId = -1)
+	public VFXRequest(string effectTypeId, Vector3 position, Vector3 targetPosition, float scale, float speed, int entityId = -1, int ownerPlayerIndex = 0)
 	{
 		StringId = StringRegistry.GetOrAdd(effectTypeId);
 		Position = position;
@@ -24,6 +25,7 @@ public struct VFXRequest
 		Scale = scale;
 		Speed = speed;
 		EntityId = entityId;
+		OwnerPlayerIndex = ownerPlayerIndex;
 	}
 
 	public string EffectTypeId

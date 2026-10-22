@@ -4,9 +4,11 @@ using Godot;
 using Realm.Client.Network;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class SettingsMenu : Control
 {
 	public SettingsMenu()
@@ -141,9 +143,9 @@ public partial class SettingsMenu : Control
 		_cancelBtn = GetNode<Button>("CenterContainer/MainFrame/VBoxContainer/ButtonsRow/CancelButton");
 		_resetBtn = GetNode<Button>("CenterContainer/MainFrame/VBoxContainer/ButtonsRow/ResetButton");
 
-		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/TitleBox/HBox/TitleIcon").Texture = GD.Load<Texture2D>("res://Assets/UI/icon_video.svg");
-		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/TitleBox/HBox/TitleIcon").Texture = GD.Load<Texture2D>("res://Assets/UI/icon_audio.svg");
-		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/TitleBox/HBox/TitleIcon").Texture = GD.Load<Texture2D>("res://Assets/UI/icon_gameplay.svg");
+		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/TitleBox/HBox/TitleIcon").Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/icon_video.svg");
+		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/TitleBox/HBox/TitleIcon").Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/icon_audio.svg");
+		GetNode<TextureRect>("CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/TitleBox/HBox/TitleIcon").Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/icon_gameplay.svg");
 
 		ApplyThemeStyles();
 		PopulateDropdowns();
@@ -171,15 +173,14 @@ public partial class SettingsMenu : Control
 		Texture2D bgTexture = null;
 		string[] bgPaths = new string[]
 		{
-			"res://Assets/UI/options_bg.png",
-			"res://Assets/UI/options_bg.jpg",
-			"res://Assets/UI/menu_background_with_frame.jpg"
+			"res://Assets/UI/options_bg.webp",
+			"res://Assets/UI/menu_background_with_frame.webp"
 		};
 
 		foreach (var path in bgPaths)
 		{
 			if (!ResourceLoader.Exists(path)) continue;
-			bgTexture = GD.Load<Texture2D>(path);
+			bgTexture = TrimmedTextureLoader.LoadTrimmedTexture(path);
 			if (bgTexture != null) break;
 		}
 
@@ -789,7 +790,10 @@ public partial class SettingsMenu : Control
 		_languageOpt.Select((int)GameSettings.Language);
 		if (_movementPredictionChk != null)
 		{
-			_movementPredictionChk.ButtonPressed = GameSettings.MovementPrediction;
+			bool movementPredictionAvailable = PathUtils.IsDevelopmentBuild;
+			_movementPredictionChk.Visible = movementPredictionAvailable;
+			_movementPredictionChk.Disabled = !movementPredictionAvailable;
+			_movementPredictionChk.ButtonPressed = movementPredictionAvailable && GameSettings.MovementPrediction;
 		}
 	}
 
@@ -886,7 +890,7 @@ public partial class SettingsMenu : Control
 		GameSettings.SeedMapFiles = _seedMapFilesChk.ButtonPressed;
 		if (_movementPredictionChk != null)
 		{
-			GameSettings.MovementPrediction = _movementPredictionChk.ButtonPressed;
+			GameSettings.MovementPrediction = PathUtils.IsDevelopmentBuild && _movementPredictionChk.ButtonPressed;
 		}
 		GameSettings.ShowHealthBars = (HealthBarMode)_healthBarsOpt.Selected;
 	}

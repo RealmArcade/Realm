@@ -70,7 +70,7 @@ public class MapEditorEntityPaletteController
 			return false;
 		}
 
-		if (GameContext.RegistryService.VfxRegistry.TryGetValue(key, out var meta))
+		if (GameContext.RegistryService.TryGetVfxConfig(key, out var meta))
 		{
 			if (!string.IsNullOrEmpty(meta.Name))
 			{
@@ -161,6 +161,7 @@ public class MapEditorEntityPaletteController
 
 
 		var categoryGrid = new GridContainer();
+		categoryGrid.Name = "CategoryGrid_GridContainer";
 		categoryGrid.Columns = 2;
 		categoryGrid.AddThemeConstantOverride("h_separation", 6);
 		categoryGrid.AddThemeConstantOverride("v_separation", 6);
@@ -180,58 +181,47 @@ public class MapEditorEntityPaletteController
 		};
 
 		_btnChars = new Button();
+		_btnChars.Name = "BtnChars_Button";
 		_btnChars.Set("icon_max_width", 0);
-		SetupButton(_btnChars, "👥 Units", () => SelectCategory("Units"), 12, "Select Units category");
+		UIStyle.SetupButton(_btnChars, "👥 Units", () => SelectCategory("Units"), 12, "Select Units category");
 		categoryGrid.AddChild(_btnChars);
 
 		_btnBuilds = new Button();
+		_btnBuilds.Name = "BtnBuilds_Button";
 		_btnBuilds.Set("icon_max_width", 0);
-		SetupButton(_btnBuilds, "🏢 Buildings", () => SelectCategory("Buildings"), 12, "Select Buildings category");
+		UIStyle.SetupButton(_btnBuilds, "🏢 Buildings", () => SelectCategory("Buildings"), 12, "Select Buildings category");
 		categoryGrid.AddChild(_btnBuilds);
 
 		_btnEnv = new Button();
+		_btnEnv.Name = "BtnEnv_Button";
 		_btnEnv.Set("icon_max_width", 0);
-		SetupButton(_btnEnv, "🪵 Resources", () => SelectCategory("Resources"), 12, "Select Resources category");
+		UIStyle.SetupButton(_btnEnv, "🪵 Resources", () => SelectCategory("Resources"), 12, "Select Resources category");
 		categoryGrid.AddChild(_btnEnv);
 
 		_btnProps = new Button();
+		_btnProps.Name = "BtnProps_Button";
 		_btnProps.Set("icon_max_width", 0);
-		SetupButton(_btnProps, "📦 Props", () => SelectCategory("Props"), 12, "Select Props category");
+		UIStyle.SetupButton(_btnProps, "📦 Props", () => SelectCategory("Props"), 12, "Select Props category");
 		categoryGrid.AddChild(_btnProps);
 
 		_btnDecals = new Button();
+		_btnDecals.Name = "BtnDecals_Button";
 		_btnDecals.Set("icon_max_width", 0);
-		SetupButton(_btnDecals, "🎨 Decals", () => SelectCategory("Decals"), 12, "Select Decals category");
+		UIStyle.SetupButton(_btnDecals, "🎨 Decals", () => SelectCategory("Decals"), 12, "Select Decals category");
 		categoryGrid.AddChild(_btnDecals);
 
 		_btnVfx = new Button();
+		_btnVfx.Name = "BtnVfx_Button";
 		_btnVfx.Set("icon_max_width", 0);
-		SetupButton(_btnVfx, "✨ VFX", () => SelectCategory("VFX"), 12, "Select VFX category");
+		UIStyle.SetupButton(_btnVfx, "✨ VFX", () => SelectCategory("VFX"), 12, "Select VFX category");
 		categoryGrid.AddChild(_btnVfx);
 
 		SelectCategory("Units", triggerAddObject: false);
 	}
 
-	private void SetupButton(Button btn, string text, Action onClick, int fontSize = 13, string tooltip = "")
+	public void RefreshCurrentCategoryItems()
 	{
-		btn.Text = TranslationServer.Translate(text);
-		btn.CustomMinimumSize = new Vector2(0, 32);
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		btn.AddThemeFontSizeOverride("font_size", fontSize);
-		btn.FocusMode = Control.FocusModeEnum.None;
-		if (!string.IsNullOrEmpty(tooltip))
-		{
-			btn.TooltipText = TranslationServer.Translate(tooltip);
-		}
-
-		btn.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			onClick?.Invoke();
-		};
+		SelectCategory(_currentCategory, triggerAddObject: false);
 	}
 
 	public void SelectCategory(string category, bool triggerAddObject = true)
@@ -312,7 +302,15 @@ public class MapEditorEntityPaletteController
 
 	private void RestorePreviousSelection(string previousSelectedId)
 	{
-		if (_optCategoryItems.ItemCount == 0) return;
+		if (_optCategoryItems.ItemCount == 0)
+		{
+			if (GameHost.Instance != null)
+			{
+				GameHost.Instance.ActivePlaceId = "";
+			}
+
+			return;
+		}
 
 		int targetIndex = 0;
 		if (!string.IsNullOrEmpty(previousSelectedId))
@@ -509,9 +507,8 @@ public class MapEditorEntityPaletteController
 			return;
 		}
 
-		EditorTool targetTool = GetEditorToolForCategory(_currentCategory);
 		string placeId = GetSelectedCategoryPlaceId();
-
+		EditorTool targetTool = GetEditorToolForCategory(_currentCategory);
 		_hud.TriggerToolSelection(targetTool, _btnAddObject, placeId);
 	}
 
@@ -537,22 +534,18 @@ public class MapEditorEntityPaletteController
 
 	private string GetSelectedCategoryPlaceId()
 	{
-		if (_categoryFiles.Count == 0)
+		if (_categoryFiles.Count == 0 || _optCategoryItems == null)
 		{
 			return "";
 		}
 
-		int selectedIndex = _optCategoryItems != null ? _optCategoryItems.Selected : -1;
-
-		if (selectedIndex >= 0)
+		int selectedIndex = _optCategoryItems.Selected;
+		if (selectedIndex < 0 || selectedIndex >= _categoryFiles.Count)
 		{
-			if (selectedIndex < _categoryFiles.Count)
-			{
-				return _categoryFiles[selectedIndex];
-			}
+			return "";
 		}
 
-		return _categoryFiles[0];
+		return _categoryFiles[selectedIndex];
 	}
 
 	public void SelectCategoryItemExternal(string category, string filename)

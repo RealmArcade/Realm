@@ -24,6 +24,8 @@ public static unsafe class EcsSharedMemory
 	public const int COMPONENT_ARRAY_BASE_OFFSETS_OFFSET = 0;
 	/// <summary>Offset to the component strides directory table.</summary>
 	public const int COMPONENT_STRIDES_OFFSET = 1024;
+	/// <summary>Offset to the global random seed in the shared memory header.</summary>
+	public const int RANDOM_SEED_OFFSET = 2044;
 	/// <summary>Total byte size reserved for the shared memory header.</summary>
 	public const int HEADER_SIZE = 2048;
 
@@ -91,6 +93,8 @@ public static unsafe class EcsSharedMemory
 	public static ComponentMask* EntityMasks => _entityMasks;
 	/// <summary>Gets the raw pointer to the entity position vectors array.</summary>
 	public static Position* Position => (Position*)GetArrayBasePointer(ComponentIds.Position);
+	/// <summary>Gets the raw pointer to the entity previous position vectors array.</summary>
+	public static PreviousPosition* PreviousPosition => (PreviousPosition*)GetArrayBasePointer(ComponentIds.PreviousPosition);
 	/// <summary>Gets the raw pointer to the entity health components array.</summary>
 	public static Health* Health => (Health*)GetArrayBasePointer(ComponentIds.Health);
 	/// <summary>Gets the raw pointer to the entity mana components array.</summary>
@@ -111,12 +115,25 @@ public static unsafe class EcsSharedMemory
 	public static ModelScale* ModelScale => (ModelScale*)GetArrayBasePointer(ComponentIds.ModelScale);
 	/// <summary>Gets the raw pointer to the unit rotation Y-axis array.</summary>
 	public static RotationY* RotationY => (RotationY*)GetArrayBasePointer(ComponentIds.RotationY);
+	/// <summary>Gets the raw pointer to the unit previous rotation Y-axis array.</summary>
+	public static PreviousRotationY* PreviousRotationY => (PreviousRotationY*)GetArrayBasePointer(ComponentIds.PreviousRotationY);
 	/// <summary>Gets the raw pointer to the player resources stockpile array.</summary>
 	public static PlayerResources* PlayerResources => (PlayerResources*)GetArrayBasePointer(ComponentIds.PlayerResources);
 	/// <summary>Gets the raw pointer to the script player state array.</summary>
 	public static ScriptPlayer* ScriptPlayer => (ScriptPlayer*)GetArrayBasePointer(ComponentIds.ScriptPlayer);
 	/// <summary>Gets the raw pointer to the player population limits array.</summary>
 	public static PlayerPopulation* PlayerPopulation => (PlayerPopulation*)GetArrayBasePointer(ComponentIds.PlayerPopulation);
+
+	/// <summary>
+	/// Gets or sets the global random seed stored in shared memory between WebAssembly guest and host runtime contexts.
+	/// </summary>
+	public static int RandomSeed
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => *(int*)(_basePtr + RANDOM_SEED_OFFSET);
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		set => *(int*)(_basePtr + RANDOM_SEED_OFFSET) = value;
+	}
 
 	static EcsSharedMemory()
 	{
@@ -139,6 +156,7 @@ public static unsafe class EcsSharedMemory
 		}
 
 		RegisterComponent(ComponentIds.Position, MAX_ENTITIES * sizeof(Position), sizeof(Position));
+		RegisterComponent(ComponentIds.PreviousPosition, MAX_ENTITIES * sizeof(PreviousPosition), sizeof(PreviousPosition));
 		RegisterComponent(ComponentIds.Health, MAX_ENTITIES * sizeof(Health), sizeof(Health));
 		RegisterComponent(ComponentIds.Mana, MAX_ENTITIES * sizeof(Mana), sizeof(Mana));
 		RegisterComponent(ComponentIds.Attack, MAX_ENTITIES * sizeof(Attack), sizeof(Attack));
@@ -149,6 +167,7 @@ public static unsafe class EcsSharedMemory
 		RegisterComponent(ComponentIds.Experience, MAX_ENTITIES * sizeof(Experience), sizeof(Experience));
 		RegisterComponent(ComponentIds.ModelScale, MAX_ENTITIES * sizeof(ModelScale), sizeof(ModelScale));
 		RegisterComponent(ComponentIds.RotationY, MAX_ENTITIES * sizeof(RotationY), sizeof(RotationY));
+		RegisterComponent(ComponentIds.PreviousRotationY, MAX_ENTITIES * sizeof(PreviousRotationY), sizeof(PreviousRotationY));
 		RegisterComponent(ComponentIds.PlayerResources, MAX_PLAYER_ENTITIES * sizeof(PlayerResources), sizeof(PlayerResources));
 		RegisterComponent(ComponentIds.ScriptPlayer, MAX_PLAYERS * sizeof(ScriptPlayer), sizeof(ScriptPlayer));
 		RegisterComponent(ComponentIds.PlayerPopulation, MAX_PLAYER_ENTITIES * sizeof(PlayerPopulation), sizeof(PlayerPopulation));

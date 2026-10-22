@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.InGame;
 
@@ -57,13 +58,13 @@ public partial class CommandPanel
 		return s_whiteTexture;
 	}
 
-	[GeneratedRegex(@"^\[.*?\] ")]
-	private static partial Regex HotkeyPrefixRegex();
-
-
 	private int _pageIndex = 0;
 	private List<CommandCardItem> _activeItems = new();
 	private Entity _lastFocusedEntity = Entity.Null;
+	private string _lastFocusedUnitId = null;
+	private bool _lastIsUnderConstruction = false;
+	private bool _lastIsMobile = false;
+	private int _lastAbilityCount = -1;
 	private int _lastPageIndex = -1;
 	private bool _lastIsBuildSubMenuOpen = false;
 
@@ -83,6 +84,11 @@ public partial class CommandPanel
 		{
 			child.QueueFree();
 		}
+	}
+
+	private static bool IsCommandsFrozen(Entity entity)
+	{
+		return entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<CommandsFrozen>(entity);
 	}
 
 	private CommandCardItem GetActiveItemForIndex(int index, int totalItems, int pageOffset)
@@ -287,6 +293,10 @@ public partial class CommandPanel
 		}
 
 		_lastFocusedEntity = Entity.Null;
+		_lastFocusedUnitId = null;
+		_lastIsUnderConstruction = false;
+		_lastIsMobile = false;
+		_lastAbilityCount = -1;
 		_pageIndex = 0;
 		_activeItems.Clear();
 		_lastIsBuildSubMenuOpen = false;
@@ -320,38 +330,42 @@ public partial class CommandPanel
 
 	private void UpdateCommandPanelState(SelectedUnitInfo focusedUnit, bool subMenuOpen)
 	{
+		bool isMobile = focusedUnit.Speed > 0.001f;
+		int abilityCount = focusedUnit.Abilities?.Count ?? 0;
+
 		bool focusedUnitChanged = focusedUnit.Entity != _lastFocusedEntity;
+		bool unitStateChanged = focusedUnitChanged
+			|| focusedUnit.UnitId != _lastFocusedUnitId
+			|| focusedUnit.IsUnderConstruction != _lastIsUnderConstruction
+			|| isMobile != _lastIsMobile
+			|| abilityCount != _lastAbilityCount;
+
 		bool subMenuChanged = subMenuOpen != _lastIsBuildSubMenuOpen;
 
 		if (focusedUnitChanged)
 		{
 			_pageIndex = 0;
-			_lastFocusedEntity = focusedUnit.Entity;
 		}
 
-		_lastIsBuildSubMenuOpen = subMenuOpen;
-		var prevItems = _activeItems;
-		_activeItems = GetCommandCardItems(focusedUnit, subMenuOpen);
+		bool needRebuildItems = unitStateChanged || subMenuChanged;
 
-		bool itemsChanged = prevItems.Count != _activeItems.Count;
-		if (!itemsChanged)
+		if (needRebuildItems)
 		{
-			for (int i = 0; i < _activeItems.Count; i++)
-			{
-				if (prevItems[i].Id != _activeItems[i].Id)
-				{
-					itemsChanged = true;
-					break;
-				}
-			}
-		}
+			_lastFocusedEntity = focusedUnit.Entity;
+			_lastFocusedUnitId = focusedUnit.UnitId;
+			_lastIsUnderConstruction = focusedUnit.IsUnderConstruction;
+			_lastIsMobile = isMobile;
+			_lastAbilityCount = abilityCount;
+			_lastIsBuildSubMenuOpen = subMenuOpen;
 
-		UpdateItemHotkeys();
+			_activeItems = GetCommandCardItems(focusedUnit, subMenuOpen);
+			UpdateItemHotkeys();
+		}
 
 		bool pageChanged = _pageIndex != _lastPageIndex;
 		_lastPageIndex = _pageIndex;
 
-		if (focusedUnitChanged || subMenuChanged || pageChanged || itemsChanged || _commandGrid.GetChildCount() == 0)
+		if (needRebuildItems || pageChanged || _commandGrid.GetChildCount() == 0)
 		{
 			RebuildCommandGrid();
 		}
@@ -383,9 +397,19 @@ public partial class CommandPanel
 				{
 					_activeItems[i].Hotkey = gridHotkeys[localIdx];
 				}
-				_activeItems[i].Tooltip = HotkeyPrefixRegex().Replace(_activeItems[i].Tooltip, $"[{_activeItems[i].Hotkey}] ");
+				FormatItemTooltipHotkey(_activeItems[i]);
 			}
 		}
+	}
+
+	private void FormatItemTooltipHotkey(CommandCardItem item)
+	{
+		if (item == null || item.Hotkey == Key.None || string.IsNullOrEmpty(item.Tooltip)) return;
+
+		string tooltip = item.Tooltip;
+		if (tooltip.StartsWith("[")) return;
+
+		item.Tooltip = $"[{item.Hotkey}] {tooltip}";
 	}
 
 	private int GetLocalGridIndex(int globalIndex, int totalItems, int pageOffset)
@@ -464,7 +488,7 @@ public partial class CommandPanel
 				{
 					item.Hotkey = gridHotkeys[i];
 				}
-				item.Tooltip = HotkeyPrefixRegex().Replace(item.Tooltip, $"[{item.Hotkey}] ");
+				FormatItemTooltipHotkey(item);
 				_commandGrid.AddChild(CreateButtonForItem(item));
 			}
 			else
@@ -514,6 +538,7 @@ public partial class CommandPanel
 	private Control CreateBlackTile()
 	{
 		var tile = new Panel();
+		tile.Name = "Tile_Panel";
 		var style = new StyleBoxFlat();
 		style.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.35f);
 		style.BorderColor = new Color(UIStyle.ColorBronze.R, UIStyle.ColorBronze.G, UIStyle.ColorBronze.B, 0.2f);
@@ -532,10 +557,11 @@ public partial class CommandPanel
 	private Button CreateCycleButton(int numPages)
 	{
 		var btn = new Button();
+		btn.Name = "Btn_Button";
 		btn.Flat = false;
 		btn.Text = "";
 		btn.ExpandIcon = true;
-		btn.Icon = GD.Load<Texture2D>("res://Assets/UI/command_card_next_arrow.png");
+		btn.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/command_card_next_arrow.webp");
 		btn.TooltipText = TranslationServer.Translate("Cycle Abilities / Commands");
 		btn.CustomMinimumSize = new Vector2(56, 56);
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -549,6 +575,7 @@ public partial class CommandPanel
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		var label = new Label();
+		label.Name = "Label_Label";
 		label.Text = TranslationServer.Translate("CYCLE");
 		label.AddThemeFontSizeOverride("font_size", 10);
 		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -579,7 +606,7 @@ public partial class CommandPanel
 		if (tex == null)
 		{
 			GD.PushWarning($"[CommandPanel] Failed to load ability icon at '{iconPath}', using fallback.");
-			tex = RtexIconLoader.Load("res://Assets/UI/alliance_flag.png");
+			tex = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 		}
 
 		return tex;
@@ -744,7 +771,7 @@ public partial class CommandPanel
 		return new CommandCardItem
 		{
 			Id = "stop",
-			IconPath = "res://Assets/UI/cancel_button_2.png",
+			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[S] Cancel Construction",
 			Hotkey = Key.S,
 			Callback = () => { }
@@ -769,7 +796,7 @@ public partial class CommandPanel
 				items.Add(new CommandCardItem
 				{
 					Id = "build",
-					IconPath = "res://Assets/UI/golden_hammers.png",
+					IconPath = "res://Assets/UI/golden_hammers.webp",
 					Tooltip = "[B] Build Structure",
 					Hotkey = Key.B,
 					Callback = () => InGameHUD.Instance?.EnterBuildSubMenu()
@@ -803,7 +830,7 @@ public partial class CommandPanel
 		items.Add(new CommandCardItem
 		{
 			Id = "cancel_build",
-			IconPath = "res://Assets/UI/cancel_button_2.png",
+			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[Esc] Cancel",
 			Hotkey = Key.Escape,
 			Callback = () => InGameHUD.Instance?.ExitBuildSubMenu()
@@ -824,54 +851,57 @@ public partial class CommandPanel
 		if (perkAbilities.Count > 0)
 		{
 			foreach (var ab in perkAbilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
-			AddStandardCombatCommands(items);
+			AddStandardCombatCommands(items, focusedUnit.Entity);
 			foreach (var ab in otherAbilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
 		}
 		else
 		{
 			foreach (var ab in focusedUnit.Abilities) items.Add(CreateAbilityItem(ab, focusedUnit.Entity));
-			AddStandardCombatCommands(items);
+			AddStandardCombatCommands(items, focusedUnit.Entity);
 		}
 	}
 
 	private void PopulateMobileUnitItems(List<CommandCardItem> items, SelectedUnitInfo focusedUnit, bool hasMetadata, UnitMetadata meta)
 	{
-		items.Add(new CommandCardItem
+		if (!IsCommandsFrozen(focusedUnit.Entity))
 		{
-			Id = "move",
-			IconPath = "res://Assets/UI/move_speed.png",
-			Tooltip = "[M] Move / Right-Click Ground",
-			Hotkey = Key.M,
-			Callback = () => GameHost.Instance?.EnterCommandTargeting("move")
-		});
+			items.Add(new CommandCardItem
+			{
+				Id = "move",
+				IconPath = "res://Assets/UI/move_speed.webp",
+				Tooltip = "[M] Move / Right-Click Ground",
+				Hotkey = Key.M,
+				Callback = () => GameHost.Instance?.EnterCommandTargeting("move")
+			});
 
-		items.Add(CreateStopCommand());
-		items.Add(CreateHoldCommand());
+			items.Add(CreateStopCommand());
+			items.Add(CreateHoldCommand());
 
-		items.Add(new CommandCardItem
-		{
-			Id = "attack",
-			IconPath = "res://Assets/UI/battle_axe.png",
-			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
-			Hotkey = Key.A,
-			Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
-		});
+			items.Add(new CommandCardItem
+			{
+				Id = "attack",
+				IconPath = "res://Assets/UI/battle_axe.webp",
+				Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
+				Hotkey = Key.A,
+				Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
+			});
 
-		items.Add(new CommandCardItem
-		{
-			Id = "patrol",
-			IconPath = "res://Assets/UI/patrol.jpg",
-			Tooltip = "[P] Patrol — Unit patrols between current position and target, engaging enemies",
-			Hotkey = Key.P,
-			Callback = () => GameHost.Instance?.EnterCommandTargeting("patrol")
-		});
+			items.Add(new CommandCardItem
+			{
+				Id = "patrol",
+				IconPath = "res://Assets/UI/patrol.webp",
+				Tooltip = "[P] Patrol — Unit patrols between current position and target, engaging enemies",
+				Hotkey = Key.P,
+				Callback = () => GameHost.Instance?.EnterCommandTargeting("patrol")
+			});
+		}
 
 		if (hasMetadata && meta.BuildOptions?.Length > 0)
 		{
 			items.Add(new CommandCardItem
 			{
 				Id = "build",
-				IconPath = "res://Assets/UI/golden_hammers.png",
+				IconPath = "res://Assets/UI/golden_hammers.webp",
 				Tooltip = "[B] Build Structure",
 				Hotkey = Key.B,
 				Callback = () => InGameHUD.Instance?.EnterBuildSubMenu()
@@ -884,12 +914,15 @@ public partial class CommandPanel
 		}
 	}
 
-	private void AddStandardCombatCommands(List<CommandCardItem> items)
+	private void AddStandardCombatCommands(List<CommandCardItem> items, Entity entity)
 	{
+		if (IsCommandsFrozen(entity))
+			return;
+
 		items.Add(new CommandCardItem
 		{
 			Id = "attack",
-			IconPath = "res://Assets/UI/battle_axe.png",
+			IconPath = "res://Assets/UI/battle_axe.webp",
 			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
 			Hotkey = Key.A,
 			Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
@@ -903,7 +936,7 @@ public partial class CommandPanel
 		return new CommandCardItem
 		{
 			Id = "stop",
-			IconPath = "res://Assets/UI/cancel_button_2.png",
+			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[S] Stop Selected Units",
 			Hotkey = Key.S,
 			Callback = () =>
@@ -919,7 +952,7 @@ public partial class CommandPanel
 		return new CommandCardItem
 		{
 			Id = "hold",
-			IconPath = "res://Assets/UI/magic_upgrade_arrow.png",
+			IconPath = "res://Assets/UI/magic_upgrade_arrow.webp",
 			Tooltip = "[H] Hold Position — Unit stays put and attacks in place",
 			Hotkey = Key.H,
 			Callback = () =>
@@ -942,7 +975,7 @@ public partial class CommandPanel
 			items.Add(new CommandCardItem
 			{
 				Id = "set_rally",
-				IconPath = "res://Assets/UI/alliance_flag.png",
+				IconPath = "res://Assets/UI/alliance_flag.webp",
 				Tooltip = "[Y] Set Rally Point — Set location where new units will walk",
 				Hotkey = Key.Y,
 				Callback = () => GameHost.Instance?.EnterCommandTargeting("rally")
@@ -985,7 +1018,7 @@ public partial class CommandPanel
 			string itemName = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Name) ? itemMeta.Name : itemId;
 			string itemDesc = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Description) ? itemMeta.Description : $"Buy {itemName} for a nearby combat unit";
 			float costGold = itemMeta?.CostGold ?? 0f;
-			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.png";
+			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.webp";
 
 			string costStr = costGold > 0f ? $" (Cost: {costGold:F0} Gold)" : "";
 			string tooltip = $"Buy {itemName}{costStr} — {itemDesc}";
@@ -1040,7 +1073,7 @@ public partial class CommandPanel
 			float wood = upgMeta?.CostWood ?? 0f;
 			float stone = upgMeta?.CostStone ?? 0f;
 			int maxLevel = upgMeta != null && upgMeta.MaxLevel > 0 ? upgMeta.MaxLevel : 1;
-			string iconPath = upgMeta != null && !string.IsNullOrEmpty(upgMeta.IconPath) ? upgMeta.IconPath : "res://Assets/UI/magic_upgrade_arrow.png";
+			string iconPath = upgMeta != null && !string.IsNullOrEmpty(upgMeta.IconPath) ? upgMeta.IconPath : "res://Assets/UI/magic_upgrade_arrow.webp";
 
 			var costParts = new List<string>();
 			if (gold > 0f) costParts.Add($"{gold:F0} Gold");
@@ -1083,6 +1116,13 @@ public partial class CommandPanel
 				return "";
 			};
 
+			Func<bool> cannotAfford = () =>
+			{
+				var hud = InGameHUD.Instance;
+				if (hud == null) return false;
+				return hud.Gold < gold || hud.Wood < wood || hud.Stone < stone;
+			};
+
 			items.Add(new CommandCardItem
 			{
 				Id = "upgrade_" + upgradeId,
@@ -1090,7 +1130,7 @@ public partial class CommandPanel
 				Tooltip = tooltip,
 				Hotkey = hotkey,
 				Callback = () => GameHost.Instance?.BuyUpgrade(upgradeId, localViewingIndex),
-				IsDisabled = isMaxed,
+				IsDisabled = () => isMaxed() || cannotAfford(),
 				GetButtonText = getButtonText
 			});
 		}
@@ -1104,18 +1144,6 @@ public partial class CommandPanel
 
 		var hotkey = Key.None;
 
-		string name = unitId.ToUpper();
-		float gold = 0, wood = 0, stone = 0;
-		string desc = "";
-		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var structureMeta))
-		{
-			if (!string.IsNullOrEmpty(structureMeta.Name)) name = structureMeta.Name;
-			gold = structureMeta.CostGold;
-			wood = structureMeta.CostWood;
-			stone = structureMeta.CostStone;
-			desc = structureMeta.Description ?? "";
-		}
-
 		var abilityDef = host?.GetAbilityDefinition(unitId);
 		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.Hotkey))
 		{
@@ -1127,17 +1155,9 @@ public partial class CommandPanel
 		{
 			finalTooltip = abilityDef.Tooltip;
 		}
-		else if (gold == 0 && wood == 0 && stone == 0 && !string.IsNullOrEmpty(desc))
-		{
-			finalTooltip = hotkey != Key.None
-				? $"[{hotkey}] Build {name} — {desc}"
-				: $"Build {name} — {desc}";
-		}
 		else
 		{
-			finalTooltip = hotkey != Key.None
-				? string.Format(TranslationServer.Translate("[{0}] Build {1} (Cost: {2} Gold, {3} Wood, {4} Stone)"), hotkey.ToString(), name, gold, wood, stone)
-				: string.Format(TranslationServer.Translate("Build {0} (Cost: {1} Gold, {2} Wood, {3} Stone)"), name, gold, wood, stone);
+				finalTooltip = UIHelper.GetUnitCostTooltip(unitId, hotkey, "Build");
 		}
 
 		string iconPath = abilityDef != null && !string.IsNullOrEmpty(abilityDef.IconPath)
@@ -1161,28 +1181,7 @@ public partial class CommandPanel
 	{
 		var hotkey = Key.None;
 
-		string name = unitId.ToUpper();
-		float gold = 0, wood = 0, stone = 0;
-		int pop = 0;
-		string desc = "";
-		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
-		{
-			name = meta.Name;
-			gold = meta.CostGold;
-			wood = meta.CostWood;
-			stone = meta.CostStone;
-			pop = meta.PopCost;
-			desc = meta.Description;
-		}
-
-		string costStr = $"Cost: {gold} Gold";
-		if (wood > 0) costStr += $", {wood} Wood";
-		if (stone > 0) costStr += $", {stone} Stone";
-		if (pop > 0) costStr += $", {pop} Pop";
-
-		string finalTooltip = hotkey != Key.None
-			? string.Format(TranslationServer.Translate("[{0}] Train {1} ({2}) — {3}"), hotkey.ToString(), name, costStr, desc)
-			: string.Format(TranslationServer.Translate("Train {0} ({1}) — {2}"), name, costStr, desc);
+			string finalTooltip = UIHelper.GetUnitCostTooltip(unitId, hotkey, "Train");
 
 		return new CommandCardItem
 		{
@@ -1196,7 +1195,7 @@ public partial class CommandPanel
 
 	private string GetDefaultAbilityIcon(string abilityId)
 	{
-		return "res://Assets/UI/alliance_flag.png";
+		return "res://Assets/UI/alliance_flag.webp";
 	}
 
 	private string GetDefaultAbilityTooltip(string abilityId)
@@ -1337,7 +1336,7 @@ public partial class CommandPanel
 
 	private string GetUnitIcon(string unitId)
 	{
-		return "res://Assets/UI/unit_placeholder.png";
+		return "res://Assets/UI/unit_placeholder.webp";
 	}
 
 	private void SetupHUDButton(Button btn, string iconPath, string tooltip, Action onClick)
@@ -1351,26 +1350,7 @@ public partial class CommandPanel
 		btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 		btn.FocusMode = Control.FocusModeEnum.None;
-		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 42);
-
-		if (tooltip.StartsWith('[') && tooltip.Contains(']'))
-		{
-			int end = tooltip.IndexOf(']');
-			string hotkeyText = tooltip.Substring(1, end - 1);
-			var hotkeyLabel = new Label();
-			hotkeyLabel.Name = "HotkeyLabel";
-			hotkeyLabel.Text = hotkeyText;
-			hotkeyLabel.AddThemeFontSizeOverride("font_size", 12);
-			hotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-			hotkeyLabel.AddThemeConstantOverride("outline_size", 4);
-			hotkeyLabel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
-			hotkeyLabel.OffsetLeft = 4;
-			hotkeyLabel.OffsetTop = 3;
-			hotkeyLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
-			btn.AddChild(hotkeyLabel);
-		}
+		UIStyle.SetupHUDButton(btn, tooltip);
 
 		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
 		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
@@ -1378,5 +1358,10 @@ public partial class CommandPanel
 		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		btn.Pressed += () => onClick?.Invoke();
+	}
+
+	public static void ClearCache()
+	{
+		s_whiteTexture = null;
 	}
 }

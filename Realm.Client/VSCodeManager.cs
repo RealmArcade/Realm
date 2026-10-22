@@ -2,7 +2,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -15,11 +14,9 @@ using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
-using Microsoft.Web.WebView2.Core;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
@@ -63,25 +60,17 @@ public partial class VSCodeManager
 	private bool _installCompleted = false;
 	private Task _installTask;
 	private readonly object _installLock = new object();
-	private int _vscodePort = 8089;
-
-	private static readonly HttpClient _localProxyHttpClient = new HttpClient(new SocketsHttpHandler
-	{
-		AllowAutoRedirect = false,
-		UseCookies = false,
-		AutomaticDecompression = DecompressionMethods.All
-	});
 
 	private static readonly string[] RequiredExtensions = new[]
 	{
-		"google.google-antigravity",
 		"muhammad-sammy.csharp",
 		"OHZIInteractiveStudio.ohzi-vscode-glb-viewer",
 		"Gruntfuggly.todo-tree",
 		// "mechatroner.rainbow-json",
 		"patcx.vscode-nuget-gallery",
 		"AykutSarac.jsoncrack-vscode",
-		"vadimcn.vscode-lldb"
+		"vadimcn.vscode-lldb",
+		"haoyangzeng.opencui"
 		// "akondratiuk1-dev.texture-viewer",
 	};
 
@@ -167,24 +156,26 @@ public partial class VSCodeManager
 		string embedDir = GetVSCodeDirectory();
 		string exePath = Path.Combine(embedDir, "editor", "bin", "codium.exe");
 		string completedMarkerPath = Path.Combine(embedDir, "install_completed.marker");
-		string bypassMarkerPath = Path.Combine(embedDir, "bypass_completed.marker");
 		string wasiPath = WasiSdkResolver.ResolveWasiSdkPath();
 		string wasiClangPath = !string.IsNullOrEmpty(wasiPath) ? Path.Combine(wasiPath, "bin", "clang.exe") : string.Empty;
 		string extVersion = GetRealmMapEditorVersion();
 		string extDir = Path.Combine(embedDir, "user-data-dir", "extensions", $"speige.realm-map-editor-{extVersion}");
 		string extensionsDir = Path.Combine(embedDir, "user-data-dir", "extensions");
 
-		if (!AreBasePathsValid(exePath, completedMarkerPath, bypassMarkerPath, wasiClangPath, extDir))
+		if (!AreBasePathsValid(exePath, completedMarkerPath, wasiClangPath, extDir))
+			return false;
+
+		if (!OpencodeCliResolver.IsAvailable())
 			return false;
 
 		return AreExtensionsInstalled(extensionsDir);
 	}
 
-	private bool AreBasePathsValid(string exePath, string completedMarkerPath, string bypassMarkerPath, string wasiClangPath, string extDir)
+	private bool AreBasePathsValid(string exePath, string completedMarkerPath, string wasiClangPath, string extDir)
 	{
 		if (!File.Exists(exePath) || new FileInfo(exePath).Length == 0)
 			return false;
-		if (!File.Exists(completedMarkerPath) && !File.Exists(bypassMarkerPath))
+		if (!File.Exists(completedMarkerPath))
 			return false;
 		if (string.IsNullOrEmpty(wasiClangPath) || !File.Exists(wasiClangPath) || new FileInfo(wasiClangPath).Length == 0)
 			return false;
@@ -273,7 +264,6 @@ public partial class VSCodeManager
 
 			if (File.Exists(exePath))
 			{
-				RunBypassAndVerify(exePath, embedDir);
 				InstallMissingExtensions(exePath, embedDir);
 			}
 		}
@@ -315,53 +305,7 @@ public partial class VSCodeManager
 		}
 	}
 
-	public const uint WM_USER = 0x0400;
-	public const uint WM_WAKEUP = WM_USER + 1;
-	public const uint WM_CLOSE = 0x0010;
-	public const int SW_HIDE = 0;
-	public const int SW_SHOW = 5;
-	public const int SW_SHOWMAXIMIZED = 3;
 	public const int SW_RESTORE = 9;
-
-	public const uint WS_OVERLAPPEDWINDOW = 0x00CF0000;
-	public const uint WS_VISIBLE = 0x10000000;
-
-
-	private WndProcDelegate _customWndProcDelegate;
-
-
-	[DllImport("user32.dll")]
-	public static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
-
-	[DllImport("user32.dll")]
-	public static extern bool TranslateMessage(ref MSG lpMsg);
-
-	[DllImport("user32.dll")]
-	public static extern IntPtr DispatchMessage(ref MSG lpMsg);
-
-	[DllImport("user32.dll")]
-	public static extern short GetKeyState(int nVirtKey);
-
-	[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "CreateWindowExW")]
-	public static extern IntPtr CreateWindowEx(
-		uint dwExStyle,
-		string lpClassName,
-		string lpWindowName,
-		uint dwStyle,
-		int x,
-		int y,
-		int nWidth,
-		int nHeight,
-		IntPtr hWndParent,
-		IntPtr hMenu,
-		IntPtr hInstance,
-		IntPtr lpParam);
-
-	[DllImport("user32.dll", SetLastError = true)]
-	public static extern bool DestroyWindow(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
 	[DllImport("user32.dll")]
 	public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -401,7 +345,7 @@ public partial class VSCodeManager
 					if (rawHandle != 0)
 					{
 						IntPtr hWnd = (IntPtr)rawHandle;
-						ShowWindow(hWnd, 9); // SW_RESTORE
+						ShowWindow(hWnd, SW_RESTORE);
 						SwitchToThisWindow(hWnd, true);
 						SetForegroundWindow(hWnd);
 						BringWindowToTop(hWnd);
@@ -414,18 +358,6 @@ public partial class VSCodeManager
 			}
 		}).CallDeferred();
 	}
-
-	[DllImport("user32.dll")]
-	public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
-	[DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "RegisterClassExW")]
-	public static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
-
-	[DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "DefWindowProcW")]
-	public static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-	[DllImport("kernel32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetModuleHandleW")]
-	public static extern IntPtr GetModuleHandle(string lpModuleName);
 
 	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
 	public static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string lpName);
@@ -1393,7 +1325,7 @@ public partial class VSCodeManager
 			if (File.Exists(inputPath))
 			{
 				byte[] rtexBytes = File.ReadAllBytes(inputPath);
-				string? metaJson = RtexFile.ExtractMetadata(rtexBytes);
+				string? metaJson = RealmContainerFile.ExtractMetadataFromBytes(rtexBytes, RtexFile.MagicBytes);
 				if (!string.IsNullOrEmpty(metaJson))
 				{
 					responseObj["metadata"] = JsonNode.Parse(metaJson);
@@ -1649,8 +1581,17 @@ public partial class VSCodeManager
 		}
 	}
 
-	private void LaunchOrFocusEditor()
+	private bool _isLaunchingEditor;
+
+	private async void LaunchOrFocusEditor()
 	{
+		if (_isLaunchingEditor)
+		{
+			return;
+		}
+
+		_isLaunchingEditor = true;
+
 		try
 		{
 			string projectRoot = PathUtils.GetProjectRoot();
@@ -1671,14 +1612,18 @@ public partial class VSCodeManager
 			string extensionsDir = Path.Combine(serverDataDir, "extensions");
 			string workspacePath = GetMapFolderToOpen(projectRoot);
 
+			await EnsureOpencodeCliInstalledAsync();
+
 			EnsureWorkspaceMapApiDll(projectRoot);
 			EnsureVSCodiumSettings(serverDataDir, workspacePath);
+			RemoveAntigravityExtension(extensionsDir);
 			EnsureOhziExtensionPatched(extensionsDir);
+			EnsureOpencuiExtensionAutoStarts(extensionsDir);
 			PatchVSCodiumConfiguration(embedDir);
 
-			if (IsInstalling)
+			if (IsInstalling && _installTask != null)
 			{
-				_installTask?.Wait();
+				await _installTask;
 			}
 
 			StartIpcHttpListener();
@@ -1694,6 +1639,7 @@ public partial class VSCodeManager
 				_vscodeProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
 				_vscodeProcess.StartInfo.EnvironmentVariables["REALM_IPC_PORT"] = _ipcHttpPort.ToString();
 				_vscodeProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
+				ApplyOpencodeEnvironmentVariables(_vscodeProcess.StartInfo);
 				_vscodeProcess.Start();
 				AddProcessToJob(_vscodeProcess);
 				AttachWindowGrouping(_vscodeProcess);
@@ -1727,6 +1673,38 @@ public partial class VSCodeManager
 		catch (Exception ex)
 		{
 			GD.PrintErr("Failed to launch or focus VSCodium: " + ex.Message);
+		}
+		finally
+		{
+			_isLaunchingEditor = false;
+		}
+	}
+
+	private static async Task EnsureOpencodeCliInstalledAsync()
+	{
+		if (OpencodeCliResolver.IsAvailable())
+		{
+			return;
+		}
+
+		bool installed = await OpencodeCliInstaller.EnsureInstalledAsync();
+		if (!installed)
+		{
+			GD.PrintErr("[VSCodeManager] opencode CLI is unavailable. The OpenCode Panel extension cannot start its backend.");
+		}
+	}
+
+	private static void ApplyOpencodeEnvironmentVariables(ProcessStartInfo startInfo)
+	{
+		try
+		{
+			string opencodeDataDirectory = OpencodeCliResolver.GetDataDirectory();
+			Directory.CreateDirectory(opencodeDataDirectory);
+			startInfo.EnvironmentVariables["XDG_DATA_HOME"] = opencodeDataDirectory;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Failed to prepare opencode data directory: {ex.Message}");
 		}
 	}
 
@@ -1888,6 +1866,8 @@ public partial class VSCodeManager
 			settings["security.workspace.trust.emptyWindow"] = false;
 			settings["security.workspace.trust.untrustedFiles"] = "open";
 
+			EnsureOpencodeBinarySetting(settings);
+
 			File.WriteAllText(userSettingsFile, settings.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
 
 			if (!string.IsNullOrEmpty(workspacePath) && Directory.Exists(workspacePath))
@@ -1919,6 +1899,30 @@ public partial class VSCodeManager
 		{
 			GD.PrintErr($"Failed to ensure VSCodium settings: {ex.Message}");
 		}
+	}
+
+	private static void EnsureOpencodeBinarySetting(JsonObject settings)
+	{
+		string managedBinaryPath = OpencodeCliResolver.GetManagedCliExecutablePath();
+		if (File.Exists(managedBinaryPath))
+		{
+			settings["opencui.binaryPath"] = managedBinaryPath;
+			return;
+		}
+
+		string resolvedBinaryPath = OpencodeCliResolver.ResolveExecutablePath();
+		if (string.IsNullOrEmpty(resolvedBinaryPath))
+		{
+			return;
+		}
+
+		string configuredBinaryPath = settings["opencui.binaryPath"]?.ToString();
+		if (!string.IsNullOrEmpty(configuredBinaryPath) && File.Exists(configuredBinaryPath))
+		{
+			return;
+		}
+
+		settings["opencui.binaryPath"] = resolvedBinaryPath;
 	}
 
 	private static string GetOhziPatchContent()
@@ -1980,6 +1984,129 @@ public partial class VSCodeManager
 		catch (Exception ex)
 		{
 			GD.PrintErr($"VS Code: Failed to patch OHZI extension: {ex.Message}");
+		}
+	}
+
+	private static void EnsureOpencuiExtensionAutoStarts(string extensionsDir)
+	{
+		if (string.IsNullOrEmpty(extensionsDir) || !Directory.Exists(extensionsDir))
+		{
+			return;
+		}
+
+		try
+		{
+			foreach (string extensionDirectory in Directory.GetDirectories(extensionsDir, "haoyangzeng.opencui*"))
+			{
+				string packageJsonPath = Path.Combine(extensionDirectory, "package.json");
+				if (!File.Exists(packageJsonPath))
+				{
+					continue;
+				}
+
+				JsonObject packageJson = JsonNode.Parse(File.ReadAllText(packageJsonPath, Encoding.UTF8))?.AsObject();
+				if (packageJson == null)
+				{
+					continue;
+				}
+
+				JsonArray activationEvents = packageJson["activationEvents"] as JsonArray ?? new JsonArray();
+				if (ContainsActivationEvent(activationEvents, "onStartupFinished"))
+				{
+					continue;
+				}
+
+				activationEvents.Add("onStartupFinished");
+				packageJson["activationEvents"] = activationEvents;
+				File.WriteAllText(packageJsonPath, packageJson.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
+				GD.Print($"VS Code: Enabled startup activation for the OpenCode Panel extension in {extensionDirectory}");
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to enable startup activation for the OpenCode Panel extension: {ex.Message}");
+		}
+	}
+
+	private static bool ContainsActivationEvent(JsonArray activationEvents, string activationEvent)
+	{
+		foreach (JsonNode existingEvent in activationEvents)
+		{
+			if (string.Equals(existingEvent?.ToString(), activationEvent, StringComparison.Ordinal))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static void RemoveAntigravityExtension(string extensionsDir)
+	{
+		if (string.IsNullOrEmpty(extensionsDir) || !Directory.Exists(extensionsDir))
+		{
+			return;
+		}
+
+		try
+		{
+			foreach (string extensionDirectory in Directory.GetDirectories(extensionsDir, "google.google-antigravity*"))
+			{
+				try
+				{
+					Directory.Delete(extensionDirectory, recursive: true);
+					GD.Print($"VS Code: Removed the deprecated antigravity extension at {extensionDirectory}");
+				}
+				catch (Exception ex)
+				{
+					GD.PrintErr($"VS Code: Failed to delete {extensionDirectory}: {ex.Message}");
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to enumerate deprecated antigravity extensions: {ex.Message}");
+		}
+
+		RemoveExtensionFromCache(Path.Combine(extensionsDir, "extensions.json"), "google.google-antigravity");
+	}
+
+	private static void RemoveExtensionFromCache(string extensionsJsonPath, string extensionId)
+	{
+		if (!File.Exists(extensionsJsonPath))
+		{
+			return;
+		}
+
+		try
+		{
+			JsonArray cachedExtensions = JsonNode.Parse(File.ReadAllText(extensionsJsonPath, Encoding.UTF8))?.AsArray();
+			if (cachedExtensions == null)
+			{
+				return;
+			}
+
+			bool removed = false;
+			for (int index = cachedExtensions.Count - 1; index >= 0; index--)
+			{
+				string cachedExtensionId = cachedExtensions[index]?["identifier"]?["id"]?.ToString();
+				if (!string.Equals(cachedExtensionId, extensionId, StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
+
+				cachedExtensions.RemoveAt(index);
+				removed = true;
+			}
+
+			if (removed)
+			{
+				File.WriteAllText(extensionsJsonPath, cachedExtensions.ToJsonString(new JsonSerializerOptions { WriteIndented = false }), new UTF8Encoding(false));
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"VS Code: Failed to update {extensionsJsonPath}: {ex.Message}");
 		}
 	}
 
@@ -2098,250 +2225,6 @@ public partial class VSCodeManager
 		_isInitialized = false;
 	}
 
-	private void RunBypassAndVerify(string exePath, string embedDir)
-	{
-		string serverDataDir = Path.Combine(embedDir, "user-data-dir");
-		string extensionsDir = Path.Combine(serverDataDir, "extensions");
-
-		Process tempProcess = new Process();
-		tempProcess.StartInfo.FileName = Path.ChangeExtension(exePath, ".cmd");
-		tempProcess.StartInfo.Arguments = $"--extensions-dir \"{extensionsDir}\" serve-web --port 8089 --server-data-dir \"{serverDataDir}\" --accept-server-license-terms --without-connection-token";
-		tempProcess.StartInfo.CreateNoWindow = true;
-		tempProcess.StartInfo.UseShellExecute = false;
-		tempProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS"] = extensionsDir;
-		tempProcess.StartInfo.EnvironmentVariables["VSCODE_EXTENSIONS_DIR"] = extensionsDir;
-		tempProcess.StartInfo.EnvironmentVariables["_NO_DEBUG_HEAP"] = "1";
-		tempProcess.Start();
-		AddProcessToJob(tempProcess);
-
-		Thread.Sleep(2000);
-
-		var tcs = new TaskCompletionSource<bool>();
-		var thread = new Thread(() =>
-		{
-			try
-			{
-				RunBypassSTA(tcs, embedDir);
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr("Bypass STA thread failed: " + ex.Message);
-				tcs.TrySetException(ex);
-			}
-		});
-		thread.SetApartmentState(ApartmentState.STA);
-		thread.Start();
-
-		bool success = false;
-		if (tcs.Task.Wait(45000))
-		{
-			success = tcs.Task.Result;
-		}
-		else
-		{
-			GD.PrintErr("Bypass task timed out.");
-		}
-
-		try
-		{
-			if (!tempProcess.HasExited)
-			{
-				tempProcess.Kill(true);
-			}
-		}
-		catch
-		{
-		}
-
-		if (success)
-		{
-			try
-			{
-				string markerPath = Path.Combine(embedDir, "bypass_completed.marker");
-				File.WriteAllText(markerPath, "completed");
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr("Failed to write bypass marker file: " + ex.Message);
-			}
-		}
-	}
-
-	private void RunBypassSTA(TaskCompletionSource<bool> tcs, string embedDir)
-	{
-		var syncContext = new SingleThreadSynchronizationContext();
-		SynchronizationContext.SetSynchronizationContext(syncContext);
-
-		var wndClass = new WNDCLASSEX();
-		wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
-		wndClass.style = 0;
-		WndProcDelegate bypassWndProc = BypassWndProc;
-		wndClass.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(bypassWndProc);
-		wndClass.cbClsExtra = 0;
-		wndClass.cbWndExtra = 0;
-		wndClass.hInstance = GetModuleHandle(null);
-		wndClass.hIcon = IntPtr.Zero;
-		wndClass.hCursor = IntPtr.Zero;
-		wndClass.hbrBackground = IntPtr.Zero;
-		wndClass.lpszMenuName = null;
-		wndClass.lpszClassName = "VSCodeBypassWindow";
-		wndClass.hIconSm = IntPtr.Zero;
-
-		RegisterClassEx(ref wndClass);
-
-		IntPtr bypassHwnd = CreateWindowEx(
-			0,
-			"VSCodeBypassWindow",
-			"Bypass Window",
-			0,
-			0,
-			0,
-			100,
-			100,
-			IntPtr.Zero,
-			IntPtr.Zero,
-			GetModuleHandle(null),
-			IntPtr.Zero);
-
-		if (bypassHwnd == IntPtr.Zero)
-		{
-			tcs.TrySetResult(false);
-			return;
-		}
-
-		syncContext.SetTargetHwnd(bypassHwnd);
-
-		CoreWebView2Controller controller = null;
-		bool running = true;
-
-		Action closeAction = () =>
-		{
-			if (controller != null)
-			{
-				controller.Close();
-				controller = null;
-			}
-
-			running = false;
-			PostMessage(bypassHwnd, WM_USER + 1, IntPtr.Zero, IntPtr.Zero);
-		};
-
-		InitializeBypassWebView(
-			bypassHwnd,
-			tcs,
-			syncContext,
-			c => { controller = c; },
-			closeAction,
-			embedDir
-		);
-
-		MSG msg;
-		while (running && GetMessage(out msg, IntPtr.Zero, 0, 0) > 0)
-		{
-			if (msg.message == 0x0010)
-			{
-				running = false;
-				break;
-			}
-
-			TranslateMessage(ref msg);
-			DispatchMessage(ref msg);
-			syncContext.RunPending();
-		}
-	}
-
-	private static IntPtr BypassWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
-	{
-		return DefWindowProc(hWnd, msg, wParam, lParam);
-	}
-
-	private async void InitializeBypassWebView(IntPtr hwnd, TaskCompletionSource<bool> tcs, SingleThreadSynchronizationContext syncContext, Action<CoreWebView2Controller> setController, Action closeAction, string embedDir)
-	{
-		try
-		{
-			string cachePath = Path.Combine(embedDir, "user-data-dir", "webview-cache");
-			var env = await CoreWebView2Environment.CreateAsync(userDataFolder: cachePath);
-			var localController = await env.CreateCoreWebView2ControllerAsync(hwnd);
-
-			setController(localController);
-			localController.Bounds = new Rectangle(0, 0, 100, 100);
-			localController.IsVisible = false;
-
-			int navigationCount = 0;
-			int retryCount = 0;
-
-			localController.CoreWebView2.NavigationCompleted += async (sender, args) =>
-			{
-				await HandleBypassNavigationCompleted(args, localController, tcs, closeAction, navigationCount, retryCount);
-				if (args.IsSuccess) navigationCount++;
-				if (!args.IsSuccess && navigationCount == 0 && retryCount < 10) retryCount++;
-			};
-
-			localController.CoreWebView2.Navigate($"http://127.0.0.1:{_vscodePort}/");
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr("InitializeBypassWebView failed: " + ex.Message);
-			tcs.TrySetResult(false);
-			closeAction();
-		}
-	}
-
-	private async Task HandleBypassNavigationCompleted(CoreWebView2NavigationCompletedEventArgs args, CoreWebView2Controller localController, TaskCompletionSource<bool> tcs, Action closeAction, int navigationCount, int retryCount)
-	{
-		if (!args.IsSuccess)
-		{
-			if (navigationCount == 0 && retryCount < 10)
-			{
-				await Task.Delay(500);
-				localController.CoreWebView2.Navigate($"http://127.0.0.1:{_vscodePort}/");
-			}
-			else
-			{
-				GD.PrintErr($"Bypass navigation failed: {args.WebErrorStatus}");
-				tcs.TrySetResult(false);
-				closeAction();
-			}
-
-			return;
-		}
-
-		if (navigationCount == 0) // Next will be 1
-		{
-			string jsScript = GetBypassTrustScript();
-			try
-			{
-				await localController.CoreWebView2.ExecuteScriptAsync(jsScript);
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr("ExecuteScriptAsync failed: " + ex.Message);
-				tcs.TrySetResult(false);
-				closeAction();
-			}
-		}
-		else if (navigationCount == 1) // Next will be 2
-		{
-			tcs.TrySetResult(true);
-			closeAction();
-		}
-	}
-
-	private string GetBypassTrustScript()
-	{
-		const string templatePath = "res://Templates/vscode_bypass_trust.js";
-		if (FileAccess.FileExists(templatePath))
-		{
-			using var file = FileAccess.Open(templatePath, FileAccess.ModeFlags.Read);
-			if (file != null) return file.GetAsText();
-		}
-
-		string diskPath = Path.Combine(AppContext.BaseDirectory, "Templates", "vscode_bypass_trust.js");
-		if (File.Exists(diskPath)) return File.ReadAllText(diskPath);
-
-		return string.Empty;
-	}
-
 	private void InstallMissingExtensions(string exePath, string embedDir)
 	{
 		string extensionFolder = Path.Combine(embedDir, "data", "extensions", $"speige.realm-map-editor-{GetRealmMapEditorVersion()}");
@@ -2388,26 +2271,6 @@ public partial class VSCodeManager
 		}
 	}
 
-
-	[GeneratedRegex(@"\bframe-ancestors\s+[^;]+;?", RegexOptions.IgnoreCase)]
-	private static partial Regex FrameAncestorsRegex();
-
-	[GeneratedRegex(@"hostMessaging\.onMessage\('did-load-resource'[\s\S]*?assertIsDefined\(navigator\.serviceWorker\.controller\)\.postMessage\(\{ channel: 'did-load-resource',\s*data \}[^\n\r;]*\);(?:\s*\}\s*catch[^\}]*\})?\s*\}\);")]
-	private static partial Regex DidLoadResourceRegex();
-
-	[GeneratedRegex(@"script-src\s+[^;]+;")]
-	private static partial Regex IndexHtmlScriptCspRegex();
-
-	private static string RelaxContentSecurityPolicy(string csp)
-	{
-		if (string.IsNullOrWhiteSpace(csp)) return "frame-ancestors *;";
-		if (FrameAncestorsRegex().IsMatch(csp))
-		{
-			return FrameAncestorsRegex().Replace(csp, "frame-ancestors *;");
-		}
-
-		return csp.TrimEnd(';', ' ') + "; frame-ancestors *;";
-	}
 
 	private static IEnumerable<string> GetVSCodeTargetDirectories(string embedDir)
 	{
@@ -2463,12 +2326,6 @@ public partial class VSCodeManager
 				{
 					PatchProductJson(productJsonPath);
 				}
-
-				string outDir = Path.Combine(root, "out");
-				if (Directory.Exists(outDir))
-				{
-					PatchWebviewOutDirectory(outDir);
-				}
 			}
 		}
 		catch (Exception ex)
@@ -2500,11 +2357,9 @@ public partial class VSCodeManager
 				needsUpdate = true;
 			}
 
-			if (productJsonPath.Contains("editor", StringComparison.OrdinalIgnoreCase) &&
-			    productJsonPath.Contains("resources", StringComparison.OrdinalIgnoreCase) &&
-			    jsonNode.AsObject().ContainsKey("webviewContentExternalBaseUrlTemplate"))
+			var extensionKindDefaults = jsonNode["extensionKind"]?.AsObject();
+			if (extensionKindDefaults != null && extensionKindDefaults.Remove("google.google-antigravity"))
 			{
-				jsonNode.AsObject().Remove("webviewContentExternalBaseUrlTemplate");
 				needsUpdate = true;
 			}
 
@@ -2564,104 +2419,6 @@ public partial class VSCodeManager
 
 		apiArray.Add(extensionName);
 		return true;
-	}
-
-	private static string PatchWorkbenchJsContent(string content)
-	{
-		if (string.IsNullOrEmpty(content)) return content;
-
-		string wbTargetEndpoint = "get webviewExternalEndpoint(){const i=this.options.webviewEndpoint||this.productService.webviewContentExternalBaseUrlTemplate||\"https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/\",e=this.payload?.get(\"webviewExternalEndpointCommit\");return i.replace(\"{{commit}}\",e??this.productService.commit??\"ef65ac1ba57f57f2a3961bfe94aa20481caca4c6\").replace(\"{{quality}}\",(e?\"insider\":this.productService.quality)??\"insider\")}";
-		string wbReplEndpoint = "get webviewExternalEndpoint(){return (window.location.origin + \"/static/out/vs/workbench/contrib/webview/browser/pre/\");}";
-		if (content.Contains(wbTargetEndpoint, StringComparison.Ordinal))
-		{
-			content = content.Replace(wbTargetEndpoint, wbReplEndpoint, StringComparison.Ordinal);
-		}
-
-		if (content.Contains("t.port1.postMessage(e,[e])", StringComparison.Ordinal))
-		{
-			content = content.Replace("try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}", "try{return!1}catch{return!1}", StringComparison.Ordinal);
-		}
-
-		return content;
-	}
-
-	private static string PatchIndexHtmlContent(string content)
-	{
-		if (string.IsNullOrEmpty(content)) return content;
-
-		string hostCheckTarget = "if (hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {";
-		string hostCheckRepl = "if (hostname === '127.0.0.1' || hostname === 'localhost' || hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {";
-		if (content.Contains(hostCheckTarget, StringComparison.Ordinal))
-		{
-			content = content.Replace(hostCheckTarget, hostCheckRepl, StringComparison.Ordinal);
-		}
-
-		if (IndexHtmlScriptCspRegex().IsMatch(content) && !content.Contains("script-src 'self' 'unsafe-inline';", StringComparison.Ordinal))
-		{
-			content = IndexHtmlScriptCspRegex().Replace(content, "script-src 'self' 'unsafe-inline';");
-		}
-
-		string cspTarget = "frame-src 'self';";
-		string cspRepl = "frame-src 'self' http://127.0.0.1:* http://localhost:* vscode-webview:;";
-		if (content.Contains(cspTarget, StringComparison.Ordinal))
-		{
-			content = content.Replace(cspTarget, cspRepl, StringComparison.Ordinal);
-		}
-
-		if (DidLoadResourceRegex().IsMatch(content))
-		{
-			string replacement = "hostMessaging.onMessage('did-load-resource', (_event, data) => {\n\t\t\t\tif (data && data.stream) { try { data.stream.cancel().catch(() => {}); } catch {} delete data.stream; }\n\t\t\t\ttry { if (navigator.serviceWorker && navigator.serviceWorker.controller) { navigator.serviceWorker.controller.postMessage({ channel: 'did-load-resource', data }); } } catch (e) { console.warn('SW did-load-resource postMessage failed:', e); }\n\t\t\t});";
-			content = DidLoadResourceRegex().Replace(content, replacement);
-		}
-
-
-		return content;
-	}
-
-	private static void PatchWebviewOutDirectory(string outDir)
-	{
-		try
-		{
-			string jsPath = Path.Combine(outDir, "vs", "code", "browser", "workbench", "workbench.js");
-			if (File.Exists(jsPath))
-			{
-				try
-				{
-					string content = File.ReadAllText(jsPath, Encoding.UTF8);
-					string patched = PatchWorkbenchJsContent(content);
-					if (patched != content)
-					{
-						File.WriteAllText(jsPath, patched, new UTF8Encoding(false));
-						GD.Print($"VS Code: Patched transferable stream support in {jsPath}");
-					}
-				}
-				catch
-				{
-				}
-			}
-
-			string htmlPath = Path.Combine(outDir, "vs", "workbench", "contrib", "webview", "browser", "pre", "index.html");
-			if (File.Exists(htmlPath))
-			{
-				try
-				{
-					string content = File.ReadAllText(htmlPath, Encoding.UTF8);
-					string patched = PatchIndexHtmlContent(content);
-					if (patched != content)
-					{
-						File.WriteAllText(htmlPath, patched, new UTF8Encoding(false));
-						GD.Print($"VS Code: Patched service worker postMessage error guard in {htmlPath}");
-					}
-				}
-				catch
-				{
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"VS Code: Failed to patch webview out directory {outDir}: {ex.Message}");
-		}
 	}
 
 	private static void CopyItemIfExists(string src, string dst)

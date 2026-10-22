@@ -47,7 +47,7 @@ public static class MapArchiveHelper
 	private static bool IsIgnoredPath(string relPath)
 	{
 		string[] prefixes = [".git/", ".backups/", "obj/", ".godot/", ".sidecarcache/", ".vscode/", ".vs/"];
-		string[] suffixes = [".tmp", ".rmap", ".zip", ".tar", ".gz", ".bak", ".backup", ".rkey", ".elf"];
+		string[] suffixes = [".tmp", ".rmap", ".7z", ".zip", ".rar", ".tar", ".gz", ".bak", ".backup", ".rkey", ".elf", ".jit.elf"];
 
 		if (prefixes.Any(p => relPath.StartsWith(p, StringComparison.OrdinalIgnoreCase))) return true;
 		if (suffixes.Any(s => relPath.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
@@ -547,5 +547,51 @@ public static class MapArchiveHelper
 		if (relPath.Equals("manifest.json", StringComparison.OrdinalIgnoreCase)) return 0;
 		if (relPath.Equals("metadata.json", StringComparison.OrdinalIgnoreCase)) return 1;
 		return 10;
+	}
+
+	public static void DeduplicateWorkspaceBuildArtifacts(string workspacePath)
+	{
+		if (string.IsNullOrEmpty(workspacePath) || !Directory.Exists(workspacePath)) return;
+
+		try
+		{
+			string binDir = Path.Combine(workspacePath, "bin");
+			if (Directory.Exists(binDir))
+			{
+				var mapApiFiles = Directory.GetFiles(binDir, "Realm.MapAPI.*", SearchOption.AllDirectories);
+				foreach (var file in mapApiFiles)
+				{
+					string fn = Path.GetFileName(file);
+					if (fn.Equals("Realm.MapAPI.dll", StringComparison.OrdinalIgnoreCase) ||
+					    fn.Equals("Realm.MapAPI.pdb", StringComparison.OrdinalIgnoreCase) ||
+					    fn.Equals("Realm.MapAPI.xml", StringComparison.OrdinalIgnoreCase))
+					{
+						try { File.Delete(file); } catch { }
+					}
+				}
+
+				var wasmFiles = Directory.GetFiles(binDir, "*.wasm", SearchOption.AllDirectories);
+				foreach (var file in wasmFiles)
+				{
+					if (Path.GetFileName(file).Equals("MapScript.wasm", StringComparison.OrdinalIgnoreCase))
+					{
+						string normPath = file.Replace('\\', '/');
+						if (!normPath.Contains("/publish/", StringComparison.OrdinalIgnoreCase))
+						{
+							try { File.Delete(file); } catch { }
+						}
+					}
+				}
+			}
+
+			var elfFiles = Directory.GetFiles(workspacePath, "*.elf", SearchOption.AllDirectories);
+			foreach (var file in elfFiles)
+			{
+				try { File.Delete(file); } catch { }
+			}
+		}
+		catch
+		{
+		}
 	}
 }

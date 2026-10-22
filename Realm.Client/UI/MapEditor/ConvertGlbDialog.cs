@@ -6,11 +6,15 @@ using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Shared;
 using Realm.Shared.ModelOptimization;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class ConvertGlbDialog : FloatingDialogBase
 {
+	public ConvertGlbDialog() { }
+
 	private LineEdit _txtSourceFile;
 	private Button _btnSelectFile;
 	private OptionButton _optSubCategory;
@@ -37,36 +41,18 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 
 	private void BuildDialogUi()
 	{
-		var btnWebAi = new Button();
-		btnWebAi.Set("icon_max_width", 16);
-		btnWebAi.AddThemeConstantOverride("icon_max_width", 16);
-		btnWebAi.ExpandIcon = false;
-		btnWebAi.IconAlignment = HorizontalAlignment.Center;
-		btnWebAi.VerticalIconAlignment = VerticalAlignment.Center;
-		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.png"))
-		{
-			btnWebAi.Icon = GD.Load<Texture2D>("res://Assets/UI/globe_icon.png");
-		}
-		else
-		{
-			btnWebAi.Text = "🌐";
-		}
-
-		btnWebAi.TooltipText = TranslationServer.Translate("Generate 3D Model with AI Online");
-		btnWebAi.CustomMinimumSize = new Vector2(24, 24);
-		btnWebAi.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		btnWebAi.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		btnWebAi.FocusMode = FocusModeEnum.None;
-		btnWebAi.Pressed += () => OS.ShellOpen("https://3d.hunyuanglobal.com");
+		var btnWebAi = UIStyle.CreateWebAiButton();
 		HeaderHBox.AddChild(btnWebAi);
 		HeaderHBox.MoveChild(btnWebAi, HeaderHBox.GetChildCount() - 2);
 
 		var scroll = new ScrollContainer();
+		scroll.Name = "Scroll_ScrollContainer";
 		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		BodyContainer.AddChild(scroll);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.AddThemeConstantOverride("separation", 10);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scroll.AddChild(vbox);
@@ -74,15 +60,18 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		AddSectionHeader(vbox, TranslationServer.Translate("SOURCE 3D MODEL"));
 
 		var fileRow = new HBoxContainer();
+		fileRow.Name = "FileRow_HBoxContainer";
 		fileRow.AddThemeConstantOverride("separation", 6);
 
 		var lblFile = new Label();
+		lblFile.Name = "LblFile_Label";
 		lblFile.Text = TranslationServer.Translate("Model File:");
 		lblFile.CustomMinimumSize = new Vector2(120, 0);
 		lblFile.AddThemeFontSizeOverride("font_size", 11);
 		fileRow.AddChild(lblFile);
 
 		_txtSourceFile = new LineEdit();
+		_txtSourceFile.Name = "TxtSourceFile_LineEdit";
 		_txtSourceFile.PlaceholderText = TranslationServer.Translate("Select a .glb, .gltf, .fbx, or .obj file...");
 		_txtSourceFile.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSourceFile.AddThemeFontSizeOverride("font_size", 11);
@@ -90,6 +79,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		fileRow.AddChild(_txtSourceFile);
 
 		_btnSelectFile = new Button();
+		_btnSelectFile.Name = "BtnSelectFile_Button";
 		_btnSelectFile.Set("icon_max_width", 0);
 		_btnSelectFile.Text = "📂 " + TranslationServer.Translate("Browse...");
 		_btnSelectFile.AddThemeFontSizeOverride("font_size", 11);
@@ -121,10 +111,12 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		}, TranslationServer.Translate("Masks target color in textures to receive dynamic player team colors in-game"));
 
 		_colorPickerRow = new HBoxContainer();
+		_colorPickerRow.Name = "ColorPickerRow_HBoxContainer";
 		_colorPickerRow.AddThemeConstantOverride("separation", 8);
 		_colorPickerRow.Visible = false;
 
 		var lblColor = new Label();
+		lblColor.Name = "LblColor_Label";
 		lblColor.Text = TranslationServer.Translate("Mask Color:");
 		lblColor.CustomMinimumSize = new Vector2(120, 0);
 		lblColor.AddThemeFontSizeOverride("font_size", 11);
@@ -138,6 +130,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		_colorPickerRow.AddChild(_colorPicker);
 
 		_btnDetectMaskColor = new Button();
+		_btnDetectMaskColor.Name = "BtnDetectMaskColor_Button";
 		_btnDetectMaskColor.Set("icon_max_width", 0);
 		_btnDetectMaskColor.AddThemeConstantOverride("icon_max_width", 0);
 		_btnDetectMaskColor.Text = "🎨 " + TranslationServer.Translate("Detect mask color");
@@ -149,6 +142,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		_colorPickerRow.AddChild(_btnDetectMaskColor);
 
 		var lblColorHint = new Label();
+		lblColorHint.Name = "LblColorHint_Label";
 		lblColorHint.Text = TranslationServer.Translate("(Default: Hot Pink #FF00FF)");
 		lblColorHint.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		lblColorHint.AddThemeFontSizeOverride("font_size", 10);
@@ -167,10 +161,12 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		}, TranslationServer.Translate("Automatically generates a Mixamo-compatible humanoid skeleton and skin weights"));
 
 		_autoRigRow = new VBoxContainer();
+		_autoRigRow.Name = "AutoRigRow_VBoxContainer";
 		_autoRigRow.AddThemeConstantOverride("separation", 4);
 		_autoRigRow.Visible = false;
 
 		var lblRigDesc = new Label();
+		lblRigDesc.Name = "LblRigDesc_Label";
 		lblRigDesc.Text = TranslationServer.Translate("Attaches a humanoid bone skeleton to unrigged humanoid meshes for compatibility with Realm animations.");
 		lblRigDesc.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		lblRigDesc.AddThemeFontSizeOverride("font_size", 10);
@@ -180,6 +176,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		vbox.AddChild(_autoRigRow);
 
 		_progressBar = new ProgressBar();
+		_progressBar.Name = "ProgressBar_ProgressBar";
 		_progressBar.MinValue = 0;
 		_progressBar.MaxValue = 100;
 		_progressBar.Value = 0;
@@ -189,6 +186,7 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		BodyContainer.AddChild(_progressBar);
 
 		_lblStatus = new Label();
+		_lblStatus.Name = "LblStatus_Label";
 		_lblStatus.AddThemeFontSizeOverride("font_size", 11);
 		_lblStatus.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 		_lblStatus.AutowrapMode = TextServer.AutowrapMode.Word;

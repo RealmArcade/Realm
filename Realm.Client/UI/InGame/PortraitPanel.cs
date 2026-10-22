@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
@@ -28,7 +29,39 @@ public class PortraitPanel
 	private Label _unitNameLabel;
 	private TextureRect _portraitTexture;
 
-	private List<string> _lastProductionQueue = new();
+	private readonly List<string> _lastProductionQueue = new();
+	private readonly Dictionary<string, int> _unitTypeCounts = new();
+	private readonly List<string> _compParts = new();
+	private readonly StringBuilder _compStringBuilder = new();
+
+	private readonly StyleBoxFlat[] _buttonStylesFocused3;
+	private readonly StyleBoxFlat[] _buttonStylesFocused2;
+	private readonly StyleBoxFlat[] _buttonStylesSelected3;
+	private readonly StyleBoxFlat[] _healthBarFillStyles;
+	private readonly ProgressBar[] _unitButtonHpBars;
+	private readonly Label[] _unitButtonStatusLabels;
+
+	private Entity _lastSingleEntity = Entity.Null;
+	private string _lastSingleName;
+	private string _lastSingleUnitId;
+	private float _lastSingleHp = -1f;
+	private float _lastSingleMaxHp = -1f;
+	private float _lastSingleDamage = -1f;
+	private float _lastSingleRange = -1f;
+	private float _lastSingleDps = -1f;
+	private float _lastSingleArmor = -1f;
+	private float _lastSingleSpeed = -1f;
+	private string _lastSingleStateText;
+	private string _lastSingleDescription;
+
+	private Entity _lastPropEntity = Entity.Null;
+	private string _lastPropId;
+	private float _lastPropRemaining = -1f;
+
+	private enum SelectionType { None, Prop, Empty, Single, Multi }
+	private SelectionType _lastSelectionType = SelectionType.None;
+
+	private readonly string[] _lastUnitStatuses;
 
 	public event Action<int> UnitSelectionButtonClicked;
 
@@ -55,10 +88,45 @@ public class PortraitPanel
 		_unitNameLabel = unitNameLabel;
 		_portraitTexture = portraitTexture;
 
-		for (int i = 0; i < _unitButtons.Count; i++)
+		int btnCount = _unitButtons.Count;
+		_buttonStylesFocused3 = new StyleBoxFlat[btnCount];
+		_buttonStylesFocused2 = new StyleBoxFlat[btnCount];
+		_buttonStylesSelected3 = new StyleBoxFlat[btnCount];
+		_healthBarFillStyles = new StyleBoxFlat[btnCount];
+		_unitButtonHpBars = new ProgressBar[btnCount];
+		_unitButtonStatusLabels = new Label[btnCount];
+		_lastUnitStatuses = new string[btnCount];
+
+		for (int i = 0; i < btnCount; i++)
 		{
 			int index = i;
 			_unitButtons[i].Pressed += () => UnitSelectionButtonClicked?.Invoke(index);
+
+			_unitButtonHpBars[i] = _unitButtons[i].GetNodeOrNull<ProgressBar>("HealthBar");
+			_unitButtonStatusLabels[i] = _unitButtons[i].GetNodeOrNull<Label>("StatusIcon");
+
+			_buttonStylesFocused3[i] = new StyleBoxFlat
+			{
+				BgColor = new Color(0, 0, 0, 0),
+				BorderColor = new Color(0.95f, 0.82f, 0.55f, 1.0f)
+			};
+			_buttonStylesFocused3[i].SetBorderWidthAll(3);
+
+			_buttonStylesFocused2[i] = new StyleBoxFlat
+			{
+				BgColor = new Color(0, 0, 0, 0),
+				BorderColor = new Color(0.95f, 0.82f, 0.55f, 1.0f)
+			};
+			_buttonStylesFocused2[i].SetBorderWidthAll(2);
+
+			_buttonStylesSelected3[i] = new StyleBoxFlat
+			{
+				BgColor = new Color(0, 0, 0, 0),
+				BorderColor = new Color(0.1f, 0.8f, 0.2f, 0.8f)
+			};
+			_buttonStylesSelected3[i].SetBorderWidthAll(3);
+
+			_healthBarFillStyles[i] = new StyleBoxFlat();
 		}
 
 		if (_portraitTexture != null)
@@ -131,20 +199,30 @@ public class PortraitPanel
 		_statsContainer.Visible = true;
 		_armyCompositionLabel?.Hide();
 
-		string propDisplayName = GetPropDisplayName(viewModel.SelectedProp.PropId);
-		_unitNameLabel.Text = TranslationServer.Translate(propDisplayName);
+		var prop = viewModel.SelectedProp;
+		float remainingAmount = GetPropRemainingAmount(prop);
 
-		if (_portraitTexture != null)
+		bool propChanged = _lastSelectionType != SelectionType.Prop || prop.Entity != _lastPropEntity || prop.PropId != _lastPropId || Math.Abs(remainingAmount - _lastPropRemaining) > 0.01f;
+		if (propChanged)
 		{
-			string iconPath = GetPropIconPath(viewModel.SelectedProp.PropId);
-			_portraitTexture.Texture = RtexIconLoader.Load(iconPath);
+			_lastSelectionType = SelectionType.Prop;
+			_lastPropEntity = prop.Entity;
+			_lastPropId = prop.PropId;
+			_lastPropRemaining = remainingAmount;
+
+			string propDisplayName = GetPropDisplayName(prop.PropId);
+			_unitNameLabel.Text = TranslationServer.Translate(propDisplayName);
+
+			if (_portraitTexture != null)
+			{
+				string iconPath = GetPropIconPath(prop.PropId);
+				_portraitTexture.Texture = RtexIconLoader.Load(iconPath);
+			}
+
+			_statsLabel.Text = $"{TranslationServer.Translate("REMAINING")}: {remainingAmount:F0}";
+			_itemsBox.Visible = false;
+			_productionBox.Visible = false;
 		}
-
-		float remainingAmount = GetPropRemainingAmount(viewModel.SelectedProp);
-
-		_statsLabel.Text = $"{TranslationServer.Translate("REMAINING")}: {remainingAmount:F0}";
-		_itemsBox.Visible = false;
-		_productionBox.Visible = false;
 	}
 
 	private string GetPropDisplayName(string propId)
@@ -159,16 +237,7 @@ public class PortraitPanel
 
 	private string GetPropIconPath(string propId)
 	{
-		string iconPath = propId switch
-		{
-			"goldmine" => "res://Assets/UI/goldmine_icon.png",
-			"tree" => "res://Assets/UI/tree_icon.png",
-			"rock" => "res://Assets/UI/rock_icon.png",
-			_ => "res://Assets/UI/unit_placeholder.png"
-		};
-		// Fallback to placeholder if icon doesn't exist
-		if (!ResourceLoader.Exists(iconPath)) iconPath = "res://Assets/UI/unit_placeholder.png";
-		return iconPath;
+		return "res://Assets/UI/unit_placeholder.webp";
 	}
 
 	private float GetPropRemainingAmount(Prop3D selectedProp)
@@ -189,10 +258,14 @@ public class PortraitPanel
 		_statsContainer.Visible = false;
 		_armyCompositionLabel?.Hide();
 
-		_unitNameLabel.Text = TranslationServer.Translate("No Selection");
-		if (_portraitTexture != null)
+		if (_lastSelectionType != SelectionType.Empty)
 		{
-			_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.png");
+			_lastSelectionType = SelectionType.Empty;
+			_unitNameLabel.Text = TranslationServer.Translate("No Selection");
+			if (_portraitTexture != null)
+			{
+				_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
+			}
 		}
 	}
 
@@ -203,13 +276,23 @@ public class PortraitPanel
 		_armyCompositionLabel?.Hide();
 
 		var info = viewModel.SelectedUnits[viewModel.CycleSelectionIndex < viewModel.SelectedUnits.Count ? viewModel.CycleSelectionIndex : 0];
-		_unitNameLabel.Text = string.IsNullOrEmpty(info.Name) ? "" : TranslationServer.Translate(info.Name);
-		if (_portraitTexture != null)
+
+		bool unitHeaderChanged = _lastSelectionType != SelectionType.Single || info.Entity != _lastSingleEntity || info.UnitId != _lastSingleUnitId || info.Name != _lastSingleName;
+		if (unitHeaderChanged)
 		{
-			_portraitTexture.Texture = RtexIconLoader.Load(GetUnitIcon(info.UnitId));
+			_lastSelectionType = SelectionType.Single;
+			_lastSingleEntity = info.Entity;
+			_lastSingleUnitId = info.UnitId;
+			_lastSingleName = info.Name;
+
+			_unitNameLabel.Text = string.IsNullOrEmpty(info.Name) ? "" : TranslationServer.Translate(info.Name);
+			if (_portraitTexture != null)
+			{
+				_portraitTexture.Texture = RtexIconLoader.Load(GetUnitIcon(info.UnitId));
+			}
 		}
 
-		UpdateSingleSelectionStatsLabel(info);
+		UpdateSingleSelectionStatsLabel(info, unitHeaderChanged);
 
 		if (info.IsBuilding)
 		{
@@ -231,8 +314,31 @@ public class PortraitPanel
 		}
 	}
 
-	private void UpdateSingleSelectionStatsLabel(SelectedUnitInfo info)
+	private void UpdateSingleSelectionStatsLabel(SelectedUnitInfo info, bool forceRefresh)
 	{
+		bool statsChanged = forceRefresh
+			|| Math.Abs(info.Health - _lastSingleHp) > 0.1f
+			|| Math.Abs(info.MaxHealth - _lastSingleMaxHp) > 0.1f
+			|| Math.Abs(info.Damage - _lastSingleDamage) > 0.1f
+			|| Math.Abs(info.Range - _lastSingleRange) > 0.1f
+			|| Math.Abs(info.Dps - _lastSingleDps) > 0.1f
+			|| Math.Abs(info.Armor - _lastSingleArmor) > 0.1f
+			|| Math.Abs(info.Speed - _lastSingleSpeed) > 0.1f
+			|| info.StateText != _lastSingleStateText
+			|| info.Description != _lastSingleDescription;
+
+		if (!statsChanged) return;
+
+		_lastSingleHp = info.Health;
+		_lastSingleMaxHp = info.MaxHealth;
+		_lastSingleDamage = info.Damage;
+		_lastSingleRange = info.Range;
+		_lastSingleDps = info.Dps;
+		_lastSingleArmor = info.Armor;
+		_lastSingleSpeed = info.Speed;
+		_lastSingleStateText = info.StateText;
+		_lastSingleDescription = info.Description;
+
 		string statsText = $"{TranslationServer.Translate("HP")}: {info.Health:F0} / {info.MaxHealth:F0}";
 		if (info.Damage > 0)
 		{
@@ -322,11 +428,16 @@ public class PortraitPanel
 		_unitsContainer.Visible = true;
 		_statsContainer.Visible = false;
 
-		_unitNameLabel.Text = string.Format(TranslationServer.Translate("{0} Units Selected"), viewModel.SelectedUnits.Count);
-		if (_portraitTexture != null)
+		if (_lastSelectionType != SelectionType.Multi)
 		{
-			_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.png");
+			_lastSelectionType = SelectionType.Multi;
+			if (_portraitTexture != null)
+			{
+				_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
+			}
 		}
+
+		_unitNameLabel.Text = string.Format(TranslationServer.Translate("{0} Units Selected"), viewModel.SelectedUnits.Count);
 
 		UpdateArmyCompositionLabel(viewModel.SelectedUnits);
 
@@ -345,26 +456,35 @@ public class PortraitPanel
 	{
 		if (_armyCompositionLabel == null) return;
 
-		var unitTypeCounts = new Dictionary<string, int>();
+		_unitTypeCounts.Clear();
 		foreach (var u in selectedUnits)
 		{
 			string tid = u.UnitId;
-			if (!unitTypeCounts.ContainsKey(tid)) unitTypeCounts[tid] = 0;
-			unitTypeCounts[tid]++;
+			if (!_unitTypeCounts.TryGetValue(tid, out int count)) count = 0;
+			_unitTypeCounts[tid] = count + 1;
 		}
 
-		var compParts = new List<string>();
-		foreach (var kv in unitTypeCounts)
-			compParts.Add($"{kv.Value}× {kv.Key}");
+		_compParts.Clear();
+		foreach (var kv in _unitTypeCounts)
+		{
+			_compParts.Add($"{kv.Value}× {kv.Key}");
+		}
 
-		_armyCompositionLabel.Text = string.Join(", ", compParts);
+		_compStringBuilder.Clear();
+		for (int i = 0; i < _compParts.Count; i++)
+		{
+			if (i > 0) _compStringBuilder.Append(", ");
+			_compStringBuilder.Append(_compParts[i]);
+		}
+
+		_armyCompositionLabel.Text = _compStringBuilder.ToString();
 		_armyCompositionLabel.Show();
 	}
 
 	private void UpdateMultiSelectionUnitButton(int index, InGameHUDViewModel viewModel, string activeUnitId)
 	{
 		var btn = _unitButtons[index];
-		var hpBar = btn.GetNodeOrNull<ProgressBar>("HealthBar");
+		var hpBar = _unitButtonHpBars[index];
 
 		if (index < viewModel.SelectedUnits.Count)
 		{
@@ -376,8 +496,8 @@ public class PortraitPanel
 			bool isFocused = index == viewModel.CycleSelectionIndex;
 			bool inActiveSubGroup = uInfo.UnitId == activeUnitId;
 
-			UpdateUnitButtonStyle(btn, isFocused, inActiveSubGroup);
-			UpdateUnitButtonHealthBar(hpBar, uInfo);
+			UpdateUnitButtonStyle(btn, index, isFocused, inActiveSubGroup);
+			UpdateUnitButtonHealthBar(hpBar, index, uInfo);
 		}
 		else
 		{
@@ -385,27 +505,16 @@ public class PortraitPanel
 		}
 	}
 
-	private void UpdateUnitButtonStyle(Button btn, bool isFocused, bool inActiveSubGroup)
+	private void UpdateUnitButtonStyle(Button btn, int index, bool isFocused, bool inActiveSubGroup)
 	{
-		if (inActiveSubGroup)
-		{
-			var focusedBorder = new StyleBoxFlat();
-			focusedBorder.BgColor = new Color(0, 0, 0, 0);
-			focusedBorder.BorderColor = new Color(0.95f, 0.82f, 0.55f, 1.0f);
-			focusedBorder.SetBorderWidthAll(isFocused ? 3 : 2);
-			btn.AddThemeStyleboxOverride("normal", focusedBorder);
-		}
-		else
-		{
-			var selectedBorder = new StyleBoxFlat();
-			selectedBorder.BgColor = new Color(0, 0, 0, 0);
-			selectedBorder.BorderColor = new Color(0.1f, 0.8f, 0.2f, 0.8f);
-			selectedBorder.SetBorderWidthAll(3);
-			btn.AddThemeStyleboxOverride("normal", selectedBorder);
-		}
+		StyleBox targetStyle = inActiveSubGroup
+			? (isFocused ? _buttonStylesFocused3[index] : _buttonStylesFocused2[index])
+			: _buttonStylesSelected3[index];
+
+		btn.AddThemeStyleboxOverride("normal", targetStyle);
 	}
 
-	private void UpdateUnitButtonHealthBar(ProgressBar hpBar, SelectedUnitInfo uInfo)
+	private void UpdateUnitButtonHealthBar(ProgressBar hpBar, int index, SelectedUnitInfo uInfo)
 	{
 		if (hpBar == null) return;
 
@@ -416,10 +525,15 @@ public class PortraitPanel
 			hpBar.Value = uInfo.Health;
 
 			float hpPct = uInfo.MaxHealth > 0 ? uInfo.Health / uInfo.MaxHealth : 1f;
-			var fillStyle = new StyleBoxFlat();
-			fillStyle.BgColor = hpPct < 0.35f ? new Color(0.9f, 0.2f, 0.1f)
+			Color targetColor = hpPct < 0.35f ? new Color(0.9f, 0.2f, 0.1f)
 				: hpPct < 0.7f ? new Color(0.9f, 0.7f, 0.1f)
 				: new Color(0.1f, 0.85f, 0.2f);
+
+			var fillStyle = _healthBarFillStyles[index];
+			if (fillStyle.BgColor != targetColor)
+			{
+				fillStyle.BgColor = targetColor;
+			}
 			hpBar.AddThemeStyleboxOverride("fill", fillStyle);
 		}
 		else
@@ -432,27 +546,38 @@ public class PortraitPanel
 	{
 		for (int i = 0; i < _unitButtons.Count; i++)
 		{
-			var btn = _unitButtons[i];
-			var statusLbl = btn.GetNodeOrNull<Label>("StatusIcon");
+			var statusLbl = _unitButtonStatusLabels[i];
 
 			if (statusLbl == null) continue;
 
 			if (i >= viewModel.SelectedUnits.Count)
 			{
-				statusLbl.Visible = false;
+				if (_lastUnitStatuses[i] != null)
+				{
+					_lastUnitStatuses[i] = null;
+					statusLbl.Visible = false;
+				}
 				continue;
 			}
 
 			var uInfo = viewModel.SelectedUnits[i];
 			if (!GameContext.World.IsAlive(uInfo.Entity))
 			{
-				statusLbl.Visible = false;
+				if (_lastUnitStatuses[i] != null)
+				{
+					_lastUnitStatuses[i] = null;
+					statusLbl.Visible = false;
+				}
 				continue;
 			}
 
 			string status = GetUnitStatus(uInfo.Entity);
-			statusLbl.Text = status;
-			statusLbl.Visible = !string.IsNullOrEmpty(status);
+			if (status != _lastUnitStatuses[i])
+			{
+				_lastUnitStatuses[i] = status;
+				statusLbl.Text = status;
+				statusLbl.Visible = !string.IsNullOrEmpty(status);
+			}
 		}
 	}
 
@@ -469,7 +594,7 @@ public class PortraitPanel
 
 	private string GetUnitIcon(string unitId)
 	{
-		return "res://Assets/UI/unit_placeholder.png";
+		return "res://Assets/UI/unit_placeholder.webp";
 	}
 
 	private void PopulateQueueSlots(Entity producerEntity, List<string> unitIds)
@@ -513,6 +638,7 @@ public class PortraitPanel
 	private PanelContainer CreateSlotPanel(string unitDisplayName)
 	{
 		var slot = new PanelContainer();
+		slot.Name = "Slot_PanelContainer";
 		slot.CustomMinimumSize = new Vector2(32, 32);
 		slot.MouseFilter = Control.MouseFilterEnum.Stop;
 		slot.TooltipText = $"{unitDisplayName}\n" + TranslationServer.Translate("Click to cancel & refund");
@@ -529,6 +655,7 @@ public class PortraitPanel
 	private TextureRect CreateSlotIcon(string unitId)
 	{
 		var icon = new TextureRect();
+		icon.Name = "Icon_TextureRect";
 		icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		icon.Texture = RtexIconLoader.Load(GetUnitIcon(unitId));
 		icon.MouseFilter = Control.MouseFilterEnum.Pass;
@@ -538,6 +665,7 @@ public class PortraitPanel
 	private Button CreateSlotCancelButton()
 	{
 		var btnCancel = new Button();
+		btnCancel.Name = "BtnCancel_Button";
 		btnCancel.Text = "×";
 		btnCancel.FocusMode = Control.FocusModeEnum.None;
 		btnCancel.MouseFilter = Control.MouseFilterEnum.Ignore;

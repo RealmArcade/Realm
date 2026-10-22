@@ -11,8 +11,11 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class TerrainTextureEditDialog : FloatingDialogBase
 {
+	public TerrainTextureEditDialog() { }
+
 	private string _textureFileName = "";
 	private string _objectType = "terrain";
 	private string _slug = "";
@@ -99,6 +102,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	{
 		var scrollBody = CreateScrollBody(580);
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
@@ -119,27 +123,16 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	{
 		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & TEXTURE ASSET"), new Color(0.95f, 0.8f, 0.4f));
 
-		var rowId = new HBoxContainer();
-		rowId.AddThemeConstantOverride("separation", 6);
-		var lblId = new Label();
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(140, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		rowId.AddChild(lblId);
-
-		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Text = "terrain/";
-		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
-		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		rowId.AddChild(_lblObjectTypePrefix);
+		var rowId = BuildIdentityRow(contentVBox, "terrain/", out _lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("terrain_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
 		_txtSlug.TextChanged += (val) => { _slug = TemplateIDHelper.ToSnakeCase(val); };
 		rowId.AddChild(_txtSlug);
-		contentVBox.AddChild(rowId);
+		
 
 		(_txtRtexAsset, _setRtexAssetValue) = AddAssetFilterDropdown(
 			contentVBox,
@@ -172,23 +165,12 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			140f
 		);
 
-		var rowTint = new HBoxContainer();
-		rowTint.AddThemeConstantOverride("separation", 8);
-		var lblTint = new Label();
-		lblTint.Text = TranslationServer.Translate("Tint Color:");
-		lblTint.CustomMinimumSize = new Vector2(140, 0);
-		lblTint.AddThemeFontSizeOverride("font_size", 11);
-		rowTint.AddChild(lblTint);
-
-		_btnTint = new ColorPickerButton();
-		_btnTint.CustomMinimumSize = new Vector2(90, 24);
-		_btnTint.Color = _tint;
-		_btnTint.ColorChanged += (newCol) =>
+			HBoxContainer rowTint;
+			(rowTint, _btnTint) = UIStyle.CreateColorPickerRow("Tint Color:", _tint, (newCol) =>
 		{
 			_tint = newCol;
 			ApplyLiveTerrainUpdate();
-		};
-		rowTint.AddChild(_btnTint);
+			});
 		contentVBox.AddChild(rowTint);
 
 		(_sldRoughnessScale, _lblRoughnessScale) = AddSlider(
@@ -363,27 +345,11 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	{
 		AddSectionHeader(contentVBox, "🎯 " + TranslationServer.Translate("PROCEDURAL DECAL BOMBING"), new Color(0.9f, 0.5f, 0.7f));
 		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered decals placed at terrain elevation during texture painting:"));
-		var decalListRow = new HBoxContainer();
-		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		_lstDecals.ItemSelected += OnDecalItemSelected;
-		decalListRow.AddChild(_lstDecals);
-
-		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		(_txtDecalId, _setDecalIdValue) = AddAssetFilterDropdown(
-			decalBtnBox, string.Empty, string.Empty, (all) => ScanAvailableAssets("decals", all), (val) => { }, TranslationServer.Translate("decal_texture_id"), 0f);
-
-		var btnAddDecal = new Button { Text = "+ " + TranslationServer.Translate("Add Decal") };
-		btnAddDecal.Set("icon_max_width", 0);
-		btnAddDecal.Pressed += OnAddDecalRule;
-		decalBtnBox.AddChild(btnAddDecal);
-
-		var btnRemoveDecal = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
-		btnRemoveDecal.Set("icon_max_width", 0);
-		btnRemoveDecal.Pressed += OnRemoveDecalRule;
-		decalBtnBox.AddChild(btnRemoveDecal);
-
-		decalListRow.AddChild(decalBtnBox);
-		contentVBox.AddChild(decalListRow);
+		
+		var result = AddAssetRuleList(contentVBox, "Decal", "decals", "decal_texture_id", OnDecalItemSelected, OnAddDecalRule, OnRemoveDecalRule);
+		_lstDecals = result.Item1;
+		_txtDecalId = result.Item2;
+		_setDecalIdValue = result.Item3;
 
 		_sldDecalDensity = AddSlider(contentVBox, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.01f, 0.5f, OnDecalDensityChanged).Slider;
 		_sldDecalMinScale = AddSlider(contentVBox, TranslationServer.Translate("Min Decal Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, OnDecalMinScaleChanged).Slider;
@@ -425,27 +391,11 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	{
 		AddSectionHeader(contentVBox, "✨ " + TranslationServer.Translate("PROCEDURAL VFX BOMBING"), new Color(0.4f, 0.7f, 1.0f));
 		AddDescription(contentVBox, TranslationServer.Translate("Randomly scattered particle systems placed at terrain elevation during painting:"));
-		var vfxListRow = new HBoxContainer();
-		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		_lstVfx.ItemSelected += OnVfxItemSelected;
-		vfxListRow.AddChild(_lstVfx);
-
-		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		(_txtVfxId, _setVfxIdValue) = AddAssetFilterDropdown(
-			vfxBtnBox, string.Empty, string.Empty, (all) => ScanAvailableAssets("vfx", all), (val) => { }, TranslationServer.Translate("vfx_template_id"), 0f);
-
-		var btnAddVfx = new Button { Text = "+ " + TranslationServer.Translate("Add VFX") };
-		btnAddVfx.Set("icon_max_width", 0);
-		btnAddVfx.Pressed += OnAddVfxRule;
-		vfxBtnBox.AddChild(btnAddVfx);
-
-		var btnRemoveVfx = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
-		btnRemoveVfx.Set("icon_max_width", 0);
-		btnRemoveVfx.Pressed += OnRemoveVfxRule;
-		vfxBtnBox.AddChild(btnRemoveVfx);
-
-		vfxListRow.AddChild(vfxBtnBox);
-		contentVBox.AddChild(vfxListRow);
+		
+		var result = AddAssetRuleList(contentVBox, "VFX", "vfx", "vfx_template_id", OnVfxItemSelected, OnAddVfxRule, OnRemoveVfxRule);
+		_lstVfx = result.Item1;
+		_txtVfxId = result.Item2;
+		_setVfxIdValue = result.Item3;
 
 		_sldVfxDensity = AddSlider(contentVBox, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.01f, 0.5f, OnVfxDensityChanged).Slider;
 		_sldVfxMinScale = AddSlider(contentVBox, TranslationServer.Translate("Min VFX Scale:"), 0.05f, 1.0f, 0.01f, 0.2f, OnVfxMinScaleChanged).Slider;
@@ -630,6 +580,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	private Label CreateHelpTooltipIcon(HSlider slider)
 	{
 		var helpIcon = new Label();
+		helpIcon.Name = "HelpIcon_Label";
 		helpIcon.Text = "❓";
 		helpIcon.TooltipText = TranslationServer.Translate("NOTE: unavailable on your current graphics preset");
 		helpIcon.MouseFilter = MouseFilterEnum.Stop;

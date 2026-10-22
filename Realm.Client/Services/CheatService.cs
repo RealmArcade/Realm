@@ -44,7 +44,7 @@ public class CheatService
 		DefinitionManager definitionManager,
 		IEnumerable<Entity> selectedEntities)
 	{
-		if (isMultiplayer)
+		if (isMultiplayer || !(GameHost.Instance?.CheatsEnabled ?? false))
 		{
 			return (CheatResult.None, 0);
 		}
@@ -185,7 +185,7 @@ public class CheatService
 		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
 		{
 			ref var state = ref GameContext.World.Get<ShroudState>(worldEntity);
-			state.ShroudType = "visible";
+			state.VisibilityMode = ShroudVisibilityMode.Revealed;
 		}
 
 		if (GameContext.ShroudService != null)

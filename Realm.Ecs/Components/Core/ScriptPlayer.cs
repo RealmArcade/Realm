@@ -18,6 +18,19 @@ public struct ScriptPlayer
 	public int Team;
 	public int NameStringId;
 	public int KillCount;
+	public int TeamNameStringId;
+
+	public int TeamIndex
+	{
+		get => Team;
+		set => Team = value;
+	}
+
+	public string TeamName
+	{
+		get => StringRegistry.Get(TeamNameStringId);
+		set => TeamNameStringId = StringRegistry.GetOrAdd(value);
+	}
 
 	public bool Active
 	{

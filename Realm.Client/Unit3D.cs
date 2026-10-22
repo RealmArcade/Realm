@@ -8,6 +8,7 @@ using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.Services.ModelOptimization;
 using Realm.Client.VFX;
+using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -16,15 +17,170 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
+using Realm.Shared.Animation;
 
 namespace Realm.Client;
 
-public partial class Unit3D : Prop3D
+[GlobalClass]
+public partial class Unit3D : Node3D
 {
+	public Entity Entity { get; set; }
+
+	private Vector3 _cachedPosition = Vector3.Zero;
+	private float _cachedRotationY = 0f;
+	private Basis _cachedBasis = Basis.Identity;
+	private Vector3 _cachedScale = Vector3.One;
+	private float _cachedBaseScale = 1.0f;
+	private Transform3D _cachedTransform = Transform3D.Identity;
+	private bool _hasCachedTransform = false;
+
+	public Vector3 CachedPosition => _hasCachedTransform ? _cachedPosition : GlobalPosition;
+	public float CachedRotationY => _hasCachedTransform ? _cachedRotationY : Rotation.Y;
+	public Basis CachedBasis => _hasCachedTransform ? _cachedBasis : Basis;
+	public Vector3 CachedScale => _hasCachedTransform ? _cachedScale : Scale;
+	public float CachedBaseScale => _cachedBaseScale;
+	public Transform3D CachedTransform => _hasCachedTransform ? _cachedTransform : GlobalTransform;
+	public bool HasCachedTransform => _hasCachedTransform;
+
+	public void SetTransform3D(in Transform3D xform, in Vector3 pos, float rotY, in Basis basis, in Vector3 scale, float baseScale)
+	{
+		_cachedPosition = pos;
+		_cachedRotationY = rotY;
+		_cachedBasis = basis;
+		_cachedScale = scale;
+		_cachedBaseScale = baseScale;
+		_cachedTransform = xform;
+		_hasCachedTransform = true;
+		Transform = xform;
+	}
+
+	public void SetInitialTransform(in Vector3 pos, float rotY, in Vector3 scale)
+	{
+		_cachedPosition = pos;
+		_cachedRotationY = rotY;
+		_cachedBasis = Basis.FromEuler(new Vector3(0f, rotY, 0f));
+		_cachedScale = scale;
+		_cachedBaseScale = scale.Y;
+		_cachedTransform = new Transform3D(_cachedBasis.Scaled(scale), pos);
+		_hasCachedTransform = true;
+		Transform = _cachedTransform;
+	}
+
+	private readonly List<GeometryInstance3D> _cachedGeometryInstances = new();
+
+	public void RebuildGeometryInstanceCache()
+	{
+		_cachedGeometryInstances.Clear();
+		Node root = (_modelNode != null && GodotObject.IsInstanceValid(_modelNode)) ? _modelNode : this;
+		CollectGeometryInstancesRecursive(root, _cachedGeometryInstances);
+	}
+
+	private static void CollectGeometryInstancesRecursive(Node node, List<GeometryInstance3D> list)
+	{
+		if (node is GeometryInstance3D geom && !ModelShaderManager.IsAttachmentNode(geom))
+		{
+			list.Add(geom);
+		}
+
+		int childCount = node.GetChildCount();
+		for (int i = 0; i < childCount; i++)
+		{
+			CollectGeometryInstancesRecursive(node.GetChild(i), list);
+		}
+	}
+
+	public IReadOnlyList<GeometryInstance3D> GetCachedGeometryInstances()
+	{
+		if (_cachedGeometryInstances.Count == 0)
+		{
+			RebuildGeometryInstanceCache();
+		}
+		return _cachedGeometryInstances;
+	}
+
+	private float _cachedBaseModelScale = 1.0f;
+	private bool _isLaborPulsing = false;
+
+	public void SetLaborPulseScale(float pulse)
+	{
+		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
+		{
+			_isLaborPulsing = true;
+			float baseModelScale = _cachedBaseModelScale;
+			_modelNode.Scale = new Vector3(pulse * 0.9f * baseModelScale, (2.0f - pulse) * 0.9f * baseModelScale, pulse * 0.9f * baseModelScale);
+		}
+	}
+
+	public void ResetLaborPulseScale()
+	{
+		if (!_isLaborPulsing) return;
+		_isLaborPulsing = false;
+		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
+		{
+			float baseModelScale = _cachedBaseModelScale;
+			_modelNode.Scale = new Vector3(baseModelScale, baseModelScale, baseModelScale);
+		}
+	}
+
+	private Vector3 _velocity = Vector3.Zero;
+	public bool HasProceduralAnimation { get; set; }
+
+	public Vector3 Velocity
+	{
+		get => _velocity;
+		set
+		{
+			if (_velocity != value)
+			{
+				_velocity = value;
+				if (HasProceduralAnimation)
+				{
+					ModelShaderManager.SetProceduralAnimationVelocity(GetCachedGeometryInstances(), value);
+				}
+			}
+		}
+	}
+
+	private float _impulseStrength = 0f;
+	private float _impulseDuration = 0.5f;
+	private float _impulseTime = 0f;
+	private float _impulseFrequency = 12.0f;
+
+	public bool HasActiveImpulse => _impulseTime > 0f;
+
+	public void TriggerImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
+	{
+		if (!HasProceduralAnimation) return;
+		_impulseStrength = strength;
+		_impulseDuration = duration <= 0.001f ? 0.001f : duration;
+		_impulseTime = _impulseDuration;
+		_impulseFrequency = frequency;
+		GameHost.Instance?.RegisterActiveImpulseUnit(this);
+	}
+
+	public void UpdateImpulseVisuals(float fDelta)
+	{
+		if (_impulseTime <= 0f) return;
+
+		_impulseTime -= fDelta;
+		if (_impulseTime <= 0f)
+		{
+			_impulseTime = 0f;
+			_impulseStrength = 0f;
+			ModelShaderManager.SetProceduralAnimationImpulse(GetCachedGeometryInstances(), 0f, _impulseFrequency, 0f);
+		}
+		else
+		{
+			float progress = 1f - (_impulseTime / _impulseDuration);
+			float currentStrength = _impulseStrength * (1f - progress);
+			ModelShaderManager.SetProceduralAnimationImpulse(GetCachedGeometryInstances(), currentStrength, _impulseFrequency, progress);
+		}
+	}
+
 	private string _objectId = "unit/worker";
 
 	[Export]
-	public override string TemplateID
+	public string TemplateID
 	{
 		get
 		{
@@ -50,7 +206,7 @@ public partial class Unit3D : Prop3D
 		set => TemplateID = value;
 	}
 
-	public override string PropId
+	public string PropId
 	{
 		get => TemplateID;
 		set => TemplateID = value;
@@ -88,7 +244,7 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
-	public override bool IsResource
+	public bool IsResource
 	{
 		get
 		{
@@ -100,13 +256,16 @@ public partial class Unit3D : Prop3D
 
 			if (GameHost.ResourceRegistry != null && !string.IsNullOrEmpty(UnitId) && GameHost.ResourceRegistry.ContainsKey(UnitId))
 				return true;
-			return base.IsResource;
+			return _isResource;
 		}
-		set { base.IsResource = value; }
+		set { _isResource = value; }
 	}
+
+	private bool _isResource;
 
 	private Node3D _modelNode;
 	private AnimationPlayer _animationPlayer;
+	private Skeleton3D? _cachedSkeleton;
 	private string _currentAnimation = string.Empty;
 	private string? _lastRequestedAnimName;
 	private readonly Dictionary<string, StringName?> _resolvedAnimCache = new(StringComparer.OrdinalIgnoreCase);
@@ -119,6 +278,131 @@ public partial class Unit3D : Prop3D
 	private Node3D _pathVisualsContainer;
 	private readonly List<MeshInstance3D> _pathMarkersPool = new();
 	private readonly List<MeshInstance3D> _pathLinesPool = new();
+	private readonly List<Vector3> _pathPointsBuffer = new();
+	private readonly List<Vector3> _pathSampledPoints = new();
+	private Vector3 _lastPathRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
+	private bool _lastPathRenderIsAttackPath = false;
+	private readonly List<Vector3> _lastRenderedPathPoints = new();
+
+	private bool _isCulled = false;
+	private float _culledGameTime = 0f;
+	private bool _hasEvaluatedFrustum = false;
+	private float _animStepAccumulator = 0f;
+	private Aabb _cachedLocalAabb = new Aabb(new Vector3(-1.5f, 0f, -1.5f), new Vector3(3f, 4f, 3f));
+
+	public bool IsCulled => _isCulled;
+	public bool HasEvaluatedFrustum
+	{
+		get => _hasEvaluatedFrustum;
+		set => _hasEvaluatedFrustum = value;
+	}
+	public Aabb CachedLocalAabb => _cachedLocalAabb;
+
+	public bool EvaluateFrustumCulling(bool hasFrustum, ReadOnlySpan<Plane> frustumPlanes, float currentGameTime, bool cameraFrustumChanged, bool transformChanged)
+	{
+		if (!hasFrustum)
+		{
+			SetCulledState(false, currentGameTime);
+			return false;
+		}
+
+		if (!_hasEvaluatedFrustum || cameraFrustumChanged || transformChanged)
+		{
+			_hasEvaluatedFrustum = true;
+			Vector3 pos = _hasCachedTransform ? _cachedPosition : GlobalPosition;
+			Vector3 scale = _hasCachedTransform ? _cachedScale : Scale;
+			Aabb worldAabb = new Aabb(pos + _cachedLocalAabb.Position * scale, _cachedLocalAabb.Size * scale);
+			bool isVisible = RuntimeTerrain.IntersectsFrustum(frustumPlanes, worldAabb);
+			SetCulledState(!isVisible, currentGameTime);
+		}
+
+		return _isCulled;
+	}
+
+	public void StepManualAnimation(float fDelta)
+	{
+		if (_isCulled || !Visible || _animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer))
+			return;
+
+		if (!_animationPlayer.IsPlaying())
+			return;
+
+		_animStepAccumulator += fDelta;
+		if (_animStepAccumulator >= GameplayConstants.UnitAnimationStepIntervalSeconds)
+		{
+			_animationPlayer.Advance(_animStepAccumulator);
+			_animStepAccumulator = 0f;
+		}
+	}
+
+	public void SetCulledState(bool shouldCull, float currentGameTime)
+	{
+		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer))
+		{
+			_isCulled = shouldCull;
+			return;
+		}
+
+		if (shouldCull && !_isCulled)
+		{
+			_isCulled = true;
+			_culledGameTime = currentGameTime;
+			_animStepAccumulator = 0f;
+			_animationPlayer.ProcessMode = ProcessModeEnum.Disabled;
+			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
+			{
+				_cachedSkeleton.ProcessMode = ProcessModeEnum.Disabled;
+			}
+		}
+		else if (!shouldCull && _isCulled)
+		{
+			_isCulled = false;
+			_animStepAccumulator = 0f;
+			float elapsed = currentGameTime - _culledGameTime;
+			_animationPlayer.ProcessMode = ProcessModeEnum.Inherit;
+			if (_cachedSkeleton != null && GodotObject.IsInstanceValid(_cachedSkeleton))
+			{
+				_cachedSkeleton.ProcessMode = ProcessModeEnum.Inherit;
+			}
+
+			if (elapsed > 0f && _animationPlayer.IsPlaying())
+			{
+				float animLength = (float)_animationPlayer.CurrentAnimationLength;
+				if (animLength > 0.001f)
+				{
+					float currentPos = (float)_animationPlayer.CurrentAnimationPosition;
+					bool isLooping = true;
+					var animName = _animationPlayer.CurrentAnimation;
+					if (!string.IsNullOrEmpty(animName) && _animationPlayer.HasAnimation(animName))
+					{
+						var anim = _animationPlayer.GetAnimation(animName);
+						if (anim != null)
+						{
+							isLooping = anim.LoopMode != Godot.Animation.LoopModeEnum.None;
+						}
+					}
+
+					if (isLooping)
+					{
+						float newPos = (currentPos + elapsed) % animLength;
+						_animationPlayer.Seek(newPos, update: true);
+					}
+					else
+					{
+						float newPos = currentPos + elapsed;
+						if (newPos >= animLength)
+						{
+							_animationPlayer.Seek(animLength, update: true);
+						}
+						else
+						{
+							_animationPlayer.Seek(newPos, update: true);
+						}
+					}
+				}
+			}
+		}
+	}
 
 	private int _player = 0;
 
@@ -164,7 +448,13 @@ public partial class Unit3D : Prop3D
 		{
 			bool ignorePlayerColor = GameHost.Instance != null && (GameHost.Instance.GetModelIgnorePlayerColor(ModelPath) || GameHost.Instance.GetModelIgnorePlayerColor(UnitId));
 			ModelShaderManager.SetPlayerColor(_modelNode, color);
+			ModelShaderManager.SetPlayerColorOnAttachments(_modelNode, color);
 			ModelShaderManager.SetIgnorePlayerColor(_modelNode, ignorePlayerColor);
+		}
+
+		if (_playerColorRing != null && GodotObject.IsInstanceValid(_playerColorRing))
+		{
+			_playerColorRing.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorGlowMaterial(color);
 		}
 	}
 
@@ -203,13 +493,44 @@ public partial class Unit3D : Prop3D
 	private MeshInstance3D _rallyMarker;
 	private readonly List<MeshInstance3D> _rallyMarkersPool = new();
 	private readonly List<MeshInstance3D> _rallyLinesPool = new();
+	private readonly List<Vector3> _rallyPointsBuffer = new();
+	private Vector3 _lastRallyRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
+	private readonly List<Vector3> _lastRenderedRallyPoints = new();
 
-	public override bool IsSelected
+	private MeshInstance3D _selectionRing;
+	private bool _isSelected = false;
+	private MeshInstance3D _hoverRing;
+	private bool _isHovered = false;
+	private MeshInstance3D _playerColorRing;
+
+	public bool IsPreview { get; set; } = false;
+
+	public bool IsSelected
 	{
-		get => base.IsSelected;
+		get => _isSelected;
 		set
 		{
-			base.IsSelected = value;
+			_isSelected = value;
+			if (_selectionRing == null && _isSelected)
+			{
+				CreateSelectionRing();
+			}
+
+			if (_selectionRing != null)
+			{
+				if (_isSelected)
+				{
+					UpdateSelectionRingTransform();
+				}
+
+				_selectionRing.Visible = _isSelected;
+			}
+
+			if (_hoverRing != null)
+			{
+				_hoverRing.Visible = _isHovered && !_isSelected;
+			}
+
 			if (IsBuilding && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
 			{
 				UpdateRallyVisuals();
@@ -224,7 +545,165 @@ public partial class Unit3D : Prop3D
 				}
 			}
 
-			SetProcess(value);
+		}
+	}
+
+	public bool IsHovered
+	{
+		get => _isHovered;
+		set
+		{
+			_isHovered = value;
+			if (_hoverRing == null && _isHovered)
+			{
+				CreateHoverRing();
+			}
+
+			if (_hoverRing != null)
+			{
+				if (_isHovered)
+				{
+					UpdateSelectionRingTransform();
+				}
+
+				_hoverRing.Visible = _isHovered && !IsSelected;
+			}
+		}
+	}
+
+	public static void ClearCache()
+	{
+		Realm.Client.Utils.VisualSelectionHelper.ClearCache();
+	}
+
+	private void UpdateSelectionRingTransform()
+	{
+		Realm.Client.Utils.VisualSelectionHelper.UpdateSelectionRing(this, _selectionRing, _hoverRing, Scale, GetBaseObstacleRadius());
+		UpdatePlayerColorRing();
+	}
+
+	private void UpdatePlayerColorRing()
+	{
+		if (IsPreview || IsBuilding)
+		{
+			if (_playerColorRing != null) _playerColorRing.Visible = false;
+			return;
+		}
+
+		if (UI.GameSettings.QualityIdx == UI.GraphicsQuality.Low)
+		{
+			if (_playerColorRing != null) _playerColorRing.Visible = false;
+			return;
+		}
+
+		float baseRadius = GetBaseObstacleRadius();
+		if (baseRadius <= 0.001f)
+		{
+			if (_playerColorRing != null) _playerColorRing.Visible = false;
+			return;
+		}
+
+		EnsurePlayerColorRing();
+
+		Realm.Client.Utils.VisualSelectionHelper.CalculateSelectionRingParams(Scale, ModelPath, baseRadius, out float sx, out float ratio, out float worldRadius);
+
+		float sy = Mathf.Abs(Scale.Y) > 0.001f ? Mathf.Abs(Scale.Y) : 1.0f;
+		_playerColorRing.Mesh = Realm.Client.Utils.VisualSelectionHelper.GetOrCreatePlayerColorGlowMesh(worldRadius);
+		_playerColorRing.Scale = new Vector3(1.0f / sx, 1.0f / sy, 1.0f / sx);
+		_playerColorRing.Position = new Vector3(0f, 0.04f / sy, 0f);
+		_playerColorRing.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorGlowMaterial(PlayerColor);
+		_playerColorRing.Visible = !IsSelected && !IsHovered;
+	}
+
+	private void EnsurePlayerColorRing()
+	{
+		if (_playerColorRing != null) return;
+
+		_playerColorRing = new MeshInstance3D
+		{
+			Name = "PlayerColorGlow_MeshInstance3D",
+			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
+			Visible = false
+		};
+		AddChild(_playerColorRing);
+	}
+
+	private void CreateHoverRing()
+	{
+		if (_hoverRing != null) return;
+		_hoverRing = new MeshInstance3D
+		{
+			Name = "_hover_ring",
+			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
+			MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreateHoverMaterial(),
+			Visible = _isHovered && !IsSelected
+		};
+		AddChild(_hoverRing);
+		UpdateSelectionRingTransform();
+	}
+
+	public void UpdateCollisionCircleScale(float ratio)
+	{
+		UpdateSelectionRingTransform();
+		if (_selectionRing != null)
+		{
+			_selectionRing.Visible = _isSelected;
+		}
+
+		if (_hoverRing != null)
+		{
+			_hoverRing.Visible = _isHovered && !_isSelected;
+		}
+	}
+
+	public void SetTemporarySelectionHighlight(bool highlight)
+	{
+		if (_selectionRing == null && highlight)
+		{
+			CreateSelectionRing();
+		}
+
+		if (_selectionRing != null)
+		{
+			if (highlight || _isSelected)
+			{
+				UpdateSelectionRingTransform();
+			}
+
+			_selectionRing.Visible = highlight || _isSelected;
+		}
+	}
+
+	private void CreateSelectionRing()
+	{
+		if (_selectionRing != null) return;
+		_selectionRing = new MeshInstance3D
+		{
+			Name = "_selection_ring",
+			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
+			MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreateSelectionMaterial(GetSelectionRingColor()),
+			Visible = _isSelected
+		};
+		AddChild(_selectionRing);
+		UpdateSelectionRingTransform();
+	}
+
+	private Vector3 _lastNotifiedScale = new Vector3(-1f, -1f, -1f);
+
+	public override void _Notification(int what)
+	{
+		if (what == NotificationTransformChanged)
+		{
+			Vector3 currentScale = Scale;
+			if (!currentScale.IsEqualApprox(_lastNotifiedScale))
+			{
+				_lastNotifiedScale = currentScale;
+				UpdateLodVisibility();
+				UpdateSelectionRingTransform();
+			}
 		}
 	}
 
@@ -238,59 +717,36 @@ public partial class Unit3D : Prop3D
 
 		SetProcess(false);
 		SetNotifyTransform(true);
-
-		var collisionShape = new CollisionShape3D();
-		collisionShape.Name = "CollisionShape";
-		if (IsBuilding)
-		{
-			var boxShape = new BoxShape3D();
-			float size = 3f;
-			if (GameHost.TryGetUnitOrBuildingMetadata(UnitId, out var bMeta))
-			{
-				if (bMeta.ObstacleRadius.HasValue && bMeta.ObstacleRadius.Value > 0)
-				{
-					size = Math.Max(2f, bMeta.ObstacleRadius.Value);
-				}
-				else if (bMeta.CollisionCircle > 0)
-				{
-					size = Math.Max(2f, bMeta.CollisionCircle);
-				}
-			}
-			boxShape.Size = new Vector3(size, size, size);
-			collisionShape.Shape = boxShape;
-			collisionShape.Position = new Vector3(0, size * 0.5f, 0);
-		}
-		else
-		{
-			var capsuleShape = new CapsuleShape3D();
-			capsuleShape.Radius = 1.0f;
-			capsuleShape.Height = 2.5f;
-			collisionShape.Shape = capsuleShape;
-			collisionShape.Position = new Vector3(0, 1.25f, 0);
-		}
-
-		AddChild(collisionShape);
-
-
-		CreateSelectionRing();
-		SetProcess(false);
 	}
 
-	public override void UpdateLodVisibility()
+	private float _lastUnitEffectiveLodScale = -1f;
+
+	public void RefreshLodVisibilityDistances()
+	{
+		_lastUnitEffectiveLodScale = -1f;
+		UpdateLodVisibility();
+	}
+
+	public void UpdateLodVisibility()
 	{
 		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
 		{
 			float effectiveScale = Math.Max(0.01f, Scale.Y * _modelNode.Scale.Y);
-			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(_modelNode, effectiveScale);
+			if (MathF.Abs(effectiveScale - _lastUnitEffectiveLodScale) > 0.0005f)
+			{
+				_lastUnitEffectiveLodScale = effectiveScale;
+				GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(_modelNode, effectiveScale);
+			}
 		}
 	}
 
 	public float BaseModelYOffset => 0f;
 	public string ModelPath { get; private set; }
 	public Node3D ModelNode => _modelNode;
+	public bool IsFlashingScale { get; set; }
 
-	public override void UpdateVisualYOffset(float yOffset) => UpdateModelYOffset(yOffset);
-	public override void UpdateVisualScale(float globalScale) => UpdateModelScale(globalScale);
+	public void UpdateVisualYOffset(float yOffset) => UpdateModelYOffset(yOffset);
+	public void UpdateVisualScale(float globalScale) => UpdateModelScale(globalScale);
 
 	public void UpdateModelYOffset(float yOffset)
 	{
@@ -305,9 +761,16 @@ public partial class Unit3D : Prop3D
 		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
 		{
 			float safeScale = globalScale <= 0.001f ? 1.0f : globalScale;
+			_cachedBaseModelScale = safeScale;
+			_isLaborPulsing = false;
 			_modelNode.Scale = new Vector3(safeScale, safeScale, safeScale);
 			float yOffset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(this) : 0f;
 			_modelNode.Position = new Vector3(_modelNode.Position.X, yOffset, _modelNode.Position.Z);
+			var calculatedAabb = CalculateModelLocalAabb();
+			if (calculatedAabb.Size.LengthSquared() > 0.001f)
+			{
+				_cachedLocalAabb = new Aabb(calculatedAabb.Position * _cachedBaseModelScale, calculatedAabb.Size * _cachedBaseModelScale);
+			}
 			UpdateLodVisibility();
 		}
 	}
@@ -319,7 +782,7 @@ public partial class Unit3D : Prop3D
 
 		CleanupExistingModel();
 
-		string resolved = ResolvePropModelPath(modelPath);
+		string resolved = ModelCache.ResolveModelPath(modelPath);
 		if (string.IsNullOrEmpty(resolved))
 		{
 			resolved = modelPath;
@@ -336,13 +799,21 @@ public partial class Unit3D : Prop3D
 		_modelNode.Name = "VisualModel";
 		AddChild(_modelNode);
 
+		_cachedSkeleton = FindSkeleton(_modelNode);
 		ConfigureAnimations(modelPath);
 		ApplyAttachmentsSafely();
 		ApplyTransformations();
 		ApplyVisuals(modelPath);
-		UpdateCollisionShape();
 		UpdateDropShadow();
 		UpdateSlopeAlignment();
+
+		var calculatedAabb = CalculateModelLocalAabb();
+		if (calculatedAabb.Size.LengthSquared() > 0.001f)
+		{
+			_cachedLocalAabb = new Aabb(calculatedAabb.Position * _cachedBaseModelScale, calculatedAabb.Size * _cachedBaseModelScale);
+		}
+
+		RebuildGeometryInstanceCache();
 	}
 
 	private void CleanupExistingModel()
@@ -352,6 +823,11 @@ public partial class Unit3D : Prop3D
 		RemoveChild(_modelNode);
 		_modelNode.QueueFree();
 		_modelNode = null;
+		_cachedSkeleton = null;
+		_isCulled = false;
+		_hasEvaluatedFrustum = false;
+		_animStepAccumulator = 0f;
+		_isLaborPulsing = false;
 		_rightHandAttachment = null;
 		_leftHandAttachment = null;
 		_currentRightAttachmentId = null;
@@ -363,17 +839,23 @@ public partial class Unit3D : Prop3D
 		_resolvedAnimCache.Clear();
 		_lastRequestedAnimName = null;
 		_currentAnimation = string.Empty;
+		_lastUnitEffectiveLodScale = -1f;
 	}
 
 	private Node3D? ResolveAndGetModelNode(string modelPath, string resolved)
 	{
-		var node = ModelCache.GetModel(modelPath) as Node3D;
-		if (node == null && !string.IsNullOrEmpty(resolved) && !resolved.Equals(modelPath, StringComparison.OrdinalIgnoreCase))
+		var rawNode = ModelCache.GetModel(modelPath);
+		if (rawNode is Node3D node3D) return node3D;
+		if (rawNode != null) rawNode.QueueFree();
+
+		if (!string.IsNullOrEmpty(resolved) && !resolved.Equals(modelPath, StringComparison.OrdinalIgnoreCase))
 		{
-			node = ModelCache.GetModel(resolved) as Node3D;
+			rawNode = ModelCache.GetModel(resolved);
+			if (rawNode is Node3D resolvedNode3D) return resolvedNode3D;
+			if (rawNode != null) rawNode.QueueFree();
 		}
 
-		return node;
+		return null;
 	}
 
 	private void ConfigureAnimations(string modelPath)
@@ -382,6 +864,10 @@ public partial class Unit3D : Prop3D
 		{
 			if (_modelNode == null) return;
 			_animationPlayer = AnimationRetargetingService.FindOrCreateAnimationPlayer(_modelNode);
+			if (_animationPlayer != null && !IsPreview)
+			{
+				_animationPlayer.CallbackModeProcess = AnimationMixer.AnimationCallbackModeProcess.Manual;
+			}
 			AnimationRetargetingService.LoadAndBindUnitAnimations(_modelNode, UnitId, modelPath);
 			SeekToIdleFirstFrame();
 		}
@@ -408,6 +894,8 @@ public partial class Unit3D : Prop3D
 		if (_modelNode == null) return;
 		float globalScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
 		float safeScale = globalScale <= 0.001f ? 1.0f : globalScale;
+		_cachedBaseModelScale = safeScale;
+		_isLaborPulsing = false;
 		_modelNode.Scale = new Vector3(safeScale, safeScale, safeScale);
 
 		UpdateLodVisibility();
@@ -441,32 +929,7 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
-	private void UpdateCollisionShape()
-	{
-		try
-		{
-			var colShapeNode = GetNodeOrNull<CollisionShape3D>("CollisionShape");
-			if (colShapeNode != null && _modelNode != null)
-			{
-				Aabb modelAabb = GetCombinedAabb(_modelNode);
-				if (modelAabb.Size.LengthSquared() > 0.01f)
-				{
-					var (analShape, analOffset) = ModelOptimizerService.GenerateAnalyticalCollisionShape(modelAabb, IsBuilding);
-					if (analShape != null)
-					{
-						colShapeNode.Shape = analShape;
-						colShapeNode.Position = analOffset;
-					}
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"Error generating collision shape for unit '{UnitId}': {ex.Message}");
-		}
-	}
-
-	public override bool IsSlopeAligned
+	public bool IsSlopeAligned
 	{
 		get
 		{
@@ -484,23 +947,12 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
-	public override void UpdateSlopeAlignment()
+	public void UpdateSlopeAlignment()
 	{
-		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && _modelNode != null && GodotObject.IsInstanceValid(_modelNode))
-		{
-			GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
-			if (normal.LengthSquared() > 0.01f)
-			{
-				normal = normal.Normalized();
-				Vector3 up = normal;
-				Vector3 forward = MathF.Abs(up.Y) < 0.99f ? Vector3.Up.Cross(up).Cross(up).Normalized() : -Vector3.Forward;
-				Vector3 right = up.Cross(forward).Normalized();
-				_modelNode.Basis = new Basis(right, up, -forward);
-			}
-		}
+		Realm.Client.Utils.ModelExtensions.ApplySlopeAlignment(this, _modelNode, IsSlopeAligned);
 	}
 
-	public override float GetBaseObstacleRadius()
+	public float GetBaseObstacleRadius()
 	{
 		if (GameHost.Instance != null)
 		{
@@ -556,8 +1008,38 @@ public partial class Unit3D : Prop3D
 		AddChild(shadowDecal);
 	}
 
+	private const double AnimationTransitionSeconds = 0.15;
+
+	public bool AnimationsFrozen { get; private set; }
+
+	public void SetAnimationsFrozen(bool frozen)
+	{
+		if (AnimationsFrozen == frozen) return;
+		AnimationsFrozen = frozen;
+
+		_lastRequestedAnimName = string.Empty;
+		_currentAnimation = string.Empty;
+
+		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
+
+		if (frozen)
+		{
+			_animationPlayer.Pause();
+			GameHost.Instance?.SuspendProceduralAnimation(this);
+		}
+		else
+		{
+			_animationPlayer.Play();
+			if (HasProceduralAnimation)
+			{
+				GameHost.Instance?.ReapplyProceduralAnimation(this);
+			}
+		}
+	}
+
 	public void PlayAnimation(string animName)
 	{
+		if (AnimationsFrozen) return;
 		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
 		if (string.IsNullOrEmpty(animName)) return;
 
@@ -591,8 +1073,27 @@ public partial class Unit3D : Prop3D
 			}
 		}
 
-		_animationPlayer.ProcessMode = ProcessModeEnum.Inherit;
-		_animationPlayer.Play(resolved);
+		if (_isCulled)
+		{
+			_culledGameTime = GameHost.Instance?.GameElapsedTime ?? 0f;
+		}
+
+		_animStepAccumulator = 0f;
+		if (!IsPreview)
+		{
+			_animationPlayer.CallbackModeProcess = AnimationMixer.AnimationCallbackModeProcess.Manual;
+		}
+		_animationPlayer.ProcessMode = _isCulled ? ProcessModeEnum.Disabled : ProcessModeEnum.Inherit;
+		_animationPlayer.Play(resolved, AnimationTransitionSeconds);
+		if (!_isCulled)
+		{
+			_animationPlayer.Advance(0.0);
+		}
+	}
+
+	public void UpdateFrustumCulling(bool hasFrustum, ReadOnlySpan<Plane> frustumPlanes, float currentGameTime)
+	{
+		EvaluateFrustumCulling(hasFrustum, frustumPlanes, currentGameTime, true, true);
 	}
 
 	private void SeekToIdleFirstFrame()
@@ -768,16 +1269,8 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
-	private void ApplySocketAttachmentInstance(Node3D model, string attachmentId, Node3D attachTarget, Node3D parentNode, string? parentAttachmentId, HumanoidBone bone, float defScale, Vector3 defPos, Vector3 defRot, Vector3? posOffsetOverride, Vector3? rotOffsetOverride, float? scaleOverride, Vector3? scaleVectorOverride, float? normalOffsetOverride)
+	private void ApplyEffectiveTransformAndMetadata(Node3D model, string attachmentId, Node3D targetParent, Vector3 effectivePos, Vector3 effectiveRot, Vector3 effectiveScaleVec, float effectiveNormalOffset)
 	{
-		float effectiveScale = scaleOverride ?? defScale;
-		Vector3 effectivePos = posOffsetOverride ?? defPos;
-		Vector3 effectiveRot = rotOffsetOverride ?? defRot;
-		Vector3 effectiveScaleVec = scaleVectorOverride ?? (Vector3.One * (effectiveScale <= 0f ? 1.0f : effectiveScale));
-		float effectiveNormalOffset = normalOffsetOverride ?? 0.0f;
-
-		ApplyUnitAttachmentOverrides(bone, attachmentId, ref effectivePos, ref effectiveRot, ref effectiveScaleVec, ref effectiveNormalOffset, scaleOverride.HasValue, scaleVectorOverride.HasValue, posOffsetOverride.HasValue, rotOffsetOverride.HasValue, normalOffsetOverride.HasValue);
-
 		if (effectiveNormalOffset != 0.0f) effectivePos += Vector3.Up * effectiveNormalOffset;
 
 		model.Position = effectivePos;
@@ -789,10 +1282,23 @@ public partial class Unit3D : Prop3D
 		model.SetMeta("AttachmentId", attachmentId);
 		model.SetMeta("CleanAttachmentId", cleanAttId);
 
-		Node3D targetParent = ResolveSocketTargetParent(attachTarget, parentNode, parentAttachmentId);
 		targetParent.AddChild(model);
 
-		ApplyModelShaders(model);
+		ApplyModelShaders(model, attachmentId);
+	}
+
+	private void ApplySocketAttachmentInstance(Node3D model, string attachmentId, Node3D attachTarget, Node3D parentNode, string? parentAttachmentId, HumanoidBone bone, float defScale, Vector3 defPos, Vector3 defRot, Vector3? posOffsetOverride, Vector3? rotOffsetOverride, float? scaleOverride, Vector3? scaleVectorOverride, float? normalOffsetOverride)
+	{
+		float effectiveScale = scaleOverride ?? defScale;
+		Vector3 effectivePos = posOffsetOverride ?? defPos;
+		Vector3 effectiveRot = rotOffsetOverride ?? defRot;
+		Vector3 effectiveScaleVec = scaleVectorOverride ?? (Vector3.One * (effectiveScale <= 0f ? 1.0f : effectiveScale));
+		float effectiveNormalOffset = normalOffsetOverride ?? 0.0f;
+
+		ApplyUnitAttachmentOverrides(bone, attachmentId, ref effectivePos, ref effectiveRot, ref effectiveScaleVec, ref effectiveNormalOffset, scaleOverride.HasValue, scaleVectorOverride.HasValue, posOffsetOverride.HasValue, rotOffsetOverride.HasValue, normalOffsetOverride.HasValue);
+
+		Node3D targetParent = ResolveSocketTargetParent(attachTarget, parentNode, parentAttachmentId);
+		ApplyEffectiveTransformAndMetadata(model, attachmentId, targetParent, effectivePos, effectiveRot, effectiveScaleVec, effectiveNormalOffset);
 	}
 
 	private void ApplyUnitAttachmentOverrides(HumanoidBone bone, string attachmentId, ref Vector3 effectivePos, ref Vector3 effectiveRot, ref Vector3 effectiveScaleVec, ref float effectiveNormalOffset, bool hasScaleOverride, bool hasScaleVecOverride, bool hasPosOverride, bool hasRotOverride, bool hasNormalOverride)
@@ -820,11 +1326,12 @@ public partial class Unit3D : Prop3D
 		return parentMesh ?? attachTarget;
 	}
 
-	private void ApplyModelShaders(Node3D model)
+	private void ApplyModelShaders(Node3D model, string attachmentId)
 	{
 		if (model is ProceduralVfxInstance3D) return;
-		ModelShaderManager.ApplyPlayerColorShader(model, PlayerColor, true, true, false);
-		ModelShaderManager.SetIgnorePlayerColor(model, true);
+		bool ignorePlayerColor = GameHost.Instance != null && GameHost.Instance.GetModelIgnorePlayerColor(attachmentId);
+		ModelShaderManager.ApplyPlayerColorShader(model, PlayerColor, ignorePlayerColor, true, false);
+		ModelShaderManager.SetIgnorePlayerColor(model, ignorePlayerColor);
 	}
 
 
@@ -859,6 +1366,7 @@ public partial class Unit3D : Prop3D
 		}
 
 		_currentPseudoSocketAttachmentIds.Clear();
+		RebuildGeometryInstanceCache();
 	}
 
 	public virtual void ApplyAllConfiguredAttachments()
@@ -1019,7 +1527,7 @@ public partial class Unit3D : Prop3D
 		if (Mathf.Abs(relXform.Basis.Determinant()) <= 0.0001f) return;
 
 		Aabb mAabb = meshInst.Mesh.GetAabb();
-		Vector3[] corners = GetMeshAabbCorners(mAabb);
+		Vector3[] corners = Realm.Client.Utils.MathUtils.GetAabbCorners(mAabb);
 		for (int i = 0; i < 8; i++)
 		{
 			Vector3 pt = relXform * corners[i];
@@ -1048,22 +1556,6 @@ public partial class Unit3D : Prop3D
 		return relXform;
 	}
 
-	private Vector3[] GetMeshAabbCorners(Aabb mAabb)
-	{
-		Vector3 min = mAabb.Position;
-		Vector3 max = mAabb.End;
-		return new[]
-		{
-			new Vector3(min.X, min.Y, min.Z),
-			new Vector3(min.X, min.Y, max.Z),
-			new Vector3(min.X, max.Y, min.Z),
-			new Vector3(min.X, max.Y, max.Z),
-			new Vector3(max.X, min.Y, min.Z),
-			new Vector3(max.X, min.Y, max.Z),
-			new Vector3(max.X, max.Y, min.Z),
-			new Vector3(max.X, max.Y, max.Z)
-		};
-	}
 
 
 	public void SetPseudoSocketAttachment(
@@ -1200,21 +1692,8 @@ public partial class Unit3D : Prop3D
 
 		ApplyPseudoSocketUnitOverrides(normSocket, attachmentId, ref effectivePos, ref effectiveRot, ref effectiveScaleVec, ref effectiveNormalOffset, scaleOverride.HasValue, scaleVectorOverride.HasValue, posOffsetOverride.HasValue, rotOffsetOverride.HasValue, normalOffsetOverride.HasValue);
 
-		if (effectiveNormalOffset != 0.0f) effectivePos += Vector3.Up * effectiveNormalOffset;
-
-		model.Position = effectivePos;
-		model.RotationDegrees = effectiveRot;
-		model.Scale = effectiveScaleVec;
-
-		string cleanAttId = GetCleanAttachmentId(attachmentId);
-		model.Name = $"Att_{cleanAttId}";
-		model.SetMeta("AttachmentId", attachmentId);
-		model.SetMeta("CleanAttachmentId", cleanAttId);
-
 		Node3D targetParent = ResolvePseudoSocketTargetParent(socketNode, visual, parentAttachmentId);
-		targetParent.AddChild(model);
-
-		ApplyModelShaders(model);
+		ApplyEffectiveTransformAndMetadata(model, attachmentId, targetParent, effectivePos, effectiveRot, effectiveScaleVec, effectiveNormalOffset);
 	}
 
 	private void ApplyPseudoSocketUnitOverrides(string normSocket, string attachmentId, ref Vector3 effectivePos, ref Vector3 effectiveRot, ref Vector3 effectiveScaleVec, ref float effectiveNormalOffset, bool hasScaleOverride, bool hasScaleVecOverride, bool hasPosOverride, bool hasRotOverride, bool hasNormalOverride)
@@ -1393,7 +1872,9 @@ public partial class Unit3D : Prop3D
 	{
 		Node? loaded = !string.IsNullOrEmpty(modelPath) ? ModelCache.GetModel(modelPath) : null;
 		if (loaded == null) loaded = ModelCache.GetModel(attachmentId);
-		return loaded as Node3D;
+		if (loaded is Node3D n) return n;
+		if (loaded != null) loaded.QueueFree();
+		return null;
 	}
 
 	private static void ApplyChildVfx(Node3D loadedNode, AttachmentMetadata attMeta)
@@ -1544,19 +2025,14 @@ public partial class Unit3D : Prop3D
 		return false;
 	}
 
+	private RealmAnimationData? GetFallbackAnimationData(RealmAnimationType animType)
+	{
+		return AnimationRetargetingService.GetFallbackAnimationData(animType, UnitId);
+	}
+
 	private RealmAnimationData? GetFallbackAnimationData(string animName)
 	{
-		return animName switch
-		{
-			"Idle" => AnimationRetargetingService.GetIdleAnimationData(UnitId),
-			"Walk" => RealmDefaultAnimations.Walk,
-			"Attack" => RealmDefaultAnimations.Attack,
-			"Death" => RealmDefaultAnimations.Death,
-			"Labor" => RealmDefaultAnimations.Labor,
-			"Spell_Cast" => RealmDefaultAnimations.Spell_Cast,
-			"Dance" => RealmDefaultAnimations.Dance,
-			_ => null
-		};
+		return AnimationRetargetingService.GetFallbackAnimationData(animName, UnitId);
 	}
 
 
@@ -1611,7 +2087,7 @@ public partial class Unit3D : Prop3D
 	}
 
 
-	protected override Color GetSelectionRingColor()
+	protected Color GetSelectionRingColor()
 	{
 		return new Color(0.22f, 0.54f, 0.26f);
 	}
@@ -1671,13 +2147,25 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
+	private Vector3 GetEcsOrLocalPosition()
+	{
+		if (GameHost.Instance != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity) && GameContext.World.Has<Position>(Entity))
+		{
+			var p = GameContext.World.Get<Position>(Entity).Value;
+			return new Vector3(p.X, p.Y, p.Z);
+		}
+
+		return Position;
+	}
+
 	private void GetRemainingRallyPoints(List<Vector3> points)
 	{
 		points.Clear();
 		if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return;
 
 		var world = GameContext.World;
-		points.Add(GlobalPosition);
+		Vector3 currentPos = GetEcsOrLocalPosition();
+		points.Add(currentPos);
 
 		if (world.Has<RallyPoint>(Entity))
 		{
@@ -1689,7 +2177,7 @@ public partial class Unit3D : Prop3D
 		}
 		else
 		{
-			points.Add(GlobalPosition + new Vector3(0, 0, 8));
+			points.Add(currentPos + new Vector3(0, 0, 8));
 		}
 	}
 
@@ -1698,6 +2186,7 @@ public partial class Unit3D : Prop3D
 		if (_rallyVisualsContainer == null)
 		{
 			_rallyVisualsContainer = new Node3D();
+			_rallyVisualsContainer.Name = "RallyVisualsContainer_Node3D";
 			_rallyVisualsContainer.TopLevel = true;
 			AddChild(_rallyVisualsContainer);
 		}
@@ -1708,6 +2197,7 @@ public partial class Unit3D : Prop3D
 		while (_rallyMarkersPool.Count <= index)
 		{
 			var marker = new MeshInstance3D();
+			marker.Name = "Marker_MeshInstance3D";
 			var cylinderMesh = new CylinderMesh();
 			cylinderMesh.TopRadius = 0.25f;
 			cylinderMesh.BottomRadius = 0.25f;
@@ -1733,6 +2223,7 @@ public partial class Unit3D : Prop3D
 		while (_rallyLinesPool.Count <= index)
 		{
 			var line = new MeshInstance3D();
+			line.Name = "Line_MeshInstance3D";
 			var boxMesh = new BoxMesh();
 			boxMesh.Size = new Vector3(0.1f, 0.05f, 1.0f);
 			line.Mesh = boxMesh;
@@ -1774,6 +2265,29 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
+	private void UpdateLineTransform(MeshInstance3D line, Vector3 start, Vector3 end, float width, Color color, float alpha)
+	{
+		Vector3 diff = end - start;
+		float length = diff.Length();
+
+		if (length <= 0.02f)
+		{
+			line.Visible = false;
+			return;
+		}
+
+		Vector3 direction = diff.Normalized();
+		Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
+		var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(width / 0.1f, 1f, length));
+		line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
+
+		if (line.MaterialOverride is StandardMaterial3D lineMaterial)
+		{
+			lineMaterial.AlbedoColor = new Color(color.R, color.G, color.B, alpha * 0.75f);
+			lineMaterial.Emission = new Color(color.R, color.G, color.B);
+		}
+	}
+
 	private void UpdateRallyLines(List<Vector3> points, int lineCountNeeded)
 	{
 		for (int i = 0; i < lineCountNeeded; i++)
@@ -1781,38 +2295,27 @@ public partial class Unit3D : Prop3D
 			var line = GetOrCreateRallyLine(i);
 			line.Visible = true;
 
-			Vector3 start = points[i];
-			Vector3 end = points[i + 1];
+			Vector3 start = SamplePathGround(points[i]);
+			Vector3 end = SamplePathGround(points[i + 1]);
 
-			if (GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
-				start.Y = hStart + 0.1f;
-
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
-				end.Y = hEnd + 0.1f;
-			}
-
-			Vector3 diff = end - start;
-			float length = diff.Length();
-
-			if (length > 0.05f)
-			{
-				Vector3 direction = diff.Normalized();
-				Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-				var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
-				line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
-			}
-			else
-			{
-				line.Visible = false;
-			}
+			UpdateLineTransform(line, start, end, PathBaseWidth, new Color(0.95f, 0.85f, 0.25f), 0.85f);
 		}
 
 		for (int i = lineCountNeeded; i < _rallyLinesPool.Count; i++)
 		{
 			_rallyLinesPool[i].Visible = false;
 		}
+	}
+
+	private static bool PointsListEqual(List<Vector3> a, List<Vector3> b)
+	{
+		if (a.Count != b.Count) return false;
+		for (int i = 0; i < a.Count; i++)
+		{
+			if (a[i].DistanceSquaredTo(b[i]) > 0.0001f) return false;
+		}
+
+		return true;
 	}
 
 	public void UpdateRallyVisuals()
@@ -1830,22 +2333,33 @@ public partial class Unit3D : Prop3D
 		_rallyVisualsContainer.Visible = IsSelected;
 		if (!IsSelected) return;
 
-		var points = new List<Vector3>();
-		GetRemainingRallyPoints(points);
+		GetRemainingRallyPoints(_rallyPointsBuffer);
 
-		if (points.Count <= 1)
+		if (_rallyPointsBuffer.Count <= 1)
 		{
 			if (_rallyMarker != null) _rallyMarker.Visible = false;
+			_lastRallyRenderPos = new Vector3(float.NaN, float.NaN, float.NaN);
+			_lastRenderedRallyPoints.Clear();
 			return;
 		}
+
+		Vector3 currentPos = _rallyPointsBuffer[0];
+		bool posUnchanged = !float.IsNaN(_lastRallyRenderPos.X) && currentPos.DistanceSquaredTo(_lastRallyRenderPos) < 0.0025f;
+		bool pointsUnchanged = PointsListEqual(_rallyPointsBuffer, _lastRenderedRallyPoints);
+
+		if (posUnchanged && pointsUnchanged) return;
+
+		_lastRallyRenderPos = currentPos;
+		_lastRenderedRallyPoints.Clear();
+		_lastRenderedRallyPoints.AddRange(_rallyPointsBuffer);
 
 		EnsureRallyMarkerExists();
 		_rallyMarker.Visible = true;
 
-		PositionRallyMarker(points[points.Count - 1]);
+		PositionRallyMarker(_rallyPointsBuffer[_rallyPointsBuffer.Count - 1]);
 
-		UpdateRallyMarkers(points, points.Count - 2);
-		UpdateRallyLines(points, points.Count - 1);
+		UpdateRallyMarkers(_rallyPointsBuffer, _rallyPointsBuffer.Count - 2);
+		UpdateRallyLines(_rallyPointsBuffer, _rallyPointsBuffer.Count - 1);
 	}
 
 	private void EnsureRallyMarkerExists()
@@ -1857,6 +2371,7 @@ public partial class Unit3D : Prop3D
 		cylinderMesh.BottomRadius = 0.1f;
 		cylinderMesh.Height = 3.0f;
 		_rallyMarker = new MeshInstance3D();
+		_rallyMarker.Name = "RallyMarker_MeshInstance3D";
 		_rallyMarker.Mesh = cylinderMesh;
 
 		var markerMat = new StandardMaterial3D();
@@ -1880,7 +2395,7 @@ public partial class Unit3D : Prop3D
 	}
 
 
-	public override void _Process(double delta)
+	public void UpdateSelectedVisuals(float fDelta)
 	{
 		if (IsSelected && GameContext.PerspectiveFilter.CanSeeOwnedUi(Player))
 		{
@@ -1900,7 +2415,6 @@ public partial class Unit3D : Prop3D
 			{
 				_rallyVisualsContainer.Visible = false;
 			}
-			SetProcess(false);
 		}
 	}
 
@@ -1909,6 +2423,7 @@ public partial class Unit3D : Prop3D
 		if (_pathVisualsContainer == null)
 		{
 			_pathVisualsContainer = new Node3D();
+			_pathVisualsContainer.Name = "PathVisualsContainer_Node3D";
 			_pathVisualsContainer.TopLevel = true;
 			AddChild(_pathVisualsContainer);
 		}
@@ -1928,7 +2443,7 @@ public partial class Unit3D : Prop3D
 			IsAttackPath = true;
 		}
 
-		points.Add(GlobalPosition);
+		points.Add(GetEcsOrLocalPosition());
 
 		if (world.Has<PathFollow>(Entity))
 		{
@@ -1954,78 +2469,143 @@ public partial class Unit3D : Prop3D
 		}
 	}
 
+	private const float PathSampleSpacing = 1.5f;
+	private const float PathMarkerSpacing = 4.5f;
+	private const float PathGroundOffset = 0.12f;
+	private const float PathBaseWidth = 0.14f;
+	private const float PathTaperLengthRatio = 0.55f;
+	private const float PathFadeLengthRatio = 0.6f;
+
+	private Vector3 SamplePathGround(Vector3 point)
+	{
+		if (GameHost.Instance?.GroundTerrain != null)
+		{
+			GameHost.Instance.GroundTerrain.GetHeightAndNormal(point.X, point.Z, out float height, out _);
+			return new Vector3(point.X, height + PathGroundOffset, point.Z);
+		}
+
+		return new Vector3(point.X, point.Y + PathGroundOffset, point.Z);
+	}
+
+	private void BuildSampledPath()
+	{
+		_pathSampledPoints.Clear();
+
+		if (_pathPointsBuffer.Count <= 1)
+			return;
+
+		_pathSampledPoints.Add(SamplePathGround(_pathPointsBuffer[1]));
+
+		for (int segment = 1; segment + 1 < _pathPointsBuffer.Count; segment++)
+		{
+			Vector3 start = _pathPointsBuffer[segment];
+			Vector3 end = _pathPointsBuffer[segment + 1];
+			float horizontalLength = new Vector3(end.X - start.X, 0f, end.Z - start.Z).Length();
+			int steps = Mathf.Max(1, Mathf.CeilToInt(horizontalLength / PathSampleSpacing));
+
+			for (int step = 1; step <= steps; step++)
+			{
+				Vector3 point = start.Lerp(end, step / (float)steps);
+				_pathSampledPoints.Add(SamplePathGround(point));
+			}
+		}
+	}
+
 	private void UpdatePathVisuals()
 	{
 		EnsurePathVisualsContainer();
 		_pathVisualsContainer.Visible = true;
 
-		var points = new List<Vector3>();
-		GetRemainingPathPoints(points);
+		GetRemainingPathPoints(_pathPointsBuffer);
 
-		if (points.Count <= 1)
+		if (_pathPointsBuffer.Count <= 1)
 		{
 			HidePathVisuals();
+			_lastPathRenderIsAttackPath = IsAttackPath;
+			_lastRenderedPathPoints.Clear();
+			_pathSampledPoints.Clear();
 			return;
 		}
 
-		int markerCountNeeded = points.Count - 1;
-		for (int i = 0; i < markerCountNeeded; i++)
-		{
-			var marker = GetOrCreateMarker(i);
-			marker.Visible = true;
-			Vector3 pos = points[i + 1];
-			if (GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(pos.X, pos.Z, out float h, out _);
-				pos.Y = h + 0.1f;
-			}
+		bool attackModeUnchanged = IsAttackPath == _lastPathRenderIsAttackPath;
+		bool pointsUnchanged = PointsListEqual(_pathPointsBuffer, _lastRenderedPathPoints);
 
-			marker.GlobalPosition = pos;
+		if (attackModeUnchanged && pointsUnchanged && _pathSampledPoints.Count > 0) return;
+
+		_lastPathRenderPos = _pathPointsBuffer[1];
+		_lastPathRenderIsAttackPath = IsAttackPath;
+		_lastRenderedPathPoints.Clear();
+		_lastRenderedPathPoints.AddRange(_pathPointsBuffer);
+
+		BuildSampledPath();
+
+		Color pathColor = IsAttackPath ? new Color(0.9f, 0.22f, 0.18f) : new Color(0.22f, 0.62f, 1f);
+		int sampleCount = _pathSampledPoints.Count;
+
+		float totalLength = 0f;
+		for (int i = 1; i < sampleCount; i++)
+		{
+			totalLength += _pathSampledPoints[i].DistanceTo(_pathSampledPoints[i - 1]);
 		}
 
-		for (int i = markerCountNeeded; i < _pathMarkersPool.Count; i++)
+		int lineIndex = 0;
+		float travelled = 0f;
+		for (int i = 1; i < sampleCount; i++)
 		{
-			_pathMarkersPool[i].Visible = false;
-		}
+			Vector3 start = _pathSampledPoints[i - 1];
+			Vector3 end = _pathSampledPoints[i];
+			float segmentLength = start.DistanceTo(end);
+			travelled += segmentLength;
 
-		int lineCountNeeded = points.Count - 1;
-		for (int i = 0; i < lineCountNeeded; i++)
-		{
-			var line = GetOrCreateLine(i);
+			float progress = totalLength > 0.001f ? travelled / totalLength : 0f;
+			float width = PathBaseWidth * (1f - PathTaperLengthRatio * progress);
+			float alpha = 1f - PathFadeLengthRatio * progress;
+
+			var line = GetOrCreateLine(lineIndex);
 			line.Visible = true;
-
-			Vector3 start = points[i];
-			Vector3 end = points[i + 1];
-
-			if (GameHost.Instance.GroundTerrain != null)
-			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(start.X, start.Z, out float hStart, out _);
-				start.Y = hStart + 0.1f;
-
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(end.X, end.Z, out float hEnd, out _);
-				end.Y = hEnd + 0.1f;
-			}
-
-			Vector3 diff = end - start;
-			float length = diff.Length();
-
-			if (length > 0.05f)
-			{
-				Vector3 direction = diff.Normalized();
-				Vector3 upVector = Mathf.Abs(direction.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-				var basis = Basis.LookingAt(direction, upVector).Scaled(new Vector3(1f, 1f, length));
-				line.GlobalTransform = new Transform3D(basis, start + diff * 0.5f);
-			}
-			else
-			{
-				line.Visible = false;
-			}
+			UpdateLineTransform(line, start, end, width, pathColor, alpha);
+			lineIndex++;
 		}
 
-		for (int i = lineCountNeeded; i < _pathLinesPool.Count; i++)
+		for (int i = lineIndex; i < _pathLinesPool.Count; i++)
 		{
 			_pathLinesPool[i].Visible = false;
 		}
+
+		int markerIndex = 0;
+		travelled = 0f;
+		float sinceLastMarker = 0f;
+		for (int i = 1; i < sampleCount; i++)
+		{
+			float segmentLength = _pathSampledPoints[i].DistanceTo(_pathSampledPoints[i - 1]);
+			travelled += segmentLength;
+			sinceLastMarker += segmentLength;
+
+			if (sinceLastMarker < PathMarkerSpacing)
+				continue;
+
+			sinceLastMarker = 0f;
+			float progress = totalLength > 0.001f ? travelled / totalLength : 0f;
+			var marker = GetOrCreateMarker(markerIndex);
+			marker.Visible = true;
+			marker.GlobalPosition = _pathSampledPoints[i];
+			SetMarkerColor(marker, pathColor, 1f - PathFadeLengthRatio * progress);
+			markerIndex++;
+		}
+
+		for (int i = markerIndex; i < _pathMarkersPool.Count; i++)
+		{
+			_pathMarkersPool[i].Visible = false;
+		}
+	}
+
+	private static void SetMarkerColor(MeshInstance3D marker, Color color, float alpha)
+	{
+		if (marker.MaterialOverride is not StandardMaterial3D markerMaterial) return;
+
+		Color shaded = new Color(color.R, color.G, color.B, alpha);
+		markerMaterial.AlbedoColor = shaded;
+		markerMaterial.Emission = new Color(color.R, color.G, color.B);
 	}
 
 	private void HidePathVisuals()
@@ -2041,6 +2621,7 @@ public partial class Unit3D : Prop3D
 		while (_pathMarkersPool.Count <= index)
 		{
 			var marker = new MeshInstance3D();
+			marker.Name = "Marker_MeshInstance3D";
 			var cylinderMesh = new CylinderMesh();
 			cylinderMesh.TopRadius = 0.25f;
 			cylinderMesh.BottomRadius = 0.25f;
@@ -2049,6 +2630,7 @@ public partial class Unit3D : Prop3D
 
 			var mat = new StandardMaterial3D();
 			mat.AlbedoColor = new Color(0.2f, 0.6f, 1.0f);
+			mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
 			mat.EmissionEnabled = true;
 			mat.Emission = new Color(0.2f, 0.6f, 1.0f);
 			mat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
@@ -2074,6 +2656,7 @@ public partial class Unit3D : Prop3D
 		while (_pathLinesPool.Count <= index)
 		{
 			var line = new MeshInstance3D();
+			line.Name = "Line_MeshInstance3D";
 			var boxMesh = new BoxMesh();
 			boxMesh.Size = new Vector3(0.1f, 0.05f, 1.0f);
 			line.Mesh = boxMesh;
@@ -2107,6 +2690,7 @@ public partial class Unit3D : Prop3D
 		get => new Color(1f, 1f, 1f, _modulateAlpha);
 		set
 		{
+			if (Mathf.Abs(_modulateAlpha - value.A) < 0.005f) return;
 			_modulateAlpha = value.A;
 			if (_modelNode != null)
 				SetAlphaRecursive(_modelNode, value.A);
@@ -2117,6 +2701,8 @@ public partial class Unit3D : Prop3D
 
 	public void SetConstructionAlpha(float alpha)
 	{
+		if (Mathf.Abs(_modulateAlpha - alpha) < 0.005f) return;
+		_modulateAlpha = alpha;
 		if (_modelNode != null)
 		{
 			SetAlphaRecursive(_modelNode, alpha);
@@ -2130,18 +2716,23 @@ public partial class Unit3D : Prop3D
 			Material mat = mesh.MaterialOverride;
 			if (mat is StandardMaterial3D stdMat)
 			{
-				var dup = (StandardMaterial3D)stdMat.Duplicate();
-				dup.Transparency = alpha < 1f ? BaseMaterial3D.TransparencyEnum.Alpha : BaseMaterial3D.TransparencyEnum.Disabled;
-				var c = dup.AlbedoColor;
+				if (!stdMat.HasMeta("AlphaDuplicated"))
+				{
+					stdMat = (StandardMaterial3D)stdMat.Duplicate();
+					stdMat.SetMeta("AlphaDuplicated", true);
+					mesh.MaterialOverride = stdMat;
+				}
+				stdMat.Transparency = alpha < 1f ? BaseMaterial3D.TransparencyEnum.Alpha : BaseMaterial3D.TransparencyEnum.Disabled;
+				var c = stdMat.AlbedoColor;
 				c.A = alpha;
-				dup.AlbedoColor = c;
-				mesh.MaterialOverride = dup;
+				stdMat.AlbedoColor = c;
 			}
 		}
 
-		foreach (var child in node.GetChildren())
+		int childCount = node.GetChildCount();
+		for (int i = 0; i < childCount; i++)
 		{
-			SetAlphaRecursive(child, alpha);
+			SetAlphaRecursive(node.GetChild(i), alpha);
 		}
 	}
 }

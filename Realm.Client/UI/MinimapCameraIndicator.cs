@@ -2,6 +2,7 @@ using Godot;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class MinimapCameraIndicator : Control
 {
 	private Vector2[] _points = new Vector2[4];

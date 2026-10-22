@@ -941,6 +941,13 @@ public partial class EditorService : IEditorAPI
 	public Dictionary<string, DecalAssetData> DecalAssetCache { get; set; } = new();
 	public Dictionary<(int, int), ImageTexture> DecalOrmCache { get; set; } = new();
 	public Dictionary<string, ImageTexture> DecalNormalCache { get; set; } = new();
+
+	public void ClearDecalCaches()
+	{
+		DecalOrmCache.Clear();
+		DecalNormalCache.Clear();
+		DecalAssetCache.Clear();
+	}
 	public List<EditorCoordinate> EditorCoordinates { get; set; } = new();
 	public int PendingCoordinateMinX { get; set; }
 	public int PendingCoordinateMinZ { get; set; }
@@ -1425,7 +1432,12 @@ public partial class EditorService : IEditorAPI
 
 	public float GetTerrainHeightAt(Godot.Vector3 worldPos)
 	{
-		ref var terrain = ref GetTerrainState();
+		if (!TryGetTerrainState(out Entity terrainEntity))
+		{
+			return 0.0f;
+		}
+
+		ref var terrain = ref GameContext.World.Get<TerrainState>(terrainEntity);
 		var cells = terrain.Cells;
 		if (cells == null) return 0.0f;
 
@@ -2809,99 +2821,7 @@ public partial class EditorService : IEditorAPI
 		{
 			for (int gridX = minGridX; gridX <= maxGridX; gridX++)
 			{
-				float worldX = (gridX - width / 2.0f) * quadSize;
-				float worldZ = (gridZ - depth / 2.0f) * quadSize;
-				float interpolationFactor = ((worldX - start.X) * (end.X - start.X) + (worldZ - start.Z) * (end.Z - start.Z)) / segmentLengthSquared;
-				interpolationFactor = Mathf.Clamp(interpolationFactor, 0.0f, 1.0f);
-				float projectedX = start.X + interpolationFactor * (end.X - start.X);
-				float projectedZ = start.Z + interpolationFactor * (end.Z - start.Z);
-				float distanceToProjected = Mathf.Sqrt((worldX - projectedX) * (worldX - projectedX) + (worldZ - projectedZ) * (worldZ - projectedZ));
-				if (distanceToProjected <= brushRadius)
-				{
-					float targetHeight = Mathf.Lerp(start.Y, end.Y, interpolationFactor);
-					float innerRadius = brushRadius * 0.7f;
-					float oldHeight = GetGridNodeHeight(in terrain, gridX, gridZ);
-					float newHeight;
-
-					if (distanceToProjected <= innerRadius)
-					{
-						newHeight = targetHeight;
-					}
-					else
-					{
-						float edgeFactor = 1.0f - ((distanceToProjected - innerRadius) / Math.Max(0.001f, brushRadius - innerRadius));
-						edgeFactor = Mathf.Sin(edgeFactor * Mathf.Pi / 2.0f);
-						newHeight = Mathf.Lerp(oldHeight, targetHeight, edgeFactor);
-					}
-
-					if (Mathf.Abs(newHeight - oldHeight) > 0.001f)
-					{
-						int cellX = Math.Clamp(gridX, 0, width - 1);
-						int cellZ = Math.Clamp(gridZ, 0, depth - 1);
-						if (terrain.PathingCodes != null)
-						{
-							int defaultPathBefore = EditableTerrain.GetDefaultPathingCode(terrain.Cells[cellX, cellZ]);
-							if (terrain.PathingCodes[cellX, cellZ] == defaultPathBefore)
-							{
-								terrain.PathingCodes[cellX, cellZ] = EditableTerrain.GetDefaultPathingCode(terrain.Cells[cellX, cellZ]);
-							}
-						}
-
-						SetGridNodeHeight(ref terrain, gridX, gridZ, newHeight);
-						int rampPaintIdx = GameHost.Instance != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
-						int rampCliffIdx = GameHost.Instance != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : 1;
-
-						if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
-						{
-							_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
-						}
-
-						if (_terrainSplatMap != null)
-						{
-							for (int cz = gridZ - 1; cz <= gridZ; cz++)
-							{
-								for (int cx = gridX - 1; cx <= gridX; cx++)
-								{
-									if (cx >= 0 && cx < width && cz >= 0 && cz < depth)
-									{
-										_terrainSplatMap[cx, cz] = TerrainSplatWeights.CreateSolid(rampPaintIdx);
-										modifiedCells.Add(new Vector2I(cx, cz));
-									}
-								}
-							}
-						}
-
-						if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
-						{
-							_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
-						}
-
-						if (_terrainCliffSplatMap != null)
-						{
-							for (int cz = gridZ - 1; cz <= gridZ; cz++)
-							{
-								for (int cx = gridX - 1; cx <= gridX; cx++)
-								{
-									if (cx >= 0 && cx < width && cz >= 0 && cz < depth)
-									{
-										for (int nz = cz - 1; nz <= cz + 1; nz++)
-										{
-											for (int nx = cx - 1; nx <= cx + 1; nx++)
-											{
-												if (nx >= 0 && nx < width && nz >= 0 && nz < depth)
-												{
-													_terrainCliffSplatMap[nx, nz] = TerrainSplatWeights.CreateSolid(rampCliffIdx);
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-
-						modified = true;
-					}
-				}
+				ProcessRampCell(start, end, brushRadius, segmentLengthSquared, width, depth, quadSize, gridX, gridZ, ref terrain, ref modified, modifiedCells);
 			}
 		}
 
@@ -3060,6 +2980,18 @@ public partial class EditorService : IEditorAPI
 		};
 	}
 
+	private void CalculateWorldBounds(int minX, int minZ, int maxX, int maxZ, int width, int depth, float quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld)
+	{
+		minWorldX = (minX - width / 2.0f) * quadSize - quadSize * 0.5f;
+		maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
+		minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
+		maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
+		centerWorldX = (minWorldX + maxWorldX) * 0.5f;
+		centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
+		rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
+		rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
+	}
+
 	public List<CopiedEntityInfo> BuildCopiedEntityList(
 		int minX, int minZ, int maxX, int maxZ,
 		IEnumerable<Node3D> sceneChildren,
@@ -3072,14 +3004,7 @@ public partial class EditorService : IEditorAPI
 		int depth = terrain.Depth;
 		float quadSize = terrain.QuadSize;
 
-		float minWorldX = (minX - width / 2.0f) * quadSize - quadSize * 0.5f;
-		float maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
-		float minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
-		float maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
-		float centerWorldX = (minWorldX + maxWorldX) * 0.5f;
-		float centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
-		float rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
-		float rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
+		CalculateWorldBounds(minX, minZ, maxX, maxZ, width, depth, quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld);
 		Godot.Vector3 origin = new Godot.Vector3((minX - width / 2.0f) * quadSize, 0.0f, (minZ - depth / 2.0f) * quadSize);
 
 		var entities = new List<CopiedEntityInfo>();
@@ -3130,6 +3055,18 @@ public partial class EditorService : IEditorAPI
 						RelativePos = pos - origin,
 						Rotation = decal.RotationDegrees.Y,
 						Scale = decal.Scale.X,
+						Player = 0
+					});
+				}
+				else if (n3d is ProceduralVfxInstance3D vfx)
+				{
+					entities.Add(new CopiedEntityInfo
+					{
+						Type = "vfx",
+						Id = string.IsNullOrEmpty(vfx.VfxId) ? "vfx" : vfx.VfxId,
+						RelativePos = pos - origin,
+						Rotation = vfx.RotationDegrees.Y,
+						Scale = vfx.Scale.X,
 						Player = 0
 					});
 				}
@@ -3513,14 +3450,7 @@ public partial class EditorService : IEditorAPI
 
 	private void ProcessEntityErase(int minX, int minZ, int maxX, int maxZ, int width, int depth, float quadSize, bool isSquare, IEnumerable<Node3D> sceneChildren, Node3D previewNode, List<Node3D> nodesToDelete)
 	{
-		float minWorldX = (minX - width / 2.0f) * quadSize - quadSize * 0.5f;
-		float maxWorldX = (maxX - width / 2.0f) * quadSize + quadSize * 0.5f;
-		float minWorldZ = (minZ - depth / 2.0f) * quadSize - quadSize * 0.5f;
-		float maxWorldZ = (maxZ - depth / 2.0f) * quadSize + quadSize * 0.5f;
-		float centerWorldX = (minWorldX + maxWorldX) * 0.5f;
-		float centerWorldZ = (minWorldZ + maxWorldZ) * 0.5f;
-		float rxWorld = Math.Max(quadSize * 0.5f, (maxWorldX - minWorldX) * 0.5f);
-		float rzWorld = Math.Max(quadSize * 0.5f, (maxWorldZ - minWorldZ) * 0.5f);
+		CalculateWorldBounds(minX, minZ, maxX, maxZ, width, depth, quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld);
 
 		foreach (var n3d in sceneChildren)
 		{
@@ -3528,7 +3458,7 @@ public partial class EditorService : IEditorAPI
 			if (n3d.Position.X >= minWorldX && n3d.Position.X <= maxWorldX && n3d.Position.Z >= minWorldZ && n3d.Position.Z <= maxWorldZ)
 			{
 				if (!IsPointInEllipse(n3d.Position.X, n3d.Position.Z, centerWorldX, centerWorldZ, rxWorld, rzWorld, isSquare, 1.0f)) continue;
-				if (n3d is Unit3D || n3d is Prop3D || n3d is Decal) nodesToDelete.Add(n3d);
+				if (n3d is Unit3D || n3d is Prop3D || n3d is Decal || n3d is ProceduralVfxInstance3D) nodesToDelete.Add(n3d);
 			}
 		}
 
@@ -4257,17 +4187,26 @@ public partial class EditorService : IEditorAPI
 		return (vx, vz);
 	}
 
+	private bool TryGetTerrainState(out Entity terrainEntity)
+	{
+		terrainEntity = Entity.Null;
+		if (GameContext.World == null) return false;
+
+		var worldQuery = QueryCache.AllTerrainStateQuery;
+		Entity foundEntity = Entity.Null;
+		GameContext.World.Query(in worldQuery, (Entity entity) => foundEntity = entity);
+		terrainEntity = foundEntity;
+		return terrainEntity != Entity.Null && GameContext.World.IsAlive(terrainEntity);
+	}
+
 	private ref TerrainState GetTerrainState()
 	{
-		var worldQuery = QueryCache.AllTerrainStateQuery;
-		Entity worldEntity = Entity.Null;
-		GameContext.World.Query(in worldQuery, (Entity entity) => worldEntity = entity);
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity))
+		if (!TryGetTerrainState(out Entity terrainEntity))
 		{
-			return ref GameContext.World.Get<TerrainState>(worldEntity);
+			throw new InvalidOperationException("TerrainState entity not found in ECS world.");
 		}
 
-		throw new InvalidOperationException("TerrainState entity not found in ECS world.");
+		return ref GameContext.World.Get<TerrainState>(terrainEntity);
 	}
 
 	private float GetMinHeightInBrushBoundsInternal(Godot.Vector3 worldPos, float brushRadius = -1f, bool brushIsSquare = false)
@@ -4785,37 +4724,31 @@ public partial class EditorService : IEditorAPI
 		_terrainProceduralObjects.Remove(key);
 	}
 
-	private void ProcessWaterDecalRules(WaterProfileSaveData prof, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList)
+	private void ProcessBombingRules(IEnumerable<dynamic> rules, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList, bool isVfx)
 	{
-		if (prof.DecalBombingRules == null || prof.DecalBombingRules.Count == 0) return;
-		foreach (var rule in prof.DecalBombingRules)
+		if (rules == null) return;
+		foreach (var rule in rules)
 		{
-			if (string.IsNullOrWhiteSpace(rule.DecalId)) continue;
+			string id = isVfx ? rule.VfxId : rule.DecalId;
+			if (string.IsNullOrWhiteSpace(id)) continue;
 			if (Random.Shared.NextSingle() > (rule.Density * 0.05f)) continue;
 			float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
 			float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
 			float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
 			float rotY = Random.Shared.NextSingle() * 360f;
 			var pos = new Godot.Vector3(cellCenterX + jx, waterY, cellCenterZ + jz);
-			var decal = GameHost.Instance?.SpawnDecalExternalWithParams(rule.DecalId, pos, new Godot.Vector3(0, rotY, 0), scale);
-			if (decal != null) spawnedList.Add(decal);
-		}
-	}
 
-	private void ProcessWaterVfxRules(WaterProfileSaveData prof, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList)
-	{
-		if (prof.VfxBombingRules == null || prof.VfxBombingRules.Count == 0) return;
-		foreach (var rule in prof.VfxBombingRules)
-		{
-			if (string.IsNullOrWhiteSpace(rule.VfxId)) continue;
-			if (Random.Shared.NextSingle() > (rule.Density * 0.05f)) continue;
-			float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
-			float rotY = Random.Shared.NextSingle() * 360f;
-			var pos = new Godot.Vector3(cellCenterX + jx, waterY, cellCenterZ + jz);
-			var vfx = GameHost.Instance?.SpawnVfxExternalWithParams(rule.VfxId, pos, new Godot.Vector3(0, rotY, 0), new Godot.Vector3(scale, scale, scale));
-			if (vfx != null) spawnedList.Add(vfx);
+			Node spawnedObj = null;
+			if (isVfx)
+			{
+				spawnedObj = GameHost.Instance?.SpawnVfxExternalWithParams(id, pos, new Godot.Vector3(0, rotY, 0), new Godot.Vector3(scale, scale, scale));
+			}
+			else
+			{
+				spawnedObj = GameHost.Instance?.SpawnDecalExternalWithParams(id, pos, new Godot.Vector3(0, rotY, 0), scale);
+			}
+
+			if (spawnedObj != null) spawnedList.Add(spawnedObj);
 		}
 	}
 
@@ -4830,8 +4763,8 @@ public partial class EditorService : IEditorAPI
 		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
 		var spawnedList = new List<Node>();
 
-		ProcessWaterDecalRules(prof, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList);
-		ProcessWaterVfxRules(prof, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList);
+		ProcessBombingRules(prof.DecalBombingRules, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList, false);
+		ProcessBombingRules(prof.VfxBombingRules, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList, true);
 
 		if (spawnedList.Count > 0)
 		{
@@ -4861,47 +4794,35 @@ public partial class EditorService : IEditorAPI
 		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
 		var spawnedList = new List<Node>();
 
-		if (prof.DecalBombingRules != null && prof.DecalBombingRules.Count > 0)
-		{
-			foreach (var rule in prof.DecalBombingRules)
-			{
-				if (string.IsNullOrWhiteSpace(rule.DecalId)) continue;
-				if (Random.Shared.NextSingle() <= (rule.Density * 0.05f))
-				{
-					float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-					float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-					float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
-					float rotY = Random.Shared.NextSingle() * 360f;
-					var pos = new Godot.Vector3(cellCenterX + jx, terrainY, cellCenterZ + jz);
-					var decal = GameHost.Instance?.SpawnDecalExternalWithParams(rule.DecalId, pos, new Godot.Vector3(0, rotY, 0), scale);
-					if (decal != null) spawnedList.Add(decal);
-				}
-			}
-		}
-
-		if (prof.VfxBombingRules != null && prof.VfxBombingRules.Count > 0)
-		{
-			foreach (var rule in prof.VfxBombingRules)
-			{
-				if (string.IsNullOrWhiteSpace(rule.VfxId)) continue;
-				if (Random.Shared.NextSingle() <= (rule.Density * 0.05f))
-				{
-					float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-					float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-					float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
-					float rotY = Random.Shared.NextSingle() * 360f;
-					var pos = new Godot.Vector3(cellCenterX + jx, terrainY, cellCenterZ + jz);
-					var vfx = GameHost.Instance?.SpawnVfxExternalWithParams(rule.VfxId, pos, new Godot.Vector3(0, rotY, 0), new Godot.Vector3(scale, scale, scale));
-					if (vfx != null) spawnedList.Add(vfx);
-				}
-			}
-		}
+		ProcessBombingRules(prof.DecalBombingRules, r => r.DecalId, r => r.Density, r => r.MinScale, r => r.MaxScale, (id, p, r, s) => GameHost.Instance?.SpawnDecalExternalWithParams(id, p, r, s), cellCenterX, cellCenterZ, terrainY, quadSize, spawnedList);
+		ProcessBombingRules(prof.VfxBombingRules, r => r.VfxId, r => r.Density, r => r.MinScale, r => r.MaxScale, (id, p, r, s) => GameHost.Instance?.SpawnVfxExternalWithParams(id, p, r, new Godot.Vector3(s, s, s)), cellCenterX, cellCenterZ, terrainY, quadSize, spawnedList);
 
 		if (spawnedList.Count > 0)
 		{
 			_terrainProceduralObjects[new Vector2I(x, z)] = spawnedList;
 		}
 	}
+
+	private void ProcessBombingRules<T>(List<T>? rules, Func<T, string> getId, Func<T, float> getDensity, Func<T, float> getMinScale, Func<T, float> getMaxScale, Func<string, Godot.Vector3, Godot.Vector3, float, Node?> spawnFunc, float cellCenterX, float cellCenterZ, float terrainY, float quadSize, List<Node> spawnedList)
+	{
+		if (rules == null || rules.Count == 0) return;
+		foreach (var rule in rules)
+		{
+			string id = getId(rule);
+			if (string.IsNullOrWhiteSpace(id)) continue;
+			if (Random.Shared.NextSingle() <= (getDensity(rule) * 0.05f))
+			{
+				float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
+				float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
+				float scale = Mathf.Lerp(getMinScale(rule), getMaxScale(rule), Random.Shared.NextSingle());
+				float rotY = Random.Shared.NextSingle() * 360f;
+				var pos = new Godot.Vector3(cellCenterX + jx, terrainY, cellCenterZ + jz);
+				var obj = spawnFunc(id, pos, new Godot.Vector3(0, rotY, 0), scale);
+				if (obj != null) spawnedList.Add(obj);
+			}
+		}
+	}
+
 
 	public float GetCameraBoundsLeft(Entity worldEntity)
 	{
@@ -5430,6 +5351,7 @@ public partial class EditorService : IEditorAPI
 				oldScale, newScale
 			);
 			node3D.Scale = newScale;
+			ObjectTransformAction.PersistTransformToEcs(node3D);
 			if (selected is Prop3D propReset)
 			{
 				PropMultiMeshManager.Instance?.MarkDirty(propReset.PropId);
@@ -5461,6 +5383,7 @@ public partial class EditorService : IEditorAPI
 				oldScale, newScale
 			);
 			node3D.Scale = newScale;
+			ObjectTransformAction.PersistTransformToEcs(node3D);
 			if (selected is Prop3D propScale)
 			{
 				PropMultiMeshManager.Instance?.MarkDirty(propScale.PropId);
@@ -5492,6 +5415,7 @@ public partial class EditorService : IEditorAPI
 				node3D.Scale, node3D.Scale
 			);
 			node3D.RotationDegrees = newRot;
+			ObjectTransformAction.PersistTransformToEcs(node3D);
 			if (selected is Prop3D propRot)
 			{
 				PropMultiMeshManager.Instance?.MarkDirty(propRot.PropId);
@@ -6262,15 +6186,15 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	public (bool Success, string Message, string FileName, string Blake3) ImportSpritesheetAsset(string sourceFilePath, string wsPath)
+	private (bool Success, string Message, string FileName, string Blake3) ImportImageAsAsset(string sourceFilePath, string wsPath, string subFolder)
 	{
 		try
 		{
 			string baseName = Path.GetFileNameWithoutExtension(sourceFilePath);
 			string fileName = baseName + ".png";
-			string vfxDir = Path.Combine(wsPath, "Assets", "vfx");
-			Directory.CreateDirectory(vfxDir);
-			string targetPath = Path.Combine(vfxDir, fileName);
+			string outputDir = Path.Combine(wsPath, "Assets", subFolder);
+			Directory.CreateDirectory(outputDir);
+			string targetPath = Path.Combine(outputDir, fileName);
 
 			var img = Image.LoadFromFile(sourceFilePath);
 			if (img != null)
@@ -6289,39 +6213,18 @@ public partial class EditorService : IEditorAPI
 		}
 		catch (Exception ex)
 		{
-			return (false, ex.Message, null, null);
+			return (false, ex.Message, null!, null!);
 		}
+	}
+
+	public (bool Success, string Message, string FileName, string Blake3) ImportSpritesheetAsset(string sourceFilePath, string wsPath)
+	{
+		return ImportImageAsAsset(sourceFilePath, wsPath, "vfx");
 	}
 
 	public (bool Success, string Message, string FileName, string Blake3) ImportIconAsset(string sourceFilePath, string wsPath)
 	{
-		try
-		{
-			string baseName = Path.GetFileNameWithoutExtension(sourceFilePath);
-			string fileName = baseName + ".png";
-			string iconsDir = Path.Combine(wsPath, "Assets", "icons");
-			Directory.CreateDirectory(iconsDir);
-			string targetPath = Path.Combine(iconsDir, fileName);
-
-			var img = Image.LoadFromFile(sourceFilePath);
-			if (img != null)
-			{
-				img.SavePng(targetPath);
-			}
-			else
-			{
-				File.Copy(sourceFilePath, targetPath, true);
-			}
-
-			byte[] bytes = File.ReadAllBytes(targetPath);
-			string blake3 = RealmMetadataHelper.ComputeBlake3(bytes, ".png");
-
-			return (true, "", fileName, blake3);
-		}
-		catch (Exception ex)
-		{
-			return (false, ex.Message, null, null);
-		}
+		return ImportImageAsAsset(sourceFilePath, wsPath, "icons");
 	}
 
 	public long GetLastWriteTimeSafe(string path)
@@ -6791,15 +6694,24 @@ public class {mapName} : IMapScript
 				if (!GameContext.ModelOverrideService.ModelObstacleRadii.ContainsKey(normKey))
 				{
 					string modelPath = Path.Combine(wsPath, "Assets", "models", subCategory ?? "", fileName);
-					Node3D modelNode = ModelCache.GetModel(modelPath) as Node3D;
-					if (modelNode != null)
+					Node rawModelNode = ModelCache.GetModel(modelPath);
+					if (rawModelNode != null)
 					{
-						float radius = GameHost.Instance.MeasureModelRadius(modelNode);
-						modelNode.Free();
-						if (radius > 0f)
+						try
 						{
-							float rounded = (float)Math.Round(radius, 2);
-							GameContext.ModelOverrideService.ModelObstacleRadii[normKey] = rounded;
+							if (rawModelNode is Node3D modelNode)
+							{
+								float radius = GameHost.Instance.MeasureModelRadius(modelNode);
+								if (radius > 0f)
+								{
+									float rounded = (float)Math.Round(radius, 2);
+									GameContext.ModelOverrideService.ModelObstacleRadii[normKey] = rounded;
+								}
+							}
+						}
+						finally
+						{
+							rawModelNode.Free();
 						}
 					}
 				}

@@ -5,6 +5,7 @@ using Godot;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.Utils;
 using Realm.Client.VFX;
 using Realm.Ecs;
 using Realm.Ecs.Common;
@@ -18,6 +19,27 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
+	public Node? SpawnObjectExternal(string objectType, string objectId, Vector3 position, float rotationY, Vector3 rotationDegrees, float scale, int player)
+	{
+		if (objectType == "unit")
+		{
+			return SpawnUnitExternal(objectId, position, rotationY, scale, player);
+		}
+		else if (objectType == "prop")
+		{
+			return SpawnPropExternalWithParams(objectId, position, rotationY, scale);
+		}
+		else if (objectType == "decal")
+		{
+			return SpawnDecalExternalWithParams(objectId, position, rotationDegrees, scale);
+		}
+		else if (objectType == "vfx")
+		{
+			return SpawnVfxExternalWithParams(objectId, position, rotationDegrees, Vector3.One * (scale <= 0f ? 1.0f : scale));
+		}
+		return null;
+	}
+
 	private bool MatchesUnit3DKey(Unit3D unit, string normTarget)
 	{
 		return GameContext.RegistryService.MatchesUnitKey(unit.UnitId, unit.ModelPath, normTarget, IsMatch);
@@ -302,7 +324,7 @@ public partial class GameHost
 		if (string.IsNullOrEmpty(normAsset)) return false;
 		if (ResourceRegistry.TryGetValue(normAsset, out var resMeta2)) return resMeta2.IgnorePlayerColor;
 		if (PropRegistry.TryGetValue(normAsset, out var propMeta2)) return propMeta2.IgnorePlayerColor;
-		if (AttachmentRegistry.TryGetValue(normAsset, out _)) return true;
+		if (AttachmentRegistry.TryGetValue(normAsset, out var attachmentMeta)) return attachmentMeta.IgnorePlayerColor;
 		return false;
 	}
 
@@ -311,8 +333,6 @@ public partial class GameHost
 		if (objOrId is Prop3D) return true;
 		if (IsPropOrResourceKey(normPrimary)) return true;
 		if (!string.IsNullOrEmpty(normAsset) && !string.Equals(normAsset, normPrimary, StringComparison.OrdinalIgnoreCase) && IsPropOrResourceKey(normAsset)) return true;
-		if (IsAttachmentKey(normPrimary)) return true;
-		if (!string.IsNullOrEmpty(normAsset) && !string.Equals(normAsset, normPrimary, StringComparison.OrdinalIgnoreCase) && IsAttachmentKey(normAsset)) return true;
 		return false;
 	}
 
@@ -491,6 +511,12 @@ public partial class GameHost
 		ApplyMaterialOverridesToNode(prop, brightness, tint, normalizeLuminance, ignorePlayerColor, false);
 	}
 
+	public void ReapplyProceduralAnimation(Unit3D unit) =>
+		ApplyProceduralAnimation(unit, GetModelEnableProceduralAnimation(unit), GetModelProceduralAnimation(unit));
+
+	public void SuspendProceduralAnimation(Node3D node) =>
+		ModelShaderManager.DisableProceduralAnimation(node);
+
 	private void ApplyProceduralAnimation(Node3D node, bool enable, string procAnimId)
 	{
 		if (enable && !string.IsNullOrEmpty(procAnimId))
@@ -498,11 +524,17 @@ public partial class GameHost
 			var cfg = ProceduralAnimationManager.GetConfig(procAnimId);
 			if (cfg != null)
 			{
+				if (node is Prop3D propWithAnim) propWithAnim.HasProceduralAnimation = true;
 				ModelShaderManager.SetProceduralAnimation(node, cfg);
 				return;
 			}
 		}
 
+		if (node is Prop3D propNoAnim)
+		{
+			if (!propNoAnim.HasProceduralAnimation) return;
+			propNoAnim.HasProceduralAnimation = false;
+		}
 		ModelShaderManager.DisableProceduralAnimation(node);
 	}
 
@@ -1218,7 +1250,8 @@ public partial class GameHost
 		Vector3 rotationDegrees,
 		Vector3 scale,
 		float normalOffset = 0f,
-		VfxAttachmentConfig customConfig = null)
+		VfxAttachmentConfig customConfig = null,
+		int ownerPlayerIndex = 0)
 	{
 		var entity = GameContext.World.Create();
 		var config = customConfig != null ? customConfig.Clone() : ResolveVfxConfig(vfxId);
@@ -1233,6 +1266,7 @@ public partial class GameHost
 		var vfx = new ProceduralVfxInstance3D(config)
 		{
 			Entity = entity,
+			PlayerIndex = ownerPlayerIndex,
 			Position = position,
 			RotationDegrees = rotationDegrees,
 			Scale = safeScale
@@ -1249,13 +1283,33 @@ public partial class GameHost
 		return vfx;
 	}
 
+	public void RefreshVfxTemplateInstances(string previousTemplateId, VfxAttachmentConfig updatedConfig)
+	{
+		if (updatedConfig == null || AllVfx == null) return;
+
+		string previousSlug = TemplateIDHelper.ParseTemplateID(previousTemplateId).Slug;
+		string updatedSlug = TemplateIDHelper.ParseTemplateID(updatedConfig.VfxId).Slug;
+
+		for (int index = 0; index < AllVfx.Count; index++)
+		{
+			var instance = AllVfx[index];
+			if (instance == null || !GodotObject.IsInstanceValid(instance)) continue;
+
+			string instanceSlug = TemplateIDHelper.ParseTemplateID(instance.VfxId).Slug;
+			bool matchesPrevious = !string.IsNullOrEmpty(previousSlug) && string.Equals(instanceSlug, previousSlug, StringComparison.OrdinalIgnoreCase);
+			bool matchesUpdated = !string.IsNullOrEmpty(updatedSlug) && string.Equals(instanceSlug, updatedSlug, StringComparison.OrdinalIgnoreCase);
+			if (!matchesPrevious && !matchesUpdated) continue;
+
+			instance.UpdateConfig(updatedConfig);
+		}
+	}
+
 	private VfxAttachmentConfig ResolveVfxConfig(string vfxId)
 	{
 		string cleanId = vfxId ?? string.Empty;
 		if (cleanId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)) cleanId = cleanId.Substring(4);
 
-		if (!string.IsNullOrEmpty(vfxId) && GameContext.RegistryService.VfxRegistry.TryGetValue(vfxId, out var regCfg)) return regCfg.Clone();
-		if (!string.IsNullOrEmpty(cleanId) && GameContext.RegistryService.VfxRegistry.TryGetValue(cleanId, out var regCfg2)) return regCfg2.Clone();
+		if (GameContext.RegistryService.TryGetVfxConfig(vfxId, out var regCfg)) return regCfg.Clone();
 
 		var cfgFromCleanId = TryCreateVfxConfigFromPrimitive(cleanId);
 		if (cfgFromCleanId != null) return cfgFromCleanId;
@@ -1374,7 +1428,11 @@ public partial class GameHost
 
 		foreach (var child in GetChildren())
 		{
-			if (child is Prop3D prop)
+			if (child is Unit3D unit)
+			{
+				unit.QueueFree();
+			}
+			else if (child is Prop3D prop)
 			{
 				prop.QueueFree();
 			}

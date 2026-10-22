@@ -4,11 +4,15 @@ using System.IO;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class WaterProfileDialog : FloatingDialogBase
 {
+	public WaterProfileDialog() { }
+
 	private List<WaterProfileSaveData> _profiles = new();
 	private int _selectedProfileIdx = 0;
 	private WaterProfileSaveData _activeProfile;
@@ -94,6 +98,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		BuildTopRow();
 
 		var tabContainer = new TabContainer();
+		tabContainer.Name = "TabContainer_TabContainer";
 		tabContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		tabContainer.CustomMinimumSize = new Vector2(580, 520);
 		BodyContainer.AddChild(tabContainer);
@@ -107,25 +112,30 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private void BuildTopRow()
 	{
 		var topRow = new HBoxContainer();
+		topRow.Name = "TopRow_HBoxContainer";
 		topRow.AddThemeConstantOverride("separation", 8);
 
 		var lblProf = new Label();
+		lblProf.Name = "LblProf_Label";
 		lblProf.Text = TranslationServer.Translate("Profile:");
 		lblProf.AddThemeFontSizeOverride("font_size", 12);
 		topRow.AddChild(lblProf);
 
 		_optProfileSelect = new OptionButton();
+		_optProfileSelect.Name = "OptProfileSelect_OptionButton";
 		_optProfileSelect.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optProfileSelect.ItemSelected += (idx) => SelectProfile((int)idx);
 		topRow.AddChild(_optProfileSelect);
 
 		_btnAddProfile = new Button();
+		_btnAddProfile.Name = "BtnAddProfile_Button";
 		_btnAddProfile.Set("icon_max_width", 0);
 		_btnAddProfile.Text = "+ " + TranslationServer.Translate("NEW");
 		_btnAddProfile.Pressed += OnAddProfileClicked;
 		topRow.AddChild(_btnAddProfile);
 
 		_btnDeleteProfile = new Button();
+		_btnDeleteProfile.Name = "BtnDeleteProfile_Button";
 		_btnDeleteProfile.Set("icon_max_width", 0);
 		_btnDeleteProfile.Text = TranslationServer.Translate("DELETE");
 		_btnDeleteProfile.Pressed += OnDeleteProfileClicked;
@@ -139,6 +149,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		var tabGeneral = new ScrollContainer();
 		tabGeneral.Name = TranslationServer.Translate("General & Colors");
 		var vGeneral = new VBoxContainer();
+		vGeneral.Name = "VGeneral_VBoxContainer";
 		vGeneral.AddThemeConstantOverride("separation", 6);
 		vGeneral.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabGeneral.AddChild(vGeneral);
@@ -146,6 +157,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 
 		AddSectionHeader(vGeneral, TranslationServer.Translate("Profile Identity"));
 		var nameRow = new HBoxContainer();
+		nameRow.Name = "NameRow_HBoxContainer";
 		nameRow.AddChild(new Label { Text = TranslationServer.Translate("Display Name:"), CustomMinimumSize = new Vector2(110, 0) });
 		_txtName = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_txtName.TextChanged += (text) =>
@@ -213,6 +225,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		var tabNormals = new ScrollContainer();
 		tabNormals.Name = TranslationServer.Translate("Flow & Optics");
 		var vNormals = new VBoxContainer();
+		vNormals.Name = "VNormals_VBoxContainer";
 		vNormals.AddThemeConstantOverride("separation", 6);
 		vNormals.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabNormals.AddChild(vNormals);
@@ -339,6 +352,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		var tabEmissive = new ScrollContainer();
 		tabEmissive.Name = TranslationServer.Translate("Emission & Surface");
 		var vEmissive = new VBoxContainer();
+		vEmissive.Name = "VEmissive_VBoxContainer";
 		vEmissive.AddThemeConstantOverride("separation", 6);
 		vEmissive.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabEmissive.AddChild(vEmissive);
@@ -430,8 +444,10 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private void BuildTabEmissive_TileMode(VBoxContainer vEmissive)
 	{
 		var tileModeRow = new HBoxContainer();
+		tileModeRow.Name = "TileModeRow_HBoxContainer";
 		tileModeRow.AddChild(new Label { Text = TranslationServer.Translate("Tile Mode:"), CustomMinimumSize = new Vector2(110, 0) });
 		_optDetailTileMode = new OptionButton();
+		_optDetailTileMode.Name = "OptDetailTileMode_OptionButton";
 		_optDetailTileMode.AddItem(TranslationServer.Translate("Grid"), 0);
 		_optDetailTileMode.AddItem(TranslationServer.Translate("Stochastic"), 1);
 		_optDetailTileMode.Selected = 1;
@@ -506,8 +522,10 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private void BuildTabEmissive_BlendMode(VBoxContainer vEmissive)
 	{
 		var blendRow = new HBoxContainer();
+		blendRow.Name = "BlendRow_HBoxContainer";
 		blendRow.AddChild(new Label { Text = TranslationServer.Translate("Blend Mode:"), CustomMinimumSize = new Vector2(110, 0) });
 		_optDetailBlend = new OptionButton();
+		_optDetailBlend.Name = "OptDetailBlend_OptionButton";
 		_optDetailBlend.AddItem(TranslationServer.Translate("Alpha Mix"), 0);
 		_optDetailBlend.AddItem(TranslationServer.Translate("Additive"), 1);
 		_optDetailBlend.AddItem(TranslationServer.Translate("Multiply"), 2);
@@ -525,6 +543,7 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		var tabPathingAndBombing = new ScrollContainer();
 		tabPathingAndBombing.Name = TranslationServer.Translate("Pathing & Bombing");
 		var vBombing = new VBoxContainer();
+		vBombing.Name = "VBombing_VBoxContainer";
 		vBombing.AddThemeConstantOverride("separation", 6);
 		vBombing.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabPathingAndBombing.AddChild(vBombing);
@@ -551,30 +570,10 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		AddSectionHeader(vBombing, TranslationServer.Translate("Procedural Decal Texture Bombing"));
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered decals placed at liquid elevation during painting:"));
 
-		var decalListRow = new HBoxContainer();
-		_lstDecals = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		_lstDecals.ItemSelected += OnDecalItemSelected;
-		decalListRow.AddChild(_lstDecals);
-
-		var decalBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		(_txtDecalId, _setDecalIdValue) = AddAssetFilterDropdown(
-			decalBtnBox, string.Empty, string.Empty,
-			(all) => ScanAvailableAssets("decals", all),
-			(val) => { }, TranslationServer.Translate("decal_texture_id"), 0f
-		);
-
-		var btnAddDecal = new Button { Text = "+ " + TranslationServer.Translate("Add Decal") };
-		btnAddDecal.Set("icon_max_width", 0);
-		btnAddDecal.Pressed += OnAddDecalRule;
-		decalBtnBox.AddChild(btnAddDecal);
-
-		var btnRemoveDecal = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
-		btnRemoveDecal.Set("icon_max_width", 0);
-		btnRemoveDecal.Pressed += OnRemoveDecalRule;
-		decalBtnBox.AddChild(btnRemoveDecal);
-
-		decalListRow.AddChild(decalBtnBox);
-		vBombing.AddChild(decalListRow);
+		var result = AddAssetRuleList(vBombing, "Decal", "decals", "decal_texture_id", OnDecalItemSelected, OnAddDecalRule, OnRemoveDecalRule);
+		_lstDecals = result.Item1;
+		_txtDecalId = result.Item2;
+		_setDecalIdValue = result.Item3;
 
 		var sldDecalDensRes = AddSlider(vBombing, TranslationServer.Translate("Decal Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) => UpdateDecalRuleSetting(rule => rule.Density = v));
 		_sldDecalDensity = sldDecalDensRes.Slider;
@@ -600,30 +599,10 @@ public partial class WaterProfileDialog : FloatingDialogBase
 		AddSectionHeader(vBombing, TranslationServer.Translate("Procedural VFX / Particle Bombing"));
 		AddDescription(vBombing, TranslationServer.Translate("Randomly scattered particle systems & ribbons (bubbles, steam, foam, smoke) placed at liquid elevation:"));
 
-		var vfxListRow = new HBoxContainer();
-		_lstVfx = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		_lstVfx.ItemSelected += OnVfxItemSelected;
-		vfxListRow.AddChild(_lstVfx);
-
-		var vfxBtnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		(_txtVfxId, _setVfxIdValue) = AddAssetFilterDropdown(
-			vfxBtnBox, string.Empty, string.Empty,
-			(all) => ScanAvailableAssets("vfx", all),
-			(val) => { }, TranslationServer.Translate("vfx_template_id"), 0f
-		);
-
-		var btnAddVfx = new Button { Text = "+ " + TranslationServer.Translate("Add VFX") };
-		btnAddVfx.Set("icon_max_width", 0);
-		btnAddVfx.Pressed += OnAddVfxRule;
-		vfxBtnBox.AddChild(btnAddVfx);
-
-		var btnRemoveVfx = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
-		btnRemoveVfx.Set("icon_max_width", 0);
-		btnRemoveVfx.Pressed += OnRemoveVfxRule;
-		vfxBtnBox.AddChild(btnRemoveVfx);
-
-		vfxListRow.AddChild(vfxBtnBox);
-		vBombing.AddChild(vfxListRow);
+		var result = AddAssetRuleList(vBombing, "VFX", "vfx", "vfx_template_id", OnVfxItemSelected, OnAddVfxRule, OnRemoveVfxRule);
+		_lstVfx = result.Item1;
+		_txtVfxId = result.Item2;
+		_setVfxIdValue = result.Item3;
 
 		var sldVfxDensRes = AddSlider(vBombing, TranslationServer.Translate("VFX Density:"), 0.0f, 1.0f, 0.01f, 0.5f, (v) => UpdateVfxRuleSetting(rule => rule.Density = v));
 		_sldVfxDensity = sldVfxDensRes.Slider;
@@ -669,28 +648,13 @@ public partial class WaterProfileDialog : FloatingDialogBase
 	private Button CreateRandomizeButton(Action onPressed)
 	{
 		var btn = new Button();
+		btn.Name = "Btn_Button";
 		btn.Set("icon_max_width", 0);
 		btn.Text = "🎲 " + TranslationServer.Translate("Randomize All");
 		btn.CustomMinimumSize = new Vector2(0, 28);
 		btn.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		btn.AddThemeFontSizeOverride("font_size", 11);
-		var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
-		if (mapEdBtnTex != null)
-		{
-			var normalSb = new StyleBoxTexture { Texture = mapEdBtnTex, ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
-			var hoverSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(1.25f, 1.2f, 1.0f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
-			var pressedSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(0.85f, 0.8f, 0.7f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
-			btn.AddThemeStyleboxOverride("normal", normalSb);
-			btn.AddThemeStyleboxOverride("hover", hoverSb);
-			btn.AddThemeStyleboxOverride("pressed", pressedSb);
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		}
-		else
-		{
-			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		}
+		UIStyle.ApplyMapEditorRandomizeButtonStyle(btn);
 
 		btn.Pressed += onPressed;
 		return btn;

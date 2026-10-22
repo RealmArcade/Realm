@@ -15,6 +15,7 @@ public class ControlGroupsUIController
 		for (int i = 0; i < 10; i++)
 		{
 			var btn = new Button();
+			btn.Name = "Btn_Button";
 			btn.Text = $"{i}";
 			btn.CustomMinimumSize = new Vector2(30, 30);
 			btn.FocusMode = Control.FocusModeEnum.None;

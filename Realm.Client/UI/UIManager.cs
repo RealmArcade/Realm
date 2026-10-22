@@ -12,6 +12,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class UIManager : Control
 {
 	public static UIManager Instance { get; private set; }
@@ -71,10 +72,10 @@ public partial class UIManager : Control
 		MouseFilter = MouseFilterEnum.Ignore;
 
 
-		_musicPlayer = new AudioStreamPlayer();
+		_musicPlayer = new AudioStreamPlayer { Name = "MusicPlayer", Bus = AudioService.MusicBusName };
 		AddChild(_musicPlayer);
 
-		_sfxPlayer = new AudioStreamPlayer();
+		_sfxPlayer = new AudioStreamPlayer { Name = "SfxPlayer", Bus = AudioService.SfxBusName };
 		AddChild(_sfxPlayer);
 
 		await ApplyStartupSettings();
@@ -84,6 +85,7 @@ public partial class UIManager : Control
 
 #if DEBUG
 		_watermark = new Label();
+		_watermark.Name = "Watermark_Label";
 		_watermark.Text = string.Format(TranslationServer.Translate("Realm {0}"), RealmVersion.GameBinaryVersion);
 		_watermark.AddThemeColorOverride("font_color", new Color(1.0f, 1.0f, 1.0f, 0.5f));
 		_watermark.AddThemeColorOverride("font_outline_color", new Color(0.0f, 0.0f, 0.0f, 0.8f));
@@ -121,6 +123,12 @@ public partial class UIManager : Control
 		    what == unchecked((int)Node.NotificationApplicationFocusOut))
 		{
 			LocalizationManager.FlushPendingWrites();
+		}
+
+		if (what == unchecked((int)Node.NotificationWMCloseRequest) ||
+		    what == (int)Node.NotificationPredelete)
+		{
+			ClientCacheCleaner.ClearAllCaches();
 		}
 
 		if (what == unchecked((int)Node.NotificationWMCloseRequest))
@@ -267,32 +275,20 @@ public partial class UIManager : Control
 
 	public void UpdateAudioVolumes()
 	{
-		if (_musicPlayer != null)
-		{
-			float master = GameSettings.MasterVolume / 100f;
-			float music = GameSettings.MusicVolume / 100f;
-			float combined = master * music;
-			_musicPlayer.VolumeDb = combined <= 0f ? -80f : Mathf.LinearToDb(combined);
-		}
-
-		if (_sfxPlayer != null)
-		{
-			float master = GameSettings.MasterVolume / 100f;
-			float sfx = GameSettings.SfxVolume / 100f;
-			float combined = master * sfx;
-			_sfxPlayer.VolumeDb = combined <= 0f ? -80f : Mathf.LinearToDb(combined);
-		}
+		AudioService.ApplyVolumeSettings();
 	}
 
 	private void CreateFadeOverlay()
 	{
 		_fadeOverlay = new ColorRect();
+		_fadeOverlay.Name = "FadeOverlay_ColorRect";
 		_fadeOverlay.Color = new Color(0, 0, 0, 1); // Black
 		_fadeOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		_fadeOverlay.MouseFilter = MouseFilterEnum.Ignore; // Let clicks pass when transparent
 		AddChild(_fadeOverlay);
 
 		_fadeAnim = new AnimationPlayer();
+		_fadeAnim.Name = "FadeAnim_AnimationPlayer";
 		AddChild(_fadeAnim);
 
 
@@ -359,6 +355,11 @@ public partial class UIManager : Control
 
 	private void HandlePreTransitionState(GameScreen screen)
 	{
+		if (screen == GameScreen.MapEditorHUD)
+		{
+			GameContext.FXService?.ClearProjectileTrails();
+		}
+
 		if (RequiresReplayReset(screen))
 		{
 			if (ReplayPlaybackManager.Instance.IsPlayingReplay)
@@ -633,7 +634,12 @@ public partial class UIManager : Control
 	}
 
 
-	public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, bool showCancel = true)
+	public void ShowPopupMessage(string title, string message, Action onOkPressed = null)
+	{
+		ShowConfirmationDialog(message, onOkPressed, confirmText: "OK", showCancel: false, titleOverride: title);
+	}
+
+	public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, bool showCancel = true, string titleOverride = null)
 	{
 		var overlay = new ColorRect();
 		overlay.Name = "ConfirmationOverlay";
@@ -642,6 +648,7 @@ public partial class UIManager : Control
 		AddChild(overlay);
 
 		var panel = new PanelContainer();
+		panel.Name = "Panel_PanelContainer";
 		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		panel.CustomMinimumSize = new Vector2(400, 200);
 		panel.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
@@ -653,15 +660,18 @@ public partial class UIManager : Control
 		center.AddChild(panel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.AddThemeConstantOverride("separation", 15);
 		panel.AddChild(vbox);
 
 		var lblTitle = new Label();
-		UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate(showCancel ? "CONFIRMATION REQUIRED" : "NOTIFICATION"), 18);
-		lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		lblTitle.Name = "LblTitle_Label";
+		UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate(titleOverride ?? (showCancel ? "CONFIRMATION REQUIRED" : "NOTIFICATION")), 18);
+		lblTitle.AddThemeColorOverride("font_color", titleOverride != null && (titleOverride.Contains("ERROR") || titleOverride.Contains("MISMATCH") || titleOverride.Contains("FAILED") || titleOverride.Contains("CORRUPT")) ? new Color(0.9f, 0.3f, 0.3f) : UIStyle.ColorGold);
 		vbox.AddChild(lblTitle);
 
 		var lblMsg = new Label();
+		lblMsg.Name = "LblMsg_Label";
 		lblMsg.Text = TranslationServer.Translate(message);
 		lblMsg.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		lblMsg.HorizontalAlignment = HorizontalAlignment.Center;
@@ -670,11 +680,13 @@ public partial class UIManager : Control
 		vbox.AddChild(lblMsg);
 
 		var hbox = new HBoxContainer();
+		hbox.Name = "Hbox_HBoxContainer";
 		hbox.AddThemeConstantOverride("separation", 20);
 		hbox.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		vbox.AddChild(hbox);
 
 		var btnConfirm = new Button();
+		btnConfirm.Name = "BtnConfirm_Button";
 		btnConfirm.Set("icon_max_width", 0);
 		UIStyle.ApplyButtonText(btnConfirm, TranslationServer.Translate(confirmText), 13);
 		btnConfirm.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -691,6 +703,7 @@ public partial class UIManager : Control
 		if (showCancel)
 		{
 			var btnCancel = new Button();
+			btnCancel.Name = "BtnCancel_Button";
 			btnCancel.Set("icon_max_width", 0);
 			UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate(cancelText), 13);
 			btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -760,20 +773,24 @@ public partial class UIManager : Control
 		overlay.AddChild(center);
 
 		var panel = new PanelContainer();
+		panel.Name = "Panel_PanelContainer";
 		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		panel.CustomMinimumSize = new Vector2(500, 220);
 		center.AddChild(panel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.AddThemeConstantOverride("separation", 12);
 		panel.AddChild(vbox);
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, "📥 " + TranslationServer.Translate("IMPORTING MAP ARCHIVE"), 20);
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
 
 		var fileNameLabel = new Label();
+		fileNameLabel.Name = "FileNameLabel_Label";
 		fileNameLabel.Text = Path.GetFileName(archivePath);
 		fileNameLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		fileNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -781,6 +798,7 @@ public partial class UIManager : Control
 		vbox.AddChild(fileNameLabel);
 
 		progressBar = new ProgressBar();
+		progressBar.Name = "ProgressBar_ProgressBar";
 		progressBar.CustomMinimumSize = new Vector2(440, 22);
 		progressBar.MinValue = 0;
 		progressBar.MaxValue = 100;
@@ -788,6 +806,7 @@ public partial class UIManager : Control
 		vbox.AddChild(progressBar);
 
 		statusLabel = new Label();
+		statusLabel.Name = "StatusLabel_Label";
 		statusLabel.Text = TranslationServer.Translate("Extracting and validating archive contents...");
 		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		statusLabel.AddThemeFontSizeOverride("font_size", 13);

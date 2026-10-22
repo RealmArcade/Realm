@@ -87,11 +87,45 @@ public class MapPropertiesLoader
 
 	private void TryUpdateShroud(Entity worldEntity, JsonElement mapProps)
 	{
-		if (mapProps.TryGetProperty("ShroudType", out var shroudTypeProp) && shroudTypeProp.ValueKind == JsonValueKind.String)
+		if (!mapProps.TryGetProperty("ShroudType", out var shroudTypeProp)) return;
+		if (shroudTypeProp.ValueKind != JsonValueKind.String)
 		{
-			string val = shroudTypeProp.GetString() ?? "VisionShroud";
-			GameContext.World.Mutate<ShroudState>(worldEntity, (ref ShroudState s) => s.ShroudType = val);
+			GD.PushError("[MapPropertiesLoader] ShroudType must be the string ExplorationShroud, VisionShroud, or Revealed.");
+			return;
 		}
+
+		string shroudType = shroudTypeProp.GetString() ?? string.Empty;
+		if (!TryParseShroudVisibilityMode(shroudType, out ShroudVisibilityMode mode))
+		{
+			GD.PushError($"[MapPropertiesLoader] Unknown ShroudType '{shroudType}'. Expected ExplorationShroud, VisionShroud, or Revealed.");
+			return;
+		}
+
+		GameContext.World.Mutate<ShroudState>(worldEntity, (ref ShroudState s) => s.VisibilityMode = mode);
+	}
+
+	private static bool TryParseShroudVisibilityMode(string shroudType, out ShroudVisibilityMode mode)
+	{
+		if (shroudType == "ExplorationShroud")
+		{
+			mode = ShroudVisibilityMode.ExplorationShroud;
+			return true;
+		}
+
+		if (shroudType == "VisionShroud")
+		{
+			mode = ShroudVisibilityMode.VisionShroud;
+			return true;
+		}
+
+		if (shroudType == "Revealed")
+		{
+			mode = ShroudVisibilityMode.Revealed;
+			return true;
+		}
+
+		mode = ShroudVisibilityMode.ExplorationShroud;
+		return false;
 	}
 
 	private void TryUpdateWeather(Entity worldEntity, JsonElement mapProps)

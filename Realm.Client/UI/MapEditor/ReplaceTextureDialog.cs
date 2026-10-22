@@ -6,8 +6,11 @@ using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class ReplaceTextureDialog : FloatingDialogBase
 {
+	public ReplaceTextureDialog() { }
+
 	private OptionButton _optSource;
 	private OptionButton _optTarget;
 
@@ -22,12 +25,14 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 	private void BuildUI()
 	{
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		BodyContainer.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🔄 " + TranslationServer.Translate("TEXTURE SWAP SELECTION"), new Color(0.35f, 0.75f, 0.9f));
 
 		var lblInfo = new Label();
+		lblInfo.Name = "LblInfo_Label";
 		lblInfo.Text = TranslationServer.Translate("Select a source texture and a target texture to replace all painted occurrences across the terrain map.");
 		lblInfo.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		lblInfo.CustomMinimumSize = new Vector2(380, 0);
@@ -37,9 +42,11 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		contentVBox.AddChild(lblInfo);
 
 		var rowSource = new HBoxContainer();
+		rowSource.Name = "RowSource_HBoxContainer";
 		rowSource.AddThemeConstantOverride("separation", 8);
 
 		var lblSource = new Label();
+		lblSource.Name = "LblSource_Label";
 		lblSource.Text = TranslationServer.Translate("Source Texture:");
 		lblSource.CustomMinimumSize = new Vector2(110, 0);
 		lblSource.AddThemeFontSizeOverride("font_size", 11);
@@ -47,6 +54,7 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		rowSource.AddChild(lblSource);
 
 		_optSource = new OptionButton();
+		_optSource.Name = "OptSource_OptionButton";
 		_optSource.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optSource.CustomMinimumSize = new Vector2(0, 26);
 		_optSource.AddThemeFontSizeOverride("font_size", 11);
@@ -56,9 +64,11 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		contentVBox.AddChild(rowSource);
 
 		var rowTarget = new HBoxContainer();
+		rowTarget.Name = "RowTarget_HBoxContainer";
 		rowTarget.AddThemeConstantOverride("separation", 8);
 
 		var lblTarget = new Label();
+		lblTarget.Name = "LblTarget_Label";
 		lblTarget.Text = TranslationServer.Translate("Target Texture:");
 		lblTarget.CustomMinimumSize = new Vector2(110, 0);
 		lblTarget.AddThemeFontSizeOverride("font_size", 11);
@@ -66,6 +76,7 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		rowTarget.AddChild(lblTarget);
 
 		_optTarget = new OptionButton();
+		_optTarget.Name = "OptTarget_OptionButton";
 		_optTarget.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optTarget.CustomMinimumSize = new Vector2(0, 26);
 		_optTarget.AddThemeFontSizeOverride("font_size", 11);

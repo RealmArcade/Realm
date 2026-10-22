@@ -5,6 +5,7 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class AssetGridCell : PanelContainer
 {
 	private TextureRect _thumbnailRect;
@@ -29,11 +30,13 @@ public partial class AssetGridCell : PanelContainer
 		AddThemeStyleboxOverride("panel", CreatePanelStyle(false, false));
 
 		var mainVBox = new VBoxContainer();
+		mainVBox.Name = "MainVBox_VBoxContainer";
 		mainVBox.AddThemeConstantOverride("separation", 4);
 		mainVBox.MouseFilter = MouseFilterEnum.Pass;
 		AddChild(mainVBox);
 
 		var thumbContainer = new PanelContainer();
+		thumbContainer.Name = "ThumbContainer_PanelContainer";
 		thumbContainer.CustomMinimumSize = new Vector2(110, 90);
 		thumbContainer.MouseFilter = MouseFilterEnum.Pass;
 		var thumbStyle = new StyleBoxFlat();
@@ -46,6 +49,7 @@ public partial class AssetGridCell : PanelContainer
 		mainVBox.AddChild(thumbContainer);
 
 		_thumbnailRect = new TextureRect();
+		_thumbnailRect.Name = "ThumbnailRect_TextureRect";
 		_thumbnailRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_thumbnailRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		_thumbnailRect.CustomMinimumSize = new Vector2(100, 84);
@@ -55,6 +59,7 @@ public partial class AssetGridCell : PanelContainer
 		thumbContainer.AddChild(_thumbnailRect);
 
 		_titleLabel = new Label();
+		_titleLabel.Name = "TitleLabel_Label";
 		_titleLabel.AddThemeFontSizeOverride("font_size", 10);
 		_titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -63,6 +68,7 @@ public partial class AssetGridCell : PanelContainer
 		mainVBox.AddChild(_titleLabel);
 
 		_badgeLabel = new Label();
+		_badgeLabel.Name = "BadgeLabel_Label";
 		_badgeLabel.AddThemeFontSizeOverride("font_size", 9);
 		_badgeLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_badgeLabel.HorizontalAlignment = HorizontalAlignment.Center;

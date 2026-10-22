@@ -6,20 +6,20 @@ using Realm.Client.Services;
 
 namespace Realm.Client.VFX;
 
+[GlobalClass]
 public partial class ProceduralVfxInstance3D : Node3D
 {
 	private Node3D _contentRoot;
 	private MeshInstance3D _meshInstance;
 	private ShaderMaterial _material;
 	private SpellParticleInstance3D _particleInstance;
-	private StaticBody3D _editorStaticBody;
-	private CollisionShape3D _editorCollisionShape;
 
 	private VfxAttachmentConfig _config = new();
 	public VfxAttachmentConfig Config => _config;
 
 	public Entity Entity { get; set; }
 	public string VfxId { get; set; } = "vfx_primitive";
+	public int PlayerIndex { get; set; } = 0;
 
 	private MeshInstance3D _selectionRing;
 	private bool _isSelected = false;
@@ -98,8 +98,13 @@ public partial class ProceduralVfxInstance3D : Node3D
 	public override void _Ready()
 	{
 		EnsureMeshAndMaterial();
-		SetupEditorCollision();
 		SetupEditorBaseRing();
+		GameContext.RaycastService?.RegisterVfx(this);
+	}
+
+	public override void _ExitTree()
+	{
+		GameContext.RaycastService?.UnregisterVfx(this);
 	}
 
 	private bool ShouldShowEditorBaseRing()
@@ -254,14 +259,12 @@ public partial class ProceduralVfxInstance3D : Node3D
 	{
 		if (_config.PrimitiveType == VfxPrimitiveType.ParticleSystem)
 		{
-			UpdateCollisionShapeBounds();
 			return;
 		}
 
 		if (_meshInstance != null)
 		{
 			_meshInstance.Mesh = ProceduralVfxMeshGenerator.GetMesh(_config.PrimitiveType);
-			UpdateCollisionShapeBounds();
 			UpdateSelectionRingRadius();
 		}
 	}
@@ -310,7 +313,6 @@ public partial class ProceduralVfxInstance3D : Node3D
 		{
 			var pConfig = _config.ParticleConfig ?? SpellParticleConfig.CreatePreset(_config.VfxId);
 			_particleInstance.UpdateConfig(pConfig);
-			UpdateCollisionShapeBounds();
 		}
 
 		UpdateSelectionRingRadius();
@@ -363,63 +365,8 @@ public partial class ProceduralVfxInstance3D : Node3D
 		}
 	}
 
-	private void SetupEditorCollision()
-	{
-		bool isEditor = ShouldShowEditorBaseRing();
-		if (!isEditor) return;
-
-		EnsureContentRoot();
-
-		if (_editorStaticBody == null)
-		{
-			_editorStaticBody = new StaticBody3D();
-			_editorStaticBody.Name = "EditorCollider";
-			_editorStaticBody.CollisionLayer = 1u;
-			_editorStaticBody.CollisionMask = 0;
-			_contentRoot.AddChild(_editorStaticBody);
-
-			_editorCollisionShape = new CollisionShape3D();
-			_editorCollisionShape.Name = "CollisionShape";
-			_editorStaticBody.AddChild(_editorCollisionShape);
-
-			UpdateCollisionShapeBounds();
-		}
-	}
-
-	private void UpdateCollisionShapeBounds()
-	{
-		if (_editorCollisionShape == null) return;
-
-		if (_config.PrimitiveType == VfxPrimitiveType.ParticleSystem)
-		{
-			float radius = GetSelectionRadius();
-			var particleBox = new BoxShape3D();
-			particleBox.Size = new Vector3(radius * 2.0f, MathF.Max(0.8f, radius * 1.5f), radius * 2.0f);
-			_editorCollisionShape.Shape = particleBox;
-			_editorCollisionShape.Position = new Vector3(0.0f, particleBox.Size.Y * 0.5f, 0.0f);
-			return;
-		}
-
-		if (_meshInstance?.Mesh == null) return;
-
-		Aabb bounds = _meshInstance.Mesh.GetAabb();
-		Vector3 size = bounds.Size;
-		size.X = Mathf.Max(size.X, 0.4f);
-		size.Y = Mathf.Max(size.Y, 0.4f);
-		size.Z = Mathf.Max(size.Z, 0.4f);
-
-		var box = new BoxShape3D();
-		box.Size = size;
-		_editorCollisionShape.Shape = box;
-		_editorCollisionShape.Position = bounds.GetCenter();
-	}
-
 	public void SetEditorCollisionEnabled(bool enabled)
 	{
-		if (_editorStaticBody != null && GodotObject.IsInstanceValid(_editorStaticBody))
-		{
-			_editorStaticBody.CollisionLayer = enabled ? 1u : 0u;
-		}
 	}
 
 	private float GetSelectionRadius()
@@ -480,36 +427,19 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	private static StandardMaterial3D GetOrCreateSelectionMaterial()
 	{
-		if (_sharedSelectionMaterial == null || !GodotObject.IsInstanceValid(_sharedSelectionMaterial))
-		{
-			_sharedSelectionMaterial = new StandardMaterial3D
-			{
-				AlbedoColor = new Color(0.22f, 0.54f, 0.26f),
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				DisableReceiveShadows = true,
-				EmissionEnabled = false,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-		}
-
-		return _sharedSelectionMaterial;
+		return Realm.Client.Utils.SharedMaterials.GetOrCreateSelectionMaterial(new Color(0.22f, 0.54f, 0.26f));
 	}
 
 	private static StandardMaterial3D GetOrCreateHoverMaterial()
 	{
-		if (_sharedHoverMaterial == null || !GodotObject.IsInstanceValid(_sharedHoverMaterial))
-		{
-			_sharedHoverMaterial = new StandardMaterial3D
-			{
-				AlbedoColor = new Color(0.88f, 0.88f, 0.88f, 0.22f),
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				DisableReceiveShadows = true,
-				EmissionEnabled = false,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-		}
+		return Realm.Client.Utils.SharedMaterials.GetOrCreateHoverMaterial();
+	}
 
-		return _sharedHoverMaterial;
+	public static void ClearCache()
+	{
+		_sharedSelectionMaterial = null;
+		_sharedHoverMaterial = null;
+		_sharedEditorBaseMaterial = null;
 	}
 
 	private static TorusMesh CreateTorusMesh(float radius)

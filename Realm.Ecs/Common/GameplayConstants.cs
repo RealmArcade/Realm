@@ -8,6 +8,7 @@ public static class GameplayConstants
 	public const int MaxUnitsLimit = 200;
 	public const int MaxProjectilesLimit = 100;
 	public const float PathfindingGridSize = 10f;
+	public const float UnitAnimationStepIntervalSeconds = 1f / 30f;
 
 	/// <summary>
 	///     Contact radius assumed when a unit has no authored CollisionRadius, expressed as a

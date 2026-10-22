@@ -12,8 +12,11 @@ using Realm.Shared.Textures;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class DecalSettingsDialog : FloatingDialogBase
 {
+	public DecalSettingsDialog() { }
+
 	private string _decalKey = "";
 	private string _texturePath = "";
 	private float _brightness = 1.0f;
@@ -123,11 +126,13 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		var scrollBody = CreateScrollBody(600);
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scrollBody.AddChild(contentVBox);
 
 		_lblDecalName = new Label();
+		_lblDecalName.Name = "LblDecalName_Label";
 		_lblDecalName.AddThemeFontSizeOverride("font_size", 12);
 		_lblDecalName.AddThemeColorOverride("font_color", new Color(0.95f, 0.82f, 0.55f));
 		_lblDecalName.HorizontalAlignment = HorizontalAlignment.Center;
@@ -143,13 +148,16 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private void BuildPreviewSection(VBoxContainer contentVBox)
 	{
 		var previewPanel = new PanelContainer();
+		previewPanel.Name = "PreviewPanel_PanelContainer";
 		previewPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		previewPanel.CustomMinimumSize = new Vector2(0, 130);
 
 		var previewVBox = new VBoxContainer();
+		previewVBox.Name = "PreviewVBox_VBoxContainer";
 		previewVBox.Alignment = BoxContainer.AlignmentMode.Center;
 
 		_previewRect = new TextureRect();
+		_previewRect.Name = "PreviewRect_TextureRect";
 		_previewRect.CustomMinimumSize = new Vector2(100, 100);
 		_previewRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_previewRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -165,21 +173,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		AddSectionHeader(contentVBox, "🖼 " + TranslationServer.Translate("TEXTURE & ASSET"), new Color(0.95f, 0.8f, 0.4f));
 
-		var rowId = new HBoxContainer();
-		rowId.AddThemeConstantOverride("separation", 6);
-		var lblId = new Label();
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(140, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		rowId.AddChild(lblId);
-
-		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Text = "decal/";
-		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
-		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		rowId.AddChild(_lblObjectTypePrefix);
+		var rowId = BuildIdentityRow(contentVBox, "decal/", out _lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("decal_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -191,7 +188,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			if (_lblDecalName != null) _lblDecalName.Text = TranslationServer.Translate("TemplateID:") + " " + _decalKey;
 		};
 		rowId.AddChild(_txtSlug);
-		contentVBox.AddChild(rowId);
+		
 
 		(_txtTexturePath, _setTexturePathValue) = AddAssetFilterDropdown(
 			contentVBox,
@@ -231,24 +228,13 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			140f
 		);
 
-		var rowTint = new HBoxContainer();
-		rowTint.AddThemeConstantOverride("separation", 8);
-		var lblTint = new Label();
-		lblTint.Text = TranslationServer.Translate("Tint Color:");
-		lblTint.CustomMinimumSize = new Vector2(140, 0);
-		lblTint.AddThemeFontSizeOverride("font_size", 11);
-		rowTint.AddChild(lblTint);
-
-		_btnTint = new ColorPickerButton();
-		_btnTint.CustomMinimumSize = new Vector2(90, 24);
-		_btnTint.Color = _tint;
-		_btnTint.ColorChanged += (newCol) =>
+			HBoxContainer rowTint;
+			(rowTint, _btnTint) = UIStyle.CreateColorPickerRow("Tint Color:", _tint, (newCol) =>
 		{
 			if (_isSyncingControls) return;
 			_tint = newCol;
 			UpdateLivePreviewAndWorld();
-		};
-		rowTint.AddChild(_btnTint);
+			});
 		contentVBox.AddChild(rowTint);
 
 		(_sldContrast, _lblContrast) = AddSlider(
@@ -805,18 +791,18 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		if (d is Decal3D d3dAnim)
 		{
-			result["animate_opacity"] = d3dAnim.AnimateOpacity;
-			result["opacity_pulse_speed"] = d3dAnim.OpacityPulseSpeed;
-			result["min_opacity"] = d3dAnim.MinOpacity;
-			result["max_opacity"] = d3dAnim.MaxOpacity;
-			result["animate_emission"] = d3dAnim.AnimateEmission;
-			result["emission_pulse_speed"] = d3dAnim.EmissionPulseSpeed;
-			result["min_emission"] = d3dAnim.MinEmission;
-			result["max_emission"] = d3dAnim.MaxEmission;
-			result["animate_scale"] = d3dAnim.AnimateScale;
-			result["scale_pulse_speed"] = d3dAnim.ScalePulseSpeed;
-			result["min_scale_ratio"] = d3dAnim.MinScaleRatio;
-			result["max_scale_ratio"] = d3dAnim.MaxScaleRatio;
+			result["animate_opacity"] = d3dAnim.Animation.AnimateOpacity;
+			result["opacity_pulse_speed"] = d3dAnim.Animation.OpacityPulseSpeed;
+			result["min_opacity"] = d3dAnim.Animation.MinOpacity;
+			result["max_opacity"] = d3dAnim.Animation.MaxOpacity;
+			result["animate_emission"] = d3dAnim.Animation.AnimateEmission;
+			result["emission_pulse_speed"] = d3dAnim.Animation.EmissionPulseSpeed;
+			result["min_emission"] = d3dAnim.Animation.MinEmission;
+			result["max_emission"] = d3dAnim.Animation.MaxEmission;
+			result["animate_scale"] = d3dAnim.Animation.AnimateScale;
+			result["scale_pulse_speed"] = d3dAnim.Animation.ScalePulseSpeed;
+			result["min_scale_ratio"] = d3dAnim.Animation.MinScaleRatio;
+			result["max_scale_ratio"] = d3dAnim.Animation.MaxScaleRatio;
 		}
 	}
 
@@ -1017,18 +1003,21 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			Roughness = _roughness,
 			Metallic = _metallic,
 			BlendMode = _blendMode,
-			AnimateOpacity = _animateOpacity,
-			OpacityPulseSpeed = _opacityPulseSpeed,
-			MinOpacity = _minOpacity,
-			MaxOpacity = _maxOpacity,
-			AnimateEmission = _animateEmission,
-			EmissionPulseSpeed = _emissionPulseSpeed,
-			MinEmission = _minEmission,
-			MaxEmission = _maxEmission,
-			AnimateScale = _animateScale,
-			ScalePulseSpeed = _scalePulseSpeed,
-			MinScaleRatio = _minScaleRatio,
-			MaxScaleRatio = _maxScaleRatio,
+			Animation = new DecalAnimationConfig
+			{
+				AnimateOpacity = _animateOpacity,
+				OpacityPulseSpeed = _opacityPulseSpeed,
+				MinOpacity = _minOpacity,
+				MaxOpacity = _maxOpacity,
+				AnimateEmission = _animateEmission,
+				EmissionPulseSpeed = _emissionPulseSpeed,
+				MinEmission = _minEmission,
+				MaxEmission = _maxEmission,
+				AnimateScale = _animateScale,
+				ScalePulseSpeed = _scalePulseSpeed,
+				MinScaleRatio = _minScaleRatio,
+				MaxScaleRatio = _maxScaleRatio
+			},
 			UpperFade = _upperFade,
 			LowerFade = _lowerFade
 		};
@@ -1194,18 +1183,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 				currentScale = Mathf.Lerp(_minScaleRatio, _maxScaleRatio, sine);
 			}
 
-			float r = _tint.R * _brightness * (1.0f + currentEmission * 0.5f);
-			float g = _tint.G * _brightness * (1.0f + currentEmission * 0.5f);
-			float b = _tint.B * _brightness * (1.0f + currentEmission * 0.5f);
-
-			float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-			r = lum + (r - lum) * _saturation;
-			g = lum + (g - lum) * _saturation;
-			b = lum + (b - lum) * _saturation;
-
-			r = (r - 0.5f) * _contrast + 0.5f;
-			g = (g - 0.5f) * _contrast + 0.5f;
-			b = (b - 0.5f) * _contrast + 0.5f;
+			Color modColor = CalculateModulateColor(currentEmission, currentOpacity);
+			float r = modColor.R, g = modColor.G, b = modColor.B;
 
 			_previewRect.Modulate = new Color(Mathf.Clamp(r, 0f, 4f), Mathf.Clamp(g, 0f, 4f), Mathf.Clamp(b, 0f, 4f), Mathf.Clamp(currentOpacity, 0f, 1f));
 			_previewRect.Scale = new Vector2(currentScale, currentScale);
@@ -1281,18 +1260,8 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		if (_previewRect == null) return;
 
-		float r = _tint.R * _brightness;
-		float g = _tint.G * _brightness;
-		float b = _tint.B * _brightness;
-
-		float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-		r = lum + (r - lum) * _saturation;
-		g = lum + (g - lum) * _saturation;
-		b = lum + (b - lum) * _saturation;
-
-		r = (r - 0.5f) * _contrast + 0.5f;
-		g = (g - 0.5f) * _contrast + 0.5f;
-		b = (b - 0.5f) * _contrast + 0.5f;
+		Color modColor = CalculateModulateColor(0f, _opacity);
+		float r = modColor.R, g = modColor.G, b = modColor.B;
 
 		_previewRect.Modulate = new Color(Mathf.Clamp(r, 0f, 4f), Mathf.Clamp(g, 0f, 4f), Mathf.Clamp(b, 0f, 4f), Mathf.Clamp(_opacity, 0f, 1f));
 		_previewRect.Texture = _baseTexture;
@@ -1310,6 +1279,24 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			"Screen" => CanvasItemMaterial.BlendModeEnum.Add,
 			_ => CanvasItemMaterial.BlendModeEnum.Mix
 		};
+	}
+
+	private Color CalculateModulateColor(float emission, float opacity)
+	{
+		float r = _tint.R * _brightness * (1.0f + emission * 0.5f);
+		float g = _tint.G * _brightness * (1.0f + emission * 0.5f);
+		float b = _tint.B * _brightness * (1.0f + emission * 0.5f);
+
+		float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+		r = lum + (r - lum) * _saturation;
+		g = lum + (g - lum) * _saturation;
+		b = lum + (b - lum) * _saturation;
+
+		r = (r - 0.5f) * _contrast + 0.5f;
+		g = (g - 0.5f) * _contrast + 0.5f;
+		b = (b - 0.5f) * _contrast + 0.5f;
+
+		return new Color(r, g, b, opacity);
 	}
 
 	private void UpdateGameHostDecals()
@@ -1493,18 +1480,18 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_roughness = _initialSnapshot.Roughness;
 		_metallic = _initialSnapshot.Metallic;
 		_blendMode = _initialSnapshot.BlendMode;
-		_animateOpacity = _initialSnapshot.AnimateOpacity;
-		_opacityPulseSpeed = _initialSnapshot.OpacityPulseSpeed;
-		_minOpacity = _initialSnapshot.MinOpacity;
-		_maxOpacity = _initialSnapshot.MaxOpacity;
-		_animateEmission = _initialSnapshot.AnimateEmission;
-		_emissionPulseSpeed = _initialSnapshot.EmissionPulseSpeed;
-		_minEmission = _initialSnapshot.MinEmission;
-		_maxEmission = _initialSnapshot.MaxEmission;
-		_animateScale = _initialSnapshot.AnimateScale;
-		_scalePulseSpeed = _initialSnapshot.ScalePulseSpeed;
-		_minScaleRatio = _initialSnapshot.MinScaleRatio;
-		_maxScaleRatio = _initialSnapshot.MaxScaleRatio;
+		_animateOpacity = _initialSnapshot.Animation.AnimateOpacity;
+		_opacityPulseSpeed = _initialSnapshot.Animation.OpacityPulseSpeed;
+		_minOpacity = _initialSnapshot.Animation.MinOpacity;
+		_maxOpacity = _initialSnapshot.Animation.MaxOpacity;
+		_animateEmission = _initialSnapshot.Animation.AnimateEmission;
+		_emissionPulseSpeed = _initialSnapshot.Animation.EmissionPulseSpeed;
+		_minEmission = _initialSnapshot.Animation.MinEmission;
+		_maxEmission = _initialSnapshot.Animation.MaxEmission;
+		_animateScale = _initialSnapshot.Animation.AnimateScale;
+		_scalePulseSpeed = _initialSnapshot.Animation.ScalePulseSpeed;
+		_minScaleRatio = _initialSnapshot.Animation.MinScaleRatio;
+		_maxScaleRatio = _initialSnapshot.Animation.MaxScaleRatio;
 		_upperFade = _initialSnapshot.UpperFade;
 		_lowerFade = _initialSnapshot.LowerFade;
 

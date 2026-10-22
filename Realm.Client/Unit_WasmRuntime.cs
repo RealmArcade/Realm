@@ -26,12 +26,25 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 {
 	private readonly Entity _entity;
 	private readonly EcsWorld _world;
-	private bool _hideHealthAndManaBars;
-
 	public bool HideHealthAndManaBars
 	{
-		get => _hideHealthAndManaBars;
-		set => _hideHealthAndManaBars = value;
+		get => _world.IsAlive(_entity) && _world.Has<OverheadBarsHidden>(_entity);
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+
+			if (value)
+			{
+				if (!_world.Has<OverheadBarsHidden>(_entity))
+				{
+					_world.Add<OverheadBarsHidden>(_entity);
+				}
+			}
+			else if (_world.Has<OverheadBarsHidden>(_entity))
+			{
+				_world.Remove<OverheadBarsHidden>(_entity);
+			}
+		}
 	}
 
 	public Unit_WasmRuntime(Entity entity, EcsWorld world)
@@ -493,6 +506,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 		var newPosComp = new Position(position);
 		_world.SetOrAdd(_entity, newPosComp);
+		_world.SetOrAdd(_entity, new PreviousPosition(position));
 
 		if (GameHost.TryGetUnit3D(_entity, out var unit3D))
 		{
@@ -642,6 +656,82 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 					_world.Remove<Invulnerable>(_entity);
 				}
 			}
+		}
+	}
+
+	public bool AnimationsFrozen
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return false;
+			return _world.Has<AnimationsFrozen>(_entity);
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			bool isFrozen = _world.Has<AnimationsFrozen>(_entity);
+			if (value == isFrozen) return;
+
+			if (value)
+			{
+				_world.Add<AnimationsFrozen>(_entity);
+				if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				{
+					unit3D.SetAnimationsFrozen(true);
+				}
+			}
+			else
+			{
+				_world.Remove<AnimationsFrozen>(_entity);
+				if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				{
+					unit3D.SetAnimationsFrozen(false);
+				}
+			}
+		}
+	}
+
+	public bool CommandsFrozen
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return false;
+			return _world.Has<CommandsFrozen>(_entity);
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			bool isFrozen = _world.Has<CommandsFrozen>(_entity);
+			if (value == isFrozen) return;
+
+			if (value)
+			{
+				_world.Add<CommandsFrozen>(_entity);
+				Stop();
+				if (GameHost.TryGetUnit3D(_entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+				{
+					unit3D.Velocity = Godot.Vector3.Zero;
+				}
+			}
+			else
+			{
+				_world.Remove<CommandsFrozen>(_entity);
+			}
+		}
+	}
+
+	public bool Frozen
+	{
+		get
+		{
+			if (!_world.IsAlive(_entity)) return false;
+			return _world.Has<CommandsFrozen>(_entity) || _world.Has<AnimationsFrozen>(_entity);
+		}
+		set
+		{
+			if (!_world.IsAlive(_entity)) return;
+			AnimationsFrozen = value;
+			CommandsFrozen = value;
 		}
 	}
 

@@ -8,6 +8,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class ReplayViewerPanel : PanelContainer
 {
 	public ReplayViewerPanel()
@@ -34,6 +35,11 @@ public partial class ReplayViewerPanel : PanelContainer
 	private bool _isDraggingScrubber = false;
 	private bool _suppressScrubberSignal = false;
 	private bool _reachedEnd = false;
+	private int _lastCurrentSec = -1;
+	private int _lastTotalSec = -1;
+	private bool? _lastIsPlaying = null;
+	private float _lastPlaybackSpeed = -1f;
+	private static StyleBoxFlat? _activeSpeedStyle;
 
 
 	public override void _Ready()
@@ -181,26 +187,34 @@ public partial class ReplayViewerPanel : PanelContainer
 
 	private void UpdatePlayPauseButtonText()
 	{
-		_playPauseBtn.Text = Tr(ReplayPlaybackManager.Instance.IsPlaying ? "PAUSE" : "PLAY");
+		bool isPlaying = ReplayPlaybackManager.Instance.IsPlaying;
+		_lastIsPlaying = isPlaying;
+		_playPauseBtn.Text = Tr(isPlaying ? "PAUSE" : "PLAY");
 	}
 
 	private void UpdateSpeedButtonHighlights()
 	{
 		float speed = ReplayPlaybackManager.Instance.PlaybackSpeed;
-		StyleBoxFlat activeStyle = new StyleBoxFlat();
-		activeStyle.BgColor = UIStyle.ColorCyanGlow;
-		activeStyle.SetBorderWidthAll(1);
-		activeStyle.BorderColor = UIStyle.ColorGold;
-		activeStyle.CornerRadiusTopLeft = 4;
-		activeStyle.CornerRadiusTopRight = 4;
-		activeStyle.CornerRadiusBottomLeft = 4;
-		activeStyle.CornerRadiusBottomRight = 4;
+		_lastPlaybackSpeed = speed;
+		if (_activeSpeedStyle == null)
+		{
+			_activeSpeedStyle = new StyleBoxFlat
+			{
+				BgColor = UIStyle.ColorCyanGlow,
+				BorderColor = UIStyle.ColorGold
+			};
+			_activeSpeedStyle.SetBorderWidthAll(1);
+			_activeSpeedStyle.CornerRadiusTopLeft = 4;
+			_activeSpeedStyle.CornerRadiusTopRight = 4;
+			_activeSpeedStyle.CornerRadiusBottomLeft = 4;
+			_activeSpeedStyle.CornerRadiusBottomRight = 4;
+		}
 
-		_speedBtn05.AddThemeStyleboxOverride("normal", speed == 0.5f ? activeStyle : UIStyle.CreateButtonNormal());
-		_speedBtn1.AddThemeStyleboxOverride("normal", speed == 1.0f ? activeStyle : UIStyle.CreateButtonNormal());
-		_speedBtn2.AddThemeStyleboxOverride("normal", speed == 2.0f ? activeStyle : UIStyle.CreateButtonNormal());
-		_speedBtn4.AddThemeStyleboxOverride("normal", speed == 4.0f ? activeStyle : UIStyle.CreateButtonNormal());
-		_speedBtn8.AddThemeStyleboxOverride("normal", speed == 8.0f ? activeStyle : UIStyle.CreateButtonNormal());
+		_speedBtn05.AddThemeStyleboxOverride("normal", speed == 0.5f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
+		_speedBtn1.AddThemeStyleboxOverride("normal", speed == 1.0f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
+		_speedBtn2.AddThemeStyleboxOverride("normal", speed == 2.0f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
+		_speedBtn4.AddThemeStyleboxOverride("normal", speed == 4.0f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
+		_speedBtn8.AddThemeStyleboxOverride("normal", speed == 8.0f ? _activeSpeedStyle : UIStyle.CreateButtonNormal());
 	}
 
 	private void PopulatePerspectives()
@@ -292,6 +306,7 @@ public partial class ReplayViewerPanel : PanelContainer
 		{
 			_reachedEnd = true;
 			ReplayPlaybackManager.Instance.IsPlaying = false;
+			isPlaying = false;
 		}
 
 		if (!_isDraggingScrubber)
@@ -307,11 +322,28 @@ public partial class ReplayViewerPanel : PanelContainer
 		int currentSec = currentTick / 30;
 		int totalSec = totalTicks / 30;
 
-		string currentTime = string.Format("{0:D2}:{1:D2}", currentSec / 60, currentSec % 60);
-		string totalTime = string.Format("{0:D2}:{1:D2}", totalSec / 60, totalSec % 60);
+		if (currentSec != _lastCurrentSec || totalSec != _lastTotalSec)
+		{
+			_lastCurrentSec = currentSec;
+			_lastTotalSec = totalSec;
+			string currentTime = string.Format("{0:D2}:{1:D2}", currentSec / 60, currentSec % 60);
+			string totalTime = string.Format("{0:D2}:{1:D2}", totalSec / 60, totalSec % 60);
+			_timeLabel.Text = $"{currentTime} / {totalTime}";
+		}
 
-		_timeLabel.Text = $"{currentTime} / {totalTime}";
-		UpdatePlayPauseButtonText();
-		UpdateSpeedButtonHighlights();
+		if (_lastIsPlaying != isPlaying)
+		{
+			UpdatePlayPauseButtonText();
+		}
+
+		if (_lastPlaybackSpeed != ReplayPlaybackManager.Instance.PlaybackSpeed)
+		{
+			UpdateSpeedButtonHighlights();
+		}
+	}
+
+	public static void ClearCache()
+	{
+		_activeSpeedStyle = null;
 	}
 }

@@ -17,20 +17,7 @@ public class DecalSnapshot
 	public float Metallic { get; set; } = 0.0f;
 	public string BlendMode { get; set; } = "Mix";
 
-	public bool AnimateOpacity { get; set; } = false;
-	public float OpacityPulseSpeed { get; set; } = 1.0f;
-	public float MinOpacity { get; set; } = 0.2f;
-	public float MaxOpacity { get; set; } = 1.0f;
-
-	public bool AnimateEmission { get; set; } = false;
-	public float EmissionPulseSpeed { get; set; } = 1.0f;
-	public float MinEmission { get; set; } = 0.0f;
-	public float MaxEmission { get; set; } = 2.0f;
-
-	public bool AnimateScale { get; set; } = false;
-	public float ScalePulseSpeed { get; set; } = 1.0f;
-	public float MinScaleRatio { get; set; } = 0.8f;
-	public float MaxScaleRatio { get; set; } = 1.2f;
+	public DecalAnimationConfig Animation { get; set; } = new();
 
 	public float UpperFade { get; set; } = 0.3f;
 	public float LowerFade { get; set; } = 0.3f;
@@ -51,18 +38,21 @@ public class DecalSnapshot
 			Roughness = this.Roughness,
 			Metallic = this.Metallic,
 			BlendMode = this.BlendMode,
-			AnimateOpacity = this.AnimateOpacity,
-			OpacityPulseSpeed = this.OpacityPulseSpeed,
-			MinOpacity = this.MinOpacity,
-			MaxOpacity = this.MaxOpacity,
-			AnimateEmission = this.AnimateEmission,
-			EmissionPulseSpeed = this.EmissionPulseSpeed,
-			MinEmission = this.MinEmission,
-			MaxEmission = this.MaxEmission,
-			AnimateScale = this.AnimateScale,
-			ScalePulseSpeed = this.ScalePulseSpeed,
-			MinScaleRatio = this.MinScaleRatio,
-			MaxScaleRatio = this.MaxScaleRatio,
+			Animation = new DecalAnimationConfig
+			{
+				AnimateOpacity = this.Animation.AnimateOpacity,
+				OpacityPulseSpeed = this.Animation.OpacityPulseSpeed,
+				MinOpacity = this.Animation.MinOpacity,
+				MaxOpacity = this.Animation.MaxOpacity,
+				AnimateEmission = this.Animation.AnimateEmission,
+				EmissionPulseSpeed = this.Animation.EmissionPulseSpeed,
+				MinEmission = this.Animation.MinEmission,
+				MaxEmission = this.Animation.MaxEmission,
+				AnimateScale = this.Animation.AnimateScale,
+				ScalePulseSpeed = this.Animation.ScalePulseSpeed,
+				MinScaleRatio = this.Animation.MinScaleRatio,
+				MaxScaleRatio = this.Animation.MaxScaleRatio
+			},
 			UpperFade = this.UpperFade,
 			LowerFade = this.LowerFade
 		};

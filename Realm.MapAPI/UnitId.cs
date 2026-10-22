@@ -236,12 +236,59 @@ public readonly unsafe record struct UnitId(int Value)
 	}
 
 	/// <summary>
+	/// Gets or sets a value indicating whether the unit holds its current animation pose.
+	/// </summary>
+	/// <remarks>
+	/// An animations-frozen unit plays no locomotion, attack, idle or death animation, including
+	/// procedural sway, but it can still receive movement, attack and ability orders. Combine it with
+	/// <see cref="CommandsFrozen"/> to pin a unit in place, or use <see cref="Frozen"/> to set both.
+	/// </remarks>
+	public bool AnimationsFrozen
+	{
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.AnimationsFrozen);
+		set => GameAPI.Current.SetUnitAnimationsFrozen(this, value);
+	}
+
+	/// <summary>
+	/// Gets or sets a value indicating whether the unit ignores movement, attack and hold orders.
+	/// </summary>
+	/// <remarks>
+	/// A commands-frozen unit keeps its current position, does not acquire targets and does not respond
+	/// to move, stop, hold or attack commands, and clients hide those command buttons for it. Ability
+	/// casting and ability buttons stay available, so map-authored abilities such as rerolls keep
+	/// working. Setting the property to the value it already has does nothing.
+	/// </remarks>
+	public bool CommandsFrozen
+	{
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.CommandsFrozen);
+		set => GameAPI.Current.SetUnitCommandsFrozen(this, value);
+	}
+
+	/// <summary>
+	/// Gets or sets a value indicating whether the unit is frozen in place with its animation suspended.
+	/// </summary>
+	/// <remarks>
+	/// This sets both <see cref="AnimationsFrozen"/> and <see cref="CommandsFrozen"/>. A frozen unit keeps
+	/// its current position and pose and ignores orders, and it does not acquire targets. Setting the
+	/// property to the value it already has does nothing. The flag lives on the entity, so it survives
+	/// level changes, element swaps and unit swaps until the entity is destroyed or the flag is cleared,
+	/// and it does not conflict with <see cref="Invulnerable"/>, <see cref="Facing"/> or
+	/// <see cref="HideHealthAndManaBars"/>.
+	/// </remarks>
+	public bool Frozen
+	{
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0
+			&& (EcsSharedMemory.HasComponent(Value, ComponentIds.CommandsFrozen) || EcsSharedMemory.HasComponent(Value, ComponentIds.AnimationsFrozen));
+		set => GameAPI.Current.SetUnitFrozen(this, value);
+	}
+
+	/// <summary>
 	/// Gets or sets a value indicating whether overhead health and mana bars are hidden for this unit.
 	/// </summary>
 	public bool HideHealthAndManaBars
 	{
-		get => false;
-		set { }
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.OverheadBarsHidden);
+		set => GameAPI.Current.SetUnitHideHealthAndManaBars(this, value);
 	}
 
 	/// <summary>
@@ -352,21 +399,21 @@ public readonly unsafe record struct UnitId(int Value)
 	/// <param name="itemId">The identifier of the item definition to grant.</param>
 	/// <param name="charges">The initial charge count for the item.</param>
 	/// <returns>True if the item was successfully added; otherwise false.</returns>
-	public bool AddItem(string itemId, int charges) => AddItem(itemId);
+	public bool AddItem(string itemId, int charges) => GameAPI.Current.AddItemToUnitWithCharges(this, itemId, charges);
 
 	/// <summary>
 	/// Gets the number of charges for the specified item in the unit's inventory.
 	/// </summary>
 	/// <param name="itemId">The identifier of the item.</param>
-	/// <returns>The charge count, or 1 if the item is present without specific charges, or 0 if not present.</returns>
-	public int GetItemCharges(string itemId) => HasItem(itemId) ? 1 : 0;
+	/// <returns>The charge count, or 0 if the unit does not carry the item.</returns>
+	public int GetItemCharges(string itemId) => GameAPI.Current.GetUnitItemCharges(this, itemId);
 
 	/// <summary>
 	/// Sets the number of charges for the specified item in the unit's inventory.
 	/// </summary>
 	/// <param name="itemId">The identifier of the item.</param>
-	/// <param name="charges">The new charge count.</param>
-	public void SetItemCharges(string itemId, int charges) { }
+	/// <param name="charges">The new charge count; zero removes the item's grants.</param>
+	public void SetItemCharges(string itemId, int charges) => GameAPI.Current.SetUnitItemCharges(this, itemId, charges);
 
 	/// <summary>
 	/// Removes an item from the unit's inventory.

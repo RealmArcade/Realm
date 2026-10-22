@@ -91,7 +91,7 @@ public class Migration_0_0_3_WaterProfilesAndShaders : IMapMigration
 	{
 		if (metadataRoot.TryGetPropertyValue("shaders", out var shadersNode) && shadersNode is JsonObject shadersObject)
 		{
-			MapUpgradeService.MergeCategoryInto(unionedAssets, "Shader", shadersObject);
+			unionedAssets.MergeCategoryInto("Shader", shadersObject);
 		}
 	}
 

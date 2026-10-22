@@ -82,3 +82,18 @@ sprint={
 [rendering]
 
 limits/global_shader_variables/buffer_size=2097152
+
+[shader_globals]
+
+rts_shroud_lerp={
+"type": "float",
+"value": 0.0
+}
+rts_shroud_texture={
+"type": "sampler2D",
+"value": ""
+}
+rts_shroud_world_bounds={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}

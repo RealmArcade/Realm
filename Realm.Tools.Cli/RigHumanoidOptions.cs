@@ -3,23 +3,8 @@ using CommandLine;
 namespace Realm.Tools.Cli;
 
 [Verb("rig_humanoid", HelpText = "Auto-rig a humanoid 3D model with a Mixamo skeleton using the Make-It-Animatable pipeline and optimize into .rmesh.")]
-public class RigHumanoidOptions
+public class RigHumanoidOptions : ModelCliOptionsBase
 {
-	[Option('i', "input", Required = true, HelpText = "Path to input .rmesh or .glb file or directory containing model files.")]
-	public string Input { get; set; } = string.Empty;
-
-	[Option('o', "output", Required = false, HelpText = "Output destination file or directory.")]
-	public string? Output { get; set; }
-
-	[Option("in-place", Required = false, Default = false, HelpText = "Overwrite the source file directly.")]
-	public bool InPlace { get; set; }
-
-	[Option('r', "recursive", Required = false, Default = false, HelpText = "Process directories recursively.")]
-	public bool Recursive { get; set; }
-
-	[Option('t', "type", Required = false, HelpText = "Asset type for model: Character, Building, Prop, Item.")]
-	public string? AssetType { get; set; }
-
 	[Option("no-fingers", Required = false, Default = true, HelpText = "Model does not have ten separate fingers (default: true).")]
 	public bool NoFingers { get; set; } = true;
 

@@ -166,4 +166,30 @@ public class MapManifestAssets
 
 		return null;
 	}
+
+	public void MergeCategoryInto(string category, System.Text.Json.Nodes.JsonObject sourceObject)
+	{
+		var categoryTarget = GetCategory(category);
+		if (categoryTarget == null)
+		{
+			categoryTarget = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			SetCategory(category, categoryTarget);
+		}
+
+		foreach (var pair in sourceObject)
+		{
+			if (pair.Value is System.Text.Json.Nodes.JsonObject sourceObj)
+			{
+				string hash = sourceObj["hash"]?.ToString() ?? sourceObj["blake3"]?.ToString() ?? string.Empty;
+				if (!string.IsNullOrEmpty(hash))
+				{
+					categoryTarget[pair.Key] = hash;
+				}
+			}
+			else if (pair.Value != null)
+			{
+				categoryTarget[pair.Key] = pair.Value.ToString();
+			}
+		}
+	}
 }

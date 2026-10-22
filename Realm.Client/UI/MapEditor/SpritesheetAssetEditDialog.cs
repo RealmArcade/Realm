@@ -4,11 +4,15 @@ using System.IO;
 using System.Linq;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 {
+	public SpritesheetAssetEditDialog() { }
+
 	private string _sheetFileName = "";
 	private string _objectType = "spritesheet";
 	private string _slug = "";
@@ -49,26 +53,31 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 	private void BuildControls()
 	{
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		BodyContainer.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & ASSET"), new Color(0.95f, 0.8f, 0.4f));
 
 		var rowId = new HBoxContainer();
+		rowId.Name = "RowId_HBoxContainer";
 		rowId.AddThemeConstantOverride("separation", 6);
 		var lblId = new Label();
+		lblId.Name = "LblId_Label";
 		lblId.Text = TranslationServer.Translate("TemplateID:");
 		lblId.CustomMinimumSize = new Vector2(100, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		rowId.AddChild(lblId);
 
 		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
 		_lblObjectTypePrefix.Text = "spritesheet/";
 		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		rowId.AddChild(_lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("spritesheet_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -89,14 +98,17 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		AddSectionHeader(contentVBox, "✨ " + TranslationServer.Translate("SPRITESHEET GRID DIMENSIONS"), new Color(0.35f, 0.75f, 0.9f));
 
 		var rowCols = new HBoxContainer();
+		rowCols.Name = "RowCols_HBoxContainer";
 		rowCols.AddThemeConstantOverride("separation", 8);
 		var lblCols = new Label();
+		lblCols.Name = "LblCols_Label";
 		lblCols.Text = TranslationServer.Translate("Columns:");
 		lblCols.CustomMinimumSize = new Vector2(100, 0);
 		lblCols.AddThemeFontSizeOverride("font_size", 11);
 		rowCols.AddChild(lblCols);
 
 		_spinCols = new SpinBox();
+		_spinCols.Name = "SpinCols_SpinBox";
 		_spinCols.MinValue = 1;
 		_spinCols.MaxValue = 32;
 		_spinCols.Step = 1;
@@ -114,14 +126,17 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		contentVBox.AddChild(rowCols);
 
 		var rowRows = new HBoxContainer();
+		rowRows.Name = "RowRows_HBoxContainer";
 		rowRows.AddThemeConstantOverride("separation", 8);
 		var lblRows = new Label();
+		lblRows.Name = "LblRows_Label";
 		lblRows.Text = TranslationServer.Translate("Rows:");
 		lblRows.CustomMinimumSize = new Vector2(100, 0);
 		lblRows.AddThemeFontSizeOverride("font_size", 11);
 		rowRows.AddChild(lblRows);
 
 		_spinRows = new SpinBox();
+		_spinRows.Name = "SpinRows_SpinBox";
 		_spinRows.MinValue = 1;
 		_spinRows.MaxValue = 32;
 		_spinRows.Step = 1;
@@ -139,14 +154,17 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		contentVBox.AddChild(rowRows);
 
 		var rowFps = new HBoxContainer();
+		rowFps.Name = "RowFps_HBoxContainer";
 		rowFps.AddThemeConstantOverride("separation", 8);
 		var lblFps = new Label();
+		lblFps.Name = "LblFps_Label";
 		lblFps.Text = TranslationServer.Translate("Animation FPS:");
 		lblFps.CustomMinimumSize = new Vector2(100, 0);
 		lblFps.AddThemeFontSizeOverride("font_size", 11);
 		rowFps.AddChild(lblFps);
 
 		_spinFps = new SpinBox();
+		_spinFps.Name = "SpinFps_SpinBox";
 		_spinFps.MinValue = 1;
 		_spinFps.MaxValue = 60;
 		_spinFps.Step = 1;
@@ -164,14 +182,17 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		contentVBox.AddChild(rowFps);
 
 		var rowBlend = new HBoxContainer();
+		rowBlend.Name = "RowBlend_HBoxContainer";
 		rowBlend.AddThemeConstantOverride("separation", 8);
 		var lblBlend = new Label();
+		lblBlend.Name = "LblBlend_Label";
 		lblBlend.Text = TranslationServer.Translate("Sub-frame Blend:");
 		lblBlend.CustomMinimumSize = new Vector2(100, 0);
 		lblBlend.AddThemeFontSizeOverride("font_size", 11);
 		rowBlend.AddChild(lblBlend);
 
 		_chkSubframeBlend = new CheckBox();
+		_chkSubframeBlend.Name = "ChkSubframeBlend_CheckBox";
 		_chkSubframeBlend.ButtonPressed = _subframeBlend;
 		_chkSubframeBlend.Toggled += (toggled) => _subframeBlend = toggled;
 		rowBlend.AddChild(_chkSubframeBlend);
@@ -292,7 +313,8 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		_onApplied = onApplied;
 		_onAppliedWithTemplateIdAndRtex = null;
 
-		string providedAsset = !string.IsNullOrEmpty(fileName) && fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? fileName : string.Empty;
+		string resolvedFile = VfxShaderManager.ResolveSpritesheetTexturePath(fileName);
+		string providedAsset = resolvedFile.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? resolvedFile : string.Empty;
 		_rtexAsset = ResolveRtexAsset(providedAsset, MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, false);
 
 		TakeInitialSnapshot();

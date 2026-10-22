@@ -375,6 +375,7 @@ namespace Realm.Client.Core
 		private void CreateCoverageRing(float radius, Color color)
 		{
 			var meshInstance = new MeshInstance3D();
+			meshInstance.Name = "MeshInstance_MeshInstance3D";
 			meshInstance.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
 			meshInstance.GIMode = GeometryInstance3D.GIModeEnum.Disabled;
 			var torusMesh = new TorusMesh();
@@ -731,6 +732,12 @@ namespace Realm.Client.Core
 			var vertices = BuildHighlightMeshVertices(selWidth, selDepth, minX, minZ);
 			var indices = BuildHighlightMeshIndices(selWidth, selDepth, minX, minZ, maxX, maxZ);
 
+			if (indices.Length == 0)
+			{
+				meshInst.Visible = false;
+				return;
+			}
+
 			var arrays = new Array();
 			arrays.Resize((int)Mesh.ArrayType.Max);
 			arrays[(int)Mesh.ArrayType.Vertex] = vertices;
@@ -830,14 +837,7 @@ namespace Realm.Client.Core
 				CreateCoordinateSelectionOutlineMesh();
 			}
 
-			int width = GroundTerrain.Width;
-			int depth = GroundTerrain.Depth;
-			float quadSize = GroundTerrain.QuadSize;
-
-			int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
-			int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
-			int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
-			int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
+				var (minX, minZ, maxX, maxZ) = GetClampedCoordinateBounds(coord);
 
 			_coordinateSelectionOutlineMesh.Visible = true;
 			RebuildCoordinateMeshInstance(_coordinateSelectionOutlineMesh, minX, minZ, maxX, maxZ, new Color(1.0f, 0.6f, 0.0f, 0.45f), 0.25f);

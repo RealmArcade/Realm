@@ -14,8 +14,11 @@ using Realm.Shared.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 {
+	public TemplateManagerDialog() { }
+
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 	private AnimatedSprite3D _vfxSprite;
@@ -50,6 +53,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private string _currentCategory = "units";
 	private string _searchFilter = "";
 	private string _currentPreviewTemplateID = "";
+	private string _pendingNewVfxTemplateId = "";
+	private bool _pendingNewVfxWasApplied;
 
 	private HBoxContainer _previewMeshRow;
 	private OptionButton _optPreviewMesh;
@@ -63,7 +68,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	public TemplateManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Templates Manager"), new Vector2(720, 780))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 34, 40, 60, 60);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 34, 40, 60, 60);
 
 		_entityVisualEditDialog = new EntityVisualEditDialog(hud);
 		_weaponVfxDialog = new WeaponVfxDialog(hud);
@@ -79,6 +84,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_weaponVfxDialog.DialogClosed += ReloadCurrentPreview;
 		_abilityVfxDialog.DialogClosed += ReloadCurrentPreview;
 		_vfxStudioDialog.DialogClosed += ReloadCurrentPreview;
+		_vfxStudioDialog.DialogClosed += HandleVfxStudioDialogClosed;
 		_decalEditDialog.DialogClosed += ReloadCurrentPreview;
 		_shaderEditDialog.DialogClosed += ReloadCurrentPreview;
 		_spritesheetEditDialog.DialogClosed += ReloadCurrentPreview;
@@ -94,7 +100,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		DefaultTargetPosition = Vector3.Zero;
 		TargetPosition = DefaultTargetPosition;
 
-		_audioPlayer = new AudioStreamPlayer();
+		_audioPlayer = new AudioStreamPlayer { Name = "TemplatePreviewAudio", Bus = AudioService.SfxBusName };
 		_audioPlayer.Finished += OnAudioFinished;
 		AddChild(_audioPlayer);
 
@@ -108,6 +114,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		// 1. TOP LIVE PREVIEW SECTION (3D / 2D / Audio)
 		var previewStack = new PanelContainer();
+		previewStack.Name = "PreviewStack_PanelContainer";
 		previewStack.CustomMinimumSize = new Vector2(360, 180);
 		previewStack.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		previewStack.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
@@ -119,19 +126,23 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		// 2D Static Preview
 		_preview2DContainer = new PanelContainer();
+		_preview2DContainer.Name = "Preview2DContainer_PanelContainer";
 		_preview2DContainer.CustomMinimumSize = new Vector2(360, 180);
 		_preview2DContainer.Visible = false;
 		var preview2DVBox = new VBoxContainer();
+		preview2DVBox.Name = "Preview2DVBox_VBoxContainer";
 		preview2DVBox.Alignment = BoxContainer.AlignmentMode.Center;
 		preview2DVBox.AddThemeConstantOverride("separation", 6);
 
 		_tooltipPreviewContainer = new VBoxContainer();
+		_tooltipPreviewContainer.Name = "TooltipPreviewContainer_VBoxContainer";
 		_tooltipPreviewContainer.Alignment = BoxContainer.AlignmentMode.Center;
 		_tooltipPreviewContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		_tooltipPreviewContainer.Visible = false;
 		preview2DVBox.AddChild(_tooltipPreviewContainer);
 
 		_preview2DImage = new TextureRect();
+		_preview2DImage.Name = "Preview2DImage_TextureRect";
 		_preview2DImage.CustomMinimumSize = new Vector2(140, 140);
 		_preview2DImage.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_preview2DImage.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
@@ -140,6 +151,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		preview2DVBox.AddChild(_preview2DImage);
 
 		_lblPreview2DInfo = new Label();
+		_lblPreview2DInfo.Name = "LblPreview2DInfo_Label";
 		_lblPreview2DInfo.HorizontalAlignment = HorizontalAlignment.Center;
 		_lblPreview2DInfo.AddThemeFontSizeOverride("font_size", 10);
 		_lblPreview2DInfo.AddThemeColorOverride("font_color", new Color(0.65f, 0.65f, 0.70f));
@@ -150,13 +162,16 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		// Audio Preview
 		_previewAudioContainer = new PanelContainer();
+		_previewAudioContainer.Name = "PreviewAudioContainer_PanelContainer";
 		_previewAudioContainer.CustomMinimumSize = new Vector2(360, 180);
 		_previewAudioContainer.Visible = false;
 		var audioVBox = new VBoxContainer();
+		audioVBox.Name = "AudioVBox_VBoxContainer";
 		audioVBox.Alignment = BoxContainer.AlignmentMode.Center;
 		audioVBox.AddThemeConstantOverride("separation", 10);
 
 		var lblAudioIcon = new Label();
+		lblAudioIcon.Name = "LblAudioIcon_Label";
 		lblAudioIcon.Text = UnicodeIcons.AUDIO;
 		var faFont = Hud?.GetFontAwesomeFont();
 		if (faFont != null) lblAudioIcon.AddThemeFontOverride("font", faFont);
@@ -165,6 +180,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		audioVBox.AddChild(lblAudioIcon);
 
 		_lblAudioInfo = new Label();
+		_lblAudioInfo.Name = "LblAudioInfo_Label";
 		_lblAudioInfo.Text = TranslationServer.Translate("No audio loaded");
 		_lblAudioInfo.HorizontalAlignment = HorizontalAlignment.Center;
 		_lblAudioInfo.AddThemeFontSizeOverride("font_size", 12);
@@ -172,6 +188,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		audioVBox.AddChild(_lblAudioInfo);
 
 		var audioBtnRow = new HBoxContainer();
+		audioBtnRow.Name = "AudioBtnRow_HBoxContainer";
 		audioBtnRow.Alignment = BoxContainer.AlignmentMode.Center;
 		audioBtnRow.AddThemeConstantOverride("separation", 8);
 
@@ -186,15 +203,18 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		// 3. CATEGORY & FILTER & ADD BAR
 		var catRow = new HBoxContainer();
+		catRow.Name = "CatRow_HBoxContainer";
 		catRow.AddThemeConstantOverride("separation", 8);
 
 		var lblCat = new Label();
+		lblCat.Name = "LblCat_Label";
 		lblCat.Text = TranslationServer.Translate("Type:");
 		lblCat.AddThemeFontSizeOverride("font_size", 11);
 		lblCat.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		catRow.AddChild(lblCat);
 
 		_optObjectCategory = new OptionButton();
+		_optObjectCategory.Name = "OptObjectCategory_OptionButton";
 		_optObjectCategory.AddThemeFontSizeOverride("font_size", 11);
 		_optObjectCategory.CustomMinimumSize = new Vector2(170, 26);
 		_optObjectCategory.AddItem(TranslationServer.Translate("👥 Units (unit/...)"), 0);
@@ -232,16 +252,19 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		catRow.AddChild(_optObjectCategory);
 
 		_previewMeshRow = new HBoxContainer();
+		_previewMeshRow.Name = "PreviewMeshRow_HBoxContainer";
 		_previewMeshRow.AddThemeConstantOverride("separation", 6);
 		_previewMeshRow.Visible = false;
 
 		var lblMesh = new Label();
+		lblMesh.Name = "LblMesh_Label";
 		lblMesh.Text = TranslationServer.Translate("Preview Mesh:");
 		lblMesh.AddThemeFontSizeOverride("font_size", 11);
 		lblMesh.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_previewMeshRow.AddChild(lblMesh);
 
 		_optPreviewMesh = new OptionButton();
+		_optPreviewMesh.Name = "OptPreviewMesh_OptionButton";
 		_optPreviewMesh.AddThemeFontSizeOverride("font_size", 11);
 		_optPreviewMesh.CustomMinimumSize = new Vector2(160, 26);
 		_optPreviewMesh.ItemSelected += (idx) =>
@@ -264,15 +287,18 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		// 4. SEARCH FILTER INPUT
 		var searchRow = new HBoxContainer();
+		searchRow.Name = "SearchRow_HBoxContainer";
 		searchRow.AddThemeConstantOverride("separation", 6);
 
 		var lblSearch = new Label();
+		lblSearch.Name = "LblSearch_Label";
 		lblSearch.Text = $"{UnicodeIcons.SEARCH} " + TranslationServer.Translate("Filter:");
 		if (faFont != null) lblSearch.AddThemeFontOverride("font", faFont);
 		lblSearch.AddThemeFontSizeOverride("font_size", 11);
 		searchRow.AddChild(lblSearch);
 
 		_txtSearchFilter = new LineEdit();
+		_txtSearchFilter.Name = "TxtSearchFilter_LineEdit";
 		_txtSearchFilter.PlaceholderText = TranslationServer.Translate("Type to filter objects by name or ID...");
 		_txtSearchFilter.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSearchFilter.AddThemeFontSizeOverride("font_size", 11);
@@ -294,9 +320,11 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (PreviewSubViewport == null) return;
 
 		_simRoot = new Node3D();
+		_simRoot.Name = "SimRoot_Node3D";
 		PreviewSubViewport.AddChild(_simRoot);
 
 		_currentModelRoot = new Node3D();
+		_currentModelRoot.Name = "CurrentModelRoot_Node3D";
 		_simRoot.AddChild(_currentModelRoot);
 
 		_vfxSprite = new AnimatedSprite3D
@@ -363,6 +391,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	public override void CloseDialog()
 	{
 		ClearPreviewProjectile();
+		ClearPreviewNodes();
 		base.CloseDialog();
 	}
 
@@ -523,6 +552,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (items.Count == 0)
 		{
 			var lblEmpty = new Label();
+			lblEmpty.Name = "LblEmpty_Label";
 			lblEmpty.Text = TranslationServer.Translate("No objects found in metadata.json for this domain.");
 			lblEmpty.AddThemeFontSizeOverride("font_size", 11);
 			lblEmpty.AddThemeColorOverride("font_color", new Color(0.65f, 0.65f, 0.70f));
@@ -866,16 +896,19 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private Control CreateObjectRow(ObjectItemInfo item)
 	{
 		var row = new PanelContainer();
+		row.Name = "Row_PanelContainer";
 		row.CustomMinimumSize = new Vector2(0, 42);
 		row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		row.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
 		var hBox = new HBoxContainer();
+		hBox.Name = "HBox_HBoxContainer";
 		hBox.AddThemeConstantOverride("separation", 8);
 		row.AddChild(hBox);
 
 		// Clickable selection for preview
 		var selectBtn = new Button();
+		selectBtn.Name = "SelectBtn_Button";
 		selectBtn.Flat = true;
 		selectBtn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		selectBtn.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -883,19 +916,23 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		selectBtn.Pressed += () => LoadPreviewForObject(item);
 
 		var contentBox = new HBoxContainer();
+		contentBox.Name = "ContentBox_HBoxContainer";
 		contentBox.AddThemeConstantOverride("separation", 8);
 		selectBtn.AddChild(contentBox);
 
 		var infoVBox = new VBoxContainer();
+		infoVBox.Name = "InfoVBox_VBoxContainer";
 		infoVBox.AddThemeConstantOverride("separation", 2);
 
 		var lblName = new Label();
+		lblName.Name = "LblName_Label";
 		lblName.Text = item.Name;
 		lblName.AddThemeFontSizeOverride("font_size", 12);
 		lblName.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		infoVBox.AddChild(lblName);
 
 		var lblId = new Label();
+		lblId.Name = "LblId_Label";
 		lblId.Text = item.TemplateID;
 		lblId.AddThemeFontSizeOverride("font_size", 10);
 		lblId.AddThemeColorOverride("font_color", new Color(0.6f, 0.65f, 0.75f));
@@ -906,11 +943,13 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		// Action buttons: Preview, Edit & Delete
 		var actionsHBox = new HBoxContainer();
+		actionsHBox.Name = "ActionsHBox_HBoxContainer";
 		actionsHBox.AddThemeConstantOverride("separation", 4);
 
 		var faFont = Hud?.GetFontAwesomeFont();
 
 		var btnPreview = new Button();
+		btnPreview.Name = "BtnPreview_Button";
 		btnPreview.Text = UnicodeIcons.EYE;
 		btnPreview.Set("icon_max_width", 0);
 		if (faFont != null) btnPreview.AddThemeFontOverride("font", faFont);
@@ -920,6 +959,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		actionsHBox.AddChild(btnPreview);
 
 		var btnEdit = new Button();
+		btnEdit.Name = "BtnEdit_Button";
 		btnEdit.Text = UnicodeIcons.EDIT;
 		btnEdit.Set("icon_max_width", 0);
 		if (faFont != null) btnEdit.AddThemeFontOverride("font", faFont);
@@ -929,6 +969,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		actionsHBox.AddChild(btnEdit);
 
 		var btnCopy = new Button();
+		btnCopy.Name = "BtnCopy_Button";
 		btnCopy.Text = UnicodeIcons.COPY;
 		btnCopy.Set("icon_max_width", 0);
 		if (faFont != null) btnCopy.AddThemeFontOverride("font", faFont);
@@ -938,6 +979,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		actionsHBox.AddChild(btnCopy);
 
 		var btnDelete = new Button();
+		btnDelete.Name = "BtnDelete_Button";
 		btnDelete.Text = UnicodeIcons.TRASH_ALT;
 		btnDelete.Set("icon_max_width", 0);
 		if (faFont != null) btnDelete.AddThemeFontOverride("font", faFont);
@@ -1368,11 +1410,35 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 						m.AddOrUpdateVfx(updatedCfg);
 					});
+					if (!string.IsNullOrEmpty(_pendingNewVfxTemplateId) &&
+					    (string.Equals(item.TemplateID, _pendingNewVfxTemplateId, StringComparison.OrdinalIgnoreCase) ||
+					     string.Equals(updatedCfg.VfxId, _pendingNewVfxTemplateId, StringComparison.OrdinalIgnoreCase)))
+					{
+						_pendingNewVfxWasApplied = true;
+					}
+
 					_currentPreviewTemplateID = updatedCfg.VfxId;
 					RefreshObjectList();
 				});
 			}
 		}
+	}
+
+	private void HandleVfxStudioDialogClosed()
+	{
+		if (string.IsNullOrEmpty(_pendingNewVfxTemplateId)) return;
+
+		string pendingTemplateId = _pendingNewVfxTemplateId;
+		bool wasApplied = _pendingNewVfxWasApplied;
+		_pendingNewVfxTemplateId = "";
+		_pendingNewVfxWasApplied = false;
+
+		if (wasApplied) return;
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		GameContext.RegistryService.UnregisterVfxConfig(pendingTemplateId);
+		GameContext.MetadataService.UpdateMetadata(wsPath, meta => meta.RemoveVfx(pendingTemplateId));
+		RefreshObjectList();
 	}
 
 	private void OpenDefaultEditDialog(ObjectItemInfo item)
@@ -1406,6 +1472,22 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		}
 	}
 
+
+		private static readonly Action<TemplateManagerDialog, MapMetadata, ObjectItemInfo, string, string> SpawnShaderDuplicateHandler = (dialog, m, item, newId, newSlug) =>
+		{
+			m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
+			m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
+			if (orig == null)
+			{
+				var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
+				if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
+			}
+			SpawnShaderMetadata copy = orig != null
+				? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
+				: new SpawnShaderMetadata();
+			copy.Name = newSlug;
+			m.SpawnShaders[newId] = copy;
+		};
 
 	private static readonly Dictionary<string, Action<TemplateManagerDialog, MapMetadata, ObjectItemInfo, string, string>> DuplicateMetadataHandlers = new(StringComparer.OrdinalIgnoreCase)
 	{
@@ -1537,72 +1619,16 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			}
 		},
 		{
-			"shaders", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+				"shaders", SpawnShaderDuplicateHandler
 		},
 		{
-			"shader", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+				"shader", SpawnShaderDuplicateHandler
 		},
 		{
-			"spawnshader", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+				"spawnshader", SpawnShaderDuplicateHandler
 		},
 		{
-			"spawnshaders", (dialog, m, item, newId, newSlug) =>
-			{
-				m.SpawnShaders ??= new(StringComparer.OrdinalIgnoreCase);
-				m.SpawnShaders.TryGetValue(item.TemplateID, out var orig);
-				if (orig == null)
-				{
-					var (_, oldSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
-					if (!string.IsNullOrEmpty(oldSlug)) m.SpawnShaders.TryGetValue(oldSlug, out orig);
-				}
-				SpawnShaderMetadata copy = orig != null
-					? JsonSerializer.Deserialize<SpawnShaderMetadata>(JsonSerializer.Serialize(orig))!
-					: new SpawnShaderMetadata();
-				copy.Name = newSlug;
-				m.SpawnShaders[newId] = copy;
-			}
+				"spawnshaders", SpawnShaderDuplicateHandler
 		},
 		{
 			"vfx", (dialog, m, item, newId, newSlug) =>
@@ -1661,6 +1687,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		string newTemplateID = TemplateIDHelper.GenerateTemplateID(objectType, $"new_{objectType}", existingIDs);
 		var (parsedType, parsedSlug) = TemplateIDHelper.ParseTemplateID(newTemplateID);
+
+		if (category == "vfx")
+		{
+			_pendingNewVfxTemplateId = newTemplateID;
+			_pendingNewVfxWasApplied = false;
+		}
 
 		GameContext.MetadataService.UpdateMetadata(wsPath, m => { AddMetadataForCategory(m, category, newTemplateID, parsedSlug); });
 
@@ -1889,6 +1921,11 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		Hud?.ShowConfirmationDialog(message, () =>
 		{
+			if (item.Category == "vfx")
+			{
+				GameContext.RegistryService.UnregisterVfxConfig(item.TemplateID);
+			}
+
 			GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 			{
 				var (_, delSlug) = TemplateIDHelper.ParseTemplateID(item.TemplateID);
@@ -1933,55 +1970,36 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		return references;
 	}
 
-	private void RemoveTerrainTexture(MapMetadata meta, ObjectItemInfo item, string delSlug)
+	private void RemoveKeysFromDict<T>(Dictionary<string, T>? dict, string category, ObjectItemInfo item, string delSlug)
 	{
-		if (meta.Textures == null) return;
-		var keysToRemove = meta.Textures.Keys.Where(k =>
+		if (dict == null) return;
+		var keysToRemove = dict.Keys.Where(k =>
 			string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
 			string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
 			(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
 			(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
-			string.Equals(TemplateIDHelper.NormalizeTemplateID("terrain", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
+			string.Equals(TemplateIDHelper.NormalizeTemplateID(category, k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
 		).ToList();
 
 		foreach (var k in keysToRemove)
 		{
-			meta.Textures.Remove(k);
+			dict.Remove(k);
 		}
+	}
+
+	private void RemoveTerrainTexture(MapMetadata meta, ObjectItemInfo item, string delSlug)
+	{
+		RemoveKeysFromDict(meta.Textures, "terrain", item, delSlug);
 	}
 
 	private void RemoveSpritesheet(MapMetadata meta, ObjectItemInfo item, string delSlug)
 	{
-		if (meta.VfxSpritesheets == null) return;
-		var keysToRemove = meta.VfxSpritesheets.Keys.Where(k =>
-			string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
-			(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
-			(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
-			string.Equals(TemplateIDHelper.NormalizeTemplateID("spritesheet", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
-		).ToList();
-
-		foreach (var k in keysToRemove)
-		{
-			meta.VfxSpritesheets.Remove(k);
-		}
+		RemoveKeysFromDict(meta.VfxSpritesheets, "spritesheet", item, delSlug);
 	}
 
 	private void RemoveDecal(MapMetadata meta, ObjectItemInfo item, string delSlug)
 	{
-		if (meta.Decals == null) return;
-		var keysToRemove = meta.Decals.Keys.Where(k =>
-			string.Equals(k, item.TemplateID, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(k, delSlug, StringComparison.OrdinalIgnoreCase) ||
-			(!string.IsNullOrEmpty(item.ModelPath) && string.Equals(k, item.ModelPath, StringComparison.OrdinalIgnoreCase)) ||
-			(!string.IsNullOrEmpty(delSlug) && (string.Equals(k, $"{delSlug}.rtex", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetFileNameWithoutExtension(k), delSlug, StringComparison.OrdinalIgnoreCase))) ||
-			string.Equals(TemplateIDHelper.NormalizeTemplateID("decal", k), item.TemplateID, StringComparison.OrdinalIgnoreCase)
-		).ToList();
-
-		foreach (var k in keysToRemove)
-		{
-			meta.Decals.Remove(k);
-		}
+		RemoveKeysFromDict(meta.Decals, "decal", item, delSlug);
 	}
 
 	private void RemoveSpawnShader(MapMetadata meta, ObjectItemInfo item, string delSlug)
@@ -2029,7 +2047,11 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	{
 		if (_currentModelRoot != null && GodotObject.IsInstanceValid(_currentModelRoot))
 		{
-			foreach (Node child in _currentModelRoot.GetChildren()) child.QueueFree();
+			foreach (Node child in _currentModelRoot.GetChildren())
+			{
+				_currentModelRoot.RemoveChild(child);
+				child.QueueFree();
+			}
 		}
 
 		if (_vfxSprite != null && GodotObject.IsInstanceValid(_vfxSprite))
@@ -2216,6 +2238,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private Node3D GetFallbackMesh(string meshKey)
 	{
 		var meshInst = new MeshInstance3D();
+		meshInst.Name = "MeshInst_MeshInstance3D";
 		if (meshKey.Contains("Capsule"))
 		{
 			meshInst.Mesh = new CapsuleMesh { Radius = 0.5f, Height = 1.8f };
@@ -2260,16 +2283,12 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 
 		var loaded = ModelCache.GetModel(modelPath) ?? ModelCache.GetModel(meshKey);
 		if (loaded is Node3D n) return n;
+		if (loaded != null) loaded.QueueFree();
 
-		var gltfDoc = new GltfDocument();
-		var gltfState = new GltfState();
 		byte[] rmeshBytes = File.ReadAllBytes(modelPath);
-		byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
-		if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
-		{
-			var node = gltfDoc.GenerateScene(gltfState);
+			var node = ModelCache.TryGenerateNodeFromRmeshOrGlbBytes(rmeshBytes);
 			if (node is Node3D n3d) return n3d;
-		}
+			if (node != null) node.QueueFree();
 
 		return null;
 	}
@@ -2333,9 +2352,10 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_previewAudioContainer.Visible = false;
 		PreviewSubViewport.GetParent<Control>().Visible = true;
 
+		Node mesh = null;
 		try
 		{
-			Node mesh = ModelCache.GetModel(item.ModelPath);
+			mesh = ModelCache.GetModel(item.ModelPath);
 			if (mesh != null)
 			{
 				_currentModelRoot.AddChild(mesh);
@@ -2345,6 +2365,10 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		}
 		catch
 		{
+			if (mesh != null && mesh.GetParent() == null)
+			{
+				mesh.QueueFree();
+			}
 		}
 	}
 

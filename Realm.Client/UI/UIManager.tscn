@@ -1,6 +1,6 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" uid="uid://lrp0uicnbcfw" path="res://UI/UIManager.cs" id="1_script"]
+[ext_resource type="Script" uid="uid://kjqov402cc08" path="res://UI/UIManager.cs" id="1_script"]
 [ext_resource type="PackedScene" path="res://UI/MainMenu.tscn" id="2_menu"]
 [ext_resource type="PackedScene" path="res://UI/LobbyBrowser.tscn" id="3_browser"]
 [ext_resource type="PackedScene" path="res://UI/LobbyRoom.tscn" id="4_room"]

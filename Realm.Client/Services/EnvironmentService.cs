@@ -212,18 +212,56 @@ public class EnvironmentService
 		}
 	}
 
+	private Node3D? _cachedHost;
+	private WorldEnvironment? _cachedWorldEnv;
+	private DirectionalLight3D? _cachedSun;
+	private DirectionalLight3D? _cachedFillLight;
+	private GraphicsQuality? _lastAppliedEnvQuality;
+	private GraphicsQuality? _lastAppliedSunQuality;
+
+	private void EnsureHostNodesCached(Node3D host)
+	{
+		if (!ReferenceEquals(_cachedHost, host))
+		{
+			_cachedHost = host;
+			_cachedWorldEnv = null;
+			_cachedSun = null;
+			_cachedFillLight = null;
+			_lastAppliedEnvQuality = null;
+			_lastAppliedSunQuality = null;
+		}
+
+		if (_cachedWorldEnv == null || !GodotObject.IsInstanceValid(_cachedWorldEnv))
+		{
+			_cachedWorldEnv = host.GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
+			_lastAppliedEnvQuality = null;
+		}
+
+		if (_cachedSun == null || !GodotObject.IsInstanceValid(_cachedSun))
+		{
+			_cachedSun = host.GetNodeOrNull<DirectionalLight3D>("DirectionalLight3D");
+			_lastAppliedSunQuality = null;
+		}
+
+		if (_cachedFillLight == null || !GodotObject.IsInstanceValid(_cachedFillLight))
+		{
+			_cachedFillLight = host.GetNodeOrNull<Camera3D>("Camera3D")?.GetNodeOrNull<DirectionalLight3D>("CharacterFillLight");
+		}
+	}
+
 	private void ApplyStateToHost(Node3D host, LiveEnvironmentState state)
 	{
 		if (host == null || !GodotObject.IsInstanceValid(host)) return;
 
-		ApplyWorldEnvironmentState(host, state);
-		ApplySunState(host, state);
-		ApplyFillLightState(host, state);
+		EnsureHostNodesCached(host);
+		ApplyWorldEnvironmentState(state);
+		ApplySunState(state);
+		ApplyFillLightState(state);
 	}
 
-	private void ApplyWorldEnvironmentState(Node3D host, LiveEnvironmentState state)
+	private void ApplyWorldEnvironmentState(LiveEnvironmentState state)
 	{
-		var worldEnv = host.GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
+		var worldEnv = _cachedWorldEnv;
 		if (worldEnv == null || worldEnv.Environment == null) return;
 
 		var env = worldEnv.Environment;
@@ -231,7 +269,11 @@ public class EnvironmentService
 		env.AmbientLightColor = state.AmbientColor;
 		env.AmbientLightEnergy = state.AmbientEnergy;
 
-		GameSettings.ApplyEnvironmentQuality(env, GameSettings.QualityIdx);
+		if (_lastAppliedEnvQuality != GameSettings.QualityIdx)
+		{
+			_lastAppliedEnvQuality = GameSettings.QualityIdx;
+			GameSettings.ApplyEnvironmentQuality(env, GameSettings.QualityIdx);
+		}
 
 		if (GameSettings.QualityIdx > GraphicsQuality.Low)
 		{
@@ -257,9 +299,9 @@ public class EnvironmentService
 		env.FogDensity = isFogActive ? state.FogDensity : 0f;
 	}
 
-	private void ApplySunState(Node3D host, LiveEnvironmentState state)
+	private void ApplySunState(LiveEnvironmentState state)
 	{
-		var sun = host.GetNodeOrNull<DirectionalLight3D>("DirectionalLight3D");
+		var sun = _cachedSun;
 		if (sun == null || !GodotObject.IsInstanceValid(sun)) return;
 
 		sun.DirectionalShadowBlendSplits = true;
@@ -269,13 +311,23 @@ public class EnvironmentService
 		sun.LightColor = state.SunColor;
 		sun.LightEnergy = state.SunEnergy;
 		sun.LightSpecular = 0.5f;
-		sun.RotationDegrees = new Vector3(state.SunPitch, state.SunYaw, 0f);
-		GameSettings.ApplyDirectionalLightQuality(sun, GameSettings.QualityIdx);
+
+		Vector3 currentRot = sun.RotationDegrees;
+		if (Mathf.Abs(currentRot.X - state.SunPitch) > 0.05f || Mathf.Abs(currentRot.Y - state.SunYaw) > 0.05f || Mathf.Abs(currentRot.Z) > 0.05f)
+		{
+			sun.RotationDegrees = new Vector3(state.SunPitch, state.SunYaw, 0f);
+		}
+
+		if (_lastAppliedSunQuality != GameSettings.QualityIdx)
+		{
+			_lastAppliedSunQuality = GameSettings.QualityIdx;
+			GameSettings.ApplyDirectionalLightQuality(sun, GameSettings.QualityIdx);
+		}
 	}
 
-	private void ApplyFillLightState(Node3D host, LiveEnvironmentState state)
+	private void ApplyFillLightState(LiveEnvironmentState state)
 	{
-		var fillLight = host.GetNodeOrNull<Camera3D>("Camera3D")?.GetNodeOrNull<DirectionalLight3D>("CharacterFillLight");
+		var fillLight = _cachedFillLight;
 		if (fillLight == null || !GodotObject.IsInstanceValid(fillLight)) return;
 
 		fillLight.LightEnergy = state.CharacterFillEnergy;
@@ -283,10 +335,12 @@ public class EnvironmentService
 
 	private Entity FindWorldEntity()
 	{
-		Entity worldEntity = Entity.Null;
-		var query = QueryCache.AllWeatherStateQuery;
-		GameContext.World.Query(in query, entity => worldEntity = entity);
-		return worldEntity;
+		if (ECSContext.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity))
+		{
+			return ECSContext.WorldEntity;
+		}
+
+		return Entity.Null;
 	}
 
 	public string GetCurrentWeather()
@@ -335,15 +389,33 @@ public class EnvironmentService
 	{
 		if (worldEnv?.Environment == null) return;
 
-		if (!ShouldEnableFog())
+		var env = worldEnv.Environment;
+		bool enableFog = ShouldEnableFog();
+
+		if (!enableFog)
 		{
-			worldEnv.Environment.FogEnabled = false;
+			if (env.FogEnabled)
+			{
+				env.FogEnabled = false;
+			}
 			return;
 		}
 
-		worldEnv.Environment.FogEnabled = true;
-		worldEnv.Environment.FogLightColor = _currentState.FogColor;
-		worldEnv.Environment.FogDensity = CalculateFogDensity(camera3D, GetBaseFogDensity());
+		if (!env.FogEnabled)
+		{
+			env.FogEnabled = true;
+		}
+
+		if (env.FogLightColor != _currentState.FogColor)
+		{
+			env.FogLightColor = _currentState.FogColor;
+		}
+
+		float targetDensity = CalculateFogDensity(camera3D, GetBaseFogDensity());
+		if (Mathf.Abs(env.FogDensity - targetDensity) > 0.00001f)
+		{
+			env.FogDensity = targetDensity;
+		}
 	}
 
 	private bool ShouldEnableFog()
@@ -680,6 +752,10 @@ public class EnvironmentService
 		return (updateVisuals, progress);
 	}
 
+	private float _lastAppliedDayNightProgress = -1f;
+	private string _lastAppliedDayNightWeather = string.Empty;
+	private GraphicsQuality? _lastDayNightQualityIdx;
+
 	public void UpdateDayNightVisuals(Node3D host, float progress)
 	{
 		if (OverrideDayNightVisuals) return;
@@ -689,6 +765,20 @@ public class EnvironmentService
 		}
 
 		float normalizedProgress = Mathf.PosMod(progress, 1.0f);
+		string weather = GetCurrentWeather();
+		if (ReferenceEquals(_cachedHost, host) &&
+		    _lastDayNightQualityIdx == GameSettings.QualityIdx &&
+		    _lastAppliedDayNightWeather == weather &&
+		    _lastAppliedDayNightProgress >= 0f &&
+		    Mathf.Abs(normalizedProgress - _lastAppliedDayNightProgress) < 0.0005f)
+		{
+			return;
+		}
+
+		_lastAppliedDayNightProgress = normalizedProgress;
+		_lastAppliedDayNightWeather = weather;
+		_lastDayNightQualityIdx = GameSettings.QualityIdx;
+
 		float segment = normalizedProgress * 4.0f;
 		int phaseIndex = (int)Mathf.Floor(segment);
 		float t = segment - phaseIndex;
@@ -710,7 +800,6 @@ public class EnvironmentService
 		_currentState.AdjustmentContrast = Mathf.Lerp(Contrasts[phaseIndex], Contrasts[nextIndex], t);
 		_currentState.AdjustmentSaturation = Mathf.Lerp(Saturations[phaseIndex], Saturations[nextIndex], t);
 
-		string weather = GetCurrentWeather();
 		float baseFog = GetBaseFogDensity();
 		bool hasFog = baseFog > 0f || (weather != "clear" && weather != "");
 		_currentState.FogEnabled = hasFog;

@@ -3,6 +3,7 @@ using Godot;
 
 namespace Realm.Client.VFX;
 
+[GlobalClass]
 public partial class GroundShockwave3D : Node3D
 {
 	private ImmediateMesh _immediateMesh;

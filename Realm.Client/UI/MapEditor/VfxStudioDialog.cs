@@ -4,13 +4,17 @@ using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Godot;
+using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 {
+	public VfxStudioDialog() { }
+
 	private ProceduralVfxInstance3D _previewVfxInstance;
 	private MeshInstance3D _previewGroundGrid;
 
@@ -34,8 +38,6 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private OptionButton _optParticleShape;
 	private OptionButton _optParticleRenderMode;
 	private Control _rowParticleRenderMode;
-	private LineEdit _txtParticleTexture;
-	private LineEdit _txtParticleMesh;
 	private Action<string> _setParticleTextureVal;
 	private Action<string> _setParticleMeshVal;
 	private Action<string> _setBaseTextureVal;
@@ -175,6 +177,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private void BuildTopToolbar(Control parent)
 	{
 		var topToolbar = new HBoxContainer();
+		topToolbar.Name = "TopToolbar_HBoxContainer";
 		topToolbar.AddThemeConstantOverride("separation", 4);
 
 		AddButton(topToolbar, $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("VFX"), () => RestartPreviewVfx(), "Restart procedural effect", 10, new Vector2(0, 22));
@@ -201,6 +204,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private void BuildSubToolbar(Control parent)
 	{
 		var rowRandomize = new HBoxContainer();
+		rowRandomize.Name = "RowRandomize_HBoxContainer";
 		var btnRandomize = AddButton(rowRandomize, $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize All"), () => { RandomizeAllParameters(); }, "Randomize all noise masks, shapes, uv scrolling, and color parameters completely");
 		btnRandomize.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
@@ -211,20 +215,24 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private void BuildBasicSettings(VBoxContainer parent)
 	{
 		var rowId = new HBoxContainer();
+		rowId.Name = "RowId_HBoxContainer";
 		rowId.AddThemeConstantOverride("separation", 6);
 		var lblId = new Label();
+		lblId.Name = "LblId_Label";
 		lblId.Text = TranslationServer.Translate("TemplateID:");
 		lblId.CustomMinimumSize = new Vector2(140, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		rowId.AddChild(lblId);
 
 		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
 		_lblObjectTypePrefix.Text = "vfx/";
 		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		rowId.AddChild(_lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("vfx_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -314,7 +322,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			parent,
 			TranslationServer.Translate("Base Texture (.rtex)"),
 			_currentConfig.BaseTexture,
-			(all) => ScanTextureAssets(true),
+			(_) => ScanTextureAssets(),
 			(val) =>
 			{
 				if (_isUpdatingUI) return;
@@ -322,8 +330,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				RestartPreviewVfx();
 			},
 			TranslationServer.Translate("Select ribbon/decal/texture asset..."),
-			140f,
-			true
+			140f
 		);
 		_setBaseTextureVal = baseTexTuple.SetValue;
 		_rowBaseTexture = baseTexTuple.Input.GetParent() as Control;
@@ -332,7 +339,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			parent,
 			TranslationServer.Translate("Particle Texture"),
 			"",
-			(all) => ScanTextureAssets(true),
+			(_) => ScanTextureAssets(),
 			(val) =>
 			{
 				if (_isUpdatingUI) return;
@@ -341,10 +348,8 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				RestartPreviewVfx();
 			},
 			TranslationServer.Translate("Select billboard texture..."),
-			140f,
-			true
+			140f
 		);
-		_txtParticleTexture = particleTexTuple.Input;
 		_setParticleTextureVal = particleTexTuple.SetValue;
 		_rowParticleTexture = particleTexTuple.Input.GetParent() as Control;
 
@@ -382,7 +387,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			parent,
 			TranslationServer.Translate("Projectile Mesh"),
 			"",
-			(all) => ScanProjectileMeshAssets(),
+			(_) => ScanProjectileMeshAssets(),
 			(val) =>
 			{
 				if (_isUpdatingUI) return;
@@ -391,10 +396,8 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				RestartPreviewVfx();
 			},
 			TranslationServer.Translate("Select .rmesh asset..."),
-			140f,
-			true
+			140f
 		);
-		_txtParticleMesh = particleMeshTuple.Input;
 		_setParticleMeshVal = particleMeshTuple.SetValue;
 		_rowParticleMesh = particleMeshTuple.Input.GetParent() as Control;
 	}
@@ -402,6 +405,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private void BuildShaderSettings(VBoxContainer parent)
 	{
 		_uberShaderContainer = new VBoxContainer();
+		_uberShaderContainer.Name = "UberShaderContainer_VBoxContainer";
 		parent.AddChild(_uberShaderContainer);
 
 		AddSectionHeader(_uberShaderContainer, "🔳 " + TranslationServer.Translate("Mask & Distortion"));
@@ -434,11 +438,10 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			_uberShaderContainer,
 			TranslationServer.Translate("Noise Texture (.rtex)"),
 			_currentConfig.NoiseTexture,
-			(all) => ScanNoiseAssets(),
+			(_) => ScanNoiseAssets(),
 			OnNoiseTextureChanged,
 			TranslationServer.Translate("Select noise asset..."),
-			140f,
-			true
+			140f
 		);
 		_setNoiseTextureVal = noiseTexTuple.SetValue;
 
@@ -836,6 +839,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		BuildFalloffSettings(_uberShaderContainer);
 
 		_particleContainer = new VBoxContainer();
+		_particleContainer.Name = "ParticleContainer_VBoxContainer";
 		scrollBody.AddChild(_particleContainer);
 		BuildParticleControls(_particleContainer);
 
@@ -1559,24 +1563,33 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	}
 
 
-	private List<string> ScanTextureAssets(bool includeAll)
+	private List<string> ScanTextureAssets()
 	{
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		var spritesheetFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		var spritesheetTemplateIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		ScanTextureFolders(wsPath, results);
-		ScanTextureAssetsObj(wsPath, results);
+		ScanTextureFolders(wsPath, results, spritesheetFileNames);
+		ScanTextureAssetsObj(wsPath, results, spritesheetFileNames);
+		ScanSpritesheetTemplates(wsPath, spritesheetFileNames, spritesheetTemplateIds);
 
-		return results.OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
+		results.RemoveWhere(asset => spritesheetFileNames.Contains(Path.GetFileName(asset)));
+		results.UnionWith(spritesheetTemplateIds);
+
+		return results.OrderBy(asset => asset, StringComparer.OrdinalIgnoreCase).ToList();
 	}
 
-	private void ScanTextureFolders(string wsPath, HashSet<string> results)
+	private void ScanTextureFolders(string wsPath, HashSet<string> results, HashSet<string> spritesheetFileNames)
 	{
-		string[] subFolders = { "ribbons", "decals", "textures", "vfx", "noise" };
+		string[] subFolders = { "ribbons", "decals", "textures", "vfx", "vfx_spritesheets", "vfx_radial", "vfx_vertical", "icons", "skyboxes", "noise" };
 		foreach (var subFolder in subFolders)
 		{
 			string dir = Path.Combine(wsPath, "Assets", subFolder);
 			if (!Directory.Exists(dir)) continue;
+
+			bool isSpritesheetFolder = subFolder == "vfx_spritesheets";
+			HashSet<string> target = isSpritesheetFolder ? spritesheetFileNames : results;
 
 			foreach (var file in Directory.GetFiles(dir, "*.*"))
 			{
@@ -1584,36 +1597,72 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 				    file.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
 				    file.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
 				{
-					results.Add(Path.GetFileName(file));
+					target.Add(Path.GetFileName(file));
 				}
 			}
 		}
 	}
 
-	private void ScanTextureAssetsObj(string wsPath, HashSet<string> results)
+	private void ScanTextureAssetsObj(string wsPath, HashSet<string> results, HashSet<string> spritesheetFileNames)
 	{
 		try
 		{
 			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
 			if (assetsObj == null) return;
 
-			string[] categories = { "Ribbon", "Decal", "Terrain", "Spritesheet", "Noise" };
+			string[] categories = { "Ribbon", "Decal", "Terrain", "Spritesheet", "Noise", "Icon", "Skybox", "vfx_radial", "vfx_vertical" };
 			foreach (var catName in categories)
 			{
 				var catDict = assetsObj.GetCategory(catName);
 				if (catDict == null) continue;
 
+				HashSet<string> target = catName == "Spritesheet" ? spritesheetFileNames : results;
+
 				foreach (var kvp in catDict)
 				{
 					if (!string.IsNullOrEmpty(kvp.Key))
 					{
-						results.Add(Path.GetFileName(kvp.Key));
+						target.Add(Path.GetFileName(kvp.Key));
 					}
 				}
 			}
 		}
 		catch
 		{
+		}
+	}
+
+	private void ScanSpritesheetTemplates(string wsPath, HashSet<string> spritesheetFileNames, HashSet<string> spritesheetTemplateIds)
+	{
+		var coveredTextureFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var metadata) || metadata?.VfxSpritesheets == null)
+		{
+			AddDerivedSpritesheetTemplateIds(spritesheetFileNames, coveredTextureFileNames, spritesheetTemplateIds);
+			return;
+		}
+
+		foreach (var kvp in metadata.VfxSpritesheets)
+		{
+			if (string.IsNullOrWhiteSpace(kvp.Key) || string.IsNullOrWhiteSpace(kvp.Value?.TexturePath)) continue;
+
+			spritesheetTemplateIds.Add(kvp.Key);
+			string textureFileName = Path.GetFileName(kvp.Value.TexturePath);
+			spritesheetFileNames.Add(textureFileName);
+			coveredTextureFileNames.Add(textureFileName);
+		}
+
+		AddDerivedSpritesheetTemplateIds(spritesheetFileNames, coveredTextureFileNames, spritesheetTemplateIds);
+	}
+
+	private void AddDerivedSpritesheetTemplateIds(HashSet<string> spritesheetFileNames, HashSet<string> coveredTextureFileNames, HashSet<string> spritesheetTemplateIds)
+	{
+		foreach (var fileName in spritesheetFileNames)
+		{
+			if (coveredTextureFileNames.Contains(fileName)) continue;
+
+			string slug = TemplateIDHelper.GenerateSlug(fileName);
+			spritesheetTemplateIds.Add(TemplateIDHelper.NormalizeTemplateID("spritesheet", slug));
 		}
 	}
 
@@ -1981,6 +2030,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 
 		Hud?.SaveCustomVfxToMetadata(_currentConfig.VfxId, _currentConfig);
+		GameHost.Instance?.RefreshVfxTemplateInstances(_initialConfig.VfxId, _currentConfig);
 		_onAppliedCallback?.Invoke(_currentConfig);
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Saved VFX '{0}' to metadata.json"), _currentConfig.Name));
 	}
@@ -1997,7 +2047,15 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		try
 		{
-			string fileName = Path.GetFileName(key);
+			string resolvedTexturePath = VfxShaderManager.ResolveSpritesheetTexturePath(key);
+			string fileName = Path.GetFileName(resolvedTexturePath);
+			if (!fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) &&
+			    !fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) &&
+			    !fileName.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+			{
+				fileName += ".rtex";
+			}
+
 			string slug = TemplateIDHelper.GenerateSlug(fileName);
 			string spritesheetTemplateId = TemplateIDHelper.NormalizeTemplateID("spritesheet", slug);
 			GameContext.MetadataService.UpdateMetadata(wsPath, m =>

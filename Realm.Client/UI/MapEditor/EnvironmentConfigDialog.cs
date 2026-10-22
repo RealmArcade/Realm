@@ -7,8 +7,11 @@ using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class EnvironmentConfigDialog : FloatingDialogBase
 {
+	public EnvironmentConfigDialog() { }
+
 	private List<EnvironmentPresetConfig> _presets = new();
 	private int _selectedPresetIdx = 0;
 	private EnvironmentPresetConfig _activePreset;
@@ -67,43 +70,51 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 	private void BuildUI()
 	{
 		var topRow = new HBoxContainer();
+		topRow.Name = "TopRow_HBoxContainer";
 		topRow.AddThemeConstantOverride("separation", 6);
 
 		var lblPreset = new Label();
+		lblPreset.Name = "LblPreset_Label";
 		lblPreset.Text = TranslationServer.Translate("Preset:");
 		lblPreset.AddThemeFontSizeOverride("font_size", 12);
 		topRow.AddChild(lblPreset);
 
 		_optPresetSelect = new OptionButton();
+		_optPresetSelect.Name = "OptPresetSelect_OptionButton";
 		_optPresetSelect.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_optPresetSelect.ItemSelected += (idx) => SelectPreset((int)idx);
 		topRow.AddChild(_optPresetSelect);
 
 		_btnAddPreset = new Button();
+		_btnAddPreset.Name = "BtnAddPreset_Button";
 		_btnAddPreset.Set("icon_max_width", 0);
 		_btnAddPreset.Text = "+ " + TranslationServer.Translate("NEW");
 		_btnAddPreset.Pressed += OnAddPresetClicked;
 		topRow.AddChild(_btnAddPreset);
 
 		_btnDuplicatePreset = new Button();
+		_btnDuplicatePreset.Name = "BtnDuplicatePreset_Button";
 		_btnDuplicatePreset.Set("icon_max_width", 0);
 		_btnDuplicatePreset.Text = TranslationServer.Translate("DUPLICATE");
 		_btnDuplicatePreset.Pressed += OnDuplicatePresetClicked;
 		topRow.AddChild(_btnDuplicatePreset);
 
 		_btnDeletePreset = new Button();
+		_btnDeletePreset.Name = "BtnDeletePreset_Button";
 		_btnDeletePreset.Set("icon_max_width", 0);
 		_btnDeletePreset.Text = TranslationServer.Translate("DELETE");
 		_btnDeletePreset.Pressed += OnDeletePresetClicked;
 		topRow.AddChild(_btnDeletePreset);
 
 		_btnSetDefault = new Button();
+		_btnSetDefault.Name = "BtnSetDefault_Button";
 		_btnSetDefault.Set("icon_max_width", 0);
 		_btnSetDefault.Text = "★ " + TranslationServer.Translate("SET DEFAULT");
 		_btnSetDefault.Pressed += OnSetDefaultClicked;
 		topRow.AddChild(_btnSetDefault);
 
 		_btnResetDefaults = new Button();
+		_btnResetDefaults.Name = "BtnResetDefaults_Button";
 		_btnResetDefaults.Set("icon_max_width", 0);
 		_btnResetDefaults.Text = "↺ " + TranslationServer.Translate("RESET DEFAULTS");
 		_btnResetDefaults.Pressed += OnResetDefaultsClicked;
@@ -112,8 +123,10 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		BodyContainer.AddChild(topRow);
 
 		var previewRow = new HBoxContainer();
+		previewRow.Name = "PreviewRow_HBoxContainer";
 		previewRow.AddThemeConstantOverride("separation", 8);
 		_chkLivePreview = new CheckBox();
+		_chkLivePreview.Name = "ChkLivePreview_CheckBox";
 		_chkLivePreview.Text = TranslationServer.Translate("Live Viewport Preview");
 		_chkLivePreview.ButtonPressed = true;
 		_chkLivePreview.Toggled += (val) =>
@@ -123,6 +136,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		previewRow.AddChild(_chkLivePreview);
 
 		_lblDefaultBadge = new Label();
+		_lblDefaultBadge.Name = "LblDefaultBadge_Label";
 		_lblDefaultBadge.Text = "";
 		_lblDefaultBadge.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_lblDefaultBadge.AddThemeFontSizeOverride("font_size", 11);
@@ -131,6 +145,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		BodyContainer.AddChild(previewRow);
 
 		var tabContainer = new TabContainer();
+		tabContainer.Name = "TabContainer_TabContainer";
 		tabContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		tabContainer.CustomMinimumSize = new Vector2(600, 520);
 		BodyContainer.AddChild(tabContainer);
@@ -147,6 +162,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		var tabSun = new ScrollContainer();
 		tabSun.Name = TranslationServer.Translate("Sun & Directional Light");
 		var vSun = new VBoxContainer();
+		vSun.Name = "VSun_VBoxContainer";
 		vSun.AddThemeConstantOverride("separation", 6);
 		vSun.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabSun.AddChild(vSun);
@@ -154,6 +170,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 
 		AddSectionHeader(vSun, TranslationServer.Translate("Preset Identity"));
 		var nameRow = new HBoxContainer();
+		nameRow.Name = "NameRow_HBoxContainer";
 		nameRow.AddChild(new Label { Text = TranslationServer.Translate("Display Name:"), CustomMinimumSize = new Vector2(130, 0) });
 		_txtName = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_txtName.TextChanged += (text) =>
@@ -168,6 +185,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		vSun.AddChild(nameRow);
 
 		var idRow = new HBoxContainer();
+		idRow.Name = "IdRow_HBoxContainer";
 		idRow.AddChild(new Label { Text = TranslationServer.Translate("Preset ID:"), CustomMinimumSize = new Vector2(130, 0) });
 		_txtId = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_txtId.TextChanged += (text) =>
@@ -230,6 +248,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		var tabAmbient = new ScrollContainer();
 		tabAmbient.Name = TranslationServer.Translate("Ambient & Fill");
 		var vAmbient = new VBoxContainer();
+		vAmbient.Name = "VAmbient_VBoxContainer";
 		vAmbient.AddThemeConstantOverride("separation", 6);
 		vAmbient.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabAmbient.AddChild(vAmbient);
@@ -264,6 +283,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		var tabFog = new ScrollContainer();
 		tabFog.Name = TranslationServer.Translate("Atmospheric Fog");
 		var vFog = new VBoxContainer();
+		vFog.Name = "VFog_VBoxContainer";
 		vFog.AddThemeConstantOverride("separation", 6);
 		vFog.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabFog.AddChild(vFog);
@@ -303,6 +323,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		var tabPost = new ScrollContainer();
 		tabPost.Name = TranslationServer.Translate("Post-Processing & SSAO");
 		var vPost = new VBoxContainer();
+		vPost.Name = "VPost_VBoxContainer";
 		vPost.AddThemeConstantOverride("separation", 6);
 		vPost.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabPost.AddChild(vPost);
@@ -394,6 +415,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		var tabWeather = new ScrollContainer();
 		tabWeather.Name = TranslationServer.Translate("Weather & Precipitation");
 		var vWeather = new VBoxContainer();
+		vWeather.Name = "VWeather_VBoxContainer";
 		vWeather.AddThemeConstantOverride("separation", 6);
 		vWeather.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		tabWeather.AddChild(vWeather);
@@ -401,8 +423,10 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 
 		AddSectionHeader(vWeather, TranslationServer.Translate("Precipitation & VFX"));
 		var weatherRow = new HBoxContainer();
+		weatherRow.Name = "WeatherRow_HBoxContainer";
 		weatherRow.AddChild(new Label { Text = TranslationServer.Translate("Weather Condition:"), CustomMinimumSize = new Vector2(130, 0) });
 		_optWeatherType = new OptionButton();
+		_optWeatherType.Name = "OptWeatherType_OptionButton";
 		_optWeatherType.AddItem(TranslationServer.Translate("Clear"), 0);
 		_optWeatherType.AddItem(TranslationServer.Translate("Rain Shower"), 1);
 		_optWeatherType.AddItem(TranslationServer.Translate("Dense Fog"), 2);
@@ -420,6 +444,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 
 		AddSectionHeader(vWeather, TranslationServer.Translate("In-Game Notification Banner"));
 		var bannerRow = new HBoxContainer();
+		bannerRow.Name = "BannerRow_HBoxContainer";
 		bannerRow.AddChild(new Label { Text = TranslationServer.Translate("Forecast Text:"), CustomMinimumSize = new Vector2(130, 0) });
 		_txtAnnouncement = new LineEdit { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_txtAnnouncement.TextChanged += (t) =>

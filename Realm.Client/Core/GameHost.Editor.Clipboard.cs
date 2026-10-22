@@ -153,6 +153,7 @@ namespace Realm.Client.Core
 			if (req.Type == "unit") return SpawnUnitExternal(req.Id, req.Position, req.Rotation, req.Scale, req.Player);
 			if (req.Type == "prop") return SpawnPropExternalWithParams(req.Id, req.Position, req.Rotation, req.Scale);
 			if (req.Type == "decal") return SpawnDecalExternalWithParams(req.Id, req.Position, req.Rotation, req.Scale);
+			if (req.Type == "vfx") return SpawnVfxExternalWithParams(req.Id, req.Position, new Vector3(0f, req.Rotation, 0f), new Vector3(req.Scale, req.Scale, req.Scale));
 			return null;
 		}
 

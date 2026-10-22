@@ -22,6 +22,7 @@ using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
 using Realm.Shared.Distribution;
+using Realm.Shared.Metadata;
 using Realm.Shared.Services;
 using SharpToken;
 using Environment = System.Environment;
@@ -30,7 +31,8 @@ using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 
-public partial class LobbyManager : Node
+[GlobalClass]
+public partial class LobbyManager : BaseMapTransferNode
 {
 	public static LobbyManager Instance { get; private set; }
 	public bool IsSinglePlayer { get; set; } = false;
@@ -71,7 +73,8 @@ public partial class LobbyManager : Node
 	private int _currentServerIndex = 0;
 	public string RegistryServerUrl => OfficialServers.Count > 0 && _currentServerIndex < OfficialServers.Count && !string.IsNullOrWhiteSpace(OfficialServers[_currentServerIndex]) ? OfficialServers[_currentServerIndex] : ServersConfigHelper.GetDefaultServerUrl();
 	public int ENetPort { get; private set; } = 8999;
-	public int MaxPlayers { get; set; } = 8;
+	public int MaxPlayers { get; private set; } = MapInfoMetadata.DefaultPlayablePlayerSlots;
+	public string? LastLobbyWarning { get; private set; }
 
 	public string AuthenticatedUsername { get; set; } = "Horaid_Topa";
 	public string? AuthToken { get; set; }
@@ -130,18 +133,13 @@ public partial class LobbyManager : Node
 	private int _countdownRemaining;
 	private SceneTreeTimer? _countdownTimer;
 	private SceneTreeTimer? _diagnosticsTimer;
-	private readonly List<(string Sender, string Message, bool IsMuted)> _chatHistory = new();
+	private readonly List<(string Sender, string Message, bool IsMuted, long TimestampUtcTicks)> _chatHistory = new();
 	private static InferenceSession? _onnxSession;
 	private static Dictionary<string, int>? _vocab;
 	private static readonly object _sessionLock = new();
 	private readonly SemaphoreSlim _mapDownloadLock = new(1, 1);
 
 
-	private readonly ConcurrentDictionary<string, HostTransferSession> _hostTransfers = new();
-	private TaskCompletionSource<string>? _manifestTcs;
-	private TaskCompletionSource<bool>? _transferCompleteTcs;
-	private ClientTransferSession? _currentClientTransfer;
-	private int _activeEphemeralTransferPeerId = 0;
 
 	public void SwitchToNextServer()
 	{
@@ -188,7 +186,7 @@ public partial class LobbyManager : Node
 
 
 	public event Action? PlayerListUpdated;
-	public event Action<string, string, bool>? ChatReceived;
+	public event Action<string, string, bool, long>? ChatReceived;
 	public event Action<int, string>? ServerChatCommandReceived;
 	public event Action<string>? ConnectionFailed;
 	public event Action<string>? KickReceived;
@@ -202,6 +200,12 @@ public partial class LobbyManager : Node
 	public event Action? CountdownCancelled;
 	public event Action? CountdownFinished;
 	public event Action<string>? ActiveMapChanged;
+
+	protected override string TransferLogPrefix => "LobbyManager";
+
+	protected override bool IsMapTransferAllowed() => IsHost || (PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding);
+
+	protected override void OnDownloadProgressChanged(float progress) => CallDeferred(nameof(EmitDownloadProgress), progress);
 
 	public override void _Ready()
 	{
@@ -405,11 +409,19 @@ public partial class LobbyManager : Node
 		ActiveMapName = mapPathName;
 		ActiveMapVersion = !string.IsNullOrWhiteSpace(mapVersion) ? mapVersion : "1.0.0";
 		PlayerList.Clear();
+		LastLobbyWarning = null;
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		var metadata = MapFileService.LoadMetadata(wsPath);
-		int maxTestPlayers = Math.Clamp(metadata.MapProperties?.MaxTestPlayers ?? 24, 1, 24);
-		int aiCount = Math.Clamp(metadata.MapProperties?.TestAiPlayerCount ?? 1, 0, Math.Max(0, maxTestPlayers - 1));
+		MaxPlayers = metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
+		int requestedAiCount = Math.Max(0, metadata.MapProperties?.TestAiPlayerCount ?? 1);
+		int aiCount = Math.Min(requestedAiCount, Math.Max(0, MaxPlayers - 1));
+		if (aiCount < requestedAiCount)
+		{
+			LastLobbyWarning = string.Format(Tr("Only {0} of {1} requested AI players fit into the {2} playable slots of this map."), aiCount, requestedAiCount, MaxPlayers);
+			GD.PushWarning($"[LobbyManager] {LastLobbyWarning}");
+		}
+
 		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
 		int? testSeed = metadata.MapProperties?.TestRandomSeed;
 
@@ -428,7 +440,7 @@ public partial class LobbyManager : Node
 		}
 		else
 		{
-			var available = Enumerable.Range(1, maxTestPlayers).ToList();
+			var available = Enumerable.Range(1, MaxPlayers).ToList();
 			var rng = (testSeed.HasValue && testSeed.Value != 0) ? new Random(testSeed.Value) : new Random();
 			int n = available.Count;
 			while (n > 1)
@@ -519,9 +531,39 @@ public partial class LobbyManager : Node
 		return true;
 	}
 
+	private static int ResolvePlayablePlayerSlots(string mapPathName, string? version)
+	{
+		try
+		{
+			string? manifestPath = MapAssetManager.FindManifestPath(mapPathName, version);
+			string? mapDirectory = string.IsNullOrEmpty(manifestPath) ? null : Path.GetDirectoryName(manifestPath);
+			if (string.IsNullOrEmpty(mapDirectory)) return MapInfoMetadata.DefaultPlayablePlayerSlots;
+
+			var metadata = MapFileService.LoadMetadata(mapDirectory);
+			return metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"[LobbyManager] Failed to resolve playable player slots for '{mapPathName}': {ex.Message}");
+			return MapInfoMetadata.DefaultPlayablePlayerSlots;
+		}
+	}
+
+	private int FindNextFreePlayableSlot()
+	{
+		for (int slot = 1; slot <= MaxPlayers; slot++)
+		{
+			if (!PlayerList.Any(p => p.Slot == slot)) return slot;
+		}
+
+		return -1;
+	}
+
 	private void InitializeHostState(string mapPathName, string? explicitVersion)
 	{
 		IsHost = true;
+		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
+		LastLobbyWarning = null;
 		HostStability = HostStabilityTracker.GetOverallStability();
 		IsGameStarted = false;
 		SpectatorDelay = false;
@@ -1301,8 +1343,10 @@ public partial class LobbyManager : Node
 
 			if (PlayerList.Count >= MaxPlayers)
 			{
-				GD.Print($"[LobbyManager] Rejecting peer {id}: Lobby is full.");
-				RpcId(id, nameof(RejectConnection), "Lobby is full");
+				string rejectionReason = string.Format(Tr("Lobby is full ({0} of {0} playable slots in use)."), MaxPlayers);
+				LastLobbyWarning = rejectionReason;
+				GD.Print($"[LobbyManager] Rejecting peer {id}: {rejectionReason}");
+				RpcId(id, nameof(RejectConnection), rejectionReason);
 
 
 				var timer = GetTree().CreateTimer(0.1f);
@@ -1317,8 +1361,22 @@ public partial class LobbyManager : Node
 			}
 
 
-			int nextSlot = 1;
-			while (PlayerList.Any(p => p.Slot == nextSlot)) nextSlot++;
+			int nextSlot = FindNextFreePlayableSlot();
+			if (nextSlot < 0)
+			{
+				LastLobbyWarning = Tr("No free playable player slot is available.");
+				RpcId(id, nameof(RejectConnection), LastLobbyWarning);
+
+				var slotTimer = GetTree().CreateTimer(0.1f);
+				slotTimer.Timeout += () =>
+				{
+					if (Multiplayer.MultiplayerPeer != null)
+					{
+						Multiplayer.MultiplayerPeer.DisconnectPeer(id);
+					}
+				};
+				return;
+			}
 
 			var newPlayer = new PlayerInfo
 			{
@@ -1753,434 +1811,6 @@ public partial class LobbyManager : Node
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RequestMapManifestRpc(string targetMap)
-	{
-		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
-		int senderId = Multiplayer.GetRemoteSenderId();
-		var manifest = MapAssetManager.FindHostManifest(targetMap);
-		if (manifest != null)
-		{
-			string json = JsonSerializer.Serialize(manifest);
-			Callable.From(() => RpcId(senderId, nameof(ReceiveMapManifestRpc), targetMap, manifest.Version ?? "1.0.0", json)).CallDeferred();
-		}
-		else
-		{
-			Callable.From(() => RpcId(senderId, nameof(ReceiveMapManifestRpc), targetMap, "", "")).CallDeferred();
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveMapManifestRpc(string mapName, string mapVersion, string manifestJson)
-	{
-		_manifestTcs?.TrySetResult(manifestJson);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RequestMapAssetTransferRpc(string transferId, string mapName, string mapVersion, string[] missingHashes)
-	{
-		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
-		int senderId = Multiplayer.GetRemoteSenderId();
-
-		if (PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding)
-		{
-			if (_activeEphemeralTransferPeerId != 0 && _activeEphemeralTransferPeerId != senderId)
-			{
-				GD.Print($"[LobbyManager] Rejecting map transfer {transferId} from peer {senderId}: Seeder is currently serving peer {_activeEphemeralTransferPeerId}.");
-				return;
-			}
-
-			_activeEphemeralTransferPeerId = senderId;
-		}
-
-		foreach (var kvp in _hostTransfers)
-		{
-			if (kvp.Value.PeerId == senderId)
-			{
-				kvp.Value.Cts.Cancel();
-				_hostTransfers.TryRemove(kvp.Key, out _);
-			}
-		}
-
-		_ = HandleHostAssetTransferAsync(senderId, transferId, mapName, mapVersion, missingHashes);
-	}
-
-	private async Task HandleHostAssetTransferAsync(int peerId, string transferId, string mapName, string mapVersion, string[] missingHashes)
-	{
-		var session = new HostTransferSession
-		{
-			TransferId = transferId,
-			PeerId = peerId,
-			MapName = mapName,
-			MapVersion = mapVersion,
-			Cts = new CancellationTokenSource()
-		};
-		_hostTransfers[transferId] = session;
-
-		try
-		{
-			await Task.Run(() => PrepareHostTransferSession(session, mapName, mapVersion, missingHashes), session.Cts.Token);
-
-			Callable.From(() => RpcId(peerId, nameof(BeginMapTransferRpc), transferId, mapName, mapVersion, session.TotalRawBytes, session.TotalChunks)).CallDeferred();
-
-			if (session.TotalChunks > 0)
-			{
-				await SendHostChunkAsync(session, 0);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error during host asset transfer {transferId} to peer {peerId}: {ex.Message}");
-		}
-	}
-
-	private void PrepareHostTransferSession(HostTransferSession session, string mapName, string mapVersion, string[] missingHashes)
-	{
-		var localFileMap = BuildLocalFileMap(mapName, mapVersion);
-		var itemsToPack = CollectTransferItems(missingHashes, localFileMap);
-
-		session.ChunkItems = ChunkTransferItems(itemsToPack);
-		session.TotalRawBytes = itemsToPack.Sum(a => a.Size);
-	}
-
-	private Dictionary<string, string> BuildLocalFileMap(string mapName, string mapVersion)
-	{
-		var localFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		var manifest = MapAssetManager.FindHostManifest(mapName, mapVersion);
-		string? manifestPath = MapAssetManager.FindManifestPath(mapName, mapVersion);
-
-		if (manifest?.Files == null || string.IsNullOrEmpty(manifestPath) || !File.Exists(manifestPath))
-		{
-			return localFileMap;
-		}
-
-		string mapDir = Path.GetDirectoryName(manifestPath)!;
-		foreach (var kvp in manifest.Files)
-		{
-			string normKvp = ContentAddressableStorage.NormalizeBlake3Hash(kvp.Value);
-			string relPath = kvp.Key.Replace("res://", "").TrimStart('/', '\\');
-			string localFilePath = Path.Combine(mapDir, relPath);
-			if (File.Exists(localFilePath))
-			{
-				localFileMap[normKvp] = localFilePath;
-			}
-		}
-
-		return localFileMap;
-	}
-
-	private List<HostAssetTransferItem> CollectTransferItems(string[] missingHashes, Dictionary<string, string> localFileMap)
-	{
-		var itemsToPack = new List<HostAssetTransferItem>(missingHashes.Length);
-		foreach (var hash in missingHashes)
-		{
-			string norm = ContentAddressableStorage.NormalizeBlake3Hash(hash);
-			string? filePath = MapAssetManager.Storage.FindAssetFilePath(norm) ?? MapAssetManager.P2PStorage.FindAssetFilePath(norm);
-			string? meta = null;
-
-			if (filePath != null && File.Exists(filePath))
-			{
-				meta = MapAssetManager.Storage.GetAssetMetadata(norm);
-			}
-			else if (localFileMap.TryGetValue(norm, out var localPath) && File.Exists(localPath))
-			{
-				filePath = localPath;
-			}
-
-			if (filePath != null && File.Exists(filePath))
-			{
-				itemsToPack.Add(new HostAssetTransferItem
-				{
-					AssetKey = hash,
-					SourceFilePath = filePath,
-					Metadata = meta,
-					Size = new FileInfo(filePath).Length
-				});
-			}
-			else
-			{
-				GD.PrintErr($"[LobbyManager] Host could not find asset payload for hash: {hash}");
-			}
-		}
-
-		return itemsToPack;
-	}
-
-	private List<List<HostAssetTransferItem>> ChunkTransferItems(List<HostAssetTransferItem> itemsToPack)
-	{
-		var chunkList = new List<List<HostAssetTransferItem>>();
-		var currentChunk = new List<HostAssetTransferItem>();
-		long currentChunkBytes = 0;
-
-		foreach (var item in itemsToPack)
-		{
-			long estimated = item.Size + (item.AssetKey?.Length ?? 0) * 2 + (item.Metadata?.Length ?? 0) * 2 + 16;
-			if (currentChunk.Count > 0 && currentChunkBytes + estimated > ZstdAssetBundleHelper.MaxBundleChunkSize)
-			{
-				chunkList.Add(currentChunk);
-				currentChunk = new List<HostAssetTransferItem>();
-				currentChunkBytes = 0;
-			}
-
-			currentChunk.Add(item);
-			currentChunkBytes += estimated;
-		}
-
-		if (currentChunk.Count > 0)
-		{
-			chunkList.Add(currentChunk);
-		}
-
-		return chunkList;
-	}
-
-	private async Task SendHostChunkAsync(HostTransferSession session, int chunkIndex)
-	{
-		if (chunkIndex < 0 || chunkIndex >= session.ChunkItems.Count || session.Cts.IsCancellationRequested) return;
-
-		try
-		{
-			byte[] compressedChunkBytes = await CreateCompressedChunkAsync(session, chunkIndex);
-
-			int totalPacketsInChunk = (int)Math.Ceiling((double)compressedChunkBytes.Length / ZstdAssetBundleHelper.PacketChunkSize);
-			if (totalPacketsInChunk <= 0) totalPacketsInChunk = 1;
-
-			await SendChunkPacketsAsync(session, chunkIndex, compressedChunkBytes, totalPacketsInChunk);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error sending chunk {chunkIndex} for transfer {session.TransferId}: {ex.Message}");
-		}
-	}
-
-	private Task<byte[]> CreateCompressedChunkAsync(HostTransferSession session, int chunkIndex)
-	{
-		return Task.Run(() =>
-		{
-			var chunkItems = session.ChunkItems[chunkIndex];
-			var chunkAssets = new List<(string AssetKey, byte[] Data, string? Metadata)>(chunkItems.Count);
-			foreach (var item in chunkItems)
-			{
-				if (session.Cts.IsCancellationRequested) break;
-				if (File.Exists(item.SourceFilePath))
-				{
-					byte[] data = File.ReadAllBytes(item.SourceFilePath);
-					chunkAssets.Add((item.AssetKey, data, item.Metadata));
-				}
-			}
-
-			return ZstdAssetBundleHelper.CreateBundleBytes(chunkAssets, 1);
-		}, session.Cts.Token);
-	}
-
-	private async Task SendChunkPacketsAsync(HostTransferSession session, int chunkIndex, byte[] compressedChunkBytes, int totalPacketsInChunk)
-	{
-		int packetIndex = 0;
-		int offset = 0;
-
-		while (offset < compressedChunkBytes.Length)
-		{
-			if (session.Cts.IsCancellationRequested) break;
-
-			int packetSize = Math.Min(ZstdAssetBundleHelper.PacketChunkSize, compressedChunkBytes.Length - offset);
-			byte[] packetData = new byte[packetSize];
-			Buffer.BlockCopy(compressedChunkBytes, offset, packetData, 0, packetSize);
-
-			int currentPacketIndex = packetIndex;
-			int currentChunkIndex = chunkIndex;
-			int totalChunks = session.TotalChunks;
-			long totalBytes = session.TotalRawBytes;
-
-			Callable.From(() => RpcId(
-				session.PeerId,
-				nameof(SendMapTransferChunkRpc),
-				session.TransferId,
-				currentChunkIndex,
-				totalChunks,
-				currentPacketIndex,
-				totalPacketsInChunk,
-				totalBytes,
-				packetData)).CallDeferred();
-
-			offset += packetSize;
-			packetIndex++;
-
-			if (packetIndex % 2 == 0)
-			{
-				await Task.Delay(1, session.Cts.Token);
-			}
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void RequestNextMapTransferChunkRpc(string transferId, int nextChunkIndex)
-	{
-		if (!IsHost && (PeerSeederManager.Instance == null || !PeerSeederManager.Instance.IsSeeding)) return;
-		if (_hostTransfers.TryGetValue(transferId, out var session) && !session.Cts.IsCancellationRequested)
-		{
-			session.CurrentChunkIndex = nextChunkIndex;
-			_ = SendHostChunkAsync(session, nextChunkIndex);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void BeginMapTransferRpc(string transferId, string mapName, string mapVersion, long totalBytes, int totalChunks)
-	{
-		if (_currentClientTransfer != null && _currentClientTransfer.TransferId == transferId)
-		{
-			_currentClientTransfer.LastActivityTimeUtc = DateTime.UtcNow;
-			_currentClientTransfer.ExpectedTotalBytes = totalBytes;
-			_currentClientTransfer.ExpectedTotalChunks = totalChunks;
-			_currentClientTransfer.CurrentChunkIndex = 0;
-			_currentClientTransfer.ReceivedPacketsInCurrentChunk = 0;
-			_currentClientTransfer.CurrentChunkStream.SetLength(0);
-			_currentClientTransfer.CurrentChunkStream.Position = 0;
-
-			if (totalChunks == 0)
-			{
-				string targetMapDir = MapAssetManager.GetMapDirectory(mapName, mapVersion);
-				MapAssetManager.ExtractManifestFiles(_currentClientTransfer.Manifest, targetMapDir);
-				string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
-				GameContext.AssetIndexService.RegisterManifest(_currentClientTransfer.Manifest, localManifestPath);
-
-				Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferId)).CallDeferred();
-				_transferCompleteTcs?.TrySetResult(true);
-			}
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void SendMapTransferChunkRpc(string transferId, int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk, long totalBytes, byte[] packetData)
-	{
-		if (_currentClientTransfer == null || _currentClientTransfer.TransferId != transferId) return;
-
-		try
-		{
-			UpdateTransferState(chunkIndex, totalChunks, totalBytes, packetData);
-
-			float overallProgress = CalculateTransferProgress(chunkIndex, totalChunks, packetIndex, totalPacketsInChunk);
-			bool isChunkEnd = packetIndex + 1 >= totalPacketsInChunk;
-
-			EmitProgressIfNeeded(overallProgress, isChunkEnd);
-
-			if (isChunkEnd)
-			{
-				ProcessCompletedChunk(chunkIndex, totalChunks);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error writing transfer packet: {ex.Message}");
-			_transferCompleteTcs?.TrySetException(ex);
-		}
-	}
-
-	private void UpdateTransferState(int chunkIndex, int totalChunks, long totalBytes, byte[] packetData)
-	{
-		_currentClientTransfer!.LastActivityTimeUtc = DateTime.UtcNow;
-		_currentClientTransfer.ExpectedTotalChunks = totalChunks;
-		_currentClientTransfer.ExpectedTotalBytes = totalBytes;
-		_currentClientTransfer.CurrentChunkIndex = chunkIndex;
-
-		_currentClientTransfer.CurrentChunkStream.Write(packetData, 0, packetData.Length);
-		_currentClientTransfer.ReceivedPacketsInCurrentChunk++;
-		_currentClientTransfer.TotalReceivedBytes += packetData.Length;
-	}
-
-	private float CalculateTransferProgress(int chunkIndex, int totalChunks, int packetIndex, int totalPacketsInChunk)
-	{
-		float chunkFraction = totalPacketsInChunk > 0 ? (float)(packetIndex + 1) / totalPacketsInChunk : 1.0f;
-		float sessionFraction = totalChunks > 0
-			? Math.Clamp(((float)chunkIndex + chunkFraction) / totalChunks, 0.0f, 1.0f)
-			: 1.0f;
-
-		if (_currentClientTransfer!.TotalAssetsInManifest > 0)
-		{
-			float downloadedAssetsInSession = sessionFraction * _currentClientTransfer.SessionMissingAssets;
-			return Math.Clamp((_currentClientTransfer.AlreadyPresentAssets + downloadedAssetsInSession) / _currentClientTransfer.TotalAssetsInManifest, 0.0f, 1.0f);
-		}
-
-		return sessionFraction;
-	}
-
-	private void EmitProgressIfNeeded(float overallProgress, bool isChunkEnd)
-	{
-		long nowTicks = Environment.TickCount64;
-		if (isChunkEnd || overallProgress >= 1.0f || Math.Abs(overallProgress - _currentClientTransfer!.LastEmittedProgress) >= 0.005f || (nowTicks - _currentClientTransfer.LastProgressEmitTicks) >= 100)
-		{
-			_currentClientTransfer!.LastEmittedProgress = overallProgress;
-			_currentClientTransfer.LastProgressEmitTicks = nowTicks;
-			CallDeferred(nameof(EmitDownloadProgress), overallProgress);
-		}
-	}
-
-	private void ProcessCompletedChunk(int chunkIndex, int totalChunks)
-	{
-		byte[] chunkBytes = _currentClientTransfer!.CurrentChunkStream.ToArray();
-		_currentClientTransfer.CurrentChunkStream.SetLength(0);
-		_currentClientTransfer.CurrentChunkStream.Position = 0;
-		_currentClientTransfer.ReceivedPacketsInCurrentChunk = 0;
-
-		_ = ProcessReceivedChunkAsync(_currentClientTransfer, chunkIndex, totalChunks, chunkBytes);
-	}
-
-	private async Task ProcessReceivedChunkAsync(ClientTransferSession transferSession, int chunkIndex, int totalChunks, byte[] chunkBytes)
-	{
-		try
-		{
-			var extractedAssets = await Task.Run(() => ZstdAssetBundleHelper.ExtractBundleBytes(chunkBytes));
-			GD.Print($"[LobbyManager] Decompressed chunk {chunkIndex + 1}/{totalChunks} ({extractedAssets.Count} assets) in memory.");
-
-			transferSession.LastActivityTimeUtc = DateTime.UtcNow;
-
-			await Task.Run(() =>
-			{
-				foreach (var (assetKey, data, metadata) in extractedAssets)
-				{
-					string ext = Path.GetExtension(assetKey);
-					MapAssetManager.Storage.StoreAsset(data, ext, metadata, precomputedBlake3: assetKey);
-				}
-			});
-
-			transferSession.LastActivityTimeUtc = DateTime.UtcNow;
-
-			if (chunkIndex + 1 < totalChunks)
-			{
-				Callable.From(() => RpcId(1, nameof(RequestNextMapTransferChunkRpc), transferSession.TransferId, chunkIndex + 1)).CallDeferred();
-			}
-			else
-			{
-				string targetMapDir = MapAssetManager.GetMapDirectory(transferSession.MapName, transferSession.MapVersion);
-				await Task.Run(() =>
-				{
-					MapAssetManager.ExtractManifestFiles(transferSession.Manifest, targetMapDir);
-					string localManifestPath = Path.Combine(targetMapDir, "manifest.json");
-					GameContext.AssetIndexService.RegisterManifest(transferSession.Manifest, localManifestPath);
-				});
-
-				Callable.From(() => RpcId(1, nameof(AcknowledgeMapTransferCompleteRpc), transferSession.TransferId)).CallDeferred();
-				_transferCompleteTcs?.TrySetResult(true);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Error extracting chunk {chunkIndex}: {ex.Message}");
-			_transferCompleteTcs?.TrySetException(ex);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void AcknowledgeMapTransferCompleteRpc(string transferId)
-	{
-		if (_hostTransfers.TryRemove(transferId, out var session))
-		{
-			session.Cts.Cancel();
-			if (_activeEphemeralTransferPeerId == session.PeerId)
-			{
-				_activeEphemeralTransferPeerId = 0;
-			}
-		}
-	}
 
 	private void EmitDownloadProgress(float progress)
 	{
@@ -2620,27 +2250,28 @@ public partial class LobbyManager : Node
 		return "Team 1";
 	}
 
-	public void SendChatMessage(string senderName, string message, bool alliesOnly = false)
+	public void SendChatMessage(string senderName, string message, bool alliesOnly = false, long timestampUtcTicks = 0)
 	{
+		long sentAtUtcTicks = timestampUtcTicks > 0 ? timestampUtcTicks : DateTime.UtcNow.Ticks;
 		if (IsHost)
 		{
 			if (senderName == "System")
 			{
-				_chatHistory.Add((senderName, message, false));
-				Rpc(nameof(ReceiveChatMessage), senderName, message, alliesOnly);
-				ChatReceived?.Invoke(senderName, message, alliesOnly);
+				_chatHistory.Add((senderName, message, false, sentAtUtcTicks));
+				Rpc(nameof(ReceiveChatMessage), senderName, message, alliesOnly, sentAtUtcTicks);
+				ChatReceived?.Invoke(senderName, message, alliesOnly, sentAtUtcTicks);
 			}
 			else
 			{
 				var senderPlayer = PlayerList.Find(p => p.Name == senderName);
 				int senderSlot = senderPlayer?.Slot ?? 0;
 				ServerChatCommandReceived?.Invoke(senderSlot, message);
-				_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly);
+				_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly, sentAtUtcTicks);
 			}
 		}
 		else
 		{
-			RpcId(1, nameof(ReceiveChatMessage), senderName, message, alliesOnly);
+			RpcId(1, nameof(ReceiveChatMessage), senderName, message, alliesOnly, sentAtUtcTicks);
 		}
 	}
 
@@ -2879,10 +2510,10 @@ public partial class LobbyManager : Node
 		return false;
 	}
 
-	private async Task ProcessAndSendChatMessageAsync(string senderName, string message, bool alliesOnly)
+	private async Task ProcessAndSendChatMessageAsync(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
 		bool isToxic = await IsMessageToxicAsync(message);
-		_chatHistory.Add((senderName, message, isToxic));
+		_chatHistory.Add((senderName, message, isToxic, timestampUtcTicks));
 
 		if (!isToxic)
 		{
@@ -2895,25 +2526,25 @@ public partial class LobbyManager : Node
 					{
 						if (player.PeerId == 1)
 						{
-							ChatReceived?.Invoke(senderName, message, true);
+							ChatReceived?.Invoke(senderName, message, true, timestampUtcTicks);
 						}
 						else
 						{
-							RpcId(player.PeerId, nameof(ReceiveChatMessage), senderName, message, true);
+							RpcId(player.PeerId, nameof(ReceiveChatMessage), senderName, message, true, timestampUtcTicks);
 						}
 					}
 				}
 			}
 			else
 			{
-				Rpc(nameof(ReceiveChatMessage), senderName, message, false);
-				ChatReceived?.Invoke(senderName, message, false);
+				Rpc(nameof(ReceiveChatMessage), senderName, message, false, timestampUtcTicks);
+				ChatReceived?.Invoke(senderName, message, false, timestampUtcTicks);
 			}
 		}
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void ReceiveChatMessage(string senderName, string message, bool alliesOnly)
+	private void ReceiveChatMessage(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
 		if (IsHost)
 		{
@@ -2922,11 +2553,11 @@ public partial class LobbyManager : Node
 			var senderPlayer = PlayerList.Find(p => p.PeerId == senderPeerId);
 			int senderSlot = senderPlayer?.Slot ?? 0;
 			ServerChatCommandReceived?.Invoke(senderSlot, message);
-			_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly);
+			_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly, timestampUtcTicks);
 		}
 		else
 		{
-			ChatReceived?.Invoke(senderName, message, alliesOnly);
+			ChatReceived?.Invoke(senderName, message, alliesOnly, timestampUtcTicks);
 		}
 	}
 
@@ -2948,7 +2579,7 @@ public partial class LobbyManager : Node
 			{
 				if (!chat.IsMuted)
 				{
-					RpcId(senderId, nameof(ReceiveChatMessage), chat.Sender, chat.Message, false);
+					RpcId(senderId, nameof(ReceiveChatMessage), chat.Sender, chat.Message, false, chat.TimestampUtcTicks);
 				}
 			}
 		}
@@ -3077,37 +2708,44 @@ public partial class LobbyManager : Node
 		CountdownCancelled?.Invoke();
 	}
 
-	public void AddAIBot()
+	public bool AddAIBot()
 	{
-		if (IsHost && PlayerList.Count < MaxPlayers)
+		if (!IsHost) return false;
+
+		if (PlayerList.Count >= MaxPlayers || FindNextFreePlayableSlot() < 0)
 		{
-			int botId = -100;
-			while (PlayerList.Exists(x => x.PeerId == botId))
-			{
-				botId--;
-			}
-
-			int nextSlot = 1;
-			while (PlayerList.Any(p => p.Slot == nextSlot)) nextSlot++;
-
-			var botPlayer = new PlayerInfo
-			{
-				PeerId = botId,
-				Slot = nextSlot,
-				Name = $"AI Bot {Math.Abs(botId) - 99}",
-				Faction = "ORC",
-				Team = "Team 2",
-				Color = GetNextColor(),
-				IsHost = false,
-				Latency = "0 ms",
-				Jitter = "0 ms",
-				PacketLoss = "0%",
-				BinaryVersion = RealmVersion.GameBinaryVersion
-			};
-			PlayerList.Add(botPlayer);
-			BroadcastPlayerList();
-			SendChatMessage("System", string.Format(Tr("{0} added to the lobby."), botPlayer.Name));
+			LastLobbyWarning = string.Format(Tr("Cannot add an AI player: all {0} playable slots are taken."), MaxPlayers);
+			SendChatMessage("System", LastLobbyWarning);
+			return false;
 		}
+
+		int botId = -100;
+		while (PlayerList.Exists(x => x.PeerId == botId))
+		{
+			botId--;
+		}
+
+		int nextSlot = FindNextFreePlayableSlot();
+
+		var botPlayer = new PlayerInfo
+		{
+			PeerId = botId,
+			Slot = nextSlot,
+			Name = $"AI Bot {Math.Abs(botId) - 99}",
+			Faction = "ORC",
+			Team = "Team 2",
+			Color = GetNextColor(),
+			IsHost = false,
+			Latency = "0 ms",
+			Jitter = "0 ms",
+			PacketLoss = "0%",
+			BinaryVersion = RealmVersion.GameBinaryVersion
+		};
+		PlayerList.Add(botPlayer);
+		BroadcastPlayerList();
+		SendChatMessage("System", string.Format(Tr("{0} added to the lobby."), botPlayer.Name));
+
+		return true;
 	}
 
 	public void BootPlayer(int peerId)

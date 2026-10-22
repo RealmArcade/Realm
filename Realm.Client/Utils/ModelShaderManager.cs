@@ -36,20 +36,30 @@ public static class ModelShaderManager
 	private static readonly StringName _paramUnitAmbientBoost = new("unit_ambient_boost");
 	private static readonly StringName _paramUnitRimIntensity = new("unit_rim_intensity");
 	private static readonly StringName _paramHideInShroud = new("hide_in_shroud");
-	private static readonly StringName _paramShroudTexture = new("shroud_texture");
-	private static readonly StringName _paramShroudWorldMin = new("shroud_world_min");
-	private static readonly StringName _paramShroudWorldSize = new("shroud_world_size");
-	private static readonly StringName _paramShroudEnabled = new("shroud_enabled");
 	private static readonly StringName _paramProcAnimParams1 = new("proc_anim_params1");
 	private static readonly StringName _paramProcAnimParams2 = new("proc_anim_params2");
 	private static readonly StringName _paramProcAnimParams3 = new("proc_anim_params3");
 	private static readonly StringName _paramProcAnimImpulse = new("proc_anim_impulse");
 	private static readonly StringName _paramProcAnimVelocity = new("proc_anim_velocity");
-
-	private static Texture2D _currentShroudTexture;
-	private static Vector2 _currentShroudWorldMin = new(-125.0f, -125.0f);
-	private static Vector2 _currentShroudWorldSize = new(250.0f, 250.0f);
-	private static bool _currentShroudEnabled = false;
+	private static readonly StringName _paramTextureAlbedo = new("texture_albedo");
+	private static readonly StringName _paramTextureOrm = new("texture_orm");
+	private static readonly StringName _paramHasOrmTexture = new("has_orm_texture");
+	private static readonly StringName _paramHasPlayerMask = new("has_player_mask");
+	private static readonly StringName _paramTextureNormal = new("texture_normal");
+	private static readonly StringName _paramHasNormalTexture = new("has_normal_texture");
+	private static readonly StringName _paramTextureEmission = new("texture_emission");
+	private static readonly StringName _paramHasEmissionTexture = new("has_emission_texture");
+	private static readonly StringName _paramUseAlphaBlend = new("use_alpha_blend");
+	private static readonly StringName _paramUseAlphaScissor = new("use_alpha_scissor");
+	private static readonly StringName _paramAlphaScissorThreshold = new("alpha_scissor_threshold");
+	private static readonly StringName _paramAlbedoColor = new("albedo_color");
+	private static readonly StringName _paramEmissionColor = new("emission_color");
+	private static readonly StringName _paramEmissionEnergy = new("emission_energy");
+	private static readonly StringName _paramRoughnessValue = new("roughness_value");
+	private static readonly StringName _paramMetallicValue = new("metallic_value");
+	private static readonly StringName _paramSpecularValue = new("specular_value");
+	private static readonly StringName _paramUv1Scale = new("uv1_scale");
+	private static readonly StringName _paramUv1Offset = new("uv1_offset");
 
 	private const string ShaderPath = "res://Assets/shaders/player_color_spatial.gdshader";
 
@@ -494,62 +504,53 @@ public static class ModelShaderManager
 	{
 		if (albedoTexture != null)
 		{
-			material.SetShaderParameter("texture_albedo", albedoTexture);
+			material.SetShaderParameter(_paramTextureAlbedo, albedoTexture);
 		}
 
 		if (p.OrmTexture != null)
 		{
-			material.SetShaderParameter("texture_orm", p.OrmTexture);
-			material.SetShaderParameter("has_orm_texture", true);
-			material.SetShaderParameter("has_player_mask", hasPlayerMask);
+			material.SetShaderParameter(_paramTextureOrm, p.OrmTexture);
+			material.SetShaderParameter(_paramHasOrmTexture, true);
+			material.SetShaderParameter(_paramHasPlayerMask, hasPlayerMask);
 		}
 		else
 		{
-			material.SetShaderParameter("has_orm_texture", false);
-			material.SetShaderParameter("has_player_mask", false);
+			material.SetShaderParameter(_paramHasOrmTexture, false);
+			material.SetShaderParameter(_paramHasPlayerMask, false);
 		}
 
 		if (p.NormalTexture != null)
 		{
-			material.SetShaderParameter("texture_normal", p.NormalTexture);
-			material.SetShaderParameter("has_normal_texture", true);
+			material.SetShaderParameter(_paramTextureNormal, p.NormalTexture);
+			material.SetShaderParameter(_paramHasNormalTexture, true);
 		}
 		else
 		{
-			material.SetShaderParameter("has_normal_texture", false);
+			material.SetShaderParameter(_paramHasNormalTexture, false);
 		}
 
 		if (p.EmissionTexture != null)
 		{
-			material.SetShaderParameter("texture_emission", p.EmissionTexture);
-			material.SetShaderParameter("has_emission_texture", true);
+			material.SetShaderParameter(_paramTextureEmission, p.EmissionTexture);
+			material.SetShaderParameter(_paramHasEmissionTexture, true);
 		}
 		else
 		{
-			material.SetShaderParameter("has_emission_texture", false);
+			material.SetShaderParameter(_paramHasEmissionTexture, false);
 		}
 
-		material.SetShaderParameter("use_alpha_blend", p.UseAlphaBlend);
-		material.SetShaderParameter("use_alpha_scissor", p.UseAlphaScissor);
-		material.SetShaderParameter("alpha_scissor_threshold", p.AlphaScissorThreshold);
+		material.SetShaderParameter(_paramUseAlphaBlend, p.UseAlphaBlend);
+		material.SetShaderParameter(_paramUseAlphaScissor, p.UseAlphaScissor);
+		material.SetShaderParameter(_paramAlphaScissorThreshold, p.AlphaScissorThreshold);
 
-		material.SetShaderParameter("albedo_color", p.AlbedoColor);
-		material.SetShaderParameter("emission_color", p.EmissionColor);
-		material.SetShaderParameter("emission_energy", p.EmissionEnergy);
-		material.SetShaderParameter("roughness_value", p.Roughness);
-		material.SetShaderParameter("metallic_value", p.Metallic);
-		material.SetShaderParameter("specular_value", p.Specular);
-		material.SetShaderParameter("uv1_scale", p.Uv1Scale);
-		material.SetShaderParameter("uv1_offset", p.Uv1Offset);
-
-		if (_currentShroudTexture != null)
-		{
-			material.SetShaderParameter(_paramShroudTexture, _currentShroudTexture);
-		}
-
-		material.SetShaderParameter(_paramShroudWorldMin, _currentShroudWorldMin);
-		material.SetShaderParameter(_paramShroudWorldSize, _currentShroudWorldSize);
-		material.SetShaderParameter(_paramShroudEnabled, _currentShroudEnabled);
+		material.SetShaderParameter(_paramAlbedoColor, p.AlbedoColor);
+		material.SetShaderParameter(_paramEmissionColor, p.EmissionColor);
+		material.SetShaderParameter(_paramEmissionEnergy, p.EmissionEnergy);
+		material.SetShaderParameter(_paramRoughnessValue, p.Roughness);
+		material.SetShaderParameter(_paramMetallicValue, p.Metallic);
+		material.SetShaderParameter(_paramSpecularValue, p.Specular);
+		material.SetShaderParameter(_paramUv1Scale, p.Uv1Scale);
+		material.SetShaderParameter(_paramUv1Offset, p.Uv1Offset);
 	}
 
 	public static ShaderMaterial GetOrCreateShaderMaterial(Material sourceMaterial, bool normalizeLuminance = true)
@@ -770,6 +771,44 @@ public static class ModelShaderManager
 		}
 	}
 
+	public static void SetPlayerColorOnAttachments(Node rootNode, Color playerColor)
+	{
+		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
+		SetPlayerColorOnAttachmentsRecursive(rootNode, playerColor);
+	}
+
+	private static void SetPlayerColorOnAttachmentsRecursive(Node node, Color playerColor)
+	{
+		foreach (var child in node.GetChildren())
+		{
+			if (child is not Node childNode) continue;
+
+			if (IsAttachmentNode(childNode))
+			{
+				SetPlayerColorForSubtree(childNode, playerColor);
+				continue;
+			}
+
+			SetPlayerColorOnAttachmentsRecursive(childNode, playerColor);
+		}
+	}
+
+	private static void SetPlayerColorForSubtree(Node node, Color playerColor)
+	{
+		if (node is GeometryInstance3D geomInst && !IsExcludedMesh(geomInst))
+		{
+			geomInst.SetInstanceShaderParameter(_paramPlayerColor, playerColor);
+		}
+
+		foreach (var child in node.GetChildren())
+		{
+			if (child is Node childNode)
+			{
+				SetPlayerColorForSubtree(childNode, playerColor);
+			}
+		}
+	}
+
 	public static void SetIgnorePlayerColor(Node rootNode, bool ignorePlayerColor)
 	{
 		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
@@ -851,29 +890,6 @@ public static class ModelShaderManager
 		img.SetData(img.GetWidth(), img.GetHeight(), false, Image.Format.Rgba8, data);
 	}
 
-	public static void SetShroudParameters(Texture2D texture, Vector2 worldMin, Vector2 worldSize, bool enabled)
-	{
-		_currentShroudTexture = texture;
-		_currentShroudWorldMin = worldMin;
-		_currentShroudWorldSize = worldSize;
-		_currentShroudEnabled = enabled;
-
-		foreach (var material in _materialCache.Values)
-		{
-			if (GodotObject.IsInstanceValid(material))
-			{
-				if (texture != null)
-				{
-					material.SetShaderParameter(_paramShroudTexture, texture);
-				}
-
-				material.SetShaderParameter(_paramShroudWorldMin, worldMin);
-				material.SetShaderParameter(_paramShroudWorldSize, worldSize);
-				material.SetShaderParameter(_paramShroudEnabled, enabled);
-			}
-		}
-	}
-
 	public static void SetHideInShroud(Node node, bool hideInShroud)
 	{
 		if (node == null || !GodotObject.IsInstanceValid(node)) return;
@@ -926,6 +942,21 @@ public static class ModelShaderManager
 		}
 	}
 
+	public static void SetProceduralAnimationImpulse(IReadOnlyList<GeometryInstance3D> geometryInstances, float impulseStrength, float impulseFrequency, float impulseTime, bool showDebugMask = false)
+	{
+		if (geometryInstances == null) return;
+		Vector4 pImp = new Vector4(impulseStrength, impulseFrequency, impulseTime, showDebugMask ? 1.0f : 0.0f);
+		int count = geometryInstances.Count;
+		for (int i = 0; i < count; i++)
+		{
+			var geom = geometryInstances[i];
+			if (GodotObject.IsInstanceValid(geom))
+			{
+				geom.SetInstanceShaderParameter(_paramProcAnimImpulse, pImp);
+			}
+		}
+	}
+
 	public static void SetProceduralAnimationImpulse(Node rootNode, float impulseStrength, float impulseFrequency, float impulseTime, bool showDebugMask = false)
 	{
 		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
@@ -944,6 +975,20 @@ public static class ModelShaderManager
 		for (int i = 0; i < count; i++)
 		{
 			SetProceduralAnimationImpulseRecursive(node.GetChild(i), pImp);
+		}
+	}
+
+	public static void SetProceduralAnimationVelocity(IReadOnlyList<GeometryInstance3D> geometryInstances, Vector3 velocity)
+	{
+		if (geometryInstances == null) return;
+		int count = geometryInstances.Count;
+		for (int i = 0; i < count; i++)
+		{
+			var geom = geometryInstances[i];
+			if (GodotObject.IsInstanceValid(geom))
+			{
+				geom.SetInstanceShaderParameter(_paramProcAnimVelocity, velocity);
+			}
 		}
 	}
 
@@ -980,5 +1025,6 @@ public static class ModelShaderManager
 		_materialCache.Clear();
 		_normalizedAlbedoCache.Clear();
 		_playerMaskCheckCache.Clear();
+		_sharedShader = null;
 	}
 }
