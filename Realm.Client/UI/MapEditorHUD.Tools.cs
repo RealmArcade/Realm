@@ -91,7 +91,7 @@ namespace Realm.Client.UI
 		private void InitBasicPanels()
 		{
 			_topLeftBox = GetNodeOrNull<HBoxContainer>("TopLeftBox");
-			_topBar = GetNodeOrNull<PanelContainer>("TopBar");
+			_topBar = GetNodeOrNull<PanelContainer>("BottomCenterBar/TopBar");
 
 			_panelLeft = GetNode<Panel>("LeftSlidePanel");
 			_panelRight = GetNode<Panel>("RightSlidePanel");
@@ -359,7 +359,7 @@ namespace Realm.Client.UI
 					}
 				}
 
-				_statusLabel = GetNode<Label>("TopBar/HBox/StatusLabel");
+				_statusLabel = GetNode<Label>("BottomCenterBar/TopBar/HBox/StatusLabel");
 				_feedbackLabel = GetNode<Label>("FeedbackLabel");
 				_feedbackLabel.Modulate = new Color(1, 1, 1, 0);
 				_feedbackLabel.MouseFilter = MouseFilterEnum.Ignore;
@@ -387,7 +387,7 @@ namespace Realm.Client.UI
 				StyleAccordionHeader(_btnHeaderFile);
 				SetupAccordion(_btnHeaderFile, _contentFile, TranslationServer.Translate("File"));
 
-				_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnLoad");
+				_btnLoad = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/BtnLoad");
 				SetupOptionButton(_btnLoad, $"{UnicodeIcons.FOLDER_OPEN} LOAD", () => LoadMapAction(), 11, "Load heights, colors, and entities from a saved json file (Ctrl+O)");
 
 				var btnOpenArchive = new Button();
@@ -395,31 +395,24 @@ namespace Realm.Client.UI
 				btnOpenArchive.Set("icon_max_width", 0);
 				SetupOptionButton(btnOpenArchive, $"{UnicodeIcons.FILE_IMPORT} OPEN (.RMAP)", () => OpenMapArchiveAction(), 13, "Open a map package (.rmap) directly; editing happens in a sibling folder and saving writes back into the package");
 				_contentFile.AddChild(btnOpenArchive);
-				_contentFile.MoveChild(btnOpenArchive, _btnLoad.GetIndex() + 1);
+				_contentFile.MoveChild(btnOpenArchive, 0);
 
-				_btnSave = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnSave");
+				_btnSave = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSave");
 				SetupOptionButton(_btnSave, $"{UnicodeIcons.SAVE} SAVE", () => SaveMapActionExternal(), 11, "Save current heightmap, textures, and entities (Ctrl+S)");
 
-				_btnSaveAs = new Button();
-				_btnSaveAs.Name = "BtnSaveAs";
+				_btnSaveAs = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnSaveAs");
 				_btnSaveAs.Set("icon_max_width", 0);
 				SetupOptionButton(_btnSaveAs, $"{UnicodeIcons.SAVE} SAVE AS", () => SaveAsMapAction(), 13, "Save map to a new folder location");
 
-				_btnPublish = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnPublish");
+				_btnPublish = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnPublish");
 				SetupOptionButton(_btnPublish, $"{UnicodeIcons.UPLOAD} PUBLISH", () => PublishMapActionExternal(), 13, "Publish/export map to custom map registry");
 
-				_btnExportMap = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnExportMap");
-				if (_btnExportMap == null)
-				{
-					_btnExportMap = new Button();
-					_btnExportMap.Name = "BtnExportMap";
-					_btnExportMap.Set("icon_max_width", 0);
-				}
+				_btnExportMap = GetNode<Button>("PopupSaveMore/SaveMoreVBox_VBoxContainer/BtnExportMap");
+				_btnExportMap.Set("icon_max_width", 0);
 
 				SetupOptionButton(_btnExportMap, $"{UnicodeIcons.FILE_EXPORT} EXPORT (.RMAP)", () => ExportMapAction(), 13, "Export prepared map package (.rmap) with compiled WASM for hosting and CAS storage");
 
-				_popupSaveMore = new PopupPanel();
-				_popupSaveMore.Name = "PopupSaveMore";
+				_popupSaveMore = GetNode<PopupPanel>("PopupSaveMore");
 				var saveMorePopupStyle = new StyleBoxFlat();
 				saveMorePopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
 				saveMorePopupStyle.BorderColor = UIStyle.ColorGold;
@@ -427,21 +420,11 @@ namespace Realm.Client.UI
 				saveMorePopupStyle.SetCornerRadiusAll(4);
 				saveMorePopupStyle.SetContentMarginAll(10);
 				_popupSaveMore.AddThemeStyleboxOverride("panel", saveMorePopupStyle);
-				var saveMoreVBox = new VBoxContainer();
-				saveMoreVBox.Name = "SaveMoreVBox_VBoxContainer";
-				saveMoreVBox.AddThemeConstantOverride("separation", 6);
-				saveMoreVBox.CustomMinimumSize = new Vector2(170, 0);
-				_popupSaveMore.AddChild(saveMoreVBox);
-				AddChild(_popupSaveMore);
-				SafeReparent(_btnSaveAs, saveMoreVBox);
-				SafeReparent(_btnExportMap, saveMoreVBox);
-				SafeReparent(_btnPublish, saveMoreVBox);
 				_btnSaveAs.Pressed += () => _popupSaveMore.Hide();
 				_btnExportMap.Pressed += () => _popupSaveMore.Hide();
 				_btnPublish.Pressed += () => _popupSaveMore.Hide();
 
-				_btnSaveMore = new Button();
-				_btnSaveMore.Name = "BtnSaveMore";
+				_btnSaveMore = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowSaveGroup/BtnSaveMore");
 				_btnSaveMore.Set("icon_max_width", 0);
 				SetupOptionButton(_btnSaveMore, UnicodeIcons.CHEVRON_DOWN, () =>
 				{
@@ -449,7 +432,7 @@ namespace Realm.Client.UI
 					_popupSaveMore.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
 				}, 10, "More save & export options (Save As, Export, Publish)");
 
-				_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnResetMap");
+				_btnResetMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnResetMap");
 				SetupOptionButton(_btnResetMap, $"{UnicodeIcons.TRASH} RESET MAP", () =>
 				{
 					ShowConfirmationDialog(
@@ -458,14 +441,13 @@ namespace Realm.Client.UI
 					);
 				}, 13, "Clear all terrain heights, colors, and placed entities");
 
-				_btnGenerateMap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnGenerateMap");
+				_btnGenerateMap = GetNode<Button>("PopupRandomGen/RandomGenVBox_VBoxContainer/BtnGenerateMap");
 				SetupOptionButton(_btnGenerateMap, $"{UnicodeIcons.DICE} PROCEDURAL", () => _generationDialog.Show(), 13, "Open random terrain generator settings modal");
 
-				_btnImportMinimap = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BtnImportMinimap");
+				_btnImportMinimap = GetNode<Button>("PopupRandomGen/RandomGenVBox_VBoxContainer/BtnImportMinimap");
 				SetupOptionButton(_btnImportMinimap, $"{UnicodeIcons.MAP_IMAGE} FROM IMAGE", () => ImportTerrainFromMinimapDialog(), 13, "Import terrain elevations, textures, and trees from a minimap image file");
 
-				_popupRandomGen = new PopupPanel();
-				_popupRandomGen.Name = "PopupRandomGen";
+				_popupRandomGen = GetNode<PopupPanel>("PopupRandomGen");
 				var randomGenPopupStyle = new StyleBoxFlat();
 				randomGenPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
 				randomGenPopupStyle.BorderColor = UIStyle.ColorGold;
@@ -473,19 +455,10 @@ namespace Realm.Client.UI
 				randomGenPopupStyle.SetCornerRadiusAll(4);
 				randomGenPopupStyle.SetContentMarginAll(10);
 				_popupRandomGen.AddThemeStyleboxOverride("panel", randomGenPopupStyle);
-				var randomGenVBox = new VBoxContainer();
-				randomGenVBox.Name = "RandomGenVBox_VBoxContainer";
-				randomGenVBox.AddThemeConstantOverride("separation", 6);
-				randomGenVBox.CustomMinimumSize = new Vector2(170, 0);
-				_popupRandomGen.AddChild(randomGenVBox);
-				AddChild(_popupRandomGen);
-				SafeReparent(_btnGenerateMap, randomGenVBox);
-				SafeReparent(_btnImportMinimap, randomGenVBox);
 				_btnGenerateMap.Pressed += () => _popupRandomGen.Hide();
 				_btnImportMinimap.Pressed += () => _popupRandomGen.Hide();
 
-				_btnRandomGen = new Button();
-				_btnRandomGen.Name = "BtnRandomGen";
+				_btnRandomGen = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnRandomGen");
 				SetupOptionButton(_btnRandomGen, $"{UnicodeIcons.DICE} RANDOM GEN", () =>
 				{
 					var popupPosition = _btnRandomGen.GetScreenPosition() + new Vector2(0, _btnRandomGen.Size.Y);
@@ -497,6 +470,7 @@ namespace Realm.Client.UI
 				_btnEditorSettings.Set("icon_max_width", 0);
 				SetupOptionButton(_btnEditorSettings, "⚙️ " + TranslationServer.Translate("EDITOR SETTINGS"), () => _editorSettingsDialog?.OpenDialog(), 13, "Configure editor preferences, chrome border, and display overlays");
 				_contentFile.AddChild(_btnEditorSettings);
+				_contentFile.MoveChild(_btnEditorSettings, 1);
 
 				_accordionViewport = GetNode<VBoxContainer>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion");
 				_btnHeaderViewport = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/BtnHeaderViewport");
@@ -576,7 +550,7 @@ namespace Realm.Client.UI
 				};
 				AddChild(_popupOverlayMode);
 
-				_btnToggleGrid = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleGrid");
+				_btnToggleGrid = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleGrid");
 				SetupButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, () => OpenOverlayModePopup(), 12, "Overlay");
 				_popupEnvironment = new PopupPanel();
 				_popupEnvironment.Name = "PopupEnvironment";
@@ -655,7 +629,7 @@ namespace Realm.Client.UI
 				_popupEnvironment.AddChild(envVBox);
 				AddChild(_popupEnvironment);
 
-				_btnToggleEnvironment = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleEnvironment") ?? new Button();
+				_btnToggleEnvironment = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleEnvironment");
 				_btnToggleEnvironment.Name = "BtnToggleEnvironment";
 				_btnToggleEnvironment.Set("icon_max_width", 0);
 				SetupButton(_btnToggleEnvironment, UnicodeIcons.SUN, () => OpenEnvironmentPopup(), 12, "Environment");
@@ -756,8 +730,7 @@ namespace Realm.Client.UI
 				_popupCamera.AddChild(camVBox);
 				AddChild(_popupCamera);
 
-				_btnToggleCamera = GetNodeOrNull<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BtnToggleCamera") ?? new Button();
-				_btnToggleCamera.Name = "BtnToggleCamera";
+				_btnToggleCamera = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnToggleCamera");
 				_btnToggleCamera.Set("icon_max_width", 0);
 				SetupButton(_btnToggleCamera, UnicodeIcons.CAMERA, () => OpenCameraPopup(), 12, "Configure camera controls (R / C / + / - / F8)");
 
@@ -772,8 +745,7 @@ namespace Realm.Client.UI
 
 				_mapSettingsDialog = new MapSettingsDialog(this);
 
-				_btnTapeMeasure = new Button();
-				_btnTapeMeasure.Name = "BtnTapeMeasure";
+				_btnTapeMeasure = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/BoxViewportToolbar/ViewportIconRow1/BtnTapeMeasure");
 				_btnTapeMeasure.Set("icon_max_width", 0);
 				SetupButton(_btnTapeMeasure, UnicodeIcons.RULER, () =>
 				{
@@ -792,39 +764,27 @@ namespace Realm.Client.UI
 					}
 				}, 12, "Tape Measure Tool: Click Point A, then Point B to measure distance & slope (U)");
 
-				_optPolarRingSpacing = new OptionButton();
-				_optPolarRingSpacing.Name = "OptPolarRingSpacing";
+				_optPolarRingSpacing = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRingSpacing");
 				_optPolarRingSpacing.Set("icon_max_width", 0);
 				SetupPolarRingSpacingDropdown(_optPolarRingSpacing, "Select interval between concentric polar distance rings (4, 8, 16, 32 tiles)");
 
-				_optPolarRadialStep = new OptionButton();
-				_optPolarRadialStep.Name = "OptPolarRadialStep";
+				_optPolarRadialStep = GetNode<OptionButton>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/OptPolarRadialStep");
 				_optPolarRadialStep.Set("icon_max_width", 0);
 				SetupSpokesDropdown(_optPolarRadialStep, (spokes) => SetPolarSpokesView(spokes), "Select radial spoke count (2, 3, 4, 5, 6, 8, 12, 16)");
 
-				_btnResetPivotToCenter = new Button();
-				_btnResetPivotToCenter.Name = "BtnResetPivotToCenter";
+				_btnResetPivotToCenter = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/ViewportAccordion/ContentViewport/RowPolarConfig/BtnResetPivotToCenter");
 				_btnResetPivotToCenter.Set("icon_max_width", 0);
 				SetupOptionButton(_btnResetPivotToCenter, $"{UnicodeIcons.CROSSHAIRS} RESET PIVOT", () => ResetPivotToMapCenterView(), 10, "Reset symmetry and polar overlay center pivot to true map center");
 
-				var bottomBar = new HBoxContainer();
-				bottomBar.Name = "BottomCenterBar";
-				bottomBar.SetAnchorsPreset(LayoutPreset.CenterBottom);
-				bottomBar.GrowHorizontal = GrowDirection.Both;
-				bottomBar.GrowVertical = GrowDirection.Begin;
-				bottomBar.OffsetTop = -65;
-				bottomBar.OffsetBottom = -10;
+				var bottomBar = GetNode<HBoxContainer>("BottomCenterBar");
 				bottomBar.Alignment = BoxContainer.AlignmentMode.Center;
-				bottomBar.AddThemeConstantOverride("separation", 10);
 				bottomBar.MouseFilter = MouseFilterEnum.Ignore;
-				AddChild(bottomBar);
 
 				if (_topBar != null)
 				{
 					_topBar.CustomMinimumSize = new Vector2(0, 44);
 					_topBar.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 					_topBar.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-					SafeReparent(_topBar, bottomBar);
 				}
 
 				_panelMeasurementHUD = new PanelContainer();
@@ -875,54 +835,43 @@ namespace Realm.Client.UI
 				_panelObjects = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox");
 				_panelClipboard = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard");
 
-				_btnRaise = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnRaise");
-				_cardRaise = CreateToolCardView(_btnRaise, UnicodeIcons.ARROW_UP, "Raise", () => TriggerToolSelection(EditorTool.Raise, _btnRaise), "Elevate terrain height (1)");
+				var terrainGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/TerrainGrid_GridContainer");
+				var decoGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox/DecoGrid_GridContainer");
+				var pathGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelPathingVBox/PathGrid_GridContainer");
+				var objGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox/ObjGrid_GridContainer");
+				var clipGrid = GetNode<GridContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/ClipGrid_GridContainer");
 
-				_btnLower = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnLower");
-				_cardLower = CreateToolCardView(_btnLower, UnicodeIcons.ARROW_DOWN, "Lower", () => TriggerToolSelection(EditorTool.Lower, _btnLower), "Lower terrain height (2)");
+				_btnRaise = CreateToolCardView(terrainGrid, "BtnRaise", UnicodeIcons.ARROW_UP, "Raise", () => TriggerToolSelection(EditorTool.Raise, _btnRaise), "Elevate terrain height (1)");
 
-				_btnHeight = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnHeight");
-				_cardHeight = CreateToolCardView(_btnHeight, UnicodeIcons.ARROWS_V, "Height", () => TriggerToolSelection(EditorTool.Height, _btnHeight), "Set terrain to exact height (3)");
+				_btnLower = CreateToolCardView(terrainGrid, "BtnLower", UnicodeIcons.ARROW_DOWN, "Lower", () => TriggerToolSelection(EditorTool.Lower, _btnLower), "Lower terrain height (2)");
 
-				_btnSmooth = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnSmooth");
-				_cardSmooth = CreateToolCardView(_btnSmooth, UnicodeIcons.SMOOTH, "Smooth", () => TriggerToolSelection(EditorTool.Smooth, _btnSmooth), "Smooth terrain height (4)");
+				_btnHeight = CreateToolCardView(terrainGrid, "BtnHeight", UnicodeIcons.ARROWS_V, "Height", () => TriggerToolSelection(EditorTool.Height, _btnHeight), "Set terrain to exact height (3)");
 
-				_btnPlateau = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnPlateau");
-				_cardPlateau = CreateToolCardView(_btnPlateau, UnicodeIcons.SQUARE, "Flatten", () => TriggerToolSelection(EditorTool.Plateau, _btnPlateau), "Flatten terrain to cursor height on click (5)");
+				_btnSmooth = CreateToolCardView(terrainGrid, "BtnSmooth", UnicodeIcons.SMOOTH, "Smooth", () => TriggerToolSelection(EditorTool.Smooth, _btnSmooth), "Smooth terrain height (4)");
 
-				_btnRamp = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnRamp");
-				_cardRamp = CreateToolCardView(_btnRamp, UnicodeIcons.RAMP, "Ramp", () => TriggerToolSelection(EditorTool.Ramp, _btnRamp), "Create ramp between two points (6)");
+				_btnPlateau = CreateToolCardView(terrainGrid, "BtnPlateau", UnicodeIcons.SQUARE, "Flatten", () => TriggerToolSelection(EditorTool.Plateau, _btnPlateau), "Flatten terrain to cursor height on click (5)");
 
-				_btnNoise = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelTerrainVBox/BtnNoise");
-				_cardNoise = CreateToolCardView(_btnNoise, UnicodeIcons.NOISE, "Noise", () => TriggerToolSelection(EditorTool.Noise, _btnNoise), "Add random height variations/noise to terrain (7)");
+				_btnRamp = CreateToolCardView(terrainGrid, "BtnRamp", UnicodeIcons.RAMP, "Ramp", () => TriggerToolSelection(EditorTool.Ramp, _btnRamp), "Create ramp between two points (6)");
 
-				_btnWater = new Button();
-				_btnWater.Name = "BtnWater";
-				_cardWater = CreateToolCardView(_btnWater, UnicodeIcons.WATER, "Water", () => TriggerToolSelection(EditorTool.Water, _btnWater), "Flood fill water mesh bounded by cliff walls (0)");
+				_btnNoise = CreateToolCardView(terrainGrid, "BtnNoise", UnicodeIcons.NOISE, "Noise", () => TriggerToolSelection(EditorTool.Noise, _btnNoise), "Add random height variations/noise to terrain (7)");
 
-				_btnTextureBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox/BtnTextureBrush");
-				_cardTextureBrush = CreateToolCardView(_btnTextureBrush, UnicodeIcons.PAINT_BRUSH, "Paint", () => TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush), "Paint terrain texture (8)");
+				_btnWater = CreateToolCardView(terrainGrid, "BtnWater", UnicodeIcons.WATER, "Water", () => TriggerToolSelection(EditorTool.Water, _btnWater), "Flood fill water mesh bounded by cliff walls (0)");
 
-				_btnFloodFill = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelDecoVBox/BtnFloodFill");
-				_cardFloodFill = CreateToolCardView(_btnFloodFill, UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(EditorTool.FloodFill, _btnFloodFill), "Flood fill terrain texture");
+				_btnTextureBrush = CreateToolCardView(decoGrid, "BtnTextureBrush", UnicodeIcons.PAINT_BRUSH, "Paint", () => TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush), "Paint terrain texture (8)");
 
-				_btnSelectArea = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnSelectArea");
-				_cardSelectArea = CreateToolCardView(_btnSelectArea, UnicodeIcons.EXPAND_ARROWS, "Select Area", () => TriggerToolSelection(EditorTool.SelectArea, _btnSelectArea), "Select rectangular area");
+				_btnFloodFill = CreateToolCardView(decoGrid, "BtnFloodFill", UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(EditorTool.FloodFill, _btnFloodFill), "Flood fill terrain texture");
 
-				_btnPathingBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelPathingVBox/BtnPathingBrush");
-				_cardPathingBrush = CreateToolCardView(_btnPathingBrush, UnicodeIcons.BRUSH_ALT, "Brush", () => TriggerToolSelection(EditorTool.PaintPathing, _btnPathingBrush), "Paint pathing attributes onto the terrain map");
+				_btnSelectArea = CreateToolCardView(clipGrid, "BtnSelectArea", UnicodeIcons.EXPAND_ARROWS, "Select Area", () => TriggerToolSelection(EditorTool.SelectArea, _btnSelectArea), "Select rectangular area");
 
-				_btnFloodFillPathing = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelPathingVBox/BtnFloodFillPathing");
-				_cardFloodFillPathing = CreateToolCardView(_btnFloodFillPathing, UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(EditorTool.FloodFillPathing, _btnFloodFillPathing), "Flood fill pathing attributes onto the terrain map");
+				_btnPathingBrush = CreateToolCardView(pathGrid, "BtnPathingBrush", UnicodeIcons.BRUSH_ALT, "Brush", () => TriggerToolSelection(EditorTool.PaintPathing, _btnPathingBrush), "Paint pathing attributes onto the terrain map");
 
-				_btnAddObject = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox/BtnAddObject");
-				_cardAddObject = CreateToolCardView(_btnAddObject, UnicodeIcons.CUBE, "Add Object", () => _entityPaletteController?.TriggerAddObjectMode(), "Place units, props, or decals");
+				_btnFloodFillPathing = CreateToolCardView(pathGrid, "BtnFloodFillPathing", UnicodeIcons.FILL_DRIP, "Flood Fill", () => TriggerToolSelection(EditorTool.FloodFillPathing, _btnFloodFillPathing), "Flood fill pathing attributes onto the terrain map");
 
-				_btnSelectMove = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox/BtnSelectMove");
-				_cardSelectMove = CreateToolCardView(_btnSelectMove, UnicodeIcons.MOVE, "Select/Move", () => TriggerToolSelection(EditorTool.SelectMove, _btnSelectMove), "Select and move units, props, or decals");
+				_btnSelectMove = CreateToolCardView(objGrid, "BtnSelectMove", UnicodeIcons.MOVE, "Select/Move", () => TriggerToolSelection(EditorTool.SelectMove, _btnSelectMove), "Select and move units, props, or decals");
 
-				_btnDeleteObject = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelObjectsVBox/BtnDeleteObject");
-				_cardDeleteObject = CreateToolCardView(_btnDeleteObject, UnicodeIcons.TRASH, "Erase", () =>
+				_btnAddObject = CreateToolCardView(objGrid, "BtnAddObject", UnicodeIcons.CUBE, "Add Object", () => _entityPaletteController?.TriggerAddObjectMode(), "Place units, props, or decals");
+
+				_btnDeleteObject = CreateToolCardView(objGrid, "BtnDeleteObject", UnicodeIcons.TRASH, "Erase", () =>
 				{
 					if (GodotObject.IsInstanceValid(GameContext.Host?.SelectedEditorObject))
 						DeleteSelectedObjectAction();
@@ -962,17 +911,13 @@ namespace Realm.Client.UI
 				_btnViewCoordinates = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnViewCoordinates");
 				SetupOptionButton(_btnViewCoordinates, $"{UnicodeIcons.LIST} View Existing Coordinates", () => OpenInstanceManagerDialog("Coordinates"), 11, "Open instance manager to view and locate existing defined coordinates");
 
-				_btnCopy = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnCopy");
-				_cardCopy = CreateToolCardView(_btnCopy, UnicodeIcons.COPY, "Copy", () => GameContext.Host?.PerformCopyAreaExternal(), "Copy selected area to clipboard (Ctrl+C)");
+				_btnCut = CreateToolCardView(clipGrid, "BtnCut", UnicodeIcons.SCISSORS, "Cut", () => GameContext.Host?.PerformCutAreaExternal(), "Cut selected area to clipboard (Ctrl+X)");
 
-				_btnPaste = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnPaste");
-				_cardPaste = CreateToolCardView(_btnPaste, UnicodeIcons.PASTE, "Paste", () => TriggerToolSelection(EditorTool.PasteArea, _btnPaste), "Paste clipboard contents onto terrain (Ctrl+V)");
+				_btnCopy = CreateToolCardView(clipGrid, "BtnCopy", UnicodeIcons.COPY, "Copy", () => GameContext.Host?.PerformCopyAreaExternal(), "Copy selected area to clipboard (Ctrl+C)");
 
-				_btnCut = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnCut");
-				_cardCut = CreateToolCardView(_btnCut, UnicodeIcons.SCISSORS, "Cut", () => GameContext.Host?.PerformCutAreaExternal(), "Cut selected area to clipboard (Ctrl+X)");
+				_btnPaste = CreateToolCardView(clipGrid, "BtnPaste", UnicodeIcons.PASTE, "Paste", () => TriggerToolSelection(EditorTool.PasteArea, _btnPaste), "Paste clipboard contents onto terrain (Ctrl+V)");
 
-				_btnEraseArea = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelClipboard/BtnEraseArea");
-				_cardEraseArea = CreateToolCardView(_btnEraseArea, UnicodeIcons.TRASH, "Erase Area", () => GameContext.Host?.PerformEraseAreaExternal(), "Erase heights, textures and objects within selection (Delete)");
+				_btnEraseArea = CreateToolCardView(clipGrid, "BtnEraseArea", UnicodeIcons.TRASH, "Erase Area", () => GameContext.Host?.PerformEraseAreaExternal(), "Erase heights, textures and objects within selection (Delete)");
 
 				_accordionBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion");
 				_btnHeaderBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/BtnHeaderBrush");
@@ -991,7 +936,7 @@ namespace Realm.Client.UI
 				_sldBrushStrength.DragStarted += () => _isDraggingSlider = true;
 				_sldBrushStrength.DragEnded += (valueChanged) => _isDraggingSlider = false;
 
-				_btnBrushShape = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/BtnBrushShape");
+				_btnBrushShape = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ShapeMirrorGrid/BtnBrushShape");
 				SetupOptionButton(_btnBrushShape, $"{UnicodeIcons.SQUARE} BRUSH: SQUARE", () =>
 				{
 					if (GameContext.Host != null)
@@ -1002,7 +947,7 @@ namespace Realm.Client.UI
 					}
 				}, 11, "Toggle brush shape between circular and square (B)");
 
-				_optMirrorMode = GetNode<OptionButton>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/OptMirrorMode");
+				_optMirrorMode = GetNode<OptionButton>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ShapeMirrorGrid/OptMirrorMode");
 				SetupMirrorDropdown(_optMirrorMode, "Select terrain and object mirroring symmetry mode");
 
 				_chkBlockMode = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/ContentBrush/ChkBlockMode");
@@ -3488,9 +3433,10 @@ namespace Realm.Client.UI
 			btn.Alignment = HorizontalAlignment.Center;
 		}
 
-		private Control CreateToolCardView(Button btn, string iconGlyph, string labelText, Action onClick, string tooltip = "")
+		private Button CreateToolCardView(Control cardParent, string buttonName, string iconGlyph, string labelText, Action onClick, string tooltip = "")
 		{
-			if (btn == null) return new Control();
+			var btn = new Button();
+			btn.Name = buttonName;
 
 			btn.Text = iconGlyph;
 			btn.TooltipText = tooltip;
@@ -3566,15 +3512,11 @@ namespace Realm.Client.UI
 			card.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			card.Alignment = BoxContainer.AlignmentMode.Center;
 
-			if (btn.GetParent() != null)
-			{
-				btn.GetParent().RemoveChild(btn);
-			}
-
 			card.AddChild(btn);
 			card.AddChild(lbl);
+			cardParent.AddChild(card);
 
-			return card;
+			return btn;
 		}
 
 		private void RestructurePanelLayouts()
@@ -3583,19 +3525,8 @@ namespace Realm.Client.UI
 			var targetFile = GetContentTarget(_contentFile);
 			if (targetFile != null)
 			{
-				var saveLoadRow = new HBoxContainer();
-				saveLoadRow.Name = "RowFileSaveLoad";
-				saveLoadRow.AddThemeConstantOverride("separation", 6);
-				saveLoadRow.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
 				_btnLoad.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 				_btnLoad.SizeFlagsStretchRatio = 1.0f;
-
-				var saveGroupRow = new HBoxContainer();
-				saveGroupRow.Name = "RowSaveGroup";
-				saveGroupRow.AddThemeConstantOverride("separation", 0);
-				saveGroupRow.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				saveGroupRow.SizeFlagsStretchRatio = 1.0f;
 
 				_btnSave.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 				_btnSave.SizeFlagsStretchRatio = 1.0f;
@@ -3603,74 +3534,22 @@ namespace Realm.Client.UI
 				_btnSaveMore.CustomMinimumSize = new Vector2(24, 30);
 				_btnSaveMore.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
 
-				SafeReparent(_btnLoad, saveLoadRow);
-				SafeReparent(_btnSave, saveGroupRow);
-				SafeReparent(_btnSaveMore, saveGroupRow);
-				saveLoadRow.AddChild(saveGroupRow);
-
-				var fileGrid2 = new GridContainer();
-				fileGrid2.Name = "FileGrid2_GridContainer";
-				fileGrid2.Columns = 2;
-				fileGrid2.AddThemeConstantOverride("h_separation", 6);
-				fileGrid2.AddThemeConstantOverride("v_separation", 6);
-				fileGrid2.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-				SafeReparent(_btnRandomGen, fileGrid2);
-				SafeReparent(_btnResetMap, fileGrid2);
-
-				var fileBox1 = new VBoxContainer();
-				fileBox1.Name = "BoxFileOps";
-				fileBox1.AddThemeConstantOverride("separation", 6);
-				fileBox1.AddChild(saveLoadRow);
-				StyleSubContainer(fileBox1, "File Operations");
-
-				var fileBox2 = new VBoxContainer();
-				fileBox2.Name = "BoxGenOps";
-				fileBox2.AddChild(fileGrid2);
-				StyleSubContainer(fileBox2, "Generation & Imports");
-
-				targetFile.AddChild(fileBox1);
-				targetFile.AddChild(fileBox2);
+				StyleSubContainer(targetFile.GetNodeOrNull<Control>("BoxFileOps"), "File Operations");
+				StyleSubContainer(targetFile.GetNodeOrNull<Control>("BoxGenOps"), "Generation & Imports");
 			}
 
 			// 2. Viewport Panel
 			var targetViewport = GetContentTarget(_contentViewport);
 			if (targetViewport != null)
 			{
-				if (_minimapFrame != null)
-				{
-					SafeReparent(_minimapFrame, targetViewport);
-				}
-
-				var vpRow1 = new HBoxContainer();
-				vpRow1.Name = "ViewportIconRow1";
-				vpRow1.AddThemeConstantOverride("separation", 4);
-				vpRow1.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
 				StyleIconButton(_btnToggleGrid, UnicodeIcons.BORDER_ALL, "Overlay");
 				StyleIconButton(_btnToggleEnvironment, UnicodeIcons.SUN, "Environment");
 				StyleIconButton(_btnToggleCamera, UnicodeIcons.CAMERA, "Configure camera controls (R / C / + / - / F8)");
 				StyleIconButton(_btnTapeMeasure, UnicodeIcons.RULER, "Tape measure distance & slope tool (U)");
 
-				SafeReparent(_btnToggleGrid, vpRow1);
-				SafeReparent(_btnToggleEnvironment, vpRow1);
-				SafeReparent(_btnToggleCamera, vpRow1);
-				SafeReparent(_btnTapeMeasure, vpRow1);
+				StyleSubContainer(targetViewport.GetNodeOrNull<Control>("BoxViewportToolbar"), "Navigation Bar");
 
-				var vpBox = new VBoxContainer();
-				vpBox.Name = "BoxViewportToolbar";
-				vpBox.AddThemeConstantOverride("separation", 4);
-				vpBox.AddChild(vpRow1);
-				StyleSubContainer(vpBox, "Navigation Bar");
-
-				_rowPolarConfig = new HBoxContainer();
-				_rowPolarConfig.Name = "RowPolarConfig";
-				_rowPolarConfig.AddThemeConstantOverride("separation", 4);
-				_rowPolarConfig.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-				SafeReparent(_optPolarRingSpacing, _rowPolarConfig);
-				SafeReparent(_optPolarRadialStep, _rowPolarConfig);
-				SafeReparent(_btnResetPivotToCenter, _rowPolarConfig);
+				_rowPolarConfig = targetViewport.GetNodeOrNull<HBoxContainer>("RowPolarConfig");
 
 				if (_optPolarRingSpacing != null)
 				{
@@ -3698,103 +3577,35 @@ namespace Realm.Client.UI
 				                         GameContext.EditorService.EditorGridMode == GridOverlayMode.Polar ||
 				                         GameContext.EditorService.EditorGridMode == GridOverlayMode.Both);
 				_rowPolarConfig.Visible = isSymmetryActive;
-
-				targetViewport.AddChild(vpBox);
-				targetViewport.AddChild(_rowPolarConfig);
 			}
 
 			// 3. Terrain Tools
 			if (_panelTerrainVBox != null)
 			{
-				var terrainGrid = new GridContainer();
-				terrainGrid.Name = "TerrainGrid_GridContainer";
-				terrainGrid.Columns = 3;
-				terrainGrid.AddThemeConstantOverride("h_separation", 6);
-				terrainGrid.AddThemeConstantOverride("v_separation", 8);
-				terrainGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-				SafeReparent(_cardRaise ?? (Control)_btnRaise, terrainGrid);
-				SafeReparent(_cardLower ?? (Control)_btnLower, terrainGrid);
-				SafeReparent(_cardHeight ?? (Control)_btnHeight, terrainGrid);
-				SafeReparent(_cardSmooth ?? (Control)_btnSmooth, terrainGrid);
-				SafeReparent(_cardPlateau ?? (Control)_btnPlateau, terrainGrid);
-				SafeReparent(_cardRamp ?? (Control)_btnRamp, terrainGrid);
-				SafeReparent(_cardNoise ?? (Control)_btnNoise, terrainGrid);
-				SafeReparent(_cardWater ?? (Control)_btnWater, terrainGrid);
-
-				_panelTerrainVBox.AddChild(terrainGrid);
 				StyleSubContainer(_panelTerrainVBox, "Terrain Elevation");
 			}
 
 			// 4. Deco Tools
 			if (_panelDecoVBox != null)
 			{
-				var decoGrid = new GridContainer();
-				decoGrid.Name = "DecoGrid_GridContainer";
-				decoGrid.Columns = 3;
-				decoGrid.AddThemeConstantOverride("h_separation", 6);
-				decoGrid.AddThemeConstantOverride("v_separation", 8);
-				decoGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-				SafeReparent(_cardTextureBrush ?? (Control)_btnTextureBrush, decoGrid);
-				SafeReparent(_cardFloodFill ?? (Control)_btnFloodFill, decoGrid);
-
-				_panelDecoVBox.AddChild(decoGrid);
 				StyleSubContainer(_panelDecoVBox, "Texture Actions");
 			}
 
 			// 5. Pathing Tools
 			if (_panelPathingVBox != null)
 			{
-				var pathGrid = new GridContainer();
-				pathGrid.Name = "PathGrid_GridContainer";
-				pathGrid.Columns = 3;
-				pathGrid.AddThemeConstantOverride("h_separation", 6);
-				pathGrid.AddThemeConstantOverride("v_separation", 8);
-				pathGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-				SafeReparent(_cardPathingBrush ?? (Control)_btnPathingBrush, pathGrid);
-				SafeReparent(_cardFloodFillPathing ?? (Control)_btnFloodFillPathing, pathGrid);
-
-				_panelPathingVBox.AddChild(pathGrid);
 				StyleSubContainer(_panelPathingVBox, "Pathing Actions");
 			}
 
 			// 6. Object Tools
 			if (_panelObjects != null)
 			{
-				var objGrid = new GridContainer();
-				objGrid.Name = "ObjGrid_GridContainer";
-				objGrid.Columns = 3;
-				objGrid.AddThemeConstantOverride("h_separation", 6);
-				objGrid.AddThemeConstantOverride("v_separation", 8);
-				objGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-				SafeReparent(_cardSelectMove ?? (Control)_btnSelectMove, objGrid);
-				SafeReparent(_cardAddObject ?? (Control)_btnAddObject, objGrid);
-				SafeReparent(_cardDeleteObject ?? (Control)_btnDeleteObject, objGrid);
-
-				_panelObjects.AddChild(objGrid);
 				StyleSubContainer(_panelObjects, "Object Placement");
 			}
 
 			// 7. Clipboard Tools
 			if (_panelClipboard != null)
 			{
-				var clipGrid = new GridContainer();
-				clipGrid.Name = "ClipGrid_GridContainer";
-				clipGrid.Columns = 3;
-				clipGrid.AddThemeConstantOverride("h_separation", 6);
-				clipGrid.AddThemeConstantOverride("v_separation", 8);
-				clipGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-				SafeReparent(_cardSelectArea ?? (Control)_btnSelectArea, clipGrid);
-				SafeReparent(_cardCut ?? (Control)_btnCut, clipGrid);
-				SafeReparent(_cardCopy ?? (Control)_btnCopy, clipGrid);
-				SafeReparent(_cardPaste ?? (Control)_btnPaste, clipGrid);
-				SafeReparent(_cardEraseArea ?? (Control)_btnEraseArea, clipGrid);
-
-				_panelClipboard.AddChild(clipGrid);
 				StyleSubContainer(_panelClipboard, "Clipboard Actions");
 			}
 
@@ -3802,25 +3613,7 @@ namespace Realm.Client.UI
 			var targetInspector = GetContentTarget(_contentInspector);
 			if (targetInspector != null)
 			{
-				var inspGrid = new GridContainer();
-				inspGrid.Name = "InspGrid_GridContainer";
-				inspGrid.Columns = 2;
-				inspGrid.AddThemeConstantOverride("h_separation", 6);
-				inspGrid.AddThemeConstantOverride("v_separation", 6);
-				inspGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-				SafeReparent(_btnInspectorRotLeft, inspGrid);
-				SafeReparent(_btnInspectorRotRight, inspGrid);
-				SafeReparent(_btnInspectorScaleDown, inspGrid);
-				SafeReparent(_btnInspectorScaleUp, inspGrid);
-				SafeReparent(_btnInspectorScaleReset, inspGrid);
-				SafeReparent(_btnInspectorDelete, inspGrid);
-
-				var inspBox = new VBoxContainer();
-				inspBox.Name = "InspBox_VBoxContainer";
-				inspBox.AddChild(inspGrid);
-				StyleSubContainer(inspBox, "Transform Controls");
-				targetInspector.AddChild(inspBox);
+				StyleSubContainer(targetInspector.GetNodeOrNull<Control>("InspBox_VBoxContainer"), "Transform Controls");
 			}
 
 			// 9. Global Brush Properties Panel
@@ -3831,24 +3624,6 @@ namespace Realm.Client.UI
 				StyleValueBadge(_lblBrushSizeValue);
 				StyleValueBadge(_lblBrushStrengthValue);
 				StyleValueBadge(_lblBlockStepValue);
-
-				var shapeMirrorGrid = _contentBrush.GetNodeOrNull<GridContainer>("ShapeMirrorGrid");
-				if (shapeMirrorGrid == null && _btnBrushShape != null && _optMirrorMode != null)
-				{
-					shapeMirrorGrid = new GridContainer();
-					shapeMirrorGrid.Name = "ShapeMirrorGrid";
-					shapeMirrorGrid.Columns = 2;
-					shapeMirrorGrid.AddThemeConstantOverride("h_separation", 6);
-					shapeMirrorGrid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-					SafeReparent(_btnBrushShape, shapeMirrorGrid);
-					SafeReparent(_optMirrorMode, shapeMirrorGrid);
-
-					var strengthBox = _contentBrush.GetNodeOrNull<Control>("BrushStrengthBox");
-					int insertIdx = strengthBox != null ? strengthBox.GetIndex() + 1 : 2;
-					_contentBrush.AddChild(shapeMirrorGrid);
-					_contentBrush.MoveChild(shapeMirrorGrid, insertIdx);
-				}
 
 				if (_btnBrushShape != null)
 				{
@@ -4537,27 +4312,15 @@ namespace Realm.Client.UI
 		{
 			_inspectorPanel = GetNode<PanelContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel");
 			_lblInspectorTitle = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/LblInspectorTitle");
-			_lblInspectorPos = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/LblInspectorPos");
-
-			_btnInspectorRotLeft = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorRotLeft");
-			SetupButton(_btnInspectorRotLeft, $"{UnicodeIcons.UNDO} ROT -15°", () => RotateSelectedObjectAction(-15f), 11, "Rotate object counter-clockwise (Shift + Mouse_Wheel)");
-
-			_btnInspectorRotRight = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorRotRight");
-			SetupButton(_btnInspectorRotRight, $"{UnicodeIcons.ROTATE} ROT +15°", () => RotateSelectedObjectAction(15f), 11, "Rotate object clockwise (Shift + Mouse_Wheel)");
-
-			_btnInspectorScaleDown = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorScaleDown");
-			SetupButton(_btnInspectorScaleDown, $"{UnicodeIcons.MINUS} SCALE DOWN", () => ScaleSelectedObjectAction(0.9f), 11, "Shrink object size by 10% (Alt + Mouse_Wheel)");
-
-			_btnInspectorScaleUp = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/Grid/BtnInspectorScaleUp");
-			SetupButton(_btnInspectorScaleUp, $"{UnicodeIcons.PLUS} SCALE UP", () => ScaleSelectedObjectAction(1.1f), 11, "Enlarge object size by 10% (Alt + Mouse_Wheel)");
-
-			_btnInspectorScaleReset = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/BtnInspectorScaleReset");
+			_lblInspectorPos = GetNode<Label>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/LblInspectorPos");				_btnInspectorRotLeft = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorRotLeft");
+			SetupButton(_btnInspectorRotLeft, $"{UnicodeIcons.UNDO} ROT -15°", () => RotateSelectedObjectAction(-15f), 11, "Rotate object counter-clockwise (Shift + Mouse_Wheel)");				_btnInspectorRotRight = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorRotRight");
+			SetupButton(_btnInspectorRotRight, $"{UnicodeIcons.ROTATE} ROT +15°", () => RotateSelectedObjectAction(15f), 11, "Rotate object clockwise (Shift + Mouse_Wheel)");				_btnInspectorScaleDown = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleDown");
+			SetupButton(_btnInspectorScaleDown, $"{UnicodeIcons.MINUS} SCALE DOWN", () => ScaleSelectedObjectAction(0.9f), 11, "Shrink object size by 10% (Alt + Mouse_Wheel)");				_btnInspectorScaleUp = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleUp");
+			SetupButton(_btnInspectorScaleUp, $"{UnicodeIcons.PLUS} SCALE UP", () => ScaleSelectedObjectAction(1.1f), 11, "Enlarge object size by 10% (Alt + Mouse_Wheel)");				_btnInspectorScaleReset = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorScaleReset");
 			SetupButton(_btnInspectorScaleReset, $"{UnicodeIcons.UNDO} RESET SCALE", () => ScaleSelectedObjectAction(-1f), 12, "Reset object scale size to 1.0x");
 
 			_btnCenter = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/BtnCenter");
-			SetupButton(_btnCenter, $"{UnicodeIcons.CROSSHAIRS_TARGET} LOCATE OBJECT", () => LocateSelectedObjectAction(), 12, "Center camera on selected object");
-
-			_btnInspectorDelete = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspectorPanel/VBox/BtnInspectorDelete");
+			SetupButton(_btnCenter, $"{UnicodeIcons.CROSSHAIRS_TARGET} LOCATE OBJECT", () => LocateSelectedObjectAction(), 12, "Center camera on selected object");				_btnInspectorDelete = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector/InspBox_VBoxContainer/InspGrid_GridContainer/BtnInspectorDelete");
 			SetupButton(_btnInspectorDelete, $"{UnicodeIcons.TRASH_ALT} ERASE", () => DeleteSelectedObjectAction(), 12, "Erase selected unit, prop, or decal");
 
 			_btnShowCoverage = new Button();

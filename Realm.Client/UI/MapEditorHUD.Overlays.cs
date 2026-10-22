@@ -430,7 +430,7 @@ namespace Realm.Client.UI
 
 		private void ApplyTopBarStyles()
 		{
-			var titleLbl = _topBar?.GetNodeOrNull<Label>("HBox/TitleLabel") ?? GetNodeOrNull<Label>("TopBar/HBox/TitleLabel");
+			var titleLbl = _topBar?.GetNodeOrNull<Label>("HBox/TitleLabel") ?? GetNodeOrNull<Label>("BottomCenterBar/TopBar/HBox/TitleLabel");
 			if (titleLbl != null) titleLbl.Visible = false;
 
 			StyleBox barStyle = CreateTopBarStylebox();
@@ -445,7 +445,7 @@ namespace Realm.Client.UI
 				_panelMeasurementHUD.AddThemeStyleboxOverride("panel", barStyle);
 			}
 
-			var hBox = _topBar?.GetNodeOrNull<HBoxContainer>("HBox") ?? GetNodeOrNull<HBoxContainer>("TopBar/HBox");
+			var hBox = _topBar?.GetNodeOrNull<HBoxContainer>("HBox") ?? GetNodeOrNull<HBoxContainer>("BottomCenterBar/TopBar/HBox");
 			if (hBox != null)
 			{
 				hBox.Alignment = BoxContainer.AlignmentMode.Center;
@@ -2354,15 +2354,6 @@ namespace Realm.Client.UI
 			_btnRightTab.Text = expand ? "▶" : "◀";
 		}
 
-		private void SafeReparent(Node node, Node newParent)
-		{
-			if (node == null || newParent == null) return;
-			var oldParent = node.GetParent();
-			if (oldParent == newParent) return;
-			oldParent?.RemoveChild(node);
-			newParent.AddChild(node);
-		}
-
 
 		private void SetupMinimap()
 		{
@@ -3243,7 +3234,7 @@ namespace Realm.Client.UI
 		{
 			var leftPanel = GetNodeOrNull<Panel>("LeftSlidePanel");
 			var rightPanel = GetNodeOrNull<Panel>("RightSlidePanel");
-			var topBar = GetNodeOrNull<PanelContainer>("TopBar");
+			var topBar = GetNodeOrNull<PanelContainer>("BottomCenterBar/TopBar");
 			var minimap = GetNodeOrNull<PanelContainer>("MinimapFrame");
 
 			if (prefs.HideChromeBorderOverlay)

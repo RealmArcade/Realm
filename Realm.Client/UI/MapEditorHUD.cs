@@ -339,26 +339,6 @@ public partial class MapEditorHUD : Control
 	private Button _activeToolButton { get; set; } = null;
 	private StyleBoxFlat _highlightStyle { get; set; }
 
-	private Control _cardRaise { get; set; }
-	private Control _cardLower { get; set; }
-	private Control _cardHeight { get; set; }
-	private Control _cardSmooth { get; set; }
-	private Control _cardRamp { get; set; }
-	private Control _cardNoise { get; set; }
-	private Control _cardWater { get; set; }
-	private Control _cardPlateau { get; set; }
-	private Control _cardTextureBrush { get; set; }
-	private Control _cardFloodFill { get; set; }
-	private Control _cardPathingBrush { get; set; }
-	private Control _cardFloodFillPathing { get; set; }
-	private Control _cardAddObject { get; set; }
-	private Control _cardSelectMove { get; set; }
-	private Control _cardDeleteObject { get; set; }
-	private Control _cardSelectArea { get; set; }
-	private Control _cardCut { get; set; }
-	private Control _cardCopy { get; set; }
-	private Control _cardPaste { get; set; }
-	private Control _cardEraseArea { get; set; }
 	private Label _lblInfoText { get; set; }
 	private Label _lblTerrainTexture { get; set; }
 	private Label _lblCliffTexture { get; set; }
@@ -1135,7 +1115,7 @@ public partial class MapEditorHUD : Control
 		{
 			_btnLeftTab, _btnRightTab,
 			GetNodeOrNull<Control>("TopLeftBox"),
-			GetNodeOrNull<Control>("TopBar"),
+			GetNodeOrNull<Control>("BottomCenterBar/TopBar"),
 			_middleRightBox, _scaleMapDialog,
 			GetNodeOrNull<Control>("GenerationOverlay")
 		};
