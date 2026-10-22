@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -1788,11 +1789,12 @@ public partial class EditorService : IEditorAPI
 				terrain.PathingCodes[x, z] = waterProf != null ? waterProf.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(cell.WaterMode);
 				ctx.PathingModified = true;
 				float wY = (targetMacroTier * TerrainCell.TIER_HEIGHT) + (cell.WaterHeight > 0.001f ? cell.WaterHeight : RuntimeTerrain.WATER_DELTA);
-				SpawnWaterProceduralBombing(x, z, cell.WaterProfileIndex, wY, ctx.QuadSize, ctx.Width, ctx.Depth);
+				var waterSpawns = BuildWaterProceduralSpawns(x, z, cell.WaterProfileIndex, wY, ctx.QuadSize, ctx.Width, ctx.Depth);
+				GameContext.Host?.ApplyProceduralSpawns(x, z, CollectionsMarshal.AsSpan(waterSpawns), ProceduralSpawnLayer.Water);
 			}
 			else
 			{
-				ClearWaterProceduralObjects(x, z);
+				GameContext.Host?.ClearProceduralSpawns(x, z, ProceduralSpawnLayer.Water);
 				if (terrain.PathingCodes[x, z] == EditableTerrain.GetDefaultPathingCode(cell))
 				{
 					terrain.PathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(cell);
@@ -1816,7 +1818,8 @@ public partial class EditorService : IEditorAPI
 				if (gx >= 0 && gx < _terrainSplatMap.GetLength(0) && gz >= 0 && gz < _terrainSplatMap.GetLength(1))
 					_terrainSplatMap[gx, gz] = TerrainSplatWeights.CreateSolid(ctx.PaintTextureIndex);
 			UpdatePathingFromMetadata(ref terrain, ref ctx, x, z);
-			SpawnTerrainProceduralBombing(x, z, ctx.PaintTextureIndex, targetHeight, ctx.QuadSize, ctx.Width, ctx.Depth);
+			var terrainSpawns = BuildTerrainProceduralSpawns(x, z, ctx.PaintTextureIndex, targetHeight, ctx.QuadSize, ctx.Width, ctx.Depth);
+			GameContext.Host?.ApplyProceduralSpawns(x, z, CollectionsMarshal.AsSpan(terrainSpawns), ProceduralSpawnLayer.Terrain);
 		}
 
 		if (ctx.ApplyCliffTexture && _terrainCliffSplatMap != null)
@@ -1892,7 +1895,11 @@ public partial class EditorService : IEditorAPI
 		{
 			_terrainSplatMap![x, z] = TerrainSplatWeights.PaintVertexWeighted(_terrainSplatMap[x, z], ctx.PaintTextureIndex, intensityLevel);
 			UpdatePathingFromMetadata(ref terrain, ref ctx, x, z);
-			if (terrain.Cells != null && x < ctx.Width && z < ctx.Depth) SpawnTerrainProceduralBombing(x, z, ctx.PaintTextureIndex, terrain.Cells[x, z].CenterHeight, ctx.QuadSize, ctx.Width, ctx.Depth);
+			if (terrain.Cells != null && x < ctx.Width && z < ctx.Depth)
+			{
+				var terrainSpawns = BuildTerrainProceduralSpawns(x, z, ctx.PaintTextureIndex, terrain.Cells[x, z].CenterHeight, ctx.QuadSize, ctx.Width, ctx.Depth);
+				GameContext.Host?.ApplyProceduralSpawns(x, z, CollectionsMarshal.AsSpan(terrainSpawns), ProceduralSpawnLayer.Terrain);
+			}
 		}
 
 		if (ctx.ApplyCliffTexture && _terrainCliffSplatMap != null && x < _terrainCliffSplatMap.GetLength(0) && z < _terrainCliffSplatMap.GetLength(1))
@@ -2934,7 +2941,8 @@ public partial class EditorService : IEditorAPI
 				if (terrain.Cells != null && cellPos.X < width && cellPos.Y < depth)
 				{
 					float tY = terrain.Cells[cellPos.X, cellPos.Y].CenterHeight;
-					SpawnTerrainProceduralBombing(cellPos.X, cellPos.Y, rampTexIdx, tY, quadSize, width, depth);
+					var terrainSpawns = BuildTerrainProceduralSpawns(cellPos.X, cellPos.Y, rampTexIdx, tY, quadSize, width, depth);
+					GameContext.Host?.ApplyProceduralSpawns(cellPos.X, cellPos.Y, CollectionsMarshal.AsSpan(terrainSpawns), ProceduralSpawnLayer.Terrain);
 				}
 			}
 
@@ -4030,11 +4038,12 @@ public partial class EditorService : IEditorAPI
 				var waterProf = GameContext.Terrain?.GetWaterProfile(targetWaterProfile);
 				terrain.PathingCodes[x, z] = waterProf != null ? waterProf.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(targetWaterMode);
 				float wY = (cells[x, z].MacroTier * TerrainCell.TIER_HEIGHT) + (targetWaterHeight > 0.001f ? targetWaterHeight : RuntimeTerrain.WATER_DELTA);
-				SpawnWaterProceduralBombing(x, z, targetWaterProfile, wY, quadSize, width, depth);
+				var waterSpawns = BuildWaterProceduralSpawns(x, z, targetWaterProfile, wY, quadSize, width, depth);
+				GameContext.Host?.ApplyProceduralSpawns(x, z, CollectionsMarshal.AsSpan(waterSpawns), ProceduralSpawnLayer.Water);
 			}
 			else
 			{
-				ClearWaterProceduralObjects(x, z);
+				GameContext.Host?.ClearProceduralSpawns(x, z, ProceduralSpawnLayer.Water);
 				terrain.PathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(cells[x, z]);
 			}
 		}
@@ -4671,123 +4680,28 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	private readonly Dictionary<Vector2I, List<Node>> _waterProceduralObjects = new();
-	private readonly Dictionary<Vector2I, List<Node>> _terrainProceduralObjects = new();
-
-	private void ClearWaterProceduralObjects(int x, int z)
+	public List<ProceduralSpawnDescriptor> BuildWaterProceduralSpawns(int x, int z, byte profileIndex, float waterY, float quadSize, int width, int depth)
 	{
-		var key = new Vector2I(x, z);
-		if (!_waterProceduralObjects.TryGetValue(key, out var list)) return;
-
-		foreach (var node in list)
-		{
-			if (GodotObject.IsInstanceValid(node))
-			{
-				ClearSingleWaterProceduralObject(node);
-			}
-		}
-
-		_waterProceduralObjects.Remove(key);
-	}
-
-	private void ClearSingleWaterProceduralObject(Node node)
-	{
-		if (node is Decal3D d)
-		{
-			GameContext.Host?.AllDecals.Remove(d);
-			if (GameContext.World != null && GameContext.World.IsAlive(d.Entity)) GameContext.World.Destroy(d.Entity);
-		}
-		else if (node is ProceduralVfxInstance3D vfx)
-		{
-			GameContext.Host?.AllVfx.Remove(vfx);
-			if (GameContext.World != null && GameContext.World.IsAlive(vfx.Entity)) GameContext.World.Destroy(vfx.Entity);
-		}
-
-		node.QueueFree();
-	}
-
-	private void ClearTerrainProceduralObjects(int x, int z)
-	{
-		var key = new Vector2I(x, z);
-		if (!_terrainProceduralObjects.TryGetValue(key, out var list)) return;
-
-		foreach (var node in list)
-		{
-			if (GodotObject.IsInstanceValid(node))
-			{
-				switch (node)
-				{
-					case Decal3D d:
-						GameContext.Host?.AllDecals.Remove(d);
-						if (GameContext.World != null && GameContext.World.IsAlive(d.Entity)) GameContext.World.Destroy(d.Entity);
-						break;
-					case ProceduralVfxInstance3D vfx:
-						GameContext.Host?.AllVfx.Remove(vfx);
-						if (GameContext.World != null && GameContext.World.IsAlive(vfx.Entity)) GameContext.World.Destroy(vfx.Entity);
-						break;
-				}
-
-				node.QueueFree();
-			}
-		}
-
-		_terrainProceduralObjects.Remove(key);
-	}
-
-	private void ProcessBombingRules(IEnumerable<dynamic> rules, float quadSize, float cellCenterX, float waterY, float cellCenterZ, List<Node> spawnedList, bool isVfx)
-	{
-		if (rules == null) return;
-		foreach (var rule in rules)
-		{
-			string id = isVfx ? rule.VfxId : rule.DecalId;
-			if (string.IsNullOrWhiteSpace(id)) continue;
-			if (Random.Shared.NextSingle() > (rule.Density * 0.05f)) continue;
-			float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-			float scale = Mathf.Lerp(rule.MinScale, rule.MaxScale, Random.Shared.NextSingle());
-			float rotY = Random.Shared.NextSingle() * 360f;
-			var pos = new Godot.Vector3(cellCenterX + jx, waterY, cellCenterZ + jz);
-
-			Node spawnedObj = null;
-			if (isVfx)
-			{
-				spawnedObj = GameContext.Host?.SpawnVfxExternalWithParams(id, pos, new Godot.Vector3(0, rotY, 0), new Godot.Vector3(scale, scale, scale));
-			}
-			else
-			{
-				spawnedObj = GameContext.Host?.SpawnDecalExternalWithParams(id, pos, new Godot.Vector3(0, rotY, 0), scale);
-			}
-
-			if (spawnedObj != null) spawnedList.Add(spawnedObj);
-		}
-	}
-
-	private void SpawnWaterProceduralBombing(int x, int z, byte profileIndex, float waterY, float quadSize, int width, int depth)
-	{
-		ClearWaterProceduralObjects(x, z);
-		if (GameContext.Terrain == null) return;
-		var prof = GameContext.Terrain.GetWaterProfile(profileIndex);
-		if (prof == null) return;
+		var descriptors = new List<ProceduralSpawnDescriptor>();
+		var prof = GameContext.Terrain?.GetWaterProfile(profileIndex);
+		if (prof == null) return descriptors;
 
 		float cellCenterX = (x + 0.5f - width / 2.0f) * quadSize;
 		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
-		var spawnedList = new List<Node>();
 
-		ProcessBombingRules(prof.DecalBombingRules, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList, false);
-		ProcessBombingRules(prof.VfxBombingRules, quadSize, cellCenterX, waterY, cellCenterZ, spawnedList, true);
+		CollectBombingSpawns(prof.DecalBombingRules, ProceduralSpawnKind.Decal, r => r.DecalId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, waterY, quadSize, descriptors);
+		CollectBombingSpawns(prof.VfxBombingRules, ProceduralSpawnKind.Vfx, r => r.VfxId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, waterY, quadSize, descriptors);
 
-		if (spawnedList.Count > 0)
-		{
-			_waterProceduralObjects[new Vector2I(x, z)] = spawnedList;
-		}
+		return descriptors;
 	}
 
-	private void SpawnTerrainProceduralBombing(int x, int z, int textureIndex, float terrainY, float quadSize, int width, int depth)
+	public List<ProceduralSpawnDescriptor> BuildTerrainProceduralSpawns(int x, int z, int textureIndex, float terrainY, float quadSize, int width, int depth)
 	{
-		ClearTerrainProceduralObjects(x, z);
+		var descriptors = new List<ProceduralSpawnDescriptor>();
+
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		if (string.IsNullOrEmpty(wsPath)) return;
-		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaRoot) || metaRoot == null) return;
+		if (string.IsNullOrEmpty(wsPath)) return descriptors;
+		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaRoot) || metaRoot == null) return descriptors;
 
 		string? swatchName = null;
 		if (GameContext.Host?.GroundTerrain != null && textureIndex >= 0 && textureIndex < GameContext.Host.GroundTerrain.LoadedTextureList.Count)
@@ -4795,41 +4709,37 @@ public partial class EditorService : IEditorAPI
 			swatchName = GameContext.Host.GroundTerrain.LoadedTextureList[textureIndex];
 		}
 
-		if (string.IsNullOrEmpty(swatchName)) return;
+		if (string.IsNullOrEmpty(swatchName)) return descriptors;
 
 		var prof = metaRoot.GetTerrainProfile(swatchName);
-		if (prof == null) return;
+		if (prof == null) return descriptors;
 
 		float cellCenterX = (x + 0.5f - width / 2.0f) * quadSize;
 		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
-		var spawnedList = new List<Node>();
 
-		ProcessBombingRules(prof.DecalBombingRules, r => r.DecalId, r => r.Density, r => r.MinScale, r => r.MaxScale, (id, p, r, s) => GameContext.Host?.SpawnDecalExternalWithParams(id, p, r, s), cellCenterX, cellCenterZ, terrainY, quadSize, spawnedList);
-		ProcessBombingRules(prof.VfxBombingRules, r => r.VfxId, r => r.Density, r => r.MinScale, r => r.MaxScale, (id, p, r, s) => GameContext.Host?.SpawnVfxExternalWithParams(id, p, r, new Godot.Vector3(s, s, s)), cellCenterX, cellCenterZ, terrainY, quadSize, spawnedList);
+		CollectBombingSpawns(prof.DecalBombingRules, ProceduralSpawnKind.Decal, r => r.DecalId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, terrainY, quadSize, descriptors);
+		CollectBombingSpawns(prof.VfxBombingRules, ProceduralSpawnKind.Vfx, r => r.VfxId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, terrainY, quadSize, descriptors);
 
-		if (spawnedList.Count > 0)
-		{
-			_terrainProceduralObjects[new Vector2I(x, z)] = spawnedList;
-		}
+		return descriptors;
 	}
 
-	private void ProcessBombingRules<T>(List<T>? rules, Func<T, string> getId, Func<T, float> getDensity, Func<T, float> getMinScale, Func<T, float> getMaxScale, Func<string, Godot.Vector3, Godot.Vector3, float, Node?> spawnFunc, float cellCenterX, float cellCenterZ, float terrainY, float quadSize, List<Node> spawnedList)
+	private static void CollectBombingSpawns<T>(List<T>? rules, ProceduralSpawnKind kind, Func<T, string> getId, Func<T, float> getDensity, Func<T, float> getMinScale, Func<T, float> getMaxScale, float cellCenterX, float cellCenterZ, float baseY, float quadSize, List<ProceduralSpawnDescriptor> descriptors)
 	{
 		if (rules == null || rules.Count == 0) return;
+
 		foreach (var rule in rules)
 		{
 			string id = getId(rule);
 			if (string.IsNullOrWhiteSpace(id)) continue;
-			if (Random.Shared.NextSingle() <= (getDensity(rule) * 0.05f))
-			{
-				float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-				float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
-				float scale = Mathf.Lerp(getMinScale(rule), getMaxScale(rule), Random.Shared.NextSingle());
-				float rotY = Random.Shared.NextSingle() * 360f;
-				var pos = new Godot.Vector3(cellCenterX + jx, terrainY, cellCenterZ + jz);
-				var obj = spawnFunc(id, pos, new Godot.Vector3(0, rotY, 0), scale);
-				if (obj != null) spawnedList.Add(obj);
-			}
+			if (Random.Shared.NextSingle() > (getDensity(rule) * 0.05f)) continue;
+
+			float jx = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
+			float jz = (Random.Shared.NextSingle() - 0.5f) * quadSize * 0.8f;
+			float scale = Mathf.Lerp(getMinScale(rule), getMaxScale(rule), Random.Shared.NextSingle());
+			float rotY = Random.Shared.NextSingle() * 360f;
+			var pos = new Godot.Vector3(cellCenterX + jx, baseY, cellCenterZ + jz);
+
+			descriptors.Add(new ProceduralSpawnDescriptor(kind, id, pos, rotY, scale));
 		}
 	}
 

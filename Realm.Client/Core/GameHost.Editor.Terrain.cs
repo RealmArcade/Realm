@@ -261,6 +261,65 @@ namespace Realm.Client.Core
 			decal.GlobalPosition = pos;
 		}
 
+		private readonly Dictionary<Vector2I, List<Node>> _waterProceduralNodes = new();
+		private readonly Dictionary<Vector2I, List<Node>> _terrainProceduralNodes = new();
+
+		public void ApplyProceduralSpawns(int x, int z, ReadOnlySpan<ProceduralSpawnDescriptor> descriptors, ProceduralSpawnLayer layer)
+		{
+			ClearProceduralSpawns(x, z, layer);
+			if (descriptors.Length == 0) return;
+
+			var spawnedNodes = new List<Node>(descriptors.Length);
+			for (int index = 0; index < descriptors.Length; index++)
+			{
+				ProceduralSpawnDescriptor descriptor = descriptors[index];
+				Vector3 rotationDegrees = new Vector3(0f, descriptor.RotationYDegrees, 0f);
+
+				Node spawnedNode = descriptor.Kind == ProceduralSpawnKind.Vfx
+					? SpawnVfxExternalWithParams(descriptor.Id, descriptor.Position, rotationDegrees, new Vector3(descriptor.Scale, descriptor.Scale, descriptor.Scale))
+					: SpawnDecalExternalWithParams(descriptor.Id, descriptor.Position, rotationDegrees, descriptor.Scale);
+
+				if (spawnedNode != null) spawnedNodes.Add(spawnedNode);
+			}
+
+			if (spawnedNodes.Count == 0) return;
+
+			Dictionary<Vector2I, List<Node>> store = layer == ProceduralSpawnLayer.Water ? _waterProceduralNodes : _terrainProceduralNodes;
+			store[new Vector2I(x, z)] = spawnedNodes;
+		}
+
+		public void ClearProceduralSpawns(int x, int z, ProceduralSpawnLayer layer)
+		{
+			Dictionary<Vector2I, List<Node>> store = layer == ProceduralSpawnLayer.Water ? _waterProceduralNodes : _terrainProceduralNodes;
+			var key = new Vector2I(x, z);
+			if (!store.TryGetValue(key, out var nodes)) return;
+
+			for (int index = 0; index < nodes.Count; index++)
+			{
+				ClearProceduralSpawnNode(nodes[index]);
+			}
+
+			store.Remove(key);
+		}
+
+		private void ClearProceduralSpawnNode(Node node)
+		{
+			if (node == null || !GodotObject.IsInstanceValid(node)) return;
+
+			if (node is Decal3D decal)
+			{
+				AllDecals.Remove(decal);
+				if (GameContext.World != null && GameContext.World.IsAlive(decal.Entity)) GameContext.World.Destroy(decal.Entity);
+			}
+			else if (node is ProceduralVfxInstance3D vfx)
+			{
+				AllVfx.Remove(vfx);
+				if (GameContext.World != null && GameContext.World.IsAlive(vfx.Entity)) GameContext.World.Destroy(vfx.Entity);
+			}
+
+			node.QueueFree();
+		}
+
 		public Decal SpawnDecalExternalWithParams(string decalId, Vector3 position, Vector3 rotationDegrees, float scale)
 		{
 			var entity = GameContext.World.Create();
