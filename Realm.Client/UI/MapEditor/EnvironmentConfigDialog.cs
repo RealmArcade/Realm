@@ -657,7 +657,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 		if (_activePreset == null || _chkLivePreview == null || !_chkLivePreview.ButtonPressed) return;
 		if (GameContext.Host != null && GameContext.EnvironmentService != null)
 		{
-			GameContext.EnvironmentService.ApplyPreset(GameContext.Host, _activePreset);
+			GameContext.EnvironmentService.ApplyPreset(_activePreset);
 		}
 	}
 
@@ -668,11 +668,11 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 			GameContext.EnvironmentService.LoadPresets(_presets);
 			if (!string.IsNullOrWhiteSpace(_defaultPresetId))
 			{
-				GameContext.EnvironmentService.ApplyPresetById(GameContext.Host, _defaultPresetId);
+				GameContext.EnvironmentService.ApplyPresetById(_defaultPresetId);
 			}
 			else if (_activePreset != null)
 			{
-				GameContext.EnvironmentService.ApplyPreset(GameContext.Host, _activePreset);
+				GameContext.EnvironmentService.ApplyPreset(_activePreset);
 			}
 
 			GameContext.Host.EditorHasUnsavedChanges = true;
@@ -700,7 +700,7 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 			var initial = _initialSnapshots.Count > 0 ? _initialSnapshots[0] : null;
 			if (initial != null)
 			{
-				GameContext.EnvironmentService.ApplyPreset(GameContext.Host, initial);
+				GameContext.EnvironmentService.ApplyPreset(initial);
 			}
 		}
 	}

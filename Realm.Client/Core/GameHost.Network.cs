@@ -532,11 +532,11 @@ public partial class GameHost
 	{
 		if (durationSeconds <= 0.001f)
 		{
-			GameContext.EnvironmentService?.ApplyPresetById(this, presetId);
+			GameContext.EnvironmentService?.ApplyPresetById(presetId);
 		}
 		else
 		{
-			GameContext.EnvironmentService?.TransitionToPreset(this, presetId, durationSeconds);
+			GameContext.EnvironmentService?.TransitionToPreset(presetId, durationSeconds);
 		}
 	}
 

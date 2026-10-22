@@ -890,7 +890,7 @@ public partial class GameHost
 
 	private void SetEnvironmentPresetViewLogic(string presetId)
 	{
-		Callable.From(() => { GameContext.EnvironmentService?.ApplyPresetById(this, presetId); }).CallDeferred();
+		Callable.From(() => { GameContext.EnvironmentService?.ApplyPresetById(presetId); }).CallDeferred();
 	}
 
 	void IGameAPI.SetEnvironmentPreset(string presetId)
@@ -904,7 +904,7 @@ public partial class GameHost
 
 	private void TransitionEnvironmentPresetViewLogic(string presetId, float durationSeconds)
 	{
-		Callable.From(() => { GameContext.EnvironmentService?.TransitionToPreset(this, presetId, durationSeconds); }).CallDeferred();
+		Callable.From(() => { GameContext.EnvironmentService?.TransitionToPreset(presetId, durationSeconds); }).CallDeferred();
 	}
 
 	void IGameAPI.TransitionEnvironmentPreset(string presetId, float durationSeconds)

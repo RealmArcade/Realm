@@ -2230,7 +2230,7 @@ public partial class InGameHUD : Control
 				_ => 0f
 			};
 			GameContext.EnvironmentService.SetBaseFogDensity(density);
-			GameContext.EnvironmentService.ApplyWeatherVisuals(GameContext.Host, weather);
+			GameContext.EnvironmentService.ApplyWeatherVisuals(weather);
 		}
 
 		ApplyWeatherEffects(weather);
@@ -2241,7 +2241,7 @@ public partial class InGameHUD : Control
 		GameHost tempQualifier = GameContext.Host;
 		if ((tempQualifier != null ? GameContext.EnvironmentService : null) != null)
 		{
-			GameContext.EnvironmentService.ApplyWeatherVisuals(GameContext.Host, weather);
+			GameContext.EnvironmentService.ApplyWeatherVisuals(weather);
 		}
 
 		if (weather == "clear")

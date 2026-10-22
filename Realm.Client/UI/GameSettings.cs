@@ -468,16 +468,16 @@ public static class GameSettings
 		var envService = GameContext.EnvironmentService;
 		if (envService == null) return;
 
-		envService.SyncWeatherEffectsWithSettings(gameHost);
+		envService.SyncWeatherEffectsWithSettings();
 
 		if (DisableDayNightLighting)
 		{
-			envService.UpdateDayNightVisuals(gameHost, 0f);
+			envService.UpdateDayNightVisuals(0f);
 			return;
 		}
 
 		float progress = GetTimeOfDayProgress(gameHost);
-		envService.UpdateDayNightVisuals(gameHost, progress);
+		envService.UpdateDayNightVisuals(progress);
 	}
 
 	private static GameHost GetValidGameHost(Window root)

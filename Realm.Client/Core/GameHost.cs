@@ -2216,7 +2216,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 		if (!GameContext.ReplayService.IsResettingForReplay) SchedulePostInitializationTasks();
 
-		GameContext.ShroudService.Initialize(MainNode);
+		GameContext.ShroudService.Initialize();
 	}
 
 	private void InitializeTracking()
@@ -3845,7 +3845,7 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.EnvironmentUpdateTransition))
 				{
-					GameContext.EnvironmentService.UpdateTransition(this, fDelta);
+					GameContext.EnvironmentService.UpdateTransition(fDelta);
 				}
 			}
 
@@ -4018,17 +4018,17 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void UpdateDayNightVisuals(float progress)
 	{
-		GameContext.EnvironmentService?.UpdateDayNightVisuals(this, progress);
+		GameContext.EnvironmentService?.UpdateDayNightVisuals(progress);
 	}
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) SetTimeOfDay(int timeOfDayIndex)
 	{
-		return GameContext.EnvironmentService?.SetTimeOfDay(this, ECSContext.WorldEntity, timeOfDayIndex, GameContext.EnvironmentService.TimeOfDayCycleDuration) ?? (0, 0f);
+		return GameContext.EnvironmentService?.SetTimeOfDay(ECSContext.WorldEntity, timeOfDayIndex, GameContext.EnvironmentService.TimeOfDayCycleDuration) ?? (0, 0f);
 	}
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) CycleTimeOfDay()
 	{
-		return GameContext.EnvironmentService?.CycleTimeOfDay(this, ECSContext.WorldEntity, GameContext.EnvironmentService.TimeOfDayCycleDuration) ?? (0, 0f);
+		return GameContext.EnvironmentService?.CycleTimeOfDay(ECSContext.WorldEntity, GameContext.EnvironmentService.TimeOfDayCycleDuration) ?? (0, 0f);
 	}
 
 	public string GetTimeOfDayName()

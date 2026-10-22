@@ -801,7 +801,7 @@ public partial class GameHost
 			{
 				if (GameContext.EnvironmentService != null)
 				{
-					string nextWeather = GameContext.EnvironmentService.CycleWeather(this);
+					string nextWeather = GameContext.EnvironmentService.CycleWeather();
 					string icon = nextWeather switch
 					{
 						"rain" => "🌧️",

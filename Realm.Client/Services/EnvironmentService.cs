@@ -111,29 +111,35 @@ public class EnvironmentService
 		};
 	}
 
-	public void ApplyPreset(Node3D host, EnvironmentPresetConfig preset)
+	private static Node3D? GetEnvironmentHost()
+	{
+		Node3D? host = GameContext.Host;
+		return host != null && GodotObject.IsInstanceValid(host) ? host : null;
+	}
+
+	public void ApplyPreset(EnvironmentPresetConfig preset)
 	{
 		_isTransitioning = false;
 		_currentPresetId = preset.Id;
 		_targetPresetId = preset.Id;
 		_currentState = ConvertPresetToState(preset);
-		ApplyStateToHost(host, _currentState);
+		ApplyStateToHost(GetEnvironmentHost(), _currentState);
 
 		SetCurrentWeather(preset.WeatherType ?? "clear");
 		SetBaseFogDensity(preset.BaseFogDensity);
-		ApplyWeatherVisuals(host, preset.WeatherType ?? "clear", preset.RainParticleDensity);
+		ApplyWeatherVisuals(preset.WeatherType ?? "clear", preset.RainParticleDensity);
 	}
 
-	public void ApplyPresetById(Node3D host, string presetId)
+	public void ApplyPresetById(string presetId)
 	{
 		var preset = GetPreset(presetId) ?? _presets.FirstOrDefault();
 		if (preset != null)
 		{
-			ApplyPreset(host, preset);
+			ApplyPreset(preset);
 		}
 	}
 
-	public void TransitionToPreset(Node3D host, string presetId, float durationSeconds)
+	public void TransitionToPreset(string presetId, float durationSeconds)
 	{
 		var targetPreset = GetPreset(presetId);
 		if (targetPreset == null)
@@ -145,7 +151,7 @@ public class EnvironmentService
 
 		if (durationSeconds <= 0.001f)
 		{
-			ApplyPreset(host, targetPreset);
+			ApplyPreset(targetPreset);
 			return;
 		}
 
@@ -157,7 +163,7 @@ public class EnvironmentService
 		_isTransitioning = true;
 	}
 
-	public void UpdateTransition(Node3D host, float delta)
+	public void UpdateTransition(float delta)
 	{
 		if (!_isTransitioning) return;
 
@@ -192,6 +198,7 @@ public class EnvironmentService
 
 		_currentState.CharacterFillEnergy = Mathf.Lerp(_fromState.CharacterFillEnergy, _toState.CharacterFillEnergy, t);
 
+		Node3D? host = GetEnvironmentHost();
 		ApplyStateToHost(host, _currentState);
 
 		if (t >= 1.0f)
@@ -204,7 +211,7 @@ public class EnvironmentService
 			if (targetPreset != null)
 			{
 				SetBaseFogDensity(targetPreset.BaseFogDensity);
-				ApplyWeatherVisuals(host, targetPreset.WeatherType ?? "clear", targetPreset.RainParticleDensity);
+				ApplyWeatherVisuals(targetPreset.WeatherType ?? "clear", targetPreset.RainParticleDensity);
 			}
 		}
 	}
@@ -246,7 +253,7 @@ public class EnvironmentService
 		}
 	}
 
-	private void ApplyStateToHost(Node3D host, LiveEnvironmentState state)
+	private void ApplyStateToHost(Node3D? host, LiveEnvironmentState state)
 	{
 		if (host == null || !GodotObject.IsInstanceValid(host)) return;
 
@@ -444,7 +451,7 @@ public class EnvironmentService
 		return scaledDensity;
 	}
 
-	public void ApplyWeatherVisuals(Node3D host, string weatherType, int particleDensity = 0)
+	public void ApplyWeatherVisuals(string weatherType, int particleDensity = 0)
 	{
 		if (GameSettings.DisableWeatherEffects)
 		{
@@ -452,7 +459,8 @@ public class EnvironmentService
 			return;
 		}
 
-		if (host == null || !GodotObject.IsInstanceValid(host)) return;
+		Node3D host = GetEnvironmentHost();
+		if (host == null) return;
 
 		weatherType = (weatherType ?? "clear").Trim().ToLowerInvariant();
 
@@ -582,9 +590,9 @@ public class EnvironmentService
 		}
 	}
 
-	public void SyncWeatherEffectsWithSettings(Node3D? host = null)
+	public void SyncWeatherEffectsWithSettings()
 	{
-		Node3D targetHost = host ?? GameContext.Host;
+		Node3D? targetHost = GetEnvironmentHost();
 
 		if (GameSettings.DisableWeatherEffects)
 		{
@@ -621,7 +629,7 @@ public class EnvironmentService
 		_activeParticleDensity = 0;
 	}
 
-	public string SetWeather(string weatherType, Node3D? host = null)
+	public string SetWeather(string weatherType)
 	{
 		string weather = NormalizeWeatherType(weatherType);
 		SetCurrentWeather(weather);
@@ -637,7 +645,7 @@ public class EnvironmentService
 			_currentState.FogDensity = 0f;
 		}
 
-		ApplyWeatherToTarget(host ?? GameContext.Host, weather, settings.ParticleDensity);
+		ApplyWeatherToTarget(GetEnvironmentHost(), weather, settings.ParticleDensity);
 
 		return weather;
 	}
@@ -668,7 +676,7 @@ public class EnvironmentService
 	{
 		if (targetHost == null) return;
 
-		ApplyWeatherVisuals(targetHost, weather, particleDensity);
+		ApplyWeatherVisuals(weather, particleDensity);
 
 		if (weather == "clear")
 		{
@@ -681,7 +689,7 @@ public class EnvironmentService
 		}
 	}
 
-	public string CycleWeather(Node3D? host = null)
+	public string CycleWeather()
 	{
 		string current = GetCurrentWeather();
 		string next = current switch
@@ -692,7 +700,7 @@ public class EnvironmentService
 			"fog" => "clear",
 			_ => "clear"
 		};
-		return SetWeather(next, host);
+		return SetWeather(next);
 	}
 
 	public bool OverrideDayNightVisuals { get; set; } = false;
@@ -787,9 +795,12 @@ public class EnvironmentService
 	private string _lastAppliedDayNightWeather = string.Empty;
 	private GraphicsQuality? _lastDayNightQualityIdx;
 
-	public void UpdateDayNightVisuals(Node3D host, float progress)
+	public void UpdateDayNightVisuals(float progress)
 	{
 		if (OverrideDayNightVisuals) return;
+
+		Node3D? host = GetEnvironmentHost();
+		if (host == null) return;
 		if (GameSettings.DisableDayNightLighting)
 		{
 			progress = 0f;
@@ -854,7 +865,7 @@ public class EnvironmentService
 		ApplyStateToHost(host, _currentState);
 	}
 
-	public (int TimeOfDayIndex, float TimeOfDayTimer) SetTimeOfDay(Node3D host, Entity worldEntity, int timeOfDayIndex, float cycleDuration)
+	public (int TimeOfDayIndex, float TimeOfDayTimer) SetTimeOfDay(Entity worldEntity, int timeOfDayIndex, float cycleDuration)
 	{
 		if (!GameContext.World.IsAlive(worldEntity) || !GameContext.World.Has<WorldState>(worldEntity))
 		{
@@ -867,14 +878,14 @@ public class EnvironmentService
 		float progress = targetIndex * 0.25f;
 		float nextTimer = progress * cycleDuration;
 
-		UpdateDayNightVisuals(host, progress);
+		UpdateDayNightVisuals(progress);
 
 		GameContext.World.Set(worldEntity, new WorldState(state.GameElapsedTime, targetIndex, nextTimer, state.DayNightCycleEnabled));
 
 		return (targetIndex, nextTimer);
 	}
 
-	public (int TimeOfDayIndex, float TimeOfDayTimer) CycleTimeOfDay(Node3D host, Entity worldEntity, float cycleDuration)
+	public (int TimeOfDayIndex, float TimeOfDayTimer) CycleTimeOfDay(Entity worldEntity, float cycleDuration)
 	{
 		if (!GameContext.World.IsAlive(worldEntity) || !GameContext.World.Has<WorldState>(worldEntity))
 		{
@@ -883,7 +894,7 @@ public class EnvironmentService
 
 		ref var state = ref GameContext.World.Get<WorldState>(worldEntity);
 		int nextIndex = (state.TimeOfDayIndex + 1) % 4;
-		return SetTimeOfDay(host, worldEntity, nextIndex, cycleDuration);
+		return SetTimeOfDay(worldEntity, nextIndex, cycleDuration);
 	}
 
 	public (string timeName, string icon) SetEnvironmentLightingDomain(int index)
@@ -913,7 +924,7 @@ public class EnvironmentService
 			3 => "fog",
 			_ => "clear"
 		};
-		string applied = SetWeather(weatherType, GameContext.Host);
+		string applied = SetWeather(weatherType);
 		string icon = applied switch
 		{
 			"rain" => "🌧️",

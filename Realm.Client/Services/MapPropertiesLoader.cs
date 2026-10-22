@@ -150,7 +150,7 @@ public class MapPropertiesLoader
 		string defPreset = defaultPresetProp.GetString() ?? "day";
 		if (GameContext.Host != null)
 		{
-			GameContext.EnvironmentService?.ApplyPresetById(GameContext.Host, defPreset);
+			GameContext.EnvironmentService?.ApplyPresetById(defPreset);
 		}
 	}
 }

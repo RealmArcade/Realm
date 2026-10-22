@@ -53,9 +53,10 @@ public class ShroudService
 	public ImageTexture? ShroudMinimapTexture => _shroudMinimapTexture;
 	public bool IsRevealAll => _isRevealAll;
 
-	public void Initialize(Node mainNode)
+	public void Initialize()
 	{
-		if (mainNode != null)
+		Node? mainNode = GameContext.Host?.MainNode;
+		if (mainNode != null && GodotObject.IsInstanceValid(mainNode))
 		{
 			RemoveLegacyShroudNodes(mainNode);
 		}
