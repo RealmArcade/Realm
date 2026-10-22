@@ -1752,25 +1752,21 @@ app.MapPost("/api/admin/remove_manifest", async (HttpRequest request, ClusterEve
 		return Results.Json(new RemoveManifestResponseDto { Success = false, Message = "Server has no AdminPublicKeys configured." }, statusCode: StatusCodes.Status403Forbidden);
 	}
 
-	string? bypassHeader = request.Headers["X-Admin-Bypass"];
 	string? sigHeader = request.Headers["X-Cluster-Signature"];
 	string? pubKeyHeader = request.Headers["X-Admin-PublicKey"];
 
 	string callerPubKey = req?.AdminPublicKey ?? pubKeyHeader?.ToString() ?? "";
 	string callerSig = req?.Signature ?? sigHeader?.ToString() ?? "";
 
-	string targetVerStr = mapVersion ?? "all";
-	string sigPayload1 = $"remove_manifest:{mapTitle.Trim().ToLowerInvariant()}:{targetVerStr.ToLowerInvariant()}";
-	string sigPayload2 = $"remove_manifest:{mapTitle.Trim().ToLowerInvariant()}";
-
-	bool isAuth = false;
-
-	return AdminEndpointsHelper.HandleRemoveManifest(mapTitle, mapVersion, request, clusterEvents, db, cas, registeredPeers, httpClientFactory, adminPublicKeys.ToList());
+	return AdminEndpointsHelper.HandleRemoveManifest(mapTitle, mapVersion, callerPubKey, callerSig, request, clusterEvents, db, cas, registeredPeers, httpClientFactory, adminPublicKeys.ToList());
 });
 
 app.MapDelete("/api/admin/manifests/{mapTitle}", (string mapTitle, HttpRequest request, ClusterEventService clusterEvents, DataStoreService db, ContentAddressableStorage cas, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 {
-	return AdminEndpointsHelper.HandleRemoveManifest(mapTitle, null, request, clusterEvents, db, cas, registeredPeers, httpClientFactory, adminPublicKeys.ToList());
+	string? callerPubKey = request.Headers["X-Admin-PublicKey"];
+	string? callerSig = request.Headers["X-Cluster-Signature"];
+
+	return AdminEndpointsHelper.HandleRemoveManifest(mapTitle, null, callerPubKey, callerSig, request, clusterEvents, db, cas, registeredPeers, httpClientFactory, adminPublicKeys.ToList());
 });
 
 app.MapDelete("/api/admin/manifests/{mapTitle}/{mapVersion}", (string mapTitle, string mapVersion, HttpRequest request, ClusterEventService clusterEvents, DataStoreService db, ContentAddressableStorage cas, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
@@ -1785,18 +1781,10 @@ app.MapDelete("/api/admin/manifests/{mapTitle}/{mapVersion}", (string mapTitle, 
 		return Results.Json(new RemoveManifestResponseDto { Success = false, Message = "Server has no AdminPublicKeys configured." }, statusCode: StatusCodes.Status403Forbidden);
 	}
 
-	string? bypassHeader = request.Headers["X-Admin-Bypass"];
-	string? sigHeader = request.Headers["X-Cluster-Signature"];
-	string? pubKeyHeader = request.Headers["X-Admin-PublicKey"];
+	string? callerPubKey = request.Headers["X-Admin-PublicKey"];
+	string? callerSig = request.Headers["X-Cluster-Signature"];
 
-	string callerPubKey = pubKeyHeader?.ToString() ?? "";
-	string callerSig = sigHeader?.ToString() ?? "";
-
-	string sigPayload = $"remove_manifest:{mapTitle.Trim().ToLowerInvariant()}:{mapVersion.Trim().ToLowerInvariant()}";
-
-	bool isAuth = false;
-
-	return AdminEndpointsHelper.HandleRemoveManifest(mapTitle, mapVersion, request, clusterEvents, db, cas, registeredPeers, httpClientFactory, adminPublicKeys.ToList());
+	return AdminEndpointsHelper.HandleRemoveManifest(mapTitle, mapVersion, callerPubKey, callerSig, request, clusterEvents, db, cas, registeredPeers, httpClientFactory, adminPublicKeys.ToList());
 });
 
 app.MapPost("/api/cluster/sync_metrics", async (HttpRequest request, ClusterEventService clusterEvents, DataStoreService db, ContentAddressableStorage cas) =>

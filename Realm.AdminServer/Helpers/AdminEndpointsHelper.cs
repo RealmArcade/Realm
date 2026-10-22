@@ -17,7 +17,9 @@ namespace Realm.AdminServer.Helpers
     {
         public static IResult HandleRemoveManifest(
             string mapTitle,
-            string mapVersion,
+            string? mapVersion,
+            string? callerPublicKey,
+            string? callerSignature,
             HttpRequest request,
             ClusterEventService clusterEvents,
             DataStoreService db,
@@ -26,49 +28,74 @@ namespace Realm.AdminServer.Helpers
             System.Net.Http.IHttpClientFactory httpClientFactory,
             List<string> adminPublicKeys)
         {
-            string? callerPubKey = request.Headers["X-Admin-PublicKey"];
-            string? callerSig = request.Headers["X-Admin-Signature"];
             string? bypassHeader = request.Headers["X-Admin-Bypass"];
 
-            bool isAuth = false;
-            if (!string.IsNullOrEmpty(bypassHeader) && adminPublicKeys.Count > 0)
-            {
-                isAuth = AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, mapVersion, bypassHeader);
-            }
-            else if (adminPublicKeys.Count > 0 && !string.IsNullOrEmpty(callerPubKey) && !string.IsNullOrEmpty(callerSig))
-            {
-                if (adminPublicKeys.Contains(callerPubKey.Trim()))
-                {
-                    string targetVerStr = string.IsNullOrEmpty(mapVersion) ? "all" : mapVersion;
-                    isAuth = AuthorSignatureHelper.VerifySignature(callerPubKey.Trim(), $"{mapTitle}:{targetVerStr}", callerSig)
-                             || AdminBypassAuth.VerifyBypassToken(adminPublicKeys, mapTitle, targetVerStr, callerSig);
-                }
-            }
-
-            if (!isAuth)
+            if (!IsRemoveManifestAuthorized(adminPublicKeys, mapTitle, mapVersion, callerPublicKey, callerSignature, bypassHeader))
             {
                 return Results.Json(new RemoveManifestResponseDto { Success = false, Message = "Unauthorized admin request." }, statusCode: StatusCodes.Status401Unauthorized);
             }
 
             var result = clusterEvents.RemoveManifest(cas, db, mapTitle, mapVersion);
 
+            string replicationSignature = !string.IsNullOrWhiteSpace(callerSignature) ? callerSignature : bypassHeader ?? "";
+            string eventPublicKey = !string.IsNullOrWhiteSpace(callerPublicKey) ? callerPublicKey.Trim() : (adminPublicKeys.FirstOrDefault() ?? "");
+
             var removeEvent = new ClusterEventDto
             {
                 EventType = "admin_remove_manifest",
-                PublicKey = !string.IsNullOrEmpty(callerPubKey) ? callerPubKey.Trim() : (adminPublicKeys.FirstOrDefault() ?? ""),
-                Signature = callerSig,
+                PublicKey = eventPublicKey,
+                Signature = replicationSignature,
                 PayloadJson = JsonSerializer.Serialize(new AdminRemoveManifestEventPayload
                 {
                     MapTitle = mapTitle,
                     MapVersion = mapVersion,
-                    AdminPublicKey = callerPubKey,
-                    Signature = callerSig
+                    AdminPublicKey = callerPublicKey ?? "",
+                    Signature = replicationSignature
                 })
             };
             clusterEvents.MarkEventProcessed(removeEvent.EventId, db);
             clusterEvents.BroadcastEvent(removeEvent, registeredPeers, httpClientFactory);
 
             return Results.Ok(result);
+        }
+
+        private static bool IsRemoveManifestAuthorized(
+            List<string> adminPublicKeys,
+            string mapTitle,
+            string? mapVersion,
+            string? callerPublicKey,
+            string? callerSignature,
+            string? bypassToken)
+        {
+            if (adminPublicKeys.Count == 0) return false;
+
+            string trimmedTitle = mapTitle.Trim();
+            string targetVersion = string.IsNullOrWhiteSpace(mapVersion) ? "all" : mapVersion.Trim();
+
+            if (!string.IsNullOrWhiteSpace(bypassToken) &&
+                (AdminBypassAuth.VerifyBypassToken(adminPublicKeys, trimmedTitle, targetVersion, bypassToken) ||
+                 AdminBypassAuth.VerifyBypassToken(adminPublicKeys, "admin", "remove_manifest", bypassToken) ||
+                 AdminBypassAuth.VerifyBypassToken(adminPublicKeys, trimmedTitle, "*", bypassToken)))
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(callerSignature)) return false;
+
+            string versionedPayload = $"remove_manifest:{trimmedTitle.ToLowerInvariant()}:{targetVersion.ToLowerInvariant()}";
+            string unversionedPayload = $"remove_manifest:{trimmedTitle.ToLowerInvariant()}";
+
+            string trimmedPublicKey = callerPublicKey?.Trim() ?? "";
+            if (trimmedPublicKey.Length > 0 && adminPublicKeys.Contains(trimmedPublicKey))
+            {
+                return AuthorSignatureHelper.VerifySignature(trimmedPublicKey, versionedPayload, callerSignature) ||
+                       AuthorSignatureHelper.VerifySignature(trimmedPublicKey, unversionedPayload, callerSignature) ||
+                       AdminBypassAuth.VerifyBypassToken(trimmedPublicKey, trimmedTitle, targetVersion, callerSignature);
+            }
+
+            return AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, versionedPayload, callerSignature) ||
+                   AuthorSignatureHelper.VerifySignatureAny(adminPublicKeys, unversionedPayload, callerSignature) ||
+                   AdminBypassAuth.VerifyBypassToken(adminPublicKeys, trimmedTitle, targetVersion, callerSignature);
         }
 
         public static async Task<bool> VerifyClusterSyncRequest(
