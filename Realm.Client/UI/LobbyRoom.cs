@@ -1235,7 +1235,7 @@ public partial class LobbyRoom : Control
 		{
 			var lblName = new Label();
 			lblName.Name = "LblName";
-			lblName.Text = p.Name;
+			lblName.Text = GetPlayerRowDisplayName(p);
 			lblName.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 			lblName.CustomMinimumSize = new Vector2(110, 0);
 			lblName.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
@@ -1447,10 +1447,26 @@ public partial class LobbyRoom : Control
 		}
 
 		var lblName = hBox.GetNodeOrNull<Label>("LblName");
-		if (lblName != null && lblName.Text != p.Name)
+		if (lblName == null) return;
+
+		string displayName = GetPlayerRowDisplayName(p);
+		if (lblName.Text != displayName)
 		{
-			lblName.Text = p.Name;
+			lblName.Text = displayName;
 		}
+
+		Color nameColor = p.IsDisconnected ? new Color(0.95f, 0.65f, 0.3f) : new Color(0.9f, 0.9f, 0.9f);
+		if (lblName.GetThemeColor("font_color") != nameColor)
+		{
+			lblName.AddThemeColorOverride("font_color", nameColor);
+		}
+	}
+
+	private static string GetPlayerRowDisplayName(PlayerInfo player)
+	{
+		return player.IsDisconnected
+			? string.Format(TranslationServer.Translate("{0} (reconnecting)"), player.Name)
+			: player.Name;
 	}
 
 	private void UpdateRowFactionOption(HBoxContainer hBox, PlayerInfo p)

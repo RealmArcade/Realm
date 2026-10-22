@@ -100,7 +100,9 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private readonly string _persistentSessionToken = Guid.NewGuid().ToString();
 	private bool _isReconnecting = false;
+	private string? _reconnectRejectionReason;
 	public bool IsReconnecting => _isReconnecting;
+	public string? LastReconnectError { get; private set; }
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
 	public bool IsHost { get; set; }
@@ -1436,6 +1438,7 @@ public partial class LobbyManager : BaseMapTransferNode
 					player.IsDisconnected = true;
 					GD.Print($"[LobbyManager] In-game peer {id} ({player.Name}) marked as disconnected for reconnect. Slot {player.Slot} preserved.");
 					SendChatMessage("System", string.Format(Tr("{0} disconnected. Waiting for reconnect..."), player.Name));
+					BroadcastPlayerList();
 				}
 
 				return;
@@ -1862,6 +1865,8 @@ public partial class LobbyManager : BaseMapTransferNode
 			return;
 		}
 
+		_reconnectRejectionReason = null;
+		LastReconnectError = null;
 		_ = AttemptReconnectLoopAsync();
 	}
 
@@ -1961,12 +1966,19 @@ public partial class LobbyManager : BaseMapTransferNode
 			await Task.Delay(150);
 		}
 
-		return !_isReconnecting;
+		return !_isReconnecting && _isConnectedToHost;
 	}
 
 	private void OnReconnectFailed()
 	{
-		KickReceived?.Invoke(Tr("Connection to host lost permanently."));
+		string reason = !string.IsNullOrWhiteSpace(_reconnectRejectionReason)
+			? _reconnectRejectionReason!
+			: Tr("Connection to host lost permanently.");
+
+		_reconnectRejectionReason = null;
+		LastReconnectError = reason;
+		LobbyJoinError = reason;
+		KickReceived?.Invoke(reason);
 		UIManager.Instance?.TransitionTo(GameScreen.LobbyBrowser);
 	}
 
@@ -1989,34 +2001,43 @@ public partial class LobbyManager : BaseMapTransferNode
 			return;
 		}
 
-		PlayerInfo? targetPlayer = null;
-		if (!string.IsNullOrEmpty(sessionToken))
-		{
-			targetPlayer = PlayerList.Find(p => p.SessionToken == sessionToken);
-		}
-
-		if (targetPlayer == null && !string.IsNullOrEmpty(playerName))
-		{
-			targetPlayer = PlayerList.Find(p => p.Name == playerName);
-		}
-
+		PlayerInfo? targetPlayer = FindReconnectSessionOwner(sessionToken, playerName);
 		if (targetPlayer == null)
 		{
-			RpcId(senderId, nameof(RejectConnection), Tr("Player session not found in active match."));
+			RpcId(senderId, nameof(RejectConnection), Tr("Reconnect rejected: no player in this match owns that session."));
 			return;
 		}
 
 		int oldPeerId = targetPlayer.PeerId;
+		if (oldPeerId != senderId && Multiplayer.GetPeers().Contains(oldPeerId))
+		{
+			RpcId(senderId, nameof(RejectConnection), Tr("Reconnect rejected: that player is already connected to this match."));
+			return;
+		}
+
 		targetPlayer.PeerId = senderId;
 		targetPlayer.IsDisconnected = false;
 
 		GD.Print($"[LobbyManager] Reconnected player {targetPlayer.Name} (Slot {targetPlayer.Slot}). Remapped old peer {oldPeerId} -> {senderId}");
 		SendChatMessage("System", string.Format(Tr("{0} reconnected to the match."), targetPlayer.Name));
+		BroadcastPlayerList();
 
 		string serializedPlayers = JsonSerializer.Serialize(PlayerList);
 		RpcId(senderId, nameof(AcceptReconnect), targetPlayer.Slot, ActiveMapName, serializedPlayers);
 
 		GameHost.Instance?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
+	}
+
+	private PlayerInfo? FindReconnectSessionOwner(string sessionToken, string playerName)
+	{
+		if (!string.IsNullOrEmpty(sessionToken))
+		{
+			var tokenOwner = PlayerList.Find(p => !string.IsNullOrEmpty(p.SessionToken) && string.Equals(p.SessionToken, sessionToken, StringComparison.Ordinal));
+			if (tokenOwner != null) return tokenOwner;
+		}
+
+		if (string.IsNullOrEmpty(playerName)) return null;
+		return PlayerList.Find(p => string.IsNullOrEmpty(p.SessionToken) && string.Equals(p.Name, playerName, StringComparison.Ordinal));
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2097,6 +2118,16 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void RejectConnection(string reason)
 	{
 		GD.Print($"[LobbyManager] Connection Rejected: {reason}");
+
+		if (_isReconnecting)
+		{
+			_reconnectRejectionReason = reason;
+			_isReconnecting = false;
+			Disconnect();
+			CallDeferred(nameof(OnReconnectFailed));
+			return;
+		}
+
 		ConnectionFailed?.Invoke(reason);
 		Disconnect();
 	}
