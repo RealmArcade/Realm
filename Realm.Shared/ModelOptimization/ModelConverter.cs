@@ -78,14 +78,19 @@ public static class ModelConverter
 		return null;
 	}
 
-	private static (bool Success, byte[]? OutputGlb, string? ErrorMessage, int[]? LodTriangleCounts) ProcessGlbOptimization(byte[] rawGlbBytes, string? effectiveAssetType, bool force, OptimizationOptions? options)
+	private static OptimizationResult ProcessGlbOptimization(byte[] rawGlbBytes, string? effectiveAssetType, bool force, OptimizationOptions? options)
 	{
 		bool shouldForce = force || (options.HasValue && options.Value.ForceReDecimate);
 		bool isAlreadyOptimized = GlbManifestUtils.HasOptimizationFlag(rawGlbBytes);
 
 		if (!shouldForce && isAlreadyOptimized)
 		{
-			return (true, rawGlbBytes, null, null);
+			return new OptimizationResult
+			{
+				Success = true,
+				OutputGlbBytes = rawGlbBytes,
+				DecimationSkipped = true
+			};
 		}
 
 		byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(rawGlbBytes).UnoptimizedBytes;
@@ -95,10 +100,10 @@ public static class ModelConverter
 		var optResult = optimizer.Optimize(unoptimized, opt);
 		if (!optResult.Success || optResult.OutputGlbBytes == null)
 		{
-			return (false, null, optResult.ErrorMessage ?? "Optimization failed.", null);
+			optResult.ErrorMessage ??= "Optimization failed.";
 		}
 
-		return (true, optResult.OutputGlbBytes, null, optResult.LodTriangleCounts);
+		return optResult;
 	}
 
 	private static string DetermineChromaKey(string? chromaKey, JsonObject metaObj, byte[] finalGlbBytes)
@@ -206,6 +211,9 @@ public static class ModelConverter
 			result.Author = convRes.Author;
 			result.PreferredFileName = convRes.PreferredFileName;
 			result.LodTriangleCounts = convRes.LodTriangleCounts;
+			result.UvIslandCountBefore = convRes.UvIslandCountBefore;
+			result.UvIslandCountAfter = convRes.UvIslandCountAfter;
+			result.UvChartMergeTolerance = convRes.UvChartMergeTolerance;
 			return result;
 		}
 		catch (Exception ex)
@@ -377,14 +385,14 @@ public static class ModelConverter
 			}
 
 			var optRes = ProcessGlbOptimization(rawGlbBytes, effectiveAssetType, force, options);
-			if (!optRes.Success || optRes.OutputGlb == null)
+			if (!optRes.Success || optRes.OutputGlbBytes == null)
 			{
 				result.Success = false;
 				result.ErrorMessage = optRes.ErrorMessage ?? "Optimization failed.";
 				return result;
 			}
 
-			byte[] finalGlbBytes = optRes.OutputGlb;
+			byte[] finalGlbBytes = optRes.OutputGlbBytes;
 			bool supportsTeamColor = GlbPlayerColorProcessor.DetectSupportsTeamColor(finalGlbBytes);
 			byte[]? effectiveSourceProfileImage = ResolveSourceProfileImage(inputBytes, sourceProfileImageWebp, stripSourceProfileImage);
 
@@ -392,6 +400,9 @@ public static class ModelConverter
 
 			var finalResult = BuildFinalRmeshResult(result, metaObj, finalGlbBytes, supportsTeamColor, effectiveAssetType, effectiveSourceProfileImage);
 			finalResult.LodTriangleCounts = optRes.LodTriangleCounts;
+			finalResult.UvIslandCountBefore = optRes.UvIslandCountBefore;
+			finalResult.UvIslandCountAfter = optRes.UvIslandCountAfter;
+			finalResult.UvChartMergeTolerance = optRes.UvChartMergeTolerance;
 			return finalResult;
 		}
 		catch (Exception ex)
@@ -492,8 +503,11 @@ public static class ModelConverter
 			{
 				byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(inputGlbBytes).UnoptimizedBytes;
 				var optRes = ProcessGlbOptimization(inputGlbBytes, assetType, force, options);
-				outputGlbBytes = optRes.Success && optRes.OutputGlb != null ? optRes.OutputGlb : unoptimized;
+				outputGlbBytes = optRes.Success && optRes.OutputGlbBytes != null ? optRes.OutputGlbBytes : unoptimized;
 				result.LodTriangleCounts = optRes.LodTriangleCounts;
+				result.UvIslandCountBefore = optRes.UvIslandCountBefore;
+				result.UvIslandCountAfter = optRes.UvIslandCountAfter;
+				result.UvChartMergeTolerance = optRes.UvChartMergeTolerance;
 			}
 
 			string? targetDir = Path.GetDirectoryName(target);

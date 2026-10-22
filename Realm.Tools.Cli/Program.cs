@@ -1067,11 +1067,12 @@ public static class Program
 			else
 			{
 				byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(inputGlbBytes).UnoptimizedBytes;
-				var opt = ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force, ParseSurfaceCategory(options.SurfaceCategory));
+				var opt = BuildMeshConvertOptimizationOptions(options);
 				var optimizer = new GlbOptimizer();
 				var optResult = optimizer.Optimize(unoptimized, opt);
 				outputGlbBytes = optResult.Success && optResult.OutputGlbBytes != null ? optResult.OutputGlbBytes : unoptimized;
 				WriteLodTriangleCountsReport(optResult, inputFile);
+				WriteUvChartReport(optResult, inputFile);
 			}
 
 			string? outDir = Path.GetDirectoryName(targetFile);
@@ -1094,6 +1095,18 @@ public static class Program
 		WriteLodTriangleCountsReport(result.LodTriangleCounts, inputFile);
 	}
 
+	private static void WriteUvChartReport(Realm.Shared.OptimizationResult result, string inputFile)
+	{
+		WriteUvChartReport(result.UvIslandCountBefore, result.UvIslandCountAfter, result.UvChartMergeTolerance, inputFile);
+	}
+
+	private static void WriteUvChartReport(int islandCountBefore, int islandCountAfter, float tolerance, string inputFile)
+	{
+		if (islandCountBefore <= 0) return;
+
+		Console.WriteLine($"UV charts for {inputFile}: {islandCountBefore} -> {islandCountAfter} islands (seam tolerance {tolerance:0.00000})");
+	}
+
 	private static void WriteLodTriangleCountsReport(int[]? counts, string inputFile)
 	{
 		if (counts == null || counts.Length == 0)
@@ -1112,12 +1125,21 @@ public static class Program
 		Console.WriteLine($"LOD triangles for {inputFile}: {report}");
 	}
 
+	private static OptimizationOptions BuildMeshConvertOptimizationOptions(MeshConvertOptions options)
+	{
+		var optimizationOptions = ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force, ParseSurfaceCategory(options.SurfaceCategory));
+		optimizationOptions.ReduceUvIslands = !options.NoUvChartReduction;
+		if (options.UvChartTolerance > 0f)
+		{
+			optimizationOptions.UvChartMergeTolerance = options.UvChartTolerance;
+		}
+
+		return optimizationOptions;
+	}
+
 	private static int ExecuteModelToRmeshConversion(string inputFile, string targetFile, MeshConvertOptions options)
 	{
-		MeshSurfaceCategory? surfaceCategory = ParseSurfaceCategory(options.SurfaceCategory);
-		OptimizationOptions? optimizationOptions = surfaceCategory.HasValue
-			? ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force, surfaceCategory)
-			: null;
+		OptimizationOptions optimizationOptions = BuildMeshConvertOptimizationOptions(options);
 
 		var res = ModelConverter.ConvertToRmesh(
 			inputFile,
@@ -1133,6 +1155,7 @@ public static class Program
 		{
 			Console.WriteLine($"Successfully converted model: {inputFile} -> {targetFile} (Size: {res.OptimizedSize} bytes, TeamColor: {res.SupportsTeamColor})");
 			WriteLodTriangleCountsReport(res.LodTriangleCounts, inputFile);
+			WriteUvChartReport(res.UvIslandCountBefore, res.UvIslandCountAfter, res.UvChartMergeTolerance, inputFile);
 			return 0;
 		}
 

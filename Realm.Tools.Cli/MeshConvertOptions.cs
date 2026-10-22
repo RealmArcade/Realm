@@ -26,6 +26,12 @@ public class MeshConvertOptions
 	[Option("surface_category", Required = false, HelpText = "Surface category for LOD decimation: auto (detect from mesh features), organic, or hard_edged. Defaults to auto.")]
 	public string? SurfaceCategory { get; set; }
 
+	[Option("no_uv_chart_reduction", Required = false, Default = false, HelpText = "Skip the UV chart reduction stage so LOD decimation keeps every UV seam as a hard boundary.")]
+	public bool NoUvChartReduction { get; set; }
+
+	[Option("uv_chart_tolerance", Required = false, HelpText = "Maximum UV distance in atlas space for two seam vertices to count as one chart. Defaults to 1/2048.")]
+	public float UvChartTolerance { get; set; }
+
 	[Option("chroma_key", Required = false, HelpText = "Chroma key color in hex (e.g. #FF00FF) or 'auto' to automatically detect the dominant vibrant chroma key.")]
 	public string? ChromaKey { get; set; }
 

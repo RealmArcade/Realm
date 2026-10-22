@@ -60,6 +60,13 @@ public class GlbOptimizer
 		return (toolSuccess && toolBytes != null && toolBytes.Length > 0) ? toolBytes : sanitized;
 	}
 
+	private static float ResolveUvChartMergeTolerance(OptimizationOptions options)
+	{
+		if (!options.ReduceUvIslands) return 0f;
+		if (options.UvChartMergeTolerance > 0f) return options.UvChartMergeTolerance;
+		return UvChartReducer.DefaultTexCoordTolerance;
+	}
+
 	private void ProcessOptimization(byte[] glbBytes, OptimizationOptions options, ref OptimizationResult result)
 	{
 		byte[] smoothed = GlbMeshSmoother.SmoothMesh(glbBytes, ResolveCreaseAngleDegrees(options));
@@ -74,7 +81,16 @@ public class GlbOptimizer
 
 		byte[] packedBaseMesh = GetPackedBaseMesh(toolSuccess, toolBytes, sanitized);
 
-		var (lodSuccess, lodGlbBytes, lodError, lodTriangleCounts) = GlbLodGenerator.GenerateLods(packedBaseMesh, decimationProfile: options.DecimationProfile);
+		float uvChartMergeTolerance = ResolveUvChartMergeTolerance(options);
+		if (uvChartMergeTolerance > 0f)
+		{
+			var chartStatistics = UvChartReducer.Analyze(packedBaseMesh, uvChartMergeTolerance);
+			result.UvIslandCountBefore = chartStatistics.IslandCountBefore;
+			result.UvIslandCountAfter = chartStatistics.IslandCountAfter;
+			result.UvChartMergeTolerance = chartStatistics.TexCoordTolerance;
+		}
+
+		var (lodSuccess, lodGlbBytes, lodError, lodTriangleCounts) = GlbLodGenerator.GenerateLods(packedBaseMesh, decimationProfile: options.DecimationProfile, uvSeamMergeTolerance: uvChartMergeTolerance);
 		if (!lodSuccess)
 		{
 			result.Success = false;

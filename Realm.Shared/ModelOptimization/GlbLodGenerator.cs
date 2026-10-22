@@ -15,7 +15,8 @@ public static unsafe class GlbLodGenerator
 		float[]? lodRatios = null,
 		float[]? visBegins = null,
 		float[]? visEnds = null,
-		LodDecimationProfile? decimationProfile = null)
+		LodDecimationProfile? decimationProfile = null,
+		float uvSeamMergeTolerance = 0f)
 	{
 		if (inputGlbBytes == null || inputGlbBytes.Length < 20)
 			return (false, inputGlbBytes ?? Array.Empty<byte>(), "Invalid GLB buffer", Array.Empty<int>());
@@ -29,7 +30,7 @@ public static unsafe class GlbLodGenerator
 
 		try
 		{
-			return ProcessGlb(inputGlbBytes, lodRatios!, visBegins!, visEnds!, decimationProfile);
+			return ProcessGlb(inputGlbBytes, lodRatios!, visBegins!, visEnds!, decimationProfile, uvSeamMergeTolerance);
 		}
 		catch (Exception ex)
 		{
@@ -44,7 +45,7 @@ public static unsafe class GlbLodGenerator
 		return IsDecreasingRatios(lodRatios);
 	}
 
-	private static (bool, byte[], string, int[]) ProcessGlb(byte[] input, float[] ratios, float[] visBegins, float[] visEnds, LodDecimationProfile? decimationProfile)
+	private static (bool, byte[], string, int[]) ProcessGlb(byte[] input, float[] ratios, float[] visBegins, float[] visEnds, LodDecimationProfile? decimationProfile, float uvSeamMergeTolerance)
 	{
 		var (jsonNode, binBytes, glbVer) = GlbManifestUtils.ParseGlb(input);
 		if (jsonNode is not JsonObject root)
@@ -61,7 +62,7 @@ public static unsafe class GlbLodGenerator
 		newBinStream.Write(binBytes, 0, binBytes.Length);
 
 		int[] tierTriangleCounts = new int[ratios.Length];
-		var meshLodMap = ProcessMeshes(root, ratios, binBytes, newBinStream, decimationProfile, tierTriangleCounts);
+		var meshLodMap = ProcessMeshes(root, ratios, binBytes, newBinStream, decimationProfile, tierTriangleCounts, uvSeamMergeTolerance);
 
 		AlignStream(newBinStream);
 		byte[] finalBinBytes = newBinStream.ToArray();
@@ -130,7 +131,7 @@ public static unsafe class GlbLodGenerator
 		return true;
 	}
 
-	private static Dictionary<int, List<int>> ProcessMeshes(JsonObject root, float[] ratios, byte[] binBytes, MemoryStream newBinStream, LodDecimationProfile? decimationProfile, int[] tierTriangleCounts)
+	private static Dictionary<int, List<int>> ProcessMeshes(JsonObject root, float[] ratios, byte[] binBytes, MemoryStream newBinStream, LodDecimationProfile? decimationProfile, int[] tierTriangleCounts, float uvSeamMergeTolerance)
 	{
 		var meshLodMap = new Dictionary<int, List<int>>();
 		var meshes = root["meshes"] as JsonArray;
@@ -139,13 +140,13 @@ public static unsafe class GlbLodGenerator
 		for (int m = 0; m < meshes.Count; m++)
 		{
 			if (meshes[m] is not JsonObject meshObj) continue;
-			ProcessSingleMesh(meshObj, m, root, ratios, binBytes, newBinStream, meshes, meshLodMap, decimationProfile, tierTriangleCounts);
+			ProcessSingleMesh(meshObj, m, root, ratios, binBytes, newBinStream, meshes, meshLodMap, decimationProfile, tierTriangleCounts, uvSeamMergeTolerance);
 		}
 
 		return meshLodMap;
 	}
 
-	private static void ProcessSingleMesh(JsonObject meshObj, int m, JsonObject root, float[] ratios, byte[] binBytes, MemoryStream newBinStream, JsonArray meshes, Dictionary<int, List<int>> meshLodMap, LodDecimationProfile? decimationProfile, int[] tierTriangleCounts)
+	private static void ProcessSingleMesh(JsonObject meshObj, int m, JsonObject root, float[] ratios, byte[] binBytes, MemoryStream newBinStream, JsonArray meshes, Dictionary<int, List<int>> meshLodMap, LodDecimationProfile? decimationProfile, int[] tierTriangleCounts, float uvSeamMergeTolerance)
 	{
 		if (meshObj["primitives"] is not JsonArray primitives || primitives.Count == 0) return;
 
@@ -160,7 +161,7 @@ public static unsafe class GlbLodGenerator
 		var lodMeshIndices = new List<int>();
 		for (int t = 1; t < ratios.Length; t++)
 		{
-			ProcessLodTier(t, ratios[t], meshObj, root, binBytes, newBinStream, meshes, meshName, primitives, lodMeshIndices, decimationProfile, tierTriangleCounts);
+			ProcessLodTier(t, ratios[t], meshObj, root, binBytes, newBinStream, meshes, meshName, primitives, lodMeshIndices, decimationProfile, tierTriangleCounts, uvSeamMergeTolerance);
 		}
 
 		if (lodMeshIndices.Count > 0)
@@ -179,13 +180,13 @@ public static unsafe class GlbLodGenerator
 		       meshName.Contains("LOD3", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static void ProcessLodTier(int t, float ratio, JsonObject meshObj, JsonObject root, byte[] binBytes, MemoryStream newBinStream, JsonArray meshes, string meshName, JsonArray primitives, List<int> lodMeshIndices, LodDecimationProfile? decimationProfile, int[] tierTriangleCounts)
+	private static void ProcessLodTier(int t, float ratio, JsonObject meshObj, JsonObject root, byte[] binBytes, MemoryStream newBinStream, JsonArray meshes, string meshName, JsonArray primitives, List<int> lodMeshIndices, LodDecimationProfile? decimationProfile, int[] tierTriangleCounts, float uvSeamMergeTolerance)
 	{
 		var newPrimitives = new JsonArray();
 		for (int p = 0; p < primitives.Count; p++)
 		{
 			if (primitives[p] is not JsonObject primObj) continue;
-			ProcessPrimitive(primObj, t, ratio, root, binBytes, newBinStream, newPrimitives, decimationProfile);
+			ProcessPrimitive(primObj, t, ratio, root, binBytes, newBinStream, newPrimitives, decimationProfile, uvSeamMergeTolerance);
 		}
 
 		if (newPrimitives.Count > 0)
@@ -221,7 +222,7 @@ public static unsafe class GlbLodGenerator
 		tierTriangleCounts[tier] += triangleCount;
 	}
 
-	private static void ProcessPrimitive(JsonObject primObj, int t, float ratio, JsonObject root, byte[] binBytes, MemoryStream newBinStream, JsonArray newPrimitives, LodDecimationProfile? decimationProfile)
+	private static void ProcessPrimitive(JsonObject primObj, int t, float ratio, JsonObject root, byte[] binBytes, MemoryStream newBinStream, JsonArray newPrimitives, LodDecimationProfile? decimationProfile, float uvSeamMergeTolerance)
 	{
 		if (ShouldSkipPrimitive(primObj))
 		{
@@ -246,7 +247,7 @@ public static unsafe class GlbLodGenerator
 			return;
 		}
 
-		var simplifiedIndices = SimplifyIndices(originalIndices, geometry.Value, ratio, t, binBytes, decimationProfile);
+		var simplifiedIndices = SimplifyIndices(originalIndices, geometry.Value, ratio, t, binBytes, decimationProfile, uvSeamMergeTolerance);
 		if (simplifiedIndices == null)
 		{
 			newPrimitives.Add(primObj.DeepClone());
@@ -282,7 +283,7 @@ public static unsafe class GlbLodGenerator
 
 	private readonly record struct TexCoordStream(int ByteOffset, int ByteStride, int ComponentType, bool Normalized);
 
-	private readonly record struct VertexWeldKey(int PositionX, int PositionY, int PositionZ, int TexCoordU, int TexCoordV, ulong OtherAttributesHash);
+	private readonly record struct VertexPositionKey(int PositionX, int PositionY, int PositionZ, ulong OtherAttributesHash);
 
 	private readonly record struct PrimitiveGeometry(
 		int PositionByteOffset,
@@ -587,13 +588,13 @@ public static unsafe class GlbLodGenerator
 		return false;
 	}
 
-	private static uint[]? SimplifyIndices(uint[] originalIndices, PrimitiveGeometry geometry, float ratio, int t, byte[] binBytes, LodDecimationProfile? overrideProfile)
+	private static uint[]? SimplifyIndices(uint[] originalIndices, PrimitiveGeometry geometry, float ratio, int t, byte[] binBytes, LodDecimationProfile? overrideProfile, float uvSeamMergeTolerance)
 	{
 		float[] weldedPositions = new float[geometry.PositionCount * 3];
 		float[] weldedTexCoords = new float[geometry.PositionCount * 2];
 		uint[] weldedIndices = new uint[originalIndices.Length];
 		uint[] representatives = new uint[geometry.PositionCount];
-		int weldedVertexCount = BuildPositionTexCoordWeldedMesh(weldedIndices, weldedPositions, weldedTexCoords, representatives, originalIndices, geometry, binBytes);
+		int weldedVertexCount = BuildPositionTexCoordWeldedMesh(weldedIndices, weldedPositions, weldedTexCoords, representatives, originalIndices, geometry, binBytes, uvSeamMergeTolerance);
 		if (weldedVertexCount < 3) return null;
 
 		float sharpEdgeRatio = MeasureSharpEdgeRatio(weldedIndices, weldedPositions, weldedVertexCount);
@@ -740,9 +741,11 @@ public static unsafe class GlbLodGenerator
 	}
 
 
-	private static int BuildPositionTexCoordWeldedMesh(uint[] weldedIndices, float[] weldedPositions, float[] weldedTexCoords, uint[] representatives, uint[] originalIndices, PrimitiveGeometry geometry, byte[] binBytes)
+	private static int BuildPositionTexCoordWeldedMesh(uint[] weldedIndices, float[] weldedPositions, float[] weldedTexCoords, uint[] representatives, uint[] originalIndices, PrimitiveGeometry geometry, byte[] binBytes, float uvSeamMergeTolerance)
 	{
-		var vertexLookup = new Dictionary<VertexWeldKey, int>(geometry.PositionCount);
+		float texCoordTolerance = uvSeamMergeTolerance > 0f ? uvSeamMergeTolerance : WeldEpsilon;
+		var firstWeldedByPosition = new Dictionary<VertexPositionKey, int>(geometry.PositionCount);
+		var extraWeldedByFirst = new Dictionary<int, List<int>>();
 		var vertexRemap = new uint[geometry.PositionCount];
 		int weldedVertexCount = 0;
 
@@ -762,24 +765,34 @@ public static unsafe class GlbLodGenerator
 				v = ReadTexCoordComponent(binBytes, texCoordOffset + componentSize, geometry.TexCoords);
 			}
 
-			var weldKey = new VertexWeldKey(
+			var positionKey = new VertexPositionKey(
 				QuantizeWeldValue(x),
 				QuantizeWeldValue(y),
 				QuantizeWeldValue(z),
-				QuantizeWeldValue(u),
-				QuantizeWeldValue(v),
 				ComputeOtherAttributesHash(geometry.OtherAttributes, vertexIndex, binBytes));
 
-			if (!vertexLookup.TryGetValue(weldKey, out int weldedIndex))
+			int weldedIndex = ResolveWeldedVertex(positionKey, u, v, texCoordTolerance, firstWeldedByPosition, extraWeldedByFirst, weldedTexCoords);
+			if (weldedIndex < 0)
 			{
 				weldedIndex = weldedVertexCount++;
-				vertexLookup[weldKey] = weldedIndex;
 				weldedPositions[(weldedIndex * 3)] = x;
 				weldedPositions[(weldedIndex * 3) + 1] = y;
 				weldedPositions[(weldedIndex * 3) + 2] = z;
 				weldedTexCoords[(weldedIndex * 2)] = u;
 				weldedTexCoords[(weldedIndex * 2) + 1] = v;
 				representatives[weldedIndex] = (uint)vertexIndex;
+
+				if (!firstWeldedByPosition.TryAdd(positionKey, weldedIndex))
+				{
+					int firstWelded = firstWeldedByPosition[positionKey];
+					if (!extraWeldedByFirst.TryGetValue(firstWelded, out List<int> extras))
+					{
+						extras = new List<int>(2);
+						extraWeldedByFirst[firstWelded] = extras;
+					}
+
+					extras.Add(weldedIndex);
+				}
 			}
 
 			vertexRemap[vertexIndex] = (uint)weldedIndex;
@@ -796,6 +809,33 @@ public static unsafe class GlbLodGenerator
 	private static int QuantizeWeldValue(float value)
 	{
 		return (int)MathF.Round(value / WeldEpsilon);
+	}
+
+	private static int ResolveWeldedVertex(
+		VertexPositionKey positionKey,
+		float u,
+		float v,
+		float tolerance,
+		Dictionary<VertexPositionKey, int> firstWeldedByPosition,
+		Dictionary<int, List<int>> extraWeldedByFirst,
+		float[] weldedTexCoords)
+	{
+		if (!firstWeldedByPosition.TryGetValue(positionKey, out int firstWelded)) return -1;
+		if (IsTexCoordMatch(weldedTexCoords, firstWelded, u, v, tolerance)) return firstWelded;
+		if (!extraWeldedByFirst.TryGetValue(firstWelded, out List<int> extras)) return -1;
+
+		for (int i = 0; i < extras.Count; i++)
+		{
+			if (IsTexCoordMatch(weldedTexCoords, extras[i], u, v, tolerance)) return extras[i];
+		}
+
+		return -1;
+	}
+
+	private static bool IsTexCoordMatch(float[] weldedTexCoords, int weldedIndex, float u, float v, float tolerance)
+	{
+		return MathF.Abs(weldedTexCoords[weldedIndex * 2] - u) <= tolerance
+		       && MathF.Abs(weldedTexCoords[weldedIndex * 2 + 1] - v) <= tolerance;
 	}
 
 	private static ulong ComputeOtherAttributesHash(AttributeStream[] streams, int vertexIndex, byte[] binBytes)

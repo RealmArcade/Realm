@@ -10,6 +10,8 @@ public struct OptimizationOptions
 	public bool GenerateLods { get; set; } = true;
 	public float CreaseAngleDegrees { get; set; } = ModelOptimization.GlbMeshSmoother.DefaultCreaseAngleDegrees;
 	public ModelOptimization.LodDecimationProfile? DecimationProfile { get; set; } = null;
+	public bool ReduceUvIslands { get; set; } = true;
+	public float UvChartMergeTolerance { get; set; } = ModelOptimization.UvChartReducer.DefaultTexCoordTolerance;
 
 	public OptimizationOptions()
 	{
