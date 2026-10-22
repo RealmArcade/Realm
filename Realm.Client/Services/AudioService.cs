@@ -92,14 +92,13 @@ public class AudioService
 		AudioServer.SetBusVolumeDb(busIndex, linearVolume <= 0f ? -80f : Mathf.LinearToDb(linearVolume));
 	}
 
-	public void InitializeAudioNodes(Node parentNode)
+	private void InitializeAudioNodes()
 	{
 		if (_audioRoot != null && GodotObject.IsInstanceValid(_audioRoot)) return;
 
 		EnsureAudioBuses();
 
 		_audioRoot = new Node { Name = "AudioRoot" };
-		parentNode.AddChild(_audioRoot);
 
 		_player2DPool.Clear();
 		for (int i = 0; i < Max2DPlayers; i++)
@@ -365,13 +364,12 @@ public class AudioService
 		return AudioListener.Default;
 	}
 
-	public void UpdateListenerFromCamera(Node3D? camera)
+	public void UpdateListenerFromCamera(Transform3D cameraTransform)
 	{
 		if (!_followCameraListener) return;
-		if (camera == null || !GodotObject.IsInstanceValid(camera)) return;
 
-		Basis cameraBasis = camera.GlobalTransform.Basis;
-		_listener = new AudioListener(camera.GlobalPosition, -cameraBasis.Z, cameraBasis.Y);
+		Basis cameraBasis = cameraTransform.Basis;
+		_listener = new AudioListener(cameraTransform.Origin, -cameraBasis.Z, cameraBasis.Y);
 		_hasConfiguredListener = true;
 		UpdatePositionalVoices();
 	}
@@ -592,16 +590,21 @@ public class AudioService
 
 	private void EnsureAudioRoot()
 	{
-		if (_audioRoot == null || !GodotObject.IsInstanceValid(_audioRoot))
+		if (_audioRoot != null && GodotObject.IsInstanceValid(_audioRoot)) return;
+
+		Node? parentNode = null;
+		if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host))
 		{
-			if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host))
-			{
-				InitializeAudioNodes(GameContext.Host);
-			}
-			else if (Engine.GetMainLoop() is SceneTree tree && tree.Root != null)
-			{
-				InitializeAudioNodes(tree.Root);
-			}
+			parentNode = GameContext.Host;
 		}
+		else if (Engine.GetMainLoop() is SceneTree sceneTree)
+		{
+			parentNode = sceneTree.Root;
+		}
+
+		if (parentNode == null) return;
+
+		InitializeAudioNodes();
+		parentNode.AddChild(_audioRoot!);
 	}
 }

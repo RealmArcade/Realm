@@ -3351,7 +3351,10 @@ public partial class GameHost : Node3D, IGameAPI
 			}
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.AudioPositionalUpdate))
 			{
-				GameContext.AudioService?.UpdateListenerFromCamera(MainCamera);
+				if (MainCamera != null && GodotObject.IsInstanceValid(MainCamera))
+				{
+					GameContext.AudioService?.UpdateListenerFromCamera(MainCamera.GlobalTransform);
+				}
 			}
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PredictionPerformanceSample))
 			{
