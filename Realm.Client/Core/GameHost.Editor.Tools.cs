@@ -2114,7 +2114,7 @@ namespace Realm.Client.Core
 			GameContext.EditorService.DragObjectHasMoved = false;
 
 			_dragSelectionStartTransforms.Clear();
-			var selection = GameContext.EditorService.SelectedEditorObjects;
+			var selection = _editorObjectSelection;
 			for (int i = 0; i < selection.Count; i++)
 			{
 				if (selection[i] is Node3D node3D && GodotObject.IsInstanceValid(node3D))
@@ -2433,7 +2433,7 @@ namespace Realm.Client.Core
 			var selection = new List<Node>();
 			if (additive || subtractive)
 			{
-				selection.AddRange(editorService.SelectedEditorObjects);
+				selection.AddRange(_editorObjectSelection);
 			}
 
 			CollectMarqueeSelection(AllUnits, minX, minZ, maxX, maxZ, subtractive, selection);

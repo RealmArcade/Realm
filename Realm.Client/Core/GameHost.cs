@@ -773,14 +773,14 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (value == null)
 			{
-				if (_selectedEditorObject == null && GameContext.EditorService.SelectedEditorObjectCount == 0) return;
+				if (_selectedEditorObject == null && _editorObjectSelection.Count == 0) return;
 				SetEditorObjectSelection(null);
 				return;
 			}
 
 			if (GodotObject.IsInstanceValid(value)
-			    && GameContext.EditorService.SelectedEditorObjectCount == 1
-			    && GameContext.EditorService.SelectedEditorObjects[0] == value)
+			    && _editorObjectSelection.Count == 1
+			    && _editorObjectSelection[0] == value)
 			{
 				return;
 			}
@@ -789,13 +789,24 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
+	public int SelectedEditorObjectCount => _editorObjectSelection.Count;
+
 	public void SetEditorObjectSelection(IEnumerable<Node> nodes)
 	{
 		ClearEditorSelectionVisuals();
-		GameContext.EditorService.SetSelectedEditorObjects(nodes);
+		_editorObjectSelection.Clear();
 
-		var selection = GameContext.EditorService.SelectedEditorObjects;
-		_selectedEditorObject = selection.Count > 0 ? selection[^1] : null;
+		if (nodes != null)
+		{
+			foreach (Node node in nodes)
+			{
+				if (node == null || !GodotObject.IsInstanceValid(node)) continue;
+				if (_editorObjectSelection.Contains(node)) continue;
+				_editorObjectSelection.Add(node);
+			}
+		}
+
+		_selectedEditorObject = _editorObjectSelection.Count > 0 ? _editorObjectSelection[^1] : null;
 		ApplyEditorSelectionVisuals();
 
 		GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
@@ -804,8 +815,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void AddEditorObjectToSelection(Node node)
 	{
-		if (node == null || GameContext.EditorService.IsEditorObjectSelected(node)) return;
-		if (!GameContext.EditorService.AddSelectedEditorObject(node)) return;
+		if (node == null || !GodotObject.IsInstanceValid(node) || IsEditorObjectSelected(node)) return;
+
+		_editorObjectSelection.Add(node);
 
 		ClearSelectedPropEntity();
 		ApplyEditorSelectionVisual(node, true);
@@ -817,25 +829,26 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void RemoveEditorObjectFromSelection(Node node)
 	{
-		if (node == null || !GameContext.EditorService.IsEditorObjectSelected(node)) return;
+		if (node == null || !IsEditorObjectSelected(node)) return;
 
 		ApplyEditorSelectionVisual(node, false);
-		GameContext.EditorService.RemoveSelectedEditorObject(node);
+		_editorObjectSelection.Remove(node);
 		ClearSelectedPropEntity();
 
-		var selection = GameContext.EditorService.SelectedEditorObjects;
-		_selectedEditorObject = selection.Count > 0 ? selection[^1] : null;
+		_selectedEditorObject = _editorObjectSelection.Count > 0 ? _editorObjectSelection[^1] : null;
 		ApplyEditorSelectionVisuals();
 
 		GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 		UpdateEditorCoverageOverlay();
 	}
 
+	public bool IsEditorObjectSelected(Node node) => node != null && _editorObjectSelection.Contains(node);
+
 	public void ToggleEditorObjectSelection(Node node, bool remove)
 	{
 		if (node == null) return;
 
-		if (remove || GameContext.EditorService.IsEditorObjectSelected(node))
+		if (remove || IsEditorObjectSelected(node))
 		{
 			RemoveEditorObjectFromSelection(node);
 		}
@@ -852,10 +865,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void ClearEditorSelectionVisuals()
 	{
-		var selection = GameContext.EditorService.SelectedEditorObjects;
-		for (int i = 0; i < selection.Count; i++)
+		for (int i = 0; i < _editorObjectSelection.Count; i++)
 		{
-			ApplyEditorSelectionVisual(selection[i], false);
+			ApplyEditorSelectionVisual(_editorObjectSelection[i], false);
 		}
 
 		ClearSelectedPropEntity();
@@ -863,7 +875,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void ApplyEditorSelectionVisuals()
 	{
-		var selection = GameContext.EditorService.SelectedEditorObjects;
+		var selection = _editorObjectSelection;
 		if (selection.Count == 0) return;
 
 		if (selection.Count == 1)
@@ -922,6 +934,7 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 	private Node? _selectedEditorObject { get; set; }
+	private readonly List<Node> _editorObjectSelection = new();
 	private bool _isDraggingObject { get; set; }
 	private bool _isDraggingSelectionGroup { get; set; }
 	private Vector3 _dragObjectStartPos { get; set; }

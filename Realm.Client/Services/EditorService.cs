@@ -1211,7 +1211,6 @@ public partial class EditorService : IEditorAPI
 	private Vector2I? _selectionEnd;
 	private bool _isSelectingArea;
 
-	private readonly List<Node> _selectedEditorObjects = new();
 	private Vector2I? _objectMarqueeStart;
 	private Vector2I? _objectMarqueeEnd;
 	private bool _isObjectMarqueeSelecting;
@@ -1275,8 +1274,6 @@ public partial class EditorService : IEditorAPI
 	public Vector2I? SelectionEnd => _selectionEnd;
 	public bool IsSelectingArea => _isSelectingArea;
 
-	public IReadOnlyList<Node> SelectedEditorObjects => _selectedEditorObjects;
-	public int SelectedEditorObjectCount => _selectedEditorObjects.Count;
 	public Vector2I? ObjectMarqueeStart => _objectMarqueeStart;
 	public Vector2I? ObjectMarqueeEnd => _objectMarqueeEnd;
 	public bool IsObjectMarqueeSelecting => _isObjectMarqueeSelecting;
@@ -1431,57 +1428,6 @@ public partial class EditorService : IEditorAPI
 	public void SetIsSelectingArea(bool value)
 	{
 		_isSelectingArea = value;
-	}
-
-	public void SetSelectedEditorObjects(IEnumerable<Node> nodes)
-	{
-		if (nodes == null)
-		{
-			_selectedEditorObjects.Clear();
-			return;
-		}
-
-		var pendingNodes = new List<Node>(nodes);
-		_selectedEditorObjects.Clear();
-
-		foreach (Node node in pendingNodes)
-		{
-			if (node == null || !GodotObject.IsInstanceValid(node)) continue;
-			if (_selectedEditorObjects.Contains(node)) continue;
-			_selectedEditorObjects.Add(node);
-		}
-	}
-
-	public bool AddSelectedEditorObject(Node node)
-	{
-		if (node == null || !GodotObject.IsInstanceValid(node)) return false;
-		if (_selectedEditorObjects.Contains(node)) return false;
-		_selectedEditorObjects.Add(node);
-		return true;
-	}
-
-	public bool RemoveSelectedEditorObject(Node node)
-	{
-		if (node == null) return false;
-		return _selectedEditorObjects.Remove(node);
-	}
-
-	public bool IsEditorObjectSelected(Node node) => node != null && _selectedEditorObjects.Contains(node);
-
-	public void ClearSelectedEditorObjects()
-	{
-		_selectedEditorObjects.Clear();
-	}
-
-	public void PruneInvalidSelectedEditorObjects()
-	{
-		for (int i = _selectedEditorObjects.Count - 1; i >= 0; i--)
-		{
-			if (!GodotObject.IsInstanceValid(_selectedEditorObjects[i]))
-			{
-				_selectedEditorObjects.RemoveAt(i);
-			}
-		}
 	}
 
 	public void SetObjectMarquee(Vector2I? start, Vector2I? end, bool selecting)
@@ -2681,7 +2627,6 @@ public partial class EditorService : IEditorAPI
 	{
 		_selectionStart = null;
 		_selectionEnd = null;
-		_selectedEditorObjects.Clear();
 		ClearObjectMarquee();
 		_copiedArea = null;
 		_hasBlockTargetHeight = false;

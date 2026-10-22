@@ -1582,12 +1582,12 @@ public partial class GameHost
 						{
 							ToggleEditorObjectSelection(clickedNode, ctrlPressed);
 						}
-						else if (!(GameContext.EditorService.SelectedEditorObjectCount > 1 && GameContext.EditorService.IsEditorObjectSelected(clickedNode)))
+						else if (!(SelectedEditorObjectCount > 1 && IsEditorObjectSelected(clickedNode)))
 						{
 							SelectedEditorObject = clickedNode;
 						}
 
-						if (GameContext.EditorService.IsEditorObjectSelected(clickedNode))
+						if (IsEditorObjectSelected(clickedNode))
 						{
 							BeginEditorObjectDrag(terrainHitPos, editorMouseBtn.Position);
 						}

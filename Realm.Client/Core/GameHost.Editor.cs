@@ -908,6 +908,7 @@ public partial class GameHost
 		ClearAllEntities();
 		ClearAllNodesAndTerrain();
 
+		_editorObjectSelection.Clear();
 		GameContext.EditorService?.ResetAllState();
 		HideSelectionHighlight();
 

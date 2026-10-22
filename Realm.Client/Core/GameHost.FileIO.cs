@@ -277,6 +277,7 @@ public partial class GameHost
 
 			EditorHistoryManager.Clear();
 			EditorHasUnsavedChanges = false;
+			_editorObjectSelection.Clear();
 			GameContext.EditorService?.ResetAllState();
 
 			return true;
