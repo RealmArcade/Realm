@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.VFX;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
 
@@ -16,13 +17,32 @@ namespace Realm.Client.Core
 
 			var (minX, minZ, maxX, maxZ) = GameContext.EditorService.GetCurrentSelectionBounds();
 
-			var node3Ds = new List<Node3D>();
+			var candidates = new List<CopiedEntityCandidate>();
 			foreach (var child in GetChildren())
 			{
-				if (child is Node3D n3d) node3Ds.Add(n3d);
+				if (child is not Node3D node3D || !GodotObject.IsInstanceValid(node3D)) continue;
+
+				if (node3D is Unit3D unit)
+				{
+					candidates.Add(new CopiedEntityCandidate(unit.Position, "unit", unit.UnitId, unit.RotationDegrees.Y, unit.Scale.X, unit.Player));
+				}
+				else if (node3D is Prop3D prop)
+				{
+					candidates.Add(new CopiedEntityCandidate(prop.Position, "prop", prop.PropId, prop.RotationDegrees.Y, prop.Scale.X, 0));
+				}
+				else if (node3D is Decal decal)
+				{
+					string decalId = decal is Decal3D decal3D ? decal3D.DecalId : "logo";
+					candidates.Add(new CopiedEntityCandidate(decal.Position, "decal", decalId, decal.RotationDegrees.Y, decal.Scale.X, 0));
+				}
+				else if (node3D is ProceduralVfxInstance3D vfx)
+				{
+					string vfxId = string.IsNullOrEmpty(vfx.VfxId) ? "vfx" : vfx.VfxId;
+					candidates.Add(new CopiedEntityCandidate(vfx.Position, "vfx", vfxId, vfx.RotationDegrees.Y, vfx.Scale.X, 0));
+				}
 			}
 
-			var entities = GameContext.EditorService.BuildCopiedEntityList(minX, minZ, maxX, maxZ, node3Ds, EditorBrushIsSquare);
+			var entities = GameContext.EditorService.BuildCopiedEntityList(minX, minZ, maxX, maxZ, candidates, EditorBrushIsSquare);
 			GameContext.EditorService.CopyArea(minX, minZ, maxX, maxZ, entities, EditorBrushIsSquare);
 
 			int selWidth = maxX - minX + 1;

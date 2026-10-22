@@ -3074,7 +3074,7 @@ public partial class EditorService : IEditorAPI
 
 	public List<CopiedEntityInfo> BuildCopiedEntityList(
 		int minX, int minZ, int maxX, int maxZ,
-		IEnumerable<Node3D> sceneChildren,
+		IReadOnlyList<CopiedEntityCandidate> candidates,
 		bool isSquare = true)
 	{
 		ref var terrain = ref GetTerrainState();
@@ -3088,69 +3088,28 @@ public partial class EditorService : IEditorAPI
 		Godot.Vector3 origin = new Godot.Vector3((minX - width / 2.0f) * quadSize, 0.0f, (minZ - depth / 2.0f) * quadSize);
 
 		var entities = new List<CopiedEntityInfo>();
-		foreach (var n3d in sceneChildren)
+		for (int index = 0; index < candidates.Count; index++)
 		{
-			if (!GodotObject.IsInstanceValid(n3d)) continue;
-			Godot.Vector3 pos = n3d.Position;
-			if (pos.X >= minWorldX && pos.X <= maxWorldX && pos.Z >= minWorldZ && pos.Z <= maxWorldZ)
-			{
-				if (!isSquare)
-				{
-					float ndx = (pos.X - centerWorldX) / rxWorld;
-					float ndz = (pos.Z - centerWorldZ) / rzWorld;
-					if (ndx * ndx + ndz * ndz > 1.0f) continue;
-				}
+			CopiedEntityCandidate candidate = candidates[index];
+			Godot.Vector3 pos = candidate.Position;
+			if (pos.X < minWorldX || pos.X > maxWorldX || pos.Z < minWorldZ || pos.Z > maxWorldZ) continue;
 
-				if (n3d is Unit3D unit)
-				{
-					entities.Add(new CopiedEntityInfo
-					{
-						Type = "unit",
-						Id = unit.UnitId,
-						RelativePos = pos - origin,
-						Rotation = unit.RotationDegrees.Y,
-						Scale = unit.Scale.X,
-						Player = unit.Player
-					});
-				}
-				else if (n3d is Prop3D prop)
-				{
-					entities.Add(new CopiedEntityInfo
-					{
-						Type = "prop",
-						Id = prop.PropId,
-						RelativePos = pos - origin,
-						Rotation = prop.RotationDegrees.Y,
-						Scale = prop.Scale.X,
-						Player = 0
-					});
-				}
-				else if (n3d is Decal decal)
-				{
-					string decalId = decal is Decal3D decal3D ? decal3D.DecalId : "logo";
-					entities.Add(new CopiedEntityInfo
-					{
-						Type = "decal",
-						Id = decalId,
-						RelativePos = pos - origin,
-						Rotation = decal.RotationDegrees.Y,
-						Scale = decal.Scale.X,
-						Player = 0
-					});
-				}
-				else if (n3d is ProceduralVfxInstance3D vfx)
-				{
-					entities.Add(new CopiedEntityInfo
-					{
-						Type = "vfx",
-						Id = string.IsNullOrEmpty(vfx.VfxId) ? "vfx" : vfx.VfxId,
-						RelativePos = pos - origin,
-						Rotation = vfx.RotationDegrees.Y,
-						Scale = vfx.Scale.X,
-						Player = 0
-					});
-				}
+			if (!isSquare)
+			{
+				float ndx = (pos.X - centerWorldX) / rxWorld;
+				float ndz = (pos.Z - centerWorldZ) / rzWorld;
+				if (ndx * ndx + ndz * ndz > 1.0f) continue;
 			}
+
+			entities.Add(new CopiedEntityInfo
+			{
+				Type = candidate.Type,
+				Id = candidate.Id,
+				RelativePos = pos - origin,
+				Rotation = candidate.RotationY,
+				Scale = candidate.Scale,
+				Player = candidate.Player
+			});
 		}
 
 		if (GameContext.World != null)
@@ -3412,44 +3371,16 @@ public partial class EditorService : IEditorAPI
 		}
 	}
 
-	private void ProcessEraseEntities(IEnumerable<Node3D> sceneChildren, Node3D previewNode, bool isSquare, float selCenterX, float selCenterZ, float rx, float rz, float quadSize, List<Node3D> nodesToDelete)
-	{
-		foreach (var n in sceneChildren)
-		{
-			if (n == previewNode || !n.IsInsideTree()) continue;
-			if (n is Unit3D or Prop3D or Decal3D or ProceduralVfxInstance3D)
-			{
-				var pos = n.GlobalPosition;
-				bool inBounds = false;
-				if (isSquare)
-				{
-					float dx = Mathf.Abs(pos.X - selCenterX);
-					float dz = Mathf.Abs(pos.Z - selCenterZ);
-					inBounds = (dx <= rx * quadSize && dz <= rz * quadSize);
-				}
-				else
-				{
-					float dx = (pos.X - selCenterX * quadSize) / (rx * quadSize);
-					float dz = (pos.Z - selCenterZ * quadSize) / (rz * quadSize);
-					inBounds = (dx * dx + dz * dz <= 1.0f);
-				}
-
-				if (inBounds) nodesToDelete.Add(n);
-			}
-		}
-	}
-
 	public EraseAreaResult BuildEraseAreaResult(
 		int minX, int minZ, int maxX, int maxZ,
 		bool pasteHeights,
 		bool pasteTextures,
 		bool pasteEntities,
 		bool pastePathing,
-		IEnumerable<Node3D> sceneChildren,
-		Node3D previewNode,
+		ReadOnlySpan<Godot.Vector3> candidatePositions,
 		bool isSquare = true)
 	{
-		var result = new EraseAreaResult { NodesToDelete = new List<Node3D>() };
+		var result = new EraseAreaResult { ErasedCandidateIndices = new List<int>() };
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return result;
 
@@ -3471,7 +3402,7 @@ public partial class EditorService : IEditorAPI
 
 		if (pasteEntities)
 		{
-			ProcessEntityErase(minX, minZ, maxX, maxZ, terrain.Width, terrain.Depth, terrain.QuadSize, isSquare, sceneChildren, previewNode, result.NodesToDelete);
+			ProcessEntityErase(minX, minZ, maxX, maxZ, terrain.Width, terrain.Depth, terrain.QuadSize, isSquare, candidatePositions, result.ErasedCandidateIndices);
 		}
 
 		return result;
@@ -3528,18 +3459,17 @@ public partial class EditorService : IEditorAPI
 		terrainModified = true;
 	}
 
-	private void ProcessEntityErase(int minX, int minZ, int maxX, int maxZ, int width, int depth, float quadSize, bool isSquare, IEnumerable<Node3D> sceneChildren, Node3D previewNode, List<Node3D> nodesToDelete)
+	private void ProcessEntityErase(int minX, int minZ, int maxX, int maxZ, int width, int depth, float quadSize, bool isSquare, ReadOnlySpan<Godot.Vector3> candidatePositions, List<int> erasedCandidateIndices)
 	{
 		CalculateWorldBounds(minX, minZ, maxX, maxZ, width, depth, quadSize, out float minWorldX, out float maxWorldX, out float minWorldZ, out float maxWorldZ, out float centerWorldX, out float centerWorldZ, out float rxWorld, out float rzWorld);
 
-		foreach (var n3d in sceneChildren)
+		for (int index = 0; index < candidatePositions.Length; index++)
 		{
-			if (!GodotObject.IsInstanceValid(n3d) || n3d == previewNode) continue;
-			if (n3d.Position.X >= minWorldX && n3d.Position.X <= maxWorldX && n3d.Position.Z >= minWorldZ && n3d.Position.Z <= maxWorldZ)
-			{
-				if (!IsPointInEllipse(n3d.Position.X, n3d.Position.Z, centerWorldX, centerWorldZ, rxWorld, rzWorld, isSquare, 1.0f)) continue;
-				if (n3d is Unit3D || n3d is Prop3D || n3d is Decal || n3d is ProceduralVfxInstance3D) nodesToDelete.Add(n3d);
-			}
+			Godot.Vector3 position = candidatePositions[index];
+			if (position.X < minWorldX || position.X > maxWorldX || position.Z < minWorldZ || position.Z > maxWorldZ) continue;
+			if (!IsPointInEllipse(position.X, position.Z, centerWorldX, centerWorldZ, rxWorld, rzWorld, isSquare, 1.0f)) continue;
+
+			erasedCandidateIndices.Add(index);
 		}
 
 		ProcessEcsEntityErase(minWorldX, maxWorldX, minWorldZ, maxWorldZ, centerWorldX, centerWorldZ, rxWorld, rzWorld, isSquare);

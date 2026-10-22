@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using Godot;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.VFX;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Terrain;
@@ -651,20 +653,26 @@ namespace Realm.Client.Core
 			var bounds = GameContext.EditorService.GetCurrentSelectionBounds();
 			var terrainSnapshotBefore = CreateTerrainSnapshot();
 
-			var node3Ds = new List<Node3D>();
+			var eraseTargets = new List<Node3D>();
+			var candidatePositions = new List<Vector3>();
 			foreach (var child in GetChildren())
 			{
-				if (child is Node3D n3d) node3Ds.Add(n3d);
+				if (child is not Node3D node3D || !GodotObject.IsInstanceValid(node3D)) continue;
+				if (node3D == _editorPreviewNode) continue;
+				if (node3D is not (Unit3D or Prop3D or Decal or ProceduralVfxInstance3D)) continue;
+
+				eraseTargets.Add(node3D);
+				candidatePositions.Add(node3D.Position);
 			}
 
 			var eraseResult = GameContext.EditorService.BuildEraseAreaResult(
 				bounds.Item1, bounds.Item2, bounds.Item3, bounds.Item4,
 				GameContext.EditorService.PasteOptionHeights, GameContext.EditorService.PasteOptionTextures, GameContext.EditorService.PasteOptionEntities, PasteOptionPathing,
-				node3Ds, _editorPreviewNode as Node3D, EditorBrushIsSquare);
+				CollectionsMarshal.AsSpan(candidatePositions), EditorBrushIsSquare);
 
 			ApplyEraseResultTerrainModifications(eraseResult, bounds.Item1, bounds.Item2, bounds.Item3, bounds.Item4);
 
-			var actions = BuildEraseActions(eraseResult, terrainSnapshotBefore);
+			var actions = BuildEraseActions(eraseResult, terrainSnapshotBefore, eraseTargets);
 
 			if (actions.Count > 0 && recordToHistory)
 			{
@@ -711,7 +719,7 @@ namespace Realm.Client.Core
 			}
 		}
 
-		private List<IEditorAction> BuildEraseActions(EraseAreaResult eraseResult, (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,] Cliff) snapshotBefore)
+		private List<IEditorAction> BuildEraseActions(EraseAreaResult eraseResult, (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,] Cliff) snapshotBefore, List<Node3D> eraseTargets)
 		{
 			var actions = new List<IEditorAction>();
 
@@ -726,8 +734,13 @@ namespace Realm.Client.Core
 				actions.Add(action);
 			}
 
-			foreach (var node in eraseResult.NodesToDelete)
+			foreach (int index in eraseResult.ErasedCandidateIndices)
 			{
+				if (index < 0 || index >= eraseTargets.Count) continue;
+
+				Node3D node = eraseTargets[index];
+				if (node == null || !GodotObject.IsInstanceValid(node)) continue;
+
 				var act = DeleteObjectAtWithUndo(node, node.Position);
 				if (act != null) actions.Add(act);
 			}
