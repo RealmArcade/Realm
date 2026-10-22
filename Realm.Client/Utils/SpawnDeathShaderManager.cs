@@ -11,6 +11,21 @@ public static class SpawnDeathShaderManager
 {
 	private const string ShaderPath = "res://Assets/shaders/universal_dissolve_spatial.gdshader";
 	private static Shader _shader;
+	private static readonly Dictionary<string, Dictionary<string, CustomShaderConfig>> _cachedWorkspaceShaders = new(StringComparer.OrdinalIgnoreCase);
+	private static readonly StringName _paramProgress = new("progress");
+	private static readonly StringName _paramTransitionMode = new("transition_mode");
+	private static readonly StringName _paramDirection = new("direction");
+	private static readonly StringName _paramEdgeColor = new("edge_color");
+	private static readonly StringName _paramEdgeWidth = new("edge_width");
+	private static readonly StringName _paramEdgeEmission = new("edge_emission");
+	private static readonly StringName _paramNoiseScale = new("noise_scale");
+	private static readonly StringName _paramNoiseRoughness = new("noise_roughness");
+	private static readonly StringName _paramFresnelPower = new("fresnel_power");
+	private static readonly StringName _paramVertexDisplacement = new("vertex_displacement");
+	private static readonly StringName _paramAlphaFade = new("alpha_fade");
+	private static readonly StringName _paramTextureAlbedo = new("texture_albedo");
+	private static readonly StringName _paramModelBoundsMin = new("model_bounds_min");
+	private static readonly StringName _paramModelBoundsMax = new("model_bounds_max");
 
 	public static Shader GetOrCreateShader()
 	{
@@ -23,13 +38,25 @@ public static class SpawnDeathShaderManager
 		return _shader;
 	}
 
+	public static void ClearCache()
+	{
+		_shader = null;
+		_cachedWorkspaceShaders.Clear();
+	}
+
 	public static Dictionary<string, CustomShaderConfig> LoadAllCustomShaders(string workspacePath = null)
 	{
-		var result = new Dictionary<string, CustomShaderConfig>(StringComparer.OrdinalIgnoreCase);
-
 		string wsPath = !string.IsNullOrEmpty(workspacePath)
 			? workspacePath
 			: MapWorkspaceService.GetActiveWorkspacePath();
+
+		string cacheKey = wsPath ?? string.Empty;
+		if (_cachedWorkspaceShaders.TryGetValue(cacheKey, out var cached))
+		{
+			return cached;
+		}
+
+		var result = new Dictionary<string, CustomShaderConfig>(StringComparer.OrdinalIgnoreCase);
 
 		try
 		{
@@ -68,6 +95,7 @@ public static class SpawnDeathShaderManager
 			GD.PrintErr($"[SpawnDeathShaderManager] LoadAllCustomShaders error: {ex.Message}");
 		}
 
+		_cachedWorkspaceShaders[cacheKey] = result;
 		return result;
 	}
 
@@ -96,6 +124,8 @@ public static class SpawnDeathShaderManager
 		string wsPath = !string.IsNullOrEmpty(workspacePath)
 			? workspacePath
 			: MapWorkspaceService.GetActiveWorkspacePath();
+
+		_cachedWorkspaceShaders.Remove(wsPath ?? string.Empty);
 
 		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
 		{
@@ -127,6 +157,8 @@ public static class SpawnDeathShaderManager
 			? workspacePath
 			: MapWorkspaceService.GetActiveWorkspacePath();
 
+		_cachedWorkspaceShaders.Remove(wsPath ?? string.Empty);
+
 		try
 		{
 			MapAssetHelper.RemoveManifestAsset(wsPath, "shaders", shaderKey);
@@ -145,25 +177,16 @@ public static class SpawnDeathShaderManager
 
 		if (config != null)
 		{
-			mat.SetShaderParameter("transition_mode", config.TransitionMode);
-			mat.SetShaderParameter("direction", config.Direction);
-			mat.SetShaderParameter("edge_color", config.EdgeColor);
-			mat.SetShaderParameter("edge_width", config.EdgeWidth);
-			mat.SetShaderParameter("edge_emission", config.EdgeEmission);
-			mat.SetShaderParameter("noise_scale", config.NoiseScale);
-			mat.SetShaderParameter("noise_roughness", config.NoiseRoughness);
-			mat.SetShaderParameter("fresnel_power", config.FresnelPower);
-			mat.SetShaderParameter("vertex_displacement", config.VertexDisplacement);
-			mat.SetShaderParameter("alpha_fade", config.AlphaFade);
+			SetShaderParameters(mat, config);
 		}
 
 		if (albedoTex != null)
 		{
-			mat.SetShaderParameter("texture_albedo", albedoTex);
+			mat.SetShaderParameter(_paramTextureAlbedo, albedoTex);
 		}
 
-		mat.SetShaderParameter("model_bounds_min", aabb.Position);
-		mat.SetShaderParameter("model_bounds_max", aabb.Position + aabb.Size);
+		mat.SetShaderParameter(_paramModelBoundsMin, aabb.Position);
+		mat.SetShaderParameter(_paramModelBoundsMax, aabb.Position + aabb.Size);
 
 		return mat;
 	}
@@ -204,9 +227,10 @@ public static class SpawnDeathShaderManager
 				}
 			}
 
-			foreach (Node child in node.GetChildren())
+			int childCount = node.GetChildCount();
+			for (int i = 0; i < childCount; i++)
 			{
-				Traverse(child);
+				Traverse(node.GetChild(i));
 			}
 		}
 
@@ -224,20 +248,20 @@ public static class SpawnDeathShaderManager
 		var activeMat = mesh.GetActiveMaterial(0);
 		if (activeMat is StandardMaterial3D stdMat) return stdMat.AlbedoTexture;
 		if (activeMat is OrmMaterial3D ormMat) return ormMat.AlbedoTexture;
-		if (activeMat is ShaderMaterial sMat) return sMat.GetShaderParameter("texture_albedo").As<Texture2D>();
+		if (activeMat is ShaderMaterial sMat) return sMat.GetShaderParameter(_paramTextureAlbedo).As<Texture2D>();
 
 		if (mesh.Mesh != null && mesh.Mesh.GetSurfaceCount() > 0)
 		{
 			var surfMat = mesh.Mesh.SurfaceGetMaterial(0);
 			if (surfMat is StandardMaterial3D sm) return sm.AlbedoTexture;
 			if (surfMat is OrmMaterial3D om) return om.AlbedoTexture;
-			if (surfMat is ShaderMaterial shm) return shm.GetShaderParameter("texture_albedo").As<Texture2D>();
+			if (surfMat is ShaderMaterial shm) return shm.GetShaderParameter(_paramTextureAlbedo).As<Texture2D>();
 		}
 
 		return null;
 	}
 
-	private static void ApplyShaderToMeshNode(Node node, CustomShaderConfig config, Aabb aabb, float progress, Shader shader)
+	private static void ApplyShaderToMeshNode(Node node, CustomShaderConfig config, Aabb aabb, float progress, Shader shader, List<ShaderMaterial> collectedMaterials = null)
 	{
 		if (IsExcludedMesh(node)) return;
 
@@ -250,26 +274,36 @@ public static class SpawnDeathShaderManager
 				mat = CreateShaderMaterial(config, aabb, albedo);
 				mesh.MaterialOverride = mat;
 			}
+			else
+			{
+				SetShaderParameters(mat, config);
+				mat.SetShaderParameter(_paramModelBoundsMin, aabb.Position);
+				mat.SetShaderParameter(_paramModelBoundsMax, aabb.Position + aabb.Size);
+			}
 
-			mat.SetShaderParameter("progress", Mathf.Clamp(progress, 0.0f, 1.0f));
-			mat.SetShaderParameter("transition_mode", config.TransitionMode);
-			mat.SetShaderParameter("direction", config.Direction);
-			mat.SetShaderParameter("edge_color", config.EdgeColor);
-			mat.SetShaderParameter("edge_width", config.EdgeWidth);
-			mat.SetShaderParameter("edge_emission", config.EdgeEmission);
-			mat.SetShaderParameter("noise_scale", config.NoiseScale);
-			mat.SetShaderParameter("noise_roughness", config.NoiseRoughness);
-			mat.SetShaderParameter("fresnel_power", config.FresnelPower);
-			mat.SetShaderParameter("vertex_displacement", config.VertexDisplacement);
-			mat.SetShaderParameter("alpha_fade", config.AlphaFade);
-			mat.SetShaderParameter("model_bounds_min", aabb.Position);
-			mat.SetShaderParameter("model_bounds_max", aabb.Position + aabb.Size);
+			mat.SetShaderParameter(_paramProgress, Mathf.Clamp(progress, 0.0f, 1.0f));
+			collectedMaterials?.Add(mat);
 		}
 
-		foreach (Node child in node.GetChildren())
+		int childCount = node.GetChildCount();
+		for (int i = 0; i < childCount; i++)
 		{
-			ApplyShaderToMeshNode(child, config, aabb, progress, shader);
+			ApplyShaderToMeshNode(node.GetChild(i), config, aabb, progress, shader, collectedMaterials);
 		}
+	}
+
+	private static void SetShaderParameters(ShaderMaterial mat, CustomShaderConfig config)
+	{
+		mat.SetShaderParameter(_paramTransitionMode, config.TransitionMode);
+		mat.SetShaderParameter(_paramDirection, config.Direction);
+		mat.SetShaderParameter(_paramEdgeColor, config.EdgeColor);
+		mat.SetShaderParameter(_paramEdgeWidth, config.EdgeWidth);
+		mat.SetShaderParameter(_paramEdgeEmission, config.EdgeEmission);
+		mat.SetShaderParameter(_paramNoiseScale, config.NoiseScale);
+		mat.SetShaderParameter(_paramNoiseRoughness, config.NoiseRoughness);
+		mat.SetShaderParameter(_paramFresnelPower, config.FresnelPower);
+		mat.SetShaderParameter(_paramVertexDisplacement, config.VertexDisplacement);
+		mat.SetShaderParameter(_paramAlphaFade, config.AlphaFade);
 	}
 
 	public static void ApplyShaderPreview(Node3D targetNode, CustomShaderConfig config, float progress)
@@ -294,9 +328,10 @@ public static class SpawnDeathShaderManager
 				mesh.MaterialOverride = null;
 			}
 
-			foreach (Node child in node.GetChildren())
+			int childCount = node.GetChildCount();
+			for (int i = 0; i < childCount; i++)
 			{
-				ClearMesh(child);
+				ClearMesh(node.GetChild(i));
 			}
 		}
 
@@ -337,11 +372,14 @@ public static class SpawnDeathShaderManager
 		float startProgress = isSpawn ? 0.0f : 1.0f;
 		float endProgress = isSpawn ? 1.0f : 0.0f;
 
-		ApplyShaderPreview(targetNode, config, startProgress);
+		var aabb = CalculateNodeAabb(targetNode);
+		var shader = GetOrCreateShader();
+		var materials = new List<ShaderMaterial>(4);
+		ApplyShaderToMeshNode(targetNode, config, aabb, startProgress, shader, materials);
 
 		var tween = targetNode.CreateTween();
 
-		tween.TweenMethod(Callable.From((float prog) => UpdateTransitionProgress(targetNode, config, prog)), startProgress, endProgress, duration);
+		tween.TweenMethod(Callable.From((float prog) => UpdateTransitionMaterialsProgress(targetNode, materials, prog)), startProgress, endProgress, duration);
 
 		tween.TweenCallback(Callable.From(() => CompleteTransition(targetNode, isSpawn, onComplete)));
 	}
@@ -354,11 +392,17 @@ public static class SpawnDeathShaderManager
 		return true;
 	}
 
-	private static void UpdateTransitionProgress(Node3D targetNode, CustomShaderConfig config, float prog)
+	private static void UpdateTransitionMaterialsProgress(Node3D targetNode, List<ShaderMaterial> materials, float prog)
 	{
-		if (GodotObject.IsInstanceValid(targetNode))
+		if (!GodotObject.IsInstanceValid(targetNode) || materials == null) return;
+		float clamped = Mathf.Clamp(prog, 0.0f, 1.0f);
+		for (int i = 0; i < materials.Count; i++)
 		{
-			ApplyShaderPreview(targetNode, config, prog);
+			var mat = materials[i];
+			if (mat != null && GodotObject.IsInstanceValid(mat))
+			{
+				mat.SetShaderParameter(_paramProgress, clamped);
+			}
 		}
 	}
 

@@ -8,8 +8,11 @@ using Realm.Shared.Audio;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 {
+	public WeaponVfxDialog() { }
+
 	private static readonly string[] Trajectories = { "Parabolic", "Homing", "LinearVector", "Boomerang", "SwarmOrbit" };
 	private static readonly string[] SpeedCurves = { "constant", "ease_in", "ease_out", "ease_in_out", "rocket_boost", "burst" };
 	private static readonly string[] EaseCurves = { "linear", "ease_in", "ease_out", "ease_in_out" };
@@ -202,7 +205,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 	{
 		Add3DPreviewViewport(BodyContainer, new Vector2(460, 220));
 
-		_sfxPlayer = new AudioStreamPlayer();
+		_sfxPlayer = new AudioStreamPlayer { Name = "WeaponPreviewSfx", Bus = AudioService.SfxBusName };
 		PreviewSubViewport.AddChild(_sfxPlayer);
 
 		BuildTopToolbars();
@@ -219,6 +222,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 	private void BuildTopToolbars()
 	{
 		var topToolbar = new HBoxContainer();
+		topToolbar.Name = "TopToolbar_HBoxContainer";
 		topToolbar.AddThemeConstantOverride("separation", 4);
 
 		AddButton(topToolbar, $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("Fire Test"), () => RestartPreviewProjectile(), "Restart preview projectile", 10, new Vector2(0, 22));
@@ -238,6 +242,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 
 		// ROW 2: PLAYBACK CONTROLS (PLAY, PAUSE, FRAME-FORWARD, FRAME-BACKWARD, SPEED SLIDER)
 		var playbackToolbar = new HBoxContainer();
+		playbackToolbar.Name = "PlaybackToolbar_HBoxContainer";
 		playbackToolbar.AddThemeConstantOverride("separation", 4);
 
 		AddButton(playbackToolbar, "▶ " + TranslationServer.Translate("Play"), () => SetPlaybackPaused(false), "Resume projectile animation", 10, new Vector2(0, 22));
@@ -246,12 +251,14 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		AddButton(playbackToolbar, "⏭ " + TranslationServer.Translate("+1F"), () => StepFrame(1f / 30f), "Step 1 frame forward (1/30s)", 10, new Vector2(0, 22));
 
 		var speedLbl = new Label();
+		speedLbl.Name = "SpeedLbl_Label";
 		speedLbl.Text = TranslationServer.Translate("Speed:");
 		speedLbl.AddThemeFontSizeOverride("font_size", 10);
 		speedLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		playbackToolbar.AddChild(speedLbl);
 
 		var speedSlider = new HSlider();
+		speedSlider.Name = "SpeedSlider_HSlider";
 		speedSlider.MinValue = 0.1f;
 		speedSlider.MaxValue = 3.0f;
 		speedSlider.Step = 0.05f;
@@ -261,6 +268,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		playbackToolbar.AddChild(speedSlider);
 
 		var speedValLbl = new Label();
+		speedValLbl.Name = "SpeedValLbl_Label";
 		speedValLbl.Text = $"{_previewSpeed:0.00}x";
 		speedValLbl.CustomMinimumSize = new Vector2(38, 0);
 		speedValLbl.AddThemeFontSizeOverride("font_size", 10);
@@ -284,21 +292,10 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		// SECTION 0: IDENTITY
 		AddSectionHeader(scrollBody, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
 
-		var rowId = new HBoxContainer();
-		rowId.AddThemeConstantOverride("separation", 6);
-		var lblId = new Label();
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(140, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		rowId.AddChild(lblId);
-
-		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Text = "weapon/";
-		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
-		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		rowId.AddChild(_lblObjectTypePrefix);
+		var rowId = BuildIdentityRow(scrollBody, "weapon/", out _lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("weapon_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -310,7 +307,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			_currentWeapon.TemplateID = _weaponId;
 		};
 		rowId.AddChild(_txtSlug);
-		scrollBody.AddChild(rowId);
+		
 
 		_txtName = AddTextInput(
 			scrollBody,
@@ -436,6 +433,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			140f
 		);
 		var rowRandomize = new HBoxContainer();
+		rowRandomize.Name = "RowRandomize_HBoxContainer";
 		rowRandomize.AddThemeConstantOverride("separation", 6);
 		var btnRandomize = AddButton(
 			rowRandomize,
@@ -624,6 +622,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		// SECTION 3: PROCEDURAL SURFACE UBER-SHADER
 		AddSectionHeader(scrollBody, "🎨 " + TranslationServer.Translate("PROCEDURAL SURFACE UBER-SHADER"), new Color(0.8f, 0.55f, 0.45f));
 		var presetFxRow = new HBoxContainer();
+		presetFxRow.Name = "PresetFxRow_HBoxContainer";
 		presetFxRow.AddThemeConstantOverride("separation", 4);
 		AddLabel(presetFxRow, TranslationServer.Translate("Presets:"), 11, UIStyle.ColorGoldDull);
 		AddButton(presetFxRow, "🔥 Fire", () => ApplyShaderPreset("fire"), "Fire/Lava preset", 10);

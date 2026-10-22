@@ -84,5 +84,6 @@ public static class UnicodeIcons
 	public static readonly string USER_CLOCK = char.ConvertFromUtf32(0xF4FD);
 	public static readonly string CASTLE = char.ConvertFromUtf32(0xF447);
 	public static readonly string SHIELD = char.ConvertFromUtf32(0xF3ED);
+	public static readonly string PALETTE = char.ConvertFromUtf32(0xF53F);
 	public static readonly string USERS = char.ConvertFromUtf32(0xF0C0);
 }

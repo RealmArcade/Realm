@@ -3,6 +3,7 @@ using Godot;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class RichTooltip : PanelContainer
 {
 	[GeneratedRegex(@"<color=[""']?(#[0-9a-fA-F]{6,8})[""']?>", RegexOptions.IgnoreCase)]
@@ -30,6 +31,7 @@ public partial class RichTooltip : PanelContainer
 		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 
 		var margin = new MarginContainer();
+		margin.Name = "Margin_MarginContainer";
 		margin.MouseFilter = MouseFilterEnum.Ignore;
 		margin.AddThemeConstantOverride("margin_left", 8);
 		margin.AddThemeConstantOverride("margin_right", 8);
@@ -38,6 +40,7 @@ public partial class RichTooltip : PanelContainer
 		panel.AddChild(margin);
 
 		var label = new RichTextLabel();
+		label.Name = "Label_RichTextLabel";
 		label.MouseFilter = MouseFilterEnum.Ignore;
 		label.BbcodeEnabled = true;
 		label.FitContent = true;

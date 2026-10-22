@@ -129,6 +129,7 @@ public class MovementPredictionService
 				rollbackNeeded = true;
 				mispredictedEntities.Add(entity);
 				world.Set(entity, new Position(serverPos));
+				world.SetOrAdd(entity, new PreviousPosition(serverPos));
 			}
 		}
 

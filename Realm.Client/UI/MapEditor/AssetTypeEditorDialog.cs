@@ -8,8 +8,11 @@ using Realm.EditorAPI;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class AssetTypeEditorDialog : FloatingDialogBase
 {
+	public AssetTypeEditorDialog() { }
+
 	private readonly IndexedAsset _asset;
 	private readonly Action<string> _onSaveCallback;
 	private Label _lblPrompt;
@@ -28,12 +31,14 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 	private void BuildControls()
 	{
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.AddThemeConstantOverride("separation", 10);
 		BodyContainer.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🏷 " + TranslationServer.Translate("SELECT ASSET TYPE"), new Color(0.35f, 0.75f, 0.9f));
 
 		_lblPrompt = new Label();
+		_lblPrompt.Name = "LblPrompt_Label";
 		_lblPrompt.AddThemeFontSizeOverride("font_size", 11);
 		_lblPrompt.AutowrapMode = TextServer.AutowrapMode.Word;
 		_lblPrompt.Text = string.Format(
@@ -43,15 +48,18 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 		contentVBox.AddChild(_lblPrompt);
 
 		var rowType = new HBoxContainer();
+		rowType.Name = "RowType_HBoxContainer";
 		rowType.AddThemeConstantOverride("separation", 8);
 
 		var lblType = new Label();
+		lblType.Name = "LblType_Label";
 		lblType.Text = TranslationServer.Translate("Asset Type:");
 		lblType.CustomMinimumSize = new Vector2(100, 0);
 		lblType.AddThemeFontSizeOverride("font_size", 11);
 		rowType.AddChild(lblType);
 
 		_optAssetType = new OptionButton();
+		_optAssetType.Name = "OptAssetType_OptionButton";
 		_optAssetType.AddThemeFontSizeOverride("font_size", 11);
 		_optAssetType.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 

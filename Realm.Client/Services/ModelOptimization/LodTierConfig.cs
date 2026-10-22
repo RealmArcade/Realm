@@ -1,3 +1,5 @@
+using Realm.Shared.ModelOptimization;
+
 namespace Realm.Client.Services.ModelOptimization;
 
 public struct LodTierConfig
@@ -44,10 +46,10 @@ public struct LodTierConfig
 	{
 		return new LodTierConfig[]
 		{
-			new LodTierConfig(0, "LOD0", 800, ModelOptimizerService.CalculateTargetErrorFromScreenHeight(800, allowedPixelError), 0.94f, 1.00f, 4, true, 0f, 45f),
-			new LodTierConfig(1, "LOD1", 250, ModelOptimizerService.CalculateTargetErrorFromScreenHeight(250, allowedPixelError), 0.87f, 0.50f, 2, true, 45f, 90f),
-			new LodTierConfig(2, "LOD2", 100, ModelOptimizerService.CalculateTargetErrorFromScreenHeight(100, allowedPixelError), 0.78f, 0.25f, 1, true, 90f, 150f),
-			new LodTierConfig(3, "LOD3", 35, ModelOptimizerService.CalculateTargetErrorFromScreenHeight(35, allowedPixelError), 0.68f, 0.10f, 1, true, 150f, 0f)
+			new LodTierConfig(0, "LOD0", 800, ModelOptimizerService.CalculateTargetErrorFromScreenHeight(800, allowedPixelError), 0.94f, 1.00f, 4, true, GlbLodGenerator.DefaultVisibilityBegins[0], GlbLodGenerator.DefaultVisibilityEnds[0]),
+			new LodTierConfig(1, "LOD1", 250, ModelOptimizerService.CalculateTargetErrorFromScreenHeight(250, allowedPixelError), 0.87f, 0.50f, 2, true, GlbLodGenerator.DefaultVisibilityBegins[1], GlbLodGenerator.DefaultVisibilityEnds[1]),
+			new LodTierConfig(2, "LOD2", 100, ModelOptimizerService.CalculateTargetErrorFromScreenHeight(100, allowedPixelError), 0.78f, 0.25f, 1, true, GlbLodGenerator.DefaultVisibilityBegins[2], GlbLodGenerator.DefaultVisibilityEnds[2]),
+			new LodTierConfig(3, "LOD3", 35, ModelOptimizerService.CalculateTargetErrorFromScreenHeight(35, allowedPixelError), 0.68f, 0.10f, 1, true, GlbLodGenerator.DefaultVisibilityBegins[3], GlbLodGenerator.DefaultVisibilityEnds[3])
 		};
 	}
 }

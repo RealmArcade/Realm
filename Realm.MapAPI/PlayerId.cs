@@ -356,6 +356,11 @@ public readonly unsafe record struct PlayerId(int Value)
 	public string ColorHex => GameAPI.Current.GetPlayerColorHex(Value);
 
 	/// <summary>
+	/// Gets the RGB color assigned to this player slot.
+	/// </summary>
+	public Vector3 Color => GameAPI.Current.GetPlayerColor(Value);
+
+	/// <summary>
 	/// Gets the formatted bbcode colored name of this player.
 	/// </summary>
 	public string ColoredName => GameAPI.Current.FormatColoredPlayerName(Value);

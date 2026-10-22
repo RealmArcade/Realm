@@ -146,19 +146,19 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 	{
 		if (metadataRoot.TryGetPropertyValue("vfx", out var vfxNode) && vfxNode is JsonObject vfxObj)
 		{
-			MapUpgradeService.MergeCategoryInto(unionedAssets, "Spritesheet", vfxObj);
+			unionedAssets.MergeCategoryInto("Spritesheet", vfxObj);
 			metadataRoot.Remove("vfx");
 		}
 
 		if (metadataRoot.TryGetPropertyValue("noise", out var noiseNode) && noiseNode is JsonObject noiseObj)
 		{
-			MapUpgradeService.MergeCategoryInto(unionedAssets, "Noise", noiseObj);
+			unionedAssets.MergeCategoryInto("Noise", noiseObj);
 			metadataRoot.Remove("noise");
 		}
 
 		if (metadataRoot.TryGetPropertyValue("ribbon_textures", out var ribbonNode) && ribbonNode is JsonObject ribbonObj)
 		{
-			MapUpgradeService.MergeCategoryInto(unionedAssets, "Ribbon", ribbonObj);
+			unionedAssets.MergeCategoryInto("Ribbon", ribbonObj);
 			metadataRoot.Remove("ribbon_textures");
 		}
 	}
@@ -495,29 +495,4 @@ public class Migration_0_0_1_InitialCanonicalFormat : IMapMigration
 		assetType = "texture";
 	}
 
-	public static void MergeCategoryInto(MapManifestAssets targetAssets, string category, JsonObject sourceObject)
-	{
-		var categoryTarget = targetAssets.GetCategory(category);
-		if (categoryTarget == null)
-		{
-			categoryTarget = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			targetAssets.SetCategory(category, categoryTarget);
-		}
-
-		foreach (var pair in sourceObject)
-		{
-			if (pair.Value is JsonObject sourceObj)
-			{
-				string hash = sourceObj["hash"]?.ToString() ?? sourceObj["blake3"]?.ToString() ?? string.Empty;
-				if (!string.IsNullOrEmpty(hash))
-				{
-					categoryTarget[pair.Key] = hash;
-				}
-			}
-			else if (pair.Value != null)
-			{
-				categoryTarget[pair.Key] = pair.Value.ToString();
-			}
-		}
-	}
 }

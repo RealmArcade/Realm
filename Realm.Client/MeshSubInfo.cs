@@ -11,7 +11,7 @@ public class MeshSubInfo
 	public GeometryInstance3D.ShadowCastingSetting CastShadow = GeometryInstance3D.ShadowCastingSetting.On;
 	public float VisibilityRangeBegin = 0f;
 	public float VisibilityRangeEnd = 0f;
-	public float VisibilityRangeBeginMargin = 2.0f;
-	public float VisibilityRangeEndMargin = 2.0f;
+	public float VisibilityRangeBeginMargin = 0f;
+	public float VisibilityRangeEndMargin = 0f;
 	public GeometryInstance3D.VisibilityRangeFadeModeEnum VisibilityRangeFadeMode = GeometryInstance3D.VisibilityRangeFadeModeEnum.Disabled;
 }

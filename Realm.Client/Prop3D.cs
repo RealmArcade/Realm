@@ -15,11 +15,13 @@ using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
-public partial class Prop3D : StaticBody3D
+[GlobalClass]
+public partial class Prop3D : Node3D
 {
 	public Entity Entity { get; set; }
 
 	private Vector3 _velocity = Vector3.Zero;
+	public bool HasProceduralAnimation { get; set; }
 
 	public Vector3 Velocity
 	{
@@ -29,7 +31,10 @@ public partial class Prop3D : StaticBody3D
 			if (_velocity != value)
 			{
 				_velocity = value;
-				ModelShaderManager.SetProceduralAnimationVelocity(this, value);
+				if (HasProceduralAnimation)
+				{
+					ModelShaderManager.SetProceduralAnimationVelocity(this, value);
+				}
 			}
 		}
 	}
@@ -41,6 +46,7 @@ public partial class Prop3D : StaticBody3D
 
 	public virtual void TriggerImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f)
 	{
+		if (!HasProceduralAnimation) return;
 		_impulseStrength = strength;
 		_impulseDuration = duration <= 0.001f ? 0.001f : duration;
 		_impulseTime = _impulseDuration;
@@ -153,10 +159,6 @@ public partial class Prop3D : StaticBody3D
 	private MeshInstance3D _hoverRing;
 	private bool _isHovered = false;
 
-	private static readonly Dictionary<string, TorusMesh> _sharedTorusMeshes = new(StringComparer.OrdinalIgnoreCase);
-	private static StandardMaterial3D _sharedSelectionMaterial;
-	private static StandardMaterial3D _sharedHoverMaterial;
-
 	public virtual float GetBaseObstacleRadius()
 	{
 		if (GameHost.Instance != null)
@@ -167,88 +169,9 @@ public partial class Prop3D : StaticBody3D
 		return 1.4f;
 	}
 
-	private static TorusMesh GetOrCreateTorusMesh(float radius)
-	{
-		float r = Mathf.Max(0.4f, (float)Math.Round(radius, 2));
-		string key = r.ToString("0.00", CultureInfo.InvariantCulture);
-		if (!_sharedTorusMeshes.TryGetValue(key, out var mesh) || !GodotObject.IsInstanceValid(mesh))
-		{
-			mesh = new TorusMesh
-			{
-				InnerRadius = Mathf.Max(0.1f, r - 0.25f),
-				OuterRadius = r
-			};
-			_sharedTorusMeshes[key] = mesh;
-		}
-
-		return mesh;
-	}
-
-	private static StandardMaterial3D GetOrCreateSelectionMaterial(Color color)
-	{
-		if (_sharedSelectionMaterial == null || !GodotObject.IsInstanceValid(_sharedSelectionMaterial))
-		{
-			_sharedSelectionMaterial = new StandardMaterial3D
-			{
-				AlbedoColor = color,
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				DisableReceiveShadows = true,
-				EmissionEnabled = false,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-		}
-
-		return _sharedSelectionMaterial;
-	}
-
-	private static StandardMaterial3D GetOrCreateHoverMaterial()
-	{
-		if (_sharedHoverMaterial == null || !GodotObject.IsInstanceValid(_sharedHoverMaterial))
-		{
-			_sharedHoverMaterial = new StandardMaterial3D
-			{
-				AlbedoColor = new Color(0.88f, 0.88f, 0.88f, 0.22f),
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				DisableReceiveShadows = true,
-				EmissionEnabled = false,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-		}
-
-		return _sharedHoverMaterial;
-	}
-
 	private void UpdateSelectionRingTransform()
 	{
-		if (_selectionRing == null && _hoverRing == null) return;
-
-		float sx = Mathf.Abs(Scale.X) > 0.001f ? Scale.X : 1.0f;
-		float sy = Mathf.Abs(Scale.Y) > 0.001f ? Scale.Y : 1.0f;
-		float sz = Mathf.Abs(Scale.Z) > 0.001f ? Scale.Z : 1.0f;
-
-		Vector3 ringScale = new Vector3(1.0f / sx, 1.0f / sy, 1.0f / sz);
-		Vector3 ringPos = new Vector3(0, 0.05f / sy, 0);
-
-		float ratio = GameHost.Instance != null ? GameHost.Instance.GetModelCollisionCircleRatio(GameHost.Instance.GetModelAssetKey(this)) : 1.0f;
-		if (ratio <= 0.001f) ratio = 1.0f;
-
-		float baseRadius = GetBaseObstacleRadius();
-		float worldRadius = baseRadius * ratio * Mathf.Abs(sx);
-		var torusMesh = GetOrCreateTorusMesh(worldRadius);
-
-		if (_selectionRing != null)
-		{
-			_selectionRing.Mesh = torusMesh;
-			_selectionRing.Scale = ringScale;
-			_selectionRing.Position = ringPos;
-		}
-
-		if (_hoverRing != null)
-		{
-			_hoverRing.Mesh = torusMesh;
-			_hoverRing.Scale = ringScale;
-			_hoverRing.Position = ringPos;
-		}
+		Realm.Client.Utils.VisualSelectionHelper.UpdateSelectionRing(this, _selectionRing, _hoverRing, Scale, GetBaseObstacleRadius());
 	}
 
 	public bool IsHovered
@@ -282,7 +205,7 @@ public partial class Prop3D : StaticBody3D
 			Name = "_hover_ring",
 			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
-			MaterialOverride = GetOrCreateHoverMaterial(),
+			MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreateHoverMaterial(),
 			Visible = _isHovered && !IsSelected
 		};
 		AddChild(_hoverRing);
@@ -362,130 +285,11 @@ public partial class Prop3D : StaticBody3D
 			Name = "_selection_ring",
 			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
-			MaterialOverride = GetOrCreateSelectionMaterial(GetSelectionRingColor()),
+			MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreateSelectionMaterial(GetSelectionRingColor()),
 			Visible = _isSelected
 		};
 		AddChild(_selectionRing);
 		UpdateSelectionRingTransform();
-	}
-
-	private static readonly Dictionary<string, (Shape3D Shape, Vector3 Offset)> _modelShapeCache = new(StringComparer.OrdinalIgnoreCase);
-
-	protected static Aabb GetCombinedAabb(Node root)
-	{
-		Aabb totalAabb = new Aabb();
-		bool first = true;
-		CollectAabbRecursive(root, Transform3D.Identity, ref totalAabb, ref first);
-		return totalAabb;
-	}
-
-	private static void CollectAabbRecursive(Node node, Transform3D currentTransform, ref Aabb totalAabb, ref bool first)
-	{
-		if (node == null) return;
-
-		if (node is MeshInstance3D mi && mi.Mesh != null)
-		{
-			Aabb localAabb = mi.Mesh.GetAabb();
-			if (localAabb.Size != Vector3.Zero)
-			{
-				for (int i = 0; i < 8; i++)
-				{
-					Vector3 corner = currentTransform * localAabb.GetEndpoint(i);
-					if (first)
-					{
-						totalAabb = new Aabb(corner, Vector3.Zero);
-						first = false;
-					}
-					else
-					{
-						totalAabb = totalAabb.Expand(corner);
-					}
-				}
-			}
-		}
-
-		foreach (var child in node.GetChildren())
-		{
-			if (child is Node3D child3D)
-			{
-				CollectAabbRecursive(child, currentTransform * child3D.Transform, ref totalAabb, ref first);
-			}
-		}
-	}
-
-	private (Shape3D Shape, Vector3 Offset) GetOrCreateCollisionShape()
-	{
-		string propIdKey = PropId ?? string.Empty;
-		if (!string.IsNullOrEmpty(propIdKey) && _modelShapeCache.TryGetValue(propIdKey, out var cachedProp))
-			return cachedProp;
-
-		string modelPath = ResolvePropModelPath(PropId);
-		if (!string.IsNullOrEmpty(modelPath) && _modelShapeCache.TryGetValue(modelPath, out var cached))
-		{
-			if (!string.IsNullOrEmpty(propIdKey))
-				_modelShapeCache[propIdKey] = cached;
-			return cached;
-		}
-
-		if (TryGenerateAnalyticalShape(modelPath, out var shapeResult))
-		{
-			if (!string.IsNullOrEmpty(propIdKey)) _modelShapeCache[propIdKey] = shapeResult;
-			if (!string.IsNullOrEmpty(modelPath)) _modelShapeCache[modelPath] = shapeResult;
-			return shapeResult;
-		}
-
-		return CreateFallbackCollisionShape(propIdKey, modelPath);
-	}
-
-	private bool TryGenerateAnalyticalShape(string modelPath, out (Shape3D Shape, Vector3 Offset) result)
-	{
-		result = default;
-		if (string.IsNullOrEmpty(modelPath))
-			return false;
-
-		try
-		{
-			Node modelNode = ModelCache.GetModel(modelPath);
-			if (modelNode == null)
-				return false;
-
-			Aabb modelAabb = GetCombinedAabb(modelNode);
-			modelNode.Free();
-
-			if (modelAabb.Size.LengthSquared() <= 0.01f)
-				return false;
-
-			var (analShape, analOffset) = ModelOptimizerService.GenerateAnalyticalCollisionShape(modelAabb, isBuilding: true);
-			if (analShape == null)
-				return false;
-
-			result = (analShape, analOffset);
-			return true;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"Failed to compute analytical collision shape for '{PropId}': {ex.Message}");
-			return false;
-		}
-	}
-
-	private (Shape3D Shape, Vector3 Offset) CreateFallbackCollisionShape(string propIdKey, string modelPath)
-	{
-		float radius = GetBaseObstacleRadius();
-		float height = Math.Max(1.0f, radius * 2.5f);
-		var fallbackBox = new BoxShape3D
-		{
-			Size = new Vector3(radius * 2.0f, height, radius * 2.0f)
-		};
-		var shapeResult = (fallbackBox, new Vector3(0, height * 0.5f, 0));
-
-		if (!string.IsNullOrEmpty(propIdKey))
-			_modelShapeCache[propIdKey] = shapeResult;
-
-		if (!string.IsNullOrEmpty(modelPath))
-			_modelShapeCache[modelPath] = shapeResult;
-
-		return shapeResult;
 	}
 
 	public bool IsPreview { get; set; } = false;
@@ -495,21 +299,6 @@ public partial class Prop3D : StaticBody3D
 		Name = $"Prop_{PropId}_{Guid.NewGuid().ToString().Substring(0, 4)}";
 
 		SetNotifyTransform(true);
-
-		if (IsPreview)
-		{
-			CreatePropVisual();
-			SetProcess(false);
-			return;
-		}
-
-		var collisionShape = new CollisionShape3D();
-		collisionShape.Name = "CollisionShape";
-		AddChild(collisionShape);
-
-		var (shape, offset) = GetOrCreateCollisionShape();
-		collisionShape.Shape = shape;
-		collisionShape.Position = offset;
 
 		CreatePropVisual();
 		SetProcess(false);
@@ -531,6 +320,10 @@ public partial class Prop3D : StaticBody3D
 					SetProcess(false);
 				}
 			}
+		}
+		else if (!IsSelected)
+		{
+			SetProcess(false);
 		}
 	}
 
@@ -587,18 +380,7 @@ public partial class Prop3D : StaticBody3D
 	public virtual void UpdateSlopeAlignment()
 	{
 		var visual = GetNodeOrNull<Node3D>("VisualModel");
-		if (IsSlopeAligned && GameHost.Instance?.GroundTerrain != null && visual != null && GodotObject.IsInstanceValid(visual))
-		{
-			GameHost.Instance.GroundTerrain.GetHeightAndNormal(GlobalPosition.X, GlobalPosition.Z, out _, out Vector3 normal);
-			if (normal.LengthSquared() > 0.01f)
-			{
-				normal = normal.Normalized();
-				Vector3 up = normal;
-				Vector3 forward = MathF.Abs(up.Y) < 0.99f ? Vector3.Up.Cross(up).Cross(up).Normalized() : -Vector3.Forward;
-				Vector3 right = up.Cross(forward).Normalized();
-				visual.Basis = new Basis(right, up, -forward);
-			}
-		}
+		Realm.Client.Utils.ModelExtensions.ApplySlopeAlignment(this, visual, IsSlopeAligned);
 	}
 
 	private void CreatePropVisual()
@@ -643,9 +425,10 @@ public partial class Prop3D : StaticBody3D
 		if (string.IsNullOrEmpty(modelPath))
 			return;
 
+		Node node = null;
 		try
 		{
-			Node node = ModelCache.GetModel(modelPath);
+			node = ModelCache.GetModel(modelPath);
 			if (node == null)
 				return;
 
@@ -661,16 +444,34 @@ public partial class Prop3D : StaticBody3D
 		catch (Exception ex)
 		{
 			GD.PrintErr($"Failed to load prop visual for '{PropId}' ({modelPath}): {ex.Message}");
+			if (node != null && node.GetParent() == null)
+			{
+				node.QueueFree();
+			}
 		}
 	}
+
+	private Vector3 _lastNotifiedScale = new Vector3(-1f, -1f, -1f);
+	private float _lastEffectiveLodScale = -1f;
 
 	public override void _Notification(int what)
 	{
 		if (what == NotificationTransformChanged)
 		{
-			UpdateLodVisibility();
-			UpdateSelectionRingTransform();
+			Vector3 currentScale = Scale;
+			if (!currentScale.IsEqualApprox(_lastNotifiedScale))
+			{
+				_lastNotifiedScale = currentScale;
+				UpdateLodVisibility();
+				UpdateSelectionRingTransform();
+			}
 		}
+	}
+
+	public void RefreshLodVisibilityDistances()
+	{
+		_lastEffectiveLodScale = -1f;
+		UpdateLodVisibility();
 	}
 
 	public virtual void UpdateLodVisibility()
@@ -679,7 +480,11 @@ public partial class Prop3D : StaticBody3D
 		if (visual != null && GodotObject.IsInstanceValid(visual))
 		{
 			float effectiveScale = Math.Max(0.01f, Scale.Y * visual.Scale.Y);
-			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(visual, effectiveScale);
+			if (MathF.Abs(effectiveScale - _lastEffectiveLodScale) > 0.0005f)
+			{
+				_lastEffectiveLodScale = effectiveScale;
+				GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(visual, effectiveScale);
+			}
 		}
 	}
 
@@ -702,15 +507,15 @@ public partial class Prop3D : StaticBody3D
 	{
 		if (string.IsNullOrEmpty(propId)) return;
 		_resolvedModelPathCache.Remove(propId);
-		_modelShapeCache.Remove(propId);
 	}
 
 	public static void ClearModelPathCache()
 	{
 		_resolvedModelPathCache.Clear();
-		_modelShapeCache.Clear();
-		_sharedTorusMeshes.Clear();
+		Realm.Client.Utils.VisualSelectionHelper.ClearCache();
 	}
+
+	public static void ClearCache() => ClearModelPathCache();
 
 	private string ResolvePropModelPathInternal(string propId)
 	{

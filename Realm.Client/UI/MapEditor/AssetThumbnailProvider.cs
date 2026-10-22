@@ -756,4 +756,12 @@ public static class AssetThumbnailProvider
 	{
 		return x < 2 || x >= 126 || y < 2 || y >= 126;
 	}
+
+	public static void ClearCache()
+	{
+		_thumbnailCache.Clear();
+		_animatedThumbnailCache.Clear();
+		_formatBadgeCache.Clear();
+		_lruOrder.Clear();
+	}
 }

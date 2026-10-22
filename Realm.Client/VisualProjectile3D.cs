@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Services.ModelOptimization;
+using Realm.Client.Utils;
 using Realm.Client.VFX;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
@@ -12,6 +15,43 @@ using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client;
 
+public enum ProjectileTrajectoryType
+{
+	Parabolic = 0,
+	Linear = 1,
+	Boomerang = 2,
+	SwarmOrbit = 3
+}
+
+public enum ProjectileSpeedCurve
+{
+	Constant = 0,
+	Accelerate = 1,
+	Decelerate = 2,
+	EaseInOut = 3,
+	RocketBoost = 4,
+	Burst = 5
+}
+
+public enum ProjectileScaleCurve
+{
+	Constant = 0,
+	Grow = 1,
+	Shrink = 2,
+	GrowShrink = 3,
+	SquashStretch = 4,
+	ImpactShrink = 5
+}
+
+public enum ProjectileEaseCurve
+{
+	Linear = 0,
+	EaseIn = 1,
+	EaseOut = 2,
+	EaseInOut = 3
+}
+
+[GlobalClass]
 public partial class VisualProjectile3D : Node3D
 {
 	private const int MaxTrailPoints = 128;
@@ -22,18 +62,20 @@ public partial class VisualProjectile3D : Node3D
 	private Node3D _visualTransformContainer;
 	private MeshInstance3D _fallbackMeshInstance;
 	private Node3D _customModelInstance;
+	private readonly Dictionary<string, Node3D> _loadedModelsByPath = new(StringComparer.OrdinalIgnoreCase);
+	private static readonly Dictionary<string, Texture2D?> _textureCache = new(StringComparer.OrdinalIgnoreCase);
 	private OmniLight3D _pointLight;
-	private GpuParticles3D _trailEmitter;
-	private ImmediateMesh _ribbonImmediateMesh;
-	private MeshInstance3D _ribbonMeshInstance;
-	private StandardMaterial3D _ribbonMaterial;
+	private bool _hasAcquiredLight;
 	private ShaderMaterial _uberShaderMaterial;
 	private static Shader _sharedUberShader;
 
 	public static void ClearSharedShaderCache()
 	{
 		_sharedUberShader = null;
+		_textureCache.Clear();
 	}
+
+	public static void ClearCache() => ClearSharedShaderCache();
 
 	private WeaponMetadata _weapon;
 	private Vector3 _startPosition;
@@ -48,12 +90,19 @@ public partial class VisualProjectile3D : Node3D
 	private float _fadeTimer;
 	private float _fadeDuration;
 
+	private ProjectileTrajectoryType _trajectoryType;
+	private ProjectileSpeedCurve _speedCurve;
+	private ProjectileScaleCurve _scaleCurve;
+	private ProjectileEaseCurve _easeCurve;
+
+	private Vector3 _cachedGlobalPosition;
+	private Basis _cachedBasis = Basis.Identity;
+
 	private Vector3 _currentFlightPosition;
 	private Vector3 _currentFlightDirection;
 	private Vector3 _tumbleAxis;
 	private float _tumbleSpeed;
 	private string _currentLoadedModelPath;
-	private string _currentLoadedRibbonPath;
 
 	public bool IsActive => _isFlying || _isImpacted;
 	public bool IsFlying => _isFlying;
@@ -65,13 +114,15 @@ public partial class VisualProjectile3D : Node3D
 	public Node3D CustomModelInstance => _customModelInstance;
 	public MeshInstance3D FallbackMeshInstance => _fallbackMeshInstance;
 	public OmniLight3D PointLight => _pointLight;
-	public GpuParticles3D TrailEmitter => _trailEmitter;
-	public MeshInstance3D RibbonMeshInstance => _ribbonMeshInstance;
 	public ShaderMaterial UberShaderMaterial => _uberShaderMaterial;
-	public StandardMaterial3D RibbonMaterial => _ribbonMaterial;
 	public WeaponMetadata Weapon => _weapon;
+	public int PlayerIndex { get; set; } = 0;
 	public float ElapsedFlightTime => _elapsedTime;
 	public float TotalFlightDuration => _totalFlightDuration;
+	public bool HasRibbonTrail => _hasRibbonTrail;
+	public int TrailPointCount => _trailPointCount;
+	public TrailPoint[] TrailPoints => _trailPoints;
+	public Color ParsedRibbonColor => _parsedRibbonColor;
 
 	public override void _Ready()
 	{
@@ -102,87 +153,30 @@ public partial class VisualProjectile3D : Node3D
 		_pointLight.Visible = false;
 		AddChild(_pointLight);
 
-		SetupTrailEmitter();
-		SetupRibbonMeshInstance();
 		SetProcess(false);
 	}
 
 	private static void EnsureSharedShader()
 	{
-		if (_sharedUberShader == null)
-		{
-			string shaderCode = "";
-			if (FileAccess.FileExists("res://Assets/shaders/projectile_fx.gdshader"))
-			{
-				using var fa = FileAccess.Open("res://Assets/shaders/projectile_fx.gdshader", FileAccess.ModeFlags.Read);
-				shaderCode = fa?.GetAsText() ?? "";
-			}
-			else if (File.Exists("Assets/shaders/projectile_fx.gdshader"))
-			{
-				shaderCode = File.ReadAllText("Assets/shaders/projectile_fx.gdshader");
-			}
-			else if (File.Exists("Realm.ClientAssets/shaders/projectile_fx.gdshader"))
-			{
-				shaderCode = File.ReadAllText("Realm.ClientAssets/shaders/projectile_fx.gdshader");
-			}
+		if (_sharedUberShader != null) return;
 
-			if (!string.IsNullOrEmpty(shaderCode))
-			{
-				_sharedUberShader = new Shader { Code = shaderCode };
-			}
-			else
-			{
-				_sharedUberShader = GD.Load<Shader>("res://Assets/shaders/projectile_fx.gdshader");
-			}
-		}
+		string shaderCode = ShaderIncludeExpander.LoadExpandedShader("res://Assets/shaders/projectile_fx.gdshader");
+		_sharedUberShader = string.IsNullOrEmpty(shaderCode)
+			? GD.Load<Shader>("res://Assets/shaders/projectile_fx.gdshader")
+			: new Shader { Code = shaderCode };
 	}
 
-	private void SetupTrailEmitter()
-	{
-		_trailEmitter = new GpuParticles3D();
-		_trailEmitter.Name = "RibbonTrailEmitter";
-		_trailEmitter.Amount = 1;
-		_trailEmitter.Lifetime = 0.5f;
-		_trailEmitter.Explosiveness = 0.0f;
-		_trailEmitter.Randomness = 0.0f;
-		_trailEmitter.FixedFps = 60;
-		_trailEmitter.FractDelta = true;
-		_trailEmitter.LocalCoords = false;
-		_trailEmitter.Emitting = false;
-		_trailEmitter.Visible = false;
-		AddChild(_trailEmitter);
-	}
-
-	private void SetupRibbonMeshInstance()
-	{
-		_ribbonImmediateMesh = new ImmediateMesh();
-		_ribbonMeshInstance = new MeshInstance3D();
-		_ribbonMeshInstance.Name = "RibbonMeshInstance";
-		_ribbonMeshInstance.Mesh = _ribbonImmediateMesh;
-
-		_ribbonMaterial = new StandardMaterial3D();
-		_ribbonMaterial.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-		_ribbonMaterial.BlendMode = BaseMaterial3D.BlendModeEnum.Add;
-		_ribbonMaterial.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
-		_ribbonMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
-		_ribbonMaterial.TextureFilter = BaseMaterial3D.TextureFilterEnum.Linear;
-
-		_ribbonMeshInstance.MaterialOverride = _ribbonMaterial;
-		AddChild(_ribbonMeshInstance);
-		_ribbonMeshInstance.TopLevel = true;
-		_ribbonMeshInstance.Position = Vector3.Zero;
-		_ribbonMeshInstance.Rotation = Vector3.Zero;
-	}
-
-	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null)
+	public void Initialize(WeaponMetadata weapon, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null, int ownerPlayerIndex = 0)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
+		PlayerIndex = ownerPlayerIndex;
 		Initialize(start, target, weapon, targetEntity);
 	}
 
-	public void Initialize(string weaponId, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null)
+	public void Initialize(string weaponId, Vector3 start, Vector3 target, Entity targetEntity = default, Action<VisualProjectile3D> recycleCallback = null, int ownerPlayerIndex = 0)
 	{
 		if (recycleCallback != null) OnRecycleRequested = recycleCallback;
+		PlayerIndex = ownerPlayerIndex;
 		if (GameHost.WeaponRegistry.TryGetValue(weaponId ?? "arrow", out var meta))
 		{
 			Initialize(start, target, meta, targetEntity);
@@ -207,6 +201,11 @@ public partial class VisualProjectile3D : Node3D
 		_initialTargetPosition = target;
 		_targetEntity = targetEntity;
 
+		_trajectoryType = ParseTrajectoryType(weapon.TrajectoryType);
+		_speedCurve = ParseSpeedCurve(weapon.SpeedCurve);
+		_scaleCurve = ParseScaleCurve(weapon.ScaleCurve);
+		_easeCurve = ParseEaseCurve(weapon.EaseCurve);
+
 		_speed = weapon.ProjectileSpeed > 0 ? weapon.ProjectileSpeed : 25.0f;
 		float distance = _startPosition.DistanceTo(_targetPosition);
 		_totalFlightDuration = Mathf.Max(0.05f, distance / _speed);
@@ -220,6 +219,9 @@ public partial class VisualProjectile3D : Node3D
 		Vector3 toTarget = _targetPosition - _startPosition;
 		_currentFlightDirection = toTarget.LengthSquared() > 0.001f ? toTarget.Normalized() : Vector3.Forward;
 
+		_cachedGlobalPosition = _startPosition;
+		_cachedBasis = Basis.Identity;
+		Visible = true;
 		GlobalPosition = _startPosition;
 		_meshContainer.Visible = true;
 		_meshContainer.Rotation = Vector3.Zero;
@@ -234,8 +236,8 @@ public partial class VisualProjectile3D : Node3D
 		}
 		else
 		{
-			_tumbleAxis = new Vector3(1f, 0.5f, 0.2f).Normalized();
-			_tumbleSpeed = 4.0f;
+			_tumbleAxis = Vector3.Up;
+			_tumbleSpeed = 0.0f;
 		}
 
 		UpdateModel();
@@ -244,16 +246,60 @@ public partial class VisualProjectile3D : Node3D
 		UpdatePointLight();
 
 		_trailPointCount = 0;
-		_ribbonImmediateMesh?.ClearSurfaces();
-		if (_ribbonMeshInstance != null)
-		{
-			_ribbonMeshInstance.Visible = true;
-			_ribbonMeshInstance.GlobalPosition = Vector3.Zero;
-			_ribbonMeshInstance.GlobalRotation = Vector3.Zero;
-		}
-
 		Visible = true;
-		SetProcess(true);
+		SetProcess(false);
+	}
+
+	private static ProjectileTrajectoryType ParseTrajectoryType(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileTrajectoryType.Parabolic;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"linearvector" or "linear" or "piercing" => ProjectileTrajectoryType.Linear,
+			"boomerang" => ProjectileTrajectoryType.Boomerang,
+			"swarmorbit" or "swarm" => ProjectileTrajectoryType.SwarmOrbit,
+			_ => ProjectileTrajectoryType.Parabolic,
+		};
+	}
+
+	private static ProjectileSpeedCurve ParseSpeedCurve(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileSpeedCurve.Constant;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"accelerate" or "ease_in" => ProjectileSpeedCurve.Accelerate,
+			"decelerate" or "ease_out" => ProjectileSpeedCurve.Decelerate,
+			"ease_in_out" => ProjectileSpeedCurve.EaseInOut,
+			"rocket_boost" => ProjectileSpeedCurve.RocketBoost,
+			"burst" => ProjectileSpeedCurve.Burst,
+			_ => ProjectileSpeedCurve.Constant,
+		};
+	}
+
+	private static ProjectileScaleCurve ParseScaleCurve(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileScaleCurve.Constant;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"grow" => ProjectileScaleCurve.Grow,
+			"shrink" => ProjectileScaleCurve.Shrink,
+			"grow_shrink" => ProjectileScaleCurve.GrowShrink,
+			"squash_stretch" => ProjectileScaleCurve.SquashStretch,
+			"impact_shrink" => ProjectileScaleCurve.ImpactShrink,
+			_ => ProjectileScaleCurve.Constant,
+		};
+	}
+
+	private static ProjectileEaseCurve ParseEaseCurve(string? raw)
+	{
+		if (string.IsNullOrEmpty(raw)) return ProjectileEaseCurve.Linear;
+		return raw.Trim().ToLowerInvariant() switch
+		{
+			"ease_in" => ProjectileEaseCurve.EaseIn,
+			"ease_out" => ProjectileEaseCurve.EaseOut,
+			"ease_in_out" => ProjectileEaseCurve.EaseInOut,
+			_ => ProjectileEaseCurve.Linear,
+		};
 	}
 
 	private void UpdateVisualTransform()
@@ -271,7 +317,7 @@ public partial class VisualProjectile3D : Node3D
 		Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
 		Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
 		baseScale = SafeScale(baseScale);
-		float initialScaleFactor = Mathf.Max(0.001f, CalculateScaleOverLifetime(0.0f, _weapon.ScaleCurve));
+		float initialScaleFactor = Mathf.Max(0.001f, CalculateScaleOverLifetime(0.0f, _scaleCurve));
 		_visualTransformContainer.Scale = SafeScale(baseScale * initialScaleFactor);
 	}
 
@@ -305,11 +351,11 @@ public partial class VisualProjectile3D : Node3D
 		}
 	}
 
-	private void ClearCustomModelInstance()
+	private void HideCustomModelInstance()
 	{
 		if (_customModelInstance != null && GodotObject.IsInstanceValid(_customModelInstance))
 		{
-			_customModelInstance.QueueFree();
+			_customModelInstance.Visible = false;
 			_customModelInstance = null;
 		}
 	}
@@ -330,7 +376,12 @@ public partial class VisualProjectile3D : Node3D
 		}
 
 		var loaded = ModelCache.GetModel(modelPath);
-		return loaded is Node3D n ? n : null;
+		if (loaded is Node3D n)
+		{
+			return n;
+		}
+		loaded?.QueueFree();
+		return null;
 	}
 
 	private void UpdateModel()
@@ -338,7 +389,7 @@ public partial class VisualProjectile3D : Node3D
 		string modelPath = _weapon.ProjectileModelPath;
 		if (string.IsNullOrEmpty(modelPath))
 		{
-			ClearCustomModelInstance();
+			HideCustomModelInstance();
 			_currentLoadedModelPath = null;
 			EnableFallbackMesh();
 			return;
@@ -347,12 +398,26 @@ public partial class VisualProjectile3D : Node3D
 		bool needsReload = modelPath != _currentLoadedModelPath || _customModelInstance == null || !GodotObject.IsInstanceValid(_customModelInstance);
 		if (!needsReload)
 		{
+			_customModelInstance.Visible = true;
 			_fallbackMeshInstance.Visible = false;
 			return;
 		}
 
-		ClearCustomModelInstance();
+		HideCustomModelInstance();
 		_currentLoadedModelPath = modelPath;
+
+		if (_loadedModelsByPath.TryGetValue(modelPath, out var cachedNode) && cachedNode != null && GodotObject.IsInstanceValid(cachedNode))
+		{
+			_customModelInstance = cachedNode;
+			if (_customModelInstance is ProceduralVfxInstance3D cachedVfx)
+			{
+				cachedVfx.PlayerIndex = PlayerIndex;
+			}
+			_customModelInstance.Visible = true;
+			_fallbackMeshInstance.Visible = false;
+			GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(_customModelInstance, Math.Max(0.01f, _visualTransformContainer.Scale.Y));
+			return;
+		}
 
 		Node3D node3D = LoadModelPath(modelPath);
 		if (node3D == null)
@@ -361,9 +426,16 @@ public partial class VisualProjectile3D : Node3D
 			return;
 		}
 
+		if (node3D is ProceduralVfxInstance3D projectileVfx)
+		{
+			projectileVfx.PlayerIndex = PlayerIndex;
+		}
+
+		_loadedModelsByPath[modelPath] = node3D;
 		_customModelInstance = node3D;
 		_visualTransformContainer.AddChild(_customModelInstance);
 		_fallbackMeshInstance.Visible = false;
+		GltfDocumentExtensionMsftLod.UpdateLodVisibilityRanges(_customModelInstance, Math.Max(0.01f, _visualTransformContainer.Scale.Y));
 
 		if (node3D is not ProceduralVfxInstance3D)
 		{
@@ -479,31 +551,26 @@ public partial class VisualProjectile3D : Node3D
 		}
 	}
 
+	private Color _parsedRibbonColor = new(1.0f, 0.65f, 0.2f);
+	private bool _hasRibbonTrail = true;
+
 	private void UpdateRibbonTrail()
 	{
-		Color ribbonCol = ParseColor(_weapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f));
+		_parsedRibbonColor = ParseColor(_weapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f));
+		_hasRibbonTrail = _weapon.RibbonLifetime >= 0f && _weapon.RibbonWidth >= 0f && !string.Equals(_weapon.RibbonColor, "none", StringComparison.OrdinalIgnoreCase);
+	}
 
-		if (_weapon.RibbonAdditive)
+	private void ReleaseLight()
+	{
+		if (_hasAcquiredLight)
 		{
-			_ribbonMaterial.AlbedoColor = new Color(ribbonCol.R * 2.2f, ribbonCol.G * 2.2f, ribbonCol.B * 2.2f, ribbonCol.A);
-			_ribbonMaterial.BlendMode = BaseMaterial3D.BlendModeEnum.Add;
-		}
-		else
-		{
-			_ribbonMaterial.AlbedoColor = ribbonCol;
-			_ribbonMaterial.BlendMode = BaseMaterial3D.BlendModeEnum.Mix;
+			_hasAcquiredLight = false;
+			GameContext.FXService?.ReleaseProjectileLight();
 		}
 
-		if (!string.IsNullOrEmpty(_weapon.RibbonTexture) && _weapon.RibbonTexture != _currentLoadedRibbonPath)
+		if (_pointLight != null)
 		{
-			_currentLoadedRibbonPath = _weapon.RibbonTexture;
-			var tex = LoadTextureSafe(_weapon.RibbonTexture);
-			_ribbonMaterial.AlbedoTexture = tex;
-		}
-		else if (string.IsNullOrEmpty(_weapon.RibbonTexture))
-		{
-			_currentLoadedRibbonPath = null;
-			_ribbonMaterial.AlbedoTexture = null;
+			_pointLight.Visible = false;
 		}
 	}
 
@@ -511,15 +578,27 @@ public partial class VisualProjectile3D : Node3D
 	{
 		if (_weapon.PointLightEnabled && _weapon.PointLightIntensity > 0.01f)
 		{
-			_pointLight.Visible = true;
-			_pointLight.LightColor = ParseColor(_weapon.PointLightColor, new Color(1.0f, 0.7f, 0.3f));
-			_pointLight.LightEnergy = _weapon.PointLightIntensity;
-			_pointLight.OmniRange = _weapon.PointLightRange > 0 ? _weapon.PointLightRange : 6.0f;
-			_pointLight.OmniAttenuation = 2.0f;
+			if (!_hasAcquiredLight && GameContext.FXService != null && GameContext.FXService.TryAcquireProjectileLight())
+			{
+				_hasAcquiredLight = true;
+			}
+
+			if (_hasAcquiredLight)
+			{
+				_pointLight.Visible = true;
+				_pointLight.LightColor = ParseColor(_weapon.PointLightColor, new Color(1.0f, 0.7f, 0.3f));
+				_pointLight.LightEnergy = _weapon.PointLightIntensity;
+				_pointLight.OmniRange = _weapon.PointLightRange > 0 ? _weapon.PointLightRange : 6.0f;
+				_pointLight.OmniAttenuation = 2.0f;
+			}
+			else
+			{
+				_pointLight.Visible = false;
+			}
 		}
 		else
 		{
-			_pointLight.Visible = false;
+			ReleaseLight();
 		}
 	}
 
@@ -533,9 +612,7 @@ public partial class VisualProjectile3D : Node3D
 			_isImpacted = false;
 			_isFlying = true;
 			_meshContainer.Visible = true;
-			_pointLight.Visible = _weapon.PointLightEnabled && _weapon.PointLightIntensity > 0.01f;
-			if (_ribbonMeshInstance != null) _ribbonMeshInstance.Visible = true;
-			SetProcess(true);
+			_pointLight.Visible = _hasAcquiredLight;
 		}
 
 		float sign = Mathf.Sign(deltaSeconds);
@@ -562,10 +639,8 @@ public partial class VisualProjectile3D : Node3D
 		_fadeTimer += dt;
 		if (_fadeTimer >= _fadeDuration)
 		{
-			SetProcess(false);
 			_isImpacted = false;
 			Visible = false;
-			if (_ribbonMeshInstance != null) _ribbonMeshInstance.Visible = false;
 			OnRecycleRequested?.Invoke(this);
 		}
 	}
@@ -573,7 +648,7 @@ public partial class VisualProjectile3D : Node3D
 	private bool CheckFlightFailsafes()
 	{
 		if (_weapon.MaxLifetime > 0.0f && _elapsedTime >= _weapon.MaxLifetime) return true;
-		if (_weapon.FailsafeRange > 0.0f && GlobalPosition.DistanceTo(_startPosition) >= _weapon.FailsafeRange) return true;
+		if (_weapon.FailsafeRange > 0.0f && _cachedGlobalPosition.DistanceTo(_startPosition) >= _weapon.FailsafeRange) return true;
 		if (_elapsedTime >= _totalFlightDuration * 3.0f + 5.0f) return true;
 		return false;
 	}
@@ -609,7 +684,7 @@ public partial class VisualProjectile3D : Node3D
 		if (_elapsedTime <= outboundDuration)
 		{
 			float bOutT = Mathf.Clamp(_elapsedTime / outboundDuration, 0.0f, 1.0f);
-			_currentFlightPosition = _startPosition.Lerp(currentTarget, ApplyEaseCurve(bOutT, _weapon.EaseCurve));
+			_currentFlightPosition = _startPosition.Lerp(currentTarget, ApplyEaseCurve(bOutT, _easeCurve));
 			return false;
 		}
 
@@ -622,7 +697,7 @@ public partial class VisualProjectile3D : Node3D
 		if (_elapsedTime <= outboundDuration + delay + returnDuration)
 		{
 			float bRetT = Mathf.Clamp((_elapsedTime - outboundDuration - delay) / returnDuration, 0.0f, 1.0f);
-			_currentFlightPosition = currentTarget.Lerp(_startPosition, ApplyEaseCurve(bRetT, _weapon.EaseCurve));
+			_currentFlightPosition = currentTarget.Lerp(_startPosition, ApplyEaseCurve(bRetT, _easeCurve));
 			return false;
 		}
 
@@ -631,7 +706,7 @@ public partial class VisualProjectile3D : Node3D
 
 	private bool ProcessHomingOrParabolicTrajectory(Vector3 currentTarget, float currentSpeed, float dt, float rawT)
 	{
-		float easedT = ApplyEaseCurve(rawT, _weapon.EaseCurve);
+		float easedT = ApplyEaseCurve(rawT, _easeCurve);
 
 		if (_weapon.TurnRateLimit > 0.0f && _weapon.HomingWeight > 0.0f)
 		{
@@ -658,16 +733,14 @@ public partial class VisualProjectile3D : Node3D
 		return rawT >= 1.0f;
 	}
 
-	private bool UpdateFlightTrajectory(string trajType, Vector3 currentTarget, float currentSpeed, float dt, float rawT)
+	private bool UpdateFlightTrajectory(ProjectileTrajectoryType trajType, Vector3 currentTarget, float currentSpeed, float dt, float rawT)
 	{
-		bool isLinearVector = string.Equals(trajType, "LinearVector", StringComparison.OrdinalIgnoreCase) ||
-		                      string.Equals(trajType, "Linear", StringComparison.OrdinalIgnoreCase) ||
-		                      string.Equals(trajType, "Piercing", StringComparison.OrdinalIgnoreCase);
-		bool isBoomerang = string.Equals(trajType, "Boomerang", StringComparison.OrdinalIgnoreCase);
-
-		if (isLinearVector) return ProcessLinearTrajectory(currentSpeed, dt, rawT);
-		if (isBoomerang) return ProcessBoomerangTrajectory(currentTarget);
-		return ProcessHomingOrParabolicTrajectory(currentTarget, currentSpeed, dt, rawT);
+		return trajType switch
+		{
+			ProjectileTrajectoryType.Linear => ProcessLinearTrajectory(currentSpeed, dt, rawT),
+			ProjectileTrajectoryType.Boomerang => ProcessBoomerangTrajectory(currentTarget),
+			_ => ProcessHomingOrParabolicTrajectory(currentTarget, currentSpeed, dt, rawT),
+		};
 	}
 
 	private float CalculateArcY(float rawT)
@@ -704,11 +777,9 @@ public partial class VisualProjectile3D : Node3D
 		return right * (Mathf.Sin(phi) * _weapon.ZigzagAmplitude);
 	}
 
-	private Vector3 CalculateOrbitOffset(string trajType, Vector3 right, Vector3 up)
+	private Vector3 CalculateOrbitOffset(ProjectileTrajectoryType trajType, Vector3 right, Vector3 up)
 	{
-		bool isOrbit = string.Equals(trajType, "SwarmOrbit", StringComparison.OrdinalIgnoreCase) ||
-		               string.Equals(trajType, "Swarm", StringComparison.OrdinalIgnoreCase);
-		if (!isOrbit) return Vector3.Zero;
+		if (trajType != ProjectileTrajectoryType.SwarmOrbit) return Vector3.Zero;
 
 		float radius = _weapon.OrbitRadius > 0.0f ? _weapon.OrbitRadius : 1.0f;
 		float speed = _weapon.OrbitSpeed > 0.0f ? _weapon.OrbitSpeed : 10.0f;
@@ -720,32 +791,42 @@ public partial class VisualProjectile3D : Node3D
 	{
 		if (_weapon.OrientToTrajectory)
 		{
-			Vector3 velocityDelta = nextPos - GlobalPosition;
+			Vector3 velocityDelta = nextPos - _cachedGlobalPosition;
 			if (velocityDelta.LengthSquared() > 0.0001f)
 			{
 				Vector3 dir = velocityDelta.Normalized();
 				Vector3 upVector = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.99f ? Vector3.Forward : Vector3.Up;
-				LookAtFromPosition(nextPos, nextPos + dir, upVector);
+				_cachedBasis = Basis.LookingAt(dir, upVector);
+				_cachedGlobalPosition = nextPos;
+				GlobalTransform = new Transform3D(_cachedBasis, _cachedGlobalPosition);
 			}
 			else
 			{
+				_cachedGlobalPosition = nextPos;
 				GlobalPosition = nextPos;
 			}
 		}
 		else
 		{
+			_cachedGlobalPosition = nextPos;
 			GlobalPosition = nextPos;
 		}
 
-		_meshContainer.RotateObjectLocal(_tumbleAxis, _tumbleSpeed * dt);
+		if (_tumbleSpeed > 0.0001f)
+		{
+			_meshContainer.RotateObjectLocal(_tumbleAxis, _tumbleSpeed * dt);
+		}
 
-		Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
-		Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
-		baseScale = SafeScale(baseScale);
-		float lifetimeScale = Mathf.Max(0.001f, CalculateScaleOverLifetime(rawT, _weapon.ScaleCurve));
-		_visualTransformContainer.Scale = SafeScale(baseScale * lifetimeScale);
+		if (_scaleCurve != ProjectileScaleCurve.Constant)
+		{
+			Vector3 meshScale = _weapon.MeshScaleOffset.ToGodotVector3();
+			Vector3 baseScale = (meshScale == Vector3.Zero) ? Vector3.One : meshScale;
+			baseScale = SafeScale(baseScale);
+			float lifetimeScale = Mathf.Max(0.001f, CalculateScaleOverLifetime(rawT, _scaleCurve));
+			_visualTransformContainer.Scale = SafeScale(baseScale * lifetimeScale);
+		}
 
-		Vector3 trailPos = GlobalPosition + GlobalTransform.Basis * _weapon.TrailOffset.ToGodotVector3();
+		Vector3 trailPos = _cachedGlobalPosition + _cachedBasis * _weapon.TrailOffset.ToGodotVector3();
 		UpdateTrail(dt, trailPos);
 	}
 
@@ -761,18 +842,16 @@ public partial class VisualProjectile3D : Node3D
 
 		if (CheckFlightFailsafes())
 		{
-			HandleImpact(GlobalPosition);
+			HandleImpact(_cachedGlobalPosition);
 			return;
 		}
 
 		Vector3 currentTarget = GetCurrentTargetPosition();
-		float currentSpeed = CalculateSpeed(_speed, _elapsedTime, _totalFlightDuration, _weapon.SpeedCurve, _weapon.Acceleration);
+		float currentSpeed = CalculateSpeed(_speed, _elapsedTime, _totalFlightDuration, _speedCurve, _weapon.Acceleration);
 		_elapsedTime += dt;
 		float rawT = Mathf.Clamp(_elapsedTime / _totalFlightDuration, 0.0f, 1.0f);
 
-		string trajType = _weapon.TrajectoryType ?? "Parabolic";
-
-		bool impactOccurred = UpdateFlightTrajectory(trajType, currentTarget, currentSpeed, dt, rawT);
+		bool impactOccurred = UpdateFlightTrajectory(_trajectoryType, currentTarget, currentSpeed, dt, rawT);
 		if (impactOccurred)
 		{
 			HandleImpact(_currentFlightPosition);
@@ -786,7 +865,7 @@ public partial class VisualProjectile3D : Node3D
 
 		Vector3 spiralOffset = CalculateSpiralOffset(right, up);
 		Vector3 zigzagOffset = CalculateZigzagOffset(right);
-		Vector3 orbitOffset = CalculateOrbitOffset(trajType, right, up);
+		Vector3 orbitOffset = CalculateOrbitOffset(_trajectoryType, right, up);
 
 		Vector3 nextPos = _currentFlightPosition + new Vector3(0, arcY, 0) + spiralOffset + zigzagOffset + orbitOffset;
 		UpdateVisualTransforms(nextPos, dt, rawT);
@@ -826,9 +905,9 @@ public partial class VisualProjectile3D : Node3D
 			if (addNew)
 			{
 				int moveCount = Math.Min(_trailPointCount, MaxTrailPoints - 1);
-				for (int i = moveCount; i > 0; i--)
+				if (moveCount > 0)
 				{
-					_trailPoints[i] = _trailPoints[i - 1];
+					Array.Copy(_trailPoints, 0, _trailPoints, 1, moveCount);
 				}
 
 				_trailPoints[0] = new TrailPoint
@@ -839,11 +918,9 @@ public partial class VisualProjectile3D : Node3D
 				_trailPointCount = Math.Min(_trailPointCount + 1, MaxTrailPoints);
 			}
 		}
-
-		RedrawRibbonMesh(lifetime);
 	}
 
-	private Vector3 CalculateRibbonForward(int index)
+	public Vector3 CalculateRibbonForwardIndex(int index)
 	{
 		Vector3 forward;
 		if (index == 0)
@@ -862,7 +939,7 @@ public partial class VisualProjectile3D : Node3D
 		return forward.LengthSquared() < 0.001f ? Vector3.Forward : forward;
 	}
 
-	private Vector3 CalculateRibbonSide(Vector3 forward, Vector3 p, Vector3 camPos)
+	public Vector3 CalculateRibbonSideDirection(Vector3 forward, Vector3 p, Vector3 camPos)
 	{
 		Vector3 viewDir = (p - camPos).Normalized();
 		Vector3 side = forward.Cross(viewDir).Normalized();
@@ -875,52 +952,6 @@ public partial class VisualProjectile3D : Node3D
 		return side;
 	}
 
-	private void AddRibbonVertex(Vector3 p, float t, Vector3 side, float baseWidth, Color baseCol)
-	{
-		float width = baseWidth * (_weapon.RibbonTaper ? (1.0f - t) : 1.0f);
-		Vector3 halfSide = side * (width * 0.5f);
-
-		float u = t + (_weapon.RibbonScrollSpeed * _elapsedTime);
-		float alpha = 1.0f - t;
-		Color vertColor = new Color(baseCol.R, baseCol.G, baseCol.B, baseCol.A * alpha);
-
-		_ribbonImmediateMesh.SurfaceSetColor(vertColor);
-		_ribbonImmediateMesh.SurfaceSetUV(new Vector2(u, 0.0f));
-		_ribbonImmediateMesh.SurfaceAddVertex(p - halfSide);
-
-		_ribbonImmediateMesh.SurfaceSetColor(vertColor);
-		_ribbonImmediateMesh.SurfaceSetUV(new Vector2(u, 1.0f));
-		_ribbonImmediateMesh.SurfaceAddVertex(p + halfSide);
-	}
-
-	private void RedrawRibbonMesh(float lifetime)
-	{
-		if (_ribbonImmediateMesh == null) return;
-		_ribbonImmediateMesh.ClearSurfaces();
-		if (_trailPointCount < 2) return;
-
-		Camera3D camera = GetViewport()?.GetCamera3D();
-		Vector3 camPos = camera != null && GodotObject.IsInstanceValid(camera) ? camera.GlobalPosition : (GlobalPosition + new Vector3(0, 5, 10));
-
-		float baseWidth = _weapon.RibbonWidth > 0 ? _weapon.RibbonWidth : 0.4f;
-		Color baseCol = ParseColor(_weapon.RibbonColor, new Color(1.0f, 0.65f, 0.2f));
-
-		_ribbonImmediateMesh.SurfaceBegin(Mesh.PrimitiveType.TriangleStrip, _ribbonMaterial);
-
-		for (int i = 0; i < _trailPointCount; i++)
-		{
-			Vector3 p = _trailPoints[i].Position;
-			float t = Mathf.Clamp(_trailPoints[i].Age / lifetime, 0.0f, 1.0f);
-
-			Vector3 forward = CalculateRibbonForward(i);
-			Vector3 side = CalculateRibbonSide(forward, p, camPos);
-
-			AddRibbonVertex(p, t, side, baseWidth, baseCol);
-		}
-
-		_ribbonImmediateMesh.SurfaceEnd();
-	}
-
 	private void HandleImpact(Vector3 impactPosition)
 	{
 		_isFlying = false;
@@ -928,9 +959,7 @@ public partial class VisualProjectile3D : Node3D
 		_fadeTimer = 0.0f;
 
 		_meshContainer.Visible = false;
-		_pointLight.Visible = false;
-		if (_ribbonMeshInstance != null) _ribbonMeshInstance.Visible = false;
-		_ribbonImmediateMesh?.ClearSurfaces();
+		ReleaseLight();
 
 		if (!string.IsNullOrEmpty(_weapon.ImpactVisualEffect) && GameHost.Instance != null)
 		{
@@ -945,22 +974,22 @@ public partial class VisualProjectile3D : Node3D
 		}
 	}
 
-	private static float CalculateSpeed(float baseSpeed, float elapsedTime, float totalDuration, string speedCurve, float acceleration)
+	private static float CalculateSpeed(float baseSpeed, float elapsedTime, float totalDuration, ProjectileSpeedCurve speedCurve, float acceleration)
 	{
 		float speed = Mathf.Max(0.1f, baseSpeed + (acceleration * elapsedTime));
 
-		if (string.IsNullOrEmpty(speedCurve) || speedCurve == "constant")
+		if (speedCurve == ProjectileSpeedCurve.Constant)
 			return speed;
 
 		float progress = Mathf.Clamp(elapsedTime / Mathf.Max(0.001f, totalDuration), 0.0f, 1.0f);
 
-		return speedCurve.ToLowerInvariant() switch
+		return speedCurve switch
 		{
-			"accelerate" or "ease_in" => speed * (0.3f + 1.4f * progress * progress),
-			"decelerate" or "ease_out" => speed * (1.7f - 1.4f * progress * progress),
-			"ease_in_out" => speed * (0.4f + 1.2f * (progress * progress * (3.0f - 2.0f * progress))),
-			"rocket_boost" => speed * (0.15f + 2.35f * Mathf.Pow(progress, 3.0f)),
-			"burst" => speed * (1.0f + 1.5f * Mathf.Exp(-4.0f * progress)),
+			ProjectileSpeedCurve.Accelerate => speed * (0.3f + 1.4f * progress * progress),
+			ProjectileSpeedCurve.Decelerate => speed * (1.7f - 1.4f * progress * progress),
+			ProjectileSpeedCurve.EaseInOut => speed * (0.4f + 1.2f * (progress * progress * (3.0f - 2.0f * progress))),
+			ProjectileSpeedCurve.RocketBoost => speed * (0.15f + 2.35f * Mathf.Pow(progress, 3.0f)),
+			ProjectileSpeedCurve.Burst => speed * (1.0f + 1.5f * Mathf.Exp(-4.0f * progress)),
 			_ => speed,
 		};
 	}
@@ -973,36 +1002,31 @@ public partial class VisualProjectile3D : Node3D
 		return 1.0f;
 	}
 
-	private static float CalculateScaleOverLifetime(float t, string scaleCurve)
+	private static float CalculateScaleOverLifetime(float t, ProjectileScaleCurve scaleCurve)
 	{
-		if (string.IsNullOrEmpty(scaleCurve) || scaleCurve == "constant" || scaleCurve == "none")
+		if (scaleCurve == ProjectileScaleCurve.Constant)
 			return 1.0f;
 
-		return scaleCurve.ToLowerInvariant() switch
+		return scaleCurve switch
 		{
-			"grow" => Mathf.Clamp(t * 1.5f, 0.001f, 1.0f),
-			"shrink" => Mathf.Clamp(1.0f - t, 0.001f, 1.0f),
-			"grow_shrink" => Mathf.Max(0.001f, Mathf.Sin(Mathf.Clamp(t, 0.0f, 1.0f) * Mathf.Pi)),
-			"squash_stretch" => CalculateSquashStretchScale(t),
-			"impact_shrink" => t > 0.8f ? Mathf.Clamp((1.0f - t) / 0.2f, 0.001f, 1.0f) : 1.0f,
+			ProjectileScaleCurve.Grow => Mathf.Clamp(t * 1.5f, 0.001f, 1.0f),
+			ProjectileScaleCurve.Shrink => Mathf.Clamp(1.0f - t, 0.001f, 1.0f),
+			ProjectileScaleCurve.GrowShrink => Mathf.Max(0.001f, Mathf.Sin(Mathf.Clamp(t, 0.0f, 1.0f) * Mathf.Pi)),
+			ProjectileScaleCurve.SquashStretch => CalculateSquashStretchScale(t),
+			ProjectileScaleCurve.ImpactShrink => t > 0.8f ? Mathf.Clamp((1.0f - t) / 0.2f, 0.001f, 1.0f) : 1.0f,
 			_ => 1.0f,
 		};
 	}
 
-	private static float ApplyEaseCurve(float t, string easeCurve)
+	private static float ApplyEaseCurve(float t, ProjectileEaseCurve easeCurve)
 	{
-		if (string.IsNullOrEmpty(easeCurve)) return t;
-		switch (easeCurve.ToLowerInvariant())
+		return easeCurve switch
 		{
-			case "ease_in":
-				return t * t;
-			case "ease_out":
-				return 1.0f - (1.0f - t) * (1.0f - t);
-			case "ease_in_out":
-				return t < 0.5f ? 2.0f * t * t : 1.0f - Mathf.Pow(-2.0f * t + 2.0f, 2.0f) / 2.0f;
-			default:
-				return t;
-		}
+			ProjectileEaseCurve.EaseIn => t * t,
+			ProjectileEaseCurve.EaseOut => 1.0f - (1.0f - t) * (1.0f - t),
+			ProjectileEaseCurve.EaseInOut => t < 0.5f ? 2.0f * t * t : 1.0f - Mathf.Pow(-2.0f * t + 2.0f, 2.0f) / 2.0f,
+			_ => t,
+		};
 	}
 
 	private static Color ParseColor(string hex, Color fallback)
@@ -1022,38 +1046,49 @@ public partial class VisualProjectile3D : Node3D
 	{
 		if (string.IsNullOrEmpty(path)) return null;
 
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		string cacheKey = $"{wsPath}|{path}";
+		if (_textureCache.TryGetValue(cacheKey, out var cached) && (cached == null || GodotObject.IsInstanceValid(cached)))
+		{
+			return cached;
+		}
+
+		Texture2D? result = null;
 		if (path.StartsWith("res://") || path.StartsWith("user://"))
 		{
 			if (ResourceLoader.Exists(path))
 			{
-				return GD.Load<Texture2D>(path);
+				result = GD.Load<Texture2D>(path);
 			}
 		}
-
-		string resolvedPath = ModelCache.ResolveModelPath(path);
-		if (!string.IsNullOrEmpty(resolvedPath) && File.Exists(resolvedPath))
+		else
 		{
-			if (resolvedPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
+			string resolvedPath = ModelCache.ResolveModelPath(path);
+			if (!string.IsNullOrEmpty(resolvedPath) && File.Exists(resolvedPath))
 			{
-				var img = LoadImageFromRtex(resolvedPath);
-				if (img != null)
+				if (resolvedPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
 				{
-					img.GenerateMipmaps();
-					return ImageTexture.CreateFromImage(img);
+					var img = LoadImageFromRtex(resolvedPath);
+					if (img != null)
+					{
+						img.GenerateMipmaps();
+						result = ImageTexture.CreateFromImage(img);
+					}
 				}
-			}
-			else
-			{
-				var img = Image.LoadFromFile(resolvedPath);
-				if (img != null)
+				else
 				{
-					img.GenerateMipmaps();
-					return ImageTexture.CreateFromImage(img);
+					var img = Image.LoadFromFile(resolvedPath);
+					if (img != null)
+					{
+						img.GenerateMipmaps();
+						result = ImageTexture.CreateFromImage(img);
+					}
 				}
 			}
 		}
 
-		return null;
+		_textureCache[cacheKey] = result;
+		return result;
 	}
 
 	private static Image? LoadImageFromRtex(string rtexPath, int layer = 0)

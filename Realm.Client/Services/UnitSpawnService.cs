@@ -219,6 +219,7 @@ public class UnitSpawnService
 		GameContext.World.Add(entity, new DefinitionId(id));
 		GameContext.World.Add(entity, new Name(name));
 		GameContext.World.Add(entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
+		GameContext.World.Add(entity, new PreviousPosition(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
 		GameContext.World.Add(entity, new Owner(owner));
 
 		ParseCombatTargeting(targets, out bool canTargetAir, out bool canTargetGround);

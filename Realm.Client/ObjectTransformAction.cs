@@ -79,6 +79,33 @@ public class ObjectTransformAction : IEditorAction
 
 	private static void UpdateEcsEntity(Entity entity, Vector3 pos, Vector3 rot, Vector3 scale)
 	{
+		WriteEcsTransform(entity, pos, rot, scale, true);
+	}
+
+	public static void PersistTransformToEcs(Node3D node)
+	{
+		if (node == null || !GodotObject.IsInstanceValid(node)) return;
+
+		if (node is Unit3D unit)
+		{
+			WriteEcsTransform(unit.Entity, unit.Position, unit.RotationDegrees, unit.Scale, true);
+		}
+		else if (node is Prop3D prop)
+		{
+			WriteEcsTransform(prop.Entity, prop.Position, prop.RotationDegrees, prop.Scale, true);
+		}
+		else if (node is Decal3D decal)
+		{
+			WriteEcsTransform(decal.Entity, decal.Position, decal.RotationDegrees, decal.Scale, false);
+		}
+		else if (node is PropEntityProxyNode proxy)
+		{
+			WriteEcsTransform(proxy.Entity, proxy.Position, proxy.RotationDegrees, proxy.Scale, true);
+		}
+	}
+
+	private static void WriteEcsTransform(Entity entity, Vector3 pos, Vector3 rot, Vector3 scale, bool writeScale)
+	{
 		GameHost tempQualifier = GameHost.Instance;
 		var ecsWorld = (tempQualifier != null ? GameContext.World : null);
 		if (ecsWorld == null || entity == Entity.Null || !ecsWorld.IsAlive(entity))
@@ -89,7 +116,16 @@ public class ObjectTransformAction : IEditorAction
 		if (ecsWorld.Has<RotationY>(entity))
 			ecsWorld.Set(entity, new RotationY(rot.Y));
 
+		if (ecsWorld.Has<Rotation3D>(entity))
+			ecsWorld.Set(entity, new Rotation3D(new System.Numerics.Vector3(rot.X, rot.Y, rot.Z)));
+
+		if (!writeScale)
+			return;
+
 		if (ecsWorld.Has<ModelScale>(entity))
 			ecsWorld.Set(entity, new ModelScale(scale.X));
+
+		if (ecsWorld.Has<CollisionScale>(entity))
+			ecsWorld.Set(entity, new CollisionScale(scale.X));
 	}
 }

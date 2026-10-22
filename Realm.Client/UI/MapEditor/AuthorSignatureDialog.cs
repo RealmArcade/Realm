@@ -7,8 +7,11 @@ using Realm.Shared.Distribution;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class AuthorSignatureDialog : FloatingDialogBase
 {
+	public AuthorSignatureDialog() { }
+
 	private LineEdit _txtUsername;
 	private LineEdit _txtPublicKey;
 	private Label _lblKeyPath;
@@ -17,7 +20,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 	public AuthorSignatureDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Author Signature"), new Vector2(540, 360))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_author_signature.png", 42, 25, 55, 55);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_author_signature.webp", 42, 25, 55, 55);
 		if (TitleLabel?.GetParent() is MarginContainer titleMargin)
 		{
 			titleMargin.AddThemeConstantOverride("margin_top", -42);
@@ -34,6 +37,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 	private void BuildControls()
 	{
 		var descMargin = new MarginContainer();
+		descMargin.Name = "DescMargin_MarginContainer";
 		descMargin.AddThemeConstantOverride("margin_top", 6);
 		descMargin.AddThemeConstantOverride("margin_bottom", 6);
 		descMargin.AddThemeConstantOverride("margin_left", 12);
@@ -41,6 +45,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		descMargin.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 		var descLabel = new Label();
+		descLabel.Name = "DescLabel_Label";
 		descLabel.Text = TranslationServer.Translate("Your map publishing key is stored in authorship_key_DO-NOT-SHARE.rkey. It is used to sign all your maps and assets to verify your ownership so others can't overwrite your published files. Keep this key safely backed up in a secure location. NEVER share your private key or .rkey file. To collaborate on maps, share only your Public Key with team maintainers so they can authorize you to publish.");
 		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		descLabel.CustomMinimumSize = new Vector2(390, 0);
@@ -60,6 +65,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		}
 
 		var grid = new GridContainer();
+		grid.Name = "Grid_GridContainer";
 		grid.Columns = 2;
 		grid.AddThemeConstantOverride("h_separation", 10);
 		grid.AddThemeConstantOverride("v_separation", 4);
@@ -67,6 +73,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		BodyContainer.AddChild(grid);
 
 		var lblUser = new Label();
+		lblUser.Name = "LblUser_Label";
 		lblUser.Text = TranslationServer.Translate("UserName:");
 		lblUser.CustomMinimumSize = new Vector2(85, 0);
 		lblUser.AddThemeFontSizeOverride("font_size", 10);
@@ -74,6 +81,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		grid.AddChild(lblUser);
 
 		_txtUsername = new LineEdit();
+		_txtUsername.Name = "TxtUsername_LineEdit";
 		_txtUsername.Editable = false;
 		_txtUsername.CustomMinimumSize = new Vector2(0, 22);
 		_txtUsername.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -81,6 +89,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		grid.AddChild(_txtUsername);
 
 		var lblPub = new Label();
+		lblPub.Name = "LblPub_Label";
 		lblPub.Text = TranslationServer.Translate("PublicKey:");
 		lblPub.CustomMinimumSize = new Vector2(85, 0);
 		lblPub.AddThemeFontSizeOverride("font_size", 10);
@@ -88,10 +97,12 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		grid.AddChild(lblPub);
 
 		var pubHBox = new HBoxContainer();
+		pubHBox.Name = "PubHBox_HBoxContainer";
 		pubHBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		pubHBox.AddThemeConstantOverride("separation", 6);
 
 		_txtPublicKey = new LineEdit();
+		_txtPublicKey.Name = "TxtPublicKey_LineEdit";
 		_txtPublicKey.Editable = false;
 		_txtPublicKey.CustomMinimumSize = new Vector2(0, 22);
 		_txtPublicKey.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -102,6 +113,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		grid.AddChild(pubHBox);
 
 		var lblPriv = new Label();
+		lblPriv.Name = "LblPriv_Label";
 		lblPriv.Text = TranslationServer.Translate("Private Key:");
 		lblPriv.CustomMinimumSize = new Vector2(85, 0);
 		lblPriv.AddThemeFontSizeOverride("font_size", 10);
@@ -109,6 +121,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		grid.AddChild(lblPriv);
 
 		var lblPrivVal = new Label();
+		lblPrivVal.Name = "LblPrivVal_Label";
 		lblPrivVal.Text = "\uf023 " + TranslationServer.Translate("SECRET. DO NOT SHARE.");
 		lblPrivVal.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblPrivVal.AddThemeFontSizeOverride("font_size", 10);
@@ -120,6 +133,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		grid.AddChild(lblPrivVal);
 
 		var lblPathTitle = new Label();
+		lblPathTitle.Name = "LblPathTitle_Label";
 		lblPathTitle.Text = TranslationServer.Translate("File Location:");
 		lblPathTitle.CustomMinimumSize = new Vector2(85, 0);
 		lblPathTitle.AddThemeFontSizeOverride("font_size", 10);
@@ -127,6 +141,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		grid.AddChild(lblPathTitle);
 
 		_lblKeyPath = new Label();
+		_lblKeyPath.Name = "LblKeyPath_Label";
 		_lblKeyPath.Text = string.Empty;
 		_lblKeyPath.AddThemeFontSizeOverride("font_size", 10);
 		_lblKeyPath.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
@@ -136,12 +151,14 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		grid.AddChild(_lblKeyPath);
 
 		var actionRow = new HBoxContainer();
+		actionRow.Name = "ActionRow_HBoxContainer";
 		actionRow.AddThemeConstantOverride("separation", 10);
 		actionRow.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 		var btnOpenFolder = AddButton(actionRow, "\uf07c " + TranslationServer.Translate("Open Folder"), () => OpenKeysFolderInExplorer(), "Open key folder in Windows Explorer for backup", 10, new Vector2(110, 24));
 
 		_lblCopyStatus = new Label();
+		_lblCopyStatus.Name = "LblCopyStatus_Label";
 		_lblCopyStatus.Text = string.Empty;
 		_lblCopyStatus.AddThemeFontSizeOverride("font_size", 10);
 		_lblCopyStatus.AddThemeColorOverride("font_color", new Color(0.4f, 0.9f, 0.4f));

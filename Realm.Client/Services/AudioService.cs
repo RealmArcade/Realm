@@ -3,12 +3,18 @@ using System.Collections.Generic;
 using System.IO;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.UI;
 using Realm.Shared.Audio;
 
 namespace Realm.Client.Services;
 
 public class AudioService
 {
+	public const string MasterBusName = "Master";
+	public const string MusicBusName = "Music";
+	public const string SfxBusName = "SFX";
+	public const string VoiceBusName = "Voice";
+
 	private const int Max2DPlayers = 16;
 	private const int Max3DPlayers = 32;
 	private const int MaxConcurrentPerSound = 4;
@@ -25,9 +31,46 @@ public class AudioService
 	{
 	}
 
+	public static void ApplyVolumeSettings()
+	{
+		EnsureAudioBuses();
+		ApplyBusVolume(MasterBusName, GameSettings.MasterVolume);
+		ApplyBusVolume(MusicBusName, GameSettings.MusicVolume);
+		ApplyBusVolume(SfxBusName, GameSettings.SfxVolume);
+		ApplyBusVolume(VoiceBusName, GameSettings.VoiceVolume);
+	}
+
+	public static void EnsureAudioBuses()
+	{
+		EnsureBus(MusicBusName);
+		EnsureBus(SfxBusName);
+		EnsureBus(VoiceBusName);
+	}
+
+	private static void EnsureBus(string busName)
+	{
+		if (AudioServer.GetBusIndex(busName) >= 0) return;
+
+		int busIndex = AudioServer.BusCount;
+		AudioServer.AddBus(busIndex);
+		AudioServer.SetBusName(busIndex, busName);
+		AudioServer.SetBusSend(busIndex, MasterBusName);
+	}
+
+	private static void ApplyBusVolume(string busName, float volumePercent)
+	{
+		int busIndex = AudioServer.GetBusIndex(busName);
+		if (busIndex < 0) return;
+
+		float linearVolume = Math.Clamp(volumePercent / 100f, 0f, 1f);
+		AudioServer.SetBusVolumeDb(busIndex, linearVolume <= 0f ? -80f : Mathf.LinearToDb(linearVolume));
+	}
+
 	public void InitializeAudioNodes(Node parentNode)
 	{
 		if (_audioRoot != null && GodotObject.IsInstanceValid(_audioRoot)) return;
+
+		EnsureAudioBuses();
 
 		_audioRoot = new Node { Name = "AudioRoot" };
 		parentNode.AddChild(_audioRoot);
@@ -35,7 +78,7 @@ public class AudioService
 		_player2DPool.Clear();
 		for (int i = 0; i < Max2DPlayers; i++)
 		{
-			var p = new AudioStreamPlayer { Name = $"Audio2D_{i}", Bus = "SFX" };
+			var p = new AudioStreamPlayer { Name = $"Audio2D_{i}", Bus = SfxBusName };
 			_audioRoot.AddChild(p);
 			_player2DPool.Add(p);
 		}
@@ -47,7 +90,7 @@ public class AudioService
 			var p = new AudioStreamPlayer3D
 			{
 				Name = $"Audio3D_{i}",
-				Bus = "SFX",
+				Bus = SfxBusName,
 				MaxDistance = 60f,
 				UnitSize = 10f,
 				AttenuationModel = AudioStreamPlayer3D.AttenuationModelEnum.InverseSquareDistance

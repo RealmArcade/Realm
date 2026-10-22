@@ -296,6 +296,8 @@ namespace Realm.Client.ReplaySystem
 			if (GameContext.World.Has<Position>(localEntity))
 			{
 				GameContext.World.Set(localEntity, new Position(snap.Position.ToNumerics()));
+				GameContext.World.SetOrAdd(localEntity, new PreviousPosition(snap.Position.ToNumerics()));
+				GameContext.World.SetOrAdd(localEntity, new PreviousRotationY(snap.RotationY));
 			}
 
 			if (GameContext.World.Has<Velocity>(localEntity))

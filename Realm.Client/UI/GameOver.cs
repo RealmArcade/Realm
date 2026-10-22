@@ -12,9 +12,11 @@ using Realm.Shared.Distribution;
 using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class GameOver : Control
 {
 	public GameOver()
@@ -75,7 +77,7 @@ public partial class GameOver : Control
 		_btnWriteReview = GetNode<Button>("BottomButtons/BtnWriteReview");
 
 		_tableRowsContainer = GetNode<VBoxContainer>("MainPanel/VBox/TableFrame/VBox/TableRowsContainer");
-		_graphContainer = GetNode<Control>("MainPanel/VBox/GraphFrame/TimelineGraph");
+		_graphContainer = GetNode<Control>("MainPanel/VBox/GraphFrame/VBox/TimelineGraph");
 
 
 		_playerColHeader = GetNode<Label>("MainPanel/VBox/TableFrame/VBox/TableHeader/PlayerCol");
@@ -220,7 +222,7 @@ public partial class GameOver : Control
 	private void SetupCloseButton()
 	{
 		_btnClose.Flat = false;
-		_btnClose.Icon = GD.Load<Texture2D>("res://Assets/UI/cancel_button_2.png");
+		_btnClose.Icon = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/cancel_button_2.webp");
 		_btnClose.ExpandIcon = true;
 
 		string closeText = GameContext.SessionState.IsTestMode ? "Back to Editor" : "Close";
@@ -319,29 +321,34 @@ public partial class GameOver : Control
 
 
 		var rootPopup = new ColorRect();
+		rootPopup.Name = "RootPopup_ColorRect";
 		rootPopup.Color = new Color(0, 0, 0, 0.6f);
 		rootPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		AddChild(rootPopup);
 
 
 		var panel = new PanelContainer();
+		panel.Name = "Panel_PanelContainer";
 		panel.CustomMinimumSize = new Vector2(550, 420);
 		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		panel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		rootPopup.AddChild(panel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.AddThemeConstantOverride("separation", 15);
 		panel.AddChild(vbox);
 
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, hasExisting ? Tr("EDIT YOUR REVIEW") : Tr("WRITE A REVIEW"), 22);
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
 
 
 		var mapLabel = new Label();
+		mapLabel.Name = "MapLabel_Label";
 		mapLabel.Text = $"{Tr("Map")}: {mapName.ToUpper()}";
 		mapLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		mapLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -350,17 +357,20 @@ public partial class GameOver : Control
 
 
 		var ratingHBox = new HBoxContainer();
+		ratingHBox.Name = "RatingHBox_HBoxContainer";
 		ratingHBox.Alignment = BoxContainer.AlignmentMode.Center;
 		ratingHBox.AddThemeConstantOverride("separation", 10);
 		vbox.AddChild(ratingHBox);
 
 		var ratingTitle = new Label();
+		ratingTitle.Name = "RatingTitle_Label";
 		ratingTitle.Text = Tr("Rating:");
 		ratingTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		ratingTitle.AddThemeFontSizeOverride("font_size", 16);
 		ratingHBox.AddChild(ratingTitle);
 
 		var ratingOption = new OptionButton();
+		ratingOption.Name = "RatingOption_OptionButton";
 		ratingOption.CustomMinimumSize = new Vector2(180, 36);
 		ratingOption.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
 		ratingOption.AddThemeStyleboxOverride("hover", UIStyle.CreateTextInput(true));
@@ -386,12 +396,14 @@ public partial class GameOver : Control
 
 
 		var commentsLabel = new Label();
+		commentsLabel.Name = "CommentsLabel_Label";
 		commentsLabel.Text = Tr("Your Review comments:");
 		commentsLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		commentsLabel.AddThemeFontSizeOverride("font_size", 15);
 		vbox.AddChild(commentsLabel);
 
 		var commentsEdit = new TextEdit();
+		commentsEdit.Name = "CommentsEdit_TextEdit";
 		commentsEdit.SizeFlagsVertical = SizeFlags.ExpandFill;
 		commentsEdit.PlaceholderText = Tr("Write your thoughts about this map here...");
 		commentsEdit.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
@@ -408,11 +420,13 @@ public partial class GameOver : Control
 
 
 		var actionsHBox = new HBoxContainer();
+		actionsHBox.Name = "ActionsHBox_HBoxContainer";
 		actionsHBox.Alignment = BoxContainer.AlignmentMode.Center;
 		actionsHBox.AddThemeConstantOverride("separation", 25);
 		vbox.AddChild(actionsHBox);
 
 		var btnSubmit = new Button();
+		btnSubmit.Name = "BtnSubmit_Button";
 		btnSubmit.AddThemeConstantOverride("icon_max_width", 0);
 		btnSubmit.CustomMinimumSize = new Vector2(150, 42);
 		UIStyle.ApplyButtonText(btnSubmit, "Submit", 16);
@@ -423,6 +437,7 @@ public partial class GameOver : Control
 		actionsHBox.AddChild(btnSubmit);
 
 		var btnCancel = new Button();
+		btnCancel.Name = "BtnCancel_Button";
 		btnCancel.AddThemeConstantOverride("icon_max_width", 0);
 		btnCancel.CustomMinimumSize = new Vector2(150, 42);
 		UIStyle.ApplyButtonText(btnCancel, "Cancel", 16);
@@ -547,9 +562,11 @@ public partial class GameOver : Control
 		foreach (var r in rows)
 		{
 			var rowContainer = new HBoxContainer();
+			rowContainer.Name = "RowContainer_HBoxContainer";
 			rowContainer.CustomMinimumSize = new Vector2(0, 32);
 
 			var pLbl = new Label();
+			pLbl.Name = "PLbl_Label";
 			pLbl.Text = $"  {r.Player}";
 			pLbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			pLbl.AddThemeFontSizeOverride("font_size", 15);
@@ -558,6 +575,7 @@ public partial class GameOver : Control
 			rowContainer.AddChild(pLbl);
 
 			var fLbl = new Label();
+			fLbl.Name = "FLbl_Label";
 			fLbl.Text = r.Faction;
 			fLbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			fLbl.AddThemeFontSizeOverride("font_size", 14);
@@ -566,6 +584,7 @@ public partial class GameOver : Control
 			rowContainer.AddChild(fLbl);
 
 			var c3Lbl = new Label();
+			c3Lbl.Name = "C3Lbl_Label";
 			c3Lbl.Text = r.Col3;
 			c3Lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			c3Lbl.AddThemeFontSizeOverride("font_size", 15);
@@ -574,6 +593,7 @@ public partial class GameOver : Control
 			rowContainer.AddChild(c3Lbl);
 
 			var c4Lbl = new Label();
+			c4Lbl.Name = "C4Lbl_Label";
 			c4Lbl.Text = r.Col4;
 			c4Lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			c4Lbl.AddThemeFontSizeOverride("font_size", 14);
@@ -582,6 +602,7 @@ public partial class GameOver : Control
 			rowContainer.AddChild(c4Lbl);
 
 			var c5Lbl = new Label();
+			c5Lbl.Name = "C5Lbl_Label";
 			c5Lbl.Text = $"{r.Col5}  ";
 			c5Lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			c5Lbl.HorizontalAlignment = HorizontalAlignment.Right;

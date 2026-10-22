@@ -79,7 +79,6 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.27.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <PackageReference Include="NSec.Cryptography" Version="26.4.0" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="MemoryPack" Version="1.21.4" />
     <PackageReference Include="SharpToken" Version="2.0.6" />
     <PackageReference Include="SkiaSharp" Version="3.116.1" />
@@ -90,12 +89,6 @@
   </ItemGroup>
   <Target Name="GenerateEnglishLocalization" BeforeTargets="CoreCompile;AssignTargetPaths" Condition="'$(DesignTimeBuild)' != 'true'">
     <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\Realm.LocalizationGenerator\Realm.LocalizationGenerator.csproj&quot; -- &quot;$(MSBuildThisFileDirectory)..\Realm.slnx&quot; &quot;$(MSBuildThisFileDirectory)locale\en.json&quot;" />
-  </Target>
-  <Target Name="RemoveUnusedWebView2" BeforeTargets="ResolveAssemblyReferences">
-    <ItemGroup>
-      <Reference Remove="@(Reference-&gt;WithMetadataValue('FileName', 'Microsoft.Web.WebView2.Wpf'))" />
-      <Reference Remove="@(Reference-&gt;WithMetadataValue('FileName', 'Microsoft.Web.WebView2.WinForms'))" />
-    </ItemGroup>
   </Target>
   <ItemGroup>
     <AdditionalFiles Include="..\Realm.MapAPI\wit\game.wit" />

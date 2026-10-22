@@ -7,9 +7,11 @@ using Realm.Client.ReplaySystem;
 using Realm.Shared;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class ReplayListPanel : Control
 {
 	public ReplayListPanel()
@@ -90,7 +92,7 @@ public partial class ReplayListPanel : Control
 		var bgTexture = GetNodeOrNull<TextureRect>("BackgroundTexture");
 		if (bgTexture != null)
 		{
-			bgTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/replays_bg.jpg");
+			bgTexture.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/replays_bg.webp");
 			bgTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTexture.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
 		}
@@ -103,7 +105,7 @@ public partial class ReplayListPanel : Control
 		var panelTexture = GetNodeOrNull<TextureRect>("CenterContainer/MainFrame/PanelTexture");
 		if (panelTexture != null)
 		{
-			panelTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/replays_panel.png");
+			panelTexture.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/replays_panel.webp");
 			panelTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			panelTexture.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 			panelTexture.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
@@ -240,6 +242,7 @@ public partial class ReplayListPanel : Control
 	private PanelContainer CreateReplayRow(string path, ReplayHeader header, int totalTicks)
 	{
 		var panel = new PanelContainer();
+		panel.Name = "Panel_PanelContainer";
 		panel.CustomMinimumSize = new Vector2(0, 70);
 		panel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
@@ -258,14 +261,17 @@ public partial class ReplayListPanel : Control
 		panel.AddThemeStyleboxOverride("panel", style);
 
 		var hBox = new HBoxContainer();
+		hBox.Name = "HBox_HBoxContainer";
 		hBox.AddThemeConstantOverride("separation", 20);
 		panel.AddChild(hBox);
 
 		var infoVBox = new VBoxContainer();
+		infoVBox.Name = "InfoVBox_VBoxContainer";
 		infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		hBox.AddChild(infoVBox);
 
 		var mapLabel = new Label();
+		mapLabel.Name = "MapLabel_Label";
 		string mapName = (header.MapName ?? "UNKNOWN").ToUpper();
 		mapLabel.Text = mapName;
 		mapLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -274,6 +280,7 @@ public partial class ReplayListPanel : Control
 		infoVBox.AddChild(mapLabel);
 
 		var metaLabel = new Label();
+		metaLabel.Name = "MetaLabel_Label";
 		int totalSec = totalTicks / 30;
 		string durationStr = string.Format("{0:D2}:{1:D2}", totalSec / 60, totalSec % 60);
 		var dt = DateTimeOffset.FromUnixTimeSeconds(header.Timestamp).LocalDateTime;
@@ -292,6 +299,7 @@ public partial class ReplayListPanel : Control
 		infoVBox.AddChild(metaLabel);
 
 		var playBtn = new Button();
+		playBtn.Name = "PlayBtn_Button";
 		playBtn.CustomMinimumSize = new Vector2(100, 40);
 		playBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		UIStyle.ApplyButtonText(playBtn, "WATCH", 13);
@@ -305,6 +313,7 @@ public partial class ReplayListPanel : Control
 		hBox.AddChild(playBtn);
 
 		var deleteBtn = new Button();
+		deleteBtn.Name = "DeleteBtn_Button";
 		deleteBtn.CustomMinimumSize = new Vector2(100, 40);
 		deleteBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		UIStyle.ApplyButtonText(deleteBtn, "DELETE", 13);
@@ -325,82 +334,15 @@ public partial class ReplayListPanel : Control
 
 	private void ShowVersionMismatchPopup(string replayVersion, string currentVersion, string path)
 	{
-		var warningPopup = new Panel();
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.CustomMinimumSize = new Vector2(500, 260);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(450, 220);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		UIStyle.ApplyTitle(titleLabel, Tr("VERSION MISMATCH"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
 		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(replayVersion));
 
-		var descLabel = new Label();
 		string promptText = versionExistsLocally
 			? Tr("The running game version doesn't match the replay file. Re-launch game with correct version?")
 			: Tr("The required game version is not installed. Download it?");
-		descLabel.Text = $"{string.Format(Tr("Replay Version: {0}"), replayVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
+		string message = $"{string.Format(Tr("Replay Version: {0}"), replayVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var hBox = new HBoxContainer();
-		hBox.Alignment = BoxContainer.AlignmentMode.Center;
-		hBox.AddThemeConstantOverride("separation", 20);
-		vbox.AddChild(hBox);
-
-		var cancelBtn = new Button();
-		cancelBtn.Flat = false;
-		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
-		cancelBtn.CustomMinimumSize = new Vector2(160, 40);
-		cancelBtn.Pressed += () =>
+		UIManager.Instance?.ShowConfirmationDialog(message, () =>
 		{
-			UIManager.Instance?.PlayClickSound();
-			warningPopup.QueueFree();
-		};
-		hBox.AddChild(cancelBtn);
-
-		var okBtn = new Button();
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, versionExistsLocally ? Tr("RELAUNCH") : Tr("DOWNLOAD"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			warningPopup.QueueFree();
-
 			if (versionExistsLocally)
 			{
 				string targetExe = LobbyManager.GetVersionExecutablePath(replayVersion);
@@ -411,8 +353,7 @@ public partial class ReplayListPanel : Control
 			{
 				OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
 			}
-		};
-		hBox.AddChild(okBtn);
+		}, confirmText: versionExistsLocally ? "RELAUNCH" : "DOWNLOAD", titleOverride: "VERSION MISMATCH");
 	}
 
 	private void OnPlayReplayPressed(string path)
@@ -498,75 +439,6 @@ public partial class ReplayListPanel : Control
 
 	private void ShowConfirmationDialog(string message, Action onConfirm)
 	{
-		var overlay = new ColorRect();
-		overlay.Name = "ConfirmationOverlay";
-		overlay.Color = new Color(0, 0, 0, 0.6f);
-		overlay.SetAnchorsPreset(LayoutPreset.FullRect);
-		AddChild(overlay);
-
-		var panel = new PanelContainer();
-		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		panel.CustomMinimumSize = new Vector2(400, 200);
-		panel.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		panel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-
-		var center = new CenterContainer();
-		center.SetAnchorsPreset(LayoutPreset.FullRect);
-		overlay.AddChild(center);
-		center.AddChild(panel);
-
-		var vbox = new VBoxContainer();
-		vbox.AddThemeConstantOverride("separation", 20);
-		panel.AddChild(vbox);
-
-		var lblTitle = new Label();
-		UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate("CONFIRMATION REQUIRED"), 18);
-		lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		lblTitle.HorizontalAlignment = HorizontalAlignment.Center;
-		vbox.AddChild(lblTitle);
-
-		var lblMsg = new Label();
-		lblMsg.Text = TranslationServer.Translate(message);
-		lblMsg.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		lblMsg.HorizontalAlignment = HorizontalAlignment.Center;
-		lblMsg.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		lblMsg.AddThemeFontSizeOverride("font_size", 14);
-		vbox.AddChild(lblMsg);
-
-		var hbox = new HBoxContainer();
-		hbox.AddThemeConstantOverride("separation", 30);
-		hbox.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		vbox.AddChild(hbox);
-
-		var btnConfirm = new Button();
-		btnConfirm.CustomMinimumSize = new Vector2(100, 40);
-		btnConfirm.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(btnConfirm, "YES", 13);
-		btnConfirm.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btnConfirm.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btnConfirm.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btnConfirm.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			overlay.QueueFree();
-			onConfirm?.Invoke();
-		};
-		btnConfirm.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		hbox.AddChild(btnConfirm);
-
-		var btnCancel = new Button();
-		btnCancel.CustomMinimumSize = new Vector2(100, 40);
-		btnCancel.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(btnCancel, "NO", 13);
-		btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btnCancel.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btnCancel.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btnCancel.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			overlay.QueueFree();
-		};
-		btnCancel.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
-		hbox.AddChild(btnCancel);
+			UIManager.Instance?.ShowConfirmationDialog(message, onConfirm);
 	}
 }

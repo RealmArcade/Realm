@@ -21,6 +21,7 @@ using Key = NSec.Cryptography.Key;
 using MirrorMode = Realm.Ecs.Components.Core.MirrorMode;
 using WaterType = Realm.Ecs.Components.Terrain.WaterType;
 using static Godot.Control;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI
 {
@@ -94,13 +95,31 @@ namespace Realm.Client.UI
 			UpdateAutoBackup(delta);
 		}
 
+		private float _lastStatusX = float.NaN;
+		private float _lastStatusY = float.NaN;
+		private float _lastStatusZ = float.NaN;
+		private EditorTool? _lastActiveTool = null;
+		private string? _lastActivePlaceId = null;
+
 		private void UpdateTerrainStatus()
 		{
 			var mousePos = GetViewport().GetMousePosition();
 			if (GameHost.Instance.TryRaycastTerrainFromMousePosition(mousePos, out Vector3 pos))
 			{
-				if (GameContext.EditorService.CheckAndUpdateRaycast(pos))
+				float roundX = (float)Math.Round(pos.X, 1);
+				float roundY = (float)Math.Round(pos.Y, 1);
+				float roundZ = (float)Math.Round(pos.Z, 1);
+				EditorTool currentTool = GameHost.Instance.ActiveEditorTool;
+				string currentPlaceId = GameHost.Instance.ActivePlaceId;
+
+				if (roundX != _lastStatusX || roundY != _lastStatusY || roundZ != _lastStatusZ || currentTool != _lastActiveTool || currentPlaceId != _lastActivePlaceId)
 				{
+					_lastStatusX = roundX;
+					_lastStatusY = roundY;
+					_lastStatusZ = roundZ;
+					_lastActiveTool = currentTool;
+					_lastActivePlaceId = currentPlaceId;
+					GameContext.EditorService.CheckAndUpdateRaycast(pos);
 					_viewModel.StatusText = GameHost.Instance.GetTerrainStatusString(pos);
 				}
 			}
@@ -376,7 +395,7 @@ namespace Realm.Client.UI
 
 		private StyleBox CreateTopBarStylebox()
 		{
-			var posTexture = GD.Load<Texture2D>("res://Assets/UI/map_editor_pos.png");
+			var posTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_pos.webp");
 			if (posTexture != null)
 			{
 				var posStyle = new StyleBoxTexture();
@@ -519,9 +538,14 @@ namespace Realm.Client.UI
 		{
 			MirrorMode mirrorMode = GameHost.Instance?.EditorMirrorMode ?? MirrorMode.None;
 			bool isPolar = GameContext.EditorService.IsPolarGridActive(mode, mirrorMode);
+			bool showResetPivot = isPolar || mirrorMode != MirrorMode.None;
+
+			if (_optPolarRingSpacing != null) _optPolarRingSpacing.Visible = isPolar;
+			if (_optPolarRadialStep != null) _optPolarRadialStep.Visible = isPolar;
+			if (_btnResetPivotToCenter != null) _btnResetPivotToCenter.Visible = showResetPivot;
 			if (_rowPolarConfig != null)
 			{
-				_rowPolarConfig.Visible = isPolar;
+				_rowPolarConfig.Visible = showResetPivot;
 			}
 		}
 
@@ -562,8 +586,8 @@ namespace Realm.Client.UI
 				}
 			}
 
-			string text = string.Format(
-				TranslationServer.Translate($"{UnicodeIcons.RULER} MEASURE: Manhattan: {0:F1}T | Euclidean: {1:F1}T ({2:F1}m) | Angle: {3:F1}° | Slope: {4}"),
+			string text = $"{UnicodeIcons.RULER} " + string.Format(
+				TranslationServer.Translate("MEASURE: Manhattan: {0:F1}T | Euclidean: {1:F1}T ({2:F1}m) | Angle: {3:F1}° | Slope: {4}"),
 				manhattanTiles, eucTiles, eucWorld, angleDeg, slopeStr);
 
 			if (Mathf.Abs(dy) > 0.01f)
@@ -802,7 +826,7 @@ namespace Realm.Client.UI
 
 		public void RefreshEntityPalette()
 		{
-			_entityPaletteController?.SelectCategory(_entityPaletteController.CurrentCategory, triggerAddObject: false);
+			_entityPaletteController?.RefreshCurrentCategoryItems();
 		}
 
 		public void UpdateRotationExternal(float angle)
@@ -888,14 +912,18 @@ namespace Realm.Client.UI
 				_swatchHighlightPanel.AddThemeStyleboxOverride("panel", style);
 			}
 
-			if (_swatchHighlightPanel.GetParent() != null)
-			{
-				_swatchHighlightPanel.GetParent().RemoveChild(_swatchHighlightPanel);
-			}
-
 			if (selectedSwatch != null)
 			{
-				selectedSwatch.AddChild(_swatchHighlightPanel);
+				if (_swatchHighlightPanel.GetParent() != selectedSwatch)
+				{
+					_swatchHighlightPanel.GetParent()?.RemoveChild(_swatchHighlightPanel);
+					selectedSwatch.AddChild(_swatchHighlightPanel);
+				}
+				_swatchHighlightPanel.Visible = true;
+			}
+			else
+			{
+				_swatchHighlightPanel.Visible = false;
 			}
 		}
 
@@ -921,14 +949,18 @@ namespace Realm.Client.UI
 				_swatchCliffHighlightPanel.AddThemeStyleboxOverride("panel", style);
 			}
 
-			if (_swatchCliffHighlightPanel.GetParent() != null)
-			{
-				_swatchCliffHighlightPanel.GetParent().RemoveChild(_swatchCliffHighlightPanel);
-			}
-
 			if (selectedSwatch != null)
 			{
-				selectedSwatch.AddChild(_swatchCliffHighlightPanel);
+				if (_swatchCliffHighlightPanel.GetParent() != selectedSwatch)
+				{
+					_swatchCliffHighlightPanel.GetParent()?.RemoveChild(_swatchCliffHighlightPanel);
+					selectedSwatch.AddChild(_swatchCliffHighlightPanel);
+				}
+				_swatchCliffHighlightPanel.Visible = true;
+			}
+			else
+			{
+				_swatchCliffHighlightPanel.Visible = false;
 			}
 		}
 
@@ -958,63 +990,8 @@ namespace Realm.Client.UI
 
 		private void ShowMapNewerThanGameErrorDialog(string selectedFolder, string mapVersion, string gameVersion)
 		{
-			var popup = new Panel();
-			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-			AddChild(popup);
-
-			var cardPanel = new Panel();
-			cardPanel.CustomMinimumSize = new Vector2(540, 260);
-			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-			popup.AddChild(cardPanel);
-
-			var vbox = new VBoxContainer();
-			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			vbox.CustomMinimumSize = new Vector2(500, 230);
-			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-			cardPanel.AddChild(vbox);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-			var titleLabel = new Label();
-			UIStyle.ApplyTitle(titleLabel, Tr("MAP REQUIRES NEWER GAME VERSION"), 18);
-			titleLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.3f));
-			vbox.AddChild(titleLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
-
-			var descLabel = new Label();
-			descLabel.Text = $"{string.Format(Tr("Map: {0}"), Path.GetFileName(selectedFolder))}\n{string.Format(Tr("Map Build: {0} | Editor Build: {1}"), mapVersion, gameVersion)}\n\n{Tr("This map was created with a newer version of the game. Downgrading maps is not supported.\nPlease update the game to open this map.")}";
-			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-			descLabel.AddThemeFontSizeOverride("font_size", 13);
-			descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-			vbox.AddChild(descLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
-
-			var buttonRow = new HBoxContainer();
-			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
-			vbox.AddChild(buttonRow);
-
-			var closeBtn = new Button();
-			closeBtn.Flat = false;
-			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
-			closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			closeBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			closeBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			closeBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			UIStyle.ApplyButtonText(closeBtn, Tr("CLOSE"), 14);
-			closeBtn.CustomMinimumSize = new Vector2(120, 38);
-			buttonRow.AddChild(closeBtn);
-
-			closeBtn.Pressed += () =>
-			{
-				UIManager.Instance?.PlayClickSound();
-				popup.QueueFree();
-			};
+			string msg = $"{string.Format(Tr("Map: {0}"), Path.GetFileName(selectedFolder))}\n{string.Format(Tr("Map Build: {0} | Editor Build: {1}"), mapVersion, gameVersion)}\n\n{Tr("This map was created with a newer version of the game. Downgrading maps is not supported.\nPlease update the game to open this map.")}";
+			UIManager.Instance?.ShowPopupMessage("MAP REQUIRES NEWER GAME VERSION", msg);
 		}
 
 		private void ShowGreenlightStatusDialog(string mapTitle, string mapVersion, int verifiedGoodReviews, int totalReviews, double averageRating, bool isGreenlit)
@@ -1032,6 +1009,7 @@ namespace Realm.Client.UI
 			overlay.AddChild(center);
 
 			var panel = new PanelContainer();
+			panel.Name = "Panel_PanelContainer";
 			panel.CustomMinimumSize = new Vector2(640, 440);
 			var style = new StyleBoxFlat();
 			style.BgColor = new Color(0.12f, 0.14f, 0.20f, 0.98f);
@@ -1048,6 +1026,7 @@ namespace Realm.Client.UI
 			center.AddChild(panel);
 
 			var margin = new MarginContainer();
+			margin.Name = "Margin_MarginContainer";
 			margin.AddThemeConstantOverride("margin_top", 22);
 			margin.AddThemeConstantOverride("margin_bottom", 22);
 			margin.AddThemeConstantOverride("margin_left", 26);
@@ -1055,10 +1034,12 @@ namespace Realm.Client.UI
 			panel.AddChild(margin);
 
 			var vbox = new VBoxContainer();
+			vbox.Name = "Vbox_VBoxContainer";
 			vbox.AddThemeConstantOverride("separation", 14);
 			margin.AddChild(vbox);
 
 			var lblTitle = new Label();
+			lblTitle.Name = "LblTitle_Label";
 			lblTitle.Text = isGreenlit ? TranslationServer.Translate("MAP GREENLIT FOR PUBLISHING") : TranslationServer.Translate("MAP NOT YET GREENLIT");
 			lblTitle.HorizontalAlignment = HorizontalAlignment.Center;
 			lblTitle.AddThemeFontSizeOverride("font_size", 20);
@@ -1066,6 +1047,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(lblTitle);
 
 			var lblDesc = new Label();
+			lblDesc.Name = "LblDesc_Label";
 			lblDesc.Text = isGreenlit
 				? string.Format(TranslationServer.Translate("'{0}' v{1} has met the community greenlight requirement and can now be published to the public registry."), mapTitle, mapVersion)
 				: string.Format(TranslationServer.Translate("'{0}' v{1} is currently in Beta-Testing. Maps must achieve 100 Verified Good Reviews before graduating to the public registry."), mapTitle, mapVersion);
@@ -1076,11 +1058,13 @@ namespace Realm.Client.UI
 			vbox.AddChild(lblDesc);
 
 			var metricsBox = new VBoxContainer();
+			metricsBox.Name = "MetricsBox_VBoxContainer";
 			metricsBox.AddThemeConstantOverride("separation", 8);
 			vbox.AddChild(metricsBox);
 
 			bool reviewsMet = verifiedGoodReviews >= 100;
 			var lblReviews = new Label();
+			lblReviews.Name = "LblReviews_Label";
 			lblReviews.Text = string.Format(TranslationServer.Translate("• Total Verified Good Reviews: {0} / 100 {1}"), verifiedGoodReviews, reviewsMet ? "✓" : "");
 			lblReviews.AddThemeColorOverride("font_color", reviewsMet ? new Color(0.4f, 0.9f, 0.5f) : new Color(0.9f, 0.8f, 0.6f));
 			lblReviews.AddThemeFontSizeOverride("font_size", 15);
@@ -1089,6 +1073,7 @@ namespace Realm.Client.UI
 			if (totalReviews > 0)
 			{
 				var lblAggregate = new Label();
+				lblAggregate.Name = "LblAggregate_Label";
 				lblAggregate.Text = string.Format(TranslationServer.Translate("• Public Aggregate Reviews: {0} (Average Rating: {1:F1} ★)"), totalReviews, averageRating);
 				lblAggregate.AddThemeColorOverride("font_color", new Color(0.7f, 0.75f, 0.85f));
 				lblAggregate.AddThemeFontSizeOverride("font_size", 12);
@@ -1096,6 +1081,7 @@ namespace Realm.Client.UI
 			}
 
 			var tip = new Label();
+			tip.Name = "Tip_Label";
 			tip.Text = TranslationServer.Translate("How Verified Good Reviews are determined:\nA review qualifies as Verified & Good when submitted by a player who:\n  1. Is logged in with a verified account (Steam, Discord, etc.)\n  2. Has played your map for at least 30 minutes across 3 or more completed games\n  3. Gives your map a rating of 3 stars or higher\n\nHost multiplayer lobbies or share your map peer-to-peer to build verified reviews from your community.");
 			tip.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			tip.AddThemeFontSizeOverride("font_size", 11);
@@ -1103,11 +1089,13 @@ namespace Realm.Client.UI
 			vbox.AddChild(tip);
 
 			var hbox = new HBoxContainer();
+			hbox.Name = "Hbox_HBoxContainer";
 			hbox.Alignment = BoxContainer.AlignmentMode.Center;
 			hbox.AddThemeConstantOverride("separation", 20);
 			vbox.AddChild(hbox);
 
 			var btnClose = new Button();
+			btnClose.Name = "BtnClose_Button";
 			btnClose.Text = TranslationServer.Translate("OK");
 			btnClose.CustomMinimumSize = new Vector2(100, 36);
 			btnClose.Pressed += () => overlay.QueueFree();
@@ -1134,18 +1122,21 @@ namespace Realm.Client.UI
 			overlay.AddChild(center);
 
 			var panel = new PanelContainer();
+			panel.Name = "Panel_PanelContainer";
 			panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 			panel.CustomMinimumSize = new Vector2(520, 266);
 			center.AddChild(panel);
 
 			var bgTex = new TextureRect();
-			bgTex.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_test.png");
+			bgTex.Name = "BgTex_TextureRect";
+			bgTex.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_test.webp");
 			bgTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTex.StretchMode = TextureRect.StretchModeEnum.Scale;
 			bgTex.SetAnchorsPreset(LayoutPreset.FullRect);
 			panel.AddChild(bgTex);
 
 			var margin = new MarginContainer();
+			margin.Name = "Margin_MarginContainer";
 			margin.SetAnchorsPreset(LayoutPreset.FullRect);
 			margin.AddThemeConstantOverride("margin_top", 30);
 			margin.AddThemeConstantOverride("margin_bottom", 25);
@@ -1154,14 +1145,17 @@ namespace Realm.Client.UI
 			panel.AddChild(margin);
 
 			var vbox = new VBoxContainer();
+			vbox.Name = "Vbox_VBoxContainer";
 			vbox.AddThemeConstantOverride("separation", 14);
 			vbox.Alignment = BoxContainer.AlignmentMode.Center;
 			margin.AddChild(vbox);
 
 			var titleMargin = new MarginContainer();
+			titleMargin.Name = "TitleMargin_MarginContainer";
 			titleMargin.AddThemeConstantOverride("margin_top", -12);
 
 			var lblTitle = new Label();
+			lblTitle.Name = "LblTitle_Label";
 			UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate(showCancel ? "CONFIRMATION REQUIRED" : "NOTIFICATION"), 18);
 			lblTitle.HorizontalAlignment = HorizontalAlignment.Center;
 			lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -1169,11 +1163,13 @@ namespace Realm.Client.UI
 			vbox.AddChild(titleMargin);
 
 			var msgMargin = new MarginContainer();
+			msgMargin.Name = "MsgMargin_MarginContainer";
 			msgMargin.AddThemeConstantOverride("margin_top", 12);
 			msgMargin.AddThemeConstantOverride("margin_bottom", 0);
 			msgMargin.SizeFlagsVertical = SizeFlags.ExpandFill;
 
 			var lblMsg = new Label();
+			lblMsg.Name = "LblMsg_Label";
 			lblMsg.Text = TranslationServer.Translate(message);
 			lblMsg.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			lblMsg.HorizontalAlignment = HorizontalAlignment.Center;
@@ -1184,11 +1180,13 @@ namespace Realm.Client.UI
 			vbox.AddChild(msgMargin);
 
 			var hbox = new HBoxContainer();
+			hbox.Name = "Hbox_HBoxContainer";
 			hbox.AddThemeConstantOverride("separation", 24);
 			hbox.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 			vbox.AddChild(hbox);
 
 			var btnConfirm = new Button();
+			btnConfirm.Name = "BtnConfirm_Button";
 			btnConfirm.Set("icon_max_width", 0);
 			btnConfirm.CustomMinimumSize = new Vector2(110, 34);
 			btnConfirm.MouseFilter = MouseFilterEnum.Stop;
@@ -1203,6 +1201,7 @@ namespace Realm.Client.UI
 			if (showCancel)
 			{
 				var btnCancel = new Button();
+				btnCancel.Name = "BtnCancel_Button";
 				btnCancel.Set("icon_max_width", 0);
 				btnCancel.CustomMinimumSize = new Vector2(110, 34);
 				btnCancel.MouseFilter = MouseFilterEnum.Stop;
@@ -1231,7 +1230,10 @@ namespace Realm.Client.UI
 
 		public void CloseWasmConsoleModal()
 		{
-			// WasmConsoleWindow remains open as a persistent window across scene transitions.
+			if (WasmConsoleWindow.Exists)
+			{
+				WasmConsoleWindow.Instance.Hide();
+			}
 		}
 
 		public void ToggleHelpPanelExternal()
@@ -1256,18 +1258,21 @@ namespace Realm.Client.UI
 			_helpOverlayPanel.AddChild(center);
 
 			var panel = new PanelContainer();
+			panel.Name = "Panel_PanelContainer";
 			panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 			panel.CustomMinimumSize = new Vector2(1024, 770);
 			center.AddChild(panel);
 
 			var bgTex = new TextureRect();
-			bgTex.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_manual.png");
+			bgTex.Name = "BgTex_TextureRect";
+			bgTex.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_manual.webp");
 			bgTex.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTex.StretchMode = TextureRect.StretchModeEnum.Scale;
 			bgTex.SetAnchorsPreset(LayoutPreset.FullRect);
 			panel.AddChild(bgTex);
 
 			var margin = new MarginContainer();
+			margin.Name = "Margin_MarginContainer";
 			margin.SetAnchorsPreset(LayoutPreset.FullRect);
 			margin.AddThemeConstantOverride("margin_top", 45);
 			margin.AddThemeConstantOverride("margin_bottom", 75);
@@ -1276,14 +1281,17 @@ namespace Realm.Client.UI
 			panel.AddChild(margin);
 
 			var vbox = new VBoxContainer();
+			vbox.Name = "Vbox_VBoxContainer";
 			vbox.AddThemeConstantOverride("separation", 15);
 			margin.AddChild(vbox);
 
 			var titleMargin = new MarginContainer();
+			titleMargin.Name = "TitleMargin_MarginContainer";
 			titleMargin.AddThemeConstantOverride("margin_top", -20);
 			titleMargin.AddThemeConstantOverride("margin_bottom", 0);
 
 			var lblTitle = new Label();
+			lblTitle.Name = "LblTitle_Label";
 			UIStyle.ApplyTitle(lblTitle, TranslationServer.Translate("RTS MAP EDITOR REFERENCE MANUAL"), 18);
 			lblTitle.HorizontalAlignment = HorizontalAlignment.Center;
 			lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -1291,6 +1299,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(titleMargin);
 
 			var scroll = new ScrollContainer();
+			scroll.Name = "Scroll_ScrollContainer";
 			scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 			scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
@@ -1298,6 +1307,7 @@ namespace Realm.Client.UI
 			vbox.AddChild(scroll);
 
 			var grid = new GridContainer();
+			grid.Name = "Grid_GridContainer";
 			grid.Columns = 2;
 			grid.AddThemeConstantOverride("h_separation", 30);
 			grid.AddThemeConstantOverride("v_separation", 10);
@@ -1331,6 +1341,7 @@ namespace Realm.Client.UI
 			AddHelpShortcutRow(grid, "7", TranslationServer.Translate("Roughen (Noise) Tool"));
 			AddHelpShortcutRow(grid, "8", TranslationServer.Translate("Texture Painter Brush"));
 			AddHelpShortcutRow(grid, "9", TranslationServer.Translate("Add Objects"));
+			AddHelpShortcutRow(grid, "0", TranslationServer.Translate("Water Tool"));
 			AddHelpShortcutRow(grid, "Q", TranslationServer.Translate("Select / Move Tool"));
 			AddHelpShortcutRow(grid, "I", TranslationServer.Translate("Eyedropper Picker"));
 
@@ -1354,12 +1365,14 @@ namespace Realm.Client.UI
 			AddHelpShortcutRow(grid, "Escape Key", TranslationServer.Translate("Close open dialog"));
 
 			var bottomMargin = new MarginContainer();
+			bottomMargin.Name = "BottomMargin_MarginContainer";
 			bottomMargin.SetAnchorsPreset(LayoutPreset.FullRect);
 			bottomMargin.AddThemeConstantOverride("margin_bottom", 20);
 			bottomMargin.AddThemeConstantOverride("margin_right", 16);
 			panel.AddChild(bottomMargin);
 
 			var btnClose = new Button();
+			btnClose.Name = "BtnClose_Button";
 			btnClose.Set("icon_max_width", 0);
 			btnClose.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 			btnClose.SizeFlagsVertical = SizeFlags.ShrinkEnd;
@@ -1375,24 +1388,28 @@ namespace Realm.Client.UI
 		private void AddHelpSectionHeader(GridContainer grid, string title)
 		{
 			var lbl = new Label();
+			lbl.Name = "Lbl_Label";
 			lbl.Text = title;
 			lbl.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
 			lbl.AddThemeFontSizeOverride("font_size", 12);
 			grid.AddChild(lbl);
 
 			var empty = new Control();
+			empty.Name = "Empty_Control";
 			grid.AddChild(empty);
 		}
 
 		private void AddHelpShortcutRow(GridContainer grid, string keys, string action)
 		{
 			var lblKeys = new Label();
+			lblKeys.Name = "LblKeys_Label";
 			lblKeys.Text = keys;
 			lblKeys.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 			lblKeys.AddThemeFontSizeOverride("font_size", 11);
 			grid.AddChild(lblKeys);
 
 			var lblAction = new Label();
+			lblAction.Name = "LblAction_Label";
 			lblAction.Text = action;
 			lblAction.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
 			lblAction.AddThemeFontSizeOverride("font_size", 11);
@@ -1442,12 +1459,14 @@ namespace Realm.Client.UI
 			btnRow.AddThemeConstantOverride("separation", 12);
 
 			var btnCancel = new Button();
+			btnCancel.Name = "BtnCancel_Button";
 			btnCancel.Set("icon_max_width", 0);
 			SetupOptionButton(btnCancel, TranslationServer.Translate("Cancel / Skip"), () => overlay.QueueFree(), 13);
 			btnCancel.CustomMinimumSize = new Vector2(130, 36);
 			btnRow.AddChild(btnCancel);
 
 			var btnRegister = new Button();
+			btnRegister.Name = "BtnRegister_Button";
 			btnRegister.Set("icon_max_width", 0);
 			SetupOptionButton(btnRegister, TranslationServer.Translate("Register"), null, 13);
 			btnRegister.CustomMinimumSize = new Vector2(150, 36);
@@ -1489,6 +1508,7 @@ namespace Realm.Client.UI
 			center.AddChild(panel);
 
 			var margin = new MarginContainer();
+			margin.Name = "Margin_MarginContainer";
 			margin.AddThemeConstantOverride("margin_top", 18);
 			margin.AddThemeConstantOverride("margin_bottom", 18);
 			margin.AddThemeConstantOverride("margin_left", 20);
@@ -1496,6 +1516,7 @@ namespace Realm.Client.UI
 			panel.AddChild(margin);
 
 			var vbox = new VBoxContainer();
+			vbox.Name = "Vbox_VBoxContainer";
 			vbox.AddThemeConstantOverride("separation", 12);
 			margin.AddChild(vbox);
 
@@ -1579,7 +1600,7 @@ namespace Realm.Client.UI
 			for (int i = 0; i < EditorService.SpokeCountOptions.Length; i++)
 			{
 				int count = EditorService.SpokeCountOptions[i];
-				opt.AddItem(string.Format(TranslationServer.Translate($"{UnicodeIcons.COMPASS} SPOKES: {0}"), count), count);
+				opt.AddItem($"{UnicodeIcons.COMPASS} " + string.Format(TranslationServer.Translate("SPOKES: {0}"), count), count);
 			}
 
 			if (!string.IsNullOrEmpty(tooltip))
@@ -2003,7 +2024,7 @@ namespace Realm.Client.UI
 		private void StyleMapEditorTopButton(Button btn)
 		{
 			if (btn == null) return;
-			var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
+			var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_button.webp");
 			if (tex != null)
 			{
 				var normalStyle = new StyleBoxTexture();
@@ -2052,7 +2073,7 @@ namespace Realm.Client.UI
 		private void StyleCompactMapEditorTopButton(Button btn, int horizontalMargin = 4)
 		{
 			if (btn == null) return;
-			var tex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
+			var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_button.webp");
 			if (tex != null)
 			{
 				var normalStyle = new StyleBoxTexture();
@@ -2386,7 +2407,7 @@ namespace Realm.Client.UI
 
 			var iconRect = new TextureRect();
 			iconRect.Name = "IconRect";
-			iconRect.Texture = GD.Load<Texture2D>(iconPath);
+			iconRect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 			iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 			iconRect.MouseFilter = MouseFilterEnum.Ignore;
@@ -2637,6 +2658,7 @@ namespace Realm.Client.UI
 			if (tex != null)
 			{
 				var texRect = new TextureRect();
+				texRect.Name = "TexRect_TextureRect";
 				texRect.Texture = tex;
 				texRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 				texRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
@@ -2649,6 +2671,7 @@ namespace Realm.Client.UI
 			else
 			{
 				var colorBox = new ColorRect();
+				colorBox.Name = "ColorBox_ColorRect";
 				colorBox.Color = GameContext.EditorService.SwatchColors[slotIndex];
 				colorBox.MouseFilter = MouseFilterEnum.Ignore;
 				colorBox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -2780,6 +2803,7 @@ namespace Realm.Client.UI
 			TweenHudElement(_panelRight, targetAlpha, duration);
 			TweenHudElement(_topBar, targetAlpha, duration);
 			TweenHudElement(_panelMeasurementHUD, targetAlpha, duration);
+			TweenHudElement(_screenFrameRect, targetAlpha, duration);
 
 			foreach (var card in _cardDragMap.Keys)
 			{
@@ -2828,23 +2852,27 @@ namespace Realm.Client.UI
 			overlay.AddChild(center);
 
 			var panel = new PanelContainer();
+			panel.Name = "Panel_PanelContainer";
 			panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 			panel.CustomMinimumSize = new Vector2(1024, 762);
 			center.AddChild(panel);
 
 			var bgTexRect = new TextureRect();
-			bgTexRect.Texture = GD.Load<Texture2D>("res://Assets/UI/map_editor_agreement.png");
+			bgTexRect.Name = "BgTexRect_TextureRect";
+			bgTexRect.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_agreement.webp");
 			bgTexRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			bgTexRect.StretchMode = TextureRect.StretchModeEnum.Scale;
 			bgTexRect.SetAnchorsPreset(LayoutPreset.FullRect);
 			panel.AddChild(bgTexRect);
 
 			var contentOverlay = new Control();
+			contentOverlay.Name = "ContentOverlay_Control";
 			contentOverlay.SetAnchorsPreset(LayoutPreset.FullRect);
 			panel.AddChild(contentOverlay);
 
 			// Top Title Header
 			var lblTitle = new Label();
+			lblTitle.Name = "LblTitle_Label";
 			UIStyle.ApplyTitle(lblTitle, "Realm Creator Agreement", 20);
 			lblTitle.Text = TranslationServer.Translate("Realm Creator Agreement").ToString().ToUpperInvariant();
 			lblTitle.HorizontalAlignment = HorizontalAlignment.Center;
@@ -2854,6 +2882,7 @@ namespace Realm.Client.UI
 
 			// Intro Line 1 & Line 2
 			var lblIntro1 = new Label();
+			lblIntro1.Name = "LblIntro1_Label";
 			lblIntro1.Text = TranslationServer.Translate("By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.");
 			lblIntro1.HorizontalAlignment = HorizontalAlignment.Left;
 			lblIntro1.AddThemeFontSizeOverride("font_size", 12);
@@ -2863,6 +2892,7 @@ namespace Realm.Client.UI
 			contentOverlay.AddChild(lblIntro1);
 
 			var lblIntro2 = new Label();
+			lblIntro2.Name = "LblIntro2_Label";
 			lblIntro2.Text = TranslationServer.Translate("We want Realm to be a thriving, collaborative arcade. Please respect these rules:");
 			lblIntro2.HorizontalAlignment = HorizontalAlignment.Left;
 			lblIntro2.AddThemeFontSizeOverride("font_size", 12);
@@ -2875,11 +2905,13 @@ namespace Realm.Client.UI
 			void AddRuleTextBox(string title, string desc, float posX, float posY, float width, float height)
 			{
 				var textVBox = new VBoxContainer();
+				textVBox.Name = "TextVBox_VBoxContainer";
 				textVBox.Position = new Vector2(posX, posY);
 				textVBox.Size = new Vector2(width, height);
 				textVBox.AddThemeConstantOverride("separation", 2);
 
 				var lblTitle = new Label();
+				lblTitle.Name = "LblTitle_Label";
 				lblTitle.Text = TranslationServer.Translate(title);
 				lblTitle.AddThemeFontSizeOverride("font_size", 15);
 				lblTitle.AddThemeColorOverride("font_color", new Color(0.72f, 0.35f, 0.12f));
@@ -2887,6 +2919,7 @@ namespace Realm.Client.UI
 				textVBox.AddChild(lblTitle);
 
 				var lblDesc = new Label();
+				lblDesc.Name = "LblDesc_Label";
 				lblDesc.Text = TranslationServer.Translate(desc);
 				lblDesc.AddThemeFontSizeOverride("font_size", 11);
 				lblDesc.AddThemeColorOverride("font_color", new Color(0.22f, 0.18f, 0.15f));
@@ -2926,6 +2959,7 @@ namespace Realm.Client.UI
 
 			// Bottom Buttons (Accept & Quit)
 			var btnAccept = new Button();
+			btnAccept.Name = "BtnAccept_Button";
 			btnAccept.Set("icon_max_width", 0);
 			SetupOptionButton(btnAccept, "Accept", () =>
 			{
@@ -2943,6 +2977,7 @@ namespace Realm.Client.UI
 			contentOverlay.AddChild(btnAccept);
 
 			var btnQuit = new Button();
+			btnQuit.Name = "BtnQuit_Button";
 			btnQuit.Set("icon_max_width", 0);
 			SetupOptionButton(btnQuit, "Quit", () =>
 			{
@@ -3361,14 +3396,17 @@ namespace Realm.Client.UI
 		private OptionButton CreateDropdownRow(VBoxContainer parent, string labelText, string[] options, int initialIdx, Action<int> onChanged)
 		{
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 
 			var lblName = new Label();
+			lblName.Name = "LblName_Label";
 			lblName.Text = labelText;
 			lblName.CustomMinimumSize = new Vector2(110, 0);
 			lblName.AddThemeFontSizeOverride("font_size", 11);
 			row.AddChild(lblName);
 
 			var opt = new OptionButton();
+			opt.Name = "Opt_OptionButton";
 			opt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			opt.CustomMinimumSize = new Vector2(90, 0);
 			opt.AddThemeFontSizeOverride("font_size", 11);
@@ -3392,7 +3430,9 @@ namespace Realm.Client.UI
 		private HBoxContainer CreateToggleRow(VBoxContainer parent, string labelText, bool initialVal, Action<bool> onChanged)
 		{
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 			var chk = new CheckBox();
+			chk.Name = "Chk_CheckBox";
 			chk.Text = labelText;
 			chk.ButtonPressed = initialVal;
 			chk.AddThemeFontSizeOverride("font_size", 11);
@@ -3405,7 +3445,9 @@ namespace Realm.Client.UI
 		private CheckBox CreateCheckBoxRow(VBoxContainer parent, string labelText, bool initialVal, Action<bool> onChanged)
 		{
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 			var chk = new CheckBox();
+			chk.Name = "Chk_CheckBox";
 			chk.Text = labelText;
 			chk.ButtonPressed = initialVal;
 			chk.FocusMode = FocusModeEnum.None;
@@ -3419,6 +3461,7 @@ namespace Realm.Client.UI
 		private Label CreateSectionHeader(VBoxContainer parent, string titleText)
 		{
 			var lbl = new Label();
+			lbl.Name = "Lbl_Label";
 			lbl.Text = titleText;
 			lbl.AddThemeFontSizeOverride("font_size", 11);
 			lbl.Modulate = new Color(0.95f, 0.85f, 0.35f);

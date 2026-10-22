@@ -28,6 +28,7 @@ public static class ComponentTypeRegistry
 		var canonicalTypes = new[]
 		{
 			typeof(Position),
+			typeof(PreviousPosition),
 			typeof(Health),
 			typeof(Owner),
 			typeof(Mana),
@@ -140,13 +141,19 @@ public static class ComponentTypeRegistry
 			typeof(ReplayAnimationState),
 			typeof(Rotation3D),
 			typeof(RotationY),
+			typeof(PreviousRotationY),
 			typeof(ShroudState),
 			typeof(TerrainCell),
 			typeof(TerrainColorsState),
 			typeof(TerrainPathingFlags),
 			typeof(TerrainState),
 			typeof(TerrainSwatchConfig),
-			typeof(WeatherState)
+			typeof(WeatherState),
+			typeof(PlayerRelationshipMatrix),
+			typeof(PlayerTeam),
+			typeof(CommandsFrozen),
+			typeof(OverheadBarsHidden),
+			typeof(AnimationsFrozen)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

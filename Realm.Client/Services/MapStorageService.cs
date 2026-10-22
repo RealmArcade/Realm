@@ -112,16 +112,7 @@ public class MapStorageService
 	{
 		if (Directory.Exists(destinationPath))
 		{
-			string cleanMapName = string.Join("_", mapTitle.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-			if (string.IsNullOrEmpty(cleanMapName) || cleanMapName.Equals("Untitled Map", StringComparison.OrdinalIgnoreCase)) cleanMapName = "MapExport";
-
-			string cleanMapVersion = string.Join("_", mapVersion.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
-			if (string.IsNullOrEmpty(cleanMapVersion)) cleanMapVersion = "1.0.0";
-
-			string normHash = !string.IsNullOrEmpty(manifestBlake3) ? ContentAddressableStorage.NormalizeBlake3Hash(manifestBlake3) : string.Empty;
-			string shortHash = normHash.Length >= 4 ? normHash.Substring(0, 4) : (normHash.Length > 0 ? normHash : "0000");
-
-			return Path.Combine(destinationPath, $"{cleanMapName}_{cleanMapVersion}_{shortHash}.rmap");
+			return Path.Combine(destinationPath, GetExportMapDefaultFileName(mapTitle, mapVersion, manifestBlake3));
 		}
 
 		return destinationPath;
@@ -1168,10 +1159,16 @@ public class MapStorageService
 
 	private static string FindThumbnailPath(string versionDirectory)
 	{
-		string p = Path.Combine(versionDirectory, "thumbnail.png");
-		if (File.Exists(p))
+		string webpPath = Path.Combine(versionDirectory, "thumbnail.webp");
+		if (File.Exists(webpPath))
 		{
-			return p;
+			return webpPath;
+		}
+
+		string legacyPngPath = Path.Combine(versionDirectory, "thumbnail.png");
+		if (File.Exists(legacyPngPath))
+		{
+			return legacyPngPath;
 		}
 
 		return string.Empty;
@@ -1322,24 +1319,30 @@ public class MapStorageService
 		return (assetsValid, missingAssets, sizesValid, oversizedAssets);
 	}
 
+	public static string FindWasmPath(string tempWorkspacePath)
+	{
+		string binDir = Path.Combine(tempWorkspacePath, "bin");
+		string wasmPath = null;
+		if (Directory.Exists(binDir))
+		{
+			var wasmFiles = Directory.GetFiles(
+				binDir,
+				"*.wasm",
+				SearchOption.AllDirectories
+			).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
+
+			wasmPath = wasmFiles.FirstOrDefault(f => f.Contains("publish"))
+					   ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
+		}
+		return wasmPath;
+	}
+
 	public bool CheckCompiledWasmBinaryExists(string tempWorkspacePath)
 	{
 		var csprojFiles = Directory.GetFiles(tempWorkspacePath, "*.csproj", SearchOption.TopDirectoryOnly);
 		if (csprojFiles.Length > 0 || File.Exists(Path.Combine(tempWorkspacePath, "MapScript.cs")))
 		{
-			string binDir = Path.Combine(tempWorkspacePath, "bin");
-			string wasmPath = null;
-			if (Directory.Exists(binDir))
-			{
-				var wasmFiles = Directory.GetFiles(
-					binDir,
-					"*.wasm",
-					SearchOption.AllDirectories
-				).Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
-
-				wasmPath = wasmFiles.FirstOrDefault(f => f.Contains("publish"))
-				           ?? wasmFiles.OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
-			}
+			string wasmPath = FindWasmPath(tempWorkspacePath);
 
 			if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
 			{
@@ -1348,6 +1351,11 @@ public class MapStorageService
 		}
 
 		return true;
+	}
+
+	public void DeduplicateWorkspaceBuildArtifacts(string tempWorkspacePath)
+	{
+		MapWorkspaceService.DeduplicateWorkspaceBuildArtifacts(tempWorkspacePath);
 	}
 
 	public async Task OptimizeMapAssetsCooperativeAsync(string tempWorkspacePath, Func<int, int, string, Task> progressCallback)

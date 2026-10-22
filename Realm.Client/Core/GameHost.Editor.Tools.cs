@@ -588,12 +588,24 @@ namespace Realm.Client.Core
 			if (string.IsNullOrEmpty(lookupKey)) return false;
 
 			var modelNode = ModelCache.GetModel(lookupKey) as Node;
-			if (modelNode != null && !ModelShaderManager.ModelHasPlayerMask(modelNode))
+			if (modelNode != null)
 			{
-				GameContext.ModelOverrideService.ModelIgnorePlayerColor[lookupKey] = true;
-				GameContext.EditorService.ModelYOffsetSavePending = true;
-				EditorHasUnsavedChanges = true;
-				return true;
+				try
+				{
+					if (!ModelShaderManager.ModelHasPlayerMask(modelNode))
+					{
+						GameContext.ModelOverrideService.ModelIgnorePlayerColor[lookupKey] = true;
+						GameContext.EditorService.ModelYOffsetSavePending = true;
+						EditorHasUnsavedChanges = true;
+						return true;
+					}
+
+					GameContext.ModelOverrideService.ModelIgnorePlayerColor[lookupKey] = false;
+				}
+				finally
+				{
+					modelNode.QueueFree();
+				}
 			}
 
 			return false;
@@ -1051,6 +1063,21 @@ namespace Realm.Client.Core
 
 		private bool DeletePropExternal(Node node)
 		{
+			var proxy = node as PropEntityProxyNode;
+			if (proxy != null && GodotObject.IsInstanceValid(proxy))
+			{
+				if (proxy == _selectedEditorObject) SelectedEditorObject = null;
+				string propId = proxy.PropId;
+				if (GameContext.World != null && GameContext.World.IsAlive(proxy.Entity))
+				{
+					GameContext.World.Destroy(proxy.Entity);
+				}
+
+				proxy.QueueFree();
+				PropMultiMeshManager.Instance?.MarkDirty(propId);
+				return true;
+			}
+
 			var prop = (node as Prop3D) ?? FindProp3DInParentChain(node);
 			if (prop != null && GodotObject.IsInstanceValid(prop))
 			{
@@ -1178,6 +1205,18 @@ namespace Realm.Client.Core
 
 		private IEditorAction TryDeletePropFromParent(Node collider)
 		{
+			var proxy = collider as PropEntityProxyNode;
+			if (proxy != null && GodotObject.IsInstanceValid(proxy))
+			{
+				if (proxy == _selectedEditorObject) SelectedEditorObject = null;
+				string propId = proxy.PropId;
+				var action = new ObjectDeleteAction("prop", propId, proxy.Position, proxy.RotationDegrees.Y, proxy.Scale.X, false, null);
+				if (GameContext.World != null && GameContext.World.IsAlive(proxy.Entity)) GameContext.World.Destroy(proxy.Entity);
+				proxy.QueueFree();
+				PropMultiMeshManager.Instance?.MarkDirty(propId);
+				return action;
+			}
+
 			var prop = (collider as Prop3D) ?? FindProp3DInParentChain(collider);
 			if (prop != null && GodotObject.IsInstanceValid(prop))
 			{
@@ -1439,7 +1478,7 @@ namespace Realm.Client.Core
 			                    ActiveEditorTool == EditorTool.PlaceDecal ||
 			                    ActiveEditorTool == EditorTool.PlaceVfx;
 
-			if (!needsPreview)
+			if (!needsPreview || string.IsNullOrWhiteSpace(ActivePlaceId))
 			{
 				ClearEditorPreview();
 				return;
@@ -1560,7 +1599,7 @@ namespace Realm.Client.Core
 		private void CreateOrUpdatePreviewVfx(string reqId)
 		{
 			VfxAttachmentConfig config;
-			if (GameContext.RegistryService.VfxRegistry.TryGetValue(reqId, out var regCfg))
+			if (GameContext.RegistryService.TryGetVfxConfig(reqId, out var regCfg))
 			{
 				config = regCfg.Clone();
 			}
@@ -1680,6 +1719,10 @@ namespace Realm.Client.Core
 		{
 			if (_editorPreviewNode != null && GodotObject.IsInstanceValid(_editorPreviewNode))
 			{
+				if (_editorPreviewNode.GetParent() != null)
+				{
+					_editorPreviewNode.GetParent().RemoveChild(_editorPreviewNode);
+				}
 				_editorPreviewNode.QueueFree();
 			}
 
@@ -1904,6 +1947,7 @@ namespace Realm.Client.Core
 			if (collider != null)
 			{
 				newHovered = FindUnit3DInParentChain(collider);
+				if (newHovered == null) newHovered = collider as PropEntityProxyNode;
 				if (newHovered == null) newHovered = FindProp3DInParentChain(collider);
 			}
 
@@ -1918,9 +1962,14 @@ namespace Realm.Client.Core
 			if (GodotObject.IsInstanceValid(node))
 			{
 				if (node is Unit3D u) u.IsHovered = isHovered;
+				else if (node is PropEntityProxyNode propProxy) SetHoveredPropEntity(isHovered ? propProxy.Entity : Entity.Null, isHovered ? propProxy.PropId : "");
 				else if (node is Prop3D p) p.IsHovered = isHovered;
 				else if (node is Decal d) UpdateDecalHoverRing(d, isHovered);
 				else if (node is ProceduralVfxInstance3D v) v.IsHovered = isHovered;
+			}
+			else if (!isHovered)
+			{
+				SetHoveredPropEntity(Entity.Null, "");
 			}
 		}
 
@@ -2036,6 +2085,10 @@ namespace Realm.Client.Core
 			{
 				UpdateDraggedUnitECS(unit, dragPos);
 			}
+			else if (SelectedEditorObject is PropEntityProxyNode propProxy)
+			{
+				UpdateDraggedPropProxyECS(propProxy, dragPos);
+			}
 			else if (SelectedEditorObject is Prop3D prop)
 			{
 				UpdateDraggedPropECS(prop, dragPos);
@@ -2057,7 +2110,18 @@ namespace Realm.Client.Core
 			if (GameContext.World.IsAlive(unit.Entity))
 			{
 				GameContext.World.Set(unit.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(GameContext.World, unit.Entity);
 				UpdateEditorCoverageOverlay();
+			}
+		}
+
+		private void UpdateDraggedPropProxyECS(PropEntityProxyNode propProxy, Vector3 dragPos)
+		{
+			if (GameContext.World != null && GameContext.World.IsAlive(propProxy.Entity))
+			{
+				GameContext.World.Set(propProxy.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxy.Entity, dragPos, propProxy.RotationDegrees.Y, propProxy.Scale.X);
+				UpdateSelectedPropRingPosition(dragPos);
 			}
 		}
 
@@ -2066,6 +2130,7 @@ namespace Realm.Client.Core
 			if (GameContext.World.IsAlive(prop.Entity))
 			{
 				GameContext.World.Set(prop.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(GameContext.World, prop.Entity);
 			}
 
 			PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
@@ -2076,6 +2141,7 @@ namespace Realm.Client.Core
 			if (GameContext.World.IsAlive(decal3D.Entity))
 			{
 				GameContext.World.Set(decal3D.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(GameContext.World, decal3D.Entity);
 			}
 		}
 
@@ -2084,6 +2150,7 @@ namespace Realm.Client.Core
 			if (GameContext.World.IsAlive(vfxInst.Entity))
 			{
 				GameContext.World.Set(vfxInst.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
+				SyncPreviousTransform(GameContext.World, vfxInst.Entity);
 			}
 		}
 
@@ -2130,7 +2197,11 @@ namespace Realm.Client.Core
 				if (GodotObject.IsInstanceValid(SelectedEditorObject))
 				{
 					var node3D = SelectedEditorObject as Node3D;
-					if (SelectedEditorObject is Prop3D prop && SelectedEditorObject is not Unit3D)
+					if (SelectedEditorObject is PropEntityProxyNode propProxy)
+					{
+						PropMultiMeshManager.Instance?.MarkDirty(propProxy.PropId);
+					}
+					else if (SelectedEditorObject is Prop3D prop && SelectedEditorObject is not Unit3D)
 					{
 						PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
 					}
@@ -2240,7 +2311,6 @@ namespace Realm.Client.Core
 			InitializeCameraBoundsOverlay();
 			UpdateEditorShadows();
 			UpdateDayNightVisuals(0.0f);
-			GroundTerrain?.SetShroudEnabled(false);
 
 			if (AllVfx != null)
 			{
@@ -2259,6 +2329,7 @@ namespace Realm.Client.Core
 			try
 			{
 				LoadMapFromFile(GameContext.EditorService.TempWorkspaceGodotPath + "/terrain.json");
+				RestoreEditorDirtyStateAfterTest();
 
 				GameContext.EditorService.EditorGridMode = GameContext.SessionState.SavedGridMode;
 				GameContext.EditorService.EditorCameraBoundsVisible = GameContext.SessionState.SavedCameraBoundsVisible;
@@ -2291,6 +2362,14 @@ namespace Realm.Client.Core
 			}
 		}
 
+		private void RestoreEditorDirtyStateAfterTest()
+		{
+			EditorHasUnsavedChanges = GameContext.SessionState.SavedEditorHasUnsavedChanges;
+			GameContext.EditorService.CurrentDirectoryBlake3 = MapWorkspaceService.ComputeDirectoryBlake3Domain(
+				ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath),
+				MapEditorHUD.IsIgnoredPath);
+		}
+
 		public void ExitMapEditorMode()
 		{
 			GameContext.SessionState.IsMapEditorMode = false;
@@ -2320,7 +2399,6 @@ namespace Realm.Client.Core
 			{
 				GroundTerrain.SetGridVisible(false);
 				GroundTerrain.SetPathingVisible(false);
-				GroundTerrain.SetShroudEnabled(true);
 			}
 
 			if (_cameraBoundsOverlayMesh != null)
@@ -2633,7 +2711,6 @@ namespace Realm.Client.Core
 
 					var meshInst = GetOrCreateSymmetryHighlightMesh(i);
 					BuildHighlightMeshForBounds(meshInst, rMinX, rMinZ, rMaxX, rMaxZ);
-					meshInst.Visible = true;
 				}
 			}
 
@@ -2739,16 +2816,9 @@ namespace Realm.Client.Core
 
 			if (GroundTerrain == null || GroundTerrain.Cells == null) return;
 
-			int width = GroundTerrain.Width;
-			int depth = GroundTerrain.Depth;
-			float quadSize = GroundTerrain.QuadSize;
-
 			foreach (var coord in GameContext.EditorService.EditorCoordinates)
 			{
-				int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
-				int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
-				int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
-				int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
+				var (minX, minZ, maxX, maxZ) = GetClampedCoordinateBounds(coord);
 
 				var meshInst = new MeshInstance3D();
 				meshInst.Name = $"Coordinate_{coord.Name}";

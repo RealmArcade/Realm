@@ -48,7 +48,7 @@ public static class PathUtils
 #endif
 		}
 	}
-
+	
 	public static bool IsGodotInitialized
 	{
 		get

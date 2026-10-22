@@ -134,8 +134,8 @@ public class MapData
 
 		return new string[]
 		{
-			"res://Assets/UI/gold_coin.png",
-			"res://Assets/UI/battle_shield.png"
+			"res://Assets/UI/gold_coin.webp",
+			"res://Assets/UI/battle_shield.webp"
 		};
 	}
 
@@ -171,9 +171,9 @@ public class MapData
 
 		if (screenshots.Count == 0)
 		{
-			screenshots.Add("res://Assets/UI/moonlit_castle.png");
-			screenshots.Add("res://Assets/UI/moonlit_forest.png");
-			screenshots.Add("res://Assets/UI/forest_path.png");
+			screenshots.Add("res://Assets/UI/moonlit_castle.webp");
+			screenshots.Add("res://Assets/UI/moonlit_forest.webp");
+			screenshots.Add("res://Assets/UI/forest_path.webp");
 		}
 
 		return screenshots.ToArray();

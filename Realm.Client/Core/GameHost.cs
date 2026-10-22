@@ -46,7 +46,23 @@ public partial class GameHost : Node3D, IGameAPI
 	public static GameHost Instance { get; set; }
 	public int LocalPlayerIndex => GameContext.PerspectiveFilter.ControlledPlayerIndex;
 
+		public (int minX, int minZ, int maxX, int maxZ) GetClampedCoordinateBounds(EditorCoordinate coord)
+		{
+			if (GroundTerrain == null) return (0, 0, 0, 0);
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+			float quadSize = GroundTerrain.QuadSize;
+
+			int minX = Mathf.Clamp((int)Mathf.Round(coord.MinX / quadSize + width / 2.0f), 0, width);
+			int minZ = Mathf.Clamp((int)Mathf.Round(coord.MinZ / quadSize + depth / 2.0f), 0, depth);
+			int maxX = Mathf.Clamp((int)Mathf.Round(coord.MaxX / quadSize + width / 2.0f), 0, width);
+			int maxZ = Mathf.Clamp((int)Mathf.Round(coord.MaxZ / quadSize + depth / 2.0f), 0, depth);
+
+			return (minX, minZ, maxX, maxZ);
+		}
+
 	private float _fDelta { get; set; }
+	private WorldEnvironment? _cachedWorldEnvironment;
 
 
 	private bool _multiplayerActive => Multiplayer.MultiplayerPeer != null && Multiplayer.MultiplayerPeer is not OfflineMultiplayerPeer;
@@ -161,6 +177,40 @@ public partial class GameHost : Node3D, IGameAPI
 		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, int>>(ECSContext.WorldEntity, s => s.ClientToServerEntityMap);
 
 	public List<Unit3D> SelectedUnits { get; set; } = new List<Unit3D>();
+	private readonly List<Unit3D> _activeImpulseUnits = new();
+
+	public void RegisterActiveImpulseUnit(Unit3D unit)
+	{
+		if (unit != null && !_activeImpulseUnits.Contains(unit))
+		{
+			_activeImpulseUnits.Add(unit);
+		}
+	}
+
+	private void UpdateSelectedAndImpulseUnitVisuals(float fDelta)
+	{
+		for (int i = 0; i < SelectedUnits.Count; i++)
+		{
+			var selected = SelectedUnits[i];
+			if (GodotObject.IsInstanceValid(selected))
+			{
+				selected.UpdateSelectedVisuals(fDelta);
+			}
+		}
+
+		for (int i = _activeImpulseUnits.Count - 1; i >= 0; i--)
+		{
+			var unit = _activeImpulseUnits[i];
+			if (!GodotObject.IsInstanceValid(unit) || !unit.HasActiveImpulse)
+			{
+				_activeImpulseUnits.RemoveAt(i);
+				continue;
+			}
+
+			unit.UpdateImpulseVisuals(fDelta);
+		}
+	}
+
 	public List<Unit3D> AllUnits { get; set; } = new List<Unit3D>();
 	public List<Prop3D> AllProps { get; set; } = new List<Prop3D>();
 	public List<Decal> AllDecals { get; set; } = new List<Decal>();
@@ -241,6 +291,128 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 	public Prop3D? SelectedProp { get; set; }
+
+	private Node3D? _sharedPropSelectionRing;
+	private Node3D? _sharedPropHoverRing;
+	public Entity SelectedPropEntity { get; private set; } = Entity.Null;
+	public string SelectedPropId { get; private set; } = "";
+	public Entity HoveredPropEntity { get; private set; } = Entity.Null;
+	public string HoveredPropId { get; private set; } = "";
+
+	public void SetSelectedPropEntity(Entity entity, string propId)
+	{
+		SelectedPropEntity = entity;
+		SelectedPropId = propId;
+		if (TryUpdatePropRingState(entity, out var pos, out var scale))
+		{
+			EnsurePropSelectionRing();
+			if (_sharedPropSelectionRing != null)
+			{
+				_sharedPropSelectionRing.Position = pos;
+				_sharedPropSelectionRing.Scale = Vector3.One * scale;
+				_sharedPropSelectionRing.Visible = true;
+			}
+		}
+		else
+		{
+			ClearSelectedPropEntity();
+		}
+	}
+
+	public void ClearSelectedPropEntity()
+	{
+		SelectedPropEntity = Entity.Null;
+		SelectedPropId = "";
+		if (_sharedPropSelectionRing != null)
+		{
+			_sharedPropSelectionRing.Visible = false;
+		}
+	}
+
+	public void UpdateSelectedPropRingPosition(Vector3 pos)
+	{
+		if (_sharedPropSelectionRing != null && _sharedPropSelectionRing.Visible)
+		{
+			_sharedPropSelectionRing.Position = pos;
+		}
+	}
+
+	public void SetHoveredPropEntity(Entity entity, string propId)
+	{
+		HoveredPropEntity = entity;
+		HoveredPropId = propId;
+		if (TryUpdatePropRingState(entity, out var pos, out var scale))
+		{
+			EnsurePropHoverRing();
+			if (_sharedPropHoverRing != null)
+			{
+				_sharedPropHoverRing.Position = pos;
+				_sharedPropHoverRing.Scale = Vector3.One * scale;
+				_sharedPropHoverRing.Visible = true;
+			}
+		}
+		else
+		{
+			if (_sharedPropHoverRing != null)
+			{
+				_sharedPropHoverRing.Visible = false;
+			}
+		}
+	}
+
+	private bool TryUpdatePropRingState(Entity entity, out Vector3 pos, out float scale)
+	{
+		pos = Vector3.Zero;
+		scale = 1f;
+		if (entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<Position>(entity))
+		{
+			var posComp = GameContext.World.Get<Position>(entity);
+			pos = new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z);
+			scale = GameContext.World.Has<ModelScale>(entity) ? GameContext.World.Get<ModelScale>(entity).Value : 1f;
+			return true;
+		}
+		return false;
+	}
+
+	private void EnsurePropSelectionRing()
+	{
+		if (_sharedPropSelectionRing != null && GodotObject.IsInstanceValid(_sharedPropSelectionRing)) return;
+		_sharedPropSelectionRing = CreateRingNode(new Color(0.15f, 0.65f, 1.0f, 0.8f));
+		_sharedPropSelectionRing.Name = "SharedPropSelectionRing";
+		AddChild(_sharedPropSelectionRing);
+		_sharedPropSelectionRing.Visible = false;
+	}
+
+	private void EnsurePropHoverRing()
+	{
+		if (_sharedPropHoverRing != null && GodotObject.IsInstanceValid(_sharedPropHoverRing)) return;
+		_sharedPropHoverRing = CreateRingNode(new Color(1.0f, 0.85f, 0.2f, 0.6f));
+		_sharedPropHoverRing.Name = "SharedPropHoverRing";
+		AddChild(_sharedPropHoverRing);
+		_sharedPropHoverRing.Visible = false;
+	}
+
+	private Node3D CreateRingNode(Color color)
+	{
+		var meshInst = new MeshInstance3D();
+		meshInst.Name = "MeshInst_MeshInstance3D";
+		var torus = new TorusMesh
+		{
+			InnerRadius = 0.95f,
+			OuterRadius = 1.05f
+		};
+		meshInst.Mesh = torus;
+		var mat = new StandardMaterial3D
+		{
+			AlbedoColor = color,
+			Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+			EmissionEnabled = true,
+			Emission = color * 0.5f,
+			ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
+		};
+		meshInst.MaterialOverride = mat;
+		return meshInst;
+	}
 
 	public string? ActiveBuildingPlacementType
 	{
@@ -603,9 +775,9 @@ public partial class GameHost : Node3D, IGameAPI
 				{
 					oldUnit.IsSelected = false;
 				}
-				else if (_selectedEditorObject is Prop3D oldProp)
+				else if (_selectedEditorObject is PropEntityProxyNode || _selectedEditorObject is Prop3D)
 				{
-					oldProp.IsSelected = false;
+					ClearSelectedPropEntity();
 				}
 				else if ((_selectedEditorObject as Decal ?? FindDecalInParentChain(_selectedEditorObject)) is Decal oldDecal)
 				{
@@ -624,9 +796,13 @@ public partial class GameHost : Node3D, IGameAPI
 				{
 					newUnit.IsSelected = true;
 				}
+				else if (_selectedEditorObject is PropEntityProxyNode newPropProxy)
+				{
+					SetSelectedPropEntity(newPropProxy.Entity, newPropProxy.PropId);
+				}
 				else if (_selectedEditorObject is Prop3D newProp)
 				{
-					newProp.IsSelected = true;
+					SetSelectedPropEntity(newProp.Entity, newProp.PropId);
 				}
 				else if ((_selectedEditorObject as Decal ?? FindDecalInParentChain(_selectedEditorObject)) is Decal newDecal)
 				{
@@ -709,6 +885,9 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(playerIndex, current);
 	}
+
+	public bool CheatsEnabled
+		=> GameContext.SessionState.IsMapEditorMode || GameContext.SessionState.IsTestMode || (LobbyManager.Instance?.IsSinglePlayer ?? false);
 
 	public float GameElapsedTime
 	{
@@ -1087,6 +1266,12 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 		_staticTextLabels.Clear();
 		_nextStaticTextHandle = 1;
+		SharedShadowGradient = null;
+	}
+
+	public static void ClearCache()
+	{
+		SharedShadowGradient = null;
 	}
 
 	public void PanCameraInternal(Vector3 position, float duration)
@@ -1531,11 +1716,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (!string.IsNullOrEmpty(cfg.VfxId))
 			{
-				GameContext.RegistryService.VfxRegistry[cfg.VfxId] = cfg;
-				if (cfg.VfxId.StartsWith("vfx/", StringComparison.OrdinalIgnoreCase))
-				{
-					GameContext.RegistryService.VfxRegistry[cfg.VfxId.Substring(4)] = cfg;
-				}
+				GameContext.RegistryService.RegisterVfxConfig(cfg.VfxId, cfg);
 			}
 		}
 	}
@@ -1978,12 +2159,18 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.SimulationService.OnWeaponProjectileRequested = (start, target, weaponId, targetEnt) => SpawnWeaponProjectile(new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z), weaponId, targetEnt);
 		GameContext.SimulationService.OnDamageFlashRequested = entity =>
 		{
-			if (TryGetUnit3D(entity, out var unit3D)) Callable.From(() => FlashDamageUnit(unit3D)).CallDeferred();
+			if (TryGetUnit3D(entity, out var unit3D) && unit3D != null && unit3D.Visible && !unit3D.IsFlashingScale)
+			{
+				Callable.From(() => FlashDamageUnit(unit3D)).CallDeferred();
+			}
 		};
 		GameContext.SimulationService.OnHealEffectRequested = (start, target) => SpawnHealVisualEffect(new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z));
 		GameContext.SimulationService.OnHealFlashRequested = entity =>
 		{
-			if (TryGetUnit3D(entity, out var unit3D)) Callable.From(() => FlashHealUnit(unit3D)).CallDeferred();
+			if (TryGetUnit3D(entity, out var unit3D) && unit3D != null && unit3D.Visible && !unit3D.IsFlashingScale)
+			{
+				Callable.From(() => FlashHealUnit(unit3D)).CallDeferred();
+			}
 		};
 
 		GameContext.SimulationService.OnKillUnitRequested = entity =>
@@ -1994,11 +2181,19 @@ public partial class GameHost : Node3D, IGameAPI
 
 		GameContext.SimulationService.OnPropDepleted = entity =>
 		{
-			if (TryGetProp3D(entity, out var prop3D)) Callable.From(() => DepleteProp(prop3D)).CallDeferred();
+			if (GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<PropIdentity>(entity))
+			{
+				string propId = GameContext.World.Get<PropIdentity>(entity).PropId;
+				PropMultiMeshManager.Instance?.MarkDirty(propId);
+			}
+			else
+			{
+				PropMultiMeshManager.Instance?.MarkAllDirty();
+			}
 		};
 		GameContext.SimulationService.OnResourceHarvested = entity =>
 		{
-			if (TryGetProp3D(entity, out var prop3D)) prop3D.TriggerImpulse(0.35f, 0.45f);
+			PropMultiMeshManager.Instance?.SetInstanceCustomData(entity, new Color(1f, 0f, 0f, 0f));
 		};
 
 		SetupSimulationCombatCallbacks();
@@ -2084,7 +2279,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
 		_peerIdToPlayerEntityMap[0] = playerEntities[0];
-		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true);
+		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true, teamIndex: 0);
 
 		foreach (var p in LobbyManager.Instance.PlayerList)
 		{
@@ -2096,9 +2291,11 @@ public partial class GameHost : Node3D, IGameAPI
 				{
 					GameContext.World.Set(playerEntity, new Name(p.Name));
 				}
-				UpdateScriptPlayerState(p.Slot, p.Name, active: true, isComputer: p.PeerId < 0);
+				UpdateScriptPlayerState(p.Slot, p.Name, active: true, isComputer: p.PeerId < 0, teamIndex: p.TeamIndex);
 			}
 		}
+
+		GameContext.SimulationService?.RecalculatePlayerRelationships();
 	}
 
 	private void InitializeSingleplayerPlayers()
@@ -2116,12 +2313,14 @@ public partial class GameHost : Node3D, IGameAPI
 		_peerIdToPlayerEntityMap[1] = playerEntities[1];
 		_peerIdToPlayerEntityMap[-1] = playerEntities[2];
 
-		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true);
-		UpdateScriptPlayerState(1, "Horaid_Topa", active: true, isComputer: false);
-		UpdateScriptPlayerState(2, "Enemy_AI", active: true, isComputer: true);
+		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true, teamIndex: 0);
+		UpdateScriptPlayerState(1, "Horaid_Topa", active: true, isComputer: false, teamIndex: 1);
+		UpdateScriptPlayerState(2, "Enemy_AI", active: true, isComputer: true, teamIndex: 2);
+
+		GameContext.SimulationService?.RecalculatePlayerRelationships();
 	}
 
-	private void UpdateScriptPlayerState(int pIdx, string name, bool active = true, bool isComputer = false)
+	private void UpdateScriptPlayerState(int pIdx, string name, bool active = true, bool isComputer = false, int teamIndex = -1)
 	{
 		if (!GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity)) return;
 
@@ -2131,7 +2330,31 @@ public partial class GameHost : Node3D, IGameAPI
 			players[pIdx].Name = name;
 			players[pIdx].Active = active;
 			players[pIdx].IsComputer = isComputer;
+			if (teamIndex >= 0)
+			{
+				players[pIdx].TeamIndex = teamIndex;
+				players[pIdx].TeamNameStringId = Realm.Ecs.StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
+			}
 			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in players[pIdx]);
+
+			if (teamIndex >= 0 && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
+			{
+				var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+				if (pIdx < playerEntities.Length && playerEntities[pIdx] != Entity.Null && GameContext.World.IsAlive(playerEntities[pIdx]))
+				{
+					int stringId = players[pIdx].TeamNameStringId;
+					if (GameContext.World.Has<PlayerTeam>(playerEntities[pIdx]))
+					{
+						ref var pt = ref GameContext.World.Get<PlayerTeam>(playerEntities[pIdx]);
+						pt.TeamIndex = teamIndex;
+						pt.TeamNameStringId = stringId;
+					}
+					else
+					{
+						GameContext.World.Add(playerEntities[pIdx], new PlayerTeam(teamIndex, stringId));
+					}
+				}
+			}
 		}
 	}
 
@@ -2193,6 +2416,7 @@ public partial class GameHost : Node3D, IGameAPI
 		var metadata = MapFileService.LoadMetadata(metadataPath);
 		if (metadata.MapProperties?.TestRandomSeed != null)
 		{
+			EcsSharedMemory.RandomSeed = metadata.MapProperties.TestRandomSeed.Value;
 			GameContext.RandomService.SetSeed(metadata.MapProperties.TestRandomSeed);
 		}
 	}
@@ -2307,6 +2531,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 		ClearNodeCollection(AllUnits);
 		SelectedUnits.Clear();
+		_activeImpulseUnits.Clear();
 		ClearNodeCollection(AllProps);
 		ClearNodeCollection(AllDecals);
 		ClearNodeCollection(AllLootItems);
@@ -2331,6 +2556,7 @@ public partial class GameHost : Node3D, IGameAPI
 		_playerCameraBoundsOverrides.Clear();
 		_playerHudVisibilityOverrides.Clear();
 		LocalHudVisibilityOverrides.Clear();
+		_cachedWorldEnvironment = null;
 		_activeMapScript = null;
 
 		ReinitializeEcsAndServices();
@@ -2359,12 +2585,17 @@ public partial class GameHost : Node3D, IGameAPI
 
 		bool wasMapEditorMode = GameContext.SessionState.IsMapEditorMode;
 		bool wasLoadingMap = GameContext.SaveLoadService.IsLoadingMap;
+		bool wasProfilingEnabled = GameContext.PerformanceTrackingService?.IsFunctionProfilingEnabled ?? false;
 
 		GameContext.DisposeAndRecreateServices();
 		ResolveServices();
 
 		GameContext.SessionState.IsMapEditorMode = wasMapEditorMode;
 		GameContext.SaveLoadService.IsLoadingMap = wasLoadingMap;
+		if (wasProfilingEnabled)
+		{
+			GameContext.PerformanceTrackingService.IsFunctionProfilingEnabled = true;
+		}
 
 		// Do not trigger lazy GroundTerrain creation here: InitializeGameEcs()
 		// builds the ground exactly once (CreateGround at Realm.Client.Core.cs:2751).
@@ -2672,24 +2903,32 @@ public partial class GameHost : Node3D, IGameAPI
 		return closest;
 	}
 
-	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)
+	public void IssueGatherCommand(Entity propEntity, bool isQueued = false)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		if (SelectedUnits.Count == 0 || prop == null || !GodotObject.IsInstanceValid(prop)) return;
+		if (SelectedUnits.Count == 0 || propEntity == Entity.Null || !GameContext.World.IsAlive(propEntity)) return;
 
-		string? resType = GetPropResourceType(prop.PropId);
+		string propId = GameContext.World.Has<PropIdentity>(propEntity) ? GameContext.World.Get<PropIdentity>(propEntity).PropId : "";
+		string? resType = GetPropResourceType(propId);
 		if (resType == null) return;
 
-		SpawnTargetIndicator(prop.GlobalPosition, new Color(0.9f, 0.8f, 0.1f));
-		InGameHUD.Instance?.ShowFeedbackText($"Gathering {resType.ToUpper()} from {prop.PropId}", new Color(0.9f, 0.8f, 0.1f));
+		Vector3 propPos = Vector3.Zero;
+		if (GameContext.World.Has<Position>(propEntity))
+		{
+			var p = GameContext.World.Get<Position>(propEntity).Value;
+			propPos = new Vector3(p.X, p.Y, p.Z);
+		}
+
+		SpawnTargetIndicator(propPos, new Color(0.9f, 0.8f, 0.1f));
+		InGameHUD.Instance?.ShowFeedbackText($"Gathering {resType.ToUpper()} from {propId}", new Color(0.9f, 0.8f, 0.1f));
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
-			IssueMultiplayerGatherCommand(prop, isQueued);
+			IssueMultiplayerGatherCommand(propEntity, propPos, isQueued);
 			return;
 		}
 
-		IssueLocalGatherCommand(prop, resType, isQueued);
+		IssueLocalGatherCommand(propEntity, propPos, resType, isQueued);
 	}
 
 	private string? GetPropResourceType(string propId)
@@ -2697,7 +2936,7 @@ public partial class GameHost : Node3D, IGameAPI
 		return GameContext.RegistryService.GetResourceTypeForNode(propId);
 	}
 
-	private void IssueMultiplayerGatherCommand(Prop3D prop, bool isQueued)
+	private void IssueMultiplayerGatherCommand(Entity propEntity, Vector3 propPos, bool isQueued)
 	{
 		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (localPlayerIndex <= 0) return;
@@ -2708,10 +2947,10 @@ public partial class GameHost : Node3D, IGameAPI
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 
-		QueueClientCommand(isQueued ? "gather_queued" : "gather", targetIds, prop.GlobalPosition, GetServerEntityId(prop.Entity), "");
+		QueueClientCommand(isQueued ? "gather_queued" : "gather", targetIds, propPos, GetServerEntityId(propEntity), "");
 	}
 
-	private void IssueLocalGatherCommand(Prop3D prop, string resType, bool isQueued)
+	private void IssueLocalGatherCommand(Entity propEntity, Vector3 propPos, string resType, bool isQueued)
 	{
 		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (localPlayerIndex <= 0) return;
@@ -2719,17 +2958,25 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
 
-			if (isQueued && GameContext.InputService != null && GameContext.InputService.IsUnitActive(unit.Entity))
+				if (isQueued && GameContext.InputService != null && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(unit.Entity))
 			{
-				GameContext.InputService.EnqueueCommand(unit.Entity, "gather", new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z), prop.Entity);
+				GameContext.InputService.EnqueueCommand(unit.Entity, "gather", new System.Numerics.Vector3(propPos.X, propPos.Y, propPos.Z), propEntity);
 			}
 			else
 			{
 				if (!isQueued) ClearUnitOrders(unit.Entity);
 
-				GameContext.World.SetOrAdd(unit.Entity, new Gatherer(resType, prop.Entity));
-				GameContext.World.SetOrAdd(unit.Entity, new MoveTo(new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z)));
+				GameContext.World.SetOrAdd(unit.Entity, new Gatherer(resType, propEntity));
+				GameContext.World.SetOrAdd(unit.Entity, new MoveTo(new System.Numerics.Vector3(propPos.X, propPos.Y, propPos.Z)));
 			}
+		}
+	}
+
+	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)
+	{
+		if (prop != null && GodotObject.IsInstanceValid(prop))
+		{
+			IssueGatherCommand(prop.Entity, isQueued);
 		}
 	}
 
@@ -2842,6 +3089,43 @@ public partial class GameHost : Node3D, IGameAPI
 		GameContext.World.SetOrAdd(entity, new UnitOwnerPlayer(playerIndex));
 		GameContext.World.SetOrAdd(entity, new DefinitionId(id));
 		ApplyGigachadBuffsIfNeeded(entity, playerIndex);
+		SyncPreviousTransform(GameContext.World, entity);
+	}
+
+	private static readonly QueryDescription _positionQuery = new QueryDescription().WithAll<Position>().WithNone<Building, PropIdentity, Dead>();
+	private static readonly QueryDescription _rotationYQuery = new QueryDescription().WithAll<RotationY>().WithNone<Building, PropIdentity, Dead>();
+
+	public void CapturePreviousStateSnapshots()
+	{
+		var world = GameContext.World;
+		if (world == null) return;
+
+		foreach (var entity in world.Query(in _positionQuery))
+		{
+			ref var pos = ref world.Get<Position>(entity);
+			world.SetOrAdd(entity, new PreviousPosition(pos.Value));
+		}
+
+		foreach (var entity in world.Query(in _rotationYQuery))
+		{
+			ref var rot = ref world.Get<RotationY>(entity);
+			world.SetOrAdd(entity, new PreviousRotationY(rot.Value));
+		}
+	}
+
+	public static void SyncPreviousTransform(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		if (world.Has<Position>(entity))
+		{
+			world.SetOrAdd(entity, new PreviousPosition(world.Get<Position>(entity).Value));
+		}
+
+		if (world.Has<RotationY>(entity))
+		{
+			world.SetOrAdd(entity, new PreviousRotationY(world.Get<RotationY>(entity).Value));
+		}
 	}
 
 	private Unit3D CreateAndSetupUnit3DNode(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, int playerIndex)
@@ -2850,8 +3134,6 @@ public partial class GameHost : Node3D, IGameAPI
 
 		if (!isBuilding && !GameContext.SessionState.IsMapEditorMode)
 		{
-			unit3D.CollisionLayer = 1;
-			unit3D.CollisionMask = 0;
 		}
 
 		AddChild(unit3D);
@@ -2890,39 +3172,90 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 
-	public override void _Process(double delta)
+	public bool TryGetInterpolatedTransform(Entity entity, float fraction, out System.Numerics.Vector3 position, out float rotationY)
 	{
-		if (GameContext.ShroudService != null)
+		if (GameContext.SimulationService != null)
 		{
-			float fDelta = (float)delta;
-			bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
-			bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
-			int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
-			GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, spectatorPerspective, isReplay, isSpectator);
+			return GameContext.SimulationService.TryGetInterpolatedTransform(entity, fraction, out position, out rotationY);
 		}
 
-		var worldEnv = MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") ?? GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
-		GameContext.EnvironmentService?.UpdateEnvironmentalFog(MainCamera, worldEnv);
-		GameContext.EnvironmentService?.UpdateWeatherParticlePosition(MainCamera);
+		position = System.Numerics.Vector3.Zero;
+		rotationY = 0f;
+		return false;
+	}
+
+	public (System.Numerics.Vector3 Position, float RotationY) GetInterpolatedTransform(Entity entity, float fraction)
+	{
+		return GameContext.SimulationService?.GetInterpolatedTransform(entity, fraction) ?? (System.Numerics.Vector3.Zero, 0f);
+	}
+
+	public override void _Process(double delta)
+	{
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotProcess))
+		{
+			float fDelta = (float)delta;
+
+			if (GameContext.World != null)
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateVisualNodesFromEcs))
+				{
+					UpdateRenderFrameTransforms(fDelta);
+					UpdateSelectedAndImpulseUnitVisuals(fDelta);
+				}
+			}
+
+			if (GameContext.ShroudService != null)
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ShroudServiceTick))
+				{
+					bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
+					bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
+					int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
+					GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, AllVfx, VisualProjectilePool.Instance.ActiveProjectiles, spectatorPerspective, isReplay, isSpectator);
+				}
+			}
+
+			if (_cachedWorldEnvironment == null || !GodotObject.IsInstanceValid(_cachedWorldEnvironment))
+			{
+				_cachedWorldEnvironment = MainNode?.GetNodeOrNull<WorldEnvironment>("WorldEnvironment") ?? GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
+			}
+
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.EnvironmentUpdateFog))
+			{
+				GameContext.EnvironmentService?.UpdateEnvironmentalFog(MainCamera, _cachedWorldEnvironment);
+			}
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.EnvironmentUpdateWeatherParticles))
+			{
+				GameContext.EnvironmentService?.UpdateWeatherParticlePosition(MainCamera);
+			}
+
+			VisualProjectilePool.Instance?.AdvanceActiveProjectiles(fDelta);
+
+			GameContext.FXService?.UpdateFloatingLabels(fDelta);
+			GameContext.FXService?.RenderBatchedRibbonTrails(MainCamera);
+		}
 	}
 
 	public override void _PhysicsProcess(double delta)
 	{
-		if (!ShouldProcessPhysicsTick()) return;
-
-		float fDelta = (float)delta;
-		if (_wasClientInMultiplayer) UpdateConnectionStatus();
-
-		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotPhysicsProcess))
 		{
-			ProcessReplayTick(fDelta);
-			return;
+			if (!ShouldProcessPhysicsTick()) return;
+
+			float fDelta = (float)delta;
+			if (_wasClientInMultiplayer) UpdateConnectionStatus();
+
+			if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+			{
+				ProcessReplayTick(fDelta);
+				return;
+			}
+
+			if (Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer()) UpdatePauseCountdown(fDelta);
+			if (GameContext.NetworkService.IsPaused) return;
+
+			DispatchPhysicsTick(fDelta);
 		}
-
-		if (Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer()) UpdatePauseCountdown(fDelta);
-		if (GameContext.NetworkService.IsPaused) return;
-
-		DispatchPhysicsTick(fDelta);
 	}
 
 	private bool ShouldProcessPhysicsTick()
@@ -2932,15 +3265,18 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void ProcessReplayTick(float fDelta)
 	{
+		CapturePreviousStateSnapshots();
 		ReplayPlaybackManager.Instance.Update(fDelta);
-		UpdateVisualNodesFromEcs(fDelta);
 	}
 
 	private void DispatchPhysicsTick(float fDelta)
 	{
-		if (_multiplayerActive && !IsServerActive()) UpdateClientTick(fDelta);
-		else if (GameContext.SessionState.IsMapEditorMode) ProcessMapEditorTick(fDelta);
-		else ProcessGameplayTick(fDelta);
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.DispatchPhysicsTick))
+		{
+			if (_multiplayerActive && !IsServerActive()) UpdateClientTick(fDelta);
+			else if (GameContext.SessionState.IsMapEditorMode) ProcessMapEditorTick(fDelta);
+			else ProcessGameplayTick(fDelta);
+		}
 	}
 
 	private void UpdatePauseCountdown(float fDelta)
@@ -3198,18 +3534,23 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (ECSContext.IsGameOver) return;
 
-		float actualIntervalMs = BeginTickTracking();
+		CapturePreviousStateSnapshots();
 
-		_fDelta = fDelta;
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessGameplayTick))
+		{
+			float actualIntervalMs = BeginTickTracking();
 
-		ProcessCoreSimulation(fDelta);
-		ProcessVisualAndEnvironment(fDelta);
-		ProcessMiscTicks(fDelta);
+			_fDelta = fDelta;
 
-		if (_multiplayerActive && Multiplayer.IsServer())
-			UpdateServerSnapshotTick(fDelta);
+			ProcessCoreSimulation(fDelta);
+			ProcessVisualAndEnvironment(fDelta);
+			ProcessMiscTicks(fDelta);
 
-		EndTickTracking(actualIntervalMs);
+			if (_multiplayerActive && Multiplayer.IsServer())
+				UpdateServerSnapshotTick(fDelta);
+
+			EndTickTracking(actualIntervalMs);
+		}
 	}
 
 	private float BeginTickTracking()
@@ -3235,52 +3576,100 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void ProcessCoreSimulation(float fDelta)
 	{
-		GameContext.SimulationService.TickEcs(fDelta);
-		PollVFXQueue();
-		TickConstructionSystem(fDelta);
-		UpdateVisualNodesFromEcs(fDelta);
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessCoreSimulation))
+		{
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationTickEcs))
+			{
+				GameContext.SimulationService.TickEcs(fDelta);
+			}
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PollVfxQueue))
+			{
+				PollVFXQueue();
+			}
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickConstructionSystem))
+			{
+				TickConstructionSystem(fDelta);
+			}
+		}
 	}
 
 	private void ProcessVisualAndEnvironment(float fDelta)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessVisualAndEnvironment))
 		{
-			var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
-			if (state.DayNightCycleEnabled && !GameContext.SessionState.IsMapEditorMode)
+			if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
 			{
-				float progress = state.TimeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
-				UpdateDayNightVisuals(progress);
+				var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
+				if (state.DayNightCycleEnabled && !GameContext.SessionState.IsMapEditorMode)
+				{
+					using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateDayNightVisuals))
+					{
+						float progress = state.TimeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
+						UpdateDayNightVisuals(progress);
+					}
+				}
+			}
+
+			if (GameContext.EnvironmentService != null && GameContext.EnvironmentService.IsTransitioning)
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.EnvironmentUpdateTransition))
+				{
+					GameContext.EnvironmentService.UpdateTransition(this, fDelta);
+				}
+			}
+
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateMinimapPings))
+			{
+				UpdateMinimapPings(fDelta);
 			}
 		}
-
-		if (GameContext.EnvironmentService != null && GameContext.EnvironmentService.IsTransitioning)
-			GameContext.EnvironmentService.UpdateTransition(this, fDelta);
-
-		UpdateMinimapPings(fDelta);
 	}
 
 	private void ProcessMiscTicks(float fDelta)
 	{
-		TickScheduledTimers(fDelta);
-		TickZoneTriggers();
-		TickGroundLoot(fDelta);
-
-		if (_activeMapScript != null)
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessMiscTicks))
 		{
-			try
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickScheduledTimers))
 			{
-				_activeMapScript.Update(this, fDelta);
+				TickScheduledTimers(fDelta);
 			}
-			catch (Exception ex)
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickZoneTriggers))
 			{
-				GD.PrintErr($"[GameHost] Exception during active map script Update: {ex.Message}");
+				TickZoneTriggers();
+			}
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickGroundLoot))
+			{
+				TickGroundLoot(fDelta);
+			}
+
+			if (_activeMapScript != null)
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.WasmRuntimeUpdate))
+				{
+					try
+					{
+						_activeMapScript.Update(this, fDelta);
+					}
+					catch (Exception ex)
+					{
+						GD.PrintErr($"[GameHost] Exception during active map script Update: {ex.Message}");
+					}
+				}
+			}
+
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateBuildingPreview))
+			{
+				UpdateBuildingPreview();
+			}
+
+			if (!ReplayPlaybackManager.Instance.IsPlayingReplay && GameSettings.RecordReplays && GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
+			{
+				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.RecordGameplayTick))
+				{
+					RecordGameplayTick();
+				}
 			}
 		}
-
-		UpdateBuildingPreview();
-
-		if (!ReplayPlaybackManager.Instance.IsPlayingReplay && GameSettings.RecordReplays && GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
-			RecordGameplayTick();
 	}
 
 	private void EndTickTracking(float actualIntervalMs)
@@ -3337,7 +3726,7 @@ public partial class GameHost : Node3D, IGameAPI
 		if (req.EffectTypeId != "arrow" && !WeaponRegistry.ContainsKey(req.EffectTypeId) && !req.EffectTypeId.StartsWith("proj:")) return false;
 
 		string weaponId = req.EffectTypeId.StartsWith("proj:") ? req.EffectTypeId.Substring(5) : req.EffectTypeId;
-		SpawnWeaponProjectile(godotPos, godotTarget, weaponId, GetEntityById(req.EntityId));
+		SpawnWeaponProjectile(godotPos, godotTarget, weaponId, GetEntityById(req.EntityId), req.OwnerPlayerIndex);
 		return true;
 	}
 
@@ -3441,9 +3830,9 @@ public partial class GameHost : Node3D, IGameAPI
 		SpawnWeaponProjectile(start, target, "arrow");
 	}
 
-	public void SpawnWeaponProjectile(Vector3 start, Vector3 target, string? weaponId = null, Entity targetEntity = default)
+	public void SpawnWeaponProjectile(Vector3 start, Vector3 target, string? weaponId = null, Entity targetEntity = default, int ownerPlayerIndex = 0)
 	{
-		GameContext.FXService.SpawnWeaponProjectile(this, start, target, weaponId, targetEntity);
+		GameContext.FXService.SpawnWeaponProjectile(this, start, target, weaponId, targetEntity, ownerPlayerIndex);
 		if (GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
 		{
 			GameContext.ReplayService.RecordProjectile(weaponId ?? "arrow", new System.Numerics.Vector3(start.X, start.Y, start.Z), new System.Numerics.Vector3(target.X, target.Y, target.Z));

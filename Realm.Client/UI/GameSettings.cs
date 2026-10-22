@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
 using Environment = Godot.Environment;
@@ -30,6 +31,7 @@ public static class GameSettings
 	public static int WindowedResolutionHeight { get; set; } = 0;
 	public static List<Vector2I> Resolutions { get; private set; }
 	public static GraphicsQuality QualityIdx { get; set; } = GraphicsQuality.High;
+	public static float LodDistanceScale => GetLodDistanceScale(QualityIdx);
 	public static WindowMode WindowModeIdx { get; set; } = WindowMode.Fullscreen;
 	public static bool Vsync { get; set; } = true;
 
@@ -55,7 +57,15 @@ public static class GameSettings
 	public static bool DisableShadows { get; set; } = false;
 	public static bool DisableDayNightLighting { get; set; } = false;
 	public static bool FloatingCombatText { get; set; } = true;
-	public static bool MovementPrediction { get; set; } = false;
+
+	private static readonly bool MovementPredictionSupported = PathUtils.IsDevelopmentBuild;
+	private static bool _movementPrediction;
+
+	public static bool MovementPrediction
+	{
+		get => MovementPredictionSupported && _movementPrediction;
+		set => _movementPrediction = value && MovementPredictionSupported;
+	}
 	public static string LastOpenedFolder { get; set; } = string.Empty;
 
 	public static int GetSafeScreenIndex()
@@ -301,6 +311,52 @@ public static class GameSettings
 		ApplyWorldEnvironment(root);
 		ApplyTerrainQuality(root);
 		ApplyGameHostSettings(root);
+		ApplyLodVisibilityDistances();
+	}
+
+	private static float GetLodDistanceScale(GraphicsQuality quality)
+	{
+		return quality switch
+		{
+			GraphicsQuality.Low => 0.75f,
+			GraphicsQuality.Medium => 0.9f,
+			GraphicsQuality.Ultra => 1.2f,
+			_ => 1.0f
+		};
+	}
+
+	private static void ApplyLodVisibilityDistances()
+	{
+		GameHost host = GameHost.Instance;
+		if (host == null || !GodotObject.IsInstanceValid(host)) return;
+
+		var units = host.AllUnits;
+		if (units != null)
+		{
+			for (int i = 0; i < units.Count; i++)
+			{
+				Unit3D unit = units[i];
+				if (unit != null && GodotObject.IsInstanceValid(unit))
+				{
+					unit.RefreshLodVisibilityDistances();
+				}
+			}
+		}
+
+		var props = host.AllProps;
+		if (props != null)
+		{
+			for (int i = 0; i < props.Count; i++)
+			{
+				Prop3D prop = props[i];
+				if (prop != null && GodotObject.IsInstanceValid(prop))
+				{
+					prop.RefreshLodVisibilityDistances();
+				}
+			}
+		}
+
+		PropMultiMeshManager.Instance?.RefreshLodVisibilityDistances();
 	}
 
 	private static void ApplyViewportQuality(Viewport viewport)

@@ -11,9 +11,11 @@ using HttpClient = System.Net.Http.HttpClient;
 using Timer = Godot.Timer;
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class LobbyBrowser : Control
 {
 	public LobbyBrowser()
@@ -147,26 +149,9 @@ public partial class LobbyBrowser : Control
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
 	}
 
-	private static Texture2D LoadFirstAvailableTexture(params string[] paths)
-	{
-		foreach (var path in paths)
-		{
-			if (!ResourceLoader.Exists(path)) continue;
-			var tex = GD.Load<Texture2D>(path);
-			if (tex != null) return tex;
-		}
-
-		return null;
-	}
-
 	private void ApplyBackgroundStyle()
 	{
-		Texture2D bgTexture = LoadFirstAvailableTexture(
-			"res://Assets/UI/custom_lobby_bg.png",
-			"res://Assets/UI/custom_lobby_bg.jpg",
-			"res://Assets/UI/procedural_bg.png",
-			"res://Assets/UI/lobby_bg_forest.png"
-		);
+		Texture2D bgTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_bg.webp");
 
 		if (bgTexture != null)
 		{
@@ -182,12 +167,7 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyFilterPanelStyle()
 	{
-		Texture2D filterPanelTex = LoadFirstAvailableTexture(
-			"res://Assets/UI/custom_lobby_panel_filter.png",
-			"res://Assets/UI/custom_panel_filter.png",
-			"res://Assets/UI/procedural_filter_panel.png",
-			"res://Assets/UI/lobby_filter_panel.png"
-		);
+		Texture2D filterPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_filter.webp");
 
 		if (filterPanelTex != null)
 		{
@@ -214,11 +194,7 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyMainPanelStyle()
 	{
-		Texture2D mainPanelTex = LoadFirstAvailableTexture(
-			"res://Assets/UI/custom_lobby_panel_main.png",
-			"res://Assets/UI/procedural_main_panel.png",
-			"res://Assets/UI/lobby_central_panel.png"
-		);
+		Texture2D mainPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_main.webp");
 
 		if (mainPanelTex != null)
 		{
@@ -247,6 +223,7 @@ public partial class LobbyBrowser : Control
 	{
 		var tableHeader = _lobbyPanel.GetNode<HBoxContainer>("VBoxContainer/TableHeader");
 		var headerWrapper = new PanelContainer();
+		headerWrapper.Name = "HeaderWrapper_PanelContainer";
 		headerWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
 		tableHeader.GetParent().AddChild(headerWrapper);
 		tableHeader.GetParent().MoveChild(headerWrapper, tableHeader.GetIndex());
@@ -290,28 +267,6 @@ public partial class LobbyBrowser : Control
 		_searchBar.Alignment = HorizontalAlignment.Left;
 		_searchBar.PlaceholderText = "Search Lobbies...";
 		_searchBar.RightIcon = null;
-	}
-
-	private void SetupPillarButton(Button btn, string text, Action onClick)
-	{
-		btn.Flat = false;
-		btn.Text = text;
-		btn.AddThemeFontSizeOverride("font_size", 24);
-		btn.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btn.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			onClick?.Invoke();
-		};
-		btn.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 	}
 
 	private void SetupHostButton()
@@ -360,17 +315,20 @@ public partial class LobbyBrowser : Control
 	private void ShowDirectConnectDialog()
 	{
 		var overlay = new Panel();
+		overlay.Name = "Overlay_Panel";
 		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		AddChild(overlay);
 
 		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
 		cardPanel.CustomMinimumSize = new Vector2(500, 320);
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		overlay.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		vbox.CustomMinimumSize = new Vector2(450, 280);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -380,6 +338,7 @@ public partial class LobbyBrowser : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, Tr("DIRECT CONNECTION"), 22);
 		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		vbox.AddChild(titleLabel);
@@ -387,6 +346,7 @@ public partial class LobbyBrowser : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
 
 		var descLabel = new Label();
+		descLabel.Name = "DescLabel_Label";
 		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		descLabel.CustomMinimumSize = new Vector2(440, 0);
 		descLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -399,12 +359,14 @@ public partial class LobbyBrowser : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
 
 		var ipLabel = new Label();
+		ipLabel.Name = "IpLabel_Label";
 		ipLabel.Text = Tr("Host IP Address:");
 		ipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		ipLabel.AddThemeFontSizeOverride("font_size", 13);
 		vbox.AddChild(ipLabel);
 
 		var ipInput = new LineEdit();
+		ipInput.Name = "IpInput_LineEdit";
 		ipInput.PlaceholderText = "127.0.0.1 or 192.168.1.X or 100.X.X.X";
 		ipInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
 		ipInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
@@ -415,12 +377,14 @@ public partial class LobbyBrowser : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
 
 		var portLabel = new Label();
+		portLabel.Name = "PortLabel_Label";
 		portLabel.Text = Tr("Port:");
 		portLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		portLabel.AddThemeFontSizeOverride("font_size", 13);
 		vbox.AddChild(portLabel);
 
 		var portInput = new LineEdit();
+		portInput.Name = "PortInput_LineEdit";
 		portInput.Text = "8999";
 		portInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
 		portInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
@@ -431,17 +395,16 @@ public partial class LobbyBrowser : Control
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 		var hbox = new HBoxContainer();
+		hbox.Name = "Hbox_HBoxContainer";
 		hbox.Alignment = BoxContainer.AlignmentMode.Center;
 		hbox.AddThemeConstantOverride("separation", 20);
 		vbox.AddChild(hbox);
 
 		var cancelBtn = new Button();
+		cancelBtn.Name = "CancelBtn_Button";
 		cancelBtn.Flat = false;
 		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxes(cancelBtn);
 		UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
 		cancelBtn.CustomMinimumSize = new Vector2(140, 38);
 		cancelBtn.Pressed += () =>
@@ -452,12 +415,10 @@ public partial class LobbyBrowser : Control
 		hbox.AddChild(cancelBtn);
 
 		var connectBtn = new Button();
+		connectBtn.Name = "ConnectBtn_Button";
 		connectBtn.Flat = false;
 		connectBtn.AddThemeConstantOverride("icon_max_width", 0);
-		connectBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		connectBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		connectBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		connectBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxes(connectBtn);
 		UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
 		connectBtn.CustomMinimumSize = new Vector2(140, 38);
 		connectBtn.Pressed += async () =>
@@ -531,58 +492,7 @@ public partial class LobbyBrowser : Control
 
 	private void ShowHostingErrorPopup()
 	{
-		var warningPopup = new Panel();
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.CustomMinimumSize = new Vector2(450, 220);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(400, 180);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		UIStyle.ApplyTitle(titleLabel, Tr("HOSTING ERROR"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-		var descLabel = new Label();
-		descLabel.Text = Tr("Your network configuration is not compatible with hosting games.");
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var okBtn = new Button();
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, Tr("OK"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		okBtn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
-		};
-		vbox.AddChild(okBtn);
+		UIManager.Instance?.ShowPopupMessage(Tr("HOSTING ERROR"), Tr("Your network configuration is not compatible with hosting games."));
 	}
 
 	private void UpdateHostButtonState()
@@ -797,6 +707,7 @@ public partial class LobbyBrowser : Control
 		if (_connectionFailed)
 		{
 			var lbl = new Label();
+			lbl.Name = "Lbl_Label";
 			lbl.Text = Tr("⚠️ Failed to connect to the lobby registry server. Please check your internet connection or try again later.");
 			lbl.HorizontalAlignment = HorizontalAlignment.Center;
 			lbl.VerticalAlignment = VerticalAlignment.Center;
@@ -807,6 +718,7 @@ public partial class LobbyBrowser : Control
 		else if (_filteredLobbies.Count == 0)
 		{
 			var lbl = new Label();
+			lbl.Name = "Lbl_Label";
 			lbl.Text = Tr("Lobby server connected. No active games online. Host a game to start playing!");
 			lbl.HorizontalAlignment = HorizontalAlignment.Center;
 			lbl.VerticalAlignment = VerticalAlignment.Center;
@@ -827,6 +739,7 @@ public partial class LobbyBrowser : Control
 	private PanelContainer CreateLobbyRow(LobbyData data)
 	{
 		var panel = new PanelContainer();
+		panel.Name = "Panel_PanelContainer";
 		panel.CustomMinimumSize = new Vector2(0, 48);
 
 		var rowStyle = new StyleBoxFlat();
@@ -850,9 +763,11 @@ public partial class LobbyBrowser : Control
 		panel.AddThemeStyleboxOverride("panel", rowStyle);
 
 		var hBox = new HBoxContainer();
+		hBox.Name = "HBox_HBoxContainer";
 		panel.AddChild(hBox);
 
 		var lblMap = new Label();
+		lblMap.Name = "LblMap_Label";
 		lblMap.Text = $"  {data.Map}";
 		lblMap.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblMap.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
@@ -861,6 +776,7 @@ public partial class LobbyBrowser : Control
 		hBox.AddChild(lblMap);
 
 		var lblSize = new Label();
+		lblSize.Name = "LblSize_Label";
 		lblSize.Text = data.MapSizeFormatted;
 		lblSize.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblSize.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
@@ -869,6 +785,7 @@ public partial class LobbyBrowser : Control
 		hBox.AddChild(lblSize);
 
 		var lblMode = new Label();
+		lblMode.Name = "LblMode_Label";
 		lblMode.Text = data.Mode;
 		lblMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblMode.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
@@ -877,6 +794,7 @@ public partial class LobbyBrowser : Control
 		hBox.AddChild(lblMode);
 
 		var lblPlayers = new Label();
+		lblPlayers.Name = "LblPlayers_Label";
 		lblPlayers.Text = data.Players;
 		lblPlayers.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblPlayers.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
@@ -885,6 +803,7 @@ public partial class LobbyBrowser : Control
 		hBox.AddChild(lblPlayers);
 
 		var lblPing = new Label();
+		lblPing.Name = "LblPing_Label";
 		lblPing.Text = $"{data.Ping} ms  ";
 		lblPing.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblPing.HorizontalAlignment = HorizontalAlignment.Right;
@@ -894,6 +813,7 @@ public partial class LobbyBrowser : Control
 		hBox.AddChild(lblPing);
 
 		var lblVersion = new Label();
+		lblVersion.Name = "LblVersion_Label";
 		lblVersion.Text = $"v{data.GameVersion}  ";
 		lblVersion.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblVersion.HorizontalAlignment = HorizontalAlignment.Right;
@@ -954,82 +874,15 @@ public partial class LobbyBrowser : Control
 
 	private void ShowVersionMismatchPopup(string lobbyVersion, string currentVersion)
 	{
-		var warningPopup = new Panel();
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.CustomMinimumSize = new Vector2(500, 260);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(450, 220);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		UIStyle.ApplyTitle(titleLabel, Tr("VERSION MISMATCH"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
 		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(lobbyVersion));
 
-		var descLabel = new Label();
 		string promptText = versionExistsLocally
 			? Tr("The running game version doesn't match the lobby. Re-launch game with correct version?")
 			: Tr("The required game version is not installed. Download it?");
-		descLabel.Text = $"{string.Format(Tr("Host Version: {0}"), lobbyVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
+		string message = $"{string.Format(Tr("Host Version: {0}"), lobbyVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var hBox = new HBoxContainer();
-		hBox.Alignment = BoxContainer.AlignmentMode.Center;
-		hBox.AddThemeConstantOverride("separation", 20);
-		vbox.AddChild(hBox);
-
-		var cancelBtn = new Button();
-		cancelBtn.Flat = false;
-		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		cancelBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		cancelBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		cancelBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		cancelBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
-		cancelBtn.CustomMinimumSize = new Vector2(160, 40);
-		cancelBtn.Pressed += () =>
+		UIManager.Instance?.ShowConfirmationDialog(message, () =>
 		{
-			UIManager.Instance?.PlayClickSound();
-			warningPopup.QueueFree();
-		};
-		hBox.AddChild(cancelBtn);
-
-		var okBtn = new Button();
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, versionExistsLocally ? Tr("RELAUNCH") : Tr("DOWNLOAD"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.Pressed += () =>
-		{
-			UIManager.Instance?.PlayClickSound();
-			warningPopup.QueueFree();
-
 			if (versionExistsLocally)
 			{
 				string targetExe = LobbyManager.GetVersionExecutablePath(lobbyVersion);
@@ -1040,8 +893,7 @@ public partial class LobbyBrowser : Control
 			{
 				OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
 			}
-		};
-		hBox.AddChild(okBtn);
+		}, confirmText: versionExistsLocally ? "RELAUNCH" : "DOWNLOAD", titleOverride: "VERSION MISMATCH");
 	}
 
 	private void TriggerRefresh()
@@ -1136,58 +988,7 @@ public partial class LobbyBrowser : Control
 
 	private void ShowLobbyJoinErrorPopup(string message)
 	{
-		var warningPopup = new Panel();
-		warningPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		warningPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(warningPopup);
-
-		var cardPanel = new Panel();
-		cardPanel.CustomMinimumSize = new Vector2(450, 220);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		warningPopup.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(400, 180);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
-
-		var titleLabel = new Label();
-		UIStyle.ApplyTitle(titleLabel, Tr("CONNECTION ERROR"), 20);
-		titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-		var descLabel = new Label();
-		descLabel.Text = Tr(message);
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AddThemeFontSizeOverride("font_size", 14);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-		vbox.AddChild(descLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
-
-		var okBtn = new Button();
-		okBtn.Flat = false;
-		okBtn.AddThemeConstantOverride("icon_max_width", 0);
-		okBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		okBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		okBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		okBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(okBtn, Tr("OK"), 14);
-		okBtn.CustomMinimumSize = new Vector2(160, 40);
-		okBtn.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		okBtn.Pressed += () =>
-		{
-			UIManager.Instance.PlayClickSound();
-			warningPopup.QueueFree();
-		};
-		vbox.AddChild(okBtn);
+		UIManager.Instance?.ShowPopupMessage("CONNECTION ERROR", message);
 	}
 
 	protected override void Dispose(bool disposing)

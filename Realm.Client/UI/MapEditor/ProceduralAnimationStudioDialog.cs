@@ -9,8 +9,11 @@ using Realm.Shared.ModelOptimization;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBase
 {
+	public ProceduralAnimationStudioDialog() { }
+
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 
@@ -77,6 +80,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private void BuildControls()
 	{
 		var previewContainer = new PanelContainer();
+		previewContainer.Name = "PreviewContainer_PanelContainer";
 		previewContainer.CustomMinimumSize = new Vector2(0, 220);
 		previewContainer.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		BodyContainer.AddChild(previewContainer);
@@ -88,15 +92,18 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		AddCameraPresetToolbar(BodyContainer, includeBack: true, includeLightingToggle: true);
 
 		var templateRow = new HBoxContainer();
+		templateRow.Name = "TemplateRow_HBoxContainer";
 		templateRow.AddThemeConstantOverride("separation", 6);
 
 		var lblTemplate = new Label();
+		lblTemplate.Name = "LblTemplate_Label";
 		lblTemplate.Text = TranslationServer.Translate("Template:");
 		lblTemplate.AddThemeFontSizeOverride("font_size", 11);
 		lblTemplate.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		templateRow.AddChild(lblTemplate);
 
 		_optTemplatePicker = new OptionButton();
+		_optTemplatePicker.Name = "OptTemplatePicker_OptionButton";
 		_optTemplatePicker.AddThemeFontSizeOverride("font_size", 11);
 		_optTemplatePicker.CustomMinimumSize = new Vector2(160, 24);
 		_optTemplatePicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -113,11 +120,13 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		BodyContainer.AddChild(templateRow);
 
 		var playRow = new HBoxContainer();
+		playRow.Name = "PlayRow_HBoxContainer";
 		playRow.AddThemeConstantOverride("separation", 6);
 
 		AddButton(playRow, "💥 " + TranslationServer.Translate("Trigger Shake Impulse"), () => TriggerTestImpulse(), "Trigger Hit / Harvest Shake Impulse", 10, new Vector2(140, 24));
 
 		_chkShowHeatmap = new CheckBox();
+		_chkShowHeatmap.Name = "ChkShowHeatmap_CheckBox";
 		_chkShowHeatmap.Text = TranslationServer.Translate("Show Heatmap Mask");
 		_chkShowHeatmap.ButtonPressed = false;
 		_chkShowHeatmap.AddThemeFontSizeOverride("font_size", 10);
@@ -125,12 +134,14 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		playRow.AddChild(_chkShowHeatmap);
 
 		var lblVel = new Label();
+		lblVel.Name = "LblVel_Label";
 		lblVel.Text = TranslationServer.Translate("Sim Speed:");
 		lblVel.AddThemeFontSizeOverride("font_size", 10);
 		lblVel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		playRow.AddChild(lblVel);
 
 		_sldSimVelocity = new HSlider();
+		_sldSimVelocity.Name = "SldSimVelocity_HSlider";
 		_sldSimVelocity.MinValue = 0.0;
 		_sldSimVelocity.MaxValue = 10.0;
 		_sldSimVelocity.Step = 0.2;
@@ -145,6 +156,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		playRow.AddChild(_sldSimVelocity);
 
 		_lblSimVelocity = new Label();
+		_lblSimVelocity.Name = "LblSimVelocity_Label";
 		_lblSimVelocity.Text = "0.0 m/s";
 		_lblSimVelocity.CustomMinimumSize = new Vector2(40, 0);
 		_lblSimVelocity.AddThemeFontSizeOverride("font_size", 10);
@@ -153,26 +165,31 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		BodyContainer.AddChild(playRow);
 
 		var scroll = new ScrollContainer();
+		scroll.Name = "Scroll_ScrollContainer";
 		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
 
 		var configVBox = new VBoxContainer();
+		configVBox.Name = "ConfigVBox_VBoxContainer";
 		configVBox.AddThemeConstantOverride("separation", 6);
 		configVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scroll.AddChild(configVBox);
 		BodyContainer.AddChild(scroll);
 
 		var presetRow = new HBoxContainer();
+		presetRow.Name = "PresetRow_HBoxContainer";
 		presetRow.AddThemeConstantOverride("separation", 6);
 
 		var lblPreset = new Label();
+		lblPreset.Name = "LblPreset_Label";
 		lblPreset.Text = TranslationServer.Translate("Template Preset:");
 		lblPreset.AddThemeFontSizeOverride("font_size", 11);
 		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		presetRow.AddChild(lblPreset);
 
 		_optPreset = new OptionButton();
+		_optPreset.Name = "OptPreset_OptionButton";
 		_optPreset.AddThemeFontSizeOverride("font_size", 11);
 		_optPreset.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		PopulatePresetList();
@@ -705,6 +722,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	{
 		foreach (Node child in _currentModelRoot.GetChildren())
 		{
+			_currentModelRoot.RemoveChild(child);
 			child.QueueFree();
 		}
 	}
@@ -712,6 +730,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private void LoadSampleTemplate(TemplateItemInfo template)
 	{
 		var meshInst = new MeshInstance3D();
+		meshInst.Name = "MeshInst_MeshInstance3D";
 		if (template.Id.Contains("Capsule"))
 		{
 			meshInst.Mesh = new CapsuleMesh { Radius = 0.5f, Height = 1.8f };
@@ -760,11 +779,19 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		}
 		else
 		{
+			loaded?.QueueFree();
 			string resolved = ModelCache.ResolveModelPath(assetPath);
 			if (!string.IsNullOrEmpty(resolved))
 			{
 				loaded = ModelCache.GetModel(resolved);
-				if (loaded is Node3D nResolved) loadedNode3D = nResolved;
+				if (loaded is Node3D nResolved)
+				{
+					loadedNode3D = nResolved;
+				}
+				else
+				{
+					loaded?.QueueFree();
+				}
 			}
 		}
 
@@ -792,6 +819,10 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			if (loaded is Node3D n)
 			{
 				loadedNode3D = n;
+			}
+			else
+			{
+				loaded?.QueueFree();
 			}
 		}
 
@@ -830,6 +861,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	{
 		var loaded = ModelCache.GetModel(resolvedDiskPath) ?? ModelCache.GetModel(assetPath);
 		if (loaded is Node3D n) return n;
+		if (loaded != null) loaded.QueueFree();
 
 		var gltfDoc = new GltfDocument();
 		var gltfState = new GltfState();
@@ -839,6 +871,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		{
 			var node = gltfDoc.GenerateScene(gltfState);
 			if (node is Node3D n3d) return n3d;
+			if (node != null) node.QueueFree();
 		}
 
 		return null;
@@ -897,5 +930,11 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	{
 		_config = _snapshot.Clone();
 		CloseDialog();
+	}
+
+	public override void CloseDialog()
+	{
+		ClearCurrentModelRoot();
+		base.CloseDialog();
 	}
 }

@@ -146,10 +146,7 @@ public partial class MapEditorHUD : Control
 	private Control _gridSwatches { get; set; }
 	private Button _btnReplaceTexture { get; set; }
 
-	private Panel _leftPillar { get; set; }
-	private Panel _rightPillar { get; set; }
 	private PanelContainer _topBar { get; set; }
-	private HBoxContainer _topToolbar { get; set; }
 	private VBoxContainer _middleRightBox { get; set; }
 	private HBoxContainer _topLeftBox { get; set; }
 	private TextureRect _screenFrameRect { get; set; }
@@ -157,12 +154,6 @@ public partial class MapEditorHUD : Control
 	private bool _is3DInteractionActive { get; set; } = false;
 
 	private Dictionary<Control, Control.MouseFilterEnum> _savedMouseFilters { get; set; } = new();
-
-	private PanelContainer _panelTextures { get; set; }
-	private PanelContainer _panelEntityPalette { get; set; }
-	private PanelContainer _panelTerrain { get; set; }
-	private PanelContainer _panelDeco { get; set; }
-	private PanelContainer _panelEnv { get; set; }
 
 	private Button _btnBackToHub { get; set; }
 	private Button _btnPublish { get; set; }
@@ -187,6 +178,7 @@ public partial class MapEditorHUD : Control
 
 	private Slider _sldBrushSize { get; set; }
 	private Label _lblBrushSizeValue { get; set; }
+	private Control _brushSizeBox { get; set; }
 	private Slider _sldBrushStrength { get; set; }
 	private Label _lblBrushStrengthValue { get; set; }
 
@@ -299,7 +291,6 @@ public partial class MapEditorHUD : Control
 	private Button _btnRamp { get; set; }
 	private OptionButton _optMirrorMode { get; set; }
 	private OptionButton _optPlacementMirrorMode { get; set; }
-	private Button _btnClumpBrush { get; set; }
 	private HSlider _sldClumpDensity { get; set; }
 	private Label _lblClumpDensityValue { get; set; }
 	private HSlider _sldClumpScaleVar { get; set; }
@@ -420,6 +411,7 @@ public partial class MapEditorHUD : Control
 		vbox.AddChild(title);
 
 		var optType = new OptionButton();
+		optType.Name = "OptType_OptionButton";
 		optType.AddItem("Custom Arcade Map", 0);
 		optType.AddItem("Reusable Asset Pack", 1);
 		optType.Selected = _mapSettingsDialog?.SelectedMapTypeIndex ?? 0;
@@ -454,7 +446,17 @@ public partial class MapEditorHUD : Control
 			return false;
 		}
 
-		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(wsPath);
+		if (!CheckAssetSizeValidation(wsPath))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	private bool CheckAssetSizeValidation(string workspace)
+	{
+		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(workspace);
 		if (!sizesValid)
 		{
 			string oversizedSummary = string.Join("\n", oversizedAssets.Take(4).Select(o => $"• {o.RelativePath} ({o.SizeMB:F2} MB > 15 MB)")) + (oversizedAssets.Count > 4 ? "\n..." : "");
@@ -462,7 +464,6 @@ public partial class MapEditorHUD : Control
 			AppendWasmConsoleLog($"[ERROR] Publish failed. Assets exceed maximum 15 MB size limit:\n{string.Join("\n", oversizedAssets.Select(o => $"  {o.RelativePath} ({o.SizeMB:F2} MB)"))}");
 			return false;
 		}
-
 		return true;
 	}
 
@@ -493,6 +494,7 @@ public partial class MapEditorHUD : Control
 		vbox.SetAnchorsPreset(LayoutPreset.FullRect);
 
 		var margin = new MarginContainer();
+		margin.Name = "Margin_MarginContainer";
 		margin.AddThemeConstantOverride("margin_top", 10);
 		margin.AddThemeConstantOverride("margin_bottom", 10);
 		margin.AddThemeConstantOverride("margin_left", 10);
@@ -519,6 +521,7 @@ public partial class MapEditorHUD : Control
 		if (unprunedCount <= 0 && unnormalizedPotentialCount <= 0) return;
 
 		var tipPanel = new PanelContainer();
+		tipPanel.Name = "TipPanel_PanelContainer";
 		var tipStyle = new StyleBoxFlat
 		{
 			BgColor = new Color(0.2f, 0.17f, 0.1f, 0.95f),
@@ -535,6 +538,7 @@ public partial class MapEditorHUD : Control
 		tipPanel.AddThemeStyleboxOverride("panel", tipStyle);
 
 		var tipMargin = new MarginContainer();
+		tipMargin.Name = "TipMargin_MarginContainer";
 		tipMargin.AddThemeConstantOverride("margin_top", 6);
 		tipMargin.AddThemeConstantOverride("margin_bottom", 6);
 		tipMargin.AddThemeConstantOverride("margin_left", 10);
@@ -558,6 +562,7 @@ public partial class MapEditorHUD : Control
 		string shortPubKey = authorPubKey.Length > 16 ? $"{authorPubKey[..8]}...{authorPubKey[^8..]}" : authorPubKey;
 
 		var identityPanel = new PanelContainer();
+		identityPanel.Name = "IdentityPanel_PanelContainer";
 		var identityStyle = new StyleBoxFlat
 		{
 			BgColor = new Color(0.12f, 0.15f, 0.22f, 0.95f),
@@ -573,6 +578,7 @@ public partial class MapEditorHUD : Control
 		};
 		identityPanel.AddThemeStyleboxOverride("panel", identityStyle);
 		var idMargin = new MarginContainer();
+		idMargin.Name = "IdMargin_MarginContainer";
 		idMargin.AddThemeConstantOverride("margin_top", 8);
 		idMargin.AddThemeConstantOverride("margin_bottom", 8);
 		idMargin.AddThemeConstantOverride("margin_left", 12);
@@ -580,10 +586,12 @@ public partial class MapEditorHUD : Control
 		identityPanel.AddChild(idMargin);
 
 		var idVBox = new VBoxContainer();
+		idVBox.Name = "IdVBox_VBoxContainer";
 		idVBox.AddThemeConstantOverride("separation", 6);
 		idMargin.AddChild(idVBox);
 
 		var idHeaderHBox = new HBoxContainer();
+		idHeaderHBox.Name = "IdHeaderHBox_HBoxContainer";
 		idHeaderHBox.AddThemeConstantOverride("separation", 8);
 		var idHeaderLabel = new Label { Text = "🔑 " + TranslationServer.Translate("AUTHOR IDENTITY & KEY VERIFICATION"), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		idHeaderLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -744,9 +752,6 @@ public partial class MapEditorHUD : Control
 
 	private void UpdatePanelVisibilityForToolPathing(EditorTool tool)
 	{
-		if (_panelTextures != null) _panelTextures.Visible = false;
-		if (_panelEntityPalette != null) _panelEntityPalette.Visible = false;
-
 		if (tool == EditorTool.DrawCoordinate && _btnCommitCoordinate != null)
 		{
 			_btnCommitCoordinate.Visible = false;
@@ -884,7 +889,6 @@ public partial class MapEditorHUD : Control
 	private void SetSettingsVisibilities(EditorModule module)
 	{
 		if (_containerTextureSettings != null) _containerTextureSettings.Visible = (module == EditorModule.Terrain || module == EditorModule.TextureDeco);
-		if (_panelEnv != null) _panelEnv.Visible = (module == EditorModule.TextureDeco);
 		if (_containerPathingSettings != null) _containerPathingSettings.Visible = (module == EditorModule.Pathing);
 		if (_containerPasteSettings != null) _containerPasteSettings.Visible = (module == EditorModule.Clipboard);
 		if (_containerCategorySelector != null) _containerCategorySelector.Visible = (module == EditorModule.Objects);
@@ -1129,7 +1133,7 @@ public partial class MapEditorHUD : Control
 			_btnLeftTab, _btnRightTab,
 			GetNodeOrNull<Control>("TopLeftBox"),
 			GetNodeOrNull<Control>("TopBar"),
-			_topToolbar, _middleRightBox, _scaleMapDialog,
+			_middleRightBox, _scaleMapDialog,
 			GetNodeOrNull<Control>("GenerationOverlay")
 		};
 
@@ -1236,6 +1240,7 @@ public partial class MapEditorHUD : Control
 		GameContext.SessionState.SavedActivePlaceId = host.ActivePlaceId;
 		GameContext.SessionState.SavedCameraBoundsVisible = GameContext.EditorService.EditorCameraBoundsVisible;
 		GameContext.SessionState.SavedDisableShadows = GameContext.EditorService.EditorDisableShadows;
+		GameContext.SessionState.SavedEditorHasUnsavedChanges = host.EditorHasUnsavedChanges;
 		GameContext.SessionState.SavedEntityCategory = _entityPaletteController?.CurrentCategory ?? "";
 		GameContext.SessionState.SavedBrushRadius = (float)(_sldBrushSize?.Value ?? 1f);
 		float val = (float)(_sldBrushStrength?.Value ?? 1f);

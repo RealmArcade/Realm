@@ -32,6 +32,8 @@ public class ProceduralVfxMeshGenerator
 		}
 	}
 
+	public static void ClearCache() => ClearMeshCache();
+
 	private static readonly Dictionary<VfxPrimitiveType, Func<ArrayMesh>> PrimitiveBuilders = new()
 	{
 		{ VfxPrimitiveType.VortexDisc, BuildVortexDiscMesh },
@@ -173,28 +175,7 @@ public class ProceduralVfxMeshGenerator
 			}
 		}
 
-		int ringVertexCount = angularSegments + 1;
-		for (int r = 0; r < radialRings; r++)
-		{
-			int currentRingOffset = r * ringVertexCount;
-			int nextRingOffset = (r + 1) * ringVertexCount;
-
-			for (int a = 0; a < angularSegments; a++)
-			{
-				int currentInner = currentRingOffset + a;
-				int nextInner = currentRingOffset + a + 1;
-				int currentOuter = nextRingOffset + a;
-				int nextOuter = nextRingOffset + a + 1;
-
-				surfaceTool.AddIndex(currentInner);
-				surfaceTool.AddIndex(currentOuter);
-				surfaceTool.AddIndex(nextInner);
-
-				surfaceTool.AddIndex(nextInner);
-				surfaceTool.AddIndex(currentOuter);
-				surfaceTool.AddIndex(nextOuter);
-			}
-		}
+		AddRingIndices(surfaceTool, radialRings, angularSegments);
 
 		return surfaceTool.Commit();
 	}
@@ -231,28 +212,7 @@ public class ProceduralVfxMeshGenerator
 			}
 		}
 
-		int ringVertexCount = angularSegments + 1;
-		for (int r = 0; r < radialRings; r++)
-		{
-			int currentRingOffset = r * ringVertexCount;
-			int nextRingOffset = (r + 1) * ringVertexCount;
-
-			for (int a = 0; a < angularSegments; a++)
-			{
-				int currentInner = currentRingOffset + a;
-				int nextInner = currentRingOffset + a + 1;
-				int currentOuter = nextRingOffset + a;
-				int nextOuter = nextRingOffset + a + 1;
-
-				surfaceTool.AddIndex(currentInner);
-				surfaceTool.AddIndex(currentOuter);
-				surfaceTool.AddIndex(nextInner);
-
-				surfaceTool.AddIndex(nextInner);
-				surfaceTool.AddIndex(currentOuter);
-				surfaceTool.AddIndex(nextOuter);
-			}
-		}
+		AddRingIndices(surfaceTool, radialRings, angularSegments);
 
 		return surfaceTool.Commit();
 	}
@@ -347,6 +307,13 @@ public class ProceduralVfxMeshGenerator
 			}
 		}
 
+		AddRingIndices(surfaceTool, latitudeRings, longitudeSegments);
+
+		return surfaceTool.Commit();
+	}
+
+	private static void AddRingIndices(SurfaceTool surfaceTool, int latitudeRings, int longitudeSegments)
+	{
 		int ringVertexCount = longitudeSegments + 1;
 		for (int lat = 0; lat < latitudeRings; lat++)
 		{
@@ -369,8 +336,6 @@ public class ProceduralVfxMeshGenerator
 				surfaceTool.AddIndex(i3);
 			}
 		}
-
-		return surfaceTool.Commit();
 	}
 
 	private static ArrayMesh BuildGroundPlaneMesh()
@@ -737,30 +702,8 @@ public class ProceduralVfxMeshGenerator
 			surfaceTool.AddVertex(vertices[i]);
 		}
 
-		int ringVertexCount = longitudeSegments + 1;
 		int totalRings = (hemisphereRings + 1) + cylinderSegments + hemisphereRings;
-
-		for (int r = 0; r < totalRings - 1; r++)
-		{
-			int currentRing = r * ringVertexCount;
-			int nextRing = (r + 1) * ringVertexCount;
-
-			for (int lon = 0; lon < longitudeSegments; lon++)
-			{
-				int i0 = currentRing + lon;
-				int i1 = currentRing + lon + 1;
-				int i2 = nextRing + lon;
-				int i3 = nextRing + lon + 1;
-
-				surfaceTool.AddIndex(i0);
-				surfaceTool.AddIndex(i2);
-				surfaceTool.AddIndex(i1);
-
-				surfaceTool.AddIndex(i1);
-				surfaceTool.AddIndex(i2);
-				surfaceTool.AddIndex(i3);
-			}
-		}
+		AddRingIndices(surfaceTool, totalRings - 1, longitudeSegments);
 
 		return surfaceTool.Commit();
 	}
@@ -799,28 +742,7 @@ public class ProceduralVfxMeshGenerator
 			}
 		}
 
-		int ringVertexCount = longitudeSegments + 1;
-		for (int lat = 0; lat < latitudeRings; lat++)
-		{
-			int currentRing = lat * ringVertexCount;
-			int nextRing = (lat + 1) * ringVertexCount;
-
-			for (int lon = 0; lon < longitudeSegments; lon++)
-			{
-				int i0 = currentRing + lon;
-				int i1 = currentRing + lon + 1;
-				int i2 = nextRing + lon;
-				int i3 = nextRing + lon + 1;
-
-				surfaceTool.AddIndex(i0);
-				surfaceTool.AddIndex(i2);
-				surfaceTool.AddIndex(i1);
-
-				surfaceTool.AddIndex(i1);
-				surfaceTool.AddIndex(i2);
-				surfaceTool.AddIndex(i3);
-			}
-		}
+		AddRingIndices(surfaceTool, latitudeRings, longitudeSegments);
 
 		return surfaceTool.Commit();
 	}

@@ -8,16 +8,42 @@ namespace Realm.Client.UI.MapEditor;
 public class AssetFilterDropdownState
 {
 	public LineEdit Txt { get; set; }
-	public PopupMenu Popup { get; set; }
+	public DropdownSuggestionList Suggestions { get; private set; }
 	public string CommittedValue { get; set; }
 	public bool IsUpdatingTextProgrammatically { get; set; }
 	public bool IsPopupOpening { get; set; }
 	public bool IsPopupSelectionInProgress { get; set; }
 	public bool IsShowingAll { get; set; }
 	public bool IncludeAllFolders { get; set; }
-	public List<string> CurrentFilteredItems { get; set; } = new List<string>();
 	public Func<bool, List<string>> ItemsProvider { get; set; }
 	public Action<string> OnChanged { get; set; }
+
+	public bool IsDropdownVisible => Suggestions != null && Suggestions.IsVisible;
+
+	private string _previousText = string.Empty;
+
+	public void InitializeDropdown(Node owner, string initialText)
+	{
+		_previousText = initialText ?? string.Empty;
+		Suggestions = new DropdownSuggestionList(owner, Txt);
+		Suggestions.ItemSelected += HandleItemSelected;
+		Suggestions.Dismissed += HandleSuggestionsDismissed;
+	}
+
+	public void SyncProgrammaticText(string value)
+	{
+		_previousText = value ?? string.Empty;
+	}
+
+	public void FreeDropdown()
+	{
+		if (Suggestions == null) return;
+
+		Suggestions.ItemSelected -= HandleItemSelected;
+		Suggestions.Dismissed -= HandleSuggestionsDismissed;
+		Suggestions.Free();
+		Suggestions = null;
+	}
 
 	public void CommitSelection(string selected)
 	{
@@ -26,11 +52,14 @@ public class AssetFilterDropdownState
 		try
 		{
 			Txt.Text = safeSelected;
+			Txt.CaretColumn = Txt.Text.Length;
 		}
 		finally
 		{
 			IsUpdatingTextProgrammatically = false;
 		}
+
+		_previousText = safeSelected;
 
 		if (!string.Equals(CommittedValue, safeSelected, StringComparison.Ordinal))
 		{
@@ -39,59 +68,53 @@ public class AssetFilterDropdownState
 		}
 	}
 
-	public void PositionAndShowPopup()
+	public void ShowAssetPopup(bool showAll = false)
 	{
-		if (!Txt.IsInsideTree()) return;
+		if (Suggestions == null) return;
+
+		IsShowingAll = showAll;
+
+		string currentText = Txt.Text?.Trim() ?? string.Empty;
+		string query = showAll ? string.Empty : currentText;
+		var allItems = ItemsProvider(IncludeAllFolders);
+
+		List<string> displayItems;
+		if (allItems == null || allItems.Count == 0)
+		{
+			displayItems = new List<string>();
+		}
+		else
+		{
+			displayItems = GetDisplayItems(allItems, query, showAll);
+		}
+
+		bool looksLikeDeletion = currentText.Length < _previousText.Length
+			&& _previousText.StartsWith(currentText, StringComparison.OrdinalIgnoreCase);
+		_previousText = currentText;
+
+		if (!showAll && !looksLikeDeletion && ShouldAutoComplete(displayItems, currentText))
+		{
+			CommitSelection(displayItems[0]);
+			HideDropdown();
+			Txt.ReleaseFocus();
+			return;
+		}
 
 		IsPopupOpening = true;
 		try
 		{
-			Vector2 globalPos = Txt.GlobalPosition;
-			Vector2 txtSize = Txt.Size;
-			Popup.Position = new Vector2I((int)globalPos.X, (int)(globalPos.Y + txtSize.Y + 2));
-			Popup.ResetSize();
-			if (Popup.Size.X < (int)txtSize.X)
-			{
-				Popup.Size = new Vector2I((int)txtSize.X, Popup.Size.Y);
-			}
-
-			Popup.Popup();
+			Suggestions.ShowItems(displayItems);
 		}
 		finally
 		{
-			Callable.From(() =>
-			{
-				IsPopupOpening = false;
-				if (GodotObject.IsInstanceValid(Txt) && !Txt.HasFocus())
-				{
-					Txt.GrabFocus();
-				}
-			}).CallDeferred();
+			Callable.From(() => IsPopupOpening = false).CallDeferred();
 		}
 	}
 
-	public void ShowAssetPopup(bool showAll = false)
+	public void HideDropdown()
 	{
-		IsShowingAll = showAll;
-		Popup.Clear();
-		CurrentFilteredItems.Clear();
-
-		var allItems = ItemsProvider(IncludeAllFolders);
-		if (allItems == null || allItems.Count == 0)
-		{
-			Popup.AddItem(TranslationServer.Translate("No matching assets found"), 0);
-			Popup.SetItemDisabled(0, true);
-			PositionAndShowPopup();
-			return;
-		}
-
-		string currentText = Txt.Text?.Trim() ?? string.Empty;
-		string query = (showAll || (string.IsNullOrEmpty(currentText) && !showAll)) ? string.Empty : currentText;
-
-		List<string> displayItems = GetDisplayItems(allItems, query, showAll);
-
-		PopulatePopup(displayItems);
-		PositionAndShowPopup();
+		IsShowingAll = false;
+		Suggestions?.Hide();
 	}
 
 	private List<string> GetDisplayItems(List<string> allItems, string query, bool showAll)
@@ -129,27 +152,25 @@ public class AssetFilterDropdownState
 		return fallbackItems;
 	}
 
-	private void PopulatePopup(List<string> displayItems)
+	private static bool ShouldAutoComplete(List<string> displayItems, string query)
 	{
-		if (displayItems.Count == 0)
-		{
-			Popup.AddItem(TranslationServer.Translate("No matching assets found"), 0);
-			Popup.SetItemDisabled(0, true);
-			return;
-		}
+		return displayItems.Count == 1
+			&& !string.IsNullOrEmpty(query)
+			&& displayItems[0].Length > query.Length
+			&& displayItems[0].StartsWith(query, StringComparison.OrdinalIgnoreCase);
+	}
 
-		int maxItems = Math.Min(displayItems.Count, 35);
-		for (int i = 0; i < maxItems; i++)
-		{
-			CurrentFilteredItems.Add(displayItems[i]);
-			Popup.AddItem(displayItems[i], i);
-		}
+	private void HandleItemSelected(int index, string selected)
+	{
+		IsPopupSelectionInProgress = true;
+		CommitSelection(selected);
+		HideDropdown();
+		Callable.From(() => IsPopupSelectionInProgress = false).CallDeferred();
+	}
 
-		if (displayItems.Count > 35)
-		{
-			Popup.AddItem($"... ({displayItems.Count - 35} more)", 35);
-			Popup.SetItemDisabled(35, true);
-		}
+	private void HandleSuggestionsDismissed()
+	{
+		IsShowingAll = false;
 	}
 
 	public void ResolveClosestMatch()
@@ -157,6 +178,6 @@ public class AssetFilterDropdownState
 		var allItems = ItemsProvider(IncludeAllFolders);
 		string closest = FloatingDialogBase.FindClosestMatch(Txt.Text, allItems, CommittedValue);
 		CommitSelection(closest);
-		Popup.Hide();
+		HideDropdown();
 	}
 }

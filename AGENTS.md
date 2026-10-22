@@ -18,10 +18,10 @@
 
 ## Core 3D rendering and Engine Tick Calculations:
 - Minimize Garbage Collection (GC) pressure by using struct-based data where possible.
-- The game simulation tick runs at 30Hz. Absolute zero-allocation constraint inside the tick: Do not allocate objects, do not use lambdas that capture variables, and do not call `new` inside query loops. Prefer reusing collections, employing object pools, and using `struct` components.
+- Highly optimized godot simulation tick handlers: Do not allocate new objects, do not manipulate strings, do not use lambdas that capture variables. Prefer reusing collections, employing object pools.
 - Utilize high-performance .NET structures like `Span<>`, `ReadOnlySpan<>`, and `StringBuffer` especially when transferring structural buffers between Godot and C#.
 - Use `System.Numerics` to enable SIMD mathematical operations and vector arithmetic where possible.
-- Use `yield return IEnumerable` to allow lazy evaluation where possible.
+- Prefer Enums over Strings
 
 ## Godot-Specific Coding Rules:
 - 2D button: always specify the `icon_max_width` property.
@@ -29,6 +29,12 @@
 - For any text labels that appear on screen, ensure they are translated via `LocalizationManager.cs`.
 - Labels in Containers: When setting autowrap_mode, always set custom_minimum_size.x (explicit width) and size_flags_horizontal = SIZE_EXPAND_FILL. Otherwise Godot calculates custom_minimum_size.y based on single-word wrapping, causing container to stretch excessively tall.
 - Unicode Icons: Never hardcode `\uXXXX` escape sequences inside string literals in UI or HUD scripts. Always reference named glyph constants defined in `UnicodeIcons` (e.g. `${UnicodeIcons.UPLOAD}`).
+- `[GlobalClass]` Registration: Every custom non-generic, top-level C# class that inherits from `GodotObject` (`Node`, `Node3D`, `Control`, `Resource`, etc.) must be marked with the `[GlobalClass]` attribute so it registers as a distinct type in Godot's ObjectDB and profiler rather than falling back to its native C++ base class.
+- Explicit Node Naming: Whenever instantiating a generic Godot node (`new Node3D()`, `new PanelContainer()`, etc.) or scene prefab (`.Instantiate()`) in C#, immediately assign a descriptive `.Name` property identifying its purpose or source system to prevent anonymous `@Type@####` or `Type_####` entries in the SceneTree and ObjectDB profiler.
+- Node Lifecycle & Cleanup: Never leave detached nodes in memory. When removing a node via `RemoveChild()`, either explicitly call `QueueFree()` on it or return it to a managed object pool that properly frees all pooled instances on cleanup.
+- One-Way C# to Godot Transform Pipeline: Avoid unnecessary c# to godot c++ marshaling. Treat ECS as the source of truth. Never read fields such as `Position` from godot nodes when available in ECS. Batch update godot fields in a single `Transform` when possible and only update if field is dirty.
+- Don't enable `_Process` overrides on node subclasses with many instances, instead code a centralized manager for active entities to handle per-frame updates in bulk.
+- Menu scene 2D UX images should be downscaled to their maximum rendered size and encoded with cwebp 90 quality with this .import file value to avoid re-compression in PCK file: importer="keep"
 
 ### Realm.ECS Data Layer (Flat Bitmask SoA Shared Memory):
 - Core simulation component buffers (`PlayerResource`, `Health`, etc.) are implemented as a custom Flat Bitmask Structure-of-Arrays (SoA) ECS where component arrays are stored in contiguous unmanaged memory mapped directly into WASM linear memory (`Wasmtime.Memory`).

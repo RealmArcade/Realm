@@ -6,11 +6,15 @@ using Realm.Client.Animation;
 using Realm.Client.Services;
 using Realm.Shared.Distribution;
 using Realm.Shared.ModelOptimization;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 {
+	public ShaderEditorDialog() { }
+
 	private Node3D _simRoot;
 	private Node3D _currentModelRoot;
 
@@ -84,6 +88,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	{
 		// 1. TOP LIVE PREVIEW (3D VIEWPORT)
 		var previewContainer = new PanelContainer();
+		previewContainer.Name = "PreviewContainer_PanelContainer";
 		previewContainer.CustomMinimumSize = new Vector2(0, 220);
 		previewContainer.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		BodyContainer.AddChild(previewContainer);
@@ -97,15 +102,18 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		// ROW 1: MODEL PICKER
 		var modelRow = new HBoxContainer();
+		modelRow.Name = "ModelRow_HBoxContainer";
 		modelRow.AddThemeConstantOverride("separation", 6);
 
 		var lblModel = new Label();
+		lblModel.Name = "LblModel_Label";
 		lblModel.Text = TranslationServer.Translate("Preview Model:");
 		lblModel.AddThemeFontSizeOverride("font_size", 11);
 		lblModel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		modelRow.AddChild(lblModel);
 
 		_optModelPicker = new OptionButton();
+		_optModelPicker.Name = "OptModelPicker_OptionButton";
 		_optModelPicker.AddThemeFontSizeOverride("font_size", 11);
 		_optModelPicker.CustomMinimumSize = new Vector2(160, 24);
 		_optModelPicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -123,6 +131,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		// ROW 2: PLAYBACK & SCRUBBING
 		var playRow = new HBoxContainer();
+		playRow.Name = "PlayRow_HBoxContainer";
 		playRow.AddThemeConstantOverride("separation", 6);
 
 		AddButton(playRow, "▶ " + TranslationServer.Translate("Spawn"), () => PlayAnimation(true), "Simulate Spawn animation", 10, new Vector2(65, 24));
@@ -130,18 +139,21 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		AddButton(playRow, "⏸", () => _isPlaying = false, "Pause animation", 10, new Vector2(30, 24));
 
 		_chkLoop = new CheckBox();
+		_chkLoop.Name = "ChkLoop_CheckBox";
 		_chkLoop.Text = TranslationServer.Translate("Loop");
 		_chkLoop.ButtonPressed = true;
 		_chkLoop.AddThemeFontSizeOverride("font_size", 10);
 		playRow.AddChild(_chkLoop);
 
 		var lblProg = new Label();
+		lblProg.Name = "LblProg_Label";
 		lblProg.Text = TranslationServer.Translate("Progress:");
 		lblProg.AddThemeFontSizeOverride("font_size", 10);
 		lblProg.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		playRow.AddChild(lblProg);
 
 		_sldProgress = new HSlider();
+		_sldProgress.Name = "SldProgress_HSlider";
 		_sldProgress.MinValue = 0.0;
 		_sldProgress.MaxValue = 1.0;
 		_sldProgress.Step = 0.01;
@@ -157,6 +169,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		playRow.AddChild(_sldProgress);
 
 		_lblProgress = new Label();
+		_lblProgress.Name = "LblProgress_Label";
 		_lblProgress.Text = "0.50";
 		_lblProgress.CustomMinimumSize = new Vector2(35, 0);
 		_lblProgress.AddThemeFontSizeOverride("font_size", 10);
@@ -166,11 +179,13 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		// 2. CONFIGURATION CONTROLS
 		var scroll = new ScrollContainer();
+		scroll.Name = "Scroll_ScrollContainer";
 		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
 		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
 
 		var configVBox = new VBoxContainer();
+		configVBox.Name = "ConfigVBox_VBoxContainer";
 		configVBox.AddThemeConstantOverride("separation", 6);
 		configVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scroll.AddChild(configVBox);
@@ -178,20 +193,24 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		// IDENTIFIERS
 		var rowId = new HBoxContainer();
+		rowId.Name = "RowId_HBoxContainer";
 		rowId.AddThemeConstantOverride("separation", 6);
 		var lblId = new Label();
+		lblId.Name = "LblId_Label";
 		lblId.Text = TranslationServer.Translate("TemplateID:");
 		lblId.CustomMinimumSize = new Vector2(140, 0);
 		lblId.AddThemeFontSizeOverride("font_size", 11);
 		rowId.AddChild(lblId);
 
 		_lblObjectTypePrefix = new Label();
+		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
 		_lblObjectTypePrefix.Text = "SpawnShader/";
 		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		rowId.AddChild(_lblObjectTypePrefix);
 
 		_txtSlug = new LineEdit();
+		_txtSlug.Name = "TxtSlug_LineEdit";
 		_txtSlug.PlaceholderText = TranslationServer.Translate("shader_slug");
 		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
@@ -204,30 +223,13 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		configVBox.AddChild(rowId);
 
 		var btnRandomizeAll = new Button();
+		btnRandomizeAll.Name = "BtnRandomizeAll_Button";
 		btnRandomizeAll.Set("icon_max_width", 0);
 		btnRandomizeAll.Text = "🎲 " + TranslationServer.Translate("Randomize All");
 		btnRandomizeAll.CustomMinimumSize = new Vector2(0, 28);
 		btnRandomizeAll.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		btnRandomizeAll.AddThemeFontSizeOverride("font_size", 11);
-		{
-			var mapEdBtnTex = GD.Load<Texture2D>("res://Assets/UI/map_editor_button.png");
-			if (mapEdBtnTex != null)
-			{
-				var normalSb = new StyleBoxTexture { Texture = mapEdBtnTex, ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
-				var hoverSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(1.25f, 1.2f, 1.0f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
-				var pressedSb = new StyleBoxTexture { Texture = mapEdBtnTex, ModulateColor = new Color(0.85f, 0.8f, 0.7f, 1.0f), ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 4, ContentMarginBottom = 4 };
-				btnRandomizeAll.AddThemeStyleboxOverride("normal", normalSb);
-				btnRandomizeAll.AddThemeStyleboxOverride("hover", hoverSb);
-				btnRandomizeAll.AddThemeStyleboxOverride("pressed", pressedSb);
-				btnRandomizeAll.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			}
-			else
-			{
-				btnRandomizeAll.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-				btnRandomizeAll.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-				btnRandomizeAll.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			}
-		}
+		UIStyle.ApplyMapEditorRandomizeButtonStyle(btnRandomizeAll);
 		btnRandomizeAll.Pressed += () => RandomizeAllParameters();
 		configVBox.AddChild(btnRandomizeAll);
 
@@ -489,6 +491,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		// Grid floor
 		var floor = new MeshInstance3D();
+		floor.Name = "Floor_MeshInstance3D";
 		var planeMesh = new PlaneMesh { Size = new Vector2(10, 10) };
 		var mat = new StandardMaterial3D
 		{
@@ -507,6 +510,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		if (_currentModelRoot == null) return;
 		foreach (Node child in _currentModelRoot.GetChildren())
 		{
+			_currentModelRoot.RemoveChild(child);
 			child.QueueFree();
 		}
 
@@ -565,6 +569,12 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	{
 		_config = _snapshot.Clone();
 		CloseDialog();
+	}
+
+	public override void CloseDialog()
+	{
+		LoadPreviewModel(string.Empty);
+		base.CloseDialog();
 	}
 
 	private void UpdateAnimationTime(float speed, float dur)
@@ -650,6 +660,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	private void LoadSampleModel(string key)
 	{
 		var meshInst = new MeshInstance3D();
+		meshInst.Name = "MeshInst_MeshInstance3D";
 		if (key.Contains("Capsule"))
 		{
 			meshInst.Mesh = new CapsuleMesh { Radius = 0.5f, Height = 1.8f };
@@ -695,16 +706,12 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 
 		var loaded = ModelCache.GetModel(modelPath) ?? ModelCache.GetModel(key);
 		if (loaded is Node3D n) return n;
+		if (loaded != null) loaded.QueueFree();
 
-		var gltfDoc = new GltfDocument();
-		var gltfState = new GltfState();
 		byte[] rmeshBytes = File.ReadAllBytes(modelPath);
-		byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
-		if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
-		{
-			var node = gltfDoc.GenerateScene(gltfState);
+			var node = ModelCache.TryGenerateNodeFromRmeshOrGlbBytes(rmeshBytes);
 			if (node is Node3D n3d) return n3d;
-		}
+			if (node != null) node.QueueFree();
 
 		return null;
 	}

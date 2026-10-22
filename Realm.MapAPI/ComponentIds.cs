@@ -43,4 +43,16 @@ public static class ComponentIds
 	public const int ModelScale = 108;
 	/// <summary>Rotation around Y-axis component identifier.</summary>
 	public const int RotationY = 112;
+	/// <summary>Previous position component identifier.</summary>
+	public const int PreviousPosition = 113;
+	/// <summary>Previous rotation around Y-axis component identifier.</summary>
+	public const int PreviousRotationY = 114;
+	/// <summary>Commands frozen tag component identifier, marking units that ignore movement and attack orders.</summary>
+	public const int CommandsFrozen = 124;
+	/// <summary>Animations frozen tag component identifier, marking units that hold their current animation pose.</summary>
+	public const int AnimationsFrozen = 126;
+	/// <summary>Frozen tag component identifier kept for maps that need the commands-frozen slot.</summary>
+	public const int Frozen = 124;
+	/// <summary>Overhead bars hidden tag component identifier.</summary>
+	public const int OverheadBarsHidden = 125;
 }

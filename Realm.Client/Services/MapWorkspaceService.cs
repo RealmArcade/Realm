@@ -36,6 +36,11 @@ public static partial class MapWorkspaceService
 			normalized.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".log", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".elf", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".jit.elf", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ||
+			normalized.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase) ||
 			normalized.EndsWith(".template.cs", StringComparison.OrdinalIgnoreCase) ||
 			Path.GetFileName(normalized).StartsWith("~", StringComparison.OrdinalIgnoreCase) ||
 			Path.GetFileName(normalized).Equals("WasmEntryPoint.cs", StringComparison.OrdinalIgnoreCase))
@@ -48,7 +53,7 @@ public static partial class MapWorkspaceService
 
 	public static bool IsIgnoredDirectoryDomain(string normalized)
 	{
-		string[] ignoredDirs = { ".git", ".vs", ".godot", ".idea", "bin", "obj", "map_backups", "map_upgrades", "backups", ".backups", ".dotnet", ".wasi", ".sidecarcache", ".cache" };
+		string[] ignoredDirs = { ".git", ".vs", ".godot", ".idea", "bin", "obj", "lib", "map_backups", "map_upgrades", "backups", ".backups", ".dotnet", ".wasi", ".sidecarcache", ".cache" };
 		foreach (var dir in ignoredDirs)
 		{
 			if (normalized.StartsWith(dir + "/", StringComparison.OrdinalIgnoreCase) ||
@@ -325,6 +330,7 @@ public static partial class MapWorkspaceService
 
 		GenerateVSCodeConfig(directory);
 		EnsureWitFile(directory);
+		EnsureLldbScript(directory);
 		EnsureCsproj(directory, mapName);
 		EnsureMapScript(directory, mapName);
 		EnsureMeleeRules(directory);
@@ -494,6 +500,14 @@ public static partial class MapWorkspaceService
 		{
 			File.Copy(sourceWit, witPath, true);
 		}
+	}
+
+	public static void EnsureLldbScript(string directory)
+	{
+		string sourcePath = GetTemplatePath("realm_lldb.py");
+		if (!File.Exists(sourcePath)) return;
+
+		PathUtils.CopyFileClearingReadOnly(sourcePath, Path.Combine(directory, "realm_lldb.py"));
 	}
 
 	public static void EnsureCsproj(string directory, string mapName)
@@ -1071,42 +1085,9 @@ please visit the URL above.
 		string fileName = Path.GetFileName(glbPath);
 		GD.Print($"[MapWorkspaceService] GLB asset '{fileName}' is missing realm_optimize_completed extras. Optimizing into workspace...");
 
-		glbBytes = ExtractAndStripAnimations(glbPath, workspacePath, fileName) ?? glbBytes;
+		glbBytes = ExtractAndStripAnimations(workspacePath, glbPath, fileName, glbBytes);
 
 		return PerformGlbOptimization(glbPath, workspacePath, fileName, glbBytes, optimizer, options, lastWrite);
-	}
-
-	private static byte[] ExtractAndStripAnimations(string glbPath, string workspacePath, string fileName)
-	{
-		try
-		{
-			string animsDir = Path.Combine(workspacePath, "Assets", "animations");
-			Directory.CreateDirectory(animsDir);
-			var extractedAnims = MixamoAnimationImporter.ExtractAnimationsFromGlb(glbPath);
-
-			foreach (var (animName, animData) in extractedAnims)
-			{
-				string animFileName = $"{animName.ToLowerInvariant()}.ranim";
-				string animFilePath = Path.Combine(animsDir, animFileName);
-				if (!File.Exists(animFilePath))
-				{
-					RealmAnimationSerializer.SaveToFile(animFilePath, animData);
-					UpdateMetadataAnimationHash(workspacePath, animFileName, RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(animFilePath), ".ranim"));
-				}
-			}
-
-			if (extractedAnims.Count > 0)
-			{
-				MixamoAnimationImporter.StripAnimationsFromGlb(glbPath, glbPath);
-				return File.ReadAllBytes(glbPath);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MapWorkspaceService] Animation extraction error for {fileName}: {ex.Message}");
-		}
-
-		return null;
 	}
 
 	private static bool PerformGlbOptimization(string glbPath, string workspacePath, string fileName, byte[] glbBytes, GlbOptimizer optimizer, OptimizationOptions options, DateTime lastWrite)
@@ -1871,5 +1852,10 @@ please visit the URL above.
 		{
 			GD.PrintErr($"[MapWorkspaceService] Failed to update manifest.json for {animFileName}: {ex.Message}");
 		}
+	}
+
+	public static void DeduplicateWorkspaceBuildArtifacts(string workspacePath)
+	{
+		MapArchiveHelper.DeduplicateWorkspaceBuildArtifacts(workspacePath);
 	}
 }

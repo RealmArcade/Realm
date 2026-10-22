@@ -10,12 +10,14 @@ public class VisualProjectilePool
 
 	private readonly Stack<VisualProjectile3D> _available = new();
 	private readonly List<VisualProjectile3D> _all = new();
+	private readonly List<VisualProjectile3D> _activeProjectiles = new();
 	private const int InitialCapacity = 32;
 
 	public int TotalAllocated => _all.Count;
 	public int AvailableCount => _available.Count;
-	public int ActiveCount => _all.Count - _available.Count;
+	public int ActiveCount => _activeProjectiles.Count;
 	public IReadOnlyList<VisualProjectile3D> AllProjectiles => _all;
+	public IReadOnlyList<VisualProjectile3D> ActiveProjectiles => _activeProjectiles;
 
 	public static VisualProjectile3D Rent(Node3D parent) => Instance.RentInternal(parent);
 	public static void Return(VisualProjectile3D projectile) => Instance.ReturnInternal(projectile);
@@ -51,6 +53,11 @@ public class VisualProjectilePool
 			parent.AddChild(projectile);
 		}
 
+		if (!_activeProjectiles.Contains(projectile))
+		{
+			_activeProjectiles.Add(projectile);
+		}
+
 		return projectile;
 	}
 
@@ -60,9 +67,45 @@ public class VisualProjectilePool
 
 		projectile.SetProcess(false);
 		projectile.Visible = false;
+		_activeProjectiles.Remove(projectile);
+
 		if (!_available.Contains(projectile))
 		{
 			_available.Push(projectile);
+		}
+	}
+
+	public void DeactivateAll()
+	{
+		for (int i = _activeProjectiles.Count - 1; i >= 0; i--)
+		{
+			var projectile = _activeProjectiles[i];
+			if (projectile == null || !GodotObject.IsInstanceValid(projectile))
+			{
+				_activeProjectiles.RemoveAt(i);
+				continue;
+			}
+
+			ReturnInternal(projectile);
+		}
+	}
+
+	public void AdvanceActiveProjectiles(float deltaSeconds)
+	{
+		for (int i = _activeProjectiles.Count - 1; i >= 0; i--)
+		{
+			var proj = _activeProjectiles[i];
+			if (proj != null && GodotObject.IsInstanceValid(proj))
+			{
+				if (!proj.IsPaused && proj.IsActive)
+				{
+					proj.AdvanceSimulation(deltaSeconds * proj.TimeScale);
+				}
+			}
+			else
+			{
+				_activeProjectiles.RemoveAt(i);
+			}
 		}
 	}
 
@@ -78,5 +121,6 @@ public class VisualProjectilePool
 
 		_all.Clear();
 		_available.Clear();
+		_activeProjectiles.Clear();
 	}
 }

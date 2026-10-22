@@ -11,6 +11,8 @@ using Realm.Client.UI.MapEditor;
 using Realm.Client.VFX;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
@@ -336,6 +338,18 @@ public partial class GameHost
 				}
 			}
 
+			if (editorKeyEvent.Keycode == Key.R && !ctrlPressed && !shiftPressed)
+			{
+				if (MainCamera is CameraControl freeCameraCtrl && freeCameraCtrl.IsFreeCamera)
+				{
+					return;
+				}
+
+				MainCamera?.Rotate90Degrees();
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			if (editorKeyEvent.Keycode == Key.C && ctrlPressed)
 			{
 				if (ActiveEditorTool == EditorTool.SelectArea)
@@ -358,6 +372,18 @@ public partial class GameHost
 							Player = unit.Player
 						});
 						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Unit: {unit.UnitId.ToUpper()}");
+					}
+					else if (SelectedEditorObject is PropEntityProxyNode propProxy)
+					{
+						GameContext.EditorService.SetCopiedObject(new CopiedObjectTemplate
+						{
+							Type = "prop",
+							Id = propProxy.PropId,
+							Rotation = propProxy.RotationDegrees.Y,
+							Scale = propProxy.Scale.X,
+							Player = 0
+						});
+						MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Prop: {propProxy.PropId.ToUpper()}");
 					}
 					else if (SelectedEditorObject is Prop3D prop)
 					{
@@ -410,17 +436,7 @@ public partial class GameHost
 					var hit = RaycastTerrainFromMouse(GetViewport().GetMousePosition());
 					if (hit != null && hit.ContainsKey("position"))
 					{
-						Vector3 spawnPos = hit["position"].AsVector3();
-						if (EditorSnapToGrid && GroundTerrain != null)
-						{
-							float quadSize = GroundTerrain.QuadSize;
-							int width = GroundTerrain.Width;
-							int depth = GroundTerrain.Depth;
-							float fx = Mathf.Round(spawnPos.X / quadSize + (width - 1) / 2.0f);
-							spawnPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
-							float fz = Mathf.Round(spawnPos.Z / quadSize + (depth - 1) / 2.0f);
-							spawnPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
-						}
+						Vector3 spawnPos = CalculatePlacementPosition(hit["position"].AsVector3());
 
 						spawnPos.Y = GetTerrainHeightAt(spawnPos);
 						var cop = copiedObj.Value;
@@ -517,17 +533,7 @@ public partial class GameHost
 					var hit = RaycastTerrainFromMouse(GetViewport().GetMousePosition());
 					if (hit != null && hit.ContainsKey("position"))
 					{
-						spawnPos = hit["position"].AsVector3();
-						if (EditorSnapToGrid && GroundTerrain != null)
-						{
-							float quadSize = GroundTerrain.QuadSize;
-							int width = GroundTerrain.Width;
-							int depth = GroundTerrain.Depth;
-							float fx = Mathf.Round(spawnPos.X / quadSize + (width - 1) / 2.0f);
-							spawnPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
-							float fz = Mathf.Round(spawnPos.Z / quadSize + (depth - 1) / 2.0f);
-							spawnPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
-						}
+						spawnPos = CalculatePlacementPosition(hit["position"].AsVector3());
 					}
 					else
 					{
@@ -546,6 +552,15 @@ public partial class GameHost
 						{
 							action = new ObjectSpawnAction("unit", unit.UnitId, spawnPos, rotY, scaleVal, clonedNode, unit.Player);
 							MapEditorHUD.Instance?.ShowFeedbackExternal($"Duplicated Unit: {unit.UnitId.ToUpper()}");
+						}
+					}
+					else if (SelectedEditorObject is PropEntityProxyNode propProxy)
+					{
+						clonedNode = SpawnPropExternalWithParams(propProxy.PropId, spawnPos, rotY, scaleVal);
+						if (clonedNode != null)
+						{
+							action = new ObjectSpawnAction("prop", propProxy.PropId, spawnPos, rotY, scaleVal, false, clonedNode);
+							MapEditorHUD.Instance?.ShowFeedbackExternal($"Duplicated Prop: {propProxy.PropId.ToUpper()}");
 						}
 					}
 					else if (SelectedEditorObject is Prop3D prop)
@@ -640,6 +655,7 @@ public partial class GameHost
 					{
 						float radius = 1.0f;
 						if (node3D is Unit3D u) radius = GameContext.InputService.GetPlacementRadius(u.UnitId, u.Scale.X);
+						else if (node3D is PropEntityProxyNode px) radius = GameContext.InputService.GetPlacementRadius(px.PropId, px.Scale.X);
 						else if (node3D is Prop3D p) radius = GameContext.InputService.GetPlacementRadius(p.PropId, p.Scale.X);
 
 						if (IsPositionBlocked(targetPos, radius, node3D))
@@ -661,6 +677,12 @@ public partial class GameHost
 						if (node3D is Unit3D unit && GameContext.World.IsAlive(unit.Entity))
 						{
 							GameContext.InputService.SetEntityPosition(unit.Entity, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z));
+						}
+						else if (node3D is PropEntityProxyNode propProxy && GameContext.World.IsAlive(propProxy.Entity))
+						{
+							GameContext.World.Set(propProxy.Entity, new Position(new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z)));
+							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxy.Entity, targetPos, propProxy.RotationDegrees.Y, propProxy.Scale.X);
+							UpdateSelectedPropRingPosition(targetPos);
 						}
 						else if (node3D is Prop3D prop)
 						{
@@ -694,6 +716,13 @@ public partial class GameHost
 			{
 				EditorBrushStrength = Mathf.Min(EditorService.MAX_BRUSH_STRENGTH, EditorBrushStrength + 0.5f);
 				MapEditorHUD.Instance?.UpdateBrushStrengthExternal(EditorBrushStrength);
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
+			if (editorKeyEvent.Keycode == Key.Key0)
+			{
+				MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.Water);
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -847,6 +876,14 @@ public partial class GameHost
 						node3D.Scale, node3D.Scale
 					);
 					node3D.RotationDegrees = newRot;
+					ObjectTransformAction.PersistTransformToEcs(node3D);
+					if (SelectedEditorObject is PropEntityProxyNode propProxyRot)
+					{
+						if (GameContext.World != null && GameContext.World.IsAlive(propProxyRot.Entity))
+						{
+							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxyRot.Entity, propProxyRot.Position, newRot.Y, propProxyRot.Scale.X);
+						}
+					}
 					EditorHistoryManager.RecordAction(action);
 					MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
 				}
@@ -876,6 +913,14 @@ public partial class GameHost
 						oldScale, newScale
 					);
 					node3D.Scale = newScale;
+					ObjectTransformAction.PersistTransformToEcs(node3D);
+					if (SelectedEditorObject is PropEntityProxyNode propProxyScale)
+					{
+						if (GameContext.World != null && GameContext.World.IsAlive(propProxyScale.Entity))
+						{
+							PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxyScale.Entity, propProxyScale.Position, propProxyScale.RotationDegrees.Y, newScaleVal);
+						}
+					}
 					EditorHistoryManager.RecordAction(action);
 					MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
 				}
@@ -898,7 +943,7 @@ public partial class GameHost
 				return;
 			}
 
-			if (GroundTerrain != null && GameContext.EditorService.EditorPolarOverlayVisible)
+			if (GroundTerrain != null && (EditorMirrorMode != MirrorMode.None || GameContext.EditorService.EditorPolarOverlayVisible))
 			{
 				var terrainHit = RaycastTerrainFromMouse(editorRightMouseBtn.Position);
 				if (terrainHit != null && terrainHit.ContainsKey("position"))
@@ -946,15 +991,6 @@ public partial class GameHost
 				MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectArea);
 				HideSelectionHighlight();
 				MapEditorHUD.Instance?.ClearPasteTelemetry();
-				GetViewport().SetInputAsHandled();
-				return;
-			}
-
-			if (ActiveEditorTool != EditorTool.SelectMove)
-			{
-				ActiveEditorTool = EditorTool.SelectMove;
-				MapEditorHUD.Instance?.SelectToolFromHotkey(EditorTool.SelectMove);
-				HideSelectionHighlight();
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -1015,39 +1051,22 @@ public partial class GameHost
 					hitPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
 				}
 
+				if (IsObjectPlacementTool(ActiveEditorTool) && string.IsNullOrWhiteSpace(ActivePlaceId))
+				{
+					MapEditorHUD.Instance?.ShowConfirmationDialog("Please create a template first", null, confirmText: "OK", showCancel: false);
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
 				if (ActiveEditorTool == EditorTool.PlaceUnit)
 				{
-					if (EditorClumpMode) return;
-					if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
-					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
-
-					Vector3 spawnPos = hitPos;
-					spawnPos.Y = GetTerrainHeightAt(spawnPos);
-					float radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
-					var finalPos = FindNearestFreePosition(spawnPos, radius);
-					if (finalPos == null)
-					{
-						if (scaleVal > 1.5f)
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
-						}
-						else
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal("invalid location");
-						}
-
-						UIManager.Instance?.PlayWarningSound();
-						GetViewport().SetInputAsHandled();
-						return;
-					}
-
-					spawnPos = finalPos.Value;
+					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
 
 					int placePlayer = GameContext.EditorService.PlaceUnitIsEnemy ? 1 : 0;
 					var unit = SpawnUnitExternal(ActivePlaceId, spawnPos, placementRot, scaleVal, placePlayer);
 					if (unit != null)
 					{
+							float radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
 						var actions = new List<IEditorAction>
 						{
 							new ObjectSpawnAction("unit", ActivePlaceId, spawnPos, placementRot, scaleVal, unit, placePlayer)
@@ -1078,32 +1097,7 @@ public partial class GameHost
 				}
 				else if (ActiveEditorTool == EditorTool.PlaceProp)
 				{
-					if (EditorClumpMode) return;
-					if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
-					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
-
-					Vector3 spawnPos = hitPos;
-					spawnPos.Y = GetTerrainHeightAt(spawnPos);
-					float radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
-					var finalPos = FindNearestFreePosition(spawnPos, radius);
-					if (finalPos == null)
-					{
-						if (scaleVal > 1.5f)
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
-						}
-						else
-						{
-							MapEditorHUD.Instance?.ShowFeedbackExternal("invalid location");
-						}
-
-						UIManager.Instance?.PlayWarningSound();
-						GetViewport().SetInputAsHandled();
-						return;
-					}
-
-					spawnPos = finalPos.Value;
+					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
 
 					var prop = SpawnPropExternalWithParams(ActivePlaceId, spawnPos, placementRot, scaleVal);
 					if (prop != null)
@@ -1114,11 +1108,12 @@ public partial class GameHost
 						};
 						if (EditorMirrorMode != MirrorMode.None)
 						{
+								float propRadius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
 							foreach (var t in GetMirroredTransforms(spawnPos, placementRot))
 							{
 								Vector3 mPos = t.Position;
 								mPos.Y = GetTerrainHeightAt(mPos);
-								if (IsPositionBlocked(mPos, radius)) continue;
+									if (IsPositionBlocked(mPos, propRadius)) continue;
 								var mProp = SpawnPropExternalWithParams(ActivePlaceId, mPos, t.Rotation, scaleVal);
 								if (mProp != null)
 								{
@@ -1138,10 +1133,7 @@ public partial class GameHost
 				}
 				else if (ActiveEditorTool == EditorTool.PlaceDecal)
 				{
-					if (EditorClumpMode) return;
-					if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
-					float placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
-					float scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
+					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
 
 					Vector3 hitNormal = (terrainHit != null && terrainHit.ContainsKey("normal")) ? terrainHit["normal"].AsVector3() : (hit.ContainsKey("normal") ? hit["normal"].AsVector3() : GetTerrainNormalAt(hitPos));
 					Basis alignedBasis = CreateAlignedBasis(hitNormal);
@@ -1190,7 +1182,7 @@ public partial class GameHost
 					float safeScale = scaleVal <= 0.001f ? 1.0f : scaleVal;
 
 					VfxAttachmentConfig config;
-					if (GameContext.RegistryService.VfxRegistry.TryGetValue(ActivePlaceId, out var regCfg))
+					if (GameContext.RegistryService.TryGetVfxConfig(ActivePlaceId, out var regCfg))
 					{
 						config = regCfg.Clone();
 					}
@@ -1306,7 +1298,11 @@ public partial class GameHost
 							clickedNode = FindUnit3DInParentChain(collider);
 							if (clickedNode == null)
 							{
-								clickedNode = FindProp3DInParentChain(collider);
+								clickedNode = (Node)(collider as PropEntityProxyNode);
+								if (clickedNode == null)
+								{
+									clickedNode = FindProp3DInParentChain(collider);
+								}
 							}
 						}
 
@@ -1383,6 +1379,18 @@ public partial class GameHost
 								ActivePlaceId = unit.UnitId;
 								GameContext.EditorService.PlaceUnitIsEnemy = isEnemy;
 								ActiveEditorTool = EditorTool.PlaceUnit;
+							}
+						}
+						else if (clickedNode is PropEntityProxyNode propProxy)
+						{
+							if (MapEditorHUD.Instance != null)
+							{
+								MapEditorHUD.Instance.SelectPickedUnitOrProp(propProxy.PropId, false);
+							}
+							else
+							{
+								ActivePlaceId = propProxy.PropId;
+								ActiveEditorTool = EditorTool.PlaceProp;
 							}
 						}
 						else if (clickedNode is Prop3D prop)
@@ -1475,7 +1483,11 @@ public partial class GameHost
 						clickedNode = FindUnit3DInParentChain(collider);
 						if (clickedNode == null)
 						{
-							clickedNode = FindProp3DInParentChain(collider);
+							clickedNode = (Node)(collider as PropEntityProxyNode);
+							if (clickedNode == null)
+							{
+								clickedNode = FindProp3DInParentChain(collider);
+							}
 						}
 
 						if (clickedNode == null)
@@ -2693,7 +2705,7 @@ public partial class GameHost
 
 	public bool TryRaycastTerrainFromMousePosition(Vector2 mousePos, out Vector3 position)
 	{
-		return TryRaycastFromMousePosition(mousePos, out position, EditableTerrain.TerrainCollisionLayer);
+		return TryRaycastFromMousePosition(mousePos, out position, RaycastService.TerrainLayer);
 	}
 
 	public bool TryRaycastFromMousePosition(Vector2 mousePos, out Vector3 position, uint collisionMask = uint.MaxValue)
@@ -2705,23 +2717,17 @@ public partial class GameHost
 		var from = camera.ProjectRayOrigin(mousePos);
 		var to = from + camera.ProjectRayNormal(mousePos) * 1000f;
 
-		var spaceState = GetWorld3D()?.DirectSpaceState;
-		if (spaceState == null) return false;
+		if (GameContext.RaycastService.TryRaycast(from, to, collisionMask, out position, out _, out _))
+		{
+			return true;
+		}
 
-		_cachedRaycastQuery ??= new PhysicsRayQueryParameters3D();
-		_cachedRaycastQuery.From = from;
-		_cachedRaycastQuery.To = to;
-		_cachedRaycastQuery.CollisionMask = collisionMask;
-		var result = spaceState.IntersectRay(_cachedRaycastQuery);
-
-		if (result.Count == 0 || !result.ContainsKey("position")) return false;
-		position = result["position"].AsVector3();
-		return true;
+		return false;
 	}
 
 	public Dictionary RaycastTerrainFromMouse(Vector2 mousePos)
 	{
-		return RaycastFromMouse(mousePos, EditableTerrain.TerrainCollisionLayer);
+		return RaycastFromMouse(mousePos, RaycastService.TerrainLayer);
 	}
 
 	public Dictionary RaycastFromMouse(Vector2 mousePos, uint collisionMask = uint.MaxValue)
@@ -2732,17 +2738,10 @@ public partial class GameHost
 		var from = camera.ProjectRayOrigin(mousePos);
 		var to = from + camera.ProjectRayNormal(mousePos) * 1000f;
 
-		var spaceState = GetWorld3D()?.DirectSpaceState;
-		if (spaceState == null) return null;
+		var result = GameContext.RaycastService.Raycast(from, to, collisionMask);
+		if (result == null || !result.HasHit) return null;
 
-		_cachedRaycastQuery ??= new PhysicsRayQueryParameters3D();
-		_cachedRaycastQuery.From = from;
-		_cachedRaycastQuery.To = to;
-		_cachedRaycastQuery.CollisionMask = collisionMask;
-		var result = spaceState.IntersectRay(_cachedRaycastQuery);
-
-		if (result.Count == 0) return null;
-		return result;
+		return result.ToGodotDictionary();
 	}
 
 	public void EnterCommandTargeting(string mode)
@@ -3147,6 +3146,13 @@ public partial class GameHost
 		if (SelectedEditorObject is Unit3D unit)
 		{
 			CopyEditorUnit(unit);
+			return;
+		}
+
+		if (SelectedEditorObject is PropEntityProxyNode propProxy)
+		{
+			GameContext.EditorService.CopyEditorPropDomain(propProxy.PropId, propProxy.RotationDegrees.Y, propProxy.Scale.X);
+			MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Prop: {propProxy.PropId.ToUpper()}");
 			return;
 		}
 
@@ -3575,6 +3581,7 @@ public partial class GameHost
 		else
 		{
 			var mesh = new MeshInstance3D();
+			mesh.Name = "Mesh_MeshInstance3D";
 			float radius = 1.6f;
 			if (meta != null)
 			{
@@ -4626,22 +4633,15 @@ public partial class GameHost
 
 		var from = new Vector3(minimapWorldPos.X, 200f, minimapWorldPos.Z);
 		var to = new Vector3(minimapWorldPos.X, -100f, minimapWorldPos.Z);
-		var spaceState = GetWorld3D().DirectSpaceState;
 
-		_cachedRaycastQuery ??= new PhysicsRayQueryParameters3D();
-		_cachedRaycastQuery.From = from;
-		_cachedRaycastQuery.To = to;
-
-		var queryResult = spaceState.IntersectRay(_cachedRaycastQuery);
-
-		if (queryResult != null && queryResult.Count > 0)
+		var rayResult = GameContext.RaycastService.Raycast(from, to);
+		if (rayResult != null && rayResult.HasHit)
 		{
-			if (queryResult.ContainsKey("position")) result.HitPos = queryResult["position"].AsVector3();
-			if (queryResult.ContainsKey("collider"))
+			result.HitPos = rayResult.Position;
+			if (rayResult.Collider != null)
 			{
-				var collider = queryResult["collider"].As<Node>();
-				result.ClickedUnit = FindUnit3DInParentChain(collider);
-				result.ClickedProp = FindProp3DInParentChain(collider);
+				result.ClickedUnit = FindUnit3DInParentChain(rayResult.Collider);
+				result.ClickedProp = FindProp3DInParentChain(rayResult.Collider);
 			}
 		}
 
@@ -4661,4 +4661,74 @@ public partial class GameHost
 
 		IssueFollowCommand(clickedUnit, shiftHeld);
 	}
+
+	private Vector3 CalculatePlacementPosition(Vector3 hitPos)
+	{
+		Vector3 spawnPos = hitPos;
+		if (EditorSnapToGrid && GroundTerrain != null)
+		{
+			float quadSize = GroundTerrain.QuadSize;
+			int width = GroundTerrain.Width;
+			int depth = GroundTerrain.Depth;
+			float fx = Mathf.Round(spawnPos.X / quadSize + (width - 1) / 2.0f);
+			spawnPos.X = (Mathf.Clamp(fx, 0, width - 1) - (width - 1) / 2.0f) * quadSize;
+			float fz = Mathf.Round(spawnPos.Z / quadSize + (depth - 1) / 2.0f);
+			spawnPos.Z = (Mathf.Clamp(fz, 0, depth - 1) - (depth - 1) / 2.0f) * quadSize;
+		}
+		return spawnPos;
+	}
+
+
+
+		private static bool IsObjectPlacementTool(EditorTool tool)
+		{
+			return tool == EditorTool.PlaceUnit ||
+			       tool == EditorTool.PlaceProp ||
+			       tool == EditorTool.PlaceDecal ||
+			       tool == EditorTool.PlaceVfx ||
+			       tool == EditorTool.PlacePropClump;
+		}
+
+		private bool TryGetValidPlacementContext(Vector3 hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)
+		{
+			placementRot = 0f;
+			scaleVal = 1f;
+			spawnPos = hitPos;
+
+			if (EditorClumpMode) return false;
+			if (!GameContext.EditorService.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
+			
+			placementRot = (GameContext.EditorService.EditorRandomRotation && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomRotation : GameContext.EditorService.EditorPlacementRotation;
+			scaleVal = (GameContext.EditorService.EditorRandomScale && !GameContext.EditorService.IsPastingObject) ? GameContext.EditorService.CachedRandomScale : EditorPlacementScale;
+
+			var finalPos = TryGetValidPlacementLocation(spawnPos, scaleVal);
+			if (finalPos == null) return false;
+			
+			spawnPos = finalPos.Value;
+			return true;
+		}
+
+		private Vector3? TryGetValidPlacementLocation(Vector3 spawnPos, float scaleVal)
+		{
+			spawnPos.Y = GetTerrainHeightAt(spawnPos);
+			float radius = GameContext.InputService.GetPlacementRadius(ActivePlaceId, scaleVal);
+			var finalPos = FindNearestFreePosition(spawnPos, radius);
+			if (finalPos == null)
+			{
+				if (scaleVal > 1.5f)
+				{
+					MapEditorHUD.Instance?.ShowFeedbackExternal($"Invalid location: The object (Scale: {scaleVal:F1}x) is too large to fit here.");
+				}
+				else
+				{
+					MapEditorHUD.Instance?.ShowFeedbackExternal("invalid location");
+				}
+
+				UIManager.Instance?.PlayWarningSound();
+				GetViewport().SetInputAsHandled();
+				return null;
+			}
+
+			return finalPos;
+		}
 }

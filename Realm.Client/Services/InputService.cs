@@ -125,7 +125,7 @@ public class InputService
 
 	public bool ShouldEnqueueWorkerBuild(Entity entity)
 	{
-		return IsUnitActive(entity) || GameContext.World.Has<BuildQueue>(entity);
+			return Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity) || GameContext.World.Has<BuildQueue>(entity);
 	}
 
 	public void EnqueueBuildTask(Entity worker, string type, Vector3 pos)
@@ -163,20 +163,11 @@ public class InputService
 		return GameContext.TechTreeService.BuyHarvestingUpgrade(playerEntity);
 	}
 
-	private void RemoveIfHas<T>(Entity entity) where T : unmanaged
-	{
-		if (GameContext.World.Has<T>(entity))
-		{
-			GameContext.World.Remove<T>(entity);
-		}
-	}
-
-
 	public void AssignResumeTasksToWorkers(IEnumerable<Entity> selectedWorkerEntities, Entity targetBuildingEntity, string targetBuildingUnitId, Vector3 bPos, bool shiftHeld)
 	{
 		foreach (var workerEntity in selectedWorkerEntities)
 		{
-			if (shiftHeld && (IsUnitActive(workerEntity) || GameContext.World.Has<BuildQueue>(workerEntity)))
+				if (shiftHeld && (Realm.Client.Utils.UnitActivityHelper.IsUnitActive(workerEntity) || GameContext.World.Has<BuildQueue>(workerEntity)))
 			{
 				if (!GameContext.World.Has<BuildQueue>(workerEntity))
 				{
@@ -188,7 +179,7 @@ public class InputService
 			}
 			else
 			{
-				ClearUnitOrders(workerEntity);
+				GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(workerEntity);
 
 				if (GameContext.World.Has<ConstructionState>(targetBuildingEntity))
 				{
@@ -202,35 +193,6 @@ public class InputService
 				}
 			}
 		}
-	}
-
-	public void ClearUnitOrders(Entity entity)
-	{
-		RemoveIfHas<MoveTo>(entity);
-		RemoveIfHas<PathFollow>(entity);
-		RemoveIfHas<AttackTarget>(entity);
-		RemoveIfHas<AttackMove>(entity);
-		RemoveIfHas<HoldPosition>(entity);
-		RemoveIfHas<Follow>(entity);
-		RemoveIfHas<Patrol>(entity);
-		RemoveIfHas<HealingTarget>(entity);
-		RemoveIfHas<WaypointQueue>(entity);
-		RemoveIfHas<Gatherer>(entity);
-		RemoveIfHas<BuildTask>(entity);
-		RemoveIfHas<BuildQueue>(entity);
-	}
-
-	public bool IsUnitActive(Entity entity)
-	{
-		return GameContext.World.Has<MoveTo>(entity) ||
-		       GameContext.World.Has<BuildTask>(entity) ||
-		       GameContext.World.Has<AttackTarget>(entity) ||
-		       GameContext.World.Has<AttackMove>(entity) ||
-		       GameContext.World.Has<Follow>(entity) ||
-		       GameContext.World.Has<Patrol>(entity) ||
-		       GameContext.World.Has<Gatherer>(entity) ||
-		       GameContext.World.Has<WaypointQueue>(entity) ||
-		       (GameContext.World.Has<BuildQueue>(entity) && GameContext.World.Get<BuildQueue>(entity).Count > 0);
 	}
 
 	public void EnqueueCommand(Entity entity, string type, Vector3 position, Entity target = default)
@@ -316,7 +278,7 @@ public class InputService
 		}
 		else
 		{
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 			var moveTo = new MoveTo(scattered);
 			GameContext.World.Add(entity, moveTo);
 		}
@@ -334,7 +296,7 @@ public class InputService
 		{
 			if (!IsControllableUnit(entity)) continue;
 
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 
 			if (GameContext.World.Has<Movable>(entity))
 			{
@@ -387,7 +349,7 @@ public class InputService
 			bool isBuilding = GameContext.World.Has<Building>(entity);
 			if (isBuilding) continue;
 
-			if (isQueued && IsUnitActive(entity))
+				if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
 			{
 				EnqueueCommand(entity, "attack", targetPos, targetEntity);
 			}
@@ -395,7 +357,7 @@ public class InputService
 			{
 				if (!isQueued)
 				{
-					ClearUnitOrders(entity);
+					GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 				}
 
 				var attackTarget = new AttackTarget(targetEntity);
@@ -406,7 +368,7 @@ public class InputService
 
 	private void AssignFollowCommand(Entity entity, Entity targetEntity, Vector3 targetPos, bool isQueued)
 	{
-		if (isQueued && IsUnitActive(entity))
+			if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
 		{
 			EnqueueCommand(entity, "follow", targetPos, targetEntity);
 			return;
@@ -414,7 +376,7 @@ public class InputService
 
 		if (!isQueued)
 		{
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 		}
 
 		if (GameContext.World.Has<Movable>(entity))
@@ -438,7 +400,7 @@ public class InputService
 
 	private void AssignPatrolCommand(Entity entity, Vector3 scattered, bool isQueued)
 	{
-		if (isQueued && IsUnitActive(entity))
+			if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
 		{
 			EnqueueCommand(entity, "patrol", scattered);
 			return;
@@ -446,7 +408,7 @@ public class InputService
 
 		if (!isQueued)
 		{
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 		}
 
 		if (GameContext.World.Has<Movable>(entity))
@@ -492,7 +454,7 @@ public class InputService
 			bool isBuilding = GameContext.World.Has<Building>(entity);
 			if (isBuilding) continue;
 
-			if (isQueued && IsUnitActive(entity))
+				if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
 			{
 				EnqueueCommand(entity, "attackmove", targetPos);
 			}
@@ -500,7 +462,7 @@ public class InputService
 			{
 				if (!isQueued)
 				{
-					ClearUnitOrders(entity);
+					GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 				}
 
 				var attackMove = new AttackMove(targetPos);
@@ -520,7 +482,7 @@ public class InputService
 			bool isBuilding = GameContext.World.Has<Building>(entity);
 			if (isBuilding) continue;
 
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 
 			if (!GameContext.World.Has<HoldPosition>(entity))
 				GameContext.World.Add<HoldPosition>(entity);
@@ -533,7 +495,7 @@ public class InputService
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
 
-			ClearUnitOrders(entity);
+			GameContext.SimulationService.OnClearUnitOrdersRequested?.Invoke(entity);
 		}
 	}
 

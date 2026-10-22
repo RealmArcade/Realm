@@ -10,16 +10,21 @@ using Realm.Client.Services;
 using Realm.EditorAPI;
 using Realm.Shared.Audio;
 using Realm.Shared.Textures;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI.MapEditor;
 
-public partial class AssetManagerDialog : FloatingDialogBase
+[GlobalClass]
+public partial class AssetManagerDialog : AssetGridDialogBase
 {
-	private const float CellWidth = 120.0f;
-	private const float CellHeight = 140.0f;
-	private const float SpacingX = 10.0f;
-	private const float SpacingY = 10.0f;
-	private const float GridPadding = 10.0f;
+	public AssetManagerDialog()
+	{
+		CellWidth = 120.0f;
+		CellHeight = 140.0f;
+		SpacingX = 10.0f;
+		SpacingY = 10.0f;
+		GridPadding = 10.0f;
+	}
 
 	private OptionButton _optAssetTypeFilter;
 	private LineEdit _txtSearchFilter;
@@ -35,8 +40,6 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	private Button _btnPruneUnused;
 	private Button _btnNormalize;
 
-	private ScrollContainer _scrollContainer;
-	private Control _virtualGridContent;
 	private Label _lblEmptyState;
 
 	private PanelContainer _footerPanel;
@@ -50,7 +53,6 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 	private AudioStreamPlayer _audioPlayer;
 
-	private readonly List<AssetGridCell> _cellPool = new();
 	private readonly List<IndexedAsset> _matchingAssets = new();
 
 	private SpritesheetAssetEditDialog _spritesheetEditDialog;
@@ -87,14 +89,14 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	public AssetManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Asset Manager"), new Vector2(860, 720))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.png", 34, 40, 60, 60);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 34, 40, 60, 60);
 
 		_spritesheetEditDialog = new SpritesheetAssetEditDialog(hud);
 		_textureEditDialog = new TerrainTextureEditDialog(hud);
 		_decalEditDialog = new DecalSettingsDialog(hud);
 		_shaderEditDialog = new ShaderEditorDialog(hud);
 
-		_audioPlayer = new AudioStreamPlayer();
+		_audioPlayer = new AudioStreamPlayer { Name = "AssetManagerPreviewAudio", Bus = AudioService.SfxBusName };
 		_audioPlayer.Finished += OnAudioFinished;
 		AddChild(_audioPlayer);
 
@@ -121,7 +123,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	{
 		base.OpenDialog();
 		RefreshAssetList();
-		UpdateVirtualGridSize();
+		UpdateVirtualGridSize(_matchingAssets.Count);
 		UpdateVisibleGridCells();
 	}
 
@@ -131,15 +133,18 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		// 1. TOP HEADER: Asset Type Filter Dropdown & Search Filter Input
 		var headerRow = new HBoxContainer();
+		headerRow.Name = "HeaderRow_HBoxContainer";
 		headerRow.AddThemeConstantOverride("separation", 8);
 
 		var lblType = new Label();
+		lblType.Name = "LblType_Label";
 		lblType.Text = "🏷 " + TranslationServer.Translate("Asset Type:");
 		lblType.AddThemeFontSizeOverride("font_size", 11);
 		lblType.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		headerRow.AddChild(lblType);
 
 		_optAssetTypeFilter = new OptionButton();
+		_optAssetTypeFilter.Name = "OptAssetTypeFilter_OptionButton";
 		_optAssetTypeFilter.CustomMinimumSize = new Vector2(160, 26);
 		_optAssetTypeFilter.AddThemeFontSizeOverride("font_size", 11);
 		_optAssetTypeFilter.FocusMode = FocusModeEnum.None;
@@ -161,12 +166,14 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		headerRow.AddChild(_optAssetTypeFilter);
 
 		var lblSearch = new Label();
+		lblSearch.Name = "LblSearch_Label";
 		lblSearch.Text = "🔍 " + TranslationServer.Translate("Search:");
 		lblSearch.AddThemeFontSizeOverride("font_size", 11);
 		lblSearch.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		headerRow.AddChild(lblSearch);
 
 		_txtSearchFilter = new LineEdit();
+		_txtSearchFilter.Name = "TxtSearchFilter_LineEdit";
 		_txtSearchFilter.PlaceholderText = TranslationServer.Translate("Search by filename or metadata tags...");
 		_txtSearchFilter.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_txtSearchFilter.AddThemeFontSizeOverride("font_size", 11);
@@ -178,6 +185,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		headerRow.AddChild(_txtSearchFilter);
 
 		_lblAssetCount = new Label();
+		_lblAssetCount.Name = "LblAssetCount_Label";
 		_lblAssetCount.Text = "0 " + TranslationServer.Translate("assets");
 		_lblAssetCount.AddThemeFontSizeOverride("font_size", 11);
 		_lblAssetCount.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlowDim);
@@ -187,6 +195,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		// 2. ACTION BUTTONS TOOLBAR
 		var actionsRow = new HBoxContainer();
+		actionsRow.Name = "ActionsRow_HBoxContainer";
 		actionsRow.AddThemeConstantOverride("separation", 6);
 
 		_btnImportAsset = AddButton(actionsRow, "📥 " + TranslationServer.Translate("Import Asset"), () => OpenImportFileDialog(), "Import an asset from asset index or disk", 11, new Vector2(110, 26));
@@ -195,27 +204,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		_btnConvertAudio = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert Audio (.raud)"), () => OnConvertAudioPressed(), "Convert audio file to Realm RAUD/OGG format", 11, new Vector2(145, 26));
 		_btnConvert3DModel = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert 3D Model (.rmesh)"), () => OnConvert3DModelPressed(), "Optimize and convert 3D model to RMESH format", 11, new Vector2(165, 26));
 
-		var btnWebAi = new Button();
-		btnWebAi.Set("icon_max_width", 16);
-		btnWebAi.AddThemeConstantOverride("icon_max_width", 16);
-		btnWebAi.ExpandIcon = false;
-		btnWebAi.IconAlignment = HorizontalAlignment.Center;
-		btnWebAi.VerticalIconAlignment = VerticalAlignment.Center;
-		if (ResourceLoader.Exists("res://Assets/UI/globe_icon.png"))
-		{
-			btnWebAi.Icon = GD.Load<Texture2D>("res://Assets/UI/globe_icon.png");
-		}
-		else
-		{
-			btnWebAi.Text = "🌐";
-		}
-
-		btnWebAi.TooltipText = TranslationServer.Translate("Generate 3D Model with AI Online");
-		btnWebAi.CustomMinimumSize = new Vector2(24, 24);
-		btnWebAi.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		btnWebAi.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		btnWebAi.FocusMode = FocusModeEnum.None;
-		btnWebAi.Pressed += () => OS.ShellOpen("https://3d.hunyuanglobal.com");
+		var btnWebAi = UIStyle.CreateWebAiButton();
 		actionsRow.AddChild(btnWebAi);
 		_btnConvertMixamo = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert Mixamo (.ranim)"), () => OnConvertMixamoPressed(), "Extract and convert Mixamo animations to RANIM format", 11, new Vector2(165, 26));
 		_btnGenerateNoise = AddButton(actionsRow, "🎲 " + TranslationServer.Translate("Generate Noise"), () => Hud?.OpenNoiseTextureDialog((_) => RefreshAssetList()), "Generate procedural noise texture", 11, new Vector2(120, 26));
@@ -226,12 +215,14 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		// 3. SCROLLABLE ASSET GRID (Extra Large Icons)
 		var gridPanel = new PanelContainer();
+		gridPanel.Name = "GridPanel_PanelContainer";
 		gridPanel.CustomMinimumSize = new Vector2(0, 360);
 		gridPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
 		gridPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		BodyContainer.AddChild(gridPanel);
 
 		_scrollContainer = new ScrollContainer();
+		_scrollContainer.Name = "ScrollContainer_ScrollContainer";
 		_scrollContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_scrollContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_scrollContainer.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
@@ -239,11 +230,13 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		gridPanel.AddChild(_scrollContainer);
 
 		_virtualGridContent = new Control();
+		_virtualGridContent.Name = "VirtualGridContent_Control";
 		_virtualGridContent.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_virtualGridContent.MouseFilter = MouseFilterEnum.Pass;
 		_scrollContainer.AddChild(_virtualGridContent);
 
 		_lblEmptyState = new Label();
+		_lblEmptyState.Name = "LblEmptyState_Label";
 		_lblEmptyState.Text = TranslationServer.Translate("No matching assets found in manifest.json.");
 		_lblEmptyState.HorizontalAlignment = HorizontalAlignment.Center;
 		_lblEmptyState.VerticalAlignment = VerticalAlignment.Center;
@@ -257,12 +250,13 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		_scrollContainer.GetVScrollBar().ValueChanged += (_) => UpdateVisibleGridCells();
 		_scrollContainer.Resized += () =>
 		{
-			UpdateVirtualGridSize();
+			UpdateVirtualGridSize(_matchingAssets.Count);
 			UpdateVisibleGridCells();
 		};
 
 		// 4. FOOTER DETAILS PANEL
 		_footerPanel = new PanelContainer();
+		_footerPanel.Name = "FooterPanel_PanelContainer";
 		_footerPanel.CustomMinimumSize = new Vector2(0, 95);
 		_footerPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		var detailStyle = new StyleBoxFlat
@@ -283,35 +277,42 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		BodyContainer.AddChild(_footerPanel);
 
 		var footerHBox = new HBoxContainer();
+		footerHBox.Name = "FooterHBox_HBoxContainer";
 		footerHBox.AddThemeConstantOverride("separation", 12);
 		_footerPanel.AddChild(footerHBox);
 
 		_footerThumbnail = new TextureRect();
+		_footerThumbnail.Name = "FooterThumbnail_TextureRect";
 		_footerThumbnail.CustomMinimumSize = new Vector2(74, 74);
 		_footerThumbnail.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		_footerThumbnail.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		footerHBox.AddChild(_footerThumbnail);
 
 		var footerInfoVBox = new VBoxContainer();
+		footerInfoVBox.Name = "FooterInfoVBox_VBoxContainer";
 		footerInfoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		footerInfoVBox.AddThemeConstantOverride("separation", 3);
 		footerHBox.AddChild(footerInfoVBox);
 
 		var titleRow = new HBoxContainer();
+		titleRow.Name = "TitleRow_HBoxContainer";
 		titleRow.AddThemeConstantOverride("separation", 8);
 
 		_lblSelectedFileName = new Label();
+		_lblSelectedFileName.Name = "LblSelectedFileName_Label";
 		_lblSelectedFileName.Text = TranslationServer.Translate("No asset selected");
 		_lblSelectedFileName.AddThemeFontSizeOverride("font_size", 12);
 		_lblSelectedFileName.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		titleRow.AddChild(_lblSelectedFileName);
 
 		_lblSelectedSize = new Label();
+		_lblSelectedSize.Name = "LblSelectedSize_Label";
 		_lblSelectedSize.AddThemeFontSizeOverride("font_size", 10);
 		_lblSelectedSize.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		titleRow.AddChild(_lblSelectedSize);
 
 		_btnAudioPlay = new Button();
+		_btnAudioPlay.Name = "BtnAudioPlay_Button";
 		_btnAudioPlay.Set("icon_max_width", 0);
 		_btnAudioPlay.Text = "▶ " + TranslationServer.Translate("Play");
 		_btnAudioPlay.AddThemeFontSizeOverride("font_size", 10);
@@ -325,6 +326,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		footerInfoVBox.AddChild(titleRow);
 
 		_lblSelectedPath = new Label();
+		_lblSelectedPath.Name = "LblSelectedPath_Label";
 		_lblSelectedPath.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_lblSelectedPath.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_lblSelectedPath.AddThemeFontSizeOverride("font_size", 10);
@@ -332,6 +334,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		footerInfoVBox.AddChild(_lblSelectedPath);
 
 		_lblSelectedDetails = new Label();
+		_lblSelectedDetails.Name = "LblSelectedDetails_Label";
 		_lblSelectedDetails.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_lblSelectedDetails.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_lblSelectedDetails.AddThemeFontSizeOverride("font_size", 10);
@@ -340,11 +343,13 @@ public partial class AssetManagerDialog : FloatingDialogBase
 
 		// Right side buttons in footer: Trash Can Icon
 		var footerBtnVBox = new VBoxContainer();
+		footerBtnVBox.Name = "FooterBtnVBox_VBoxContainer";
 		footerBtnVBox.Alignment = BoxContainer.AlignmentMode.Center;
 		footerBtnVBox.AddThemeConstantOverride("separation", 6);
 		footerHBox.AddChild(footerBtnVBox);
 
 		_btnDeleteAsset = new Button();
+		_btnDeleteAsset.Name = "BtnDeleteAsset_Button";
 		_btnDeleteAsset.Set("icon_max_width", 0);
 		_btnDeleteAsset.Text = "🗑 " + TranslationServer.Translate("Delete");
 		_btnDeleteAsset.AddThemeFontSizeOverride("font_size", 11);
@@ -409,7 +414,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		{
 			_lblAssetCount.Text = "0 " + TranslationServer.Translate("assets");
 			_lblEmptyState.Visible = true;
-			UpdateVirtualGridSize();
+			UpdateVirtualGridSize(_matchingAssets.Count);
 			UpdateVisibleGridCells();
 			UpdateSelectedAssetDisplay();
 			return;
@@ -438,7 +443,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			_selectedAsset = null;
 		}
 
-		UpdateVirtualGridSize();
+		UpdateVirtualGridSize(_matchingAssets.Count);
 		UpdateVisibleGridCells();
 		UpdateSelectedAssetDisplay();
 	}
@@ -650,110 +655,20 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 	}
 
-	private void UpdateVirtualGridSize()
-	{
-		float availableWidth = Mathf.Max(100.0f, _scrollContainer.Size.X - GridPadding * 2.0f);
-		int columns = Math.Max(1, (int)((availableWidth + SpacingX) / (CellWidth + SpacingX)));
-		int totalRows = (_matchingAssets.Count + columns - 1) / columns;
-		float totalHeight = _matchingAssets.Count > 0
-			? (GridPadding * 2.0f + totalRows * CellHeight + Math.Max(0, totalRows - 1) * SpacingY)
-			: 0;
-
-		_virtualGridContent.CustomMinimumSize = new Vector2(0, totalHeight);
-	}
 
 	private void UpdateVisibleGridCells()
 	{
-		float availableWidth = Mathf.Max(100.0f, _scrollContainer.Size.X - GridPadding * 2.0f);
-		int columns = Math.Max(1, (int)((availableWidth + SpacingX) / (CellWidth + SpacingX)));
-		int totalRows = (_matchingAssets.Count + columns - 1) / columns;
-
-		UpdateVirtualGridHeight(totalRows);
-
-		if (_matchingAssets.Count == 0)
-		{
-			HideAllGridCells();
-			return;
-		}
-
-		UpdateVisibleCellsForScroll(columns, totalRows);
-	}
-
-	private void UpdateVirtualGridHeight(int totalRows)
-	{
-		float totalHeight = _matchingAssets.Count > 0
-			? (GridPadding * 2.0f + totalRows * CellHeight + Math.Max(0, totalRows - 1) * SpacingY)
-			: 0;
-
-		if (Math.Abs(_virtualGridContent.CustomMinimumSize.Y - totalHeight) > 0.5f)
-		{
-			_virtualGridContent.CustomMinimumSize = new Vector2(0, totalHeight);
-		}
-	}
-
-	private void HideAllGridCells()
-	{
-		foreach (var cell in _cellPool)
-		{
-			cell.Visible = false;
-		}
-	}
-
-	private void UpdateVisibleCellsForScroll(int columns, int totalRows)
-	{
-		float scrollY = (float)_scrollContainer.GetVScrollBar().Value;
-		float viewHeight = _scrollContainer.Size.Y > 0 ? _scrollContainer.Size.Y : 360.0f;
-
-		int startRow = Math.Max(0, (int)((scrollY - GridPadding) / (CellHeight + SpacingY)) - 1);
-		int endRow = Math.Min(totalRows - 1, (int)((scrollY + viewHeight - GridPadding) / (CellHeight + SpacingY)) + 1);
-
-		int startIndex = Math.Max(0, startRow * columns);
-		int endIndex = Math.Min(_matchingAssets.Count - 1, (endRow + 1) * columns - 1);
-		int visibleCount = endIndex >= startIndex ? (endIndex - startIndex + 1) : 0;
+			UpdateVisibleCellsForScroll(
+				_scrollContainer,
+				_matchingAssets.Count,
+				out int startIndex,
+				out int visibleCount,
+				out int columns
+			);
 
 		EnsureCellPoolCapacity(visibleCount);
-		BindVisibleGridCells(startIndex, visibleCount, columns);
+		BindVisibleGridCells(startIndex, visibleCount, columns, _matchingAssets, _selectedAsset, OnAssetCellClicked);
 		HideUnusedGridCells(visibleCount);
-	}
-
-	private void EnsureCellPoolCapacity(int requiredCapacity)
-	{
-		while (_cellPool.Count < requiredCapacity)
-		{
-			var newCell = new AssetGridCell();
-			_cellPool.Add(newCell);
-			_virtualGridContent.AddChild(newCell);
-		}
-	}
-
-	private void BindVisibleGridCells(int startIndex, int visibleCount, int columns)
-	{
-		for (int i = 0; i < visibleCount; i++)
-		{
-			int assetIndex = startIndex + i;
-			var asset = _matchingAssets[assetIndex];
-			int row = assetIndex / columns;
-			int col = assetIndex % columns;
-
-			float posX = GridPadding + col * (CellWidth + SpacingX);
-			float posY = GridPadding + row * (CellHeight + SpacingY);
-
-			var cell = _cellPool[i];
-			cell.Position = new Vector2(posX, posY);
-			cell.Size = new Vector2(CellWidth, CellHeight);
-			cell.Visible = true;
-
-			bool isSelected = _selectedAsset != null && string.Equals(_selectedAsset.FilePath, asset.FilePath, StringComparison.OrdinalIgnoreCase);
-			cell.Bind(asset, isSelected, OnAssetCellClicked);
-		}
-	}
-
-	private void HideUnusedGridCells(int visibleCount)
-	{
-		for (int i = visibleCount; i < _cellPool.Count; i++)
-		{
-			_cellPool[i].Visible = false;
-		}
 	}
 
 	private void OnAssetCellClicked(IndexedAsset asset, bool isDoubleClick)
@@ -1930,18 +1845,21 @@ public partial class AssetManagerDialog : FloatingDialogBase
 	private void ShowNormalizeReferencesDialog(string wsPath, List<GreenlitReferenceSuggestion> suggestions, List<string> currentRefs)
 	{
 		var overlay = new Panel();
+		overlay.Name = "Overlay_Panel";
 		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		overlay.ZIndex = 1200;
 		AddChild(overlay);
 
 		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
 		cardPanel.CustomMinimumSize = new Vector2(650, 480);
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		overlay.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		vbox.CustomMinimumSize = new Vector2(610, 440);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -1952,11 +1870,13 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, "🔗 " + TranslationServer.Translate("NORMALIZE GREENLIT REFERENCES"), 18);
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
 
 		var descLabel = new Label();
+		descLabel.Name = "DescLabel_Label";
 		descLabel.Text = TranslationServer.Translate("The following greenlit maps contain identical assets. Referencing them allows .rmap exports to exclude these duplicate files to minimize download size for players.");
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -1965,12 +1885,14 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		vbox.AddChild(descLabel);
 
 		var scroll = new ScrollContainer();
+		scroll.Name = "Scroll_ScrollContainer";
 		scroll.CustomMinimumSize = new Vector2(590, 260);
 		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vbox.AddChild(scroll);
 
 		var listContainer = new VBoxContainer();
+		listContainer.Name = "ListContainer_VBoxContainer";
 		listContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		listContainer.AddThemeConstantOverride("separation", 6);
 		scroll.AddChild(listContainer);
@@ -1980,6 +1902,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		foreach (var suggestion in suggestions)
 		{
 			var row = new PanelContainer();
+			row.Name = "Row_PanelContainer";
 			var rowStyle = new StyleBoxFlat
 			{
 				BgColor = new Color(0.16f, 0.17f, 0.22f, 0.9f),
@@ -1992,10 +1915,12 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			listContainer.AddChild(row);
 
 			var rowHBox = new HBoxContainer();
+			rowHBox.Name = "RowHBox_HBoxContainer";
 			rowHBox.AddThemeConstantOverride("separation", 10);
 			row.AddChild(rowHBox);
 
 			var cb = new CheckBox();
+			cb.Name = "Cb_CheckBox";
 			cb.ButtonPressed = suggestion.IsSelected;
 			cb.AddThemeConstantOverride("icon_max_width", 0);
 			UIStyle.ApplyCheckboxStyle(cb);
@@ -2003,16 +1928,19 @@ public partial class AssetManagerDialog : FloatingDialogBase
 			checkboxes.Add((cb, suggestion));
 
 			var infoVBox = new VBoxContainer();
+			infoVBox.Name = "InfoVBox_VBoxContainer";
 			infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			rowHBox.AddChild(infoVBox);
 
 			var mapNameLabel = new Label();
+			mapNameLabel.Name = "MapNameLabel_Label";
 			mapNameLabel.Text = $"{suggestion.MapTitle} (v{suggestion.MapVersion})";
 			mapNameLabel.AddThemeFontSizeOverride("font_size", 13);
 			mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			infoVBox.AddChild(mapNameLabel);
 
 			var statsLabel = new Label();
+			statsLabel.Name = "StatsLabel_Label";
 			statsLabel.Text = string.Format(TranslationServer.Translate("{0} matching asset(s) • Estimated savings: {1}"), suggestion.MatchedAssetPaths.Count, MapStorageService.FormatBytes(suggestion.SavedBytes));
 			statsLabel.AddThemeFontSizeOverride("font_size", 11);
 			statsLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.8f, 0.9f));
@@ -2020,6 +1948,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 
 		var summaryLabel = new Label();
+		summaryLabel.Name = "SummaryLabel_Label";
 		Action updateSummary = () =>
 		{
 			long totalSavings = checkboxes.Where(c => c.CheckBox.ButtonPressed).Sum(c => c.Suggestion.SavedBytes);
@@ -2038,11 +1967,13 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		}
 
 		var btnRow = new HBoxContainer();
+		btnRow.Name = "BtnRow_HBoxContainer";
 		btnRow.Alignment = BoxContainer.AlignmentMode.Center;
 		btnRow.AddThemeConstantOverride("separation", 15);
 		vbox.AddChild(btnRow);
 
 		var btnApply = new Button();
+		btnApply.Name = "BtnApply_Button";
 		btnApply.AddThemeConstantOverride("icon_max_width", 0);
 		btnApply.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		btnApply.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
@@ -2071,6 +2002,7 @@ public partial class AssetManagerDialog : FloatingDialogBase
 		};
 
 		var btnCancel = new Button();
+		btnCancel.Name = "BtnCancel_Button";
 		btnCancel.AddThemeConstantOverride("icon_max_width", 0);
 		btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		btnCancel.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());

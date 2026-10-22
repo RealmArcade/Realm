@@ -117,63 +117,8 @@ public class ReplayService
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
 
-		Entity ownerPlayerEntity = Entity.Null;
-		if (snap.OwnerPlayerEntityId >= 0 && snap.OwnerPlayerEntityId < mapping.PlayerEntities.Length)
-		{
-			ownerPlayerEntity = mapping.PlayerEntities[snap.OwnerPlayerEntityId];
-		}
-		if (ownerPlayerEntity == Entity.Null && mapping.PeerIdToPlayerEntityMap.TryGetValue(snap.OwnerPlayerEntityId, out var pe))
-		{
-			ownerPlayerEntity = pe;
-		}
-		if (ownerPlayerEntity == Entity.Null)
-		{
-			ownerPlayerEntity = mapping.PlayerEntities[1];
-		}
-
-		int playerIndex = (ownerPlayerEntity != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(ownerPlayerEntity))
-			? GameContext.World.Get<UnitOwnerPlayer>(ownerPlayerEntity).PlayerIndex
-			: (snap.OwnerPlayerEntityId >= 0 ? snap.OwnerPlayerEntityId : 1);
-
-		var entity = GameContext.World.Create();
-		GameContext.World.Add(entity, new DefinitionId(snap.UnitId));
-		GameContext.World.Add(entity, new Name(meta.Name));
-		GameContext.World.Add(entity, new Position(snap.Position.ToNumerics()));
-		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
-		GameContext.World.Add(entity, new UnitOwnerPlayer(playerIndex));
-		GameContext.World.Add(entity, new Health(snap.CurrentHp, snap.MaxHp));
-		if (meta.Damage > 0)
-		{
-			GameContext.World.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
-		}
-
-		GameContext.World.Add(entity, new Armor(meta.Armor));
-		if (meta.Speed > 0)
-		{
-			GameContext.World.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
-			GameContext.World.Add(entity, new Movable());
-			GameContext.World.Add(entity, new Inventory());
-		}
-		else
-		{
-			GameContext.World.Add(entity, new Building());
-		}
-
-		var target = new InterpolationTarget
-		{
-			Position = snap.Position.ToNumerics(),
-			Velocity = snap.Velocity.ToNumerics(),
-			RotationY = snap.RotationY
-		};
-		GameContext.World.Add(entity, target);
-
-		mapping.ServerToClientEntityMap[snap.EntityId] = entity;
-		mapping.ClientToServerEntityMap[entity.Id] = snap.EntityId;
-
-		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : snap.UnitId;
-		string fallbackPath = GameContext.UnitSpawnService.GetFallbackModelPath(targetModel, snap.IsBuilding);
-
-		return (entity, fallbackPath, playerIndex);
+		var entity = NetworkService.ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.Velocity.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, GameContext.UnitSpawnService.GetFallbackModelPath, out string modelPath, out int playerIndex);
+		return (entity, modelPath, playerIndex);
 	}
 
 	public void RecordGameplayTickDomain(List<(Entity Entity, System.Numerics.Vector3 Position, System.Numerics.Vector3 Velocity, float RotationY)> transforms)

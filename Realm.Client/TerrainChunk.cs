@@ -7,7 +7,6 @@ public class TerrainChunk
 {
 	public MeshInstance3D MeshInstance;
 	public ArrayMesh ArrayMesh;
-	public CollisionShape3D CollisionShape;
 	public Dictionary<byte, (MeshInstance3D MeshInstance, ArrayMesh ArrayMesh)> ProfileWaterMeshes = new();
 	public int StartX;
 	public int StartZ;

@@ -9,8 +9,11 @@ using Realm.Shared.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class MapSettingsDialog : FloatingDialogBase
 {
+	public MapSettingsDialog() { }
+
 	private LineEdit _txtMapName;
 	private LineEdit _txtMapVersion;
 	private OptionButton _optMapType;
@@ -33,7 +36,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	public MapSettingsDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Map Settings"), new Vector2(510, 520))
 	{
-		SetUncompressedPanelTexture("res://Assets/UI/map_editor_usability_settings.png", 55, 15, 60, 60);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_usability_settings.webp", 55, 15, 60, 60);
 		if (TitleLabel?.GetParent() is MarginContainer titleMargin)
 		{
 			titleMargin.AddThemeConstantOverride("margin_top", -42);
@@ -65,6 +68,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	private VBoxContainer SetupMainContainers()
 	{
 		var scroll = new ScrollContainer();
+		scroll.Name = "Scroll_ScrollContainer";
 		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
@@ -72,11 +76,13 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		BodyContainer.AddChild(scroll);
 
 		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
 		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		contentVBox.AddThemeConstantOverride("separation", 8);
 		scroll.AddChild(contentVBox);
 
 		var topInfoSpacer = new Control();
+		topInfoSpacer.Name = "TopInfoSpacer_Control";
 		topInfoSpacer.CustomMinimumSize = new Vector2(0, 18);
 		contentVBox.AddChild(topInfoSpacer);
 
@@ -87,6 +93,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		var namePanel = CreateSectionBox(contentVBox, "🏷️ " + TranslationServer.Translate("Map Name"));
 		_txtMapName = new LineEdit();
+		_txtMapName.Name = "TxtMapName_LineEdit";
 		_txtMapName.PlaceholderText = TranslationServer.Translate("Enter map name...");
 
 		bool isSanitizingMapName = false;
@@ -123,6 +130,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		var versionPanel = CreateSectionBox(contentVBox, "🔢 " + TranslationServer.Translate("Map Version"));
 		_txtMapVersion = new LineEdit();
+		_txtMapVersion.Name = "TxtMapVersion_LineEdit";
 		_txtMapVersion.PlaceholderText = "1.0.0";
 		_txtMapVersion.TextChanged += (_) => { SaveMapProperties(); };
 		versionPanel.AddChild(_txtMapVersion);
@@ -132,6 +140,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		var mapTypePanel = CreateSectionBox(contentVBox, TranslationServer.Translate("Map Type"));
 		_optMapType = new OptionButton();
+		_optMapType.Name = "OptMapType_OptionButton";
 		_optMapType.FocusMode = FocusModeEnum.None;
 		_optMapType.AddItem(TranslationServer.Translate("Arcade Custom Map"), 0);
 		_optMapType.AddItem(TranslationServer.Translate("Asset Pack"), 1);
@@ -147,6 +156,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		var tagsPanel = CreateSectionBox(contentVBox, TranslationServer.Translate("Map Tags & Category"));
 		_tagsGrid = new GridContainer();
+		_tagsGrid.Name = "TagsGrid_GridContainer";
 		_tagsGrid.Columns = 2;
 		_tagsGrid.AddThemeConstantOverride("h_separation", 8);
 		_tagsGrid.AddThemeConstantOverride("v_separation", 4);
@@ -158,6 +168,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		var skyboxPanel = CreateSectionBox(contentVBox, "🌅 " + TranslationServer.Translate("Skybox Environment"));
 		_optSkybox = new OptionButton();
+		_optSkybox.Name = "OptSkybox_OptionButton";
 		_optSkybox.FocusMode = FocusModeEnum.None;
 		_optSkybox.ItemSelected += (index) =>
 		{
@@ -173,6 +184,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		skyboxPanel.AddChild(_optSkybox);
 
 		var btnEnvConfig = new Button();
+		btnEnvConfig.Name = "BtnEnvConfig_Button";
 		btnEnvConfig.Set("icon_max_width", 0);
 		btnEnvConfig.Text = "💡 " + TranslationServer.Translate("Configure Weather & Lighting Presets");
 		btnEnvConfig.Pressed += () => Hud?.OpenEnvironmentConfigDialog();
@@ -183,6 +195,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		var camBoundsPanel = CreateSectionBox(contentVBox, TranslationServer.Translate("Camera Boundaries"));
 		var camGrid = new GridContainer();
+		camGrid.Name = "CamGrid_GridContainer";
 		camGrid.Columns = 3;
 		camGrid.AddThemeConstantOverride("h_separation", 6);
 		camGrid.AddThemeConstantOverride("v_separation", 4);
@@ -310,6 +323,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		var mapSizePanel = CreateSectionBox(contentVBox, TranslationServer.Translate("Map Dimensions"));
 		var sizeGrid = new GridContainer();
+		sizeGrid.Name = "SizeGrid_GridContainer";
 		sizeGrid.Columns = 3;
 		sizeGrid.AddThemeConstantOverride("h_separation", 6);
 		sizeGrid.AddThemeConstantOverride("v_separation", 4);
@@ -383,6 +397,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	private void BuildScaleMapButton(Control mapSizePanel)
 	{
 		_btnScaleMap = new Button();
+		_btnScaleMap.Name = "BtnScaleMap_Button";
 		_btnScaleMap.Set("icon_max_width", 0);
 		_btnScaleMap.Text = "\uf24e " + TranslationServer.Translate("SCALE MAP");
 		_btnScaleMap.TooltipText = TranslationServer.Translate("Scale the entire map: stretches/shrinks terrain data and repositions all entities proportionally");
@@ -406,15 +421,18 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	private VBoxContainer CreateSectionBox(Control parent, string titleText)
 	{
 		var panel = new PanelContainer();
+		panel.Name = "Panel_PanelContainer";
 		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 		panel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		parent.AddChild(panel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.AddThemeConstantOverride("separation", 6);
 		panel.AddChild(vbox);
 
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.Text = titleText;
 		lbl.AddThemeFontSizeOverride("font_size", 12);
 		lbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -431,6 +449,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	private Label CreateBadgeLabel()
 	{
 		var lbl = new Label();
+		lbl.Name = "Lbl_Label";
 		lbl.AddThemeFontSizeOverride("font_size", 11);
 		lbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -440,6 +459,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	private Button CreateControlButton(string text, string tooltip, Action onClick)
 	{
 		var btn = new Button();
+		btn.Name = "Btn_Button";
 		btn.Set("icon_max_width", 0);
 		btn.Text = text;
 		btn.TooltipText = TranslationServer.Translate(tooltip);
@@ -602,6 +622,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		foreach (var tag in tags)
 		{
 			var chk = new CheckBox();
+			chk.Name = "Chk_CheckBox";
 			chk.Set("icon_max_width", 0);
 			chk.Text = tag;
 			chk.FocusMode = FocusModeEnum.None;
@@ -659,7 +680,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 		if (_skyboxFiles.Count == 0)
 		{
-			_skyboxFiles.Add("skybox_panoramic.jpg");
+			_skyboxFiles.Add("skybox_panoramic.rtex");
 			_optSkybox.AddItem(TranslationServer.Translate("Default Panoramic"));
 		}
 	}

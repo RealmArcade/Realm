@@ -65,19 +65,6 @@ function Patch-ProductJson {
         $pj = $pjContent | ConvertFrom-Json
         $changed = $false
 
-        if ($ProductJsonPath -like "*editor*resources*app*") {
-            if ($pj.PSObject.Properties["webviewContentExternalBaseUrlTemplate"]) {
-                $pj.PSObject.Properties.Remove("webviewContentExternalBaseUrlTemplate")
-                $changed = $true
-            }
-        } else {
-            $cdnTemplate = "/static/out/vs/workbench/contrib/webview/browser/pre/"
-            if ($pj.webviewContentExternalBaseUrlTemplate -ne $cdnTemplate) {
-                $pj.webviewContentExternalBaseUrlTemplate = $cdnTemplate
-                $changed = $true
-            }
-        }
-
         if ($pj.win32AppUserModelId -ne "Realm.GameClient") {
             $pj.win32AppUserModelId = "Realm.GameClient"
             $changed = $true
@@ -109,7 +96,12 @@ function Patch-ProductJson {
             $changed = $true
         }
 
-        $workspaceExts = @("google.google-antigravity", "muhammad-sammy.csharp", "patcx.vscode-nuget-gallery", "speige.realm-map-editor", "vadimcn.vscode-lldb")
+        if ($pj.extensionKind.PSObject.Properties["google.google-antigravity"]) {
+            $pj.extensionKind.PSObject.Properties.Remove("google.google-antigravity")
+            $changed = $true
+        }
+
+        $workspaceExts = @("muhammad-sammy.csharp", "patcx.vscode-nuget-gallery", "speige.realm-map-editor", "vadimcn.vscode-lldb", "haoyangzeng.opencui")
         foreach ($ext in $workspaceExts) {
             if (-not $pj.extensionKind.$ext) {
                 $pj.extensionKind | Add-Member -MemberType NoteProperty -Name $ext -Value @("workspace") -Force
@@ -124,84 +116,6 @@ function Patch-ProductJson {
         }
     } catch {
         Write-Warning "Failed to patch product.json at $ProductJsonPath : $_"
-    }
-}
-
-function Patch-WebviewHostAndStreams {
-    param([string]$RootDir)
-
-    if (-not (Test-Path $RootDir)) { return }
-
-    $outDirs = [System.Collections.Generic.List[string]]::new()
-    $candidateOut = Join-Path $RootDir "out"
-    if (Test-Path $candidateOut) { $outDirs.Add($candidateOut) }
-
-    foreach ($outDir in ($outDirs | Select-Object -Unique)) {
-        $jsPath = Join-Path $outDir "vs\code\browser\workbench\workbench.js"
-        if (Test-Path $jsPath) {
-            try {
-                $content = [System.IO.File]::ReadAllText($jsPath, [System.Text.Encoding]::UTF8)
-                $changed = $false
-
-                $wbTargetEndpoint = 'get webviewExternalEndpoint(){const i=this.options.webviewEndpoint||this.productService.webviewContentExternalBaseUrlTemplate||"https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/",e=this.payload?.get("webviewExternalEndpointCommit");return i.replace("{{commit}}",e??this.productService.commit??"ef65ac1ba57f57f2a3961bfe94aa20481caca4c6").replace("{{quality}}",(e?"insider":this.productService.quality)??"insider")}'
-                $wbReplEndpoint = 'get webviewExternalEndpoint(){return (window.location.origin + "/static/out/vs/workbench/contrib/webview/browser/pre/");}'
-                if ($content.Contains($wbTargetEndpoint)) {
-                    $content = $content.Replace($wbTargetEndpoint, $wbReplEndpoint)
-                    $changed = $true
-                }
-
-                if ($content.Contains("t.port1.postMessage(e,[e])")) {
-                    $content = $content.Replace("try{const e=new ReadableStream,t=new MessageChannel;return t.port1.postMessage(e,[e]),t.port1.close(),t.port2.close(),!0}catch{return!1}", "try{return!1}catch{return!1}")
-                    $changed = $true
-                }
-
-                if ($changed) {
-                    [System.IO.File]::WriteAllText($jsPath, $content, [System.Text.UTF8Encoding]::new($false))
-                    Write-Host "Patched transferable streams support in $jsPath"
-                }
-            } catch {}
-        }
-
-        $htmlPath = Join-Path $outDir "vs\workbench\contrib\webview\browser\pre\index.html"
-        if (Test-Path $htmlPath) {
-            try {
-                $content = [System.IO.File]::ReadAllText($htmlPath, [System.Text.Encoding]::UTF8)
-                $changed = $false
-
-                $hostCheckTarget = "if (hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {"
-                $hostCheckRepl = "if (hostname === '127.0.0.1' || hostname === 'localhost' || hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {"
-                if ($content.Contains($hostCheckTarget)) {
-                    $content = $content.Replace($hostCheckTarget, $hostCheckRepl)
-                    $changed = $true
-                }
-
-                if ($content -match "script-src\s+[^;]+;" -and (-not $content.Contains("script-src 'self' 'unsafe-inline';"))) {
-                    $content = [System.Text.RegularExpressions.Regex]::Replace($content, "script-src\s+[^;]+;", "script-src 'self' 'unsafe-inline';")
-                    $changed = $true
-                }
-
-                $cspTarget = "frame-src 'self';"
-                $cspRepl = "frame-src 'self' http://127.0.0.1:* http://localhost:* vscode-webview:;"
-                if ($content.Contains($cspTarget)) {
-                    $content = $content.Replace($cspTarget, $cspRepl)
-                    $changed = $true
-                }
-
-                $pattern = "hostMessaging\.onMessage\('did-load-resource'[\s\S]*?assertIsDefined\(navigator\.serviceWorker\.controller\)\.postMessage\(\{ channel: 'did-load-resource',\s*data \}[^\n\r;]*\);(?:\s*\}\s*catch[^\}]*\})?\s*\}\);"
-                if ($content -match $pattern) {
-                    $replacement = "hostMessaging.onMessage('did-load-resource', (_event, data) => {`n`t`t`tif (data && data.stream) { try { data.stream.cancel().catch(() => {}); } catch {} delete data.stream; }`n`t`t`ttry { if (navigator.serviceWorker && navigator.serviceWorker.controller) { navigator.serviceWorker.controller.postMessage({ channel: 'did-load-resource', data }); } } catch (e) { console.warn('SW did-load-resource postMessage failed:', e); }`n`t`t});"
-                    $content = [System.Text.RegularExpressions.Regex]::Replace($content, $pattern, $replacement)
-                    $changed = $true
-                }
-
-
-                if ($changed) {
-                    [System.IO.File]::WriteAllText($htmlPath, $content, [System.Text.UTF8Encoding]::new($false))
-                    Write-Host "Patched service worker postMessage error guard and CSP in $htmlPath"
-                }
-            } catch {}
-        }
-
     }
 }
 
@@ -418,14 +332,14 @@ if ($shouldInstallExt -and $extSrc -and (Test-Path $extSrc)) {
 }
 
 $requiredExtensions = @(
-    "google.google-antigravity",
     "muhammad-sammy.csharp",
     "OHZIInteractiveStudio.ohzi-vscode-glb-viewer",
     "Gruntfuggly.todo-tree",
 	# "mechatroner.rainbow-json",
     "patcx.vscode-nuget-gallery",
     "AykutSarac.jsoncrack-vscode",
-    "vadimcn.vscode-lldb"
+    "vadimcn.vscode-lldb",
+    "haoyangzeng.opencui"
 	# "akondratiuk1-dev.texture-viewer"
 )
 
@@ -436,6 +350,28 @@ foreach ($extId in $requiredExtensions) {
         & $activeCliPath --extensions-dir $extsDir --user-data-dir $userDataDir --install-extension $extId --force
     } else {
         Write-Host "Extension $extId already installed."
+    }
+}
+
+$antigravityDirs = Get-ChildItem -Path $extsDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "google.google-antigravity*" }
+foreach ($antigravityDir in $antigravityDirs) {
+    Remove-Item -LiteralPath $antigravityDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "Removed the deprecated antigravity extension from $($antigravityDir.FullName)"
+}
+
+$extensionsJsonPath = Join-Path $extsDir "extensions.json"
+if (Test-Path -LiteralPath $extensionsJsonPath) {
+    try {
+        $cachedExtensions = [System.IO.File]::ReadAllText($extensionsJsonPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+        $cachedExtensionsArray = @($cachedExtensions)
+        $filteredExtensions = @($cachedExtensionsArray | Where-Object { $_.identifier.id -ne "google.google-antigravity" })
+        if ($filteredExtensions.Count -ne $cachedExtensionsArray.Count) {
+            $serializedExtensions = ConvertTo-Json -InputObject $filteredExtensions -Depth 20 -Compress
+            [System.IO.File]::WriteAllText($extensionsJsonPath, $serializedExtensions, [System.Text.UTF8Encoding]::new($false))
+            Write-Host "Removed the deprecated antigravity extension from extensions.json"
+        }
+    } catch {
+        Write-Warning "Failed to remove the deprecated antigravity extension from extensions.json: $($_.Exception.Message)"
     }
 }
 
@@ -463,6 +399,123 @@ if (Test-Path $ohziPatchFile) {
     }
 }
 
+$opencodeCliDir = Join-Path $appDataDir "opencode_cli"
+$opencodeCliExe = Join-Path $opencodeCliDir "bin\opencode.exe"
+
+function Test-OpencodeExecutable {
+    param([string]$CandidatePath)
+
+    if (-not $CandidatePath) { return $false }
+    if (-not (Test-Path -LiteralPath $CandidatePath -PathType Leaf)) { return $false }
+    return ((Get-Item -LiteralPath $CandidatePath).Length -gt 0)
+}
+
+function Find-OpencodeExecutable {
+    $candidates = @(
+        $opencodeCliExe,
+        (Join-Path $env:USERPROFILE ".opencode\bin\opencode.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\@opencodedesktop\resources\opencode-cli.exe"),
+        (Join-Path $env:APPDATA "npm\opencode.cmd")
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-OpencodeExecutable $candidate) { return $candidate }
+    }
+
+    $onPath = Get-Command "opencode" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($onPath) { return $onPath.Source }
+
+    return $null
+}
+
+function Install-OpencodeCli {
+    try {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/sst/opencode/releases/latest" -UserAgent "Mozilla/5.0" -TimeoutSec 15 -ErrorAction Stop
+    } catch {
+        Write-Warning "Failed to query opencode releases: $($_.Exception.Message)"
+        return $false
+    }
+
+    $asset = $release.assets | Where-Object { $_.name -eq "opencode-windows-x64.zip" } | Select-Object -First 1
+    if (-not $asset) {
+        Write-Warning "opencode-windows-x64.zip not found in release $($release.tag_name)."
+        return $false
+    }
+
+    $archivePath = Join-Path $opencodeCliDir "opencode-windows-x64.zip"
+    $extractDir = Join-Path $opencodeCliDir "extract"
+    New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($opencodeCliExe)) | Out-Null
+
+    try {
+        curl.exe -sS -L $asset.browser_download_url -o $archivePath
+        if (-not (Test-Path -LiteralPath $archivePath) -or (Get-Item -LiteralPath $archivePath).Length -eq 0) {
+            Write-Warning "opencode CLI download failed (release $($release.tag_name))."
+            return $false
+        }
+
+        if (Test-Path -LiteralPath $extractDir) {
+            Remove-Item -LiteralPath $extractDir -Recurse -Force
+        }
+        Expand-Archive -LiteralPath $archivePath -DestinationPath $extractDir -Force
+
+        $extractedExe = Get-ChildItem -LiteralPath $extractDir -Filter "opencode.exe" -Recurse -File | Select-Object -First 1
+        if (-not $extractedExe) {
+            Write-Warning "opencode.exe not found inside the release archive."
+            return $false
+        }
+
+        Copy-Item -LiteralPath $extractedExe.FullName -Destination $opencodeCliExe -Force
+        Write-Host "opencode CLI ($($release.tag_name)) installed to $opencodeCliExe"
+        return $true
+    } catch {
+        Write-Warning "Failed to install opencode CLI: $($_.Exception.Message)"
+        return $false
+    } finally {
+        if (Test-Path -LiteralPath $archivePath) { Remove-Item -LiteralPath $archivePath -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $extractDir) { Remove-Item -LiteralPath $extractDir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+$resolvedOpencodeCli = $null
+if (Test-OpencodeExecutable $opencodeCliExe) {
+    $resolvedOpencodeCli = $opencodeCliExe
+} else {
+    Write-Host "Managed opencode CLI not found. Downloading opencode CLI..."
+    if (Install-OpencodeCli) {
+        $resolvedOpencodeCli = $opencodeCliExe
+    } else {
+        $resolvedOpencodeCli = Find-OpencodeExecutable
+        if ($resolvedOpencodeCli) {
+            Write-Warning "Falling back to the locally installed opencode CLI at $resolvedOpencodeCli. Compatibility depends on its version."
+        }
+    }
+}
+
+if ($resolvedOpencodeCli) {
+    Write-Host "opencode CLI resolved at $resolvedOpencodeCli"
+} else {
+    Write-Warning "opencode CLI is unavailable. The OpenCode Panel extension cannot start its backend until opencode is installed or 'opencui.binaryPath' points to a valid binary."
+}
+
+$opencuiDirs = Get-ChildItem -Path $extsDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "haoyangzeng.opencui*" }
+foreach ($opencuiDir in $opencuiDirs) {
+    $opencuiPackagePath = Join-Path $opencuiDir.FullName "package.json"
+    if (-not (Test-Path -LiteralPath $opencuiPackagePath)) { continue }
+    try {
+        $opencuiPackage = [System.IO.File]::ReadAllText($opencuiPackagePath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+        $activationEvents = @($opencuiPackage.activationEvents | Where-Object { $_ })
+        if ($activationEvents -notcontains "onStartupFinished") {
+            $activationEvents += "onStartupFinished"
+            $opencuiPackage | Add-Member -MemberType NoteProperty -Name "activationEvents" -Value $activationEvents -Force
+            $opencuiJson = $opencuiPackage | ConvertTo-Json -Depth 100
+            [System.IO.File]::WriteAllText($opencuiPackagePath, $opencuiJson, [System.Text.UTF8Encoding]::new($false))
+            Write-Host "Enabled startup activation for the OpenCode Panel extension in $($opencuiDir.FullName)"
+        }
+    } catch {
+        Write-Warning "Failed to enable startup activation for the OpenCode Panel extension: $($_.Exception.Message)"
+    }
+}
+
 $userDir = Join-Path $userDataDir "User"
 New-Item -ItemType Directory -Force -Path $userDir | Out-Null
 $userSettingsPath = Join-Path $userDir "settings.json"
@@ -472,6 +525,9 @@ $settingsObj = [ordered]@{
     "security.workspace.trust.banner" = "never"
     "security.workspace.trust.emptyWindow" = $false
     "security.workspace.trust.untrustedFiles" = "open"
+}
+if ($resolvedOpencodeCli) {
+    $settingsObj["opencui.binaryPath"] = $resolvedOpencodeCli
 }
 if (Test-Path $userSettingsPath) {
     try {
@@ -499,7 +555,6 @@ foreach ($root in $roots) {
     foreach ($pj in $productJsonFiles) {
         Patch-ProductJson -ProductJsonPath $pj.FullName
     }
-    Patch-WebviewHostAndStreams -RootDir $root
 }
 
 Get-Date -Format "o" | Out-File -FilePath $completedMarkerPath -Encoding utf8

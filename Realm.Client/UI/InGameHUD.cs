@@ -20,6 +20,7 @@ using static Godot.CanvasItem;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class InGameHUD : Control
 {
 	public InGameHUD()
@@ -71,6 +72,10 @@ public partial class InGameHUD : Control
 	private PanelContainer _inventoryFrame;
 	private readonly Dictionary<HudElement, bool> _hudElementVisibility = new();
 
+	private Shader _hudPanelTopShader;
+	private Shader _hudPanelBottomShader;
+	private Shader _hudPortraitMaskShader;
+
 	private GridContainer _commandGrid;
 	private GridContainer _inventoryGrid;
 	public bool IsBuildSubMenuOpen => _viewModel.IsBuildSubMenuOpen;
@@ -93,10 +98,6 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private Button _btnCancelBuild;
-
-	private Button _btnSetRally;
-
 	private VBoxContainer _productionBox;
 	private Label _productionTitle;
 	private ProgressBar _productionProgress;
@@ -106,121 +107,15 @@ public partial class InGameHUD : Control
 	private VBoxContainer _minimapControls;
 	private Button _btnZoom;
 	private Button _btnToggleTerrain;
+	private Button _btnToggleColorScheme;
 	private Button _btnPing;
 	private Button _btnCenter;
 	private Button _btnSettings;
 	public bool ShowMinimapTerrain => _viewModel.ShowMinimapTerrain;
+	public MinimapColorScheme MinimapColorScheme => _viewModel.MinimapColorScheme;
 
 
-	private float _fogUpdateTimer = 0f;
-
-	private static readonly byte[,] _emptyShroudGrid = new byte[32, 32];
-
-	public byte[,] ShroudGrid
-	{
-		get
-		{
-			if (GameHost.Instance != null && GameContext.World != null)
-			{
-				var worldEntity = ECSContext.WorldEntity;
-				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
-				{
-					return GameContext.World.Get<ShroudState>(worldEntity).ShroudGrid;
-				}
-
-				Entity fallback = Entity.Null;
-				var query = QueryCache.AllShroudStateQuery;
-				GameContext.World.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
-				{
-					return GameContext.World.Get<ShroudState>(fallback).ShroudGrid;
-				}
-			}
-
-			return _emptyShroudGrid;
-		}
-		set
-		{
-			if (GameHost.Instance != null && GameContext.World != null)
-			{
-				var worldEntity = ECSContext.WorldEntity;
-				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
-				{
-					ref var state = ref GameContext.World.Get<ShroudState>(worldEntity);
-					state.ShroudGrid = value;
-					return;
-				}
-
-				Entity fallback = Entity.Null;
-				var query = QueryCache.AllShroudStateQuery;
-				GameContext.World.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
-				{
-					ref var state = ref GameContext.World.Get<ShroudState>(fallback);
-					state.ShroudGrid = value;
-				}
-			}
-		}
-	}
-
-	public byte[,] FogGrid
-	{
-		get => ShroudGrid;
-		set => ShroudGrid = value;
-	}
-
-	private byte[,] _fogGrid
-	{
-		get => ShroudGrid;
-		set => ShroudGrid = value;
-	}
-
-	public string ShroudType
-	{
-		get
-		{
-			if (GameHost.Instance != null && GameContext.World != null)
-			{
-				var worldEntity = ECSContext.WorldEntity;
-				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
-				{
-					return GameContext.World.Get<ShroudState>(worldEntity).ShroudType;
-				}
-
-				Entity fallback = Entity.Null;
-				var query = QueryCache.AllShroudStateQuery;
-				GameContext.World.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
-				{
-					return GameContext.World.Get<ShroudState>(fallback).ShroudType;
-				}
-			}
-
-			return "VisionShroud";
-		}
-		set
-		{
-			if (GameHost.Instance != null && GameContext.World != null)
-			{
-				var worldEntity = ECSContext.WorldEntity;
-				if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ShroudState>(worldEntity))
-				{
-					ref var state = ref GameContext.World.Get<ShroudState>(worldEntity);
-					state.ShroudType = value;
-					return;
-				}
-
-				Entity fallback = Entity.Null;
-				var query = QueryCache.AllShroudStateQuery;
-				GameContext.World.Query(in query, ent => fallback = ent);
-				if (fallback != Entity.Null && GameContext.World.Has<ShroudState>(fallback))
-				{
-					ref var state = ref GameContext.World.Get<ShroudState>(fallback);
-					state.ShroudType = value;
-				}
-			}
-		}
-	}
+	private float _shroudMinimapRefreshTimer = 0f;
 
 	private string _currentWeather
 	{
@@ -269,9 +164,7 @@ public partial class InGameHUD : Control
 	private Button _btnMove;
 	private Button _btnStop;
 	private Button _btnHold;
-	private Button _btnAttack;
 	private Button _btnBuild;
-	private Button _btnPatrol;
 
 	private Label _feedbackLabel;
 	private Label _connectionWarningLabel;
@@ -283,6 +176,7 @@ public partial class InGameHUD : Control
 
 	private VBoxContainer _customUIPanel;
 	private PanelContainer _leaderboardPanel;
+	private VBoxContainer _leaderboardSelectors;
 	private VBoxContainer _leaderboardContent;
 	private Label _leaderboardTitleLabel;
 	private PanelContainer _countdownPanel;
@@ -339,12 +233,28 @@ public partial class InGameHUD : Control
 	private ControlGroupsUIController _controlGroupsUIController;
 
 	private MinimapOverlay _minimapOverlay;
+	private UnitHealthBarOverlay _unitHealthBarOverlay;
+
+	private const float TacticalInterval = 0.04f;
+	private const float MacroInterval = 0.1f;
+	private const float AmbientInterval = 0.5f;
+
+	private float _tacticalTimer = TacticalInterval;
+	private float _macroTimer = MacroInterval;
+	private float _ambientTimer = AmbientInterval;
+
+	public void InvalidateCadence(bool tactical = true, bool macro = false)
+	{
+		if (tactical) _tacticalTimer = TacticalInterval;
+		if (macro) _macroTimer = MacroInterval;
+	}
 
 	public override void _Ready()
 	{
 		Instance = this;
 
 		InitializeReferences();
+		SetupUnitHealthBarOverlay();
 		SetupResourcePanel();
 		SetupSelectionFrame();
 		SetupCommandAndInventoryGrids();
@@ -377,6 +287,17 @@ public partial class InGameHUD : Control
 
 		ApplySpectatorAndReplayOverrides();
 		ApplySavedHudVisibilityOverrides();
+	}
+
+	private void SetupUnitHealthBarOverlay()
+	{
+		var overlay = new UnitHealthBarOverlay();
+		overlay.Name = "UnitHealthBarOverlay";
+		overlay.MouseFilter = MouseFilterEnum.Ignore;
+		AddChild(overlay);
+		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		MoveChild(overlay, 0);
+		_unitHealthBarOverlay = overlay;
 	}
 
 	private void InitializeReferences()
@@ -412,7 +333,7 @@ public partial class InGameHUD : Control
 		if (_btnSettings != null)
 		{
 			_btnSettings.ExpandIcon = true;
-			_btnSettings.Icon = UIStyle.LoadCrispIcon("res://Assets/UI/gear_icon.png", 128);
+			_btnSettings.Icon = UIStyle.LoadCrispIcon("res://Assets/UI/gear_icon.webp", 128);
 			_btnSettings.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 			_btnSettings.AddThemeConstantOverride("icon_max_width", 22);
 			_btnSettings.TooltipText = TranslationServer.Translate("Settings (Esc)");
@@ -437,7 +358,10 @@ public partial class InGameHUD : Control
 		_unitsContainer = GetNode<HBoxContainer>("BottomConsole/HBox/SelectionFrame/UnitsContainer");
 
 		foreach (Node child in _unitsContainer.GetChildren())
+		{
 			_unitsContainer.RemoveChild(child);
+			child.QueueFree();
+		}
 		_unitButtons.Clear();
 
 		for (int i = 0; i < 12; i++)
@@ -491,22 +415,6 @@ public partial class InGameHUD : Control
 		_btnStop = GetNode<Button>("BottomConsole/HBox/CommandFrame/GridContainer/BtnStop");
 		_btnHold = GetNode<Button>("BottomConsole/HBox/CommandFrame/GridContainer/BtnHold");
 		_btnBuild = GetNode<Button>("BottomConsole/HBox/CommandFrame/GridContainer/BtnBuild");
-
-		_btnAttack = new Button();
-		_btnAttack.Name = "BtnAttack";
-		_btnAttack.CustomMinimumSize = new Vector2(48, 48);
-		_btnAttack.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_btnAttack.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_btnAttack.FocusMode = FocusModeEnum.None;
-		_btnAttack.AddThemeConstantOverride("icon_max_width", 42);
-
-		_btnPatrol = new Button();
-		_btnPatrol.Name = "BtnPatrol";
-		_btnPatrol.CustomMinimumSize = new Vector2(48, 48);
-		_btnPatrol.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_btnPatrol.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_btnPatrol.FocusMode = FocusModeEnum.None;
-		_btnPatrol.AddThemeConstantOverride("icon_max_width", 42);
 	}
 
 	private void SetupWarningLabel()
@@ -541,6 +449,7 @@ public partial class InGameHUD : Control
 	private void SetupMinimapControls()
 	{
 		_minimapControls = new VBoxContainer();
+		_minimapControls.Name = "MinimapControls_VBoxContainer";
 		_minimapControls.Alignment = BoxContainer.AlignmentMode.Center;
 		_minimapControls.AddThemeConstantOverride("separation", 3);
 		_minimapControls.AnchorLeft = 0.1773f;
@@ -557,14 +466,22 @@ public partial class InGameHUD : Control
 		slotsContainer.AddChild(_minimapControls);
 
 		_btnZoom = new Button();
+		_btnZoom.Name = "BtnZoom_Button";
 		SetupMinimapButton(_btnZoom, UnicodeIcons.ZOOM_IN, "Toggle Camera Zoom (Near / Mid / Far) [Z]", () => GameHost.Instance?.CycleCameraZoom());
 		_minimapControls.AddChild(_btnZoom);
 
 		_btnToggleTerrain = new Button();
+		_btnToggleTerrain.Name = "BtnToggleTerrain_Button";
 		SetupMinimapButton(_btnToggleTerrain, UnicodeIcons.MAP_IMAGE, "Toggle Terrain Overlay (Radar Mode) [F4]", () => ToggleMinimapTerrain());
 		_minimapControls.AddChild(_btnToggleTerrain);
 
+		_btnToggleColorScheme = new Button();
+		_btnToggleColorScheme.Name = "BtnToggleColorScheme_Button";
+		SetupMinimapButton(_btnToggleColorScheme, UnicodeIcons.PALETTE, "Toggle Minimap Color Scheme (Team / Player Colors)", () => ToggleMinimapColorScheme());
+		_minimapControls.AddChild(_btnToggleColorScheme);
+
 		_btnPing = new Button();
+		_btnPing.Name = "BtnPing_Button";
 		SetupMinimapButton(_btnPing, UnicodeIcons.CROSSHAIRS_TARGET, "Send Alert Ping on Map [Alt+G]", () =>
 		{
 			if (GameHost.Instance != null)
@@ -576,18 +493,22 @@ public partial class InGameHUD : Control
 		_minimapControls.AddChild(_btnPing);
 
 		_btnCenter = new Button();
+		_btnCenter.Name = "BtnCenter_Button";
 		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Base [Space]", () => GameHost.Instance?.CenterCameraOnPrimaryBuilding());
 		_minimapControls.AddChild(_btnCenter);
 
 		_btnSelectIdle = new Button();
+		_btnSelectIdle.Name = "BtnSelectIdle_Button";
 		SetupMinimapButton(_btnSelectIdle, UnicodeIcons.USER_CLOCK, "Select All Idle Units [F1]", () => GameHost.Instance?.SelectAllIdleUnits());
 		_minimapControls.AddChild(_btnSelectIdle);
 
 		_btnSelectArmy = new Button();
+		_btnSelectArmy.Name = "BtnSelectArmy_Button";
 		SetupMinimapButton(_btnSelectArmy, UnicodeIcons.SHIELD, "Select All Army Units [F2]", () => GameHost.Instance?.SelectAllMilitaryUnits());
 		_minimapControls.AddChild(_btnSelectArmy);
 
 		var btnHotkeys = new Button();
+		btnHotkeys.Name = "BtnHotkeys_Button";
 		SetupMinimapButton(btnHotkeys, UnicodeIcons.KEYBOARD, "Hotkey Reference", () => ToggleHotkeyPanel());
 		_minimapControls.AddChild(btnHotkeys);
 	}
@@ -628,6 +549,11 @@ public partial class InGameHUD : Control
 		_chatInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
 		_chatInput.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
 		_chatLog.Text = $"[color=#ffd700]{TranslationServer.Translate("Chat log initialized. Press Enter to type a message.")}[/color]\n";
+
+		if (!string.IsNullOrEmpty(LobbyManager.Instance?.LastLobbyWarning))
+		{
+			_chatLog.AppendText($"[color=#ffb347]{LobbyManager.Instance.LastLobbyWarning}[/color]\n");
+		}
 
 		if (LobbyManager.Instance != null)
 		{
@@ -712,6 +638,7 @@ public partial class InGameHUD : Control
 		_leaderboardPanel.AddThemeStyleboxOverride("panel", leaderboardStyle);
 
 		var lbVBox = new VBoxContainer();
+		lbVBox.Name = "LbVBox_VBoxContainer";
 		_leaderboardPanel.AddChild(lbVBox);
 
 		_leaderboardTitleLabel = new Label();
@@ -720,6 +647,11 @@ public partial class InGameHUD : Control
 		UIStyle.ApplyTitle(_leaderboardTitleLabel, TranslationServer.Translate("LEADERBOARD"), 12);
 		_leaderboardTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		lbVBox.AddChild(_leaderboardTitleLabel);
+
+		_leaderboardSelectors = new VBoxContainer();
+		_leaderboardSelectors.Name = "LeaderboardSelectors";
+		_leaderboardSelectors.AddThemeConstantOverride("separation", 4);
+		lbVBox.AddChild(_leaderboardSelectors);
 
 		_leaderboardContent = new VBoxContainer();
 		_leaderboardContent.Name = "LeaderboardContent";
@@ -748,6 +680,7 @@ public partial class InGameHUD : Control
 		_summaryPanel.AddThemeStyleboxOverride("panel", summaryStyle);
 
 		var summaryVBox = new VBoxContainer();
+		summaryVBox.Name = "SummaryVBox_VBoxContainer";
 		_summaryPanel.AddChild(summaryVBox);
 
 		_summaryTitleLabel = new Label();
@@ -804,7 +737,7 @@ public partial class InGameHUD : Control
 		_camera3D = GameHost.Instance?.MainCamera;
 		_minimapPanelController = new MinimapPanel(_minimapFrame, _minimapArea, _cameraIndicator, _camera3D);
 		_chatPanelController = new ChatPanel(_chatPanel, _chatInput, _chatLog);
-		_leaderboardPanelController = new LeaderboardPanel(_customUIPanel, _countdownPanel, _countdownLabel, _leaderboardPanel, _leaderboardTitleLabel, _leaderboardContent);
+		_leaderboardPanelController = new LeaderboardPanel(_customUIPanel, _countdownPanel, _countdownLabel, _leaderboardPanel, _leaderboardTitleLabel, _leaderboardSelectors, _leaderboardContent);
 		_summaryTablePanelController = new SummaryTablePanel(_summaryPanel, _summaryTitleLabel, _summaryContent);
 
 		_portraitPanelController = new PortraitPanel(
@@ -1101,6 +1034,7 @@ public partial class InGameHUD : Control
 	private void CreateStatsContainer()
 	{
 		_statsContainer = new HBoxContainer();
+		_statsContainer.Name = "StatsContainer_HBoxContainer";
 		_statsContainer.LayoutMode = 2;
 		_statsContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_statsContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -1119,11 +1053,13 @@ public partial class InGameHUD : Control
 		_statsContainer.AddChild(statsScroll);
 
 		var statsVBox = new VBoxContainer();
+		statsVBox.Name = "StatsVBox_VBoxContainer";
 		statsVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		statsVBox.SizeFlagsVertical = SizeFlags.ShrinkBegin;
 		statsScroll.AddChild(statsVBox);
 
 		_statsLabel = new Label();
+		_statsLabel.Name = "StatsLabel_Label";
 		_statsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		_statsLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_statsLabel.CustomMinimumSize = new Vector2(300, 0);
@@ -1173,55 +1109,50 @@ public partial class InGameHUD : Control
 		}
 
 		_itemsBox = new VBoxContainer();
+		_itemsBox.Name = "ItemsBox_VBoxContainer";
 		_itemsBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_itemsBox.Alignment = BoxContainer.AlignmentMode.Center;
 		_itemsBox.Visible = false;
 		_statsContainer.AddChild(_itemsBox);
 
 		var itemsTitle = new Label();
+		itemsTitle.Name = "ItemsTitle_Label";
 		itemsTitle.Text = TranslationServer.Translate("ITEMS");
 		UIStyle.ApplyTitle(itemsTitle, TranslationServer.Translate("ITEMS"), 12);
 		itemsTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
 		_itemsBox.AddChild(itemsTitle);
 
 		var itemsHBox = new HBoxContainer();
+		itemsHBox.Name = "ItemsHBox_HBoxContainer";
 		itemsHBox.AddThemeConstantOverride("separation", 8);
 		_itemsBox.AddChild(itemsHBox);
 
 		var itemAxe = new TextureRect();
-		SetupItemIcon(itemAxe, "res://Assets/UI/battle_axe.png", "Battle Axe\n+5 Attack Damage (Equipped)");
+		itemAxe.Name = "ItemAxe_TextureRect";
+		SetupItemIcon(itemAxe, "res://Assets/UI/battle_axe.webp", "Battle Axe\n+5 Attack Damage (Equipped)");
 		itemsHBox.AddChild(itemAxe);
 
 		var itemShield = new TextureRect();
-		SetupItemIcon(itemShield, "res://Assets/UI/battle_shield.png", "Battle Shield\n+3 Armor Block (Equipped)");
+		itemShield.Name = "ItemShield_TextureRect";
+		SetupItemIcon(itemShield, "res://Assets/UI/battle_shield.webp", "Battle Shield\n+3 Armor Block (Equipped)");
 		itemsHBox.AddChild(itemShield);
 
-
-		var potHotkeyLabel = new Label();
-		potHotkeyLabel.Name = "HotkeyLabel";
-		potHotkeyLabel.Text = TranslationServer.Translate("I");
-		potHotkeyLabel.AddThemeFontSizeOverride("font_size", 10);
-		potHotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		potHotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-		potHotkeyLabel.AddThemeConstantOverride("outline_size", 4);
-		potHotkeyLabel.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-		potHotkeyLabel.OffsetLeft = 4;
-		potHotkeyLabel.OffsetTop = 3;
-		potHotkeyLabel.MouseFilter = MouseFilterEnum.Ignore;
-
 		_productionBox = new VBoxContainer();
+		_productionBox.Name = "ProductionBox_VBoxContainer";
 		_productionBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_productionBox.Alignment = BoxContainer.AlignmentMode.Center;
 		_statsContainer.AddChild(_productionBox);
 		_productionBox.Visible = false;
 
 		_productionTitle = new Label();
+		_productionTitle.Name = "ProductionTitle_Label";
 		_productionTitle.Text = TranslationServer.Translate("PRODUCTION");
 		UIStyle.ApplyTitle(_productionTitle, TranslationServer.Translate("PRODUCTION"), 12);
 		_productionTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
 		_productionBox.AddChild(_productionTitle);
 
 		_productionProgress = new ProgressBar();
+		_productionProgress.Name = "ProductionProgress_ProgressBar";
 		_productionProgress.CustomMinimumSize = new Vector2(120, 16);
 		_productionProgress.ShowPercentage = true;
 		_productionProgress.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
@@ -1229,6 +1160,7 @@ public partial class InGameHUD : Control
 		_productionBox.AddChild(_productionProgress);
 
 		_productionQueueLabel = new Label();
+		_productionQueueLabel.Name = "ProductionQueueLabel_Label";
 		_productionQueueLabel.Text = string.Format(TranslationServer.Translate("Queue: {0}"), 0);
 		_productionQueueLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_productionQueueLabel.AddThemeFontSizeOverride("font_size", 11);
@@ -1236,6 +1168,7 @@ public partial class InGameHUD : Control
 		_productionBox.AddChild(_productionQueueLabel);
 
 		_queueSlotsContainer = new HBoxContainer();
+		_queueSlotsContainer.Name = "QueueSlotsContainer_HBoxContainer";
 		_queueSlotsContainer.Alignment = BoxContainer.AlignmentMode.Center;
 		_queueSlotsContainer.AddThemeConstantOverride("separation", 6);
 		_productionBox.AddChild(_queueSlotsContainer);
@@ -1246,29 +1179,9 @@ public partial class InGameHUD : Control
 		btn.Flat = false;
 		btn.Text = "";
 		btn.ExpandIcon = true;
-		btn.Icon = GD.Load<Texture2D>(iconPath);
+		btn.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		btn.TooltipText = tooltip;
-		btn.CustomMinimumSize = new Vector2(48, 48);
-		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 42);
-
-		if (tooltip.StartsWith('[') && tooltip.Contains(']'))
-		{
-			int end = tooltip.IndexOf(']');
-			string hotkeyText = tooltip.Substring(1, end - 1);
-			var hotkeyLabel = new Label();
-			hotkeyLabel.Name = "HotkeyLabel";
-			hotkeyLabel.Text = hotkeyText;
-			hotkeyLabel.AddThemeFontSizeOverride("font_size", 12);
-			hotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-			hotkeyLabel.AddThemeConstantOverride("outline_size", 4);
-			hotkeyLabel.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-			hotkeyLabel.OffsetLeft = 4;
-			hotkeyLabel.OffsetTop = 3;
-			hotkeyLabel.MouseFilter = MouseFilterEnum.Ignore;
-			btn.AddChild(hotkeyLabel);
-		}
+		UIStyle.SetupHUDButton(btn, tooltip);
 
 		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
@@ -1286,7 +1199,7 @@ public partial class InGameHUD : Control
 
 	private void SetupItemIcon(TextureRect rect, string iconPath, string tooltip)
 	{
-		rect.Texture = GD.Load<Texture2D>(iconPath);
+		rect.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		rect.CustomMinimumSize = new Vector2(60, 60);
@@ -1295,6 +1208,8 @@ public partial class InGameHUD : Control
 
 	public void RefreshUI(List<Unit3D> selectedUnits)
 	{
+		InvalidateCadence(tactical: true, macro: false);
+
 		if (selectedUnits != null)
 		{
 			bool hasPlayerSelection = Enumerable.Any(selectedUnits, u => GameContext.PerspectiveFilter.CanControl(u.Player));
@@ -1338,84 +1253,28 @@ public partial class InGameHUD : Control
 
 		if (_resourceBackground != null)
 		{
-			var topTexture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelTop.png");
+			var topTexture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelTop.webp");
 			_resourceBackground.Texture = topTexture;
 
-			var topShader = new Shader();
-			topShader.Code = @"
-shader_type canvas_item;
-
-uniform vec2 u_panel_size = vec2(840.0, 76.0);
-
-void fragment() {
-	float x = UV.x * u_panel_size.x;
-	float h = u_panel_size.y;
-	float s = h / 434.0;
-	float w_left = 280.0 * s;
-	float w_right = 280.0 * s;
-
-	float tex_x = 0.0;
-	if (x < w_left) {
-		tex_x = x / s;
-	} else if (x > u_panel_size.x - w_right) {
-		float rx = x - (u_panel_size.x - w_right);
-		tex_x = (2624.0 - 280.0) + (rx / s);
-	} else {
-		float center_w = max(u_panel_size.x - w_left - w_right, 1.0);
-		float t = (x - w_left) / center_w;
-		tex_x = 280.0 + t * (2344.0 - 280.0);
-	}
-
-	vec2 mapped_uv = vec2(clamp(tex_x / 2624.0, 0.0, 1.0), UV.y);
-	COLOR = texture(TEXTURE, mapped_uv);
-}
-";
+			_hudPanelTopShader ??= GD.Load<Shader>("res://Assets/shaders/hud_panel_top.gdshader");
 			var topMaterial = new ShaderMaterial();
-			topMaterial.Shader = topShader;
+			topMaterial.Shader = _hudPanelTopShader;
 			topMaterial.SetShaderParameter("u_panel_size", new Vector2(840.0f, 76.0f));
 			_resourceBackground.Material = topMaterial;
 		}
 
 		if (_consoleBackground != null)
 		{
-			var texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.png");
+			var texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
 			if (texture == null)
 			{
-				texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.jpg");
+				texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
 			}
 			_consoleBackground.Texture = texture;
 
-			var consoleShader = new Shader();
-			consoleShader.Code = @"
-shader_type canvas_item;
-
-uniform vec2 u_console_size = vec2(1920.0, 240.0);
-
-void fragment() {
-	float x = UV.x * u_console_size.x;
-	float h = u_console_size.y;
-	float s = h / 433.0;
-	float w_left = 935.0 * s;
-	float w_right = 912.0 * s;
-
-	float tex_x = 0.0;
-	if (x < w_left) {
-		tex_x = x / s;
-	} else if (x > u_console_size.x - w_right) {
-		float rx = x - (u_console_size.x - w_right);
-		tex_x = (2752.0 - 912.0) + (rx / s);
-	} else {
-		float center_w = max(u_console_size.x - w_left - w_right, 1.0);
-		float t = (x - w_left) / center_w;
-		tex_x = 935.0 + t * (1840.0 - 935.0);
-	}
-
-	vec2 mapped_uv = vec2(clamp(tex_x / 2752.0, 0.0, 1.0), UV.y);
-	COLOR = texture(TEXTURE, mapped_uv);
-}
-";
+			_hudPanelBottomShader ??= GD.Load<Shader>("res://Assets/shaders/hud_panel_bottom.gdshader");
 			var consoleMaterial = new ShaderMaterial();
-			consoleMaterial.Shader = consoleShader;
+			consoleMaterial.Shader = _hudPanelBottomShader;
 			_consoleBackground.Material = consoleMaterial;
 		}
 
@@ -1438,11 +1297,11 @@ void fragment() {
 
 		var resourceIcons = new (string nodePath, string assetPath)[]
 		{
-			("ResourceContainer/HBox/GoldBox/GoldIcon", "res://Assets/UI/gold_coin.png"),
-			("ResourceContainer/HBox/WoodBox/WoodIcon", "res://Assets/UI/wood_logs.png"),
-			("ResourceContainer/HBox/StoneBox/StoneIcon", "res://Assets/UI/stone.png"),
-			("ResourceContainer/HBox/SupplyBox/SupplyIcon", "res://Assets/UI/Supplies.png"),
-			("ResourceContainer/HBox/ClockBox/ClockIcon", "res://Assets/UI/clock.png"),
+			("ResourceContainer/HBox/GoldBox/GoldIcon", "res://Assets/UI/gold_coin.webp"),
+			("ResourceContainer/HBox/WoodBox/WoodIcon", "res://Assets/UI/wood_logs.webp"),
+			("ResourceContainer/HBox/StoneBox/StoneIcon", "res://Assets/UI/stone.webp"),
+			("ResourceContainer/HBox/SupplyBox/SupplyIcon", "res://Assets/UI/Supplies.webp"),
+			("ResourceContainer/HBox/ClockBox/ClockIcon", "res://Assets/UI/clock.webp"),
 		};
 
 		foreach (var (nodePath, assetPath) in resourceIcons)
@@ -1504,27 +1363,52 @@ void fragment() {
 
 	public override void _Process(double delta)
 	{
-		_viewModel.Update(delta);
+		float dt = (float)delta;
 
-		UpdateSelectedUnitVisuals();
-		UpdateFogTimer(delta);
-
-		_portraitPanelController?.Update(_viewModel);
-		_commandPanelController?.Update(_viewModel);
-		_resourcePanelController?.Update(_viewModel);
-		_leaderboardPanelController?.Update(_viewModel);
-		_summaryTablePanelController?.Update(_viewModel);
-
+		// 1. Per-Frame / Immediate updates (Frustum indicator & connection warning)
+		_unitHealthBarOverlay?.Refresh(_camera3D ?? GetViewport()?.GetCamera3D());
+		_minimapPanelController?.UpdateMinimapIndicator();
 		if (_connectionWarningLabel != null)
 		{
 			_connectionWarningLabel.Visible = _viewModel.IsConnectionLost;
 		}
 
-		UpdateIdleUnitButton(delta);
+		// 2. Tactical Cadence (~25Hz) - Health/mana vitals, command panel, portrait, selection visuals, control groups
+		_tacticalTimer += dt;
+		if (_tacticalTimer >= TacticalInterval)
+		{
+			float accumulated = _tacticalTimer;
+			_tacticalTimer -= TacticalInterval;
+			_viewModel.UpdateTactical(accumulated);
+			UpdateSelectedUnitVisuals();
+			_portraitPanelController?.Update(_viewModel);
+			_commandPanelController?.Update(_viewModel);
+			_inventoryPanelController?.Update(_viewModel);
+			_controlGroupsUIController?.Update();
+		}
 
-		_minimapPanelController?.UpdateMinimapIndicator();
+		// 3. Macro Cadence (~10Hz) - Resource panel, clock, idle count, minimap shroud redraw
+		_macroTimer += dt;
+		if (_macroTimer >= MacroInterval)
+		{
+			float accumulated = _macroTimer;
+			_macroTimer -= MacroInterval;
+			_viewModel.UpdateMacro(accumulated);
+			_resourcePanelController?.Update(_viewModel);
+			UpdateShroudMinimapTimer(accumulated);
+			UpdateIdleUnitButton(accumulated);
+		}
 
-		_controlGroupsUIController?.Update();
+		// 4. Ambient Cadence (~2Hz) - Leaderboard and match summary statistics
+		_ambientTimer += dt;
+		if (_ambientTimer >= AmbientInterval)
+		{
+			float accumulated = _ambientTimer;
+			_ambientTimer -= AmbientInterval;
+			_viewModel.UpdateAmbient(accumulated);
+			_leaderboardPanelController?.Update(_viewModel);
+			_summaryTablePanelController?.Update(_viewModel);
+		}
 	}
 
 	private void UpdateSelectedUnitVisuals()
@@ -1533,23 +1417,14 @@ void fragment() {
 
 		var selected = GameHost.Instance.SelectedUnits;
 		_viewModel.UpdateSelectedUnits(selected);
-
-		// Handle specific visual updates that are not data-bound yet.
-		foreach (var u in selected)
-		{
-			if (u.IsBuilding && GameContext.PerspectiveFilter.CanObserve(u.Player))
-			{
-				u.UpdateRallyVisuals();
-			}
-		}
 	}
 
-	private void UpdateFogTimer(double delta)
+	private void UpdateShroudMinimapTimer(double delta)
 	{
-		_fogUpdateTimer += (float)delta;
-		if (_fogUpdateTimer >= 0.1f)
+		_shroudMinimapRefreshTimer += (float)delta;
+		if (_shroudMinimapRefreshTimer >= 0.1f)
 		{
-			_fogUpdateTimer = 0f;
+			_shroudMinimapRefreshTimer = 0f;
 			QueueMinimapRedraw();
 		}
 	}
@@ -1603,6 +1478,20 @@ void fragment() {
 		_viewModel.ShowMinimapTerrain = !_viewModel.ShowMinimapTerrain;
 	}
 
+	public void ToggleMinimapColorScheme()
+	{
+		_viewModel.MinimapColorScheme = _viewModel.MinimapColorScheme == MinimapColorScheme.TeamColors
+			? MinimapColorScheme.PlayerColors
+			: MinimapColorScheme.TeamColors;
+
+		string schemeName = _viewModel.MinimapColorScheme == MinimapColorScheme.TeamColors
+			? TranslationServer.Translate("Team Colors")
+			: TranslationServer.Translate("Player Colors");
+
+		ShowFeedbackText(string.Format(TranslationServer.Translate("Minimap Colors: {0}"), schemeName), UIStyle.ColorGold);
+		QueueMinimapRedraw();
+	}
+
 	private void SetupMinimapButton(Button btn, string iconGlyph, string tooltip, Action onClick)
 	{
 		btn.Flat = false;
@@ -1648,33 +1537,14 @@ void fragment() {
 		btn.Flat = false;
 		btn.Text = "";
 		btn.ExpandIcon = true;
-		btn.Icon = GD.Load<Texture2D>(iconPath);
+		btn.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		string trans = TranslationServer.Translate(tooltip);
 		btn.TooltipText = string.IsNullOrEmpty(trans) ? tooltip : trans;
 		btn.CustomMinimumSize = new Vector2(48, 48);
 		btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		btn.SizeFlagsVertical = SizeFlags.ExpandFill;
 		btn.FocusMode = FocusModeEnum.None;
-		btn.ClipContents = true;
-		btn.AddThemeConstantOverride("icon_max_width", 42);
-
-		if (tooltip.StartsWith('[') && tooltip.Contains(']'))
-		{
-			int end = tooltip.IndexOf(']');
-			string hotkeyText = tooltip.Substring(1, end - 1);
-			var hotkeyLabel = new Label();
-			hotkeyLabel.Name = "HotkeyLabel";
-			hotkeyLabel.Text = hotkeyText;
-			hotkeyLabel.AddThemeFontSizeOverride("font_size", 12);
-			hotkeyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			hotkeyLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-			hotkeyLabel.AddThemeConstantOverride("outline_size", 4);
-			hotkeyLabel.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-			hotkeyLabel.OffsetLeft = 4;
-			hotkeyLabel.OffsetTop = 3;
-			hotkeyLabel.MouseFilter = MouseFilterEnum.Ignore;
-			btn.AddChild(hotkeyLabel);
-		}
+		UIStyle.SetupHUDButton(btn, tooltip);
 
 		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
 		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
@@ -1689,21 +1559,10 @@ void fragment() {
 		var pTexture = GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture");
 		if (pTexture != null)
 		{
-			pTexture.Texture = GD.Load<Texture2D>("res://Assets/UI/alliance_flag.png");
-			var portraitMaskShader = new Shader();
-			portraitMaskShader.Code = @"
-shader_type canvas_item;
-
-void fragment() {
-	vec2 center = UV - vec2(0.5);
-	if (dot(center, center) > 0.25) {
-		discard;
-	}
-	COLOR = texture(TEXTURE, UV);
-}
-";
+			pTexture.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
+			_hudPortraitMaskShader ??= GD.Load<Shader>("res://Assets/shaders/hud_portrait_mask.gdshader");
 			var portraitMaskMaterial = new ShaderMaterial();
-			portraitMaskMaterial.Shader = portraitMaskShader;
+			portraitMaskMaterial.Shader = _hudPortraitMaskShader;
 			pTexture.Material = portraitMaskMaterial;
 		}
 
@@ -1881,9 +1740,9 @@ void fragment() {
 		}
 	}
 
-	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly)
+	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
-		_chatPanelController?.OnLobbyChatReceived(senderName, message, alliesOnly);
+		_chatPanelController?.OnLobbyChatReceived(senderName, message, alliesOnly, timestampUtcTicks);
 	}
 
 	private void BuildHotkeyReferencePanel()
@@ -1905,7 +1764,7 @@ void fragment() {
 
 		var bgTexture = new TextureRect();
 		bgTexture.Name = "Background";
-		bgTexture.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.png");
+		bgTexture.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.webp");
 		bgTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		bgTexture.StretchMode = TextureRect.StretchModeEnum.Scale;
 		bgTexture.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -2019,6 +1878,7 @@ void fragment() {
 		}
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vbox.AddThemeConstantOverride("separation", 3);
 		scroll.AddChild(vbox);
@@ -2088,11 +1948,13 @@ void fragment() {
 			if (groupIndex > 0)
 			{
 				var groupSpacer = new Control();
+				groupSpacer.Name = "GroupSpacer_Control";
 				groupSpacer.CustomMinimumSize = new Vector2(0, 6);
 				vbox.AddChild(groupSpacer);
 			}
 
 			var catHeader = new PanelContainer();
+			catHeader.Name = "CatHeader_PanelContainer";
 			var catHeaderStyle = new StyleBoxFlat();
 			catHeaderStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.85f);
 			catHeaderStyle.BorderColor = new Color(0.6f, 0.5f, 0.35f, 0.5f);
@@ -2108,6 +1970,7 @@ void fragment() {
 			catHeader.AddThemeStyleboxOverride("panel", catHeaderStyle);
 
 			var catTitleLbl = new Label();
+			catTitleLbl.Name = "CatTitleLbl_Label";
 			catTitleLbl.Text = TranslationServer.Translate(groupTitle);
 			catTitleLbl.AddThemeFontOverride("font", UIStyle.FontNorseBold);
 			catTitleLbl.AddThemeFontSizeOverride("font_size", 13);
@@ -2124,6 +1987,7 @@ void fragment() {
 				var (key, desc) = items[i];
 
 				var rowPanel = new PanelContainer();
+				rowPanel.Name = "RowPanel_PanelContainer";
 				var rowStyle = new StyleBoxFlat();
 				rowStyle.BgColor = (i % 2 == 0)
 					? new Color(0.12f, 0.13f, 0.15f, 0.35f)
@@ -2139,10 +2003,12 @@ void fragment() {
 				rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
 
 				var row = new HBoxContainer();
+				row.Name = "Row_HBoxContainer";
 				row.AddThemeConstantOverride("separation", 6);
 				row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 				var keyBadge = new PanelContainer();
+				keyBadge.Name = "KeyBadge_PanelContainer";
 				var badgeStyle = new StyleBoxFlat();
 				badgeStyle.BgColor = new Color(0.08f, 0.10f, 0.14f, 0.85f);
 				badgeStyle.BorderColor = new Color(0.35f, 0.45f, 0.55f, 0.5f);
@@ -2159,6 +2025,7 @@ void fragment() {
 				keyBadge.CustomMinimumSize = new Vector2(86, 0);
 
 				var keyLbl = new Label();
+				keyLbl.Name = "KeyLbl_Label";
 				keyLbl.Text = TranslationServer.Translate(key);
 				keyLbl.AddThemeFontSizeOverride("font_size", 10);
 				keyLbl.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
@@ -2170,6 +2037,7 @@ void fragment() {
 				row.AddChild(keyBadge);
 
 				var descLbl = new Label();
+				descLbl.Name = "DescLbl_Label";
 				descLbl.Text = TranslationServer.Translate(desc);
 				descLbl.AddThemeFontSizeOverride("font_size", 11);
 				descLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -2269,7 +2137,7 @@ void fragment() {
 			case HudElement.Leaderboard:
 				if (_leaderboardPanel != null)
 				{
-					_leaderboardPanel.Visible = visible && _viewModel.LeaderboardVisible;
+					_leaderboardPanel.Visible = visible && _viewModel.HasVisibleLeaderboard;
 				}
 				break;
 			case HudElement.SummaryTable:
@@ -2303,20 +2171,29 @@ void fragment() {
 		}
 	}
 
-	public void SetLeaderboardVisible(string title, bool visible)
+	public void SetLeaderboardBoard(string boardId, string title, bool visible)
 	{
-		_viewModel.LeaderboardTitle = title;
-		_viewModel.LeaderboardVisible = visible;
+		_viewModel.Leaderboards.SetBoard(boardId, title, visible);
 	}
 
-	public void ClearLeaderboard()
+	public void ClearLeaderboardBoards()
 	{
-		_viewModel.LeaderboardValues.Clear();
+		_viewModel.Leaderboards.ClearAll();
 	}
 
-	public void SetLeaderboardValue(string label, string value)
+	public void ClearLeaderboardBoard(string boardId)
 	{
-		_viewModel.LeaderboardValues[label] = value;
+		_viewModel.Leaderboards.ClearBoard(boardId);
+	}
+
+	public void SetLeaderboardBoardGroup(string boardId, int groupPlayerIndex, string groupTitle)
+	{
+		_viewModel.Leaderboards.SetGroup(boardId, groupPlayerIndex, groupTitle);
+	}
+
+	public void AddLeaderboardBoardRow(string boardId, int groupPlayerIndex, string groupTitle, string label, string value)
+	{
+		_viewModel.Leaderboards.AddRow(boardId, groupPlayerIndex, groupTitle, label, value);
 	}
 
 	public void ShowSummaryTable(string title, bool visible)
@@ -2443,31 +2320,28 @@ void fragment() {
 	public bool HandleCommandCardHotkey(Key keycode)
 	{
 		if (_commandPanelController == null) return false;
-		return _commandPanelController.HandleHotkey(keycode);
+		bool handled = _commandPanelController.HandleHotkey(keycode);
+		if (handled)
+		{
+			InvalidateCadence(tactical: true, macro: false);
+		}
+		return handled;
 	}
 
 	private void SetupCommandCard()
 	{
-		SetupHUDButton(_btnMove, "res://Assets/UI/move_speed.png", TranslationServer.Translate("[M] Move / Right-Click Ground"), () => GameHost.Instance?.EnterCommandTargeting("move"));
-		SetupHUDButton(_btnStop, "res://Assets/UI/cancel_button_2.png", TranslationServer.Translate("[S] Stop Selected Units"), () =>
+		SetupHUDButton(_btnMove, "res://Assets/UI/move_speed.webp", TranslationServer.Translate("[M] Move / Right-Click Ground"), () => GameHost.Instance?.EnterCommandTargeting("move"));
+		SetupHUDButton(_btnStop, "res://Assets/UI/cancel_button_2.webp", TranslationServer.Translate("[S] Stop Selected Units"), () =>
 		{
 			ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
 			GameHost.Instance?.StopSelectedUnits();
 		});
-		SetupHUDButton(_btnHold, "res://Assets/UI/magic_upgrade_arrow.png", TranslationServer.Translate("[H] Hold Position — Unit stays put and attacks in place"), () =>
+		SetupHUDButton(_btnHold, "res://Assets/UI/magic_upgrade_arrow.webp", TranslationServer.Translate("[H] Hold Position — Unit stays put and attacks in place"), () =>
 		{
 			ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
 			GameHost.Instance?.HoldSelectedUnits();
 		});
-		SetupHUDButton(_btnAttack, "res://Assets/UI/battle_axe.png", TranslationServer.Translate("[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move"), () => GameHost.Instance?.EnterCommandTargeting("attack"));
-		SetupHUDButton(_btnPatrol, "res://Assets/UI/patrol.jpg", TranslationServer.Translate("[P] Patrol — Unit patrols between current position and target, engaging enemies"), () => GameHost.Instance?.EnterCommandTargeting("patrol"));
-		SetupHUDButton(_btnBuild, "res://Assets/UI/golden_hammers.png", TranslationServer.Translate("[B] Build Structure"), () => EnterBuildSubMenu());
-
-		_btnCancelBuild = new Button();
-		SetupHUDButton(_btnCancelBuild, "res://Assets/UI/cancel_button_2.png", TranslationServer.Translate("[Esc] Cancel"), () => ExitBuildSubMenu());
-
-		_btnSetRally = new Button();
-		SetupHUDButton(_btnSetRally, "res://Assets/UI/alliance_flag.png", TranslationServer.Translate("[Y] Set Rally Point — Set location where new units will walk"), () => GameHost.Instance?.EnterCommandTargeting("rally"));
+		SetupHUDButton(_btnBuild, "res://Assets/UI/golden_hammers.webp", TranslationServer.Translate("[B] Build Structure"), () => EnterBuildSubMenu());
 	}
 
 	private void CreateSpectatorPerspectiveUI()
@@ -2477,40 +2351,48 @@ void fragment() {
 		specPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel());
 
 		var specVBox = new VBoxContainer();
+		specVBox.Name = "SpecVBox_VBoxContainer";
 		specPanel.AddChild(specVBox);
 
 		var title = new Label();
+		title.Name = "Title_Label";
 		title.Text = TranslationServer.Translate("SPECTATOR MODE");
 		UIStyle.ApplyTitle(title, TranslationServer.Translate("SPECTATOR MODE"), 12);
 		title.HorizontalAlignment = HorizontalAlignment.Center;
 		specVBox.AddChild(title);
 
 		var specHBox = new HBoxContainer();
+		specHBox.Name = "SpecHBox_HBoxContainer";
 		specHBox.Alignment = BoxContainer.AlignmentMode.Center;
 		specHBox.AddThemeConstantOverride("separation", 10);
 		specVBox.AddChild(specHBox);
 
 		var btnAll = new Button();
+		btnAll.Name = "BtnAll_Button";
 		btnAll.Text = TranslationServer.Translate("ALL");
 		btnAll.Pressed += () => { LiveSpectatorPerspective = -1; };
 		specHBox.AddChild(btnAll);
 
 		var btnBlue = new Button();
+		btnBlue.Name = "BtnBlue_Button";
 		btnBlue.Text = TranslationServer.Translate("BLUE");
 		btnBlue.Pressed += () => { LiveSpectatorPerspective = 1; };
 		specHBox.AddChild(btnBlue);
 
 		var btnRed = new Button();
+		btnRed.Name = "BtnRed_Button";
 		btnRed.Text = TranslationServer.Translate("RED");
 		btnRed.Pressed += () => { LiveSpectatorPerspective = 2; };
 		specHBox.AddChild(btnRed);
 
 		var btnGreen = new Button();
+		btnGreen.Name = "BtnGreen_Button";
 		btnGreen.Text = TranslationServer.Translate("GREEN");
 		btnGreen.Pressed += () => { LiveSpectatorPerspective = 3; };
 		specHBox.AddChild(btnGreen);
 
 		var btnYellow = new Button();
+		btnYellow.Name = "BtnYellow_Button";
 		btnYellow.Text = TranslationServer.Translate("YELLOW");
 		btnYellow.Pressed += () => { LiveSpectatorPerspective = 4; };
 		specHBox.AddChild(btnYellow);
@@ -2569,6 +2451,7 @@ void fragment() {
 			if (player.Team == "Spectator") continue;
 
 			var row = new HBoxContainer();
+			row.Name = "Row_HBoxContainer";
 			row.AddThemeConstantOverride("separation", 15);
 
 			var nameLabel = new Label { Text = player.Name, CustomMinimumSize = new Vector2(150, 0) };
@@ -2627,24 +2510,29 @@ void fragment() {
 		_pausePanel.GrowVertical = GrowDirection.Both;
 
 		var mainVBox = new VBoxContainer();
+		mainVBox.Name = "MainVBox_VBoxContainer";
 		mainVBox.AddThemeConstantOverride("separation", 15);
 		_pausePanel.AddChild(mainVBox);
 
 		_pauseTitleLabel = new Label();
+		_pauseTitleLabel.Name = "PauseTitleLabel_Label";
 		_pauseTitleLabel.Text = "Game Paused";
 		_pauseTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_pauseTitleLabel.AddThemeFontSizeOverride("font_size", 24);
 		mainVBox.AddChild(_pauseTitleLabel);
 
 		var scroll = new ScrollContainer();
+		scroll.Name = "Scroll_ScrollContainer";
 		scroll.CustomMinimumSize = new Vector2(450, 150);
 		mainVBox.AddChild(scroll);
 
 		_pausePlayerListContainer = new VBoxContainer();
+		_pausePlayerListContainer.Name = "PausePlayerListContainer_VBoxContainer";
 		_pausePlayerListContainer.AddThemeConstantOverride("separation", 10);
 		scroll.AddChild(_pausePlayerListContainer);
 
 		var actionHBox = new HBoxContainer();
+		actionHBox.Name = "ActionHBox_HBoxContainer";
 		actionHBox.AddThemeConstantOverride("separation", 20);
 		actionHBox.Alignment = BoxContainer.AlignmentMode.Center;
 		mainVBox.AddChild(actionHBox);
@@ -2659,6 +2547,7 @@ void fragment() {
 		actionHBox.AddChild(_pauseReadyCheck);
 
 		_pauseForceResumeBtn = new Button();
+		_pauseForceResumeBtn.Name = "PauseForceResumeBtn_Button";
 		_pauseForceResumeBtn.Text = "Force Resume";
 		_pauseForceResumeBtn.Pressed += OnForceResumePressed;
 		actionHBox.AddChild(_pauseForceResumeBtn);
@@ -2671,56 +2560,17 @@ void fragment() {
 		GameHost.Instance?.RequestForceResume();
 	}
 
-	private string GetBuildOptionTooltip(string unitId, string hotkey)
+		private string GetBuildOptionTooltip(string unitId, string hotkeyStr)
 	{
-		string name = unitId.ToUpper();
-		float gold = 0, wood = 0, stone = 0;
-		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
-		{
-			name = meta.Name;
-			gold = meta.CostGold;
-			wood = meta.CostWood;
-			stone = meta.CostStone;
-		}
-
-		string costStr = $"Cost: {gold} Gold";
-		if (wood > 0) costStr += $", {wood} Wood";
-		if (stone > 0) costStr += $", {stone} Stone";
-
-		string tooltipFormat = !string.IsNullOrEmpty(hotkey)
-			? "[{0}] Build {1} ({2})"
-			: "Build {0} ({1})";
-
-		return string.Format(TranslationServer.Translate(tooltipFormat), hotkey, name, costStr);
+			Key hotkey = Key.None;
+			if (!string.IsNullOrEmpty(hotkeyStr) && Enum.TryParse<Key>(hotkeyStr, true, out var parsed)) hotkey = parsed;
+			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Build");
 	}
 
-	private string GetTrainOptionTooltip(string unitId, string hotkey)
+		private string GetTrainOptionTooltip(string unitId, string hotkeyStr)
 	{
-		string name = unitId.ToUpper();
-		float gold = 0, wood = 0, stone = 0;
-		int pop = 0;
-		string desc = "";
-		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out var meta))
-		{
-			name = meta.Name;
-			gold = meta.CostGold;
-			wood = meta.CostWood;
-			stone = meta.CostStone;
-			pop = meta.PopCost;
-			desc = meta.Description;
-		}
-
-		string costStr = $"Cost: {gold} Gold";
-		if (wood > 0) costStr += $", {wood} Wood";
-		if (stone > 0) costStr += $", {stone} Stone";
-		if (pop > 0) costStr += $", {pop} Pop";
-
-		string tooltipFormat = !string.IsNullOrEmpty(hotkey)
-			? (string.IsNullOrEmpty(desc) ? "[{0}] Train {1} ({2})" : "[{0}] Train {1} ({2}) — {3}")
-			: (string.IsNullOrEmpty(desc) ? "Train {0} ({1})" : "Train {0} ({1}) — {2}");
-
-		return string.IsNullOrEmpty(desc)
-			? string.Format(TranslationServer.Translate(tooltipFormat), hotkey, name, costStr)
-			: string.Format(TranslationServer.Translate(tooltipFormat), hotkey, name, costStr, desc);
+			Key hotkey = Key.None;
+			if (!string.IsNullOrEmpty(hotkeyStr) && Enum.TryParse<Key>(hotkeyStr, true, out var parsed)) hotkey = parsed;
+			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Train");
 	}
 }

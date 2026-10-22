@@ -255,6 +255,24 @@
         <member name="F:Realm.MapAPI.ComponentIds.RotationY">
             <summary>Rotation around Y-axis component identifier.</summary>
         </member>
+        <member name="F:Realm.MapAPI.ComponentIds.PreviousPosition">
+            <summary>Previous position component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.PreviousRotationY">
+            <summary>Previous rotation around Y-axis component identifier.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.CommandsFrozen">
+            <summary>Commands frozen tag component identifier, marking units that ignore movement and attack orders.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.AnimationsFrozen">
+            <summary>Animations frozen tag component identifier, marking units that hold their current animation pose.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.Frozen">
+            <summary>Frozen tag component identifier kept for maps that need the commands-frozen slot.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.ComponentIds.OverheadBarsHidden">
+            <summary>Overhead bars hidden tag component identifier.</summary>
+        </member>
         <member name="T:Realm.MapAPI.ComponentMask">
             <summary>
             Bitmask representing a set of component types for entity filter queries.
@@ -455,6 +473,9 @@
         <member name="F:Realm.MapAPI.EcsSharedMemory.COMPONENT_STRIDES_OFFSET">
             <summary>Offset to the component strides directory table.</summary>
         </member>
+        <member name="F:Realm.MapAPI.EcsSharedMemory.RANDOM_SEED_OFFSET">
+            <summary>Offset to the global random seed in the shared memory header.</summary>
+        </member>
         <member name="F:Realm.MapAPI.EcsSharedMemory.HEADER_SIZE">
             <summary>Total byte size reserved for the shared memory header.</summary>
         </member>
@@ -538,6 +559,9 @@
         <member name="P:Realm.MapAPI.EcsSharedMemory.Position">
             <summary>Gets the raw pointer to the entity position vectors array.</summary>
         </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.PreviousPosition">
+            <summary>Gets the raw pointer to the entity previous position vectors array.</summary>
+        </member>
         <member name="P:Realm.MapAPI.EcsSharedMemory.Health">
             <summary>Gets the raw pointer to the entity health components array.</summary>
         </member>
@@ -568,6 +592,9 @@
         <member name="P:Realm.MapAPI.EcsSharedMemory.RotationY">
             <summary>Gets the raw pointer to the unit rotation Y-axis array.</summary>
         </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.PreviousRotationY">
+            <summary>Gets the raw pointer to the unit previous rotation Y-axis array.</summary>
+        </member>
         <member name="P:Realm.MapAPI.EcsSharedMemory.PlayerResources">
             <summary>Gets the raw pointer to the player resources stockpile array.</summary>
         </member>
@@ -576,6 +603,11 @@
         </member>
         <member name="P:Realm.MapAPI.EcsSharedMemory.PlayerPopulation">
             <summary>Gets the raw pointer to the player population limits array.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.RandomSeed">
+            <summary>
+            Gets or sets the global random seed stored in shared memory between WebAssembly guest and host runtime contexts.
+            </summary>
         </member>
         <member name="M:Realm.MapAPI.EcsSharedMemory.GetArrayBasePointer(System.Int32)">
             <summary>
@@ -985,6 +1017,12 @@
             Gets a value indicating whether the current frame execution is an authoritative simulation frame.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.IGameAPI.CheatsEnabled">
+            <summary>
+            Gets a value indicating whether cheats are available in the current session. Read-only: only the
+            engine can enable cheats, which are available in the map editor, in test mode and in single player.
+            </summary>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SpawnResourceNode(System.String,System.Numerics.Vector3,System.Single)">
             <summary>
             Spawns a resource node at the given position.
@@ -1290,7 +1328,7 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetLeaderboardVisible(System.String,System.Boolean)">
             <summary>
-            Displays or hides a custom leaderboard panel on the player's screen.
+            Declares the default leaderboard board used by maps that publish a single table.
             </summary>
             <param name="title">The header title of the leaderboard.</param>
             <param name="visible">True to display the leaderboard, false to hide it.</param>
@@ -1304,8 +1342,45 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.ClearLeaderboard">
             <summary>
-            Clears all entries from the current leaderboard.
+            Clears every leaderboard board and its rows.
             </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetLeaderboardBoard(System.String,System.String,System.Boolean)">
+            <summary>
+            Declares or updates a named leaderboard board that every client can switch between.
+            Clients render one visible board at a time and keep their own board selection, so publishing
+            several boards never changes what another player is looking at.
+            </summary>
+            <param name="boardId">Stable identifier for the board, reused across updates.</param>
+            <param name="title">Header title shown for the board; the client passes it through localisation.</param>
+            <param name="visible">True to offer the board to clients, false to withdraw it.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ClearLeaderboardBoard(System.String)">
+            <summary>
+            Clears every row of one leaderboard board while keeping its title and visibility.
+            </summary>
+            <param name="boardId">Identifier of the board to clear.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetLeaderboardBoardGroup(System.String,System.Int32,System.String)">
+            <summary>
+            Declares a player group on a leaderboard board so it appears in the client group selector even when it has no rows.
+            Clients default the group selector for a board to their own player slot.
+            </summary>
+            <param name="boardId">Identifier of the board that owns the group.</param>
+            <param name="groupPlayerIndex">Zero-based player slot the group represents.</param>
+            <param name="groupTitle">Label shown for the group in the client selector.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.AddLeaderboardBoardRow(System.String,System.Int32,System.String,System.String,System.String)">
+            <summary>
+            Appends a row to a leaderboard board, optionally scoped to a player group.
+            Boards whose rows use groups gain a second client-side selector, and each client defaults that
+            selector to its own player slot.
+            </summary>
+            <param name="boardId">Identifier of the board that receives the row.</param>
+            <param name="groupPlayerIndex">Zero-based player slot the row belongs to, or -1 for an ungrouped row.</param>
+            <param name="groupTitle">Label shown for the group in the client selector.</param>
+            <param name="label">Row label text.</param>
+            <param name="value">Row value text.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.ShowSummaryTable(System.String,System.Boolean)">
             <summary>
@@ -1638,7 +1713,7 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.AddLeaderboardRow(System.String,System.String,System.Nullable{System.Numerics.Vector3})">
             <summary>
-            Appends a new row to the leaderboard panel with the given label and value.
+            Appends a new row to the default leaderboard board with the given label and value.
             Must call <see cref="M:Realm.MapAPI.IGameAPI.SetLeaderboardVisible(System.String,System.Boolean)"/> first to make the panel visible.
             </summary>
             <param name="label">Row label text.</param>
@@ -2261,7 +2336,7 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.DisableShroud">
             <summary>
-            Disables the vision shroud and fog of war, making the entire map and all entities fully visible.
+            Disables the vision shroud, making the entire map and all entities fully visible.
             </summary>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)">
@@ -2281,6 +2356,13 @@
             </summary>
             <param name="handle">The handle returned by <see cref="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)"/>.</param>
             <param name="text">The new text to display.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetStaticTextColor(System.Int32,System.Numerics.Vector3)">
+            <summary>
+            Changes the color of a static world label without recreating it.
+            </summary>
+            <param name="handle">The handle returned by <see cref="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)"/>.</param>
+            <param name="color">The new text color in RGB format.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetStaticTextVisible(System.Int32,System.Boolean)">
             <summary>
@@ -2521,6 +2603,13 @@
             <param name="playerIndex">Zero-based player slot index.</param>
             <returns>A 6-character hex color string.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerColor(System.Int32)">
+            <summary>
+            Returns the RGB color assigned to the specified player slot.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <returns>The player's color in RGB format.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.FormatColoredPlayerName(System.Int32)">
             <summary>
             Returns the player name formatted with rich text / BBCode markup matching their assigned player slot color.
@@ -2731,6 +2820,63 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">True for invulnerability; otherwise, false.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitAnimationsFrozen(Realm.MapAPI.UnitId,System.Boolean)">
+            <summary>
+            Suspends or resumes animation playback for a unit.
+            </summary>
+            <remarks>
+            An animations-frozen unit holds a single pose because locomotion, attack, idle and death
+            animation playback is suspended together with any procedural sway. It can still move, attack
+            and cast, so combine this with <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.MapAPI.UnitId,System.Boolean)"/> to build a statue. The state
+            lives on the unit entity, so it survives tile level changes, element swaps and re-drafting until
+            the entity is destroyed or unfrozen.
+            </remarks>
+            <param name="unit">The unit identifier.</param>
+            <param name="value">True to hold the current pose; false to resume animation playback.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.MapAPI.UnitId,System.Boolean)">
+            <summary>
+            Makes a unit ignore movement, attack and hold orders, or releases it again.
+            </summary>
+            <remarks>
+            A commands-frozen unit keeps its current position, never acquires targets and ignores move, stop,
+            hold and attack orders, and clients hide those command buttons for it. Ability casting and ability
+            buttons stay available, so map-authored abilities such as tile rerolls keep working. Existing
+            orders and targets are cleared when the unit freezes, and unfreezing restores normal behaviour
+            immediately. The state lives on the unit entity, so it survives tile level changes, element swaps
+            and re-drafting until the entity is destroyed or unfrozen.
+            </remarks>
+            <param name="unit">The unit identifier.</param>
+            <param name="value">True to ignore movement and attack orders; false to accept them again.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitFrozen(Realm.MapAPI.UnitId,System.Boolean)">
+            <summary>
+            Pins a unit in place, or releases it again.
+            </summary>
+            <remarks>
+            This sets both <see cref="M:Realm.MapAPI.IGameAPI.SetUnitAnimationsFrozen(Realm.MapAPI.UnitId,System.Boolean)"/> and <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.MapAPI.UnitId,System.Boolean)"/>.
+            A frozen unit never moves, never rotates in response to orders, never acquires targets, and holds
+            a single pose. Existing orders and targets are cleared when the unit freezes, and unfreezing
+            restores normal behaviour immediately. Freezing is idempotent, cheap, and composes with
+            <see cref="M:Realm.MapAPI.IGameAPI.SetUnitInvulnerable(Realm.MapAPI.UnitId,System.Boolean)"/>, facing and the health-bar visibility flags, so a map can build
+            statues out of real units. The state lives on the unit entity, so it survives tile level changes,
+            element swaps, unit swaps and re-drafting until the entity is destroyed or unfrozen.
+            </remarks>
+            <param name="unit">The unit identifier.</param>
+            <param name="value">True to freeze the unit in place; false to let it act normally again.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitHideHealthAndManaBars(Realm.MapAPI.UnitId,System.Boolean)">
+            <summary>
+            Shows or hides the overhead health and mana bars for a single unit.
+            </summary>
+            <remarks>
+            Hidden bars stay hidden in every health-bar display mode, including the ones that show bars for
+            every living unit, so map-authored statues and scenery units never advertise hit points. The flag
+            lives on the unit entity and is cleared when that entity is destroyed.
+            </remarks>
+            <param name="unit">The unit identifier.</param>
+            <param name="value">True to never draw bars for the unit; false to draw them according to the player's settings.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.IssueAttackOrder(Realm.MapAPI.UnitId,Realm.MapAPI.UnitId)">
             <summary>
             Issues an attack order targeting a specific enemy unit.
@@ -2786,6 +2932,15 @@
             <param name="itemId">The item definition identifier.</param>
             <returns>True if added successfully; otherwise, false.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.AddItemToUnitWithCharges(Realm.MapAPI.UnitId,System.String,System.Int32)">
+            <summary>
+            Adds an item archetype to the specified unit's inventory with a stack of the given charge count.
+            </summary>
+            <param name="unit">The unit identifier.</param>
+            <param name="itemId">The item definition identifier.</param>
+            <param name="charges">The number of stacked charges to grant; values below one are treated as one.</param>
+            <returns>True if added successfully; otherwise, false.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.RemoveItemFromUnit(Realm.MapAPI.UnitId,System.String)">
             <summary>
             Removes an item archetype from the specified unit's inventory.
@@ -2808,6 +2963,22 @@
             </summary>
             <param name="unit">The unit identifier.</param>
             <returns>A read-only collection of item archetype identifiers.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitItemCharges(Realm.MapAPI.UnitId,System.String)">
+            <summary>
+            Returns the stacked charge count of an item in the specified unit's inventory.
+            </summary>
+            <param name="unit">The unit identifier.</param>
+            <param name="itemId">The item definition identifier.</param>
+            <returns>The charge count, or zero when the unit does not carry the item.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitItemCharges(Realm.MapAPI.UnitId,System.String,System.Int32)">
+            <summary>
+            Sets the stacked charge count of an item in the specified unit's inventory and reapplies its grants.
+            </summary>
+            <param name="unit">The unit identifier.</param>
+            <param name="itemId">The item definition identifier.</param>
+            <param name="charges">The new charge count; zero removes the item's grants.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.UnitHasBuff(Realm.MapAPI.UnitId,System.String)">
             <summary>
@@ -3650,6 +3821,11 @@
             Gets the hexadecimal color string for this player slot.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.PlayerId.Color">
+            <summary>
+            Gets the RGB color assigned to this player slot.
+            </summary>
+        </member>
         <member name="P:Realm.MapAPI.PlayerId.ColoredName">
             <summary>
             Gets the formatted bbcode colored name of this player.
@@ -4252,6 +4428,40 @@
             Gets or sets a value indicating whether the unit is invulnerable to all damage.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.UnitId.AnimationsFrozen">
+            <summary>
+            Gets or sets a value indicating whether the unit holds its current animation pose.
+            </summary>
+            <remarks>
+            An animations-frozen unit plays no locomotion, attack, idle or death animation, including
+            procedural sway, but it can still receive movement, attack and ability orders. Combine it with
+            <see cref="P:Realm.MapAPI.UnitId.CommandsFrozen"/> to pin a unit in place, or use <see cref="P:Realm.MapAPI.UnitId.Frozen"/> to set both.
+            </remarks>
+        </member>
+        <member name="P:Realm.MapAPI.UnitId.CommandsFrozen">
+            <summary>
+            Gets or sets a value indicating whether the unit ignores movement, attack and hold orders.
+            </summary>
+            <remarks>
+            A commands-frozen unit keeps its current position, does not acquire targets and does not respond
+            to move, stop, hold or attack commands, and clients hide those command buttons for it. Ability
+            casting and ability buttons stay available, so map-authored abilities such as rerolls keep
+            working. Setting the property to the value it already has does nothing.
+            </remarks>
+        </member>
+        <member name="P:Realm.MapAPI.UnitId.Frozen">
+            <summary>
+            Gets or sets a value indicating whether the unit is frozen in place with its animation suspended.
+            </summary>
+            <remarks>
+            This sets both <see cref="P:Realm.MapAPI.UnitId.AnimationsFrozen"/> and <see cref="P:Realm.MapAPI.UnitId.CommandsFrozen"/>. A frozen unit keeps
+            its current position and pose and ignores orders, and it does not acquire targets. Setting the
+            property to the value it already has does nothing. The flag lives on the entity, so it survives
+            level changes, element swaps and unit swaps until the entity is destroyed or the flag is cleared,
+            and it does not conflict with <see cref="P:Realm.MapAPI.UnitId.Invulnerable"/>, <see cref="P:Realm.MapAPI.UnitId.Facing"/> or
+            <see cref="P:Realm.MapAPI.UnitId.HideHealthAndManaBars"/>.
+            </remarks>
+        </member>
         <member name="P:Realm.MapAPI.UnitId.HideHealthAndManaBars">
             <summary>
             Gets or sets a value indicating whether overhead health and mana bars are hidden for this unit.
@@ -4368,14 +4578,14 @@
             Gets the number of charges for the specified item in the unit's inventory.
             </summary>
             <param name="itemId">The identifier of the item.</param>
-            <returns>The charge count, or 1 if the item is present without specific charges, or 0 if not present.</returns>
+            <returns>The charge count, or 0 if the unit does not carry the item.</returns>
         </member>
         <member name="M:Realm.MapAPI.UnitId.SetItemCharges(System.String,System.Int32)">
             <summary>
             Sets the number of charges for the specified item in the unit's inventory.
             </summary>
             <param name="itemId">The identifier of the item.</param>
-            <param name="charges">The new charge count.</param>
+            <param name="charges">The new charge count; zero removes the item's grants.</param>
         </member>
         <member name="M:Realm.MapAPI.UnitId.RemoveItem(System.String)">
             <summary>
@@ -4677,6 +4887,26 @@
         <member name="M:Realm.MapAPI.Components.Position.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Components.Position">
             <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
+        <member name="T:Realm.MapAPI.Components.PreviousPosition">
+            <summary>
+            Stores prior simulation tick 3D spatial world position vector coordinates for visual state-snapshot interpolation.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PreviousPosition.Value">
+            <summary>The Value field.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.#ctor(System.Numerics.Vector3)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PreviousPosition"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.#ctor(System.Single,System.Single,System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PreviousPosition"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.op_Implicit(Realm.MapAPI.Components.PreviousPosition)~System.Numerics.Vector3">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Components.PreviousPosition">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
         <member name="T:Realm.MapAPI.Components.Health">
             <summary>
             Represents the health point capacity and regeneration state of an entity.
@@ -4778,6 +5008,15 @@
         <member name="F:Realm.MapAPI.Components.ScriptPlayer.KillCount">
             <summary>Total enemy unit kill count credited to this player.</summary>
         </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.TeamNameStringId">
+            <summary>The TeamNameStringId field.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.ScriptPlayer.TeamIndex">
+            <summary>Gets or sets the TeamIndex property.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.ScriptPlayer.TeamName">
+            <summary>Gets or sets the TeamName property.</summary>
+        </member>
         <member name="P:Realm.MapAPI.Components.ScriptPlayer.Active">
             <summary>Gets or sets a value indicating whether this player slot is active.</summary>
         </member>
@@ -4876,6 +5115,23 @@
             <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
         <member name="M:Realm.MapAPI.Components.RotationY.op_Implicit(System.Single)~Realm.MapAPI.Components.RotationY">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.PreviousRotationY">
+            <summary>
+            Stores prior simulation tick rotational azimuth heading around the vertical Y-axis in radians for visual state-snapshot interpolation.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PreviousRotationY.Value">
+            <summary>The Value field.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousRotationY.#ctor(System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PreviousRotationY"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousRotationY.op_Implicit(Realm.MapAPI.Components.PreviousRotationY)~System.Single">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousRotationY.op_Implicit(System.Single)~Realm.MapAPI.Components.PreviousRotationY">
             <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
         <member name="T:Realm.MapAPI.Components.MovementType">

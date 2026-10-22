@@ -1,6 +1,8 @@
 shader_type spatial;
 render_mode blend_add, depth_draw_opaque, cull_front, unshaded;
 
+#include "res://Assets/shaders/shroud.gdshaderinc"
+
 uniform sampler2D base_texture : source_color, filter_linear_mipmap, repeat_enable;
 uniform bool use_base_texture = false;
 uniform vec2 base_uv_scroll = vec2(0.0, 0.0);
@@ -178,6 +180,8 @@ void fragment() {
 	color *= (1.0 + (emission_boost - 1.0) * mask);
 
 	float out_alpha = clamp(mask * base_color.a, 0.0, 1.0);
+	vec3 shroud_world_position = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	out_alpha *= rts_shroud_visible_alpha(shroud_world_position.xz);
 	ALBEDO = color * out_alpha;
 	ALPHA = out_alpha;
 }

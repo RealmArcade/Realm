@@ -19,6 +19,7 @@ using Environment = System.Environment;
 using HttpClient = System.Net.Http.HttpClient;
 using Key = NSec.Cryptography.Key;
 using static Godot.Control;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI
 {
@@ -55,6 +56,8 @@ namespace Realm.Client.UI
 			{
 				MapTemplateGeneratorService.EnsureMapTemplates(wsPath);
 			}
+
+			RefreshEntityPalette();
 		}
 
 		public void PerformAutoBackup()
@@ -959,6 +962,11 @@ namespace Realm.Client.UI
 			_wasmHasErrors = false;
 
 			bool compiledSuccessfully = await PerformCompilationStepAsync(workspace, skipAttribution, isDebug);
+			if (compiledSuccessfully)
+			{
+				GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(workspace);
+			}
+
 			if (!compiledSuccessfully || skipAttribution) return;
 
 			await PerformSigningStepAsync(workspace);
@@ -1431,84 +1439,7 @@ namespace Realm.Client.UI
 
 		private (Panel popup, ProgressBar progressBar, Label statusLabel, Button closeBtn) CreateExportUI(string destinationPath)
 		{
-			var popup = new Panel();
-			popup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			popup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-			popup.ZIndex = 1100;
-			AddChild(popup);
-
-			var cardPanel = new Panel();
-			cardPanel.CustomMinimumSize = new Vector2(560, 260);
-			cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-			cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-			popup.AddChild(cardPanel);
-
-			var vbox = new VBoxContainer();
-			vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			vbox.CustomMinimumSize = new Vector2(520, 220);
-			vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-			vbox.AddThemeConstantOverride("separation", 10);
-			cardPanel.AddChild(vbox);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
-
-			var titleLabel = new Label();
-			UIStyle.ApplyTitle(titleLabel, "📦 " + TranslationServer.Translate("EXPORTING MAP PACKAGE (.RMAP)"), 20);
-			titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			vbox.AddChild(titleLabel);
-
-			var descLabel = new Label();
-			descLabel.Text = string.Format(TranslationServer.Translate("Destination: {0}"), Path.GetFileName(destinationPath));
-			descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			descLabel.AddThemeFontSizeOverride("font_size", 13);
-			descLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			vbox.AddChild(descLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
-
-			var progressBar = new ProgressBar();
-			progressBar.CustomMinimumSize = new Vector2(480, 24);
-			progressBar.MinValue = 0;
-			progressBar.MaxValue = 100;
-			progressBar.Value = 0;
-			vbox.AddChild(progressBar);
-
-			var statusLabel = new Label();
-			statusLabel.Text = TranslationServer.Translate("Preparing export...");
-			statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
-			statusLabel.AddThemeFontSizeOverride("font_size", 13);
-			statusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-			vbox.AddChild(statusLabel);
-
-			vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
-
-			var buttonRow = new HBoxContainer();
-			buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
-			vbox.AddChild(buttonRow);
-
-			var closeBtn = new Button();
-			closeBtn.Flat = false;
-			closeBtn.AddThemeConstantOverride("icon_max_width", 0);
-			closeBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			closeBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			closeBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			closeBtn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			UIStyle.ApplyButtonText(closeBtn, TranslationServer.Translate("CLOSE"), 14);
-			closeBtn.CustomMinimumSize = new Vector2(130, 36);
-			closeBtn.Visible = false;
-			buttonRow.AddChild(closeBtn);
-
-			closeBtn.Pressed += () =>
-			{
-				UIManager.Instance?.PlayClickSound();
-				if (GodotObject.IsInstanceValid(popup))
-				{
-					popup.QueueFree();
-				}
-			};
-
-			return (popup, progressBar, statusLabel, closeBtn);
+			return UIStyle.CreateExportUI(this, destinationPath);
 		}
 
 		private void SetupWasmConsoleForExport()
@@ -1528,6 +1459,8 @@ namespace Realm.Client.UI
 			if (!await VerifyMapAssetsAsync(progressBar, statusLabel, closeBtn)) return false;
 
 			if (!await CompileMapScriptAsync(progressBar, statusLabel, closeBtn)) return false;
+
+			GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(GameContext.EditorService._tempWorkspacePath);
 
 			await OptimizeMapAssetsAsync(progressBar, statusLabel);
 
@@ -1775,7 +1708,7 @@ namespace Realm.Client.UI
 
 			if (i >= 0 && i < GameContext.EditorService.SwatchPaths.Count && ResourceLoader.Exists(GameContext.EditorService.SwatchPaths[i]))
 			{
-				return GD.Load<Texture2D>(GameContext.EditorService.SwatchPaths[i]);
+				return TrimmedTextureLoader.LoadTrimmedTexture(GameContext.EditorService.SwatchPaths[i]);
 			}
 
 			return null;

@@ -3,8 +3,11 @@ using Godot;
 
 namespace Realm.Client.UI.MapEditor;
 
+[GlobalClass]
 public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 {
+	public FloatingPreview3DDialogBase() { }
+
 	protected SubViewportContainer PreviewViewportContainer;
 	protected SubViewport PreviewSubViewport;
 	protected Camera3D PreviewCamera;
@@ -56,9 +59,11 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 		Action onToggleGrid = null)
 	{
 		CameraPresetToolbar = new HBoxContainer();
+		CameraPresetToolbar.Name = "CameraPresetToolbar_HBoxContainer";
 		CameraPresetToolbar.AddThemeConstantOverride("separation", 4);
 
 		var lblPreset = new Label();
+		lblPreset.Name = "LblPreset_Label";
 		lblPreset.Text = TranslationServer.Translate("Camera:");
 		lblPreset.AddThemeFontSizeOverride("font_size", 10);
 		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);

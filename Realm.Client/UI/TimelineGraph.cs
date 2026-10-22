@@ -4,6 +4,7 @@ using Godot;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class TimelineGraph : Control
 {
 	private int _activeTab = 0;

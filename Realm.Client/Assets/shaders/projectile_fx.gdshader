@@ -1,6 +1,8 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_lambert_wrap, specular_schlick_ggx;
 
+#include "res://Assets/shaders/shroud.gdshaderinc"
+
 uniform bool effect_enabled = true;
 uniform vec4 base_color : source_color = vec4(0.15, 0.12, 0.1, 1.0);
 uniform vec4 emission_color : source_color = vec4(1.0, 0.4, 0.05, 1.0);
@@ -95,4 +97,8 @@ void fragment() {
 		SPECULAR = 0.5;
 		METALLIC = 0.1;
 	}
+
+	vec3 shroud_world_position = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	ALPHA = rts_shroud_visible_alpha(shroud_world_position.xz);
+	ALPHA_SCISSOR_THRESHOLD = 0.02;
 }

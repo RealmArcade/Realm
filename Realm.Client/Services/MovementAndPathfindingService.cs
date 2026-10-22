@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using Realm.Ecs;
 using DotRecast.Core.Numerics;
+using DotRecast.Detour;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
@@ -40,29 +42,118 @@ namespace Realm.Client.Services
 
 		private float _fDelta;
 		private readonly float _collisionCellSize = GameplayConstants.PathfindingGridSize;
+		public float CollisionCellSize => _collisionCellSize;
 
-		// Collision separation factor is defined in GameplayConstants so combat melee reach
-		// can use the same value.
+		public bool TryGetUnitGridCell(int cx, int cz, out List<SpatialGridEntry>? list)
+		{
+			long key = ((long)cx << 32) | (uint)cz;
+			return _unitGrid.TryGetValue(key, out list);
+		}
+
 		private const float StuckEscalationTime = 1.5f;
 
-		// Maximum climb between a unit's current position and the navmesh polygon it snaps
-		// to. Kept low so units are not dragged across terrace/mountain lips (the navmesh
-		// excludes the slope walls themselves, but a wide nearest-poly search can otherwise
-		// pull a unit a whole tier step up a stepped hillside).
 		private const float NavMeshMaxSnapClimb = 0.5f;
 		private static readonly RcVec3f NavMeshSnapExtents = new RcVec3f(1.5f, 2.0f, 1.5f);
 		private const float VerticalFollowRate = 30f;
 		private const float DefaultAcceleration = 25f;
 
-		private readonly Dictionary<long, List<Entity>> _unitGrid = new();
-		private readonly Dictionary<long, List<Entity>> _propGrid = new();
-		private readonly List<List<Entity>> _listPool = new();
+		public readonly struct SpatialGridEntry
+		{
+			public readonly Entity Entity;
+			public readonly Vector3 Position;
+			public readonly Vector3 Velocity;
+			public readonly float CollisionRadius;
+			public readonly bool HasVelocity;
+
+			public SpatialGridEntry(Entity entity, Vector3 position, Vector3 velocity, float collisionRadius, bool hasVelocity)
+			{
+				Entity = entity;
+				Position = position;
+				Velocity = velocity;
+				CollisionRadius = collisionRadius;
+				HasVelocity = hasVelocity;
+			}
+		}
+
+		public delegate void SpatialGridEntryCallback(in SpatialGridEntry entry);
+
+		private void QueryGridInRadius(Dictionary<long, List<SpatialGridEntry>> grid, Vector3 center, float radius, SpatialGridEntryCallback callback)
+		{
+			float radiusSq = radius * radius;
+			int minCx = (int)Math.Floor((center.X - radius) / _collisionCellSize);
+			int maxCx = (int)Math.Floor((center.X + radius) / _collisionCellSize);
+			int minCz = (int)Math.Floor((center.Z - radius) / _collisionCellSize);
+			int maxCz = (int)Math.Floor((center.Z + radius) / _collisionCellSize);
+
+			for (int cx = minCx; cx <= maxCx; cx++)
+			{
+				for (int cz = minCz; cz <= maxCz; cz++)
+				{
+					long key = ((long)cx << 32) | (uint)cz;
+					if (grid.TryGetValue(key, out var list))
+					{
+						for (int i = 0; i < list.Count; i++)
+						{
+							var item = list[i];
+							if ((item.Position - center).LengthSquared() <= radiusSq)
+							{
+								callback(in item);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		public void QueryUnitsInRadius(Vector3 center, float radius, SpatialGridEntryCallback callback)
+		{
+			QueryGridInRadius(_unitGrid, center, radius, callback);
+		}
+
+		public void QueryPropsInRadius(Vector3 center, float radius, SpatialGridEntryCallback callback)
+		{
+			QueryGridInRadius(_propGrid, center, radius, callback);
+		}
+
+		private struct MovementWorkItem
+		{
+			public Entity Entity;
+			public Vector3 PosValue;
+			public Vector3 MoveTarget;
+			public MovementStats Stats;
+			public ushort PathingFlags;
+			public bool IsFlying;
+			public bool HasPf;
+			public PathFollow Pf;
+			public float ActualSpeed;
+
+			public bool HasArrived;
+			public Vector3 NextPosition;
+			public Vector3 NextVelocity;
+		}
+
+		private MovementWorkItem[] _movementWorkItems = new MovementWorkItem[256];
+		private int _movementWorkCount = 0;
+		private readonly Action<int> _processMovementWorkItemDelegate;
+		private readonly EntityCallback<Position, MoveTo, MovementStats> _collectMovementWorkItemDelegate;
+		private readonly ThreadLocal<NavMeshPathfinder> _threadLocalPathfinder = new(() => new NavMeshPathfinder());
+		private readonly ThreadLocal<(DtNavMesh? Mesh, DtNavMeshQuery? Query)> _threadLocalNavQuery = new();
+
+		private readonly Dictionary<long, List<SpatialGridEntry>> _unitGrid = new();
+		private readonly Dictionary<long, List<SpatialGridEntry>> _propGrid = new();
+		private readonly List<List<SpatialGridEntry>> _listPool = new();
 
 		private readonly List<Entity> _tickArrivedUnits = new();
 
 		private readonly QueryDescription _movementQuery = QueryCache.AllPositionAndMoveToAndMovementStatsNoneDeadQuery;
-		private readonly QueryDescription _spatialQuery = QueryCache.AllPositionQuery;
+		private readonly QueryDescription _unitSpatialQuery = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
+		private readonly QueryDescription _propSpatialQuery = QueryCache.AllPropIdentityAndPositionQuery;
 		private EntityCallback<Position, MoveTo, MovementStats> _movementQueryDelegate;
+		private EntityCallback<Position> _unitSpatialQueryDelegate;
+		private EntityCallback<Position> _propSpatialQueryDelegate;
+		private int _lastPropEntityCount = -1;
+		private EcsWorld? _lastPropWorld;
+		private bool _propGridDirty = true;
 
 		private TerrainState _currentTerrainState;
 		private bool _hasTerrainState;
@@ -77,6 +168,15 @@ namespace Realm.Client.Services
 		public MovementAndPathfindingService()
 		{
 			_movementQueryDelegate = MovementQueryAction;
+			_collectMovementWorkItemDelegate = CollectMovementWorkItemAction;
+			_processMovementWorkItemDelegate = ProcessMovementWorkItemParallel;
+			_unitSpatialQueryDelegate = UnitSpatialGridQueryAction;
+			_propSpatialQueryDelegate = PropSpatialGridQueryAction;
+		}
+
+		public void InvalidatePropGrid()
+		{
+			_propGridDirty = true;
 		}
 
 		public void StepMovement(float delta)
@@ -88,7 +188,34 @@ namespace Realm.Client.Services
 
 			RebuildSpatialGrid();
 
-			GameContext.World.Query(in _movementQuery, _movementQueryDelegate);
+			_movementWorkCount = 0;
+			GameContext.World.Query(in _movementQuery, _collectMovementWorkItemDelegate);
+
+			if (_movementWorkCount > 0)
+			{
+				ParallelRunner.Execute(_movementWorkCount, _processMovementWorkItemDelegate);
+
+				var world = GameContext.World;
+				for (int i = 0; i < _movementWorkCount; i++)
+				{
+					ref var item = ref _movementWorkItems[i];
+					if (!world.IsAlive(item.Entity))
+						continue;
+
+					SavePathFollow(item.HasPf, item.Entity, item.Pf);
+
+					if (item.HasArrived)
+					{
+						_tickArrivedUnits.Add(item.Entity);
+						world.SetOrAdd(item.Entity, new Velocity(Vector3.Zero));
+					}
+					else
+					{
+						world.Set(item.Entity, new Position(item.NextPosition));
+						world.SetOrAdd(item.Entity, new Velocity(item.NextVelocity));
+					}
+				}
+			}
 
 			foreach (var entity in _tickArrivedUnits)
 			{
@@ -150,7 +277,7 @@ namespace Realm.Client.Services
 			return ((long)cx << 32) | (uint)cz;
 		}
 
-		private List<Entity> GetEntityListFromPool()
+		private List<SpatialGridEntry> GetEntityListFromPool()
 		{
 			if (_listPool.Count > 0)
 			{
@@ -160,7 +287,7 @@ namespace Realm.Client.Services
 				return list;
 			}
 
-			return new List<Entity>(16);
+			return new List<SpatialGridEntry>(16);
 		}
 
 		private void RebuildSpatialGrid()
@@ -173,54 +300,301 @@ namespace Realm.Client.Services
 
 			_unitGrid.Clear();
 
-			foreach (var list in _propGrid.Values)
+			var world = GameContext.World;
+			world.Query(in _unitSpatialQuery, _unitSpatialQueryDelegate);
+
+			int currentPropCount = world.CountEntities(in _propSpatialQuery);
+			if (_propGridDirty || !ReferenceEquals(_lastPropWorld, world) || currentPropCount != _lastPropEntityCount)
 			{
-				list.Clear();
-				_listPool.Add(list);
+				_propGridDirty = false;
+				_lastPropWorld = world;
+				_lastPropEntityCount = currentPropCount;
+
+				foreach (var list in _propGrid.Values)
+				{
+					list.Clear();
+					_listPool.Add(list);
+				}
+
+				_propGrid.Clear();
+
+				world.Query(in _propSpatialQuery, _propSpatialQueryDelegate);
+			}
+		}
+
+		private void UnitSpatialGridQueryAction(Entity entity, ref Position p)
+		{
+			var world = GameContext.World;
+			Vector3 pos = p.Value;
+			long key = GetCellKey(pos.X, pos.Z);
+
+			if (!_unitGrid.TryGetValue(key, out var list))
+			{
+				list = GetEntityListFromPool();
+				_unitGrid[key] = list;
 			}
 
-			_propGrid.Clear();
+			float scale = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
+			float radius = world.Has<CollisionRadius>(entity)
+				? world.Get<CollisionRadius>(entity).Value * scale
+				: scale * GameplayConstants.DefaultCollisionRadius;
+			bool hasVel = world.Has<Velocity>(entity);
+			Vector3 vel = hasVel ? world.Get<Velocity>(entity).Value : Vector3.Zero;
 
-			GameContext.World.Query(in _spatialQuery, (Entity entity, ref Position p) =>
+			list.Add(new SpatialGridEntry(entity, pos, vel, radius, hasVel));
+		}
+
+		private void PropSpatialGridQueryAction(Entity entity, ref Position p)
+		{
+			var world = GameContext.World;
+			if (world.Has<Dead>(entity)) return;
+
+			Vector3 pos = p.Value;
+			long key = GetCellKey(pos.X, pos.Z);
+
+			if (!_propGrid.TryGetValue(key, out var list))
 			{
-				if (GameContext.World.Has<Dead>(entity)) return;
+				list = GetEntityListFromPool();
+				_propGrid[key] = list;
+			}
 
-				float x = p.Value.X;
-				float z = p.Value.Z;
-				long key = GetCellKey(x, z);
+			float scaleProp = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
+			float radius = world.Has<CollisionRadius>(entity)
+				? world.Get<CollisionRadius>(entity).Value * scaleProp
+				: scaleProp * GameplayConstants.DefaultPropCollisionRadius;
 
-				if (GameContext.World.Has<DefinitionId>(entity))
+			list.Add(new SpatialGridEntry(entity, pos, Vector3.Zero, radius, false));
+		}
+
+		private bool TryGetMovementContext(Entity entity, Vector3 pos, Vector3 target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)
+		{
+			if (TryHandleStun(entity))
+			{
+				pathingFlags = 0;
+				isFlying = false;
+				hasPf = false;
+				pf = default;
+				return false;
+			}
+
+			pathingFlags = (ushort)(GameContext.World.Has<PathingFlags>(entity) ? GameContext.World.Get<PathingFlags>(entity).Value : 8);
+			isFlying = ((TerrainPathingFlags)pathingFlags & TerrainPathingFlags.Flying) != 0;
+			hasPf = GameContext.World.Has<PathFollow>(entity);
+			pf = GetOrCreatePathFollow(hasPf, entity, pos, target);
+
+			return true;
+		}
+
+		private void CollectMovementWorkItemAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)
+		{
+			if (GameContext.World.Has<CommandsFrozen>(entity)) return;
+
+			if (!TryGetMovementContext(entity, pos.Value, moveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
+
+			if (_movementWorkCount >= _movementWorkItems.Length)
+			{
+				Array.Resize(ref _movementWorkItems, _movementWorkItems.Length * 2);
+			}
+
+			_movementWorkItems[_movementWorkCount++] = new MovementWorkItem
+			{
+				Entity = entity,
+				PosValue = pos.Value,
+				MoveTarget = moveTo.Target,
+				Stats = stats,
+				PathingFlags = pathingFlags,
+				IsFlying = isFlying,
+				HasPf = hasPf,
+				Pf = pf,
+				ActualSpeed = GetActualSpeed(entity, stats)
+			};
+		}
+
+		private DtNavMeshQuery? GetThreadLocalNavMeshQuery()
+		{
+			if (!_hasTerrainState || _currentTerrainState.NavMesh == null)
+				return null;
+
+			var targetMesh = _currentTerrainState.NavMesh;
+			var local = _threadLocalNavQuery.Value;
+			if (!ReferenceEquals(local.Mesh, targetMesh) || local.Query == null)
+			{
+				local = (targetMesh, new DtNavMeshQuery(targetMesh));
+				_threadLocalNavQuery.Value = local;
+			}
+			return local.Query;
+		}
+
+		private void ProcessMovementWorkItemParallel(int index)
+		{
+			ref var item = ref _movementWorkItems[index];
+			Entity entity = item.Entity;
+			Vector3 posValue = item.PosValue;
+			Vector3 moveTarget = item.MoveTarget;
+			MovementStats stats = item.Stats;
+			ushort pathingFlags = item.PathingFlags;
+			bool isFlying = item.IsFlying;
+			bool hasPf = item.HasPf;
+			ref PathFollow pf = ref item.Pf;
+			float actualSpeed = item.ActualSpeed;
+
+			bool forceReplan = UpdateStuckStateParallel(hasPf, posValue, actualSpeed, ref pf);
+			UpdatePathIfNeededParallel(pathingFlags, isFlying, posValue, moveTarget, forceReplan, ref pf);
+
+			Vector3 currentTarget = GetCurrentWaypointTarget(moveTarget, pf);
+			float diffX = posValue.X - currentTarget.X;
+			float diffZ = posValue.Z - currentTarget.Z;
+			float horizontalDist = MathF.Sqrt(diffX * diffX + diffZ * diffZ);
+			float arrivalThreshold = Math.Max(0.5f, stats.Speed * _fDelta * 1.2f);
+
+			if (horizontalDist < arrivalThreshold)
+			{
+				pf.CurrentWaypointIndex++;
+			}
+
+			if (pf.CurrentWaypointIndex >= pf.WaypointCount)
+			{
+				item.HasArrived = true;
+				return;
+			}
+
+			currentTarget = GetCurrentWaypointTarget(moveTarget, pf);
+			Vector3 toTarget = currentTarget - posValue;
+			if (isFlying) toTarget.Y = 0f;
+
+			Vector3 desiredVelocity = toTarget.LengthSquared() < 0.000001f
+				? Vector3.Zero
+				: Vector3.Normalize(toTarget) * actualSpeed;
+
+			Vector3 steering = CalculateSteering(entity, posValue, desiredVelocity, actualSpeed, pf.StuckTime >= StuckEscalationTime);
+			Vector3 currentVelocity = GameContext.World.Has<Velocity>(entity) ? GameContext.World.Get<Velocity>(entity).Value : Vector3.Zero;
+
+			Vector3 velocity = stats.Acceleration > 0f ? MoveTowards(currentVelocity, steering, stats.Acceleration * _fDelta) : steering;
+			Vector3 nextPos = posValue + velocity * _fDelta;
+
+			if (!isFlying)
+			{
+				ApplyCollisionAvoidance(entity, posValue, ref nextPos);
+			}
+
+			ApplyVerticalFollowParallel(posValue, isFlying, ref nextPos, ref velocity);
+
+			item.NextPosition = nextPos;
+			item.NextVelocity = velocity;
+		}
+
+		private bool UpdateStuckStateParallel(bool hasPf, Vector3 posValue, float actualSpeed, ref PathFollow pf)
+		{
+			if (!hasPf)
+			{
+				pf.LastPosition = posValue;
+				pf.StuckTime = 0f;
+				pf.TimeSinceLastReplan = 0f;
+				pf.IsJitterReplanned = false;
+				return false;
+			}
+
+			float distMoved = Vector3.Distance(posValue, pf.LastPosition);
+			pf.LastPosition = posValue;
+
+			float expectedDist = actualSpeed * _fDelta;
+
+			if (distMoved >= expectedDist * 0.1f)
+			{
+				pf.StuckTime = 0f;
+				pf.TimeSinceLastReplan = 0f;
+				pf.IsJitterReplanned = false;
+				return false;
+			}
+
+			pf.StuckTime += _fDelta;
+			if (pf.StuckTime < 0.1f) return false;
+
+			pf.TimeSinceLastReplan += _fDelta;
+			if (pf.TimeSinceLastReplan < 1.5f) return false;
+
+			pf.TimeSinceLastReplan = 0f;
+			pf.IsJitterReplanned = false;
+			return true;
+		}
+
+		private void UpdatePathIfNeededParallel(ushort pathingFlags, bool isFlying, Vector3 start, Vector3 target, bool forceReplan, ref PathFollow pf)
+		{
+			if (pf.Target == target && pf.WaypointCount != 0 && !forceReplan) return;
+			if (!_hasTerrainState) return;
+
+			if (isFlying)
+			{
+				pf.WaypointCount = 1;
+				pf.CurrentWaypointIndex = 0;
+				pf.Waypoints[0] = target;
+			}
+			else
+			{
+				var navQuery = GetThreadLocalNavMeshQuery() ?? _currentTerrainState.NavMeshQuery;
+				var pathfinder = _threadLocalPathfinder.Value!;
+				pathfinder.ComputePath(navQuery, start, target, pathingFlags, ref pf);
+			}
+
+			pf.Target = target;
+		}
+
+		private void ApplyVerticalFollowParallel(Vector3 currentPos, bool isFlying, ref Vector3 nextPos, ref Vector3 velocity)
+		{
+			bool snappedToNavMesh = false;
+			float snappedSurfaceY = nextPos.Y;
+
+			if (_hasTerrainState && !isFlying)
+			{
+				var navQuery = GetThreadLocalNavMeshQuery() ?? _currentTerrainState.NavMeshQuery;
+				if (navQuery != null)
 				{
-					if (!_unitGrid.TryGetValue(key, out var list))
+					var pathfinder = _threadLocalPathfinder.Value!;
+					var snapPos = new RcVec3f(nextPos.X, nextPos.Y, nextPos.Z);
+					navQuery.FindNearestPoly(snapPos, NavMeshSnapExtents, pathfinder.Filter, out long snapRef, out var snappedPt, out _);
+					if (snapRef != 0)
 					{
-						list = GetEntityListFromPool();
-						_unitGrid[key] = list;
+						float climb = MathF.Abs(snappedPt.Y - nextPos.Y);
+						if (climb <= NavMeshMaxSnapClimb)
+						{
+							nextPos.X = snappedPt.X;
+							nextPos.Z = snappedPt.Z;
+							snappedToNavMesh = true;
+							snappedSurfaceY = snappedPt.Y;
+						}
 					}
-
-					list.Add(entity);
 				}
-				else if (GameContext.World.Has<PropIdentity>(entity))
-				{
-					if (!_propGrid.TryGetValue(key, out var list))
-					{
-						list = GetEntityListFromPool();
-						_propGrid[key] = list;
-					}
+			}
 
-					list.Add(entity);
-				}
-			});
+			float desiredY;
+			if (snappedToNavMesh)
+			{
+				desiredY = snappedSurfaceY;
+				velocity.Y = 0f;
+			}
+			else if (_hasTerrainState)
+			{
+				ECSContext.TerrainNavMeshService.GetHeightAndNormal(in _currentTerrainState, nextPos.X, nextPos.Z, out float groundHeight, out _);
+				desiredY = groundHeight;
+				velocity.Y = 0f;
+			}
+			else if (_editorHeightProvider != null)
+			{
+				desiredY = _editorHeightProvider(nextPos);
+				velocity.Y = 0f;
+			}
+			else
+			{
+				desiredY = currentPos.Y;
+			}
+
+			float followFactor = Math.Clamp(VerticalFollowRate * _fDelta, 0f, 1f);
+			nextPos.Y = currentPos.Y + (desiredY - currentPos.Y) * followFactor;
 		}
 
 		private void MovementQueryAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)
 		{
-			if (TryHandleStun(entity)) return;
-
-			ushort pathingFlags = (ushort)(GameContext.World.Has<PathingFlags>(entity) ? GameContext.World.Get<PathingFlags>(entity).Value : 8);
-			bool isFlying = ((TerrainPathingFlags)pathingFlags & TerrainPathingFlags.Flying) != 0;
-
-			bool hasPf = GameContext.World.Has<PathFollow>(entity);
-			PathFollow pf = GetOrCreatePathFollow(hasPf, entity, pos.Value, moveTo.Target);
+			if (!TryGetMovementContext(entity, pos.Value, moveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
 
 			bool forceReplan = UpdateStuckState(hasPf, entity, pos.Value, stats, ref pf);
 
@@ -267,38 +641,8 @@ namespace Realm.Client.Services
 
 		private bool UpdateStuckState(bool hasPf, Entity entity, Vector3 posValue, MovementStats stats, ref PathFollow pf)
 		{
-			if (!hasPf)
-			{
-				pf.LastPosition = posValue;
-				pf.StuckTime = 0f;
-				pf.TimeSinceLastReplan = 0f;
-				pf.IsJitterReplanned = false;
-				return false;
-			}
-
-			float distMoved = Vector3.Distance(posValue, pf.LastPosition);
-			pf.LastPosition = posValue;
-
 			float actualSpeed = GetActualSpeed(entity, stats);
-			float expectedDist = actualSpeed * _fDelta;
-
-			if (distMoved >= expectedDist * 0.1f)
-			{
-				pf.StuckTime = 0f;
-				pf.TimeSinceLastReplan = 0f;
-				pf.IsJitterReplanned = false;
-				return false;
-			}
-
-			pf.StuckTime += _fDelta;
-			if (pf.StuckTime < 0.1f) return false;
-
-			pf.TimeSinceLastReplan += _fDelta;
-			if (pf.TimeSinceLastReplan < 1.5f) return false;
-
-			pf.TimeSinceLastReplan = 0f;
-			pf.IsJitterReplanned = false;
-			return true;
+			return UpdateStuckStateParallel(hasPf, posValue, actualSpeed, ref pf);
 		}
 
 		private void UpdatePathIfNeeded(ushort pathingFlags, bool isFlying, Vector3 start, Vector3 target, bool forceReplan, ref PathFollow pf)
@@ -354,9 +698,16 @@ namespace Realm.Client.Services
 			return finalTarget;
 		}
 
+		private static readonly StatId MovementSpeedStatId = new StatId("MovementSpeed");
+
 		private float GetActualSpeed(Entity entity, MovementStats stats)
 		{
-			float actualSpeed = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(entity, new StatId("MovementSpeed")) : 0f;
+			if (stats.Speed > 0f)
+			{
+				return stats.Speed;
+			}
+
+			float actualSpeed = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(entity, MovementSpeedStatId) : 0f;
 			return actualSpeed <= 0 ? stats.Speed : actualSpeed;
 		}
 
@@ -418,27 +769,29 @@ namespace Realm.Client.Services
 		{
 			if (!_unitGrid.TryGetValue(key, out var list)) return;
 
-			foreach (var other in list)
+			for (int i = 0; i < list.Count; i++)
 			{
-				ProcessNeighborSteering(entity, current, other, ref cohesion, ref alignment, ref separation, ref neighborCount);
+				var other = list[i];
+				ProcessNeighborSteering(entity, current, in other, ref cohesion, ref alignment, ref separation, ref neighborCount);
 			}
 		}
 
-		private void ProcessNeighborSteering(Entity entity, Vector3 current, Entity other, ref Vector3 cohesion, ref Vector3 alignment, ref Vector3 separation, ref int neighborCount)
+		private void ProcessNeighborSteering(Entity entity, Vector3 current, in SpatialGridEntry other, ref Vector3 cohesion, ref Vector3 alignment, ref Vector3 separation, ref int neighborCount)
 		{
-			if (other == entity || !GameContext.World.Has<Position>(other)) return;
+			if (other.Entity == entity) return;
 
-			var otherPos = GameContext.World.Get<Position>(other).Value;
-			float neighborDist = Vector3.Distance(current, otherPos);
-			if (neighborDist <= 0f || neighborDist >= 4.0f) return;
+			Vector3 otherPos = other.Position;
+			Vector3 diff = current - otherPos;
+			float distSq = diff.LengthSquared();
+			if (distSq <= 0f || distSq >= 16.0f) return;
 
 			cohesion += otherPos;
-			if (GameContext.World.Has<Velocity>(other))
+			if (other.HasVelocity)
 			{
-				alignment += GameContext.World.Get<Velocity>(other).Value;
+				alignment += other.Velocity;
 			}
 
-			separation += Vector3.Normalize(current - otherPos) / neighborDist;
+			separation += diff / distSq;
 			neighborCount++;
 		}
 
@@ -482,16 +835,12 @@ namespace Realm.Client.Services
 					long key = ((long)(baseCx + dx) << 32) | (uint)(baseCz + dz);
 					if (!_unitGrid.TryGetValue(key, out var list)) continue;
 
-					foreach (var otherEntity in list)
+					for (int i = 0; i < list.Count; i++)
 					{
-						if (otherEntity == entity) continue;
+						var other = list[i];
+						if (other.Entity == entity) continue;
 
-						float scale2 = GameContext.World.Has<CollisionScale>(otherEntity) ? GameContext.World.Get<CollisionScale>(otherEntity).Value : 1.0f;
-						float r2 = GameContext.World.Has<CollisionRadius>(otherEntity)
-							? GameContext.World.Get<CollisionRadius>(otherEntity).Value * scale2
-							: scale2 * GameplayConstants.DefaultCollisionRadius;
-
-						ResolveCollision(r1, r2, GameContext.World.Get<Position>(otherEntity).Value, ref nextPos);
+						ResolveCollision(r1, other.CollisionRadius, other.Position, ref nextPos);
 					}
 				}
 			}
@@ -506,14 +855,10 @@ namespace Realm.Client.Services
 					long key = ((long)(baseCx + dx) << 32) | (uint)(baseCz + dz);
 					if (!_propGrid.TryGetValue(key, out var list)) continue;
 
-					foreach (var propEntity in list)
+					for (int i = 0; i < list.Count; i++)
 					{
-						float scaleProp = GameContext.World.Has<CollisionScale>(propEntity) ? GameContext.World.Get<CollisionScale>(propEntity).Value : 1.0f;
-						float r2 = GameContext.World.Has<CollisionRadius>(propEntity)
-							? GameContext.World.Get<CollisionRadius>(propEntity).Value * scaleProp
-							: scaleProp * GameplayConstants.DefaultPropCollisionRadius;
-
-						ResolveCollision(r1, r2, GameContext.World.Get<Position>(propEntity).Value, ref nextPos);
+						var prop = list[i];
+						ResolveCollision(r1, prop.CollisionRadius, prop.Position, ref nextPos);
 					}
 				}
 			}
@@ -541,50 +886,7 @@ namespace Realm.Client.Services
 
 		private void ApplyVerticalFollow(Vector3 currentPos, bool isFlying, ref Vector3 nextPos, ref Vector3 velocity)
 		{
-			bool snappedToNavMesh = false;
-			float snappedSurfaceY = nextPos.Y;
-
-			if (_hasTerrainState && _currentTerrainState.NavMeshQuery != null && !isFlying)
-			{
-				var snapPos = new RcVec3f(nextPos.X, nextPos.Y, nextPos.Z);
-				_currentTerrainState.NavMeshQuery.FindNearestPoly(snapPos, NavMeshSnapExtents, GameContext.NavMeshPathfinder.Filter, out long snapRef, out var snappedPt, out _);
-				if (snapRef != 0)
-				{
-					float climb = MathF.Abs(snappedPt.Y - nextPos.Y);
-					if (climb <= NavMeshMaxSnapClimb)
-					{
-						nextPos.X = snappedPt.X;
-						nextPos.Z = snappedPt.Z;
-						snappedToNavMesh = true;
-						snappedSurfaceY = snappedPt.Y;
-					}
-				}
-			}
-
-			float desiredY;
-			if (snappedToNavMesh)
-			{
-				desiredY = snappedSurfaceY;
-				velocity.Y = 0f;
-			}
-			else if (_hasTerrainState)
-			{
-				ECSContext.TerrainNavMeshService.GetHeightAndNormal(in _currentTerrainState, nextPos.X, nextPos.Z, out float groundHeight, out _);
-				desiredY = groundHeight;
-				velocity.Y = 0f;
-			}
-			else if (_editorHeightProvider != null)
-			{
-				desiredY = _editorHeightProvider(nextPos);
-				velocity.Y = 0f;
-			}
-			else
-			{
-				desiredY = currentPos.Y;
-			}
-
-			float followFactor = Math.Clamp(VerticalFollowRate * _fDelta, 0f, 1f);
-			nextPos.Y = currentPos.Y + (desiredY - currentPos.Y) * followFactor;
+			ApplyVerticalFollowParallel(currentPos, isFlying, ref nextPos, ref velocity);
 		}
 
 		private void SavePathFollow(bool hasPf, Entity entity, PathFollow pf)

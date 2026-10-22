@@ -8,9 +8,11 @@ using Realm.Shared.Distribution;
 
 using static Godot.Control;
 using static Godot.CanvasItem;
+using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
+[GlobalClass]
 public partial class MapDiscovery : Control
 {
 	public MapDiscovery()
@@ -45,16 +47,10 @@ public partial class MapDiscovery : Control
 	private string _searchQuery = "";
 
 	private static Font _fontNorseBold;
-	private static Font _fontCinzel;
-	private static Font _fontOutfit;
-	private static Font _fontOutfitBold;
 
 	private static void EnsureFontsLoaded()
 	{
 		_fontNorseBold ??= LoadFont("res://Assets/UI/Norse-Bold.otf");
-		_fontCinzel ??= LoadFont("res://Assets/UI/Cinzel-Bold.ttf") ?? _fontNorseBold;
-		_fontOutfit ??= LoadFont("res://Assets/UI/Outfit-Medium.ttf") ?? _fontNorseBold;
-		_fontOutfitBold ??= LoadFont("res://Assets/UI/Outfit-Bold.ttf") ?? _fontNorseBold;
 	}
 
 	private static Font LoadFont(string path)
@@ -125,7 +121,7 @@ public partial class MapDiscovery : Control
 					.GroupBy(m => string.IsNullOrWhiteSpace(m.Title) ? m.MapId : m.Title.Trim(), StringComparer.OrdinalIgnoreCase)
 					.Select(group =>
 					{
-						var versions = group.OrderByDescending(v => ParseVersion(v.Version)).ToList();
+						var versions = group.OrderByDescending(v => MapInfoHelper.ParseVersion(v.Version)).ToList();
 						var primary = versions[0];
 						primary.AvailableVersions = versions;
 						foreach (var v in versions)
@@ -172,16 +168,16 @@ public partial class MapDiscovery : Control
 		Texture2D bgTexture = null;
 		string[] bgPaths = new string[]
 		{
-			"res://Assets/UI/procedural_bg.png",
-			"res://Assets/UI/map_discovery_bg_rpg_grey2.jpg",
-			"res://Assets/UI/map_discovery_bg_fortress2.jpg"
+			"res://Assets/UI/procedural_bg.webp",
+			"res://Assets/UI/map_discovery_bg_rpg_grey2.webp",
+			"res://Assets/UI/map_discovery_bg_fortress2.webp"
 		};
 
 		foreach (var path in bgPaths)
 		{
 			if (ResourceLoader.Exists(path))
 			{
-				bgTexture = GD.Load<Texture2D>(path);
+				bgTexture = TrimmedTextureLoader.LoadTrimmedTexture(path);
 				if (bgTexture != null) break;
 			}
 		}
@@ -205,7 +201,7 @@ public partial class MapDiscovery : Control
 	private void ApplyPanelStyles()
 	{
 		var filterPanelStyle = new StyleBoxTexture();
-		filterPanelStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_filter_panel.png");
+		filterPanelStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_filter_panel.webp");
 		filterPanelStyle.TextureMarginLeft = 0;
 		filterPanelStyle.TextureMarginRight = 0;
 		filterPanelStyle.TextureMarginTop = 0;
@@ -218,7 +214,7 @@ public partial class MapDiscovery : Control
 		_filterPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		var lobbyPanelStyle = new StyleBoxTexture();
-		lobbyPanelStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_main_panel.png");
+		lobbyPanelStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_main_panel.webp");
 		lobbyPanelStyle.TextureMarginLeft = 0;
 		lobbyPanelStyle.TextureMarginRight = 0;
 		lobbyPanelStyle.TextureMarginTop = 0;
@@ -288,7 +284,7 @@ public partial class MapDiscovery : Control
 	private void ApplySearchBarStyle()
 	{
 		var searchStyle = new StyleBoxTexture();
-		searchStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_search_bar.png");
+		searchStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_search_bar.webp");
 		searchStyle.TextureMarginLeft = 0;
 		searchStyle.TextureMarginRight = 0;
 		searchStyle.TextureMarginTop = 0;
@@ -369,7 +365,7 @@ public partial class MapDiscovery : Control
 			button.AddThemeColorOverride("font_outline_color", new Color(0.22f, 0.16f, 0.04f));
 
 			var activeStyle = new StyleBoxTexture();
-			activeStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_btn_normal.png");
+			activeStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_btn_normal.webp");
 			activeStyle.TextureMarginLeft = 0;
 			activeStyle.TextureMarginRight = 0;
 			activeStyle.TextureMarginTop = 0;
@@ -400,7 +396,7 @@ public partial class MapDiscovery : Control
 			button.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.06f, 0.08f));
 
 			var normalStyle = new StyleBoxTexture();
-			normalStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_btn_normal.png");
+			normalStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_btn_normal.webp");
 			normalStyle.TextureMarginLeft = 0;
 			normalStyle.TextureMarginRight = 0;
 			normalStyle.TextureMarginTop = 0;
@@ -448,6 +444,7 @@ public partial class MapDiscovery : Control
 		if (list.Count == 0)
 		{
 			var noMapsLabel = new Label();
+			noMapsLabel.Name = "NoMapsLabel_Label";
 			noMapsLabel.Text = TranslationServer.Translate("No maps found matching criteria.");
 			noMapsLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
 			noMapsLabel.AddThemeFontSizeOverride("font_size", 16);
@@ -488,11 +485,12 @@ public partial class MapDiscovery : Control
 		EnsureFontsLoaded();
 
 		var card = new PanelContainer();
+		card.Name = "Card_PanelContainer";
 		card.CustomMinimumSize = new Vector2(560, 220);
 		card.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		var cardStyle = new StyleBoxTexture();
-		cardStyle.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_card_bg.png");
+		cardStyle.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_card_bg.webp");
 		cardStyle.TextureMarginLeft = 0;
 		cardStyle.TextureMarginRight = 0;
 		cardStyle.TextureMarginTop = 0;
@@ -504,15 +502,18 @@ public partial class MapDiscovery : Control
 		card.AddThemeStyleboxOverride("panel", cardStyle);
 
 		var hBox = new HBoxContainer();
+		hBox.Name = "HBox_HBoxContainer";
 		hBox.AddThemeConstantOverride("separation", 16);
 		card.AddChild(hBox);
 
 		var imgContainer = new Control();
+		imgContainer.Name = "ImgContainer_Control";
 		imgContainer.CustomMinimumSize = new Vector2(180, 144);
 		imgContainer.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		imgContainer.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
 		var thumbnail = new TextureRect();
+		thumbnail.Name = "Thumbnail_TextureRect";
 		thumbnail.SetAnchorsPreset(LayoutPreset.FullRect);
 		thumbnail.OffsetLeft = 12;
 		thumbnail.OffsetTop = 12;
@@ -526,26 +527,30 @@ public partial class MapDiscovery : Control
 		imgContainer.AddChild(thumbnail);
 
 		var frameOverlay = new TextureRect();
+		frameOverlay.Name = "FrameOverlay_TextureRect";
 		frameOverlay.SetAnchorsPreset(LayoutPreset.FullRect);
 		frameOverlay.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		frameOverlay.StretchMode = TextureRect.StretchModeEnum.Scale;
 		frameOverlay.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		frameOverlay.Texture = GD.Load<Texture2D>("res://Assets/UI/procedural_card_img.png");
+		frameOverlay.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/procedural_card_img.webp");
 		imgContainer.AddChild(frameOverlay);
 
 		hBox.AddChild(imgContainer);
 
 		var vBox = new VBoxContainer();
+		vBox.Name = "VBox_VBoxContainer";
 		vBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vBox.SizeFlagsVertical = SizeFlags.ExpandFill;
 		vBox.AddThemeConstantOverride("separation", 2);
 		hBox.AddChild(vBox);
 
 		var headerBox = new HBoxContainer();
+		headerBox.Name = "HeaderBox_HBoxContainer";
 		headerBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vBox.AddChild(headerBox);
 
 		var title = new Label();
+		title.Name = "Title_Label";
 		title.Text = map.Title;
 		if (_fontNorseBold != null) title.AddThemeFontOverride("font", _fontNorseBold);
 		title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -556,6 +561,7 @@ public partial class MapDiscovery : Control
 		headerBox.AddChild(title);
 
 		var ratingLabel = new Label();
+		ratingLabel.Name = "RatingLabel_Label";
 		ratingLabel.Text = $"★ {map.RatingStars:F1}";
 		if (_fontNorseBold != null) ratingLabel.AddThemeFontOverride("font", _fontNorseBold);
 		ratingLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -565,6 +571,7 @@ public partial class MapDiscovery : Control
 		headerBox.AddChild(ratingLabel);
 
 		var creator = new Label();
+		creator.Name = "Creator_Label";
 		creator.Text = $"By: {map.Creator}  •  {map.Genre}";
 		if (_fontNorseBold != null) creator.AddThemeFontOverride("font", _fontNorseBold);
 		creator.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -572,6 +579,7 @@ public partial class MapDiscovery : Control
 		vBox.AddChild(creator);
 
 		var desc = new Label();
+		desc.Name = "Desc_Label";
 		desc.Text = map.Description;
 		desc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		desc.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -581,10 +589,12 @@ public partial class MapDiscovery : Control
 		vBox.AddChild(desc);
 
 		var footer = new HBoxContainer();
+		footer.Name = "Footer_HBoxContainer";
 		footer.Alignment = BoxContainer.AlignmentMode.End;
 		vBox.AddChild(footer);
 
 		var btnDetails = new Button();
+		btnDetails.Name = "BtnDetails_Button";
 		btnDetails.CustomMinimumSize = new Vector2(110, 32);
 		btnDetails.Text = TranslationServer.Translate("DETAILS");
 		if (_fontNorseBold != null) btnDetails.AddThemeFontOverride("font", _fontNorseBold);
@@ -614,59 +624,6 @@ public partial class MapDiscovery : Control
 
 	private static Texture2D LoadTextureSafe(string resPath)
 	{
-		if (string.IsNullOrEmpty(resPath)) return null;
-
-		try
-		{
-			if (ResourceLoader.Exists(resPath))
-			{
-				var tex = GD.Load<Texture2D>(resPath);
-				if (tex != null) return tex;
-			}
-		}
-		catch
-		{
-		}
-
-		try
-		{
-			string globalPath = ProjectSettings.GlobalizePath(resPath);
-			if (File.Exists(globalPath))
-			{
-				var image = Image.LoadFromFile(globalPath);
-				if (image != null)
-				{
-					return ImageTexture.CreateFromImage(image);
-				}
-			}
-		}
-		catch
-		{
-		}
-
-		return null;
-	}
-
-	private static Version ParseVersion(string versionStr)
-	{
-		if (string.IsNullOrWhiteSpace(versionStr)) return new Version(1, 0, 0);
-		string cleaned = versionStr.TrimStart('v', 'V').Trim();
-		if (Version.TryParse(cleaned, out var v))
-		{
-			return v;
-		}
-
-		var parts = cleaned.Split('.');
-		if (parts.Length == 1 && int.TryParse(parts[0], out int major))
-		{
-			return new Version(major, 0, 0);
-		}
-
-		if (parts.Length == 2 && int.TryParse(parts[0], out int maj) && int.TryParse(parts[1], out int min))
-		{
-			return new Version(maj, min, 0);
-		}
-
-		return new Version(0, 0, 0);
+		return TrimmedTextureLoader.LoadTrimmedTexture(resPath);
 	}
 }

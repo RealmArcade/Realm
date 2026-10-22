@@ -47,49 +47,6 @@
       "console": "integratedTerminal"
     },
     {
-      "name": "Debug WASM Map Script (Attach via CodeLLDB)",
-      "type": "lldb",
-      "request": "attach",
-      "pid": "${command:pickMyProcess}",
-      "cwd": "${workspaceFolder}/MapTemplate",
-      "breakpointMode": "file",
-      "initCommands": [
-        "command script import ${workspaceFolder}/realm_lldb.py",
-        "settings set plugin.jit-loader.gdb.enable off",
-        "settings set target.process.thread.step-in-avoid-nodebug true",
-        "settings set target.process.thread.step-avoid-regexp ^(__wasm|wasmtime|cabi_|rhp_|System\\.|GameClientWorld\\.)"
-      ],
-      "postAttachCommands": [
-        "target modules add \"${workspaceFolder}/MapTemplate/MapScript.jit.elf\"",
-        "target modules load --file \"${workspaceFolder}/MapTemplate/MapScript.jit.elf\" --slide 0",
-        "continue"
-      ],
-      "postRunCommands": [
-        "target modules add \"${workspaceFolder}/MapTemplate/MapScript.jit.elf\"",
-        "target modules load --file \"${workspaceFolder}/MapTemplate/MapScript.jit.elf\" --slide 0",
-        "continue"
-      ],
-      "env": {
-        "_NO_DEBUG_HEAP": "1"
-      }
-    },
-    {
-      "name": "Debug WASM Map Script (Attach via GDB)",
-      "type": "cppdbg",
-      "request": "attach",
-      "processId": "${command:pickProcess}",
-      "MIMode": "gdb",
-      "miDebuggerPath": "gdb",
-      "cwd": "${workspaceFolder}/MapTemplate",
-      "setupCommands": [
-        {
-          "description": "Enable pretty-printing for gdb",
-          "text": "-enable-pretty-printing",
-          "ignoreFailures": true
-        }
-      ]
-    },
-    {
       "name": "Attach to Realm Game Host (.NET Core)",
       "type": "coreclr",
       "request": "attach",

@@ -761,7 +761,7 @@ text = "Textures"
 layout_mode = 2
 focus_mode = 0
 button_pressed = true
-text = "Units / Props / Decals"
+text = "Objects"
 
 [node name="ChkPastePathing" type="CheckBox" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings/ContainerPaste/PasteOptionsBox"]
 layout_mode = 2

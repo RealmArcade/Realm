@@ -1001,24 +1001,7 @@ public static class Program
 			};
 
 			var response = client.AddMapMaintainerAsync(request).GetAwaiter().GetResult();
-			if (response.Success)
-			{
-				Console.WriteLine($"[SUCCESS] {response.Message}");
-				Console.WriteLine($"Owner:              {response.OwnerPublicKey}");
-				Console.WriteLine($"Total Maintainers:  {response.Maintainers.Count}");
-				for (int i = 0; i < response.Maintainers.Count; i++)
-				{
-					Console.WriteLine($"  [{i + 1}] {response.Maintainers[i]}");
-				}
-
-				Console.WriteLine("=================================================");
-				return 0;
-			}
-			else
-			{
-				Console.Error.WriteLine($"[FAILED] {response.Message}");
-				return 1;
-			}
+			return HandleMapMaintainersResponse(response, true);
 		}
 		catch (Exception ex)
 		{
@@ -1061,24 +1044,7 @@ public static class Program
 			};
 
 			var response = client.RemoveMapMaintainerAsync(request).GetAwaiter().GetResult();
-			if (response.Success)
-			{
-				Console.WriteLine($"[SUCCESS] {response.Message}");
-				Console.WriteLine($"Owner:              {response.OwnerPublicKey}");
-				Console.WriteLine($"Total Maintainers:  {response.Maintainers.Count}");
-				for (int i = 0; i < response.Maintainers.Count; i++)
-				{
-					Console.WriteLine($"  [{i + 1}] {response.Maintainers[i]}");
-				}
-
-				Console.WriteLine("=================================================");
-				return 0;
-			}
-			else
-			{
-				Console.Error.WriteLine($"[FAILED] {response.Message}");
-				return 1;
-			}
+			return HandleMapMaintainersResponse(response, true);
 		}
 		catch (Exception ex)
 		{
@@ -1103,27 +1069,36 @@ public static class Program
 		{
 			var client = new DistributionClient(serverUrl);
 			var response = client.GetMapMaintainersAsync(mapTitle).GetAwaiter().GetResult();
-			if (response.Success)
-			{
-				Console.WriteLine($"Owner:              {(!string.IsNullOrEmpty(response.OwnerPublicKey) ? response.OwnerPublicKey : "(None)")}");
-				Console.WriteLine($"Total Maintainers:  {response.Maintainers.Count}");
-				for (int i = 0; i < response.Maintainers.Count; i++)
-				{
-					Console.WriteLine($"  [{i + 1}] {response.Maintainers[i]}");
-				}
-
-				Console.WriteLine("=================================================");
-				return 0;
-			}
-			else
-			{
-				Console.Error.WriteLine($"[FAILED] {response.Message}");
-				return 1;
-			}
+			return HandleMapMaintainersResponse(response, false);
 		}
 		catch (Exception ex)
 		{
 			Console.Error.WriteLine($"[ERROR] List maintainers failed: {ex.Message}");
+			return 1;
+		}
+	}
+
+	private static int HandleMapMaintainersResponse(MapMaintainersResponseDto response, bool includeSuccessMessage)
+	{
+		if (response.Success)
+		{
+			if (includeSuccessMessage)
+			{
+				Console.WriteLine($"[SUCCESS] {response.Message}");
+			}
+			Console.WriteLine($"Owner:              {(!string.IsNullOrEmpty(response.OwnerPublicKey) ? response.OwnerPublicKey : "(None)")}");
+			Console.WriteLine($"Total Maintainers:  {response.Maintainers.Count}");
+			for (int i = 0; i < response.Maintainers.Count; i++)
+			{
+				Console.WriteLine($"  [{i + 1}] {response.Maintainers[i]}");
+			}
+
+			Console.WriteLine("=================================================");
+			return 0;
+		}
+		else
+		{
+			Console.Error.WriteLine($"[FAILED] {response.Message}");
 			return 1;
 		}
 	}

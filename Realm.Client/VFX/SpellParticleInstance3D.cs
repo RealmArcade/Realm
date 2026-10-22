@@ -5,6 +5,7 @@ using Realm.Client.Services;
 
 namespace Realm.Client.VFX;
 
+[GlobalClass]
 public partial class SpellParticleInstance3D : Node3D
 {
 	private GpuParticles3D _particles;
@@ -344,9 +345,15 @@ public partial class SpellParticleInstance3D : Node3D
 			Node node = ModelCache.GetModel(fullPath);
 			if (node != null)
 			{
-				Mesh foundMesh = FindFirstMesh(node);
-				node.QueueFree();
-				if (foundMesh != null) return foundMesh;
+				try
+				{
+					Mesh foundMesh = FindFirstMesh(node);
+					if (foundMesh != null) return foundMesh;
+				}
+				finally
+				{
+					node.QueueFree();
+				}
 			}
 		}
 		catch

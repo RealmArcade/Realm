@@ -6,6 +6,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.UI;
 using Realm.Client.UI.InGame;
+using Realm.Client.Utils;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Meta;
@@ -314,6 +315,57 @@ public class RegistryService
 	public readonly Dictionary<StringName, Realm.Shared.Metadata.UpgradeMetadata> UpgradeRegistry = new();
 	public Dictionary<string, VfxAttachmentConfig> VfxRegistry { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<string, AbilityDefinition> AbilityDefinitions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+	public void RegisterVfxConfig(string vfxId, VfxAttachmentConfig config)
+	{
+		if (string.IsNullOrWhiteSpace(vfxId) || config == null) return;
+
+		VfxRegistry[vfxId] = config;
+
+		var (_, slug) = TemplateIDHelper.ParseTemplateID(vfxId);
+		if (!string.IsNullOrEmpty(slug))
+		{
+			VfxRegistry[slug] = config;
+		}
+	}
+
+	public void UnregisterVfxConfig(string vfxId)
+	{
+		if (string.IsNullOrWhiteSpace(vfxId)) return;
+
+		VfxRegistry.Remove(vfxId);
+
+		var (_, slug) = TemplateIDHelper.ParseTemplateID(vfxId);
+		if (!string.IsNullOrEmpty(slug))
+		{
+			VfxRegistry.Remove(slug);
+			VfxRegistry.Remove("vfx/" + slug);
+		}
+	}
+
+	public bool TryGetVfxConfig(string vfxId, out VfxAttachmentConfig config)
+	{
+		config = null;
+		if (string.IsNullOrWhiteSpace(vfxId)) return false;
+
+		if (VfxRegistry.TryGetValue(vfxId, out config) && config != null) return true;
+
+		string normalizedId = vfxId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
+			? vfxId.Substring(4)
+			: vfxId;
+
+		if (!string.Equals(normalizedId, vfxId, StringComparison.OrdinalIgnoreCase) &&
+		    VfxRegistry.TryGetValue(normalizedId, out config) && config != null)
+		{
+			return true;
+		}
+
+		var (_, slug) = TemplateIDHelper.ParseTemplateID(normalizedId);
+		if (!string.IsNullOrEmpty(slug) && VfxRegistry.TryGetValue(slug, out config) && config != null) return true;
+
+		string fullId = TemplateIDHelper.NormalizeTemplateID("vfx", normalizedId);
+		return VfxRegistry.TryGetValue(fullId, out config) && config != null;
+	}
 	public Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> UnitAbilityStates { get; set; } = new();
 	public Dictionary<(int UnitUniqueId, string AbilityId), float> UnitAbilityManaCosts { get; set; } = new();
 	public Dictionary<string, string> ItemTooltips { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -949,7 +1001,7 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(vfxId) || config == null) return;
 
-		VfxRegistry[vfxId] = config.Clone();
+		RegisterVfxConfig(vfxId, config.Clone());
 
 		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
 		if (!File.Exists(metadataPath)) return;
@@ -964,7 +1016,7 @@ public class RegistryService
 
 		if (VfxRegistry != null)
 		{
-			VfxRegistry.Remove(vfxId);
+			UnregisterVfxConfig(vfxId);
 		}
 
 		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
