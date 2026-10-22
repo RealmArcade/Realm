@@ -55,7 +55,7 @@ public class MapStateSnapshot
 
 	public static MapStateSnapshot CreateSnapshot()
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host == null || host.GroundTerrain == null) return null;
 
 		var snapshot = new MapStateSnapshot();

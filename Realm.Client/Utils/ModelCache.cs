@@ -170,14 +170,14 @@ namespace Realm.Client.Utils
 
 		private static string GetActiveMapName()
 		{
-			if (GameHost.Instance != null && !string.IsNullOrEmpty(ECSContext.ActiveMapName))
+			if (GameContext.Host != null && !string.IsNullOrEmpty(ECSContext.ActiveMapName))
 			{
 				return ECSContext.ActiveMapName;
 			}
 
-			if (LobbyManager.Instance != null && !string.IsNullOrEmpty(LobbyManager.Instance.ActiveMapName))
+			if (GameContext.Lobby != null && !string.IsNullOrEmpty(GameContext.Lobby.ActiveMapName))
 			{
-				return LobbyManager.Instance.ActiveMapName;
+				return GameContext.Lobby.ActiveMapName;
 			}
 
 			return null;
@@ -240,7 +240,7 @@ namespace Realm.Client.Utils
 
 		private static string GetCurrentMapDirectory()
 		{
-			if (GameHost.Instance != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))
+			if (GameContext.Host != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))
 			{
 				return GameContext.MapStorageService.CurrentMapDirectory;
 			}
@@ -477,7 +477,7 @@ namespace Realm.Client.Utils
 				glbBytes = rmeshBytes;
 			}
 
-			bool despill = GameHost.Instance != null && GameHost.Instance.GetModelDespillPlayerColor(modelPath);
+			bool despill = GameContext.Host != null && GameContext.Host.GetModelDespillPlayerColor(modelPath);
 			if (despill)
 			{
 				glbBytes = GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);

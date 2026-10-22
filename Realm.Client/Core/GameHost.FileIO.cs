@@ -48,7 +48,7 @@ public partial class GameHost
 			}
 			else
 			{
-				MapEditorHUD.Instance?.UpdateMapNameHeader();
+				GameContext.MapEditorHud?.UpdateMapNameHeader();
 			}
 		}
 	}
@@ -203,11 +203,11 @@ public partial class GameHost
 			savedState.SelectionEnd != null ? new System.Numerics.Vector3(savedState.SelectionEnd.Value.X, 0, savedState.SelectionEnd.Value.Y) : (System.Numerics.Vector3?)null
 		);
 
-		MapEditorHUD.Instance?.SelectToolFromHotkey(savedState.ActiveTool);
-		MapEditorHUD.Instance?.UpdateTextureLabels();
-		MapEditorHUD.Instance?.RefreshWaterSwatches();
-		MapEditorHUD.Instance?.UpdateMapNameHeader();
-		MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("Map saved"));
+		GameContext.MapEditorHud?.SelectToolFromHotkey(savedState.ActiveTool);
+		GameContext.MapEditorHud?.UpdateTextureLabels();
+		GameContext.MapEditorHud?.RefreshWaterSwatches();
+		GameContext.MapEditorHud?.UpdateMapNameHeader();
+		GameContext.MapEditorHud?.ShowFeedback(TranslationServer.Translate("Map saved"));
 	}
 
 	private void RestoreCameraAfterSave(EditorSaveState savedState)
@@ -272,7 +272,7 @@ public partial class GameHost
 			}
 
 			GroundTerrain.UpdateMeshAndPhysics(true, true);
-			MapEditorHUD.Instance?.RegenerateMinimap();
+			GameContext.MapEditorHud?.RegenerateMinimap();
 			RestoreLoadedCoordinates();
 
 			EditorHistoryManager.Clear();
@@ -337,11 +337,11 @@ public partial class GameHost
 
 	private void ResetEditorUIView()
 	{
-		if (MapEditorHUD.Instance != null)
+		if (GameContext.MapEditorHud != null)
 		{
-			MapEditorHUD.Instance.UpdateBlockModeExternal(true);
-			MapEditorHUD.Instance.UpdateBlockLevelHeightExternal(2.0f);
-			MapEditorHUD.Instance.UpdateCameraBoundsUI();
+			GameContext.MapEditorHud.UpdateBlockModeExternal(true);
+			GameContext.MapEditorHud.UpdateBlockLevelHeightExternal(2.0f);
+			GameContext.MapEditorHud.UpdateCameraBoundsUI();
 		}
 
 		UpdateCameraBoundsOverlayVisibility();
@@ -351,9 +351,9 @@ public partial class GameHost
 		GameContext.EditorService.ClearEditorCoordinates();
 		RebuildAllCoordinatePersistentMeshes();
 
-		if (MapEditorHUD.Instance != null)
+		if (GameContext.MapEditorHud != null)
 		{
-			MapEditorHUD.Instance.RefreshCoordinateListExternal();
+			GameContext.MapEditorHud.RefreshCoordinateListExternal();
 		}
 	}
 
@@ -384,9 +384,9 @@ public partial class GameHost
 
 	private void ApplyEditorStateView(EditorState editor)
 	{
-		MapEditorHUD.Instance?.UpdateBlockModeExternal(editor.BlockMode);
-		MapEditorHUD.Instance?.UpdateBlockLevelHeightExternal(editor.BlockLevelHeight);
-		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
+		GameContext.MapEditorHud?.UpdateBlockModeExternal(editor.BlockMode);
+		GameContext.MapEditorHud?.UpdateBlockLevelHeightExternal(editor.BlockLevelHeight);
+		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
 		UpdateCameraBoundsOverlayVisibility();
 		UpdateGridOverlayVisibility();
 		UpdatePathingOverlay();
@@ -394,7 +394,7 @@ public partial class GameHost
 		if (!string.IsNullOrEmpty(editor.SkyboxPath))
 		{
 			SetSkyboxTexture(editor.SkyboxPath);
-			MapEditorHUD.Instance?.UpdateSelectedSkyboxExternal(editor.SkyboxPath);
+			GameContext.MapEditorHud?.UpdateSelectedSkyboxExternal(editor.SkyboxPath);
 		}
 	}
 
@@ -513,7 +513,7 @@ public partial class GameHost
 	{
 		ProcessUnitSpawnRequests();
 		ProcessPropSpawnRequests();
-		PropMultiMeshManager.Instance?.RebuildAll();
+		GameContext.PropMultiMesh?.RebuildAll();
 		ProcessDecalSpawnRequests();
 	}
 
@@ -542,7 +542,7 @@ public partial class GameHost
 	{
 		GameContext.EditorService.RestoreLoadedCoordinates();
 		RebuildAllCoordinatePersistentMeshes();
-		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 	}
 
 

@@ -370,7 +370,7 @@ public class SaveLoadService
 			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			MapFileService.SaveTerrain(absolutePath, saveData);
 
-			GameHost.Instance?.SaveModelYOffsetsToMetadataJson(directory);
+			GameContext.Host?.SaveModelYOffsetsToMetadataJson(directory);
 			SyncMetadataAssetsAndPrune(directory);
 			CleanMetadataFile(directory, terrain.Width, terrain.Depth);
 			MapWorkspaceService.EnsureLicenseFile(directory);
@@ -543,7 +543,7 @@ public class SaveLoadService
 	private List<VfxSaveData> GetVfxSaveData()
 	{
 		var vfxList = new List<VfxSaveData>();
-		var allVfx = GameHost.Instance?.AllVfx;
+		var allVfx = GameContext.Host?.AllVfx;
 		if (allVfx == null) return vfxList;
 
 		foreach (var vfx in allVfx)
@@ -713,7 +713,7 @@ public class SaveLoadService
 			if (saveData == null) return false;
 
 			string mapDir = Path.GetDirectoryName(absolutePath);
-			GameHost.Instance?.LoadModelYOffsetsFromMetadataJson(mapDir);
+			GameContext.Host?.LoadModelYOffsetsFromMetadataJson(mapDir);
 
 			_lastLoadedCoordinates = saveData.Coordinates ?? new List<CoordinateSaveData>();
 
@@ -1088,10 +1088,10 @@ public class SaveLoadService
 
 	private void SpawnVfx(List<VfxSaveData>? vfxList)
 	{
-		if (vfxList == null || GameHost.Instance == null) return;
+		if (vfxList == null || GameContext.Host == null) return;
 		foreach (var v in vfxList)
 		{
-			GameHost.Instance.SpawnVfxExternalWithParams(
+			GameContext.Host.SpawnVfxExternalWithParams(
 				v.VfxId, new Godot.Vector3(v.PosX, v.PosY, v.PosZ), new Godot.Vector3(v.RotationX, v.RotationY, v.RotationZ),
 				new Godot.Vector3(v.ScaleX <= 0f ? 1f : v.ScaleX, v.ScaleY <= 0f ? 1f : v.ScaleY, v.ScaleZ <= 0f ? 1f : v.ScaleZ),
 				v.NormalOffset, v.Config

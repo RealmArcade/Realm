@@ -362,9 +362,9 @@ public class SimulationService
 			}
 		}
 
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList != null)
+		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList != null)
 		{
-			var list = LobbyManager.Instance.PlayerList;
+			var list = GameContext.Lobby.PlayerList;
 			for (int i = 0; i < list.Count; i++)
 			{
 				if (list[i].Slot == playerIndex)
@@ -395,9 +395,9 @@ public class SimulationService
 			return playersState.Players[playerIndex].Team;
 		}
 
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList != null)
+		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList != null)
 		{
-			var list = LobbyManager.Instance.PlayerList;
+			var list = GameContext.Lobby.PlayerList;
 			for (int i = 0; i < list.Count; i++)
 			{
 				if (list[i].Slot == playerIndex)
@@ -623,7 +623,7 @@ public class SimulationService
 	public SimulationService()
 	{
 		_movementService = new MovementAndPathfindingService();
-		_combatService = new CombatAndDamageService(() => GameHost.Instance != null && GameContext.CheatService.UnlimitedPowerEnabled);
+		_combatService = new CombatAndDamageService(() => GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled);
 		_economyService = new ResourceEconomyService();
 
 		_combatService.OnArrowProjectileRequested = (p1, p2) => EnqueueVFXRequest("arrow", p1, p2, 1.0f, 40f);
@@ -976,8 +976,8 @@ public class SimulationService
 
 	private bool IsPlayerBot(int pIdx)
 	{
-		if (GameHost.Instance == null) return false;
-		return GameHost.Instance.IsPlayerComputer(pIdx);
+		if (GameContext.Host == null) return false;
+		return GameContext.Host.IsPlayerComputer(pIdx);
 	}
 
 	private BotController InitializeDefaultBotController(int pIdx)
@@ -1516,9 +1516,9 @@ public class SimulationService
 			return wrapper;
 		}
 
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var allUnits = GameHost.Instance.AllUnits;
+			var allUnits = GameContext.Host.AllUnits;
 			for (int i = 0; i < allUnits.Count; i++)
 			{
 				var u = allUnits[i];
@@ -1548,7 +1548,7 @@ public class SimulationService
 	private void CooldownsQueryAction(Entity entity, ref Cooldowns cooldowns)
 	{
 		var dict = cooldowns.Value;
-		if (GameHost.Instance != null && GameContext.CheatService.UnlimitedPowerEnabled)
+		if (GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled)
 		{
 			dict.Clear();
 			return;
@@ -1651,7 +1651,7 @@ public class SimulationService
 
 	private void AttackCooldownQueryAction(Entity entity, ref Attack atk)
 	{
-		if (GameHost.Instance != null && GameContext.CheatService.UnlimitedPowerEnabled)
+		if (GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled)
 		{
 			atk.CurrentCooldown = 0f;
 			return;
@@ -1697,7 +1697,7 @@ public class SimulationService
 		var dict = spellCooldowns.Value;
 		if (dict == null) return;
 
-		if (GameHost.Instance != null && GameContext.CheatService.UnlimitedPowerEnabled)
+		if (GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled)
 		{
 			dict.Clear();
 			return;
@@ -1734,7 +1734,7 @@ public class SimulationService
 	{
 		if (prod.UnitIds.Count == 0) return;
 
-		float multiplier = (GameHost.Instance != null && GameContext.SimulationService.FastBuildEnabled) ? 10f : 1f;
+		float multiplier = (GameContext.Host != null && GameContext.SimulationService.FastBuildEnabled) ? 10f : 1f;
 		prod.CurrentProgress += _fDelta * multiplier;
 		if (prod.CurrentProgress < prod.BuildTime) return;
 
@@ -2126,7 +2126,7 @@ public class SimulationService
 				}
 
 				SetAbilityCooldown(unitWrapper, abilityId, def.Cooldown > 0f ? def.Cooldown : 5f);
-				CastAbility(unitWrapper, abilityId, targetPos, def, null, (d, p) => GameContext.FXService?.SpawnAbilityEffect(GameHost.Instance, d, p));
+				CastAbility(unitWrapper, abilityId, targetPos, def, null, (d, p) => GameContext.FXService?.SpawnAbilityEffect(GameContext.Host, d, p));
 				break;
 			}
 		}

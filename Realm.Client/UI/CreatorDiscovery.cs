@@ -8,6 +8,7 @@ using Godot;
 using Realm.Client.Network;
 using Realm.Shared.Distribution;
 using HttpClient = System.Net.Http.HttpClient;
+using Realm.Client.Services;
 using static Godot.Control;
 using static Godot.CanvasItem;
 
@@ -107,7 +108,7 @@ public partial class CreatorDiscovery : Control
 		_backButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_backButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_backButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_backButton.Pressed += () => UIManager.Instance.TransitionTo(GameScreen.MainMenu);
+		_backButton.Pressed += () => GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 		topHeaderHBox.AddChild(_backButton);
 
 		var titleLabel = new Label();
@@ -464,7 +465,7 @@ public partial class CreatorDiscovery : Control
 
 	private async void LoadPortfolioData()
 	{
-		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
 		try
 		{
 			using (var httpClient = new HttpClient())
@@ -511,7 +512,7 @@ public partial class CreatorDiscovery : Control
 		UpdateCreatorLabels(creator);
 		ClearPortfolioGrid();
 
-		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
 		bool loaded = await TryLoadAndDisplayPortfolioAssets(seedServerUrl, creator);
 		if (!loaded)
 		{

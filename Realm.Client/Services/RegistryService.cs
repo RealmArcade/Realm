@@ -611,9 +611,9 @@ public class RegistryService
 		{
 			UnitAbilityStates[(unit.Value, key)] = (disabled, hidden);
 		}
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			Callable.From(() => InGameHUD.Instance?.RefreshUI(GameHost.Instance.SelectedUnits)).CallDeferred();
+			Callable.From(() => GameContext.InGameHud?.RefreshUI(GameContext.Host.SelectedUnits)).CallDeferred();
 		}
 	}
 
@@ -963,11 +963,11 @@ public class RegistryService
 
 	public void ApplyAttachmentsToGameInstances(string unitId, string regKey)
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
-		if (GameHost.Instance.AllUnits != null)
+		if (GameContext.Host.AllUnits != null)
 		{
-			foreach (var u in GameHost.Instance.AllUnits)
+			foreach (var u in GameContext.Host.AllUnits)
 			{
 				if (u != null && IsMatchingUnit(u.UnitId, unitId, regKey))
 				{
@@ -976,7 +976,7 @@ public class RegistryService
 			}
 		}
 
-		if (GameHost.Instance.SelectedEditorObject is Unit3D selUnit)
+		if (GameContext.Host.SelectedEditorObject is Unit3D selUnit)
 		{
 			if (IsMatchingUnit(selUnit.UnitId, unitId, regKey))
 			{

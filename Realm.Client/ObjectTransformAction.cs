@@ -61,25 +61,25 @@ public class ObjectTransformAction : IEditorAction
 
 		if (_targetNode is Unit3D unit)
 		{
-			GameHost.Instance?.SetUnitPlayerExternal(unit, player);
+			GameContext.Host?.SetUnitPlayerExternal(unit, player);
 			UpdateEcsEntity(unit.Entity, pos, rot, scale);
 		}
 		else if (_targetNode is Prop3D prop)
 		{
 			UpdateEcsEntity(prop.Entity, pos, rot, scale);
-			PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+			GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
 		}
 		else if (_targetNode is PropEntityProxyNode proxy)
 		{
 			UpdateEcsEntity(proxy.Entity, pos, rot, scale);
-			PropMultiMeshManager.Instance?.MarkDirty(proxy.PropId);
+			GameContext.PropMultiMesh?.MarkDirty(proxy.PropId);
 		}
 		else if (_targetNode is Decal3D decal3D)
 		{
 			UpdateEcsEntity(decal3D.Entity, pos, rot, scale);
 		}
 
-		MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 	}
 
 	private static void UpdateEcsEntity(Entity entity, Vector3 pos, Vector3 rot, Vector3 scale)
@@ -111,7 +111,7 @@ public class ObjectTransformAction : IEditorAction
 
 	private static void WriteEcsTransform(Entity entity, Vector3 pos, Vector3 rot, Vector3 scale, bool writeScale)
 	{
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		var ecsWorld = (tempQualifier != null ? GameContext.World : null);
 		if (ecsWorld == null || entity == Entity.Null || !ecsWorld.IsAlive(entity))
 			return;

@@ -1,5 +1,10 @@
-﻿using Realm.Ecs;
+using System.Runtime.Versioning;
+using Realm.Client.Core;
+using Realm.Client.Network;
+using Realm.Client.ReplaySystem;
+using Realm.Client.UI;
 using Realm.Client.Services.ModelOptimization;
+using Realm.Ecs;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
 
@@ -11,6 +16,11 @@ namespace Realm.Client.Services
 
 		private static ServiceScope _globalScope = new("Global");
 		private static ServiceScope? _screenScope;
+
+		private static ReplayPlaybackManager? _replayPlayback;
+		private static PeerSeederManager? _peerSeeder;
+		private static VSCodeManager? _vscode;
+		private static WasmConsoleWindow? _wasmConsole;
 
 		/// <summary>
 		/// Services that live for the whole application session and are disposed only at shutdown.
@@ -40,6 +50,84 @@ namespace Realm.Client.Services
 		{
 			get => ECSContext.ActiveMapName;
 			set => ECSContext.ActiveMapName = value;
+		}
+
+		public static GameHost? Host { get; private set; }
+		public static RuntimeTerrain? Terrain { get; private set; }
+		public static LobbyManager? Lobby { get; private set; }
+		public static UIManager? UserInterface { get; private set; }
+		public static InGameHUD? InGameHud { get; private set; }
+		public static MapEditorHUD? MapEditorHud { get; private set; }
+		public static SettingsMenu? Settings { get; private set; }
+		public static PropMultiMeshManager? PropMultiMesh { get; private set; }
+
+		public static ReplayPlaybackManager ReplayPlayback => _replayPlayback ??= new ReplayPlaybackManager();
+		public static PeerSeederManager PeerSeeder => _peerSeeder ??= new PeerSeederManager();
+		public static UpnpService Upnp { get; } = new();
+
+		[SupportedOSPlatform("windows")]
+		public static VSCodeManager VSCode => _vscode ??= new VSCodeManager();
+
+		public static bool HasWasmConsole => _wasmConsole != null && Godot.GodotObject.IsInstanceValid(_wasmConsole);
+
+		public static WasmConsoleWindow WasmConsole => HasWasmConsole ? _wasmConsole! : CreateWasmConsole();
+
+		public static bool IsSettingsMenuOpen => Settings is { } settings
+			&& Godot.GodotObject.IsInstanceValid(settings)
+			&& settings.IsInsideTree()
+			&& settings.Visible;
+
+		public static void RegisterHost(GameHost host) => Host = host;
+		public static void UnregisterHost(GameHost host)
+		{
+			if (ReferenceEquals(Host, host)) Host = null;
+		}
+
+		public static void RegisterTerrain(RuntimeTerrain terrain) => Terrain = terrain;
+		public static void UnregisterTerrain(RuntimeTerrain terrain)
+		{
+			if (ReferenceEquals(Terrain, terrain)) Terrain = null;
+		}
+
+		public static void RegisterLobby(LobbyManager lobby) => Lobby = lobby;
+		public static void UnregisterLobby(LobbyManager lobby)
+		{
+			if (ReferenceEquals(Lobby, lobby)) Lobby = null;
+		}
+
+		public static void RegisterUserInterface(UIManager userInterface) => UserInterface = userInterface;
+		public static void UnregisterUserInterface(UIManager userInterface)
+		{
+			if (ReferenceEquals(UserInterface, userInterface)) UserInterface = null;
+		}
+
+		public static void RegisterInGameHud(InGameHUD inGameHud) => InGameHud = inGameHud;
+		public static void UnregisterInGameHud(InGameHUD inGameHud)
+		{
+			if (ReferenceEquals(InGameHud, inGameHud)) InGameHud = null;
+		}
+
+		public static void RegisterMapEditorHud(MapEditorHUD mapEditorHud) => MapEditorHud = mapEditorHud;
+		public static void UnregisterMapEditorHud(MapEditorHUD mapEditorHud)
+		{
+			if (ReferenceEquals(MapEditorHud, mapEditorHud)) MapEditorHud = null;
+		}
+
+		public static void RegisterSettings(SettingsMenu settings) => Settings = settings;
+		public static void UnregisterSettings(SettingsMenu settings)
+		{
+			if (ReferenceEquals(Settings, settings)) Settings = null;
+		}
+
+		public static void RegisterPropMultiMesh(PropMultiMeshManager propMultiMesh) => PropMultiMesh = propMultiMesh;
+		public static void UnregisterPropMultiMesh(PropMultiMeshManager propMultiMesh)
+		{
+			if (ReferenceEquals(PropMultiMesh, propMultiMesh)) PropMultiMesh = null;
+		}
+
+		public static void UnregisterWasmConsole(WasmConsoleWindow wasmConsole)
+		{
+			if (ReferenceEquals(_wasmConsole, wasmConsole)) _wasmConsole = null;
 		}
 
 		public static AudioService AudioService => GlobalScope.Get<AudioService>();
@@ -91,6 +179,13 @@ namespace Realm.Client.Services
 			EnsureServices();
 		}
 
+		private static WasmConsoleWindow CreateWasmConsole()
+		{
+			_wasmConsole = new WasmConsoleWindow();
+			_wasmConsole.Name = "WasmConsoleWindow";
+			return _wasmConsole;
+		}
+
 		public static void EnsureServices()
 		{
 			ECSContext.EnsureServices();
@@ -132,8 +227,8 @@ namespace Realm.Client.Services
 			_globalScope.Dispose();
 			_globalScope = new ServiceScope("Global");
 
-			Core.GameHost.Instance?.ClearStaticText();
-			VisualProjectilePool.Instance.Clear();
+			Host?.ClearStaticText();
+			VisualProjectilePool.Clear();
 			VisualProjectile3D.ClearSharedShaderCache();
 
 			ECSContext.Dispose();

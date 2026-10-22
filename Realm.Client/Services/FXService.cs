@@ -810,10 +810,10 @@ public class FXService
 
 		SpawnPing3DEffect(parent, position);
 
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.ShowFeedbackText($"[ALERT PING] Signal at: {position.X:F0}, {position.Z:F0}", new Color(1.0f, 0.1f, 0.2f));
-			UIManager.Instance?.PlayClickSound();
+			GameContext.InGameHud.ShowFeedbackText($"[ALERT PING] Signal at: {position.X:F0}, {position.Z:F0}", new Color(1.0f, 0.1f, 0.2f));
+			GameContext.UserInterface?.PlayClickSound();
 		}
 	}
 
@@ -880,7 +880,7 @@ public class FXService
 
 	public void ClearProjectileTrails()
 	{
-		VisualProjectilePool.Instance.DeactivateAll();
+		VisualProjectilePool.DeactivateAll();
 
 		if (_batchedAddImmediateMesh != null && GodotObject.IsInstanceValid(_batchedAddImmediateMesh))
 		{
@@ -898,14 +898,14 @@ public class FXService
 
 	public void RenderBatchedRibbonTrails(Camera3D camera)
 	{
-		Node parent = GameHost.Instance ?? (Node)camera?.GetViewport();
+		Node parent = GameContext.Host ?? (Node)camera?.GetViewport();
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
 
 		EnsureBatchedRibbonNodes(parent);
 
 		if (_batchedAddImmediateMesh == null || _batchedMixImmediateMesh == null || _batchedAddMaterial == null || _batchedMixMaterial == null) return;
 
-		var projectiles = VisualProjectilePool.Instance?.ActiveProjectiles;
+		var projectiles = VisualProjectilePool.ActiveProjectiles;
 		if (projectiles == null || projectiles.Count == 0)
 		{
 			if (_hasDrawnAddRibbons)

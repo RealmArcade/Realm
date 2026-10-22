@@ -1,4 +1,5 @@
 using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -29,22 +30,22 @@ public class EntityVisualEditUndoAction : IEditorAction
 
 	private void ApplySnapshot(VisualOverridesSnapshot snapshot)
 	{
-		if (GameHost.Instance == null || string.IsNullOrEmpty(_assetKey)) return;
+		if (GameContext.Host == null || string.IsNullOrEmpty(_assetKey)) return;
 
 		EntityVisualEditDialog.UpdateStaticRegistryModelAndVisualMode(_category, _assetKey, snapshot.ModelPath, snapshot.VisualMode);
 
-		GameHost.Instance.SetModelScale(_assetKey, snapshot.Scale);
-		GameHost.Instance.SetModelYOffset(_assetKey, snapshot.YOffset);
-		GameHost.Instance.SetModelCollisionCircleRatio(_assetKey, snapshot.CollisionCircleRatio);
-		GameHost.Instance.SetModelBrightness(_assetKey, snapshot.Brightness);
-		GameHost.Instance.SetModelColorTint(_assetKey, snapshot.ColorTint);
-		GameHost.Instance.SetModelNormalizeLuminance(_assetKey, snapshot.NormalizeLuminance);
-		GameHost.Instance.SetModelIgnorePlayerColor(_assetKey, snapshot.IgnorePlayerColor);
-		GameHost.Instance.SetModelDespillPlayerColor(_assetKey, snapshot.DespillPlayerColor);
-		GameHost.Instance.SetModelSpawnShader(_assetKey, snapshot.SpawnShader);
-		GameHost.Instance.SetModelDeathShader(_assetKey, snapshot.DeathShader);
-		GameHost.Instance.SetModelEnableProceduralAnimation(_assetKey, snapshot.EnableProceduralAnimation);
-		GameHost.Instance.SetModelProceduralAnimation(_assetKey, snapshot.ProceduralAnimation);
+		GameContext.Host.SetModelScale(_assetKey, snapshot.Scale);
+		GameContext.Host.SetModelYOffset(_assetKey, snapshot.YOffset);
+		GameContext.Host.SetModelCollisionCircleRatio(_assetKey, snapshot.CollisionCircleRatio);
+		GameContext.Host.SetModelBrightness(_assetKey, snapshot.Brightness);
+		GameContext.Host.SetModelColorTint(_assetKey, snapshot.ColorTint);
+		GameContext.Host.SetModelNormalizeLuminance(_assetKey, snapshot.NormalizeLuminance);
+		GameContext.Host.SetModelIgnorePlayerColor(_assetKey, snapshot.IgnorePlayerColor);
+		GameContext.Host.SetModelDespillPlayerColor(_assetKey, snapshot.DespillPlayerColor);
+		GameContext.Host.SetModelSpawnShader(_assetKey, snapshot.SpawnShader);
+		GameContext.Host.SetModelDeathShader(_assetKey, snapshot.DeathShader);
+		GameContext.Host.SetModelEnableProceduralAnimation(_assetKey, snapshot.EnableProceduralAnimation);
+		GameContext.Host.SetModelProceduralAnimation(_assetKey, snapshot.ProceduralAnimation);
 
 		Prop3D.InvalidateModelPathCache(_assetKey);
 		ModelCache.InvalidateModelPath(_assetKey);
@@ -54,8 +55,8 @@ public class EntityVisualEditUndoAction : IEditorAction
 			ModelCache.InvalidateModelPath(snapshot.ModelPath);
 		}
 
-		GameHost.Instance.RefreshAllPlacedObjectModels(_assetKey);
-		GameHost.Instance.FlushModelYOffsetSave();
-		GameHost.Instance.FlushModelCollisionCircleSave();
+		GameContext.Host.RefreshAllPlacedObjectModels(_assetKey);
+		GameContext.Host.FlushModelYOffsetSave();
+		GameContext.Host.FlushModelCollisionCircleSave();
 	}
 }

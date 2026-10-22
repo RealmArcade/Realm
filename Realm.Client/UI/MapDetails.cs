@@ -8,6 +8,7 @@ using FileAccess = Godot.FileAccess;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
@@ -350,7 +351,7 @@ public partial class MapDetails : Control
 		ApplyWrapperStyles();
 		ApplyTextStyles();
 
-		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀ BACK", () => UIManager.Instance.TransitionTo(GameScreen.MapDiscovery));
+		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀ BACK", () => GameContext.UserInterface.TransitionTo(GameScreen.MapDiscovery));
 
 		_downloadButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_downloadButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
@@ -627,7 +628,7 @@ public partial class MapDetails : Control
 			_carouselIndex = (_carouselIndex - 1 + _mapData.Screenshots.Length) % _mapData.Screenshots.Length;
 			_carouselSlider.Value = _carouselIndex;
 			UpdateCarousel();
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 		};
 
 		_btnRightArrow.Pressed += () =>
@@ -636,7 +637,7 @@ public partial class MapDetails : Control
 			_carouselIndex = (_carouselIndex + 1) % _mapData.Screenshots.Length;
 			_carouselSlider.Value = _carouselIndex;
 			UpdateCarousel();
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 		};
 
 		_carouselSlider.ValueChanged += (value) =>
@@ -650,17 +651,17 @@ public partial class MapDetails : Control
 	{
 		_versionDropdown.ItemSelected += (index) =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			OnVersionSelected((int)index);
 		};
 
 		_downloadButton.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			if (CheckIfMapAlreadyDownloaded(_mapData))
 			{
 				GD.Print("Playing map: " + _mapData?.Title);
-				UIManager.Instance.TransitionTo(GameScreen.MainMenu);
+				GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 			}
 			else
 			{
@@ -1083,7 +1084,7 @@ public partial class MapDetails : Control
 				}
 			}
 
-			UIManager.Instance.PlayHoverSound();
+			GameContext.UserInterface.PlayHoverSound();
 		};
 
 		node.MouseExited += () =>
@@ -1121,8 +1122,8 @@ public partial class MapDetails : Control
 		_downloadSubtitle.Text = $"0% ({_mapData.FileSize})";
 		_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 
-		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance)
-			? LobbyManager.Instance.RegistryServerUrl
+		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby)
+			? GameContext.Lobby.RegistryServerUrl
 			: ServersConfigHelper.GetDefaultServerUrl();
 
 		var distClient = new MapDistributionClient();

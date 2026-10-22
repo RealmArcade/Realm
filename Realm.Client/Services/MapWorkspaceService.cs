@@ -129,10 +129,10 @@ public static partial class MapWorkspaceService
 
 	public static void TryReloadGroundTerrainTexturesSafeDomain(Action resetMapAction)
 	{
-		if (GameHost.Instance?.GroundTerrain == null) return;
+		if (GameContext.Host?.GroundTerrain == null) return;
 		try
 		{
-			GameHost.Instance.GroundTerrain.ReloadTerrainTextures(false);
+			GameContext.Host.GroundTerrain.ReloadTerrainTextures(false);
 		}
 		catch (Exception ex)
 		{
@@ -258,7 +258,7 @@ public static partial class MapWorkspaceService
 			return _testActiveWorkspacePath;
 		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
 			return GameContext.EditorService._tempWorkspacePath;
-		if (GameHost.Instance != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))
+		if (GameContext.Host != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))
 			return GameContext.MapStorageService.CurrentMapDirectory;
 		return string.Empty;
 	}

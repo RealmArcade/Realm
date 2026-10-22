@@ -33,7 +33,7 @@ public class MapResizeAction : IEditorAction
 
 	private void RestoreSnapshot(MapStateSnapshot snapshot)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host == null || host.GroundTerrain == null) return;
 
 		ClearCurrentState(host);
@@ -132,7 +132,7 @@ public class MapResizeAction : IEditorAction
 		GameContext.EditorService.EditorCoordinates.Clear();
 		GameContext.EditorService.EditorCoordinates.AddRange(snapshot.Coordinates.Select(r => new EditorCoordinate { Name = r.Name, MinX = r.MinX, MinZ = r.MinZ, MaxX = r.MaxX, MaxZ = r.MaxZ }));
 		host.RebuildAllCoordinatePersistentMeshes();
-		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 	}
 
 	private static void UpdateMetadata(MapStateSnapshot snapshot)
@@ -158,8 +158,8 @@ public class MapResizeAction : IEditorAction
 	private static void RebuildUI(GameHost host)
 	{
 		host.RebuildCameraBoundsOverlay();
-		PropMultiMeshManager.Instance?.RebuildAll();
-		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
-		MapEditorHUD.Instance?.RegenerateMinimap();
+		GameContext.PropMultiMesh?.RebuildAll();
+		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
+		GameContext.MapEditorHud?.RegenerateMinimap();
 	}
 }

@@ -9,6 +9,7 @@ using Realm.Shared.Distribution;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
@@ -103,8 +104,8 @@ public partial class MapDiscovery : Control
 
 	private async void LoadDiscoveryMapsAsync()
 	{
-		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance)
-			? LobbyManager.Instance.RegistryServerUrl
+		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby)
+			? GameContext.Lobby.RegistryServerUrl
 			: ServersConfigHelper.GetDefaultServerUrl();
 
 		try
@@ -275,10 +276,10 @@ public partial class MapDiscovery : Control
 
 		_backButton.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
-			UIManager.Instance.TransitionTo(GameScreen.MainMenu);
+			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 		};
-		_backButton.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_backButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void ApplySearchBarStyle()
@@ -333,12 +334,12 @@ public partial class MapDiscovery : Control
 
 		button.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			_selectedCategory = categoryValue;
 			UpdateButtonHighlight();
 			RenderMapGrid();
 		};
-		button.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		button.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void UpdateButtonHighlight()
@@ -613,10 +614,10 @@ public partial class MapDiscovery : Control
 
 		btnDetails.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
-			UIManager.Instance.TransitionToMapDetails(map);
+			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface.TransitionToMapDetails(map);
 		};
-		btnDetails.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		btnDetails.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 		footer.AddChild(btnDetails);
 
 		return card;

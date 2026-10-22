@@ -152,7 +152,7 @@ public partial class CommandPanel
 
 	private void UpdateAbilityButtonContent(Button btn, CommandCardItem item)
 	{
-		var def = GameHost.Instance?.GetAbilityDefinition(item.AbilityId);
+		var def = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
 		if (def == null) return;
 
 		string transTooltip = !string.IsNullOrEmpty(def.Tooltip) ? def.Tooltip : "";
@@ -206,7 +206,7 @@ public partial class CommandPanel
 
 		UpdateAbilityStats(item, ref cdRemaining, ref currentMana);
 
-		var abilityDef = GameHost.Instance?.GetAbilityDefinition(item.AbilityId);
+		var abilityDef = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
 		float maxCd = GetMaxCooldown(abilityDef, cdRemaining);
 		float manaCost = GetEffectiveManaCost(item, abilityDef);
 
@@ -240,16 +240,16 @@ public partial class CommandPanel
 
 	private void UpdateAbilityStats(CommandCardItem item, ref float cdRemaining, ref float currentMana)
 	{
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		var world = (tempQualifier != null ? GameContext.World : null);
 		if (world == null) return;
 
 		var caster = item.CasterEntity != Entity.Null && world.IsAlive(item.CasterEntity) ? item.CasterEntity : _lastFocusedEntity;
 		GetCasterState(caster, world, item.AbilityId, ref currentMana, ref cdRemaining);
 
-		if (cdRemaining <= 0f && GameHost.Instance != null)
+		if (cdRemaining <= 0f && GameContext.Host != null)
 		{
-			cdRemaining = GameHost.Instance.GetPlayerSpellCooldown(GameContext.PerspectiveFilter.ControlledPlayerIndex, item.AbilityId);
+			cdRemaining = GameContext.Host.GetPlayerSpellCooldown(GameContext.PerspectiveFilter.ControlledPlayerIndex, item.AbilityId);
 		}
 	}
 
@@ -590,9 +590,9 @@ public partial class CommandPanel
 		btn.Pressed += () =>
 		{
 			_pageIndex = (_pageIndex + 1) % numPages;
-			if (GameHost.Instance != null)
+			if (GameContext.Host != null)
 			{
-				InGameHUD.Instance?.RefreshUI(GameHost.Instance.SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(GameContext.Host.SelectedUnits);
 			}
 		};
 
@@ -799,7 +799,7 @@ public partial class CommandPanel
 					IconPath = "res://Assets/UI/golden_hammers.webp",
 					Tooltip = "[B] Build Structure",
 					Hotkey = Key.B,
-					Callback = () => InGameHUD.Instance?.EnterBuildSubMenu()
+					Callback = () => GameContext.InGameHud?.EnterBuildSubMenu()
 				});
 			}
 		}
@@ -833,7 +833,7 @@ public partial class CommandPanel
 			IconPath = "res://Assets/UI/cancel_button_2.webp",
 			Tooltip = "[Esc] Cancel",
 			Hotkey = Key.Escape,
-			Callback = () => InGameHUD.Instance?.ExitBuildSubMenu()
+			Callback = () => GameContext.InGameHud?.ExitBuildSubMenu()
 		});
 	}
 
@@ -871,7 +871,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/move_speed.webp",
 				Tooltip = "[M] Move / Right-Click Ground",
 				Hotkey = Key.M,
-				Callback = () => GameHost.Instance?.EnterCommandTargeting("move")
+				Callback = () => GameContext.Host?.EnterCommandTargeting("move")
 			});
 
 			items.Add(CreateStopCommand());
@@ -883,7 +883,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/battle_axe.webp",
 				Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
 				Hotkey = Key.A,
-				Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
+				Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
 			});
 
 			items.Add(new CommandCardItem
@@ -892,7 +892,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/patrol.webp",
 				Tooltip = "[P] Patrol — Unit patrols between current position and target, engaging enemies",
 				Hotkey = Key.P,
-				Callback = () => GameHost.Instance?.EnterCommandTargeting("patrol")
+				Callback = () => GameContext.Host?.EnterCommandTargeting("patrol")
 			});
 		}
 
@@ -904,7 +904,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/golden_hammers.webp",
 				Tooltip = "[B] Build Structure",
 				Hotkey = Key.B,
-				Callback = () => InGameHUD.Instance?.EnterBuildSubMenu()
+				Callback = () => GameContext.InGameHud?.EnterBuildSubMenu()
 			});
 		}
 
@@ -925,7 +925,7 @@ public partial class CommandPanel
 			IconPath = "res://Assets/UI/battle_axe.webp",
 			Tooltip = "[A] Attack / Attack-Move — Click enemy to attack, click ground to attack-move",
 			Hotkey = Key.A,
-			Callback = () => GameHost.Instance?.EnterCommandTargeting("attack")
+			Callback = () => GameContext.Host?.EnterCommandTargeting("attack")
 		});
 
 		items.Add(CreateStopCommand());
@@ -941,8 +941,8 @@ public partial class CommandPanel
 			Hotkey = Key.S,
 			Callback = () =>
 			{
-				InGameHUD.Instance?.ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
-				GameHost.Instance?.StopSelectedUnits();
+				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
+				GameContext.Host?.StopSelectedUnits();
 			}
 		};
 	}
@@ -957,8 +957,8 @@ public partial class CommandPanel
 			Hotkey = Key.H,
 			Callback = () =>
 			{
-				InGameHUD.Instance?.ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
-				GameHost.Instance?.HoldSelectedUnits();
+				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
+				GameContext.Host?.HoldSelectedUnits();
 			}
 		};
 	}
@@ -978,7 +978,7 @@ public partial class CommandPanel
 				IconPath = "res://Assets/UI/alliance_flag.webp",
 				Tooltip = "[Y] Set Rally Point — Set location where new units will walk",
 				Hotkey = Key.Y,
-				Callback = () => GameHost.Instance?.EnterCommandTargeting("rally")
+				Callback = () => GameContext.Host?.EnterCommandTargeting("rally")
 			});
 		}
 
@@ -1033,11 +1033,11 @@ public partial class CommandPanel
 				{
 					var sellerEntity = focusedUnit != null && focusedUnit.Entity != Entity.Null
 						? focusedUnit.Entity
-						: (GameHost.Instance?.SelectedUnits.Count == 1 ? GameHost.Instance.SelectedUnits[0].Entity : Entity.Null);
+						: (GameContext.Host?.SelectedUnits.Count == 1 ? GameContext.Host.SelectedUnits[0].Entity : Entity.Null);
 
 					if (sellerEntity != Entity.Null)
 					{
-						GameHost.Instance?.BuyItem(itemId, sellerEntity);
+						GameContext.Host?.BuyItem(itemId, sellerEntity);
 					}
 				}
 			});
@@ -1096,10 +1096,10 @@ public partial class CommandPanel
 
 			Func<bool> isMaxed = () =>
 			{
-				int lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, canonicalId) ?? 0;
+				int lvl = GameContext.Host?.GetPlayerTechLevel(localViewingIndex, canonicalId) ?? 0;
 				if (lvl == 0 && canonicalId != upgradeId)
 				{
-					lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
+					lvl = GameContext.Host?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
 				}
 				return lvl >= maxLevel;
 			};
@@ -1107,10 +1107,10 @@ public partial class CommandPanel
 			Func<string> getButtonText = () =>
 			{
 				if (isMaxed()) return TranslationServer.Translate("MAXED");
-				int lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, canonicalId) ?? 0;
+				int lvl = GameContext.Host?.GetPlayerTechLevel(localViewingIndex, canonicalId) ?? 0;
 				if (lvl == 0 && canonicalId != upgradeId)
 				{
-					lvl = GameHost.Instance?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
+					lvl = GameContext.Host?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
 				}
 				if (lvl > 0 && maxLevel > 1) return $"Lvl {lvl}";
 				return "";
@@ -1118,7 +1118,7 @@ public partial class CommandPanel
 
 			Func<bool> cannotAfford = () =>
 			{
-				var hud = InGameHUD.Instance;
+				var hud = GameContext.InGameHud;
 				if (hud == null) return false;
 				return hud.Gold < gold || hud.Wood < wood || hud.Stone < stone;
 			};
@@ -1129,7 +1129,7 @@ public partial class CommandPanel
 				IconPath = iconPath,
 				Tooltip = tooltip,
 				Hotkey = hotkey,
-				Callback = () => GameHost.Instance?.BuyUpgrade(upgradeId, localViewingIndex),
+				Callback = () => GameContext.Host?.BuyUpgrade(upgradeId, localViewingIndex),
 				IsDisabled = () => isMaxed() || cannotAfford(),
 				GetButtonText = getButtonText
 			});
@@ -1138,7 +1138,7 @@ public partial class CommandPanel
 
 	private CommandCardItem? CreateBuildOptionItem(string unitId, Entity builderEntity = default)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		var unitWrapper = GetUnitWrapperIfAlive(host, builderEntity);
 		if (IsAbilityHidden(host, unitWrapper, unitId)) return null;
 
@@ -1172,7 +1172,7 @@ public partial class CommandPanel
 			Hotkey = hotkey,
 			GridX = abilityDef?.GridX ?? -1,
 			GridY = abilityDef?.GridY ?? -1,
-			Callback = () => GameHost.Instance?.EnterBuildingPlacement(unitId),
+			Callback = () => GameContext.Host?.EnterBuildingPlacement(unitId),
 			IsDisabled = () => host != null && GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, unitId)
 		};
 	}
@@ -1189,7 +1189,7 @@ public partial class CommandPanel
 			IconPath = GetUnitIcon(unitId),
 			Tooltip = finalTooltip,
 			Hotkey = hotkey,
-			Callback = () => GameHost.Instance?.TrainUnitAtBuilding(unitId)
+			Callback = () => GameContext.Host?.TrainUnitAtBuilding(unitId)
 		};
 	}
 
@@ -1205,7 +1205,7 @@ public partial class CommandPanel
 
 	private CommandCardItem? CreateAbilityItem(string abilityId, Entity casterEntity)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		var unitWrapper = GetUnitWrapperIfAlive(host, casterEntity);
 
 		if (IsAbilityHidden(host, unitWrapper, abilityId)) return null;
@@ -1281,8 +1281,8 @@ public partial class CommandPanel
 
 	private Action GetAbilityCallback(string abilityId, bool isInstant)
 	{
-		if (isInstant) return () => GameHost.Instance?.CastInstantAbility(abilityId);
-		return () => GameHost.Instance?.EnterSpellTargeting(abilityId);
+		if (isInstant) return () => GameContext.Host?.CastInstantAbility(abilityId);
+		return () => GameContext.Host?.EnterSpellTargeting(abilityId);
 	}
 
 	private bool IsAbilityDisabled(GameHost host, Unit_WasmRuntime unitWrapper, Entity casterEntity, string abilityId, float manaCost)

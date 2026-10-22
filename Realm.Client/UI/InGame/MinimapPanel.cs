@@ -42,7 +42,7 @@ public class MinimapPanel
 	{
 		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
 
-		if (ReplayPlaybackManager.Instance.IsPlayingReplay || isSpectator)
+		if (GameContext.ReplayPlayback.IsPlayingReplay || isSpectator)
 		{
 			HandleReplayOrSpectatorInput(@event);
 			return;
@@ -99,7 +99,7 @@ public class MinimapPanel
 		{
 			if (!mouseBtn.Pressed) return;
 			var minimapWorldPos = MinimapHelper.MinimapToWorld(mouseBtn.Position, _minimapArea.Size);
-			GameHost.Instance?.HandleMinimapRightClick(minimapWorldPos);
+			GameContext.Host?.HandleMinimapRightClick(minimapWorldPos);
 		}
 	}
 
@@ -124,46 +124,46 @@ public class MinimapPanel
 
 	private void HandleAltLeftClick(Vector3 minimapWorldPos)
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
-		if (GameHost.Instance.Multiplayer.MultiplayerPeer != null)
+		if (GameContext.Host.Multiplayer.MultiplayerPeer != null)
 		{
-			GameHost.Instance.Rpc("NetworkPingMinimap", minimapWorldPos);
+			GameContext.Host.Rpc("NetworkPingMinimap", minimapWorldPos);
 		}
 		else
 		{
-			GameHost.Instance.AddMinimapPing(minimapWorldPos);
+			GameContext.Host.AddMinimapPing(minimapWorldPos);
 		}
 	}
 
 	private void HandleGameHostLeftClick(Vector2 mousePosition, Vector3 minimapWorldPos)
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
-		if (GameHost.Instance.ActivePingMode)
+		if (GameContext.Host.ActivePingMode)
 		{
-			GameHost.Instance.AddMinimapPing(minimapWorldPos);
-			GameHost.Instance.ActivePingMode = false;
+			GameContext.Host.AddMinimapPing(minimapWorldPos);
+			GameContext.Host.ActivePingMode = false;
 			return;
 		}
 
-		if (GameHost.Instance.ActiveCommandTargeting != null)
+		if (GameContext.Host.ActiveCommandTargeting != null)
 		{
 			HandleCommandTargeting(minimapWorldPos);
 			return;
 		}
 
-		if (GameHost.Instance.ActiveSpellTargeting != null)
+		if (GameContext.Host.ActiveSpellTargeting != null)
 		{
-			GameHost.Instance.CastSpellAt(GameHost.Instance.ActiveSpellTargeting, minimapWorldPos);
-			GameHost.Instance.ClearTargetingModes();
+			GameContext.Host.CastSpellAt(GameContext.Host.ActiveSpellTargeting, minimapWorldPos);
+			GameContext.Host.ClearTargetingModes();
 			return;
 		}
 
-		if (GameHost.Instance.ActiveBuildingPlacementType != null)
+		if (GameContext.Host.ActiveBuildingPlacementType != null)
 		{
-			GameHost.Instance.PlaceBuildingAt(GameHost.Instance.ActiveBuildingPlacementType, minimapWorldPos);
-			GameHost.Instance.ClearTargetingModes();
+			GameContext.Host.PlaceBuildingAt(GameContext.Host.ActiveBuildingPlacementType, minimapWorldPos);
+			GameContext.Host.ClearTargetingModes();
 			return;
 		}
 
@@ -173,35 +173,35 @@ public class MinimapPanel
 
 	private void HandleCommandTargeting(Vector3 minimapWorldPos)
 	{
-		string cmd = GameHost.Instance.ActiveCommandTargeting;
+		string cmd = GameContext.Host.ActiveCommandTargeting;
 		switch (cmd)
 		{
 			case "attack":
-				GameHost.Instance.IssueAttackMoveCommand(minimapWorldPos);
+				GameContext.Host.IssueAttackMoveCommand(minimapWorldPos);
 				break;
 			case "move":
-				GameHost.Instance.IssueMoveCommand(minimapWorldPos, Input.IsKeyPressed(Key.Shift));
+				GameContext.Host.IssueMoveCommand(minimapWorldPos, Input.IsKeyPressed(Key.Shift));
 				break;
 			case "patrol":
-				GameHost.Instance.IssuePatrolCommand(minimapWorldPos);
+				GameContext.Host.IssuePatrolCommand(minimapWorldPos);
 				break;
 			case "rally":
 				HandleRallyCommand(minimapWorldPos);
 				break;
 		}
 
-		GameHost.Instance.ClearTargetingModes();
+		GameContext.Host.ClearTargetingModes();
 	}
 
 	private void HandleRallyCommand(Vector3 minimapWorldPos)
 	{
-		if (GameHost.Instance == null || GameContext.PerspectiveFilter.IsSpectating) return;
-		if (GameHost.Instance.SelectedUnits.Count != 1) return;
-		var unit = GameHost.Instance.SelectedUnits[0];
+		if (GameContext.Host == null || GameContext.PerspectiveFilter.IsSpectating) return;
+		if (GameContext.Host.SelectedUnits.Count != 1) return;
+		var unit = GameContext.Host.SelectedUnits[0];
 		int localPlayer = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (unit.Player == localPlayer && unit.IsBuilding)
 		{
-			GameHost.Instance.SetRallyPoint(unit, minimapWorldPos);
+			GameContext.Host.SetRallyPoint(unit, minimapWorldPos);
 		}
 	}
 
@@ -221,7 +221,7 @@ public class MinimapPanel
 		if (_camera3D != null && GodotObject.IsInstanceValid(_camera3D))
 		{
 			_camera3D.GlobalPosition = new Vector3(minimapWorldPos.X, _camera3D.GlobalPosition.Y, minimapWorldPos.Z);
-			InGameHUD.Instance?.ShowFeedbackText(string.Format(TranslationServer.Translate("Panned Camera on Minimap to: {0:F0}, {1:F0}"), minimapWorldPos.X, minimapWorldPos.Z), new Color(1, 0.85f, 0.5f));
+			GameContext.InGameHud?.ShowFeedbackText(string.Format(TranslationServer.Translate("Panned Camera on Minimap to: {0:F0}, {1:F0}"), minimapWorldPos.X, minimapWorldPos.Z), new Color(1, 0.85f, 0.5f));
 		}
 	}
 

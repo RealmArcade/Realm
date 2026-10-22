@@ -298,7 +298,7 @@ public class NetworkService
 		if (GameContext.World.Has<UnitOwnerPlayer>(unitEntity))
 		{
 			int playerIndex = GameContext.World.Get<UnitOwnerPlayer>(unitEntity).PlayerIndex;
-			var lobby = LobbyManager.Instance;
+			var lobby = GameContext.Lobby;
 			if (lobby != null)
 			{
 				var players = lobby.PlayerList;
@@ -394,9 +394,9 @@ public class NetworkService
 	public float ComputeDynamicInterpolationFactor()
 	{
 		float bufferTime = 0.1f;
-		if (LobbyManager.Instance?.PlayerList != null)
+		if (GameContext.Lobby?.PlayerList != null)
 		{
-			var localPlayer = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == LocalPeerId);
+			var localPlayer = GameContext.Lobby.PlayerList.Find(x => x.PeerId == LocalPeerId);
 			if (localPlayer != null)
 			{
 				string latStr = localPlayer.Latency;
@@ -1187,7 +1187,7 @@ public class NetworkService
 		int snapshotSequence = networkState.SnapshotSequence;
 		bool isBaseline = (snapshotSequence % 30 == 0);
 
-		if (LobbyManager.Instance != null)
+		if (GameContext.Lobby != null)
 		{
 			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
 			ProcessLobbyPlayersForSnapshots(localPeerId, allUnits, results, snapshotSequence, isBaseline, mapping);
@@ -1206,7 +1206,7 @@ public class NetworkService
 
 	private void ProcessLobbyPlayersForSnapshots(int localPeerId, List<Unit3D> allUnits, List<(int PeerId, byte[] Payload)> results, int snapshotSequence, bool isBaseline, NetworkMappingState mapping)
 	{
-		foreach (var p in LobbyManager.Instance.PlayerList)
+		foreach (var p in GameContext.Lobby.PlayerList)
 		{
 			if (p.PeerId == localPeerId || p.PeerId < 0) continue;
 			if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(p.PeerId, out var playerEntity)) continue;
@@ -1368,7 +1368,7 @@ public class NetworkService
 		var disconnectedPeers = new List<int>();
 		foreach (var key in _spectatorDelayedPackets.Keys)
 		{
-			if (LobbyManager.Instance == null || !LobbyManager.Instance.PlayerList.Exists(p => p.PeerId == key))
+			if (GameContext.Lobby == null || !GameContext.Lobby.PlayerList.Exists(p => p.PeerId == key))
 			{
 				disconnectedPeers.Add(key);
 			}
@@ -1409,9 +1409,9 @@ public class NetworkService
 
 	public bool IsSpectatorWithDelay(int peerId)
 	{
-		if (LobbyManager.Instance == null) return false;
-		var p = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId);
-		return p != null && p.Team == "Spectator" && LobbyManager.Instance.SpectatorDelay;
+		if (GameContext.Lobby == null) return false;
+		var p = GameContext.Lobby.PlayerList.Find(x => x.PeerId == peerId);
+		return p != null && p.Team == "Spectator" && GameContext.Lobby.SpectatorDelay;
 	}
 
 	private void ClearUnitOrders(Entity entity)
@@ -1512,9 +1512,9 @@ public class NetworkService
 	public List<int> GetPeersToBroadcastSpellEffect(int localPeerId)
 	{
 		var peers = new List<int>();
-		if (LobbyManager.Instance == null) return peers;
+		if (GameContext.Lobby == null) return peers;
 
-		foreach (var p in LobbyManager.Instance.PlayerList)
+		foreach (var p in GameContext.Lobby.PlayerList)
 		{
 			if (p.PeerId == localPeerId || p.PeerId < 0) continue;
 			peers.Add(p.PeerId);
@@ -1552,7 +1552,7 @@ public class NetworkService
 		WasmRuntime.LogToConsole(formatted);
 		if (isMultiplayerActive && isServerActive)
 		{
-			LobbyManager.Instance?.SendChatMessage("System", message, false);
+			GameContext.Lobby?.SendChatMessage("System", message, false);
 		}
 	}
 
@@ -1605,10 +1605,10 @@ public class NetworkService
 	{
 		if (peerId1 == peerId2) return false;
 
-		if (LobbyManager.Instance?.PlayerList != null)
+		if (GameContext.Lobby?.PlayerList != null)
 		{
-			var p1 = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId1);
-			var p2 = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId2);
+			var p1 = GameContext.Lobby.PlayerList.Find(x => x.PeerId == peerId1);
+			var p2 = GameContext.Lobby.PlayerList.Find(x => x.PeerId == peerId2);
 			if (p1 != null && p2 != null)
 			{
 				return ArePlayerIndicesEnemies(p1.Slot, p2.Slot);
@@ -1681,14 +1681,14 @@ public class NetworkService
 
 	private static bool HasActiveLobby()
 	{
-		if (LobbyManager.Instance == null) return false;
-		if (LobbyManager.Instance.PlayerList == null) return false;
-		return LobbyManager.Instance.PlayerList.Count > 0;
+		if (GameContext.Lobby == null) return false;
+		if (GameContext.Lobby.PlayerList == null) return false;
+		return GameContext.Lobby.PlayerList.Count > 0;
 	}
 
 	private static int GetTeamIndexForPeer(int peerId, int defaultTeam)
 	{
-		var list = LobbyManager.Instance.PlayerList;
+		var list = GameContext.Lobby.PlayerList;
 		for (int i = 0; i < list.Count; i++)
 		{
 			if (list[i].PeerId == peerId)
@@ -1701,7 +1701,7 @@ public class NetworkService
 
 	private static int GetTeamIndexForPlayerIndex(int playerIndex, int defaultTeam)
 	{
-		var list = LobbyManager.Instance.PlayerList;
+		var list = GameContext.Lobby.PlayerList;
 		for (int i = 0; i < list.Count; i++)
 		{
 			if (list[i].Slot == playerIndex)

@@ -37,13 +37,13 @@ public class MapEditorBrushSettings
 		_sldBrushSize.ValueChanged += (val) =>
 		{
 			_lblBrushSizeValue.Text = val.ToString("F0");
-			if (GameHost.Instance != null) GameHost.Instance.EditorBrushRadius = (float)val;
+			if (GameContext.Host != null) GameContext.Host.EditorBrushRadius = (float)val;
 		};
 
 		_sldBrushStrength.ValueChanged += (val) =>
 		{
 			float fVal = (float)val;
-			if (GameHost.Instance != null && GameHost.Instance.ActiveEditorTool == EditorTool.PaintTexture)
+			if (GameContext.Host != null && GameContext.Host.ActiveEditorTool == EditorTool.PaintTexture)
 			{
 				GameContext.SessionState.SavedTextureIntensity = fVal;
 				_lblBrushStrengthValue.Text = fVal.ToString("F0");
@@ -54,14 +54,14 @@ public class MapEditorBrushSettings
 				_lblBrushStrengthValue.Text = fVal.ToString("F1");
 			}
 
-			if (GameHost.Instance != null) GameHost.Instance.EditorBrushStrength = fVal;
+			if (GameContext.Host != null) GameContext.Host.EditorBrushStrength = fVal;
 		};
 
 		if (_chkBlockMode != null)
 		{
 			_chkBlockMode.Toggled += (buttonPressed) =>
 			{
-				if (GameHost.Instance != null) GameHost.Instance.EditorBlockMode = buttonPressed;
+				if (GameContext.Host != null) GameContext.Host.EditorBlockMode = buttonPressed;
 			};
 		}
 
@@ -71,7 +71,7 @@ public class MapEditorBrushSettings
 			{
 				float fVal = (float)val;
 				if (_lblHeightValue != null) _lblHeightValue.Text = fVal.ToString("F1") + "m";
-				if (GameHost.Instance != null) GameHost.Instance.EditorExactHeight = fVal;
+				if (GameContext.Host != null) GameContext.Host.EditorExactHeight = fVal;
 			};
 		}
 
@@ -81,7 +81,7 @@ public class MapEditorBrushSettings
 			{
 				float fVal = (float)val;
 				_lblBlockStepValue.Text = fVal.ToString("F1") + "m";
-				if (GameHost.Instance != null) GameHost.Instance.EditorBlockLevelHeight = fVal;
+				if (GameContext.Host != null) GameContext.Host.EditorBlockLevelHeight = fVal;
 			};
 		}
 	}
@@ -115,9 +115,9 @@ public class MapEditorBrushSettings
 
 	private void UpdateBlockMode()
 	{
-		if (_chkBlockMode == null || GameHost.Instance == null) return;
+		if (_chkBlockMode == null || GameContext.Host == null) return;
 
-		bool isBlock = GameHost.Instance.EditorBlockMode;
+		bool isBlock = GameContext.Host.EditorBlockMode;
 		if (_chkBlockMode.ButtonPressed != isBlock)
 		{
 			_chkBlockMode.ButtonPressed = isBlock;

@@ -153,7 +153,7 @@ public partial class LoadingScreen : Control
 	private void TransitionToGame()
 	{
 		if (!IsInsideTree()) return;
-		UIManager.Instance?.TransitionTo(GameScreen.InGameHUD);
+		GameContext.UserInterface?.TransitionTo(GameScreen.InGameHUD);
 	}
 
 	private static string ResolveMapDirectory()

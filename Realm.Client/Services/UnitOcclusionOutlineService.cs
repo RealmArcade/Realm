@@ -163,7 +163,7 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 	private static bool IsOccludedByTerrain(Vector3 eye, Vector3 toUnit, float distance)
 	{
-		RuntimeTerrain terrain = GameHost.Instance?.GroundTerrain;
+		RuntimeTerrain terrain = GameContext.Host?.GroundTerrain;
 		if (terrain == null) return false;
 
 		float travelFraction = MathF.Min(1.0f, MathF.Max(0.1f, (distance - 2.0f) / distance));

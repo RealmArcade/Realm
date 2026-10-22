@@ -655,7 +655,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			return;
 		}
 
-		_baseTexture = GameHost.Instance?.LoadDecalTexture(texKey);
+		_baseTexture = GameContext.Host?.LoadDecalTexture(texKey);
 		if (_baseTexture != null) return;
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
@@ -836,11 +836,11 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		if (result.ContainsKey("brightness")) return;
 		if (result.ContainsKey("tint")) return;
-		if (GameHost.Instance == null) return;
-		if (GameHost.Instance.AllDecals == null) return;
+		if (GameContext.Host == null) return;
+		if (GameContext.Host.AllDecals == null) return;
 
 		string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-		foreach (var d in GameHost.Instance.AllDecals)
+		foreach (var d in GameContext.Host.AllDecals)
 		{
 			if (TryMatchAndApplyDecal(d, decalKey, baseKey, result))
 			{
@@ -1106,10 +1106,10 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private void TrackOriginalDecalStates(string decalKey)
 	{
 		_originalDecalStates.Clear();
-		if (GameHost.Instance?.AllDecals == null) return;
+		if (GameContext.Host?.AllDecals == null) return;
 
 		string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-		foreach (var d in GameHost.Instance.AllDecals)
+		foreach (var d in GameContext.Host.AllDecals)
 		{
 			if (d == null || !GodotObject.IsInstanceValid(d)) continue;
 
@@ -1479,7 +1479,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private void UpdateGameHostDecals()
 	{
-		GameHost.Instance?.RefreshDecalsLive(
+		GameContext.Host?.RefreshDecalsLive(
 			_decalKey,
 			_brightness,
 			_tint,
@@ -1526,7 +1526,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		string finalTexturePath = !string.IsNullOrWhiteSpace(_txtTexturePath?.Text) ? _txtTexturePath.Text.Trim() : _texturePath;
 		_texturePath = finalTexturePath;
 
-		GameHost.Instance?.InvalidateDecalCache(_decalKey);
+		GameContext.Host?.InvalidateDecalCache(_decalKey);
 
 		var result = new JsonObject
 		{
@@ -1633,9 +1633,9 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private bool TryRestoreOriginalStates()
 	{
-		if (_originalDecalStates.Count == 0 || GameHost.Instance?.AllDecals == null) return false;
+		if (_originalDecalStates.Count == 0 || GameContext.Host?.AllDecals == null) return false;
 
-		foreach (var d in GameHost.Instance.AllDecals)
+		foreach (var d in GameContext.Host.AllDecals)
 		{
 			if (d == null || !GodotObject.IsInstanceValid(d) || !_originalDecalStates.TryGetValue(d.GetInstanceId(), out var orig)) continue;
 

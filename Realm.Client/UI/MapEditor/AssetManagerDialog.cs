@@ -1481,11 +1481,11 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	{
 		if (normalizedCategory.Equals("terrain", StringComparison.OrdinalIgnoreCase) || normalizedCategory.Equals("textures", StringComparison.OrdinalIgnoreCase))
 		{
-			MapEditorHUD.Instance?.SetupTextureSwatches(false);
-			if (GameHost.Instance?.GroundTerrain != null)
+			GameContext.MapEditorHud?.SetupTextureSwatches(false);
+			if (GameContext.Host?.GroundTerrain != null)
 			{
-				GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides();
-				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameContext.Host.GroundTerrain.ClearLiveSwatchOverrides();
+				GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		}
 	}
@@ -2125,7 +2125,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 		btnApply.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			var selectedTitles = checkboxes
 				.Where(c => c.CheckBox.ButtonPressed)
 				.Select(c => c.Suggestion.MapTitle)
@@ -2154,7 +2154,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 		btnCancel.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			overlay.QueueFree();
 		};
 	}

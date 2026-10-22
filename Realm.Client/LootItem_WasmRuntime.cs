@@ -136,6 +136,6 @@ public class LootItem_WasmRuntime
 
 	public void Despawn()
 	{
-		GameHost.Instance?.RemoveLootItem(_uniqueId);
+		GameContext.Host?.RemoveLootItem(_uniqueId);
 	}
 }

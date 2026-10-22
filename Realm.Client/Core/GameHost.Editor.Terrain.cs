@@ -20,8 +20,8 @@ namespace Realm.Client.Core
 			var positions = GetEditingPositions(worldPos);
 			GetPathingOptions(out int pathingMask, out bool pathingAdd);
 
-			bool applyGround = MapEditorHUD.Instance?.IsApplyGroundTextureEnabledView() ?? true;
-			bool applyCliff = MapEditorHUD.Instance?.IsApplyCliffTextureEnabled() ?? true;
+			bool applyGround = GameContext.MapEditorHud?.IsApplyGroundTextureEnabledView() ?? true;
+			bool applyCliff = GameContext.MapEditorHud?.IsApplyCliffTextureEnabled() ?? true;
 			float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
 
 			bool anyModified = ApplyEditsToPositions(positions, delta, targetBlockHeight, pathingMask, pathingAdd, isFirstClick, applyGround, applyCliff);
@@ -48,10 +48,10 @@ namespace Realm.Client.Core
 		{
 			pathingMask = 0;
 			pathingAdd = true;
-			if (ActiveEditorTool == EditorTool.PaintPathing && MapEditorHUD.Instance != null)
+			if (ActiveEditorTool == EditorTool.PaintPathing && GameContext.MapEditorHud != null)
 			{
-				pathingMask = MapEditorHUD.Instance.GetSelectedPathingMask();
-				pathingAdd = MapEditorHUD.Instance.IsPathingAddMode();
+				pathingMask = GameContext.MapEditorHud.GetSelectedPathingMask();
+				pathingAdd = GameContext.MapEditorHud.IsPathingAddMode();
 			}
 		}
 
@@ -178,7 +178,7 @@ namespace Realm.Client.Core
 
 			if (!affectedRegion.HasValue && anyPropMoved)
 			{
-				PropMultiMeshManager.Instance?.MarkAllDirty();
+				GameContext.PropMultiMesh?.MarkAllDirty();
 			}
 		}
 
@@ -243,7 +243,7 @@ namespace Realm.Client.Core
 
 			pos.Y = targetY;
 			prop.GlobalPosition = pos;
-			PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+			GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
 			return true;
 		}
 
@@ -346,9 +346,9 @@ namespace Realm.Client.Core
 
 			GroundTerrain.UpdateMeshAndPhysics(false, false);
 
-			if (MapEditorHUD.Instance != null)
+			if (GameContext.MapEditorHud != null)
 			{
-				MapEditorHUD.Instance.ShowFeedbackExternal("Textures swapped successfully!");
+				GameContext.MapEditorHud.ShowFeedbackExternal("Textures swapped successfully!");
 			}
 		}
 
@@ -436,16 +436,16 @@ namespace Realm.Client.Core
 
 			GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 			DeleteEntitiesOutsideBounds();
-			PropMultiMeshManager.Instance?.RebuildAll();
+			GameContext.PropMultiMesh?.RebuildAll();
 
 			RebuildCameraBoundsOverlay();
-			MapEditorHUD.Instance?.UpdateCameraBoundsUI();
-			MapEditorHUD.Instance?.RegenerateMinimap();
+			GameContext.MapEditorHud?.UpdateCameraBoundsUI();
+			GameContext.MapEditorHud?.RegenerateMinimap();
 
 			GameContext.EditorService.UpdateScaleMetadata(newWidth, newDepth, resizedCameraBounds);
 
 			EditorHasUnsavedChanges = true;
-			MapEditorHUD.Instance?.ShowFeedbackExternal($"Map resized to {newWidth}x{newDepth}");
+			GameContext.MapEditorHud?.ShowFeedbackExternal($"Map resized to {newWidth}x{newDepth}");
 
 			var after = MapStateSnapshot.CreateSnapshot();
 			EditorHistoryManager.RecordAction(new MapResizeAction(before, after));
@@ -463,7 +463,7 @@ namespace Realm.Client.Core
 				var action = new TerrainModifyAction((TerrainCell[,])null, (TerrainCell[,])null, null, null, result.Before, result.After);
 				EditorHistoryManager.RecordAction(action);
 				EditorHasUnsavedChanges = true;
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Flood filled pathing area");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Flood filled pathing area");
 				UpdatePathingOverlay();
 			}
 		}
@@ -486,7 +486,7 @@ namespace Realm.Client.Core
 			EditorHasUnsavedChanges = true;
 
 			string statusMsg = result.WasAdded ? "Water added via flood fill" : "Water removed via flood fill";
-			MapEditorHUD.Instance?.ShowFeedbackExternal(statusMsg);
+			GameContext.MapEditorHud?.ShowFeedbackExternal(statusMsg);
 		}
 
 		private Vector3[] GenerateGridMeshVertices(int minX, int minZ, int selWidth, int selDepth, float yOffset)
@@ -644,7 +644,7 @@ namespace Realm.Client.Core
 		{
 			if (!CanEraseArea())
 			{
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to Erase (select an area first)");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Nothing to Erase (select an area first)");
 				return new List<IEditorAction>();
 			}
 
@@ -670,7 +670,7 @@ namespace Realm.Client.Core
 			{
 				EditorHistoryManager.RecordAction(new CompositeAction(actions));
 				EditorHasUnsavedChanges = true;
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Area Erased");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Area Erased");
 			}
 
 			return actions;

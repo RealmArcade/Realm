@@ -33,7 +33,7 @@ public partial class MinimapOverlay : Control
 
 	public override void _Draw()
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
 		var size = Size;
 		var (physicalWidth, physicalDepth, _) = MinimapHelper.GetTerrainDimensions();
@@ -46,7 +46,7 @@ public partial class MinimapOverlay : Control
 
 	private void DrawRadarBackground(Vector2 size)
 	{
-		if (InGameHUD.Instance == null || InGameHUD.Instance.ShowMinimapTerrain) return;
+		if (GameContext.InGameHud == null || GameContext.InGameHud.ShowMinimapTerrain) return;
 
 		var radarTex = GetRadarTexture();
 		DrawTextureRect(radarTex, new Rect2(Vector2.Zero, size), false);
@@ -65,7 +65,7 @@ public partial class MinimapOverlay : Control
 
 	private void DrawAllUnits(Vector2 size, float physicalWidth, float physicalDepth)
 	{
-		var allUnits = GameHost.Instance?.AllUnits;
+		var allUnits = GameContext.Host?.AllUnits;
 		if (allUnits == null || allUnits.Count == 0) return;
 
 		var circleTexture = GetUnitCircleTexture();
@@ -100,7 +100,7 @@ public partial class MinimapOverlay : Control
 
 	private static bool IsUsingPlayerColors()
 	{
-		InGameHUD hud = InGameHUD.Instance;
+		InGameHUD hud = GameContext.InGameHud;
 		return hud != null && hud.MinimapColorScheme == MinimapColorScheme.PlayerColors;
 	}
 
@@ -155,7 +155,7 @@ public partial class MinimapOverlay : Control
 
 	private Color GetPlayerMinimapColor(int playerIndex)
 	{
-		var playerList = LobbyManager.Instance?.PlayerList;
+		var playerList = GameContext.Lobby?.PlayerList;
 		if (playerList != null)
 		{
 			for (int i = 0; i < playerList.Count; i++)

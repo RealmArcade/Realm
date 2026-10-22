@@ -41,7 +41,7 @@ public class WorldInitService
 
 	private void InitializeCommonWorldComponents(Entity worldEntity)
 	{
-		GameHost.Instance?.LoadModelYOffsetsFromMetadataJson();
+		GameContext.Host?.LoadModelYOffsetsFromMetadataJson();
 
 		AddOrSet(worldEntity, new WorldState(0f, 0, 0f, true));
 		AddOrSet(worldEntity, new ReplayState(0, 500f, 400f, 200f));

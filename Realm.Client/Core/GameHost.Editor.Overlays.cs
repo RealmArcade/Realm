@@ -16,19 +16,19 @@ namespace Realm.Client.Core
 	{
 		private bool IsMouseOverUI()
 		{
-			if (SettingsMenu.IsOpen)
+			if (GameContext.IsSettingsMenuOpen)
 			{
 				return true;
 			}
 
-			if (GodotObject.IsInstanceValid(MapEditorHUD.Instance))
+			if (GodotObject.IsInstanceValid(GameContext.MapEditorHud))
 			{
-				return MapEditorHUD.Instance.IsMouseOverUI(GetViewport().GetMousePosition());
+				return GameContext.MapEditorHud.IsMouseOverUI(GetViewport().GetMousePosition());
 			}
 
-			if (GodotObject.IsInstanceValid(InGameHUD.Instance))
+			if (GodotObject.IsInstanceValid(GameContext.InGameHud))
 			{
-				return InGameHUD.Instance.IsMouseOverUI(GetViewport().GetMousePosition());
+				return GameContext.InGameHud.IsMouseOverUI(GetViewport().GetMousePosition());
 			}
 
 			var hoveredControl = GetViewport().GuiGetHoveredControl();

@@ -381,10 +381,10 @@ public class ShroudService
 
 	private static int ResolveReplayPerspectivePlayerIndex()
 	{
-		int peerId = ReplayPlaybackManager.Instance.SpectatorPerspective;
+		int peerId = GameContext.ReplayPlayback.SpectatorPerspective;
 		if (peerId == -1) return -1;
 
-		var lobby = LobbyManager.Instance;
+		var lobby = GameContext.Lobby;
 		if (lobby != null)
 		{
 			var players = lobby.PlayerList;
@@ -540,7 +540,7 @@ public class ShroudService
 
 	public void TriggerImmediateUpdate()
 	{
-		if (GameHost.Instance == null || GameContext.World == null) return;
+		if (GameContext.Host == null || GameContext.World == null) return;
 
 		_shroudTimer = PresentationInterval;
 		_lastAppliedVersion = -1;
@@ -549,13 +549,13 @@ public class ShroudService
 
 		var perspectiveFilter = GameContext.PerspectiveFilter;
 		bool isSpectator = perspectiveFilter != null && perspectiveFilter.IsConfigured && perspectiveFilter.IsSpectating;
-		bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
+		bool isReplay = GameContext.ReplayPlayback.IsPlayingReplay;
 		int spectatorPerspective = GameContext.SpectatorService?.GetSpectatorPerspective() ?? -1;
 		int observedPlayerIndex = ResolveObservedPlayerIndex(spectatorPerspective, isReplay, isSpectator);
 		_observedPlayerIndex = observedPlayerIndex;
 
-		UpdateShroud(GameHost.Instance.AllUnits, GameHost.Instance.AllProps, GameHost.Instance.AllDecals, GameHost.Instance.AllVfx, VisualProjectilePool.Instance.ActiveProjectiles, observedPlayerIndex);
-		InGameHUD.Instance?.QueueMinimapRedraw();
+		UpdateShroud(GameContext.Host.AllUnits, GameContext.Host.AllProps, GameContext.Host.AllDecals, GameContext.Host.AllVfx, VisualProjectilePool.ActiveProjectiles, observedPlayerIndex);
+		GameContext.InGameHud?.QueueMinimapRedraw();
 	}
 
 	public void CleanUp()

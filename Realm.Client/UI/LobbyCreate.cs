@@ -8,6 +8,7 @@ using Realm.Shared;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
@@ -95,11 +96,11 @@ public partial class LobbyCreate : Control
 		_importMapButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		_importMapButton.FocusMode = FocusModeEnum.None;
 		_importMapButton.MouseFilter = MouseFilterEnum.Stop;
-		_importMapButton.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		_importMapButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_importMapButton.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
-			UIManager.Instance?.PromptAndImportMapArchive((mapTitle, mapVersion) => { RefreshAvailableMaps(mapTitle, mapVersion); });
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.PromptAndImportMapArchive((mapTitle, mapVersion) => { RefreshAvailableMaps(mapTitle, mapVersion); });
 		};
 		mapSelectHBox.AddChild(_importMapButton);
 
@@ -120,7 +121,7 @@ public partial class LobbyCreate : Control
 		_versionSelectButton.Name = "VersionSelectButton";
 		_versionSelectButton.CustomMinimumSize = new Vector2(180, 44);
 		_versionSelectButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		_versionSelectButton.ItemSelected += (idx) => UIManager.Instance.PlayClickSound();
+		_versionSelectButton.ItemSelected += (idx) => GameContext.UserInterface.PlayClickSound();
 		_versionContainer.AddChild(_versionSelectButton);
 
 		contentContainer.AddChild(_versionContainer);
@@ -229,10 +230,10 @@ public partial class LobbyCreate : Control
 		_centralPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		_briefingPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 
-		UIStyle.ApplyTitle(_titleLabel, LobbyManager.Instance.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
+		UIStyle.ApplyTitle(_titleLabel, GameContext.Lobby.IsSinglePlayer ? "SINGLE PLAYER" : "CREATE CUSTOM MATCH", 36);
 		UIStyle.ApplyTitle(_mapSelectLabel, "SELECT MAP", 20);
 
-		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀", () => UIManager.Instance.TransitionTo(LobbyManager.Instance.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
+		Realm.Client.Utils.UIHelper.SetupPillarButton(_backButton, "◀", () => GameContext.UserInterface.TransitionTo(GameContext.Lobby.IsSinglePlayer ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
 
 		_mapSelectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateDropdownStyle(false, false));
@@ -268,7 +269,7 @@ public partial class LobbyCreate : Control
 	{
 		_createButton.Flat = false;
 		_createButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(_createButton, LobbyManager.Instance.IsSinglePlayer ? "START GAME" : "CREATE LOBBY", 18);
+		UIStyle.ApplyButtonText(_createButton, GameContext.Lobby.IsSinglePlayer ? "START GAME" : "CREATE LOBBY", 18);
 
 		_createButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
 		_createButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
@@ -276,21 +277,21 @@ public partial class LobbyCreate : Control
 		_createButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 		_createButton.Pressed += OnCreatePressed;
-		_createButton.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_createButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private bool _predictionHostWarningAcknowledged;
 
 	private async void OnCreatePressed()
 	{
-		UIManager.Instance.PlayClickSound();
+		GameContext.UserInterface.PlayClickSound();
 
 		string selectedVersion = GetSelectedVersion();
 		var mapInfo = GetSelectedMapInfo();
 
 		if (IsMapBuildMismatch(mapInfo.BuildNumber))
 		{
-			UIManager.Instance.PlayWarningSound();
+			GameContext.UserInterface.PlayWarningSound();
 			ShowMapBuildMismatchModal(mapInfo.PathName, mapInfo.DisplayName, mapInfo.BuildNumber, RealmVersion.GameBuildNumber);
 			return;
 		}
@@ -299,8 +300,8 @@ public partial class LobbyCreate : Control
 		if (!_predictionHostWarningAcknowledged && performanceMonitor != null && performanceMonitor.IsMachineTooSlow)
 		{
 			_predictionHostWarningAcknowledged = true;
-			UIManager.Instance.PlayWarningSound();
-			UIManager.Instance.ShowConfirmationDialog(
+			GameContext.UserInterface.PlayWarningSound();
+			GameContext.UserInterface.ShowConfirmationDialog(
 				string.Format(
 					TranslationServer.Translate("This machine measured too slow to host smoothly ({0:F1} ms average frame time). Hosting here may cause stutter for every player; lower graphics quality or close background apps first. Host anyway?"),
 					performanceMonitor.AverageFrameTimeMs),
@@ -316,34 +317,34 @@ public partial class LobbyCreate : Control
 
 	private async Task ContinueHosting(string pathName, string displayName, string selectedVersion)
 	{
-		if (LobbyManager.Instance.IsSinglePlayer)
+		if (GameContext.Lobby.IsSinglePlayer)
 		{
 			_createButton.Disabled = true;
-			LobbyManager.Instance.HostSinglePlayerGame(pathName, displayName, selectedVersion);
+			GameContext.Lobby.HostSinglePlayerGame(pathName, displayName, selectedVersion);
 			_createButton.Disabled = false;
 			return;
 		}
 
-		if (LobbyManager.Instance.LocalNatType == NatType.Symmetric)
+		if (GameContext.Lobby.LocalNatType == NatType.Symmetric)
 		{
-			UIManager.Instance.PlayWarningSound();
+			GameContext.UserInterface.PlayWarningSound();
 			ShowNatErrorModal();
 			return;
 		}
 
 		_createButton.Disabled = true;
-		bool success = await LobbyManager.Instance.HostLobbyAsync(pathName, displayName, selectedVersion);
+		bool success = await GameContext.Lobby.HostLobbyAsync(pathName, displayName, selectedVersion);
 		_createButton.Disabled = false;
 
 		if (success)
 		{
-			UIManager.Instance.TransitionTo(GameScreen.LobbyRoom);
+			GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
 		}
 		else
 		{
-			UIManager.Instance.PlayWarningSound();
+			GameContext.UserInterface.PlayWarningSound();
 			GD.PrintErr("[LobbyCreate] Failed to host lobby.");
-			string errorMsg = LobbyManager.Instance.LastHostError ?? Tr("Failed to host lobby on the registry server.");
+			string errorMsg = GameContext.Lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
 			ShowHostErrorModal(errorMsg);
 		}
 	}
@@ -383,7 +384,7 @@ public partial class LobbyCreate : Control
 		string promptText = Tr("This map is out of date. To host this match, download the matching game build or open the map in the Map Editor to upgrade it.");
 		string message = $"{string.Format(Tr("Map: {0}"), mapDisplayName)}\n{string.Format(Tr("Map Build: {0}"), mapBuildNumber)} | {string.Format(Tr("Current Build: {0}"), currentBuildNumber)}\n\n{promptText}";
 
-		UIManager.Instance?.ShowConfirmationDialog(message, () =>
+		GameContext.UserInterface?.ShowConfirmationDialog(message, () =>
 		{
 			if (versionExistsLocally)
 			{
@@ -397,15 +398,15 @@ public partial class LobbyCreate : Control
 
 	private void ShowNatErrorModal()
 	{
-		UIManager.Instance?.ShowPopupMessage("HOSTING ERROR", "STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP.", () =>
+		GameContext.UserInterface?.ShowPopupMessage("HOSTING ERROR", "STUN test determines you cannot host a game due to a Symmetric NAT router configuration. Please configure port forwarding or UPnP.", () =>
 		{
-			UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
+			GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
 		});
 	}
 
 	private void ShowHostErrorModal(string errorMessage)
 	{
-		UIManager.Instance?.ShowPopupMessage("LOBBY CREATION ERROR", errorMessage);
+		GameContext.UserInterface?.ShowPopupMessage("LOBBY CREATION ERROR", errorMessage);
 	}
 
 	private void RefreshAvailableMaps(string? selectMapName = null, string? selectMapVersion = null)
@@ -441,7 +442,7 @@ public partial class LobbyCreate : Control
 
 	private void OnMapSelected(long index, string? targetVersion)
 	{
-		UIManager.Instance?.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 
 		if (index < 0 || index >= _availableMaps.Count)
 		{

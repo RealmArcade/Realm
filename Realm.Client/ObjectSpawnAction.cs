@@ -53,16 +53,16 @@ public class ObjectSpawnAction : IEditorAction
 	{
 		if (GodotObject.IsInstanceValid(_spawnedNode))
 		{
-			GameHost.Instance?.DeleteNodeExternal(_spawnedNode);
+			GameContext.Host?.DeleteNodeExternal(_spawnedNode);
 		}
 		else if (_objectType == "prop")
 		{
-			GameHost.Instance?.DeleteStaticPropAtPosition(_objectId, _position);
+			GameContext.Host?.DeleteStaticPropAtPosition(_objectId, _position);
 		}
 	}
 
 	public void Redo()
 	{
-		_spawnedNode = GameHost.Instance?.SpawnObjectExternal(_objectType, _objectId, _position, _rotationY, _rotationDegrees, _scale, _player);
+		_spawnedNode = GameContext.Host?.SpawnObjectExternal(_objectType, _objectId, _position, _rotationY, _rotationDegrees, _scale, _player);
 	}
 }

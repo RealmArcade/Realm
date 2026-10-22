@@ -5,6 +5,7 @@ using Realm.Client.Network;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
@@ -13,11 +14,8 @@ public partial class SettingsMenu : Control
 {
 	public SettingsMenu()
 	{
-		Instance = this;
+		GameContext.RegisterSettings(this);
 	}
-
-	public static SettingsMenu Instance { get; set; }
-	public static bool IsOpen => Instance != null && GodotObject.IsInstanceValid(Instance) && Instance.IsInsideTree() && Instance.Visible;
 
 	public override void _EnterTree()
 	{
@@ -78,7 +76,7 @@ public partial class SettingsMenu : Control
 
 	public override void _Ready()
 	{
-		Instance = this;
+		GameContext.RegisterSettings(this);
 		MouseFilter = MouseFilterEnum.Stop;
 
 		_bgPanel = GetNodeOrNull<Panel>("Background");
@@ -543,26 +541,26 @@ public partial class SettingsMenu : Control
 
 	private void SetupCheckboxEvents()
 	{
-		_disableShadowsChk.Pressed += () => UIManager.Instance.PlayClickSound();
-		_disableShadowsChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
-		_disableDayNightLightingChk.Pressed += () => UIManager.Instance.PlayClickSound();
-		_disableDayNightLightingChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
-		_disableWeatherEffectsChk.Pressed += () => UIManager.Instance.PlayClickSound();
-		_disableWeatherEffectsChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
-		_floatingCombatTextChk.Pressed += () => UIManager.Instance.PlayClickSound();
-		_floatingCombatTextChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
-		_displayFpsChk.Pressed += () => UIManager.Instance.PlayClickSound();
-		_displayFpsChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
-		_unitOutlineChk.Pressed += () => UIManager.Instance.PlayClickSound();
-		_unitOutlineChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
-		_recordReplaysChk.Pressed += () => UIManager.Instance.PlayClickSound();
-		_recordReplaysChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
-		_seedMapFilesChk.Pressed += () => UIManager.Instance.PlayClickSound();
-		_seedMapFilesChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_disableShadowsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_disableShadowsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_disableDayNightLightingChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_disableDayNightLightingChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_disableWeatherEffectsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_disableWeatherEffectsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_floatingCombatTextChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_floatingCombatTextChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_displayFpsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_displayFpsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_unitOutlineChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_unitOutlineChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_recordReplaysChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_recordReplaysChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_seedMapFilesChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_seedMapFilesChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 		if (_movementPredictionChk != null)
 		{
-			_movementPredictionChk.Pressed += () => UIManager.Instance.PlayClickSound();
-			_movementPredictionChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+			_movementPredictionChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+			_movementPredictionChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 			_movementPredictionChk.Toggled += OnMovementPredictionToggled;
 		}
 	}
@@ -576,8 +574,8 @@ public partial class SettingsMenu : Control
 		if (monitor == null || !monitor.IsMachineTooSlow) return;
 
 		_movementPredictionChk.ButtonPressed = false;
-		UIManager.Instance?.PlayWarningSound();
-		UIManager.Instance?.ShowConfirmationDialog(
+		GameContext.UserInterface?.PlayWarningSound();
+		GameContext.UserInterface?.ShowConfirmationDialog(
 			string.Format(
 				TranslationServer.Translate("This machine measured too slow for movement prediction ({0:F1} ms prediction update, {1:F1} ms average frame time). Prediction may make movement stutter. Lower graphics quality, close background apps, or keep prediction disabled. Enable prediction anyway?"),
 				monitor.AveragePredictionCostMs,
@@ -597,10 +595,10 @@ public partial class SettingsMenu : Control
 
 	private void SetupNatTestEvent()
 	{
-		if (LobbyManager.Instance == null)
+		if (GameContext.Lobby == null)
 			return;
 
-		LobbyManager.Instance.NatTestCompleted += OnNatTestCompleted;
+		GameContext.Lobby.NatTestCompleted += OnNatTestCompleted;
 	}
 
 	private void OnNatTestCompleted()
@@ -610,7 +608,7 @@ public partial class SettingsMenu : Control
 			return;
 		}
 
-		bool canHost = LobbyManager.Instance != null && LobbyManager.Instance.LocalNatType != NatType.Symmetric;
+		bool canHost = GameContext.Lobby != null && GameContext.Lobby.LocalNatType != NatType.Symmetric;
 		if (!canHost)
 		{
 			_seedMapFilesChk.Disabled = true;
@@ -639,8 +637,8 @@ public partial class SettingsMenu : Control
 			opt.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 			opt.AddThemeFontSizeOverride("font_size", 14);
 
-			opt.ItemSelected += (idx) => UIManager.Instance.PlayClickSound();
-			opt.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+			opt.ItemSelected += (idx) => GameContext.UserInterface.PlayClickSound();
+			opt.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 		}
 	}
 
@@ -691,33 +689,33 @@ public partial class SettingsMenu : Control
 			s.AddThemeIconOverride("grabber", grabberTex);
 			s.AddThemeIconOverride("grabber_highlight", grabberHiTex);
 
-			s.MouseEntered += () => UIManager.Instance.PlayHoverSound();
-			s.DragEnded += (valChanged) => UIManager.Instance.PlayClickSound();
+			s.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+			s.DragEnded += (valChanged) => GameContext.UserInterface.PlayClickSound();
 		}
 
 		_masterSlider.ValueChanged += (val) =>
 		{
 			GameSettings.MasterVolume = (float)val;
 			_masterValLabel.Text = val.ToString("0");
-			UIManager.Instance.UpdateAudioVolumes();
+			GameContext.UserInterface.UpdateAudioVolumes();
 		};
 		_musicSlider.ValueChanged += (val) =>
 		{
 			GameSettings.MusicVolume = (float)val;
 			_musicValLabel.Text = val.ToString("0");
-			UIManager.Instance.UpdateAudioVolumes();
+			GameContext.UserInterface.UpdateAudioVolumes();
 		};
 		_sfxSlider.ValueChanged += (val) =>
 		{
 			GameSettings.SfxVolume = (float)val;
 			_sfxValLabel.Text = val.ToString("0");
-			UIManager.Instance.UpdateAudioVolumes();
+			GameContext.UserInterface.UpdateAudioVolumes();
 		};
 		_voiceSlider.ValueChanged += (val) =>
 		{
 			GameSettings.VoiceVolume = (float)val;
 			_voiceValLabel.Text = val.ToString("0");
-			UIManager.Instance.UpdateAudioVolumes();
+			GameContext.UserInterface.UpdateAudioVolumes();
 		};
 		_scrollSpeedSlider.ValueChanged += (val) =>
 		{
@@ -770,7 +768,7 @@ public partial class SettingsMenu : Control
 
 		btn.MouseEntered += () =>
 		{
-			UIManager.Instance.PlayHoverSound();
+			GameContext.UserInterface.PlayHoverSound();
 			textLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		};
 		btn.MouseExited += () => { textLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull); };
@@ -779,7 +777,7 @@ public partial class SettingsMenu : Control
 
 		btn.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			onClick?.Invoke();
 		};
 	}
@@ -832,7 +830,7 @@ public partial class SettingsMenu : Control
 		_unitOutlineChk.ButtonPressed = GameSettings.OccludedUnitOutlines;
 		_recordReplaysChk.ButtonPressed = GameSettings.RecordReplays;
 
-		bool canHost = LobbyManager.Instance != null && LobbyManager.Instance.LocalNatType != NatType.Symmetric;
+		bool canHost = GameContext.Lobby != null && GameContext.Lobby.LocalNatType != NatType.Symmetric;
 		if (!canHost)
 		{
 			_seedMapFilesChk.Disabled = true;
@@ -876,15 +874,15 @@ public partial class SettingsMenu : Control
 			GameSettings.Save();
 			GameSettings.ApplyGraphicsSettings(this);
 
-			if (InGameHUD.Instance != null)
+			if (GameContext.InGameHud != null)
 			{
-				InGameHUD.Instance.ApplyHUDScale();
-				InGameHUD.Instance.UpdateFPSVisibility();
+				GameContext.InGameHud.ApplyHUDScale();
+				GameContext.InGameHud.UpdateFPSVisibility();
 			}
 
-			if (MapEditorHUD.Instance != null)
+			if (GameContext.MapEditorHud != null)
 			{
-				MapEditorHUD.Instance.UpdateFPSVisibility();
+				GameContext.MapEditorHud.UpdateFPSVisibility();
 			}
 
 			GD.Print("Settings Applied successfully!");
@@ -910,9 +908,9 @@ public partial class SettingsMenu : Control
 
 		GameSettings.WindowModeIdx = windowMode;
 
-		if (UIManager.Instance != null)
+		if (GameContext.UserInterface != null)
 		{
-			await UIManager.Instance.ApplyWindowSettings(windowMode, GameSettings.ResolutionIdx);
+			await GameContext.UserInterface.ApplyWindowSettings(windowMode, GameSettings.ResolutionIdx);
 		}
 	}
 
@@ -968,15 +966,15 @@ public partial class SettingsMenu : Control
 	private void CancelSettings()
 	{
 		GameSettings.Load();
-		UIManager.Instance.UpdateAudioVolumes();
-		if (InGameHUD.Instance != null)
+		GameContext.UserInterface.UpdateAudioVolumes();
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.UpdateFPSVisibility();
+			GameContext.InGameHud.UpdateFPSVisibility();
 		}
 
-		if (MapEditorHUD.Instance != null)
+		if (GameContext.MapEditorHud != null)
 		{
-			MapEditorHUD.Instance.UpdateFPSVisibility();
+			GameContext.MapEditorHud.UpdateFPSVisibility();
 		}
 
 		CloseOrTransition();
@@ -990,7 +988,7 @@ public partial class SettingsMenu : Control
 		}
 		else
 		{
-			UIManager.Instance.TransitionTo(GameScreen.MainMenu);
+			GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 		}
 	}
 
@@ -998,14 +996,14 @@ public partial class SettingsMenu : Control
 	{
 		GameSettings.ResetToDefaults();
 		LoadCurrentSettings();
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
-			InGameHUD.Instance.UpdateFPSVisibility();
+			GameContext.InGameHud.UpdateFPSVisibility();
 		}
 
-		if (MapEditorHUD.Instance != null)
+		if (GameContext.MapEditorHud != null)
 		{
-			MapEditorHUD.Instance.UpdateFPSVisibility();
+			GameContext.MapEditorHud.UpdateFPSVisibility();
 		}
 
 		GD.Print("Settings reset to defaults.");
@@ -1013,14 +1011,11 @@ public partial class SettingsMenu : Control
 
 	public override void _ExitTree()
 	{
-		if (Instance == this)
-		{
-			Instance = null;
-		}
+		GameContext.UnregisterSettings(this);
 
-		if (LobbyManager.Instance != null)
+		if (GameContext.Lobby != null)
 		{
-			LobbyManager.Instance.NatTestCompleted -= OnNatTestCompleted;
+			GameContext.Lobby.NatTestCompleted -= OnNatTestCompleted;
 		}
 
 		base._ExitTree();

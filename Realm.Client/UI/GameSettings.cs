@@ -362,7 +362,7 @@ public static class GameSettings
 
 	private static void ApplyLodVisibilityDistances()
 	{
-		GameHost host = GameHost.Instance;
+		GameHost host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host)) return;
 
 		var units = host.AllUnits;
@@ -391,7 +391,7 @@ public static class GameSettings
 			}
 		}
 
-		PropMultiMeshManager.Instance?.RefreshLodVisibilityDistances();
+		GameContext.PropMultiMesh?.RefreshLodVisibilityDistances();
 	}
 
 	private static void ApplyViewportQuality(Viewport viewport)
@@ -453,7 +453,7 @@ public static class GameSettings
 
 	private static void ApplyTerrainQuality(Window root)
 	{
-		var terrain = (root != null ? FindNodeInTree<RuntimeTerrain>(root) : null) ?? RuntimeTerrain.Instance;
+		var terrain = (root != null ? FindNodeInTree<RuntimeTerrain>(root) : null) ?? GameContext.Terrain;
 		if (terrain != null && GodotObject.IsInstanceValid(terrain))
 		{
 			terrain.ApplyQualitySettings((int)QualityIdx);
@@ -488,17 +488,17 @@ public static class GameSettings
 			var foundHost = FindNodeInTree<GameHost>(root);
 			if (foundHost != null)
 			{
-				host = GameHost.Instance;
+				host = GameContext.Host;
 			}
 		}
 
 		if (host == null)
 		{
-			host = GameHost.Instance;
+			host = GameContext.Host;
 		}
 
 		if (host == null) return null;
-		if (!GodotObject.IsInstanceValid(GameHost.Instance)) return null;
+		if (!GodotObject.IsInstanceValid(GameContext.Host)) return null;
 		return host;
 	}
 
@@ -567,7 +567,7 @@ public static class GameSettings
 
 	private static bool IsEditorShadowsDisabled()
 	{
-		GameHost host = GameHost.Instance;
+		GameHost host = GameContext.Host;
 		if (host == null) return false;
 		if (!GameContext.SessionState.IsMapEditorMode) return false;
 		if (!GameContext.EditorService.EditorDisableShadows) return false;

@@ -785,9 +785,9 @@ public class InputService
 
 		ref var mana = ref GameContext.World.Get<Mana>(entity);
 		float cost = 0f;
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var def = GameHost.Instance.GetAbilityDefinition(spellId);
+			var def = GameContext.Host.GetAbilityDefinition(spellId);
 			if (def != null) cost = def.ManaCost;
 		}
 
@@ -822,9 +822,9 @@ public class InputService
 	public bool TryExecuteSpellCast(Entity playerEntity, Entity casterEntity, string spellId, out float cooldownMax)
 	{
 		cooldownMax = 10.0f;
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var def = GameHost.Instance.GetAbilityDefinition(spellId);
+			var def = GameContext.Host.GetAbilityDefinition(spellId);
 			if (def != null && def.Cooldown > 0f)
 			{
 				cooldownMax = def.Cooldown;

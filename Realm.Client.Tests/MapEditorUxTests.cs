@@ -33,10 +33,10 @@ public class MapEditorUxTests
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1500);
 
-		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
+		GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
-		var hud = MapEditorHUD.Instance;
+		var hud = GameContext.MapEditorHud;
 		Assertions.AssertThat(hud).IsNotNull();
 
 		var btnTestMap = hud!.GetNode<Button>("TopLeftBox/BtnTestMap");
@@ -70,7 +70,7 @@ public class MapEditorUxTests
 		}
 
 		await runner.AwaitMillis(2000);
-		Assertions.AssertThat(WasmConsoleWindow.Instance).IsNotNull();
+		Assertions.AssertThat(GameContext.WasmConsole).IsNotNull();
 	}
 
 	[TestCase]
@@ -85,12 +85,12 @@ public class MapEditorUxTests
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1500);
 
-		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
+		GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
-		var gameHost = GameHost.Instance;
+		var gameHost = GameContext.Host;
 		Assertions.AssertThat(gameHost).IsNotNull();
-		var hud = MapEditorHUD.Instance;
+		var hud = GameContext.MapEditorHud;
 		Assertions.AssertThat(hud).IsNotNull();
 		Assertions.AssertThat(gameHost!.GroundTerrain).IsNotNull();
 
@@ -109,43 +109,43 @@ public class MapEditorUxTests
 		GameContext.EditorService.EditorCliffPaintTextureIndex = lavaVeinIndex;
 
 		// 2. Configure Raise tool in Block mode with 8.0f height step
-		GameHost.Instance.ActiveEditorTool = EditorTool.Raise;
-		GameHost.Instance.EditorBlockMode = true;
-		GameHost.Instance.EditorBlockLevelHeight = 8.0f;
-		GameHost.Instance.EditorBrushRadius = 14.0f;
-		GameHost.Instance.EditorBrushIsSquare = true;
+		GameContext.Host.ActiveEditorTool = EditorTool.Raise;
+		GameContext.Host.EditorBlockMode = true;
+		GameContext.Host.EditorBlockLevelHeight = 8.0f;
+		GameContext.Host.EditorBrushRadius = 14.0f;
+		GameContext.Host.EditorBrushIsSquare = true;
 
 		var editorService = GameContext.EditorService;
-		editorService.SetTerrainSplatMap(GameHost.Instance.GroundTerrain.SplatMap);
+		editorService.SetTerrainSplatMap(GameContext.Host.GroundTerrain.SplatMap);
 
 		// 3. Raise terrain step at Z = -10.0f to create a distinct cliff wall & top terrace
 		Vector3 raiseCenter = new Vector3(0.0f, 0.0f, -10.0f);
 
 		editorService.BeginTerrainDraw(
 			raiseCenter,
-			GameHost.Instance.ActiveEditorTool,
-			GameHost.Instance.EditorBlockMode,
-			GameHost.Instance.EditorBlockLevelHeight,
-			GameHost.Instance.GroundTerrain.Heights,
-			GameHost.Instance.GroundTerrain.SplatMap,
-			GameHost.Instance.GroundTerrain.PathingCodes);
+			GameContext.Host.ActiveEditorTool,
+			GameContext.Host.EditorBlockMode,
+			GameContext.Host.EditorBlockLevelHeight,
+			GameContext.Host.GroundTerrain.Heights,
+			GameContext.Host.GroundTerrain.SplatMap,
+			GameContext.Host.GroundTerrain.PathingCodes);
 
 		var res = editorService.ApplyContinuousTerrainEditing(
 			raiseCenter, 1.0f,
-			GameHost.Instance.ActiveEditorTool,
-			GameHost.Instance.EditorBrushRadius, GameHost.Instance.EditorBrushStrength,
-			GameHost.Instance.EditorBrushIsSquare,
-			GameHost.Instance.EditorBlockMode, GameHost.Instance.EditorBlockLevelHeight,
+			GameContext.Host.ActiveEditorTool,
+			GameContext.Host.EditorBrushRadius, GameContext.Host.EditorBrushStrength,
+			GameContext.Host.EditorBrushIsSquare,
+			GameContext.Host.EditorBlockMode, GameContext.Host.EditorBlockLevelHeight,
 			GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex,
 			0, true, true);
 
-		editorService.EndTerrainDraw(GameHost.Instance.GroundTerrain.Heights, GameHost.Instance.GroundTerrain.SplatMap, GameHost.Instance.GroundTerrain.PathingCodes);
+		editorService.EndTerrainDraw(GameContext.Host.GroundTerrain.Heights, GameContext.Host.GroundTerrain.SplatMap, GameContext.Host.GroundTerrain.PathingCodes);
 
-		GameHost.Instance.GroundTerrain.UpdateMeshAndPhysics(true, true);
+		GameContext.Host.GroundTerrain.UpdateMeshAndPhysics(true, true);
 		await runner.AwaitMillis(1000);
 
 		// 4. Position camera up close to view the front cliff face and top terrace step
-		var camera = GameHost.Instance.MainCamera;
+		var camera = GameContext.Host.MainCamera;
 		if (camera != null)
 		{
 			camera.Position = new Vector3(0.0f, 14.0f, 18.0f);

@@ -27,7 +27,7 @@ namespace Realm.Client.Core
 
 			int selWidth = maxX - minX + 1;
 			int selDepth = maxZ - minZ + 1;
-			MapEditorHUD.Instance?.ShowFeedbackExternal($"Copied Area: {selWidth}x{selDepth} tiles, {entities.Count} entities");
+			GameContext.MapEditorHud?.ShowFeedbackExternal($"Copied Area: {selWidth}x{selDepth} tiles, {entities.Count} entities");
 		}
 
 		private bool IsCopiedQuadMasked(int sx, int sz)
@@ -71,12 +71,12 @@ namespace Realm.Client.Core
 		{
 			if (GroundTerrain == null || GameContext.EditorService.SelectionStart == null || GameContext.EditorService.SelectionEnd == null)
 			{
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to Copy (select an area first)");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Nothing to Copy (select an area first)");
 				return;
 			}
 
 			PerformCopyArea();
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Area Copied");
+			GameContext.MapEditorHud?.ShowFeedbackExternal("Area Copied");
 		}
 
 		private List<IEditorAction> PerformPasteArea(int startX, int startZ, float rotationDegrees, PasteReflection reflection = PasteReflection.None, bool recordToHistory = true)
@@ -175,7 +175,7 @@ namespace Realm.Client.Core
 			{
 				EditorHistoryManager.RecordAction(new CompositeAction(actions));
 				EditorHasUnsavedChanges = true;
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Pasted Area");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Pasted Area");
 			}
 
 			return actions;

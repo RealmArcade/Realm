@@ -412,13 +412,13 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 			if (member is IPropertySymbol property)
 			{
-				EmitPropertyBindings(sb, property, ref lastWasMultiLine, "(_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)", definedFunctions, methodNames);
+				EmitPropertyBindings(sb, property, ref lastWasMultiLine, "(_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)", definedFunctions, methodNames);
 			}
 			else if (member is IMethodSymbol method && method.MethodKind == MethodKind.Ordinary)
 			{
 				if (!propertyAccessorMethods.Contains(method.Name))
 				{
-					EmitMethodBinding(sb, method, ref lastWasMultiLine, "(_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)", gameApiSymbol, definedFunctions, methodNames);
+					EmitMethodBinding(sb, method, ref lastWasMultiLine, "(_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)", gameApiSymbol, definedFunctions, methodNames);
 				}
 			}
 		}
@@ -455,7 +455,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			int methodIndex = methodNames.Count;
 			methodNames.Add(countName);
-			sb.AppendLine($"        _linker.DefineFunction(mod, \"{countName}\", () => {{ using var _scope = BeginProfileApiCall({methodIndex}); return (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{FindCollectionMember(gameApiSymbol, entityIface)}?.Count() ?? 0; }});");
+			sb.AppendLine($"        _linker.DefineFunction(mod, \"{countName}\", () => {{ using var _scope = BeginProfileApiCall({methodIndex}); return (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{FindCollectionMember(gameApiSymbol, entityIface)}?.Count() ?? 0; }});");
 		}
 	}
 
@@ -501,7 +501,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			int idxX = methodNames.Count;
 			methodNames.Add(nameX);
-			sb.AppendLine($"        _linker.DefineFunction(mod, \"{nameX}\", (int id) => {{ using var _scope = BeginProfileApiCall({idxX}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id); return u != null ? u.{property.Name}.X : 0f; }});");
+			sb.AppendLine($"        _linker.DefineFunction(mod, \"{nameX}\", (int id) => {{ using var _scope = BeginProfileApiCall({idxX}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id); return u != null ? u.{property.Name}.X : 0f; }});");
 		}
 
 		string nameY = $"{witBase}-y";
@@ -509,7 +509,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			int idxY = methodNames.Count;
 			methodNames.Add(nameY);
-			sb.AppendLine($"        _linker.DefineFunction(mod, \"{nameY}\", (int id) => {{ using var _scope = BeginProfileApiCall({idxY}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id); return u != null ? u.{property.Name}.Y : 0f; }});");
+			sb.AppendLine($"        _linker.DefineFunction(mod, \"{nameY}\", (int id) => {{ using var _scope = BeginProfileApiCall({idxY}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id); return u != null ? u.{property.Name}.Y : 0f; }});");
 		}
 
 		string nameZ = $"{witBase}-z";
@@ -517,7 +517,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			int idxZ = methodNames.Count;
 			methodNames.Add(nameZ);
-			sb.AppendLine($"        _linker.DefineFunction(mod, \"{nameZ}\", (int id) => {{ using var _scope = BeginProfileApiCall({idxZ}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id); return u != null ? u.{property.Name}.Z : 0f; }});");
+			sb.AppendLine($"        _linker.DefineFunction(mod, \"{nameZ}\", (int id) => {{ using var _scope = BeginProfileApiCall({idxZ}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id); return u != null ? u.{property.Name}.Z : 0f; }});");
 		}
 
 		if (property.SetMethod != null)
@@ -527,14 +527,14 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			{
 				int idxSet = methodNames.Count;
 				methodNames.Add(setWitBase);
-				sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, float valX, float valY, float valZ) => {{ using var _scope = BeginProfileApiCall({idxSet}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = new System.Numerics.Vector3(valX, valY, valZ); }});");
+				sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, float valX, float valY, float valZ) => {{ using var _scope = BeginProfileApiCall({idxSet}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id); if (u != null) u.{property.Name} = new System.Numerics.Vector3(valX, valY, valZ); }});");
 			}
 		}
 	}
 
 	private static void EmitEntityStandardProperty(StringBuilder sb, IPropertySymbol property, string witBase, string resolver, INamedTypeSymbol gameApiSymbol, RetKind retKind, ref bool lastWasMultiLine, HashSet<string> definedFunctions, List<string> methodNames)
 	{
-		string expr = $"(_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id)?.{property.Name}";
+		string expr = $"(_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id)?.{property.Name}";
 		string mapped = MapEntityPropertyExpression(property, gameApiSymbol, retKind, expr);
 
 		if (!definedFunctions.Add(witBase)) return;
@@ -568,7 +568,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			else
 			{
 				string colName = FindCollectionMember(gameApiSymbol, unwrapped);
-				return $"({expr} != null) ? ((_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{colName}.ToList().IndexOf({expr}) ?? -1) : -1";
+				return $"({expr} != null) ? ((_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{colName}.ToList().IndexOf({expr}) ?? -1) : -1";
 			}
 		}
 
@@ -593,17 +593,17 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		methodNames.Add(setWitBase);
 
 		if (property.Type.SpecialType == SpecialType.System_Boolean)
-			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ using var _scope = BeginProfileApiCall({methodIndex}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = val != 0; }});");
+			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ using var _scope = BeginProfileApiCall({methodIndex}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id); if (u != null) u.{property.Name} = val != 0; }});");
 		else if (property.Type.SpecialType == SpecialType.System_Single)
-			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, float val) => {{ using var _scope = BeginProfileApiCall({methodIndex}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = val; }});");
+			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, float val) => {{ using var _scope = BeginProfileApiCall({methodIndex}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id); if (u != null) u.{property.Name} = val; }});");
 		else if (property.Type.SpecialType == SpecialType.System_Int32)
-			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ using var _scope = BeginProfileApiCall({methodIndex}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = val; }});");
+			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ using var _scope = BeginProfileApiCall({methodIndex}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id); if (u != null) u.{property.Name} = val; }});");
 		else if (property.Type.SpecialType == SpecialType.System_String)
-			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (Caller caller, int id, int valPtr, int valLen) => {{ using var _scope = BeginProfileApiCall({methodIndex}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = ReadGuestString(caller, valPtr, valLen); }});");
+			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (Caller caller, int id, int valPtr, int valLen) => {{ using var _scope = BeginProfileApiCall({methodIndex}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id); if (u != null) u.{property.Name} = ReadGuestString(caller, valPtr, valLen); }});");
 		else if (IsEntityInterface(property.Type, out var unwrapped))
 		{
 			string resolverR = FindResolverMember(gameApiSymbol, unwrapped);
-			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ using var _scope = BeginProfileApiCall({methodIndex}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id); if (u != null) u.{property.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolverR}(val); }});");
+			sb.AppendLine($"        _linker.DefineFunction(mod, \"{setWitBase}\", (int id, int val) => {{ using var _scope = BeginProfileApiCall({methodIndex}); var u = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id); if (u != null) u.{property.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolverR}(val); }});");
 		}
 	}
 
@@ -636,7 +636,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		sb.AppendLine($"        _linker.DefineFunction(mod, \"{witName}\", ({lambdaParamsStr}) =>");
 		sb.AppendLine("        {");
 		sb.AppendLine($"            using var _scope = BeginProfileApiCall({methodIndex});");
-		sb.AppendLine($"            var hostTarget = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id);");
+		sb.AppendLine($"            var hostTarget = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id);");
 
 		string defaultReturn = GetDefaultReturnValue(method, retKind, needsRetArea);
 		if (!string.IsNullOrEmpty(defaultReturn))
@@ -705,7 +705,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			sb.AppendLine($"        _linker.DefineFunction(mod, \"{countName}\", (int id) =>");
 			sb.AppendLine("        {");
 			sb.AppendLine($"            using var _scope = BeginProfileApiCall({countIdx});");
-			sb.AppendLine($"            var target = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id);");
+			sb.AppendLine($"            var target = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id);");
 			sb.AppendLine($"            return target?.{method.Name}().Count() ?? 0;");
 			sb.AppendLine("        });");
 		}
@@ -718,7 +718,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			sb.AppendLine($"        _linker.DefineFunction(mod, \"{getName}\", (Caller caller, int id, int index, int retArea) =>");
 			sb.AppendLine("        {");
 			sb.AppendLine($"            using var _scope = BeginProfileApiCall({getIdx});");
-			sb.AppendLine($"            var target = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{resolver}(id);");
+			sb.AppendLine($"            var target = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{resolver}(id);");
 			sb.AppendLine($"            string s = target?.{method.Name}().ElementAtOrDefault(index) ?? \"\";");
 			sb.AppendLine("            WriteGuestString(caller, retArea, s);");
 			sb.AppendLine("        });");
@@ -761,7 +761,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				else if (IsEntityInterface(p.Type, out var unwrapped))
 				{
 					string res = FindResolverMember(gameApiSymbol, unwrapped);
-					sb.AppendLine($"                var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{res}({p.Name}RawId);");
+					sb.AppendLine($"                var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{res}({p.Name}RawId);");
 				}
 			}
 		}
@@ -816,7 +816,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			}
 
 			string colName = FindCollectionMember(gameApiSymbol, unwrapped);
-			return $"({callExpr} != null) ? ((_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{colName}.ToList().IndexOf({callExpr}) ?? -1) : -1";
+			return $"({callExpr} != null) ? ((_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{colName}.ToList().IndexOf({callExpr}) ?? -1) : -1";
 		}
 
 		return retKind switch
@@ -1046,7 +1046,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				else if (IsEntityInterface(p.Type, out var unwrapped))
 				{
 					string res = FindResolverMember(gameApiSymbol, unwrapped);
-					sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{res}({p.Name}RawId);");
+					sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{res}({p.Name}RawId);");
 				}
 			}
 
@@ -1164,7 +1164,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 				else if (IsEntityInterface(p.Type, out var unwrapped))
 				{
 					string res = FindResolverMember(gameApiSymbol, unwrapped);
-					sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{res}({p.Name}RawId);");
+					sb.AppendLine($"            var {p.Name} = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{res}({p.Name}RawId);");
 				}
 			}
 		}
@@ -1220,7 +1220,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		{
 			var args = GetMethodCallArgs(method);
 			string argsCall = string.Join(", ", args);
-			sb.AppendLine($"            var api = (_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance);");
+			sb.AppendLine($"            var api = (_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host);");
 			sb.AppendLine($"            var items = api != null ? api.{method.Name}({argsCall}) : ReadOnlySpan<{elemType.ToDisplayString()}>.Empty;");
 			sb.AppendLine($"            WriteGuestIntSpan(caller, retArea, MemoryMarshal.Cast<{elemType.ToDisplayString()}, int>(items));");
 			return;
@@ -1236,7 +1236,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		else
 		{
 			string colName = FindCollectionMember(gameApiSymbol, elemType);
-			sb.AppendLine($"            WriteGuestIntList(caller, retArea, items.Select(e => ((_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{colName}.ToList().IndexOf(e) ?? -1).ToList());");
+			sb.AppendLine($"            WriteGuestIntList(caller, retArea, items.Select(e => ((_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{colName}.ToList().IndexOf(e) ?? -1).ToList());");
 		}
 	}
 
@@ -1304,7 +1304,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		else
 		{
 			string colName = FindCollectionMember(gameApiSymbol, unwrapped);
-			sb.AppendLine($"                return ({resultVar} != null) ? ((_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{colName}.ToList().IndexOf({resultVar}) ?? -1) : -1;");
+			sb.AppendLine($"                return ({resultVar} != null) ? ((_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{colName}.ToList().IndexOf({resultVar}) ?? -1) : -1;");
 		}
 	}
 
@@ -1322,7 +1322,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			else
 			{
 				string colName = FindCollectionMember(gameApiSymbol, unwrapped);
-				return $"({callExpr} != null) ? ((_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{colName}.ToList().IndexOf({callExpr}) ?? -1) : -1";
+				return $"({callExpr} != null) ? ((_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{colName}.ToList().IndexOf({callExpr}) ?? -1) : -1";
 			}
 		}
 
@@ -1973,7 +1973,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			else
 			{
 				string col = FindCollectionMember(gameApiSymbol, unwrapped);
-				invokeArgs.Add($"{p.Name} != null ? (((_cachedApi ?? (IGameAPI?)Realm.Client.Core.GameHost.Instance)?.{col}().ToList().IndexOf({p.Name}) ?? -1) : -1");
+				invokeArgs.Add($"{p.Name} != null ? (((_cachedApi ?? (IGameAPI?)Realm.Client.Services.GameContext.Host)?.{col}().ToList().IndexOf({p.Name}) ?? -1) : -1");
 			}
 		}
 		else

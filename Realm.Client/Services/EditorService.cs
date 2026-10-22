@@ -62,7 +62,7 @@ public partial class EditorService : IEditorAPI
 			}
 		}
 
-		GameHost.Instance?.LoadUnitMetadata(wsPath);
+		GameContext.Host?.LoadUnitMetadata(wsPath);
 		return (true, null, importResult.ExtractedAnimationFiles, fileName);
 	}
 
@@ -229,7 +229,7 @@ public partial class EditorService : IEditorAPI
 		string signatureStr = Convert.ToBase64String(sigBytes);
 
 		var regPayload = new { Username = username, PublicKey = pubKeyStr, Signature = signatureStr };
-		string seedServerUrl = GameHost.Instance != null && GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+		string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
 
 		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
 		var content = new StringContent(JsonSerializer.Serialize(regPayload), Encoding.UTF8, "application/json");
@@ -385,32 +385,32 @@ public partial class EditorService : IEditorAPI
 	public void ResetPivotToMapCenterDomain()
 	{
 		var pivot = Vector2.Zero;
-		GameHost.Instance.EditorSymmetryPivot = pivot;
-		GameHost.Instance.GroundTerrain.SetPolarCenter(pivot);
-		GameHost.Instance.UpdateSymmetryPivotVisuals();
-		GameHost.Instance.InvalidateSelectionHighlightMesh();
+		GameContext.Host.EditorSymmetryPivot = pivot;
+		GameContext.Host.GroundTerrain.SetPolarCenter(pivot);
+		GameContext.Host.UpdateSymmetryPivotVisuals();
+		GameContext.Host.InvalidateSelectionHighlightMesh();
 	}
 
 	public (int cx, int cz) SetPivotDomain(Vector3 hitPos)
 	{
 		var pivot = new Vector2(hitPos.X, hitPos.Z);
-		GameHost.Instance.EditorSymmetryPivot = pivot;
-		GameHost.Instance.GroundTerrain.SetPolarCenter(pivot);
-		GameHost.Instance.UpdateSymmetryPivotVisuals();
+		GameContext.Host.EditorSymmetryPivot = pivot;
+		GameContext.Host.GroundTerrain.SetPolarCenter(pivot);
+		GameContext.Host.UpdateSymmetryPivotVisuals();
 		return WorldPosToCellCoords(new Godot.Vector3(hitPos.X, hitPos.Y, hitPos.Z));
 	}
 
 	public void SetPolarSpokesDomain(int spokes)
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 		EditorPolarSpokeFolds = spokes;
 		EditorPolarRadialStep = 360.0f / spokes;
-		GameHost.Instance.GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
+		GameContext.Host.GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
 	}
 
 	public bool IsApplyGroundTextureEnabledDomain()
 	{
-		return GameHost.Instance != null && GameHost.Instance.ActiveEditorTool == EditorTool.PaintTexture;
+		return GameContext.Host != null && GameContext.Host.ActiveEditorTool == EditorTool.PaintTexture;
 	}
 
 	public bool ImportTerrainFromMinimapPathDomain(string selectedPath, out float[,] smoothedHeights, out TerrainSplatWeights[,] splatMap, out List<(float x, float y, float z, float rot, float scale)> treePositions)
@@ -418,9 +418,9 @@ public partial class EditorService : IEditorAPI
 		smoothedHeights = null;
 		splatMap = null;
 		treePositions = null;
-		if (GameHost.Instance?.GroundTerrain == null) return false;
-		GameHost.Instance.ClearMapEntirely();
-		return GameHost.Instance.ImportTerrainFromMinimap(selectedPath, out smoothedHeights, out splatMap, out treePositions);
+		if (GameContext.Host?.GroundTerrain == null) return false;
+		GameContext.Host.ClearMapEntirely();
+		return GameContext.Host.ImportTerrainFromMinimap(selectedPath, out smoothedHeights, out splatMap, out treePositions);
 	}
 
 	public void ResetToBlankMapDomain()
@@ -430,7 +430,7 @@ public partial class EditorService : IEditorAPI
 		IsPaused = true;
 		try
 		{
-			GameHost.Instance?.ClearMapEntirely();
+			GameContext.Host?.ClearMapEntirely();
 		}
 		catch (Exception ex)
 		{
@@ -1260,9 +1260,9 @@ public partial class EditorService : IEditorAPI
 		{
 			_terrainCliffSplatMap = cliffSplatMap;
 		}
-		else if (GameHost.Instance?.GroundTerrain?.CliffSplatMap != null)
+		else if (GameContext.Host?.GroundTerrain?.CliffSplatMap != null)
 		{
-			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
 		}
 
 		if (splatMap != null)
@@ -1347,7 +1347,7 @@ public partial class EditorService : IEditorAPI
 
 	private EditorPaintSurface ResolvePaintSurfaceAt(Godot.Vector3 worldPos)
 	{
-		var terrain = Core.GameHost.Instance?.GroundTerrain;
+		var terrain = GameContext.Host?.GroundTerrain;
 		if (terrain == null) return EditorPaintSurface.None;
 
 		terrain.GetHeightAndNormal(worldPos.X, worldPos.Z, out _, out Godot.Vector3 normal);
@@ -1842,7 +1842,7 @@ public partial class EditorService : IEditorAPI
 		{
 			if (cell.WaterMode != WaterType.None)
 			{
-				var waterProf = RuntimeTerrain.Instance?.GetWaterProfile(cell.WaterProfileIndex);
+				var waterProf = GameContext.Terrain?.GetWaterProfile(cell.WaterProfileIndex);
 				terrain.PathingCodes[x, z] = waterProf != null ? waterProf.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(cell.WaterMode);
 				ctx.PathingModified = true;
 				float wY = (targetMacroTier * TerrainCell.TIER_HEIGHT) + (cell.WaterHeight > 0.001f ? cell.WaterHeight : RuntimeTerrain.WATER_DELTA);
@@ -1967,7 +1967,7 @@ public partial class EditorService : IEditorAPI
 		if (!string.IsNullOrEmpty(wsPath) && GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaRoot) && metaRoot != null)
 		{
 			string? swatchName = null;
-			var list = GameHost.Instance?.GroundTerrain?.LoadedTextureList;
+			var list = GameContext.Host?.GroundTerrain?.LoadedTextureList;
 			if (list != null && ctx.PaintTextureIndex >= 0 && ctx.PaintTextureIndex < list.Count)
 			{
 				swatchName = list[ctx.PaintTextureIndex];
@@ -2107,7 +2107,7 @@ public partial class EditorService : IEditorAPI
 			terrain.Cells[cellX, cellZ].WaterHeight = _activePlateauWaterHeight;
 			if (terrain.PathingCodes != null)
 			{
-				var waterProf = RuntimeTerrain.Instance?.GetWaterProfile(terrain.Cells[cellX, cellZ].WaterProfileIndex);
+				var waterProf = GameContext.Terrain?.GetWaterProfile(terrain.Cells[cellX, cellZ].WaterProfileIndex);
 				terrain.PathingCodes[cellX, cellZ] = waterProf != null ? waterProf.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(terrain.Cells[cellX, cellZ]);
 				ctx.PathingModified = true;
 			}
@@ -2922,8 +2922,8 @@ public partial class EditorService : IEditorAPI
 		}
 
 		SetGridNodeHeight(ref terrain, gridX, gridZ, newHeight);
-		int rampPaintIdx = GameHost.Instance != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
-		int rampCliffIdx = GameHost.Instance != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : 1;
+		int rampPaintIdx = GameContext.Host != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
+		int rampCliffIdx = GameContext.Host != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : 1;
 		SetGridNodeSplat(gridX, gridZ, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampPaintIdx, Weight0 = 1.0f });
 		SetGridNodeCliffSplat(gridX, gridZ, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f }, new TerrainSplatWeights { Index0 = rampCliffIdx, Weight0 = 1.0f });
 		modified = true;
@@ -2968,13 +2968,13 @@ public partial class EditorService : IEditorAPI
 		{
 			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 			TerrainSwatchProfileData? rampProf = null;
-			int rampTexIdx = GameHost.Instance != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
+			int rampTexIdx = GameContext.Host != null ? GameContext.EditorService.EditorPaintTextureIndex : 0;
 			if (!string.IsNullOrEmpty(wsPath) && GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaRoot) && metaRoot != null)
 			{
 				string? swatchName = null;
-				if (GameHost.Instance?.GroundTerrain != null && rampTexIdx >= 0 && rampTexIdx < GameHost.Instance.GroundTerrain.LoadedTextureList.Count)
+				if (GameContext.Host?.GroundTerrain != null && rampTexIdx >= 0 && rampTexIdx < GameContext.Host.GroundTerrain.LoadedTextureList.Count)
 				{
-					swatchName = GameHost.Instance.GroundTerrain.LoadedTextureList[rampTexIdx];
+					swatchName = GameContext.Host.GroundTerrain.LoadedTextureList[rampTexIdx];
 				}
 
 				if (!string.IsNullOrEmpty(swatchName))
@@ -3015,14 +3015,14 @@ public partial class EditorService : IEditorAPI
 		var cells = terrain.Cells;
 		if (cells == null) return;
 
-		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		if (_terrainSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
+			_terrainSplatMap = GameContext.Host.GroundTerrain.SplatMap;
 		}
 
-		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		if (_terrainCliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
 		}
 
 		int selWidth = maxX - minX + 1;
@@ -3268,14 +3268,14 @@ public partial class EditorService : IEditorAPI
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return result;
 
-		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		if (_terrainSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
+			_terrainSplatMap = GameContext.Host.GroundTerrain.SplatMap;
 		}
 
-		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		if (_terrainCliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
 		}
 
 		int width = terrain.Width;
@@ -3624,7 +3624,7 @@ public partial class EditorService : IEditorAPI
 		foreach (var sp in staticPropsToDestroy)
 		{
 			if (world.IsAlive(sp.Entity)) world.Destroy(sp.Entity);
-			PropMultiMeshManager.Instance?.MarkDirty(sp.PropId);
+			GameContext.PropMultiMesh?.MarkDirty(sp.PropId);
 		}
 	}
 
@@ -3749,14 +3749,14 @@ public partial class EditorService : IEditorAPI
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null) return (null, null, isCliff);
 
-		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		if (_terrainSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
+			_terrainSplatMap = GameContext.Host.GroundTerrain.SplatMap;
 		}
 
-		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		if (_terrainCliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
 		}
 
 		if (_terrainSplatMap == null) return (null, null, isCliff);
@@ -3942,9 +3942,9 @@ public partial class EditorService : IEditorAPI
 		ref var terrain = ref GetTerrainState();
 		if (terrain.Cells == null || terrain.PathingCodes == null) return (null, null);
 
-		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		if (_terrainSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
+			_terrainSplatMap = GameContext.Host.GroundTerrain.SplatMap;
 		}
 
 		int width = terrain.Width;
@@ -4156,7 +4156,7 @@ public partial class EditorService : IEditorAPI
 
 			if (targetWaterMode != WaterType.None)
 			{
-				var waterProf = RuntimeTerrain.Instance?.GetWaterProfile(targetWaterProfile);
+				var waterProf = GameContext.Terrain?.GetWaterProfile(targetWaterProfile);
 				terrain.PathingCodes[x, z] = waterProf != null ? waterProf.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(targetWaterMode);
 				float wY = (cells[x, z].MacroTier * TerrainCell.TIER_HEIGHT) + (targetWaterHeight > 0.001f ? targetWaterHeight : RuntimeTerrain.WATER_DELTA);
 				SpawnWaterProceduralBombing(x, z, targetWaterProfile, wY, quadSize, width, depth);
@@ -4823,12 +4823,12 @@ public partial class EditorService : IEditorAPI
 	{
 		if (node is Decal3D d)
 		{
-			GameHost.Instance?.AllDecals.Remove(d);
+			GameContext.Host?.AllDecals.Remove(d);
 			if (GameContext.World != null && GameContext.World.IsAlive(d.Entity)) GameContext.World.Destroy(d.Entity);
 		}
 		else if (node is ProceduralVfxInstance3D vfx)
 		{
-			GameHost.Instance?.AllVfx.Remove(vfx);
+			GameContext.Host?.AllVfx.Remove(vfx);
 			if (GameContext.World != null && GameContext.World.IsAlive(vfx.Entity)) GameContext.World.Destroy(vfx.Entity);
 		}
 
@@ -4847,11 +4847,11 @@ public partial class EditorService : IEditorAPI
 				switch (node)
 				{
 					case Decal3D d:
-						GameHost.Instance?.AllDecals.Remove(d);
+						GameContext.Host?.AllDecals.Remove(d);
 						if (GameContext.World != null && GameContext.World.IsAlive(d.Entity)) GameContext.World.Destroy(d.Entity);
 						break;
 					case ProceduralVfxInstance3D vfx:
-						GameHost.Instance?.AllVfx.Remove(vfx);
+						GameContext.Host?.AllVfx.Remove(vfx);
 						if (GameContext.World != null && GameContext.World.IsAlive(vfx.Entity)) GameContext.World.Destroy(vfx.Entity);
 						break;
 				}
@@ -4880,11 +4880,11 @@ public partial class EditorService : IEditorAPI
 			Node spawnedObj = null;
 			if (isVfx)
 			{
-				spawnedObj = GameHost.Instance?.SpawnVfxExternalWithParams(id, pos, new Godot.Vector3(0, rotY, 0), new Godot.Vector3(scale, scale, scale));
+				spawnedObj = GameContext.Host?.SpawnVfxExternalWithParams(id, pos, new Godot.Vector3(0, rotY, 0), new Godot.Vector3(scale, scale, scale));
 			}
 			else
 			{
-				spawnedObj = GameHost.Instance?.SpawnDecalExternalWithParams(id, pos, new Godot.Vector3(0, rotY, 0), scale);
+				spawnedObj = GameContext.Host?.SpawnDecalExternalWithParams(id, pos, new Godot.Vector3(0, rotY, 0), scale);
 			}
 
 			if (spawnedObj != null) spawnedList.Add(spawnedObj);
@@ -4894,8 +4894,8 @@ public partial class EditorService : IEditorAPI
 	private void SpawnWaterProceduralBombing(int x, int z, byte profileIndex, float waterY, float quadSize, int width, int depth)
 	{
 		ClearWaterProceduralObjects(x, z);
-		if (RuntimeTerrain.Instance == null) return;
-		var prof = RuntimeTerrain.Instance.GetWaterProfile(profileIndex);
+		if (GameContext.Terrain == null) return;
+		var prof = GameContext.Terrain.GetWaterProfile(profileIndex);
 		if (prof == null) return;
 
 		float cellCenterX = (x + 0.5f - width / 2.0f) * quadSize;
@@ -4919,9 +4919,9 @@ public partial class EditorService : IEditorAPI
 		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var metaRoot) || metaRoot == null) return;
 
 		string? swatchName = null;
-		if (GameHost.Instance?.GroundTerrain != null && textureIndex >= 0 && textureIndex < GameHost.Instance.GroundTerrain.LoadedTextureList.Count)
+		if (GameContext.Host?.GroundTerrain != null && textureIndex >= 0 && textureIndex < GameContext.Host.GroundTerrain.LoadedTextureList.Count)
 		{
-			swatchName = GameHost.Instance.GroundTerrain.LoadedTextureList[textureIndex];
+			swatchName = GameContext.Host.GroundTerrain.LoadedTextureList[textureIndex];
 		}
 
 		if (string.IsNullOrEmpty(swatchName)) return;
@@ -4933,8 +4933,8 @@ public partial class EditorService : IEditorAPI
 		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
 		var spawnedList = new List<Node>();
 
-		ProcessBombingRules(prof.DecalBombingRules, r => r.DecalId, r => r.Density, r => r.MinScale, r => r.MaxScale, (id, p, r, s) => GameHost.Instance?.SpawnDecalExternalWithParams(id, p, r, s), cellCenterX, cellCenterZ, terrainY, quadSize, spawnedList);
-		ProcessBombingRules(prof.VfxBombingRules, r => r.VfxId, r => r.Density, r => r.MinScale, r => r.MaxScale, (id, p, r, s) => GameHost.Instance?.SpawnVfxExternalWithParams(id, p, r, new Godot.Vector3(s, s, s)), cellCenterX, cellCenterZ, terrainY, quadSize, spawnedList);
+		ProcessBombingRules(prof.DecalBombingRules, r => r.DecalId, r => r.Density, r => r.MinScale, r => r.MaxScale, (id, p, r, s) => GameContext.Host?.SpawnDecalExternalWithParams(id, p, r, s), cellCenterX, cellCenterZ, terrainY, quadSize, spawnedList);
+		ProcessBombingRules(prof.VfxBombingRules, r => r.VfxId, r => r.Density, r => r.MinScale, r => r.MaxScale, (id, p, r, s) => GameContext.Host?.SpawnVfxExternalWithParams(id, p, r, new Godot.Vector3(s, s, s)), cellCenterX, cellCenterZ, terrainY, quadSize, spawnedList);
 
 		if (spawnedList.Count > 0)
 		{
@@ -5083,9 +5083,9 @@ public partial class EditorService : IEditorAPI
 	public void AlignSplatMapSlots(int minX, int minZ, int maxX, int maxZ)
 	{
 		if (_terrainSplatMap != null) AlignSplatMapMatrix(_terrainSplatMap, minX, minZ, maxX, maxZ);
-		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
+		if (_terrainCliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
 		{
-			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
 		}
 
 		if (_terrainCliffSplatMap != null) AlignSplatMapMatrix(_terrainCliffSplatMap, minX, minZ, maxX, maxZ);
@@ -5334,7 +5334,7 @@ public partial class EditorService : IEditorAPI
 
 	private void OnWorkspaceFileChanged(string fullPath, Action? onMetadataChanged, Action? onTerrainChanged)
 	{
-		if (IsPaused || (MapEditorHUD.Instance != null && GameContext.EditorService.IsSyncing))
+		if (IsPaused || (GameContext.MapEditorHud != null && GameContext.EditorService.IsSyncing))
 		{
 			return;
 		}
@@ -5378,7 +5378,7 @@ public partial class EditorService : IEditorAPI
 
 	private bool ShouldProcessFileChange(string fullPath)
 	{
-		MapEditorHUD tempQualifier = MapEditorHUD.Instance;
+		MapEditorHUD tempQualifier = GameContext.MapEditorHud;
 		if (IsPaused || ((tempQualifier != null ? GameContext.EditorService.IsSyncing : (bool?)null) ?? false) || !File.Exists(fullPath)) return false;
 		if ((DateTime.UtcNow - LastInternalSaveTimeUtc).TotalMilliseconds < 1500) return false;
 		return true;
@@ -5417,8 +5417,8 @@ public partial class EditorService : IEditorAPI
 		try
 		{
 			string name = Path.GetFileName(fullPath);
-			MapEditorHUD.Instance?.ReadMetadataAndRefreshTextures();
-			MapEditorHUD.Instance?.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), name));
+			GameContext.MapEditorHud?.ReadMetadataAndRefreshTextures();
+			GameContext.MapEditorHud?.ShowFeedback(string.Format(TranslationServer.Translate("{0} updated externally — reloaded."), name));
 			customCallback?.Invoke();
 		}
 		catch (Exception ex)
@@ -5436,8 +5436,8 @@ public partial class EditorService : IEditorAPI
 
 		try
 		{
-			GameHost.Instance?.LoadMapFromFile(fullPath);
-			MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
+			GameContext.Host?.LoadMapFromFile(fullPath);
+			GameContext.MapEditorHud?.ShowFeedback(TranslationServer.Translate("terrain.json updated externally — reloaded."));
 			customCallback?.Invoke();
 		}
 		catch (Exception ex)
@@ -5448,34 +5448,34 @@ public partial class EditorService : IEditorAPI
 
 	public bool CommitCoordinate(string name, int minCellX, int minCellZ, int maxCellX, int maxCellZ)
 	{
-		return GameHost.Instance?.CommitCoordinateExternal(name, minCellX, minCellZ, maxCellX, maxCellZ) ?? false;
+		return GameContext.Host?.CommitCoordinateExternal(name, minCellX, minCellZ, maxCellX, maxCellZ) ?? false;
 	}
 
 	public bool DeleteCoordinate(string name)
 	{
-		if (GameHost.Instance == null) return false;
-		GameHost.Instance.DeleteCoordinateExternal(name);
+		if (GameContext.Host == null) return false;
+		GameContext.Host.DeleteCoordinateExternal(name);
 		return true;
 	}
 
 	public void SelectCoordinate(string name)
 	{
-		GameHost.Instance?.SelectCoordinateExternal(name);
+		GameContext.Host?.SelectCoordinateExternal(name);
 	}
 
 	private bool EnsureSplatMapsInitialized()
 	{
-		if (_terrainSplatMap == null && GameHost.Instance?.GroundTerrain != null)
-			_terrainSplatMap = GameHost.Instance.GroundTerrain.SplatMap;
-		if (_terrainCliffSplatMap == null && GameHost.Instance?.GroundTerrain != null)
-			_terrainCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap;
+		if (_terrainSplatMap == null && GameContext.Host?.GroundTerrain != null)
+			_terrainSplatMap = GameContext.Host.GroundTerrain.SplatMap;
+		if (_terrainCliffSplatMap == null && GameContext.Host?.GroundTerrain != null)
+			_terrainCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap;
 		return _terrainSplatMap != null;
 	}
 
 	public bool ResetScaleSelectedObjectDomain()
 	{
-		if (GameHost.Instance == null) return false;
-		var selected = GameHost.Instance.SelectedEditorObject;
+		if (GameContext.Host == null) return false;
+		var selected = GameContext.Host.SelectedEditorObject;
 		if (GodotObject.IsInstanceValid(selected))
 		{
 			var node3D = selected as Node3D;
@@ -5493,7 +5493,7 @@ public partial class EditorService : IEditorAPI
 			ObjectTransformAction.PersistTransformToEcs(node3D);
 			if (selected is Prop3D propReset)
 			{
-				PropMultiMeshManager.Instance?.MarkDirty(propReset.PropId);
+				GameContext.PropMultiMesh?.MarkDirty(propReset.PropId);
 			}
 
 			EditorHistoryManager.RecordAction(action);
@@ -5505,8 +5505,8 @@ public partial class EditorService : IEditorAPI
 
 	public (bool success, float newScaleVal) ScaleSelectedObjectDomain(float scaleDelta)
 	{
-		if (GameHost.Instance == null) return (false, 1.0f);
-		var selected = GameHost.Instance.SelectedEditorObject;
+		if (GameContext.Host == null) return (false, 1.0f);
+		var selected = GameContext.Host.SelectedEditorObject;
 		if (GodotObject.IsInstanceValid(selected))
 		{
 			var node3D = selected as Node3D;
@@ -5525,7 +5525,7 @@ public partial class EditorService : IEditorAPI
 			ObjectTransformAction.PersistTransformToEcs(node3D);
 			if (selected is Prop3D propScale)
 			{
-				PropMultiMeshManager.Instance?.MarkDirty(propScale.PropId);
+				GameContext.PropMultiMesh?.MarkDirty(propScale.PropId);
 			}
 
 			EditorHistoryManager.RecordAction(action);
@@ -5537,8 +5537,8 @@ public partial class EditorService : IEditorAPI
 
 	public (bool success, float newRotY) RotateSelectedObjectDomain(float angleDelta)
 	{
-		if (GameHost.Instance == null) return (false, 0f);
-		var selected = GameHost.Instance.SelectedEditorObject;
+		if (GameContext.Host == null) return (false, 0f);
+		var selected = GameContext.Host.SelectedEditorObject;
 		if (GodotObject.IsInstanceValid(selected))
 		{
 			var node3D = selected as Node3D;
@@ -5557,7 +5557,7 @@ public partial class EditorService : IEditorAPI
 			ObjectTransformAction.PersistTransformToEcs(node3D);
 			if (selected is Prop3D propRot)
 			{
-				PropMultiMeshManager.Instance?.MarkDirty(propRot.PropId);
+				GameContext.PropMultiMesh?.MarkDirty(propRot.PropId);
 			}
 
 			EditorHistoryManager.RecordAction(action);
@@ -5569,24 +5569,24 @@ public partial class EditorService : IEditorAPI
 
 	public (bool success, string error) DeleteSelectedObjectDomain()
 	{
-		if (GameHost.Instance == null)
+		if (GameContext.Host == null)
 		{
-			return (false, "[Debug] DeleteSelectedObject: Realm.Client.Core.GameHost.Instance is NULL!");
+			return (false, "[Debug] DeleteSelectedObject: Realm.Client.Services.GameContext.Host is NULL!");
 		}
 
-		var selected = GameHost.Instance.SelectedEditorObject;
+		var selected = GameContext.Host.SelectedEditorObject;
 		if (GodotObject.IsInstanceValid(selected))
 		{
 			Godot.Vector3 pos = (selected is Node3D n) ? n.Position : Godot.Vector3.Zero;
-			GameHost.Instance.SelectedEditorObject = null;
-			var action = GameHost.Instance.DeleteObjectAtWithUndo(selected, pos);
+			GameContext.Host.SelectedEditorObject = null;
+			var action = GameContext.Host.DeleteObjectAtWithUndo(selected, pos);
 			if (action != null)
 			{
 				EditorHistoryManager.RecordAction(action);
 			}
 			else
 			{
-				GameHost.Instance.DeleteNodeExternal(selected);
+				GameContext.Host.DeleteNodeExternal(selected);
 			}
 
 			return (true, "");
@@ -5692,16 +5692,16 @@ public partial class EditorService : IEditorAPI
 		isRotational = false;
 		gridMode = EditorGridMode;
 
-		if (GameHost.Instance == null)
+		if (GameContext.Host == null)
 			return false;
 
-		isRotational = GameHost.Instance.EditorMirrorMode == MirrorMode.Rotational;
+		isRotational = GameContext.Host.EditorMirrorMode == MirrorMode.Rotational;
 		return true;
 	}
 
 	public void LoadMapProperties()
 	{
-		RuntimeTerrain.Instance?.ReloadWaterProfiles();
+		GameContext.Terrain?.ReloadWaterProfiles();
 	}
 
 	public TerrainSplatWeights[,] GenerateDefaultCliffSplatMap(int width, int depth)
@@ -5856,24 +5856,24 @@ public partial class EditorService : IEditorAPI
 
 	public void SetMirrorModeDomain(MirrorMode mode)
 	{
-		if (GameHost.Instance == null) return;
-		GameHost.Instance.EditorMirrorMode = mode;
-		GameHost.Instance.UpdateSymmetryPivotVisuals();
-		GameHost.Instance.InvalidateSelectionHighlightMesh();
+		if (GameContext.Host == null) return;
+		GameContext.Host.EditorMirrorMode = mode;
+		GameContext.Host.UpdateSymmetryPivotVisuals();
+		GameContext.Host.InvalidateSelectionHighlightMesh();
 	}
 
 	public void SetSymmetrySpokesDomain(int spokes)
 	{
-		if (GameHost.Instance == null) return;
-		GameHost.Instance.EditorSymmetryFolds = spokes;
-		GameHost.Instance.InvalidateSelectionHighlightMesh();
+		if (GameContext.Host == null) return;
+		GameContext.Host.EditorSymmetryFolds = spokes;
+		GameContext.Host.InvalidateSelectionHighlightMesh();
 	}
 
 	public void SetPolarRingSpacingDomain(float spacing)
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 		EditorPolarRingSpacing = spacing;
-		GameHost.Instance.GroundTerrain?.SetPolarRingSpacing(spacing);
+		GameContext.Host.GroundTerrain?.SetPolarRingSpacing(spacing);
 	}
 
 	public bool ImportTextureAssetFromExtensionDomain(string sourceFilePath, int slotIndex, string wsPath, GameHost? gameHost, out string cleanBaseName, out string outputRtex, Action<string, string, string, int> updateMetadata)
@@ -6542,9 +6542,9 @@ public partial class EditorService : IEditorAPI
 	public void PostLoadTempWorkspaceMapDomain()
 	{
 		string terrainPath = Path.Combine(this._tempWorkspacePath, "terrain.json");
-		if (GameHost.Instance != null && File.Exists(terrainPath))
+		if (GameContext.Host != null && File.Exists(terrainPath))
 		{
-			GameHost.Instance.LoadMapFromFile(terrainPath);
+			GameContext.Host.LoadMapFromFile(terrainPath);
 		}
 
 		this.LastTerrainSyncTime = GetMaxTerrainWriteTime(terrainPath);
@@ -6925,7 +6925,7 @@ public class {mapName} : IMapScript
 
 			var metadata = MapFileService.LoadMetadata(wsPath);
 
-			if (category == "glb" && GameHost.Instance != null)
+			if (category == "glb" && GameContext.Host != null)
 			{
 				string normKey = NormalizeModelAssetKey(fileName);
 				if (!GameContext.ModelOverrideService.ModelObstacleRadii.ContainsKey(normKey))
@@ -6938,7 +6938,7 @@ public class {mapName} : IMapScript
 						{
 							if (rawModelNode is Node3D modelNode)
 							{
-								float radius = GameHost.Instance.MeasureModelRadius(modelNode);
+								float radius = GameContext.Host.MeasureModelRadius(modelNode);
 								if (radius > 0f)
 								{
 									float rounded = (float)Math.Round(radius, 2);
@@ -6976,8 +6976,8 @@ public class {mapName} : IMapScript
 				string subLower = subCategory.ToLowerInvariant();
 				bool isPropOrRes = subLower == "props" || subLower == "resources" || subLower == "attachments" || subLower == "weapons" || subLower == "items" || subLower == "projectiles";
 
-				GameHost.Instance?.SetModelYOffset(fileName, autoYOffset);
-				GameHost.Instance?.SetModelScale(fileName, defaultScale);
+				GameContext.Host?.SetModelYOffset(fileName, autoYOffset);
+				GameContext.Host?.SetModelScale(fileName, defaultScale);
 
 				string unitId = Path.GetFileNameWithoutExtension(fileName);
 				if (subLower == "buildings")

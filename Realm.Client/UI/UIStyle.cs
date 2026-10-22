@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using SkiaSharp;
 using Realm.Client.Utils;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
@@ -41,7 +42,7 @@ public static class UIStyle
 
 		btn.Pressed += () =>
 		{
-			Realm.Client.UI.UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			onClick?.Invoke();
 		};
 	}
@@ -117,7 +118,7 @@ public static class UIStyle
 
 		closeBtn.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			if (GodotObject.IsInstanceValid(popup))
 			{
 				popup.QueueFree();
@@ -1258,7 +1259,7 @@ public static class UIStyle
 		okBtn.SizeFlagsHorizontal = Godot.Control.SizeFlags.ShrinkCenter;
 		okBtn.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			onOkPressed?.Invoke();
 		};
 		vbox.AddChild(okBtn);

@@ -27,7 +27,7 @@ public partial class SimulationTests
 	[TestCase]
 	public async Task TestMeleePathingAroundTree()
 	{
-		if (LobbyManager.Instance == null)
+		if (GameContext.Lobby == null)
 		{
 			return;
 		}
@@ -37,7 +37,7 @@ public partial class SimulationTests
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1000);
 
-		GameHost gameHost = GameHost.Instance;
+		GameHost gameHost = GameContext.Host;
 		if (gameHost == null)
 		{
 			return;
@@ -58,7 +58,7 @@ public partial class SimulationTests
 	[TestCase]
 	public async Task TestWasmMeleePathingAroundTree()
 	{
-		if (LobbyManager.Instance == null)
+		if (GameContext.Lobby == null)
 		{
 			return;
 		}
@@ -120,7 +120,7 @@ public class TestWasmMap : IWasmModule
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1000);
 
-		GameHost gameHost = GameHost.Instance;
+		GameHost gameHost = GameContext.Host;
 		if (gameHost == null)
 		{
 			WasmRuntime.OnWasmLog -= tracker.Listener;
@@ -141,22 +141,22 @@ public class TestWasmMap : IWasmModule
 	{
 		BypassMapEditorAgreement();
 
-		if (LobbyManager.Instance == null)
+		if (GameContext.Lobby == null)
 		{
 			return;
 		}
 
-		LobbyManager.Instance.IsSinglePlayer = true;
+		GameContext.Lobby.IsSinglePlayer = true;
 		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
-		isHostProp?.SetValue(LobbyManager.Instance, true);
+		isHostProp?.SetValue(GameContext.Lobby, true);
 
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1500);
 
-		UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
+		GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
-		var hud = MapEditorHUD.Instance;
+		var hud = GameContext.MapEditorHud;
 		if (hud == null)
 		{
 			throw new Exception("MapEditorHUD instance was null after transition.");
@@ -181,7 +181,7 @@ public class TestWasmMap : IWasmModule
 	[TestCase]
 	public async Task TestChaosArenaPerformanceBenchmark()
 	{
-		if (LobbyManager.Instance == null)
+		if (GameContext.Lobby == null)
 		{
 			return;
 		}
@@ -205,14 +205,14 @@ public class TestWasmMap : IWasmModule
 		string chaosArenaDir = @"D:\git\realm\ugc-ChaosArena";
 		string wasmPath = Path.Combine(chaosArenaDir, "bin", "Release", "net10.0", "wasi-wasm", "publish", "MapScript.wasm");
 
-		LobbyManager.Instance.IsSinglePlayer = true;
+		GameContext.Lobby.IsSinglePlayer = true;
 		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
-		isHostProp?.SetValue(LobbyManager.Instance, true);
-		LobbyManager.Instance.IsGameStarted = true;
-		LobbyManager.Instance.ActiveMapName = chaosArenaDir;
-		LobbyManager.Instance.PlayerList.Clear();
+		isHostProp?.SetValue(GameContext.Lobby, true);
+		GameContext.Lobby.IsGameStarted = true;
+		GameContext.Lobby.ActiveMapName = chaosArenaDir;
+		GameContext.Lobby.PlayerList.Clear();
 
-		LobbyManager.Instance.PlayerList.Add(new PlayerInfo
+		GameContext.Lobby.PlayerList.Add(new PlayerInfo
 		{
 			PeerId = 1,
 			Slot = 1,
@@ -229,7 +229,7 @@ public class TestWasmMap : IWasmModule
 
 		for (int slot = 2; slot <= 12; slot++)
 		{
-			LobbyManager.Instance.PlayerList.Add(new PlayerInfo
+			GameContext.Lobby.PlayerList.Add(new PlayerInfo
 			{
 				PeerId = -(slot + 100),
 				Slot = slot,
@@ -246,15 +246,15 @@ public class TestWasmMap : IWasmModule
 		}
 
 		GameHost.PendingMapScriptPath = wasmPath;
-		UIManager.Instance?.TransitionTo(GameScreen.InGameHUD);
+		GameContext.UserInterface?.TransitionTo(GameScreen.InGameHUD);
 
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(500);
 
-		GameHost gameHost = GameHost.Instance;
+		GameHost gameHost = GameContext.Host;
 		if (gameHost == null)
 		{
-			throw new Exception("GameHost.Instance was null.");
+			throw new Exception("GameContext.Host was null.");
 		}
 
 		GameContext.PerformanceTrackingService.IsFunctionProfilingEnabled = true;
@@ -682,20 +682,20 @@ public class TestWasmMap : IWasmModule
 
 	private void SetupSinglePlayerLobby(string mapName)
 	{
-		LobbyManager.Instance.IsSinglePlayer = true;
+		GameContext.Lobby.IsSinglePlayer = true;
 
 		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
-		isHostProp?.SetValue(LobbyManager.Instance, true);
+		isHostProp?.SetValue(GameContext.Lobby, true);
 
-		LobbyManager.Instance.IsGameStarted = true;
-		LobbyManager.Instance.ActiveMapName = mapName;
-		LobbyManager.Instance.PlayerList.Clear();
+		GameContext.Lobby.IsGameStarted = true;
+		GameContext.Lobby.ActiveMapName = mapName;
+		GameContext.Lobby.PlayerList.Clear();
 
 		PlayerInfo playerInfo = new PlayerInfo
 		{
 			PeerId = 1,
 			Slot = 0,
-			Name = LobbyManager.Instance.AuthenticatedUsername,
+			Name = GameContext.Lobby.AuthenticatedUsername,
 			Faction = "HUMAN",
 			Team = "Team 1",
 			Color = new Color(0.8f, 0.1f, 0.1f),
@@ -706,21 +706,21 @@ public class TestWasmMap : IWasmModule
 			BinaryVersion = RealmVersion.GameBinaryVersion
 		};
 
-		LobbyManager.Instance.PlayerList.Add(playerInfo);
+		GameContext.Lobby.PlayerList.Add(playerInfo);
 	}
 
 	private Unit3D SetupWorkerAndMove(GameHost gameHost)
 	{
-		Unit3D worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && u.Player == 1);
+		Unit3D worker = GameContext.Host.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && u.Player == 1);
 		if (worker == null)
 		{
 			return null;
 		}
 
-		GameHost.Instance.SelectedUnits.Clear();
-		GameHost.Instance.SelectedUnits.Add(worker);
+		GameContext.Host.SelectedUnits.Clear();
+		GameContext.Host.SelectedUnits.Add(worker);
 		worker.IsSelected = true;
-		InGameHUD.Instance?.RefreshUI(GameHost.Instance.SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(GameContext.Host.SelectedUnits);
 
 		Vector3 destination = new Vector3(-20f, 0f, -50f);
 		var unitWrapper = GameContext.SimulationService.GetUnitWrapper(worker.Entity);
@@ -849,7 +849,7 @@ public class TestWasmMap : IWasmModule
 		Unit3D worker = null;
 		for (int i = 0; i < 50; i++)
 		{
-			worker = GameHost.Instance.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && u.Player == 1);
+			worker = GameContext.Host.AllUnits.FirstOrDefault(u => u.UnitId == "worker" && u.Player == 1);
 			if (worker != null)
 			{
 				break;
@@ -914,12 +914,12 @@ public class TestWasmMap : IWasmModule
 
 		await runner.AwaitMillis(1000);
 
-		if (GameHost.Instance == null || GameHost.Instance.AllUnits.Count == 0)
+		if (GameContext.Host == null || GameContext.Host.AllUnits.Count == 0)
 		{
 			throw new Exception("Units from terrain.json were not loaded into editor Realm.Client.Core.");
 		}
 
-		int initialUnitCount = GameHost.Instance.AllUnits.Count;
+		int initialUnitCount = GameContext.Host.AllUnits.Count;
 		GD.Print($"Editor loaded {initialUnitCount} units from map terrain.json.");
 	}
 
@@ -935,7 +935,7 @@ public class TestWasmMap : IWasmModule
 				File.WriteAllBytes(Path.Combine(artifactDir, $"ChaosArena_Wasm_Step_{step:00}.png"), img.SavePngToBuffer());
 			}
 
-			if (GameHost.Instance != null && GameHost.Instance.AllUnits.Count == 0)
+			if (GameContext.Host != null && GameContext.Host.AllUnits.Count == 0)
 			{
 				break;
 			}
@@ -944,7 +944,7 @@ public class TestWasmMap : IWasmModule
 
 	private void VerifyAllUnitsKilled()
 	{
-		int aliveUnits = GameHost.Instance?.AllUnits.Count ?? 0;
+		int aliveUnits = GameContext.Host?.AllUnits.Count ?? 0;
 		GD.Print($"After WASM execution, alive units count = {aliveUnits}");
 		if (aliveUnits > 0)
 		{

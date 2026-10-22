@@ -2,6 +2,7 @@ using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.UI;
+using Realm.Client.Services;
 
 namespace Realm.Client.Utils;
 
@@ -24,10 +25,10 @@ public static class UIHelper
 
 		btn.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			onClick?.Invoke();
 		};
-		btn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		btn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	public static string GetUnitCostTooltip(string unitId, HotkeySpec hotkey, string actionPrefix)

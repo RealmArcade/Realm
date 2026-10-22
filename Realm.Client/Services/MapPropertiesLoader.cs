@@ -145,16 +145,16 @@ public class MapPropertiesLoader
 			return;
 		}
 
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		(tempQualifier != null ? GameContext.EnvironmentService : null)?.LoadPresets(presets);
 	}
 
 	private void ProcessDefaultEnvironmentPreset(JsonElement defaultPresetProp)
 	{
 		string defPreset = defaultPresetProp.GetString() ?? "day";
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			GameContext.EnvironmentService?.ApplyPresetById(GameHost.Instance, defPreset);
+			GameContext.EnvironmentService?.ApplyPresetById(GameContext.Host, defPreset);
 		}
 	}
 }

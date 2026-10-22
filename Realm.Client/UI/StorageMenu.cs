@@ -99,11 +99,11 @@ public partial class StorageMenu : Control
 		_backButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		_backButton.FocusMode = FocusModeEnum.None;
 		_backButton.MouseFilter = MouseFilterEnum.Stop;
-		_backButton.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		_backButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_backButton.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
-			UIManager.Instance.TransitionTo(GameScreen.MainMenu);
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 		};
 		topHeaderHBox.AddChild(_backButton);
 
@@ -125,10 +125,10 @@ public partial class StorageMenu : Control
 		_importMapButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		_importMapButton.FocusMode = FocusModeEnum.None;
 		_importMapButton.MouseFilter = MouseFilterEnum.Stop;
-		_importMapButton.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		_importMapButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_importMapButton.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			OnImportMapPressed();
 		};
 		topHeaderHBox.AddChild(_importMapButton);
@@ -332,10 +332,10 @@ public partial class StorageMenu : Control
 		_downloadUpdateButton.FocusMode = FocusModeEnum.None;
 		_downloadUpdateButton.MouseFilter = MouseFilterEnum.Stop;
 		_downloadUpdateButton.Visible = false;
-		_downloadUpdateButton.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		_downloadUpdateButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_downloadUpdateButton.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			OnDownloadUpdatePressed();
 		};
 		actionsHBox.AddChild(_downloadUpdateButton);
@@ -486,10 +486,10 @@ public partial class StorageMenu : Control
 		subLbl.MouseFilter = MouseFilterEnum.Ignore;
 		cardVBox.AddChild(subLbl);
 
-		btn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		btn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		btn.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			SelectMap(map);
 			RenderMapList();
 		};
@@ -604,10 +604,10 @@ public partial class StorageMenu : Control
 		openInEditorBtn.TooltipText = TranslationServer.Translate("Copy map to editor workspace. Saves will go to Documents/MapName.");
 		openInEditorBtn.FocusMode = FocusModeEnum.None;
 		openInEditorBtn.MouseFilter = MouseFilterEnum.Stop;
-		openInEditorBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		openInEditorBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		openInEditorBtn.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			OnOpenInEditorPressed(map.Title, version.DirectoryPath);
 		};
 		hbox.AddChild(openInEditorBtn);
@@ -625,10 +625,10 @@ public partial class StorageMenu : Control
 		exportBtn.TooltipText = TranslationServer.Translate("Export this version as a standalone .rmap package");
 		exportBtn.FocusMode = FocusModeEnum.None;
 		exportBtn.MouseFilter = MouseFilterEnum.Stop;
-		exportBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		exportBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		exportBtn.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			OnExportMapVersionPressed(map, version, exportBtn);
 		};
 		hbox.AddChild(exportBtn);
@@ -646,18 +646,18 @@ public partial class StorageMenu : Control
 		deleteBtn.TooltipText = TranslationServer.Translate("Delete version from CAS");
 		deleteBtn.FocusMode = FocusModeEnum.None;
 		deleteBtn.MouseFilter = MouseFilterEnum.Stop;
-		deleteBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		deleteBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		deleteBtn.Pressed += () =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			string confirmMsg = string.Format(
 				TranslationServer.Translate("Are you sure you want to delete version {0} of {1} from storage?"),
 				version.Version,
 				map.Title
 			);
 
-			UIManager.Instance.ShowConfirmationDialog(
+			GameContext.UserInterface.ShowConfirmationDialog(
 				confirmMsg,
 				onConfirm: () =>
 				{
@@ -687,7 +687,7 @@ public partial class StorageMenu : Control
 		string defaultSaveFolder = Path.Combine(OS.GetSystemDir(OS.SystemDir.Documents), sanitizedTitle);
 
 		MapEditorHUD.RequestOpenFromCas(casVersionDirectory, defaultSaveFolder);
-		UIManager.Instance?.TransitionTo(GameScreen.MapEditorHUD);
+		GameContext.UserInterface?.TransitionTo(GameScreen.MapEditorHUD);
 	}
 
 	private async void CheckForServerUpdatesAsync(DownloadedMapInfo map)
@@ -913,7 +913,7 @@ public partial class StorageMenu : Control
 
 	private void OnImportMapPressed()
 	{
-		UIManager.Instance?.PromptAndImportMapArchive((mapTitle, mapVersion) =>
+		GameContext.UserInterface?.PromptAndImportMapArchive((mapTitle, mapVersion) =>
 		{
 			RefreshDownloadedMaps();
 			if (!string.IsNullOrEmpty(mapTitle))

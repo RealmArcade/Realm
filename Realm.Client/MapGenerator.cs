@@ -1276,7 +1276,7 @@ public static class MapGenerator
 			_host.UpdateGridOverlayVisibility();
 			_host.UpdateCameraBoundsOverlayVisibility();
 			_host.UpdatePathingOverlay();
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Random map generation completed!");
+			GameContext.MapEditorHud?.ShowFeedbackExternal("Random map generation completed!");
 
 			_stage = StageComplete;
 			_stageProgress = 1.0f;

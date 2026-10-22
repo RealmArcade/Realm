@@ -25,17 +25,16 @@ public partial class RuntimeTerrain : Node3D
 	public const uint TerrainCollisionLayer = 2;
 	public const uint TerrainVisualLayer = 1 | (1 << 2);
 	public const uint TerrainDecalCullMask = 1 << 2;
-	public static RuntimeTerrain Instance { get; protected set; }
 	public static bool IsMinimapRendering { get; set; } = false;
 
 	public override void _ExitTree()
 	{
-		if (Instance == this) Instance = null;
+		GameContext.UnregisterTerrain(this);
 	}
 
 	public RuntimeTerrain()
 	{
-		Instance = this;
+		GameContext.RegisterTerrain(this);
 	}
 
 	protected virtual bool IsRuntimeOnly => true;
@@ -64,7 +63,7 @@ public partial class RuntimeTerrain : Node3D
 
 	internal TerrainState GetTerrainStateSafe()
 	{
-		if (GameHost.Instance != null &&
+		if (GameContext.Host != null &&
 		    GameContext.World != null &&
 		    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
 		    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
@@ -155,9 +154,9 @@ public partial class RuntimeTerrain : Node3D
 
 	public static int GetDefaultPathingCode(TerrainCell cell)
 	{
-		if (cell.WaterMode != WaterType.None && Instance != null)
+		if (cell.WaterMode != WaterType.None && GameContext.Terrain != null)
 		{
-			var prof = Instance.GetWaterProfile(cell.WaterProfileIndex);
+			var prof = GameContext.Terrain.GetWaterProfile(cell.WaterProfileIndex);
 			if (prof != null) return prof.DefaultPathingCode;
 		}
 
@@ -430,7 +429,7 @@ public partial class RuntimeTerrain : Node3D
 
 		private void UpdateTerrainState(TerrainCell[,] newCells, int[,] newPathingCodes)
 		{
-			if (GameHost.Instance != null &&
+			if (GameContext.Host != null &&
 			    GameContext.World != null &&
 			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
 			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
@@ -462,7 +461,7 @@ public partial class RuntimeTerrain : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance != null &&
+			if (GameContext.Host != null &&
 			    GameContext.World != null &&
 			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
 			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
@@ -529,7 +528,7 @@ public partial class RuntimeTerrain : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance != null &&
+			if (GameContext.Host != null &&
 			    GameContext.World != null &&
 			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
 			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
@@ -1452,7 +1451,7 @@ public partial class RuntimeTerrain : Node3D
 
 	private void UpdateEcsTerrainSwatchConfig(int targetIndex, float heightScale, float heightOffset, float crevicePower, float normalScale)
 	{
-		if (GameHost.Instance != null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 		{
 			ref var ts = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 			if (ts.SwatchConfigs == null || ts.SwatchConfigs.Length != TextureSwatchSlots.MaxSlots)
@@ -1822,7 +1821,7 @@ public partial class RuntimeTerrain : Node3D
 		_material.SetShaderParameter("swatch_height_params", swatchHeightParams);
 		_material.SetShaderParameter("swatch_albedo_params", swatchAlbedoParams);
 
-		if (GameHost.Instance != null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
 		{
 			ref var ts = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
 			ts.SwatchConfigs = new TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
@@ -3405,9 +3404,9 @@ public partial class RuntimeTerrain : Node3D
 
 	public void BakeNavMesh()
 	{
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		var world = (tempQualifier != null ? GameContext.World : null);
-		var worldEntity = GameHost.Instance != null ? ECSContext.WorldEntity : default;
+		var worldEntity = GameContext.Host != null ? ECSContext.WorldEntity : default;
 		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
 		{
 			ref var state = ref world.Get<TerrainState>(worldEntity);

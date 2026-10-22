@@ -1206,15 +1206,15 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		_currentModelRoot.AddChild(loadedNode3D);
 		ModelShaderManager.RefreshShaderMaterialsForNode(loadedNode3D, false);
 
-		if (GameHost.Instance != null && !string.IsNullOrEmpty(template.Id))
+		if (GameContext.Host != null && !string.IsNullOrEmpty(template.Id))
 		{
-			float scale = GameHost.Instance.GetModelScale(template.Id);
+			float scale = GameContext.Host.GetModelScale(template.Id);
 			if (scale > 0.01f)
 			{
 				loadedNode3D.Scale = new Vector3(scale, scale, scale);
 			}
 
-			float yOffset = GameHost.Instance.GetModelYOffset(template.Id);
+			float yOffset = GameContext.Host.GetModelYOffset(template.Id);
 			loadedNode3D.Position = new Vector3(0, yOffset, 0);
 		}
 

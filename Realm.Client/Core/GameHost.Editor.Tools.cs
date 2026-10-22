@@ -185,7 +185,7 @@ namespace Realm.Client.Core
 				}
 			}
 
-			PropMultiMeshManager.Instance?.MarkDirty(normKey);
+			GameContext.PropMultiMesh?.MarkDirty(normKey);
 		}
 
 		private void UpdateUnitsYOffset(string normKey, float offset)
@@ -243,7 +243,7 @@ namespace Realm.Client.Core
 				}
 			}
 
-			PropMultiMeshManager.Instance?.MarkDirty(normKey);
+			GameContext.PropMultiMesh?.MarkDirty(normKey);
 		}
 
 		private void UpdateUnitsScale(string normKey, float scale)
@@ -571,7 +571,7 @@ namespace Realm.Client.Core
 
 			GameContext.EditorService.ModelYOffsetSavePending = true;
 			EditorHasUnsavedChanges = true;
-			PropMultiMeshManager.Instance?.RefreshProceduralAnimation(assetKey);
+			GameContext.PropMultiMesh?.RefreshProceduralAnimation(assetKey);
 		}
 
 		private bool CheckRegistryIgnorePlayerColor(string primaryKey)
@@ -783,7 +783,7 @@ namespace Realm.Client.Core
 			{
 				string pid = GameContext.World.Get<PropIdentity>(targetEntity).PropId;
 				GameContext.World.Destroy(targetEntity);
-				PropMultiMeshManager.Instance?.MarkDirty(pid);
+				GameContext.PropMultiMesh?.MarkDirty(pid);
 			}
 		}
 
@@ -1055,7 +1055,7 @@ namespace Realm.Client.Core
 		{
 			if (node == null || !GodotObject.IsInstanceValid(node))
 			{
-				MapEditorHUD.Instance?.ShowFeedbackExternal("[Debug] DeleteNodeExternal: node is NULL or invalid");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("[Debug] DeleteNodeExternal: node is NULL or invalid");
 				return;
 			}
 
@@ -1111,7 +1111,7 @@ namespace Realm.Client.Core
 				}
 
 				proxy.QueueFree();
-				PropMultiMeshManager.Instance?.MarkDirty(propId);
+				GameContext.PropMultiMesh?.MarkDirty(propId);
 				return true;
 			}
 
@@ -1132,7 +1132,7 @@ namespace Realm.Client.Core
 				}
 
 				prop.QueueFree();
-				PropMultiMeshManager.Instance?.MarkDirty(propId);
+				GameContext.PropMultiMesh?.MarkDirty(propId);
 				return true;
 			}
 
@@ -1190,7 +1190,7 @@ namespace Realm.Client.Core
 		{
 			if (collider == null || !GodotObject.IsInstanceValid(collider))
 			{
-				MapEditorHUD.Instance?.ShowFeedbackExternal("[Debug] DeleteObjectAtWithUndo: collider is NULL or invalid");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("[Debug] DeleteObjectAtWithUndo: collider is NULL or invalid");
 				return null;
 			}
 
@@ -1200,7 +1200,7 @@ namespace Realm.Client.Core
 			var proxAction = DeleteByProximitySearch(hitPos);
 			if (proxAction != null) return proxAction;
 
-			MapEditorHUD.Instance?.ShowFeedbackExternal("[Debug] DeleteObjectAtWithUndo returned NULL (no direct or proximity match)");
+			GameContext.MapEditorHud?.ShowFeedbackExternal("[Debug] DeleteObjectAtWithUndo returned NULL (no direct or proximity match)");
 			return null;
 		}
 
@@ -1250,7 +1250,7 @@ namespace Realm.Client.Core
 				var action = new ObjectDeleteAction("prop", propId, proxy.Position, proxy.RotationDegrees.Y, proxy.Scale.X, false, null);
 				if (GameContext.World != null && GameContext.World.IsAlive(proxy.Entity)) GameContext.World.Destroy(proxy.Entity);
 				proxy.QueueFree();
-				PropMultiMeshManager.Instance?.MarkDirty(propId);
+				GameContext.PropMultiMesh?.MarkDirty(propId);
 				return action;
 			}
 
@@ -1264,7 +1264,7 @@ namespace Realm.Client.Core
 				EntityToProp3D.Remove(prop.Entity);
 				if (GameContext.World.IsAlive(prop.Entity)) GameContext.World.Destroy(prop.Entity);
 				prop.QueueFree();
-				PropMultiMeshManager.Instance?.MarkDirty(propId);
+				GameContext.PropMultiMesh?.MarkDirty(propId);
 				return action;
 			}
 
@@ -1473,7 +1473,7 @@ namespace Realm.Client.Core
 			EntityToProp3D.Remove(closestProp.Entity);
 			if (GameContext.World.IsAlive(closestProp.Entity)) GameContext.World.Destroy(closestProp.Entity);
 			closestProp.QueueFree();
-			PropMultiMeshManager.Instance?.MarkDirty(propId);
+			GameContext.PropMultiMesh?.MarkDirty(propId);
 			return action;
 		}
 
@@ -1481,7 +1481,7 @@ namespace Realm.Client.Core
 		{
 			var action = new ObjectDeleteAction("prop", closestStaticPropId, closestStaticPropPos, closestStaticPropRotY, closestStaticPropScale, false, null);
 			GameContext.World.Destroy(closestStaticPropEntity);
-			PropMultiMeshManager.Instance?.MarkDirty(closestStaticPropId);
+			GameContext.PropMultiMesh?.MarkDirty(closestStaticPropId);
 			return action;
 		}
 
@@ -1954,7 +1954,7 @@ namespace Realm.Client.Core
 			float angleFromPivot = Mathf.RadToDeg(Mathf.Atan2(diffFromPivot.Y, diffFromPivot.X));
 			if (angleFromPivot < 0) angleFromPivot += 360.0f;
 
-			MapEditorHUD.Instance?.UpdatePasteTelemetry(deltaX, deltaZ, distFromPivot / quadSize, distFromPivot, angleFromPivot);
+			GameContext.MapEditorHud?.UpdatePasteTelemetry(deltaX, deltaZ, distFromPivot / quadSize, distFromPivot, angleFromPivot);
 		}
 
 		private void HandleMeasureHit(Vector3 hitPos)
@@ -1974,7 +1974,7 @@ namespace Realm.Client.Core
 			if (angleDeg < 0) angleDeg += 360.0f;
 			float slopePct = eucTiles > 0.001f ? (Mathf.Abs(dy) / (eucTiles * quadSize)) * 100.0f : 0.0f;
 
-			MapEditorHUD.Instance?.UpdateMeasureTelemetry(eucTiles, eucWorld, manhattanTiles, dx, dz, dy, angleDeg, slopePct);
+			GameContext.MapEditorHud?.UpdateMeasureTelemetry(eucTiles, eucWorld, manhattanTiles, dx, dz, dy, angleDeg, slopePct);
 		}
 
 		private void HandleMapEditorMouseHover(Vector2 mousePos)
@@ -2056,7 +2056,7 @@ namespace Realm.Client.Core
 			if (_is3DLeftClickDown && !_is3DDragOperationActive && mousePos.DistanceTo(_leftClick3DStartPos) > 3.0f)
 			{
 				_is3DDragOperationActive = true;
-				MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(true);
+				GameContext.MapEditorHud?.Set3DInteractionActive_ViewLogic(true);
 			}
 		}
 
@@ -2088,7 +2088,7 @@ namespace Realm.Client.Core
 					if (!_is3DDragOperationActive)
 					{
 						_is3DDragOperationActive = true;
-						MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(true);
+						GameContext.MapEditorHud?.Set3DInteractionActive_ViewLogic(true);
 					}
 				}
 
@@ -2154,7 +2154,7 @@ namespace Realm.Client.Core
 			};
 
 			if (surfaceName == null) return;
-			MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Paint locked to {0} for this stroke."), surfaceName));
+			GameContext.MapEditorHud?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Paint locked to {0} for this stroke."), surfaceName));
 		}
 
 		private bool IsTerrainEditingTool(EditorTool tool)
@@ -2192,7 +2192,7 @@ namespace Realm.Client.Core
 			node3D.Position = dragPos;
 			ApplyDraggedNodePosition(node3D, dragPos);
 
-			MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+			GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 		}
 
 		private void UpdateDraggedSelectionPositions(Vector3 hitPos)
@@ -2216,7 +2216,7 @@ namespace Realm.Client.Core
 				ApplyDraggedNodePosition(start.Node, newPosition);
 			}
 
-			MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+			GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 		}
 
 		private void ApplyDraggedNodePosition(Node3D node3D, Vector3 dragPos)
@@ -2258,7 +2258,7 @@ namespace Realm.Client.Core
 			if (GameContext.World != null && GameContext.World.IsAlive(propProxy.Entity))
 			{
 				GameContext.World.Set(propProxy.Entity, new Position(new System.Numerics.Vector3(dragPos.X, dragPos.Y, dragPos.Z)));
-				PropMultiMeshManager.Instance?.UpdateInstanceTransform(propProxy.Entity, dragPos, propProxy.RotationDegrees.Y, propProxy.Scale.X);
+				GameContext.PropMultiMesh?.UpdateInstanceTransform(propProxy.Entity, dragPos, propProxy.RotationDegrees.Y, propProxy.Scale.X);
 				UpdateSelectedPropRingPosition(dragPos);
 			}
 		}
@@ -2271,7 +2271,7 @@ namespace Realm.Client.Core
 				SyncPreviousTransform(GameContext.World, prop.Entity);
 			}
 
-			PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+			GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
 		}
 
 		private void UpdateDraggedDecalECS(Decal3D decal3D, Vector3 dragPos)
@@ -2310,7 +2310,7 @@ namespace Realm.Client.Core
 			{
 				_is3DDragOperationActive = false;
 				_is3DLeftClickDown = false;
-				MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
+				GameContext.MapEditorHud?.Set3DInteractionActive_ViewLogic(false);
 			}
 		}
 
@@ -2346,18 +2346,18 @@ namespace Realm.Client.Core
 					var node3D = SelectedEditorObject as Node3D;
 					if (SelectedEditorObject is PropEntityProxyNode propProxy)
 					{
-						PropMultiMeshManager.Instance?.MarkDirty(propProxy.PropId);
+						GameContext.PropMultiMesh?.MarkDirty(propProxy.PropId);
 					}
 					else if (SelectedEditorObject is Prop3D prop && SelectedEditorObject is not Unit3D)
 					{
-						PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+						GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
 					}
 
 					if (node3D.Position.DistanceTo(_dragObjectStartPos) > 0.05f)
 					{
 						var action = new ObjectTransformAction(node3D, _dragObjectStartPos, node3D.Position, _dragObjectStartRot, node3D.RotationDegrees, _dragObjectStartScale, node3D.Scale);
 						EditorHistoryManager.RecordAction(action);
-						MapEditorHUD.Instance?.ShowFeedbackExternal("Moved Object");
+						GameContext.MapEditorHud?.ShowFeedbackExternal("Moved Object");
 						EditorHasUnsavedChanges = true;
 					}
 				}
@@ -2376,11 +2376,11 @@ namespace Realm.Client.Core
 
 				if (start.Node is PropEntityProxyNode proxy)
 				{
-					PropMultiMeshManager.Instance?.MarkDirty(proxy.PropId);
+					GameContext.PropMultiMesh?.MarkDirty(proxy.PropId);
 				}
 				else if (start.Node is Prop3D prop)
 				{
-					PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+					GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
 				}
 
 				actions.Add(new ObjectTransformAction(start.Node, start.Position, start.Node.Position, start.Rotation, start.Node.RotationDegrees, start.Scale, start.Node.Scale));
@@ -2389,7 +2389,7 @@ namespace Realm.Client.Core
 			if (actions.Count == 0) return;
 
 			EditorHistoryManager.RecordAction(new CompositeAction(actions));
-			MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format("Moved {0} Objects", actions.Count));
+			GameContext.MapEditorHud?.ShowFeedbackExternal(string.Format("Moved {0} Objects", actions.Count));
 			EditorHasUnsavedChanges = true;
 		}
 
@@ -2444,7 +2444,7 @@ namespace Realm.Client.Core
 			SetEditorObjectSelection(selection);
 			editorService.ClearObjectMarquee();
 			HideEditorObjectMarquee();
-			MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format("{0} Objects Selected", selection.Count));
+			GameContext.MapEditorHud?.ShowFeedbackExternal(string.Format("{0} Objects Selected", selection.Count));
 		}
 
 		private void CollectMarqueeSelection<T>(List<T> candidates, int minX, int minZ, int maxX, int maxZ, bool subtractive, List<Node> selection) where T : Node
@@ -2513,7 +2513,7 @@ namespace Realm.Client.Core
 			{
 				_is3DDragOperationActive = false;
 				_is3DLeftClickDown = false;
-				MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
+				GameContext.MapEditorHud?.Set3DInteractionActive_ViewLogic(false);
 			}
 
 			_paintCursor?.HideCursor();
@@ -2524,7 +2524,7 @@ namespace Realm.Client.Core
 
 		public void StartMapEditorMode()
 		{
-			ReplayPlaybackManager.Instance.StopReplay();
+			GameContext.ReplayPlayback.StopReplay();
 			GameContext.SessionState.IsMapEditorMode = true;
 			GameContext.EditorService.OpenTempWorkspaceSessionDomain();
 
@@ -2904,7 +2904,7 @@ namespace Realm.Client.Core
 			var action = new TerrainModifyAction((TerrainCell[,])null, (TerrainCell[,])null, splatBefore, splatAfter, null, null, cliffBefore, cliffAfter);
 			EditorHistoryManager.RecordAction(action);
 			EditorHasUnsavedChanges = true;
-			MapEditorHUD.Instance?.ShowFeedbackExternal(result.IsCliff ? "Flood filled cliff face area" : "Flood filled terrain area");
+			GameContext.MapEditorHud?.ShowFeedbackExternal(result.IsCliff ? "Flood filled cliff face area" : "Flood filled terrain area");
 		}
 
 		public void HideSelectionHighlight()
@@ -3131,7 +3131,7 @@ namespace Realm.Client.Core
 		{
 			if (GroundTerrain == null || GameContext.EditorService.SelectionStart == null || GameContext.EditorService.SelectionEnd == null)
 			{
-				MapEditorHUD.Instance?.ShowFeedbackExternal("Nothing to Cut (select an area first)");
+				GameContext.MapEditorHud?.ShowFeedbackExternal("Nothing to Cut (select an area first)");
 				return;
 			}
 
@@ -3144,7 +3144,7 @@ namespace Realm.Client.Core
 				RebuildSelectionHighlightMesh(minX, minZ, maxX, maxZ);
 			}
 
-			MapEditorHUD.Instance?.ShowFeedbackExternal("Area Cut");
+			GameContext.MapEditorHud?.ShowFeedbackExternal("Area Cut");
 		}
 
 		public void RefreshSelectionHighlight()

@@ -34,7 +34,6 @@ namespace Realm.Client.Network;
 [GlobalClass]
 public partial class LobbyManager : BaseMapTransferNode
 {
-	public static LobbyManager Instance { get; private set; }
 	public bool IsSinglePlayer { get; set; } = false;
 	public string? LastHostError { get; private set; }
 	public bool IsRestrictedHost { get; private set; }
@@ -206,14 +205,14 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	protected override string TransferLogPrefix => "LobbyManager";
 
-	protected override bool IsMapTransferAllowed() => IsHost || (PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding);
+	protected override bool IsMapTransferAllowed() => IsHost || (GameContext.PeerSeeder != null && GameContext.PeerSeeder.IsSeeding);
 
 	protected override void OnDownloadProgressChanged(float progress) => CallDeferred(nameof(EmitDownloadProgress), progress);
 
 	public override void _Ready()
 	{
 		ProcessPerformanceOptimizer.EnforceOptimalPerformance();
-		Instance = this;
+		GameContext.RegisterLobby(this);
 		ProcessMode = ProcessModeEnum.Always;
 
 		LoadServersConfig();
@@ -254,13 +253,13 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private void CheckPeerSeederStatus()
 	{
-		if (PeerSeederManager.Instance == null) return;
+		if (GameContext.PeerSeeder == null) return;
 
 		Callable.From(() =>
 		{
-			if (GodotObject.IsInstanceValid(this) && !IsQueuedForDeletion() && PeerSeederManager.Instance != null)
+			if (GodotObject.IsInstanceValid(this) && !IsQueuedForDeletion() && GameContext.PeerSeeder != null)
 			{
-				PeerSeederManager.Instance.CheckIdleAndSeedStatus();
+				GameContext.PeerSeeder.CheckIdleAndSeedStatus();
 			}
 		}).CallDeferred();
 	}
@@ -291,8 +290,8 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		try
 		{
-			PeerSeederManager.Instance.Stop();
-			UpnpService.Instance.ClosePort(ENetPort);
+			GameContext.PeerSeeder.Stop();
+			GameContext.Upnp.ClosePort(ENetPort);
 		}
 		catch
 		{
@@ -517,7 +516,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (!await TryCreateENetServerAsync()) return false;
 
-		bool upnpSuccess = await UpnpService.Instance.OpenPortAsync(ENetPort);
+		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(ENetPort);
 		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
 		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
 		if (IsRestrictedHost)
@@ -1131,7 +1130,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 
 		Diagnostics.StopHostListener();
-		UpnpService.Instance.ClosePort(ENetPort);
+		GameContext.Upnp.ClosePort(ENetPort);
 		_wsCts?.Cancel();
 		_hostWebSocket?.Dispose();
 		_hostWebSocket = null;
@@ -1704,10 +1703,10 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private bool StopSeedingIfActive()
 	{
-		bool wasSeeding = PeerSeederManager.Instance != null && PeerSeederManager.Instance.IsSeeding;
+		bool wasSeeding = GameContext.PeerSeeder != null && GameContext.PeerSeeder.IsSeeding;
 		if (wasSeeding)
 		{
-			PeerSeederManager.Instance!.Stop();
+			GameContext.PeerSeeder!.Stop();
 		}
 
 		return wasSeeding;
@@ -1812,7 +1811,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (wasSeeding)
 		{
-			PeerSeederManager.Instance?.CheckIdleAndSeedStatus();
+			GameContext.PeerSeeder?.CheckIdleAndSeedStatus();
 		}
 	}
 
@@ -1981,7 +1980,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		LastReconnectError = reason;
 		LobbyJoinError = reason;
 		KickReceived?.Invoke(reason);
-		UIManager.Instance?.TransitionTo(GameScreen.LobbyBrowser);
+		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyBrowser);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2027,7 +2026,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		string serializedPlayers = JsonSerializer.Serialize(PlayerList);
 		RpcId(senderId, nameof(AcceptReconnect), targetPlayer.Slot, ActiveMapName, serializedPlayers, MatchSeed);
 
-		GameHost.Instance?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
+		GameContext.Host?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
 	}
 
 	private PlayerInfo? FindReconnectSessionOwner(string sessionToken, string playerName)
@@ -2078,9 +2077,9 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		PlayerListUpdated?.Invoke();
 
-		if (GameHost.Instance != null && GodotObject.IsInstanceValid(GameHost.Instance))
+		if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host))
 		{
-			GameHost.Instance.OnClientReconnected(slot);
+			GameContext.Host.OnClientReconnected(slot);
 		}
 		else
 		{
@@ -2115,7 +2114,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		Disconnect();
 		LobbyJoinError = "Error joining lobby: Game version mismatch with host";
-		UIManager.Instance.TransitionTo(GameScreen.LobbyBrowser);
+		GameContext.UserInterface.TransitionTo(GameScreen.LobbyBrowser);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2624,7 +2623,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void LoadMap(string mapName, int matchSeed)
 	{
 		GD.Print($"[LobbyManager] LoadMap RPC received for: {mapName} with deterministic random seed {matchSeed}");
-		ReplayPlaybackManager.Instance.StopReplay();
+		GameContext.ReplayPlayback.StopReplay();
 		ActiveMapName = mapName;
 		MatchSeed = matchSeed;
 		GameContext.RandomService.SetSeed(matchSeed);

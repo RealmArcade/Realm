@@ -1669,9 +1669,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (item.Category == "terrain")
 		{
 			Hud?.SetupTextureSwatches(false);
-			if (GameHost.Instance?.GroundTerrain != null)
+			if (GameContext.Host?.GroundTerrain != null)
 			{
-				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		}
 
@@ -1819,9 +1819,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		if (category == "terrain")
 		{
 			Hud?.SetupTextureSwatches(false);
-			if (GameHost.Instance?.GroundTerrain != null)
+			if (GameContext.Host?.GroundTerrain != null)
 			{
-				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		}
 
@@ -1938,9 +1938,9 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 			if (item.Category == "terrain")
 			{
 				Hud?.SetupTextureSwatches(false);
-				if (GameHost.Instance?.GroundTerrain != null)
+				if (GameContext.Host?.GroundTerrain != null)
 				{
-					GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+					GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 				}
 			}
 
@@ -2093,7 +2093,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_preview2DContainer.Visible = true;
 
 		_preview2DImage.CustomMinimumSize = new Vector2(140, 140);
-		Texture2D? decalTex = GameHost.Instance?.LoadDecalTexture(item.TemplateID) ?? LoadTexture2D(item.ModelPath, "decals");
+		Texture2D? decalTex = GameContext.Host?.LoadDecalTexture(item.TemplateID) ?? LoadTexture2D(item.ModelPath, "decals");
 		_preview2DImage.Texture = decalTex;
 		_lblPreview2DInfo.Text = item.Name;
 	}

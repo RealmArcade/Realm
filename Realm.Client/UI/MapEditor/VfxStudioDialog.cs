@@ -2131,7 +2131,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 
 		Hud?.SaveCustomVfxToMetadata(_currentConfig.VfxId, _currentConfig);
-		GameHost.Instance?.RefreshVfxTemplateInstances(_initialConfig.VfxId, _currentConfig);
+		GameContext.Host?.RefreshVfxTemplateInstances(_initialConfig.VfxId, _currentConfig);
 		_onAppliedCallback?.Invoke(_currentConfig);
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Saved VFX '{0}' to metadata.json"), _currentConfig.Name));
 	}

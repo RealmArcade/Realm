@@ -359,7 +359,7 @@ public class AudioService
 	{
 		if (_hasConfiguredListener) return _listener;
 
-		Node3D? camera = GameHost.Instance?.MainCamera;
+		Node3D? camera = GameContext.Host?.MainCamera;
 		if (camera != null && GodotObject.IsInstanceValid(camera))
 		{
 			Basis cameraBasis = camera.GlobalTransform.Basis;
@@ -598,9 +598,9 @@ public class AudioService
 	{
 		if (_audioRoot == null || !GodotObject.IsInstanceValid(_audioRoot))
 		{
-			if (GameHost.Instance != null && GodotObject.IsInstanceValid(GameHost.Instance))
+			if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host))
 			{
-				InitializeAudioNodes(GameHost.Instance);
+				InitializeAudioNodes(GameContext.Host);
 			}
 			else if (Engine.GetMainLoop() is SceneTree tree && tree.Root != null)
 			{

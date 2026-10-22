@@ -642,7 +642,7 @@ public class MapStorageService
 	{
 		return !string.IsNullOrWhiteSpace(registryServerUrl)
 			? registryServerUrl
-			: (GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl());
+			: (GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl());
 	}
 
 	private async Task<(bool HasNewer, string? NewerVersion, string? MapId)> CheckDiscoveryMapsAsync(DistributionClient distClient, string mapTitle, List<string> localVersions, CancellationToken cancellationToken)
@@ -682,7 +682,7 @@ public class MapStorageService
 	{
 		string serverUrl = !string.IsNullOrWhiteSpace(registryServerUrl)
 			? registryServerUrl
-			: (GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl());
+			: (GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl());
 
 		var distClient = new MapDistributionClient();
 		return await distClient.DownloadMapPackageFromRegistryAsync(mapId, serverUrl, progressCallback, cancellationToken);
@@ -1302,12 +1302,12 @@ public class MapStorageService
 		string tempTerrainPath = Path.Combine(tempWorkspacePath, "terrain.json");
 		MapWorkspaceService.EnsureLicenseFile(tempWorkspacePath);
 		MapWorkspaceService.EnsureWasmEntryPoint(tempWorkspacePath);
-		GameHost.Instance.SaveMapToFile(tempTerrainPath, performReload: false);
-		GameHost.Instance.EditorHasUnsavedChanges = false;
+		GameContext.Host.SaveMapToFile(tempTerrainPath, performReload: false);
+		GameContext.Host.EditorHasUnsavedChanges = false;
 
 		if (isWindows)
 		{
-			await VSCodeManager.Instance.SaveAllOpenFilesAsync();
+			await GameContext.VSCode.SaveAllOpenFilesAsync();
 		}
 	}
 

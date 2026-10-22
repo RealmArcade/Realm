@@ -104,7 +104,7 @@ public partial class GameHost
 			}
 		}
 
-		if (beneficiaryPlayerEntity == Entity.Null && (LobbyManager.Instance == null || LobbyManager.Instance.IsSinglePlayer))
+		if (beneficiaryPlayerEntity == Entity.Null && (GameContext.Lobby == null || GameContext.Lobby.IsSinglePlayer))
 		{
 			int localSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 			beneficiaryPlayerEntity = GetPlayerEntityForPlayerIndex(localSlot);
@@ -118,7 +118,7 @@ public partial class GameHost
 			Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(localViewingSlot);
 			if (shouldRefresh && beneficiaryPlayerEntity == localPlayerEntity)
 			{
-				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			}
 		}
 	}
@@ -183,7 +183,7 @@ public partial class GameHost
 			EntityToProp3D.Remove(prop.Entity);
 			var (radius, propPos) = GameContext.SimulationService.DomainDepleteProp(prop.Entity, fallbackPos);
 
-			PropMultiMeshManager.Instance?.MarkDirty(propId);
+			GameContext.PropMultiMesh?.MarkDirty(propId);
 			UncarveObstacle(propPos, radius);
 
 			string deathShader = GetModelDeathShader(propId);
@@ -223,7 +223,7 @@ public partial class GameHost
 
 		if (_pendingBuildTaskUpdates.Count > 0)
 		{
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		}
 
 		GameContext.SimulationService.PendingQueuedCommands.Clear();
@@ -393,8 +393,8 @@ public partial class GameHost
 			OnConstructionFinished?.Invoke((UnitId)buildingEntity.Id);
 		}
 
-		InGameHUD.Instance?.ShowFeedbackText("Construction complete!", new Color(0.3f, 0.9f, 0.4f));
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.ShowFeedbackText("Construction complete!", new Color(0.3f, 0.9f, 0.4f));
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private readonly HashSet<int> _activeBuildGhostWorkerIds = new();
@@ -1114,7 +1114,7 @@ public partial class GameHost
 	private bool TryGetReplayAnimation(Entity entity, out string animation)
 	{
 		animation = string.Empty;
-		if (!ReplayPlaybackManager.Instance.IsPlayingReplay) return false;
+		if (!GameContext.ReplayPlayback.IsPlayingReplay) return false;
 
 		animation = GameContext.World.Has<ReplayAnimationState>(entity)
 			? GameContext.World.Get<ReplayAnimationState>(entity).Animation

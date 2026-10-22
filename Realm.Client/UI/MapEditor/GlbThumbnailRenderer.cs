@@ -12,6 +12,7 @@ using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.ModelOptimization;
 using Environment = System.Environment;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -414,7 +415,7 @@ public partial class GlbThumbnailRenderer : Node
 
 			byte[] glbBytes = GetGlbBytes(request.FilePath, out string? chromaKey);
 
-			bool despill = GameHost.Instance != null && GameHost.Instance.GetModelDespillPlayerColor(request.FilePath);
+			bool despill = GameContext.Host != null && GameContext.Host.GetModelDespillPlayerColor(request.FilePath);
 			if (despill)
 			{
 				glbBytes = GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);

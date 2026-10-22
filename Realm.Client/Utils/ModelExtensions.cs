@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.Utils;
 
@@ -93,9 +94,9 @@ public static class ModelExtensions
 
 	public static void ApplySlopeAlignment(Godot.Node3D mainNode, Godot.Node3D? visualNode, bool isSlopeAligned)
 	{
-		if (isSlopeAligned && Realm.Client.Core.GameHost.Instance?.GroundTerrain != null && visualNode != null && Godot.GodotObject.IsInstanceValid(visualNode))
+		if (isSlopeAligned && Realm.Client.Services.GameContext.Host?.GroundTerrain != null && visualNode != null && Godot.GodotObject.IsInstanceValid(visualNode))
 		{
-			Realm.Client.Core.GameHost.Instance.GroundTerrain.GetHeightAndNormal(mainNode.GlobalPosition.X, mainNode.GlobalPosition.Z, out _, out Godot.Vector3 normal);
+			Realm.Client.Services.GameContext.Host.GroundTerrain.GetHeightAndNormal(mainNode.GlobalPosition.X, mainNode.GlobalPosition.Z, out _, out Godot.Vector3 normal);
 			if (normal.LengthSquared() > 0.01f)
 			{
 				normal = normal.Normalized();

@@ -38,13 +38,12 @@ public partial class GameHost : Node3D, IGameAPI
 {
 	public GameHost()
 	{
-		Instance = this;
+		GameContext.RegisterHost(this);
 	}
 
 	public CameraControl MainCamera { get; set; }
 	public Node MainNode { get; set; }
 
-	public static GameHost Instance { get; set; }
 	public int LocalPlayerIndex => GameContext.PerspectiveFilter.ControlledPlayerIndex;
 
 		public (int minX, int minZ, int maxX, int maxZ) GetClampedCoordinateBounds(EditorCoordinate coord)
@@ -86,13 +85,13 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		var filter = GameContext.PerspectiveFilter;
 
-		if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+		if (GameContext.ReplayPlayback.IsPlayingReplay)
 		{
 			filter.ConfigureSpectator();
 			return;
 		}
 
-		var lobbyPlayers = LobbyManager.Instance?.PlayerList;
+		var lobbyPlayers = GameContext.Lobby?.PlayerList;
 		if (lobbyPlayers == null || lobbyPlayers.Count == 0)
 		{
 			filter.ConfigureParticipant(1);
@@ -260,8 +259,8 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private Entity TryGetMultiplayerEntity(int playerIndex)
 	{
-		if (!_multiplayerActive || LobbyManager.Instance == null || LobbyManager.Instance.PlayerList.Count <= 0) return Entity.Null;
-		var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+		if (!_multiplayerActive || GameContext.Lobby == null || GameContext.Lobby.PlayerList.Count <= 0) return Entity.Null;
+		var p = GameContext.Lobby.PlayerList.Find(x => x.Slot == playerIndex);
 		if (p == null || _peerIdToPlayerEntityMap?.TryGetValue(p.PeerId, out var pe) != true || !GameContext.World.IsAlive(pe)) return Entity.Null;
 		return pe;
 	}
@@ -488,7 +487,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		get
 		{
-			if (_groundTerrain == null && (GameContext.SessionState.IsMapEditorMode || GameContext.SaveLoadService.IsLoadingMap || (LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted)))
+			if (_groundTerrain == null && (GameContext.SessionState.IsMapEditorMode || GameContext.SaveLoadService.IsLoadingMap || (GameContext.Lobby != null && GameContext.Lobby.IsGameStarted)))
 			{
 				CreateGround();
 			}
@@ -805,7 +804,7 @@ public partial class GameHost : Node3D, IGameAPI
 		_selectedEditorObject = selection.Count > 0 ? selection[^1] : null;
 		ApplyEditorSelectionVisuals();
 
-		MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 		UpdateEditorCoverageOverlay();
 	}
 
@@ -818,7 +817,7 @@ public partial class GameHost : Node3D, IGameAPI
 		ApplyEditorSelectionVisual(node, true);
 		_selectedEditorObject = node;
 
-		MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 		UpdateEditorCoverageOverlay();
 	}
 
@@ -834,7 +833,7 @@ public partial class GameHost : Node3D, IGameAPI
 		_selectedEditorObject = selection.Count > 0 ? selection[^1] : null;
 		ApplyEditorSelectionVisuals();
 
-		MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		GameContext.MapEditorHud?.UpdateSelectedObjectInfo();
 		UpdateEditorCoverageOverlay();
 	}
 
@@ -954,8 +953,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public static int GetUnitPathingFlags(UnitMetadata meta)
 	{
-		GameHost tempQualifier = Instance;
-		return (tempQualifier != null ? GameContext.UnitSpawnService : null)?.GetUnitPathingFlags(meta) ?? 8;
+		return (GameContext.Host != null ? GameContext.UnitSpawnService : null)?.GetUnitPathingFlags(meta) ?? 8;
 	}
 
 
@@ -980,7 +978,7 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 	public bool CheatsEnabled
-		=> GameContext.SessionState.IsMapEditorMode || GameContext.SessionState.IsTestMode || (LobbyManager.Instance?.IsSinglePlayer ?? false);
+		=> GameContext.SessionState.IsMapEditorMode || GameContext.SessionState.IsTestMode || (GameContext.Lobby?.IsSinglePlayer ?? false);
 
 	public float GameElapsedTime
 	{
@@ -1511,7 +1509,7 @@ public partial class GameHost : Node3D, IGameAPI
 		LocalHudVisibilityOverrides[element] = visible;
 		Callable.From(() =>
 		{
-			InGameHUD.Instance?.SetHudElementVisible(element, visible);
+			GameContext.InGameHud?.SetHudElementVisible(element, visible);
 		}).CallDeferred();
 	}
 
@@ -1526,7 +1524,7 @@ public partial class GameHost : Node3D, IGameAPI
 				{
 					ClearSelection();
 					SelectUnit(u);
-					InGameHUD.Instance?.RefreshUI(SelectedUnits);
+					GameContext.InGameHud?.RefreshUI(SelectedUnits);
 					break;
 				}
 			}
@@ -1538,7 +1536,7 @@ public partial class GameHost : Node3D, IGameAPI
 		Callable.From(() =>
 		{
 			ClearSelection();
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		}).CallDeferred();
 	}
 
@@ -1736,7 +1734,7 @@ public partial class GameHost : Node3D, IGameAPI
 		string? explicitPath = TryResolveExplicitPath(norm);
 		if (explicitPath != null) return explicitPath;
 
-		string? targetVersion = !string.IsNullOrWhiteSpace(version) ? version : LobbyManager.Instance?.ActiveMapVersion;
+		string? targetVersion = !string.IsNullOrWhiteSpace(version) ? version : GameContext.Lobby?.ActiveMapVersion;
 		string? manifestPath = MapAssetManager.FindManifestPath(norm, targetVersion) ?? MapAssetManager.FindManifestPath(norm, null);
 
 		if (!string.IsNullOrEmpty(manifestPath) && File.Exists(manifestPath))
@@ -2164,11 +2162,11 @@ public partial class GameHost : Node3D, IGameAPI
 		MainCamera = GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
 
 		GD.Print($"[GAMEHOST_READY] GameHost _Ready starting");
-		Instance = this;
+		GameContext.RegisterHost(this);
 		GameSettings.ApplyGraphicsSettings(this);
-		if (LobbyManager.Instance != null)
+		if (GameContext.Lobby != null)
 		{
-			LobbyManager.Instance.ServerChatCommandReceived += HandleServerChatCommand;
+			GameContext.Lobby.ServerChatCommandReceived += HandleServerChatCommand;
 		}
 
 		ReinitializeEcsAndServices();
@@ -2178,7 +2176,7 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		ResolveServices();
 
-		if (OperatingSystem.IsWindows()) VSCodeManager.Instance.StartInstallIfNeeded();
+		if (OperatingSystem.IsWindows()) GameContext.VSCode.StartInstallIfNeeded();
 
 		InitializeTracking();
 
@@ -2202,7 +2200,7 @@ public partial class GameHost : Node3D, IGameAPI
 		EnsureFallbackPlayers();
 		ConfigurePerspective();
 
-		string rawMapName = LobbyManager.Instance?.ActiveMapName ?? "";
+		string rawMapName = GameContext.Lobby?.ActiveMapName ?? "";
 		if (!string.IsNullOrEmpty(rawMapName)) LoadUnitMetadata(rawMapName);
 
 		ProcessMapLoadingAndScript(rawMapName);
@@ -2289,16 +2287,16 @@ public partial class GameHost : Node3D, IGameAPI
 			if (GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<PropIdentity>(entity))
 			{
 				string propId = GameContext.World.Get<PropIdentity>(entity).PropId;
-				PropMultiMeshManager.Instance?.MarkDirty(propId);
+				GameContext.PropMultiMesh?.MarkDirty(propId);
 			}
 			else
 			{
-				PropMultiMeshManager.Instance?.MarkAllDirty();
+				GameContext.PropMultiMesh?.MarkAllDirty();
 			}
 		};
 		GameContext.SimulationService.OnResourceHarvested = entity =>
 		{
-			PropMultiMeshManager.Instance?.SetInstanceCustomData(entity, new Color(1f, 0f, 0f, 0f));
+			GameContext.PropMultiMesh?.SetInstanceCustomData(entity, new Color(1f, 0f, 0f, 0f));
 		};
 
 		SetupSimulationCombatCallbacks();
@@ -2351,20 +2349,20 @@ public partial class GameHost : Node3D, IGameAPI
 
 		GameContext.SimulationService.OnClearUnitOrdersRequested = ClearUnitOrders;
 		GameContext.SimulationService.OnStopGatheringMovementRequested = StopGatheringMovement;
-		GameContext.SimulationService.OnUiRefreshRequested = () => InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.SimulationService.OnUiRefreshRequested = () => GameContext.InGameHud?.RefreshUI(SelectedUnits);
 
 		GameContext.SimulationService.OnResourceDepositedForPlayer = (playerIndex, resType, carry) =>
 		{
 			if (!GameContext.PerspectiveFilter.CanObserve(playerIndex)) return;
 			string resTypeUpper = resType.ToUpper();
-			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText($"+{carry:F0} {resTypeUpper} deposited", new Color(0.2f, 0.9f, 0.4f))).CallDeferred();
+			Callable.From(() => GameContext.InGameHud?.ShowFeedbackText($"+{carry:F0} {resTypeUpper} deposited", new Color(0.2f, 0.9f, 0.4f))).CallDeferred();
 		};
 
 		GameContext.SimulationService.OnProductionCompleted = (playerIndex, unitToSpawn) =>
 		{
 			if (!GameContext.PerspectiveFilter.CanObserve(playerIndex)) return;
 			string displayName = UnitRegistry.TryGetValue(unitToSpawn, out var nm) ? nm.Name : unitToSpawn.ToUpper();
-			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText($"✓ {displayName} training complete!", new Color(0.3f, 0.9f, 0.4f))).CallDeferred();
+			Callable.From(() => GameContext.InGameHud?.ShowFeedbackText($"✓ {displayName} training complete!", new Color(0.3f, 0.9f, 0.4f))).CallDeferred();
 		};
 	}
 
@@ -2374,7 +2372,7 @@ public partial class GameHost : Node3D, IGameAPI
 		if (!Multiplayer.IsServer()) GameContext.NetworkService.MarkClientEnteredMultiplayer();
 		if (Multiplayer is SceneMultiplayer sceneMultiplayer) sceneMultiplayer.ServerRelay = false;
 
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
+		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList.Count > 0)
 			SetupLobbyPlayers();
 		else
 			SetupDefaultPlayers();
@@ -2386,7 +2384,7 @@ public partial class GameHost : Node3D, IGameAPI
 		_peerIdToPlayerEntityMap[0] = playerEntities[0];
 		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true, teamIndex: 0);
 
-		foreach (var p in LobbyManager.Instance.PlayerList)
+		foreach (var p in GameContext.Lobby.PlayerList)
 		{
 			if (p.Slot >= 0 && p.Slot < playerEntities.Length)
 			{
@@ -2405,7 +2403,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void InitializeSingleplayerPlayers()
 	{
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
+		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList.Count > 0)
 			SetupLobbyPlayers();
 		else
 			SetupDefaultPlayers();
@@ -2490,7 +2488,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private bool ShouldProcessMapLoading()
 	{
-		bool isGameStarted = LobbyManager.Instance?.IsGameStarted ?? false;
+		bool isGameStarted = GameContext.Lobby?.IsGameStarted ?? false;
 		return isGameStarted || GameContext.SessionState.IsMapEditorMode;
 	}
 
@@ -2503,13 +2501,13 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (GameContext.SaveLoadService.IsLoadingMap) return false;
 
-		bool isGameStarted = LobbyManager.Instance?.IsGameStarted ?? false;
+		bool isGameStarted = GameContext.Lobby?.IsGameStarted ?? false;
 		return !isGameStarted || IsServerActive() || GameContext.SessionState.IsMapEditorMode;
 	}
 
 	private void ApplyTestRandomSeedIfNeeded(string rawMapNameOrPath)
 	{
-		bool isSinglePlayerOrTest = (LobbyManager.Instance?.IsSinglePlayer == true) || GameContext.SessionState.IsTestMode || !IsMultiplayerActive();
+		bool isSinglePlayerOrTest = (GameContext.Lobby?.IsSinglePlayer == true) || GameContext.SessionState.IsTestMode || !IsMultiplayerActive();
 		if (!isSinglePlayerOrTest) return;
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
@@ -2599,14 +2597,14 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void StartReplayRecordingIfNeeded(string rawMapName)
 	{
-		bool isGameStarted = LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted;
-		if (!isGameStarted || GameContext.SessionState.IsMapEditorMode || ReplayPlaybackManager.Instance.IsPlayingReplay || !GameSettings.RecordReplays) return;
+		bool isGameStarted = GameContext.Lobby != null && GameContext.Lobby.IsGameStarted;
+		if (!isGameStarted || GameContext.SessionState.IsMapEditorMode || GameContext.ReplayPlayback.IsPlayingReplay || !GameSettings.RecordReplays) return;
 
 		string replayDir = ProjectSettings.GlobalizePath("user://replays");
 		string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 		string replayPath = Path.Combine(replayDir, $"replay_{timestamp}.rep");
 
-		GameContext.ReplayService.StartRecording(replayPath, rawMapName, LobbyManager.Instance?.PlayerList);
+		GameContext.ReplayService.StartRecording(replayPath, rawMapName, GameContext.Lobby?.PlayerList);
 		GD.Print($"[ReplayRecorder] Started recording to {replayPath}");
 	}
 
@@ -2615,22 +2613,22 @@ public partial class GameHost : Node3D, IGameAPI
 		var timer = GetTree().CreateTimer(0.1f);
 		timer.Timeout += () =>
 		{
-			if (InGameHUD.Instance != null)
+			if (GameContext.InGameHud != null)
 			{
-				InGameHUD.Instance.Gold = _goldBackup;
-				InGameHUD.Instance.Wood = _woodBackup;
-				InGameHUD.Instance.Stone = _stoneBackup;
-				InGameHUD.Instance.RefreshUI(SelectedUnits);
+				GameContext.InGameHud.Gold = _goldBackup;
+				GameContext.InGameHud.Wood = _woodBackup;
+				GameContext.InGameHud.Stone = _stoneBackup;
+				GameContext.InGameHud.RefreshUI(SelectedUnits);
 			}
 
-			if (ReplayPlaybackManager.Instance.IsPlayingReplay)
-				ReplayPlaybackManager.Instance.ApplyInitialFrame();
+			if (GameContext.ReplayPlayback.IsPlayingReplay)
+				GameContext.ReplayPlayback.ApplyInitialFrame();
 		};
 	}
 
 	public void ResetWorldAndState()
 	{
-		ReplayPlaybackManager.Instance.StopReplay();
+		GameContext.ReplayPlayback.StopReplay();
 		StopRecording();
 
 		ClearNodeCollection(AllUnits);
@@ -2722,12 +2720,12 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		LogGameStabilitySummary();
 
-		if (LobbyManager.Instance != null)
-			LobbyManager.Instance.ServerChatCommandReceived -= HandleServerChatCommand;
+		if (GameContext.Lobby != null)
+			GameContext.Lobby.ServerChatCommandReceived -= HandleServerChatCommand;
 
 		StopRecording();
 		GameContext.Dispose();
-		Instance = null;
+		GameContext.UnregisterHost(this);
 	}
 
 	private void LogGameStabilitySummary()
@@ -2775,7 +2773,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 		if (!ShouldCreateRuntimeGround()) return;
 
-		string? rawMapName = LobbyManager.Instance?.ActiveMapName;
+		string? rawMapName = GameContext.Lobby?.ActiveMapName;
 		if (string.IsNullOrEmpty(rawMapName)) return;
 
 		string terrainPath = ResolveTerrainPath(rawMapName);
@@ -2810,7 +2808,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private bool ShouldCreateRuntimeGround()
 	{
-		return LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted;
+		return GameContext.Lobby != null && GameContext.Lobby.IsGameStarted;
 	}
 
 	private string ResolveTerrainPath(string rawMapName)
@@ -3024,7 +3022,7 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 
 		SpawnTargetIndicator(propPos, new Color(0.9f, 0.8f, 0.1f));
-		InGameHUD.Instance?.ShowFeedbackText($"Gathering {resType.ToUpper()} from {propId}", new Color(0.9f, 0.8f, 0.1f));
+		GameContext.InGameHud?.ShowFeedbackText($"Gathering {resType.ToUpper()} from {propId}", new Color(0.9f, 0.8f, 0.1f));
 
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
@@ -3329,10 +3327,10 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ShroudServiceTick))
 				{
-					bool isReplay = ReplayPlaybackManager.Instance.IsPlayingReplay;
+					bool isReplay = GameContext.ReplayPlayback.IsPlayingReplay;
 					bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
-					int spectatorPerspective = InGameHUD.Instance?.LiveSpectatorPerspective ?? -1;
-					GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, AllVfx, VisualProjectilePool.Instance.ActiveProjectiles, spectatorPerspective, isReplay, isSpectator);
+					int spectatorPerspective = GameContext.InGameHud?.LiveSpectatorPerspective ?? -1;
+					GameContext.ShroudService.Tick(fDelta, AllUnits, AllProps, AllDecals, AllVfx, VisualProjectilePool.ActiveProjectiles, spectatorPerspective, isReplay, isSpectator);
 				}
 			}
 
@@ -3366,7 +3364,7 @@ public partial class GameHost : Node3D, IGameAPI
 				SamplePredictionPerformance(fDelta);
 			}
 
-			VisualProjectilePool.Instance?.AdvanceActiveProjectiles(fDelta);
+			VisualProjectilePool.AdvanceActiveProjectiles(fDelta);
 
 			GameContext.FXService?.UpdateFloatingLabels(fDelta);
 			GameContext.FXService?.RenderBatchedRibbonTrails(MainCamera);
@@ -3382,7 +3380,7 @@ public partial class GameHost : Node3D, IGameAPI
 			float fDelta = (float)delta;
 			if (_wasClientInMultiplayer) UpdateConnectionStatus();
 
-			if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+			if (GameContext.ReplayPlayback.IsPlayingReplay)
 			{
 				ProcessReplayTick(fDelta);
 				return;
@@ -3397,13 +3395,13 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private bool ShouldProcessPhysicsTick()
 	{
-		return LobbyManager.Instance?.IsGameStarted == true || GameContext.SessionState.IsMapEditorMode;
+		return GameContext.Lobby?.IsGameStarted == true || GameContext.SessionState.IsMapEditorMode;
 	}
 
 	private void ProcessReplayTick(float fDelta)
 	{
 		CapturePreviousStateSnapshots();
-		ReplayPlaybackManager.Instance.Update(fDelta);
+		GameContext.ReplayPlayback.Update(fDelta);
 	}
 
 	private void DispatchPhysicsTick(float fDelta)
@@ -3732,9 +3730,9 @@ public partial class GameHost : Node3D, IGameAPI
 	private void UpdateConnectionStatus()
 	{
 		GameContext.NetworkService.UpdateConnectionStatus(_multiplayerActive, IsServerActive());
-		if (GameContext.NetworkService.IsConnectionLost && !IsServerActive() && LobbyManager.Instance != null && !LobbyManager.Instance.IsReconnecting)
+		if (GameContext.NetworkService.IsConnectionLost && !IsServerActive() && GameContext.Lobby != null && !GameContext.Lobby.IsReconnecting)
 		{
-			LobbyManager.Instance.TriggerReconnect();
+			GameContext.Lobby.TriggerReconnect();
 		}
 	}
 
@@ -3874,7 +3872,7 @@ public partial class GameHost : Node3D, IGameAPI
 				UpdateBuildingPreview();
 			}
 
-			if (!ReplayPlaybackManager.Instance.IsPlayingReplay && GameSettings.RecordReplays && GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
+			if (!GameContext.ReplayPlayback.IsPlayingReplay && GameSettings.RecordReplays && GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
 			{
 				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.RecordGameplayTick))
 				{

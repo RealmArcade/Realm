@@ -678,7 +678,7 @@ public partial class VisualProjectile3D : Node3D
 	private Vector3 GetCurrentTargetPosition()
 	{
 		Vector3 currentTarget = _initialTargetPosition;
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		if (_targetEntity != default && (tempQualifier != null ? GameContext.World : null)?.IsAlive(_targetEntity) == true)
 		{
 			if (GameContext.World.Has<Position>(_targetEntity))
@@ -998,7 +998,7 @@ public partial class VisualProjectile3D : Node3D
 			GameContext.FXService.SpawnSingleParticleImpact(GetParent() ?? this, _weapon.ImpactParticleEffect, impactPosition, particleScale);
 		}
 
-		if (!string.IsNullOrEmpty(_weapon.ImpactVisualEffect) && GameHost.Instance != null)
+		if (!string.IsNullOrEmpty(_weapon.ImpactVisualEffect) && GameContext.Host != null)
 		{
 			var fxService = GameContext.FXService;
 			fxService?.SpawnSpritesheetEffect(GetParent() ?? this, _weapon.ImpactVisualEffect, impactPosition, 4, 4, 0.04f, 4.0f);

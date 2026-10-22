@@ -17,9 +17,9 @@ public class EnvironmentService
 {
 	public void SetActiveWaterProfileIndex(byte index)
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			GameHost.Instance.ActiveWaterProfileIndex = index;
+			GameContext.Host.ActiveWaterProfileIndex = index;
 		}
 	}
 
@@ -480,7 +480,7 @@ public class EnvironmentService
 
 		Node3D parentNode = GetWeatherHost(host);
 		parentNode.AddChild(_weatherParticles);
-		UpdateWeatherParticlePosition(GameHost.Instance?.MainCamera);
+		UpdateWeatherParticlePosition(GameContext.Host?.MainCamera);
 	}
 
 	private bool IsValidWeather(string weatherType)
@@ -496,7 +496,7 @@ public class EnvironmentService
 
 	private Node3D GetWeatherHost(Node3D host)
 	{
-		if (host is GameHost && GameHost.Instance?.MainNode is Node3D node3D)
+		if (host is GameHost && GameContext.Host?.MainNode is Node3D node3D)
 		{
 			return node3D;
 		}
@@ -512,7 +512,7 @@ public class EnvironmentService
 			_weatherParticles.Amount = Mathf.Clamp(newCount, 10, 5000);
 		}
 
-		UpdateWeatherParticlePosition(GameHost.Instance?.MainCamera);
+		UpdateWeatherParticlePosition(GameContext.Host?.MainCamera);
 	}
 
 	private CpuParticles3D InitializeWeatherParticles(int count)
@@ -584,7 +584,7 @@ public class EnvironmentService
 
 	public void SyncWeatherEffectsWithSettings(Node3D? host = null)
 	{
-		Node3D targetHost = host ?? GameHost.Instance;
+		Node3D targetHost = host ?? GameContext.Host;
 
 		if (GameSettings.DisableWeatherEffects)
 		{
@@ -637,7 +637,7 @@ public class EnvironmentService
 			_currentState.FogDensity = 0f;
 		}
 
-		ApplyWeatherToTarget(host ?? GameHost.Instance, weather, settings.ParticleDensity);
+		ApplyWeatherToTarget(host ?? GameContext.Host, weather, settings.ParticleDensity);
 
 		return weather;
 	}
@@ -888,10 +888,10 @@ public class EnvironmentService
 
 	public (string timeName, string icon) SetEnvironmentLightingDomain(int index)
 	{
-		if (GameHost.Instance == null)
+		if (GameContext.Host == null)
 			return ("Day", "☀️");
 
-		var res = GameHost.Instance.SetTimeOfDay(index);
+		var res = GameContext.Host.SetTimeOfDay(index);
 		string timeName = GetTimeOfDayName(res.TimeOfDayIndex);
 		string icon = res.TimeOfDayIndex switch
 		{
@@ -913,7 +913,7 @@ public class EnvironmentService
 			3 => "fog",
 			_ => "clear"
 		};
-		string applied = SetWeather(weatherType, GameHost.Instance);
+		string applied = SetWeather(weatherType, GameContext.Host);
 		string icon = applied switch
 		{
 			"rain" => "🌧️",

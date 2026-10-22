@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -206,7 +207,7 @@ public class MapEditorGenerationDialog
 
 	private void StartGeneration()
 	{
-		if (_generationRunning || GameHost.Instance == null) return;
+		if (_generationRunning || GameContext.Host == null) return;
 
 		_generationRunning = true;
 		_btnGen.Disabled = true;
@@ -217,7 +218,7 @@ public class MapEditorGenerationDialog
 		_statusLabel.Text = TranslationServer.Translate("Preparing generation...");
 
 		_activeJob = MapGenerator.StartGeneration(
-			GameHost.Instance,
+			GameContext.Host,
 			_genHillsDensity,
 			_genTerrainRoughness,
 			_genMountainHeight,

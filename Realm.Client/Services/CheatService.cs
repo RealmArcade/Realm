@@ -44,7 +44,7 @@ public class CheatService
 		DefinitionManager definitionManager,
 		IEnumerable<Entity> selectedEntities)
 	{
-		if (isMultiplayer || !(GameHost.Instance?.CheatsEnabled ?? false))
+		if (isMultiplayer || !(GameContext.Host?.CheatsEnabled ?? false))
 		{
 			return (CheatResult.None, 0);
 		}
@@ -80,7 +80,7 @@ public class CheatService
 
 	private static (CheatResult Result, int AffectedCount) ApplyGigachad(CheatService service, Entity playerEntity, DefinitionManager definitionManager, IEnumerable<Entity> selectedEntities)
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
 			service.GigachadEnabled = true;
 		}
@@ -155,9 +155,9 @@ public class CheatService
 				world.Add<Dead>(entity);
 			}
 
-			if (GameHost.Instance != null && GameHost.TryGetUnit3D(entity, out var unit3D))
+			if (GameContext.Host != null && GameHost.TryGetUnit3D(entity, out var unit3D))
 			{
-				GameHost.Instance.TriggerKillUnit(unit3D);
+				GameContext.Host.TriggerKillUnit(unit3D);
 			}
 
 			destroyed++;
@@ -168,9 +168,9 @@ public class CheatService
 
 	private static (CheatResult Result, int AffectedCount) ApplyEzClap(CheatService service, Entity playerEntity, DefinitionManager definitionManager, IEnumerable<Entity> selectedEntities)
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			((IGameAPI)GameHost.Instance).TriggerVictory();
+			((IGameAPI)GameContext.Host).TriggerVictory();
 		}
 
 		return (CheatResult.EzClap, 0);
@@ -198,7 +198,7 @@ public class CheatService
 
 	private static (CheatResult Result, int AffectedCount) ApplySpeedrun(CheatService service, Entity playerEntity, DefinitionManager definitionManager, IEnumerable<Entity> selectedEntities)
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
 			GameContext.SimulationService.FastBuildEnabled = !GameContext.SimulationService.FastBuildEnabled;
 		}
@@ -208,7 +208,7 @@ public class CheatService
 
 	private static (CheatResult Result, int AffectedCount) ApplySkibidi(CheatService service, Entity playerEntity, DefinitionManager definitionManager, IEnumerable<Entity> selectedEntities)
 	{
-		if (GameHost.Instance == null) return (CheatResult.UnlimitedPower, 0);
+		if (GameContext.Host == null) return (CheatResult.UnlimitedPower, 0);
 
 		service.UnlimitedPowerEnabled = !service.UnlimitedPowerEnabled;
 

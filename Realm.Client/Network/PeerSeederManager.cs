@@ -10,14 +10,12 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.UI;
 using HttpClient = System.Net.Http.HttpClient;
+using Realm.Client.Services;
 
 namespace Realm.Client.Network;
 
 public class PeerSeederManager
 {
-	private static PeerSeederManager? _instance;
-	public static PeerSeederManager Instance => _instance ??= new PeerSeederManager();
-
 	private ENetMultiplayerPeer? _enetPeer;
 	private CancellationTokenSource? _cts;
 	private bool _isSeeding;
@@ -27,7 +25,7 @@ public class PeerSeederManager
 	public bool AcceptingUploads { get; set; } = true;
 	public bool IsSeeding => _isSeeding;
 
-	private PeerSeederManager()
+	public PeerSeederManager()
 	{
 		_seederId = Guid.NewGuid().ToString("N");
 	}
@@ -36,7 +34,7 @@ public class PeerSeederManager
 	{
 		if (_isSeeding) return;
 
-		if (LobbyManager.Instance == null || LobbyManager.Instance.LocalNatType == NatType.Symmetric)
+		if (GameContext.Lobby == null || GameContext.Lobby.LocalNatType == NatType.Symmetric)
 		{
 			GD.Print("[PeerSeeder] Machine cannot host (Symmetric NAT). Seeding disabled.");
 			return;
@@ -46,7 +44,7 @@ public class PeerSeederManager
 		_seederId = Guid.NewGuid().ToString("N");
 		_cts = new CancellationTokenSource();
 
-		int localPort = LobbyManager.Instance.ENetPort + 15;
+		int localPort = GameContext.Lobby.ENetPort + 15;
 		try
 		{
 			_enetPeer = new ENetMultiplayerPeer();
@@ -58,8 +56,8 @@ public class PeerSeederManager
 				return;
 			}
 
-			LobbyManager.Instance.Multiplayer.MultiplayerPeer = _enetPeer;
-			LobbyManager.Instance.IsHost = true;
+			GameContext.Lobby.Multiplayer.MultiplayerPeer = _enetPeer;
+			GameContext.Lobby.IsHost = true;
 
 			GD.Print($"[PeerSeeder] Bound ENet seeder listener on port {localPort}");
 		}
@@ -81,11 +79,11 @@ public class PeerSeederManager
 
 		try
 		{
-			if (LobbyManager.Instance != null && LobbyManager.Instance.Multiplayer.MultiplayerPeer == _enetPeer)
+			if (GameContext.Lobby != null && GameContext.Lobby.Multiplayer.MultiplayerPeer == _enetPeer)
 			{
 				_enetPeer?.Close();
-				LobbyManager.Instance.Multiplayer.MultiplayerPeer = null;
-				LobbyManager.Instance.IsHost = false;
+				GameContext.Lobby.Multiplayer.MultiplayerPeer = null;
+				GameContext.Lobby.IsHost = false;
 			}
 			else
 			{
@@ -159,8 +157,8 @@ public class PeerSeederManager
 			try
 			{
 				var mapIds = GetFullyAvailableMapIds();
-				int publicPort = LobbyManager.Instance.PublicPort + 15;
-				string publicIp = LobbyManager.Instance.PublicIP;
+				int publicPort = GameContext.Lobby.PublicPort + 15;
+				string publicIp = GameContext.Lobby.PublicIP;
 
 				if (mapIds.Count > 0)
 				{
@@ -174,7 +172,7 @@ public class PeerSeederManager
 						AcceptingUploads = AcceptingUploads
 					};
 					var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-					var regUrl = $"{LobbyManager.Instance.RegistryServerUrl}/seeders/register";
+					var regUrl = $"{GameContext.Lobby.RegistryServerUrl}/seeders/register";
 					var resp = await httpClient.PostAsync(regUrl, jsonContent, token);
 					if (resp.IsSuccessStatusCode)
 					{
@@ -205,7 +203,7 @@ public class PeerSeederManager
 				using var client = new HttpClient();
 				var payload = new { SeederId = _seederId };
 				var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-				await client.PostAsync($"{LobbyManager.Instance.RegistryServerUrl}/seeders/unregister", jsonContent);
+				await client.PostAsync($"{GameContext.Lobby.RegistryServerUrl}/seeders/unregister", jsonContent);
 				GD.Print("[PeerSeeder] Sent unregister request to orchestrator.");
 			}
 			catch
@@ -217,17 +215,17 @@ public class PeerSeederManager
 	private bool IsSeederConditionMet()
 	{
 		if (!GameSettings.SeedMapFiles) return false;
-		if (LobbyManager.Instance == null) return false;
+		if (GameContext.Lobby == null) return false;
 
-		bool loggedIn = !string.IsNullOrEmpty(LobbyManager.Instance.AuthenticatedUsername);
+		bool loggedIn = !string.IsNullOrEmpty(GameContext.Lobby.AuthenticatedUsername);
 		if (!loggedIn) return false;
 
-		bool idle = string.IsNullOrEmpty(LobbyManager.Instance.ActiveLobbyId) &&
-		            (LobbyManager.Instance.Multiplayer.MultiplayerPeer == null ||
-		             LobbyManager.Instance.Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
+		bool idle = string.IsNullOrEmpty(GameContext.Lobby.ActiveLobbyId) &&
+		            (GameContext.Lobby.Multiplayer.MultiplayerPeer == null ||
+		             GameContext.Lobby.Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
 		if (!idle) return false;
 
-		bool canHost = LobbyManager.Instance.LocalNatType != NatType.Symmetric;
+		bool canHost = GameContext.Lobby.LocalNatType != NatType.Symmetric;
 		return canHost;
 	}
 

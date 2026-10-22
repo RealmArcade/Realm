@@ -155,7 +155,7 @@ public partial class Unit3D : Node3D
 		_impulseDuration = duration <= 0.001f ? 0.001f : duration;
 		_impulseTime = _impulseDuration;
 		_impulseFrequency = frequency;
-		GameHost.Instance?.RegisterActiveImpulseUnit(this);
+		GameContext.Host?.RegisterActiveImpulseUnit(this);
 	}
 
 	public void UpdateImpulseVisuals(float fDelta)
@@ -184,7 +184,7 @@ public partial class Unit3D : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity)
+			if (GameContext.Host != null && GameContext.World.IsAlive(Entity)
 			                              && GameContext.World.Has<DefinitionId>(Entity))
 				return GameContext.World.Get<DefinitionId>(Entity).Value;
 			return _objectId;
@@ -192,7 +192,7 @@ public partial class Unit3D : Node3D
 		set
 		{
 			_objectId = value;
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity))
+			if (GameContext.Host != null && GameContext.World.IsAlive(Entity))
 			{
 				var world = GameContext.World;
 				world.SetOrAdd(Entity, new DefinitionId(value));
@@ -218,7 +218,7 @@ public partial class Unit3D : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity))
+			if (GameContext.Host != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity))
 				return GameContext.World.Has<Building>(Entity);
 			if (GameHost.BuildingRegistry != null && !string.IsNullOrEmpty(UnitId) && GameHost.BuildingRegistry.ContainsKey(UnitId))
 				return true;
@@ -227,7 +227,7 @@ public partial class Unit3D : Node3D
 		set
 		{
 			_isBuilding = value;
-			if (GameHost.Instance != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity))
+			if (GameContext.Host != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity))
 			{
 				var world = GameContext.World;
 				if (value)
@@ -248,7 +248,7 @@ public partial class Unit3D : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity))
+			if (GameContext.Host != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity))
 			{
 				if (GameContext.World.Has<ResourceNode>(Entity))
 					return true;
@@ -410,7 +410,7 @@ public partial class Unit3D : Node3D
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity)
+			if (GameContext.Host != null && GameContext.World.IsAlive(Entity)
 			                              && GameContext.World.Has<UnitOwnerPlayer>(Entity))
 				return GameContext.World.Get<UnitOwnerPlayer>(Entity).PlayerIndex;
 			return _player;
@@ -418,7 +418,7 @@ public partial class Unit3D : Node3D
 		set
 		{
 			_player = value;
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity))
+			if (GameContext.Host != null && GameContext.World.IsAlive(Entity))
 			{
 				var world = GameContext.World;
 				world.SetOrAdd(Entity, new UnitOwnerPlayer(value));
@@ -446,7 +446,7 @@ public partial class Unit3D : Node3D
 		PlayerColor = color;
 		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
 		{
-			bool ignorePlayerColor = GameHost.Instance != null && (GameHost.Instance.GetModelIgnorePlayerColor(ModelPath) || GameHost.Instance.GetModelIgnorePlayerColor(UnitId));
+			bool ignorePlayerColor = GameContext.Host != null && (GameContext.Host.GetModelIgnorePlayerColor(ModelPath) || GameContext.Host.GetModelIgnorePlayerColor(UnitId));
 			ModelShaderManager.SetPlayerColor(_modelNode, color);
 			ModelShaderManager.SetPlayerColorOnAttachments(_modelNode, color);
 			ModelShaderManager.SetIgnorePlayerColor(_modelNode, ignorePlayerColor);
@@ -496,7 +496,7 @@ public partial class Unit3D : Node3D
 
 	public void UpdatePlayerColorVisual()
 	{
-		bool ignorePlayerColor = GameHost.Instance != null && (GameHost.Instance.GetModelIgnorePlayerColor(ModelPath) || GameHost.Instance.GetModelIgnorePlayerColor(UnitId));
+		bool ignorePlayerColor = GameContext.Host != null && (GameContext.Host.GetModelIgnorePlayerColor(ModelPath) || GameContext.Host.GetModelIgnorePlayerColor(UnitId));
 		if (ignorePlayerColor)
 		{
 			if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
@@ -508,9 +508,9 @@ public partial class Unit3D : Node3D
 		}
 
 		Color resolvedColor = PlayerColorConfig.GetColor(Player);
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
+		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList.Count > 0)
 		{
-			var matchPlayer = LobbyManager.Instance.PlayerList.Find(x => x.Slot == Player);
+			var matchPlayer = GameContext.Lobby.PlayerList.Find(x => x.Slot == Player);
 			if (matchPlayer != null)
 			{
 				resolvedColor = matchPlayer.Color;
@@ -794,7 +794,7 @@ public partial class Unit3D : Node3D
 			_cachedBaseModelScale = safeScale;
 			_isLaborPulsing = false;
 			_modelNode.Scale = new Vector3(safeScale, safeScale, safeScale);
-			float yOffset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(this) : 0f;
+			float yOffset = GameContext.Host != null ? GameContext.Host.GetModelYOffset(this) : 0f;
 			_modelNode.Position = new Vector3(_modelNode.Position.X, yOffset, _modelNode.Position.Z);
 			var calculatedAabb = CalculateModelLocalAabb();
 			if (calculatedAabb.Size.LengthSquared() > 0.001f)
@@ -926,7 +926,7 @@ public partial class Unit3D : Node3D
 	private void ApplyTransformations()
 	{
 		if (_modelNode == null) return;
-		float globalScale = GameHost.Instance != null ? GameHost.Instance.GetModelScale(this) : 1.0f;
+		float globalScale = GameContext.Host != null ? GameContext.Host.GetModelScale(this) : 1.0f;
 		float safeScale = globalScale <= 0.001f ? 1.0f : globalScale;
 		_cachedBaseModelScale = safeScale;
 		_isLaborPulsing = false;
@@ -934,7 +934,7 @@ public partial class Unit3D : Node3D
 
 		UpdateLodVisibility();
 
-		float yOffset = GameHost.Instance != null ? GameHost.Instance.GetModelYOffset(this) : 0f;
+		float yOffset = GameContext.Host != null ? GameContext.Host.GetModelYOffset(this) : 0f;
 		_modelNode.Position = new Vector3(0f, yOffset, 0f);
 	}
 
@@ -943,8 +943,8 @@ public partial class Unit3D : Node3D
 		if (IsPreview || _modelNode == null) return;
 		try
 		{
-			bool ignorePlayerColor = GameHost.Instance != null && (GameHost.Instance.GetModelIgnorePlayerColor(modelPath) || GameHost.Instance.GetModelIgnorePlayerColor(UnitId));
-			bool normalizeLuminance = GameHost.Instance != null && (GameHost.Instance.GetModelNormalizeLuminance(modelPath) || GameHost.Instance.GetModelNormalizeLuminance(UnitId));
+			bool ignorePlayerColor = GameContext.Host != null && (GameContext.Host.GetModelIgnorePlayerColor(modelPath) || GameContext.Host.GetModelIgnorePlayerColor(UnitId));
+			bool normalizeLuminance = GameContext.Host != null && (GameContext.Host.GetModelNormalizeLuminance(modelPath) || GameContext.Host.GetModelNormalizeLuminance(UnitId));
 			ModelShaderManager.ApplyPlayerColorShader(_modelNode, PlayerColor, ignorePlayerColor, normalizeLuminance);
 			if (!ignorePlayerColor)
 			{
@@ -955,7 +955,7 @@ public partial class Unit3D : Node3D
 				ModelShaderManager.SetIgnorePlayerColor(_modelNode, true);
 			}
 
-			GameHost.Instance?.ApplyAllGlobalOverridesToObject(this);
+			GameContext.Host?.ApplyAllGlobalOverridesToObject(this);
 		}
 		catch (Exception ex)
 		{
@@ -996,9 +996,9 @@ public partial class Unit3D : Node3D
 
 	public float GetBaseObstacleRadius()
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			return GameHost.Instance.GetOrCalculateObstacleRadius(UnitId, this);
+			return GameContext.Host.GetOrCalculateObstacleRadius(UnitId, this);
 		}
 
 		return 1.4f;
@@ -1010,7 +1010,7 @@ public partial class Unit3D : Node3D
 	/// </summary>
 	private void UpdateDropShadow()
 	{
-		if (GameHost.Instance == null || !GameHost.Instance.IsPathingCapability(Entity, TerrainPathingFlags.Flying))
+		if (GameContext.Host == null || !GameContext.Host.IsPathingCapability(Entity, TerrainPathingFlags.Flying))
 		{
 			var oldDecal = GetNodeOrNull<Decal>("DropShadow");
 			if (oldDecal != null)
@@ -1024,7 +1024,7 @@ public partial class Unit3D : Node3D
 		var existing = GetNodeOrNull<Decal>("DropShadow");
 		if (existing != null)
 		{
-			float updatedRadius = GameHost.Instance.GetOrCalculateObstacleRadius(UnitId, this) * GameHost.Instance.GetModelCollisionCircleRatio(ModelPath);
+			float updatedRadius = GameContext.Host.GetOrCalculateObstacleRadius(UnitId, this) * GameContext.Host.GetModelCollisionCircleRatio(ModelPath);
 			if (updatedRadius > 0.001f)
 			{
 				float safeRadius = Mathf.Max(0.1f, updatedRadius * 2.5f);
@@ -1034,12 +1034,12 @@ public partial class Unit3D : Node3D
 			return;
 		}
 
-		float radius = GameHost.Instance.GetOrCalculateObstacleRadius(UnitId, this) * GameHost.Instance.GetModelCollisionCircleRatio(ModelPath);
+		float radius = GameContext.Host.GetOrCalculateObstacleRadius(UnitId, this) * GameContext.Host.GetModelCollisionCircleRatio(ModelPath);
 		if (radius <= 0.001f) radius = 1f;
 
 		Decal shadowDecal = new Decal();
 		shadowDecal.Name = "DropShadow";
-		shadowDecal.TextureAlbedo = GameHost.Instance.GetSharedShadowGradient();
+		shadowDecal.TextureAlbedo = GameContext.Host.GetSharedShadowGradient();
 		float decalSize = Mathf.Max(0.1f, radius * 2.5f);
 		shadowDecal.Size = new Vector3(decalSize, 3f, decalSize);
 		shadowDecal.Position = Vector3.Zero;
@@ -1067,14 +1067,14 @@ public partial class Unit3D : Node3D
 		if (frozen)
 		{
 			_animationPlayer.Pause();
-			GameHost.Instance?.SuspendProceduralAnimation(this);
+			GameContext.Host?.SuspendProceduralAnimation(this);
 		}
 		else
 		{
 			_animationPlayer.Play();
 			if (HasProceduralAnimation)
 			{
-				GameHost.Instance?.ReapplyProceduralAnimation(this);
+				GameContext.Host?.ReapplyProceduralAnimation(this);
 			}
 		}
 	}
@@ -1117,7 +1117,7 @@ public partial class Unit3D : Node3D
 
 		if (_isCulled)
 		{
-			_culledGameTime = GameHost.Instance?.GameElapsedTime ?? 0f;
+			_culledGameTime = GameContext.Host?.GameElapsedTime ?? 0f;
 		}
 
 		_animStepAccumulator = 0f;
@@ -1372,7 +1372,7 @@ public partial class Unit3D : Node3D
 	{
 		if (model is ProceduralVfxInstance3D) return;
 		if (model is BillboardIconAttachment3D) return;
-		bool ignorePlayerColor = GameHost.Instance != null && GameHost.Instance.GetModelIgnorePlayerColor(attachmentId);
+		bool ignorePlayerColor = GameContext.Host != null && GameContext.Host.GetModelIgnorePlayerColor(attachmentId);
 		ModelShaderManager.ApplyPlayerColorShader(model, PlayerColor, ignorePlayerColor, true, false);
 		ModelShaderManager.SetIgnorePlayerColor(model, ignorePlayerColor);
 	}
@@ -2360,7 +2360,7 @@ public partial class Unit3D : Node3D
 
 	private Vector3 GetEcsOrLocalPosition()
 	{
-		if (GameHost.Instance != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity) && GameContext.World.Has<Position>(Entity))
+		if (GameContext.Host != null && GameContext.World != null && Entity != default && GameContext.World.IsAlive(Entity) && GameContext.World.Has<Position>(Entity))
 		{
 			var p = GameContext.World.Get<Position>(Entity).Value;
 			return new Vector3(p.X, p.Y, p.Z);
@@ -2372,7 +2372,7 @@ public partial class Unit3D : Node3D
 	private void GetRemainingRallyPoints(List<Vector3> points)
 	{
 		points.Clear();
-		if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return;
+		if (GameContext.Host == null || !GameContext.World.IsAlive(Entity)) return;
 
 		var world = GameContext.World;
 		Vector3 currentPos = GetEcsOrLocalPosition();
@@ -2461,9 +2461,9 @@ public partial class Unit3D : Node3D
 			var marker = GetOrCreateRallyMarker(i);
 			marker.Visible = true;
 			Vector3 pos = points[i + 1];
-			if (GameHost.Instance.GroundTerrain != null)
+			if (GameContext.Host.GroundTerrain != null)
 			{
-				GameHost.Instance.GroundTerrain.GetHeightAndNormal(pos.X, pos.Z, out float h, out _);
+				GameContext.Host.GroundTerrain.GetHeightAndNormal(pos.X, pos.Z, out float h, out _);
 				pos.Y = h + 0.1f;
 			}
 
@@ -2532,10 +2532,10 @@ public partial class Unit3D : Node3D
 	public void UpdateRallyVisuals()
 	{
 		if (!IsBuilding || !GameContext.PerspectiveFilter.CanSeeOwnedUi(Player)) return;
-		if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return;
+		if (GameContext.Host == null || !GameContext.World.IsAlive(Entity)) return;
 
 		EnsureRallyVisualsContainer();
-		if (!GameHost.Instance.CanProduceUnits(this))
+		if (!GameContext.Host.CanProduceUnits(this))
 		{
 			_rallyVisualsContainer.Visible = false;
 			return;
@@ -2596,9 +2596,9 @@ public partial class Unit3D : Node3D
 
 	private void PositionRallyMarker(Vector3 finalPos)
 	{
-		if (GameHost.Instance.GroundTerrain != null)
+		if (GameContext.Host.GroundTerrain != null)
 		{
-			GameHost.Instance.GroundTerrain.GetHeightAndNormal(finalPos.X, finalPos.Z, out float hFinal, out _);
+			GameContext.Host.GroundTerrain.GetHeightAndNormal(finalPos.X, finalPos.Z, out float hFinal, out _);
 			finalPos.Y = hFinal + 1.5f;
 		}
 
@@ -2646,7 +2646,7 @@ public partial class Unit3D : Node3D
 	{
 		points.Clear();
 		IsAttackPath = false;
-		if (GameHost.Instance == null || !GameContext.World.IsAlive(Entity)) return;
+		if (GameContext.Host == null || !GameContext.World.IsAlive(Entity)) return;
 
 		var world = GameContext.World;
 		if (world.Has<AttackTarget>(Entity) || world.Has<AttackMove>(Entity))
@@ -2689,9 +2689,9 @@ public partial class Unit3D : Node3D
 
 	private Vector3 SamplePathGround(Vector3 point)
 	{
-		if (GameHost.Instance?.GroundTerrain != null)
+		if (GameContext.Host?.GroundTerrain != null)
 		{
-			GameHost.Instance.GroundTerrain.GetHeightAndNormal(point.X, point.Z, out float height, out _);
+			GameContext.Host.GroundTerrain.GetHeightAndNormal(point.X, point.Z, out float height, out _);
 			return new Vector3(point.X, height + PathGroundOffset, point.Z);
 		}
 

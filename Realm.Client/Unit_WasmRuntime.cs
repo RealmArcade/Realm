@@ -116,9 +116,9 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 			if (!_world.IsAlive(_entity)) return;
 			_world.SetOrAdd(_entity, new UnitOwnerPlayer(value));
 
-			if (_world.Has<Owner>(_entity) && GameHost.Instance != null)
+			if (_world.Has<Owner>(_entity) && GameContext.Host != null)
 			{
-				var playerOwner = GameHost.Instance.GetPlayerEntityForPlayerIndex(value).AsPlayerEntity(_world);
+				var playerOwner = GameContext.Host.GetPlayerEntityForPlayerIndex(value).AsPlayerEntity(_world);
 				_world.Set(_entity, new Owner(playerOwner));
 			}
 
@@ -185,7 +185,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 						_world.Add(_entity, new Dead());
 						if (GameHost.TryGetUnit3D(_entity, out var deadU3D))
 						{
-							GameHost.Instance.TriggerKillUnit(deadU3D);
+							GameContext.Host.TriggerKillUnit(deadU3D);
 						}
 					}
 				}
@@ -493,7 +493,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 	public void Gather(ResourceNodeId resourceNode)
 	{
 		if (!_world.IsAlive(_entity) || IsDead || !resourceNode.IsValid) return;
-		if (GameHost.Instance != null && GameHost.Instance.TryGetResourceProp(resourceNode, out var propNode) && GodotObject.IsInstanceValid(propNode))
+		if (GameContext.Host != null && GameContext.Host.TryGetResourceProp(resourceNode, out var propNode) && GodotObject.IsInstanceValid(propNode))
 		{
 			var gatherer = new Gatherer(propNode.PropId, propNode.Entity);
 			_world.SetOrAdd(_entity, gatherer);
@@ -749,14 +749,14 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
-			((IGameAPI?)GameHost.Instance)?.SetUnitFacing((Realm.MapAPI.UnitId)_entity.Id, value);
+			((IGameAPI?)GameContext.Host)?.SetUnitFacing((Realm.MapAPI.UnitId)_entity.Id, value);
 		}
 	}
 
 	public void Stop()
 	{
 		if (!_world.IsAlive(_entity)) return;
-		GameHost.Instance.ClearUnitOrders(_entity);
+		GameContext.Host.ClearUnitOrders(_entity);
 		if (GameHost.TryGetUnit3D(_entity, out var u3d))
 		{
 			if (GodotObject.IsInstanceValid(u3d))
@@ -814,7 +814,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 	public bool CollectLootItem(LootItemId lootItem)
 	{
 		if (!lootItem.IsValid) return false;
-		return GameHost.Instance?.CollectLootItem(lootItem.Value, (UnitId)_entity.Id) ?? false;
+		return GameContext.Host?.CollectLootItem(lootItem.Value, (UnitId)_entity.Id) ?? false;
 	}
 
 	public int GetItemCharges(string itemId)
@@ -864,9 +864,9 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 	private void NotifyUiInventoryChanged()
 	{
-		if (GameHost.Instance != null && InGameHUD.Instance != null && GameHost.TryGetUnit3D(_entity, out var u3d) && GameHost.Instance.SelectedUnits.Contains(u3d))
+		if (GameContext.Host != null && GameContext.InGameHud != null && GameHost.TryGetUnit3D(_entity, out var u3d) && GameContext.Host.SelectedUnits.Contains(u3d))
 		{
-			InGameHUD.Instance.RefreshUI(GameHost.Instance.SelectedUnits);
+			GameContext.InGameHud.RefreshUI(GameContext.Host.SelectedUnits);
 		}
 	}
 

@@ -71,14 +71,14 @@ namespace Realm.Client.UI
 			ResetFolderLocations();
 			if (!GameContext.EditorService.ImportTerrainFromMinimapPathDomain(selectedPath, out var smoothedHeights, out var splatMap, out var treePositions)) return;
 
-			var terrain = GameHost.Instance.GroundTerrain;
+			var terrain = GameContext.Host.GroundTerrain;
 			int width = terrain.Width;
 			int depth = terrain.Depth;
 
 			EnsureTerrainArraysInitialized(terrain, width, depth);
 			ApplyTerrainData(terrain, width, depth, smoothedHeights, splatMap, terrain.Cells);
 
-			GameHost.Instance.AlignTerrainSplatMapExternal();
+			GameContext.Host.AlignTerrainSplatMapExternal();
 			terrain.UpdateMeshAndPhysics();
 
 			string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
@@ -108,12 +108,12 @@ namespace Realm.Client.UI
 
 		private void SpawnTrees(List<string> treeModels, List<(float x, float y, float z, float rot, float scale)> treePositions)
 		{
-			GameContext.MapEditorTerrainImportService.SpawnTrees(treeModels, treePositions, GameHost.Instance);
+			GameContext.MapEditorTerrainImportService.SpawnTrees(treeModels, treePositions, GameContext.Host);
 		}
 
 		private void SelectTerrainTexture(int index, Button swatch)
 		{
-			if (GameHost.Instance != null)
+			if (GameContext.Host != null)
 			{
 				if (ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
 				{
@@ -124,7 +124,7 @@ namespace Realm.Client.UI
 				GameContext.EditorService.EditorPaintTextureIndex = index;
 				HighlightSwatch(swatch);
 
-				if (!IsSwatchCompatibleTool(GameHost.Instance.ActiveEditorTool))
+				if (!IsSwatchCompatibleTool(GameContext.Host.ActiveEditorTool))
 				{
 					TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush);
 				}
@@ -138,9 +138,9 @@ namespace Realm.Client.UI
 
 		private void ApplyLiveLightingTuning()
 		{
-			if (EditableTerrain.Instance != null)
+			if (GameContext.Terrain is EditableTerrain editableTerrain)
 			{
-				GameContext.EnvironmentService.ApplyLiveLightingTuning(EditableTerrain.Instance);
+				GameContext.EnvironmentService.ApplyLiveLightingTuning(editableTerrain);
 			}
 		}
 	}

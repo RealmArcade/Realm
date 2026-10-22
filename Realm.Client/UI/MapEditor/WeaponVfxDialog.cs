@@ -1285,7 +1285,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			_currentWeapon.Name = _txtName.Text;
 		}
 
-		if (GameHost.Instance != null && !string.IsNullOrEmpty(_weaponId))
+		if (GameContext.Host != null && !string.IsNullOrEmpty(_weaponId))
 		{
 			GameHost.WeaponRegistry[_weaponId] = _currentWeapon;
 		}
@@ -1310,7 +1310,7 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			}
 		}
 
-		if (GameHost.Instance != null && !string.IsNullOrEmpty(targetId))
+		if (GameContext.Host != null && !string.IsNullOrEmpty(targetId))
 		{
 			if (_initialWeapon != null)
 			{

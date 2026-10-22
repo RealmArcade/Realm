@@ -1,4 +1,5 @@
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -24,38 +25,38 @@ public class MapEditorPathingPanel
 		if (_chkShallowWater != null)
 			_chkShallowWater.Toggled += (val) =>
 			{
-				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
-				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.ShallowWater = val;
+				MapEditorHUD tempQualifier = GameContext.MapEditorHud;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) GameContext.MapEditorHud._viewModel.ShallowWater = val;
 			};
 		if (_chkDeepWater != null)
 			_chkDeepWater.Toggled += (val) =>
 			{
-				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
-				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.DeepWater = val;
+				MapEditorHUD tempQualifier = GameContext.MapEditorHud;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) GameContext.MapEditorHud._viewModel.DeepWater = val;
 			};
 		if (_chkFlying != null)
 			_chkFlying.Toggled += (val) =>
 			{
-				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
-				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.Flying = val;
+				MapEditorHUD tempQualifier = GameContext.MapEditorHud;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) GameContext.MapEditorHud._viewModel.Flying = val;
 			};
 		if (_chkGround != null)
 			_chkGround.Toggled += (val) =>
 			{
-				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
-				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.Ground = val;
+				MapEditorHUD tempQualifier = GameContext.MapEditorHud;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) GameContext.MapEditorHud._viewModel.Ground = val;
 			};
 		if (_chkBuildable != null)
 			_chkBuildable.Toggled += (val) =>
 			{
-				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
-				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.Buildable = val;
+				MapEditorHUD tempQualifier = GameContext.MapEditorHud;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) GameContext.MapEditorHud._viewModel.Buildable = val;
 			};
 		if (_optPathingMode != null)
 			_optPathingMode.ItemSelected += (idx) =>
 			{
-				MapEditorHUD tempQualifier = MapEditorHUD.Instance;
-				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) MapEditorHUD.Instance._viewModel.PathingModeIndex = (int)idx;
+				MapEditorHUD tempQualifier = GameContext.MapEditorHud;
+				if ((tempQualifier != null ? tempQualifier._viewModel : null) != null) GameContext.MapEditorHud._viewModel.PathingModeIndex = (int)idx;
 			};
 	}
 

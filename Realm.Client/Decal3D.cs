@@ -44,7 +44,7 @@ public partial class Decal3D : Decal
 	{
 		get
 		{
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity)
+			if (GameContext.Host != null && GameContext.World.IsAlive(Entity)
 			                              && GameContext.World.Has<DecalIdentity>(Entity))
 				return GameContext.World.Get<DecalIdentity>(Entity).DecalId;
 			return _decalId;
@@ -52,7 +52,7 @@ public partial class Decal3D : Decal
 		set
 		{
 			_decalId = value;
-			if (GameHost.Instance != null && GameContext.World.IsAlive(Entity))
+			if (GameContext.Host != null && GameContext.World.IsAlive(Entity))
 			{
 				var world = GameContext.World;
 				world.SetOrAdd(Entity, new DecalIdentity(value));

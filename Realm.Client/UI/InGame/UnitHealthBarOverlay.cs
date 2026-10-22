@@ -29,13 +29,13 @@ public partial class UnitHealthBarOverlay : Control
 		_bars.Clear();
 
 		var mode = GameSettings.ShowHealthBars;
-		if (mode != HealthBarMode.Hidden && camera != null && GodotObject.IsInstanceValid(camera) && GameHost.Instance != null)
+		if (mode != HealthBarMode.Hidden && camera != null && GodotObject.IsInstanceValid(camera) && GameContext.Host != null)
 		{
 			var world = GameContext.World;
 			if (world != null)
 			{
 				Vector2 viewportSize = GetViewportRect().Size;
-				var units = GameHost.Instance.AllUnits;
+				var units = GameContext.Host.AllUnits;
 
 				for (int i = 0; i < units.Count; i++)
 				{

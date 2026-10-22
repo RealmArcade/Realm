@@ -227,7 +227,7 @@ public partial class GameHost
 		{
 			GameContext.EditorService.ModelYOffsetSavePending = true;
 			EditorHasUnsavedChanges = true;
-			PropMultiMeshManager.Instance?.RefreshProceduralAnimation(assetKey);
+			GameContext.PropMultiMesh?.RefreshProceduralAnimation(assetKey);
 		});
 	}
 
@@ -350,8 +350,8 @@ public partial class GameHost
 		ApplyMaterialOverridesToUnits(normAssetKey, brightness, tint, normalizeLuminance, ignorePlayerColor);
 		ApplyMaterialOverridesToPreviewNode(normAssetKey, brightness, tint, normalizeLuminance, ignorePlayerColor);
 
-		PropMultiMeshManager.Instance?.UpdateMaterialOverrides(normAssetKey);
-		PropMultiMeshManager.Instance?.MarkDirty(normAssetKey);
+		GameContext.PropMultiMesh?.UpdateMaterialOverrides(normAssetKey);
+		GameContext.PropMultiMesh?.MarkDirty(normAssetKey);
 	}
 
 	private bool ShouldSkipMaterialOverridesUpdate(string normAssetKey)
@@ -361,7 +361,7 @@ public partial class GameHost
 		bool hasProps = AllProps.Count > 0;
 		bool hasUnits = AllUnits.Count > 0;
 		bool hasPreview = _editorPreviewNode != null;
-		bool hasMultiMesh = PropMultiMeshManager.Instance != null && PropMultiMeshManager.Instance.HasGroups;
+		bool hasMultiMesh = GameContext.PropMultiMesh != null && GameContext.PropMultiMesh.HasGroups;
 
 		return !hasProps && !hasUnits && !hasPreview && !hasMultiMesh;
 	}
@@ -402,7 +402,7 @@ public partial class GameHost
 
 	public void UpdateAllMaterialOverrides()
 	{
-		if (AllProps.Count == 0 && AllUnits.Count == 0 && _editorPreviewNode == null && (PropMultiMeshManager.Instance == null || !PropMultiMeshManager.Instance.HasGroups))
+		if (AllProps.Count == 0 && AllUnits.Count == 0 && _editorPreviewNode == null && (GameContext.PropMultiMesh == null || !GameContext.PropMultiMesh.HasGroups))
 		{
 			return;
 		}
@@ -422,7 +422,7 @@ public partial class GameHost
 			ApplyOverridesToNode(_editorPreviewNode, _editorPreviewNode is Unit3D);
 		}
 
-		PropMultiMeshManager.Instance?.UpdateAllMaterialOverrides();
+		GameContext.PropMultiMesh?.UpdateAllMaterialOverrides();
 	}
 
 	private void ApplyOverridesToNode(Node3D node, bool isUnit)
@@ -795,7 +795,7 @@ public partial class GameHost
 
 		if (!string.IsNullOrEmpty(targetId))
 		{
-			PropMultiMeshManager.Instance?.MarkDirty(targetId);
+			GameContext.PropMultiMesh?.MarkDirty(targetId);
 		}
 	}
 
@@ -922,7 +922,7 @@ public partial class GameHost
 			? MapCameraBounds.FromTerrain(GroundTerrain.Width, GroundTerrain.Depth, GroundTerrain.QuadSize)
 			: MapCameraBounds.LegacyDefaults;
 		GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, resetCameraBounds);
-		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
+		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
 		RebuildCameraBoundsOverlay();
 
 		GameContext.EditorService.EditorCoordinates.Clear();
@@ -944,7 +944,7 @@ public partial class GameHost
 		AllUnits.Clear();
 		ClearAllBuildQueueGhosts();
 		AllProps.Clear();
-		PropMultiMeshManager.Instance?.Clear();
+		GameContext.PropMultiMesh?.Clear();
 		AllDecals.Clear();
 		AllVfx.Clear();
 		GameContext.FXService.ClearActivePings();
@@ -1037,16 +1037,16 @@ public partial class GameHost
 
 	private void RefreshUIAndExternalState()
 	{
-		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 		MapEditorHUD.ResetFolderLocations();
-		MapEditorHUD.Instance?.ClearTempWorkspaceExternal();
-		MapEditorHUD.Instance?.GenerateVSCodeFilesExternal();
-		MapEditorHUD.Instance?.ReadMetadataAndRefreshTextures();
-		MapEditorHUD.Instance?.ViewLoadMapProperties();
-		MapEditorHUD.Instance?.UpdateMapNameHeader();
-		MapEditorHUD.Instance?.SaveCurrentDirectoryBlake3();
-		MapEditorHUD.Instance?.ShowFeedbackExternal("Map reset: cleared all entities & terrain");
-		MapEditorHUD.Instance?.RegenerateMinimap();
+		GameContext.MapEditorHud?.ClearTempWorkspaceExternal();
+		GameContext.MapEditorHud?.GenerateVSCodeFilesExternal();
+		GameContext.MapEditorHud?.ReadMetadataAndRefreshTextures();
+		GameContext.MapEditorHud?.ViewLoadMapProperties();
+		GameContext.MapEditorHud?.UpdateMapNameHeader();
+		GameContext.MapEditorHud?.SaveCurrentDirectoryBlake3();
+		GameContext.MapEditorHud?.ShowFeedbackExternal("Map reset: cleared all entities & terrain");
+		GameContext.MapEditorHud?.RegenerateMinimap();
 	}
 
 
@@ -1095,7 +1095,7 @@ public partial class GameHost
 					GameContext.World.Destroy(prop.Entity);
 				}
 
-				PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+				GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
 				prop.QueueFree();
 				return;
 			}
@@ -1198,7 +1198,7 @@ public partial class GameHost
 
 		if (!GameContext.SessionState.IsMapEditorMode && IsStaticPropAsset(propId))
 		{
-			PropMultiMeshManager.Instance?.MarkDirty(propId);
+			GameContext.PropMultiMesh?.MarkDirty(propId);
 			return null;
 		}
 
@@ -1210,7 +1210,7 @@ public partial class GameHost
 		prop.Scale = Vector3.One * (scale <= 0.001f ? 1.0f : scale);
 		AddChild(prop);
 		AllProps.Add(prop);
-		PropMultiMeshManager.Instance?.MarkDirty(propId);
+		GameContext.PropMultiMesh?.MarkDirty(propId);
 
 		EntityToProp3D[entity] = prop;
 
@@ -1411,10 +1411,10 @@ public partial class GameHost
 	public void SetUnitTeamExternal(Unit3D unit, bool isEnemy)
 	{
 		int targetPlayer = isEnemy ? 1 : 0;
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
+		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList.Count > 0)
 		{
 			int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
-			var enemyPlayer = LobbyManager.Instance.PlayerList.Find(p => NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, p.Slot));
+			var enemyPlayer = GameContext.Lobby.PlayerList.Find(p => NetworkService.ArePlayerIndicesEnemies(localPlayerIndex, p.Slot));
 			if (isEnemy && enemyPlayer != null)
 			{
 				targetPlayer = enemyPlayer.Slot;
@@ -1542,7 +1542,7 @@ public partial class GameHost
 		GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, scaledCameraBounds);
 
 		DeleteEntitiesOutsideBounds();
-		PropMultiMeshManager.Instance?.RebuildAll();
+		GameContext.PropMultiMesh?.RebuildAll();
 
 		GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 
@@ -1625,13 +1625,13 @@ public partial class GameHost
 	private void RefreshUIForMapScale(int newWidth, int newDepth)
 	{
 		RebuildAllCoordinatePersistentMeshes();
-		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 		RebuildCameraBoundsOverlay();
-		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
-		MapEditorHUD.Instance?.RegenerateMinimap();
+		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
+		GameContext.MapEditorHud?.RegenerateMinimap();
 
 		EditorHasUnsavedChanges = true;
-		MapEditorHUD.Instance?.ShowFeedbackExternal($"Map scaled to {newWidth}x{newDepth}");
+		GameContext.MapEditorHud?.ShowFeedbackExternal($"Map scaled to {newWidth}x{newDepth}");
 	}
 
 	private void DeleteEntitiesOutsideBounds()

@@ -19,15 +19,13 @@ public partial class MapEditorHUD : Control
 {
 	public MapEditorHUD()
 	{
-		Instance = this;
+		GameContext.RegisterMapEditorHud(this);
 	}
 
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
-
-	public static MapEditorHUD Instance { get; set; }
 
 	public static string defaultLoadFolder
 	{
@@ -560,7 +558,7 @@ public partial class MapEditorHUD : Control
 	private void CreatePublishMapIdentityPanel(VBoxContainer vbox)
 	{
 		string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
-		string defaultUsername = LobbyManager.Instance?.AuthenticatedUsername ?? System.Environment.UserName;
+		string defaultUsername = GameContext.Lobby?.AuthenticatedUsername ?? System.Environment.UserName;
 		var (_, keyData, keyPath, _) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
 		string currentAuthorName = !string.IsNullOrWhiteSpace(keyData?.UserName) ? keyData.UserName : defaultUsername;
 		string authorPubKey = !string.IsNullOrWhiteSpace(keyData?.PublicKey) ? keyData.PublicKey : "";
@@ -652,13 +650,13 @@ public partial class MapEditorHUD : Control
 
 	public void TriggerToolSelection(EditorTool tool, Button btn, string placeId = "")
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
 		HandleEditorToolStateClear(tool);
 		UpdateActiveToolButton(btn);
 
-		GameHost.Instance.ActiveEditorTool = tool;
-		GameHost.Instance.ActivePlaceId = placeId;
+		GameContext.Host.ActiveEditorTool = tool;
+		GameContext.Host.ActivePlaceId = placeId;
 
 		UpdateActiveEditorModuleForTool(tool);
 		UpdatePanelVisibilityForToolPathing(tool);
@@ -672,17 +670,17 @@ public partial class MapEditorHUD : Control
 	{
 		if (tool != EditorTool.SelectMove)
 		{
-			GameHost.Instance.SelectedEditorObject = null;
+			GameContext.Host.SelectedEditorObject = null;
 		}
 
 		if (tool != EditorTool.Ramp)
 		{
-			GameHost.Instance.ClearRampStartPosExternal();
+			GameContext.Host.ClearRampStartPosExternal();
 		}
 
 		if (tool != EditorTool.Measure)
 		{
-			GameHost.Instance.ClearMeasureVisuals();
+			GameContext.Host.ClearMeasureVisuals();
 			ClearMeasureTelemetry();
 		}
 	}
@@ -764,13 +762,13 @@ public partial class MapEditorHUD : Control
 
 		if (NeedsPathingOverlay(tool))
 		{
-			GameHost.Instance?.UpdatePathingOverlay();
+			GameContext.Host?.UpdatePathingOverlay();
 		}
 	}
 
 	private void ApplyBrushStrengthForTool(EditorTool tool)
 	{
-		if (_sldBrushStrength == null || GameHost.Instance == null) return;
+		if (_sldBrushStrength == null || GameContext.Host == null) return;
 
 		if (tool == EditorTool.PaintTexture)
 		{
@@ -779,7 +777,7 @@ public partial class MapEditorHUD : Control
 			_sldBrushStrength.Step = 1.0;
 			_sldBrushStrength.Value = GameContext.SessionState.SavedTextureIntensity;
 			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = GameContext.SessionState.SavedTextureIntensity.ToString("F0");
-			GameHost.Instance.EditorBrushStrength = GameContext.SessionState.SavedTextureIntensity;
+			GameContext.Host.EditorBrushStrength = GameContext.SessionState.SavedTextureIntensity;
 		}
 		else
 		{
@@ -789,7 +787,7 @@ public partial class MapEditorHUD : Control
 			float restoredStrength = Math.Max(0.5f, GameContext.SessionState.SavedBrushStrength);
 			_sldBrushStrength.Value = restoredStrength;
 			if (_lblBrushStrengthValue != null) _lblBrushStrengthValue.Text = restoredStrength.ToString("F1");
-			GameHost.Instance.EditorBrushStrength = restoredStrength;
+			GameContext.Host.EditorBrushStrength = restoredStrength;
 		}
 	}
 
@@ -816,7 +814,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (tool == EditorTool.PlaceUnit)
 		{
-			string alignment = (GameHost.Instance != null && GameContext.EditorService.PlaceUnitIsEnemy) ? TranslationServer.Translate("Enemy (Orc)") : TranslationServer.Translate("Player (Alliance)");
+			string alignment = (GameContext.Host != null && GameContext.EditorService.PlaceUnitIsEnemy) ? TranslationServer.Translate("Enemy (Orc)") : TranslationServer.Translate("Player (Alliance)");
 			_lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Place Unit\n\nLeft-click on the ground to spawn a {0} aligned with {1}."), shortPlaceName, alignment);
 			return;
 		}
@@ -861,7 +859,7 @@ public partial class MapEditorHUD : Control
 	private bool IsInspectorAccordionVisible(EditorModule module)
 	{
 		if (module == EditorModule.Objects) return true;
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		bool hasSelectedObject = host != null && GodotObject.IsInstanceValid(host.SelectedEditorObject);
 		return hasSelectedObject && host?.ActiveEditorTool == EditorTool.SelectMove;
 	}
@@ -1001,7 +999,7 @@ public partial class MapEditorHUD : Control
 
 	private bool IsMenuOrOverlayOpen(Vector2 mousePos)
 	{
-		if (SettingsMenu.IsOpen) return true;
+		if (GameContext.IsSettingsMenuOpen) return true;
 		if (_helpOverlayPanel != null && _helpOverlayPanel.IsVisibleInTree()) return true;
 		if (GetNodeOrNull<Control>("ConfirmationOverlay") != null) return true;
 		if (GetNodeOrNull<Control>("GenerationOverlay") != null) return true;
@@ -1175,7 +1173,7 @@ public partial class MapEditorHUD : Control
 
 	public async Task ProceedToTestMap()
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
 		_wasmHasErrors = false;
 		ShowWasmConsoleModal();
@@ -1216,12 +1214,12 @@ public partial class MapEditorHUD : Control
 
 	private void SaveCameraState()
 	{
-		var camera = GameHost.Instance.MainCamera;
+		var camera = GameContext.Host.MainCamera;
 		if (camera == null) return;
 
 		GameContext.SessionState.SavedCameraPosition = camera.Position;
 
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
 		{
 			var state = GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
@@ -1239,7 +1237,7 @@ public partial class MapEditorHUD : Control
 
 	private void SaveGameHostStates()
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		GameContext.SessionState.SavedGridMode = GameContext.EditorService.EditorGridMode;
 		GameContext.SessionState.SavedActiveTool = host.ActiveEditorTool;
 		GameContext.SessionState.SavedActivePlaceId = host.ActivePlaceId;
@@ -1256,15 +1254,15 @@ public partial class MapEditorHUD : Control
 	{
 		MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._tempWorkspacePath);
 		string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
-		GameHost.Instance.SaveMapToFile(tempTerrainPath);
-		GameHost.Instance.EditorHasUnsavedChanges = false;
+		GameContext.Host.SaveMapToFile(tempTerrainPath);
+		GameContext.Host.EditorHasUnsavedChanges = false;
 		InvalidateMetadataCache();
 
 		if (OperatingSystem.IsWindows())
 		{
 			SetWasmConsoleStatus("Auto-saving modified files in VSCode...", UIStyle.ColorCyanGlow);
 			AppendWasmConsoleLog("[VSCode] Requesting auto-save of all open workspace files...");
-			await VSCodeManager.Instance.SaveAllOpenFilesAsync();
+			await GameContext.VSCode.SaveAllOpenFilesAsync();
 		}
 
 		SetWasmConsoleStatus("Compiling WASM map script...", UIStyle.ColorCyanGlow);
@@ -1312,22 +1310,22 @@ public partial class MapEditorHUD : Control
 		SetWasmConsoleStatus("Launching test mode...", UIStyle.ColorCyanGlow);
 		AppendWasmConsoleLog("=== LAUNCHING GAME ENGINE ===");
 
-		if (UIManager.Instance != null)
+		if (GameContext.UserInterface != null)
 		{
-			await UIManager.Instance.ApplyWindowSettings(GameSettings.WindowModeIdx, GameSettings.ResolutionIdx);
+			await GameContext.UserInterface.ApplyWindowSettings(GameSettings.WindowModeIdx, GameSettings.ResolutionIdx);
 		}
 
-		GameHost.Instance.ExitMapEditorMode();
+		GameContext.Host.ExitMapEditorMode();
 		GameContext.SessionState.IsTestMode = true;
 
-		if (UIManager.Instance != null)
+		if (GameContext.UserInterface != null)
 		{
-			UIManager.Instance.TransitionTo(GameScreen.InGameHUD);
+			GameContext.UserInterface.TransitionTo(GameScreen.InGameHUD);
 		}
 
-		if (LobbyManager.Instance != null)
+		if (GameContext.Lobby != null)
 		{
-			LobbyManager.Instance.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map");
+			GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map");
 		}
 
 		await Task.Delay(500);
