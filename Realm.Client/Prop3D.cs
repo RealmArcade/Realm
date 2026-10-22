@@ -294,6 +294,14 @@ public partial class Prop3D : Node3D
 
 	public bool IsPreview { get; set; } = false;
 
+	public Color? PreviewHologramColor { get; set; }
+
+	public void ApplyPreviewHologram()
+	{
+		if (!PreviewHologramColor.HasValue) return;
+		Realm.Client.Utils.PreviewHologram.Apply(this, PreviewHologramColor.Value);
+	}
+
 	public override void _Ready()
 	{
 		Name = $"Prop_{PropId}_{Guid.NewGuid().ToString().Substring(0, 4)}";
@@ -418,6 +426,7 @@ public partial class Prop3D : Node3D
 
 		UpdateLodVisibility();
 		UpdateSlopeAlignment();
+		ApplyPreviewHologram();
 	}
 
 	private void TryLoadAndAttachModel(Node3D visual, string modelPath)

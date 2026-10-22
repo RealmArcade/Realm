@@ -806,6 +806,7 @@ public partial class Unit3D : Node3D
 		ApplyVisuals(modelPath);
 		UpdateDropShadow();
 		UpdateSlopeAlignment();
+		ApplyPreviewHologram();
 
 		var calculatedAabb = CalculateModelLocalAabb();
 		if (calculatedAabb.Size.LengthSquared() > 0.001f)
@@ -950,6 +951,14 @@ public partial class Unit3D : Node3D
 	public void UpdateSlopeAlignment()
 	{
 		Realm.Client.Utils.ModelExtensions.ApplySlopeAlignment(this, _modelNode, IsSlopeAligned);
+	}
+
+	public Color? PreviewHologramColor { get; set; }
+
+	public void ApplyPreviewHologram()
+	{
+		if (!PreviewHologramColor.HasValue) return;
+		Realm.Client.Utils.PreviewHologram.Apply(this, PreviewHologramColor.Value);
 	}
 
 	public float GetBaseObstacleRadius()

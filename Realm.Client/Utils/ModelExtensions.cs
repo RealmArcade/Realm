@@ -38,7 +38,8 @@ public static class ModelExtensions
 				Godot.Vector3 up = normal;
 				Godot.Vector3 forward = System.MathF.Abs(up.Y) < 0.99f ? Godot.Vector3.Up.Cross(up).Cross(up).Normalized() : -Godot.Vector3.Forward;
 				Godot.Vector3 right = up.Cross(forward).Normalized();
-				visualNode.Basis = new Godot.Basis(right, up, -forward);
+				Godot.Vector3 visualScale = visualNode.Scale;
+				visualNode.Basis = new Godot.Basis(right * visualScale.X, up * visualScale.Y, -forward * visualScale.Z);
 			}
 		}
 	}

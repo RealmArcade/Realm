@@ -1542,15 +1542,16 @@ namespace Realm.Client.Core
 				string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : reqId;
 				string modelPath = GetFallbackModelPath(targetModel, isBuilding);
 
+				Color color = Realm.Client.Utils.PreviewHologram.UnitColor(reqIsEnemy);
 				var previewUnit = new Unit3D();
 				previewUnit.UnitId = reqId;
 				previewUnit.IsBuilding = isBuilding;
 				previewUnit.Player = reqIsEnemy ? 1 : 0;
 				previewUnit.IsPreview = true;
+				previewUnit.PreviewHologramColor = color;
 				AddChild(previewUnit);
 				previewUnit.LoadModel(modelPath);
 
-				Color color = reqIsEnemy ? new Color(1.0f, 0.3f, 0.15f) : new Color(0.15f, 0.65f, 1.0f);
 				MakeHologramRecursive(previewUnit, color);
 				_editorPreviewNode = previewUnit;
 			}
@@ -1567,12 +1568,13 @@ namespace Realm.Client.Core
 				}
 			}
 
+			Color color = Realm.Client.Utils.PreviewHologram.PropColor();
 			var previewProp = new Prop3D();
 			previewProp.PropId = reqId;
 			previewProp.IsPreview = true;
+			previewProp.PreviewHologramColor = color;
 			AddChild(previewProp);
 
-			Color color = new Color(0.95f, 0.82f, 0.15f);
 			MakeHologramRecursive(previewProp, color);
 			_editorPreviewNode = previewProp;
 		}
@@ -1642,6 +1644,7 @@ namespace Realm.Client.Core
 				PositionStandardPreview(_editorPreviewNode, previewPos, previewRot, safePreviewScale);
 			}
 
+			UpdatePreviewSlopeAlignment(_editorPreviewNode);
 			_editorPreviewNode.Visible = true;
 		}
 
@@ -1735,20 +1738,13 @@ namespace Realm.Client.Core
 
 		private void MakeHologramRecursive(Node node, Color color)
 		{
-			if (node is MeshInstance3D meshInstance)
-			{
-				var mat = new StandardMaterial3D();
-				mat.AlbedoColor = new Color(color.R, color.G, color.B, 0.4f);
-				mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-				mat.EmissionEnabled = true;
-				mat.Emission = new Color(color.R, color.G, color.B) * 0.5f;
-				meshInstance.MaterialOverride = mat;
-			}
+			Realm.Client.Utils.PreviewHologram.Apply(node, color);
+		}
 
-			foreach (var child in node.GetChildren())
-			{
-				MakeHologramRecursive(child, color);
-			}
+		private void UpdatePreviewSlopeAlignment(Node previewNode)
+		{
+			if (previewNode is Unit3D unitPreview) unitPreview.UpdateSlopeAlignment();
+			else if (previewNode is Prop3D propPreview) propPreview.UpdateSlopeAlignment();
 		}
 
 		private void ProcessMapEditorTick(float fDelta)
