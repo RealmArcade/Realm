@@ -226,12 +226,22 @@ public class ChatPanel
 		return utcTimestamp.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture);
 	}
 
+	public static string FormatElapsedTimestamp(float elapsedSeconds)
+	{
+		TimeSpan elapsed = TimeSpan.FromSeconds(Math.Max(0f, MathF.Floor(elapsedSeconds)));
+		return elapsed.TotalHours >= 1
+			? elapsed.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture)
+			: elapsed.ToString(@"mm\:ss", CultureInfo.InvariantCulture);
+	}
+
 	public void OnLobbyChatReceived(string senderName, string message, bool alliesOnly = false, long timestampUtcTicks = 0)
 	{
 		if (_chatLog == null) return;
 		string cleanMsg = message.Replace("[", "[[").Replace("]", "]]");
 		string prefix = alliesOnly ? "[color=#00a2ff](Allies)[/color] " : "";
-		string timestamp = FormatTimestamp(timestampUtcTicks);
+		string timestamp = GameHost.Instance != null
+			? FormatElapsedTimestamp(GameHost.Instance.GameElapsedTime)
+			: FormatTimestamp(timestampUtcTicks);
 		string textToAppend = $"[color=#a0a0a0][{timestamp}][/color] {prefix}[color=#00ffc8]{senderName}:[/color] {cleanMsg}\n";
 		_chatLog.AppendText(textToAppend);
 	}
