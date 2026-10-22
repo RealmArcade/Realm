@@ -61,6 +61,9 @@ interface game-api {
     get-player-bot-genre: func(player-index: s32) -> string;
     get-player-bot-profile: func(player-index: s32) -> string;
     get-player-color-hex: func(player-index: s32) -> string;
+    get-player-color-x: func(player-index: s32) -> f32;
+    get-player-color-y: func(player-index: s32) -> f32;
+    get-player-color-z: func(player-index: s32) -> f32;
     get-player-count: func() -> s32;
     get-player-language: func(player-index: s32) -> string;
     get-player-name: func(player-index: s32) -> string;
@@ -167,6 +170,7 @@ interface game-api {
     set-region-pathing: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32, pathing-flags: s32, blocked: bool);
     set-resource-node-amount: func(node-id: s32, value: f32);
     set-static-text: func(handle: s32, text: string);
+    set-static-text-color: func(handle: s32, color-x: f32, color-y: f32, color-z: f32);
     set-static-text-visible: func(handle: s32, visible: bool);
     set-summary-table-headers: func(column-headers: list<string>);
     set-summary-table-row: func(row-key: string, cell-values: list<string>);

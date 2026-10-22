@@ -581,6 +581,22 @@ public partial class GameHost
 		}).CallDeferred();
 	}
 
+	void IGameAPI.SetStaticTextColor(int handle, Vector3 color)
+	{
+		SetStaticTextColorViewLogic(handle, color);
+	}
+
+	private void SetStaticTextColorViewLogic(int handle, Vector3 color)
+	{
+		Callable.From(() =>
+		{
+			if (_staticTextLabels.TryGetValue(handle, out var label))
+			{
+				label.Modulate = new Color(color.X, color.Y, color.Z);
+			}
+		}).CallDeferred();
+	}
+
 	void IGameAPI.SetStaticTextVisible(int handle, bool visible)
 	{
 		SetStaticTextVisibleViewLogic(handle, visible);
@@ -1072,6 +1088,12 @@ public partial class GameHost
 	string IGameAPI.GetPlayerColorHex(int playerIndex)
 	{
 		return PlayerColorConfig.GetColorHex(playerIndex);
+	}
+
+	Vector3 IGameAPI.GetPlayerColor(int playerIndex)
+	{
+		Color color = PlayerColorConfig.GetColorForOwner(playerIndex);
+		return new Vector3(color.R, color.G, color.B);
 	}
 
 

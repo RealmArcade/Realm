@@ -2345,6 +2345,13 @@
             <param name="handle">The handle returned by <see cref="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)"/>.</param>
             <param name="text">The new text to display.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetStaticTextColor(System.Int32,System.Numerics.Vector3)">
+            <summary>
+            Changes the color of a static world label without recreating it.
+            </summary>
+            <param name="handle">The handle returned by <see cref="M:Realm.MapAPI.IGameAPI.CreateStaticText(System.String,System.Numerics.Vector3,System.Numerics.Vector3,System.Int32)"/>.</param>
+            <param name="color">The new text color in RGB format.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetStaticTextVisible(System.Int32,System.Boolean)">
             <summary>
             Shows or hides a static world label without destroying it.
@@ -2583,6 +2590,13 @@
             </summary>
             <param name="playerIndex">Zero-based player slot index.</param>
             <returns>A 6-character hex color string.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerColor(System.Int32)">
+            <summary>
+            Returns the RGB color assigned to the specified player slot.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <returns>The player's color in RGB format.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.FormatColoredPlayerName(System.Int32)">
             <summary>
@@ -3765,6 +3779,11 @@
         <member name="P:Realm.MapAPI.PlayerId.ColorHex">
             <summary>
             Gets the hexadecimal color string for this player slot.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.PlayerId.Color">
+            <summary>
+            Gets the RGB color assigned to this player slot.
             </summary>
         </member>
         <member name="P:Realm.MapAPI.PlayerId.ColoredName">

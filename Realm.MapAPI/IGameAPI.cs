@@ -1512,6 +1512,13 @@ public interface IGameAPI
 	void SetStaticText(int handle, string text);
 
 	/// <summary>
+	/// Changes the color of a static world label without recreating it.
+	/// </summary>
+	/// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
+	/// <param name="color">The new text color in RGB format.</param>
+	void SetStaticTextColor(int handle, Vector3 color);
+
+	/// <summary>
 	/// Shows or hides a static world label without destroying it.
 	/// </summary>
 	/// <param name="handle">The handle returned by <see cref="CreateStaticText"/>.</param>
@@ -1833,6 +1840,13 @@ public interface IGameAPI
 	/// <param name="playerIndex">Zero-based player slot index.</param>
 	/// <returns>A 6-character hex color string.</returns>
 	string GetPlayerColorHex(int playerIndex);
+
+	/// <summary>
+	/// Returns the RGB color assigned to the specified player slot.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <returns>The player's color in RGB format.</returns>
+	Vector3 GetPlayerColor(int playerIndex);
 
 	/// <summary>
 	/// Returns the player name formatted with rich text / BBCode markup matching their assigned player slot color.
