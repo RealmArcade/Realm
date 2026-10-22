@@ -88,6 +88,20 @@ public static class Program
 		}
 	}
 
+	private static MeshSurfaceCategory? ParseSurfaceCategory(string? surfaceCategory)
+	{
+		if (string.IsNullOrWhiteSpace(surfaceCategory)) return null;
+
+		string normalized = surfaceCategory.Trim().Replace("-", "_").Replace(" ", "_");
+		if (string.Equals(normalized, "auto", StringComparison.OrdinalIgnoreCase)) return null;
+		if (string.Equals(normalized, "hard_edged", StringComparison.OrdinalIgnoreCase)) return MeshSurfaceCategory.HardEdged;
+		if (string.Equals(normalized, "hardedged", StringComparison.OrdinalIgnoreCase)) return MeshSurfaceCategory.HardEdged;
+		if (string.Equals(normalized, "organic", StringComparison.OrdinalIgnoreCase)) return MeshSurfaceCategory.Organic;
+
+		Console.Error.WriteLine($"Warning: unknown --surface_category '{surfaceCategory}', falling back to auto detection.");
+		return null;
+	}
+
 	private static bool EnsurePathExists(string inputPath)
 	{
 		if (File.Exists(inputPath) || Directory.Exists(inputPath))
@@ -1053,10 +1067,11 @@ public static class Program
 			else
 			{
 				byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(inputGlbBytes).UnoptimizedBytes;
-				var opt = ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force);
+				var opt = ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force, ParseSurfaceCategory(options.SurfaceCategory));
 				var optimizer = new GlbOptimizer();
 				var optResult = optimizer.Optimize(unoptimized, opt);
 				outputGlbBytes = optResult.Success && optResult.OutputGlbBytes != null ? optResult.OutputGlbBytes : unoptimized;
+				WriteLodTriangleCountsReport(optResult, inputFile);
 			}
 
 			string? outDir = Path.GetDirectoryName(targetFile);
@@ -1074,13 +1089,42 @@ public static class Program
 		}
 	}
 
+	private static void WriteLodTriangleCountsReport(Realm.Shared.OptimizationResult result, string inputFile)
+	{
+		WriteLodTriangleCountsReport(result.LodTriangleCounts, inputFile);
+	}
+
+	private static void WriteLodTriangleCountsReport(int[]? counts, string inputFile)
+	{
+		if (counts == null || counts.Length == 0)
+		{
+			Console.WriteLine($"LOD triangles for {inputFile}: no LOD tiers were generated.");
+			return;
+		}
+
+		var report = new System.Text.StringBuilder();
+		for (int tier = 0; tier < counts.Length; tier++)
+		{
+			if (tier > 0) report.Append(", ");
+			report.Append($"LOD{tier}={counts[tier]}");
+		}
+
+		Console.WriteLine($"LOD triangles for {inputFile}: {report}");
+	}
+
 	private static int ExecuteModelToRmeshConversion(string inputFile, string targetFile, MeshConvertOptions options)
 	{
+		MeshSurfaceCategory? surfaceCategory = ParseSurfaceCategory(options.SurfaceCategory);
+		OptimizationOptions? optimizationOptions = surfaceCategory.HasValue
+			? ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force, surfaceCategory)
+			: null;
+
 		var res = ModelConverter.ConvertToRmesh(
 			inputFile,
 			targetFile,
 			options.AssetType,
 			options.Force,
+			optimizationOptions,
 			chromaKey: options.ChromaKey,
 			sourceProfileImageWebp: options.SourceProfileImageWebp,
 			stripSourceProfileImage: options.StripSourceImage);
@@ -1088,6 +1132,7 @@ public static class Program
 		if (res.Success)
 		{
 			Console.WriteLine($"Successfully converted model: {inputFile} -> {targetFile} (Size: {res.OptimizedSize} bytes, TeamColor: {res.SupportsTeamColor})");
+			WriteLodTriangleCountsReport(res.LodTriangleCounts, inputFile);
 			return 0;
 		}
 

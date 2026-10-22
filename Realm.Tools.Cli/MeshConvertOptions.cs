@@ -23,6 +23,9 @@ public class MeshConvertOptions
 	[Option('t', "type", Required = false, HelpText = "Asset type for model: Character, Building, Prop, Item.")]
 	public string? AssetType { get; set; }
 
+	[Option("surface_category", Required = false, HelpText = "Surface category for LOD decimation: auto (detect from mesh features), organic, or hard_edged. Defaults to auto.")]
+	public string? SurfaceCategory { get; set; }
+
 	[Option("chroma_key", Required = false, HelpText = "Chroma key color in hex (e.g. #FF00FF) or 'auto' to automatically detect the dominant vibrant chroma key.")]
 	public string? ChromaKey { get; set; }
 

@@ -6,6 +6,8 @@ namespace Realm.Shared.ModelOptimization;
 
 public static class ModelConverter
 {
+	private const float HardEdgedCreaseAngleDegrees = 5.0f;
+
 	public static readonly string[] SupportedModelExtensions =
 	[
 		".glb", ".gltf", ".rmesh", ".fbx", ".obj"
@@ -18,7 +20,7 @@ public static class ModelConverter
 		return Array.Exists(SupportedModelExtensions, e => e.Equals(ext, StringComparison.OrdinalIgnoreCase));
 	}
 
-	public static OptimizationOptions GetAutomaticOptimizationOptions(string? assetType, bool forceReDecimate)
+	public static OptimizationOptions GetAutomaticOptimizationOptions(string? assetType, bool forceReDecimate, MeshSurfaceCategory? surfaceCategory = null)
 	{
 		int maxRes = 1024;
 		if (string.Equals(assetType, "Item", StringComparison.OrdinalIgnoreCase))
@@ -30,7 +32,9 @@ public static class ModelConverter
 		{
 			SimplificationRatio = 0.5f,
 			MaxTextureResolution = maxRes,
-			ForceReDecimate = forceReDecimate
+			ForceReDecimate = forceReDecimate,
+			CreaseAngleDegrees = surfaceCategory == MeshSurfaceCategory.HardEdged ? HardEdgedCreaseAngleDegrees : GlbMeshSmoother.DefaultCreaseAngleDegrees,
+			DecimationProfile = surfaceCategory.HasValue ? LodDecimationProfile.ForCategory(surfaceCategory.Value) : null
 		};
 	}
 
@@ -74,14 +78,14 @@ public static class ModelConverter
 		return null;
 	}
 
-	private static (bool Success, byte[]? OutputGlb, string? ErrorMessage) ProcessGlbOptimization(byte[] rawGlbBytes, string? effectiveAssetType, bool force, OptimizationOptions? options)
+	private static (bool Success, byte[]? OutputGlb, string? ErrorMessage, int[]? LodTriangleCounts) ProcessGlbOptimization(byte[] rawGlbBytes, string? effectiveAssetType, bool force, OptimizationOptions? options)
 	{
 		bool shouldForce = force || (options.HasValue && options.Value.ForceReDecimate);
 		bool isAlreadyOptimized = GlbManifestUtils.HasOptimizationFlag(rawGlbBytes);
 
 		if (!shouldForce && isAlreadyOptimized)
 		{
-			return (true, rawGlbBytes, null);
+			return (true, rawGlbBytes, null, null);
 		}
 
 		byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(rawGlbBytes).UnoptimizedBytes;
@@ -91,10 +95,10 @@ public static class ModelConverter
 		var optResult = optimizer.Optimize(unoptimized, opt);
 		if (!optResult.Success || optResult.OutputGlbBytes == null)
 		{
-			return (false, null, optResult.ErrorMessage ?? "Optimization failed.");
+			return (false, null, optResult.ErrorMessage ?? "Optimization failed.", null);
 		}
 
-		return (true, optResult.OutputGlbBytes, null);
+		return (true, optResult.OutputGlbBytes, null, optResult.LodTriangleCounts);
 	}
 
 	private static string DetermineChromaKey(string? chromaKey, JsonObject metaObj, byte[] finalGlbBytes)
@@ -201,6 +205,7 @@ public static class ModelConverter
 			result.AssetType = convRes.AssetType;
 			result.Author = convRes.Author;
 			result.PreferredFileName = convRes.PreferredFileName;
+			result.LodTriangleCounts = convRes.LodTriangleCounts;
 			return result;
 		}
 		catch (Exception ex)
@@ -385,7 +390,9 @@ public static class ModelConverter
 
 			UpdateMetadataObject(metaObj, inputFileName, effectiveAssetType, author, chromaKey, finalGlbBytes, supportsTeamColor, effectiveSourceProfileImage);
 
-			return BuildFinalRmeshResult(result, metaObj, finalGlbBytes, supportsTeamColor, effectiveAssetType, effectiveSourceProfileImage);
+			var finalResult = BuildFinalRmeshResult(result, metaObj, finalGlbBytes, supportsTeamColor, effectiveAssetType, effectiveSourceProfileImage);
+			finalResult.LodTriangleCounts = optRes.LodTriangleCounts;
+			return finalResult;
 		}
 		catch (Exception ex)
 		{
@@ -486,6 +493,7 @@ public static class ModelConverter
 				byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(inputGlbBytes).UnoptimizedBytes;
 				var optRes = ProcessGlbOptimization(inputGlbBytes, assetType, force, options);
 				outputGlbBytes = optRes.Success && optRes.OutputGlb != null ? optRes.OutputGlb : unoptimized;
+				result.LodTriangleCounts = optRes.LodTriangleCounts;
 			}
 
 			string? targetDir = Path.GetDirectoryName(target);

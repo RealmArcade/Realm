@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Numerics;
 using System.Text.Json.Nodes;
 
 namespace Realm.Shared.ModelOptimization;
@@ -9,14 +10,15 @@ public static unsafe class GlbLodGenerator
 	public static readonly float[] DefaultVisibilityBegins = new float[] { 0f, 9f, 19f, 40f };
 	public static readonly float[] DefaultVisibilityEnds = new float[] { 9f, 19f, 40f, 0f };
 
-	public static (bool Success, byte[] OutputGlbBytes, string ErrorMessage) GenerateLods(
+	public static (bool Success, byte[] OutputGlbBytes, string ErrorMessage, int[] LodTriangleCounts) GenerateLods(
 		byte[] inputGlbBytes,
 		float[]? lodRatios = null,
 		float[]? visBegins = null,
-		float[]? visEnds = null)
+		float[]? visEnds = null,
+		LodDecimationProfile? decimationProfile = null)
 	{
 		if (inputGlbBytes == null || inputGlbBytes.Length < 20)
-			return (false, inputGlbBytes ?? Array.Empty<byte>(), "Invalid GLB buffer");
+			return (false, inputGlbBytes ?? Array.Empty<byte>(), "Invalid GLB buffer", Array.Empty<int>());
 
 		if (!AreLodParametersValid(lodRatios, visBegins, visEnds))
 		{
@@ -27,11 +29,11 @@ public static unsafe class GlbLodGenerator
 
 		try
 		{
-			return ProcessGlb(inputGlbBytes, lodRatios!, visBegins!, visEnds!);
+			return ProcessGlb(inputGlbBytes, lodRatios!, visBegins!, visEnds!, decimationProfile);
 		}
 		catch (Exception ex)
 		{
-			return (false, inputGlbBytes, $"Failed to generate LODs: {ex.Message}");
+			return (false, inputGlbBytes, $"Failed to generate LODs: {ex.Message}", Array.Empty<int>());
 		}
 	}
 
@@ -42,23 +44,24 @@ public static unsafe class GlbLodGenerator
 		return IsDecreasingRatios(lodRatios);
 	}
 
-	private static (bool, byte[], string) ProcessGlb(byte[] input, float[] ratios, float[] visBegins, float[] visEnds)
+	private static (bool, byte[], string, int[]) ProcessGlb(byte[] input, float[] ratios, float[] visBegins, float[] visEnds, LodDecimationProfile? decimationProfile)
 	{
 		var (jsonNode, binBytes, glbVer) = GlbManifestUtils.ParseGlb(input);
 		if (jsonNode is not JsonObject root)
-			return (false, input, "Failed to parse glTF JSON root");
+			return (false, input, "Failed to parse glTF JSON root", Array.Empty<int>());
 
 		CleanEarlyExtensions(root);
 		CleanEarlyNodes(root);
 
 		if (!HasRequiredGlbArrays(root))
-			return (true, input, string.Empty);
+			return (true, input, string.Empty, Array.Empty<int>());
 
 		binBytes ??= Array.Empty<byte>();
 		using var newBinStream = new MemoryStream();
 		newBinStream.Write(binBytes, 0, binBytes.Length);
 
-		var meshLodMap = ProcessMeshes(root, ratios, binBytes, newBinStream);
+		int[] tierTriangleCounts = new int[ratios.Length];
+		var meshLodMap = ProcessMeshes(root, ratios, binBytes, newBinStream, decimationProfile, tierTriangleCounts);
 
 		AlignStream(newBinStream);
 		byte[] finalBinBytes = newBinStream.ToArray();
@@ -68,7 +71,7 @@ public static unsafe class GlbLodGenerator
 		SanityCheckFinalScenes(root);
 
 		byte[] outputGlb = GlbManifestUtils.BuildGlb(root, finalBinBytes, glbVer);
-		return (true, outputGlb, string.Empty);
+		return (true, outputGlb, string.Empty, tierTriangleCounts);
 	}
 
 	private static void CleanEarlyExtensions(JsonObject root)
@@ -127,7 +130,7 @@ public static unsafe class GlbLodGenerator
 		return true;
 	}
 
-	private static Dictionary<int, List<int>> ProcessMeshes(JsonObject root, float[] ratios, byte[] binBytes, MemoryStream newBinStream)
+	private static Dictionary<int, List<int>> ProcessMeshes(JsonObject root, float[] ratios, byte[] binBytes, MemoryStream newBinStream, LodDecimationProfile? decimationProfile, int[] tierTriangleCounts)
 	{
 		var meshLodMap = new Dictionary<int, List<int>>();
 		var meshes = root["meshes"] as JsonArray;
@@ -136,13 +139,13 @@ public static unsafe class GlbLodGenerator
 		for (int m = 0; m < meshes.Count; m++)
 		{
 			if (meshes[m] is not JsonObject meshObj) continue;
-			ProcessSingleMesh(meshObj, m, root, ratios, binBytes, newBinStream, meshes, meshLodMap);
+			ProcessSingleMesh(meshObj, m, root, ratios, binBytes, newBinStream, meshes, meshLodMap, decimationProfile, tierTriangleCounts);
 		}
 
 		return meshLodMap;
 	}
 
-	private static void ProcessSingleMesh(JsonObject meshObj, int m, JsonObject root, float[] ratios, byte[] binBytes, MemoryStream newBinStream, JsonArray meshes, Dictionary<int, List<int>> meshLodMap)
+	private static void ProcessSingleMesh(JsonObject meshObj, int m, JsonObject root, float[] ratios, byte[] binBytes, MemoryStream newBinStream, JsonArray meshes, Dictionary<int, List<int>> meshLodMap, LodDecimationProfile? decimationProfile, int[] tierTriangleCounts)
 	{
 		if (meshObj["primitives"] is not JsonArray primitives || primitives.Count == 0) return;
 
@@ -157,13 +160,14 @@ public static unsafe class GlbLodGenerator
 		var lodMeshIndices = new List<int>();
 		for (int t = 1; t < ratios.Length; t++)
 		{
-			ProcessLodTier(t, ratios[t], meshObj, root, binBytes, newBinStream, meshes, meshName, primitives, lodMeshIndices);
+			ProcessLodTier(t, ratios[t], meshObj, root, binBytes, newBinStream, meshes, meshName, primitives, lodMeshIndices, decimationProfile, tierTriangleCounts);
 		}
 
 		if (lodMeshIndices.Count > 0)
 		{
 			meshLodMap[m] = lodMeshIndices;
 			meshObj["name"] = $"{meshName}_LOD0";
+			AddTriangleCount(tierTriangleCounts, 0, primitives, root);
 		}
 	}
 
@@ -175,13 +179,13 @@ public static unsafe class GlbLodGenerator
 		       meshName.Contains("LOD3", StringComparison.OrdinalIgnoreCase);
 	}
 
-	private static void ProcessLodTier(int t, float ratio, JsonObject meshObj, JsonObject root, byte[] binBytes, MemoryStream newBinStream, JsonArray meshes, string meshName, JsonArray primitives, List<int> lodMeshIndices)
+	private static void ProcessLodTier(int t, float ratio, JsonObject meshObj, JsonObject root, byte[] binBytes, MemoryStream newBinStream, JsonArray meshes, string meshName, JsonArray primitives, List<int> lodMeshIndices, LodDecimationProfile? decimationProfile, int[] tierTriangleCounts)
 	{
 		var newPrimitives = new JsonArray();
 		for (int p = 0; p < primitives.Count; p++)
 		{
 			if (primitives[p] is not JsonObject primObj) continue;
-			ProcessPrimitive(primObj, t, ratio, root, binBytes, newBinStream, newPrimitives);
+			ProcessPrimitive(primObj, t, ratio, root, binBytes, newBinStream, newPrimitives, decimationProfile);
 		}
 
 		if (newPrimitives.Count > 0)
@@ -192,10 +196,32 @@ public static unsafe class GlbLodGenerator
 			newMesh["primitives"] = newPrimitives;
 			meshes.Add(newMesh);
 			lodMeshIndices.Add(newMeshIdx);
+			AddTriangleCount(tierTriangleCounts, t, newPrimitives, root);
 		}
 	}
 
-	private static void ProcessPrimitive(JsonObject primObj, int t, float ratio, JsonObject root, byte[] binBytes, MemoryStream newBinStream, JsonArray newPrimitives)
+	private static void AddTriangleCount(int[] tierTriangleCounts, int tier, JsonArray primitives, JsonObject root)
+	{
+		if (tierTriangleCounts == null || tier < 0 || tier >= tierTriangleCounts.Length) return;
+		if (root["accessors"] is not JsonArray accessors) return;
+
+		int triangleCount = 0;
+		for (int p = 0; p < primitives.Count; p++)
+		{
+			if (primitives[p] is not JsonObject primObj) continue;
+			if (!primObj.TryGetPropertyValue("indices", out var indicesNode) || indicesNode == null) continue;
+
+			int accessorIndex = indicesNode.GetValue<int>();
+			if (accessorIndex < 0 || accessorIndex >= accessors.Count) continue;
+			if (accessors[accessorIndex] is not JsonObject accessor) continue;
+
+			triangleCount += (accessor["count"]?.GetValue<int>() ?? 0) / 3;
+		}
+
+		tierTriangleCounts[tier] += triangleCount;
+	}
+
+	private static void ProcessPrimitive(JsonObject primObj, int t, float ratio, JsonObject root, byte[] binBytes, MemoryStream newBinStream, JsonArray newPrimitives, LodDecimationProfile? decimationProfile)
 	{
 		if (ShouldSkipPrimitive(primObj))
 		{
@@ -220,7 +246,7 @@ public static unsafe class GlbLodGenerator
 			return;
 		}
 
-		var simplifiedIndices = SimplifyIndices(originalIndices, geometry.Value, targetIndexCount, t, binBytes);
+		var simplifiedIndices = SimplifyIndices(originalIndices, geometry.Value, ratio, t, binBytes, decimationProfile);
 		if (simplifiedIndices == null)
 		{
 			newPrimitives.Add(primObj.DeepClone());
@@ -561,16 +587,42 @@ public static unsafe class GlbLodGenerator
 		return false;
 	}
 
-	private static uint[]? SimplifyIndices(uint[] originalIndices, PrimitiveGeometry geometry, int targetIndexCount, int t, byte[] binBytes)
+	private static uint[]? SimplifyIndices(uint[] originalIndices, PrimitiveGeometry geometry, float ratio, int t, byte[] binBytes, LodDecimationProfile? overrideProfile)
 	{
 		float[] weldedPositions = new float[geometry.PositionCount * 3];
 		float[] weldedTexCoords = new float[geometry.PositionCount * 2];
 		uint[] weldedIndices = new uint[originalIndices.Length];
 		uint[] representatives = new uint[geometry.PositionCount];
 		int weldedVertexCount = BuildPositionTexCoordWeldedMesh(weldedIndices, weldedPositions, weldedTexCoords, representatives, originalIndices, geometry, binBytes);
+		if (weldedVertexCount < 3) return null;
 
-		uint[] simplifiedIndices = new uint[originalIndices.Length];
-		nuint simplifiedCount = 0;
+		float sharpEdgeRatio = MeasureSharpEdgeRatio(weldedIndices, weldedPositions, weldedVertexCount);
+		LodDecimationProfile profile = overrideProfile ?? LodDecimationProfile.Detect(sharpEdgeRatio, originalIndices.Length / 3);
+
+		int targetIndexCount = (int)(originalIndices.Length * profile.GetMinimumRatioForTier(ratio)) / 3 * 3;
+		if (!IsTargetIndexCountValid(targetIndexCount, originalIndices.Length)) return null;
+
+		float targetError = GetLodTargetError(t) * profile.TargetErrorScale;
+		float texCoordWeight = geometry.HasTexCoords ? profile.TexCoordWeight : 0.0f;
+
+		return TrySimplifyWeldedMesh(weldedIndices, weldedPositions, weldedTexCoords, representatives, weldedVertexCount, geometry, binBytes, targetIndexCount, targetError, texCoordWeight, originalIndices.Length);
+	}
+
+	private static uint[]? TrySimplifyWeldedMesh(
+		uint[] weldedIndices,
+		float[] weldedPositions,
+		float[] weldedTexCoords,
+		uint[] representatives,
+		int weldedVertexCount,
+		PrimitiveGeometry geometry,
+		byte[] binBytes,
+		int targetIndexCount,
+		float targetError,
+		float texCoordWeight,
+		int originalIndexCount)
+	{
+		uint[] simplifiedIndices = new uint[originalIndexCount];
+		nuint simplifiedCount;
 
 		fixed (uint* pWelded = weldedIndices)
 		fixed (float* pWeldedPositions = weldedPositions)
@@ -579,11 +631,11 @@ public static unsafe class GlbLodGenerator
 		fixed (uint* pDest = simplifiedIndices)
 		fixed (byte* pBin = binBytes)
 		{
-			float* pAttributeWeights = stackalloc float[2] { 1.0f, 1.0f };
+			float* pAttributeWeights = stackalloc float[2] { texCoordWeight, texCoordWeight };
 
-			simplifiedCount = DoSimplifyIndices(pWelded, pDest, pWeldedPositions, (nuint)weldedVertexCount, pWeldedTexCoords, pAttributeWeights, geometry.HasTexCoords, targetIndexCount, t, (nuint)originalIndices.Length);
+			simplifiedCount = DoSimplifyIndices(pWelded, pDest, pWeldedPositions, (nuint)weldedVertexCount, pWeldedTexCoords, pAttributeWeights, targetIndexCount, targetError, (nuint)originalIndexCount);
 
-			if (simplifiedCount < 3 || (simplifiedCount % 3) != 0 || simplifiedCount >= (nuint)originalIndices.Length) return null;
+			if (simplifiedCount < 3 || (simplifiedCount % 3) != 0 || simplifiedCount >= (nuint)originalIndexCount) return null;
 
 			for (nuint i = 0; i < simplifiedCount; i++)
 			{
@@ -599,6 +651,94 @@ public static unsafe class GlbLodGenerator
 		Array.Copy(simplifiedIndices, finalIndices, (int)simplifiedCount);
 		return finalIndices;
 	}
+
+	private static float MeasureSharpEdgeRatio(uint[] weldedIndices, float[] weldedPositions, int weldedVertexCount)
+	{
+		if (weldedVertexCount <= 0) return 0.0f;
+
+		var canonicalPositions = new int[weldedVertexCount];
+		var positionLookup = new Dictionary<SpatialPositionKey, int>(weldedVertexCount);
+		for (int vertexIndex = 0; vertexIndex < weldedVertexCount; vertexIndex++)
+		{
+			int positionOffset = vertexIndex * 3;
+			var key = new SpatialPositionKey(new Vector3(weldedPositions[positionOffset], weldedPositions[positionOffset + 1], weldedPositions[positionOffset + 2]));
+			if (!positionLookup.TryGetValue(key, out int canonicalIndex))
+			{
+				canonicalIndex = positionLookup.Count;
+				positionLookup[key] = canonicalIndex;
+			}
+
+			canonicalPositions[vertexIndex] = canonicalIndex;
+		}
+
+		float sharpCosThreshold = MathF.Cos(LodDecimationProfile.FeatureEdgeAngleDegrees * (MathF.PI / 180.0f));
+		var edgeNormals = new Dictionary<long, Vector3>(weldedIndices.Length);
+
+		int sharedEdgeCount = 0;
+		int sharpEdgeCount = 0;
+
+		for (int index = 0; index + 2 < weldedIndices.Length; index += 3)
+		{
+			uint index0 = weldedIndices[index];
+			uint index1 = weldedIndices[index + 1];
+			uint index2 = weldedIndices[index + 2];
+			if (index0 >= (uint)weldedVertexCount || index1 >= (uint)weldedVertexCount || index2 >= (uint)weldedVertexCount) continue;
+
+			Vector3 faceNormal = ComputeWeldedFaceNormal(weldedPositions, (int)index0, (int)index1, (int)index2);
+
+			AccumulateEdge(edgeNormals, canonicalPositions, faceNormal, index0, index1, sharpCosThreshold, ref sharedEdgeCount, ref sharpEdgeCount);
+			AccumulateEdge(edgeNormals, canonicalPositions, faceNormal, index1, index2, sharpCosThreshold, ref sharedEdgeCount, ref sharpEdgeCount);
+			AccumulateEdge(edgeNormals, canonicalPositions, faceNormal, index2, index0, sharpCosThreshold, ref sharedEdgeCount, ref sharpEdgeCount);
+		}
+
+		return sharedEdgeCount == 0 ? 0.0f : sharpEdgeCount / (float)sharedEdgeCount;
+	}
+
+	private static void AccumulateEdge(
+		Dictionary<long, Vector3> edgeNormals,
+		int[] canonicalPositions,
+		Vector3 faceNormal,
+		uint vertexA,
+		uint vertexB,
+		float sharpCosThreshold,
+		ref int sharedEdgeCount,
+		ref int sharpEdgeCount)
+	{
+		int canonicalA = canonicalPositions[vertexA];
+		int canonicalB = canonicalPositions[vertexB];
+		long edgeKey = canonicalA < canonicalB
+			? ((long)canonicalA << 32) | (uint)canonicalB
+			: ((long)canonicalB << 32) | (uint)canonicalA;
+
+		if (!edgeNormals.TryGetValue(edgeKey, out Vector3 previousFaceNormal))
+		{
+			edgeNormals[edgeKey] = faceNormal;
+			return;
+		}
+
+		sharedEdgeCount++;
+		if (Vector3.Dot(previousFaceNormal, faceNormal) >= sharpCosThreshold) return;
+
+		sharpEdgeCount++;
+	}
+
+	private static Vector3 ComputeWeldedFaceNormal(float[] weldedPositions, int index0, int index1, int index2)
+	{
+		Vector3 position0 = ReadWeldedPosition(weldedPositions, index0);
+		Vector3 position1 = ReadWeldedPosition(weldedPositions, index1);
+		Vector3 position2 = ReadWeldedPosition(weldedPositions, index2);
+
+		Vector3 cross = Vector3.Cross(position1 - position0, position2 - position0);
+		float length = cross.Length();
+		return length > 1e-7f ? cross / length : Vector3.UnitY;
+	}
+
+	private static Vector3 ReadWeldedPosition(float[] weldedPositions, int vertexIndex)
+	{
+		int offset = vertexIndex * 3;
+		return new Vector3(weldedPositions[offset], weldedPositions[offset + 1], weldedPositions[offset + 2]);
+	}
+
 
 	private static int BuildPositionTexCoordWeldedMesh(uint[] weldedIndices, float[] weldedPositions, float[] weldedTexCoords, uint[] representatives, uint[] originalIndices, PrimitiveGeometry geometry, byte[] binBytes)
 	{
@@ -708,15 +848,18 @@ public static unsafe class GlbLodGenerator
 		};
 	}
 
-	private static nuint DoSimplifyIndices(uint* pWelded, uint* pDest, float* pWeldedPositions, nuint weldedVertexCount, float* pWeldedTexCoords, float* pAttributeWeights, bool hasTexCoords, int targetIndexCount, int t, nuint origLength)
+	private static nuint DoSimplifyIndices(
+		uint* pWelded,
+		uint* pDest,
+		float* pWeldedPositions,
+		nuint weldedVertexCount,
+		float* pWeldedTexCoords,
+		float* pAttributeWeights,
+		int targetIndexCount,
+		float targetError,
+		nuint origLength)
 	{
 		float resultError = 0f;
-		float targetError = GetLodTargetError(t);
-
-		if (!hasTexCoords)
-		{
-			return MeshOptimizerNative.meshopt_simplify(pDest, pWelded, origLength, pWeldedPositions, weldedVertexCount, 3 * sizeof(float), (nuint)targetIndexCount, targetError, MeshOptimizerNative.SimplifyPrune, &resultError);
-		}
 
 		return MeshOptimizerNative.meshopt_simplifyWithAttributes(
 			pDest, pWelded, origLength,

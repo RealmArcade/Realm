@@ -33,6 +33,12 @@ public class GlbOptimizer
 		return verVal?.GetValue<string>();
 	}
 
+	private static float ResolveCreaseAngleDegrees(OptimizationOptions options)
+	{
+		if (options.CreaseAngleDegrees > 0f && options.CreaseAngleDegrees <= 180f) return options.CreaseAngleDegrees;
+		return GlbMeshSmoother.DefaultCreaseAngleDegrees;
+	}
+
 	public GlbMetadata GetMetadata(byte[] glbBytes)
 	{
 		var meta = new GlbMetadata();
@@ -56,7 +62,7 @@ public class GlbOptimizer
 
 	private void ProcessOptimization(byte[] glbBytes, OptimizationOptions options, ref OptimizationResult result)
 	{
-		byte[] smoothed = GlbMeshSmoother.SmoothMesh(glbBytes, GlbMeshSmoother.DefaultCreaseAngleDegrees);
+		byte[] smoothed = GlbMeshSmoother.SmoothMesh(glbBytes, ResolveCreaseAngleDegrees(options));
 		byte[] sanitized = GlbManifestUtils.SanitizeMaterials(smoothed);
 
 		var (toolSuccess, toolBytes, toolError) = NativeToolRunner.RunGltfPack(
@@ -68,13 +74,15 @@ public class GlbOptimizer
 
 		byte[] packedBaseMesh = GetPackedBaseMesh(toolSuccess, toolBytes, sanitized);
 
-		var (lodSuccess, lodGlbBytes, lodError) = GlbLodGenerator.GenerateLods(packedBaseMesh);
+		var (lodSuccess, lodGlbBytes, lodError, lodTriangleCounts) = GlbLodGenerator.GenerateLods(packedBaseMesh, decimationProfile: options.DecimationProfile);
 		if (!lodSuccess)
 		{
 			result.Success = false;
 			result.ErrorMessage = $"LOD generation failed: {lodError}";
 			return;
 		}
+
+		result.LodTriangleCounts = lodTriangleCounts;
 
 		byte[] workingBytes = lodGlbBytes.Length > 0 ? lodGlbBytes : packedBaseMesh;
 

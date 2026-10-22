@@ -18,6 +18,7 @@ public class ModelOptimizerService
 		public float CreaseAngleDegrees { get; set; } = GlbMeshSmoother.DefaultCreaseAngleDegrees;
 		public int MaxTextureResolution { get; set; } = 1024;
 		public bool ForceReDecimate { get; set; } = false;
+		public MeshSurfaceCategory? SurfaceCategory { get; set; } = null;
 		public LodTierConfig[] LodTiers { get; set; } = null;
 
 		public OptimizationOptions()
@@ -60,7 +61,9 @@ public class ModelOptimizerService
 			AllowedPixelError = options.AllowedPixelError,
 			MaxTextureResolution = options.MaxTextureResolution,
 			ForceReDecimate = options.ForceReDecimate,
-			CompressTextures = true
+			CreaseAngleDegrees = options.CreaseAngleDegrees,
+			CompressTextures = true,
+			DecimationProfile = options.SurfaceCategory.HasValue ? LodDecimationProfile.ForCategory(options.SurfaceCategory.Value) : null
 		};
 
 		var sharedOptimizer = new GlbOptimizer();
@@ -74,7 +77,7 @@ public class ModelOptimizerService
 			DecimationSkipped = sharedResult.DecimationSkipped,
 			OriginalTriangleCount = 0,
 			OptimizedTriangleCount = 0,
-			LodTriangleCounts = Array.Empty<int>(),
+			LodTriangleCounts = sharedResult.LodTriangleCounts ?? Array.Empty<int>(),
 			ReductionRatio = sharedResult.OriginalSize > 0 ? ((float)sharedResult.OptimizedSize / sharedResult.OriginalSize) : 1.0f
 		};
 	}
