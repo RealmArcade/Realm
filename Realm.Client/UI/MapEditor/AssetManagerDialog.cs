@@ -40,8 +40,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	private Button _btnPruneUnused;
 	private Button _btnNormalize;
 
-	private ScrollContainer _scrollContainer;
-	private Control _virtualGridContent;
 	private Label _lblEmptyState;
 
 	private PanelContainer _footerPanel;
@@ -55,7 +53,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 	private AudioStreamPlayer _audioPlayer;
 
-	private readonly List<AssetGridCell> _cellPool = new();
 	private readonly List<IndexedAsset> _matchingAssets = new();
 
 	private SpritesheetAssetEditDialog _spritesheetEditDialog;

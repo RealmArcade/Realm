@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -312,7 +313,8 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		_onApplied = onApplied;
 		_onAppliedWithTemplateIdAndRtex = null;
 
-		string providedAsset = !string.IsNullOrEmpty(fileName) && fileName.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? fileName : string.Empty;
+		string resolvedFile = VfxShaderManager.ResolveSpritesheetTexturePath(fileName);
+		string providedAsset = resolvedFile.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? resolvedFile : string.Empty;
 		_rtexAsset = ResolveRtexAsset(providedAsset, MapWorkspaceService.GetActiveWorkspacePath(), _sheetFileName, _slug, false);
 
 		TakeInitialSnapshot();

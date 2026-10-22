@@ -28,9 +28,7 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 	private Label _lblResultsCount;
 	private Label _lblFilterExtensions;
 
-	private ScrollContainer _scrollContainer;
 	private ScrollContainer _folderScroll;
-	private Control _virtualGridContent;
 	private Label _lblEmptyState;
 
 	private PanelContainer _bottomDetailsPanel;
@@ -47,7 +45,6 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 
 	private readonly AudioStreamPlayer _audioPlayer;
 
-	private readonly List<AssetGridCell> _cellPool = new();
 	private readonly List<IndexedAsset> _matchingAssets = new();
 
 	private static bool _hasAutoRescannedOnFirstOpen = false;
@@ -933,6 +930,9 @@ public partial class AssetBrowserDialog : AssetGridDialogBase
 
 	private void UpdateVisibleGridCells()
 	{
+		if (_scrollContainer == null || !GodotObject.IsInstanceValid(_scrollContainer)) return;
+		if (_virtualGridContent == null || !GodotObject.IsInstanceValid(_virtualGridContent)) return;
+
 		float availableWidth = Mathf.Max(100.0f, _scrollContainer.Size.X - GridPadding * 2.0f);
 		int columns = Math.Max(1, (int)((availableWidth + SpacingX) / (CellWidth + SpacingX)));
 		int totalRows = (_matchingAssets.Count + columns - 1) / columns;

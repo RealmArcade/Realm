@@ -18,7 +18,7 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 	protected float GridPadding = 15.0f;
 
 	protected readonly List<AssetGridCell> _cellPool = new();
-	protected Container _virtualGridContent;
+	protected Control _virtualGridContent;
 	protected ScrollContainer _scrollContainer;
 
 	protected void EnsureCellPoolCapacity(int requiredCapacity)
@@ -27,7 +27,7 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 		{
 			var newCell = new AssetGridCell();
 			_cellPool.Add(newCell);
-			_virtualGridContent.AddChild(newCell);
+			if (_virtualGridContent != null) _virtualGridContent.AddChild(newCell);
 		}
 	}
 
@@ -63,7 +63,9 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 
 	protected void UpdateVirtualGridSize(int matchCount)
 	{
-		float availableWidth = Mathf.Max(100.0f, _scrollContainer.Size.X - GridPadding * 2.0f);
+		if (_virtualGridContent == null || !GodotObject.IsInstanceValid(_virtualGridContent)) return;
+
+		float availableWidth = Mathf.Max(100.0f, GetScrollContainerWidth(_scrollContainer) - GridPadding * 2.0f);
 		int columns = Math.Max(1, (int)((availableWidth + SpacingX) / (CellWidth + SpacingX)));
 		int totalRows = (matchCount + columns - 1) / columns;
 		float totalHeight = matchCount > 0
@@ -73,8 +75,22 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 		_virtualGridContent.CustomMinimumSize = new Vector2(0, totalHeight);
 	}
 
+	private static float GetScrollContainerWidth(ScrollContainer scrollContainer)
+	{
+		if (scrollContainer == null || !GodotObject.IsInstanceValid(scrollContainer)) return 100.0f;
+		return scrollContainer.Size.X;
+	}
+
 	protected void UpdateVisibleCellsForScroll(ScrollContainer scrollContainer, int matchCount, out int startIndex, out int visibleCount, out int columns)
 	{
+		if (scrollContainer == null || !GodotObject.IsInstanceValid(scrollContainer))
+		{
+			startIndex = 0;
+			visibleCount = 0;
+			columns = 1;
+			return;
+		}
+
 		float availableWidth = Mathf.Max(100.0f, scrollContainer.Size.X - GridPadding * 2.0f);
 		columns = Math.Max(1, (int)((availableWidth + SpacingX) / (CellWidth + SpacingX)));
 		int totalRows = (matchCount + columns - 1) / columns;

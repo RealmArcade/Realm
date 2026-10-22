@@ -177,12 +177,85 @@ public class VfxShaderManager
 			if (TryGetCachedTexture(path, out var cached))
 				return cached;
 
-			var godotTex = LoadGodotTexture(path);
-			if (godotTex != null)
-				return godotTex;
+			string resolvedPath = ResolveSpritesheetTexturePath(path);
+			if (!string.Equals(resolvedPath, path, StringComparison.OrdinalIgnoreCase) &&
+			    TryGetCachedTexture(resolvedPath, out var resolvedCached))
+			{
+				TextureCache[path] = resolvedCached;
+				return resolvedCached;
+			}
 
-			return LoadTextureFromCandidates(path);
+			var godotTex = LoadGodotTexture(resolvedPath);
+			if (godotTex != null)
+			{
+				TextureCache[path] = godotTex;
+				return godotTex;
+			}
+
+			var loadedTex = LoadTextureFromCandidates(resolvedPath);
+			if (loadedTex != null)
+			{
+				TextureCache[path] = loadedTex;
+			}
+
+			return loadedTex;
 		}
+	}
+
+	public static string ResolveSpritesheetTexturePath(string path)
+	{
+		if (string.IsNullOrEmpty(path)) return path;
+		if (!LooksLikeTemplateSlug(path)) return path;
+
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+		try
+		{
+			VfxMetadata vmeta = FindVfxSpritesheetMetadata(wsPath, path);
+			if (!string.IsNullOrWhiteSpace(vmeta?.TexturePath)) return vmeta.TexturePath;
+
+			return FindSpritesheetTextureBySlug(wsPath, path) ?? path;
+		}
+		catch
+		{
+			return path;
+		}
+	}
+
+	private static string FindSpritesheetTextureBySlug(string wsPath, string path)
+	{
+		if (!path.StartsWith("spritesheet/", StringComparison.OrdinalIgnoreCase)) return null;
+
+		string textureBaseName = Path.GetFileName(path);
+		string[] textureFileNames = { $"{textureBaseName}.rtex", $"{textureBaseName}.png", $"{textureBaseName}.webp" };
+		string[] folders =
+		{
+			Path.Combine(wsPath, "Assets", "vfx_spritesheets"),
+			Path.Combine(wsPath, "Assets", "vfx"),
+			Path.Combine(wsPath, "Assets", "textures"),
+			Path.Combine("MapTemplate", "Assets", "vfx_spritesheets"),
+			Path.Combine("MapTemplate", "Assets", "vfx"),
+			Path.Combine("MapTemplate", "Assets", "textures")
+		};
+
+		foreach (var folder in folders)
+		{
+			foreach (var textureFileName in textureFileNames)
+			{
+				string candidate = Path.Combine(folder, textureFileName);
+				if (File.Exists(candidate)) return Path.GetFileName(candidate);
+			}
+		}
+
+		return null;
+	}
+
+	private static bool LooksLikeTemplateSlug(string path)
+	{
+		return !path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) &&
+		       !path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) &&
+		       !path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) &&
+		       !path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) &&
+		       !path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool TryGetCachedTexture(string path, out Texture2D texture)
@@ -209,7 +282,7 @@ public class VfxShaderManager
 
 	private static Texture2D LoadTextureFromCandidates(string path)
 	{
-		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string[] candidates = GetTextureCandidates(path, wsPath);
 
 		foreach (var candidate in candidates)
@@ -231,12 +304,22 @@ public class VfxShaderManager
 			Path.Combine(wsPath, "Assets", "decals", path),
 			Path.Combine(wsPath, "Assets", "ribbons", path),
 			Path.Combine(wsPath, "Assets", "vfx", path),
+			Path.Combine(wsPath, "Assets", "vfx_spritesheets", path),
+			Path.Combine(wsPath, "Assets", "vfx_radial", path),
+			Path.Combine(wsPath, "Assets", "vfx_vertical", path),
+			Path.Combine(wsPath, "Assets", "icons", path),
+			Path.Combine(wsPath, "Assets", "skyboxes", path),
 			Path.Combine(wsPath, "Assets", "noise", path),
 			Path.Combine("MapTemplate", path),
 			Path.Combine("MapTemplate", "Assets", "textures", path),
 			Path.Combine("MapTemplate", "Assets", "decals", path),
 			Path.Combine("MapTemplate", "Assets", "ribbons", path),
 			Path.Combine("MapTemplate", "Assets", "vfx", path),
+			Path.Combine("MapTemplate", "Assets", "vfx_spritesheets", path),
+			Path.Combine("MapTemplate", "Assets", "vfx_radial", path),
+			Path.Combine("MapTemplate", "Assets", "vfx_vertical", path),
+			Path.Combine("MapTemplate", "Assets", "icons", path),
+			Path.Combine("MapTemplate", "Assets", "skyboxes", path),
 			Path.Combine("MapTemplate", "Assets", "noise", path)
 		};
 	}
@@ -314,12 +397,31 @@ public class VfxShaderManager
 			if (SpritesheetMetaCache.TryGetValue(path, out var cachedMeta))
 				return cachedMeta;
 
-			string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+			string resolvedPath = ResolveSpritesheetTexturePath(path);
 
 			var wsMeta = TryLoadWorkspaceMetadata(path, wsPath);
-			if (wsMeta != null) return wsMeta;
+			if (wsMeta == null && !string.Equals(resolvedPath, path, StringComparison.OrdinalIgnoreCase))
+			{
+				wsMeta = TryLoadWorkspaceMetadata(resolvedPath, wsPath);
+			}
 
-			return TryLoadEmbeddedMetadata(path, wsPath);
+			if (wsMeta != null)
+			{
+				SpritesheetMetaCache[path] = wsMeta.Value;
+				return wsMeta;
+			}
+
+			var embeddedMeta = TryLoadEmbeddedMetadata(resolvedPath, wsPath);
+			if (embeddedMeta != null)
+			{
+				SpritesheetMetaCache[path] = embeddedMeta.Value;
+				return embeddedMeta;
+			}
+
+			return string.Equals(resolvedPath, path, StringComparison.OrdinalIgnoreCase)
+				? null
+				: TryLoadEmbeddedMetadata(path, wsPath);
 		}
 	}
 
@@ -327,13 +429,7 @@ public class VfxShaderManager
 	{
 		try
 		{
-			var metadata = MapFileService.LoadMetadata(wsPath);
-			if (metadata?.VfxSpritesheets == null) return null;
-
-			string fileName = Path.GetFileName(path);
-			string cleanBase = Path.GetFileNameWithoutExtension(path);
-			VfxMetadata vmeta = GetVfxMetadata(metadata, path, fileName, cleanBase);
-
+			VfxMetadata vmeta = FindVfxSpritesheetMetadata(wsPath, path);
 			if (vmeta == null) return null;
 
 			return ProcessVfxMetadata(path, vmeta);
@@ -342,6 +438,35 @@ public class VfxShaderManager
 		{
 			return null;
 		}
+	}
+
+	private static VfxMetadata FindVfxSpritesheetMetadata(string wsPath, string path)
+	{
+		var metadata = MapFileService.LoadMetadata(wsPath);
+		if (metadata?.VfxSpritesheets == null) return null;
+
+		string fileName = Path.GetFileName(path);
+		string cleanBase = Path.GetFileNameWithoutExtension(path);
+
+		if (metadata.VfxSpritesheets.TryGetValue(path, out var direct)) return direct;
+		if (metadata.VfxSpritesheets.TryGetValue(fileName, out var byFileName)) return byFileName;
+		if (metadata.VfxSpritesheets.TryGetValue($"{cleanBase}.rtex", out var byRtex)) return byRtex;
+		if (metadata.VfxSpritesheets.TryGetValue($"{cleanBase}.png", out var byPng)) return byPng;
+
+		foreach (var kvp in metadata.VfxSpritesheets)
+		{
+			if (kvp.Value == null || string.IsNullOrWhiteSpace(kvp.Value.TexturePath)) continue;
+
+			string textureFileName = Path.GetFileName(kvp.Value.TexturePath);
+			string textureBaseName = Path.GetFileNameWithoutExtension(kvp.Value.TexturePath);
+			if (string.Equals(textureFileName, fileName, StringComparison.OrdinalIgnoreCase) ||
+			    string.Equals(textureBaseName, cleanBase, StringComparison.OrdinalIgnoreCase))
+			{
+				return kvp.Value;
+			}
+		}
+
+		return null;
 	}
 
 	private static (int Columns, int Rows, float Fps, bool SubframeBlend)? ProcessVfxMetadata(string path, VfxMetadata vmeta)
@@ -357,15 +482,6 @@ public class VfxShaderManager
 
 		SpritesheetMetaCache[path] = result;
 		return result;
-	}
-
-	private static VfxMetadata GetVfxMetadata(MapMetadata metadata, string path, string fileName, string cleanBase)
-	{
-		if (metadata.VfxSpritesheets.TryGetValue(path, out var v1)) return v1;
-		if (metadata.VfxSpritesheets.TryGetValue(fileName, out var v2)) return v2;
-		if (metadata.VfxSpritesheets.TryGetValue($"{cleanBase}.rtex", out var v3)) return v3;
-		if (metadata.VfxSpritesheets.TryGetValue($"{cleanBase}.png", out var v4)) return v4;
-		return null;
 	}
 
 	private static (int Columns, int Rows, float Fps, bool SubframeBlend)? TryLoadEmbeddedMetadata(string path, string wsPath)
@@ -390,12 +506,18 @@ public class VfxShaderManager
 			path,
 			Path.Combine(wsPath, path),
 			Path.Combine(wsPath, "Assets", "vfx", path),
+			Path.Combine(wsPath, "Assets", "vfx_spritesheets", path),
+			Path.Combine(wsPath, "Assets", "vfx_radial", path),
+			Path.Combine(wsPath, "Assets", "vfx_vertical", path),
 			Path.Combine(wsPath, "Assets", "textures", path),
 			Path.Combine(wsPath, "Assets", "decals", path),
 			Path.Combine(wsPath, "Assets", "ribbons", path),
 			Path.Combine(wsPath, "Assets", "noise", path),
 			Path.Combine("MapTemplate", path),
 			Path.Combine("MapTemplate", "Assets", "vfx", path),
+			Path.Combine("MapTemplate", "Assets", "vfx_spritesheets", path),
+			Path.Combine("MapTemplate", "Assets", "vfx_radial", path),
+			Path.Combine("MapTemplate", "Assets", "vfx_vertical", path),
 			Path.Combine("MapTemplate", "Assets", "textures", path),
 			Path.Combine("MapTemplate", "Assets", "decals", path),
 			Path.Combine("MapTemplate", "Assets", "ribbons", path),
@@ -474,6 +596,7 @@ public class VfxShaderManager
 
 		return string.Equals(assetType, "Spritesheet", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(assetType, "SpellSpritesheet", StringComparison.OrdinalIgnoreCase) ||
+		       string.Equals(assetType, "vfx_spritesheet", StringComparison.OrdinalIgnoreCase) ||
 		       cols > 1 || rows > 1;
 	}
 
