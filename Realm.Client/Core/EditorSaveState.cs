@@ -1,5 +1,6 @@
 using Godot;
 using Realm.Client.Services;
+using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client.Core;
@@ -19,4 +20,8 @@ public class EditorSaveState
 	public CopiedAreaTemplate CopiedArea;
 	public Vector2I? SelectionStart;
 	public Vector2I? SelectionEnd;
+	public bool HasCameraPosition;
+	public Vector3 CameraPosition;
+	public bool HasCameraState;
+	public CameraState CameraStateSnapshot;
 }
