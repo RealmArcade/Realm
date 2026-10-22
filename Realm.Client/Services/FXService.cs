@@ -99,50 +99,67 @@ public class FXService
 		SpawnTargetIndicator(parent, position, indicatorColor);
 	}
 
+	public (SpriteFrames Frames, int FrameWidth)? TryGetSpritesheetFrames(string texturePath, int columns, int rows, float framesPerSecond, bool loop)
+	{
+		if (string.IsNullOrWhiteSpace(texturePath)) return null;
+
+		int safeColumns = Math.Max(1, columns);
+		int safeRows = Math.Max(1, rows);
+		float safeFramesPerSecond = framesPerSecond > 0.0001f ? framesPerSecond : 12.0f;
+
+		string fullPath = ResolveTexturePathCached(texturePath);
+		string framesKey = $"{fullPath}|{safeColumns}|{safeRows}|{safeFramesPerSecond:F4}|{loop}";
+
+		if (_spriteFramesCache.TryGetValue(framesKey, out var cachedFrames))
+		{
+			return cachedFrames;
+		}
+
+		Texture2D? texture = LoadTextureCached(fullPath);
+		if (texture == null) return null;
+
+		int totalFrames = safeColumns * safeRows;
+		var frames = new SpriteFrames();
+		frames.AddAnimation("play");
+		frames.SetAnimationLoopMode("play", loop ? SpriteFrames.LoopMode.Linear : SpriteFrames.LoopMode.None);
+		frames.SetAnimationSpeed("play", safeFramesPerSecond);
+
+		int frameWidth = Math.Max(1, texture.GetWidth() / safeColumns);
+		int frameHeight = Math.Max(1, texture.GetHeight() / safeRows);
+
+		for (int frameIndex = 0; frameIndex < totalFrames; frameIndex++)
+		{
+			int col = frameIndex % safeColumns;
+			int row = frameIndex / safeColumns;
+			var atlasFrame = new AtlasTexture
+			{
+				Atlas = texture,
+				Region = new Rect2(col * frameWidth, row * frameHeight, frameWidth, frameHeight)
+			};
+			frames.AddFrame("play", atlasFrame);
+		}
+
+		cachedFrames = (frames, frameWidth);
+		_spriteFramesCache[framesKey] = cachedFrames;
+		return cachedFrames;
+	}
+
 	public void SpawnSpritesheetEffect(Node parent, string texturePath, Vector3 worldPosition, int columns, int rows, float secondsPerFrame, float sizeInWorldUnits)
 	{
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
 		if (_activeSpritesCount >= MaxActiveSprites) return;
 
-		string fullPath = ResolveTexturePathCached(texturePath);
-		string framesKey = $"{fullPath}|{columns}|{rows}|{secondsPerFrame:F4}";
-
-		if (!_spriteFramesCache.TryGetValue(framesKey, out var cachedFrames))
-		{
-			Texture2D? texture = LoadTextureCached(fullPath);
-			if (texture == null) return;
-
-			int totalFrames = columns * rows;
-			var frames = new SpriteFrames();
-			frames.AddAnimation("play");
-			frames.SetAnimationLoopMode("play", SpriteFrames.LoopMode.None);
-			frames.SetAnimationSpeed("play", 1.0f / secondsPerFrame);
-
-			int frameWidth = Math.Max(1, texture.GetWidth() / columns);
-			int frameHeight = Math.Max(1, texture.GetHeight() / rows);
-
-			for (int frameIndex = 0; frameIndex < totalFrames; frameIndex++)
-			{
-				int col = frameIndex % columns;
-				int row = frameIndex / columns;
-				var atlasFrame = new AtlasTexture
-				{
-					Atlas = texture,
-					Region = new Rect2(col * frameWidth, row * frameHeight, frameWidth, frameHeight)
-				};
-				frames.AddFrame("play", atlasFrame);
-			}
-
-			cachedFrames = (frames, frameWidth);
-			_spriteFramesCache[framesKey] = cachedFrames;
-		}
+		float framesPerSecond = secondsPerFrame > 0.0001f ? 1.0f / secondsPerFrame : 12.0f;
+		var cachedFrames = TryGetSpritesheetFrames(texturePath, columns, rows, framesPerSecond, loop: false);
+		if (cachedFrames == null) return;
 
 		var sprite = RentAnimatedSprite(parent);
-		sprite.SpriteFrames = cachedFrames.Frames;
+		SpriteFrames frames = cachedFrames.Value.Frames;
+		sprite.SpriteFrames = frames;
 		sprite.Animation = "play";
 		sprite.Frame = 0;
 		sprite.Position = worldPosition;
-		sprite.PixelSize = sizeInWorldUnits / cachedFrames.FrameWidth;
+		sprite.PixelSize = sizeInWorldUnits / cachedFrames.Value.FrameWidth;
 		sprite.Play("play");
 	}
 

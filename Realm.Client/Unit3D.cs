@@ -1349,6 +1349,7 @@ public partial class Unit3D : Node3D
 	private void ApplyModelShaders(Node3D model, string attachmentId)
 	{
 		if (model is ProceduralVfxInstance3D) return;
+		if (model is BillboardIconAttachment3D) return;
 		bool ignorePlayerColor = GameHost.Instance != null && GameHost.Instance.GetModelIgnorePlayerColor(attachmentId);
 		ModelShaderManager.ApplyPlayerColorShader(model, PlayerColor, ignorePlayerColor, true, false);
 		ModelShaderManager.SetIgnorePlayerColor(model, ignorePlayerColor);
@@ -1641,6 +1642,25 @@ public partial class Unit3D : Node3D
 		ApplyPseudoSocketInstance(model, attachmentId, socketNode, visual, parentAttachmentId, normSocket, defScale, defPos, defRot, posOffsetOverride, rotOffsetOverride, scaleOverride, scaleVectorOverride, normalOffsetOverride);
 	}
 
+	public bool SetBillboardIconVisible(string attachmentId, bool visible)
+	{
+		if (string.IsNullOrEmpty(attachmentId)) return false;
+		if (!GameHost.AttachmentRegistry.TryGetValue(attachmentId, out var attachmentMetadata)) return false;
+
+		var iconConfig = attachmentMetadata.BillboardIcon;
+		if (iconConfig == null) return false;
+
+		string socket = string.IsNullOrWhiteSpace(iconConfig.Socket) ? "Overhead" : iconConfig.Socket;
+		if (visible)
+		{
+			SetPseudoSocketAttachment(socket, attachmentId, iconConfig.PositionOffset.ToGodotVector3(), Vector3.Zero, null, null, null, true);
+			return true;
+		}
+
+		SetPseudoSocketAttachment(socket, string.Empty, null, null, null, null, null, true);
+		return true;
+	}
+
 	public static bool IsPlayerColorGlowAttachment(string attachmentId)
 	{
 		return string.Equals(attachmentId, PlayerColorGlowAttachmentId, StringComparison.OrdinalIgnoreCase);
@@ -1890,6 +1910,8 @@ public partial class Unit3D : Node3D
 
 		if (string.IsNullOrEmpty(attachmentId)) return null;
 
+		if (TryResolveBillboardIconAttachment(attachmentId, ref defaultScale, ref defaultPos, ref defaultRot, out var billboardIcon)) return billboardIcon;
+
 		var vfxInstance = ResolveVfxAttachment(attachmentId, ref defaultScale, ref defaultPos, ref defaultRot);
 		if (vfxInstance != null) return vfxInstance;
 
@@ -1905,6 +1927,28 @@ public partial class Unit3D : Node3D
 		}
 
 		return null;
+	}
+
+	private static bool TryResolveBillboardIconAttachment(
+		string attachmentId,
+		ref float defaultScale,
+		ref Vector3 defaultPos,
+		ref Vector3 defaultRot,
+		out Node3D? billboardIcon)
+	{
+		billboardIcon = null;
+		if (!GameHost.AttachmentRegistry.TryGetValue(attachmentId, out var attachmentMetadata)) return false;
+		if (attachmentMetadata.BillboardIcon == null || string.IsNullOrWhiteSpace(attachmentMetadata.BillboardIcon.TexturePath)) return false;
+
+		var createdIcon = BillboardIconAttachment3D.TryCreate(attachmentMetadata.BillboardIcon);
+		if (createdIcon == null) return false;
+
+		defaultScale = attachmentMetadata.Scale <= 0f ? 1.0f : attachmentMetadata.Scale;
+		defaultPos = attachmentMetadata.PositionOffset.ToGodotVector3() + createdIcon.ResolvePositionOffset();
+		defaultRot = Vector3.Zero;
+		createdIcon.SetMeta("BillboardSocket", createdIcon.ResolveSocketId());
+		billboardIcon = createdIcon;
+		return true;
 	}
 
 	private static ProceduralVfxInstance3D? ResolveVfxAttachment(string attachmentId, ref float defaultScale, ref Vector3 defaultPos, ref Vector3 defaultRot)

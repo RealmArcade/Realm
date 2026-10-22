@@ -1993,6 +1993,55 @@
                     "type": "number"
                   }
                 }
+              },
+              "BillboardIcon": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "TexturePath": {
+                    "type": "string"
+                  },
+                  "Columns": {
+                    "type": "integer"
+                  },
+                  "Rows": {
+                    "type": "integer"
+                  },
+                  "FramesPerSecond": {
+                    "type": "number"
+                  },
+                  "Loop": {
+                    "type": "boolean"
+                  },
+                  "Socket": {
+                    "type": "string"
+                  },
+                  "PositionOffset": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "WorldHeight": {
+                    "type": "number"
+                  },
+                  "KeepConstantScreenSize": {
+                    "type": "boolean"
+                  },
+                  "NoDepthTest": {
+                    "type": "boolean"
+                  }
+                }
               }
             }
           }
@@ -2187,6 +2236,9 @@
                 "type": "string"
               },
               "NoiseTexture": {
+                "type": "string"
+              },
+              "ProceduralMotionId": {
                 "type": "string"
               },
               "BaseUvScroll": {
@@ -2683,6 +2735,9 @@
                       "type": "string"
                     },
                     "NoiseTexture": {
+                      "type": "string"
+                    },
+                    "ProceduralMotionId": {
                       "type": "string"
                     },
                     "BaseUvScroll": {
