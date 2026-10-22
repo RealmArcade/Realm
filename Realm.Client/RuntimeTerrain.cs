@@ -2186,6 +2186,12 @@ public partial class RuntimeTerrain : Node3D
 
 	private void UpdateAffectedChunks(bool rebuildPhysics, IEnumerable<Rect2I>? affectedRegions)
 	{
+		var cells = Cells;
+		if (cells != null)
+		{
+			_perimeterSkirtBottomY = ComputePerimeterSkirtBottomY(cells, Width, Depth);
+		}
+
 		foreach (var chunk in _chunks)
 		{
 			if (affectedRegions != null && !ChunkIntersectsAnyRegion(chunk, affectedRegions))
@@ -2404,8 +2410,132 @@ public partial class RuntimeTerrain : Node3D
 			for (int x = chunk.StartX; x < chunk.EndX; x++)
 			{
 				ProcessCellQuad(chunk, x, z, cells, w, d, quadSize, halfWQuadSize, halfDQuadSize, splatMap, cliffSplatMap, ref vertexIndex, ref indexIndex);
+				ProcessCellPerimeterSkirt(chunk, x, z, cells, w, d, quadSize, halfWQuadSize, halfDQuadSize, cliffSplatMap, ref vertexIndex, ref indexIndex);
 			}
 		}
+	}
+
+	private void ProcessCellPerimeterSkirt(
+		TerrainChunk chunk,
+		int x, int z,
+		TerrainCell[,] cells,
+		int w, int d,
+		float quadSize,
+		float halfWQuadSize,
+		float halfDQuadSize,
+		TerrainSplatWeights[,] cliffSplatMap,
+		ref int vertexIndex,
+		ref int indexIndex)
+	{
+		if (x != 0 && z != 0 && x != w - 1 && z != d - 1) return;
+
+		var cell = cells[x, z];
+		var (cliffS00, cliffS10, cliffS11, cliffS01, _) = GetSplatMapQuad(x, z, cliffSplatMap);
+		var (cliffTex0, cliffTex1, cliffTex2, cliffTex3) = GetQuadDominantTextures(cliffS00, cliffS10, cliffS11, cliffS01);
+
+		if (z == 0)
+		{
+			AddPerimeterSkirtWall(chunk,
+				GetWorldPosition(x, z, cell.Y_NW, halfWQuadSize, halfDQuadSize, quadSize),
+				GetWorldPosition(x + 1, z, cell.Y_NE, halfWQuadSize, halfDQuadSize, quadSize),
+				Vector3.Forward, cliffS00, cliffS10,
+				cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex, ref indexIndex);
+		}
+
+		if (z == d - 1)
+		{
+			AddPerimeterSkirtWall(chunk,
+				GetWorldPosition(x + 1, z + 1, cell.Y_SE, halfWQuadSize, halfDQuadSize, quadSize),
+				GetWorldPosition(x, z + 1, cell.Y_SW, halfWQuadSize, halfDQuadSize, quadSize),
+				Vector3.Back, cliffS01, cliffS11,
+				cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex, ref indexIndex);
+		}
+
+		if (x == 0)
+		{
+			AddPerimeterSkirtWall(chunk,
+				GetWorldPosition(x, z + 1, cell.Y_SW, halfWQuadSize, halfDQuadSize, quadSize),
+				GetWorldPosition(x, z, cell.Y_NW, halfWQuadSize, halfDQuadSize, quadSize),
+				Vector3.Left, cliffS01, cliffS00,
+				cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex, ref indexIndex);
+		}
+
+		if (x == w - 1)
+		{
+			AddPerimeterSkirtWall(chunk,
+				GetWorldPosition(x + 1, z, cell.Y_NE, halfWQuadSize, halfDQuadSize, quadSize),
+				GetWorldPosition(x + 1, z + 1, cell.Y_SE, halfWQuadSize, halfDQuadSize, quadSize),
+				Vector3.Right, cliffS10, cliffS11,
+				cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex, ref indexIndex);
+		}
+	}
+
+	private void AddPerimeterSkirtWall(
+		TerrainChunk chunk,
+		Vector3 topSource,
+		Vector3 topDestination,
+		Vector3 outwardNormal,
+		TerrainSplatWeights splatSource,
+		TerrainSplatWeights splatDestination,
+		int cliffTex0, int cliffTex1, int cliffTex2, int cliffTex3,
+		ref int vertexIndex,
+		ref int indexIndex)
+	{
+		int baseIndex = vertexIndex;
+		float bottomY = _perimeterSkirtBottomY;
+		Vector3 bottomSource = new Vector3(topSource.X, bottomY, topSource.Z);
+		Vector3 bottomDestination = new Vector3(topDestination.X, bottomY, topDestination.Z);
+
+		PopulatePerimeterSkirtVertex(chunk, topSource, outwardNormal, splatSource, cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex);
+		PopulatePerimeterSkirtVertex(chunk, bottomSource, outwardNormal, splatSource, cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex);
+		PopulatePerimeterSkirtVertex(chunk, bottomDestination, outwardNormal, splatDestination, cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex);
+		PopulatePerimeterSkirtVertex(chunk, topDestination, outwardNormal, splatDestination, cliffTex0, cliffTex1, cliffTex2, cliffTex3, ref vertexIndex);
+
+		chunk.IndicesCache[indexIndex++] = baseIndex;
+		chunk.IndicesCache[indexIndex++] = baseIndex + 1;
+		chunk.IndicesCache[indexIndex++] = baseIndex + 2;
+		chunk.IndicesCache[indexIndex++] = baseIndex;
+		chunk.IndicesCache[indexIndex++] = baseIndex + 2;
+		chunk.IndicesCache[indexIndex++] = baseIndex + 3;
+	}
+
+	private void PopulatePerimeterSkirtVertex(
+		TerrainChunk chunk,
+		Vector3 position,
+		Vector3 normal,
+		TerrainSplatWeights splat,
+		int cliffTex0, int cliffTex1, int cliffTex2, int cliffTex3,
+		ref int vertexIndex)
+	{
+		var (weight0, weight1, weight2, weight3) = GetSplatWeightsForQuad(splat, cliffTex0, cliffTex1, cliffTex2, cliffTex3);
+
+		chunk.VerticesCache[vertexIndex] = position;
+		chunk.NormalsCache[vertexIndex] = normal;
+		chunk.UvsCache[vertexIndex] = new Vector2(position.X, position.Z);
+		chunk.ColorsCache[vertexIndex] = new Color(1.0f, 1.0f, 1.0f, 0.0f);
+
+		int splatIndex = vertexIndex * 4;
+		chunk.TexIndicesCache[splatIndex + 0] = cliffTex0;
+		chunk.TexIndicesCache[splatIndex + 1] = cliffTex1;
+		chunk.TexIndicesCache[splatIndex + 2] = cliffTex2;
+		chunk.TexIndicesCache[splatIndex + 3] = cliffTex3;
+
+		chunk.TexWeightsCache01[splatIndex + 0] = weight0;
+		chunk.TexWeightsCache01[splatIndex + 1] = weight1;
+		chunk.TexWeightsCache01[splatIndex + 2] = weight2;
+		chunk.TexWeightsCache01[splatIndex + 3] = weight3;
+
+		chunk.CliffIndicesCache[splatIndex + 0] = cliffTex0;
+		chunk.CliffIndicesCache[splatIndex + 1] = cliffTex1;
+		chunk.CliffIndicesCache[splatIndex + 2] = cliffTex2;
+		chunk.CliffIndicesCache[splatIndex + 3] = cliffTex3;
+
+		chunk.CliffWeightsCache[splatIndex + 0] = weight0;
+		chunk.CliffWeightsCache[splatIndex + 1] = weight1;
+		chunk.CliffWeightsCache[splatIndex + 2] = weight2;
+		chunk.CliffWeightsCache[splatIndex + 3] = weight3;
+
+		vertexIndex++;
 	}
 
 	private void BuildMeshArraysFromCache(TerrainChunk chunk, int vertexIndex, int indexIndex)
@@ -2678,8 +2808,43 @@ public partial class RuntimeTerrain : Node3D
 		int cellD = cells.GetLength(1);
 		if (x < 0 || x >= cellW || z < 0 || z >= cellD) return;
 
-		totalVertices += 12;
-		totalIndices += 12;
+		int perimeterEdgeCount = CountPerimeterEdges(x, z, w, d);
+
+		totalVertices += 12 + perimeterEdgeCount * 4;
+		totalIndices += 12 + perimeterEdgeCount * 6;
+	}
+
+	private const float PerimeterSkirtOvershoot = 0.5f;
+	private float _perimeterSkirtBottomY = -PerimeterSkirtOvershoot;
+
+	private float ComputePerimeterSkirtBottomY(TerrainCell[,] cells, int w, int d)
+	{
+		float lowestEdgeHeight = 0.0f;
+
+		for (int x = 0; x <= w; x++)
+		{
+			lowestEdgeHeight = Math.Min(lowestEdgeHeight, GetGridNodeHeight(x, 0, cells, w, d));
+			lowestEdgeHeight = Math.Min(lowestEdgeHeight, GetGridNodeHeight(x, d, cells, w, d));
+		}
+
+		for (int z = 0; z <= d; z++)
+		{
+			lowestEdgeHeight = Math.Min(lowestEdgeHeight, GetGridNodeHeight(0, z, cells, w, d));
+			lowestEdgeHeight = Math.Min(lowestEdgeHeight, GetGridNodeHeight(w, z, cells, w, d));
+		}
+
+		return lowestEdgeHeight - PerimeterSkirtOvershoot;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static int CountPerimeterEdges(int x, int z, int w, int d)
+	{
+		int edgeCount = 0;
+		if (z == 0) edgeCount++;
+		if (z == d - 1) edgeCount++;
+		if (x == 0) edgeCount++;
+		if (x == w - 1) edgeCount++;
+		return edgeCount;
 	}
 
 	private (int tex0, int tex1, int tex2, int tex3) GetQuadDominantTextures(ReadOnlySpan<TerrainSplatWeights> splats)
