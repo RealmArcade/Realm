@@ -1756,12 +1756,20 @@ namespace Realm.Client.Core
 			var mousePos = GetViewport().GetMousePosition();
 			var terrainHit = RaycastTerrainFromMouse(mousePos);
 			Vector3 hitPos = Vector3.Zero;
+			Vector3 hitNormal = Vector3.Up;
+			bool hasNormal = false;
 			bool hasHit = false;
 
 			if (terrainHit != null && terrainHit.ContainsKey("position"))
 			{
 				hitPos = terrainHit["position"].AsVector3();
 				hasHit = true;
+
+				if (terrainHit.ContainsKey("normal"))
+				{
+					hitNormal = terrainHit["normal"].AsVector3();
+					hasNormal = true;
+				}
 			}
 			else
 			{
@@ -1781,7 +1789,12 @@ namespace Realm.Client.Core
 
 			if (hasHit)
 			{
-				UpdateBrushIndicator(hitPos);
+				if (!hasNormal)
+				{
+					hitNormal = GetTerrainNormalAt(hitPos);
+				}
+
+				UpdateBrushIndicator(hitPos, hitNormal);
 				UpdateEditorPreview(hitPos);
 				HandleMapEditorTerrainHit(hitPos);
 				HandleMapEditorMouseHover(mousePos);
@@ -2469,8 +2482,7 @@ namespace Realm.Client.Core
 				MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(false);
 			}
 
-			if (_brushIndicatorMesh != null)
-				_brushIndicatorMesh.Visible = false;
+			_paintCursor?.HideCursor();
 			ClearEditorPreview();
 
 			ClearEditorDragAndDrawState();
@@ -2591,10 +2603,10 @@ namespace Realm.Client.Core
 				}
 			}
 
-			if (_brushIndicatorMesh != null)
+			if (_paintCursor != null)
 			{
-				_brushIndicatorMesh.QueueFree();
-				_brushIndicatorMesh = null;
+				_paintCursor.QueueFree();
+				_paintCursor = null;
 			}
 
 			if (GroundTerrain != null)
@@ -2625,54 +2637,57 @@ namespace Realm.Client.Core
 
 		private void CreateBrushIndicator()
 		{
-			if (_brushIndicatorMesh != null) return;
+			if (_paintCursor != null) return;
 
-			_brushIndicatorMesh = new MeshInstance3D();
-			_brushIndicatorMesh.Name = "BrushIndicator";
-
-			var mat = new StandardMaterial3D();
-			mat.AlbedoColor = new Color(0.15f, 0.65f, 1.0f, 0.3f);
-			mat.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
-			mat.EmissionEnabled = true;
-			mat.Emission = new Color(0.15f, 0.65f, 1.0f) * 0.5f;
-			mat.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
-			_brushIndicatorMesh.MaterialOverride = mat;
-
-			AddChild(_brushIndicatorMesh);
-			_brushIndicatorMesh.Visible = false;
-
-			UpdateBrushMesh();
+			_paintCursor = new MapEditorPaintCursor();
+			_paintCursor.Name = "EditorPaintCursor";
+			AddChild(_paintCursor);
+			_paintCursor.SetBrushShape(EditorBrushIsSquare);
+			_paintCursor.HideCursor();
 		}
 
 		public void UpdateBrushMesh()
 		{
-			if (_brushIndicatorMesh == null) return;
-			if (EditorBrushIsSquare)
-			{
-				var plane = new PlaneMesh();
-				plane.Size = new Vector2(EditableTerrain.DefaultQuadSize, EditableTerrain.DefaultQuadSize);
-				_brushIndicatorMesh.Mesh = plane;
-			}
-			else
-			{
-				var torus = new TorusMesh();
-				torus.InnerRadius = 0.95f;
-				torus.OuterRadius = 1.05f;
-				_brushIndicatorMesh.Mesh = torus;
-			}
+			_paintCursor?.SetBrushShape(EditorBrushIsSquare);
 		}
 
-		private void UpdateBrushIndicator(Vector3 position)
+		public bool IsPaintCursorVisible => _paintCursor != null && GodotObject.IsInstanceValid(_paintCursor) && _paintCursor.Visible;
+
+		public void SetPaintCursorVisible(bool visible)
 		{
-			if (_brushIndicatorMesh == null) return;
+			if (_paintCursor == null || !GodotObject.IsInstanceValid(_paintCursor)) return;
+			_paintCursor.Visible = visible;
+		}
+
+		private void UpdateBrushIndicator(Vector3 position, Vector3 surfaceNormal)
+		{
+			if (_paintCursor == null) return;
 
 			bool isVertexTool = IsVertexTool(ActiveEditorTool);
+			if (!IsTerrainTool(isVertexTool) || IsMouseOverUI())
+			{
+				_paintCursor.HideCursor();
+				return;
+			}
+
 			Vector3 targetPos = GetBrushTargetPosition(position, isVertexTool);
+			EditorPaintSurface surface = ActiveEditorTool == EditorTool.PaintTexture
+				? ResolvePaintCursorSurface(surfaceNormal, targetPos)
+				: EditorPaintSurface.Ground;
 
-			_brushIndicatorMesh.Position = new Vector3(targetPos.X, targetPos.Y + 0.1f, targetPos.Z);
-			_brushIndicatorMesh.Scale = new Vector3(EditorBrushRadius, 0.1f, EditorBrushRadius);
+			_paintCursor.ShowAt(targetPos, surfaceNormal, EditorBrushRadius, surface);
+		}
 
-			_brushIndicatorMesh.Visible = IsTerrainTool(isVertexTool);
+		private EditorPaintSurface ResolvePaintCursorSurface(Vector3 surfaceNormal, Vector3 position)
+		{
+			var editorService = GameContext.EditorService;
+			if (editorService.IsDrawingTerrain && editorService.ActivePaintSurface != EditorPaintSurface.None)
+			{
+				return editorService.ActivePaintSurface;
+			}
+
+			Vector3 normal = surfaceNormal.LengthSquared() > 0.0001f ? surfaceNormal : GetTerrainNormalAt(position);
+			return editorService.ResolvePaintSurfaceFromNormal(normal);
 		}
 
 		private bool IsVertexTool(EditorTool tool)

@@ -13,6 +13,7 @@ using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.UI.MapEditor;
 using Realm.Client.Utils;
 using Realm.Client.VFX;
 using Realm.Ecs.Common;
@@ -504,7 +505,7 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	public MeshInstance3D? _brushIndicatorMesh { get; set; }
+	private MapEditorPaintCursor? _paintCursor { get; set; }
 	private MeshInstance3D? _cameraBoundsOverlayMesh { get; set; }
 	private List<Vector3> _pathingVerticesCache { get; set; } = new();
 	private List<Color> _pathingColorsCache { get; set; } = new();

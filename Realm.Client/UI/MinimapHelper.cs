@@ -140,10 +140,10 @@ public static class MinimapHelper
 
 	private static void HideBrushIndicator(OverlayState state, GameHost gameHost)
 	{
-		if (!IsNodeValid((gameHost != null ? GameHost.Instance._brushIndicatorMesh : null))) return;
+		if (gameHost == null || !gameHost.IsPaintCursorVisible) return;
 
-		state.WasBrushVisible = GameHost.Instance._brushIndicatorMesh.Visible;
-		GameHost.Instance._brushIndicatorMesh.Visible = false;
+		state.WasBrushVisible = true;
+		gameHost.SetPaintCursorVisible(false);
 	}
 
 	private static void HideGridAndPathing(OverlayState state, GameHost gameHost)
@@ -204,9 +204,9 @@ public static class MinimapHelper
 		}
 
 		var gameHost = GameHost.Instance;
-		if (IsNodeValid((gameHost != null ? GameHost.Instance._brushIndicatorMesh : null)))
+		if (gameHost != null && state.WasBrushVisible)
 		{
-			GameHost.Instance._brushIndicatorMesh.Visible = state.WasBrushVisible;
+			gameHost.SetPaintCursorVisible(true);
 		}
 
 		if (gameHost != null)

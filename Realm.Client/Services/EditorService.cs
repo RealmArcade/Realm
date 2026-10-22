@@ -1351,7 +1351,12 @@ public partial class EditorService : IEditorAPI
 		if (terrain == null) return EditorPaintSurface.None;
 
 		terrain.GetHeightAndNormal(worldPos.X, worldPos.Z, out _, out Godot.Vector3 normal);
-		return RuntimeTerrain.GetCliffFactor(normal) >= 0.5f ? EditorPaintSurface.Cliff : EditorPaintSurface.Ground;
+		return ResolvePaintSurfaceFromNormal(normal);
+	}
+
+	public EditorPaintSurface ResolvePaintSurfaceFromNormal(Godot.Vector3 surfaceNormal)
+	{
+		return RuntimeTerrain.GetCliffFactor(surfaceNormal) >= 0.5f ? EditorPaintSurface.Cliff : EditorPaintSurface.Ground;
 	}
 	public bool IsDrawingClump => _isDrawingClump;
 
