@@ -529,11 +529,12 @@ public class TerrainNavMeshService
 	private List<(Vector3 Pos, float Radius)> GetNavMeshObstacles()
 	{
 		var obstacles = new List<(Vector3 Pos, float Radius)>();
-		var obstacleQuery = QueryCache.AllPositionAndCollisionRadiusQuery;
-		ECSContext.World?.Query(in obstacleQuery, (Entity ent, ref Position pos, ref CollisionRadius colRad) =>
+		var obstacleQuery = QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery;
+		ECSContext.World?.Query(in obstacleQuery, (Entity ent, ref Position pos, ref CollisionRadius colRad, ref PropIdentity propIdentity) =>
 		{
 			float scale = (ECSContext.World != null && ECSContext.World.Has<CollisionScale>(ent)) ? ECSContext.World.Get<CollisionScale>(ent).Value : 1.0f;
 			float radius = colRad.Value * scale;
+			if (radius <= 0.01f) return;
 			obstacles.Add((pos.Value, radius));
 		});
 		return obstacles;
@@ -557,11 +558,13 @@ public class TerrainNavMeshService
 	{
 		foreach (var obs in obstacles)
 		{
+			float radius = obs.Radius;
+			if (radius <= 0.01f) continue;
+
 			int nearestX = Math.Clamp((int)Math.Round((obs.Pos.X + halfW) / quadSize), 0, width);
 			int nearestZ = Math.Clamp((int)Math.Round((obs.Pos.Z + halfD) / quadSize), 0, depth);
 			bakeHeights[nearestX, nearestZ] = 20.0f;
 
-			float radius = obs.Radius;
 			float effectiveRadius = Math.Max(quadSize * 0.5f, radius - quadSize * 0.51f);
 			int minX = Math.Clamp((int)Math.Floor((obs.Pos.X - radius + halfW) / quadSize), 0, width);
 			int maxX = Math.Clamp((int)Math.Ceiling((obs.Pos.X + radius + halfW) / quadSize), 0, width);
@@ -664,6 +667,7 @@ public class TerrainNavMeshService
 			float sumX = 0f;
 			float sumZ = 0f;
 			int nv = 0;
+			int aggregatedFlags = 0;
 			for (int j = 0; j < mesh.nvp; j++)
 			{
 				int vIdx = mesh.polys[i * mesh.nvp * 2 + j];
@@ -675,6 +679,13 @@ public class TerrainNavMeshService
 				sumX += wx;
 				sumZ += wz;
 
+				if (state.PathingCodes != null)
+				{
+					int vertexGridX = Math.Clamp((int)Math.Floor(wx / quadSize + width / 2.0f), 0, width - 1);
+					int vertexGridZ = Math.Clamp((int)Math.Floor(wz / quadSize + depth / 2.0f), 0, depth - 1);
+					aggregatedFlags |= state.PathingCodes[vertexGridX, vertexGridZ];
+				}
+
 				if (nv < polyVerts.Length)
 					polyVerts[nv++] = new Vector2(wx, wz);
 			}
@@ -682,11 +693,29 @@ public class TerrainNavMeshService
 			float avgX = nv > 0 ? sumX / nv : 0f;
 			float avgZ = nv > 0 ? sumZ / nv : 0f;
 
-			int xGrid = Math.Clamp((int)Math.Floor(avgX / quadSize + width / 2.0f), 0, width - 1);
-			int zGrid = Math.Clamp((int)Math.Floor(avgZ / quadSize + depth / 2.0f), 0, depth - 1);
-			var pathFlags = state.PathingCodes != null ? (TerrainPathingFlags)state.PathingCodes[xGrid, zGrid] : TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable;
-			pars.polyFlags[i] = (int)pathFlags;
+			if (state.PathingCodes != null)
+			{
+				int xGrid = Math.Clamp((int)Math.Floor(avgX / quadSize + width / 2.0f), 0, width - 1);
+				int zGrid = Math.Clamp((int)Math.Floor(avgZ / quadSize + depth / 2.0f), 0, depth - 1);
+				aggregatedFlags |= state.PathingCodes[xGrid, zGrid];
+
+				pars.polyFlags[i] = MergePolygonPathingFlags(aggregatedFlags);
+			}
+			else
+			{
+				pars.polyFlags[i] = (int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable);
+			}
 		}
+	}
+
+	private static int MergePolygonPathingFlags(int aggregatedFlags)
+	{
+		if ((aggregatedFlags & (int)TerrainPathingFlags.Ground) != 0)
+		{
+			return (int)(TerrainPathingFlags.Ground | TerrainPathingFlags.Buildable | TerrainPathingFlags.Flying);
+		}
+
+		return aggregatedFlags;
 	}
 
 	private void BuildNavMesh(ref TerrainState state, SimpleInputGeomProvider geom, int width, int depth, float quadSize)
@@ -734,7 +763,7 @@ public class TerrainNavMeshService
 		pars.polyAreas = new int[result.Mesh.npolys];
 		pars.polyFlags = new int[result.Mesh.npolys];
 
-		InitializeNavMeshPolys(pars, result.Mesh, bmin, quadSize, width, depth, in state);
+		InitializeNavMeshPolys(pars, result.Mesh, result.Mesh.bmin, quadSize, width, depth, in state);
 
 		if (result.MeshDetail != null)
 		{
