@@ -3,6 +3,8 @@ uniform vec4 proc_anim_params1 = vec4(0.0, 0.0, 0.0, 1.0);
 uniform vec4 proc_anim_params2 = vec4(0.0, 0.0, 0.0, 0.0);
 uniform vec4 proc_anim_params3 = vec4(0.0, 0.0, 0.0, 0.0);
 uniform vec4 proc_anim_shake = vec4(0.0, 0.0, 0.0, 0.0);
+uniform vec3 proc_anim_region_min = vec3(-1.0, -1.0, -1.0);
+uniform vec3 proc_anim_region_max = vec3(1.0, 3.0, 1.0);
 
 float rts_procedural_motion_weight(vec3 local_position, vec3 local_normal) {
 	float mask_mode = proc_anim_params1.y;
@@ -21,7 +23,17 @@ float rts_procedural_motion_weight(vec3 local_position, vec3 local_normal) {
 		return pow(norm_distance, max(abs(mask_power), 0.001));
 	}
 
-	return clamp(dot(local_normal, vec3(0.0, 1.0, 0.0)), 0.0, 1.0);
+	if (mask_mode < 2.5) {
+		return clamp(dot(local_normal, vec3(0.0, 1.0, 0.0)), 0.0, 1.0);
+	}
+
+	vec3 region_inside = min(local_position - proc_anim_region_min, proc_anim_region_max - local_position);
+	float inside_depth = min(min(region_inside.x, region_inside.y), region_inside.z);
+	float region_feather = max(proc_anim_params1.z, 0.001);
+	float region_weight = clamp(inside_depth / region_feather, 0.0, 1.0);
+	region_weight = pow(region_weight, max(abs(mask_power), 0.001));
+	if (mask_power < 0.0) region_weight = 1.0 - region_weight;
+	return region_weight;
 }
 
 vec3 rts_procedural_motion_offset(vec3 local_position, vec3 local_normal, vec3 world_position, float time) {

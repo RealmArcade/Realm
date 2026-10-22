@@ -2639,6 +2639,78 @@
               }
             }
           },
+          "SwayRegions": {
+            "type": "array",
+            "items": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "ModelKey": {
+                  "type": "string"
+                },
+                "RegionName": {
+                  "type": "string"
+                },
+                "NormalizedMin": {
+                  "type": "object",
+                  "properties": {
+                    "X": {
+                      "type": "number"
+                    },
+                    "Y": {
+                      "type": "number"
+                    },
+                    "Z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "NormalizedMax": {
+                  "type": "object",
+                  "properties": {
+                    "X": {
+                      "type": "number"
+                    },
+                    "Y": {
+                      "type": "number"
+                    },
+                    "Z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "Feather": {
+                  "type": "number"
+                },
+                "MaskPower": {
+                  "type": "number"
+                },
+                "MaskInvert": {
+                  "type": "boolean"
+                },
+                "MeshNamePatterns": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "MaterialNamePatterns": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
           "SwayFrequency": {
             "type": "number"
           },

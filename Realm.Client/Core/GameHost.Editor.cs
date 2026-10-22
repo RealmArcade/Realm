@@ -525,7 +525,7 @@ public partial class GameHost
 			if (cfg != null)
 			{
 				if (node is Prop3D propWithAnim) propWithAnim.HasProceduralAnimation = true;
-				ModelShaderManager.SetProceduralAnimation(node, cfg);
+				ModelShaderManager.SetProceduralAnimation(node, cfg, modelKey: GetModelAssetKey(node));
 				return;
 			}
 		}
