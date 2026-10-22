@@ -97,6 +97,17 @@ public partial class GameHost
 					MapEditorHUD.Instance?.Set3DInteractionActive_ViewLogic(true);
 				}
 			}
+
+			if (_is3DDragOperationActive
+			    && ActiveEditorTool == EditorTool.SelectMove
+			    && !_isDraggingObject
+			    && GameContext.EditorService.ObjectMarqueeStart != null
+			    && !GameContext.EditorService.IsObjectMarqueeSelecting)
+			{
+				Vector2I marqueeStart = GameContext.EditorService.ObjectMarqueeStart.Value;
+				GameContext.EditorService.SetObjectMarquee(marqueeStart, marqueeStart, true);
+				UpdateEditorObjectMarqueeVisual();
+			}
 		}
 
 		if (@event is InputEventKey editorKeyEvent && editorKeyEvent.Pressed && !editorKeyEvent.Echo)
@@ -1010,6 +1021,19 @@ public partial class GameHost
 				return;
 			}
 
+			if (GameContext.EditorService.IsObjectMarqueeSelecting)
+			{
+				FinalizeEditorObjectMarquee();
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
+			if (GameContext.EditorService.ObjectMarqueeStart != null)
+			{
+				GameContext.EditorService.ClearObjectMarquee();
+				HideEditorObjectMarquee();
+			}
+
 			if (GameContext.EditorService.IsSelectingArea)
 			{
 				GameContext.EditorService.SetIsSelectingArea(false);
@@ -1547,22 +1571,40 @@ public partial class GameHost
 						}
 					}
 
+					Vector3 terrainHitPos = (terrainHit != null && terrainHit.ContainsKey("position")) ? terrainHit["position"].AsVector3() : hitPos;
+
 					if (clickedNode != null)
 					{
-						SelectedEditorObject = clickedNode;
-						_isDraggingObject = true;
-						_dragObjectStartPos = (SelectedEditorObject as Node3D).Position;
-						_dragObjectStartRot = (SelectedEditorObject as Node3D).RotationDegrees;
-						_dragObjectStartScale = (SelectedEditorObject as Node3D).Scale;
-						GameContext.EditorService.DragStartMousePos = editorMouseBtn.Position;
-						Vector3 terrainHitPos = (terrainHit != null && terrainHit.ContainsKey("position")) ? terrainHit["position"].AsVector3() : hitPos;
-						GameContext.EditorService.DragStartGroundPos = terrainHitPos;
-						GameContext.EditorService.DragObjectStartHitPos = terrainHitPos;
-						GameContext.EditorService.DragObjectHasMoved = false;
+						bool shiftPressed = Input.IsKeyPressed(Key.Shift);
+						bool ctrlPressed = Input.IsKeyPressed(Key.Ctrl);
+
+						if (shiftPressed || ctrlPressed)
+						{
+							ToggleEditorObjectSelection(clickedNode, ctrlPressed);
+						}
+						else if (!(SelectedEditorObjectCount > 1 && IsEditorObjectSelected(clickedNode)))
+						{
+							SelectedEditorObject = clickedNode;
+						}
+
+						if (IsEditorObjectSelected(clickedNode))
+						{
+							BeginEditorObjectDrag(terrainHitPos, editorMouseBtn.Position);
+						}
 					}
 					else
 					{
-						SelectedEditorObject = null;
+						if (!Input.IsKeyPressed(Key.Shift) && !Input.IsKeyPressed(Key.Ctrl))
+						{
+							SelectedEditorObject = null;
+						}
+
+						if (GroundTerrain != null)
+						{
+							var (startCellX, startCellZ) = GameContext.EditorService.WorldPosToCellCoords(terrainHitPos);
+							var startCell = new Vector2I(startCellX, startCellZ);
+							GameContext.EditorService.SetObjectMarquee(startCell, startCell, false);
+						}
 					}
 
 					GetViewport().SetInputAsHandled();

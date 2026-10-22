@@ -1799,10 +1799,23 @@ namespace Realm.Client.Core
 		{
 			if (GroundTerrain == null) return;
 
+			if (ProcessObjectMarqueeTool(hitPos)) return;
 			if (ProcessAreaSelectionTool(hitPos)) return;
 			if (ProcessCoordinateTool(hitPos)) return;
 			if (ProcessPasteTool(hitPos)) return;
 			if (ProcessMeasureTool(hitPos)) return;
+		}
+
+		private bool ProcessObjectMarqueeTool(Vector3 hitPos)
+		{
+			var editorService = GameContext.EditorService;
+			if (ActiveEditorTool != EditorTool.SelectMove) return false;
+			if (!editorService.IsObjectMarqueeSelecting || editorService.ObjectMarqueeStart == null) return false;
+
+			var (cellX, cellZ) = editorService.WorldPosToCellCoords(hitPos);
+			editorService.SetObjectMarquee(editorService.ObjectMarqueeStart, new Vector2I(cellX, cellZ), true);
+			UpdateEditorObjectMarqueeVisual();
+			return true;
 		}
 
 		private bool ProcessAreaSelectionTool(Vector3 hitPos)
@@ -1919,7 +1932,7 @@ namespace Realm.Client.Core
 
 		private void HandleMapEditorMouseHover(Vector2 mousePos)
 		{
-			bool canHover = (ActiveEditorTool == EditorTool.SelectMove && !_isDraggingObject) ||
+			bool canHover = (ActiveEditorTool == EditorTool.SelectMove && !_isDraggingObject && !GameContext.EditorService.IsObjectMarqueeSelecting) ||
 			                ActiveEditorTool == EditorTool.DeleteObject ||
 			                ActiveEditorTool == EditorTool.Eyedropper;
 
@@ -2039,6 +2052,33 @@ namespace Realm.Client.Core
 			}
 		}
 
+		private void BeginEditorObjectDrag(Vector3 terrainHitPos, Vector2 mousePos)
+		{
+			var primary = SelectedEditorObject as Node3D;
+			if (!GodotObject.IsInstanceValid(primary)) return;
+
+			_isDraggingObject = true;
+			_dragObjectStartPos = primary.Position;
+			_dragObjectStartRot = primary.RotationDegrees;
+			_dragObjectStartScale = primary.Scale;
+			GameContext.EditorService.DragStartMousePos = mousePos;
+			GameContext.EditorService.DragStartGroundPos = terrainHitPos;
+			GameContext.EditorService.DragObjectStartHitPos = terrainHitPos;
+			GameContext.EditorService.DragObjectHasMoved = false;
+
+			_dragSelectionStartTransforms.Clear();
+			var selection = GameContext.EditorService.SelectedEditorObjects;
+			for (int i = 0; i < selection.Count; i++)
+			{
+				if (selection[i] is Node3D node3D && GodotObject.IsInstanceValid(node3D))
+				{
+					_dragSelectionStartTransforms.Add((node3D, node3D.Position, node3D.RotationDegrees, node3D.Scale));
+				}
+			}
+
+			_isDraggingSelectionGroup = _dragSelectionStartTransforms.Count > 1;
+		}
+
 		private void TryApplyTerrainEditing(Vector3 hitPos, float fDelta)
 		{
 			bool isTerrainTool = IsTerrainEditingTool(ActiveEditorTool);
@@ -2085,6 +2125,14 @@ namespace Realm.Client.Core
 		private void UpdateDraggedObjectPosition(Vector3 hitPos)
 		{
 			var node3D = SelectedEditorObject as Node3D;
+			if (!GodotObject.IsInstanceValid(node3D)) return;
+
+			if (_isDraggingSelectionGroup)
+			{
+				UpdateDraggedSelectionPositions(hitPos);
+				return;
+			}
+
 			Vector3 delta = hitPos - GameContext.EditorService.DragStartGroundPos;
 			Vector3 dragPos = _dragObjectStartPos + delta;
 			if (EditorSnapToGrid && GroundTerrain != null)
@@ -2095,29 +2143,57 @@ namespace Realm.Client.Core
 			float authoredYOffset = _dragObjectStartPos.Y - GameContext.EditorService.GetTerrainHeightAt(_dragObjectStartPos);
 			dragPos.Y = GameContext.EditorService.GetTerrainHeightAt(dragPos) + (Mathf.Abs(authoredYOffset) < 0.05f ? 0f : authoredYOffset);
 			node3D.Position = dragPos;
+			ApplyDraggedNodePosition(node3D, dragPos);
 
-			if (SelectedEditorObject is Unit3D unit)
+			MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		}
+
+		private void UpdateDraggedSelectionPositions(Vector3 hitPos)
+		{
+			Vector3 delta = hitPos - GameContext.EditorService.DragStartGroundPos;
+			Vector3 dragPos = _dragObjectStartPos + delta;
+			if (EditorSnapToGrid && GroundTerrain != null)
 			{
-				UpdateDraggedUnitECS(unit, dragPos);
+				dragPos = GameContext.EditorService.SnapToGrid(dragPos);
 			}
-			else if (SelectedEditorObject is PropEntityProxyNode propProxy)
+
+			Vector3 offset = dragPos - _dragObjectStartPos;
+
+			for (int i = 0; i < _dragSelectionStartTransforms.Count; i++)
 			{
-				UpdateDraggedPropProxyECS(propProxy, dragPos);
-			}
-			else if (SelectedEditorObject is Prop3D prop)
-			{
-				UpdateDraggedPropECS(prop, dragPos);
-			}
-			else if (SelectedEditorObject is Decal3D decal3D)
-			{
-				UpdateDraggedDecalECS(decal3D, dragPos);
-			}
-			else if (SelectedEditorObject is ProceduralVfxInstance3D vfxInst)
-			{
-				UpdateDraggedVfxECS(vfxInst, dragPos);
+				var start = _dragSelectionStartTransforms[i];
+				if (!GodotObject.IsInstanceValid(start.Node)) continue;
+
+				Vector3 newPosition = start.Position + offset;
+				start.Node.Position = newPosition;
+				ApplyDraggedNodePosition(start.Node, newPosition);
 			}
 
 			MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		}
+
+		private void ApplyDraggedNodePosition(Node3D node3D, Vector3 dragPos)
+		{
+			if (node3D is Unit3D unit)
+			{
+				UpdateDraggedUnitECS(unit, dragPos);
+			}
+			else if (node3D is PropEntityProxyNode propProxy)
+			{
+				UpdateDraggedPropProxyECS(propProxy, dragPos);
+			}
+			else if (node3D is Prop3D prop)
+			{
+				UpdateDraggedPropECS(prop, dragPos);
+			}
+			else if (node3D is Decal3D decal3D)
+			{
+				UpdateDraggedDecalECS(decal3D, dragPos);
+			}
+			else if (node3D is ProceduralVfxInstance3D vfxInst)
+			{
+				UpdateDraggedVfxECS(vfxInst, dragPos);
+			}
 		}
 
 		private void UpdateDraggedUnitECS(Unit3D unit, Vector3 dragPos)
@@ -2209,6 +2285,15 @@ namespace Realm.Client.Core
 			if (_isDraggingObject)
 			{
 				_isDraggingObject = false;
+
+				if (_isDraggingSelectionGroup)
+				{
+					RecordSelectionGroupDragAction();
+					_isDraggingSelectionGroup = false;
+					_dragSelectionStartTransforms.Clear();
+					return;
+				}
+
 				if (GodotObject.IsInstanceValid(SelectedEditorObject))
 				{
 					var node3D = SelectedEditorObject as Node3D;
@@ -2232,11 +2317,110 @@ namespace Realm.Client.Core
 			}
 		}
 
+		private void RecordSelectionGroupDragAction()
+		{
+			var actions = new List<IEditorAction>();
+
+			for (int i = 0; i < _dragSelectionStartTransforms.Count; i++)
+			{
+				var start = _dragSelectionStartTransforms[i];
+				if (!GodotObject.IsInstanceValid(start.Node)) continue;
+				if (start.Node.Position.DistanceTo(start.Position) <= 0.05f) continue;
+
+				if (start.Node is PropEntityProxyNode proxy)
+				{
+					PropMultiMeshManager.Instance?.MarkDirty(proxy.PropId);
+				}
+				else if (start.Node is Prop3D prop)
+				{
+					PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
+				}
+
+				actions.Add(new ObjectTransformAction(start.Node, start.Position, start.Node.Position, start.Rotation, start.Node.RotationDegrees, start.Scale, start.Node.Scale));
+			}
+
+			if (actions.Count == 0) return;
+
+			EditorHistoryManager.RecordAction(new CompositeAction(actions));
+			MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format("Moved {0} Objects", actions.Count));
+			EditorHasUnsavedChanges = true;
+		}
+
 		private void ClearSelectionState()
 		{
 			if (GameContext.EditorService.IsSelectingArea)
 			{
 				GameContext.EditorService.SetIsSelectingArea(false);
+			}
+
+			if (GameContext.EditorService.IsObjectMarqueeSelecting)
+			{
+				FinalizeEditorObjectMarquee();
+			}
+			else if (GameContext.EditorService.ObjectMarqueeStart != null)
+			{
+				GameContext.EditorService.ClearObjectMarquee();
+				HideEditorObjectMarquee();
+			}
+		}
+
+		private void FinalizeEditorObjectMarquee()
+		{
+			var editorService = GameContext.EditorService;
+			if (!editorService.IsObjectMarqueeSelecting || editorService.ObjectMarqueeStart == null || editorService.ObjectMarqueeEnd == null)
+			{
+				editorService.ClearObjectMarquee();
+				HideEditorObjectMarquee();
+				return;
+			}
+
+			Vector2I start = editorService.ObjectMarqueeStart.Value;
+			Vector2I end = editorService.ObjectMarqueeEnd.Value;
+			int minX = Mathf.Min(start.X, end.X);
+			int minZ = Mathf.Min(start.Y, end.Y);
+			int maxX = Mathf.Max(start.X, end.X);
+			int maxZ = Mathf.Max(start.Y, end.Y);
+
+			bool additive = Input.IsKeyPressed(Key.Shift);
+			bool subtractive = Input.IsKeyPressed(Key.Ctrl);
+			var selection = new List<Node>();
+			if (additive || subtractive)
+			{
+				selection.AddRange(editorService.SelectedEditorObjects);
+			}
+
+			CollectMarqueeSelection(AllUnits, minX, minZ, maxX, maxZ, subtractive, selection);
+			CollectMarqueeSelection(AllProps, minX, minZ, maxX, maxZ, subtractive, selection);
+			CollectMarqueeSelection(AllDecals, minX, minZ, maxX, maxZ, subtractive, selection);
+			CollectMarqueeSelection(AllVfx, minX, minZ, maxX, maxZ, subtractive, selection);
+
+			SetEditorObjectSelection(selection);
+			editorService.ClearObjectMarquee();
+			HideEditorObjectMarquee();
+			MapEditorHUD.Instance?.ShowFeedbackExternal(string.Format("{0} Objects Selected", selection.Count));
+		}
+
+		private void CollectMarqueeSelection<T>(List<T> candidates, int minX, int minZ, int maxX, int maxZ, bool subtractive, List<Node> selection) where T : Node
+		{
+			if (candidates == null) return;
+
+			for (int i = 0; i < candidates.Count; i++)
+			{
+				T candidate = candidates[i];
+				if (candidate == null || !GodotObject.IsInstanceValid(candidate)) continue;
+				if (candidate is not Node3D node3D) continue;
+
+				var (cellX, cellZ) = GameContext.EditorService.WorldPosToCellCoords(node3D.Position);
+				if (cellX < minX || cellX > maxX || cellZ < minZ || cellZ > maxZ) continue;
+
+				if (subtractive)
+				{
+					selection.Remove(candidate);
+				}
+				else if (!selection.Contains(candidate))
+				{
+					selection.Add(candidate);
+				}
 			}
 		}
 

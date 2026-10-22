@@ -744,6 +744,8 @@ public partial class GameHost : Node3D, IGameAPI
 	private MeshInstance3D? _selectionHighlightMesh { get; set; }
 	private MeshInstance3D? _coordinatePreviewMesh { get; set; }
 	private MeshInstance3D? _coordinateSelectionOutlineMesh { get; set; }
+	private MeshInstance3D? _objectMarqueeFillMesh { get; set; }
+	private MeshInstance3D? _objectMarqueeOutlineMesh { get; set; }
 	private List<MeshInstance3D> _coordinatePersistentMeshes { get; set; } = new();
 
 
@@ -769,80 +771,169 @@ public partial class GameHost : Node3D, IGameAPI
 		get => _selectedEditorObject;
 		set
 		{
-			if (_selectedEditorObject == value) return;
-			if (GodotObject.IsInstanceValid(_selectedEditorObject))
+			if (value == null)
 			{
-				if (_selectedEditorObject is Unit3D oldUnit)
-				{
-					oldUnit.IsSelected = false;
-				}
-				else if (_selectedEditorObject is PropEntityProxyNode || _selectedEditorObject is Prop3D)
-				{
-					ClearSelectedPropEntity();
-				}
-				else if ((_selectedEditorObject as Decal ?? FindDecalInParentChain(_selectedEditorObject)) is Decal oldDecal)
-				{
-					UpdateDecalSelectionRing(oldDecal, false);
-				}
-				else if (_selectedEditorObject is ProceduralVfxInstance3D oldVfx)
-				{
-					oldVfx.IsSelected = false;
-				}
+				if (_selectedEditorObject == null && GameContext.EditorService.SelectedEditorObjectCount == 0) return;
+				SetEditorObjectSelection(null);
+				return;
 			}
 
-			_selectedEditorObject = value;
-			if (GodotObject.IsInstanceValid(_selectedEditorObject))
+			if (GodotObject.IsInstanceValid(value)
+			    && GameContext.EditorService.SelectedEditorObjectCount == 1
+			    && GameContext.EditorService.SelectedEditorObjects[0] == value)
 			{
-				if (_selectedEditorObject is Unit3D newUnit)
-				{
-					newUnit.IsSelected = true;
-				}
-				else if (_selectedEditorObject is PropEntityProxyNode newPropProxy)
-				{
-					SetSelectedPropEntity(newPropProxy.Entity, newPropProxy.PropId);
-				}
-				else if (_selectedEditorObject is Prop3D newProp)
-				{
-					SetSelectedPropEntity(newProp.Entity, newProp.PropId);
-				}
-				else if ((_selectedEditorObject as Decal ?? FindDecalInParentChain(_selectedEditorObject)) is Decal newDecal)
-				{
-					UpdateDecalSelectionRing(newDecal, true);
-				}
-				else if (_selectedEditorObject is ProceduralVfxInstance3D newVfx)
-				{
-					newVfx.IsSelected = true;
-				}
-			}
-			else
-			{
-				foreach (var decal in AllDecals)
-				{
-					if (GodotObject.IsInstanceValid(decal))
-					{
-						UpdateDecalSelectionRing(decal, false);
-					}
-				}
-
-				foreach (var vfx in AllVfx)
-				{
-					if (GodotObject.IsInstanceValid(vfx))
-					{
-						vfx.IsSelected = false;
-					}
-				}
+				return;
 			}
 
-			MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
-			UpdateEditorCoverageOverlay();
+			SetEditorObjectSelection(new[] { value });
+		}
+	}
+
+	public IReadOnlyList<Node> SelectedEditorObjects => GameContext.EditorService.SelectedEditorObjects;
+
+	public int SelectedEditorObjectCount => GameContext.EditorService.SelectedEditorObjectCount;
+
+	public bool IsEditorObjectSelected(Node node) => GameContext.EditorService.IsEditorObjectSelected(node);
+
+	public void SetEditorObjectSelection(IEnumerable<Node> nodes)
+	{
+		ClearEditorSelectionVisuals();
+		GameContext.EditorService.SetSelectedEditorObjects(nodes);
+
+		var selection = GameContext.EditorService.SelectedEditorObjects;
+		_selectedEditorObject = selection.Count > 0 ? selection[^1] : null;
+		ApplyEditorSelectionVisuals();
+
+		MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		UpdateEditorCoverageOverlay();
+	}
+
+	public void AddEditorObjectToSelection(Node node)
+	{
+		if (node == null || IsEditorObjectSelected(node)) return;
+		if (!GameContext.EditorService.AddSelectedEditorObject(node)) return;
+
+		ClearSelectedPropEntity();
+		ApplyEditorSelectionVisual(node, true);
+		_selectedEditorObject = node;
+
+		MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		UpdateEditorCoverageOverlay();
+	}
+
+	public void RemoveEditorObjectFromSelection(Node node)
+	{
+		if (node == null || !IsEditorObjectSelected(node)) return;
+
+		ApplyEditorSelectionVisual(node, false);
+		GameContext.EditorService.RemoveSelectedEditorObject(node);
+		ClearSelectedPropEntity();
+
+		var selection = GameContext.EditorService.SelectedEditorObjects;
+		_selectedEditorObject = selection.Count > 0 ? selection[^1] : null;
+		ApplyEditorSelectionVisuals();
+
+		MapEditorHUD.Instance?.UpdateSelectedObjectInfo();
+		UpdateEditorCoverageOverlay();
+	}
+
+	public void ToggleEditorObjectSelection(Node node, bool remove)
+	{
+		if (node == null) return;
+
+		if (remove || IsEditorObjectSelected(node))
+		{
+			RemoveEditorObjectFromSelection(node);
+		}
+		else
+		{
+			AddEditorObjectToSelection(node);
+		}
+	}
+
+	public void ClearEditorObjectSelection()
+	{
+		SetEditorObjectSelection(null);
+	}
+
+	private void ClearEditorSelectionVisuals()
+	{
+		var selection = GameContext.EditorService.SelectedEditorObjects;
+		for (int i = 0; i < selection.Count; i++)
+		{
+			ApplyEditorSelectionVisual(selection[i], false);
+		}
+
+		ClearSelectedPropEntity();
+	}
+
+	private void ApplyEditorSelectionVisuals()
+	{
+		var selection = GameContext.EditorService.SelectedEditorObjects;
+		if (selection.Count == 0) return;
+
+		if (selection.Count == 1)
+		{
+			Node primary = selection[0];
+			if (!GodotObject.IsInstanceValid(primary)) return;
+
+			if (primary is PropEntityProxyNode proxy)
+			{
+				SetSelectedPropEntity(proxy.Entity, proxy.PropId);
+				return;
+			}
+
+			if (primary is Prop3D prop && primary is not Unit3D)
+			{
+				SetSelectedPropEntity(prop.Entity, prop.PropId);
+				return;
+			}
+
+			ApplyEditorSelectionVisual(primary, true);
+			return;
+		}
+
+		for (int i = 0; i < selection.Count; i++)
+		{
+			ApplyEditorSelectionVisual(selection[i], true);
+		}
+	}
+
+	private void ApplyEditorSelectionVisual(Node node, bool selected)
+	{
+		if (node == null || !GodotObject.IsInstanceValid(node)) return;
+
+		if (node is Unit3D unit)
+		{
+			unit.IsSelected = selected;
+			return;
+		}
+
+		if (node is Prop3D prop)
+		{
+			prop.IsSelected = selected;
+			return;
+		}
+
+		if ((node as Decal ?? FindDecalInParentChain(node)) is Decal decal)
+		{
+			UpdateDecalSelectionRing(decal, selected);
+			return;
+		}
+
+		if (node is ProceduralVfxInstance3D vfx)
+		{
+			vfx.IsSelected = selected;
 		}
 	}
 
 	private Node? _selectedEditorObject { get; set; }
 	private bool _isDraggingObject { get; set; }
+	private bool _isDraggingSelectionGroup { get; set; }
 	private Vector3 _dragObjectStartPos { get; set; }
 	private Vector3 _dragObjectStartRot { get; set; }
 	private Vector3 _dragObjectStartScale { get; set; }
+	private readonly List<(Node3D Node, Vector3 Position, Vector3 Rotation, Vector3 Scale)> _dragSelectionStartTransforms = new();
 
 
 	private Node3D _editorPreviewNode { get; set; }

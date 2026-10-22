@@ -69,6 +69,11 @@ public class ObjectTransformAction : IEditorAction
 			UpdateEcsEntity(prop.Entity, pos, rot, scale);
 			PropMultiMeshManager.Instance?.MarkDirty(prop.PropId);
 		}
+		else if (_targetNode is PropEntityProxyNode proxy)
+		{
+			UpdateEcsEntity(proxy.Entity, pos, rot, scale);
+			PropMultiMeshManager.Instance?.MarkDirty(proxy.PropId);
+		}
 		else if (_targetNode is Decal3D decal3D)
 		{
 			UpdateEcsEntity(decal3D.Entity, pos, rot, scale);
