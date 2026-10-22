@@ -330,6 +330,7 @@ public static partial class MapWorkspaceService
 
 		GenerateVSCodeConfig(directory);
 		EnsureWitFile(directory);
+		EnsureLldbScript(directory);
 		EnsureCsproj(directory, mapName);
 		EnsureMapScript(directory, mapName);
 		EnsureMeleeRules(directory);
@@ -499,6 +500,14 @@ public static partial class MapWorkspaceService
 		{
 			File.Copy(sourceWit, witPath, true);
 		}
+	}
+
+	public static void EnsureLldbScript(string directory)
+	{
+		string sourcePath = GetTemplatePath("realm_lldb.py");
+		if (!File.Exists(sourcePath)) return;
+
+		PathUtils.CopyFileClearingReadOnly(sourcePath, Path.Combine(directory, "realm_lldb.py"));
 	}
 
 	public static void EnsureCsproj(string directory, string mapName)

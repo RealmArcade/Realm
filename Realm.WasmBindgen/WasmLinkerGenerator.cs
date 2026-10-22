@@ -2874,7 +2874,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 	private static void GenerateLldbScript(string repoRoot, Compilation compilation)
 	{
-		string targetPath = Path.Combine(repoRoot, "realm_lldb.py");
+		string targetPath = Path.Combine(repoRoot, "MapTemplate", "realm_lldb.py");
 		string templatePath = Path.Combine(repoRoot, "Realm.WasmBindgen", "realm_lldb.template.py");
 
 		string templateContent = File.Exists(templatePath)
