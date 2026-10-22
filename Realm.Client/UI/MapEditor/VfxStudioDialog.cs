@@ -180,7 +180,11 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		topToolbar.Name = "TopToolbar_HBoxContainer";
 		topToolbar.AddThemeConstantOverride("separation", 4);
 
-		AddButton(topToolbar, $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("VFX"), () => RestartPreviewVfx(), "Restart procedural effect", 10, new Vector2(0, 22));
+		AddButton(topToolbar, $"{UnicodeIcons.PLAY} " + TranslationServer.Translate("VFX"), () =>
+		{
+			_lastPreviewKind = VfxPreviewKind.VisualEffect;
+			RestartPreviewVfx();
+		}, "Restart procedural effect", 10, new Vector2(0, 22));
 		AddButton(topToolbar, $"{UnicodeIcons.WATER} " + TranslationServer.Translate("Wave"), () => TriggerPreviewShockwave(), "Test directional ground planar shockwave", 10, new Vector2(0, 22));
 		AddButton(topToolbar, $"{UnicodeIcons.CIRCLE} " + TranslationServer.Translate("Ring"), () => TriggerPreviewRing(), "Test radial expanding ground ring", 10, new Vector2(0, 22));
 		AddButton(topToolbar, $"{UnicodeIcons.SUN} " + TranslationServer.Translate("Burst"), () => TriggerPreviewBurst(), "Test expanding 3D burst sphere", 10, new Vector2(0, 22));
@@ -2077,36 +2081,103 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		}
 	}
 
+	private enum VfxPreviewKind
+	{
+		VisualEffect,
+		Shockwave,
+		GroundRing,
+		BurstSphere,
+		ChainBeam,
+		BarrageVolley
+	}
+
+	private const float ShockwavePreviewRadius = 6.0f;
+	private const float ShockwavePreviewSpeed = 10.0f;
+	private const float ShockwavePreviewDuration = 0.9f;
+	private const float RingPreviewRadius = 5.0f;
+	private const float RingPreviewSpeed = 8.0f;
+	private const float RingPreviewDuration = 0.9f;
+	private const float BurstPreviewRadius = 4.0f;
+	private const float BurstPreviewSpeed = 10.0f;
+	private const float BurstPreviewDuration = 0.7f;
+	private const float ChainPreviewJumpDelay = 0.08f;
+	private const int ChainPreviewForkCount = 2;
+	private const float ChainPreviewFadeLifetime = 0.45f;
+	private const float ChainPreviewWidth = 0.35f;
+	private const float BarragePreviewRadius = 3.5f;
+	private const int BarragePreviewCount = 8;
+	private const float BarragePreviewInterval = 0.12f;
+
+	private static readonly Vector3[] ChainPreviewPoints =
+	{
+		new Vector3(-2.5f, 0.5f, -1.5f),
+		new Vector3(-0.5f, 1.2f, 0.5f),
+		new Vector3(1.5f, 0.6f, -0.5f),
+		new Vector3(2.5f, 1.0f, 1.5f)
+	};
+
+	private VfxPreviewKind _lastPreviewKind = VfxPreviewKind.VisualEffect;
+
 	private void CopyScriptCode()
 	{
-		string code;
-		if (_currentConfig.PrimitiveType == VfxPrimitiveType.VortexDisc)
-		{
-			code = $"api.SpawnExpandingGroundRing(targetPos, 8.0f, 12.0f, 1.0f);";
-		}
-		else if (_currentConfig.PrimitiveType == VfxPrimitiveType.AuraSphere)
-		{
-			code = $"api.SpawnExpandingBurstSphere(targetPos, 6.0f, 15.0f, 0.8f);";
-		}
-		else if (_currentConfig.PrimitiveType == VfxPrimitiveType.AuraCapsule || _currentConfig.PrimitiveType == VfxPrimitiveType.HemisphereDome)
-		{
-			code = $"api.AttachPersistentAura(unit, \"{_vfxId}\", 1.0f);";
-		}
-		else
-		{
-			code = $"api.SpawnVisualEffect(\"{_vfxId}\", targetPos, 1.0f);";
-		}
-
+		string code = BuildScriptCode();
 		DisplayServer.ClipboardSet(code);
 		Hud?.ShowFeedback(TranslationServer.Translate("Copied script code to clipboard"));
+	}
+
+	private string BuildScriptCode()
+	{
+		SyncConfigFromControls();
+
+		string effectId = !string.IsNullOrEmpty(_currentConfig.VfxId) ? _currentConfig.VfxId : _vfxId;
+		string colorArgument = FormatScriptColor(_currentConfig.BaseColor);
+
+		switch (_lastPreviewKind)
+		{
+			case VfxPreviewKind.Shockwave:
+				return $"api.SpawnGroundShockwave(targetPos, new System.Numerics.Vector3(0f, 0f, -1f), {FormatScriptFloat(ShockwavePreviewRadius)}, {FormatScriptFloat(ShockwavePreviewSpeed)}, {FormatScriptFloat(ShockwavePreviewDuration)}, {colorArgument});";
+			case VfxPreviewKind.GroundRing:
+				return $"api.SpawnExpandingGroundRing(targetPos, {FormatScriptFloat(RingPreviewRadius)}, {FormatScriptFloat(RingPreviewSpeed)}, {FormatScriptFloat(RingPreviewDuration)}, {colorArgument});";
+			case VfxPreviewKind.BurstSphere:
+				return $"api.SpawnExpandingBurstSphere(targetPos, {FormatScriptFloat(BurstPreviewRadius)}, {FormatScriptFloat(BurstPreviewSpeed)}, {FormatScriptFloat(BurstPreviewDuration)}, {colorArgument});";
+			case VfxPreviewKind.ChainBeam:
+				return $"System.Numerics.Vector3[] chainPoints = {FormatScriptPoints(ChainPreviewPoints)};\napi.SpawnChainBeam(\"{effectId}\", chainPoints, {FormatScriptFloat(ChainPreviewJumpDelay)}, {ChainPreviewForkCount}, {FormatScriptFloat(ChainPreviewFadeLifetime)}, {FormatScriptFloat(ChainPreviewWidth)}, {colorArgument});";
+			case VfxPreviewKind.BarrageVolley:
+				return $"api.SpawnBarrageVolley(\"{effectId}\", targetPos, {FormatScriptFloat(BarragePreviewRadius)}, {BarragePreviewCount}, {FormatScriptFloat(BarragePreviewInterval)});";
+			default:
+				if (_currentConfig.PrimitiveType == VfxPrimitiveType.AuraCapsule || _currentConfig.PrimitiveType == VfxPrimitiveType.HemisphereDome)
+				{
+					return $"api.AttachPersistentAura(unit, \"{effectId}\", 1.0f);";
+				}
+
+				return $"api.SpawnVisualEffect(\"{effectId}\", targetPos, 1.0f);";
+		}
+	}
+
+	private static string FormatScriptFloat(float value)
+	{
+		return value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + "f";
+	}
+
+	private static string FormatScriptColor(string colorHex)
+	{
+		Color color = VfxShaderManager.ParseColorSafe(colorHex, Colors.Orange);
+		return $"new System.Numerics.Vector3({FormatScriptFloat(color.R)}, {FormatScriptFloat(color.G)}, {FormatScriptFloat(color.B)})";
+	}
+
+	private static string FormatScriptPoints(Vector3[] points)
+	{
+		var formattedPoints = points.Select(point => $"new System.Numerics.Vector3({FormatScriptFloat(point.X)}, {FormatScriptFloat(point.Y)}, {FormatScriptFloat(point.Z)})");
+		return "new System.Numerics.Vector3[] { " + string.Join(", ", formattedPoints) + " }";
 	}
 
 	private void TriggerPreviewShockwave()
 	{
 		if (PreviewSceneRoot == null || !GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+		_lastPreviewKind = VfxPreviewKind.Shockwave;
 		Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
 		Color col = new Color(baseCol.R, baseCol.G, baseCol.B, 0.9f);
-		var shock = GroundShockwave3D.Create(PreviewSceneRoot, new Vector3(0, 0, -2.5f), ShockwaveType.PlanarWave, maxRadius: 6.0f, speed: 10.0f, duration: 0.9f, col);
+		var shock = GroundShockwave3D.Create(PreviewSceneRoot, new Vector3(0, 0, -2.5f), ShockwaveType.PlanarWave, maxRadius: ShockwavePreviewRadius, speed: ShockwavePreviewSpeed, duration: ShockwavePreviewDuration, col);
 		shock.ConformToTerrain = false;
 		shock.Direction = Vector3.Back;
 	}
@@ -2114,42 +2185,39 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private void TriggerPreviewRing()
 	{
 		if (PreviewSceneRoot == null || !GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+		_lastPreviewKind = VfxPreviewKind.GroundRing;
 		Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
 		Color col = new Color(baseCol.R, baseCol.G, baseCol.B, 0.9f);
-		var ring = GroundShockwave3D.Create(PreviewSceneRoot, Vector3.Zero, ShockwaveType.ExpandingGroundRing, maxRadius: 5.0f, speed: 8.0f, duration: 0.9f, col);
+		var ring = GroundShockwave3D.Create(PreviewSceneRoot, Vector3.Zero, ShockwaveType.ExpandingGroundRing, maxRadius: RingPreviewRadius, speed: RingPreviewSpeed, duration: RingPreviewDuration, col);
 		ring.ConformToTerrain = false;
 	}
 
 	private void TriggerPreviewBurst()
 	{
 		if (PreviewSceneRoot == null || !GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+		_lastPreviewKind = VfxPreviewKind.BurstSphere;
 		Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
 		Color col = new Color(baseCol.R, baseCol.G, baseCol.B, 0.8f);
-		var burst = GroundShockwave3D.Create(PreviewSceneRoot, new Vector3(0, 0.8f, 0), ShockwaveType.ExpandingBurstSphere, maxRadius: 4.0f, speed: 10.0f, duration: 0.7f, col);
+		var burst = GroundShockwave3D.Create(PreviewSceneRoot, new Vector3(0, 0.8f, 0), ShockwaveType.ExpandingBurstSphere, maxRadius: BurstPreviewRadius, speed: BurstPreviewSpeed, duration: BurstPreviewDuration, col);
 		burst.ConformToTerrain = false;
 	}
 
 	private void TriggerPreviewChain()
 	{
 		if (PreviewSceneRoot == null || !GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+		_lastPreviewKind = VfxPreviewKind.ChainBeam;
 		Color baseCol = VfxShaderManager.ParseColorSafe(_currentConfig.BaseColor, Colors.Orange);
 		Color col = new Color(baseCol.R, baseCol.G, baseCol.B, 1.0f);
-		var pts = new Vector3[]
-		{
-			new Vector3(-2.5f, 0.5f, -1.5f),
-			new Vector3(-0.5f, 1.2f, 0.5f),
-			new Vector3(1.5f, 0.6f, -0.5f),
-			new Vector3(2.5f, 1.0f, 1.5f)
-		};
-		ChainBeam3D.Create(PreviewSceneRoot, pts, jumpDelay: 0.08f, forkCount: 2, fadeLifetime: 0.45f, width: 0.35f, col);
+		ChainBeam3D.Create(PreviewSceneRoot, ChainPreviewPoints, jumpDelay: ChainPreviewJumpDelay, forkCount: ChainPreviewForkCount, fadeLifetime: ChainPreviewFadeLifetime, width: ChainPreviewWidth, col);
 	}
 
 	private void TriggerPreviewBarrage()
 	{
 		if (PreviewSceneRoot == null || !GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
+		_lastPreviewKind = VfxPreviewKind.BarrageVolley;
 		var rng = new Random();
-		int count = 8;
-		float interval = 0.12f;
+		int count = BarragePreviewCount;
+		float interval = BarragePreviewInterval;
 		for (int i = 0; i < count; i++)
 		{
 			float delay = i * interval;
@@ -2158,7 +2226,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 			{
 				if (!GodotObject.IsInstanceValid(PreviewSceneRoot)) return;
 				float angle = (float)(rng.NextDouble() * Math.PI * 2.0);
-				float dist = (float)(rng.NextDouble() * 3.5f);
+				float dist = (float)(rng.NextDouble() * BarragePreviewRadius);
 				var impactPos = new Vector3(Mathf.Cos(angle) * dist, 0.05f, Mathf.Sin(angle) * dist);
 				var subVfx = new ProceduralVfxInstance3D();
 				subVfx.IsPreview = true;
