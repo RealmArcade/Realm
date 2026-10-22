@@ -2690,7 +2690,7 @@ public partial class GameHost : Node3D, IGameAPI
 		bool wasLoadingMap = GameContext.SaveLoadService.IsLoadingMap;
 		bool wasProfilingEnabled = GameContext.PerformanceTrackingService?.IsFunctionProfilingEnabled ?? false;
 
-		GameContext.DisposeAndRecreateServices();
+		GameContext.EndScreenScope();
 		ResolveServices();
 
 		GameContext.SessionState.IsMapEditorMode = wasMapEditorMode;

@@ -1,6 +1,4 @@
-using System;
-using System.Collections.Generic;
-using Realm.Ecs;
+﻿using Realm.Ecs;
 using Realm.Client.Services.ModelOptimization;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
@@ -10,7 +8,23 @@ namespace Realm.Client.Services
 	public static class GameContext
 	{
 		public static SessionState SessionState { get; } = new();
-		
+
+		private static ServiceScope _globalScope = new("Global");
+		private static ServiceScope? _screenScope;
+
+		/// <summary>
+		/// Services that live for the whole application session and are disposed only at shutdown.
+		/// </summary>
+		public static ServiceScope GlobalScope => _globalScope;
+
+		/// <summary>
+		/// Services owned by the screen that is currently open. Ending the screen disposes this scope; because a
+		/// disposed scope never hands a service out again, the next request creates a fresh scope instead of
+		/// returning disposed state. A screen must therefore read this property when it needs a service rather
+		/// than keeping a scope reference across screens.
+		/// </summary>
+		public static ServiceScope ScreenScope => _screenScope is { IsDisposed: false } scope ? scope : CreateScreenScope();
+
 		public static EcsWorld? World => ECSContext.World;
 		public static Entity WorldEntity
 		{
@@ -28,47 +42,48 @@ namespace Realm.Client.Services
 			set => ECSContext.ActiveMapName = value;
 		}
 
-		public static AudioService AudioService { get; private set; }
-		public static FXService FXService { get; private set; }
-		public static SaveLoadService SaveLoadService { get; private set; }
-		public static EditorService EditorService { get; private set; }
-		public static ModelOverrideService ModelOverrideService { get; private set; }
-		public static ReplayService ReplayService { get; private set; }
-		public static NetworkService NetworkService { get; private set; }
-		public static TechTreeService TechTreeService { get; private set; }
-		public static InputService InputService { get; private set; }
-		public static ShroudService ShroudService { get; private set; }
-		public static UnitSpawnService UnitSpawnService { get; private set; }
-		public static WorldInitService WorldInitService { get; private set; }
-		public static MapPropertiesLoader MapPropertiesLoader { get; private set; }
-		public static MapEditorTerrainImportService MapEditorTerrainImportService { get; private set; }
-		public static CheatService CheatService { get; private set; }
-		public static EnvironmentService EnvironmentService { get; private set; }
-		public static WindService WindService { get; private set; }
-		public static SpectatorService SpectatorService { get; private set; }
-		public static ModelOptimizerService ModelOptimizerService { get; private set; }
-		public static AssetIndexService AssetIndexService { get; private set; }
-		public static MetadataService MetadataService { get; private set; }
-		public static MapUpgradeService MapUpgradeService { get; private set; }
-		public static MapStorageService MapStorageService { get; private set; }
-		public static MapAssetImportService MapAssetImportService { get; private set; }
-		public static MapSaveDataService MapSaveDataService { get; private set; }
-		public static RegistryService RegistryService { get; private set; }
-		public static MapScriptService MapScriptService { get; private set; }
-		public static TimerService TimerService { get; private set; }
-		public static RandomService RandomService { get; private set; }
-		public static PerformanceTrackingService PerformanceTrackingService { get; private set; }
-		public static NavMeshPathfinder NavMeshPathfinder { get; private set; }
-		public static ResourceEconomyService ResourceEconomyService { get; private set; }
-		public static SimulationService SimulationService { get; private set; }
-		public static MovementPredictionService MovementPredictionService { get; private set; }
-		public static PredictionPerformanceMonitor PredictionPerformanceMonitor { get; private set; }
-		public static ClientRpcService ClientRPC { get; private set; }
-		public static PerspectiveFilter PerspectiveFilter { get; private set; }
-		public static RaycastService RaycastService { get; private set; }
-		public static BaseMapFolderWatchService BaseMapFolderWatchService { get; private set; }
+		public static AudioService AudioService => GlobalScope.Get<AudioService>();
+		public static InputService InputService => GlobalScope.Get<InputService>();
+		public static AssetIndexService AssetIndexService => GlobalScope.Get<AssetIndexService>();
+		public static MetadataService MetadataService => GlobalScope.Get<MetadataService>();
+		public static MapUpgradeService MapUpgradeService => GlobalScope.Get<MapUpgradeService>();
+		public static MapStorageService MapStorageService => GlobalScope.Get<MapStorageService>();
+		public static MapAssetImportService MapAssetImportService => GlobalScope.Get<MapAssetImportService>();
+		public static ModelOptimizerService ModelOptimizerService => GlobalScope.Get<ModelOptimizerService>();
+		public static CheatService CheatService => GlobalScope.Get<CheatService>();
+		public static BaseMapFolderWatchService BaseMapFolderWatchService => GlobalScope.Get<BaseMapFolderWatchService>();
 
-		public static IEditorAPI IEditorAPI { get; private set; }
+		public static FXService FXService => ScreenScope.Get<FXService>();
+		public static SaveLoadService SaveLoadService => ScreenScope.Get<SaveLoadService>();
+		public static EditorService EditorService => ScreenScope.Get<EditorService>();
+		public static ModelOverrideService ModelOverrideService => ScreenScope.Get<ModelOverrideService>();
+		public static ReplayService ReplayService => ScreenScope.Get<ReplayService>();
+		public static NetworkService NetworkService => ScreenScope.Get<NetworkService>();
+		public static TechTreeService TechTreeService => ScreenScope.Get<TechTreeService>();
+		public static ShroudService ShroudService => ScreenScope.Get<ShroudService>();
+		public static UnitSpawnService UnitSpawnService => ScreenScope.Get<UnitSpawnService>();
+		public static WorldInitService WorldInitService => ScreenScope.Get<WorldInitService>();
+		public static MapPropertiesLoader MapPropertiesLoader => ScreenScope.Get<MapPropertiesLoader>();
+		public static MapEditorTerrainImportService MapEditorTerrainImportService => ScreenScope.Get<MapEditorTerrainImportService>();
+		public static EnvironmentService EnvironmentService => ScreenScope.Get<EnvironmentService>();
+		public static WindService WindService => ScreenScope.Get<WindService>();
+		public static SpectatorService SpectatorService => ScreenScope.Get<SpectatorService>();
+		public static MapSaveDataService MapSaveDataService => ScreenScope.Get<MapSaveDataService>();
+		public static RegistryService RegistryService => ScreenScope.Get<RegistryService>();
+		public static MapScriptService MapScriptService => ScreenScope.Get<MapScriptService>();
+		public static TimerService TimerService => ScreenScope.Get<TimerService>();
+		public static RandomService RandomService => ScreenScope.Get<RandomService>();
+		public static PerformanceTrackingService PerformanceTrackingService => ScreenScope.Get<PerformanceTrackingService>();
+		public static NavMeshPathfinder NavMeshPathfinder => ScreenScope.Get<NavMeshPathfinder>();
+		public static ResourceEconomyService ResourceEconomyService => ScreenScope.Get<ResourceEconomyService>();
+		public static SimulationService SimulationService => ScreenScope.Get<SimulationService>();
+		public static MovementPredictionService MovementPredictionService => ScreenScope.Get<MovementPredictionService>();
+		public static PredictionPerformanceMonitor PredictionPerformanceMonitor => ScreenScope.Get<PredictionPerformanceMonitor>();
+		public static ClientRpcService ClientRPC => ScreenScope.Get<ClientRpcService>();
+		public static PerspectiveFilter PerspectiveFilter => ScreenScope.Get<PerspectiveFilter>();
+		public static RaycastService RaycastService => ScreenScope.Get<RaycastService>();
+
+		public static IEditorAPI IEditorAPI => EditorService;
 
 		static GameContext()
 		{
@@ -79,115 +94,48 @@ namespace Realm.Client.Services
 		{
 			ECSContext.EnsureServices();
 
-			if (AudioService != null)
+			if (_globalScope.IsDisposed)
 			{
-				return;
+				_globalScope = new ServiceScope("Global");
 			}
+		}
 
-			AudioService = new();
-			FXService = new();
-			SaveLoadService = new();
-			EditorService = new();
-			ModelOverrideService = new();
-			ReplayService = new();
-			NetworkService = new();
-			TechTreeService = new();
-			ShroudService = new();
-			UnitSpawnService = new();
-			WorldInitService = new();
-			MapPropertiesLoader = new();
-			MapEditorTerrainImportService = new();
-			CheatService = new();
-			EnvironmentService = new();
-			WindService = new();
-			SpectatorService = new();
-			ModelOptimizerService = new();
-			AssetIndexService = new();
-			MetadataService = new();
-			MapUpgradeService = new();
-			MapStorageService = new();
-			MapAssetImportService = new();
-			MapSaveDataService = new();
-			RegistryService = new();
-			MapScriptService = new();
-			TimerService = new();
-			RandomService = new();
-			PerformanceTrackingService = new();
-			ResourceEconomyService = new();
-			NavMeshPathfinder = new();
-			SimulationService = new();
-			MovementPredictionService = new();
-			PredictionPerformanceMonitor = new();
-			InputService = new();
-			ClientRPC = new();
-			PerspectiveFilter = new();
-			RaycastService = new();
-			BaseMapFolderWatchService = new();
+		private static ServiceScope CreateScreenScope()
+		{
+			var scope = new ServiceScope("Screen");
+			scope.RegisterCleanup<ShroudService>(static service => service.CleanUp());
+			scope.RegisterCleanup<EnvironmentService>(static service => service.Cleanup());
+			scope.RegisterCleanup<EditorService>(static service => service.ResetAllState());
+			scope.RegisterCleanup<ModelOverrideService>(static service => service.ClearAll());
+			scope.RegisterCleanup<RegistryService>(static service => service.ClearAll());
+			scope.RegisterCleanup<MapScriptService>(static service => service.ClearAll());
+			scope.RegisterCleanup<MovementPredictionService>(static service => service.Clear());
+			scope.RegisterCleanup<NetworkService>(static service => service.Clear());
+			scope.RegisterDisposeAction(ECSContext.DisposeAndRecreateServices);
 
-			IEditorAPI = EditorService;
+			_screenScope = scope;
+			return scope;
+		}
+
+		public static void EndScreenScope()
+		{
+			ServiceScope? scope = _screenScope;
+			_screenScope = null;
+			scope?.Dispose();
 		}
 
 		public static void Dispose()
 		{
-			NetworkService?.Clear();
-			ShroudService?.CleanUp();
-			EnvironmentService?.Cleanup();
-			EditorService?.ResetAllState();
-			ModelOverrideService?.ClearAll();
-			RegistryService?.ClearAll();
-			MapScriptService?.ClearAll();
+			EndScreenScope();
+
+			_globalScope.Dispose();
+			_globalScope = new ServiceScope("Global");
+
 			Core.GameHost.Instance?.ClearStaticText();
 			VisualProjectilePool.Instance.Clear();
 			VisualProjectile3D.ClearSharedShaderCache();
 
-			AudioService = null;
-			FXService = null;
-			SaveLoadService = null;
-			EditorService = null;
-			ModelOverrideService = null;
-			ReplayService = null;
-			NetworkService = null;
-			TechTreeService = null;
-			ShroudService = null;
-			UnitSpawnService = null;
-			WorldInitService = null;
-			MapPropertiesLoader = null;
-			MapEditorTerrainImportService = null;
-			CheatService = null;
-			EnvironmentService = null;
-			WindService = null;
-			SpectatorService = null;
-			ModelOptimizerService = null;
-			AssetIndexService = null;
-			MetadataService = null;
-			MapUpgradeService = null;
-			MapStorageService = null;
-			MapSaveDataService = null;
-			RegistryService = null;
-			MapScriptService = null;
-			TimerService = null;
-			RandomService = null;
-			PerformanceTrackingService = null;
-			ResourceEconomyService = null;
-			NavMeshPathfinder = null;
-			SimulationService = null;
-			MovementPredictionService?.Clear();
-			MovementPredictionService = null;
-			InputService = null;
-			ClientRPC = null;
-			PerspectiveFilter = null;
-			RaycastService = null;
-			BaseMapFolderWatchService?.Dispose();
-			BaseMapFolderWatchService = null;
-			IEditorAPI = null;
-
-			ECSContext.DisposeAndRecreateServices();
-		}
-
-		public static void DisposeAndRecreateServices()
-		{
-			Dispose();
-			EnsureServices();
+			ECSContext.Dispose();
 		}
 	}
 }
