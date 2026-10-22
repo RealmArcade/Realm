@@ -917,10 +917,10 @@ public static class ModelShaderManager
 			return;
 		}
 
-		float signedPower = config.MaskInvert ? -MathF.Abs(config.MaskPower) : MathF.Abs(config.MaskPower);
-		Vector4 p1 = new Vector4((float)config.MotionType, (float)config.MaskMode, config.MaskMin, config.MaskMax);
-		Vector4 p2 = new Vector4(signedPower, config.SwayFrequency, config.SwayAmplitude, config.FlutterFrequency);
-		Vector4 p3 = new Vector4(config.FlutterAmplitude, config.WindInfluence, config.VelocityDragInfluence, config.WaveTurbulence);
+		ProceduralShaderParameters parameters = ProceduralAnimationManager.BuildShaderParameters(config);
+		Vector4 p1 = parameters.Parameters1;
+		Vector4 p2 = parameters.Parameters2;
+		Vector4 p3 = parameters.Parameters3;
 		Vector4 pImp = new Vector4(impulseStrength, config.ImpulseFrequency, impulseTime, showDebugMask ? 1.0f : 0.0f);
 		Vector3 regionMin = new Vector3(config.MaskRegionMin.X, config.MaskRegionMin.Y, config.MaskRegionMin.Z);
 		Vector3 regionMax = new Vector3(config.MaskRegionMax.X, config.MaskRegionMax.Y, config.MaskRegionMax.Z);

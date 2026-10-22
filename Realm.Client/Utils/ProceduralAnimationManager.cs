@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.VFX;
 using Realm.Shared.Services;
 
 namespace Realm.Client.Utils;
@@ -218,6 +219,7 @@ public static class ProceduralAnimationManager
 			}
 
 			GameContext.MetadataService.SaveMetadata(wsPath, metadata);
+			VfxShaderManager.ClearMotionCache();
 		}
 		catch (Exception ex)
 		{
@@ -237,6 +239,7 @@ public static class ProceduralAnimationManager
 			{
 				metadata.CustomProceduralAnimations.RemoveAll(a => string.Equals(a.Id, id, StringComparison.OrdinalIgnoreCase));
 				GameContext.MetadataService.SaveMetadata(wsPath, metadata);
+				VfxShaderManager.ClearMotionCache();
 			}
 		}
 		catch (Exception ex)
@@ -249,5 +252,21 @@ public static class ProceduralAnimationManager
 	{
 		if (targetNode == null || !GodotObject.IsInstanceValid(targetNode)) return;
 		ModelShaderManager.SetProceduralAnimation(targetNode, config, velocity, impulseStrength, impulseTime, showDebugMask);
+	}
+
+	public static ProceduralShaderParameters BuildShaderParameters(ProceduralAnimationConfig config)
+	{
+		if (config == null)
+		{
+			return new ProceduralShaderParameters(Vector4.Zero, Vector4.Zero, Vector4.Zero, Vector4.Zero);
+		}
+
+		float signedPower = config.MaskInvert ? -MathF.Abs(config.MaskPower) : MathF.Abs(config.MaskPower);
+		Vector4 parameters1 = new((float)config.MotionType, (float)config.MaskMode, config.MaskMin, config.MaskMax);
+		Vector4 parameters2 = new(signedPower, config.SwayFrequency, config.SwayAmplitude, config.FlutterFrequency);
+		Vector4 parameters3 = new(config.FlutterAmplitude, config.WindInfluence, config.VelocityDragInfluence, config.WaveTurbulence);
+		Vector4 shake = new(config.ImpulseAmplitude, config.ImpulseFrequency, config.ImpulseDuration, config.ImpulseDecay);
+
+		return new ProceduralShaderParameters(parameters1, parameters2, parameters3, shake);
 	}
 }

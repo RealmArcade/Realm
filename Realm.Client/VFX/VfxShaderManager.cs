@@ -4,6 +4,7 @@ using System.IO;
 using System.Text.Json.Nodes;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
@@ -18,6 +19,7 @@ public class VfxShaderManager
 	private static Shader _shaderProjectorMix;
 	private static readonly Dictionary<string, Texture2D> TextureCache = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly Dictionary<string, (int Columns, int Rows, float Fps, bool SubframeBlend)> SpritesheetMetaCache = new(StringComparer.OrdinalIgnoreCase);
+	private static readonly Dictionary<string, ProceduralShaderParameters> ProceduralMotionCache = new(StringComparer.OrdinalIgnoreCase);
 	private static readonly object SyncLock = new();
 
 	public static void ClearCache()
@@ -30,7 +32,38 @@ public class VfxShaderManager
 			_shaderProjectorMix = null;
 			TextureCache.Clear();
 			SpritesheetMetaCache.Clear();
+			ProceduralMotionCache.Clear();
 		}
+	}
+
+	public static void ClearMotionCache()
+	{
+		lock (SyncLock)
+		{
+			ProceduralMotionCache.Clear();
+		}
+	}
+
+	private static bool TryResolveProceduralMotion(string motionId, out ProceduralShaderParameters parameters)
+	{
+		parameters = default;
+		if (string.IsNullOrWhiteSpace(motionId)) return false;
+
+		lock (SyncLock)
+		{
+			if (ProceduralMotionCache.TryGetValue(motionId, out parameters)) return true;
+		}
+
+		ProceduralAnimationConfig config = ProceduralAnimationManager.GetConfig(motionId);
+		if (config == null) return false;
+
+		parameters = ProceduralAnimationManager.BuildShaderParameters(config);
+		lock (SyncLock)
+		{
+			ProceduralMotionCache[motionId] = parameters;
+		}
+
+		return true;
 	}
 
 	public static Shader GetShader(VfxBlendMode blendMode, VfxPrimitiveType primitiveType = VfxPrimitiveType.VortexDisc)
@@ -166,6 +199,27 @@ public class VfxShaderManager
 		material.SetShaderParameter("depth_fade_distance", Mathf.Clamp(config.DepthFadeDistance, 0.0f, 5.0f));
 
 		material.SetShaderParameter("surface_normal_offset", Mathf.Clamp(config.SurfaceNormalOffset, -0.5f, 0.5f));
+
+		ApplyProceduralMotion(material, config);
+	}
+
+	private static void ApplyProceduralMotion(ShaderMaterial material, VfxAttachmentConfig config)
+	{
+		bool hasMotion = TryResolveProceduralMotion(config.ProceduralMotionId, out ProceduralShaderParameters parameters);
+		bool motionAllowedByQuality = GameSettings.QualityIdx >= GraphicsQuality.Medium;
+		bool enabled = hasMotion && motionAllowedByQuality;
+
+		material.SetShaderParameter("enable_procedural_motion", enabled);
+
+		if (!hasMotion)
+		{
+			return;
+		}
+
+		material.SetShaderParameter("proc_anim_params1", parameters.Parameters1);
+		material.SetShaderParameter("proc_anim_params2", parameters.Parameters2);
+		material.SetShaderParameter("proc_anim_params3", parameters.Parameters3);
+		material.SetShaderParameter("proc_anim_shake", parameters.Shake);
 	}
 
 	public static Texture2D LoadTextureSafe(string path)

@@ -16,6 +16,8 @@ public class VfxAttachmentConfig
 	public string BaseTexture { get; set; } = "";
 	public string NoiseTexture { get; set; } = "";
 
+	public string ProceduralMotionId { get; set; } = "";
+
 	public Vector2Data BaseUvScroll { get; set; } = new Vector2Data(0.2f, 0.0f);
 	public Vector2Data BaseUvScale { get; set; } = Vector2Data.One;
 	public bool UseFlipbook { get; set; } = false;
@@ -76,6 +78,7 @@ public class VfxAttachmentConfig
 			TargetSocket = TargetSocket,
 			BaseTexture = BaseTexture,
 			NoiseTexture = NoiseTexture,
+			ProceduralMotionId = ProceduralMotionId,
 			BaseUvScroll = BaseUvScroll,
 			BaseUvScale = BaseUvScale,
 			UseFlipbook = UseFlipbook,

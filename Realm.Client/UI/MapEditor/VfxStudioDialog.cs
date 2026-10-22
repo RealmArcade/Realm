@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
@@ -94,6 +95,9 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	private CheckBox _chkDepthFade;
 	private HSlider _sliderDepthFadeDistance;
 	private Label _lblDepthFadeDistance;
+
+	private OptionButton _optProceduralMotion;
+	private List<string> _proceduralMotionIds = new();
 
 	private HSlider _sliderParticleAmount;
 	private Label _lblParticleAmount;
@@ -417,6 +421,57 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 		SetupLuminanceControls();
 		SetupMaskControls();
 		SetupUvControls();
+
+		AddSectionHeader(_uberShaderContainer, "🌊 " + TranslationServer.Translate("Procedural Motion"));
+		SetupProceduralMotionControls();
+	}
+
+	private void SetupProceduralMotionControls()
+	{
+		_optProceduralMotion = AddOptionDropdown(_uberShaderContainer, TranslationServer.Translate("Motion Profile"), new[] { TranslationServer.Translate("None").ToString() }, 0, OnProceduralMotionSelected, 140f);
+		RefreshProceduralMotionOptions();
+	}
+
+	private void RefreshProceduralMotionOptions()
+	{
+		if (_optProceduralMotion == null) return;
+
+		Dictionary<string, ProceduralAnimationConfig> configs = ProceduralAnimationManager.LoadAllConfigs();
+		_proceduralMotionIds = new List<string> { string.Empty };
+
+		foreach (string motionId in configs.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase))
+		{
+			_proceduralMotionIds.Add(motionId);
+		}
+
+		bool wasUpdatingUI = _isUpdatingUI;
+		_isUpdatingUI = true;
+		try
+		{
+			_optProceduralMotion.Clear();
+			_optProceduralMotion.AddItem(TranslationServer.Translate("None"), 0);
+
+			for (int index = 1; index < _proceduralMotionIds.Count; index++)
+			{
+				string motionLabel = configs[_proceduralMotionIds[index]].Name;
+				_optProceduralMotion.AddItem(string.IsNullOrWhiteSpace(motionLabel) ? _proceduralMotionIds[index] : motionLabel, index);
+			}
+
+			UpdateUIProceduralMotionSetting();
+		}
+		finally
+		{
+			_isUpdatingUI = wasUpdatingUI;
+		}
+	}
+
+	private void OnProceduralMotionSelected(int index)
+	{
+		if (_isUpdatingUI) return;
+		if (index < 0 || index >= _proceduralMotionIds.Count) return;
+
+		_currentConfig.ProceduralMotionId = _proceduralMotionIds[index];
+		RestartPreviewVfx();
 	}
 
 	private void SetupLuminanceControls()
@@ -886,6 +941,7 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 
 		TitleLabel.Text = $"{TranslationServer.Translate("Procedural VFX Studio")} - {(!string.IsNullOrEmpty(_currentConfig.Name) ? _currentConfig.Name : _currentConfig.VfxId)}";
 
+		RefreshProceduralMotionOptions();
 		UpdateUIFromCurrentConfig();
 		OpenDialog();
 		ResetCameraDefault();
@@ -1148,6 +1204,15 @@ public partial class VfxStudioDialog : FloatingPreview3DDialogBase
 	{
 		UpdateUILuminanceSettings();
 		UpdateUIUvSettings();
+		UpdateUIProceduralMotionSetting();
+	}
+
+	private void UpdateUIProceduralMotionSetting()
+	{
+		if (_optProceduralMotion == null) return;
+
+		int motionIndex = _proceduralMotionIds.FindIndex(id => string.Equals(id, _currentConfig.ProceduralMotionId, StringComparison.OrdinalIgnoreCase));
+		_optProceduralMotion.Selected = Math.Max(0, motionIndex);
 	}
 
 	private void UpdateUILuminanceSettings()

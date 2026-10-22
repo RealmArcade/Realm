@@ -2,6 +2,7 @@ shader_type spatial;
 render_mode blend_add, depth_draw_opaque, cull_disabled, unshaded;
 
 #include "res://Assets/shaders/shroud.gdshaderinc"
+#include "res://Assets/shaders/procedural_motion.gdshaderinc"
 
 uniform sampler2D base_texture : source_color, filter_linear_mipmap, repeat_enable;
 uniform bool use_base_texture = false;
@@ -65,6 +66,9 @@ float procedural_noise(vec2 p) {
 }
 
 void vertex() {
+	vec3 local_position = VERTEX;
+	vec3 world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	VERTEX += rts_procedural_motion_offset(local_position, NORMAL, world_position, TIME);
 	VERTEX += NORMAL * surface_normal_offset;
 }
 
