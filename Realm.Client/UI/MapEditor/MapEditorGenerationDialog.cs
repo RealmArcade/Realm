@@ -8,6 +8,15 @@ public class MapEditorGenerationDialog
 {
 	private readonly MapEditorHUD _hud;
 
+	private ColorRect _overlay;
+	private Button _btnGen;
+	private Button _btnCancel;
+	private Label _statusLabel;
+	private ProgressBar _progressBar;
+	private Timer _progressTimer;
+	private MapGenerator.MapGenerationJob _activeJob;
+	private bool _generationRunning;
+
 	private int _genHillsDensity = 5;
 	private int _genTerrainRoughness = 5;
 	private int _genMountainHeight = 5;
@@ -33,6 +42,7 @@ public class MapEditorGenerationDialog
 		overlay.MouseFilter = Control.MouseFilterEnum.Stop;
 		overlay.ZIndex = 1000;
 		_hud.AddChild(overlay);
+		_overlay = overlay;
 
 		var panel = new PanelContainer();
 		panel.Name = "Panel_PanelContainer";
@@ -146,45 +156,140 @@ public class MapEditorGenerationDialog
 		}, 11, "Randomize all slider values");
 		vbox.AddChild(btnRandomize);
 
+		_statusLabel = new Label();
+		_statusLabel.Name = "GenerationStatusLabel";
+		_statusLabel.Visible = false;
+		_statusLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		_statusLabel.AddThemeFontSizeOverride("font_size", 11);
+		_statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_statusLabel.CustomMinimumSize = new Vector2(300, 0);
+		_statusLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vbox.AddChild(_statusLabel);
+
+		_progressBar = new ProgressBar();
+		_progressBar.Name = "GenerationProgressBar";
+		_progressBar.Visible = false;
+		_progressBar.MinValue = 0;
+		_progressBar.MaxValue = 100;
+		_progressBar.Value = 0;
+		_progressBar.CustomMinimumSize = new Vector2(0, 18);
+		vbox.AddChild(_progressBar);
+
 		var btnHBox = new HBoxContainer();
 		btnHBox.Name = "BtnHBox_HBoxContainer";
 		btnHBox.AddThemeConstantOverride("separation", 20);
 		btnHBox.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		vbox.AddChild(btnHBox);
 
-		var btnGen = new Button();
-		btnGen.Name = "BtnGen_Button";
-		btnGen.Set("icon_max_width", 0);
-		UIStyle.SetupButton(btnGen, TranslationServer.Translate("GENERATE"), () =>
-		{
-			overlay.QueueFree();
-			if (GameHost.Instance != null)
-			{
-				GameHost.Instance.ClearMapEntirely();
-				MapGenerator.GenerateMap(
-					GameHost.Instance,
-					_genHillsDensity,
-					_genTerrainRoughness,
-					_genMountainHeight,
-					_genChokeWidth,
-					_genWaterLevel,
-					_genTreeDensity,
-					_genResourceAbundance,
-					_genDecoDensity,
-					_genSeed
-				);
-				_hud.RegenerateMinimap();
-			}
-		}, 13, "Generate the random map");
-		btnGen.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-		btnHBox.AddChild(btnGen);
+		_btnGen = new Button();
+		_btnGen.Name = "BtnGen_Button";
+		_btnGen.Set("icon_max_width", 0);
+		UIStyle.SetupButton(_btnGen, TranslationServer.Translate("GENERATE"), StartGeneration, 13, "Generate the random map");
+		_btnGen.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		btnHBox.AddChild(_btnGen);
 
-		var btnCancel = new Button();
-		btnCancel.Name = "BtnCancel_Button";
-		btnCancel.Set("icon_max_width", 0);
-		UIStyle.SetupButton(btnCancel, TranslationServer.Translate("CLOSE"), () => { overlay.QueueFree(); }, 13, "Close dialog without generating");
-		btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-		btnHBox.AddChild(btnCancel);
+		_btnCancel = new Button();
+		_btnCancel.Name = "BtnCancel_Button";
+		_btnCancel.Set("icon_max_width", 0);
+		UIStyle.SetupButton(_btnCancel, TranslationServer.Translate("CLOSE"), HandleCancelPressed, 13, "Close dialog without generating");
+		_btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
+		btnHBox.AddChild(_btnCancel);
+
+		_progressTimer = new Timer();
+		_progressTimer.Name = "MapGenerationProgressTimer";
+		_progressTimer.WaitTime = 0.1;
+		_progressTimer.OneShot = false;
+		_progressTimer.Autostart = false;
+		_progressTimer.Timeout += UpdateGenerationProgress;
+		_hud.AddChild(_progressTimer);
+	}
+
+	private void StartGeneration()
+	{
+		if (_generationRunning || GameHost.Instance == null) return;
+
+		_generationRunning = true;
+		_btnGen.Disabled = true;
+		_btnCancel.Text = TranslationServer.Translate("CANCEL");
+		_statusLabel.Visible = true;
+		_progressBar.Visible = true;
+		_progressBar.Value = 0;
+		_statusLabel.Text = TranslationServer.Translate("Preparing generation...");
+
+		_activeJob = MapGenerator.StartGeneration(
+			GameHost.Instance,
+			_genHillsDensity,
+			_genTerrainRoughness,
+			_genMountainHeight,
+			_genChokeWidth,
+			_genWaterLevel,
+			_genTreeDensity,
+			_genResourceAbundance,
+			_genDecoDensity,
+			_genSeed
+		);
+
+		if (_activeJob == null)
+		{
+			FinishGeneration();
+			return;
+		}
+
+		_progressTimer.Start();
+	}
+
+	private void HandleCancelPressed()
+	{
+		if (_generationRunning)
+		{
+			MapGenerator.CancelActiveGeneration();
+			FinishGeneration();
+			return;
+		}
+
+		CloseOverlay();
+	}
+
+	private void UpdateGenerationProgress()
+	{
+		if (!_generationRunning) return;
+
+		if (_activeJob != null && !_activeJob.IsCancelled)
+		{
+			_progressBar.Value = _activeJob.Progress * 100.0;
+			if (!string.IsNullOrEmpty(_activeJob.StageDescription))
+			{
+				_statusLabel.Text = _activeJob.StageDescription;
+			}
+		}
+
+		if (_activeJob == null || _activeJob.IsComplete || _activeJob.IsCancelled)
+		{
+			FinishGeneration();
+		}
+	}
+
+	private void FinishGeneration()
+	{
+		_generationRunning = false;
+		_activeJob = null;
+		_progressTimer?.Stop();
+
+		_hud.RegenerateMinimap();
+		CloseOverlay();
+	}
+
+	private void CloseOverlay()
+	{
+		if (_progressTimer != null && GodotObject.IsInstanceValid(_progressTimer))
+		{
+			_progressTimer.Stop();
+			_progressTimer.QueueFree();
+			_progressTimer = null;
+		}
+
+		_overlay?.QueueFree();
+		_overlay = null;
 	}
 
 	private HSlider AddSliderRow(GridContainer grid, string title, int initialValue, Action<int> onValueChanged)

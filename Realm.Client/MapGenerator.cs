@@ -12,6 +12,82 @@ namespace Realm.Client;
 
 public static class MapGenerator
 {
+	private const int RowsPerChunk = 16;
+	private const int SpawnsPerChunk = 4;
+	private const int MillisecondsPerTick = 8;
+	private const int MaxSampledPoints = 20000;
+	private const float ReferenceMapTiles = 128.0f;
+
+	private static readonly double[] SiteFractionX = { 20.0 / 127.0, 106.0 / 127.0, 63.0 / 127.0, 20.0 / 127.0, 106.0 / 127.0, 63.0 / 127.0, 63.0 / 127.0, 20.0 / 127.0, 106.0 / 127.0 };
+	private static readonly double[] SiteFractionZ = { 20.0 / 127.0, 106.0 / 127.0, 63.0 / 127.0, 106.0 / 127.0, 20.0 / 127.0, 20.0 / 127.0, 106.0 / 127.0, 63.0 / 127.0, 63.0 / 127.0 };
+
+	public static MapGenerationJob? ActiveJob { get; private set; }
+
+	public static MapGenerationJob? StartGeneration(
+		GameHost host,
+		int hillsDensity,
+		int terrainRoughness,
+		int mountainHeight,
+		int chokeWidth,
+		int waterLevel,
+		int treeDensity,
+		int resourceAbundance,
+		int decoDensity,
+		string seedString
+	)
+	{
+		if (host?.GroundTerrain == null) return null;
+
+		CancelActiveGeneration();
+
+		var job = new MapGenerationJob(host, hillsDensity, terrainRoughness, mountainHeight, chokeWidth, waterLevel, treeDensity, resourceAbundance, decoDensity, seedString);
+		ActiveJob = job;
+		return job;
+	}
+
+	public static void CancelActiveGeneration()
+	{
+		ActiveJob?.Cancel();
+	}
+
+	public static void Tick()
+	{
+		MapGenerationJob? job = ActiveJob;
+		if (job == null) return;
+
+		if (job.IsCancelled)
+		{
+			job.CleanupAfterCancel();
+			ActiveJob = null;
+			return;
+		}
+
+		job.AdvanceUntilBudget(MillisecondsPerTick);
+
+		if (job.IsCancelled)
+		{
+			job.CleanupAfterCancel();
+			ActiveJob = null;
+		}
+		else if (job.IsComplete)
+		{
+			ActiveJob = null;
+		}
+	}
+
+	private static Vector2I[] BuildSites(int width, int depth)
+	{
+		var sites = new Vector2I[SiteFractionX.Length];
+		for (int i = 0; i < sites.Length; i++)
+		{
+			int x = (int)Math.Round(SiteFractionX[i] * (width - 1));
+			int z = (int)Math.Round(SiteFractionZ[i] * (depth - 1));
+			sites[i] = new Vector2I(Math.Clamp(x, 0, width - 1), Math.Clamp(z, 0, depth - 1));
+		}
+
+		return sites;
+	}
+
 	private static void WorldToGrid(Vector3 worldPos, int width, int depth, float quadSize, out int x, out int z)
 	{
 		x = (int)Math.Round((worldPos.X / quadSize) + width / 2.0f);
@@ -25,7 +101,7 @@ public static class MapGenerator
 		return new Vector3(lx, height, lz);
 	}
 
-	private static void CarvePathAt(Vector2I pos, int[,] baseGrid, int chokeWidth)
+	private static void CarvePathAt(Vector2I pos, int[,] baseGrid, int chokeWidth, int width, int depth)
 	{
 		int radius = (int)(1.0f + (chokeWidth / 10.0f) * 3.0f);
 		for (int z = -radius; z <= radius; z++)
@@ -36,7 +112,7 @@ public static class MapGenerator
 
 				int cx = pos.X + x;
 				int cz = pos.Y + z;
-				if (cx >= 0 && cx < 126 && cz >= 0 && cz < 126)
+				if (cx >= 0 && cx < width && cz >= 0 && cz < depth)
 				{
 					baseGrid[cx, cz] = 0;
 				}
@@ -99,35 +175,6 @@ public static class MapGenerator
 		}
 
 		return count;
-	}
-
-	private static int[,] GenerateBaseGrid(int width, int depth, double fillChance, Random random)
-	{
-		int[,] baseGrid = new int[width, depth];
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				baseGrid[x, z] = (random.NextDouble() < fillChance) ? 1 : 0;
-			}
-		}
-
-		for (int step = 0; step < 4; step++)
-		{
-			int[,] nextGrid = new int[width, depth];
-			for (int z = 0; z < depth; z++)
-			{
-				for (int x = 0; x < width; x++)
-				{
-					int count = CountNeighborsBaseGrid(baseGrid, x, z, width, depth);
-					nextGrid[x, z] = (count >= 5) ? 1 : 0;
-				}
-			}
-
-			baseGrid = nextGrid;
-		}
-
-		return baseGrid;
 	}
 
 	private static void ClearSingleSiteRadius(int[,] baseGrid, Vector2I center, int clearRadius, int width, int depth)
@@ -222,15 +269,22 @@ public static class MapGenerator
 	{
 		Vector2I curr = end;
 		int radius = (int)(1.0f + (chokeWidth / 10.0f) * 3.0f);
-		while (curr != start)
+		int maxSteps = width * depth;
+		int steps = 0;
+		while (curr != start && steps < maxSteps)
 		{
-			CarvePathAt(curr, baseGrid, chokeWidth);
+			CarvePathAt(curr, baseGrid, chokeWidth, width, depth);
 			MarkPathRadius(curr, radius, isPath, width, depth);
-			curr = cameFrom[curr];
+			if (!cameFrom.TryGetValue(curr, out Vector2I previous)) break;
+			curr = previous;
+			steps++;
 		}
 
-		CarvePathAt(start, baseGrid, chokeWidth);
-		isPath[start.X, start.Y] = true;
+		CarvePathAt(start, baseGrid, chokeWidth, width, depth);
+		if (start.X >= 0 && start.X < width && start.Y >= 0 && start.Y < depth)
+		{
+			isPath[start.X, start.Y] = true;
+		}
 	}
 
 	private static void ProcessPathNeighbor(Vector2I n, Vector2I current, Vector2I end, int[,] baseGrid, Dictionary<Vector2I, Vector2I> cameFrom, Dictionary<Vector2I, float> gScore, PriorityQueue<Vector2I, float> openSet, int width, int depth)
@@ -257,6 +311,9 @@ public static class MapGenerator
 
 	private static void CalculatePathing(Vector2I start, Vector2I end, int[,] baseGrid, bool[,] isPath, int chokeWidth, int width, int depth)
 	{
+		if (start.X < 0 || start.X >= width || start.Y < 0 || start.Y >= depth) return;
+		if (end.X < 0 || end.X >= width || end.Y < 0 || end.Y >= depth) return;
+
 		PriorityQueue<Vector2I, float> openSet = new PriorityQueue<Vector2I, float>();
 		Dictionary<Vector2I, Vector2I> cameFrom = new Dictionary<Vector2I, Vector2I>();
 		Dictionary<Vector2I, float> gScore = new Dictionary<Vector2I, float>();
@@ -312,20 +369,6 @@ public static class MapGenerator
 		}
 	}
 
-	private static void GeneratePaths(Vector2I[] sites, int[,] baseGrid, bool[,] isPath, int chokeWidth, int width, int depth)
-	{
-		CalculatePathingEdges(sites, out List<Tuple<int, int>> edges);
-
-		foreach (var edge in edges)
-		{
-			Vector2I start = sites[edge.Item1];
-			Vector2I end = sites[edge.Item2];
-			CalculatePathing(start, end, baseGrid, isPath, chokeWidth, width, depth);
-		}
-
-		ClearPathRadii(sites, isPath, width, depth);
-	}
-
 	private static float CalculateCellDensity(int x, int z, int[,] baseGrid, int width, int depth)
 	{
 		if (baseGrid[x, z] != 1) return 0f;
@@ -342,20 +385,6 @@ public static class MapGenerator
 		}
 
 		return count / 25.0f;
-	}
-
-	private static float[,] GenerateDensityMap(int[,] baseGrid, int width, int depth)
-	{
-		float[,] densityMap = new float[width, depth];
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				densityMap[x, z] = CalculateCellDensity(x, z, baseGrid, width, depth);
-			}
-		}
-
-		return densityMap;
 	}
 
 	private static sbyte CalculateCellTier(int x, int z, int[,] baseGrid, bool[,] isPath, float[,] densityMap, FastNoiseLite noise, FastNoiseLite detailNoise, float waterCutoff, float maxMountainTiers, int hillsDensity)
@@ -388,20 +417,6 @@ public static class MapGenerator
 		return 0;
 	}
 
-	private static sbyte[,] CalculateTiers(int[,] baseGrid, bool[,] isPath, float[,] densityMap, FastNoiseLite noise, FastNoiseLite detailNoise, float waterCutoff, float maxMountainTiers, int hillsDensity, int width, int depth)
-	{
-		sbyte[,] tiers = new sbyte[width, depth];
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				tiers[x, z] = CalculateCellTier(x, z, baseGrid, isPath, densityMap, noise, detailNoise, waterCutoff, maxMountainTiers, hillsDensity);
-			}
-		}
-
-		return tiers;
-	}
-
 	private static sbyte SmoothCellTier(sbyte[,] tiers, int x, int z)
 	{
 		sbyte maxNeighborTier = tiers[x, z];
@@ -429,59 +444,6 @@ public static class MapGenerator
 		return tiers[x, z];
 	}
 
-	private static sbyte[,] SmoothTiers(sbyte[,] tiers, bool[,] isPath, int width, int depth)
-	{
-		for (int pass = 0; pass < 2; pass++)
-		{
-			sbyte[,] smoothedTiers = (sbyte[,])tiers.Clone();
-			for (int z = 1; z < depth - 1; z++)
-			{
-				for (int x = 1; x < width - 1; x++)
-				{
-					if (tiers[x, z] > 0 && !isPath[x, z])
-					{
-						smoothedTiers[x, z] = SmoothCellTier(tiers, x, z);
-					}
-				}
-			}
-
-			tiers = smoothedTiers;
-		}
-
-		return tiers;
-	}
-
-	private static (TerrainCell[,], int[,]) ApplyTiersToTerrain(GameHost host, sbyte[,] tiers, int width, int depth)
-	{
-		var cells = CreateTerrainCells(tiers, width, depth);
-		host.GroundTerrain.Cells = cells;
-
-		EnsureTerrainMapsExist(host, width, depth);
-
-		var pathingCodes = EnsurePathingCodesExist(host, width, depth);
-		PopulateTerrainMaps(host, tiers, cells, pathingCodes, width, depth);
-
-		host.GroundTerrain.PathingCodes = pathingCodes;
-
-		return (cells, pathingCodes);
-	}
-
-	private static TerrainCell[,] CreateTerrainCells(sbyte[,] tiers, int width, int depth)
-	{
-		var cells = new TerrainCell[width, depth];
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				sbyte tier = tiers[x, z];
-				float height = tier * EditableTerrain.TIER_HEIGHT;
-				cells[x, z] = new TerrainCell(height);
-			}
-		}
-
-		return cells;
-	}
-
 	private static void EnsureTerrainMapsExist(GameHost host, int width, int depth)
 	{
 		if (host.GroundTerrain.SplatMap == null || host.GroundTerrain.SplatMap.GetLength(0) < width + 1 || host.GroundTerrain.SplatMap.GetLength(1) < depth + 1)
@@ -506,27 +468,6 @@ public static class MapGenerator
 		return pathingCodes;
 	}
 
-	private static void PopulateTerrainMaps(GameHost host, sbyte[,] tiers, TerrainCell[,] cells, int[,] pathingCodes, int width, int depth)
-	{
-		for (int z = 0; z <= depth; z++)
-		{
-			for (int x = 0; x <= width; x++)
-			{
-				int cellX = Math.Clamp(x, 0, width - 1);
-				int cellZ = Math.Clamp(z, 0, depth - 1);
-				sbyte tier = tiers[cellX, cellZ];
-
-				host.GroundTerrain.SplatMap[x, z] = GetTerrainSplatWeight(tier);
-				host.GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
-
-				if (x < width && z < depth)
-				{
-					pathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(cells[x, z]);
-				}
-			}
-		}
-	}
-
 	private static TerrainSplatWeights GetTerrainSplatWeight(sbyte tier)
 	{
 		return tier switch
@@ -536,40 +477,6 @@ public static class MapGenerator
 			1 or 2 => TerrainSplatWeights.CreateSolid(2),
 			_ => TerrainSplatWeights.CreateSolid(0)
 		};
-	}
-
-	private static void SpawnUnitsAndProps(GameHost host, Vector2I[] sites, int width, int depth, float quadSize, Random random)
-	{
-		Vector3 p1Base = GridToWorld(sites[0].X, sites[0].Y, width, depth, quadSize, host.GroundTerrain.GetGridNodeHeight(sites[0].X, sites[0].Y));
-		host.SpawnUnitExternal("castle", p1Base, 0f, 1.0f, 0);
-		host.SpawnUnitExternal("adventurer", p1Base + new Vector3(-6f, 0f, -6f), 45f, 1.0f, 0);
-		host.SpawnUnitExternal("adventurer", p1Base + new Vector3(-6f, 0f, 6f), 135f, 1.0f, 0);
-		host.SpawnUnitExternal("adventurer", p1Base + new Vector3(6f, 0f, -6f), 315f, 1.0f, 0);
-		host.SpawnUnitExternal("armored_battlelord", p1Base + new Vector3(8f, 0f, 8f), 225f, 1.0f, 0);
-		host.SpawnUnitExternal("armored_battlelord", p1Base + new Vector3(0f, 0f, 10f), 180f, 1.0f, 0);
-
-		Vector3 p2Base = GridToWorld(sites[1].X, sites[1].Y, width, depth, quadSize, host.GroundTerrain.GetGridNodeHeight(sites[1].X, sites[1].Y));
-		host.SpawnUnitExternal("castle", p2Base, 180f, 1.0f, 1);
-		host.SpawnUnitExternal("adventurer", p2Base + new Vector3(-6f, 0f, -6f), 45f, 1.0f, 1);
-		host.SpawnUnitExternal("adventurer", p2Base + new Vector3(-6f, 0f, 6f), 135f, 1.0f, 1);
-		host.SpawnUnitExternal("adventurer", p2Base + new Vector3(6f, 0f, -6f), 315f, 1.0f, 1);
-		host.SpawnUnitExternal("armored_battlelord", p2Base + new Vector3(-8f, 0f, -8f), 45f, 1.0f, 1);
-		host.SpawnUnitExternal("armored_battlelord", p2Base + new Vector3(0f, 0f, -10f), 0f, 1.0f, 1);
-
-		Vector3 g1 = GridToWorld(28, 20, width, depth, quadSize, host.GroundTerrain.GetGridNodeHeight(28, 20));
-		host.SpawnPropExternalWithParams("goldmine", g1, 0f, 1.0f);
-
-		Vector3 g2 = GridToWorld(98, 106, width, depth, quadSize, host.GroundTerrain.GetGridNodeHeight(98, 106));
-		host.SpawnPropExternalWithParams("goldmine", g2, 180f, 1.0f);
-
-		Vector3 gMid = GridToWorld(sites[2].X, sites[2].Y, width, depth, quadSize, host.GroundTerrain.GetGridNodeHeight(sites[2].X, sites[2].Y));
-		host.SpawnPropExternalWithParams("goldmine", gMid, 90f, 1.0f);
-
-		for (int i = 3; i < sites.Length; i++)
-		{
-			Vector3 expPos = GridToWorld(sites[i].X, sites[i].Y, width, depth, quadSize, host.GroundTerrain.GetGridNodeHeight(sites[i].X, sites[i].Y));
-			host.SpawnPropExternalWithParams("goldmine", expPos, (float)(random.NextDouble() * 360.0), 1.0f);
-		}
 	}
 
 	private static void ProcessDistanceNeighbor(Vector2I n, float d, float[,] pathDist, Queue<Vector2I> queue, int width, int depth)
@@ -652,126 +559,6 @@ public static class MapGenerator
 			string propId = decoIds[random.Next(decoIds.Length)];
 			host.SpawnPropExternalWithParams(propId, worldPos, rot, scale);
 		}
-	}
-
-	private static void SpawnTreesAndDeco(GameHost host, sbyte[,] tiers, float[,] pathDist, int treeDensity, int decoDensity, int width, int depth, float quadSize, Random random)
-	{
-		float r_trees = 6.0f - (treeDensity / 10.0f) * 4.0f;
-		List<Vector2> treePoints = PoissonDiscSample(random, (width - 1) * quadSize, (depth - 1) * quadSize, r_trees);
-		foreach (var p in treePoints)
-		{
-			TrySpawnTree(host, p, tiers, pathDist, width, depth, quadSize, random);
-		}
-
-		float r_deco = 15.0f - (decoDensity / 10.0f) * 10.0f;
-		List<Vector2> decoPoints = PoissonDiscSample(random, (width - 1) * quadSize, (depth - 1) * quadSize, r_deco);
-		string[] decoIds = new string[] { "rock", "pillar", "flag" };
-		foreach (var p in decoPoints)
-		{
-			TrySpawnDeco(host, p, tiers, pathDist, decoIds, width, depth, quadSize, random);
-		}
-	}
-
-	public static void GenerateMap(
-		GameHost host,
-		int hillsDensity,
-		int terrainRoughness,
-		int mountainHeight,
-		int chokeWidth,
-		int waterLevel,
-		int treeDensity,
-		int resourceAbundance,
-		int decoDensity,
-		string seedString
-	)
-	{
-		if (host?.GroundTerrain == null) return;
-
-		if (!int.TryParse(seedString, out int seed))
-		{
-			seed = seedString.GetHashCode();
-		}
-
-		Random random = new Random(seed);
-
-		host.ClearMapEntirely();
-
-		int width = host.GroundTerrain.Width;
-		int depth = host.GroundTerrain.Depth;
-		float quadSize = host.GroundTerrain.QuadSize;
-
-		var world = GameContext.World;
-		var worldEntity = ECSContext.WorldEntity;
-		if (world != null && world.IsAlive(worldEntity))
-		{
-			InitTerrainState(world, worldEntity, width, depth, quadSize);
-		}
-
-		double fillChance = 0.25 + (hillsDensity / 10.0) * 0.40;
-		int[,] baseGrid = GenerateBaseGrid(width, depth, fillChance, random);
-
-		Vector2I[] sites = new Vector2I[]
-		{
-			new Vector2I(20, 20),
-			new Vector2I(106, 106),
-			new Vector2I(63, 63),
-			new Vector2I(20, 106),
-			new Vector2I(106, 20),
-			new Vector2I(63, 20),
-			new Vector2I(63, 106),
-			new Vector2I(20, 63),
-			new Vector2I(106, 63)
-		};
-
-		ClearSiteRadii(baseGrid, sites, width, depth);
-
-		bool[,] isPath = new bool[width, depth];
-		GeneratePaths(sites, baseGrid, isPath, chokeWidth, width, depth);
-
-		var noise = new FastNoiseLite();
-		noise.NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin;
-		noise.Seed = seed;
-		noise.Frequency = 0.01f + (terrainRoughness / 10.0f) * 0.04f;
-
-		var detailNoise = new FastNoiseLite();
-		detailNoise.NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin;
-		detailNoise.Seed = seed + 777;
-		detailNoise.Frequency = 0.035f;
-
-		float waterCutoff = 0.15f + (waterLevel / 10.0f) * 0.25f;
-		float maxMountainTiers = 2.0f + (mountainHeight / 10.0f) * 6.0f;
-
-		float[,] densityMap = GenerateDensityMap(baseGrid, width, depth);
-		sbyte[,] tiers = CalculateTiers(baseGrid, isPath, densityMap, noise, detailNoise, waterCutoff, maxMountainTiers, hillsDensity, width, depth);
-		tiers = SmoothTiers(tiers, isPath, width, depth);
-
-		if (world != null && world.IsAlive(worldEntity))
-		{
-			ref var state = ref world.Get<TerrainState>(worldEntity);
-			var (cells, pathingCodes) = ApplyTiersToTerrain(host, tiers, width, depth);
-			state.Cells = cells;
-			state.PathingCodes = pathingCodes;
-			world.Set(worldEntity, state);
-		}
-		else
-		{
-			ApplyTiersToTerrain(host, tiers, width, depth);
-		}
-
-		host.AlignTerrainSplatMapExternal();
-		host.GroundTerrain.UpdateMeshAndPhysics();
-
-		SpawnUnitsAndProps(host, sites, width, depth, quadSize, random);
-
-		float[,] pathDist = CalculatePathDistances(isPath, width, depth);
-
-		SpawnTreesAndDeco(host, tiers, pathDist, treeDensity, decoDensity, width, depth, quadSize, random);
-
-		host.EditorHasUnsavedChanges = true;
-		host.UpdateGridOverlayVisibility();
-		host.UpdateCameraBoundsOverlayVisibility();
-		host.UpdatePathingOverlay();
-		MapEditorHUD.Instance?.ShowFeedbackExternal("Random map generation completed!");
 	}
 
 	private static bool IsFarEnough(Vector2 candidate, Vector2?[,] grid, float radius, int cX, int cY, int gridWidth, int gridHeight)
@@ -875,5 +662,687 @@ public static class MapGenerator
 	private static bool IsCandidateInBounds(Vector2 candidate, float width, float height)
 	{
 		return candidate.X >= 0 && candidate.X < width && candidate.Y >= 0 && candidate.Y < height;
+	}
+
+	private static float GetSamplingScale(int width, int depth)
+	{
+		float tileCount = MathF.Max(width * depth, 1);
+		float referenceTileCount = ReferenceMapTiles * ReferenceMapTiles;
+		return MathF.Max(1.0f, MathF.Sqrt(tileCount / referenceTileCount));
+	}
+
+	private static void TrimSampledPoints(List<Vector2> points)
+	{
+		if (points.Count <= MaxSampledPoints) return;
+
+		points.RemoveRange(MaxSampledPoints, points.Count - MaxSampledPoints);
+	}
+
+	public class MapGenerationJob
+	{
+		private const int StagePrepare = 0;
+		private const int StageBaseGrid = 1;
+		private const int StageSites = 2;
+		private const int StagePaths = 3;
+		private const int StageDensity = 4;
+		private const int StageTiers = 5;
+		private const int StageSmooth = 6;
+		private const int StageCells = 7;
+		private const int StageSplatMaps = 8;
+		private const int StageApplyTerrain = 9;
+		private const int StageUnitsAndProps = 10;
+		private const int StagePathDistances = 11;
+		private const int StageTreeSampling = 12;
+		private const int StageTreeSpawns = 13;
+		private const int StageDecoSampling = 14;
+		private const int StageDecoSpawns = 15;
+		private const int StageFinalize = 16;
+		private const int StageComplete = 17;
+
+		private static readonly float[] StageStartProgress =
+		{
+			0.00f, 0.02f, 0.05f, 0.06f, 0.10f, 0.14f, 0.24f,
+			0.30f, 0.36f, 0.46f, 0.52f, 0.58f, 0.60f,
+			0.74f, 0.76f, 0.92f, 0.98f, 1.00f
+		};
+
+		private readonly GameHost _host;
+		private readonly int _hillsDensity;
+		private readonly int _terrainRoughness;
+		private readonly int _mountainHeight;
+		private readonly int _chokeWidth;
+		private readonly int _waterLevel;
+		private readonly int _treeDensity;
+		private readonly int _decoDensity;
+		private readonly string _seedString;
+
+		private int _stage = StagePrepare;
+		private float _stageProgress;
+		private bool _terrainTouched;
+
+		private int _seed;
+		private int _width;
+		private int _depth;
+		private float _quadSize;
+		private double _fillChance;
+		private float _waterCutoff;
+		private float _maxMountainTiers;
+		private Random _random;
+		private FastNoiseLite _noise;
+		private FastNoiseLite _detailNoise;
+		private Vector2I[] _sites;
+
+		private int[,] _baseGrid;
+		private int[,] _nextGrid;
+		private int _gridPass;
+		private int _gridRow;
+
+		private List<Tuple<int, int>> _pathEdges;
+		private bool[,] _isPath;
+		private int _pathIndex;
+
+		private float[,] _densityMap;
+		private sbyte[,] _tiers;
+		private sbyte[,] _smoothedTiers;
+		private int _smoothPass;
+		private int _rowCursor;
+
+		private TerrainCell[,] _cells;
+		private int[,] _pathingCodes;
+		private List<SpawnEntry> _spawnEntries;
+		private int _spawnCursor;
+		private float[,] _pathDist;
+		private List<Vector2> _treePoints;
+		private int _treeCursor;
+		private List<Vector2> _decoPoints;
+		private int _decoCursor;
+
+		public MapGenerationJob(
+			GameHost host,
+			int hillsDensity,
+			int terrainRoughness,
+			int mountainHeight,
+			int chokeWidth,
+			int waterLevel,
+			int treeDensity,
+			int resourceAbundance,
+			int decoDensity,
+			string seedString)
+		{
+			_host = host;
+			_hillsDensity = hillsDensity;
+			_terrainRoughness = terrainRoughness;
+			_mountainHeight = mountainHeight;
+			_chokeWidth = chokeWidth;
+			_waterLevel = waterLevel;
+			_treeDensity = treeDensity;
+			_decoDensity = decoDensity;
+			_seedString = seedString ?? string.Empty;
+		}
+
+		public bool IsComplete => _stage >= StageComplete;
+
+		public bool IsCancelled { get; private set; }
+
+		public float Progress => IsComplete ? 1.0f : StageStartProgress[Math.Clamp(_stage, 0, StageComplete - 1)] + _stageProgress * (StageStartProgress[Math.Clamp(_stage + 1, 0, StageComplete)] - StageStartProgress[Math.Clamp(_stage, 0, StageComplete - 1)]);
+
+		public string StageDescription { get; private set; } = string.Empty;
+
+		public void Cancel()
+		{
+			IsCancelled = true;
+		}
+
+		public void CleanupAfterCancel()
+		{
+			if (!_terrainTouched) return;
+
+			_host.ClearMapEntirely();
+		}
+
+		public void AdvanceUntilBudget(int milliseconds)
+		{
+			if (IsComplete || IsCancelled) return;
+
+			ulong startTicks = Time.GetTicksMsec();
+			while (!IsComplete && !IsCancelled)
+			{
+				Advance();
+				if (Time.GetTicksMsec() - startTicks >= (ulong)milliseconds) break;
+			}
+		}
+
+		public void Advance()
+		{
+			if (IsComplete || IsCancelled) return;
+
+			switch (_stage)
+			{
+				case StagePrepare:
+					Prepare();
+					break;
+				case StageBaseGrid:
+					StepBaseGrid();
+					break;
+				case StageSites:
+					StepSites();
+					break;
+				case StagePaths:
+					StepPaths();
+					break;
+				case StageDensity:
+					StepDensity();
+					break;
+				case StageTiers:
+					StepTiers();
+					break;
+				case StageSmooth:
+					StepSmooth();
+					break;
+				case StageCells:
+					StepCells();
+					break;
+				case StageSplatMaps:
+					StepSplatMaps();
+					break;
+				case StageApplyTerrain:
+					StepApplyTerrain();
+					break;
+				case StageUnitsAndProps:
+					StepUnitsAndProps();
+					break;
+				case StagePathDistances:
+					StepPathDistances();
+					break;
+				case StageTreeSampling:
+					StepTreeSampling();
+					break;
+				case StageTreeSpawns:
+					StepTreeSpawns();
+					break;
+				case StageDecoSampling:
+					StepDecoSampling();
+					break;
+				case StageDecoSpawns:
+					StepDecoSpawns();
+					break;
+				case StageFinalize:
+					StepFinalize();
+					break;
+			}
+		}
+
+		private void EnterStage(int stage, string description)
+		{
+			_stage = stage;
+			_stageProgress = 0.0f;
+			_rowCursor = 0;
+			StageDescription = TranslationServer.Translate(description);
+		}
+
+		private void Prepare()
+		{
+			if (!int.TryParse(_seedString, out _seed))
+			{
+				_seed = _seedString.GetHashCode();
+			}
+
+			_host.ClearMapEntirely();
+
+			_width = _host.GroundTerrain.Width;
+			_depth = _host.GroundTerrain.Depth;
+			_quadSize = _host.GroundTerrain.QuadSize;
+
+			EcsWorld world = GameContext.World;
+			Entity worldEntity = ECSContext.WorldEntity;
+			if (world != null && world.IsAlive(worldEntity))
+			{
+				InitTerrainState(world, worldEntity, _width, _depth, _quadSize);
+			}
+
+			_random = new Random(_seed);
+			_fillChance = 0.25 + (_hillsDensity / 10.0) * 0.40;
+			_waterCutoff = 0.15f + (_waterLevel / 10.0f) * 0.25f;
+			_maxMountainTiers = 2.0f + (_mountainHeight / 10.0f) * 6.0f;
+
+			_noise = new FastNoiseLite();
+			_noise.NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin;
+			_noise.Seed = _seed;
+			_noise.Frequency = 0.01f + (_terrainRoughness / 10.0f) * 0.04f;
+
+			_detailNoise = new FastNoiseLite();
+			_detailNoise.NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin;
+			_detailNoise.Seed = _seed + 777;
+			_detailNoise.Frequency = 0.035f;
+
+			_sites = BuildSites(_width, _depth);
+
+			EnterStage(StageBaseGrid, "Shaping land masses");
+		}
+
+		private void StepBaseGrid()
+		{
+			if (_baseGrid == null)
+			{
+				_baseGrid = new int[_width, _depth];
+			}
+
+			int rows = Math.Min(RowsPerChunk, _depth - _gridRow);
+			for (int i = 0; i < rows; i++)
+			{
+				int z = _gridRow + i;
+				if (_gridPass == 0)
+				{
+					for (int x = 0; x < _width; x++)
+					{
+						_baseGrid[x, z] = (_random.NextDouble() < _fillChance) ? 1 : 0;
+					}
+				}
+				else
+				{
+					_nextGrid ??= new int[_width, _depth];
+					for (int x = 0; x < _width; x++)
+					{
+						int count = CountNeighborsBaseGrid(_baseGrid, x, z, _width, _depth);
+						_nextGrid[x, z] = (count >= 5) ? 1 : 0;
+					}
+				}
+			}
+
+			_gridRow += rows;
+			_stageProgress = _gridRow / (float)Math.Max(_depth, 1);
+
+			if (_gridRow < _depth) return;
+
+			_gridRow = 0;
+			if (_gridPass > 0)
+			{
+				(_baseGrid, _nextGrid) = (_nextGrid, _baseGrid);
+			}
+
+			_gridPass++;
+			if (_gridPass <= 4) return;
+
+			_nextGrid = null;
+			EnterStage(StageSites, "Clearing player start areas");
+		}
+
+		private void StepSites()
+		{
+			ClearSiteRadii(_baseGrid, _sites, _width, _depth);
+			EnterStage(StagePaths, "Carving paths between sites");
+		}
+
+		private void StepPaths()
+		{
+			if (_pathEdges == null)
+			{
+				CalculatePathingEdges(_sites, out List<Tuple<int, int>> edges);
+				_pathEdges = edges;
+				_isPath = new bool[_width, _depth];
+			}
+
+			if (_pathIndex < _pathEdges.Count)
+			{
+				Tuple<int, int> edge = _pathEdges[_pathIndex++];
+				CalculatePathing(_sites[edge.Item1], _sites[edge.Item2], _baseGrid, _isPath, _chokeWidth, _width, _depth);
+				_stageProgress = _pathIndex / (float)Math.Max(_pathEdges.Count, 1);
+				return;
+			}
+
+			ClearPathRadii(_sites, _isPath, _width, _depth);
+			_densityMap = new float[_width, _depth];
+			EnterStage(StageDensity, "Measuring land density");
+		}
+
+		private void StepDensity()
+		{
+			int rows = Math.Min(RowsPerChunk, _depth - _rowCursor);
+			for (int i = 0; i < rows; i++)
+			{
+				int z = _rowCursor + i;
+				for (int x = 0; x < _width; x++)
+				{
+					_densityMap[x, z] = CalculateCellDensity(x, z, _baseGrid, _width, _depth);
+				}
+			}
+
+			_rowCursor += rows;
+			_stageProgress = _rowCursor / (float)Math.Max(_depth, 1);
+			if (_rowCursor < _depth) return;
+
+			_tiers = new sbyte[_width, _depth];
+			EnterStage(StageTiers, "Raising mountains and water");
+		}
+
+		private void StepTiers()
+		{
+			int rows = Math.Min(RowsPerChunk, _depth - _rowCursor);
+			for (int i = 0; i < rows; i++)
+			{
+				int z = _rowCursor + i;
+				for (int x = 0; x < _width; x++)
+				{
+					_tiers[x, z] = CalculateCellTier(x, z, _baseGrid, _isPath, _densityMap, _noise, _detailNoise, _waterCutoff, _maxMountainTiers, _hillsDensity);
+				}
+			}
+
+			_rowCursor += rows;
+			_stageProgress = _rowCursor / (float)Math.Max(_depth, 1);
+			if (_rowCursor < _depth) return;
+
+			_densityMap = null;
+			_baseGrid = null;
+			EnterStage(StageSmooth, "Smoothing terrain tiers");
+		}
+
+		private void StepSmooth()
+		{
+			if (_smoothedTiers == null)
+			{
+				_smoothedTiers = (sbyte[,])_tiers.Clone();
+			}
+
+			int startZ = Math.Max(1, _rowCursor);
+			int endZ = Math.Min(_depth - 1, startZ + RowsPerChunk);
+			if (startZ < _depth - 1)
+			{
+				for (int z = startZ; z < endZ; z++)
+				{
+					for (int x = 1; x < _width - 1; x++)
+					{
+						if (_tiers[x, z] > 0 && !_isPath[x, z])
+						{
+							_smoothedTiers[x, z] = SmoothCellTier(_tiers, x, z);
+						}
+					}
+				}
+
+				_rowCursor = endZ;
+				_stageProgress = _rowCursor / (float)Math.Max(_depth, 1);
+				return;
+			}
+
+			(_tiers, _smoothedTiers) = (_smoothedTiers, _tiers);
+			_smoothedTiers = null;
+			_smoothPass++;
+			_rowCursor = 0;
+			if (_smoothPass < 2) return;
+
+			_cells = new TerrainCell[_width, _depth];
+			_host.GroundTerrain.Cells = _cells;
+			_terrainTouched = true;
+			EnterStage(StageCells, "Building terrain heights");
+		}
+
+		private void StepCells()
+		{
+			int rows = Math.Min(RowsPerChunk, _depth - _rowCursor);
+			for (int i = 0; i < rows; i++)
+			{
+				int z = _rowCursor + i;
+				for (int x = 0; x < _width; x++)
+				{
+					_cells[x, z] = new TerrainCell(_tiers[x, z] * EditableTerrain.TIER_HEIGHT);
+				}
+			}
+
+			_rowCursor += rows;
+			_stageProgress = _rowCursor / (float)Math.Max(_depth, 1);
+			if (_rowCursor < _depth) return;
+
+			EnsureTerrainMapsExist(_host, _width, _depth);
+			_pathingCodes = EnsurePathingCodesExist(_host, _width, _depth);
+			EnterStage(StageSplatMaps, "Painting terrain materials");
+		}
+
+		private void StepSplatMaps()
+		{
+			int rows = Math.Min(RowsPerChunk, _depth + 1 - _rowCursor);
+			for (int i = 0; i < rows; i++)
+			{
+				int z = _rowCursor + i;
+				if (z > _depth) break;
+
+				int cellZ = Math.Clamp(z, 0, _depth - 1);
+				for (int x = 0; x <= _width; x++)
+				{
+					int cellX = Math.Clamp(x, 0, _width - 1);
+					sbyte tier = _tiers[cellX, cellZ];
+
+					_host.GroundTerrain.SplatMap[x, z] = GetTerrainSplatWeight(tier);
+					_host.GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
+
+					if (x < _width && z < _depth)
+					{
+						_pathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(_cells[x, z]);
+					}
+				}
+			}
+
+			_rowCursor += rows;
+			_stageProgress = _rowCursor / (float)Math.Max(_depth + 1, 1);
+			if (_rowCursor < _depth + 1) return;
+
+			_host.GroundTerrain.PathingCodes = _pathingCodes;
+			EnterStage(StageApplyTerrain, "Uploading terrain");
+		}
+
+		private void StepApplyTerrain()
+		{
+			EcsWorld world = GameContext.World;
+			Entity worldEntity = ECSContext.WorldEntity;
+			if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
+			{
+				ref var state = ref world.Get<TerrainState>(worldEntity);
+				state.Cells = _cells;
+				state.PathingCodes = _pathingCodes;
+				world.Set(worldEntity, state);
+			}
+
+			_host.AlignTerrainSplatMapExternal();
+			_host.GroundTerrain.UpdateMeshAndPhysics();
+			_pathMask = _isPath;
+			_isPath = null;
+
+			EnterStage(StageUnitsAndProps, "Placing sites and resources");
+		}
+
+		private void StepUnitsAndProps()
+		{
+			_spawnEntries ??= BuildSpawnEntries();
+
+			int remaining = _spawnEntries.Count - _spawnCursor;
+			int count = Math.Min(SpawnsPerChunk, remaining);
+			for (int i = 0; i < count; i++)
+			{
+				SpawnEntry entry = _spawnEntries[_spawnCursor++];
+				if (entry.IsProp)
+				{
+					_host.SpawnPropExternalWithParams(entry.Id, entry.Position, entry.Rotation, entry.Scale);
+				}
+				else
+				{
+					_host.SpawnUnitExternal(entry.Id, entry.Position, entry.Rotation, entry.Scale, entry.Player);
+				}
+			}
+
+			_stageProgress = _spawnEntries.Count > 0 ? _spawnCursor / (float)_spawnEntries.Count : 1.0f;
+			if (_spawnCursor < _spawnEntries.Count) return;
+
+			_spawnEntries = null;
+			EnterStage(StagePathDistances, "Measuring distance to paths");
+		}
+
+		private void StepPathDistances()
+		{
+			_pathDist = CalculatePathDistancesForJob();
+			_pathMask = null;
+
+			EnterStage(StageTreeSampling, "Scattering trees");
+		}
+
+		private float[,] CalculatePathDistancesForJob()
+		{
+			float[,] pathDist = new float[_width, _depth];
+			Queue<Vector2I> queue = new Queue<Vector2I>();
+			for (int z = 0; z < _depth; z++)
+			{
+				for (int x = 0; x < _width; x++)
+				{
+					if (_pathMask[x, z])
+					{
+						pathDist[x, z] = 0f;
+						queue.Enqueue(new Vector2I(x, z));
+					}
+					else
+					{
+						pathDist[x, z] = float.MaxValue;
+					}
+				}
+			}
+
+			while (queue.Count > 0)
+			{
+				Vector2I curr = queue.Dequeue();
+				float d = pathDist[curr.X, curr.Y];
+				ProcessDistanceNeighbor(new Vector2I(curr.X + 1, curr.Y), d, pathDist, queue, _width, _depth);
+				ProcessDistanceNeighbor(new Vector2I(curr.X - 1, curr.Y), d, pathDist, queue, _width, _depth);
+				ProcessDistanceNeighbor(new Vector2I(curr.X, curr.Y + 1), d, pathDist, queue, _width, _depth);
+				ProcessDistanceNeighbor(new Vector2I(curr.X, curr.Y - 1), d, pathDist, queue, _width, _depth);
+			}
+
+			return pathDist;
+		}
+
+		private bool[,] _pathMask;
+
+		private void StepTreeSampling()
+		{
+			float radius = (6.0f - (_treeDensity / 10.0f) * 4.0f) * GetSamplingScale(_width, _depth);
+			_treePoints = PoissonDiscSample(_random, (_width - 1) * _quadSize, (_depth - 1) * _quadSize, radius);
+			TrimSampledPoints(_treePoints);
+			_treeCursor = 0;
+			EnterStage(StageTreeSpawns, "Planting trees");
+		}
+
+		private void StepTreeSpawns()
+		{
+			int count = Math.Min(SpawnsPerChunk, _treePoints.Count - _treeCursor);
+			for (int i = 0; i < count; i++)
+			{
+				TrySpawnTree(_host, _treePoints[_treeCursor++], _tiers, _pathDist, _width, _depth, _quadSize, _random);
+			}
+
+			_stageProgress = _treePoints.Count > 0 ? _treeCursor / (float)_treePoints.Count : 1.0f;
+			if (_treeCursor < _treePoints.Count) return;
+
+			_treePoints = null;
+			EnterStage(StageDecoSampling, "Scattering decorations");
+		}
+
+		private void StepDecoSampling()
+		{
+			float radius = (15.0f - (_decoDensity / 10.0f) * 10.0f) * GetSamplingScale(_width, _depth);
+			_decoPoints = PoissonDiscSample(_random, (_width - 1) * _quadSize, (_depth - 1) * _quadSize, radius);
+			TrimSampledPoints(_decoPoints);
+			_decoCursor = 0;
+			EnterStage(StageDecoSpawns, "Placing decorations");
+		}
+
+		private void StepDecoSpawns()
+		{
+			string[] decoIds = { "rock", "pillar", "flag" };
+			int count = Math.Min(SpawnsPerChunk, _decoPoints.Count - _decoCursor);
+			for (int i = 0; i < count; i++)
+			{
+				TrySpawnDeco(_host, _decoPoints[_decoCursor++], _tiers, _pathDist, decoIds, _width, _depth, _quadSize, _random);
+			}
+
+			_stageProgress = _decoPoints.Count > 0 ? _decoCursor / (float)_decoPoints.Count : 1.0f;
+			if (_decoCursor < _decoPoints.Count) return;
+
+			_decoPoints = null;
+			_pathDist = null;
+			EnterStage(StageFinalize, "Finishing generation");
+		}
+
+		private void StepFinalize()
+		{
+			_tiers = null;
+			_isPath = null;
+
+			_host.EditorHasUnsavedChanges = true;
+			_host.UpdateGridOverlayVisibility();
+			_host.UpdateCameraBoundsOverlayVisibility();
+			_host.UpdatePathingOverlay();
+			MapEditorHUD.Instance?.ShowFeedbackExternal("Random map generation completed!");
+
+			_stage = StageComplete;
+			_stageProgress = 1.0f;
+			StageDescription = TranslationServer.Translate("Generation complete");
+		}
+
+		private List<SpawnEntry> BuildSpawnEntries()
+		{
+			var entries = new List<SpawnEntry>();
+
+			Vector3 p1Base = GridToWorld(_sites[0].X, _sites[0].Y, _width, _depth, _quadSize, _host.GroundTerrain.GetGridNodeHeight(_sites[0].X, _sites[0].Y));
+			entries.Add(new SpawnEntry("castle", p1Base, 0f, 1.0f, 0, false));
+			entries.Add(new SpawnEntry("adventurer", p1Base + new Vector3(-6f, 0f, -6f), 45f, 1.0f, 0, false));
+			entries.Add(new SpawnEntry("adventurer", p1Base + new Vector3(-6f, 0f, 6f), 135f, 1.0f, 0, false));
+			entries.Add(new SpawnEntry("adventurer", p1Base + new Vector3(6f, 0f, -6f), 315f, 1.0f, 0, false));
+			entries.Add(new SpawnEntry("armored_battlelord", p1Base + new Vector3(8f, 0f, 8f), 225f, 1.0f, 0, false));
+			entries.Add(new SpawnEntry("armored_battlelord", p1Base + new Vector3(0f, 0f, 10f), 180f, 1.0f, 0, false));
+
+			Vector3 p2Base = GridToWorld(_sites[1].X, _sites[1].Y, _width, _depth, _quadSize, _host.GroundTerrain.GetGridNodeHeight(_sites[1].X, _sites[1].Y));
+			entries.Add(new SpawnEntry("castle", p2Base, 180f, 1.0f, 1, false));
+			entries.Add(new SpawnEntry("adventurer", p2Base + new Vector3(-6f, 0f, -6f), 45f, 1.0f, 1, false));
+			entries.Add(new SpawnEntry("adventurer", p2Base + new Vector3(-6f, 0f, 6f), 135f, 1.0f, 1, false));
+			entries.Add(new SpawnEntry("adventurer", p2Base + new Vector3(6f, 0f, -6f), 315f, 1.0f, 1, false));
+			entries.Add(new SpawnEntry("armored_battlelord", p2Base + new Vector3(-8f, 0f, -8f), 45f, 1.0f, 1, false));
+			entries.Add(new SpawnEntry("armored_battlelord", p2Base + new Vector3(0f, 0f, -10f), 0f, 1.0f, 1, false));
+
+			int goldmineOneX = Math.Clamp(28, 0, _width - 1);
+			int goldmineOneZ = Math.Clamp(20, 0, _depth - 1);
+			Vector3 g1 = GridToWorld(goldmineOneX, goldmineOneZ, _width, _depth, _quadSize, _host.GroundTerrain.GetGridNodeHeight(goldmineOneX, goldmineOneZ));
+			entries.Add(new SpawnEntry("goldmine", g1, 0f, 1.0f, 0, true));
+
+			int goldmineTwoX = Math.Clamp(98, 0, _width - 1);
+			int goldmineTwoZ = Math.Clamp(106, 0, _depth - 1);
+			Vector3 g2 = GridToWorld(goldmineTwoX, goldmineTwoZ, _width, _depth, _quadSize, _host.GroundTerrain.GetGridNodeHeight(goldmineTwoX, goldmineTwoZ));
+			entries.Add(new SpawnEntry("goldmine", g2, 180f, 1.0f, 0, true));
+
+			Vector3 gMid = GridToWorld(_sites[2].X, _sites[2].Y, _width, _depth, _quadSize, _host.GroundTerrain.GetGridNodeHeight(_sites[2].X, _sites[2].Y));
+			entries.Add(new SpawnEntry("goldmine", gMid, 90f, 1.0f, 0, true));
+
+			for (int i = 3; i < _sites.Length; i++)
+			{
+				Vector3 expPos = GridToWorld(_sites[i].X, _sites[i].Y, _width, _depth, _quadSize, _host.GroundTerrain.GetGridNodeHeight(_sites[i].X, _sites[i].Y));
+				entries.Add(new SpawnEntry("goldmine", expPos, (float)(_random.NextDouble() * 360.0), 1.0f, 0, true));
+			}
+
+			return entries;
+		}
+
+		private readonly struct SpawnEntry
+		{
+			public SpawnEntry(string id, Vector3 position, float rotation, float scale, int player, bool isProp)
+			{
+				Id = id;
+				Position = position;
+				Rotation = rotation;
+				Scale = scale;
+				Player = player;
+				IsProp = isProp;
+			}
+
+			public string Id { get; }
+			public Vector3 Position { get; }
+			public float Rotation { get; }
+			public float Scale { get; }
+			public int Player { get; }
+			public bool IsProp { get; }
+		}
 	}
 }

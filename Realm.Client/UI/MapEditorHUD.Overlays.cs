@@ -78,6 +78,8 @@ namespace Realm.Client.UI
 
 		public override void _Process(double delta)
 		{
+			MapGenerator.Tick();
+
 			if (GameHost.Instance != null)
 			{
 				_viewModel.UpdateFromHost();
