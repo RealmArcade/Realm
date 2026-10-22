@@ -41,9 +41,11 @@ public partial class SettingsMenu : Control
 	private OptionButton _qualityOpt;
 	private CheckBox _disableShadowsChk;
 	private CheckBox _disableDayNightLightingChk;
+	private CheckBox _disableWeatherEffectsChk;
 	private CheckBox _floatingCombatTextChk;
 	private OptionButton _windowModeOpt;
 	private OptionButton _vsyncOpt;
+	private OptionButton _fpsLimitOpt;
 	private OptionButton _healthBarsOpt;
 	private OptionButton _languageOpt;
 	private CheckBox _displayFpsChk;
@@ -115,6 +117,8 @@ public partial class SettingsMenu : Control
 
 		_disableShadowsChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DisableShadowsChk");
 		_disableDayNightLightingChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DisableDayNightLightingChk");
+		_disableWeatherEffectsChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DisableWeatherEffectsChk");
+		_fpsLimitOpt = GetNode<OptionButton>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FpsRow/FpsLimitOpt");
 		_floatingCombatTextChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FloatingCombatTextChk");
 
 		_masterSlider = GetNode<HSlider>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/MasterRow/MasterSlider");
@@ -323,6 +327,7 @@ public partial class SettingsMenu : Control
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/QualRow/QualLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ModeRow/ModeLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/VsyncRow/VsyncLabel",
+			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FpsRow/FpsLimitLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/HealthBarsRow/HealthBarsLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/LanguageRow/LanguageLabel",
 			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/MasterRow/MasterLabel",
@@ -401,6 +406,8 @@ public partial class SettingsMenu : Control
 		_disableShadowsChk.Text = TranslationServer.Translate(_disableShadowsChk.Text);
 		UIStyle.ApplyCheckboxStyle(_disableDayNightLightingChk);
 		_disableDayNightLightingChk.Text = TranslationServer.Translate(_disableDayNightLightingChk.Text);
+		UIStyle.ApplyCheckboxStyle(_disableWeatherEffectsChk);
+		_disableWeatherEffectsChk.Text = TranslationServer.Translate(_disableWeatherEffectsChk.Text);
 		UIStyle.ApplyCheckboxStyle(_floatingCombatTextChk);
 		_floatingCombatTextChk.Text = TranslationServer.Translate(_floatingCombatTextChk.Text);
 		UIStyle.ApplyCheckboxStyle(_displayFpsChk);
@@ -428,8 +435,9 @@ public partial class SettingsMenu : Control
 		PopulateVsyncDropdown();
 		PopulateHealthBarsDropdown();
 		PopulateLanguageDropdown();
+		PopulateFpsLimitDropdown();
 
-		var dropdowns = new[] { _resolutionOpt, _qualityOpt, _windowModeOpt, _vsyncOpt, _healthBarsOpt, _languageOpt };
+		var dropdowns = new[] { _resolutionOpt, _qualityOpt, _windowModeOpt, _vsyncOpt, _fpsLimitOpt, _healthBarsOpt, _languageOpt };
 		ApplyDropdownStyles(dropdowns);
 
 		SetupWindowModeEvent();
@@ -474,6 +482,16 @@ public partial class SettingsMenu : Control
 		_vsyncOpt.Clear();
 		_vsyncOpt.AddItem(TranslationServer.Translate("On"), 0);
 		_vsyncOpt.AddItem(TranslationServer.Translate("Off"), 1);
+	}
+
+	private void PopulateFpsLimitDropdown()
+	{
+		_fpsLimitOpt.Clear();
+		for (int i = 0; i < GameSettings.FpsLimitOptions.Length; i++)
+		{
+			int fpsLimit = GameSettings.FpsLimitOptions[i];
+			_fpsLimitOpt.AddItem(fpsLimit <= 0 ? TranslationServer.Translate("Unlimited") : fpsLimit.ToString(), i);
+		}
 	}
 
 	private void PopulateHealthBarsDropdown()
@@ -529,6 +547,8 @@ public partial class SettingsMenu : Control
 		_disableShadowsChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 		_disableDayNightLightingChk.Pressed += () => UIManager.Instance.PlayClickSound();
 		_disableDayNightLightingChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_disableWeatherEffectsChk.Pressed += () => UIManager.Instance.PlayClickSound();
+		_disableWeatherEffectsChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 		_floatingCombatTextChk.Pressed += () => UIManager.Instance.PlayClickSound();
 		_floatingCombatTextChk.MouseEntered += () => UIManager.Instance.PlayHoverSound();
 		_displayFpsChk.Pressed += () => UIManager.Instance.PlayClickSound();
@@ -784,6 +804,7 @@ public partial class SettingsMenu : Control
 		_qualityOpt.Select((int)GameSettings.QualityIdx);
 		_windowModeOpt.Select((int)GameSettings.WindowModeIdx);
 		_vsyncOpt.Select(GameSettings.Vsync ? 0 : 1);
+		_fpsLimitOpt.Select(GetFpsLimitOptionIndex());
 
 		_masterSlider.Value = GameSettings.MasterVolume;
 		_musicSlider.Value = GameSettings.MusicVolume;
@@ -805,6 +826,7 @@ public partial class SettingsMenu : Control
 
 		_disableShadowsChk.ButtonPressed = GameSettings.DisableShadows;
 		_disableDayNightLightingChk.ButtonPressed = GameSettings.DisableDayNightLighting;
+		_disableWeatherEffectsChk.ButtonPressed = GameSettings.DisableWeatherEffects;
 		_floatingCombatTextChk.ButtonPressed = GameSettings.FloatingCombatText;
 		_displayFpsChk.ButtonPressed = GameSettings.DisplayFps;
 		_unitOutlineChk.ButtonPressed = GameSettings.OccludedUnitOutlines;
@@ -909,7 +931,17 @@ public partial class SettingsMenu : Control
 		GameSettings.Vsync = vsyncEnabled;
 		GameSettings.DisableShadows = _disableShadowsChk.ButtonPressed;
 		GameSettings.DisableDayNightLighting = _disableDayNightLightingChk.ButtonPressed;
+		GameSettings.DisableWeatherEffects = _disableWeatherEffectsChk.ButtonPressed;
 		GameSettings.FloatingCombatText = _floatingCombatTextChk.ButtonPressed;
+
+		int fpsOptionIndex = Math.Clamp(_fpsLimitOpt.Selected, 0, GameSettings.FpsLimitOptions.Length - 1);
+		GameSettings.FpsLimit = GameSettings.FpsLimitOptions[fpsOptionIndex];
+	}
+
+	private static int GetFpsLimitOptionIndex()
+	{
+		int index = Array.IndexOf(GameSettings.FpsLimitOptions, GameSettings.FpsLimit);
+		return index >= 0 ? index : 0;
 	}
 
 	private void SaveGameplaySettings()

@@ -420,6 +420,7 @@ public class EnvironmentService
 
 	private bool ShouldEnableFog()
 	{
+		if (GameSettings.DisableWeatherEffects) return false;
 		if (!_currentState.FogEnabled) return false;
 		if (GetCurrentWeather() != "clear") return true;
 		if (GetBaseFogDensity() > 0f) return true;
@@ -448,6 +449,12 @@ public class EnvironmentService
 
 	public void ApplyWeatherVisuals(Node3D host, string weatherType, int particleDensity = 0)
 	{
+		if (GameSettings.DisableWeatherEffects)
+		{
+			Cleanup();
+			return;
+		}
+
 		if (host == null || !GodotObject.IsInstanceValid(host)) return;
 
 		weatherType = (weatherType ?? "clear").Trim().ToLowerInvariant();
@@ -576,6 +583,33 @@ public class EnvironmentService
 				_weatherParticles.GlobalPosition = new Vector3(0f, 35f, 0f);
 			}
 		}
+	}
+
+	public void SyncWeatherEffectsWithSettings(Node3D? host = null)
+	{
+		Node3D targetHost = host ?? GameHost.Instance;
+
+		if (GameSettings.DisableWeatherEffects)
+		{
+			Cleanup();
+			DisableAtmosphericFog(targetHost);
+			return;
+		}
+
+		string weather = GetCurrentWeather();
+		var settings = GetWeatherSettings(weather);
+		if (targetHost != null) ApplyWeatherToTarget(targetHost, weather, settings.ParticleDensity);
+	}
+
+	private static void DisableAtmosphericFog(Node3D? targetHost)
+	{
+		if (targetHost == null) return;
+
+		var worldEnv = targetHost.GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
+		if (worldEnv?.Environment == null) return;
+
+		worldEnv.Environment.FogEnabled = false;
+		worldEnv.Environment.FogDensity = 0f;
 	}
 
 	public void Cleanup()
@@ -801,7 +835,7 @@ public class EnvironmentService
 		_currentState.AdjustmentSaturation = Mathf.Lerp(Saturations[phaseIndex], Saturations[nextIndex], t);
 
 		float baseFog = GetBaseFogDensity();
-		bool hasFog = baseFog > 0f || (weather != "clear" && weather != "");
+		bool hasFog = !GameSettings.DisableWeatherEffects && (baseFog > 0f || (weather != "clear" && weather != ""));
 		_currentState.FogEnabled = hasFog;
 		_currentState.FogColor = FogColors[phaseIndex].Lerp(FogColors[nextIndex], t);
 		_currentState.FogDensity = hasFog ? Mathf.Lerp(FogDensities[phaseIndex], FogDensities[nextIndex], t) : 0f;

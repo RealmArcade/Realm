@@ -56,6 +56,9 @@ public static class GameSettings
 	public static bool SeedMapFiles { get; set; } = false;
 	public static bool DisableShadows { get; set; } = false;
 	public static bool DisableDayNightLighting { get; set; } = false;
+	public static bool DisableWeatherEffects { get; set; } = false;
+	public static int FpsLimit { get; set; } = 0;
+	public static readonly int[] FpsLimitOptions = { 0, 30, 60, 90, 120, 144, 240 };
 	public static bool FloatingCombatText { get; set; } = true;
 	public static bool OccludedUnitOutlines { get; set; } = true;
 
@@ -102,6 +105,8 @@ public static class GameSettings
 		Vsync = true;
 		DisableShadows = false;
 		DisableDayNightLighting = false;
+		DisableWeatherEffects = false;
+		FpsLimit = 0;
 		FloatingCombatText = true;
 		OccludedUnitOutlines = true;
 		MasterVolume = 80f;
@@ -242,6 +247,8 @@ public static class GameSettings
 		SeedMapFiles = data.SeedMapFiles;
 		DisableShadows = data.DisableShadows;
 		DisableDayNightLighting = data.DisableDayNightLighting;
+		DisableWeatherEffects = data.DisableWeatherEffects;
+		FpsLimit = IsSupportedFpsLimit(data.FpsLimit) ? data.FpsLimit : 0;
 		FloatingCombatText = data.FloatingCombatText;
 		OccludedUnitOutlines = data.OccludedUnitOutlines;
 		MovementPrediction = data.MovementPrediction;
@@ -298,6 +305,8 @@ public static class GameSettings
 			SeedMapFiles = SeedMapFiles,
 			DisableShadows = DisableShadows,
 			DisableDayNightLighting = DisableDayNightLighting,
+			DisableWeatherEffects = DisableWeatherEffects,
+			FpsLimit = FpsLimit,
 			FloatingCombatText = FloatingCombatText,
 			OccludedUnitOutlines = OccludedUnitOutlines,
 			MovementPrediction = MovementPrediction,
@@ -327,6 +336,17 @@ public static class GameSettings
 		ApplyTerrainQuality(root);
 		ApplyGameHostSettings(root);
 		ApplyLodVisibilityDistances();
+		ApplyFrameRateLimit();
+	}
+
+	public static void ApplyFrameRateLimit()
+	{
+		Engine.MaxFps = IsSupportedFpsLimit(FpsLimit) ? FpsLimit : 0;
+	}
+
+	public static bool IsSupportedFpsLimit(int fpsLimit)
+	{
+		return Array.IndexOf(FpsLimitOptions, fpsLimit) >= 0;
 	}
 
 	private static float GetLodDistanceScale(GraphicsQuality quality)
@@ -447,6 +467,8 @@ public static class GameSettings
 
 		var envService = GameContext.EnvironmentService;
 		if (envService == null) return;
+
+		envService.SyncWeatherEffectsWithSettings(gameHost);
 
 		if (DisableDayNightLighting)
 		{
