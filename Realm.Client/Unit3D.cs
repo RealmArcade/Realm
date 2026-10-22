@@ -456,6 +456,14 @@ public partial class Unit3D : Node3D
 		{
 			_playerColorRing.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorGlowMaterial(color);
 		}
+
+		foreach (var glowingSocket in _pseudoSocketGlows)
+		{
+			if (glowingSocket.Value != null && GodotObject.IsInstanceValid(glowingSocket.Value))
+			{
+				glowingSocket.Value.MaterialOverride = Realm.Client.Utils.SharedMaterials.GetOrCreatePlayerColorGlowMaterial(color);
+			}
+		}
 	}
 
 	public void InterpolatePlayerColor(Color targetColor, float weight)
@@ -837,6 +845,9 @@ public partial class Unit3D : Node3D
 		_currentBoneAttachmentIds.Clear();
 		_pseudoSockets.Clear();
 		_currentPseudoSocketAttachmentIds.Clear();
+		_pseudoSocketGlows.Clear();
+		_resolvedPseudoSocketPoints = null;
+		_resolvedAuthorAnchors = null;
 		_resolvedAnimCache.Clear();
 		_lastRequestedAnimName = null;
 		_currentAnimation = string.Empty;
@@ -1375,6 +1386,7 @@ public partial class Unit3D : Node3D
 		}
 
 		_currentPseudoSocketAttachmentIds.Clear();
+		_pseudoSocketGlows.Clear();
 		RebuildGeometryInstanceCache();
 	}
 
@@ -1408,6 +1420,18 @@ public partial class Unit3D : Node3D
 		ApplyPseudoSocketAttachmentList("center", atts.center ?? atts.chest);
 		ApplyPseudoSocketAttachmentList("overhead", atts.overhead ?? atts.head);
 		ApplyPseudoSocketAttachmentList("pivot", atts.pivot ?? atts.right_hand);
+		ApplyCustomPseudoSocketAttachmentLists(atts);
+	}
+
+	private void ApplyCustomPseudoSocketAttachmentLists(UnitObjectAttachments atts)
+	{
+		var customLists = atts.CustomSocketLists;
+		if (customLists == null) return;
+
+		foreach (var kvp in customLists)
+		{
+			ApplyPseudoSocketAttachmentList(kvp.Key, kvp.Value);
+		}
 	}
 
 	private void ApplyRiggedAttachments(UnitObjectAttachments atts)
@@ -1424,6 +1448,7 @@ public partial class Unit3D : Node3D
 		ApplyPseudoSocketAttachmentList("center", atts.center);
 		ApplyPseudoSocketAttachmentList("overhead", atts.overhead);
 		ApplyPseudoSocketAttachmentList("pivot", atts.pivot);
+		ApplyCustomPseudoSocketAttachmentLists(atts);
 	}
 
 
@@ -1483,8 +1508,13 @@ public partial class Unit3D : Node3D
 		}
 	}
 
+	public const string PlayerColorGlowAttachmentId = "glow:player_color";
+
 	private readonly Dictionary<string, Node3D> _pseudoSockets = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, string> _currentPseudoSocketAttachmentIds = new(StringComparer.OrdinalIgnoreCase);
+	private readonly Dictionary<string, MeshInstance3D> _pseudoSocketGlows = new(StringComparer.OrdinalIgnoreCase);
+	private IReadOnlyList<PseudoSocketPoint>? _resolvedPseudoSocketPoints;
+	private List<PseudoSocketAnchor>? _resolvedAuthorAnchors;
 
 	public Aabb CalculateModelLocalAabb()
 	{
@@ -1585,23 +1615,117 @@ public partial class Unit3D : Node3D
 			return;
 		}
 
+		var visual = GetVisualModelNode();
+		if (PseudoSocketCache.IsRealSocket(normSocket, GetRealSocketIds())) return;
+
+		Node3D? socketNode = EnsurePseudoSocketNode(visual, normSocket);
+		if (socketNode == null) return;
+
 		_currentPseudoSocketAttachmentIds[normSocket] = attachmentId;
 
-		var visual = GetVisualModelNode();
-		Node3D socketNode = EnsurePseudoSocketNode(visual, normSocket);
-
-		Aabb aabb = CalculateModelLocalAabb();
-		bool isNonRigged = IsBuilding || FindSkeleton(GetParentModelNode()) == null;
-
-		socketNode.Position = CalculatePseudoSocketAnchorPos(normSocket, aabb, isNonRigged);
-		socketNode.Rotation = Vector3.Zero;
+		PseudoSocketPoint socketPoint = ResolvePseudoSocketPoint(visual, normSocket);
+		socketNode.Position = socketPoint.LocalPosition;
+		socketNode.RotationDegrees = socketPoint.LocalRotationDegrees;
 
 		if (clearExisting) ClearNodeChildren(socketNode);
+
+		if (IsPlayerColorGlowAttachment(attachmentId))
+		{
+			AttachPlayerColorGlowToPseudoSocket(socketNode, normSocket);
+			return;
+		}
 
 		Node3D? model = ResolveAndInstantiateAttachment(attachmentId, out float defScale, out Vector3 defPos, out Vector3 defRot);
 		if (model == null) return;
 
 		ApplyPseudoSocketInstance(model, attachmentId, socketNode, visual, parentAttachmentId, normSocket, defScale, defPos, defRot, posOffsetOverride, rotOffsetOverride, scaleOverride, scaleVectorOverride, normalOffsetOverride);
+	}
+
+	public static bool IsPlayerColorGlowAttachment(string attachmentId)
+	{
+		return string.Equals(attachmentId, PlayerColorGlowAttachmentId, StringComparison.OrdinalIgnoreCase);
+	}
+
+	private void AttachPlayerColorGlowToPseudoSocket(Node3D socketNode, string normSocket)
+	{
+		if (_pseudoSocketGlows.TryGetValue(normSocket, out var existing) && GodotObject.IsInstanceValid(existing))
+		{
+			existing.GetParent()?.RemoveChild(existing);
+			existing.QueueFree();
+			_pseudoSocketGlows.Remove(normSocket);
+		}
+
+		float radius = Mathf.Max(0.4f, GetBaseObstacleRadius());
+		var glow = new MeshInstance3D
+		{
+			Name = $"PlayerColorGlow_{normSocket}",
+			Mesh = VisualSelectionHelper.GetOrCreatePlayerColorGlowMesh(radius),
+			MaterialOverride = SharedMaterials.GetOrCreatePlayerColorGlowMaterial(PlayerColor),
+			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+			GIMode = GeometryInstance3D.GIModeEnum.Disabled
+		};
+
+		socketNode.AddChild(glow);
+		_pseudoSocketGlows[normSocket] = glow;
+	}
+
+	private IReadOnlyList<string>? GetRealSocketIds()
+	{
+		return FindSkeleton(GetParentModelNode()) != null ? PseudoSocketCache.HumanoidSocketIds : null;
+	}
+
+	private List<PseudoSocketAnchor>? GetAuthorPseudoSockets()
+	{
+		if (string.IsNullOrEmpty(UnitId)) return null;
+
+		if (GameHost.TryGetUnitOrBuildingMetadata(UnitId, out var meta) && meta.PseudoSockets != null)
+		{
+			return meta.PseudoSockets;
+		}
+
+		var registryService = GameContext.RegistryService;
+		if (registryService.PropRegistry != null && registryService.PropRegistry.TryGetValue(UnitId, out var propMeta))
+		{
+			return propMeta.PseudoSockets;
+		}
+
+		if (registryService.ResourceRegistry != null && registryService.ResourceRegistry.TryGetValue(UnitId, out var resourceMeta))
+		{
+			return resourceMeta.PseudoSockets;
+		}
+
+		return null;
+	}
+
+	private IReadOnlyList<PseudoSocketPoint> GetPseudoSocketPoints(Node3D visual)
+	{
+		var authorAnchors = GetAuthorPseudoSockets();
+		if (_resolvedPseudoSocketPoints != null && ReferenceEquals(_resolvedAuthorAnchors, authorAnchors))
+		{
+			return _resolvedPseudoSocketPoints;
+		}
+
+		_resolvedAuthorAnchors = authorAnchors;
+		_resolvedPseudoSocketPoints = PseudoSocketCache.GetSockets(visual, ModelPath, authorAnchors, GetRealSocketIds());
+		return _resolvedPseudoSocketPoints;
+	}
+
+	private PseudoSocketPoint ResolvePseudoSocketPoint(Node3D visual, string normSocket)
+	{
+		var points = GetPseudoSocketPoints(visual);
+		string canonicalId = PseudoSocketCache.NormalizeSocketId(normSocket) ?? normSocket;
+
+		for (int index = 0; index < points.Count; index++)
+		{
+			if (points[index].SocketId.Equals(canonicalId, StringComparison.OrdinalIgnoreCase))
+			{
+				return points[index];
+			}
+		}
+
+		Aabb aabb = CalculateModelLocalAabb();
+		bool isNonRigged = IsBuilding || FindSkeleton(GetParentModelNode()) == null;
+		return new PseudoSocketPoint(canonicalId, canonicalId, CalculateLegacyPseudoSocketAnchorPos(canonicalId, aabb, isNonRigged), Vector3.Zero, PseudoSocketSource.Generated);
 	}
 
 	private static string NormalizeSocketName(string socketName)
@@ -1653,8 +1777,10 @@ public partial class Unit3D : Node3D
 		return true;
 	}
 
-	private Node3D EnsurePseudoSocketNode(Node3D visual, string normSocket)
+	private Node3D? EnsurePseudoSocketNode(Node3D visual, string normSocket)
 	{
+		if (PseudoSocketCache.IsRealSocket(normSocket, GetRealSocketIds())) return null;
+
 		string nodeName = $"PseudoSocket_{normSocket}";
 		var socketNode = visual.GetNodeOrNull<Node3D>(nodeName);
 		if (socketNode == null)
@@ -1667,7 +1793,7 @@ public partial class Unit3D : Node3D
 		return socketNode;
 	}
 
-	private Vector3 CalculatePseudoSocketAnchorPos(string normSocket, Aabb aabb, bool isNonRigged)
+	private static Vector3 CalculateLegacyPseudoSocketAnchorPos(string normSocket, Aabb aabb, bool isNonRigged)
 	{
 		if (isNonRigged)
 		{

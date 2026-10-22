@@ -4789,6 +4789,42 @@ namespace Realm.Client.UI
 			}
 		}
 
+		public void RestoreUnitPseudoSockets(string targetId, List<PseudoSocketAnchor>? snapshot)
+		{
+			try
+			{
+				if (string.IsNullOrEmpty(targetId)) return;
+
+				string regKey = GameContext.EditorService.RestoreUnitPseudoSocketsDomain(targetId, snapshot);
+
+				if (GameHost.Instance != null)
+				{
+					if (GameHost.Instance.AllUnits != null)
+					{
+						foreach (var u in GameHost.Instance.AllUnits)
+						{
+							if (u != null && (u.UnitId == targetId || u.UnitId == regKey || Path.GetFileNameWithoutExtension(u.UnitId ?? "").Equals(Path.GetFileNameWithoutExtension(targetId), StringComparison.OrdinalIgnoreCase)))
+							{
+								u.ApplyAllConfiguredAttachments();
+							}
+						}
+					}
+
+					if (GameHost.Instance.SelectedEditorObject is Unit3D selUnit)
+					{
+						if (selUnit.UnitId == targetId || selUnit.UnitId == regKey || Path.GetFileNameWithoutExtension(selUnit.UnitId ?? "").Equals(Path.GetFileNameWithoutExtension(targetId), StringComparison.OrdinalIgnoreCase))
+						{
+							selUnit.ApplyAllConfiguredAttachments();
+						}
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[MapEditorHUD] RestoreUnitPseudoSockets error: {ex.Message}");
+			}
+		}
+
 		public void OpenShaderEditorDialog(string shaderKey = "", Action<CustomShaderConfig> onSaved = null)
 		{
 			if (_shaderEditorDialog == null)

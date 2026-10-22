@@ -1,5 +1,6 @@
 namespace Realm.Shared.Metadata;
 
+
 public abstract class PlaceableMetadata
 {
 	public string TemplateID { get; set; } = string.Empty;
@@ -19,6 +20,7 @@ public abstract class PlaceableMetadata
 	public int PathingType { get; set; }
 	public string? SpawnShader { get; set; }
 	public string? DeathShader { get; set; }
+	public List<PseudoSocketAnchor>? PseudoSockets { get; set; }
 
 	public string? DespawnShader
 	{

@@ -74,11 +74,8 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	private UnitObjectAttachments _workingAttachments;
 
 
-	private static readonly SocketDefinition[] RiggedSockets = new[]
+	private static readonly SocketDefinition[] BoneSockets = new[]
 	{
-		new SocketDefinition("Ground", "Ground / Footprint (Aura Ring)", true),
-		new SocketDefinition("Center", "Center of Mass (Shield / Sphere)", true),
-		new SocketDefinition("Overhead", "Overhead (Crown / Status Icon)", true),
 		new SocketDefinition("RightHand", "Right Hand (Weapon)", false, HumanoidBone.RightHand),
 		new SocketDefinition("LeftHand", "Left Hand (Offhand/Shield)", false, HumanoidBone.LeftHand),
 		new SocketDefinition("Chest", "Chest (Torso Bone)", false, HumanoidBone.Chest),
@@ -88,13 +85,8 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		new SocketDefinition("RightFoot", "Right Foot", false, HumanoidBone.RightFoot)
 	};
 
-	private static readonly SocketDefinition[] NonRiggedSockets = new[]
-	{
-		new SocketDefinition("Center", "Model Center (Portal / Core)", true),
-		new SocketDefinition("Top", "Model Top / Roof", true),
-		new SocketDefinition("Base", "Model Base / Ground", true),
-		new SocketDefinition("Pivot", "Root / Pivot (0, 0, 0)", true)
-	};
+	private readonly List<PseudoSocketAnchor> _workingPseudoSockets = new();
+	private LineEdit _txtPseudoSocketName;
 
 	private readonly List<SocketDefinition> _currentAvailableSockets = new();
 
@@ -125,6 +117,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		AddCameraPresetToolbar(topControlsVBox, includeBack: true);
 		BuildTopInfoRow(topControlsVBox);
 		BuildSocketRow(topControlsVBox);
+		BuildPseudoSocketAuthoringRow(topControlsVBox);
 		BuildAttachmentPickerRow(topControlsVBox);
 		BuildTransformSliders();
 
@@ -218,6 +211,118 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		socketRow.AddChild(_optParent);
 
 		parent.AddChild(socketRow);
+	}
+
+	private void BuildPseudoSocketAuthoringRow(Container parent)
+	{
+		var anchorRow = new HBoxContainer();
+		anchorRow.Name = "PseudoSocketAuthoring_HBoxContainer";
+		anchorRow.AddThemeConstantOverride("separation", 6);
+
+		var lblAnchorTitle = new Label { Text = TranslationServer.Translate("Custom Anchor:") };
+		lblAnchorTitle.AddThemeFontSizeOverride("font_size", 11);
+		lblAnchorTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		anchorRow.AddChild(lblAnchorTitle);
+
+		_txtPseudoSocketName = new LineEdit
+		{
+			Name = "TxtPseudoSocketName_LineEdit",
+			PlaceholderText = TranslationServer.Translate("Anchor name"),
+			CustomMinimumSize = new Vector2(120, 24),
+			SizeFlagsHorizontal = SizeFlags.ExpandFill,
+			TooltipText = TranslationServer.Translate("Name of a custom anchor placed at the selected socket plus the current position offsets")
+		};
+		_txtPseudoSocketName.AddThemeFontSizeOverride("font_size", 11);
+		anchorRow.AddChild(_txtPseudoSocketName);
+
+		AddButton(anchorRow, "➕ " + TranslationServer.Translate("Save Anchor"), AddOrUpdatePseudoSocketAnchor, "Add or override an anchor for this asset at the selected socket position", 10, new Vector2(110, 24));
+		AddButton(anchorRow, "🗑️ " + TranslationServer.Translate("Delete"), RemovePseudoSocketAnchor, "Remove a custom anchor from this asset", 10, new Vector2(80, 24));
+
+		parent.AddChild(anchorRow);
+	}
+
+	private void AddOrUpdatePseudoSocketAnchor()
+	{
+		string anchorId = _txtPseudoSocketName?.Text?.Trim() ?? string.Empty;
+		if (string.IsNullOrEmpty(anchorId))
+		{
+			Hud?.ShowFeedback(TranslationServer.Translate("Enter a name for the custom anchor."));
+			return;
+		}
+
+		if (_socketAnchorNodes.TryGetValue(_currentSocketId, out var anchorNode) && anchorNode != null && GodotObject.IsInstanceValid(anchorNode))
+		{
+			Vector3 localPosition = anchorNode.Position + _currentPosOffset + (Vector3.Up * _currentNormalOffset);
+			Vector3 localRotation = anchorNode.RotationDegrees + _currentRotOffset;
+
+			_workingPseudoSockets.RemoveAll(anchor => anchor.SocketId.Equals(anchorId, StringComparison.OrdinalIgnoreCase));
+			_workingPseudoSockets.Add(new PseudoSocketAnchor
+			{
+				SocketId = anchorId,
+				Position = new Vector3Data(localPosition.X, localPosition.Y, localPosition.Z),
+				RotationDegrees = new Vector3Data(localRotation.X, localRotation.Y, localRotation.Z)
+			});
+
+			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Saved anchor {0} on {1}."), anchorId, _targetObjectId));
+			RebuildSocketsAndAttachments(anchorId);
+			return;
+		}
+
+		Hud?.ShowFeedback(TranslationServer.Translate("Select a socket before saving an anchor."));
+	}
+
+	private void RemovePseudoSocketAnchor()
+	{
+		string anchorId = _txtPseudoSocketName?.Text?.Trim() ?? string.Empty;
+		if (string.IsNullOrEmpty(anchorId))
+		{
+			Hud?.ShowFeedback(TranslationServer.Translate("Enter the name of the custom anchor to remove."));
+			return;
+		}
+
+		int removed = _workingPseudoSockets.RemoveAll(anchor => anchor.SocketId.Equals(anchorId, StringComparison.OrdinalIgnoreCase));
+		if (removed == 0)
+		{
+			Hud?.ShowFeedback(TranslationServer.Translate("Only custom anchors can be removed. Generated anchors are always available."));
+			return;
+		}
+
+		PseudoSocketCache.Clear();
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Removed anchor {0} from {1}."), anchorId, _targetObjectId));
+		RebuildSocketsAndAttachments(null);
+	}
+
+	private void RebuildSocketsAndAttachments(string? socketToSelect)
+	{
+		PseudoSocketCache.RegisterCustomSocketIds(_workingPseudoSockets);
+		ClearSocketAnchors();
+		SetupSockets(null);
+
+		if (!string.IsNullOrEmpty(socketToSelect))
+		{
+			_currentSocketId = socketToSelect;
+		}
+
+		UpdateSocketDropdown();
+		AttachAllConfiguredAttachments();
+		PreviewCurrentAttachment();
+	}
+
+	private void ClearSocketAnchors()
+	{
+		foreach (var anchorNode in _socketAnchorNodes.Values)
+		{
+			if (anchorNode != null && GodotObject.IsInstanceValid(anchorNode))
+			{
+				anchorNode.GetParent()?.RemoveChild(anchorNode);
+				anchorNode.QueueFree();
+			}
+		}
+
+		_socketAnchorNodes.Clear();
+		_socketModelNodes.Clear();
+		_activeAttachmentVisuals.Clear();
+		_currentActiveModelNode = null;
 	}
 
 	private void BuildAttachmentPickerRow(Container parent)
@@ -392,10 +497,12 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		if (GameHost.TryGetUnitOrBuildingMetadata(_targetObjectId, out var meta))
 		{
 			_initialSnapshot = meta.ObjectAttachments?.Clone();
+			LoadPseudoSocketsIntoWorkingCopy(meta.PseudoSockets);
 		}
 		else
 		{
 			_initialSnapshot = null;
+			LoadPseudoSocketsIntoWorkingCopy(null);
 		}
 
 		_workingAttachments = _initialSnapshot?.Clone() ?? new UnitObjectAttachments();
@@ -414,6 +521,46 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 		ResetCameraDefault();
 		OpenDialog();
+	}
+
+	private void LoadPseudoSocketsIntoWorkingCopy(List<PseudoSocketAnchor>? anchors)
+	{
+		_workingPseudoSockets.Clear();
+
+		if (anchors == null)
+		{
+			anchors = LoadPseudoSocketsFromPlaceableRegistries();
+		}
+
+		if (anchors != null)
+		{
+			foreach (var anchor in anchors)
+			{
+				if (anchor != null) _workingPseudoSockets.Add(anchor.Clone());
+			}
+		}
+
+		PseudoSocketCache.RegisterCustomSocketIds(_workingPseudoSockets);
+	}
+
+	private List<PseudoSocketAnchor>? LoadPseudoSocketsFromPlaceableRegistries()
+	{
+		var registryService = GameContext.RegistryService;
+		string cleanId = Path.GetFileNameWithoutExtension(_targetObjectId);
+
+		if (registryService.PropRegistry != null)
+		{
+			if (registryService.PropRegistry.TryGetValue(_targetObjectId, out var propMeta)) return propMeta.PseudoSockets;
+			if (registryService.PropRegistry.TryGetValue(cleanId, out var cleanPropMeta)) return cleanPropMeta.PseudoSockets;
+		}
+
+		if (registryService.ResourceRegistry != null)
+		{
+			if (registryService.ResourceRegistry.TryGetValue(_targetObjectId, out var resourceMeta)) return resourceMeta.PseudoSockets;
+			if (registryService.ResourceRegistry.TryGetValue(cleanId, out var cleanResourceMeta)) return cleanResourceMeta.PseudoSockets;
+		}
+
+		return null;
 	}
 
 	private void SetTargetObject(string targetId)
@@ -458,7 +605,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		if (string.IsNullOrEmpty(socket)) return "RightHand";
 		string s = socket.ToLowerInvariant().Replace("_", "").Replace(" ", "");
 
-		return TryMatchExactSocket(s) ?? TryMatchContainsSocket(s) ?? "RightHand";
+		return PseudoSocketCache.NormalizeSocketId(socket) ?? TryMatchExactSocket(s) ?? TryMatchContainsSocket(s) ?? "RightHand";
 	}
 
 	private static string? TryMatchExactSocket(string s)
@@ -628,10 +775,19 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 	private void AddAttachmentOption(string item, int index)
 	{
-		string display = item.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
-			? $"✨ {item.Substring(4)}"
-			: $"🗡️ {item}";
-		_optAttachmentPicker.AddItem(display, index);
+		_optAttachmentPicker.AddItem(FormatAttachmentDisplayName(item), index);
+	}
+
+	private static string FormatAttachmentDisplayName(string attachmentId)
+	{
+		if (Unit3D.IsPlayerColorGlowAttachment(attachmentId))
+		{
+			return "✨ " + TranslationServer.Translate("Player Colour Glow");
+		}
+
+		return attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
+			? $"✨ {attachmentId.Substring(4)}"
+			: $"🗡️ {attachmentId}";
 	}
 
 	private bool IsCurrentAttachmentMatch(string item, string cleanCurrent)
@@ -814,8 +970,8 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 	private void ApplyPseudoSocketOrientation()
 	{
-		bool isGround = _currentSocketId.Equals("Ground", StringComparison.OrdinalIgnoreCase) ||
-		                _currentSocketId.Equals("Base", StringComparison.OrdinalIgnoreCase);
+		string normalizedSocketId = PseudoSocketCache.NormalizeSocketId(_currentSocketId) ?? _currentSocketId;
+		bool isGround = normalizedSocketId.Equals("Base", StringComparison.OrdinalIgnoreCase);
 
 		_currentPosOffset = isGround ? new Vector3(0f, 0.02f, 0f) : Vector3.Zero;
 		_currentRotOffset = Vector3.Zero;
@@ -1127,34 +1283,35 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	private void SetupSockets(Node3D sourceModel)
 	{
 		var skeleton = SkeletonValidator.FindSkeleton(_previewModel);
-		Aabb modelAabb = CalculateAttachmentLocalAabb(_previewModel);
+		bool isRigged = skeleton != null && !_isTargetBuilding;
 		_currentAvailableSockets.Clear();
 
-		if (skeleton != null && !_isTargetBuilding)
+		if (isRigged)
 		{
-			SetupRiggedSockets(skeleton, sourceModel, modelAabb);
+			CopySkeletonPoses(skeleton, sourceModel);
+			AddBoneSockets(skeleton);
 		}
-		else
+
+		AddPseudoSockets(isRigged ? PseudoSocketCache.HumanoidSocketIds : null);
+	}
+
+	private void AddBoneSockets(Skeleton3D skeleton)
+	{
+		foreach (var socketDefinition in BoneSockets)
 		{
-			SetupNonRiggedSockets(modelAabb);
+			_currentAvailableSockets.Add(socketDefinition);
+			CreateBoneAttachmentAnchor(socketDefinition, skeleton);
 		}
 	}
 
-	private void SetupRiggedSockets(Skeleton3D skeleton, Node3D sourceModel, Aabb modelAabb)
+	private void AddPseudoSockets(IReadOnlyList<string>? realSocketIds)
 	{
-		CopySkeletonPoses(skeleton, sourceModel);
-		_currentAvailableSockets.AddRange(RiggedSockets);
-
-		foreach (var sock in _currentAvailableSockets)
+		var pseudoSocketPoints = PseudoSocketCache.GetSockets(_previewModel, GetModelPath(_targetObjectId), _workingPseudoSockets, realSocketIds);
+		foreach (var pseudoSocketPoint in pseudoSocketPoints)
 		{
-			if (sock.IsPseudoSocket)
-			{
-				CreatePseudoSocketAnchor(sock, modelAabb);
-			}
-			else if (sock.AssociatedBone.HasValue)
-			{
-				CreateBoneAttachmentAnchor(sock, skeleton);
-			}
+			var socketDefinition = new SocketDefinition(pseudoSocketPoint.SocketId, pseudoSocketPoint.DisplayName, true);
+			_currentAvailableSockets.Add(socketDefinition);
+			CreatePseudoSocketAnchor(socketDefinition, pseudoSocketPoint.LocalPosition, pseudoSocketPoint.LocalRotationDegrees);
 		}
 	}
 
@@ -1174,17 +1331,11 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private void CreatePseudoSocketAnchor(SocketDefinition sock, Aabb modelAabb)
+	private void CreatePseudoSocketAnchor(SocketDefinition sock, Vector3 localPosition, Vector3 localRotationDegrees)
 	{
 		var anchor = new Node3D { Name = $"Anchor_{sock.SocketId}" };
-		Vector3 anchorPos = sock.SocketId switch
-		{
-			"Ground" => new Vector3(0, modelAabb.Position.Y, 0),
-			"Center" => new Vector3(0, modelAabb.GetCenter().Y, 0),
-			"Overhead" => new Vector3(0, modelAabb.End.Y + 0.3f, 0),
-			_ => Vector3.Zero
-		};
-		anchor.Position = anchorPos;
+		anchor.Position = localPosition;
+		anchor.RotationDegrees = localRotationDegrees;
 		_previewModel.AddChild(anchor);
 		_socketAnchorNodes[sock.SocketId] = anchor;
 	}
@@ -1202,27 +1353,6 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			};
 			skeleton.AddChild(ba);
 			_socketAnchorNodes[sock.SocketId] = ba;
-		}
-	}
-
-	private void SetupNonRiggedSockets(Aabb modelAabb)
-	{
-		_currentAvailableSockets.AddRange(NonRiggedSockets);
-
-		foreach (var sock in _currentAvailableSockets)
-		{
-			var anchor = new Node3D { Name = $"Anchor_{sock.SocketId}" };
-			Vector3 anchorPos = sock.SocketId switch
-			{
-				"Center" => modelAabb.GetCenter(),
-				"Top" => new Vector3(modelAabb.GetCenter().X, modelAabb.End.Y, modelAabb.GetCenter().Z),
-				"Base" => new Vector3(modelAabb.GetCenter().X, modelAabb.Position.Y, modelAabb.GetCenter().Z),
-				"Pivot" => Vector3.Zero,
-				_ => Vector3.Zero
-			};
-			anchor.Position = anchorPos;
-			_previewModel.AddChild(anchor);
-			_socketAnchorNodes[sock.SocketId] = anchor;
 		}
 	}
 
@@ -1334,6 +1464,18 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		CollectToEntryList(list, "Top", atts.overhead ?? atts.head);
 		CollectToEntryList(list, "Base", atts.ground ?? atts.root);
 		CollectToEntryList(list, "Pivot", atts.pivot ?? atts.right_hand);
+		CollectCustomSocketAttachments(list, atts);
+	}
+
+	private static void CollectCustomSocketAttachments(List<ConfiguredAttachmentEntry> list, UnitObjectAttachments atts)
+	{
+		var customSocketLists = atts.CustomSocketLists;
+		if (customSocketLists == null) return;
+
+		foreach (var socketEntry in customSocketLists)
+		{
+			CollectToEntryList(list, socketEntry.Key, socketEntry.Value);
+		}
 	}
 
 	private static void CollectUnitAttachments(List<ConfiguredAttachmentEntry> list, UnitObjectAttachments atts)
@@ -1349,6 +1491,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		CollectToEntryList(list, "Center", atts.center);
 		CollectToEntryList(list, "Overhead", atts.overhead);
 		CollectToEntryList(list, "Pivot", atts.pivot);
+		CollectCustomSocketAttachments(list, atts);
 	}
 
 	private static void CollectToEntryList(List<ConfiguredAttachmentEntry> list, string socket, List<Dictionary<string, HandAttachmentOrientation>>? sockList)
@@ -1506,6 +1649,14 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 
 		if (string.IsNullOrEmpty(attachmentId) || attachmentId.Equals("null", StringComparison.OrdinalIgnoreCase) || attachmentId.Equals("none", StringComparison.OrdinalIgnoreCase)) return null;
 
+		if (Unit3D.IsPlayerColorGlowAttachment(attachmentId))
+		{
+			MeshInstance3D previewGlow = CreatePreviewPlayerColorGlow(attachmentId, key, pos, rot, scale, normalOffset);
+			GetAttachTarget(targetAnchor, parentAttachmentId).AddChild(previewGlow);
+			_activeAttachmentVisuals[key] = previewGlow;
+			return previewGlow;
+		}
+
 		Node3D loaded = Unit3D.ResolveAndInstantiateAttachment(attachmentId, out _, out _, out _);
 		if (loaded == null) return null;
 
@@ -1515,6 +1666,25 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		attachTarget.AddChild(loaded);
 		_activeAttachmentVisuals[key] = loaded;
 		return loaded;
+	}
+
+	private static MeshInstance3D CreatePreviewPlayerColorGlow(string attachmentId, string key, Vector3 pos, Vector3 rot, Vector3 scale, float normalOffset)
+	{
+		var previewGlow = new MeshInstance3D
+		{
+			Name = $"AttVisual_{key}",
+			Mesh = VisualSelectionHelper.GetOrCreatePlayerColorGlowMesh(1.0f),
+			MaterialOverride = SharedMaterials.GetOrCreatePlayerColorGlowMaterial(Realm.Client.PlayerColorConfig.GetColor(Realm.Client.PlayerColorConfig.NEUTRAL_PLAYER_INDEX)),
+			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
+			Position = pos + (Vector3.Up * normalOffset),
+			RotationDegrees = rot,
+			Scale = scale == Vector3.Zero ? Vector3.One : scale
+		};
+
+		previewGlow.SetMeta("AttachmentId", attachmentId);
+		previewGlow.SetMeta("CleanAttachmentId", attachmentId);
+		return previewGlow;
 	}
 
 	private void RemoveOldAttachmentVisual(string key)
@@ -1628,9 +1798,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			badge.AddThemeFontSizeOverride("font_size", 11);
 			row.AddChild(badge);
 
-			string displayName = entry.AttachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
-				? $"✨ {entry.AttachmentId.Substring(4)}"
-				: $"🗡️ {entry.AttachmentId}";
+			string displayName = FormatAttachmentDisplayName(entry.AttachmentId);
 
 			var nameLbl = new Label
 			{
@@ -1837,6 +2005,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 		if (!string.IsNullOrEmpty(_targetObjectId))
 		{
 			Hud?.SaveAllUnitObjectAttachments(_targetObjectId, _workingAttachments);
+			Hud?.SaveUnitPseudoSockets(_targetObjectId, _workingPseudoSockets);
 		}
 
 		ClearPreviewModel();
@@ -1860,6 +2029,8 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 	{
 		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		var result = new List<string>();
+
+		if (seen.Add(Unit3D.PlayerColorGlowAttachmentId)) result.Add(Unit3D.PlayerColorGlowAttachmentId);
 
 		AddVfxRegistryAttachments(seen, result);
 

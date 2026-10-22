@@ -1338,6 +1338,11 @@ namespace Realm.Client.UI
 			GameContext.RegistryService.SaveAllUnitObjectAttachments(targetId, attachments, (t, a) => RestoreUnitObjectAttachments(t, a));
 		}
 
+		public void SaveUnitPseudoSockets(string targetId, List<PseudoSocketAnchor>? pseudoSockets)
+		{
+			GameContext.RegistryService.SaveUnitPseudoSockets(targetId, pseudoSockets, (t, a) => RestoreUnitPseudoSockets(t, a));
+		}
+
 		public void SaveCustomWeaponToMetadata(string weaponId, WeaponMetadata weapon)
 		{
 			try

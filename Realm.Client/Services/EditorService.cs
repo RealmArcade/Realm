@@ -6183,6 +6183,103 @@ public partial class EditorService : IEditorAPI
 		return regKey;
 	}
 
+	public string RestoreUnitPseudoSocketsDomain(string targetId, List<PseudoSocketAnchor>? snapshot)
+	{
+		if (string.IsNullOrEmpty(targetId)) return targetId;
+
+		var registryService = GameContext.RegistryService;
+		string cleanId = Path.GetFileNameWithoutExtension(targetId);
+		string regKey = ResolvePseudoSocketRegistryKey(targetId, cleanId, registryService);
+
+		ApplyPseudoSocketsToRegistry(regKey, snapshot, registryService);
+		PseudoSocketCache.Clear();
+
+		string wsPath = string.IsNullOrEmpty(this._tempWorkspacePath)
+			? ProjectSettings.GlobalizePath(this.TempWorkspaceGodotPath)
+			: this._tempWorkspacePath;
+		string metadataPath = MetadataService.ResolveMetadataPath(wsPath);
+		if (File.Exists(metadataPath))
+		{
+			GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
+			{
+				meta.UpdateUnit(targetId, u => { u.PseudoSockets = ClonePseudoSockets(snapshot); return u; });
+				meta.UpdateBuilding(targetId, b => { b.PseudoSockets = ClonePseudoSockets(snapshot); return b; });
+				meta.UpdateProp(targetId, p => { p.PseudoSockets = ClonePseudoSockets(snapshot); return p; });
+				meta.UpdateResource(targetId, r => { r.PseudoSockets = ClonePseudoSockets(snapshot); return r; });
+
+				if (!string.Equals(regKey, targetId, StringComparison.OrdinalIgnoreCase))
+				{
+					meta.UpdateUnit(regKey, u => { u.PseudoSockets = ClonePseudoSockets(snapshot); return u; });
+					meta.UpdateBuilding(regKey, b => { b.PseudoSockets = ClonePseudoSockets(snapshot); return b; });
+					meta.UpdateProp(regKey, p => { p.PseudoSockets = ClonePseudoSockets(snapshot); return p; });
+					meta.UpdateResource(regKey, r => { r.PseudoSockets = ClonePseudoSockets(snapshot); return r; });
+				}
+			});
+
+			long getWriteTimeSafe = File.Exists(metadataPath) ? File.GetLastWriteTimeUtc(metadataPath).Ticks : 0;
+			this.LastMetadataSyncTime = getWriteTimeSafe;
+		}
+
+		return regKey;
+	}
+
+	private static string ResolvePseudoSocketRegistryKey(string targetId, string cleanId, RegistryService registryService)
+	{
+		if (registryService.UnitRegistry.ContainsKey((StringName)targetId)) return targetId;
+		if (registryService.BuildingRegistry.ContainsKey((StringName)targetId)) return targetId;
+		if (registryService.PropRegistry.ContainsKey((StringName)targetId)) return targetId;
+		if (registryService.ResourceRegistry.ContainsKey((StringName)targetId)) return targetId;
+
+		if (registryService.UnitRegistry.ContainsKey((StringName)cleanId)) return cleanId;
+		if (registryService.BuildingRegistry.ContainsKey((StringName)cleanId)) return cleanId;
+		if (registryService.PropRegistry.ContainsKey((StringName)cleanId)) return cleanId;
+		if (registryService.ResourceRegistry.ContainsKey((StringName)cleanId)) return cleanId;
+
+		return targetId;
+	}
+
+	private static void ApplyPseudoSocketsToRegistry(string regKey, List<PseudoSocketAnchor>? snapshot, RegistryService registryService)
+	{
+		var storedAnchors = ClonePseudoSockets(snapshot);
+
+		if (registryService.UnitRegistry.TryGetValue((StringName)regKey, out var unitMeta))
+		{
+			unitMeta.PseudoSockets = storedAnchors;
+			registryService.UnitRegistry[(StringName)regKey] = unitMeta;
+		}
+
+		if (registryService.BuildingRegistry.TryGetValue((StringName)regKey, out var buildingMeta))
+		{
+			buildingMeta.PseudoSockets = storedAnchors;
+			registryService.BuildingRegistry[(StringName)regKey] = buildingMeta;
+		}
+
+		if (registryService.PropRegistry.TryGetValue((StringName)regKey, out var propMeta))
+		{
+			propMeta.PseudoSockets = storedAnchors;
+			registryService.PropRegistry[(StringName)regKey] = propMeta;
+		}
+
+		if (registryService.ResourceRegistry.TryGetValue((StringName)regKey, out var resourceMeta))
+		{
+			resourceMeta.PseudoSockets = storedAnchors;
+			registryService.ResourceRegistry[(StringName)regKey] = resourceMeta;
+		}
+	}
+
+	private static List<PseudoSocketAnchor>? ClonePseudoSockets(List<PseudoSocketAnchor>? source)
+	{
+		if (source == null || source.Count == 0) return null;
+
+		var clone = new List<PseudoSocketAnchor>(source.Count);
+		foreach (var anchor in source)
+		{
+			if (anchor != null) clone.Add(anchor.Clone());
+		}
+
+		return clone;
+	}
+
 	public (bool Success, string Message, string FileName, string Blake3) ImportSkyboxAsset(string sourceFilePath, string wsPath)
 	{
 		try

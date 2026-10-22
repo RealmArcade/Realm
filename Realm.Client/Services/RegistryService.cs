@@ -987,6 +987,11 @@ public class RegistryService
 		restoreCallback?.Invoke(targetId, attachments);
 	}
 
+	public void SaveUnitPseudoSockets(string targetId, List<PseudoSocketAnchor>? pseudoSockets, Action<string, List<PseudoSocketAnchor>?> restoreCallback)
+	{
+		restoreCallback?.Invoke(targetId, pseudoSockets);
+	}
+
 
 	public void SaveCustomWeaponToMetadata(string weaponId, WeaponMetadata weapon, string wsPath)
 	{

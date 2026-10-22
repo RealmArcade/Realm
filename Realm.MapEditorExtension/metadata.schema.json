@@ -785,6 +785,75 @@
                     "items": {
                       "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
                     }
+                  },
+                  "custom_sockets": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                      }
+                    }
+                  },
+                  "CustomSocketLists": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/custom_sockets/additionalProperties"
+                    }
+                  }
+                }
+              },
+              "PseudoSockets": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "SocketId": {
+                      "type": "string"
+                    },
+                    "Position": {
+                      "type": "object",
+                      "properties": {
+                        "X": {
+                          "type": "number"
+                        },
+                        "Y": {
+                          "type": "number"
+                        },
+                        "Z": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "RotationDegrees": {
+                      "type": "object",
+                      "properties": {
+                        "X": {
+                          "type": "number"
+                        },
+                        "Y": {
+                          "type": "number"
+                        },
+                        "Z": {
+                          "type": "number"
+                        }
+                      }
+                    }
                   }
                 }
               },
@@ -1071,6 +1140,15 @@
                   "null"
                 ]
               },
+              "PseudoSockets": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "$ref": "#/properties/Templates/properties/Units/items/properties/PseudoSockets/items"
+                }
+              },
               "DespawnShader": {
                 "type": [
                   "string",
@@ -1156,6 +1234,15 @@
                   "string",
                   "null"
                 ]
+              },
+              "PseudoSockets": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "$ref": "#/properties/Templates/properties/Units/items/properties/PseudoSockets/items"
+                }
               },
               "DespawnShader": {
                 "type": [

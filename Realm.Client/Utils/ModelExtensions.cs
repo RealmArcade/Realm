@@ -1,3 +1,4 @@
+using System;
 using Godot;
 
 namespace Realm.Client.Utils;
@@ -25,6 +26,69 @@ public static class ModelExtensions
 	public static Color GetFogColor(this EnvironmentPresetConfig config)
 	{
 		return Color.HtmlIsValid(config.FogColorHex) ? Color.FromHtml(config.FogColorHex) : new Color(0.550f, 0.650f, 0.750f);
+	}
+
+	public static Aabb CalculateLocalBounds(this Node3D root)
+	{
+		Aabb combinedBounds = new Aabb();
+		bool hasBounds = false;
+
+		if (root != null)
+		{
+			CollectLocalBounds(root, root, ref combinedBounds, ref hasBounds);
+		}
+
+		if (!hasBounds)
+		{
+			combinedBounds = new Aabb(new Vector3(-0.1f, -0.5f, -0.1f), new Vector3(0.2f, 1.0f, 0.2f));
+		}
+
+		return combinedBounds;
+	}
+
+	private static void CollectLocalBounds(Node current, Node3D root, ref Aabb combinedBounds, ref bool hasBounds)
+	{
+		if (current is MeshInstance3D meshInstance && meshInstance.Mesh != null && meshInstance.Visible && !IsAttachmentHelperNode(meshInstance))
+		{
+			Transform3D relativeTransform = CalculateBoundsRelativeTransform(meshInstance, root);
+			if (Mathf.Abs(relativeTransform.Basis.Determinant()) > 0.0001f)
+			{
+				MathUtils.UpdateAabbWithMeshCorners(ref combinedBounds, ref hasBounds, meshInstance, relativeTransform);
+			}
+		}
+
+		foreach (Node child in current.GetChildren())
+		{
+			if (child is BoneAttachment3D) continue;
+			CollectLocalBounds(child, root, ref combinedBounds, ref hasBounds);
+		}
+	}
+
+	private static Transform3D CalculateBoundsRelativeTransform(Node node, Node3D root)
+	{
+		Transform3D relativeTransform = Transform3D.Identity;
+		Node? current = node;
+		while (current != null && current != root)
+		{
+			if (current is Node3D node3D)
+			{
+				relativeTransform = node3D.Transform * relativeTransform;
+			}
+
+			current = current.GetParent();
+		}
+
+		return relativeTransform;
+	}
+
+	private static bool IsAttachmentHelperNode(Node node)
+	{
+		string nodeName = node.Name.ToString();
+		return nodeName.StartsWith("PseudoSocket_", StringComparison.OrdinalIgnoreCase) ||
+		       nodeName.StartsWith("SocketAttachment_", StringComparison.OrdinalIgnoreCase) ||
+		       nodeName.StartsWith("Att_", StringComparison.OrdinalIgnoreCase) ||
+		       nodeName.StartsWith("AttVisual_", StringComparison.OrdinalIgnoreCase) ||
+		       nodeName.StartsWith("PlayerColorGlow", StringComparison.OrdinalIgnoreCase);
 	}
 
 	public static void ApplySlopeAlignment(Godot.Node3D mainNode, Godot.Node3D? visualNode, bool isSlopeAligned)
