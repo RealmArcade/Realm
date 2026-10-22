@@ -6,6 +6,7 @@ using Realm.Client.Animation;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Shared.ModelOptimization;
+using Realm.Shared.Terrain;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -32,6 +33,12 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private Label _lblMaskPower;
 	private CheckBox _chkMaskInvert;
 	private CheckBox _chkShowHeatmap;
+
+	private readonly HSlider[] _sldRegionMin = new HSlider[3];
+	private readonly Label[] _lblRegionMin = new Label[3];
+	private readonly HSlider[] _sldRegionMax = new HSlider[3];
+	private readonly Label[] _lblRegionMax = new Label[3];
+	private static readonly string[] _regionAxisNames = { "X", "Y", "Z" };
 
 	private HSlider _sldSwayFrequency;
 	private Label _lblSwayFrequency;
@@ -236,7 +243,8 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		{
 			TranslationServer.Translate("0: Height Gradient (Y-Axis)").ToString(),
 			TranslationServer.Translate("1: Radial Distance (Center Axis)").ToString(),
-			TranslationServer.Translate("2: Normal Incline (Facing Direction)").ToString()
+			TranslationServer.Translate("2: Normal Incline (Facing Direction)").ToString(),
+			TranslationServer.Translate("3: Region Box (Explicit Part Volume)").ToString()
 		};
 
 		_optMaskMode = AddOptionDropdown(configVBox, TranslationServer.Translate("Mask Method:"), maskModes, (int)_config.MaskMode, (idx) =>
@@ -268,6 +276,8 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 			_config.MaskInvert = pressed;
 			UpdateShaderParameters();
 		});
+
+		BuildRegionBoxControls(configVBox);
 
 		AddSectionHeader(configVBox, "🌊 " + TranslationServer.Translate("SWAY & WIND MOTION DYNAMICS"), new Color(0.35f, 0.75f, 0.85f));
 
@@ -627,12 +637,76 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		if (_optMaskMode != null) _optMaskMode.Selected = (int)_config.MaskMode;
 	}
 
+	private void BuildRegionBoxControls(VBoxContainer parent)
+	{
+		for (int axis = 0; axis < _regionAxisNames.Length; axis++)
+		{
+			int axisIndex = axis;
+			string axisName = _regionAxisNames[axisIndex];
+
+			(_sldRegionMin[axisIndex], _lblRegionMin[axisIndex]) = AddSlider(
+				parent,
+				string.Format(TranslationServer.Translate("Region Min {0}:"), axisName),
+				-10.0f, 20.0f, 0.05f, GetRegionComponent(_config.MaskRegionMin, axisIndex),
+				(val) =>
+				{
+					_config.MaskRegionMin = WithRegionComponent(_config.MaskRegionMin, axisIndex, val);
+					UpdateShaderParameters();
+				}, "0.00", 150f);
+
+			(_sldRegionMax[axisIndex], _lblRegionMax[axisIndex]) = AddSlider(
+				parent,
+				string.Format(TranslationServer.Translate("Region Max {0}:"), axisName),
+				-10.0f, 30.0f, 0.05f, GetRegionComponent(_config.MaskRegionMax, axisIndex),
+				(val) =>
+				{
+					_config.MaskRegionMax = WithRegionComponent(_config.MaskRegionMax, axisIndex, val);
+					UpdateShaderParameters();
+				}, "0.00", 150f);
+		}
+
+		var hintLabel = new Label();
+		hintLabel.Name = "LblRegionBoxHint_Label";
+		hintLabel.Text = TranslationServer.Translate("Region Box affects only vertices inside this local-space volume (e.g. the cape). Mask Lower Bound acts as the edge feather width and a negative Falloff Power inverts the selection.");
+		hintLabel.AddThemeFontSizeOverride("font_size", 10);
+		hintLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		hintLabel.CustomMinimumSize = new Vector2(300, 0);
+		hintLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		parent.AddChild(hintLabel);
+	}
+
+	private static float GetRegionComponent(Vector3Data region, int axis)
+	{
+		return axis switch
+		{
+			0 => region.X,
+			1 => region.Y,
+			_ => region.Z
+		};
+	}
+
+	private static Vector3Data WithRegionComponent(Vector3Data region, int axis, float value)
+	{
+		return axis switch
+		{
+			0 => new Vector3Data(value, region.Y, region.Z),
+			1 => new Vector3Data(region.X, value, region.Z),
+			_ => new Vector3Data(region.X, region.Y, value)
+		};
+	}
+
 	private void UpdateMaskControls()
 	{
 		SetSlider(_sldMaskMin, _lblMaskMin, _config.MaskMin, "F2");
 		SetSlider(_sldMaskMax, _lblMaskMax, _config.MaskMax, "F2");
 		SetSlider(_sldMaskPower, _lblMaskPower, _config.MaskPower, "F1");
 		if (_chkMaskInvert != null) _chkMaskInvert.ButtonPressed = _config.MaskInvert;
+
+		for (int axis = 0; axis < _regionAxisNames.Length; axis++)
+		{
+			SetSlider(_sldRegionMin[axis], _lblRegionMin[axis], GetRegionComponent(_config.MaskRegionMin, axis), "F2");
+			SetSlider(_sldRegionMax[axis], _lblRegionMax[axis], GetRegionComponent(_config.MaskRegionMax, axis), "F2");
+		}
 	}
 
 	private void UpdateSwayAndFlutterControls()

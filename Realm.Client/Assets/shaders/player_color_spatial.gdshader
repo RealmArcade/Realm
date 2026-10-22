@@ -41,6 +41,8 @@ instance uniform vec4 proc_anim_params2 = vec4(1.0, 1.5, 0.15, 5.0);
 instance uniform vec4 proc_anim_params3 = vec4(0.03, 1.0, 1.0, 0.5);
 instance uniform vec4 proc_anim_impulse = vec4(0.0, 12.0, 0.0, 0.0);
 instance uniform vec3 proc_anim_velocity = vec3(0.0, 0.0, 0.0);
+instance uniform vec3 proc_anim_region_min = vec3(-1.0, -1.0, -1.0);
+instance uniform vec3 proc_anim_region_max = vec3(1.0, 3.0, 1.0);
 
 varying vec2 base_uv;
 varying vec3 v_world_pos;
@@ -72,9 +74,21 @@ void vertex() {
 			float norm_dist = clamp((dist - p_min) / range_span, 0.0, 1.0);
 			float p = abs(mask_power);
 			mask_weight = pow(norm_dist, p > 0.0 ? p : 1.0);
-		} else {
+		} else if (mask_mode < 2.5) {
 			float incline = clamp(dot(NORMAL, vec3(0.0, 1.0, 0.0)), 0.0, 1.0);
 			mask_weight = incline;
+		} else {
+			vec3 region_inside = min(VERTEX - proc_anim_region_min, proc_anim_region_max - VERTEX);
+			float inside_depth = min(min(region_inside.x, region_inside.y), region_inside.z);
+			float region_feather = max(p_min, 0.001);
+			float region_power = abs(mask_power);
+			float region_weight = clamp(inside_depth / region_feather, 0.0, 1.0);
+			region_weight = pow(region_weight, region_power > 0.0 ? region_power : 1.0);
+			if (mask_power < 0.0) {
+				region_weight = 1.0 - region_weight;
+			}
+
+			mask_weight = region_weight;
 		}
 
 		v_proc_mask_weight = mask_weight;

@@ -2318,6 +2318,34 @@
           "MaskInvert": {
             "type": "boolean"
           },
+          "MaskRegionMin": {
+            "type": "object",
+            "properties": {
+              "X": {
+                "type": "number"
+              },
+              "Y": {
+                "type": "number"
+              },
+              "Z": {
+                "type": "number"
+              }
+            }
+          },
+          "MaskRegionMax": {
+            "type": "object",
+            "properties": {
+              "X": {
+                "type": "number"
+              },
+              "Y": {
+                "type": "number"
+              },
+              "Z": {
+                "type": "number"
+              }
+            }
+          },
           "SwayFrequency": {
             "type": "number"
           },

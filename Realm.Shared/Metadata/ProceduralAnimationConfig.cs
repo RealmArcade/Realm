@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Realm.Shared.Terrain;
 
 namespace Realm.Shared.Metadata;
 
@@ -19,6 +20,10 @@ public class ProceduralAnimationConfig
 	[JsonPropertyName("MaskPower")] public float MaskPower { get; set; } = 1.0f;
 
 	[JsonPropertyName("MaskInvert")] public bool MaskInvert { get; set; } = false;
+
+	[JsonPropertyName("MaskRegionMin")] public Vector3Data MaskRegionMin { get; set; } = new(-1.0f, -1.0f, -1.0f);
+
+	[JsonPropertyName("MaskRegionMax")] public Vector3Data MaskRegionMax { get; set; } = new(1.0f, 3.0f, 1.0f);
 
 	[JsonPropertyName("SwayFrequency")] public float SwayFrequency { get; set; } = 1.5f;
 
@@ -55,6 +60,8 @@ public class ProceduralAnimationConfig
 			MaskMax = MaskMax,
 			MaskPower = MaskPower,
 			MaskInvert = MaskInvert,
+			MaskRegionMin = MaskRegionMin,
+			MaskRegionMax = MaskRegionMax,
 			SwayFrequency = SwayFrequency,
 			SwayAmplitude = SwayAmplitude,
 			FlutterFrequency = FlutterFrequency,

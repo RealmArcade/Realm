@@ -41,6 +41,8 @@ public static class ModelShaderManager
 	private static readonly StringName _paramProcAnimParams3 = new("proc_anim_params3");
 	private static readonly StringName _paramProcAnimImpulse = new("proc_anim_impulse");
 	private static readonly StringName _paramProcAnimVelocity = new("proc_anim_velocity");
+	private static readonly StringName _paramProcAnimRegionMin = new("proc_anim_region_min");
+	private static readonly StringName _paramProcAnimRegionMax = new("proc_anim_region_max");
 	private static readonly StringName _paramTextureAlbedo = new("texture_albedo");
 	private static readonly StringName _paramTextureOrm = new("texture_orm");
 	private static readonly StringName _paramHasOrmTexture = new("has_orm_texture");
@@ -920,11 +922,13 @@ public static class ModelShaderManager
 		Vector4 p2 = new Vector4(signedPower, config.SwayFrequency, config.SwayAmplitude, config.FlutterFrequency);
 		Vector4 p3 = new Vector4(config.FlutterAmplitude, config.WindInfluence, config.VelocityDragInfluence, config.WaveTurbulence);
 		Vector4 pImp = new Vector4(impulseStrength, config.ImpulseFrequency, impulseTime, showDebugMask ? 1.0f : 0.0f);
+		Vector3 regionMin = new Vector3(config.MaskRegionMin.X, config.MaskRegionMin.Y, config.MaskRegionMin.Z);
+		Vector3 regionMax = new Vector3(config.MaskRegionMax.X, config.MaskRegionMax.Y, config.MaskRegionMax.Z);
 
-		SetProceduralAnimationRecursive(rootNode, p1, p2, p3, pImp, velocity);
+		SetProceduralAnimationRecursive(rootNode, p1, p2, p3, pImp, velocity, regionMin, regionMax);
 	}
 
-	private static void SetProceduralAnimationRecursive(Node node, Vector4 p1, Vector4 p2, Vector4 p3, Vector4 pImp, Vector3 velocity)
+	private static void SetProceduralAnimationRecursive(Node node, Vector4 p1, Vector4 p2, Vector4 p3, Vector4 pImp, Vector3 velocity, Vector3 regionMin, Vector3 regionMax)
 	{
 		if (node is GeometryInstance3D geom && !IsExcludedMesh(geom))
 		{
@@ -933,12 +937,14 @@ public static class ModelShaderManager
 			geom.SetInstanceShaderParameter(_paramProcAnimParams3, p3);
 			geom.SetInstanceShaderParameter(_paramProcAnimImpulse, pImp);
 			geom.SetInstanceShaderParameter(_paramProcAnimVelocity, velocity);
+			geom.SetInstanceShaderParameter(_paramProcAnimRegionMin, regionMin);
+			geom.SetInstanceShaderParameter(_paramProcAnimRegionMax, regionMax);
 		}
 
 		int count = node.GetChildCount();
 		for (int i = 0; i < count; i++)
 		{
-			SetProceduralAnimationRecursive(node.GetChild(i), p1, p2, p3, pImp, velocity);
+			SetProceduralAnimationRecursive(node.GetChild(i), p1, p2, p3, pImp, velocity, regionMin, regionMax);
 		}
 	}
 
@@ -1017,7 +1023,7 @@ public static class ModelShaderManager
 		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
 		Vector4 pZero = Vector4.Zero;
 		Vector3 vZero = Vector3.Zero;
-		SetProceduralAnimationRecursive(rootNode, pZero, pZero, pZero, pZero, vZero);
+		SetProceduralAnimationRecursive(rootNode, pZero, pZero, pZero, pZero, vZero, vZero, vZero);
 	}
 
 	public static void ClearCache()
