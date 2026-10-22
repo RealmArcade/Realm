@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using Realm.Client.Core;
 using Realm.Client.UI;
 
 namespace Realm.Client.Utils;
@@ -29,7 +30,7 @@ public static class UIHelper
 		btn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
 	}
 
-	public static string GetUnitCostTooltip(string unitId, Key hotkey, string actionPrefix)
+	public static string GetUnitCostTooltip(string unitId, HotkeySpec hotkey, string actionPrefix)
 	{
 		string name = unitId.ToUpper();
 		float gold = 0, wood = 0, stone = 0;
@@ -52,7 +53,7 @@ public static class UIHelper
 
 		string translatedActionPrefix = TranslationServer.Translate(actionPrefix);
 		
-		string tooltipFormat = hotkey != Key.None
+		string tooltipFormat = !hotkey.IsNone
 			? (string.IsNullOrEmpty(desc) ? "[{0}] {4} {1} ({2})" : "[{0}] {4} {1} ({2}) — {3}")
 			: (string.IsNullOrEmpty(desc) ? "{4} {1} ({2})" : "{4} {1} ({2}) — {3}");
 

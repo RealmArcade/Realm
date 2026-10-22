@@ -1301,10 +1301,13 @@ public interface IGameAPI
 	void SetAbilityGridPosition(string abilityId, int x, int y);
 
 	/// <summary>
-	/// Configures the hotkey binding string (e.g., "W", "E", "R") for an ability on the command card.
+	/// Configures the hotkey for an ability on the command card. The hotkey is one key name with
+	/// optional modifiers joined by '+', for example "W", "F1" or "Shift+Q". Names are the Godot key
+	/// names ("Q", "Escape", "F1") and the modifiers "Shift", "Ctrl", "Alt" and "Meta". Invalid
+	/// specifications are rejected and reported instead of silently never matching.
 	/// </summary>
 	/// <param name="abilityId">Unique identifier of the ability.</param>
-	/// <param name="hotkey">The key string to trigger the ability.</param>
+	/// <param name="hotkey">The key with optional modifiers that triggers the ability.</param>
 	void SetAbilityHotkey(string abilityId, string hotkey);
 
 	/// <summary>

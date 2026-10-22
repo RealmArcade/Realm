@@ -393,7 +393,7 @@ public partial class CommandPanel
 
 			if (localIdx >= 0 && localIdx < 12)
 			{
-				if (_activeItems[i].Hotkey == Key.None)
+				if (_activeItems[i].Hotkey.IsNone)
 				{
 					_activeItems[i].Hotkey = gridHotkeys[localIdx];
 				}
@@ -404,7 +404,7 @@ public partial class CommandPanel
 
 	private void FormatItemTooltipHotkey(CommandCardItem item)
 	{
-		if (item == null || item.Hotkey == Key.None || string.IsNullOrEmpty(item.Tooltip)) return;
+		if (item == null || item.Hotkey.IsNone || string.IsNullOrEmpty(item.Tooltip)) return;
 
 		string tooltip = item.Tooltip;
 		if (tooltip.StartsWith("[")) return;
@@ -484,7 +484,7 @@ public partial class CommandPanel
 			var item = gridSlots[i];
 			if (item != null)
 			{
-				if (item.Hotkey == Key.None)
+				if (item.Hotkey.IsNone)
 				{
 					item.Hotkey = gridHotkeys[i];
 				}
@@ -498,7 +498,7 @@ public partial class CommandPanel
 		}
 	}
 
-	public bool HandleHotkey(Key keycode)
+	public bool HandleHotkey(Key keycode, KeyModifierMask modifiers)
 	{
 		if (_activeItems.Count == 0) return false;
 
@@ -510,7 +510,7 @@ public partial class CommandPanel
 			if (itemIndex >= _activeItems.Count) break;
 
 			var item = _activeItems[itemIndex];
-			if (item.Hotkey == keycode && !(item.IsDisabled?.Invoke() ?? false))
+			if (item.Hotkey.Matches(keycode, modifiers) && !(item.IsDisabled?.Invoke() ?? false))
 			{
 				item.Callback?.Invoke();
 				return true;
@@ -653,7 +653,7 @@ public partial class CommandPanel
 
 	private void AddHotkeyLabelIfNeeded(Button btn, CommandCardItem item)
 	{
-		if (item.Hotkey == Key.None) return;
+		if (item.Hotkey.IsNone) return;
 
 		var hotkeyLabel = new Label
 		{
@@ -1081,13 +1081,13 @@ public partial class CommandPanel
 			if (stone > 0f) costParts.Add($"{stone:F0} Stone");
 			string costStr = costParts.Count > 0 ? $" (Cost: {string.Join(", ", costParts)})" : "";
 
-			Key hotkey = Key.None;
+			HotkeySpec hotkey = HotkeySpec.None;
 			if (upgMeta != null && !string.IsNullOrEmpty(upgMeta.Hotkey))
 			{
 				hotkey = ParseHotkey(upgMeta.Hotkey);
 			}
 
-			string hotkeyPrefix = hotkey != Key.None ? $"[{hotkey}] " : "";
+			string hotkeyPrefix = !hotkey.IsNone ? $"[{hotkey}] " : "";
 			string tooltip = !string.IsNullOrEmpty(desc)
 				? $"{hotkeyPrefix}Upgrade {name}{costStr}\n{desc}"
 				: $"{hotkeyPrefix}Upgrade {name}{costStr}";
@@ -1142,7 +1142,7 @@ public partial class CommandPanel
 		var unitWrapper = GetUnitWrapperIfAlive(host, builderEntity);
 		if (IsAbilityHidden(host, unitWrapper, unitId)) return null;
 
-		var hotkey = Key.None;
+		HotkeySpec hotkey = HotkeySpec.None;
 
 		var abilityDef = host?.GetAbilityDefinition(unitId);
 		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.Hotkey))
@@ -1179,7 +1179,7 @@ public partial class CommandPanel
 
 	private CommandCardItem CreateTrainOptionItem(string unitId)
 	{
-		var hotkey = Key.None;
+		HotkeySpec hotkey = HotkeySpec.None;
 
 			string finalTooltip = UIHelper.GetUnitCostTooltip(unitId, hotkey, "Train");
 
@@ -1266,14 +1266,17 @@ public partial class CommandPanel
 		return host != null ? host.GetAbilityManaCostForUnit(unitWrapper, abilityId) : (abilityDef?.ManaCost ?? 0f);
 	}
 
-	private Key ParseHotkey(string hotkeyString)
+	private HotkeySpec ParseHotkey(string hotkeyString)
 	{
-		if (!string.IsNullOrEmpty(hotkeyString) && Enum.TryParse<Key>(hotkeyString, true, out var parsedKey))
+		if (string.IsNullOrWhiteSpace(hotkeyString)) return HotkeySpec.None;
+
+		if (HotkeySpec.TryParse(hotkeyString, out HotkeySpec hotkey, out string errorMessage))
 		{
-			return parsedKey;
+			return hotkey;
 		}
 
-		return Key.None;
+		GD.PrintErr($"[CommandPanel] Rejected hotkey '{hotkeyString}': {errorMessage}");
+		return HotkeySpec.None;
 	}
 
 	private Action GetAbilityCallback(string abilityId, bool isInstant)

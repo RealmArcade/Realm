@@ -2317,10 +2317,10 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	public bool HandleCommandCardHotkey(Key keycode)
+	public bool HandleCommandCardHotkey(Key keycode, KeyModifierMask modifiers)
 	{
 		if (_commandPanelController == null) return false;
-		bool handled = _commandPanelController.HandleHotkey(keycode);
+		bool handled = _commandPanelController.HandleHotkey(keycode, modifiers);
 		if (handled)
 		{
 			InvalidateCadence(tactical: true, macro: false);
@@ -2558,19 +2558,15 @@ public partial class InGameHUD : Control
 	private void OnForceResumePressed()
 	{
 		GameHost.Instance?.RequestForceResume();
-	}
-
-		private string GetBuildOptionTooltip(string unitId, string hotkeyStr)
-	{
-			Key hotkey = Key.None;
-			if (!string.IsNullOrEmpty(hotkeyStr) && Enum.TryParse<Key>(hotkeyStr, true, out var parsed)) hotkey = parsed;
+	}		private string GetBuildOptionTooltip(string unitId, string hotkeyStr)
+		{
+			HotkeySpec hotkey = HotkeySpec.ParseOrDefault(hotkeyStr);
 			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Build");
-	}
+		}
 
 		private string GetTrainOptionTooltip(string unitId, string hotkeyStr)
-	{
-			Key hotkey = Key.None;
-			if (!string.IsNullOrEmpty(hotkeyStr) && Enum.TryParse<Key>(hotkeyStr, true, out var parsed)) hotkey = parsed;
+		{
+			HotkeySpec hotkey = HotkeySpec.ParseOrDefault(hotkeyStr);
 			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Train");
-	}
+		}
 }

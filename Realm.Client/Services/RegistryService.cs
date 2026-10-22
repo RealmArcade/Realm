@@ -589,7 +589,19 @@ public class RegistryService
 		if (string.IsNullOrEmpty(abilityId)) return;
 
 		var def = GetOrCreateAbilityDefinition(abilityId);
-		def.Hotkey = hotkey ?? "";
+		if (string.IsNullOrWhiteSpace(hotkey))
+		{
+			def.Hotkey = "";
+			return;
+		}
+
+		if (!HotkeySpec.TryParse(hotkey, out _, out string errorMessage))
+		{
+			GD.PrintErr($"[RegistryService] Rejected hotkey '{hotkey}' for ability '{abilityId}': {errorMessage}");
+			return;
+		}
+
+		def.Hotkey = hotkey.Trim();
 	}
 
 	public void SetAbilityState(UnitId unit, string abilityId, bool disabled, bool hidden)

@@ -2012,7 +2012,7 @@ public partial class GameHost
 				return;
 			}
 
-			if (InGameHUD.Instance != null && InGameHUD.Instance.HandleCommandCardHotkey(keyEvent.Keycode))
+			if (InGameHUD.Instance != null && InGameHUD.Instance.HandleCommandCardHotkey(keyEvent.Keycode, keyEvent.GetModifiersMask()))
 			{
 				GetViewport().SetInputAsHandled();
 				return;
