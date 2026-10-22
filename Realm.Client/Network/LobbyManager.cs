@@ -109,6 +109,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	public string? ActiveLobbyId { get; private set; }
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
+	public int MatchSeed { get; private set; }
 	public string ActiveMapName { get; set; }
 	public string ActiveMapVersion { get; set; } = "1.0.0";
 	public bool SpectatorDelay { get; set; } = false;
@@ -428,6 +429,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		int? testSeed = metadata.MapProperties?.TestRandomSeed;
 
 		GameContext.RandomService.SetSeed(testSeed);
+		MatchSeed = GameContext.RandomService.Seed;
 
 		int humanSlot = 1;
 		var aiSlots = new List<int>();
@@ -2023,7 +2025,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		BroadcastPlayerList();
 
 		string serializedPlayers = JsonSerializer.Serialize(PlayerList);
-		RpcId(senderId, nameof(AcceptReconnect), targetPlayer.Slot, ActiveMapName, serializedPlayers);
+		RpcId(senderId, nameof(AcceptReconnect), targetPlayer.Slot, ActiveMapName, serializedPlayers, MatchSeed);
 
 		GameHost.Instance?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
 	}
@@ -2041,12 +2043,14 @@ public partial class LobbyManager : BaseMapTransferNode
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void AcceptReconnect(int slot, string activeMapName, string serializedPlayers)
+	private void AcceptReconnect(int slot, string activeMapName, string serializedPlayers, int matchSeed)
 	{
 		GD.Print($"[LobbyManager] AcceptReconnect received! Slot={slot}, Map={activeMapName}");
 		_isReconnecting = false;
 		_isConnectedToHost = true;
 		ActiveMapName = activeMapName;
+		MatchSeed = matchSeed;
+		GameContext.RandomService.SetSeed(matchSeed);
 		IsGameStarted = true;
 
 		try
@@ -2617,11 +2621,13 @@ public partial class LobbyManager : BaseMapTransferNode
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void LoadMap(string mapName)
+	private void LoadMap(string mapName, int matchSeed)
 	{
-		GD.Print($"[LobbyManager] LoadMap RPC received for: {mapName}");
+		GD.Print($"[LobbyManager] LoadMap RPC received for: {mapName} with deterministic random seed {matchSeed}");
 		ReplayPlaybackManager.Instance.StopReplay();
 		ActiveMapName = mapName;
+		MatchSeed = matchSeed;
+		GameContext.RandomService.SetSeed(matchSeed);
 
 		IsGameStarted = true;
 		GameSessionStartTime = DateTime.UtcNow;
@@ -2693,7 +2699,8 @@ public partial class LobbyManager : BaseMapTransferNode
 			CountdownFinished?.Invoke();
 			if (IsHost && _countdownMapName != null)
 			{
-				Rpc(nameof(LoadMap), _countdownMapName);
+				MatchSeed = System.Random.Shared.Next(1, int.MaxValue);
+				Rpc(nameof(LoadMap), _countdownMapName, MatchSeed);
 			}
 
 			return;

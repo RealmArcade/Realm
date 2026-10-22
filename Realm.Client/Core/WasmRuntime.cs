@@ -195,6 +195,8 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 						{
 							ExecuteGuardedAction(() => setStridesFn.Invoke(_sharedMemoryOffset + Realm.MapAPI.EcsSharedMemory.COMPONENT_STRIDES_OFFSET), "set_realm_shared_memory_strides");
 						}
+
+						PublishDeterministicRandomSeed();
 					}
 				}
 			}
@@ -609,6 +611,16 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		{
 			return (IntPtr)Unsafe.AsPointer(ref byteSpan[0]);
 		}
+	}
+
+	private void PublishDeterministicRandomSeed()
+	{
+		var memory = _instance.GetMemory("memory");
+		if (memory == null || _sharedMemoryOffset <= 0) return;
+
+		int seed = Realm.Client.Services.GameContext.RandomService?.Seed ?? 0;
+		WriteInt32(memory, _sharedMemoryOffset + Realm.MapAPI.EcsSharedMemory.RANDOM_SEED_OFFSET, seed);
+		LogToConsole($"[WASM RUNTIME] Published deterministic random seed {seed} to the map script.");
 	}
 
 	public unsafe void ImportBinarySnapshot(ReadOnlySpan<byte> snapshotPayload)

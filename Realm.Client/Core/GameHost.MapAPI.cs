@@ -1181,7 +1181,7 @@ public partial class GameHost
 		GameContext.TimerService.ScheduledTimers.Remove(timerHandle);
 	}
 
-	int IGameAPI.RandomInt(int min, int max) => GameContext.RandomService.Rng.Next(min, max + 1);
+	int IGameAPI.RandomInt(int min, int max) => GameContext.RandomService.Rng.NextInt(min, max);
 
 	float IGameAPI.RandomFloat(float min, float max) => min + (float)GameContext.RandomService.Rng.NextDouble() * (max - min);
 

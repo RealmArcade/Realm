@@ -1,11 +1,10 @@
 using Realm.Ecs.AI.Affordances;
+using Realm.MapAPI;
 
 namespace Realm.Ecs.AI.Policy;
 
 public class LinearUtilityPolicy
 {
-	private static readonly Random Random = new Random();
-
 	public GenericAffordance? SelectAction(IReadOnlyList<GenericAffordance> affordances, float[] weights, float epsilon = 0.0f, float temperature = 0.0f, float aggressionMultiplier = 1.0f)
 	{
 		if (affordances == null || affordances.Count == 0 || weights == null || weights.Length == 0)
@@ -14,9 +13,9 @@ public class LinearUtilityPolicy
 		}
 
 		int count = affordances.Count;
-		if (epsilon > 0.0f && Random.NextDouble() < epsilon)
+		if (epsilon > 0.0f && DeterministicRandom.Shared.NextDouble() < epsilon)
 		{
-			return affordances[Random.Next(count)];
+			return affordances[DeterministicRandom.Shared.Next(count)];
 		}
 
 		if (temperature <= 0.0001f)
@@ -77,7 +76,7 @@ public class LinearUtilityPolicy
 			return affordances[0];
 		}
 
-		float randVal = (float)Random.NextDouble() * sumExp;
+		float randVal = (float)DeterministicRandom.Shared.NextDouble() * sumExp;
 		float cumulative = 0.0f;
 
 		for (int i = 0; i < count; i++)

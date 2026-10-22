@@ -613,6 +613,11 @@ public interface IGameAPI
 	/// <summary>
 	/// Returns a uniformly distributed random integer in the inclusive range [<paramref name="min"/>, <paramref name="max"/>].
 	/// </summary>
+	/// <remarks>
+	/// The value is drawn from the deterministic stream shared by the host simulation and the map script. Map scripts must use this method instead of
+	/// <see cref="System.Random"/> so that client-side movement prediction reproduces the host result for the same match seed. Call it exactly once per
+	/// decision and in the same order on both sides, otherwise the shared sequence advances differently.
+	/// </remarks>
 	/// <param name="min">Inclusive lower bound.</param>
 	/// <param name="max">Inclusive upper bound.</param>
 	int RandomInt(int min, int max);
@@ -620,6 +625,11 @@ public interface IGameAPI
 	/// <summary>
 	/// Returns a uniformly distributed random float in the range [<paramref name="min"/>, <paramref name="max"/>].
 	/// </summary>
+	/// <remarks>
+	/// The value is drawn from the deterministic stream shared by the host simulation and the map script. Map scripts must use this method instead of
+	/// <see cref="System.Random"/> so that client-side movement prediction reproduces the host result for the same match seed. Call it exactly once per
+	/// decision and in the same order on both sides, otherwise the shared sequence advances differently.
+	/// </remarks>
 	/// <param name="min">Inclusive lower bound.</param>
 	/// <param name="max">Inclusive upper bound.</param>
 	float RandomFloat(float min, float max);

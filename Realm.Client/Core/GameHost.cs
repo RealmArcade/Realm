@@ -2429,7 +2429,6 @@ public partial class GameHost : Node3D, IGameAPI
 		var metadata = MapFileService.LoadMetadata(metadataPath);
 		if (metadata.MapProperties?.TestRandomSeed != null)
 		{
-			EcsSharedMemory.RandomSeed = metadata.MapProperties.TestRandomSeed.Value;
 			GameContext.RandomService.SetSeed(metadata.MapProperties.TestRandomSeed);
 		}
 	}
