@@ -1,8 +1,8 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CommandLine;
-using NSec.Cryptography;
 using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
@@ -29,9 +29,10 @@ public static class Program
 			typeof(AdminRemoveManifestOptions),
 			typeof(AdminAddMaintainerOptions),
 			typeof(AdminRemoveMaintainerOptions),
-			typeof(AdminListMaintainersOptions));
+			typeof(AdminListMaintainersOptions),
+			typeof(AdminKeygenOptions));
 
-		return Parser.Default.ParseArguments<AdminGreenlightOptions, AdminStatusOptions, AdminUnlockNameOptions, AdminInfoOptions, AdminExportEventsOptions, AdminPruneCasOptions, AdminDigestOptions, AdminSnapshotOptions, AdminRestoreSnapshotOptions, AdminRemoveManifestOptions, AdminAddMaintainerOptions, AdminRemoveMaintainerOptions, AdminListMaintainersOptions>(sanitizedArgs)
+		return Parser.Default.ParseArguments<AdminGreenlightOptions, AdminStatusOptions, AdminUnlockNameOptions, AdminInfoOptions, AdminExportEventsOptions, AdminPruneCasOptions, AdminDigestOptions, AdminSnapshotOptions, AdminRestoreSnapshotOptions, AdminRemoveManifestOptions, AdminAddMaintainerOptions, AdminRemoveMaintainerOptions, AdminListMaintainersOptions, AdminKeygenOptions>(sanitizedArgs)
 			.WithParsed(options => CommandLineArgsHelper.ApplyBooleanOverrides(options, originalArgs))
 			.MapResult(
 				(AdminGreenlightOptions options) => ExecuteGreenlight(options),
@@ -47,7 +48,54 @@ public static class Program
 				(AdminAddMaintainerOptions options) => ExecuteAddMaintainer(options),
 				(AdminRemoveMaintainerOptions options) => ExecuteRemoveMaintainer(options),
 				(AdminListMaintainersOptions options) => ExecuteListMaintainers(options),
+				(AdminKeygenOptions options) => ExecuteKeygen(options),
 				errors => 1);
+	}
+
+	private static int ExecuteKeygen(AdminKeygenOptions options)
+	{
+		if (!PrivateKeyEncryptionHelper.TryValidatePassword(options.Password, out string passwordError))
+		{
+			Console.Error.WriteLine($"Error: {passwordError}");
+			return 1;
+		}
+
+		string outputDirectory = string.IsNullOrWhiteSpace(options.Output)
+			? Path.GetDirectoryName(AuthorshipKeyHelper.GetDefaultAdminKeyPath()) ?? AppContext.BaseDirectory
+			: Path.GetFullPath(options.Output.Trim());
+		Directory.CreateDirectory(outputDirectory);
+		string outputPath = Path.Combine(outputDirectory, AuthorshipKeyHelper.DefaultAdminKeyFileName);
+
+		if (File.Exists(outputPath))
+		{
+			Console.Error.WriteLine($"Error: '{outputPath}' already exists. Move or remove the existing admin key before generating a new one.");
+			return 1;
+		}
+
+		var (privateKeyBase64, publicKeyBase64) = AuthorSignatureHelper.GenerateKeyPair();
+		AuthorshipKeyEncryption encryptedPrivateKey = PrivateKeyEncryptionHelper.EncryptPrivateKey(privateKeyBase64, options.Password);
+
+		var keyData = new AuthorshipKeyData
+		{
+			UserName = options.Username?.Trim() ?? string.Empty,
+			PublicKey = publicKeyBase64,
+			PrivateKey = string.Empty,
+			EncryptedPrivateKey = encryptedPrivateKey
+		};
+
+		File.WriteAllBytes(outputPath, RkeyFile.Build(keyData));
+
+		Console.WriteLine("=================================================");
+		Console.WriteLine("Realm Admin Tool - Encrypted Admin Key Generated");
+		Console.WriteLine("=================================================");
+		Console.WriteLine($"Public Key (Base64): {publicKeyBase64}");
+		Console.WriteLine($"Encrypted Key File:  {outputPath}");
+		Console.WriteLine();
+		Console.WriteLine("Add the Public Key to Realm.AdminServer/appsettings.json under 'AdminPublicKeys':");
+		Console.WriteLine($"   \"AdminPublicKeys\": [\n     \"{publicKeyBase64}\"\n   ]");
+		Console.WriteLine("Keep the password and the .rkey file separately; the password is required for every admin action.");
+		Console.WriteLine("=================================================");
+		return 0;
 	}
 
 	private static string ResolveServerUrl(string? explicitServer)
@@ -60,21 +108,28 @@ public static class Program
 		return ServersConfigHelper.GetDefaultServerUrl();
 	}
 
-	private static (string privateKeyBase64, string publicKeyBase64)? ParseAdminKey(string? keyInput)
+	private static AdminKeySession? ParseAdminKey(string? keyInput)
 	{
 		string keyPath = string.IsNullOrWhiteSpace(keyInput) ? AuthorshipKeyHelper.GetDefaultAdminKeyPath() : keyInput.Trim();
 
 		if (!File.Exists(keyPath))
 		{
 			Console.Error.WriteLine(string.IsNullOrWhiteSpace(keyInput)
-				? $"Error: Default key file '{keyPath}' does not exist. Please generate a key or supply a key file with --key <path>."
-				: $"Error: Key file '{keyPath}' not found. Direct key strings are not allowed; please provide a path to a .rkey file.");
+				? $"Error: Default admin key file '{keyPath}' does not exist. Generate one with 'Realm.Tools.Admin keygen' or supply a key file with --key <path>."
+				: $"Error: Key file '{keyPath}' not found. Direct key strings are not allowed; please provide a path to an encrypted .rkey file.");
+			return null;
+		}
+
+		string keyFileName = Path.GetFileName(keyPath);
+		if (!string.Equals(keyFileName, AuthorshipKeyHelper.DefaultAdminKeyFileName, StringComparison.OrdinalIgnoreCase))
+		{
+			Console.Error.WriteLine($"Error: Admin key files must be named '{AuthorshipKeyHelper.DefaultAdminKeyFileName}'; '{keyFileName}' is not allowed, regardless of its folder.");
 			return null;
 		}
 
 		try
 		{
-			return TryParseAdminKeyInternal(keyPath);
+			return LoadEncryptedAdminKey(keyPath);
 		}
 		catch (Exception ex)
 		{
@@ -83,79 +138,83 @@ public static class Program
 		}
 	}
 
-	private static (string privateKeyBase64, string publicKeyBase64)? TryParseAdminKeyInternal(string keyPath)
+	private static AdminKeySession? LoadEncryptedAdminKey(string keyPath)
 	{
 		byte[] fileBytes = File.ReadAllBytes(keyPath);
-
-		if (RkeyFile.IsRkeyBytes(fileBytes))
+		if (!RkeyFile.IsRkeyBytes(fileBytes))
 		{
-			return ParseRkeyData(fileBytes, keyPath);
-		}
-
-		if (fileBytes.Length == 32)
-		{
-			return ParseRawBytesKey(fileBytes);
-		}
-
-		string textContent = File.ReadAllText(keyPath).Trim();
-		if (textContent.StartsWith("{"))
-		{
-			var jsonResult = ParseJsonAdminKey(textContent);
-			if (jsonResult != null) return jsonResult;
-		}
-
-		return ParsePemAdminKey(textContent);
-	}
-
-	private static (string privateKeyBase64, string publicKeyBase64)? ParseRkeyData(byte[] fileBytes, string keyPath)
-	{
-		var keyData = RkeyFile.ParseKeyData(fileBytes);
-		if (keyData == null || string.IsNullOrWhiteSpace(keyData.PrivateKey))
-		{
-			Console.Error.WriteLine($"Error: No private key found in key file '{keyPath}'.");
+			Console.Error.WriteLine($"Error: '{keyPath}' is not a valid .rkey container. Generate an admin key with 'Realm.Tools.Admin keygen'.");
 			return null;
 		}
 
-		string privBase64 = keyData.PrivateKey;
-		string pubBase64 = !string.IsNullOrWhiteSpace(keyData.PublicKey)
-			? keyData.PublicKey
-			: AuthorSignatureHelper.GetPublicKey(privBase64);
+		var keyData = RkeyFile.ParseKeyData(fileBytes);
+		if (keyData == null || keyData.EncryptedPrivateKey == null || string.IsNullOrWhiteSpace(keyData.EncryptedPrivateKey.CiphertextBase64))
+		{
+			Console.Error.WriteLine($"Error: The PrivateKey in '{keyPath}' is not encrypted. Admin keys must keep the PrivateKey encrypted; generate a new admin key with 'Realm.Tools.Admin keygen' before using it.");
+			return null;
+		}
 
-		return (privBase64, pubBase64);
+		string password = PasswordPrompt.Read("Admin key password: ");
+		if (string.IsNullOrEmpty(password))
+		{
+			Console.Error.WriteLine("Error: The admin key password is required.");
+			return null;
+		}
+
+		try
+		{
+			byte[] privateKeyBytes = PrivateKeyEncryptionHelper.DecryptPrivateKeyBytes(keyData.EncryptedPrivateKey, password);
+			string publicKeyBase64 = !string.IsNullOrWhiteSpace(keyData.PublicKey)
+				? keyData.PublicKey
+				: AuthorSignatureHelper.GetPublicKey(privateKeyBytes);
+
+			return new AdminKeySession(privateKeyBytes, publicKeyBase64);
+		}
+		catch (PrivateKeyDecryptionException ex)
+		{
+			Console.Error.WriteLine($"Error: {ex.Message}");
+			return null;
+		}
 	}
 
-	private static (string privateKeyBase64, string publicKeyBase64) ParseRawBytesKey(byte[] fileBytes)
+	private sealed class AdminKeySession : IDisposable
 	{
-		string privBase64 = Convert.ToBase64String(fileBytes);
-		string pubBase64 = AuthorSignatureHelper.GetPublicKey(privBase64);
-		return (privBase64, pubBase64);
-	}
+		private byte[]? _privateKeyBytes;
 
-	private static (string privateKeyBase64, string publicKeyBase64)? ParseJsonAdminKey(string textContent)
-	{
-		var keyData = JsonSerializer.Deserialize<AuthorshipKeyData>(textContent);
-		if (keyData == null || string.IsNullOrWhiteSpace(keyData.PrivateKey)) return null;
+		public AdminKeySession(byte[] privateKeyBytes, string publicKeyBase64)
+		{
+			_privateKeyBytes = privateKeyBytes;
+			PublicKeyBase64 = publicKeyBase64;
+		}
 
-		string privBase64 = keyData.PrivateKey;
-		string pubBase64 = !string.IsNullOrWhiteSpace(keyData.PublicKey)
-			? keyData.PublicKey
-			: AuthorSignatureHelper.GetPublicKey(privBase64);
-		return (privBase64, pubBase64);
-	}
+		public string PublicKeyBase64 { get; }
 
-	private static (string privateKeyBase64, string publicKeyBase64) ParsePemAdminKey(string textContent)
-	{
-		textContent = textContent.Replace("-----BEGIN PRIVATE KEY-----", "")
-			.Replace("-----END PRIVATE KEY-----", "")
-			.Replace("\r", "")
-			.Replace("\n", "")
-			.Trim();
+		public string CreateSignature(string message)
+		{
+			return AuthorSignatureHelper.SignMessage(GetPrivateKeyBytes(), message);
+		}
 
-		byte[] privateBytes = Convert.FromBase64String(textContent);
-		using var key = Key.Import(SignatureAlgorithm.Ed25519, privateBytes, KeyBlobFormat.RawPrivateKey, new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport });
-		byte[] publicBytes = key.PublicKey.Export(KeyBlobFormat.RawPublicKey);
+		public string CreateBypassToken(string resource, string action)
+		{
+			return AdminBypassAuth.CreateBypassToken(GetPrivateKeyBytes(), resource, action);
+		}
 
-		return (Convert.ToBase64String(privateBytes), Convert.ToBase64String(publicBytes));
+		public string ExportPrivateKeyBase64()
+		{
+			return Convert.ToBase64String(GetPrivateKeyBytes());
+		}
+
+		public void Dispose()
+		{
+			if (_privateKeyBytes == null) return;
+			CryptographicOperations.ZeroMemory(_privateKeyBytes);
+			_privateKeyBytes = null;
+		}
+
+		private ReadOnlySpan<byte> GetPrivateKeyBytes()
+		{
+			return _privateKeyBytes ?? throw new ObjectDisposedException(nameof(AdminKeySession));
+		}
 	}
 
 	private static string? ParsePublicKeyFromFile(string targetKeyInput)
@@ -289,19 +348,19 @@ public static class Program
 	private static int ExecuteGreenlight(AdminGreenlightOptions options)
 	{
 		string serverUrl = ResolveServerUrl(options.Server);
-		var keyPair = ParseAdminKey(options.Key);
+		using var keyPair = ParseAdminKey(options.Key);
 		if (keyPair == null) return 1;
 
 		string mapTitle = options.Map.Trim();
 		string payload = $"greenlight:{mapTitle.ToLowerInvariant()}";
-		string signature = AuthorSignatureHelper.SignMessage(keyPair.Value.privateKeyBase64, payload);
+		string signature = keyPair.CreateSignature(payload);
 
 		Console.WriteLine("=================================================");
 		Console.WriteLine("Realm Admin Tool - Map Greenlight Override");
 		Console.WriteLine("=================================================");
 		Console.WriteLine($"Server:     {serverUrl}");
 		Console.WriteLine($"Map Title:  {mapTitle}");
-		Console.WriteLine($"Admin Key:  {keyPair.Value.publicKeyBase64}");
+		Console.WriteLine($"Admin Key:  {keyPair.PublicKeyBase64}");
 		Console.WriteLine();
 
 		try
@@ -310,7 +369,7 @@ public static class Program
 			var requestBody = new
 			{
 				MapTitle = mapTitle,
-				AdminPublicKey = keyPair.Value.publicKeyBase64,
+				AdminPublicKey = keyPair.PublicKeyBase64,
 				Signature = signature
 			};
 
@@ -455,14 +514,14 @@ public static class Program
 	private static int ExecuteUnlockName(AdminUnlockNameOptions options)
 	{
 		string serverUrl = ResolveServerUrl(options.Server);
-		var keyPair = ParseAdminKey(options.Key);
+		using var keyPair = ParseAdminKey(options.Key);
 		if (keyPair == null) return 1;
 
 		string username = options.Username.Trim();
 		string? targetKey = ParsePublicKeyFromFile(options.TargetKey);
 		if (string.IsNullOrWhiteSpace(targetKey)) return 1;
 
-		string signature = AuthorSignatureHelper.SignMessage(keyPair.Value.privateKeyBase64, $"{username}:{targetKey}");
+		string signature = keyPair.CreateSignature($"{username}:{targetKey}");
 
 		Console.WriteLine("=================================================");
 		Console.WriteLine("Realm Admin Tool - Unlock / Reassign Creator Name");
@@ -475,7 +534,7 @@ public static class Program
 		try
 		{
 			using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-			string bypassToken = AdminBypassAuth.CreateBypassToken(keyPair.Value.privateKeyBase64, "admin", "override");
+			string bypassToken = keyPair.CreateBypassToken("admin", "override");
 			httpClient.DefaultRequestHeaders.Add("X-Admin-Bypass", bypassToken);
 
 			var requestBody = new
@@ -679,20 +738,20 @@ public static class Program
 	private static int ExecutePruneCas(AdminPruneCasOptions options)
 	{
 		string serverUrl = ResolveServerUrl(options.Server);
-		var keyPair = ParseAdminKey(options.Key);
+		using var keyPair = ParseAdminKey(options.Key);
 		if (keyPair == null) return 1;
 
 		Console.WriteLine("=================================================");
 		Console.WriteLine("Realm Admin Tool - Server-Side CAS Prune");
 		Console.WriteLine("=================================================");
 		Console.WriteLine($"Server:    {serverUrl}");
-		Console.WriteLine($"Admin Key: {keyPair.Value.publicKeyBase64}");
+		Console.WriteLine($"Admin Key: {keyPair.PublicKeyBase64}");
 		Console.WriteLine();
 
 		try
 		{
 			var client = new DistributionClient(serverUrl);
-			var result = client.PruneServerCasAsync(keyPair.Value.privateKeyBase64).GetAwaiter().GetResult();
+			var result = client.PruneServerCasAsync(keyPair.ExportPrivateKeyBase64()).GetAwaiter().GetResult();
 
 			if (result.Success)
 			{
@@ -806,7 +865,7 @@ public static class Program
 	private static int ExecuteRestoreSnapshot(AdminRestoreSnapshotOptions options)
 	{
 		string serverUrl = ResolveServerUrl(options.Server);
-		var keyPair = ParseAdminKey(options.Key);
+		using var keyPair = ParseAdminKey(options.Key);
 		if (keyPair == null) return 1;
 
 		if (!File.Exists(options.InputFile))
@@ -820,7 +879,7 @@ public static class Program
 		Console.WriteLine("=================================================");
 		Console.WriteLine($"Server:    {serverUrl}");
 		Console.WriteLine($"Input:     {options.InputFile}");
-		Console.WriteLine($"Admin Key: {keyPair.Value.publicKeyBase64}");
+		Console.WriteLine($"Admin Key: {keyPair.PublicKeyBase64}");
 		Console.WriteLine();
 
 		try
@@ -834,7 +893,7 @@ public static class Program
 			}
 
 			var client = new DistributionClient(serverUrl);
-			var result = client.ApplySnapshotAsync(snapshot, keyPair.Value.privateKeyBase64).GetAwaiter().GetResult();
+			var result = client.ApplySnapshotAsync(snapshot, keyPair.ExportPrivateKeyBase64()).GetAwaiter().GetResult();
 
 			if (result.Success)
 			{
@@ -862,18 +921,18 @@ public static class Program
 	private static int ExecuteRemoveManifest(AdminRemoveManifestOptions options)
 	{
 		string serverUrl = ResolveServerUrl(options.Server);
-		var keyPair = ParseAdminKey(options.Key);
+		using var keyPair = ParseAdminKey(options.Key);
 		if (keyPair == null) return 1;
 
 		string mapTitle = options.Map.Trim();
 		string? mapVersion = string.IsNullOrWhiteSpace(options.Version) ? null : options.Version.Trim();
 		bool isAllVersions = mapVersion == null;
 
-		PrintRemoveManifestHeader(serverUrl, mapTitle, mapVersion, isAllVersions, keyPair.Value.publicKeyBase64);
+		PrintRemoveManifestHeader(serverUrl, mapTitle, mapVersion, isAllVersions, keyPair.PublicKeyBase64);
 
 		try
 		{
-			return ProcessRemoveManifest(options, serverUrl, keyPair.Value.privateKeyBase64, mapTitle, mapVersion, isAllVersions);
+			return ProcessRemoveManifest(options, serverUrl, keyPair, mapTitle, mapVersion, isAllVersions);
 		}
 		catch (Exception ex)
 		{
@@ -894,12 +953,12 @@ public static class Program
 		Console.WriteLine();
 	}
 
-	private static int ProcessRemoveManifest(AdminRemoveManifestOptions options, string serverUrl, string privateKey, string mapTitle, string? mapVersion, bool isAllVersions)
+	private static int ProcessRemoveManifest(AdminRemoveManifestOptions options, string serverUrl, AdminKeySession keyPair, string mapTitle, string? mapVersion, bool isAllVersions)
 	{
 		var client = new DistributionClient(serverUrl);
 		var result = isAllVersions
-			? client.RemoveAllManifestVersionsAsync(mapTitle, privateKey).GetAwaiter().GetResult()
-			: client.RemoveManifestVersionAsync(mapTitle, mapVersion!, privateKey).GetAwaiter().GetResult();
+			? client.RemoveAllManifestVersionsAsync(mapTitle, keyPair.ExportPrivateKeyBase64()).GetAwaiter().GetResult()
+			: client.RemoveManifestVersionAsync(mapTitle, mapVersion!, keyPair.ExportPrivateKeyBase64()).GetAwaiter().GetResult();
 
 		if (!result.Success)
 		{
@@ -911,7 +970,7 @@ public static class Program
 
 		if (options.Prune)
 		{
-			ProcessSubsequentPrune(client, privateKey);
+			ProcessSubsequentPrune(client, keyPair);
 		}
 
 		Console.WriteLine("=================================================");
@@ -929,11 +988,11 @@ public static class Program
 		}
 	}
 
-	private static void ProcessSubsequentPrune(DistributionClient client, string privateKey)
+	private static void ProcessSubsequentPrune(DistributionClient client, AdminKeySession keyPair)
 	{
 		Console.WriteLine();
 		Console.WriteLine("Running subsequent CAS prune...");
-		var pruneResult = client.PruneServerCasAsync(privateKey).GetAwaiter().GetResult();
+		var pruneResult = client.PruneServerCasAsync(keyPair.ExportPrivateKeyBase64()).GetAwaiter().GetResult();
 
 		if (!pruneResult.Success)
 		{
@@ -970,7 +1029,7 @@ public static class Program
 	private static int ExecuteAddMaintainer(AdminAddMaintainerOptions options)
 	{
 		string serverUrl = ResolveServerUrl(options.Server);
-		var keyPair = ParseAdminKey(options.Key);
+		using var keyPair = ParseAdminKey(options.Key);
 		if (keyPair == null) return 1;
 
 		string mapTitle = options.Map.Trim();
@@ -978,7 +1037,7 @@ public static class Program
 		if (string.IsNullOrWhiteSpace(targetPubKey)) return 1;
 
 		string payload = $"add_maintainer:{mapTitle.ToLowerInvariant()}:{targetPubKey.Trim()}";
-		string signature = AuthorSignatureHelper.SignMessage(keyPair.Value.privateKeyBase64, payload);
+		string signature = keyPair.CreateSignature(payload);
 
 		Console.WriteLine("=================================================");
 		Console.WriteLine("Realm Admin Tool - Add Map Maintainer");
@@ -986,7 +1045,7 @@ public static class Program
 		Console.WriteLine($"Server:          {serverUrl}");
 		Console.WriteLine($"Map:             {mapTitle}");
 		Console.WriteLine($"Maintainer Key:  {targetPubKey}");
-		Console.WriteLine($"Requester Key:   {keyPair.Value.publicKeyBase64}");
+		Console.WriteLine($"Requester Key:   {keyPair.PublicKeyBase64}");
 		Console.WriteLine();
 
 		try
@@ -996,7 +1055,7 @@ public static class Program
 			{
 				MapTitle = mapTitle,
 				MaintainerPublicKey = targetPubKey,
-				RequesterPublicKey = keyPair.Value.publicKeyBase64,
+				RequesterPublicKey = keyPair.PublicKeyBase64,
 				Signature = signature
 			};
 
@@ -1013,7 +1072,7 @@ public static class Program
 	private static int ExecuteRemoveMaintainer(AdminRemoveMaintainerOptions options)
 	{
 		string serverUrl = ResolveServerUrl(options.Server);
-		var keyPair = ParseAdminKey(options.Key);
+		using var keyPair = ParseAdminKey(options.Key);
 		if (keyPair == null) return 1;
 
 		string mapTitle = options.Map.Trim();
@@ -1021,7 +1080,7 @@ public static class Program
 		if (string.IsNullOrWhiteSpace(targetPubKey)) return 1;
 
 		string payload = $"remove_maintainer:{mapTitle.ToLowerInvariant()}:{targetPubKey.Trim()}";
-		string signature = AuthorSignatureHelper.SignMessage(keyPair.Value.privateKeyBase64, payload);
+		string signature = keyPair.CreateSignature(payload);
 
 		Console.WriteLine("=================================================");
 		Console.WriteLine("Realm Admin Tool - Remove Map Maintainer");
@@ -1029,7 +1088,7 @@ public static class Program
 		Console.WriteLine($"Server:          {serverUrl}");
 		Console.WriteLine($"Map:             {mapTitle}");
 		Console.WriteLine($"Maintainer Key:  {targetPubKey}");
-		Console.WriteLine($"Requester Key:   {keyPair.Value.publicKeyBase64}");
+		Console.WriteLine($"Requester Key:   {keyPair.PublicKeyBase64}");
 		Console.WriteLine();
 
 		try
@@ -1039,7 +1098,7 @@ public static class Program
 			{
 				MapTitle = mapTitle,
 				MaintainerPublicKey = targetPubKey,
-				RequesterPublicKey = keyPair.Value.publicKeyBase64,
+				RequesterPublicKey = keyPair.PublicKeyBase64,
 				Signature = signature
 			};
 

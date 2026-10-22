@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Realm.Shared.Metadata;
 
@@ -46,7 +47,17 @@ public class RkeyFile : RealmContainerFile
 			PublicKey = publicKeyBase64,
 			PrivateKey = privateKeyBase64
 		};
-		string json = JsonSerializer.Serialize(keyData, new JsonSerializerOptions { WriteIndented = true });
+		return Build(keyData, version);
+	}
+
+	public static byte[] Build(AuthorshipKeyData keyData, uint version = CurrentVersion)
+	{
+		var options = new JsonSerializerOptions
+		{
+			WriteIndented = true,
+			DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+		};
+		string json = JsonSerializer.Serialize(keyData, options);
 		return Build(json, version);
 	}
 

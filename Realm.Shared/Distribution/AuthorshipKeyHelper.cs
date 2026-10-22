@@ -25,14 +25,14 @@ public static class AuthorshipKeyHelper
 		);
 	}
 
-	public static string GetDefaultAuthorshipKeyPath(string? customDirectory = null)
+	public static string GetDefaultAdminKeyPath(string? customDirectory = null)
 	{
-		return Path.Combine(GetDefaultKeysDirectory(), DefaultAuthorshipKeyFileName);
+		return Path.Combine(GetDefaultKeysDirectory(customDirectory), DefaultAdminKeyFileName);
 	}
 
-	public static string GetDefaultAdminKeyPath()
+	public static string GetDefaultAuthorshipKeyPath(string? customDirectory = null)
 	{
-		return Path.Combine(GetDefaultKeysDirectory(), DefaultAdminKeyFileName);
+		return Path.Combine(GetDefaultKeysDirectory(customDirectory), DefaultAuthorshipKeyFileName);
 	}
 
 	public static (NSec.Cryptography.Key Key, AuthorshipKeyData Data, string Path, bool CreatedNew) GetOrGenerateKeyInfo(string? keyDirectory = null, string defaultUserName = "")

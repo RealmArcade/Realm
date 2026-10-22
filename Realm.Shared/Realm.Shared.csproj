@@ -32,6 +32,7 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.116.1" />
     <PackageReference Include="System.IO.Hashing" Version="10.0.11" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
+    <PackageReference Include="zxcvbn-core" Version="7.0.92" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Realm.EditorAPI\Realm.EditorAPI.csproj" />

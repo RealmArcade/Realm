@@ -9,9 +9,15 @@ public static class AdminBypassAuth
 
 	public static string CreateBypassToken(string adminPrivateKeyBase64, string mapTitle, string mapVersion)
 	{
+		byte[] privateKeyBytes = Convert.FromBase64String(adminPrivateKeyBase64);
+		return CreateBypassToken(privateKeyBytes, mapTitle, mapVersion);
+	}
+
+	public static string CreateBypassToken(ReadOnlySpan<byte> adminPrivateKeyBytes, string mapTitle, string mapVersion)
+	{
 		long timestampUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 		string payload = $"{mapTitle.Trim().ToLowerInvariant()}:{mapVersion.Trim().ToLowerInvariant()}:{timestampUnixSeconds}";
-		string signature = AuthorSignatureHelper.SignMessage(adminPrivateKeyBase64, payload);
+		string signature = AuthorSignatureHelper.SignMessage(adminPrivateKeyBytes, payload);
 		return $"{payload}|{signature}";
 	}
 

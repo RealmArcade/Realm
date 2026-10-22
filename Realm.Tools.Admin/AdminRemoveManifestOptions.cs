@@ -11,7 +11,7 @@ public class AdminRemoveManifestOptions
 	[Option('v', "version", Required = false, Default = null, HelpText = "Map version to remove. If omitted, all versions of the map are removed.")]
 	public string? Version { get; set; }
 
-	[Option('k', "key", Required = false, HelpText = "Path to admin .rkey key file. If omitted, defaults to %appdata%\\Godot\\app_userdata\\Realm\\appdata\\keys\\server_admin_key_DO-NOT-SHARE.rkey")]
+	[Option('k', "key", Required = false, HelpText = "Path to admin .rkey file.")]
 	public string? Key { get; set; }
 
 	[Option('s', "server", Required = false, HelpText = "Registry server URL.")]
