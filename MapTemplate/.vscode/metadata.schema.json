@@ -1140,6 +1140,18 @@
                   "null"
                 ]
               },
+              "ProceduralAnimation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EnableProceduralAnimation": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "PseudoSockets": {
                 "type": [
                   "array",
@@ -1232,6 +1244,18 @@
               "DeathShader": {
                 "type": [
                   "string",
+                  "null"
+                ]
+              },
+              "ProceduralAnimation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EnableProceduralAnimation": {
+                "type": [
+                  "boolean",
                   "null"
                 ]
               },

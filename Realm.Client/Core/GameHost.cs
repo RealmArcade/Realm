@@ -3734,6 +3734,8 @@ public partial class GameHost : Node3D, IGameAPI
 				}
 			}
 
+			GameContext.WindService?.Tick(fDelta);
+
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateMinimapPings))
 			{
 				UpdateMinimapPings(fDelta);

@@ -14,4 +14,10 @@ public class MeshSubInfo
 	public float VisibilityRangeBeginMargin = 0f;
 	public float VisibilityRangeEndMargin = 0f;
 	public GeometryInstance3D.VisibilityRangeFadeModeEnum VisibilityRangeFadeMode = GeometryInstance3D.VisibilityRangeFadeModeEnum.Disabled;
+	public bool HasProceduralAnimation;
+	public Vector4 ProceduralParameters1;
+	public Vector4 ProceduralParameters2;
+	public Vector4 ProceduralParameters3;
+	public Vector3 ProceduralRegionMin;
+	public Vector3 ProceduralRegionMax;
 }

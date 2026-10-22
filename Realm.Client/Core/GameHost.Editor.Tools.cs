@@ -571,6 +571,7 @@ namespace Realm.Client.Core
 
 			GameContext.EditorService.ModelYOffsetSavePending = true;
 			EditorHasUnsavedChanges = true;
+			PropMultiMeshManager.Instance?.RefreshProceduralAnimation(assetKey);
 		}
 
 		private bool CheckRegistryIgnorePlayerColor(string primaryKey)
@@ -737,6 +738,7 @@ namespace Realm.Client.Core
 				prop.IgnorePlayerColor = ignoreColor;
 				prop.SpawnShader = spawnShader;
 				prop.DeathShader = deathShader;
+				(prop.ProceduralAnimation, prop.EnableProceduralAnimation) = ResolveProceduralAnimationOverrides(prop.TemplateID, prop.ProceduralAnimation, prop.EnableProceduralAnimation);
 
 				props[i] = prop;
 			}

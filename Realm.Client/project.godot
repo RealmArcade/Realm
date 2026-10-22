@@ -97,3 +97,7 @@ rts_shroud_world_bounds={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
+rts_wind_state={
+"type": "vec4",
+"value": Vector4(0.894, 0.447, 1, 0)
+}

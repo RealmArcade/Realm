@@ -20,6 +20,8 @@ public abstract class PlaceableMetadata
 	public int PathingType { get; set; }
 	public string? SpawnShader { get; set; }
 	public string? DeathShader { get; set; }
+	public string? ProceduralAnimation { get; set; }
+	public bool? EnableProceduralAnimation { get; set; }
 	public List<PseudoSocketAnchor>? PseudoSockets { get; set; }
 
 	public string? DespawnShader

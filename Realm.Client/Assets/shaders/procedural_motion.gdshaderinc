@@ -1,3 +1,4 @@
+global uniform vec4 rts_wind_state;
 uniform bool enable_procedural_motion = false;
 uniform vec4 proc_anim_params1 = vec4(0.0, 0.0, 0.0, 1.0);
 uniform vec4 proc_anim_params2 = vec4(0.0, 0.0, 0.0, 0.0);
@@ -5,6 +6,12 @@ uniform vec4 proc_anim_params3 = vec4(0.0, 0.0, 0.0, 0.0);
 uniform vec4 proc_anim_shake = vec4(0.0, 0.0, 0.0, 0.0);
 uniform vec3 proc_anim_region_min = vec3(-1.0, -1.0, -1.0);
 uniform vec3 proc_anim_region_max = vec3(1.0, 3.0, 1.0);
+
+vec3 rts_wind_direction() {
+	vec3 wind_vector = vec3(rts_wind_state.x, 0.0, rts_wind_state.y);
+	float wind_length = length(wind_vector);
+	return wind_length > 0.0001 ? wind_vector / wind_length : vec3(0.894427, 0.0, 0.447214);
+}
 
 float rts_procedural_motion_weight(vec3 local_position, vec3 local_normal) {
 	float mask_mode = proc_anim_params1.y;
@@ -54,18 +61,26 @@ vec3 rts_procedural_motion_offset(vec3 local_position, vec3 local_normal, vec3 w
 	float wind_influence = proc_anim_params3.y;
 	float turbulence = proc_anim_params3.w;
 
-	vec3 wind_direction = vec3(1.0, 0.0, 0.5);
-	float sway_wave = sin(time * sway_frequency + (world_position.x + world_position.z) * turbulence);
-	float flutter_wave = cos(time * flutter_frequency + local_position.y * 4.0);
+	vec3 wind_direction = rts_wind_direction();
+	float wind_strength = clamp(rts_wind_state.z, 0.0, 3.0);
+	float instance_phase = fract(sin(dot(world_position.xz, vec2(12.9898, 78.233))) * 43758.5453) * 6.28318531;
+	float sway_wave = sin(time * sway_frequency + instance_phase + (world_position.x + world_position.z) * turbulence);
+	float flutter_wave = cos(time * flutter_frequency + instance_phase + local_position.y * 4.0);
+	float amplitude_limit = abs(sway_amplitude) + abs(flutter_amplitude);
 
 	if (motion_type < 2.5) {
-		vec3 sway_offset = wind_direction * (sway_wave * sway_amplitude) * wind_influence;
+		vec3 sway_offset = wind_direction * (sway_wave * sway_amplitude) * wind_influence * wind_strength;
 		vec3 flutter_axis = motion_type < 1.5 ? wind_direction : local_normal;
-		return (sway_offset + flutter_axis * (flutter_wave * flutter_amplitude)) * weight;
+		vec3 displacement = (sway_offset + flutter_axis * (flutter_wave * flutter_amplitude * wind_strength)) * weight;
+		float displacement_length = length(displacement);
+		if (amplitude_limit > 0.0001 && displacement_length > amplitude_limit) {
+			displacement *= amplitude_limit / displacement_length;
+		}
+		return displacement;
 	}
 
 	if (motion_type < 3.5) {
-		float flap_cycle = sin(time * sway_frequency);
+		float flap_cycle = sin(time * sway_frequency + instance_phase);
 		return vec3(0.0, flap_cycle * sway_amplitude * sign(local_position.x + 0.0001), 0.0) * weight;
 	}
 

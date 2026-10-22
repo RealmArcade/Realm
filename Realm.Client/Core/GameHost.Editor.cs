@@ -227,6 +227,7 @@ public partial class GameHost
 		{
 			GameContext.EditorService.ModelYOffsetSavePending = true;
 			EditorHasUnsavedChanges = true;
+			PropMultiMeshManager.Instance?.RefreshProceduralAnimation(assetKey);
 		});
 	}
 
@@ -833,6 +834,7 @@ public partial class GameHost
 			entity.IgnorePlayerColor = ignoreColor;
 			entity.SpawnShader = spawnShader;
 			entity.DeathShader = deathShader;
+			(entity.ProceduralAnimation, entity.EnableProceduralAnimation) = ResolveProceduralAnimationOverrides(entity.TemplateID, entity.ProceduralAnimation, entity.EnableProceduralAnimation);
 
 			entities[i] = entity;
 		}
@@ -859,9 +861,28 @@ public partial class GameHost
 			res.IgnorePlayerColor = ignoreColor;
 			res.SpawnShader = spawnShader;
 			res.DeathShader = deathShader;
+			(res.ProceduralAnimation, res.EnableProceduralAnimation) = ResolveProceduralAnimationOverrides(res.TemplateID, res.ProceduralAnimation, res.EnableProceduralAnimation);
 
 			resources[i] = res;
 		}
+	}
+
+	private (string? AnimationId, bool? Enabled) ResolveProceduralAnimationOverrides(string templateId, string? animationId, bool? enabled)
+	{
+		string norm = GameContext.EditorService.NormalizeModelAssetKey(templateId);
+		if (string.IsNullOrEmpty(norm)) return (animationId, enabled);
+
+		if (GameContext.ModelOverrideService.ModelProceduralAnimations.TryGetValue(norm, out string configuredAnimationId))
+		{
+			animationId = string.IsNullOrWhiteSpace(configuredAnimationId) ? null : configuredAnimationId;
+		}
+
+		if (GameContext.ModelOverrideService.ModelEnableProceduralAnimations.TryGetValue(norm, out bool configuredEnabled))
+		{
+			enabled = configuredEnabled;
+		}
+
+		return (animationId, enabled);
 	}
 
 	private void ApplyVisualOverrides(string templateId, string modelPath, ref bool despill, ref bool normLuma, ref bool ignoreColor, ref string spawnShader, ref string deathShader)

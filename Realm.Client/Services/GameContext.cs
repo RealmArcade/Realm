@@ -44,6 +44,7 @@ namespace Realm.Client.Services
 		public static MapEditorTerrainImportService MapEditorTerrainImportService { get; private set; }
 		public static CheatService CheatService { get; private set; }
 		public static EnvironmentService EnvironmentService { get; private set; }
+		public static WindService WindService { get; private set; }
 		public static SpectatorService SpectatorService { get; private set; }
 		public static ModelOptimizerService ModelOptimizerService { get; private set; }
 		public static AssetIndexService AssetIndexService { get; private set; }
@@ -98,6 +99,7 @@ namespace Realm.Client.Services
 			MapEditorTerrainImportService = new();
 			CheatService = new();
 			EnvironmentService = new();
+			WindService = new();
 			SpectatorService = new();
 			ModelOptimizerService = new();
 			AssetIndexService = new();
@@ -153,6 +155,7 @@ namespace Realm.Client.Services
 			MapEditorTerrainImportService = null;
 			CheatService = null;
 			EnvironmentService = null;
+			WindService = null;
 			SpectatorService = null;
 			ModelOptimizerService = null;
 			AssetIndexService = null;

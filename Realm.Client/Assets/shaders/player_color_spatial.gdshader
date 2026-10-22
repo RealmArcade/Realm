@@ -3,6 +3,8 @@ render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_sc
 
 #include "res://Assets/shaders/shroud.gdshaderinc"
 
+global uniform vec4 rts_wind_state;
+
 uniform sampler2D texture_albedo : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D texture_orm : hint_default_black, filter_linear_mipmap, repeat_enable;
 uniform bool has_orm_texture = false;
@@ -43,6 +45,28 @@ instance uniform vec4 proc_anim_impulse = vec4(0.0, 12.0, 0.0, 0.0);
 instance uniform vec3 proc_anim_velocity = vec3(0.0, 0.0, 0.0);
 instance uniform vec3 proc_anim_region_min = vec3(-1.0, -1.0, -1.0);
 instance uniform vec3 proc_anim_region_max = vec3(1.0, 3.0, 1.0);
+
+const vec3 FALLBACK_WIND_DIRECTION = vec3(0.894427, 0.0, 0.447214);
+
+vec3 resolve_wind_direction() {
+	vec3 wind_vector = vec3(rts_wind_state.x, 0.0, rts_wind_state.y);
+	float wind_length = length(wind_vector);
+	return wind_length > 0.0001 ? wind_vector / wind_length : FALLBACK_WIND_DIRECTION;
+}
+
+float resolve_wind_strength() {
+	return clamp(rts_wind_state.z, 0.0, 3.0);
+}
+
+float resolve_instance_phase(vec3 world_position) {
+	return fract(sin(dot(world_position.xz, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+vec3 limit_displacement(vec3 displacement, float amplitude_limit) {
+	float displacement_length = length(displacement);
+	if (amplitude_limit <= 0.0001 || displacement_length <= amplitude_limit) return displacement;
+	return displacement * (amplitude_limit / displacement_length);
+}
 
 varying vec2 base_uv;
 varying vec3 v_world_pos;
@@ -103,23 +127,26 @@ void vertex() {
 			float drag_inf = proc_anim_params3.z;
 			float turb = proc_anim_params3.w;
 
-			vec3 wind_dir = vec3(1.0, 0.0, 0.5);
-			float wind_wave = sin(time * sway_freq + (v_world_pos.x + v_world_pos.z) * turb);
-			float flutter_wave = cos(time * flutter_freq + (VERTEX.y * 4.0));
+			vec3 wind_dir = resolve_wind_direction();
+			float wind_strength = resolve_wind_strength();
+			float instance_phase = resolve_instance_phase(v_world_pos) * 6.28318531;
+			float wind_wave = sin(time * sway_freq + instance_phase + (v_world_pos.x + v_world_pos.z) * turb);
+			float flutter_wave = cos(time * flutter_freq + instance_phase);
+			float amplitude_limit = abs(sway_amp) + abs(flutter_amp);
 
 			vec3 displacement = vec3(0.0);
 
 			if (motion_type < 1.5) {
 				vec3 drag_disp = -proc_anim_velocity * (drag_inf * 0.05);
-				vec3 wind_disp = wind_dir * (wind_wave * sway_amp + flutter_wave * flutter_amp) * wind_inf;
-				displacement = (drag_disp + wind_disp) * mask_weight;
+				vec3 wind_disp = wind_dir * (wind_wave * sway_amp + flutter_wave * flutter_amp) * wind_inf * wind_strength;
+				displacement = limit_displacement((drag_disp + wind_disp) * mask_weight, amplitude_limit);
 			} else if (motion_type < 2.5) {
-				vec3 trunk_sway = wind_dir * (wind_wave * sway_amp) * mask_weight;
-				vec3 leaf_flutter = NORMAL * (flutter_wave * flutter_amp) * mask_weight;
-				displacement = trunk_sway + leaf_flutter;
+				vec3 trunk_sway = wind_dir * (wind_wave * sway_amp) * wind_strength * mask_weight;
+				vec3 leaf_flutter = NORMAL * (flutter_wave * flutter_amp) * wind_strength * mask_weight;
+				displacement = limit_displacement(trunk_sway + leaf_flutter, amplitude_limit);
 			} else if (motion_type < 3.5) {
-				float flap_cycle = sin(time * sway_freq);
-				displacement = vec3(0.0, flap_cycle * sway_amp * sign(VERTEX.x + 0.0001), 0.0) * mask_weight;
+				float flap_cycle = sin(time * sway_freq + instance_phase);
+				displacement = vec3(0.0, flap_cycle, 0.0) * sway_amp * sign(VERTEX.x + 0.0001) * mask_weight;
 			}
 
 			float imp_strength = proc_anim_impulse.x;
