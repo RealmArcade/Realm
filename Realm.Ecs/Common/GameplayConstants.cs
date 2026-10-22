@@ -1,3 +1,5 @@
+using Realm.Ecs.Components.Core;
+
 namespace Realm.Ecs.Common;
 
 /// <summary>
@@ -47,7 +49,30 @@ public static class GameplayConstants
 	/// </summary>
 	public static float ResolveUnitContactRadius(float authoredRadius, float scale)
 	{
+		return ResolveContactRadius(authoredRadius, scale, DefaultCollisionRadius);
+	}
+
+	/// <summary>
+	///     Resolves the contact radius of a body from its authored CollisionRadius and
+	///     CollisionScale, falling back to the supplied default when the body size was never
+	///     authored (missing, zero or negative).
+	/// </summary>
+	public static float ResolveContactRadius(float authoredRadius, float scale, float defaultRadius)
+	{
 		if (authoredRadius > MinimumAuthoredCollisionRadius) return authoredRadius * scale;
-		return scale * DefaultCollisionRadius;
+		return scale * defaultRadius;
+	}
+
+	/// <summary>
+	///     Resolves the world-space contact radius of an entity from the shared collision
+	///     components, so picking, placement and simulation all agree on how wide a body is.
+	/// </summary>
+	public static float ResolveBodyRadius(EcsWorld world, Entity entity, float defaultRadius)
+	{
+		if (world == null || !world.IsAlive(entity)) return 0f;
+
+		float scale = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
+		float authoredRadius = world.Has<CollisionRadius>(entity) ? world.Get<CollisionRadius>(entity).Value : 0f;
+		return ResolveContactRadius(authoredRadius, scale, defaultRadius);
 	}
 }

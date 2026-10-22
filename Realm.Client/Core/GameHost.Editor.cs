@@ -464,7 +464,7 @@ public partial class GameHost
 		float circleRatio = GetModelCollisionCircleRatio(unit);
 		unit.UpdateCollisionCircleScale(circleRatio);
 
-		float baseRadius = GetOrCalculateObstacleRadius(unit.UnitId, unit, unit.IsBuilding) * circleRatio;
+		float baseRadius = GetOrCalculateObstacleRadius(unit.UnitId, unit) * circleRatio;
 		GameContext.ModelOverrideService.UpdateCollisionRadius(unit.Entity, baseRadius);
 
 		if (unit.IsPreview) return;

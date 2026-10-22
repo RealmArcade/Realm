@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.VFX;
+using Realm.Ecs.Common;
 
 namespace Realm.Client.Services;
 
@@ -273,7 +274,7 @@ public class RaycastService
 		{
 			if (unit == null || !GodotObject.IsInstanceValid(unit) || !unit.Visible) continue;
 
-			float radius = unit.GetBaseObstacleRadius() * MathF.Abs(unit.Scale.X);
+			float radius = MathF.Max(GameplayConstants.ResolveBodyRadius(GameContext.World, unit.Entity, GameplayConstants.DefaultCollisionRadius), 0.5f);
 			float height = unit.IsBuilding ? MathF.Max(2.0f, radius * 2.5f) : 2.5f;
 			Vector3 center = unit.GlobalPosition;
 
@@ -309,7 +310,7 @@ public class RaycastService
 		{
 			if (prop == null || !GodotObject.IsInstanceValid(prop) || !prop.Visible) continue;
 
-			float radius = prop.GetBaseObstacleRadius() * MathF.Abs(prop.Scale.X);
+			float radius = MathF.Max(GameplayConstants.ResolveBodyRadius(GameContext.World, prop.Entity, GameplayConstants.DefaultPropCollisionRadius), 0.5f);
 			float height = MathF.Max(1.0f, radius * 2.5f);
 			Vector3 center = prop.GlobalPosition;
 

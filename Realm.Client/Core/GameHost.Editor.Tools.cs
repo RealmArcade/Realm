@@ -222,6 +222,7 @@ namespace Realm.Client.Core
 
 			float clampedScale = Mathf.Clamp(scale, 0.05f, 20.0f);
 			GameContext.ModelOverrideService.ModelScales[norm] = clampedScale;
+			ECSContext.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
 
 			UpdatePropsScale(norm, clampedScale);
 			UpdateUnitsScale(norm, clampedScale);

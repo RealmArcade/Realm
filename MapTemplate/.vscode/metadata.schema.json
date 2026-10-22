@@ -589,12 +589,6 @@
               "PathingType": {
                 "type": "integer"
               },
-              "ObstacleRadius": {
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
               "Targets": {
                 "type": [
                   "array",

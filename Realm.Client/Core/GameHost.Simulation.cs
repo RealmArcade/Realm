@@ -484,21 +484,9 @@ public partial class GameHost
 	{
 		var mesh = new MeshInstance3D();
 		mesh.Name = "Mesh_MeshInstance3D";
-		float bWidth = 3.2f;
-		float bHeight = 4f;
-		if (TryGetUnitOrBuildingMetadata(buildType, out var bMeta))
-		{
-			if (bMeta.ObstacleRadius.HasValue && bMeta.ObstacleRadius.Value > 0)
-			{
-				bWidth = bMeta.ObstacleRadius.Value * 2f;
-				bHeight = Math.Max(4f, bMeta.ObstacleRadius.Value);
-			}
-			else if (bMeta.CollisionCircle > 0)
-			{
-				bWidth = bMeta.CollisionCircle * 2f;
-				bHeight = Math.Max(4f, bMeta.CollisionCircle);
-			}
-		}
+		float bRadius = ResolveTemplateBodyRadius(buildType, null);
+		float bWidth = bRadius * 2f;
+		float bHeight = Math.Max(4f, bRadius);
 		var box = new BoxMesh();
 		box.Size = new Godot.Vector3(bWidth, bHeight, bWidth);
 		mesh.Mesh = box;
@@ -544,7 +532,7 @@ public partial class GameHost
 		GameContext.World.Add(bldEntity, new ConstructionState(buildTime));
 		GameContext.World.Add(bldEntity, new UnderConstruction());
 
-		float bldRadius = GetOrCalculateObstacleRadius(buildType, null, isBuilding);
+		float bldRadius = GetOrCalculateObstacleRadius(buildType, null);
 		if (!GameContext.World.Has<CollisionRadius>(bldEntity))
 		{
 			GameContext.World.Add(bldEntity, new CollisionRadius(bldRadius));

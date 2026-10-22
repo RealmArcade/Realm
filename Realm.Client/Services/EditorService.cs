@@ -551,6 +551,7 @@ public partial class EditorService : IEditorAPI
 
 		UpdateLocalRegistryForModelPath(entityId, fieldName, domain, newModelPath);
 		UpdateMetadataFileForModelPath(entityId, fieldName, domain, newModelPath);
+		ECSContext.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
 	}
 
 	private void UpdateLocalRegistryForModelPath(string entityId, string fieldName, string domain, string newModelPath)
@@ -6706,6 +6707,7 @@ public class {mapName} : IMapScript
 								{
 									float rounded = (float)Math.Round(radius, 2);
 									GameContext.ModelOverrideService.ModelObstacleRadii[normKey] = rounded;
+									ECSContext.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
 								}
 							}
 						}

@@ -956,7 +956,7 @@ public partial class Unit3D : Node3D
 	{
 		if (GameHost.Instance != null)
 		{
-			return GameHost.Instance.GetOrCalculateObstacleRadius(UnitId, this, IsBuilding);
+			return GameHost.Instance.GetOrCalculateObstacleRadius(UnitId, this);
 		}
 
 		return 1.4f;
@@ -982,7 +982,7 @@ public partial class Unit3D : Node3D
 		var existing = GetNodeOrNull<Decal>("DropShadow");
 		if (existing != null)
 		{
-			float updatedRadius = GameHost.Instance.GetOrCalculateObstacleRadius(UnitId, this, IsBuilding) * GameHost.Instance.GetModelCollisionCircleRatio(ModelPath);
+			float updatedRadius = GameHost.Instance.GetOrCalculateObstacleRadius(UnitId, this) * GameHost.Instance.GetModelCollisionCircleRatio(ModelPath);
 			if (updatedRadius > 0.001f)
 			{
 				float safeRadius = Mathf.Max(0.1f, updatedRadius * 2.5f);
@@ -992,7 +992,7 @@ public partial class Unit3D : Node3D
 			return;
 		}
 
-		float radius = GameHost.Instance.GetOrCalculateObstacleRadius(UnitId, this, IsBuilding) * GameHost.Instance.GetModelCollisionCircleRatio(ModelPath);
+		float radius = GameHost.Instance.GetOrCalculateObstacleRadius(UnitId, this) * GameHost.Instance.GetModelCollisionCircleRatio(ModelPath);
 		if (radius <= 0.001f) radius = 1f;
 
 		Decal shadowDecal = new Decal();
