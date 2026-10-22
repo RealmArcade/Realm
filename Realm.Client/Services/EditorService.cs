@@ -5253,129 +5253,6 @@ public partial class EditorService : IEditorAPI
 		return _terrainSplatMap != null;
 	}
 
-	public bool ResetScaleSelectedObjectDomain()
-	{
-		if (GameContext.Host == null) return false;
-		var selected = GameContext.Host.SelectedEditorObject;
-		if (GodotObject.IsInstanceValid(selected))
-		{
-			var node3D = selected as Node3D;
-			if (node3D == null) return false;
-
-			Godot.Vector3 oldScale = node3D.Scale;
-			Godot.Vector3 newScale = Godot.Vector3.One;
-			var action = new ObjectTransformAction(
-				node3D,
-				node3D.Position, node3D.Position,
-				node3D.RotationDegrees, node3D.RotationDegrees,
-				oldScale, newScale
-			);
-			node3D.Scale = newScale;
-			ObjectTransformAction.PersistTransformToEcs(node3D);
-			if (selected is Prop3D propReset)
-			{
-				GameContext.PropMultiMesh?.MarkDirty(propReset.PropId);
-			}
-
-			EditorHistoryManager.RecordAction(action);
-			return true;
-		}
-
-		return false;
-	}
-
-	public (bool success, float newScaleVal) ScaleSelectedObjectDomain(float scaleDelta)
-	{
-		if (GameContext.Host == null) return (false, 1.0f);
-		var selected = GameContext.Host.SelectedEditorObject;
-		if (GodotObject.IsInstanceValid(selected))
-		{
-			var node3D = selected as Node3D;
-			if (node3D == null) return (false, 1.0f);
-
-			Godot.Vector3 oldScale = node3D.Scale;
-			float newScaleVal = Mathf.Clamp(oldScale.X + scaleDelta, 0.2f, 4.0f);
-			Godot.Vector3 newScale = Godot.Vector3.One * newScaleVal;
-			var action = new ObjectTransformAction(
-				node3D,
-				node3D.Position, node3D.Position,
-				node3D.RotationDegrees, node3D.RotationDegrees,
-				oldScale, newScale
-			);
-			node3D.Scale = newScale;
-			ObjectTransformAction.PersistTransformToEcs(node3D);
-			if (selected is Prop3D propScale)
-			{
-				GameContext.PropMultiMesh?.MarkDirty(propScale.PropId);
-			}
-
-			EditorHistoryManager.RecordAction(action);
-			return (true, newScaleVal);
-		}
-
-		return (false, 1.0f);
-	}
-
-	public (bool success, float newRotY) RotateSelectedObjectDomain(float angleDelta)
-	{
-		if (GameContext.Host == null) return (false, 0f);
-		var selected = GameContext.Host.SelectedEditorObject;
-		if (GodotObject.IsInstanceValid(selected))
-		{
-			var node3D = selected as Node3D;
-			if (node3D == null) return (false, 0f);
-
-			Godot.Vector3 oldRot = node3D.RotationDegrees;
-			Godot.Vector3 newRot = oldRot;
-			newRot.Y = (newRot.Y + angleDelta + 360.0f) % 360.0f;
-			var action = new ObjectTransformAction(
-				node3D,
-				node3D.Position, node3D.Position,
-				oldRot, newRot,
-				node3D.Scale, node3D.Scale
-			);
-			node3D.RotationDegrees = newRot;
-			ObjectTransformAction.PersistTransformToEcs(node3D);
-			if (selected is Prop3D propRot)
-			{
-				GameContext.PropMultiMesh?.MarkDirty(propRot.PropId);
-			}
-
-			EditorHistoryManager.RecordAction(action);
-			return (true, newRot.Y);
-		}
-
-		return (false, 0f);
-	}
-
-	public (bool success, string error) DeleteSelectedObjectDomain()
-	{
-		if (GameContext.Host == null)
-		{
-			return (false, "[Debug] DeleteSelectedObject: Realm.Client.Services.GameContext.Host is NULL!");
-		}
-
-		var selected = GameContext.Host.SelectedEditorObject;
-		if (GodotObject.IsInstanceValid(selected))
-		{
-			Godot.Vector3 pos = (selected is Node3D n) ? n.Position : Godot.Vector3.Zero;
-			GameContext.Host.SelectedEditorObject = null;
-			var action = GameContext.Host.DeleteObjectAtWithUndo(selected, pos);
-			if (action != null)
-			{
-				EditorHistoryManager.RecordAction(action);
-			}
-			else
-			{
-				GameContext.Host.DeleteNodeExternal(selected);
-			}
-
-			return (true, "");
-		}
-
-		return (false, "");
-	}
-
 	public PasteReflection CyclePasteReflectionDomain()
 	{
 		var current = this.EditorPasteReflection;
@@ -6712,26 +6589,12 @@ public class {mapName} : IMapScript
 				if (!GameContext.ModelOverrideService.ModelObstacleRadii.ContainsKey(normKey))
 				{
 					string modelPath = Path.Combine(wsPath, "Assets", "models", subCategory ?? "", fileName);
-					Node rawModelNode = ModelCache.GetModel(modelPath);
-					if (rawModelNode != null)
+					float radius = GameContext.Host.MeasureModelRadiusFromFile(modelPath);
+					if (radius > 0f)
 					{
-						try
-						{
-							if (rawModelNode is Node3D modelNode)
-							{
-								float radius = GameContext.Host.MeasureModelRadius(modelNode);
-								if (radius > 0f)
-								{
-									float rounded = (float)Math.Round(radius, 2);
-									GameContext.ModelOverrideService.ModelObstacleRadii[normKey] = rounded;
-									ECSContext.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
-								}
-							}
-						}
-						finally
-						{
-							rawModelNode.Free();
-						}
+						float rounded = (float)Math.Round(radius, 2);
+						GameContext.ModelOverrideService.ModelObstacleRadii[normKey] = rounded;
+						ECSContext.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
 					}
 				}
 			}

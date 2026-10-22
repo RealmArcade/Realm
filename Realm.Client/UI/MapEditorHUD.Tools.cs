@@ -1919,7 +1919,9 @@ namespace Realm.Client.UI
 
 		private void DeleteSelectedObject()
 		{
-			var (success, error) = GameContext.EditorService.DeleteSelectedObjectDomain();
+			if (GameContext.Host == null) return;
+
+			var (success, error) = GameContext.Host.DeleteSelectedObject();
 			if (!string.IsNullOrEmpty(error))
 			{
 				ShowFeedback(error);
@@ -3962,7 +3964,9 @@ namespace Realm.Client.UI
 
 		private void RotateSelectedObject(float angleDelta)
 		{
-			var (success, newRotY) = GameContext.EditorService.RotateSelectedObjectDomain(angleDelta);
+			if (GameContext.Host == null) return;
+
+			var (success, newRotY) = GameContext.Host.RotateSelectedObject(angleDelta);
 			if (success)
 			{
 				UpdateSelectedObjectInfo();
@@ -3972,7 +3976,9 @@ namespace Realm.Client.UI
 
 		private void ScaleSelectedObject(float scaleDelta)
 		{
-			var (success, newScaleVal) = GameContext.EditorService.ScaleSelectedObjectDomain(scaleDelta);
+			if (GameContext.Host == null) return;
+
+			var (success, newScaleVal) = GameContext.Host.ScaleSelectedObject(scaleDelta);
 			if (success)
 			{
 				UpdateSelectedObjectInfo();
@@ -3982,7 +3988,9 @@ namespace Realm.Client.UI
 
 		private void ResetScaleSelectedObject()
 		{
-			var success = GameContext.EditorService.ResetScaleSelectedObjectDomain();
+			if (GameContext.Host == null) return;
+
+			var success = GameContext.Host.ResetScaleSelectedObject();
 			if (success)
 			{
 				UpdateSelectedObjectInfo();

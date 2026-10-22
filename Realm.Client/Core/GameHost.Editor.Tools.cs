@@ -1051,6 +1051,88 @@ namespace Realm.Client.Core
 			);
 		}
 
+		public bool ResetScaleSelectedObject()
+		{
+			if (SelectedEditorObject is not Node3D node3D) return false;
+
+			Vector3 oldScale = node3D.Scale;
+			Vector3 newScale = Vector3.One;
+			var action = new ObjectTransformAction(
+				node3D,
+				node3D.Position, node3D.Position,
+				node3D.RotationDegrees, node3D.RotationDegrees,
+				oldScale, newScale
+			);
+			node3D.Scale = newScale;
+			ObjectTransformAction.PersistTransformToEcs(node3D);
+			if (node3D is Prop3D prop) GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
+
+			EditorHistoryManager.RecordAction(action);
+			return true;
+		}
+
+		public (bool success, float newScaleVal) ScaleSelectedObject(float scaleDelta)
+		{
+			if (SelectedEditorObject is not Node3D node3D) return (false, 1.0f);
+
+			Vector3 oldScale = node3D.Scale;
+			float newScaleVal = Mathf.Clamp(oldScale.X + scaleDelta, 0.2f, 4.0f);
+			Vector3 newScale = Vector3.One * newScaleVal;
+			var action = new ObjectTransformAction(
+				node3D,
+				node3D.Position, node3D.Position,
+				node3D.RotationDegrees, node3D.RotationDegrees,
+				oldScale, newScale
+			);
+			node3D.Scale = newScale;
+			ObjectTransformAction.PersistTransformToEcs(node3D);
+			if (node3D is Prop3D prop) GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
+
+			EditorHistoryManager.RecordAction(action);
+			return (true, newScaleVal);
+		}
+
+		public (bool success, float newRotY) RotateSelectedObject(float angleDelta)
+		{
+			if (SelectedEditorObject is not Node3D node3D) return (false, 0f);
+
+			Vector3 oldRotation = node3D.RotationDegrees;
+			Vector3 newRotation = oldRotation;
+			newRotation.Y = (newRotation.Y + angleDelta + 360.0f) % 360.0f;
+			var action = new ObjectTransformAction(
+				node3D,
+				node3D.Position, node3D.Position,
+				oldRotation, newRotation,
+				node3D.Scale, node3D.Scale
+			);
+			node3D.RotationDegrees = newRotation;
+			ObjectTransformAction.PersistTransformToEcs(node3D);
+			if (node3D is Prop3D prop) GameContext.PropMultiMesh?.MarkDirty(prop.PropId);
+
+			EditorHistoryManager.RecordAction(action);
+			return (true, newRotation.Y);
+		}
+
+		public (bool success, string error) DeleteSelectedObject()
+		{
+			Node? selected = SelectedEditorObject;
+			if (selected == null || !GodotObject.IsInstanceValid(selected)) return (false, "");
+
+			Vector3 position = selected is Node3D node3D ? node3D.Position : Vector3.Zero;
+			SelectedEditorObject = null;
+			var action = DeleteObjectAtWithUndo(selected, position);
+			if (action != null)
+			{
+				EditorHistoryManager.RecordAction(action);
+			}
+			else
+			{
+				DeleteNodeExternal(selected);
+			}
+
+			return (true, "");
+		}
+
 		public void DeleteNodeExternal(Node node)
 		{
 			if (node == null || !GodotObject.IsInstanceValid(node))

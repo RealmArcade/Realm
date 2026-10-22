@@ -3643,6 +3643,21 @@ public partial class GameHost : Node3D, IGameAPI
 		return maxRadius;
 	}
 
+	public float MeasureModelRadiusFromFile(string modelPath)
+	{
+		Node? modelNode = ModelCache.GetModel(modelPath);
+		if (modelNode == null) return 0f;
+
+		try
+		{
+			return modelNode is Node3D node3D ? MeasureModelRadius(node3D) : 0f;
+		}
+		finally
+		{
+			modelNode.Free();
+		}
+	}
+
 	private void MeasureModelRadiusRecursive(Node3D node, Transform3D parentXform, ref float maxRadius)
 	{
 		var localXform = parentXform * node.Transform;
