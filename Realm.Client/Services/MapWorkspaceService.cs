@@ -260,7 +260,7 @@ public static partial class MapWorkspaceService
 			return GameContext.EditorService._tempWorkspacePath;
 		if (GameHost.Instance != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))
 			return GameContext.MapStorageService.CurrentMapDirectory;
-		return GetDefaultWorkspaceGlobalPath();
+		return string.Empty;
 	}
 
 	private static string _cachedRepoRoot;

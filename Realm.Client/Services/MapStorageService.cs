@@ -178,7 +178,7 @@ public class MapStorageService
 		return "";
 	}
 
-	public string CurrentMapDirectory { get; set; } = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+	public string CurrentMapDirectory { get; set; } = string.Empty;
 
 	public MapStorageService()
 	{

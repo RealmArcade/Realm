@@ -2294,8 +2294,11 @@ namespace Realm.Client.Core
 		{
 			ReplayPlaybackManager.Instance.StopReplay();
 			GameContext.SessionState.IsMapEditorMode = true;
+			GameContext.EditorService.OpenTempWorkspaceSessionDomain();
 
-			string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
+			string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)
+				? GameContext.EditorService._tempWorkspacePath
+				: ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
 			try
 			{
 				Directory.CreateDirectory(wsPath);

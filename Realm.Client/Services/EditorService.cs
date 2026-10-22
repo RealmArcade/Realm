@@ -838,7 +838,16 @@ public partial class EditorService : IEditorAPI
 	}
 
 	public string TempWorkspaceGodotPath { get; set; } = MapWorkspaceService.DefaultWorkspaceGodotPath;
-	public string _tempWorkspacePath { get; set; } = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+	public string _tempWorkspacePath { get; set; } = string.Empty;
+
+	public bool HasTempWorkspaceSession => !string.IsNullOrEmpty(_tempWorkspacePath);
+
+	public void OpenTempWorkspaceSessionDomain()
+	{
+		if (HasTempWorkspaceSession) return;
+
+		_tempWorkspacePath = MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+	}
 
 	public int LastSelectionMinX { get; set; } = -1;
 	public int LastSelectionMinZ { get; set; } = -1;
@@ -5552,6 +5561,7 @@ public partial class EditorService : IEditorAPI
 
 	public void TryCreateTempWorkspaceDirectoryDomain()
 	{
+		OpenTempWorkspaceSessionDomain();
 		Directory.CreateDirectory(this._tempWorkspacePath);
 		MapWorkspaceService.SetupWorkspace(this._tempWorkspacePath, "MapScript");
 	}

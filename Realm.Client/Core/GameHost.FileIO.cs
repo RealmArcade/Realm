@@ -30,7 +30,9 @@ public partial class GameHost
 		var decalsData = GetDecalsData();
 		var coordinatesData = GetCoordinatesData();
 
-		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(GameContext.MapStorageService.CurrentMapDirectory ?? MapWorkspaceService.GetDefaultWorkspaceGlobalPath(), "terrain.json") : customPath;
+		string currentMapDirectory = GameContext.MapStorageService.CurrentMapDirectory;
+		string defaultSaveDirectory = !string.IsNullOrEmpty(currentMapDirectory) ? currentMapDirectory : MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(defaultSaveDirectory, "terrain.json") : customPath;
 		string absolutePath = ProjectSettings.GlobalizePath(path);
 		GameContext.MapStorageService.CurrentMapDirectory = Path.GetDirectoryName(absolutePath);
 
