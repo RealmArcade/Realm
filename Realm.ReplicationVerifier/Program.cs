@@ -1,6 +1,7 @@
 using System.Reflection;
 using MemoryPack;
 using Realm.Ecs;
+using Realm.Ecs.Components.Core;
 using Realm.Ecs.Replication;
 using Realm.MapAPI;
 
@@ -221,6 +222,27 @@ Check(tableDump.Contains("kind=string text='snapshot text probe'", StringCompari
 Check(tableDump.Contains($"{StringRegistry.EntryCount} entries", StringComparison.Ordinal), "the table dump reports the entry count");
 Check(StringRegistry.CollisionCount == 0, $"built-in strings do not collide ({StringRegistry.CollisionSummary})");
 Check(StringRegistry.GetOrAdd(string.Empty) == 0 && StringRegistry.GetOrAdd(null) == 0, "empty text keeps the reserved zero id");
+
+var firstQueue = new ProductionQueue();
+var secondQueue = new ProductionQueue();
+firstQueue.Enqueue("worker");
+firstQueue.Enqueue("farm");
+secondQueue.Enqueue("worker");
+secondQueue.Enqueue("farm");
+Check(firstQueue.Count == 2 && firstQueue.Get(0) == "worker" && firstQueue.Get(1) == "farm", "a production queue preserves insertion order");
+Check(firstQueue.Handle == secondQueue.Handle, "queues with identical content share one interned payload");
+Check(InternedValueStore.TryGetKind(firstQueue.Handle, out byte queueKind) && queueKind == InternedValueStore.TextListKind, "a production queue payload carries the text list kind");
+
+int sharedQueueHandle = firstQueue.Handle;
+firstQueue.Enqueue("grunt");
+Check(firstQueue.Handle != sharedQueueHandle, "enqueueing writes a new payload instead of mutating the shared one");
+Check(secondQueue.Handle == sharedQueueHandle && secondQueue.Count == 2, "the queue that shared the payload is untouched by the other queue's append");
+Check(firstQueue.Count == 3 && firstQueue.Get(2) == "grunt", "the new payload keeps the appended unit");
+
+Check(secondQueue.RemoveAt(0) == "worker" && secondQueue.Count == 1 && secondQueue.Get(0) == "farm", "removing an item reports it and shifts the rest");
+secondQueue.Clear();
+Check(secondQueue.Count == 0 && secondQueue.Handle == 0, "clearing a queue drops the payload");
+Check(firstQueue.Get(3) == null && firstQueue.RemoveAt(5) == null, "reads and removals outside the queue report nothing");
 
 ColdPayloadRegistry<List<string>>.Reset();
 const string sharedContentKey = "production_queue|worker,farm";

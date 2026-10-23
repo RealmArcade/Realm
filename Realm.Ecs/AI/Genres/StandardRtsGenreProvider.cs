@@ -250,7 +250,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		if (!world.Has<ProductionQueue>(unit)) return;
 
 		ref var queue = ref world.Get<ProductionQueue>(unit);
-		if (queue.UnitIds.Count < 5)
+		if (queue.Count < 5)
 		{
 			float costRatio = Math.Clamp(100.0f / Math.Max(1, playerGold), 0f, 1f);
 			float[] fVec = CreateFeatureVector(costRatio, 0.5f, 0.0f, 1.0f, 0.6f, 0.0f, 0.0f, 0.7f);
@@ -333,9 +333,9 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		if (!world.Has<ProductionQueue>(aff.SourceEntity)) return;
 
 		ref var q = ref world.Get<ProductionQueue>(aff.SourceEntity);
-		if (q.UnitIds.Count < 5)
+		if (q.Count < 5)
 		{
-			q.UnitIds.Add("grunt");
+			q.Enqueue("grunt");
 		}
 	}
 

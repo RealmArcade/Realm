@@ -503,10 +503,10 @@ public class ResourceEconomyService
 
 	private void PopulationQueueQueryAction(Entity entity, ref ProductionQueue queue, ref UnitOwnerPlayer owner)
 	{
-		var queuedUnitIds = queue.UnitIds;
-		for (int index = 0; index < queuedUnitIds.Count; index++)
+		for (int index = 0; index < queue.Count; index++)
 		{
-			AccumulatePopulationCost(owner.PlayerIndex, queuedUnitIds[index]);
+			string? queuedUnitId = queue.Get(index);
+			if (queuedUnitId != null) AccumulatePopulationCost(owner.PlayerIndex, queuedUnitId);
 		}
 	}
 

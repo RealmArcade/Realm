@@ -19,13 +19,10 @@ public class InputService
 	public int GetPopCostForIndex(Entity buildingEntity, int index)
 	{
 		var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
-		if (index >= 0 && index < prod.UnitIds.Count)
+		string? peekCancelledId = prod.Get(index);
+		if (peekCancelledId != null && GameHost.UnitRegistry.TryGetValue(peekCancelledId, out var metaPeek))
 		{
-			string peekCancelledId = prod.UnitIds[index];
-			if (GameHost.UnitRegistry.TryGetValue(peekCancelledId, out var metaPeek))
-			{
-				return metaPeek.PopCost;
-			}
+			return metaPeek.PopCost;
 		}
 
 		return 0;
@@ -1099,7 +1096,7 @@ public class InputService
 			int queueCount = 0;
 			if (GameContext.World.Has<ProductionQueue>(bldEntity))
 			{
-				queueCount = GameContext.World.Get<ProductionQueue>(bldEntity).UnitIds.Count;
+				queueCount = GameContext.World.Get<ProductionQueue>(bldEntity).Count;
 			}
 
 			if (queueCount < 5)
@@ -1129,14 +1126,14 @@ public class InputService
 			? ref GameContext.World.Get<ProductionQueue>(buildingEntity)
 			: ref CreateProductionQueue(buildingEntity);
 
-		if (prod.UnitIds.Count >= 5) return false;
+		if (prod.Count >= 5) return false;
 
-		if (prod.UnitIds.Count == 0)
+		if (prod.Count == 0)
 		{
 			prod.BuildTime = productionTime;
 		}
 
-		prod.UnitIds.Add(unitId);
+		if (!prod.Enqueue(unitId)) return false;
 		GameContext.World.Set(buildingEntity, prod);
 
 		return true;
@@ -1157,19 +1154,15 @@ public class InputService
 			return false;
 
 		var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
-		if (index < 0 || index >= prod.UnitIds.Count)
+		if (index < 0 || index >= prod.Count)
 			return false;
 
-		cancelledUnitId = prod.UnitIds[index];
-		prod.UnitIds.RemoveAt(index);
+		cancelledUnitId = prod.RemoveAt(index);
 
 		if (index == 0)
 		{
 			prod.CurrentProgress = 0f;
-			if (prod.UnitIds.Count > 0)
-			{
-				nextUnitId = prod.UnitIds[0];
-			}
+			nextUnitId = prod.Get(0);
 		}
 
 

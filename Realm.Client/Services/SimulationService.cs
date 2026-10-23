@@ -1733,22 +1733,22 @@ public class SimulationService
 
 	private void ProdQueryAction(Entity entity, ref ProductionQueue prod)
 	{
-		if (prod.UnitIds.Count == 0) return;
+		if (prod.Count == 0) return;
 
 		float multiplier = (GameHost.Instance != null && GameContext.SimulationService.FastBuildEnabled) ? 10f : 1f;
 		prod.CurrentProgress += _fDelta * multiplier;
 		if (prod.CurrentProgress < prod.BuildTime) return;
 
-		string unitToSpawn = prod.UnitIds[0];
-		prod.UnitIds.RemoveAt(0);
+		string? unitToSpawn = prod.RemoveAt(0);
 		prod.CurrentProgress = 0f;
 
-		if (prod.UnitIds.Count > 0)
+		string? nextUnitId = prod.Get(0);
+		if (nextUnitId != null)
 		{
-			string nextUnitId = prod.UnitIds[0];
 			prod.BuildTime = GetProductionBuildTime != null ? GetProductionBuildTime(nextUnitId) : 5f;
 		}
 
+		if (unitToSpawn == null) return;
 		SpawnProductionUnit(entity, unitToSpawn);
 		_tickNeedsUiRefresh = true;
 	}

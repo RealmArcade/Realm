@@ -1859,7 +1859,7 @@ public partial class GameHost
 				if (SelectedUnits.Count == 1 && GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player))
 				{
 					var unit = SelectedUnits[0];
-					if (GameContext.World.Has<ProductionQueue>(unit.Entity) && GameContext.World.Get<ProductionQueue>(unit.Entity).UnitIds.Count > 0)
+					if (GameContext.World.Has<ProductionQueue>(unit.Entity) && GameContext.World.Get<ProductionQueue>(unit.Entity).Count > 0)
 					{
 						CancelLastQueuedUnit(unit.Entity);
 						GetViewport().SetInputAsHandled();
@@ -3814,9 +3814,9 @@ public partial class GameHost
 		if (GameContext.World.IsAlive(buildingEntity) && GameContext.World.Has<ProductionQueue>(buildingEntity))
 		{
 			var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
-			if (prod.UnitIds.Count > 0)
+			if (prod.Count > 0)
 			{
-				CancelQueuedUnitAt(buildingEntity, prod.UnitIds.Count - 1);
+				CancelQueuedUnitAt(buildingEntity, prod.Count - 1);
 			}
 		}
 	}

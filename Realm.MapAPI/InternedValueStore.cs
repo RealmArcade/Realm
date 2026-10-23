@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -23,6 +24,11 @@ public static class InternedValueStore
 	/// The kind tag of the entries whose payload is text.
 	/// </summary>
 	public const byte TextKind = 0;
+
+	/// <summary>
+	/// The kind tag of the entries whose payload is an ordered list of text identifiers.
+	/// </summary>
+	public const byte TextListKind = 1;
 
 	/// <summary>
 	/// First identifier of the reserved fallback range used when a primary content hash is already taken.
@@ -79,6 +85,27 @@ public static class InternedValueStore
 			lock (_lock)
 			{
 				return _registeredEntries.Count;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Gets the number of text entries that have been registered or received in this process, which is the number
+	/// of entries a peer's text cursor walks past.
+	/// </summary>
+	public static int TextEntryCount
+	{
+		get
+		{
+			lock (_lock)
+			{
+				int count = 0;
+				for (int index = 0; index < _registeredEntries.Count; index++)
+				{
+					if (_registeredEntries[index].Kind == TextKind) count++;
+				}
+
+				return count;
 			}
 		}
 	}
@@ -154,6 +181,87 @@ public static class InternedValueStore
 
 			Store(new InternedEntry(id, TextKind, text));
 			return true;
+		}
+	}
+
+	/// <summary>
+	/// Registers an ordered list of text identifiers and returns its stable identifier.
+	/// </summary>
+	/// <param name="textIds">The text identifiers the list contains, in order.</param>
+	/// <returns>Zero for an empty list, the list's content hash otherwise.</returns>
+	public static int GetOrAddTextList(ReadOnlySpan<int> textIds)
+	{
+		if (textIds.IsEmpty) return 0;
+
+		byte[] payload = new byte[sizeof(int) + (textIds.Length * sizeof(int))];
+		BinaryPrimitives.WriteInt32LittleEndian(payload, textIds.Length);
+		for (int index = 0; index < textIds.Length; index++)
+		{
+			BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(sizeof(int) + (index * sizeof(int)), sizeof(int)), textIds[index]);
+		}
+
+		return GetOrAddPayload(TextListKind, payload);
+	}
+
+	/// <summary>
+	/// Gets the number of text identifiers stored in a list payload.
+	/// </summary>
+	/// <param name="id">The identifier of the list payload.</param>
+	/// <returns>The entry count, or zero when the identifier is unknown or does not carry a list.</returns>
+	public static int GetTextListCount(int id)
+	{
+		if (id == 0) return 0;
+
+		lock (_lock)
+		{
+			return _entryById.TryGetValue(id, out InternedEntry entry) && entry.Kind == TextListKind && entry.Bytes != null
+				? ReadTextListCount(entry.Bytes)
+				: 0;
+		}
+	}
+
+	/// <summary>
+	/// Gets the text identifier stored at a position in a list payload.
+	/// </summary>
+	/// <param name="id">The identifier of the list payload.</param>
+	/// <param name="index">The zero-based position to read.</param>
+	/// <returns>The text identifier at that position, or zero when the position is outside the list.</returns>
+	public static int GetTextListItemId(int id, int index)
+	{
+		if (id == 0 || index < 0) return 0;
+
+		lock (_lock)
+		{
+			if (!_entryById.TryGetValue(id, out InternedEntry entry) || entry.Kind != TextListKind || entry.Bytes == null) return 0;
+
+			int count = ReadTextListCount(entry.Bytes);
+			if (index >= count) return 0;
+
+			return BinaryPrimitives.ReadInt32LittleEndian(entry.Bytes.AsSpan(sizeof(int) + (index * sizeof(int)), sizeof(int)));
+		}
+	}
+
+	/// <summary>
+	/// Gets the kind and payload bytes stored for an identifier.
+	/// </summary>
+	/// <param name="id">The identifier to inspect.</param>
+	/// <param name="kind">The kind tag of the stored payload.</param>
+	/// <param name="payload">The immutable payload bytes, empty for text entries.</param>
+	/// <returns>True when the identifier is present in the table.</returns>
+	public static bool TryGetPayload(int id, out byte kind, out ReadOnlySpan<byte> payload)
+	{
+		lock (_lock)
+		{
+			if (_entryById.TryGetValue(id, out InternedEntry entry))
+			{
+				kind = entry.Kind;
+				payload = entry.Bytes ?? ReadOnlySpan<byte>.Empty;
+				return true;
+			}
+
+			kind = 0;
+			payload = ReadOnlySpan<byte>.Empty;
+			return false;
 		}
 	}
 
@@ -240,7 +348,9 @@ public static class InternedValueStore
 			for (int index = start; index < _registeredEntries.Count; index++)
 			{
 				InternedEntry entry = _registeredEntries[index];
-				builder.AppendLine($"id={entry.Id} kind={DescribeKind(entry.Kind)} text='{entry.Text}'");
+				builder.AppendLine(entry.Bytes == null
+					? $"id={entry.Id} kind={DescribeKind(entry.Kind)} text='{entry.Text}'"
+					: $"id={entry.Id} kind={DescribeKind(entry.Kind)} count={ReadTextListCount(entry.Bytes)}");
 			}
 
 			return builder.ToString();
@@ -272,8 +382,85 @@ public static class InternedValueStore
 		return kind switch
 		{
 			TextKind => "string",
+			TextListKind => "text-list",
 			_ => kind.ToString(CultureInfo.InvariantCulture)
 		};
+	}
+
+	private static int GetOrAddPayload(byte kind, byte[] payload)
+	{
+		lock (_lock)
+		{
+			int primaryId = ComputePayloadId(kind, payload);
+			if (_entryById.TryGetValue(primaryId, out InternedEntry occupant))
+			{
+				if (occupant.Kind == kind && occupant.Bytes != null && occupant.Bytes.AsSpan().SequenceEqual(payload)) return primaryId;
+				return RegisterPayloadFallback(kind, payload, primaryId, occupant);
+			}
+
+			Store(new InternedEntry(primaryId, kind, string.Empty, payload));
+			return primaryId;
+		}
+	}
+
+	private static int RegisterPayloadFallback(byte kind, byte[] payload, int primaryId, InternedEntry occupant)
+	{
+		_collisionCount++;
+		if (_collisionSummary.Length < 512)
+		{
+			_collisionSummary += string.Format(
+				CultureInfo.InvariantCulture,
+				"a {0} payload collides with a {1} payload at {2}; ",
+				DescribeKind(kind),
+				DescribeKind(occupant.Kind),
+				primaryId);
+		}
+
+		int fallbackId = ComputePayloadFallbackId(kind, payload);
+		if (_entryById.TryGetValue(fallbackId, out InternedEntry fallbackOccupant))
+		{
+			if (fallbackOccupant.Kind == kind && fallbackOccupant.Bytes != null && fallbackOccupant.Bytes.AsSpan().SequenceEqual(payload)) return fallbackId;
+			return fallbackId;
+		}
+
+		Store(new InternedEntry(fallbackId, kind, string.Empty, payload));
+		return fallbackId;
+	}
+
+	private static int ComputePayloadId(byte kind, ReadOnlySpan<byte> payload)
+	{
+		uint hash = PrimaryHashSeed;
+		hash = Combine(hash, kind);
+		for (int index = 0; index < payload.Length; index++)
+		{
+			hash = Combine(hash, payload[index]);
+		}
+
+		int id = (int)(hash & 0x7FFFFFFFu);
+		return id == 0 ? 1 : id;
+	}
+
+	private static int ComputePayloadFallbackId(byte kind, ReadOnlySpan<byte> payload)
+	{
+		uint hash = FallbackHashSeed;
+		hash = Combine(hash, kind);
+		for (int index = payload.Length - 1; index >= 0; index--)
+		{
+			hash = Combine(hash, payload[index]);
+		}
+
+		int offset = (int)(hash & (uint)(FallbackIdBase - 1));
+		return FallbackIdBase | offset;
+	}
+
+	private static int ReadTextListCount(ReadOnlySpan<byte> payload)
+	{
+		if (payload.Length < sizeof(int)) return 0;
+
+		int count = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(0, sizeof(int)));
+		if (count < 0 || payload.Length < sizeof(int) + (count * sizeof(int))) return 0;
+
+		return count;
 	}
 
 	private static int RegisterTextFallback(string text, int primaryId, string occupant)
@@ -333,15 +520,17 @@ public static class InternedValueStore
 
 	private readonly struct InternedEntry
 	{
-		public InternedEntry(int id, byte kind, string text)
+		public InternedEntry(int id, byte kind, string text, byte[]? bytes = null)
 		{
 			Id = id;
 			Kind = kind;
 			Text = text;
+			Bytes = bytes;
 		}
 
 		public int Id { get; }
 		public byte Kind { get; }
 		public string Text { get; }
+		public byte[]? Bytes { get; }
 	}
 }

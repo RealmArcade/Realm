@@ -39,7 +39,7 @@ public static class StringRegistry
 	/// <summary>
 	/// Gets the number of text entries that have been registered or received in this process, in registration order.
 	/// </summary>
-	public static int EntryCount => InternedValueStore.EntryCount;
+	public static int EntryCount => InternedValueStore.TextEntryCount;
 
 	/// <summary>
 	/// Registers a text in the table and returns its stable identifier.

@@ -289,9 +289,9 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 			if (world.Has<ProductionQueue>(aff.SourceEntity))
 			{
 				ref var q = ref world.Get<ProductionQueue>(aff.SourceEntity);
-				if (q.UnitIds.Count < 5)
+				if (q.Count < 5)
 				{
-					q.UnitIds.Add("spawner_upgrade");
+					q.Enqueue("spawner_upgrade");
 				}
 			}
 

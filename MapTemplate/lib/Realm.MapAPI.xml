@@ -3167,6 +3167,11 @@
             The kind tag of the entries whose payload is text.
             </summary>
         </member>
+        <member name="F:Realm.MapAPI.InternedValueStore.TextListKind">
+            <summary>
+            The kind tag of the entries whose payload is an ordered list of text identifiers.
+            </summary>
+        </member>
         <member name="F:Realm.MapAPI.InternedValueStore.FallbackIdBase">
             <summary>
             First identifier of the reserved fallback range used when a primary content hash is already taken.
@@ -3186,6 +3191,12 @@
         <member name="P:Realm.MapAPI.InternedValueStore.EntryCount">
             <summary>
             Gets the number of entries that have been registered or received in this process, in registration order.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InternedValueStore.TextEntryCount">
+            <summary>
+            Gets the number of text entries that have been registered or received in this process, which is the number
+            of entries a peer's text cursor walks past.
             </summary>
         </member>
         <member name="M:Realm.MapAPI.InternedValueStore.GetOrAddText(System.String)">
@@ -3213,6 +3224,37 @@
             <param name="id">The identifier chosen by the owning peer.</param>
             <param name="text">The text that identifier stands for.</param>
             <returns>True when the table gained the entry, false when the identifier was already known.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.GetOrAddTextList(System.ReadOnlySpan{System.Int32})">
+            <summary>
+            Registers an ordered list of text identifiers and returns its stable identifier.
+            </summary>
+            <param name="textIds">The text identifiers the list contains, in order.</param>
+            <returns>Zero for an empty list, the list's content hash otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.GetTextListCount(System.Int32)">
+            <summary>
+            Gets the number of text identifiers stored in a list payload.
+            </summary>
+            <param name="id">The identifier of the list payload.</param>
+            <returns>The entry count, or zero when the identifier is unknown or does not carry a list.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.GetTextListItemId(System.Int32,System.Int32)">
+            <summary>
+            Gets the text identifier stored at a position in a list payload.
+            </summary>
+            <param name="id">The identifier of the list payload.</param>
+            <param name="index">The zero-based position to read.</param>
+            <returns>The text identifier at that position, or zero when the position is outside the list.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.TryGetPayload(System.Int32,System.Byte@,System.ReadOnlySpan{System.Byte}@)">
+            <summary>
+            Gets the kind and payload bytes stored for an identifier.
+            </summary>
+            <param name="id">The identifier to inspect.</param>
+            <param name="kind">The kind tag of the stored payload.</param>
+            <param name="payload">The immutable payload bytes, empty for text entries.</param>
+            <returns>True when the identifier is present in the table.</returns>
         </member>
         <member name="M:Realm.MapAPI.InternedValueStore.ComputeTextId(System.String)">
             <summary>

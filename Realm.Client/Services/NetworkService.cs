@@ -1398,8 +1398,8 @@ public class NetworkService
 		if (!GameContext.World.Has<ProductionQueue>(entity)) GameContext.World.Add(entity, new ProductionQueue());
 
 		ref var prod = ref GameContext.World.Get<ProductionQueue>(entity);
-		prod.UnitIds.Add(unitId);
-		if (prod.UnitIds.Count == 1)
+		prod.Enqueue(unitId);
+		if (prod.Count == 1)
 		{
 			prod.BuildTime = meta.ProductionTime;
 			prod.CurrentProgress = 0f;
@@ -1421,21 +1421,21 @@ public class NetworkService
 	private void CancelProductionQueueItem(Entity entity, int idx)
 	{
 		ref var prod = ref GameContext.World.Get<ProductionQueue>(entity);
-		if (idx < 0 || idx >= prod.UnitIds.Count) return;
+		if (idx < 0 || idx >= prod.Count) return;
 
-		string unitId = prod.UnitIds[idx];
-		prod.UnitIds.RemoveAt(idx);
+		string? unitId = prod.RemoveAt(idx);
 
 		if (idx == 0)
 		{
 			prod.CurrentProgress = 0f;
-			if (prod.UnitIds.Count > 0 && GameHost.UnitRegistry.TryGetValue(prod.UnitIds[0], out var nextMeta))
+			string? nextUnitId = prod.Get(0);
+			if (nextUnitId != null && GameHost.UnitRegistry.TryGetValue(nextUnitId, out var nextMeta))
 			{
 				prod.BuildTime = nextMeta.ProductionTime;
 			}
 		}
 
-		if (GameHost.UnitRegistry.TryGetValue(unitId, out var regMeta))
+		if (unitId != null && GameHost.UnitRegistry.TryGetValue(unitId, out var regMeta))
 		{
 			RefundCanceledProduction(entity, regMeta);
 		}
@@ -2336,8 +2336,7 @@ public class NetworkService
 				}
 
 				ref var prod = ref GameContext.World.Get<ProductionQueue>(localEntity);
-				prod.UnitIds.Clear();
-				prod.UnitIds.AddRange(unitIds);
+				prod.Replace(unitIds);
 				prod.CurrentProgress = currentProgress;
 				prod.BuildTime = buildTime;
 			}
@@ -2374,7 +2373,7 @@ public class NetworkService
 			if (!GameContext.World.IsAlive(entity) || !GameContext.World.Has<ProductionQueue>(entity)) continue;
 
 			var prod = GameContext.World.Get<ProductionQueue>(entity);
-			result.Add((entity.Id, prod.UnitIds.ToArray(), prod.CurrentProgress, prod.BuildTime));
+			result.Add((entity.Id, prod.ToArray(), prod.CurrentProgress, prod.BuildTime));
 		}
 
 		return result;
