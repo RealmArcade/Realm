@@ -210,17 +210,41 @@ Check(StringRegistry.GetEntriesSince(publicationCursor, emptyPublication) == pub
 int latePublishedId = StringRegistry.GetOrAdd("late published text");
 Check(StringRegistry.GetEntriesSince(publicationCursor, emptyPublication) == StringRegistry.EntryCount && emptyPublication.Count == 1 && emptyPublication[0].Id == latePublishedId, "only text registered after the cursor is published");
 
-var snapshotSourceWorld = new EcsWorld();
 int snapshotTextId = StringRegistry.GetOrAdd("snapshot text probe");
-byte[] binarySnapshot = snapshotSourceWorld.ExportBinarySnapshot();
-Check(binarySnapshot.Length > 32 + EcsSharedMemory.TOTAL_SIZE_BYTES, "a binary snapshot carries a text section after shared memory");
+var publishedTextEntries = new List<(int Id, string Text)>();
+StringRegistry.GetEntriesSince(0, publishedTextEntries);
+
+var publishedCatalog = new List<CatalogEntry>();
+foreach (var entry in publishedTextEntries)
+{
+	publishedCatalog.Add(new CatalogEntry
+	{
+		Channel = "string",
+		Key = entry.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+		Value = entry.Text
+	});
+}
 
 StringRegistry.Reset();
-Check(StringRegistry.Get(snapshotTextId) == string.Empty, "resetting the table drops the text a snapshot will restore");
+Check(StringRegistry.Get(snapshotTextId) == string.Empty, "resetting the table drops the text a peer has to receive");
 
-var snapshotTargetWorld = new EcsWorld();
-snapshotTargetWorld.ImportBinarySnapshot(binarySnapshot);
-Check(StringRegistry.Get(snapshotTextId) == "snapshot text probe", "importing a binary snapshot restores its text table");
+foreach (var entry in publishedCatalog)
+{
+	if (int.TryParse(entry.Key, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int publishedId))
+	{
+		StringRegistry.RegisterRemote(publishedId, entry.Value);
+	}
+}
+Check(StringRegistry.Get(snapshotTextId) == "snapshot text probe", "the string catalog channel restores text on a peer");
+
+var binarySnapshotWorld = new EcsWorld();
+byte[] binarySnapshot = binarySnapshotWorld.ExportBinarySnapshot();
+Check(binarySnapshot.Length == 32 + EcsSharedMemory.TOTAL_SIZE_BYTES, "a binary snapshot carries ecs memory only");
+
+int entriesBeforeImport = StringRegistry.EntryCount;
+var binarySnapshotTarget = new EcsWorld();
+binarySnapshotTarget.ImportBinarySnapshot(binarySnapshot);
+Check(StringRegistry.EntryCount == entriesBeforeImport, "importing a binary snapshot does not carry text");
 
 Check(StringRegistry.TryGetText(snapshotTextId, out string knownText) && knownText == "snapshot text probe", "a known identifier is readable without a host round trip");
 Check(!StringRegistry.TryGetText(0, out _), "the reserved zero identifier reports a miss");

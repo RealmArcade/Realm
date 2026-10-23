@@ -767,29 +767,13 @@ public class EcsWorld : IDisposable
 		};
 	}
 
-	private const int SnapshotFormatVersion = 2;
-
-	private readonly List<(int Id, string Text)> _snapshotTextEntries = new();
-
-	private int ComputeTextSectionByteCount()
-	{
-		_snapshotTextEntries.Clear();
-		StringRegistry.CopyEntries(_snapshotTextEntries);
-
-		int byteCount = sizeof(int);
-		for (int index = 0; index < _snapshotTextEntries.Count; index++)
-		{
-			byteCount += sizeof(int) + sizeof(int) + Encoding.UTF8.GetByteCount(_snapshotTextEntries[index].Text);
-		}
-
-		return byteCount;
-	}
+	private const int SnapshotFormatVersion = 1;
 
 	private int ComputeSnapshotByteCount()
 	{
 		const int headerSize = 32;
 		int freeListBytes = _freeListCount * sizeof(int);
-		return headerSize + freeListBytes + EcsSharedMemory.TOTAL_SIZE_BYTES + ComputeTextSectionByteCount();
+		return headerSize + freeListBytes + EcsSharedMemory.TOTAL_SIZE_BYTES;
 	}
 
 	public unsafe int ExportBinarySnapshot(Span<byte> destination)
@@ -797,9 +781,8 @@ public class EcsWorld : IDisposable
 		int headerSize = 32;
 		int freeListBytes = _freeListCount * sizeof(int);
 		int sharedMemoryBytes = EcsSharedMemory.TOTAL_SIZE_BYTES;
-		int textSectionBytes = ComputeTextSectionByteCount();
 
-		int totalBytesNeeded = headerSize + freeListBytes + sharedMemoryBytes + textSectionBytes;
+		int totalBytesNeeded = headerSize + freeListBytes + sharedMemoryBytes;
 		if (destination.Length < totalBytesNeeded)
 		{
 			return -totalBytesNeeded;
@@ -858,23 +841,6 @@ public class EcsWorld : IDisposable
 			CopyBufferToSpan<PlayerPopulation>(sharedDst, EcsSharedMemory.PLAYER_POPULATION_OFFSET, MAX_PLAYERS + 1);
 		}
 		offset += sharedMemoryBytes;
-
-		Span<byte> textDst = destination.Slice(offset, textSectionBytes);
-		BinaryPrimitives.WriteInt32LittleEndian(textDst.Slice(0, sizeof(int)), _snapshotTextEntries.Count);
-		int textOffset = sizeof(int);
-		for (int index = 0; index < _snapshotTextEntries.Count; index++)
-		{
-			(int id, string text) = _snapshotTextEntries[index];
-			int byteCount = Encoding.UTF8.GetByteCount(text);
-			BinaryPrimitives.WriteInt32LittleEndian(textDst.Slice(textOffset, sizeof(int)), id);
-			textOffset += sizeof(int);
-			BinaryPrimitives.WriteInt32LittleEndian(textDst.Slice(textOffset, sizeof(int)), byteCount);
-			textOffset += sizeof(int);
-			Encoding.UTF8.GetBytes(text, textDst.Slice(textOffset, byteCount));
-			textOffset += byteCount;
-		}
-
-		offset += textSectionBytes;
 		return offset;
 	}
 
@@ -979,24 +945,6 @@ public class EcsWorld : IDisposable
 			}
 		}
 
-		offset += sharedMemoryBytes;
-		if (snapshotPayload.Length < offset + sizeof(int)) return;
-
-		int textCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(offset, sizeof(int)));
-		offset += sizeof(int);
-		for (int index = 0; index < textCount; index++)
-		{
-			if (snapshotPayload.Length < offset + (sizeof(int) * 2)) return;
-
-			int id = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(offset, sizeof(int)));
-			offset += sizeof(int);
-			int byteCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(offset, sizeof(int)));
-			offset += sizeof(int);
-			if (byteCount < 0 || snapshotPayload.Length < offset + byteCount) return;
-
-			StringRegistry.RegisterRemote(id, Encoding.UTF8.GetString(snapshotPayload.Slice(offset, byteCount)));
-			offset += byteCount;
-		}
 	}
 
 	private unsafe void RestoreComponentFromTable<T>(byte* srcPtr, int* tableDir, int* stridesDir, int baseShift, int srcLen, int componentId, int count) where T : unmanaged
