@@ -890,6 +890,8 @@ public partial class GameHost : Node3D, IGameAPI
 	public bool CheatsEnabled
 		=> GameContext.SessionState.IsMapEditorMode || GameContext.SessionState.IsTestMode || (LobbyManager.Instance?.IsSinglePlayer ?? false);
 
+	public string GetStringText(int stringId) => Realm.MapAPI.StringRegistry.Get(stringId);
+
 	public float GameElapsedTime
 	{
 		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(ECSContext.WorldEntity, s => s.GameElapsedTime) ?? 0f;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace Realm.MapAPI;
 
@@ -106,17 +107,40 @@ public static class StringRegistry
 	}
 
 	/// <summary>
-	/// Retrieves the text registered for an identifier.
+	/// Retrieves the text registered for an identifier, asking the host for text this process has never seen.
 	/// </summary>
 	/// <param name="id">The identifier to resolve.</param>
-	/// <returns>The registered text, or an empty string when this process has never seen the identifier.</returns>
+	/// <returns>The registered text, or an empty string when no process knows the identifier.</returns>
+	/// <remarks>
+	/// Inside the map script sandbox a miss is forwarded to the host through <see cref="IGameAPI.GetStringText"/> and
+	/// cached locally, so an identifier written by the host into shared component memory becomes readable even when
+	/// the script never registered that text. Because identifiers are content hashes the sandbox can verify what it
+	/// receives: a host answer whose hash does not match the requested identifier is discarded.
+	/// </remarks>
 	public static string Get(int id)
 	{
 		if (id == 0) return string.Empty;
 		lock (_lock)
 		{
-			return _textById.TryGetValue(id, out string? text) ? text : string.Empty;
+			if (_textById.TryGetValue(id, out string? text)) return text;
 		}
+
+		return FetchFromHost(id);
+	}
+
+	private static string FetchFromHost(int id)
+	{
+		if (RuntimeInformation.ProcessArchitecture != Architecture.Wasm) return string.Empty;
+
+		IGameAPI? gameApi = GameAPI.Current;
+		if (gameApi == null) return string.Empty;
+
+		string fetched = gameApi.GetStringText(id);
+		if (string.IsNullOrEmpty(fetched)) return string.Empty;
+		if (ComputeId(fetched) != id) return string.Empty;
+
+		RegisterRemote(id, fetched);
+		return fetched;
 	}
 
 	/// <summary>

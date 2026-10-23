@@ -82,6 +82,7 @@ interface game-api {
     get-resource-node-position-z: func(node-id: s32) -> f32;
     get-resource-node-type: func(node-id: s32) -> string;
     get-resource-nodes: func() -> list<s32>;
+    get-string-text: func(string-id: s32) -> string;
     get-unit-by-id: func(unique-id: s32) -> s32;
     get-unit-custom-data: func(unit-id: s32, key: string) -> string;
     get-unit-instance-name: func(unit-id: s32) -> string;

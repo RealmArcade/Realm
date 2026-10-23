@@ -2050,6 +2050,14 @@
             <param name="abilityId">The ability type identifier.</param>
             <returns>The localized or authored display name, or a fallback string if unauthored.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetStringText(System.Int32)">
+            <summary>
+            Resolves the text that a string identifier stands for, using the host's text table when the sandbox
+            has never registered that identifier itself.
+            </summary>
+            <param name="stringId">The content-hash identifier to resolve, as found in shared component memory.</param>
+            <returns>The text, or an empty string when no table entry exists for the identifier.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.EnableUnitAutoCombat(Realm.MapAPI.UnitId,System.Boolean)">
             <summary>
             Enables or disables automated combat AI for a specific unit instance.
@@ -4186,10 +4194,16 @@
         </member>
         <member name="M:Realm.MapAPI.StringRegistry.Get(System.Int32)">
             <summary>
-            Retrieves the text registered for an identifier.
+            Retrieves the text registered for an identifier, asking the host for text this process has never seen.
             </summary>
             <param name="id">The identifier to resolve.</param>
-            <returns>The registered text, or an empty string when this process has never seen the identifier.</returns>
+            <returns>The registered text, or an empty string when no process knows the identifier.</returns>
+            <remarks>
+            Inside the map script sandbox a miss is forwarded to the host through <see cref="M:Realm.MapAPI.IGameAPI.GetStringText(System.Int32)"/> and
+            cached locally, so an identifier written by the host into shared component memory becomes readable even when
+            the script never registered that text. Because identifiers are content hashes the sandbox can verify what it
+            receives: a host answer whose hash does not match the requested identifier is discarded.
+            </remarks>
         </member>
         <member name="M:Realm.MapAPI.StringRegistry.TryGetText(System.Int32,System.String@)">
             <summary>
