@@ -1646,9 +1646,7 @@ namespace Realm.Client.UI
 		{
 			if (_playerOwnerContainer != null) _playerOwnerContainer.Visible = false;
 			if (_btnOpenGlobalOverrides != null) _btnOpenGlobalOverrides.Visible = false;
-			if (_btnOpenAnimationPreview != null) _btnOpenAnimationPreview.Visible = false;
 			if (BtnEditVfx != null) BtnEditVfx.Visible = false;
-			if (BtnEditAttachments != null) BtnEditAttachments.Visible = false;
 			if (_rigStatusContainer != null) _rigStatusContainer.Visible = false;
 			if (_btnShowCoverage != null) _btnShowCoverage.Visible = false;
 			if (_lblInfoText != null) _lblInfoText.Visible = true;
@@ -1796,18 +1794,10 @@ namespace Realm.Client.UI
 						_lblRigStatus.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 					}
 				}
-
-				if (_btnOpenAnimationPreview != null)
-				{
-					_btnOpenAnimationPreview.Visible = true;
-					_btnOpenAnimationPreview.Disabled = !validation.IsValid;
-					_btnOpenAnimationPreview.TooltipText = validation.IsValid ? TranslationServer.Translate("Open animation preview turntable dialog") : TranslationServer.Translate("Animation preview is only available for compatible rigged meshes.");
-				}
 			}
 			else
 			{
 				if (_rigStatusContainer != null) _rigStatusContainer.Visible = false;
-				if (_btnOpenAnimationPreview != null) _btnOpenAnimationPreview.Visible = false;
 			}
 
 			string assetKey = GameContext.Host.GetSelectedEntityOrAssetKey(selected);
@@ -1825,13 +1815,6 @@ namespace Realm.Client.UI
 				BtnEditVfx.TooltipText = TranslationServer.Translate("Open Procedural VFX Studio to edit this effect");
 			}
 			else if (BtnEditVfx != null) BtnEditVfx.Visible = false;
-
-			if (BtnEditAttachments != null)
-			{
-				bool canAttach = selected is Unit3D;
-				BtnEditAttachments.Visible = canAttach;
-				if (canAttach) BtnEditAttachments.TooltipText = TranslationServer.Translate("Open Socket & VFX Attachment Studio for this unit or building");
-			}
 		}
 
 		public void UpdateGridSnapExternal(bool snap)
@@ -4446,23 +4429,6 @@ namespace Realm.Client.UI
 
 		private void InitInspectorActionButtons(VBoxContainer inspectorVBox)
 		{
-			_btnOpenAnimationPreview = new Button();
-			_btnOpenAnimationPreview.Name = "BtnOpenAnimationPreview";
-			_btnOpenAnimationPreview.Set("icon_max_width", 0);
-			_btnOpenAnimationPreview.Text = "✏️ " + TranslationServer.Translate("Edit Animations");
-			_btnOpenAnimationPreview.AddThemeFontSizeOverride("font_size", 11);
-			_btnOpenAnimationPreview.FocusMode = FocusModeEnum.None;
-			_btnOpenAnimationPreview.CustomMinimumSize = new Vector2(0, 28);
-			_btnOpenAnimationPreview.Visible = false;
-			_btnOpenAnimationPreview.Pressed += () =>
-			{
-				if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host.SelectedEditorObject))
-				{
-					_animationPreviewDialog?.OpenForObject(GameContext.Host.SelectedEditorObject);
-				}
-			};
-			inspectorVBox.AddChild(_btnOpenAnimationPreview);
-
 			_btnOpenGlobalOverrides = new Button();
 			_btnOpenGlobalOverrides.Name = "BtnOpenGlobalOverrides";
 			_btnOpenGlobalOverrides.Set("icon_max_width", 0);
@@ -4502,29 +4468,6 @@ namespace Realm.Client.UI
 				}
 			};
 			inspectorVBox.AddChild(BtnEditVfx);
-
-			BtnEditAttachments = new Button();
-			BtnEditAttachments.Name = "BtnEditAttachments";
-			BtnEditAttachments.Set("icon_max_width", 0);
-			BtnEditAttachments.Text = "📎 " + TranslationServer.Translate("Sockets & VFX");
-			BtnEditAttachments.AddThemeFontSizeOverride("font_size", 11);
-			BtnEditAttachments.FocusMode = FocusModeEnum.None;
-			BtnEditAttachments.CustomMinimumSize = new Vector2(0, 28);
-			BtnEditAttachments.Visible = false;
-			BtnEditAttachments.Pressed += () =>
-			{
-				if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host.SelectedEditorObject))
-				{
-					var sel = GameContext.Host.SelectedEditorObject;
-					if (sel is Unit3D u)
-					{
-						bool isBuilding = u.IsBuilding || (GameHost.BuildingRegistry != null && GameHost.BuildingRegistry.ContainsKey(u.UnitId));
-						string defaultSocket = isBuilding ? "Center" : "RightHand";
-						OpenObjectAttachmentDialog(u.UnitId, null, defaultSocket, u, (orient) => { u.ApplyAllConfiguredAttachments(); });
-					}
-				}
-			};
-			inspectorVBox.AddChild(BtnEditAttachments);
 		}
 
 		public void OpenWeaponVfxDialog(string weaponId, WeaponMetadata weapon, Action<WeaponMetadata> onApplied = null)

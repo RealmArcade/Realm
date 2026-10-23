@@ -233,9 +233,7 @@ public partial class MapEditorHUD : Control
 	private Label _lblMapNameHeader { get; set; }
 	private double _mapNameUpdateTimer { get; set; } = 0.0;
 	private Button _btnOpenGlobalOverrides { get; set; }
-	private Button _btnOpenAnimationPreview { get; set; }
 	private Button BtnEditVfx { get; set; }
-	private Button BtnEditAttachments { get; set; }
 	private Button BtnAssetsManager { get; set; }
 	private Button BtnTemplateManager { get; set; }
 	private Button BtnInstanceManager { get; set; }
