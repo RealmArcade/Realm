@@ -353,29 +353,6 @@ public partial class GameHost
 		GameContext.FXService.SpawnArrowProjectile(this, start, target);
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SyncPlayerResources(int playerSlot, float gold, float wood, float stone)
-	{
-		((IGameAPI)this).SetPlayerGold(playerSlot, gold);
-		((IGameAPI)this).SetPlayerWood(playerSlot, wood);
-		((IGameAPI)this).SetPlayerStone(playerSlot, stone);
-	}
-
-	private void SyncServerPlayerResources()
-	{
-		var resources = GameContext.NetworkService.GetServerPlayerResources(_peerIdToPlayerEntityMap, _localPeerId);
-		foreach (var res in resources)
-		{
-			if (_peerIdToPlayerEntityMap.TryGetValue(res.PeerId, out var playerEntity) &&
-			    GameContext.World.IsAlive(playerEntity) &&
-			    GameContext.World.Has<UnitOwnerPlayer>(playerEntity))
-			{
-				int slot = GameContext.World.Get<UnitOwnerPlayer>(playerEntity).PlayerIndex;
-				Rpc(nameof(SyncPlayerResources), slot, res.Gold, res.Wood, res.Stone);
-			}
-		}
-	}
-
 	public void RefreshReplicatedOverlayUi()
 	{
 		InGameHUD.Instance?.RefreshUI(SelectedUnits);
@@ -401,8 +378,6 @@ public partial class GameHost
 			ShadowClientVerifier.VerifyPayload(peerId, payload, isBaseline);
 			QueueOrSendPacket(peerId, isBaseline ? nameof(ReceiveBaselineSnapshot) : nameof(ReceiveSnapshot), payload);
 		}
-
-		SyncServerPlayerResources();
 	}
 
 	private void SpawnUnitFromSnapshot(UnitSnapshot snap)
@@ -612,14 +587,6 @@ public partial class GameHost
 		}
 	}
 
-	private void SyncReconnectedPlayerResources(int newPeerId, Entity playerEntity)
-	{
-		if (GameContext.NetworkService.TryGetReconnectedPlayerResources(playerEntity, out float gold, out float wood, out float stone))
-		{
-			RpcId(newPeerId, nameof(SyncPlayerResources), gold, wood, stone);
-		}
-	}
-
 	private void SyncReconnectedCountdown(int newPeerId)
 	{
 		if (GameContext.NetworkService.TryGetReconnectedCountdown(out float duration, out string text))
@@ -654,7 +621,6 @@ public partial class GameHost
 		Entity playerEntity = GameContext.NetworkService.ResolveReconnectedPlayerEntity(oldPeerId, newPeerId, _peerIdToPlayerEntityMap);
 		GameContext.NetworkService.UpdateReconnectedNetworkMapping(oldPeerId, newPeerId, playerEntity);
 		SendReconnectedBaselineSnapshot(newPeerId);
-		SyncReconnectedPlayerResources(newPeerId, playerEntity);
 		SyncReconnectedCountdown(newPeerId);
 		RegisterReconnectedAbilities(newPeerId);
 		SyncReconnectedPauseState(newPeerId);

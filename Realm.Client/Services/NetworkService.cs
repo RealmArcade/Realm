@@ -148,20 +148,6 @@ public class NetworkService
 		}
 	}
 
-	public bool TryGetReconnectedPlayerResources(Entity playerEntity, out float gold, out float wood, out float stone)
-	{
-		gold = 0;
-		wood = 0;
-		stone = 0;
-
-		if (playerEntity == Entity.Null || GameContext.World == null || !GameContext.World.IsAlive(playerEntity) || !GameContext.World.TryGet<PlayerResources>(playerEntity, out var res)) return false;
-
-		gold = res.Gold;
-		wood = res.Wood;
-		stone = res.Stone;
-		return true;
-	}
-
 	public bool TryGetReconnectedCountdown(out float duration, out string text)
 	{
 		duration = 0f;
@@ -2571,27 +2557,6 @@ public class NetworkService
 	public static bool IsPlayerEnemy(int playerIndex, int localPlayerIndex)
 	{
 		return ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
-	}
-
-	public List<(int PeerId, float Gold, float Wood, float Stone)> GetServerPlayerResources(Dictionary<int, Entity> peerIdToPlayerEntityMap, int localPeerId)
-	{
-		var result = new List<(int, float, float, float)>();
-
-		foreach (var kvp in peerIdToPlayerEntityMap)
-		{
-			int peerId = kvp.Key;
-			if (peerId == localPeerId) continue;
-
-			if (GameContext.World.IsAlive(kvp.Value) && GameContext.World.TryGet<PlayerResources>(kvp.Value, out var res))
-			{
-				float gold = res.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var g) ? g : 0;
-				float wood = res.TryGetValue(ECSContext.PlayerResourceService.WoodResourceId, out var w) ? w : 0;
-				float stone = res.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var s) ? s : 0;
-				result.Add((peerId, gold, wood, stone));
-			}
-		}
-
-		return result;
 	}
 
 	public void ToggleLocalPause()
