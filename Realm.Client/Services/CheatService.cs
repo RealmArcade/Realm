@@ -214,7 +214,7 @@ public class CheatService
 
 		if (service.UnlimitedPowerEnabled && playerEntity != Entity.Null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<SpellCooldowns>(playerEntity))
 		{
-			GameContext.World.Get<SpellCooldowns>(playerEntity).Value?.Clear();
+			GameContext.World.Mutate<SpellCooldowns>(playerEntity, (ref SpellCooldowns cooldowns) => cooldowns.Clear());
 		}
 
 		return (CheatResult.UnlimitedPower, 0);

@@ -80,7 +80,7 @@ public class ReplayService
 			GameContext.World.Add(playerEntity, new Name(p.Name));
 
 			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
-			GameContext.World.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
+			GameContext.World.Add(playerEntity, new SpellCooldowns(null));
 			GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
 
 			var resourcesDict = new Dictionary<ResourceId, int>

@@ -647,20 +647,10 @@ public class EcsWorld : IDisposable
 			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ModifierState>)(object)buffer;
 			b.ClearHandler = id => ColdPayloadRegistry<List<Realm.Ecs.Components.Stats.StatModifier>>.Free(b.Get(id).Handle);
 		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.SpellCooldowns))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.SpellCooldowns>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<Dictionary<string, float>>.Free(b.Get(id).Handle);
-		}
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.OccupiedZones))
 		{
 			var b = (ComponentBuffer<Realm.Ecs.Components.Core.OccupiedZones>)(object)buffer;
 			b.ClearHandler = id => ColdPayloadRegistry<HashSet<int>>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ProductionQueue))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ProductionQueue>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<List<string>>.Free(b.Get(id).Handle);
 		}
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptPlayersState))
 		{

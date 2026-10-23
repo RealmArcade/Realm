@@ -897,62 +897,57 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 	public void AddBuff(string buffId, float duration)
 	{
 		if (!_world.IsAlive(_entity)) return;
-		Dictionary<string, float> buffs;
+
 		if (_world.Has<Buffs>(_entity))
 		{
-			buffs = _world.Get<Buffs>(_entity).Value;
+			_world.Get<Buffs>(_entity).Set(buffId, duration, duration);
 		}
 		else
 		{
-			buffs = new Dictionary<string, float>();
-			_world.Add(_entity, new Buffs(buffs));
+			var buffs = new Buffs(null);
+			buffs.Set(buffId, duration, duration);
+			_world.Add(_entity, buffs);
 		}
 
-		buffs[buffId] = duration;
-
-		Dictionary<string, float> buffStateDict;
 		if (_world.Has<BuffState>(_entity))
 		{
-			buffStateDict = _world.Get<BuffState>(_entity).Value;
+			_world.Get<BuffState>(_entity).Set(buffId, duration, duration);
 		}
 		else
 		{
-			buffStateDict = new Dictionary<string, float>();
-			_world.Add(_entity, new BuffState(buffStateDict));
+			var buffState = new BuffState(null);
+			buffState.Set(buffId, duration, duration);
+			_world.Add(_entity, buffState);
 		}
-
-		buffStateDict[buffId] = duration;
 	}
 
 	public void RemoveBuff(string buffId)
 	{
 		if (!_world.IsAlive(_entity)) return;
+
 		if (_world.Has<Buffs>(_entity))
 		{
-			var buffs = _world.Get<Buffs>(_entity).Value;
-			buffs.Remove(buffId);
+			_world.Get<Buffs>(_entity).Remove(buffId);
 		}
 
 		if (_world.Has<BuffState>(_entity))
 		{
-			var buffs = _world.Get<BuffState>(_entity).Value;
-			buffs.Remove(buffId);
+			_world.Get<BuffState>(_entity).Remove(buffId);
 		}
 	}
 
 	public bool HasBuff(string buffId)
 	{
 		if (!_world.IsAlive(_entity)) return false;
+
 		if (_world.Has<BuffState>(_entity))
 		{
-			var buffs = _world.Get<BuffState>(_entity).Value;
-			return buffs.ContainsKey(buffId);
+			return _world.Get<BuffState>(_entity).TryGetValue(buffId, out _);
 		}
 
 		if (_world.Has<Buffs>(_entity))
 		{
-			var buffs = _world.Get<Buffs>(_entity).Value;
-			return buffs.ContainsKey(buffId);
+			return _world.Get<Buffs>(_entity).TryGetValue(buffId, out _);
 		}
 
 		return false;
@@ -973,9 +968,10 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 		if (_world.Has<BuffState>(_entity))
 		{
-			var buffState = _world.Get<BuffState>(_entity);
-			foreach (var buffKey in buffState.Value.Keys)
+			ref var buffState = ref _world.Get<BuffState>(_entity);
+			for (int buffIndex = 0; buffIndex < buffState.Count; buffIndex++)
 			{
+				string buffKey = buffState.GetKey(buffIndex);
 				if (BuffRegistry.BuffModifiers.TryGetValue(buffKey, out var mods))
 				{
 					foreach (var mod in mods)

@@ -798,19 +798,16 @@ public class InputService
 	{
 		if (GameContext.World.Has<Cooldowns>(entity))
 		{
-			var cds = GameContext.World.Get<Cooldowns>(entity).Value;
-			if (cds.TryGetValue(spellId, out float currentCd) && currentCd > 0f) return false;
-			cds[spellId] = cooldownMax;
+			ref var cooldowns = ref GameContext.World.Get<Cooldowns>(entity);
+			if (cooldowns.TryGetValue(spellId, out float currentCooldown) && currentCooldown > 0f) return false;
+			cooldowns.Set(spellId, cooldownMax, cooldownMax);
 		}
 
 		if (GameContext.World.Has<SpellCooldowns>(entity))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(entity).Value;
-			if (scd != null)
-			{
-				if (scd.TryGetValue(spellId, out float currentCd) && currentCd > 0f) return false;
-				scd[spellId] = cooldownMax;
-			}
+			ref var spellCooldowns = ref GameContext.World.Get<SpellCooldowns>(entity);
+			if (spellCooldowns.TryGetValue(spellId, out float currentCooldown) && currentCooldown > 0f) return false;
+			spellCooldowns.Set(spellId, cooldownMax, cooldownMax);
 		}
 
 		return true;
@@ -1334,11 +1331,8 @@ public class InputService
 		if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) return;
 		if (GameContext.World.Has<SpellCooldowns>(playerEntity))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(playerEntity).Value;
-			if (scd != null)
-			{
-				scd[spellId] = cooldown;
-			}
+			ref var spellCooldowns = ref GameContext.World.Get<SpellCooldowns>(playerEntity);
+			spellCooldowns.Set(spellId, cooldown, cooldown);
 		}
 	}
 
@@ -1347,11 +1341,8 @@ public class InputService
 		if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) return 0f;
 		if (GameContext.World.Has<SpellCooldowns>(playerEntity))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(playerEntity).Value;
-			if (scd != null && scd.TryGetValue(spellId, out float cd))
-			{
-				return cd;
-			}
+			var spellCooldowns = GameContext.World.Get<SpellCooldowns>(playerEntity);
+			if (spellCooldowns.TryGetValue(spellId, out float remaining)) return remaining;
 		}
 
 		return 0f;

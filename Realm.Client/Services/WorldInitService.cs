@@ -71,7 +71,7 @@ public class WorldInitService
 			};
 			GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
 			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
-			GameContext.World.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
+			GameContext.World.Add(playerEntity, new SpellCooldowns(null));
 			GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
 			GameContext.World.Add(playerEntity, new PlayerTeam(defaultPlayers[i].Team, defaultPlayers[i].TeamNameStringId));
 			GameContext.World.GetBuffer<ScriptPlayer>().Set(i, in defaultPlayers[i]);

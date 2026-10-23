@@ -609,7 +609,7 @@ namespace Realm.Client.Services
 
 		private bool TryHandleStun(Entity entity)
 		{
-			if (!GameContext.World.Has<Buffs>(entity) || !GameContext.World.Get<Buffs>(entity).Value.ContainsKey("stun"))
+			if (!GameContext.World.Has<Buffs>(entity) || !GameContext.World.Get<Buffs>(entity).TryGetValue("stun", out _))
 				return false;
 
 			if (GameContext.World.Has<Velocity>(entity))

@@ -916,8 +916,8 @@ public partial class GameHost : Node3D, IGameAPI
 		if (GameContext.World == null || pe == Entity.Null || !GameContext.World.IsAlive(pe)) return 0f;
 		if (GameContext.World.Has<SpellCooldowns>(pe))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(pe).Value;
-			if (scd != null && scd.TryGetValue(abilityId, out float val)) return val;
+			var spellCooldowns = GameContext.World.Get<SpellCooldowns>(pe);
+			if (spellCooldowns.TryGetValue(abilityId, out float remaining)) return remaining;
 		}
 
 		return 0f;
@@ -929,8 +929,8 @@ public partial class GameHost : Node3D, IGameAPI
 		if (GameContext.World == null || pe == Entity.Null || !GameContext.World.IsAlive(pe)) return;
 		if (GameContext.World.Has<SpellCooldowns>(pe))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(pe).Value;
-			if (scd != null) scd[abilityId] = cooldown;
+			ref var spellCooldowns = ref GameContext.World.Get<SpellCooldowns>(pe);
+			spellCooldowns.Set(abilityId, cooldown, cooldown);
 		}
 	}
 
@@ -1057,7 +1057,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private void SetupPlayerEntityComponents(Entity playerEntity)
 	{
 		GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
-		GameContext.World.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
+		GameContext.World.Add(playerEntity, new SpellCooldowns(null));
 		GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
 	}
 

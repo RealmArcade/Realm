@@ -249,8 +249,6 @@ public class SimulationService
 	private Vector3 _autoCastBestEnemyPos;
 	private readonly MovementAndPathfindingService.SpatialGridEntryCallback _autoCastEnemyCallback;
 
-	private readonly List<string> _tickExpiredBuffs = new();
-	private readonly List<string> _tickBuffKeys = new();
 	private readonly List<(Entity Entity, Patrol Patrol)> _tickPatrolToFlip = new();
 	private readonly List<Entity> _tickFollowToStop = new();
 	private readonly List<(Entity Follower, Vector3 TargetPos)> _tickFollowToMove = new();
@@ -1168,41 +1166,12 @@ public class SimulationService
 
 	private void UpdateBuffsQueryAction(Entity entity, ref Buffs buffs)
 	{
-		UpdateBuffDictionary(buffs.Value, _fDelta);
+		buffs.Advance(_fDelta);
 	}
 
 	private void UpdateBuffStateQueryAction(Entity entity, ref BuffState buffs)
 	{
-		UpdateBuffDictionary(buffs.Value, _fDelta);
-	}
-
-	private void UpdateBuffDictionary(Dictionary<string, float> buffsDict, float delta)
-	{
-		_tickBuffKeys.Clear();
-		_tickExpiredBuffs.Clear();
-		foreach (var key in buffsDict.Keys)
-		{
-			_tickBuffKeys.Add(key);
-		}
-
-		for (int i = 0; i < _tickBuffKeys.Count; i++)
-		{
-			string key = _tickBuffKeys[i];
-			float newTime = buffsDict[key] - delta;
-			if (newTime <= 0)
-			{
-				_tickExpiredBuffs.Add(key);
-			}
-			else
-			{
-				buffsDict[key] = newTime;
-			}
-		}
-
-		for (int i = 0; i < _tickExpiredBuffs.Count; i++)
-		{
-			buffsDict.Remove(_tickExpiredBuffs[i]);
-		}
+		buffs.Advance(_fDelta);
 	}
 
 	private bool UpdateModifiers(Entity entity, ref ModifierState modState)
@@ -1238,7 +1207,7 @@ public class SimulationService
 		bool hadExpiredModifiers = UpdateEntityModifiers(entity);
 
 		bool hasModifiers = GameContext.World.Has<ModifierState>(entity) && GameContext.World.Get<ModifierState>(entity).Value.Count > 0;
-		bool hasBuffs = GameContext.World.Has<BuffState>(entity) && GameContext.World.Get<BuffState>(entity).Value.Count > 0;
+		bool hasBuffs = GameContext.World.Has<BuffState>(entity) && GameContext.World.Get<BuffState>(entity).Count > 0;
 
 		if (!hasModifiers && !hasBuffs && !hadExpiredModifiers)
 		{
@@ -1290,9 +1259,11 @@ public class SimulationService
 	{
 		if (!GameContext.World.Has<BuffState>(entity)) return;
 		var buffState = GameContext.World.Get<BuffState>(entity);
-		foreach (var buffKey in buffState.Value.Keys)
+		for (int index = 0; index < buffState.Count; index++)
 		{
-			if (!BuffRegistry.BuffModifiers.TryGetValue(buffKey, out var mods)) continue;
+			string? buffId = buffState.GetKey(index);
+			if (buffId == null) continue;
+			if (!BuffRegistry.BuffModifiers.TryGetValue(buffId, out var mods)) continue;
 			for (int i = 0; i < mods.Count; i++) ApplyMod(mods[i], ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
 		}
 	}
@@ -1533,7 +1504,6 @@ public class SimulationService
 		return null;
 	}
 
-	private readonly List<string> _tickExpiredCooldowns = new();
 	public readonly Dictionary<int, Unit_WasmRuntime> UnitWrapperCache = new();
 	public readonly HashSet<Entity> WarnedNonFinitePositions = new();
 	public const int WarnedNonFinitePositionsLimit = 512;
@@ -1544,42 +1514,15 @@ public class SimulationService
 	public readonly List<Entity> CompletedBuildings = new();
 	public readonly List<(Entity Entity, string? Type, Vector3 Position, Entity Target)> PendingQueuedCommands = new();
 
-	private readonly List<string> _tickCooldownKeys = new();
-
 	private void CooldownsQueryAction(Entity entity, ref Cooldowns cooldowns)
 	{
-		var dict = cooldowns.Value;
 		if (GameHost.Instance != null && GameContext.CheatService.UnlimitedPowerEnabled)
 		{
-			dict.Clear();
+			cooldowns.Clear();
 			return;
 		}
 
-		_tickCooldownKeys.Clear();
-		_tickExpiredCooldowns.Clear();
-		foreach (var key in dict.Keys)
-		{
-			_tickCooldownKeys.Add(key);
-		}
-
-		for (int i = 0; i < _tickCooldownKeys.Count; i++)
-		{
-			string key = _tickCooldownKeys[i];
-			float newTime = dict[key] - _fDelta;
-			if (newTime <= 0)
-			{
-				_tickExpiredCooldowns.Add(key);
-			}
-			else
-			{
-				dict[key] = newTime;
-			}
-		}
-
-		for (int i = 0; i < _tickExpiredCooldowns.Count; i++)
-		{
-			dict.Remove(_tickExpiredCooldowns[i]);
-		}
+		cooldowns.Advance(_fDelta);
 	}
 
 	public void EnqueueVFXRequest(string effectTypeId, Vector3 position, Vector3 targetPosition, float scale = 1.0f, float speed = 0f, int entityId = -1, int ownerPlayerIndex = 0)
@@ -1690,45 +1633,15 @@ public class SimulationService
 		mana.Current = Math.Min(mana.Max, mana.Current + regen.PerSecond * _fDelta);
 	}
 
-	private readonly List<string> _tickExpiredSpellCooldowns = new();
-	private readonly List<string> _tickSpellCooldownKeys = new();
-
 	private void SpellCooldownQueryAction(Entity entity, ref SpellCooldowns spellCooldowns)
 	{
-		var dict = spellCooldowns.Value;
-		if (dict == null) return;
-
 		if (GameHost.Instance != null && GameContext.CheatService.UnlimitedPowerEnabled)
 		{
-			dict.Clear();
+			spellCooldowns.Clear();
 			return;
 		}
 
-		_tickSpellCooldownKeys.Clear();
-		_tickExpiredSpellCooldowns.Clear();
-		foreach (var key in dict.Keys)
-		{
-			_tickSpellCooldownKeys.Add(key);
-		}
-
-		for (int i = 0; i < _tickSpellCooldownKeys.Count; i++)
-		{
-			string key = _tickSpellCooldownKeys[i];
-			float newTime = dict[key] - _fDelta;
-			if (newTime <= 0f)
-			{
-				_tickExpiredSpellCooldowns.Add(key);
-			}
-			else
-			{
-				dict[key] = newTime;
-			}
-		}
-
-		for (int i = 0; i < _tickExpiredSpellCooldowns.Count; i++)
-		{
-			dict.Remove(_tickExpiredSpellCooldowns[i]);
-		}
+		spellCooldowns.Advance(_fDelta);
 	}
 
 	private void ProdQueryAction(Entity entity, ref ProductionQueue prod)
@@ -2040,14 +1953,14 @@ public class SimulationService
 
 		if (GameContext.World.Has<BuffState>(entity))
 		{
-			var buffs = GameContext.World.Get<BuffState>(entity).Value;
-			if (buffs.ContainsKey("silence") || buffs.ContainsKey("stun")) return;
+			ref var buffState = ref GameContext.World.Get<BuffState>(entity);
+			if (buffState.TryGetValue("silence", out _) || buffState.TryGetValue("stun", out _)) return;
 		}
 
 		if (GameContext.World.Has<Buffs>(entity))
 		{
-			var buffs = GameContext.World.Get<Buffs>(entity).Value;
-			if (buffs.ContainsKey("silence") || buffs.ContainsKey("stun")) return;
+			ref var buffs = ref GameContext.World.Get<Buffs>(entity);
+			if (buffs.TryGetValue("silence", out _) || buffs.TryGetValue("stun", out _)) return;
 		}
 
 		string unitTypeId = defId.Value;
@@ -2186,20 +2099,14 @@ public class SimulationService
 		{
 			if (GameContext.World.Has<Cooldowns>(entity))
 			{
-				var cds = GameContext.World.Get<Cooldowns>(entity).Value;
-				if (cds.TryGetValue(abilityId, out var val))
-				{
-					return val;
-				}
+				var cooldowns = GameContext.World.Get<Cooldowns>(entity);
+				if (cooldowns.TryGetValue(abilityId, out float remaining)) return remaining;
 			}
 
 			if (GameContext.World.Has<SpellCooldowns>(entity))
 			{
-				var scds = GameContext.World.Get<SpellCooldowns>(entity).Value;
-				if (scds != null && scds.TryGetValue(abilityId, out var val))
-				{
-					return val;
-				}
+				var spellCooldowns = GameContext.World.Get<SpellCooldowns>(entity);
+				if (spellCooldowns.TryGetValue(abilityId, out float remaining)) return remaining;
 			}
 		}
 
@@ -2210,29 +2117,19 @@ public class SimulationService
 	{
 		if (TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
 		{
-			Dictionary<string, float> dict;
-			if (GameContext.World.Has<Cooldowns>(entity))
+			if (!GameContext.World.Has<Cooldowns>(entity))
 			{
-				dict = GameContext.World.Get<Cooldowns>(entity).Value;
+				GameContext.World.Add(entity, new Cooldowns(null));
 			}
-			else
-			{
-				dict = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
-				GameContext.World.Add(entity, new Cooldowns(dict));
-			}
+			ref var cooldowns = ref GameContext.World.Get<Cooldowns>(entity);
+			cooldowns.Set(abilityId, cooldown, cooldown);
 
-			dict[abilityId] = cooldown;
-
-			if (GameContext.World.Has<SpellCooldowns>(entity))
+			if (!GameContext.World.Has<SpellCooldowns>(entity))
 			{
-				var scd = GameContext.World.Get<SpellCooldowns>(entity).Value;
-				if (scd != null) scd[abilityId] = cooldown;
+				GameContext.World.Add(entity, new SpellCooldowns(null));
 			}
-			else
-			{
-				var scdDict = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase) { [abilityId] = cooldown };
-				GameContext.World.Add(entity, new SpellCooldowns(scdDict));
-			}
+			ref var spellCooldowns = ref GameContext.World.Get<SpellCooldowns>(entity);
+			spellCooldowns.Set(abilityId, cooldown, cooldown);
 		}
 	}
 

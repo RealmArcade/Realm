@@ -182,8 +182,8 @@ public partial class CommandPanel
 
 		if (world.Has<Cooldowns>(caster))
 		{
-			var cds = world.Get<Cooldowns>(caster).Value;
-			if (cds.TryGetValue(abilityId, out float val))
+			ref var cooldowns = ref world.Get<Cooldowns>(caster);
+			if (cooldowns.TryGetValue(abilityId, out float val))
 			{
 				cdRemaining = val;
 			}
@@ -191,8 +191,8 @@ public partial class CommandPanel
 
 		if (world.Has<SpellCooldowns>(caster))
 		{
-			var scd = world.Get<SpellCooldowns>(caster).Value;
-			if (scd != null && scd.TryGetValue(abilityId, out float val))
+			ref var spellCooldowns = ref world.Get<SpellCooldowns>(caster);
+			if (spellCooldowns.TryGetValue(abilityId, out float val))
 			{
 				cdRemaining = Math.Max(cdRemaining, val);
 			}
@@ -1307,13 +1307,14 @@ public partial class CommandPanel
 
 		if (world.Has<Cooldowns>(casterEntity))
 		{
-			if (world.Get<Cooldowns>(casterEntity).Value.TryGetValue(abilityId, out float cd) && cd > 0f) return true;
+			ref var cooldowns = ref world.Get<Cooldowns>(casterEntity);
+			if (cooldowns.TryGetValue(abilityId, out float cooldown) && cooldown > 0f) return true;
 		}
 
 		if (world.Has<SpellCooldowns>(casterEntity))
 		{
-			var scd = world.Get<SpellCooldowns>(casterEntity).Value;
-			if (scd?.TryGetValue(abilityId, out float cd) == true && cd > 0f) return true;
+			ref var spellCooldowns = ref world.Get<SpellCooldowns>(casterEntity);
+			if (spellCooldowns.TryGetValue(abilityId, out float spellCooldown) && spellCooldown > 0f) return true;
 		}
 
 		return false;

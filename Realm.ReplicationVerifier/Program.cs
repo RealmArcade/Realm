@@ -300,6 +300,45 @@ secondQueue.Clear();
 Check(secondQueue.Count == 0 && secondQueue.Handle == 0, "clearing a queue drops the payload");
 Check(firstQueue.Get(3) == null && firstQueue.RemoveAt(5) == null, "reads and removals outside the queue report nothing");
 
+var seededBuffState = new BuffState(new Dictionary<string, float> { { "stun", 3f } });
+Check(seededBuffState.Count == 1 && seededBuffState.TryGetValue("stun", out float seededRemaining) && seededRemaining == 3f, "a seeded buff state keeps the authored duration as remaining time");
+Check(seededBuffState.TryGetDuration("stun", out float seededDuration) && seededDuration == 3f, "a seeded buff state keeps the authored duration as its total");
+
+var timedBuffs = new Buffs(null);
+timedBuffs.Set("stun", 2f, 2f);
+timedBuffs.Set("slow", 5f, 6f);
+Check(timedBuffs.Count == 2 && timedBuffs.GetKey(0) == "stun" && timedBuffs.GetKey(1) == "slow", "status slots keep insertion order");
+Check(timedBuffs.TryGetDuration("slow", out float slowDuration) && slowDuration == 6f, "a status slot keeps its original duration beside the remaining time");
+
+timedBuffs.Advance(2.5f);
+Check(timedBuffs.Count == 1 && !timedBuffs.TryGetValue("stun", out _) && timedBuffs.GetKey(0) == "slow", "advancing a status drops the expired slot and keeps the rest");
+Check(timedBuffs.TryGetValue("slow", out float slowRemaining) && Math.Abs(slowRemaining - 2.5f) < 0.0001f, "advancing a status keeps the exact remaining time");
+
+timedBuffs.Set("stun", 1f, 1f);
+Check(timedBuffs.Count == 2 && timedBuffs.TryGetValue("stun", out _), "re-applying an expired status takes the freed slot");
+timedBuffs.Remove("stun");
+Check(timedBuffs.Count == 1 && timedBuffs.GetKey(0) == "slow" && !timedBuffs.TryGetValue("stun", out _), "removing a status compacts the slots");
+Check(!timedBuffs.TryGetValue(null, out _) && !timedBuffs.TryGetValue(string.Empty, out _), "a missing status id reports a miss");
+
+var saturatedCooldowns = new Cooldowns(null);
+for (int index = 0; index < BuffSlotArray.Capacity; index++)
+{
+	saturatedCooldowns.Set($"action_{index}", index + 2f, 10f);
+}
+Check(saturatedCooldowns.Count == BuffSlotArray.Capacity, "a cooldown store fills every slot the component holds");
+saturatedCooldowns.Set("action_overflow", 1f, 10f);
+Check(saturatedCooldowns.Count == BuffSlotArray.Capacity && saturatedCooldowns.TryGetValue("action_overflow", out _), "a full cooldown store accepts the newest entry");
+Check(!saturatedCooldowns.TryGetValue("action_0", out _), "a full cooldown store evicts the entry that was about to expire");
+Check(saturatedCooldowns.TryGetValue("action_1", out _) && saturatedCooldowns.TryGetValue($"action_{BuffSlotArray.Capacity - 1}", out _), "eviction keeps every other entry");
+
+var spellTimers = new SpellCooldowns(null);
+spellTimers.Set("meteor", 3f, 12f);
+spellTimers.Advance(1f);
+Check(spellTimers.TryGetValue("meteor", out float meteorRemaining) && Math.Abs(meteorRemaining - 2f) < 0.0001f, "a spell timer advances without losing its identity");
+Check(spellTimers.TryGetDuration("meteor", out float meteorDuration) && meteorDuration == 12f, "a spell timer keeps the full cooldown beside the remaining time");
+spellTimers.Clear();
+Check(spellTimers.Count == 0 && !spellTimers.TryGetValue("meteor", out _), "clearing a spell timer list frees every slot");
+
 ColdPayloadRegistry<List<string>>.Reset();
 const string sharedContentKey = "production_queue|worker,farm";
 int sharedHandle = ColdPayloadRegistry<List<string>>.Share(new List<string> { "worker", "farm" }, sharedContentKey);
