@@ -33,7 +33,7 @@ public partial class ReplicationContractTests
 		"Gatherer", "ResourceNode", "ResourceCost", "BuildQueue",
 		"BuildTask", "ConstructionState", "Food", "Gold",
 		"Stone", "Wood", "ArmorStat", "AttackDamage",
-		"AttackSpeed", "DerivedCombatStats", "HealthStat", "MovementSpeed",
+		"AttackSpeedMultiplier", "AttackSpeedStat", "DerivedCombatStats", "HealthStat", "MovementSpeed",
 		"StatModifier", "Stats", "UnitAttributes", "UnitBaseStats",
 		"Attackable", "Building", "BypassPopulationTag", "Caster",
 		"Dead", "Hero", "Movable", "Player",

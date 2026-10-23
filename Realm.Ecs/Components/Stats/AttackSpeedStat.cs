@@ -8,4 +8,4 @@ namespace Realm.Ecs.Components.Stats;
 /// </summary>
 [StatDefinition("AttackSpeed", "Attack Speed", "The speed at which attacks are performed.")]
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
-public readonly record struct AttackSpeed;
+public readonly record struct AttackSpeedStat;

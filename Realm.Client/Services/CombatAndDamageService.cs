@@ -1096,9 +1096,9 @@ namespace Realm.Client.Services
 
 		private float GetEffectiveAttackCooldown(Entity entity, float baseCooldown)
 		{
-			if (GameContext.World.Has<AttackSpeed>(entity))
+			if (GameContext.World.Has<AttackSpeedMultiplier>(entity))
 			{
-				float multiplier = GameContext.World.Get<AttackSpeed>(entity).Multiplier;
+				float multiplier = GameContext.World.Get<AttackSpeedMultiplier>(entity).Multiplier;
 				if (multiplier > 0f)
 				{
 					return baseCooldown / multiplier;

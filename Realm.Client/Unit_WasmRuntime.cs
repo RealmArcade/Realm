@@ -17,7 +17,6 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
-using AttackSpeed = Realm.Ecs.Components.Combat.AttackSpeed;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
@@ -564,9 +563,9 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 1f;
-			if (_world.Has<AttackSpeed>(_entity))
+			if (_world.Has<AttackSpeedMultiplier>(_entity))
 			{
-				return _world.Get<AttackSpeed>(_entity).Multiplier;
+				return _world.Get<AttackSpeedMultiplier>(_entity).Multiplier;
 			}
 
 			return 1f;
@@ -574,7 +573,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		set
 		{
 			if (!_world.IsAlive(_entity) || value <= 0f) return;
-			_world.SetOrAdd(_entity, new AttackSpeed(value));
+			_world.SetOrAdd(_entity, new AttackSpeedMultiplier(value));
 		}
 	}
 
