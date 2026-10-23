@@ -201,7 +201,11 @@ namespace Realm.Client.Services
 			var scope = new ServiceScope("Screen");
 			scope.RegisterCleanup<ShroudService>(static service => service.CleanUp());
 			scope.RegisterCleanup<EnvironmentService>(static service => service.Cleanup());
-			scope.RegisterCleanup<EditorService>(static service => service.ResetAllState());
+			scope.RegisterCleanup<EditorService>(static service =>
+			{
+				service.StopWorkspaceWatcher();
+				service.ResetAllState();
+			});
 			scope.RegisterCleanup<ModelOverrideService>(static service => service.ClearAll());
 			scope.RegisterCleanup<RegistryService>(static service => service.ClearAll());
 			scope.RegisterCleanup<MapScriptService>(static service => service.ClearAll());

@@ -2700,6 +2700,10 @@ public partial class GameHost : Node3D, IGameAPI
 		ResolveServices();
 
 		GameContext.SessionState.IsMapEditorMode = wasMapEditorMode;
+		if (wasMapEditorMode)
+		{
+			GameContext.EditorService.OpenTempWorkspaceSessionDomain();
+		}
 		GameContext.SaveLoadService.IsLoadingMap = wasLoadingMap;
 		if (wasProfilingEnabled)
 		{
