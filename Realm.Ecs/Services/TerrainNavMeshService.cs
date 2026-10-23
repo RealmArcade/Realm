@@ -560,7 +560,7 @@ public class TerrainNavMeshService
 		var bakeHeights = GetBakeHeights(in state, width, depth);
 
 		var geom = CreateInputGeom(bakeHeights, width, depth, quadSize);
-		AddObstacleVolumes(obstacles, geom, bakeHeights, width, depth, quadSize, halfW, halfD);
+		AddObstacleVolumes(obstacles, geom, bakeHeights, width, depth, quadSize, state.CellSize, halfW, halfD);
 		AddUnwalkableVolumes(in state, geom, width, depth, quadSize);
 
 		BuildNavMesh(ref state, geom, width, depth, quadSize);
@@ -591,7 +591,7 @@ public class TerrainNavMeshService
 		return bakeHeights;
 	}
 
-	private void AddObstacleVolumes(List<(Vector3 Pos, float Radius)> obstacles, SimpleInputGeomProvider geom, float[,] bakeHeights, int width, int depth, float quadSize, float halfW, float halfD)
+	private void AddObstacleVolumes(List<(Vector3 Pos, float Radius)> obstacles, SimpleInputGeomProvider geom, float[,] bakeHeights, int width, int depth, float quadSize, float cellSize, float halfW, float halfD)
 	{
 		const int segments = 16;
 		foreach (var obs in obstacles)
@@ -599,7 +599,7 @@ public class TerrainNavMeshService
 			float radius = obs.Radius;
 			if (radius <= GameplayConstants.MinimumAuthoredCollisionRadius) continue;
 
-			float effectiveRadius = Math.Max(quadSize * 0.5f, radius - quadSize * 0.51f);
+			float effectiveRadius = radius + AgentRadius + cellSize * 0.5f;
 			float ground = SampleBakeHeight(bakeHeights, obs.Pos.X, obs.Pos.Z, width, depth, quadSize, halfW, halfD);
 
 			var volumeVerts = new float[segments * 3];
