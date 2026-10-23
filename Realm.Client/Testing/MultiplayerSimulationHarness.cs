@@ -267,6 +267,7 @@ public partial class MultiplayerSimulationHarness : Node
 		TryWriteReadyFile();
 		GameHost currentHost = GameHost.Instance!;
 		GD.Print($"[MP_HARNESS] {(isHost ? "Host" : "Client")} simulation ready at game time {currentHost.GameElapsedTime:F2}s with {currentHost.AllUnits.Count} units.");
+		GD.Print($"[MP_HARNESS] Active workspace '{MapWorkspaceService.GetActiveWorkspacePath()}' resolved from map directory '{GameContext.MapStorageService?.CurrentMapDirectory}'.");
 		return true;
 	}
 

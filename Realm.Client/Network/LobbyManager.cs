@@ -411,8 +411,8 @@ public partial class LobbyManager : BaseMapTransferNode
 		PlayerList.Clear();
 		LastLobbyWarning = null;
 
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		var metadata = MapFileService.LoadMetadata(wsPath);
+		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
+		var metadata = MapFileService.LoadMetadata(mapDirectory ?? string.Empty);
 		MaxPlayers = metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
 		int requestedAiCount = Math.Max(0, metadata.MapProperties?.TestAiPlayerCount ?? 1);
 		int aiCount = Math.Min(requestedAiCount, Math.Max(0, MaxPlayers - 1));
