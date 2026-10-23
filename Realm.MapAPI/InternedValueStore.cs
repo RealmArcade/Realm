@@ -46,6 +46,7 @@ public static class InternedValueStore
 	private static readonly Dictionary<int, InternedEntry> _entryById = new Dictionary<int, InternedEntry>();
 	private static readonly Dictionary<string, int> _textIdByText = new Dictionary<string, int>(StringComparer.Ordinal);
 	private static readonly List<InternedEntry> _registeredEntries = new List<InternedEntry>();
+	private static readonly List<InternedEntry> _registeredTextEntries = new List<InternedEntry>();
 	private static readonly object _lock = new object();
 
 	private static int _collisionCount;
@@ -104,13 +105,7 @@ public static class InternedValueStore
 		{
 			lock (_lock)
 			{
-				int count = 0;
-				for (int index = 0; index < _registeredEntries.Count; index++)
-				{
-					if (_registeredEntries[index].Kind == TextKind) count++;
-				}
-
-				return count;
+				return _registeredTextEntries.Count;
 			}
 		}
 	}
@@ -308,22 +303,25 @@ public static class InternedValueStore
 	/// Copies the text entries a peer has not received yet into a caller supplied buffer, and reports the cursor
 	/// that peer should pass next time.
 	/// </summary>
-	/// <param name="cursor">The cursor previously returned for this peer, or zero to copy every entry.</param>
+	/// <remarks>
+	/// The cursor counts text entries only, so registering a payload of another kind between two texts never
+	/// advances it past a text the peer has not received.
+	/// </remarks>
+	/// <param name="cursor">The cursor previously returned for this peer, or zero to copy every text entry.</param>
 	/// <param name="destination">The list that receives the entries.</param>
-	/// <returns>The cursor that stands for the end of the table after this copy.</returns>
+	/// <returns>The cursor that stands for the end of the text table after this copy.</returns>
 	public static int GetTextEntriesSince(int cursor, List<(int Id, string Text)> destination)
 	{
 		lock (_lock)
 		{
-			int start = Math.Clamp(cursor, 0, _registeredEntries.Count);
-			for (int index = start; index < _registeredEntries.Count; index++)
+			int start = Math.Clamp(cursor, 0, _registeredTextEntries.Count);
+			for (int index = start; index < _registeredTextEntries.Count; index++)
 			{
-				InternedEntry entry = _registeredEntries[index];
-				if (entry.Kind != TextKind) continue;
+				InternedEntry entry = _registeredTextEntries[index];
 				destination.Add((entry.Id, entry.Text));
 			}
 
-			return _registeredEntries.Count;
+			return _registeredTextEntries.Count;
 		}
 	}
 
@@ -385,6 +383,7 @@ public static class InternedValueStore
 			_entryById.Clear();
 			_textIdByText.Clear();
 			_registeredEntries.Clear();
+			_registeredTextEntries.Clear();
 			_collisionCount = 0;
 			_collisionSummary = string.Empty;
 		}
@@ -509,8 +508,11 @@ public static class InternedValueStore
 	private static void Store(InternedEntry entry)
 	{
 		_entryById[entry.Id] = entry;
-		if (entry.Kind == TextKind) _textIdByText[entry.Text] = entry.Id;
 		_registeredEntries.Add(entry);
+		if (entry.Kind != TextKind) return;
+
+		_textIdByText[entry.Text] = entry.Id;
+		_registeredTextEntries.Add(entry);
 	}
 
 	private static int ComputeTextFallbackId(string text)

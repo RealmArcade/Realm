@@ -3281,9 +3281,13 @@
             Copies the text entries a peer has not received yet into a caller supplied buffer, and reports the cursor
             that peer should pass next time.
             </summary>
-            <param name="cursor">The cursor previously returned for this peer, or zero to copy every entry.</param>
+            <remarks>
+            The cursor counts text entries only, so registering a payload of another kind between two texts never
+            advances it past a text the peer has not received.
+            </remarks>
+            <param name="cursor">The cursor previously returned for this peer, or zero to copy every text entry.</param>
             <param name="destination">The list that receives the entries.</param>
-            <returns>The cursor that stands for the end of the table after this copy.</returns>
+            <returns>The cursor that stands for the end of the text table after this copy.</returns>
         </member>
         <member name="M:Realm.MapAPI.InternedValueStore.TryGetKind(System.Int32,System.Byte@)">
             <summary>

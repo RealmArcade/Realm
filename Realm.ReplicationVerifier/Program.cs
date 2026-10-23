@@ -256,6 +256,18 @@ Check(tableDump.Contains($"{StringRegistry.EntryCount} entries", StringCompariso
 Check(StringRegistry.CollisionCount == 0, $"built-in strings do not collide ({StringRegistry.CollisionSummary})");
 Check(StringRegistry.GetOrAdd(string.Empty) == 0 && StringRegistry.GetOrAdd(null) == 0, "empty text keeps the reserved zero id");
 
+StringRegistry.Reset();
+int firstCursorText = StringRegistry.GetOrAdd("cursor probe one");
+var cursorFirstBatch = new List<(int Id, string Text)>();
+int textCursor = StringRegistry.GetEntriesSince(0, cursorFirstBatch);
+Check(cursorFirstBatch.Count == 1 && cursorFirstBatch[0].Id == firstCursorText && textCursor == 1, "an empty text cursor publishes the text table");
+
+InternedValueStore.GetOrAddTextList(new[] { firstCursorText });
+int secondCursorText = StringRegistry.GetOrAdd("cursor probe two");
+var cursorSecondBatch = new List<(int Id, string Text)>();
+int advancedTextCursor = StringRegistry.GetEntriesSince(textCursor, cursorSecondBatch);
+Check(cursorSecondBatch.Count == 1 && cursorSecondBatch[0].Id == secondCursorText && advancedTextCursor == 2, "a payload of another kind does not advance the text cursor");
+
 var abilityList = new AbilityState(new[] { "fireball", "heal" });
 Check(abilityList.Count == 2 && abilityList.Get(0) == "fireball" && abilityList.Get(1) == "heal", "an ability list keeps its authored order");
 int sharedAbilityHandle = abilityList.Handle;
