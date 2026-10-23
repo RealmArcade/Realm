@@ -355,7 +355,7 @@ public partial class GameHost
 
 	public void RefreshReplicatedOverlayUi()
 	{
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		InGameHUD.Instance?.InvalidateReplicatedOverlays();
 	}
 
 	private int _shadowVerificationTickCounter;
