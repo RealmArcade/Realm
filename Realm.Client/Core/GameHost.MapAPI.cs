@@ -1702,7 +1702,7 @@ public partial class GameHost
 		ApplyRegionPathingInternal(minX, minZ, maxX, maxZ, (int)pathingFlags, blocked);
 		if (IsMultiplayerServerActive())
 		{
-			Rpc(nameof(ClientUpdateRegionPathing), minX, minZ, maxX, maxZ, (int)pathingFlags, blocked);
+			Rpc(nameof(ClientUpdateRegionPathing), minX, minZ, maxX, maxZ, (int)pathingFlags, blocked, NextRegionPathingSequence());
 		}
 	}
 

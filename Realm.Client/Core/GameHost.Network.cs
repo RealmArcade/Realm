@@ -830,6 +830,15 @@ public partial class GameHost
 	}
 
 	private readonly List<(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)> _dynamicPathingOverrides = new();
+	private int _regionPathingSequence;
+	private int _appliedRegionPathingSequence;
+
+	private int NextRegionPathingSequence()
+	{
+		_regionPathingSequence++;
+		_appliedRegionPathingSequence = _regionPathingSequence;
+		return _regionPathingSequence;
+	}
 
 	public void ApplyRegionPathingInternal(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)
 	{
@@ -845,8 +854,11 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientUpdateRegionPathing(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)
+	public void ClientUpdateRegionPathing(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked, int sequence)
 	{
+		if (sequence <= _appliedRegionPathingSequence) return;
+
+		_appliedRegionPathingSequence = sequence;
 		ApplyRegionPathingInternal(minX, minZ, maxX, maxZ, flags, blocked);
 	}
 
@@ -863,12 +875,13 @@ public partial class GameHost
 			if (i > 0) sb.Append(';');
 			sb.Append($"{o.minX:F2},{o.minZ:F2},{o.maxX:F2},{o.maxZ:F2},{o.flags},{(o.blocked ? 1 : 0)}");
 		}
-		RpcId(senderId, nameof(ClientSyncDynamicPathingOverrides), sb.ToString());
+		RpcId(senderId, nameof(ClientSyncDynamicPathingOverrides), _regionPathingSequence, sb.ToString());
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSyncDynamicPathingOverrides(string serializedData)
+	public void ClientSyncDynamicPathingOverrides(int sequence, string serializedData)
 	{
+		if (sequence > _appliedRegionPathingSequence) _appliedRegionPathingSequence = sequence;
 		if (string.IsNullOrEmpty(serializedData)) return;
 		var parts = serializedData.Split(';', StringSplitOptions.RemoveEmptyEntries);
 		foreach (var part in parts)
