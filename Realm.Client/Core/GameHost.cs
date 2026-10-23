@@ -2661,6 +2661,17 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void CreateGround()
 	{
+		if (!GameContext.SessionState.IsMapEditorMode)
+		{
+			string? activeMapName = LobbyManager.Instance?.ActiveMapName;
+			if (!string.IsNullOrEmpty(activeMapName))
+			{
+				string? resolvedDirectory = ResolveMapDirectory(activeMapName);
+				if (!string.IsNullOrEmpty(resolvedDirectory) && GameContext.MapStorageService != null)
+					GameContext.MapStorageService.CurrentMapDirectory = resolvedDirectory;
+			}
+		}
+
 		ClearExistingGround();
 
 		if (GameContext.SessionState.IsMapEditorMode || GameContext.SaveLoadService.IsLoadingMap)
