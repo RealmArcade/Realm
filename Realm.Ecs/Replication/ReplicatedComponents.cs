@@ -7,7 +7,9 @@ using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Ecs.Replication;
 
@@ -269,6 +271,7 @@ public static class ReplicatedComponents
 	{
 		Register(new WorldStateCodec());
 		Register(new ReplicatedComponentCodec<PlayerPopulation>(ReplicatedScope.Player));
+		Register(new ReplicatedComponentCodec<PlayerResources>(ReplicatedScope.Player));
 		Register(new PlayerTeamCodec());
 		Register(new ReplicatedComponentCodec<Mana>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<MovementStats>(ReplicatedScope.Unit));
@@ -351,5 +354,14 @@ public static class ReplicatedStateFingerprint
 			}
 			return hash;
 		}
+	}
+
+	public static uint CombineWeatherState(uint hash, EcsWorld world, Entity worldEntity)
+	{
+		if (world == null || worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<WeatherState>(worldEntity)) return hash;
+
+		var weather = world.Get<WeatherState>(worldEntity);
+		hash = Combine(hash, 6);
+		return Combine(hash, (int)weather.Type);
 	}
 }

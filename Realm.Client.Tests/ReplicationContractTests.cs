@@ -47,12 +47,11 @@ public partial class ReplicationContractTests
 
 	private static readonly string[] RpcReplicatedComponents =
 	{
-		"PlayerResources", "ProductionQueue", "TerrainState", "WeatherState"
+		"ProductionQueue", "TerrainState", "WeatherState"
 	};
 
 	private static readonly Dictionary<string, (string[] Covered, string[] NotReplicated)> RpcChannelFieldCoverage = new(StringComparer.Ordinal)
 	{
-		["PlayerResources"] = (new[] { "Gold", "Stone", "Wood" }, new[] { "CustomSlots", "Ore" }),
 		["ProductionQueue"] = (new[] { "BuildTime", "Count", "CurrentProgress", "Handle" }, Array.Empty<string>()),
 		["TerrainState"] = (new[] { "PathingCodesHandle" }, new[] { "CellsHandle", "CellSize", "Depth", "NavMeshHandle", "NavMeshQueryHandle", "QuadSize", "SwatchConfigsHandle", "Width" }),
 		["WeatherState"] = (new[] { "Type" }, new[] { "BaseFogDensity" })

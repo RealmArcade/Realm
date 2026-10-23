@@ -4,6 +4,7 @@ using Godot;
 using MemoryPack;
 using Realm.Client.Services;
 using Realm.Ecs.Replication;
+using Realm.Ecs.Services;
 
 namespace Realm.Client;
 
@@ -62,7 +63,7 @@ public static class ShadowClientVerifier
 		}
 
 		_verifiedBaselines++;
-		uint replayed = mirror.ComputeFingerprint();
+		uint replayed = ReplicatedStateFingerprint.CombineWeatherState(mirror.ComputeFingerprint(), GameContext.World, ECSContext.WorldEntity);
 		if (replayed == snapshot.StateFingerprint)
 		{
 			if (_verifiedBaselines == 1)

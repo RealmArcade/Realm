@@ -945,6 +945,7 @@ public class NetworkService
 	private void VerifyReplicatedStateFingerprint(int sequence, uint hostFingerprint)
 	{
 		uint localFingerprint = _mirror.ComputeFingerprint(ReadPlayerComponentRecordsFromEcs());
+		localFingerprint = ReplicatedStateFingerprint.CombineWeatherState(localFingerprint, GameContext.World, FindWorldEntity());
 		if (localFingerprint == hostFingerprint)
 		{
 			if (!_fingerprintMatchLogged)
@@ -1866,7 +1867,7 @@ public class NetworkService
 			hash = ReplicatedStateFingerprint.Combine(hash, BitConverter.SingleToInt32Bits(text.PositionZ));
 			hash = ReplicatedStateFingerprint.Combine(hash, text.Visible);
 		}
-		return hash;
+		return ReplicatedStateFingerprint.CombineWeatherState(hash, GameContext.World, worldEntity);
 	}
 
 	private WorldSnapshot BuildDiagnosticAuthoritativeSnapshot(List<Unit3D> allUnits, int snapshotSequence, bool isBaseline)
