@@ -124,6 +124,7 @@ public partial class GameHost
 		GameContext.SimulationService.SetDelta(fDelta);
 		GameContext.World.Query(in query, GameContext.SimulationService.InterpolationQueryDelegate);
 		UpdateVisualNodesFromEcs(fDelta);
+		UpdateBuildingPreview();
 	}
 
 	private void UpdateClientTickViewLogic()
@@ -348,9 +349,9 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSpawnArrowProjectile(Vector3 start, Vector3 target)
+	public void ClientSpawnArrowProjectile(Vector3 start, Vector3 target, int ownerPlayerIndex = 0)
 	{
-		GameContext.FXService.SpawnArrowProjectile(this, start, target);
+		GameContext.FXService.SpawnArrowProjectile(this, start, target, ownerPlayerIndex);
 	}
 
 	public void RefreshReplicatedOverlayUi()

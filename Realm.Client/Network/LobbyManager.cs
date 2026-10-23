@@ -1384,7 +1384,7 @@ public partial class LobbyManager : BaseMapTransferNode
 				Slot = nextSlot,
 				Name = $"Player_{id}",
 				Faction = "HUMAN",
-				Team = "Team 1",
+				Team = ResolveJoinTeamName(),
 				Color = GetNextColor(),
 				IsHost = false,
 				BinaryVersion = RealmVersion.GameBinaryVersion,
@@ -1401,6 +1401,20 @@ public partial class LobbyManager : BaseMapTransferNode
 			RpcId(id, nameof(SyncHostStability), HostStability);
 			RpcId(id, nameof(SyncActiveMap), ActiveMapName);
 		}
+	}
+
+	private string ResolveJoinTeamName()
+	{
+		int teamOneHumans = 0;
+		int teamTwoHumans = 0;
+		foreach (var player in PlayerList)
+		{
+			if (player.PeerId < 0) continue;
+			if (player.Team == "Team 1") teamOneHumans++;
+			else if (player.Team == "Team 2") teamTwoHumans++;
+		}
+
+		return teamTwoHumans < teamOneHumans ? "Team 2" : "Team 1";
 	}
 
 	private void OnPeerDisconnected(long peerId)

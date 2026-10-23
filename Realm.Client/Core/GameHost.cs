@@ -3975,7 +3975,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 		if (_multiplayerActive && IsServerActive())
 		{
-			Rpc(nameof(ClientSpawnArrowProjectile), start, target);
+			Rpc(nameof(ClientSpawnArrowProjectile), start, target, ownerPlayerIndex);
 		}
 	}
 

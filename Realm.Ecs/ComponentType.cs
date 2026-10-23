@@ -153,7 +153,9 @@ public static class ComponentTypeRegistry
 			typeof(PlayerTeam),
 			typeof(CommandsFrozen),
 			typeof(OverheadBarsHidden),
-			typeof(AnimationsFrozen)
+			typeof(AnimationsFrozen),
+			typeof(AttackTarget),
+			typeof(LastAttacker)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

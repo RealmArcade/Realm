@@ -34,6 +34,7 @@ public partial class MultiplayerSimulationHarness : Node
 	private string _doneFile = string.Empty;
 	private string _sequenceFile = string.Empty;
 	private string _clientBuildId = string.Empty;
+	private string _clientTeam = string.Empty;
 	private int _drainMilliseconds = 0;
 	private int _finalSequence = -1;
 	private float _durationSeconds = 15f;
@@ -106,6 +107,9 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--client-build":
 					_clientBuildId = value;
 					break;
+				case "--client-team":
+					_clientTeam = value;
+					break;
 				case "--drain-ms":
 					_drainMilliseconds = int.Parse(value);
 					break;
@@ -177,6 +181,8 @@ public partial class MultiplayerSimulationHarness : Node
 		if (!clientConnected) throw new InvalidOperationException("Timed out waiting for the client peer to join the host lobby.");
 		if (!await StartSimulationAsync(lobby, true)) return 1;
 
+		_ = RunCombatProbeAsync(true);
+
 		GameHost gameHost = GameHost.Instance ?? throw new InvalidOperationException("GameHost instance is unavailable.");
 		bool finished = false;
 		ulong simulationDeadline = Time.GetTicksMsec() + (ulong)((_durationSeconds * 4f + 120f) * 1000f);
@@ -225,7 +231,10 @@ public partial class MultiplayerSimulationHarness : Node
 			() => lobby.PlayerList.Exists(player => player.PeerId == localPeerId),
 			30f);
 		if (!playerSynced) throw new InvalidOperationException("Timed out waiting for the host to sync the lobby player list.");
+		if (!string.IsNullOrEmpty(_clientTeam)) await ApplyClientTeamAsync(lobby, localPeerId);
 		if (!await StartSimulationAsync(lobby, false)) return 1;
+
+		_ = RunCombatProbeAsync(false);
 
 		GD.Print("[MP_HARNESS] Client simulation started. Recording until the host signals completion.");
 		if (!string.IsNullOrEmpty(_clientBuildId))
@@ -247,6 +256,18 @@ public partial class MultiplayerSimulationHarness : Node
 		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
 		return hostFinished ? 0 : 1;
+	}
+
+	private async Task ApplyClientTeamAsync(LobbyManager lobby, int localPeerId)
+	{
+		PlayerInfo? localPlayer = lobby.PlayerList.Find(player => player.PeerId == localPeerId);
+		if (localPlayer == null) return;
+
+		lobby.UpdatePlayerSlot(localPeerId, localPlayer.Faction, _clientTeam, localPlayer.Color, localPlayer.Name);
+		bool applied = await WaitUntilAsync(
+			() => lobby.PlayerList.Exists(player => player.PeerId == localPeerId && player.Team == _clientTeam),
+			10f);
+		GD.Print($"[MP_HARNESS] Client team request '{_clientTeam}' applied={applied}.");
 	}
 
 	private async Task<bool> StartSimulationAsync(LobbyManager lobby, bool isHost)
@@ -274,11 +295,22 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		MultiplayerSyncDiagnostics.Start(_outputDirectory, isHost);
+		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
 		GameHost currentHost = GameHost.Instance!;
 		GD.Print($"[MP_HARNESS] {(isHost ? "Host" : "Client")} simulation ready at game time {currentHost.GameElapsedTime:F2}s with {currentHost.AllUnits.Count} units.");
 		GD.Print($"[MP_HARNESS] Active workspace '{MapWorkspaceService.GetActiveWorkspacePath()}' resolved from map directory '{GameContext.MapStorageService?.CurrentMapDirectory}'.");
 		return true;
+	}
+
+	private static void PrintReplicatedCodecTable(bool isHost)
+	{
+		foreach (var codec in Realm.Ecs.Replication.ReplicatedComponents.All)
+		{
+			GD.Print($"[CODECS] role={(isHost ? "host" : "client")} id={codec.ComponentTypeId} name={codec.ComponentName} size={codec.SizeInBytes} scope={codec.Scope}");
+		}
+
+		GD.Print($"[CODECS] role={(isHost ? "host" : "client")} registryCount={Realm.Ecs.ComponentTypeRegistry.Count} scriptPlayersId={Realm.Ecs.ComponentType<ScriptPlayersState>.Id}");
 	}
 
 	private static int CountConstructionSites(GameHost gameHost)
