@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Godot;
+using Realm.Client.Core;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
+using FileAccess = System.IO.FileAccess;
 
 namespace Realm.Client.Services;
 
@@ -17,11 +20,16 @@ public static class MultiplayerSyncDiagnostics
 
 	private static BinaryWriter? _writer;
 	private static byte[] _fileHeader = Array.Empty<byte>();
+	private static BinaryWriter? _presentationWriter;
+	private static byte[] _presentationHeader = Array.Empty<byte>();
 	private static string _outputDirectory = string.Empty;
 	private static bool _isHost;
 	private static int _writtenRecordCount;
 	private static int _lastRecordedSequence = -1;
+	private static int _lastPresentedSequence = -1;
+	private static float _presentationWindowStartTime = -1f;
 
+	public static float PresentationWindowSeconds { get; set; } = 2f;
 	public static bool IsRecording => _writer != null;
 	public static int WrittenRecordCount => _writtenRecordCount;
 	public static string OutputDirectory => _outputDirectory;
@@ -34,6 +42,8 @@ public static class MultiplayerSyncDiagnostics
 		_isHost = isHost;
 		_writtenRecordCount = 0;
 		_lastRecordedSequence = -1;
+		_lastPresentedSequence = -1;
+		_presentationWindowStartTime = -1f;
 
 		string path = Path.Combine(outputDirectory, isHost ? "ECS_host_sync.bin" : "ECS_client_sync.bin");
 		using (MemoryStream headerStream = new())
@@ -52,10 +62,37 @@ public static class MultiplayerSyncDiagnostics
 		_writer = new BinaryWriter(stream);
 		_writer.Write(_fileHeader);
 		_writer.Flush();
+
+		if (isHost) return;
+
+		string presentationPath = Path.Combine(outputDirectory, "ECS_client_presentation.bin");
+		using (MemoryStream presentationHeaderStream = new())
+		{
+			using (BinaryWriter presentationHeaderWriter = new(presentationHeaderStream, System.Text.Encoding.UTF8, leaveOpen: true))
+			{
+				presentationHeaderWriter.Write(FileMagic);
+				presentationHeaderWriter.Write(FileVersion);
+				presentationHeaderWriter.Write(false);
+			}
+
+			_presentationHeader = presentationHeaderStream.ToArray();
+		}
+
+		FileStream presentationStream = new(presentationPath, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16);
+		_presentationWriter = new BinaryWriter(presentationStream);
+		_presentationWriter.Write(_presentationHeader);
+		_presentationWriter.Flush();
 	}
 
 	public static void Stop()
 	{
+		if (_presentationWriter != null)
+		{
+			_presentationWriter.Flush();
+			_presentationWriter.Dispose();
+			_presentationWriter = null;
+		}
+
 		if (_writer == null) return;
 		_writer.Flush();
 		_writer.Dispose();
@@ -151,6 +188,71 @@ public static class MultiplayerSyncDiagnostics
 		AppendRecord(record, sequence, isBaseline);
 	}
 
+	public static void RecordClientPresentation()
+	{
+		if (_presentationWriter == null || _isHost) return;
+
+		GameHost? gameHost = GameHost.Instance;
+		if (gameHost == null) return;
+		if (_presentationWindowStartTime < 0f)
+		{
+			_presentationWindowStartTime = gameHost.GameElapsedTime;
+		}
+
+		if (gameHost.GameElapsedTime - _presentationWindowStartTime > PresentationWindowSeconds) return;
+
+		EcsWorld? world = GameContext.World;
+		if (world == null) return;
+		Entity worldEntity = ECSContext.WorldEntity;
+		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity)) return;
+		if (!world.Has<NetworkState>(worldEntity) || !world.Has<NetworkMappingState>(worldEntity)) return;
+
+		int sequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
+		if (sequence < 0 || sequence == _lastPresentedSequence) return;
+
+		NetworkMappingState mapping = world.Get<NetworkMappingState>(worldEntity);
+		var units = new List<PresentedUnitState>();
+		foreach (var kvp in mapping.ClientToServerEntityMap)
+		{
+			Entity localEntity = new(kvp.Key);
+			if (!world.IsAlive(localEntity)) continue;
+			if (!GameHost.EntityIdToUnit3D.TryGetValue(localEntity.Id, out Unit3D? unit3D)) continue;
+			if (!GodotObject.IsInstanceValid(unit3D)) continue;
+
+			float currentHp = world.Has<Health>(localEntity) ? world.Get<Health>(localEntity).Current : 0f;
+			float maxHp = world.Has<Health>(localEntity) ? world.Get<Health>(localEntity).Max : 0f;
+			bool isDead = world.Has<Dead>(localEntity);
+			bool isBuilding = world.Has<Building>(localEntity);
+			int ownerPlayerIndex = ResolveOwnerPlayerIndex(world, localEntity);
+
+			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding));
+		}
+
+		units.Sort((left, right) => left.ServerEntityId.CompareTo(right.ServerEntityId));
+
+		bool isBaseline = sequence % BaselineIntervalTicks == 0;
+		byte[] record = BuildRecord(sequence, isBaseline, writer =>
+		{
+			writer.Write(units.Count);
+			foreach (PresentedUnitState unit in units)
+			{
+				writer.Write(unit.ServerEntityId);
+				writer.Write(unit.OwnerPlayerIndex);
+				writer.Write(unit.PositionX);
+				writer.Write(unit.PositionY);
+				writer.Write(unit.PositionZ);
+				writer.Write(unit.RotationY);
+				writer.Write(unit.CurrentHp);
+				writer.Write(unit.MaxHp);
+				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, false));
+			}
+		});
+
+		_presentationWriter.Write(record);
+		_presentationWriter.Flush();
+		_lastPresentedSequence = sequence;
+	}
+
 	private static int ResolveOwnerPlayerIndex(EcsWorld world, Entity localEntity)
 	{
 		if (!world.Has<UnitOwnerPlayer>(localEntity)) return -1;
@@ -194,6 +296,34 @@ public static class MultiplayerSyncDiagnostics
 		_fileHeader.CopyTo(snapshotFile, 0);
 		record.CopyTo(snapshotFile, _fileHeader.Length);
 		File.WriteAllBytes(Path.Combine(_outputDirectory, fileName), snapshotFile);
+	}
+
+	private readonly struct PresentedUnitState
+	{
+		public readonly int ServerEntityId;
+		public readonly int OwnerPlayerIndex;
+		public readonly float PositionX;
+		public readonly float PositionY;
+		public readonly float PositionZ;
+		public readonly float RotationY;
+		public readonly float CurrentHp;
+		public readonly float MaxHp;
+		public readonly bool IsDead;
+		public readonly bool IsBuilding;
+
+		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding)
+		{
+			ServerEntityId = serverEntityId;
+			OwnerPlayerIndex = ownerPlayerIndex;
+			PositionX = position.X;
+			PositionY = position.Y;
+			PositionZ = position.Z;
+			RotationY = rotationY;
+			CurrentHp = currentHp;
+			MaxHp = maxHp;
+			IsDead = isDead;
+			IsBuilding = isBuilding;
+		}
 	}
 
 	private readonly struct ClientUnitState

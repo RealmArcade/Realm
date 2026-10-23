@@ -197,6 +197,8 @@ public class TestWasmMap : IWasmModule
 		string outputDirectory = Path.Combine(Path.GetTempPath(), "Realm_MultiplayerEcsSync");
 		string durationText = System.Environment.GetEnvironmentVariable("REALM_MULTIPLAYER_ECS_DURATION") ?? "15";
 		float durationSeconds = float.Parse(durationText, System.Globalization.CultureInfo.InvariantCulture);
+		string pingText = System.Environment.GetEnvironmentVariable("REALM_MULTIPLAYER_ECS_PING_MS") ?? "120";
+		int pingMilliseconds = int.Parse(pingText, System.Globalization.CultureInfo.InvariantCulture);
 
 		MultiplayerEcsRunSettings settings = new()
 		{
@@ -206,12 +208,13 @@ public class TestWasmMap : IWasmModule
 			WasmPath = wasmPath,
 			OutputDirectory = outputDirectory,
 			DurationSeconds = durationSeconds,
-			Port = FindAvailableUdpPort()
+			Port = FindAvailableUdpPort(),
+			PingMilliseconds = pingMilliseconds
 		};
 
 		await MultiplayerEcsSyncTestSupport.RunAsync(settings);
 
-		MultiplayerEcsSyncReport report = MultiplayerEcsSyncTestSupport.Verify(outputDirectory);
+		MultiplayerEcsSyncReport report = MultiplayerEcsSyncTestSupport.Verify(settings);
 		string renderedReport = report.Render();
 		File.WriteAllText(Path.Combine(outputDirectory, "multiplayer_ecs_sync_report.txt"), renderedReport);
 		GD.Print(renderedReport);

@@ -31,6 +31,9 @@ public partial class MultiplayerSimulationHarness : Node
 	private string _listeningFile = string.Empty;
 	private string _readyFile = string.Empty;
 	private string _doneFile = string.Empty;
+	private string _sequenceFile = string.Empty;
+	private int _drainMilliseconds = 0;
+	private int _finalSequence = -1;
 	private float _durationSeconds = 15f;
 
 	public override void _Ready()
@@ -94,6 +97,12 @@ public partial class MultiplayerSimulationHarness : Node
 					break;
 				case "--done-file":
 					_doneFile = value;
+					break;
+				case "--sequence-file":
+					_sequenceFile = value;
+					break;
+				case "--drain-ms":
+					_drainMilliseconds = int.Parse(value);
 					break;
 				case "--duration":
 					_durationSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
@@ -180,7 +189,14 @@ public partial class MultiplayerSimulationHarness : Node
 
 		if (!finished) throw new InvalidOperationException($"Host simulation did not reach {_durationSeconds}s of game time.");
 
-		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units.");
+		if (_drainMilliseconds > 0)
+		{
+			GD.Print($"[MP_HARNESS] Host draining for {_drainMilliseconds} ms so delayed clients can catch up.");
+			await ToSignal(GetTree().CreateTimer(_drainMilliseconds / 1000f), SceneTreeTimer.SignalName.Timeout);
+		}
+
+		_finalSequence = ResolveSnapshotSequence();
+		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
 		MultiplayerSyncDiagnostics.Stop();
 		WriteFinalWorldSnapshot("ECS_host_final_full.bin");
 		return 0;
@@ -207,10 +223,18 @@ public partial class MultiplayerSimulationHarness : Node
 		if (!await StartSimulationAsync(lobby, false)) return 1;
 
 		GD.Print("[MP_HARNESS] Client simulation started. Recording until the host signals completion.");
-		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 120f);
+		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 120f + (_drainMilliseconds / 1000f));
 		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
 
+		if (_drainMilliseconds > 0)
+		{
+			await ToSignal(GetTree().CreateTimer(_drainMilliseconds / 1000f), SceneTreeTimer.SignalName.Timeout);
+		}
+
+		_finalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
+		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence}.");
 		MultiplayerSyncDiagnostics.Stop();
+		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
 		return hostFinished ? 0 : 1;
 	}
@@ -288,14 +312,28 @@ public partial class MultiplayerSimulationHarness : Node
 
 	private void TryWriteDoneFile()
 	{
+		if (_role != "host") return;
 		if (string.IsNullOrEmpty(_doneFile)) return;
 		try
 		{
-			File.WriteAllText(_doneFile, DateTime.UtcNow.ToString("O"));
+			File.WriteAllText(_doneFile, _finalSequence.ToString(System.Globalization.CultureInfo.InvariantCulture));
 		}
 		catch (Exception exception)
 		{
 			GD.PrintErr($"[MP_HARNESS] Failed to write completion marker: {exception.Message}");
+		}
+	}
+
+	private void TryWriteSequenceFile(int sequence)
+	{
+		if (string.IsNullOrEmpty(_sequenceFile)) return;
+		try
+		{
+			File.WriteAllText(_sequenceFile, sequence.ToString(System.Globalization.CultureInfo.InvariantCulture));
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MP_HARNESS] Failed to write sequence marker: {exception.Message}");
 		}
 	}
 

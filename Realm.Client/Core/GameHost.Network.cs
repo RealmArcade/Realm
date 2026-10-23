@@ -270,6 +270,7 @@ public partial class GameHost
 		}
 
 		MultiplayerSyncDiagnostics.RecordClientSnapshot();
+		MultiplayerSyncDiagnostics.RecordClientPresentation();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -356,6 +357,7 @@ public partial class GameHost
 		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out int playerIndex);
 		if (entity == Entity.Null) return;
 		var unit3D = SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, playerIndex);
+		unit3D.Rotation = new Vector3(0f, snap.RotationY, 0f);
 		if (_pendingSelectUnitServerId == snap.EntityId && GodotObject.IsInstanceValid(unit3D))
 		{
 			ClearSelection();

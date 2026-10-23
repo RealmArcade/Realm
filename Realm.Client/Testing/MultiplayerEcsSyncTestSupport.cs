@@ -18,6 +18,8 @@ public sealed class MultiplayerEcsRunSettings
 	public string OutputDirectory { get; init; } = string.Empty;
 	public float DurationSeconds { get; init; } = 15f;
 	public int Port { get; init; } = 8999;
+	public int PingMilliseconds { get; init; }
+	public int DrainMilliseconds => Math.Max(1500, PingMilliseconds * 4);
 }
 
 public sealed class MultiplayerEcsSyncReport
@@ -59,6 +61,8 @@ public static class MultiplayerEcsSyncTestSupport
 	private const float DeltaPositionTolerance = 1.05f;
 	private const float DeltaRotationTolerance = 0.17f;
 	private const float DeltaHealthTolerance = 1.05f;
+	private const float PresentationPositionTolerance = 0.25f;
+	private const float PresentationRotationTolerance = 0.2f;
 
 	public static string ResolveGodotBinary()
 	{
@@ -122,12 +126,16 @@ public static class MultiplayerEcsSyncTestSupport
 		string hostReadyFile = Path.Combine(settings.OutputDirectory, "host_ready.txt");
 		string clientReadyFile = Path.Combine(settings.OutputDirectory, "client_ready.txt");
 		string hostDoneFile = Path.Combine(settings.OutputDirectory, "host_done.txt");
+		string clientSequenceFile = Path.Combine(settings.OutputDirectory, "client_final_sequence.txt");
 
-		using HarnessProcess hostProcess = StartHarnessProcess(settings, "host", hostReadyFile, hostDoneFile);
+		using UdpDelayRelay? relay = settings.PingMilliseconds > 0 ? new UdpDelayRelay(settings.Port, settings.PingMilliseconds) : null;
+		int clientConnectionPort = relay?.ListenPort ?? settings.Port;
+
+		using HarnessProcess hostProcess = StartHarnessProcess(settings, "host", settings.Port, null, hostReadyFile, hostDoneFile);
 		bool hostListening = await WaitForFileOrExitAsync(hostListeningFile, hostProcess.Process, TimeSpan.FromSeconds(120));
 		if (!hostListening) throw new InvalidOperationException($"Host harness did not start listening.\n{hostProcess.ReadLog()}");
 
-		using HarnessProcess clientProcess = StartHarnessProcess(settings, "client", clientReadyFile, hostDoneFile);
+		using HarnessProcess clientProcess = StartHarnessProcess(settings, "client", clientConnectionPort, clientSequenceFile, clientReadyFile, hostDoneFile);
 		bool clientReady = await WaitForFileOrExitAsync(clientReadyFile, clientProcess.Process, TimeSpan.FromSeconds(180));
 		if (!clientReady) throw new InvalidOperationException($"Client harness did not become ready.\n{clientProcess.ReadLog()}");
 
@@ -153,9 +161,16 @@ public static class MultiplayerEcsSyncTestSupport
 		{
 			throw new InvalidOperationException($"Client harness exited with code {clientProcess.Process.ExitCode}.\n{clientProcess.ReadLog()}");
 		}
+
+		if (relay != null)
+		{
+			File.WriteAllText(
+				Path.Combine(settings.OutputDirectory, "relay_stats.txt"),
+				$"forwarded={relay.ForwardedDatagramCount}\ndropped={relay.DroppedDatagramCount}");
+		}
 	}
 
-	private static HarnessProcess StartHarnessProcess(MultiplayerEcsRunSettings settings, string role, string readyFile, string doneFile)
+	private static HarnessProcess StartHarnessProcess(MultiplayerEcsRunSettings settings, string role, int connectionPort, string? sequenceFile, string readyFile, string doneFile)
 	{
 		var startInfo = new ProcessStartInfo(settings.GodotBinary)
 		{
@@ -172,13 +187,15 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add("--");
 		startInfo.ArgumentList.Add($"--role={role}");
 		startInfo.ArgumentList.Add($"--host=127.0.0.1");
-		startInfo.ArgumentList.Add($"--port={settings.Port}");
+		startInfo.ArgumentList.Add($"--port={connectionPort}");
 		startInfo.ArgumentList.Add($"--map={settings.MapFolder}");
 		startInfo.ArgumentList.Add($"--wasm={settings.WasmPath}");
 		startInfo.ArgumentList.Add($"--output={settings.OutputDirectory}");
 		startInfo.ArgumentList.Add($"--listening-file={Path.Combine(settings.OutputDirectory, "host_listening.txt")}");
 		startInfo.ArgumentList.Add($"--ready-file={readyFile}");
 		startInfo.ArgumentList.Add($"--done-file={doneFile}");
+		startInfo.ArgumentList.Add($"--sequence-file={sequenceFile}");
+		startInfo.ArgumentList.Add($"--drain-ms={settings.DrainMilliseconds}");
 		startInfo.ArgumentList.Add($"--duration={settings.DurationSeconds.ToString(CultureInfo.InvariantCulture)}");
 
 		HarnessProcess harnessProcess = new(Path.Combine(settings.OutputDirectory, $"{role}.log"));
@@ -259,9 +276,11 @@ public static class MultiplayerEcsSyncTestSupport
 		return completed == exitTask;
 	}
 
-	public static MultiplayerEcsSyncReport Verify(string outputDirectory)
+	public static MultiplayerEcsSyncReport Verify(MultiplayerEcsRunSettings settings)
 	{
 		MultiplayerEcsSyncReport report = new();
+		string outputDirectory = settings.OutputDirectory;
+		AppendConvergenceReport(report, settings);
 		string hostPath = Path.Combine(outputDirectory, "ECS_host_sync.bin");
 		string clientPath = Path.Combine(outputDirectory, "ECS_client_sync.bin");
 
@@ -342,7 +361,71 @@ public static class MultiplayerEcsSyncTestSupport
 			foreach (string mismatch in mismatches) report.AddSummaryLine($"  {mismatch}");
 		}
 
+		ComparePresentationRecords(outputDirectory, hostRecords, report);
 		return report;
+	}
+
+	private static void ComparePresentationRecords(string outputDirectory, SortedDictionary<int, MultiplayerSnapshotRecord> hostRecords, MultiplayerEcsSyncReport report)
+	{
+		string presentationPath = Path.Combine(outputDirectory, "ECS_client_presentation.bin");
+		if (!File.Exists(presentationPath))
+		{
+			report.AddFailure("Client presentation records are missing, so rendered placement parity was not verified.");
+			return;
+		}
+
+		SortedDictionary<int, MultiplayerSnapshotRecord> presentedRecords = ReadRecords(presentationPath);
+		var mismatches = new List<string>();
+		int pairedSequences = 0;
+		int comparedTransforms = 0;
+		int mismatchCount = 0;
+		int rotationDeviationCount = 0;
+		float largestRotationDeviation = 0f;
+
+		foreach (KeyValuePair<int, MultiplayerSnapshotRecord> hostEntry in hostRecords)
+		{
+			if (!presentedRecords.TryGetValue(hostEntry.Key, out MultiplayerSnapshotRecord? presentedRecord)) continue;
+			pairedSequences++;
+
+			foreach (MultiplayerSnapshotUnit hostUnit in hostEntry.Value.Units.Values)
+			{
+				if (!presentedRecord.Units.TryGetValue(hostUnit.EntityId, out MultiplayerSnapshotUnit? presentedUnit))
+				{
+					mismatchCount++;
+					if (mismatches.Count < 20) mismatches.Add($"seq {hostEntry.Key}: rendered entity {hostUnit.EntityId} is missing on the client.");
+					continue;
+				}
+
+				comparedTransforms++;
+				float dx = hostUnit.PositionX - presentedUnit.PositionX;
+				float dy = hostUnit.PositionY - presentedUnit.PositionY;
+				float dz = hostUnit.PositionZ - presentedUnit.PositionZ;
+				if (MathF.Abs(dx) > PresentationPositionTolerance || MathF.Abs(dy) > PresentationPositionTolerance || MathF.Abs(dz) > PresentationPositionTolerance)
+				{
+					mismatchCount++;
+					if (mismatches.Count < 20)
+					{
+						mismatches.Add($"seq {hostEntry.Key}: rendered entity {hostUnit.EntityId} position host=({hostUnit.PositionX:F2},{hostUnit.PositionY:F2},{hostUnit.PositionZ:F2}) client=({presentedUnit.PositionX:F2},{presentedUnit.PositionY:F2},{presentedUnit.PositionZ:F2}).");
+					}
+				}
+
+				float rotationDeviation = RotationDifference(hostUnit.RotationY, presentedUnit.RotationY);
+				if (rotationDeviation > PresentationRotationTolerance) rotationDeviationCount++;
+				if (rotationDeviation > largestRotationDeviation) largestRotationDeviation = rotationDeviation;
+			}
+		}
+
+		report.AddSummaryLine($"Presentation parity window: first {MultiplayerSyncDiagnostics.PresentationWindowSeconds:F1}s, paired sequences: {pairedSequences}, compared rendered transforms: {comparedTransforms}, placement mismatches: {mismatchCount}");
+		report.AddSummaryLine($"Rendered rotation deviations beyond {PresentationRotationTolerance:F2} rad: {rotationDeviationCount} of {comparedTransforms}, largest {largestRotationDeviation:F2} rad (off-frustum units keep their frozen transform until they enter the view)");
+		if (pairedSequences == 0) report.AddFailure("No rendered presentation records paired with host snapshots, so placement parity was not verified.");
+		else if (comparedTransforms < 20) report.AddFailure($"Only {comparedTransforms} rendered unit transforms were compared in the presentation window.");
+
+		if (mismatchCount > 0)
+		{
+			report.AddFailure($"{mismatchCount} rendered placement mismatches were detected in the first {MultiplayerSyncDiagnostics.PresentationWindowSeconds:F1}s.");
+			report.AddSummaryLine("First presentation mismatches:");
+			foreach (string mismatch in mismatches) report.AddSummaryLine($"  {mismatch}");
+		}
 	}
 
 	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, List<string> mismatches, ref int comparedUnits)
@@ -423,6 +506,62 @@ public static class MultiplayerEcsSyncTestSupport
 
 			AddMismatch(mismatches, mismatchCountBefore, $"seq {hostRecord.Sequence}: client tracks live entity {clientUnit.EntityId} that the host baseline does not contain.");
 		}
+	}
+
+	private static void AppendConvergenceReport(MultiplayerEcsSyncReport report, MultiplayerEcsRunSettings settings)
+	{
+		string hostDonePath = Path.Combine(settings.OutputDirectory, "host_done.txt");
+		string clientSequencePath = Path.Combine(settings.OutputDirectory, "client_final_sequence.txt");
+		report.AddSummaryLine($"Injected ping (round trip): {settings.PingMilliseconds} ms");
+
+		string relayStatsPath = Path.Combine(settings.OutputDirectory, "relay_stats.txt");
+		if (settings.PingMilliseconds > 0)
+		{
+			if (!File.Exists(relayStatsPath))
+			{
+				report.AddFailure("Relay statistics are missing, so the injected delay cannot be proven to have been exercised.");
+			}
+			else
+			{
+				string relayStats = File.ReadAllText(relayStatsPath).Replace('\n', ' ').Replace('\r', ' ').Trim();
+				report.AddSummaryLine($"Relay datagrams: {relayStats}");
+				if (relayStats.Contains("forwarded=0") || relayStats.Length == 0)
+				{
+					report.AddFailure("The delay relay forwarded no datagrams, so the ping setting had no effect.");
+				}
+			}
+		}
+
+		if (!TryReadSequence(hostDonePath, out int hostFinalSequence) || !TryReadSequence(clientSequencePath, out int clientFinalSequence))
+		{
+			report.AddFailure("Final sequence markers are missing, so convergence after the injected delay could not be measured.");
+			return;
+		}
+
+		int oneWayTicks = (int)MathF.Ceiling(settings.PingMilliseconds / 2f * 60f / 1000f);
+		int allowedLagTicks = oneWayTicks + 120;
+		int lagTicks = hostFinalSequence - clientFinalSequence;
+		report.AddSummaryLine($"Host final sequence: {hostFinalSequence}");
+		report.AddSummaryLine($"Client final sequence: {clientFinalSequence}");
+		report.AddSummaryLine($"Convergence lag: {lagTicks} sequences (allowed {allowedLagTicks}, expected one-way lag {oneWayTicks})");
+
+		if (lagTicks > allowedLagTicks)
+		{
+			report.AddFailure($"Client did not converge after the injected {settings.PingMilliseconds} ms delay: {lagTicks} sequences behind the host (allowed {allowedLagTicks}).");
+		}
+
+		if (lagTicks < -120)
+		{
+			report.AddFailure($"Client final sequence {clientFinalSequence} is ahead of the host final sequence {hostFinalSequence}.");
+		}
+	}
+
+	private static bool TryReadSequence(string path, out int sequence)
+	{
+		sequence = -1;
+		if (!File.Exists(path)) return false;
+		string text = File.ReadAllText(path).Trim();
+		return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out sequence);
 	}
 
 	private static float RotationDifference(float left, float right)
