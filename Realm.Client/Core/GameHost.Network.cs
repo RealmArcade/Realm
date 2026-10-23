@@ -45,6 +45,16 @@ public partial class GameHost
 		Callable.From(() => KillUnitDeferred(unit)).CallDeferred();
 	}
 
+	private void RetireUnitFromView(Unit3D unit)
+	{
+		if (!GodotObject.IsInstanceValid(unit) || !AllUnits.Contains(unit)) return;
+
+		RemoveUnitFromCollections(unit);
+		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
+		unit.QueueFree();
+		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+	}
+
 	private void QueueClientCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
@@ -247,8 +257,6 @@ public partial class GameHost
 			return;
 		}
 
-		GD.Print($"[SERVER_CMD_RECEIVED] Peer={senderId} CommandType={cmd.CommandType} Units={string.Join(",", cmd.UnitEntityIds)} Target={cmd.TargetPosition.ToGodot()}");
-
 		var result = GameContext.NetworkService.ExecuteServerCommand(senderId, cmd, AllUnits, AllProps);
 
 		StopUnitVelocities(result.StopVelocityEntityIds);
@@ -310,6 +318,14 @@ public partial class GameHost
 			if (TryGetUnit3D(localEntity, out var unit3D))
 			{
 				Callable.From(() => KillUnitDeferred(unit3D)).CallDeferred();
+			}
+		}
+
+		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitDespawns())
+		{
+			if (TryGetUnit3D(localEntity, out var unit3D))
+			{
+				Callable.From(() => RetireUnitFromView(unit3D)).CallDeferred();
 			}
 		}
 

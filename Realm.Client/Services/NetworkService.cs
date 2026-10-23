@@ -27,6 +27,8 @@ namespace Realm.Client.Services;
 public class NetworkService
 {
 	private readonly List<NetworkCommand> _unacknowledgedCommands = new();
+	private const int MaximumQueuedDeltas = 512;
+
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
 	private readonly Dictionary<int, Vector3> _clientCameraPositions = new();
 	private readonly Dictionary<int, Dictionary<int, UnitSnapshot>> _lastBaselineSnapshotsPerClient = new();
@@ -42,6 +44,8 @@ public class NetworkService
 
 	private readonly Dictionary<int, UnitSnapshot> _pendingUnitSpawns = new();
 	private readonly List<Entity> _pendingUnitKills = new();
+	private readonly List<Entity> _pendingUnitDespawns = new();
+	private readonly List<int> _untrackedServerIds = new();
 
 
 	public bool IsPaused { get; set; } = false;
@@ -232,6 +236,8 @@ public class NetworkService
 		_spectatorDelayedPackets.Clear();
 		_pendingUnitSpawns.Clear();
 		_pendingUnitKills.Clear();
+		_pendingUnitDespawns.Clear();
+		_untrackedServerIds.Clear();
 		_playerTeams.Clear();
 		_alliances.Clear();
 	}
@@ -500,7 +506,6 @@ public class NetworkService
 			ArgString = argString
 		};
 		_unacknowledgedCommands.Add(cmd);
-		GD.Print($"[CLIENT_CMD_SENT] CommandType={commandType} Units={string.Join(",", unitIds)} Target={targetPos}");
 		return (cmd.CommandId, MemoryPackSerializer.Serialize(cmd));
 	}
 
@@ -541,34 +546,46 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return;
 
 		ref var networkState = ref GameContext.World.Get<NetworkState>(worldEntity);
-		if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence) return;
-		networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
 
 		if (snapshot.IsBaseline)
 		{
+			if (snapshot.Sequence <= networkState.LastReceivedBaselineSeq) return;
+
 			networkState.LastReceivedBaselineSeq = snapshot.Sequence;
 			networkState.HasReceivedInitialBaseline = true;
+			networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
 			_queuedDeltas.RemoveAll(d => d.Sequence <= snapshot.Sequence);
 			ApplyWorldSnapshot(snapshot);
+
 			while (_queuedDeltas.Count > 0 && _queuedDeltas[0].BaseSequence == snapshot.Sequence)
 			{
 				var nextDelta = _queuedDeltas[0];
 				_queuedDeltas.RemoveAt(0);
+				networkState.LastAppliedSnapshotSequence = nextDelta.Sequence;
 				ApplyWorldSnapshot(nextDelta);
 			}
+
+			return;
 		}
-		else
+
+		if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence) return;
+
+		if (!networkState.HasReceivedInitialBaseline || snapshot.BaseSequence != networkState.LastReceivedBaselineSeq)
 		{
-			if (!networkState.HasReceivedInitialBaseline || snapshot.BaseSequence != networkState.LastReceivedBaselineSeq)
-			{
-				_queuedDeltas.Add(snapshot);
-				_queuedDeltas.Sort((a, b) => a.Sequence.CompareTo(b.Sequence));
-			}
-			else
-			{
-				ApplyWorldSnapshot(snapshot);
-			}
+			QueueDelta(snapshot);
+			return;
 		}
+
+		networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
+		ApplyWorldSnapshot(snapshot);
+	}
+
+	private void QueueDelta(WorldSnapshot snapshot)
+	{
+		if (_queuedDeltas.Count >= MaximumQueuedDeltas) _queuedDeltas.RemoveAt(0);
+
+		_queuedDeltas.Add(snapshot);
+		_queuedDeltas.Sort((a, b) => a.Sequence.CompareTo(b.Sequence));
 	}
 
 	private void ApplyWorldSnapshot(WorldSnapshot snapshot)
@@ -614,16 +631,32 @@ public class NetworkService
 			serverIdsInSnapshot.Add(snapshot.Units[i].EntityId);
 		}
 
+		_untrackedServerIds.Clear();
 		foreach (var kvp in mapping.ServerToClientEntityMap)
 		{
 			if (serverIdsInSnapshot.Contains(kvp.Key)) continue;
 
-			var localEnt = kvp.Value;
-			if (!GameContext.World.IsAlive(localEnt) || GameContext.World.Has<Dead>(localEnt)) continue;
-
-			GameContext.World.Add<Dead>(localEnt);
-			_pendingUnitKills.Add(localEnt);
+			_untrackedServerIds.Add(kvp.Key);
 		}
+
+		for (int i = 0; i < _untrackedServerIds.Count; i++)
+		{
+			int serverEntityId = _untrackedServerIds[i];
+			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;
+
+			RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
+		}
+	}
+
+	private void RetireClientEntityForUntrackedServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
+	{
+		if (GameContext.World.IsAlive(localEntity) && !GameContext.World.Has<Dead>(localEntity))
+		{
+			_pendingUnitDespawns.Add(localEntity);
+		}
+
+		mapping.ServerToClientEntityMap.Remove(serverEntityId);
+		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
 	}
 
 	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
@@ -667,7 +700,6 @@ public class NetworkService
 			RotationY = snap.RotationY
 		};
 		GameContext.World.SetOrAdd(localEntity, target);
-		GD.Print($"[CLIENT_SNAPSHOT_APPLIED] Sequence={sequence} Unit={snap.EntityId} ServerPos={snap.Position.ToGodot()}");
 	}
 
 	private static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
@@ -682,14 +714,7 @@ public class NetworkService
 
 	private void RetireClientEntityForRecycledServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
 	{
-		if (GameContext.World.IsAlive(localEntity) && !GameContext.World.Has<Dead>(localEntity))
-		{
-			GameContext.World.Add<Dead>(localEntity);
-			_pendingUnitKills.Add(localEntity);
-		}
-
-		mapping.ServerToClientEntityMap.Remove(serverEntityId);
-		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
+		RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 	}
 
 	public IReadOnlyList<UnitSnapshot> FlushPendingUnitSpawns()
@@ -705,6 +730,13 @@ public class NetworkService
 	{
 		var result = new List<Entity>(_pendingUnitKills);
 		_pendingUnitKills.Clear();
+		return result;
+	}
+
+	public IReadOnlyList<Entity> FlushPendingUnitDespawns()
+	{
+		var result = new List<Entity>(_pendingUnitDespawns);
+		_pendingUnitDespawns.Clear();
 		return result;
 	}
 
