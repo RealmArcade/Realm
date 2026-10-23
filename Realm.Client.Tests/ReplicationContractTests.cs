@@ -29,7 +29,7 @@ public partial class ReplicationContractTests
 		"MoveTo", "Velocity", "AttackMove", "Follow",
 		"HoldPosition", "InterpolationTarget", "RenderPosition", "PathingFlags",
 		"Patrol", "WaypointBuffer", "WaypointQueue",
-		"Gatherer", "ResourceNode", "ResourceCost",
+		"Gatherer", "ResourceCost",
 		"Food", "Gold",
 		"Stone", "Wood", "ArmorStat", "AttackDamage",
 		"AttackSpeedMultiplier", "AttackSpeedStat", "DerivedCombatStats", "HealthStat", "MovementSpeed",
