@@ -310,6 +310,111 @@ public class ArmorNumbersCodec : IReplicatedComponentCodec
 	}
 }
 
+public class BuildTaskCodec : INormalizingComponentCodec
+{
+	public int ComponentTypeId => ComponentType<BuildTask>.Id;
+	public string ComponentName => nameof(BuildTask);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => 12;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<BuildTask>(entity)) return false;
+		ref var task = ref world.Get<BuildTask>(entity);
+		int buildingEntityId = task.BuildingEntity.Id;
+		MemoryMarshal.Write(destination.Slice(0, sizeof(int)), in buildingEntityId);
+		BitConverter.TryWriteBytes(destination.Slice(4, 4), task.TotalBuildTime);
+		BitConverter.TryWriteBytes(destination.Slice(8, 4), task.Progress);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		int buildingEntityId = MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+		float totalBuildTime = BitConverter.ToSingle(source.Slice(4, 4));
+		float progress = BitConverter.ToSingle(source.Slice(8, 4));
+		var task = new BuildTask(ReplicatedEntityReferences.Resolve(new Entity(buildingEntityId)), totalBuildTime)
+		{
+			Progress = progress
+		};
+		world.SetOrAdd(entity, in task);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<BuildTask>(entity)) return;
+		world.Remove<BuildTask>(entity);
+	}
+}
+
+public class FollowCodec : INormalizingComponentCodec
+{
+	public int ComponentTypeId => ComponentType<Follow>.Id;
+	public string ComponentName => nameof(Follow);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => sizeof(int);
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Follow>(entity)) return false;
+		ref var follow = ref world.Get<Follow>(entity);
+		int targetEntityId = follow.Target.Id;
+		MemoryMarshal.Write(destination.Slice(0, sizeof(int)), in targetEntityId);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		int targetEntityId = MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+		var follow = new Follow(ReplicatedEntityReferences.Resolve(new Entity(targetEntityId)));
+		world.SetOrAdd(entity, in follow);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Follow>(entity)) return;
+		world.Remove<Follow>(entity);
+	}
+}
+
+public class PatrolCodec : IReplicatedComponentCodec
+{
+	public int ComponentTypeId => ComponentType<Patrol>.Id;
+	public string ComponentName => nameof(Patrol);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => 25;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Patrol>(entity)) return false;
+		ref var patrol = ref world.Get<Patrol>(entity);
+		MemoryMarshal.Write(destination.Slice(0, 12), in patrol.PointA);
+		MemoryMarshal.Write(destination.Slice(12, 12), in patrol.PointB);
+		destination[24] = patrol.GoingToBByte;
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		var patrol = new Patrol
+		{
+			PointA = MemoryMarshal.Read<System.Numerics.Vector3>(source.Slice(0, 12)),
+			PointB = MemoryMarshal.Read<System.Numerics.Vector3>(source.Slice(12, 12)),
+			GoingToBByte = source[24]
+		};
+		world.SetOrAdd(entity, in patrol);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Patrol>(entity)) return;
+		world.Remove<Patrol>(entity);
+	}
+}
+
 public static class ReplicatedComponents
 {
 	private static readonly List<IReplicatedComponentCodec> _codecs = new();
@@ -323,8 +428,14 @@ public static class ReplicatedComponents
 		Register(new SpellCooldownsCodec());
 		Register(new CooldownsCodec());
 		Register(new ReplicatedComponentCodec<ConstructionState>(ReplicatedScope.Unit));
-		Register(new ReplicatedComponentCodec<BuildTask>(ReplicatedScope.Unit));
+		Register(new BuildTaskCodec());
 		Register(new ReplicatedComponentCodec<BuildQueue>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<MoveTo>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<AttackMove>(ReplicatedScope.Unit));
+		Register(new FollowCodec());
+		Register(new TagComponentCodec<HoldPosition>(ReplicatedScope.Unit));
+		Register(new PatrolCodec());
+		Register(new ReplicatedComponentCodec<WaypointQueue>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Inventory>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<RallyPoint>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ResourceNode>(ReplicatedScope.Unit));

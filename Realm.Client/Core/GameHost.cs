@@ -3697,7 +3697,7 @@ public partial class GameHost : Node3D, IGameAPI
 			bool isAuthoritative = !_multiplayerActive || IsServerActive();
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationTickEcs))
 			{
-				GameContext.SimulationService.TickEcs(fDelta, isAuthoritative);
+				GameContext.SimulationService.TickEcs(fDelta, isAuthoritative, simulateLocallyOwnedOnly: !isAuthoritative);
 			}
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PollVfxQueue))
 			{

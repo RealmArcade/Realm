@@ -684,9 +684,23 @@ public class SimulationService
 		_autoCastQueryDelegate = AutoCastQueryAction;
 	}
 
-	public void TickEcs(float fDelta, bool advanceWorldClock = true)
+	public bool SimulateLocallyOwnedOnly { get; private set; }
+
+	public bool ShouldSimulateEntity(Entity entity)
+	{
+		if (!SimulateLocallyOwnedOnly) return true;
+		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
+
+		int localPlayerIndex = GameHost.Instance?.LocalPlayerIndex ?? -1;
+		if (localPlayerIndex < 0) return false;
+
+		return GameContext.World.Has<UnitOwnerPlayer>(entity) && GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
+	}
+
+	public void TickEcs(float fDelta, bool advanceWorldClock = true, bool simulateLocallyOwnedOnly = false)
 	{
 		_fDelta = fDelta;
+		SimulateLocallyOwnedOnly = simulateLocallyOwnedOnly;
 		_tickCount++;
 		_tickEntitiesToClearOrders.Clear();
 		_tickEntitiesToStopGathering.Clear();
@@ -1516,6 +1530,8 @@ public class SimulationService
 
 	private void PatrolArrivalQueryAction(Entity entity, ref Patrol patrol, ref Position pos)
 	{
+		if (!ShouldSimulateEntity(entity)) return;
+
 		var current = pos.Value;
 		var dest = patrol.GoingToB ? patrol.PointB : patrol.PointA;
 		if (Vector3.Distance(current, dest) < 1.5f)
@@ -1528,6 +1544,8 @@ public class SimulationService
 
 	private void FollowQueryAction(Entity entity, ref Follow follow, ref Position pos)
 	{
+		if (!ShouldSimulateEntity(entity)) return;
+
 		if (!GameContext.World.IsAlive(follow.Target) || GameContext.World.Has<Dead>(follow.Target))
 		{
 			_tickFollowToStop.Add(entity);

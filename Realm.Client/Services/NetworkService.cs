@@ -790,6 +790,7 @@ public class NetworkService
 
 		mapping.ServerToClientEntityMap[entityId] = entity;
 		mapping.ClientToServerEntityMap[entity.Id] = entityId;
+		Realm.Ecs.Replication.ReplicatedEntityReferences.Register(entityId, entity.Id);
 
 		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : unitId;
 		modelPath = getFallbackModelPath(targetModel, isBuilding);
