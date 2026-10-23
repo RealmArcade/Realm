@@ -13,6 +13,7 @@ namespace Realm.Client
 		private readonly long[] _pathCorridorBuffer = new long[512];
 		private readonly DtStraightPath[] _straightPathBuffer = new DtStraightPath[512];
 		public static readonly RcVec3f PathfindingExtents = new RcVec3f(2f, 4f, 2f);
+		private static readonly RcVec3f WideStartExtents = new RcVec3f(10f, 10f, 10f);
 		private static readonly RcVec3f TargetPathfindingExtents = new RcVec3f(2f, 4f, 2f);
 		private static readonly RcVec3f WideTargetExtents = new RcVec3f(50f, 50f, 50f);
 
@@ -29,6 +30,11 @@ namespace Realm.Client
 
 		public void ComputePath(DtNavMeshQuery query, Vector3 start, Vector3 end, ushort includeFlags, ref PathFollow pf)
 		{
+			ComputePath(query, start, end, includeFlags, ref pf, out _);
+		}
+
+		public void ComputePath(DtNavMeshQuery query, Vector3 start, Vector3 end, ushort includeFlags, ref PathFollow pf, out NavMeshStartRecovery startRecovery)
+		{
 			pf.Target = end;
 
 			pf.WaypointCount = 0;
@@ -42,7 +48,7 @@ namespace Realm.Client
 			var endPos = new RcVec3f(end.X, end.Y, end.Z);
 			bool isGround = ((TerrainPathingFlags)includeFlags & TerrainPathingFlags.Flying) == 0;
 
-			if (!TryFindStartPoly(query, startPos, out long startRef, out var startPt))
+			if (!TryFindStartPoly(query, startPos, out long startRef, out var startPt, out startRecovery))
 			{
 				return;
 			}
@@ -62,17 +68,35 @@ namespace Realm.Client
 			PopulateWaypoints(query, startPt, endPt, corridorCount, ref pf);
 		}
 
-		private bool TryFindStartPoly(DtNavMeshQuery query, RcVec3f startPos, out long startRef, out RcVec3f startPt)
+		private bool TryFindStartPoly(DtNavMeshQuery query, RcVec3f startPos, out long startRef, out RcVec3f startPt, out NavMeshStartRecovery startRecovery)
 		{
 			query.FindNearestPoly(startPos, PathfindingExtents, _filter, out startRef, out startPt, out _);
 			if (startRef == 0)
 			{
 				// If the unit was pushed or spawned off the valid navmesh, expand the search drastically
 				// so they can find a path back onto the walkable area instead of becoming paralyzed.
-				query.FindNearestPoly(startPos, new RcVec3f(10f, 10f, 10f), _filter, out startRef, out startPt, out _);
+				query.FindNearestPoly(startPos, WideStartExtents, _filter, out startRef, out startPt, out _);
+				startRecovery = BuildStartRecovery(startPos, startRef, startPt);
+			}
+			else
+			{
+				startRecovery = default;
 			}
 
 			return startRef != 0;
+		}
+
+		private static NavMeshStartRecovery BuildStartRecovery(RcVec3f requested, long startRef, RcVec3f snapped)
+		{
+			if (startRef == 0)
+			{
+				return new NavMeshStartRecovery(true, false, requested, snapped, 0, 0f, 0f);
+			}
+
+			float deltaX = snapped.X - requested.X;
+			float deltaZ = snapped.Z - requested.Z;
+			float lateralDistance = MathF.Sqrt(deltaX * deltaX + deltaZ * deltaZ);
+			return new NavMeshStartRecovery(true, true, requested, snapped, startRef, lateralDistance, snapped.Y - requested.Y);
 		}
 
 		private bool TryFindEndPoly(DtNavMeshQuery query, RcVec3f startPos, RcVec3f endPos, bool isGround, out long endRef, out RcVec3f endPt)

@@ -1009,6 +1009,7 @@ public class SimulationService
 		_tickArrivedUnits.Clear();
 		_tickAddPathFollow.Clear();
 		_movementService.RefreshTerrainState();
+		_movementService.AdvanceElapsedTime(fDelta);
 	}
 
 	public Func<Vector3, float>? EditorHeightProvider
