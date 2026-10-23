@@ -358,6 +358,12 @@ public partial class GameHost
 		InGameHUD.Instance?.InvalidateReplicatedOverlays();
 	}
 
+	public void SetReplicatedEntityVisible(Entity entity, bool visible)
+	{
+		if (!TryGetUnit3D(entity, out var unit) || !GodotObject.IsInstanceValid(unit)) return;
+		unit.Visible = visible;
+	}
+
 	private int _shadowVerificationTickCounter;
 
 	private void RunShadowClientVerification()

@@ -615,8 +615,37 @@ public class NetworkService
 			int serverEntityId = _untrackedServerIds[i];
 			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;
 
+			if (IsLocallyOwnedEntity(localEntity))
+			{
+				HideUntrackedOwnEntity(localEntity);
+				continue;
+			}
+
 			RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 		}
+	}
+
+	private readonly HashSet<int> _hiddenOwnEntityIds = new();
+
+	private bool IsLocallyOwnedEntity(Entity entity)
+	{
+		int localPlayerIndex = GameHost.Instance?.LocalPlayerIndex ?? -1;
+		if (localPlayerIndex < 0) return false;
+		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
+
+		return GameContext.World.Has<UnitOwnerPlayer>(entity) && GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
+	}
+
+	private void HideUntrackedOwnEntity(Entity localEntity)
+	{
+		if (!_hiddenOwnEntityIds.Add(localEntity.Id)) return;
+		GameHost.Instance?.SetReplicatedEntityVisible(localEntity, false);
+	}
+
+	private void RestoreHiddenOwnEntity(Entity localEntity)
+	{
+		if (!_hiddenOwnEntityIds.Remove(localEntity.Id)) return;
+		GameHost.Instance?.SetReplicatedEntityVisible(localEntity, true);
 	}
 
 	private void RetireClientEntityForUntrackedServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
@@ -644,6 +673,8 @@ public class NetworkService
 			if (!snap.IsDead) _pendingUnitSpawns[snap.EntityId] = snap;
 			return;
 		}
+
+		RestoreHiddenOwnEntity(localEntity);
 
 		if (snap.IsDead)
 		{
