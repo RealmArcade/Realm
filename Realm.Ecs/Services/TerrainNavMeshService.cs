@@ -18,7 +18,7 @@ public class TerrainNavMeshService
 	public Dictionary<string, float> ObstacleRadiusCache { get; set; } = new();
 
 	private const float NavMeshCellHeight = 0.1f;
-	private const float AgentRadius = 0.1f;
+	private const float AgentRadius = 1.2f;
 	private const float AgentHeight = 2.5f;
 	private const float AgentMaxClimb = 0.9f;
 	private const float AgentMaxSlope = 55.0f;
