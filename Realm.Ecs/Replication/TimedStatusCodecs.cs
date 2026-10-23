@@ -101,3 +101,102 @@ public class SpellCooldownsCodec : INormalizingComponentCodec
 		world.SetOrAdd(entity, in cooldowns);
 	}
 }
+
+public class BuffsCodec : INormalizingComponentCodec
+{
+	public int ComponentTypeId => ComponentType<Buffs>.Id;
+	public string ComponentName => nameof(Buffs);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => TimedStatusPayload.SizeInBytes;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Buffs>(entity)) return false;
+
+		ref var buffs = ref world.Get<Buffs>(entity);
+		TimedStatusPayload.Write(buffs.Slots, buffs.Count, destination);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		var buffs = world.Has<Buffs>(entity) ? world.Get<Buffs>(entity) : default;
+		TimedStatusPayload.Apply(source, ref buffs.Slots, ref buffs.Count);
+		world.SetOrAdd(entity, in buffs);
+	}
+}
+
+public class BuffStateCodec : INormalizingComponentCodec
+{
+	public int ComponentTypeId => ComponentType<BuffState>.Id;
+	public string ComponentName => nameof(BuffState);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => TimedStatusPayload.SizeInBytes;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<BuffState>(entity)) return false;
+
+		ref var buffState = ref world.Get<BuffState>(entity);
+		TimedStatusPayload.Write(buffState.Slots, buffState.Count, destination);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		var buffState = world.Has<BuffState>(entity) ? world.Get<BuffState>(entity) : default;
+		TimedStatusPayload.Apply(source, ref buffState.Slots, ref buffState.Count);
+		world.SetOrAdd(entity, in buffState);
+	}
+}
+
+public class ModifierStateCodec : INormalizingComponentCodec
+{
+	public const int MaxReplicatedModifiers = 8;
+	private static readonly int SlotSizeInBytes = System.Runtime.CompilerServices.Unsafe.SizeOf<Realm.Ecs.Components.Stats.StatModifier>();
+	private static readonly int SizeInBytesValue = 1 + (MaxReplicatedModifiers * SlotSizeInBytes);
+
+	public int ComponentTypeId => ComponentType<ModifierState>.Id;
+	public string ComponentName => nameof(ModifierState);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => SizeInBytesValue;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<ModifierState>(entity)) return false;
+
+		destination.Clear();
+		ref var state = ref world.Get<ModifierState>(entity);
+		int written = Math.Min(state.Count, MaxReplicatedModifiers);
+		for (int index = 0; index < written; index++)
+		{
+			var modifier = state.Slots[index];
+			int offset = 1 + (index * SlotSizeInBytes);
+			MemoryMarshal.Write(destination.Slice(offset, SlotSizeInBytes), in modifier);
+		}
+
+		destination[0] = (byte)written;
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		var state = world.Has<ModifierState>(entity) ? world.Get<ModifierState>(entity) : default;
+		state.Clear();
+
+		int written = Math.Min((int)source[0], MaxReplicatedModifiers);
+		for (int index = 0; index < written; index++)
+		{
+			int offset = 1 + (index * SlotSizeInBytes);
+			state.Add(MemoryMarshal.Read<Realm.Ecs.Components.Stats.StatModifier>(source.Slice(offset, SlotSizeInBytes)));
+		}
+
+		world.SetOrAdd(entity, in state);
+	}
+}

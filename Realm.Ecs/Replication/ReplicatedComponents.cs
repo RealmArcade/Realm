@@ -283,6 +283,9 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<PlayerUpgrades>(ReplicatedScope.Player));
 		Register(new SpellCooldownsCodec());
 		Register(new CooldownsCodec());
+		Register(new BuffsCodec());
+		Register(new BuffStateCodec());
+		Register(new ModifierStateCodec());
 		Register(new ReplicatedComponentCodec<AbilityState>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ScriptZonesState>(ReplicatedScope.World));
 		Register(new ReplicatedComponentCodec<ProductionQueue>(ReplicatedScope.Unit));
