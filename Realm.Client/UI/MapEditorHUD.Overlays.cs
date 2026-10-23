@@ -91,6 +91,11 @@ namespace Realm.Client.UI
 			{
 				_mapNameUpdateTimer = 0.0;
 				UpdateMapNameHeader();
+
+				if (!ReferenceEquals(_swatchDataService, GameContext.EditorService))
+				{
+					UpdateTextureLabels();
+				}
 			}
 
 			UpdateAutoBackup(delta);
@@ -2561,23 +2566,46 @@ namespace Realm.Client.UI
 		public void SetupTextureSwatches(bool connectEvents = false)
 		{
 			_swatchTextureCache.Clear();
-			GameContext.EditorService.ClearSwatchData();
+
+			var slots = RefreshSwatchDataFromWorkspace();
+			if (slots != null)
+			{
+				RebuildSwatchesUI(slots, connectEvents);
+			}
+
+			UpdateTextureLabels();
+		}
+
+		private EditorService? _swatchDataService { get; set; }
+
+		private void EnsureSwatchDataCurrent()
+		{
+			var editorService = GameContext.EditorService;
+			if (ReferenceEquals(_swatchDataService, editorService)) return;
+
+			RefreshSwatchDataFromWorkspace();
+		}
+
+		private SwatchSlotInfo[]? RefreshSwatchDataFromWorkspace()
+		{
+			_swatchDataService = GameContext.EditorService;
 
 			try
 			{
+				GameContext.EditorService.ClearSwatchData();
+
 				string wsPath = GameContext.EditorService.GetActiveWorkspacePathFromSettings();
 				var metadata = MapFileService.LoadMetadata(wsPath);
 				var slots = TextureSwatchSlots.ResolveSlots(metadata?.Textures, wsPath);
 
 				GameContext.EditorService.PopulateSwatchData(slots, wsPath);
-				RebuildSwatchesUI(slots, connectEvents);
+				return slots;
 			}
 			catch (Exception ex)
 			{
 				GD.PrintErr($"[MapEditorHUD] Error in SetupTextureSwatches: {ex.Message}");
+				return null;
 			}
-
-			UpdateTextureLabels();
 		}
 
 

@@ -4248,6 +4248,8 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host == null) return;
 
+			EnsureSwatchDataCurrent();
+
 			var (terrainName, cliffName) = GameContext.EditorService.GetTextureNamesDomain();
 			int terrainIdx = GameContext.EditorService.EditorPaintTextureIndex;
 			int cliffIdx = GameContext.EditorService.EditorCliffPaintTextureIndex;
