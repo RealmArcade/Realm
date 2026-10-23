@@ -401,7 +401,7 @@ namespace Realm.Client.UI
 
 				_btnImportArchive = GetNode<Button>("PopupLoadMore/LoadMoreVBox_VBoxContainer/BtnImportArchive");
 				_btnImportArchive.Set("icon_max_width", 0);
-				SetupOptionButton(_btnImportArchive, $"{UnicodeIcons.FILE_IMPORT} IMPORT (.RMAP)", () => ImportMapArchiveAction(), 13, "Import a map package (.rmap) into a sibling folder and open it for editing; saving writes to that folder, not the package");
+				SetupOptionButton(_btnImportArchive, $"{UnicodeIcons.FILE_IMPORT} IMPORT (.RMAP)", () => ImportMapArchiveAction(), 13, "Import a map package (.rmap) into the editor workspace and open it for editing; saving prompts for a destination folder");
 				_btnImportArchive.Pressed += () => _popupLoadMore.Hide();
 
 				_btnLoadMore = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxFileOps/RowFileSaveLoad/RowLoadGroup/BtnLoadMore");

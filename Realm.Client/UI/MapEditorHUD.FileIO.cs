@@ -803,13 +803,6 @@ namespace Realm.Client.UI
 			}
 		}
 
-		public static string GetArchiveExtractionFolder(string archivePath)
-		{
-			string fullArchivePath = Path.GetFullPath(archivePath);
-			string archiveDirectory = Path.GetDirectoryName(fullArchivePath) ?? GetDocumentsDirectory();
-			return Path.Combine(archiveDirectory, Path.GetFileNameWithoutExtension(fullArchivePath));
-		}
-
 		public async Task<bool> ImportMapArchiveAsync(string archivePath)
 		{
 			if (string.IsNullOrWhiteSpace(archivePath) || !File.Exists(archivePath))
@@ -818,63 +811,118 @@ namespace Realm.Client.UI
 				return false;
 			}
 
-			string extractionFolder = GetArchiveExtractionFolder(archivePath);
-			if (Directory.Exists(extractionFolder) && Directory.GetFileSystemEntries(extractionFolder).Length > 0)
+			string workspacePath = GameContext.EditorService._tempWorkspacePath;
+			if (string.IsNullOrEmpty(workspacePath))
 			{
-				bool replaceConfirmed = await ConfirmReplacingExtractionFolderAsync(extractionFolder);
-				if (!replaceConfirmed)
-				{
-					ShowFeedback(TranslationServer.Translate("Importing the map package was cancelled."));
-					return false;
-				}
-
-				MapWorkspaceService.CleanWorkspaceDirectory(extractionFolder);
+				TryCreateTempWorkspaceDirectory();
+				workspacePath = GameContext.EditorService._tempWorkspacePath;
 			}
 
-			ShowFeedback(string.Format(TranslationServer.Translate("Extracting map package into {0}..."), extractionFolder));
+			if (string.IsNullOrEmpty(workspacePath))
+			{
+				ShowFeedback(TranslationServer.Translate("The editor workspace is not available."));
+				return false;
+			}
+
+			var (manifestJson, _) = MapArchiveHelper.ReadManifestFromArchive(archivePath);
+			if (string.IsNullOrWhiteSpace(manifestJson))
+			{
+				ShowFeedback(TranslationServer.Translate("The map package does not contain a readable map."));
+				return false;
+			}
+
+			GameContext.Host?.ClearMapEntirely();
+			GameContext.EditorService.IsSyncing = true;
+
+			ShowFeedback(TranslationServer.Translate("Extracting map package into the editor workspace..."));
 			try
 			{
-				await Task.Run(() => MapArchiveHelper.ExtractArchive(archivePath, extractionFolder));
+				await Task.Run(() =>
+				{
+					MapWorkspaceService.CleanWorkspaceDirectory(workspacePath);
+					Directory.CreateDirectory(workspacePath);
+					MapArchiveHelper.ExtractArchive(archivePath, workspacePath);
+				});
 			}
 			catch (Exception ex)
 			{
 				GD.PrintErr($"[MapEditorHUD] Failed to extract map package {archivePath}: {ex}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Failed to extract the map package: {0}"), ex.Message));
+				GameContext.EditorService.IsSyncing = false;
 				return false;
 			}
 
-			if (!GameContext.EditorService.IsValidMapFolder(extractionFolder))
+			if (!GameContext.EditorService.IsValidMapFolder(workspacePath))
 			{
-				ShowInvalidMapFolderErrorDialog(extractionFolder);
+				ShowInvalidMapFolderErrorDialog(workspacePath);
 				ShowFeedback(TranslationServer.Translate("The map package does not contain a readable map."));
+				GameContext.EditorService.IsSyncing = false;
 				return false;
 			}
 
-			bool loaded = await LoadMapFolderAsync(extractionFolder);
-			if (!loaded)
+			if (GameContext.EditorService.IsMapFolderCorrupt(workspacePath, out string corruptFile, out string corruptError))
 			{
+				ShowCorruptMapFileErrorDialog(workspacePath, corruptFile, corruptError);
+				ShowFeedback(string.Format(TranslationServer.Translate("Map file '{0}' is corrupt: {1}"), corruptFile, corruptError));
+				GameContext.EditorService.IsSyncing = false;
 				return false;
 			}
 
-			ShowFeedback(string.Format(
-				TranslationServer.Translate("Map package imported into {0}. Saving writes to that folder."),
-				extractionFolder));
-			return true;
+			bool canProceed = await PromptAndUpgradeMapIfNeededAsync(workspacePath);
+			if (!canProceed)
+			{
+				ShowFeedback(TranslationServer.Translate("Map loading cancelled."));
+				GameContext.EditorService.IsSyncing = false;
+				return false;
+			}
+
+			try
+			{
+				string mapName = GetImportedMapName();
+				await Task.Run(() => MapWorkspaceService.SetupWorkspace(workspacePath, mapName));
+
+				string terrainPath = Path.Combine(workspacePath, "terrain.json");
+				string metadataPath = Path.Combine(workspacePath, "metadata.json");
+				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);
+				GameContext.EditorService.LastMetadataSyncTime = GameContext.EditorService.GetLastWriteTimeSafe(metadataPath);
+
+				ViewLoadMapProperties();
+				ReadMetadataAndRefreshTextures();
+
+				bool success = GameContext.Host?.LoadMapFromFile(terrainPath, ensureGlbOptimized: false) ?? false;
+				if (!success)
+				{
+					ShowFeedback(TranslationServer.Translate("Failed to load map files from folder!"));
+					return false;
+				}
+
+				GameContext.BaseMapFolderWatchService?.Stop();
+				GameContext.EditorService.LastUsedFolder = null;
+				GameContext.EditorService.CurrentSourceFolder = string.Empty;
+				GameContext.EditorService.StartWorkspaceWatcher(workspacePath);
+				mapSaveFolder = null;
+				defaultSaveFolder = GetDocumentsDirectory();
+				SaveCurrentDirectoryBlake3();
+				ShowFeedback(TranslationServer.Translate("Map package imported. Choose a destination folder when you save."));
+				return true;
+			}
+			catch (Exception ex)
+			{
+				GD.PrintErr($"[MapEditorHUD] Failed to import map package {archivePath}: {ex}");
+				ShowFeedback(string.Format(TranslationServer.Translate("Failed to import the map package: {0}"), ex.Message));
+				return false;
+			}
+			finally
+			{
+				GameContext.EditorService.IsSyncing = false;
+			}
 		}
 
-		private Task<bool> ConfirmReplacingExtractionFolderAsync(string extractionFolder)
+		private string GetImportedMapName()
 		{
-			var completion = new TaskCompletionSource<bool>();
-			ShowConfirmationDialog(
-				string.Format(
-					TranslationServer.Translate("The folder '{0}' already exists and will be replaced with the contents of the map package. Continue?"),
-					extractionFolder),
-				onConfirm: () => completion.TrySetResult(true),
-				confirmText: TranslationServer.Translate("REPLACE"),
-				cancelText: TranslationServer.Translate("CANCEL"),
-				onCancel: () => completion.TrySetResult(false),
-				onDismissed: () => completion.TrySetResult(false));
-			return completion.Task;
+			string mapName = GetMapNameFromMetadata(forceReload: true);
+			mapName = string.Join("_", mapName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+			return string.IsNullOrWhiteSpace(mapName) ? "MapScript" : mapName;
 		}
 
 		public bool LoadMapFolder(string selectedFolder)
