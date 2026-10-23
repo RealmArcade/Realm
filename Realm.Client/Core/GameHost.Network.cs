@@ -584,23 +584,6 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SyncWorldState(float gameElapsedTime, int timeOfDayIndex, float timeOfDayTimer, bool dayNightCycleEnabled)
-	{
-		bool isWorldAlive = GameContext.EnvironmentService.SyncWorldStateDomain(gameElapsedTime, timeOfDayIndex, timeOfDayTimer, dayNightCycleEnabled);
-		if (isWorldAlive)
-		{
-			if (dayNightCycleEnabled && GameContext.EnvironmentService.TimeOfDayCycleDuration > 0)
-			{
-				float progress = timeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
-				if (!GameContext.SessionState.IsMapEditorMode)
-				{
-					UpdateDayNightVisuals(progress);
-				}
-			}
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void SyncEnvironmentPresetRpc(string presetId, float durationSeconds)
 	{
 		if (durationSeconds <= 0.001f)
@@ -618,14 +601,6 @@ public partial class GameHost
 	{
 		GameContext.EnvironmentService?.SetCurrentWeather(weatherType);
 		InGameHUD.Instance?.ApplyWeatherEffects(weatherType);
-	}
-
-	private void SyncReconnectedWorldState(int newPeerId)
-	{
-		if (GameContext.NetworkService.TryGetReconnectedWorldState(out float gameElapsedTime, out int timeOfDayIndex, out float timeOfDayTimer, out bool dayNightCycleEnabled))
-		{
-			RpcId(newPeerId, nameof(SyncWorldState), gameElapsedTime, timeOfDayIndex, timeOfDayTimer, dayNightCycleEnabled);
-		}
 	}
 
 	private void SendReconnectedBaselineSnapshot(int newPeerId)
@@ -678,7 +653,6 @@ public partial class GameHost
 
 		Entity playerEntity = GameContext.NetworkService.ResolveReconnectedPlayerEntity(oldPeerId, newPeerId, _peerIdToPlayerEntityMap);
 		GameContext.NetworkService.UpdateReconnectedNetworkMapping(oldPeerId, newPeerId, playerEntity);
-		SyncReconnectedWorldState(newPeerId);
 		SendReconnectedBaselineSnapshot(newPeerId);
 		SyncReconnectedPlayerResources(newPeerId, playerEntity);
 		SyncReconnectedCountdown(newPeerId);

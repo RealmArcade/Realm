@@ -148,23 +148,6 @@ public class NetworkService
 		}
 	}
 
-	public bool TryGetReconnectedWorldState(out float gameElapsedTime, out int timeOfDayIndex, out float timeOfDayTimer, out bool dayNightCycleEnabled)
-	{
-		gameElapsedTime = 0f;
-		timeOfDayIndex = 0;
-		timeOfDayTimer = 0f;
-		dayNightCycleEnabled = false;
-
-		if (ECSContext.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<WorldState>(ECSContext.WorldEntity)) return false;
-
-		var ws = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
-		gameElapsedTime = ws.GameElapsedTime;
-		timeOfDayIndex = ws.TimeOfDayIndex;
-		timeOfDayTimer = ws.TimeOfDayTimer;
-		dayNightCycleEnabled = ws.DayNightCycleEnabled;
-		return true;
-	}
-
 	public bool TryGetReconnectedPlayerResources(Entity playerEntity, out float gold, out float wood, out float stone)
 	{
 		gold = 0;
