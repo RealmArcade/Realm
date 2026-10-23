@@ -77,15 +77,6 @@ public partial class GameHost
 
 	private void HandleUnitDeathEconomy(Unit3D unit)
 	{
-		int popCost = GameContext.SimulationService.GetDeathPopulationCost(unit.Entity, unit.UnitId);
-		int playerIndex = unit.Player;
-
-		if (popCost > 0)
-		{
-			int curPop = GameContext.ResourceEconomyService?.GetPlayerCurrentPopulation(playerIndex) ?? 0;
-			GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(playerIndex, Math.Max(0, curPop - (int)popCost));
-		}
-
 		HandleUnitBountyEconomy(unit);
 	}
 

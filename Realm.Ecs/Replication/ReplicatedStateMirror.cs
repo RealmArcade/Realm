@@ -82,6 +82,11 @@ public class ReplicatedStateMirror
 			if (kvp.Key.Scope != (byte)ReplicatedScope.Player) continue;
 			records.Add((kvp.Key.Key, kvp.Key.TypeId, kvp.Value));
 		}
+		return ComputeFingerprint(records);
+	}
+
+	public uint ComputeFingerprint(List<(int Key, int ComponentTypeId, byte[] Bytes)> records)
+	{
 		records.Sort(static (left, right) =>
 		{
 			int byKey = left.Key.CompareTo(right.Key);

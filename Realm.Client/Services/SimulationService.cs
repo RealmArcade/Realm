@@ -681,7 +681,7 @@ public class SimulationService
 		_autoCastQueryDelegate = AutoCastQueryAction;
 	}
 
-	public void TickEcs(float fDelta)
+	public void TickEcs(float fDelta, bool advanceWorldClock = true)
 	{
 		_fDelta = fDelta;
 		_tickCount++;
@@ -693,7 +693,7 @@ public class SimulationService
 
 		if (ActiveWorldEntity != Entity.Null && GameContext.World.IsAlive(ActiveWorldEntity))
 		{
-			if (GameContext.World.Has<WorldState>(ActiveWorldEntity))
+			if (advanceWorldClock && GameContext.World.Has<WorldState>(ActiveWorldEntity))
 			{
 				var state = GameContext.World.Get<WorldState>(ActiveWorldEntity);
 				float elapsed = state.GameElapsedTime + fDelta;

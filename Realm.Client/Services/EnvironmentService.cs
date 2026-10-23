@@ -719,12 +719,18 @@ public class EnvironmentService
 		return false;
 	}
 
-	public (bool UpdateVisuals, float Progress) UpdateClientWorldStateDomain(float fDelta, bool isMapEditorMode)
+	public (bool UpdateVisuals, float Progress) UpdateClientWorldStateDomain(float fDelta, bool isMapEditorMode, bool advanceSimulationClock)
 	{
 				if (GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
 			return (false, 0f);
 
 		var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
+		if (!advanceSimulationClock)
+		{
+			float replicatedProgress = state.TimeOfDayTimer / TimeOfDayCycleDuration;
+			return (state.DayNightCycleEnabled && !isMapEditorMode, replicatedProgress);
+		}
+
 		float elapsed = state.GameElapsedTime + fDelta;
 		float timer = state.TimeOfDayTimer;
 		int index = state.TimeOfDayIndex;

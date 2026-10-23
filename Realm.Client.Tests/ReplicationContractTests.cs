@@ -23,7 +23,7 @@ public partial class ReplicationContractTests
 		"ProductionQueue", "PropIdentity", "PropSpawnRequest", "RallyPoint",
 		"ReplayState", "ScriptPlayersState", "ScriptZonesState", "SpectatorPerspective",
 		"SummaryTableState", "TowerUpgradeLevel", "UnitOwnerPlayer", "UnitSpawnRequest",
-		"VFXQueue", "VFXRequest", "WorldState", "ZoneBounds",
+		"VFXQueue", "VFXRequest", "ZoneBounds",
 		"AutoCombatState", "CombatTargeting", "Weapon", "Weapons",
 		"TargetIntel", "Ability", "HasAbilities", "AbilityState",
 		"AutoCastState", "CastTarget", "BuffState", "Buffs",

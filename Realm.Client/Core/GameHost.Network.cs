@@ -76,7 +76,8 @@ public partial class GameHost
 	private void UpdateClientWorldState(float fDelta)
 	{
 		bool isEditorMode = GameContext.SessionState.IsMapEditorMode;
-		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, isEditorMode);
+		bool advanceSimulationClock = !_multiplayerActive || Multiplayer.IsServer();
+		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, isEditorMode, advanceSimulationClock);
 		if (res.UpdateVisuals)
 		{
 			UpdateClientWorldStateViewLogic(res.Progress);
@@ -140,16 +141,38 @@ public partial class GameHost
 	{
 		var stringUnitRegistry = new Dictionary<string, UnitMetadata>();
 		foreach (var kvp in UnitRegistry) stringUnitRegistry[kvp.Key.ToString()] = kvp.Value;
+		foreach (var kvp in BuildingRegistry) stringUnitRegistry[kvp.Key.ToString()] = kvp.Value;
 		var longPeerMap = new Dictionary<long, Entity>();
 		foreach (var kvp in _peerIdToPlayerEntityMap) longPeerMap[kvp.Key] = kvp.Value;
 
-		var domainRes = GameContext.NetworkService.ProcessServerCommandBuildDomain(result, stringUnitRegistry, longPeerMap);
-		if (domainRes.Success)
+		Entity buildWorkerEntity = Entity.Null;
+		if (result.BuildWorkerServerEntityId >= 0)
 		{
-			var godotPos = new Vector3(domainRes.BuildPosition.X, domainRes.BuildPosition.Y, domainRes.BuildPosition.Z);
-			var bldEntity = CreateEcsUnit(domainRes.BuildUnitType, domainRes.Name, domainRes.MaxHp, domainRes.Damage, domainRes.Range, domainRes.Armor, 0f, godotPos, domainRes.PlayerOwner);
-			ProcessServerCommandBuildViewLogic(bldEntity, domainRes.BuildUnitType, domainRes.TargetModel, godotPos, domainRes.PlayerOwner);
+			buildWorkerEntity = GameContext.NetworkService.FindServerEntity(result.BuildWorkerServerEntityId, AllUnits);
+			if (buildWorkerEntity == Entity.Null || !GameContext.World.IsAlive(buildWorkerEntity))
+			{
+				GD.PushWarning($"[Build] Rejected '{result.BuildUnitType}': worker server entity {result.BuildWorkerServerEntityId} is not a live unit on the host.");
+				return;
+			}
 		}
+
+		var domainRes = GameContext.NetworkService.ProcessServerCommandBuildDomain(result, stringUnitRegistry, longPeerMap, buildWorkerEntity);
+		if (!domainRes.Success)
+		{
+			GD.PushWarning($"[Build] Rejected '{result.BuildUnitType}': build metadata is missing from the unit registry or the worker is not owned by the commanding peer.");
+			return;
+		}
+
+		var godotPos = new Vector3(domainRes.BuildPosition.X, domainRes.BuildPosition.Y, domainRes.BuildPosition.Z);
+		if (buildWorkerEntity != Entity.Null)
+		{
+			AssignBuildTaskToWorker(buildWorkerEntity, domainRes.BuildUnitType, domainRes.BuildPosition);
+			GD.Print($"[Build] Worker {buildWorkerEntity.Id} started constructing '{domainRes.BuildUnitType}' at {domainRes.BuildPosition}.");
+			return;
+		}
+
+		var bldEntity = CreateEcsUnit(domainRes.BuildUnitType, domainRes.Name, domainRes.MaxHp, domainRes.Damage, domainRes.Range, domainRes.Armor, 0f, godotPos, domainRes.PlayerOwner);
+		ProcessServerCommandBuildViewLogic(bldEntity, domainRes.BuildUnitType, domainRes.TargetModel, godotPos, domainRes.PlayerOwner);
 	}
 
 	private void ProcessServerCommandBuildViewLogic(Entity bldEntity, string buildUnitType, string targetModel, Vector3 buildPosition, PlayerEntity playerOwner)
@@ -182,6 +205,18 @@ public partial class GameHost
 		}
 	}
 
+	private readonly Dictionary<int, int> _lastAppliedCommandIdPerPeer = new();
+
+	private bool IsDuplicateCommand(int peerId, int commandId)
+	{
+		if (commandId <= 0) return false;
+
+		if (_lastAppliedCommandIdPerPeer.TryGetValue(peerId, out int lastAppliedCommandId) && commandId <= lastAppliedCommandId) return true;
+
+		_lastAppliedCommandIdPerPeer[peerId] = commandId;
+		return false;
+	}
+
 	private void ProcessServerCommandSpell(NetworkCommand cmd, ServerCommandResult result)
 	{
 		if (!result.NeedsSpellEffect) return;
@@ -205,6 +240,13 @@ public partial class GameHost
 		var sw = Stopwatch.StartNew();
 		int senderId = Multiplayer.GetRemoteSenderId();
 		var cmd = MemoryPackSerializer.Deserialize<NetworkCommand>(payload);
+
+		if (IsDuplicateCommand(senderId, cmd.CommandId))
+		{
+			RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId);
+			return;
+		}
+
 		GD.Print($"[SERVER_CMD_RECEIVED] Peer={senderId} CommandType={cmd.CommandType} Units={string.Join(",", cmd.UnitEntityIds)} Target={cmd.TargetPosition.ToGodot()}");
 
 		var result = GameContext.NetworkService.ExecuteServerCommand(senderId, cmd, AllUnits, AllProps);

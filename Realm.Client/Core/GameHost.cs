@@ -3664,13 +3664,16 @@ public partial class GameHost : Node3D, IGameAPI
 		return actualIntervalMs;
 	}
 
+	private int _populationRecomputeTick;
+
 	private void ProcessCoreSimulation(float fDelta)
 	{
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessCoreSimulation))
 		{
+			TickAuthoritativePopulation();
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationTickEcs))
 			{
-				GameContext.SimulationService.TickEcs(fDelta);
+				GameContext.SimulationService.TickEcs(fDelta, !_multiplayerActive || IsServerActive());
 			}
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PollVfxQueue))
 			{
@@ -3681,6 +3684,17 @@ public partial class GameHost : Node3D, IGameAPI
 				TickConstructionSystem(fDelta);
 			}
 		}
+	}
+
+	private void TickAuthoritativePopulation()
+	{
+		if (_multiplayerActive && !IsServerActive()) return;
+
+		_populationRecomputeTick++;
+		if (_populationRecomputeTick < 5) return;
+
+		_populationRecomputeTick = 0;
+		GameContext.ResourceEconomyService?.RecomputeCurrentPopulation();
 	}
 
 	private void ProcessVisualAndEnvironment(float fDelta)

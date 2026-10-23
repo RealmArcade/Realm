@@ -9,6 +9,7 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared;
 
@@ -32,6 +33,7 @@ public partial class MultiplayerSimulationHarness : Node
 	private string _readyFile = string.Empty;
 	private string _doneFile = string.Empty;
 	private string _sequenceFile = string.Empty;
+	private string _clientBuildId = string.Empty;
 	private int _drainMilliseconds = 0;
 	private int _finalSequence = -1;
 	private float _durationSeconds = 15f;
@@ -100,6 +102,9 @@ public partial class MultiplayerSimulationHarness : Node
 					break;
 				case "--sequence-file":
 					_sequenceFile = value;
+					break;
+				case "--client-build":
+					_clientBuildId = value;
 					break;
 				case "--drain-ms":
 					_drainMilliseconds = int.Parse(value);
@@ -183,7 +188,7 @@ public partial class MultiplayerSimulationHarness : Node
 				break;
 			}
 
-			GD.Print($"[MP_HARNESS] Host game time {gameHost.GameElapsedTime:F2}s / {_durationSeconds:F0}s, units {gameHost.AllUnits.Count}, snapshots {ResolveSnapshotSequence()}.");
+			GD.Print($"[MP_HARNESS] Host game time {gameHost.GameElapsedTime:F2}s / {_durationSeconds:F0}s, units {gameHost.AllUnits.Count}, construction sites {CountConstructionSites(gameHost)}, snapshots {ResolveSnapshotSequence()}.");
 			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
 		}
 
@@ -223,6 +228,11 @@ public partial class MultiplayerSimulationHarness : Node
 		if (!await StartSimulationAsync(lobby, false)) return 1;
 
 		GD.Print("[MP_HARNESS] Client simulation started. Recording until the host signals completion.");
+		if (!string.IsNullOrEmpty(_clientBuildId))
+		{
+			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
+			IssueClientBuildRequest(GameHost.Instance);
+		}
 		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 120f + (_drainMilliseconds / 1000f));
 		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
 
@@ -232,7 +242,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		_finalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
-		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence}.");
+		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameHost.Instance?.GameElapsedTime ?? 0f:F2}s.");
 		MultiplayerSyncDiagnostics.Stop();
 		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
@@ -269,6 +279,53 @@ public partial class MultiplayerSimulationHarness : Node
 		GD.Print($"[MP_HARNESS] {(isHost ? "Host" : "Client")} simulation ready at game time {currentHost.GameElapsedTime:F2}s with {currentHost.AllUnits.Count} units.");
 		GD.Print($"[MP_HARNESS] Active workspace '{MapWorkspaceService.GetActiveWorkspacePath()}' resolved from map directory '{GameContext.MapStorageService?.CurrentMapDirectory}'.");
 		return true;
+	}
+
+	private static int CountConstructionSites(GameHost gameHost)
+	{
+		int count = 0;
+		foreach (var unit in gameHost.AllUnits)
+		{
+			if (GameContext.World != null && GameContext.World.Has<ConstructionState>(unit.Entity)) count++;
+		}
+
+		return count;
+	}
+
+	private void IssueClientBuildRequest(GameHost gameHost)
+	{
+		string buildId = _clientBuildId;
+		if (buildId == "auto")
+		{
+			buildId = string.Empty;
+			foreach (var key in GameHost.BuildingRegistry.Keys)
+			{
+				string candidate = key.ToString();
+				if (string.IsNullOrEmpty(candidate)) continue;
+				buildId = candidate;
+				break;
+			}
+		}
+		if (string.IsNullOrEmpty(buildId))
+		{
+			GD.PrintErr("[MP_HARNESS] No building id is available for the client build request.");
+			return;
+		}
+
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		Unit3D worker = gameHost.AllUnits.Find(unit => !unit.IsBuilding && unit.Player == localPlayerIndex && GameHost.UnitRegistry.TryGetValue(unit.UnitId, out var meta) && meta.BuildOptions is { Length: > 0 });
+		worker ??= gameHost.AllUnits.Find(unit => !unit.IsBuilding && unit.Player == localPlayerIndex);
+		if (worker == null)
+		{
+			GD.PrintErr($"[MP_HARNESS] No controllable worker was found for player index {localPlayerIndex}.");
+			return;
+		}
+
+		gameHost.SelectedUnits.Clear();
+		gameHost.SelectedUnits.Add(worker);
+		var buildPosition = worker.GlobalPosition + new Vector3(4f, 0f, 4f);
+		gameHost.PlaceBuildingAt(buildId, buildPosition);
+		GD.Print($"[MP_HARNESS] Client requested build '{buildId}' with worker '{worker.UnitId}' at {buildPosition}.");
 	}
 
 	private async Task<bool> WaitUntilAsync(Func<bool> condition, float timeoutSeconds)

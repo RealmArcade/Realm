@@ -102,6 +102,46 @@ public class TagComponentCodec<T> : IReplicatedComponentCodec where T : unmanage
 	}
 }
 
+public class WorldStateCodec : IReplicatedComponentCodec
+{
+	public int ComponentTypeId => ComponentType<WorldState>.Id;
+	public string ComponentName => nameof(WorldState);
+	public ReplicatedScope Scope => ReplicatedScope.World;
+	public int SizeInBytes => 13;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<WorldState>(entity)) return false;
+		ref var state = ref world.Get<WorldState>(entity);
+		BitConverter.TryWriteBytes(destination.Slice(0, 4), state.GameElapsedTime);
+		MemoryMarshal.Write(destination.Slice(4, 4), in state.TimeOfDayIndex);
+		BitConverter.TryWriteBytes(destination.Slice(8, 4), state.TimeOfDayTimer);
+		destination[12] = state.DayNightCycleEnabledByte;
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		float gameElapsedTime = BitConverter.ToSingle(source.Slice(0, 4));
+		int timeOfDayIndex = MemoryMarshal.Read<int>(source.Slice(4, 4));
+		float timeOfDayTimer = BitConverter.ToSingle(source.Slice(8, 4));
+		byte dayNightCycleEnabled = source[12];
+
+		if (world.Has<WorldState>(entity))
+		{
+			ref var state = ref world.Get<WorldState>(entity);
+			state.GameElapsedTime = gameElapsedTime;
+			state.TimeOfDayIndex = timeOfDayIndex;
+			state.TimeOfDayTimer = timeOfDayTimer;
+			state.DayNightCycleEnabledByte = dayNightCycleEnabled;
+			return;
+		}
+
+		world.Add(entity, new WorldState(gameElapsedTime, timeOfDayIndex, timeOfDayTimer, dayNightCycleEnabled != 0));
+	}
+}
+
 public class PlayerTeamCodec : IReplicatedComponentCodec
 {
 	public int ComponentTypeId => ComponentType<PlayerTeam>.Id;
@@ -256,6 +296,7 @@ public static class ReplicatedComponents
 
 	static ReplicatedComponents()
 	{
+		Register(new WorldStateCodec());
 		Register(new ReplicatedComponentCodec<PlayerPopulation>(ReplicatedScope.Player));
 		Register(new PlayerTeamCodec());
 		Register(new ScriptPlayerStateCodec());

@@ -34,6 +34,19 @@ public static class MultiplayerSyncDiagnostics
 	public static int FingerprintMismatchCount => _fingerprintMismatchCount;
 	public static string FingerprintMismatchSummary => _fingerprintMismatchSummary;
 
+	private static int _ecsDriftCount;
+	private static string _ecsDriftSummary = string.Empty;
+
+	public static int EcsDriftCount => _ecsDriftCount;
+	public static string EcsDriftSummary => _ecsDriftSummary;
+
+	public static void RecordEcsDrift(int playerSlot, string componentName)
+	{
+		_ecsDriftCount++;
+		if (_ecsDriftCount > 40) return;
+		_ecsDriftSummary += $"{playerSlot}:{componentName}; ";
+	}
+
 	public static void RecordFingerprintMismatch(int sequence, uint hostFingerprint, uint clientFingerprint)
 	{
 		_fingerprintMismatchCount++;

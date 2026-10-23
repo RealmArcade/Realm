@@ -1123,8 +1123,6 @@ public class InputService
 			{
 				return false;
 			}
-
-			pop.Current += popCost;
 		}
 
 		ref var prod = ref GameContext.World.Has<ProductionQueue>(buildingEntity)
@@ -1150,20 +1148,7 @@ public class InputService
 		return ref GameContext.World.Get<ProductionQueue>(buildingEntity);
 	}
 
-	private void RefundPopulationCost(Entity buildingEntity, int popCost)
-	{
-		if (popCost <= 0) return;
-		if (!GameContext.World.Has<Owner>(buildingEntity)) return;
-
-		var ownerPlayerEntity = GameContext.World.Get<Owner>(buildingEntity).PlayerEntity.Value;
-		if (GameContext.World.IsAlive(ownerPlayerEntity) && GameContext.World.Has<PlayerPopulation>(ownerPlayerEntity))
-		{
-			ref var pop = ref GameContext.World.Get<PlayerPopulation>(ownerPlayerEntity);
-			pop.Current = Math.Max(0, pop.Current - popCost);
-		}
-	}
-
-	public bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId, int popCost = 0)
+	public bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId)
 	{
 		cancelledUnitId = null;
 		nextUnitId = null;
@@ -1187,7 +1172,7 @@ public class InputService
 			}
 		}
 
-		RefundPopulationCost(buildingEntity, popCost);
+
 
 		GameContext.World.Set(buildingEntity, prod);
 		return true;

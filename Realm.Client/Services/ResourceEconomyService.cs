@@ -41,6 +41,8 @@ public class ResourceEconomyService
 	{
 		_gatherQueryDelegate = GatherQueryAction;
 		_passiveIncomeQueryDelegate = UpdatePassiveIncomeQueryAction;
+		_populationUnitDelegate = PopulationUnitQueryAction;
+		_populationQueueDelegate = PopulationQueueQueryAction;
 	}
 
 	public void SetRuntimeReferences(
@@ -465,6 +467,55 @@ public class ResourceEconomyService
 	public void AdjustPlayerStone(int playerIndex, float delta)
 	{
 		SetPlayerStone(playerIndex, _playerStoneState.GetValueOrDefault(playerIndex, 0f) + delta);
+	}
+
+	private readonly int[] _populationTotals = new int[EcsWorld.MAX_PLAYERS];
+
+	private EntityCallback<UnitOwnerPlayer, DefinitionId> _populationUnitDelegate = null!;
+	private EntityCallback<ProductionQueue, UnitOwnerPlayer> _populationQueueDelegate = null!;
+
+	public void RecomputeCurrentPopulation()
+	{
+		var world = GameContext.World;
+		if (world == null || _populationUnitDelegate == null) return;
+
+		Array.Clear(_populationTotals);
+		world.Query(in QueryCache.AllUnitOwnerPlayerAndDefinitionIdNoneDeadQuery, _populationUnitDelegate);
+		world.Query(in QueryCache.AllProductionQueueAndUnitOwnerPlayerQuery, _populationQueueDelegate);
+
+		for (int playerIndex = 0; playerIndex < EcsWorld.MAX_PLAYERS; playerIndex++)
+		{
+			var playerEntity = GameHost.Instance?.GetPlayerEntityForPlayerIndex(playerIndex) ?? Entity.Null;
+			if (playerEntity == Entity.Null || !world.IsAlive(playerEntity)) continue;
+			if (!world.Has<PlayerPopulation>(playerEntity)) continue;
+
+			ref var population = ref world.Get<PlayerPopulation>(playerEntity);
+			if (population.Current == _populationTotals[playerIndex]) continue;
+			population.Current = _populationTotals[playerIndex];
+		}
+	}
+
+	private void PopulationUnitQueryAction(Entity entity, ref UnitOwnerPlayer owner, ref DefinitionId definition)
+	{
+		if (GameContext.World.Has<BypassPopulationTag>(entity)) return;
+		AccumulatePopulationCost(owner.PlayerIndex, definition.Value);
+	}
+
+	private void PopulationQueueQueryAction(Entity entity, ref ProductionQueue queue, ref UnitOwnerPlayer owner)
+	{
+		var queuedUnitIds = queue.UnitIds;
+		for (int index = 0; index < queuedUnitIds.Count; index++)
+		{
+			AccumulatePopulationCost(owner.PlayerIndex, queuedUnitIds[index]);
+		}
+	}
+
+	private void AccumulatePopulationCost(int playerIndex, string definitionId)
+	{
+		if (playerIndex < 0 || playerIndex >= EcsWorld.MAX_PLAYERS) return;
+		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(definitionId, out var meta)) return;
+		if (meta.PopCost <= 0) return;
+		_populationTotals[playerIndex] += meta.PopCost;
 	}
 
 	public int GetPlayerCurrentPopulation(int playerIndex)

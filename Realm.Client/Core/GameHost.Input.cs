@@ -3653,7 +3653,15 @@ public partial class GameHost
 			}
 
 			GameContext.InputService.ExecuteClientBuildingPlacement(meta, type, new System.Numerics.Vector3(position.X, position.Y, position.Z));
-			QueueClientCommand("build", new List<int>(), position, 0, type);
+
+			var buildWorkerIds = new List<int>();
+			Unit3D? selectedWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
+			if (selectedWorker != null && GameContext.World.IsAlive(selectedWorker.Entity))
+			{
+				buildWorkerIds.Add(GetServerEntityId(selectedWorker.Entity));
+			}
+
+			QueueClientCommand("build", buildWorkerIds, position, 0, type);
 
 			if (!shiftHeld) ClearBuildingPlacementState();
 			return;
@@ -4370,14 +4378,12 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity)) return;
 
-		int popCost = GetPopCostForIndex(buildingEntity, index);
-
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
 			QueueClientCommand("cancel_train", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, index, "");
 		}
 
-		if (GameContext.InputService.CancelQueuedUnitAt(buildingEntity, index, out string? cancelledId, out string? nextUnitId, popCost))
+		if (GameContext.InputService.CancelQueuedUnitAt(buildingEntity, index, out string? cancelledId, out string? nextUnitId))
 		{
 			RefundCancelledUnit(cancelledId);
 			UpdateProductionQueueAfterCancel(buildingEntity, index, nextUnitId);
@@ -4385,11 +4391,6 @@ public partial class GameHost
 			UIManager.Instance?.PlayClickSound();
 			InGameHUD.Instance?.RefreshUI(SelectedUnits);
 		}
-	}
-
-	private int GetPopCostForIndex(Entity buildingEntity, int index)
-	{
-		return GameContext.InputService.GetPopCostForIndex(buildingEntity, index);
 	}
 
 	private void RefundCancelledUnit(string? cancelledId)

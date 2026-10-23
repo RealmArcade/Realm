@@ -60,6 +60,8 @@ public static class QueryCache
 	public static readonly QueryDescription AllHealthNoneDeadQuery = new QueryDescription().WithAll<Health>().WithNone<Dead>();
 	public static readonly QueryDescription AllManaAndManaRegenNoneDeadQuery = new QueryDescription().WithAll<Mana, ManaRegen>().WithNone<Dead>();
 	public static readonly QueryDescription AllProductionQueueQuery = new QueryDescription().WithAll<ProductionQueue>();
+	public static readonly QueryDescription AllUnitOwnerPlayerAndDefinitionIdNoneDeadQuery = new QueryDescription().WithAll<UnitOwnerPlayer, DefinitionId>().WithNone<Dead>();
+	public static readonly QueryDescription AllProductionQueueAndUnitOwnerPlayerQuery = new QueryDescription().WithAll<ProductionQueue, UnitOwnerPlayer>();
 	public static readonly QueryDescription AllSpellCooldownsQuery = new QueryDescription().WithAll<SpellCooldowns>();
 	public static readonly QueryDescription AllCooldownsQuery = new QueryDescription().WithAll<Cooldowns>();
 	public static readonly QueryDescription AllPositionQuery = new QueryDescription().WithAll<Position>();
