@@ -41,10 +41,6 @@ public partial class MapEditorHUD : Control
 
 	public static string? mapSaveFolder { get; set; } = null;
 
-	public static string? mapArchiveTargetPath { get; set; } = null;
-
-	private static bool _archiveOverwriteConfirmed { get; set; } = false;
-
 	public static bool IsDraggingSlider { get; set; } = false;
 
 

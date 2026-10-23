@@ -15,48 +15,14 @@ public static class MapArchiveHelper
 		Action<float, string>? progressCallback = null,
 		int compressionLevel = 1, // Note: Not currently used for files in code below, uses NoCompression, keeping for signature match.
 		bool fullExport = false,
-		IReadOnlyCollection<string>? excludedRelativePaths = null,
-		bool preserveZeroLengthFiles = false)
+		IReadOnlyCollection<string>? excludedRelativePaths = null)
 	{
 		PrepareArchiveDestination(sourceDirectory, destinationRmapPath);
 
-		var filesToArchive = GetFilesToArchive(sourceDirectory, fullExport, excludedRelativePaths, preserveZeroLengthFiles);
+		var filesToArchive = GetFilesToArchive(sourceDirectory, fullExport, excludedRelativePaths);
 		SortFilesForArchive(filesToArchive, sourceDirectory);
 
 		WriteFilesToZipArchive(filesToArchive, sourceDirectory, destinationRmapPath, progressCallback);
-	}
-
-	public static void CreateRmapArchiveAtomically(
-		string sourceDirectory,
-		string destinationRmapPath,
-		Action<float, string>? progressCallback = null,
-		bool preserveZeroLengthFiles = false)
-	{
-		string? destinationDir = Path.GetDirectoryName(destinationRmapPath);
-		if (!string.IsNullOrEmpty(destinationDir) && !Directory.Exists(destinationDir))
-		{
-			Directory.CreateDirectory(destinationDir);
-		}
-
-		string temporaryArchivePath = destinationRmapPath + ".partial";
-		try
-		{
-			CreateRmapArchive(sourceDirectory, temporaryArchivePath, progressCallback, fullExport: true, preserveZeroLengthFiles: preserveZeroLengthFiles);
-			File.Move(temporaryArchivePath, destinationRmapPath, overwrite: true);
-		}
-		finally
-		{
-			if (File.Exists(temporaryArchivePath))
-			{
-				try
-				{
-					File.Delete(temporaryArchivePath);
-				}
-				catch
-				{
-				}
-			}
-		}
 	}
 
 	private static void PrepareArchiveDestination(string sourceDirectory, string destinationRmapPath)
@@ -101,14 +67,14 @@ public static class MapArchiveHelper
 		return false;
 	}
 
-	private static List<string> GetFilesToArchive(string sourceDirectory, bool fullExport, IReadOnlyCollection<string>? excludedRelativePaths, bool preserveZeroLengthFiles)
+	private static List<string> GetFilesToArchive(string sourceDirectory, bool fullExport, IReadOnlyCollection<string>? excludedRelativePaths)
 	{
 		var allFiles = Directory.GetFiles(sourceDirectory, "*.*", SearchOption.AllDirectories);
 		var filesToArchive = new List<string>(allFiles.Length);
 
 		foreach (var file in allFiles)
 		{
-			if (ShouldIncludeFile(file, sourceDirectory, fullExport, excludedRelativePaths, preserveZeroLengthFiles))
+			if (ShouldIncludeFile(file, sourceDirectory, fullExport, excludedRelativePaths))
 			{
 				filesToArchive.Add(file);
 			}
@@ -117,7 +83,7 @@ public static class MapArchiveHelper
 		return filesToArchive;
 	}
 
-	private static bool ShouldIncludeFile(string file, string sourceDirectory, bool fullExport, IReadOnlyCollection<string>? excludedRelativePaths, bool preserveZeroLengthFiles)
+	private static bool ShouldIncludeFile(string file, string sourceDirectory, bool fullExport, IReadOnlyCollection<string>? excludedRelativePaths)
 	{
 		string relativePath = Path.GetRelativePath(sourceDirectory, file).Replace('\\', '/');
 
@@ -131,7 +97,7 @@ public static class MapArchiveHelper
 
 		var fileInfo = new FileInfo(file);
 		if (!fileInfo.Exists) return false;
-		if (fileInfo.Length == 0 && !preserveZeroLengthFiles) return false;
+		if (fileInfo.Length == 0) return false;
 
 		return true;
 	}

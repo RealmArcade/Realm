@@ -579,36 +579,11 @@ namespace Realm.Client.UI
 				GameContext.BaseMapFolderWatchService?.MarkInternalWrite();
 
 				ShowFeedback(string.Format(TranslationServer.Translate("Map saved successfully to folder {0}!"), Path.GetFileName(targetFolder)));
-
-				await WriteOpenedArchiveBackAsync(targetFolder);
 			}
 			catch (Exception ex)
 			{
 				GD.PrintErr($"[MapEditorHUD] SaveMapToFolderAsync failed: {ex}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Failed to save map: {0}"), ex.Message));
-			}
-		}
-
-		private async Task WriteOpenedArchiveBackAsync(string sourceFolder)
-		{
-			string archivePath = mapArchiveTargetPath;
-			if (string.IsNullOrEmpty(archivePath)) return;
-
-			ShowFeedback(string.Format(TranslationServer.Translate("Writing map package {0}..."), Path.GetFileName(archivePath)));
-			try
-			{
-				await Task.Run(() => MapArchiveHelper.CreateRmapArchiveAtomically(
-					sourceFolder,
-					archivePath,
-					preserveZeroLengthFiles: true));
-
-				_archiveOverwriteConfirmed = true;
-				ShowFeedback(string.Format(TranslationServer.Translate("Map package {0} updated."), Path.GetFileName(archivePath)));
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[MapEditorHUD] Failed to write map package {archivePath}: {ex}");
-				ShowFeedback(string.Format(TranslationServer.Translate("Map folder was saved, but the map package could not be written: {0}"), ex.Message));
 			}
 		}
 
@@ -618,31 +593,11 @@ namespace Realm.Client.UI
 
 			if (!string.IsNullOrEmpty(mapSaveFolder))
 			{
-				if (!string.IsNullOrEmpty(mapArchiveTargetPath) && !_archiveOverwriteConfirmed)
-				{
-					ConfirmArchiveOverwriteAndSave(mapSaveFolder);
-					return;
-				}
-
 				_ = SaveMapToFolderAsync(mapSaveFolder);
 				return;
 			}
 
 			PromptSaveMapFolder();
-		}
-
-		private void ConfirmArchiveOverwriteAndSave(string targetFolder)
-		{
-			ShowConfirmationDialog(
-				string.Format(TranslationServer.Translate("Saving will overwrite the map package '{0}' that this map was opened from. Continue?"), Path.GetFileName(mapArchiveTargetPath)),
-				onConfirm: () =>
-				{
-					_archiveOverwriteConfirmed = true;
-					_ = SaveMapToFolderAsync(targetFolder);
-				},
-				confirmText: TranslationServer.Translate("OVERWRITE"),
-				cancelText: TranslationServer.Translate("CANCEL"),
-				onCancel: () => ShowFeedback(TranslationServer.Translate("Save cancelled")));
 		}
 
 		private void SaveAsMapAction()
@@ -653,8 +608,6 @@ namespace Realm.Client.UI
 
 		public void PromptSaveMapFolder()
 		{
-			mapArchiveTargetPath = null;
-			_archiveOverwriteConfirmed = false;
 			if (GameContext.Host == null) return;
 
 			string initialDir = !string.IsNullOrEmpty(defaultSaveFolder) ? defaultSaveFolder : GetDocumentsDirectory();
@@ -812,7 +765,7 @@ namespace Realm.Client.UI
 		}
 
 
-		public void OpenMapArchiveAction()
+		public void ImportMapArchiveAction()
 		{
 			if (GameContext.Host == null) return;
 
@@ -829,7 +782,7 @@ namespace Realm.Client.UI
 			}
 
 			var err = DisplayServer.FileDialogShow(
-				TranslationServer.Translate("Open Map Package (.rmap)"),
+				TranslationServer.Translate("Import Map Package (.rmap)"),
 				initialDir,
 				"",
 				false,
@@ -839,14 +792,14 @@ namespace Realm.Client.UI
 				{
 					if (status && selectedPaths.Length > 0)
 					{
-						_ = OpenMapArchiveAsync(selectedPaths[0]);
+						_ = ImportMapArchiveAsync(selectedPaths[0]);
 					}
 				})
 			);
 
 			if (err != Error.Ok)
 			{
-				ShowFeedback(TranslationServer.Translate("Map package could not be opened."));
+				ShowFeedback(TranslationServer.Translate("Map package could not be imported."));
 			}
 		}
 
@@ -857,11 +810,11 @@ namespace Realm.Client.UI
 			return Path.Combine(archiveDirectory, Path.GetFileNameWithoutExtension(fullArchivePath));
 		}
 
-		public async Task<bool> OpenMapArchiveAsync(string archivePath)
+		public async Task<bool> ImportMapArchiveAsync(string archivePath)
 		{
 			if (string.IsNullOrWhiteSpace(archivePath) || !File.Exists(archivePath))
 			{
-				ShowFeedback(TranslationServer.Translate("Map package could not be opened: the file does not exist."));
+				ShowFeedback(TranslationServer.Translate("Map package could not be imported: the file does not exist."));
 				return false;
 			}
 
@@ -871,7 +824,7 @@ namespace Realm.Client.UI
 				bool replaceConfirmed = await ConfirmReplacingExtractionFolderAsync(extractionFolder);
 				if (!replaceConfirmed)
 				{
-					ShowFeedback(TranslationServer.Translate("Opening the map package was cancelled."));
+					ShowFeedback(TranslationServer.Translate("Importing the map package was cancelled."));
 					return false;
 				}
 
@@ -897,19 +850,15 @@ namespace Realm.Client.UI
 				return false;
 			}
 
-			mapArchiveTargetPath = null;
-			_archiveOverwriteConfirmed = false;
 			bool loaded = await LoadMapFolderAsync(extractionFolder);
 			if (!loaded)
 			{
 				return false;
 			}
 
-			mapArchiveTargetPath = Path.GetFullPath(archivePath);
 			ShowFeedback(string.Format(
-				TranslationServer.Translate("Map package opened. Editing folder {0}; saving writes back to {1}."),
-				extractionFolder,
-				Path.GetFileName(mapArchiveTargetPath)));
+				TranslationServer.Translate("Map package imported into {0}. Saving writes to that folder."),
+				extractionFolder));
 			return true;
 		}
 
@@ -1142,8 +1091,6 @@ namespace Realm.Client.UI
 		{
 			GameContext.BaseMapFolderWatchService?.Stop();
 			mapSaveFolder = null;
-			mapArchiveTargetPath = null;
-			_archiveOverwriteConfirmed = false;
 			defaultSaveFolder = GetDocumentsDirectory();
 			GameContext.EditorService.LastUsedFolder = null;
 			GameContext.EditorService.CurrentSourceFolder = null;
