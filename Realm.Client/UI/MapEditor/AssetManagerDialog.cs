@@ -33,13 +33,12 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	private Button _btnImportAsset;
 	private Button _btnImportFromMap;
 	private Button _btnImportShader;
-	private Button _btnConvertImage;
-	private Button _btnConvertAudio;
-	private Button _btnConvert3DModel;
-	private Button _btnConvertMixamo;
+	private Button _btnConvertFormat;
+	private Button _btnGenerateAiAsset;
 	private Button _btnGenerateNoise;
-	private Button _btnPruneUnused;
-	private Button _btnNormalize;
+
+	private DropdownSuggestionList _convertFormatMenu;
+	private DropdownSuggestionList _generateAiAssetMenu;
 
 	private Label _lblEmptyState;
 
@@ -113,12 +112,16 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	{
 		StopAudio();
 		AssetThumbnailProvider.ThumbnailGenerated -= OnThumbnailGenerated;
+		_convertFormatMenu?.Free();
+		_generateAiAssetMenu?.Free();
 		base._ExitTree();
 	}
 
 	public override void CloseDialog()
 	{
 		StopAudio();
+		_convertFormatMenu?.Hide();
+		_generateAiAssetMenu?.Hide();
 		base.CloseDialog();
 	}
 
@@ -206,18 +209,28 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		_btnImportFromMap = AddButton(actionsRow, "🗺 " + TranslationServer.Translate("Import From Map"), () => OnImportFromMapPressed(), "Copy assets from another map into this map", 11, new Vector2(135, 26));
 		_btnImportFromMap.Name = "BtnImportFromMap_Button";
 		_btnImportShader = AddButton(actionsRow, "✨ " + TranslationServer.Translate("Import Shader"), () => OnImportShaderPressed(), "Import shader configuration file", 11, new Vector2(115, 26));
-		_btnConvertImage = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert Image (.rtex)"), () => OnConvertImagePressed(), "Convert image to Realm RTEX format", 11, new Vector2(150, 26));
-		_btnConvertAudio = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert Audio (.raud)"), () => OnConvertAudioPressed(), "Convert audio file to Realm RAUD/OGG format", 11, new Vector2(145, 26));
-		_btnConvert3DModel = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert 3D Model (.rmesh)"), () => OnConvert3DModelPressed(), "Optimize and convert 3D model to RMESH format", 11, new Vector2(165, 26));
-
-		var btnWebAi = UIStyle.CreateWebAiButton();
-		actionsRow.AddChild(btnWebAi);
-		_btnConvertMixamo = AddButton(actionsRow, "🔄 " + TranslationServer.Translate("Convert Mixamo (.ranim)"), () => OnConvertMixamoPressed(), "Extract and convert Mixamo animations to RANIM format", 11, new Vector2(165, 26));
+		_btnConvertFormat = AddButton(actionsRow, $"🔄 {TranslationServer.Translate("Convert External Format")} {UnicodeIcons.CHEVRON_DOWN}", () => ShowConvertFormatMenu(), "Convert external image, audio, 3D model, or Mixamo animation files to Realm formats", 11, new Vector2(215, 26));
+		_btnConvertFormat.Name = "BtnConvertFormat_Button";
 		_btnGenerateNoise = AddButton(actionsRow, "🎲 " + TranslationServer.Translate("Generate Noise"), () => Hud?.OpenNoiseTextureDialog((_) => RefreshAssetList()), "Generate procedural noise texture", 11, new Vector2(120, 26));
-		_btnPruneUnused = AddButton(actionsRow, "🗑 " + TranslationServer.Translate("Prune Unused"), () => PruneUnusedAssets(), "Remove assets not referenced anywhere in the map", 11, new Vector2(110, 26));
-		_btnNormalize = AddButton(actionsRow, "🔗 " + TranslationServer.Translate("Normalize References"), () => NormalizeGreenlitReferences(), "Normalize shared assets from greenlit maps", 11, new Vector2(150, 26));
+		_btnGenerateAiAsset = AddButton(actionsRow, $"{UnicodeIcons.CLOUD} {TranslationServer.Translate("Generate AI Asset")} {UnicodeIcons.CHEVRON_DOWN}", () => ShowGenerateAiAssetMenu(), "Generate a new asset online in your browser", 11, new Vector2(190, 26));
+		_btnGenerateAiAsset.Name = "BtnGenerateAiAsset_Button";
 
 		BodyContainer.AddChild(actionsRow);
+
+		if (Hud != null)
+		{
+			_convertFormatMenu = new DropdownSuggestionList(Hud, _btnConvertFormat) { MinWidth = 215.0f, RowHeight = 24.0f };
+			_convertFormatMenu.ItemSelected += (index, _) => OnConvertFormatSelected((int)index);
+			_generateAiAssetMenu = new DropdownSuggestionList(Hud, _btnGenerateAiAsset) { MinWidth = 190.0f, RowHeight = 24.0f };
+			_generateAiAssetMenu.ItemSelected += (index, _) => OnGenerateAiAssetSelected((int)index);
+		}
+
+		VisibilityChanged += () =>
+		{
+			if (Visible) return;
+			_convertFormatMenu?.Hide();
+			_generateAiAssetMenu?.Hide();
+		};
 
 		// 3. SCROLLABLE ASSET GRID (Extra Large Icons)
 		var gridPanel = new PanelContainer();
@@ -386,16 +399,66 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		bool isAll = _selectedAssetType == "All";
 
 		SetControlVisible(_btnImportShader, isAll || _selectedAssetType == "Shader");
-		SetControlVisible(_btnConvertImage, isAll || _selectedAssetType is "Terrain" or "Spritesheet" or "vfx_radial" or "vfx_vertical" or "Icon" or "Decal" or "Ribbon" or "Noise" or "Skybox");
-		SetControlVisible(_btnConvertAudio, isAll || _selectedAssetType is "Music" or "SoundEffect");
-		SetControlVisible(_btnConvert3DModel, isAll || _selectedAssetType is "Character" or "Building" or "Prop" or "Item");
-		SetControlVisible(_btnConvertMixamo, isAll || _selectedAssetType == "Animation");
 		SetControlVisible(_btnGenerateNoise, isAll || _selectedAssetType == "Noise");
 	}
 
 	private static void SetControlVisible(Control? control, bool visible)
 	{
 		if (control != null) control.Visible = visible;
+	}
+
+	private void ShowConvertFormatMenu()
+	{
+		_convertFormatMenu?.ShowItems(new[]
+		{
+			TranslationServer.Translate("Image (.rtex)").ToString(),
+			TranslationServer.Translate("Audio (.raud)").ToString(),
+			TranslationServer.Translate("3D Model (.rmesh)").ToString(),
+			TranslationServer.Translate("Mixamo (.ranim)").ToString()
+		});
+	}
+
+	private void OnConvertFormatSelected(int index)
+	{
+		switch (index)
+		{
+			case 0:
+				OnConvertImagePressed();
+				break;
+			case 1:
+				OnConvertAudioPressed();
+				break;
+			case 2:
+				OnConvert3DModelPressed();
+				break;
+			case 3:
+				OnConvertMixamoPressed();
+				break;
+		}
+	}
+
+	private static readonly string[] GenerateAiAssetUrls = new[]
+	{
+		"https://huggingface.co/spaces/black-forest-labs/flux-3-image-klein?tab=generate",
+		"https://huggingface.co/spaces/stabilityai/stable-audio-3",
+		"https://3d.hunyuanglobal.com"
+	};
+
+	private void ShowGenerateAiAssetMenu()
+	{
+		_generateAiAssetMenu?.ShowItems(new[]
+		{
+			TranslationServer.Translate("Image").ToString(),
+			TranslationServer.Translate("Audio").ToString(),
+			TranslationServer.Translate("3D Mesh").ToString()
+		});
+	}
+
+	private void OnGenerateAiAssetSelected(int index)
+	{
+		if (index < 0 || index >= GenerateAiAssetUrls.Length) return;
+
+		OS.ShellOpen(GenerateAiAssetUrls[index]);
 	}
 
 	private string GetWorkspacePath()
@@ -1940,223 +2003,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 		GameContext.AssetIndexService?.RescanAllDirectories();
 		RefreshAssetListAndSelect(firstSavedFileName ?? string.Empty);
-	}
-
-	private void PruneUnusedAssets()
-	{
-		Hud?.ShowConfirmationDialog(
-			TranslationServer.Translate("Are you sure you want to prune all unused assets in manifest.json?"),
-			() =>
-			{
-				string wsPath = GetWorkspacePath();
-				MapAssetHelper.PruneNonExistentAssetsFromManifest(wsPath);
-				MapAssetHelper.PruneUnusedAssetsFromManifest(wsPath);
-				RefreshAssetList();
-				Hud?.ShowFeedback(TranslationServer.Translate("Pruned non-existent and unreferenced assets."));
-			},
-			confirmText: "PRUNE",
-			cancelText: "CANCEL"
-		);
-	}
-
-	private void NormalizeGreenlitReferences()
-	{
-		string wsPath = GetWorkspacePath();
-		var suggestions = MapNormalizationHelper.FindGreenlitReferenceSuggestions(wsPath);
-		var currentRefs = MapNormalizationHelper.GetCurrentGreenlitReferences(wsPath);
-
-		if (suggestions.Count == 0)
-		{
-			if (currentRefs.Count == 0)
-			{
-				Hud?.ShowFeedback(TranslationServer.Translate("No shared greenlit assets found. All assets are unique to this map."));
-			}
-			else
-			{
-				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("All shared greenlit assets are already normalized ({0} references active)."), currentRefs.Count));
-			}
-
-			return;
-		}
-
-		ShowNormalizeReferencesDialog(wsPath, suggestions, currentRefs);
-	}
-
-	private void ShowNormalizeReferencesDialog(string wsPath, List<GreenlitReferenceSuggestion> suggestions, List<string> currentRefs)
-	{
-		var overlay = new Panel();
-		overlay.Name = "Overlay_Panel";
-		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		overlay.ZIndex = 1200;
-		AddChild(overlay);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(650, 480);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		overlay.AddChild(cardPanel);
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(610, 440);
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
-		vbox.AddThemeConstantOverride("separation", 10);
-		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
-
-		var titleLabel = new Label();
-		titleLabel.Name = "TitleLabel_Label";
-		UIStyle.ApplyTitle(titleLabel, "🔗 " + TranslationServer.Translate("NORMALIZE GREENLIT REFERENCES"), 18);
-		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		vbox.AddChild(titleLabel);
-
-		var descLabel = new Label();
-		descLabel.Name = "DescLabel_Label";
-		descLabel.Text = TranslationServer.Translate("The following greenlit maps contain identical assets. Referencing them allows .rmap exports to exclude these duplicate files to minimize download size for players.");
-		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		descLabel.AddThemeFontSizeOverride("font_size", 12);
-		descLabel.AddThemeColorOverride("font_color", new Color(0.8f, 0.85f, 0.95f));
-		vbox.AddChild(descLabel);
-
-		var scroll = new ScrollContainer();
-		scroll.Name = "Scroll_ScrollContainer";
-		scroll.CustomMinimumSize = new Vector2(590, 260);
-		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.AddChild(scroll);
-
-		var listContainer = new VBoxContainer();
-		listContainer.Name = "ListContainer_VBoxContainer";
-		listContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		listContainer.AddThemeConstantOverride("separation", 6);
-		scroll.AddChild(listContainer);
-
-		var checkboxes = new List<(CheckBox CheckBox, GreenlitReferenceSuggestion Suggestion)>();
-
-		foreach (var suggestion in suggestions)
-		{
-			var row = new PanelContainer();
-			row.Name = "Row_PanelContainer";
-			var rowStyle = new StyleBoxFlat
-			{
-				BgColor = new Color(0.16f, 0.17f, 0.22f, 0.9f),
-				CornerRadiusTopLeft = 4,
-				CornerRadiusTopRight = 4,
-				CornerRadiusBottomLeft = 4,
-				CornerRadiusBottomRight = 4
-			};
-			row.AddThemeStyleboxOverride("panel", rowStyle);
-			listContainer.AddChild(row);
-
-			var rowHBox = new HBoxContainer();
-			rowHBox.Name = "RowHBox_HBoxContainer";
-			rowHBox.AddThemeConstantOverride("separation", 10);
-			row.AddChild(rowHBox);
-
-			var cb = new CheckBox();
-			cb.Name = "Cb_CheckBox";
-			cb.ButtonPressed = suggestion.IsSelected;
-			cb.AddThemeConstantOverride("icon_max_width", 0);
-			UIStyle.ApplyCheckboxStyle(cb);
-			rowHBox.AddChild(cb);
-			checkboxes.Add((cb, suggestion));
-
-			var infoVBox = new VBoxContainer();
-			infoVBox.Name = "InfoVBox_VBoxContainer";
-			infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			rowHBox.AddChild(infoVBox);
-
-			var mapNameLabel = new Label();
-			mapNameLabel.Name = "MapNameLabel_Label";
-			mapNameLabel.Text = $"{suggestion.MapTitle} (v{suggestion.MapVersion})";
-			mapNameLabel.AddThemeFontSizeOverride("font_size", 13);
-			mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			infoVBox.AddChild(mapNameLabel);
-
-			var statsLabel = new Label();
-			statsLabel.Name = "StatsLabel_Label";
-			statsLabel.Text = string.Format(TranslationServer.Translate("{0} matching asset(s) • Estimated savings: {1}"), suggestion.MatchedAssetPaths.Count, MapStorageService.FormatBytes(suggestion.SavedBytes));
-			statsLabel.AddThemeFontSizeOverride("font_size", 11);
-			statsLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.8f, 0.9f));
-			infoVBox.AddChild(statsLabel);
-		}
-
-		var summaryLabel = new Label();
-		summaryLabel.Name = "SummaryLabel_Label";
-		Action updateSummary = () =>
-		{
-			long totalSavings = checkboxes.Where(c => c.CheckBox.ButtonPressed).Sum(c => c.Suggestion.SavedBytes);
-			int selectedCount = checkboxes.Count(c => c.CheckBox.ButtonPressed);
-			summaryLabel.Text = string.Format(TranslationServer.Translate("Selected: {0} map reference(s) • Total export savings: {1}"), selectedCount, MapStorageService.FormatBytes(totalSavings));
-		};
-		summaryLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		summaryLabel.AddThemeFontSizeOverride("font_size", 12);
-		summaryLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		vbox.AddChild(summaryLabel);
-		updateSummary();
-
-		foreach (var (cb, _) in checkboxes)
-		{
-			cb.Toggled += (_) => updateSummary();
-		}
-
-		var btnRow = new HBoxContainer();
-		btnRow.Name = "BtnRow_HBoxContainer";
-		btnRow.Alignment = BoxContainer.AlignmentMode.Center;
-		btnRow.AddThemeConstantOverride("separation", 15);
-		vbox.AddChild(btnRow);
-
-		var btnApply = new Button();
-		btnApply.Name = "BtnApply_Button";
-		btnApply.AddThemeConstantOverride("icon_max_width", 0);
-		btnApply.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btnApply.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btnApply.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btnApply.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(btnApply, TranslationServer.Translate("APPLY REFERENCES"), 13);
-		btnApply.CustomMinimumSize = new Vector2(170, 34);
-		btnRow.AddChild(btnApply);
-
-		btnApply.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			var selectedTitles = checkboxes
-				.Where(c => c.CheckBox.ButtonPressed)
-				.Select(c => c.Suggestion.MapTitle)
-				.ToList();
-
-			if (selectedTitles.Count > 0)
-			{
-				MapNormalizationHelper.ApplyGreenlitReferences(wsPath, selectedTitles);
-				long saved = checkboxes.Where(c => c.CheckBox.ButtonPressed).Sum(c => c.Suggestion.SavedBytes);
-				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Applied {0} greenlit reference(s). {1} saved in .rmap exports!"), selectedTitles.Count, MapStorageService.FormatBytes(saved)));
-			}
-
-			overlay.QueueFree();
-		};
-
-		var btnCancel = new Button();
-		btnCancel.Name = "BtnCancel_Button";
-		btnCancel.AddThemeConstantOverride("icon_max_width", 0);
-		btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btnCancel.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btnCancel.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btnCancel.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate("CANCEL"), 13);
-		btnCancel.CustomMinimumSize = new Vector2(110, 34);
-		btnRow.AddChild(btnCancel);
-
-		btnCancel.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			overlay.QueueFree();
-		};
 	}
 
 	private static string FormatFileSize(long bytes)

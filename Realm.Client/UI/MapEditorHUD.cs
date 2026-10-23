@@ -526,7 +526,7 @@ public partial class MapEditorHUD : Control
 		tipMargin.AddThemeConstantOverride("margin_right", 10);
 		tipPanel.AddChild(tipMargin);
 
-		var tipLabel = new Label { Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend clicking 'Prune Unused' and 'Normalize References' in the Asset Manager before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes)), AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		var tipLabel = new Label { Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend running 'Prune Unused Assets' and 'Normalize References' in the Map Utilities dialog before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes)), AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		tipLabel.AddThemeFontSizeOverride("font_size", 12);
 		tipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		tipMargin.AddChild(tipLabel);

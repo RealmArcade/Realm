@@ -600,7 +600,7 @@ public partial class CameraControl : Camera3D
 
 	private void HandleCameraResetKey(InputEventKey keyEvent)
 	{
-		if (keyEvent.Keycode == Key.Home || (keyEvent.Keycode == Key.Space && keyEvent.ShiftPressed))
+		if (keyEvent.Keycode == Key.Space && keyEvent.ShiftPressed)
 		{
 			ResetCamera();
 			GetViewport().SetInputAsHandled();
