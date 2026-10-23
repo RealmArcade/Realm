@@ -8,6 +8,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 
@@ -503,6 +504,13 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<CombatTargeting>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<AutoCombatState>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<CombatAlertState>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<UnitAttributes>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<UnitBaseStats>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<DerivedCombatStats>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<Stats>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<HealthStat>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<MovementSpeed>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<AttackSpeedStat>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Inventory>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<RallyPoint>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ResourceNode>(ReplicatedScope.Unit));
