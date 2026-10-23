@@ -642,14 +642,13 @@ public class NetworkService
 			if (serverIdsInSnapshot.Contains(kvp.Key)) continue;
 
 			_untrackedServerIds.Add(kvp.Key);
-		}
+		}			for (int i = 0; i < _untrackedServerIds.Count; i++)
+			{
+				int serverEntityId = _untrackedServerIds[i];
+				if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;
+				if (GameContext.World.Has<GroundLoot>(localEntity)) continue;
 
-		for (int i = 0; i < _untrackedServerIds.Count; i++)
-		{
-			int serverEntityId = _untrackedServerIds[i];
-			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;
-
-			if (IsLocallyOwnedEntity(localEntity))
+				if (IsLocallyOwnedEntity(localEntity))
 			{
 				HideUntrackedOwnEntity(localEntity);
 				continue;
@@ -987,7 +986,13 @@ public class NetworkService
 		}
 		else if ((ReplicatedScope)delta.Scope == ReplicatedScope.Unit)
 		{
-			if (!TryGetLocalEntity(delta.Key, out targetEntity)) return;
+			if (!TryGetLocalEntity(delta.Key, out targetEntity))
+			{
+				if (codec.ComponentTypeId != ComponentType<GroundLoot>.Id || delta.Bytes.Length == 0) return;
+				Entity worldEntity = FindWorldEntity();
+				if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
+				targetEntity = CreateReplicatedLootEntity(delta.Key, GameContext.World.Get<NetworkMappingState>(worldEntity));
+			}
 		}
 		else if ((ReplicatedScope)delta.Scope == ReplicatedScope.World)
 		{
@@ -996,11 +1001,43 @@ public class NetworkService
 
 		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return;
 		if (delta.Bytes.Length == 0)
+		{
 			codec.Remove(GameContext.World, targetEntity);
+			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id)
+			{
+				Entity worldEntity = FindWorldEntity();
+				if (worldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(worldEntity))
+				{
+					DestroyReplicatedLootEntity(delta.Key, targetEntity, GameContext.World.Get<NetworkMappingState>(worldEntity));
+				}
+			}
+		}
 		else
+		{
 			codec.Apply(GameContext.World, targetEntity, delta.Bytes);
+			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id) GameHost.Instance?.SyncReplicatedLootNode(delta.Key, targetEntity);
+		}
+
 		_mirror.RecordComponent(delta);
 		_appliedComponentDeltaCount++;
+	}
+
+	private static Entity CreateReplicatedLootEntity(int serverEntityId, NetworkMappingState mapping)
+	{
+		Entity localEntity = GameContext.World.Create();
+		mapping.ServerToClientEntityMap[serverEntityId] = localEntity;
+		mapping.ClientToServerEntityMap[localEntity.Id] = serverEntityId;
+		ReplicatedEntityReferences.Register(serverEntityId, localEntity.Id);
+		return localEntity;
+	}
+
+	private static void DestroyReplicatedLootEntity(int serverEntityId, Entity localEntity, NetworkMappingState mapping)
+	{
+		GameHost.Instance?.RemoveLootItemLocal(serverEntityId);
+		ReplicatedEntityReferences.Unregister(serverEntityId);
+		mapping.ServerToClientEntityMap.Remove(serverEntityId);
+		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
+		if (GameContext.World.IsAlive(localEntity)) GameContext.World.Destroy(localEntity);
 	}
 
 	private void ApplyAbilityStateDelta(AbilityStateDelta delta)
@@ -2058,6 +2095,21 @@ public class NetworkService
 				if (codec.Scope != ReplicatedScope.Unit) continue;
 
 				TryAppendComponentDelta(unit.Entity, codec, (byte)ReplicatedScope.Unit, unit.Entity.Id, previous, deltas, isBaseline);
+			}
+		}
+
+		var lootCodec = ReplicatedComponents.Find(ComponentType<GroundLoot>.Id);
+		var host = GameHost.Instance;
+		if (lootCodec != null && host != null)
+		{
+			List<LootItem3D> lootItems = host.AllLootItems;
+			for (int lootIndex = 0; lootIndex < lootItems.Count; lootIndex++)
+			{
+				LootItem3D loot = lootItems[lootIndex];
+				if (loot == null || !GodotObject.IsInstanceValid(loot) || loot.IsDespawned) continue;
+				if (loot.Entity == Entity.Null || !GameContext.World.IsAlive(loot.Entity)) continue;
+
+				TryAppendComponentDelta(loot.Entity, lootCodec, (byte)ReplicatedScope.Unit, loot.Entity.Id, previous, deltas, isBaseline);
 			}
 		}
 

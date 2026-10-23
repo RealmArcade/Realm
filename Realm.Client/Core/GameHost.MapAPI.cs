@@ -1810,14 +1810,7 @@ public partial class GameHost
 
 		AddChild(lootNode);
 		AllLootItems.Add(lootNode);
-
-		var runtime = new LootItem_WasmRuntime(entity.Id, lootNode);
-		IdToLootItem[entity.Id] = runtime;
-
-		if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
-		{
-			Rpc(nameof(ClientSpawnLootItemRpc), entity.Id, itemTypeId, finalPos, Math.Max(1, charges));
-		}
+		IdToLootItem[entity.Id] = new LootItem_WasmRuntime(entity);
 
 		return (LootItemId)entity.Id;
 	}
@@ -1874,11 +1867,6 @@ public partial class GameHost
 	{
 		if (!IdToLootItem.ContainsKey(lootItemId)) return false;
 		RemoveLootItemLocal(lootItemId);
-
-		if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
-		{
-			Rpc(nameof(ClientDespawnLootItemRpc), lootItemId);
-		}
 		return true;
 	}
 
@@ -1900,6 +1888,50 @@ public partial class GameHost
 				break;
 			}
 		}
+	}
+
+	public void SyncReplicatedLootNode(int lootItemId, Entity localEntity)
+	{
+		if (GameContext.World == null || !GameContext.World.IsAlive(localEntity)) return;
+		if (!GameContext.World.Has<GroundLoot>(localEntity)) return;
+
+		var loot = GameContext.World.Get<GroundLoot>(localEntity);
+		float x = 0f;
+		float y = 0f;
+		float z = 0f;
+		if (GameContext.World.Has<Position>(localEntity))
+		{
+			var position = GameContext.World.Get<Position>(localEntity).Value;
+			x = position.X;
+			y = position.Y;
+			z = position.Z;
+		}
+
+		for (int i = 0; i < AllLootItems.Count; i++)
+		{
+			var existing = AllLootItems[i];
+			if (!GodotObject.IsInstanceValid(existing) || existing.UniqueId != lootItemId) continue;
+
+			existing.Entity = localEntity;
+			existing.Charges = loot.Charges;
+			existing.Lifetime = loot.Lifetime;
+			existing.RemainingLifetime = loot.RemainingLifetime;
+			existing.PickupRadius = loot.PickupRadius;
+			existing.AutoPickup = loot.AutoPickup;
+			existing.OwnerPlayerIndex = loot.OwnerPlayerIndex;
+			existing.Position = new Godot.Vector3(x, y, z);
+			IdToLootItem[lootItemId] = new LootItem_WasmRuntime(localEntity);
+			return;
+		}
+
+		var lootNode = new LootItem3D();
+		lootNode.Entity = localEntity;
+		lootNode.Position = new Godot.Vector3(x, y, z);
+		lootNode.Initialize(lootItemId, loot.ItemTypeId, loot.Charges, loot.Lifetime, loot.PickupRadius, loot.AutoPickup, loot.OwnerPlayerIndex);
+
+		AddChild(lootNode);
+		AllLootItems.Add(lootNode);
+		IdToLootItem[lootItemId] = new LootItem_WasmRuntime(localEntity);
 	}
 
 	bool IGameAPI.CollectLootItem(int lootItemId, UnitId unit) => CollectLootItem(lootItemId, unit);

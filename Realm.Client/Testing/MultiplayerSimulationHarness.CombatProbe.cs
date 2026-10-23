@@ -118,6 +118,24 @@ public partial class MultiplayerSimulationHarness
 			_clientDuelAttackerEntityId = commandAttackerId.Value;
 			_clientDuelDefenderEntityId = commandDefenderId.Value;
 			GD.Print($"[COMBAT_PROBE] human duel unit='{commandUnitId}' at {commandPoint} attacker={_clientDuelAttackerEntityId} player={clientSlot} defender={_clientDuelDefenderEntityId} player=1");
+
+			string lootItemId = string.Empty;
+			var itemRegistry = GameContext.RegistryService?.ItemRegistry;
+			if (itemRegistry != null)
+			{
+				foreach (var key in itemRegistry.Keys)
+				{
+					lootItemId = key.ToString();
+					break;
+				}
+			}
+
+			if (!string.IsNullOrEmpty(lootItemId))
+			{
+				var lootPosition = new System.Numerics.Vector3(commandPoint.X, 0f, commandPoint.Y + 6f);
+				LootItemId spawnedLoot = ((IGameAPI)host).SpawnLootItem(lootItemId, lootPosition, 3, 20f);
+				GD.Print($"[COMBAT_PROBE] loot item='{lootItemId}' id={spawnedLoot.Value} charges=3 lifetime=20 pickupRadius=2 position={lootPosition}");
+			}
 		}
 		catch (Exception exception)
 		{

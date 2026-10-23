@@ -20,7 +20,7 @@ namespace Realm.Client.Services;
 public static class MultiplayerSyncDiagnostics
 {
 	private const uint FileMagic = 0x504E5352;
-	private const int FileVersion = 2;
+	private const int FileVersion = 3;
 	private const int BaselineIntervalTicks = 30;
 	private const int PlayerSlotCount = 25;
 
@@ -38,6 +38,7 @@ public static class MultiplayerSyncDiagnostics
 	private static string _fingerprintMismatchSummary = string.Empty;
 	private static readonly HashSet<int> _clientSeenSequences = new();
 	private static readonly List<ComponentDigest> _digestBuffer = new();
+	private static readonly List<(int UniqueId, Entity Entity)> _lootBuffer = new();
 	private static readonly Dictionary<int, int> _entityReferencePayloadOffsets = new()
 	{
 		{ ComponentType<AttackTarget>.Id, 0 },
@@ -374,6 +375,32 @@ public static class MultiplayerSyncDiagnostics
 		}
 
 		WriteComponentDigests(writer, world, worldEntity, ReplicatedScope.World, clientToServerEntityMap);
+		AppendLootState(writer, world, clientToServerEntityMap);
+	}
+
+	private static void AppendLootState(BinaryWriter writer, EcsWorld? world, Dictionary<int, int>? clientToServerEntityMap)
+	{
+		_lootBuffer.Clear();
+		GameHost? host = GameHost.Instance;
+		if (host != null)
+		{
+			List<LootItem3D> lootItems = host.AllLootItems;
+			for (int index = 0; index < lootItems.Count; index++)
+			{
+				LootItem3D loot = lootItems[index];
+				if (loot == null || !GodotObject.IsInstanceValid(loot) || loot.IsDespawned) continue;
+				if (loot.Entity == Entity.Null) continue;
+				_lootBuffer.Add((loot.UniqueId, loot.Entity));
+			}
+		}
+
+		_lootBuffer.Sort(static (left, right) => left.UniqueId.CompareTo(right.UniqueId));
+		writer.Write(_lootBuffer.Count);
+		for (int index = 0; index < _lootBuffer.Count; index++)
+		{
+			writer.Write(_lootBuffer[index].UniqueId);
+			WriteComponentDigests(writer, world, _lootBuffer[index].Entity, ReplicatedScope.Unit, clientToServerEntityMap);
+		}
 	}
 
 	public static void RecordClientPresentation()
@@ -436,6 +463,7 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(0);
 			}
 
+			writer.Write(0);
 			writer.Write(0);
 			writer.Write(0);
 		});

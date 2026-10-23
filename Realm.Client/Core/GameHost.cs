@@ -1521,20 +1521,28 @@ public partial class GameHost : Node3D, IGameAPI
 			var loot = AllLootItems[i];
 			if (!GodotObject.IsInstanceValid(loot) || loot.IsDespawned) continue;
 
-			if (loot.Lifetime > 0f)
+			Entity lootEntity = loot.Entity;
+			if (!GameContext.World.IsAlive(lootEntity) || !GameContext.World.Has<GroundLoot>(lootEntity)) continue;
+
+			ref var lootState = ref GameContext.World.Get<GroundLoot>(lootEntity);
+			if (lootState.Lifetime > 0f)
 			{
-				loot.RemainingLifetime -= delta;
-				if (loot.RemainingLifetime <= 0f)
+				lootState.RemainingLifetime -= delta;
+				loot.RemainingLifetime = lootState.RemainingLifetime;
+				if (lootState.RemainingLifetime <= 0f)
 				{
 					_expiredLootToDespawn.Add(loot.UniqueId);
 					continue;
 				}
 			}
 
-			if (!loot.AutoPickup) continue;
+			if (!lootState.AutoPickup) continue;
 
-			float radiusSq = loot.PickupRadius * loot.PickupRadius;
-			var lootPos = loot.GlobalPosition;
+			float radiusSq = lootState.PickupRadius * lootState.PickupRadius;
+			string itemTypeId = lootState.ItemTypeId;
+			int ownerPlayerIndex = lootState.OwnerPlayerIndex;
+			var lootPosition = GameContext.World.Has<Position>(lootEntity) ? GameContext.World.Get<Position>(lootEntity).Value : System.Numerics.Vector3.Zero;
+			var lootPos = new Godot.Vector3(lootPosition.X, lootPosition.Y, lootPosition.Z);
 
 			Unit3D? bestUnit = null;
 			float bestDistSq = float.MaxValue;
@@ -1543,13 +1551,13 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				var unit = AllUnits[u];
 				if (!GodotObject.IsInstanceValid(unit) || unit.IsBuilding) continue;
-				if (loot.OwnerPlayerIndex >= 0 && unit.Player != loot.OwnerPlayerIndex) continue;
+				if (ownerPlayerIndex >= 0 && unit.Player != ownerPlayerIndex) continue;
 				if (!GameContext.World.IsAlive(unit.Entity) || GameContext.World.Has<Dead>(unit.Entity)) continue;
 
 				if (GameContext.World.Has<Inventory>(unit.Entity))
 				{
 					ref var inv = ref GameContext.World.Get<Inventory>(unit.Entity);
-					if (inv.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+					if (inv.Count >= 6 && !inv.HasItem(itemTypeId))
 						continue;
 				}
 

@@ -65,7 +65,7 @@ public static class MultiplayerEcsSyncTestSupport
 	private const float PresentationPositionTolerance = 0.25f;
 	private const float PresentationRotationTolerance = 0.2f;
 	private const int StartupWarmupSequenceCount = 60;
-	private const int SyncRecordVersion = 2;
+	private const int SyncRecordVersion = 3;
 
 	public static string ResolveGodotBinary()
 	{
@@ -321,6 +321,7 @@ public static class MultiplayerEcsSyncTestSupport
 		List<int> startupCatchUpSequences = new();
 		List<string> transientDigestMismatches = new();
 		int transientDigestMismatchCount = 0;
+		int comparedLootEntities = 0;
 
 		foreach (KeyValuePair<int, MultiplayerSnapshotRecord> hostEntry in hostRecords)
 		{
@@ -355,6 +356,7 @@ public static class MultiplayerEcsSyncTestSupport
 
 			List<string> digestTarget = hostEntry.Value.IsBaseline ? mismatches : transientDigestMismatches;
 			int digestMismatchCountBefore = transientDigestMismatches.Count;
+			if (hostEntry.Value.IsBaseline) comparedLootEntities += hostEntry.Value.Loot.Count;
 			CompareSnapshotRecord(hostEntry.Value, clientRecord, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits);
 			CompareScopeDigests(hostEntry.Value, clientRecord, digestTarget);
 			transientDigestMismatchCount += transientDigestMismatches.Count - digestMismatchCountBefore;
@@ -371,6 +373,7 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Startup catch-up sequences lost while the client applied its first baseline: {startupCatchUpSequences.Count} of the first {StartupWarmupSequenceCount} sequences ({DescribeSequenceBursts(startupCatchUpSequences)})");
 		report.AddSummaryLine($"Lost sequence bursts after startup: {DescribeSequenceBursts(lostSequences)}");
 		report.AddSummaryLine($"Off-screen host units absent on the client as expected: {offscreenMissingUnits}");
+		report.AddSummaryLine($"Loot entities compared at baselines: {comparedLootEntities}");
 		report.AddSummaryLine($"Differences seen only on delta snapshots and healed by the next baseline: {transientDigestMismatchCount}");
 		for (int index = 0; index < Math.Min(transientDigestMismatches.Count, 5); index++)
 		{
@@ -488,6 +491,23 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 
 		CompareDigestSets(hostRecord.Sequence, "world entity", hostRecord.WorldDigests, clientRecord.WorldDigests, mismatches);
+
+		foreach (KeyValuePair<int, Dictionary<int, uint>> hostLoot in hostRecord.Loot)
+		{
+			if (!clientRecord.Loot.TryGetValue(hostLoot.Key, out Dictionary<int, uint>? clientDigests))
+			{
+				AddMismatch(mismatches, 0, $"seq {hostRecord.Sequence}: loot {hostLoot.Key} has no applied state on the client.");
+				continue;
+			}
+
+			CompareDigestSets(hostRecord.Sequence, $"loot {hostLoot.Key}", hostLoot.Value, clientDigests, mismatches);
+		}
+
+		foreach (int clientLootId in clientRecord.Loot.Keys)
+		{
+			if (hostRecord.Loot.ContainsKey(clientLootId)) continue;
+			AddMismatch(mismatches, 0, $"seq {hostRecord.Sequence}: the client holds loot {clientLootId} that the host does not.");
+		}
 	}
 
 	private static void CompareDigestSets(int sequence, string owner, Dictionary<int, uint> hostDigests, Dictionary<int, uint> clientDigests, List<string> mismatches)
@@ -792,6 +812,12 @@ public static class MultiplayerEcsSyncTestSupport
 			}
 
 			record.WorldDigests = ReadComponentDigests(reader);
+			int lootCount = reader.ReadInt32();
+			for (int index = 0; index < lootCount; index++)
+			{
+				record.Loot[reader.ReadInt32()] = ReadComponentDigests(reader);
+			}
+
 			records[sequence] = record;
 		}
 
@@ -817,6 +843,7 @@ public static class MultiplayerEcsSyncTestSupport
 		public Dictionary<int, MultiplayerSnapshotUnit> Units = new();
 		public Dictionary<int, Dictionary<int, uint>> Players = new();
 		public Dictionary<int, uint> WorldDigests = new();
+		public Dictionary<int, Dictionary<int, uint>> Loot = new();
 	}
 
 	private sealed class MultiplayerSnapshotUnit

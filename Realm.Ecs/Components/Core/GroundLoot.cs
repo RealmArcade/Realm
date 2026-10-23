@@ -13,6 +13,7 @@ public struct GroundLoot
 	public int StringId;
 	public int Charges { get; set; }
 	public float Lifetime { get; set; }
+	public float RemainingLifetime { get; set; }
 	public float PickupRadius { get; set; }
 	public byte AutoPickupByte;
 
@@ -30,6 +31,7 @@ public struct GroundLoot
 		StringId = StringRegistry.GetOrAdd(itemTypeId);
 		Charges = charges;
 		Lifetime = lifetime;
+		RemainingLifetime = lifetime;
 		PickupRadius = pickupRadius;
 		AutoPickupByte = autoPickup ? (byte)1 : (byte)0;
 		OwnerPlayerIndex = ownerPlayerIndex;

@@ -311,6 +311,66 @@ public class ArmorNumbersCodec : IReplicatedComponentCodec
 	}
 }
 
+public class GroundLootCodec : IReplicatedComponentCodec
+{
+	private const int PayloadSize = 4 + 4 + 4 + 4 + 1 + 4 + 12;
+
+	public int ComponentTypeId => ComponentType<GroundLoot>.Id;
+	public string ComponentName => nameof(GroundLoot);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => PayloadSize;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<GroundLoot>(entity)) return false;
+
+		ref var loot = ref world.Get<GroundLoot>(entity);
+		int stringId = loot.StringId;
+		int charges = loot.Charges;
+		int ownerPlayerIndex = loot.OwnerPlayerIndex;
+		MemoryMarshal.Write(destination.Slice(0, 4), in stringId);
+		MemoryMarshal.Write(destination.Slice(4, 4), in charges);
+		BitConverter.TryWriteBytes(destination.Slice(8, 4), loot.Lifetime);
+		BitConverter.TryWriteBytes(destination.Slice(12, 4), loot.PickupRadius);
+		destination[16] = loot.AutoPickupByte;
+		MemoryMarshal.Write(destination.Slice(17, 4), in ownerPlayerIndex);
+
+		System.Numerics.Vector3 position = world.Has<Position>(entity) ? world.Get<Position>(entity).Value : System.Numerics.Vector3.Zero;
+		BitConverter.TryWriteBytes(destination.Slice(21, 4), position.X);
+		BitConverter.TryWriteBytes(destination.Slice(25, 4), position.Y);
+		BitConverter.TryWriteBytes(destination.Slice(29, 4), position.Z);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		var loot = world.Has<GroundLoot>(entity) ? world.Get<GroundLoot>(entity) : default;
+		loot.UniqueId = entity.Id;
+		loot.StringId = MemoryMarshal.Read<int>(source.Slice(0, 4));
+		loot.Charges = MemoryMarshal.Read<int>(source.Slice(4, 4));
+		loot.Lifetime = BitConverter.ToSingle(source.Slice(8, 4));
+		loot.RemainingLifetime = loot.Lifetime;
+		loot.PickupRadius = BitConverter.ToSingle(source.Slice(12, 4));
+		loot.AutoPickupByte = source[16];
+		loot.OwnerPlayerIndex = MemoryMarshal.Read<int>(source.Slice(17, 4));
+		world.SetOrAdd(entity, in loot);
+
+		var position = new Position(new System.Numerics.Vector3(
+			BitConverter.ToSingle(source.Slice(21, 4)),
+			BitConverter.ToSingle(source.Slice(25, 4)),
+			BitConverter.ToSingle(source.Slice(29, 4))));
+		world.SetOrAdd(entity, in position);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<GroundLoot>(entity)) return;
+		world.Remove<GroundLoot>(entity);
+	}
+}
+
 public class BuildTaskCodec : INormalizingComponentCodec
 {
 	public int ComponentTypeId => ComponentType<BuildTask>.Id;
@@ -514,6 +574,7 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<Inventory>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<RallyPoint>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ResourceNode>(ReplicatedScope.Unit));
+		Register(new GroundLootCodec());
 		Register(new BuffsCodec());
 		Register(new BuffStateCodec());
 		Register(new ModifierStateCodec());
