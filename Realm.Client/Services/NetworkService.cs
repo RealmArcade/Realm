@@ -1259,16 +1259,37 @@ public class NetworkService
 	{
 		var ctx = CreateMovementContext(peerId, cmd, allUnits);
 		int unitIndex = 0;
+		string? rejection = null;
 
 		foreach (int serverId in cmd.UnitEntityIds)
 		{
 			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			if (requireMovable && !GameContext.World.Has<Movable>(entity)) continue;
+			if (entity == Entity.Null)
+			{
+				rejection ??= $"entity {serverId} is not in the host unit list";
+				continue;
+			}
+
+			if (!IsClientAuthorized(peerId, entity))
+			{
+				rejection ??= $"entity {serverId} is not owned by peer {peerId}";
+				continue;
+			}
+
+			if (requireMovable && !GameContext.World.Has<Movable>(entity))
+			{
+				rejection ??= $"entity {serverId} is not movable";
+				continue;
+			}
 
 			var scattered = CalculateScatteredPosition(cmd.TargetPosition, ctx.MoveDir, ctx.Right, unitIndex, ctx.Cols, ctx.Spacing);
 			processAction(entity, scattered);
 			unitIndex++;
+		}
+
+		if (unitIndex == 0 && cmd.UnitEntityIds.Count > 0)
+		{
+			GD.PushWarning($"[Network] Dropped '{cmd.CommandType}' from peer {peerId}: none of its {cmd.UnitEntityIds.Count} units could take the order ({rejection}).");
 		}
 	}
 

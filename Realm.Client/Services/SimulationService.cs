@@ -6,6 +6,7 @@ using Realm.Ecs;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
+using Realm.Client.UI;
 using Realm.Ecs.AI;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Genres;
@@ -1684,91 +1685,30 @@ public class SimulationService
 		OnProductionCompleted?.Invoke(buildingPlayerIndex, unitToSpawn);
 	}
 
+	private const float LocalOwnedInterpolationRateMultiplier = 2f;
+
 	private void InterpolationQueryAction(Entity entity, ref InterpolationTarget target)
 	{
 		if (!GameContext.World.Has<Position>(entity)) return;
+
+		bool isLocallyPredicted = GameSettings.MovementPrediction
+			&& GameHost.Instance?.IsClientSimulationOnly == true
+			&& ShouldSimulateEntity(entity)
+			&& (GameContext.World.Has<MoveTo>(entity) || GameContext.World.Has<Follow>(entity));
+		if (isLocallyPredicted) return;
 
 		var currentPos = GameContext.World.Get<Position>(entity).Value;
 		int unitPlayer = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
 		bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unitPlayer);
 
-		Vector3 finalPos;
-		Vector3 finalVel;
+		float interpolationRate = GetDynamicInterpolationFactor();
+		if (!isEnemy) interpolationRate *= LocalOwnedInterpolationRateMultiplier;
 
-		if (isEnemy)
-		{
-			float factor = GetDynamicInterpolationFactor();
-			finalPos = Vector3.Lerp(currentPos, target.Position, Math.Min(1f, factor * _fDelta));
-			finalVel = target.Velocity;
-		}
-		else
-		{
-			CalculateFriendlyInterpolation(entity, currentPos, target.Position, target.Velocity, out finalPos, out finalVel);
-		}
+		float stepFraction = Math.Min(1f, interpolationRate * _fDelta);
+		var finalPos = Vector3.Lerp(currentPos, target.Position, stepFraction);
 
 		GameContext.World.Set(entity, new Position(finalPos));
-		GameContext.World.SetOrAdd(entity, new Velocity(finalVel));
-	}
-
-	private void CalculateFriendlyInterpolation(Entity entity, Vector3 currentPos, Vector3 targetPos, Vector3 targetVel, out Vector3 finalPos, out Vector3 finalVel)
-	{
-		bool hasMovementTarget = GameContext.World.Has<MoveTo>(entity) || GameContext.World.Has<Follow>(entity);
-		if (hasMovementTarget && GameContext.World.Has<MovementStats>(entity))
-		{
-			CalculateMovementInterpolation(entity, currentPos, out finalPos, out finalVel);
-		}
-		else
-		{
-			CalculateIdleInterpolation(currentPos, targetPos, targetVel, out finalPos, out finalVel);
-		}
-	}
-
-	private void CalculateMovementInterpolation(Entity entity, Vector3 currentPos, out Vector3 finalPos, out Vector3 finalVel)
-	{
-		var dest = GetMovementDestination(entity, currentPos);
-		float distToDest = Vector3.Distance(currentPos, dest);
-		float threshold = GameContext.World.Has<Follow>(entity) ? 3.0f : 0.05f;
-
-		if (distToDest > threshold)
-		{
-			var stats = GameContext.World.Get<MovementStats>(entity);
-			Vector3 dir = Vector3.Normalize(dest - currentPos);
-			float step = Math.Min(stats.Speed * _fDelta, distToDest);
-			finalPos = currentPos + dir * step;
-			finalVel = dir * stats.Speed;
-		}
-		else
-		{
-			finalPos = GameContext.World.Has<Follow>(entity) ? currentPos : dest;
-			finalVel = Vector3.Zero;
-			if (GameContext.World.Has<MoveTo>(entity)) GameContext.World.Remove<MoveTo>(entity);
-		}
-
-		Console.WriteLine($"[CLIENT_ESTIMATED] Unit={entity.Id} Pos={finalPos} Target={dest}");
-	}
-
-	private Vector3 GetMovementDestination(Entity entity, Vector3 currentPos)
-	{
-		if (GameContext.World.Has<MoveTo>(entity)) return GameContext.World.Get<MoveTo>(entity).Target;
-
-		var follow = GameContext.World.Get<Follow>(entity);
-		if (GameContext.World.IsAlive(follow.Target) && GameContext.World.Has<Position>(follow.Target))
-		{
-			return GameContext.World.Get<Position>(follow.Target).Value;
-		}
-
-		return currentPos;
-	}
-
-	private void CalculateIdleInterpolation(Vector3 currentPos, Vector3 targetPos, Vector3 targetVel, out Vector3 finalPos, out Vector3 finalVel)
-	{
-		float dist = Vector3.Distance(currentPos, targetPos);
-		finalPos = currentPos;
-		finalVel = targetVel;
-
-		if (dist > 2.0f) finalPos = targetPos;
-		else if (dist > 0.5f) finalPos = currentPos + (targetPos - currentPos) * (_fDelta / 0.2f);
-		else if (dist > 0.01f) finalPos = currentPos + (targetPos - currentPos) * (_fDelta / 0.5f);
+		GameContext.World.SetOrAdd(entity, new Velocity(target.Velocity));
 	}
 
 	private int GetTimeOfDayIndex()
