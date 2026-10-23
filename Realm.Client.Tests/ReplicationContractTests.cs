@@ -50,6 +50,14 @@ public partial class ReplicationContractTests
 		"PlayerResources", "ProductionQueue", "TerrainState", "WeatherState"
 	};
 
+	private static readonly Dictionary<string, (string[] Covered, string[] NotReplicated)> RpcChannelFieldCoverage = new(StringComparer.Ordinal)
+	{
+		["PlayerResources"] = (new[] { "Gold", "Stone", "Wood" }, new[] { "CustomSlots", "Ore" }),
+		["ProductionQueue"] = (new[] { "BuildTime", "Count", "CurrentProgress", "Handle" }, Array.Empty<string>()),
+		["TerrainState"] = (new[] { "PathingCodesHandle" }, new[] { "CellsHandle", "CellSize", "Depth", "NavMeshHandle", "NavMeshQueryHandle", "QuadSize", "SwatchConfigsHandle", "Width" }),
+		["WeatherState"] = (new[] { "Type" }, new[] { "BaseFogDensity" })
+	};
+
 	private static readonly string[] StorageStructs =
 	{
 		"BuffSlot", "BuffSlotArray", "InventorySlot", "InventorySlotArray",
@@ -113,6 +121,51 @@ public partial class ReplicationContractTests
 		var componentNames = new HashSet<string>(EnumerateComponentTypes().Select(type => type.Name), StringComparer.Ordinal);
 		var stale = HostOnlyComponents.Concat(RpcReplicatedComponents).Concat(StorageStructs).Where(name => !componentNames.Contains(name)).ToList();
 		Assertions.AssertThat(stale).OverrideFailureMessage($"Classification lists reference unknown components: {string.Join(", ", stale)}").IsEmpty();
+	}
+
+	[TestCase]
+	public void RpcReplicatedComponentsDocumentFieldCoverage()
+	{
+		var rpcNames = new HashSet<string>(RpcReplicatedComponents, StringComparer.Ordinal);
+		var coverageNames = new HashSet<string>(RpcChannelFieldCoverage.Keys, StringComparer.Ordinal);
+		Assertions.AssertThat(coverageNames.SetEquals(rpcNames))
+			.OverrideFailureMessage($"RPC bucket and coverage disagree. Missing coverage: {string.Join(", ", rpcNames.Except(coverageNames))}. Stale coverage: {string.Join(", ", coverageNames.Except(rpcNames))}.")
+			.IsTrue();
+
+		var componentTypes = EnumerateComponentTypes().GroupBy(type => type.Name).ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+		var problems = new List<string>();
+
+		foreach (var (name, coverage) in RpcChannelFieldCoverage)
+		{
+			if (!componentTypes.TryGetValue(name, out Type componentType))
+			{
+				problems.Add($"{name}: component type was not found");
+				continue;
+			}
+
+			var fields = componentType.GetFields(BindingFlags.Public | BindingFlags.Instance).Select(field => field.Name).ToHashSet(StringComparer.Ordinal);
+			var covered = new HashSet<string>(coverage.Covered, StringComparer.Ordinal);
+			var notReplicated = new HashSet<string>(coverage.NotReplicated, StringComparer.Ordinal);
+
+			if (covered.Count == 0) problems.Add($"{name}: no covered fields are documented");
+
+			foreach (string member in covered.Intersect(notReplicated))
+			{
+				problems.Add($"{name}.{member}: listed as both covered and not replicated");
+			}
+
+			foreach (string member in covered.Concat(notReplicated).Where(member => !fields.Contains(member)))
+			{
+				problems.Add($"{name}.{member}: no such field on the component");
+			}
+
+			foreach (string field in fields.Where(field => !covered.Contains(field) && !notReplicated.Contains(field)))
+			{
+				problems.Add($"{name}.{field}: field is not classified as covered or not replicated");
+			}
+		}
+
+		Assertions.AssertThat(problems).OverrideFailureMessage($"RPC channel field coverage is incomplete: {string.Join("; ", problems)}").IsEmpty();
 	}
 
 	[TestCase]
