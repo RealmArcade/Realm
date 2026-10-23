@@ -40,6 +40,18 @@ public static class InternedValueStore
 	/// </summary>
 	public const int FallbackIdBase = 0x40000000;
 
+	/// <summary>
+	/// The version of the identifier scheme that maps content to identifiers.
+	/// </summary>
+	/// <remarks>
+	/// The host, the client and the map script sandbox must derive the same identifier for the same content, so the
+	/// scheme is frozen: text is a 32 bit FNV-1a hash over its UTF-16 code units, taken in low byte then high byte
+	/// order, and a structured payload is the same hash over its kind byte followed by its payload bytes, masked to
+	/// 31 bits with zero remapped to one. Colliding content of the same kind moves into <see cref="FallbackIdBase"/>.
+	/// Raising this version means every peer and every saved payload must migrate, not that hashes shift silently.
+	/// </remarks>
+	public const int SchemeVersion = 1;
+
 	private const uint PrimaryHashSeed = 2166136261u;
 	private const uint FallbackHashSeed = 0x811C9DC5u ^ 0x5BD1E995u;
 

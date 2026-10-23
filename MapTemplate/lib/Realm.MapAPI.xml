@@ -3182,6 +3182,18 @@
             First identifier of the reserved fallback range used when a primary content hash is already taken.
             </summary>
         </member>
+        <member name="F:Realm.MapAPI.InternedValueStore.SchemeVersion">
+            <summary>
+            The version of the identifier scheme that maps content to identifiers.
+            </summary>
+            <remarks>
+            The host, the client and the map script sandbox must derive the same identifier for the same content, so the
+            scheme is frozen: text is a 32 bit FNV-1a hash over its UTF-16 code units, taken in low byte then high byte
+            order, and a structured payload is the same hash over its kind byte followed by its payload bytes, masked to
+            31 bits with zero remapped to one. Colliding content of the same kind moves into <see cref="F:Realm.MapAPI.InternedValueStore.FallbackIdBase"/>.
+            Raising this version means every peer and every saved payload must migrate, not that hashes shift silently.
+            </remarks>
+        </member>
         <member name="P:Realm.MapAPI.InternedValueStore.CollisionCount">
             <summary>
             Gets the number of payload registrations that had to move into the reserved fallback range because another
