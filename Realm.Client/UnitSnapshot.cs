@@ -9,6 +9,7 @@ public partial struct UnitSnapshot
 	public int EntityId;
 	public string UnitId;
 	public int OwnerPlayerEntityId;
+	public int OwnerPlayerIndex;
 	public NetworkVector3 Position;
 	public float RotationY;
 	public float CurrentHp;

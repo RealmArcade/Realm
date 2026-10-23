@@ -1396,6 +1396,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 
 			UpdateAllPeerDiagnostics();
+			BroadcastPlayerList();
 			RpcId(id, nameof(SyncSpectatorDelay), SpectatorDelay);
 			RpcId(id, nameof(SyncHostStability), HostStability);
 			RpcId(id, nameof(SyncActiveMap), ActiveMapName);

@@ -242,6 +242,17 @@ public partial class GameHost
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
 	public void ReceiveSnapshot(byte[] payload)
 	{
+		ApplyReceivedSnapshot(payload);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ReceiveBaselineSnapshot(byte[] payload)
+	{
+		ApplyReceivedSnapshot(payload);
+	}
+
+	private void ApplyReceivedSnapshot(byte[] payload)
+	{
 		if (Multiplayer.IsServer()) return;
 		GameContext.NetworkService.RecordSnapshotReceived(payload);
 
@@ -257,6 +268,8 @@ public partial class GameHost
 				Callable.From(() => KillUnitDeferred(unit3D)).CallDeferred();
 			}
 		}
+
+		MultiplayerSyncDiagnostics.RecordClientSnapshot();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -329,9 +342,9 @@ public partial class GameHost
 	private void UpdateServerSnapshotTick(float fDelta)
 	{
 		var snapshots = GameContext.NetworkService.BuildServerSnapshots(_localPeerId, AllUnits);
-		foreach (var (peerId, payload) in snapshots)
+		foreach (var (peerId, payload, isBaseline) in snapshots)
 		{
-			QueueOrSendPacket(peerId, nameof(ReceiveSnapshot), payload);
+			QueueOrSendPacket(peerId, isBaseline ? nameof(ReceiveBaselineSnapshot) : nameof(ReceiveSnapshot), payload);
 		}
 
 		SyncServerPlayerResources();
@@ -378,6 +391,10 @@ public partial class GameHost
 		if (funcName == nameof(ReceiveSnapshot))
 		{
 			RpcId(peerId, nameof(ReceiveSnapshot), (byte[])args[0]);
+		}
+		else if (funcName == nameof(ReceiveBaselineSnapshot))
+		{
+			RpcId(peerId, nameof(ReceiveBaselineSnapshot), (byte[])args[0]);
 		}
 		else if (funcName == nameof(PlaySpellEffect))
 		{
