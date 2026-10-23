@@ -84,9 +84,10 @@ namespace Realm.AdminServer.Helpers
                 if (validationResult != null)
                 {
                     return validationResult;
-                }				var updatedMaintainers = MapMaintainerHelper.AddMaintainer(db, targetMap, req.MaintainerPublicKey);
-				MapMaintainerHelper.RecordAuditEntry(db, targetMap, "add", req.MaintainerPublicKey, req.RequesterPublicKey, req.MaintainerUsername);
-				string owner = MapMaintainerHelper.GetOwner(db, targetMap);
+                }
+
+                var updatedMaintainers = MapMaintainerHelper.AddMaintainer(db, targetMap, req.MaintainerPublicKey);
+                string owner = MapMaintainerHelper.GetOwner(db, targetMap);
 
                 var clusterEvt = new ClusterEventDto
                 {
@@ -125,7 +126,8 @@ namespace Realm.AdminServer.Helpers
                 });
             }
         }
-                public static IResult HandleRemoveMapMaintainer(
+
+        public static IResult HandleRemoveMapMaintainer(
             string reqMapTitle,
             string routeMapTitle,
             Realm.Shared.Distribution.RemoveMapMaintainerRequest req,
@@ -153,9 +155,10 @@ namespace Realm.AdminServer.Helpers
                         MapTitle = targetMap,
                         Message = "Cannot remove the only remaining maintainer of the map. Transfer ownership or add another maintainer first."
                     });
-                }				var updatedMaintainers = MapMaintainerHelper.RemoveMaintainer(db, targetMap, req.MaintainerPublicKey);
-				MapMaintainerHelper.RecordAuditEntry(db, targetMap, "remove", req.MaintainerPublicKey, req.RequesterPublicKey, null);
-				string owner = MapMaintainerHelper.GetOwner(db, targetMap);
+                }
+
+                var updatedMaintainers = MapMaintainerHelper.RemoveMaintainer(db, targetMap, req.MaintainerPublicKey);
+                string owner = MapMaintainerHelper.GetOwner(db, targetMap);
 
                 var clusterEvt = new ClusterEventDto
                 {

@@ -1,38 +1,15 @@
 using System.Text.Json;
-using Realm.AdminServer.Models;
 using Realm.Shared;
 
 namespace Realm.AdminServer.Services;
 
 public static class MapMaintainerHelper
 {
-	public const string AuditCollection = "map_maintainer_audit";
-
-	public static void RecordAuditEntry(DataStoreService db, string mapTitle, string action, string maintainerPublicKey, string requesterPublicKey, string? maintainerUsername)
-	{
-		if (string.IsNullOrWhiteSpace(mapTitle) || string.IsNullOrWhiteSpace(maintainerPublicKey)) return;
-
-		string auditKey = $"{mapTitle.Trim()}_{DateTime.UtcNow:yyyyMMddTHHmmssfff}_{action}_{maintainerPublicKey.Trim()}";
-		db.Upsert(AuditCollection, auditKey, new MapMaintainerAuditEntry
-		{
-			MapTitle = mapTitle.Trim(),
-			Action = action,
-			MaintainerPublicKey = maintainerPublicKey.Trim(),
-			MaintainerUsername = maintainerUsername,
-			RequesterPublicKey = requesterPublicKey?.Trim() ?? string.Empty,
-			TimestampUtc = DateTime.UtcNow
-		});
-	}
-
 	public static string GetTestCompositeKey(string mapTitle, string mapVersion)
 	{
 		return $"{mapTitle}_test_{mapVersion}";
 	}
 
-	public static bool IsTestCompositeKey(string compositeKey)
-	{
-		return !string.IsNullOrEmpty(compositeKey) && compositeKey.Contains("_test_", StringComparison.OrdinalIgnoreCase);
-	}
 	public static List<string> GetMaintainers(DataStoreService db, string mapTitle)
 	{
 		if (string.IsNullOrWhiteSpace(mapTitle))

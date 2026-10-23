@@ -2234,9 +2234,8 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 		return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
 	}
 
-		DiscoveryMapDto CreateDiscoveryMapDto(string compositeKey, string title, string version, string creator, string desc, string gen, string thumb, List<string> screens, List<string> fAndT, long bytes, string eVer, string mPlayers, bool greenlit, MapStats? s)
+		DiscoveryMapDto CreateDiscoveryMapDto(string compositeKey, string title, string version, string creator, string desc, string gen, string thumb, List<string> screens, List<string> fAndT, long bytes, string eVer, string mPlayers, bool greenlit, bool isTestVersion, MapStats? s)
 		{
-			bool isTestVersion = MapMaintainerHelper.IsTestCompositeKey(compositeKey);
 			float rStars = s != null && s.AverageRating > 0 ? (float)s.AverageRating : 4.5f;
 			int tReviews = s != null ? s.ReviewsCount : 0;
 			int vReviews = s != null ? s.VerifiedGoodReviewsCount : 0;
@@ -2373,7 +2372,7 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 
 							discoveryList.Add(CreateDiscoveryMapDto(
 					compositeKey, mapTitle, mapVersion, creator, description, genre,
-					thumbnailHash, screenshotHashes, tags, totalBytes, engineVersion, maxPlayers, isGreenlit, stats));
+					thumbnailHash, screenshotHashes, tags, totalBytes, engineVersion, maxPlayers, isGreenlit, isTestVersionDocument, stats));
 		}
 		catch
 		{
@@ -2432,7 +2431,7 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 						compositeKey, manifest.MapName, manifest.Version,
 						!string.IsNullOrEmpty(manifest.Author) ? manifest.Author : "Realm Builder",
 						description, genre, thumbnailHash, screenshotHashes, tags, totalBytes,
-						engineVersion, maxPlayers, isGreenlit, stats));
+						engineVersion, maxPlayers, isGreenlit, false, stats));
 			}
 			catch
 			{

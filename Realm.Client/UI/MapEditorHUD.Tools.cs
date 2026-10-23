@@ -2384,7 +2384,7 @@ namespace Realm.Client.UI
 			var maintainerInfoLabel = new Label
 			{
 				Name = "MaintainerInfo_Label",
-				Text = TranslationServer.Translate("Maintainer keys: every listed key can publish this map. Keys are added or revoked by an existing key holder through the registry maintainer endpoints; revocations take effect immediately and are recorded in the admin audit log."),
+				Text = TranslationServer.Translate("Maintainer keys: every listed key can publish this map. Keys are added or revoked by an existing key holder through the registry maintainer endpoints; revocations take effect immediately."),
 				AutowrapMode = TextServer.AutowrapMode.Word,
 				CustomMinimumSize = new Vector2(520, 0),
 				SizeFlagsHorizontal = SizeFlags.ExpandFill

@@ -6,15 +6,8 @@ public static class PublishedMapDocumentHelper
 {
 	public static JsonObject Build(string manifestJson, bool isTestVersion)
 	{
-		JsonObject document;
-		try
-		{
-			document = JsonNode.Parse(manifestJson)?.AsObject() ?? new JsonObject();
-		}
-		catch
-		{
-			document = new JsonObject();
-		}
+		JsonObject document = JsonNode.Parse(manifestJson)?.AsObject()
+			?? throw new InvalidOperationException("A published map manifest must be a JSON object.");
 
 		document["IsTestVersion"] = isTestVersion;
 		return document;
