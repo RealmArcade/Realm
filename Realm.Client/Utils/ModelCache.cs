@@ -316,12 +316,15 @@ namespace Realm.Client.Utils
 		{
 			if (string.IsNullOrEmpty(modelPath)) return null;
 
+			string? resolvedPath = ResolveModelPath(modelPath);
+			string canonicalKey = BuildCanonicalKey(resolvedPath ?? modelPath);
+
 			_modelCacheLock.EnterReadLock();
 			try
 			{
-				if (_failedModelPaths.Contains(modelPath)) return null;
+				if (_failedModelPaths.Contains(canonicalKey)) return null;
 
-				if (_cachedScenes.TryGetValue(modelPath, out var cachedScene) && GodotObject.IsInstanceValid(cachedScene))
+				if (_cachedScenes.TryGetValue(canonicalKey, out var cachedScene) && GodotObject.IsInstanceValid(cachedScene))
 				{
 					return cachedScene.Instantiate();
 				}
@@ -331,25 +334,9 @@ namespace Realm.Client.Utils
 				_modelCacheLock.ExitReadLock();
 			}
 
-			string resolvedPath = ResolveModelPath(modelPath);
 			if (string.IsNullOrEmpty(resolvedPath))
 			{
 				return null;
-			}
-
-			_modelCacheLock.EnterReadLock();
-			try
-			{
-				if (_failedModelPaths.Contains(resolvedPath)) return null;
-
-				if (_cachedScenes.TryGetValue(resolvedPath, out var cachedSceneResolved) && GodotObject.IsInstanceValid(cachedSceneResolved))
-				{
-					return cachedSceneResolved.Instantiate();
-				}
-			}
-			finally
-			{
-				_modelCacheLock.ExitReadLock();
 			}
 
 			PackedScene scene = LoadPackedScene(resolvedPath);
@@ -358,13 +345,11 @@ namespace Realm.Client.Utils
 			{
 				if (scene != null)
 				{
-					_cachedScenes[modelPath] = scene;
-					_cachedScenes[resolvedPath] = scene;
+					_cachedScenes[canonicalKey] = scene;
 					return scene.Instantiate();
 				}
 
-				_failedModelPaths.Add(modelPath);
-				_failedModelPaths.Add(resolvedPath);
+				_failedModelPaths.Add(canonicalKey);
 				return null;
 			}
 			finally
@@ -377,33 +362,21 @@ namespace Realm.Client.Utils
 		{
 			if (string.IsNullOrEmpty(modelPath)) return;
 
+			string? resolvedPath = ResolveModelPath(modelPath);
+			string canonicalKey = BuildCanonicalKey(resolvedPath ?? modelPath);
+
 			_modelCacheLock.EnterReadLock();
 			try
 			{
-				if (_failedModelPaths.Contains(modelPath)) return;
+				if (_failedModelPaths.Contains(canonicalKey)) return;
+				if (_cachedScenes.TryGetValue(canonicalKey, out var cachedScene) && GodotObject.IsInstanceValid(cachedScene)) return;
 			}
 			finally
 			{
 				_modelCacheLock.ExitReadLock();
 			}
 
-			string resolvedPath = ResolveModelPath(modelPath);
 			if (string.IsNullOrEmpty(resolvedPath)) return;
-
-			_modelCacheLock.EnterReadLock();
-			try
-			{
-				if (_failedModelPaths.Contains(resolvedPath)) return;
-				if ((_cachedScenes.TryGetValue(resolvedPath, out var s1) && GodotObject.IsInstanceValid(s1)) ||
-				    (_cachedScenes.TryGetValue(modelPath, out var s2) && GodotObject.IsInstanceValid(s2)))
-				{
-					return;
-				}
-			}
-			finally
-			{
-				_modelCacheLock.ExitReadLock();
-			}
 
 			PackedScene scene = LoadPackedScene(resolvedPath);
 			_modelCacheLock.EnterWriteLock();
@@ -411,18 +384,35 @@ namespace Realm.Client.Utils
 			{
 				if (scene != null)
 				{
-					_cachedScenes[modelPath] = scene;
-					_cachedScenes[resolvedPath] = scene;
+					_cachedScenes[canonicalKey] = scene;
 				}
 				else
 				{
-					_failedModelPaths.Add(modelPath);
-					_failedModelPaths.Add(resolvedPath);
+					_failedModelPaths.Add(canonicalKey);
 				}
 			}
 			finally
 			{
 				_modelCacheLock.ExitWriteLock();
+			}
+		}
+
+		private static string BuildCanonicalKey(string modelPath)
+		{
+			if (string.IsNullOrEmpty(modelPath)) return string.Empty;
+
+			string absolutePath = modelPath.StartsWith("res://", StringComparison.OrdinalIgnoreCase) ||
+			                      modelPath.StartsWith("user://", StringComparison.OrdinalIgnoreCase)
+				? ProjectSettings.GlobalizePath(modelPath)
+				: modelPath;
+
+			try
+			{
+				return Path.GetFullPath(absolutePath).Replace('\\', '/').TrimEnd('/');
+			}
+			catch (Exception)
+			{
+				return absolutePath.Replace('\\', '/').TrimEnd('/');
 			}
 		}
 
@@ -728,19 +718,20 @@ namespace Realm.Client.Utils
 
 		public static void InvalidateModelPath(string modelPath)
 		{
-			if (!string.IsNullOrEmpty(modelPath))
+			if (string.IsNullOrEmpty(modelPath)) return;
+
+			_resolvedModelPaths.TryRemove(modelPath, out string? resolvedPath);
+			string canonicalKey = BuildCanonicalKey(string.IsNullOrEmpty(resolvedPath) ? modelPath : resolvedPath);
+
+			_modelCacheLock.EnterWriteLock();
+			try
 			{
-				_modelCacheLock.EnterWriteLock();
-				try
-				{
-					_cachedScenes.Remove(modelPath);
-					_failedModelPaths.Remove(modelPath);
-					_resolvedModelPaths.TryRemove(modelPath, out _);
-				}
-				finally
-				{
-					_modelCacheLock.ExitWriteLock();
-				}
+				_cachedScenes.Remove(canonicalKey);
+				_failedModelPaths.Remove(canonicalKey);
+			}
+			finally
+			{
+				_modelCacheLock.ExitWriteLock();
 			}
 		}
 	}
