@@ -326,6 +326,7 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<BuildTask>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<BuildQueue>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Inventory>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<RallyPoint>(ReplicatedScope.Unit));
 		Register(new BuffsCodec());
 		Register(new BuffStateCodec());
 		Register(new ModifierStateCodec());

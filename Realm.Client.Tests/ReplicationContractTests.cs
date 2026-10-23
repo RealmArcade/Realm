@@ -19,7 +19,7 @@ public partial class ReplicationContractTests
 		"CountdownState", "DecalIdentity", "DecalSpawnRequest", "EditorState",
 		"GroundLoot", "InputState",
 		"NetworkMappingState", "NetworkState", "OccupiedZones",
-		"PropIdentity", "PropSpawnRequest", "RallyPoint",
+		"PropIdentity", "PropSpawnRequest",
 		"ReplayState", "ScriptPlayer", "ScriptPlayersState", "SpectatorPerspective",
 		"TowerUpgradeLevel", "UnitOwnerPlayer", "UnitSpawnRequest",
 		"VFXQueue", "VFXRequest", "ZoneBounds",
