@@ -34,6 +34,11 @@ public partial class GameHost
 	{
 		if (GameContext.IsSettingsMenuOpen)
 		{
+			if (@event is InputEventKey settingsToggleEvent && settingsToggleEvent.Pressed && !settingsToggleEvent.Echo && settingsToggleEvent.Keycode == Key.F12)
+			{
+				GameContext.Settings?.CancelSettings();
+			}
+
 			GetViewport().SetInputAsHandled();
 			return;
 		}
@@ -1098,7 +1103,7 @@ public partial class GameHost
 				{
 					if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
 
-					int placePlayer = GameContext.EditorService.PlaceUnitIsEnemy ? 1 : 0;
+					int placePlayer = GameContext.EditorService.PlaceUnitPlayerIndex;
 					var unit = SpawnUnitExternal(ActivePlaceId, spawnPos, placementRot, scaleVal, placePlayer);
 					if (unit != null)
 					{
@@ -1404,16 +1409,16 @@ public partial class GameHost
 					{
 						if (clickedNode is Unit3D unit)
 						{
-							bool isEnemy = unit.Player != 0;
+							int pickedPlayer = unit.Player;
 							if (GameContext.MapEditorHud != null)
 							{
-								GameContext.MapEditorHud.SetSpawnAsEnemy(isEnemy);
+								GameContext.MapEditorHud.SetSpawnPlayer(pickedPlayer);
 								GameContext.MapEditorHud.SelectPickedUnitOrProp(unit.UnitId, unit.IsBuilding);
 							}
 							else
 							{
 								ActivePlaceId = unit.UnitId;
-								GameContext.EditorService.PlaceUnitIsEnemy = isEnemy;
+								GameContext.EditorService.SetPlaceUnitPlayerIndexDomain(pickedPlayer);
 								ActiveEditorTool = EditorTool.PlaceUnit;
 							}
 						}
@@ -1830,12 +1835,36 @@ public partial class GameHost
 		return;
 	}
 
+	private bool TryCancelActiveConfirmationOverlay()
+	{
+		var userInterface = GameContext.UserInterface;
+		if (userInterface == null) return false;
+
+		for (int index = userInterface.GetChildCount() - 1; index >= 0; index--)
+		{
+			if (userInterface.GetChild(index) is not Control overlay || overlay.Name != "ConfirmationOverlay" || overlay.IsQueuedForDeletion()) continue;
+			if (!overlay.HasMeta("CancelAction")) return false;
+
+			overlay.GetMeta("CancelAction").AsCallable().Call();
+			return true;
+		}
+
+		return false;
+	}
+
 	private void HandleGameplayInput(InputEvent @event)
 	{
 		if (@event is InputEventKey settingsKeyEvent && settingsKeyEvent.Pressed && !settingsKeyEvent.Echo && settingsKeyEvent.Keycode == Key.F12)
 		{
 			GetViewport().SetInputAsHandled();
 			GameContext.UserInterface.OpenSettingsOverlay();
+			return;
+		}
+
+		if (@event is InputEventKey confirmationEscapeEvent && confirmationEscapeEvent.Pressed && !confirmationEscapeEvent.Echo && confirmationEscapeEvent.Keycode == Key.Escape
+			&& TryCancelActiveConfirmationOverlay())
+		{
+			GetViewport().SetInputAsHandled();
 			return;
 		}
 

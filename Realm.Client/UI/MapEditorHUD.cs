@@ -314,6 +314,8 @@ public partial class MapEditorHUD : Control
 	private Button _btnShowCoverage { get; set; }
 	private HBoxContainer _playerOwnerContainer { get; set; }
 	private OptionButton _optPlayerOwner { get; set; }
+	private HBoxContainer _placementPlayerContainer { get; set; }
+	private OptionButton _optPlacementPlayer { get; set; }
 	private PanelContainer _rigStatusContainer { get; set; }
 	private Label _lblRigStatus { get; set; }
 
@@ -792,7 +794,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (tool == EditorTool.PlaceUnit)
 		{
-			string alignment = (GameContext.Host != null && GameContext.EditorService.PlaceUnitIsEnemy) ? TranslationServer.Translate("Enemy (Orc)") : TranslationServer.Translate("Player (Alliance)");
+			string alignment = PlayerColorConfig.GetPaletteLabel(GameContext.EditorService.PlaceUnitPlayerIndex);
 			_lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Place Unit\n\nLeft-click on the ground to spawn a {0} aligned with {1}."), shortPlaceName, alignment);
 			return;
 		}

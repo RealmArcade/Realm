@@ -61,6 +61,19 @@ public static class PlayerColorConfig
 		return Palette[NEUTRAL_PLAYER_INDEX].Color;
 	}
 
+	public static string GetPaletteLabel(int playerIndex)
+	{
+		if (playerIndex < 0 || playerIndex >= Palette.Length)
+		{
+			playerIndex = NEUTRAL_PLAYER_INDEX;
+		}
+
+		var entry = Palette[playerIndex];
+		return playerIndex == NEUTRAL_PLAYER_INDEX
+			? $"{entry.Index} {entry.Name} (gaia)"
+			: $"{entry.Index} {entry.Name}";
+	}
+
 	public static string GetName(int playerIndex)
 	{
 		if (playerIndex >= 0 && playerIndex < Palette.Length)

@@ -1222,20 +1222,32 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 		}
 
 		string wsPath = ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-		string fullPath = Path.Combine(wsPath, "Assets", "audio", soundPath);
-		if (!File.Exists(fullPath))
-		{
-			fullPath = Path.Combine(wsPath, soundPath);
-		}
+		string fullPath = ResolveAudioFilePath(Path.Combine(wsPath, "Assets", "audio"), soundPath)
+			?? ResolveAudioFilePath(wsPath, soundPath)
+			?? ResolveAudioFilePath(ProjectSettings.GlobalizePath("res://Assets/audio"), soundPath)
+			?? ResolveAudioFilePath(ProjectSettings.GlobalizePath("res://Assets/Audio/UI"), soundPath);
 
-		if (!File.Exists(fullPath))
-		{
-			fullPath = ProjectSettings.GlobalizePath($"res://Assets/Audio/UI/{soundPath}");
-		}
-
-		if (!File.Exists(fullPath)) return null;
+		if (string.IsNullOrEmpty(fullPath)) return null;
 
 		return LoadStreamFromFile(fullPath);
+	}
+
+	private static string? ResolveAudioFilePath(string rootPath, string soundPath)
+	{
+		if (string.IsNullOrEmpty(rootPath) || !Directory.Exists(rootPath)) return null;
+
+		string directPath = Path.Combine(rootPath, soundPath);
+		if (File.Exists(directPath)) return directPath;
+
+		string fileName = Path.GetFileName(soundPath);
+		if (string.IsNullOrEmpty(fileName)) return null;
+
+		foreach (string candidatePath in Directory.EnumerateFiles(rootPath, fileName, SearchOption.AllDirectories))
+		{
+			return candidatePath;
+		}
+
+		return null;
 	}
 
 	private AudioStream LoadStreamFromFile(string fullPath)

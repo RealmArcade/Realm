@@ -1467,6 +1467,42 @@ namespace Realm.Client.UI
 					_contentPlacement.MoveChild(_optPlacementMirrorMode, _btnToggleSnap.GetIndex() + 1);
 				}
 
+				_placementPlayerContainer = new HBoxContainer();
+				_placementPlayerContainer.Name = "PlacementPlayerOwnerContainer";
+				_placementPlayerContainer.AddThemeConstantOverride("separation", 6);
+				_placementPlayerContainer.Visible = false;
+
+				var lblPlacementPlayer = new Label();
+				lblPlacementPlayer.Name = "LblPlacementPlayer";
+				lblPlacementPlayer.Text = TranslationServer.Translate("Player");
+				lblPlacementPlayer.CustomMinimumSize = new Vector2(50, 0);
+				lblPlacementPlayer.AddThemeFontSizeOverride("font_size", 11);
+				_placementPlayerContainer.AddChild(lblPlacementPlayer);
+
+				_optPlacementPlayer = new OptionButton();
+				_optPlacementPlayer.Name = "OptPlacementPlayer";
+				_optPlacementPlayer.Set("icon_max_width", 0);
+				_optPlacementPlayer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				_optPlacementPlayer.AddThemeFontSizeOverride("font_size", 10);
+				_optPlacementPlayer.TooltipText = TranslationServer.Translate("Owner of the next placed unit. Choose 0 NEUTRAL_TAN (gaia) to place neutral objects.");
+
+				for (int i = 0; i < PlayerColorConfig.Palette.Length; i++)
+				{
+					_optPlacementPlayer.AddItem(PlayerColorConfig.GetPaletteLabel(i), i);
+				}
+
+				_optPlacementPlayer.ItemSelected += (long index) =>
+				{
+					GameContext.EditorService.SetPlaceUnitPlayerIndexDomain((int)index);
+				};
+
+				_placementPlayerContainer.AddChild(_optPlacementPlayer);
+				if (_contentPlacement != null)
+				{
+					_contentPlacement.AddChild(_placementPlayerContainer);
+					_contentPlacement.MoveChild(_placementPlayerContainer, _optPlacementMirrorMode.GetIndex() + 1);
+				}
+
 				_chkRandomRotation = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomRotation");
 				_chkRandomScale = GetNode<CheckBox>("RightSlidePanel/RightScroll/AccordionContainer/PlacementAccordion/ContentPlacement/ChkRandomScale");
 
@@ -1949,12 +1985,19 @@ namespace Realm.Client.UI
 			}
 		}
 
-		public void SetSpawnAsEnemy(bool isEnemy)
+		public void SetSpawnPlayer(int playerIndex)
 		{
-			if (GameContext.Host != null)
-			{
-				GameContext.EditorService.SetPlaceUnitIsEnemyDomain(isEnemy);
-			}
+			if (GameContext.Host == null) return;
+
+			GameContext.EditorService.SetPlaceUnitPlayerIndexDomain(playerIndex);
+			SyncPlacementPlayerSelection(GameContext.EditorService.PlaceUnitPlayerIndex);
+		}
+
+		private void SyncPlacementPlayerSelection(int playerIndex)
+		{
+			if (_optPlacementPlayer == null) return;
+
+			_optPlacementPlayer.Selected = Mathf.Clamp(playerIndex, 0, PlayerColorConfig.Palette.Length - 1);
 		}
 
 		public void SelectCategoryItemExternal(string category, string filename)
@@ -3883,6 +3926,16 @@ namespace Realm.Client.UI
 				_accordionPlacement.Visible = hasPlacementConfig;
 			}
 
+			if (_placementPlayerContainer != null)
+			{
+				bool showPlacementPlayer = tool == EditorTool.PlaceUnit;
+				_placementPlayerContainer.Visible = showPlacementPlayer;
+				if (showPlacementPlayer)
+				{
+					SyncPlacementPlayerSelection(GameContext.EditorService.PlaceUnitPlayerIndex);
+				}
+			}
+
 			if (_chkClumpMode != null)
 			{
 				_chkClumpMode.Visible = isPlacement;
@@ -4371,8 +4424,7 @@ namespace Realm.Client.UI
 
 			for (int i = 0; i < PlayerColorConfig.Palette.Length; i++)
 			{
-				var entry = PlayerColorConfig.Palette[i];
-				_optPlayerOwner.AddItem($"{entry.Index} {entry.Name}", i);
+				_optPlayerOwner.AddItem(PlayerColorConfig.GetPaletteLabel(i), i);
 			}
 
 			_optPlayerOwner.ItemSelected += (long index) =>

@@ -1002,7 +1002,7 @@ public partial class SettingsMenu : Control
 		GameSettings.ShowHealthBars = (HealthBarMode)_healthBarsOpt.Selected;
 	}
 
-	private void CancelSettings()
+	public void CancelSettings()
 	{
 		GameSettings.Load();
 		GameContext.UserInterface.UpdateAudioVolumes();

@@ -1013,7 +1013,8 @@ public partial class EditorService : IEditorAPI
 	public Godot.Vector3? EditorTapeMeasureStart { get; set; }
 	public bool IsWaterRemoveAction { get; set; } = false;
 
-	public bool PlaceUnitIsEnemy { get; set; } = false;
+	public int PlaceUnitPlayerIndex { get; set; } = 0;
+	public bool PlaceUnitIsEnemy => PlaceUnitPlayerIndex != 0;
 	public float EditorBrushRadius { get; set; } = 2.0f;
 	public float EditorBrushStrength { get; set; } = 3.0f;
 	public int EditorPaintTextureIndex { get; set; } = 3;
@@ -1375,7 +1376,7 @@ public partial class EditorService : IEditorAPI
 		{
 			case "unit":
 				newTool = EditorTool.PlaceUnit;
-				PlaceUnitIsEnemy = copiedObj.Player != 0;
+				SetPlaceUnitPlayerIndexDomain(copiedObj.Player);
 				break;
 			case "prop":
 				newTool = EditorTool.PlaceProp;
@@ -2678,7 +2679,7 @@ public partial class EditorService : IEditorAPI
 		Godot.Vector3 centerPos,
 		EditorTool activeTool,
 		string activePlaceId,
-		bool placeUnitIsEnemy,
+		int placeUnitPlayerIndex,
 		float placementScale,
 		float clumpCount,
 		float clumpScale,
@@ -2776,7 +2777,7 @@ public partial class EditorService : IEditorAPI
 				string spawnType = activeTool == EditorTool.PlaceUnit ? "unit"
 					: activeTool == EditorTool.PlaceProp ? "prop"
 					: "decal";
-				int playerIndex = (activeTool == EditorTool.PlaceUnit && placeUnitIsEnemy) ? 1 : 0;
+				int playerIndex = activeTool == EditorTool.PlaceUnit ? placeUnitPlayerIndex : 0;
 
 				requests.Add(new EntitySpawnRequest
 				{
@@ -5307,9 +5308,9 @@ public partial class EditorService : IEditorAPI
 		PendingCoordinateMaxZ = maxZ;
 	}
 
-	public void SetPlaceUnitIsEnemyDomain(bool isEnemy)
+	public void SetPlaceUnitPlayerIndexDomain(int playerIndex)
 	{
-		PlaceUnitIsEnemy = isEnemy;
+		PlaceUnitPlayerIndex = Mathf.Clamp(playerIndex, 0, PlayerColorConfig.Palette.Length - 1);
 	}
 
 	public void UndoDomain()

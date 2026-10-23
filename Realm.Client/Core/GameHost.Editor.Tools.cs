@@ -2897,7 +2897,7 @@ namespace Realm.Client.Core
 				centerPos,
 				ActiveEditorTool,
 				ActivePlaceId,
-				GameContext.EditorService.PlaceUnitIsEnemy,
+				GameContext.EditorService.PlaceUnitPlayerIndex,
 				EditorPlacementScale,
 				EditorClumpCount,
 				EditorClumpScale,
