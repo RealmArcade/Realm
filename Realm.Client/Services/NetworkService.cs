@@ -621,6 +621,7 @@ public class NetworkService
 		}
 
 		LastAppliedSnapshotSequenceForDiagnostics = snapshot.Sequence;
+		MultiplayerSyncDiagnostics.RecordClientSnapshot();
 	}
 
 	private void ProcessBaselineSnapshotMismatches(WorldSnapshot snapshot, NetworkMappingState mapping)

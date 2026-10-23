@@ -334,7 +334,6 @@ public partial class GameHost
 			GameContext.NetworkService.ReapplyAbilityStatesToUnits();
 		}
 
-		MultiplayerSyncDiagnostics.RecordClientSnapshot();
 		MultiplayerSyncDiagnostics.RecordClientPresentation();
 	}
 
