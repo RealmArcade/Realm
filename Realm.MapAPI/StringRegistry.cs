@@ -201,20 +201,34 @@ public static class StringRegistry
 	}
 
 	/// <summary>
+	/// Copies the entries a peer has not received yet into a caller supplied buffer, and reports the cursor
+	/// that peer should pass next time.
+	/// </summary>
+	/// <param name="cursor">The cursor previously returned for this peer, or zero to copy every entry.</param>
+	/// <param name="destination">The list that receives the entries.</param>
+	/// <returns>The cursor that stands for the end of the table after this copy.</returns>
+	public static int GetEntriesSince(int cursor, List<(int Id, string Text)> destination)
+	{
+		lock (_lock)
+		{
+			int start = Math.Clamp(cursor, 0, _registeredEntries.Count);
+			for (int index = start; index < _registeredEntries.Count; index++)
+			{
+				destination.Add(_registeredEntries[index]);
+			}
+
+			return _registeredEntries.Count;
+		}
+	}
+
+	/// <summary>
 	/// Copies registered entries into a caller supplied buffer for replication.
 	/// </summary>
 	/// <param name="destination">The list that receives the entries.</param>
 	/// <param name="startIndex">The first entry index to copy.</param>
 	public static void CopyEntries(List<(int Id, string Text)> destination, int startIndex = 0)
 	{
-		lock (_lock)
-		{
-			int start = Math.Clamp(startIndex, 0, _registeredEntries.Count);
-			for (int index = start; index < _registeredEntries.Count; index++)
-			{
-				destination.Add(_registeredEntries[index]);
-			}
-		}
+		GetEntriesSince(startIndex, destination);
 	}
 
 	/// <summary>

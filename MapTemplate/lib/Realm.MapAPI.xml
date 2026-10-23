@@ -4228,6 +4228,15 @@
             <param name="text">The text to identify.</param>
             <returns>Zero for null or empty text, the text's content hash otherwise.</returns>
         </member>
+        <member name="M:Realm.MapAPI.StringRegistry.GetEntriesSince(System.Int32,System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}})">
+            <summary>
+            Copies the entries a peer has not received yet into a caller supplied buffer, and reports the cursor
+            that peer should pass next time.
+            </summary>
+            <param name="cursor">The cursor previously returned for this peer, or zero to copy every entry.</param>
+            <param name="destination">The list that receives the entries.</param>
+            <returns>The cursor that stands for the end of the table after this copy.</returns>
+        </member>
         <member name="M:Realm.MapAPI.StringRegistry.CopyEntries(System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}},System.Int32)">
             <summary>
             Copies registered entries into a caller supplied buffer for replication.

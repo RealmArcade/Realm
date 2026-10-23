@@ -187,6 +187,28 @@ Check(!StringRegistry.RegisterRemote(woodId, "Stone") && StringRegistry.Get(wood
 var copiedEntries = new List<(int Id, string Text)>();
 StringRegistry.CopyEntries(copiedEntries);
 Check(copiedEntries.Count == StringRegistry.EntryCount && copiedEntries.TrueForAll(entry => StringRegistry.Get(entry.Id) == entry.Text), "published entries resolve back through the table");
+
+var firstPublication = new List<(int Id, string Text)>();
+int publicationCursor = StringRegistry.GetEntriesSince(0, firstPublication);
+Check(firstPublication.Count == StringRegistry.EntryCount, "an empty cursor publishes the whole text table");
+
+var emptyPublication = new List<(int Id, string Text)>();
+Check(StringRegistry.GetEntriesSince(publicationCursor, emptyPublication) == publicationCursor && emptyPublication.Count == 0, "a cursor at the end publishes nothing");
+
+int latePublishedId = StringRegistry.GetOrAdd("late published text");
+Check(StringRegistry.GetEntriesSince(publicationCursor, emptyPublication) == StringRegistry.EntryCount && emptyPublication.Count == 1 && emptyPublication[0].Id == latePublishedId, "only text registered after the cursor is published");
+
+var snapshotSourceWorld = new EcsWorld();
+int snapshotTextId = StringRegistry.GetOrAdd("snapshot text probe");
+byte[] binarySnapshot = snapshotSourceWorld.ExportBinarySnapshot();
+Check(binarySnapshot.Length > 32 + EcsSharedMemory.TOTAL_SIZE_BYTES, "a binary snapshot carries a text section after shared memory");
+
+StringRegistry.Reset();
+Check(StringRegistry.Get(snapshotTextId) == string.Empty, "resetting the table drops the text a snapshot will restore");
+
+var snapshotTargetWorld = new EcsWorld();
+snapshotTargetWorld.ImportBinarySnapshot(binarySnapshot);
+Check(StringRegistry.Get(snapshotTextId) == "snapshot text probe", "importing a binary snapshot restores its text table");
 Check(StringRegistry.CollisionCount == 0, $"built-in strings do not collide ({StringRegistry.CollisionSummary})");
 Check(StringRegistry.GetOrAdd(string.Empty) == 0 && StringRegistry.GetOrAdd(null) == 0, "empty text keeps the reserved zero id");
 

@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Numerics;
+using System.Text;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Realm.MapAPI;
@@ -766,13 +767,39 @@ public class EcsWorld : IDisposable
 		};
 	}
 
+	private const int SnapshotFormatVersion = 2;
+
+	private readonly List<(int Id, string Text)> _snapshotTextEntries = new();
+
+	private int ComputeTextSectionByteCount()
+	{
+		_snapshotTextEntries.Clear();
+		StringRegistry.CopyEntries(_snapshotTextEntries);
+
+		int byteCount = sizeof(int);
+		for (int index = 0; index < _snapshotTextEntries.Count; index++)
+		{
+			byteCount += sizeof(int) + sizeof(int) + Encoding.UTF8.GetByteCount(_snapshotTextEntries[index].Text);
+		}
+
+		return byteCount;
+	}
+
+	private int ComputeSnapshotByteCount()
+	{
+		const int headerSize = 32;
+		int freeListBytes = _freeListCount * sizeof(int);
+		return headerSize + freeListBytes + EcsSharedMemory.TOTAL_SIZE_BYTES + ComputeTextSectionByteCount();
+	}
+
 	public unsafe int ExportBinarySnapshot(Span<byte> destination)
 	{
 		int headerSize = 32;
 		int freeListBytes = _freeListCount * sizeof(int);
 		int sharedMemoryBytes = EcsSharedMemory.TOTAL_SIZE_BYTES;
+		int textSectionBytes = ComputeTextSectionByteCount();
 
-		int totalBytesNeeded = headerSize + freeListBytes + sharedMemoryBytes;
+		int totalBytesNeeded = headerSize + freeListBytes + sharedMemoryBytes + textSectionBytes;
 		if (destination.Length < totalBytesNeeded)
 		{
 			return -totalBytesNeeded;
@@ -780,7 +807,7 @@ public class EcsWorld : IDisposable
 
 		Span<byte> headerSpan = destination.Slice(0, headerSize);
 		BinaryPrimitives.WriteUInt32LittleEndian(headerSpan.Slice(0, 4), 0x53434552);
-		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(4, 4), 1);
+		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(4, 4), SnapshotFormatVersion);
 		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(8, 4), _count);
 		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(12, 4), _nextEntityId);
 		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(16, 4), _freeListCount);
@@ -832,6 +859,22 @@ public class EcsWorld : IDisposable
 		}
 		offset += sharedMemoryBytes;
 
+		Span<byte> textDst = destination.Slice(offset, textSectionBytes);
+		BinaryPrimitives.WriteInt32LittleEndian(textDst.Slice(0, sizeof(int)), _snapshotTextEntries.Count);
+		int textOffset = sizeof(int);
+		for (int index = 0; index < _snapshotTextEntries.Count; index++)
+		{
+			(int id, string text) = _snapshotTextEntries[index];
+			int byteCount = Encoding.UTF8.GetByteCount(text);
+			BinaryPrimitives.WriteInt32LittleEndian(textDst.Slice(textOffset, sizeof(int)), id);
+			textOffset += sizeof(int);
+			BinaryPrimitives.WriteInt32LittleEndian(textDst.Slice(textOffset, sizeof(int)), byteCount);
+			textOffset += sizeof(int);
+			Encoding.UTF8.GetBytes(text, textDst.Slice(textOffset, byteCount));
+			textOffset += byteCount;
+		}
+
+		offset += textSectionBytes;
 		return offset;
 	}
 
@@ -848,12 +891,7 @@ public class EcsWorld : IDisposable
 
 	public unsafe byte[] ExportBinarySnapshot()
 	{
-		int headerSize = 32;
-		int freeListBytes = _freeListCount * sizeof(int);
-		int sharedMemoryBytes = EcsSharedMemory.TOTAL_SIZE_BYTES;
-
-		int totalBytesNeeded = headerSize + freeListBytes + sharedMemoryBytes;
-		byte[] buffer = new byte[totalBytesNeeded];
+		byte[] buffer = new byte[ComputeSnapshotByteCount()];
 		ExportBinarySnapshot(buffer);
 		return buffer;
 	}
@@ -866,6 +904,7 @@ public class EcsWorld : IDisposable
 		if (magic != 0x53434552) return;
 
 		int version = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(4, 4));
+		if (version != SnapshotFormatVersion) return;
 		int count = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(8, 4));
 		int nextEntityId = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(12, 4));
 		int freeListCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(16, 4));
@@ -938,6 +977,25 @@ public class EcsWorld : IDisposable
 				RestoreComponentFromTable<ScriptPlayer>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.ScriptPlayer, MAX_PLAYERS);
 				RestoreComponentFromTable<PlayerPopulation>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.PlayerPopulation, MAX_PLAYERS + 1);
 			}
+		}
+
+		offset += sharedMemoryBytes;
+		if (snapshotPayload.Length < offset + sizeof(int)) return;
+
+		int textCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(offset, sizeof(int)));
+		offset += sizeof(int);
+		for (int index = 0; index < textCount; index++)
+		{
+			if (snapshotPayload.Length < offset + (sizeof(int) * 2)) return;
+
+			int id = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(offset, sizeof(int)));
+			offset += sizeof(int);
+			int byteCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(offset, sizeof(int)));
+			offset += sizeof(int);
+			if (byteCount < 0 || snapshotPayload.Length < offset + byteCount) return;
+
+			StringRegistry.RegisterRemote(id, Encoding.UTF8.GetString(snapshotPayload.Slice(offset, byteCount)));
+			offset += byteCount;
 		}
 	}
 

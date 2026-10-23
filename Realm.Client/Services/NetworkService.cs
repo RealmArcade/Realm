@@ -1569,7 +1569,7 @@ public class NetworkService
 		}
 
 		var componentDeltas = BuildComponentDeltas(peerId, playerEntity, allUnits, isBaseline);
-		var catalog = isBaseline ? BuildCatalogEntriesWithStringTable() : BuildStringTableEntries(false);
+		var catalog = isBaseline ? BuildCatalogEntriesWithStringTable(peerId) : BuildStringTableEntries(peerId, false);
 		uint stateFingerprint = isBaseline ? ComputeHostStateFingerprint(abilityStates, staticTexts) : 0u;
 
 		var worldSnapshot = new WorldSnapshot
@@ -1590,22 +1590,22 @@ public class NetworkService
 	private const string StringTableChannel = "string";
 
 	private readonly List<(int Id, string Text)> _stringTableEntries = new();
-	private int _publishedStringEntryCount;
+	private readonly Dictionary<int, int> _stringTableCursorPerClient = new();
 
-	private List<CatalogEntry> BuildCatalogEntriesWithStringTable()
+	private List<CatalogEntry> BuildCatalogEntriesWithStringTable(int peerId)
 	{
 		var entries = BuildCatalogEntries();
-		entries.AddRange(BuildStringTableEntries(true));
+		entries.AddRange(BuildStringTableEntries(peerId, true));
 		return entries;
 	}
 
-	private List<CatalogEntry> BuildStringTableEntries(bool includeAllEntries)
+	private List<CatalogEntry> BuildStringTableEntries(int peerId, bool includeAllEntries)
 	{
 		int entryCount = Realm.MapAPI.StringRegistry.EntryCount;
-		if (entryCount < _publishedStringEntryCount) _publishedStringEntryCount = 0;
+		if (!_stringTableCursorPerClient.TryGetValue(peerId, out int cursor) || cursor > entryCount) cursor = 0;
 
 		_stringTableEntries.Clear();
-		Realm.MapAPI.StringRegistry.CopyEntries(_stringTableEntries, includeAllEntries ? 0 : _publishedStringEntryCount);
+		int nextCursor = Realm.MapAPI.StringRegistry.GetEntriesSince(includeAllEntries ? 0 : cursor, _stringTableEntries);
 
 		var entries = new List<CatalogEntry>(_stringTableEntries.Count);
 		for (int index = 0; index < _stringTableEntries.Count; index++)
@@ -1619,7 +1619,7 @@ public class NetworkService
 			});
 		}
 
-		if (!includeAllEntries) _publishedStringEntryCount = entryCount;
+		_stringTableCursorPerClient[peerId] = nextCursor;
 		return entries;
 	}
 
@@ -1931,7 +1931,7 @@ public class NetworkService
 			ComponentDeltas = BuildComponentDeltas(targetPeerId, playerEntity, allUnits, true),
 			AbilityStates = abilityStates,
 			StaticTexts = staticTexts,
-			Catalog = BuildCatalogEntriesWithStringTable(),
+			Catalog = BuildCatalogEntriesWithStringTable(targetPeerId),
 			StateFingerprint = ComputeHostStateFingerprint(abilityStates, staticTexts)
 		};
 		return MemoryPackSerializer.Serialize(worldSnapshot);
