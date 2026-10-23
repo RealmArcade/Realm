@@ -502,7 +502,7 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 
 		Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
-		CallDeferred(nameof(LoadMap), mapPathName);
+		CallDeferred(nameof(LoadMap), mapPathName, MatchSeed);
 	}
 
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
