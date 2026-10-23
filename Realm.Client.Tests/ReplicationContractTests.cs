@@ -21,7 +21,7 @@ public partial class ReplicationContractTests
 		"GroundLoot", "InputState", "Inventory", "LeaderboardState",
 		"ModifierState", "NetworkMappingState", "NetworkState", "OccupiedZones",
 		"ProductionQueue", "PropIdentity", "PropSpawnRequest", "RallyPoint",
-		"ReplayState", "ScriptPlayersState", "ScriptZonesState", "SpectatorPerspective",
+		"ReplayState", "ScriptPlayer", "ScriptPlayersState", "ScriptZonesState", "SpectatorPerspective",
 		"SummaryTableState", "TowerUpgradeLevel", "UnitOwnerPlayer", "UnitSpawnRequest",
 		"VFXQueue", "VFXRequest", "ZoneBounds",
 		"AutoCombatState", "CombatTargeting", "Weapon", "Weapons",
@@ -40,9 +40,19 @@ public partial class ReplicationContractTests
 		"Prop", "Unit", "Icon", "Model",
 		"Name", "ReplayAnimationState", "Rotation3D", "RotationY",
 		"PreviousRotationY", "ShroudState", "TerrainCell", "TerrainColorsState",
-		"TerrainPathingFlags", "TerrainState", "TerrainSwatchConfig", "WeatherState",
-		"PlayerRelationshipMatrix"
+		"TerrainState", "TerrainSwatchConfig", "WeatherState",
+		"PlayerRelationshipMatrix", "PlayerUpgrades", "AttackTarget", "HealingTarget",
+		"LastAttacker", "ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset"
 	};
+
+	private static readonly string[] StorageStructs =
+	{
+		"BuffSlot", "BuffSlotArray", "InventorySlot", "InventorySlotArray",
+		"ModifierSlotArray", "PlayerSlotArray", "StatSlot", "StatSlotArray",
+		"VFXSlotArray", "OccupiedZoneMask", "CameraLocationSlot"
+	};
+
+	private const int MinimumComponentTypeCount = 120;
 
 	[TestCase]
 	public void EveryEcsComponentIsClassified()
@@ -54,27 +64,38 @@ public partial class ReplicationContractTests
 		}
 
 		var hostOnlyNames = new HashSet<string>(HostOnlyComponents, StringComparer.Ordinal);
-		var duplicates = HostOnlyComponents.GroupBy(name => name).Where(group => group.Count() > 1).Select(group => group.Key).ToList();
-		Assertions.AssertThat(duplicates).OverrideFailureMessage($"Duplicate host-only component entries: {string.Join(", ", duplicates)}").IsEmpty();
-		Assertions.AssertThat(replicatedNames.Overlaps(hostOnlyNames)).OverrideFailureMessage($"Component classified as both replicated and host-only: {string.Join(", ", replicatedNames.Intersect(hostOnlyNames))}").IsFalse();
+		var storageNames = new HashSet<string>(StorageStructs, StringComparer.Ordinal);
 
-		var unclassified = new List<string>();
-		foreach (var type in EnumerateComponentTypes())
-		{
-			string name = type.Name;
-			if (replicatedNames.Contains(name) || hostOnlyNames.Contains(name)) continue;
-			unclassified.Add(name);
-		}
+		var duplicateHostOnly = HostOnlyComponents.GroupBy(name => name).Where(group => group.Count() > 1).Select(group => group.Key).ToList();
+		var duplicateStorage = StorageStructs.GroupBy(name => name).Where(group => group.Count() > 1).Select(group => group.Key).ToList();
+		Assertions.AssertThat(duplicateHostOnly).OverrideFailureMessage($"Duplicate host-only component entries: {string.Join(", ", duplicateHostOnly)}").IsEmpty();
+		Assertions.AssertThat(duplicateStorage).OverrideFailureMessage($"Duplicate storage struct entries: {string.Join(", ", duplicateStorage)}").IsEmpty();
+
+		var overlaps = replicatedNames.Intersect(hostOnlyNames)
+			.Concat(replicatedNames.Intersect(storageNames))
+			.Concat(hostOnlyNames.Intersect(storageNames))
+			.ToList();
+		Assertions.AssertThat(overlaps).OverrideFailureMessage($"Component classified more than once: {string.Join(", ", overlaps)}").IsEmpty();
+
+		var componentTypes = EnumerateComponentTypes().ToList();
+		Assertions.AssertThat(componentTypes.Count >= MinimumComponentTypeCount)
+			.OverrideFailureMessage($"Component enumeration returned only {componentTypes.Count} types, below the expected minimum of {MinimumComponentTypeCount}, so the classification guard would pass vacuously.")
+			.IsTrue();
+
+		var unclassified = componentTypes
+			.Select(type => type.Name)
+			.Where(name => !replicatedNames.Contains(name) && !hostOnlyNames.Contains(name) && !storageNames.Contains(name))
+			.ToList();
 
 		Assertions.AssertThat(unclassified).OverrideFailureMessage($"Unclassified ECS components: {string.Join(", ", unclassified)}").IsEmpty();
 	}
 
 	[TestCase]
-	public void HostOnlyComponentListHasNoStaleEntries()
+	public void ClassificationListsHaveNoStaleEntries()
 	{
 		var componentNames = new HashSet<string>(EnumerateComponentTypes().Select(type => type.Name), StringComparer.Ordinal);
-		var stale = HostOnlyComponents.Where(name => !componentNames.Contains(name)).ToList();
-		Assertions.AssertThat(stale).OverrideFailureMessage($"Host-only component list references unknown components: {string.Join(", ", stale)}").IsEmpty();
+		var stale = HostOnlyComponents.Concat(StorageStructs).Where(name => !componentNames.Contains(name)).ToList();
+		Assertions.AssertThat(stale).OverrideFailureMessage($"Host-only and storage lists reference unknown components: {string.Join(", ", stale)}").IsEmpty();
 	}
 
 	[TestCase]
@@ -96,9 +117,14 @@ public partial class ReplicationContractTests
 		foreach (var type in typeof(EcsWorld).Assembly.GetTypes())
 		{
 			if (!type.IsValueType || type.IsEnum || !IsComponentType(type)) continue;
-			if (type.GetCustomAttribute<System.Runtime.InteropServices.StructLayoutAttribute>() == null) continue;
+			if (IsCompilerGenerated(type)) continue;
 			yield return type;
 		}
+	}
+
+	private static bool IsCompilerGenerated(Type type)
+	{
+		return type.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false);
 	}
 
 	private static bool IsComponentType(Type type)

@@ -172,35 +172,6 @@ public class PlayerTeamCodec : IReplicatedComponentCodec
 	}
 }
 
-public class ScriptPlayerStateCodec : IReplicatedComponentCodec
-{
-	public int ComponentTypeId => ComponentType<ScriptPlayer>.Id;
-	public string ComponentName => nameof(ScriptPlayer);
-	public ReplicatedScope Scope => ReplicatedScope.Player;
-	public int SizeInBytes => 10;
-
-	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
-	{
-		if (world == null || !world.IsAlive(entity) || !world.Has<ScriptPlayer>(entity)) return false;
-		ref var player = ref world.Get<ScriptPlayer>(entity);
-		MemoryMarshal.Write(destination.Slice(0, 4), in player.Team);
-		MemoryMarshal.Write(destination.Slice(4, 4), in player.KillCount);
-		destination[8] = player.ActiveByte;
-		destination[9] = player.IsComputerByte;
-		return true;
-	}
-
-	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
-	{
-		if (world == null || !world.IsAlive(entity) || !world.Has<ScriptPlayer>(entity)) return;
-		ref var player = ref world.Get<ScriptPlayer>(entity);
-		player.Team = MemoryMarshal.Read<int>(source.Slice(0, 4));
-		player.KillCount = MemoryMarshal.Read<int>(source.Slice(4, 4));
-		player.ActiveByte = source[8];
-		player.IsComputerByte = source[9];
-	}
-}
-
 public class AttackNumbersCodec : IReplicatedComponentCodec
 {
 	private const int FloatCount = 14;
@@ -299,7 +270,6 @@ public static class ReplicatedComponents
 		Register(new WorldStateCodec());
 		Register(new ReplicatedComponentCodec<PlayerPopulation>(ReplicatedScope.Player));
 		Register(new PlayerTeamCodec());
-		Register(new ScriptPlayerStateCodec());
 		Register(new ReplicatedComponentCodec<Mana>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<MovementStats>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ModelScale>(ReplicatedScope.Unit));
