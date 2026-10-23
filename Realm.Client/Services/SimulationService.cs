@@ -684,23 +684,21 @@ public class SimulationService
 		_autoCastQueryDelegate = AutoCastQueryAction;
 	}
 
-	public bool SimulateLocallyOwnedOnly { get; private set; }
-
 	public bool ShouldSimulateEntity(Entity entity)
 	{
-		if (!SimulateLocallyOwnedOnly) return true;
+		var host = GameHost.Instance;
+		if (host == null || !host.IsClientSimulationOnly) return true;
 		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
 
-		int localPlayerIndex = GameHost.Instance?.LocalPlayerIndex ?? -1;
+		int localPlayerIndex = host.LocalPlayerIndex;
 		if (localPlayerIndex < 0) return false;
 
 		return GameContext.World.Has<UnitOwnerPlayer>(entity) && GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
 	}
 
-	public void TickEcs(float fDelta, bool advanceWorldClock = true, bool simulateLocallyOwnedOnly = false)
+	public void TickEcs(float fDelta, bool advanceWorldClock = true)
 	{
 		_fDelta = fDelta;
-		SimulateLocallyOwnedOnly = simulateLocallyOwnedOnly;
 		_tickCount++;
 		_tickEntitiesToClearOrders.Clear();
 		_tickEntitiesToStopGathering.Clear();

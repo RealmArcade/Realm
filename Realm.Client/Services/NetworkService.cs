@@ -512,6 +512,7 @@ public class NetworkService
 	private void ProcessSnapshotDirect(byte[] payload)
 	{
 		var snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(payload);
+		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordClientSeenSequence(snapshot.Sequence);
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return;
 

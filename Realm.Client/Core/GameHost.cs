@@ -3348,6 +3348,8 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public bool IsMultiplayerServerActive() => _multiplayerActive && IsServerActive();
 
+	public bool IsClientSimulationOnly => _multiplayerActive && !IsServerActive();
+
 	private bool IsServerActive()
 	{
 		if (Multiplayer.MultiplayerPeer == null) return true;
@@ -3697,7 +3699,7 @@ public partial class GameHost : Node3D, IGameAPI
 			bool isAuthoritative = !_multiplayerActive || IsServerActive();
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationTickEcs))
 			{
-				GameContext.SimulationService.TickEcs(fDelta, isAuthoritative, simulateLocallyOwnedOnly: !isAuthoritative);
+				GameContext.SimulationService.TickEcs(fDelta, isAuthoritative);
 			}
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PollVfxQueue))
 			{
