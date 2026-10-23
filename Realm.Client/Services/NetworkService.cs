@@ -1619,7 +1619,13 @@ public class NetworkService
 	private byte[] BuildClientSnapshotPayload(int peerId, Entity playerEntity, List<Unit3D> allUnits, bool isBaseline, int snapshotSequence, Dictionary<int, UnitSnapshot> lastBaselineMap, List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
 	{
 		Vector3 cameraPos = _clientCameraPositions.TryGetValue(peerId, out var cam) ? cam : Vector3.Zero;
-		var snapshotUnits = new List<UnitSnapshot>();
+		if (!_snapshotUnitsPerClient.TryGetValue(peerId, out var snapshotUnits))
+		{
+			snapshotUnits = new List<UnitSnapshot>(64);
+			_snapshotUnitsPerClient[peerId] = snapshotUnits;
+		}
+
+		snapshotUnits.Clear();
 		var nextBaselineMap = isBaseline ? new Dictionary<int, UnitSnapshot>() : null;
 
 		foreach (var unit in allUnits)
@@ -1733,6 +1739,7 @@ public class NetworkService
 	}
 
 	private readonly List<ColdPayloadDelta> _coldPayloadCandidates = new();
+	private readonly List<ColdPayloadDelta> _emptyColdPayloadDeltas = new();
 	private readonly HashSet<(byte Scope, int Key, byte Kind)> _coldPayloadSeenKeys = new();
 	private readonly List<(byte Scope, int Key, byte Kind)> _coldPayloadExpiredKeys = new();
 	private readonly Dictionary<int, Dictionary<(byte Scope, int Key, byte Kind), int>> _coldPayloadContentPerClient = new();
@@ -1868,7 +1875,7 @@ public class NetworkService
 
 	private List<ColdPayloadDelta> BuildColdPayloadDeltas(int peerId, List<ColdPayloadDelta> candidates, bool isBaseline)
 	{
-		if (!isBaseline) return new List<ColdPayloadDelta>();
+		if (!isBaseline) return _emptyColdPayloadDeltas;
 
 		if (!_coldPayloadContentPerClient.TryGetValue(peerId, out var previousContentIds))
 		{
@@ -1913,9 +1920,19 @@ public class NetworkService
 		return deltas;
 	}
 
+	private readonly Dictionary<int, List<ComponentDelta>> _componentDeltasPerClient = new();
+	private readonly Dictionary<int, List<UnitSnapshot>> _snapshotUnitsPerClient = new();
+	private byte[] _componentWriteScratch = Array.Empty<byte>();
+
 	private List<ComponentDelta> BuildComponentDeltas(int peerId, Entity viewerEntity, List<Unit3D> allUnits, bool isBaseline)
 	{
-		var deltas = new List<ComponentDelta>();
+		if (!_componentDeltasPerClient.TryGetValue(peerId, out var deltas))
+		{
+			deltas = new List<ComponentDelta>(64);
+			_componentDeltasPerClient[peerId] = deltas;
+		}
+
+		deltas.Clear();
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return deltas;
 
@@ -1932,20 +1949,7 @@ public class NetworkService
 			var codec = codecs[codecIndex];
 			if (codec.Scope != ReplicatedScope.World) continue;
 
-			var worldBytes = new byte[codec.SizeInBytes];
-			if (!codec.TryWrite(GameContext.World, worldEntity, worldBytes)) continue;
-
-			var worldKey = ((byte)ReplicatedScope.World, 0, codec.ComponentTypeId);
-			if (!isBaseline && previous.TryGetValue(worldKey, out var lastWorldBytes) && BytesEqual(lastWorldBytes, worldBytes)) continue;
-
-			previous[worldKey] = worldBytes;
-			deltas.Add(new ComponentDelta
-			{
-				Key = 0,
-				ComponentTypeId = codec.ComponentTypeId,
-				Scope = (byte)ReplicatedScope.World,
-				Bytes = worldBytes
-			});
+			TryAppendComponentDelta(worldEntity, codec, (byte)ReplicatedScope.World, 0, previous, deltas, isBaseline);
 		}
 
 		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
@@ -1959,20 +1963,7 @@ public class NetworkService
 				Entity playerEntity = mapping.PlayerEntities[slot];
 				if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) continue;
 
-				var bytes = new byte[codec.SizeInBytes];
-				if (!codec.TryWrite(GameContext.World, playerEntity, bytes)) continue;
-
-				var key = ((byte)ReplicatedScope.Player, slot, codec.ComponentTypeId);
-				if (!isBaseline && previous.TryGetValue(key, out var lastBytes) && BytesEqual(lastBytes, bytes)) continue;
-
-				previous[key] = bytes;
-				deltas.Add(new ComponentDelta
-				{
-					Key = slot,
-					ComponentTypeId = codec.ComponentTypeId,
-					Scope = (byte)ReplicatedScope.Player,
-					Bytes = bytes
-				});
+				TryAppendComponentDelta(playerEntity, codec, (byte)ReplicatedScope.Player, slot, previous, deltas, isBaseline);
 			}
 		}
 
@@ -1987,30 +1978,39 @@ public class NetworkService
 				var codec = codecs[codecIndex];
 				if (codec.Scope != ReplicatedScope.Unit) continue;
 
-				var bytes = new byte[codec.SizeInBytes];
-				if (!codec.TryWrite(GameContext.World, unit.Entity, bytes)) continue;
-
-				var key = ((byte)ReplicatedScope.Unit, unit.Entity.Id, codec.ComponentTypeId);
-				if (!isBaseline && previous.TryGetValue(key, out var lastBytes) && BytesEqual(lastBytes, bytes)) continue;
-
-				previous[key] = bytes;
-				deltas.Add(new ComponentDelta
-				{
-					Key = unit.Entity.Id,
-					ComponentTypeId = codec.ComponentTypeId,
-					Scope = (byte)ReplicatedScope.Unit,
-					Bytes = bytes
-				});
+				TryAppendComponentDelta(unit.Entity, codec, (byte)ReplicatedScope.Unit, unit.Entity.Id, previous, deltas, isBaseline);
 			}
 		}
 
 		return deltas;
 	}
 
-	private static bool BytesEqual(byte[] left, byte[] right)
+	private void TryAppendComponentDelta(Entity entity, IReplicatedComponentCodec codec, byte scope, int key, Dictionary<(byte Scope, int Key, int TypeId), byte[]> previous, List<ComponentDelta> deltas, bool isBaseline)
 	{
-		if (left == null || right == null || left.Length != right.Length) return false;
-		return left.AsSpan().SequenceEqual(right);
+		if (_componentWriteScratch.Length < codec.SizeInBytes) _componentWriteScratch = new byte[codec.SizeInBytes];
+
+		var scratch = _componentWriteScratch.AsSpan(0, codec.SizeInBytes);
+		if (!codec.TryWrite(GameContext.World, entity, scratch)) return;
+
+		var deltaKey = (scope, key, codec.ComponentTypeId);
+		if (!previous.TryGetValue(deltaKey, out var storedBytes))
+		{
+			storedBytes = new byte[codec.SizeInBytes];
+			previous[deltaKey] = storedBytes;
+		}
+		else if (!isBaseline && storedBytes.AsSpan().SequenceEqual(scratch))
+		{
+			return;
+		}
+
+		scratch.CopyTo(storedBytes);
+		deltas.Add(new ComponentDelta
+		{
+			Key = key,
+			ComponentTypeId = codec.ComponentTypeId,
+			Scope = scope,
+			Bytes = storedBytes
+		});
 	}
 
 	private List<AbilityStateDelta> CollectHostAbilityStateDeltas(bool includeAll, bool clearDirty = true)

@@ -3,6 +3,7 @@ using MemoryPack;
 using Realm.Ecs;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Common;
 using Realm.Ecs.Replication;
@@ -198,6 +199,25 @@ Check(ColdPayloadCodecs.ComputeContentId(new byte[] { 1, 2, 3 }) != ColdPayloadC
 
 var serializedLeaderboards = ColdPayloadCodecs.SerializeLeaderboards(new LeaderboardBoards());
 Check(serializedLeaderboards.Length > 0 && ColdPayloadCodecs.ComputeContentId(serializedLeaderboards) != 0, "an empty leaderboard snapshot serializes to a stable payload");
+
+var budgetWorld = new EcsWorld();
+var budgetEntity = budgetWorld.Create();
+budgetWorld.Add(budgetEntity, new MovementStats(3f, 4f, 5f));
+var budgetCodec = ReplicatedComponents.Find(ComponentType<MovementStats>.Id)!;
+var budgetBuffer = new byte[budgetCodec.SizeInBytes];
+for (int warmup = 0; warmup < 100; warmup++)
+{
+	budgetCodec.TryWrite(budgetWorld, budgetEntity, budgetBuffer);
+}
+
+long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+for (int iteration = 0; iteration < 500; iteration++)
+{
+	budgetCodec.TryWrite(budgetWorld, budgetEntity, budgetBuffer);
+}
+
+long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+Check(allocatedBytes == 0, $"500 component writes into one reused buffer allocate nothing (allocated {allocatedBytes} bytes)");
 
 var emptyWorldEntity = world.Create();
 Check(!world.Has<Realm.Ecs.Components.Core.PlayerPopulation>(emptyWorldEntity), "bare entity has no population component");
