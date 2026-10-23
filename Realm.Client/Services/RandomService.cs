@@ -10,9 +10,11 @@ namespace Realm.Client.Services
 
 		public static RandomProxy Shared => _shared ??= new RandomProxy(DeterministicRandom.Shared);
 
-		public RandomProxy() : this(DeterministicRandom.Shared)
+		public RandomProxy() : this(new DeterministicRandom(CreateIndependentSeed()))
 		{
 		}
+
+		private static int CreateIndependentSeed() => System.Random.Shared.Next(int.MinValue, int.MaxValue);
 
 		public RandomProxy(int seed) : this(new DeterministicRandom(seed))
 		{
