@@ -46,12 +46,6 @@
     "IsTestVersion": {
       "type": "boolean"
     },
-    "OfficialVersion": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "Assets": {
       "type": [
         "object",

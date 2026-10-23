@@ -25,6 +25,5 @@ public class DiscoveryMapDto
 	public string MaxPlayers { get; set; } = "8 Players";
 	public bool IsGreenlit { get; set; } = true;
 	public bool IsTestVersion { get; set; }
-	public string OfficialVersion { get; set; } = string.Empty;
 	public List<string> Awards { get; set; } = new();
 }

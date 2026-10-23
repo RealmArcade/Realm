@@ -9,5 +9,4 @@ public class PublishMapInitiateRequest
 	public string Signature { get; set; } = string.Empty;
 	public List<string> ReferencedHashes { get; set; } = new();
 	public bool IsTestVersion { get; set; }
-	public string? OfficialVersion { get; set; }
 }

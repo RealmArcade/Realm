@@ -7,7 +7,6 @@ namespace Realm.AdminServer.Services;
 public static class MapMaintainerHelper
 {
 	public const string AuditCollection = "map_maintainer_audit";
-	public const string OfficialVersionCollection = "map_official_versions";
 
 	public static void RecordAuditEntry(DataStoreService db, string mapTitle, string action, string maintainerPublicKey, string requesterPublicKey, string? maintainerUsername)
 	{
@@ -23,24 +22,6 @@ public static class MapMaintainerHelper
 			RequesterPublicKey = requesterPublicKey?.Trim() ?? string.Empty,
 			TimestampUtc = DateTime.UtcNow
 		});
-	}
-
-	public static string GetOfficialVersion(DataStoreService db, string mapTitle, string fallbackVersion)
-	{
-		if (!string.IsNullOrWhiteSpace(mapTitle))
-		{
-			string? explicitVersion = db.Get<string>(OfficialVersionCollection, mapTitle.Trim());
-			if (!string.IsNullOrWhiteSpace(explicitVersion)) return explicitVersion.Trim();
-		}
-
-		return fallbackVersion;
-	}
-
-	public static void SetOfficialVersion(DataStoreService db, string mapTitle, string? officialVersion)
-	{
-		if (string.IsNullOrWhiteSpace(mapTitle) || string.IsNullOrWhiteSpace(officialVersion)) return;
-
-		db.Upsert(OfficialVersionCollection, mapTitle.Trim(), officialVersion.Trim());
 	}
 
 	public static string GetTestCompositeKey(string mapTitle, string mapVersion)

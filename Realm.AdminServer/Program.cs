@@ -1242,8 +1242,6 @@ app.MapPost("/api/publish_map/initiate", (PublishMapInitiateRequest req, DataSto
 			}
 		}
 
-		MapMaintainerHelper.SetOfficialVersion(db, mapTitle, req.OfficialVersion);
-
 		string sessionId = Guid.NewGuid().ToString("N");
 		var sessionDoc = JsonSerializer.SerializeToDocument(new
 		{
@@ -1255,7 +1253,6 @@ app.MapPost("/api/publish_map/initiate", (PublishMapInitiateRequest req, DataSto
 			Signature = req.Signature,
 			ReferencedHashes = referencedHashes.ToList(),
 			IsTestVersion = req.IsTestVersion,
-			OfficialVersion = req.OfficialVersion,
 			CreatedAt = DateTime.UtcNow
 		});
 		db.Upsert("publish_sessions", sessionId, sessionDoc);
@@ -1302,7 +1299,6 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
 		string publicKey = req.PublicKey;
 		string signature = req.Signature;
 		bool isTestVersion = req.IsTestVersion;
-		string? requestedOfficialVersion = req.OfficialVersion;
 		List<string> referencedHashes = new();
 
 		if (sessionDoc != null)
@@ -1316,11 +1312,6 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
 			if (root.TryGetProperty("IsTestVersion", out var sessionTestFlag) && sessionTestFlag.ValueKind == JsonValueKind.True)
 			{
 				isTestVersion = true;
-			}
-
-			if (root.TryGetProperty("OfficialVersion", out var sessionOfficialVersion) && sessionOfficialVersion.ValueKind == JsonValueKind.String)
-			{
-				requestedOfficialVersion = sessionOfficialVersion.GetString() ?? requestedOfficialVersion;
 			}
 
 			if (root.TryGetProperty("ReferencedHashes", out var rhProp) && rhProp.ValueKind == JsonValueKind.Array)
@@ -1390,14 +1381,6 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
 			});
 		}
 
-		string officialVersion = MapMaintainerHelper.GetOfficialVersion(db, mapTitle, mapVersion);
-		if (!string.IsNullOrWhiteSpace(requestedOfficialVersion))
-		{
-			officialVersion = requestedOfficialVersion.Trim();
-		}
-
-		MapMaintainerHelper.SetOfficialVersion(db, mapTitle, officialVersion);
-
 		string compositeKey = isTestVersion
 			? MapMaintainerHelper.GetTestCompositeKey(mapTitle, mapVersion)
 			: $"{mapTitle}_{mapVersion}";
@@ -1437,7 +1420,7 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
 		string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
 		cas.StoreAsset(manifestBytes, ".json", null, publicKey, signature, precomputedBlake3: manifestBlake3);
 
-		db.Upsert("published_maps", compositeKey, PublishedMapDocumentHelper.Build(manifestJson, isTestVersion, officialVersion));
+		db.Upsert("published_maps", compositeKey, PublishedMapDocumentHelper.Build(manifestJson, isTestVersion));
 
 		var pubEvent = new ClusterEventDto
 		{
@@ -1452,8 +1435,7 @@ app.MapPost("/api/publish_map/finalize", (PublishMapFinalizeRequest req, DataSto
 				ReferencedHashes = referencedHashes,
 				PublicKey = publicKey,
 				Signature = signature,
-				IsTestVersion = isTestVersion,
-				OfficialVersion = officialVersion
+				IsTestVersion = isTestVersion
 			})
 		};
 
@@ -1564,14 +1546,6 @@ app.MapPost("/api/publish_map", (PublishMapRequest req, DataStoreService db, Con
 			isTestVersion = true;
 		}
 
-		string officialVersion = MapMaintainerHelper.GetOfficialVersion(db, mapTitle, mapVersion);
-		if (!string.IsNullOrWhiteSpace(req.OfficialVersion))
-		{
-			officialVersion = req.OfficialVersion.Trim();
-		}
-
-		MapMaintainerHelper.SetOfficialVersion(db, mapTitle, officialVersion);
-
 		string compositeKey = isTestVersion
 			? MapMaintainerHelper.GetTestCompositeKey(mapTitle, mapVersion)
 			: $"{mapTitle}_{mapVersion}";
@@ -1646,7 +1620,7 @@ app.MapPost("/api/publish_map", (PublishMapRequest req, DataStoreService db, Con
 		string manifestBlake3 = RealmMetadataHelper.ComputeBlake3(manifestBytes, ".json");
 		cas.StoreAsset(manifestBytes, ".json", null, req.PublicKey, req.Signature, precomputedBlake3: manifestBlake3);
 
-		db.Upsert("published_maps", compositeKey, PublishedMapDocumentHelper.Build(jsonToProcess, isTestVersion, officialVersion));
+		db.Upsert("published_maps", compositeKey, PublishedMapDocumentHelper.Build(jsonToProcess, isTestVersion));
 
 		var pubEvent = new ClusterEventDto
 		{
@@ -1661,8 +1635,7 @@ app.MapPost("/api/publish_map", (PublishMapRequest req, DataStoreService db, Con
 				ReferencedHashes = req.ReferencedHashes ?? new List<string>(),
 				PublicKey = req.PublicKey,
 				Signature = req.Signature,
-				IsTestVersion = isTestVersion,
-				OfficialVersion = officialVersion
+				IsTestVersion = isTestVersion
 			})
 		};
 		clusterEvents.RecordEvent(pubEvent, db);
@@ -2264,7 +2237,6 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 		DiscoveryMapDto CreateDiscoveryMapDto(string compositeKey, string title, string version, string creator, string desc, string gen, string thumb, List<string> screens, List<string> fAndT, long bytes, string eVer, string mPlayers, bool greenlit, MapStats? s)
 		{
 			bool isTestVersion = MapMaintainerHelper.IsTestCompositeKey(compositeKey);
-			string officialVersion = MapMaintainerHelper.GetOfficialVersion(db, title, version);
 			float rStars = s != null && s.AverageRating > 0 ? (float)s.AverageRating : 4.5f;
 			int tReviews = s != null ? s.ReviewsCount : 0;
 			int vReviews = s != null ? s.VerifiedGoodReviewsCount : 0;
@@ -2295,7 +2267,6 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 				MaxPlayers = mPlayers,
 				IsGreenlit = greenlit,
 				IsTestVersion = isTestVersion,
-				OfficialVersion = officialVersion,
 				Awards = MapAwardsHelper.GetAwards(s)
 			};
 		}

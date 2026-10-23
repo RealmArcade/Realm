@@ -20,7 +20,6 @@ public class MapManifest
 	public List<string> Maintainers { get; set; } = new();
 	public List<string> GreenlitReferences { get; set; } = new();
 	public bool IsTestVersion { get; set; }
-	public string? OfficialVersion { get; set; }
 
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public MapManifestAssets? Assets { get; set; }

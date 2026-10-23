@@ -2319,7 +2319,7 @@ namespace Realm.Client.UI
 			GameContext.UserInterface?.ShowPopupMessage("CORRUPT MAP FILE", msg);
 		}
 
-		private void InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn, out CheckBox testVersionCheck, out LineEdit officialVersionEdit)
+		private void InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn, out CheckBox testVersionCheck)
 		{
 			popup = new Panel();
 			popup.Name = "Popup_Panel";
@@ -2378,21 +2378,6 @@ namespace Realm.Client.UI
 			};
 			testVersionCheck.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 			publishOptionsRow.AddChild(testVersionCheck);
-
-			var officialVersionLabel = new Label { Text = TranslationServer.Translate("Official version:") };
-			officialVersionLabel.AddThemeFontSizeOverride("font_size", 12);
-			officialVersionLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			publishOptionsRow.AddChild(officialVersionLabel);
-
-			officialVersionEdit = new LineEdit
-			{
-				Name = "OfficialVersionEdit_LineEdit",
-				Text = mapVersion,
-				CustomMinimumSize = new Vector2(90, 24),
-				TooltipText = TranslationServer.Translate("Version number players download. Test versions never change it unless you edit it here.")
-			};
-			officialVersionEdit.AddThemeFontSizeOverride("font_size", 12);
-			publishOptionsRow.AddChild(officialVersionEdit);
 
 			vbox.AddChild(publishOptionsRow);
 
@@ -2484,7 +2469,7 @@ namespace Realm.Client.UI
 			string tempTerrainPath = Path.Combine(workspace, "terrain.json");
 			string manifestJsonPath = Path.Combine(workspace, "manifest.json");
 
-			InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn, out CheckBox testVersionCheck, out LineEdit officialVersionEdit);
+			InitializePublishDialog(out Panel popup, out VBoxContainer vbox, out ProgressBar progressBar, out Label statusLabel, out Button closeBtn, out CheckBox testVersionCheck);
 
 			closeBtn.Pressed += () =>
 			{
@@ -2689,7 +2674,6 @@ namespace Realm.Client.UI
 
 				var manifest = MapManifest.CreateFromDirectory(workspace, mapTitle, currentUsername, mapVersion);
 				manifest.IsTestVersion = testVersionCheck.ButtonPressed;
-				manifest.OfficialVersion = officialVersionEdit.Text.Trim();
 				manifestJsonPath = Path.Combine(workspace, "manifest.json");
 				string manifestJsonContent = manifest.ToJson();
 				File.WriteAllText(manifestJsonPath, manifestJsonContent);
@@ -2752,8 +2736,7 @@ namespace Realm.Client.UI
 					PublicKey = pubKeyBase64,
 					Signature = manifestSigBase64,
 					ReferencedHashes = manifest.Files.Values.ToList(),
-					IsTestVersion = testVersionCheck.ButtonPressed,
-					OfficialVersion = officialVersionEdit.Text.Trim()
+					IsTestVersion = testVersionCheck.ButtonPressed
 				};
 
 				var initRes = await distClient.InitiatePublishAsync(initReq);
@@ -2835,8 +2818,7 @@ namespace Realm.Client.UI
 					MapVersion = mapVersion,
 					PublicKey = pubKeyBase64,
 					Signature = manifestSigBase64,
-					IsTestVersion = testVersionCheck.ButtonPressed,
-					OfficialVersion = officialVersionEdit.Text.Trim()
+					IsTestVersion = testVersionCheck.ButtonPressed
 				};
 
 				var finalRes = await distClient.FinalizePublishAsync(finalizeReq);

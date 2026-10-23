@@ -4,7 +4,7 @@ namespace Realm.AdminServer.Helpers;
 
 public static class PublishedMapDocumentHelper
 {
-	public static JsonObject Build(string manifestJson, bool isTestVersion, string officialVersion)
+	public static JsonObject Build(string manifestJson, bool isTestVersion)
 	{
 		JsonObject document;
 		try
@@ -17,7 +17,6 @@ public static class PublishedMapDocumentHelper
 		}
 
 		document["IsTestVersion"] = isTestVersion;
-		document["OfficialVersion"] = officialVersion;
 		return document;
 	}
 }
