@@ -5,7 +5,7 @@ namespace Realm.Shared;
 
 public static class RealmVersion
 {
-	public const string GameBuildNumber = "v0.0.5";
+	public const string GameBuildNumber = "v0.0.4";
 	public static readonly string GameBinaryVersion = GetGameBinaryVersion();
 
 	public static string GetGameBinaryVersion(Assembly? assembly = null)
