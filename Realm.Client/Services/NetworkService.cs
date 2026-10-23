@@ -2205,22 +2205,25 @@ public class NetworkService
 
 	private UnitSnapshot CreateUnitSnapshot(Unit3D unit, Vector3 cameraPos, out bool isDetailed)
 	{
+		var world = GameContext.World;
 		float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
 		isDetailed = distToCamera <= 35.0f;
+		System.Numerics.Vector3 position = world.Has<Position>(unit.Entity) ? world.Get<Position>(unit.Entity).Value : new System.Numerics.Vector3(unit.GlobalPosition.X, unit.GlobalPosition.Y, unit.GlobalPosition.Z);
+		System.Numerics.Vector3 velocity = world.Has<Velocity>(unit.Entity) ? world.Get<Velocity>(unit.Entity).Value : new System.Numerics.Vector3(unit.Velocity.X, unit.Velocity.Y, unit.Velocity.Z);
 		return new UnitSnapshot
 		{
 			EntityId = unit.Entity.Id,
 			UnitId = unit.UnitId,
 			OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
 			OwnerPlayerIndex = GetOwnerPlayerIndex(unit.Entity),
-			Position = new NetworkVector3(unit.GlobalPosition),
-			RotationY = unit.GlobalRotation.Y,
-			CurrentHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Current : 0f,
-			MaxHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Max : 0f,
-			IsDead = GameContext.World.Has<Dead>(unit.Entity),
+			Position = new NetworkVector3(position.X, position.Y, position.Z),
+			RotationY = world.Has<RotationY>(unit.Entity) ? world.Get<RotationY>(unit.Entity).Value : unit.GlobalRotation.Y,
+			CurrentHp = world.Has<Health>(unit.Entity) ? world.Get<Health>(unit.Entity).Current : 0f,
+			MaxHp = world.Has<Health>(unit.Entity) ? world.Get<Health>(unit.Entity).Max : 0f,
+			IsDead = world.Has<Dead>(unit.Entity),
 			IsBuilding = unit.IsBuilding,
 			IsDetailed = isDetailed,
-			Velocity = new NetworkVector3(unit.Velocity)
+			Velocity = new NetworkVector3(velocity.X, velocity.Y, velocity.Z)
 		};
 	}
 
@@ -2230,16 +2233,16 @@ public class NetworkService
 
 		if (isDetailed)
 		{
-			bool posChanged = baseSnap.Position.ToGodot().DistanceTo(unit.GlobalPosition) > 0.05f;
-			bool rotChanged = Mathf.Abs(baseSnap.RotationY - unit.GlobalRotation.Y) > 0.05f;
+			bool posChanged = baseSnap.Position.ToGodot().DistanceTo(currentSnap.Position.ToGodot()) > 0.05f;
+			bool rotChanged = Mathf.Abs(baseSnap.RotationY - currentSnap.RotationY) > 0.05f;
 			bool hpChanged = Mathf.Abs(baseSnap.CurrentHp - currentSnap.CurrentHp) > 0.1f;
 			bool deadChanged = baseSnap.IsDead != currentSnap.IsDead;
 			return posChanged || rotChanged || hpChanged || deadChanged;
 		}
 
-		bool posFarChanged = baseSnap.Position.ToGodot().DistanceTo(unit.GlobalPosition) > 1.0f;
+		bool posFarChanged = baseSnap.Position.ToGodot().DistanceTo(currentSnap.Position.ToGodot()) > 1.0f;
 		bool deadFarChanged = baseSnap.IsDead != currentSnap.IsDead;
-		bool rotFarChanged = Mathf.Abs(Mathf.AngleDifference(baseSnap.RotationY, unit.GlobalRotation.Y)) > 0.15f;
+		bool rotFarChanged = Mathf.Abs(Mathf.AngleDifference(baseSnap.RotationY, currentSnap.RotationY)) > 0.15f;
 
 		return posFarChanged || deadFarChanged || rotFarChanged || Mathf.Abs(baseSnap.CurrentHp - currentSnap.CurrentHp) > 1.0f;
 	}

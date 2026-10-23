@@ -5,6 +5,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
@@ -180,19 +181,40 @@ public static class MultiplayerSyncDiagnostics
 			foreach (int index in orderedIndices)
 			{
 				UnitSnapshot unit = units[index];
+				RecordAuthoritativeUnitState(unit, out System.Numerics.Vector3 position, out float rotationY, out float currentHp, out float maxHp);
 				writer.Write(unit.EntityId);
 				writer.Write(unit.OwnerPlayerIndex);
-				writer.Write(unit.Position.X);
-				writer.Write(unit.Position.Y);
-				writer.Write(unit.Position.Z);
-				writer.Write(unit.RotationY);
-				writer.Write(unit.CurrentHp);
-				writer.Write(unit.MaxHp);
+				writer.Write(position.X);
+				writer.Write(position.Y);
+				writer.Write(position.Z);
+				writer.Write(rotationY);
+				writer.Write(currentHp);
+				writer.Write(maxHp);
 				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, unit.IsDetailed, IsVisibleToRemoteClient(unit.EntityId)));
 			}
 		});
 
 		AppendRecord(record, snapshot.Sequence, snapshot.IsBaseline);
+	}
+
+	private static void RecordAuthoritativeUnitState(UnitSnapshot unit, out System.Numerics.Vector3 position, out float rotationY, out float currentHp, out float maxHp)
+	{
+		EcsWorld? world = GameContext.World;
+		Entity entity = new(unit.EntityId);
+		position = new System.Numerics.Vector3(unit.Position.X, unit.Position.Y, unit.Position.Z);
+		rotationY = unit.RotationY;
+		currentHp = unit.CurrentHp;
+		maxHp = unit.MaxHp;
+
+		if (world == null || !world.IsAlive(entity)) return;
+
+		if (world.Has<Position>(entity)) position = world.Get<Position>(entity).Value;
+		if (world.Has<RotationY>(entity)) rotationY = world.Get<RotationY>(entity).Value;
+		if (!world.Has<Health>(entity)) return;
+
+		Health health = world.Get<Health>(entity);
+		currentHp = health.Current;
+		maxHp = health.Max;
 	}
 
 	private static bool IsVisibleToRemoteClient(int serverEntityId)

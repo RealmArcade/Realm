@@ -228,8 +228,6 @@ public class TestWasmMap : IWasmModule
 	[TestCase]
 	public void MultiplayerECSHardening()
 	{
-		// TODO: Compare ECS to ECS by sampling the host from Position and RotationY components instead of Unit3D.GlobalPosition and GlobalRotation.
-		//       The host currently records presentation state while the client records InterpolationTarget, so host-side smoothing can masquerade as a sync bug.
 		// TODO: Assert that the simulation actually changed during the run (units moved, health changed, units spawned or died).
 		//       Every unit was idle at 15 seconds, so an idle simulation or a map AI that never plays is currently indistinguishable from a correct one.
 		// TODO: Guard the fog-of-war assumption before treating a missing entity on the client as a failure.
