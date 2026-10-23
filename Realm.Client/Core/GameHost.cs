@@ -2398,7 +2398,12 @@ public partial class GameHost : Node3D, IGameAPI
 			LoadCustomTerrain(rawMapName);
 
 		if (ShouldLoadAndRunMapScript())
+		{
 			ExecuteMapScriptLoading(rawMapName);
+			return;
+		}
+
+		RebakeNavMesh();
 	}
 
 	private bool ShouldProcessMapLoading()
@@ -3366,7 +3371,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void RebakeNavMesh()
 	{
-		if (IsServerActive() && GroundTerrain != null)
+		if (GroundTerrain != null)
 		{
 			GroundTerrain.BakeNavMesh();
 		}

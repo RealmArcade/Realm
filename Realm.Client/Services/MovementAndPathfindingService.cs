@@ -533,8 +533,11 @@ namespace Realm.Client.Services
 			else
 			{
 				var navQuery = GetThreadLocalNavMeshQuery() ?? _currentTerrainState.NavMeshQuery;
-				var pathfinder = _threadLocalPathfinder.Value!;
-				pathfinder.ComputePath(navQuery, start, target, pathingFlags, ref pf);
+				if (navQuery != null)
+				{
+					var pathfinder = _threadLocalPathfinder.Value!;
+					pathfinder.ComputePath(navQuery, start, target, pathingFlags, ref pf);
+				}
 			}
 
 			pf.Target = target;

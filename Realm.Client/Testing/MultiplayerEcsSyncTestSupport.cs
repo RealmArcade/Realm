@@ -63,6 +63,7 @@ public static class MultiplayerEcsSyncTestSupport
 	private const float DeltaHealthTolerance = 1.05f;
 	private const float PresentationPositionTolerance = 0.25f;
 	private const float PresentationRotationTolerance = 0.2f;
+	private const int StartupWarmupSequenceCount = 60;
 
 	public static string ResolveGodotBinary()
 	{
@@ -309,8 +310,11 @@ public static class MultiplayerEcsSyncTestSupport
 		List<string> mismatches = new();
 		int pairedSnapshots = 0;
 		int comparedUnits = 0;
+		int offscreenMissingUnits = 0;
 		int lastPairedSequence = -1;
 		int unpairedSequenceCount = 0;
+		List<int> lostSequences = new();
+		List<int> startupCatchUpSequences = new();
 
 		foreach (KeyValuePair<int, MultiplayerSnapshotRecord> hostEntry in hostRecords)
 		{
@@ -320,6 +324,8 @@ public static class MultiplayerEcsSyncTestSupport
 				{
 					unpairedSequenceCount++;
 					if (clientSeenSequences.Contains(hostEntry.Key)) supersededSequenceCount++;
+					else if (hostEntry.Key <= firstPairedSequence + StartupWarmupSequenceCount) startupCatchUpSequences.Add(hostEntry.Key);
+					else lostSequences.Add(hostEntry.Key);
 					if (hostEntry.Value.IsBaseline) missingBaselineSequences.Add(hostEntry.Key);
 				}
 
@@ -335,16 +341,19 @@ public static class MultiplayerEcsSyncTestSupport
 				AddMismatch(mismatches, mismatches.Count, $"seq {hostEntry.Key}: baseline flag host={hostEntry.Value.IsBaseline} client={clientRecord.IsBaseline}.");
 			}
 
-			CompareSnapshotRecord(hostEntry.Value, clientRecord, mismatches, ref comparedUnits);
+			CompareSnapshotRecord(hostEntry.Value, clientRecord, mismatches, ref comparedUnits, ref offscreenMissingUnits);
 		}
 
 		report.PairedSnapshotCount = pairedSnapshots;
 		report.ComparedUnitCount = comparedUnits;
 		report.AddSummaryLine($"First paired sequence: {firstPairedSequence}");
 		report.AddSummaryLine($"Last paired sequence: {lastPairedSequence}");
-		int lostSequenceCount = unpairedSequenceCount - supersededSequenceCount;
-		report.AddSummaryLine($"Host sequences missing on client after first pairing: {unpairedSequenceCount} (superseded by a newer snapshot: {supersededSequenceCount}, never received: {lostSequenceCount})");
+		int lostSequenceCount = lostSequences.Count;
+		report.AddSummaryLine($"Host sequences missing on client after first pairing: {unpairedSequenceCount} (superseded by a newer snapshot: {supersededSequenceCount}, startup catch-up: {startupCatchUpSequences.Count}, never received after startup: {lostSequenceCount})");
 		report.AddSummaryLine($"Missing baseline sequences: {(missingBaselineSequences.Count == 0 ? "none" : string.Join(", ", missingBaselineSequences))}");
+		report.AddSummaryLine($"Startup catch-up sequences lost while the client applied its first baseline: {startupCatchUpSequences.Count} of the first {StartupWarmupSequenceCount} sequences ({DescribeSequenceBursts(startupCatchUpSequences)})");
+		report.AddSummaryLine($"Lost sequence bursts after startup: {DescribeSequenceBursts(lostSequences)}");
+		report.AddSummaryLine($"Off-screen host units absent on the client as expected: {offscreenMissingUnits}");
 
 		if (pairedSnapshots < 3) report.AddFailure($"Only {pairedSnapshots} snapshot sequences were paired between host and client.");
 		if (comparedUnits < 20) report.AddFailure($"Only {comparedUnits} unit states were compared, which is not enough to validate sync.");
@@ -356,11 +365,15 @@ public static class MultiplayerEcsSyncTestSupport
 		int tolerance = Math.Max(10, pairedSnapshots / 20);
 		if (lostSequenceCount > tolerance)
 		{
-			report.AddFailure($"{lostSequenceCount} host snapshot sequences never reached the client (allowed {tolerance}); {supersededSequenceCount} more were received but superseded by a newer snapshot. Per-tick snapshots are several kilobytes, so they span multiple unreliable fragments and a few percent of them are always lost; only a spike far above that, or a lost baseline, means the transport regressed.");
+			report.AddFailure($"{lostSequenceCount} host snapshot sequences never reached the client after startup (allowed {tolerance}); {supersededSequenceCount} more were received but superseded by a newer snapshot. Per-tick snapshots are several kilobytes, so they span multiple unreliable fragments and any lost fragment drops the whole snapshot; only a spike far above that, or a lost baseline, means the transport regressed.");
 		}
 		else if (lostSequenceCount > 0)
 		{
 			report.AddSummaryLine($"Unreliable snapshot loss stayed within the fragmented-channel tolerance: {lostSequenceCount} of {pairedSnapshots + lostSequenceCount} sequences ({100.0 * lostSequenceCount / Math.Max(1, pairedSnapshots + lostSequenceCount):F1}%) were lost, all repaired by later snapshots and baselines.");
+		}
+		else
+		{
+			report.AddSummaryLine($"No unreliable snapshot was lost after startup; every host sequence in the steady-state window reached the client and {supersededSequenceCount} were superseded by a newer snapshot.");
 		}
 
 		if (mismatches.Count > 0)
@@ -398,6 +411,8 @@ public static class MultiplayerEcsSyncTestSupport
 
 			foreach (MultiplayerSnapshotUnit hostUnit in hostEntry.Value.Units.Values)
 			{
+				if ((hostUnit.Flags & 8) == 0) continue;
+
 				if (!presentedRecord.Units.TryGetValue(hostUnit.EntityId, out MultiplayerSnapshotUnit? presentedUnit))
 				{
 					mismatchCount++;
@@ -437,7 +452,7 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
-	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, List<string> mismatches, ref int comparedUnits)
+	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, List<string> mismatches, ref int comparedUnits, ref int offscreenMissingUnits)
 	{
 		int mismatchCountBefore = mismatches.Count;
 		bool exact = hostRecord.IsBaseline;
@@ -448,14 +463,19 @@ public static class MultiplayerEcsSyncTestSupport
 		foreach (MultiplayerSnapshotUnit hostUnit in hostRecord.Units.Values)
 		{
 			bool isDead = (hostUnit.Flags & 1) != 0;
+			bool isVisibleToRemoteClient = (hostUnit.Flags & 8) != 0;
 
 			if (!clientRecord.Units.TryGetValue(hostUnit.EntityId, out MultiplayerSnapshotUnit? clientUnit))
 			{
-				if (!isDead)
+				if (isDead) continue;
+
+				if (!isVisibleToRemoteClient)
 				{
-					AddMismatch(mismatches, mismatchCountBefore, $"seq {hostRecord.Sequence}: client is missing live entity {hostUnit.EntityId} (owner slot {hostUnit.OwnerPlayerIndex}).");
+					offscreenMissingUnits++;
+					continue;
 				}
 
+				AddMismatch(mismatches, mismatchCountBefore, $"seq {hostRecord.Sequence}: client is missing live entity {hostUnit.EntityId} (owner slot {hostUnit.OwnerPlayerIndex}) that the host sent to it.");
 				continue;
 			}
 
@@ -563,6 +583,45 @@ public static class MultiplayerEcsSyncTestSupport
 		{
 			report.AddFailure($"Client final sequence {clientFinalSequence} is ahead of the host final sequence {hostFinalSequence}.");
 		}
+	}
+
+	private static string DescribeSequenceBursts(List<int> sequences)
+	{
+		if (sequences.Count == 0) return "none";
+
+		int burstCount = 0;
+		int longestBurst = 0;
+		int runLength = 0;
+		int previousSequence = -2;
+		StringBuilder summary = new();
+
+		foreach (int sequence in sequences)
+		{
+			if (sequence == previousSequence + 1)
+			{
+				runLength++;
+			}
+			else
+			{
+				burstCount++;
+				if (runLength > longestBurst) longestBurst = runLength;
+				runLength = 1;
+			}
+
+			previousSequence = sequence;
+		}
+
+		if (runLength > longestBurst) longestBurst = runLength;
+
+		int listedCount = Math.Min(sequences.Count, 12);
+		for (int index = 0; index < listedCount; index++)
+		{
+			if (index > 0) summary.Append(", ");
+			summary.Append(sequences[index]);
+		}
+
+		if (sequences.Count > listedCount) summary.Append($", ... ({sequences.Count - listedCount} more)");
+		return $"{burstCount} bursts, longest run {longestBurst} sequence(s), sequences {summary}";
 	}
 
 	private static bool TryReadSequence(string path, out int sequence)

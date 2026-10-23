@@ -188,11 +188,18 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(unit.RotationY);
 				writer.Write(unit.CurrentHp);
 				writer.Write(unit.MaxHp);
-				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, unit.IsDetailed));
+				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, unit.IsDetailed, IsVisibleToRemoteClient(unit.EntityId)));
 			}
 		});
 
 		AppendRecord(record, snapshot.Sequence, snapshot.IsBaseline);
+	}
+
+	private static bool IsVisibleToRemoteClient(int serverEntityId)
+	{
+		NetworkService? networkService = GameContext.NetworkService;
+		if (networkService == null) return true;
+		return networkService.IsServerEntityVisibleToAnyRemoteClient(serverEntityId);
 	}
 
 	public static void RecordClientSnapshot()
@@ -242,7 +249,7 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(unit.RotationY);
 				writer.Write(unit.CurrentHp);
 				writer.Write(unit.MaxHp);
-				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, true));
+				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, true, true));
 			}
 		});
 
@@ -305,7 +312,7 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(unit.RotationY);
 				writer.Write(unit.CurrentHp);
 				writer.Write(unit.MaxHp);
-				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, false));
+				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, false, true));
 			}
 		});
 
@@ -320,12 +327,13 @@ public static class MultiplayerSyncDiagnostics
 		return world.Get<UnitOwnerPlayer>(localEntity).PlayerIndex;
 	}
 
-	private static byte BuildFlags(bool isDead, bool isBuilding, bool isDetailed)
+	private static byte BuildFlags(bool isDead, bool isBuilding, bool isDetailed, bool isVisibleToRemoteClient)
 	{
 		byte flags = 0;
 		if (isDead) flags |= 1;
 		if (isBuilding) flags |= 2;
 		if (isDetailed) flags |= 4;
+		if (isVisibleToRemoteClient) flags |= 8;
 		return flags;
 	}
 

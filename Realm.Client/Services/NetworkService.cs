@@ -380,6 +380,36 @@ public class NetworkService
 		return GameContext.World.Get<ShroudState>(worldEntity).VisibilityMode == ShroudVisibilityMode.Revealed;
 	}
 
+	public bool IsServerEntityVisibleToAnyRemoteClient(int serverEntityId)
+	{
+		GameHost? gameHost = GameHost.Instance;
+		if (gameHost == null) return true;
+
+		LobbyManager? lobby = LobbyManager.Instance;
+		if (lobby == null) return true;
+
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return true;
+
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		List<Unit3D> allUnits = gameHost.AllUnits;
+		Entity unitEntity = new(serverEntityId);
+		int localPeerId = gameHost.Multiplayer.GetUniqueId();
+		bool hasRemoteClient = false;
+
+		foreach (PlayerInfo player in lobby.PlayerList)
+		{
+			if (player.PeerId <= 0 || player.PeerId == localPeerId) continue;
+			if (player.IsDisconnected) continue;
+			if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(player.PeerId, out Entity playerEntity)) continue;
+
+			hasRemoteClient = true;
+			if (IsUnitVisibleToPlayer(playerEntity, unitEntity, allUnits)) return true;
+		}
+
+		return !hasRemoteClient;
+	}
+
 	public (bool Success, string BuildUnitType, string TargetModel, PlayerEntity PlayerOwner, System.Numerics.Vector3 BuildPosition, string Name, float MaxHp, float Damage, float Range, float Armor) ProcessServerCommandBuildDomain(
 		ServerCommandResult result,
 		Dictionary<string, UnitMetadata> unitRegistry,
@@ -750,6 +780,7 @@ public class NetworkService
 
 		if (!GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta) && !GameHost.BuildingRegistry.TryGetValue(snap.UnitId, out meta))
 		{
+			GD.PushWarning($"[Network] Cannot spawn replicated entity {snap.EntityId}: unit id '{snap.UnitId}' is not registered on this client.");
 			return Entity.Null;
 		}
 
