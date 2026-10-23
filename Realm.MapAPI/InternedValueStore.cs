@@ -31,6 +31,11 @@ public static class InternedValueStore
 	public const byte TextListKind = 1;
 
 	/// <summary>
+	/// The kind tag of the entries whose payload is an ordered list of blittable weapon records.
+	/// </summary>
+	public const byte WeaponListKind = 2;
+
+	/// <summary>
 	/// First identifier of the reserved fallback range used when a primary content hash is already taken.
 	/// </summary>
 	public const int FallbackIdBase = 0x40000000;
@@ -266,6 +271,19 @@ public static class InternedValueStore
 	}
 
 	/// <summary>
+	/// Registers an opaque blittable payload and returns its stable identifier.
+	/// </summary>
+	/// <param name="kind">The kind tag that tells readers how to interpret the bytes.</param>
+	/// <param name="payload">The immutable payload bytes.</param>
+	/// <returns>Zero for an empty payload, the payload's content hash otherwise.</returns>
+	public static int GetOrAddBytes(byte kind, ReadOnlySpan<byte> payload)
+	{
+		if (payload.IsEmpty) return 0;
+
+		return GetOrAddPayload(kind, payload.ToArray());
+	}
+
+	/// <summary>
 	/// Computes the stable identifier a text would receive, without registering it.
 	/// </summary>
 	/// <param name="text">The text to identify.</param>
@@ -383,6 +401,7 @@ public static class InternedValueStore
 		{
 			TextKind => "string",
 			TextListKind => "text-list",
+			WeaponListKind => "weapon-list",
 			_ => kind.ToString(CultureInfo.InvariantCulture)
 		};
 	}

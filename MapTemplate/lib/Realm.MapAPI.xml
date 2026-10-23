@@ -3172,6 +3172,11 @@
             The kind tag of the entries whose payload is an ordered list of text identifiers.
             </summary>
         </member>
+        <member name="F:Realm.MapAPI.InternedValueStore.WeaponListKind">
+            <summary>
+            The kind tag of the entries whose payload is an ordered list of blittable weapon records.
+            </summary>
+        </member>
         <member name="F:Realm.MapAPI.InternedValueStore.FallbackIdBase">
             <summary>
             First identifier of the reserved fallback range used when a primary content hash is already taken.
@@ -3255,6 +3260,14 @@
             <param name="kind">The kind tag of the stored payload.</param>
             <param name="payload">The immutable payload bytes, empty for text entries.</param>
             <returns>True when the identifier is present in the table.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.GetOrAddBytes(System.Byte,System.ReadOnlySpan{System.Byte})">
+            <summary>
+            Registers an opaque blittable payload and returns its stable identifier.
+            </summary>
+            <param name="kind">The kind tag that tells readers how to interpret the bytes.</param>
+            <param name="payload">The immutable payload bytes.</param>
+            <returns>Zero for an empty payload, the payload's content hash otherwise.</returns>
         </member>
         <member name="M:Realm.MapAPI.InternedValueStore.ComputeTextId(System.String)">
             <summary>

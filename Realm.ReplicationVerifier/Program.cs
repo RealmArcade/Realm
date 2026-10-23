@@ -1,6 +1,7 @@
 using System.Reflection;
 using MemoryPack;
 using Realm.Ecs;
+using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Replication;
 using Realm.MapAPI;
@@ -121,6 +122,14 @@ foreach (var codec in codecs)
 	new Random(104729 + codec.ComponentTypeId).NextBytes(bytes);
 	payloadDeltas.Add(new ComponentDelta { Key = codec.ComponentTypeId, ComponentTypeId = codec.ComponentTypeId, Scope = (byte)codec.Scope, Bytes = bytes });
 }
+
+var weaponSlots = new List<Weapon> { new Weapon(12f, maxRange: 6f), new Weapon(7f, maxRange: 9f) };
+var firstWeapons = new Weapons(weaponSlots);
+var secondWeapons = new Weapons(new List<Weapon>(weaponSlots));
+Check(firstWeapons.Count == 2 && firstWeapons.Handle == secondWeapons.Handle, "identical weapon slots share one interned payload");
+Check(firstWeapons.TryGet(0, out Weapon firstSlot) && firstSlot.BaseDamage == 12f && firstSlot.MaxRange == 6f, "a weapon slot round trips through the interned payload");
+Check(!firstWeapons.TryGet(5, out _), "a missing weapon slot reports a miss");
+Check(new Weapons(null).Handle == 0 && new Weapons(new List<Weapon>()).Count == 0, "an entity without weapons stores no payload");
 
 var abilities = new List<AbilityStateDelta>
 {
