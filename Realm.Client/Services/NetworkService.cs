@@ -596,7 +596,7 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
 
-		ApplyReplicatedState(snapshot);
+		ApplyReplicatedColdPayloads(snapshot);
 
 		if (snapshot.IsBaseline)
 		{
@@ -621,6 +621,8 @@ public class NetworkService
 		{
 			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
 		}
+
+		ApplyReplicatedComponentState(snapshot);
 
 		LastAppliedSnapshotSequenceForDiagnostics = snapshot.Sequence;
 		MultiplayerSyncDiagnostics.RecordClientSnapshot();
@@ -864,14 +866,22 @@ public class NetworkService
 
 	public void ApplyReplicatedState(WorldSnapshot snapshot)
 	{
-		if (snapshot.ColdPayloads != null)
-		{
-			for (int i = 0; i < snapshot.ColdPayloads.Count; i++)
-			{
-				ApplyColdPayloadDelta(snapshot.ColdPayloads[i]);
-			}
-		}
+		ApplyReplicatedColdPayloads(snapshot);
+		ApplyReplicatedComponentState(snapshot);
+	}
 
+	private void ApplyReplicatedColdPayloads(WorldSnapshot snapshot)
+	{
+		if (snapshot.ColdPayloads == null) return;
+
+		for (int i = 0; i < snapshot.ColdPayloads.Count; i++)
+		{
+			ApplyColdPayloadDelta(snapshot.ColdPayloads[i]);
+		}
+	}
+
+	private void ApplyReplicatedComponentState(WorldSnapshot snapshot)
+	{
 		if (snapshot.ComponentDeltas != null)
 		{
 			for (int i = 0; i < snapshot.ComponentDeltas.Count; i++)

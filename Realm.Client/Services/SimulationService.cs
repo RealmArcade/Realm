@@ -770,9 +770,12 @@ public class SimulationService
 			_combatService.StepCombat(fDelta, _movementService);
 		}
 
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationEconomyStep))
+		if (GameHost.Instance?.IsClientSimulationOnly != true)
 		{
-			_economyService.StepEconomy(fDelta);
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationEconomyStep))
+			{
+				_economyService.StepEconomy(fDelta);
+			}
 		}
 
 		_shroudSimulationTimer += fDelta;

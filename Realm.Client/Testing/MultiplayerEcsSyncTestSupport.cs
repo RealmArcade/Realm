@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Realm.Client.Services;
+using Realm.Ecs.Replication;
 
 namespace Realm.Client.Testing;
 
@@ -64,6 +65,7 @@ public static class MultiplayerEcsSyncTestSupport
 	private const float PresentationPositionTolerance = 0.25f;
 	private const float PresentationRotationTolerance = 0.2f;
 	private const int StartupWarmupSequenceCount = 60;
+	private const int SyncRecordVersion = 2;
 
 	public static string ResolveGodotBinary()
 	{
@@ -303,6 +305,8 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 
 		HashSet<int> clientSeenSequences = ReadClientSeenSequences(outputDirectory);
+		TryReadSequence(Path.Combine(outputDirectory, "client_final_sequence.txt"), out int clientFinalAppliedSequence);
+		int inFlightSequenceCount = 0;
 		int supersededSequenceCount = 0;
 
 		int firstPairedSequence = -1;
@@ -315,11 +319,19 @@ public static class MultiplayerEcsSyncTestSupport
 		int unpairedSequenceCount = 0;
 		List<int> lostSequences = new();
 		List<int> startupCatchUpSequences = new();
+		List<string> transientDigestMismatches = new();
+		int transientDigestMismatchCount = 0;
 
 		foreach (KeyValuePair<int, MultiplayerSnapshotRecord> hostEntry in hostRecords)
 		{
 			if (!clientRecords.TryGetValue(hostEntry.Key, out MultiplayerSnapshotRecord? clientRecord))
 			{
+				if (clientFinalAppliedSequence >= 0 && hostEntry.Key > clientFinalAppliedSequence)
+				{
+					inFlightSequenceCount++;
+					continue;
+				}
+
 				if (firstPairedSequence >= 0)
 				{
 					unpairedSequenceCount++;
@@ -341,7 +353,11 @@ public static class MultiplayerEcsSyncTestSupport
 				AddMismatch(mismatches, mismatches.Count, $"seq {hostEntry.Key}: baseline flag host={hostEntry.Value.IsBaseline} client={clientRecord.IsBaseline}.");
 			}
 
-			CompareSnapshotRecord(hostEntry.Value, clientRecord, mismatches, ref comparedUnits, ref offscreenMissingUnits);
+			List<string> digestTarget = hostEntry.Value.IsBaseline ? mismatches : transientDigestMismatches;
+			int digestMismatchCountBefore = transientDigestMismatches.Count;
+			CompareSnapshotRecord(hostEntry.Value, clientRecord, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits);
+			CompareScopeDigests(hostEntry.Value, clientRecord, digestTarget);
+			transientDigestMismatchCount += transientDigestMismatches.Count - digestMismatchCountBefore;
 		}
 
 		report.PairedSnapshotCount = pairedSnapshots;
@@ -350,10 +366,16 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Last paired sequence: {lastPairedSequence}");
 		int lostSequenceCount = lostSequences.Count;
 		report.AddSummaryLine($"Host sequences missing on client after first pairing: {unpairedSequenceCount} (superseded by a newer snapshot: {supersededSequenceCount}, startup catch-up: {startupCatchUpSequences.Count}, never received after startup: {lostSequenceCount})");
+		report.AddSummaryLine($"Snapshots still in flight when the client stopped recording: {inFlightSequenceCount} (after client sequence {clientFinalAppliedSequence})");
 		report.AddSummaryLine($"Missing baseline sequences: {(missingBaselineSequences.Count == 0 ? "none" : string.Join(", ", missingBaselineSequences))}");
 		report.AddSummaryLine($"Startup catch-up sequences lost while the client applied its first baseline: {startupCatchUpSequences.Count} of the first {StartupWarmupSequenceCount} sequences ({DescribeSequenceBursts(startupCatchUpSequences)})");
 		report.AddSummaryLine($"Lost sequence bursts after startup: {DescribeSequenceBursts(lostSequences)}");
 		report.AddSummaryLine($"Off-screen host units absent on the client as expected: {offscreenMissingUnits}");
+		report.AddSummaryLine($"Differences seen only on delta snapshots and healed by the next baseline: {transientDigestMismatchCount}");
+		for (int index = 0; index < Math.Min(transientDigestMismatches.Count, 5); index++)
+		{
+			report.AddSummaryLine($"  {transientDigestMismatches[index]}");
+		}
 
 		if (pairedSnapshots < 3) report.AddFailure($"Only {pairedSnapshots} snapshot sequences were paired between host and client.");
 		if (comparedUnits < 20) report.AddFailure($"Only {comparedUnits} unit states were compared, which is not enough to validate sync.");
@@ -452,7 +474,60 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
-	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, List<string> mismatches, ref int comparedUnits, ref int offscreenMissingUnits)
+	private static void CompareScopeDigests(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, List<string> mismatches)
+	{
+		foreach (KeyValuePair<int, Dictionary<int, uint>> hostPlayer in hostRecord.Players)
+		{
+			if (!clientRecord.Players.TryGetValue(hostPlayer.Key, out Dictionary<int, uint>? clientDigests))
+			{
+				AddMismatch(mismatches, 0, $"seq {hostRecord.Sequence}: player slot {hostPlayer.Key} has no applied state on the client.");
+				continue;
+			}
+
+			CompareDigestSets(hostRecord.Sequence, $"player slot {hostPlayer.Key}", hostPlayer.Value, clientDigests, mismatches);
+		}
+
+		CompareDigestSets(hostRecord.Sequence, "world entity", hostRecord.WorldDigests, clientRecord.WorldDigests, mismatches);
+	}
+
+	private static void CompareDigestSets(int sequence, string owner, Dictionary<int, uint> hostDigests, Dictionary<int, uint> clientDigests, List<string> mismatches)
+	{
+		const int mismatchCountBefore = 0;
+		foreach (KeyValuePair<int, uint> hostDigest in hostDigests)
+		{
+			string componentName = DescribeComponent(hostDigest.Key);
+			if (!clientDigests.TryGetValue(hostDigest.Key, out uint clientHash))
+			{
+				AddMismatch(mismatches, mismatchCountBefore, $"seq {sequence}: {owner} carries {componentName} on the host but not in the client's applied ECS.");
+				continue;
+			}
+
+			if (clientHash != hostDigest.Value)
+			{
+				AddMismatch(mismatches, mismatchCountBefore, $"seq {sequence}: {owner} {componentName} differs between the host ECS ({hostDigest.Value:x8}) and the client's applied ECS ({clientHash:x8}).");
+			}
+		}
+
+		foreach (KeyValuePair<int, uint> clientDigest in clientDigests)
+		{
+			if (hostDigests.ContainsKey(clientDigest.Key)) continue;
+			AddMismatch(mismatches, mismatchCountBefore, $"seq {sequence}: {owner} carries {DescribeComponent(clientDigest.Key)} in the client's applied ECS but not on the host.");
+		}
+	}
+
+	private static string DescribeComponent(int componentTypeId)
+	{
+		IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedComponents.All;
+		for (int index = 0; index < codecs.Count; index++)
+		{
+			if (codecs[index].ComponentTypeId != componentTypeId) continue;
+			return codecs[index].ComponentName;
+		}
+
+		return $"component {componentTypeId}";
+	}
+
+	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, List<string> mismatches, List<string> digestMismatches, ref int comparedUnits, ref int offscreenMissingUnits)
 	{
 		int mismatchCountBefore = mismatches.Count;
 		bool exact = hostRecord.IsBaseline;
@@ -475,7 +550,8 @@ public static class MultiplayerEcsSyncTestSupport
 					continue;
 				}
 
-				AddMismatch(mismatches, mismatchCountBefore, $"seq {hostRecord.Sequence}: client is missing live entity {hostUnit.EntityId} (owner slot {hostUnit.OwnerPlayerIndex}) that the host sent to it.");
+				List<string> missingEntityTarget = hostRecord.IsBaseline ? mismatches : digestMismatches;
+				AddMismatch(missingEntityTarget, 0, $"seq {hostRecord.Sequence}: client is missing live entity {hostUnit.EntityId} (owner slot {hostUnit.OwnerPlayerIndex}) that the host sent to it.");
 				continue;
 			}
 
@@ -523,6 +599,8 @@ public static class MultiplayerEcsSyncTestSupport
 			{
 				AddMismatch(mismatches, mismatchCountBefore, $"seq {hostRecord.Sequence}: entity {hostUnit.EntityId} max health host={hostUnit.MaxHp:F3} client={clientUnit.MaxHp:F3}.");
 			}
+
+			CompareDigestSets(hostRecord.Sequence, $"entity {hostUnit.EntityId}", hostUnit.ComponentDigests, clientUnit.ComponentDigests, digestMismatches);
 		}
 
 		if (!hostRecord.IsBaseline) return;
@@ -678,7 +756,7 @@ public static class MultiplayerEcsSyncTestSupport
 		if (magic != 0x504E5352) throw new InvalidDataException($"{Path.GetFileName(path)} does not contain Realm sync records.");
 
 		int version = reader.ReadInt32();
-		if (version != 1) throw new InvalidDataException($"{Path.GetFileName(path)} uses unsupported record version {version}.");
+		if (version != SyncRecordVersion) throw new InvalidDataException($"{Path.GetFileName(path)} uses unsupported record version {version}.");
 		reader.ReadBoolean();
 
 		while (stream.Position < stream.Length)
@@ -700,15 +778,36 @@ public static class MultiplayerEcsSyncTestSupport
 					RotationY = reader.ReadSingle(),
 					CurrentHp = reader.ReadSingle(),
 					MaxHp = reader.ReadSingle(),
-					Flags = reader.ReadByte()
+					Flags = reader.ReadByte(),
+					ComponentDigests = ReadComponentDigests(reader)
 				};
 				units[unit.EntityId] = unit;
 			}
 
-			records[sequence] = new MultiplayerSnapshotRecord { Sequence = sequence, IsBaseline = isBaseline, Units = units };
+			MultiplayerSnapshotRecord record = new() { Sequence = sequence, IsBaseline = isBaseline, Units = units };
+			int playerCount = reader.ReadInt32();
+			for (int index = 0; index < playerCount; index++)
+			{
+				record.Players[reader.ReadInt32()] = ReadComponentDigests(reader);
+			}
+
+			record.WorldDigests = ReadComponentDigests(reader);
+			records[sequence] = record;
 		}
 
 		return records;
+	}
+
+	private static Dictionary<int, uint> ReadComponentDigests(BinaryReader reader)
+	{
+		int count = reader.ReadInt32();
+		Dictionary<int, uint> digests = new(count);
+		for (int index = 0; index < count; index++)
+		{
+			digests[reader.ReadInt32()] = reader.ReadUInt32();
+		}
+
+		return digests;
 	}
 
 	private sealed class MultiplayerSnapshotRecord
@@ -716,6 +815,8 @@ public static class MultiplayerEcsSyncTestSupport
 		public int Sequence;
 		public bool IsBaseline;
 		public Dictionary<int, MultiplayerSnapshotUnit> Units = new();
+		public Dictionary<int, Dictionary<int, uint>> Players = new();
+		public Dictionary<int, uint> WorldDigests = new();
 	}
 
 	private sealed class MultiplayerSnapshotUnit
@@ -729,5 +830,6 @@ public static class MultiplayerEcsSyncTestSupport
 		public float CurrentHp;
 		public float MaxHp;
 		public byte Flags;
+		public Dictionary<int, uint> ComponentDigests = new();
 	}
 }

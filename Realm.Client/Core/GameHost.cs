@@ -3360,7 +3360,6 @@ public partial class GameHost : Node3D, IGameAPI
 		if (Multiplayer.MultiplayerPeer == null) return true;
 		try
 		{
-			if (Multiplayer.MultiplayerPeer.GetConnectionStatus() != MultiplayerPeer.ConnectionStatus.Connected) return true;
 			return Multiplayer.IsServer();
 		}
 		catch

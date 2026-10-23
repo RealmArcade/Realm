@@ -1,13 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using Godot;
 using Realm.Client.Core;
 using Realm.Ecs;
+using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
 using FileAccess = System.IO.FileAccess;
 
@@ -16,8 +20,9 @@ namespace Realm.Client.Services;
 public static class MultiplayerSyncDiagnostics
 {
 	private const uint FileMagic = 0x504E5352;
-	private const int FileVersion = 1;
+	private const int FileVersion = 2;
 	private const int BaselineIntervalTicks = 30;
+	private const int PlayerSlotCount = 25;
 
 	private static BinaryWriter? _writer;
 	private static byte[] _fileHeader = Array.Empty<byte>();
@@ -32,6 +37,15 @@ public static class MultiplayerSyncDiagnostics
 	private static int _fingerprintMismatchCount;
 	private static string _fingerprintMismatchSummary = string.Empty;
 	private static readonly HashSet<int> _clientSeenSequences = new();
+	private static readonly List<ComponentDigest> _digestBuffer = new();
+	private static readonly Dictionary<int, int> _entityReferencePayloadOffsets = new()
+	{
+		{ ComponentType<AttackTarget>.Id, 0 },
+		{ ComponentType<LastAttacker>.Id, 0 },
+		{ ComponentType<Follow>.Id, 0 },
+		{ ComponentType<BuildTask>.Id, 0 }
+	};
+	private static byte[] _codecScratch = new byte[1024];
 
 	public static void RecordClientSeenSequence(int sequence)
 	{
@@ -79,6 +93,7 @@ public static class MultiplayerSyncDiagnostics
 		_fingerprintMismatchCount = 0;
 		_fingerprintMismatchSummary = string.Empty;
 		_clientSeenSequences.Clear();
+		_digestBuffer.Clear();
 
 		string path = Path.Combine(outputDirectory, isHost ? "ECS_host_sync.bin" : "ECS_client_sync.bin");
 		using (MemoryStream headerStream = new())
@@ -191,7 +206,10 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(currentHp);
 				writer.Write(maxHp);
 				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, unit.IsDetailed, IsVisibleToRemoteClient(unit.EntityId)));
+				WriteComponentDigests(writer, GameContext.World, new Entity(unit.EntityId), ReplicatedScope.Unit, null);
 			}
+
+			AppendPlayerScopeState(writer, GameContext.World, null);
 		});
 
 		AppendRecord(record, snapshot.Sequence, snapshot.IsBaseline);
@@ -252,7 +270,7 @@ public static class MultiplayerSyncDiagnostics
 			bool isBuilding = world.Has<Building>(localEntity);
 			int ownerPlayerIndex = ResolveOwnerPlayerIndex(world, localEntity);
 
-			units.Add(new ClientUnitState(kvp.Value, ownerPlayerIndex, target, currentHp, maxHp, isDead, isBuilding));
+			units.Add(new ClientUnitState(kvp.Value, localEntity.Id, ownerPlayerIndex, target, currentHp, maxHp, isDead, isBuilding));
 		}
 
 		units.Sort((left, right) => left.ServerEntityId.CompareTo(right.ServerEntityId));
@@ -272,10 +290,90 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(unit.CurrentHp);
 				writer.Write(unit.MaxHp);
 				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, true, true));
+				WriteComponentDigests(writer, world, new Entity(unit.LocalEntityId), ReplicatedScope.Unit, mapping.ClientToServerEntityMap);
 			}
+
+			AppendPlayerScopeState(writer, world, mapping.ClientToServerEntityMap);
 		});
 
 		AppendRecord(record, sequence, isBaseline);
+	}
+
+	private static void WriteComponentDigests(BinaryWriter writer, EcsWorld? world, Entity entity, ReplicatedScope scope, Dictionary<int, int>? clientToServerEntityMap)
+	{
+		_digestBuffer.Clear();
+
+		if (world != null && entity != Entity.Null && world.IsAlive(entity))
+		{
+			IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedComponents.All;
+			for (int index = 0; index < codecs.Count; index++)
+			{
+				IReplicatedComponentCodec codec = codecs[index];
+				if (codec.Scope != scope) continue;
+
+				int size = codec.SizeInBytes;
+				if (_codecScratch.Length < size) Array.Resize(ref _codecScratch, size);
+				Span<byte> payload = _codecScratch.AsSpan(0, size);
+				payload.Clear();
+				if (!codec.TryWrite(world, entity, payload)) continue;
+
+				NormalizeEntityReferences(payload, codec.ComponentTypeId, clientToServerEntityMap);
+				_digestBuffer.Add(new ComponentDigest(codec.ComponentTypeId, HashPayload(payload)));
+			}
+		}
+
+		_digestBuffer.Sort(static (left, right) => left.ComponentTypeId.CompareTo(right.ComponentTypeId));
+		writer.Write(_digestBuffer.Count);
+		for (int index = 0; index < _digestBuffer.Count; index++)
+		{
+			writer.Write(_digestBuffer[index].ComponentTypeId);
+			writer.Write(_digestBuffer[index].Hash);
+		}
+	}
+
+	private static void NormalizeEntityReferences(Span<byte> payload, int componentTypeId, Dictionary<int, int>? clientToServerEntityMap)
+	{
+		if (clientToServerEntityMap == null) return;
+		if (!_entityReferencePayloadOffsets.TryGetValue(componentTypeId, out int offset)) return;
+		if (payload.Length < offset + sizeof(int)) return;
+
+		int localEntityId = MemoryMarshal.Read<int>(payload.Slice(offset, sizeof(int)));
+		int serverEntityId = -1;
+		if (localEntityId >= 0 && !clientToServerEntityMap.TryGetValue(localEntityId, out serverEntityId)) serverEntityId = -1;
+		MemoryMarshal.Write(payload.Slice(offset, sizeof(int)), in serverEntityId);
+	}
+
+	private static uint HashPayload(ReadOnlySpan<byte> payload)
+	{
+		uint hash = 2166136261u;
+		for (int index = 0; index < payload.Length; index++)
+		{
+			hash ^= payload[index];
+			hash *= 16777619u;
+		}
+
+		return hash;
+	}
+
+	private static void AppendPlayerScopeState(BinaryWriter writer, EcsWorld? world, Dictionary<int, int>? clientToServerEntityMap)
+	{
+		Entity worldEntity = ECSContext.WorldEntity;
+		Entity[]? playerEntities = null;
+		if (world != null && worldEntity != Entity.Null && world.IsAlive(worldEntity) && world.Has<NetworkMappingState>(worldEntity))
+		{
+			playerEntities = world.Get<NetworkMappingState>(worldEntity).PlayerEntities;
+		}
+
+		int playerCount = playerEntities?.Length ?? 0;
+		if (playerCount > PlayerSlotCount) playerCount = PlayerSlotCount;
+		writer.Write(playerCount);
+		for (int playerIndex = 0; playerIndex < playerCount; playerIndex++)
+		{
+			writer.Write(playerIndex);
+			WriteComponentDigests(writer, world, playerEntities![playerIndex], ReplicatedScope.Player, clientToServerEntityMap);
+		}
+
+		WriteComponentDigests(writer, world, worldEntity, ReplicatedScope.World, clientToServerEntityMap);
 	}
 
 	public static void RecordClientPresentation()
@@ -335,7 +433,11 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(unit.CurrentHp);
 				writer.Write(unit.MaxHp);
 				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, false, true));
+				writer.Write(0);
 			}
+
+			writer.Write(0);
+			writer.Write(0);
 		});
 
 		_presentationWriter.Write(record);
@@ -389,6 +491,18 @@ public static class MultiplayerSyncDiagnostics
 		File.WriteAllBytes(Path.Combine(_outputDirectory, fileName), snapshotFile);
 	}
 
+	private readonly struct ComponentDigest
+	{
+		public readonly int ComponentTypeId;
+		public readonly uint Hash;
+
+		public ComponentDigest(int componentTypeId, uint hash)
+		{
+			ComponentTypeId = componentTypeId;
+			Hash = hash;
+		}
+	}
+
 	private readonly struct PresentedUnitState
 	{
 		public readonly int ServerEntityId;
@@ -420,6 +534,7 @@ public static class MultiplayerSyncDiagnostics
 	private readonly struct ClientUnitState
 	{
 		public readonly int ServerEntityId;
+		public readonly int LocalEntityId;
 		public readonly int OwnerPlayerIndex;
 		public readonly float PositionX;
 		public readonly float PositionY;
@@ -430,9 +545,10 @@ public static class MultiplayerSyncDiagnostics
 		public readonly bool IsDead;
 		public readonly bool IsBuilding;
 
-		public ClientUnitState(int serverEntityId, int ownerPlayerIndex, InterpolationTarget target, float currentHp, float maxHp, bool isDead, bool isBuilding)
+		public ClientUnitState(int serverEntityId, int localEntityId, int ownerPlayerIndex, InterpolationTarget target, float currentHp, float maxHp, bool isDead, bool isBuilding)
 		{
 			ServerEntityId = serverEntityId;
+			LocalEntityId = localEntityId;
 			OwnerPlayerIndex = ownerPlayerIndex;
 			PositionX = target.Position.X;
 			PositionY = target.Position.Y;
