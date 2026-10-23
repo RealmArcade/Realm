@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using Godot;
 
 namespace Realm.Client.Network;
@@ -49,6 +50,8 @@ public class PlayerInfo
 	public bool IsReady { get; set; }
 	public string BinaryVersion { get; set; } = "";
 	public bool IsMapReady { get; set; } = true;
+
+	[JsonIgnore]
 	public string SessionToken { get; set; } = Guid.NewGuid().ToString();
 	public bool IsDisconnected { get; set; } = false;
 }

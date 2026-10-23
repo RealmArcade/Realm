@@ -2071,7 +2071,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		int myId = Multiplayer.GetUniqueId();
 
-		var me = PlayerList.Find(p => p.Slot == slot || p.SessionToken == _persistentSessionToken);
+		var me = PlayerList.Find(p => p.Slot == slot);
 		if (me != null)
 		{
 			me.PeerId = myId;
