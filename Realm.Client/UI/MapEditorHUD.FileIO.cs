@@ -1666,12 +1666,13 @@ namespace Realm.Client.UI
 
 			try
 			{
-				if (!await PerformExportStepsAsync(progressBar, statusLabel, closeBtn, destinationPath, fullExport))
+				string? exportedPath = await PerformExportStepsAsync(progressBar, statusLabel, closeBtn, destinationPath, fullExport);
+				if (string.IsNullOrEmpty(exportedPath))
 				{
 					return; // Export failed or aborted
 				}
 
-				FinalizeSuccessfulExport(popup, destinationPath, statusLabel, progressBar);
+				FinalizeSuccessfulExport(popup, exportedPath, statusLabel, progressBar);
 			}
 			catch (Exception ex)
 			{
@@ -1699,13 +1700,13 @@ namespace Realm.Client.UI
 
 		private Action<string> _exportLogHandler { get; set; }
 
-		private async Task<bool> PerformExportStepsAsync(ProgressBar progressBar, Label statusLabel, Button closeBtn, string destinationPath, bool fullExport)
+		private async Task<string?> PerformExportStepsAsync(ProgressBar progressBar, Label statusLabel, Button closeBtn, string destinationPath, bool fullExport)
 		{
 			await SaveMapStateAsync(progressBar, statusLabel);
 
-			if (!await VerifyMapAssetsAsync(progressBar, statusLabel, closeBtn)) return false;
+			if (!await VerifyMapAssetsAsync(progressBar, statusLabel, closeBtn)) return null;
 
-			if (!await CompileMapScriptAsync(progressBar, statusLabel, closeBtn)) return false;
+			if (!await CompileMapScriptAsync(progressBar, statusLabel, closeBtn)) return null;
 
 			GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(GameContext.EditorService._tempWorkspacePath);
 
@@ -1713,9 +1714,7 @@ namespace Realm.Client.UI
 
 			await GenerateMapMetadataAsync(progressBar, statusLabel);
 
-			await CreateMapArchiveAsync(progressBar, statusLabel, destinationPath, fullExport);
-
-			return true;
+			return await CreateMapArchiveAsync(progressBar, statusLabel, destinationPath, fullExport);
 		}
 
 		private async Task SaveMapStateAsync(ProgressBar progressBar, Label statusLabel)
@@ -1839,7 +1838,7 @@ namespace Realm.Client.UI
 		}
 
 
-		private async Task CreateMapArchiveAsync(ProgressBar progressBar, Label statusLabel, string destinationPath, bool fullExport)
+		private async Task<string> CreateMapArchiveAsync(ProgressBar progressBar, Label statusLabel, string destinationPath, bool fullExport)
 		{
 			progressBar.Value = 80;
 			statusLabel.Text = TranslationServer.Translate("Compressing package into .rmap archive...");
@@ -1848,7 +1847,7 @@ namespace Realm.Client.UI
 			string tempWorkspacePath = GameContext.EditorService._tempWorkspacePath;
 			long lastProgressUpdateTicks = 0;
 
-			await GameContext.MapStorageService.CreateMapArchiveAsync(tempWorkspacePath, destinationPath, fullExport, (pct, file) =>
+			return await GameContext.MapStorageService.CreateMapArchiveAsync(tempWorkspacePath, destinationPath, fullExport, (pct, file) =>
 			{
 				long now = Environment.TickCount64;
 				if (now - lastProgressUpdateTicks < 50 && pct < 1.0f)

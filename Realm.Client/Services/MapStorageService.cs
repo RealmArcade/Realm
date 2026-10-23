@@ -1404,10 +1404,10 @@ public class MapStorageService
 		}
 	}
 
-	public async Task CreateMapArchiveAsync(string tempWorkspacePath, string destinationPath, bool fullExport, Action<float, string> progressCallback)
+	public async Task<string> CreateMapArchiveAsync(string tempWorkspacePath, string destinationPath, bool fullExport, Action<float, string> progressCallback)
 	{
 		var excludedPaths = !fullExport ? MapNormalizationHelper.GetExcludedRelativePaths(tempWorkspacePath) : null;
-		await Task.Run(() => { MapArchiveHelper.CreateRmapArchive(tempWorkspacePath, destinationPath, progressCallback, compressionLevel: 1, fullExport: fullExport, excludedRelativePaths: excludedPaths); });
+		return await Task.Run(() => MapArchiveHelper.CreateRmapArchive(tempWorkspacePath, destinationPath, progressCallback, compressionLevel: 1, fullExport: fullExport, excludedRelativePaths: excludedPaths));
 	}
 
 	public bool HasNewerSourceFiles(string workspace, DateTime wasmTime, string currentSourceFolder)

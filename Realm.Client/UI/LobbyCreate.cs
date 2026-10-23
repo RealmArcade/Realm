@@ -82,7 +82,7 @@ public partial class LobbyCreate : Control
 		_importMapButton.Name = "ImportMapButton";
 		_importMapButton.AddThemeConstantOverride("icon_max_width", 24);
 		_importMapButton.CustomMinimumSize = new Vector2(210, 44);
-		UIStyle.ApplyButtonText(_importMapButton, "📥 " + TranslationServer.Translate("IMPORT MAP (.ZIP / .7Z)"), 13);
+		UIStyle.ApplyButtonText(_importMapButton, "📥 " + TranslationServer.Translate("Import Map (.rmap)"), 13);
 		_importMapButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_importMapButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_importMapButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());

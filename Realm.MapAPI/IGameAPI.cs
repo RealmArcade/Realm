@@ -1561,18 +1561,16 @@ public interface IGameAPI
 	/// <summary>
 	/// Retrieves all active player slot identifiers in the current session.
 	/// </summary>
-	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
 	/// <returns>A read-only span of active <see cref="PlayerId"/> identifiers in ascending slot order.</returns>
-	ReadOnlySpan<PlayerId> GetActivePlayers(int exclusiveUpperBound = -1);
+	ReadOnlySpan<PlayerId> GetActivePlayers();
 
 	/// <summary>
 	/// Returns the zero-based slot indices of all active players.
 	/// </summary>
-	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
 	/// <returns>An enumerable sequence of active player slot indices.</returns>
-	IEnumerable<int> GetActivePlayerIndices(int exclusiveUpperBound = -1)
+	IEnumerable<int> GetActivePlayerIndices()
 	{
-		var players = GetActivePlayers(exclusiveUpperBound);
+		var players = GetActivePlayers();
 		var result = new List<int>(players.Length);
 		for (int i = 0; i < players.Length; i++)
 		{

@@ -2631,18 +2631,16 @@
             <param name="playerIndex">Zero-based player slot index.</param>
             <returns>A <see cref="T:Realm.MapAPI.PlayerId"/> bound to the specified player slot.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetActivePlayers(System.Int32)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetActivePlayers">
             <summary>
             Retrieves all active player slot identifiers in the current session.
             </summary>
-            <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="P:Realm.MapAPI.IGameAPI.PlayerCount"/>.</param>
             <returns>A read-only span of active <see cref="T:Realm.MapAPI.PlayerId"/> identifiers in ascending slot order.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetActivePlayerIndices(System.Int32)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetActivePlayerIndices">
             <summary>
             Returns the zero-based slot indices of all active players.
             </summary>
-            <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="P:Realm.MapAPI.IGameAPI.PlayerCount"/>.</param>
             <returns>An enumerable sequence of active player slot indices.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerStone(System.Int32,System.Single)">

@@ -109,6 +109,7 @@ public partial class InGameHUD : Control
 	private Button _btnPing;
 	private Button _btnCenter;
 	private Button _btnSettings;
+	private Button _btnQuitMatch;
 	public bool ShowMinimapTerrain => _viewModel.ShowMinimapTerrain;
 	public MinimapColorScheme MinimapColorScheme => _viewModel.MinimapColorScheme;
 
@@ -334,7 +335,7 @@ public partial class InGameHUD : Control
 			_btnSettings.Icon = UIStyle.LoadCrispIcon("res://Assets/UI/gear_icon.webp", 128);
 			_btnSettings.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 			_btnSettings.AddThemeConstantOverride("icon_max_width", 22);
-			_btnSettings.TooltipText = TranslationServer.Translate("Settings (Esc)");
+			_btnSettings.TooltipText = TranslationServer.Translate("Settings (F12)");
 			_btnSettings.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
 			_btnSettings.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
 			_btnSettings.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
@@ -349,6 +350,60 @@ public partial class InGameHUD : Control
 				GameContext.UserInterface?.OpenSettingsOverlay();
 			};
 		}
+
+		SetupQuitMatchButton();
+	}
+
+	private void SetupQuitMatchButton()
+	{
+		if (_btnSettings == null) return;
+
+		_btnQuitMatch = new Button();
+		_btnQuitMatch.Name = "BtnQuitMatch";
+		_btnQuitMatch.Set("icon_max_width", 0);
+		_btnQuitMatch.Text = UnicodeIcons.SIGN_OUT;
+		_btnQuitMatch.TooltipText = TranslationServer.Translate("Quit Match");
+		_btnQuitMatch.CustomMinimumSize = new Vector2(32, 32);
+		_btnQuitMatch.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		_btnQuitMatch.FocusMode = FocusModeEnum.None;
+		Font quitIconFont = UIStyle.FontAwesome;
+		if (quitIconFont != null)
+		{
+			_btnQuitMatch.AddThemeFontOverride("font", quitIconFont);
+		}
+
+		_btnQuitMatch.AddThemeFontSizeOverride("font_size", 16);
+		_btnQuitMatch.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_btnQuitMatch.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		_btnQuitMatch.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
+		_btnQuitMatch.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
+		_btnQuitMatch.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
+		_btnQuitMatch.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
+		_btnQuitMatch.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
+		_btnQuitMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_btnQuitMatch.Pressed += OnQuitMatchPressed;
+		_btnQuitMatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+
+		var resourceRow = _btnSettings.GetParent();
+		resourceRow.AddChild(_btnQuitMatch);
+		resourceRow.MoveChild(_btnQuitMatch, _btnSettings.GetIndex() + 1);
+	}
+
+	private void OnQuitMatchPressed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.UserInterface?.ShowConfirmationDialog(
+			TranslationServer.Translate("Are you sure you want to quit the current match and return to the main menu?"),
+			QuitMatchToMainMenu,
+			confirmText: "QUIT",
+			cancelText: "CANCEL");
+	}
+
+	private void QuitMatchToMainMenu()
+	{
+		GameContext.SessionState.IsTestMode = false;
+		GameContext.Lobby?.Disconnect();
+		GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 	}
 
 	private void SetupSelectionFrame()
@@ -1931,7 +1986,8 @@ public partial class InGameHUD : Control
 				{
 					("Y", "Set Building Rally Point"),
 					("Enter", "Open Chat (Shift: All Chat)"),
-					("Esc", "Clear Selection / Menu"),
+					("Esc", "Clear Selection / Cancel Targeting"),
+					("F12", "Settings"),
 					("P / Pause", "Pause / Resume Match"),
 					("~ (Tilde)", "Developer Console"),
 				}

@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using Blake3;
 using Realm.Shared.Services;
 
 namespace Realm.Shared.Distribution;
@@ -9,7 +10,7 @@ public static class MapArchiveHelper
 	public static readonly byte[] RmapMagic = [0x52, 0x4D, 0x41, 0x50]; // "RMAP"
 	public const uint CurrentVersion = 1;
 
-	public static void CreateRmapArchive(
+	public static string CreateRmapArchive(
 		string sourceDirectory,
 		string destinationRmapPath,
 		Action<float, string>? progressCallback = null,
@@ -23,6 +24,39 @@ public static class MapArchiveHelper
 		SortFilesForArchive(filesToArchive, sourceDirectory);
 
 		WriteFilesToZipArchive(filesToArchive, sourceDirectory, destinationRmapPath, progressCallback);
+
+		return AppendContentHashToRmapFileName(destinationRmapPath);
+	}
+
+	private static string AppendContentHashToRmapFileName(string rmapPath)
+	{
+		string blake3 = ComputeFileBlake3(rmapPath);
+		if (string.IsNullOrEmpty(blake3)) return rmapPath;
+
+		string shortHash = blake3.Length >= 4 ? blake3.Substring(0, 4) : blake3;
+		string directory = Path.GetDirectoryName(rmapPath) ?? string.Empty;
+		string baseName = Path.GetFileNameWithoutExtension(rmapPath);
+		string renamedPath = Path.Combine(directory, $"{baseName}_{shortHash}.rmap");
+
+		File.Move(rmapPath, renamedPath, overwrite: true);
+		return renamedPath;
+	}
+
+	private static string ComputeFileBlake3(string filePath)
+	{
+		if (!File.Exists(filePath)) return string.Empty;
+
+		using var hasher = Hasher.New();
+		byte[] buffer = new byte[81920];
+
+		using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan);
+		int read;
+		while ((read = fileStream.Read(buffer, 0, buffer.Length)) > 0)
+		{
+			hasher.Update(new ReadOnlySpan<byte>(buffer, 0, read));
+		}
+
+		return hasher.Finalize().ToString();
 	}
 
 	private static void PrepareArchiveDestination(string sourceDirectory, string destinationRmapPath)

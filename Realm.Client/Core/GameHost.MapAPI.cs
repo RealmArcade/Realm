@@ -1660,13 +1660,13 @@ public partial class GameHost
 		}
 		return PathingFlags.None;
 	}
-	ReadOnlySpan<PlayerId> IGameAPI.GetActivePlayers(int exclusiveUpperBound)
+	ReadOnlySpan<PlayerId> IGameAPI.GetActivePlayers()
 	{
 		int count = 0;
 		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
 		{
-			int maxIndex = exclusiveUpperBound < 0 ? playersState.Players.Length : Math.Min(exclusiveUpperBound, playersState.Players.Length);
-			for (int i = 0; i < maxIndex && count < _cachedPlayersBuffer.Length; i++)
+			int maxCount = Math.Min(playersState.Players.Length, _cachedPlayersBuffer.Length);
+			for (int i = 0; i < maxCount; i++)
 			{
 				if (playersState.Players[i].Active)
 				{

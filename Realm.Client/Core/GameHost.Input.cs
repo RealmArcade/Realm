@@ -1832,6 +1832,13 @@ public partial class GameHost
 
 	private void HandleGameplayInput(InputEvent @event)
 	{
+		if (@event is InputEventKey settingsKeyEvent && settingsKeyEvent.Pressed && !settingsKeyEvent.Echo && settingsKeyEvent.Keycode == Key.F12)
+		{
+			GetViewport().SetInputAsHandled();
+			GameContext.UserInterface.OpenSettingsOverlay();
+			return;
+		}
+
 		if (GameContext.ReplayPlayback.IsPlayingReplay)
 		{
 			return;
@@ -1926,10 +1933,6 @@ public partial class GameHost
 				GetViewport().SetInputAsHandled();
 				return;
 			}
-
-			GetViewport().SetInputAsHandled();
-			GameContext.UserInterface.OpenSettingsOverlay();
-			return;
 		}
 
 		if (@event is InputEventKey keyReleaseEvent && !keyReleaseEvent.Pressed && keyReleaseEvent.Keycode == Key.Shift)
