@@ -60,6 +60,7 @@ public partial class CommandPanel
 
 	private int _pageIndex = 0;
 	private List<CommandCardItem> _activeItems = new();
+	private readonly CommandCardItem[] _displayedGridItems = new CommandCardItem[12];
 	private Entity _lastFocusedEntity = Entity.Null;
 	private string _lastFocusedUnitId = null;
 	private bool _lastIsUnderConstruction = false;
@@ -80,6 +81,8 @@ public partial class CommandPanel
 
 		_dynamicBuildButtons.Clear();
 
+		Array.Clear(_displayedGridItems);
+
 		foreach (Node child in _commandGrid.GetChildren())
 		{
 			child.QueueFree();
@@ -91,36 +94,16 @@ public partial class CommandPanel
 		return entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<CommandsFrozen>(entity);
 	}
 
-	private CommandCardItem GetActiveItemForIndex(int index, int totalItems, int pageOffset)
-	{
-		if (totalItems <= 12)
-		{
-			return index < totalItems ? _activeItems[index] : null;
-		}
-
-		if (index < 11)
-		{
-			int itemIndex = pageOffset + index;
-			return itemIndex < totalItems ? _activeItems[itemIndex] : null;
-		}
-
-		return null;
-	}
-
 	private void UpdateExistingButtons()
 	{
 		var children = _commandGrid.GetChildren();
 		int childCount = children.Count;
-		int totalItems = _activeItems.Count;
-		int pageOffset = _pageIndex * 11;
 
-		for (int i = 0; i < 12; i++)
+		for (int i = 0; i < _displayedGridItems.Length && i < childCount; i++)
 		{
-			if (i >= childCount) break;
-
 			if (children[i] is not Button btn) continue;
 
-			var item = GetActiveItemForIndex(i, totalItems, pageOffset);
+			var item = _displayedGridItems[i];
 			if (item == null) continue;
 
 			UpdateButtonContent(btn, item);
@@ -482,6 +465,7 @@ public partial class CommandPanel
 		for (int i = 0; i < maxItems; i++)
 		{
 			var item = gridSlots[i];
+			_displayedGridItems[i] = item;
 			if (item != null)
 			{
 				if (item.Hotkey == Key.None)
