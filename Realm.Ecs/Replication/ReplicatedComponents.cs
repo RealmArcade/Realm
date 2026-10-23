@@ -379,6 +379,68 @@ public class FollowCodec : INormalizingComponentCodec
 	}
 }
 
+public class AttackTargetCodec : INormalizingComponentCodec
+{
+	public int ComponentTypeId => ComponentType<AttackTarget>.Id;
+	public string ComponentName => nameof(AttackTarget);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => sizeof(int);
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<AttackTarget>(entity)) return false;
+		ref var target = ref world.Get<AttackTarget>(entity);
+		int targetEntityId = target.Target.Id;
+		MemoryMarshal.Write(destination.Slice(0, sizeof(int)), in targetEntityId);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		int targetEntityId = MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+		var target = new AttackTarget(ReplicatedEntityReferences.Resolve(new Entity(targetEntityId)));
+		world.SetOrAdd(entity, in target);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<AttackTarget>(entity)) return;
+		world.Remove<AttackTarget>(entity);
+	}
+}
+
+public class LastAttackerCodec : INormalizingComponentCodec
+{
+	public int ComponentTypeId => ComponentType<LastAttacker>.Id;
+	public string ComponentName => nameof(LastAttacker);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => sizeof(int);
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<LastAttacker>(entity)) return false;
+		ref var attacker = ref world.Get<LastAttacker>(entity);
+		int attackerEntityId = attacker.Value.Id;
+		MemoryMarshal.Write(destination.Slice(0, sizeof(int)), in attackerEntityId);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		int attackerEntityId = MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+		var attacker = new LastAttacker(ReplicatedEntityReferences.Resolve(new Entity(attackerEntityId)));
+		world.SetOrAdd(entity, in attacker);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<LastAttacker>(entity)) return;
+		world.Remove<LastAttacker>(entity);
+	}
+}
+
 public class PatrolCodec : IReplicatedComponentCodec
 {
 	public int ComponentTypeId => ComponentType<Patrol>.Id;
@@ -436,6 +498,11 @@ public static class ReplicatedComponents
 		Register(new TagComponentCodec<HoldPosition>(ReplicatedScope.Unit));
 		Register(new PatrolCodec());
 		Register(new ReplicatedComponentCodec<WaypointQueue>(ReplicatedScope.Unit));
+		Register(new AttackTargetCodec());
+		Register(new LastAttackerCodec());
+		Register(new ReplicatedComponentCodec<CombatTargeting>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<AutoCombatState>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<CombatAlertState>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Inventory>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<RallyPoint>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ResourceNode>(ReplicatedScope.Unit));

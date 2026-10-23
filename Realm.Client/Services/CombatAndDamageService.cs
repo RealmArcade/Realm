@@ -420,6 +420,7 @@ namespace Realm.Client.Services
 			GameContext.World.Query(in _targetAcquisitionQuery, (Entity entity, ref Position pos, ref Attack atk, ref Owner owner) =>
 			{
 				if (atk.Damage <= 0f || GameContext.World.Has<Invulnerable>(entity) || GameContext.World.Has<CommandsFrozen>(entity)) return;
+				if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
 
 				bool isAutoCombat = GameContext.World.Has<AutoCombatState>(entity) && GameContext.World.Get<AutoCombatState>(entity).Enabled;
 				bool isAttackMove = GameContext.World.Has<AttackMove>(entity);
@@ -799,6 +800,8 @@ namespace Realm.Client.Services
 
 		private void CombatQueryAction(Entity entity, ref Position pos, ref Attack atk, ref AttackTarget target, ref Owner owner)
 		{
+			if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
+
 			if (!GameContext.World.IsAlive(target.Target) || GameContext.World.Has<Dead>(target.Target) || GameContext.World.Has<Invulnerable>(target.Target))
 			{
 				_tickActionsToRemoveTarget.Add(entity);

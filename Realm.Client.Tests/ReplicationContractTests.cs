@@ -15,7 +15,7 @@ public partial class ReplicationContractTests
 	private static readonly string[] HostOnlyComponents =
 	{
 		"Position", "PreviousPosition", "Health", "Owner",
-		"ManaRegen", "CollisionRadius", "CollisionScale", "DefinitionId", "CustomMetadata", "CombatAlertState",
+		"ManaRegen", "CollisionRadius", "CollisionScale", "DefinitionId",		"CustomMetadata",
 		"CountdownState", "DecalIdentity", "DecalSpawnRequest", "EditorState",
 		"GroundLoot", "InputState",
 		"NetworkMappingState", "NetworkState", "OccupiedZones",
@@ -23,7 +23,7 @@ public partial class ReplicationContractTests
 		"ReplayState", "ScriptPlayer", "SpectatorPerspective",
 		"TowerUpgradeLevel", "UnitOwnerPlayer", "UnitSpawnRequest",
 		"VFXQueue", "VFXRequest", "ZoneBounds",
-		"AutoCombatState", "CombatTargeting", "Weapon", "Weapons",
+		"Weapon", "Weapons",
 		"TargetIntel", "Ability", "HasAbilities",
 		"AutoCastState", "CastTarget",
 		"Velocity",
@@ -40,8 +40,8 @@ public partial class ReplicationContractTests
 		"Name", "ReplayAnimationState", "Rotation3D", "RotationY",
 		"PreviousRotationY", "ShroudState", "TerrainCell", "TerrainColorsState",
 		"TerrainSwatchConfig",
-		"PlayerRelationshipMatrix", "AttackTarget", "HealingTarget",
-		"LastAttacker", "ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset"
+		"PlayerRelationshipMatrix", "HealingTarget",
+		"ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset"
 	};
 
 	private static readonly string[] RpcReplicatedComponents =
