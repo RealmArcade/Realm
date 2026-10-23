@@ -10,7 +10,10 @@ public partial class MapEditorPaintCursor : Node3D
 	private static readonly Color GroundOnlyColor = new(1.0f, 0.15f, 0.85f, 0.4f);
 	private static readonly Color GroundAndCliffColor = new(0.1f, 0.9f, 1.0f, 0.4f);
 	private static readonly Color CliffOnlyColor = new(1.0f, 0.72f, 0.1f, 0.45f);
-	private const float SurfaceOffset = 0.08f;
+	private const float GroundSurfaceOffset = 0.02f;
+	private const float CliffSurfaceOffset = 0.1f;
+	private const float SquareBrushAlpha = 0.2f;
+	private const int OverlayRenderPriority = 10;
 
 	private MeshInstance3D? _surfaceMesh;
 	private StandardMaterial3D? _surfaceMaterial;
@@ -41,8 +44,9 @@ public partial class MapEditorPaintCursor : Node3D
 		bool isVertical = paintMode == EditorPaintSurfaceMode.CliffOnly;
 		Basis orientation = isVertical ? CreateVerticalBasis(position) : Basis.Identity;
 		Vector3 offsetDirection = isVertical ? orientation.Y : Vector3.Up;
+		float surfaceOffset = isVertical ? CliffSurfaceOffset : GroundSurfaceOffset;
 
-		Transform = new Transform3D(orientation.Scaled(Vector3.One * radius), position + offsetDirection * SurfaceOffset);
+		Transform = new Transform3D(orientation.Scaled(Vector3.One * radius), position + offsetDirection * surfaceOffset);
 		Visible = true;
 	}
 
@@ -104,7 +108,9 @@ public partial class MapEditorPaintCursor : Node3D
 			AlbedoColor = color,
 			Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
 			ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-			CullMode = BaseMaterial3D.CullModeEnum.Disabled
+			CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+			NoDepthTest = true,
+			RenderPriority = OverlayRenderPriority
 		};
 		material.EmissionEnabled = true;
 		material.Emission = new Color(color.R, color.G, color.B) * 0.5f;
@@ -115,6 +121,8 @@ public partial class MapEditorPaintCursor : Node3D
 	private void ApplyColor(Color color)
 	{
 		if (_surfaceMaterial == null) return;
+
+		if (_brushIsSquare) color.A = SquareBrushAlpha;
 
 		_surfaceMaterial.AlbedoColor = color;
 		_surfaceMaterial.Emission = new Color(color.R, color.G, color.B) * 0.5f;
