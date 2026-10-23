@@ -1166,12 +1166,13 @@ public partial class GameHost
 	{
 		get
 		{
-			if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+			if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity))
 			{
+				ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
 				int count = 0;
-				foreach (var p in playersState.Players)
+				for (int playerIndex = 0; playerIndex < ScriptPlayersState.SlotCount; playerIndex++)
 				{
-					if (p.Active) count++;
+					if (playersState.Get(playerIndex).Active) count++;
 				}
 
 				return Math.Max(1, count);
@@ -1367,12 +1368,10 @@ public partial class GameHost
 	public bool IsPlayerComputer(int playerIndex)
 	{
 		if (playerIndex == 0) return true;
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity))
 		{
-			if (playerIndex >= 0 && playerIndex < playersState.Players.Length)
-			{
-				return playersState.Players[playerIndex].IsComputer;
-			}
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).IsComputer;
 		}
 		if (LobbyManager.Instance != null)
 		{
@@ -1764,12 +1763,13 @@ public partial class GameHost
 	ReadOnlySpan<PlayerId> IGameAPI.GetActivePlayers(int exclusiveUpperBound)
 	{
 		int count = 0;
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity))
 		{
-			int maxIndex = exclusiveUpperBound < 0 ? playersState.Players.Length : Math.Min(exclusiveUpperBound, playersState.Players.Length);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			int maxIndex = exclusiveUpperBound < 0 ? ScriptPlayersState.SlotCount : Math.Min(exclusiveUpperBound, ScriptPlayersState.SlotCount);
 			for (int i = 0; i < maxIndex && count < _cachedPlayersBuffer.Length; i++)
 			{
-				if (playersState.Players[i].Active)
+				if (playersState.Get(i).Active)
 				{
 					_cachedPlayersBuffer[count++] = (PlayerId)i;
 				}

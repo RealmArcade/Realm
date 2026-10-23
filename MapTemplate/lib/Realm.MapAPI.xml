@@ -3177,6 +3177,11 @@
             The kind tag of the entries whose payload is an ordered list of blittable weapon records.
             </summary>
         </member>
+        <member name="F:Realm.MapAPI.InternedValueStore.ZoneListKind">
+            <summary>
+            The kind tag of the entries whose payload is an ordered list of blittable zone boundaries.
+            </summary>
+        </member>
         <member name="F:Realm.MapAPI.InternedValueStore.FallbackIdBase">
             <summary>
             First identifier of the reserved fallback range used when a primary content hash is already taken.

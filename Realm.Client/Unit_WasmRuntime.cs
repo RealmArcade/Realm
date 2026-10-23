@@ -253,8 +253,8 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 			if (_world.Has<Stats>(_entity))
 			{
-				var stats = _world.Get<Stats>(_entity);
-				stats.Value[new StatId("Attack")] = value;
+				ref var stats = ref _world.Get<Stats>(_entity);
+				stats.Set(new StatId("Attack"), value);
 			}
 		}
 	}
@@ -311,8 +311,8 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 			if (_world.Has<Stats>(_entity))
 			{
-				var stats = _world.Get<Stats>(_entity);
-				stats.Value[new StatId("Armor")] = value;
+				ref var stats = ref _world.Get<Stats>(_entity);
+				stats.Set(new StatId("Armor"), value);
 			}
 		}
 	}
@@ -347,8 +347,8 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 			if (_world.Has<Stats>(_entity))
 			{
-				var stats = _world.Get<Stats>(_entity);
-				stats.Value[new StatId("MovementSpeed")] = value;
+				ref var stats = ref _world.Get<Stats>(_entity);
+				stats.Set(new StatId("MovementSpeed"), value);
 			}
 		}
 	}

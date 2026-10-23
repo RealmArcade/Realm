@@ -36,6 +36,11 @@ public static class InternedValueStore
 	public const byte WeaponListKind = 2;
 
 	/// <summary>
+	/// The kind tag of the entries whose payload is an ordered list of blittable zone boundaries.
+	/// </summary>
+	public const byte ZoneListKind = 3;
+
+	/// <summary>
 	/// First identifier of the reserved fallback range used when a primary content hash is already taken.
 	/// </summary>
 	public const int FallbackIdBase = 0x40000000;
@@ -413,6 +418,7 @@ public static class InternedValueStore
 			TextKind => "string",
 			TextListKind => "text-list",
 			WeaponListKind => "weapon-list",
+			ZoneListKind => "zone-list",
 			_ => kind.ToString(CultureInfo.InvariantCulture)
 		};
 	}

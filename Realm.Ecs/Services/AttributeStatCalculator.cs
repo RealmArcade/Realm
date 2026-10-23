@@ -435,22 +435,22 @@ public static class AttributeStatCalculator
 			return;
 		}
 
-		var statsDict = world.Get<Stats>(entity).Value;
-		statsDict[new StatId(CombatStatType.Armor)] = derived.TotalArmor;
-		statsDict[new StatId(CombatStatType.Attack)] = derived.TotalAttackDamage;
-		statsDict[new StatId(CombatStatType.MovementSpeed)] = derived.MovementSpeed;
-		statsDict[new StatId(CombatStatType.MaxHp)] = derived.MaxHp;
-		statsDict[new StatId(CombatStatType.HpRegen)] = derived.HpRegen;
-		statsDict[new StatId(CombatStatType.MaxMana)] = derived.MaxMana;
-		statsDict[new StatId(CombatStatType.ManaRegen)] = derived.ManaRegen;
-		statsDict[new StatId(CombatStatType.SpellPower)] = derived.SpellPower;
-		statsDict[new StatId(CombatStatType.Tenacity)] = derived.Tenacity;
-		statsDict[new StatId(CombatStatType.SpellWard)] = derived.SpellWard;
-		statsDict[new StatId(CombatStatType.CooldownReduction)] = derived.CooldownReduction;
-		statsDict[new StatId(CombatStatType.LifeSteal)] = derived.LifeSteal;
-		statsDict[new StatId(CombatStatType.MagicPenetration)] = derived.MagicPenetration;
-		statsDict[new StatId(CombatStatType.Evasion)] = derived.Evasion;
-		statsDict[new StatId(CombatStatType.ProcRateMultiplier)] = derived.ProcRateMultiplier;
-		statsDict[new StatId(CombatStatType.BountyMultiplier)] = derived.BountyMultiplier;
+		ref var stats = ref world.Get<Stats>(entity);
+		stats.Set(new StatId(CombatStatType.Armor), derived.TotalArmor);
+		stats.Set(new StatId(CombatStatType.Attack), derived.TotalAttackDamage);
+		stats.Set(new StatId(CombatStatType.MovementSpeed), derived.MovementSpeed);
+		stats.Set(new StatId(CombatStatType.MaxHp), derived.MaxHp);
+		stats.Set(new StatId(CombatStatType.HpRegen), derived.HpRegen);
+		stats.Set(new StatId(CombatStatType.MaxMana), derived.MaxMana);
+		stats.Set(new StatId(CombatStatType.ManaRegen), derived.ManaRegen);
+		stats.Set(new StatId(CombatStatType.SpellPower), derived.SpellPower);
+		stats.Set(new StatId(CombatStatType.Tenacity), derived.Tenacity);
+		stats.Set(new StatId(CombatStatType.SpellWard), derived.SpellWard);
+		stats.Set(new StatId(CombatStatType.CooldownReduction), derived.CooldownReduction);
+		stats.Set(new StatId(CombatStatType.LifeSteal), derived.LifeSteal);
+		stats.Set(new StatId(CombatStatType.MagicPenetration), derived.MagicPenetration);
+		stats.Set(new StatId(CombatStatType.Evasion), derived.Evasion);
+		stats.Set(new StatId(CombatStatType.ProcRateMultiplier), derived.ProcRateMultiplier);
+		stats.Set(new StatId(CombatStatType.BountyMultiplier), derived.BountyMultiplier);
 	}
 }

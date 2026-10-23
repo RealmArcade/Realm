@@ -89,7 +89,7 @@ public class WorldInitService
 		}
 
 		AddOrSet(worldEntity, new InputState(0, null, null, null, false));
-		AddOrSet(worldEntity, new VFXQueue(new List<VFXRequest>()));
+		AddOrSet(worldEntity, new VFXQueue(null));
 		AddOrSet(worldEntity, new CameraState
 		{
 			MoveSpeed = 35.0f,
@@ -127,7 +127,7 @@ public class WorldInitService
 		AddOrSet(worldEntity, new SpectatorPerspective(-1));
 		AddOrSet(worldEntity, new CountdownState(false, 0f, ""));
 		AddOrSet(worldEntity, new LeaderboardState(new LeaderboardBoards()));
-		AddOrSet(worldEntity, new ScriptZonesState(new List<ZoneBounds>()));
+		AddOrSet(worldEntity, new ScriptZonesState(null));
 
 		AddOrSet(worldEntity, new ScriptPlayersState(defaultPlayers));
 		AddOrSet(worldEntity, new CombatAlertState(0f));

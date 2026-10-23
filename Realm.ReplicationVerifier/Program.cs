@@ -399,6 +399,79 @@ Check(zoneOccupancy.Remove(3) && !zoneOccupancy.Contains(3) && !zoneOccupancy.Re
 zoneOccupancy.Clear();
 Check(!zoneOccupancy.Contains(OccupiedZoneMask.Capacity - 1), "clearing the zone mask drops every membership");
 
+var entityStats = new Stats(null);
+entityStats.Set(new StatId("Armor"), 4f);
+entityStats.Set(new StatId("Attack"), 9f);
+Check(entityStats.Count == 2 && Math.Abs(entityStats.Get(new StatId("Armor")) - 4f) < 0.0001f, "stats keep the value written for each stat");
+entityStats.Set(new StatId("Armor"), 11f);
+Check(entityStats.Count == 2 && Math.Abs(entityStats.Get(new StatId("Armor")) - 11f) < 0.0001f, "writing a stat twice replaces its value instead of adding a slot");
+Check(!entityStats.TryGetValue(new StatId("Evasion"), out float missingStatValue) && missingStatValue == 0f, "a stat that was never written reports a miss");
+
+var saturatedStats = new Stats(null);
+for (int index = 0; index < StatSlotArray.Capacity; index++)
+{
+	saturatedStats.Set(new StatId($"stat_{index}"), index);
+}
+Check(saturatedStats.Count == StatSlotArray.Capacity, "a stats component fills every slot it holds");
+saturatedStats.Set(new StatId("stat_overflow"), 1f);
+Check(saturatedStats.Count == StatSlotArray.Capacity && !saturatedStats.TryGetValue(new StatId("stat_overflow"), out _), "a full stats component refuses a new stat");
+Check(Math.Abs(saturatedStats.Get(new StatId("stat_0")) - 0f) < 0.0001f, "refusing a new stat keeps the existing values");
+saturatedStats.Clear();
+Check(saturatedStats.Count == 0 && !saturatedStats.TryGetValue(new StatId("stat_0"), out _), "clearing stats frees every slot");
+
+var scriptPlayers = new ScriptPlayersState(null);
+Check(ScriptPlayersState.SlotCount == 25 && !scriptPlayers.IsValidSlot(25) && !scriptPlayers.IsValidSlot(-1), "the player table addresses exactly the slot range the map API exposes");
+scriptPlayers.SetName(3, "Horaid_Topa");
+scriptPlayers.SetActive(3, true);
+scriptPlayers.SetComputerControlled(3, false);
+scriptPlayers.SetTeam(3, 2, StringRegistry.GetOrAdd("Team 2"));
+scriptPlayers.SetGold(3, 120f);
+scriptPlayers.SetWood(3, 40f);
+scriptPlayers.SetStone(3, 7f);
+scriptPlayers.SetKills(3, 5);
+var recordedPlayer = scriptPlayers.Get(3);
+Check(recordedPlayer.Name == "Horaid_Topa" && recordedPlayer.Active && !recordedPlayer.IsComputer, "player slots keep the name and flags written to them");
+Check(recordedPlayer.Team == 2 && recordedPlayer.TeamName == "Team 2", "a player slot keeps its team and team name");
+Check(Math.Abs(recordedPlayer.Gold - 120f) < 0.0001f && Math.Abs(recordedPlayer.Wood - 40f) < 0.0001f && Math.Abs(recordedPlayer.Stone - 7f) < 0.0001f && recordedPlayer.KillCount == 5, "a player slot keeps its resources and kills");
+scriptPlayers.SetName(31, "nobody");
+Check(scriptPlayers.Get(31).Name.Length == 0, "writing outside the player table changes nothing");
+
+var seededPlayers = new ScriptPlayersState(new[] { recordedPlayer });
+Check(seededPlayers.Get(0).Name == "Horaid_Topa" && seededPlayers.Get(1).Name.Length == 0, "seeding the player table copies only the slots it is given");
+
+var scriptZones = new ScriptZonesState(null);
+Check(scriptZones.Count == 0 && scriptZones.GetZones().Length == 0 && scriptZones.GetZone(0).MaxX == 0f, "a map without zones reports no zones");
+scriptZones.Add(new ZoneBounds { MinX = 0f, MinZ = 0f, MaxX = 10f, MaxZ = 10f });
+scriptZones.Add(new ZoneBounds { MinX = 20f, MinZ = 20f, MaxX = 30f, MaxZ = 30f });
+Check(scriptZones.Count == 2 && scriptZones.GetZones().Length == 2, "adding a zone grows the interned zone list");
+Check(Math.Abs(scriptZones.GetZone(0).MaxX - 10f) < 0.0001f && Math.Abs(scriptZones.GetZone(1).MinX - 20f) < 0.0001f, "zones keep the order they were defined in");
+Check(scriptZones.GetZone(-1).MaxX == 0f && scriptZones.GetZone(7).MaxX == 0f, "a zone index outside the list reads as an empty zone");
+Check(InternedValueStore.TryGetKind(scriptZones.Handle, out byte zoneKind) && zoneKind == InternedValueStore.ZoneListKind, "the zone list payload carries the zone list kind");
+var identicalZones = new ScriptZonesState(null);
+identicalZones.Add(new ZoneBounds { MinX = 0f, MinZ = 0f, MaxX = 10f, MaxZ = 10f });
+identicalZones.Add(new ZoneBounds { MinX = 20f, MinZ = 20f, MaxX = 30f, MaxZ = 30f });
+Check(identicalZones.Handle == scriptZones.Handle, "maps that define the same zones share one interned payload");
+scriptZones.Clear();
+Check(scriptZones.Count == 0 && scriptZones.Handle == 0 && scriptZones.GetZones().Length == 0, "clearing the zone list drops the payload");
+
+var effectQueue = new VFXQueue(null);
+Check(effectQueue.Count == 0 && effectQueue.Get(0).Scale == 0f, "an empty effect queue hands out nothing");
+effectQueue.Enqueue(new VFXRequest("heal", default, default, 1f, 0f));
+effectQueue.Enqueue(new VFXRequest("arrow", default, default, 2f, 0f));
+Check(effectQueue.Count == 2 && effectQueue.Get(0).EffectTypeId == "heal" && effectQueue.Get(1).Scale == 2f, "queued effects keep the order they were raised in");
+
+var saturatedEffects = new VFXQueue(null);
+for (int index = 0; index < VFXSlotArray.Capacity; index++)
+{
+	saturatedEffects.Enqueue(new VFXRequest($"effect_{index}", default, default, index, 0f));
+}
+Check(saturatedEffects.Count == VFXSlotArray.Capacity, "an effect queue fills every slot it holds");
+saturatedEffects.Enqueue(new VFXRequest("effect_overflow", default, default, 1f, 0f));
+Check(saturatedEffects.Count == VFXSlotArray.Capacity && saturatedEffects.Get(VFXSlotArray.Capacity - 1).EffectTypeId == "effect_overflow", "a full effect queue keeps the newest request");
+Check(saturatedEffects.Get(0).EffectTypeId == "effect_1", "a full effect queue drops the oldest request");
+saturatedEffects.Clear();
+Check(saturatedEffects.Count == 0, "clearing the effect queue frees every slot");
+
 ColdPayloadRegistry<List<string>>.Reset();
 const string sharedContentKey = "production_queue|worker,farm";
 int sharedHandle = ColdPayloadRegistry<List<string>>.Share(new List<string> { "worker", "farm" }, sharedContentKey);

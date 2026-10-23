@@ -403,10 +403,11 @@ public class ResourceEconomyService
 
 	public float GetPlayerWood(int playerIndex)
 	{
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
-		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		var worldEntity = ECSContext.WorldEntity;
+		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
 		{
-			return playersState.Players[playerIndex].Wood;
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
+			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Wood;
 		}
 
 		return 0f;
@@ -414,14 +415,20 @@ public class ResourceEconomyService
 
 	private void UpdatePlayerResourceECS(int playerIndex, float amount, bool isWood)
 	{
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
-		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		var worldEntity = ECSContext.WorldEntity;
+		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
 		{
-			if (isWood)
-				playersState.Players[playerIndex].Wood = amount;
-			else
-				playersState.Players[playerIndex].Stone = amount;
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
+			if (playersState.IsValidSlot(playerIndex))
+			{
+				if (isWood)
+					playersState.SetWood(playerIndex, amount);
+				else
+					playersState.SetStone(playerIndex, amount);
+
+				var player = playersState.Get(playerIndex);
+				GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in player);
+			}
 		}
 
 		if (GameHost.Instance != null)
@@ -443,10 +450,11 @@ public class ResourceEconomyService
 
 	public void AdjustPlayerWood(int playerIndex, float delta)
 	{
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
-		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		var worldEntity = ECSContext.WorldEntity;
+		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
 		{
-			SetPlayerWood(playerIndex, playersState.Players[playerIndex].Wood + delta);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
+			if (playersState.IsValidSlot(playerIndex)) SetPlayerWood(playerIndex, playersState.Get(playerIndex).Wood + delta);
 		}
 	}
 

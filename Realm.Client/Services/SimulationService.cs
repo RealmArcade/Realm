@@ -319,27 +319,25 @@ public class SimulationService
 		return Vector3.Zero;
 	}
 
-	private bool TryGetScriptPlayersState(out ScriptPlayersState playersState)
+	private bool HasScriptPlayersState()
 	{
 		var worldEntity = ECSContext.WorldEntity;
-		if (GameContext.World != null && worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity))
-		{
-			return GameContext.World.TryGet<ScriptPlayersState>(worldEntity, out playersState);
-		}
-
-		playersState = default;
-		return false;
+		return GameContext.World != null && worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity);
 	}
 
 	public void SetPlayerTeam(int playerIndex, int teamIndex)
 	{
 		int stringId = StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
 
-		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (HasScriptPlayersState())
 		{
-			playersState.Players[playerIndex].Team = teamIndex;
-			playersState.Players[playerIndex].TeamNameStringId = stringId;
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex))
+			{
+				playersState.SetTeam(playerIndex, teamIndex, stringId);
+				var player = playersState.Get(playerIndex);
+				GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in player);
+			}
 		}
 
 		var worldEntity = ECSContext.WorldEntity;
@@ -389,9 +387,10 @@ public class SimulationService
 			}
 		}
 
-		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (HasScriptPlayersState())
 		{
-			return playersState.Players[playerIndex].Team;
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Team;
 		}
 
 		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList != null)
@@ -583,10 +582,15 @@ public class SimulationService
 
 	public void SetPlayerActiveDomain(int playerIndex, bool active)
 	{
-		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (HasScriptPlayersState())
 		{
-			playersState.Players[playerIndex].Active = active;
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex))
+			{
+				playersState.SetActive(playerIndex, active);
+				var player = playersState.Get(playerIndex);
+				GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in player);
+			}
 		}
 	}
 
@@ -1208,9 +1212,9 @@ public class SimulationService
 			ApplyEntityBuffModifiers(entity, ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
 		}
 
-		ApplyCalculatedArmor(entity, stats.Value, flatArmor, percentArmor);
-		ApplyCalculatedAttack(entity, stats.Value, flatAttack, percentAttack);
-		ApplyCalculatedSpeed(entity, stats.Value, flatSpeed, percentSpeed);
+		ApplyCalculatedArmor(entity, ref stats, flatArmor, percentArmor);
+		ApplyCalculatedAttack(entity, ref stats, flatAttack, percentAttack);
+		ApplyCalculatedSpeed(entity, ref stats, flatSpeed, percentSpeed);
 	}
 
 	private bool UpdateEntityModifiers(Entity entity)
@@ -1243,14 +1247,14 @@ public class SimulationService
 		}
 	}
 
-	private void ApplyCalculatedArmor(Entity entity, Dictionary<StatId, float> baseStats, float flatArmor, float percentArmor)
+	private void ApplyCalculatedArmor(Entity entity, ref Stats baseStats, float flatArmor, float percentArmor)
 	{
 		if (!baseStats.TryGetValue(ArmorStatId, out var baseArmor)) return;
 		float finalArmor = (baseArmor + flatArmor) * percentArmor;
 		if (GameContext.World.Has<Armor>(entity)) GameContext.World.Set(entity, new Armor(finalArmor));
 	}
 
-	private void ApplyCalculatedAttack(Entity entity, Dictionary<StatId, float> baseStats, float flatAttack, float percentAttack)
+	private void ApplyCalculatedAttack(Entity entity, ref Stats baseStats, float flatAttack, float percentAttack)
 	{
 		if (!baseStats.TryGetValue(AttackStatId, out var baseAttack)) return;
 		float finalAttack = (baseAttack + flatAttack) * percentAttack;
@@ -1261,7 +1265,7 @@ public class SimulationService
 		}
 	}
 
-	private void ApplyCalculatedSpeed(Entity entity, Dictionary<StatId, float> baseStats, float flatSpeed, float percentSpeed)
+	private void ApplyCalculatedSpeed(Entity entity, ref Stats baseStats, float flatSpeed, float percentSpeed)
 	{
 		if (!baseStats.TryGetValue(MovementSpeedStatId, out var baseSpeed)) return;
 		float finalSpeed = (baseSpeed + flatSpeed) * percentSpeed;
@@ -1506,7 +1510,7 @@ public class SimulationService
 		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<VFXQueue>(worldEntity))
 		{
 			ref var queue = ref GameContext.World.Get<VFXQueue>(worldEntity);
-			queue.Requests.Add(new VFXRequest(effectTypeId, position, targetPosition, scale, speed, entityId, ownerPlayerIndex));
+			queue.Enqueue(new VFXRequest(effectTypeId, position, targetPosition, scale, speed, entityId, ownerPlayerIndex));
 		}
 	}
 
@@ -2023,12 +2027,14 @@ public class SimulationService
 
 	public void SetPlayerComputerControlled(int playerIndex, bool isProxy)
 	{
-		if (TryGetScriptPlayersState(out var playersState))
+		if (HasScriptPlayersState())
 		{
-			if (playerIndex >= 0 && playerIndex < playersState.Players.Length)
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex))
 			{
-				playersState.Players[playerIndex].IsComputer = isProxy;
-				GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+				playersState.SetComputerControlled(playerIndex, isProxy);
+				var player = playersState.Get(playerIndex);
+				GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in player);
 			}
 		}
 	}
@@ -2268,37 +2274,45 @@ public class SimulationService
 	public string GetPlayerNameDomain(int playerIndex)
 	{
 		if (playerIndex == 0) return "Neutral";
-		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (HasScriptPlayersState())
 		{
-			return playersState.Players[playerIndex].Name;
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Name;
 		}
 		return $"Player {playerIndex}";
 	}
 
 	public bool IsPlayerActiveDomain(int playerIndex)
 	{
-		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (HasScriptPlayersState())
 		{
-			return playersState.Players[playerIndex].Active;
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Active;
 		}
 		return false;
 	}
 
 	public float GetPlayerGoldDomain(int playerIndex)
 	{
-		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (HasScriptPlayersState())
 		{
-			return playersState.Players[playerIndex].Gold;
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Gold;
 		}
 		return 0f;
 	}
 
 	public void SetPlayerGoldDomain(int playerIndex, float amount, Action<int, float> syncResourceAction)
 	{
-		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (HasScriptPlayersState())
 		{
-			playersState.Players[playerIndex].Gold = Math.Max(0f, amount);
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex))
+			{
+				playersState.SetGold(playerIndex, Math.Max(0f, amount));
+				var player = playersState.Get(playerIndex);
+				GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in player);
+			}
 		}
 
 		syncResourceAction(playerIndex, amount);
@@ -2306,19 +2320,25 @@ public class SimulationService
 
 	public int GetPlayerKillsDomain(int playerIndex)
 	{
-		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (HasScriptPlayersState())
 		{
-			return playersState.Players[playerIndex].KillCount;
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).KillCount;
 		}
 		return 0;
 	}
 
 	public void SetPlayerKillsDomain(int playerIndex, int kills)
 	{
-		if (TryGetScriptPlayersState(out var playersState) && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		if (HasScriptPlayersState())
 		{
-			playersState.Players[playerIndex].KillCount = kills;
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex))
+			{
+				playersState.SetKills(playerIndex, kills);
+				var player = playersState.Get(playerIndex);
+				GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in player);
+			}
 		}
 	}
 }

@@ -637,22 +637,7 @@ public class EcsWorld : IDisposable
 
 	private static void AttachCleanupHandler<T>(ComponentBuffer<T> buffer) where T : unmanaged
 	{
-		if (typeof(T) == typeof(Realm.Ecs.Components.Stats.Stats))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Stats.Stats>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<Dictionary<Realm.Ecs.Common.StatId, float>>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptPlayersState))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ScriptPlayersState>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<Realm.Ecs.Components.Core.ScriptPlayer[]>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptZonesState))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ScriptZonesState>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<List<Realm.Ecs.Components.Core.ZoneBounds>>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.SummaryTableState))
+		if (typeof(T) == typeof(Realm.Ecs.Components.Core.SummaryTableState))
 		{
 			var b = (ComponentBuffer<Realm.Ecs.Components.Core.SummaryTableState>)(object)buffer;
 			b.ClearHandler = id =>
@@ -661,11 +646,6 @@ public class EcsWorld : IDisposable
 				ColdPayloadRegistry<string[]>.Free(s.HeadersHandle);
 				ColdPayloadRegistry<Dictionary<string, string[]>>.Free(s.RowsHandle);
 			};
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.VFXQueue))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.VFXQueue>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<List<Realm.Ecs.Components.Core.VFXRequest>>.Free(b.Get(id).Handle);
 		}
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Terrain.ShroudState))
 		{

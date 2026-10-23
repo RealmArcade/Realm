@@ -1473,13 +1473,14 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (OnUnitEnterZone == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<ScriptZonesState>(ECSContext.WorldEntity)) return;
 
-		var zones = GameContext.World.Get<ScriptZonesState>(ECSContext.WorldEntity).Zones;
-		if (zones.Count == 0) return;
+		int zoneHandle = GameContext.World.Get<ScriptZonesState>(ECSContext.WorldEntity).Handle;
+		int zoneCount = ScriptZonesState.GetZones(zoneHandle).Length;
+		if (zoneCount == 0) return;
 
-		if (zones.Count > OccupiedZoneMask.Capacity && !_zoneCapacityWarningIssued)
+		if (zoneCount > OccupiedZoneMask.Capacity && !_zoneCapacityWarningIssued)
 		{
 			_zoneCapacityWarningIssued = true;
-			GD.PushWarning($"[GameHost] Map declares {zones.Count} script zones but only the first {OccupiedZoneMask.Capacity} can be tracked for zone enter events.");
+			GD.PushWarning($"[GameHost] Map declares {zoneCount} script zones but only the first {OccupiedZoneMask.Capacity} can be tracked for zone enter events.");
 		}
 
 		var positionQuery = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
@@ -1487,17 +1488,17 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (!GameContext.World.Has<OccupiedZones>(entity)) GameContext.World.Add(entity, new OccupiedZones());
 			ref var occupiedZones = ref GameContext.World.Get<OccupiedZones>(entity);
-			CheckUnitZones(entity, new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z), ref occupiedZones, zones);
+			CheckUnitZones(entity, new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z), ref occupiedZones, ScriptZonesState.GetZones(zoneHandle));
 		});
 	}
 
 	private bool _zoneCapacityWarningIssued;
 
-	private void CheckUnitZones(Entity entity, Vector3 pos, ref OccupiedZones occupiedZones, List<ZoneBounds> zones)
+	private void CheckUnitZones(Entity entity, Vector3 pos, ref OccupiedZones occupiedZones, ReadOnlySpan<ZoneBounds> zones)
 	{
-		for (int i = 0; i < zones.Count; i++)
+		for (int i = 0; i < zones.Length; i++)
 		{
-			ref ZoneBounds z = ref CollectionsMarshal.AsSpan(zones)[i];
+			ref readonly ZoneBounds z = ref zones[i];
 			bool inside = pos.X >= z.MinX && pos.X <= z.MaxX && pos.Z >= z.MinZ && pos.Z <= z.MaxZ;
 
 			if (inside && occupiedZones.Add(i) && TryGetUnit3D(entity, out _))
@@ -2339,25 +2340,27 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (!GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity)) return;
 
-		var players = GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity).Players;
-		if (pIdx >= 0 && pIdx < players.Length)
+		ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+		if (playersState.IsValidSlot(pIdx))
 		{
-			players[pIdx].Name = name;
-			players[pIdx].Active = active;
-			players[pIdx].IsComputer = isComputer;
+			playersState.SetName(pIdx, name);
+			playersState.SetActive(pIdx, active);
+			playersState.SetComputerControlled(pIdx, isComputer);
 			if (teamIndex >= 0)
 			{
-				players[pIdx].TeamIndex = teamIndex;
-				players[pIdx].TeamNameStringId = Realm.MapAPI.StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
+				int teamNameStringId = Realm.MapAPI.StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
+				playersState.SetTeam(pIdx, teamIndex, teamNameStringId);
 			}
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in players[pIdx]);
+
+			var player = playersState.Get(pIdx);
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in player);
 
 			if (teamIndex >= 0 && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
 			{
 				var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
 				if (pIdx < playerEntities.Length && playerEntities[pIdx] != Entity.Null && GameContext.World.IsAlive(playerEntities[pIdx]))
 				{
-					int stringId = players[pIdx].TeamNameStringId;
+					int stringId = playersState.Get(pIdx).TeamNameStringId;
 					if (GameContext.World.Has<PlayerTeam>(playerEntities[pIdx]))
 					{
 						ref var pt = ref GameContext.World.Get<PlayerTeam>(playerEntities[pIdx]);
@@ -3815,14 +3818,14 @@ public partial class GameHost : Node3D, IGameAPI
 		if (GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<VFXQueue>(ECSContext.WorldEntity)) return;
 
 		ref var queue = ref GameContext.World.Get<VFXQueue>(ECSContext.WorldEntity);
-		if (queue.Requests.Count == 0) return;
+		if (queue.Count == 0) return;
 
-		for (int i = 0; i < queue.Requests.Count; i++)
+		for (int i = 0; i < queue.Count; i++)
 		{
-			ProcessVFXRequest(queue.Requests[i]);
+			ProcessVFXRequest(queue.Get(i));
 		}
 
-		queue.Requests.Clear();
+		queue.Clear();
 	}
 
 	private void ProcessVFXRequest(VFXRequest req)
