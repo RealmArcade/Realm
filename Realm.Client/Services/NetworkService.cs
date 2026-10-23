@@ -18,6 +18,8 @@ using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Client.UI;
+using Realm.MapAPI;
+using Realm.Ecs.Replication;
 using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Services;
@@ -28,6 +30,14 @@ public class NetworkService
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
 	private readonly Dictionary<int, Vector3> _clientCameraPositions = new();
 	private readonly Dictionary<int, Dictionary<int, UnitSnapshot>> _lastBaselineSnapshotsPerClient = new();
+	private readonly Dictionary<int, Dictionary<(byte Scope, int Key, int TypeId), byte[]>> _lastComponentSnapshotsPerClient = new();
+	private readonly ReplicatedStateMirror _mirror = new();
+	private int _appliedComponentDeltaCount;
+	private int _appliedAbilityStateCount;
+	private int _appliedStaticTextCount;
+	private int _appliedCatalogCount;
+	private bool _fingerprintMatchLogged;
+	private readonly List<(int ServerEntityId, int ComponentTypeId, byte[] Bytes)> _fingerprintComponentRecords = new();
 	private readonly Dictionary<int, List<DelayedPacket>> _spectatorDelayedPackets = new();
 
 	private readonly Dictionary<int, UnitSnapshot> _pendingUnitSpawns = new();
@@ -535,6 +545,8 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
 
+		ApplyReplicatedState(snapshot);
+
 		if (snapshot.IsBaseline)
 		{
 			ProcessBaselineSnapshotMismatches(snapshot, mapping);
@@ -747,6 +759,141 @@ public class NetworkService
 		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : unitId;
 		modelPath = getFallbackModelPath(targetModel, isBuilding);
 		return entity;
+	}
+
+	public void ApplyReplicatedState(WorldSnapshot snapshot)
+	{
+		if (snapshot.ComponentDeltas != null)
+		{
+			for (int i = 0; i < snapshot.ComponentDeltas.Count; i++)
+			{
+				ApplyComponentDelta(snapshot.ComponentDeltas[i]);
+			}
+		}
+
+		if (snapshot.AbilityStates != null)
+		{
+			for (int i = 0; i < snapshot.AbilityStates.Count; i++)
+			{
+				ApplyAbilityStateDelta(snapshot.AbilityStates[i]);
+			}
+			GameContext.RegistryService?.ClearAbilityStateDirty();
+		}
+
+		if (snapshot.StaticTexts != null)
+		{
+			for (int i = 0; i < snapshot.StaticTexts.Count; i++)
+			{
+				ApplyStaticTextDelta(snapshot.StaticTexts[i]);
+			}
+		}
+
+		if (snapshot.Catalog != null)
+		{
+			var registry = GameContext.RegistryService;
+			if (registry != null)
+			{
+				for (int i = 0; i < snapshot.Catalog.Count; i++)
+				{
+					var entry = snapshot.Catalog[i];
+					registry.ApplyCatalogEntry(entry.Channel, entry.Key, entry.Value, entry.Number);
+					_appliedCatalogCount++;
+				}
+			}
+		}
+
+		if (snapshot.IsBaseline && snapshot.StateFingerprint != 0u)
+		{
+			VerifyReplicatedStateFingerprint(snapshot.Sequence, snapshot.StateFingerprint);
+		}
+	}
+
+	private void ApplyComponentDelta(ComponentDelta delta)
+	{
+		var codec = ReplicatedComponents.Find(delta.ComponentTypeId);
+		if (codec == null)
+		{
+			GD.PushWarning($"[Network] Received delta for unregistered component type {delta.ComponentTypeId}");
+			return;
+		}
+
+		if (delta.Bytes == null || delta.Bytes.Length != codec.SizeInBytes)
+		{
+			GD.PushWarning($"[Network] Discarded {codec.ComponentName} delta with {(delta.Bytes?.Length ?? 0)} bytes, expected {codec.SizeInBytes}");
+			return;
+		}
+
+		Entity targetEntity = Entity.Null;
+		if ((ReplicatedScope)delta.Scope == ReplicatedScope.Player)
+		{
+			Entity worldEntity = FindWorldEntity();
+			if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
+			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+			if (mapping.PlayerEntities == null || delta.Key < 0 || delta.Key >= mapping.PlayerEntities.Length) return;
+			targetEntity = mapping.PlayerEntities[delta.Key];
+		}
+		else if ((ReplicatedScope)delta.Scope == ReplicatedScope.Unit)
+		{
+			if (!TryGetLocalEntity(delta.Key, out targetEntity)) return;
+		}
+
+		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return;
+		codec.Apply(GameContext.World, targetEntity, delta.Bytes);
+		_mirror.RecordComponent(delta);
+		_appliedComponentDeltaCount++;
+	}
+
+	private void ApplyAbilityStateDelta(AbilityStateDelta delta)
+	{
+		_mirror.RecordAbility(delta);
+		_appliedAbilityStateCount++;
+		ApplyAbilityStateToUnit(delta.ServerEntityId, delta.AbilityId, delta.Flags);
+	}
+
+	private void ApplyAbilityStateToUnit(int serverEntityId, string abilityId, byte flags)
+	{
+		if (!TryGetLocalEntity(serverEntityId, out var localEntity)) return;
+		GameContext.RegistryService?.SetAbilityState(new UnitId(localEntity.Id), abilityId, (flags & 1) != 0, (flags & 2) != 0);
+	}
+
+	public void ReapplyAbilityStatesToUnits()
+	{
+		if (_mirror.Abilities.Count == 0) return;
+		foreach (var kvp in _mirror.Abilities)
+		{
+			ApplyAbilityStateToUnit(kvp.Key.ServerEntityId, kvp.Key.AbilityId, kvp.Value);
+		}
+		GameContext.RegistryService?.ClearAbilityStateDirty();
+	}
+
+	private void ApplyStaticTextDelta(StaticTextDelta delta)
+	{
+		_mirror.RecordText(delta);
+		_appliedStaticTextCount++;
+		GameHost.Instance?.ApplyStaticTextDelta(delta);
+	}
+
+	private void VerifyReplicatedStateFingerprint(int sequence, uint hostFingerprint)
+	{
+		uint localFingerprint = _mirror.ComputeFingerprint();
+		if (localFingerprint == hostFingerprint)
+		{
+			if (!_fingerprintMatchLogged)
+			{
+				_fingerprintMatchLogged = true;
+				GD.Print($"[Replication] client fingerprint match at sequence {sequence} (deltas={_appliedComponentDeltaCount}, abilities={_appliedAbilityStateCount}, texts={_appliedStaticTextCount}, catalog={_appliedCatalogCount})");
+			}
+			return;
+		}
+
+		GD.PushError($"[Network] Replicated state fingerprint mismatch at sequence {sequence}: host={hostFingerprint:x8} client={localFingerprint:x8}");
+		MultiplayerSyncDiagnostics.RecordFingerprintMismatch(sequence, hostFingerprint, localFingerprint);
+	}
+
+	public void ResetReplicatedStateMirrors()
+	{
+		_mirror.Clear();
+		_lastComponentSnapshotsPerClient.Clear();
 	}
 
 	public bool TryGetLocalEntity(int serverEntityId, out Entity localEntity)
@@ -1257,13 +1404,15 @@ public class NetworkService
 		if (LobbyManager.Instance != null)
 		{
 			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-			ProcessLobbyPlayersForSnapshots(localPeerId, allUnits, results, snapshotSequence, isBaseline, mapping);
+			var abilityStates = CollectHostAbilityStateDeltas(isBaseline);
+			var staticTexts = CollectHostStaticTextDeltas(isBaseline);
+			ProcessLobbyPlayersForSnapshots(localPeerId, allUnits, results, snapshotSequence, isBaseline, mapping, abilityStates, staticTexts);
 		}
 
 		return results;
 	}
 
-	private void ProcessLobbyPlayersForSnapshots(int localPeerId, List<Unit3D> allUnits, List<(int PeerId, byte[] Payload, bool IsBaseline)> results, int snapshotSequence, bool isBaseline, NetworkMappingState mapping)
+	private void ProcessLobbyPlayersForSnapshots(int localPeerId, List<Unit3D> allUnits, List<(int PeerId, byte[] Payload, bool IsBaseline)> results, int snapshotSequence, bool isBaseline, NetworkMappingState mapping, List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
 	{
 		foreach (var p in LobbyManager.Instance.PlayerList)
 		{
@@ -1273,12 +1422,12 @@ public class NetworkService
 			bool hasBaseline = _lastBaselineSnapshotsPerClient.TryGetValue(p.PeerId, out var lastBaselineMap);
 			if (!hasBaseline && !isBaseline) continue;
 
-			var payload = BuildClientSnapshotPayload(p.PeerId, playerEntity, allUnits, isBaseline, snapshotSequence, lastBaselineMap);
+			var payload = BuildClientSnapshotPayload(p.PeerId, playerEntity, allUnits, isBaseline, snapshotSequence, lastBaselineMap, abilityStates, staticTexts);
 			results.Add((p.PeerId, payload, isBaseline));
 		}
 	}
 
-	private byte[] BuildClientSnapshotPayload(int peerId, Entity playerEntity, List<Unit3D> allUnits, bool isBaseline, int snapshotSequence, Dictionary<int, UnitSnapshot> lastBaselineMap)
+	private byte[] BuildClientSnapshotPayload(int peerId, Entity playerEntity, List<Unit3D> allUnits, bool isBaseline, int snapshotSequence, Dictionary<int, UnitSnapshot> lastBaselineMap, List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
 	{
 		Vector3 cameraPos = _clientCameraPositions.TryGetValue(peerId, out var cam) ? cam : Vector3.Zero;
 		var snapshotUnits = new List<UnitSnapshot>();
@@ -1307,14 +1456,215 @@ public class NetworkService
 			_lastBaselineSnapshotsPerClient[peerId] = nextBaselineMap;
 		}
 
+		var componentDeltas = BuildComponentDeltas(peerId, playerEntity, allUnits, isBaseline);
+		var catalog = isBaseline ? BuildCatalogEntries() : new List<CatalogEntry>();
+		uint stateFingerprint = isBaseline ? ComputeHostStateFingerprint(abilityStates, staticTexts) : 0u;
+
 		var worldSnapshot = new WorldSnapshot
 		{
 			Sequence = snapshotSequence,
 			IsBaseline = isBaseline,
 			BaseSequence = isBaseline ? snapshotSequence : (snapshotSequence / 30) * 30,
-			Units = snapshotUnits
+			Units = snapshotUnits,
+			ComponentDeltas = componentDeltas,
+			AbilityStates = abilityStates,
+			StaticTexts = staticTexts,
+			Catalog = catalog,
+			StateFingerprint = stateFingerprint
 		};
 		return MemoryPackSerializer.Serialize(worldSnapshot);
+	}
+
+	private List<CatalogEntry> BuildCatalogEntries()
+	{
+		var entries = new List<CatalogEntry>();
+		var registry = GameContext.RegistryService;
+		if (registry == null) return entries;
+
+		foreach (var rule in registry.PlacementRadiusRules)
+		{
+			entries.Add(new CatalogEntry { Channel = "placement_radius", Key = rule.DefinitionKey, Number = rule.Radius });
+		}
+		foreach (string key in registry.ResourceDropoffBuildingKeys)
+		{
+			entries.Add(new CatalogEntry { Channel = "dropoff", Key = key });
+		}
+		foreach (string key in registry.ResourceWorkerUnitKeys)
+		{
+			entries.Add(new CatalogEntry { Channel = "worker", Key = key });
+		}
+		foreach (string key in registry.PrimaryBuildingIds)
+		{
+			entries.Add(new CatalogEntry { Channel = "primary", Key = key });
+		}
+		foreach (var pair in registry.ResourceNodeTypes)
+		{
+			entries.Add(new CatalogEntry { Channel = "resource_node_type", Key = pair.Key, Value = pair.Value });
+		}
+		return entries;
+	}
+
+	private List<ComponentDelta> BuildComponentDeltas(int peerId, Entity viewerEntity, List<Unit3D> allUnits, bool isBaseline)
+	{
+		var deltas = new List<ComponentDelta>();
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return deltas;
+
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		if (!_lastComponentSnapshotsPerClient.TryGetValue(peerId, out var previous) || isBaseline)
+		{
+			previous = new Dictionary<(byte Scope, int Key, int TypeId), byte[]>();
+			_lastComponentSnapshotsPerClient[peerId] = previous;
+		}
+
+		var codecs = ReplicatedComponents.All;
+		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+		{
+			var codec = codecs[codecIndex];
+			if (codec.Scope != ReplicatedScope.Player) continue;
+
+			for (int slot = 0; slot < Realm.Ecs.EcsWorld.MAX_PLAYERS; slot++)
+			{
+				if (mapping.PlayerEntities == null || slot >= mapping.PlayerEntities.Length) continue;
+				Entity playerEntity = mapping.PlayerEntities[slot];
+				if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) continue;
+
+				var bytes = new byte[codec.SizeInBytes];
+				if (!codec.TryWrite(GameContext.World, playerEntity, bytes)) continue;
+
+				var key = ((byte)ReplicatedScope.Player, slot, codec.ComponentTypeId);
+				if (!isBaseline && previous.TryGetValue(key, out var lastBytes) && BytesEqual(lastBytes, bytes)) continue;
+
+				previous[key] = bytes;
+				deltas.Add(new ComponentDelta
+				{
+					Key = slot,
+					ComponentTypeId = codec.ComponentTypeId,
+					Scope = (byte)ReplicatedScope.Player,
+					Bytes = bytes
+				});
+			}
+		}
+
+		for (int unitIndex = 0; unitIndex < allUnits.Count; unitIndex++)
+		{
+			var unit = allUnits[unitIndex];
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+			if (!IsUnitVisibleToPlayer(viewerEntity, unit.Entity, allUnits)) continue;
+
+			for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+			{
+				var codec = codecs[codecIndex];
+				if (codec.Scope != ReplicatedScope.Unit) continue;
+
+				var bytes = new byte[codec.SizeInBytes];
+				if (!codec.TryWrite(GameContext.World, unit.Entity, bytes)) continue;
+
+				var key = ((byte)ReplicatedScope.Unit, unit.Entity.Id, codec.ComponentTypeId);
+				if (!isBaseline && previous.TryGetValue(key, out var lastBytes) && BytesEqual(lastBytes, bytes)) continue;
+
+				previous[key] = bytes;
+				deltas.Add(new ComponentDelta
+				{
+					Key = unit.Entity.Id,
+					ComponentTypeId = codec.ComponentTypeId,
+					Scope = (byte)ReplicatedScope.Unit,
+					Bytes = bytes
+				});
+			}
+		}
+
+		return deltas;
+	}
+
+	private static bool BytesEqual(byte[] left, byte[] right)
+	{
+		if (left == null || right == null || left.Length != right.Length) return false;
+		return left.AsSpan().SequenceEqual(right);
+	}
+
+	private List<AbilityStateDelta> CollectHostAbilityStateDeltas(bool includeAll, bool clearDirty = true)
+	{
+		var host = GameHost.Instance;
+		if (host == null) return new List<AbilityStateDelta>();
+		var deltas = host.CollectAbilityStateDeltas(includeAll, clearDirty);
+		deltas.Sort(static (left, right) =>
+		{
+			int byEntity = left.ServerEntityId.CompareTo(right.ServerEntityId);
+			return byEntity != 0 ? byEntity : string.CompareOrdinal(left.AbilityId, right.AbilityId);
+		});
+		return deltas;
+	}
+
+	private List<StaticTextDelta> CollectHostStaticTextDeltas(bool includeAll, bool clearDirty = true)
+	{
+		var host = GameHost.Instance;
+		if (host == null) return new List<StaticTextDelta>();
+		var deltas = host.CollectStaticTextDeltas(includeAll, clearDirty);
+		deltas.Sort(static (left, right) => left.Handle.CompareTo(right.Handle));
+		return deltas;
+	}
+
+	private uint ComputeHostStateFingerprint(List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
+	{
+		_fingerprintComponentRecords.Clear();
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(worldEntity))
+		{
+			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+			var codecs = ReplicatedComponents.All;
+			for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+			{
+				var codec = codecs[codecIndex];
+				if (codec.Scope != ReplicatedScope.Player) continue;
+
+				for (int slot = 0; slot < Realm.Ecs.EcsWorld.MAX_PLAYERS; slot++)
+				{
+					if (mapping.PlayerEntities == null || slot >= mapping.PlayerEntities.Length) continue;
+					Entity playerEntity = mapping.PlayerEntities[slot];
+					if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) continue;
+					var bytes = new byte[codec.SizeInBytes];
+					if (!codec.TryWrite(GameContext.World, playerEntity, bytes)) continue;
+					_fingerprintComponentRecords.Add((slot, codec.ComponentTypeId, bytes));
+				}
+			}
+		}
+
+		_fingerprintComponentRecords.Sort(static (left, right) =>
+		{
+			int byKey = left.ServerEntityId.CompareTo(right.ServerEntityId);
+			return byKey != 0 ? byKey : left.ComponentTypeId.CompareTo(right.ComponentTypeId);
+		});
+
+		uint hash = ReplicatedStateFingerprint.Seed;
+		for (int i = 0; i < _fingerprintComponentRecords.Count; i++)
+		{
+			var record = _fingerprintComponentRecords[i];
+			hash = ReplicatedStateFingerprint.Combine(hash, 1);
+			hash = ReplicatedStateFingerprint.Combine(hash, record.ServerEntityId);
+			hash = ReplicatedStateFingerprint.Combine(hash, record.ComponentTypeId);
+			hash = ReplicatedStateFingerprint.Combine(hash, record.Bytes);
+		}
+		for (int i = 0; i < abilityStates.Count; i++)
+		{
+			var ability = abilityStates[i];
+			hash = ReplicatedStateFingerprint.Combine(hash, 3);
+			hash = ReplicatedStateFingerprint.Combine(hash, ability.ServerEntityId);
+			hash = ReplicatedStateFingerprint.Combine(hash, ability.AbilityId);
+			hash = ReplicatedStateFingerprint.Combine(hash, ability.Flags);
+		}
+		for (int i = 0; i < staticTexts.Count; i++)
+		{
+			var text = staticTexts[i];
+			hash = ReplicatedStateFingerprint.Combine(hash, 4);
+			hash = ReplicatedStateFingerprint.Combine(hash, text.Handle);
+			hash = ReplicatedStateFingerprint.Combine(hash, text.Text);
+			hash = ReplicatedStateFingerprint.Combine(hash, BitConverter.SingleToInt32Bits(text.PositionX));
+			hash = ReplicatedStateFingerprint.Combine(hash, BitConverter.SingleToInt32Bits(text.PositionY));
+			hash = ReplicatedStateFingerprint.Combine(hash, BitConverter.SingleToInt32Bits(text.PositionZ));
+			hash = ReplicatedStateFingerprint.Combine(hash, text.Visible);
+		}
+		return hash;
 	}
 
 	private WorldSnapshot BuildDiagnosticAuthoritativeSnapshot(List<Unit3D> allUnits, int snapshotSequence, bool isBaseline)
@@ -1331,7 +1681,11 @@ public class NetworkService
 			Sequence = snapshotSequence,
 			IsBaseline = isBaseline,
 			BaseSequence = isBaseline ? snapshotSequence : (snapshotSequence / 30) * 30,
-			Units = snapshotUnits
+			Units = snapshotUnits,
+			ComponentDeltas = new List<ComponentDelta>(),
+			AbilityStates = new List<AbilityStateDelta>(),
+			StaticTexts = new List<StaticTextDelta>(),
+			Catalog = new List<CatalogEntry>()
 		};
 	}
 
@@ -1396,12 +1750,20 @@ public class NetworkService
 
 		_lastBaselineSnapshotsPerClient[targetPeerId] = nextBaselineMap;
 
+		var abilityStates = CollectHostAbilityStateDeltas(true, clearDirty: false);
+		var staticTexts = CollectHostStaticTextDeltas(true, clearDirty: false);
+
 		var worldSnapshot = new WorldSnapshot
 		{
 			Sequence = networkState.SnapshotSequence,
 			IsBaseline = true,
 			BaseSequence = networkState.SnapshotSequence,
-			Units = snapshotUnits
+			Units = snapshotUnits,
+			ComponentDeltas = BuildComponentDeltas(targetPeerId, playerEntity, allUnits, true),
+			AbilityStates = abilityStates,
+			StaticTexts = staticTexts,
+			Catalog = BuildCatalogEntries(),
+			StateFingerprint = ComputeHostStateFingerprint(abilityStates, staticTexts)
 		};
 		return MemoryPackSerializer.Serialize(worldSnapshot);
 	}

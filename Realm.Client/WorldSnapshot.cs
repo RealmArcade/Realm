@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using MemoryPack;
+using Realm.Ecs.Replication;
 
 namespace Realm.Client;
 
@@ -11,4 +12,9 @@ public partial struct WorldSnapshot
 	public bool IsBaseline;
 	public int BaseSequence;
 	public List<UnitSnapshot> Units;
+	public List<ComponentDelta> ComponentDeltas;
+	public List<AbilityStateDelta> AbilityStates;
+	public List<StaticTextDelta> StaticTexts;
+	public List<CatalogEntry> Catalog;
+	public uint StateFingerprint;
 }

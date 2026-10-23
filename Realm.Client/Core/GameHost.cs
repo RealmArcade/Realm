@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using Realm.Ecs;
+using Realm.Ecs.Replication;
 using DotRecast.Detour;
 using Godot;
 using Realm.Client.Network;
@@ -1251,6 +1252,9 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 	private Dictionary<int, Label3D> _staticTextLabels { get; set; } = new();
+	private readonly Dictionary<int, StaticTextState> _staticTextStates = new();
+	private readonly HashSet<int> _dirtyStaticTextHandles = new();
+	private readonly HashSet<int> _destroyedStaticTextHandles = new();
 	private int _nextStaticTextHandle { get; set; } = 1;
 	private int _staticTextGeneration { get; set; } = 0;
 
@@ -3165,6 +3169,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void UpdatePopulationStats(string id, int playerIndex, bool isFromQueue)
 	{
+		if (_multiplayerActive && !IsServerActive()) return;
 		if (!UnitRegistry.TryGetValue(id, out var popMeta)) return;
 
 		if (!isFromQueue && popMeta.PopCost > 0)
@@ -3630,6 +3635,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 			if (_multiplayerActive && Multiplayer.IsServer())
 				UpdateServerSnapshotTick(fDelta);
+
+			if (GameContext.SessionState.IsTestMode)
+				RunShadowClientVerification();
 
 			EndTickTracking(actualIntervalMs);
 		}

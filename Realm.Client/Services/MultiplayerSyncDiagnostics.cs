@@ -28,6 +28,18 @@ public static class MultiplayerSyncDiagnostics
 	private static int _lastRecordedSequence = -1;
 	private static int _lastPresentedSequence = -1;
 	private static float _presentationWindowStartTime = -1f;
+	private static int _fingerprintMismatchCount;
+	private static string _fingerprintMismatchSummary = string.Empty;
+
+	public static int FingerprintMismatchCount => _fingerprintMismatchCount;
+	public static string FingerprintMismatchSummary => _fingerprintMismatchSummary;
+
+	public static void RecordFingerprintMismatch(int sequence, uint hostFingerprint, uint clientFingerprint)
+	{
+		_fingerprintMismatchCount++;
+		if (_fingerprintMismatchCount > 20) return;
+		_fingerprintMismatchSummary += $"{sequence}:{hostFingerprint:x8}:{clientFingerprint:x8}; ";
+	}
 
 	public static float PresentationWindowSeconds { get; set; } = 2f;
 	public static bool IsRecording => _writer != null;
@@ -44,6 +56,8 @@ public static class MultiplayerSyncDiagnostics
 		_lastRecordedSequence = -1;
 		_lastPresentedSequence = -1;
 		_presentationWindowStartTime = -1f;
+		_fingerprintMismatchCount = 0;
+		_fingerprintMismatchSummary = string.Empty;
 
 		string path = Path.Combine(outputDirectory, isHost ? "ECS_host_sync.bin" : "ECS_client_sync.bin");
 		using (MemoryStream headerStream = new())
@@ -97,6 +111,16 @@ public static class MultiplayerSyncDiagnostics
 		_writer.Flush();
 		_writer.Dispose();
 		_writer = null;
+
+		if (string.IsNullOrEmpty(_outputDirectory)) return;
+		try
+		{
+			string summary = $"fingerprint_mismatches={_fingerprintMismatchCount}\nshadow_baselines={ShadowClientVerifier.VerifiedBaselines}\nshadow_replayed_deltas={ShadowClientVerifier.ReplayedDeltaCount}\nshadow_structural_failures={ShadowClientVerifier.StructuralFailures}\nshadow_fingerprint_failures={ShadowClientVerifier.FingerprintFailures}\n{_fingerprintMismatchSummary}\n";
+			File.WriteAllText(Path.Combine(_outputDirectory, _isHost ? "ECS_host_replication.txt" : "ECS_client_replication.txt"), summary);
+		}
+		catch (IOException)
+		{
+		}
 	}
 
 	public static void RecordHostSnapshot(WorldSnapshot snapshot)

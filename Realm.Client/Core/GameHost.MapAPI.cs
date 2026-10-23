@@ -16,6 +16,7 @@ using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
+using Realm.Ecs.Replication;
 using PathingFlags = Realm.MapAPI.PathingFlags;
 using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
@@ -548,85 +549,185 @@ public partial class GameHost
 	int IGameAPI.CreateStaticText(string text, Vector3 position, Vector3 color, int fontSize)
 	{
 		int handle = _nextStaticTextHandle++;
-		int gen = _staticTextGeneration;
-		Callable.From(() =>
+		var state = new StaticTextState
 		{
-			if (gen != _staticTextGeneration) return;
-			var label = new Label3D();
-			label.Text = text;
-			label.Modulate = new Color(color.X, color.Y, color.Z);
-			label.OutlineModulate = Colors.Black;
-			label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
-			label.Position = new Godot.Vector3(position.X, position.Y + 1.5f, position.Z);
-			label.FontSize = fontSize;
-			AddChild(label);
-			_staticTextLabels[handle] = label;
-		}).CallDeferred();
+			Text = text,
+			Position = position,
+			Color = color,
+			FontSize = fontSize,
+			Visible = true
+		};
+		_staticTextStates[handle] = state;
+		_dirtyStaticTextHandles.Add(handle);
+		ApplyStaticTextDelta(ToStaticTextDelta(handle, state, false));
 		return handle;
 	}
 
 	void IGameAPI.SetStaticText(int handle, string text)
 	{
-		SetStaticTextViewLogic(handle, text);
-	}
-
-	private void SetStaticTextViewLogic(int handle, string text)
-	{
-		Callable.From(() =>
-		{
-			if (_staticTextLabels.TryGetValue(handle, out var label))
-			{
-				label.Text = text;
-			}
-		}).CallDeferred();
+		if (!_staticTextStates.TryGetValue(handle, out var state)) return;
+		state.Text = text;
+		_staticTextStates[handle] = state;
+		_dirtyStaticTextHandles.Add(handle);
+		ApplyStaticTextDelta(ToStaticTextDelta(handle, state, false));
 	}
 
 	void IGameAPI.SetStaticTextColor(int handle, Vector3 color)
 	{
-		SetStaticTextColorViewLogic(handle, color);
-	}
-
-	private void SetStaticTextColorViewLogic(int handle, Vector3 color)
-	{
-		Callable.From(() =>
-		{
-			if (_staticTextLabels.TryGetValue(handle, out var label))
-			{
-				label.Modulate = new Color(color.X, color.Y, color.Z);
-			}
-		}).CallDeferred();
+		if (!_staticTextStates.TryGetValue(handle, out var state)) return;
+		state.Color = color;
+		_staticTextStates[handle] = state;
+		_dirtyStaticTextHandles.Add(handle);
+		ApplyStaticTextDelta(ToStaticTextDelta(handle, state, false));
 	}
 
 	void IGameAPI.SetStaticTextVisible(int handle, bool visible)
 	{
-		SetStaticTextVisibleViewLogic(handle, visible);
-	}
-
-	private void SetStaticTextVisibleViewLogic(int handle, bool visible)
-	{
-		Callable.From(() =>
-		{
-			if (_staticTextLabels.TryGetValue(handle, out var label))
-			{
-				label.Visible = visible;
-			}
-		}).CallDeferred();
+		if (!_staticTextStates.TryGetValue(handle, out var state)) return;
+		state.Visible = visible;
+		_staticTextStates[handle] = state;
+		_dirtyStaticTextHandles.Add(handle);
+		ApplyStaticTextDelta(ToStaticTextDelta(handle, state, false));
 	}
 
 	void IGameAPI.DestroyStaticText(int handle)
 	{
-		DestroyStaticTextViewLogic(handle);
+		_staticTextStates.Remove(handle);
+		_dirtyStaticTextHandles.Remove(handle);
+		_destroyedStaticTextHandles.Add(handle);
+		ApplyStaticTextDelta(ToStaticTextDelta(handle, default, true));
 	}
 
-	private void DestroyStaticTextViewLogic(int handle)
+	public void ApplyStaticTextDelta(StaticTextDelta delta)
 	{
+		if (delta.Destroyed != 0)
+		{
+			_dirtyStaticTextHandles.Remove(delta.Handle);
+			int destroyGeneration = _staticTextGeneration;
+			Callable.From(() =>
+			{
+				if (destroyGeneration != _staticTextGeneration) return;
+				if (_staticTextLabels.Remove(delta.Handle, out var removedLabel))
+				{
+					removedLabel.QueueFree();
+				}
+			}).CallDeferred();
+			return;
+		}
+
+		int generation = _staticTextGeneration;
 		Callable.From(() =>
 		{
-			if (_staticTextLabels.Remove(handle, out var label))
+			if (generation != _staticTextGeneration) return;
+			if (!_staticTextLabels.TryGetValue(delta.Handle, out var label) || !GodotObject.IsInstanceValid(label))
 			{
-				label.QueueFree();
+				label = new Label3D
+				{
+					Name = $"StaticText_{delta.Handle}",
+					Billboard = BaseMaterial3D.BillboardModeEnum.Enabled
+				};
+				label.OutlineModulate = Colors.Black;
+				AddChild(label);
+				_staticTextLabels[delta.Handle] = label;
 			}
+
+			label.Text = delta.Text;
+			label.Modulate = new Color(delta.ColorX, delta.ColorY, delta.ColorZ);
+			label.FontSize = (int)delta.FontSize;
+			label.Position = new Godot.Vector3(delta.PositionX, delta.PositionY + 1.5f, delta.PositionZ);
+			label.Visible = delta.Visible != 0;
 		}).CallDeferred();
+	}
+
+	public List<StaticTextDelta> CollectStaticTextDeltas(bool includeAll, bool clearDirty = true)
+	{
+		var deltas = new List<StaticTextDelta>();
+		if (includeAll)
+		{
+			foreach (var kvp in _staticTextStates)
+			{
+				deltas.Add(ToStaticTextDelta(kvp.Key, kvp.Value, false));
+			}
+			if (clearDirty)
+			{
+				_dirtyStaticTextHandles.Clear();
+				_destroyedStaticTextHandles.Clear();
+			}
+			return deltas;
+		}
+
+		foreach (int handle in _destroyedStaticTextHandles)
+		{
+			deltas.Add(ToStaticTextDelta(handle, default, true));
+		}
+		foreach (int handle in _dirtyStaticTextHandles)
+		{
+			if (_staticTextStates.TryGetValue(handle, out var state))
+			{
+				deltas.Add(ToStaticTextDelta(handle, state, false));
+			}
+		}
+		if (clearDirty)
+		{
+			_dirtyStaticTextHandles.Clear();
+			_destroyedStaticTextHandles.Clear();
+		}
+		return deltas;
+	}
+
+	private static StaticTextDelta ToStaticTextDelta(int handle, StaticTextState state, bool destroyed)
+	{
+		return new StaticTextDelta
+		{
+			Handle = handle,
+			Text = state.Text ?? string.Empty,
+			PositionX = state.Position.X,
+			PositionY = state.Position.Y,
+			PositionZ = state.Position.Z,
+			ColorX = state.Color.X,
+			ColorY = state.Color.Y,
+			ColorZ = state.Color.Z,
+			FontSize = state.FontSize,
+			Visible = state.Visible ? (byte)1 : (byte)0,
+			Destroyed = destroyed ? (byte)1 : (byte)0
+		};
+	}
+
+	public List<AbilityStateDelta> CollectAbilityStateDeltas(bool includeAll, bool clearDirty = true)
+	{
+		var deltas = new List<AbilityStateDelta>();
+		var registry = GameContext.RegistryService;
+		if (registry == null) return deltas;
+
+		if (includeAll)
+		{
+			foreach (var kvp in registry.UnitAbilityStates)
+			{
+				deltas.Add(ToAbilityStateDelta(kvp.Key.UnitUniqueId, kvp.Key.AbilityId, kvp.Value.Disabled, kvp.Value.Hidden));
+			}
+			if (clearDirty) registry.ClearAbilityStateDirty();
+			return deltas;
+		}
+
+		foreach (var key in registry.DirtyAbilityStates)
+		{
+			if (registry.UnitAbilityStates.TryGetValue(key, out var state))
+			{
+				deltas.Add(ToAbilityStateDelta(key.UnitUniqueId, key.AbilityId, state.Disabled, state.Hidden));
+			}
+		}
+		if (clearDirty) registry.ClearAbilityStateDirty();
+		return deltas;
+	}
+
+	private static AbilityStateDelta ToAbilityStateDelta(int unitUniqueId, string abilityId, bool disabled, bool hidden)
+	{
+		return new AbilityStateDelta
+		{
+			ServerEntityId = unitUniqueId,
+			AbilityId = abilityId,
+			Flags = (byte)((disabled ? 1 : 0) | (hidden ? 2 : 0))
+		};
 	}
 
 	void IGameAPI.SpawnVisualEffect(string effectTypeId, Vector3 position, float scale)

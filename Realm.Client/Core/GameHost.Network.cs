@@ -256,9 +256,11 @@ public partial class GameHost
 		if (Multiplayer.IsServer()) return;
 		GameContext.NetworkService.RecordSnapshotReceived(payload);
 
-		foreach (var snap in GameContext.NetworkService.FlushPendingUnitSpawns())
+
+		var pendingSpawns = GameContext.NetworkService.FlushPendingUnitSpawns();
+		for (int i = 0; i < pendingSpawns.Count; i++)
 		{
-			SpawnUnitFromSnapshot(snap);
+			SpawnUnitFromSnapshot(pendingSpawns[i]);
 		}
 
 		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitKills())
@@ -267,6 +269,11 @@ public partial class GameHost
 			{
 				Callable.From(() => KillUnitDeferred(unit3D)).CallDeferred();
 			}
+		}
+
+		if (pendingSpawns.Count > 0)
+		{
+			GameContext.NetworkService.ReapplyAbilityStatesToUnits();
 		}
 
 		MultiplayerSyncDiagnostics.RecordClientSnapshot();
@@ -340,11 +347,24 @@ public partial class GameHost
 		}
 	}
 
+	private int _shadowVerificationTickCounter;
+
+	private void RunShadowClientVerification()
+	{
+		_shadowVerificationTickCounter++;
+		if (_shadowVerificationTickCounter % 60 != 0) return;
+
+		byte[] payload = GameContext.NetworkService.BuildExplicitBaselineSnapshot(1, AllUnits);
+		if (payload.Length == 0) return;
+		ShadowClientVerifier.VerifyPayload(1, payload, true);
+	}
+
 	private void UpdateServerSnapshotTick(float fDelta)
 	{
 		var snapshots = GameContext.NetworkService.BuildServerSnapshots(_localPeerId, AllUnits);
 		foreach (var (peerId, payload, isBaseline) in snapshots)
 		{
+			ShadowClientVerifier.VerifyPayload(peerId, payload, isBaseline);
 			QueueOrSendPacket(peerId, isBaseline ? nameof(ReceiveBaselineSnapshot) : nameof(ReceiveSnapshot), payload);
 		}
 

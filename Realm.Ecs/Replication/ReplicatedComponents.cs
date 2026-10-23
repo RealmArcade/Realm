@@ -1,0 +1,344 @@
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using MemoryPack;
+using Realm.Ecs.Components.Combat;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Tags;
+
+namespace Realm.Ecs.Replication;
+
+public enum ReplicatedScope : byte
+{
+	World = 0,
+	Player = 1,
+	Unit = 2
+}
+
+[MemoryPackable]
+public partial struct ComponentDelta
+{
+	public int Key;
+	public int ComponentTypeId;
+	public byte Scope;
+	public byte[] Bytes;
+}
+
+public interface IReplicatedComponentCodec
+{
+	int ComponentTypeId { get; }
+	string ComponentName { get; }
+	ReplicatedScope Scope { get; }
+	int SizeInBytes { get; }
+	bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination);
+	void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source);
+}
+
+public class ReplicatedComponentCodec<T> : IReplicatedComponentCodec where T : unmanaged
+{
+	private readonly ReplicatedScope _scope;
+
+	public ReplicatedComponentCodec(ReplicatedScope scope)
+	{
+		_scope = scope;
+	}
+
+	public int ComponentTypeId => ComponentType<T>.Id;
+	public string ComponentName => typeof(T).Name;
+	public ReplicatedScope Scope => _scope;
+	public int SizeInBytes => Unsafe.SizeOf<T>();
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<T>(entity)) return false;
+		ref var component = ref world.Get<T>(entity);
+		MemoryMarshal.Write(destination, in component);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		var value = MemoryMarshal.Read<T>(source);
+		world.SetOrAdd(entity, in value);
+	}
+}
+
+public class TagComponentCodec<T> : IReplicatedComponentCodec where T : unmanaged
+{
+	private readonly ReplicatedScope _scope;
+
+	public TagComponentCodec(ReplicatedScope scope)
+	{
+		_scope = scope;
+	}
+
+	public int ComponentTypeId => ComponentType<T>.Id;
+	public string ComponentName => typeof(T).Name;
+	public ReplicatedScope Scope => _scope;
+	public int SizeInBytes => 1;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<T>(entity)) return false;
+		destination[0] = 1;
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		if (source[0] != 0)
+		{
+			if (!world.Has<T>(entity)) world.Add<T>(entity, default);
+		}
+		else if (world.Has<T>(entity))
+		{
+			world.Remove<T>(entity);
+		}
+	}
+}
+
+public class PlayerTeamCodec : IReplicatedComponentCodec
+{
+	public int ComponentTypeId => ComponentType<PlayerTeam>.Id;
+	public string ComponentName => nameof(PlayerTeam);
+	public ReplicatedScope Scope => ReplicatedScope.Player;
+	public int SizeInBytes => sizeof(int);
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<PlayerTeam>(entity)) return false;
+		MemoryMarshal.Write(destination, in world.Get<PlayerTeam>(entity).TeamIndex);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		int teamIndex = MemoryMarshal.Read<int>(source);
+		if (world.Has<PlayerTeam>(entity))
+		{
+			ref var team = ref world.Get<PlayerTeam>(entity);
+			team.TeamIndex = teamIndex;
+		}
+		else
+		{
+			world.Add(entity, new PlayerTeam(teamIndex));
+		}
+	}
+}
+
+public class ScriptPlayerStateCodec : IReplicatedComponentCodec
+{
+	public int ComponentTypeId => ComponentType<ScriptPlayer>.Id;
+	public string ComponentName => nameof(ScriptPlayer);
+	public ReplicatedScope Scope => ReplicatedScope.Player;
+	public int SizeInBytes => 10;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<ScriptPlayer>(entity)) return false;
+		ref var player = ref world.Get<ScriptPlayer>(entity);
+		MemoryMarshal.Write(destination.Slice(0, 4), in player.Team);
+		MemoryMarshal.Write(destination.Slice(4, 4), in player.KillCount);
+		destination[8] = player.ActiveByte;
+		destination[9] = player.IsComputerByte;
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<ScriptPlayer>(entity)) return;
+		ref var player = ref world.Get<ScriptPlayer>(entity);
+		player.Team = MemoryMarshal.Read<int>(source.Slice(0, 4));
+		player.KillCount = MemoryMarshal.Read<int>(source.Slice(4, 4));
+		player.ActiveByte = source[8];
+		player.IsComputerByte = source[9];
+	}
+}
+
+public class AttackNumbersCodec : IReplicatedComponentCodec
+{
+	private const int FloatCount = 14;
+	private const int PayloadSize = FloatCount * 4 + 1;
+
+	public int ComponentTypeId => ComponentType<Attack>.Id;
+	public string ComponentName => nameof(Attack);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => PayloadSize;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Attack>(entity)) return false;
+		ref var attack = ref world.Get<Attack>(entity);
+		WriteFloat(destination, 0, attack.Damage);
+		WriteFloat(destination, 4, attack.Range);
+		WriteFloat(destination, 8, attack.Cooldown);
+		WriteFloat(destination, 12, attack.DamageVariance);
+		WriteFloat(destination, 16, attack.FlatArmorPenetration);
+		WriteFloat(destination, 20, attack.PercentArmorPenetration);
+		WriteFloat(destination, 24, attack.CritChance);
+		WriteFloat(destination, 28, attack.CritMultiplier);
+		WriteFloat(destination, 32, attack.SplashInnerRadius);
+		WriteFloat(destination, 36, attack.SplashMediumRadius);
+		WriteFloat(destination, 40, attack.SplashOuterRadius);
+		WriteFloat(destination, 44, attack.SplashInnerRatio);
+		WriteFloat(destination, 48, attack.SplashMediumRatio);
+		WriteFloat(destination, 52, attack.SplashOuterRatio);
+		destination[56] = attack.FriendlyFireByte;
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Attack>(entity)) return;
+		ref var attack = ref world.Get<Attack>(entity);
+		attack.Damage = ReadFloat(source, 0);
+		attack.Range = ReadFloat(source, 4);
+		attack.Cooldown = ReadFloat(source, 8);
+		attack.DamageVariance = ReadFloat(source, 12);
+		attack.FlatArmorPenetration = ReadFloat(source, 16);
+		attack.PercentArmorPenetration = ReadFloat(source, 20);
+		attack.CritChance = ReadFloat(source, 24);
+		attack.CritMultiplier = ReadFloat(source, 28);
+		attack.SplashInnerRadius = ReadFloat(source, 32);
+		attack.SplashMediumRadius = ReadFloat(source, 36);
+		attack.SplashOuterRadius = ReadFloat(source, 40);
+		attack.SplashInnerRatio = ReadFloat(source, 44);
+		attack.SplashMediumRatio = ReadFloat(source, 48);
+		attack.SplashOuterRatio = ReadFloat(source, 52);
+		attack.FriendlyFireByte = source[56];
+	}
+
+	private static void WriteFloat(Span<byte> destination, int offset, float value)
+	{
+		BitConverter.TryWriteBytes(destination.Slice(offset, 4), value);
+	}
+
+	private static float ReadFloat(ReadOnlySpan<byte> source, int offset)
+	{
+		return BitConverter.ToSingle(source.Slice(offset, 4));
+	}
+}
+
+public class ArmorNumbersCodec : IReplicatedComponentCodec
+{
+	public int ComponentTypeId => ComponentType<Armor>.Id;
+	public string ComponentName => nameof(Armor);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => 8;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Armor>(entity)) return false;
+		ref var armor = ref world.Get<Armor>(entity);
+		BitConverter.TryWriteBytes(destination.Slice(0, 4), armor.FlatArmor);
+		BitConverter.TryWriteBytes(destination.Slice(4, 4), armor.RatedArmor);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Armor>(entity)) return;
+		ref var armor = ref world.Get<Armor>(entity);
+		armor.FlatArmor = BitConverter.ToSingle(source.Slice(0, 4));
+		armor.RatedArmor = BitConverter.ToSingle(source.Slice(4, 4));
+	}
+}
+
+public static class ReplicatedComponents
+{
+	private static readonly List<IReplicatedComponentCodec> _codecs = new();
+
+	static ReplicatedComponents()
+	{
+		Register(new ReplicatedComponentCodec<PlayerPopulation>(ReplicatedScope.Player));
+		Register(new PlayerTeamCodec());
+		Register(new ScriptPlayerStateCodec());
+		Register(new ReplicatedComponentCodec<Mana>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<MovementStats>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<ModelScale>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<Level>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<Experience>(ReplicatedScope.Unit));
+		Register(new AttackNumbersCodec());
+		Register(new ArmorNumbersCodec());
+		Register(new TagComponentCodec<Invulnerable>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<CommandsFrozen>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<AnimationsFrozen>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<OverheadBarsHidden>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<SpellImmune>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<UnderConstruction>(ReplicatedScope.Unit));
+	}
+
+	public static void Register(IReplicatedComponentCodec codec)
+	{
+		for (int i = 0; i < _codecs.Count; i++)
+		{
+			if (_codecs[i].ComponentTypeId == codec.ComponentTypeId) return;
+		}
+		_codecs.Add(codec);
+	}
+
+	public static IReadOnlyList<IReplicatedComponentCodec> All => _codecs;
+
+	public static IReplicatedComponentCodec? Find(int componentTypeId)
+	{
+		for (int i = 0; i < _codecs.Count; i++)
+		{
+			if (_codecs[i].ComponentTypeId == componentTypeId) return _codecs[i];
+		}
+		return null;
+	}
+}
+
+public static class ReplicatedStateFingerprint
+{
+	public const uint Seed = 2166136261u;
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public static uint Combine(uint hash, int value)
+	{
+		unchecked
+		{
+			for (int i = 0; i < 4; i++)
+			{
+				hash ^= (byte)(value >> (i * 8));
+				hash *= 16777619u;
+			}
+			return hash;
+		}
+	}
+
+	public static uint Combine(uint hash, ReadOnlySpan<byte> bytes)
+	{
+		unchecked
+		{
+			for (int i = 0; i < bytes.Length; i++)
+			{
+				hash ^= bytes[i];
+				hash *= 16777619u;
+			}
+			return hash;
+		}
+	}
+
+	public static uint Combine(uint hash, string? value)
+	{
+		if (string.IsNullOrEmpty(value)) return Combine(hash, 0);
+		unchecked
+		{
+			for (int i = 0; i < value.Length; i++)
+			{
+				hash ^= (byte)value[i];
+				hash *= 16777619u;
+				hash ^= (byte)(value[i] >> 8);
+				hash *= 16777619u;
+			}
+			return hash;
+		}
+	}
+}
