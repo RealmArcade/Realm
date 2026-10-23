@@ -20,7 +20,7 @@ public partial class ReplicationContractTests
 		"CountdownState", "DecalIdentity", "DecalSpawnRequest", "EditorState",
 		"GroundLoot", "InputState", "Inventory", "LeaderboardState",
 		"ModifierState", "NetworkMappingState", "NetworkState", "OccupiedZones",
-		"ProductionQueue", "PropIdentity", "PropSpawnRequest", "RallyPoint",
+		"PropIdentity", "PropSpawnRequest", "RallyPoint",
 		"ReplayState", "ScriptPlayer", "ScriptPlayersState", "ScriptZonesState", "SpectatorPerspective",
 		"SummaryTableState", "TowerUpgradeLevel", "UnitOwnerPlayer", "UnitSpawnRequest",
 		"VFXQueue", "VFXRequest", "ZoneBounds",
@@ -29,7 +29,7 @@ public partial class ReplicationContractTests
 		"AutoCastState", "CastTarget", "BuffState", "Buffs",
 		"MoveTo", "Velocity", "AttackMove", "Follow",
 		"HoldPosition", "InterpolationTarget", "RenderPosition", "PathingFlags",
-		"Patrol", "WaypointBuffer", "WaypointQueue", "PlayerResources",
+		"Patrol", "WaypointBuffer", "WaypointQueue",
 		"Gatherer", "ResourceNode", "ResourceCost", "BuildQueue",
 		"BuildTask", "ConstructionState", "Food", "Gold",
 		"Stone", "Wood", "ArmorStat", "AttackDamage",
@@ -40,9 +40,14 @@ public partial class ReplicationContractTests
 		"Prop", "Unit", "Icon", "Model",
 		"Name", "ReplayAnimationState", "Rotation3D", "RotationY",
 		"PreviousRotationY", "ShroudState", "TerrainCell", "TerrainColorsState",
-		"TerrainState", "TerrainSwatchConfig", "WeatherState",
+		"TerrainSwatchConfig",
 		"PlayerRelationshipMatrix", "PlayerUpgrades", "AttackTarget", "HealingTarget",
 		"LastAttacker", "ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset"
+	};
+
+	private static readonly string[] RpcReplicatedComponents =
+	{
+		"PlayerResources", "ProductionQueue", "TerrainState", "WeatherState"
 	};
 
 	private static readonly string[] StorageStructs =
@@ -57,24 +62,36 @@ public partial class ReplicationContractTests
 	[TestCase]
 	public void EveryEcsComponentIsClassified()
 	{
-		var replicatedNames = new HashSet<string>(StringComparer.Ordinal);
-		foreach (var codec in ReplicatedComponents.All)
+		var replicatedNames = ReplicatedComponents.All.Select(codec => codec.ComponentName).ToList();
+
+		var buckets = new (string Name, IReadOnlyList<string> Entries)[]
 		{
-			replicatedNames.Add(codec.ComponentName);
+			("replicated", replicatedNames),
+			("rpc", RpcReplicatedComponents),
+			("host-only", HostOnlyComponents),
+			("storage", StorageStructs)
+		};
+
+		var duplicates = buckets
+			.SelectMany(bucket => bucket.Entries
+				.GroupBy(name => name)
+				.Where(group => group.Count() > 1)
+				.Select(group => $"{group.Key} ({bucket.Name})"))
+			.ToList();
+		Assertions.AssertThat(duplicates).OverrideFailureMessage($"Component classified twice inside one list: {string.Join(", ", duplicates)}").IsEmpty();
+
+		var overlaps = new List<string>();
+		for (int left = 0; left < buckets.Length; left++)
+		{
+			for (int right = left + 1; right < buckets.Length; right++)
+			{
+				foreach (string name in buckets[left].Entries.Intersect(buckets[right].Entries))
+				{
+					overlaps.Add($"{name} ({buckets[left].Name}/{buckets[right].Name})");
+				}
+			}
 		}
 
-		var hostOnlyNames = new HashSet<string>(HostOnlyComponents, StringComparer.Ordinal);
-		var storageNames = new HashSet<string>(StorageStructs, StringComparer.Ordinal);
-
-		var duplicateHostOnly = HostOnlyComponents.GroupBy(name => name).Where(group => group.Count() > 1).Select(group => group.Key).ToList();
-		var duplicateStorage = StorageStructs.GroupBy(name => name).Where(group => group.Count() > 1).Select(group => group.Key).ToList();
-		Assertions.AssertThat(duplicateHostOnly).OverrideFailureMessage($"Duplicate host-only component entries: {string.Join(", ", duplicateHostOnly)}").IsEmpty();
-		Assertions.AssertThat(duplicateStorage).OverrideFailureMessage($"Duplicate storage struct entries: {string.Join(", ", duplicateStorage)}").IsEmpty();
-
-		var overlaps = replicatedNames.Intersect(hostOnlyNames)
-			.Concat(replicatedNames.Intersect(storageNames))
-			.Concat(hostOnlyNames.Intersect(storageNames))
-			.ToList();
 		Assertions.AssertThat(overlaps).OverrideFailureMessage($"Component classified more than once: {string.Join(", ", overlaps)}").IsEmpty();
 
 		var componentTypes = EnumerateComponentTypes().ToList();
@@ -84,7 +101,7 @@ public partial class ReplicationContractTests
 
 		var unclassified = componentTypes
 			.Select(type => type.Name)
-			.Where(name => !replicatedNames.Contains(name) && !hostOnlyNames.Contains(name) && !storageNames.Contains(name))
+			.Where(name => !buckets.Any(bucket => bucket.Entries.Contains(name)))
 			.ToList();
 
 		Assertions.AssertThat(unclassified).OverrideFailureMessage($"Unclassified ECS components: {string.Join(", ", unclassified)}").IsEmpty();
@@ -94,8 +111,8 @@ public partial class ReplicationContractTests
 	public void ClassificationListsHaveNoStaleEntries()
 	{
 		var componentNames = new HashSet<string>(EnumerateComponentTypes().Select(type => type.Name), StringComparer.Ordinal);
-		var stale = HostOnlyComponents.Concat(StorageStructs).Where(name => !componentNames.Contains(name)).ToList();
-		Assertions.AssertThat(stale).OverrideFailureMessage($"Host-only and storage lists reference unknown components: {string.Join(", ", stale)}").IsEmpty();
+		var stale = HostOnlyComponents.Concat(RpcReplicatedComponents).Concat(StorageStructs).Where(name => !componentNames.Contains(name)).ToList();
+		Assertions.AssertThat(stale).OverrideFailureMessage($"Classification lists reference unknown components: {string.Join(", ", stale)}").IsEmpty();
 	}
 
 	[TestCase]
