@@ -3694,9 +3694,10 @@ public partial class GameHost : Node3D, IGameAPI
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessCoreSimulation))
 		{
 			TickAuthoritativePopulation();
+			bool isAuthoritative = !_multiplayerActive || IsServerActive();
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationTickEcs))
 			{
-				GameContext.SimulationService.TickEcs(fDelta, !_multiplayerActive || IsServerActive());
+				GameContext.SimulationService.TickEcs(fDelta, isAuthoritative);
 			}
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PollVfxQueue))
 			{
@@ -3704,7 +3705,7 @@ public partial class GameHost : Node3D, IGameAPI
 			}
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickConstructionSystem))
 			{
-				TickConstructionSystem(fDelta);
+				TickConstructionSystem(fDelta, isAuthoritative);
 			}
 		}
 	}

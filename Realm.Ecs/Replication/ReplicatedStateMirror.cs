@@ -63,7 +63,14 @@ public class ReplicatedStateMirror
 
 	public void RecordComponent(ComponentDelta delta)
 	{
-		Components[(delta.Scope, delta.Key, delta.ComponentTypeId)] = delta.Bytes;
+		var key = (delta.Scope, delta.Key, delta.ComponentTypeId);
+		if (delta.Bytes == null || delta.Bytes.Length == 0)
+		{
+			Components.Remove(key);
+			return;
+		}
+
+		Components[key] = delta.Bytes;
 	}
 
 	public void RecordAbility(AbilityStateDelta delta)

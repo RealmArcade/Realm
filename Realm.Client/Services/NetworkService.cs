@@ -894,7 +894,7 @@ public class NetworkService
 			return;
 		}
 
-		if (delta.Bytes == null || delta.Bytes.Length != codec.SizeInBytes)
+		if (delta.Bytes == null || (delta.Bytes.Length != 0 && delta.Bytes.Length != codec.SizeInBytes))
 		{
 			GD.PushWarning($"[Network] Discarded {codec.ComponentName} delta with {(delta.Bytes?.Length ?? 0)} bytes, expected {codec.SizeInBytes}");
 			return;
@@ -919,7 +919,10 @@ public class NetworkService
 		}
 
 		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return;
-		codec.Apply(GameContext.World, targetEntity, delta.Bytes);
+		if (delta.Bytes.Length == 0)
+			codec.Remove(GameContext.World, targetEntity);
+		else
+			codec.Apply(GameContext.World, targetEntity, delta.Bytes);
 		_mirror.RecordComponent(delta);
 		_appliedComponentDeltaCount++;
 	}
@@ -1969,9 +1972,21 @@ public class NetworkService
 		if (_componentWriteScratch.Length < codec.SizeInBytes) _componentWriteScratch = new byte[codec.SizeInBytes];
 
 		var scratch = _componentWriteScratch.AsSpan(0, codec.SizeInBytes);
-		if (!codec.TryWrite(GameContext.World, entity, scratch)) return;
-
 		var deltaKey = (scope, key, codec.ComponentTypeId);
+		if (!codec.TryWrite(GameContext.World, entity, scratch))
+		{
+			if (!previous.Remove(deltaKey)) return;
+
+			deltas.Add(new ComponentDelta
+			{
+				Key = key,
+				ComponentTypeId = codec.ComponentTypeId,
+				Scope = scope,
+				Bytes = Array.Empty<byte>()
+			});
+			return;
+		}
+
 		if (!previous.TryGetValue(deltaKey, out var storedBytes))
 		{
 			storedBytes = new byte[codec.SizeInBytes];

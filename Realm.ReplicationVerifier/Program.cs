@@ -83,6 +83,22 @@ foreach (var codec in codecs)
 	Check(!wrote, $"{codec.ComponentName}: absent component is not replicated");
 }
 
+foreach (var codec in codecs)
+{
+	var removalComponentType = typeof(EcsWorld).Assembly.GetTypes().FirstOrDefault(candidate =>
+		candidate.Name == codec.ComponentName &&
+		candidate.Namespace != null &&
+		candidate.Namespace.StartsWith("Realm.Ecs.Components", StringComparison.Ordinal));
+	Check(removalComponentType != null, $"{codec.ComponentName}: removal codec resolves to a component type");
+	if (removalComponentType == null) continue;
+
+	var removalEntity = world.Create();
+	addMethod.MakeGenericMethod(removalComponentType).Invoke(world, new object[] { removalEntity, Activator.CreateInstance(removalComponentType)! });
+	codec.Remove(world, removalEntity);
+	var removalProbe = new byte[codec.SizeInBytes];
+	Check(!codec.TryWrite(world, removalEntity, removalProbe), $"{codec.ComponentName}: removal tombstones the component");
+}
+
 var deltas = new List<ComponentDelta>
 {
 	new() { Key = 0, ComponentTypeId = 1, Scope = (byte)ReplicatedScope.Player, Bytes = new byte[] { 1, 2, 3 } },

@@ -74,6 +74,12 @@ public class CooldownsCodec : INormalizingComponentCodec
 		TimedStatusPayload.Apply(source, ref cooldowns.Slots, ref cooldowns.Count);
 		world.SetOrAdd(entity, in cooldowns);
 	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Cooldowns>(entity)) return;
+		world.Remove<Cooldowns>(entity);
+	}
 }
 
 public class SpellCooldownsCodec : INormalizingComponentCodec
@@ -99,6 +105,12 @@ public class SpellCooldownsCodec : INormalizingComponentCodec
 		var cooldowns = world.Has<SpellCooldowns>(entity) ? world.Get<SpellCooldowns>(entity) : default;
 		TimedStatusPayload.Apply(source, ref cooldowns.Slots, ref cooldowns.Count);
 		world.SetOrAdd(entity, in cooldowns);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<SpellCooldowns>(entity)) return;
+		world.Remove<SpellCooldowns>(entity);
 	}
 }
 
@@ -126,6 +138,12 @@ public class BuffsCodec : INormalizingComponentCodec
 		TimedStatusPayload.Apply(source, ref buffs.Slots, ref buffs.Count);
 		world.SetOrAdd(entity, in buffs);
 	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Buffs>(entity)) return;
+		world.Remove<Buffs>(entity);
+	}
 }
 
 public class BuffStateCodec : INormalizingComponentCodec
@@ -151,6 +169,12 @@ public class BuffStateCodec : INormalizingComponentCodec
 		var buffState = world.Has<BuffState>(entity) ? world.Get<BuffState>(entity) : default;
 		TimedStatusPayload.Apply(source, ref buffState.Slots, ref buffState.Count);
 		world.SetOrAdd(entity, in buffState);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<BuffState>(entity)) return;
+		world.Remove<BuffState>(entity);
 	}
 }
 
@@ -198,5 +222,11 @@ public class ModifierStateCodec : INormalizingComponentCodec
 		}
 
 		world.SetOrAdd(entity, in state);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<ModifierState>(entity)) return;
+		world.Remove<ModifierState>(entity);
 	}
 }

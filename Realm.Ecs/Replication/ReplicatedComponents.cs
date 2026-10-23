@@ -37,6 +37,7 @@ public interface IReplicatedComponentCodec
 	int SizeInBytes { get; }
 	bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination);
 	void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source);
+	void Remove(EcsWorld world, Entity entity);
 }
 
 public interface INormalizingComponentCodec : IReplicatedComponentCodec
@@ -70,6 +71,12 @@ public class ReplicatedComponentCodec<T> : IReplicatedComponentCodec where T : u
 		if (world == null || !world.IsAlive(entity)) return;
 		var value = MemoryMarshal.Read<T>(source);
 		world.SetOrAdd(entity, in value);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<T>(entity)) return;
+		world.Remove<T>(entity);
 	}
 }
 
@@ -105,6 +112,12 @@ public class TagComponentCodec<T> : IReplicatedComponentCodec where T : unmanage
 		{
 			world.Remove<T>(entity);
 		}
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<T>(entity)) return;
+		world.Remove<T>(entity);
 	}
 }
 
@@ -144,7 +157,15 @@ public class WorldStateCodec : IReplicatedComponentCodec
 			return;
 		}
 
-		world.Add(entity, new WorldState(gameElapsedTime, timeOfDayIndex, timeOfDayTimer, dayNightCycleEnabled != 0));
+		var created = new WorldState(gameElapsedTime, timeOfDayIndex, timeOfDayTimer, dayNightCycleEnabled != 0);
+		created.DayNightCycleEnabledByte = dayNightCycleEnabled;
+		world.Add(entity, created);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<WorldState>(entity)) return;
+		world.Remove<WorldState>(entity);
 	}
 }
 
@@ -179,6 +200,12 @@ public class PlayerTeamCodec : IReplicatedComponentCodec
 		{
 			world.Add(entity, new PlayerTeam(teamIndex, teamNameStringId));
 		}
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<PlayerTeam>(entity)) return;
+		world.Remove<PlayerTeam>(entity);
 	}
 }
 
@@ -235,6 +262,12 @@ public class AttackNumbersCodec : IReplicatedComponentCodec
 		attack.FriendlyFireByte = source[56];
 	}
 
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Attack>(entity)) return;
+		world.Remove<Attack>(entity);
+	}
+
 	private static void WriteFloat(Span<byte> destination, int offset, float value)
 	{
 		BitConverter.TryWriteBytes(destination.Slice(offset, 4), value);
@@ -269,6 +302,12 @@ public class ArmorNumbersCodec : IReplicatedComponentCodec
 		armor.FlatArmor = BitConverter.ToSingle(source.Slice(0, 4));
 		armor.RatedArmor = BitConverter.ToSingle(source.Slice(4, 4));
 	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Armor>(entity)) return;
+		world.Remove<Armor>(entity);
+	}
 }
 
 public static class ReplicatedComponents
@@ -283,6 +322,9 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<PlayerUpgrades>(ReplicatedScope.Player));
 		Register(new SpellCooldownsCodec());
 		Register(new CooldownsCodec());
+		Register(new ReplicatedComponentCodec<ConstructionState>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<BuildTask>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<BuildQueue>(ReplicatedScope.Unit));
 		Register(new BuffsCodec());
 		Register(new BuffStateCodec());
 		Register(new ModifierStateCodec());

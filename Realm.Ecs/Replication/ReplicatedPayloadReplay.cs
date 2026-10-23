@@ -32,9 +32,9 @@ public static class ReplicatedPayloadReplay
 					continue;
 				}
 
-				if (delta.Bytes == null || delta.Bytes.Length != codec.SizeInBytes)
+				if (delta.Bytes == null || (delta.Bytes.Length != 0 && delta.Bytes.Length != codec.SizeInBytes))
 				{
-					errors?.Add($"{codec.ComponentName} carries {delta.Bytes?.Length ?? 0} bytes, expected {codec.SizeInBytes}");
+					errors?.Add($"{codec.ComponentName} carries {delta.Bytes?.Length ?? 0} bytes, expected {codec.SizeInBytes} or a removal tombstone");
 					continue;
 				}
 
