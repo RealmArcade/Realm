@@ -173,6 +173,8 @@ Check(!world.Has<Realm.Ecs.Components.Core.PlayerPopulation>(emptyWorldEntity), 
 StringRegistry.Reset();
 int goldId = StringRegistry.GetOrAdd("Gold");
 Check(goldId != 0 && goldId == StringRegistry.ComputeId("Gold"), "string ids are content hashes");
+Check(StringRegistry.ComputeId("Neutral") == 975127632, "text ids stay identical to the established hash");
+Check(InternedValueStore.TryGetKind(goldId, out byte goldKind) && goldKind == InternedValueStore.TextKind, "registered text carries the text kind tag");
 Check(StringRegistry.GetOrAdd("Gold") == goldId, "string ids are stable across repeated registration");
 int woodId = StringRegistry.GetOrAdd("Wood");
 Check(woodId != 0 && woodId != goldId, "distinct text yields distinct ids");
