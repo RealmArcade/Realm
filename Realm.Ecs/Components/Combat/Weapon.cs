@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Realm.MapAPI;
 
 namespace Realm.Ecs.Components.Combat;
 

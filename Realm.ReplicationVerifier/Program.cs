@@ -2,6 +2,7 @@ using System.Reflection;
 using MemoryPack;
 using Realm.Ecs;
 using Realm.Ecs.Replication;
+using Realm.MapAPI;
 
 int failures = 0;
 int checks = 0;
@@ -168,6 +169,42 @@ Check(truncatedCatalog.ComputeFingerprint() == ReplicatedStateFingerprint.Seed, 
 
 var emptyWorldEntity = world.Create();
 Check(!world.Has<Realm.Ecs.Components.Core.PlayerPopulation>(emptyWorldEntity), "bare entity has no population component");
+
+StringRegistry.Reset();
+int goldId = StringRegistry.GetOrAdd("Gold");
+Check(goldId != 0 && goldId == StringRegistry.ComputeId("Gold"), "string ids are content hashes");
+Check(StringRegistry.GetOrAdd("Gold") == goldId, "string ids are stable across repeated registration");
+int woodId = StringRegistry.GetOrAdd("Wood");
+Check(woodId != 0 && woodId != goldId, "distinct text yields distinct ids");
+
+StringRegistry.Reset();
+Check(StringRegistry.Get(goldId) == string.Empty, "a reset text table stops resolving text");
+Check(StringRegistry.GetOrAdd("Gold") == goldId, "content hash ids survive a text table reset");
+Check(StringRegistry.Get(goldId) == "Gold", "registering the text again restores it");
+Check(StringRegistry.RegisterRemote(woodId, "Wood") && StringRegistry.Get(woodId) == "Wood", "text received from a peer resolves locally");
+Check(!StringRegistry.RegisterRemote(woodId, "Stone") && StringRegistry.Get(woodId) == "Wood", "remote text never overwrites a known id");
+
+var copiedEntries = new List<(int Id, string Text)>();
+StringRegistry.CopyEntries(copiedEntries);
+Check(copiedEntries.Count == StringRegistry.EntryCount && copiedEntries.TrueForAll(entry => StringRegistry.Get(entry.Id) == entry.Text), "published entries resolve back through the table");
+Check(StringRegistry.CollisionCount == 0, $"built-in strings do not collide ({StringRegistry.CollisionSummary})");
+Check(StringRegistry.GetOrAdd(string.Empty) == 0 && StringRegistry.GetOrAdd(null) == 0, "empty text keeps the reserved zero id");
+
+ColdPayloadRegistry<List<string>>.Reset();
+const string sharedContentKey = "production_queue|worker,farm";
+int sharedHandle = ColdPayloadRegistry<List<string>>.Share(new List<string> { "worker", "farm" }, sharedContentKey);
+int secondSharedHandle = ColdPayloadRegistry<List<string>>.Share(new List<string> { "worker", "farm" }, sharedContentKey);
+Check(sharedHandle != 0 && sharedHandle == secondSharedHandle, "identical content keys receive one handle");
+Check(ColdPayloadRegistry<List<string>>.GetReferenceCount(sharedHandle) == 2, "shared handles track their references");
+
+ColdPayloadRegistry<List<string>>.Free(sharedHandle);
+Check(ColdPayloadRegistry<List<string>>.Get(secondSharedHandle) != null, "releasing one reference keeps a shared payload alive");
+ColdPayloadRegistry<List<string>>.Free(secondSharedHandle);
+Check(ColdPayloadRegistry<List<string>>.Get(sharedHandle) == null, "releasing the last reference frees a shared payload");
+
+int unsharedFirst = ColdPayloadRegistry<List<string>>.Register(new List<string> { "same" });
+int unsharedSecond = ColdPayloadRegistry<List<string>>.Register(new List<string> { "same" });
+Check(unsharedFirst != unsharedSecond, "unshared registrations stay independent for mutable payloads");
 
 Console.WriteLine($"replication verifier: {checks - failures}/{checks} checks passed");
 if (failures > 0)

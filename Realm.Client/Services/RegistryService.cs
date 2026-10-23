@@ -399,6 +399,12 @@ public class RegistryService
 			case "resource_node_type":
 				if (!_resourceTypeByNodeId.ContainsKey(key)) _resourceTypeByNodeId[key] = value;
 				break;
+			case "string":
+				if (int.TryParse(key, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int stringId))
+				{
+					StringRegistry.RegisterRemote(stringId, value);
+				}
+				break;
 		}
 	}
 

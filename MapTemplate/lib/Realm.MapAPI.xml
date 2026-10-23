@@ -4141,26 +4141,89 @@
         </member>
         <member name="T:Realm.MapAPI.StringRegistry">
             <summary>
-            Provides high-performance string interning and integer identifier mappings for unmanaged ECS components.
+            Maps text to stable integer identifiers that every process computes identically, and keeps a
+            text table so a peer can render identifiers it never registered itself.
+            </summary>
+            <remarks>
+            Identifiers are content hashes rather than allocation sequence numbers, so the host, the client and the
+            map script sandbox agree on the identifier for a given text without sharing any state. Two strings that
+            hash to the same primary identifier are resolved at registration time: the later one receives an
+            identifier from the reserved fallback range so no two strings alias. Colliding texts are reported through
+            <see cref="P:Realm.MapAPI.StringRegistry.CollisionCount"/> and <see cref="P:Realm.MapAPI.StringRegistry.CollisionSummary"/> because the fallback decision is only
+            reachable once both strings have been registered in the same process.
+            </remarks>
+        </member>
+        <member name="F:Realm.MapAPI.StringRegistry.FallbackIdBase">
+            <summary>
+            First identifier of the reserved fallback range used when a primary content hash is already taken.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.StringRegistry.CollisionCount">
+            <summary>
+            Gets the number of text registrations that had to move into the reserved fallback range because another
+            string already owned their primary content hash.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.StringRegistry.CollisionSummary">
+            <summary>
+            Gets a human readable summary of the first few hash collisions, listing both colliding texts.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.StringRegistry.EntryCount">
+            <summary>
+            Gets the number of text entries that have been registered or received in this process, in registration order.
             </summary>
         </member>
         <member name="M:Realm.MapAPI.StringRegistry.GetOrAdd(System.String)">
             <summary>
-            Gets or registers a string in the registry and returns its unique integer identifier.
+            Registers a text in the table and returns its stable identifier.
             </summary>
-            <param name="str">The string to intern.</param>
-            <returns>The integer string identifier, or 0 if null or empty.</returns>
+            <param name="text">The text to identify.</param>
+            <returns>
+            Zero for null or empty text, the text's content hash otherwise, or an identifier from the reserved
+            fallback range when another string already owns that hash.
+            </returns>
         </member>
         <member name="M:Realm.MapAPI.StringRegistry.Get(System.Int32)">
             <summary>
-            Retrieves the interned string associated with the specified identifier.
+            Retrieves the text registered for an identifier.
             </summary>
-            <param name="id">The integer string identifier.</param>
-            <returns>The string value, or empty string if not found.</returns>
+            <param name="id">The identifier to resolve.</param>
+            <returns>The registered text, or an empty string when this process has never seen the identifier.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.TryGetText(System.Int32,System.String@)">
+            <summary>
+            Attempts to retrieve the text registered for an identifier without allocating a fallback string.
+            </summary>
+            <param name="id">The identifier to resolve.</param>
+            <param name="text">The registered text when the identifier is known to this process.</param>
+            <returns>True when the identifier is present in the text table.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.RegisterRemote(System.Int32,System.String)">
+            <summary>
+            Stores text that was registered by another peer, so identifiers this process never created can still be rendered.
+            </summary>
+            <param name="id">The identifier chosen by the owning peer.</param>
+            <param name="text">The text that identifier stands for.</param>
+            <returns>True when the table gained the entry, false when the identifier was already known.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.ComputeId(System.String)">
+            <summary>
+            Computes the stable identifier a text would receive, without registering it.
+            </summary>
+            <param name="text">The text to identify.</param>
+            <returns>Zero for null or empty text, the text's content hash otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.CopyEntries(System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}},System.Int32)">
+            <summary>
+            Copies registered entries into a caller supplied buffer for replication.
+            </summary>
+            <param name="destination">The list that receives the entries.</param>
+            <param name="startIndex">The first entry index to copy.</param>
         </member>
         <member name="M:Realm.MapAPI.StringRegistry.Reset">
             <summary>
-            Resets the string registry, clearing all interned string values.
+            Clears every text entry while keeping identifiers stable, since identifiers are content hashes and not table slots.
             </summary>
         </member>
         <member name="T:Realm.MapAPI.TowerDefenseBotConfig">

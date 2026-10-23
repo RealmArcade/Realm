@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Realm.Ecs.Components.Terrain;
+using Realm.MapAPI;
 
 namespace Realm.Ecs.Components.Core
 {

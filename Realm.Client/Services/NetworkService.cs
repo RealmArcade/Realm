@@ -1569,7 +1569,7 @@ public class NetworkService
 		}
 
 		var componentDeltas = BuildComponentDeltas(peerId, playerEntity, allUnits, isBaseline);
-		var catalog = isBaseline ? BuildCatalogEntries() : new List<CatalogEntry>();
+		var catalog = isBaseline ? BuildCatalogEntriesWithStringTable() : BuildStringTableEntries(false);
 		uint stateFingerprint = isBaseline ? ComputeHostStateFingerprint(abilityStates, staticTexts) : 0u;
 
 		var worldSnapshot = new WorldSnapshot
@@ -1585,6 +1585,42 @@ public class NetworkService
 			StateFingerprint = stateFingerprint
 		};
 		return MemoryPackSerializer.Serialize(worldSnapshot);
+	}
+
+	private const string StringTableChannel = "string";
+
+	private readonly List<(int Id, string Text)> _stringTableEntries = new();
+	private int _publishedStringEntryCount;
+
+	private List<CatalogEntry> BuildCatalogEntriesWithStringTable()
+	{
+		var entries = BuildCatalogEntries();
+		entries.AddRange(BuildStringTableEntries(true));
+		return entries;
+	}
+
+	private List<CatalogEntry> BuildStringTableEntries(bool includeAllEntries)
+	{
+		int entryCount = Realm.MapAPI.StringRegistry.EntryCount;
+		if (entryCount < _publishedStringEntryCount) _publishedStringEntryCount = 0;
+
+		_stringTableEntries.Clear();
+		Realm.MapAPI.StringRegistry.CopyEntries(_stringTableEntries, includeAllEntries ? 0 : _publishedStringEntryCount);
+
+		var entries = new List<CatalogEntry>(_stringTableEntries.Count);
+		for (int index = 0; index < _stringTableEntries.Count; index++)
+		{
+			var entry = _stringTableEntries[index];
+			entries.Add(new CatalogEntry
+			{
+				Channel = StringTableChannel,
+				Key = entry.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+				Value = entry.Text
+			});
+		}
+
+		if (!includeAllEntries) _publishedStringEntryCount = entryCount;
+		return entries;
 	}
 
 	private List<CatalogEntry> BuildCatalogEntries()
@@ -1895,7 +1931,7 @@ public class NetworkService
 			ComponentDeltas = BuildComponentDeltas(targetPeerId, playerEntity, allUnits, true),
 			AbilityStates = abilityStates,
 			StaticTexts = staticTexts,
-			Catalog = BuildCatalogEntries(),
+			Catalog = BuildCatalogEntriesWithStringTable(),
 			StateFingerprint = ComputeHostStateFingerprint(abilityStates, staticTexts)
 		};
 		return MemoryPackSerializer.Serialize(worldSnapshot);

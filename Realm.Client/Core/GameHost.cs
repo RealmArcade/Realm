@@ -2337,7 +2337,7 @@ public partial class GameHost : Node3D, IGameAPI
 			if (teamIndex >= 0)
 			{
 				players[pIdx].TeamIndex = teamIndex;
-				players[pIdx].TeamNameStringId = Realm.Ecs.StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
+				players[pIdx].TeamNameStringId = Realm.MapAPI.StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
 			}
 			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in players[pIdx]);
 
