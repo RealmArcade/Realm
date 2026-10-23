@@ -5,6 +5,7 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Services;
 using Vector3 = Godot.Vector3;
 
@@ -118,11 +119,16 @@ public class ObjectTransformAction : IEditorAction
 
 		ecsWorld.Set(entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
 
+		if (ecsWorld.Has<RenderPosition>(entity))
+			ecsWorld.Set(entity, new RenderPosition(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
+
 		if (ecsWorld.Has<RotationY>(entity))
 			ecsWorld.Set(entity, new RotationY(rot.Y));
 
 		if (ecsWorld.Has<Rotation3D>(entity))
 			ecsWorld.Set(entity, new Rotation3D(new System.Numerics.Vector3(rot.X, rot.Y, rot.Z)));
+
+		GameHost.SyncPreviousTransform(ecsWorld, entity);
 
 		if (!writeScale)
 			return;

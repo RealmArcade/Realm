@@ -170,6 +170,8 @@ public static class MinimapHelper
 
 	private static void HideUnits(OverlayState state, GameHost gameHost)
 	{
+		if (GameContext.SessionState.IsMapEditorMode) return;
+
 		var unitsList = gameHost?.AllUnits;
 		if (unitsList == null) return;
 
@@ -221,7 +223,7 @@ public static class MinimapHelper
 		{
 			if (IsNodeValid(u))
 			{
-				u.Visible = vis || (GameContext.SessionState.IsMapEditorMode == true && GameContext.Host.AllUnits.Contains(u));
+				u.Visible = vis;
 			}
 		}
 	}
