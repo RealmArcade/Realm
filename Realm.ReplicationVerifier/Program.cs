@@ -223,6 +223,14 @@ Check(tableDump.Contains($"{StringRegistry.EntryCount} entries", StringCompariso
 Check(StringRegistry.CollisionCount == 0, $"built-in strings do not collide ({StringRegistry.CollisionSummary})");
 Check(StringRegistry.GetOrAdd(string.Empty) == 0 && StringRegistry.GetOrAdd(null) == 0, "empty text keeps the reserved zero id");
 
+var abilityList = new AbilityState(new[] { "fireball", "heal" });
+Check(abilityList.Count == 2 && abilityList.Get(0) == "fireball" && abilityList.Get(1) == "heal", "an ability list keeps its authored order");
+int sharedAbilityHandle = abilityList.Handle;
+Check(!abilityList.Add("FIREBALL") && abilityList.Handle == sharedAbilityHandle, "adding an ability that already exists keeps the payload");
+Check(abilityList.Add("blink") && abilityList.Count == 3 && abilityList.Handle != sharedAbilityHandle, "adding a new ability writes a new payload");
+Check(new AbilityState(null).Count == 0 && new AbilityState(Array.Empty<string>()).Handle == 0, "an entity without abilities stores no payload");
+Check(abilityList.Contains("BLINK") && !abilityList.Contains("teleport") && abilityList.Get(9) == null, "ability lookups ignore case and report misses");
+
 var firstQueue = new ProductionQueue();
 var secondQueue = new ProductionQueue();
 firstQueue.Enqueue("worker");

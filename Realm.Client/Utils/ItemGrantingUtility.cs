@@ -81,18 +81,13 @@ public static class ItemGrantingUtility
 		{
 			if (!world.Has<AbilityState>(entity))
 			{
-				world.Add(entity, new AbilityState(new List<string>()));
+				world.Add(entity, new AbilityState(null));
 			}
 
 			ref var abiState = ref world.Get<AbilityState>(entity);
-			abiState.Abilities ??= new List<string>();
-
 			foreach (var abiId in itemMeta.GrantedAbilities)
 			{
-				if (!string.IsNullOrWhiteSpace(abiId) && !abiState.Abilities.Contains(abiId, StringComparer.OrdinalIgnoreCase))
-				{
-					abiState.Abilities.Add(abiId);
-				}
+				if (!string.IsNullOrWhiteSpace(abiId)) abiState.Add(abiId);
 			}
 		}
 

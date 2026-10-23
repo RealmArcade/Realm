@@ -827,9 +827,9 @@ public class InGameHUDViewModel
 		if (world.Has<AbilityState>(u.Entity))
 		{
 			var state = world.Get<AbilityState>(u.Entity);
-			if (state.Abilities != null && state.Abilities.Count > 0)
+			if (state.Count > 0)
 			{
-				info.Abilities.AddRange(state.Abilities);
+				state.CopyTo(info.Abilities);
 				return;
 			}
 		}
