@@ -51,7 +51,7 @@ public class ReplicatedStateMirror
 	public Dictionary<(byte Scope, int Key, int TypeId), byte[]> Components { get; } = new();
 	public Dictionary<(int ServerEntityId, string AbilityId), byte> Abilities { get; } = new();
 	public Dictionary<int, StaticTextDelta> Texts { get; } = new();
-	public Dictionary<(byte Scope, int Key, byte Kind), int> ColdPayloads { get; } = new();
+	public Dictionary<(byte Scope, int Key, byte Kind, byte Role), int> ColdPayloads { get; } = new();
 
 	public void Clear()
 	{
@@ -78,7 +78,7 @@ public class ReplicatedStateMirror
 
 	public void RecordColdPayload(ColdPayloadDelta delta)
 	{
-		var key = (delta.Scope, delta.Key, delta.Kind);
+		var key = (delta.Scope, delta.Key, delta.Kind, delta.Role);
 		if (delta.Destroyed != 0)
 		{
 			ColdPayloads.Remove(key);
@@ -150,18 +150,20 @@ public class ReplicatedStateMirror
 			hash = ReplicatedStateFingerprint.Combine(hash, text.Visible);
 		}
 
-		var coldKeys = new List<(byte Scope, int Key, byte Kind)>(ColdPayloads.Keys);
+		var coldKeys = new List<(byte Scope, int Key, byte Kind, byte Role)>(ColdPayloads.Keys);
 		coldKeys.Sort(static (left, right) =>
 		{
 			int byScope = left.Scope.CompareTo(right.Scope);
 			if (byScope != 0) return byScope;
 			int byKey = left.Key.CompareTo(right.Key);
-			return byKey != 0 ? byKey : left.Kind.CompareTo(right.Kind);
+			if (byKey != 0) return byKey;
+			int byKind = left.Kind.CompareTo(right.Kind);
+			return byKind != 0 ? byKind : left.Role.CompareTo(right.Role);
 		});
 		for (int i = 0; i < coldKeys.Count; i++)
 		{
 			var key = coldKeys[i];
-			hash = ReplicatedStateFingerprint.CombineColdPayload(hash, key.Scope, key.Key, key.Kind, ColdPayloads[key]);
+			hash = ReplicatedStateFingerprint.CombineColdPayload(hash, key.Scope, key.Key, key.Kind, key.Role, ColdPayloads[key]);
 		}
 
 		return hash;

@@ -15,8 +15,7 @@ public partial class ReplicationContractTests
 	private static readonly string[] HostOnlyComponents =
 	{
 		"Position", "PreviousPosition", "Health", "Owner",
-		"ManaRegen", "CollisionRadius", "CollisionScale", "Cooldowns",
-		"SpellCooldowns", "DefinitionId", "CustomMetadata", "CombatAlertState",
+		"ManaRegen", "CollisionRadius", "CollisionScale", "DefinitionId", "CustomMetadata", "CombatAlertState",
 		"CountdownState", "DecalIdentity", "DecalSpawnRequest", "EditorState",
 		"GroundLoot", "InputState", "Inventory",
 		"ModifierState", "NetworkMappingState", "NetworkState", "OccupiedZones",
@@ -25,7 +24,7 @@ public partial class ReplicationContractTests
 		"TowerUpgradeLevel", "UnitOwnerPlayer", "UnitSpawnRequest",
 		"VFXQueue", "VFXRequest", "ZoneBounds",
 		"AutoCombatState", "CombatTargeting", "Weapon", "Weapons",
-		"TargetIntel", "Ability", "HasAbilities", "AbilityState",
+		"TargetIntel", "Ability", "HasAbilities",
 		"AutoCastState", "CastTarget", "BuffState", "Buffs",
 		"MoveTo", "Velocity", "AttackMove", "Follow",
 		"HoldPosition", "InterpolationTarget", "RenderPosition", "PathingFlags",

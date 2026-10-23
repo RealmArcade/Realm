@@ -1709,9 +1709,9 @@ public class NetworkService
 
 	private readonly List<ColdPayloadDelta> _coldPayloadCandidates = new();
 	private readonly List<ColdPayloadDelta> _emptyColdPayloadDeltas = new();
-	private readonly HashSet<(byte Scope, int Key, byte Kind)> _coldPayloadSeenKeys = new();
-	private readonly List<(byte Scope, int Key, byte Kind)> _coldPayloadExpiredKeys = new();
-	private readonly Dictionary<int, Dictionary<(byte Scope, int Key, byte Kind), int>> _coldPayloadContentPerClient = new();
+	private readonly HashSet<(byte Scope, int Key, byte Kind, byte Role)> _coldPayloadSeenKeys = new();
+	private readonly List<(byte Scope, int Key, byte Kind, byte Role)> _coldPayloadExpiredKeys = new();
+	private readonly Dictionary<int, Dictionary<(byte Scope, int Key, byte Kind, byte Role), int>> _coldPayloadContentPerClient = new();
 	private readonly Dictionary<int, (byte InternedKind, byte[] Bytes)> _internedPayloadBytesCache = new();
 	private int _coldPayloadCandidatesSequence = -1;
 	private byte[] _leaderboardPayloadBytes = Array.Empty<byte>();
@@ -1745,7 +1745,7 @@ public class NetworkService
 					_leaderboardPayloadContentId = ColdPayloadCodecs.ComputeContentId(_leaderboardPayloadBytes);
 				}
 
-				AddColdPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadKind.LeaderboardBoards, 0, _leaderboardPayloadContentId, _leaderboardPayloadBytes);
+				AddColdPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadKind.LeaderboardBoards, ColdPayloadRole.None, 0, _leaderboardPayloadContentId, _leaderboardPayloadBytes);
 			}
 
 			if (world.Has<SummaryTableState>(worldEntity))
@@ -1759,12 +1759,12 @@ public class NetworkService
 					_summaryTablePayloadContentId = ColdPayloadCodecs.ComputeContentId(_summaryTablePayloadBytes);
 				}
 
-				AddColdPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadKind.SummaryTable, 0, _summaryTablePayloadContentId, _summaryTablePayloadBytes);
+				AddColdPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadKind.SummaryTable, ColdPayloadRole.None, 0, _summaryTablePayloadContentId, _summaryTablePayloadBytes);
 			}
 
 			if (world.Has<ScriptZonesState>(worldEntity))
 			{
-				AddInternedPayloadCandidate((byte)ReplicatedScope.World, 0, world.Get<ScriptZonesState>(worldEntity).Handle);
+				AddInternedPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadRole.ZoneList, world.Get<ScriptZonesState>(worldEntity).Handle);
 			}
 		}
 
@@ -1773,13 +1773,21 @@ public class NetworkService
 			ref var queue = ref world.Get<ProductionQueue>(entity);
 			if (queue.Count <= 0 || queue.Handle == 0) continue;
 
-			AddInternedPayloadCandidate((byte)ReplicatedScope.Unit, GetServerEntityId(entity.Id), queue.Handle);
+			AddInternedPayloadCandidate((byte)ReplicatedScope.Unit, GetServerEntityId(entity.Id), ColdPayloadRole.ProductionQueue, queue.Handle);
+		}
+
+		foreach (var entity in world.Query<AbilityState>())
+		{
+			ref var abilityState = ref world.Get<AbilityState>(entity);
+			if (abilityState.Count <= 0 || abilityState.Handle == 0) continue;
+
+			AddInternedPayloadCandidate((byte)ReplicatedScope.Unit, GetServerEntityId(entity.Id), ColdPayloadRole.AbilityList, abilityState.Handle);
 		}
 
 		return _coldPayloadCandidates;
 	}
 
-	private void AddInternedPayloadCandidate(byte scope, int key, int handle)
+	private void AddInternedPayloadCandidate(byte scope, int key, ColdPayloadRole role, int handle)
 	{
 		if (handle == 0) return;
 
@@ -1791,16 +1799,17 @@ public class NetworkService
 			_internedPayloadBytesCache[handle] = cached;
 		}
 
-		AddColdPayloadCandidate(scope, key, ColdPayloadKind.InternedPayload, cached.InternedKind, handle, cached.Bytes);
+		AddColdPayloadCandidate(scope, key, ColdPayloadKind.InternedPayload, role, cached.InternedKind, handle, cached.Bytes);
 	}
 
-	private void AddColdPayloadCandidate(byte scope, int key, ColdPayloadKind kind, byte internedKind, int contentId, byte[] bytes)
+	private void AddColdPayloadCandidate(byte scope, int key, ColdPayloadKind kind, ColdPayloadRole role, byte internedKind, int contentId, byte[] bytes)
 	{
 		_coldPayloadCandidates.Add(new ColdPayloadDelta
 		{
 			Scope = scope,
 			Key = key,
 			Kind = (byte)kind,
+			Role = (byte)role,
 			InternedKind = internedKind,
 			ContentId = contentId,
 			Destroyed = 0,
@@ -1848,7 +1857,7 @@ public class NetworkService
 
 		if (!_coldPayloadContentPerClient.TryGetValue(peerId, out var previousContentIds))
 		{
-			previousContentIds = new Dictionary<(byte Scope, int Key, byte Kind), int>();
+			previousContentIds = new Dictionary<(byte Scope, int Key, byte Kind, byte Role), int>();
 			_coldPayloadContentPerClient[peerId] = previousContentIds;
 		}
 
@@ -1857,7 +1866,7 @@ public class NetworkService
 		for (int index = 0; index < candidates.Count; index++)
 		{
 			var candidate = candidates[index];
-			var key = (candidate.Scope, candidate.Key, candidate.Kind);
+			var key = (candidate.Scope, candidate.Key, candidate.Kind, candidate.Role);
 			_coldPayloadSeenKeys.Add(key);
 
 			if (!isBaseline && previousContentIds.TryGetValue(key, out int previousContentId) && previousContentId == candidate.ContentId) continue;
@@ -1881,6 +1890,7 @@ public class NetworkService
 				Scope = key.Scope,
 				Key = key.Key,
 				Kind = key.Kind,
+				Role = key.Role,
 				Destroyed = 1,
 				Bytes = Array.Empty<byte>()
 			});
@@ -2066,7 +2076,7 @@ public class NetworkService
 		for (int i = 0; i < coldPayloads.Count; i++)
 		{
 			var payload = coldPayloads[i];
-			hash = ReplicatedStateFingerprint.CombineColdPayload(hash, payload.Scope, payload.Key, payload.Kind, payload.ContentId);
+			hash = ReplicatedStateFingerprint.CombineColdPayload(hash, payload.Scope, payload.Key, payload.Kind, payload.Role, payload.ContentId);
 		}
 		return ReplicatedStateFingerprint.CombineWeatherState(hash, GameContext.World, worldEntity);
 	}

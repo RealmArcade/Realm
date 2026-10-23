@@ -14,12 +14,21 @@ public enum ColdPayloadKind : byte
 	SummaryTable = 2
 }
 
+public enum ColdPayloadRole : byte
+{
+	None = 0,
+	ZoneList = 1,
+	ProductionQueue = 2,
+	AbilityList = 3
+}
+
 [MemoryPackable]
 public partial struct ColdPayloadDelta
 {
 	public byte Scope;
 	public int Key;
 	public byte Kind;
+	public byte Role;
 	public byte InternedKind;
 	public int ContentId;
 	public byte Destroyed;

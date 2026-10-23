@@ -39,6 +39,10 @@ public interface IReplicatedComponentCodec
 	void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source);
 }
 
+public interface INormalizingComponentCodec : IReplicatedComponentCodec
+{
+}
+
 public class ReplicatedComponentCodec<T> : IReplicatedComponentCodec where T : unmanaged
 {
 	private readonly ReplicatedScope _scope;
@@ -277,6 +281,9 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<PlayerPopulation>(ReplicatedScope.Player));
 		Register(new ReplicatedComponentCodec<PlayerResources>(ReplicatedScope.Player));
 		Register(new ReplicatedComponentCodec<PlayerUpgrades>(ReplicatedScope.Player));
+		Register(new SpellCooldownsCodec());
+		Register(new CooldownsCodec());
+		Register(new ReplicatedComponentCodec<AbilityState>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ScriptZonesState>(ReplicatedScope.World));
 		Register(new ReplicatedComponentCodec<ProductionQueue>(ReplicatedScope.Unit));
 		Register(new PlayerTeamCodec());
@@ -363,12 +370,13 @@ public static class ReplicatedStateFingerprint
 		}
 	}
 
-	public static uint CombineColdPayload(uint hash, int scope, int key, int kind, int contentId)
+	public static uint CombineColdPayload(uint hash, int scope, int key, int kind, int role, int contentId)
 	{
 		hash = Combine(hash, 7);
 		hash = Combine(hash, scope);
 		hash = Combine(hash, key);
 		hash = Combine(hash, kind);
+		hash = Combine(hash, role);
 		return Combine(hash, contentId);
 	}
 

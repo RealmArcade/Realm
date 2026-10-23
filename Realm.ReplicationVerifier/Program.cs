@@ -62,6 +62,15 @@ foreach (var codec in codecs)
 	codec.Apply(world, entity, payload);
 	var encoded = new byte[codec.SizeInBytes];
 	Check(codec.TryWrite(world, entity, encoded), $"{codec.ComponentName}: encodes after apply");
+
+	if (codec is INormalizingComponentCodec)
+	{
+		codec.Apply(world, entity, encoded);
+		var reencoded = new byte[codec.SizeInBytes];
+		Check(codec.TryWrite(world, entity, reencoded) && encoded.AsSpan().SequenceEqual(reencoded), $"{codec.ComponentName}: normalized payload re-encodes identically");
+		continue;
+	}
+
 	Check(encoded.AsSpan().SequenceEqual(payload), $"{codec.ComponentName}: byte payload round-trips exactly");
 }
 
