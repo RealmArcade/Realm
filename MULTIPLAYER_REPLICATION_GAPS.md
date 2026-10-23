@@ -9,7 +9,8 @@ Every tick the host builds one snapshot per peer and sends it as an RPC. The cli
 | Channel | Contents | Transport | Cadence |
 | --- | --- | --- | --- |
 | `WorldSnapshot.Units` | position, velocity, rotation, current/max health, owner slot, unit id, dead/building/detailed flags | unreliable, visibility filtered | every tick for changed units |
-| `WorldSnapshot.ComponentDeltas` | 17 registered ECS codecs (below) | unreliable | every tick for changed values (all of them in a baseline) |
+| `WorldSnapshot.ColdPayloads` | `(scope, key, kind) -> content id` payloads for handle-backed state: interned zone lists and production-queue text lists, MemoryPack blobs for leaderboards and the summary table | reliable, with baselines | baseline resend plus a tombstone when a key disappears |
+| `WorldSnapshot.ComponentDeltas` | 19 registered ECS codecs (below) | unreliable | every tick for changed values (all of them in a baseline) |
 | `WorldSnapshot.AbilityStates` | ability `Disabled` / `Hidden` booleans only | unreliable | every tick on change |
 | `WorldSnapshot.StaticTexts` | map script `Label3D` text, position, colour, visibility | unreliable | every tick on change |
 | `WorldSnapshot.Catalog` | registry metadata (`placement_radius`, `dropoff`, `worker`, `primary`, resource node types) + string table entries | unreliable | baseline + when the string table grows |
@@ -21,9 +22,9 @@ Every tick the host builds one snapshot per peer and sends it as an RPC. The cli
 | Inventory, player tech, cooldowns, buffs, construction, rally point, scoreboards, script player table, zones | **no channel exists** | – | – |
 | `PlaySpellEffect`, `ClientSpawnArrowProjectile`, `ClientCreateFloatingText`, camera/HUD/selection RPCs | presentation only | reliable/unreliable | event |
 
-Registered ECS codecs (`Realm.Ecs/Replication/ReplicatedComponents.cs`): `WorldState`, `PlayerPopulation`, `PlayerResources`, `PlayerTeam`, `Mana`, `MovementStats`, `ModelScale`, `Level`, `Experience`, `Attack` (numbers), `Armor` (numbers), and tags `Invulnerable`, `CommandsFrozen`, `AnimationsFrozen`, `OverheadBarsHidden`, `SpellImmune`, `UnderConstruction`.
+Registered ECS codecs (`Realm.Ecs/Replication/ReplicatedComponents.cs`): `WorldState`, `PlayerPopulation`, `PlayerResources`, `ScriptZonesState`, `ProductionQueue`, `PlayerTeam`, `Mana`, `MovementStats`, `ModelScale`, `Level`, `Experience`, `Attack` (numbers), `Armor` (numbers), and tags `Invulnerable`, `CommandsFrozen`, `AnimationsFrozen`, `OverheadBarsHidden`, `SpellImmune`, `UnderConstruction`.
 
-`ReplicationContractTests` classifies every ECS component into one of four channels: **17 delta-replicated, 3 RPC-replicated, 112 host-only and 11 storage helpers across 144 component types** (143 names, because the two `AttackSpeed` types share a name). Most of those 108 are static definitions, editor state, local prediction or presentation data and should stay local — but roughly a third is gameplay state the client UI and prediction already read.
+`ReplicationContractTests` classifies every ECS component into one of five channels: **19 delta-replicated, 2 RPC-replicated, 2 cold-payload, 110 host-only and 11 storage helpers across 144 component types** (143 names, because the two `AttackSpeed` types share a name). Most of those 110 are static definitions, editor state, local prediction or presentation data and should stay local — but roughly a third is gameplay state the client UI and prediction already read.
 
 ## 2. Gameplay state the client reads but never receives
 
@@ -36,11 +37,11 @@ Registered ECS codecs (`Realm.Ecs/Replication/ReplicatedComponents.cs`): `WorldS
 | Custom resources | `PlayerResources` (`Ore` + 8 custom slots) | gold/wood/stone via RPC, and the whole struct via the player-scope delta codec | map-defined resources never update |
 | Inventory | `Inventory` | empty (units are spawned with `new Inventory()`) | inventory panel is always empty, item charges unknown |
 | Construction | `ConstructionState`, `BuildQueue`, `BuildTask` | none | `UnderConstruction` tag arrives so scaffolding renders, but progress bar and queue never appear (`UpdateUnitProduction`) |
-| Production queue | `ProductionQueue` | RPC copy | works, but only as a reliable per-tick RPC, outside the fingerprint (see §3.3) |
+| Production queue | `ProductionQueue` | codec copy plus the interned text-list payload | works; the queue struct rides the delta channel and the unit ids arrive on the cold payload channel |
 | Rally point | `RallyPoint` | none | rally flag never drawn when a client selects its own building |
 | Script player table | `ScriptPlayersState` / `ScriptPlayer` buffer | host only | scoreboard names, kills, teams and map-HUD wood/stone are missing or zero (`ResourceEconomyService.GetPlayerWood` reads `ScriptPlayersState`) |
-| Leaderboards | `LeaderboardState`, `SummaryTableState` | host only | map scoreboard and summary table are empty on clients |
-| Map zones | `ScriptZonesState` | host only | objective/zone indicators, zone-ownership UI wrong |
+| Leaderboards | `LeaderboardState`, `SummaryTableState` | MemoryPack blobs on the cold payload channel | map scoreboard and summary table render on clients |
+| Map zones | `ScriptZonesState` | codec copy plus the interned zone-list payload | objective/zone indicators and zone ownership follow the host |
 | Resource depletion | `ResourceNode.Amount` | full amount forever | depleted trees/ore still report capacity; gathering UI misleads |
 | Gatherers | `Gatherer` | none | carried amount/state unknown, gather animations desync |
 | Orders | `MoveTo`, `AttackMove`, `Follow`, `HoldPosition`, `Patrol`, `WaypointQueue` | none | order line in the unit info panel always says idle for remote units; prediction cannot replay orders |
@@ -69,19 +70,19 @@ Two components that are often assumed to be RPC-replicated are not: `GroundLoot`
 The guard used to be vacuous: `EnumerateComponentTypes` filtered on `GetCustomAttribute<StructLayoutAttribute>()`, but `StructLayout` is a metadata pseudo-attribute that reflection never returns, so it yielded zero types. `EveryEcsComponentIsClassified` passed trivially and `HostOnlyComponentListHasNoStaleEntries` failed on every run. It now enumerates every value type under `Realm.Ecs.Components`, skips compiler-generated fixed-buffer structs, and asserts a minimum of 120 types so it cannot silently match nothing. Repairing it surfaced eight unclassified components (`PlayerUpgrades`, `AttackTarget`, `HealingTarget`, `LastAttacker`, `ScanRadius`, `AbilityTargetFilter`, `CameraState`, `BuildingSpawnOffset`, all now host-only) and eleven storage helpers that are embedded in components rather than components themselves (`BuffSlot`, `BuffSlotArray`, `InventorySlot`, `InventorySlotArray`, `ModifierSlotArray`, `PlayerSlotArray`, `StatSlot`, `StatSlotArray`, `VFXSlotArray`, `OccupiedZoneMask`, `CameraLocationSlot`); the stale `TerrainPathingFlags` entry was removed because it is an enum. Classification is by simple name, so the two `AttackSpeed` types collapse into one entry; overlapping buckets are rejected explicitly.
 
 ### 3.3 Verification covers the delta channel and weather
-`ComputeHostStateFingerprint` hashes Player-scope codecs, ability flags, static texts and `WeatherState.Type`. Coverage is therefore exactly the components that ride the delta channel, plus weather:
+`ComputeHostStateFingerprint` hashes Player-scope codecs, ability flags, static texts, cold payload content ids and `WeatherState.Type`. Coverage is therefore exactly the components that ride the delta channel, the payload byte-identity of the cold channel, plus weather:
 
-- `ProductionQueue` and `TerrainState` pathing are still outside. Production queues are keyed by producer entity and the reliable queue RPC can legitimately arrive before the snapshot that spawns that producer, so a baseline-time hash would produce false mismatches until 1.5 moves the queue onto the delta channel. Pathing overrides are pushed on request (`ServerRequestDynamicPathingSync`) and are not ordered against baselines, so they join the hash in 2.5.
+- `TerrainState` pathing is still outside: overrides are pushed on request (`ServerRequestDynamicPathingSync`) and are not ordered against baselines, so they join the hash in 2.5.
 - Loot has no client ECS representation at all (`ClientSpawnLootItemRpc` builds nodes and a runtime dictionary), so it cannot be hashed until 1.6 puts it on a channel.
 
 `ShadowClientVerifier` combines the same weather value from the host ECS, so a real delta-channel regression still fails its replay, and the client's own check still fails when resource deltas are dropped (verified by suppressing `PlayerResources` deltas: the baseline check reports `host=0dc0c0c2 client=e98886e8`).
 
-### 3.4 Non-blittable state needs a different channel
+### 3.4 Non-blittable state gets a cold payload channel
 - `LeaderboardState` and `SummaryTableState` reference `ColdPayloadRegistry` handles, which are per-process indexes that mean nothing on the client.
-- `ProductionQueue`, `Inventory`, `ScriptZonesState` reference `InternedValueStore` handles. Those ids are content hashes, so they are stable in principle, but the payload table itself (text lists, zone lists) is never transferred; only `StringRegistry` text is.
+- `ProductionQueue`, `Inventory`, `ScriptZonesState` reference `InternedValueStore` handles. Those ids are content hashes, so they are stable across processes, but the payload table itself (text lists, zone lists) has to travel; only `StringRegistry` text did.
 - `ScriptPlayersState` and `PlayerTeam` carry `StringRegistry` ids; `PlayerTeamCodec` already drops `TeamNameStringId` because of it.
 
-A raw `MemoryMarshal` codec is the wrong tool for all of these. They need a serialized cold-payload channel (MemoryPack blob per `(scope, key)`, sent on change and on baseline), or a codec that remaps ids through a transferred table.
+A raw `MemoryMarshal` codec is the wrong tool for the non-blittable cases. `WorldSnapshot.ColdPayloads` is the answer: `(scope, key, kind) -> content id` records, where interned payloads travel as their exact bytes (so the client's `InternedValueStore` regenerates the same content hash) and component-owned objects travel as MemoryPack blobs the client applies back into ECS. Payloads are sent with baselines, which keeps unreliable ticks the size they were, so a leaderboard, zone list or queue text list can take up to half a second to reach a client. A tombstone removes a key that no longer exists on the host. Only the content ids join the fingerprint, so a dropped payload is still detected without hashing kilobytes of blobs.
 
 ### 3.5 Bandwidth and allocation
 - `SyncServerPlayerResources` and `SyncServerProductionQueues` run every tick, use reliable RPCs for every player/building, and allocate `string[]`, tuples and RPC argument arrays per tick. Production queues are re-sent even when unchanged, and every client receives every player's resources.
@@ -98,7 +99,7 @@ Tasks are ordered; each phase assumes the previous one. Sizes are rough: S ≈ h
 ### Phase 0 — foundation (do these before adding components)
 - [x] **0.1 Field-level channel coverage (S).** The RPC bucket records a channel, not which fields it carries. Record the covered fields next to each RPC-replicated component so adding a resource slot, terrain layer or weather property without a channel fails review. Acceptance: the contract lists gold/wood/stone/Ore/custom slots for `PlayerResources`, pathing-only for `TerrainState`, and `CurrentWeather` for `WeatherState`.
 - [x] **0.2 Fold RPC-replicated state into the fingerprint (M).** `PlayerResources` moved onto the delta channel as a player-scope codec, so it is fingerprinted automatically and every resource slot now arrives; `WeatherState.Type` is hashed directly. Production queues, terrain pathing and loot stay outside for the ordering reasons in 3.3 and join when 1.5, 2.5 and 1.6 give them a channel. Acceptance met: suppressing `PlayerResources` deltas makes the client report a baseline fingerprint mismatch.
-- [ ] **0.3 Cold payload channel (L).** Add a `(scope, key, contentVersion) -> MemoryPack blob` channel to `WorldSnapshot`, applied before component deltas, with baseline resend and removal tombstones. Move `LeaderboardState`, `SummaryTableState`, `ProductionQueue`, `Inventory` and `ScriptZonesState` onto it. Acceptance: payloads are only re-sent when their content hash changes; two clients agree with the host after a baseline.
+- [x] **0.3 Cold payload channel (L).** `WorldSnapshot.ColdPayloads` carries `(scope, key, kind, content id)` records, applied before component deltas, resent on every baseline, with tombstones for keys that disappear. `LeaderboardState`, `SummaryTableState`, `ScriptZonesState` and `ProductionQueue` are on it; `Inventory` is a fully blittable struct whose only non-primitive fields are `StringRegistry` content hashes that the string table already transfers, so it becomes a plain unit-scope codec in 1.6 instead of a blob. Acceptance: content ids only change when the payload bytes change, and the client fingerprint matched during the 120 ms-ping harness run; `Realm.ReplicationVerifier` now asserts that a cold payload changes the fingerprint and that a tombstone removes the entry.
 - [ ] **0.4 Allocation pass (M).** Replace per-tick `new byte[]`/dictionaries in `BuildComponentDeltas` with pooled buffers and reusable per-peer dictionaries; add a budget smoke test (allocations per tick at 500 units). Acceptance: steady-state host tick allocations do not scale with unit count.
 - [ ] **0.5 Remove duplicate world state (S).** Keep one path for `WorldState` (preferably the codec) and delete `SyncWorldState`, or the reverse; document why.
 
@@ -107,12 +108,12 @@ Tasks are ordered; each phase assumes the previous one. Sizes are rough: S ≈ h
 - [ ] **1.2 Player tech (S).** `PlayerUpgrades` codec; extend `PlayerTeamCodec` to carry `TeamNameStringId`. Acceptance: tech levels and team names match on clients.
 - [ ] **1.3 Cooldowns and charges (M).** `Cooldowns` and `SpellCooldowns` codecs (fixed slots of remaining seconds, host-authoritative) plus `AbilityState` charges; keep the disabled/hidden flags as the cheap path. Acceptance: casting on one client shows the correct sweep/countdown on the other.
 - [ ] **1.4 Buffs and modifiers (M).** `ModifierState` + `Buffs` + `TimedStatusSlots` codec with remaining durations; client advances timers for display only. Acceptance: stun/slow icons and durations match; movement prediction accounts for slows.
-- [ ] **1.5 Construction and queues (M).** `ConstructionState` codec, `BuildQueue`/`BuildTask` on the cold payload channel, `ProductionQueue` moved off RPC. Acceptance: progress bars and queue lists match; no reliable RPC per producer per tick.
+- [ ] **1.5 Construction and queues (M).** The queue half landed in 0.3 (codec plus interned text list, no RPC), so what remains is `ConstructionState` as a codec and `BuildQueue`/`BuildTask` on the cold payload channel. Acceptance: progress bars and queue lists match, including while a building is being constructed.
 - [ ] **1.6 Inventory and loot (M).** `Inventory` on the cold payload channel with `StringRegistry` id remap; loot stays id-keyed but moves into the same channel. Acceptance: picked-up items and charges appear on clients.
 - [ ] **1.7 Rally point (S).** `RallyPoint` codec. Acceptance: rally flag visible to the owner on clients.
 - [ ] **1.8 Script player table (M).** `ScriptPlayersState` codec (fixed struct, string ids via the string table) as a World-scope delta. Acceptance: kills, teams, names and map-HUD resource totals match on clients.
-- [ ] **1.9 Leaderboards and summary table (M, needs 0.3).** Serialize `LeaderboardBoards` and the summary table into the cold payload channel. Acceptance: scoreboard and summary table render on clients.
-- [ ] **1.10 Zones (M, needs 0.3).** Transfer `InternedValueStore` payload entries (zone lists) alongside the `ScriptZonesState` handle, or move zones to a cold payload with explicit bounds. Acceptance: zone objectives and ownership UI match.
+- [ ] **1.9 Leaderboards and summary table (M, needs 0.3).** The blobs and client application landed in 0.3; what remains is confirming the scoreboard and summary table panels repaint on a client and refreshing them without a full HUD rebuild. Acceptance: scoreboard and summary table render on clients.
+- [ ] **1.10 Zones (M, needs 0.3).** The interned zone-list transfer and the `ScriptZonesState` codec landed in 0.3; what remains is confirming the zone indicator and ownership UI read it on a client. Acceptance: zone objectives and ownership UI match.
 - [ ] **1.11 Resource node depletion (S).** Add `Amount`/`MaxCapacity` to the unit snapshot or a `ResourceNode` codec. Acceptance: harvesting drains the node on every client.
 
 ### Phase 2 — prediction and behaviour parity

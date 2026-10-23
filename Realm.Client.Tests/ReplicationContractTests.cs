@@ -18,11 +18,11 @@ public partial class ReplicationContractTests
 		"ManaRegen", "CollisionRadius", "CollisionScale", "Cooldowns",
 		"SpellCooldowns", "DefinitionId", "CustomMetadata", "CombatAlertState",
 		"CountdownState", "DecalIdentity", "DecalSpawnRequest", "EditorState",
-		"GroundLoot", "InputState", "Inventory", "LeaderboardState",
+		"GroundLoot", "InputState", "Inventory",
 		"ModifierState", "NetworkMappingState", "NetworkState", "OccupiedZones",
 		"PropIdentity", "PropSpawnRequest", "RallyPoint",
-		"ReplayState", "ScriptPlayer", "ScriptPlayersState", "ScriptZonesState", "SpectatorPerspective",
-		"SummaryTableState", "TowerUpgradeLevel", "UnitOwnerPlayer", "UnitSpawnRequest",
+		"ReplayState", "ScriptPlayer", "ScriptPlayersState", "SpectatorPerspective",
+		"TowerUpgradeLevel", "UnitOwnerPlayer", "UnitSpawnRequest",
 		"VFXQueue", "VFXRequest", "ZoneBounds",
 		"AutoCombatState", "CombatTargeting", "Weapon", "Weapons",
 		"TargetIntel", "Ability", "HasAbilities", "AbilityState",
@@ -47,12 +47,16 @@ public partial class ReplicationContractTests
 
 	private static readonly string[] RpcReplicatedComponents =
 	{
-		"ProductionQueue", "TerrainState", "WeatherState"
+		"TerrainState", "WeatherState"
+	};
+
+	private static readonly string[] ColdPayloadComponents =
+	{
+		"LeaderboardState", "SummaryTableState"
 	};
 
 	private static readonly Dictionary<string, (string[] Covered, string[] NotReplicated)> RpcChannelFieldCoverage = new(StringComparer.Ordinal)
 	{
-		["ProductionQueue"] = (new[] { "BuildTime", "Count", "CurrentProgress", "Handle" }, Array.Empty<string>()),
 		["TerrainState"] = (new[] { "PathingCodesHandle" }, new[] { "CellsHandle", "CellSize", "Depth", "NavMeshHandle", "NavMeshQueryHandle", "QuadSize", "SwatchConfigsHandle", "Width" }),
 		["WeatherState"] = (new[] { "Type" }, new[] { "BaseFogDensity" })
 	};
@@ -75,6 +79,7 @@ public partial class ReplicationContractTests
 		{
 			("replicated", replicatedNames),
 			("rpc", RpcReplicatedComponents),
+			("cold-payload", ColdPayloadComponents),
 			("host-only", HostOnlyComponents),
 			("storage", StorageStructs)
 		};
@@ -118,7 +123,7 @@ public partial class ReplicationContractTests
 	public void ClassificationListsHaveNoStaleEntries()
 	{
 		var componentNames = new HashSet<string>(EnumerateComponentTypes().Select(type => type.Name), StringComparer.Ordinal);
-		var stale = HostOnlyComponents.Concat(RpcReplicatedComponents).Concat(StorageStructs).Where(name => !componentNames.Contains(name)).ToList();
+		var stale = HostOnlyComponents.Concat(RpcReplicatedComponents).Concat(ColdPayloadComponents).Concat(StorageStructs).Where(name => !componentNames.Contains(name)).ToList();
 		Assertions.AssertThat(stale).OverrideFailureMessage($"Classification lists reference unknown components: {string.Join(", ", stale)}").IsEmpty();
 	}
 

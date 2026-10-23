@@ -272,6 +272,8 @@ public static class ReplicatedComponents
 		Register(new WorldStateCodec());
 		Register(new ReplicatedComponentCodec<PlayerPopulation>(ReplicatedScope.Player));
 		Register(new ReplicatedComponentCodec<PlayerResources>(ReplicatedScope.Player));
+		Register(new ReplicatedComponentCodec<ScriptZonesState>(ReplicatedScope.World));
+		Register(new ReplicatedComponentCodec<ProductionQueue>(ReplicatedScope.Unit));
 		Register(new PlayerTeamCodec());
 		Register(new ReplicatedComponentCodec<Mana>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<MovementStats>(ReplicatedScope.Unit));
@@ -354,6 +356,15 @@ public static class ReplicatedStateFingerprint
 			}
 			return hash;
 		}
+	}
+
+	public static uint CombineColdPayload(uint hash, int scope, int key, int kind, int contentId)
+	{
+		hash = Combine(hash, 7);
+		hash = Combine(hash, scope);
+		hash = Combine(hash, key);
+		hash = Combine(hash, kind);
+		return Combine(hash, contentId);
 	}
 
 	public static uint CombineWeatherState(uint hash, EcsWorld world, Entity worldEntity)

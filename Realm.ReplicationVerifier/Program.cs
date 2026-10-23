@@ -179,6 +179,26 @@ ReplicatedPayloadReplay.Replay(truncatedCatalog, null, null, new List<StaticText
 Check(!truncatedCatalog.Texts.ContainsKey(4), "a destroyed static text leaves the mirror");
 Check(truncatedCatalog.ComputeFingerprint() == ReplicatedStateFingerprint.Seed, "a fully destroyed text restores the empty fingerprint");
 
+var coldPayloads = new List<ColdPayloadDelta>
+{
+	new() { Scope = (byte)ReplicatedScope.World, Key = 0, Kind = (byte)ColdPayloadKind.InternedPayload, ContentId = 42, Bytes = new byte[] { 1, 2, 3 } }
+};
+var coldMirror = new ReplicatedStateMirror();
+var coldBaseline = new ReplicatedStateMirror();
+ReplicatedPayloadReplay.Replay(coldBaseline, payloadDeltas, abilities, texts, null);
+uint fingerprintWithoutColdPayload = coldBaseline.ComputeFingerprint();
+ReplicatedPayloadReplay.Replay(coldMirror, null, null, null, null, coldPayloads);
+Check(coldMirror.ComputeFingerprint() != fingerprintWithoutColdPayload, "a cold payload changes the fingerprint");
+ReplicatedPayloadReplay.Replay(coldMirror, null, null, null, null, new List<ColdPayloadDelta>
+{
+	new() { Scope = (byte)ReplicatedScope.World, Key = 0, Kind = (byte)ColdPayloadKind.InternedPayload, Destroyed = 1 }
+});
+Check(coldMirror.ColdPayloads.Count == 0, "a cold payload tombstone removes the entry");
+Check(ColdPayloadCodecs.ComputeContentId(new byte[] { 1, 2, 3 }) != ColdPayloadCodecs.ComputeContentId(new byte[] { 1, 2, 4 }), "cold payload content ids distinguish payload bytes");
+
+var serializedLeaderboards = ColdPayloadCodecs.SerializeLeaderboards(new LeaderboardBoards());
+Check(serializedLeaderboards.Length > 0 && ColdPayloadCodecs.ComputeContentId(serializedLeaderboards) != 0, "an empty leaderboard snapshot serializes to a stable payload");
+
 var emptyWorldEntity = world.Create();
 Check(!world.Has<Realm.Ecs.Components.Core.PlayerPopulation>(emptyWorldEntity), "bare entity has no population component");
 

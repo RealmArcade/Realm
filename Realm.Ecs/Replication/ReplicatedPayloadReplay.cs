@@ -9,8 +9,17 @@ public static class ReplicatedPayloadReplay
 		List<ComponentDelta>? componentDeltas,
 		List<AbilityStateDelta>? abilityStates,
 		List<StaticTextDelta>? staticTexts,
-		List<string>? errors)
+		List<string>? errors,
+		List<ColdPayloadDelta>? coldPayloads = null)
 	{
+		if (coldPayloads != null)
+		{
+			for (int i = 0; i < coldPayloads.Count; i++)
+			{
+				mirror.RecordColdPayload(coldPayloads[i]);
+			}
+		}
+
 		if (componentDeltas != null)
 		{
 			for (int i = 0; i < componentDeltas.Count; i++)

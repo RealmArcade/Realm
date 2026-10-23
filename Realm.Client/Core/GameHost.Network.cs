@@ -361,12 +361,6 @@ public partial class GameHost
 		((IGameAPI)this).SetPlayerStone(playerSlot, stone);
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SyncProductionQueue(int producerServerEntityId, string[] unitIds, float currentProgress, float buildTime)
-	{
-		GameContext.NetworkService.SyncProductionQueue(producerServerEntityId, unitIds, currentProgress, buildTime);
-	}
-
 	private void SyncServerPlayerResources()
 	{
 		var resources = GameContext.NetworkService.GetServerPlayerResources(_peerIdToPlayerEntityMap, _localPeerId);
@@ -382,26 +376,9 @@ public partial class GameHost
 		}
 	}
 
-	private void SyncServerProductionQueues()
+	public void RefreshReplicatedOverlayUi()
 	{
-		var entityList = new List<Entity>();
-		foreach (var unit in AllUnits)
-		{
-			entityList.Add(unit.Entity);
-		}
-
-		var queues = GameContext.NetworkService.GetServerProductionQueues(entityList);
-		foreach (var q in queues)
-		{
-			foreach (var kvp in _peerIdToPlayerEntityMap)
-			{
-				int peerId = kvp.Key;
-				if (peerId != _localPeerId)
-				{
-					RpcId(peerId, nameof(SyncProductionQueue), q.EntityId, q.UnitIds, q.CurrentProgress, q.BuildTime);
-				}
-			}
-		}
+		InGameHUD.Instance?.RefreshUI(SelectedUnits);
 	}
 
 	private int _shadowVerificationTickCounter;
@@ -426,7 +403,6 @@ public partial class GameHost
 		}
 
 		SyncServerPlayerResources();
-		SyncServerProductionQueues();
 	}
 
 	private void SpawnUnitFromSnapshot(UnitSnapshot snap)
@@ -669,15 +645,6 @@ public partial class GameHost
 		}
 	}
 
-	private void SyncReconnectedProductionQueues(int newPeerId)
-	{
-		var queues = GameContext.NetworkService.GetServerProductionQueues(AllUnits.Where(GodotObject.IsInstanceValid).Select(u => u.Entity));
-		foreach (var (entityId, unitIds, currentProgress, buildTime) in queues)
-		{
-			RpcId(newPeerId, nameof(SyncProductionQueue), entityId, unitIds, currentProgress, buildTime);
-		}
-	}
-
 	private void SyncReconnectedCountdown(int newPeerId)
 	{
 		if (GameContext.NetworkService.TryGetReconnectedCountdown(out float duration, out string text))
@@ -714,7 +681,6 @@ public partial class GameHost
 		SyncReconnectedWorldState(newPeerId);
 		SendReconnectedBaselineSnapshot(newPeerId);
 		SyncReconnectedPlayerResources(newPeerId, playerEntity);
-		SyncReconnectedProductionQueues(newPeerId);
 		SyncReconnectedCountdown(newPeerId);
 		RegisterReconnectedAbilities(newPeerId);
 		SyncReconnectedPauseState(newPeerId);

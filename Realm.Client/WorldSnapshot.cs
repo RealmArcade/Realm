@@ -12,6 +12,7 @@ public partial struct WorldSnapshot
 	public bool IsBaseline;
 	public int BaseSequence;
 	public List<UnitSnapshot> Units;
+	public List<ColdPayloadDelta> ColdPayloads;
 	public List<ComponentDelta> ComponentDeltas;
 	public List<AbilityStateDelta> AbilityStates;
 	public List<StaticTextDelta> StaticTexts;

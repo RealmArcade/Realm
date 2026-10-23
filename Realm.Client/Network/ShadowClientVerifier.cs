@@ -56,7 +56,7 @@ public static class ShadowClientVerifier
 
 		_replayedDeltaCount += (snapshot.ComponentDeltas?.Count ?? 0) + (snapshot.AbilityStates?.Count ?? 0) + (snapshot.StaticTexts?.Count ?? 0);
 		var errors = new List<string>();
-		ReplicatedPayloadReplay.Replay(mirror, snapshot.ComponentDeltas, snapshot.AbilityStates, snapshot.StaticTexts, errors);
+		ReplicatedPayloadReplay.Replay(mirror, snapshot.ComponentDeltas, snapshot.AbilityStates, snapshot.StaticTexts, errors, snapshot.ColdPayloads);
 		for (int i = 0; i < errors.Count; i++)
 		{
 			RecordStructuralFailure(peerId, $"peer {peerId} {errors[i]}");

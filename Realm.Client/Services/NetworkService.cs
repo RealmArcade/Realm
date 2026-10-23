@@ -35,6 +35,7 @@ public class NetworkService
 	private readonly Dictionary<int, Dictionary<(byte Scope, int Key, int TypeId), byte[]>> _lastComponentSnapshotsPerClient = new();
 	private readonly ReplicatedStateMirror _mirror = new();
 	private int _appliedComponentDeltaCount;
+	private int _appliedColdPayloadCount;
 	private int _appliedAbilityStateCount;
 	private int _appliedStaticTextCount;
 	private int _appliedCatalogCount;
@@ -828,6 +829,14 @@ public class NetworkService
 
 	public void ApplyReplicatedState(WorldSnapshot snapshot)
 	{
+		if (snapshot.ColdPayloads != null)
+		{
+			for (int i = 0; i < snapshot.ColdPayloads.Count; i++)
+			{
+				ApplyColdPayloadDelta(snapshot.ColdPayloads[i]);
+			}
+		}
+
 		if (snapshot.ComponentDeltas != null)
 		{
 			for (int i = 0; i < snapshot.ComponentDeltas.Count; i++)
@@ -871,6 +880,40 @@ public class NetworkService
 		{
 			VerifyReplicatedStateFingerprint(snapshot.Sequence, snapshot.StateFingerprint);
 		}
+	}
+
+	private void ApplyColdPayloadDelta(ColdPayloadDelta delta)
+	{
+		_mirror.RecordColdPayload(delta);
+		if (delta.Destroyed != 0) return;
+
+		switch ((ColdPayloadKind)delta.Kind)
+		{
+			case ColdPayloadKind.InternedPayload:
+			{
+				int registeredContentId = InternedValueStore.GetOrAddBytes(delta.InternedKind, delta.Bytes);
+				if (registeredContentId != delta.ContentId)
+				{
+					GD.PushWarning($"[Network] Cold payload content id {delta.ContentId} registered as {registeredContentId}; the payload bytes disagree with the sender's handle.");
+				}
+
+				break;
+			}
+			case ColdPayloadKind.LeaderboardBoards:
+			{
+				ColdPayloadCodecs.ApplyLeaderboards(GameContext.World, FindWorldEntity(), delta.Bytes);
+				GameHost.Instance?.RefreshReplicatedOverlayUi();
+				break;
+			}
+			case ColdPayloadKind.SummaryTable:
+			{
+				ColdPayloadCodecs.ApplySummaryTable(GameContext.World, FindWorldEntity(), delta.Bytes);
+				GameHost.Instance?.RefreshReplicatedOverlayUi();
+				break;
+			}
+		}
+
+		_appliedColdPayloadCount++;
 	}
 
 	private void ApplyComponentDelta(ComponentDelta delta)
@@ -1602,9 +1645,11 @@ public class NetworkService
 			_lastBaselineSnapshotsPerClient[peerId] = nextBaselineMap;
 		}
 
+		var coldPayloadCandidates = BuildColdPayloadCandidates(snapshotSequence);
+		var coldPayloads = BuildColdPayloadDeltas(peerId, coldPayloadCandidates, isBaseline);
 		var componentDeltas = BuildComponentDeltas(peerId, playerEntity, allUnits, isBaseline);
 		var catalog = isBaseline ? BuildCatalogEntriesWithStringTable(peerId) : BuildStringTableEntries(peerId, false);
-		uint stateFingerprint = isBaseline ? ComputeHostStateFingerprint(abilityStates, staticTexts) : 0u;
+		uint stateFingerprint = isBaseline ? ComputeHostStateFingerprint(abilityStates, staticTexts, coldPayloadCandidates) : 0u;
 
 		var worldSnapshot = new WorldSnapshot
 		{
@@ -1612,6 +1657,7 @@ public class NetworkService
 			IsBaseline = isBaseline,
 			BaseSequence = isBaseline ? snapshotSequence : (snapshotSequence / 30) * 30,
 			Units = snapshotUnits,
+			ColdPayloads = coldPayloads,
 			ComponentDeltas = componentDeltas,
 			AbilityStates = abilityStates,
 			StaticTexts = staticTexts,
@@ -1684,6 +1730,187 @@ public class NetworkService
 			entries.Add(new CatalogEntry { Channel = "resource_node_type", Key = pair.Key, Value = pair.Value });
 		}
 		return entries;
+	}
+
+	private readonly List<ColdPayloadDelta> _coldPayloadCandidates = new();
+	private readonly HashSet<(byte Scope, int Key, byte Kind)> _coldPayloadSeenKeys = new();
+	private readonly List<(byte Scope, int Key, byte Kind)> _coldPayloadExpiredKeys = new();
+	private readonly Dictionary<int, Dictionary<(byte Scope, int Key, byte Kind), int>> _coldPayloadContentPerClient = new();
+	private readonly Dictionary<int, (byte InternedKind, byte[] Bytes)> _internedPayloadBytesCache = new();
+	private int _coldPayloadCandidatesSequence = -1;
+	private byte[] _leaderboardPayloadBytes = Array.Empty<byte>();
+	private int _leaderboardPayloadContentId;
+	private int _leaderboardPayloadRevision = -1;
+	private byte[] _summaryTablePayloadBytes = Array.Empty<byte>();
+	private int _summaryTablePayloadContentId;
+	private int _summaryTablePayloadVersion = int.MinValue;
+
+	private List<ColdPayloadDelta> BuildColdPayloadCandidates(int snapshotSequence)
+	{
+		if (_coldPayloadCandidatesSequence == snapshotSequence) return _coldPayloadCandidates;
+
+		_coldPayloadCandidatesSequence = snapshotSequence;
+		_coldPayloadCandidates.Clear();
+
+		Entity worldEntity = FindWorldEntity();
+		var world = GameContext.World;
+		if (world == null) return _coldPayloadCandidates;
+
+		if (worldEntity != Entity.Null && world.IsAlive(worldEntity))
+		{
+			if (world.Has<LeaderboardState>(worldEntity))
+			{
+				var boards = world.Get<LeaderboardState>(worldEntity).Boards;
+				int revision = boards?.Revision ?? 0;
+				if (revision != _leaderboardPayloadRevision)
+				{
+					_leaderboardPayloadRevision = revision;
+					_leaderboardPayloadBytes = ColdPayloadCodecs.SerializeLeaderboards(boards);
+					_leaderboardPayloadContentId = ColdPayloadCodecs.ComputeContentId(_leaderboardPayloadBytes);
+				}
+
+				AddColdPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadKind.LeaderboardBoards, 0, _leaderboardPayloadContentId, _leaderboardPayloadBytes);
+			}
+
+			if (world.Has<SummaryTableState>(worldEntity))
+			{
+				ref var summaryTable = ref world.Get<SummaryTableState>(worldEntity);
+				int version = ComputeSummaryTableVersion(in summaryTable);
+				if (version != _summaryTablePayloadVersion)
+				{
+					_summaryTablePayloadVersion = version;
+					_summaryTablePayloadBytes = ColdPayloadCodecs.SerializeSummaryTable(in summaryTable);
+					_summaryTablePayloadContentId = ColdPayloadCodecs.ComputeContentId(_summaryTablePayloadBytes);
+				}
+
+				AddColdPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadKind.SummaryTable, 0, _summaryTablePayloadContentId, _summaryTablePayloadBytes);
+			}
+
+			if (world.Has<ScriptZonesState>(worldEntity))
+			{
+				AddInternedPayloadCandidate((byte)ReplicatedScope.World, 0, world.Get<ScriptZonesState>(worldEntity).Handle);
+			}
+		}
+
+		foreach (var entity in world.Query<ProductionQueue>())
+		{
+			ref var queue = ref world.Get<ProductionQueue>(entity);
+			if (queue.Count <= 0 || queue.Handle == 0) continue;
+
+			AddInternedPayloadCandidate((byte)ReplicatedScope.Unit, GetServerEntityId(entity.Id), queue.Handle);
+		}
+
+		return _coldPayloadCandidates;
+	}
+
+	private void AddInternedPayloadCandidate(byte scope, int key, int handle)
+	{
+		if (handle == 0) return;
+
+		if (!_internedPayloadBytesCache.TryGetValue(handle, out var cached))
+		{
+			if (!InternedValueStore.TryGetPayload(handle, out byte internedKind, out ReadOnlySpan<byte> payload)) return;
+
+			cached = (internedKind, payload.ToArray());
+			_internedPayloadBytesCache[handle] = cached;
+		}
+
+		AddColdPayloadCandidate(scope, key, ColdPayloadKind.InternedPayload, cached.InternedKind, handle, cached.Bytes);
+	}
+
+	private void AddColdPayloadCandidate(byte scope, int key, ColdPayloadKind kind, byte internedKind, int contentId, byte[] bytes)
+	{
+		_coldPayloadCandidates.Add(new ColdPayloadDelta
+		{
+			Scope = scope,
+			Key = key,
+			Kind = (byte)kind,
+			InternedKind = internedKind,
+			ContentId = contentId,
+			Destroyed = 0,
+			Bytes = bytes
+		});
+	}
+
+	private static int ComputeSummaryTableVersion(in SummaryTableState state)
+	{
+		uint hash = ReplicatedStateFingerprint.Seed;
+		hash = ReplicatedStateFingerprint.Combine(hash, state.VisibleByte);
+		hash = ReplicatedStateFingerprint.Combine(hash, state.TitleStringId);
+
+		string[] headers = state.Headers;
+		if (headers != null)
+		{
+			for (int index = 0; index < headers.Length; index++)
+			{
+				hash = ReplicatedStateFingerprint.Combine(hash, headers[index]);
+			}
+		}
+
+		Dictionary<string, string[]> rows = state.Rows;
+		if (rows != null)
+		{
+			foreach (var pair in rows)
+			{
+				hash = ReplicatedStateFingerprint.Combine(hash, pair.Key);
+				string[] values = pair.Value;
+				if (values == null) continue;
+
+				for (int index = 0; index < values.Length; index++)
+				{
+					hash = ReplicatedStateFingerprint.Combine(hash, values[index]);
+				}
+			}
+		}
+
+		return unchecked((int)hash);
+	}
+
+	private List<ColdPayloadDelta> BuildColdPayloadDeltas(int peerId, List<ColdPayloadDelta> candidates, bool isBaseline)
+	{
+		if (!isBaseline) return new List<ColdPayloadDelta>();
+
+		if (!_coldPayloadContentPerClient.TryGetValue(peerId, out var previousContentIds))
+		{
+			previousContentIds = new Dictionary<(byte Scope, int Key, byte Kind), int>();
+			_coldPayloadContentPerClient[peerId] = previousContentIds;
+		}
+
+		var deltas = new List<ColdPayloadDelta>();
+		_coldPayloadSeenKeys.Clear();
+		for (int index = 0; index < candidates.Count; index++)
+		{
+			var candidate = candidates[index];
+			var key = (candidate.Scope, candidate.Key, candidate.Kind);
+			_coldPayloadSeenKeys.Add(key);
+
+			if (!isBaseline && previousContentIds.TryGetValue(key, out int previousContentId) && previousContentId == candidate.ContentId) continue;
+
+			previousContentIds[key] = candidate.ContentId;
+			deltas.Add(candidate);
+		}
+
+		_coldPayloadExpiredKeys.Clear();
+		foreach (var key in previousContentIds.Keys)
+		{
+			if (!_coldPayloadSeenKeys.Contains(key)) _coldPayloadExpiredKeys.Add(key);
+		}
+
+		for (int index = 0; index < _coldPayloadExpiredKeys.Count; index++)
+		{
+			var key = _coldPayloadExpiredKeys[index];
+			previousContentIds.Remove(key);
+			deltas.Add(new ColdPayloadDelta
+			{
+				Scope = key.Scope,
+				Key = key.Key,
+				Kind = key.Kind,
+				Destroyed = 1,
+				Bytes = Array.Empty<byte>()
+			});
+		}
+
+		return deltas;
 	}
 
 	private List<ComponentDelta> BuildComponentDeltas(int peerId, Entity viewerEntity, List<Unit3D> allUnits, bool isBaseline)
@@ -1808,7 +2035,7 @@ public class NetworkService
 		return deltas;
 	}
 
-	private uint ComputeHostStateFingerprint(List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
+	private uint ComputeHostStateFingerprint(List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts, List<ColdPayloadDelta> coldPayloads)
 	{
 		_fingerprintComponentRecords.Clear();
 		Entity worldEntity = FindWorldEntity();
@@ -1866,6 +2093,11 @@ public class NetworkService
 			hash = ReplicatedStateFingerprint.Combine(hash, BitConverter.SingleToInt32Bits(text.PositionY));
 			hash = ReplicatedStateFingerprint.Combine(hash, BitConverter.SingleToInt32Bits(text.PositionZ));
 			hash = ReplicatedStateFingerprint.Combine(hash, text.Visible);
+		}
+		for (int i = 0; i < coldPayloads.Count; i++)
+		{
+			var payload = coldPayloads[i];
+			hash = ReplicatedStateFingerprint.CombineColdPayload(hash, payload.Scope, payload.Key, payload.Kind, payload.ContentId);
 		}
 		return ReplicatedStateFingerprint.CombineWeatherState(hash, GameContext.World, worldEntity);
 	}
@@ -1955,6 +2187,7 @@ public class NetworkService
 
 		var abilityStates = CollectHostAbilityStateDeltas(true, clearDirty: false);
 		var staticTexts = CollectHostStaticTextDeltas(true, clearDirty: false);
+		var coldPayloadCandidates = BuildColdPayloadCandidates(networkState.SnapshotSequence);
 
 		var worldSnapshot = new WorldSnapshot
 		{
@@ -1962,11 +2195,12 @@ public class NetworkService
 			IsBaseline = true,
 			BaseSequence = networkState.SnapshotSequence,
 			Units = snapshotUnits,
+			ColdPayloads = BuildColdPayloadDeltas(targetPeerId, coldPayloadCandidates, true),
 			ComponentDeltas = BuildComponentDeltas(targetPeerId, playerEntity, allUnits, true),
 			AbilityStates = abilityStates,
 			StaticTexts = staticTexts,
 			Catalog = BuildCatalogEntriesWithStringTable(targetPeerId),
-			StateFingerprint = ComputeHostStateFingerprint(abilityStates, staticTexts)
+			StateFingerprint = ComputeHostStateFingerprint(abilityStates, staticTexts, coldPayloadCandidates)
 		};
 		return MemoryPackSerializer.Serialize(worldSnapshot);
 	}
@@ -2356,27 +2590,6 @@ public class NetworkService
 		return ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
 	}
 
-	public void SyncProductionQueue(int producerServerEntityId, string[] unitIds, float currentProgress, float buildTime)
-	{
-		if (ECSContext.WorldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity)) return;
-		var mapping = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity);
-		if (mapping.ServerToClientEntityMap.TryGetValue(producerServerEntityId, out var localEntity))
-		{
-			if (GameContext.World.IsAlive(localEntity))
-			{
-				if (!GameContext.World.Has<ProductionQueue>(localEntity))
-				{
-					GameContext.World.Add(localEntity, new ProductionQueue());
-				}
-
-				ref var prod = ref GameContext.World.Get<ProductionQueue>(localEntity);
-				prod.Replace(unitIds);
-				prod.CurrentProgress = currentProgress;
-				prod.BuildTime = buildTime;
-			}
-		}
-	}
-
 	public List<(int PeerId, float Gold, float Wood, float Stone)> GetServerPlayerResources(Dictionary<int, Entity> peerIdToPlayerEntityMap, int localPeerId)
 	{
 		var result = new List<(int, float, float, float)>();
@@ -2393,21 +2606,6 @@ public class NetworkService
 				float stone = res.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var s) ? s : 0;
 				result.Add((peerId, gold, wood, stone));
 			}
-		}
-
-		return result;
-	}
-
-	public List<(int EntityId, string[] UnitIds, float CurrentProgress, float BuildTime)> GetServerProductionQueues(IEnumerable<Entity> unitEntities)
-	{
-		var result = new List<(int, string[], float, float)>();
-
-		foreach (var entity in unitEntities)
-		{
-			if (!GameContext.World.IsAlive(entity) || !GameContext.World.Has<ProductionQueue>(entity)) continue;
-
-			var prod = GameContext.World.Get<ProductionQueue>(entity);
-			result.Add((entity.Id, prod.ToArray(), prod.CurrentProgress, prod.BuildTime));
 		}
 
 		return result;
