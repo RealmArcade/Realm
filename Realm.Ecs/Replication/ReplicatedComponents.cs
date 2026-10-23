@@ -149,27 +149,31 @@ public class PlayerTeamCodec : IReplicatedComponentCodec
 	public int ComponentTypeId => ComponentType<PlayerTeam>.Id;
 	public string ComponentName => nameof(PlayerTeam);
 	public ReplicatedScope Scope => ReplicatedScope.Player;
-	public int SizeInBytes => sizeof(int);
+	public int SizeInBytes => sizeof(int) * 2;
 
 	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
 	{
 		if (world == null || !world.IsAlive(entity) || !world.Has<PlayerTeam>(entity)) return false;
-		MemoryMarshal.Write(destination, in world.Get<PlayerTeam>(entity).TeamIndex);
+		ref var team = ref world.Get<PlayerTeam>(entity);
+		MemoryMarshal.Write(destination.Slice(0, sizeof(int)), in team.TeamIndex);
+		MemoryMarshal.Write(destination.Slice(sizeof(int), sizeof(int)), in team.TeamNameStringId);
 		return true;
 	}
 
 	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
 	{
 		if (world == null || !world.IsAlive(entity)) return;
-		int teamIndex = MemoryMarshal.Read<int>(source);
+		int teamIndex = MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+		int teamNameStringId = MemoryMarshal.Read<int>(source.Slice(sizeof(int), sizeof(int)));
 		if (world.Has<PlayerTeam>(entity))
 		{
 			ref var team = ref world.Get<PlayerTeam>(entity);
 			team.TeamIndex = teamIndex;
+			team.TeamNameStringId = teamNameStringId;
 		}
 		else
 		{
-			world.Add(entity, new PlayerTeam(teamIndex));
+			world.Add(entity, new PlayerTeam(teamIndex, teamNameStringId));
 		}
 	}
 }
@@ -272,6 +276,7 @@ public static class ReplicatedComponents
 		Register(new WorldStateCodec());
 		Register(new ReplicatedComponentCodec<PlayerPopulation>(ReplicatedScope.Player));
 		Register(new ReplicatedComponentCodec<PlayerResources>(ReplicatedScope.Player));
+		Register(new ReplicatedComponentCodec<PlayerUpgrades>(ReplicatedScope.Player));
 		Register(new ReplicatedComponentCodec<ScriptZonesState>(ReplicatedScope.World));
 		Register(new ReplicatedComponentCodec<ProductionQueue>(ReplicatedScope.Unit));
 		Register(new PlayerTeamCodec());

@@ -41,7 +41,7 @@ public partial class ReplicationContractTests
 		"Name", "ReplayAnimationState", "Rotation3D", "RotationY",
 		"PreviousRotationY", "ShroudState", "TerrainCell", "TerrainColorsState",
 		"TerrainSwatchConfig",
-		"PlayerRelationshipMatrix", "PlayerUpgrades", "AttackTarget", "HealingTarget",
+		"PlayerRelationshipMatrix", "AttackTarget", "HealingTarget",
 		"LastAttacker", "ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset"
 	};
 
