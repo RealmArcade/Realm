@@ -105,7 +105,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		BuildTransformSection(contentVBox);
 		BuildProceduralAnimationSection(contentVBox);
 
-		UpdateRiggedAnimationButtonVisibility();
+		UpdateStudioButtonVisibility();
 	}
 
 	private void BuildIdentitySection(VBoxContainer contentVBox)
@@ -171,7 +171,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			if (_isSyncing) return;
 			_visualMode = _optVisualMode.GetItemMetadata((int)idx).AsString();
 			ApplyLiveModelAndVisualMode();
-			UpdateRiggedAnimationButtonVisibility();
+			UpdateStudioButtonVisibility();
 		};
 		_visualModeRow.AddChild(_optVisualMode);
 		contentVBox.AddChild(_visualModeRow);
@@ -189,7 +189,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				if (_isSyncing) return;
 				_modelPath = val ?? string.Empty;
 				ApplyLiveModelAndVisualMode();
-				UpdateRiggedAnimationButtonVisibility();
+				UpdateStudioButtonVisibility();
 			},
 			TranslationServer.Translate("Select asset..."),
 			140f
@@ -505,7 +505,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	{
 		_btnOpenProcAnimStudio = AddButton(contentVBox, "✨ " + TranslationServer.Translate("Procedural Animation Studio [un-rigged]"), HandleOpenProcAnimStudio, "Open Procedural Animation Studio to edit math formulas and motion parameters", 11, new Vector2(0, 28));
 		_btnOpenRiggedAnimStudio = AddButton(contentVBox, "🎬 " + TranslationServer.Translate("Animation Studio [rigged]"), HandleOpenRiggedAnimStudio, "Open Animation Studio to preview and assign skeletal animations", 11, new Vector2(0, 28));
-		_btnOpenSocketsAndVfx = AddButton(contentVBox, "📎 " + TranslationServer.Translate("Sockets & VFX [rigged]"), HandleOpenSocketsAndVfx, "Open Socket & VFX Attachment Studio", 11, new Vector2(0, 28));
+		_btnOpenSocketsAndVfx = AddButton(contentVBox, "📎 " + TranslationServer.Translate("Sockets & VFX"), HandleOpenSocketsAndVfx, "Open Socket & VFX Attachment Studio", 11, new Vector2(0, 28));
 	}
 
 	private void HandleOpenRiggedAnimStudio()
@@ -599,11 +599,16 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
 	}
 
-	private void UpdateRiggedAnimationButtonVisibility()
+	private void UpdateStudioButtonVisibility()
 	{
 		bool isRigged = IsCurrentModelRigged();
 		if (_btnOpenRiggedAnimStudio != null) _btnOpenRiggedAnimStudio.Visible = isRigged;
-		if (_btnOpenSocketsAndVfx != null) _btnOpenSocketsAndVfx.Visible = isRigged;
+		if (_btnOpenSocketsAndVfx != null) _btnOpenSocketsAndVfx.Visible = HasMeshVisual();
+	}
+
+	private bool HasMeshVisual()
+	{
+		return string.Equals(_visualMode, "Mesh", StringComparison.OrdinalIgnoreCase);
 	}
 
 
@@ -1254,7 +1259,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			_modelLocalMinY = CalculateModelLocalMinY(_currentSelectedObject);
 		}
 
-		UpdateRiggedAnimationButtonVisibility();
+		UpdateStudioButtonVisibility();
 	}
 
 	private void ApplyToMultipleRegistries()
@@ -1339,7 +1344,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		SyncControls();
 		ApplyLiveModelAndVisualMode();
-		UpdateRiggedAnimationButtonVisibility();
+		UpdateStudioButtonVisibility();
 	}
 
 	private void InitializeDialogState(string category, string objectId, Node selectedObject, Action<string, string> onApplied)
@@ -1594,7 +1599,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			SyncShaderControls();
 
 			ValidateSlug();
-			UpdateRiggedAnimationButtonVisibility();
+			UpdateStudioButtonVisibility();
 		}
 		finally
 		{
@@ -2187,7 +2192,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		GameContext.Host.FlushModelYOffsetSave();
 		GameContext.Host.FlushModelCollisionCircleSave();
-		UpdateRiggedAnimationButtonVisibility();
+		UpdateStudioButtonVisibility();
 	}
 
 	private void RestoreStaticRegistryMode()
