@@ -1171,7 +1171,7 @@ namespace Realm.Client.UI
 
 				ChkApplyGroundTexture = new CheckBox();
 				ChkApplyGroundTexture.Name = "ChkApplyGroundTexture";
-				ChkApplyGroundTexture.Text = TranslationServer.Translate("Ground (Q) [Shift]");
+				ChkApplyGroundTexture.Text = TranslationServer.Translate("Ground (Q) [shift]");
 				ChkApplyGroundTexture.ButtonPressed = true;
 				ChkApplyGroundTexture.FocusMode = FocusModeEnum.None;
 				ChkApplyGroundTexture.AddThemeFontSizeOverride("font_size", 10);
