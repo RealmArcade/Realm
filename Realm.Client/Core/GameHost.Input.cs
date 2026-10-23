@@ -193,6 +193,18 @@ public partial class GameHost
 				return;
 			}
 
+			if (editorKeyEvent.Keycode == Key.Q && !ctrlPressed && !shiftPressed && ActiveEditorTool == EditorTool.PaintTexture)
+			{
+				if (MainCamera is CameraControl paintFreeCameraCtrl && paintFreeCameraCtrl.IsFreeCamera)
+				{
+					return;
+				}
+
+				GameContext.MapEditorHud?.CyclePaintSurfaceMode();
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			if (editorKeyEvent.Keycode == Key.Q && !ctrlPressed && !shiftPressed)
 			{
 				if (MainCamera is CameraControl camCtrl && camCtrl.IsFreeCamera)

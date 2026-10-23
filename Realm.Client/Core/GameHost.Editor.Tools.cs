@@ -1875,20 +1875,12 @@ namespace Realm.Client.Core
 			var mousePos = GetViewport().GetMousePosition();
 			var terrainHit = RaycastTerrainFromMouse(mousePos);
 			Vector3 hitPos = Vector3.Zero;
-			Vector3 hitNormal = Vector3.Up;
-			bool hasNormal = false;
 			bool hasHit = false;
 
 			if (terrainHit != null && terrainHit.ContainsKey("position"))
 			{
 				hitPos = terrainHit["position"].AsVector3();
 				hasHit = true;
-
-				if (terrainHit.ContainsKey("normal"))
-				{
-					hitNormal = terrainHit["normal"].AsVector3();
-					hasNormal = true;
-				}
 			}
 			else
 			{
@@ -1908,12 +1900,7 @@ namespace Realm.Client.Core
 
 			if (hasHit)
 			{
-				if (!hasNormal)
-				{
-					hitNormal = GetTerrainNormalAt(hitPos);
-				}
-
-				UpdateBrushIndicator(hitPos, hitNormal);
+				UpdateBrushIndicator(hitPos);
 				UpdateEditorPreview(hitPos);
 				HandleMapEditorTerrainHit(hitPos);
 				HandleMapEditorMouseHover(mousePos);
@@ -2221,25 +2208,9 @@ namespace Realm.Client.Core
 				firstClick = true;
 				float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
 				GameContext.EditorService.BeginTerrainDraw(hitPos, ActiveEditorTool, EditorBlockMode, targetBlockHeight, null, GroundTerrain.SplatMap, GroundTerrain.PathingCodes, GroundTerrain.CliffSplatMap);
-				ShowPaintSurfaceLockFeedback();
 			}
 
 			ApplyContinuousTerrainEditing(hitPos, fDelta, firstClick);
-		}
-
-		private void ShowPaintSurfaceLockFeedback()
-		{
-			if (ActiveEditorTool != EditorTool.PaintTexture) return;
-
-			string? surfaceName = GameContext.EditorService.ActivePaintSurface switch
-			{
-				EditorPaintSurface.Cliff => TranslationServer.Translate("cliff faces"),
-				EditorPaintSurface.Ground => TranslationServer.Translate("flat ground"),
-				_ => null
-			};
-
-			if (surfaceName == null) return;
-			GameContext.MapEditorHud?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Paint locked to {0} for this stroke."), surfaceName));
 		}
 
 		private bool IsTerrainEditingTool(EditorTool tool)
@@ -2776,7 +2747,7 @@ namespace Realm.Client.Core
 			_paintCursor.Visible = visible;
 		}
 
-		private void UpdateBrushIndicator(Vector3 position, Vector3 surfaceNormal)
+		private void UpdateBrushIndicator(Vector3 position)
 		{
 			if (_paintCursor == null) return;
 
@@ -2788,23 +2759,22 @@ namespace Realm.Client.Core
 			}
 
 			Vector3 targetPos = GetBrushTargetPosition(position, isVertexTool);
-			EditorPaintSurface surface = ActiveEditorTool == EditorTool.PaintTexture
-				? ResolvePaintCursorSurface(surfaceNormal, targetPos)
-				: EditorPaintSurface.Ground;
+			EditorPaintSurfaceMode? paintMode = ActiveEditorTool == EditorTool.PaintTexture
+				? ResolvePaintSurfaceMode()
+				: null;
 
-			_paintCursor.ShowAt(targetPos, surfaceNormal, EditorBrushRadius, surface);
+			_paintCursor.ShowAt(targetPos, EditorBrushRadius, paintMode);
 		}
 
-		private EditorPaintSurface ResolvePaintCursorSurface(Vector3 surfaceNormal, Vector3 position)
+		public EditorPaintSurfaceMode ResolvePaintSurfaceMode()
 		{
-			var editorService = GameContext.EditorService;
-			if (editorService.IsDrawingTerrain && editorService.ActivePaintSurface != EditorPaintSurface.None)
+			if (ActiveEditorTool == EditorTool.PaintTexture)
 			{
-				return editorService.ActivePaintSurface;
+				if (Input.IsKeyPressed(Key.Shift)) return EditorPaintSurfaceMode.GroundOnly;
+				if (Input.IsKeyPressed(Key.Ctrl)) return EditorPaintSurfaceMode.CliffOnly;
 			}
 
-			Vector3 normal = surfaceNormal.LengthSquared() > 0.0001f ? surfaceNormal : GetTerrainNormalAt(position);
-			return editorService.ResolvePaintSurfaceFromNormal(normal);
+			return GameContext.MapEditorHud?.GetPaintSurfaceMode() ?? EditorPaintSurfaceMode.GroundAndCliff;
 		}
 
 		private bool IsVertexTool(EditorTool tool)

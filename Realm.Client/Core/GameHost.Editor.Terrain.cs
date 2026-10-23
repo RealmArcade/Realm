@@ -22,8 +22,9 @@ namespace Realm.Client.Core
 			var positions = GetEditingPositions(worldPos);
 			GetPathingOptions(out int pathingMask, out bool pathingAdd);
 
-			bool applyGround = GameContext.MapEditorHud?.IsApplyGroundTextureEnabledView() ?? true;
-			bool applyCliff = GameContext.MapEditorHud?.IsApplyCliffTextureEnabled() ?? true;
+			EditorPaintSurfaceMode paintSurfaceMode = ResolvePaintSurfaceMode();
+			bool applyGround = paintSurfaceMode != EditorPaintSurfaceMode.CliffOnly;
+			bool applyCliff = paintSurfaceMode != EditorPaintSurfaceMode.GroundOnly;
 			float targetBlockHeight = ActiveEditorTool == EditorTool.Height ? EditorExactHeight : EditorBlockLevelHeight;
 
 			bool anyModified = ApplyEditsToPositions(positions, delta, targetBlockHeight, pathingMask, pathingAdd, isFirstClick, applyGround, applyCliff);

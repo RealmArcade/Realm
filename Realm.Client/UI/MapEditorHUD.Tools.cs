@@ -1171,7 +1171,7 @@ namespace Realm.Client.UI
 
 				ChkApplyGroundTexture = new CheckBox();
 				ChkApplyGroundTexture.Name = "ChkApplyGroundTexture";
-				ChkApplyGroundTexture.Text = TranslationServer.Translate("Ground");
+				ChkApplyGroundTexture.Text = TranslationServer.Translate("Ground (Q) [Shift]");
 				ChkApplyGroundTexture.ButtonPressed = true;
 				ChkApplyGroundTexture.FocusMode = FocusModeEnum.None;
 				ChkApplyGroundTexture.AddThemeFontSizeOverride("font_size", 10);
@@ -1179,7 +1179,7 @@ namespace Realm.Client.UI
 
 				ChkApplyCliffTexture = new CheckBox();
 				ChkApplyCliffTexture.Name = "ChkApplyCliffTexture";
-				ChkApplyCliffTexture.Text = TranslationServer.Translate("Cliff");
+				ChkApplyCliffTexture.Text = TranslationServer.Translate("Cliff (Q) [control]");
 				ChkApplyCliffTexture.ButtonPressed = true;
 				ChkApplyCliffTexture.FocusMode = FocusModeEnum.None;
 				ChkApplyCliffTexture.AddThemeFontSizeOverride("font_size", 10);
@@ -1967,30 +1967,46 @@ namespace Realm.Client.UI
 			_entityPaletteController?.SelectCategoryItemExternal("Decals", decalId);
 		}
 
-		public bool IsApplyGroundTextureEnabledView()
+		public EditorPaintSurfaceMode GetPaintSurfaceMode()
 		{
-			bool isPaintTool = GameContext.EditorService.IsApplyGroundTextureEnabledDomain();
-			if (isPaintTool && ChkApplyGroundTexture != null && ChkApplyGroundTexture.Visible)
-			{
-				return ChkApplyGroundTexture.ButtonPressed;
-			}
+			bool applyGround = ChkApplyGroundTexture == null || ChkApplyGroundTexture.ButtonPressed;
+			bool applyCliff = ChkApplyCliffTexture == null || ChkApplyCliffTexture.ButtonPressed;
 
-			return true;
+			if (applyGround && applyCliff) return EditorPaintSurfaceMode.GroundAndCliff;
+			if (applyGround) return EditorPaintSurfaceMode.GroundOnly;
+			return EditorPaintSurfaceMode.CliffOnly;
 		}
 
-		public bool IsApplyCliffTextureEnabled()
+		public void CyclePaintSurfaceMode()
 		{
-			if (GameContext.Host != null)
+			EditorPaintSurfaceMode nextMode = GetPaintSurfaceMode() switch
 			{
-				var tool = GameContext.Host.ActiveEditorTool;
-				bool isPaintTool = tool == EditorTool.PaintTexture;
-				if (isPaintTool && ChkApplyCliffTexture != null && ChkApplyCliffTexture.Visible)
-				{
-					return ChkApplyCliffTexture.ButtonPressed;
-				}
-			}
+				EditorPaintSurfaceMode.GroundOnly => EditorPaintSurfaceMode.GroundAndCliff,
+				EditorPaintSurfaceMode.GroundAndCliff => EditorPaintSurfaceMode.CliffOnly,
+				_ => EditorPaintSurfaceMode.GroundOnly
+			};
 
-			return true;
+			ApplyPaintSurfaceMode(nextMode);
+			ShowFeedback(string.Format(TranslationServer.Translate("Painting {0}"), TranslatePaintSurfaceMode(nextMode)));
+		}
+
+		private void ApplyPaintSurfaceMode(EditorPaintSurfaceMode mode)
+		{
+			if (ChkApplyGroundTexture == null || ChkApplyCliffTexture == null) return;
+
+			ChkApplyGroundTexture.SetPressedNoSignal(mode != EditorPaintSurfaceMode.CliffOnly);
+			ChkApplyCliffTexture.SetPressedNoSignal(mode != EditorPaintSurfaceMode.GroundOnly);
+			UpdateTextureLabels();
+		}
+
+		private static string TranslatePaintSurfaceMode(EditorPaintSurfaceMode mode)
+		{
+			return mode switch
+			{
+				EditorPaintSurfaceMode.GroundOnly => TranslationServer.Translate("ground only"),
+				EditorPaintSurfaceMode.CliffOnly => TranslationServer.Translate("cliff only"),
+				_ => TranslationServer.Translate("ground and cliff")
+			};
 		}
 
 		public void UpdateBrushShapeExternal(bool isSquare)
