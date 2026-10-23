@@ -207,6 +207,7 @@ public class NetworkService
 		_pendingUnitSpawns.Clear();
 		_pendingUnitKills.Clear();
 		_pendingUnitDespawns.Clear();
+		_hiddenOwnEntityIds.Clear();
 		_untrackedServerIds.Clear();
 		_playerTeams.Clear();
 		_alliances.Clear();
@@ -686,6 +687,7 @@ public class NetworkService
 			_pendingUnitDespawns.Add(localEntity);
 		}
 
+		_hiddenOwnEntityIds.Remove(localEntity.Id);
 		mapping.ServerToClientEntityMap.Remove(serverEntityId);
 		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
 	}
