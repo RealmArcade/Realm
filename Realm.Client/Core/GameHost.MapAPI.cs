@@ -1919,7 +1919,7 @@ public partial class GameHost
 		if (GameContext.World.Has<Inventory>(unitEntity))
 		{
 			var inv = GameContext.World.Get<Inventory>(unitEntity);
-			if (inv.Items != null && inv.Items.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+			if (inv.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
 				return false;
 		}
 
@@ -1955,7 +1955,7 @@ public partial class GameHost
 			if (GameContext.World.Has<Inventory>(u.Entity))
 			{
 				var inv = GameContext.World.Get<Inventory>(u.Entity);
-				if (inv.Items != null && inv.Items.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+				if (inv.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
 					continue;
 			}
 

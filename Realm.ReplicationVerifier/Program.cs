@@ -3,6 +3,8 @@ using MemoryPack;
 using Realm.Ecs;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Stats;
+using Realm.Ecs.Common;
 using Realm.Ecs.Replication;
 using Realm.MapAPI;
 
@@ -338,6 +340,64 @@ Check(spellTimers.TryGetValue("meteor", out float meteorRemaining) && Math.Abs(m
 Check(spellTimers.TryGetDuration("meteor", out float meteorDuration) && meteorDuration == 12f, "a spell timer keeps the full cooldown beside the remaining time");
 spellTimers.Clear();
 Check(spellTimers.Count == 0 && !spellTimers.TryGetValue("meteor", out _), "clearing a spell timer list frees every slot");
+
+var carriedItems = new Inventory(null);
+Check(carriedItems.Count == 0 && carriedItems.GetItemCount("sword") == 0 && carriedItems.GetItemId(0) == null, "an empty inventory reports nothing carried");
+Check(carriedItems.AddItem("sword") && carriedItems.AddItem("shield", 3), "carrying new items succeeds");
+Check(carriedItems.Count == 2 && carriedItems.GetItemId(0) == "sword" && carriedItems.GetCharges(1) == 3, "carried items keep pickup order and charges");
+Check(carriedItems.GetItemCount("SWORD") == 1 && carriedItems.HasItem("Shield"), "inventory lookups ignore case");
+carriedItems.AddItem("sword", 2);
+Check(carriedItems.Count == 2 && carriedItems.GetItemCount("sword") == 3, "adding more of a carried item stacks onto its slot");
+Check(carriedItems.RemoveItem("sword", 3) && carriedItems.Count == 1 && carriedItems.GetItemId(0) == "shield", "spending every charge drops the slot and keeps the rest in order");
+Check(!carriedItems.RemoveItem("torch"), "spending charges of an item nobody carries reports a miss");
+
+var saturatedInventory = new Inventory(null);
+for (int index = 0; index < InventorySlotArray.Capacity; index++)
+{
+	saturatedInventory.AddItem($"item_{index}");
+}
+Check(saturatedInventory.Count == InventorySlotArray.Capacity, "an inventory fills every slot it owns");
+Check(!saturatedInventory.AddItem("item_overflow") && saturatedInventory.Count == InventorySlotArray.Capacity, "a full inventory refuses another distinct item");
+Check(saturatedInventory.AddItem($"item_{InventorySlotArray.Capacity - 1}") && saturatedInventory.GetItemCount($"item_{InventorySlotArray.Capacity - 1}") == 2, "a full inventory still stacks an item it already carries");
+saturatedInventory.SetItemCount("item_overflow", 4);
+Check(saturatedInventory.Count == InventorySlotArray.Capacity && saturatedInventory.GetItemCount("item_overflow") == 0, "a full inventory refuses a new item written directly");
+Check(saturatedInventory.ToList().Count == InventorySlotArray.Capacity, "listing carried items reports every slot");
+saturatedInventory.Clear();
+Check(saturatedInventory.Count == 0 && !saturatedInventory.HasItem("item_0"), "clearing an inventory frees every slot");
+
+var appliedModifiers = new ModifierState(null);
+appliedModifiers.Add(new StatModifier(new StatId("Attack"), ModifierType.Flat, 5f, 2f));
+appliedModifiers.Add(new StatModifier(new StatId("Armor"), ModifierType.Flat, 3f));
+Check(appliedModifiers.Count == 2 && Math.Abs(appliedModifiers.Get(0).Value - 5f) < 0.0001f, "modifiers keep the order they were applied in");
+Check(!appliedModifiers.Advance(1f) && appliedModifiers.Count == 2 && Math.Abs(appliedModifiers.Get(0).Duration - 1f) < 0.0001f, "advancing a timed modifier shortens it without removing it");
+Check(appliedModifiers.Advance(1.5f) && appliedModifiers.Count == 1 && Math.Abs(appliedModifiers.Get(0).Value - 3f) < 0.0001f, "an expired modifier is removed and a permanent one survives");
+Check(appliedModifiers.Get(0).Duration <= 0f && appliedModifiers.Get(5).Value == 0f, "a permanent modifier keeps no duration and reads outside the list as empty");
+
+appliedModifiers.RemoveAt(0);
+Check(appliedModifiers.Count == 0, "removing the last modifier empties the list");
+appliedModifiers.Add(new StatModifier(new StatId("Speed"), ModifierType.PercentAdditive, 0.1f));
+appliedModifiers.Add(new StatModifier(new StatId("Armor"), ModifierType.Flat, 9f));
+appliedModifiers.RemoveAt(0);
+Check(appliedModifiers.Count == 1 && Math.Abs(appliedModifiers.Get(0).Value - 9f) < 0.0001f, "removing a modifier shifts the rest instead of swapping order");
+
+var saturatedModifiers = new ModifierState(null);
+for (int index = 0; index < ModifierSlotArray.Capacity; index++)
+{
+	saturatedModifiers.Add(new StatModifier(new StatId("Armor"), ModifierType.Flat, index, index + 1f));
+}
+Check(saturatedModifiers.Count == ModifierSlotArray.Capacity, "a modifier list fills every slot the component holds");
+saturatedModifiers.Add(new StatModifier(new StatId("Armor"), ModifierType.Flat, -1f, 0.5f));
+Check(saturatedModifiers.Count == ModifierSlotArray.Capacity && Math.Abs(saturatedModifiers.Get(0).Duration - 0.5f) < 0.0001f, "a full modifier list evicts the modifier closest to expiry");
+Check(Math.Abs(saturatedModifiers.Get(1).Duration - 2f) < 0.0001f && Math.Abs(saturatedModifiers.Get(ModifierSlotArray.Capacity - 1).Duration - ModifierSlotArray.Capacity) < 0.0001f, "eviction keeps every other modifier");
+
+var zoneOccupancy = new OccupiedZones();
+Check(zoneOccupancy.Add(3) && zoneOccupancy.Contains(3), "occupying a zone records the membership");
+Check(!zoneOccupancy.Add(3), "occupying the same zone twice reports no new entry");
+Check(zoneOccupancy.Add(OccupiedZoneMask.Capacity - 1) && zoneOccupancy.Contains(OccupiedZoneMask.Capacity - 1), "the highest supported zone is tracked");
+Check(!zoneOccupancy.Contains(4) && !zoneOccupancy.Contains(-1) && !zoneOccupancy.Contains(OccupiedZoneMask.Capacity), "unoccupied and out of range zones report no membership");
+Check(zoneOccupancy.Remove(3) && !zoneOccupancy.Contains(3) && !zoneOccupancy.Remove(3), "leaving a zone clears its membership once");
+zoneOccupancy.Clear();
+Check(!zoneOccupancy.Contains(OccupiedZoneMask.Capacity - 1), "clearing the zone mask drops every membership");
 
 ColdPayloadRegistry<List<string>>.Reset();
 const string sharedContentKey = "production_queue|worker,farm";

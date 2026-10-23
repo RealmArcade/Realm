@@ -754,12 +754,11 @@ public class InGameHUDViewModel
 			return;
 
 		var inv = world.Get<Inventory>(u.Entity);
-		if (inv.Items != null)
+		for (int itemIndex = 0; itemIndex < inv.Count; itemIndex++)
 		{
-			foreach (var kvp in inv.Items)
-			{
-				info.InventoryItems[kvp.Key] = kvp.Value;
-			}
+			string? itemId = inv.GetItemId(itemIndex);
+			if (itemId == null) continue;
+			info.InventoryItems[itemId] = inv.GetCharges(itemIndex);
 		}
 	}
 

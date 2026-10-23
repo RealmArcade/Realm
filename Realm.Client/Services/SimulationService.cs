@@ -1174,30 +1174,6 @@ public class SimulationService
 		buffs.Advance(_fDelta);
 	}
 
-	private bool UpdateModifiers(Entity entity, ref ModifierState modState)
-	{
-		bool removedAny = false;
-		var list = modState.Value;
-		for (int i = list.Count - 1; i >= 0; i--)
-		{
-			var mod = list[i];
-			if (mod.Duration > 0f)
-			{
-				float newDur = mod.Duration - _fDelta;
-				if (newDur <= 0f)
-				{
-					list.RemoveAt(i);
-					removedAny = true;
-				}
-				else
-				{
-					list[i] = new StatModifier(mod.StatTypeId, mod.Type, mod.Value, newDur);
-				}
-			}
-		}
-		return removedAny;
-	}
-
 	private static readonly StatId ArmorStatId = new StatId("Armor");
 	private static readonly StatId AttackStatId = new StatId("Attack");
 	private static readonly StatId MovementSpeedStatId = new StatId("MovementSpeed");
@@ -1206,7 +1182,7 @@ public class SimulationService
 	{
 		bool hadExpiredModifiers = UpdateEntityModifiers(entity);
 
-		bool hasModifiers = GameContext.World.Has<ModifierState>(entity) && GameContext.World.Get<ModifierState>(entity).Value.Count > 0;
+		bool hasModifiers = GameContext.World.Has<ModifierState>(entity) && GameContext.World.Get<ModifierState>(entity).Count > 0;
 		bool hasBuffs = GameContext.World.Has<BuffState>(entity) && GameContext.World.Get<BuffState>(entity).Count > 0;
 
 		if (!hasModifiers && !hasBuffs && !hadExpiredModifiers)
@@ -1242,7 +1218,7 @@ public class SimulationService
 		if (GameContext.World.Has<ModifierState>(entity))
 		{
 			ref var modState = ref GameContext.World.Get<ModifierState>(entity);
-			return UpdateModifiers(entity, ref modState);
+			return modState.Advance(_fDelta);
 		}
 		return false;
 	}
@@ -1250,9 +1226,8 @@ public class SimulationService
 	private void ApplyEntityModifiers(Entity entity, ref float flatArmor, ref float percentArmor, ref float flatAttack, ref float percentAttack, ref float flatSpeed, ref float percentSpeed)
 	{
 		if (!GameContext.World.Has<ModifierState>(entity)) return;
-		var modState = GameContext.World.Get<ModifierState>(entity);
-		var list = modState.Value;
-		for (int i = 0; i < list.Count; i++) ApplyMod(list[i], ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
+		ref var modState = ref GameContext.World.Get<ModifierState>(entity);
+		for (int i = 0; i < modState.Count; i++) ApplyMod(modState.Get(i), ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
 	}
 
 	private void ApplyEntityBuffModifiers(Entity entity, ref float flatArmor, ref float percentArmor, ref float flatAttack, ref float percentAttack, ref float flatSpeed, ref float percentSpeed)

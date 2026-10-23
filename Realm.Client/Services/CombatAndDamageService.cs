@@ -943,15 +943,14 @@ namespace Realm.Client.Services
 			if (GameContext.World.Has<Inventory>(entity))
 			{
 				var inv = GameContext.World.Get<Inventory>(entity);
-				if (inv.Items != null)
+				for (int itemIndex = 0; itemIndex < inv.Count; itemIndex++)
 				{
-					foreach (var item in inv.Items.Keys)
+					string? item = inv.GetItemId(itemIndex);
+					if (item == null) continue;
+					if (GameContext.RegistryService?.ItemRegistry != null && GameContext.RegistryService.ItemRegistry.TryGetValue(item, out var itemMeta) && itemMeta?.GrantedWeapons != null && itemMeta.GrantedWeapons.Length > 0)
 					{
-						if (GameContext.RegistryService?.ItemRegistry != null && GameContext.RegistryService.ItemRegistry.TryGetValue(item, out var itemMeta) && itemMeta?.GrantedWeapons != null && itemMeta.GrantedWeapons.Length > 0)
-						{
-							weaponId = itemMeta.GrantedWeapons[0];
-							break;
-						}
+						weaponId = itemMeta.GrantedWeapons[0];
+						break;
 					}
 				}
 			}

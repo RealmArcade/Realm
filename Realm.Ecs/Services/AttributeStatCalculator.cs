@@ -240,11 +240,10 @@ public static class AttributeStatCalculator
 	{
 		if (!world.Has<ModifierState>(entity)) return;
 
-		var modState = world.Get<ModifierState>(entity);
-		var list = modState.Value;
-		for (int i = 0; i < list.Count; i++)
+		ref var modState = ref world.Get<ModifierState>(entity);
+		for (int i = 0; i < modState.Count; i++)
 		{
-			var mod = list[i];
+			var mod = modState.Get(i);
 			if (!string.Equals(mod.StatTypeId.Value, statName, StringComparison.OrdinalIgnoreCase)) continue;
 
 			switch (mod.Type)

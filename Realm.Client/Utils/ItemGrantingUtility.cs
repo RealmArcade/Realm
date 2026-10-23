@@ -68,8 +68,7 @@ public static class ItemGrantingUtility
 		if (world == null || !world.IsAlive(entity) || !world.Has<Inventory>(entity))
 			return Array.Empty<string>();
 
-		var inv = world.Get<Inventory>(entity);
-		return inv.Items != null ? inv.Items.Keys.ToArray() : Array.Empty<string>();
+		return world.Get<Inventory>(entity).ToList();
 	}
 
 	public static void ApplyItemGrants(EcsWorld world, Entity entity, string itemId)
@@ -126,15 +125,14 @@ public static class ItemGrantingUtility
 		if (!world.Has<ModifierState>(entity)) return;
 
 		ref var modState = ref world.Get<ModifierState>(entity);
-		if (modState.Value == null) return;
 
 		string itemPrefix = $"item:{itemId}:";
-		for (int i = modState.Value.Count - 1; i >= 0; i--)
+		for (int i = modState.Count - 1; i >= 0; i--)
 		{
-			var mod = modState.Value[i];
-			if (mod.SourceUpgradeId != null && mod.SourceUpgradeId.StartsWith(itemPrefix, StringComparison.OrdinalIgnoreCase))
+			string sourceUpgradeId = modState.Get(i).SourceUpgradeId;
+			if (sourceUpgradeId != null && sourceUpgradeId.StartsWith(itemPrefix, StringComparison.OrdinalIgnoreCase))
 			{
-				modState.Value.RemoveAt(i);
+				modState.RemoveAt(i);
 			}
 		}
 	}

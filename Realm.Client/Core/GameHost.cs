@@ -1476,15 +1476,24 @@ public partial class GameHost : Node3D, IGameAPI
 		var zones = GameContext.World.Get<ScriptZonesState>(ECSContext.WorldEntity).Zones;
 		if (zones.Count == 0) return;
 
+		if (zones.Count > OccupiedZoneMask.Capacity && !_zoneCapacityWarningIssued)
+		{
+			_zoneCapacityWarningIssued = true;
+			GD.PushWarning($"[GameHost] Map declares {zones.Count} script zones but only the first {OccupiedZoneMask.Capacity} can be tracked for zone enter events.");
+		}
+
 		var positionQuery = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
 		GameContext.World.Query(in positionQuery, (Entity entity, ref Position posComp) =>
 		{
-			if (!GameContext.World.Has<OccupiedZones>(entity)) GameContext.World.Add(entity, new OccupiedZones(new HashSet<int>()));
-			CheckUnitZones(entity, new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z), GameContext.World.Get<OccupiedZones>(entity).ZoneIds, zones);
+			if (!GameContext.World.Has<OccupiedZones>(entity)) GameContext.World.Add(entity, new OccupiedZones());
+			ref var occupiedZones = ref GameContext.World.Get<OccupiedZones>(entity);
+			CheckUnitZones(entity, new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z), ref occupiedZones, zones);
 		});
 	}
 
-	private void CheckUnitZones(Entity entity, Vector3 pos, HashSet<int> occupiedZones, List<ZoneBounds> zones)
+	private bool _zoneCapacityWarningIssued;
+
+	private void CheckUnitZones(Entity entity, Vector3 pos, ref OccupiedZones occupiedZones, List<ZoneBounds> zones)
 	{
 		for (int i = 0; i < zones.Count; i++)
 		{
@@ -1539,7 +1548,7 @@ public partial class GameHost : Node3D, IGameAPI
 				if (GameContext.World.Has<Inventory>(unit.Entity))
 				{
 					ref var inv = ref GameContext.World.Get<Inventory>(unit.Entity);
-					if (inv.Items != null && inv.Items.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+					if (inv.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
 						continue;
 				}
 

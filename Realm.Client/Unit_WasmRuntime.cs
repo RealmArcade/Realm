@@ -790,7 +790,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 	public bool AddItem(string itemId)
 	{
 		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
-		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Items != null && _world.Get<Inventory>(_entity).Items.Count >= 6 && !HasItem(itemId)) return false;
+		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Count >= 6 && !HasItem(itemId)) return false;
 		bool success = ItemGrantingUtility.EquipItem(_world, _entity, itemId, 1);
 		if (success)
 		{
@@ -802,7 +802,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 	public bool AddItem(string itemId, int charges)
 	{
 		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
-		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Items != null && _world.Get<Inventory>(_entity).Items.Count >= 6 && !HasItem(itemId)) return false;
+		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Count >= 6 && !HasItem(itemId)) return false;
 		bool success = ItemGrantingUtility.EquipItem(_world, _entity, itemId, charges);
 		if (success)
 		{
@@ -884,14 +884,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 	public IReadOnlyList<string> GetItems()
 	{
 		if (!_world.IsAlive(_entity) || !_world.Has<Inventory>(_entity)) return Array.Empty<string>();
-		var inv = _world.Get<Inventory>(_entity);
-		if (inv.Items == null || inv.Items.Count == 0) return Array.Empty<string>();
-		var list = new List<string>(inv.Items.Count);
-		foreach (var key in inv.Items.Keys)
-		{
-			list.Add(key);
-		}
-		return list;
+		return _world.Get<Inventory>(_entity).ToList();
 	}
 
 	public void AddBuff(string buffId, float duration)
@@ -959,9 +952,10 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		var result = new List<string>();
 		if (_world.Has<ModifierState>(_entity))
 		{
-			var modState = _world.Get<ModifierState>(_entity);
-			foreach (var mod in modState.Value)
+			ref var modState = ref _world.Get<ModifierState>(_entity);
+			for (int modIndex = 0; modIndex < modState.Count; modIndex++)
 			{
+				var mod = modState.Get(modIndex);
 				result.Add($"{mod.StatTypeId.Value}: {(mod.Value >= 0f ? "+" : "")}{mod.Value} ({mod.Type})");
 			}
 		}
