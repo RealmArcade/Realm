@@ -2442,7 +2442,16 @@ public partial class GameHost : Node3D, IGameAPI
 				GD.PrintErr($"[GameHost] Exception during active map script Initialize: {ex.Message}");
 			}
 		}
+		ReportStringTableCollisions();
 		RebakeNavMesh();
+	}
+
+	private static void ReportStringTableCollisions()
+	{
+		int collisions = Realm.MapAPI.StringRegistry.CollisionCount;
+		if (collisions == 0) return;
+
+		GD.PushError($"[GameHost] {collisions} texts collided on their content hash and moved into the reserved identifier range, so peers can disagree about which text an identifier stands for: {Realm.MapAPI.StringRegistry.CollisionSummary}");
 	}
 
 	private void LoadCustomTerrain(string rawMapName)

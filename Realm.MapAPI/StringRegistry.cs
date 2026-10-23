@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Realm.MapAPI;
 
@@ -119,11 +120,7 @@ public static class StringRegistry
 	/// </remarks>
 	public static string Get(int id)
 	{
-		if (id == 0) return string.Empty;
-		lock (_lock)
-		{
-			if (_textById.TryGetValue(id, out string? text)) return text;
-		}
+		if (TryGetText(id, out string known)) return known;
 
 		return FetchFromHost(id);
 	}
@@ -229,6 +226,31 @@ public static class StringRegistry
 	public static void CopyEntries(List<(int Id, string Text)> destination, int startIndex = 0)
 	{
 		GetEntriesSince(startIndex, destination);
+	}
+
+	/// <summary>
+	/// Builds a human readable dump of the table for diagnosing an identifier that renders as the wrong text or not at all.
+	/// </summary>
+	/// <param name="maximumEntries">The maximum number of entries to include, taken from the most recently registered end.</param>
+	/// <returns>One line per entry with its identifier, kind and text, framed by a summary of the table and its collisions.</returns>
+	public static string DescribeTable(int maximumEntries = 200)
+	{
+		lock (_lock)
+		{
+			var builder = new StringBuilder();
+			builder.AppendLine($"text table: {_registeredEntries.Count} entries, {_collisionCount} collisions");
+
+			int start = Math.Max(0, _registeredEntries.Count - Math.Max(0, maximumEntries));
+			if (start > 0) builder.AppendLine($"showing the last {_registeredEntries.Count - start} entries");
+
+			for (int index = start; index < _registeredEntries.Count; index++)
+			{
+				(int id, string text) = _registeredEntries[index];
+				builder.AppendLine($"id={id} kind=string text='{text}'");
+			}
+
+			return builder.ToString();
+		}
 	}
 
 	/// <summary>

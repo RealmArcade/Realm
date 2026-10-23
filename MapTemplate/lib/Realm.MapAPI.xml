@@ -4244,6 +4244,13 @@
             <param name="destination">The list that receives the entries.</param>
             <param name="startIndex">The first entry index to copy.</param>
         </member>
+        <member name="M:Realm.MapAPI.StringRegistry.DescribeTable(System.Int32)">
+            <summary>
+            Builds a human readable dump of the table for diagnosing an identifier that renders as the wrong text or not at all.
+            </summary>
+            <param name="maximumEntries">The maximum number of entries to include, taken from the most recently registered end.</param>
+            <returns>One line per entry with its identifier, kind and text, framed by a summary of the table and its collisions.</returns>
+        </member>
         <member name="M:Realm.MapAPI.StringRegistry.Reset">
             <summary>
             Clears every text entry while keeping identifiers stable, since identifiers are content hashes and not table slots.

@@ -209,6 +209,14 @@ Check(StringRegistry.Get(snapshotTextId) == string.Empty, "resetting the table d
 var snapshotTargetWorld = new EcsWorld();
 snapshotTargetWorld.ImportBinarySnapshot(binarySnapshot);
 Check(StringRegistry.Get(snapshotTextId) == "snapshot text probe", "importing a binary snapshot restores its text table");
+
+Check(StringRegistry.TryGetText(snapshotTextId, out string knownText) && knownText == "snapshot text probe", "a known identifier is readable without a host round trip");
+Check(!StringRegistry.TryGetText(0, out _), "the reserved zero identifier reports a miss");
+Check(!StringRegistry.TryGetText(StringRegistry.ComputeId("text nobody registered"), out _), "an unknown identifier reports a miss instead of empty text");
+
+string tableDump = StringRegistry.DescribeTable();
+Check(tableDump.Contains("kind=string text='snapshot text probe'", StringComparison.Ordinal), "the table dump lists identifier, kind and text");
+Check(tableDump.Contains($"{StringRegistry.EntryCount} entries", StringComparison.Ordinal), "the table dump reports the entry count");
 Check(StringRegistry.CollisionCount == 0, $"built-in strings do not collide ({StringRegistry.CollisionSummary})");
 Check(StringRegistry.GetOrAdd(string.Empty) == 0 && StringRegistry.GetOrAdd(null) == 0, "empty text keeps the reserved zero id");
 
