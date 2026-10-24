@@ -1,0 +1,414 @@
+@tool
+class_name MCPBridge
+extends Node
+## WebSocket client inside the editor plugin (issue #3; direction inverted in #276).
+##
+## Connects OUT to the MCP server's bridge listener (default ws://127.0.0.1:9080) and
+## reconnects with backoff whenever the link is down — the editor is the party that
+## comes and goes, so it owns reconnection (see docs/architecture.md). Pumps the peer
+## every frame in _process: parse JSON command envelopes, dispatch through
+## MCPCommandRouter, and send back JSON response envelopes. Optional shared-token
+## auth (issue #538): when GODOT_MCP_BRIDGE_TOKEN is set, the FIRST message after
+## connect authenticates the editor ({command: cmd_auth, params:{token}}); a
+## mismatch gets a structured refusal and this side drops into its normal
+## reconnect/backoff loop (the dock log shows the refusal reason each attempt).
+##
+## API verified against the Godot 4 docs (class_websocketpeer): WebSocketPeer
+## connect_to_url / poll / get_ready_state (STATE_CONNECTING/OPEN/CLOSING/CLOSED) /
+## get_available_packet_count / get_packet / send_text (see .opencode/rules/addon.md).
+
+## Mirrors MCPStatusDock.ConnectionStatus ordering so the plugin can map directly.
+## REPLACED (#593) is appended last so the existing 0/1/2 mapping is unchanged:
+## it means this editor's link was taken over by another editor and the server
+## sent the PEER_REPLACED notice — every command now goes to that other editor.
+enum Status { DISCONNECTED, CONNECTING, CONNECTED, REPLACED }
+
+const DEFAULT_URL := "ws://127.0.0.1:9080"
+# #563: Godot's default WebSocketPeer buffers are 64 KB (verified against the
+# 4.7 class docs) — a base64 PNG of a full 3D gameplay frame exceeds that, and
+# wslay refuses the send (ERR_OUT_OF_MEMORY), silently dropping the screenshot
+# response until the caller times out. Raise both buffers so normal viewport
+# captures transfer; the server side raises its websockets max_size to match.
+const BUFFER_SIZE := 33554432  # 32 MiB (2^25), power of two per the class docs
+# Reconnect backoff: start small, double on each failed attempt, capped — so a server
+# that isn't up yet (or that restarts) is found again without hammering it.
+const _RETRY_MIN := 0.5
+const _RETRY_MAX := 5.0
+# #702: once another editor has taken the bridge, probe slowly for it to free.
+# A probe is non-displacing: the server answers busy while a peer is connected,
+# so this cannot flip-flop against the editor that replaced us.
+const _PROBE_MIN := 5.0
+const _PROBE_MAX := 30.0
+
+signal connection_changed(status: Status)
+## #593: human-facing bridge lifecycle events for the dock log — reconnect
+## attempts, server notices (auth refusal, peer replacement). One line per state
+## transition, never per process tick. Fed straight into the dock's log by the
+## plugin (the dock itself stays editor-free).
+signal event_logged(message: String)
+signal command_received(command: String)
+## Emitted after each command completes with the command name, handler
+## execution time in milliseconds (#520: the addon only ever *responds* to
+## commands, so a round-trip "latency" can't be measured here — one honest
+## exec_ms replaces the mislabeled latency arg), and the response verdict
+## (#589: ok + the structured error code on failure) so the dock can log
+## outcomes, not just dispatch.
+signal command_completed(command: String, exec_ms: float, ok: bool, error_code: String)
+
+# _peer is untyped so tests can inject a send-recording stand-in (peer_hello
+# smoke, #537); production only ever assigns a real WebSocketPeer.
+var _peer = null
+var _router: MCPCommandRouter = null
+var _url := DEFAULT_URL
+var _active := false  # whether we should keep a connection alive (start/stop)
+var _status: Status = Status.DISCONNECTED
+var _retry_delay := _RETRY_MIN
+var _retry_remaining := 0.0  # seconds until the next reconnect attempt
+# #593: consecutive reconnect attempts since the last healthy connection — reset
+# on connect and on start, surfaced in the dock's reconnect log line.
+var _retry_attempt := 0
+# Opt-in shared-token auth (issue #538): read once at start; never logged.
+var _auth_token := ""
+# #702: replaced-editor probe state. Kept separate from the normal reconnect
+# loop so a busy bridge is never displaced just to test it.
+var _probe_active := false
+var _probe_peer = null
+var _probe_delay := _PROBE_MIN
+var _probe_remaining := 0.0
+
+
+func _init(router: MCPCommandRouter = null) -> void:
+	_router = router if router != null else MCPCommandRouter.new()
+
+
+## Begin connecting (and reconnecting) to the server. Returns the first attempt's Error.
+func start(url: String = DEFAULT_URL, auth_token: String = "") -> int:
+	_url = url
+	# Token resolution mirrors GODOT_MCP_BRIDGE_URL (godot_mcp.gd): explicit arg
+	# wins, else the env var, else no auth. Never logged.
+	_auth_token = auth_token if not auth_token.is_empty() else OS.get_environment("GODOT_MCP_BRIDGE_TOKEN")
+	_active = true
+	_retry_delay = _RETRY_MIN
+	_retry_remaining = 0.0
+	_retry_attempt = 0
+	_probe_active = false
+	_probe_delay = _PROBE_MIN
+	_probe_remaining = 0.0
+	_clear_probe_peer()
+	return _open()
+
+
+func stop() -> void:
+	_active = false
+	_probe_active = false
+	_clear_probe_peer()
+	if _peer != null:
+		_peer.close()
+		_peer = null
+	_set_status(Status.DISCONNECTED)
+
+
+## Stop the bridge and release the router, breaking the router/handler reference
+## cycle so the router, its handler instances and their scripts can be freed on
+## plugin exit. RefCounted cycles never reach a zero reference count on their own
+## (see the RefCounted class reference), so the plugin calls this from _exit_tree().
+func dispose() -> void:
+	stop()
+	if _router != null:
+		_router.dispose()
+		_router = null
+
+
+func is_connected_to_server() -> bool:
+	return _status == Status.CONNECTED
+
+
+func get_status() -> Status:
+	return _status
+
+
+## Open a fresh peer and start the non-blocking connect. _process drives the rest.
+func _open() -> int:
+	_peer = WebSocketPeer.new()
+	# #563: both buffers must be raised BEFORE connect_to_url — the peer applies
+	# them at connect time and the 64 KB defaults drop large screenshot frames.
+	_peer.outbound_buffer_size = BUFFER_SIZE
+	_peer.inbound_buffer_size = BUFFER_SIZE
+	var err: int = _peer.connect_to_url(_url)
+	if err != OK:
+		# Bad URL / invalid state: drop the peer and back off; _process retries.
+		push_error("godot_mcp: connect_to_url(%s) failed (error %d)" % [_url, err])
+		_peer = null
+		_set_status(Status.DISCONNECTED)
+		_schedule_retry()
+	else:
+		_set_status(Status.CONNECTING)
+	return err
+
+
+func _process(delta: float) -> void:
+	if _probe_active:
+		_process_probe(delta)
+		return
+	if not _active:
+		return
+	if _peer == null:
+		# Disconnected: count down the backoff, then try again.
+		_retry_remaining -= delta
+		if _retry_remaining <= 0.0:
+			_open()
+		return
+
+	_peer.poll()
+	match _peer.get_ready_state():
+		WebSocketPeer.STATE_OPEN:
+			if _status != Status.CONNECTED:
+				_retry_delay = _RETRY_MIN  # connected: reset the backoff
+				# #593: name the reconnect when it followed at least one failed
+				# attempt — a recovered link is worth a dock line, a first connect
+				# is not.
+				if _retry_attempt > 0:
+					event_logged.emit("reconnected (after %d attempt%s)" % [
+						_retry_attempt, "" if _retry_attempt == 1 else "s",
+					])
+				_retry_attempt = 0
+				# #538: authenticate FIRST when a token is configured, then the
+				# identity hello (#537). Both fire on the DISCONNECTED→OPEN
+				# transition, so every (re)connection re-authenticates: after a
+				# refusal, STATE_CLOSED → DISCONNECTED, and the next OPEN re-sends
+				# auth. A peer seen mid-STATE_CLOSING never transitions straight
+				# to OPEN — it must pass STATE_CLOSED/DISCONNECTED first — so the
+				# auth send cannot be missed between attempts (PR #558 review).
+				_send_auth()
+				_send_peer_hello()  # #537: announce identity (project_path etc.)
+			_set_status(Status.CONNECTED)
+			while _peer.get_available_packet_count() > 0:
+				_handle_text(_peer.get_packet().get_string_from_utf8())
+		WebSocketPeer.STATE_CONNECTING:
+			_set_status(Status.CONNECTING)
+		WebSocketPeer.STATE_CLOSING:
+			pass  # keep polling for a clean close
+		WebSocketPeer.STATE_CLOSED:
+			# Server gone / connect failed: drop and schedule a backed-off reconnect.
+			_peer = null
+			_set_status(Status.DISCONNECTED)
+			_schedule_retry()
+
+
+## #702: probe URL — a separate path the server answers without adopting us
+## while another editor owns the bridge.
+func _probe_url() -> String:
+	return _url.rstrip("/") + "/probe"
+
+
+func _clear_probe_peer() -> void:
+	if _probe_peer != null:
+		_probe_peer.close()
+		_probe_peer = null
+
+
+## Enter the replaced state's probe loop: slow, backed-off, non-displacing.
+func _start_probe() -> void:
+	_probe_active = true
+	_probe_delay = _PROBE_MIN
+	_probe_remaining = _PROBE_MIN
+	_clear_probe_peer()
+	event_logged.emit("bridge held by another editor — probing until it is free")
+
+
+func _probe_failed() -> void:
+	_probe_delay = minf(_probe_delay * 2.0, _PROBE_MAX)
+	_probe_remaining = _probe_delay
+
+
+func _open_probe() -> void:
+	_probe_peer = WebSocketPeer.new()
+	if _probe_peer == null:
+		_probe_failed()
+		return
+	_probe_peer.outbound_buffer_size = BUFFER_SIZE
+	_probe_peer.inbound_buffer_size = BUFFER_SIZE
+	var err: int = _probe_peer.connect_to_url(_probe_url())
+	if err != OK:
+		_probe_peer = null
+		_probe_failed()
+
+
+func _process_probe(delta: float) -> void:
+	if _probe_peer == null:
+		_probe_remaining -= delta
+		if _probe_remaining <= 0.0:
+			_open_probe()
+		return
+
+	_probe_peer.poll()
+	match _probe_peer.get_ready_state():
+		WebSocketPeer.STATE_OPEN:
+			while _probe_peer.get_available_packet_count() > 0:
+				var parsed: Variant = JSON.parse_string(
+					_probe_peer.get_packet().get_string_from_utf8()
+				)
+				if typeof(parsed) != TYPE_DICTIONARY:
+					continue
+				var d := parsed as Dictionary
+				if not d.has("busy"):
+					continue
+				if bool(d.get("busy", true)):
+					# The server re-checks after answering: keep this probe open
+					# for a possible busy:false (bridge just freed) or its close.
+					continue
+				_promote_probe(_probe_peer)
+				return
+		WebSocketPeer.STATE_CONNECTING, WebSocketPeer.STATE_CLOSING:
+			pass
+		WebSocketPeer.STATE_CLOSED:
+			_probe_peer = null
+			_probe_failed()
+
+
+## The server said the bridge is free and adopted this same connection: keep it,
+## announce ourselves, and return to the normal connected loop without a replay
+## window that another editor could slip into.
+func _promote_probe(peer) -> void:
+	_peer = peer
+	_probe_peer = null
+	_probe_active = false
+	_probe_delay = _PROBE_MIN
+	_probe_remaining = 0.0
+	_active = true
+	_retry_delay = _RETRY_MIN
+	_retry_attempt = 0
+	_set_status(Status.CONNECTED)
+	_send_auth()
+	_send_peer_hello()
+	event_logged.emit("bridge free — resumed after replacement")
+
+
+func _schedule_retry() -> void:
+	_retry_attempt += 1
+	_retry_remaining = _retry_delay
+	# #593: one dock line per retry (never per process tick) so a flapping
+	# connection is explained, not just shown as a red dot. Reports the delay
+	# for THIS attempt, before the doubling applied to the next one.
+	#
+	# The log is gated on _active so a retry scheduled after stop() (defensive;
+	# _process checks _active before the countdown, so this is unreachable in
+	# practice) never reports a reconnect for a bridge the operator stopped. The
+	# backoff state still advances either way, keeping this a pure state-machine
+	# step that the headless test drives directly.
+	if _active:
+		event_logged.emit("reconnecting (attempt %d, next in %.1fs)" % [_retry_attempt, _retry_delay])
+	_retry_delay = minf(_retry_delay * 2.0, _RETRY_MAX)
+
+
+## Announce this editor's identity to the server (#537): a control envelope the
+## server consumes without replying (no waiter). The server keeps it and
+## surfaces the connected editor's project path in godot_get_server_info, and
+## logs a structured "peer replaced" entry naming both paths when a second
+## editor takes over — silence is what a replaced agent can't diagnose.
+func _send_peer_hello() -> void:
+	if _peer == null:
+		return
+	var info: Dictionary = {
+		"id": "peer_hello",
+		"command": "cmd_peer_hello",
+		"params": {
+			"project_path": ProjectSettings.globalize_path("res://"),
+			"godot_version": str(Engine.get_version_info().get("string", "")),
+			"addon_version": _addon_version(),
+		},
+	}
+	_peer.send_text(JSON.stringify(info))
+
+
+## Authenticate the connection (issue #538): the FIRST message after connecting
+## when a token is configured. The server verifies it before serving anything —
+## a mismatch answers a structured refusal envelope and closes the peer, which
+## drops this side into the normal reconnect/backoff loop (the dock shows the
+## refusal reason each attempt until the tokens agree). With no token configured
+## nothing is sent — zero-config localhost dev stays byte-identical.
+func _send_auth() -> void:
+	if _peer == null or _auth_token.is_empty():
+		return
+	var envelope: Dictionary = {
+		"id": "auth",
+		"command": "cmd_auth",
+		"params": {"token": _auth_token},
+	}
+	_peer.send_text(JSON.stringify(envelope))
+
+
+func _addon_version() -> String:
+	var addon_version := ""
+	var cfg := ConfigFile.new()
+	# #742: resolve next to THIS script — the addon may be installed at any res:// path.
+	var cfg_path: String = get_script().resource_path.get_base_dir().path_join("plugin.cfg")
+	if cfg.load(cfg_path) == OK:
+		addon_version = str(cfg.get_value("plugin", "version", ""))
+	return addon_version
+
+
+func _handle_text(text: String) -> void:
+	var parsed: Variant = JSON.parse_string(text)
+	if typeof(parsed) == TYPE_DICTIONARY:
+		var d := parsed as Dictionary
+		# Server→addon push (issue #538): an ok-shaped envelope is NOT a command —
+		# it is the server refusing or notifying us (today: the auth refusal).
+		# Log its hint for the dock, never echo a response to a response, and
+		# drop the link so the reconnect loop retries (with backoff) once the
+		# operator fixes the mismatched GODOT_MCP_BRIDGE_TOKEN.
+		if d.has("ok") and not d.has("command"):
+			if bool(d.get("ok", true)) == false:
+				var code := str(d.get("error", "ERROR"))
+				var hint := str(d.get("hint", ""))
+				push_error("godot_mcp: server notice — %s: %s" % [code, hint])
+				# #593: surface the notice in the dock log too (one story, not
+				# just the Output panel), and hold a distinct REPLACED state so
+				# the dock never shows a green "Connected" on a taken-over link.
+				event_logged.emit("server: %s — %s" % [code, hint])
+				if code == "PEER_REPLACED":
+					# #702: stop the normal reconnect loop (a fight for the bridge
+					# would flip-flop), but probe slowly for the bridge to free.
+					_active = false
+					_set_status(Status.REPLACED)
+					_start_probe()
+				_peer.close()
+			return
+	var response: Dictionary
+	var cmd_name := "?"
+	var send_time := Time.get_ticks_usec()
+	if typeof(parsed) != TYPE_DICTIONARY:
+		response = {"id": "", "ok": false, "error": "VALIDATION_ERROR", "hint": "Malformed JSON envelope."}
+	else:
+		var d2 := parsed as Dictionary
+		cmd_name = str(d2.get("command", "?"))
+		response = _router.handle(d2)
+		command_received.emit(cmd_name)
+	if _peer != null:
+		# Variant, not Error: a test fake's send_text returns null (no real socket).
+		var err: Variant = _peer.send_text(JSON.stringify(response))
+		if err != null and err != OK:
+			# #647: the reply was too large for the outbound buffer and dropped —
+			# the server would otherwise just time out with no cause. Best-effort
+			# send a small structured error so the agent can narrow the request.
+			_peer.send_text(JSON.stringify({
+				"id": str(response.get("id", "")),
+				"ok": false,
+				"error": "RESPONSE_TOO_LARGE",
+				"hint": "The response was too large to send over the bridge and was "
+					+ "dropped. Narrow the request (e.g. max_depth or pagination) and retry.",
+			}))
+	# Handler execution time only (#520): the addon responds to commands, it
+	# never originates them, so there is no send-side timestamp to diff —
+	# exec_ms is the one honest number this side can measure. #589: the
+	# response verdict rides the same signal so the dock logs outcomes.
+	var exec_ms := (Time.get_ticks_usec() - send_time) / 1000.0
+	var ok := bool(response.get("ok", false))
+	var error_code := str(response.get("error", "")) if not ok else ""
+	command_completed.emit(cmd_name, exec_ms, ok, error_code)
+
+
+func _set_status(status: Status) -> void:
+	if status != _status:
+		_status = status
+		connection_changed.emit(status)

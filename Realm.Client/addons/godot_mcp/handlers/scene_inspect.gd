@@ -1,0 +1,314 @@
+@tool
+class_name MCPSceneInspectHandlers
+extends RefCounted
+## Domain handler: read-only scene / node inspection (issue #5).
+##
+## Registered by the router on _init().  Each handler receives params dict and
+## returns a response body (without id) via the router's _ok / _fail builders.
+
+const Inspect := preload("../scene_inspect.gd")
+
+var _router: MCPCommandRouter
+
+
+func _init(router: MCPCommandRouter) -> void:
+	_router = router
+
+
+func register(handlers: Dictionary) -> void:
+	handlers["cmd_get_active_scene"] = _cmd_get_active_scene
+	handlers["cmd_list_scenes"] = _cmd_list_scenes
+	handlers["cmd_get_scene_tree"] = _cmd_get_scene_tree
+	handlers["cmd_get_selected_node"] = _cmd_get_selected_node
+	handlers["cmd_get_node_properties"] = _cmd_get_node_properties
+	handlers["cmd_node_exists"] = _cmd_node_exists
+	handlers["cmd_node_persistence"] = _cmd_node_persistence
+	handlers["cmd_get_node_property"] = _cmd_get_node_property
+	handlers["cmd_get_node_property_list"] = _cmd_get_node_property_list
+	handlers["cmd_get_node_groups"] = _cmd_get_node_groups
+	handlers["cmd_snapshot_subtree"] = _cmd_snapshot_subtree
+
+
+# -- handlers ----------------------------------------------------------------
+
+func _cmd_get_active_scene(_params: Dictionary) -> Dictionary:
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return _router._ok({
+			"is_open": false, "path": null, "name": null, "dirty": false, "dirty_known": true,
+		})
+	var path := root.scene_file_path
+	# #738: get_unsaved_scenes() is 4.7+; on 4.4–4.6 the helper returns null and
+	# we report dirty as unknown rather than guessing "clean".
+	var unsaved: Variant = _router._helpers.unsaved_scenes()
+	return _router._ok({
+		"is_open": true,
+		"path": path,
+		"name": _router._helpers.scene_name(root),
+		# #643: whether the editor considers this scene unsaved (the tab's dirty
+		# marker) — an over-threshold batch bypasses UndoRedo, so it must mark the
+		# scene itself or the tab looks clean and closing discards the edits.
+		"dirty": unsaved != null and not path.is_empty() and path in (unsaved as Array),
+		"dirty_known": unsaved != null,
+	})
+
+
+## List every res://*.tscn in the project + which is main / open / active (#304), so an
+## agent can decide open-vs-create when no scene is open. Read-only; JSON-safe.
+func _cmd_list_scenes(_params: Dictionary) -> Dictionary:
+	var main_scene: String = str(ProjectSettings.get_setting("application/run/main_scene", ""))
+	var open_set: Dictionary = {}
+	for p in EditorInterface.get_open_scenes():
+		open_set[p] = true
+	var active_root: Node = EditorInterface.get_edited_scene_root()
+	var active_path: String = active_root.scene_file_path if active_root != null else ""
+
+	var paths: Array = []
+	_collect_scene_files("res://", paths)
+	paths.sort()
+
+	var scenes: Array = []
+	for path in paths:
+		scenes.append({
+			"path": path,
+			"is_main": path == main_scene,
+			"is_open": open_set.has(path),
+			"is_active": active_path != "" and path == active_path,
+		})
+	return _router._ok({
+		"scenes": scenes,
+		"main_scene": (main_scene if main_scene != "" else null),
+	})
+
+
+## Recursively collect res://*.tscn / *.scn paths (skips hidden dirs like .godot),
+## mirroring the DirAccess walk in project_fs.gd.
+func _collect_scene_files(dir_path: String, out: Array) -> void:
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var name := dir.get_next()
+	while name != "":
+		if not name.begins_with("."):
+			var full := dir_path.path_join(name)
+			if dir.current_is_dir():
+				_collect_scene_files(full, out)
+			elif name.ends_with(".tscn") or name.ends_with(".scn"):
+				out.append(full)
+		name = dir.get_next()
+	dir.list_dir_end()
+
+
+func _cmd_get_scene_tree(params: Dictionary) -> Dictionary:
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return _router._ok({"tree": null})
+	var max_depth := int(params.get("max_depth", -1))
+	var lightweight := bool(params.get("lightweight", false))
+	return _router._ok({"tree": Inspect.serialize_tree(root, max_depth, lightweight)})
+
+
+func _cmd_get_selected_node(_params: Dictionary) -> Dictionary:
+	var selected: Array[Node] = EditorInterface.get_selection().get_selected_nodes()
+	if selected.is_empty():
+		return _router._ok({"selected": null})
+	var root: Node = EditorInterface.get_edited_scene_root()
+	return _router._ok({"selected": Inspect.node_info(selected[0], root if root != null else selected[0])})
+
+
+func _cmd_get_node_properties(params: Dictionary) -> Dictionary:
+	if not params.has("node_path"):
+		return _router._fail("VALIDATION_ERROR", "'node_path' is required.")
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return _router._fail("PRECONDITION_FAILED", "No scene is open.", "active_scene")
+	var node_path := Inspect.normalize_node_path(str(params["node_path"]))
+	var node: Node = root.get_node_or_null(NodePath(node_path))
+	if node == null:
+		return _router._fail("RESOURCE_NOT_FOUND", "No node at '%s'." % str(params["node_path"]))
+	return _router._ok(Inspect.node_info(node, root))
+
+
+func _cmd_node_exists(params: Dictionary) -> Dictionary:
+	# Lightweight existence probe (issue #365): returns only {exists: bool},
+	# no property serialization. Used by require_node_exists to avoid the
+	# heavy cmd_get_node_properties round-trip on every node-targeted mutation.
+	if not params.has("node_path"):
+		return _router._fail("VALIDATION_ERROR", "'node_path' is required.")
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return _router._fail("PRECONDITION_FAILED", "No scene is open.", "active_scene")
+	var node_path := Inspect.normalize_node_path(str(params["node_path"]))
+	var node: Node = root.get_node_or_null(NodePath(node_path))
+	if node == null:
+		return _router._fail("RESOURCE_NOT_FOUND", "No node at '%s'." % str(params["node_path"]))
+	return _router._ok({"exists": true})
+
+
+
+func _cmd_node_persistence(params: Dictionary) -> Dictionary:
+	# #458 dry-run probe: persistence truth for a target, no mutation. Lets a
+	# dry_run preview carry the same persisted/reason fields as the real run.
+	# `resource_properties` names the node properties an edit reaches through (e.g. a
+	# material's slots); the first one holding a resource decides where it saves (#475).
+	# `animation` names an AnimationPlayer animation whose library an edit would write to
+	# — the one case a property lookup cannot express (#476). It follows the content
+	# handlers' chain (animation innermost, then its library), so the probe and the real
+	# run share the same rule.
+	if not params.has("node_path"):
+		return _router._fail("VALIDATION_ERROR", "'node_path' is required.")
+	var properties: Variant = params.get("resource_properties", [])
+	if not (properties is Array):
+		return _router._fail("VALIDATION_ERROR", "'resource_properties' must be an array of property names.")
+	var found := _router._resolve(params["node_path"])
+	if not found["ok"]:
+		return found
+	var node: Node = found["node"]
+	var group: Variant = params.get("group")
+	if group != null:
+		# a removal preview keys on the group rule, not the node's resource chain: the
+		# packer writes only the groups the node adds, so a base-scene group is back
+		if not (group is String) or str(group).is_empty():
+			return _router._fail("VALIDATION_ERROR", "'group' must be a non-empty string.")
+		return _router._ok(
+			_router._helpers.with_persistence(
+				{"node_path": str(params["node_path"])},
+				_router._helpers.group_removal_persistence(node, str(group)),
+			)
+		)
+	var chain := []
+	if params.has("animation"):
+		if node is AnimationPlayer:
+			var anim_name := str(params["animation"])
+			# The preview runs BEFORE the create: a not-yet-existing animation is
+			# created into the default ("") library (or a brand-new one when the
+			# player has none) — mirror _cmd_create_animation's target choice so
+			# the probe resolves the same library chain the real run stamps (#481).
+			if node.has_animation(anim_name):
+				var animation: Animation = node.get_animation(anim_name)
+				var library: AnimationLibrary = node.get_animation_library(node.find_animation_library(animation))
+				chain = [animation, library]
+			elif node.has_animation_library(""):
+				chain = [node.get_animation_library("")]
+			# else: the create also makes the library as a new player property —
+			# no resource chain, the node rule decides.
+	else:
+		for property in properties:
+			var held: Variant = node.get(str(property))
+			if held is Resource:
+				chain.append(held)
+				# A resource that owns its own sources (a TileSet -> TileSetAtlasSource)
+				# is edited through the child object the handler mutates: the real run
+				# resolves the same chain with the SOURCE first (chain head decides the
+				# hint's class word), so the probe mirrors that order (#481). The source
+				# id comes with the probe (default 0, matching the atlas tools).
+				if held is TileSet and str(property) == "tile_set":
+					var tileset := held as TileSet
+					var source_id := int(params.get("source_id", 0))
+					if tileset.has_source(source_id):
+						chain.push_front(tileset.get_source(source_id))
+				break
+	var truth: Dictionary
+	if params.has("probe_parent_of"):
+		# #477 (duplicate): the copy keys on the PARENT of the named node — the
+		# duplicate lands under the same parent, so the parent rule decides and
+		# the hint names the parent path (same as the real run).
+		var parent := (node as Node).get_parent()
+		truth = (
+			_router._helpers.persistent_target(parent)
+			if parent != null
+			else _router._not_persisted("node_not_owned", "The node has no parent, so nothing can be saved.")
+		)
+	elif bool(params.get("probe_parent", false)):
+		# #477: structural probes key on the parent (creates/instances/moves)
+		# — the target does not exist yet, so the parent's persistence decides.
+		truth = _router._helpers.persistent_target(node)
+	else:
+		truth = _router._helpers.resource_persistence(node, chain)
+	var body := {
+		"node_path": str(params["node_path"]),
+		"persisted": truth["ok"],
+	}
+	if not truth["ok"]:
+		body["reason"] = truth["reason"]
+		body["hint"] = truth["hint"]
+	return _router._ok(body)
+
+
+func _cmd_get_node_property(params: Dictionary) -> Dictionary:
+	if not params.has("node_path"):
+		return _router._fail("VALIDATION_ERROR", "'node_path' is required.")
+	if not params.has("property"):
+		return _router._fail("VALIDATION_ERROR", "'property' is required.")
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return _router._fail("PRECONDITION_FAILED", "No scene is open.", "active_scene")
+	var node_path := Inspect.normalize_node_path(str(params["node_path"]))
+	var node: Node = root.get_node_or_null(NodePath(node_path))
+	if node == null:
+		return _router._fail("RESOURCE_NOT_FOUND", "No node at '%s'." % str(params["node_path"]))
+	var read: Dictionary = Inspect.read_property(node, str(params["property"]))
+	return _router._ok({
+		"node_path": str(params["node_path"]),
+		"property": str(params["property"]),
+		"value": read["value"],
+		"exists": read["exists"],
+	})
+
+
+func _cmd_get_node_groups(params: Dictionary) -> Dictionary:
+	if not params.has("node_path"):
+		return _router._fail("VALIDATION_ERROR", "'node_path' is required.")
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return _router._fail("PRECONDITION_FAILED", "No scene is open.", "active_scene")
+	var node_path := Inspect.normalize_node_path(str(params["node_path"]))
+	var node: Node = root.get_node_or_null(NodePath(node_path))
+	if node == null:
+		return _router._fail("RESOURCE_NOT_FOUND", "No node at '%s'." % str(params["node_path"]))
+	return _router._ok({"node_path": str(params["node_path"]), "groups": Inspect.node_groups(node)})
+
+
+func _cmd_get_node_property_list(params: Dictionary) -> Dictionary:
+	if not params.has("node_path"):
+		return _router._fail("VALIDATION_ERROR", "'node_path' is required.")
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return _router._fail("PRECONDITION_FAILED", "No scene is open.", "active_scene")
+	var node_path := Inspect.normalize_node_path(str(params["node_path"]))
+	var node: Node = root.get_node_or_null(NodePath(node_path))
+	if node == null:
+		return _router._fail("RESOURCE_NOT_FOUND", "No node at '%s'." % str(params["node_path"]))
+	var names: Array = []
+	for entry in node.get_property_list():
+		names.append(str(entry["name"]))
+	return _router._ok({
+		"node_path": str(params["node_path"]),
+		"type": node.get_class(),
+		"properties": names,
+	})
+
+
+## Subtree snapshot for diff-based verification (issue #535): the tree shape plus
+## per-node property values, JSON-safe. Read-only; no UndoRedo (nothing mutates).
+## `properties` are built-in property names to capture beyond script vars;
+## `max_depth` caps depth (<0 unlimited) like cmd_get_scene_tree.
+func _cmd_snapshot_subtree(params: Dictionary) -> Dictionary:
+	if not params.has("node_path"):
+		return _router._fail("VALIDATION_ERROR", "'node_path' is required.")
+	var root: Node = EditorInterface.get_edited_scene_root()
+	if root == null:
+		return _router._fail("PRECONDITION_FAILED", "No scene is open.", "active_scene")
+	var node_path := Inspect.normalize_node_path(str(params["node_path"]))
+	var node: Node = root.get_node_or_null(NodePath(node_path))
+	if node == null:
+		return _router._fail("RESOURCE_NOT_FOUND", "No node at '%s'." % str(params["node_path"]))
+	var properties: Variant = params.get("properties", [])
+	if not (properties is Array):
+		return _router._fail("VALIDATION_ERROR", "'properties' must be an array of property names.")
+	var max_depth := int(params.get("max_depth", -1))
+	return _router._ok({
+		"node_path": str(params["node_path"]),
+		"snapshot": Inspect.snapshot_tree(node, max_depth, properties, root),
+	})

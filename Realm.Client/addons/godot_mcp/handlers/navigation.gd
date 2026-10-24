@@ -1,0 +1,210 @@
+@tool
+class_name MCPNavigationHandlers
+extends RefCounted
+## Domain handler: navigation.
+##
+## Registered by the router on _init().  Each handler receives params dict and
+## returns a response body (without id) via the router's _ok / _fail builders.
+
+var _router: MCPCommandRouter
+
+
+func _init(router: MCPCommandRouter) -> void:
+	_router = router
+
+
+func register(handlers: Dictionary) -> void:
+	handlers["cmd_bake_navigation_mesh"] = _cmd_bake_navigation_mesh
+	handlers["cmd_get_navigation_region"] = _cmd_get_navigation_region
+	handlers["cmd_set_navigation_layers"] = _cmd_set_navigation_layers
+	handlers["cmd_setup_navigation_agent"] = _cmd_setup_navigation_agent
+	handlers["cmd_setup_navigation_region"] = _cmd_setup_navigation_region
+
+
+# -- handlers ----------------------------------------------------------------
+
+func _cmd_setup_navigation_region(params: Dictionary) -> Dictionary:
+	var found := _router._resolve(params.get("parent_path", ""))
+	if not found["ok"]:
+		return found
+	var parent: Node = found["node"]
+	var region_type := str(params.get("region_type", "NavigationRegion2D"))
+	if region_type != "NavigationRegion2D" and region_type != "NavigationRegion3D":
+		return _router._fail("VALIDATION_ERROR", "region_type must be NavigationRegion2D or NavigationRegion3D.")
+	# The whitelist above already bounds the type; the helper still guards the null case.
+	var region_inst := _router._instantiate_validated(region_type, "", "")
+	if not region_inst["ok"]:
+		return region_inst
+	var region: Node = region_inst["obj"]
+	region.name = str(params.get("name", region_type))
+	# Assign an empty navmesh resource so the region is ready to bake.
+	if region is NavigationRegion2D:
+		region.navigation_polygon = NavigationPolygon.new()
+	else:
+		region.navigation_mesh = NavigationMesh.new()
+	_router._helpers.apply_props(region, params.get("properties", {}))
+	# #477 (parent rule): a nav region under an instanced child is lost on save.
+	var committed := _router._helpers.commit_add_child_with_persistence(parent, region, "Add %s" % region.name)
+	return _router._ok(_router._helpers.with_persistence({
+		"node_path": committed["path"],
+		"region_type": region_type,
+		"created": true,
+	}, committed["persistence"]))
+
+
+
+func _cmd_setup_navigation_agent(params: Dictionary) -> Dictionary:
+	var found := _router._resolve(params.get("parent_path", ""))
+	if not found["ok"]:
+		return found
+	var parent: Node = found["node"]
+	var agent_type := str(params.get("agent_type", "NavigationAgent2D"))
+	if agent_type != "NavigationAgent2D" and agent_type != "NavigationAgent3D":
+		return _router._fail("VALIDATION_ERROR", "agent_type must be NavigationAgent2D or NavigationAgent3D.")
+	# The whitelist above already bounds the type; the helper still guards the null case.
+	var agent_inst := _router._instantiate_validated(agent_type, "", "")
+	if not agent_inst["ok"]:
+		return agent_inst
+	var agent: Node = agent_inst["obj"]
+	agent.name = str(params.get("name", agent_type))
+	_router._helpers.apply_props(agent, params.get("properties", {}))
+	# #477 (parent rule): a nav agent under an instanced child is lost on save.
+	var committed := _router._helpers.commit_add_child_with_persistence(parent, agent, "Add %s" % agent.name)
+	return _router._ok(_router._helpers.with_persistence({
+		"node_path": committed["path"],
+		"agent_type": agent_type,
+		"created": true,
+	}, committed["persistence"]))
+
+
+
+func _cmd_bake_navigation_mesh(params: Dictionary) -> Dictionary:
+	var found := _router._resolve(params.get("node_path", ""))
+	if not found["ok"]:
+		return found
+	var region: Node = found["node"]
+	var ur := EditorInterface.get_editor_undo_redo()
+	# Baking mutates the assigned navmesh resource in place. To stay undoable we bake a
+	# fresh duplicate (the do/redo target) and keep the original pristine as the undo
+	# value, so the snapshot is never the bake target and repeated undo/redo is stable.
+	var polygon_count := -1
+	var vertex_count := -1
+	if region is NavigationRegion2D:
+		if region.navigation_polygon == null:
+			return _router._fail("VALIDATION_ERROR", "Region has no navigation_polygon; assign one first.", "navigation_polygon")
+		var original: NavigationPolygon = region.navigation_polygon
+		var working: NavigationPolygon = original.duplicate(true)
+		ur.create_action("Bake navigation polygon")
+		ur.add_do_property(region, "navigation_polygon", working)
+		ur.add_do_method(region, "bake_navigation_polygon", false)
+		ur.add_do_reference(working)
+		ur.add_undo_property(region, "navigation_polygon", original)
+		ur.add_undo_reference(original)
+		ur.commit_action()
+		polygon_count = working.get_polygon_count()
+		vertex_count = working.get_vertex_count()
+	elif region is NavigationRegion3D:
+		if region.navigation_mesh == null:
+			return _router._fail("VALIDATION_ERROR", "Region has no navigation_mesh; assign one first.", "navigation_mesh")
+		var original: NavigationMesh = region.navigation_mesh
+		var working: NavigationMesh = original.duplicate(true)
+		ur.create_action("Bake navigation mesh")
+		ur.add_do_property(region, "navigation_mesh", working)
+		ur.add_do_method(region, "bake_navigation_mesh", false)
+		ur.add_do_reference(working)
+		ur.add_undo_property(region, "navigation_mesh", original)
+		ur.add_undo_reference(original)
+		ur.commit_action()
+		polygon_count = working.get_polygon_count()
+		if working.has_method("get_vertices"):
+			var verts: PackedVector3Array = working.get_vertices()
+			vertex_count = verts.size()
+	else:
+		return _router._fail("VALIDATION_ERROR", "Node is not a NavigationRegion2D/NavigationRegion3D.")
+	# A bake that produced zero polygons is a failed bake (no source geometry was
+	# parsed, or every agent/geometry filter excluded it) — never report baked:true
+	# for an empty navmesh, an agent trusting that ships AI that can't pathfind (#413).
+	if polygon_count <= 0:
+		return _router._fail(
+			"VALIDATION_ERROR",
+			"Bake produced no polygons (%d vertices) — no source geometry was parsed. Add "
+				+ "MeshInstance3D/GridMap/StaticBody colliders under the region (or under "
+				+ "the root_node_type the mesh parses) and retry." % vertex_count,
+			"polygon_count",
+		)
+	# The bake assigns a fresh duplicate to the region, so it saves like any node property.
+	return _router._ok(_router._helpers.with_persistence({
+		"node_path": str(params.get("node_path")),
+		"baked": true,
+		"polygon_count": polygon_count,
+		"vertex_count": vertex_count,
+	}, _router._helpers.persistent_target(region)))
+
+
+
+func _cmd_get_navigation_region(params: Dictionary) -> Dictionary:
+	var found := _router._resolve(params.get("node_path", ""))
+	if not found["ok"]:
+		return found
+	var region: Node = found["node"]
+	var path := str(params.get("node_path"))
+	if region is NavigationRegion2D:
+		var navpoly: NavigationPolygon = region.navigation_polygon
+		if navpoly == null:
+			return _router._ok({
+				"node_path": path,
+				"has_polygon": false,
+				"outline_count": 0,
+				"vertex_count": 0,
+				"polygon_count": 0,
+			})
+		return _router._ok({
+			"node_path": path,
+			"has_polygon": true,
+			"outline_count": navpoly.get_outline_count(),
+			"vertex_count": navpoly.get_vertex_count(),
+			"polygon_count": navpoly.get_polygon_count(),
+		})
+	elif region is NavigationRegion3D:
+		var navmesh: NavigationMesh = region.navigation_mesh
+		if navmesh == null:
+			return _router._ok({
+				"node_path": path,
+				"has_polygon": false,
+				"outline_count": 0,
+				"vertex_count": 0,
+				"polygon_count": 0,
+			})
+		var vertex_count := 0
+		if navmesh.has_method("get_vertices"):
+			var verts: PackedVector3Array = navmesh.get_vertices()
+			vertex_count = verts.size()
+		return _router._ok({
+			"node_path": path,
+			"has_polygon": true,
+			"outline_count": 0,
+			"vertex_count": vertex_count,
+			"polygon_count": navmesh.get_polygon_count(),
+		})
+	return _router._fail("VALIDATION_ERROR", "Node is not a NavigationRegion2D/NavigationRegion3D.")
+
+
+
+func _cmd_set_navigation_layers(params: Dictionary) -> Dictionary:
+	var found := _router._resolve(params.get("node_path", ""))
+	if not found["ok"]:
+		return found
+	var node: Node = found["node"]
+	if _router._helpers.property_type(node, "navigation_layers") == -1:
+		return _router._fail("VALIDATION_ERROR", "Node has no 'navigation_layers' property.")
+	if not _router._helpers.valid_bits(params.get("layers")):
+		return _router._fail("VALIDATION_ERROR", "'layers' must be an array of bit indices in [1, 32].")
+	var mask: int = _router._helpers.bitmask(params["layers"])
+	var ur := EditorInterface.get_editor_undo_redo()
+	ur.create_action("Set navigation layers on %s" % node.name)
+	ur.add_do_property(node, "navigation_layers", mask)
+	ur.add_undo_property(node, "navigation_layers", node.navigation_layers)
+	ur.commit_action()
+	return _router._ok(_router._helpers.with_persistence({"node_path": str(params.get("node_path")), "navigation_layers": mask}, _router._helpers.persistent_target(node)))
+
+

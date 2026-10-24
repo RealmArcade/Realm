@@ -1,0 +1,411 @@
+@tool
+class_name MCPStatusDock
+extends HBoxContainer
+## godot-mcp status dock — read-only editor presence (issue #2).
+##
+## A dumb, editor-independent Control: it holds no Godot Editor API knowledge and
+## never mutates the project. The EditorPlugin (godot_mcp.gd) feeds it live state
+## through the public setters below. Keeping it editor-free makes it verifiable
+## headlessly (see godot/tests/dock_smoke.gd).
+##
+## Layout: two columns for the wide bottom panel.
+##   Left:  connection status (color dot + text), server/Godot version, bridge URL,
+##          project, scene, selected node, enabled toolsets.
+##   Right: command statistics (total, last handler-exec time), recent
+##          command log (last N entries with timestamps).
+
+## REPLACED (#593) is appended last so the 0/1/2 ordering shared with
+## MCPBridge.Status is unchanged: this editor's link was taken over by another
+## editor — distinct from DISCONNECTED because the bridge is very much alive,
+## just not serving this editor.
+enum ConnectionStatus { DISCONNECTED, CONNECTING, CONNECTED, REPLACED }
+
+# #594: 10 entries was too shallow for a burst — batch_set_property / run_commands
+# fire 20+ commands, so a single batch evicted the whole log. 50 keeps a 20-command
+# burst plus its context visible.
+const MAX_LOG_ENTRIES := 50
+const PLACEHOLDER := "(none)"
+const _UNKNOWN := "(unknown)"
+
+const _CONNECTION_TEXT := {
+	ConnectionStatus.DISCONNECTED: "Disconnected",
+	ConnectionStatus.CONNECTING: "Connecting…",
+	ConnectionStatus.CONNECTED: "Connected",
+	ConnectionStatus.REPLACED: "Replaced by another editor",
+}
+
+const _CONNECTION_COLOR := {
+	ConnectionStatus.DISCONNECTED: Color(0.9, 0.3, 0.3),
+	ConnectionStatus.CONNECTING: Color(0.9, 0.7, 0.2),
+	ConnectionStatus.CONNECTED: Color(0.3, 0.8, 0.3),
+	ConnectionStatus.REPLACED: Color(0.8, 0.4, 0.8),
+}
+
+# --- Left column widgets ---
+var _status_dot: ColorRect
+var _connection_value: Label
+var _version_value: Label
+var _bridge_value: Label
+var _project_value: Label
+var _scene_value: Label
+var _selected_value: Label
+var _toolsets_value: Label
+# #590: the human's view of the UndoRedo guarantee — the most recent undoable
+# action, with how to revert it. Read-only: the plugin feeds it.
+var _undo_value: Label
+# #591: play-session + probe state (dirty state rides the Scene row via
+# set_scene_dirty). Read-only: the plugin feeds it.
+var _play_value: Label
+# #629: an available godot-mcp update (from the server's check_for_updates).
+# Read-only: the plugin feeds it.
+var _update_value: Label
+
+# --- Right column widgets ---
+var _cmd_count_value: Label
+var _last_exec_value: Label
+var _log_value: Label
+var _copy_button: Button
+
+# --- Auto-refresh toggle (issue #561): opt-in timer-based filesystem scan ---
+signal auto_refresh_toggled(enabled: bool)
+var _auto_refresh_check: CheckBox
+
+# --- State ---
+var _recent: PackedStringArray = PackedStringArray()
+# #594: the count is SESSION-scoped (this editor's current bridge connection),
+# reset when a fresh connection is established — see set_connection_status. A
+# number that only ever grew across a long-lived editor said little; "commands
+# on the link you're looking at" is what a supervisor wants.
+var _command_count := 0
+var _last_command_time := ""
+var _status: ConnectionStatus = ConnectionStatus.DISCONNECTED
+
+
+func _init() -> void:
+	# Build the UI eagerly so the dock is usable whether or not it is in the tree
+	# (the headless test exercises it detached from any scene tree).
+	name = "MCP"
+	add_theme_constant_override("separation", 16)
+
+	# === LEFT COLUMN ===
+	var left_col := VBoxContainer.new()
+	left_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_col.add_theme_constant_override("separation", 4)
+	add_child(left_col)
+
+	# Status header (large color dot + connection text)
+	var status_row := HBoxContainer.new()
+	status_row.add_theme_constant_override("separation", 8)
+	_status_dot = ColorRect.new()
+	_status_dot.custom_minimum_size = Vector2(16, 16)
+	_status_dot.color = _CONNECTION_COLOR[ConnectionStatus.DISCONNECTED]
+	status_row.add_child(_status_dot)
+	_connection_value = Label.new()
+	_connection_value.text = "Disconnected"
+	status_row.add_child(_connection_value)
+	left_col.add_child(status_row)
+
+	_version_value = _add_field(left_col, "Server:")
+	_bridge_value = _add_field(left_col, "Bridge:")
+	_project_value = _add_field(left_col, "Project:")
+	_scene_value = _add_field(left_col, "Scene:")
+	_selected_value = _add_field(left_col, "Selected:")
+	_toolsets_value = _add_field(left_col, "Toolsets:")
+	_undo_value = _add_field(left_col, "Last action:")
+	_play_value = _add_field(left_col, "Playing:")
+	_update_value = _add_field(left_col, "Update:")
+
+	# === RIGHT COLUMN ===
+	var right_col := VBoxContainer.new()
+	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_col.add_theme_constant_override("separation", 4)
+	add_child(right_col)
+
+	# Command statistics
+	var stats_title := Label.new()
+	stats_title.text = "Command Statistics"
+	right_col.add_child(stats_title)
+	# #594: the count is per session (reset on reconnect), so label it honestly.
+	_cmd_count_value = _add_field(right_col, "This session:")
+	_last_exec_value = _add_field(right_col, "Last exec:")
+
+	# Recent commands log
+	var log_title := Label.new()
+	log_title.text = "Recent Commands"
+	right_col.add_child(log_title)
+	_log_value = Label.new()
+	_log_value.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_log_value.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_col.add_child(_log_value)
+	# #594: the recent-command log is what we ask users to paste into bug reports,
+	# so give them a one-click copy. The dock stays editor-free — DisplayServer's
+	# clipboard is engine-global, not Editor API.
+	_copy_button = Button.new()
+	_copy_button.text = "Copy recent commands"
+	_copy_button.tooltip_text = "Copy the recent-command log to the clipboard"
+	_copy_button.pressed.connect(_on_copy_pressed)
+	right_col.add_child(_copy_button)
+
+	# Auto-refresh toggle (issue #561): opt-in timer-based filesystem scan so
+	# external edits (agent/git/other tools) are picked up without editor
+	# focus. Default OFF; the plugin wires the signal to the timer. The dock
+	# itself never mutates the project — this toggles a plugin-local Timer.
+	_auto_refresh_check = CheckBox.new()
+	_auto_refresh_check.text = "Auto-refresh files (external edits)"
+	_auto_refresh_check.tooltip_text = (
+		"Periodically scan the filesystem so edits made outside Godot (agents, git) "
+		+ "show up without focusing the editor."
+	)
+	_auto_refresh_check.toggled.connect(func(on: bool) -> void:
+		auto_refresh_toggled.emit(on))
+	right_col.add_child(_auto_refresh_check)
+
+	# Sensible defaults before the plugin pushes real state.
+	set_connection_status(ConnectionStatus.DISCONNECTED)
+	set_server_version("")
+	set_bridge_url("")
+	set_project_path("")
+	set_active_scene("")
+	set_selected_node("")
+	set_toolsets_unknown()  # #592: not "(none)" — the server hasn't pushed yet
+	set_update_available("", "")  # #629: no known update until the server says so
+	set_last_action("")
+	set_scene_dirty("", false)
+	set_play_state(false, false)
+	set_command_stats(0, 0.0)
+
+
+## Set the auto-refresh checkbox without emitting the signal (plugin-init sync).
+func set_auto_refresh(enabled: bool) -> void:
+	if _auto_refresh_check.button_pressed != enabled:
+		_auto_refresh_check.set_pressed_no_signal(enabled)
+
+
+## The checkbox's current state (read-only accessor for tests/plugin).
+func displayed_auto_refresh() -> bool:
+	return _auto_refresh_check.button_pressed
+
+
+## Add a "label: value" row to a container and return the value Label for later updates.
+func _add_field(parent: Container, caption: String) -> Label:
+	var row := HBoxContainer.new()
+	var caption_label := Label.new()
+	caption_label.text = caption
+	var value_label := Label.new()
+	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(caption_label)
+	row.add_child(value_label)
+	parent.add_child(row)
+	return value_label
+
+
+func set_connection_status(status: ConnectionStatus) -> void:
+	# #594: a fresh CONNECTED (from anything but CONNECTED) starts a new session —
+	# reset the count so it reads "commands since this editor (re)connected".
+	# REPLACED/CONNECTING/DISCONNECTED don't reset; only the reconnect itself does.
+	if status == ConnectionStatus.CONNECTED and _status != ConnectionStatus.CONNECTED:
+		_command_count = 0
+		set_command_stats(0, 0.0)
+	_status = status
+	_connection_value.text = _CONNECTION_TEXT.get(status, _UNKNOWN)
+	_status_dot.color = _CONNECTION_COLOR.get(status, Color.GRAY)
+
+
+func set_server_version(version: String) -> void:
+	_version_value.text = version if not version.is_empty() else _UNKNOWN
+
+
+func set_bridge_url(url: String) -> void:
+	_bridge_value.text = url if not url.is_empty() else _UNKNOWN
+
+
+func set_project_path(path: String) -> void:
+	_project_value.text = path if not path.is_empty() else _UNKNOWN
+
+
+func set_active_scene(scene_name: String) -> void:
+	_scene_value.text = scene_name if not scene_name.is_empty() else PLACEHOLDER
+
+
+## Show the active scene with a dirty marker (#591): "main.tscn ●" when the
+## editor holds unsaved changes (an agent mutation, or the human's own edits).
+## A dirty marker only makes sense with a named scene, so a scene-less or
+## unsaved-new scene falls back to the plain placeholder.
+func set_scene_dirty(scene_name: String, dirty: bool) -> void:
+	if scene_name.is_empty():
+		_scene_value.text = PLACEHOLDER
+	elif dirty:
+		_scene_value.text = "%s ●" % scene_name
+	else:
+		_scene_value.text = scene_name
+
+
+## Show play-session state (#591): the running scene and whether the agent's
+## runtime probe is attached ("main.tscn (probe connected)"), or not playing.
+## `scene_name` is the active scene's label — during a play session the edited
+## scene is still the source, so it names what is running.
+func set_play_state(playing: bool, probe_connected: bool, scene_name: String = "") -> void:
+	if not playing:
+		_play_value.text = PLACEHOLDER
+		return
+	var label := scene_name if not scene_name.is_empty() else "game"
+	if probe_connected:
+		_play_value.text = "%s (probe connected)" % label
+	else:
+		_play_value.text = "%s (no probe)" % label
+
+
+func set_selected_node(node_name: String) -> void:
+	_selected_value.text = node_name if not node_name.is_empty() else PLACEHOLDER
+
+
+## Show the most recent undoable action (#590) — "create_node 'Player' (Ctrl+Z
+## to undo)" — so the human sees what the agent just changed and how to revert,
+## without opening Editor → Undo History. An empty history reads as a placeholder.
+func set_last_action(action: String) -> void:
+	if action.is_empty():
+		_undo_value.text = PLACEHOLDER
+	else:
+		_undo_value.text = "%s (Ctrl+Z to undo)" % action
+
+
+func set_enabled_toolsets(toolsets: PackedStringArray) -> void:
+	if toolsets.is_empty():
+		_toolsets_value.text = PLACEHOLDER
+	else:
+		_toolsets_value.text = ", ".join(toolsets)
+
+
+## The enabled-set is not yet known (#592): an older server (or pre-handshake)
+## that never pushes cmd_toolsets_update. Distinct from "(none)" — showing
+## "(none)" here was the stale-lie bug #592 fixes (the server may have several on).
+func set_toolsets_unknown() -> void:
+	_toolsets_value.text = _UNKNOWN
+
+
+## Show an available godot-mcp update (#629): "update available: <latest> (you
+## have <current>)". Empty when there is no known update. Read-only.
+func set_update_available(current: String, latest: String) -> void:
+	if latest.is_empty():
+		_update_value.text = PLACEHOLDER
+	elif current.is_empty():
+		_update_value.text = "update available: %s" % latest
+	else:
+		_update_value.text = "update available: %s (you have %s)" % [latest, current]
+
+
+## The rendered Update row (for tests).
+func displayed_update_available() -> String:
+	return _update_value.text
+
+
+func set_command_stats(count: int, last_exec_ms: float) -> void:
+	_cmd_count_value.text = str(count)
+	_last_exec_value.text = "%.1f ms" % last_exec_ms if last_exec_ms > 0.0 else PLACEHOLDER
+
+
+## Append a command outcome to the recent log (#589), keeping only the last
+## MAX_LOG_ENTRIES. Fed from the bridge's `command_completed` signal — entries
+## carry the response verdict, not just the dispatch: a success ends with "✓",
+## a failure ends with "✗ <ERROR_CODE>". The agent's structured errors are for
+## the agent; this line is the human's copy of the same story.
+func log_command_result(command: String, ok: bool, error_code: String) -> void:
+	var timestamp := Time.get_time_string_from_system().substr(0, 8)
+	var entry: String
+	if ok:
+		entry = "[%s] %s ✓" % [timestamp, command]
+	elif error_code.is_empty():
+		entry = "[%s] %s ✗" % [timestamp, command]
+	else:
+		entry = "[%s] %s ✗ %s" % [timestamp, command, error_code]
+	_recent.append(entry)
+	while _recent.size() > MAX_LOG_ENTRIES:
+		_recent.remove_at(0)
+	_log_value.text = "\n".join(_recent)
+	_command_count += 1
+	_last_command_time = timestamp
+
+
+## Append a bridge lifecycle notice to the same recent-commands log (#593) —
+## reconnect attempts, server notices (auth refusal, peer replacement). Shares
+## the log/ring buffer and eviction with command outcomes so the human sees one
+## chronological story, not two logs.
+func log_event(message: String) -> void:
+	var timestamp := Time.get_time_string_from_system().substr(0, 8)
+	_recent.append("[%s] %s" % [timestamp, message])
+	while _recent.size() > MAX_LOG_ENTRIES:
+		_recent.remove_at(0)
+	_log_value.text = "\n".join(_recent)
+
+
+## #594: copy the recent-command log to the system clipboard — the log is what
+## we ask users to paste into bug reports. Engine-global DisplayServer, not
+## Editor API, so the dock stays editor-free. A no-op on an empty log (and in
+## headless runs where there is no clipboard — guarded, never a crash).
+func copy_log_to_clipboard() -> void:
+	if _recent.is_empty():
+		return
+	DisplayServer.clipboard_set(_log_value.text)
+
+
+func _on_copy_pressed() -> void:
+	copy_log_to_clipboard()
+
+
+func get_recent_commands() -> PackedStringArray:
+	# Return a copy so callers cannot mutate the dock's state behind its back.
+	return _recent.duplicate()
+
+
+func get_command_count() -> int:
+	return _command_count
+
+
+# --- Accessors used by the headless dock test to assert the labels updated. ---
+
+func displayed_connection() -> String:
+	return _connection_value.text
+
+
+func displayed_server_version() -> String:
+	return _version_value.text
+
+
+func displayed_bridge_url() -> String:
+	return _bridge_value.text
+
+
+func displayed_project() -> String:
+	return _project_value.text
+
+
+func displayed_scene() -> String:
+	return _scene_value.text
+
+
+func displayed_selected() -> String:
+	return _selected_value.text
+
+
+func displayed_toolsets() -> String:
+	return _toolsets_value.text
+
+
+func displayed_last_action() -> String:
+	return _undo_value.text
+
+
+func displayed_play_state() -> String:
+	return _play_value.text
+
+
+func displayed_command_count() -> String:
+	return _cmd_count_value.text
+
+
+func displayed_last_exec() -> String:
+	return _last_exec_value.text
+
+
+func displayed_log() -> String:
+	return _log_value.text

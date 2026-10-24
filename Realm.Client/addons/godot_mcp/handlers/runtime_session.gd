@@ -1,0 +1,243 @@
+@tool
+class_name MCPRuntimeSessionHandlers
+extends RefCounted
+## Domain handler: runtime session.
+##
+## Registered by the router on _init().  Each handler receives params dict and
+## returns a response body (without id) via the router's _ok / _fail builders.
+
+var _router: MCPCommandRouter
+
+
+func _init(router: MCPCommandRouter) -> void:
+	_router = router
+
+
+## #527: the guards (live-probe + #443 break gate) live in mcp_guards.gd now —
+## one implementation shared by every gated handler; the #454 probe-never-connected
+## diagnostic ships from the shared guard, not an inline copy here.
+
+
+func register(handlers: Dictionary) -> void:
+	handlers["cmd_capture_game_screenshot"] = _cmd_capture_game_screenshot
+	handlers["cmd_get_game_output"] = _cmd_get_game_output
+	handlers["cmd_get_game_scene_tree"] = _cmd_get_game_scene_tree
+	handlers["cmd_get_input_stats"] = _cmd_get_input_stats
+	handlers["cmd_is_playing"] = _cmd_is_playing
+	handlers["cmd_play_input_sequence"] = _cmd_play_input_sequence
+	handlers["cmd_play_scene"] = _cmd_play_scene
+	handlers["cmd_simulate_action"] = _cmd_simulate_action
+	handlers["cmd_simulate_key"] = _cmd_simulate_key
+	handlers["cmd_simulate_mouse"] = _cmd_simulate_mouse
+	handlers["cmd_stop_scene"] = _cmd_stop_scene
+
+
+# -- handlers ----------------------------------------------------------------
+
+func _cmd_play_scene(params: Dictionary) -> Dictionary:
+	var scene_path := str(params.get("scene_path", ""))
+	if scene_path.is_empty():
+		EditorInterface.play_main_scene()
+	else:
+		var is_scene := scene_path.ends_with(".tscn") or scene_path.ends_with(".scn")
+		if not scene_path.begins_with("res://") or not is_scene:
+			return _router._fail("VALIDATION_ERROR", "scene_path must be a res:// .tscn or .scn file.")
+		if not FileAccess.file_exists(scene_path):
+			return _router._fail("RESOURCE_NOT_FOUND", "No scene at '%s'." % scene_path)
+		EditorInterface.play_custom_scene(scene_path)
+	return _router._ok({
+		"playing": EditorInterface.is_playing_scene(),
+		"scene": EditorInterface.get_playing_scene(),
+	})
+
+
+
+func _cmd_stop_scene(_params: Dictionary) -> Dictionary:
+	EditorInterface.stop_playing_scene()
+	return _router._ok({"playing": EditorInterface.is_playing_scene()})
+
+
+
+func _cmd_is_playing(_params: Dictionary) -> Dictionary:
+	# "paused" distinguishes a game frozen in the debugger break loop from one
+	# whose logic is actually running — after force_break this is the tell an
+	# agent needs before trusting input/probe results (#411).
+	var paused := false
+	if _router._debugger != null and _router._debugger.get_session_id() >= 0:
+		var session = _router._debugger.get_session(_router._debugger.get_session_id())
+		if session != null:
+			paused = session.is_breaked()
+	return _router._ok({
+		"playing": EditorInterface.is_playing_scene(),
+		"scene": EditorInterface.get_playing_scene(),
+		"paused": paused,
+	})
+
+
+
+func _cmd_get_game_scene_tree(params: Dictionary) -> Dictionary:
+	# #527: the play-session guard lives in mcp_guards.gd. Note this handler
+	# intentionally reports a playing-but-probe-not-connected SOFT result
+	# ({playing, connected: false, tree: null, probe_never_connected}) instead
+	# of the shared guard's PRECONDITION_FAILED — a read-only poll tool should
+	# report state, not refuse. The hint text itself is single-sourced in the
+	# guard module (the #454 diagnostic), so both paths stay in sync.
+	if not _router._guards.require_play_session()["ok"]:
+		return _router._fail("PRECONDITION_FAILED", "No play session. Run play_scene first.", "play_session")
+	if _router._debugger == null:
+		return _router._fail("INTERNAL_ERROR", "Debugger plugin is unavailable.")
+	if _router._debugger.is_connected_to_probe():
+		# #670: request-scoped — serve the cached tree only when it answers THIS
+		# request_id; else dispatch once and report pending (the server polls).
+		var request_id := str(params.get("request_id", ""))
+		var cached: Variant = _router._debugger.get_cached_scene_tree()
+		if cached is Dictionary:
+			var cid := str((cached as Dictionary).get("request_id", ""))
+			if cid == request_id or not (cached as Dictionary).has("request_id"):
+				return _router._ok({
+					"ready": true, "playing": true, "connected": true,
+					"tree": (cached as Dictionary).get("tree", null),
+				})
+		if _router._debugger.get_scene_tree_request() != request_id:
+			_router._debugger.begin_scene_tree_request(request_id)
+			_router._debugger.request_scene_tree(request_id)
+		return _router._ok({
+			"ready": false, "playing": true, "connected": true,
+			"tree": null, "reason": "scene_tree_pending",
+		})
+	return _router._ok({
+		"ready": true,
+		"playing": true,
+		"connected": false,
+		"tree": null,
+		"hint": _router._guards.probe_never_connected_hint(),
+		"probe_never_connected": true,
+	})
+
+
+
+func _cmd_simulate_key(params: Dictionary) -> Dictionary:
+	var guard := _router._guards.require_unpaused_live_probe()
+	if not guard["ok"]:
+		return guard
+	if str(params.get("key", "")).is_empty():
+		return _router._fail("VALIDATION_ERROR", "'key' must be a non-empty key name.")
+	_router._debugger.send_to_probe("godot_mcp:simulate_key", [params])
+	return _router._ok({"sent": true, "kind": "key", "count": 1})
+
+
+func _cmd_simulate_mouse(params: Dictionary) -> Dictionary:
+	var guard := _router._guards.require_unpaused_live_probe()
+	if not guard["ok"]:
+		return guard
+	var button := str(params.get("button", ""))
+	if not _router._helpers.valid_mouse_button(button):
+		return _router._fail("VALIDATION_ERROR", "'button' must be empty (motion) or one of %s." % str(["left", "right", "middle", "wheel_up", "wheel_down"]))
+	_router._debugger.send_to_probe("godot_mcp:simulate_mouse", [params])
+	return _router._ok({"sent": true, "kind": "mouse", "count": 1})
+
+
+func _cmd_simulate_action(params: Dictionary) -> Dictionary:
+	var guard := _router._guards.require_unpaused_live_probe()
+	if not guard["ok"]:
+		return guard
+	if str(params.get("action", "")).is_empty():
+		return _router._fail("VALIDATION_ERROR", "'action' must be a non-empty action name.")
+	_router._debugger.send_to_probe("godot_mcp:simulate_action", [params])
+	return _router._ok({"sent": true, "kind": "action", "count": 1})
+
+
+
+func _cmd_play_input_sequence(params: Dictionary) -> Dictionary:
+	var guard := _router._guards.require_unpaused_live_probe()
+	if not guard["ok"]:
+		return guard
+	var events: Variant = params.get("events")
+	if not (events is Array) or (events as Array).is_empty():
+		return _router._fail("VALIDATION_ERROR", "'events' must be a non-empty array.")
+	# Validate each event's shape/type up front so the returned count is reliable and a
+	# malformed event can't be silently skipped by the probe.
+	for i in (events as Array).size():
+		var bad := _router._helpers.invalid_input_event(events[i])
+		if not bad.is_empty():
+			return _router._fail("VALIDATION_ERROR", "events[%d]: %s" % [i, bad])
+	_router._debugger.send_to_probe("godot_mcp:play_input_sequence", [params])
+	return _router._ok({"sent": true, "kind": "sequence", "count": (events as Array).size()})
+
+
+func _cmd_get_input_stats(_params: Dictionary) -> Dictionary:
+	var playing := EditorInterface.is_playing_scene()
+	var connected: bool = _router._debugger != null and _router._debugger.is_connected_to_probe()
+	var injected: int = _router._debugger.get_input_acks() if connected else 0
+	return _router._ok({"playing": playing, "connected": connected, "injected": injected})
+
+
+
+func _cmd_capture_game_screenshot(params: Dictionary) -> Dictionary:
+	var guard := _router._require_live_probe()
+	if not guard["ok"]:
+		return guard
+	# Each tool invocation carries a stable request_id (constant across its poll loop).
+	# The probe grab answers asynchronously (one rendered frame later); we dispatch the
+	# capture to the probe exactly once per request_id and match the cached frame by
+	# that id — repeated polls never re-dispatch, and a reused id can't return a prior
+	# request's stale frame (same pattern as find_ui_elements).
+	var request_id := str(params.get("request_id", ""))
+	var payload: Variant = _router._debugger.get_game_frame()
+	if payload is Dictionary and (payload as Dictionary).get("request_id") == request_id:
+		var body: Dictionary = (payload as Dictionary).duplicate()
+		body.erase("request_id")
+		body["ready"] = true
+		return _router._ok(body)
+	if _router._debugger.get_pending_frame_request() != request_id:
+		_router._debugger.begin_frame_request(request_id)
+		_router._debugger.send_to_probe("godot_mcp:capture_frame", [{"request_id": request_id}])
+	# #459: parity with the editor capture — the probe has the request and answers
+	# on a later frame (game not rendering / probe busy are the usual waits).
+	return _router._ok({"ready": false, "reason": "capture_pending"})
+
+
+
+func _cmd_get_game_output(params: Dictionary) -> Dictionary:
+	# Deliberately NO break-state gate (unlike input injection): a game frozen
+	# at a debugger break is exactly when reading its output matters most —
+	# crash traces land in the ring before the break. The probe's ring is
+	# already captured (a Logger sink, not frame-callback dependent), so the
+	# read works while broken (#411/#446 parity, issue #534).
+	var guard := _router._require_live_probe()
+	if not guard["ok"]:
+		return guard
+	var since_seq := int(params.get("since_seq", 0))
+	# Poll-and-cache, dispatch-once (PR #547 review): dispatch the probe query
+	# only when the previous pull has been answered (cache empty = in flight),
+	# otherwise serve the cache. The FIRST version of this handler cleared the
+	# cache on every dispatch — but the reply lands AFTER that dispatch's read,
+	# so the next dispatch cleared fresh data before it could be served, and
+	# the cache could never be read non-null (the live e2e caught it). Serving
+	# the cache on later polls bounds staleness to one poll cycle, and the
+	# monotonic seq cursor (next_seq) makes any lag detectable by the caller.
+	var payload: Variant = _router._debugger.get_game_output()
+	if payload == null:
+		_router._debugger.send_to_probe("godot_mcp:get_output", [])
+		payload = _router._debugger.get_game_output()
+	if payload == null:
+		# #459-style honesty: the pull is in flight, not empty.
+		return _router._ok({
+			"playing": true, "connected": true, "entries": [],
+			"next_seq": int(since_seq), "total": 0, "dropped": 0,
+			"ready": false, "reason": "output_pending",
+		})
+	var body: Dictionary = (payload as Dictionary).duplicate()
+	body["playing"] = true
+	body["connected"] = true
+	# Server-side cursor filtering: only entries past since_seq (the ring is
+	# small — 500 max — so linear filtering beats caching a cursor position).
+	var since := int(params.get("since_seq", 0))
+	var entries: Array = body.get("entries", [])
+	if since > 0:
+		var fresh: Array = []
+		for entry in entries:
+			if int((entry as Dictionary).get("seq", 0)) > since:
+				fresh.append(entry)
+		body["entries"] = fresh
+	return _router._ok(body)
