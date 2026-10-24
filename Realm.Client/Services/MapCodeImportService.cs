@@ -178,6 +178,8 @@ public class MapCodeImportService
 			return summary;
 		}
 
+		MapWorkspaceService.EnsureSourceMapAttributionAttribute(destinationWorkspacePath);
+
 		DestinationCodeIndex destinationIndex = ScanDestination(destinationWorkspacePath);
 		var orderedTypes = new List<SourceType>();
 		var visitedTypes = new HashSet<string>(StringComparer.Ordinal);
@@ -259,14 +261,19 @@ public class MapCodeImportService
 
 		try
 		{
-			string? destinationDirectory = Path.GetDirectoryName(destinationPath);
-			if (!string.IsNullOrEmpty(destinationDirectory))
-			{
-				Directory.CreateDirectory(destinationDirectory);
-			}
-
 			bool fileExisted = File.Exists(destinationPath);
-			File.WriteAllText(destinationPath, fileContent);
+			bool contentChanged = !fileExisted || !string.Equals(File.ReadAllText(destinationPath), fileContent, StringComparison.Ordinal);
+
+			if (contentChanged)
+			{
+				string? destinationDirectory = Path.GetDirectoryName(destinationPath);
+				if (!string.IsNullOrEmpty(destinationDirectory))
+				{
+					Directory.CreateDirectory(destinationDirectory);
+				}
+
+				File.WriteAllText(destinationPath, fileContent);
+			}
 
 			foreach (string duplicatePath in existingPaths.Where(path => !string.Equals(path, relativePath, StringComparison.OrdinalIgnoreCase)))
 			{
@@ -289,7 +296,7 @@ public class MapCodeImportService
 				summary.ImportedDependencies.Add(sourceType.FullName);
 			}
 
-			if (fileExisted)
+			if (fileExisted && contentChanged)
 			{
 				summary.ReplacedFiles.Add(relativePath);
 			}
@@ -467,16 +474,16 @@ public class MapCodeImportService
 
 		string rawLeadingTrivia = part.Declaration.GetLeadingTrivia().ToFullString();
 		string declarationText = declaration.ToFullString();
-		string leadingTrivia = string.Empty;
+		string leadingTrivia = rawLeadingTrivia.TrimStart('\r', '\n').TrimEnd();
 
 		if (rawLeadingTrivia.Length > 0 && declarationText.StartsWith(rawLeadingTrivia, StringComparison.Ordinal))
 		{
 			declarationText = declarationText.Substring(rawLeadingTrivia.Length);
-			leadingTrivia = rawLeadingTrivia.TrimStart('\r', '\n').TrimEnd();
-			if (leadingTrivia.Length > 0)
-			{
-				leadingTrivia += "\n";
-			}
+		}
+
+		if (leadingTrivia.Length > 0)
+		{
+			leadingTrivia += "\n";
 		}
 
 		var sourceMapNames = new List<string> { sourceMapName };

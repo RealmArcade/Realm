@@ -278,7 +278,7 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 	{
 		_codeScopeIsNamespaces = _optCodeScope.Selected == 1;
 		_txtSearch.PlaceholderText = GetSearchPlaceholder();
-		RebuildItemRows();
+		ReloadCandidates();
 	}
 
 	private string GetSearchPlaceholder()
