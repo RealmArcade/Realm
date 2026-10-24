@@ -61,7 +61,7 @@ public static class AiGenreUtils
 		if (!string.IsNullOrEmpty(aff.PayloadId) && world.Has<SpellCooldowns>(aff.SourceEntity))
 		{
 			ref var cooldowns = ref world.Get<SpellCooldowns>(aff.SourceEntity);
-			cooldowns.Value[aff.PayloadId] = 5.0f;
+			cooldowns.Set(aff.PayloadId, 5.0f, 5.0f);
 		}
 
 		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, "Cast");

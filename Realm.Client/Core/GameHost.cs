@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using Realm.Ecs;
+using Realm.Ecs.Replication;
 using DotRecast.Detour;
 using Godot;
 using Realm.Client.Network;
@@ -987,6 +988,8 @@ public partial class GameHost : Node3D, IGameAPI
 	public bool CheatsEnabled
 		=> GameContext.SessionState.IsMapEditorMode || GameContext.SessionState.IsTestMode || (GameContext.Lobby?.IsSinglePlayer ?? false);
 
+	public string GetStringText(int stringId) => Realm.MapAPI.StringRegistry.Get(stringId);
+
 	public float GameElapsedTime
 	{
 		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(ECSContext.WorldEntity, s => s.GameElapsedTime) ?? 0f;
@@ -1011,8 +1014,8 @@ public partial class GameHost : Node3D, IGameAPI
 		if (GameContext.World == null || pe == Entity.Null || !GameContext.World.IsAlive(pe)) return 0f;
 		if (GameContext.World.Has<SpellCooldowns>(pe))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(pe).Value;
-			if (scd != null && scd.TryGetValue(abilityId, out float val)) return val;
+			var spellCooldowns = GameContext.World.Get<SpellCooldowns>(pe);
+			if (spellCooldowns.TryGetValue(abilityId, out float remaining)) return remaining;
 		}
 
 		return 0f;
@@ -1024,8 +1027,8 @@ public partial class GameHost : Node3D, IGameAPI
 		if (GameContext.World == null || pe == Entity.Null || !GameContext.World.IsAlive(pe)) return;
 		if (GameContext.World.Has<SpellCooldowns>(pe))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(pe).Value;
-			if (scd != null) scd[abilityId] = cooldown;
+			ref var spellCooldowns = ref GameContext.World.Get<SpellCooldowns>(pe);
+			spellCooldowns.Set(abilityId, cooldown, cooldown);
 		}
 	}
 
@@ -1152,7 +1155,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private void SetupPlayerEntityComponents(Entity playerEntity)
 	{
 		GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
-		GameContext.World.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
+		GameContext.World.Add(playerEntity, new SpellCooldowns(null));
 		GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
 	}
 
@@ -1349,6 +1352,9 @@ public partial class GameHost : Node3D, IGameAPI
 	}
 
 	private Dictionary<int, Label3D> _staticTextLabels { get; set; } = new();
+	private readonly Dictionary<int, StaticTextState> _staticTextStates = new();
+	private readonly HashSet<int> _dirtyStaticTextHandles = new();
+	private readonly HashSet<int> _destroyedStaticTextHandles = new();
 	private int _nextStaticTextHandle { get; set; } = 1;
 	private int _staticTextGeneration { get; set; } = 0;
 
@@ -1565,22 +1571,32 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (OnUnitEnterZone == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<ScriptZonesState>(ECSContext.WorldEntity)) return;
 
-		var zones = GameContext.World.Get<ScriptZonesState>(ECSContext.WorldEntity).Zones;
-		if (zones.Count == 0) return;
+		int zoneHandle = GameContext.World.Get<ScriptZonesState>(ECSContext.WorldEntity).Handle;
+		int zoneCount = ScriptZonesState.GetZones(zoneHandle).Length;
+		if (zoneCount == 0) return;
+
+		if (zoneCount > OccupiedZoneMask.Capacity && !_zoneCapacityWarningIssued)
+		{
+			_zoneCapacityWarningIssued = true;
+			GD.PushWarning($"[GameHost] Map declares {zoneCount} script zones but only the first {OccupiedZoneMask.Capacity} can be tracked for zone enter events.");
+		}
 
 		var positionQuery = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
 		GameContext.World.Query(in positionQuery, (Entity entity, ref Position posComp) =>
 		{
-			if (!GameContext.World.Has<OccupiedZones>(entity)) GameContext.World.Add(entity, new OccupiedZones(new HashSet<int>()));
-			CheckUnitZones(entity, new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z), GameContext.World.Get<OccupiedZones>(entity).ZoneIds, zones);
+			if (!GameContext.World.Has<OccupiedZones>(entity)) GameContext.World.Add(entity, new OccupiedZones());
+			ref var occupiedZones = ref GameContext.World.Get<OccupiedZones>(entity);
+			CheckUnitZones(entity, new Vector3(posComp.Value.X, posComp.Value.Y, posComp.Value.Z), ref occupiedZones, ScriptZonesState.GetZones(zoneHandle));
 		});
 	}
 
-	private void CheckUnitZones(Entity entity, Vector3 pos, HashSet<int> occupiedZones, List<ZoneBounds> zones)
+	private bool _zoneCapacityWarningIssued;
+
+	private void CheckUnitZones(Entity entity, Vector3 pos, ref OccupiedZones occupiedZones, ReadOnlySpan<ZoneBounds> zones)
 	{
-		for (int i = 0; i < zones.Count; i++)
+		for (int i = 0; i < zones.Length; i++)
 		{
-			ref ZoneBounds z = ref CollectionsMarshal.AsSpan(zones)[i];
+			ref readonly ZoneBounds z = ref zones[i];
 			bool inside = pos.X >= z.MinX && pos.X <= z.MaxX && pos.Z >= z.MinZ && pos.Z <= z.MaxZ;
 
 			if (inside && occupiedZones.Add(i) && TryGetUnit3D(entity, out _))
@@ -1603,20 +1619,28 @@ public partial class GameHost : Node3D, IGameAPI
 			var loot = AllLootItems[i];
 			if (!GodotObject.IsInstanceValid(loot) || loot.IsDespawned) continue;
 
-			if (loot.Lifetime > 0f)
+			Entity lootEntity = loot.Entity;
+			if (!GameContext.World.IsAlive(lootEntity) || !GameContext.World.Has<GroundLoot>(lootEntity)) continue;
+
+			ref var lootState = ref GameContext.World.Get<GroundLoot>(lootEntity);
+			if (lootState.Lifetime > 0f)
 			{
-				loot.RemainingLifetime -= delta;
-				if (loot.RemainingLifetime <= 0f)
+				lootState.RemainingLifetime -= delta;
+				loot.RemainingLifetime = lootState.RemainingLifetime;
+				if (lootState.RemainingLifetime <= 0f)
 				{
 					_expiredLootToDespawn.Add(loot.UniqueId);
 					continue;
 				}
 			}
 
-			if (!loot.AutoPickup) continue;
+			if (!lootState.AutoPickup) continue;
 
-			float radiusSq = loot.PickupRadius * loot.PickupRadius;
-			var lootPos = loot.GlobalPosition;
+			float radiusSq = lootState.PickupRadius * lootState.PickupRadius;
+			string itemTypeId = lootState.ItemTypeId;
+			int ownerPlayerIndex = lootState.OwnerPlayerIndex;
+			var lootPosition = GameContext.World.Has<Position>(lootEntity) ? GameContext.World.Get<Position>(lootEntity).Value : System.Numerics.Vector3.Zero;
+			var lootPos = new Godot.Vector3(lootPosition.X, lootPosition.Y, lootPosition.Z);
 
 			Unit3D? bestUnit = null;
 			float bestDistSq = float.MaxValue;
@@ -1625,13 +1649,13 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				var unit = AllUnits[u];
 				if (!GodotObject.IsInstanceValid(unit) || unit.IsBuilding) continue;
-				if (loot.OwnerPlayerIndex >= 0 && unit.Player != loot.OwnerPlayerIndex) continue;
+				if (ownerPlayerIndex >= 0 && unit.Player != ownerPlayerIndex) continue;
 				if (!GameContext.World.IsAlive(unit.Entity) || GameContext.World.Has<Dead>(unit.Entity)) continue;
 
 				if (GameContext.World.Has<Inventory>(unit.Entity))
 				{
 					ref var inv = ref GameContext.World.Get<Inventory>(unit.Entity);
-					if (inv.Items != null && inv.Items.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+					if (inv.Count >= 6 && !inv.HasItem(itemTypeId))
 						continue;
 				}
 
@@ -2434,25 +2458,27 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		if (!GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity)) return;
 
-		var players = GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity).Players;
-		if (pIdx >= 0 && pIdx < players.Length)
+		ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+		if (playersState.IsValidSlot(pIdx))
 		{
-			players[pIdx].Name = name;
-			players[pIdx].Active = active;
-			players[pIdx].IsComputer = isComputer;
+			playersState.SetName(pIdx, name);
+			playersState.SetActive(pIdx, active);
+			playersState.SetComputerControlled(pIdx, isComputer);
 			if (teamIndex >= 0)
 			{
-				players[pIdx].TeamIndex = teamIndex;
-				players[pIdx].TeamNameStringId = Realm.Ecs.StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
+				int teamNameStringId = Realm.MapAPI.StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
+				playersState.SetTeam(pIdx, teamIndex, teamNameStringId);
 			}
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in players[pIdx]);
+
+			var player = playersState.Get(pIdx);
+			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in player);
 
 			if (teamIndex >= 0 && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
 			{
 				var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
 				if (pIdx < playerEntities.Length && playerEntities[pIdx] != Entity.Null && GameContext.World.IsAlive(playerEntities[pIdx]))
 				{
-					int stringId = players[pIdx].TeamNameStringId;
+					int stringId = playersState.Get(pIdx).TeamNameStringId;
 					if (GameContext.World.Has<PlayerTeam>(playerEntities[pIdx]))
 					{
 						ref var pt = ref GameContext.World.Get<PlayerTeam>(playerEntities[pIdx]);
@@ -2490,7 +2516,12 @@ public partial class GameHost : Node3D, IGameAPI
 			LoadCustomTerrain(rawMapName);
 
 		if (ShouldLoadAndRunMapScript())
+		{
 			ExecuteMapScriptLoading(rawMapName);
+			return;
+		}
+
+		RebakeNavMesh();
 	}
 
 	private bool ShouldProcessMapLoading()
@@ -2545,7 +2576,16 @@ public partial class GameHost : Node3D, IGameAPI
 				GD.PrintErr($"[GameHost] Exception during active map script Initialize: {ex.Message}");
 			}
 		}
+		ReportStringTableCollisions();
 		RebakeNavMesh();
+	}
+
+	private static void ReportStringTableCollisions()
+	{
+		int collisions = Realm.MapAPI.StringRegistry.CollisionCount;
+		if (collisions == 0) return;
+
+		GD.PushError($"[GameHost] {collisions} texts collided on their content hash and moved into the reserved identifier range, so peers can disagree about which text an identifier stands for: {Realm.MapAPI.StringRegistry.CollisionSummary}");
 	}
 
 	private void LoadCustomTerrain(string rawMapName)
@@ -2774,6 +2814,17 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void CreateGround()
 	{
+		if (!GameContext.SessionState.IsMapEditorMode)
+		{
+			string? activeMapName = GameContext.Lobby?.ActiveMapName;
+			if (!string.IsNullOrEmpty(activeMapName))
+			{
+				string? resolvedDirectory = ResolveMapDirectory(activeMapName);
+				if (!string.IsNullOrEmpty(resolvedDirectory) && GameContext.MapStorageService != null)
+					GameContext.MapStorageService.CurrentMapDirectory = resolvedDirectory;
+			}
+		}
+
 		ClearExistingGround();
 
 		if (GameContext.SessionState.IsMapEditorMode || GameContext.SaveLoadService.IsLoadingMap)
@@ -3267,6 +3318,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void UpdatePopulationStats(string id, int playerIndex, bool isFromQueue)
 	{
+		if (_multiplayerActive && !IsServerActive()) return;
 		if (!UnitRegistry.TryGetValue(id, out var popMeta)) return;
 
 		if (!isFromQueue && popMeta.PopCost > 0)
@@ -3458,12 +3510,13 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public bool IsMultiplayerServerActive() => _multiplayerActive && IsServerActive();
 
+	public bool IsClientSimulationOnly => _multiplayerActive && !IsServerActive();
+
 	private bool IsServerActive()
 	{
 		if (Multiplayer.MultiplayerPeer == null) return true;
 		try
 		{
-			if (Multiplayer.MultiplayerPeer.GetConnectionStatus() != MultiplayerPeer.ConnectionStatus.Connected) return true;
 			return Multiplayer.IsServer();
 		}
 		catch
@@ -3474,7 +3527,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void RebakeNavMesh()
 	{
-		if (IsServerActive() && GroundTerrain != null)
+		if (GroundTerrain != null)
 		{
 			GroundTerrain.BakeNavMesh();
 		}
@@ -3784,6 +3837,9 @@ public partial class GameHost : Node3D, IGameAPI
 			if (_multiplayerActive && Multiplayer.IsServer())
 				UpdateServerSnapshotTick(fDelta);
 
+			if (GameContext.SessionState.IsTestMode)
+				RunShadowClientVerification();
+
 			EndTickTracking(actualIntervalMs);
 		}
 	}
@@ -3809,13 +3865,17 @@ public partial class GameHost : Node3D, IGameAPI
 		return actualIntervalMs;
 	}
 
+	private int _populationRecomputeTick;
+
 	private void ProcessCoreSimulation(float fDelta)
 	{
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessCoreSimulation))
 		{
+			TickAuthoritativePopulation();
+			bool isAuthoritative = !_multiplayerActive || IsServerActive();
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationTickEcs))
 			{
-				GameContext.SimulationService.TickEcs(fDelta);
+				GameContext.SimulationService.TickEcs(fDelta, isAuthoritative);
 			}
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PollVfxQueue))
 			{
@@ -3823,9 +3883,20 @@ public partial class GameHost : Node3D, IGameAPI
 			}
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickConstructionSystem))
 			{
-				TickConstructionSystem(fDelta);
+				TickConstructionSystem(fDelta, isAuthoritative);
 			}
 		}
+	}
+
+	private void TickAuthoritativePopulation()
+	{
+		if (_multiplayerActive && !IsServerActive()) return;
+
+		_populationRecomputeTick++;
+		if (_populationRecomputeTick < 5) return;
+
+		_populationRecomputeTick = 0;
+		GameContext.ResourceEconomyService?.RecomputeCurrentPopulation();
 	}
 
 	private void ProcessVisualAndEnvironment(float fDelta)
@@ -3930,14 +4001,14 @@ public partial class GameHost : Node3D, IGameAPI
 		if (GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<VFXQueue>(ECSContext.WorldEntity)) return;
 
 		ref var queue = ref GameContext.World.Get<VFXQueue>(ECSContext.WorldEntity);
-		if (queue.Requests.Count == 0) return;
+		if (queue.Count == 0) return;
 
-		for (int i = 0; i < queue.Requests.Count; i++)
+		for (int i = 0; i < queue.Count; i++)
 		{
-			ProcessVFXRequest(queue.Requests[i]);
+			ProcessVFXRequest(queue.Get(i));
 		}
 
-		queue.Requests.Clear();
+		queue.Clear();
 	}
 
 	private void ProcessVFXRequest(VFXRequest req)
@@ -4090,7 +4161,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 		if (_multiplayerActive && IsServerActive())
 		{
-			Rpc(nameof(ClientSpawnArrowProjectile), start, target);
+			Rpc(nameof(ClientSpawnArrowProjectile), start, target, ownerPlayerIndex);
 		}
 	}
 

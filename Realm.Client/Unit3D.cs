@@ -2656,15 +2656,18 @@ public partial class Unit3D : Node3D
 
 		points.Add(GetEcsOrLocalPosition());
 
+		bool hasPathPoints = false;
 		if (world.Has<PathFollow>(Entity))
 		{
 			var pf = world.Get<PathFollow>(Entity);
 			for (int i = pf.CurrentWaypointIndex; i < pf.WaypointCount; i++)
 			{
 				points.Add(new Vector3(pf.Waypoints[i].X, pf.Waypoints[i].Y, pf.Waypoints[i].Z));
+				hasPathPoints = true;
 			}
 		}
-		else if (world.Has<MoveTo>(Entity))
+
+		if (!hasPathPoints && world.Has<MoveTo>(Entity))
 		{
 			var mt = world.Get<MoveTo>(Entity);
 			points.Add(new Vector3(mt.Target.X, mt.Target.Y, mt.Target.Z));
@@ -2705,9 +2708,9 @@ public partial class Unit3D : Node3D
 		if (_pathPointsBuffer.Count <= 1)
 			return;
 
-		_pathSampledPoints.Add(SamplePathGround(_pathPointsBuffer[1]));
+		_pathSampledPoints.Add(SamplePathGround(_pathPointsBuffer[0]));
 
-		for (int segment = 1; segment + 1 < _pathPointsBuffer.Count; segment++)
+		for (int segment = 0; segment + 1 < _pathPointsBuffer.Count; segment++)
 		{
 			Vector3 start = _pathPointsBuffer[segment];
 			Vector3 end = _pathPointsBuffer[segment + 1];

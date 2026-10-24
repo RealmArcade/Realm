@@ -367,6 +367,61 @@ public class RegistryService
 		return VfxRegistry.TryGetValue(fullId, out config) && config != null;
 	}
 	public Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> UnitAbilityStates { get; set; } = new();
+
+	public IReadOnlyList<(string DefinitionKey, float Radius)> PlacementRadiusRules => _placementRadiusRules;
+	public IReadOnlyList<string> ResourceDropoffBuildingKeys => _resourceDropoffBuildingKeys;
+	public IReadOnlyList<string> ResourceWorkerUnitKeys => _resourceWorkerUnitKeys;
+	public IReadOnlyList<string> PrimaryBuildingIds => _primaryBuildingIds;
+	public IReadOnlyDictionary<string, string> ResourceNodeTypes => _resourceTypeByNodeId;
+
+	public void ApplyCatalogEntry(string channel, string key, string value, float number)
+	{
+		if (string.IsNullOrEmpty(key)) return;
+
+		switch (channel)
+		{
+			case "placement_radius":
+				for (int i = 0; i < _placementRadiusRules.Count; i++)
+				{
+					if (string.Equals(_placementRadiusRules[i].DefinitionKey, key, StringComparison.OrdinalIgnoreCase)) return;
+				}
+				_placementRadiusRules.Add((key, number));
+				break;
+			case "dropoff":
+				AddKeyIfMissing(_resourceDropoffBuildingKeys, key);
+				break;
+			case "worker":
+				AddKeyIfMissing(_resourceWorkerUnitKeys, key);
+				break;
+			case "primary":
+				AddKeyIfMissing(_primaryBuildingIds, key);
+				break;
+			case "resource_node_type":
+				if (!_resourceTypeByNodeId.ContainsKey(key)) _resourceTypeByNodeId[key] = value;
+				break;
+			case "string":
+				if (int.TryParse(key, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int stringId))
+				{
+					StringRegistry.RegisterRemote(stringId, value);
+				}
+				break;
+		}
+	}
+
+	private static void AddKeyIfMissing(List<string> keys, string key)
+	{
+		for (int i = 0; i < keys.Count; i++)
+		{
+			if (string.Equals(keys[i], key, StringComparison.OrdinalIgnoreCase)) return;
+		}
+		keys.Add(key);
+	}
+	public HashSet<(int UnitUniqueId, string AbilityId)> DirtyAbilityStates { get; } = new();
+
+	public void ClearAbilityStateDirty()
+	{
+		DirtyAbilityStates.Clear();
+	}
 	public Dictionary<(int UnitUniqueId, string AbilityId), float> UnitAbilityManaCosts { get; set; } = new();
 	public Dictionary<string, string> ItemTooltips { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -610,6 +665,7 @@ public class RegistryService
 		foreach (var key in GetNormalizedAbilityIdCandidates(abilityId))
 		{
 			UnitAbilityStates[(unit.Value, key)] = (disabled, hidden);
+			DirtyAbilityStates.Add((unit.Value, key));
 		}
 		if (GameContext.Host != null)
 		{

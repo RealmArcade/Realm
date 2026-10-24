@@ -460,7 +460,7 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 	{
 		_cachedApi = api;
 		SubscribeAutoEvents(api);
-		api.OnPlayerChatMessage += HandlePlayerChatMessageForProfiling;
+		api.OnPlayerChatMessage += HandleDebugChatCommand;
 		if (IsFaulted || _initialize == null) return;
 
 		LogToConsole("[WASM RUNTIME] Executing script initialize()...");
@@ -587,12 +587,18 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		LogToConsole(GetApiCallProfilingBreakdown(topCount));
 	}
 
-	private void HandlePlayerChatMessageForProfiling(string message, UnitId senderUnitId)
+	private void HandleDebugChatCommand(string message, UnitId senderUnitId)
 	{
 		if (string.Equals(message, "/wasmperf", StringComparison.OrdinalIgnoreCase) ||
 		    string.Equals(message, "/wasmprofile", StringComparison.OrdinalIgnoreCase))
 		{
 			LogApiCallProfilingBreakdown();
+			return;
+		}
+
+		if (string.Equals(message, "/strings", StringComparison.OrdinalIgnoreCase))
+		{
+			LogToConsole(Realm.MapAPI.StringRegistry.DescribeTable());
 		}
 	}
 
@@ -710,7 +716,7 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 	{
 		if (_cachedApi != null)
 		{
-			_cachedApi.OnPlayerChatMessage -= HandlePlayerChatMessageForProfiling;
+			_cachedApi.OnPlayerChatMessage -= HandleDebugChatCommand;
 		}
 		if (ECSContext.EvaluationEngine == this)
 		{

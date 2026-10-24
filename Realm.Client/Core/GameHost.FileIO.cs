@@ -271,8 +271,9 @@ public partial class GameHost
 				ProcessSpawnRequests();
 			}
 
-			GroundTerrain.UpdateMeshAndPhysics(true, true);
-			GameContext.MapEditorHud?.RegenerateMinimap();
+			GroundTerrain.UpdateMeshAndPhysics(true, true);				if (!GameContext.SessionState.IsMapEditorMode) GroundTerrain.ReloadTerrainTextures();
+				GameContext.MapEditorHud?.RegenerateMinimap();
+
 			RestoreLoadedCoordinates();
 
 			EditorHistoryManager.Clear();

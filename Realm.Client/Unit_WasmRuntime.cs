@@ -17,7 +17,6 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
-using AttackSpeed = Realm.Ecs.Components.Combat.AttackSpeed;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
@@ -253,8 +252,8 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 			if (_world.Has<Stats>(_entity))
 			{
-				var stats = _world.Get<Stats>(_entity);
-				stats.Value[new StatId("Attack")] = value;
+				ref var stats = ref _world.Get<Stats>(_entity);
+				stats.Set(new StatId("Attack"), value);
 			}
 		}
 	}
@@ -311,8 +310,8 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 			if (_world.Has<Stats>(_entity))
 			{
-				var stats = _world.Get<Stats>(_entity);
-				stats.Value[new StatId("Armor")] = value;
+				ref var stats = ref _world.Get<Stats>(_entity);
+				stats.Set(new StatId("Armor"), value);
 			}
 		}
 	}
@@ -347,8 +346,8 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 			if (_world.Has<Stats>(_entity))
 			{
-				var stats = _world.Get<Stats>(_entity);
-				stats.Value[new StatId("MovementSpeed")] = value;
+				ref var stats = ref _world.Get<Stats>(_entity);
+				stats.Set(new StatId("MovementSpeed"), value);
 			}
 		}
 	}
@@ -564,9 +563,9 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 1f;
-			if (_world.Has<AttackSpeed>(_entity))
+			if (_world.Has<AttackSpeedMultiplier>(_entity))
 			{
-				return _world.Get<AttackSpeed>(_entity).Multiplier;
+				return _world.Get<AttackSpeedMultiplier>(_entity).Multiplier;
 			}
 
 			return 1f;
@@ -574,7 +573,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		set
 		{
 			if (!_world.IsAlive(_entity) || value <= 0f) return;
-			_world.SetOrAdd(_entity, new AttackSpeed(value));
+			_world.SetOrAdd(_entity, new AttackSpeedMultiplier(value));
 		}
 	}
 
@@ -790,7 +789,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 	public bool AddItem(string itemId)
 	{
 		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
-		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Items != null && _world.Get<Inventory>(_entity).Items.Count >= 6 && !HasItem(itemId)) return false;
+		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Count >= 6 && !HasItem(itemId)) return false;
 		bool success = ItemGrantingUtility.EquipItem(_world, _entity, itemId, 1);
 		if (success)
 		{
@@ -802,7 +801,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 	public bool AddItem(string itemId, int charges)
 	{
 		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return false;
-		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Items != null && _world.Get<Inventory>(_entity).Items.Count >= 6 && !HasItem(itemId)) return false;
+		if (_world.Has<Inventory>(_entity) && _world.Get<Inventory>(_entity).Count >= 6 && !HasItem(itemId)) return false;
 		bool success = ItemGrantingUtility.EquipItem(_world, _entity, itemId, charges);
 		if (success)
 		{
@@ -884,75 +883,63 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 	public IReadOnlyList<string> GetItems()
 	{
 		if (!_world.IsAlive(_entity) || !_world.Has<Inventory>(_entity)) return Array.Empty<string>();
-		var inv = _world.Get<Inventory>(_entity);
-		if (inv.Items == null || inv.Items.Count == 0) return Array.Empty<string>();
-		var list = new List<string>(inv.Items.Count);
-		foreach (var key in inv.Items.Keys)
-		{
-			list.Add(key);
-		}
-		return list;
+		return _world.Get<Inventory>(_entity).ToList();
 	}
 
 	public void AddBuff(string buffId, float duration)
 	{
 		if (!_world.IsAlive(_entity)) return;
-		Dictionary<string, float> buffs;
+
 		if (_world.Has<Buffs>(_entity))
 		{
-			buffs = _world.Get<Buffs>(_entity).Value;
+			_world.Get<Buffs>(_entity).Set(buffId, duration, duration);
 		}
 		else
 		{
-			buffs = new Dictionary<string, float>();
-			_world.Add(_entity, new Buffs(buffs));
+			var buffs = new Buffs(null);
+			buffs.Set(buffId, duration, duration);
+			_world.Add(_entity, buffs);
 		}
 
-		buffs[buffId] = duration;
-
-		Dictionary<string, float> buffStateDict;
 		if (_world.Has<BuffState>(_entity))
 		{
-			buffStateDict = _world.Get<BuffState>(_entity).Value;
+			_world.Get<BuffState>(_entity).Set(buffId, duration, duration);
 		}
 		else
 		{
-			buffStateDict = new Dictionary<string, float>();
-			_world.Add(_entity, new BuffState(buffStateDict));
+			var buffState = new BuffState(null);
+			buffState.Set(buffId, duration, duration);
+			_world.Add(_entity, buffState);
 		}
-
-		buffStateDict[buffId] = duration;
 	}
 
 	public void RemoveBuff(string buffId)
 	{
 		if (!_world.IsAlive(_entity)) return;
+
 		if (_world.Has<Buffs>(_entity))
 		{
-			var buffs = _world.Get<Buffs>(_entity).Value;
-			buffs.Remove(buffId);
+			_world.Get<Buffs>(_entity).Remove(buffId);
 		}
 
 		if (_world.Has<BuffState>(_entity))
 		{
-			var buffs = _world.Get<BuffState>(_entity).Value;
-			buffs.Remove(buffId);
+			_world.Get<BuffState>(_entity).Remove(buffId);
 		}
 	}
 
 	public bool HasBuff(string buffId)
 	{
 		if (!_world.IsAlive(_entity)) return false;
+
 		if (_world.Has<BuffState>(_entity))
 		{
-			var buffs = _world.Get<BuffState>(_entity).Value;
-			return buffs.ContainsKey(buffId);
+			return _world.Get<BuffState>(_entity).TryGetValue(buffId, out _);
 		}
 
 		if (_world.Has<Buffs>(_entity))
 		{
-			var buffs = _world.Get<Buffs>(_entity).Value;
-			return buffs.ContainsKey(buffId);
+			return _world.Get<Buffs>(_entity).TryGetValue(buffId, out _);
 		}
 
 		return false;
@@ -964,18 +951,20 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		var result = new List<string>();
 		if (_world.Has<ModifierState>(_entity))
 		{
-			var modState = _world.Get<ModifierState>(_entity);
-			foreach (var mod in modState.Value)
+			ref var modState = ref _world.Get<ModifierState>(_entity);
+			for (int modIndex = 0; modIndex < modState.Count; modIndex++)
 			{
+				var mod = modState.Get(modIndex);
 				result.Add($"{mod.StatTypeId.Value}: {(mod.Value >= 0f ? "+" : "")}{mod.Value} ({mod.Type})");
 			}
 		}
 
 		if (_world.Has<BuffState>(_entity))
 		{
-			var buffState = _world.Get<BuffState>(_entity);
-			foreach (var buffKey in buffState.Value.Keys)
+			ref var buffState = ref _world.Get<BuffState>(_entity);
+			for (int buffIndex = 0; buffIndex < buffState.Count; buffIndex++)
 			{
+				string buffKey = buffState.GetKey(buffIndex);
 				if (BuffRegistry.BuffModifiers.TryGetValue(buffKey, out var mods))
 				{
 					foreach (var mod in mods)

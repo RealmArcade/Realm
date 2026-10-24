@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Numerics;
+using System.Text;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Realm.MapAPI;
@@ -636,42 +637,7 @@ public class EcsWorld : IDisposable
 
 	private static void AttachCleanupHandler<T>(ComponentBuffer<T> buffer) where T : unmanaged
 	{
-		if (typeof(T) == typeof(Realm.Ecs.Components.Stats.Stats))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Stats.Stats>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<Dictionary<Realm.Ecs.Common.StatId, float>>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ModifierState))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ModifierState>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<List<Realm.Ecs.Components.Stats.StatModifier>>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.SpellCooldowns))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.SpellCooldowns>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<Dictionary<string, float>>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.OccupiedZones))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.OccupiedZones>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<HashSet<int>>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ProductionQueue))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ProductionQueue>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<List<string>>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptPlayersState))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ScriptPlayersState>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<Realm.Ecs.Components.Core.ScriptPlayer[]>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.ScriptZonesState))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.ScriptZonesState>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<List<Realm.Ecs.Components.Core.ZoneBounds>>.Free(b.Get(id).Handle);
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.SummaryTableState))
+		if (typeof(T) == typeof(Realm.Ecs.Components.Core.SummaryTableState))
 		{
 			var b = (ComponentBuffer<Realm.Ecs.Components.Core.SummaryTableState>)(object)buffer;
 			b.ClearHandler = id =>
@@ -680,11 +646,6 @@ public class EcsWorld : IDisposable
 				ColdPayloadRegistry<string[]>.Free(s.HeadersHandle);
 				ColdPayloadRegistry<Dictionary<string, string[]>>.Free(s.RowsHandle);
 			};
-		}
-		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.VFXQueue))
-		{
-			var b = (ComponentBuffer<Realm.Ecs.Components.Core.VFXQueue>)(object)buffer;
-			b.ClearHandler = id => ColdPayloadRegistry<List<Realm.Ecs.Components.Core.VFXRequest>>.Free(b.Get(id).Handle);
 		}
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Terrain.ShroudState))
 		{
@@ -766,6 +727,15 @@ public class EcsWorld : IDisposable
 		};
 	}
 
+	private const int SnapshotFormatVersion = 1;
+
+	private int ComputeSnapshotByteCount()
+	{
+		const int headerSize = 32;
+		int freeListBytes = _freeListCount * sizeof(int);
+		return headerSize + freeListBytes + EcsSharedMemory.TOTAL_SIZE_BYTES;
+	}
+
 	public unsafe int ExportBinarySnapshot(Span<byte> destination)
 	{
 		int headerSize = 32;
@@ -780,7 +750,7 @@ public class EcsWorld : IDisposable
 
 		Span<byte> headerSpan = destination.Slice(0, headerSize);
 		BinaryPrimitives.WriteUInt32LittleEndian(headerSpan.Slice(0, 4), 0x53434552);
-		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(4, 4), 1);
+		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(4, 4), SnapshotFormatVersion);
 		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(8, 4), _count);
 		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(12, 4), _nextEntityId);
 		BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(16, 4), _freeListCount);
@@ -831,7 +801,6 @@ public class EcsWorld : IDisposable
 			CopyBufferToSpan<PlayerPopulation>(sharedDst, EcsSharedMemory.PLAYER_POPULATION_OFFSET, MAX_PLAYERS + 1);
 		}
 		offset += sharedMemoryBytes;
-
 		return offset;
 	}
 
@@ -848,12 +817,7 @@ public class EcsWorld : IDisposable
 
 	public unsafe byte[] ExportBinarySnapshot()
 	{
-		int headerSize = 32;
-		int freeListBytes = _freeListCount * sizeof(int);
-		int sharedMemoryBytes = EcsSharedMemory.TOTAL_SIZE_BYTES;
-
-		int totalBytesNeeded = headerSize + freeListBytes + sharedMemoryBytes;
-		byte[] buffer = new byte[totalBytesNeeded];
+		byte[] buffer = new byte[ComputeSnapshotByteCount()];
 		ExportBinarySnapshot(buffer);
 		return buffer;
 	}
@@ -866,6 +830,7 @@ public class EcsWorld : IDisposable
 		if (magic != 0x53434552) return;
 
 		int version = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(4, 4));
+		if (version != SnapshotFormatVersion) return;
 		int count = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(8, 4));
 		int nextEntityId = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(12, 4));
 		int freeListCount = BinaryPrimitives.ReadInt32LittleEndian(snapshotPayload.Slice(16, 4));
@@ -939,6 +904,7 @@ public class EcsWorld : IDisposable
 				RestoreComponentFromTable<PlayerPopulation>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.PlayerPopulation, MAX_PLAYERS + 1);
 			}
 		}
+
 	}
 
 	private unsafe void RestoreComponentFromTable<T>(byte* srcPtr, int* tableDir, int* stridesDir, int baseShift, int srcLen, int componentId, int count) where T : unmanaged

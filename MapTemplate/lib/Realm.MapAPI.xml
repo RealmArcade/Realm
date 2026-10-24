@@ -2293,6 +2293,14 @@
             <param name="abilityId">The ability type identifier.</param>
             <returns>The localized or authored display name, or a fallback string if unauthored.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetStringText(System.Int32)">
+            <summary>
+            Resolves the text that a string identifier stands for, using the host's text table when the sandbox
+            has never registered that identifier itself.
+            </summary>
+            <param name="stringId">The content-hash identifier to resolve, as found in shared component memory.</param>
+            <returns>The text, or an empty string when no table entry exists for the identifier.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.EnableUnitAutoCombat(Realm.MapAPI.UnitId,System.Boolean)">
             <summary>
             Enables or disables automated combat AI for a specific unit instance.
@@ -3384,6 +3392,191 @@
             </summary>
             <param name="delta">The time elapsed since the last physics tick, in seconds.</param>
         </member>
+        <member name="T:Realm.MapAPI.InternedValueStore">
+            <summary>
+            Owns the single table that every process uses to translate content identifiers into the values they stand for,
+            starting with text and structured to hold further payload kinds in the same identifier space.
+            </summary>
+            <remarks>
+            Identifiers are content hashes rather than allocation sequence numbers, so the host, the client and the map
+            script sandbox agree on the identifier for a given payload without sharing any state. Two payloads of the same
+            kind that hash to the same primary identifier are resolved at registration time: the later one receives an
+            identifier from the reserved fallback range so no two values alias. Colliding payloads are reported through
+            <see cref="P:Realm.MapAPI.InternedValueStore.CollisionCount"/> and <see cref="P:Realm.MapAPI.InternedValueStore.CollisionSummary"/> because the fallback decision is only reachable
+            once both payloads have been registered in the same process.
+            </remarks>
+        </member>
+        <member name="F:Realm.MapAPI.InternedValueStore.TextKind">
+            <summary>
+            The kind tag of the entries whose payload is text.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.InternedValueStore.TextListKind">
+            <summary>
+            The kind tag of the entries whose payload is an ordered list of text identifiers.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.InternedValueStore.WeaponListKind">
+            <summary>
+            The kind tag of the entries whose payload is an ordered list of blittable weapon records.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.InternedValueStore.ZoneListKind">
+            <summary>
+            The kind tag of the entries whose payload is an ordered list of blittable zone boundaries.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.InternedValueStore.FallbackIdBase">
+            <summary>
+            First identifier of the reserved fallback range used when a primary content hash is already taken.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.InternedValueStore.SchemeVersion">
+            <summary>
+            The version of the identifier scheme that maps content to identifiers.
+            </summary>
+            <remarks>
+            The host, the client and the map script sandbox must derive the same identifier for the same content, so the
+            scheme is frozen: text is a 32 bit FNV-1a hash over its UTF-16 code units, taken in low byte then high byte
+            order, and a structured payload is the same hash over its kind byte followed by its payload bytes, masked to
+            31 bits with zero remapped to one. Colliding content of the same kind moves into <see cref="F:Realm.MapAPI.InternedValueStore.FallbackIdBase"/>.
+            Raising this version means every peer and every saved payload must migrate, not that hashes shift silently.
+            </remarks>
+        </member>
+        <member name="P:Realm.MapAPI.InternedValueStore.CollisionCount">
+            <summary>
+            Gets the number of payload registrations that had to move into the reserved fallback range because another
+            payload already owned their primary content hash.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InternedValueStore.CollisionSummary">
+            <summary>
+            Gets a human readable summary of the first few hash collisions, listing both colliding payloads.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InternedValueStore.EntryCount">
+            <summary>
+            Gets the number of entries that have been registered or received in this process, in registration order.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.InternedValueStore.TextEntryCount">
+            <summary>
+            Gets the number of text entries that have been registered or received in this process, which is the number
+            of entries a peer's text cursor walks past.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.GetOrAddText(System.String)">
+            <summary>
+            Registers a text in the table and returns its stable identifier.
+            </summary>
+            <param name="text">The text to identify.</param>
+            <returns>
+            Zero for null or empty text, the text's content hash otherwise, or an identifier from the reserved
+            fallback range when another text already owns that hash.
+            </returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.TryGetText(System.Int32,System.String@)">
+            <summary>
+            Retrieves the text registered for an identifier in this process.
+            </summary>
+            <param name="id">The identifier to resolve.</param>
+            <param name="text">The registered text when the identifier is known to this process.</param>
+            <returns>True when the identifier is present in the table and carries text.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.RegisterRemoteText(System.Int32,System.String)">
+            <summary>
+            Stores text that was registered by another peer, so identifiers this process never created can still be rendered.
+            </summary>
+            <param name="id">The identifier chosen by the owning peer.</param>
+            <param name="text">The text that identifier stands for.</param>
+            <returns>True when the table gained the entry, false when the identifier was already known.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.GetOrAddTextList(System.ReadOnlySpan{System.Int32})">
+            <summary>
+            Registers an ordered list of text identifiers and returns its stable identifier.
+            </summary>
+            <param name="textIds">The text identifiers the list contains, in order.</param>
+            <returns>Zero for an empty list, the list's content hash otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.GetTextListCount(System.Int32)">
+            <summary>
+            Gets the number of text identifiers stored in a list payload.
+            </summary>
+            <param name="id">The identifier of the list payload.</param>
+            <returns>The entry count, or zero when the identifier is unknown or does not carry a list.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.GetTextListItemId(System.Int32,System.Int32)">
+            <summary>
+            Gets the text identifier stored at a position in a list payload.
+            </summary>
+            <param name="id">The identifier of the list payload.</param>
+            <param name="index">The zero-based position to read.</param>
+            <returns>The text identifier at that position, or zero when the position is outside the list.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.TryGetPayload(System.Int32,System.Byte@,System.ReadOnlySpan{System.Byte}@)">
+            <summary>
+            Gets the kind and payload bytes stored for an identifier.
+            </summary>
+            <param name="id">The identifier to inspect.</param>
+            <param name="kind">The kind tag of the stored payload.</param>
+            <param name="payload">The immutable payload bytes, empty for text entries.</param>
+            <returns>True when the identifier is present in the table.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.GetOrAddBytes(System.Byte,System.ReadOnlySpan{System.Byte})">
+            <summary>
+            Registers an opaque blittable payload and returns its stable identifier.
+            </summary>
+            <param name="kind">The kind tag that tells readers how to interpret the bytes.</param>
+            <param name="payload">The immutable payload bytes.</param>
+            <returns>Zero for an empty payload, the payload's content hash otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.ComputeTextId(System.String)">
+            <summary>
+            Computes the stable identifier a text would receive, without registering it.
+            </summary>
+            <param name="text">The text to identify.</param>
+            <returns>Zero for null or empty text, the text's content hash otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.GetTextEntriesSince(System.Int32,System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}})">
+            <summary>
+            Copies the text entries a peer has not received yet into a caller supplied buffer, and reports the cursor
+            that peer should pass next time.
+            </summary>
+            <remarks>
+            The cursor counts text entries only, so registering a payload of another kind between two texts never
+            advances it past a text the peer has not received.
+            </remarks>
+            <param name="cursor">The cursor previously returned for this peer, or zero to copy every text entry.</param>
+            <param name="destination">The list that receives the entries.</param>
+            <returns>The cursor that stands for the end of the text table after this copy.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.TryGetKind(System.Int32,System.Byte@)">
+            <summary>
+            Gets the kind tag stored for an identifier.
+            </summary>
+            <param name="id">The identifier to inspect.</param>
+            <returns>True when the identifier is present in the table.</returns>
+            <param name="kind">The kind tag of the stored payload.</param>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.DescribeTable(System.Int32)">
+            <summary>
+            Builds a human readable dump of the table for diagnosing an identifier that renders as the wrong value or not at all.
+            </summary>
+            <param name="maximumEntries">The maximum number of entries to include, taken from the most recently registered end.</param>
+            <returns>One line per entry with its identifier, kind and text, framed by a summary of the table and its collisions.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.Reset">
+            <summary>
+            Clears every entry while keeping identifiers stable, since identifiers are content hashes and not table slots.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.InternedValueStore.DescribeKind(System.Byte)">
+            <summary>
+            Gets the lower case name of a kind tag for logs and dumps.
+            </summary>
+            <param name="kind">The kind tag to describe.</param>
+            <returns>The kind name, or the numeric tag when the kind has no name yet.</returns>
+        </member>
         <member name="T:Realm.MapAPI.InventoryItemSaveData">
             <summary>
             Represents an item entry stored inside a unit or player inventory.
@@ -4385,26 +4578,113 @@
         </member>
         <member name="T:Realm.MapAPI.StringRegistry">
             <summary>
-            Provides high-performance string interning and integer identifier mappings for unmanaged ECS components.
+            Maps text to stable integer identifiers that every process computes identically, and keeps a
+            text table so a peer can render identifiers it never registered itself.
+            </summary>
+            <remarks>
+            Identifiers are content hashes rather than allocation sequence numbers, so the host, the client and the
+            map script sandbox agree on the identifier for a given text without sharing any state. Two strings that
+            hash to the same primary identifier are resolved at registration time: the later one receives an
+            identifier from the reserved fallback range so no two strings alias. Colliding texts are reported through
+            <see cref="P:Realm.MapAPI.StringRegistry.CollisionCount"/> and <see cref="P:Realm.MapAPI.StringRegistry.CollisionSummary"/> because the fallback decision is only
+            reachable once both strings have been registered in the same process. The table itself lives in
+            <see cref="T:Realm.MapAPI.InternedValueStore"/>, which shares one identifier space between text and the structured
+            payload kinds that are still being migrated onto it.
+            </remarks>
+        </member>
+        <member name="F:Realm.MapAPI.StringRegistry.FallbackIdBase">
+            <summary>
+            First identifier of the reserved fallback range used when a primary content hash is already taken.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.StringRegistry.CollisionCount">
+            <summary>
+            Gets the number of text registrations that had to move into the reserved fallback range because another
+            string already owned their primary content hash.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.StringRegistry.CollisionSummary">
+            <summary>
+            Gets a human readable summary of the first few hash collisions, listing both colliding texts.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.StringRegistry.EntryCount">
+            <summary>
+            Gets the number of text entries that have been registered or received in this process, in registration order.
             </summary>
         </member>
         <member name="M:Realm.MapAPI.StringRegistry.GetOrAdd(System.String)">
             <summary>
-            Gets or registers a string in the registry and returns its unique integer identifier.
+            Registers a text in the table and returns its stable identifier.
             </summary>
-            <param name="str">The string to intern.</param>
-            <returns>The integer string identifier, or 0 if null or empty.</returns>
+            <param name="text">The text to identify.</param>
+            <returns>
+            Zero for null or empty text, the text's content hash otherwise, or an identifier from the reserved
+            fallback range when another string already owns that hash.
+            </returns>
         </member>
         <member name="M:Realm.MapAPI.StringRegistry.Get(System.Int32)">
             <summary>
-            Retrieves the interned string associated with the specified identifier.
+            Retrieves the text registered for an identifier, asking the host for text this process has never seen.
             </summary>
-            <param name="id">The integer string identifier.</param>
-            <returns>The string value, or empty string if not found.</returns>
+            <param name="id">The identifier to resolve.</param>
+            <returns>The registered text, or an empty string when no process knows the identifier.</returns>
+            <remarks>
+            Inside the map script sandbox a miss is forwarded to the host through <see cref="M:Realm.MapAPI.IGameAPI.GetStringText(System.Int32)"/> and
+            cached locally, so an identifier written by the host into shared component memory becomes readable even when
+            the script never registered that text. Because identifiers are content hashes the sandbox can verify what it
+            receives: a host answer whose hash does not match the requested identifier is discarded.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.TryGetText(System.Int32,System.String@)">
+            <summary>
+            Attempts to retrieve the text registered for an identifier without allocating a fallback string.
+            </summary>
+            <param name="id">The identifier to resolve.</param>
+            <param name="text">The registered text when the identifier is known to this process.</param>
+            <returns>True when the identifier is present in the text table.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.RegisterRemote(System.Int32,System.String)">
+            <summary>
+            Stores text that was registered by another peer, so identifiers this process never created can still be rendered.
+            </summary>
+            <param name="id">The identifier chosen by the owning peer.</param>
+            <param name="text">The text that identifier stands for.</param>
+            <returns>True when the table gained the entry, false when the identifier was already known.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.ComputeId(System.String)">
+            <summary>
+            Computes the stable identifier a text would receive, without registering it.
+            </summary>
+            <param name="text">The text to identify.</param>
+            <returns>Zero for null or empty text, the text's content hash otherwise.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.GetEntriesSince(System.Int32,System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}})">
+            <summary>
+            Copies the entries a peer has not received yet into a caller supplied buffer, and reports the cursor
+            that peer should pass next time.
+            </summary>
+            <param name="cursor">The cursor previously returned for this peer, or zero to copy every entry.</param>
+            <param name="destination">The list that receives the entries.</param>
+            <returns>The cursor that stands for the end of the table after this copy.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.CopyEntries(System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}},System.Int32)">
+            <summary>
+            Copies registered entries into a caller supplied buffer for replication.
+            </summary>
+            <param name="destination">The list that receives the entries.</param>
+            <param name="startIndex">The first entry index to copy.</param>
+        </member>
+        <member name="M:Realm.MapAPI.StringRegistry.DescribeTable(System.Int32)">
+            <summary>
+            Builds a human readable dump of the table for diagnosing an identifier that renders as the wrong text or not at all.
+            </summary>
+            <param name="maximumEntries">The maximum number of entries to include, taken from the most recently registered end.</param>
+            <returns>One line per entry with its identifier, kind and text, framed by a summary of the table and its collisions.</returns>
         </member>
         <member name="M:Realm.MapAPI.StringRegistry.Reset">
             <summary>
-            Resets the string registry, clearing all interned string values.
+            Clears every text entry while keeping identifiers stable, since identifiers are content hashes and not table slots.
             </summary>
         </member>
         <member name="T:Realm.MapAPI.TowerDefenseBotConfig">

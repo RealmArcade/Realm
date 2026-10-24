@@ -242,10 +242,16 @@ public partial class InGameHUD : Control
 	private float _macroTimer = MacroInterval;
 	private float _ambientTimer = AmbientInterval;
 
-	public void InvalidateCadence(bool tactical = true, bool macro = false)
+	public void InvalidateCadence(bool tactical = true, bool macro = false, bool ambient = false)
 	{
 		if (tactical) _tacticalTimer = TacticalInterval;
 		if (macro) _macroTimer = MacroInterval;
+		if (ambient) _ambientTimer = AmbientInterval;
+	}
+
+	public void InvalidateReplicatedOverlays()
+	{
+		InvalidateCadence(tactical: false, macro: false, ambient: true);
 	}
 
 	public override void _Ready()

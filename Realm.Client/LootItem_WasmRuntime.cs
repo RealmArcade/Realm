@@ -1,141 +1,102 @@
-using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Ecs;
 using Realm.Ecs.Components.Core;
-using Realm.MapAPI;
+using Realm.Ecs.Components.Movement;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
 
 public class LootItem_WasmRuntime
 {
-	private readonly int _uniqueId;
-	private readonly LootItem3D? _lootNode;
+	private readonly Entity _entity;
 
-	public LootItem_WasmRuntime(int uniqueId, LootItem3D? lootNode)
+	public LootItem_WasmRuntime(Entity entity)
 	{
-		_uniqueId = uniqueId;
-		_lootNode = lootNode;
+		_entity = entity;
 	}
 
-	public int UniqueId => _uniqueId;
+	public int UniqueId => _entity.Id;
 
 	public string ItemTypeId
 	{
-		get
-		{
-			if (GodotObject.IsInstanceValid(_lootNode)) return _lootNode.ItemTypeId;
-			return string.Empty;
-		}
+		get => TryGetLoot(out GroundLoot loot) ? loot.ItemTypeId : string.Empty;
 	}
 
 	public Vector3 Position
 	{
 		get
 		{
-			if (GodotObject.IsInstanceValid(_lootNode))
-			{
-				var pos = _lootNode.GlobalPosition;
-				return new Vector3(pos.X, pos.Y, pos.Z);
-			}
-			return Vector3.Zero;
+			var world = GameContext.World;
+			if (world == null || !world.Has<Position>(_entity)) return Vector3.Zero;
+			return world.Get<Position>(_entity).Value;
 		}
 	}
 
 	public int Charges
 	{
-		get
-		{
-			if (GodotObject.IsInstanceValid(_lootNode)) return _lootNode.Charges;
-			return 0;
-		}
+		get => TryGetLoot(out GroundLoot loot) ? loot.Charges : 0;
 	}
 
 	public float Lifetime
 	{
-		get
-		{
-			if (GodotObject.IsInstanceValid(_lootNode)) return _lootNode.Lifetime;
-			return 0f;
-		}
+		get => TryGetLoot(out GroundLoot loot) ? loot.Lifetime : 0f;
 	}
 
 	public float RemainingLifetime
 	{
-		get
-		{
-			if (GodotObject.IsInstanceValid(_lootNode)) return _lootNode.RemainingLifetime;
-			return 0f;
-		}
+		get => TryGetLoot(out GroundLoot loot) ? loot.RemainingLifetime : 0f;
 	}
 
 	public float PickupRadius
 	{
-		get
-		{
-			if (GodotObject.IsInstanceValid(_lootNode)) return _lootNode.PickupRadius;
-			return 0f;
-		}
+		get => TryGetLoot(out GroundLoot loot) ? loot.PickupRadius : 0f;
 		set
 		{
-			if (GodotObject.IsInstanceValid(_lootNode))
-			{
-				_lootNode.PickupRadius = value;
-				if (GameContext.World != null && GameContext.World.IsAlive(_lootNode.Entity) && GameContext.World.Has<GroundLoot>(_lootNode.Entity))
-				{
-					ref var loot = ref GameContext.World.Get<GroundLoot>(_lootNode.Entity);
-					loot.PickupRadius = value;
-				}
-			}
+			var world = GameContext.World;
+			if (world == null || !world.IsAlive(_entity) || !world.Has<GroundLoot>(_entity)) return;
+			ref var loot = ref world.Get<GroundLoot>(_entity);
+			loot.PickupRadius = value;
 		}
 	}
 
 	public bool AutoPickup
 	{
-		get
-		{
-			if (GodotObject.IsInstanceValid(_lootNode)) return _lootNode.AutoPickup;
-			return false;
-		}
+		get => TryGetLoot(out GroundLoot loot) && loot.AutoPickup;
 		set
 		{
-			if (GodotObject.IsInstanceValid(_lootNode))
-			{
-				_lootNode.AutoPickup = value;
-				if (GameContext.World != null && GameContext.World.IsAlive(_lootNode.Entity) && GameContext.World.Has<GroundLoot>(_lootNode.Entity))
-				{
-					ref var loot = ref GameContext.World.Get<GroundLoot>(_lootNode.Entity);
-					loot.AutoPickup = value;
-				}
-			}
+			var world = GameContext.World;
+			if (world == null || !world.IsAlive(_entity) || !world.Has<GroundLoot>(_entity)) return;
+			ref var loot = ref world.Get<GroundLoot>(_entity);
+			loot.AutoPickup = value;
 		}
 	}
 
 	public int OwnerPlayerIndex
 	{
-		get
-		{
-			if (GodotObject.IsInstanceValid(_lootNode)) return _lootNode.OwnerPlayerIndex;
-			return -1;
-		}
+		get => TryGetLoot(out GroundLoot loot) ? loot.OwnerPlayerIndex : -1;
 		set
 		{
-			if (GodotObject.IsInstanceValid(_lootNode))
-			{
-				_lootNode.OwnerPlayerIndex = value;
-				if (GameContext.World != null && GameContext.World.IsAlive(_lootNode.Entity) && GameContext.World.Has<GroundLoot>(_lootNode.Entity))
-				{
-					ref var loot = ref GameContext.World.Get<GroundLoot>(_lootNode.Entity);
-					loot.OwnerPlayerIndex = value;
-				}
-			}
+			var world = GameContext.World;
+			if (world == null || !world.IsAlive(_entity) || !world.Has<GroundLoot>(_entity)) return;
+			ref var loot = ref world.Get<GroundLoot>(_entity);
+			loot.OwnerPlayerIndex = value;
 		}
 	}
 
-	public bool IsDespawned => !GodotObject.IsInstanceValid(_lootNode) || _lootNode.IsDespawned;
+	public bool IsDespawned => !GameHost.IdToLootItem.ContainsKey(_entity.Id);
 
 	public void Despawn()
 	{
-		GameContext.Host?.RemoveLootItem(_uniqueId);
+		GameContext.Host?.RemoveLootItem(_entity.Id);
+	}
+
+	private bool TryGetLoot(out GroundLoot loot)
+	{
+		loot = default;
+		var world = GameContext.World;
+		if (world == null || !world.IsAlive(_entity) || !world.Has<GroundLoot>(_entity)) return false;
+		loot = world.Get<GroundLoot>(_entity);
+		return true;
 	}
 }

@@ -11,6 +11,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Ecs.Components.Terrain;
+using Realm.MapAPI;
 
 namespace Realm.Client.Services;
 
@@ -66,7 +67,7 @@ public class WorldInitService
 			};
 			GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
 			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
-			GameContext.World.Add(playerEntity, new SpellCooldowns(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)));
+			GameContext.World.Add(playerEntity, new SpellCooldowns(null));
 			GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
 			GameContext.World.Add(playerEntity, new PlayerTeam(defaultPlayers[i].Team, defaultPlayers[i].TeamNameStringId));
 			GameContext.World.GetBuffer<ScriptPlayer>().Set(i, in defaultPlayers[i]);
@@ -84,7 +85,7 @@ public class WorldInitService
 		}
 
 		AddOrSet(worldEntity, new InputState(0, null, null, null, false));
-		AddOrSet(worldEntity, new VFXQueue(new List<VFXRequest>()));
+		AddOrSet(worldEntity, new VFXQueue(null));
 		AddOrSet(worldEntity, new CameraState
 		{
 			MoveSpeed = 35.0f,
@@ -122,7 +123,7 @@ public class WorldInitService
 		AddOrSet(worldEntity, new SpectatorPerspective(-1));
 		AddOrSet(worldEntity, new CountdownState(false, 0f, ""));
 		AddOrSet(worldEntity, new LeaderboardState(new LeaderboardBoards()));
-		AddOrSet(worldEntity, new ScriptZonesState(new List<ZoneBounds>()));
+		AddOrSet(worldEntity, new ScriptZonesState(null));
 
 		AddOrSet(worldEntity, new ScriptPlayersState(defaultPlayers));
 		AddOrSet(worldEntity, new CombatAlertState(0f));

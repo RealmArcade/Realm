@@ -256,10 +256,27 @@ public static partial class MapWorkspaceService
 	{
 		if (!string.IsNullOrEmpty(_testActiveWorkspacePath))
 			return _testActiveWorkspacePath;
+
+		if (GameContext.SessionState.IsMapEditorMode)
+			return GetEditorWorkspacePath();
+
+		return GetActiveMapDirectory();
+	}
+
+	public static string GetActiveMapDirectory()
+	{
+		string? mapDirectory = GameContext.MapStorageService?.CurrentMapDirectory;
+		if (GameContext.Host != null && !string.IsNullOrEmpty(mapDirectory))
+			return mapDirectory;
+
+		return string.Empty;
+	}
+
+	public static string GetEditorWorkspacePath()
+	{
 		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
 			return GameContext.EditorService._tempWorkspacePath;
-		if (GameContext.Host != null && !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory))
-			return GameContext.MapStorageService.CurrentMapDirectory;
+
 		return string.Empty;
 	}
 

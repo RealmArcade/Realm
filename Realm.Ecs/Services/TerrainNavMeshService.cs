@@ -18,7 +18,7 @@ public class TerrainNavMeshService
 	public Dictionary<string, float> ObstacleRadiusCache { get; set; } = new();
 
 	private const float NavMeshCellHeight = 0.1f;
-	private const float AgentRadius = 0.1f;
+	private const float AgentRadius = 1.2f;
 	private const float AgentHeight = 2.5f;
 	private const float AgentMaxClimb = 0.9f;
 	private const float AgentMaxSlope = 55.0f;
@@ -558,9 +558,9 @@ public class TerrainNavMeshService
 		var obstacles = GetNavMeshObstacles();
 		if (state.Cells == null) return;
 		var bakeHeights = GetBakeHeights(in state, width, depth);
-		ApplyObstaclesToHeights(bakeHeights, obstacles, width, depth, quadSize, halfW, halfD);
 
 		var geom = CreateInputGeom(bakeHeights, width, depth, quadSize);
+		AddObstacleVolumes(obstacles, geom, bakeHeights, width, depth, quadSize, state.CellSize, halfW, halfD);
 		AddUnwalkableVolumes(in state, geom, width, depth, quadSize);
 
 		BuildNavMesh(ref state, geom, width, depth, quadSize);
@@ -591,38 +591,53 @@ public class TerrainNavMeshService
 		return bakeHeights;
 	}
 
-	private void ApplyObstaclesToHeights(float[,] bakeHeights, List<(Vector3 Pos, float Radius)> obstacles, int width, int depth, float quadSize, float halfW, float halfD)
+	private void AddObstacleVolumes(List<(Vector3 Pos, float Radius)> obstacles, SimpleInputGeomProvider geom, float[,] bakeHeights, int width, int depth, float quadSize, float cellSize, float halfW, float halfD)
 	{
+		const int segments = 16;
 		foreach (var obs in obstacles)
 		{
 			float radius = obs.Radius;
 			if (radius <= GameplayConstants.MinimumAuthoredCollisionRadius) continue;
 
-			int nearestX = Math.Clamp((int)Math.Round((obs.Pos.X + halfW) / quadSize), 0, width);
-			int nearestZ = Math.Clamp((int)Math.Round((obs.Pos.Z + halfD) / quadSize), 0, depth);
-			bakeHeights[nearestX, nearestZ] = 20.0f;
+			float effectiveRadius = radius + AgentRadius + cellSize * 0.5f;
+			float ground = SampleBakeHeight(bakeHeights, obs.Pos.X, obs.Pos.Z, width, depth, quadSize, halfW, halfD);
 
-			float effectiveRadius = Math.Max(quadSize * 0.5f, radius - quadSize * 0.51f);
-			int minX = Math.Clamp((int)Math.Floor((obs.Pos.X - radius + halfW) / quadSize), 0, width);
-			int maxX = Math.Clamp((int)Math.Ceiling((obs.Pos.X + radius + halfW) / quadSize), 0, width);
-			int minZ = Math.Clamp((int)Math.Floor((obs.Pos.Z - radius + halfD) / quadSize), 0, depth);
-			int maxZ = Math.Clamp((int)Math.Ceiling((obs.Pos.Z + radius + halfD) / quadSize), 0, depth);
-
-			for (int z = minZ; z <= maxZ; z++)
+			var volumeVerts = new float[segments * 3];
+			for (int i = 0; i < segments; i++)
 			{
-				for (int x = minX; x <= maxX; x++)
-				{
-					float lx = (x - width / 2.0f) * quadSize;
-					float lz = (z - depth / 2.0f) * quadSize;
-					float dx = lx - obs.Pos.X;
-					float dz = lz - obs.Pos.Z;
-					if (dx * dx + dz * dz <= effectiveRadius * effectiveRadius)
-					{
-						bakeHeights[x, z] = 20.0f;
-					}
-				}
+				float angle = MathF.Tau * i / segments;
+				volumeVerts[i * 3] = obs.Pos.X + MathF.Cos(angle) * effectiveRadius;
+				volumeVerts[i * 3 + 1] = ground;
+				volumeVerts[i * 3 + 2] = obs.Pos.Z + MathF.Sin(angle) * effectiveRadius;
 			}
+
+			var volume = new RcConvexVolume
+			{
+				verts = volumeVerts,
+				hmin = ground - 2.0f,
+				hmax = ground + AgentHeight,
+				areaMod = new RcAreaModification(0)
+			};
+			geom.AddConvexVolume(volume);
 		}
+	}
+
+	private static float SampleBakeHeight(float[,] bakeHeights, float worldX, float worldZ, int width, int depth, float quadSize, float halfW, float halfD)
+	{
+		float gridX = Math.Clamp((worldX + halfW) / quadSize, 0f, width);
+		float gridZ = Math.Clamp((worldZ + halfD) / quadSize, 0f, depth);
+		int x0 = Math.Min((int)gridX, width - 1);
+		int z0 = Math.Min((int)gridZ, depth - 1);
+		float fractionX = gridX - x0;
+		float fractionZ = gridZ - z0;
+
+		float northWest = bakeHeights[x0, z0];
+		float northEast = bakeHeights[x0 + 1, z0];
+		float southWest = bakeHeights[x0, z0 + 1];
+		float southEast = bakeHeights[x0 + 1, z0 + 1];
+		float north = northWest + (northEast - northWest) * fractionX;
+		float south = southWest + (southEast - southWest) * fractionX;
+		return north + (south - north) * fractionZ;
 	}
 
 	private SimpleInputGeomProvider CreateInputGeom(float[,] bakeHeights, int width, int depth, float quadSize)

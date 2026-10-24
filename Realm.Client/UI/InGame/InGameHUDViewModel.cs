@@ -749,12 +749,11 @@ public class InGameHUDViewModel
 			return;
 
 		var inv = world.Get<Inventory>(u.Entity);
-		if (inv.Items != null)
+		for (int itemIndex = 0; itemIndex < inv.Count; itemIndex++)
 		{
-			foreach (var kvp in inv.Items)
-			{
-				info.InventoryItems[kvp.Key] = kvp.Value;
-			}
+			string? itemId = inv.GetItemId(itemIndex);
+			if (itemId == null) continue;
+			info.InventoryItems[itemId] = inv.GetCharges(itemIndex);
 		}
 	}
 
@@ -773,9 +772,10 @@ public class InGameHUDViewModel
 			var prod = world.Get<ProductionQueue>(u.Entity);
 			info.HasProduction = true;
 
-			if (prod.UnitIds.Count > 0)
+			string? trainedUnitId = prod.Get(0);
+			if (trainedUnitId != null)
 			{
-				info.ProductionTitle = string.Format(TranslationServer.Translate("TRAINING: {0}"), prod.UnitIds[0].ToUpper());
+				info.ProductionTitle = string.Format(TranslationServer.Translate("TRAINING: {0}"), trainedUnitId.ToUpper());
 				info.ProductionProgress = prod.CurrentProgress;
 				info.ProductionMaxProgress = prod.BuildTime;
 
@@ -794,12 +794,12 @@ public class InGameHUDViewModel
 
 	private void UpdateUnitProductionQueue(SelectedUnitInfo info, ProductionQueue prod)
 	{
-		bool queueChanged = info.ProductionQueue.Count != prod.UnitIds.Count;
+		bool queueChanged = info.ProductionQueue.Count != prod.Count;
 		if (!queueChanged)
 		{
-			for (int q = 0; q < prod.UnitIds.Count; q++)
+			for (int q = 0; q < prod.Count; q++)
 			{
-				if (info.ProductionQueue[q] != prod.UnitIds[q])
+				if (info.ProductionQueue[q] != prod.Get(q))
 				{
 					queueChanged = true;
 					break;
@@ -810,7 +810,7 @@ public class InGameHUDViewModel
 		if (queueChanged)
 		{
 			info.ProductionQueue.Clear();
-			info.ProductionQueue.AddRange(prod.UnitIds);
+			prod.CopyTo(info.ProductionQueue);
 		}
 	}
 
@@ -821,9 +821,9 @@ public class InGameHUDViewModel
 		if (world.Has<AbilityState>(u.Entity))
 		{
 			var state = world.Get<AbilityState>(u.Entity);
-			if (state.Abilities != null && state.Abilities.Count > 0)
+			if (state.Count > 0)
 			{
-				info.Abilities.AddRange(state.Abilities);
+				state.CopyTo(info.Abilities);
 				return;
 			}
 		}

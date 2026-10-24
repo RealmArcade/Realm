@@ -1949,7 +1949,7 @@ public partial class GameHost
 				if (SelectedUnits.Count == 1 && GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player))
 				{
 					var unit = SelectedUnits[0];
-					if (GameContext.World.Has<ProductionQueue>(unit.Entity) && GameContext.World.Get<ProductionQueue>(unit.Entity).UnitIds.Count > 0)
+					if (GameContext.World.Has<ProductionQueue>(unit.Entity) && GameContext.World.Get<ProductionQueue>(unit.Entity).Count > 0)
 					{
 						CancelLastQueuedUnit(unit.Entity);
 						GetViewport().SetInputAsHandled();
@@ -3738,7 +3738,14 @@ public partial class GameHost
 				GameContext.InGameHud.ShowFeedbackText($"Constructing {meta.Name}...", new Color(0.3f, 0.9f, 0.4f));
 			}
 
-			QueueClientCommand("build", new List<int>(), position, 0, type);
+			var buildWorkerIds = new List<int>();
+			Unit3D? selectedWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
+			if (selectedWorker != null && GameContext.World.IsAlive(selectedWorker.Entity))
+			{
+				buildWorkerIds.Add(GetServerEntityId(selectedWorker.Entity));
+			}
+
+			QueueClientCommand("build", buildWorkerIds, position, 0, type);
 
 			if (!shiftHeld) ClearBuildingPlacementState();
 			return;
@@ -3890,9 +3897,9 @@ public partial class GameHost
 		if (GameContext.World.IsAlive(buildingEntity) && GameContext.World.Has<ProductionQueue>(buildingEntity))
 		{
 			var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
-			if (prod.UnitIds.Count > 0)
+			if (prod.Count > 0)
 			{
-				CancelQueuedUnitAt(buildingEntity, prod.UnitIds.Count - 1);
+				CancelQueuedUnitAt(buildingEntity, prod.Count - 1);
 			}
 		}
 	}
@@ -4454,14 +4461,12 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity)) return;
 
-		int popCost = GetPopCostForIndex(buildingEntity, index);
-
 		if (_multiplayerActive && !Multiplayer.IsServer())
 		{
 			QueueClientCommand("cancel_train", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, index, "");
 		}
 
-		if (GameContext.InputService.CancelQueuedUnitAt(buildingEntity, index, out string? cancelledId, out string? nextUnitId, popCost))
+		if (GameContext.InputService.CancelQueuedUnitAt(buildingEntity, index, out string? cancelledId, out string? nextUnitId))
 		{
 			RefundCancelledUnit(cancelledId);
 			UpdateProductionQueueAfterCancel(buildingEntity, index, nextUnitId);
@@ -4469,11 +4474,6 @@ public partial class GameHost
 			GameContext.UserInterface?.PlayClickSound();
 			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		}
-	}
-
-	private int GetPopCostForIndex(Entity buildingEntity, int index)
-	{
-		return GameContext.InputService.GetPopCostForIndex(buildingEntity, index);
 	}
 
 	private void RefundCancelledUnit(string? cancelledId)

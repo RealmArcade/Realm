@@ -298,13 +298,15 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		if (!world.Has<SpellCooldowns>(hero)) return;
 
 		var cd = world.Get<SpellCooldowns>(hero);
-		foreach (var spell in cd.Value)
+		for (int index = 0; index < cd.Count; index++)
 		{
-			if (spell.Value <= 0.0f)
-			{
-				float[] castVec = CreateFeatureVector(killThreat, 1.0f - hpRatio, 0.9f, 0.0f, 0.85f, 0.0f, 0.0f, fountainDistRatio);
-				destinationList.Add(new GenericAffordance(hero, CommandIntent.Cast, enemy, ePos, spell.Key, castVec));
-			}
+			if (cd.GetRemaining(index) > 0.0f) continue;
+
+			string? spellId = cd.GetKey(index);
+			if (spellId == null) continue;
+
+			float[] castVec = CreateFeatureVector(killThreat, 1.0f - hpRatio, 0.9f, 0.0f, 0.85f, 0.0f, 0.0f, fountainDistRatio);
+			destinationList.Add(new GenericAffordance(hero, CommandIntent.Cast, enemy, ePos, spellId, castVec));
 		}
 	}
 

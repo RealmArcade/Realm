@@ -110,8 +110,8 @@ public static class ComponentTypeRegistry
 			typeof(Wood),
 			typeof(ArmorStat),
 			typeof(AttackDamage),
-			typeof(Realm.Ecs.Components.Combat.AttackSpeed),
-			typeof(Realm.Ecs.Components.Stats.AttackSpeed),
+			typeof(Realm.Ecs.Components.Combat.AttackSpeedMultiplier),
+			typeof(Realm.Ecs.Components.Stats.AttackSpeedStat),
 			typeof(DerivedCombatStats),
 			typeof(HealthStat),
 			typeof(MovementSpeed),
@@ -153,7 +153,9 @@ public static class ComponentTypeRegistry
 			typeof(PlayerTeam),
 			typeof(CommandsFrozen),
 			typeof(OverheadBarsHidden),
-			typeof(AnimationsFrozen)
+			typeof(AnimationsFrozen),
+			typeof(AttackTarget),
+			typeof(LastAttacker)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

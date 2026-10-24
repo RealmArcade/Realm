@@ -1,24 +1,77 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Realm.Ecs.Common;
 
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
-/// Holds a dictionary mapping active buff IDs to remaining duration for an entity.
+/// Holds the timed buffs active on an entity, each with its remaining and original duration.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Buffs
 {
-	public int Handle;
+	public int Count;
+	public BuffSlotArray Slots;
 
-	public Buffs(Dictionary<string, float> value)
+	public Buffs(IReadOnlyDictionary<string, float>? initialBuffs)
 	{
-		Handle = ColdPayloadRegistry<Dictionary<string, float>>.Register(value);
+		this = default;
+		if (initialBuffs == null) return;
+
+		foreach (var pair in initialBuffs)
+		{
+			Set(pair.Key, pair.Value, pair.Value);
+		}
 	}
 
-	public Dictionary<string, float> Value
+	public bool TryGetValue(string? buffId, out float remaining)
 	{
-		get => ColdPayloadRegistry<Dictionary<string, float>>.Get(Handle);
-		set => Handle = ColdPayloadRegistry<Dictionary<string, float>>.Register(value);
+		return TimedStatusSlots.TryGetValue(in Slots, Count, buffId, out remaining);
+	}
+
+	public bool TryGetDuration(string? buffId, out float duration)
+	{
+		return TimedStatusSlots.TryGetDuration(in Slots, Count, buffId, out duration);
+	}
+
+	public void Set(string? buffId, float remaining, float duration)
+	{
+		TimedStatusSlots.Set(ref Slots, ref Count, buffId, remaining, duration);
+	}
+
+	public void Remove(string? buffId)
+	{
+		TimedStatusSlots.Remove(ref Slots, ref Count, buffId);
+	}
+
+	public void Advance(float delta)
+	{
+		TimedStatusSlots.Advance(ref Slots, ref Count, delta);
+	}
+
+	public void Clear()
+	{
+		Count = 0;
+		Slots = default;
+	}
+
+	public string? GetKey(int index)
+	{
+		return TimedStatusSlots.GetKey(in Slots, index);
+	}
+
+	public float GetRemaining(int index)
+	{
+		return TimedStatusSlots.GetRemaining(in Slots, index);
+	}
+
+	public float GetDuration(int index)
+	{
+		return TimedStatusSlots.GetDuration(in Slots, index);
+	}
+
+	public void CopyKeys(List<string> destination)
+	{
+		TimedStatusSlots.CopyKeys(in Slots, Count, destination);
 	}
 }

@@ -15,8 +15,11 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Client.UI;
+using Realm.MapAPI;
+using Realm.Ecs.Replication;
 using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Services;
@@ -24,16 +27,30 @@ namespace Realm.Client.Services;
 public class NetworkService
 {
 	private readonly List<NetworkCommand> _unacknowledgedCommands = new();
+	private const int MaximumQueuedDeltas = 512;
+
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
 	private readonly Dictionary<int, Vector3> _clientCameraPositions = new();
 	private readonly Dictionary<int, Dictionary<int, UnitSnapshot>> _lastBaselineSnapshotsPerClient = new();
+	private readonly Dictionary<int, Dictionary<(byte Scope, int Key, int TypeId), byte[]>> _lastComponentSnapshotsPerClient = new();
+	private readonly ReplicatedStateMirror _mirror = new();
+	private int _appliedComponentDeltaCount;
+	private int _appliedColdPayloadCount;
+	private int _appliedAbilityStateCount;
+	private int _appliedStaticTextCount;
+	private int _appliedCatalogCount;
+	private bool _fingerprintMatchLogged;
+	private readonly List<(int ServerEntityId, int ComponentTypeId, byte[] Bytes)> _fingerprintComponentRecords = new();
 	private readonly Dictionary<int, List<DelayedPacket>> _spectatorDelayedPackets = new();
 
-	private readonly List<UnitSnapshot> _pendingUnitSpawns = new();
+	private readonly Dictionary<int, UnitSnapshot> _pendingUnitSpawns = new();
 	private readonly List<Entity> _pendingUnitKills = new();
+	private readonly List<Entity> _pendingUnitDespawns = new();
+	private readonly List<int> _untrackedServerIds = new();
 
 
 	public bool IsPaused { get; set; } = false;
+	public int LastAppliedSnapshotSequenceForDiagnostics { get; private set; } = -1;
 	public int ResumeCountdownSeconds { get; set; } = -1;
 	public float ResumeCountdownTimer { get; set; } = 0f;
 
@@ -127,37 +144,6 @@ public class NetworkService
 		}
 	}
 
-	public bool TryGetReconnectedWorldState(out float gameElapsedTime, out int timeOfDayIndex, out float timeOfDayTimer, out bool dayNightCycleEnabled)
-	{
-		gameElapsedTime = 0f;
-		timeOfDayIndex = 0;
-		timeOfDayTimer = 0f;
-		dayNightCycleEnabled = false;
-
-		if (ECSContext.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<WorldState>(ECSContext.WorldEntity)) return false;
-
-		var ws = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
-		gameElapsedTime = ws.GameElapsedTime;
-		timeOfDayIndex = ws.TimeOfDayIndex;
-		timeOfDayTimer = ws.TimeOfDayTimer;
-		dayNightCycleEnabled = ws.DayNightCycleEnabled;
-		return true;
-	}
-
-	public bool TryGetReconnectedPlayerResources(Entity playerEntity, out float gold, out float wood, out float stone)
-	{
-		gold = 0;
-		wood = 0;
-		stone = 0;
-
-		if (playerEntity == Entity.Null || GameContext.World == null || !GameContext.World.IsAlive(playerEntity) || !GameContext.World.TryGet<PlayerResources>(playerEntity, out var res)) return false;
-
-		gold = res.Gold;
-		wood = res.Wood;
-		stone = res.Stone;
-		return true;
-	}
-
 	public bool TryGetReconnectedCountdown(out float duration, out string text)
 	{
 		duration = 0f;
@@ -216,6 +202,9 @@ public class NetworkService
 		_spectatorDelayedPackets.Clear();
 		_pendingUnitSpawns.Clear();
 		_pendingUnitKills.Clear();
+		_pendingUnitDespawns.Clear();
+		_hiddenOwnEntityIds.Clear();
+		_untrackedServerIds.Clear();
 		_playerTeams.Clear();
 		_alliances.Clear();
 	}
@@ -285,6 +274,13 @@ public class NetworkService
 		q.TryEnqueue(type, position, target);
 	}
 
+	public int GetOwnerPlayerIndex(Entity unitEntity)
+	{
+		if (unitEntity == Entity.Null || GameContext.World == null || !GameContext.World.IsAlive(unitEntity)) return -1;
+		if (!GameContext.World.Has<UnitOwnerPlayer>(unitEntity)) return -1;
+		return GameContext.World.Get<UnitOwnerPlayer>(unitEntity).PlayerIndex;
+	}
+
 	public int GetOwnerPeerId(Entity unitEntity)
 	{
 		Entity worldEntity = FindWorldEntity();
@@ -338,6 +334,11 @@ public class NetworkService
 
 	public bool IsUnitVisibleToPlayer(Entity playerEntity, Entity unitEntity, List<Unit3D> allUnits)
 	{
+		if (IsShroudRevealed())
+		{
+			return true;
+		}
+
 		if (GameContext.World.Has<Owner>(unitEntity) && GameContext.World.Get<Owner>(unitEntity).PlayerEntity.Value == playerEntity)
 		{
 			return true;
@@ -367,17 +368,86 @@ public class NetworkService
 		return false;
 	}
 
+	public bool IsShroudRevealed()
+	{
+		if (GameContext.World == null) return false;
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.IsAlive(worldEntity)) return false;
+		if (!GameContext.World.Has<ShroudState>(worldEntity)) return false;
+		return GameContext.World.Get<ShroudState>(worldEntity).VisibilityMode == ShroudVisibilityMode.Revealed;
+	}
+
+	public bool IsServerEntityVisibleToAnyRemoteClient(int serverEntityId)
+	{
+		GameHost? gameHost = GameContext.Host;
+		if (gameHost == null) return true;
+
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null) return true;
+
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return true;
+
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		List<Unit3D> allUnits = gameHost.AllUnits;
+		Entity unitEntity = new(serverEntityId);
+		int localPeerId = gameHost.Multiplayer.GetUniqueId();
+		bool hasRemoteClient = false;
+
+		foreach (PlayerInfo player in lobby.PlayerList)
+		{
+			if (player.PeerId <= 0 || player.PeerId == localPeerId) continue;
+			if (player.IsDisconnected) continue;
+			if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(player.PeerId, out Entity playerEntity)) continue;
+
+			hasRemoteClient = true;
+			if (IsUnitVisibleToPlayer(playerEntity, unitEntity, allUnits)) return true;
+		}
+
+		return !hasRemoteClient;
+	}
+
 	public (bool Success, string BuildUnitType, string TargetModel, PlayerEntity PlayerOwner, System.Numerics.Vector3 BuildPosition, string Name, float MaxHp, float Damage, float Range, float Armor) ProcessServerCommandBuildDomain(
 		ServerCommandResult result,
 		Dictionary<string, UnitMetadata> unitRegistry,
-		Dictionary<long, Entity> peerIdToPlayerEntityMap)
+		Dictionary<long, Entity> peerIdToPlayerEntityMap,
+		Entity buildWorkerEntity)
 	{
 		if (!result.NeedsBuildUnit || !unitRegistry.TryGetValue(result.BuildUnitType, out var meta)) return (false, "", "", default, default, "", 0, 0, 0, 0);
 
 		var playerOwner = peerIdToPlayerEntityMap[result.BuildPeerOwner].AsPlayerEntity(GameContext.World);
 		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : result.BuildUnitType;
 
+		if (buildWorkerEntity != Entity.Null)
+		{
+			if (!GameContext.World.Has<Owner>(buildWorkerEntity)) return (false, "", "", default, default, "", 0, 0, 0, 0);
+			if (GameContext.World.Get<Owner>(buildWorkerEntity).PlayerEntity.Value != playerOwner.Value) return (false, "", "", default, default, "", 0, 0, 0, 0);
+		}
+
+		if (!TryChargeBuildingCost(playerOwner.Value, meta))
+		{
+			GD.PushWarning($"[Build] Rejected '{result.BuildUnitType}' for player {playerOwner.Value.Id}: insufficient resources or missing PlayerResources.");
+			return (false, "", "", default, default, "", 0, 0, 0, 0);
+		}
+
 		return (true, result.BuildUnitType, targetModel, playerOwner, new System.Numerics.Vector3(result.BuildPosition.X, result.BuildPosition.Y, result.BuildPosition.Z), meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor);
+	}
+
+	private bool TryChargeBuildingCost(Entity playerEntity, UnitMetadata meta)
+	{
+		if (!GameContext.World.TryGet<PlayerResources>(playerEntity, out var res)) return false;
+
+		int costGold = (int)meta.CostGold;
+		int costWood = (int)meta.CostWood;
+		int costStone = (int)meta.CostStone;
+
+		if (res.Gold < costGold || res.Wood < costWood || res.Stone < costStone) return false;
+
+		res.Gold -= costGold;
+		res.Wood -= costWood;
+		res.Stone -= costStone;
+		GameContext.World.Set(playerEntity, res);
+		return true;
 	}
 
 	public void UpdateClientTickDomain()
@@ -385,6 +455,8 @@ public class NetworkService
 		
 		GameContext.World?.Mutate<NetworkState>(ECSContext.WorldEntity, (ref NetworkState netState) =>
 			netState.DynamicInterpolationFactor = ComputeDynamicInterpolationFactor());
+
+		VerifyReplicatedEcsDriftDomain();
 	}
 
 	public float ComputeDynamicInterpolationFactor()
@@ -431,7 +503,6 @@ public class NetworkService
 			ArgString = argString
 		};
 		_unacknowledgedCommands.Add(cmd);
-		GD.Print($"[CLIENT_CMD_SENT] CommandType={commandType} Units={string.Join(",", unitIds)} Target={targetPos}");
 		return (cmd.CommandId, MemoryPackSerializer.Serialize(cmd));
 	}
 
@@ -468,38 +539,51 @@ public class NetworkService
 	private void ProcessSnapshotDirect(byte[] payload)
 	{
 		var snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(payload);
+		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordClientSeenSequence(snapshot.Sequence);
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return;
 
 		ref var networkState = ref GameContext.World.Get<NetworkState>(worldEntity);
-		if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence) return;
-		networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
 
 		if (snapshot.IsBaseline)
 		{
+			if (snapshot.Sequence <= networkState.LastReceivedBaselineSeq) return;
+
 			networkState.LastReceivedBaselineSeq = snapshot.Sequence;
 			networkState.HasReceivedInitialBaseline = true;
+			networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
 			_queuedDeltas.RemoveAll(d => d.Sequence <= snapshot.Sequence);
 			ApplyWorldSnapshot(snapshot);
+
 			while (_queuedDeltas.Count > 0 && _queuedDeltas[0].BaseSequence == snapshot.Sequence)
 			{
 				var nextDelta = _queuedDeltas[0];
 				_queuedDeltas.RemoveAt(0);
+				networkState.LastAppliedSnapshotSequence = nextDelta.Sequence;
 				ApplyWorldSnapshot(nextDelta);
 			}
+
+			return;
 		}
-		else
+
+		if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence) return;
+
+		if (!networkState.HasReceivedInitialBaseline || snapshot.BaseSequence != networkState.LastReceivedBaselineSeq)
 		{
-			if (!networkState.HasReceivedInitialBaseline || snapshot.BaseSequence != networkState.LastReceivedBaselineSeq)
-			{
-				_queuedDeltas.Add(snapshot);
-				_queuedDeltas.Sort((a, b) => a.Sequence.CompareTo(b.Sequence));
-			}
-			else
-			{
-				ApplyWorldSnapshot(snapshot);
-			}
+			QueueDelta(snapshot);
+			return;
 		}
+
+		networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
+		ApplyWorldSnapshot(snapshot);
+	}
+
+	private void QueueDelta(WorldSnapshot snapshot)
+	{
+		if (_queuedDeltas.Count >= MaximumQueuedDeltas) _queuedDeltas.RemoveAt(0);
+
+		_queuedDeltas.Add(snapshot);
+		_queuedDeltas.Sort((a, b) => a.Sequence.CompareTo(b.Sequence));
 	}
 
 	private void ApplyWorldSnapshot(WorldSnapshot snapshot)
@@ -507,6 +591,8 @@ public class NetworkService
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+
+		ApplyReplicatedColdPayloads(snapshot);
 
 		if (snapshot.IsBaseline)
 		{
@@ -531,6 +617,11 @@ public class NetworkService
 		{
 			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
 		}
+
+		ApplyReplicatedComponentState(snapshot);
+
+		LastAppliedSnapshotSequenceForDiagnostics = snapshot.Sequence;
+		MultiplayerSyncDiagnostics.RecordClientSnapshot();
 	}
 
 	private void ProcessBaselineSnapshotMismatches(WorldSnapshot snapshot, NetworkMappingState mapping)
@@ -541,27 +632,79 @@ public class NetworkService
 			serverIdsInSnapshot.Add(snapshot.Units[i].EntityId);
 		}
 
+		_untrackedServerIds.Clear();
 		foreach (var kvp in mapping.ServerToClientEntityMap)
 		{
 			if (serverIdsInSnapshot.Contains(kvp.Key)) continue;
 
-			var localEnt = kvp.Value;
-			if (!GameContext.World.IsAlive(localEnt) || GameContext.World.Has<Dead>(localEnt)) continue;
+			_untrackedServerIds.Add(kvp.Key);
+		}			for (int i = 0; i < _untrackedServerIds.Count; i++)
+			{
+				int serverEntityId = _untrackedServerIds[i];
+				if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;
+				if (GameContext.World.Has<GroundLoot>(localEntity)) continue;
 
-			GameContext.World.Add<Dead>(localEnt);
-			_pendingUnitKills.Add(localEnt);
+				if (IsLocallyOwnedEntity(localEntity))
+			{
+				HideUntrackedOwnEntity(localEntity);
+				continue;
+			}
+
+			RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 		}
+	}
+
+	private readonly HashSet<int> _hiddenOwnEntityIds = new();
+
+	private bool IsLocallyOwnedEntity(Entity entity)
+	{
+		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
+		if (localPlayerIndex < 0) return false;
+		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
+
+		return GameContext.World.Has<UnitOwnerPlayer>(entity) && GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
+	}
+
+	private void HideUntrackedOwnEntity(Entity localEntity)
+	{
+		if (!_hiddenOwnEntityIds.Add(localEntity.Id)) return;
+		GameContext.Host?.SetReplicatedEntityVisible(localEntity, false);
+	}
+
+	private void RestoreHiddenOwnEntity(Entity localEntity)
+	{
+		if (!_hiddenOwnEntityIds.Remove(localEntity.Id)) return;
+		GameContext.Host?.SetReplicatedEntityVisible(localEntity, true);
+	}
+
+	private void RetireClientEntityForUntrackedServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
+	{
+		if (GameContext.World.IsAlive(localEntity) && !GameContext.World.Has<Dead>(localEntity))
+		{
+			_pendingUnitDespawns.Add(localEntity);
+		}
+
+		_hiddenOwnEntityIds.Remove(localEntity.Id);
+		mapping.ServerToClientEntityMap.Remove(serverEntityId);
+		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
 	}
 
 	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
 	{
 		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
 		{
-			if (!snap.IsDead) _pendingUnitSpawns.Add(snap);
+			if (!snap.IsDead) _pendingUnitSpawns[snap.EntityId] = snap;
 			return;
 		}
 
-		if (!GameContext.World.IsAlive(localEntity)) return;
+		if (!GameContext.World.IsAlive(localEntity) || IsServerEntityIdRecycled(snap, localEntity))
+		{
+			RetireClientEntityForRecycledServerId(mapping, localEntity, snap.EntityId);
+			if (!snap.IsDead) _pendingUnitSpawns[snap.EntityId] = snap;
+			return;
+		}
+
+		RestoreHiddenOwnEntity(localEntity);
 
 		if (snap.IsDead)
 		{
@@ -589,12 +732,28 @@ public class NetworkService
 			RotationY = snap.RotationY
 		};
 		GameContext.World.SetOrAdd(localEntity, target);
-		GD.Print($"[CLIENT_SNAPSHOT_APPLIED] Sequence={sequence} Unit={snap.EntityId} ServerPos={snap.Position.ToGodot()}");
+	}
+
+	private static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
+	{
+		if (GameContext.World.Has<DefinitionId>(localEntity) && GameContext.World.Get<DefinitionId>(localEntity).Value != snap.UnitId) return true;
+		if (GameContext.World.Has<UnitOwnerPlayer>(localEntity)
+			&& snap.OwnerPlayerIndex >= 0
+			&& GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != snap.OwnerPlayerIndex) return true;
+		if (GameContext.World.Has<Building>(localEntity) != snap.IsBuilding) return true;
+		return GameContext.World.Has<Dead>(localEntity);
+	}
+
+	private void RetireClientEntityForRecycledServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
+	{
+		RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 	}
 
 	public IReadOnlyList<UnitSnapshot> FlushPendingUnitSpawns()
 	{
-		var result = new List<UnitSnapshot>(_pendingUnitSpawns);
+		if (_pendingUnitSpawns.Count == 0) return Array.Empty<UnitSnapshot>();
+
+		var result = new List<UnitSnapshot>(_pendingUnitSpawns.Values);
 		_pendingUnitSpawns.Clear();
 		return result;
 	}
@@ -606,13 +765,21 @@ public class NetworkService
 		return result;
 	}
 
+	public IReadOnlyList<Entity> FlushPendingUnitDespawns()
+	{
+		var result = new List<Entity>(_pendingUnitDespawns);
+		_pendingUnitDespawns.Clear();
+		return result;
+	}
+
 	public Entity SpawnUnitFromSnapshot(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex)
 	{
 		modelPath = string.Empty;
 		playerIndex = 0;
 
-		if (!GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta))
+		if (!GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta) && !GameHost.BuildingRegistry.TryGetValue(snap.UnitId, out meta))
 		{
+			GD.PushWarning($"[Network] Cannot spawn replicated entity {snap.EntityId}: unit id '{snap.UnitId}' is not registered on this client.");
 			return Entity.Null;
 		}
 
@@ -620,28 +787,36 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return Entity.Null;
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
-		return ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.Velocity.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex);
+		return ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.Velocity.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex, snap.OwnerPlayerIndex);
 	}
 
-	public static Entity ApplySnapshotToEntity(string unitId, int entityId, int ownerPlayerEntityId, System.Numerics.Vector3 position, System.Numerics.Vector3 velocity, float rotationY, float currentHp, float maxHp, bool isBuilding, UnitMetadata meta, ref NetworkMappingState mapping, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex)
+	public static Entity ApplySnapshotToEntity(string unitId, int entityId, int ownerPlayerEntityId, System.Numerics.Vector3 position, System.Numerics.Vector3 velocity, float rotationY, float currentHp, float maxHp, bool isBuilding, UnitMetadata meta, ref NetworkMappingState mapping, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex, int ownerPlayerIndex = -1)
 	{
 		Entity ownerPlayerEntity = mapping.PlayerEntities != null && mapping.PlayerEntities.Length > 1 ? mapping.PlayerEntities[1] : Entity.Null;
-		if (ownerPlayerEntityId >= 0 && mapping.PlayerEntities != null && ownerPlayerEntityId < mapping.PlayerEntities.Length)
+		if (ownerPlayerIndex >= 0 && mapping.PlayerEntities != null && ownerPlayerIndex < mapping.PlayerEntities.Length)
+		{
+			ownerPlayerEntity = mapping.PlayerEntities[ownerPlayerIndex];
+		}
+		else if (ownerPlayerEntityId >= 0 && mapping.PlayerEntities != null && ownerPlayerEntityId < mapping.PlayerEntities.Length)
 		{
 			ownerPlayerEntity = mapping.PlayerEntities[ownerPlayerEntityId];
 		}
-		if (mapping.PeerIdToPlayerEntityMap.TryGetValue(ownerPlayerEntityId, out var pe))
+
+		if (ownerPlayerIndex < 0 && mapping.PeerIdToPlayerEntityMap.TryGetValue(ownerPlayerEntityId, out var pe))
 		{
 			ownerPlayerEntity = pe;
 		}
+
 		if (ownerPlayerEntity == Entity.Null && mapping.PlayerEntities != null && mapping.PlayerEntities.Length > 1)
 		{
 			ownerPlayerEntity = mapping.PlayerEntities[1];
 		}
 
-		playerIndex = (ownerPlayerEntity != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(ownerPlayerEntity))
-			? GameContext.World.Get<UnitOwnerPlayer>(ownerPlayerEntity).PlayerIndex
-			: (ownerPlayerEntityId > 0 ? ownerPlayerEntityId - 1 : 0);
+		playerIndex = ownerPlayerIndex >= 0
+			? ownerPlayerIndex
+			: ((ownerPlayerEntity != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(ownerPlayerEntity))
+				? GameContext.World.Get<UnitOwnerPlayer>(ownerPlayerEntity).PlayerIndex
+				: (ownerPlayerEntityId > 0 ? ownerPlayerEntityId - 1 : 0));
 
 		var entity = GameContext.World.Create();
 		GameContext.World.Add(entity, new DefinitionId(unitId));
@@ -656,15 +831,15 @@ public class NetworkService
 		}
 
 		GameContext.World.Add(entity, new Armor(meta.Armor));
-		if (meta.Speed > 0)
+		if (isBuilding)
+		{
+			GameContext.World.Add(entity, new Building());
+		}
+		else
 		{
 			GameContext.World.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
 			GameContext.World.Add(entity, new Movable());
 			GameContext.World.Add(entity, new Inventory());
-		}
-		else
-		{
-			GameContext.World.Add(entity, new Building());
 		}
 
 		var interpolationTarget = new InterpolationTarget
@@ -677,10 +852,322 @@ public class NetworkService
 
 		mapping.ServerToClientEntityMap[entityId] = entity;
 		mapping.ClientToServerEntityMap[entity.Id] = entityId;
+		Realm.Ecs.Replication.ReplicatedEntityReferences.Register(entityId, entity.Id);
 
 		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : unitId;
 		modelPath = getFallbackModelPath(targetModel, isBuilding);
 		return entity;
+	}
+
+	public void ApplyReplicatedState(WorldSnapshot snapshot)
+	{
+		ApplyReplicatedColdPayloads(snapshot);
+		ApplyReplicatedComponentState(snapshot);
+	}
+
+	private void ApplyReplicatedColdPayloads(WorldSnapshot snapshot)
+	{
+		if (snapshot.ColdPayloads == null) return;
+
+		for (int i = 0; i < snapshot.ColdPayloads.Count; i++)
+		{
+			ApplyColdPayloadDelta(snapshot.ColdPayloads[i]);
+		}
+	}
+
+	private void ApplyReplicatedComponentState(WorldSnapshot snapshot)
+	{
+		if (snapshot.ComponentDeltas != null)
+		{
+			for (int i = 0; i < snapshot.ComponentDeltas.Count; i++)
+			{
+				ApplyComponentDelta(snapshot.ComponentDeltas[i]);
+			}
+		}
+
+		if (snapshot.AbilityStates != null)
+		{
+			for (int i = 0; i < snapshot.AbilityStates.Count; i++)
+			{
+				ApplyAbilityStateDelta(snapshot.AbilityStates[i]);
+			}
+			GameContext.RegistryService?.ClearAbilityStateDirty();
+		}
+
+		if (snapshot.StaticTexts != null)
+		{
+			for (int i = 0; i < snapshot.StaticTexts.Count; i++)
+			{
+				ApplyStaticTextDelta(snapshot.StaticTexts[i]);
+			}
+		}
+
+		if (snapshot.Catalog != null)
+		{
+			var registry = GameContext.RegistryService;
+			if (registry != null)
+			{
+				for (int i = 0; i < snapshot.Catalog.Count; i++)
+				{
+					var entry = snapshot.Catalog[i];
+					registry.ApplyCatalogEntry(entry.Channel, entry.Key, entry.Value, entry.Number);
+					_appliedCatalogCount++;
+				}
+			}
+		}
+
+		if (snapshot.IsBaseline && snapshot.StateFingerprint != 0u)
+		{
+			VerifyReplicatedStateFingerprint(snapshot.Sequence, snapshot.StateFingerprint);
+		}
+	}
+
+	private void ApplyColdPayloadDelta(ColdPayloadDelta delta)
+	{
+		_mirror.RecordColdPayload(delta);
+		if (delta.Destroyed != 0) return;
+
+		switch ((ColdPayloadKind)delta.Kind)
+		{
+			case ColdPayloadKind.InternedPayload:
+			{
+				int registeredContentId = InternedValueStore.GetOrAddBytes(delta.InternedKind, delta.Bytes);
+				if (registeredContentId != delta.ContentId)
+				{
+					GD.PushWarning($"[Network] Cold payload content id {delta.ContentId} registered as {registeredContentId}; the payload bytes disagree with the sender's handle.");
+				}
+
+				break;
+			}
+			case ColdPayloadKind.LeaderboardBoards:
+			{
+				ColdPayloadCodecs.ApplyLeaderboards(GameContext.World, FindWorldEntity(), delta.Bytes);
+				GameContext.Host?.RefreshReplicatedOverlayUi();
+				break;
+			}
+			case ColdPayloadKind.SummaryTable:
+			{
+				ColdPayloadCodecs.ApplySummaryTable(GameContext.World, FindWorldEntity(), delta.Bytes);
+				GameContext.Host?.RefreshReplicatedOverlayUi();
+				break;
+			}
+		}
+
+		_appliedColdPayloadCount++;
+	}
+
+	private void ApplyComponentDelta(ComponentDelta delta)
+	{
+		var codec = ReplicatedComponents.Find(delta.ComponentTypeId);
+		if (codec == null)
+		{
+			GD.PushWarning($"[Network] Received delta for unregistered component type {delta.ComponentTypeId}");
+			return;
+		}
+
+		if (delta.Bytes == null || (delta.Bytes.Length != 0 && delta.Bytes.Length != codec.SizeInBytes))
+		{
+			GD.PushWarning($"[Network] Discarded {codec.ComponentName} delta with {(delta.Bytes?.Length ?? 0)} bytes, expected {codec.SizeInBytes}");
+			return;
+		}
+
+		Entity targetEntity = Entity.Null;
+		if ((ReplicatedScope)delta.Scope == ReplicatedScope.Player)
+		{
+			Entity worldEntity = FindWorldEntity();
+			if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
+			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+			if (mapping.PlayerEntities == null || delta.Key < 0 || delta.Key >= mapping.PlayerEntities.Length) return;
+			targetEntity = mapping.PlayerEntities[delta.Key];
+		}
+		else if ((ReplicatedScope)delta.Scope == ReplicatedScope.Unit)
+		{
+			if (!TryGetLocalEntity(delta.Key, out targetEntity))
+			{
+				if (codec.ComponentTypeId != ComponentType<GroundLoot>.Id || delta.Bytes.Length == 0) return;
+				Entity worldEntity = FindWorldEntity();
+				if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
+				targetEntity = CreateReplicatedLootEntity(delta.Key, GameContext.World.Get<NetworkMappingState>(worldEntity));
+			}
+		}
+		else if ((ReplicatedScope)delta.Scope == ReplicatedScope.World)
+		{
+			targetEntity = ECSContext.WorldEntity;
+		}
+
+		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return;
+		if (delta.Bytes.Length == 0)
+		{
+			codec.Remove(GameContext.World, targetEntity);
+			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id)
+			{
+				Entity worldEntity = FindWorldEntity();
+				if (worldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(worldEntity))
+				{
+					DestroyReplicatedLootEntity(delta.Key, targetEntity, GameContext.World.Get<NetworkMappingState>(worldEntity));
+				}
+			}
+		}
+		else
+		{
+			codec.Apply(GameContext.World, targetEntity, delta.Bytes);
+			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id) GameContext.Host?.SyncReplicatedLootNode(delta.Key, targetEntity);
+		}
+
+		_mirror.RecordComponent(delta);
+		_appliedComponentDeltaCount++;
+	}
+
+	private static Entity CreateReplicatedLootEntity(int serverEntityId, NetworkMappingState mapping)
+	{
+		Entity localEntity = GameContext.World.Create();
+		mapping.ServerToClientEntityMap[serverEntityId] = localEntity;
+		mapping.ClientToServerEntityMap[localEntity.Id] = serverEntityId;
+		ReplicatedEntityReferences.Register(serverEntityId, localEntity.Id);
+		return localEntity;
+	}
+
+	private static void DestroyReplicatedLootEntity(int serverEntityId, Entity localEntity, NetworkMappingState mapping)
+	{
+		GameContext.Host?.RemoveLootItemLocal(serverEntityId);
+		ReplicatedEntityReferences.Unregister(serverEntityId);
+		mapping.ServerToClientEntityMap.Remove(serverEntityId);
+		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
+		if (GameContext.World.IsAlive(localEntity)) GameContext.World.Destroy(localEntity);
+	}
+
+	private void ApplyAbilityStateDelta(AbilityStateDelta delta)
+	{
+		_mirror.RecordAbility(delta);
+		_appliedAbilityStateCount++;
+		ApplyAbilityStateToUnit(delta.ServerEntityId, delta.AbilityId, delta.Flags);
+	}
+
+	private void ApplyAbilityStateToUnit(int serverEntityId, string abilityId, byte flags)
+	{
+		if (!TryGetLocalEntity(serverEntityId, out var localEntity)) return;
+		GameContext.RegistryService?.SetAbilityState(new UnitId(localEntity.Id), abilityId, (flags & 1) != 0, (flags & 2) != 0);
+	}
+
+	public void ReapplyAbilityStatesToUnits()
+	{
+		if (_mirror.Abilities.Count == 0) return;
+		foreach (var kvp in _mirror.Abilities)
+		{
+			ApplyAbilityStateToUnit(kvp.Key.ServerEntityId, kvp.Key.AbilityId, kvp.Value);
+		}
+		GameContext.RegistryService?.ClearAbilityStateDirty();
+	}
+
+	private void ApplyStaticTextDelta(StaticTextDelta delta)
+	{
+		_mirror.RecordText(delta);
+		_appliedStaticTextCount++;
+		GameContext.Host?.ApplyStaticTextDelta(delta);
+	}
+
+	private void VerifyReplicatedStateFingerprint(int sequence, uint hostFingerprint)
+	{
+		uint localFingerprint = _mirror.ComputeFingerprint(ReadPlayerComponentRecordsFromEcs());
+		localFingerprint = ReplicatedStateFingerprint.CombineWeatherState(localFingerprint, GameContext.World, FindWorldEntity());
+		if (localFingerprint == hostFingerprint)
+		{
+			if (!_fingerprintMatchLogged)
+			{
+				_fingerprintMatchLogged = true;
+				GD.Print($"[Replication] client fingerprint match at sequence {sequence} (deltas={_appliedComponentDeltaCount}, abilities={_appliedAbilityStateCount}, texts={_appliedStaticTextCount}, catalog={_appliedCatalogCount})");
+			}
+			return;
+		}
+
+		GD.PushError($"[Network] Replicated state fingerprint mismatch at sequence {sequence}: host={hostFingerprint:x8} client={localFingerprint:x8}");
+		MultiplayerSyncDiagnostics.RecordFingerprintMismatch(sequence, hostFingerprint, localFingerprint);
+	}
+
+	private int _replicatedEcsDriftCheckCounter;
+
+	public void VerifyReplicatedEcsDriftDomain()
+	{
+		_replicatedEcsDriftCheckCounter++;
+		if (_replicatedEcsDriftCheckCounter % 30 != 0) return;
+
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+
+		var codecs = ReplicatedComponents.All;
+		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+		{
+			var codec = codecs[codecIndex];
+			if (codec.Scope != ReplicatedScope.Player) continue;
+
+			for (int slot = 0; slot < Realm.Ecs.EcsWorld.MAX_PLAYERS; slot++)
+			{
+				if (mapping.PlayerEntities == null || slot >= mapping.PlayerEntities.Length) continue;
+				if (!_mirror.Components.TryGetValue(((byte)ReplicatedScope.Player, slot, codec.ComponentTypeId), out var expected)) continue;
+
+				Entity playerEntity = mapping.PlayerEntities[slot];
+				if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) continue;
+
+				if (_replicatedEcsDriftBuffer.Length < codec.SizeInBytes) _replicatedEcsDriftBuffer = new byte[codec.SizeInBytes];
+				var actual = _replicatedEcsDriftBuffer.AsSpan(0, codec.SizeInBytes);
+				if (!codec.TryWrite(GameContext.World, playerEntity, actual))
+				{
+					ReportReplicatedEcsDrift(slot, codec.ComponentName, "component missing");
+					continue;
+				}
+
+				if (!actual.SequenceEqual(expected))
+			{
+					ReportReplicatedEcsDrift(slot, codec.ComponentName, "bytes differ from the last authoritative value");
+				}
+			}
+		}
+	}
+
+	private void ReportReplicatedEcsDrift(int slot, string componentName, string reason)
+	{
+		if (_reportedEcsDrift.Contains((slot, componentName))) return;
+		_reportedEcsDrift.Add((slot, componentName));
+		GD.PushError($"[Replication] local write clobbered replicated state: {componentName} for player slot {slot} ({reason})");
+		MultiplayerSyncDiagnostics.RecordEcsDrift(slot, componentName);
+	}
+
+	private readonly HashSet<(int Slot, string ComponentName)> _reportedEcsDrift = new();
+	private byte[] _replicatedEcsDriftBuffer = new byte[16];
+
+	private List<(int Key, int ComponentTypeId, byte[] Bytes)> ReadPlayerComponentRecordsFromEcs()
+	{
+		var records = new List<(int Key, int ComponentTypeId, byte[] Bytes)>();
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return records;
+
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		var codecs = ReplicatedComponents.All;
+		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+		{
+			var codec = codecs[codecIndex];
+			if (codec.Scope != ReplicatedScope.Player) continue;
+
+			for (int slot = 0; slot < Realm.Ecs.EcsWorld.MAX_PLAYERS; slot++)
+			{
+				if (mapping.PlayerEntities == null || slot >= mapping.PlayerEntities.Length) continue;
+				Entity playerEntity = mapping.PlayerEntities[slot];
+				if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) continue;
+
+				var bytes = new byte[codec.SizeInBytes];
+				if (!codec.TryWrite(GameContext.World, playerEntity, bytes)) continue;
+				records.Add((slot, codec.ComponentTypeId, bytes));
+			}
+		}
+
+		return records;
+	}
+
+	public void ResetReplicatedStateMirrors()
+	{
+		_mirror.Clear();
+		_lastComponentSnapshotsPerClient.Clear();
 	}
 
 	public bool TryGetLocalEntity(int serverEntityId, out Entity localEntity)
@@ -716,13 +1203,14 @@ public class NetworkService
 		string buildUnitType = needsBuildUnit ? cmd.ArgString : null;
 		Vector3 buildPosition = needsBuildUnit ? cmd.TargetPosition.ToGodot() : Vector3.Zero;
 		int buildPeerOwner = needsBuildUnit ? peerId : -1;
+		int buildWorkerServerEntityId = needsBuildUnit && cmd.UnitEntityIds.Count > 0 ? cmd.UnitEntityIds[0] : -1;
 
 		bool needsSpellEffect = cmd.CommandType == "spell";
 		string spellId = needsSpellEffect ? cmd.ArgString : null;
 		Vector3 spellPosition = needsSpellEffect ? cmd.TargetPosition.ToGodot() : Vector3.Zero;
 
 		return new ServerCommandResult(
-			needsBuildUnit, buildUnitType, buildPosition, buildPeerOwner,
+			needsBuildUnit, buildUnitType, buildPosition, buildPeerOwner, buildWorkerServerEntityId,
 			needsSpellEffect, spellId, spellPosition,
 			stopVelocityEntityIds, holdVelocityEntityIds);
 	}
@@ -816,16 +1304,37 @@ public class NetworkService
 	{
 		var ctx = CreateMovementContext(peerId, cmd, allUnits);
 		int unitIndex = 0;
+		string? rejection = null;
 
 		foreach (int serverId in cmd.UnitEntityIds)
 		{
 			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			if (requireMovable && !GameContext.World.Has<Movable>(entity)) continue;
+			if (entity == Entity.Null)
+			{
+				rejection ??= $"entity {serverId} is not in the host unit list";
+				continue;
+			}
+
+			if (!IsClientAuthorized(peerId, entity))
+			{
+				rejection ??= $"entity {serverId} is not owned by peer {peerId}";
+				continue;
+			}
+
+			if (requireMovable && !GameContext.World.Has<Movable>(entity))
+			{
+				rejection ??= $"entity {serverId} is not movable";
+				continue;
+			}
 
 			var scattered = CalculateScatteredPosition(cmd.TargetPosition, ctx.MoveDir, ctx.Right, unitIndex, ctx.Cols, ctx.Spacing);
 			processAction(entity, scattered);
 			unitIndex++;
+		}
+
+		if (unitIndex == 0 && cmd.UnitEntityIds.Count > 0)
+		{
+			GD.PushWarning($"[Network] Dropped '{cmd.CommandType}' from peer {peerId}: none of its {cmd.UnitEntityIds.Count} units could take the order ({rejection}).");
 		}
 	}
 
@@ -1068,8 +1577,8 @@ public class NetworkService
 		if (!GameContext.World.Has<ProductionQueue>(entity)) GameContext.World.Add(entity, new ProductionQueue());
 
 		ref var prod = ref GameContext.World.Get<ProductionQueue>(entity);
-		prod.UnitIds.Add(unitId);
-		if (prod.UnitIds.Count == 1)
+		prod.Enqueue(unitId);
+		if (prod.Count == 1)
 		{
 			prod.BuildTime = meta.ProductionTime;
 			prod.CurrentProgress = 0f;
@@ -1091,21 +1600,21 @@ public class NetworkService
 	private void CancelProductionQueueItem(Entity entity, int idx)
 	{
 		ref var prod = ref GameContext.World.Get<ProductionQueue>(entity);
-		if (idx < 0 || idx >= prod.UnitIds.Count) return;
+		if (idx < 0 || idx >= prod.Count) return;
 
-		string unitId = prod.UnitIds[idx];
-		prod.UnitIds.RemoveAt(idx);
+		string? unitId = prod.RemoveAt(idx);
 
 		if (idx == 0)
 		{
 			prod.CurrentProgress = 0f;
-			if (prod.UnitIds.Count > 0 && GameHost.UnitRegistry.TryGetValue(prod.UnitIds[0], out var nextMeta))
+			string? nextUnitId = prod.Get(0);
+			if (nextUnitId != null && GameHost.UnitRegistry.TryGetValue(nextUnitId, out var nextMeta))
 			{
 				prod.BuildTime = nextMeta.ProductionTime;
 			}
 		}
 
-		if (GameHost.UnitRegistry.TryGetValue(unitId, out var regMeta))
+		if (unitId != null && GameHost.UnitRegistry.TryGetValue(unitId, out var regMeta))
 		{
 			RefundCanceledProduction(entity, regMeta);
 		}
@@ -1124,11 +1633,6 @@ public class NetworkService
 			GameContext.World.Set(ownerEntity, res);
 		}
 
-		if (regMeta.PopCost > 0 && GameContext.World.IsAlive(ownerEntity) && GameContext.World.Has<PlayerPopulation>(ownerEntity))
-		{
-			ref var pop = ref GameContext.World.Get<PlayerPopulation>(ownerEntity);
-			pop.Current = Math.Max(0, pop.Current - regMeta.PopCost);
-		}
 	}
 
 	private void CalculateGroupMovement(int peerId, List<int> unitEntityIds, List<Unit3D> allUnits, NetworkVector3 targetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right)
@@ -1172,9 +1676,9 @@ public class NetworkService
 		return tPos + right * offsetX + moveDir * offsetZ;
 	}
 
-	public List<(int PeerId, byte[] Payload)> BuildServerSnapshots(int localPeerId, List<Unit3D> allUnits)
+	public List<(int PeerId, byte[] Payload, bool IsBaseline)> BuildServerSnapshots(int localPeerId, List<Unit3D> allUnits)
 	{
-		var results = new List<(int PeerId, byte[] Payload)>();
+		var results = new List<(int PeerId, byte[] Payload, bool IsBaseline)>();
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity) || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return results;
 
@@ -1183,24 +1687,23 @@ public class NetworkService
 		int snapshotSequence = networkState.SnapshotSequence;
 		bool isBaseline = (snapshotSequence % 30 == 0);
 
+		if (MultiplayerSyncDiagnostics.IsRecording)
+		{
+			MultiplayerSyncDiagnostics.RecordHostSnapshot(BuildDiagnosticAuthoritativeSnapshot(allUnits, snapshotSequence, isBaseline));
+		}
+
 		if (GameContext.Lobby != null)
 		{
 			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-			ProcessLobbyPlayersForSnapshots(localPeerId, allUnits, results, snapshotSequence, isBaseline, mapping);
-		}
-
-		foreach (var unit in allUnits)
-		{
-			if (GodotObject.IsInstanceValid(unit))
-			{
-				GD.Print($"[SERVER_STATE] Unit={unit.Entity.Id} Pos={unit.GlobalPosition}");
-			}
+			var abilityStates = CollectHostAbilityStateDeltas(isBaseline);
+			var staticTexts = CollectHostStaticTextDeltas(isBaseline);
+			ProcessLobbyPlayersForSnapshots(localPeerId, allUnits, results, snapshotSequence, isBaseline, mapping, abilityStates, staticTexts);
 		}
 
 		return results;
 	}
 
-	private void ProcessLobbyPlayersForSnapshots(int localPeerId, List<Unit3D> allUnits, List<(int PeerId, byte[] Payload)> results, int snapshotSequence, bool isBaseline, NetworkMappingState mapping)
+	private void ProcessLobbyPlayersForSnapshots(int localPeerId, List<Unit3D> allUnits, List<(int PeerId, byte[] Payload, bool IsBaseline)> results, int snapshotSequence, bool isBaseline, NetworkMappingState mapping, List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
 	{
 		foreach (var p in GameContext.Lobby.PlayerList)
 		{
@@ -1210,15 +1713,21 @@ public class NetworkService
 			bool hasBaseline = _lastBaselineSnapshotsPerClient.TryGetValue(p.PeerId, out var lastBaselineMap);
 			if (!hasBaseline && !isBaseline) continue;
 
-			var payload = BuildClientSnapshotPayload(p.PeerId, playerEntity, allUnits, isBaseline, snapshotSequence, lastBaselineMap);
-			results.Add((p.PeerId, payload));
+			var payload = BuildClientSnapshotPayload(p.PeerId, playerEntity, allUnits, isBaseline, snapshotSequence, lastBaselineMap, abilityStates, staticTexts);
+			results.Add((p.PeerId, payload, isBaseline));
 		}
 	}
 
-	private byte[] BuildClientSnapshotPayload(int peerId, Entity playerEntity, List<Unit3D> allUnits, bool isBaseline, int snapshotSequence, Dictionary<int, UnitSnapshot> lastBaselineMap)
+	private byte[] BuildClientSnapshotPayload(int peerId, Entity playerEntity, List<Unit3D> allUnits, bool isBaseline, int snapshotSequence, Dictionary<int, UnitSnapshot> lastBaselineMap, List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
 	{
 		Vector3 cameraPos = _clientCameraPositions.TryGetValue(peerId, out var cam) ? cam : Vector3.Zero;
-		var snapshotUnits = new List<UnitSnapshot>();
+		if (!_snapshotUnitsPerClient.TryGetValue(peerId, out var snapshotUnits))
+		{
+			snapshotUnits = new List<UnitSnapshot>(64);
+			_snapshotUnitsPerClient[peerId] = snapshotUnits;
+		}
+
+		snapshotUnits.Clear();
 		var nextBaselineMap = isBaseline ? new Dictionary<int, UnitSnapshot>() : null;
 
 		foreach (var unit in allUnits)
@@ -1244,33 +1753,537 @@ public class NetworkService
 			_lastBaselineSnapshotsPerClient[peerId] = nextBaselineMap;
 		}
 
+		var coldPayloadCandidates = BuildColdPayloadCandidates(snapshotSequence);
+		var coldPayloads = BuildColdPayloadDeltas(peerId, coldPayloadCandidates, isBaseline);
+		var componentDeltas = BuildComponentDeltas(peerId, playerEntity, allUnits, isBaseline);
+		var catalog = isBaseline ? BuildCatalogEntriesWithStringTable(peerId) : BuildStringTableEntries(peerId, false);
+		uint stateFingerprint = isBaseline ? ComputeHostStateFingerprint(abilityStates, staticTexts, coldPayloadCandidates) : 0u;
+
 		var worldSnapshot = new WorldSnapshot
 		{
 			Sequence = snapshotSequence,
 			IsBaseline = isBaseline,
 			BaseSequence = isBaseline ? snapshotSequence : (snapshotSequence / 30) * 30,
-			Units = snapshotUnits
+			Units = snapshotUnits,
+			ColdPayloads = coldPayloads,
+			ComponentDeltas = componentDeltas,
+			AbilityStates = abilityStates,
+			StaticTexts = staticTexts,
+			Catalog = catalog,
+			StateFingerprint = stateFingerprint
 		};
 		return MemoryPackSerializer.Serialize(worldSnapshot);
 	}
 
+	private const string StringTableChannel = "string";
+
+	private readonly List<(int Id, string Text)> _stringTableEntries = new();
+	private readonly Dictionary<int, int> _stringTableCursorPerClient = new();
+
+	private List<CatalogEntry> BuildCatalogEntriesWithStringTable(int peerId)
+	{
+		var entries = BuildCatalogEntries();
+		entries.AddRange(BuildStringTableEntries(peerId, true));
+		return entries;
+	}
+
+	private List<CatalogEntry> BuildStringTableEntries(int peerId, bool includeAllEntries)
+	{
+		int entryCount = Realm.MapAPI.StringRegistry.EntryCount;
+		if (!_stringTableCursorPerClient.TryGetValue(peerId, out int cursor) || cursor > entryCount) cursor = 0;
+
+		_stringTableEntries.Clear();
+		int nextCursor = Realm.MapAPI.StringRegistry.GetEntriesSince(includeAllEntries ? 0 : cursor, _stringTableEntries);
+
+		var entries = new List<CatalogEntry>(_stringTableEntries.Count);
+		for (int index = 0; index < _stringTableEntries.Count; index++)
+		{
+			var entry = _stringTableEntries[index];
+			entries.Add(new CatalogEntry
+			{
+				Channel = StringTableChannel,
+				Key = entry.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+				Value = entry.Text
+			});
+		}
+
+		_stringTableCursorPerClient[peerId] = nextCursor;
+		return entries;
+	}
+
+	private List<CatalogEntry> BuildCatalogEntries()
+	{
+		var entries = new List<CatalogEntry>();
+		var registry = GameContext.RegistryService;
+		if (registry == null) return entries;
+
+		foreach (var rule in registry.PlacementRadiusRules)
+		{
+			entries.Add(new CatalogEntry { Channel = "placement_radius", Key = rule.DefinitionKey, Number = rule.Radius });
+		}
+		foreach (string key in registry.ResourceDropoffBuildingKeys)
+		{
+			entries.Add(new CatalogEntry { Channel = "dropoff", Key = key });
+		}
+		foreach (string key in registry.ResourceWorkerUnitKeys)
+		{
+			entries.Add(new CatalogEntry { Channel = "worker", Key = key });
+		}
+		foreach (string key in registry.PrimaryBuildingIds)
+		{
+			entries.Add(new CatalogEntry { Channel = "primary", Key = key });
+		}
+		foreach (var pair in registry.ResourceNodeTypes)
+		{
+			entries.Add(new CatalogEntry { Channel = "resource_node_type", Key = pair.Key, Value = pair.Value });
+		}
+		return entries;
+	}
+
+	private readonly List<ColdPayloadDelta> _coldPayloadCandidates = new();
+	private readonly List<ColdPayloadDelta> _emptyColdPayloadDeltas = new();
+	private readonly HashSet<(byte Scope, int Key, byte Kind, byte Role)> _coldPayloadSeenKeys = new();
+	private readonly List<(byte Scope, int Key, byte Kind, byte Role)> _coldPayloadExpiredKeys = new();
+	private readonly Dictionary<int, Dictionary<(byte Scope, int Key, byte Kind, byte Role), int>> _coldPayloadContentPerClient = new();
+	private readonly Dictionary<int, (byte InternedKind, byte[] Bytes)> _internedPayloadBytesCache = new();
+	private int _coldPayloadCandidatesSequence = -1;
+	private byte[] _leaderboardPayloadBytes = Array.Empty<byte>();
+	private int _leaderboardPayloadContentId;
+	private int _leaderboardPayloadRevision = -1;
+	private byte[] _summaryTablePayloadBytes = Array.Empty<byte>();
+	private int _summaryTablePayloadContentId;
+	private int _summaryTablePayloadVersion = int.MinValue;
+
+	private List<ColdPayloadDelta> BuildColdPayloadCandidates(int snapshotSequence)
+	{
+		if (_coldPayloadCandidatesSequence == snapshotSequence) return _coldPayloadCandidates;
+
+		_coldPayloadCandidatesSequence = snapshotSequence;
+		_coldPayloadCandidates.Clear();
+
+		Entity worldEntity = FindWorldEntity();
+		var world = GameContext.World;
+		if (world == null) return _coldPayloadCandidates;
+
+		if (worldEntity != Entity.Null && world.IsAlive(worldEntity))
+		{
+			if (world.Has<LeaderboardState>(worldEntity))
+			{
+				var boards = world.Get<LeaderboardState>(worldEntity).Boards;
+				int revision = boards?.Revision ?? 0;
+				if (revision != _leaderboardPayloadRevision)
+				{
+					_leaderboardPayloadRevision = revision;
+					_leaderboardPayloadBytes = ColdPayloadCodecs.SerializeLeaderboards(boards);
+					_leaderboardPayloadContentId = ColdPayloadCodecs.ComputeContentId(_leaderboardPayloadBytes);
+				}
+
+				AddColdPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadKind.LeaderboardBoards, ColdPayloadRole.None, 0, _leaderboardPayloadContentId, _leaderboardPayloadBytes);
+			}
+
+			if (world.Has<SummaryTableState>(worldEntity))
+			{
+				ref var summaryTable = ref world.Get<SummaryTableState>(worldEntity);
+				int version = ComputeSummaryTableVersion(in summaryTable);
+				if (version != _summaryTablePayloadVersion)
+				{
+					_summaryTablePayloadVersion = version;
+					_summaryTablePayloadBytes = ColdPayloadCodecs.SerializeSummaryTable(in summaryTable);
+					_summaryTablePayloadContentId = ColdPayloadCodecs.ComputeContentId(_summaryTablePayloadBytes);
+				}
+
+				AddColdPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadKind.SummaryTable, ColdPayloadRole.None, 0, _summaryTablePayloadContentId, _summaryTablePayloadBytes);
+			}
+
+			if (world.Has<ScriptZonesState>(worldEntity))
+			{
+				AddInternedPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadRole.ZoneList, world.Get<ScriptZonesState>(worldEntity).Handle);
+			}
+		}
+
+		foreach (var entity in world.Query<ProductionQueue>())
+		{
+			ref var queue = ref world.Get<ProductionQueue>(entity);
+			if (queue.Count <= 0 || queue.Handle == 0) continue;
+
+			AddInternedPayloadCandidate((byte)ReplicatedScope.Unit, GetServerEntityId(entity.Id), ColdPayloadRole.ProductionQueue, queue.Handle);
+		}
+
+		foreach (var entity in world.Query<AbilityState>())
+		{
+			ref var abilityState = ref world.Get<AbilityState>(entity);
+			if (abilityState.Count <= 0 || abilityState.Handle == 0) continue;
+
+			AddInternedPayloadCandidate((byte)ReplicatedScope.Unit, GetServerEntityId(entity.Id), ColdPayloadRole.AbilityList, abilityState.Handle);
+		}
+
+		return _coldPayloadCandidates;
+	}
+
+	private void AddInternedPayloadCandidate(byte scope, int key, ColdPayloadRole role, int handle)
+	{
+		if (handle == 0) return;
+
+		if (!_internedPayloadBytesCache.TryGetValue(handle, out var cached))
+		{
+			if (!InternedValueStore.TryGetPayload(handle, out byte internedKind, out ReadOnlySpan<byte> payload)) return;
+
+			cached = (internedKind, payload.ToArray());
+			_internedPayloadBytesCache[handle] = cached;
+		}
+
+		AddColdPayloadCandidate(scope, key, ColdPayloadKind.InternedPayload, role, cached.InternedKind, handle, cached.Bytes);
+	}
+
+	private void AddColdPayloadCandidate(byte scope, int key, ColdPayloadKind kind, ColdPayloadRole role, byte internedKind, int contentId, byte[] bytes)
+	{
+		_coldPayloadCandidates.Add(new ColdPayloadDelta
+		{
+			Scope = scope,
+			Key = key,
+			Kind = (byte)kind,
+			Role = (byte)role,
+			InternedKind = internedKind,
+			ContentId = contentId,
+			Destroyed = 0,
+			Bytes = bytes
+		});
+	}
+
+	private static int ComputeSummaryTableVersion(in SummaryTableState state)
+	{
+		uint hash = ReplicatedStateFingerprint.Seed;
+		hash = ReplicatedStateFingerprint.Combine(hash, state.VisibleByte);
+		hash = ReplicatedStateFingerprint.Combine(hash, state.TitleStringId);
+
+		string[] headers = state.Headers;
+		if (headers != null)
+		{
+			for (int index = 0; index < headers.Length; index++)
+			{
+				hash = ReplicatedStateFingerprint.Combine(hash, headers[index]);
+			}
+		}
+
+		Dictionary<string, string[]> rows = state.Rows;
+		if (rows != null)
+		{
+			foreach (var pair in rows)
+			{
+				hash = ReplicatedStateFingerprint.Combine(hash, pair.Key);
+				string[] values = pair.Value;
+				if (values == null) continue;
+
+				for (int index = 0; index < values.Length; index++)
+				{
+					hash = ReplicatedStateFingerprint.Combine(hash, values[index]);
+				}
+			}
+		}
+
+		return unchecked((int)hash);
+	}
+
+	private List<ColdPayloadDelta> BuildColdPayloadDeltas(int peerId, List<ColdPayloadDelta> candidates, bool isBaseline)
+	{
+		if (!isBaseline) return _emptyColdPayloadDeltas;
+
+		if (!_coldPayloadContentPerClient.TryGetValue(peerId, out var previousContentIds))
+		{
+			previousContentIds = new Dictionary<(byte Scope, int Key, byte Kind, byte Role), int>();
+			_coldPayloadContentPerClient[peerId] = previousContentIds;
+		}
+
+		var deltas = new List<ColdPayloadDelta>();
+		_coldPayloadSeenKeys.Clear();
+		for (int index = 0; index < candidates.Count; index++)
+		{
+			var candidate = candidates[index];
+			var key = (candidate.Scope, candidate.Key, candidate.Kind, candidate.Role);
+			_coldPayloadSeenKeys.Add(key);
+
+			if (!isBaseline && previousContentIds.TryGetValue(key, out int previousContentId) && previousContentId == candidate.ContentId) continue;
+
+			previousContentIds[key] = candidate.ContentId;
+			deltas.Add(candidate);
+		}
+
+		_coldPayloadExpiredKeys.Clear();
+		foreach (var key in previousContentIds.Keys)
+		{
+			if (!_coldPayloadSeenKeys.Contains(key)) _coldPayloadExpiredKeys.Add(key);
+		}
+
+		for (int index = 0; index < _coldPayloadExpiredKeys.Count; index++)
+		{
+			var key = _coldPayloadExpiredKeys[index];
+			previousContentIds.Remove(key);
+			deltas.Add(new ColdPayloadDelta
+			{
+				Scope = key.Scope,
+				Key = key.Key,
+				Kind = key.Kind,
+				Role = key.Role,
+				Destroyed = 1,
+				Bytes = Array.Empty<byte>()
+			});
+		}
+
+		return deltas;
+	}
+
+	private readonly Dictionary<int, List<ComponentDelta>> _componentDeltasPerClient = new();
+	private readonly Dictionary<int, List<UnitSnapshot>> _snapshotUnitsPerClient = new();
+	private byte[] _componentWriteScratch = Array.Empty<byte>();
+
+	private List<ComponentDelta> BuildComponentDeltas(int peerId, Entity viewerEntity, List<Unit3D> allUnits, bool isBaseline)
+	{
+		if (!_componentDeltasPerClient.TryGetValue(peerId, out var deltas))
+		{
+			deltas = new List<ComponentDelta>(64);
+			_componentDeltasPerClient[peerId] = deltas;
+		}
+
+		deltas.Clear();
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return deltas;
+
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		if (!_lastComponentSnapshotsPerClient.TryGetValue(peerId, out var previous) || isBaseline)
+		{
+			previous = new Dictionary<(byte Scope, int Key, int TypeId), byte[]>();
+			_lastComponentSnapshotsPerClient[peerId] = previous;
+		}
+
+		var codecs = ReplicatedComponents.All;
+		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+		{
+			var codec = codecs[codecIndex];
+			if (codec.Scope != ReplicatedScope.World) continue;
+
+			TryAppendComponentDelta(worldEntity, codec, (byte)ReplicatedScope.World, 0, previous, deltas, isBaseline);
+		}
+
+		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+		{
+			var codec = codecs[codecIndex];
+			if (codec.Scope != ReplicatedScope.Player) continue;
+
+			for (int slot = 0; slot < Realm.Ecs.EcsWorld.MAX_PLAYERS; slot++)
+			{
+				if (mapping.PlayerEntities == null || slot >= mapping.PlayerEntities.Length) continue;
+				Entity playerEntity = mapping.PlayerEntities[slot];
+				if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) continue;
+
+				TryAppendComponentDelta(playerEntity, codec, (byte)ReplicatedScope.Player, slot, previous, deltas, isBaseline);
+			}
+		}
+
+		for (int unitIndex = 0; unitIndex < allUnits.Count; unitIndex++)
+		{
+			var unit = allUnits[unitIndex];
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+			if (!IsUnitVisibleToPlayer(viewerEntity, unit.Entity, allUnits)) continue;
+
+			for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+			{
+				var codec = codecs[codecIndex];
+				if (codec.Scope != ReplicatedScope.Unit) continue;
+
+				TryAppendComponentDelta(unit.Entity, codec, (byte)ReplicatedScope.Unit, unit.Entity.Id, previous, deltas, isBaseline);
+			}
+		}
+
+		var lootCodec = ReplicatedComponents.Find(ComponentType<GroundLoot>.Id);
+		var host = GameContext.Host;
+		if (lootCodec != null && host != null)
+		{
+			List<LootItem3D> lootItems = host.AllLootItems;
+			for (int lootIndex = 0; lootIndex < lootItems.Count; lootIndex++)
+			{
+				LootItem3D loot = lootItems[lootIndex];
+				if (loot == null || !GodotObject.IsInstanceValid(loot) || loot.IsDespawned) continue;
+				if (loot.Entity == Entity.Null || !GameContext.World.IsAlive(loot.Entity)) continue;
+
+				TryAppendComponentDelta(loot.Entity, lootCodec, (byte)ReplicatedScope.Unit, loot.Entity.Id, previous, deltas, isBaseline);
+			}
+		}
+
+		return deltas;
+	}
+
+	private void TryAppendComponentDelta(Entity entity, IReplicatedComponentCodec codec, byte scope, int key, Dictionary<(byte Scope, int Key, int TypeId), byte[]> previous, List<ComponentDelta> deltas, bool isBaseline)
+	{
+		if (_componentWriteScratch.Length < codec.SizeInBytes) _componentWriteScratch = new byte[codec.SizeInBytes];
+
+		var scratch = _componentWriteScratch.AsSpan(0, codec.SizeInBytes);
+		var deltaKey = (scope, key, codec.ComponentTypeId);
+		if (!codec.TryWrite(GameContext.World, entity, scratch))
+		{
+			if (!previous.Remove(deltaKey)) return;
+
+			deltas.Add(new ComponentDelta
+			{
+				Key = key,
+				ComponentTypeId = codec.ComponentTypeId,
+				Scope = scope,
+				Bytes = Array.Empty<byte>()
+			});
+			return;
+		}
+
+		if (!previous.TryGetValue(deltaKey, out var storedBytes))
+		{
+			storedBytes = new byte[codec.SizeInBytes];
+			previous[deltaKey] = storedBytes;
+		}
+		else if (!isBaseline && storedBytes.AsSpan().SequenceEqual(scratch))
+		{
+			return;
+		}
+
+		scratch.CopyTo(storedBytes);
+		deltas.Add(new ComponentDelta
+		{
+			Key = key,
+			ComponentTypeId = codec.ComponentTypeId,
+			Scope = scope,
+			Bytes = storedBytes
+		});
+	}
+
+	private List<AbilityStateDelta> CollectHostAbilityStateDeltas(bool includeAll, bool clearDirty = true)
+	{
+		var host = GameContext.Host;
+		if (host == null) return new List<AbilityStateDelta>();
+		var deltas = host.CollectAbilityStateDeltas(includeAll, clearDirty);
+		deltas.Sort(static (left, right) =>
+		{
+			int byEntity = left.ServerEntityId.CompareTo(right.ServerEntityId);
+			return byEntity != 0 ? byEntity : string.CompareOrdinal(left.AbilityId, right.AbilityId);
+		});
+		return deltas;
+	}
+
+	private List<StaticTextDelta> CollectHostStaticTextDeltas(bool includeAll, bool clearDirty = true)
+	{
+		var host = GameContext.Host;
+		if (host == null) return new List<StaticTextDelta>();
+		var deltas = host.CollectStaticTextDeltas(includeAll, clearDirty);
+		deltas.Sort(static (left, right) => left.Handle.CompareTo(right.Handle));
+		return deltas;
+	}
+
+	private uint ComputeHostStateFingerprint(List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts, List<ColdPayloadDelta> coldPayloads)
+	{
+		_fingerprintComponentRecords.Clear();
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(worldEntity))
+		{
+			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+			var codecs = ReplicatedComponents.All;
+			for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+			{
+				var codec = codecs[codecIndex];
+				if (codec.Scope != ReplicatedScope.Player) continue;
+
+				for (int slot = 0; slot < Realm.Ecs.EcsWorld.MAX_PLAYERS; slot++)
+				{
+					if (mapping.PlayerEntities == null || slot >= mapping.PlayerEntities.Length) continue;
+					Entity playerEntity = mapping.PlayerEntities[slot];
+					if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) continue;
+					var bytes = new byte[codec.SizeInBytes];
+					if (!codec.TryWrite(GameContext.World, playerEntity, bytes)) continue;
+					_fingerprintComponentRecords.Add((slot, codec.ComponentTypeId, bytes));
+				}
+			}
+		}
+
+		_fingerprintComponentRecords.Sort(static (left, right) =>
+		{
+			int byKey = left.ServerEntityId.CompareTo(right.ServerEntityId);
+			return byKey != 0 ? byKey : left.ComponentTypeId.CompareTo(right.ComponentTypeId);
+		});
+
+		uint hash = ReplicatedStateFingerprint.Seed;
+		for (int i = 0; i < _fingerprintComponentRecords.Count; i++)
+		{
+			var record = _fingerprintComponentRecords[i];
+			hash = ReplicatedStateFingerprint.Combine(hash, 1);
+			hash = ReplicatedStateFingerprint.Combine(hash, record.ServerEntityId);
+			hash = ReplicatedStateFingerprint.Combine(hash, record.ComponentTypeId);
+			hash = ReplicatedStateFingerprint.Combine(hash, record.Bytes);
+		}
+		for (int i = 0; i < abilityStates.Count; i++)
+		{
+			var ability = abilityStates[i];
+			hash = ReplicatedStateFingerprint.Combine(hash, 3);
+			hash = ReplicatedStateFingerprint.Combine(hash, ability.ServerEntityId);
+			hash = ReplicatedStateFingerprint.Combine(hash, ability.AbilityId);
+			hash = ReplicatedStateFingerprint.Combine(hash, ability.Flags);
+		}
+		for (int i = 0; i < staticTexts.Count; i++)
+		{
+			var text = staticTexts[i];
+			hash = ReplicatedStateFingerprint.Combine(hash, 4);
+			hash = ReplicatedStateFingerprint.Combine(hash, text.Handle);
+			hash = ReplicatedStateFingerprint.Combine(hash, text.Text);
+			hash = ReplicatedStateFingerprint.Combine(hash, BitConverter.SingleToInt32Bits(text.PositionX));
+			hash = ReplicatedStateFingerprint.Combine(hash, BitConverter.SingleToInt32Bits(text.PositionY));
+			hash = ReplicatedStateFingerprint.Combine(hash, BitConverter.SingleToInt32Bits(text.PositionZ));
+			hash = ReplicatedStateFingerprint.Combine(hash, text.Visible);
+		}
+		for (int i = 0; i < coldPayloads.Count; i++)
+		{
+			var payload = coldPayloads[i];
+			hash = ReplicatedStateFingerprint.CombineColdPayload(hash, payload.Scope, payload.Key, payload.Kind, payload.Role, payload.ContentId);
+		}
+		return ReplicatedStateFingerprint.CombineWeatherState(hash, GameContext.World, worldEntity);
+	}
+
+	private WorldSnapshot BuildDiagnosticAuthoritativeSnapshot(List<Unit3D> allUnits, int snapshotSequence, bool isBaseline)
+	{
+		var snapshotUnits = new List<UnitSnapshot>(allUnits.Count);
+		foreach (var unit in allUnits)
+		{
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+			snapshotUnits.Add(CreateUnitSnapshot(unit, Vector3.Zero, out _));
+		}
+
+		return new WorldSnapshot
+		{
+			Sequence = snapshotSequence,
+			IsBaseline = isBaseline,
+			BaseSequence = isBaseline ? snapshotSequence : (snapshotSequence / 30) * 30,
+			Units = snapshotUnits,
+			ComponentDeltas = new List<ComponentDelta>(),
+			AbilityStates = new List<AbilityStateDelta>(),
+			StaticTexts = new List<StaticTextDelta>(),
+			Catalog = new List<CatalogEntry>()
+		};
+	}
+
 	private UnitSnapshot CreateUnitSnapshot(Unit3D unit, Vector3 cameraPos, out bool isDetailed)
 	{
+		var world = GameContext.World;
 		float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
 		isDetailed = distToCamera <= 35.0f;
+		System.Numerics.Vector3 position = world.Has<Position>(unit.Entity) ? world.Get<Position>(unit.Entity).Value : new System.Numerics.Vector3(unit.GlobalPosition.X, unit.GlobalPosition.Y, unit.GlobalPosition.Z);
+		System.Numerics.Vector3 velocity = world.Has<Velocity>(unit.Entity) ? world.Get<Velocity>(unit.Entity).Value : new System.Numerics.Vector3(unit.Velocity.X, unit.Velocity.Y, unit.Velocity.Z);
 		return new UnitSnapshot
 		{
 			EntityId = unit.Entity.Id,
 			UnitId = unit.UnitId,
 			OwnerPlayerEntityId = GetOwnerPeerId(unit.Entity),
-			Position = new NetworkVector3(unit.GlobalPosition),
-			RotationY = unit.GlobalRotation.Y,
-			CurrentHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Current : 0f,
-			MaxHp = GameContext.World.Has<Health>(unit.Entity) ? GameContext.World.Get<Health>(unit.Entity).Max : 0f,
-			IsDead = GameContext.World.Has<Dead>(unit.Entity),
+			OwnerPlayerIndex = GetOwnerPlayerIndex(unit.Entity),
+			Position = new NetworkVector3(position.X, position.Y, position.Z),
+			RotationY = world.Has<RotationY>(unit.Entity) ? world.Get<RotationY>(unit.Entity).Value : unit.GlobalRotation.Y,
+			CurrentHp = world.Has<Health>(unit.Entity) ? world.Get<Health>(unit.Entity).Current : 0f,
+			MaxHp = world.Has<Health>(unit.Entity) ? world.Get<Health>(unit.Entity).Max : 0f,
+			IsDead = world.Has<Dead>(unit.Entity),
 			IsBuilding = unit.IsBuilding,
 			IsDetailed = isDetailed,
-			Velocity = new NetworkVector3(unit.Velocity)
+			Velocity = new NetworkVector3(velocity.X, velocity.Y, velocity.Z)
 		};
 	}
 
@@ -1280,22 +2293,18 @@ public class NetworkService
 
 		if (isDetailed)
 		{
-			bool posChanged = baseSnap.Position.ToGodot().DistanceTo(unit.GlobalPosition) > 0.05f;
-			bool rotChanged = Mathf.Abs(baseSnap.RotationY - unit.GlobalRotation.Y) > 0.05f;
+			bool posChanged = baseSnap.Position.ToGodot().DistanceTo(currentSnap.Position.ToGodot()) > 0.05f;
+			bool rotChanged = Mathf.Abs(baseSnap.RotationY - currentSnap.RotationY) > 0.05f;
 			bool hpChanged = Mathf.Abs(baseSnap.CurrentHp - currentSnap.CurrentHp) > 0.1f;
 			bool deadChanged = baseSnap.IsDead != currentSnap.IsDead;
 			return posChanged || rotChanged || hpChanged || deadChanged;
 		}
 
-		bool posFarChanged = baseSnap.Position.ToGodot().DistanceTo(unit.GlobalPosition) > 1.0f;
+		bool posFarChanged = baseSnap.Position.ToGodot().DistanceTo(currentSnap.Position.ToGodot()) > 1.0f;
 		bool deadFarChanged = baseSnap.IsDead != currentSnap.IsDead;
+		bool rotFarChanged = Mathf.Abs(Mathf.AngleDifference(baseSnap.RotationY, currentSnap.RotationY)) > 0.15f;
 
-		currentSnap.RotationY = 0f;
-		currentSnap.CurrentHp = 0f;
-		currentSnap.MaxHp = 0f;
-		currentSnap.Velocity = new NetworkVector3(0f, 0f, 0f);
-
-		return posFarChanged || deadFarChanged;
+		return posFarChanged || deadFarChanged || rotFarChanged || Mathf.Abs(baseSnap.CurrentHp - currentSnap.CurrentHp) > 1.0f;
 	}
 
 	public byte[] BuildExplicitBaselineSnapshot(int targetPeerId, List<Unit3D> allUnits)
@@ -1318,12 +2327,22 @@ public class NetworkService
 
 		_lastBaselineSnapshotsPerClient[targetPeerId] = nextBaselineMap;
 
+		var abilityStates = CollectHostAbilityStateDeltas(true, clearDirty: false);
+		var staticTexts = CollectHostStaticTextDeltas(true, clearDirty: false);
+		var coldPayloadCandidates = BuildColdPayloadCandidates(networkState.SnapshotSequence);
+
 		var worldSnapshot = new WorldSnapshot
 		{
 			Sequence = networkState.SnapshotSequence,
 			IsBaseline = true,
 			BaseSequence = networkState.SnapshotSequence,
-			Units = snapshotUnits
+			Units = snapshotUnits,
+			ColdPayloads = BuildColdPayloadDeltas(targetPeerId, coldPayloadCandidates, true),
+			ComponentDeltas = BuildComponentDeltas(targetPeerId, playerEntity, allUnits, true),
+			AbilityStates = abilityStates,
+			StaticTexts = staticTexts,
+			Catalog = BuildCatalogEntriesWithStringTable(targetPeerId),
+			StateFingerprint = ComputeHostStateFingerprint(abilityStates, staticTexts, coldPayloadCandidates)
 		};
 		return MemoryPackSerializer.Serialize(worldSnapshot);
 	}
@@ -1711,64 +2730,6 @@ public class NetworkService
 	public static bool IsPlayerEnemy(int playerIndex, int localPlayerIndex)
 	{
 		return ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
-	}
-
-	public void SyncProductionQueue(int producerServerEntityId, string[] unitIds, float currentProgress, float buildTime)
-	{
-		if (ECSContext.WorldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity)) return;
-		var mapping = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity);
-		if (mapping.ServerToClientEntityMap.TryGetValue(producerServerEntityId, out var localEntity))
-		{
-			if (GameContext.World.IsAlive(localEntity))
-			{
-				if (!GameContext.World.Has<ProductionQueue>(localEntity))
-				{
-					GameContext.World.Add(localEntity, new ProductionQueue());
-				}
-
-				ref var prod = ref GameContext.World.Get<ProductionQueue>(localEntity);
-				prod.UnitIds.Clear();
-				prod.UnitIds.AddRange(unitIds);
-				prod.CurrentProgress = currentProgress;
-				prod.BuildTime = buildTime;
-			}
-		}
-	}
-
-	public List<(int PeerId, float Gold, float Wood, float Stone)> GetServerPlayerResources(Dictionary<int, Entity> peerIdToPlayerEntityMap, int localPeerId)
-	{
-		var result = new List<(int, float, float, float)>();
-
-		foreach (var kvp in peerIdToPlayerEntityMap)
-		{
-			int peerId = kvp.Key;
-			if (peerId == localPeerId) continue;
-
-			if (GameContext.World.IsAlive(kvp.Value) && GameContext.World.TryGet<PlayerResources>(kvp.Value, out var res))
-			{
-				float gold = res.TryGetValue(ECSContext.PlayerResourceService.GoldResourceId, out var g) ? g : 0;
-				float wood = res.TryGetValue(ECSContext.PlayerResourceService.WoodResourceId, out var w) ? w : 0;
-				float stone = res.TryGetValue(ECSContext.PlayerResourceService.StoneResourceId, out var s) ? s : 0;
-				result.Add((peerId, gold, wood, stone));
-			}
-		}
-
-		return result;
-	}
-
-	public List<(int EntityId, string[] UnitIds, float CurrentProgress, float BuildTime)> GetServerProductionQueues(IEnumerable<Entity> unitEntities)
-	{
-		var result = new List<(int, string[], float, float)>();
-
-		foreach (var entity in unitEntities)
-		{
-			if (!GameContext.World.IsAlive(entity) || !GameContext.World.Has<ProductionQueue>(entity)) continue;
-
-			var prod = GameContext.World.Get<ProductionQueue>(entity);
-			result.Add((entity.Id, prod.UnitIds.ToArray(), prod.CurrentProgress, prod.BuildTime));
-		}
-
-		return result;
 	}
 
 	public void ToggleLocalPause()

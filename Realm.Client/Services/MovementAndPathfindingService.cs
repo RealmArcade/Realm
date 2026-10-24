@@ -7,6 +7,7 @@ using DotRecast.Core.Numerics;
 using DotRecast.Detour;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
@@ -56,6 +57,13 @@ namespace Realm.Client.Services
 		private static readonly RcVec3f NavMeshSnapExtents = new RcVec3f(1.5f, 2.0f, 1.5f);
 		private const float VerticalFollowRate = 30f;
 		private const float DefaultAcceleration = 25f;
+		private const float OffMeshStartRecoveryLogInterval = 2f;
+
+		private float _elapsedTime;
+		private int _offMeshStartRecoveryCount;
+		private Entity _offMeshStartRecoveryWorldEntity;
+		private readonly Dictionary<int, float> _offMeshStartRecoveryLogTimeByEntityId = new();
+		private readonly List<int> _deadOffMeshStartRecoveryEntityIds = new();
 
 		public readonly struct SpatialGridEntry
 		{
@@ -115,6 +123,14 @@ namespace Realm.Client.Services
 			QueryGridInRadius(_propGrid, center, radius, callback);
 		}
 
+		private enum OffMeshReplanCause
+		{
+			None,
+			NoPath,
+			Retarget,
+			Stuck
+		}
+
 		private struct MovementWorkItem
 		{
 			public Entity Entity;
@@ -126,6 +142,8 @@ namespace Realm.Client.Services
 			public bool HasPf;
 			public PathFollow Pf;
 			public float ActualSpeed;
+			public NavMeshStartRecovery StartRecovery;
+			public OffMeshReplanCause ReplanCause;
 
 			public bool HasArrived;
 			public Vector3 NextPosition;
@@ -179,9 +197,15 @@ namespace Realm.Client.Services
 			_propGridDirty = true;
 		}
 
+		public void AdvanceElapsedTime(float delta)
+		{
+			_elapsedTime += delta;
+		}
+
 		public void StepMovement(float delta)
 		{
 			_fDelta = delta;
+			_elapsedTime += delta;
 			_tickArrivedUnits.Clear();
 
 			RefreshTerrainState();
@@ -203,6 +227,8 @@ namespace Realm.Client.Services
 						continue;
 
 					SavePathFollow(item.HasPf, item.Entity, item.Pf);
+
+					ReportOffMeshStartRecovery(item.Entity, item.StartRecovery, item.ReplanCause);
 
 					if (item.HasArrived)
 					{
@@ -252,7 +278,15 @@ namespace Realm.Client.Services
 			_hasTerrainState = GameContext.World.IsAlive(ActiveWorldEntity) && GameContext.World.Has<TerrainState>(ActiveWorldEntity);
 			if (_hasTerrainState)
 			{
-				_currentTerrainState = GameContext.World.Get<TerrainState>(ActiveWorldEntity);
+				Entity worldEntity = ActiveWorldEntity;
+				TerrainState terrainState = GameContext.World.Get<TerrainState>(worldEntity);
+				if (worldEntity != _offMeshStartRecoveryWorldEntity || !ReferenceEquals(terrainState.NavMesh, _currentTerrainState.NavMesh))
+				{
+					ResetOffMeshStartRecoveryDiagnostics();
+					_offMeshStartRecoveryWorldEntity = worldEntity;
+				}
+
+				_currentTerrainState = terrainState;
 			}
 		}
 
@@ -386,6 +420,8 @@ namespace Realm.Client.Services
 
 		private void CollectMovementWorkItemAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)
 		{
+			if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
+
 			if (GameContext.World.Has<CommandsFrozen>(entity)) return;
 
 			if (!TryGetMovementContext(entity, pos.Value, moveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
@@ -438,7 +474,11 @@ namespace Realm.Client.Services
 			float actualSpeed = item.ActualSpeed;
 
 			bool forceReplan = UpdateStuckStateParallel(hasPf, posValue, actualSpeed, ref pf);
-			UpdatePathIfNeededParallel(pathingFlags, isFlying, posValue, moveTarget, forceReplan, ref pf);
+			NavMeshStartRecovery startRecovery;
+			OffMeshReplanCause replanCause;
+			UpdatePathIfNeededParallel(pathingFlags, isFlying, posValue, moveTarget, forceReplan, ref pf, out startRecovery, out replanCause);
+			item.StartRecovery = startRecovery;
+			item.ReplanCause = replanCause;
 
 			Vector3 currentTarget = GetCurrentWaypointTarget(moveTarget, pf);
 			float diffX = posValue.X - currentTarget.X;
@@ -517,8 +557,11 @@ namespace Realm.Client.Services
 			return true;
 		}
 
-		private void UpdatePathIfNeededParallel(ushort pathingFlags, bool isFlying, Vector3 start, Vector3 target, bool forceReplan, ref PathFollow pf)
+		private void UpdatePathIfNeededParallel(ushort pathingFlags, bool isFlying, Vector3 start, Vector3 target, bool forceReplan, ref PathFollow pf, out NavMeshStartRecovery startRecovery, out OffMeshReplanCause replanCause)
 		{
+			startRecovery = default;
+			replanCause = OffMeshReplanCause.None;
+
 			if (pf.Target == target && pf.WaypointCount != 0 && !forceReplan) return;
 			if (!_hasTerrainState) return;
 
@@ -530,12 +573,31 @@ namespace Realm.Client.Services
 			}
 			else
 			{
+				replanCause = ResolveReplanCause(pf, target);
 				var navQuery = GetThreadLocalNavMeshQuery() ?? _currentTerrainState.NavMeshQuery;
-				var pathfinder = _threadLocalPathfinder.Value!;
-				pathfinder.ComputePath(navQuery, start, target, pathingFlags, ref pf);
+				if (navQuery != null)
+				{
+					var pathfinder = _threadLocalPathfinder.Value!;
+					pathfinder.ComputePath(navQuery, start, target, pathingFlags, ref pf, out startRecovery);
+				}
 			}
 
 			pf.Target = target;
+		}
+
+		private static OffMeshReplanCause ResolveReplanCause(PathFollow pf, Vector3 target)
+		{
+			if (pf.WaypointCount == 0)
+			{
+				return OffMeshReplanCause.NoPath;
+			}
+
+			if (pf.Target != target)
+			{
+				return OffMeshReplanCause.Retarget;
+			}
+
+			return OffMeshReplanCause.Stuck;
 		}
 
 		private void ApplyVerticalFollowParallel(Vector3 currentPos, bool isFlying, ref Vector3 nextPos, ref Vector3 velocity)
@@ -595,7 +657,10 @@ namespace Realm.Client.Services
 
 			bool forceReplan = UpdateStuckState(hasPf, entity, pos.Value, stats, ref pf);
 
-			UpdatePathIfNeeded(pathingFlags, isFlying, pos.Value, moveTo.Target, forceReplan, ref pf);
+			NavMeshStartRecovery startRecovery;
+			OffMeshReplanCause replanCause;
+			UpdatePathIfNeeded(pathingFlags, isFlying, pos.Value, moveTo.Target, forceReplan, ref pf, out startRecovery, out replanCause);
+			ReportOffMeshStartRecovery(entity, startRecovery, replanCause);
 
 			if (CheckArrival(entity, pos.Value, moveTo.Target, stats, ref pf))
 			{
@@ -609,7 +674,7 @@ namespace Realm.Client.Services
 
 		private bool TryHandleStun(Entity entity)
 		{
-			if (!GameContext.World.Has<Buffs>(entity) || !GameContext.World.Get<Buffs>(entity).Value.ContainsKey("stun"))
+			if (!GameContext.World.Has<Buffs>(entity) || !GameContext.World.Get<Buffs>(entity).TryGetValue("stun", out _))
 				return false;
 
 			if (GameContext.World.Has<Velocity>(entity))
@@ -642,8 +707,11 @@ namespace Realm.Client.Services
 			return UpdateStuckStateParallel(hasPf, posValue, actualSpeed, ref pf);
 		}
 
-		private void UpdatePathIfNeeded(ushort pathingFlags, bool isFlying, Vector3 start, Vector3 target, bool forceReplan, ref PathFollow pf)
+		private void UpdatePathIfNeeded(ushort pathingFlags, bool isFlying, Vector3 start, Vector3 target, bool forceReplan, ref PathFollow pf, out NavMeshStartRecovery startRecovery, out OffMeshReplanCause replanCause)
 		{
+			startRecovery = default;
+			replanCause = OffMeshReplanCause.None;
+
 			if (pf.Target == target && pf.WaypointCount != 0 && !forceReplan) return;
 			if (!_hasTerrainState) return;
 
@@ -655,10 +723,77 @@ namespace Realm.Client.Services
 			}
 			else
 			{
-				GameContext.NavMeshPathfinder.ComputePath(_currentTerrainState.NavMeshQuery, start, target, pathingFlags, ref pf);
+				replanCause = ResolveReplanCause(pf, target);
+				GameContext.NavMeshPathfinder.ComputePath(_currentTerrainState.NavMeshQuery, start, target, pathingFlags, ref pf, out startRecovery);
 			}
 
 			pf.Target = target;
+		}
+
+		private void ReportOffMeshStartRecovery(Entity entity, in NavMeshStartRecovery startRecovery, OffMeshReplanCause replanCause)
+		{
+			if (!startRecovery.UsedFallback) return;
+
+			PurgeDeadOffMeshStartRecoveryEntries();
+
+			int entityId = entity.Id;
+			if (_offMeshStartRecoveryLogTimeByEntityId.TryGetValue(entityId, out float lastLogTime) && _elapsedTime - lastLogTime < OffMeshStartRecoveryLogInterval) return;
+
+			_offMeshStartRecoveryLogTimeByEntityId[entityId] = _elapsedTime;
+			_offMeshStartRecoveryCount++;
+
+			var world = GameContext.World;
+			string entityName = world != null && world.Has<Name>(entity) ? world.Get<Name>(entity).Value : "-";
+			string definitionId = world != null && world.Has<DefinitionId>(entity) ? world.Get<DefinitionId>(entity).Value : "-";
+			string snappedText = startRecovery.Found
+				? $"({startRecovery.Snapped.X:0.00},{startRecovery.Snapped.Y:0.00},{startRecovery.Snapped.Z:0.00})"
+				: "na";
+			string lateralText = startRecovery.Found ? startRecovery.LateralDistance.ToString("0.00") : "na";
+			string verticalText = startRecovery.Found ? startRecovery.VerticalDelta.ToString("0.00") : "na";
+
+			Godot.GD.PushWarning(
+				$"[NavMesh.StartRecovery] incident=#{_offMeshStartRecoveryCount} entity={entityId} name={entityName} def={definitionId} cause={GetOffMeshReplanCauseLabel(replanCause)} found={startRecovery.Found} startRef={startRecovery.StartRef} requested=({startRecovery.Requested.X:0.00},{startRecovery.Requested.Y:0.00},{startRecovery.Requested.Z:0.00}) snapped={snappedText} lateral={lateralText} dy={verticalText}");
+		}
+
+		private void ResetOffMeshStartRecoveryDiagnostics()
+		{
+			_offMeshStartRecoveryLogTimeByEntityId.Clear();
+			_deadOffMeshStartRecoveryEntityIds.Clear();
+			_elapsedTime = 0f;
+			_offMeshStartRecoveryCount = 0;
+		}
+
+		private static string GetOffMeshReplanCauseLabel(OffMeshReplanCause replanCause)
+		{
+			return replanCause switch
+			{
+				OffMeshReplanCause.NoPath => "nopath",
+				OffMeshReplanCause.Retarget => "retarget",
+				OffMeshReplanCause.Stuck => "stuck",
+				_ => "none"
+			};
+		}
+
+		private void PurgeDeadOffMeshStartRecoveryEntries()
+		{
+			if (_offMeshStartRecoveryLogTimeByEntityId.Count == 0) return;
+
+			var world = GameContext.World;
+			if (world == null) return;
+
+			_deadOffMeshStartRecoveryEntityIds.Clear();
+			foreach (int entityId in _offMeshStartRecoveryLogTimeByEntityId.Keys)
+			{
+				if (!world.IsAlive(new Entity(entityId)))
+				{
+					_deadOffMeshStartRecoveryEntityIds.Add(entityId);
+				}
+			}
+
+			foreach (int entityId in _deadOffMeshStartRecoveryEntityIds)
+			{
+				_offMeshStartRecoveryLogTimeByEntityId.Remove(entityId);
+			}
 		}
 
 		private bool CheckArrival(Entity entity, Vector3 current, Vector3 target, MovementStats stats, ref PathFollow pf)

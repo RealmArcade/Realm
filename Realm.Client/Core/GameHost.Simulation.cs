@@ -78,15 +78,6 @@ public partial class GameHost
 
 	private void HandleUnitDeathEconomy(Unit3D unit)
 	{
-		int popCost = GameContext.SimulationService.GetDeathPopulationCost(unit.Entity, unit.UnitId);
-		int playerIndex = unit.Player;
-
-		if (popCost > 0)
-		{
-			int curPop = GameContext.ResourceEconomyService?.GetPlayerCurrentPopulation(playerIndex) ?? 0;
-			GameContext.ResourceEconomyService?.SetPlayerCurrentPopulation(playerIndex, Math.Max(0, curPop - (int)popCost));
-		}
-
 		HandleUnitBountyEconomy(unit);
 	}
 
@@ -210,27 +201,31 @@ public partial class GameHost
 
 	private Dictionary<int, List<MeshInstance3D>> _buildQueueGhosts { get; set; } = new();
 
-	internal void TickConstructionSystem(float fDelta)
+	internal void TickConstructionSystem(float fDelta, bool isAuthoritative)
 	{
 		_pendingBuildTaskUpdates.Clear();
 		GameContext.SimulationService.CompletedBuildings.Clear();
+		GameContext.SimulationService.PendingQueuedCommands.Clear();
 
-		var workerQuery = QueryCache.AllPositionAndBuildTaskNoneDeadQuery;
-		GameContext.World.Query(in workerQuery, (Entity workerEntity, ref Position workerPos, ref BuildTask buildTask) => { ProcessWorkerConstruction(workerEntity, ref workerPos, ref buildTask, fDelta); });
-
-		ProcessPendingBuildTasks();
-		ProcessCompletedBuildings();
-
-		if (_pendingBuildTaskUpdates.Count > 0)
+		if (isAuthoritative)
 		{
-			GameContext.InGameHud?.RefreshUI(SelectedUnits);
+			var workerQuery = QueryCache.AllPositionAndBuildTaskNoneDeadQuery;
+			GameContext.World.Query(in workerQuery, (Entity workerEntity, ref Position workerPos, ref BuildTask buildTask) => { ProcessWorkerConstruction(workerEntity, ref workerPos, ref buildTask, fDelta); });
+
+			ProcessPendingBuildTasks();
+			ProcessCompletedBuildings();
+
+			if (_pendingBuildTaskUpdates.Count > 0)
+			{
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
+			}
+
+			var queueQuery = QueryCache.AllBuildQueueNoneDeadQuery;
+			GameContext.World.Query(in queueQuery, (Entity entity) => { GameContext.SimulationService.ProcessBuildQueueEntity(entity); });
+
+			GameContext.SimulationService.ProcessPendingQueuedCommands(ExecuteQueuedCommand);
 		}
 
-		GameContext.SimulationService.PendingQueuedCommands.Clear();
-		var queueQuery = QueryCache.AllBuildQueueNoneDeadQuery;
-		GameContext.World.Query(in queueQuery, (Entity entity) => { GameContext.SimulationService.ProcessBuildQueueEntity(entity); });
-
-		GameContext.SimulationService.ProcessPendingQueuedCommands(ExecuteQueuedCommand);
 		UpdateBuildQueueGhosts();
 	}
 
