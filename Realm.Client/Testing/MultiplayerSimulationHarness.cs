@@ -19,7 +19,6 @@ namespace Realm.Client.Testing;
 public partial class MultiplayerSimulationHarness : Node
 {
 	private const int PlayableSlotCount = 12;
-	private const int AiPlayerCount = 10;
 	private const string HostPlayerName = "HarnessHost";
 	private const string ClientPlayerName = "HarnessClient";
 
@@ -42,6 +41,9 @@ public partial class MultiplayerSimulationHarness : Node
 	private bool _scenarioEnabled;
 	private string _networkProfile = "Latency";
 	private bool _loopback;
+	private int _peerCount = 2;
+	private int _peerIndex = 1;
+	private string _waitForPeerReadyFile = string.Empty;
 	private int _hardeningFailureCount;
 	private PlayerInfo? _hostSlotBaseline;
 
@@ -159,6 +161,15 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--loopback":
 					_loopback = value == "1";
 					break;
+				case "--peers":
+					_peerCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--peer-index":
+					_peerIndex = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--wait-for-peer-ready":
+					_waitForPeerReadyFile = value;
+					break;
 			}
 		}
 
@@ -203,7 +214,7 @@ public partial class MultiplayerSimulationHarness : Node
 			Latency = hostSlot.Latency
 		};
 
-		for (int slot = 2; slot <= 1 + AiPlayerCount; slot++)
+		for (int slot = 2; slot <= ResolveAiPlayerCount() + 1; slot++)
 		{
 			lobby.PlayerList.Add(new PlayerInfo
 			{
@@ -226,13 +237,17 @@ public partial class MultiplayerSimulationHarness : Node
 		if (createServerMethod.Invoke(lobby, null) is not Task<bool> createServerTask) throw new InvalidOperationException("LobbyManager.TryCreateENetServerAsync did not return a task.");
 		if (!await createServerTask) throw new InvalidOperationException($"Failed to host ENet server on port {_port}.");
 
-		GD.Print($"[MP_HARNESS] Host listening on port {_port}. Waiting for the client peer.");
+		int expectedClientCount = Math.Max(1, _peerCount - 1);
+		GD.Print($"[MP_HARNESS] Host listening on port {_port}. Waiting for {expectedClientCount} client peer(s).");
 		if (!string.IsNullOrEmpty(_listeningFile)) File.WriteAllText(_listeningFile, DateTime.UtcNow.ToString("O"));
 
 		bool clientConnected = await WaitUntilAsync(
-			() => lobby.PlayerList.Exists(player => player.PeerId > 1 && !player.IsDisconnected),
+			() => lobby.PlayerList.FindAll(player => player.PeerId > 1 && !player.IsDisconnected).Count >= expectedClientCount,
 			60f);
-		if (!clientConnected) throw new InvalidOperationException("Timed out waiting for the client peer to join the host lobby.");
+		if (!clientConnected) throw new InvalidOperationException($"Timed out waiting for {expectedClientCount} client peer(s) to join the host lobby.");
+		await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+		int joinedClientCount = lobby.PlayerList.FindAll(player => player.PeerId > 1 && !player.IsDisconnected).Count;
+		GD.Print($"[MP_HARNESS] Starting the match with {joinedClientCount + 1} peers: {string.Join(", ", lobby.PlayerList.ConvertAll(player => $"{player.Name}#{player.PeerId}"))}.");
 		if (!await StartSimulationAsync(lobby, true)) return 1;
 
 		_ = RunCombatProbeAsync(true);
@@ -296,7 +311,7 @@ public partial class MultiplayerSimulationHarness : Node
 			BinaryVersion = RealmVersion.GameBinaryVersion
 		});
 
-		for (int slot = 2; slot <= 1 + AiPlayerCount; slot++)
+		for (int slot = 2; slot <= ResolveAiPlayerCount() + 1; slot++)
 		{
 			lobby.PlayerList.Add(new PlayerInfo
 			{
@@ -348,13 +363,21 @@ public partial class MultiplayerSimulationHarness : Node
 		if (!joined) throw new InvalidOperationException($"Failed to connect to host at {_hostAddress}:{_port}.");
 
 		int localPeerId = Multiplayer.GetUniqueId();
-		GD.Print($"[MP_HARNESS] Client connected with peer id {localPeerId}. Waiting for lobby sync.");
+		GD.Print($"[MP_HARNESS] Client peer index {_peerIndex} connected with peer id {localPeerId}. Waiting for lobby sync.");
 
 		bool playerSynced = await WaitUntilAsync(
 			() => lobby.PlayerList.Exists(player => player.PeerId == localPeerId),
 			30f);
 		if (!playerSynced) throw new InvalidOperationException("Timed out waiting for the host to sync the lobby player list.");
 		if (!string.IsNullOrEmpty(_clientTeam)) await ApplyClientTeamAsync(lobby, localPeerId);
+
+		if (!string.IsNullOrEmpty(_waitForPeerReadyFile))
+		{
+			GD.Print($"[MP_HARNESS] Client peer index {_peerIndex} stays in the lobby until {_waitForPeerReadyFile} exists, so only two processes load the map at once.");
+			bool previousPeerReady = await WaitUntilAsync(() => File.Exists(_waitForPeerReadyFile), 240f);
+			if (!previousPeerReady) throw new InvalidOperationException($"Client peer index {_peerIndex} waited too long for the previous peer to become ready.");
+		}
+
 		if (!await StartSimulationAsync(lobby, false)) return 1;
 
 		_ = RunCombatProbeAsync(false);
@@ -456,6 +479,11 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		GD.Print($"[CODECS] role={(isHost ? "host" : "client")} registryCount={Realm.Ecs.ComponentTypeRegistry.Count} scriptPlayersId={Realm.Ecs.ComponentType<ScriptPlayersState>.Id}");
+	}
+
+	private int ResolveAiPlayerCount()
+	{
+		return Math.Max(0, PlayableSlotCount - Math.Max(2, _peerCount));
 	}
 
 	private static int CountConstructionSites(GameHost gameHost)

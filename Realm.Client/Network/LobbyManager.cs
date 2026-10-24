@@ -1043,11 +1043,11 @@ public partial class LobbyManager : BaseMapTransferNode
 				return false;
 			}
 
-			var packetPeer = peer.GetPeer(1);
-			if (packetPeer != null)
-			{
-				packetPeer.SetTimeout(32, 10000, 20000);
-			}
+		var packetPeer = peer.GetPeer(1);
+		if (packetPeer != null)
+		{
+			packetPeer.SetTimeout(32, 30000, 60000);
+		}
 
 			Multiplayer.MultiplayerPeer = peer;
 			if (Multiplayer is SceneMultiplayer sceneMultiplayer)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Godot;
@@ -16,6 +17,7 @@ public partial class PredictionHarnessRunner : Node
 	private string _wasmPath = string.Empty;
 	private bool _loopback;
 	private bool _negativeControl;
+	private int _peerCount = 2;
 
 	public override void _Ready()
 	{
@@ -45,40 +47,55 @@ public partial class PredictionHarnessRunner : Node
 				PredictionEnabled = !_negativeControl,
 				RunPredictionScenario = true,
 				Loopback = _loopback,
+				PeerCount = _peerCount,
 				OneWayDelayMilliseconds = oneWayDelayMilliseconds,
 				JitterMilliseconds = jitterMilliseconds,
 				PacketLossPercent = packetLossPercent
 			};
 
-			GD.Print($"[PREDICTION_HARNESS] Running profile {profile} loopback={_loopback} negativeControl={_negativeControl} on port {_port} for {_durationSeconds:F0}s.");
+			GD.Print($"[PREDICTION_HARNESS] Running profile {profile} with {_peerCount} peers loopback={_loopback} negativeControl={_negativeControl} on port {_port} for {_durationSeconds:F0}s.");
 			await MultiplayerEcsSyncTestSupport.RunAsync(settings);
 
-			PredictionHarnessReport predictionReport = PredictionHarnessVerification.Verify(settings);
-			string predictionText = predictionReport.RenderText();
-			File.WriteAllText(Path.Combine(_outputDirectory, "prediction_report.txt"), predictionText);
-			File.WriteAllText(Path.Combine(_outputDirectory, "prediction_report.json"), predictionReport.RenderJson());
-			GD.Print(predictionText);
+			IReadOnlyList<string> clientDirectories = settings.ResolveClientDirectories();
+			PredictionHarnessReport? firstPredictionReport = null;
+			int predictionFailures = 0;
+			int syncFailures = 0;
+			for (int index = 0; index < clientDirectories.Count; index++)
+			{
+				string clientDirectory = clientDirectories[index];
+				int peerId = index + 2;
+				string suffix = index == 0 ? string.Empty : $"_peer{peerId}";
+
+				PredictionHarnessReport predictionReport = PredictionHarnessVerification.Verify(settings, clientDirectory);
+				firstPredictionReport ??= predictionReport;
+				predictionFailures += predictionReport.Failures;
+				string predictionText = predictionReport.RenderText();
+				File.WriteAllText(Path.Combine(_outputDirectory, $"prediction_report{suffix}.txt"), predictionText);
+				File.WriteAllText(Path.Combine(_outputDirectory, $"prediction_report{suffix}.json"), predictionReport.RenderJson());
+				GD.Print($"[PREDICTION_HARNESS] === Peer {peerId} prediction report ===");
+				GD.Print(predictionText);
+
+				if (!_loopback)
+				{
+					MultiplayerEcsSyncReport syncReport = MultiplayerEcsSyncTestSupport.Verify(settings, clientDirectory);
+					string syncRendered = syncReport.Render();
+					File.WriteAllText(Path.Combine(_outputDirectory, $"multiplayer_ecs_sync_report{suffix}.txt"), syncRendered);
+					GD.Print($"[PREDICTION_HARNESS] === Peer {peerId} sync report ===");
+					GD.Print(syncRendered);
+					syncFailures += syncReport.Failures.Count;
+				}
+			}
 
 			if (_negativeControl)
 			{
-				exitCode = WriteNegativeControlVerdict(predictionReport);
+				exitCode = WriteNegativeControlVerdict(firstPredictionReport!);
 				return;
 			}
 
-			int syncFailures = 0;
-			if (!_loopback)
-			{
-				MultiplayerEcsSyncReport syncReport = MultiplayerEcsSyncTestSupport.Verify(settings);
-				string syncRendered = syncReport.Render();
-				File.WriteAllText(Path.Combine(_outputDirectory, "multiplayer_ecs_sync_report.txt"), syncRendered);
-				GD.Print(syncRendered);
-				syncFailures = syncReport.Failures.Count;
-			}
-
 			int hardeningFailures = ReadHardeningFailures(_outputDirectory);
-			bool passed = predictionReport.Failures == 0 && syncFailures == 0 && hardeningFailures == 0;
+			bool passed = predictionFailures == 0 && syncFailures == 0 && hardeningFailures == 0;
 			exitCode = passed ? 0 : 1;
-			GD.Print($"[PREDICTION_HARNESS] Verdict: {(passed ? "PASS" : "FAIL")} (sync failures {syncFailures}, prediction failures {predictionReport.Failures}, hardening failures {hardeningFailures}).");
+			GD.Print($"[PREDICTION_HARNESS] Verdict: {(passed ? "PASS" : "FAIL")} across {clientDirectories.Count + 1} peers (sync failures {syncFailures}, prediction failures {predictionFailures}, hardening failures {hardeningFailures}).");
 		}
 		catch (Exception exception)
 		{
@@ -160,6 +177,9 @@ public partial class PredictionHarnessRunner : Node
 					break;
 				case "--negative-control":
 					_negativeControl = value == "1";
+					break;
+				case "--peers":
+					_peerCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
 					break;
 			}
 		}

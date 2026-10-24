@@ -623,6 +623,7 @@ public class NetworkService
 			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
 		}
 
+		GameContext.Host?.FlushReplicatedSnapshotEvents();
 		ApplyReplicatedComponentState(snapshot);
 
 		LastAppliedSnapshotSequenceForDiagnostics = snapshot.Sequence;

@@ -498,8 +498,12 @@ public partial class GameHost
 	{
 		if (Multiplayer.IsServer()) return;
 		GameContext.NetworkService.RecordSnapshotReceived(payload);
+		FlushReplicatedSnapshotEvents();
+		MultiplayerSyncDiagnostics.RecordClientPresentation();
+	}
 
-
+	public void FlushReplicatedSnapshotEvents()
+	{
 		var pendingSpawns = GameContext.NetworkService.FlushPendingUnitSpawns();
 		for (int i = 0; i < pendingSpawns.Count; i++)
 		{
@@ -528,8 +532,6 @@ public partial class GameHost
 		{
 			GameContext.NetworkService.ReapplyAbilityStatesToUnits();
 		}
-
-		MultiplayerSyncDiagnostics.RecordClientPresentation();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

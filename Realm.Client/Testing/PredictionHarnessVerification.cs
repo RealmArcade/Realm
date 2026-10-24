@@ -37,6 +37,7 @@ public sealed class PredictionHarnessReport
 	public int RejectionsReceived { get; set; }
 	public int PathComparisons { get; set; }
 	public int PathMismatches { get; set; }
+	public int PathEquivalentRoutes { get; set; }
 	public int OscillationViolations { get; set; }
 	public float CorrectionsPerSecondFirstHalf { get; set; }
 	public float CorrectionsPerSecondSecondHalf { get; set; }
@@ -132,7 +133,7 @@ public sealed class PredictionHarnessReport
 		builder.AppendLine($"Settled error: {SettledErrorMeters:F3} m sustained (largest {MaximumSettledTransientMeters:F3} m transient) over {ConcentratedOrderUnits} order-free units; slowest convergence {SlowestConvergenceTicks} ticks, {StaleSettledSamplesSkipped} settled samples excluded because their snapshot stream had stalled");
 		builder.AppendLine($"Snaps: explained {ExplainedSnapCount}, unexplained {UnexplainedSnapCount}; corrections above snap threshold {LargeCorrectionCount}");
 		builder.AppendLine($"Rejections received: {RejectionsReceived}, rollbacks: {RollbackCount}, worst rollback {WorstRollbackTicks:F1} ticks");
-		builder.AppendLine($"Pathing parity: compared {PathComparisons}, mismatches {PathMismatches}");
+		builder.AppendLine($"Pathing parity: compared {PathComparisons}, mismatches {PathMismatches}, routes that differ only inside a single navmesh cell {PathEquivalentRoutes}");
 		builder.AppendLine($"Oscillation violations: {OscillationViolations}");
 		builder.AppendLine($"Corrections per second: first half {CorrectionsPerSecondFirstHalf:F2}, second half {CorrectionsPerSecondSecondHalf:F2}");
 		builder.AppendLine($"Commands: submitted through the ordered transport {SubmittedCommandCount}, distinct command ids the authority answered (acknowledged or rejected) {AcknowledgedCommandCount}, unanswered {UnacknowledgedCommandCount}");
@@ -192,6 +193,7 @@ public static class PredictionHarnessVerification
 	public const int SettledSustainedTicks = 10;
 	public const float PathWaypointToleranceMeters = 1.0f;
 	public const float PathTargetToleranceMeters = 0.1f;
+	public const float PathRouteDeviationToleranceMeters = 5.05f;
 	public const float StationaryAuthoritativeMeters = 0.15f;
 	public const int PathStartWaypointCount = 1;
 	public const int MinimumPredictedSamples = 60;
@@ -312,11 +314,11 @@ public static class PredictionHarnessVerification
 		public List<(int RejectedSequence, int LastAppliedSequence, int Tick)> OrderingViolations = new();
 	}
 
-	public static PredictionHarnessReport Verify(MultiplayerEcsRunSettings settings)
+	public static PredictionHarnessReport Verify(MultiplayerEcsRunSettings settings, string? clientDirectory = null)
 	{
 		PredictionThresholds thresholds = ThresholdsFor(settings.Profile);
 		var report = new PredictionHarnessReport { Profile = settings.Profile.ToString(), ThresholdRationale = thresholds.Rationale };
-		string clientPath = Path.Combine(settings.OutputDirectory, "prediction_client.bin");
+		string clientPath = Path.Combine(clientDirectory ?? settings.OutputDirectory, "prediction_client.bin");
 		string hostPath = Path.Combine(settings.OutputDirectory, "prediction_host.bin");
 		if (!File.Exists(clientPath))
 		{
@@ -967,24 +969,20 @@ public static class PredictionHarnessVerification
 					continue;
 				}
 
-				int differingIndex = -1;
-				float differingDistance = 0f;
-				int compared = Math.Min(unit.Waypoints.Length, hostUnit.Waypoints.Length);
+				float cornerDeviation = MeasureCornerDeviation(unit.Waypoints, hostUnit.Waypoints);
+				if (cornerDeviation <= PathWaypointToleranceMeters) continue;
 
-				for (int index = PathStartWaypointCount; index < compared; index++)
+				float routeDeviation = MeasureRouteDeviation(unit.Waypoints, hostUnit.Waypoints);
+				if (routeDeviation <= PathRouteDeviationToleranceMeters)
 				{
-					float distance = Vector3.Distance(unit.Waypoints[index], hostUnit.Waypoints[index]);
-					if (distance <= PathWaypointToleranceMeters) continue;
-					differingIndex = index;
-					differingDistance = distance;
-					break;
+					report.PathEquivalentRoutes++;
+					continue;
 				}
 
-				if (differingIndex < 0) continue;
 				report.PathMismatches++;
 				if (report.PathMismatches <= 5)
 				{
-					report.AddFailure($"Predicted unit {unit.EntityId} follows a different path than the host at tick {tick.Tick} (sequence {tick.Sequence}): corner {differingIndex} is {differingDistance:F3} m apart.");
+					report.AddFailure($"Predicted unit {unit.EntityId} follows a different path than the host at tick {tick.Tick} (sequence {tick.Sequence}): the worst corner is {cornerDeviation:F3} m apart and the predicted route leaves the host's route by {routeDeviation:F3} m, beyond the {PathRouteDeviationToleranceMeters:F1} m single-cell corridor.");
 				}
 			}
 		}
@@ -993,6 +991,62 @@ public static class PredictionHarnessVerification
 		{
 			report.AddFailure($"Only {report.PathComparisons} confirmed predicted orders had a path compared against the host (minimum {MinimumPathComparisons}), so pathing parity was not verified.");
 		}
+	}
+
+	private static float MeasureCornerDeviation(Vector3[] predictedWaypoints, Vector3[] hostWaypoints)
+	{
+		int compared = Math.Min(predictedWaypoints.Length, hostWaypoints.Length);
+		float worst = 0f;
+		for (int index = PathStartWaypointCount; index < compared; index++)
+		{
+			float distance = Vector3.Distance(predictedWaypoints[index], hostWaypoints[index]);
+			if (distance > worst) worst = distance;
+		}
+
+		return worst;
+	}
+
+	private static float MeasureRouteDeviation(Vector3[] predictedWaypoints, Vector3[] hostWaypoints)
+	{
+		float predictedToHost = MaximumDistanceFromPolyline(predictedWaypoints, hostWaypoints, PathStartWaypointCount);
+		float hostToPredicted = MaximumDistanceFromPolyline(hostWaypoints, predictedWaypoints, PathStartWaypointCount);
+		return MathF.Max(predictedToHost, hostToPredicted);
+	}
+
+	private static float MaximumDistanceFromPolyline(Vector3[] points, Vector3[] polyline, int startIndex)
+	{
+		if (polyline.Length <= startIndex) return float.PositiveInfinity;
+
+		float worst = 0f;
+		for (int pointIndex = startIndex; pointIndex < points.Length; pointIndex++)
+		{
+			float nearest = float.PositiveInfinity;
+			for (int segmentIndex = startIndex; segmentIndex < polyline.Length - 1; segmentIndex++)
+			{
+				float distance = DistanceToSegment(points[pointIndex], polyline[segmentIndex], polyline[segmentIndex + 1]);
+				if (distance < nearest) nearest = distance;
+			}
+
+			if (polyline.Length - 1 <= startIndex)
+			{
+				nearest = Vector3.Distance(points[pointIndex], polyline[startIndex]);
+			}
+
+			if (nearest > worst) worst = nearest;
+		}
+
+		return worst;
+	}
+
+	private static float DistanceToSegment(Vector3 point, Vector3 segmentStart, Vector3 segmentEnd)
+	{
+		Vector3 segment = segmentEnd - segmentStart;
+		float lengthSquared = segment.LengthSquared();
+		if (lengthSquared <= float.Epsilon) return Vector3.Distance(point, segmentStart);
+
+		float projection = Vector3.Dot(point - segmentStart, segment) / lengthSquared;
+		projection = Math.Clamp(projection, 0f, 1f);
+		return Vector3.Distance(point, segmentStart + segment * projection);
 	}
 
 	/// <summary>

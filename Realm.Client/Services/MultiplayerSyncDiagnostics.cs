@@ -34,6 +34,7 @@ public static class MultiplayerSyncDiagnostics
 	private static int _lastRecordedSequence = -1;
 	private static int _lastPresentedSequence = -1;
 	private static float _presentationWindowStartTime = -1f;
+	private static int _presentationAnchorSequence = -1;
 	private static int _fingerprintMismatchCount;
 	private static string _fingerprintMismatchSummary = string.Empty;
 	private static readonly HashSet<int> _clientSeenSequences = new();
@@ -77,6 +78,7 @@ public static class MultiplayerSyncDiagnostics
 	}
 
 	public static float PresentationWindowSeconds { get; set; } = 2f;
+	public static int PresentationSettleSequences { get; set; } = 15;
 	public static bool IsRecording => _writer != null;
 	public static int WrittenRecordCount => _writtenRecordCount;
 	public static string OutputDirectory => _outputDirectory;
@@ -91,6 +93,7 @@ public static class MultiplayerSyncDiagnostics
 		_lastRecordedSequence = -1;
 		_lastPresentedSequence = -1;
 		_presentationWindowStartTime = -1f;
+		_presentationAnchorSequence = -1;
 		_fingerprintMismatchCount = 0;
 		_fingerprintMismatchSummary = string.Empty;
 		_clientSeenSequences.Clear();
@@ -426,12 +429,6 @@ public static class MultiplayerSyncDiagnostics
 
 		GameHost? gameHost = GameContext.Host;
 		if (gameHost == null) return;
-		if (_presentationWindowStartTime < 0f)
-		{
-			_presentationWindowStartTime = gameHost.GameElapsedTime;
-		}
-
-		if (gameHost.GameElapsedTime - _presentationWindowStartTime > PresentationWindowSeconds) return;
 
 		EcsWorld? world = GameContext.World;
 		if (world == null) return;
@@ -441,6 +438,16 @@ public static class MultiplayerSyncDiagnostics
 
 		int sequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 		if (sequence < 0 || sequence == _lastPresentedSequence) return;
+
+		if (_presentationWindowStartTime < 0f)
+		{
+			if (sequence % BaselineIntervalTicks != 0) return;
+			_presentationWindowStartTime = gameHost.GameElapsedTime;
+			_presentationAnchorSequence = sequence;
+		}
+
+		if (sequence - _presentationAnchorSequence < PresentationSettleSequences) return;
+		if (gameHost.GameElapsedTime - _presentationWindowStartTime > PresentationWindowSeconds) return;
 
 		NetworkMappingState mapping = world.Get<NetworkMappingState>(worldEntity);
 		var units = new List<PresentedUnitState>();

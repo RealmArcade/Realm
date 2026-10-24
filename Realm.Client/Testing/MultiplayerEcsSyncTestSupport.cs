@@ -35,7 +35,24 @@ public sealed class MultiplayerEcsRunSettings
 	public bool PredictionEnabled { get; init; }
 	public bool RunPredictionScenario { get; init; }
 	public bool Loopback { get; init; }
+	public int PeerCount { get; init; } = 2;
 	public int DrainMilliseconds => Math.Max(1500, Math.Max(PingMilliseconds * 4, OneWayDelayMilliseconds * 8));
+
+	public IReadOnlyList<string> ResolveClientDirectories()
+	{
+		var directories = new List<string>(Math.Max(1, PeerCount - 1));
+		for (int peerIndex = 1; peerIndex < Math.Max(2, PeerCount); peerIndex++)
+		{
+			directories.Add(ResolveClientDirectory(peerIndex));
+		}
+
+		return directories;
+	}
+
+	public string ResolveClientDirectory(int peerIndex)
+	{
+		return peerIndex <= 1 ? OutputDirectory : Path.Combine(OutputDirectory, $"client{peerIndex}");
+	}
 }
 
 public sealed class MultiplayerEcsSyncReport
@@ -146,65 +163,126 @@ public static class MultiplayerEcsSyncTestSupport
 			return;
 		}
 
+		int peerCount = Math.Max(2, settings.PeerCount);
 		string hostListeningFile = Path.Combine(settings.OutputDirectory, "host_listening.txt");
 		string hostReadyFile = Path.Combine(settings.OutputDirectory, "host_ready.txt");
-		string clientReadyFile = Path.Combine(settings.OutputDirectory, "client_ready.txt");
 		string hostDoneFile = Path.Combine(settings.OutputDirectory, "host_done.txt");
-		string clientSequenceFile = Path.Combine(settings.OutputDirectory, "client_final_sequence.txt");
 
 		bool useRelay = settings.OneWayDelayMilliseconds > 0 || settings.JitterMilliseconds > 0 || settings.PacketLossPercent > 0 || settings.PingMilliseconds > 0;
-		using UdpDelayRelay? relay = useRelay
-			? new UdpDelayRelay(
-				settings.Port,
-				settings.OneWayDelayMilliseconds > 0 ? settings.OneWayDelayMilliseconds : Math.Max(1, settings.PingMilliseconds / 2),
-				settings.JitterMilliseconds,
-				settings.PacketLossPercent)
-			: null;
-		int clientConnectionPort = relay?.ListenPort ?? settings.Port;
-
-		using HarnessProcess hostProcess = StartHarnessProcess(settings, "host", settings.Port, null, hostReadyFile, hostDoneFile);
-		bool hostListening = await WaitForFileOrExitAsync(hostListeningFile, hostProcess.Process, TimeSpan.FromSeconds(120));
-		if (!hostListening) throw new InvalidOperationException($"Host harness did not start listening.\n{hostProcess.ReadLog()}");
-
-		using HarnessProcess clientProcess = StartHarnessProcess(settings, "client", clientConnectionPort, clientSequenceFile, clientReadyFile, hostDoneFile);
-		bool clientReady = await WaitForFileOrExitAsync(clientReadyFile, clientProcess.Process, TimeSpan.FromSeconds(180));
-		if (!clientReady) throw new InvalidOperationException($"Client harness did not become ready.\n{clientProcess.ReadLog()}");
-
-		bool hostReady = await WaitForFileOrExitAsync(hostReadyFile, hostProcess.Process, TimeSpan.FromSeconds(180));
-		if (!hostReady) throw new InvalidOperationException($"Host harness did not become ready.\n{hostProcess.ReadLog()}");
-
-		TimeSpan shutdownWindow = TimeSpan.FromSeconds(settings.DurationSeconds * 4 + 300);
-		bool hostExited = await WaitForExitAsync(hostProcess.Process, shutdownWindow);
-		bool clientExited = await WaitForExitAsync(clientProcess.Process, shutdownWindow);
-
-		if (!hostExited) hostProcess.Process.Kill(true);
-		if (!clientExited) clientProcess.Process.Kill(true);
-
-		if (!hostExited) throw new InvalidOperationException($"Host harness did not finish in time.\n{hostProcess.ReadLog()}");
-		if (!clientExited) throw new InvalidOperationException($"Client harness did not finish in time.\n{clientProcess.ReadLog()}");
-
-		if (hostProcess.Process.ExitCode != 0)
+		var relays = new List<UdpDelayRelay>();
+		var clientProcesses = new List<HarnessProcess>();
+		try
 		{
-			throw new InvalidOperationException($"Host harness exited with code {hostProcess.Process.ExitCode}.\n{hostProcess.ReadLog()}");
+			for (int peerIndex = 2; peerIndex < peerCount; peerIndex++)
+			{
+				string extraClientDirectory = settings.ResolveClientDirectory(peerIndex);
+				Directory.CreateDirectory(extraClientDirectory);
+				foreach (string file in Directory.GetFiles(extraClientDirectory)) File.Delete(file);
+			}
+
+			using HarnessProcess hostProcess = StartHarnessProcess(settings, "host", settings.Port, null, hostReadyFile, hostDoneFile, settings.OutputDirectory, peerCount);
+			bool hostListening = await WaitForFileOrExitAsync(hostListeningFile, hostProcess.Process, TimeSpan.FromSeconds(120));
+			if (!hostListening) throw new InvalidOperationException($"Host harness did not start listening.\n{hostProcess.ReadLog()}");
+
+			for (int peerIndex = 1; peerIndex < peerCount; peerIndex++)
+			{
+				string clientDirectory = settings.ResolveClientDirectory(peerIndex);
+				UdpDelayRelay? clientRelay = useRelay
+					? new UdpDelayRelay(
+						settings.Port,
+						settings.OneWayDelayMilliseconds > 0 ? settings.OneWayDelayMilliseconds : Math.Max(1, settings.PingMilliseconds / 2),
+						settings.JitterMilliseconds,
+						settings.PacketLossPercent)
+					: null;
+				if (clientRelay != null) relays.Add(clientRelay);
+
+				int clientConnectionPort = clientRelay?.ListenPort ?? settings.Port;
+				string clientReadyFile = Path.Combine(clientDirectory, "client_ready.txt");
+				string clientSequenceFile = Path.Combine(clientDirectory, "client_final_sequence.txt");
+				string previousReadyFile = peerIndex <= 1 ? string.Empty : Path.Combine(settings.ResolveClientDirectory(peerIndex - 1), "client_ready.txt");
+				clientProcesses.Add(StartHarnessProcess(settings, "client", clientConnectionPort, clientSequenceFile, clientReadyFile, hostDoneFile, clientDirectory, peerIndex, previousReadyFile));
+			}
+
+			for (int index = 0; index < clientProcesses.Count; index++)
+			{
+				string clientDirectory = settings.ResolveClientDirectory(index + 1);
+				string clientReadyFile = Path.Combine(clientDirectory, "client_ready.txt");
+				bool clientReady = await WaitForFileOrExitAsync(clientReadyFile, clientProcesses[index].Process, TimeSpan.FromSeconds(180 * peerCount));
+				if (!clientReady) throw new InvalidOperationException($"Client peer {index + 2} did not become ready.\n{clientProcesses[index].ReadLog()}");
+			}
+
+			bool hostReady = await WaitForFileOrExitAsync(hostReadyFile, hostProcess.Process, TimeSpan.FromSeconds(180 * peerCount));
+			if (!hostReady) throw new InvalidOperationException($"Host harness did not become ready.\n{hostProcess.ReadLog()}");
+
+			TimeSpan shutdownWindow = TimeSpan.FromSeconds(settings.DurationSeconds * 4 + 300 + 60 * peerCount);
+			bool hostExited = await WaitForExitAsync(hostProcess.Process, shutdownWindow);
+			bool[] clientExited = new bool[clientProcesses.Count];
+			for (int index = 0; index < clientProcesses.Count; index++)
+			{
+				clientExited[index] = await WaitForExitAsync(clientProcesses[index].Process, shutdownWindow);
+			}
+
+			if (!hostExited) hostProcess.Process.Kill(true);
+			for (int index = 0; index < clientProcesses.Count; index++)
+			{
+				if (!clientExited[index]) clientProcesses[index].Process.Kill(true);
+			}
+
+			if (!hostExited) throw new InvalidOperationException($"Host harness did not finish in time.\n{hostProcess.ReadLog()}");
+			for (int index = 0; index < clientProcesses.Count; index++)
+			{
+				if (!clientExited[index]) throw new InvalidOperationException($"Client peer {index + 2} did not finish in time.\n{clientProcesses[index].ReadLog()}");
+			}
+
+			if (hostProcess.Process.ExitCode != 0)
+			{
+				throw new InvalidOperationException($"Host harness exited with code {hostProcess.Process.ExitCode}.\n{hostProcess.ReadLog()}");
+			}
+
+			for (int index = 0; index < clientProcesses.Count; index++)
+			{
+				if (clientProcesses[index].Process.ExitCode != 0)
+				{
+					throw new InvalidOperationException($"Client peer {index + 2} exited with code {clientProcesses[index].Process.ExitCode}.\n{clientProcesses[index].ReadLog()}");
+				}
+			}
+
+			WriteRelayStats(settings, relays);
+		}
+		finally
+		{
+			foreach (HarnessProcess clientProcess in clientProcesses) clientProcess.Dispose();
+			foreach (UdpDelayRelay relay in relays) relay.Dispose();
+		}
+	}
+
+	private static void WriteRelayStats(MultiplayerEcsRunSettings settings, List<UdpDelayRelay> relays)
+	{
+		if (relays.Count == 0) return;
+
+		long forwarded = 0;
+		long dropped = 0;
+		foreach (UdpDelayRelay relay in relays)
+		{
+			forwarded += relay.ForwardedDatagramCount;
+			dropped += relay.DroppedDatagramCount;
 		}
 
-		if (clientProcess.Process.ExitCode != 0)
-		{
-			throw new InvalidOperationException($"Client harness exited with code {clientProcess.Process.ExitCode}.\n{clientProcess.ReadLog()}");
-		}
-
-		if (relay != null)
+		File.WriteAllText(
+			Path.Combine(settings.OutputDirectory, "relay_stats.txt"),
+			$"forwarded={forwarded}\ndropped={dropped}\nrelays={relays.Count}");
+		for (int index = 0; index < relays.Count; index++)
 		{
 			File.WriteAllText(
-				Path.Combine(settings.OutputDirectory, "relay_stats.txt"),
-				$"forwarded={relay.ForwardedDatagramCount}\ndropped={relay.DroppedDatagramCount}");
+				Path.Combine(settings.ResolveClientDirectory(index + 1), "relay_stats.txt"),
+				$"forwarded={relays[index].ForwardedDatagramCount}\ndropped={relays[index].DroppedDatagramCount}\nrelays=1");
 		}
 	}
 
 	private static async Task RunLoopbackAsync(MultiplayerEcsRunSettings settings)
 	{
 		string readyFile = Path.Combine(settings.OutputDirectory, "loopback_ready.txt");
-		using HarnessProcess loopbackProcess = StartHarnessProcess(settings, "loopback", settings.Port, null, readyFile, string.Empty);
+		using HarnessProcess loopbackProcess = StartHarnessProcess(settings, "loopback", settings.Port, null, readyFile, string.Empty, settings.OutputDirectory, 1);
 		bool ready = await WaitForFileOrExitAsync(readyFile, loopbackProcess.Process, TimeSpan.FromSeconds(180));
 		if (!ready) throw new InvalidOperationException($"Loopback harness did not become ready.\n{loopbackProcess.ReadLog()}");
 
@@ -217,7 +295,16 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
-	private static HarnessProcess StartHarnessProcess(MultiplayerEcsRunSettings settings, string role, int connectionPort, string? sequenceFile, string readyFile, string doneFile)
+	private static HarnessProcess StartHarnessProcess(
+		MultiplayerEcsRunSettings settings,
+		string role,
+		int connectionPort,
+		string? sequenceFile,
+		string readyFile,
+		string doneFile,
+		string outputDirectory,
+		int peerIndex,
+		string waitForPeerReadyFile = "")
 	{
 		var startInfo = new ProcessStartInfo(settings.GodotBinary)
 		{
@@ -237,7 +324,7 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--port={connectionPort}");
 		startInfo.ArgumentList.Add($"--map={settings.MapFolder}");
 		startInfo.ArgumentList.Add($"--wasm={settings.WasmPath}");
-		startInfo.ArgumentList.Add($"--output={settings.OutputDirectory}");
+		startInfo.ArgumentList.Add($"--output={outputDirectory}");
 		startInfo.ArgumentList.Add($"--listening-file={Path.Combine(settings.OutputDirectory, "host_listening.txt")}");
 		startInfo.ArgumentList.Add($"--ready-file={readyFile}");
 		startInfo.ArgumentList.Add($"--done-file={doneFile}");
@@ -248,8 +335,12 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--scenario={(settings.RunPredictionScenario ? 1 : 0)}");
 		startInfo.ArgumentList.Add($"--profile={settings.Profile}");
 		startInfo.ArgumentList.Add($"--loopback={(settings.Loopback ? 1 : 0)}");
+		startInfo.ArgumentList.Add($"--peers={Math.Max(2, settings.PeerCount)}");
+		startInfo.ArgumentList.Add($"--peer-index={peerIndex}");
+		startInfo.ArgumentList.Add($"--wait-for-peer-ready={waitForPeerReadyFile}");
 
-		HarnessProcess harnessProcess = new(Path.Combine(settings.OutputDirectory, $"{role}.log"));
+		string logName = peerIndex <= 1 ? $"{role}.log" : $"{role}{peerIndex}.log";
+		HarnessProcess harnessProcess = new(Path.Combine(outputDirectory, logName));
 		Process process = harnessProcess.Process;
 		process.StartInfo = startInfo;
 		process.OutputDataReceived += (_, args) =>
@@ -327,12 +418,14 @@ public static class MultiplayerEcsSyncTestSupport
 		return completed == exitTask;
 	}
 
-	public static MultiplayerEcsSyncReport Verify(MultiplayerEcsRunSettings settings)
+	public static MultiplayerEcsSyncReport Verify(MultiplayerEcsRunSettings settings, string? clientDirectory = null)
 	{
 		MultiplayerEcsSyncReport report = new();
 		string outputDirectory = settings.OutputDirectory;
+		string clientOutputDirectory = clientDirectory ?? outputDirectory;
+		report.AddSummaryLine($"Client records: {clientOutputDirectory}");
 		string hostPath = Path.Combine(outputDirectory, "ECS_host_sync.bin");
-		string clientPath = Path.Combine(outputDirectory, "ECS_client_sync.bin");
+		string clientPath = Path.Combine(clientOutputDirectory, "ECS_client_sync.bin");
 
 		if (!File.Exists(hostPath) || !File.Exists(clientPath))
 		{
@@ -351,8 +444,8 @@ public static class MultiplayerEcsSyncTestSupport
 			return report;
 		}
 
-		HashSet<int> clientSeenSequences = ReadClientSeenSequences(outputDirectory);
-		TryReadSequence(Path.Combine(outputDirectory, "client_final_sequence.txt"), out int clientFinalAppliedSequence);
+		HashSet<int> clientSeenSequences = ReadClientSeenSequences(clientOutputDirectory);
+		TryReadSequence(Path.Combine(clientOutputDirectory, "client_final_sequence.txt"), out int clientFinalAppliedSequence);
 		int inFlightSequenceCount = 0;
 		int supersededSequenceCount = 0;
 
@@ -496,8 +589,8 @@ public static class MultiplayerEcsSyncTestSupport
 			foreach (string mismatch in mismatches) report.AddSummaryLine($"  {mismatch}");
 		}
 
-		AppendConvergenceReport(report, settings, lastPairedSequence, pairedSnapshots, lostSequenceCount, missingBaselineSequences.Count);
-		ComparePresentationRecords(outputDirectory, hostRecords, report);
+		AppendConvergenceReport(report, settings, lastPairedSequence, pairedSnapshots, lostSequenceCount, missingBaselineSequences.Count, clientOutputDirectory);
+		ComparePresentationRecords(clientOutputDirectory, hostRecords, report);
 		return report;
 	}
 
@@ -833,10 +926,10 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
-	private static void AppendConvergenceReport(MultiplayerEcsSyncReport report, MultiplayerEcsRunSettings settings, int lastPairedSequence, int pairedSnapshots, int lostSequenceCount, int missingBaselineCount)
+	private static void AppendConvergenceReport(MultiplayerEcsSyncReport report, MultiplayerEcsRunSettings settings, int lastPairedSequence, int pairedSnapshots, int lostSequenceCount, int missingBaselineCount, string clientOutputDirectory)
 	{
 		string hostDonePath = Path.Combine(settings.OutputDirectory, "host_done.txt");
-		string clientSequencePath = Path.Combine(settings.OutputDirectory, "client_final_sequence.txt");
+		string clientSequencePath = Path.Combine(clientOutputDirectory, "client_final_sequence.txt");
 		report.AddSummaryLine($"Network profile: {settings.Profile} (one-way {settings.OneWayDelayMilliseconds} ms, jitter {settings.JitterMilliseconds} ms, loss {settings.PacketLossPercent}%)");
 		report.AddSummaryLine($"Injected ping (round trip): {settings.PingMilliseconds} ms");
 
