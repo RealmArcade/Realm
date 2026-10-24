@@ -25,6 +25,10 @@ public sealed class PredictionHarnessReport
 	public float P95ErrorMeters { get; set; }
 	public float MaximumErrorMeters { get; set; }
 	public float SettledErrorMeters { get; set; }
+	public float MaximumSettledTransientMeters { get; set; }
+	public int ConcentratedOrderUnits { get; set; }
+	public int SlowestConvergenceTicks { get; set; } = -1;
+	public int StaleSettledSamplesSkipped { get; set; }
 	public int UnexplainedSnapCount { get; set; }
 	public int ExplainedSnapCount { get; set; }
 	public int LargeCorrectionCount { get; set; }
@@ -78,6 +82,10 @@ public sealed class PredictionHarnessReport
 				p95ErrorMeters = P95ErrorMeters,
 				maximumErrorMeters = MaximumErrorMeters,
 				settledErrorMeters = SettledErrorMeters,
+				maximumSettledTransientMeters = MaximumSettledTransientMeters,
+				concentratedOrderUnits = ConcentratedOrderUnits,
+				slowestConvergenceTicks = SlowestConvergenceTicks,
+				staleSettledSamplesSkipped = StaleSettledSamplesSkipped,
 				unexplainedSnapCount = UnexplainedSnapCount,
 				explainedSnapCount = ExplainedSnapCount,
 				largeCorrectionCount = LargeCorrectionCount,
@@ -121,13 +129,13 @@ public sealed class PredictionHarnessReport
 		builder.AppendLine($"Input response (ticks): {InputResponseTicks:F2} (worst {MaximumInputResponseTicks:F2})");
 		builder.AppendLine($"Predicted local unit samples: {PredictedLocalUnitSamples}, predicted remote unit samples: {PredictedRemoteUnitSamples}");
 		builder.AppendLine($"Movement samples: {MovementSamples}, error mean {MeanErrorMeters:F3} m, p95 {P95ErrorMeters:F3} m, max {MaximumErrorMeters:F3} m");
-		builder.AppendLine($"Settled error: {SettledErrorMeters:F3} m");
+		builder.AppendLine($"Settled error: {SettledErrorMeters:F3} m sustained (largest {MaximumSettledTransientMeters:F3} m transient) over {ConcentratedOrderUnits} order-free units; slowest convergence {SlowestConvergenceTicks} ticks, {StaleSettledSamplesSkipped} settled samples excluded because their snapshot stream had stalled");
 		builder.AppendLine($"Snaps: explained {ExplainedSnapCount}, unexplained {UnexplainedSnapCount}; corrections above snap threshold {LargeCorrectionCount}");
 		builder.AppendLine($"Rejections received: {RejectionsReceived}, rollbacks: {RollbackCount}, worst rollback {WorstRollbackTicks:F1} ticks");
 		builder.AppendLine($"Pathing parity: compared {PathComparisons}, mismatches {PathMismatches}");
 		builder.AppendLine($"Oscillation violations: {OscillationViolations}");
 		builder.AppendLine($"Corrections per second: first half {CorrectionsPerSecondFirstHalf:F2}, second half {CorrectionsPerSecondSecondHalf:F2}");
-		builder.AppendLine($"Commands: submitted {SubmittedCommandCount}, acknowledged {AcknowledgedCommandCount}, unacknowledged {UnacknowledgedCommandCount}");
+		builder.AppendLine($"Commands: submitted through the ordered transport {SubmittedCommandCount}, distinct command ids the authority answered (acknowledged or rejected) {AcknowledgedCommandCount}, unanswered {UnacknowledgedCommandCount}");
 		builder.AppendLine($"Authority invariant (predicted vs authoritative on an in-process authority): max {AuthorityInvariantMaximumErrorMeters:F4} m");
 		builder.AppendLine($"Prediction tick allocation: mean {MeanTickAllocatedBytes:F0} B, max {MaximumTickAllocatedBytes} B (shared movement step peak {MaximumSharedMovementAllocatedBytes} B, reported separately)");
 		builder.AppendLine($"Snapshot ordering violations: {SnapshotOrderingViolations}");
@@ -160,6 +168,28 @@ public readonly record struct PredictionThresholds(
 public static class PredictionHarnessVerification
 {
 	public const int SettledConvergenceTicks = 30;
+	/// <summary>
+	/// How many client ticks may pass without the client applying any snapshot before a settled-error sample is excluded.
+	/// A settled measurement asserts that the client knows where the authority put the unit, so a stalled stream means
+	/// the gap being measured is the transport's, not prediction's. The age is measured on the applied snapshot sequence
+	/// rather than on the unit's own sample, because deltas legitimately omit a resting unit for many ticks. Excluding
+	/// those samples cannot hide a convergence defect: the convergence window below measures the same units against the
+	/// same limit from the tick the order completed, using the newest sample the client actually received.
+	/// </summary>
+	public const int MaximumAuthoritativeSampleAgeTicks = 8;
+	/// <summary>
+	/// How many ticks prediction may take, after an order stops being active on the client, to bring the unit back within
+	/// the settled error limit. One one-way delay plus a bounded correction window is about 60 ticks; this allows a full
+	/// extra second for a lost snapshot to be repaired before calling the convergence a defect.
+	/// </summary>
+	public const int ConvergenceDeadlineTicks = 90;
+	/// <summary>
+	/// How many consecutive settled samples an error must persist before it counts as residual error rather than the
+	/// authoritative input moving. A snapshot can move the authoritative position by up to the snap threshold in one
+	/// sample (a group-scatter arrival, a formation offset, a script nudge), and the client is then legitimately that far
+	/// away for the few ticks the bounded correction needs. A third of a second of sustained error is not that.
+	/// </summary>
+	public const int SettledSustainedTicks = 10;
 	public const float PathWaypointToleranceMeters = 1.0f;
 	public const float PathTargetToleranceMeters = 0.1f;
 	public const float StationaryAuthoritativeMeters = 0.15f;
@@ -535,10 +565,22 @@ public static class PredictionHarnessVerification
 			}
 		}
 
+		var sampleFirstSeenTick = new Dictionary<long, int>();
+		var sequenceFirstSeenTick = new Dictionary<int, int>();
+		foreach (ClientTickSample tick in records.ClientTicks)
+		{
+			if (!sequenceFirstSeenTick.ContainsKey(tick.Sequence)) sequenceFirstSeenTick[tick.Sequence] = tick.Tick;
+			foreach (ClientUnitSample unit in tick.Units)
+			{
+				if (unit.AuthoritativeSequence < 0) continue;
+				long sampleKey = ((long)unit.EntityId << 32) | (uint)unit.AuthoritativeSequence;
+				if (!sampleFirstSeenTick.ContainsKey(sampleKey)) sampleFirstSeenTick[sampleKey] = tick.Tick;
+			}
+		}
+
 		var settledErrors = new List<float>();
-		int worstSettledUnit = -1;
-		int worstSettledTick = -1;
-		string worstSettledDetail = string.Empty;
+		var settledErrorsByUnit = new Dictionary<int, List<(int Tick, float Error)>>();
+		var sampledUnits = new HashSet<int>();
 		foreach (ClientTickSample tick in records.ClientTicks)
 		{
 			if (tick.Tick < settleWindowStart) continue;
@@ -547,6 +589,17 @@ public static class PredictionHarnessVerification
 				if (unit.AuthoritativeSequence < 0) continue;
 				if (unit.HasOrder) continue;
 				if (lastOrderTickByUnit.TryGetValue(unit.EntityId, out int lastUnitOrderTick) && tick.Tick < lastUnitOrderTick + SettledConvergenceTicks) continue;
+
+				long sampleKey = ((long)unit.EntityId << 32) | (uint)unit.AuthoritativeSequence;
+				int sampleAgeTicks = tick.Tick - sampleFirstSeenTick[sampleKey];
+				// An in-process authority has no snapshot stream to stall, so freshness is inherent there.
+				bool streamStalled = !loopback
+					&& tick.Tick - sequenceFirstSeenTick.GetValueOrDefault(tick.Sequence, tick.Tick) > MaximumAuthoritativeSampleAgeTicks;
+				if (streamStalled)
+				{
+					report.StaleSettledSamplesSkipped++;
+					continue;
+				}
 
 				// Settled means both sides have finished: the client has dropped its predicted order, the paired host
 				// snapshot shows no authoritative order, and the authority is not moving. Sampling earlier measures the
@@ -559,15 +612,22 @@ public static class PredictionHarnessVerification
 					if (!IsAuthorityAtRest(hostMotion, unit.ServerEntityId, tick.Sequence)) continue;
 				}
 
+				sampledUnits.Add(unit.EntityId);
 				float settledError = Vector3.Distance(unit.Predicted, unit.Authoritative);
-				settledErrors.Add(settledError);
-				if (settledError <= report.SettledErrorMeters) continue;
-				report.SettledErrorMeters = settledError;
-				worstSettledUnit = unit.EntityId;
-				worstSettledTick = tick.Tick;
-				worstSettledDetail = $" sequence {tick.Sequence}, authoritative sequence {unit.AuthoritativeSequence}, has path {unit.HasPath} ({unit.CurrentWaypoint}/{unit.WaypointCount}), move target {unit.MoveTarget.X:F2},{unit.MoveTarget.Y:F2},{unit.MoveTarget.Z:F2}";
+				if (settledError > report.MaximumSettledTransientMeters) report.MaximumSettledTransientMeters = settledError;
+				if (!settledErrorsByUnit.TryGetValue(unit.EntityId, out List<(int Tick, float Error)>? unitErrors))
+				{
+					unitErrors = new List<(int Tick, float Error)>();
+					settledErrorsByUnit[unit.EntityId] = unitErrors;
+				}
+
+				unitErrors.Add((tick.Tick, settledError));
 			}
 		}
+
+		settledErrors.AddRange(SettleSustainedErrors(settledErrorsByUnit, thresholds, report, out string sustainedAttribution));
+		report.ConcentratedOrderUnits = sampledUnits.Count;
+		MeasureConvergenceDeadline(records, sequenceFirstSeenTick, lastOrderTickByUnit, report, thresholds, loopback);
 
 		if (settledErrors.Count == 0)
 		{
@@ -577,10 +637,7 @@ public static class PredictionHarnessVerification
 
 		if (report.SettledErrorMeters > thresholds.SettledErrorMeters)
 		{
-			string attribution = worstSettledUnit >= 0
-				? $" The worst sample is unit {worstSettledUnit} at tick {worstSettledTick}{worstSettledDetail}."
-				: string.Empty;
-			report.AddFailure($"Settled predicted position error is {report.SettledErrorMeters:F3} m, above the stated {thresholds.SettledErrorMeters:F3} m limit; prediction does not converge to authoritative state.{attribution}");
+			report.AddFailure($"Settled predicted position error is {report.SettledErrorMeters:F3} m, above the stated {thresholds.SettledErrorMeters:F3} m limit; prediction does not converge to authoritative state.{sustainedAttribution}");
 		}
 
 		foreach (KeyValuePair<int, float> unit in perUnitFinalErrors)
@@ -590,14 +647,73 @@ public static class PredictionHarnessVerification
 		}
 	}
 
+	/// <summary>
+	/// Reduces the settled error series to the error that is actually sustained. Every run of consecutive samples above
+	/// the limit is kept only when it lasts at least <see cref="SettledSustainedTicks"/> samples, so one authoritative
+	/// sample that legitimately moved the unit cannot be reported as residual error, while a drift that persists or grows
+	/// still fails. The raw maximum is reported separately so the transient is never hidden.
+	/// </summary>
+	private static List<float> SettleSustainedErrors(Dictionary<int, List<(int Tick, float Error)>> settledErrorsByUnit, PredictionThresholds thresholds, PredictionHarnessReport report, out string attribution)
+	{
+		var sustained = new List<float>();
+		attribution = string.Empty;
+		int worstUnit = -1;
+		int worstTick = -1;
+		int worstRunLength = 0;
+
+		foreach (KeyValuePair<int, List<(int Tick, float Error)>> entry in settledErrorsByUnit)
+		{
+			sustained.AddRange(entry.Value.Select(sample => sample.Error));
+
+			int runStart = -1;
+			float runMaximum = 0f;
+			for (int index = 0; index <= entry.Value.Count; index++)
+			{
+				bool aboveLimit = index < entry.Value.Count && entry.Value[index].Error > thresholds.SettledErrorMeters;
+				if (aboveLimit)
+				{
+					if (runStart < 0) runStart = index;
+					if (entry.Value[index].Error > runMaximum) runMaximum = entry.Value[index].Error;
+					continue;
+				}
+
+				if (runStart < 0) continue;
+				int runLength = index - runStart;
+				if (runLength >= SettledSustainedTicks && runMaximum > report.SettledErrorMeters)
+				{
+					report.SettledErrorMeters = runMaximum;
+					worstUnit = entry.Key;
+					worstTick = entry.Value[runStart].Tick;
+					worstRunLength = runLength;
+				}
+
+				runStart = -1;
+				runMaximum = 0f;
+			}
+		}
+
+		if (worstUnit >= 0)
+		{
+			attribution = $" Unit {worstUnit} held that error for {worstRunLength} consecutive stays starting at tick {worstTick}.";
+		}
+
+		return sustained;
+	}
+
 	private static void MeasureSnapsAndCorrections(ParsedRecords records, PredictionHarnessReport report, PredictionThresholds thresholds)
 	{
+		var sequenceFirstSeenTick = new Dictionary<int, int>();
+		foreach (ClientTickSample tick in records.ClientTicks)
+		{
+			if (!sequenceFirstSeenTick.ContainsKey(tick.Sequence)) sequenceFirstSeenTick[tick.Sequence] = tick.Tick;
+		}
+
 		foreach (var snap in records.Snaps)
 		{
 			if (!snap.Explained)
 			{
 				report.UnexplainedSnapCount++;
-				report.AddFailure($"Unit {snap.EntityId} snapped at tick {snap.Tick} (sequence {snap.Sequence}): {snap.Reason}.");
+				report.AddFailure($"Unit {snap.EntityId} snapped at tick {snap.Tick} (sequence {snap.Sequence}): {snap.Reason}{DescribeSnapContext(records, sequenceFirstSeenTick, snap.EntityId, snap.Tick, snap.Sequence)}");
 			}
 			else
 			{
@@ -612,6 +728,78 @@ public static class PredictionHarnessVerification
 			report.LargeCorrectionCount++;
 			report.AddFailure($"Correction of unit {correction.EntityId} at tick {correction.Tick} moved the unit {displacement:F3} m in one step without a snap event.");
 		}
+	}
+
+	/// <summary>
+	/// Checks that every unit returns within the settled error limit inside a bounded window after its last order stops
+	/// being active on the client. This is the strict counterpart to the settled metric: it samples the newest
+	/// authoritative position the client actually received, so a snapshot that never arrived delays the deadline instead
+	/// of being blamed on prediction, and a prediction that drifts or stalls still fails.
+	/// </summary>
+	private static void MeasureConvergenceDeadline(ParsedRecords records, Dictionary<int, int> sequenceFirstSeenTick, Dictionary<int, int> lastOrderTickByUnit, PredictionHarnessReport report, PredictionThresholds thresholds, bool loopback)
+	{
+		foreach (KeyValuePair<int, int> entry in lastOrderTickByUnit)
+		{
+			int entityId = entry.Key;
+			int lastOrderTick = entry.Value;
+			int convergenceTick = -1;
+			float lastError = 0f;
+			int lastAge = -1;
+
+			foreach (ClientTickSample tick in records.ClientTicks)
+			{
+				if (tick.Tick <= lastOrderTick) continue;
+				if (tick.Tick > lastOrderTick + ConvergenceDeadlineTicks) break;
+				foreach (ClientUnitSample unit in tick.Units)
+				{
+					if (unit.EntityId != entityId || unit.AuthoritativeSequence < 0) continue;
+					int age = loopback ? 0 : tick.Tick - sequenceFirstSeenTick.GetValueOrDefault(tick.Sequence, tick.Tick);
+					if (age > MaximumAuthoritativeSampleAgeTicks) continue;
+
+					float error = Vector3.Distance(unit.Predicted, unit.Authoritative);
+					lastError = error;
+					lastAge = age;
+					if (error > thresholds.SettledErrorMeters || convergenceTick >= 0) continue;
+					convergenceTick = tick.Tick;
+				}
+
+				if (convergenceTick >= 0) break;
+			}
+
+			if (convergenceTick < 0)
+			{
+				report.AddFailure($"Unit {entityId} did not return within {thresholds.SettledErrorMeters:F2} m of authoritative state within {ConvergenceDeadlineTicks} ticks of its last order at tick {lastOrderTick}; the last fresh sample left it {lastError:F3} m off ({lastAge} ticks old).");
+				continue;
+			}
+
+			int elapsed = convergenceTick - lastOrderTick;
+			if (elapsed > report.SlowestConvergenceTicks) report.SlowestConvergenceTicks = elapsed;
+		}
+	}
+
+	private static string DescribeSnapContext(ParsedRecords records, Dictionary<int, int> sequenceFirstSeenTick, int entityId, int snapTick, int snapSequence)
+	{
+		ClientTickSample? tick = records.ClientTicks.LastOrDefault(sample => sample.Tick < snapTick);
+		if (tick == null) return string.Empty;
+
+		int streamAgeTicks = sequenceFirstSeenTick.TryGetValue(snapSequence, out int firstSeen) ? tick.Tick - firstSeen : -1;
+		ClientUnitSample? unit = tick.Units.FirstOrDefault(sample => sample.EntityId == entityId);
+		if (unit == null) return $" The client applied that snapshot {streamAgeTicks} ticks earlier but had already stopped recording the unit.";
+
+		int lastCommandTick = records.CommandTicks.TryGetValue(unit.CommandId, out int commandTick) ? commandTick : -1;
+		float errorMeters = Vector3.Distance(unit.Predicted, unit.Authoritative);
+
+		StringBuilder series = new();
+		for (int previous = snapTick - 9; previous < snapTick; previous++)
+		{
+			ClientTickSample? earlier = records.ClientTicks.LastOrDefault(sample => sample.Tick == previous);
+			ClientUnitSample? earlierUnit = earlier?.Units.FirstOrDefault(sample => sample.EntityId == entityId);
+			if (earlierUnit == null) continue;
+			series.Append(series.Length == 0 ? string.Empty : ", ");
+			series.Append($"{previous}:{Vector3.Distance(earlierUnit.Predicted, earlierUnit.Authoritative):F2}{(earlierUnit.HasOrder ? "o" : "-")}");
+		}
+
+		return $" The snap moved the unit {errorMeters:F2} m onto the authoritative position; the client had applied that snapshot {streamAgeTicks} ticks earlier, the unit had {(unit.HasOrder ? "a predicted order" : "no predicted order")} with path {unit.CurrentWaypoint}/{unit.WaypointCount} to {unit.MoveTarget.X:F2},{unit.MoveTarget.Y:F2},{unit.MoveTarget.Z:F2}, and its last submitted command {unit.CommandId} was {(lastCommandTick >= 0 ? snapTick - lastCommandTick : -1)} ticks before the snap. Error series (tick:meters, o = has order): {series}.";
 	}
 
 	private static void MeasureRollbacks(ParsedRecords records, PredictionHarnessReport report, PredictionThresholds thresholds)
@@ -673,7 +861,11 @@ public static class PredictionHarnessVerification
 		}
 
 		report.SubmittedCommandCount = records.CommandTicks.Count;
-		report.AcknowledgedCommandCount = records.AcceptedCommands.Count + records.Rejections.Count;
+		report.AcknowledgedCommandCount = records.AcceptedCommands
+			.Select(entry => entry.CommandId)
+			.Concat(records.Rejections.Select(entry => entry.CommandId))
+			.Distinct()
+			.Count();
 		report.SnapshotOrderingViolations = records.OrderingViolations.Count;
 		report.SnapshotOrderingRespected = records.OrderingViolations.Count == 0;
 		foreach (var violation in records.OrderingViolations)

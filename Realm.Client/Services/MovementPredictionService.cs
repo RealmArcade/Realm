@@ -55,6 +55,32 @@ public class MovementPredictionService
 	/// within one one-way delay plus a tick, so three seconds only expires orders that were dropped, not merely delayed.
 	/// </summary>
 	public const int UnacknowledgedCommandTimeoutTicks = 90;
+	/// <summary>
+	/// How many ticks an unacknowledged order may predict before drift alone can expire it. One one-way delay plus the
+	/// acknowledgement is about five ticks, so this only fires for an order the authority never received at all.
+	/// </summary>
+	public const int UnacknowledgedCommandMinimumTicks = 20;
+	/// <summary>
+	/// How far an unacknowledged order may lead the latest authoritative sample. It is half the snap threshold so the
+	/// order is dropped a full snapshot interval before the lead would force a snap, which is what keeps a lost command
+	/// from being reported as an unexplained snap.
+	/// </summary>
+	public const float UnacknowledgedCommandDriftLimitMeters = 2.0f;
+	/// <summary>
+	/// The furthest a predicted order may ever lead the latest authoritative sample. It sits above the authority's 2.2 m
+	/// group formation scatter, so a normal group order is not clipped, and below the snap threshold, so dropping the
+	/// order always leaves the difference small enough for a bounded correction instead of a snap. This clamp does not
+	/// depend on command bookkeeping, so an order whose acknowledgement or expiry record was lost still cannot walk the
+	/// unit away from the authority.
+	/// </summary>
+	public const float PredictionLeadLimitMeters = 3.0f;
+	/// <summary>
+	/// The furthest a predicted unit may move in a single tick. Prediction runs the shared movement step, which performs
+	/// off-mesh recovery and waypoint repairs that legitimately teleport the authority's unit between two of its ticks;
+	/// on the client the same repair would move a unit several metres in one tick and the next authoritative sample would
+	/// have to snap it back. Any displacement above this bound is reverted and the predicted order is dropped.
+	/// </summary>
+	public const float MaximumPredictionStepMeters = 1.0f;
 
 	private const int PendingCommandCapacity = 64;
 	private const int MaximumCommandUnitCount = 32;
@@ -67,6 +93,8 @@ public class MovementPredictionService
 	private readonly int[] _commandIds = new int[EcsWorld.MAX_ENTITIES];
 	private readonly bool[] _tracked = new bool[EcsWorld.MAX_ENTITIES];
 	private readonly bool[] _hasAuthoritativeSample = new bool[EcsWorld.MAX_ENTITIES];
+	private readonly Vector3[] _stepStartPositions = new Vector3[EcsWorld.MAX_ENTITIES];
+	private readonly bool[] _hasStepStartPosition = new bool[EcsWorld.MAX_ENTITIES];
 	private readonly int[] _trackedEntityIds = new int[MaximumTrackedUnitCount];
 	private readonly EntityCallback<Position, UnitOwnerPlayer> _localUnitQueryDelegate;
 	private int _localUnitPlayerIndex = -1;
@@ -252,6 +280,7 @@ public class MovementPredictionService
 			else
 			{
 				AdoptAuthoritativeOrders(world);
+				CaptureStepStartPositions(world);
 
 				// The shared movement step is the same code the authority runs, so its allocations are reported apart
 				// from prediction's own: only the latter is this service's to keep allocation free.
@@ -259,7 +288,9 @@ public class MovementPredictionService
 				GameContext.SimulationService.StepPredictedMovement(delta);
 				sharedMovementBytes = GC.GetAllocatedBytesForCurrentThread() - movementBefore;
 
+				RevertImplausibleSteps(world);
 				ApplyBoundedCorrections(world, delta);
+				ClampPredictionLead(world);
 			}
 
 			ExpireUnacknowledgedCommands(world);
@@ -280,28 +311,61 @@ public class MovementPredictionService
 		}
 	}
 
+	/// <summary>
+	/// Rolls back an order the authority never acknowledged. An order is expired once it has waited the full timeout, or
+	/// as soon as it has waited out the acknowledgement round trip and the unit has drifted further from the
+	/// authoritative sample than a correction may travel in one snapshot interval. The second condition matters under
+	/// packet loss: without it a lost order keeps predicting for three seconds, which carries the unit far enough that
+	/// the eventual correction exceeds the snap threshold and is reported as an unexplained snap.
+	/// </summary>
 	private void ExpireUnacknowledgedCommands(EcsWorld world)
 	{
 		for (int slot = 0; slot < PendingCommandCapacity; slot++)
 		{
 			int commandId = _pendingCommandIds[slot];
 			if (commandId <= 0) continue;
-			if (_lastPredictedTick - _pendingCommandRegisteredTicks[slot] < UnacknowledgedCommandTimeoutTicks) continue;
+			int waitedTicks = _lastPredictedTick - _pendingCommandRegisteredTicks[slot];
+			if (waitedTicks < UnacknowledgedCommandMinimumTicks) continue;
+			bool timedOut = waitedTicks >= UnacknowledgedCommandTimeoutTicks;
 
 			int unitCount = _pendingCommandUnitCounts[slot];
+			int stillPending = 0;
 			for (int index = 0; index < unitCount; index++)
 			{
 				int entityId = _pendingCommandUnits[slot][index];
+				if (_commandIds[entityId] != commandId) continue;
+
 				var entity = new Entity(entityId);
 				if (!world.IsAlive(entity)) continue;
 				if (world.Has<UnitOwnerPlayer>(entity) && world.Get<UnitOwnerPlayer>(entity).PlayerIndex != _localUnitPlayerIndex) continue;
 
+				float driftMeters = 0f;
+				if (!timedOut)
+				{
+					if (!_hasAuthoritativeSample[entityId] || !world.Has<Position>(entity))
+					{
+						stillPending++;
+						continue;
+					}
+
+					driftMeters = Vector3.Distance(world.Get<Position>(entity).Value, _authoritativePositions[entityId]);
+					if (driftMeters <= UnacknowledgedCommandDriftLimitMeters)
+					{
+						stillPending++;
+						continue;
+					}
+				}
+
 				ClearPredictedOrder(world, entity);
 				_commandIds[entityId] = 0;
 				ExpiredOrderCount++;
-				PredictionDiagnostics.RecordRollback(commandId, entityId, "the authority never acknowledged the order", _lastSnapshotSequence);
+				string reason = timedOut
+					? "the authority never acknowledged the order"
+					: $"the authority never acknowledged the order and the unit had drifted {driftMeters:F1} m";
+				PredictionDiagnostics.RecordRollback(commandId, entityId, reason, _lastSnapshotSequence);
 			}
 
+			if (stillPending > 0) continue;
 			_pendingCommandIds[slot] = 0;
 			_pendingCommandUnitCounts[slot] = 0;
 		}
@@ -344,6 +408,82 @@ public class MovementPredictionService
 			ClearPredictedOrder(world, entity);
 			_commandIds[entityId] = 0;
 			PredictionDiagnostics.RecordRollback(0, entityId, "the authority published a different order", _lastSnapshotSequence);
+		}
+	}
+
+	private void CaptureStepStartPositions(EcsWorld world)
+	{
+		for (int index = 0; index < _trackedCount; index++)
+		{
+			int entityId = _trackedEntityIds[index];
+			var entity = new Entity(entityId);
+			if (!world.IsAlive(entity) || !world.Has<Position>(entity))
+			{
+				_hasStepStartPosition[entityId] = false;
+				continue;
+			}
+
+			_stepStartPositions[entityId] = world.Get<Position>(entity).Value;
+			_hasStepStartPosition[entityId] = true;
+		}
+	}
+
+	/// <summary>
+	/// Reverts a prediction step that moved the unit further than any unit can travel in one tick and drops the order
+	/// responsible. The shared movement step repairs an off-mesh waypoint by moving the unit onto the navmesh, which the
+	/// client must not adopt inside prediction: the authority's next sample would snap it straight back.
+	/// </summary>
+	private void RevertImplausibleSteps(EcsWorld world)
+	{
+		for (int index = 0; index < _trackedCount; index++)
+		{
+			int entityId = _trackedEntityIds[index];
+			if (!_hasStepStartPosition[entityId]) continue;
+			_hasStepStartPosition[entityId] = false;
+
+			var entity = new Entity(entityId);
+			if (!world.IsAlive(entity) || !world.Has<Position>(entity)) continue;
+
+			Vector3 start = _stepStartPositions[entityId];
+			Vector3 moved = world.Get<Position>(entity).Value;
+			float stepMeters = Vector3.Distance(moved, start);
+			if (stepMeters <= MaximumPredictionStepMeters) continue;
+
+			world.Set(entity, new Position(start));
+			PredictionDiagnostics.RecordCorrection(entityId, moved, start, _authoritativePositions[entityId], _lastSnapshotSequence);
+
+			bool droppedOrder = world.Has<PredictedMoveTo>(entity);
+			int commandId = _commandIds[entityId];
+			ClearPredictedOrder(world, entity);
+			_commandIds[entityId] = 0;
+			if (!droppedOrder) continue;
+			ExpiredOrderCount++;
+			PredictionDiagnostics.RecordRollback(commandId, entityId, $"a predicted step of {stepMeters:F2} m in one tick was reverted", _lastSnapshotSequence);
+		}
+	}
+
+	/// <summary>
+	/// Drops any predicted order that has carried the unit further from the authority than the lead limit. Prediction is
+	/// allowed to lead by the formation scatter and the one-way delay, never by enough that the next authoritative sample
+	/// has to snap it back.
+	/// </summary>
+	private void ClampPredictionLead(EcsWorld world)
+	{
+		for (int index = 0; index < _trackedCount; index++)
+		{
+			int entityId = _trackedEntityIds[index];
+			var entity = new Entity(entityId);
+			if (!world.IsAlive(entity) || !world.Has<Position>(entity) || !world.Has<PredictedMoveTo>(entity)) continue;
+			if (!_hasAuthoritativeSample[entityId]) continue;
+
+			float leadMeters = Vector3.Distance(world.Get<Position>(entity).Value, _authoritativePositions[entityId]);
+			if (leadMeters <= PredictionLeadLimitMeters) continue;
+
+			int commandId = _commandIds[entityId];
+			ClearPredictedOrder(world, entity);
+			_commandIds[entityId] = 0;
+			ExpiredOrderCount++;
+			PredictionDiagnostics.RecordRollback(commandId, entityId, $"prediction led the authority by {leadMeters:F1} m", _lastSnapshotSequence);
 		}
 	}
 
@@ -402,6 +542,7 @@ public class MovementPredictionService
 			if (!world.IsAlive(entity))
 			{
 				_tracked[entityId] = false;
+				ForgetEntity(entityId);
 				continue;
 			}
 
@@ -411,6 +552,7 @@ public class MovementPredictionService
 			if (!isLocalOwned)
 			{
 				_tracked[entityId] = false;
+				ForgetEntity(entityId);
 				PredictionDiagnostics.RecordPredictionStopped(entityId, "ownership changed or unit is not locally controlled");
 				continue;
 			}
@@ -419,6 +561,20 @@ public class MovementPredictionService
 		}
 
 		_trackedCount = kept;
+	}
+
+	/// <summary>
+	/// Drops every prediction record for an entity id. Entity ids are recycled, so a unit that dies and a new unit that
+	/// reuses its id must not inherit the dead unit's authoritative sample: the new spawn would otherwise be reconciled
+	/// against a position it never had and snapped several metres on its first snapshot.
+	/// </summary>
+	private void ForgetEntity(int entityId)
+	{
+		_hasAuthoritativeSample[entityId] = false;
+		_authoritativeSequences[entityId] = -1;
+		_authoritativePositions[entityId] = Vector3.Zero;
+		_previousAuthoritativePositions[entityId] = Vector3.Zero;
+		_commandIds[entityId] = 0;
 	}
 
 	private void MarkTracked(int entityId)
@@ -487,23 +643,28 @@ public class MovementPredictionService
 			? Vector3.Distance(authoritativePosition, previousAuthoritative) / sampleGapSeconds
 			: float.PositiveInfinity;
 
-		// Two causes make a snap the honest response: the authority moved faster than any unit can, or the client went
-		// without an authoritative sample long enough that unbounded travel is explained by the outage itself.
+		// Three causes make a snap the honest response: the authority moved faster than any unit can, the client went
+		// without an authoritative sample long enough that unbounded travel is explained by the outage itself, or this is
+		// the first sample the unit ever had, which is a spawn or the start of prediction rather than a prediction error.
+		float preSnapErrorMeters = MathF.Sqrt(errorSquared);
+		bool isFirstSample = !hasPrevious;
 		bool isTeleport = hasPrevious && impliedSpeed > AuthoritativeJumpSpeedMetersPerSecond;
 		bool recoveredFromGap = hasPrevious && sampleGapTicks >= SnapshotGapToleranceTicks;
 
-		if (isTeleport || recoveredFromGap)
+		if (isFirstSample || isTeleport || recoveredFromGap)
 		{
 			world.Set(entity, new Position(authoritativePosition));
-			string reason = isTeleport
-				? $"authoritative teleport at {impliedSpeed:F1} m/s"
-				: $"recovered from a {sampleGapTicks} tick snapshot gap";
+			string reason = isFirstSample
+				? $"first authoritative sample for the unit, {preSnapErrorMeters:F2} m from where the client spawned it"
+				: (isTeleport
+					? $"authoritative teleport at {impliedSpeed:F1} m/s, {preSnapErrorMeters:F2} m off"
+					: $"recovered from a {sampleGapTicks} tick snapshot gap, {preSnapErrorMeters:F2} m off");
 			PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, true, reason);
 			return;
 		}
 
 		world.Set(entity, new Position(authoritativePosition));
-		PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, false, "prediction error above snap threshold");
+		PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, false, $"prediction error reached {preSnapErrorMeters:F2} m with a fresh sample and no stated cause");
 	}
 
 	public void EndSnapshotReconcile()
