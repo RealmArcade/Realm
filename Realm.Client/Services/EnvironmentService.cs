@@ -708,23 +708,18 @@ public class EnvironmentService
 	public static readonly float[] GlowIntensities = { 0.15f, 0.30f, 0.25f, 0.20f };
 	public static readonly float[] GlowBlooms = { 0.14f, 0.14f, 0.08f, 0.10f };
 
-	public bool SyncWorldStateDomain(float gameElapsedTime, int timeOfDayIndex, float timeOfDayTimer, bool dayNightCycleEnabled)
-	{
-				var ecsWorld = GameContext.World;
-		if (ecsWorld != null && ECSContext.WorldEntity != Entity.Null && ecsWorld.IsAlive(ECSContext.WorldEntity))
-		{
-			ecsWorld.SetOrAdd(ECSContext.WorldEntity, new WorldState(gameElapsedTime, timeOfDayIndex, timeOfDayTimer, dayNightCycleEnabled));
-			return true;
-		}
-		return false;
-	}
-
-	public (bool UpdateVisuals, float Progress) UpdateClientWorldStateDomain(float fDelta, bool isMapEditorMode)
+	public (bool UpdateVisuals, float Progress) UpdateClientWorldStateDomain(float fDelta, bool isMapEditorMode, bool advanceSimulationClock)
 	{
 				if (GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
 			return (false, 0f);
 
 		var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
+		if (!advanceSimulationClock)
+		{
+			float replicatedProgress = state.TimeOfDayTimer / TimeOfDayCycleDuration;
+			return (state.DayNightCycleEnabled && !isMapEditorMode, replicatedProgress);
+		}
+
 		float elapsed = state.GameElapsedTime + fDelta;
 		float timer = state.TimeOfDayTimer;
 		int index = state.TimeOfDayIndex;

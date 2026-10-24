@@ -16,6 +16,7 @@ using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
+using Realm.Ecs.Replication;
 using PathingFlags = Realm.MapAPI.PathingFlags;
 using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
@@ -548,85 +549,185 @@ public partial class GameHost
 	int IGameAPI.CreateStaticText(string text, Vector3 position, Vector3 color, int fontSize)
 	{
 		int handle = _nextStaticTextHandle++;
-		int gen = _staticTextGeneration;
-		Callable.From(() =>
+		var state = new StaticTextState
 		{
-			if (gen != _staticTextGeneration) return;
-			var label = new Label3D();
-			label.Text = text;
-			label.Modulate = new Color(color.X, color.Y, color.Z);
-			label.OutlineModulate = Colors.Black;
-			label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
-			label.Position = new Godot.Vector3(position.X, position.Y + 1.5f, position.Z);
-			label.FontSize = fontSize;
-			AddChild(label);
-			_staticTextLabels[handle] = label;
-		}).CallDeferred();
+			Text = text,
+			Position = position,
+			Color = color,
+			FontSize = fontSize,
+			Visible = true
+		};
+		_staticTextStates[handle] = state;
+		_dirtyStaticTextHandles.Add(handle);
+		ApplyStaticTextDelta(ToStaticTextDelta(handle, state, false));
 		return handle;
 	}
 
 	void IGameAPI.SetStaticText(int handle, string text)
 	{
-		SetStaticTextViewLogic(handle, text);
-	}
-
-	private void SetStaticTextViewLogic(int handle, string text)
-	{
-		Callable.From(() =>
-		{
-			if (_staticTextLabels.TryGetValue(handle, out var label))
-			{
-				label.Text = text;
-			}
-		}).CallDeferred();
+		if (!_staticTextStates.TryGetValue(handle, out var state)) return;
+		state.Text = text;
+		_staticTextStates[handle] = state;
+		_dirtyStaticTextHandles.Add(handle);
+		ApplyStaticTextDelta(ToStaticTextDelta(handle, state, false));
 	}
 
 	void IGameAPI.SetStaticTextColor(int handle, Vector3 color)
 	{
-		SetStaticTextColorViewLogic(handle, color);
-	}
-
-	private void SetStaticTextColorViewLogic(int handle, Vector3 color)
-	{
-		Callable.From(() =>
-		{
-			if (_staticTextLabels.TryGetValue(handle, out var label))
-			{
-				label.Modulate = new Color(color.X, color.Y, color.Z);
-			}
-		}).CallDeferred();
+		if (!_staticTextStates.TryGetValue(handle, out var state)) return;
+		state.Color = color;
+		_staticTextStates[handle] = state;
+		_dirtyStaticTextHandles.Add(handle);
+		ApplyStaticTextDelta(ToStaticTextDelta(handle, state, false));
 	}
 
 	void IGameAPI.SetStaticTextVisible(int handle, bool visible)
 	{
-		SetStaticTextVisibleViewLogic(handle, visible);
-	}
-
-	private void SetStaticTextVisibleViewLogic(int handle, bool visible)
-	{
-		Callable.From(() =>
-		{
-			if (_staticTextLabels.TryGetValue(handle, out var label))
-			{
-				label.Visible = visible;
-			}
-		}).CallDeferred();
+		if (!_staticTextStates.TryGetValue(handle, out var state)) return;
+		state.Visible = visible;
+		_staticTextStates[handle] = state;
+		_dirtyStaticTextHandles.Add(handle);
+		ApplyStaticTextDelta(ToStaticTextDelta(handle, state, false));
 	}
 
 	void IGameAPI.DestroyStaticText(int handle)
 	{
-		DestroyStaticTextViewLogic(handle);
+		_staticTextStates.Remove(handle);
+		_dirtyStaticTextHandles.Remove(handle);
+		_destroyedStaticTextHandles.Add(handle);
+		ApplyStaticTextDelta(ToStaticTextDelta(handle, default, true));
 	}
 
-	private void DestroyStaticTextViewLogic(int handle)
+	public void ApplyStaticTextDelta(StaticTextDelta delta)
 	{
+		if (delta.Destroyed != 0)
+		{
+			_dirtyStaticTextHandles.Remove(delta.Handle);
+			int destroyGeneration = _staticTextGeneration;
+			Callable.From(() =>
+			{
+				if (destroyGeneration != _staticTextGeneration) return;
+				if (_staticTextLabels.Remove(delta.Handle, out var removedLabel))
+				{
+					removedLabel.QueueFree();
+				}
+			}).CallDeferred();
+			return;
+		}
+
+		int generation = _staticTextGeneration;
 		Callable.From(() =>
 		{
-			if (_staticTextLabels.Remove(handle, out var label))
+			if (generation != _staticTextGeneration) return;
+			if (!_staticTextLabels.TryGetValue(delta.Handle, out var label) || !GodotObject.IsInstanceValid(label))
 			{
-				label.QueueFree();
+				label = new Label3D
+				{
+					Name = $"StaticText_{delta.Handle}",
+					Billboard = BaseMaterial3D.BillboardModeEnum.Enabled
+				};
+				label.OutlineModulate = Colors.Black;
+				AddChild(label);
+				_staticTextLabels[delta.Handle] = label;
 			}
+
+			label.Text = delta.Text;
+			label.Modulate = new Color(delta.ColorX, delta.ColorY, delta.ColorZ);
+			label.FontSize = (int)delta.FontSize;
+			label.Position = new Godot.Vector3(delta.PositionX, delta.PositionY + 1.5f, delta.PositionZ);
+			label.Visible = delta.Visible != 0;
 		}).CallDeferred();
+	}
+
+	public List<StaticTextDelta> CollectStaticTextDeltas(bool includeAll, bool clearDirty = true)
+	{
+		var deltas = new List<StaticTextDelta>();
+		if (includeAll)
+		{
+			foreach (var kvp in _staticTextStates)
+			{
+				deltas.Add(ToStaticTextDelta(kvp.Key, kvp.Value, false));
+			}
+			if (clearDirty)
+			{
+				_dirtyStaticTextHandles.Clear();
+				_destroyedStaticTextHandles.Clear();
+			}
+			return deltas;
+		}
+
+		foreach (int handle in _destroyedStaticTextHandles)
+		{
+			deltas.Add(ToStaticTextDelta(handle, default, true));
+		}
+		foreach (int handle in _dirtyStaticTextHandles)
+		{
+			if (_staticTextStates.TryGetValue(handle, out var state))
+			{
+				deltas.Add(ToStaticTextDelta(handle, state, false));
+			}
+		}
+		if (clearDirty)
+		{
+			_dirtyStaticTextHandles.Clear();
+			_destroyedStaticTextHandles.Clear();
+		}
+		return deltas;
+	}
+
+	private static StaticTextDelta ToStaticTextDelta(int handle, StaticTextState state, bool destroyed)
+	{
+		return new StaticTextDelta
+		{
+			Handle = handle,
+			Text = state.Text ?? string.Empty,
+			PositionX = state.Position.X,
+			PositionY = state.Position.Y,
+			PositionZ = state.Position.Z,
+			ColorX = state.Color.X,
+			ColorY = state.Color.Y,
+			ColorZ = state.Color.Z,
+			FontSize = state.FontSize,
+			Visible = state.Visible ? (byte)1 : (byte)0,
+			Destroyed = destroyed ? (byte)1 : (byte)0
+		};
+	}
+
+	public List<AbilityStateDelta> CollectAbilityStateDeltas(bool includeAll, bool clearDirty = true)
+	{
+		var deltas = new List<AbilityStateDelta>();
+		var registry = GameContext.RegistryService;
+		if (registry == null) return deltas;
+
+		if (includeAll)
+		{
+			foreach (var kvp in registry.UnitAbilityStates)
+			{
+				deltas.Add(ToAbilityStateDelta(kvp.Key.UnitUniqueId, kvp.Key.AbilityId, kvp.Value.Disabled, kvp.Value.Hidden));
+			}
+			if (clearDirty) registry.ClearAbilityStateDirty();
+			return deltas;
+		}
+
+		foreach (var key in registry.DirtyAbilityStates)
+		{
+			if (registry.UnitAbilityStates.TryGetValue(key, out var state))
+			{
+				deltas.Add(ToAbilityStateDelta(key.UnitUniqueId, key.AbilityId, state.Disabled, state.Hidden));
+			}
+		}
+		if (clearDirty) registry.ClearAbilityStateDirty();
+		return deltas;
+	}
+
+	private static AbilityStateDelta ToAbilityStateDelta(int unitUniqueId, string abilityId, bool disabled, bool hidden)
+	{
+		return new AbilityStateDelta
+		{
+			ServerEntityId = unitUniqueId,
+			AbilityId = abilityId,
+			Flags = (byte)((disabled ? 1 : 0) | (hidden ? 2 : 0))
+		};
 	}
 
 	void IGameAPI.SpawnVisualEffect(string effectTypeId, Vector3 position, float scale)
@@ -1065,12 +1166,13 @@ public partial class GameHost
 	{
 		get
 		{
-			if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+			if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity))
 			{
+				ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
 				int count = 0;
-				foreach (var p in playersState.Players)
+				for (int playerIndex = 0; playerIndex < ScriptPlayersState.SlotCount; playerIndex++)
 				{
-					if (p.Active) count++;
+					if (playersState.Get(playerIndex).Active) count++;
 				}
 
 				return Math.Max(1, count);
@@ -1266,12 +1368,10 @@ public partial class GameHost
 	public bool IsPlayerComputer(int playerIndex)
 	{
 		if (playerIndex == 0) return true;
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity))
 		{
-			if (playerIndex >= 0 && playerIndex < playersState.Players.Length)
-			{
-				return playersState.Players[playerIndex].IsComputer;
-			}
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).IsComputer;
 		}
 		if (LobbyManager.Instance != null)
 		{
@@ -1602,7 +1702,7 @@ public partial class GameHost
 		ApplyRegionPathingInternal(minX, minZ, maxX, maxZ, (int)pathingFlags, blocked);
 		if (IsMultiplayerServerActive())
 		{
-			Rpc(nameof(ClientUpdateRegionPathing), minX, minZ, maxX, maxZ, (int)pathingFlags, blocked);
+			Rpc(nameof(ClientUpdateRegionPathing), minX, minZ, maxX, maxZ, (int)pathingFlags, blocked, NextRegionPathingSequence());
 		}
 	}
 
@@ -1663,12 +1763,13 @@ public partial class GameHost
 	ReadOnlySpan<PlayerId> IGameAPI.GetActivePlayers(int exclusiveUpperBound)
 	{
 		int count = 0;
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true)
+		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity))
 		{
-			int maxIndex = exclusiveUpperBound < 0 ? playersState.Players.Length : Math.Min(exclusiveUpperBound, playersState.Players.Length);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			int maxIndex = exclusiveUpperBound < 0 ? ScriptPlayersState.SlotCount : Math.Min(exclusiveUpperBound, ScriptPlayersState.SlotCount);
 			for (int i = 0; i < maxIndex && count < _cachedPlayersBuffer.Length; i++)
 			{
-				if (playersState.Players[i].Active)
+				if (playersState.Get(i).Active)
 				{
 					_cachedPlayersBuffer[count++] = (PlayerId)i;
 				}
@@ -1709,14 +1810,7 @@ public partial class GameHost
 
 		AddChild(lootNode);
 		AllLootItems.Add(lootNode);
-
-		var runtime = new LootItem_WasmRuntime(entity.Id, lootNode);
-		IdToLootItem[entity.Id] = runtime;
-
-		if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
-		{
-			Rpc(nameof(ClientSpawnLootItemRpc), entity.Id, itemTypeId, finalPos, Math.Max(1, charges));
-		}
+		IdToLootItem[entity.Id] = new LootItem_WasmRuntime(entity);
 
 		return (LootItemId)entity.Id;
 	}
@@ -1773,11 +1867,6 @@ public partial class GameHost
 	{
 		if (!IdToLootItem.ContainsKey(lootItemId)) return false;
 		RemoveLootItemLocal(lootItemId);
-
-		if (Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer())
-		{
-			Rpc(nameof(ClientDespawnLootItemRpc), lootItemId);
-		}
 		return true;
 	}
 
@@ -1801,6 +1890,50 @@ public partial class GameHost
 		}
 	}
 
+	public void SyncReplicatedLootNode(int lootItemId, Entity localEntity)
+	{
+		if (GameContext.World == null || !GameContext.World.IsAlive(localEntity)) return;
+		if (!GameContext.World.Has<GroundLoot>(localEntity)) return;
+
+		var loot = GameContext.World.Get<GroundLoot>(localEntity);
+		float x = 0f;
+		float y = 0f;
+		float z = 0f;
+		if (GameContext.World.Has<Position>(localEntity))
+		{
+			var position = GameContext.World.Get<Position>(localEntity).Value;
+			x = position.X;
+			y = position.Y;
+			z = position.Z;
+		}
+
+		for (int i = 0; i < AllLootItems.Count; i++)
+		{
+			var existing = AllLootItems[i];
+			if (!GodotObject.IsInstanceValid(existing) || existing.UniqueId != lootItemId) continue;
+
+			existing.Entity = localEntity;
+			existing.Charges = loot.Charges;
+			existing.Lifetime = loot.Lifetime;
+			existing.RemainingLifetime = loot.RemainingLifetime;
+			existing.PickupRadius = loot.PickupRadius;
+			existing.AutoPickup = loot.AutoPickup;
+			existing.OwnerPlayerIndex = loot.OwnerPlayerIndex;
+			existing.Position = new Godot.Vector3(x, y, z);
+			IdToLootItem[lootItemId] = new LootItem_WasmRuntime(localEntity);
+			return;
+		}
+
+		var lootNode = new LootItem3D();
+		lootNode.Entity = localEntity;
+		lootNode.Position = new Godot.Vector3(x, y, z);
+		lootNode.Initialize(lootItemId, loot.ItemTypeId, loot.Charges, loot.Lifetime, loot.PickupRadius, loot.AutoPickup, loot.OwnerPlayerIndex);
+
+		AddChild(lootNode);
+		AllLootItems.Add(lootNode);
+		IdToLootItem[lootItemId] = new LootItem_WasmRuntime(localEntity);
+	}
+
 	bool IGameAPI.CollectLootItem(int lootItemId, UnitId unit) => CollectLootItem(lootItemId, unit);
 
 	public bool CollectLootItem(int lootItemId, UnitId unit)
@@ -1818,7 +1951,7 @@ public partial class GameHost
 		if (GameContext.World.Has<Inventory>(unitEntity))
 		{
 			var inv = GameContext.World.Get<Inventory>(unitEntity);
-			if (inv.Items != null && inv.Items.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+			if (inv.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
 				return false;
 		}
 
@@ -1854,7 +1987,7 @@ public partial class GameHost
 			if (GameContext.World.Has<Inventory>(u.Entity))
 			{
 				var inv = GameContext.World.Get<Inventory>(u.Entity);
-				if (inv.Items != null && inv.Items.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
+				if (inv.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
 					continue;
 			}
 

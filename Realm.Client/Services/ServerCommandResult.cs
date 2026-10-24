@@ -9,6 +9,7 @@ public readonly struct ServerCommandResult
 	public readonly string BuildUnitType;
 	public readonly Vector3 BuildPosition;
 	public readonly int BuildPeerOwner;
+	public readonly int BuildWorkerServerEntityId;
 
 	public readonly bool NeedsSpellEffect;
 	public readonly string SpellId;
@@ -18,7 +19,7 @@ public readonly struct ServerCommandResult
 	public readonly List<int> HoldVelocityEntityIds;
 
 	public ServerCommandResult(
-		bool needsBuildUnit, string buildUnitType, Vector3 buildPosition, int buildPeerOwner,
+		bool needsBuildUnit, string buildUnitType, Vector3 buildPosition, int buildPeerOwner, int buildWorkerServerEntityId,
 		bool needsSpellEffect, string spellId, Vector3 spellPosition,
 		List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds)
 	{
@@ -26,6 +27,7 @@ public readonly struct ServerCommandResult
 		BuildUnitType = buildUnitType;
 		BuildPosition = buildPosition;
 		BuildPeerOwner = buildPeerOwner;
+		BuildWorkerServerEntityId = buildWorkerServerEntityId;
 		NeedsSpellEffect = needsSpellEffect;
 		SpellId = spellId;
 		SpellPosition = spellPosition;

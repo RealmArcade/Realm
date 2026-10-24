@@ -19,13 +19,10 @@ public class InputService
 	public int GetPopCostForIndex(Entity buildingEntity, int index)
 	{
 		var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
-		if (index >= 0 && index < prod.UnitIds.Count)
+		string? peekCancelledId = prod.Get(index);
+		if (peekCancelledId != null && GameHost.UnitRegistry.TryGetValue(peekCancelledId, out var metaPeek))
 		{
-			string peekCancelledId = prod.UnitIds[index];
-			if (GameHost.UnitRegistry.TryGetValue(peekCancelledId, out var metaPeek))
-			{
-				return metaPeek.PopCost;
-			}
+			return metaPeek.PopCost;
 		}
 
 		return 0;
@@ -801,19 +798,16 @@ public class InputService
 	{
 		if (GameContext.World.Has<Cooldowns>(entity))
 		{
-			var cds = GameContext.World.Get<Cooldowns>(entity).Value;
-			if (cds.TryGetValue(spellId, out float currentCd) && currentCd > 0f) return false;
-			cds[spellId] = cooldownMax;
+			ref var cooldowns = ref GameContext.World.Get<Cooldowns>(entity);
+			if (cooldowns.TryGetValue(spellId, out float currentCooldown) && currentCooldown > 0f) return false;
+			cooldowns.Set(spellId, cooldownMax, cooldownMax);
 		}
 
 		if (GameContext.World.Has<SpellCooldowns>(entity))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(entity).Value;
-			if (scd != null)
-			{
-				if (scd.TryGetValue(spellId, out float currentCd) && currentCd > 0f) return false;
-				scd[spellId] = cooldownMax;
-			}
+			ref var spellCooldowns = ref GameContext.World.Get<SpellCooldowns>(entity);
+			if (spellCooldowns.TryGetValue(spellId, out float currentCooldown) && currentCooldown > 0f) return false;
+			spellCooldowns.Set(spellId, cooldownMax, cooldownMax);
 		}
 
 		return true;
@@ -1099,7 +1093,7 @@ public class InputService
 			int queueCount = 0;
 			if (GameContext.World.Has<ProductionQueue>(bldEntity))
 			{
-				queueCount = GameContext.World.Get<ProductionQueue>(bldEntity).UnitIds.Count;
+				queueCount = GameContext.World.Get<ProductionQueue>(bldEntity).Count;
 			}
 
 			if (queueCount < 5)
@@ -1123,22 +1117,20 @@ public class InputService
 			{
 				return false;
 			}
-
-			pop.Current += popCost;
 		}
 
 		ref var prod = ref GameContext.World.Has<ProductionQueue>(buildingEntity)
 			? ref GameContext.World.Get<ProductionQueue>(buildingEntity)
 			: ref CreateProductionQueue(buildingEntity);
 
-		if (prod.UnitIds.Count >= 5) return false;
+		if (prod.Count >= 5) return false;
 
-		if (prod.UnitIds.Count == 0)
+		if (prod.Count == 0)
 		{
 			prod.BuildTime = productionTime;
 		}
 
-		prod.UnitIds.Add(unitId);
+		if (!prod.Enqueue(unitId)) return false;
 		GameContext.World.Set(buildingEntity, prod);
 
 		return true;
@@ -1150,20 +1142,7 @@ public class InputService
 		return ref GameContext.World.Get<ProductionQueue>(buildingEntity);
 	}
 
-	private void RefundPopulationCost(Entity buildingEntity, int popCost)
-	{
-		if (popCost <= 0) return;
-		if (!GameContext.World.Has<Owner>(buildingEntity)) return;
-
-		var ownerPlayerEntity = GameContext.World.Get<Owner>(buildingEntity).PlayerEntity.Value;
-		if (GameContext.World.IsAlive(ownerPlayerEntity) && GameContext.World.Has<PlayerPopulation>(ownerPlayerEntity))
-		{
-			ref var pop = ref GameContext.World.Get<PlayerPopulation>(ownerPlayerEntity);
-			pop.Current = Math.Max(0, pop.Current - popCost);
-		}
-	}
-
-	public bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId, int popCost = 0)
+	public bool CancelQueuedUnitAt(Entity buildingEntity, int index, out string? cancelledUnitId, out string? nextUnitId)
 	{
 		cancelledUnitId = null;
 		nextUnitId = null;
@@ -1172,22 +1151,18 @@ public class InputService
 			return false;
 
 		var prod = GameContext.World.Get<ProductionQueue>(buildingEntity);
-		if (index < 0 || index >= prod.UnitIds.Count)
+		if (index < 0 || index >= prod.Count)
 			return false;
 
-		cancelledUnitId = prod.UnitIds[index];
-		prod.UnitIds.RemoveAt(index);
+		cancelledUnitId = prod.RemoveAt(index);
 
 		if (index == 0)
 		{
 			prod.CurrentProgress = 0f;
-			if (prod.UnitIds.Count > 0)
-			{
-				nextUnitId = prod.UnitIds[0];
-			}
+			nextUnitId = prod.Get(0);
 		}
 
-		RefundPopulationCost(buildingEntity, popCost);
+
 
 		GameContext.World.Set(buildingEntity, prod);
 		return true;
@@ -1356,11 +1331,8 @@ public class InputService
 		if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) return;
 		if (GameContext.World.Has<SpellCooldowns>(playerEntity))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(playerEntity).Value;
-			if (scd != null)
-			{
-				scd[spellId] = cooldown;
-			}
+			ref var spellCooldowns = ref GameContext.World.Get<SpellCooldowns>(playerEntity);
+			spellCooldowns.Set(spellId, cooldown, cooldown);
 		}
 	}
 
@@ -1369,11 +1341,8 @@ public class InputService
 		if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) return 0f;
 		if (GameContext.World.Has<SpellCooldowns>(playerEntity))
 		{
-			var scd = GameContext.World.Get<SpellCooldowns>(playerEntity).Value;
-			if (scd != null && scd.TryGetValue(spellId, out float cd))
-			{
-				return cd;
-			}
+			var spellCooldowns = GameContext.World.Get<SpellCooldowns>(playerEntity);
+			if (spellCooldowns.TryGetValue(spellId, out float remaining)) return remaining;
 		}
 
 		return 0f;

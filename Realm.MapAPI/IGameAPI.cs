@@ -1187,6 +1187,14 @@ public interface IGameAPI
 	string GetAbilityName(string abilityId);
 
 	/// <summary>
+	/// Resolves the text that a string identifier stands for, using the host's text table when the sandbox
+	/// has never registered that identifier itself.
+	/// </summary>
+	/// <param name="stringId">The content-hash identifier to resolve, as found in shared component memory.</param>
+	/// <returns>The text, or an empty string when no table entry exists for the identifier.</returns>
+	string GetStringText(int stringId);
+
+	/// <summary>
 	/// Enables or disables automated combat AI for a specific unit instance.
 	/// </summary>
 	/// <param name="unit">The unit to modify.</param>

@@ -269,6 +269,7 @@ public partial class GameHost
 			}
 
 			GroundTerrain.UpdateMeshAndPhysics(true, true);
+			if (!GameContext.SessionState.IsMapEditorMode) GroundTerrain.ReloadTerrainTextures();
 			MapEditorHUD.Instance?.RegenerateMinimap();
 			RestoreLoadedCoordinates();
 

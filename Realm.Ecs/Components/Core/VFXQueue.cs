@@ -4,21 +4,52 @@ using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
-/// Holds a queue of visual effect spawn requests associated with an entity.
+/// Holds the visual effect spawn requests waiting to be shown, in the order they were queued.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct VFXQueue
 {
-	public int Handle;
+	public int Count;
+	public VFXSlotArray Slots;
 
-	public VFXQueue(List<VFXRequest> requests)
+	public VFXQueue(IReadOnlyList<VFXRequest>? requests)
 	{
-		Handle = ColdPayloadRegistry<List<VFXRequest>>.Register(requests);
+		this = default;
+		if (requests == null) return;
+
+		int copyCount = requests.Count < VFXSlotArray.Capacity ? requests.Count : VFXSlotArray.Capacity;
+		for (int index = 0; index < copyCount; index++)
+		{
+			Slots[index] = requests[index];
+		}
+
+		Count = copyCount;
 	}
 
-	public List<VFXRequest> Requests
+	public void Enqueue(in VFXRequest request)
 	{
-		get => ColdPayloadRegistry<List<VFXRequest>>.Get(Handle);
-		set => Handle = ColdPayloadRegistry<List<VFXRequest>>.Register(value);
+		if (Count >= VFXSlotArray.Capacity)
+		{
+			for (int move = 0; move < VFXSlotArray.Capacity - 1; move++)
+			{
+				Slots[move] = Slots[move + 1];
+			}
+
+			Count = VFXSlotArray.Capacity - 1;
+		}
+
+		Slots[Count] = request;
+		Count++;
+	}
+
+	public VFXRequest Get(int index)
+	{
+		return index < 0 || index >= Count ? default : Slots[index];
+	}
+
+	public void Clear()
+	{
+		Count = 0;
+		Slots = default;
 	}
 }

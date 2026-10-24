@@ -250,7 +250,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		if (!world.Has<ProductionQueue>(unit)) return;
 
 		ref var queue = ref world.Get<ProductionQueue>(unit);
-		if (queue.UnitIds.Count < 5)
+		if (queue.Count < 5)
 		{
 			float costRatio = Math.Clamp(100.0f / Math.Max(1, playerGold), 0f, 1f);
 			float[] fVec = CreateFeatureVector(costRatio, 0.5f, 0.0f, 1.0f, 0.6f, 0.0f, 0.0f, 0.7f);
@@ -263,13 +263,15 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		if (!world.Has<SpellCooldowns>(unit)) return;
 
 		var cd = world.Get<SpellCooldowns>(unit);
-		foreach (var kvp in cd.Value)
+		for (int index = 0; index < cd.Count; index++)
 		{
-			if (kvp.Value <= 0.0f)
-			{
-				float[] fVec = CreateFeatureVector(0.1f, 0.9f, 0.2f, healthRatio, 0.9f, 1.0f, 0.1f, 0.9f);
-				destinationList.Add(new GenericAffordance(unit, CommandIntent.Cast, _lowestHpEnemy, enemyCenter, kvp.Key, fVec));
-			}
+			if (cd.GetRemaining(index) > 0.0f) continue;
+
+			string? spellId = cd.GetKey(index);
+			if (spellId == null) continue;
+
+			float[] fVec = CreateFeatureVector(0.1f, 0.9f, 0.2f, healthRatio, 0.9f, 1.0f, 0.1f, 0.9f);
+			destinationList.Add(new GenericAffordance(unit, CommandIntent.Cast, _lowestHpEnemy, enemyCenter, spellId, fVec));
 		}
 	}
 
@@ -333,9 +335,9 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		if (!world.Has<ProductionQueue>(aff.SourceEntity)) return;
 
 		ref var q = ref world.Get<ProductionQueue>(aff.SourceEntity);
-		if (q.UnitIds.Count < 5)
+		if (q.Count < 5)
 		{
-			q.UnitIds.Add("grunt");
+			q.Enqueue("grunt");
 		}
 	}
 
@@ -344,7 +346,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		if (!string.IsNullOrEmpty(aff.PayloadId) && world.Has<SpellCooldowns>(aff.SourceEntity))
 		{
 			ref var cooldowns = ref world.Get<SpellCooldowns>(aff.SourceEntity);
-			cooldowns.Value[aff.PayloadId] = 5.0f;
+			cooldowns.Set(aff.PayloadId, 5.0f, 5.0f);
 		}
 
 		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, "Cast");

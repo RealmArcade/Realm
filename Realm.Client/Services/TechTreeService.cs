@@ -130,16 +130,15 @@ public class TechTreeService
 
 		if (!GameContext.World.Has<ModifierState>(entity))
 		{
-			GameContext.World.Add(entity, new ModifierState(new List<StatModifier>()));
+			GameContext.World.Add(entity, new ModifierState(null));
 		}
 		ref var modState = ref GameContext.World.Get<ModifierState>(entity);
-		var list = modState.Value;
 
-		for (int i = list.Count - 1; i >= 0; i--)
+		for (int i = modState.Count - 1; i >= 0; i--)
 		{
-			if (string.Equals(list[i].SourceUpgradeId, techId, System.StringComparison.OrdinalIgnoreCase))
+			if (string.Equals(modState.Get(i).SourceUpgradeId, techId, System.StringComparison.OrdinalIgnoreCase))
 			{
-				list.RemoveAt(i);
+				modState.RemoveAt(i);
 			}
 		}
 
@@ -164,7 +163,7 @@ public class TechTreeService
 				sourceUpgradeId: techId
 			);
 
-			list.Add(statMod);
+			modState.Add(statMod);
 		}
 	}
 }

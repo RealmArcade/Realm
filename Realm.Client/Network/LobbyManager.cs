@@ -411,8 +411,8 @@ public partial class LobbyManager : BaseMapTransferNode
 		PlayerList.Clear();
 		LastLobbyWarning = null;
 
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		var metadata = MapFileService.LoadMetadata(wsPath);
+		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
+		var metadata = MapFileService.LoadMetadata(mapDirectory ?? string.Empty);
 		MaxPlayers = metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
 		int requestedAiCount = Math.Max(0, metadata.MapProperties?.TestAiPlayerCount ?? 1);
 		int aiCount = Math.Min(requestedAiCount, Math.Max(0, MaxPlayers - 1));
@@ -1384,7 +1384,7 @@ public partial class LobbyManager : BaseMapTransferNode
 				Slot = nextSlot,
 				Name = $"Player_{id}",
 				Faction = "HUMAN",
-				Team = "Team 1",
+				Team = ResolveJoinTeamName(),
 				Color = GetNextColor(),
 				IsHost = false,
 				BinaryVersion = RealmVersion.GameBinaryVersion,
@@ -1396,10 +1396,25 @@ public partial class LobbyManager : BaseMapTransferNode
 
 
 			UpdateAllPeerDiagnostics();
+			BroadcastPlayerList();
 			RpcId(id, nameof(SyncSpectatorDelay), SpectatorDelay);
 			RpcId(id, nameof(SyncHostStability), HostStability);
 			RpcId(id, nameof(SyncActiveMap), ActiveMapName);
 		}
+	}
+
+	private string ResolveJoinTeamName()
+	{
+		int teamOneHumans = 0;
+		int teamTwoHumans = 0;
+		foreach (var player in PlayerList)
+		{
+			if (player.PeerId < 0) continue;
+			if (player.Team == "Team 1") teamOneHumans++;
+			else if (player.Team == "Team 2") teamTwoHumans++;
+		}
+
+		return teamTwoHumans < teamOneHumans ? "Team 2" : "Team 1";
 	}
 
 	private void OnPeerDisconnected(long peerId)

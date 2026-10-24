@@ -176,7 +176,7 @@ public class UnitSpawnService
 			
 			if (regMeta.Abilities != null && regMeta.Abilities.Length > 0)
 			{
-				GameContext.World.SetOrAdd(entity, new AbilityState(new List<string>(regMeta.Abilities)));
+				GameContext.World.SetOrAdd(entity, new AbilityState(regMeta.Abilities));
 			}
 
 			if (regMeta.StartingItems != null && regMeta.StartingItems.Length > 0)

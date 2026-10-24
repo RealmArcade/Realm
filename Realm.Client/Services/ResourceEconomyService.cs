@@ -41,6 +41,8 @@ public class ResourceEconomyService
 	{
 		_gatherQueryDelegate = GatherQueryAction;
 		_passiveIncomeQueryDelegate = UpdatePassiveIncomeQueryAction;
+		_populationUnitDelegate = PopulationUnitQueryAction;
+		_populationQueueDelegate = PopulationQueueQueryAction;
 	}
 
 	public void SetRuntimeReferences(
@@ -401,10 +403,11 @@ public class ResourceEconomyService
 
 	public float GetPlayerWood(int playerIndex)
 	{
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
-		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		var worldEntity = ECSContext.WorldEntity;
+		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
 		{
-			return playersState.Players[playerIndex].Wood;
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
+			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Wood;
 		}
 
 		return 0f;
@@ -412,14 +415,20 @@ public class ResourceEconomyService
 
 	private void UpdatePlayerResourceECS(int playerIndex, float amount, bool isWood)
 	{
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
-		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		var worldEntity = ECSContext.WorldEntity;
+		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
 		{
-			if (isWood)
-				playersState.Players[playerIndex].Wood = amount;
-			else
-				playersState.Players[playerIndex].Stone = amount;
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in playersState.Players[playerIndex]);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
+			if (playersState.IsValidSlot(playerIndex))
+			{
+				if (isWood)
+					playersState.SetWood(playerIndex, amount);
+				else
+					playersState.SetStone(playerIndex, amount);
+
+				var player = playersState.Get(playerIndex);
+				GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in player);
+			}
 		}
 
 		if (GameHost.Instance != null)
@@ -441,10 +450,11 @@ public class ResourceEconomyService
 
 	public void AdjustPlayerWood(int playerIndex, float delta)
 	{
-		if (GameContext.World?.TryGet<ScriptPlayersState>(ECSContext.WorldEntity, out var playersState) == true
-		    && playerIndex >= 0 && playerIndex < playersState.Players.Length)
+		var worldEntity = ECSContext.WorldEntity;
+		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
 		{
-			SetPlayerWood(playerIndex, playersState.Players[playerIndex].Wood + delta);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
+			if (playersState.IsValidSlot(playerIndex)) SetPlayerWood(playerIndex, playersState.Get(playerIndex).Wood + delta);
 		}
 	}
 
@@ -465,6 +475,55 @@ public class ResourceEconomyService
 	public void AdjustPlayerStone(int playerIndex, float delta)
 	{
 		SetPlayerStone(playerIndex, _playerStoneState.GetValueOrDefault(playerIndex, 0f) + delta);
+	}
+
+	private readonly int[] _populationTotals = new int[EcsWorld.MAX_PLAYERS];
+
+	private EntityCallback<UnitOwnerPlayer, DefinitionId> _populationUnitDelegate = null!;
+	private EntityCallback<ProductionQueue, UnitOwnerPlayer> _populationQueueDelegate = null!;
+
+	public void RecomputeCurrentPopulation()
+	{
+		var world = GameContext.World;
+		if (world == null || _populationUnitDelegate == null) return;
+
+		Array.Clear(_populationTotals);
+		world.Query(in QueryCache.AllUnitOwnerPlayerAndDefinitionIdNoneDeadQuery, _populationUnitDelegate);
+		world.Query(in QueryCache.AllProductionQueueAndUnitOwnerPlayerQuery, _populationQueueDelegate);
+
+		for (int playerIndex = 0; playerIndex < EcsWorld.MAX_PLAYERS; playerIndex++)
+		{
+			var playerEntity = GameHost.Instance?.GetPlayerEntityForPlayerIndex(playerIndex) ?? Entity.Null;
+			if (playerEntity == Entity.Null || !world.IsAlive(playerEntity)) continue;
+			if (!world.Has<PlayerPopulation>(playerEntity)) continue;
+
+			ref var population = ref world.Get<PlayerPopulation>(playerEntity);
+			if (population.Current == _populationTotals[playerIndex]) continue;
+			population.Current = _populationTotals[playerIndex];
+		}
+	}
+
+	private void PopulationUnitQueryAction(Entity entity, ref UnitOwnerPlayer owner, ref DefinitionId definition)
+	{
+		if (GameContext.World.Has<BypassPopulationTag>(entity)) return;
+		AccumulatePopulationCost(owner.PlayerIndex, definition.Value);
+	}
+
+	private void PopulationQueueQueryAction(Entity entity, ref ProductionQueue queue, ref UnitOwnerPlayer owner)
+	{
+		for (int index = 0; index < queue.Count; index++)
+		{
+			string? queuedUnitId = queue.Get(index);
+			if (queuedUnitId != null) AccumulatePopulationCost(owner.PlayerIndex, queuedUnitId);
+		}
+	}
+
+	private void AccumulatePopulationCost(int playerIndex, string definitionId)
+	{
+		if (playerIndex < 0 || playerIndex >= EcsWorld.MAX_PLAYERS) return;
+		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(definitionId, out var meta)) return;
+		if (meta.PopCost <= 0) return;
+		_populationTotals[playerIndex] += meta.PopCost;
 	}
 
 	public int GetPlayerCurrentPopulation(int playerIndex)

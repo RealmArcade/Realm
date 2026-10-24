@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Numerics;
+using Realm.MapAPI;
 
 namespace Realm.Ecs.Components.Resources;
 

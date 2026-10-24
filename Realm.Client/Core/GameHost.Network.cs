@@ -45,6 +45,16 @@ public partial class GameHost
 		Callable.From(() => KillUnitDeferred(unit)).CallDeferred();
 	}
 
+	private void RetireUnitFromView(Unit3D unit)
+	{
+		if (!GodotObject.IsInstanceValid(unit) || !AllUnits.Contains(unit)) return;
+
+		RemoveUnitFromCollections(unit);
+		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
+		unit.QueueFree();
+		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+	}
+
 	private void QueueClientCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
@@ -76,7 +86,8 @@ public partial class GameHost
 	private void UpdateClientWorldState(float fDelta)
 	{
 		bool isEditorMode = GameContext.SessionState.IsMapEditorMode;
-		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, isEditorMode);
+		bool advanceSimulationClock = !_multiplayerActive || Multiplayer.IsServer();
+		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, isEditorMode, advanceSimulationClock);
 		if (res.UpdateVisuals)
 		{
 			UpdateClientWorldStateViewLogic(res.Progress);
@@ -113,6 +124,7 @@ public partial class GameHost
 		GameContext.SimulationService.SetDelta(fDelta);
 		GameContext.World.Query(in query, GameContext.SimulationService.InterpolationQueryDelegate);
 		UpdateVisualNodesFromEcs(fDelta);
+		UpdateBuildingPreview();
 	}
 
 	private void UpdateClientTickViewLogic()
@@ -140,16 +152,38 @@ public partial class GameHost
 	{
 		var stringUnitRegistry = new Dictionary<string, UnitMetadata>();
 		foreach (var kvp in UnitRegistry) stringUnitRegistry[kvp.Key.ToString()] = kvp.Value;
+		foreach (var kvp in BuildingRegistry) stringUnitRegistry[kvp.Key.ToString()] = kvp.Value;
 		var longPeerMap = new Dictionary<long, Entity>();
 		foreach (var kvp in _peerIdToPlayerEntityMap) longPeerMap[kvp.Key] = kvp.Value;
 
-		var domainRes = GameContext.NetworkService.ProcessServerCommandBuildDomain(result, stringUnitRegistry, longPeerMap);
-		if (domainRes.Success)
+		Entity buildWorkerEntity = Entity.Null;
+		if (result.BuildWorkerServerEntityId >= 0)
 		{
-			var godotPos = new Vector3(domainRes.BuildPosition.X, domainRes.BuildPosition.Y, domainRes.BuildPosition.Z);
-			var bldEntity = CreateEcsUnit(domainRes.BuildUnitType, domainRes.Name, domainRes.MaxHp, domainRes.Damage, domainRes.Range, domainRes.Armor, 0f, godotPos, domainRes.PlayerOwner);
-			ProcessServerCommandBuildViewLogic(bldEntity, domainRes.BuildUnitType, domainRes.TargetModel, godotPos, domainRes.PlayerOwner);
+			buildWorkerEntity = GameContext.NetworkService.FindServerEntity(result.BuildWorkerServerEntityId, AllUnits);
+			if (buildWorkerEntity == Entity.Null || !GameContext.World.IsAlive(buildWorkerEntity))
+			{
+				GD.PushWarning($"[Build] Rejected '{result.BuildUnitType}': worker server entity {result.BuildWorkerServerEntityId} is not a live unit on the host.");
+				return;
+			}
 		}
+
+		var domainRes = GameContext.NetworkService.ProcessServerCommandBuildDomain(result, stringUnitRegistry, longPeerMap, buildWorkerEntity);
+		if (!domainRes.Success)
+		{
+			GD.PushWarning($"[Build] Rejected '{result.BuildUnitType}': build metadata is missing from the unit registry or the worker is not owned by the commanding peer.");
+			return;
+		}
+
+		var godotPos = new Vector3(domainRes.BuildPosition.X, domainRes.BuildPosition.Y, domainRes.BuildPosition.Z);
+		if (buildWorkerEntity != Entity.Null)
+		{
+			AssignBuildTaskToWorker(buildWorkerEntity, domainRes.BuildUnitType, domainRes.BuildPosition);
+			GD.Print($"[Build] Worker {buildWorkerEntity.Id} started constructing '{domainRes.BuildUnitType}' at {domainRes.BuildPosition}.");
+			return;
+		}
+
+		var bldEntity = CreateEcsUnit(domainRes.BuildUnitType, domainRes.Name, domainRes.MaxHp, domainRes.Damage, domainRes.Range, domainRes.Armor, 0f, godotPos, domainRes.PlayerOwner);
+		ProcessServerCommandBuildViewLogic(bldEntity, domainRes.BuildUnitType, domainRes.TargetModel, godotPos, domainRes.PlayerOwner);
 	}
 
 	private void ProcessServerCommandBuildViewLogic(Entity bldEntity, string buildUnitType, string targetModel, Vector3 buildPosition, PlayerEntity playerOwner)
@@ -182,6 +216,18 @@ public partial class GameHost
 		}
 	}
 
+	private readonly Dictionary<int, int> _lastAppliedCommandIdPerPeer = new();
+
+	private bool IsDuplicateCommand(int peerId, int commandId)
+	{
+		if (commandId <= 0) return false;
+
+		if (_lastAppliedCommandIdPerPeer.TryGetValue(peerId, out int lastAppliedCommandId) && commandId <= lastAppliedCommandId) return true;
+
+		_lastAppliedCommandIdPerPeer[peerId] = commandId;
+		return false;
+	}
+
 	private void ProcessServerCommandSpell(NetworkCommand cmd, ServerCommandResult result)
 	{
 		if (!result.NeedsSpellEffect) return;
@@ -205,7 +251,12 @@ public partial class GameHost
 		var sw = Stopwatch.StartNew();
 		int senderId = Multiplayer.GetRemoteSenderId();
 		var cmd = MemoryPackSerializer.Deserialize<NetworkCommand>(payload);
-		GD.Print($"[SERVER_CMD_RECEIVED] Peer={senderId} CommandType={cmd.CommandType} Units={string.Join(",", cmd.UnitEntityIds)} Target={cmd.TargetPosition.ToGodot()}");
+
+		if (IsDuplicateCommand(senderId, cmd.CommandId))
+		{
+			RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId);
+			return;
+		}
 
 		var result = GameContext.NetworkService.ExecuteServerCommand(senderId, cmd, AllUnits, AllProps);
 
@@ -242,12 +293,25 @@ public partial class GameHost
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
 	public void ReceiveSnapshot(byte[] payload)
 	{
+		ApplyReceivedSnapshot(payload);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void ReceiveBaselineSnapshot(byte[] payload)
+	{
+		ApplyReceivedSnapshot(payload);
+	}
+
+	private void ApplyReceivedSnapshot(byte[] payload)
+	{
 		if (Multiplayer.IsServer()) return;
 		GameContext.NetworkService.RecordSnapshotReceived(payload);
 
-		foreach (var snap in GameContext.NetworkService.FlushPendingUnitSpawns())
+
+		var pendingSpawns = GameContext.NetworkService.FlushPendingUnitSpawns();
+		for (int i = 0; i < pendingSpawns.Count; i++)
 		{
-			SpawnUnitFromSnapshot(snap);
+			SpawnUnitFromSnapshot(pendingSpawns[i]);
 		}
 
 		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitKills())
@@ -257,6 +321,21 @@ public partial class GameHost
 				Callable.From(() => KillUnitDeferred(unit3D)).CallDeferred();
 			}
 		}
+
+		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitDespawns())
+		{
+			if (TryGetUnit3D(localEntity, out var unit3D))
+			{
+				Callable.From(() => RetireUnitFromView(unit3D)).CallDeferred();
+			}
+		}
+
+		if (pendingSpawns.Count > 0)
+		{
+			GameContext.NetworkService.ReapplyAbilityStatesToUnits();
+		}
+
+		MultiplayerSyncDiagnostics.RecordClientPresentation();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -270,72 +349,42 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSpawnArrowProjectile(Vector3 start, Vector3 target)
+	public void ClientSpawnArrowProjectile(Vector3 start, Vector3 target, int ownerPlayerIndex = 0)
 	{
-		GameContext.FXService.SpawnArrowProjectile(this, start, target);
+		GameContext.FXService.SpawnArrowProjectile(this, start, target, ownerPlayerIndex);
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SyncPlayerResources(int playerSlot, float gold, float wood, float stone)
+	public void RefreshReplicatedOverlayUi()
 	{
-		((IGameAPI)this).SetPlayerGold(playerSlot, gold);
-		((IGameAPI)this).SetPlayerWood(playerSlot, wood);
-		((IGameAPI)this).SetPlayerStone(playerSlot, stone);
+		InGameHUD.Instance?.InvalidateReplicatedOverlays();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SyncProductionQueue(int producerServerEntityId, string[] unitIds, float currentProgress, float buildTime)
+	public void SetReplicatedEntityVisible(Entity entity, bool visible)
 	{
-		GameContext.NetworkService.SyncProductionQueue(producerServerEntityId, unitIds, currentProgress, buildTime);
+		if (!TryGetUnit3D(entity, out var unit) || !GodotObject.IsInstanceValid(unit)) return;
+		unit.Visible = visible;
 	}
 
-	private void SyncServerPlayerResources()
-	{
-		var resources = GameContext.NetworkService.GetServerPlayerResources(_peerIdToPlayerEntityMap, _localPeerId);
-		foreach (var res in resources)
-		{
-			if (_peerIdToPlayerEntityMap.TryGetValue(res.PeerId, out var playerEntity) &&
-			    GameContext.World.IsAlive(playerEntity) &&
-			    GameContext.World.Has<UnitOwnerPlayer>(playerEntity))
-			{
-				int slot = GameContext.World.Get<UnitOwnerPlayer>(playerEntity).PlayerIndex;
-				Rpc(nameof(SyncPlayerResources), slot, res.Gold, res.Wood, res.Stone);
-			}
-		}
-	}
+	private int _shadowVerificationTickCounter;
 
-	private void SyncServerProductionQueues()
+	private void RunShadowClientVerification()
 	{
-		var entityList = new List<Entity>();
-		foreach (var unit in AllUnits)
-		{
-			entityList.Add(unit.Entity);
-		}
+		_shadowVerificationTickCounter++;
+		if (_shadowVerificationTickCounter % 60 != 0) return;
 
-		var queues = GameContext.NetworkService.GetServerProductionQueues(entityList);
-		foreach (var q in queues)
-		{
-			foreach (var kvp in _peerIdToPlayerEntityMap)
-			{
-				int peerId = kvp.Key;
-				if (peerId != _localPeerId)
-				{
-					RpcId(peerId, nameof(SyncProductionQueue), q.EntityId, q.UnitIds, q.CurrentProgress, q.BuildTime);
-				}
-			}
-		}
+		byte[] payload = GameContext.NetworkService.BuildExplicitBaselineSnapshot(1, AllUnits);
+		if (payload.Length == 0) return;
+		ShadowClientVerifier.VerifyPayload(1, payload, true);
 	}
 
 	private void UpdateServerSnapshotTick(float fDelta)
 	{
 		var snapshots = GameContext.NetworkService.BuildServerSnapshots(_localPeerId, AllUnits);
-		foreach (var (peerId, payload) in snapshots)
+		foreach (var (peerId, payload, isBaseline) in snapshots)
 		{
-			QueueOrSendPacket(peerId, nameof(ReceiveSnapshot), payload);
+			ShadowClientVerifier.VerifyPayload(peerId, payload, isBaseline);
+			QueueOrSendPacket(peerId, isBaseline ? nameof(ReceiveBaselineSnapshot) : nameof(ReceiveSnapshot), payload);
 		}
-
-		SyncServerPlayerResources();
-		SyncServerProductionQueues();
 	}
 
 	private void SpawnUnitFromSnapshot(UnitSnapshot snap)
@@ -343,6 +392,7 @@ public partial class GameHost
 		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out int playerIndex);
 		if (entity == Entity.Null) return;
 		var unit3D = SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, playerIndex);
+		unit3D.Rotation = new Vector3(0f, snap.RotationY, 0f);
 		if (_pendingSelectUnitServerId == snap.EntityId && GodotObject.IsInstanceValid(unit3D))
 		{
 			ClearSelection();
@@ -378,6 +428,10 @@ public partial class GameHost
 		if (funcName == nameof(ReceiveSnapshot))
 		{
 			RpcId(peerId, nameof(ReceiveSnapshot), (byte[])args[0]);
+		}
+		else if (funcName == nameof(ReceiveBaselineSnapshot))
+		{
+			RpcId(peerId, nameof(ReceiveBaselineSnapshot), (byte[])args[0]);
 		}
 		else if (funcName == nameof(PlaySpellEffect))
 		{
@@ -512,23 +566,6 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SyncWorldState(float gameElapsedTime, int timeOfDayIndex, float timeOfDayTimer, bool dayNightCycleEnabled)
-	{
-		bool isWorldAlive = GameContext.EnvironmentService.SyncWorldStateDomain(gameElapsedTime, timeOfDayIndex, timeOfDayTimer, dayNightCycleEnabled);
-		if (isWorldAlive)
-		{
-			if (dayNightCycleEnabled && GameContext.EnvironmentService.TimeOfDayCycleDuration > 0)
-			{
-				float progress = timeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
-				if (!GameContext.SessionState.IsMapEditorMode)
-				{
-					UpdateDayNightVisuals(progress);
-				}
-			}
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void SyncEnvironmentPresetRpc(string presetId, float durationSeconds)
 	{
 		if (durationSeconds <= 0.001f)
@@ -548,37 +585,12 @@ public partial class GameHost
 		InGameHUD.Instance?.ApplyWeatherEffects(weatherType);
 	}
 
-	private void SyncReconnectedWorldState(int newPeerId)
-	{
-		if (GameContext.NetworkService.TryGetReconnectedWorldState(out float gameElapsedTime, out int timeOfDayIndex, out float timeOfDayTimer, out bool dayNightCycleEnabled))
-		{
-			RpcId(newPeerId, nameof(SyncWorldState), gameElapsedTime, timeOfDayIndex, timeOfDayTimer, dayNightCycleEnabled);
-		}
-	}
-
 	private void SendReconnectedBaselineSnapshot(int newPeerId)
 	{
 		var baselinePayload = GameContext.NetworkService.BuildExplicitBaselineSnapshot(newPeerId, AllUnits);
 		if (baselinePayload != null && baselinePayload.Length > 0)
 		{
 			RpcId(newPeerId, nameof(ReceiveSnapshot), baselinePayload);
-		}
-	}
-
-	private void SyncReconnectedPlayerResources(int newPeerId, Entity playerEntity)
-	{
-		if (GameContext.NetworkService.TryGetReconnectedPlayerResources(playerEntity, out float gold, out float wood, out float stone))
-		{
-			RpcId(newPeerId, nameof(SyncPlayerResources), gold, wood, stone);
-		}
-	}
-
-	private void SyncReconnectedProductionQueues(int newPeerId)
-	{
-		var queues = GameContext.NetworkService.GetServerProductionQueues(AllUnits.Where(GodotObject.IsInstanceValid).Select(u => u.Entity));
-		foreach (var (entityId, unitIds, currentProgress, buildTime) in queues)
-		{
-			RpcId(newPeerId, nameof(SyncProductionQueue), entityId, unitIds, currentProgress, buildTime);
 		}
 	}
 
@@ -615,14 +627,10 @@ public partial class GameHost
 
 		Entity playerEntity = GameContext.NetworkService.ResolveReconnectedPlayerEntity(oldPeerId, newPeerId, _peerIdToPlayerEntityMap);
 		GameContext.NetworkService.UpdateReconnectedNetworkMapping(oldPeerId, newPeerId, playerEntity);
-		SyncReconnectedWorldState(newPeerId);
 		SendReconnectedBaselineSnapshot(newPeerId);
-		SyncReconnectedPlayerResources(newPeerId, playerEntity);
-		SyncReconnectedProductionQueues(newPeerId);
 		SyncReconnectedCountdown(newPeerId);
 		RegisterReconnectedAbilities(newPeerId);
 		SyncReconnectedPauseState(newPeerId);
-		SyncReconnectedLootItems(newPeerId);
 		SyncReconnectedCameraBounds(newPeerId, slot);
 		SyncReconnectedHudVisibility(newPeerId, slot);
 	}
@@ -642,18 +650,6 @@ public partial class GameHost
 			foreach (var kvp in dict)
 			{
 				RpcId(newPeerId, nameof(ClientSetHudElementVisible), (int)kvp.Key, kvp.Value);
-			}
-		}
-	}
-
-	private void SyncReconnectedLootItems(int newPeerId)
-	{
-		for (int i = 0; i < AllLootItems.Count; i++)
-		{
-			var loot = AllLootItems[i];
-			if (GodotObject.IsInstanceValid(loot) && !loot.IsDespawned)
-			{
-				RpcId(newPeerId, nameof(ClientSpawnLootItemRpc), loot.UniqueId, loot.ItemTypeId, loot.GlobalPosition, loot.Charges);
 			}
 		}
 	}
@@ -822,6 +818,15 @@ public partial class GameHost
 	}
 
 	private readonly List<(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)> _dynamicPathingOverrides = new();
+	private int _regionPathingSequence;
+	private int _appliedRegionPathingSequence;
+
+	private int NextRegionPathingSequence()
+	{
+		_regionPathingSequence++;
+		_appliedRegionPathingSequence = _regionPathingSequence;
+		return _regionPathingSequence;
+	}
 
 	public void ApplyRegionPathingInternal(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)
 	{
@@ -837,8 +842,11 @@ public partial class GameHost
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientUpdateRegionPathing(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)
+	public void ClientUpdateRegionPathing(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked, int sequence)
 	{
+		if (sequence <= _appliedRegionPathingSequence) return;
+
+		_appliedRegionPathingSequence = sequence;
 		ApplyRegionPathingInternal(minX, minZ, maxX, maxZ, flags, blocked);
 	}
 
@@ -855,12 +863,13 @@ public partial class GameHost
 			if (i > 0) sb.Append(';');
 			sb.Append($"{o.minX:F2},{o.minZ:F2},{o.maxX:F2},{o.maxZ:F2},{o.flags},{(o.blocked ? 1 : 0)}");
 		}
-		RpcId(senderId, nameof(ClientSyncDynamicPathingOverrides), sb.ToString());
+		RpcId(senderId, nameof(ClientSyncDynamicPathingOverrides), _regionPathingSequence, sb.ToString());
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSyncDynamicPathingOverrides(string serializedData)
+	public void ClientSyncDynamicPathingOverrides(int sequence, string serializedData)
 	{
+		if (sequence > _appliedRegionPathingSequence) _appliedRegionPathingSequence = sequence;
 		if (string.IsNullOrEmpty(serializedData)) return;
 		var parts = serializedData.Split(';', StringSplitOptions.RemoveEmptyEntries);
 		foreach (var part in parts)
@@ -877,26 +886,5 @@ public partial class GameHost
 				ApplyRegionPathingInternal(x1, z1, x2, z2, flags, blockedInt != 0);
 			}
 		}
-	}
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSpawnLootItemRpc(int lootId, string itemTypeId, Godot.Vector3 position, int charges)
-	{
-		if (IdToLootItem.ContainsKey(lootId)) return;
-
-		var lootNode = new LootItem3D();
-		lootNode.Position = position;
-		lootNode.Initialize(lootId, itemTypeId, charges, 0f, 2.0f, false, -1);
-
-		AddChild(lootNode);
-		AllLootItems.Add(lootNode);
-
-		var runtime = new LootItem_WasmRuntime(lootId, lootNode);
-		IdToLootItem[lootId] = runtime;
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientDespawnLootItemRpc(int lootId)
-	{
-		RemoveLootItemLocal(lootId);
 	}
 }

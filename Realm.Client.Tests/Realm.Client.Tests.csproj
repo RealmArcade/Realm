@@ -29,6 +29,7 @@
   <ItemGroup>
     <Compile Include="MapEditorUxTests.cs" />
     <Compile Include="SimulationTests.cs" />
+    <Compile Include="ReplicationContractTests.cs" />
     <Compile Include="UxSceneTests.cs" />
   </ItemGroup>
 </Project>

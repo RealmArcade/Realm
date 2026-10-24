@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Realm.Ecs.Components.Stats;
+using Realm.MapAPI;
 
 namespace Realm.Ecs.Common;
 

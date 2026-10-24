@@ -60,6 +60,7 @@ public partial class CommandPanel
 
 	private int _pageIndex = 0;
 	private List<CommandCardItem> _activeItems = new();
+	private readonly CommandCardItem[] _displayedGridItems = new CommandCardItem[12];
 	private Entity _lastFocusedEntity = Entity.Null;
 	private string _lastFocusedUnitId = null;
 	private bool _lastIsUnderConstruction = false;
@@ -80,6 +81,8 @@ public partial class CommandPanel
 
 		_dynamicBuildButtons.Clear();
 
+		Array.Clear(_displayedGridItems);
+
 		foreach (Node child in _commandGrid.GetChildren())
 		{
 			child.QueueFree();
@@ -91,36 +94,16 @@ public partial class CommandPanel
 		return entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<CommandsFrozen>(entity);
 	}
 
-	private CommandCardItem GetActiveItemForIndex(int index, int totalItems, int pageOffset)
-	{
-		if (totalItems <= 12)
-		{
-			return index < totalItems ? _activeItems[index] : null;
-		}
-
-		if (index < 11)
-		{
-			int itemIndex = pageOffset + index;
-			return itemIndex < totalItems ? _activeItems[itemIndex] : null;
-		}
-
-		return null;
-	}
-
 	private void UpdateExistingButtons()
 	{
 		var children = _commandGrid.GetChildren();
 		int childCount = children.Count;
-		int totalItems = _activeItems.Count;
-		int pageOffset = _pageIndex * 11;
 
-		for (int i = 0; i < 12; i++)
+		for (int i = 0; i < _displayedGridItems.Length && i < childCount; i++)
 		{
-			if (i >= childCount) break;
-
 			if (children[i] is not Button btn) continue;
 
-			var item = GetActiveItemForIndex(i, totalItems, pageOffset);
+			var item = _displayedGridItems[i];
 			if (item == null) continue;
 
 			UpdateButtonContent(btn, item);
@@ -182,8 +165,8 @@ public partial class CommandPanel
 
 		if (world.Has<Cooldowns>(caster))
 		{
-			var cds = world.Get<Cooldowns>(caster).Value;
-			if (cds.TryGetValue(abilityId, out float val))
+			ref var cooldowns = ref world.Get<Cooldowns>(caster);
+			if (cooldowns.TryGetValue(abilityId, out float val))
 			{
 				cdRemaining = val;
 			}
@@ -191,8 +174,8 @@ public partial class CommandPanel
 
 		if (world.Has<SpellCooldowns>(caster))
 		{
-			var scd = world.Get<SpellCooldowns>(caster).Value;
-			if (scd != null && scd.TryGetValue(abilityId, out float val))
+			ref var spellCooldowns = ref world.Get<SpellCooldowns>(caster);
+			if (spellCooldowns.TryGetValue(abilityId, out float val))
 			{
 				cdRemaining = Math.Max(cdRemaining, val);
 			}
@@ -482,6 +465,7 @@ public partial class CommandPanel
 		for (int i = 0; i < maxItems; i++)
 		{
 			var item = gridSlots[i];
+			_displayedGridItems[i] = item;
 			if (item != null)
 			{
 				if (item.Hotkey == Key.None)
@@ -1307,13 +1291,14 @@ public partial class CommandPanel
 
 		if (world.Has<Cooldowns>(casterEntity))
 		{
-			if (world.Get<Cooldowns>(casterEntity).Value.TryGetValue(abilityId, out float cd) && cd > 0f) return true;
+			ref var cooldowns = ref world.Get<Cooldowns>(casterEntity);
+			if (cooldowns.TryGetValue(abilityId, out float cooldown) && cooldown > 0f) return true;
 		}
 
 		if (world.Has<SpellCooldowns>(casterEntity))
 		{
-			var scd = world.Get<SpellCooldowns>(casterEntity).Value;
-			if (scd?.TryGetValue(abilityId, out float cd) == true && cd > 0f) return true;
+			ref var spellCooldowns = ref world.Get<SpellCooldowns>(casterEntity);
+			if (spellCooldowns.TryGetValue(abilityId, out float spellCooldown) && spellCooldown > 0f) return true;
 		}
 
 		return false;

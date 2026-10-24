@@ -184,13 +184,13 @@ public class HeadlessSimulationRunner
 	{
 		_world.Query(in ProductionQuery, (Entity bld, ref ProductionQueue q, ref UnitOwnerPlayer owner, ref Position pos) =>
 		{
-			if (q.UnitIds.Count > 0)
+			if (q.Count > 0)
 			{
 				q.CurrentProgress += delta;
 				if (q.CurrentProgress >= q.BuildTime)
 				{
 					q.CurrentProgress = 0f;
-					q.UnitIds.RemoveAt(0);
+					q.RemoveAt(0);
 
 					_world.Create(
 						new Position(pos.Value + new Vector3(0, 0, 3f)),

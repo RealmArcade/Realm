@@ -1,24 +1,48 @@
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
-/// Tracks which script zones are currently occupied by a unit entity.
+/// Tracks which script zones currently contain a unit entity.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct OccupiedZones
 {
-	public int Handle;
+	public OccupiedZoneMask Mask;
 
-	public OccupiedZones(HashSet<int> zoneIds)
+	public bool Contains(int zoneIndex)
 	{
-		Handle = ColdPayloadRegistry<HashSet<int>>.Register(zoneIds);
+		if (zoneIndex < 0 || zoneIndex >= OccupiedZoneMask.Capacity) return false;
+
+		return (Mask[zoneIndex >> 6] & (1UL << (zoneIndex & 63))) != 0;
 	}
 
-	public HashSet<int> ZoneIds
+	public bool Add(int zoneIndex)
 	{
-		get => ColdPayloadRegistry<HashSet<int>>.Get(Handle)!;
-		set => Handle = ColdPayloadRegistry<HashSet<int>>.Register(value);
+		if (zoneIndex < 0 || zoneIndex >= OccupiedZoneMask.Capacity) return false;
+
+		ref ulong word = ref Mask[zoneIndex >> 6];
+		ulong bit = 1UL << (zoneIndex & 63);
+		if ((word & bit) != 0) return false;
+
+		word |= bit;
+		return true;
+	}
+
+	public bool Remove(int zoneIndex)
+	{
+		if (zoneIndex < 0 || zoneIndex >= OccupiedZoneMask.Capacity) return false;
+
+		ref ulong word = ref Mask[zoneIndex >> 6];
+		ulong bit = 1UL << (zoneIndex & 63);
+		if ((word & bit) == 0) return false;
+
+		word &= ~bit;
+		return true;
+	}
+
+	public void Clear()
+	{
+		Mask = default;
 	}
 }

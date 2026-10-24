@@ -1,78 +1,141 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Realm.MapAPI;
 
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
-/// A component for holding unit inventory item contents and charges.
+/// Holds the items a unit carries together with the number of charges left for each, in the order they were picked up.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Inventory
 {
-	public int Handle;
+	public int Count;
+	public InventorySlotArray Slots;
 
-	public Inventory()
+	public Inventory(IReadOnlyDictionary<string, int>? items)
 	{
-		Handle = ColdPayloadRegistry<Dictionary<string, int>>.Register(new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
-	}
+		this = default;
+		if (items == null) return;
 
-	public Inventory(Dictionary<string, int> items)
-	{
-		Handle = ColdPayloadRegistry<Dictionary<string, int>>.Register(items ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
-	}
-
-	public Dictionary<string, int> Items
-	{
-		get => ColdPayloadRegistry<Dictionary<string, int>>.Get(Handle);
-		set => Handle = ColdPayloadRegistry<Dictionary<string, int>>.Register(value);
-	}
-
-	public int GetItemCount(string itemId)
-	{
-		var items = Items;
-		if (items != null && !string.IsNullOrEmpty(itemId) && items.TryGetValue(itemId, out int count))
+		foreach (var pair in items)
 		{
-			return count;
+			SetItemCount(pair.Key, pair.Value);
 		}
-
-		return 0;
 	}
 
-	public void SetItemCount(string itemId, int count)
+	public string? GetItemId(int index)
 	{
-		var items = Items ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-		if (string.IsNullOrEmpty(itemId)) return;
-		if (count <= 0)
-		{
-			items.Remove(itemId);
-		}
-		else
-		{
-			items[itemId] = count;
-		}
-		Items = items;
+		if (index < 0 || index >= Count) return null;
+
+		return StringRegistry.Get(Slots[index].ItemStringId);
 	}
 
-	public bool HasItem(string itemId)
+	public int GetCharges(int index)
+	{
+		return index < 0 || index >= Count ? 0 : Slots[index].Count;
+	}
+
+	public int GetItemCount(string? itemId)
+	{
+		int index = IndexOf(itemId);
+		return index < 0 ? 0 : Slots[index].Count;
+	}
+
+	public bool HasItem(string? itemId)
 	{
 		return GetItemCount(itemId) > 0;
 	}
 
-	public bool AddItem(string itemId, int count = 1)
+	public void SetItemCount(string? itemId, int count)
+	{
+		if (string.IsNullOrEmpty(itemId)) return;
+
+		int index = IndexOf(itemId);
+		if (count <= 0)
+		{
+			if (index >= 0) RemoveAt(index);
+			return;
+		}
+
+		if (index >= 0)
+		{
+			Slots[index].Count = count;
+			return;
+		}
+
+		if (Count >= InventorySlotArray.Capacity) return;
+
+		int itemStringId = StringRegistry.GetOrAdd(itemId);
+		if (itemStringId == 0) return;
+
+		Slots[Count] = new InventorySlot { ItemStringId = itemStringId, Count = count };
+		Count++;
+	}
+
+	public bool AddItem(string? itemId, int count = 1)
 	{
 		if (string.IsNullOrEmpty(itemId)) return false;
-		int current = GetItemCount(itemId);
-		SetItemCount(itemId, current + count);
+
+		int index = IndexOf(itemId);
+		if (index < 0 && Count >= InventorySlotArray.Capacity) return false;
+
+		int added = Math.Max(1, count);
+		SetItemCount(itemId, (index < 0 ? 0 : Slots[index].Count) + added);
 		return true;
 	}
 
-	public bool RemoveItem(string itemId, int count = 1)
+	public bool RemoveItem(string? itemId, int count = 1)
 	{
-		if (string.IsNullOrEmpty(itemId)) return false;
-		int current = GetItemCount(itemId);
-		if (current <= 0) return false;
-		SetItemCount(itemId, current - count);
+		int index = IndexOf(itemId);
+		if (index < 0) return false;
+
+		SetItemCount(itemId, Slots[index].Count - Math.Max(1, count));
 		return true;
+	}
+
+	public void RemoveAt(int index)
+	{
+		if (index < 0 || index >= Count) return;
+
+		for (int move = index; move < Count - 1; move++)
+		{
+			Slots[move] = Slots[move + 1];
+		}
+
+		Count--;
+		Slots[Count] = default;
+	}
+
+	public void Clear()
+	{
+		Count = 0;
+		Slots = default;
+	}
+
+	public List<string> ToList()
+	{
+		var itemIds = new List<string>(Count);
+		for (int index = 0; index < Count; index++)
+		{
+			string? itemId = GetItemId(index);
+			if (itemId != null) itemIds.Add(itemId);
+		}
+
+		return itemIds;
+	}
+
+	private int IndexOf(string? itemId)
+	{
+		if (string.IsNullOrEmpty(itemId)) return -1;
+
+		for (int index = 0; index < Count; index++)
+		{
+			string knownItemId = StringRegistry.Get(Slots[index].ItemStringId);
+			if (string.Equals(knownItemId, itemId, StringComparison.OrdinalIgnoreCase)) return index;
+		}
+
+		return -1;
 	}
 }

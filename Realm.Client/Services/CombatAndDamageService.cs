@@ -420,6 +420,7 @@ namespace Realm.Client.Services
 			GameContext.World.Query(in _targetAcquisitionQuery, (Entity entity, ref Position pos, ref Attack atk, ref Owner owner) =>
 			{
 				if (atk.Damage <= 0f || GameContext.World.Has<Invulnerable>(entity) || GameContext.World.Has<CommandsFrozen>(entity)) return;
+				if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
 
 				bool isAutoCombat = GameContext.World.Has<AutoCombatState>(entity) && GameContext.World.Get<AutoCombatState>(entity).Enabled;
 				bool isAttackMove = GameContext.World.Has<AttackMove>(entity);
@@ -799,6 +800,8 @@ namespace Realm.Client.Services
 
 		private void CombatQueryAction(Entity entity, ref Position pos, ref Attack atk, ref AttackTarget target, ref Owner owner)
 		{
+			if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
+
 			if (!GameContext.World.IsAlive(target.Target) || GameContext.World.Has<Dead>(target.Target) || GameContext.World.Has<Invulnerable>(target.Target))
 			{
 				_tickActionsToRemoveTarget.Add(entity);
@@ -943,15 +946,14 @@ namespace Realm.Client.Services
 			if (GameContext.World.Has<Inventory>(entity))
 			{
 				var inv = GameContext.World.Get<Inventory>(entity);
-				if (inv.Items != null)
+				for (int itemIndex = 0; itemIndex < inv.Count; itemIndex++)
 				{
-					foreach (var item in inv.Items.Keys)
+					string? item = inv.GetItemId(itemIndex);
+					if (item == null) continue;
+					if (GameContext.RegistryService?.ItemRegistry != null && GameContext.RegistryService.ItemRegistry.TryGetValue(item, out var itemMeta) && itemMeta?.GrantedWeapons != null && itemMeta.GrantedWeapons.Length > 0)
 					{
-						if (GameContext.RegistryService?.ItemRegistry != null && GameContext.RegistryService.ItemRegistry.TryGetValue(item, out var itemMeta) && itemMeta?.GrantedWeapons != null && itemMeta.GrantedWeapons.Length > 0)
-						{
-							weaponId = itemMeta.GrantedWeapons[0];
-							break;
-						}
+						weaponId = itemMeta.GrantedWeapons[0];
+						break;
 					}
 				}
 			}
@@ -1097,9 +1099,9 @@ namespace Realm.Client.Services
 
 		private float GetEffectiveAttackCooldown(Entity entity, float baseCooldown)
 		{
-			if (GameContext.World.Has<AttackSpeed>(entity))
+			if (GameContext.World.Has<AttackSpeedMultiplier>(entity))
 			{
-				float multiplier = GameContext.World.Get<AttackSpeed>(entity).Multiplier;
+				float multiplier = GameContext.World.Get<AttackSpeedMultiplier>(entity).Multiplier;
 				if (multiplier > 0f)
 				{
 					return baseCooldown / multiplier;

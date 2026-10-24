@@ -20,7 +20,7 @@ public class StatService
 	{
 		if (ECSContext.World == null || !ECSContext.World.Has<Stats>(entity)) return 0f;
 
-		var baseStats = ECSContext.World.Get<Stats>(entity).Value;
+		ref var baseStats = ref ECSContext.World.Get<Stats>(entity);
 		if (!baseStats.TryGetValue(statId, out var currentValue)) return 0f;
 
 		var query = QueryCache.AllStatModifierQuery;
