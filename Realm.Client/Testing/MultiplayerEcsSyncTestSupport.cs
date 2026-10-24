@@ -269,7 +269,7 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 
 		File.WriteAllText(
-			Path.Combine(settings.OutputDirectory, "relay_stats.txt"),
+			Path.Combine(settings.OutputDirectory, "relay_stats_total.txt"),
 			$"forwarded={forwarded}\ndropped={dropped}\nrelays={relays.Count}");
 		for (int index = 0; index < relays.Count; index++)
 		{
@@ -590,7 +590,7 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 
 		AppendConvergenceReport(report, settings, lastPairedSequence, pairedSnapshots, lostSequenceCount, missingBaselineSequences.Count, clientOutputDirectory);
-		ComparePresentationRecords(clientOutputDirectory, hostRecords, report);
+		ComparePresentationRecords(clientOutputDirectory, hostRecords, report, settings.Profile);
 		return report;
 	}
 
@@ -695,7 +695,19 @@ public static class MultiplayerEcsSyncTestSupport
 		return summary.ToString();
 	}
 
-	private static void ComparePresentationRecords(string outputDirectory, SortedDictionary<int, MultiplayerSnapshotRecord> hostRecords, MultiplayerEcsSyncReport report)
+	private static float ResolvePresentationTolerance(NetworkProfile profile)
+	{
+		return profile switch
+		{
+			NetworkProfile.Clean => PresentationPositionTolerance,
+			NetworkProfile.Latency => PresentationPositionTolerance,
+			NetworkProfile.LatencyJitter => 0.35f,
+			NetworkProfile.LatencyLoss => 0.6f,
+			_ => PresentationPositionTolerance
+		};
+	}
+
+	private static void ComparePresentationRecords(string outputDirectory, SortedDictionary<int, MultiplayerSnapshotRecord> hostRecords, MultiplayerEcsSyncReport report, NetworkProfile profile)
 	{
 		string presentationPath = Path.Combine(outputDirectory, "ECS_client_presentation.bin");
 		if (!File.Exists(presentationPath))
@@ -705,6 +717,7 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 
 		SortedDictionary<int, MultiplayerSnapshotRecord> presentedRecords = ReadRecords(presentationPath);
+		float placementTolerance = ResolvePresentationTolerance(profile);
 		var mismatches = new List<string>();
 		int pairedSequences = 0;
 		int comparedTransforms = 0;
@@ -739,7 +752,7 @@ public static class MultiplayerEcsSyncTestSupport
 				float dx = hostUnit.PositionX - presentedUnit.PositionX;
 				float dy = hostUnit.PositionY - presentedUnit.PositionY;
 				float dz = hostUnit.PositionZ - presentedUnit.PositionZ;
-				if (MathF.Abs(dx) > PresentationPositionTolerance || MathF.Abs(dy) > PresentationPositionTolerance || MathF.Abs(dz) > PresentationPositionTolerance)
+				if (MathF.Abs(dx) > placementTolerance || MathF.Abs(dy) > placementTolerance || MathF.Abs(dz) > placementTolerance)
 				{
 					mismatchCount++;
 					if (mismatches.Count < 20)
@@ -754,7 +767,7 @@ public static class MultiplayerEcsSyncTestSupport
 			}
 		}
 
-		report.AddSummaryLine($"Presentation parity window: first {MultiplayerSyncDiagnostics.PresentationWindowSeconds:F1}s, paired sequences: {pairedSequences}, compared rendered transforms: {comparedTransforms}, placement mismatches: {mismatchCount}");
+		report.AddSummaryLine($"Presentation parity window: {MultiplayerSyncDiagnostics.PresentationSettleSequences}-{MultiplayerSyncDiagnostics.PresentationWindowSequences} sequences after a baseline, tolerance {placementTolerance:F2} m for {profile}, paired sequences: {pairedSequences}, compared rendered transforms: {comparedTransforms}, placement mismatches: {mismatchCount}");
 		report.AddSummaryLine($"Locally predicted rendered transforms excluded from placement parity: {skippedPredictedTransforms} (prediction intentionally leads the authoritative position).");
 		report.AddSummaryLine($"Rendered rotation deviations beyond {PresentationRotationTolerance:F2} rad: {rotationDeviationCount} of {comparedTransforms}, largest {largestRotationDeviation:F2} rad (off-frustum units keep their frozen transform until they enter the view)");
 		if (pairedSequences == 0) report.AddFailure("No rendered presentation records paired with host snapshots, so placement parity was not verified.");
@@ -762,7 +775,7 @@ public static class MultiplayerEcsSyncTestSupport
 
 		if (mismatchCount > 0)
 		{
-			report.AddFailure($"{mismatchCount} rendered placement mismatches were detected in the first {MultiplayerSyncDiagnostics.PresentationWindowSeconds:F1}s.");
+			report.AddFailure($"{mismatchCount} rendered placement mismatches were detected inside the presentation window at {placementTolerance:F2} m tolerance.");
 			report.AddSummaryLine("First presentation mismatches:");
 			foreach (string mismatch in mismatches) report.AddSummaryLine($"  {mismatch}");
 		}

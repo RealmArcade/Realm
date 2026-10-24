@@ -128,8 +128,9 @@ players so a joining peer always has a seat.
 
 | Profile | Peers | Verdict | Sync failures | Prediction failures | Compared units (peer 2 / peer 3) | Presentation mismatches | Bandwidth worst client |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| clean | 2 | PASS | 0 | 0 | 152k / - | 0 | not measured in this row |
+| clean | 2 | PASS | 0 | 0 | 152k / - | 0 | 348 KB/s |
 | clean | 3 | PASS | 0 | 0 | 126k / 124k | 0 / 0 | 351 KB/s |
+| latency + loss | 3 | FAIL | 2 | 1 | - | 1 / 0 | 352 KB/s |
 
 A third peer exposed three defects that two instances never could:
 
@@ -155,6 +156,13 @@ Two comparator definitions were corrected because they compared the wrong thing:
   late-joining peer's route was 5.000 m from the host's while its final position matched to 0.027 m. A route now
   passes when every corner lies inside the other route's polyline within one navmesh cell (5.05 m); a straight
   line to the destination leaves that corridor entirely, so the assertion still catches the failure it exists for.
+
+The lossy three-peer run fails for a reason worth stating: the delay relay's queue holds 4096 datagrams, and at the
+measured 350 KB/s per client the relay is the bottleneck, so "3% loss" arrives as bursts long enough for a client to
+lose the host (peer 3 stopped applying snapshots at sequence 1200 of 2517 and entered the reconnect loop, which then
+replaced its scene and left every snapshot RPC addressed to a node that no longer existed). The relay's own counters
+show 495 dropped of 15082 forwarded. Until bandwidth comes down (section 8) the loss profile cannot be trusted at
+three peers, so it is reported as a failure rather than explained away.
 
 ## 7. Plan and status
 
