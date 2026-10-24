@@ -1722,10 +1722,12 @@ public class SimulationService
 	{
 		if (!GameContext.World.Has<Position>(entity)) return;
 
+		// A tracked unit is owned by prediction for its whole lifetime, not only while it carries an order: interpolating
+		// a settled predicted unit toward a stale visual target would drag the position prediction just reconciled and
+		// give it a second, divergent smoothing model.
 		bool isLocallyPredicted = GameSettings.MovementPrediction
 			&& GameContext.MovementPredictionService != null
-			&& GameContext.MovementPredictionService.IsEntityTracked(entity.Id)
-			&& (GameContext.World.Has<PredictedMoveTo>(entity) || GameContext.World.Has<MoveTo>(entity) || GameContext.World.Has<Follow>(entity));
+			&& GameContext.MovementPredictionService.IsEntityTracked(entity.Id);
 		if (isLocallyPredicted) return;
 
 		var currentPos = GameContext.World.Get<Position>(entity).Value;

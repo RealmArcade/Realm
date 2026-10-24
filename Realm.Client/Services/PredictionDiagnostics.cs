@@ -264,13 +264,14 @@ public static class PredictionDiagnostics
 		_writer.Flush();
 	}
 
-	public static void RecordAllocation(int tick, long allocatedBytes)
+	public static void RecordAllocation(int tick, long predictionAllocatedBytes, long sharedMovementAllocatedBytes)
 	{
 		var _writer = _predictionWriter;
 		if (_writer == null) return;
 		_writer.Write(KindAllocation);
 		_writer.Write(tick);
-		_writer.Write(allocatedBytes);
+		_writer.Write(predictionAllocatedBytes);
+		_writer.Write(sharedMovementAllocatedBytes);
 	}
 
 	public static void RecordSnapshotOrderingViolation(int rejectedSequence, int lastAppliedSequence)

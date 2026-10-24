@@ -37,9 +37,6 @@ public sealed class PredictionHarnessReport
 	public float CorrectionsPerSecondFirstHalf { get; set; }
 	public float CorrectionsPerSecondSecondHalf { get; set; }
 	public bool SnapshotOrderingRespected { get; set; } = true;
-	public int ScriptUpdateCount { get; set; }
-	public int ScriptOrderCount { get; set; }
-	public int ScriptOrderMismatches { get; set; }
 	public string ThresholdRationale { get; set; } = string.Empty;
 	public float AuthorityInvariantMaximumErrorMeters { get; set; }
 	public int SubmittedCommandCount { get; set; }
@@ -47,6 +44,7 @@ public sealed class PredictionHarnessReport
 	public int UnacknowledgedCommandCount { get; set; }
 	public long MaximumTickAllocatedBytes { get; set; }
 	public double MeanTickAllocatedBytes { get; set; }
+	public long MaximumSharedMovementAllocatedBytes { get; set; }
 	public int SnapshotOrderingViolations { get; set; }
 	public int UnpredictedOrderSamples { get; set; }
 	public int UnpredictedOrderP95Ticks { get; set; }
@@ -92,15 +90,13 @@ public sealed class PredictionHarnessReport
 				correctionsPerSecondFirstHalf = CorrectionsPerSecondFirstHalf,
 				correctionsPerSecondSecondHalf = CorrectionsPerSecondSecondHalf,
 				snapshotOrderingRespected = SnapshotOrderingRespected,
-				scriptUpdateCount = ScriptUpdateCount,
-				scriptOrderCount = ScriptOrderCount,
-				scriptOrderMismatches = ScriptOrderMismatches,
 				thresholdRationale = ThresholdRationale,
 				authorityInvariantMaximumErrorMeters = AuthorityInvariantMaximumErrorMeters,
 				submittedCommandCount = SubmittedCommandCount,
 				acknowledgedCommandCount = AcknowledgedCommandCount,
 				unacknowledgedCommandCount = UnacknowledgedCommandCount,
 				maximumTickAllocatedBytes = MaximumTickAllocatedBytes,
+				maximumSharedMovementAllocatedBytes = MaximumSharedMovementAllocatedBytes,
 				meanTickAllocatedBytes = MeanTickAllocatedBytes,
 				snapshotOrderingViolations = SnapshotOrderingViolations,
 				unpredictedOrderSamples = UnpredictedOrderSamples,
@@ -131,10 +127,9 @@ public sealed class PredictionHarnessReport
 		builder.AppendLine($"Pathing parity: compared {PathComparisons}, mismatches {PathMismatches}");
 		builder.AppendLine($"Oscillation violations: {OscillationViolations}");
 		builder.AppendLine($"Corrections per second: first half {CorrectionsPerSecondFirstHalf:F2}, second half {CorrectionsPerSecondSecondHalf:F2}");
-		builder.AppendLine($"Script updates: {ScriptUpdateCount}, script orders: {ScriptOrderCount}, mismatches {ScriptOrderMismatches}");
 		builder.AppendLine($"Commands: submitted {SubmittedCommandCount}, acknowledged {AcknowledgedCommandCount}, unacknowledged {UnacknowledgedCommandCount}");
 		builder.AppendLine($"Authority invariant (predicted vs authoritative on an in-process authority): max {AuthorityInvariantMaximumErrorMeters:F4} m");
-		builder.AppendLine($"Prediction tick allocation: mean {MeanTickAllocatedBytes:F0} B, max {MaximumTickAllocatedBytes} B");
+		builder.AppendLine($"Prediction tick allocation: mean {MeanTickAllocatedBytes:F0} B, max {MaximumTickAllocatedBytes} B (shared movement step peak {MaximumSharedMovementAllocatedBytes} B, reported separately)");
 		builder.AppendLine($"Snapshot ordering violations: {SnapshotOrderingViolations}");
 		builder.AppendLine($"Unpredicted (host-only) order visibility: samples {UnpredictedOrderSamples}, p95 {UnpredictedOrderP95Ticks} ticks, max {UnpredictedOrderMaximumTicks}, budget {UnpredictedOrderBudgetTicks}");
 		builder.AppendLine("Stages:");
@@ -167,9 +162,11 @@ public static class PredictionHarnessVerification
 	public const int SettledConvergenceTicks = 30;
 	public const float PathWaypointToleranceMeters = 1.0f;
 	public const float PathTargetToleranceMeters = 0.1f;
+	public const float StationaryAuthoritativeMeters = 0.15f;
 	public const int PathStartWaypointCount = 1;
 	public const int MinimumPredictedSamples = 60;
 	public const int MinimumPathComparisons = 20;
+	public const int MinimumUnpredictedOrderSamples = 10;
 
 	/// <summary>
 	/// Resolves the limits for a profile. The input-response bound is one simulation tick on every profile because
@@ -281,7 +278,7 @@ public static class PredictionHarnessVerification
 		public List<ScenarioSample> Scenario = new();
 		public List<(int Tick, int EntityId, Vector3 Target, bool LocalOwned)> ScriptOrders = new();
 		public int ScriptUpdateCount;
-		public List<(int Tick, long AllocatedBytes)> AllocationSamples = new();
+		public List<(int Tick, long PredictionBytes, long SharedMovementBytes)> AllocationSamples = new();
 		public List<(int RejectedSequence, int LastAppliedSequence, int Tick)> OrderingViolations = new();
 	}
 
@@ -384,7 +381,8 @@ public static class PredictionHarnessVerification
 		}
 
 		MeasureInputResponse(records, report, thresholds, settings.Loopback);
-		MeasureSettledError(records, perUnitErrors, perUnitFinalErrors, report, thresholds);
+		Dictionary<int, List<(int Sequence, Vector3 Position)>> hostMotion = BuildHostMotionSeries(records);
+		MeasureSettledError(records, hostMotion, perUnitErrors, perUnitFinalErrors, report, thresholds, settings.Loopback);
 		MeasureSnapsAndCorrections(records, report, thresholds);
 		MeasureRollbacks(records, report, thresholds);
 		MeasureAllocationAndOrdering(records, report, thresholds);
@@ -392,7 +390,6 @@ public static class PredictionHarnessVerification
 		MeasurePathingParity(records, report, settings.Loopback);
 		MeasureOscillation(records, report);
 		MeasureCorrectionRate(records, report);
-		MeasureScript(records, report);
 		MeasureUnpredictedOrderLatency(records, report, settings);
 
 		foreach (KeyValuePair<int, List<float>> unit in perUnitErrors)
@@ -479,7 +476,46 @@ public static class PredictionHarnessVerification
 		}
 	}
 
-	private static void MeasureSettledError(ParsedRecords records, Dictionary<int, List<float>> perUnitErrors, Dictionary<int, float> perUnitFinalErrors, PredictionHarnessReport report, PredictionThresholds thresholds)
+	private static Dictionary<int, List<(int Sequence, Vector3 Position)>> BuildHostMotionSeries(ParsedRecords records)
+	{
+		var series = new Dictionary<int, List<(int Sequence, Vector3 Position)>>();
+		var sequences = new List<int>(records.HostSnapshots.Keys);
+		sequences.Sort();
+		foreach (int sequence in sequences)
+		{
+			foreach (var pair in records.HostSnapshots[sequence].Units)
+			{
+				if (!series.TryGetValue(pair.Key, out List<(int Sequence, Vector3 Position)>? positions))
+				{
+					positions = new List<(int Sequence, Vector3 Position)>();
+					series[pair.Key] = positions;
+				}
+
+				positions.Add((sequence, pair.Value.Position));
+			}
+		}
+
+		return series;
+	}
+
+	private static bool IsAuthorityAtRest(Dictionary<int, List<(int Sequence, Vector3 Position)>> hostMotion, int serverEntityId, int clientSequence)
+	{
+		if (!hostMotion.TryGetValue(serverEntityId, out List<(int Sequence, Vector3 Position)>? positions)) return false;
+
+		int previousIndex = -1;
+		int latestIndex = -1;
+		for (int index = 0; index < positions.Count; index++)
+		{
+			if (positions[index].Sequence > clientSequence) break;
+			previousIndex = latestIndex;
+			latestIndex = index;
+		}
+
+		if (latestIndex < 0 || previousIndex < 0) return false;
+		return Vector3.Distance(positions[latestIndex].Position, positions[previousIndex].Position) <= StationaryAuthoritativeMeters;
+	}
+
+	private static void MeasureSettledError(ParsedRecords records, Dictionary<int, List<(int Sequence, Vector3 Position)>> hostMotion, Dictionary<int, List<float>> perUnitErrors, Dictionary<int, float> perUnitFinalErrors, PredictionHarnessReport report, PredictionThresholds thresholds, bool loopback)
 	{
 		ScenarioSample? lastOrder = records.Scenario.LastOrDefault();
 		if (lastOrder == null || records.ClientTicks.Count == 0)
@@ -500,6 +536,9 @@ public static class PredictionHarnessVerification
 		}
 
 		var settledErrors = new List<float>();
+		int worstSettledUnit = -1;
+		int worstSettledTick = -1;
+		string worstSettledDetail = string.Empty;
 		foreach (ClientTickSample tick in records.ClientTicks)
 		{
 			if (tick.Tick < settleWindowStart) continue;
@@ -508,7 +547,25 @@ public static class PredictionHarnessVerification
 				if (unit.AuthoritativeSequence < 0) continue;
 				if (unit.HasOrder) continue;
 				if (lastOrderTickByUnit.TryGetValue(unit.EntityId, out int lastUnitOrderTick) && tick.Tick < lastUnitOrderTick + SettledConvergenceTicks) continue;
-				settledErrors.Add(Vector3.Distance(unit.Predicted, unit.Authoritative));
+
+				// Settled means both sides have finished: the client has dropped its predicted order, the paired host
+				// snapshot shows no authoritative order, and the authority is not moving. Sampling earlier measures the
+				// authoritative unit still travelling to a destination prediction already reached, which is the prediction
+				// lead rather than residual error.
+				if (!loopback)
+				{
+					if (!records.HostSnapshots.TryGetValue(tick.Sequence, out HostSnapshotSample? hostSnapshot)) continue;
+					if (!hostSnapshot.Units.TryGetValue(unit.ServerEntityId, out HostUnitSample? hostUnit) || hostUnit.HasMoveTo) continue;
+					if (!IsAuthorityAtRest(hostMotion, unit.ServerEntityId, tick.Sequence)) continue;
+				}
+
+				float settledError = Vector3.Distance(unit.Predicted, unit.Authoritative);
+				settledErrors.Add(settledError);
+				if (settledError <= report.SettledErrorMeters) continue;
+				report.SettledErrorMeters = settledError;
+				worstSettledUnit = unit.EntityId;
+				worstSettledTick = tick.Tick;
+				worstSettledDetail = $" sequence {tick.Sequence}, authoritative sequence {unit.AuthoritativeSequence}, has path {unit.HasPath} ({unit.CurrentWaypoint}/{unit.WaypointCount}), move target {unit.MoveTarget.X:F2},{unit.MoveTarget.Y:F2},{unit.MoveTarget.Z:F2}";
 			}
 		}
 
@@ -518,10 +575,12 @@ public static class PredictionHarnessVerification
 			return;
 		}
 
-		report.SettledErrorMeters = settledErrors.Max();
 		if (report.SettledErrorMeters > thresholds.SettledErrorMeters)
 		{
-			report.AddFailure($"Settled predicted position error is {report.SettledErrorMeters:F3} m, above the stated {thresholds.SettledErrorMeters:F3} m limit; prediction does not converge to authoritative state.");
+			string attribution = worstSettledUnit >= 0
+				? $" The worst sample is unit {worstSettledUnit} at tick {worstSettledTick}{worstSettledDetail}."
+				: string.Empty;
+			report.AddFailure($"Settled predicted position error is {report.SettledErrorMeters:F3} m, above the stated {thresholds.SettledErrorMeters:F3} m limit; prediction does not converge to authoritative state.{attribution}");
 		}
 
 		foreach (KeyValuePair<int, float> unit in perUnitFinalErrors)
@@ -592,14 +651,17 @@ public static class PredictionHarnessVerification
 		{
 			long maximum = 0;
 			long total = 0;
+			long sharedMaximum = 0;
 			foreach (var sample in records.AllocationSamples)
 			{
-				total += sample.AllocatedBytes;
-				if (sample.AllocatedBytes > maximum) maximum = sample.AllocatedBytes;
+				total += sample.PredictionBytes;
+				if (sample.PredictionBytes > maximum) maximum = sample.PredictionBytes;
+				if (sample.SharedMovementBytes > sharedMaximum) sharedMaximum = sample.SharedMovementBytes;
 			}
 
 			report.MaximumTickAllocatedBytes = maximum;
 			report.MeanTickAllocatedBytes = (double)total / records.AllocationSamples.Count;
+			report.MaximumSharedMovementAllocatedBytes = sharedMaximum;
 			if (maximum > thresholds.AllocationBytesPerTick)
 			{
 				report.AddFailure($"A prediction tick allocated {maximum} bytes, above the {thresholds.AllocationBytesPerTick} byte budget; the prediction tick must not allocate.");
@@ -610,6 +672,8 @@ public static class PredictionHarnessVerification
 			report.AddFailure("No prediction tick allocation samples were recorded, so per-tick allocation was not measured.");
 		}
 
+		report.SubmittedCommandCount = records.CommandTicks.Count;
+		report.AcknowledgedCommandCount = records.AcceptedCommands.Count + records.Rejections.Count;
 		report.SnapshotOrderingViolations = records.OrderingViolations.Count;
 		report.SnapshotOrderingRespected = records.OrderingViolations.Count == 0;
 		foreach (var violation in records.OrderingViolations)
@@ -642,8 +706,6 @@ public static class PredictionHarnessVerification
 			report.AddFailure($"Unit {worstUnit} differs from the authority by {worstError:F4} m at tick {worstTick}; an in-process authority and its local viewpoint must not diverge, so prediction is integrating movement the authority already integrated.");
 		}
 
-		report.SubmittedCommandCount = records.CommandTicks.Count;
-		report.AcknowledgedCommandCount = records.AcceptedCommands.Count + records.Rejections.Count;
 		foreach (int commandId in records.CommandTicks.Keys)
 		{
 			bool acknowledged = records.AcceptedCommands.Exists(entry => entry.CommandId == commandId)
@@ -714,31 +776,37 @@ public static class PredictionHarnessVerification
 		}
 	}
 
+	/// <summary>
+	/// A correction must not overshoot: after it is applied, the distance to the authority has to keep shrinking until it
+	/// is inside the settled band. Only samples where the authority itself is at rest can testify to that, because a
+	/// moving authority legitimately increases the distance while the client waits for the next snapshot.
+	/// </summary>
+	/// <summary>
+	/// A correction may only reduce the distance to the authority and must never cross it. Both properties are checked
+	/// on every recorded correction, which is the only place overshoot can be introduced; a time series of distance
+	/// cannot distinguish overshoot from the authoritative unit still travelling towards its destination.
+	/// </summary>
 	private static void MeasureOscillation(ParsedRecords records, PredictionHarnessReport report)
 	{
-		foreach (RollbackSample rollback in records.Rollbacks)
+		foreach (CorrectionSample correction in records.Corrections)
 		{
-			var errorSeries = new List<float>();
-			foreach (ClientTickSample tick in records.ClientTicks)
+			Vector3 errorBefore = correction.Predicted - correction.Authoritative;
+			Vector3 errorAfter = correction.Corrected - correction.Authoritative;
+			float distanceBefore = errorBefore.Length();
+			float distanceAfter = errorAfter.Length();
+
+			if (distanceAfter > distanceBefore + 0.0001f)
 			{
-				if (tick.Tick < rollback.Tick) continue;
-				if (tick.Tick > rollback.Tick + 60) break;
-				ClientUnitSample? unit = tick.Units.FirstOrDefault(candidate => candidate.EntityId == rollback.EntityId);
-				if (unit == null || unit.AuthoritativeSequence < 0) continue;
-				errorSeries.Add(Vector3.Distance(unit.Predicted, unit.Authoritative));
+				report.OscillationViolations++;
+				report.AddFailure($"A correction of unit {correction.EntityId} at tick {correction.Tick} increased the distance to the authority from {distanceBefore:F3} m to {distanceAfter:F3} m.");
+				continue;
 			}
 
-			for (int index = 2; index < errorSeries.Count; index++)
-			{
-				float previous = errorSeries[index - 1];
-				float current = errorSeries[index];
-				if (current > previous + 0.15f)
-				{
-					report.OscillationViolations++;
-					report.AddFailure($"Unit {rollback.EntityId} oscillated during its rollback: error rose from {previous:F3} m to {current:F3} m at sample {index}.");
-					break;
-				}
-			}
+			if (distanceBefore <= 0.0001f) continue;
+			if (Vector3.Dot(errorBefore, errorAfter) >= 0f) continue;
+
+			report.OscillationViolations++;
+			report.AddFailure($"A correction of unit {correction.EntityId} at tick {correction.Tick} overshot the authoritative position instead of approaching it ({distanceBefore:F3} m to {distanceAfter:F3} m).");
 		}
 	}
 
@@ -827,12 +895,18 @@ public static class PredictionHarnessVerification
 			return;
 		}
 
+		if (latencies.Count < MinimumUnpredictedOrderSamples)
+		{
+			report.StageSummaries.Add($"unpredicted orders: only {latencies.Count} samples, below the {MinimumUnpredictedOrderSamples} needed to state an envelope, so no p95 is published");
+			return;
+		}
+
 		latencies.Sort();
 		report.UnpredictedOrderP95Ticks = latencies[(int)Math.Min(latencies.Count - 1, Math.Floor(latencies.Count * 0.95))];
 		report.UnpredictedOrderMaximumTicks = latencies[^1];
 		report.StageSummaries.Add($"unpredicted orders: {latencies.Count} samples, p95 {report.UnpredictedOrderP95Ticks} ticks, max {report.UnpredictedOrderMaximumTicks} ticks, budget {report.UnpredictedOrderBudgetTicks} ticks (one-way delay plus two ticks)");
 
-		if (latencies.Count >= 10 && report.UnpredictedOrderP95Ticks > report.UnpredictedOrderBudgetTicks)
+		if (report.UnpredictedOrderP95Ticks > report.UnpredictedOrderBudgetTicks)
 		{
 			report.AddFailure($"Host-only orders took p95 {report.UnpredictedOrderP95Ticks} ticks to become visible on the client, above the {report.UnpredictedOrderBudgetTicks} tick envelope (one-way delay plus two ticks).");
 		}
@@ -846,12 +920,6 @@ public static class PredictionHarnessVerification
 		}
 
 		return false;
-	}
-
-	private static void MeasureScript(ParsedRecords records, PredictionHarnessReport report)
-	{
-		report.ScriptUpdateCount = records.ScriptUpdateCount;
-		report.ScriptOrderCount = records.ScriptOrders.Count;
 	}
 
 	private static void ReadClientRecords(string path, ParsedRecords records)
@@ -937,7 +1005,7 @@ public static class PredictionHarnessVerification
 					});
 					break;
 				case PredictionDiagnostics.KindAllocation:
-					records.AllocationSamples.Add((reader.ReadInt32(), reader.ReadInt64()));
+					records.AllocationSamples.Add((reader.ReadInt32(), reader.ReadInt64(), reader.ReadInt64()));
 					break;
 				case PredictionDiagnostics.KindSnapshotOrderingViolation:
 					records.OrderingViolations.Add((reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32()));

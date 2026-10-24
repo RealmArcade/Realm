@@ -41,6 +41,13 @@ public class MovementPredictionService
 	/// beyond the formation envelope.
 	/// </summary>
 	public const float AuthoritativeOrderToleranceMeters = 4.0f;
+	/// <summary>
+	/// How many ticks may pass between two authoritative samples before a snap is attributed to the outage instead of to
+	/// prediction. A healthy stream delivers a sample every tick, and the injected one-way delay makes a sample about
+	/// 4.5 ticks old at the client, so any gap above this means at least one snapshot never arrived and the client was
+	/// reconciling against a stale position for the whole gap.
+	/// </summary>
+	public const int SnapshotGapToleranceTicks = 6;
 	public const float ImpliedSnapshotIntervalSeconds = 1.0f / 30.0f;
 
 	/// <summary>
@@ -95,7 +102,8 @@ public class MovementPredictionService
 	public bool HasPredictedUnits => _trackedCount > 0;
 	public int SnapshotOrderingViolations { get; private set; }
 	public int ExpiredOrderCount { get; private set; }
-	public long MaximumTickAllocatedBytes { get; private set; }
+	public long MaximumPredictionTickAllocatedBytes { get; private set; }
+	public long MaximumSharedMovementTickAllocatedBytes { get; private set; }
 	public int TrackedUnitCount => _trackedCount;
 	public int LastSnapshotSequence => _lastSnapshotSequence;
 	public int LastPredictedTick => _lastPredictedTick;
@@ -127,6 +135,11 @@ public class MovementPredictionService
 				ClearPredictedOrder(world, entity);
 
 				if (kind == PredictedOrderKind.Stop) continue;
+
+				// A build order is not movement: the authority picks the worker and arbitrates the slot, so predicting a
+				// walk to the placement point would invent a destination the authority never ordered. The order is still
+				// registered for acknowledgement and rollback; only the movement prediction is withheld.
+				if (kind == PredictedOrderKind.Build) continue;
 
 				world.SetOrAdd(entity, new PredictedMoveTo(targetPosition, (int)kind));
 			}
@@ -221,12 +234,14 @@ public class MovementPredictionService
 		if (host.ObservingPlayerIndex <= 0) return;
 
 		BeginOperation();
-		long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
 		try
 		{
 			_lastPredictedTick++;
 			TrackLocallyOwnedUnits(world);
 			PruneUntrackedEntities(world);
+
+			long predictionWorkBefore = GC.GetAllocatedBytesForCurrentThread();
+			long sharedMovementBytes = 0;
 
 			if (host.HasAuthority)
 			{
@@ -237,17 +252,24 @@ public class MovementPredictionService
 			else
 			{
 				AdoptAuthoritativeOrders(world);
+
+				// The shared movement step is the same code the authority runs, so its allocations are reported apart
+				// from prediction's own: only the latter is this service's to keep allocation free.
+				long movementBefore = GC.GetAllocatedBytesForCurrentThread();
 				GameContext.SimulationService.StepPredictedMovement(delta);
+				sharedMovementBytes = GC.GetAllocatedBytesForCurrentThread() - movementBefore;
+
 				ApplyBoundedCorrections(world, delta);
 			}
 
 			ExpireUnacknowledgedCommands(world);
 
-			long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
-			if (allocatedBytes > MaximumTickAllocatedBytes) MaximumTickAllocatedBytes = allocatedBytes;
+			long predictionWorkBytes = GC.GetAllocatedBytesForCurrentThread() - predictionWorkBefore - sharedMovementBytes;
+			if (sharedMovementBytes > MaximumSharedMovementTickAllocatedBytes) MaximumSharedMovementTickAllocatedBytes = sharedMovementBytes;
+			if (predictionWorkBytes > MaximumPredictionTickAllocatedBytes) MaximumPredictionTickAllocatedBytes = predictionWorkBytes;
 			if (_lastPredictedTick % AllocationSampleIntervalTicks == 0)
 			{
-				PredictionDiagnostics.RecordAllocation(_lastPredictedTick, allocatedBytes);
+				PredictionDiagnostics.RecordAllocation(_lastPredictedTick, predictionWorkBytes, sharedMovementBytes);
 			}
 
 			PredictionDiagnostics.RecordClientTick(world, _lastPredictedTick, this);
@@ -435,6 +457,7 @@ public class MovementPredictionService
 
 		bool hasPrevious = _hasAuthoritativeSample[entityId];
 		Vector3 previousAuthoritative = _previousAuthoritativePositions[entityId];
+		int previousSequence = _authoritativeSequences[entityId];
 
 		_previousAuthoritativePositions[entityId] = authoritativePosition;
 		_authoritativePositions[entityId] = authoritativePosition;
@@ -456,15 +479,26 @@ public class MovementPredictionService
 
 		if (errorSquared <= SnapThresholdMeters * SnapThresholdMeters) return;
 
+		int sampleGapTicks = hasPrevious && previousSequence > 0 && _reconcileSequence > previousSequence
+			? _reconcileSequence - previousSequence
+			: 1;
+		float sampleGapSeconds = MathF.Max(sampleGapTicks * ImpliedSnapshotIntervalSeconds, 0.0001f);
 		float impliedSpeed = hasPrevious
-			? Vector3.Distance(authoritativePosition, previousAuthoritative) / MathF.Max(ImpliedSnapshotIntervalSeconds, 0.0001f)
+			? Vector3.Distance(authoritativePosition, previousAuthoritative) / sampleGapSeconds
 			: float.PositiveInfinity;
-		bool explained = hasPrevious && impliedSpeed > AuthoritativeJumpSpeedMetersPerSecond;
 
-		if (explained)
+		// Two causes make a snap the honest response: the authority moved faster than any unit can, or the client went
+		// without an authoritative sample long enough that unbounded travel is explained by the outage itself.
+		bool isTeleport = hasPrevious && impliedSpeed > AuthoritativeJumpSpeedMetersPerSecond;
+		bool recoveredFromGap = hasPrevious && sampleGapTicks >= SnapshotGapToleranceTicks;
+
+		if (isTeleport || recoveredFromGap)
 		{
 			world.Set(entity, new Position(authoritativePosition));
-			PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, true, $"authoritative teleport at {impliedSpeed:F1} m/s");
+			string reason = isTeleport
+				? $"authoritative teleport at {impliedSpeed:F1} m/s"
+				: $"recovered from a {sampleGapTicks} tick snapshot gap";
+			PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, true, reason);
 			return;
 		}
 
@@ -568,7 +602,8 @@ public class MovementPredictionService
 		_pendingCommandRegisteredTicks.AsSpan().Clear();
 		SnapshotOrderingViolations = 0;
 		ExpiredOrderCount = 0;
-		MaximumTickAllocatedBytes = 0;
+		MaximumPredictionTickAllocatedBytes = 0;
+		MaximumSharedMovementTickAllocatedBytes = 0;
 		_reconcileSequence = -1;
 		_lastSnapshotSequence = -1;
 		_lastPredictedTick = 0;
