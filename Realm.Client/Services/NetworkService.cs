@@ -1295,6 +1295,13 @@ public class NetworkService
 		int buildWorkerServerEntityId = needsBuildUnit && cmd.UnitEntityIds.Count > 0 ? cmd.UnitEntityIds[0] : -1;
 
 		bool needsSpellEffect = cmd.CommandType == "spell";
+		if (needsSpellEffect && !TryAuthorizeSpellCommand(peerId, cmd, allUnits, out string spellRejection))
+		{
+			needsSpellEffect = false;
+			if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = spellRejection;
+			if (cmd.UnitEntityIds.Count > 0) RecordCommandRejection(rejectedServerEntityIds, cmd.UnitEntityIds[0], spellRejection);
+		}
+
 		string spellId = needsSpellEffect ? cmd.ArgString : null;
 		Vector3 spellPosition = needsSpellEffect ? cmd.TargetPosition.ToGodot() : Vector3.Zero;
 
@@ -1303,6 +1310,118 @@ public class NetworkService
 			needsSpellEffect, spellId, spellPosition,
 			stopVelocityEntityIds, holdVelocityEntityIds,
 			rejectedServerEntityIds, rejectionReason);
+	}
+
+	public bool TryGetPlayerEntityForPeer(int peerId, out Entity playerEntity)
+	{
+		playerEntity = Entity.Null;
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(peerId, out playerEntity)) return false;
+		return playerEntity != Entity.Null && GameContext.World.IsAlive(playerEntity);
+	}
+
+	public bool ValidateSpellCommandForHarness(int peerId, NetworkCommand cmd, out string rejectionReason)
+	{
+		return ValidateSpellCommand(peerId, cmd, GameContext.Host?.AllUnits ?? new List<Unit3D>(), out _, out rejectionReason);
+	}
+
+	private bool TryAuthorizeSpellCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, out string rejectionReason)
+	{
+		if (!ValidateSpellCommand(peerId, cmd, allUnits, out Entity casterEntity, out rejectionReason)) return false;
+
+		string spellId = cmd.ArgString ?? string.Empty;
+		GameContext.RegistryService.AbilityDefinitions.TryGetValue(spellId, out AbilityDefinition? definition);
+		if (definition == null) return false;
+
+		if (!TryGetPlayerEntityForPeer(peerId, out Entity playerEntity)) return false;
+
+		if (definition.ManaCost > 0f && GameContext.World.Has<Mana>(casterEntity))
+		{
+			ref var mana = ref GameContext.World.Get<Mana>(casterEntity);
+			mana.Current -= definition.ManaCost;
+		}
+
+		if (definition.Cooldown > 0f && GameContext.World.Has<SpellCooldowns>(playerEntity))
+		{
+			ref var cooldowns = ref GameContext.World.Get<SpellCooldowns>(playerEntity);
+			cooldowns.Set(spellId, definition.Cooldown, definition.Cooldown);
+		}
+
+		return true;
+	}
+
+	private bool ValidateSpellCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, out Entity casterEntity, out string rejectionReason)
+	{
+		casterEntity = Entity.Null;
+		rejectionReason = string.Empty;
+
+		if (cmd.UnitEntityIds == null || cmd.UnitEntityIds.Count == 0)
+		{
+			rejectionReason = "spell command does not name a caster";
+			return false;
+		}
+
+		string spellId = cmd.ArgString ?? string.Empty;
+		if (!GameContext.RegistryService.AbilityDefinitions.TryGetValue(spellId, out AbilityDefinition? definition) || definition == null)
+		{
+			rejectionReason = $"spell '{spellId}' is not defined";
+			return false;
+		}
+
+		casterEntity = GetSpellCasterEntityDomain(cmd, allUnits);
+		if (casterEntity == Entity.Null)
+		{
+			rejectionReason = $"caster {cmd.UnitEntityIds[0]} is not a live unit";
+			return false;
+		}
+
+		if (!IsClientAuthorized(peerId, casterEntity))
+		{
+			rejectionReason = $"caster {cmd.UnitEntityIds[0]} is not owned by peer {peerId}";
+			return false;
+		}
+
+		if (!TryGetPlayerEntityForPeer(peerId, out Entity playerEntity))
+		{
+			rejectionReason = $"peer {peerId} has no player entity";
+			return false;
+		}
+
+		if (definition.Cooldown > 0f && GameContext.World.Has<SpellCooldowns>(playerEntity))
+		{
+			ref var cooldowns = ref GameContext.World.Get<SpellCooldowns>(playerEntity);
+			if (cooldowns.TryGetValue(spellId, out float remaining) && remaining > 0f)
+			{
+				rejectionReason = $"spell '{spellId}' is on cooldown for {remaining:F1} s";
+				return false;
+			}
+		}
+
+		if (definition.ManaCost > 0f && GameContext.World.Has<Mana>(casterEntity))
+		{
+			ref var mana = ref GameContext.World.Get<Mana>(casterEntity);
+			if (mana.Current < definition.ManaCost)
+			{
+				rejectionReason = $"caster needs {definition.ManaCost:F0} mana and has {mana.Current:F0}";
+				return false;
+			}
+		}
+
+		if (definition.TargetRange > 0f && GameContext.World.Has<Position>(casterEntity))
+		{
+			System.Numerics.Vector3 casterPosition = GameContext.World.Get<Position>(casterEntity).Value;
+			System.Numerics.Vector3 targetPosition = cmd.TargetPosition.ToNumerics();
+			float distance = System.Numerics.Vector3.Distance(casterPosition, targetPosition);
+			if (distance > definition.TargetRange)
+			{
+				rejectionReason = $"target is {distance:F1} m away, beyond the {definition.TargetRange:F1} m range of '{spellId}'";
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private void DispatchServerCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps, List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds, List<int> rejectedServerEntityIds, ref string rejectionReason)

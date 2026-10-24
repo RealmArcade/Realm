@@ -75,9 +75,10 @@ public partial class PredictionHarnessRunner : Node
 				syncFailures = syncReport.Failures.Count;
 			}
 
-			bool passed = predictionReport.Failures == 0 && syncFailures == 0;
+			int hardeningFailures = ReadHardeningFailures(_outputDirectory);
+			bool passed = predictionReport.Failures == 0 && syncFailures == 0 && hardeningFailures == 0;
 			exitCode = passed ? 0 : 1;
-			GD.Print($"[PREDICTION_HARNESS] Verdict: {(passed ? "PASS" : "FAIL")} (sync failures {syncFailures}, prediction failures {predictionReport.Failures}).");
+			GD.Print($"[PREDICTION_HARNESS] Verdict: {(passed ? "PASS" : "FAIL")} (sync failures {syncFailures}, prediction failures {predictionReport.Failures}, hardening failures {hardeningFailures}).");
 		}
 		catch (Exception exception)
 		{
@@ -86,6 +87,27 @@ public partial class PredictionHarnessRunner : Node
 		finally
 		{
 			GetTree().Quit(exitCode);
+		}
+	}
+
+	private static int ReadHardeningFailures(string outputDirectory)
+	{
+		string path = Path.Combine(outputDirectory, "hardening_report.json");
+		if (!File.Exists(path))
+		{
+			GD.PrintErr($"[PREDICTION_HARNESS] {path} is missing, so the hardening checks did not run.");
+			return -1;
+		}
+
+		try
+		{
+			using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+			return document.RootElement.GetProperty("failures").GetInt32();
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[PREDICTION_HARNESS] Could not read {path}: {exception.Message}");
+			return -1;
 		}
 	}
 

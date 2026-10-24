@@ -2006,7 +2006,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		if (!IsHost) return;
 		int senderId = Multiplayer.GetRemoteSenderId();
-		GD.Print($"[LobbyManager] RequestReconnect received from Peer {senderId}: Token={sessionToken}, Name={playerName}");
+		GD.Print($"[LobbyManager] RequestReconnect received from Peer {senderId}: TokenPresent={!string.IsNullOrEmpty(sessionToken)}, Name={playerName}");
 
 		if (!IsGameStarted)
 		{
@@ -2020,7 +2020,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			return;
 		}
 
-		PlayerInfo? targetPlayer = FindReconnectSessionOwner(sessionToken, playerName);
+		PlayerInfo? targetPlayer = FindReconnectSessionOwner(sessionToken);
 		if (targetPlayer == null)
 		{
 			RpcId(senderId, nameof(RejectConnection), Tr("Reconnect rejected: no player in this match owns that session."));
@@ -2047,16 +2047,10 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.Host?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
 	}
 
-	private PlayerInfo? FindReconnectSessionOwner(string sessionToken, string playerName)
+	private PlayerInfo? FindReconnectSessionOwner(string sessionToken)
 	{
-		if (!string.IsNullOrEmpty(sessionToken))
-		{
-			var tokenOwner = PlayerList.Find(p => !string.IsNullOrEmpty(p.SessionToken) && string.Equals(p.SessionToken, sessionToken, StringComparison.Ordinal));
-			if (tokenOwner != null) return tokenOwner;
-		}
-
-		if (string.IsNullOrEmpty(playerName)) return null;
-		return PlayerList.Find(p => string.IsNullOrEmpty(p.SessionToken) && string.Equals(p.Name, playerName, StringComparison.Ordinal));
+		if (string.IsNullOrEmpty(sessionToken)) return null;
+		return PlayerList.Find(p => !string.IsNullOrEmpty(p.SessionToken) && string.Equals(p.SessionToken, sessionToken, StringComparison.Ordinal));
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2174,45 +2168,94 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 	}
 
+	private readonly TokenBucket _slotUpdateBudget = new(12, 4);
+	private readonly TokenBucket _diagnosticsBudget = new(30, 10);
+	private readonly TokenBucket _chatBudget = new(10, 2);
+	private readonly Dictionary<int, double> _lastPlayerListBroadcastForDiagnostics = new();
+	private const double DiagnosticsBroadcastIntervalSeconds = 1.0;
+	private const int MaximumChatMessageLength = 400;
+
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void UpdatePlayerSlot(int peerId, string faction, string team, Color color, string name)
 	{
-		if (IsHost)
-		{
-			var p = PlayerList.Find(x => x.PeerId == peerId);
-			if (p != null)
-			{
-				p.Faction = faction;
-				p.Team = team;
-				p.Color = color;
-				p.Name = name;
-				BroadcastPlayerList();
-			}
-		}
-		else
+		if (!IsHost)
 		{
 			RpcId(1, nameof(UpdatePlayerSlot), peerId, faction, team, color, name);
+			return;
 		}
+
+		int senderId = Multiplayer.GetRemoteSenderId();
+		int targetPeerId = senderId > 0 ? senderId : peerId;
+		if (senderId > 0 && peerId > 0 && peerId != senderId)
+		{
+			GD.PushWarning($"[LobbyManager] Peer {senderId} tried to change slot of peer {peerId}; the sender identity wins.");
+		}
+
+		if (!_slotUpdateBudget.TryConsume(1))
+		{
+			GD.PushWarning($"[LobbyManager] Dropped slot update from peer {targetPeerId}: above the lobby rate limit.");
+			return;
+		}
+
+		var p = PlayerList.Find(x => x.PeerId == targetPeerId);
+		if (p == null) return;
+
+		p.Faction = SanitizeLobbyText(faction, 48);
+		p.Team = SanitizeLobbyText(team, 48);
+		p.Color = color;
+		p.Name = SanitizeLobbyText(name, 32);
+		BroadcastPlayerList();
+	}
+
+	private static string SanitizeLobbyText(string? value, int maximumLength)
+	{
+		if (string.IsNullOrEmpty(value)) return string.Empty;
+
+		int length = Math.Min(value.Length, maximumLength);
+		var builder = new StringBuilder(length);
+		for (int index = 0; index < length; index++)
+		{
+			char character = value[index];
+			if (char.IsControl(character)) continue;
+			builder.Append(character);
+		}
+
+		return builder.ToString();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void UpdateDiagnostics(int peerId, float minRtt, float maxRtt, float avgRtt, float jitter, float lossRate, int consecutiveLoss)
 	{
-		if (IsHost)
-		{
-			var p = PlayerList.Find(x => x.PeerId == peerId);
-			if (p != null)
-			{
-				p.Latency = $"{Math.Round(avgRtt)} ms";
-				p.Jitter = $"{Math.Round(jitter)} ms";
-				p.PacketLoss = $"{Math.Round(lossRate)}% (Burst: {consecutiveLoss})";
-				BroadcastPlayerList();
-			}
-		}
-		else
+		if (!IsHost)
 		{
 			RpcId(1, nameof(UpdateDiagnostics), peerId, minRtt, maxRtt, avgRtt, jitter, lossRate, consecutiveLoss);
+			return;
 		}
+
+		int senderId = Multiplayer.GetRemoteSenderId();
+		int targetPeerId = senderId > 0 ? senderId : peerId;
+		if (!_diagnosticsBudget.TryConsume(1))
+		{
+			GD.PushWarning($"[LobbyManager] Dropped diagnostics from peer {targetPeerId}: above the lobby rate limit.");
+			return;
+		}
+
+		var p = PlayerList.Find(x => x.PeerId == targetPeerId);
+		if (p == null) return;
+
+		p.Latency = $"{Math.Round(Math.Clamp(avgRtt, 0f, 60000f))} ms";
+		p.Jitter = $"{Math.Round(Math.Clamp(jitter, 0f, 60000f))} ms";
+		p.PacketLoss = $"{Math.Round(Math.Clamp(lossRate, 0f, 100f))}% (Burst: {Math.Clamp(consecutiveLoss, 0, 100000)})";
+
+		double now = Time.GetTicksMsec() / 1000.0;
+		if (_lastPlayerListBroadcastForDiagnostics.TryGetValue(targetPeerId, out double lastBroadcast)
+			&& now - lastBroadcast < DiagnosticsBroadcastIntervalSeconds)
+		{
+			return;
+		}
+
+		_lastPlayerListBroadcastForDiagnostics[targetPeerId] = now;
+		BroadcastPlayerList();
 	}
 
 	public void UpdateReadyState(int peerId, bool isReady)
@@ -2598,19 +2641,28 @@ public partial class LobbyManager : BaseMapTransferNode
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	private void ReceiveChatMessage(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
 	{
-		if (IsHost)
+		string cappedMessage = SanitizeLobbyText(message, MaximumChatMessageLength);
+		if (cappedMessage.Length == 0) return;
+
+		if (!IsHost)
 		{
-			int senderPeerId = Multiplayer.GetRemoteSenderId();
-			if (senderPeerId <= 0) senderPeerId = 1;
-			var senderPlayer = PlayerList.Find(p => p.PeerId == senderPeerId);
-			int senderSlot = senderPlayer?.Slot ?? 0;
-			ServerChatCommandReceived?.Invoke(senderSlot, message);
-			_ = ProcessAndSendChatMessageAsync(senderName, message, alliesOnly, timestampUtcTicks);
+			ChatReceived?.Invoke(SanitizeLobbyText(senderName, 32), cappedMessage, alliesOnly, timestampUtcTicks);
+			return;
 		}
-		else
+
+		int senderPeerId = Multiplayer.GetRemoteSenderId();
+		if (senderPeerId <= 0) senderPeerId = 1;
+		if (!_chatBudget.TryConsume(1))
 		{
-			ChatReceived?.Invoke(senderName, message, alliesOnly, timestampUtcTicks);
+			GD.PushWarning($"[LobbyManager] Dropped a chat message from peer {senderPeerId}: above the chat rate limit.");
+			return;
 		}
+
+		var senderPlayer = PlayerList.Find(p => p.PeerId == senderPeerId);
+		string authoritativeName = senderPlayer != null ? senderPlayer.Name : SanitizeLobbyText(senderName, 32);
+		int senderSlot = senderPlayer?.Slot ?? 0;
+		ServerChatCommandReceived?.Invoke(senderSlot, cappedMessage);
+		_ = ProcessAndSendChatMessageAsync(authoritativeName, cappedMessage, alliesOnly, timestampUtcTicks);
 	}
 
 	public void RequestChatHistory()
@@ -2641,6 +2693,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void LoadMap(string mapName, int matchSeed)
 	{
 		GD.Print($"[LobbyManager] LoadMap RPC received for: {mapName} with deterministic random seed {matchSeed}");
+		GameContext.Host?.ResetCommandDedupe();
 		GameContext.ReplayPlayback.StopReplay();
 		ActiveMapName = mapName;
 		MatchSeed = matchSeed;

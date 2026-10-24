@@ -42,6 +42,7 @@ public partial class MultiplayerSimulationHarness : Node
 	private bool _scenarioEnabled;
 	private string _networkProfile = "Latency";
 	private bool _loopback;
+	private int _hardeningFailureCount;
 
 	public override void _Ready()
 	{
@@ -226,6 +227,8 @@ public partial class MultiplayerSimulationHarness : Node
 			GD.Print($"[MP_HARNESS] Host draining for {_drainMilliseconds} ms so delayed clients can catch up.");
 			await ToSignal(GetTree().CreateTimer(_drainMilliseconds / 1000f), SceneTreeTimer.SignalName.Timeout);
 		}
+
+		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true);
 
 		_finalSequence = ResolveSnapshotSequence();
 		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");

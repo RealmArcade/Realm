@@ -340,12 +340,17 @@ public partial class GameHost
 
 	private bool IsDuplicateCommand(int peerId, int commandId)
 	{
-		if (commandId <= 0) return false;
+		if (commandId <= 0) return true;
 
 		if (_lastAppliedCommandIdPerPeer.TryGetValue(peerId, out int lastAppliedCommandId) && commandId <= lastAppliedCommandId) return true;
 
 		_lastAppliedCommandIdPerPeer[peerId] = commandId;
 		return false;
+	}
+
+	public void ResetCommandDedupe()
+	{
+		_lastAppliedCommandIdPerPeer.Clear();
 	}
 
 	private void ProcessServerCommandSpell(NetworkCommand cmd, ServerCommandResult result)
@@ -364,14 +369,32 @@ public partial class GameHost
 		BroadcastSpellEffect(spellId, position);
 	}
 
+	private const int CameraPayloadBytes = 64;
+
+	private static bool TryDeserializePeerPayload<T>(byte[]? payload, int maximumBytes, out T value) where T : struct
+	{
+		return PeerPayloadGuard.TryDeserialize(payload, maximumBytes, out value);
+	}
+
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void SubmitCommand(byte[] payload)
 	{
 		if (!Multiplayer.IsServer()) return;
-		var sw = Stopwatch.StartNew();
 		int senderId = Multiplayer.GetRemoteSenderId();
-		var cmd = MemoryPackSerializer.Deserialize<NetworkCommand>(payload);
+		if (!TryDeserializePeerPayload(payload, NetworkCommandLimits.MaximumPayloadBytes, out NetworkCommand cmd))
+		{
+			GD.PushWarning($"[Network] Dropped a malformed command payload ({payload?.Length ?? 0} bytes) from peer {senderId}.");
+			return;
+		}
 
+		if (!NetworkCommandLimits.TrySanitize(ref cmd, out string sanitizeRejection))
+		{
+			GD.PushWarning($"[Network] Rejected a command from peer {senderId}: {sanitizeRejection}");
+			if (cmd.CommandId > 0) RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId, Array.Empty<int>(), sanitizeRejection);
+			return;
+		}
+
+		var sw = Stopwatch.StartNew();
 		if (IsDuplicateCommand(senderId, cmd.CommandId))
 		{
 			RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId, Array.Empty<int>(), string.Empty);
@@ -453,8 +476,9 @@ public partial class GameHost
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
 	public void UpdateClientCamera(byte[] payload)
 	{
+		if (!Multiplayer.IsServer()) return;
 		int senderId = Multiplayer.GetRemoteSenderId();
-		var pos = MemoryPackSerializer.Deserialize<NetworkVector3>(payload);
+		if (!TryDeserializePeerPayload(payload, CameraPayloadBytes, out NetworkVector3 pos)) return;
 		GameContext.NetworkService.RecordClientCameraPosition(senderId, pos.ToGodot());
 	}
 

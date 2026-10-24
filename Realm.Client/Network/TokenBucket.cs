@@ -19,24 +19,23 @@ public class TokenBucket
 		_lastRefill = DateTime.UtcNow;
 	}
 
+	public bool TryConsume(long amount)
+	{
+		lock (_lock)
+		{
+			Refill();
+			if (_tokens < amount) return false;
+
+			_tokens -= amount;
+			return true;
+		}
+	}
+
 	public void Consume(long amount)
 	{
-		while (true)
+		while (!TryConsume(amount))
 		{
-			lock (_lock)
-			{
-				Refill();
-				if (_tokens >= amount)
-				{
-					_tokens -= amount;
-					return;
-				}
-
-				double needed = amount - _tokens;
-				double sleepSecs = needed / _fillRatePerSecond;
-				int sleepMs = Math.Max(1, (int)(sleepSecs * 1000));
-				Thread.Sleep(sleepMs);
-			}
+			Thread.Sleep(1);
 		}
 	}
 
