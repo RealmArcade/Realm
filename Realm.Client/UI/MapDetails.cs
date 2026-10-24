@@ -30,6 +30,8 @@ public partial class MapDetails : Control
 	private PanelContainer _headerPanel;
 	private Label _titleLabel;
 	private Label _creatorLabel;
+	private Button _attributionButton;
+	private AttributionPopover _attributionPopover;
 
 
 	private TextureRect _texLeftPeek;
@@ -101,6 +103,7 @@ public partial class MapDetails : Control
 		_headerPanel = GetNode<PanelContainer>("HeaderPanel");
 		_titleLabel = GetNode<Label>("HeaderPanel/VBoxContainer/TitleLabel");
 		_creatorLabel = GetNode<Label>("HeaderPanel/VBoxContainer/CreatorLabel");
+		SetupAttributionButton();
 
 
 		_texLeftPeek = GetNode<TextureRect>("CarouselPanel/LeftPeek");
@@ -248,6 +251,40 @@ public partial class MapDetails : Control
 		_versionDropdown.Select(selectedIndex);
 
 		UpdateVersionDisplay();
+	}
+
+	private void SetupAttributionButton()
+	{
+		_attributionButton = new Button();
+		_attributionButton.Name = "AttributionButton_Button";
+		_attributionButton.Text = LocalizationManager.Translate("ATTRIBUTION");
+		_attributionButton.Set("icon_max_width", 0);
+		_attributionButton.CustomMinimumSize = new Vector2(180, 24);
+		_attributionButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		_attributionButton.FocusMode = FocusModeEnum.None;
+		_attributionButton.TooltipText = LocalizationManager.Translate("Show maps whose content was imported into this map");
+		_attributionButton.AddThemeFontSizeOverride("font_size", 11);
+		_attributionButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		_attributionButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		_attributionButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		_attributionButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_attributionButton.Pressed += OnAttributionPressed;
+		_headerPanel.GetNode<VBoxContainer>("VBoxContainer").AddChild(_attributionButton);
+	}
+
+	private void OnAttributionPressed()
+	{
+		GameContext.UserInterface.PlayClickSound();
+
+		if (_attributionPopover == null || !GodotObject.IsInstanceValid(_attributionPopover))
+		{
+			_attributionPopover = new AttributionPopover();
+			AddChild(_attributionPopover);
+			_attributionPopover.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		}
+
+		IReadOnlyList<string> sourceMapNames = MapAttributionLookup.Resolve(_mapData?.Attribution_SourceMap, _mapData?.Title, _mapData?.Version);
+		_attributionPopover.ShowFor(_attributionButton, sourceMapNames);
 	}
 
 	private void OnVersionSelected(int index)

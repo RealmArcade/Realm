@@ -351,6 +351,7 @@ public static partial class MapWorkspaceService
 		EnsureCsproj(directory, mapName);
 		EnsureMapScript(directory, mapName);
 		EnsureMeleeRules(directory);
+		EnsureSourceMapAttributionAttribute(directory);
 		EnsureWasmEntryPoint(directory);
 		EnsureMetadataJson(directory);
 		EnsureLicenseFile(directory);
@@ -562,6 +563,7 @@ public static partial class MapWorkspaceService
 		}
 
 		EnsureTrimmerRoot(csprojPath);
+		EnsureSourceMapGlobalUsing(csprojPath);
 
 		EnsureApiLib(directory);
 
@@ -877,6 +879,30 @@ public static partial class MapWorkspaceService
 				File.Copy(template, meleePath, true);
 			}
 		}
+	}
+
+	public static void EnsureSourceMapAttributionAttribute(string directory)
+	{
+		if (string.IsNullOrEmpty(directory)) return;
+
+		string sourcePath = GetTemplatePath("Attribution_SourceMapAttribute.cs");
+		if (!File.Exists(sourcePath)) return;
+
+		PathUtils.CopyFileClearingReadOnly(sourcePath, Path.Combine(directory, "Attribution_SourceMapAttribute.cs"));
+	}
+
+	private static void EnsureSourceMapGlobalUsing(string csprojPath)
+	{
+		if (string.IsNullOrEmpty(csprojPath) || !File.Exists(csprojPath)) return;
+
+		string content = File.ReadAllText(csprojPath);
+		if (content.Contains("<Using Include=\"Realm.Maps\"", StringComparison.OrdinalIgnoreCase)) return;
+
+		const string globalUsingItemGroup = "  <ItemGroup>\n    <Using Include=\"Realm.Maps\" />\n  </ItemGroup>\n";
+		int projectEnd = content.LastIndexOf("</Project>", StringComparison.OrdinalIgnoreCase);
+		content = projectEnd >= 0 ? content.Insert(projectEnd, globalUsingItemGroup) : content + globalUsingItemGroup;
+
+		File.WriteAllText(csprojPath, content);
 	}
 
 	public static void EnsureWasmEntryPoint(string directory)

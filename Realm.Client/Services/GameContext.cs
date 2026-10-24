@@ -138,6 +138,9 @@ namespace Realm.Client.Services
 		public static MapCatalogService MapCatalogService => GlobalScope.Get<MapCatalogService>();
 		public static MapStorageService MapStorageService => GlobalScope.Get<MapStorageService>();
 		public static MapAssetImportService MapAssetImportService => GlobalScope.Get<MapAssetImportService>();
+		public static MapTemplateImportService MapTemplateImportService => GlobalScope.Get<MapTemplateImportService>();
+		public static MapCodeImportService MapCodeImportService => GlobalScope.Get<MapCodeImportService>();
+		public static MapAttributionService MapAttributionService => GlobalScope.Get<MapAttributionService>();
 		public static ModelOptimizerService ModelOptimizerService => GlobalScope.Get<ModelOptimizerService>();
 		public static CheatService CheatService => GlobalScope.Get<CheatService>();
 		public static BaseMapFolderWatchService BaseMapFolderWatchService => GlobalScope.Get<BaseMapFolderWatchService>();

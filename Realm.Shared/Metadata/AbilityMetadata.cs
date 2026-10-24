@@ -22,4 +22,6 @@ public class AbilityMetadata
 	public int GridX { get; set; } = -1;
 	public int GridY { get; set; } = -1;
 	public string? Hotkey { get; set; }
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

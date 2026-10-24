@@ -29,4 +29,6 @@ public abstract class PlaceableMetadata
 		get => DeathShader;
 		set => DeathShader = value;
 	}
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

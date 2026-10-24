@@ -241,6 +241,12 @@ namespace Realm.Client.UI
 				BtnInstanceManager.Pressed += () => _popupEditors.Hide();
 				editorsVBox.AddChild(BtnInstanceManager);
 
+				BtnImportFromMap = new Button();
+				BtnImportFromMap.Name = "BtnImportFromMap";
+				SetupOptionButton(BtnImportFromMap, $"🗺 " + TranslationServer.Translate("IMPORT FROM MAP"), () => OpenImportFromMapDialog(), 13, "Copy assets, templates, and code from another map into this map");
+				BtnImportFromMap.Pressed += () => _popupEditors.Hide();
+				editorsVBox.AddChild(BtnImportFromMap);
+
 				BtnUtilities = new Button();
 				BtnUtilities.Name = "BtnUtilities";
 				SetupOptionButton(BtnUtilities, $"{UnicodeIcons.WRENCH} UTILITIES", () => OpenUtilitiesDialog(), 13, "Open batch utilities and maintenance tools");
@@ -2709,6 +2715,7 @@ namespace Realm.Client.UI
 				EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 
 				var manifest = MapManifest.CreateFromDirectory(workspace, mapTitle, currentUsername, mapVersion);
+				manifest.Attribution_SourceMap = GameContext.MapAttributionService.CollectSortedSourceMapNames(workspace).ToList();
 				manifest.IsTestVersion = testVersionCheck.ButtonPressed;
 				manifestJsonPath = Path.Combine(workspace, "manifest.json");
 				string manifestJsonContent = manifest.ToJson();

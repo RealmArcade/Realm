@@ -126,7 +126,8 @@ public static class MapInfoHelper
 			GameBuildNumber = "v0.0.0",
 			Version = "1.0.0",
 			ManifestHash = "",
-			ThumbnailPath = FindThumbnailForMap(mapFolder)
+			ThumbnailPath = FindThumbnailForMap(mapFolder),
+			Attribution_SourceMap = new List<string>()
 		};
 	}
 
@@ -236,7 +237,8 @@ public static class MapInfoHelper
 				GameBuildNumber = gameBuildNumber,
 				Version = version,
 				ManifestHash = manifestHash,
-				ThumbnailPath = thumbPath
+				ThumbnailPath = thumbPath,
+				Attribution_SourceMap = manifest.Attribution_SourceMap ?? new List<string>()
 			};
 			return true;
 		}
@@ -337,7 +339,8 @@ public static class MapInfoHelper
 				GameBuildNumber = gameBuildNumber,
 				Version = version,
 				ManifestHash = manifestHash,
-				ThumbnailPath = thumbPath
+				ThumbnailPath = thumbPath,
+				Attribution_SourceMap = manifest.Attribution_SourceMap ?? new List<string>()
 			};
 			return true;
 		}

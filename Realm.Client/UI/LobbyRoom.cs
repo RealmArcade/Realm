@@ -58,6 +58,8 @@ public partial class LobbyRoom : Control
 	private Label _authorshipWarningLabel;
 	private Label _primaryAuthorLabel;
 	private Button _otherAuthorsButton;
+	private Button _attributionButton;
+	private AttributionPopover _attributionPopover;
 	private List<string> _otherAuthorsList = new List<string>();
 
 
@@ -246,6 +248,8 @@ public partial class LobbyRoom : Control
 			}
 		};
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_otherAuthorsButton);
+
+		SetupAttributionButton();
 
 		UpdateSelectedMapUI();
 	}
@@ -711,34 +715,67 @@ public partial class LobbyRoom : Control
 		}
 	}
 
-	private void UpdateSelectedMapUI()
+	private void SetupAttributionButton()
+	{
+		_attributionButton = new Button();
+		_attributionButton.Name = "AttributionButton_Button";
+		_attributionButton.Text = LocalizationManager.Translate("ATTRIBUTION");
+		_attributionButton.Set("icon_max_width", 0);
+		_attributionButton.CustomMinimumSize = new Vector2(160, 28);
+		_attributionButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+		_attributionButton.FocusMode = FocusModeEnum.None;
+		_attributionButton.TooltipText = LocalizationManager.Translate("Show maps whose content was imported into this map");
+		_attributionButton.AddThemeFontSizeOverride("font_size", 11);
+		_attributionButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		_attributionButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		_attributionButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		_attributionButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		_attributionButton.Pressed += OnAttributionPressed;
+		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_attributionButton);
+	}
+
+	private void OnAttributionPressed()
+	{
+		GameContext.UserInterface.PlayClickSound();
+
+		if (_attributionPopover == null || !GodotObject.IsInstanceValid(_attributionPopover))
+		{
+			_attributionPopover = new AttributionPopover();
+			AddChild(_attributionPopover);
+			_attributionPopover.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		}
+
+		int selectedIndex = GetSelectedMapIndex();
+		IReadOnlyList<string> sourceMapNames = selectedIndex >= 0
+			? MapAttributionLookup.Resolve(_lobbyRoomMaps[selectedIndex].Attribution_SourceMap, _lobbyRoomMaps[selectedIndex].PathName, _lobbyRoomMaps[selectedIndex].Version)
+			: Array.Empty<string>();
+
+		_attributionPopover.ShowFor(_attributionButton, sourceMapNames);
+	}
+
+	private int GetSelectedMapIndex()
 	{
 		string currentMap = GameContext.Lobby.ActiveMapName ?? "melee";
 		int selectedIndex = _lobbyRoomMaps.FindIndex(m => m.PathName == currentMap);
+		if (selectedIndex >= 0) return selectedIndex;
+
+		selectedIndex = _lobbyRoomMaps.FindIndex(m => m.PathName.ToLower().Contains(currentMap.ToLower()));
+		if (selectedIndex >= 0) return selectedIndex;
+
+		return _lobbyRoomMaps.Count > 0 ? 0 : -1;
+	}
+
+	private void UpdateSelectedMapUI()
+	{
+		int selectedIndex = GetSelectedMapIndex();
 		if (selectedIndex >= 0)
 		{
 			_mapNameLabel.Text = _lobbyRoomMaps[selectedIndex].DisplayName.ToUpper();
 			_briefingLabel.Text = _lobbyRoomMaps[selectedIndex].Description;
-		}
-		else
-		{
-			selectedIndex = _lobbyRoomMaps.FindIndex(m => m.PathName.ToLower().Contains(currentMap.ToLower()));
-			if (selectedIndex >= 0)
-			{
-				_mapNameLabel.Text = _lobbyRoomMaps[selectedIndex].DisplayName.ToUpper();
-				_briefingLabel.Text = _lobbyRoomMaps[selectedIndex].Description;
-			}
-			else if (_lobbyRoomMaps.Count > 0)
-			{
-				_mapNameLabel.Text = _lobbyRoomMaps[0].DisplayName.ToUpper();
-				_briefingLabel.Text = _lobbyRoomMaps[0].Description;
-			}
-		}
-
-		if (_lobbyRoomMaps.Count > 0 && selectedIndex >= 0)
-		{
 			VerifyMapAuthorship(_lobbyRoomMaps[selectedIndex].PathName);
 		}
+
+		_attributionPopover?.Close();
 	}
 
 	private void TriggerInviteFeedback()

@@ -1372,6 +1372,7 @@ public class MapStorageService
 		mapVersion = extracted.mapVersion;
 
 		var manifest = MapManifest.CreateFromDirectory(tempWorkspacePath, mapTitle, author, mapVersion);
+		GameContext.MapAttributionService.ApplyAttribution(manifest, tempWorkspacePath);
 		string manifestJsonPath = Path.Combine(tempWorkspacePath, "manifest.json");
 		File.WriteAllText(manifestJsonPath, manifest.ToJson());
 	}

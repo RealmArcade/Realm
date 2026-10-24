@@ -26,4 +26,5 @@ public class DiscoveryMapDto
 	public bool IsGreenlit { get; set; } = true;
 	public bool IsTestVersion { get; set; }
 	public List<string> Awards { get; set; } = new();
+	public List<string> Attribution_SourceMap { get; set; } = new();
 }

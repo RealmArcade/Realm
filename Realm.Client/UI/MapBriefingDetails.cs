@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Realm.Client.UI;
 
 public struct MapBriefingDetails
@@ -9,4 +11,5 @@ public struct MapBriefingDetails
 	public string Version;
 	public string ManifestHash;
 	public string ThumbnailPath;
+	public List<string> Attribution_SourceMap;
 }

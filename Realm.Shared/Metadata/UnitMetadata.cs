@@ -95,6 +95,8 @@ public class UnitMetadata
 
 	public float ConstructionRange { get; set; } = DefaultConstructionRange;
 
+	public string? Attribution_ImportedFromMap { get; set; }
+
 	public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation? orientation)
 	{
 		if (ObjectAttachments != null)

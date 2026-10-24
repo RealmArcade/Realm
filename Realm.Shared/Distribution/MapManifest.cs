@@ -19,6 +19,7 @@ public class MapManifest
 	public List<string> Tags { get; set; } = new();
 	public List<string> Maintainers { get; set; } = new();
 	public List<string> GreenlitReferences { get; set; } = new();
+	public List<string> Attribution_SourceMap { get; set; } = new();
 	public bool IsTestVersion { get; set; }
 
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -673,18 +674,18 @@ public class MapManifest
 	private static readonly HashSet<string> ValidCandidateFileNames = new(StringComparer.OrdinalIgnoreCase)
 	{
 		"manifest.json", "metadata.json", "terrain.json", "Coordinates.cs", "MapScript.cs",
-		"WasmEntryPoint.cs", "WasmEntryPoint.g.cs", "Directory.Build.targets", "Directory.Build.props", "global.json",
+		"WasmEntryPoint.cs", "WasmEntryPoint.g.cs", "Attribution_SourceMapAttribute.cs", "Directory.Build.targets", "Directory.Build.props", "global.json",
 		"NuGet.config", "AGENTS.md", "LICENSE.md", "LICENSE", ".gitignore"
 	};
 
 	private static readonly HashSet<string> ValidCandidateExtensions = new(StringComparer.OrdinalIgnoreCase)
 	{
-		".csproj", ".slnx", ".sln", ".wasm", ".exr", ".png", ".jpg", ".jpeg",
+		".cs", ".csproj", ".slnx", ".sln", ".wasm", ".exr", ".png", ".jpg", ".jpeg",
 		".ranim", ".rtex", ".rmesh", ".ogg", ".wav", ".mp3"
 	};
 
 	private static readonly string[] ValidCandidatePrefixes = { "terrain_", "thumbnail", "preview", "icon" };
-	private static readonly string[] ValidCandidateDirPrefixes = { "lib/", "wit/", "locale/", "bin/", "Assets/", ".vscode/" };
+	private static readonly string[] ValidCandidateDirPrefixes = { "lib/", "wit/", "locale/", "bin/", "Assets/", "imports/", ".vscode/" };
 
 	public bool IsCandidateFile(string relativePath)
 	{

@@ -553,6 +553,7 @@ namespace Realm.Client.UI
 		private async Task SaveMapToFolderAsync(string targetFolder)
 		{
 			MapWorkspaceService.EnsureLicenseFile(GameContext.EditorService._tempWorkspacePath);
+			MapWorkspaceService.EnsureSourceMapAttributionAttribute(GameContext.EditorService._tempWorkspacePath);
 			MapWorkspaceService.EnsureWasmEntryPoint(GameContext.EditorService._tempWorkspacePath);
 			string tempTerrainPath = Path.Combine(GameContext.EditorService._tempWorkspacePath, "terrain.json");
 			if (GameContext.Host != null)
@@ -567,7 +568,11 @@ namespace Realm.Client.UI
 			try
 			{
 				GameContext.BaseMapFolderWatchService?.MarkInternalWrite();
-				await Task.Run(() => CopyTempWorkspaceToFolder(targetFolder));
+				await Task.Run(() =>
+				{
+					GameContext.MapAttributionService.UpdateManifestAttribution(GameContext.EditorService._tempWorkspacePath);
+					CopyTempWorkspaceToFolder(targetFolder);
+				});
 
 				MapWorkspaceService.EnsureLicenseFile(targetFolder);
 				MapWorkspaceService.EnsureWasmEntryPoint(targetFolder);

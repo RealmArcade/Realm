@@ -237,6 +237,7 @@ public partial class MapEditorHUD : Control
 	private Button BtnAssetsManager { get; set; }
 	private Button BtnTemplateManager { get; set; }
 	private Button BtnInstanceManager { get; set; }
+	private Button BtnImportFromMap { get; set; }
 	private Button BtnUtilities { get; set; }
 	private bool IsUpdatingInspectorUI { get; set; }
 

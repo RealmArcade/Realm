@@ -68,6 +68,8 @@ public class VfxAttachmentConfig
 	public Vector3Data RotationOffset { get; set; } = Vector3Data.Zero;
 	public Vector3Data ScaleOffset { get; set; } = Vector3Data.One;
 
+	public string? Attribution_ImportedFromMap { get; set; }
+
 	public VfxAttachmentConfig Clone()
 	{
 		return new VfxAttachmentConfig

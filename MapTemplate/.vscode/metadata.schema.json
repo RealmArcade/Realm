@@ -1047,6 +1047,12 @@
               },
               "ConstructionRange": {
                 "type": "number"
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1172,6 +1178,12 @@
                   "string",
                   "null"
                 ]
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1279,6 +1291,12 @@
                   "string",
                   "null"
                 ]
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1370,6 +1388,12 @@
                 "type": "integer"
               },
               "Hotkey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Attribution_ImportedFromMap": {
                 "type": [
                   "string",
                   "null"
@@ -1729,6 +1753,12 @@
                     "type": "number"
                   }
                 }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1817,6 +1847,12 @@
                     }
                   }
                 }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1927,6 +1963,12 @@
               },
               "Requirements": {
                 "type": "string"
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -2081,6 +2123,12 @@
                     "type": "boolean"
                   }
                 }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -2606,6 +2654,12 @@
                     "type": "number"
                   }
                 }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -3118,6 +3172,12 @@
                     },
                     "ScaleOffset": {
                       "$ref": "#/properties/Templates/properties/Vfx/items/properties/ScaleOffset"
+                    },
+                    "Attribution_ImportedFromMap": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -3328,6 +3388,12 @@
             "items": {
               "$ref": "#/properties/CustomWaterProfiles/items/properties/VfxBombingRules/items"
             }
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3444,6 +3510,36 @@
           },
           "LowerFade": {
             "type": "number"
+          },
+          "PlacementMode": {
+            "type": "integer"
+          },
+          "ProjectionSize": {
+            "type": "number"
+          },
+          "ProjectionHeight": {
+            "type": "number"
+          },
+          "GroundOffset": {
+            "type": "number"
+          },
+          "NormalFade": {
+            "type": "number"
+          },
+          "DistanceFadeEnabled": {
+            "type": "boolean"
+          },
+          "DistanceFadeBegin": {
+            "type": "number"
+          },
+          "DistanceFadeEnd": {
+            "type": "number"
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3473,6 +3569,12 @@
               "string",
               "null"
             ]
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3496,6 +3598,12 @@
               "string",
               "null"
             ]
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3513,6 +3621,12 @@
               "string",
               "null"
             ]
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3526,6 +3640,12 @@
         ],
         "properties": {
           "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "Attribution_ImportedFromMap": {
             "type": [
               "string",
               "null"
@@ -3580,6 +3700,12 @@
           },
           "AssetType": {
             "type": "string"
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3593,6 +3719,12 @@
         ],
         "properties": {
           "ConfigJson": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "Attribution_ImportedFromMap": {
             "type": [
               "string",
               "null"

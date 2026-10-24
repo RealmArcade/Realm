@@ -74,4 +74,6 @@ public class WeaponMetadata
 	public bool RibbonAdditive { get; set; } = true;
 	public float RibbonScrollSpeed { get; set; }
 	public Vector3Data? TrailOffset { get; set; }
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

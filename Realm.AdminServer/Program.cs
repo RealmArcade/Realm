@@ -2234,7 +2234,7 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 		return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
 	}
 
-		DiscoveryMapDto CreateDiscoveryMapDto(string compositeKey, string title, string version, string creator, string desc, string gen, string thumb, List<string> screens, List<string> fAndT, long bytes, string eVer, string mPlayers, bool greenlit, bool isTestVersion, MapStats? s)
+		DiscoveryMapDto CreateDiscoveryMapDto(string compositeKey, string title, string version, string creator, string desc, string gen, string thumb, List<string> screens, List<string> fAndT, long bytes, string eVer, string mPlayers, bool greenlit, bool isTestVersion, List<string> attributionSourceMaps, MapStats? s)
 		{
 			float rStars = s != null && s.AverageRating > 0 ? (float)s.AverageRating : 4.5f;
 			int tReviews = s != null ? s.ReviewsCount : 0;
@@ -2266,7 +2266,8 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 				MaxPlayers = mPlayers,
 				IsGreenlit = greenlit,
 				IsTestVersion = isTestVersion,
-				Awards = MapAwardsHelper.GetAwards(s)
+				Awards = MapAwardsHelper.GetAwards(s),
+				Attribution_SourceMap = attributionSourceMaps ?? new List<string>()
 			};
 		}
 
@@ -2322,6 +2323,16 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 				}
 			}
 
+			var attributionSourceMaps = new List<string>();
+			if (root.TryGetProperty("Attribution_SourceMap", out var attributionProp) && attributionProp.ValueKind == JsonValueKind.Array)
+			{
+				foreach (var entry in attributionProp.EnumerateArray())
+				{
+					string? sourceMapName = entry.GetString();
+					if (!string.IsNullOrWhiteSpace(sourceMapName)) attributionSourceMaps.Add(sourceMapName);
+				}
+			}
+
 			long totalBytes = 0;
 			string thumbnailHash = "";
 			var screenshotHashes = new List<string>();
@@ -2368,11 +2379,10 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 			if (string.IsNullOrEmpty(thumbnailHash) && screenshotHashes.Count > 0)
 			{
 				thumbnailHash = screenshotHashes[0];
-			}
-
-							discoveryList.Add(CreateDiscoveryMapDto(
-					compositeKey, mapTitle, mapVersion, creator, description, genre,
-					thumbnailHash, screenshotHashes, tags, totalBytes, engineVersion, maxPlayers, isGreenlit, isTestVersionDocument, stats));
+			}							discoveryList.Add(CreateDiscoveryMapDto(
+						compositeKey, mapTitle, mapVersion, creator, description, genre,
+						thumbnailHash, screenshotHashes, tags, totalBytes, engineVersion, maxPlayers, isGreenlit, isTestVersionDocument,
+						attributionSourceMaps, stats));
 		}
 		catch
 		{
@@ -2431,7 +2441,8 @@ app.MapGet("/api/discovery/maps", (DataStoreService db, ContentAddressableStorag
 						compositeKey, manifest.MapName, manifest.Version,
 						!string.IsNullOrEmpty(manifest.Author) ? manifest.Author : "Realm Builder",
 						description, genre, thumbnailHash, screenshotHashes, tags, totalBytes,
-						engineVersion, maxPlayers, isGreenlit, false, stats));
+						engineVersion, maxPlayers, isGreenlit, false,
+						manifest.Attribution_SourceMap ?? new List<string>(), stats));
 			}
 			catch
 			{

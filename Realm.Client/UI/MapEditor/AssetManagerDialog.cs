@@ -31,7 +31,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	private Label _lblAssetCount;
 
 	private Button _btnImportAsset;
-	private Button _btnImportFromMap;
 	private Button _btnImportShader;
 	private Button _btnConvertFormat;
 	private Button _btnGenerateAiAsset;
@@ -206,8 +205,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 		_btnImportAsset = AddButton(actionsRow, "📥 " + TranslationServer.Translate("Import Asset"), () => OpenImportFileDialog(), "Import an asset from asset index or disk", 11, new Vector2(110, 26));
 		_btnImportAsset.Name = "BtnImportAsset_Button";
-		_btnImportFromMap = AddButton(actionsRow, "🗺 " + TranslationServer.Translate("Import From Map"), () => OnImportFromMapPressed(), "Copy assets from another map into this map", 11, new Vector2(135, 26));
-		_btnImportFromMap.Name = "BtnImportFromMap_Button";
 		_btnImportShader = AddButton(actionsRow, "✨ " + TranslationServer.Translate("Import Shader"), () => OnImportShaderPressed(), "Import shader configuration file", 11, new Vector2(115, 26));
 		_btnConvertFormat = AddButton(actionsRow, $"🔄 {TranslationServer.Translate("Convert External Format")} {UnicodeIcons.CHEVRON_DOWN}", () => ShowConvertFormatMenu(), "Convert external image, audio, 3D model, or Mixamo animation files to Realm formats", 11, new Vector2(215, 26));
 		_btnConvertFormat.Name = "BtnConvertFormat_Button";
@@ -1157,11 +1154,6 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 		string? requiredType = _selectedAssetType == "All" ? null : _selectedAssetType;
 		Hud?.OpenAssetBrowser($"Import Asset ({_selectedAssetType})", extensions, (IReadOnlyList<AssetBrowserSelection> selections) => OnImportFilesSelected(selections), requireRealmMetadata: true, requiredAssetType: requiredType);
-	}
-
-	private void OnImportFromMapPressed()
-	{
-		Hud?.OpenImportFromMapDialog(RefreshAssetList);
 	}
 
 	private enum AssetImportOutcome

@@ -39,4 +39,6 @@ public class DecalMetadata
 	public bool DistanceFadeEnabled { get; set; }
 	public float DistanceFadeBegin { get; set; } = 10.0f;
 	public float DistanceFadeEnd { get; set; } = 30.0f;
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

@@ -40,6 +40,7 @@ public class MapData
 
 
 	public string[] Awards { get; set; }
+	public List<string> Attribution_SourceMap { get; set; } = new();
 
 
 	public static MapData FromDto(DiscoveryMapDto dto, string? serverBaseUrl = null)
@@ -71,7 +72,8 @@ public class MapData
 			EngineVersion = GetEngineVersion(dto),
 			MaxPlayers = GetMaxPlayersSafe(dto),
 			Genre = GetGenre(dto),
-			Awards = GetAwardsFallback(dto)
+			Awards = GetAwardsFallback(dto),
+			Attribution_SourceMap = dto.Attribution_SourceMap != null ? new List<string>(dto.Attribution_SourceMap) : new List<string>()
 		};
 
 		mapData.AvailableVersions = new List<MapData> { mapData };
