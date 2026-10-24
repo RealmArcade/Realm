@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Godot;
 using Realm.Client.Core;
+using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
@@ -16,11 +17,17 @@ public static class MultiplayerHardeningChecks
 {
 	public static int Run(string outputDirectory, bool hasAuthority)
 	{
+		return Run(outputDirectory, hasAuthority, null, null);
+	}
+
+	public static int Run(string outputDirectory, bool hasAuthority, LobbyManager? lobby, PlayerInfo? hostSlotBaseline)
+	{
 		var failures = new List<string>();
 		var notes = new List<string>();
 
 		RunPayloadChecks(failures, notes);
 		if (hasAuthority) RunSpellAuthorityChecks(failures, notes);
+		if (hasAuthority && lobby != null && hostSlotBaseline != null) RunLobbyIdentityChecks(outputDirectory, lobby, hostSlotBaseline, failures, notes);
 
 		var builder = new StringBuilder();
 		builder.AppendLine("=== Multiplayer hardening checks ===");
@@ -127,6 +134,38 @@ public static class MultiplayerHardeningChecks
 			TargetPosition = targetPosition ?? new NetworkVector3(0f, 0f, 0f),
 			ArgString = argument ?? string.Empty
 		};
+	}
+
+	private static void RunLobbyIdentityChecks(string outputDirectory, LobbyManager lobby, PlayerInfo hostSlotBaseline, List<string> failures, List<string> notes)
+	{
+		string markerPath = Path.Combine(outputDirectory, "forged_rpc_sent.txt");
+		if (!File.Exists(markerPath))
+		{
+			notes.Add("the client never sent its forged lobby RPCs, so slot and diagnostics identity was not verified");
+			return;
+		}
+
+		PlayerInfo? hostPlayer = lobby.PlayerList.Find(player => player.PeerId == 1);
+		if (hostPlayer == null)
+		{
+			failures.Add("The host's own player entry disappeared from the lobby list.");
+			return;
+		}
+
+		const string ForgedLatency = "999";
+		const string ForgedLoss = "99%";
+
+		if (!string.Equals(hostPlayer.Name, hostSlotBaseline.Name, StringComparison.Ordinal)) failures.Add($"A peer changed the host's name from '{hostSlotBaseline.Name}' to '{hostPlayer.Name}'.");
+		if (!string.Equals(hostPlayer.Faction, hostSlotBaseline.Faction, StringComparison.Ordinal)) failures.Add($"A peer changed the host's faction from '{hostSlotBaseline.Faction}' to '{hostPlayer.Faction}'.");
+		if (!string.Equals(hostPlayer.Team, hostSlotBaseline.Team, StringComparison.Ordinal)) failures.Add($"A peer changed the host's team from '{hostSlotBaseline.Team}' to '{hostPlayer.Team}'.");
+		if (hostPlayer.Latency.StartsWith(ForgedLatency, StringComparison.Ordinal)) failures.Add($"A peer rewrote the host's latency to the forged value '{hostPlayer.Latency}'.");
+		if (hostPlayer.Jitter.StartsWith(ForgedLatency, StringComparison.Ordinal)) failures.Add($"A peer rewrote the host's jitter to the forged value '{hostPlayer.Jitter}'.");
+		if (hostPlayer.PacketLoss.StartsWith(ForgedLoss, StringComparison.Ordinal)) failures.Add($"A peer rewrote the host's packet loss to the forged value '{hostPlayer.PacketLoss}'.");
+
+		if (failures.Count == 0)
+		{
+			notes.Add($"forged slot and diagnostics RPCs targeting peer 1 were ignored: slot stayed '{hostPlayer.Name}'/'{hostPlayer.Faction}'/'{hostPlayer.Team}' and latency '{hostPlayer.Latency}' is the host's own measurement, not the forged 999 ms");
+		}
 	}
 
 	private static void RunSpellAuthorityChecks(List<string> failures, List<string> notes)

@@ -43,6 +43,27 @@ public partial class MultiplayerSimulationHarness : Node
 	private string _networkProfile = "Latency";
 	private bool _loopback;
 	private int _hardeningFailureCount;
+	private PlayerInfo? _hostSlotBaseline;
+
+	private async Task ForgeLobbyIdentityAsync(LobbyManager lobby, int localPeerId)
+	{
+		await ToSignal(GetTree().CreateTimer(4.0f), SceneTreeTimer.SignalName.Timeout);
+
+		try
+		{
+			RpcId(1, nameof(LobbyManager.UpdatePlayerSlot), 1, "FORGED", "FORGED", new Color(1f, 0f, 0f), "ForgedSlot");
+			RpcId(1, nameof(LobbyManager.UpdateDiagnostics), 1, 999f, 999f, 999f, 999f, 99f, 99);
+			lobby.SendChatMessage("Host", "forged chat from the peer harness");
+
+			string markerPath = Path.Combine(_outputDirectory, "forged_rpc_sent.txt");
+			File.WriteAllText(markerPath, $"peer {localPeerId} sent forged slot, diagnostics and chat for peer 1 at {DateTime.UtcNow:O}");
+			GD.Print($"[MP_HARNESS] Client peer {localPeerId} sent forged lobby RPCs targeting peer 1.");
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MP_HARNESS] Failed to send forged lobby RPCs: {exception.Message}");
+		}
+	}
 
 	public override void _Ready()
 	{
@@ -156,7 +177,7 @@ public partial class MultiplayerSimulationHarness : Node
 		SetPrivateProperty(lobby, "ActiveLobbyId", $"direct-harness-{Guid.NewGuid():N}");
 
 		lobby.PlayerList.Clear();
-		lobby.PlayerList.Add(new PlayerInfo
+		var hostSlot = new PlayerInfo
 		{
 			PeerId = 1,
 			Slot = 1,
@@ -169,7 +190,18 @@ public partial class MultiplayerSimulationHarness : Node
 			Jitter = "0 ms",
 			PacketLoss = "0%",
 			BinaryVersion = RealmVersion.GameBinaryVersion
-		});
+		};
+		lobby.PlayerList.Add(hostSlot);
+		_hostSlotBaseline = new PlayerInfo
+		{
+			PeerId = hostSlot.PeerId,
+			Slot = hostSlot.Slot,
+			Name = hostSlot.Name,
+			Faction = hostSlot.Faction,
+			Team = hostSlot.Team,
+			Color = hostSlot.Color,
+			Latency = hostSlot.Latency
+		};
 
 		for (int slot = 2; slot <= 1 + AiPlayerCount; slot++)
 		{
@@ -228,7 +260,8 @@ public partial class MultiplayerSimulationHarness : Node
 			await ToSignal(GetTree().CreateTimer(_drainMilliseconds / 1000f), SceneTreeTimer.SignalName.Timeout);
 		}
 
-		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true);
+		LobbyManager hardeningLobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
+		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true, hardeningLobby, _hostSlotBaseline);
 
 		_finalSequence = ResolveSnapshotSequence();
 		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
@@ -334,6 +367,8 @@ public partial class MultiplayerSimulationHarness : Node
 			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
 			IssueClientBuildRequest(GameContext.Host);
 		}
+		_ = ForgeLobbyIdentityAsync(lobby, localPeerId);
+
 		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 120f + (_drainMilliseconds / 1000f));
 		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
 
