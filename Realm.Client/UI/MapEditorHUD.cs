@@ -1065,6 +1065,7 @@ public partial class MapEditorHUD : Control
 
 	private bool IsPopupVisible()
 	{
+		if (_popupRandomGen?.Visible == true) return true;
 		if (IsPanelPopupVisible()) return true;
 		if (IsPrimaryOptionPopupVisible()) return true;
 		if (IsSecondaryOptionPopupVisible()) return true;

@@ -1734,7 +1734,7 @@ public partial class GameHost
 						}
 					}
 
-					PerformFloodFill(hitPos, GameContext.EditorService.EditorPaintTextureIndex, isCliff);
+					GameContext.EditorService.FloodFillTerrainAt(hitPos.X, hitPos.Y, hitPos.Z, GameContext.EditorService.EditorPaintTextureIndex, isCliff);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.FloodFillPathing)
@@ -1747,7 +1747,7 @@ public partial class GameHost
 						pathingAdd = GameContext.MapEditorHud.IsPathingAddMode();
 					}
 
-					PerformFloodFillPathing(hitPos, pathingMask, pathingAdd);
+					GameContext.EditorService.FloodFillPathingAt(hitPos.X, hitPos.Y, hitPos.Z, pathingMask, pathingAdd);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.Water)
@@ -1760,7 +1760,7 @@ public partial class GameHost
 						GameContext.EditorService.EditorWaterHeight = GameContext.MapEditorHud.GetSelectedWaterHeight();
 					}
 
-					PerformWaterFloodFill(hitPos, isRemove);
+					GameContext.EditorService.FloodFillWaterAt(hitPos.X, hitPos.Y, hitPos.Z, isRemove);
 					GetViewport().SetInputAsHandled();
 				}
 				else if (ActiveEditorTool == EditorTool.SelectArea)

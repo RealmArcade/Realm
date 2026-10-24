@@ -145,6 +145,7 @@ namespace Realm.Client.Services
 		public static FXService FXService => ScreenScope.Get<FXService>();
 		public static SaveLoadService SaveLoadService => ScreenScope.Get<SaveLoadService>();
 		public static EditorService EditorService => ScreenScope.Get<EditorService>();
+		public static MapGenerationService MapGenerationService => ScreenScope.Get<MapGenerationService>();
 		public static ModelOverrideService ModelOverrideService => ScreenScope.Get<ModelOverrideService>();
 		public static ReplayService ReplayService => ScreenScope.Get<ReplayService>();
 		public static NetworkService NetworkService => ScreenScope.Get<NetworkService>();
@@ -205,6 +206,7 @@ namespace Realm.Client.Services
 				service.StopWorkspaceWatcher();
 				service.ResetAllState();
 			});
+			scope.RegisterCleanup<MapGenerationService>(static service => service.DiscardRun());
 			scope.RegisterCleanup<ModelOverrideService>(static service => service.ClearAll());
 			scope.RegisterCleanup<RegistryService>(static service => service.ClearAll());
 			scope.RegisterCleanup<MapScriptService>(static service => service.ClearAll());

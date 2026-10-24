@@ -317,6 +317,7 @@ namespace Realm.Client.UI
 			StyleRowButton(_btnPublish);
 			StyleRowButton(_btnExportMap);
 			StyleRowButton(_btnResetMap);
+			StyleRowButton(_btnRandomGen);
 			StyleRowButton(_btnEditorSettings);
 			if (_btnEditorSettings != null) _btnEditorSettings.Alignment = HorizontalAlignment.Center;
 		}

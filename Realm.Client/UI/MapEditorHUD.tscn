@@ -246,12 +246,19 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/h_separation = 6
 theme_override_constants/v_separation = 6
-columns = 1
+columns = 2
 
 [node name="BtnResetMap" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer"]
 layout_mode = 2
+size_flags_horizontal = 3
 focus_mode = 0
 text = "🧹 RESET TO BLANK MAP"
+
+[node name="BtnRandomGen" type="Button" parent="LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "🎲 RANDOM GEN"
 
 [node name="ViewportAccordion" type="VBoxContainer" parent="LeftSlidePanel/LeftScroll/LeftVBox"]
 layout_mode = 2

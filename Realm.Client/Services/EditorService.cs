@@ -3867,33 +3867,41 @@ public partial class EditorService : IEditorAPI
 	}
 
 	private List<Vector2I> GetWaterFloodFillCells(
-		Godot.Vector3 clickPos,
+		Godot.Vector3 worldPos,
 		TerrainCell[,] cellsBefore,
 		int width,
 		int depth,
 		float quadSize,
 		bool[,] visited,
-		float waterHeight,
+		float waterSurfaceY,
 		bool isRemoveAction = false)
 	{
-		var resultCells = new List<Vector2I>();
+		int clickX = Mathf.Clamp((int)Math.Floor(worldPos.X / quadSize + width / 2.0f), 0, width - 1);
+		int clickZ = Mathf.Clamp((int)Math.Floor(worldPos.Z / quadSize + depth / 2.0f), 0, depth - 1);
+		return CollectWaterPoolCells(clickX, clickZ, cellsBefore, width, depth, visited, waterSurfaceY, isRemoveAction, new List<Vector2I>());
+	}
 
-		int clickX = Mathf.Clamp((int)Math.Floor(clickPos.X / quadSize + width / 2.0f), 0, width - 1);
-		int clickZ = Mathf.Clamp((int)Math.Floor(clickPos.Z / quadSize + depth / 2.0f), 0, depth - 1);
-
-		if (isRemoveAction && cellsBefore[clickX, clickZ].WaterMode == WaterType.None) return resultCells;
+	private List<Vector2I> CollectWaterPoolCells(
+		int seedX,
+		int seedZ,
+		TerrainCell[,] cellsBefore,
+		int width,
+		int depth,
+		bool[,] visited,
+		float waterSurfaceY,
+		bool isRemoveAction,
+		List<Vector2I> resultCells)
+	{
+		if (seedX < 0 || seedX >= width || seedZ < 0 || seedZ >= depth) return resultCells;
+		if (visited[seedX, seedZ]) return resultCells;
+		if (isRemoveAction && cellsBefore[seedX, seedZ].WaterMode == WaterType.None) return resultCells;
 
 		var queue = new Queue<(int x, int z)>();
-		if (!visited[clickX, clickZ])
-		{
-			queue.Enqueue((clickX, clickZ));
-			visited[clickX, clickZ] = true;
-		}
+		queue.Enqueue((seedX, seedZ));
+		visited[seedX, seedZ] = true;
 
-		float baseWaterLevel = CalculateBaseWaterLevel(clickPos, cellsBefore[clickX, clickZ], waterHeight);
 		float stepCliffThreshold = TerrainCell.TIER_HEIGHT * 0.70f;
-
-		ProcessWaterFloodFillQueue(queue, resultCells, cellsBefore, width, depth, visited, isRemoveAction, stepCliffThreshold, baseWaterLevel);
+		ProcessWaterFloodFillQueue(queue, resultCells, cellsBefore, width, depth, visited, isRemoveAction, stepCliffThreshold, waterSurfaceY);
 
 		return resultCells;
 	}
@@ -3938,19 +3946,19 @@ public partial class EditorService : IEditorAPI
 		float quadSize,
 		bool[,] visited,
 		MirrorMode mirrorMode,
-		float waterHeight,
+		float waterSurfaceY,
 		bool isRemoveAction = false)
 	{
 		var areaCells = new List<Vector2I>();
 
-		areaCells.AddRange(GetWaterFloodFillCells(clickPos, cellsBefore, width, depth, quadSize, visited, waterHeight, isRemoveAction));
+		areaCells.AddRange(GetWaterFloodFillCells(clickPos, cellsBefore, width, depth, quadSize, visited, waterSurfaceY, isRemoveAction));
 
 		if (mirrorMode != MirrorMode.None)
 		{
 			var mirrors = GetMirroredPositions(clickPos, mirrorMode);
 			foreach (var m in mirrors)
 			{
-				areaCells.AddRange(GetWaterFloodFillCells(m, cellsBefore, width, depth, quadSize, visited, waterHeight, isRemoveAction));
+				areaCells.AddRange(GetWaterFloodFillCells(m, cellsBefore, width, depth, quadSize, visited, waterSurfaceY, isRemoveAction));
 			}
 		}
 
@@ -3977,44 +3985,102 @@ public partial class EditorService : IEditorAPI
 		bool isRemoving = isRemoveAction;
 		WaterType targetWaterMode = isRemoving ? WaterType.None : (activeWaterMode != WaterType.None ? activeWaterMode : WaterType.Shallow);
 		byte targetWaterProfile = isRemoving ? (byte)0 : activeWaterProfile;
-		float targetWaterHeight = isRemoving ? 0f : (waterHeight > 0.001f ? waterHeight : 0.9f);
 
 		var beforeCells = (TerrainCell[,])cells.Clone();
 		var beforePathing = (int[,])terrain.PathingCodes.Clone();
 
 		var visited = new bool[width, depth];
-		var filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode, waterHeight, isRemoveAction);
+		int clickX = Mathf.Clamp((int)Math.Floor(clickPos.X / quadSize + width / 2.0f), 0, width - 1);
+		int clickZ = Mathf.Clamp((int)Math.Floor(clickPos.Z / quadSize + depth / 2.0f), 0, depth - 1);
+		float waterSurfaceY = CalculateBaseWaterLevel(clickPos, beforeCells[clickX, clickZ], waterHeight);
+		var filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode, waterSurfaceY, isRemoveAction);
 
 		if (filledCells.Count == 0) return (null, null, null, null, false);
+
+		ApplyWaterPool(cells, terrain.PathingCodes, filledCells, targetWaterMode, targetWaterProfile, waterSurfaceY, quadSize, width, depth, isRemoving);
+
+		var afterCells = (TerrainCell[,])cells.Clone();
+		var afterPathing = (int[,])terrain.PathingCodes.Clone();
+
+		return (beforeCells, afterCells, beforePathing, afterPathing, !isRemoving);
+	}
+
+	public bool FillWaterPoolAtCell(int cellX, int cellZ, float waterSurfaceY)
+	{
+		ref var terrain = ref GetTerrainState();
+		if (terrain.Cells == null || terrain.PathingCodes == null) return false;
+
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		if (cellX < 0 || cellX >= width || cellZ < 0 || cellZ >= depth) return false;
+		if (terrain.Cells[cellX, cellZ].WaterMode != WaterType.None) return false;
+
+		byte waterProfileIndex = GameContext.Host?.ActiveWaterProfileIndex ?? (byte)0;
+		bool[,] visited = AcquireWaterPoolVisited(width, depth);
+		var filledCells = CollectWaterPoolCells(cellX, cellZ, terrain.Cells, width, depth, visited, waterSurfaceY, false, new List<Vector2I>());
+		if (filledCells.Count == 0) return false;
+
+		ApplyWaterPool(terrain.Cells, terrain.PathingCodes, filledCells, null, waterProfileIndex, waterSurfaceY, terrain.QuadSize, width, depth, false);
+		return true;
+	}
+
+	private bool[,]? _waterPoolVisited;
+
+	private bool[,] AcquireWaterPoolVisited(int width, int depth)
+	{
+		if (_waterPoolVisited == null || _waterPoolVisited.GetLength(0) != width || _waterPoolVisited.GetLength(1) != depth)
+		{
+			_waterPoolVisited = new bool[width, depth];
+			return _waterPoolVisited;
+		}
+
+		Array.Clear(_waterPoolVisited);
+		return _waterPoolVisited;
+	}
+
+	private void ApplyWaterPool(
+		TerrainCell[,] cells,
+		int[,] pathingCodes,
+		List<Vector2I> filledCells,
+		WaterType? uniformWaterMode,
+		byte waterProfileIndex,
+		float waterSurfaceY,
+		float quadSize,
+		int width,
+		int depth,
+		bool isRemoveAction)
+	{
+		var waterProfile = isRemoveAction ? null : GameContext.Terrain?.GetWaterProfile(waterProfileIndex);
+		var waterSpawnScratch = new List<ProceduralSpawnDescriptor>();
 
 		foreach (var cellPos in filledCells)
 		{
 			int x = cellPos.X;
 			int z = cellPos.Y;
 
-			cells[x, z].WaterMode = targetWaterMode;
-			cells[x, z].WaterProfileIndex = targetWaterProfile;
-			cells[x, z].WaterHeight = targetWaterHeight;
-
-			if (targetWaterMode != WaterType.None)
+			if (isRemoveAction)
 			{
-				var waterProf = GameContext.Terrain?.GetWaterProfile(targetWaterProfile);
-				terrain.PathingCodes[x, z] = waterProf != null ? waterProf.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(targetWaterMode);
-				float wY = (cells[x, z].MacroTier * TerrainCell.TIER_HEIGHT) + (targetWaterHeight > 0.001f ? targetWaterHeight : RuntimeTerrain.WATER_DELTA);
-				var waterSpawns = BuildWaterProceduralSpawns(x, z, targetWaterProfile, wY, quadSize, width, depth);
-				GameContext.Host?.ApplyProceduralSpawns(x, z, CollectionsMarshal.AsSpan(waterSpawns), ProceduralSpawnLayer.Water);
-			}
-			else
-			{
+				cells[x, z].WaterMode = WaterType.None;
+				cells[x, z].WaterProfileIndex = 0;
+				cells[x, z].WaterHeight = 0f;
+				pathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(cells[x, z]);
 				GameContext.Host?.ClearProceduralSpawns(x, z, ProceduralSpawnLayer.Water);
-				terrain.PathingCodes[x, z] = EditableTerrain.GetDefaultPathingCode(cells[x, z]);
+				continue;
 			}
+
+			WaterType waterMode = uniformWaterMode ?? (cells[x, z].MacroTier <= -2 ? WaterType.Deep : WaterType.Shallow);
+			float waterHeight = Math.Max(RuntimeTerrain.WATER_DELTA, waterSurfaceY - cells[x, z].MacroTier * TerrainCell.TIER_HEIGHT);
+			cells[x, z].WaterMode = waterMode;
+			cells[x, z].WaterProfileIndex = waterProfileIndex;
+			cells[x, z].WaterHeight = waterHeight;
+
+			pathingCodes[x, z] = waterProfile != null ? waterProfile.DefaultPathingCode : EditableTerrain.GetDefaultPathingCode(waterMode);
+
+			float waterY = cells[x, z].MacroTier * TerrainCell.TIER_HEIGHT + waterHeight;
+			waterSpawnScratch.Clear();
+			CollectWaterProceduralSpawns(x, z, waterProfile, waterY, quadSize, width, depth, waterSpawnScratch);
+			GameContext.Host?.ApplyProceduralSpawns(x, z, CollectionsMarshal.AsSpan(waterSpawnScratch), ProceduralSpawnLayer.Water);
 		}
-
-		var afterCells = (TerrainCell[,])cells.Clone();
-		var afterPathing = (int[,])terrain.PathingCodes.Clone();
-
-		return (beforeCells, afterCells, beforePathing, afterPathing, !isRemoving);
 	}
 
 	public List<MirroredTransform> GetMirroredTransforms(
@@ -4646,16 +4712,19 @@ public partial class EditorService : IEditorAPI
 	public List<ProceduralSpawnDescriptor> BuildWaterProceduralSpawns(int x, int z, byte profileIndex, float waterY, float quadSize, int width, int depth)
 	{
 		var descriptors = new List<ProceduralSpawnDescriptor>();
-		var prof = GameContext.Terrain?.GetWaterProfile(profileIndex);
-		if (prof == null) return descriptors;
+		CollectWaterProceduralSpawns(x, z, GameContext.Terrain?.GetWaterProfile(profileIndex), waterY, quadSize, width, depth, descriptors);
+		return descriptors;
+	}
+
+	private static void CollectWaterProceduralSpawns(int x, int z, Realm.Shared.Metadata.WaterProfileSaveData? profile, float waterY, float quadSize, int width, int depth, List<ProceduralSpawnDescriptor> descriptors)
+	{
+		if (profile == null) return;
 
 		float cellCenterX = (x + 0.5f - width / 2.0f) * quadSize;
 		float cellCenterZ = (z + 0.5f - depth / 2.0f) * quadSize;
 
-		CollectBombingSpawns(prof.DecalBombingRules, ProceduralSpawnKind.Decal, r => r.DecalId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, waterY, quadSize, descriptors);
-		CollectBombingSpawns(prof.VfxBombingRules, ProceduralSpawnKind.Vfx, r => r.VfxId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, waterY, quadSize, descriptors);
-
-		return descriptors;
+		CollectBombingSpawns(profile.DecalBombingRules, ProceduralSpawnKind.Decal, r => r.DecalId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, waterY, quadSize, descriptors);
+		CollectBombingSpawns(profile.VfxBombingRules, ProceduralSpawnKind.Vfx, r => r.VfxId, r => r.Density, r => r.MinScale, r => r.MaxScale, cellCenterX, cellCenterZ, waterY, quadSize, descriptors);
 	}
 
 	public List<ProceduralSpawnDescriptor> BuildTerrainProceduralSpawns(int x, int z, int textureIndex, float terrainY, float quadSize, int width, int depth)

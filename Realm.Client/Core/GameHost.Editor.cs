@@ -1065,21 +1065,6 @@ public partial class GameHost
 	}
 
 
-	private long _lastTerrainMeshRebuildMs { get; set; } = long.MinValue;
-
-	private Rect2I? _terrainFlushRegion
-	{
-		get => GameContext.EditorService?.TerrainFlushRegion;
-		set
-		{
-			if (GameContext.EditorService != null) GameContext.EditorService.TerrainFlushRegion = value;
-		}
-	}
-
-	private bool _terrainGeometryDirty { get; set; }
-	private bool _terrainHeightsDirty { get; set; }
-	private bool _terrainPathingDirty { get; set; }
-
 	private void DeleteObjectAt(Node collider, Vector3 hitPos)
 	{
 		var unit = FindUnit3DInParentChain(collider);

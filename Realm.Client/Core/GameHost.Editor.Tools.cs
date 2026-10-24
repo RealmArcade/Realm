@@ -2210,7 +2210,7 @@ namespace Realm.Client.Core
 				GameContext.EditorService.BeginTerrainDraw(hitPos, ActiveEditorTool, EditorBlockMode, targetBlockHeight, null, GroundTerrain.SplatMap, GroundTerrain.PathingCodes, GroundTerrain.CliffSplatMap);
 			}
 
-			ApplyContinuousTerrainEditing(hitPos, fDelta, firstClick);
+			GameContext.EditorService.ApplyActiveTerrainToolAt(hitPos.X, hitPos.Y, hitPos.Z, fDelta, firstClick);
 		}
 
 		private bool IsTerrainEditingTool(EditorTool tool)
@@ -2541,7 +2541,7 @@ namespace Realm.Client.Core
 					UpdatePathingOverlay();
 				}
 
-				FlushTerrainMeshAndPhysics();
+				GameContext.EditorService.FlushTerrainMeshAndPhysics();
 				EditorHasUnsavedChanges = true;
 			}
 			else

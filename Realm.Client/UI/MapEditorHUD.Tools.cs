@@ -456,6 +456,8 @@ namespace Realm.Client.UI
 					);
 				}, 13, "Clear all terrain heights, colors, and placed entities");
 
+				SetupRandomGenerationMenu();
+
 				_btnEditorSettings = new Button();
 				_btnEditorSettings.Name = "BtnEditorSettings";
 				_btnEditorSettings.Set("icon_max_width", 0);
@@ -902,13 +904,13 @@ namespace Realm.Client.UI
 				_btnViewCoordinates = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/BtnViewCoordinates");
 				SetupOptionButton(_btnViewCoordinates, $"{UnicodeIcons.LIST} View Existing Coordinates", () => OpenInstanceManagerDialog("Coordinates"), 11, "Open instance manager to view and locate existing defined coordinates");
 
-				_btnCut = CreateToolCardView(clipGrid, "BtnCut", UnicodeIcons.SCISSORS, "Cut", () => GameContext.Host?.PerformCutAreaExternal(), "Cut selected area to clipboard (Ctrl+X)");
+				_btnCut = CreateToolCardView(clipGrid, "BtnCut", UnicodeIcons.SCISSORS, "Cut", () => GameContext.EditorService.CutSelectedArea(), "Cut selected area to clipboard (Ctrl+X)");
 
-				_btnCopy = CreateToolCardView(clipGrid, "BtnCopy", UnicodeIcons.COPY, "Copy", () => GameContext.Host?.PerformCopyAreaExternal(), "Copy selected area to clipboard (Ctrl+C)");
+				_btnCopy = CreateToolCardView(clipGrid, "BtnCopy", UnicodeIcons.COPY, "Copy", () => GameContext.EditorService.CopySelectedArea(), "Copy selected area to clipboard (Ctrl+C)");
 
 				_btnPaste = CreateToolCardView(clipGrid, "BtnPaste", UnicodeIcons.PASTE, "Paste", () => TriggerToolSelection(EditorTool.PasteArea, _btnPaste), "Paste clipboard contents onto terrain (Ctrl+V)");
 
-				_btnEraseArea = CreateToolCardView(clipGrid, "BtnEraseArea", UnicodeIcons.TRASH, "Erase Area", () => GameContext.Host?.PerformEraseAreaExternal(), "Erase heights, textures and objects within selection (Delete)");
+				_btnEraseArea = CreateToolCardView(clipGrid, "BtnEraseArea", UnicodeIcons.TRASH, "Erase Area", () => GameContext.EditorService.EraseSelectedArea(), "Erase heights, textures and objects within selection (Delete)");
 
 				_accordionBrush = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion");
 				_btnHeaderBrush = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/BrushAccordion/BtnHeaderBrush");
