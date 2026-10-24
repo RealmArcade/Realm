@@ -153,7 +153,6 @@ namespace Realm.Client.Services
 		public static UnitSpawnService UnitSpawnService => ScreenScope.Get<UnitSpawnService>();
 		public static WorldInitService WorldInitService => ScreenScope.Get<WorldInitService>();
 		public static MapPropertiesLoader MapPropertiesLoader => ScreenScope.Get<MapPropertiesLoader>();
-		public static MapEditorTerrainImportService MapEditorTerrainImportService => ScreenScope.Get<MapEditorTerrainImportService>();
 		public static EnvironmentService EnvironmentService => ScreenScope.Get<EnvironmentService>();
 		public static WindService WindService => ScreenScope.Get<WindService>();
 		public static SpectatorService SpectatorService => ScreenScope.Get<SpectatorService>();

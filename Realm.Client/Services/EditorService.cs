@@ -409,16 +409,6 @@ public partial class EditorService : IEditorAPI
 		GameContext.Host.GroundTerrain?.SetPolarRadialStep(EditorPolarRadialStep);
 	}
 
-	public bool ImportTerrainFromMinimapPathDomain(string selectedPath, out float[,] smoothedHeights, out TerrainSplatWeights[,] splatMap, out List<(float x, float y, float z, float rot, float scale)> treePositions)
-	{
-		smoothedHeights = null;
-		splatMap = null;
-		treePositions = null;
-		if (GameContext.Host?.GroundTerrain == null) return false;
-		GameContext.Host.ClearMapEntirely();
-		return GameContext.Host.ImportTerrainFromMinimap(selectedPath, out smoothedHeights, out splatMap, out treePositions);
-	}
-
 	public void ResetToBlankMapDomain()
 	{
 		if (IsSyncing) return;

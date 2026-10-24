@@ -1,10 +1,7 @@
-using System.Collections.Generic;
 using System.IO;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
-using Realm.Ecs.Services;
-using TerrainCell = Realm.Ecs.Components.Terrain.TerrainCell;
 
 namespace Realm.Client.UI
 {
@@ -64,51 +61,6 @@ namespace Realm.Client.UI
 			GameContext.EditorService.LoadMapProperties();
 			RefreshWaterSwatches();
 			_mapSettingsDialog?.LoadMapProperties();
-		}
-
-		private void ImportTerrainFromMinimapPathView(string selectedPath)
-		{
-			ResetFolderLocations();
-			if (!GameContext.EditorService.ImportTerrainFromMinimapPathDomain(selectedPath, out var smoothedHeights, out var splatMap, out var treePositions)) return;
-
-			var terrain = GameContext.Host.GroundTerrain;
-			int width = terrain.Width;
-			int depth = terrain.Depth;
-
-			EnsureTerrainArraysInitialized(terrain, width, depth);
-			ApplyTerrainData(terrain, width, depth, smoothedHeights, splatMap, terrain.Cells);
-
-			GameContext.Host.AlignTerrainSplatMapExternal();
-			terrain.UpdateMeshAndPhysics();
-
-			string wsPath = !string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath) ? GameContext.EditorService._tempWorkspacePath : ProjectSettings.GlobalizePath(GameContext.EditorService.TempWorkspaceGodotPath);
-			var treeModels = GetTreeModels(wsPath);
-
-			SpawnTrees(treeModels, treePositions);
-
-			ShowFeedback(TranslationServer.Translate("Terrain imported from minimap image successfully!"));
-		}
-
-		private void EnsureTerrainArraysInitialized(RuntimeTerrain terrain, int width, int depth)
-		{
-			GameContext.MapEditorTerrainImportService.EnsureTerrainArraysInitialized(terrain, width, depth);
-		}
-
-		private void ApplyTerrainData(RuntimeTerrain terrain, int width, int depth, float[,] smoothedHeights, TerrainSplatWeights[,] splatMap, TerrainCell[,] cells)
-		{
-			GameContext.MapEditorTerrainImportService.ApplyTerrainData(terrain, width, depth, smoothedHeights, splatMap, cells, GameContext.EditorService.EditorCliffPaintTextureIndex);
-		}
-
-
-		private List<string> GetTreeModels(string wsPath)
-		{
-			return GameContext.MapEditorTerrainImportService.GetTreeModels(wsPath, GameHost.ResourceRegistry);
-		}
-
-
-		private void SpawnTrees(List<string> treeModels, List<(float x, float y, float z, float rot, float scale)> treePositions)
-		{
-			GameContext.MapEditorTerrainImportService.SpawnTrees(treeModels, treePositions, GameContext.Host);
 		}
 
 		private void SelectTerrainTexture(int index, Button swatch)

@@ -264,12 +264,8 @@ public partial class MapEditorHUD : Control
 	private CheckBox _chkEnvShadows { get; set; }
 	private Button _btnBrushShape { get; set; }
 	private Button _btnResetMap { get; set; }
-	private Button _btnGenerateMap { get; set; }
-	private Button _btnRandomGen { get; set; }
-	private PopupPanel _popupRandomGen { get; set; }
 	private Button _btnSaveMore { get; set; }
 	private PopupPanel _popupSaveMore { get; set; }
-	private Button _btnImportMinimap { get; set; }
 	private Button _btnEyedropper { get; set; }
 	private OptionButton _optEyedropperMode { get; set; }
 	private Button _btnNoise { get; set; }
@@ -364,7 +360,6 @@ public partial class MapEditorHUD : Control
 	private MapEditorPathingPanel _pathingPanelController { get; set; }
 	private MapEditorMinimap _minimapController { get; set; }
 	private MapEditorEntityPaletteController _entityPaletteController { get; set; }
-	private MapEditorGenerationDialog _generationDialog { get; set; }
 
 	private bool _wasmHasErrors { get; set; } = false;
 	private string _wasmCompileLogPath { get; set; } = "";
@@ -1034,8 +1029,7 @@ public partial class MapEditorHUD : Control
 			_popupCamera,
 			_popupEditors,
 			_popupSaveMore,
-			_popupLoadMore,
-			_popupRandomGen
+			_popupLoadMore
 		);
 	}
 

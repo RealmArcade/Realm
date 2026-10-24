@@ -555,24 +555,6 @@ public partial class GameHost : Node3D, IGameAPI
 		CaptureDefaultCameraBounds();
 	}
 
-	public bool ImportTerrainFromMinimap(
-		string selectedPath,
-		out float[,] smoothedHeights,
-		out TerrainSplatWeights[,] splatMap,
-		out List<(float X, float Y, float Z, float Rot, float Scale)> treePositions)
-	{
-		smoothedHeights = null;
-		splatMap = null;
-		treePositions = null;
-		if (GameContext.MapEditorTerrainImportService == null)
-		{
-			return false;
-		}
-
-		return GameContext.MapEditorTerrainImportService.ImportTerrain(ECSContext.WorldEntity, selectedPath, out smoothedHeights, out splatMap, out treePositions);
-	}
-
-
 	public float EditorBrushRadius
 	{
 		get => GameContext.EditorService.EditorBrushRadius;

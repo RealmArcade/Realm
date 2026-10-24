@@ -503,11 +503,6 @@ public static class UIStyle
 		return CreateStonePanel(true);
 	}
 
-	public static StyleBox CreateRandomGeneratorPanel()
-	{
-		return CreateTexturedPanel("res://Assets/UI/map_editor_random_generator.webp", 80);
-	}
-
 	public static StyleBox CreateUsabilitySettingsPanel()
 	{
 		return CreateTexturedPanel("res://Assets/UI/map_editor_usability_settings.webp", 80);

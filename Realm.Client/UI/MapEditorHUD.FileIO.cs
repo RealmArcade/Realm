@@ -1428,31 +1428,6 @@ namespace Realm.Client.UI
 			_importFromMapDialog.OpenForWorkspace(onImportCompleted);
 		}
 
-		public void ImportTerrainFromMinimapDialog()
-		{
-			string initialDir = GetInitialDirectory();
-			var err = DisplayServer.FileDialogShow(
-				TranslationServer.Translate("Select Minimap Image to Import Terrain"),
-				initialDir,
-				"",
-				false,
-				DisplayServer.FileDialogMode.OpenFile,
-				new[] { "*.png,*.jpg,*.jpeg,*.webp,*.gif ; Image Files (*.png, *.jpg, *.jpeg, *.webp, *.gif)" },
-				Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
-				{
-					if (status && selectedPaths.Length > 0)
-					{
-						ImportTerrainFromMinimapPathView(selectedPaths[0]);
-					}
-				})
-			);
-
-			if (err != Error.Ok)
-			{
-				ShowFeedback(TranslationServer.Translate("Failed to show file dialog"));
-			}
-		}
-
 		public void SaveUnitObjectAttachment(string unitId, HumanoidBone hand, string attachmentId, HandAttachmentOrientation orientation)
 		{
 			string wsPath = string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath)

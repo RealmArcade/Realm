@@ -985,7 +985,7 @@ public partial class GameHost
 		int depth = GroundTerrain.Depth;
 
 		InitializeTerrainArrays(width, depth);
-		GameContext.MapEditorTerrainImportService.PopulateTerrainCells(GroundTerrain.Cells, GroundTerrain.PathingCodes, width, depth);
+		PopulateTerrainCells(width, depth);
 		PopulateSplatMaps(width, depth);
 		UpdateEcsTerrainState();
 
@@ -996,17 +996,34 @@ public partial class GameHost
 
 	private void InitializeTerrainArrays(int width, int depth)
 	{
-		if (GameContext.MapEditorTerrainImportService.NeedsTerrainCellArrayRecreation(GroundTerrain.Cells, width, depth))
+		TerrainCell[,] cells = GroundTerrain.Cells;
+		if (cells == null || cells.GetLength(0) != width || cells.GetLength(1) != depth)
 			GroundTerrain.Cells = new TerrainCell[width, depth];
 
-		if (GameContext.MapEditorTerrainImportService.NeedsSplatMapArrayRecreation(GroundTerrain.SplatMap, width, depth))
+		TerrainSplatWeights[,] splatMap = GroundTerrain.SplatMap;
+		if (splatMap == null || splatMap.GetLength(0) < width + 1 || splatMap.GetLength(1) < depth + 1)
 			GroundTerrain.SplatMap = new TerrainSplatWeights[width + 1, depth + 1];
 
-		if (GameContext.MapEditorTerrainImportService.NeedsSplatMapArrayRecreation(GroundTerrain.CliffSplatMap, width, depth))
+		TerrainSplatWeights[,] cliffSplatMap = GroundTerrain.CliffSplatMap;
+		if (cliffSplatMap == null || cliffSplatMap.GetLength(0) < width + 1 || cliffSplatMap.GetLength(1) < depth + 1)
 			GroundTerrain.CliffSplatMap = new TerrainSplatWeights[width + 1, depth + 1];
 
-		if (GameContext.MapEditorTerrainImportService.NeedsPathingArrayRecreation(GroundTerrain.PathingCodes, width, depth))
+		int[,] pathingCodes = GroundTerrain.PathingCodes;
+		if (pathingCodes == null || pathingCodes.GetLength(0) != width || pathingCodes.GetLength(1) != depth)
 			GroundTerrain.PathingCodes = new int[width, depth];
+	}
+
+	private void PopulateTerrainCells(int width, int depth)
+	{
+		int defaultPathingCode = EditableTerrain.GetDefaultPathingCode(WaterType.None);
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				GroundTerrain.Cells[x, z] = new TerrainCell(0.0f);
+				GroundTerrain.PathingCodes[x, z] = defaultPathingCode;
+			}
+		}
 	}
 
 

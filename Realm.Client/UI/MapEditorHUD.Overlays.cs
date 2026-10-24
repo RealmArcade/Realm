@@ -75,8 +75,6 @@ namespace Realm.Client.UI
 
 		public override void _Process(double delta)
 		{
-			MapGenerator.Tick();
-
 			if (GameContext.Host != null)
 			{
 				_viewModel.UpdateFromHost();
@@ -319,9 +317,6 @@ namespace Realm.Client.UI
 			StyleRowButton(_btnPublish);
 			StyleRowButton(_btnExportMap);
 			StyleRowButton(_btnResetMap);
-			StyleRowButton(_btnGenerateMap);
-			StyleRowButton(_btnImportMinimap);
-			StyleRowButton(_btnRandomGen);
 			StyleRowButton(_btnEditorSettings);
 			if (_btnEditorSettings != null) _btnEditorSettings.Alignment = HorizontalAlignment.Center;
 		}

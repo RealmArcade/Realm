@@ -456,30 +456,6 @@ namespace Realm.Client.UI
 					);
 				}, 13, "Clear all terrain heights, colors, and placed entities");
 
-				_btnGenerateMap = GetNode<Button>("PopupRandomGen/RandomGenVBox_VBoxContainer/BtnGenerateMap");
-				SetupOptionButton(_btnGenerateMap, $"{UnicodeIcons.DICE} PROCEDURAL", () => _generationDialog.Show(), 13, "Open random terrain generator settings modal");
-
-				_btnImportMinimap = GetNode<Button>("PopupRandomGen/RandomGenVBox_VBoxContainer/BtnImportMinimap");
-				SetupOptionButton(_btnImportMinimap, $"{UnicodeIcons.MAP_IMAGE} FROM IMAGE", () => ImportTerrainFromMinimapDialog(), 13, "Import terrain elevations, textures, and trees from a minimap image file");
-
-				_popupRandomGen = GetNode<PopupPanel>("PopupRandomGen");
-				var randomGenPopupStyle = new StyleBoxFlat();
-				randomGenPopupStyle.BgColor = new Color(0.14f, 0.13f, 0.11f, 0.98f);
-				randomGenPopupStyle.BorderColor = UIStyle.ColorGold;
-				randomGenPopupStyle.SetBorderWidthAll(1);
-				randomGenPopupStyle.SetCornerRadiusAll(4);
-				randomGenPopupStyle.SetContentMarginAll(10);
-				_popupRandomGen.AddThemeStyleboxOverride("panel", randomGenPopupStyle);
-				_btnGenerateMap.Pressed += () => _popupRandomGen.Hide();
-				_btnImportMinimap.Pressed += () => _popupRandomGen.Hide();
-
-				_btnRandomGen = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnRandomGen");
-				SetupOptionButton(_btnRandomGen, $"{UnicodeIcons.DICE} RANDOM GEN", () =>
-				{
-					var popupPosition = _btnRandomGen.GetScreenPosition() + new Vector2(0, _btnRandomGen.Size.Y);
-					_popupRandomGen.Popup(new Rect2I((Vector2I)popupPosition, Vector2I.Zero));
-				}, 13, "Open random map generation options");
-
 				_btnEditorSettings = new Button();
 				_btnEditorSettings.Name = "BtnEditorSettings";
 				_btnEditorSettings.Set("icon_max_width", 0);
@@ -1557,7 +1533,6 @@ namespace Realm.Client.UI
 
 
 				_entityPaletteController = new MapEditorEntityPaletteController(this, _containerCategorySelector, _btnAddObject);
-				_generationDialog = new MapEditorGenerationDialog(this);
 
 				_topBarController = new MapEditorTopBar(_btnBackToHub, _btnPublish, _btnSave, _btnLoad, _btnUndo, _btnRedo, _btnEditors, _statusLabel, _feedbackLabel);
 				_brushSettingsController = new MapEditorBrushSettings(_sldBrushSize, _lblBrushSizeValue, _sldBrushStrength, _lblBrushStrengthValue, _chkBlockMode, _sldBlockStep, _lblBlockStepValue, _sldHeight, _lblHeightValue);
