@@ -65,7 +65,7 @@ public static class MultiplayerEcsSyncTestSupport
 	private const float PresentationPositionTolerance = 0.25f;
 	private const float PresentationRotationTolerance = 0.2f;
 	private const int StartupWarmupSequenceCount = 60;
-	private const int SyncRecordVersion = 3;
+	private const int SyncRecordVersion = 4;
 
 	public static string ResolveGodotBinary()
 	{
@@ -322,6 +322,13 @@ public static class MultiplayerEcsSyncTestSupport
 		List<string> transientDigestMismatches = new();
 		int transientDigestMismatchCount = 0;
 		int comparedLootEntities = 0;
+		int comparedNavigationBaselines = 0;
+		int pathingMismatchCount = 0;
+		int navMeshMissingCount = 0;
+		int navMeshShapeDifferenceCount = 0;
+		List<string> navMeshObservations = new();
+		List<int> hostNavigationChangeSequences = new();
+		MultiplayerNavigationState? previousHostNavigation = null;
 
 		foreach (KeyValuePair<int, MultiplayerSnapshotRecord> hostEntry in hostRecords)
 		{
@@ -360,6 +367,18 @@ public static class MultiplayerEcsSyncTestSupport
 			CompareSnapshotRecord(hostEntry.Value, clientRecord, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits);
 			CompareScopeDigests(hostEntry.Value, clientRecord, digestTarget);
 			transientDigestMismatchCount += transientDigestMismatches.Count - digestMismatchCountBefore;
+
+			if (hostEntry.Value.IsBaseline)
+			{
+				if (previousHostNavigation != null && !IsSameNavigation(previousHostNavigation, hostEntry.Value.Navigation))
+				{
+					hostNavigationChangeSequences.Add(hostEntry.Key);
+				}
+
+				previousHostNavigation = hostEntry.Value.Navigation;
+				comparedNavigationBaselines++;
+				CompareNavigationState(hostEntry.Value.Sequence, hostEntry.Value.Navigation, clientRecord.Navigation, mismatches, navMeshObservations, ref pathingMismatchCount, ref navMeshMissingCount, ref navMeshShapeDifferenceCount);
+			}
 		}
 
 		report.PairedSnapshotCount = pairedSnapshots;
@@ -374,6 +393,13 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Lost sequence bursts after startup: {DescribeSequenceBursts(lostSequences)}");
 		report.AddSummaryLine($"Off-screen host units absent on the client as expected: {offscreenMissingUnits}");
 		report.AddSummaryLine($"Loot entities compared at baselines: {comparedLootEntities}");
+		report.AddSummaryLine($"Navigation parity: compared {comparedNavigationBaselines} baselines, pathing grid mismatches {pathingMismatchCount}, baselines missing a navmesh {navMeshMissingCount}");
+		report.AddSummaryLine($"Navmesh shape differences: {navMeshShapeDifferenceCount} of {comparedNavigationBaselines} baselines (the host bakes the map's placed obstacles into its mesh, while a client bakes bare terrain and carves poly flags afterwards, so the polygon split differs while the walkable footprint does not)");
+		for (int index = 0; index < Math.Min(navMeshObservations.Count, 3); index++)
+		{
+			report.AddSummaryLine($"  {navMeshObservations[index]}");
+		}
+		report.AddSummaryLine($"Host navigation changes between baselines: {hostNavigationChangeSequences.Count} ({DescribeSequenceList(hostNavigationChangeSequences)})");
 		report.AddSummaryLine($"Differences seen only on delta snapshots and healed by the next baseline: {transientDigestMismatchCount}");
 		for (int index = 0; index < Math.Min(transientDigestMismatches.Count, 5); index++)
 		{
@@ -401,6 +427,21 @@ public static class MultiplayerEcsSyncTestSupport
 			report.AddSummaryLine($"No unreliable snapshot was lost after startup; every host sequence in the steady-state window reached the client and {supersededSequenceCount} were superseded by a newer snapshot.");
 		}
 
+		if (comparedNavigationBaselines == 0)
+		{
+			report.AddFailure("No baseline carried a navigation digest, so navmesh parity was not verified.");
+		}
+
+		if (pathingMismatchCount > 0)
+		{
+			report.AddFailure($"{pathingMismatchCount} baselines had a terrain pathing grid that differs from the host's.");
+		}
+
+		if (navMeshMissingCount > 0)
+		{
+			report.AddFailure($"{navMeshMissingCount} baselines had no baked navmesh on one side, so prediction could not path.");
+		}
+
 		if (mismatches.Count > 0)
 		{
 			report.AddFailure($"{mismatches.Count} synced state mismatches were detected.");
@@ -410,6 +451,82 @@ public static class MultiplayerEcsSyncTestSupport
 
 		ComparePresentationRecords(outputDirectory, hostRecords, report);
 		return report;
+	}
+
+	private static bool IsSameNavigation(MultiplayerNavigationState left, MultiplayerNavigationState right)
+	{
+		return left.HasTerrainState == right.HasTerrainState
+			&& left.HasNavMesh == right.HasNavMesh
+			&& left.Width == right.Width
+			&& left.Depth == right.Depth
+			&& left.PathingHash == right.PathingHash
+			&& left.WalkableCellCount == right.WalkableCellCount
+			&& left.BlockedCellCount == right.BlockedCellCount
+			&& left.PolyCount == right.PolyCount
+			&& left.GroundPolyCount == right.GroundPolyCount
+			&& left.PolyHash == right.PolyHash;
+	}
+
+	private static void CompareNavigationState(int sequence, MultiplayerNavigationState hostNavigation, MultiplayerNavigationState clientNavigation, List<string> mismatches, List<string> navMeshObservations, ref int pathingMismatchCount, ref int navMeshMissingCount, ref int navMeshShapeDifferenceCount)
+	{
+		if (!hostNavigation.HasTerrainState)
+		{
+			AddMismatch(mismatches, 0, $"seq {sequence}: the host has no terrain state, so navigation could not be compared.");
+			return;
+		}
+
+		if (!clientNavigation.HasTerrainState)
+		{
+			AddMismatch(mismatches, 0, $"seq {sequence}: the client has no terrain state, so it cannot path or carve obstacles.");
+			pathingMismatchCount++;
+			return;
+		}
+
+		bool pathingMatches = hostNavigation.Width == clientNavigation.Width
+			&& hostNavigation.Depth == clientNavigation.Depth
+			&& hostNavigation.PathingHash == clientNavigation.PathingHash
+			&& hostNavigation.WalkableCellCount == clientNavigation.WalkableCellCount
+			&& hostNavigation.BlockedCellCount == clientNavigation.BlockedCellCount;
+		if (!pathingMatches)
+		{
+			pathingMismatchCount++;
+			AddMismatch(mismatches, 0, $"seq {sequence}: terrain pathing host=(size {hostNavigation.Width}x{hostNavigation.Depth}, walkable {hostNavigation.WalkableCellCount}, blocked {hostNavigation.BlockedCellCount}, hash {hostNavigation.PathingHash:x8}) client=(size {clientNavigation.Width}x{clientNavigation.Depth}, walkable {clientNavigation.WalkableCellCount}, blocked {clientNavigation.BlockedCellCount}, hash {clientNavigation.PathingHash:x8}).");
+		}
+
+		if (!hostNavigation.HasNavMesh || !clientNavigation.HasNavMesh)
+		{
+			navMeshMissingCount++;
+			AddMismatch(mismatches, 0, $"seq {sequence}: navmesh host present={hostNavigation.HasNavMesh} client present={clientNavigation.HasNavMesh}.");
+			return;
+		}
+
+		bool navMeshShapeMatches = hostNavigation.PolyCount == clientNavigation.PolyCount
+			&& hostNavigation.GroundPolyCount == clientNavigation.GroundPolyCount
+			&& hostNavigation.PolyHash == clientNavigation.PolyHash;
+		if (!navMeshShapeMatches)
+		{
+			navMeshShapeDifferenceCount++;
+			if (navMeshObservations.Count < 20)
+			{
+				navMeshObservations.Add($"seq {sequence}: navmesh host=(polys {hostNavigation.PolyCount}, ground {hostNavigation.GroundPolyCount}, hash {hostNavigation.PolyHash:x8}) client=(polys {clientNavigation.PolyCount}, ground {clientNavigation.GroundPolyCount}, hash {clientNavigation.PolyHash:x8}).");
+			}
+		}
+	}
+
+	private static string DescribeSequenceList(List<int> sequences)
+	{
+		if (sequences.Count == 0) return "none";
+
+		int listedCount = Math.Min(sequences.Count, 12);
+		StringBuilder summary = new();
+		for (int index = 0; index < listedCount; index++)
+		{
+			if (index > 0) summary.Append(", ");
+			summary.Append(sequences[index]);
+		}
+
+		if (sequences.Count > listedCount) summary.Append($", ... ({sequences.Count - listedCount} more)");
+		return summary.ToString();
 	}
 
 	private static void ComparePresentationRecords(string outputDirectory, SortedDictionary<int, MultiplayerSnapshotRecord> hostRecords, MultiplayerEcsSyncReport report)
@@ -818,6 +935,20 @@ public static class MultiplayerEcsSyncTestSupport
 				record.Loot[reader.ReadInt32()] = ReadComponentDigests(reader);
 			}
 
+			record.Navigation = new MultiplayerNavigationState
+			{
+				HasTerrainState = reader.ReadBoolean(),
+				HasNavMesh = reader.ReadBoolean(),
+				Width = reader.ReadInt32(),
+				Depth = reader.ReadInt32(),
+				PathingHash = reader.ReadUInt32(),
+				WalkableCellCount = reader.ReadInt32(),
+				BlockedCellCount = reader.ReadInt32(),
+				PolyCount = reader.ReadInt32(),
+				GroundPolyCount = reader.ReadInt32(),
+				PolyHash = reader.ReadUInt32()
+			};
+
 			records[sequence] = record;
 		}
 
@@ -844,6 +975,21 @@ public static class MultiplayerEcsSyncTestSupport
 		public Dictionary<int, Dictionary<int, uint>> Players = new();
 		public Dictionary<int, uint> WorldDigests = new();
 		public Dictionary<int, Dictionary<int, uint>> Loot = new();
+		public MultiplayerNavigationState Navigation = new();
+	}
+
+	private sealed class MultiplayerNavigationState
+	{
+		public bool HasTerrainState;
+		public bool HasNavMesh;
+		public int Width;
+		public int Depth;
+		public uint PathingHash;
+		public int WalkableCellCount;
+		public int BlockedCellCount;
+		public int PolyCount;
+		public int GroundPolyCount;
+		public uint PolyHash;
 	}
 
 	private sealed class MultiplayerSnapshotUnit

@@ -510,8 +510,7 @@ public partial class GameHost
 
 	internal void AssignBuildTaskToWorker(Entity workerEntity, string buildType, Vector3 targetPos)
 	{
-		bool isBuilding = false;
-		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(buildType, out meta))) return;
+		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !BuildingRegistry.TryGetValue(buildType, out meta)) return;
 		string targetModel = meta.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
 		float buildTime = Math.Max(meta.ProductionTime, 0);
@@ -532,11 +531,6 @@ public partial class GameHost
 		if (!GameContext.World.Has<CollisionRadius>(bldEntity))
 		{
 			GameContext.World.Add(bldEntity, new CollisionRadius(bldRadius));
-		}
-
-		if (isBuilding)
-		{
-			CarveObstacle(targetPos, bldRadius);
 		}
 
 		EnsureBuildingModel(bldEntity, targetPos);

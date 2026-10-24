@@ -307,6 +307,7 @@ public class SimulationService
 
 	private readonly HashSet<long> _alliedPairs = new();
 	private readonly Dictionary<long, PlayerRelationship> _explicitRelationships = new();
+	private readonly List<Entity> _referenceHoldersScratch = new();
 
 	private static long MakePairKey(int p1, int p2)
 	{
@@ -1420,6 +1421,25 @@ public class SimulationService
 		if (!GameContext.World.IsAlive(unitEntity)) return;
 		UnitWrapperCache.Remove(unitEntity.Id);
 		GameContext.World.Destroy(unitEntity);
+		RemoveReferencesToDestroyedEntity(unitEntity);
+	}
+
+	private void RemoveReferencesToDestroyedEntity(Entity destroyedEntity)
+	{
+		EcsWorld? world = GameContext.World;
+		if (world == null) return;
+
+		_referenceHoldersScratch.Clear();
+		foreach (Entity entity in world.Query<LastAttacker>())
+		{
+			if (world.Get<LastAttacker>(entity).Value != destroyedEntity) continue;
+			_referenceHoldersScratch.Add(entity);
+		}
+
+		for (int index = 0; index < _referenceHoldersScratch.Count; index++)
+		{
+			world.Remove<LastAttacker>(_referenceHoldersScratch[index]);
+		}
 	}
 
 	public void DestroyEntitiesDomain(IEnumerable<Entity> entities)
@@ -1430,6 +1450,7 @@ public class SimulationService
 			{
 				UnitWrapperCache.Remove(entity.Id);
 				GameContext.World.Destroy(entity);
+				RemoveReferencesToDestroyedEntity(entity);
 			}
 		}
 	}
