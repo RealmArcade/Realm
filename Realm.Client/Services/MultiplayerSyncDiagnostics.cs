@@ -20,7 +20,7 @@ namespace Realm.Client.Services;
 public static class MultiplayerSyncDiagnostics
 {
 	private const uint FileMagic = 0x504E5352;
-	private const int FileVersion = 3;
+	private const int FileVersion = 4;
 	private const int BaselineIntervalTicks = 30;
 	private const int PlayerSlotCount = 25;
 
@@ -211,6 +211,7 @@ public static class MultiplayerSyncDiagnostics
 			}
 
 			AppendPlayerScopeState(writer, GameContext.World, null);
+			AppendNavigationState(writer);
 		});
 
 		AppendRecord(record, snapshot.Sequence, snapshot.IsBaseline);
@@ -295,6 +296,7 @@ public static class MultiplayerSyncDiagnostics
 			}
 
 			AppendPlayerScopeState(writer, world, mapping.ClientToServerEntityMap);
+			AppendNavigationState(writer);
 		});
 
 		AppendRecord(record, sequence, isBaseline);
@@ -381,7 +383,7 @@ public static class MultiplayerSyncDiagnostics
 	private static void AppendLootState(BinaryWriter writer, EcsWorld? world, Dictionary<int, int>? clientToServerEntityMap)
 	{
 		_lootBuffer.Clear();
-		GameHost? host = GameHost.Instance;
+		GameHost? host = GameContext.Host;
 		if (host != null)
 		{
 			List<LootItem3D> lootItems = host.AllLootItems;
@@ -403,11 +405,26 @@ public static class MultiplayerSyncDiagnostics
 		}
 	}
 
+	private static void AppendNavigationState(BinaryWriter writer)
+	{
+		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+		writer.Write(digest.HasTerrainState);
+		writer.Write(digest.HasNavMesh);
+		writer.Write(digest.Width);
+		writer.Write(digest.Depth);
+		writer.Write(digest.PathingHash);
+		writer.Write(digest.WalkableCellCount);
+		writer.Write(digest.BlockedCellCount);
+		writer.Write(digest.PolyCount);
+		writer.Write(digest.GroundPolyCount);
+		writer.Write(digest.PolyHash);
+	}
+
 	public static void RecordClientPresentation()
 	{
 		if (_presentationWriter == null || _isHost) return;
 
-		GameHost? gameHost = GameHost.Instance;
+		GameHost? gameHost = GameContext.Host;
 		if (gameHost == null) return;
 		if (_presentationWindowStartTime < 0f)
 		{
@@ -466,6 +483,7 @@ public static class MultiplayerSyncDiagnostics
 			writer.Write(0);
 			writer.Write(0);
 			writer.Write(0);
+			AppendNavigationState(writer);
 		});
 
 		_presentationWriter.Write(record);

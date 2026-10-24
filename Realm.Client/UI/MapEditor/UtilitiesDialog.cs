@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Services;
@@ -72,6 +73,163 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		}
 	}
 
+	public class PruneUnusedAssetsUtilityOperation : IUtilityOperation
+	{
+		public string Name => "Prune Unused Assets";
+		public string Title => TranslationServer.Translate("Prune Unused Assets");
+		public string Description => TranslationServer.Translate("Removes manifest.json entries for asset files that no longer exist and for assets that are not referenced by any template in metadata.json.");
+		public string Icon => UnicodeIcons.TRASH;
+
+		public Control CreateConfigurationControl()
+		{
+			return null;
+		}
+
+		public Task ExecuteAsync(IProgress<(double Progress, string Status)> progress)
+		{
+			progress?.Report((10.0, TranslationServer.Translate("Removing non-existent and unreferenced assets...")));
+
+			string workspacePath = GetWorkspacePath();
+			MapAssetHelper.PruneNonExistentAssetsFromManifest(workspacePath);
+			MapAssetHelper.PruneUnusedAssetsFromManifest(workspacePath);
+
+			progress?.Report((100.0, TranslationServer.Translate("Pruned non-existent and unreferenced assets.")));
+			return Task.CompletedTask;
+		}
+	}
+
+	public class NormalizeReferencesUtilityOperation : IUtilityOperation
+	{
+		public string Name => "Normalize References";
+		public string Title => TranslationServer.Translate("Normalize References");
+		public string Description => TranslationServer.Translate("Finds greenlit maps that contain identical assets and points this map at those shared references instead of keeping duplicate copies, shrinking .rmap export size.");
+		public string Icon => UnicodeIcons.LINK;
+
+		private readonly List<(CheckBox CheckBox, GreenlitReferenceSuggestion Suggestion)> _checkboxes = new();
+
+		public Control CreateConfigurationControl()
+		{
+			var container = new VBoxContainer();
+			container.Name = "NormalizeContainer_VBoxContainer";
+			container.AddThemeConstantOverride("separation", 8);
+
+			var lblConfigHeader = new Label();
+			lblConfigHeader.Name = "LblConfigHeader_Label";
+			lblConfigHeader.Text = TranslationServer.Translate("CONFIGURATION");
+			lblConfigHeader.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			lblConfigHeader.AddThemeFontSizeOverride("font_size", 12);
+			container.AddChild(lblConfigHeader);
+
+			_checkboxes.Clear();
+			string workspacePath = GetWorkspacePath();
+			List<GreenlitReferenceSuggestion> suggestions = MapNormalizationHelper.FindGreenlitReferenceSuggestions(workspacePath);
+
+			if (suggestions.Count == 0)
+			{
+				int currentReferenceCount = MapNormalizationHelper.GetCurrentGreenlitReferences(workspacePath).Count;
+				var lblNoSuggestions = new Label();
+				lblNoSuggestions.Name = "LblNoSuggestions_Label";
+				lblNoSuggestions.Text = currentReferenceCount == 0
+					? TranslationServer.Translate("No shared greenlit assets found. All assets are unique to this map.")
+					: string.Format(TranslationServer.Translate("All shared greenlit assets are already normalized ({0} references active)."), currentReferenceCount);
+				lblNoSuggestions.AddThemeFontSizeOverride("font_size", 11);
+				lblNoSuggestions.AutowrapMode = TextServer.AutowrapMode.Word;
+				lblNoSuggestions.CustomMinimumSize = new Vector2(400, 0);
+				lblNoSuggestions.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				container.AddChild(lblNoSuggestions);
+				return container;
+			}
+
+			var lblSelectHeader = new Label();
+			lblSelectHeader.Name = "LblSelectHeader_Label";
+			lblSelectHeader.Text = TranslationServer.Translate("Select the greenlit maps to reference:");
+			lblSelectHeader.AddThemeFontSizeOverride("font_size", 11);
+			container.AddChild(lblSelectHeader);
+
+			foreach (GreenlitReferenceSuggestion suggestion in suggestions)
+			{
+				container.AddChild(CreateSuggestionRow(suggestion));
+			}
+
+			return container;
+		}
+
+		private Control CreateSuggestionRow(GreenlitReferenceSuggestion suggestion)
+		{
+			var row = new PanelContainer();
+			row.Name = "SuggestionRow_PanelContainer";
+			var rowStyle = new StyleBoxFlat
+			{
+				BgColor = new Color(0.16f, 0.17f, 0.22f, 0.9f),
+				CornerRadiusTopLeft = 4,
+				CornerRadiusTopRight = 4,
+				CornerRadiusBottomLeft = 4,
+				CornerRadiusBottomRight = 4
+			};
+			row.AddThemeStyleboxOverride("panel", rowStyle);
+
+			var rowHBox = new HBoxContainer();
+			rowHBox.Name = "SuggestionRowHBox_HBoxContainer";
+			rowHBox.AddThemeConstantOverride("separation", 10);
+			row.AddChild(rowHBox);
+
+			var cb = new CheckBox();
+			cb.Name = "SuggestionCheckBox_CheckBox";
+			cb.ButtonPressed = suggestion.IsSelected;
+			cb.AddThemeConstantOverride("icon_max_width", 0);
+			UIStyle.ApplyCheckboxStyle(cb);
+			rowHBox.AddChild(cb);
+			_checkboxes.Add((cb, suggestion));
+
+			var infoVBox = new VBoxContainer();
+			infoVBox.Name = "SuggestionInfoVBox_VBoxContainer";
+			infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			rowHBox.AddChild(infoVBox);
+
+			var lblMapName = new Label();
+			lblMapName.Name = "LblMapName_Label";
+			lblMapName.Text = $"{suggestion.MapTitle} (v{suggestion.MapVersion})";
+			lblMapName.AddThemeFontSizeOverride("font_size", 12);
+			lblMapName.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			infoVBox.AddChild(lblMapName);
+
+			var lblStats = new Label();
+			lblStats.Name = "LblStats_Label";
+			lblStats.Text = string.Format(TranslationServer.Translate("{0} matching asset(s) • Estimated savings: {1}"), suggestion.MatchedAssetPaths.Count, MapStorageService.FormatBytes(suggestion.SavedBytes));
+			lblStats.AddThemeFontSizeOverride("font_size", 10);
+			lblStats.AddThemeColorOverride("font_color", new Color(0.7f, 0.8f, 0.9f));
+			infoVBox.AddChild(lblStats);
+
+			return row;
+		}
+
+		public Task ExecuteAsync(IProgress<(double Progress, string Status)> progress)
+		{
+			var selectedTitles = _checkboxes.Where(entry => entry.CheckBox.ButtonPressed).Select(entry => entry.Suggestion.MapTitle).ToList();
+			if (selectedTitles.Count == 0)
+			{
+				progress?.Report((100.0, TranslationServer.Translate("No greenlit references selected.")));
+				return Task.CompletedTask;
+			}
+
+			long savedBytes = _checkboxes.Where(entry => entry.CheckBox.ButtonPressed).Sum(entry => entry.Suggestion.SavedBytes);
+			MapNormalizationHelper.ApplyGreenlitReferences(GetWorkspacePath(), selectedTitles);
+
+			progress?.Report((100.0, string.Format(TranslationServer.Translate("Applied {0} greenlit reference(s). {1} saved in .rmap exports!"), selectedTitles.Count, MapStorageService.FormatBytes(savedBytes))));
+			return Task.CompletedTask;
+		}
+	}
+
+	private static string GetWorkspacePath()
+	{
+		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
+		{
+			return GameContext.EditorService._tempWorkspacePath;
+		}
+
+		return MapWorkspaceService.GetActiveWorkspacePath();
+	}
+
 	private readonly List<IUtilityOperation> _operations = new();
 	private IUtilityOperation _selectedOperation;
 
@@ -97,6 +255,8 @@ public partial class UtilitiesDialog : FloatingDialogBase
 	private void RegisterOperations()
 	{
 		_operations.Add(new AutoFillAssetsUtilityOperation());
+		_operations.Add(new PruneUnusedAssetsUtilityOperation());
+		_operations.Add(new NormalizeReferencesUtilityOperation());
 	}
 
 	private void BuildControls()

@@ -76,6 +76,7 @@
     <PackageReference Include="gdUnit4.api" Version="5.1.0-rc5" />
     <PackageReference Include="gdUnit4.test.adapter" Version="3.1.1" />
     <PackageReference Include="LiteDB" Version="5.0.21" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.27.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <PackageReference Include="NSec.Cryptography" Version="26.4.0" />

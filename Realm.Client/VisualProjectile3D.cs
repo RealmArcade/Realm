@@ -89,6 +89,8 @@ public partial class VisualProjectile3D : Node3D
 	private bool _isImpacted;
 	private float _fadeTimer;
 	private float _fadeDuration;
+	private VfxSequenceInstance3D? _vfxSequence;
+	private bool _impactStagesNotified;
 
 	private ProjectileTrajectoryType _trajectoryType;
 	private ProjectileSpeedCurve _speedCurve;
@@ -195,6 +197,11 @@ public partial class VisualProjectile3D : Node3D
 
 	public void Initialize(Vector3 start, Vector3 target, WeaponMetadata weapon, Entity targetEntity = default)
 	{
+		if (_vfxSequence != null && GodotObject.IsInstanceValid(_vfxSequence))
+		{
+			_vfxSequence.DetachAnchor();
+		}
+
 		_weapon = weapon;
 		_startPosition = start;
 		_targetPosition = target;
@@ -246,8 +253,23 @@ public partial class VisualProjectile3D : Node3D
 		UpdatePointLight();
 
 		_trailPointCount = 0;
+		_impactStagesNotified = false;
 		Visible = true;
 		SetProcess(false);
+		StartVfxSequence();
+	}
+
+	private void StartVfxSequence()
+	{
+		_vfxSequence = null;
+		if (_weapon == null || string.IsNullOrEmpty(_weapon.VisualEffect)) return;
+
+		var registry = GameContext.RegistryService?.VfxRegistry;
+		if (registry == null || !registry.TryGetValue(_weapon.VisualEffect, out var sequenceConfig)) return;
+		if (sequenceConfig?.Stages == null || sequenceConfig.Stages.Count == 0) return;
+
+		Node parent = GetParent() ?? this;
+		_vfxSequence = GameContext.FXService.SpawnVfxSequence(sequenceConfig, parent, _startPosition, 1.0f, _targetEntity != Entity.Null ? _targetEntity.Id : -1, this);
 	}
 
 	private static ProjectileTrajectoryType ParseTrajectoryType(string? raw)
@@ -656,7 +678,7 @@ public partial class VisualProjectile3D : Node3D
 	private Vector3 GetCurrentTargetPosition()
 	{
 		Vector3 currentTarget = _initialTargetPosition;
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		if (_targetEntity != default && (tempQualifier != null ? GameContext.World : null)?.IsAlive(_targetEntity) == true)
 		{
 			if (GameContext.World.Has<Position>(_targetEntity))
@@ -961,7 +983,22 @@ public partial class VisualProjectile3D : Node3D
 		_meshContainer.Visible = false;
 		ReleaseLight();
 
-		if (!string.IsNullOrEmpty(_weapon.ImpactVisualEffect) && GameHost.Instance != null)
+		if (!_impactStagesNotified)
+		{
+			_impactStagesNotified = true;
+			if (_vfxSequence != null && GodotObject.IsInstanceValid(_vfxSequence))
+			{
+				_vfxSequence.NotifyImpact(impactPosition);
+			}
+		}
+
+		if (!string.IsNullOrEmpty(_weapon.ImpactParticleEffect))
+		{
+			float particleScale = _weapon.ImpactParticleScale <= 0f ? 1.0f : _weapon.ImpactParticleScale;
+			GameContext.FXService.SpawnSingleParticleImpact(GetParent() ?? this, _weapon.ImpactParticleEffect, impactPosition, particleScale);
+		}
+
+		if (!string.IsNullOrEmpty(_weapon.ImpactVisualEffect) && GameContext.Host != null)
 		{
 			var fxService = GameContext.FXService;
 			fxService?.SpawnSpritesheetEffect(GetParent() ?? this, _weapon.ImpactVisualEffect, impactPosition, 4, 4, 0.04f, 4.0f);

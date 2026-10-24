@@ -31,4 +31,14 @@ public class DecalMetadata
 	public float MaxScaleRatio { get; set; }
 	public float UpperFade { get; set; }
 	public float LowerFade { get; set; }
+	public VfxPlacementMode PlacementMode { get; set; } = VfxPlacementMode.Free;
+	public float ProjectionSize { get; set; }
+	public float ProjectionHeight { get; set; }
+	public float GroundOffset { get; set; } = 0.05f;
+	public float NormalFade { get; set; }
+	public bool DistanceFadeEnabled { get; set; }
+	public float DistanceFadeBegin { get; set; } = 10.0f;
+	public float DistanceFadeEnd { get; set; } = 30.0f;
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

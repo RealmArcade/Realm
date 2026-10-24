@@ -785,6 +785,75 @@
                     "items": {
                       "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
                     }
+                  },
+                  "custom_sockets": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/right_hand/items"
+                      }
+                    }
+                  },
+                  "CustomSocketLists": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": {
+                      "$ref": "#/properties/Templates/properties/Units/items/properties/ObjectAttachments/properties/custom_sockets/additionalProperties"
+                    }
+                  }
+                }
+              },
+              "PseudoSockets": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "SocketId": {
+                      "type": "string"
+                    },
+                    "Position": {
+                      "type": "object",
+                      "properties": {
+                        "X": {
+                          "type": "number"
+                        },
+                        "Y": {
+                          "type": "number"
+                        },
+                        "Z": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "RotationDegrees": {
+                      "type": "object",
+                      "properties": {
+                        "X": {
+                          "type": "number"
+                        },
+                        "Y": {
+                          "type": "number"
+                        },
+                        "Z": {
+                          "type": "number"
+                        }
+                      }
+                    }
                   }
                 }
               },
@@ -794,6 +863,12 @@
                   "null"
                 ],
                 "properties": {
+                  "VoiceAsset": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "OnSelect": {
                     "type": [
                       "array",
@@ -972,6 +1047,12 @@
               },
               "ConstructionRange": {
                 "type": "number"
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1071,7 +1152,34 @@
                   "null"
                 ]
               },
+              "ProceduralAnimation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EnableProceduralAnimation": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "PseudoSockets": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "$ref": "#/properties/Templates/properties/Units/items/properties/PseudoSockets/items"
+                }
+              },
               "DespawnShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Attribution_ImportedFromMap": {
                 "type": [
                   "string",
                   "null"
@@ -1157,7 +1265,34 @@
                   "null"
                 ]
               },
+              "ProceduralAnimation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "EnableProceduralAnimation": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "PseudoSockets": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "$ref": "#/properties/Templates/properties/Units/items/properties/PseudoSockets/items"
+                }
+              },
               "DespawnShader": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Attribution_ImportedFromMap": {
                 "type": [
                   "string",
                   "null"
@@ -1257,6 +1392,12 @@
                   "string",
                   "null"
                 ]
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1316,6 +1457,15 @@
                   "string",
                   "null"
                 ]
+              },
+              "ImpactParticleEffect": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ImpactParticleScale": {
+                "type": "number"
               },
               "ImpactSound": {
                 "type": [
@@ -1603,6 +1753,12 @@
                     "type": "number"
                   }
                 }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1691,6 +1847,12 @@
                     }
                   }
                 }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1801,6 +1963,12 @@
               },
               "Requirements": {
                 "type": "string"
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -1906,6 +2074,61 @@
                     "type": "number"
                   }
                 }
+              },
+              "BillboardIcon": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "TexturePath": {
+                    "type": "string"
+                  },
+                  "Columns": {
+                    "type": "integer"
+                  },
+                  "Rows": {
+                    "type": "integer"
+                  },
+                  "FramesPerSecond": {
+                    "type": "number"
+                  },
+                  "Loop": {
+                    "type": "boolean"
+                  },
+                  "Socket": {
+                    "type": "string"
+                  },
+                  "PositionOffset": {
+                    "type": "object",
+                    "properties": {
+                      "X": {
+                        "type": "number"
+                      },
+                      "Y": {
+                        "type": "number"
+                      },
+                      "Z": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "WorldHeight": {
+                    "type": "number"
+                  },
+                  "KeepConstantScreenSize": {
+                    "type": "boolean"
+                  },
+                  "NoDepthTest": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -2087,11 +2310,159 @@
                   }
                 }
               },
+              "Stages": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "EffectId": {
+                      "type": "string"
+                    },
+                    "Trigger": {
+                      "type": "integer"
+                    },
+                    "DelaySeconds": {
+                      "type": "number"
+                    },
+                    "Scale": {
+                      "type": "number"
+                    },
+                    "SingleInstance": {
+                      "type": "boolean"
+                    },
+                    "ParticleConfig": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "ParticleId": {
+                          "type": "string"
+                        },
+                        "Name": {
+                          "type": "string"
+                        },
+                        "Amount": {
+                          "type": "integer"
+                        },
+                        "Lifetime": {
+                          "type": "number"
+                        },
+                        "Explosiveness": {
+                          "type": "number"
+                        },
+                        "Randomness": {
+                          "type": "number"
+                        },
+                        "LocalCoords": {
+                          "type": "boolean"
+                        },
+                        "EmitterShape": {
+                          "type": "integer"
+                        },
+                        "SphereRadius": {
+                          "type": "number"
+                        },
+                        "BoxExtents": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/BoxExtents"
+                        },
+                        "RingRadius": {
+                          "type": "number"
+                        },
+                        "RingInnerRadius": {
+                          "type": "number"
+                        },
+                        "RingHeight": {
+                          "type": "number"
+                        },
+                        "Direction": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/Direction"
+                        },
+                        "SpreadDegrees": {
+                          "type": "number"
+                        },
+                        "InitialVelocityMin": {
+                          "type": "number"
+                        },
+                        "InitialVelocityMax": {
+                          "type": "number"
+                        },
+                        "Gravity": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/Gravity"
+                        },
+                        "LinearAccel": {
+                          "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig/properties/LinearAccel"
+                        },
+                        "RadialAccel": {
+                          "type": "number"
+                        },
+                        "TangentialAccel": {
+                          "type": "number"
+                        },
+                        "Damping": {
+                          "type": "number"
+                        },
+                        "InitialScaleMin": {
+                          "type": "number"
+                        },
+                        "InitialScaleMax": {
+                          "type": "number"
+                        },
+                        "EndScaleRatio": {
+                          "type": "number"
+                        },
+                        "ColorStart": {
+                          "type": "string"
+                        },
+                        "ColorMid": {
+                          "type": "string"
+                        },
+                        "ColorEnd": {
+                          "type": "string"
+                        },
+                        "AlphaStart": {
+                          "type": "number"
+                        },
+                        "AlphaMid": {
+                          "type": "number"
+                        },
+                        "AlphaEnd": {
+                          "type": "number"
+                        },
+                        "EmissionEnergy": {
+                          "type": "number"
+                        },
+                        "RenderMode": {
+                          "type": "integer"
+                        },
+                        "BlendMode": {
+                          "type": "integer"
+                        },
+                        "ParticleTexture": {
+                          "type": "string"
+                        },
+                        "MeshAssetPath": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
               "BlendMode": {
                 "type": "integer"
               },
               "PlacementMode": {
                 "type": "integer"
+              },
+              "TintWithPlayerColor": {
+                "type": "boolean"
               },
               "TargetSocket": {
                 "type": "string"
@@ -2100,6 +2471,9 @@
                 "type": "string"
               },
               "NoiseTexture": {
+                "type": "string"
+              },
+              "ProceduralMotionId": {
                 "type": "string"
               },
               "BaseUvScroll": {
@@ -2280,6 +2654,12 @@
                     "type": "number"
                   }
                 }
+              },
+              "Attribution_ImportedFromMap": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             }
           }
@@ -2317,6 +2697,106 @@
           },
           "MaskInvert": {
             "type": "boolean"
+          },
+          "MaskRegionMin": {
+            "type": "object",
+            "properties": {
+              "X": {
+                "type": "number"
+              },
+              "Y": {
+                "type": "number"
+              },
+              "Z": {
+                "type": "number"
+              }
+            }
+          },
+          "MaskRegionMax": {
+            "type": "object",
+            "properties": {
+              "X": {
+                "type": "number"
+              },
+              "Y": {
+                "type": "number"
+              },
+              "Z": {
+                "type": "number"
+              }
+            }
+          },
+          "SwayRegions": {
+            "type": "array",
+            "items": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "ModelKey": {
+                  "type": "string"
+                },
+                "RegionName": {
+                  "type": "string"
+                },
+                "NormalizedMin": {
+                  "type": "object",
+                  "properties": {
+                    "X": {
+                      "type": "number"
+                    },
+                    "Y": {
+                      "type": "number"
+                    },
+                    "Z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "NormalizedMax": {
+                  "type": "object",
+                  "properties": {
+                    "X": {
+                      "type": "number"
+                    },
+                    "Y": {
+                      "type": "number"
+                    },
+                    "Z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "Feather": {
+                  "type": "number"
+                },
+                "MaskPower": {
+                  "type": "number"
+                },
+                "MaskInvert": {
+                  "type": "boolean"
+                },
+                "MeshNamePatterns": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "MaterialNamePatterns": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
           },
           "SwayFrequency": {
             "type": "number"
@@ -2555,11 +3035,17 @@
                     "ParticleConfig": {
                       "$ref": "#/properties/Templates/properties/Vfx/items/properties/ParticleConfig"
                     },
+                    "Stages": {
+                      "$ref": "#/properties/Templates/properties/Vfx/items/properties/Stages"
+                    },
                     "BlendMode": {
                       "type": "integer"
                     },
                     "PlacementMode": {
                       "type": "integer"
+                    },
+                    "TintWithPlayerColor": {
+                      "type": "boolean"
                     },
                     "TargetSocket": {
                       "type": "string"
@@ -2568,6 +3054,9 @@
                       "type": "string"
                     },
                     "NoiseTexture": {
+                      "type": "string"
+                    },
+                    "ProceduralMotionId": {
                       "type": "string"
                     },
                     "BaseUvScroll": {
@@ -2683,6 +3172,12 @@
                     },
                     "ScaleOffset": {
                       "$ref": "#/properties/Templates/properties/Vfx/items/properties/ScaleOffset"
+                    },
+                    "Attribution_ImportedFromMap": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
@@ -2893,6 +3388,12 @@
             "items": {
               "$ref": "#/properties/CustomWaterProfiles/items/properties/VfxBombingRules/items"
             }
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3009,6 +3510,36 @@
           },
           "LowerFade": {
             "type": "number"
+          },
+          "PlacementMode": {
+            "type": "integer"
+          },
+          "ProjectionSize": {
+            "type": "number"
+          },
+          "ProjectionHeight": {
+            "type": "number"
+          },
+          "GroundOffset": {
+            "type": "number"
+          },
+          "NormalFade": {
+            "type": "number"
+          },
+          "DistanceFadeEnabled": {
+            "type": "boolean"
+          },
+          "DistanceFadeBegin": {
+            "type": "number"
+          },
+          "DistanceFadeEnd": {
+            "type": "number"
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3038,6 +3569,12 @@
               "string",
               "null"
             ]
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3061,6 +3598,12 @@
               "string",
               "null"
             ]
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3078,6 +3621,12 @@
               "string",
               "null"
             ]
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3091,6 +3640,12 @@
         ],
         "properties": {
           "TexturePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "Attribution_ImportedFromMap": {
             "type": [
               "string",
               "null"
@@ -3145,6 +3700,12 @@
           },
           "AssetType": {
             "type": "string"
+          },
+          "Attribution_ImportedFromMap": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -3158,6 +3719,12 @@
         ],
         "properties": {
           "ConfigJson": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "Attribution_ImportedFromMap": {
             "type": [
               "string",
               "null"

@@ -8,16 +8,13 @@ using Realm.Shared;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
 [GlobalClass]
 public partial class ReplayListPanel : Control
 {
-	public ReplayListPanel()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
@@ -61,10 +58,10 @@ public partial class ReplayListPanel : Control
 	private void ConnectSignals()
 	{
 		_backBtn.Pressed += OnBackPressed;
-		_backBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		_backBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		_deleteAllBtn.Pressed += OnDeleteAllPressed;
-		_deleteAllBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		_deleteAllBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void ApplyStyles()
@@ -138,8 +135,8 @@ public partial class ReplayListPanel : Control
 
 	private void OnBackPressed()
 	{
-		UIManager.Instance?.PlayClickSound();
-		UIManager.Instance?.TransitionTo(GameScreen.MainMenu);
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 	}
 
 	private void PopulateReplaysList()
@@ -309,7 +306,7 @@ public partial class ReplayListPanel : Control
 		playBtn.AddThemeConstantOverride("icon_max_width", 0);
 
 		playBtn.Pressed += () => OnPlayReplayPressed(path);
-		playBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		playBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		hBox.AddChild(playBtn);
 
 		var deleteBtn = new Button();
@@ -326,7 +323,7 @@ public partial class ReplayListPanel : Control
 		deleteBtn.AddThemeColorOverride("font_pressed_color", new Color(0.9f, 0.3f, 0.3f));
 
 		deleteBtn.Pressed += () => OnDeleteReplayPressed(path);
-		deleteBtn.MouseEntered += () => UIManager.Instance?.PlayHoverSound();
+		deleteBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		hBox.AddChild(deleteBtn);
 
 		return panel;
@@ -341,7 +338,7 @@ public partial class ReplayListPanel : Control
 			: Tr("The required game version is not installed. Download it?");
 		string message = $"{string.Format(Tr("Replay Version: {0}"), replayVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
 
-		UIManager.Instance?.ShowConfirmationDialog(message, () =>
+		GameContext.UserInterface?.ShowConfirmationDialog(message, () =>
 		{
 			if (versionExistsLocally)
 			{
@@ -358,7 +355,7 @@ public partial class ReplayListPanel : Control
 
 	private void OnPlayReplayPressed(string path)
 	{
-		UIManager.Instance?.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 
 		int totalTicks;
 		var header = ReplayPlaybackManager.ReadReplayHeader(path, out totalTicks);
@@ -368,17 +365,17 @@ public partial class ReplayListPanel : Control
 			return;
 		}
 
-		bool ok = ReplayPlaybackManager.Instance.LoadReplay(path);
+		bool ok = GameContext.ReplayPlayback.LoadReplay(path);
 		if (ok)
 		{
-			if (LobbyManager.Instance != null)
+			if (GameContext.Lobby != null)
 			{
-				if (ReplayPlaybackManager.Instance.Header != null)
+				if (GameContext.ReplayPlayback.Header != null)
 				{
-					LobbyManager.Instance.ActiveMapName = ReplayPlaybackManager.Instance.Header.MapName ?? "melee";
+					GameContext.Lobby.ActiveMapName = GameContext.ReplayPlayback.Header.MapName ?? "melee";
 				}
 
-				LobbyManager.Instance.IsGameStarted = true;
+				GameContext.Lobby.IsGameStarted = true;
 			}
 
 			GetTree().ChangeSceneToFile("res://GameHost.tscn");
@@ -439,6 +436,6 @@ public partial class ReplayListPanel : Control
 
 	private void ShowConfirmationDialog(string message, Action onConfirm)
 	{
-			UIManager.Instance?.ShowConfirmationDialog(message, onConfirm);
+			GameContext.UserInterface?.ShowConfirmationDialog(message, onConfirm);
 	}
 }

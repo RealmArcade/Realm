@@ -49,6 +49,7 @@ public partial class GameHost
 		string unitId = unit.UnitId;
 		int unitPlayer = unit.Player;
 
+		GameContext.FXService.NotifyVfxTargetDied(unit.Entity.Id);
 		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
 
 		PlayDeathEffects(unit, executeDespawnShader, playDeathAnimation, unitId);
@@ -94,7 +95,7 @@ public partial class GameHost
 			}
 		}
 
-		if (beneficiaryPlayerEntity == Entity.Null && (LobbyManager.Instance == null || LobbyManager.Instance.IsSinglePlayer))
+		if (beneficiaryPlayerEntity == Entity.Null && (GameContext.Lobby == null || GameContext.Lobby.IsSinglePlayer))
 		{
 			int localSlot = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 			beneficiaryPlayerEntity = GetPlayerEntityForPlayerIndex(localSlot);
@@ -108,7 +109,7 @@ public partial class GameHost
 			Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(localViewingSlot);
 			if (shouldRefresh && beneficiaryPlayerEntity == localPlayerEntity)
 			{
-				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			}
 		}
 	}
@@ -173,7 +174,7 @@ public partial class GameHost
 			EntityToProp3D.Remove(prop.Entity);
 			var (radius, propPos) = GameContext.SimulationService.DomainDepleteProp(prop.Entity, fallbackPos);
 
-			PropMultiMeshManager.Instance?.MarkDirty(propId);
+			GameContext.PropMultiMesh?.MarkDirty(propId);
 			UncarveObstacle(propPos, radius);
 
 			string deathShader = GetModelDeathShader(propId);
@@ -216,7 +217,7 @@ public partial class GameHost
 
 			if (_pendingBuildTaskUpdates.Count > 0)
 			{
-				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			}
 
 			var queueQuery = QueryCache.AllBuildQueueNoneDeadQuery;
@@ -387,8 +388,8 @@ public partial class GameHost
 			OnConstructionFinished?.Invoke((UnitId)buildingEntity.Id);
 		}
 
-		InGameHUD.Instance?.ShowFeedbackText("Construction complete!", new Color(0.3f, 0.9f, 0.4f));
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.ShowFeedbackText("Construction complete!", new Color(0.3f, 0.9f, 0.4f));
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private readonly HashSet<int> _activeBuildGhostWorkerIds = new();
@@ -509,8 +510,7 @@ public partial class GameHost
 
 	internal void AssignBuildTaskToWorker(Entity workerEntity, string buildType, Vector3 targetPos)
 	{
-		bool isBuilding = false;
-		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(buildType, out meta))) return;
+		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !BuildingRegistry.TryGetValue(buildType, out meta)) return;
 		string targetModel = meta.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
 		float buildTime = Math.Max(meta.ProductionTime, 0);
@@ -531,11 +531,6 @@ public partial class GameHost
 		if (!GameContext.World.Has<CollisionRadius>(bldEntity))
 		{
 			GameContext.World.Add(bldEntity, new CollisionRadius(bldRadius));
-		}
-
-		if (isBuilding)
-		{
-			CarveObstacle(targetPos, bldRadius);
 		}
 
 		EnsureBuildingModel(bldEntity, targetPos);
@@ -1108,7 +1103,7 @@ public partial class GameHost
 	private bool TryGetReplayAnimation(Entity entity, out string animation)
 	{
 		animation = string.Empty;
-		if (!ReplayPlaybackManager.Instance.IsPlayingReplay) return false;
+		if (!GameContext.ReplayPlayback.IsPlayingReplay) return false;
 
 		animation = GameContext.World.Has<ReplayAnimationState>(entity)
 			? GameContext.World.Get<ReplayAnimationState>(entity).Animation

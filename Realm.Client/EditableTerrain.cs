@@ -12,12 +12,6 @@ namespace Realm.Client;
 [GlobalClass]
 public partial class EditableTerrain : RuntimeTerrain
 {
-	public new static EditableTerrain Instance => RuntimeTerrain.Instance as EditableTerrain;
-
-	public EditableTerrain() : base()
-	{
-	}
-
 	protected override bool IsRuntimeOnly => false;
 
 	public override void ProcessAndSaveRawTexture(string rawPngPath, string outputRtexPath)
@@ -89,7 +83,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		clampedDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
 		state = default;
 
-		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return false;
+		if (GameContext.Host == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return false;
 		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return false;
 
 		state = GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
@@ -338,7 +332,7 @@ public partial class EditableTerrain : RuntimeTerrain
 
 	private bool ValidateAndClampDimensions(ref int newWidth, ref int newDepth)
 	{
-		if (GameHost.Instance == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return false;
+		if (GameContext.Host == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity)) return false;
 		if (!GameContext.World.Has<TerrainState>(ECSContext.WorldEntity)) return false;
 
 		newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);

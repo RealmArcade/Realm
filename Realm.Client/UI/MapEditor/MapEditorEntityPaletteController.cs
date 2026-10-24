@@ -304,9 +304,9 @@ public class MapEditorEntityPaletteController
 	{
 		if (_optCategoryItems.ItemCount == 0)
 		{
-			if (GameHost.Instance != null)
+			if (GameContext.Host != null)
 			{
-				GameHost.Instance.ActivePlaceId = "";
+				GameContext.Host.ActivePlaceId = "";
 			}
 
 			return;
@@ -493,16 +493,16 @@ public class MapEditorEntityPaletteController
 		if (index >= 0 && index < _categoryFiles.Count)
 		{
 			string selectedFile = _categoryFiles[index];
-			if (GameHost.Instance != null)
+			if (GameContext.Host != null)
 			{
-				GameHost.Instance.ActivePlaceId = selectedFile;
+				GameContext.Host.ActivePlaceId = selectedFile;
 			}
 		}
 	}
 
 	public void TriggerAddObjectMode()
 	{
-		if (GameHost.Instance == null)
+		if (GameContext.Host == null)
 		{
 			return;
 		}

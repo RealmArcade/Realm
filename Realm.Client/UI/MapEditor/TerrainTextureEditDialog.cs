@@ -643,9 +643,9 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		if (string.IsNullOrEmpty(_textureFileName)) return;
 
 		string tintHex = $"#{_tint.ToHtml(false)}";
-		if (GameHost.Instance != null && GameHost.Instance.GroundTerrain != null)
+		if (GameContext.Host != null && GameContext.Host.GroundTerrain != null)
 		{
-			GameHost.Instance.GroundTerrain.UpdateTextureParamDirect(
+			GameContext.Host.GroundTerrain.UpdateTextureParamDirect(
 				_textureFileName,
 				_tileMode,
 				_uvScale,
@@ -1119,11 +1119,11 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 
 		SaveTextureToMetadata(newTemplateID);
 
-		MapEditorHUD.Instance?.SetupTextureSwatches(false);
-		if (GameHost.Instance?.GroundTerrain != null)
+		GameContext.MapEditorHud?.SetupTextureSwatches(false);
+		if (GameContext.Host?.GroundTerrain != null)
 		{
-			GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides();
-			GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+			GameContext.Host.GroundTerrain.ClearLiveSwatchOverrides();
+			GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 		}
 
 		_onApplied?.Invoke(result);
@@ -1266,10 +1266,10 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 			if (_optTileMode != null) _optTileMode.Selected = _tileMode == "Stochastic" ? 1 : 0;
 			UpdateTileModeVisibility();
 			ApplyLiveTerrainUpdate();
-			if (GameHost.Instance?.GroundTerrain != null)
+			if (GameContext.Host?.GroundTerrain != null)
 			{
-				GameHost.Instance.GroundTerrain.ClearLiveSwatchOverrides(_textureFileName);
-				GameHost.Instance.GroundTerrain.ReloadTerrainTextures(true);
+				GameContext.Host.GroundTerrain.ClearLiveSwatchOverrides(_textureFileName);
+				GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
 			}
 		}
 	}

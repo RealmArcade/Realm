@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
@@ -39,10 +40,35 @@ public class MovementPredictionService
 
 	public bool IsPredictionEnabled => GameSettings.MovementPrediction;
 
+	private long _operationStartTimestamp;
+	private float _lastOperationCostMs;
+	private bool _hasPendingOperationCost;
+
+	public bool TryConsumeOperationCost(out float costMs)
+	{
+		costMs = _lastOperationCostMs;
+		bool hasMeasurement = _hasPendingOperationCost;
+		_hasPendingOperationCost = false;
+		return hasMeasurement;
+	}
+
+	private void BeginOperation()
+	{
+		_operationStartTimestamp = Stopwatch.GetTimestamp();
+	}
+
+	private void EndOperation()
+	{
+		long elapsedTicks = Stopwatch.GetTimestamp() - _operationStartTimestamp;
+		_lastOperationCostMs = (float)(elapsedTicks * 1000.0 / Stopwatch.Frequency);
+		_hasPendingOperationCost = true;
+	}
+
 	public void ApplyLocalPrediction(EcsWorld world, IEnumerable<int> unitEntityIds, Vector3 targetPos)
 	{
 		if (!IsPredictionEnabled || world == null) return;
 
+		BeginOperation();
 		IsPredictiveFrameContext = true;
 		try
 		{
@@ -66,6 +92,7 @@ public class MovementPredictionService
 		finally
 		{
 			IsPredictiveFrameContext = false;
+			EndOperation();
 		}
 	}
 
@@ -73,6 +100,7 @@ public class MovementPredictionService
 	{
 		if (!IsPredictionEnabled || world == null) return;
 
+		BeginOperation();
 		_currentSequence = sequence;
 		int index = sequence % BufferSize;
 		var frame = _historyBuffer[index];
@@ -94,6 +122,8 @@ public class MovementPredictionService
 				world.Set(entity, new RenderPosition(pos.Value));
 			}
 		});
+
+		EndOperation();
 	}
 
 	public void ReconcileServerSnapshot(EcsWorld world, int sequence, Dictionary<int, Vector3> serverPositions)

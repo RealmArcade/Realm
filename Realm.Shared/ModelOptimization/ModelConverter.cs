@@ -6,6 +6,8 @@ namespace Realm.Shared.ModelOptimization;
 
 public static class ModelConverter
 {
+	private const float HardEdgedCreaseAngleDegrees = 5.0f;
+
 	public static readonly string[] SupportedModelExtensions =
 	[
 		".glb", ".gltf", ".rmesh", ".fbx", ".obj"
@@ -18,7 +20,7 @@ public static class ModelConverter
 		return Array.Exists(SupportedModelExtensions, e => e.Equals(ext, StringComparison.OrdinalIgnoreCase));
 	}
 
-	public static OptimizationOptions GetAutomaticOptimizationOptions(string? assetType, bool forceReDecimate)
+	public static OptimizationOptions GetAutomaticOptimizationOptions(string? assetType, bool forceReDecimate, MeshSurfaceCategory? surfaceCategory = null)
 	{
 		int maxRes = 1024;
 		if (string.Equals(assetType, "Item", StringComparison.OrdinalIgnoreCase))
@@ -30,7 +32,9 @@ public static class ModelConverter
 		{
 			SimplificationRatio = 0.5f,
 			MaxTextureResolution = maxRes,
-			ForceReDecimate = forceReDecimate
+			ForceReDecimate = forceReDecimate,
+			CreaseAngleDegrees = surfaceCategory == MeshSurfaceCategory.HardEdged ? HardEdgedCreaseAngleDegrees : GlbMeshSmoother.DefaultCreaseAngleDegrees,
+			DecimationProfile = surfaceCategory.HasValue ? LodDecimationProfile.ForCategory(surfaceCategory.Value) : null
 		};
 	}
 
@@ -74,14 +78,19 @@ public static class ModelConverter
 		return null;
 	}
 
-	private static (bool Success, byte[]? OutputGlb, string? ErrorMessage) ProcessGlbOptimization(byte[] rawGlbBytes, string? effectiveAssetType, bool force, OptimizationOptions? options)
+	private static OptimizationResult ProcessGlbOptimization(byte[] rawGlbBytes, string? effectiveAssetType, bool force, OptimizationOptions? options)
 	{
 		bool shouldForce = force || (options.HasValue && options.Value.ForceReDecimate);
 		bool isAlreadyOptimized = GlbManifestUtils.HasOptimizationFlag(rawGlbBytes);
 
 		if (!shouldForce && isAlreadyOptimized)
 		{
-			return (true, rawGlbBytes, null);
+			return new OptimizationResult
+			{
+				Success = true,
+				OutputGlbBytes = rawGlbBytes,
+				DecimationSkipped = true
+			};
 		}
 
 		byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(rawGlbBytes).UnoptimizedBytes;
@@ -91,10 +100,10 @@ public static class ModelConverter
 		var optResult = optimizer.Optimize(unoptimized, opt);
 		if (!optResult.Success || optResult.OutputGlbBytes == null)
 		{
-			return (false, null, optResult.ErrorMessage ?? "Optimization failed.");
+			optResult.ErrorMessage ??= "Optimization failed.";
 		}
 
-		return (true, optResult.OutputGlbBytes, null);
+		return optResult;
 	}
 
 	private static string DetermineChromaKey(string? chromaKey, JsonObject metaObj, byte[] finalGlbBytes)
@@ -155,7 +164,9 @@ public static class ModelConverter
 		OptimizationOptions? options = null,
 		string? author = null,
 		string? chromaKey = null,
-		string? existingMetadataJson = null)
+		string? existingMetadataJson = null,
+		byte[]? sourceProfileImageWebp = null,
+		bool stripSourceProfileImage = false)
 	{
 		string fullInput = Path.GetFullPath(inputPath);
 		var result = new ModelConversionResult { InputPath = fullInput };
@@ -179,7 +190,7 @@ public static class ModelConverter
 			result.OriginalSize = inputBytes.Length;
 
 			string fileName = Path.GetFileName(fullInput);
-			var convRes = ConvertToRmesh(inputBytes, fullInput, assetType, force, options, author, chromaKey, existingMetadataJson);
+			var convRes = ConvertToRmesh(inputBytes, fullInput, assetType, force, options, author, chromaKey, existingMetadataJson, sourceProfileImageWebp, stripSourceProfileImage);
 			if (!convRes.Success || convRes.OutputBytes == null)
 			{
 				result.Success = false;
@@ -199,6 +210,10 @@ public static class ModelConverter
 			result.AssetType = convRes.AssetType;
 			result.Author = convRes.Author;
 			result.PreferredFileName = convRes.PreferredFileName;
+			result.LodTriangleCounts = convRes.LodTriangleCounts;
+			result.UvIslandCountBefore = convRes.UvIslandCountBefore;
+			result.UvIslandCountAfter = convRes.UvIslandCountAfter;
+			result.UvChartMergeTolerance = convRes.UvChartMergeTolerance;
 			return result;
 		}
 		catch (Exception ex)
@@ -225,9 +240,10 @@ public static class ModelConverter
 		JsonObject metaObj,
 		byte[] finalGlbBytes,
 		bool supportsTeamColor,
-		string effectiveAssetType)
+		string effectiveAssetType,
+		byte[]? sourceProfileImageWebp)
 	{
-		byte[] rmeshBytes = RmeshFile.Build(metaObj.ToJsonString(), finalGlbBytes, compressed: true);
+		byte[] rmeshBytes = RmeshFile.Build(metaObj.ToJsonString(), finalGlbBytes, compressed: true, sourceProfileImageWebp: sourceProfileImageWebp);
 		result.Success = true;
 		result.OutputBytes = rmeshBytes;
 		result.OptimizedSize = rmeshBytes.Length;
@@ -245,7 +261,8 @@ public static class ModelConverter
 		string? author,
 		string? chromaKey,
 		byte[] finalGlbBytes,
-		bool supportsTeamColor)
+		bool supportsTeamColor,
+		byte[]? sourceProfileImageWebp)
 	{
 		UpdateCreatedUtc(metaObj);
 
@@ -257,6 +274,24 @@ public static class ModelConverter
 		UpdatePreferredFileName(metaObj, inputFileName);
 		UpdateAuthor(metaObj, author);
 		UpdateChromaKey(metaObj, chromaKey, finalGlbBytes);
+		UpdateSourceProfileImage(metaObj, sourceProfileImageWebp);
+	}
+
+	private static void UpdateSourceProfileImage(JsonObject metaObj, byte[]? sourceProfileImageWebp)
+	{
+		if (sourceProfileImageWebp == null || sourceProfileImageWebp.Length == 0)
+		{
+			metaObj.Remove("source_profile_image");
+			return;
+		}
+
+		metaObj["source_profile_image"] = new JsonObject
+		{
+			["format"] = "webp",
+			["quality"] = RmeshFile.SourceProfileImageQuality,
+			["length"] = sourceProfileImageWebp.Length,
+			["embedded"] = true
+		};
 	}
 
 	private static void UpdateCreatedUtc(JsonObject metaObj)
@@ -319,7 +354,9 @@ public static class ModelConverter
 		OptimizationOptions? options = null,
 		string? author = null,
 		string? chromaKey = null,
-		string? existingMetadataJson = null)
+		string? existingMetadataJson = null,
+		byte[]? sourceProfileImageWebp = null,
+		bool stripSourceProfileImage = false)
 	{
 		var result = new ModelConversionResult
 		{
@@ -348,19 +385,25 @@ public static class ModelConverter
 			}
 
 			var optRes = ProcessGlbOptimization(rawGlbBytes, effectiveAssetType, force, options);
-			if (!optRes.Success || optRes.OutputGlb == null)
+			if (!optRes.Success || optRes.OutputGlbBytes == null)
 			{
 				result.Success = false;
 				result.ErrorMessage = optRes.ErrorMessage ?? "Optimization failed.";
 				return result;
 			}
 
-			byte[] finalGlbBytes = optRes.OutputGlb;
+			byte[] finalGlbBytes = optRes.OutputGlbBytes;
 			bool supportsTeamColor = GlbPlayerColorProcessor.DetectSupportsTeamColor(finalGlbBytes);
+			byte[]? effectiveSourceProfileImage = ResolveSourceProfileImage(inputBytes, sourceProfileImageWebp, stripSourceProfileImage);
 
-			UpdateMetadataObject(metaObj, inputFileName, effectiveAssetType, author, chromaKey, finalGlbBytes, supportsTeamColor);
+			UpdateMetadataObject(metaObj, inputFileName, effectiveAssetType, author, chromaKey, finalGlbBytes, supportsTeamColor, effectiveSourceProfileImage);
 
-			return BuildFinalRmeshResult(result, metaObj, finalGlbBytes, supportsTeamColor, effectiveAssetType);
+			var finalResult = BuildFinalRmeshResult(result, metaObj, finalGlbBytes, supportsTeamColor, effectiveAssetType, effectiveSourceProfileImage);
+			finalResult.LodTriangleCounts = optRes.LodTriangleCounts;
+			finalResult.UvIslandCountBefore = optRes.UvIslandCountBefore;
+			finalResult.UvIslandCountAfter = optRes.UvIslandCountAfter;
+			finalResult.UvChartMergeTolerance = optRes.UvChartMergeTolerance;
+			return finalResult;
 		}
 		catch (Exception ex)
 		{
@@ -368,6 +411,19 @@ public static class ModelConverter
 			result.ErrorMessage = ex.Message;
 			return result;
 		}
+	}
+
+	private static byte[]? ResolveSourceProfileImage(ReadOnlySpan<byte> inputBytes, byte[]? providedSourceImageWebp, bool stripSourceProfileImage)
+	{
+		if (stripSourceProfileImage) return null;
+		if (providedSourceImageWebp is { Length: > 0 }) return providedSourceImageWebp;
+
+		if (RmeshFile.IsRmeshBytes(inputBytes) && RmeshFile.TryGetSourceProfileImageWebp(inputBytes, out byte[] existingImageWebp))
+		{
+			return existingImageWebp;
+		}
+
+		return null;
 	}
 
 	public static byte[]? ExtractGlbFromRmesh(ReadOnlySpan<byte> rmeshBytes)
@@ -447,7 +503,11 @@ public static class ModelConverter
 			{
 				byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(inputGlbBytes).UnoptimizedBytes;
 				var optRes = ProcessGlbOptimization(inputGlbBytes, assetType, force, options);
-				outputGlbBytes = optRes.Success && optRes.OutputGlb != null ? optRes.OutputGlb : unoptimized;
+				outputGlbBytes = optRes.Success && optRes.OutputGlbBytes != null ? optRes.OutputGlbBytes : unoptimized;
+				result.LodTriangleCounts = optRes.LodTriangleCounts;
+				result.UvIslandCountBefore = optRes.UvIslandCountBefore;
+				result.UvIslandCountAfter = optRes.UvIslandCountAfter;
+				result.UvChartMergeTolerance = optRes.UvChartMergeTolerance;
 			}
 
 			string? targetDir = Path.GetDirectoryName(target);

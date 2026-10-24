@@ -143,7 +143,7 @@ public class RaycastService
 
 	public RaycastResult RaycastTerrain(Vector3 origin, Vector3 dir, float maxDist)
 	{
-		var terrain = RuntimeTerrain.Instance;
+		var terrain = GameContext.Terrain;
 		if (terrain == null || terrain.Cells == null) return null;
 
 		float quadSize = terrain.QuadSize;
@@ -264,7 +264,7 @@ public class RaycastService
 
 	public RaycastResult RaycastUnits(Vector3 origin, Vector3 dir, float maxDist)
 	{
-		var gameHost = GameHost.Instance;
+		var gameHost = GameContext.Host;
 		if (gameHost == null) return null;
 
 		RaycastResult bestHit = null;
@@ -300,7 +300,7 @@ public class RaycastService
 
 	public RaycastResult RaycastProps(Vector3 origin, Vector3 dir, float maxDist)
 	{
-		var gameHost = GameHost.Instance;
+		var gameHost = GameContext.Host;
 		if (gameHost == null) return null;
 
 		RaycastResult bestHit = null;
@@ -336,7 +336,7 @@ public class RaycastService
 
 	public RaycastResult RaycastDecals(Vector3 origin, Vector3 dir, float maxDist)
 	{
-		var gameHost = GameHost.Instance;
+		var gameHost = GameContext.Host;
 		if (gameHost == null) return null;
 
 		RaycastResult bestHit = null;
@@ -388,7 +388,7 @@ public class RaycastService
 
 	public RaycastResult RaycastVfx(Vector3 origin, Vector3 dir, float maxDist)
 	{
-		var gameHost = GameHost.Instance;
+		var gameHost = GameContext.Host;
 		if (gameHost == null) return null;
 
 		RaycastResult bestHit = null;

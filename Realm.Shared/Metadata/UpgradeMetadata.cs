@@ -15,4 +15,6 @@ public class UpgradeMetadata
 	public int MaxLevel { get; set; } = 1;
 	public string[]? AffectedUnitIds { get; set; }
 	public List<StatModifierDefinition> Modifiers { get; set; } = new();
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

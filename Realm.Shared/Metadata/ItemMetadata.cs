@@ -20,4 +20,6 @@ public class ItemMetadata
 	public bool IsContainer { get; set; }
 	public int ContainerSize { get; set; }
 	public string Requirements { get; set; } = string.Empty;
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

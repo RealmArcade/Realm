@@ -5,6 +5,11 @@ namespace Realm.AdminServer.Services;
 
 public static class MapMaintainerHelper
 {
+	public static string GetTestCompositeKey(string mapTitle, string mapVersion)
+	{
+		return $"{mapTitle}_test_{mapVersion}";
+	}
+
 	public static List<string> GetMaintainers(DataStoreService db, string mapTitle)
 	{
 		if (string.IsNullOrWhiteSpace(mapTitle))
@@ -35,6 +40,7 @@ public static class MapMaintainerHelper
 
 		return maintainerSet.ToList();
 	}
+
 
 	private static void AddMaintainersFromList(DataStoreService db, string collection, string key, HashSet<string> maintainerSet)
 	{

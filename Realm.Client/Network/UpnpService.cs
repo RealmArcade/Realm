@@ -6,8 +6,6 @@ namespace Realm.Client.Network;
 
 public class UpnpService
 {
-	public static UpnpService Instance { get; } = new();
-
 	private Upnp? _upnp;
 	public bool IsPortMapped { get; private set; }
 

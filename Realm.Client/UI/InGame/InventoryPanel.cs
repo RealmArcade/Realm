@@ -148,12 +148,12 @@ public class InventoryPanel
 		string itemId = _slots[slotIndex].LastItemId;
 		if (string.IsNullOrEmpty(itemId)) return;
 
-		var selected = GameHost.Instance?.SelectedUnits;
+		var selected = GameContext.Host?.SelectedUnits;
 		int localPlayer = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		int focusIdx = _currentFocusIdx;
 		if (selected != null && selected.Count > focusIdx && selected[focusIdx].Player == localPlayer)
 		{
-			GameHost.Instance.UseItem(selected[focusIdx], itemId);
+			GameContext.Host.UseItem(selected[focusIdx], itemId);
 		}
 	}
 

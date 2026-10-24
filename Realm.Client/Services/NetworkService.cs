@@ -54,10 +54,6 @@ public class NetworkService
 	public int ResumeCountdownSeconds { get; set; } = -1;
 	public float ResumeCountdownTimer { get; set; } = 0f;
 
-	public NetworkService()
-	{
-	}
-
 	public bool CountdownForcedByHost { get; set; } = false;
 	public readonly Dictionary<int, bool> PlayerReadyStates = new();
 	public readonly Dictionary<int, bool> DisallowedPausePeers = new();
@@ -294,7 +290,7 @@ public class NetworkService
 		if (GameContext.World.Has<UnitOwnerPlayer>(unitEntity))
 		{
 			int playerIndex = GameContext.World.Get<UnitOwnerPlayer>(unitEntity).PlayerIndex;
-			var lobby = LobbyManager.Instance;
+			var lobby = GameContext.Lobby;
 			if (lobby != null)
 			{
 				var players = lobby.PlayerList;
@@ -383,10 +379,10 @@ public class NetworkService
 
 	public bool IsServerEntityVisibleToAnyRemoteClient(int serverEntityId)
 	{
-		GameHost? gameHost = GameHost.Instance;
+		GameHost? gameHost = GameContext.Host;
 		if (gameHost == null) return true;
 
-		LobbyManager? lobby = LobbyManager.Instance;
+		LobbyManager? lobby = GameContext.Lobby;
 		if (lobby == null) return true;
 
 		Entity worldEntity = FindWorldEntity();
@@ -466,9 +462,9 @@ public class NetworkService
 	public float ComputeDynamicInterpolationFactor()
 	{
 		float bufferTime = 0.1f;
-		if (LobbyManager.Instance?.PlayerList != null)
+		if (GameContext.Lobby?.PlayerList != null)
 		{
-			var localPlayer = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == LocalPeerId);
+			var localPlayer = GameContext.Lobby.PlayerList.Find(x => x.PeerId == LocalPeerId);
 			if (localPlayer != null)
 			{
 				string latStr = localPlayer.Latency;
@@ -662,7 +658,7 @@ public class NetworkService
 
 	private bool IsLocallyOwnedEntity(Entity entity)
 	{
-		int localPlayerIndex = GameHost.Instance?.LocalPlayerIndex ?? -1;
+		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
 		if (localPlayerIndex < 0) return false;
 		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
 
@@ -672,13 +668,13 @@ public class NetworkService
 	private void HideUntrackedOwnEntity(Entity localEntity)
 	{
 		if (!_hiddenOwnEntityIds.Add(localEntity.Id)) return;
-		GameHost.Instance?.SetReplicatedEntityVisible(localEntity, false);
+		GameContext.Host?.SetReplicatedEntityVisible(localEntity, false);
 	}
 
 	private void RestoreHiddenOwnEntity(Entity localEntity)
 	{
 		if (!_hiddenOwnEntityIds.Remove(localEntity.Id)) return;
-		GameHost.Instance?.SetReplicatedEntityVisible(localEntity, true);
+		GameContext.Host?.SetReplicatedEntityVisible(localEntity, true);
 	}
 
 	private void RetireClientEntityForUntrackedServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
@@ -946,13 +942,13 @@ public class NetworkService
 			case ColdPayloadKind.LeaderboardBoards:
 			{
 				ColdPayloadCodecs.ApplyLeaderboards(GameContext.World, FindWorldEntity(), delta.Bytes);
-				GameHost.Instance?.RefreshReplicatedOverlayUi();
+				GameContext.Host?.RefreshReplicatedOverlayUi();
 				break;
 			}
 			case ColdPayloadKind.SummaryTable:
 			{
 				ColdPayloadCodecs.ApplySummaryTable(GameContext.World, FindWorldEntity(), delta.Bytes);
-				GameHost.Instance?.RefreshReplicatedOverlayUi();
+				GameContext.Host?.RefreshReplicatedOverlayUi();
 				break;
 			}
 		}
@@ -1015,7 +1011,7 @@ public class NetworkService
 		else
 		{
 			codec.Apply(GameContext.World, targetEntity, delta.Bytes);
-			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id) GameHost.Instance?.SyncReplicatedLootNode(delta.Key, targetEntity);
+			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id) GameContext.Host?.SyncReplicatedLootNode(delta.Key, targetEntity);
 		}
 
 		_mirror.RecordComponent(delta);
@@ -1033,7 +1029,7 @@ public class NetworkService
 
 	private static void DestroyReplicatedLootEntity(int serverEntityId, Entity localEntity, NetworkMappingState mapping)
 	{
-		GameHost.Instance?.RemoveLootItemLocal(serverEntityId);
+		GameContext.Host?.RemoveLootItemLocal(serverEntityId);
 		ReplicatedEntityReferences.Unregister(serverEntityId);
 		mapping.ServerToClientEntityMap.Remove(serverEntityId);
 		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
@@ -1067,7 +1063,7 @@ public class NetworkService
 	{
 		_mirror.RecordText(delta);
 		_appliedStaticTextCount++;
-		GameHost.Instance?.ApplyStaticTextDelta(delta);
+		GameContext.Host?.ApplyStaticTextDelta(delta);
 	}
 
 	private void VerifyReplicatedStateFingerprint(int sequence, uint hostFingerprint)
@@ -1696,7 +1692,7 @@ public class NetworkService
 			MultiplayerSyncDiagnostics.RecordHostSnapshot(BuildDiagnosticAuthoritativeSnapshot(allUnits, snapshotSequence, isBaseline));
 		}
 
-		if (LobbyManager.Instance != null)
+		if (GameContext.Lobby != null)
 		{
 			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
 			var abilityStates = CollectHostAbilityStateDeltas(isBaseline);
@@ -1709,7 +1705,7 @@ public class NetworkService
 
 	private void ProcessLobbyPlayersForSnapshots(int localPeerId, List<Unit3D> allUnits, List<(int PeerId, byte[] Payload, bool IsBaseline)> results, int snapshotSequence, bool isBaseline, NetworkMappingState mapping, List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
 	{
-		foreach (var p in LobbyManager.Instance.PlayerList)
+		foreach (var p in GameContext.Lobby.PlayerList)
 		{
 			if (p.PeerId == localPeerId || p.PeerId < 0) continue;
 			if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(p.PeerId, out var playerEntity)) continue;
@@ -2099,7 +2095,7 @@ public class NetworkService
 		}
 
 		var lootCodec = ReplicatedComponents.Find(ComponentType<GroundLoot>.Id);
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (lootCodec != null && host != null)
 		{
 			List<LootItem3D> lootItems = host.AllLootItems;
@@ -2158,7 +2154,7 @@ public class NetworkService
 
 	private List<AbilityStateDelta> CollectHostAbilityStateDeltas(bool includeAll, bool clearDirty = true)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host == null) return new List<AbilityStateDelta>();
 		var deltas = host.CollectAbilityStateDeltas(includeAll, clearDirty);
 		deltas.Sort(static (left, right) =>
@@ -2171,7 +2167,7 @@ public class NetworkService
 
 	private List<StaticTextDelta> CollectHostStaticTextDeltas(bool includeAll, bool clearDirty = true)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host == null) return new List<StaticTextDelta>();
 		var deltas = host.CollectStaticTextDeltas(includeAll, clearDirty);
 		deltas.Sort(static (left, right) => left.Handle.CompareTo(right.Handle));
@@ -2387,7 +2383,7 @@ public class NetworkService
 		var disconnectedPeers = new List<int>();
 		foreach (var key in _spectatorDelayedPackets.Keys)
 		{
-			if (LobbyManager.Instance == null || !LobbyManager.Instance.PlayerList.Exists(p => p.PeerId == key))
+			if (GameContext.Lobby == null || !GameContext.Lobby.PlayerList.Exists(p => p.PeerId == key))
 			{
 				disconnectedPeers.Add(key);
 			}
@@ -2428,9 +2424,9 @@ public class NetworkService
 
 	public bool IsSpectatorWithDelay(int peerId)
 	{
-		if (LobbyManager.Instance == null) return false;
-		var p = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId);
-		return p != null && p.Team == "Spectator" && LobbyManager.Instance.SpectatorDelay;
+		if (GameContext.Lobby == null) return false;
+		var p = GameContext.Lobby.PlayerList.Find(x => x.PeerId == peerId);
+		return p != null && p.Team == "Spectator" && GameContext.Lobby.SpectatorDelay;
 	}
 
 	private void ClearUnitOrders(Entity entity)
@@ -2531,9 +2527,9 @@ public class NetworkService
 	public List<int> GetPeersToBroadcastSpellEffect(int localPeerId)
 	{
 		var peers = new List<int>();
-		if (LobbyManager.Instance == null) return peers;
+		if (GameContext.Lobby == null) return peers;
 
-		foreach (var p in LobbyManager.Instance.PlayerList)
+		foreach (var p in GameContext.Lobby.PlayerList)
 		{
 			if (p.PeerId == localPeerId || p.PeerId < 0) continue;
 			peers.Add(p.PeerId);
@@ -2571,7 +2567,7 @@ public class NetworkService
 		WasmRuntime.LogToConsole(formatted);
 		if (isMultiplayerActive && isServerActive)
 		{
-			LobbyManager.Instance?.SendChatMessage("System", message, false);
+			GameContext.Lobby?.SendChatMessage("System", message, false);
 		}
 	}
 
@@ -2624,10 +2620,10 @@ public class NetworkService
 	{
 		if (peerId1 == peerId2) return false;
 
-		if (LobbyManager.Instance?.PlayerList != null)
+		if (GameContext.Lobby?.PlayerList != null)
 		{
-			var p1 = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId1);
-			var p2 = LobbyManager.Instance.PlayerList.Find(x => x.PeerId == peerId2);
+			var p1 = GameContext.Lobby.PlayerList.Find(x => x.PeerId == peerId1);
+			var p2 = GameContext.Lobby.PlayerList.Find(x => x.PeerId == peerId2);
 			if (p1 != null && p2 != null)
 			{
 				return ArePlayerIndicesEnemies(p1.Slot, p2.Slot);
@@ -2700,14 +2696,14 @@ public class NetworkService
 
 	private static bool HasActiveLobby()
 	{
-		if (LobbyManager.Instance == null) return false;
-		if (LobbyManager.Instance.PlayerList == null) return false;
-		return LobbyManager.Instance.PlayerList.Count > 0;
+		if (GameContext.Lobby == null) return false;
+		if (GameContext.Lobby.PlayerList == null) return false;
+		return GameContext.Lobby.PlayerList.Count > 0;
 	}
 
 	private static int GetTeamIndexForPeer(int peerId, int defaultTeam)
 	{
-		var list = LobbyManager.Instance.PlayerList;
+		var list = GameContext.Lobby.PlayerList;
 		for (int i = 0; i < list.Count; i++)
 		{
 			if (list[i].PeerId == peerId)
@@ -2720,7 +2716,7 @@ public class NetworkService
 
 	private static int GetTeamIndexForPlayerIndex(int playerIndex, int defaultTeam)
 	{
-		var list = LobbyManager.Instance.PlayerList;
+		var list = GameContext.Lobby.PlayerList;
 		for (int i = 0; i < list.Count; i++)
 		{
 			if (list[i].Slot == playerIndex)

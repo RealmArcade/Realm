@@ -30,7 +30,9 @@ public partial class GameHost
 		var decalsData = GetDecalsData();
 		var coordinatesData = GetCoordinatesData();
 
-		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(GameContext.MapStorageService.CurrentMapDirectory ?? MapWorkspaceService.GetDefaultWorkspaceGlobalPath(), "terrain.json") : customPath;
+		string currentMapDirectory = GameContext.MapStorageService.CurrentMapDirectory;
+		string defaultSaveDirectory = !string.IsNullOrEmpty(currentMapDirectory) ? currentMapDirectory : MapWorkspaceService.GetDefaultWorkspaceGlobalPath();
+		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(defaultSaveDirectory, "terrain.json") : customPath;
 		string absolutePath = ProjectSettings.GlobalizePath(path);
 		GameContext.MapStorageService.CurrentMapDirectory = Path.GetDirectoryName(absolutePath);
 
@@ -46,7 +48,7 @@ public partial class GameHost
 			}
 			else
 			{
-				MapEditorHUD.Instance?.UpdateMapNameHeader();
+				GameContext.MapEditorHud?.UpdateMapNameHeader();
 			}
 		}
 	}
@@ -201,11 +203,11 @@ public partial class GameHost
 			savedState.SelectionEnd != null ? new System.Numerics.Vector3(savedState.SelectionEnd.Value.X, 0, savedState.SelectionEnd.Value.Y) : (System.Numerics.Vector3?)null
 		);
 
-		MapEditorHUD.Instance?.SelectToolFromHotkey(savedState.ActiveTool);
-		MapEditorHUD.Instance?.UpdateTextureLabels();
-		MapEditorHUD.Instance?.RefreshWaterSwatches();
-		MapEditorHUD.Instance?.UpdateMapNameHeader();
-		MapEditorHUD.Instance?.ShowFeedback(TranslationServer.Translate("Map saved"));
+		GameContext.MapEditorHud?.SelectToolFromHotkey(savedState.ActiveTool);
+		GameContext.MapEditorHud?.UpdateTextureLabels();
+		GameContext.MapEditorHud?.RefreshWaterSwatches();
+		GameContext.MapEditorHud?.UpdateMapNameHeader();
+		GameContext.MapEditorHud?.ShowFeedback(TranslationServer.Translate("Map saved"));
 	}
 
 	private void RestoreCameraAfterSave(EditorSaveState savedState)
@@ -262,19 +264,21 @@ public partial class GameHost
 			LoadCliffSplatMapsView(absolutePath);
 			GameContext.EditorService?.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 			AlignTerrainSplatMapExternal();
+			NormalizeCameraBoundsToMap();
 
 			if (!terrainOnly)
 			{
 				ProcessSpawnRequests();
 			}
 
-			GroundTerrain.UpdateMeshAndPhysics(true, true);
-			if (!GameContext.SessionState.IsMapEditorMode) GroundTerrain.ReloadTerrainTextures();
-			MapEditorHUD.Instance?.RegenerateMinimap();
+			GroundTerrain.UpdateMeshAndPhysics(true, true);				if (!GameContext.SessionState.IsMapEditorMode) GroundTerrain.ReloadTerrainTextures();
+				GameContext.MapEditorHud?.RegenerateMinimap();
+
 			RestoreLoadedCoordinates();
 
 			EditorHistoryManager.Clear();
 			EditorHasUnsavedChanges = false;
+			_editorObjectSelection.Clear();
 			GameContext.EditorService?.ResetAllState();
 
 			return true;
@@ -283,6 +287,18 @@ public partial class GameHost
 		{
 			GameContext.SaveLoadService.IsLoadingMap = false;
 		}
+	}
+
+	private void NormalizeCameraBoundsToMap()
+	{
+		if (GroundTerrain == null) return;
+
+		MapCameraBounds mapBounds = MapCameraBounds.FromTerrain(GroundTerrain.Width, GroundTerrain.Depth, GroundTerrain.QuadSize);
+		var currentBounds = new MapCameraBounds(EditorCameraBoundsLeft, EditorCameraBoundsRight, EditorCameraBoundsTop, EditorCameraBoundsBottom);
+		if (!currentBounds.Matches(MapCameraBounds.LegacyDefaults) || currentBounds.Matches(mapBounds)) return;
+
+		GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, mapBounds);
+		RebuildCameraBoundsOverlay();
 	}
 
 	private string ResolveMapDirectory(string customPath, bool ensureGlbOptimized)
@@ -301,6 +317,7 @@ public partial class GameHost
 		InitializeDefaultTerrainState(defaultWidth, defaultDepth);
 		ResetGroundTerrainView(defaultWidth, defaultDepth);
 		ResetEditorUIView();
+		NormalizeCameraBoundsToMap();
 
 		return false;
 	}
@@ -322,11 +339,11 @@ public partial class GameHost
 
 	private void ResetEditorUIView()
 	{
-		if (MapEditorHUD.Instance != null)
+		if (GameContext.MapEditorHud != null)
 		{
-			MapEditorHUD.Instance.UpdateBlockModeExternal(true);
-			MapEditorHUD.Instance.UpdateBlockLevelHeightExternal(2.0f);
-			MapEditorHUD.Instance.UpdateCameraBoundsUI();
+			GameContext.MapEditorHud.UpdateBlockModeExternal(true);
+			GameContext.MapEditorHud.UpdateBlockLevelHeightExternal(2.0f);
+			GameContext.MapEditorHud.UpdateCameraBoundsUI();
 		}
 
 		UpdateCameraBoundsOverlayVisibility();
@@ -336,9 +353,9 @@ public partial class GameHost
 		GameContext.EditorService.ClearEditorCoordinates();
 		RebuildAllCoordinatePersistentMeshes();
 
-		if (MapEditorHUD.Instance != null)
+		if (GameContext.MapEditorHud != null)
 		{
-			MapEditorHUD.Instance.RefreshCoordinateListExternal();
+			GameContext.MapEditorHud.RefreshCoordinateListExternal();
 		}
 	}
 
@@ -369,9 +386,9 @@ public partial class GameHost
 
 	private void ApplyEditorStateView(EditorState editor)
 	{
-		MapEditorHUD.Instance?.UpdateBlockModeExternal(editor.BlockMode);
-		MapEditorHUD.Instance?.UpdateBlockLevelHeightExternal(editor.BlockLevelHeight);
-		MapEditorHUD.Instance?.UpdateCameraBoundsUI();
+		GameContext.MapEditorHud?.UpdateBlockModeExternal(editor.BlockMode);
+		GameContext.MapEditorHud?.UpdateBlockLevelHeightExternal(editor.BlockLevelHeight);
+		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
 		UpdateCameraBoundsOverlayVisibility();
 		UpdateGridOverlayVisibility();
 		UpdatePathingOverlay();
@@ -379,7 +396,7 @@ public partial class GameHost
 		if (!string.IsNullOrEmpty(editor.SkyboxPath))
 		{
 			SetSkyboxTexture(editor.SkyboxPath);
-			MapEditorHUD.Instance?.UpdateSelectedSkyboxExternal(editor.SkyboxPath);
+			GameContext.MapEditorHud?.UpdateSelectedSkyboxExternal(editor.SkyboxPath);
 		}
 	}
 
@@ -498,7 +515,7 @@ public partial class GameHost
 	{
 		ProcessUnitSpawnRequests();
 		ProcessPropSpawnRequests();
-		PropMultiMeshManager.Instance?.RebuildAll();
+		GameContext.PropMultiMesh?.RebuildAll();
 		ProcessDecalSpawnRequests();
 	}
 
@@ -527,7 +544,7 @@ public partial class GameHost
 	{
 		GameContext.EditorService.RestoreLoadedCoordinates();
 		RebuildAllCoordinatePersistentMeshes();
-		MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 	}
 
 

@@ -46,10 +46,6 @@ public class InputService
 	private int _buildingCycleIndex;
 	private int _productionRoundRobinIndex;
 
-	public InputService()
-	{
-	}
-
 	private Entity GetWorldEntity()
 	{
 		Entity worldEntity = Entity.Null;
@@ -63,11 +59,6 @@ public class InputService
 		return ref GameContext.World.Get<InputState>(worldEntity);
 	}
 
-
-	public void ExecuteClientBuildingPlacement(UnitMetadata bldMeta, string type, Vector3 position)
-	{
-		// Domain logic can be extended here if needed
-	}
 
 	public void DeductResourcesForBuilding(UnitMetadata meta, Action<float> deductGold, Action<float> deductWood, Action<float> deductStone)
 	{
@@ -782,9 +773,9 @@ public class InputService
 
 		ref var mana = ref GameContext.World.Get<Mana>(entity);
 		float cost = 0f;
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var def = GameHost.Instance.GetAbilityDefinition(spellId);
+			var def = GameContext.Host.GetAbilityDefinition(spellId);
 			if (def != null) cost = def.ManaCost;
 		}
 
@@ -816,9 +807,9 @@ public class InputService
 	public bool TryExecuteSpellCast(Entity playerEntity, Entity casterEntity, string spellId, out float cooldownMax)
 	{
 		cooldownMax = 10.0f;
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var def = GameHost.Instance.GetAbilityDefinition(spellId);
+			var def = GameContext.Host.GetAbilityDefinition(spellId);
 			if (def != null && def.Cooldown > 0f)
 			{
 				cooldownMax = def.Cooldown;

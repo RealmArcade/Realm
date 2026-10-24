@@ -68,30 +68,30 @@ public class MapEditorHUDViewModel
 
 	public void UpdateFromHost()
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			BrushSize = GameHost.Instance.EditorBrushRadius;
-			BrushStrength = GameHost.Instance.EditorBrushStrength;
-			BlockStep = GameHost.Instance.EditorBlockLevelHeight;
-			ExactHeight = GameHost.Instance.EditorExactHeight;
+			BrushSize = GameContext.Host.EditorBrushRadius;
+			BrushStrength = GameContext.Host.EditorBrushStrength;
+			BlockStep = GameContext.Host.EditorBlockLevelHeight;
+			ExactHeight = GameContext.Host.EditorExactHeight;
 
 			PlacementRotate = GameContext.EditorService.EditorPlacementRotation;
-			PlacementScale = GameHost.Instance.EditorPlacementScale;
+			PlacementScale = GameContext.Host.EditorPlacementScale;
 			PasteRotation = GameContext.EditorService.EditorPasteRotation;
 			PasteReflection = GameContext.EditorService.EditorPasteReflection;
 			SpawnAsEnemy = GameContext.EditorService.PlaceUnitIsEnemy;
 			RandomRotation = GameContext.EditorService.EditorRandomRotation;
 			RandomScale = GameContext.EditorService.EditorRandomScale;
-			ClumpMode = GameHost.Instance.EditorClumpMode;
-			ClumpCount = GameHost.Instance.EditorClumpCount;
-			ClumpScale = GameHost.Instance.EditorClumpScale;
+			ClumpMode = GameContext.Host.EditorClumpMode;
+			ClumpCount = GameContext.Host.EditorClumpCount;
+			ClumpScale = GameContext.Host.EditorClumpScale;
 
-			SnapToGrid = GameHost.Instance.EditorSnapToGrid;
-			GridOverlayVisible = GameHost.Instance.EditorGridVisible;
+			SnapToGrid = GameContext.Host.EditorSnapToGrid;
+			GridOverlayVisible = GameContext.Host.EditorGridVisible;
 			CameraBoundsOverlayVisible = GameContext.EditorService.EditorCameraBoundsVisible;
 			DisableShadows = GameContext.EditorService.EditorDisableShadows;
-			PathingOverlayVisible = GameHost.Instance.PathingOverlayVisible;
-			BrushShapeSquare = GameHost.Instance.EditorBrushIsSquare;
+			PathingOverlayVisible = GameContext.Host.PathingOverlayVisible;
+			BrushShapeSquare = GameContext.Host.EditorBrushIsSquare;
 		}
 	}
 }

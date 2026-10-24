@@ -8,4 +8,5 @@ public class MapPublishedEventPayload
 	public List<string> ReferencedHashes { get; set; } = new();
 	public string PublicKey { get; set; } = string.Empty;
 	public string Signature { get; set; } = string.Empty;
+	public bool IsTestVersion { get; set; }
 }

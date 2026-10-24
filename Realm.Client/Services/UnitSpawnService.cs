@@ -19,10 +19,6 @@ namespace Realm.Client.Services;
 
 public class UnitSpawnService
 {
-	public UnitSpawnService()
-	{
-	}
-
 	public string GetFallbackModelPath(string modelPathOrId, bool isBuilding)
 	{
 		if (string.IsNullOrWhiteSpace(modelPathOrId)) return "";

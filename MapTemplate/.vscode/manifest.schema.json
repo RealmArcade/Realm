@@ -43,6 +43,18 @@
         ]
       }
     },
+    "Attribution_SourceMap": {
+      "type": "array",
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "IsTestVersion": {
+      "type": "boolean"
+    },
     "Assets": {
       "type": [
         "object",

@@ -23,6 +23,9 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 	protected Vector3 DefaultTargetPosition = Vector3.Zero;
 	protected Vector3 TargetPosition = Vector3.Zero;
 
+	protected bool HasUserAdjustedCamera;
+	protected Aabb FramedBounds;
+
 	protected bool IsOrbiting;
 	protected bool IsPanning;
 	protected Vector2 LastMousePosition;
@@ -42,6 +45,7 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 	{
 		PreviewViewportContainer = Add3DViewportContainer(parent, minSize, out PreviewSubViewport, out PreviewCamera, out PreviewLight);
 		PreviewViewportContainer.GuiInput += OnViewportGuiInput;
+		PreviewSubViewport.SizeChanged += OnPreviewViewportSizeChanged;
 		PreviewViewportContainer.MouseDefaultCursorShape = CursorShape.Cross;
 
 		PreviewSceneRoot = new Node3D { Name = "PreviewRoot" };
@@ -109,11 +113,13 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 		CameraYaw = DefaultYaw;
 		CameraPitch = DefaultPitch;
 		TargetPosition = DefaultTargetPosition;
+		HasUserAdjustedCamera = false;
 		UpdateCameraTransform();
 	}
 
 	public virtual void ZoomCamera(float direction)
 	{
+		HasUserAdjustedCamera = true;
 		float factor = direction > 0 ? 1.15f : 0.85f;
 		CameraDistance = Mathf.Clamp(CameraDistance * factor, Math.Max(0.5f, DefaultDistance * 0.15f), DefaultDistance * 6.0f);
 		UpdateCameraTransform();
@@ -124,17 +130,8 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 		if (PreviewCamera == null || !GodotObject.IsInstanceValid(PreviewCamera)) return;
 
 		CameraPitch = Mathf.Clamp(CameraPitch, -1.45f, 1.45f);
-		float cosPitch = Mathf.Cos(CameraPitch);
-		float sinPitch = Mathf.Sin(CameraPitch);
-		float cosYaw = Mathf.Cos(CameraYaw);
-		float sinYaw = Mathf.Sin(CameraYaw);
 
-		Vector3 offset = new Vector3(
-			CameraDistance * cosPitch * sinYaw,
-			CameraDistance * sinPitch,
-			CameraDistance * cosPitch * cosYaw
-		);
-
+		Vector3 offset = ModelPreviewFraming.ComputeCameraOffset(CameraDistance, CameraYaw, CameraPitch);
 		Vector3 newPos = TargetPosition + offset;
 		PreviewCamera.Position = newPos;
 
@@ -150,82 +147,51 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 	{
 		if (rootNode == null || PreviewCamera == null || !GodotObject.IsInstanceValid(PreviewCamera)) return;
 
-		Aabb totalAabb = new Aabb();
-		bool hasMesh = false;
+		Aabb modelBounds = ModelPreviewFraming.ComputeVisibleBounds(rootNode);
 
-		CollectAabb(rootNode, Transform3D.Identity, ref totalAabb, ref hasMesh);
-
-		if (hasMesh && totalAabb.Size.LengthSquared() > 0.001f)
+		if (ModelPreviewFraming.HasUsableBounds(modelBounds))
 		{
-			TargetPosition = totalAabb.GetCenter();
-			float radius = totalAabb.Size.Length() * 0.6f;
-			DefaultDistance = Mathf.Clamp(radius * 2.2f, 1.5f, 50.0f);
+			FramedBounds = modelBounds;
+			TargetPosition = ModelPreviewFraming.ComputeFramedCenter(modelBounds);
+			DefaultTargetPosition = TargetPosition;
+			DefaultDistance = ComputeFramedDistance();
 		}
 		else
 		{
-			TargetPosition = new Vector3(0, 0.8f, 0);
-			DefaultDistance = 3.0f;
+			FramedBounds = new Aabb(new Vector3(-0.5f, 0.0f, -0.5f), Vector3.One);
+			TargetPosition = new Vector3(0.0f, 0.8f, 0.0f);
+			DefaultTargetPosition = TargetPosition;
+			DefaultDistance = ModelPreviewFraming.DefaultFallbackDistance;
 		}
 
 		CameraDistance = DefaultDistance;
+		HasUserAdjustedCamera = false;
 		UpdateCameraTransform();
 	}
 
-	private void CollectAabb(Node node, Transform3D parentTransform, ref Aabb totalAabb, ref bool hasMesh)
+	protected float ComputeFramedDistance()
 	{
-		Transform3D currentTransform = parentTransform;
-		if (node is Node3D n3D)
-		{
-			currentTransform = parentTransform * n3D.Transform;
-		}
-
-		ProcessMeshInstance(node, currentTransform, ref totalAabb, ref hasMesh);
-
-		int childCount = node.GetChildCount();
-		for (int i = 0; i < childCount; i++)
-		{
-			CollectAabb(node.GetChild(i), currentTransform, ref totalAabb, ref hasMesh);
-		}
+		float verticalFovDegrees = PreviewCamera != null && GodotObject.IsInstanceValid(PreviewCamera) ? PreviewCamera.Fov : 75.0f;
+		return ModelPreviewFraming.ComputeCameraDistance(FramedBounds, verticalFovDegrees, GetPreviewViewportAspectRatio());
 	}
 
-	private void ProcessMeshInstance(Node node, Transform3D currentTransform, ref Aabb totalAabb, ref bool hasMesh)
+	private float GetPreviewViewportAspectRatio()
 	{
-		if (node is not MeshInstance3D meshInstance || meshInstance.Mesh == null) return;
+		if (PreviewSubViewport == null || !GodotObject.IsInstanceValid(PreviewSubViewport)) return 1.0f;
 
-		Aabb globalMeshAabb = GetGlobalAabb(meshInstance, currentTransform);
-
-		if (!hasMesh)
-		{
-			totalAabb = globalMeshAabb;
-			hasMesh = true;
-		}
-		else
-		{
-			totalAabb = totalAabb.Merge(globalMeshAabb);
-		}
+		Vector2I viewportSize = PreviewSubViewport.Size;
+		return viewportSize.Y > 0 ? (float)viewportSize.X / viewportSize.Y : 1.0f;
 	}
 
-	private Aabb GetGlobalAabb(MeshInstance3D meshInstance, Transform3D currentTransform)
+	private void OnPreviewViewportSizeChanged()
 	{
-		Aabb localAabb = meshInstance.GetAabb();
-		Vector3 min = localAabb.Position;
-		Vector3 max = localAabb.End;
-		Vector3[] corners = new Vector3[]
-		{
-			currentTransform * new Vector3(min.X, min.Y, min.Z),
-			currentTransform * new Vector3(max.X, min.Y, min.Z),
-			currentTransform * new Vector3(min.X, max.Y, min.Z),
-			currentTransform * new Vector3(max.X, max.Y, min.Z),
-			currentTransform * new Vector3(min.X, min.Y, max.Z),
-			currentTransform * new Vector3(max.X, min.Y, max.Z),
-			currentTransform * new Vector3(min.X, max.Y, max.Z),
-			currentTransform * max
-		};
+		if (!ModelPreviewFraming.HasUsableBounds(FramedBounds)) return;
 
-		Aabb globalMeshAabb = new Aabb(corners[0], Vector3.Zero);
-		foreach (var c in corners) globalMeshAabb = globalMeshAabb.Expand(c);
+		DefaultDistance = ComputeFramedDistance();
+		if (HasUserAdjustedCamera) return;
 
-		return globalMeshAabb;
+		CameraDistance = DefaultDistance;
+		UpdateCameraTransform();
 	}
 
 	protected virtual void OnViewportGuiInput(InputEvent @event)
@@ -282,12 +248,14 @@ public partial class FloatingPreview3DDialogBase : FloatingDialogBase
 
 		if (IsOrbiting)
 		{
+			HasUserAdjustedCamera = true;
 			CameraYaw -= delta.X * 0.01f;
 			CameraPitch -= delta.Y * 0.01f;
 			UpdateCameraTransform();
 		}
 		else if (IsPanning && PreviewCamera != null && GodotObject.IsInstanceValid(PreviewCamera))
 		{
+			HasUserAdjustedCamera = true;
 			Vector3 camRight = PreviewCamera.GlobalTransform.Basis.X;
 			Vector3 camUp = PreviewCamera.GlobalTransform.Basis.Y;
 			float panSpeed = CameraDistance * 0.0025f;

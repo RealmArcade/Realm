@@ -24,5 +24,7 @@ public class DiscoveryMapDto
 	public string EngineVersion { get; set; } = "Godot Realm Engine v1.0";
 	public string MaxPlayers { get; set; } = "8 Players";
 	public bool IsGreenlit { get; set; } = true;
+	public bool IsTestVersion { get; set; }
 	public List<string> Awards { get; set; } = new();
+	public List<string> Attribution_SourceMap { get; set; } = new();
 }

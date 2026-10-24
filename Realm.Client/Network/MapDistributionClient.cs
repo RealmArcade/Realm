@@ -22,9 +22,9 @@ public class MapDistributionClient
 
 	private static LobbyManager? GetLobbyManager()
 	{
-		if (LobbyManager.Instance != null && GodotObject.IsInstanceValid(LobbyManager.Instance))
+		if (GameContext.Lobby != null && GodotObject.IsInstanceValid(GameContext.Lobby))
 		{
-			return LobbyManager.Instance;
+			return GameContext.Lobby;
 		}
 
 		var tree = Engine.GetMainLoop() as SceneTree;

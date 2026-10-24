@@ -73,6 +73,7 @@ public class UnitMetadata
 	public string? ProjectileModelPath { get; set; }
 	public Dictionary<string, List<UnitAnimationEntry>>? Animations { get; set; }
 	public UnitObjectAttachments? ObjectAttachments { get; set; }
+	public List<PseudoSocketAnchor>? PseudoSockets { get; set; }
 	public UnitSoundsMetadata? Sounds { get; set; }
 	public string[]? StartingItems { get; set; }
 	public string[]? ShopItems { get; set; }
@@ -93,6 +94,8 @@ public class UnitMetadata
 	public const float DefaultConstructionRange = 4f;
 
 	public float ConstructionRange { get; set; } = DefaultConstructionRange;
+
+	public string? Attribution_ImportedFromMap { get; set; }
 
 	public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation? orientation)
 	{

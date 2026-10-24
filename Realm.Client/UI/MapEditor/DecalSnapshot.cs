@@ -22,6 +22,15 @@ public class DecalSnapshot
 	public float UpperFade { get; set; } = 0.3f;
 	public float LowerFade { get; set; } = 0.3f;
 
+	public VfxPlacementMode PlacementMode { get; set; } = VfxPlacementMode.Free;
+	public float ProjectionSize { get; set; }
+	public float ProjectionHeight { get; set; }
+	public float GroundOffset { get; set; } = 0.05f;
+	public float NormalFade { get; set; }
+	public bool DistanceFadeEnabled { get; set; }
+	public float DistanceFadeBegin { get; set; } = 10.0f;
+	public float DistanceFadeEnd { get; set; } = 30.0f;
+
 	public DecalSnapshot Clone()
 	{
 		return new DecalSnapshot
@@ -54,7 +63,15 @@ public class DecalSnapshot
 				MaxScaleRatio = this.Animation.MaxScaleRatio
 			},
 			UpperFade = this.UpperFade,
-			LowerFade = this.LowerFade
+			LowerFade = this.LowerFade,
+			PlacementMode = this.PlacementMode,
+			ProjectionSize = this.ProjectionSize,
+			ProjectionHeight = this.ProjectionHeight,
+			GroundOffset = this.GroundOffset,
+			NormalFade = this.NormalFade,
+			DistanceFadeEnabled = this.DistanceFadeEnabled,
+			DistanceFadeBegin = this.DistanceFadeBegin,
+			DistanceFadeEnd = this.DistanceFadeEnd
 		};
 	}
 }

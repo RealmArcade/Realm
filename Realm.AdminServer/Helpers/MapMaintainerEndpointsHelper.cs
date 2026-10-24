@@ -126,7 +126,8 @@ namespace Realm.AdminServer.Helpers
                 });
             }
         }
-                public static IResult HandleRemoveMapMaintainer(
+
+        public static IResult HandleRemoveMapMaintainer(
             string reqMapTitle,
             string routeMapTitle,
             Realm.Shared.Distribution.RemoveMapMaintainerRequest req,

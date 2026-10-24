@@ -88,7 +88,7 @@ public class LootItem_WasmRuntime
 
 	public void Despawn()
 	{
-		GameHost.Instance?.RemoveLootItem(_entity.Id);
+		GameContext.Host?.RemoveLootItem(_entity.Id);
 	}
 
 	private bool TryGetLoot(out GroundLoot loot)

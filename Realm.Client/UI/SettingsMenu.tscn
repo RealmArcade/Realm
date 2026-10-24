@@ -91,7 +91,7 @@ offset_right = -32.0
 offset_bottom = -50.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 12
 
 [node name="TopRowContainer" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer"]
 layout_mode = 2
@@ -106,7 +106,7 @@ size_flags_horizontal = 3
 
 [node name="VBox" type="VBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
 [node name="TitleBox" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
 layout_mode = 2
@@ -145,6 +145,62 @@ custom_minimumSize = Vector2(160, 36)
 layout_mode = 2
 focus_mode = 0
 
+[node name="VsyncRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="VsyncLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/VsyncRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "V-Sync"
+
+[node name="VsyncOpt" type="OptionButton" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/VsyncRow"]
+custom_minimum_size = Vector2(160, 36)
+custom_minimumSize = Vector2(160, 36)
+layout_mode = 2
+focus_mode = 0
+
+[node name="ModeRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ModeLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ModeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Window Mode"
+
+[node name="WindowModeOpt" type="OptionButton" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ModeRow"]
+custom_minimum_size = Vector2(160, 36)
+custom_minimumSize = Vector2(160, 36)
+layout_mode = 2
+focus_mode = 0
+
+[node name="FpsRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="FpsLimitLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FpsRow"]
+custom_minimum_size = Vector2(160, 0)
+custom_minimumSize = Vector2(160, 0)
+layout_mode = 2
+text = "Frame Rate Limit"
+
+[node name="FpsLimitSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FpsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+
+[node name="FpsLimitValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FpsRow"]
+layout_mode = 2
+text = "Unlimited"
+horizontal_alignment = 2
+
+[node name="DisplayFpsChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/h_separation = 8
+text = "Display FPS"
+
 [node name="QualRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 10
@@ -165,14 +221,21 @@ layout_mode = 2
 focus_mode = 0
 theme_override_constants/h_separation = 8
 theme_override_constants/icon_max_width = 0
-text = "Disable shadows"
+text = "Shadows"
 
 [node name="DisableDayNightLightingChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
 layout_mode = 2
 focus_mode = 0
 theme_override_constants/h_separation = 8
 theme_override_constants/icon_max_width = 0
-text = "Disable day/night lighting"
+text = "Day/night lighting"
+
+[node name="DisableWeatherEffectsChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/h_separation = 8
+theme_override_constants/icon_max_width = 0
+text = "Weather effects"
 
 [node name="FloatingCombatTextChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
 layout_mode = 2
@@ -181,35 +244,13 @@ theme_override_constants/h_separation = 8
 theme_override_constants/icon_max_width = 0
 text = "Floating Combat Text"
 
-[node name="ModeRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="ModeLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ModeRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Window Mode"
-
-[node name="WindowModeOpt" type="OptionButton" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ModeRow"]
-custom_minimum_size = Vector2(160, 36)
-custom_minimumSize = Vector2(160, 36)
+[node name="UnitOutlineChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
 layout_mode = 2
 focus_mode = 0
-
-[node name="VsyncRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="VsyncLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/VsyncRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "V-Sync"
-
-[node name="VsyncOpt" type="OptionButton" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/VsyncRow"]
-custom_minimum_size = Vector2(160, 36)
-custom_minimumSize = Vector2(160, 36)
-layout_mode = 2
-focus_mode = 0
+theme_override_constants/h_separation = 8
+theme_override_constants/icon_max_width = 0
+tooltip_text = "Draw a coloured outline around units that terrain, cliffs or buildings hide from view. Disabled automatically on the Low quality preset."
+text = "Occluded Unit Outlines"
 
 [node name="HealthBarsRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
 layout_mode = 2
@@ -241,245 +282,284 @@ custom_minimumSize = Vector2(160, 36)
 layout_mode = 2
 focus_mode = 0
 
-[node name="AudioPanel" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer"]
+[node name="RightColumn" type="VBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="AudioPanel" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn"]
 custom_minimum_size = Vector2(480, 0)
 custom_minimumSize = Vector2(480, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 
-[node name="VBox" type="VBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel"]
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="TitleBox" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox"]
+[node name="TitleBox" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox"]
 layout_mode = 2
 
-[node name="HBox" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/TitleBox"]
+[node name="HBox" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/TitleBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="TitleIcon" type="TextureRect" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/TitleBox/HBox"]
+[node name="TitleIcon" type="TextureRect" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/TitleBox/HBox"]
 custom_minimum_size = Vector2(28, 28)
 custom_minimumSize = Vector2(28, 28)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="PanelTitle" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/TitleBox/HBox"]
+[node name="PanelTitle" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/TitleBox/HBox"]
 layout_mode = 2
 text = "AUDIO"
 horizontal_alignment = 1
 
-[node name="Separator" type="HSeparator" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox"]
+[node name="Separator" type="HSeparator" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox"]
 layout_mode = 2
 
-[node name="MasterRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox"]
+[node name="MasterRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="MasterLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/MasterRow"]
+[node name="MasterLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MasterRow"]
 custom_minimum_size = Vector2(100, 0)
 custom_minimumSize = Vector2(100, 0)
 layout_mode = 2
 text = "Master"
 
-[node name="MasterSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/MasterRow"]
+[node name="MasterSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MasterRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 
-[node name="MasterValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/MasterRow"]
+[node name="MasterValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MasterRow"]
 custom_minimum_size = Vector2(30, 0)
 custom_minimumSize = Vector2(30, 0)
 layout_mode = 2
 text = "100"
 horizontal_alignment = 2
 
-[node name="MusicRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox"]
+[node name="MusicRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="MusicLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/MusicRow"]
+[node name="MusicLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MusicRow"]
 custom_minimum_size = Vector2(100, 0)
 custom_minimumSize = Vector2(100, 0)
 layout_mode = 2
 text = "Music"
 
-[node name="MusicSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/MusicRow"]
+[node name="MusicSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MusicRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 
-[node name="MusicValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/MusicRow"]
+[node name="MusicValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MusicRow"]
 custom_minimum_size = Vector2(30, 0)
 custom_minimumSize = Vector2(30, 0)
 layout_mode = 2
 text = "80"
 horizontal_alignment = 2
 
-[node name="SfxRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox"]
+[node name="SfxRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="SfxLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/SfxRow"]
+[node name="SfxLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/SfxRow"]
 custom_minimum_size = Vector2(100, 0)
 custom_minimumSize = Vector2(100, 0)
 layout_mode = 2
 text = "SFX"
 
-[node name="SfxSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/SfxRow"]
+[node name="SfxSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/SfxRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 
-[node name="SfxValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/SfxRow"]
+[node name="SfxValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/SfxRow"]
 custom_minimum_size = Vector2(30, 0)
 custom_minimumSize = Vector2(30, 0)
 layout_mode = 2
 text = "60"
 horizontal_alignment = 2
 
-[node name="VoiceRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox"]
+[node name="VoiceRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="VoiceLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/VoiceRow"]
+[node name="VoiceLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/VoiceRow"]
 custom_minimum_size = Vector2(100, 0)
 custom_minimumSize = Vector2(100, 0)
 layout_mode = 2
 text = "Voice"
 
-[node name="VoiceSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/VoiceRow"]
+[node name="VoiceSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/VoiceRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 
-[node name="VoiceValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/AudioPanel/VBox/VoiceRow"]
+[node name="VoiceValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/VoiceRow"]
 custom_minimum_size = Vector2(30, 0)
 custom_minimumSize = Vector2(30, 0)
 layout_mode = 2
 text = "60"
 horizontal_alignment = 2
 
-[node name="GameplayPanel" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer"]
+[node name="ControlsPanel" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="VBox" type="VBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel"]
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="TitleBox" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
-layout_mode = 2
-
-[node name="HBox" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/TitleBox"]
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="TitleIcon" type="TextureRect" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/TitleBox/HBox"]
+[node name="TitleBox" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox"]
+layout_mode = 2
+
+[node name="HBox" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/TitleBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TitleIcon" type="TextureRect" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/TitleBox/HBox"]
 custom_minimum_size = Vector2(28, 28)
 custom_minimumSize = Vector2(28, 28)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="PanelTitle" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/TitleBox/HBox"]
+[node name="PanelTitle" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/TitleBox/HBox"]
 layout_mode = 2
-text = "GAMEPLAY"
+text = "CONTROLS"
 horizontal_alignment = 1
 
-[node name="Separator" type="HSeparator" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
+[node name="Separator" type="HSeparator" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox"]
 layout_mode = 2
 
-[node name="ScrollRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
+[node name="ScrollRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox"]
 layout_mode = 2
-theme_override_constants/separation = 15
+theme_override_constants/separation = 10
 
-[node name="ScrollLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/ScrollRow"]
-custom_minimum_size = Vector2(200, 0)
-custom_minimumSize = Vector2(200, 0)
+[node name="ScrollLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/ScrollRow"]
+custom_minimum_size = Vector2(160, 0)
+custom_minimumSize = Vector2(160, 0)
 layout_mode = 2
 text = "Camera Scroll Speed"
 
-[node name="ScrollSpeedSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/ScrollRow"]
+[node name="ScrollSpeedSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/ScrollRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 
-[node name="ScrollValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/ScrollRow"]
+[node name="ScrollValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/ScrollRow"]
 custom_minimum_size = Vector2(30, 0)
 custom_minimumSize = Vector2(30, 0)
 layout_mode = 2
 text = "2.0"
 horizontal_alignment = 2
 
-[node name="SensRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
+[node name="SensRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox"]
 layout_mode = 2
-theme_override_constants/separation = 15
+theme_override_constants/separation = 10
 
-[node name="SensLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/SensRow"]
-custom_minimum_size = Vector2(200, 0)
-custom_minimumSize = Vector2(200, 0)
+[node name="SensLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/SensRow"]
+custom_minimum_size = Vector2(160, 0)
+custom_minimumSize = Vector2(160, 0)
 layout_mode = 2
 text = "Mouse Sensitivity"
 
-[node name="MouseSensSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/SensRow"]
+[node name="MouseSensSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/SensRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 
-[node name="SensValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/SensRow"]
+[node name="SensValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/SensRow"]
 custom_minimum_size = Vector2(30, 0)
 custom_minimumSize = Vector2(30, 0)
 layout_mode = 2
 text = "1.0"
 horizontal_alignment = 2
 
-[node name="HudScaleRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
+[node name="HudScaleRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox"]
 layout_mode = 2
-theme_override_constants/separation = 15
+theme_override_constants/separation = 10
 
-[node name="HudScaleLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/HudScaleRow"]
-custom_minimum_size = Vector2(200, 0)
-custom_minimumSize = Vector2(200, 0)
+[node name="HudScaleLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/HudScaleRow"]
+custom_minimum_size = Vector2(160, 0)
+custom_minimumSize = Vector2(160, 0)
 layout_mode = 2
 text = "HUD Scale"
 
-[node name="HudScaleSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/HudScaleRow"]
+[node name="HudScaleSlider" type="HSlider" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/HudScaleRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 
-[node name="HudScaleValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox/HudScaleRow"]
+[node name="HudScaleValLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/HudScaleRow"]
 custom_minimum_size = Vector2(30, 0)
 custom_minimumSize = Vector2(30, 0)
 layout_mode = 2
 text = "0.0"
 horizontal_alignment = 2
 
-[node name="DisplayFpsChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
+[node name="OtherPanel" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer"]
 layout_mode = 2
-focus_mode = 0
-theme_override_constants/h_separation = 8
-text = "Display FPS"
+size_flags_horizontal = 3
 
-[node name="RecordReplaysChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel"]
 layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleBox" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox"]
+layout_mode = 2
+
+[node name="HBox" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/TitleBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TitleIcon" type="TextureRect" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/TitleBox/HBox"]
+custom_minimum_size = Vector2(28, 28)
+custom_minimumSize = Vector2(28, 28)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="PanelTitle" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/TitleBox/HBox"]
+layout_mode = 2
+text = "OTHER"
+horizontal_alignment = 1
+
+[node name="Separator" type="HSeparator" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox"]
+layout_mode = 2
+
+[node name="Grid" type="GridContainer" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 10
+columns = 3
+
+[node name="RecordReplaysChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
 focus_mode = 0
 theme_override_constants/h_separation = 8
 text = "Record Replays"
 
-[node name="SeedMapFilesChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
+[node name="SeedMapFilesChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
 layout_mode = 2
+size_flags_horizontal = 3
 focus_mode = 0
 theme_override_constants/h_separation = 8
 theme_override_constants/icon_max_width = 0
 tooltip_text = "Volunteers a tiny portion of your internet to help players download maps, reducing server costs. Uncheck this if you have a capped internet data plan or a very slow connection"
 text = "Seed map files to other players"
 
-[node name="MovementPredictionChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/GameplayPanel/VBox"]
+[node name="MovementPredictionChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
 layout_mode = 2
+size_flags_horizontal = 3
 focus_mode = 0
 theme_override_constants/h_separation = 8
 text = "Movement prediction (experimental)"

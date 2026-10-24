@@ -51,14 +51,13 @@ public class ContentAddressableStorage
 
 		if (_assetPathCache.TryGetValue(normalizedHash, out string? cachedPath))
 		{
-			return string.IsNullOrEmpty(cachedPath) ? null : cachedPath;
+			return cachedPath;
 		}
 
 		string shard = normalizedHash.Substring(0, 2);
 		string shardDirectory = Path.Combine(_assetsDirectory, shard);
 		if (!Directory.Exists(shardDirectory))
 		{
-			_assetPathCache[normalizedHash] = string.Empty;
 			return null;
 		}
 
@@ -81,13 +80,46 @@ public class ContentAddressableStorage
 			return foundPath;
 		}
 
-		_assetPathCache[normalizedHash] = string.Empty;
 		return null;
+	}
+
+	public void InvalidateAssetPath(string blake3Hash)
+	{
+		_assetPathCache.TryRemove(NormalizeBlake3Hash(blake3Hash), out _);
+	}
+
+	public void InvalidateAllAssetPaths()
+	{
+		_assetPathCache.Clear();
 	}
 
 	public bool HasAsset(string blake3Hash)
 	{
 		return FindAssetFilePath(blake3Hash) != null;
+	}
+
+	public static bool FilesHaveIdenticalContent(string firstFilePath, string secondFilePath)
+	{
+		if (!File.Exists(firstFilePath) || !File.Exists(secondFilePath)) return false;
+
+		var firstInfo = new FileInfo(firstFilePath);
+		var secondInfo = new FileInfo(secondFilePath);
+		if (firstInfo.Length != secondInfo.Length) return false;
+
+		using var firstStream = new FileStream(firstFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan);
+		using var secondStream = new FileStream(secondFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan);
+
+		byte[] firstBuffer = new byte[81920];
+		byte[] secondBuffer = new byte[81920];
+
+		while (true)
+		{
+			int firstRead = firstStream.Read(firstBuffer, 0, firstBuffer.Length);
+			int secondRead = secondStream.Read(secondBuffer, 0, secondBuffer.Length);
+			if (firstRead != secondRead) return false;
+			if (firstRead == 0) return true;
+			if (!firstBuffer.AsSpan(0, firstRead).SequenceEqual(secondBuffer.AsSpan(0, secondRead))) return false;
+		}
 	}
 
 	public byte[]? GetAssetBytes(string blake3Hash)

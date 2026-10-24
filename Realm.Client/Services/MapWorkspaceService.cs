@@ -129,10 +129,10 @@ public static partial class MapWorkspaceService
 
 	public static void TryReloadGroundTerrainTexturesSafeDomain(Action resetMapAction)
 	{
-		if (GameHost.Instance?.GroundTerrain == null) return;
+		if (GameContext.Host?.GroundTerrain == null) return;
 		try
 		{
-			GameHost.Instance.GroundTerrain.ReloadTerrainTextures(false);
+			GameContext.Host.GroundTerrain.ReloadTerrainTextures(false);
 		}
 		catch (Exception ex)
 		{
@@ -266,7 +266,7 @@ public static partial class MapWorkspaceService
 	public static string GetActiveMapDirectory()
 	{
 		string? mapDirectory = GameContext.MapStorageService?.CurrentMapDirectory;
-		if (GameHost.Instance != null && !string.IsNullOrEmpty(mapDirectory))
+		if (GameContext.Host != null && !string.IsNullOrEmpty(mapDirectory))
 			return mapDirectory;
 
 		return string.Empty;
@@ -277,7 +277,7 @@ public static partial class MapWorkspaceService
 		if (!string.IsNullOrEmpty(GameContext.EditorService._tempWorkspacePath))
 			return GameContext.EditorService._tempWorkspacePath;
 
-		return GetDefaultWorkspaceGlobalPath();
+		return string.Empty;
 	}
 
 	private static string _cachedRepoRoot;
@@ -351,6 +351,7 @@ public static partial class MapWorkspaceService
 		EnsureCsproj(directory, mapName);
 		EnsureMapScript(directory, mapName);
 		EnsureMeleeRules(directory);
+		EnsureSourceMapAttributionAttribute(directory);
 		EnsureWasmEntryPoint(directory);
 		EnsureMetadataJson(directory);
 		EnsureLicenseFile(directory);
@@ -562,6 +563,7 @@ public static partial class MapWorkspaceService
 		}
 
 		EnsureTrimmerRoot(csprojPath);
+		EnsureSourceMapGlobalUsing(csprojPath);
 
 		EnsureApiLib(directory);
 
@@ -877,6 +879,30 @@ public static partial class MapWorkspaceService
 				File.Copy(template, meleePath, true);
 			}
 		}
+	}
+
+	public static void EnsureSourceMapAttributionAttribute(string directory)
+	{
+		if (string.IsNullOrEmpty(directory)) return;
+
+		string sourcePath = GetTemplatePath("Attribution_SourceMapAttribute.cs");
+		if (!File.Exists(sourcePath)) return;
+
+		PathUtils.CopyFileClearingReadOnly(sourcePath, Path.Combine(directory, "Attribution_SourceMapAttribute.cs"));
+	}
+
+	private static void EnsureSourceMapGlobalUsing(string csprojPath)
+	{
+		if (string.IsNullOrEmpty(csprojPath) || !File.Exists(csprojPath)) return;
+
+		string content = File.ReadAllText(csprojPath);
+		if (content.Contains("<Using Include=\"Realm.Maps\"", StringComparison.OrdinalIgnoreCase)) return;
+
+		const string globalUsingItemGroup = "  <ItemGroup>\n    <Using Include=\"Realm.Maps\" />\n  </ItemGroup>\n";
+		int projectEnd = content.LastIndexOf("</Project>", StringComparison.OrdinalIgnoreCase);
+		content = projectEnd >= 0 ? content.Insert(projectEnd, globalUsingItemGroup) : content + globalUsingItemGroup;
+
+		File.WriteAllText(csprojPath, content);
 	}
 
 	public static void EnsureWasmEntryPoint(string directory)

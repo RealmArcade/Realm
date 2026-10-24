@@ -8,6 +8,7 @@ using Godot;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Environment = System.Environment;
+using Realm.Client.Services;
 
 namespace Realm.Client.Tests;
 
@@ -100,11 +101,11 @@ public class UxSceneTests
 			{
 				MapData[] dummy = GetDummyMaps();
 				MapData mapData = (dummy != null && dummy.Length > 0) ? dummy[0] : new MapData { Title = "Test Map" };
-				UIManager.Instance.TransitionToMapDetails(mapData);
+				GameContext.UserInterface.TransitionToMapDetails(mapData);
 			}
 			else
 			{
-				UIManager.Instance.TransitionTo(screen);
+				GameContext.UserInterface.TransitionTo(screen);
 			}
 
 			await runner.AwaitMillis(1000);
@@ -181,11 +182,11 @@ public class UxSceneTests
 			{
 				MapData[] dummyMaps = GetDummyMaps();
 				MapData mapData = (dummyMaps != null && dummyMaps.Length > 0) ? dummyMaps[0] : new MapData { Title = "Test Map" };
-				UIManager.Instance.TransitionToMapDetails(mapData);
+				GameContext.UserInterface.TransitionToMapDetails(mapData);
 			}
 			else
 			{
-				UIManager.Instance.TransitionTo(screen);
+				GameContext.UserInterface.TransitionTo(screen);
 			}
 
 			await runner.AwaitMillis(750);

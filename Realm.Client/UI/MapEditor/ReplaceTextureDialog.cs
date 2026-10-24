@@ -91,11 +91,11 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 
 	public override void OpenDialog()
 	{
-		if (GameHost.Instance?.GroundTerrain != null && GameHost.Instance.GroundTerrain.SplatMap != null)
+		if (GameContext.Host?.GroundTerrain != null && GameContext.Host.GroundTerrain.SplatMap != null)
 		{
-			_snapshotSplatMap = (TerrainSplatWeights[,])GameHost.Instance.GroundTerrain.SplatMap.Clone();
-			_snapshotCliffSplatMap = GameHost.Instance.GroundTerrain.CliffSplatMap != null
-				? (TerrainSplatWeights[,])GameHost.Instance.GroundTerrain.CliffSplatMap.Clone()
+			_snapshotSplatMap = (TerrainSplatWeights[,])GameContext.Host.GroundTerrain.SplatMap.Clone();
+			_snapshotCliffSplatMap = GameContext.Host.GroundTerrain.CliffSplatMap != null
+				? (TerrainSplatWeights[,])GameContext.Host.GroundTerrain.CliffSplatMap.Clone()
 				: null;
 		}
 
@@ -114,9 +114,9 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		var displayNames = (Hud != null ? GameContext.EditorService.SwatchDisplayNames : (IReadOnlyList<string>)null);
 		int count = displayNames?.Count ?? 0;
 
-		GameHost tempQualifier = GameHost.Instance;
+		GameHost tempQualifier = GameContext.Host;
 		int defaultSourceIndex = (tempQualifier != null ? GameContext.EditorService.EditorPaintTextureIndex : (int?)null) ?? 0;
-		GameHost tempQualifier1 = GameHost.Instance;
+		GameHost tempQualifier1 = GameContext.Host;
 		int defaultTargetIndex = (tempQualifier1 != null ? GameContext.EditorService.EditorCliffPaintTextureIndex : (int?)null) ?? 0;
 
 		PopulateDropdownItems(displayNames, count, defaultSourceIndex, defaultTargetIndex);
@@ -157,7 +157,7 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 	{
 		sourceSlot = -1;
 		targetSlot = -1;
-		groundTerrain = GameHost.Instance?.GroundTerrain;
+		groundTerrain = GameContext.Host?.GroundTerrain;
 
 		if (_snapshotSplatMap == null || groundTerrain?.SplatMap == null) return false;
 		if (_optSource.Selected < 0 || _optTarget.Selected < 0) return false;
@@ -271,9 +271,9 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 		);
 
 		EditorHistoryManager.RecordAction(action);
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			GameHost.Instance.EditorHasUnsavedChanges = true;
+			GameContext.Host.EditorHasUnsavedChanges = true;
 		}
 	}
 
@@ -286,7 +286,7 @@ public partial class ReplaceTextureDialog : FloatingDialogBase
 
 	private void RevertToSnapshot()
 	{
-		var groundTerrain = GameHost.Instance?.GroundTerrain;
+		var groundTerrain = GameContext.Host?.GroundTerrain;
 		if (_snapshotSplatMap == null || groundTerrain?.SplatMap == null) return;
 
 		RestoreSplatMap(groundTerrain);

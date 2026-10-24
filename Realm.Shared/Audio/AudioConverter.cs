@@ -21,7 +21,8 @@ public static class AudioConverter
 		string inputAudioPath,
 		string? outputRaudPath = null,
 		string? assetType = null,
-		string? author = null)
+		string? author = null,
+		IEnumerable<string>? tags = null)
 	{
 		string fullInput = Path.GetFullPath(inputAudioPath);
 		var result = new AudioConversionResult { InputPath = fullInput };
@@ -42,8 +43,8 @@ public static class AudioConverter
 
 		try
 		{
-			byte[]? oggBytes = GetOggBytes(fullInput, ext, out string? existingMeta, out string errorMessage);
-			if (oggBytes == null)
+			List<RaudEntry> entries = GetEntries(fullInput, ext, out string? existingMeta, out string errorMessage);
+			if (entries.Count == 0)
 			{
 				result.Success = false;
 				result.ErrorMessage = errorMessage;
@@ -53,9 +54,9 @@ public static class AudioConverter
 			JsonObject metaObj = ParseMetadataObj(existingMeta);
 			string effectiveAssetType = GetEffectiveAssetType(assetType, fullInput, metaObj);
 
-			PopulateRaudMetadata(metaObj, effectiveAssetType, fullInput, author, oggBytes);
+			PopulateRaudMetadata(metaObj, effectiveAssetType, fullInput, author, tags);
 
-			byte[] finalRaudBytes = RaudFile.Build(metaObj.ToJsonString(), [oggBytes]);
+			byte[] finalRaudBytes = RaudFile.Build(metaObj.ToJsonString(), entries);
 
 			EnsureDirectoryExists(targetRaud);
 
@@ -76,7 +77,7 @@ public static class AudioConverter
 		}
 	}
 
-	private static void PopulateRaudMetadata(JsonObject metaObj, string effectiveAssetType, string fullInput, string? author, byte[] oggBytes)
+	private static void PopulateRaudMetadata(JsonObject metaObj, string effectiveAssetType, string fullInput, string? author, IEnumerable<string>? tags)
 	{
 		if (!metaObj.ContainsKey("created_utc") || metaObj["created_utc"] == null)
 		{
@@ -92,11 +93,41 @@ public static class AudioConverter
 			metaObj["author"] = author;
 		}
 
-		string blake3Hash = RealmMetadataHelper.ComputeBlake3(oggBytes, ".ogg");
-		metaObj["blake3"] = blake3Hash;
+		ApplyTags(metaObj, tags);
 	}
 
-	private static byte[]? GetOggBytes(string fullInput, string ext, out string? existingMeta, out string errorMessage)
+	private static void ApplyTags(JsonObject metaObj, IEnumerable<string>? tags)
+	{
+		var mergedTags = new List<string>();
+		if (metaObj["tags"] is JsonArray existingTags)
+		{
+			foreach (var tagNode in existingTags)
+			{
+				string? existingTag = tagNode?.ToString();
+				if (!string.IsNullOrWhiteSpace(existingTag)) mergedTags.Add(existingTag);
+			}
+		}
+
+		if (tags != null)
+		{
+			foreach (var tag in tags)
+			{
+				if (!string.IsNullOrWhiteSpace(tag)) mergedTags.Add(tag);
+			}
+		}
+
+		if (mergedTags.Count == 0) return;
+
+		var cleanTags = mergedTags
+			.Select(t => t.Trim().ToLowerInvariant())
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.Select(t => (JsonNode)JsonValue.Create(t)!)
+			.ToArray();
+
+		metaObj["tags"] = new JsonArray(cleanTags);
+	}
+
+	private static List<RaudEntry> GetEntries(string fullInput, string ext, out string? existingMeta, out string errorMessage)
 	{
 		existingMeta = null;
 		errorMessage = string.Empty;
@@ -104,16 +135,27 @@ public static class AudioConverter
 		if (ext == ".raud")
 		{
 			byte[] raudBytes = File.ReadAllBytes(fullInput);
-			var (parsedMeta, tracks, _) = RaudFile.Parse(raudBytes);
+			var (parsedMeta, entries, _) = RaudFile.Parse(raudBytes);
 			existingMeta = parsedMeta;
-			if (tracks.Count == 0 || tracks[0].Length == 0)
+			if (!entries.Exists(entry => entry.Data.Length > 0))
 			{
-				errorMessage = "Input RAUD file contains no audio tracks.";
-				return null;
+				errorMessage = "Input RAUD file contains no audio entries.";
+				return new List<RaudEntry>();
 			}
 
-			return tracks[0];
+			return entries;
 		}
+
+		byte[]? oggBytes = GetSingleOggBytes(fullInput, ext, out errorMessage);
+		if (oggBytes == null) return new List<RaudEntry>();
+
+		string entryName = RaudFile.NormalizeEntryName(Path.GetFileNameWithoutExtension(fullInput));
+		return [new RaudEntry(entryName, oggBytes)];
+	}
+
+	private static byte[]? GetSingleOggBytes(string fullInput, string ext, out string errorMessage)
+	{
+		errorMessage = string.Empty;
 
 		if (ext == ".ogg")
 		{
@@ -252,7 +294,8 @@ public static class AudioConverter
 		string inputPath,
 		string? outputPath = null,
 		string? assetType = null,
-		string? author = null)
+		string? author = null,
+		IEnumerable<string>? tags = null)
 	{
 		string fullInput = Path.GetFullPath(inputPath);
 		string ext = Path.GetExtension(fullInput).ToLowerInvariant();
@@ -274,7 +317,7 @@ public static class AudioConverter
 			return ConvertToOgg(fullInput, targetRaud);
 		}
 
-		return ConvertToRaud(fullInput, targetRaud, assetType, author);
+		return ConvertToRaud(fullInput, targetRaud, assetType, author, tags);
 	}
 
 	public static AudioConversionResult ConvertToOgg(string inputAudioPath, string? outputOggPath = null)

@@ -718,10 +718,10 @@ public partial class ConvertGlbDialog : FloatingDialogBase
 		});
 
 		GameContext.MetadataService.CleanMetadata(wsPath);
-		GameHost.Instance?.SetModelYOffset(fileName, autoYOffset);
-		GameHost.Instance?.SetModelScale(fileName, defaultScale);
-		GameHost.Instance?.FlushModelYOffsetSave();
-		GameHost.Instance?.LoadUnitMetadata(wsPath);
+		GameContext.Host?.SetModelYOffset(fileName, autoYOffset);
+		GameContext.Host?.SetModelScale(fileName, defaultScale);
+		GameContext.Host?.FlushModelYOffsetSave();
+		GameContext.Host?.LoadUnitMetadata(wsPath);
 	}
 
 	private void UpdateSpecificMetadata(MapMetadata meta, string subCategory, string unitId, string fileName, float defaultScale, float autoYOffset)

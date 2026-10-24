@@ -7,4 +7,6 @@ public class VfxMetadata
 	public float Fps { get; set; } = 20.0f;
 	public bool SubframeBlend { get; set; }
 	public string? TexturePath { get; set; }
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

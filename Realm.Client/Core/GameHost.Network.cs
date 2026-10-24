@@ -21,7 +21,6 @@ namespace Realm.Client.Core;
 public partial class GameHost
 {
 	private int _pendingSelectUnitServerId = -1;
-	public int GetOwnerPeerId(Entity unitEntity) => GameContext.NetworkService.GetOwnerPeerId(unitEntity);
 
 	private int GetServerEntityId(Entity localEntity) =>
 		GameContext.NetworkService.GetServerEntityId(localEntity.Id);
@@ -52,7 +51,7 @@ public partial class GameHost
 		RemoveUnitFromCollections(unit);
 		GameContext.SimulationService.DestroyUnitEntityDomain(unit.Entity);
 		unit.QueueFree();
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private void QueueClientCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
@@ -240,7 +239,7 @@ public partial class GameHost
 		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
 
 		ApplySpellEffect(spellId, position, casterEnt);
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		BroadcastSpellEffect(spellId, position);
 	}
 
@@ -356,7 +355,7 @@ public partial class GameHost
 
 	public void RefreshReplicatedOverlayUi()
 	{
-		InGameHUD.Instance?.InvalidateReplicatedOverlays();
+		GameContext.InGameHud?.InvalidateReplicatedOverlays();
 	}
 
 	public void SetReplicatedEntityVisible(Entity entity, bool visible)
@@ -397,7 +396,7 @@ public partial class GameHost
 		{
 			ClearSelection();
 			SelectUnit(unit3D);
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			_pendingSelectUnitServerId = -1;
 		}
 	}
@@ -508,7 +507,7 @@ public partial class GameHost
 
 	private bool CheckAllPlayersReady()
 	{
-		return GameContext.NetworkService.ProcessCheckAllPlayersReady(LobbyManager.Instance?.PlayerList);
+		return GameContext.NetworkService.ProcessCheckAllPlayersReady(GameContext.Lobby?.PlayerList);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -562,7 +561,7 @@ public partial class GameHost
 
 	private void UpdatePauseUI()
 	{
-		InGameHUD.Instance?.UpdatePauseUI();
+		GameContext.InGameHud?.UpdatePauseUI();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -570,11 +569,11 @@ public partial class GameHost
 	{
 		if (durationSeconds <= 0.001f)
 		{
-			GameContext.EnvironmentService?.ApplyPresetById(this, presetId);
+			GameContext.EnvironmentService?.ApplyPresetById(presetId);
 		}
 		else
 		{
-			GameContext.EnvironmentService?.TransitionToPreset(this, presetId, durationSeconds);
+			GameContext.EnvironmentService?.TransitionToPreset(presetId, durationSeconds);
 		}
 	}
 
@@ -582,7 +581,7 @@ public partial class GameHost
 	public void SyncWeatherRpc(string weatherType)
 	{
 		GameContext.EnvironmentService?.SetCurrentWeather(weatherType);
-		InGameHUD.Instance?.ApplyWeatherEffects(weatherType);
+		GameContext.InGameHud?.ApplyWeatherEffects(weatherType);
 	}
 
 	private void SendReconnectedBaselineSnapshot(int newPeerId)
@@ -659,17 +658,17 @@ public partial class GameHost
 	{
 		if (GameContext.RegistryService.RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant))
 		{
-			InGameHUD.Instance?.RefreshUI(SelectedUnits);
+			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		}
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientShowFeedbackText(string text, Vector3 color)
 	{
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
 			var gColor = new Color(color.X, color.Y, color.Z);
-			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(text, gColor)).CallDeferred();
+			Callable.From(() => GameContext.InGameHud?.ShowFeedbackText(text, gColor)).CallDeferred();
 		}
 	}
 
@@ -682,13 +681,13 @@ public partial class GameHost
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientStartCountdownTimer(float duration, string label)
 	{
-		Callable.From(() => InGameHUD.Instance?.StartCountdownTimer(duration, label)).CallDeferred();
+		Callable.From(() => GameContext.InGameHud?.StartCountdownTimer(duration, label)).CallDeferred();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientStopCountdownTimer()
 	{
-		Callable.From(() => InGameHUD.Instance?.StopCountdownTimer()).CallDeferred();
+		Callable.From(() => GameContext.InGameHud?.StopCountdownTimer()).CallDeferred();
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -747,7 +746,7 @@ public partial class GameHost
 			{
 				ClearSelection();
 				SelectUnit(unit3D);
-				InGameHUD.Instance?.RefreshUI(SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
 			}
 			else
 			{
@@ -790,7 +789,7 @@ public partial class GameHost
 	public void ClientGameOver(bool isVictory)
 	{
 		GameContext.NetworkService.SetGameOver();
-		Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, isVictory)).CallDeferred();
+		Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, isVictory)).CallDeferred();
 	}
 
 	public void OnClientReconnected(int slot)
@@ -801,9 +800,9 @@ public partial class GameHost
 		GameContext.NetworkService.ResetReconnectionState();
 
 		Entity reconnectedEntity = Entity.Null;
-		if (LobbyManager.Instance != null && LobbyManager.Instance.PlayerList.Count > 0)
+		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList.Count > 0)
 		{
-			reconnectedEntity = GameContext.NetworkService.AssignReconnectedPlayerEntity(slot, LobbyManager.Instance.PlayerList, _localPeerId, _peerIdToPlayerEntityMap);
+			reconnectedEntity = GameContext.NetworkService.AssignReconnectedPlayerEntity(slot, GameContext.Lobby.PlayerList, _localPeerId, _peerIdToPlayerEntityMap);
 		}
 
 		GameContext.NetworkService.UpdateReconnectedClientMapping(reconnectedEntity, _localPeerId);
@@ -813,7 +812,7 @@ public partial class GameHost
 			RpcId(1, nameof(ServerRequestDynamicPathingSync));
 		}
 
-		InGameHUD.Instance?.RefreshUI(SelectedUnits);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		GD.Print($"[GameHost] OnClientReconnected completed for LocalPeerId={_localPeerId}, Slot={slot}");
 	}
 

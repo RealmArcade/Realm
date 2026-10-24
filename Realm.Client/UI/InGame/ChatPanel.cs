@@ -3,6 +3,7 @@ using System.Globalization;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.InGame;
 
@@ -176,8 +177,8 @@ public class ChatPanel
 
 	private bool IsMultiplayer()
 	{
-		if (LobbyManager.Instance == null || LobbyManager.Instance.IsSinglePlayer) return false;
-		if (InGameHUD.Instance != null && (InGameHUD.Instance.Multiplayer.MultiplayerPeer == null || InGameHUD.Instance.Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer))
+		if (GameContext.Lobby == null || GameContext.Lobby.IsSinglePlayer) return false;
+		if (GameContext.InGameHud != null && (GameContext.InGameHud.Multiplayer.MultiplayerPeer == null || GameContext.InGameHud.Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer))
 		{
 			return false;
 		}
@@ -187,16 +188,16 @@ public class ChatPanel
 
 	private bool TryHandleCheat(string text, bool isMultiplayer)
 	{
-		if (isMultiplayer || InGameHUD.Instance == null) return false;
-		return InGameHUD.Instance.TryTriggerCheat(text);
+		if (isMultiplayer || GameContext.InGameHud == null) return false;
+		return GameContext.InGameHud.TryTriggerCheat(text);
 	}
 
 	private bool TryHandleCommand(string trimmedText)
 	{
 		if (!trimmedText.Equals("/pause", StringComparison.OrdinalIgnoreCase)) return false;
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			GameHost.Instance.TogglePauseRequest();
+			GameContext.Host.TogglePauseRequest();
 		}
 
 		return true;
@@ -204,12 +205,12 @@ public class ChatPanel
 
 	private void DispatchChatMessage(string trimmedText)
 	{
-		string sender = LobbyManager.Instance?.AuthenticatedUsername ?? "Player";
+		string sender = GameContext.Lobby?.AuthenticatedUsername ?? "Player";
 		bool alliesOnly = _currentMode == ChatMode.Allies;
 
-		if (LobbyManager.Instance != null)
+		if (GameContext.Lobby != null)
 		{
-			LobbyManager.Instance.SendChatMessage(sender, trimmedText, alliesOnly);
+			GameContext.Lobby.SendChatMessage(sender, trimmedText, alliesOnly);
 		}
 		else
 		{
@@ -239,8 +240,8 @@ public class ChatPanel
 		if (_chatLog == null) return;
 		string cleanMsg = message.Replace("[", "[[").Replace("]", "]]");
 		string prefix = alliesOnly ? "[color=#00a2ff](Allies)[/color] " : "";
-		string timestamp = GameHost.Instance != null
-			? FormatElapsedTimestamp(GameHost.Instance.GameElapsedTime)
+		string timestamp = GameContext.Host != null
+			? FormatElapsedTimestamp(GameContext.Host.GameElapsedTime)
 			: FormatTimestamp(timestampUtcTicks);
 		string textToAppend = $"[color=#a0a0a0][{timestamp}][/color] {prefix}[color=#00ffc8]{senderName}:[/color] {cleanMsg}\n";
 		_chatLog.AppendText(textToAppend);

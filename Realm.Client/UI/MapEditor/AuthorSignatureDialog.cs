@@ -4,6 +4,7 @@ using System.IO;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared.Distribution;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -220,7 +221,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 	private void RefreshKeyDetails()
 	{
 		string keyDir = ProjectSettings.GlobalizePath("user://appdata/keys/");
-		string defaultUsername = LobbyManager.Instance?.AuthenticatedUsername ?? string.Empty;
+		string defaultUsername = GameContext.Lobby?.AuthenticatedUsername ?? string.Empty;
 		var (key, data, keyPath, _) = AuthorshipKeyHelper.GetOrGenerateKeyInfo(keyDir, defaultUsername);
 
 		_txtUsername.Text = !string.IsNullOrWhiteSpace(data.UserName) ? data.UserName : (string.IsNullOrWhiteSpace(defaultUsername) ? TranslationServer.Translate("(Not Registered)") : defaultUsername);

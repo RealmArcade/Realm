@@ -16,8 +16,6 @@ namespace Realm.Client.Network;
 [GlobalClass]
 public partial class EnetMapTransferService : BaseMapTransferNode
 {
-	public static EnetMapTransferService Instance { get; private set; } = null!;
-
 	public static event Action<float>? DownloadProgressChanged;
 	public static event Action? DownloadCompleted;
 	public static event Action? DownloadFailed;
@@ -30,7 +28,6 @@ public partial class EnetMapTransferService : BaseMapTransferNode
 
 	public override void _Ready()
 	{
-		Instance = this;
 		if (string.IsNullOrEmpty(Name))
 		{
 			Name = "EnetMapTransferService";

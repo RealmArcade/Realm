@@ -5,13 +5,14 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.Utils;
-using Realm.Client.VFX;
 
 namespace Realm.Client.UI.MapEditor;
 
 [GlobalClass]
 public partial class InstanceManagerDialog : FloatingDialogBase
 {
+	private const float TopLeftCornerMargin = 20.0f;
+
 	public InstanceManagerDialog() { }
 
 	private Tree _objectTree;
@@ -78,8 +79,6 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		};
 		topHBox.AddChild(_filterInput);
 
-		AddButton(topHBox, $"{UnicodeIcons.REFRESH} " + TranslationServer.Translate("Refresh"), () => RefreshObjectTree(), "Refresh object list", 11, new Vector2(85, 26));
-
 		BodyContainer.AddChild(topHBox);
 
 		_summaryLabel = new Label();
@@ -120,9 +119,9 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private bool HasCountsChanged()
 	{
-		int curUnits = GameHost.Instance.AllUnits?.Count ?? 0;
-		int curProps = GameHost.Instance.AllProps?.Count ?? 0;
-		int curDecals = GameHost.Instance.AllDecals?.Count ?? 0;
+		int curUnits = GameContext.Host.AllUnits?.Count ?? 0;
+		int curProps = GameContext.Host.AllProps?.Count ?? 0;
+		int curDecals = GameContext.Host.AllDecals?.Count ?? 0;
 		int curCoords = GameContext.EditorService?.EditorCoordinates?.Count ?? 0;
 
 		return curUnits != _lastUnitsCount || curProps != _lastPropsCount || curDecals != _lastDecalsCount || curCoords != _lastCoordinatesCount;
@@ -131,7 +130,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	public override void _Process(double delta)
 	{
 		base._Process(delta);
-		if (!IsOpen || GameHost.Instance == null) return;
+		if (!IsOpen || GameContext.Host == null) return;
 
 		_refreshCheckTimer += delta;
 		if (_refreshCheckTimer < 0.15) return;
@@ -181,6 +180,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		}
 
 		base.OpenDialog();
+		Position = new Vector2(TopLeftCornerMargin, TopLeftCornerMargin);
 		RefreshObjectTree();
 	}
 
@@ -195,7 +195,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		_treeItemToObjectMap.Clear();
 		_treeItemToCoordinateMap.Clear();
 
-		if (GameHost.Instance == null)
+		if (GameContext.Host == null)
 		{
 			TreeItem emptyRoot = _objectTree.CreateItem();
 			_summaryLabel.Text = TranslationServer.Translate("No active map loaded.");
@@ -232,9 +232,9 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void UpdateLastCounts()
 	{
-		_lastUnitsCount = GameHost.Instance.AllUnits?.Count ?? 0;
-		_lastPropsCount = GameHost.Instance.AllProps?.Count ?? 0;
-		_lastDecalsCount = GameHost.Instance.AllDecals?.Count ?? 0;
+		_lastUnitsCount = GameContext.Host.AllUnits?.Count ?? 0;
+		_lastPropsCount = GameContext.Host.AllProps?.Count ?? 0;
+		_lastDecalsCount = GameContext.Host.AllDecals?.Count ?? 0;
 		_lastCoordinatesCount = GameContext.EditorService?.EditorCoordinates?.Count ?? 0;
 	}
 
@@ -291,7 +291,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 				Vector3 pos = node.Position;
 				itemNode.SetText(1, $"({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
 
-				if (GameHost.Instance.SelectedEditorObject == node)
+				if (GameContext.Host.SelectedEditorObject == node)
 				{
 					itemNode.Select(0);
 					categoryNode.Collapsed = false;
@@ -314,12 +314,12 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	private List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> CollectAllPlacedObjects()
 	{
 		var result = new List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)>();
-		if (GameHost.Instance == null) return result;
+		if (GameContext.Host == null) return result;
 
 		CollectUnits(result);
 		CollectProps(result);
 		CollectDecals(result);
-		CollectVfxObjectsRecursive(GameHost.Instance, result);
+		CollectVfx(result);
 		CollectCoordinates(result);
 
 		return result;
@@ -327,9 +327,9 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void CollectUnits(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
-		if (GameHost.Instance.AllUnits == null) return;
+		if (GameContext.Host.AllUnits == null) return;
 
-		foreach (var unit in GameHost.Instance.AllUnits)
+		foreach (var unit in GameContext.Host.AllUnits)
 		{
 			if (!GodotObject.IsInstanceValid(unit)) continue;
 
@@ -375,9 +375,9 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void CollectProps(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
-		if (GameHost.Instance.AllProps == null) return;
+		if (GameContext.Host.AllProps == null) return;
 
-		foreach (var prop in GameHost.Instance.AllProps)
+		foreach (var prop in GameContext.Host.AllProps)
 		{
 			if (!GodotObject.IsInstanceValid(prop)) continue;
 
@@ -395,9 +395,9 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void CollectDecals(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
-		if (GameHost.Instance.AllDecals == null) return;
+		if (GameContext.Host.AllDecals == null) return;
 
-		foreach (var decal in GameHost.Instance.AllDecals)
+		foreach (var decal in GameContext.Host.AllDecals)
 		{
 			if (!GodotObject.IsInstanceValid(decal)) continue;
 
@@ -406,23 +406,18 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		}
 	}
 
-	private void CollectVfxObjectsRecursive(Node parentNode, List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> resultList)
+	private void CollectVfx(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
 	{
-		if (parentNode == null) return;
+		if (GameContext.Host.AllVfx == null) return;
 
-		foreach (Node childNode in parentNode.GetChildren())
+		foreach (var vfx in GameContext.Host.AllVfx)
 		{
-			if (childNode is ProceduralVfxInstance3D vfx && GodotObject.IsInstanceValid(vfx))
-			{
-				string resolvedName = !string.IsNullOrEmpty(vfx.Config?.Name)
-					? vfx.Config.Name
-					: vfx.Config?.PrimitiveType.ToString() ?? "VFX";
-				resultList.Add((resolvedName, "VFX / Effects", vfx, null, null));
-			}
-			else
-			{
-				CollectVfxObjectsRecursive(childNode, resultList);
-			}
+			if (!GodotObject.IsInstanceValid(vfx)) continue;
+
+			string resolvedName = !string.IsNullOrEmpty(vfx.Config?.Name)
+				? vfx.Config.Name
+				: vfx.Config?.PrimitiveType.ToString() ?? "VFX";
+			result.Add((resolvedName, "VFX / Effects", vfx, null, null));
 		}
 	}
 
@@ -478,9 +473,9 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 		if (_treeItemToObjectMap.TryGetValue(item, out Node3D targetObject) && GodotObject.IsInstanceValid(targetObject))
 		{
-			if (GameHost.Instance != null)
+			if (GameContext.Host != null)
 			{
-				GameHost.Instance.SelectedEditorObject = targetObject;
+				GameContext.Host.SelectedEditorObject = targetObject;
 			}
 			DeleteObject(targetObject);
 		}
@@ -516,17 +511,17 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void FocusOnObject(Node3D targetObject)
 	{
-		if (targetObject == null || !GodotObject.IsInstanceValid(targetObject) || GameHost.Instance == null) return;
+		if (targetObject == null || !GodotObject.IsInstanceValid(targetObject) || GameContext.Host == null) return;
 
 		Hud?.SelectToolFromHotkey(EditorTool.SelectMove);
-		GameHost.Instance.SelectedEditorObject = targetObject;
-		GameHost.Instance.MainCamera?.FocusOnPosition(targetObject.Position);
+		GameContext.Host.SelectedEditorObject = targetObject;
+		GameContext.Host.MainCamera?.FocusOnPosition(targetObject.Position);
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Selected and focused on {0}"), targetObject.Name));
 	}
 
 	private void DeleteObject(Node3D targetObject)
 	{
-		if (targetObject == null || !GodotObject.IsInstanceValid(targetObject) || GameHost.Instance == null) return;
+		if (targetObject == null || !GodotObject.IsInstanceValid(targetObject) || GameContext.Host == null) return;
 
 		Hud?.DeleteSelectedObjectAction();
 		RefreshObjectTree();

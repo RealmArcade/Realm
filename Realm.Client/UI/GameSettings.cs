@@ -56,7 +56,31 @@ public static class GameSettings
 	public static bool SeedMapFiles { get; set; } = false;
 	public static bool DisableShadows { get; set; } = false;
 	public static bool DisableDayNightLighting { get; set; } = false;
+	public static bool DisableWeatherEffects { get; set; } = false;
+
+	public static bool ShadowsEnabled
+	{
+		get => !DisableShadows;
+		set => DisableShadows = !value;
+	}
+
+	public static bool DayNightLightingEnabled
+	{
+		get => !DisableDayNightLighting;
+		set => DisableDayNightLighting = !value;
+	}
+
+	public static bool WeatherEffectsEnabled
+	{
+		get => !DisableWeatherEffects;
+		set => DisableWeatherEffects = !value;
+	}
+
+	public static int FpsLimit { get; set; } = 0;
+	public const int MinFpsLimit = 30;
+	public const int MaxFpsLimit = 360;
 	public static bool FloatingCombatText { get; set; } = true;
+	public static bool OccludedUnitOutlines { get; set; } = true;
 
 	private static readonly bool MovementPredictionSupported = PathUtils.IsDevelopmentBuild;
 	private static bool _movementPrediction;
@@ -66,6 +90,9 @@ public static class GameSettings
 		get => MovementPredictionSupported && _movementPrediction;
 		set => _movementPrediction = value && MovementPredictionSupported;
 	}
+
+	public static bool MovementPredictionPerformanceOverride { get; set; } = false;
+	public static float MovementPredictionCostThresholdMs { get; set; } = Services.PredictionPerformanceMonitor.DefaultPredictionCostThresholdMs;
 	public static string LastOpenedFolder { get; set; } = string.Empty;
 
 	public static int GetSafeScreenIndex()
@@ -98,7 +125,10 @@ public static class GameSettings
 		Vsync = true;
 		DisableShadows = false;
 		DisableDayNightLighting = false;
+		DisableWeatherEffects = false;
+		FpsLimit = 0;
 		FloatingCombatText = true;
+		OccludedUnitOutlines = true;
 		MasterVolume = 80f;
 		MusicVolume = 70f;
 		SfxVolume = 90f;
@@ -112,6 +142,8 @@ public static class GameSettings
 		RecordReplays = false;
 		SeedMapFiles = false;
 		MovementPrediction = false;
+		MovementPredictionPerformanceOverride = false;
+		MovementPredictionCostThresholdMs = Services.PredictionPerformanceMonitor.DefaultPredictionCostThresholdMs;
 	}
 
 	public static void InitializeResolutions()
@@ -235,8 +267,15 @@ public static class GameSettings
 		SeedMapFiles = data.SeedMapFiles;
 		DisableShadows = data.DisableShadows;
 		DisableDayNightLighting = data.DisableDayNightLighting;
+		DisableWeatherEffects = data.DisableWeatherEffects;
+		FpsLimit = IsSupportedFpsLimit(data.FpsLimit) ? data.FpsLimit : 0;
 		FloatingCombatText = data.FloatingCombatText;
+		OccludedUnitOutlines = data.OccludedUnitOutlines;
 		MovementPrediction = data.MovementPrediction;
+		MovementPredictionPerformanceOverride = data.MovementPredictionPerformanceOverride;
+		MovementPredictionCostThresholdMs = data.MovementPredictionCostThresholdMs > 0f
+			? data.MovementPredictionCostThresholdMs
+			: Services.PredictionPerformanceMonitor.DefaultPredictionCostThresholdMs;
 		ShowHealthBars = data.ShowHealthBars;
 		LastOpenedFolder = data.LastOpenedFolder ?? string.Empty;
 
@@ -286,8 +325,13 @@ public static class GameSettings
 			SeedMapFiles = SeedMapFiles,
 			DisableShadows = DisableShadows,
 			DisableDayNightLighting = DisableDayNightLighting,
+			DisableWeatherEffects = DisableWeatherEffects,
+			FpsLimit = FpsLimit,
 			FloatingCombatText = FloatingCombatText,
+			OccludedUnitOutlines = OccludedUnitOutlines,
 			MovementPrediction = MovementPrediction,
+			MovementPredictionPerformanceOverride = MovementPredictionPerformanceOverride,
+			MovementPredictionCostThresholdMs = MovementPredictionCostThresholdMs,
 			LastOpenedFolder = LastOpenedFolder
 		};
 
@@ -312,6 +356,17 @@ public static class GameSettings
 		ApplyTerrainQuality(root);
 		ApplyGameHostSettings(root);
 		ApplyLodVisibilityDistances();
+		ApplyFrameRateLimit();
+	}
+
+	public static void ApplyFrameRateLimit()
+	{
+		Engine.MaxFps = IsSupportedFpsLimit(FpsLimit) ? FpsLimit : 0;
+	}
+
+	public static bool IsSupportedFpsLimit(int fpsLimit)
+	{
+		return fpsLimit == 0 || (fpsLimit >= MinFpsLimit && fpsLimit <= MaxFpsLimit);
 	}
 
 	private static float GetLodDistanceScale(GraphicsQuality quality)
@@ -327,7 +382,7 @@ public static class GameSettings
 
 	private static void ApplyLodVisibilityDistances()
 	{
-		GameHost host = GameHost.Instance;
+		GameHost host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host)) return;
 
 		var units = host.AllUnits;
@@ -356,7 +411,7 @@ public static class GameSettings
 			}
 		}
 
-		PropMultiMeshManager.Instance?.RefreshLodVisibilityDistances();
+		GameContext.PropMultiMesh?.RefreshLodVisibilityDistances();
 	}
 
 	private static void ApplyViewportQuality(Viewport viewport)
@@ -418,7 +473,7 @@ public static class GameSettings
 
 	private static void ApplyTerrainQuality(Window root)
 	{
-		var terrain = (root != null ? FindNodeInTree<RuntimeTerrain>(root) : null) ?? RuntimeTerrain.Instance;
+		var terrain = (root != null ? FindNodeInTree<RuntimeTerrain>(root) : null) ?? GameContext.Terrain;
 		if (terrain != null && GodotObject.IsInstanceValid(terrain))
 		{
 			terrain.ApplyQualitySettings((int)QualityIdx);
@@ -433,14 +488,16 @@ public static class GameSettings
 		var envService = GameContext.EnvironmentService;
 		if (envService == null) return;
 
+		envService.SyncWeatherEffectsWithSettings();
+
 		if (DisableDayNightLighting)
 		{
-			envService.UpdateDayNightVisuals(gameHost, 0f);
+			envService.UpdateDayNightVisuals(0f);
 			return;
 		}
 
 		float progress = GetTimeOfDayProgress(gameHost);
-		envService.UpdateDayNightVisuals(gameHost, progress);
+		envService.UpdateDayNightVisuals(progress);
 	}
 
 	private static GameHost GetValidGameHost(Window root)
@@ -451,17 +508,17 @@ public static class GameSettings
 			var foundHost = FindNodeInTree<GameHost>(root);
 			if (foundHost != null)
 			{
-				host = GameHost.Instance;
+				host = GameContext.Host;
 			}
 		}
 
 		if (host == null)
 		{
-			host = GameHost.Instance;
+			host = GameContext.Host;
 		}
 
 		if (host == null) return null;
-		if (!GodotObject.IsInstanceValid(GameHost.Instance)) return null;
+		if (!GodotObject.IsInstanceValid(GameContext.Host)) return null;
 		return host;
 	}
 
@@ -530,7 +587,7 @@ public static class GameSettings
 
 	private static bool IsEditorShadowsDisabled()
 	{
-		GameHost host = GameHost.Instance;
+		GameHost host = GameContext.Host;
 		if (host == null) return false;
 		if (!GameContext.SessionState.IsMapEditorMode) return false;
 		if (!GameContext.EditorService.EditorDisableShadows) return false;

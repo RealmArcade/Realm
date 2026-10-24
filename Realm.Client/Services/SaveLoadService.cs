@@ -40,10 +40,6 @@ public class SaveLoadService
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
-	public SaveLoadService()
-	{
-	}
-
 	public TerrainSplatWeights[,] GenerateSplatMapFromImages(byte[] idxBytes, byte[] wgtBytes, int splatW, int splatD, int sW, int sD, int wgtW, int wgtD)
 	{
 		var splatMap = new TerrainSplatWeights[splatW, splatD];
@@ -370,7 +366,7 @@ public class SaveLoadService
 			EditorService.LastInternalSaveTimeUtc = DateTime.UtcNow;
 			MapFileService.SaveTerrain(absolutePath, saveData);
 
-			GameHost.Instance?.SaveModelYOffsetsToMetadataJson(directory);
+			GameContext.Host?.SaveModelYOffsetsToMetadataJson(directory);
 			SyncMetadataAssetsAndPrune(directory);
 			CleanMetadataFile(directory, terrain.Width, terrain.Depth);
 			MapWorkspaceService.EnsureLicenseFile(directory);
@@ -543,7 +539,7 @@ public class SaveLoadService
 	private List<VfxSaveData> GetVfxSaveData()
 	{
 		var vfxList = new List<VfxSaveData>();
-		var allVfx = GameHost.Instance?.AllVfx;
+		var allVfx = GameContext.Host?.AllVfx;
 		if (allVfx == null) return vfxList;
 
 		foreach (var vfx in allVfx)
@@ -713,7 +709,7 @@ public class SaveLoadService
 			if (saveData == null) return false;
 
 			string mapDir = Path.GetDirectoryName(absolutePath);
-			GameHost.Instance?.LoadModelYOffsetsFromMetadataJson(mapDir);
+			GameContext.Host?.LoadModelYOffsetsFromMetadataJson(mapDir);
 
 			_lastLoadedCoordinates = saveData.Coordinates ?? new List<CoordinateSaveData>();
 
@@ -1016,10 +1012,11 @@ public class SaveLoadService
 
 	private void LoadEditorAndCameraState(Entity worldEntity, MapSaveData saveData)
 	{
-		float left = saveData.CameraBoundsLeft ?? -95.0f;
-		float right = saveData.CameraBoundsRight ?? 95.0f;
-		float top = saveData.CameraBoundsTop ?? -95.0f;
-		float bottom = saveData.CameraBoundsBottom ?? 125.0f;
+		MapCameraBounds defaultBounds = MapCameraBounds.FromTerrain(saveData.Width, saveData.Depth, RuntimeTerrain.DefaultQuadSize);
+		float left = saveData.CameraBoundsLeft ?? defaultBounds.Left;
+		float right = saveData.CameraBoundsRight ?? defaultBounds.Right;
+		float top = saveData.CameraBoundsTop ?? defaultBounds.Top;
+		float bottom = saveData.CameraBoundsBottom ?? defaultBounds.Bottom;
 
 		WaterType currentWaterMode = GameContext.World.Has<EditorState>(worldEntity) ? GameContext.World.Get<EditorState>(worldEntity).WaterMode : WaterType.None;
 		byte currentWaterProf = GameContext.World.Has<EditorState>(worldEntity) ? GameContext.World.Get<EditorState>(worldEntity).WaterProfileIndex : (byte)0;
@@ -1087,10 +1084,10 @@ public class SaveLoadService
 
 	private void SpawnVfx(List<VfxSaveData>? vfxList)
 	{
-		if (vfxList == null || GameHost.Instance == null) return;
+		if (vfxList == null || GameContext.Host == null) return;
 		foreach (var v in vfxList)
 		{
-			GameHost.Instance.SpawnVfxExternalWithParams(
+			GameContext.Host.SpawnVfxExternalWithParams(
 				v.VfxId, new Godot.Vector3(v.PosX, v.PosY, v.PosZ), new Godot.Vector3(v.RotationX, v.RotationY, v.RotationZ),
 				new Godot.Vector3(v.ScaleX <= 0f ? 1f : v.ScaleX, v.ScaleY <= 0f ? 1f : v.ScaleY, v.ScaleZ <= 0f ? 1f : v.ScaleZ),
 				v.NormalOffset, v.Config

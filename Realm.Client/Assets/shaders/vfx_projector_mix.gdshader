@@ -52,6 +52,9 @@ uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
 
 uniform float surface_normal_offset : hint_range(-0.5, 0.5) = 0.01;
 
+uniform bool use_player_color = false;
+uniform vec4 player_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+
 varying mat4 inv_model_matrix;
 
 float hash(vec2 p) {
@@ -178,6 +181,11 @@ void fragment() {
 
 	vec3 color = use_base_texture ? mix(base_tex_rgb, ramp_color, color_mix_ratio) : ramp_color;
 	color *= (1.0 + (emission_boost - 1.0) * mask);
+
+	if (use_player_color) {
+		float glow_luminance = max(dot(color, vec3(0.2126, 0.7152, 0.0722)), 0.0001);
+		color = player_color.rgb * glow_luminance;
+	}
 
 	float out_alpha = clamp(mask * base_color.a, 0.0, 1.0);
 	vec3 shroud_world_position = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;

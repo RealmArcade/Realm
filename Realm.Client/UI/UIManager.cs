@@ -15,11 +15,9 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class UIManager : Control
 {
-	public static UIManager Instance { get; private set; }
-
 	public UIManager()
 	{
-		Instance = this;
+		GameContext.RegisterUserInterface(this);
 	}
 
 	public override void _EnterTree()
@@ -63,12 +61,12 @@ public partial class UIManager : Control
 
 	public override void _ExitTree()
 	{
-		if (Instance == this) Instance = null;
+		GameContext.UnregisterUserInterface(this);
 	}
 
 	public override async void _Ready()
 	{
-		Instance = this;
+		GameContext.RegisterUserInterface(this);
 		MouseFilter = MouseFilterEnum.Ignore;
 
 
@@ -106,7 +104,7 @@ public partial class UIManager : Control
 
 		GetTree().AutoAcceptQuit = false;
 
-		if (LobbyManager.Instance != null && LobbyManager.Instance.IsGameStarted)
+		if (GameContext.Lobby != null && GameContext.Lobby.IsGameStarted)
 		{
 			TransitionTo(GameScreen.InGameHUD);
 		}
@@ -133,9 +131,9 @@ public partial class UIManager : Control
 
 		if (what == unchecked((int)Node.NotificationWMCloseRequest))
 		{
-			if (MapEditorHUD.Instance != null && GodotObject.IsInstanceValid(MapEditorHUD.Instance) && MapEditorHUD.Instance.IsInsideTree())
+			if (GameContext.MapEditorHud != null && GodotObject.IsInstanceValid(GameContext.MapEditorHud) && GameContext.MapEditorHud.IsInsideTree())
 			{
-				MapEditorHUD.Instance.HandleQuitRequest();
+				GameContext.MapEditorHud.HandleQuitRequest();
 			}
 			else if (GameContext.SessionState.IsTestMode && MapEditorHUD.HasUnsavedChangesStatic())
 			{
@@ -362,13 +360,13 @@ public partial class UIManager : Control
 
 		if (RequiresReplayReset(screen))
 		{
-			if (ReplayPlaybackManager.Instance.IsPlayingReplay)
+			if (GameContext.ReplayPlayback.IsPlayingReplay)
 			{
-				ReplayPlaybackManager.Instance.StopReplay();
-				GameHost.Instance?.ResetWorldAndState();
+				GameContext.ReplayPlayback.StopReplay();
+				GameContext.Host?.ResetWorldAndState();
 			}
 
-			GameHost.Instance?.StopRecording();
+			GameContext.Host?.StopRecording();
 		}
 	}
 
@@ -487,7 +485,7 @@ public partial class UIManager : Control
 		{
 			if (_currentScreen is MapEditorHUD)
 			{
-				GameHost.Instance?.ExitMapEditorMode();
+				GameContext.Host?.ExitMapEditorMode();
 			}
 
 			if (_currentScreen.GetParent() == this)
@@ -517,9 +515,9 @@ public partial class UIManager : Control
 
 	private void ConfigureReplayViewer()
 	{
-		if (_targetScreen == GameScreen.InGameHUD && ReplayPlaybackManager.Instance.IsPlayingReplay)
+		if (_targetScreen == GameScreen.InGameHUD && GameContext.ReplayPlayback.IsPlayingReplay)
 		{
-			GameHost.Instance?.StopRecording();
+			GameContext.Host?.StopRecording();
 			var panelScene = GD.Load<PackedScene>("res://UI/ReplayViewerPanel.tscn");
 			if (panelScene != null)
 			{
@@ -590,13 +588,13 @@ public partial class UIManager : Control
 
 		if (screen == GameScreen.MainMenu)
 		{
-			if (LobbyManager.Instance != null) LobbyManager.Instance.Disconnect();
+			if (GameContext.Lobby != null) GameContext.Lobby.Disconnect();
 			return MainMenuScene ?? GD.Load<PackedScene>("res://UI/MainMenu.tscn");
 		}
 
 		if (screen == GameScreen.MapEditorHUD)
 		{
-			GameHost.Instance?.StartMapEditorMode();
+			GameContext.Host?.StartMapEditorMode();
 			return MapEditorHUDScene ?? GD.Load<PackedScene>("res://UI/MapEditorHUD.tscn");
 		}
 
@@ -621,7 +619,7 @@ public partial class UIManager : Control
 
 	public void OpenSettingsOverlay()
 	{
-		if (SettingsMenu.IsOpen) return;
+		if (GameContext.IsSettingsMenuOpen) return;
 
 		var settingsPopup = GD.Load<PackedScene>("res://UI/SettingsMenu.tscn").Instantiate<SettingsMenu>();
 		settingsPopup.IsOverlay = true;

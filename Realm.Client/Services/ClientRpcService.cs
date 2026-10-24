@@ -22,7 +22,7 @@ public class ClientRpcService
 {
 	private static bool TryResolveTargetClient(int playerIndex, out GameHost host, out bool isLocal, out int remotePeerId)
 	{
-		host = GameHost.Instance;
+		host = GameContext.Host;
 		isLocal = false;
 		remotePeerId = -1;
 
@@ -42,9 +42,9 @@ public class ClientRpcService
 			return true;
 		}
 
-		if (host.IsMultiplayerServerActive() && LobbyManager.Instance != null)
+		if (host.IsMultiplayerServerActive() && GameContext.Lobby != null)
 		{
-			var playerInfo = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			var playerInfo = GameContext.Lobby.PlayerList.Find(x => x.Slot == playerIndex);
 			if (playerInfo != null && playerInfo.PeerId > 1)
 			{
 				remotePeerId = playerInfo.PeerId;
@@ -88,7 +88,7 @@ public class ClientRpcService
 
 	public void BroadcastShakeCamera(float intensity, float duration)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
@@ -101,7 +101,7 @@ public class ClientRpcService
 
 	public void SetPlayerCameraBounds(int playerIndex, float minX, float minZ, float maxX, float maxZ)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host != null)
 		{
 			host.RecordPlayerCameraBoundsOverride(playerIndex, minX, minZ, maxX, maxZ);
@@ -122,7 +122,7 @@ public class ClientRpcService
 
 	public void ResetPlayerCameraBounds(int playerIndex)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host != null)
 		{
 			host.ClearPlayerCameraBoundsOverride(playerIndex);
@@ -143,7 +143,7 @@ public class ClientRpcService
 
 	public void SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host != null)
 		{
 			host.RecordPlayerHudVisibility(playerIndex, element, visible);
@@ -205,7 +205,7 @@ public class ClientRpcService
 
 	public void BroadcastMessage(string message)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
@@ -221,10 +221,10 @@ public class ClientRpcService
 
 		if (isLocal)
 		{
-			if (InGameHUD.Instance != null)
+			if (GameContext.InGameHud != null)
 			{
 				var gColor = new Color(color.X, color.Y, color.Z);
-				Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(text, gColor)).CallDeferred();
+				Callable.From(() => GameContext.InGameHud?.ShowFeedbackText(text, gColor)).CallDeferred();
 			}
 		}
 		else if (remotePeerId > 1)
@@ -235,14 +235,14 @@ public class ClientRpcService
 
 	public void BroadcastFeedbackText(string text, Vector3 color)
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
-		if (InGameHUD.Instance != null)
+		if (GameContext.InGameHud != null)
 		{
 			var gColor = new Color(color.X, color.Y, color.Z);
-			Callable.From(() => InGameHUD.Instance?.ShowFeedbackText(text, gColor)).CallDeferred();
+			Callable.From(() => GameContext.InGameHud?.ShowFeedbackText(text, gColor)).CallDeferred();
 		}
 
 		if (host.IsMultiplayerServerActive())
@@ -326,7 +326,7 @@ public class ClientRpcService
 			else
 			{
 				GameContext.SimulationService?.TriggerVictoryDomain();
-				Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
+				Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
 			}
 		}
 		else if (remotePeerId > 1)
@@ -354,7 +354,7 @@ public class ClientRpcService
 			else
 			{
 				GameContext.SimulationService?.TriggerDefeatDomain();
-				Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
+				Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
 			}
 		}
 		else if (remotePeerId > 1)
@@ -365,13 +365,13 @@ public class ClientRpcService
 
 	public void BroadcastVictory()
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
 		GD.Print("[GameHost] Victory triggered by map script!");
 		GameContext.SimulationService?.TriggerVictoryDomain();
-		Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
+		Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
 		if (host.IsMultiplayerServerActive())
 		{
 			host.Rpc(nameof(GameHost.ClientGameOver), true);
@@ -380,13 +380,13 @@ public class ClientRpcService
 
 	public void BroadcastDefeat()
 	{
-		var host = GameHost.Instance;
+		var host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
 		GD.Print("[GameHost] Defeat triggered by map script!");
 		GameContext.SimulationService?.TriggerDefeatDomain();
-		Callable.From(() => UIManager.Instance?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
+		Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
 		if (host.IsMultiplayerServerActive())
 		{
 			host.Rpc(nameof(GameHost.ClientGameOver), false);
@@ -401,7 +401,7 @@ public class ClientRpcService
 		if (isLocal)
 		{
 			if (GameContext.RegistryService.RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant))
-				InGameHUD.Instance?.RefreshUI(host.SelectedUnits);
+				GameContext.InGameHud?.RefreshUI(host.SelectedUnits);
 		}
 		else if (remotePeerId > 1)
 		{

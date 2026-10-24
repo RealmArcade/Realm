@@ -16,19 +16,19 @@ namespace Realm.Client.Core
 	{
 		private bool IsMouseOverUI()
 		{
-			if (SettingsMenu.IsOpen)
+			if (GameContext.IsSettingsMenuOpen)
 			{
 				return true;
 			}
 
-			if (GodotObject.IsInstanceValid(MapEditorHUD.Instance))
+			if (GodotObject.IsInstanceValid(GameContext.MapEditorHud))
 			{
-				return MapEditorHUD.Instance.IsMouseOverUI(GetViewport().GetMousePosition());
+				return GameContext.MapEditorHud.IsMouseOverUI(GetViewport().GetMousePosition());
 			}
 
-			if (GodotObject.IsInstanceValid(InGameHUD.Instance))
+			if (GodotObject.IsInstanceValid(GameContext.InGameHud))
 			{
-				return InGameHUD.Instance.IsMouseOverUI(GetViewport().GetMousePosition());
+				return GameContext.InGameHud.IsMouseOverUI(GetViewport().GetMousePosition());
 			}
 
 			var hoveredControl = GetViewport().GuiGetHoveredControl();
@@ -209,7 +209,15 @@ namespace Realm.Client.Core
 			float minScaleRatio = 0.8f,
 			float maxScaleRatio = 1.2f,
 			float upperFade = 0.3f,
-			float lowerFade = 0.3f)
+			float lowerFade = 0.3f,
+			VfxPlacementMode placementMode = VfxPlacementMode.Free,
+			float projectionSize = 0.0f,
+			float projectionHeight = 0.0f,
+			float groundOffset = 0.05f,
+			float normalFade = 0.0f,
+			bool distanceFadeEnabled = false,
+			float distanceFadeBegin = 10.0f,
+			float distanceFadeEnd = 30.0f)
 		{
 			if (string.IsNullOrEmpty(decalKey) || AllDecals == null) return;
 			string baseKey = Path.GetFileNameWithoutExtension(decalKey);
@@ -251,6 +259,17 @@ namespace Realm.Client.Core
 							decal.UpperFade = upperFade;
 							decal.LowerFade = lowerFade;
 						}
+
+						ApplyDecalPlacement(
+							decal,
+							placementMode,
+							projectionSize,
+							projectionHeight,
+							groundOffset,
+							normalFade,
+							distanceFadeEnabled,
+							distanceFadeBegin,
+							distanceFadeEnd);
 					}
 				}
 			}
@@ -636,11 +655,6 @@ namespace Realm.Client.Core
 			GroundTerrain.UpdatePathingTexture();
 		}
 
-		public void RebuildGridOverlayMeshExternal()
-		{
-			// No longer needed, grid is on shader
-		}
-
 		public void UpdateGridOverlayVisibility()
 		{
 			if (GroundTerrain != null)
@@ -856,6 +870,146 @@ namespace Realm.Client.Core
 
 			_coordinateSelectionOutlineMesh.MaterialOverride = mat;
 			AddChild(_coordinateSelectionOutlineMesh);
+		}
+
+		private void EnsureObjectMarqueeMeshes()
+		{
+			if (_objectMarqueeFillMesh == null)
+			{
+				_objectMarqueeFillMesh = new MeshInstance3D();
+				_objectMarqueeFillMesh.Name = "ObjectMarqueeFill";
+				_objectMarqueeFillMesh.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+				_objectMarqueeFillMesh.GIMode = GeometryInstance3D.GIModeEnum.Disabled;
+
+				var fillMaterial = new StandardMaterial3D();
+				fillMaterial.AlbedoColor = new Color(0.10f, 0.85f, 0.30f, 0.22f);
+				fillMaterial.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+				fillMaterial.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+				fillMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
+				_objectMarqueeFillMesh.MaterialOverride = fillMaterial;
+
+				AddChild(_objectMarqueeFillMesh);
+				_objectMarqueeFillMesh.Visible = false;
+			}
+
+			if (_objectMarqueeOutlineMesh == null)
+			{
+				_objectMarqueeOutlineMesh = new MeshInstance3D();
+				_objectMarqueeOutlineMesh.Name = "ObjectMarqueeOutline";
+				_objectMarqueeOutlineMesh.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
+				_objectMarqueeOutlineMesh.GIMode = GeometryInstance3D.GIModeEnum.Disabled;
+
+				var outlineMaterial = new StandardMaterial3D();
+				outlineMaterial.AlbedoColor = new Color(0.25f, 1.00f, 0.45f, 0.95f);
+				outlineMaterial.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+				outlineMaterial.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+				outlineMaterial.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
+				_objectMarqueeOutlineMesh.MaterialOverride = outlineMaterial;
+
+				AddChild(_objectMarqueeOutlineMesh);
+				_objectMarqueeOutlineMesh.Visible = false;
+			}
+		}
+
+		public void UpdateEditorObjectMarqueeVisual()
+		{
+			var editorService = GameContext.EditorService;
+			if (!editorService.IsObjectMarqueeSelecting || editorService.ObjectMarqueeStart == null || editorService.ObjectMarqueeEnd == null)
+			{
+				HideEditorObjectMarquee();
+				return;
+			}
+
+			Vector2I start = editorService.ObjectMarqueeStart.Value;
+			Vector2I end = editorService.ObjectMarqueeEnd.Value;
+			int minX = Mathf.Min(start.X, end.X);
+			int minZ = Mathf.Min(start.Y, end.Y);
+			int maxX = Mathf.Max(start.X, end.X);
+			int maxZ = Mathf.Max(start.Y, end.Y);
+
+			EnsureObjectMarqueeMeshes();
+			RebuildCoordinateMeshInstance(_objectMarqueeFillMesh, minX, minZ, maxX, maxZ, new Color(0.10f, 0.85f, 0.30f, 0.22f), 0.08f);
+			RebuildObjectMarqueeOutline(minX, minZ, maxX, maxZ);
+		}
+
+		public void HideEditorObjectMarquee()
+		{
+			if (_objectMarqueeFillMesh != null && GodotObject.IsInstanceValid(_objectMarqueeFillMesh))
+			{
+				_objectMarqueeFillMesh.Visible = false;
+			}
+
+			if (_objectMarqueeOutlineMesh != null && GodotObject.IsInstanceValid(_objectMarqueeOutlineMesh))
+			{
+				_objectMarqueeOutlineMesh.Visible = false;
+			}
+		}
+
+		private void RebuildObjectMarqueeOutline(int minX, int minZ, int maxX, int maxZ)
+		{
+			if (_objectMarqueeOutlineMesh == null || GroundTerrain?.Cells == null)
+			{
+				HideEditorObjectMarquee();
+				return;
+			}
+
+			int selectionWidth = maxX - minX + 1;
+			int selectionDepth = maxZ - minZ + 1;
+			if (selectionWidth < 2 || selectionDepth < 2)
+			{
+				_objectMarqueeOutlineMesh.Visible = false;
+				return;
+			}
+
+			Vector3[] gridVertices = GenerateGridMeshVertices(minX, minZ, selectionWidth, selectionDepth, 0.12f);
+			int horizontalSegments = selectionWidth - 1;
+			int verticalSegments = selectionDepth - 1;
+			float borderWidth = Mathf.Max(0.05f, GroundTerrain.QuadSize * 0.10f);
+
+			var outlineVertices = new List<Vector3>();
+			var outlineIndices = new List<int>();
+			int bottomRow = verticalSegments * selectionWidth;
+
+			for (int x = 0; x < horizontalSegments; x++)
+			{
+				AppendMarqueeBorderQuad(outlineVertices, outlineIndices, gridVertices[x], gridVertices[x + 1], new Vector3(0.0f, 0.0f, borderWidth));
+				AppendMarqueeBorderQuad(outlineVertices, outlineIndices, gridVertices[bottomRow + x], gridVertices[bottomRow + x + 1], new Vector3(0.0f, 0.0f, -borderWidth));
+			}
+
+			int rightColumn = selectionWidth - 1;
+			for (int z = 0; z < verticalSegments; z++)
+			{
+				int row = z * selectionWidth;
+				int nextRow = (z + 1) * selectionWidth;
+				AppendMarqueeBorderQuad(outlineVertices, outlineIndices, gridVertices[row], gridVertices[nextRow], new Vector3(borderWidth, 0.0f, 0.0f));
+				AppendMarqueeBorderQuad(outlineVertices, outlineIndices, gridVertices[row + rightColumn], gridVertices[nextRow + rightColumn], new Vector3(-borderWidth, 0.0f, 0.0f));
+			}
+
+			var arrays = new Array();
+			arrays.Resize((int)Mesh.ArrayType.Max);
+			arrays[(int)Mesh.ArrayType.Vertex] = outlineVertices.ToArray();
+			arrays[(int)Mesh.ArrayType.Index] = outlineIndices.ToArray();
+
+			var arrayMesh = new ArrayMesh();
+			arrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+			_objectMarqueeOutlineMesh.Mesh = arrayMesh;
+			_objectMarqueeOutlineMesh.Visible = true;
+		}
+
+		private static void AppendMarqueeBorderQuad(List<Vector3> vertices, List<int> indices, Vector3 edgeStart, Vector3 edgeEnd, Vector3 inwardOffset)
+		{
+			int baseIndex = vertices.Count;
+			vertices.Add(edgeStart);
+			vertices.Add(edgeEnd);
+			vertices.Add(edgeStart + inwardOffset);
+			vertices.Add(edgeEnd + inwardOffset);
+
+			indices.Add(baseIndex + 0);
+			indices.Add(baseIndex + 1);
+			indices.Add(baseIndex + 2);
+			indices.Add(baseIndex + 1);
+			indices.Add(baseIndex + 3);
+			indices.Add(baseIndex + 2);
 		}
 
 		public void HideCoordinateSelectionOutline()

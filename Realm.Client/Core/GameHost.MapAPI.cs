@@ -124,22 +124,22 @@ public partial class GameHost
 
 	void IGameAPI.ShowSummaryTable(string title, bool visible)
 	{
-		Callable.From(() => InGameHUD.Instance?.ShowSummaryTable(title, visible)).CallDeferred();
+		Callable.From(() => GameContext.InGameHud?.ShowSummaryTable(title, visible)).CallDeferred();
 	}
 
 	void IGameAPI.SetSummaryTableHeaders(params string[] columnHeaders)
 	{
-		Callable.From(() => InGameHUD.Instance?.SetSummaryTableHeaders(columnHeaders)).CallDeferred();
+		Callable.From(() => GameContext.InGameHud?.SetSummaryTableHeaders(columnHeaders)).CallDeferred();
 	}
 
 	void IGameAPI.SetSummaryTableRow(string rowKey, params string[] cellValues)
 	{
-		Callable.From(() => InGameHUD.Instance?.SetSummaryTableRow(rowKey, cellValues)).CallDeferred();
+		Callable.From(() => GameContext.InGameHud?.SetSummaryTableRow(rowKey, cellValues)).CallDeferred();
 	}
 
 	void IGameAPI.ClearSummaryTable()
 	{
-		Callable.From(() => InGameHUD.Instance?.ClearSummaryTable()).CallDeferred();
+		Callable.From(() => GameContext.InGameHud?.ClearSummaryTable()).CallDeferred();
 	}
 
 	string IGameAPI.GetPlayerLanguage(int playerIndex)
@@ -910,7 +910,7 @@ public partial class GameHost
 	{
 		_leaderboardFlushQueued = false;
 
-		var hud = InGameHUD.Instance;
+		var hud = GameContext.InGameHud;
 		if (hud == null || !GodotObject.IsInstanceValid(hud))
 		{
 			_pendingLeaderboardOperations.Clear();
@@ -947,14 +947,14 @@ public partial class GameHost
 	{
 		GameContext.NetworkService.StartCountdownTimer(
 			duration, label, _multiplayerActive, IsServerActive(),
-			(d, l) => Callable.From(() => InGameHUD.Instance?.StartCountdownTimer(d, l)).CallDeferred(),
+			(d, l) => Callable.From(() => GameContext.InGameHud?.StartCountdownTimer(d, l)).CallDeferred(),
 			(d, l) => Rpc(nameof(ClientStartCountdownTimer), d, l)
 		);
 	}
 
 	private void StopCountdownTimerViewLogic()
 	{
-		Callable.From(() => InGameHUD.Instance?.StopCountdownTimer()).CallDeferred();
+		Callable.From(() => GameContext.InGameHud?.StopCountdownTimer()).CallDeferred();
 	}
 
 	void IGameAPI.StopCountdownTimer()
@@ -991,7 +991,7 @@ public partial class GameHost
 
 	private void SetEnvironmentPresetViewLogic(string presetId)
 	{
-		Callable.From(() => { GameContext.EnvironmentService?.ApplyPresetById(this, presetId); }).CallDeferred();
+		Callable.From(() => { GameContext.EnvironmentService?.ApplyPresetById(presetId); }).CallDeferred();
 	}
 
 	void IGameAPI.SetEnvironmentPreset(string presetId)
@@ -1005,7 +1005,7 @@ public partial class GameHost
 
 	private void TransitionEnvironmentPresetViewLogic(string presetId, float durationSeconds)
 	{
-		Callable.From(() => { GameContext.EnvironmentService?.TransitionToPreset(this, presetId, durationSeconds); }).CallDeferred();
+		Callable.From(() => { GameContext.EnvironmentService?.TransitionToPreset(presetId, durationSeconds); }).CallDeferred();
 	}
 
 	void IGameAPI.TransitionEnvironmentPreset(string presetId, float durationSeconds)
@@ -1027,7 +1027,7 @@ public partial class GameHost
 		Callable.From(() =>
 		{
 			GameContext.EnvironmentService?.SetCurrentWeather(weatherType);
-			InGameHUD.Instance?.ApplyWeatherEffects(weatherType);
+			GameContext.InGameHud?.ApplyWeatherEffects(weatherType);
 		}).CallDeferred();
 	}
 
@@ -1283,7 +1283,7 @@ public partial class GameHost
 		GameContext.TimerService.ScheduledTimers.Remove(timerHandle);
 	}
 
-	int IGameAPI.RandomInt(int min, int max) => GameContext.RandomService.Rng.Next(min, max + 1);
+	int IGameAPI.RandomInt(int min, int max) => GameContext.RandomService.Rng.NextInt(min, max);
 
 	float IGameAPI.RandomFloat(float min, float max) => min + (float)GameContext.RandomService.Rng.NextDouble() * (max - min);
 
@@ -1319,12 +1319,12 @@ public partial class GameHost
 		if (playerIndex >= 0)
 		{
 			GameContext.SimulationService.SetPlayerActiveDomain(playerIndex, false);
-			if (LobbyManager.Instance != null)
+			if (GameContext.Lobby != null)
 			{
-				var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+				var p = GameContext.Lobby.PlayerList.Find(x => x.Slot == playerIndex);
 				if (p != null)
 				{
-					LobbyManager.Instance.BootPlayer(p.PeerId);
+					GameContext.Lobby.BootPlayer(p.PeerId);
 				}
 			}
 			OnPlayerLeft?.Invoke(playerIndex);
@@ -1339,9 +1339,9 @@ public partial class GameHost
 		UpdateScriptPlayerState(playerIndex, botName, active: true, isComputer: true);
 		GameContext.SimulationService.SetPlayerTeam(playerIndex, botTeam);
 
-		if (LobbyManager.Instance != null)
+		if (GameContext.Lobby != null)
 		{
-			var existing = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			var existing = GameContext.Lobby.PlayerList.Find(x => x.Slot == playerIndex);
 			if (existing == null)
 			{
 				var botPlayer = new PlayerInfo
@@ -1354,7 +1354,7 @@ public partial class GameHost
 					Team = $"Team {botTeam}",
 					IsHost = false
 				};
-				LobbyManager.Instance.PlayerList.Add(botPlayer);
+				GameContext.Lobby.PlayerList.Add(botPlayer);
 			}
 			else
 			{
@@ -1373,9 +1373,9 @@ public partial class GameHost
 			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).IsComputer;
 		}
-		if (LobbyManager.Instance != null)
+		if (GameContext.Lobby != null)
 		{
-			var p = LobbyManager.Instance.PlayerList.Find(x => x.Slot == playerIndex);
+			var p = GameContext.Lobby.PlayerList.Find(x => x.Slot == playerIndex);
 			if (p != null)
 			{
 				return p.PeerId < 0;
@@ -1459,7 +1459,7 @@ public partial class GameHost
 
 	private void SetCountdownTimerLabelView(string label)
 	{
-		InGameHUD.Instance?.UpdateCountdownLabel(label);
+		GameContext.InGameHud?.UpdateCountdownLabel(label);
 	}
 
 	void IGameAPI.IssueAttackMoveOrderToPlayer(int playerIndex, Vector3 destination)
@@ -1760,14 +1760,14 @@ public partial class GameHost
 		}
 		return PathingFlags.None;
 	}
-	ReadOnlySpan<PlayerId> IGameAPI.GetActivePlayers(int exclusiveUpperBound)
+	ReadOnlySpan<PlayerId> IGameAPI.GetActivePlayers()
 	{
 		int count = 0;
 		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity))
 		{
 			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
-			int maxIndex = exclusiveUpperBound < 0 ? ScriptPlayersState.SlotCount : Math.Min(exclusiveUpperBound, ScriptPlayersState.SlotCount);
-			for (int i = 0; i < maxIndex && count < _cachedPlayersBuffer.Length; i++)
+			int maxIndex = Math.Min(ScriptPlayersState.SlotCount, _cachedPlayersBuffer.Length);
+			for (int i = 0; i < maxIndex; i++)
 			{
 				if (playersState.Get(i).Active)
 				{
@@ -1958,9 +1958,9 @@ public partial class GameHost
 		bool equipped = ItemGrantingUtility.EquipItem(GameContext.World, unitEntity, loot.ItemTypeId, loot.Charges);
 		if (!equipped) return false;
 
-		if (InGameHUD.Instance != null && SelectedUnits.Contains(u3d))
+		if (GameContext.InGameHud != null && SelectedUnits.Contains(u3d))
 		{
-			InGameHUD.Instance.RefreshUI(SelectedUnits);
+			GameContext.InGameHud.RefreshUI(SelectedUnits);
 		}
 
 		OnLootItemCollected?.Invoke((LootItemId)lootItemId, unit);

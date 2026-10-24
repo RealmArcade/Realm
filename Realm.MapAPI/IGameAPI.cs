@@ -613,6 +613,11 @@ public interface IGameAPI
 	/// <summary>
 	/// Returns a uniformly distributed random integer in the inclusive range [<paramref name="min"/>, <paramref name="max"/>].
 	/// </summary>
+	/// <remarks>
+	/// The value is drawn from the deterministic stream shared by the host simulation and the map script. Map scripts must use this method instead of
+	/// <see cref="System.Random"/> so that client-side movement prediction reproduces the host result for the same match seed. Call it exactly once per
+	/// decision and in the same order on both sides, otherwise the shared sequence advances differently.
+	/// </remarks>
 	/// <param name="min">Inclusive lower bound.</param>
 	/// <param name="max">Inclusive upper bound.</param>
 	int RandomInt(int min, int max);
@@ -620,6 +625,11 @@ public interface IGameAPI
 	/// <summary>
 	/// Returns a uniformly distributed random float in the range [<paramref name="min"/>, <paramref name="max"/>].
 	/// </summary>
+	/// <remarks>
+	/// The value is drawn from the deterministic stream shared by the host simulation and the map script. Map scripts must use this method instead of
+	/// <see cref="System.Random"/> so that client-side movement prediction reproduces the host result for the same match seed. Call it exactly once per
+	/// decision and in the same order on both sides, otherwise the shared sequence advances differently.
+	/// </remarks>
 	/// <param name="min">Inclusive lower bound.</param>
 	/// <param name="max">Inclusive upper bound.</param>
 	float RandomFloat(float min, float max);
@@ -1299,10 +1309,13 @@ public interface IGameAPI
 	void SetAbilityGridPosition(string abilityId, int x, int y);
 
 	/// <summary>
-	/// Configures the hotkey binding string (e.g., "W", "E", "R") for an ability on the command card.
+	/// Configures the hotkey for an ability on the command card. The hotkey is one key name with
+	/// optional modifiers joined by '+', for example "W", "F1" or "Shift+Q". Names are the Godot key
+	/// names ("Q", "Escape", "F1") and the modifiers "Shift", "Ctrl", "Alt" and "Meta". Invalid
+	/// specifications are rejected and reported instead of silently never matching.
 	/// </summary>
 	/// <param name="abilityId">Unique identifier of the ability.</param>
-	/// <param name="hotkey">The key string to trigger the ability.</param>
+	/// <param name="hotkey">The key with optional modifiers that triggers the ability.</param>
 	void SetAbilityHotkey(string abilityId, string hotkey);
 
 	/// <summary>
@@ -1556,18 +1569,16 @@ public interface IGameAPI
 	/// <summary>
 	/// Retrieves all active player slot identifiers in the current session.
 	/// </summary>
-	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
 	/// <returns>A read-only span of active <see cref="PlayerId"/> identifiers in ascending slot order.</returns>
-	ReadOnlySpan<PlayerId> GetActivePlayers(int exclusiveUpperBound = -1);
+	ReadOnlySpan<PlayerId> GetActivePlayers();
 
 	/// <summary>
 	/// Returns the zero-based slot indices of all active players.
 	/// </summary>
-	/// <param name="exclusiveUpperBound">Exclusive upper bound on the slot index. Pass a negative value to scan every slot in <see cref="PlayerCount"/>.</param>
 	/// <returns>An enumerable sequence of active player slot indices.</returns>
-	IEnumerable<int> GetActivePlayerIndices(int exclusiveUpperBound = -1)
+	IEnumerable<int> GetActivePlayerIndices()
 	{
-		var players = GetActivePlayers(exclusiveUpperBound);
+		var players = GetActivePlayers();
 		var result = new List<int>(players.Length);
 		for (int i = 0; i < players.Length; i++)
 		{

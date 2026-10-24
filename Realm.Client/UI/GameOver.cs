@@ -19,10 +19,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class GameOver : Control
 {
-	public GameOver()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
@@ -96,9 +92,9 @@ public partial class GameOver : Control
 
 		string mapName = GetActiveMapName();
 		double playtimeMinutes = 0.0;
-		if (GodotObject.IsInstanceValid(LobbyManager.Instance) && LobbyManager.Instance.GameSessionStartTime != null)
+		if (GodotObject.IsInstanceValid(GameContext.Lobby) && GameContext.Lobby.GameSessionStartTime != null)
 		{
-			playtimeMinutes = (DateTime.UtcNow - LobbyManager.Instance.GameSessionStartTime.Value).TotalMinutes;
+			playtimeMinutes = (DateTime.UtcNow - GameContext.Lobby.GameSessionStartTime.Value).TotalMinutes;
 		}
 
 		// Save local playtime statistics
@@ -201,10 +197,10 @@ public partial class GameOver : Control
 
 		btn.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			SetTab(index);
 		};
-		btn.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		btn.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void SetTab(int tabIndex)
@@ -235,24 +231,24 @@ public partial class GameOver : Control
 
 		_btnClose.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			if (GameContext.SessionState.IsTestMode)
 			{
 				GameContext.SessionState.IsTestMode = false;
 				GameContext.SessionState.ReturningFromTest = true;
-				if (LobbyManager.Instance != null)
+				if (GameContext.Lobby != null)
 				{
-					LobbyManager.Instance.Disconnect();
+					GameContext.Lobby.Disconnect();
 				}
 
-				UIManager.Instance.TransitionTo(GameScreen.MapEditorHUD);
+				GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
 			}
 			else
 			{
-				UIManager.Instance.TransitionTo(GameScreen.MainMenu);
+				GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 			}
 		};
-		_btnClose.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_btnClose.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void SetupReportCopyrightButton()
@@ -274,10 +270,10 @@ public partial class GameOver : Control
 
 		_btnReportCopyright.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			OS.ShellOpen("https://github.com/RealmArcade/Realm/issues/new?title=DMCA/Copyright+Infringement+Report");
 		};
-		_btnReportCopyright.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_btnReportCopyright.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 
@@ -285,9 +281,9 @@ public partial class GameOver : Control
 
 	private string GetActiveMapName()
 	{
-		if (LobbyManager.Instance != null && !string.IsNullOrEmpty(LobbyManager.Instance.ActiveMapName))
+		if (GameContext.Lobby != null && !string.IsNullOrEmpty(GameContext.Lobby.ActiveMapName))
 		{
-			return LobbyManager.Instance.ActiveMapName;
+			return GameContext.Lobby.ActiveMapName;
 		}
 
 		return "castle_td";
@@ -307,10 +303,10 @@ public partial class GameOver : Control
 
 		_btnWriteReview.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			ShowReviewPopup();
 		};
-		_btnWriteReview.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_btnWriteReview.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void ShowReviewPopup()
@@ -450,14 +446,14 @@ public partial class GameOver : Control
 
 		btnCancel.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			rootPopup.QueueFree();
 		};
-		btnCancel.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		btnCancel.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 
 		btnSubmit.Pressed += async () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			int selectedRating = ratingOption.GetSelectedId();
 			string commentText = commentsEdit.Text;
 
@@ -469,14 +465,14 @@ public partial class GameOver : Control
 			rootPopup.QueueFree();
 
 			double playtimeMin = 0.0;
-			if (GodotObject.IsInstanceValid(LobbyManager.Instance) && LobbyManager.Instance.GameSessionStartTime != null)
+			if (GodotObject.IsInstanceValid(GameContext.Lobby) && GameContext.Lobby.GameSessionStartTime != null)
 			{
-				playtimeMin = (DateTime.UtcNow - LobbyManager.Instance.GameSessionStartTime.Value).TotalMinutes;
+				playtimeMin = (DateTime.UtcNow - GameContext.Lobby.GameSessionStartTime.Value).TotalMinutes;
 			}
 
 			await ReportMetricsAsync(mapName, playtimeMin, selectedRating, true);
 		};
-		btnSubmit.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		btnSubmit.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void UpdateTabDisplay()
@@ -618,7 +614,7 @@ public partial class GameOver : Control
 	private async Task ReportMetricsAsync(string mapName, double playtimeMinutes, int stars, bool isComplete)
 	{
 		string mapTitle = CleanMapName(mapName);
-		string mapVersion = LobbyManager.Instance?.ActiveMapVersion ?? "1.0.0";
+		string mapVersion = GameContext.Lobby?.ActiveMapVersion ?? "1.0.0";
 
 		ExtractManifestInfo(mapName, mapTitle, ref mapVersion, out string authorPubKey);
 
@@ -630,12 +626,12 @@ public partial class GameOver : Control
 			PlaytimeMinutes = playtimeMinutes,
 			Stars = stars,
 			IsCompleteGame = isComplete,
-			PlayerId = LobbyManager.Instance?.AuthenticatedUsername ?? "Anonymous",
-			AuthToken = LobbyManager.Instance?.AuthToken,
-			AuthProvider = LobbyManager.Instance?.AuthProvider
+			PlayerId = GameContext.Lobby?.AuthenticatedUsername ?? "Anonymous",
+			AuthToken = GameContext.Lobby?.AuthToken,
+			AuthProvider = GameContext.Lobby?.AuthProvider
 		};
 
-		string seedServerUrl = GodotObject.IsInstanceValid(LobbyManager.Instance) ? LobbyManager.Instance.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
+		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
 		try
 		{
 			using var httpClient = new HttpClient();

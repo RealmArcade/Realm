@@ -12,16 +12,13 @@ using Timer = Godot.Timer;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
 [GlobalClass]
 public partial class LobbyBrowser : Control
 {
-	public LobbyBrowser()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
@@ -47,6 +44,7 @@ public partial class LobbyBrowser : Control
 	private CheckBox _meleeCheck;
 	private CheckBox _tutorialCheck;
 	private CheckBox _arcadeCheck;
+	private CheckBox _unofficialMapsCheck;
 	private VBoxContainer _lobbyListContainer;
 
 	private Label _browserTitle;
@@ -85,6 +83,7 @@ public partial class LobbyBrowser : Control
 		_meleeCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/MeleeCheck");
 		_tutorialCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/TutorialCheck");
 		_arcadeCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/ArcadeCheck");
+		_unofficialMapsCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/UnofficialMapsCheck");
 		_lobbyListContainer = GetNode<VBoxContainer>("LobbyPanel/VBoxContainer/ScrollContainer/LobbyListContainer");
 
 
@@ -101,7 +100,7 @@ public partial class LobbyBrowser : Control
 		CenterFpsCounter();
 
 
-		LobbyManager.Instance.NatTestCompleted += UpdateHostButtonState;
+		GameContext.Lobby.NatTestCompleted += UpdateHostButtonState;
 		UpdateHostButtonState();
 
 
@@ -114,10 +113,10 @@ public partial class LobbyBrowser : Control
 		AddChild(_refreshTimer);
 		_refreshTimer.Start();
 
-		if (!string.IsNullOrEmpty(LobbyManager.Instance.LobbyJoinError))
+		if (!string.IsNullOrEmpty(GameContext.Lobby.LobbyJoinError))
 		{
-			ShowLobbyJoinErrorPopup(LobbyManager.Instance.LobbyJoinError);
-			LobbyManager.Instance.LobbyJoinError = null;
+			ShowLobbyJoinErrorPopup(GameContext.Lobby.LobbyJoinError);
+			GameContext.Lobby.LobbyJoinError = null;
 		}
 	}
 
@@ -241,15 +240,19 @@ public partial class LobbyBrowser : Control
 
 	private void SetupCheckboxes()
 	{
-		var checkBoxes = new[] { _campaignCheck, _meleeCheck, _tutorialCheck, _arcadeCheck };
+		_unofficialMapsCheck.Text = Tr("Show unofficial maps");
+		_unofficialMapsCheck.TooltipText = Tr("Also list lobbies for maps that are not available for download on the discovery screen");
+		_unofficialMapsCheck.ButtonPressed = false;
+
+		var checkBoxes = new[] { _campaignCheck, _meleeCheck, _tutorialCheck, _arcadeCheck, _unofficialMapsCheck };
 		foreach (var cb in checkBoxes)
 		{
 			cb.Pressed += () =>
 			{
-				UIManager.Instance.PlayClickSound();
+				GameContext.UserInterface.PlayClickSound();
 				ApplyFilters();
 			};
-			cb.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+			cb.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 			UIStyle.ApplyCheckboxStyle(cb);
 		}
 	}
@@ -283,10 +286,10 @@ public partial class LobbyBrowser : Control
 
 		_hostButton.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
-			UIManager.Instance.TransitionTo(GameScreen.LobbyCreate);
+			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface.TransitionTo(GameScreen.LobbyCreate);
 		};
-		_hostButton.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_hostButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void SetupDirectConnectButton()
@@ -306,10 +309,10 @@ public partial class LobbyBrowser : Control
 
 		_directConnectButton.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			ShowDirectConnectDialog();
 		};
-		_directConnectButton.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_directConnectButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void ShowDirectConnectDialog()
@@ -409,7 +412,7 @@ public partial class LobbyBrowser : Control
 		cancelBtn.CustomMinimumSize = new Vector2(140, 38);
 		cancelBtn.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			overlay.QueueFree();
 		};
 		hbox.AddChild(cancelBtn);
@@ -428,21 +431,21 @@ public partial class LobbyBrowser : Control
 			int port = 8999;
 			if (int.TryParse(portInput.Text.Trim(), out int customPort)) port = customPort;
 
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			connectBtn.Disabled = true;
 			UIStyle.ApplyButtonText(connectBtn, Tr("CONNECTING..."), 14);
 
-			bool success = await LobbyManager.Instance.JoinByIpAsync(ip, port);
+			bool success = await GameContext.Lobby.JoinByIpAsync(ip, port);
 			if (success)
 			{
 				overlay.QueueFree();
-				UIManager.Instance.TransitionTo(GameScreen.LobbyRoom);
+				GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
 			}
 			else
 			{
 				connectBtn.Disabled = false;
 				UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
-				UIManager.Instance.PlayWarningSound();
+				GameContext.UserInterface.PlayWarningSound();
 			}
 		};
 		hbox.AddChild(connectBtn);
@@ -463,10 +466,10 @@ public partial class LobbyBrowser : Control
 
 		_backButton.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
-			UIManager.Instance.TransitionTo(GameScreen.MainMenu);
+			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
 		};
-		_backButton.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_backButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void SetupRefreshButton()
@@ -484,15 +487,15 @@ public partial class LobbyBrowser : Control
 
 		_refreshButton.Pressed += () =>
 		{
-			UIManager.Instance.PlayClickSound();
+			GameContext.UserInterface.PlayClickSound();
 			TriggerRefresh();
 		};
-		_refreshButton.MouseEntered += () => UIManager.Instance.PlayHoverSound();
+		_refreshButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 	}
 
 	private void ShowHostingErrorPopup()
 	{
-		UIManager.Instance?.ShowPopupMessage(Tr("HOSTING ERROR"), Tr("Your network configuration is not compatible with hosting games."));
+		GameContext.UserInterface?.ShowPopupMessage(Tr("HOSTING ERROR"), Tr("Your network configuration is not compatible with hosting games."));
 	}
 
 	private void UpdateHostButtonState()
@@ -514,19 +517,21 @@ public partial class LobbyBrowser : Control
 
 	private void FetchLobbiesFromRegistry()
 	{
-		LobbyManager.Instance.RandomizeServerIndex();
+		GameContext.Lobby.RandomizeServerIndex();
+		var mapCatalogService = Realm.Client.Services.GameContext.MapCatalogService;
 		Task.Run(async () =>
 		{
 			try
 			{
-				var json = await LobbyManager.Instance.FetchLobbiesRawAsync();
+				await mapCatalogService.RefreshAsync(GameContext.Lobby.RegistryServerUrl);
+				var json = await GameContext.Lobby.FetchLobbiesRawAsync();
 				if (json == null)
 				{
 					Callable.From(() => OnLobbiesFetchedFallback()).CallDeferred();
 					return;
 				}
 
-				int clientBaseline = await LobbyManager.Instance.MeasurePingToRegistryAsync();
+				int clientBaseline = await GameContext.Lobby.MeasurePingToRegistryAsync();
 				using var doc = JsonDocument.Parse(json);
 				var lobbyList = new List<LobbyData>();
 
@@ -684,6 +689,13 @@ public partial class LobbyBrowser : Control
 			_filteredLobbies = _filteredLobbies.Where(x => activeModes.Contains(x.Mode.ToLower())).ToList();
 		}
 
+		if (!_unofficialMapsCheck.ButtonPressed)
+		{
+			_filteredLobbies = _filteredLobbies
+				.Where(x => Realm.Client.Services.GameContext.MapCatalogService.IsAvailableForDownload(x.Map))
+				.ToList();
+		}
+
 		RefreshLobbyDisplay();
 	}
 
@@ -766,11 +778,13 @@ public partial class LobbyBrowser : Control
 		hBox.Name = "HBox_HBoxContainer";
 		panel.AddChild(hBox);
 
+		bool isAvailableForDownload = Realm.Client.Services.GameContext.MapCatalogService.IsAvailableForDownload(data.Map);
+
 		var lblMap = new Label();
 		lblMap.Name = "LblMap_Label";
-		lblMap.Text = $"  {data.Map}";
+		lblMap.Text = isAvailableForDownload ? $"  {data.Map}" : $"  [{Tr("Unofficial")}] {data.Map}";
 		lblMap.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblMap.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
+		lblMap.AddThemeColorOverride("font_color", isAvailableForDownload ? new Color(0.9f, 0.85f, 0.7f) : new Color(0.95f, 0.6f, 0.35f));
 		lblMap.AddThemeFontSizeOverride("font_size", 16);
 		lblMap.VerticalAlignment = VerticalAlignment.Center;
 		hBox.AddChild(lblMap);
@@ -824,7 +838,7 @@ public partial class LobbyBrowser : Control
 
 		panel.MouseEntered += () =>
 		{
-			UIManager.Instance.PlayHoverSound();
+			GameContext.UserInterface.PlayHoverSound();
 			panel.AddThemeStyleboxOverride("panel", hoverStyle);
 		};
 		panel.MouseExited += () => panel.AddThemeStyleboxOverride("panel", rowStyle);
@@ -833,7 +847,7 @@ public partial class LobbyBrowser : Control
 		{
 			if (@event is InputEventMouseButton mouseBtn && mouseBtn.Pressed && mouseBtn.ButtonIndex == MouseButton.Left)
 			{
-				UIManager.Instance.PlayClickSound();
+				GameContext.UserInterface.PlayClickSound();
 
 				if (!string.IsNullOrEmpty(data.GameVersion) && data.GameVersion != RealmVersion.GameBinaryVersion)
 				{
@@ -844,8 +858,8 @@ public partial class LobbyBrowser : Control
 				panel.MouseFilter = MouseFilterEnum.Ignore;
 				var connectingOverlay = ShowConnectingPopup();
 
-				LobbyManager.Instance.ActiveMapName = data.Map;
-				bool success = await LobbyManager.Instance.JoinLobbyAsync(data.LobbyId);
+				GameContext.Lobby.ActiveMapName = data.Map;
+				bool success = await GameContext.Lobby.JoinLobbyAsync(data.LobbyId);
 
 				if (connectingOverlay != null && GodotObject.IsInstanceValid(connectingOverlay))
 				{
@@ -854,16 +868,16 @@ public partial class LobbyBrowser : Control
 
 				if (success)
 				{
-					UIManager.Instance.TransitionTo(GameScreen.LobbyRoom);
+					GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
 				}
 				else
 				{
-					UIManager.Instance.PlayWarningSound();
+					GameContext.UserInterface.PlayWarningSound();
 					panel.MouseFilter = MouseFilterEnum.Stop;
-					string errMsg = !string.IsNullOrEmpty(LobbyManager.Instance.LobbyJoinError)
-						? LobbyManager.Instance.LobbyJoinError
+					string errMsg = !string.IsNullOrEmpty(GameContext.Lobby.LobbyJoinError)
+						? GameContext.Lobby.LobbyJoinError
 						: "Direct connection handshake failed. The host could not be reached.";
-					LobbyManager.Instance.LobbyJoinError = null;
+					GameContext.Lobby.LobbyJoinError = null;
 					ShowLobbyJoinErrorPopup(errMsg);
 				}
 			}
@@ -881,7 +895,7 @@ public partial class LobbyBrowser : Control
 			: Tr("The required game version is not installed. Download it?");
 		string message = $"{string.Format(Tr("Host Version: {0}"), lobbyVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
 
-		UIManager.Instance?.ShowConfirmationDialog(message, () =>
+		GameContext.UserInterface?.ShowConfirmationDialog(message, () =>
 		{
 			if (versionExistsLocally)
 			{
@@ -943,9 +957,9 @@ public partial class LobbyBrowser : Control
 			_refreshTimer.Timeout -= TriggerRefresh;
 		}
 
-		if (LobbyManager.Instance != null)
+		if (GameContext.Lobby != null)
 		{
-			LobbyManager.Instance.NatTestCompleted -= UpdateHostButtonState;
+			GameContext.Lobby.NatTestCompleted -= UpdateHostButtonState;
 		}
 
 		_httpClient?.Dispose();
@@ -988,16 +1002,16 @@ public partial class LobbyBrowser : Control
 
 	private void ShowLobbyJoinErrorPopup(string message)
 	{
-		UIManager.Instance?.ShowPopupMessage("CONNECTION ERROR", message);
+		GameContext.UserInterface?.ShowPopupMessage("CONNECTION ERROR", message);
 	}
 
 	protected override void Dispose(bool disposing)
 	{
 		if (disposing)
 		{
-			if (LobbyManager.Instance != null)
+			if (GameContext.Lobby != null)
 			{
-				LobbyManager.Instance.NatTestCompleted -= UpdateHostButtonState;
+				GameContext.Lobby.NatTestCompleted -= UpdateHostButtonState;
 			}
 
 			_httpClient?.Dispose();

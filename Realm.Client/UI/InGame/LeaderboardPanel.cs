@@ -4,6 +4,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
 using Realm.MapAPI;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.InGame;
 
@@ -100,7 +101,7 @@ public class LeaderboardPanel
 
 	public void Update(InGameHUDViewModel viewModel)
 	{
-		bool allowCountdown = InGameHUD.Instance?.IsHudElementVisible(HudElement.CountdownTimer, true) ?? true;
+		bool allowCountdown = GameContext.InGameHud?.IsHudElementVisible(HudElement.CountdownTimer, true) ?? true;
 		bool countdownVisible = viewModel.CountdownActive && allowCountdown;
 		if (_countdownPanel.Visible != countdownVisible)
 		{
@@ -118,7 +119,7 @@ public class LeaderboardPanel
 			}
 		}
 
-		bool allowLeaderboard = InGameHUD.Instance?.IsHudElementVisible(HudElement.Leaderboard, true) ?? true;
+		bool allowLeaderboard = GameContext.InGameHud?.IsHudElementVisible(HudElement.Leaderboard, true) ?? true;
 		LeaderboardBoards boards = viewModel.Leaderboards;
 		LeaderboardBoard? selectedBoard = ResolveSelectedBoard(boards);
 		bool leaderboardVisible = selectedBoard != null && allowLeaderboard;
@@ -314,7 +315,7 @@ public class LeaderboardPanel
 
 	private int ResolveDefaultGroupPlayerIndex()
 	{
-		int localPlayerIndex = GameHost.Instance?.LocalPlayerIndex ?? -1;
+		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
 		if (localPlayerIndex >= 0 && _groupPlayerIndices.Contains(localPlayerIndex))
 			return localPlayerIndex;
 
@@ -330,7 +331,7 @@ public class LeaderboardPanel
 		if (string.Equals(boardId, _selectedBoardId, StringComparison.Ordinal))
 			return;
 
-		UIManager.Instance?.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 		_selectedBoardId = boardId;
 		_hasGroupSelection = false;
 		_lastRevision = -1;
@@ -345,7 +346,7 @@ public class LeaderboardPanel
 		if (playerIndex == _selectedGroupPlayerIndex)
 			return;
 
-		UIManager.Instance?.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 		_selectedGroupPlayerIndex = playerIndex;
 		_hasGroupSelection = true;
 	}

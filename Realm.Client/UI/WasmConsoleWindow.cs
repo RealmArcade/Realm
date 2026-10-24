@@ -13,24 +13,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class WasmConsoleWindow : Window
 {
-	private static WasmConsoleWindow? _instance;
-
-	public static WasmConsoleWindow Instance
-	{
-		get
-		{
-			if (_instance == null || !GodotObject.IsInstanceValid(_instance))
-			{
-				_instance = new WasmConsoleWindow();
-				EnsureInTree();
-			}
-
-			return _instance;
-		}
-	}
-
-	public static bool Exists => _instance != null && GodotObject.IsInstanceValid(_instance);
-
 	public new bool IsVisible => Visible;
 
 	private bool _hasErrors = false;
@@ -55,8 +37,8 @@ public partial class WasmConsoleWindow : Window
 	public static bool IsSinglePlayerOrTestMode()
 	{
 		if (GameContext.SessionState.IsTestMode) return true;
-		if (GameHost.Instance != null && GameContext.SessionState.IsMapEditorMode) return true;
-		if (GodotObject.IsInstanceValid(LobbyManager.Instance) && LobbyManager.Instance.IsSinglePlayer) return true;
+		if (GameContext.Host != null && GameContext.SessionState.IsMapEditorMode) return true;
+		if (GodotObject.IsInstanceValid(GameContext.Lobby) && GameContext.Lobby.IsSinglePlayer) return true;
 		return false;
 	}
 
@@ -87,18 +69,16 @@ public partial class WasmConsoleWindow : Window
 		BuildUI();
 
 		WasmRuntime.OnWasmLog += line => AppendLog(line);
+
+		EnsureInTree();
 	}
 
-	private static void EnsureInTree()
+	private void EnsureInTree()
 	{
-		if (_instance == null) return;
 		var mainLoop = Engine.GetMainLoop();
-		if (mainLoop is SceneTree tree && tree.Root != null)
+		if (mainLoop is SceneTree tree && tree.Root != null && GetParent() == null)
 		{
-			if (_instance.GetParent() == null)
-			{
-				tree.Root.CallDeferred(Node.MethodName.AddChild, _instance);
-			}
+			tree.Root.CallDeferred(Node.MethodName.AddChild, this);
 		}
 	}
 
@@ -266,13 +246,13 @@ public partial class WasmConsoleWindow : Window
 		{
 			try
 			{
-				if (GameHost.Instance != null)
+				if (GameContext.Host != null)
 				{
-					GameHost.Instance.TriggerPlayerChatMessage(cmd);
+					GameContext.Host.TriggerPlayerChatMessage(cmd);
 				}
-				else if (GodotObject.IsInstanceValid(LobbyManager.Instance))
+				else if (GodotObject.IsInstanceValid(GameContext.Lobby))
 				{
-					LobbyManager.Instance.SendChatMessage(LobbyManager.Instance.AuthenticatedUsername ?? "Player", cmd);
+					GameContext.Lobby.SendChatMessage(GameContext.Lobby.AuthenticatedUsername ?? "Player", cmd);
 				}
 			}
 			catch (Exception ex)
@@ -397,7 +377,7 @@ public partial class WasmConsoleWindow : Window
 			{
 				QueueFree();
 			}
-			_instance = null;
+			GameContext.UnregisterWasmConsole(this);
 		}).CallDeferred();
 	}
 }

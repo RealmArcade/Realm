@@ -21,6 +21,14 @@ public partial class ProceduralVfxInstance3D : Node3D
 	public string VfxId { get; set; } = "vfx_primitive";
 	public int PlayerIndex { get; set; } = 0;
 
+	private const float GroundAuraSurfaceOffset = 0.03f;
+
+	private bool _isGroundAura;
+	private bool _tintWithPlayerColor;
+	private Color _playerColor = Colors.White;
+
+	public bool IsGroundAura => _isGroundAura;
+
 	private MeshInstance3D _selectionRing;
 	private bool _isSelected = false;
 	private MeshInstance3D _hoverRing;
@@ -86,6 +94,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		}
 	}
 
+	// Required by the call sites that pool bare instances and initialise them later.
 	public ProceduralVfxInstance3D()
 	{
 	}
@@ -117,7 +126,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 	private bool IsBaseEnvironmentValid()
 	{
 		if (IsPreview) return false;
-		if (GameHost.Instance == null) return false;
+		if (GameContext.Host == null) return false;
 		if (!GameContext.SessionState.IsMapEditorMode) return false;
 		if (RuntimeTerrain.IsMinimapRendering) return false;
 		if (GetViewport() is SubViewport) return false;
@@ -202,13 +211,66 @@ public partial class ProceduralVfxInstance3D : Node3D
 			AddChild(_contentRoot);
 		}
 
-		_contentRoot.Position = _config.PositionOffset.ToGodotVector3();
-		_contentRoot.RotationDegrees = _config.RotationOffset.ToGodotVector3();
+		ApplyContentRootTransform();
+	}
+
+	private void ApplyContentRootTransform()
+	{
+		Vector3 position = _config.PositionOffset.ToGodotVector3();
+		if (_isGroundAura && position.Y < GroundAuraSurfaceOffset)
+		{
+			position.Y = GroundAuraSurfaceOffset;
+		}
+
 		Vector3 scale = _config.ScaleOffset.ToGodotVector3();
 		if (Mathf.IsZeroApprox(scale.X)) scale.X = 1f;
 		if (Mathf.IsZeroApprox(scale.Y)) scale.Y = 1f;
 		if (Mathf.IsZeroApprox(scale.Z)) scale.Z = 1f;
+
+		_contentRoot.Position = position;
+		_contentRoot.RotationDegrees = _config.RotationOffset.ToGodotVector3();
 		_contentRoot.Scale = scale;
+	}
+
+	public void ConfigureAsGroundAura(Color playerColor)
+	{
+		_isGroundAura = true;
+		_tintWithPlayerColor = _config.TintWithPlayerColor;
+		_playerColor = playerColor;
+
+		EnsureMeshAndMaterial();
+		ApplyGroundAuraAppearance();
+	}
+
+	public void SetPlayerColor(Color playerColor)
+	{
+		if (!_isGroundAura || !_tintWithPlayerColor) return;
+
+		_playerColor = playerColor;
+		ApplyGroundAuraAppearance();
+	}
+
+	private void ApplyGroundAuraAppearance()
+	{
+		if (!_isGroundAura) return;
+
+		if (_contentRoot != null && GodotObject.IsInstanceValid(_contentRoot))
+		{
+			ApplyContentRootTransform();
+		}
+
+		if (_material != null && GodotObject.IsInstanceValid(_material))
+		{
+			_material.SetShaderParameter("enable_depth_fade", false);
+			_material.SetShaderParameter("enable_fresnel", false);
+			_material.SetShaderParameter("use_player_color", _tintWithPlayerColor);
+			_material.SetShaderParameter("player_color", _playerColor);
+		}
+
+		if (_particleInstance != null && GodotObject.IsInstanceValid(_particleInstance))
+		{
+			_particleInstance.SetPlayerColor(_tintWithPlayerColor ? _playerColor : Colors.White);
+		}
 	}
 
 	private void EnsureMeshAndMaterial()
@@ -228,6 +290,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 			_particleInstance.Visible = true;
 			var pConfig = _config.ParticleConfig ?? SpellParticleConfig.CreatePreset(_config.VfxId);
 			_particleInstance.UpdateConfig(pConfig);
+			ApplyGroundAuraAppearance();
 			return;
 		}
 
@@ -282,6 +345,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 		UpdateMesh();
 		UpdateSelectionRingRadius();
+		ApplyGroundAuraAppearance();
 	}
 
 	public void UpdateConfig(VfxAttachmentConfig config)
@@ -292,6 +356,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 		_config = config.Clone();
 		VfxId = _config.VfxId;
+		_tintWithPlayerColor = _config.TintWithPlayerColor;
 
 		EnsureMeshAndMaterial();
 
@@ -316,6 +381,7 @@ public partial class ProceduralVfxInstance3D : Node3D
 		}
 
 		UpdateSelectionRingRadius();
+		ApplyGroundAuraAppearance();
 	}
 
 	public void Restart()
@@ -363,10 +429,6 @@ public partial class ProceduralVfxInstance3D : Node3D
 		{
 			_particleInstance.SpeedScale = speed;
 		}
-	}
-
-	public void SetEditorCollisionEnabled(bool enabled)
-	{
 	}
 
 	private float GetSelectionRadius()

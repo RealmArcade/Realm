@@ -124,7 +124,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 	private async Task<int> RunHostAsync()
 	{
-		LobbyManager lobby = LobbyManager.Instance ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
+		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
 
 		lobby.IsSinglePlayer = false;
 		lobby.IsHost = true;
@@ -183,7 +183,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 		_ = RunCombatProbeAsync(true);
 
-		GameHost gameHost = GameHost.Instance ?? throw new InvalidOperationException("GameHost instance is unavailable.");
+		GameHost gameHost = GameContext.Host ?? throw new InvalidOperationException("GameHost instance is unavailable.");
 		bool finished = false;
 		ulong simulationDeadline = Time.GetTicksMsec() + (ulong)((_durationSeconds * 4f + 120f) * 1000f);
 		while (Time.GetTicksMsec() < simulationDeadline)
@@ -215,7 +215,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 	private async Task<int> RunClientAsync()
 	{
-		LobbyManager lobby = LobbyManager.Instance ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
+		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
 
 		lobby.IsSinglePlayer = false;
 		SetPrivateProperty(lobby, "MaxPlayers", PlayableSlotCount);
@@ -240,7 +240,7 @@ public partial class MultiplayerSimulationHarness : Node
 		if (!string.IsNullOrEmpty(_clientBuildId))
 		{
 			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
-			IssueClientBuildRequest(GameHost.Instance);
+			IssueClientBuildRequest(GameContext.Host);
 		}
 		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 120f + (_drainMilliseconds / 1000f));
 		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
@@ -251,7 +251,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		_finalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
-		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameHost.Instance?.GameElapsedTime ?? 0f:F2}s.");
+		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameContext.Host?.GameElapsedTime ?? 0f:F2}s.");
 		MultiplayerSyncDiagnostics.Stop();
 		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
@@ -284,7 +284,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 		bool ready = await WaitUntilAsync(() =>
 		{
-			GameHost? host = GameHost.Instance;
+			GameHost? host = GameContext.Host;
 			return host != null && Math.Abs(host.GameElapsedTime) >= 0.01f && host.AllUnits.Count > 0;
 		}, 120f);
 
@@ -297,7 +297,7 @@ public partial class MultiplayerSimulationHarness : Node
 		MultiplayerSyncDiagnostics.Start(_outputDirectory, isHost);
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
-		GameHost currentHost = GameHost.Instance!;
+		GameHost currentHost = GameContext.Host!;
 		GD.Print($"[MP_HARNESS] {(isHost ? "Host" : "Client")} simulation ready at game time {currentHost.GameElapsedTime:F2}s with {currentHost.AllUnits.Count} units.");
 		GD.Print($"[MP_HARNESS] Active workspace '{MapWorkspaceService.GetActiveWorkspacePath()}' resolved from map directory '{GameContext.MapStorageService?.CurrentMapDirectory}'.");
 		return true;

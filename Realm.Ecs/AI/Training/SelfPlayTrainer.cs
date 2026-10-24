@@ -1,13 +1,12 @@
 using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Simulation;
+using Realm.MapAPI;
 
 namespace Realm.Ecs.AI.Training;
 
 public class SelfPlayTrainer
 {
-	private static readonly Random Random = new Random();
-
 	public BotProfile TrainSelfPlay(
 		string mapName,
 		int generations = 5,
@@ -54,7 +53,7 @@ public class SelfPlayTrainer
 			var weights = new float[featureCount];
 			for (int f = 0; f < featureCount; f++)
 			{
-				weights[f] = (float)(Random.NextDouble() * 2.0 - 1.0);
+				weights[f] = (float)(DeterministicRandom.Shared.NextDouble() * 2.0 - 1.0);
 			}
 
 			population.Add(weights);
@@ -112,7 +111,7 @@ public class SelfPlayTrainer
 	{
 		lock (historicalPool)
 		{
-			return historicalPool[Random.Next(historicalPool.Count)];
+			return historicalPool[DeterministicRandom.Shared.Next(historicalPool.Count)];
 		}
 	}
 
@@ -175,7 +174,7 @@ public class SelfPlayTrainer
 
 		while (newPopulation.Count < populationSize)
 		{
-			float[] parent = currentPopulation[Random.Next(populationSize)];
+			float[] parent = currentPopulation[DeterministicRandom.Shared.Next(populationSize)];
 			float[] child = MutateGenome(parent);
 			newPopulation.Add(child);
 		}
@@ -207,7 +206,7 @@ public class SelfPlayTrainer
 		var child = new float[parent.Length];
 		for (int i = 0; i < parent.Length; i++)
 		{
-			float mutation = (float)(Random.NextDouble() * 0.4 - 0.2);
+			float mutation = (float)(DeterministicRandom.Shared.NextDouble() * 0.4 - 0.2);
 			child[i] = Math.Clamp(parent[i] + mutation, -2.0f, 2.0f);
 		}
 

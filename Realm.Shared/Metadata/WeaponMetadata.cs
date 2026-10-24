@@ -15,6 +15,8 @@ public class WeaponMetadata
 	public string? AttackSound { get; set; }
 	public string? ProjectileModelPath { get; set; }
 	public string? ImpactVisualEffect { get; set; }
+	public string? ImpactParticleEffect { get; set; }
+	public float ImpactParticleScale { get; set; } = 1.0f;
 	public string? ImpactSound { get; set; }
 
 	public string? TrajectoryType { get; set; } = "Parabolic";
@@ -72,4 +74,6 @@ public class WeaponMetadata
 	public bool RibbonAdditive { get; set; } = true;
 	public float RibbonScrollSpeed { get; set; }
 	public Vector3Data? TrailOffset { get; set; }
+
+	public string? Attribution_ImportedFromMap { get; set; }
 }

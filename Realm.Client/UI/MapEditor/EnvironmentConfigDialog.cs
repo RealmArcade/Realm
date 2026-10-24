@@ -655,27 +655,27 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 	private void ApplyLivePreview()
 	{
 		if (_activePreset == null || _chkLivePreview == null || !_chkLivePreview.ButtonPressed) return;
-		if (GameHost.Instance != null && GameContext.EnvironmentService != null)
+		if (GameContext.Host != null && GameContext.EnvironmentService != null)
 		{
-			GameContext.EnvironmentService.ApplyPreset(GameHost.Instance, _activePreset);
+			GameContext.EnvironmentService.ApplyPreset(_activePreset);
 		}
 	}
 
 	protected override void OnApply()
 	{
-		if (GameHost.Instance != null && GameContext.EnvironmentService != null)
+		if (GameContext.Host != null && GameContext.EnvironmentService != null)
 		{
 			GameContext.EnvironmentService.LoadPresets(_presets);
 			if (!string.IsNullOrWhiteSpace(_defaultPresetId))
 			{
-				GameContext.EnvironmentService.ApplyPresetById(GameHost.Instance, _defaultPresetId);
+				GameContext.EnvironmentService.ApplyPresetById(_defaultPresetId);
 			}
 			else if (_activePreset != null)
 			{
-				GameContext.EnvironmentService.ApplyPreset(GameHost.Instance, _activePreset);
+				GameContext.EnvironmentService.ApplyPreset(_activePreset);
 			}
 
-			GameHost.Instance.EditorHasUnsavedChanges = true;
+			GameContext.Host.EditorHasUnsavedChanges = true;
 		}
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
@@ -694,13 +694,13 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 
 	protected override void OnCancel()
 	{
-		if (GameHost.Instance != null && GameContext.EnvironmentService != null)
+		if (GameContext.Host != null && GameContext.EnvironmentService != null)
 		{
 			GameContext.EnvironmentService.LoadPresets(_initialSnapshots);
 			var initial = _initialSnapshots.Count > 0 ? _initialSnapshots[0] : null;
 			if (initial != null)
 			{
-				GameContext.EnvironmentService.ApplyPreset(GameHost.Instance, initial);
+				GameContext.EnvironmentService.ApplyPreset(initial);
 			}
 		}
 	}

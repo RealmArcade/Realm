@@ -8,5 +8,5 @@ public struct EraseAreaResult
 	public bool TerrainModified;
 	public bool HeightsModified;
 	public bool PathingModified;
-	public List<Node3D> NodesToDelete;
+	public List<int> ErasedCandidateIndices;
 }

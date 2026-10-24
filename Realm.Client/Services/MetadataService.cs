@@ -262,46 +262,6 @@ public class MetadataService
 		}
 	}
 
-	public UnitMetadata? FindUnit(MapMetadata metadata, string objectId) => metadata?.FindUnit(objectId);
-	public void AddOrUpdateUnit(MapMetadata metadata, UnitMetadata unit) => metadata?.AddOrUpdateUnit(unit);
-	public bool RemoveUnit(MapMetadata metadata, string objectId) => metadata?.RemoveUnit(objectId) ?? false;
-
-	public UnitMetadata? FindBuilding(MapMetadata metadata, string objectId) => metadata?.FindBuilding(objectId);
-	public void AddOrUpdateBuilding(MapMetadata metadata, UnitMetadata building) => metadata?.AddOrUpdateBuilding(building);
-	public bool RemoveBuilding(MapMetadata metadata, string objectId) => metadata?.RemoveBuilding(objectId) ?? false;
-
-	public PropMetadata? FindProp(MapMetadata metadata, string objectId) => metadata?.FindProp(objectId);
-	public void AddOrUpdateProp(MapMetadata metadata, PropMetadata prop) => metadata?.AddOrUpdateProp(prop);
-	public bool RemoveProp(MapMetadata metadata, string objectId) => metadata?.RemoveProp(objectId) ?? false;
-
-	public ResourceMetadata? FindResource(MapMetadata metadata, string objectId) => metadata?.FindResource(objectId);
-	public void AddOrUpdateResource(MapMetadata metadata, ResourceMetadata resource) => metadata?.AddOrUpdateResource(resource);
-	public bool RemoveResource(MapMetadata metadata, string objectId) => metadata?.RemoveResource(objectId) ?? false;
-
-	public WeaponMetadata? FindWeapon(MapMetadata metadata, string objectId) => metadata?.FindWeapon(objectId);
-	public void AddOrUpdateWeapon(MapMetadata metadata, WeaponMetadata weapon) => metadata?.AddOrUpdateWeapon(weapon);
-	public bool RemoveWeapon(MapMetadata metadata, string objectId) => metadata?.RemoveWeapon(objectId) ?? false;
-
-	public AbilityMetadata? FindAbility(MapMetadata metadata, string objectId) => metadata?.FindAbility(objectId);
-	public void AddOrUpdateAbility(MapMetadata metadata, AbilityMetadata ability) => metadata?.AddOrUpdateAbility(ability);
-	public bool RemoveAbility(MapMetadata metadata, string objectId) => metadata?.RemoveAbility(objectId) ?? false;
-
-	public UpgradeMetadata? FindUpgrade(MapMetadata metadata, string objectId) => metadata?.FindUpgrade(objectId);
-	public void AddOrUpdateUpgrade(MapMetadata metadata, UpgradeMetadata upgrade) => metadata?.AddOrUpdateUpgrade(upgrade);
-	public bool RemoveUpgrade(MapMetadata metadata, string objectId) => metadata?.RemoveUpgrade(objectId) ?? false;
-
-	public ItemMetadata? FindItem(MapMetadata metadata, string objectId) => metadata?.FindItem(objectId);
-	public void AddOrUpdateItem(MapMetadata metadata, ItemMetadata item) => metadata?.AddOrUpdateItem(item);
-	public bool RemoveItem(MapMetadata metadata, string objectId) => metadata?.RemoveItem(objectId) ?? false;
-
-	public AttachmentMetadata? FindAttachment(MapMetadata metadata, string attachmentId) => metadata?.FindAttachment(attachmentId);
-	public void AddOrUpdateAttachment(MapMetadata metadata, AttachmentMetadata attachment) => metadata?.AddOrUpdateAttachment(attachment);
-	public bool RemoveAttachment(MapMetadata metadata, string attachmentId) => metadata?.RemoveAttachment(attachmentId) ?? false;
-
-	public VfxAttachmentConfig? FindVfx(MapMetadata metadata, string vfxId) => metadata?.FindVfx(vfxId);
-	public void AddOrUpdateVfx(MapMetadata metadata, VfxAttachmentConfig vfx) => metadata?.AddOrUpdateVfx(vfx);
-	public bool RemoveVfx(MapMetadata metadata, string vfxId) => metadata?.RemoveVfx(vfxId) ?? false;
-
 	public EnvironmentPresetConfig? GetEnvironmentPreset(MapMetadata metadata, string presetId)
 	{
 		if (metadata?.CustomEnvironmentPresets == null || string.IsNullOrWhiteSpace(presetId)) return null;

@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Realm.Client.Services;
 
 namespace Realm.Client.Network;
 
@@ -16,7 +17,7 @@ public class PeerMapDownloader
 
 	public async Task<bool> DownloadMapAsync(string mapId)
 	{
-		string registryUrl = LobbyManager.Instance != null ? LobbyManager.Instance.RegistryServerUrl : "http://localhost:5000";
+		string registryUrl = GameContext.Lobby != null ? GameContext.Lobby.RegistryServerUrl : "http://localhost:5000";
 		return await _distClient.DownloadMapPackageFromRegistryAsync(mapId, registryUrl, p => DownloadProgressChanged?.Invoke(p));
 	}
 }

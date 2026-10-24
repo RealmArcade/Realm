@@ -3,6 +3,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
+using Realm.Client.Services;
 using static Godot.Control;
 using static Godot.CanvasItem;
 
@@ -11,10 +12,6 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class ReplayViewerPanel : PanelContainer
 {
-	public ReplayViewerPanel()
-	{
-	}
-
 	public override void _EnterTree()
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
@@ -110,12 +107,12 @@ public partial class ReplayViewerPanel : PanelContainer
 
 	private void PlayHoverSound()
 	{
-		UIManager.Instance?.PlayHoverSound();
+		GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void SetupScrubber()
 	{
-		int totalTicks = ReplayPlaybackManager.Instance.TotalTicks;
+		int totalTicks = GameContext.ReplayPlayback.TotalTicks;
 		_scrubber.MinValue = 0;
 		_scrubber.MaxValue = totalTicks > 1 ? totalTicks - 1 : 1;
 		_scrubber.Step = 1;
@@ -128,7 +125,7 @@ public partial class ReplayViewerPanel : PanelContainer
 	private void OnScrubberDragStarted()
 	{
 		_isDraggingScrubber = true;
-		ReplayPlaybackManager.Instance.IsPlaying = false;
+		GameContext.ReplayPlayback.IsPlaying = false;
 	}
 
 	private void OnScrubberDragEnded(bool valueHasChanged)
@@ -136,10 +133,10 @@ public partial class ReplayViewerPanel : PanelContainer
 		_isDraggingScrubber = false;
 		if (valueHasChanged)
 		{
-			ReplayPlaybackManager.Instance.ScrubTo((int)_scrubber.Value);
+			GameContext.ReplayPlayback.ScrubTo((int)_scrubber.Value);
 		}
 
-		ReplayPlaybackManager.Instance.IsPlaying = true;
+		GameContext.ReplayPlayback.IsPlaying = true;
 		_reachedEnd = false;
 	}
 
@@ -150,7 +147,7 @@ public partial class ReplayViewerPanel : PanelContainer
 			return;
 		}
 
-		ReplayPlaybackManager.Instance.ScrubTo((int)val);
+		GameContext.ReplayPlayback.ScrubTo((int)val);
 		_reachedEnd = false;
 	}
 
@@ -166,35 +163,35 @@ public partial class ReplayViewerPanel : PanelContainer
 
 	private void OnPlayPausePressed()
 	{
-		UIManager.Instance?.PlayClickSound();
-		bool nowPlaying = !ReplayPlaybackManager.Instance.IsPlaying;
+		GameContext.UserInterface?.PlayClickSound();
+		bool nowPlaying = !GameContext.ReplayPlayback.IsPlaying;
 		if (nowPlaying && _reachedEnd)
 		{
-			ReplayPlaybackManager.Instance.ScrubTo(0);
+			GameContext.ReplayPlayback.ScrubTo(0);
 			_reachedEnd = false;
 		}
 
-		ReplayPlaybackManager.Instance.IsPlaying = nowPlaying;
+		GameContext.ReplayPlayback.IsPlaying = nowPlaying;
 		UpdatePlayPauseButtonText();
 	}
 
 	private void SetSpeed(float speed)
 	{
-		UIManager.Instance?.PlayClickSound();
-		ReplayPlaybackManager.Instance.PlaybackSpeed = speed;
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.ReplayPlayback.PlaybackSpeed = speed;
 		UpdateSpeedButtonHighlights();
 	}
 
 	private void UpdatePlayPauseButtonText()
 	{
-		bool isPlaying = ReplayPlaybackManager.Instance.IsPlaying;
+		bool isPlaying = GameContext.ReplayPlayback.IsPlaying;
 		_lastIsPlaying = isPlaying;
 		_playPauseBtn.Text = Tr(isPlaying ? "PAUSE" : "PLAY");
 	}
 
 	private void UpdateSpeedButtonHighlights()
 	{
-		float speed = ReplayPlaybackManager.Instance.PlaybackSpeed;
+		float speed = GameContext.ReplayPlayback.PlaybackSpeed;
 		_lastPlaybackSpeed = speed;
 		if (_activeSpeedStyle == null)
 		{
@@ -222,7 +219,7 @@ public partial class ReplayViewerPanel : PanelContainer
 		_perspectiveOpt.Clear();
 		_perspectiveOpt.AddItem(Tr("Omniscient"), 0);
 
-		var players = ReplayPlaybackManager.Instance.Header?.Players;
+		var players = GameContext.ReplayPlayback.Header?.Players;
 		if (players != null)
 		{
 			for (int i = 0; i < players.Count; i++)
@@ -233,22 +230,22 @@ public partial class ReplayViewerPanel : PanelContainer
 
 		_perspectiveOpt.ItemSelected += (idx) =>
 		{
-			UIManager.Instance?.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			if (idx == 0)
 			{
-				ReplayPlaybackManager.Instance.SpectatorPerspective = -1;
+				GameContext.ReplayPlayback.SpectatorPerspective = -1;
 			}
 			else if (players != null && idx - 1 < players.Count)
 			{
-				ReplayPlaybackManager.Instance.SpectatorPerspective = players[(int)idx - 1].PeerId;
+				GameContext.ReplayPlayback.SpectatorPerspective = players[(int)idx - 1].PeerId;
 			}
 		};
 	}
 
 	private void OnTetherPressed()
 	{
-		UIManager.Instance?.PlayClickSound();
-		var camera = GameHost.Instance?.MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
+		GameContext.UserInterface?.PlayClickSound();
+		var camera = GameContext.Host?.MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
 		if (camera == null) return;
 
 		if (camera.FollowTarget != null)
@@ -259,9 +256,9 @@ public partial class ReplayViewerPanel : PanelContainer
 		else
 		{
 			Unit3D targetUnit = null;
-			if (GameHost.Instance != null && GameHost.Instance.AllUnits.Count > 0)
+			if (GameContext.Host != null && GameContext.Host.AllUnits.Count > 0)
 			{
-				foreach (var unit in GameHost.Instance.AllUnits)
+				foreach (var unit in GameContext.Host.AllUnits)
 				{
 					if (unit != null && GodotObject.IsInstanceValid(unit))
 					{
@@ -281,14 +278,14 @@ public partial class ReplayViewerPanel : PanelContainer
 
 	private void OnQuitPressed()
 	{
-		UIManager.Instance?.PlayClickSound();
-		ReplayPlaybackManager.Instance.StopReplay();
-		GameHost.Instance?.StopRecording();
-		GameHost.Instance?.ResetWorldAndState();
-		if (LobbyManager.Instance != null)
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.ReplayPlayback.StopReplay();
+		GameContext.Host?.StopRecording();
+		GameContext.Host?.ResetWorldAndState();
+		if (GameContext.Lobby != null)
 		{
-			LobbyManager.Instance.IsGameStarted = false;
-			LobbyManager.Instance.ActiveMapName = "";
+			GameContext.Lobby.IsGameStarted = false;
+			GameContext.Lobby.ActiveMapName = "";
 		}
 
 		GetTree().ChangeSceneToFile("res://GameHost.tscn");
@@ -296,16 +293,16 @@ public partial class ReplayViewerPanel : PanelContainer
 
 	public override void _Process(double delta)
 	{
-		if (!ReplayPlaybackManager.Instance.IsPlayingReplay) return;
+		if (!GameContext.ReplayPlayback.IsPlayingReplay) return;
 
-		bool isPlaying = ReplayPlaybackManager.Instance.IsPlaying;
-		int currentTick = ReplayPlaybackManager.Instance.CurrentTick;
-		int totalTicks = ReplayPlaybackManager.Instance.TotalTicks;
+		bool isPlaying = GameContext.ReplayPlayback.IsPlaying;
+		int currentTick = GameContext.ReplayPlayback.CurrentTick;
+		int totalTicks = GameContext.ReplayPlayback.TotalTicks;
 
 		if (isPlaying && currentTick >= totalTicks - 1 && !_reachedEnd)
 		{
 			_reachedEnd = true;
-			ReplayPlaybackManager.Instance.IsPlaying = false;
+			GameContext.ReplayPlayback.IsPlaying = false;
 			isPlaying = false;
 		}
 
@@ -336,7 +333,7 @@ public partial class ReplayViewerPanel : PanelContainer
 			UpdatePlayPauseButtonText();
 		}
 
-		if (_lastPlaybackSpeed != ReplayPlaybackManager.Instance.PlaybackSpeed)
+		if (_lastPlaybackSpeed != GameContext.ReplayPlayback.PlaybackSpeed)
 		{
 			UpdateSpeedButtonHighlights();
 		}

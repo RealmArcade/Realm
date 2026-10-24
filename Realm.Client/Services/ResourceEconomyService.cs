@@ -431,9 +431,9 @@ public class ResourceEconomyService
 			}
 		}
 
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var pe = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			var pe = GameContext.Host.GetPlayerEntityForPlayerIndex(playerIndex);
 			if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
 			{
 				ref var res = ref GameContext.World.Get<PlayerResources>(pe);
@@ -493,7 +493,7 @@ public class ResourceEconomyService
 
 		for (int playerIndex = 0; playerIndex < EcsWorld.MAX_PLAYERS; playerIndex++)
 		{
-			var playerEntity = GameHost.Instance?.GetPlayerEntityForPlayerIndex(playerIndex) ?? Entity.Null;
+			var playerEntity = GameContext.Host?.GetPlayerEntityForPlayerIndex(playerIndex) ?? Entity.Null;
 			if (playerEntity == Entity.Null || !world.IsAlive(playerEntity)) continue;
 			if (!world.Has<PlayerPopulation>(playerEntity)) continue;
 
@@ -528,9 +528,9 @@ public class ResourceEconomyService
 
 	public int GetPlayerCurrentPopulation(int playerIndex)
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			var playerEntity = GameContext.Host.GetPlayerEntityForPlayerIndex(playerIndex);
 			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerPopulation>(playerEntity))
 			{
 				return GameContext.World.Get<PlayerPopulation>(playerEntity).Current;
@@ -542,9 +542,9 @@ public class ResourceEconomyService
 
 	public void SetPlayerCurrentPopulation(int playerIndex, int current)
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			var playerEntity = GameContext.Host.GetPlayerEntityForPlayerIndex(playerIndex);
 			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity))
 			{
 				if (GameContext.World.Has<PlayerPopulation>(playerEntity))
@@ -562,9 +562,9 @@ public class ResourceEconomyService
 
 	public void SetPlayerMaxPopulation(int playerIndex, int max)
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			var playerEntity = GameContext.Host.GetPlayerEntityForPlayerIndex(playerIndex);
 			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity))
 			{
 				if (GameContext.World.Has<PlayerPopulation>(playerEntity))
@@ -582,9 +582,9 @@ public class ResourceEconomyService
 
 	public int GetPlayerMaxPopulation(int playerIndex)
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
-			var playerEntity = GameHost.Instance.GetPlayerEntityForPlayerIndex(playerIndex);
+			var playerEntity = GameContext.Host.GetPlayerEntityForPlayerIndex(playerIndex);
 			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerPopulation>(playerEntity))
 			{
 				return GameContext.World.Get<PlayerPopulation>(playerEntity).Max;

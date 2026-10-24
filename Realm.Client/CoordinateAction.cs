@@ -19,25 +19,25 @@ public class CoordinateAction : IEditorAction
 
 	public void Undo()
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
 			GameContext.EditorService.EditorCoordinates.Clear();
 			GameContext.EditorService.EditorCoordinates.AddRange(_oldCoordinates);
-			GameHost.Instance.RebuildAllCoordinatePersistentMeshes();
-			GameHost.Instance.HideCoordinateSelectionOutline();
-			MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+			GameContext.Host.RebuildAllCoordinatePersistentMeshes();
+			GameContext.Host.HideCoordinateSelectionOutline();
+			GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 		}
 	}
 
 	public void Redo()
 	{
-		if (GameHost.Instance != null)
+		if (GameContext.Host != null)
 		{
 			GameContext.EditorService.EditorCoordinates.Clear();
 			GameContext.EditorService.EditorCoordinates.AddRange(_newCoordinates);
-			GameHost.Instance.RebuildAllCoordinatePersistentMeshes();
-			GameHost.Instance.HideCoordinateSelectionOutline();
-			MapEditorHUD.Instance?.RefreshCoordinateListExternal();
+			GameContext.Host.RebuildAllCoordinatePersistentMeshes();
+			GameContext.Host.HideCoordinateSelectionOutline();
+			GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 		}
 	}
 }

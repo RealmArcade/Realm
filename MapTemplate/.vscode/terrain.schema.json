@@ -349,6 +349,9 @@
               "NoiseTexture": {
                 "type": "string"
               },
+              "ProceduralMotionId": {
+                "type": "string"
+              },
               "BaseUvScroll": {
                 "type": "object",
                 "properties": {

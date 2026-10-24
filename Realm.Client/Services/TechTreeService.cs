@@ -11,10 +11,6 @@ namespace Realm.Client.Services;
 
 public class TechTreeService
 {
-	public TechTreeService()
-	{
-	}
-
 	public bool BuyWeaponsUpgrade(Entity playerEntity)
 	{
 		if (!GameContext.World.IsAlive(playerEntity)) return false;

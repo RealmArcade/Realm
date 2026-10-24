@@ -8,5 +8,9 @@ public struct OptimizationResult
 	public int OriginalSize;
 	public int OptimizedSize;
 	public bool DecimationSkipped;
+	public int[]? LodTriangleCounts;
+	public int UvIslandCountBefore;
+	public int UvIslandCountAfter;
+	public float UvChartMergeTolerance;
 	public string? ErrorMessage;
 }

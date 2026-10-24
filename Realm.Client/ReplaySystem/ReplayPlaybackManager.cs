@@ -21,8 +21,6 @@ namespace Realm.Client.ReplaySystem
 {
 	public class ReplayPlaybackManager
 	{
-		public static ReplayPlaybackManager Instance { get; } = new ReplayPlaybackManager();
-
 		public ReplayHeader Header { get; private set; }
 		public bool IsPlayingReplay { get; set; } = false;
 		public bool IsPlaying { get; set; } = false;
@@ -142,7 +140,7 @@ namespace Realm.Client.ReplaySystem
 		public void ApplyInitialFrame()
 		{
 			if (_frames == null || TotalTicks == 0) return;
-			GameHost.Instance?.ResetStateForReplayPlayback();
+			GameContext.Host?.ResetStateForReplayPlayback();
 			ApplyFrame(_frames[0]);
 			CurrentTick = 0;
 			_timer = 0.0f;
@@ -185,7 +183,7 @@ namespace Realm.Client.ReplaySystem
 				}
 			}
 
-			GameHost.Instance?.ResetStateForReplayPlayback();
+			GameContext.Host?.ResetStateForReplayPlayback();
 
 			ApplyFrame(_frames[keyframeTick]);
 
@@ -203,7 +201,7 @@ namespace Realm.Client.ReplaySystem
 
 		public void ApplyFrame(ReplayFrame frame)
 		{
-			if (GameHost.Instance == null || frame == null) return;
+			if (GameContext.Host == null || frame == null) return;
 
 			ApplyResources(frame);
 			ApplyProjectiles(frame);
@@ -212,15 +210,15 @@ namespace Realm.Client.ReplaySystem
 
 		private void ApplyResources(ReplayFrame frame)
 		{
-			if (InGameHUD.Instance != null)
+			if (GameContext.InGameHud != null)
 			{
-				InGameHUD.Instance.Gold = frame.Resources.Gold;
-				InGameHUD.Instance.Wood = frame.Resources.Wood;
-				InGameHUD.Instance.Stone = frame.Resources.Stone;
+				GameContext.InGameHud.Gold = frame.Resources.Gold;
+				GameContext.InGameHud.Wood = frame.Resources.Wood;
+				GameContext.InGameHud.Stone = frame.Resources.Stone;
 			}
 			else
 			{
-				GameHost.Instance.SetBackupResources(frame.Resources.Gold, frame.Resources.Wood, frame.Resources.Stone);
+				GameContext.Host.SetBackupResources(frame.Resources.Gold, frame.Resources.Wood, frame.Resources.Stone);
 			}
 		}
 
@@ -232,11 +230,11 @@ namespace Realm.Client.ReplaySystem
 			{
 				if (proj.ProjectileTypeId == "arrow")
 				{
-					GameHost.Instance.SpawnArrowProjectileForReplay(proj.Start.ToNumerics(), proj.Target.ToNumerics());
+					GameContext.Host.SpawnArrowProjectileForReplay(proj.Start.ToNumerics(), proj.Target.ToNumerics());
 				}
 				else
 				{
-					((IGameAPI)GameHost.Instance).SpawnProjectile(proj.ProjectileTypeId, proj.Start.ToNumerics(), proj.Target.ToNumerics(), proj.Speed);
+					((IGameAPI)GameContext.Host).SpawnProjectile(proj.ProjectileTypeId, proj.Start.ToNumerics(), proj.Target.ToNumerics(), proj.Speed);
 				}
 			}
 		}
@@ -253,7 +251,7 @@ namespace Realm.Client.ReplaySystem
 
 		private void ApplyUnitSnapshot(ReplayUnitSnapshot snap)
 		{
-			if (GameHost.Instance.TryGetLocalEntity(snap.EntityId, out var localEntity))
+			if (GameContext.Host.TryGetLocalEntity(snap.EntityId, out var localEntity))
 			{
 				if (GameContext.World.IsAlive(localEntity))
 				{
@@ -269,7 +267,7 @@ namespace Realm.Client.ReplaySystem
 			}
 			else if (!snap.IsDead)
 			{
-				GameHost.Instance.SpawnUnitFromReplaySnapshot(snap);
+				GameContext.Host.SpawnUnitFromReplaySnapshot(snap);
 			}
 		}
 
@@ -279,7 +277,7 @@ namespace Realm.Client.ReplaySystem
 			{
 				GameContext.World.Add<Dead>(localEntity);
 				GameHost.TryGetUnit3D(localEntity, out var unit3D);
-				GameHost.Instance.KillUnitDeferredExternal(unit3D);
+				GameContext.Host.KillUnitDeferredExternal(unit3D);
 			}
 		}
 

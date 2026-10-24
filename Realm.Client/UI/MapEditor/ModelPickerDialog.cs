@@ -3,6 +3,7 @@ using System.IO;
 using Godot;
 using Realm.Client.Animation;
 using Realm.Client.Core;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -167,7 +168,7 @@ public partial class ModelPickerDialog : FloatingPreview3DDialogBase
 		};
 		root.AddChild(decalNode);
 
-		GameHost.Instance?.ApplyDecalPropertiesFromMetadata(decalNode, !string.IsNullOrEmpty(resolvedPath) ? resolvedPath : modelPath);
+		GameContext.Host?.ApplyDecalPropertiesFromMetadata(decalNode, !string.IsNullOrEmpty(resolvedPath) ? resolvedPath : modelPath);
 
 		PreviewSubViewport.AddChild(root);
 		_previewModelRoot = root;

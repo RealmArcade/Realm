@@ -48,6 +48,15 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private float _upperFade = 0.3f;
 	private float _lowerFade = 0.3f;
 
+	private VfxPlacementMode _placementMode = VfxPlacementMode.Free;
+	private float _projectionSize = 0.0f;
+	private float _projectionHeight = 0.0f;
+	private float _groundOffset = 0.05f;
+	private float _normalFade = 0.0f;
+	private bool _distanceFadeEnabled = false;
+	private float _distanceFadeBegin = 10.0f;
+	private float _distanceFadeEnd = 30.0f;
+
 	private bool _isSyncingControls = false;
 	private string _slug = "";
 	private Label _lblObjectTypePrefix;
@@ -82,6 +91,21 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	private Label _lblUpperFade;
 	private HSlider _sldLowerFade;
 	private Label _lblLowerFade;
+
+	private OptionButton _optPlacementMode;
+	private HSlider _sldProjectionSize;
+	private Label _lblProjectionSize;
+	private HSlider _sldProjectionHeight;
+	private Label _lblProjectionHeight;
+	private HSlider _sldGroundOffset;
+	private Label _lblGroundOffset;
+	private HSlider _sldNormalFade;
+	private Label _lblNormalFade;
+	private CheckBox _chkDistanceFade;
+	private HSlider _sldDistanceFadeBegin;
+	private Label _lblDistanceFadeBegin;
+	private HSlider _sldDistanceFadeEnd;
+	private Label _lblDistanceFadeEnd;
 
 	private double _previewAnimTime = 0.0;
 
@@ -142,6 +166,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		BuildTextureAssetSection(contentVBox);
 		BuildColorLightingSection(contentVBox);
 		BuildBlendingMaterialSection(contentVBox);
+		BuildPlacementSection(contentVBox);
 		BuildPropertyAnimationSection(contentVBox);
 	}
 
@@ -437,6 +462,85 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		);
 	}
 
+	private void BuildPlacementSection(VBoxContainer contentVBox)
+	{
+		AddSectionHeader(contentVBox, "⭕ " + TranslationServer.Translate("GROUND PROJECTION"), new Color(0.95f, 0.65f, 0.35f));
+
+		var placementRow = new HBoxContainer();
+		placementRow.Name = "PlacementRow_HBoxContainer";
+		placementRow.AddThemeConstantOverride("separation", 6);
+
+		var placementLabel = new Label();
+		placementLabel.Name = "LblPlacementMode_Label";
+		placementLabel.Text = TranslationServer.Translate("Orientation:");
+		placementLabel.CustomMinimumSize = new Vector2(140, 0);
+		placementLabel.AddThemeFontSizeOverride("font_size", 11);
+		placementRow.AddChild(placementLabel);
+
+		_optPlacementMode = new OptionButton();
+		_optPlacementMode.Name = "OptPlacementMode_OptionButton";
+		_optPlacementMode.AddItem(TranslationServer.Translate("Authored"), 0);
+		_optPlacementMode.AddItem(TranslationServer.Translate("Flat On Ground"), 1);
+		_optPlacementMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_optPlacementMode.ItemSelected += index =>
+		{
+			if (_isSyncingControls) return;
+			_placementMode = index == 1 ? VfxPlacementMode.GroundProjected : VfxPlacementMode.Free;
+			UpdateLivePreviewAndWorld();
+		};
+		placementRow.AddChild(_optPlacementMode);
+		contentVBox.AddChild(placementRow);
+
+		(_sldProjectionSize, _lblProjectionSize) = AddSlider(contentVBox, TranslationServer.Translate("Projection Size:"), 1.0f, 30.0f, 0.5f, _projectionSize, (val) =>
+		{
+			if (_isSyncingControls) return;
+			_projectionSize = val;
+			UpdateLivePreviewAndWorld();
+		}, "0.0", 140f);
+
+		(_sldProjectionHeight, _lblProjectionHeight) = AddSlider(contentVBox, TranslationServer.Translate("Projection Height:"), 1.0f, 30.0f, 0.5f, _projectionHeight, (val) =>
+		{
+			if (_isSyncingControls) return;
+			_projectionHeight = val;
+			UpdateLivePreviewAndWorld();
+		}, "0.0", 140f);
+
+		(_sldGroundOffset, _lblGroundOffset) = AddSlider(contentVBox, TranslationServer.Translate("Ground Offset:"), 0.0f, 1.0f, 0.01f, _groundOffset, (val) =>
+		{
+			if (_isSyncingControls) return;
+			_groundOffset = val;
+			UpdateLivePreviewAndWorld();
+		}, "0.00", 140f);
+
+		(_sldNormalFade, _lblNormalFade) = AddSlider(contentVBox, TranslationServer.Translate("Normal Fade:"), 0.0f, 1.0f, 0.05f, _normalFade, (val) =>
+		{
+			if (_isSyncingControls) return;
+			_normalFade = val;
+			UpdateLivePreviewAndWorld();
+		}, "0.00", 140f);
+
+		_chkDistanceFade = AddCheckBox(contentVBox, TranslationServer.Translate("Enable Distance Fade:"), _distanceFadeEnabled, (val) =>
+		{
+			if (_isSyncingControls) return;
+			_distanceFadeEnabled = val;
+			UpdateLivePreviewAndWorld();
+		});
+
+		(_sldDistanceFadeBegin, _lblDistanceFadeBegin) = AddSlider(contentVBox, TranslationServer.Translate("Distance Fade Begin:"), 1.0f, 200.0f, 1.0f, _distanceFadeBegin, (val) =>
+		{
+			if (_isSyncingControls) return;
+			_distanceFadeBegin = val;
+			UpdateLivePreviewAndWorld();
+		}, "0", 140f);
+
+		(_sldDistanceFadeEnd, _lblDistanceFadeEnd) = AddSlider(contentVBox, TranslationServer.Translate("Distance Fade End:"), 1.0f, 400.0f, 1.0f, _distanceFadeEnd, (val) =>
+		{
+			if (_isSyncingControls) return;
+			_distanceFadeEnd = val;
+			UpdateLivePreviewAndWorld();
+		}, "0", 140f);
+	}
+
 	private void BuildPropertyAnimationSection(VBoxContainer contentVBox)
 	{
 		AddSectionHeader(contentVBox, "⚡ " + TranslationServer.Translate("DYNAMIC PROPERTY ANIMATION"), new Color(0.4f, 0.8f, 0.95f));
@@ -551,7 +655,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			return;
 		}
 
-		_baseTexture = GameHost.Instance?.LoadDecalTexture(texKey);
+		_baseTexture = GameContext.Host?.LoadDecalTexture(texKey);
 		if (_baseTexture != null) return;
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
@@ -732,11 +836,11 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 	{
 		if (result.ContainsKey("brightness")) return;
 		if (result.ContainsKey("tint")) return;
-		if (GameHost.Instance == null) return;
-		if (GameHost.Instance.AllDecals == null) return;
+		if (GameContext.Host == null) return;
+		if (GameContext.Host.AllDecals == null) return;
 
 		string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-		foreach (var d in GameHost.Instance.AllDecals)
+		foreach (var d in GameContext.Host.AllDecals)
 		{
 			if (TryMatchAndApplyDecal(d, decalKey, baseKey, result))
 			{
@@ -779,6 +883,18 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		result["metallic"] = 0.0f;
 		result["upper_fade"] = d.UpperFade;
 		result["lower_fade"] = d.LowerFade;
+		result["normal_fade"] = d.NormalFade;
+		result["distance_fade_enabled"] = d.DistanceFadeEnabled;
+		result["distance_fade_begin"] = d.DistanceFadeBegin;
+		result["distance_fade_end"] = d.DistanceFadeBegin + d.DistanceFadeLength;
+		result["projection_size"] = d.Size.X;
+		result["projection_height"] = d.Size.Z;
+
+		if (d is Decal3D placementDecal)
+		{
+			result["PlacementMode"] = (int)(placementDecal.GroundProjected ? VfxPlacementMode.GroundProjected : VfxPlacementMode.Free);
+			result["ground_offset"] = placementDecal.GroundOffset;
+		}
 
 		if (d.TextureEmission != null)
 		{
@@ -845,6 +961,15 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 		_upperFade = GetFloat(resolvedData, "upper_fade", 0.3f);
 		_lowerFade = GetFloat(resolvedData, "lower_fade", 0.3f);
+
+		_placementMode = GetPlacementMode(resolvedData, "PlacementMode", "placement_mode", VfxPlacementMode.Free);
+		_projectionSize = GetFloat(resolvedData, "projection_size", 0.0f);
+		_projectionHeight = GetFloat(resolvedData, "projection_height", 0.0f);
+		_groundOffset = GetFloat(resolvedData, "ground_offset", 0.05f);
+		_normalFade = GetFloat(resolvedData, "normal_fade", 0.0f);
+		_distanceFadeEnabled = GetBool(resolvedData, "distance_fade_enabled", false);
+		_distanceFadeBegin = GetFloat(resolvedData, "distance_fade_begin", 10.0f);
+		_distanceFadeEnd = GetFloat(resolvedData, "distance_fade_end", 30.0f);
 
 		_tint = Colors.White;
 		if (resolvedData.TryGetPropertyValue("tint", out var tNode) && tNode != null)
@@ -957,13 +1082,34 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		return data.TryGetPropertyValue(key, out var node) ? node?.ToString() ?? defaultVal : defaultVal;
 	}
 
+	private VfxPlacementMode GetPlacementMode(JsonObject data, string key, string alternateKey, VfxPlacementMode defaultVal)
+	{
+		foreach (string candidateKey in new[] { key, alternateKey })
+		{
+			if (!data.TryGetPropertyValue(candidateKey, out var node) || node == null) continue;
+
+			string raw = node.ToString();
+			if (Enum.TryParse<VfxPlacementMode>(raw, true, out var parsedMode))
+			{
+				return parsedMode;
+			}
+
+			if (int.TryParse(raw, out int numericMode) && Enum.IsDefined(typeof(VfxPlacementMode), numericMode))
+			{
+				return (VfxPlacementMode)numericMode;
+			}
+		}
+
+		return defaultVal;
+	}
+
 	private void TrackOriginalDecalStates(string decalKey)
 	{
 		_originalDecalStates.Clear();
-		if (GameHost.Instance?.AllDecals == null) return;
+		if (GameContext.Host?.AllDecals == null) return;
 
 		string baseKey = Path.GetFileNameWithoutExtension(decalKey);
-		foreach (var d in GameHost.Instance.AllDecals)
+		foreach (var d in GameContext.Host.AllDecals)
 		{
 			if (d == null || !GodotObject.IsInstanceValid(d)) continue;
 
@@ -981,7 +1127,13 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 					EmissionEnergy = d.EmissionEnergy,
 					Size = d.Size,
 					UpperFade = d.UpperFade,
-					LowerFade = d.LowerFade
+					LowerFade = d.LowerFade,
+					GroundProjected = d is Decal3D groundDecal && groundDecal.GroundProjected,
+					GroundOffset = d is Decal3D offsetDecal ? offsetDecal.GroundOffset : 0.05f,
+					NormalFade = d.NormalFade,
+					DistanceFadeEnabled = d.DistanceFadeEnabled,
+					DistanceFadeBegin = d.DistanceFadeBegin,
+					DistanceFadeEnd = d.DistanceFadeBegin + d.DistanceFadeLength
 				};
 			}
 		}
@@ -1019,7 +1171,15 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 				MaxScaleRatio = _maxScaleRatio
 			},
 			UpperFade = _upperFade,
-			LowerFade = _lowerFade
+			LowerFade = _lowerFade,
+			PlacementMode = _placementMode,
+			ProjectionSize = _projectionSize,
+			ProjectionHeight = _projectionHeight,
+			GroundOffset = _groundOffset,
+			NormalFade = _normalFade,
+			DistanceFadeEnabled = _distanceFadeEnabled,
+			DistanceFadeBegin = _distanceFadeBegin,
+			DistanceFadeEnd = _distanceFadeEnd
 		};
 
 		string targetId = !string.IsNullOrEmpty(_decalKey) ? _decalKey : $"decal/{_slug}";
@@ -1036,6 +1196,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			SyncMaterialControls();
 			SyncAnimationControls();
 			SyncFadeControls();
+			SyncPlacementControls();
 		}
 		finally
 		{
@@ -1150,6 +1311,23 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			_sldLowerFade.Value = _lowerFade;
 			_lblLowerFade.Text = $"{_lowerFade:F2}";
 		}
+	}
+
+	private void SyncPlacementControls()
+	{
+		if (_optPlacementMode != null)
+		{
+			_optPlacementMode.Selected = _placementMode == VfxPlacementMode.GroundProjected ? 1 : 0;
+		}
+
+		SyncSlider(_sldProjectionSize, _lblProjectionSize, _projectionSize, "F1");
+		SyncSlider(_sldProjectionHeight, _lblProjectionHeight, _projectionHeight, "F1");
+		SyncSlider(_sldGroundOffset, _lblGroundOffset, _groundOffset, "F2");
+		SyncSlider(_sldNormalFade, _lblNormalFade, _normalFade, "F2");
+
+		if (_chkDistanceFade != null) _chkDistanceFade.ButtonPressed = _distanceFadeEnabled;
+		SyncSlider(_sldDistanceFadeBegin, _lblDistanceFadeBegin, _distanceFadeBegin, "F0");
+		SyncSlider(_sldDistanceFadeEnd, _lblDistanceFadeEnd, _distanceFadeEnd, "F0");
 	}
 
 	public override void _Process(double delta)
@@ -1301,7 +1479,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private void UpdateGameHostDecals()
 	{
-		GameHost.Instance?.RefreshDecalsLive(
+		GameContext.Host?.RefreshDecalsLive(
 			_decalKey,
 			_brightness,
 			_tint,
@@ -1326,7 +1504,15 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			_minScaleRatio,
 			_maxScaleRatio,
 			_upperFade,
-			_lowerFade
+			_lowerFade,
+			_placementMode,
+			_projectionSize,
+			_projectionHeight,
+			_groundOffset,
+			_normalFade,
+			_distanceFadeEnabled,
+			_distanceFadeBegin,
+			_distanceFadeEnd
 		);
 	}
 
@@ -1340,7 +1526,7 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		string finalTexturePath = !string.IsNullOrWhiteSpace(_txtTexturePath?.Text) ? _txtTexturePath.Text.Trim() : _texturePath;
 		_texturePath = finalTexturePath;
 
-		GameHost.Instance?.InvalidateDecalCache(_decalKey);
+		GameContext.Host?.InvalidateDecalCache(_decalKey);
 
 		var result = new JsonObject
 		{
@@ -1398,6 +1584,21 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			["UpperFade"] = Math.Round(_upperFade, 3),
 			["lower_fade"] = Math.Round(_lowerFade, 3),
 			["LowerFade"] = Math.Round(_lowerFade, 3),
+			["projection_size"] = Math.Round(_projectionSize, 3),
+			["ProjectionSize"] = Math.Round(_projectionSize, 3),
+			["projection_height"] = Math.Round(_projectionHeight, 3),
+			["ProjectionHeight"] = Math.Round(_projectionHeight, 3),
+			["ground_offset"] = Math.Round(_groundOffset, 3),
+			["GroundOffset"] = Math.Round(_groundOffset, 3),
+			["normal_fade"] = Math.Round(_normalFade, 3),
+			["NormalFade"] = Math.Round(_normalFade, 3),
+			["distance_fade_enabled"] = _distanceFadeEnabled,
+			["DistanceFadeEnabled"] = _distanceFadeEnabled,
+			["distance_fade_begin"] = Math.Round(_distanceFadeBegin, 2),
+			["DistanceFadeBegin"] = Math.Round(_distanceFadeBegin, 2),
+			["distance_fade_end"] = Math.Round(_distanceFadeEnd, 2),
+			["DistanceFadeEnd"] = Math.Round(_distanceFadeEnd, 2),
+			["PlacementMode"] = (int)_placementMode,
 			["asset_type"] = "Decal",
 			["AssetType"] = "Decal"
 		};
@@ -1432,9 +1633,9 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 
 	private bool TryRestoreOriginalStates()
 	{
-		if (_originalDecalStates.Count == 0 || GameHost.Instance?.AllDecals == null) return false;
+		if (_originalDecalStates.Count == 0 || GameContext.Host?.AllDecals == null) return false;
 
-		foreach (var d in GameHost.Instance.AllDecals)
+		foreach (var d in GameContext.Host.AllDecals)
 		{
 			if (d == null || !GodotObject.IsInstanceValid(d) || !_originalDecalStates.TryGetValue(d.GetInstanceId(), out var orig)) continue;
 
@@ -1447,10 +1648,15 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 			d.Size = orig.Size;
 			d.UpperFade = orig.UpperFade;
 			d.LowerFade = orig.LowerFade;
+			d.NormalFade = orig.NormalFade;
+			d.DistanceFadeEnabled = orig.DistanceFadeEnabled;
+			d.DistanceFadeBegin = orig.DistanceFadeBegin;
+			d.DistanceFadeLength = Mathf.Max(0.1f, orig.DistanceFadeEnd - orig.DistanceFadeBegin);
 
 			if (d is Decal3D d3d)
 			{
 				d3d.SetBaseProperties(orig.Modulate, orig.EmissionEnergy, orig.Size);
+				d3d.SetGroundProjection(orig.GroundProjected, orig.GroundOffset);
 				d3d.UpdateProcessState();
 			}
 		}
@@ -1494,6 +1700,14 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 		_maxScaleRatio = _initialSnapshot.Animation.MaxScaleRatio;
 		_upperFade = _initialSnapshot.UpperFade;
 		_lowerFade = _initialSnapshot.LowerFade;
+		_placementMode = _initialSnapshot.PlacementMode;
+		_projectionSize = _initialSnapshot.ProjectionSize;
+		_projectionHeight = _initialSnapshot.ProjectionHeight;
+		_groundOffset = _initialSnapshot.GroundOffset;
+		_normalFade = _initialSnapshot.NormalFade;
+		_distanceFadeEnabled = _initialSnapshot.DistanceFadeEnabled;
+		_distanceFadeBegin = _initialSnapshot.DistanceFadeBegin;
+		_distanceFadeEnd = _initialSnapshot.DistanceFadeEnd;
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		GameContext.MetadataService.UpdateMetadata(wsPath, m =>
@@ -1525,7 +1739,15 @@ public partial class DecalSettingsDialog : FloatingDialogBase
 				MinScaleRatio = _minScaleRatio,
 				MaxScaleRatio = _maxScaleRatio,
 				UpperFade = _upperFade,
-				LowerFade = _lowerFade
+				LowerFade = _lowerFade,
+				PlacementMode = _placementMode,
+				ProjectionSize = _projectionSize,
+				ProjectionHeight = _projectionHeight,
+				GroundOffset = _groundOffset,
+				NormalFade = _normalFade,
+				DistanceFadeEnabled = _distanceFadeEnabled,
+				DistanceFadeBegin = _distanceFadeBegin,
+				DistanceFadeEnd = _distanceFadeEnd
 			};
 		});
 

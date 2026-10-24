@@ -6,10 +6,6 @@ namespace Realm.Client.Services;
 
 public class SpectatorService
 {
-	public SpectatorService()
-	{
-	}
-
 	private Entity FindWorldEntity()
 	{
 		Entity worldEntity = Entity.Null;

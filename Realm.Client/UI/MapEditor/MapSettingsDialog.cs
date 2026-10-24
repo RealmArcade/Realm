@@ -31,6 +31,8 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	private Label _lblMapHeightVal;
 	private Button _btnScaleMap;
 
+	private const float CameraBoundsShiftStep = 5.0f;
+
 	public int SelectedMapTypeIndex => _optMapType?.Selected ?? 0;
 
 	public MapSettingsDialog(MapEditorHUD hud)
@@ -179,7 +181,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			string relPath = selectedFile.Contains("/") || selectedFile.Contains("\\")
 				? selectedFile
 				: $"Assets/skyboxes/{selectedFile}";
-			GameHost.Instance?.SetSkyboxTexture(relPath);
+			GameContext.Host?.SetSkyboxTexture(relPath);
 		};
 		skyboxPanel.AddChild(_optSkybox);
 
@@ -209,114 +211,82 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 	private void BuildCameraBoundsLeftControls(GridContainer camGrid)
 	{
-		_lblCamLeftVal = CreateBadgeLabel();
-		var btnLeftDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Left boundary further left (West)", () =>
-		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float minX = -GameHost.Instance.GroundTerrain.Width;
-			GameHost.Instance.EditorCameraBoundsLeft = Mathf.Max(minX, GameHost.Instance.EditorCameraBoundsLeft - 5.0f);
-			GameHost.Instance.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		var btnLeftInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Left boundary further right (East)", () =>
-		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float maxX = GameHost.Instance.EditorCameraBoundsRight;
-			GameHost.Instance.EditorCameraBoundsLeft = Mathf.Min(maxX, GameHost.Instance.EditorCameraBoundsLeft + 5.0f);
-			GameHost.Instance.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		camGrid.AddChild(_lblCamLeftVal);
-		camGrid.AddChild(btnLeftDec);
-		camGrid.AddChild(btnLeftInc);
+		_lblCamLeftVal = BuildCameraBoundsControls(
+			camGrid,
+			() => GameContext.Host.EditorCameraBoundsLeft,
+			value => GameContext.Host.EditorCameraBoundsLeft = value,
+			() => -GameContext.Host.GroundTerrain.Width,
+			() => GameContext.Host.EditorCameraBoundsRight,
+			"Move Left boundary further left (West)",
+			"Move Left boundary further right (East)");
 	}
 
 	private void BuildCameraBoundsRightControls(GridContainer camGrid)
 	{
-		_lblCamRightVal = CreateBadgeLabel();
-		var btnRightDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Right boundary further left (West)", () =>
-		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float minX = GameHost.Instance.EditorCameraBoundsLeft;
-			GameHost.Instance.EditorCameraBoundsRight = Mathf.Max(minX, GameHost.Instance.EditorCameraBoundsRight - 5.0f);
-			GameHost.Instance.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		var btnRightInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Right boundary further right (East)", () =>
-		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float maxX = (float)GameHost.Instance.GroundTerrain.Width;
-			GameHost.Instance.EditorCameraBoundsRight = Mathf.Min(maxX, GameHost.Instance.EditorCameraBoundsRight + 5.0f);
-			GameHost.Instance.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		camGrid.AddChild(_lblCamRightVal);
-		camGrid.AddChild(btnRightDec);
-		camGrid.AddChild(btnRightInc);
+		_lblCamRightVal = BuildCameraBoundsControls(
+			camGrid,
+			() => GameContext.Host.EditorCameraBoundsRight,
+			value => GameContext.Host.EditorCameraBoundsRight = value,
+			() => GameContext.Host.EditorCameraBoundsLeft,
+			() => GameContext.Host.GroundTerrain.Width,
+			"Move Right boundary further left (West)",
+			"Move Right boundary further right (East)");
 	}
 
 	private void BuildCameraBoundsTopControls(GridContainer camGrid)
 	{
-		_lblCamTopVal = CreateBadgeLabel();
-		var btnTopDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Top boundary further North (Up)", () =>
-		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float minZ = -GameHost.Instance.GroundTerrain.Depth;
-			GameHost.Instance.EditorCameraBoundsTop = Mathf.Max(minZ, GameHost.Instance.EditorCameraBoundsTop - 5.0f);
-			GameHost.Instance.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		var btnTopInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Top boundary further South (Down)", () =>
-		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
-
-			Hud?.EnsureCameraBoundsVisible();
-			float maxZ = GameHost.Instance.EditorCameraBoundsTop;
-			GameHost.Instance.EditorCameraBoundsTop = Mathf.Min(maxZ, GameHost.Instance.EditorCameraBoundsTop + 5.0f);
-			GameHost.Instance.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		camGrid.AddChild(_lblCamTopVal);
-		camGrid.AddChild(btnTopDec);
-		camGrid.AddChild(btnTopInc);
+		_lblCamTopVal = BuildCameraBoundsControls(
+			camGrid,
+			() => GameContext.Host.EditorCameraBoundsTop,
+			value => GameContext.Host.EditorCameraBoundsTop = value,
+			() => -GameContext.Host.GroundTerrain.Depth,
+			() => GameContext.Host.EditorCameraBoundsBottom,
+			"Move Top boundary further North (Up)",
+			"Move Top boundary further South (Down)");
 	}
 
 	private void BuildCameraBoundsBottomControls(GridContainer camGrid)
 	{
-		_lblCamBottomVal = CreateBadgeLabel();
-		var btnBottomDec = CreateControlButton(UnicodeIcons.ARROW_LEFT, "Move Bottom boundary further North (Up)", () =>
-		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
+		_lblCamBottomVal = BuildCameraBoundsControls(
+			camGrid,
+			() => GameContext.Host.EditorCameraBoundsBottom,
+			value => GameContext.Host.EditorCameraBoundsBottom = value,
+			() => GameContext.Host.EditorCameraBoundsTop,
+			() => GameContext.Host.GroundTerrain.Depth,
+			"Move Bottom boundary further North (Up)",
+			"Move Bottom boundary further South (Down)");
+	}
 
-			Hud?.EnsureCameraBoundsVisible();
-			float minZ = GameHost.Instance.EditorCameraBoundsTop;
-			GameHost.Instance.EditorCameraBoundsBottom = Mathf.Max(minZ, GameHost.Instance.EditorCameraBoundsBottom - 5.0f);
-			GameHost.Instance.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		var btnBottomInc = CreateControlButton(UnicodeIcons.ARROW_RIGHT, "Move Bottom boundary further South (Down)", () =>
-		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
+	private Label BuildCameraBoundsControls(
+		GridContainer camGrid,
+		Func<float> readBound,
+		Action<float> writeBound,
+		Func<float> readLowerLimit,
+		Func<float> readUpperLimit,
+		string decreaseTooltip,
+		string increaseTooltip)
+	{
+		var valueLabel = CreateBadgeLabel();
+		var decreaseButton = CreateControlButton(UnicodeIcons.ARROW_LEFT, decreaseTooltip, () => ShiftCameraBounds(readBound, writeBound, readLowerLimit, -CameraBoundsShiftStep));
+		var increaseButton = CreateControlButton(UnicodeIcons.ARROW_RIGHT, increaseTooltip, () => ShiftCameraBounds(readBound, writeBound, readUpperLimit, CameraBoundsShiftStep));
 
-			Hud?.EnsureCameraBoundsVisible();
-			float maxZ = (float)GameHost.Instance.GroundTerrain.Depth;
-			GameHost.Instance.EditorCameraBoundsBottom = Mathf.Min(maxZ, GameHost.Instance.EditorCameraBoundsBottom + 5.0f);
-			GameHost.Instance.RebuildCameraBoundsOverlay();
-			UpdateCameraBoundsUI();
-		});
-		camGrid.AddChild(_lblCamBottomVal);
-		camGrid.AddChild(btnBottomDec);
-		camGrid.AddChild(btnBottomInc);
+		camGrid.AddChild(valueLabel);
+		camGrid.AddChild(decreaseButton);
+		camGrid.AddChild(increaseButton);
+
+		return valueLabel;
+	}
+
+	private void ShiftCameraBounds(Func<float> readBound, Action<float> writeBound, Func<float> readLimit, float delta)
+	{
+		if (GameContext.Host?.GroundTerrain == null) return;
+
+		Hud?.EnsureCameraBoundsVisible();
+		float shiftedBound = readBound() + delta;
+		float limit = readLimit();
+		writeBound(delta < 0.0f ? Mathf.Max(limit, shiftedBound) : Mathf.Min(limit, shiftedBound));
+		GameContext.Host.RebuildCameraBoundsOverlay();
+		UpdateCameraBoundsUI();
 	}
 
 	private void BuildMapSizePanel(VBoxContainer contentVBox)
@@ -339,24 +309,24 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		_lblMapWidthVal = CreateBadgeLabel();
 		var btnWidthDec = CreateControlButton(UnicodeIcons.MINUS, "Decrease map tile columns (West)", () =>
 		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
+			if (GameContext.Host?.GroundTerrain == null) return;
 
-			int w = GameHost.Instance.GroundTerrain.Width;
+			int w = GameContext.Host.GroundTerrain.Width;
 			if (w <= 32) return;
 
 			int targetW = Math.Max(32, (w % 32 == 0 ? w - 32 : (w / 32) * 32));
-			GameHost.Instance.ResizeMapExternal(targetW, GameHost.Instance.GroundTerrain.Depth);
+			GameContext.Host.ResizeMapExternal(targetW, GameContext.Host.GroundTerrain.Depth);
 			UpdateCameraBoundsUI();
 		});
 		var btnWidthInc = CreateControlButton(UnicodeIcons.PLUS, "Increase map tile columns (East)", () =>
 		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
+			if (GameContext.Host?.GroundTerrain == null) return;
 
-			int w = GameHost.Instance.GroundTerrain.Width;
+			int w = GameContext.Host.GroundTerrain.Width;
 			if (w >= 512) return;
 
 			int targetW = Math.Min(512, (w / 32 + 1) * 32);
-			GameHost.Instance.ResizeMapExternal(targetW, GameHost.Instance.GroundTerrain.Depth);
+			GameContext.Host.ResizeMapExternal(targetW, GameContext.Host.GroundTerrain.Depth);
 			UpdateCameraBoundsUI();
 		});
 		sizeGrid.AddChild(_lblMapWidthVal);
@@ -369,24 +339,24 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		_lblMapHeightVal = CreateBadgeLabel();
 		var btnHeightDec = CreateControlButton(UnicodeIcons.MINUS, "Decrease map tile rows (North)", () =>
 		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
+			if (GameContext.Host?.GroundTerrain == null) return;
 
-			int d = GameHost.Instance.GroundTerrain.Depth;
+			int d = GameContext.Host.GroundTerrain.Depth;
 			if (d <= 32) return;
 
 			int targetD = Math.Max(32, (d % 32 == 0 ? d - 32 : (d / 32) * 32));
-			GameHost.Instance.ResizeMapExternal(GameHost.Instance.GroundTerrain.Width, targetD);
+			GameContext.Host.ResizeMapExternal(GameContext.Host.GroundTerrain.Width, targetD);
 			UpdateCameraBoundsUI();
 		});
 		var btnHeightInc = CreateControlButton(UnicodeIcons.PLUS, "Increase map tile rows (South)", () =>
 		{
-			if (GameHost.Instance?.GroundTerrain == null) return;
+			if (GameContext.Host?.GroundTerrain == null) return;
 
-			int d = GameHost.Instance.GroundTerrain.Depth;
+			int d = GameContext.Host.GroundTerrain.Depth;
 			if (d >= 512) return;
 
 			int targetD = Math.Min(512, (d / 32 + 1) * 32);
-			GameHost.Instance.ResizeMapExternal(GameHost.Instance.GroundTerrain.Width, targetD);
+			GameContext.Host.ResizeMapExternal(GameContext.Host.GroundTerrain.Width, targetD);
 			UpdateCameraBoundsUI();
 		});
 		sizeGrid.AddChild(_lblMapHeightVal);
@@ -410,9 +380,9 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		}
 		_btnScaleMap.Pressed += () =>
 		{
-			if (GameHost.Instance?.GroundTerrain == null || Hud == null) return;
+			if (GameContext.Host?.GroundTerrain == null || Hud == null) return;
 
-			Hud.SetScaleDialogTargets(GameHost.Instance.GroundTerrain.Width, GameHost.Instance.GroundTerrain.Depth);
+			Hud.SetScaleDialogTargets(GameContext.Host.GroundTerrain.Width, GameContext.Host.GroundTerrain.Depth);
 			Hud.OpenScaleMapDialog();
 		};
 		mapSizePanel.AddChild(_btnScaleMap);
@@ -578,20 +548,20 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 	private void UpdateMetadataTerrainProperties(MapMetadata meta)
 	{
-		if (GameHost.Instance?.GroundTerrain == null) return;
+		if (GameContext.Host?.GroundTerrain == null) return;
 
-		meta.MapProperties.MapWidth = GameHost.Instance.GroundTerrain.Width;
-		meta.MapProperties.MapHeight = GameHost.Instance.GroundTerrain.Depth;
+		meta.MapProperties.MapWidth = GameContext.Host.GroundTerrain.Width;
+		meta.MapProperties.MapHeight = GameContext.Host.GroundTerrain.Depth;
 	}
 
 	private void UpdateMetadataCameraProperties(MapMetadata meta)
 	{
-		if (GameHost.Instance == null) return;
+		if (GameContext.Host == null) return;
 
-		meta.MapProperties.CameraBoundsLeft = GameHost.Instance.EditorCameraBoundsLeft;
-		meta.MapProperties.CameraBoundsRight = GameHost.Instance.EditorCameraBoundsRight;
-		meta.MapProperties.CameraBoundsTop = GameHost.Instance.EditorCameraBoundsTop;
-		meta.MapProperties.CameraBoundsBottom = GameHost.Instance.EditorCameraBoundsBottom;
+		meta.MapProperties.CameraBoundsLeft = GameContext.Host.EditorCameraBoundsLeft;
+		meta.MapProperties.CameraBoundsRight = GameContext.Host.EditorCameraBoundsRight;
+		meta.MapProperties.CameraBoundsTop = GameContext.Host.EditorCameraBoundsTop;
+		meta.MapProperties.CameraBoundsBottom = GameContext.Host.EditorCameraBoundsBottom;
 	}
 
 	public void RebuildTagsUI()
@@ -612,11 +582,11 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		string[] tags;
 		if (_optMapType != null && _optMapType.Selected == 1)
 		{
-			tags = new[] { "3D Models", "Audio", "Code Scripts", "Terrain PBR", "UI Components" };
+			tags = new[] { "3D Models", "Audio", "Code Scripts", "Terrain", "UI Components" };
 		}
 		else
 		{
-			tags = new[] { "Tower Defense", "Campaign", "Melee", "Coop / Survival", "Tutorial / Skirmish" };
+			tags = new[] { "Tower Defense", "Campaign", "Melee", "Survival", "Tutorial" };
 		}
 
 		foreach (var tag in tags)
@@ -635,16 +605,16 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 	public void UpdateCameraBoundsUI()
 	{
-		if (GameHost.Instance == null) return;
-		if (_lblCamLeftVal != null) _lblCamLeftVal.Text = $"L: {GameHost.Instance.EditorCameraBoundsLeft:F0}m";
-		if (_lblCamRightVal != null) _lblCamRightVal.Text = $"R: {GameHost.Instance.EditorCameraBoundsRight:F0}m";
-		if (_lblCamTopVal != null) _lblCamTopVal.Text = $"T: {GameHost.Instance.EditorCameraBoundsTop:F0}m";
-		if (_lblCamBottomVal != null) _lblCamBottomVal.Text = $"B: {GameHost.Instance.EditorCameraBoundsBottom:F0}m";
+		if (GameContext.Host == null) return;
+		if (_lblCamLeftVal != null) _lblCamLeftVal.Text = $"L: {GameContext.Host.EditorCameraBoundsLeft:F0}m";
+		if (_lblCamRightVal != null) _lblCamRightVal.Text = $"R: {GameContext.Host.EditorCameraBoundsRight:F0}m";
+		if (_lblCamTopVal != null) _lblCamTopVal.Text = $"T: {GameContext.Host.EditorCameraBoundsTop:F0}m";
+		if (_lblCamBottomVal != null) _lblCamBottomVal.Text = $"B: {GameContext.Host.EditorCameraBoundsBottom:F0}m";
 
-		if (GameHost.Instance.GroundTerrain != null)
+		if (GameContext.Host.GroundTerrain != null)
 		{
-			if (_lblMapWidthVal != null) _lblMapWidthVal.Text = $"W: {GameHost.Instance.GroundTerrain.Width}";
-			if (_lblMapHeightVal != null) _lblMapHeightVal.Text = $"H: {GameHost.Instance.GroundTerrain.Depth}";
+			if (_lblMapWidthVal != null) _lblMapWidthVal.Text = $"W: {GameContext.Host.GroundTerrain.Width}";
+			if (_lblMapHeightVal != null) _lblMapHeightVal.Text = $"H: {GameContext.Host.GroundTerrain.Depth}";
 		}
 	}
 

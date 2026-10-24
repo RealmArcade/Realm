@@ -12,6 +12,7 @@ using Realm.Shared;
 using Realm.Shared.Distribution;
 using Realm.Shared.ModelOptimization;
 using Environment = System.Environment;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -414,7 +415,7 @@ public partial class GlbThumbnailRenderer : Node
 
 			byte[] glbBytes = GetGlbBytes(request.FilePath, out string? chromaKey);
 
-			bool despill = GameHost.Instance != null && GameHost.Instance.GetModelDespillPlayerColor(request.FilePath);
+			bool despill = GameContext.Host != null && GameContext.Host.GetModelDespillPlayerColor(request.FilePath);
 			if (despill)
 			{
 				glbBytes = GlbInMemoryColorPreprocessor.PreprocessGlbInMemory(glbBytes, chromaKey);
@@ -483,20 +484,16 @@ public partial class GlbThumbnailRenderer : Node
 
 	private void PositionCameraForScene(Node scene)
 	{
-		Aabb aabb = CalculateVisualAabb(scene);
-		if (aabb.Size.LengthSquared() < 0.0001f)
+		Aabb aabb = ModelPreviewFraming.ComputeVisibleBounds(scene);
+		if (!ModelPreviewFraming.HasUsableBounds(aabb))
 		{
 			aabb = new Aabb(new Vector3(-0.5f, 0, -0.5f), new Vector3(1f, 1f, 1f));
 		}
 
-		Vector3 center = aabb.Position + aabb.Size * 0.5f;
-		float maxDim = MathF.Max(aabb.Size.X, MathF.Max(aabb.Size.Y, aabb.Size.Z));
-		if (maxDim < 0.01f) maxDim = 1.0f;
-
-		float fovRad = Mathf.DegToRad(_camera.Fov * 0.5f);
-		float dist = (maxDim * 0.85f) / MathF.Tan(fovRad);
-		Vector3 camDir = new Vector3(1.2f, 0.8f, 1.4f).Normalized();
-		Vector3 eyePos = center + camDir * dist;
+		Vector3 center = ModelPreviewFraming.ComputeFramedCenter(aabb);
+		float aspectRatio = _subViewport.Size.Y > 0 ? (float)_subViewport.Size.X / _subViewport.Size.Y : 1.0f;
+		float dist = ModelPreviewFraming.ComputeCameraDistance(aabb, _camera.Fov, aspectRatio);
+		Vector3 eyePos = ModelPreviewFraming.ComputeFramedEyePosition(center, dist);
 
 		if (eyePos.DistanceSquaredTo(center) > 0.0001f)
 		{
@@ -586,58 +583,6 @@ public partial class GlbThumbnailRenderer : Node
 		{
 			StopAnimations(node.GetChild(i));
 		}
-	}
-
-	private static Aabb CalculateVisualAabb(Node node)
-	{
-		Aabb totalAabb = new Aabb();
-		bool first = true;
-
-		void Traverse(Node current, Transform3D currentTransform)
-		{
-			if (current is VisualInstance3D visual)
-			{
-				Aabb localAabb = visual.GetAabb();
-				if (localAabb.Size.LengthSquared() > 0.00001f)
-				{
-					Aabb transformedAabb = currentTransform * localAabb;
-					if (first)
-					{
-						totalAabb = transformedAabb;
-						first = false;
-					}
-					else
-					{
-						totalAabb = totalAabb.Merge(transformedAabb);
-					}
-				}
-			}
-
-			int childCount = current.GetChildCount();
-			for (int i = 0; i < childCount; i++)
-			{
-				var child = current.GetChild(i);
-				if (child is Node3D child3D)
-				{
-					Traverse(child, currentTransform * child3D.Transform);
-				}
-				else
-				{
-					Traverse(child, currentTransform);
-				}
-			}
-		}
-
-		if (node is Node3D root3D)
-		{
-			Traverse(root3D, root3D.Transform);
-		}
-		else
-		{
-			Traverse(node, Transform3D.Identity);
-		}
-
-		return totalAabb;
 	}
 
 	private static string SanitizeFileName(string name)
