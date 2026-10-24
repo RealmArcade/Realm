@@ -33,7 +33,14 @@ public class MovementPredictionService
 	public const float CorrectionRatePerSecond = 14.0f;
 	public const float SettledCorrectionRatePerSecond = 30.0f;
 	public const float SettledErrorMeters = 0.05f;
-	public const float AuthoritativeJumpSpeedMetersPerSecond = 25.0f;
+	/// <summary>
+	/// The speed above which an authoritative sample is a grouping or script event rather than locomotion. It has to sit
+	/// below the speed a snap can imply: a snap that is not already explained by an outage happens inside
+	/// <see cref="SnapshotGapToleranceTicks"/> ticks, so a <see cref="SnapThresholdMeters"/> difference there is at least
+	/// 20 m/s. The previous 25 m/s bound was therefore unreachable and every authoritative jump of four to five metres
+	/// was reported without a cause, even though no unit in the game approaches 12 m/s.
+	/// </summary>
+	public const float AuthoritativeJumpSpeedMetersPerSecond = 12.0f;
 	/// <summary>
 	/// How far the authoritative order target may sit from the predicted one before the prediction is treated as stale.
 	/// The authority scatters a group order across its formation (2.2 m spacing), so a smaller tolerance would discard
@@ -107,7 +114,10 @@ public class MovementPredictionService
 	private int _trackedCount;
 	private int _pendingCommandCursor;
 	private int _reconcileSequence = -1;
+	private int _previousAppliedSequence = -1;
 	private int _lastSnapshotSequence = -1;
+	private int _lastReconcileTick = -1;
+	private int _reconcileOutageTicks;
 	private int _lastPredictedTick;
 	private bool _isReconciling;
 
@@ -598,6 +608,12 @@ public class MovementPredictionService
 			return;
 		}
 
+		// How many client ticks passed without any snapshot being applied. A loss burst delivers several snapshots
+		// back to back, and the authority's position in the first of them has already moved by everything the client
+		// missed, so the outage - not the per-unit sample gap - is what explains a large difference at that moment.
+		_reconcileOutageTicks = _lastReconcileTick >= 0 ? _lastPredictedTick - _lastReconcileTick : 0;
+		_previousAppliedSequence = _lastSnapshotSequence;
+		_lastReconcileTick = _lastPredictedTick;
 		_lastSnapshotSequence = sequence;
 		_reconcileSequence = sequence;
 		_isReconciling = true;
@@ -638,7 +654,9 @@ public class MovementPredictionService
 		int sampleGapTicks = hasPrevious && previousSequence > 0 && _reconcileSequence > previousSequence
 			? _reconcileSequence - previousSequence
 			: 1;
-		float sampleGapSeconds = MathF.Max(sampleGapTicks * ImpliedSnapshotIntervalSeconds, 0.0001f);
+		int streamGapTicks = _previousAppliedSequence > 0 ? _reconcileSequence - _previousAppliedSequence : 1;
+		int effectiveGapTicks = Math.Max(sampleGapTicks, Math.Max(streamGapTicks, _reconcileOutageTicks));
+		float sampleGapSeconds = MathF.Max(effectiveGapTicks * ImpliedSnapshotIntervalSeconds, 0.0001f);
 		float impliedSpeed = hasPrevious
 			? Vector3.Distance(authoritativePosition, previousAuthoritative) / sampleGapSeconds
 			: float.PositiveInfinity;
@@ -649,7 +667,7 @@ public class MovementPredictionService
 		float preSnapErrorMeters = MathF.Sqrt(errorSquared);
 		bool isFirstSample = !hasPrevious;
 		bool isTeleport = hasPrevious && impliedSpeed > AuthoritativeJumpSpeedMetersPerSecond;
-		bool recoveredFromGap = hasPrevious && sampleGapTicks >= SnapshotGapToleranceTicks;
+		bool recoveredFromGap = hasPrevious && effectiveGapTicks >= SnapshotGapToleranceTicks;
 
 		if (isFirstSample || isTeleport || recoveredFromGap)
 		{
@@ -658,7 +676,7 @@ public class MovementPredictionService
 				? $"first authoritative sample for the unit, {preSnapErrorMeters:F2} m from where the client spawned it"
 				: (isTeleport
 					? $"authoritative teleport at {impliedSpeed:F1} m/s, {preSnapErrorMeters:F2} m off"
-					: $"recovered from a {sampleGapTicks} tick snapshot gap, {preSnapErrorMeters:F2} m off");
+					: $"recovered from a {effectiveGapTicks} tick snapshot outage, {preSnapErrorMeters:F2} m off");
 			PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, true, reason);
 			return;
 		}

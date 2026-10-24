@@ -10,26 +10,29 @@ player and offline all take the same path.
    prediction, the input handlers, the authoritative systems and the interpolation exemption. The hosting player
    and single player therefore bypassed prediction, command queueing, acknowledgement and reconciliation
    completely, so a multiplayer sync bug could only surface after a packet had crossed a socket.
-2. **Orders were applied twice, differently.** A client wrote gameplay order components (`MoveTo`,
+2. **The client record could desynchronise its own reader.** A tracked unit that died between the prune and the
+   record was skipped without adjusting the declared count, so every value after it belonged to another unit. The
+   report is the only evidence a red run has, so this is listed with the product defects.
+3. **Orders were applied twice, differently.** A client wrote gameplay order components (`MoveTo`,
    `AttackMove`, `Gatherer`, `BuildTask`) locally *and* queued a command; the host applied the order inline and
    queued nothing. Two implementations of "give this order" drifted apart. `IssueAttackMoveCommand(target)`
    only touched local ECS and never reached the host at all.
-3. **Client units could not path.** Replicas were spawned without the host's pathing flags, so every client unit
+4. **Client units could not path.** Replicas were spawned without the host's pathing flags, so every client unit
    defaulted to `Ground` while the arena's units are `Ground | ShallowWater`. Before the fix a run recorded zero
    prediction samples and zero path comparisons.
-4. **A predicted order could outlive the authority.** Prediction only rolled back on an explicit rejection, so
+5. **A predicted order could outlive the authority.** Prediction only rolled back on an explicit rejection, so
    an order the host never received left a unit walking to a dead destination, and a scripted order on a
    locally controlled unit stayed invisible behind the stale prediction.
-5. **A tracked unit was interpolated as well as predicted.** `InterpolationQueryAction` exempted a predicted unit
+6. **A tracked unit was interpolated as well as predicted.** `InterpolationQueryAction` exempted a predicted unit
    only while it carried an order component, so a settled predicted unit was dragged towards a stale visual
    target after every correction: a second, divergent smoothing model.
-6. **Baselines never removed components or loot** the host no longer had, leaving stale `AttackTarget`,
+7. **Baselines never removed components or loot** the host no longer had, leaving stale `AttackTarget`,
    `LastAttacker` and orphaned loot.
-7. **Prediction kept an entity's history across entity-id recycling**, so a new unit could be reconciled against
+8. **Prediction kept an entity's history across entity-id recycling**, so a new unit could be reconciled against
    the dead unit's sample and snapped several metres on its first snapshot.
-8. **Prediction kept an unreceived order alive for three seconds**, which carried a unit far enough that the
+9. **Prediction kept an unreceived order alive for three seconds**, which carried a unit far enough that the
    eventual correction exceeded the snap threshold; the resulting snap had no stated cause.
-9. **Several checks measured the wrong thing**: plan-time start waypoint instead of path progress, deliberately
+10. **Several checks measured the wrong thing**: plan-time start waypoint instead of path progress, deliberately
    leading predicted transforms as placement mismatches, a post-order transient as the settled error, and
    `Max()` reported as the final error.
 
@@ -90,14 +93,14 @@ Two instances, 30 s, ~100 units on `ugc-ChaosArena`, injected one way delay via 
 samples are settled samples excluded because the client had not applied any snapshot for more than 8 ticks, i.e.
 the gap being measured belongs to the transport.
 
-| Run | Verdict | Input response | Error p95 | Error max | Entity settled error | Sustained settled error | Path parity | Snaps (explained/bad) | Predicted samples |
+| Run | Verdict | Input response | Error p95 | Error max | Settled transient | Sustained settled error | Slowest convergence | Path parity | Snaps (explained/bad) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| clean | pass | 1 tick | 0.049 m | 1.869 m | 0.034 m | 0.000 m | 281 / 0 bad | 0 / 0 | 9 374 |
-| latency (150 ms) | pass | 1 tick | 1.684 m | 2.000 m | 0.043 m | 0.000 m | 284 / 0 bad | 0 / 0 | 9 202 |
-| latency + jitter (120 ± 40 ms) | pass | 1 tick | 1.552 m | 2.056 m | 0.254 m | 0.000 m | 279 / 0 bad | 0 / 0 | 9 187 |
-| loopback (authority = client) | pass | 1 tick | 0.000 m | 0.000 m | 0.000 m | 0.000 m | n/a | 0 / 0 | 6 028 |
-| negative control (prediction off, 150 ms) | pass, defect reproduced | n/a | n/a | n/a | n/a | n/a | n/a | n/a | 0 |
-| latency + loss (120 ms, 3 %) | 1 of 3 runs failed | 1 tick | 1.733 m | 1.988 m | 0.035 m | 0.000 m | 62–1491 / 0 bad | 0 / 1 (see 4.1) | ~9 000 |
+| clean | pass | 1 tick | 0.048 m | 1.600 m | 0.048 m | 0.000 m | 1 tick | 273 / 0 bad | 0 / 0 |
+| latency (150 ms) | pass | 1 tick | 1.537 m | 2.251 m | 0.050 m | 0.000 m | 12 ticks | 269 / 0 bad | 0 / 0 |
+| latency + jitter (120 ± 40 ms) | pass | 1 tick | 1.763 m | 2.000 m | 0.095 m | 0.000 m | 3 ticks | 245 / 0 bad | 0 / 0 |
+| loopback (authority = client) | pass | 1 tick | 0.000 m | 0.000 m | 0.000 m | 0.000 m | 1 tick | n/a | 0 / 0 |
+| negative control (prediction off, 150 ms) | pass, defect reproduced | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| latency + loss (120 ms, 3 %) | 2 of 4 runs failed (see 4.1) | 1 tick | 1.733 m | 2.000 m | 0.483 m | 0.000 m | 1–2 ticks | 62–314 / 0 bad | 0 / 1 |
 
 Every green run reports zero compared-state mismatches (110 000+ unit states), zero presentation/placement
 mismatches, zero navigation parity mismatches, zero oscillation violations, zero snapshot ordering violations and
@@ -108,6 +111,12 @@ clean, 6.37 → 0.00 on 150 ms), i.e. no upward trend.
 **Per-tick allocation.** Prediction's own work allocates **0 bytes** on every profile, mean and max. The shared
 movement step (`SimulationService.StepPredictedMovement` → the same `MovementService` the authority uses)
 allocates 0–128 bytes, measured and reported separately because it is not prediction's code.
+
+**Record integrity.** The client record wrote its declared unit count from the tracked list but skipped units that
+died between the prune and the write, so a dead tracked unit desynchronised every reader for the rest of the
+stream and produced evidence that contradicted the service's own measurements. The count now describes exactly the
+units written, and the report is a faithful measurement again. This is worth stating because it is the reason the
+loss-profile snap below could not be attributed for several iterations.
 
 **Loopback invariant.** On an in-process authority the maximum distance between predicted and authoritative
 position is **0.0000 m**, and every submitted command (5 of 5) was answered. The authority and its local viewpoint
@@ -122,25 +131,35 @@ measured against the newest sample the client actually received.
 
 ## 4. What still fails, and why
 
-### 4.1 One unexplained snap on the loss profile, in roughly one run out of three
+### 4.1 One unexplained snap on the loss profile, in roughly one run in two
 
-On `latency-loss`, unit 60 occasionally snaps at 4.0–4.1 m with no allowlisted cause. The report now prints the
-evidence, and it is unambiguous:
+On `latency-loss`, unit 60 occasionally snaps at 4.0–4.1 m with no allowlisted cause, and the report prints the
+evidence:
 
 ```
-Error series (tick:meters, o = has order): 575:0.03-, 576:0.03-, … 583:0.03-
-prediction error reached 4.10 m with a fresh sample and no stated cause
-The snap moved the unit 0.03 m onto the authoritative position
+Error series (tick:meters, o = has order): 578:0.14o, 579:0.14o, … 586:0.14o
+prediction error reached 4.00 m with a fresh sample and no stated cause
+The snap moved the unit 0.14 m onto the authoritative position
 ```
 
-The client's position one tick *before* the snap and immediately after it is within 0.03–0.14 m of the authority,
-and the snap is measured at 4.10 m. A tracked unit cannot move 4 m in one tick any more (the 1 m revert bound
-above), so the discontinuity is introduced *inside* the snapshot apply that precedes the prediction tick, not by
-prediction drift: the delta-apply path and the value handed to `ReconcileAuthoritativePosition` disagree for that
-unit on that one snapshot. It heals on the next snapshot. This is a defect in the delta-apply path; the snap
-threshold, the cause list and the assertion are unchanged, so the run stays red until it is fixed. It did not
-reproduce on clean, 150 ms or jitter in five runs each, which is consistent with it needing a lost or reordered
-delta.
+A 4 m difference is measured inside `ReconcileAuthoritativePosition`, while the applied position one tick before
+and immediately after the snap is within 0.03–0.14 m of the authority, and the recorded sample gap is one sequence.
+The difference therefore cannot be accumulated prediction drift: prediction's own position is where the authority
+says it is, both before and after. Three mechanisms were ruled out by measurement: a predicted step of that size
+(the 1 m revert bound would have logged a rollback), an entity-id recycle (a dead entity's sample is now forgotten)
+and two local replicas claiming one server entity (the harness now fails such a run explicitly and none appeared).
+What remains is how the value handed to reconciliation and the value applied to the entity can differ by four
+metres inside one snapshot burst, which is in the delta-apply path and is the next thing to investigate.
+
+The snap threshold, the cause list and the assertion are unchanged, so these runs stay red. The same run is green
+in about half of attempts and every other profile is green in five attempts each, which is consistent with the
+trigger being a lost or reordered delta.
+
+A related defect in the attribution itself was fixed: the teleport bound was 25 m/s while a snap that is not already
+attributed to an outage can only happen inside 5 ticks, where 4 m already implies 24 m/s. The bound was therefore
+unreachable and no authoritative jump of four to five metres could ever be explained. It is now 12 m/s, well above
+any unit's locomotion and below what a snap implies, so a genuine authoritative jump is attributed as one and a
+prediction that drifts away from a stationary authority is still reported.
 
 ### 4.2 Transport loss on the delayed path
 

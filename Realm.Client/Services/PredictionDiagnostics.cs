@@ -86,11 +86,21 @@ public static class PredictionDiagnostics
 
 		int localPlayerIndex = GameContext.Host?.ObservingPlayerIndex ?? -1;
 		ReadOnlySpan<int> units = prediction.TrackedEntityIds;
+
+		// The count has to describe the units that are actually written. A tracked unit can die between the prune and
+		// this record, and a count that includes it desynchronises every reader for the rest of the stream, which turns
+		// the report into contradictory data instead of a measurement.
+		int aliveCount = 0;
+		for (int index = 0; index < units.Length; index++)
+		{
+			if (world.IsAlive(new Entity(units[index]))) aliveCount++;
+		}
+
 		_writer.Write(KindClientTick);
 		_writer.Write(clientTick);
 		_writer.Write(prediction.LastSnapshotSequence);
 		_writer.Write(localPlayerIndex);
-		_writer.Write(units.Length);
+		_writer.Write(aliveCount);
 
 		for (int index = 0; index < units.Length; index++)
 		{

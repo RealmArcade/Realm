@@ -411,6 +411,7 @@ public static class PredictionHarnessVerification
 		}
 
 		MeasureInputResponse(records, report, thresholds, settings.Loopback);
+		MeasureDuplicateMappings(records, report);
 		Dictionary<int, List<(int Sequence, Vector3 Position)>> hostMotion = BuildHostMotionSeries(records);
 		MeasureSettledError(records, hostMotion, perUnitErrors, perUnitFinalErrors, report, thresholds, settings.Loopback);
 		MeasureSnapsAndCorrections(records, report, thresholds);
@@ -698,6 +699,32 @@ public static class PredictionHarnessVerification
 		}
 
 		return sustained;
+	}
+
+	/// <summary>
+	/// Fails when two tracked local units claim the same server entity. A duplicate replica appears when a spawn is
+	/// repeated for a server id whose local entity was never retired: the two copies then move independently, prediction
+	/// tracks both, and the snapshot stream can only reconcile one of them, which shows up later as an unexplained snap
+	/// far from the authority.
+	/// </summary>
+	private static void MeasureDuplicateMappings(ParsedRecords records, PredictionHarnessReport report)
+	{
+		var reported = new HashSet<(int Local, int Server)>();
+		foreach (ClientTickSample tick in records.ClientTicks)
+		{
+			if (tick.Units.Count < 2) continue;
+			for (int first = 0; first < tick.Units.Count; first++)
+			{
+				int serverEntityId = tick.Units[first].ServerEntityId;
+				if (serverEntityId < 0) continue;
+				for (int second = first + 1; second < tick.Units.Count; second++)
+				{
+					if (tick.Units[second].ServerEntityId != serverEntityId) continue;
+					if (!reported.Add((tick.Units[first].EntityId, serverEntityId))) continue;
+					report.AddFailure($"Local entities {tick.Units[first].EntityId} and {tick.Units[second].EntityId} both claim server entity {serverEntityId} at tick {tick.Tick}; the client holds two replicas of one authoritative unit, so an authoritative sample can only reach one of them.");
+				}
+			}
+		}
 	}
 
 	private static void MeasureSnapsAndCorrections(ParsedRecords records, PredictionHarnessReport report, PredictionThresholds thresholds)
