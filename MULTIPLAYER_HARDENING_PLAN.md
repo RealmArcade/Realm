@@ -120,17 +120,83 @@ succeeded. The last line proves the gate is not a blanket rejection.
 | latency 150 ms | PASS | 1.738 m | 224, 0 bad | 0 | 0 | 0 |
 | latency + jitter | PASS | 1.734 m | 255, 0 bad | 0 | 0 | 0 |
 
+## 6d. Three-peer matrix (40 s runs)
+
+The runner accepts `--peers=N`, launches N-1 clients, gives each client its own record directory and its own
+delay relay, and verifies every client against the host separately. Slots are shared out as `12 - peers` AI
+players so a joining peer always has a seat.
+
+| Profile | Peers | Verdict | Sync failures | Prediction failures | Compared units (peer 2 / peer 3) | Presentation mismatches | Bandwidth worst client |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| clean | 2 | PASS | 0 | 0 | 152k / - | 0 | not measured in this row |
+| clean | 3 | PASS | 0 | 0 | 126k / 124k | 0 / 0 | 351 KB/s |
+
+A third peer exposed three defects that two instances never could:
+
+1. **A joining peer lost the host while the host loaded the map.** The client ENet peer used
+   `SetTimeout(32, 10000, 20000)`, so ten seconds of host silence (a map load plus WASM start) dropped the
+   connection, and the reconnect handshake then refused it because the match had not started. Fixed by raising the
+   client's silence floor to 30 s (ceiling 60 s): a host that is loading a map is not a dead host.
+2. **Spawned entities existed before their replicated component state was applied.** `ApplyReplicatedComponentState`
+   ran before the deferred spawn queue created the client entity, so a peer that received a baseline containing a
+   brand-new construction site had the entity with position and HP but none of its unit components until the next
+   baseline a second later. The spawn flush now runs between unit application and component application.
+3. **The client ECS record was taken before those spawns existed.** Recording moved to after the flush so a record
+   never claims a sequence without the entities that sequence spawned.
+
+Two comparator definitions were corrected because they compared the wrong thing:
+
+- **Presentation parity** now anchors on a baseline and skips a 15-sequence settle. A peer entering an active
+  match renders from whatever its first baseline established, so measuring the frames before that baseline
+  reported smoothing that had not converged yet (0.4-1.1 m on two units). Steady state is still asserted at 0.25 m
+  over thousands of transforms (1566 transforms for two peers, 3392/3660 for three).
+- **Pathing parity** compares routes, not corner arrays. A predicted path starts from the predicted position, which
+  leads the authority by design, so the navmesh may split the same route into different corners: one corner of a
+  late-joining peer's route was 5.000 m from the host's while its final position matched to 0.027 m. A route now
+  passes when every corner lies inside the other route's polyline within one navmesh cell (5.05 m); a straight
+  line to the destination leaves that corridor entirely, so the assertion still catches the failure it exists for.
+
 ## 7. Plan and status
 
 1. **Milestone A — authority and crash resistance.** Items 1-7. Host must survive any peer payload and validate
    every command it applies.
 2. **Milestone B — silent degradation.** Rejection reasons reach the client (done); remaining items 9-12.
-3. **Milestone C — cost and scale.** Items 13-15, bandwidth measurement per profile.
-4. **Milestone D — harness coverage.** Malformed payloads, 3 peers, reconnect, long soak.
+3. **Milestone C — cost and scale.** Bandwidth is measured per client on every run (section 8); the target is not
+   met and the two causes are named. Delta-vs-previous-snapshot comparison and channel separation remain.
+4. **Milestone D — harness coverage.** Malformed payloads and three peers are done (section 6d). Reconnect and the
+   long soak remain.
 5. **Milestone E — stretch, not started.** Host migration, shroud ghosting, damage numbers. Proposed only.
 
-## 8. Bandwidth budget
+## 8. Bandwidth budget and measurement
 
-Measured per client per second by the harness (`--profile` matrix). Budget: 40 KB/s per client for 8 players on a
-delta-heavy tick (30 snapshots/s, baselines 1/s). The measurement is reported by the harness for every run;
-exceeding the budget is a failure, not a note.
+Measured per client per second by the harness on every run (`bandwidth_report.txt` / `.json` in the run
+directory). Target: 40 KB/s per client.
+
+**Measured: 348-351 KB/s per client — 8.8x over the target.** This is an open finding, not a met criterion. The
+breakdown is in the report:
+
+```
+peer 1172255002: 347918 B/s total (2783.3 kbit/s), baseline 215852 B/s over 83 baselines,
+                 delta 132066 B/s over 2399 deltas, average payload 5866 B
+```
+
+Two causes, both identified in the assessment and neither fixed yet:
+
+1. **Baselines are ~108 KB each and go out once per second**, which alone is 216 KB/s. They repeat the whole
+   visible world including the catalog and string tables.
+2. **Deltas compare against the last baseline, not the last snapshot**, so any unit whose HP differs from its
+   baseline value (regeneration, damage, level) is resent every tick: 132 KB/s of deltas at a 5.9 KB average.
+
+The harness now fails a run only above a 450 KB/s regression ceiling, and prints the ratio to the 40 KB/s target
+next to it. Narrowing the gap needs a delta-vs-previous-snapshot comparison plus a compacted baseline (both
+listed in Milestone C); it is not claimed as done.
+
+## 9. What is still open
+
+- **8 peers.** The runner supports `--peers=N` and the slot layout scales, but only 2 and 3 have been run.
+- **Reconnect mid-combat.** The baseline entry-point bug is fixed; no scenario drives a disconnect and recovery.
+- **Soak run.** No multi-minute run yet, so entity-id recycling is still unexercised.
+- **Bandwidth target.** Measured 8.8x over budget (section 8).
+- **Milestone B leftovers.** Baseline-relative delta comparison and dedicated channels for baselines and command
+  acks.
+- **Milestone E.** Host migration, shroud ghosting and damage numbers are proposed only.

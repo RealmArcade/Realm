@@ -232,6 +232,7 @@ public partial class MultiplayerSimulationHarness : Node
 			});
 		}
 
+		MultiplayerBandwidthMeter.Reset();
 		MethodInfo? createServerMethod = typeof(LobbyManager).GetMethod("TryCreateENetServerAsync", BindingFlags.NonPublic | BindingFlags.Instance);
 		if (createServerMethod == null) throw new InvalidOperationException("LobbyManager.TryCreateENetServerAsync could not be resolved.");
 		if (createServerMethod.Invoke(lobby, null) is not Task<bool> createServerTask) throw new InvalidOperationException("LobbyManager.TryCreateENetServerAsync did not return a task.");
@@ -279,6 +280,7 @@ public partial class MultiplayerSimulationHarness : Node
 		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true, hardeningLobby, _hostSlotBaseline);
 
 		_finalSequence = ResolveSnapshotSequence();
+		MultiplayerBandwidthMeter.BuildReport(_outputDirectory, gameHost.GameElapsedTime);
 		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
 		MultiplayerSyncDiagnostics.Stop();
 		PredictionDiagnostics.Stop();
@@ -329,6 +331,7 @@ public partial class MultiplayerSimulationHarness : Node
 			});
 		}
 
+		MultiplayerBandwidthMeter.Reset();
 		Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
 		GD.Print("[MP_HARNESS] Loopback role: hosting and playing in one process over the in-memory command transport.");
 		if (!await StartSimulationAsync(lobby, true)) return 1;

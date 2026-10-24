@@ -8,6 +8,7 @@ using Godot;
 using MemoryPack;
 using Realm.Client.Core;
 using Realm.Client.Network;
+using Realm.Client.Testing;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -2028,6 +2029,7 @@ public class NetworkService
 			if (!hasBaseline && !isBaseline) continue;
 
 			var payload = BuildClientSnapshotPayload(p.PeerId, playerEntity, allUnits, isBaseline, snapshotSequence, lastBaselineMap, abilityStates, staticTexts);
+			MultiplayerBandwidthMeter.RecordSnapshotPayload(p.PeerId, payload.Length, isBaseline);
 			results.Add((p.PeerId, payload, isBaseline));
 		}
 	}

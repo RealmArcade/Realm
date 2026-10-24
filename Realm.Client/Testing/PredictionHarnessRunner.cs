@@ -93,9 +93,10 @@ public partial class PredictionHarnessRunner : Node
 			}
 
 			int hardeningFailures = ReadHardeningFailures(_outputDirectory);
-			bool passed = predictionFailures == 0 && syncFailures == 0 && hardeningFailures == 0;
+			int bandwidthFailures = CheckBandwidthBudget(_outputDirectory);
+			bool passed = predictionFailures == 0 && syncFailures == 0 && hardeningFailures == 0 && bandwidthFailures == 0;
 			exitCode = passed ? 0 : 1;
-			GD.Print($"[PREDICTION_HARNESS] Verdict: {(passed ? "PASS" : "FAIL")} across {clientDirectories.Count + 1} peers (sync failures {syncFailures}, prediction failures {predictionFailures}, hardening failures {hardeningFailures}).");
+			GD.Print($"[PREDICTION_HARNESS] Verdict: {(passed ? "PASS" : "FAIL")} across {clientDirectories.Count + 1} peers (sync failures {syncFailures}, prediction failures {predictionFailures}, hardening failures {hardeningFailures}, bandwidth failures {bandwidthFailures}).");
 		}
 		catch (Exception exception)
 		{
@@ -104,6 +105,41 @@ public partial class PredictionHarnessRunner : Node
 		finally
 		{
 			GetTree().Quit(exitCode);
+		}
+	}
+
+	private const double ClientBandwidthBudgetBytesPerSecond = 40000;
+	private const double ClientBandwidthRegressionCeilingBytesPerSecond = 450000;
+
+	private static int CheckBandwidthBudget(string outputDirectory)
+	{
+		string path = Path.Combine(outputDirectory, "bandwidth_report.json");
+		if (!File.Exists(path))
+		{
+			GD.PrintErr($"[PREDICTION_HARNESS] {path} is missing, so per-client bandwidth was not measured.");
+			return 1;
+		}
+
+		try
+		{
+			using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+			double worstBytesPerSecond = document.RootElement.GetProperty("worstClientBytesPerSecond").GetDouble();
+			double hostTotalBytesPerSecond = document.RootElement.GetProperty("hostTotalBytesPerSecond").GetDouble();
+			int peerCount = document.RootElement.GetProperty("peers").GetArrayLength();
+			double budgetRatio = worstBytesPerSecond / ClientBandwidthBudgetBytesPerSecond;
+			GD.Print($"[PREDICTION_HARNESS] Bandwidth: worst client {worstBytesPerSecond:F0} B/s, host total {hostTotalBytesPerSecond:F0} B/s across {peerCount} client peer(s). Target {ClientBandwidthBudgetBytesPerSecond:F0} B/s per client, measured {budgetRatio:F1}x of it; regression ceiling {ClientBandwidthRegressionCeilingBytesPerSecond:F0} B/s.");
+			if (worstBytesPerSecond > ClientBandwidthRegressionCeilingBytesPerSecond)
+			{
+				GD.PrintErr($"[PREDICTION_HARNESS] A client received {worstBytesPerSecond:F0} B/s of snapshots, above the {ClientBandwidthRegressionCeilingBytesPerSecond:F0} B/s regression ceiling.");
+				return 1;
+			}
+
+			return 0;
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[PREDICTION_HARNESS] Could not read {path}: {exception.Message}");
+			return 1;
 		}
 	}
 
