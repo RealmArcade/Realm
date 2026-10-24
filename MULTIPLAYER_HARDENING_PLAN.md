@@ -129,7 +129,7 @@ players so a joining peer always has a seat.
 | Profile | Peers | Verdict | Sync failures | Prediction failures | Compared units (peer 2 / peer 3) | Presentation mismatches | Bandwidth worst client |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | clean | 2 | PASS | 0 | 0 | 152k / - | 0 | 348 KB/s |
-| clean | 3 | PASS | 0 | 0 | 126k / 124k | 0 / 0 | 351 KB/s |
+| clean | 3 | PASS | 0 | 0 | 126k / 124k | 0 / 0 | 350-351 KB/s |
 | latency + loss | 3 | FAIL | 2 | 1 | - | 1 / 0 | 352 KB/s |
 
 A third peer exposed three defects that two instances never could:
@@ -147,10 +147,10 @@ A third peer exposed three defects that two instances never could:
 
 Two comparator definitions were corrected because they compared the wrong thing:
 
-- **Presentation parity** now anchors on a baseline and skips a 15-sequence settle. A peer entering an active
+- **Presentation parity** now anchors on a baseline and skips a 0.5 s settle. A peer entering an active
   match renders from whatever its first baseline established, so measuring the frames before that baseline
   reported smoothing that had not converged yet (0.4-1.1 m on two units). Steady state is still asserted at 0.25 m
-  over thousands of transforms (1566 transforms for two peers, 3392/3660 for three).
+  over thousands of transforms (1404 transforms for two peers, 1855/2360 for three).
 - **Pathing parity** compares routes, not corner arrays. A predicted path starts from the predicted position, which
   leads the authority by design, so the navmesh may split the same route into different corners: one corner of a
   late-joining peer's route was 5.000 m from the host's while its final position matched to 0.027 m. A route now

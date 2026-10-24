@@ -78,8 +78,7 @@ public static class MultiplayerSyncDiagnostics
 	}
 
 	public static float PresentationWindowSeconds { get; set; } = 2f;
-	public static int PresentationWindowSequences { get; set; } = 60;
-	public static int PresentationSettleSequences { get; set; } = 15;
+	public static float PresentationSettleSeconds { get; set; } = 0.5f;
 	public static bool IsRecording => _writer != null;
 	public static int WrittenRecordCount => _writtenRecordCount;
 	public static string OutputDirectory => _outputDirectory;
@@ -447,8 +446,9 @@ public static class MultiplayerSyncDiagnostics
 			_presentationAnchorSequence = sequence;
 		}
 
-		if (sequence - _presentationAnchorSequence < PresentationSettleSequences) return;
-		if (sequence - _presentationAnchorSequence > PresentationWindowSequences) return;
+		float presentationElapsed = gameHost.GameElapsedTime - _presentationWindowStartTime;
+		if (presentationElapsed < PresentationSettleSeconds) return;
+		if (presentationElapsed > PresentationWindowSeconds) return;
 
 		NetworkMappingState mapping = world.Get<NetworkMappingState>(worldEntity);
 		var units = new List<PresentedUnitState>();

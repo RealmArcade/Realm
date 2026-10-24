@@ -767,7 +767,7 @@ public static class MultiplayerEcsSyncTestSupport
 			}
 		}
 
-		report.AddSummaryLine($"Presentation parity window: {MultiplayerSyncDiagnostics.PresentationSettleSequences}-{MultiplayerSyncDiagnostics.PresentationWindowSequences} sequences after a baseline, tolerance {placementTolerance:F2} m for {profile}, paired sequences: {pairedSequences}, compared rendered transforms: {comparedTransforms}, placement mismatches: {mismatchCount}");
+		report.AddSummaryLine($"Presentation parity window: from {MultiplayerSyncDiagnostics.PresentationSettleSeconds:F1}s to {MultiplayerSyncDiagnostics.PresentationWindowSeconds:F1}s after a baseline, tolerance {placementTolerance:F2} m for {profile}, paired sequences: {pairedSequences}, compared rendered transforms: {comparedTransforms}, placement mismatches: {mismatchCount}");
 		report.AddSummaryLine($"Locally predicted rendered transforms excluded from placement parity: {skippedPredictedTransforms} (prediction intentionally leads the authoritative position).");
 		report.AddSummaryLine($"Rendered rotation deviations beyond {PresentationRotationTolerance:F2} rad: {rotationDeviationCount} of {comparedTransforms}, largest {largestRotationDeviation:F2} rad (off-frustum units keep their frozen transform until they enter the view)");
 		if (pairedSequences == 0) report.AddFailure("No rendered presentation records paired with host snapshots, so placement parity was not verified.");
