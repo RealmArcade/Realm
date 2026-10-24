@@ -3068,13 +3068,7 @@ public partial class GameHost : Node3D, IGameAPI
 		SpawnTargetIndicator(propPos, new Color(0.9f, 0.8f, 0.1f));
 		GameContext.InGameHud?.ShowFeedbackText($"Gathering {resType.ToUpper()} from {propId}", new Color(0.9f, 0.8f, 0.1f));
 
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			IssueMultiplayerGatherCommand(propEntity, propPos, isQueued);
-			return;
-		}
-
-		IssueLocalGatherCommand(propEntity, propPos, resType, isQueued);
+		SubmitGatherOrderCommand(propEntity, propPos, isQueued);
 	}
 
 	private string? GetPropResourceType(string propId)
@@ -3082,7 +3076,7 @@ public partial class GameHost : Node3D, IGameAPI
 		return GameContext.RegistryService.GetResourceTypeForNode(propId);
 	}
 
-	private void IssueMultiplayerGatherCommand(Entity propEntity, Vector3 propPos, bool isQueued)
+	private void SubmitGatherOrderCommand(Entity propEntity, Vector3 propPos, bool isQueued)
 	{
 		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (localPlayerIndex <= 0) return;
@@ -3091,31 +3085,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
 			targetIds.Add(GetServerEntityId(unit.Entity));
-		}
-
-		QueueClientCommand(isQueued ? "gather_queued" : "gather", targetIds, propPos, GetServerEntityId(propEntity), "");
-	}
-
-	private void IssueLocalGatherCommand(Entity propEntity, Vector3 propPos, string resType, bool isQueued)
-	{
-		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
-		if (localPlayerIndex <= 0) return;
-		foreach (var unit in SelectedUnits)
-		{
-			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
-
-				if (isQueued && GameContext.InputService != null && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(unit.Entity))
-			{
-				GameContext.InputService.EnqueueCommand(unit.Entity, "gather", new System.Numerics.Vector3(propPos.X, propPos.Y, propPos.Z), propEntity);
-			}
-			else
-			{
-				if (!isQueued) ClearUnitOrders(unit.Entity);
-
-				GameContext.World.SetOrAdd(unit.Entity, new Gatherer(resType, propEntity));
-				GameContext.World.SetOrAdd(unit.Entity, new MoveTo(new System.Numerics.Vector3(propPos.X, propPos.Y, propPos.Z)));
-			}
-		}
+		}		SubmitOrderCommand(isQueued ? "gather_queued" : "gather", targetIds, propPos, GetServerEntityId(propEntity), "");
 	}
 
 	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)
@@ -3492,7 +3462,21 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public bool IsMultiplayerServerActive() => _multiplayerActive && IsServerActive();
 
-	public bool IsClientSimulationOnly => _multiplayerActive && !IsServerActive();
+	public bool HasAuthority => IsServerActive();
+
+	public bool HasRemoteAuthority => _multiplayerActive && !IsServerActive();
+
+	public int ObservingPlayerIndex
+	{
+		get
+		{
+			var filter = GameContext.PerspectiveFilter;
+			if (!filter.IsConfigured || filter.IsSpectating) return -1;
+			return filter.ControlledPlayerIndex;
+		}
+	}
+
+	public bool IsLocalViewpoint(int playerIndex) => playerIndex > 0 && playerIndex == ObservingPlayerIndex;
 
 	private bool IsServerActive()
 	{
@@ -3812,9 +3796,16 @@ public partial class GameHost : Node3D, IGameAPI
 
 			_fDelta = fDelta;
 
+			DrainLocalCommandQueue();
+
 			ProcessCoreSimulation(fDelta);
 			ProcessVisualAndEnvironment(fDelta);
 			ProcessMiscTicks(fDelta);
+
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PredictionPerformanceSample))
+			{
+				GameContext.MovementPredictionService?.Tick(GameContext.World, fDelta);
+			}
 
 			if (_multiplayerActive && Multiplayer.IsServer())
 				UpdateServerSnapshotTick(fDelta);

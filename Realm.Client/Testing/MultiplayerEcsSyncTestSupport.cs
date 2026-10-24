@@ -10,6 +10,14 @@ using Realm.Ecs.Replication;
 
 namespace Realm.Client.Testing;
 
+public enum NetworkProfile
+{
+	Clean,
+	Latency,
+	LatencyJitter,
+	LatencyLoss
+}
+
 public sealed class MultiplayerEcsRunSettings
 {
 	public string GodotBinary { get; init; } = string.Empty;
@@ -20,7 +28,14 @@ public sealed class MultiplayerEcsRunSettings
 	public float DurationSeconds { get; init; } = 15f;
 	public int Port { get; init; } = 8999;
 	public int PingMilliseconds { get; init; }
-	public int DrainMilliseconds => Math.Max(1500, PingMilliseconds * 4);
+	public int OneWayDelayMilliseconds { get; init; }
+	public int JitterMilliseconds { get; init; }
+	public int PacketLossPercent { get; init; }
+	public NetworkProfile Profile { get; init; } = NetworkProfile.Latency;
+	public bool PredictionEnabled { get; init; }
+	public bool RunPredictionScenario { get; init; }
+	public bool Loopback { get; init; }
+	public int DrainMilliseconds => Math.Max(1500, Math.Max(PingMilliseconds * 4, OneWayDelayMilliseconds * 8));
 }
 
 public sealed class MultiplayerEcsSyncReport
@@ -125,13 +140,26 @@ public static class MultiplayerEcsSyncTestSupport
 			File.Delete(file);
 		}
 
+		if (settings.Loopback)
+		{
+			await RunLoopbackAsync(settings);
+			return;
+		}
+
 		string hostListeningFile = Path.Combine(settings.OutputDirectory, "host_listening.txt");
 		string hostReadyFile = Path.Combine(settings.OutputDirectory, "host_ready.txt");
 		string clientReadyFile = Path.Combine(settings.OutputDirectory, "client_ready.txt");
 		string hostDoneFile = Path.Combine(settings.OutputDirectory, "host_done.txt");
 		string clientSequenceFile = Path.Combine(settings.OutputDirectory, "client_final_sequence.txt");
 
-		using UdpDelayRelay? relay = settings.PingMilliseconds > 0 ? new UdpDelayRelay(settings.Port, settings.PingMilliseconds) : null;
+		bool useRelay = settings.OneWayDelayMilliseconds > 0 || settings.JitterMilliseconds > 0 || settings.PacketLossPercent > 0 || settings.PingMilliseconds > 0;
+		using UdpDelayRelay? relay = useRelay
+			? new UdpDelayRelay(
+				settings.Port,
+				settings.OneWayDelayMilliseconds > 0 ? settings.OneWayDelayMilliseconds : Math.Max(1, settings.PingMilliseconds / 2),
+				settings.JitterMilliseconds,
+				settings.PacketLossPercent)
+			: null;
 		int clientConnectionPort = relay?.ListenPort ?? settings.Port;
 
 		using HarnessProcess hostProcess = StartHarnessProcess(settings, "host", settings.Port, null, hostReadyFile, hostDoneFile);
@@ -173,6 +201,22 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
+	private static async Task RunLoopbackAsync(MultiplayerEcsRunSettings settings)
+	{
+		string readyFile = Path.Combine(settings.OutputDirectory, "loopback_ready.txt");
+		using HarnessProcess loopbackProcess = StartHarnessProcess(settings, "loopback", settings.Port, null, readyFile, string.Empty);
+		bool ready = await WaitForFileOrExitAsync(readyFile, loopbackProcess.Process, TimeSpan.FromSeconds(180));
+		if (!ready) throw new InvalidOperationException($"Loopback harness did not become ready.\n{loopbackProcess.ReadLog()}");
+
+		bool exited = await WaitForExitAsync(loopbackProcess.Process, TimeSpan.FromSeconds(settings.DurationSeconds * 4 + 300));
+		if (!exited) loopbackProcess.Process.Kill(true);
+		if (!exited) throw new InvalidOperationException($"Loopback harness did not finish in time.\n{loopbackProcess.ReadLog()}");
+		if (loopbackProcess.Process.ExitCode != 0)
+		{
+			throw new InvalidOperationException($"Loopback harness exited with code {loopbackProcess.Process.ExitCode}.\n{loopbackProcess.ReadLog()}");
+		}
+	}
+
 	private static HarnessProcess StartHarnessProcess(MultiplayerEcsRunSettings settings, string role, int connectionPort, string? sequenceFile, string readyFile, string doneFile)
 	{
 		var startInfo = new ProcessStartInfo(settings.GodotBinary)
@@ -200,6 +244,10 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--sequence-file={sequenceFile}");
 		startInfo.ArgumentList.Add($"--drain-ms={settings.DrainMilliseconds}");
 		startInfo.ArgumentList.Add($"--duration={settings.DurationSeconds.ToString(CultureInfo.InvariantCulture)}");
+		startInfo.ArgumentList.Add($"--prediction={(settings.PredictionEnabled ? 1 : 0)}");
+		startInfo.ArgumentList.Add($"--scenario={(settings.RunPredictionScenario ? 1 : 0)}");
+		startInfo.ArgumentList.Add($"--profile={settings.Profile}");
+		startInfo.ArgumentList.Add($"--loopback={(settings.Loopback ? 1 : 0)}");
 
 		HarnessProcess harnessProcess = new(Path.Combine(settings.OutputDirectory, $"{role}.log"));
 		Process process = harnessProcess.Process;
@@ -413,7 +461,7 @@ public static class MultiplayerEcsSyncTestSupport
 			report.AddFailure($"{missingBaselineSequences.Count} baseline snapshots produced by the host were never applied by the client.");
 		}
 
-		int tolerance = Math.Max(10, pairedSnapshots / 20);
+		int tolerance = ResolveLostSequenceTolerance(settings, pairedSnapshots);
 		if (lostSequenceCount > tolerance)
 		{
 			report.AddFailure($"{lostSequenceCount} host snapshot sequences never reached the client after startup (allowed {tolerance}); {supersededSequenceCount} more were received but superseded by a newer snapshot. Per-tick snapshots are several kilobytes, so they span multiple unreliable fragments and any lost fragment drops the whole snapshot; only a spike far above that, or a lost baseline, means the transport regressed.");
@@ -451,6 +499,43 @@ public static class MultiplayerEcsSyncTestSupport
 
 		ComparePresentationRecords(outputDirectory, hostRecords, report);
 		return report;
+	}
+
+	/// <summary>
+	/// The share of host snapshot sequences that may never reach the client, expressed as a percentage of the paired
+	/// snapshots. A per-tick snapshot spans roughly four unreliable fragments, so a datagram loss rate of p drops about
+	/// 1-(1-p)^4 of snapshots: 3% datagrams is close to 11.5% of snapshots. The allowance is that expectation with
+	/// roughly 1.75x headroom, so it fails only on a real transport regression rather than on the profile's own loss.
+	/// </summary>
+	private static int ResolveLostSequenceTolerance(MultiplayerEcsRunSettings settings, int pairedSnapshots)
+	{
+		int allowancePercent = settings.Profile switch
+		{
+			NetworkProfile.Clean => 5,
+			NetworkProfile.Latency => 5,
+			NetworkProfile.LatencyJitter => 6,
+			NetworkProfile.LatencyLoss => 20,
+			_ => 5
+		};
+
+		return Math.Max(10, pairedSnapshots * allowancePercent / 100);
+	}
+
+	/// <summary>
+	/// How many snapshot sequences the client may still be behind after the drain window, beyond the injected one-way
+	/// delay. A lossy profile reaches its final applied sequence later because lost snapshots are only repaired by the
+	/// next one, so its allowance is wider by roughly two snapshot trains.
+	/// </summary>
+	private static int ResolveConvergenceAllowanceTicks(NetworkProfile profile)
+	{
+		return profile switch
+		{
+			NetworkProfile.Clean => 90,
+			NetworkProfile.Latency => 120,
+			NetworkProfile.LatencyJitter => 150,
+			NetworkProfile.LatencyLoss => 240,
+			_ => 120
+		};
 	}
 
 	private static bool IsSameNavigation(MultiplayerNavigationState left, MultiplayerNavigationState right)
@@ -543,6 +628,7 @@ public static class MultiplayerEcsSyncTestSupport
 		int pairedSequences = 0;
 		int comparedTransforms = 0;
 		int mismatchCount = 0;
+		int skippedPredictedTransforms = 0;
 		int rotationDeviationCount = 0;
 		float largestRotationDeviation = 0f;
 
@@ -559,6 +645,12 @@ public static class MultiplayerEcsSyncTestSupport
 				{
 					mismatchCount++;
 					if (mismatches.Count < 20) mismatches.Add($"seq {hostEntry.Key}: rendered entity {hostUnit.EntityId} is missing on the client.");
+					continue;
+				}
+
+				if ((presentedUnit.Flags & 16) != 0)
+				{
+					skippedPredictedTransforms++;
 					continue;
 				}
 
@@ -582,6 +674,7 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 
 		report.AddSummaryLine($"Presentation parity window: first {MultiplayerSyncDiagnostics.PresentationWindowSeconds:F1}s, paired sequences: {pairedSequences}, compared rendered transforms: {comparedTransforms}, placement mismatches: {mismatchCount}");
+		report.AddSummaryLine($"Locally predicted rendered transforms excluded from placement parity: {skippedPredictedTransforms} (prediction intentionally leads the authoritative position).");
 		report.AddSummaryLine($"Rendered rotation deviations beyond {PresentationRotationTolerance:F2} rad: {rotationDeviationCount} of {comparedTransforms}, largest {largestRotationDeviation:F2} rad (off-frustum units keep their frozen transform until they enter the view)");
 		if (pairedSequences == 0) report.AddFailure("No rendered presentation records paired with host snapshots, so placement parity was not verified.");
 		else if (comparedTransforms < 20) report.AddFailure($"Only {comparedTransforms} rendered unit transforms were compared in the presentation window.");
@@ -756,6 +849,7 @@ public static class MultiplayerEcsSyncTestSupport
 	{
 		string hostDonePath = Path.Combine(settings.OutputDirectory, "host_done.txt");
 		string clientSequencePath = Path.Combine(settings.OutputDirectory, "client_final_sequence.txt");
+		report.AddSummaryLine($"Network profile: {settings.Profile} (one-way {settings.OneWayDelayMilliseconds} ms, jitter {settings.JitterMilliseconds} ms, loss {settings.PacketLossPercent}%)");
 		report.AddSummaryLine($"Injected ping (round trip): {settings.PingMilliseconds} ms");
 
 		string relayStatsPath = Path.Combine(settings.OutputDirectory, "relay_stats.txt");
@@ -783,7 +877,7 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 
 		int oneWayTicks = (int)MathF.Ceiling(settings.PingMilliseconds / 2f * 60f / 1000f);
-		int allowedLagTicks = oneWayTicks + 120;
+		int allowedLagTicks = oneWayTicks + ResolveConvergenceAllowanceTicks(settings.Profile);
 		int lagTicks = hostFinalSequence - clientFinalSequence;
 		report.AddSummaryLine($"Host final sequence: {hostFinalSequence}");
 		report.AddSummaryLine($"Client final sequence: {clientFinalSequence}");

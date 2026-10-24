@@ -1,0 +1,331 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Numerics;
+using Realm.Ecs;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Services;
+
+namespace Realm.Client.Services;
+
+public static class PredictionDiagnostics
+{
+	public const uint FileMagic = 0x50445243;
+	public const int FileVersion = 1;
+	public const int MaximumRecordedWaypoints = 16;
+
+	public const byte KindClientTick = 1;
+	public const byte KindCommandRegistered = 2;
+	public const byte KindCommandAccepted = 3;
+	public const byte KindRejection = 4;
+	public const byte KindRollback = 5;
+	public const byte KindSnap = 6;
+	public const byte KindCorrection = 7;
+	public const byte KindPredictionStopped = 8;
+	public const byte KindScriptOrder = 9;
+	public const byte KindScriptUpdate = 10;
+	public const byte KindScenario = 11;
+	public const byte KindHostSnapshot = 20;
+
+	private static BinaryWriter? _predictionWriter;
+	private static BinaryWriter? _authorityWriter;
+	private static string _outputDirectory = string.Empty;
+	private static int _lastClientTick = -1;
+
+	public static bool IsRecording => _predictionWriter != null;
+	public static bool IsHostRecording => _authorityWriter != null;
+	public static string OutputDirectory => _outputDirectory;
+
+	/// <summary>
+	/// Opens the prediction record streams. A remote client records prediction only; the authority records the snapshot
+	/// stream only; a single process that is both (single player, offline, or the hosting player) records both.
+	/// </summary>
+	public static void Start(string outputDirectory, bool recordAuthoritySnapshots, bool recordPrediction)
+	{
+		Stop();
+		_outputDirectory = outputDirectory;
+		_lastClientTick = -1;
+
+		if (recordAuthoritySnapshots) _authorityWriter = OpenWriter(outputDirectory, "prediction_host.bin", true);
+		if (recordPrediction) _predictionWriter = OpenWriter(outputDirectory, "prediction_client.bin", false);
+	}
+
+	private static BinaryWriter OpenWriter(string outputDirectory, string fileName, bool isAuthority)
+	{
+		string path = Path.Combine(outputDirectory, fileName);
+		FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16);
+		var writer = new BinaryWriter(stream);
+		writer.Write(FileMagic);
+		writer.Write(FileVersion);
+		writer.Write(isAuthority);
+		writer.Flush();
+		return writer;
+	}
+
+	public static void Stop()
+	{
+		_predictionWriter?.Flush();
+		_predictionWriter?.Dispose();
+		_predictionWriter = null;
+
+		_authorityWriter?.Flush();
+		_authorityWriter?.Dispose();
+		_authorityWriter = null;
+	}
+
+	public static void RecordClientTick(EcsWorld world, int clientTick, MovementPredictionService prediction)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		if (clientTick == _lastClientTick) return;
+		_lastClientTick = clientTick;
+
+		int localPlayerIndex = GameContext.Host?.ObservingPlayerIndex ?? -1;
+		ReadOnlySpan<int> units = prediction.TrackedEntityIds;
+		_writer.Write(KindClientTick);
+		_writer.Write(clientTick);
+		_writer.Write(prediction.LastSnapshotSequence);
+		_writer.Write(localPlayerIndex);
+		_writer.Write(units.Length);
+
+		for (int index = 0; index < units.Length; index++)
+		{
+			int entityId = units[index];
+			var entity = new Entity(entityId);
+			if (!world.IsAlive(entity)) continue;
+
+			bool hasPosition = world.Has<Position>(entity);
+			Vector3 predicted = hasPosition ? world.Get<Position>(entity).Value : Vector3.Zero;
+			Vector3 previous = world.Has<PreviousPosition>(entity) ? world.Get<PreviousPosition>(entity).Value : predicted;
+			bool hasPredictedOrder = world.Has<PredictedMoveTo>(entity);
+			bool hasOrder = hasPredictedOrder || world.Has<MoveTo>(entity);
+			Vector3 moveTarget = hasPredictedOrder
+				? world.Get<PredictedMoveTo>(entity).Target
+				: (hasOrder ? world.Get<MoveTo>(entity).Target : Vector3.Zero);
+			int ownerPlayerIndex = world.Has<UnitOwnerPlayer>(entity) ? world.Get<UnitOwnerPlayer>(entity).PlayerIndex : -1;
+			bool hasPathFollow = world.Has<PathFollow>(entity);
+			PathFollow pathFollow = hasPathFollow ? world.Get<PathFollow>(entity) : default;
+
+			prediction.GetAuthoritativeSample(entityId, out Vector3 authoritative, out int authoritativeSequence);
+			int serverEntityId = GameContext.NetworkService?.GetServerEntityId(entityId) ?? -1;
+
+			_writer.Write(entityId);
+			_writer.Write(serverEntityId);
+			_writer.Write(prediction.ResolveCommandId(entityId));
+			_writer.Write(ownerPlayerIndex);
+			_writer.Write(localPlayerIndex);
+			_writer.Write(hasOrder);
+			_writer.Write(hasPathFollow);
+			_writer.Write(pathFollow.CurrentWaypointIndex);
+			_writer.Write(pathFollow.WaypointCount);
+			WriteVector(_writer, predicted);
+			WriteVector(_writer, previous);
+			WriteVector(_writer, authoritative);
+			WriteVector(_writer, moveTarget);
+			_writer.Write(authoritativeSequence);
+
+			int waypointCount = hasPathFollow ? Math.Min(pathFollow.WaypointCount, MaximumRecordedWaypoints) : 0;
+			_writer.Write(waypointCount);
+			for (int waypointIndex = 0; waypointIndex < waypointCount; waypointIndex++)
+			{
+				WriteVector(_writer, pathFollow.Waypoints[waypointIndex]);
+			}
+		}
+
+		_writer.Flush();
+	}
+
+	public static void RecordCommandRegistered(int commandId, IReadOnlyList<int> entityIds)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindCommandRegistered);
+		_writer.Write(commandId);
+		_writer.Write(_lastClientTick);
+		_writer.Write(entityIds.Count);
+		for (int index = 0; index < entityIds.Count; index++) _writer.Write(entityIds[index]);
+	}
+
+	public static void RecordCommandAccepted(int commandId)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindCommandAccepted);
+		_writer.Write(commandId);
+		_writer.Write(_lastClientTick);
+	}
+
+	public static void RecordRejection(int commandId, string reason)
+	{
+		if (_predictionWriter != null)
+		{
+			_predictionWriter.Write(KindRejection);
+			_predictionWriter.Write(false);
+			_predictionWriter.Write(commandId);
+			_predictionWriter.Write(_lastClientTick);
+			_predictionWriter.Write(reason);
+			_predictionWriter.Flush();
+		}
+
+		if (_authorityWriter != null)
+		{
+			_authorityWriter.Write(KindRejection);
+			_authorityWriter.Write(true);
+			_authorityWriter.Write(commandId);
+			_authorityWriter.Write(_lastClientTick);
+			_authorityWriter.Write(reason);
+			_authorityWriter.Flush();
+		}
+	}
+
+	public static void RecordRollback(int commandId, int entityId, string reason, int sequence)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindRollback);
+		_writer.Write(commandId);
+		_writer.Write(entityId);
+		_writer.Write(sequence);
+		_writer.Write(_lastClientTick);
+		_writer.Write(reason);
+		_writer.Flush();
+	}
+
+	public static void RecordSnap(int entityId, int sequence, Vector3 predicted, Vector3 authoritative, bool explained, string reason)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindSnap);
+		_writer.Write(entityId);
+		_writer.Write(sequence);
+		_writer.Write(_lastClientTick);
+		_writer.Write(explained);
+		WriteVector(_writer, predicted);
+		WriteVector(_writer, authoritative);
+		_writer.Write(reason);
+		_writer.Flush();
+	}
+
+	public static void RecordCorrection(int entityId, Vector3 predicted, Vector3 corrected, Vector3 authoritative, int sequence)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindCorrection);
+		_writer.Write(entityId);
+		_writer.Write(sequence);
+		_writer.Write(_lastClientTick);
+		WriteVector(_writer, predicted);
+		WriteVector(_writer, corrected);
+		WriteVector(_writer, authoritative);
+	}
+
+	public static void RecordPredictionStopped(int entityId, string reason)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindPredictionStopped);
+		_writer.Write(entityId);
+		_writer.Write(_lastClientTick);
+		_writer.Write(reason);
+	}
+
+	public static void RecordScriptOrder(int entityId, Vector3 target, bool localOwned)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindScriptOrder);
+		_writer.Write(entityId);
+		_writer.Write(_lastClientTick);
+		_writer.Write(localOwned);
+		WriteVector(_writer, target);
+	}
+
+	public static void RecordScriptUpdate()
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindScriptUpdate);
+		_writer.Write(_lastClientTick);
+	}
+
+	public static void RecordScenarioOrder(string stage, int tick, int entityId, Vector3 target)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindScenario);
+		_writer.Write(stage);
+		_writer.Write(tick);
+		_writer.Write(entityId);
+		WriteVector(_writer, target);
+		_writer.Flush();
+	}
+
+	public static void RecordHostSnapshot(int sequence, EcsWorld world, List<Unit3D> units)
+	{
+		var _writer = _authorityWriter;
+		if (_writer == null) return;
+		if (units == null) return;
+
+		int recordedCount = 0;
+		for (int index = 0; index < units.Count; index++)
+		{
+			var unit = units[index];
+			if (unit == null || !world.IsAlive(unit.Entity)) continue;
+			if (!ShouldRecordHostUnit(unit)) continue;
+			recordedCount++;
+		}
+
+		_writer.Write(KindHostSnapshot);
+		_writer.Write(sequence);
+		_writer.Write(recordedCount);
+		for (int index = 0; index < units.Count; index++)
+		{
+			var unit = units[index];
+			if (unit == null || !world.IsAlive(unit.Entity)) continue;
+			if (!ShouldRecordHostUnit(unit)) continue;
+
+			var entity = unit.Entity;
+			Vector3 position = world.Has<Position>(entity) ? world.Get<Position>(entity).Value : Vector3.Zero;
+			bool hasMoveTo = world.Has<MoveTo>(entity);
+			Vector3 moveTarget = hasMoveTo ? world.Get<MoveTo>(entity).Target : Vector3.Zero;
+			bool hasPathFollow = world.Has<PathFollow>(entity);
+			PathFollow pathFollow = hasPathFollow ? world.Get<PathFollow>(entity) : default;
+			int ownerPlayerIndex = world.Has<UnitOwnerPlayer>(entity) ? world.Get<UnitOwnerPlayer>(entity).PlayerIndex : -1;
+			int serverEntityId = GameContext.NetworkService?.GetServerEntityId(entity.Id) ?? entity.Id;
+
+			_writer.Write(serverEntityId);
+			_writer.Write(ownerPlayerIndex);
+			_writer.Write(hasMoveTo);
+			_writer.Write(hasPathFollow);
+			_writer.Write(pathFollow.CurrentWaypointIndex);
+			_writer.Write(pathFollow.WaypointCount);
+			WriteVector(_writer, position);
+			WriteVector(_writer, moveTarget);
+
+			int waypointCount = hasPathFollow ? Math.Min(pathFollow.WaypointCount, MaximumRecordedWaypoints) : 0;
+			_writer.Write(waypointCount);
+			for (int waypointIndex = 0; waypointIndex < waypointCount; waypointIndex++)
+			{
+				WriteVector(_writer, pathFollow.Waypoints[waypointIndex]);
+			}
+		}
+
+		_writer.Flush();
+	}
+
+	private static bool ShouldRecordHostUnit(Unit3D unit)
+	{
+		if (unit.IsBuilding) return false;
+		if (GameContext.World.Has<Dead>(unit.Entity)) return false;
+		return GameContext.NetworkService?.GetServerEntityId(unit.Entity.Id) > 0;
+	}
+
+	private static void WriteVector(BinaryWriter writer, Vector3 value)
+	{
+		writer.Write(value.X);
+		writer.Write(value.Y);
+		writer.Write(value.Z);
+	}
+}

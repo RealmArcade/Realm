@@ -457,7 +457,9 @@ public static class MultiplayerSyncDiagnostics
 			bool isBuilding = world.Has<Building>(localEntity);
 			int ownerPlayerIndex = ResolveOwnerPlayerIndex(world, localEntity);
 
-			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding));
+			bool isPredicted = GameContext.MovementPredictionService != null
+				&& GameContext.MovementPredictionService.IsEntityTracked(localEntity.Id);
+			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding, isPredicted));
 		}
 
 		units.Sort((left, right) => left.ServerEntityId.CompareTo(right.ServerEntityId));
@@ -476,7 +478,7 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(unit.RotationY);
 				writer.Write(unit.CurrentHp);
 				writer.Write(unit.MaxHp);
-				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, false, true));
+				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, false, true, unit.IsPredicted));
 				writer.Write(0);
 			}
 
@@ -497,13 +499,14 @@ public static class MultiplayerSyncDiagnostics
 		return world.Get<UnitOwnerPlayer>(localEntity).PlayerIndex;
 	}
 
-	private static byte BuildFlags(bool isDead, bool isBuilding, bool isDetailed, bool isVisibleToRemoteClient)
+	private static byte BuildFlags(bool isDead, bool isBuilding, bool isDetailed, bool isVisibleToRemoteClient, bool isLocallyPredicted = false)
 	{
 		byte flags = 0;
 		if (isDead) flags |= 1;
 		if (isBuilding) flags |= 2;
 		if (isDetailed) flags |= 4;
 		if (isVisibleToRemoteClient) flags |= 8;
+		if (isLocallyPredicted) flags |= 16;
 		return flags;
 	}
 
@@ -561,8 +564,9 @@ public static class MultiplayerSyncDiagnostics
 		public readonly float MaxHp;
 		public readonly bool IsDead;
 		public readonly bool IsBuilding;
+		public readonly bool IsPredicted;
 
-		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding)
+		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding, bool isPredicted)
 		{
 			ServerEntityId = serverEntityId;
 			OwnerPlayerIndex = ownerPlayerIndex;
@@ -574,6 +578,7 @@ public static class MultiplayerSyncDiagnostics
 			MaxHp = maxHp;
 			IsDead = isDead;
 			IsBuilding = isBuilding;
+			IsPredicted = isPredicted;
 		}
 	}
 

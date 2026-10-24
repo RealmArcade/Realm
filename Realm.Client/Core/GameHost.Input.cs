@@ -2868,19 +2868,7 @@ public partial class GameHost
 		var targetIds = new List<int>();
 		ViewCollectMoveCommandTargets(selectedEntities, targetIds);
 
-		if (isQueued)
-		{
-			GameContext.InputService.IssueMoveCommandQueued(selectedEntities, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z));
-		}
-		else
-		{
-			GameContext.InputService.IssueMoveCommand(selectedEntities, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z));
-		}
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand(isQueued ? "move_queued" : "move", targetIds, targetPos, 0, "");
-		}
+		SubmitOrderCommand(isQueued ? "move_queued" : "move", targetIds, targetPos, 0, "");
 
 		ViewPlayMoveCommandSound(selectedEntities);
 	}
@@ -2929,12 +2917,7 @@ public partial class GameHost
 		var selectedEntities = new List<Entity>();
 		ViewCollectAttackCommandTargets(selectedEntities, targetIds);
 
-		GameContext.InputService.IssueAttackCommand(selectedEntities, target.Entity, isQueued);
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("attack", targetIds, target.GlobalPosition, GetServerEntityId(target.Entity), "");
-		}
+		SubmitOrderCommand(isQueued ? "attack_queued" : "attack", targetIds, target.GlobalPosition, GetServerEntityId(target.Entity), "");
 
 		ViewPlayAttackCommandSound(selectedEntities);
 	}
@@ -2980,8 +2963,7 @@ public partial class GameHost
 		var targetIds = new List<int>();
 		CollectFollowCommandTargets(target, selectedEntities, targetIds);
 
-		GameContext.InputService.IssueFollowCommand(selectedEntities, target.Entity, isQueued);
-		QueueMultiplayerFollowCommand(target, targetIds);
+		SubmitFollowCommand(target, targetIds, isQueued);
 	}
 
 	private void ShowFollowCommandFeedback(Unit3D target)
@@ -3001,12 +2983,9 @@ public partial class GameHost
 		}
 	}
 
-	private void QueueMultiplayerFollowCommand(Unit3D target, List<int> targetIds)
+	private void SubmitFollowCommand(Unit3D target, List<int> targetIds, bool isQueued)
 	{
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("follow", targetIds, target.GlobalPosition, GetServerEntityId(target.Entity), "");
-		}
+		SubmitOrderCommand(isQueued ? "follow_queued" : "follow", targetIds, target.GlobalPosition, GetServerEntityId(target.Entity), "");
 	}
 
 	private void SelectAllBuildings()
@@ -3436,7 +3415,7 @@ public partial class GameHost
 			targetIds.Add(GetServerEntityId(SelectedUnits[0].Entity));
 		}
 
-		QueueClientCommand("spell", targetIds, position, 0, spellId);
+		SubmitRemoteCommand("spell", targetIds, position, 0, spellId);
 	}
 
 	private void ExecuteLocalSpellCast(string spellId, AbilityDefinition def, Vector3 position)
@@ -3745,7 +3724,7 @@ public partial class GameHost
 				buildWorkerIds.Add(GetServerEntityId(selectedWorker.Entity));
 			}
 
-			QueueClientCommand("build", buildWorkerIds, position, 0, type);
+			SubmitRemoteCommand("build", buildWorkerIds, position, 0, type);
 
 			if (!shiftHeld) ClearBuildingPlacementState();
 			return;
@@ -3799,7 +3778,7 @@ public partial class GameHost
 			GameContext.InGameHud.ShowFeedbackText($"Constructing {bldMeta.Name}...", new Color(0.3f, 0.9f, 0.4f));
 		}
 
-		QueueClientCommand("build", new List<int>(), position, 0, type);
+		SubmitRemoteCommand("build", new List<int>(), position, 0, type);
 
 		if (!shiftHeld) ClearBuildingPlacementState();
 	}
@@ -4170,24 +4149,7 @@ public partial class GameHost
 
 	public void IssueAttackMoveCommand(Vector3 targetPos)
 	{
-		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		if (SelectedUnits.Count == 0) return;
-
-		SpawnTargetIndicator(targetPos, new Color(0.9f, 0.5f, 0.1f));
-
-		if (GameContext.InGameHud != null)
-		{
-			GameContext.InGameHud.ShowFeedbackText("Command: Attack-Move to position", new Color(0.9f, 0.5f, 0.1f));
-		}
-
-		var selectedEntities = new List<Entity>();
-		foreach (var unit in SelectedUnits)
-		{
-			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player)) continue;
-			selectedEntities.Add(unit.Entity);
-		}
-
-		GameContext.InputService.IssueAttackMoveCommand(selectedEntities, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z));
+		IssueAttackMoveCommand(targetPos, false);
 	}
 
 	public void HoldSelectedUnits()
@@ -4205,12 +4167,7 @@ public partial class GameHost
 			unit.Velocity = Vector3.Zero;
 		}
 
-		GameContext.InputService.HoldSelectedUnits(selectedEntities);
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("hold", targetIds, Vector3.Zero, 0, "");
-		}
+		SubmitOrderCommand("hold", targetIds, Vector3.Zero, 0, "");
 	}
 
 	public void IssuePatrolCommand(Vector3 targetPos, bool isQueued = false)
@@ -4230,12 +4187,7 @@ public partial class GameHost
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 
-		GameContext.InputService.IssuePatrolCommand(selectedEntities, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z), isQueued);
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("patrol", targetIds, targetPos, 0, "");
-		}
+		SubmitOrderCommand(isQueued ? "patrol_queued" : "patrol", targetIds, targetPos, 0, "");
 	}
 
 	public void IssueAttackMoveCommand(Vector3 targetPos, bool isQueued = false)
@@ -4243,8 +4195,16 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (SelectedUnits.Count == 0) return;
 
-		SpawnTargetIndicator(targetPos, new Color(0.2f, 0.7f, 1.0f));
-		GameContext.InGameHud?.ShowFeedbackText("Command: Queued Move (Shift+Click)", new Color(0.2f, 0.7f, 1.0f));
+		if (isQueued)
+		{
+			SpawnTargetIndicator(targetPos, new Color(0.2f, 0.7f, 1.0f));
+			GameContext.InGameHud?.ShowFeedbackText("Command: Queued Attack-Move (Shift+Click)", new Color(0.2f, 0.7f, 1.0f));
+		}
+		else
+		{
+			SpawnTargetIndicator(targetPos, new Color(0.9f, 0.5f, 0.1f));
+			GameContext.InGameHud?.ShowFeedbackText("Command: Attack-Move to position", new Color(0.9f, 0.5f, 0.1f));
+		}
 
 		var targetIds = new List<int>();
 		var selectedEntities = new List<Entity>();
@@ -4255,12 +4215,7 @@ public partial class GameHost
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 
-		GameContext.InputService.IssueAttackMoveCommand(selectedEntities, new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z), isQueued);
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("move_queued", targetIds, targetPos, 0, "");
-		}
+		SubmitOrderCommand(isQueued ? "attack_move_queued" : "attack_move", targetIds, targetPos, 0, "");
 	}
 
 	private void UpdateBuildingPreview()
@@ -4305,15 +4260,8 @@ public partial class GameHost
 			return;
 		}
 
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("train", new List<int> { GetServerEntityId(targetBuildingEntity) }, Vector3.Zero, 0, unitId);
-			DeductResourcesAndNotify(meta);
-		}
-		else if (GameContext.InputService.TryQueueUnit(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), targetBuildingEntity, unitId, meta.PopCost, meta.ProductionTime))
-		{
-			DeductResourcesAndNotify(meta);
-		}
+		SubmitOrderCommand("train", new List<int> { GetServerEntityId(targetBuildingEntity) }, Vector3.Zero, 0, unitId);
+		DeductResourcesAndNotify(meta);
 	}
 
 	private bool TryGetCandidateBuilding(out Entity targetBuildingEntity)
@@ -4448,12 +4396,7 @@ public partial class GameHost
 			unit.Velocity = Vector3.Zero;
 		}
 
-		GameContext.InputService.StopSelectedUnits(selectedEntities);
-
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("stop", targetIds, Vector3.Zero, 0, "");
-		}
+		SubmitOrderCommand("stop", targetIds, Vector3.Zero, 0, "");
 	}
 
 	public void CancelQueuedUnitAt(Entity buildingEntity, int index)
@@ -4461,19 +4404,15 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity)) return;
 
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			QueueClientCommand("cancel_train", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, index, "");
-		}
+		SubmitOrderCommand("cancel_train", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, index, "");
 
-		if (GameContext.InputService.CancelQueuedUnitAt(buildingEntity, index, out string? cancelledId, out string? nextUnitId))
+		if (HasRemoteAuthority && GameContext.InputService.CancelQueuedUnitAt(buildingEntity, index, out string? cancelledId, out _))
 		{
 			RefundCancelledUnit(cancelledId);
-			UpdateProductionQueueAfterCancel(buildingEntity, index, nextUnitId);
-
-			GameContext.UserInterface?.PlayClickSound();
-			GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		}
+
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private void RefundCancelledUnit(string? cancelledId)

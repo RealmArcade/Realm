@@ -166,6 +166,7 @@ namespace Realm.Client.Services
 		public static ResourceEconomyService ResourceEconomyService => ScreenScope.Get<ResourceEconomyService>();
 		public static SimulationService SimulationService => ScreenScope.Get<SimulationService>();
 		public static MovementPredictionService MovementPredictionService => ScreenScope.Get<MovementPredictionService>();
+		public static LocalCommandTransport LocalCommandTransport => ScreenScope.Get<LocalCommandTransport>();
 		public static PredictionPerformanceMonitor PredictionPerformanceMonitor => ScreenScope.Get<PredictionPerformanceMonitor>();
 		public static ClientRpcService ClientRPC => ScreenScope.Get<ClientRpcService>();
 		public static PerspectiveFilter PerspectiveFilter => ScreenScope.Get<PerspectiveFilter>();
@@ -209,6 +210,7 @@ namespace Realm.Client.Services
 			scope.RegisterCleanup<RegistryService>(static service => service.ClearAll());
 			scope.RegisterCleanup<MapScriptService>(static service => service.ClearAll());
 			scope.RegisterCleanup<MovementPredictionService>(static service => service.Clear());
+			scope.RegisterCleanup<LocalCommandTransport>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkService>(static service => service.Clear());
 			scope.RegisterDisposeAction(ECSContext.DisposeAndRecreateServices);
 

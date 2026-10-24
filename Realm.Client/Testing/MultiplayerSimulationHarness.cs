@@ -38,6 +38,10 @@ public partial class MultiplayerSimulationHarness : Node
 	private int _drainMilliseconds = 0;
 	private int _finalSequence = -1;
 	private float _durationSeconds = 15f;
+	private bool _predictionEnabled;
+	private bool _scenarioEnabled;
+	private string _networkProfile = "Latency";
+	private bool _loopback;
 
 	public override void _Ready()
 	{
@@ -50,7 +54,12 @@ public partial class MultiplayerSimulationHarness : Node
 		try
 		{
 			ParseArguments();
-			exitCode = _role == "host" ? await RunHostAsync() : await RunClientAsync();
+			exitCode = _role switch
+			{
+				"host" => await RunHostAsync(),
+				"loopback" => await RunLoopbackAsync(),
+				_ => await RunClientAsync()
+			};
 		}
 		catch (Exception exception)
 		{
@@ -115,6 +124,18 @@ public partial class MultiplayerSimulationHarness : Node
 					break;
 				case "--duration":
 					_durationSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--prediction":
+					_predictionEnabled = value == "1";
+					break;
+				case "--scenario":
+					_scenarioEnabled = value == "1";
+					break;
+				case "--profile":
+					_networkProfile = value;
+					break;
+				case "--loopback":
+					_loopback = value == "1";
 					break;
 			}
 		}
@@ -209,8 +230,74 @@ public partial class MultiplayerSimulationHarness : Node
 		_finalSequence = ResolveSnapshotSequence();
 		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
 		MultiplayerSyncDiagnostics.Stop();
+		PredictionDiagnostics.Stop();
 		WriteFinalWorldSnapshot("ECS_host_final_full.bin");
 		return 0;
+	}
+
+	private async Task<int> RunLoopbackAsync()
+	{
+		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
+
+		lobby.IsSinglePlayer = true;
+		lobby.IsHost = true;
+		lobby.IsGameStarted = false;
+		SetPrivateProperty(lobby, "MaxPlayers", PlayableSlotCount);
+
+		lobby.PlayerList.Clear();
+		lobby.PlayerList.Add(new PlayerInfo
+		{
+			PeerId = 1,
+			Slot = 1,
+			Name = HostPlayerName,
+			Faction = "HUMAN",
+			Team = "Team 1",
+			Color = PlayerColorConfig.GetColor(1),
+			IsHost = true,
+			Latency = "0 ms",
+			Jitter = "0 ms",
+			PacketLoss = "0%",
+			BinaryVersion = RealmVersion.GameBinaryVersion
+		});
+
+		for (int slot = 2; slot <= 1 + AiPlayerCount; slot++)
+		{
+			lobby.PlayerList.Add(new PlayerInfo
+			{
+				PeerId = -(slot + 100),
+				Slot = slot,
+				Name = $"HarnessAI{slot - 1}",
+				Faction = "AI",
+				Team = $"Team {slot}",
+				Color = PlayerColorConfig.GetColor(slot),
+				IsHost = false,
+				Latency = "0 ms",
+				Jitter = "0 ms",
+				PacketLoss = "0%",
+				BinaryVersion = RealmVersion.GameBinaryVersion
+			});
+		}
+
+		Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
+		GD.Print("[MP_HARNESS] Loopback role: hosting and playing in one process over the in-memory command transport.");
+		if (!await StartSimulationAsync(lobby, true)) return 1;
+
+		GameHost gameHost = GameContext.Host ?? throw new InvalidOperationException("GameHost instance is unavailable.");
+		ulong simulationDeadline = Time.GetTicksMsec() + (ulong)((_durationSeconds * 4f + 120f) * 1000f);
+		while (Time.GetTicksMsec() < simulationDeadline)
+		{
+			if (gameHost.GameElapsedTime >= _durationSeconds) break;
+			GD.Print($"[MP_HARNESS] Loopback game time {gameHost.GameElapsedTime:F2}s / {_durationSeconds:F0}s, units {gameHost.AllUnits.Count}, predicted {GameContext.MovementPredictionService?.TrackedUnitCount ?? 0}.");
+			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+		}
+
+		_finalSequence = ResolveSnapshotSequence();
+		bool finished = gameHost.GameElapsedTime >= _durationSeconds;
+		GD.Print($"[MP_HARNESS] Loopback finished={finished} at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and {GameContext.MovementPredictionService?.TrackedUnitCount ?? 0} predicted units.");
+		MultiplayerSyncDiagnostics.Stop();
+		PredictionDiagnostics.Stop();
+		WriteFinalWorldSnapshot("ECS_loopback_final_full.bin");
+		return finished ? 0 : 1;
 	}
 
 	private async Task<int> RunClientAsync()
@@ -237,7 +324,9 @@ public partial class MultiplayerSimulationHarness : Node
 		_ = RunCombatProbeAsync(false);
 
 		GD.Print("[MP_HARNESS] Client simulation started. Recording until the host signals completion.");
-		if (!string.IsNullOrEmpty(_clientBuildId))
+		_scenarioTick = 0;
+		_scenarioCompleted = false;
+		if (!string.IsNullOrEmpty(_clientBuildId) && !_scenarioEnabled)
 		{
 			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
 			IssueClientBuildRequest(GameContext.Host);
@@ -253,6 +342,7 @@ public partial class MultiplayerSimulationHarness : Node
 		_finalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameContext.Host?.GameElapsedTime ?? 0f:F2}s.");
 		MultiplayerSyncDiagnostics.Stop();
+		PredictionDiagnostics.Stop();
 		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
 		return hostFinished ? 0 : 1;
@@ -275,17 +365,33 @@ public partial class MultiplayerSimulationHarness : Node
 		lobby.ActiveMapName = _mapFolder;
 		lobby.IsGameStarted = true;
 		GameSettings.RecordReplays = false;
-		GameHost.PendingMapScriptPath = isHost && !string.IsNullOrEmpty(_wasmPath) ? _wasmPath : null;
+		GameSettings.MovementPrediction = _predictionEnabled;
+		GameHost.PendingMapScriptPath = !string.IsNullOrEmpty(_wasmPath) && (isHost || _predictionEnabled) ? _wasmPath : null;
 
 		PackedScene scene = GD.Load<PackedScene>("res://GameHost.tscn");
 		Node gameHost = scene.Instantiate();
 		gameHost.Name = "GameHost";
 		AddChild(gameHost);
 
+		GameSettings.MovementPrediction = _predictionEnabled;
+		GD.Print($"[MP_HARNESS] Prediction requested={_predictionEnabled} developmentBuild={Realm.Client.Utils.PathUtils.IsDevelopmentBuild} movementPrediction={GameSettings.MovementPrediction} role={(isHost ? "host" : "client")}.");
+
+		int readinessLogCounter = 0;
 		bool ready = await WaitUntilAsync(() =>
 		{
 			GameHost? host = GameContext.Host;
-			return host != null && Math.Abs(host.GameElapsedTime) >= 0.01f && host.AllUnits.Count > 0;
+			bool clockReady = !isHost || (host != null && Math.Abs(host.GameElapsedTime) >= 0.01f);
+			bool isReady = host != null && clockReady && host.AllUnits.Count > 0;
+			readinessLogCounter++;
+			if (!isReady && readinessLogCounter % 50 == 0)
+			{
+				int appliedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
+				bool hasBaseline = GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<NetworkState>(ECSContext.WorldEntity)
+					&& GameContext.World.Get<NetworkState>(ECSContext.WorldEntity).HasReceivedInitialBaseline;
+				GD.Print($"[MP_HARNESS] Readiness wait ({(isHost ? "host" : "client")}): elapsed={host?.GameElapsedTime ?? 0f:F2} units={host?.AllUnits.Count ?? 0} appliedSequence={appliedSequence} baseline={hasBaseline} peerPresent={Multiplayer.MultiplayerPeer != null}");
+			}
+
+			return isReady;
 		}, 120f);
 
 		if (!ready)
@@ -295,6 +401,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		MultiplayerSyncDiagnostics.Start(_outputDirectory, isHost);
+		PredictionDiagnostics.Start(_outputDirectory, isHost, !isHost || _loopback);
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
 		GameHost currentHost = GameContext.Host!;
@@ -360,6 +467,12 @@ public partial class MultiplayerSimulationHarness : Node
 		GD.Print($"[MP_HARNESS] Client requested build '{buildId}' with worker '{worker.UnitId}' at {buildPosition}.");
 	}
 
+	public override void _PhysicsProcess(double delta)
+	{
+		if (!_scenarioEnabled) return;
+		RunPredictionScenarioTick(delta);
+	}
+
 	private async Task<bool> WaitUntilAsync(Func<bool> condition, float timeoutSeconds)
 	{
 		ulong deadline = Time.GetTicksMsec() + (ulong)(timeoutSeconds * 1000f);
@@ -402,7 +515,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 	private void TryWriteDoneFile()
 	{
-		if (_role != "host") return;
+		if (_role != "host" && _role != "loopback") return;
 		if (string.IsNullOrEmpty(_doneFile)) return;
 		try
 		{

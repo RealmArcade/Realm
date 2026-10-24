@@ -689,7 +689,7 @@ public class SimulationService
 	public bool ShouldSimulateEntity(Entity entity)
 	{
 		var host = GameContext.Host;
-		if (host == null || !host.IsClientSimulationOnly) return true;
+		if (host == null || host.HasAuthority) return true;
 		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
 
 		int localPlayerIndex = host.LocalPlayerIndex;
@@ -771,7 +771,7 @@ public class SimulationService
 			_combatService.StepCombat(fDelta, _movementService);
 		}
 
-		if (GameContext.Host?.IsClientSimulationOnly != true)
+		if (GameContext.Host?.HasAuthority != false)
 		{
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationEconomyStep))
 			{
@@ -1041,6 +1041,12 @@ public class SimulationService
 	public void SetDelta(float fDelta)
 	{
 		_fDelta = fDelta;
+	}
+
+	public void StepPredictedMovement(float fDelta)
+	{
+		_fDelta = fDelta;
+		_movementService.StepMovement(fDelta);
 	}
 
 	public bool TryGetInterpolatedTransform(Entity entity, float fraction, out Vector3 position, out float rotationY)
@@ -1717,9 +1723,9 @@ public class SimulationService
 		if (!GameContext.World.Has<Position>(entity)) return;
 
 		bool isLocallyPredicted = GameSettings.MovementPrediction
-			&& GameContext.Host?.IsClientSimulationOnly == true
-			&& ShouldSimulateEntity(entity)
-			&& (GameContext.World.Has<MoveTo>(entity) || GameContext.World.Has<Follow>(entity));
+			&& GameContext.MovementPredictionService != null
+			&& GameContext.MovementPredictionService.IsEntityTracked(entity.Id)
+			&& (GameContext.World.Has<PredictedMoveTo>(entity) || GameContext.World.Has<MoveTo>(entity) || GameContext.World.Has<Follow>(entity));
 		if (isLocallyPredicted) return;
 
 		var currentPos = GameContext.World.Get<Position>(entity).Value;

@@ -146,6 +146,7 @@ namespace Realm.Client.Services
 			public OffMeshReplanCause ReplanCause;
 
 			public bool HasArrived;
+			public bool IsPredicted;
 			public Vector3 NextPosition;
 			public Vector3 NextVelocity;
 		}
@@ -154,6 +155,7 @@ namespace Realm.Client.Services
 		private int _movementWorkCount = 0;
 		private readonly Action<int> _processMovementWorkItemDelegate;
 		private readonly EntityCallback<Position, MoveTo, MovementStats> _collectMovementWorkItemDelegate;
+		private readonly EntityCallback<Position, PredictedMoveTo, MovementStats> _collectPredictedMovementWorkItemDelegate;
 		private readonly ThreadLocal<NavMeshPathfinder> _threadLocalPathfinder = new(() => new NavMeshPathfinder());
 		private readonly ThreadLocal<(DtNavMesh? Mesh, DtNavMeshQuery? Query)> _threadLocalNavQuery = new();
 
@@ -164,6 +166,7 @@ namespace Realm.Client.Services
 		private readonly List<Entity> _tickArrivedUnits = new();
 
 		private readonly QueryDescription _movementQuery = QueryCache.AllPositionAndMoveToAndMovementStatsNoneDeadQuery;
+		private readonly QueryDescription _predictedMovementQuery = QueryCache.AllPositionAndPredictedMoveToAndMovementStatsNoneDeadQuery;
 		private readonly QueryDescription _unitSpatialQuery = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
 		private readonly QueryDescription _propSpatialQuery = QueryCache.AllPropIdentityAndPositionQuery;
 		private EntityCallback<Position, MoveTo, MovementStats> _movementQueryDelegate;
@@ -187,6 +190,7 @@ namespace Realm.Client.Services
 		{
 			_movementQueryDelegate = MovementQueryAction;
 			_collectMovementWorkItemDelegate = CollectMovementWorkItemAction;
+			_collectPredictedMovementWorkItemDelegate = CollectPredictedMovementWorkItemAction;
 			_processMovementWorkItemDelegate = ProcessMovementWorkItemParallel;
 			_unitSpatialQueryDelegate = UnitSpatialGridQueryAction;
 			_propSpatialQueryDelegate = PropSpatialGridQueryAction;
@@ -214,6 +218,7 @@ namespace Realm.Client.Services
 
 			_movementWorkCount = 0;
 			GameContext.World.Query(in _movementQuery, _collectMovementWorkItemDelegate);
+			GameContext.World.Query(in _predictedMovementQuery, _collectPredictedMovementWorkItemDelegate);
 
 			if (_movementWorkCount > 0)
 			{
@@ -232,7 +237,16 @@ namespace Realm.Client.Services
 
 					if (item.HasArrived)
 					{
-						_tickArrivedUnits.Add(item.Entity);
+						if (item.IsPredicted)
+						{
+							GameContext.World.Remove<PredictedMoveTo>(item.Entity);
+							if (GameContext.World.Has<PathFollow>(item.Entity)) GameContext.World.Remove<PathFollow>(item.Entity);
+						}
+						else
+						{
+							_tickArrivedUnits.Add(item.Entity);
+						}
+
 						world.SetOrAdd(item.Entity, new Velocity(Vector3.Zero));
 					}
 					else
@@ -422,6 +436,8 @@ namespace Realm.Client.Services
 		{
 			if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
 
+			if (GameContext.World.Has<PredictedMoveTo>(entity)) return;
+
 			if (GameContext.World.Has<CommandsFrozen>(entity)) return;
 
 			if (!TryGetMovementContext(entity, pos.Value, moveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
@@ -442,6 +458,34 @@ namespace Realm.Client.Services
 				HasPf = hasPf,
 				Pf = pf,
 				ActualSpeed = GetActualSpeed(entity, stats)
+			};
+		}
+
+		private void CollectPredictedMovementWorkItemAction(Entity entity, ref Position pos, ref PredictedMoveTo predictedMoveTo, ref MovementStats stats)
+		{
+			if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
+
+			if (GameContext.World.Has<CommandsFrozen>(entity)) return;
+
+			if (!TryGetMovementContext(entity, pos.Value, predictedMoveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
+
+			if (_movementWorkCount >= _movementWorkItems.Length)
+			{
+				Array.Resize(ref _movementWorkItems, _movementWorkItems.Length * 2);
+			}
+
+			_movementWorkItems[_movementWorkCount++] = new MovementWorkItem
+			{
+				Entity = entity,
+				PosValue = pos.Value,
+				MoveTarget = predictedMoveTo.Target,
+				Stats = stats,
+				PathingFlags = pathingFlags,
+				IsFlying = isFlying,
+				HasPf = hasPf,
+				Pf = pf,
+				ActualSpeed = GetActualSpeed(entity, stats),
+				IsPredicted = true
 			};
 		}
 

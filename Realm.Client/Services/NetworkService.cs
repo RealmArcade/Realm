@@ -47,6 +47,11 @@ public class NetworkService
 	private readonly List<Entity> _pendingUnitKills = new();
 	private readonly List<Entity> _pendingUnitDespawns = new();
 	private readonly List<int> _untrackedServerIds = new();
+	private readonly HashSet<int> _baselineLootServerIds = new();
+	private readonly List<int> _staleLootServerIds = new();
+	private readonly HashSet<int> _baselineUnitServerIds = new();
+	private readonly HashSet<(int Key, int TypeId)> _baselineUnitComponents = new();
+	private byte[] _baselineReconcileScratch = new byte[256];
 
 
 	public bool IsPaused { get; set; } = false;
@@ -207,6 +212,15 @@ public class NetworkService
 		_untrackedServerIds.Clear();
 		_playerTeams.Clear();
 		_alliances.Clear();
+	}
+
+	public bool TryGetServerEntityId(int localEntityId, out int serverEntityId)
+	{
+		serverEntityId = -1;
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		return mapping.ClientToServerEntityMap.TryGetValue(localEntityId, out serverEntityId);
 	}
 
 	public int GetServerEntityId(int localEntityId)
@@ -597,20 +611,21 @@ public class NetworkService
 		if (snapshot.IsBaseline)
 		{
 			ProcessBaselineSnapshotMismatches(snapshot, mapping);
+			ProcessBaselineLootReconciliation(snapshot, mapping);
+			ProcessBaselineComponentReconciliation(snapshot, mapping);
 		}
 
-		if (GameSettings.MovementPrediction && GameContext.World != null)
+		var prediction = GameSettings.MovementPrediction ? GameContext.MovementPredictionService : null;
+		if (prediction != null && GameContext.World != null)
 		{
-			var serverPositions = new Dictionary<int, System.Numerics.Vector3>();
+			prediction.BeginSnapshotReconcile(snapshot.Sequence);
 			foreach (var snap in snapshot.Units)
 			{
-				if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
-				{
-					serverPositions[localEntity.Id] = snap.Position.ToNumerics();
-				}
+				if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity)) continue;
+				prediction.ReconcileAuthoritativePosition(GameContext.World, localEntity.Id, snap.Position.ToNumerics());
 			}
 
-			GameContext.MovementPredictionService?.ReconcileServerSnapshot(GameContext.World, snapshot.Sequence, serverPositions);
+			prediction.EndSnapshotReconcile();
 		}
 
 		foreach (var snap in snapshot.Units)
@@ -651,6 +666,77 @@ public class NetworkService
 			}
 
 			RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
+		}
+	}
+
+	private void ProcessBaselineComponentReconciliation(WorldSnapshot snapshot, NetworkMappingState mapping)
+	{
+		if (snapshot.ComponentDeltas == null || snapshot.Units == null) return;
+
+		_baselineUnitServerIds.Clear();
+		for (int index = 0; index < snapshot.Units.Count; index++)
+		{
+			_baselineUnitServerIds.Add(snapshot.Units[index].EntityId);
+		}
+
+		_baselineUnitComponents.Clear();
+		for (int index = 0; index < snapshot.ComponentDeltas.Count; index++)
+		{
+			var delta = snapshot.ComponentDeltas[index];
+			if ((ReplicatedScope)delta.Scope != ReplicatedScope.Unit) continue;
+			if (delta.Bytes == null || delta.Bytes.Length == 0) continue;
+			_baselineUnitComponents.Add((delta.Key, delta.ComponentTypeId));
+		}
+
+		IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedComponents.All;
+		foreach (var kvp in mapping.ServerToClientEntityMap)
+		{
+			int serverEntityId = kvp.Key;
+			if (!_baselineUnitServerIds.Contains(serverEntityId)) continue;
+
+			Entity localEntity = kvp.Value;
+			if (!GameContext.World.IsAlive(localEntity)) continue;
+
+			for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+			{
+				var codec = codecs[codecIndex];
+				if (codec.Scope != ReplicatedScope.Unit) continue;
+				if (_baselineUnitComponents.Contains((serverEntityId, codec.ComponentTypeId))) continue;
+
+				if (_baselineReconcileScratch.Length < codec.SizeInBytes) _baselineReconcileScratch = new byte[codec.SizeInBytes];
+				if (!codec.TryWrite(GameContext.World, localEntity, _baselineReconcileScratch.AsSpan(0, codec.SizeInBytes))) continue;
+				codec.Remove(GameContext.World, localEntity);
+			}
+		}
+	}
+
+	private void ProcessBaselineLootReconciliation(WorldSnapshot snapshot, NetworkMappingState mapping)
+	{
+		if (snapshot.ComponentDeltas == null) return;
+
+		int lootComponentTypeId = ComponentType<GroundLoot>.Id;
+		_baselineLootServerIds.Clear();
+		for (int index = 0; index < snapshot.ComponentDeltas.Count; index++)
+		{
+			var delta = snapshot.ComponentDeltas[index];
+			if (delta.ComponentTypeId != lootComponentTypeId) continue;
+			if (delta.Bytes == null || delta.Bytes.Length == 0) continue;
+			_baselineLootServerIds.Add(delta.Key);
+		}
+
+		_staleLootServerIds.Clear();
+		foreach (var kvp in mapping.ServerToClientEntityMap)
+		{
+			if (_baselineLootServerIds.Contains(kvp.Key)) continue;
+			if (!GameContext.World.Has<GroundLoot>(kvp.Value)) continue;
+			_staleLootServerIds.Add(kvp.Key);
+		}
+
+		for (int index = 0; index < _staleLootServerIds.Count; index++)
+		{
+			int serverEntityId = _staleLootServerIds[index];
+			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
+			DestroyReplicatedLootEntity(serverEntityId, localEntity, mapping);
 		}
 	}
 
@@ -840,6 +926,7 @@ public class NetworkService
 			GameContext.World.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
 			GameContext.World.Add(entity, new Movable());
 			GameContext.World.Add(entity, new Inventory());
+			GameContext.World.Add(entity, new Realm.Ecs.Components.Movement.PathingFlags(GameHost.GetUnitPathingFlags(meta)));
 		}
 
 		var interpolationTarget = new InterpolationTarget
@@ -1196,8 +1283,10 @@ public class NetworkService
 	{
 		var stopVelocityEntityIds = new List<int>();
 		var holdVelocityEntityIds = new List<int>();
+		var rejectedServerEntityIds = new List<int>();
+		string rejectionReason = string.Empty;
 
-		DispatchServerCommand(peerId, cmd, allUnits, allProps, stopVelocityEntityIds, holdVelocityEntityIds);
+		DispatchServerCommand(peerId, cmd, allUnits, allProps, stopVelocityEntityIds, holdVelocityEntityIds, rejectedServerEntityIds, ref rejectionReason);
 
 		bool needsBuildUnit = cmd.CommandType == "build";
 		string buildUnitType = needsBuildUnit ? cmd.ArgString : null;
@@ -1212,68 +1301,75 @@ public class NetworkService
 		return new ServerCommandResult(
 			needsBuildUnit, buildUnitType, buildPosition, buildPeerOwner, buildWorkerServerEntityId,
 			needsSpellEffect, spellId, spellPosition,
-			stopVelocityEntityIds, holdVelocityEntityIds);
+			stopVelocityEntityIds, holdVelocityEntityIds,
+			rejectedServerEntityIds, rejectionReason);
 	}
 
-	private void DispatchServerCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps, List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds)
+	private void DispatchServerCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps, List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
-		if (DispatchMovementCommand(peerId, cmd, allUnits, stopVelocityEntityIds, holdVelocityEntityIds)) return;
-		if (DispatchActionCommand(peerId, cmd, allUnits, allProps)) return;
-		DispatchTrainingCommand(peerId, cmd, allUnits);
+		if (DispatchMovementCommand(peerId, cmd, allUnits, stopVelocityEntityIds, holdVelocityEntityIds, rejectedServerEntityIds, ref rejectionReason)) return;
+		if (DispatchActionCommand(peerId, cmd, allUnits, allProps, rejectedServerEntityIds, ref rejectionReason)) return;
+		DispatchTrainingCommand(peerId, cmd, allUnits, rejectedServerEntityIds, ref rejectionReason);
 	}
 
-	private bool DispatchMovementCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds)
+	private bool DispatchMovementCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		switch (cmd.CommandType)
 		{
 			case "move":
-				HandleMoveCommand(peerId, cmd, allUnits);
+				HandleMoveCommand(peerId, cmd, allUnits, rejectedServerEntityIds, ref rejectionReason);
 				return true;
 			case "move_queued":
-				HandleMoveQueuedCommand(peerId, cmd, allUnits);
+				HandleMoveQueuedCommand(peerId, cmd, allUnits, rejectedServerEntityIds, ref rejectionReason);
+				return true;
+			case "attack_move":
+				HandleAttackMoveCommand(peerId, cmd, allUnits, false, rejectedServerEntityIds, ref rejectionReason);
+				return true;
+			case "attack_move_queued":
+				HandleAttackMoveCommand(peerId, cmd, allUnits, true, rejectedServerEntityIds, ref rejectionReason);
 				return true;
 			case "stop":
-				HandleStopCommand(peerId, cmd, allUnits, stopVelocityEntityIds);
+				HandleStopCommand(peerId, cmd, allUnits, stopVelocityEntityIds, rejectedServerEntityIds, ref rejectionReason);
 				return true;
 			case "hold":
-				HandleHoldCommand(peerId, cmd, allUnits, holdVelocityEntityIds);
+				HandleHoldCommand(peerId, cmd, allUnits, holdVelocityEntityIds, rejectedServerEntityIds, ref rejectionReason);
 				return true;
 			case "patrol":
 			case "patrol_queued":
-				HandlePatrolCommand(peerId, cmd, allUnits, cmd.CommandType == "patrol_queued");
+				HandlePatrolCommand(peerId, cmd, allUnits, cmd.CommandType == "patrol_queued", rejectedServerEntityIds, ref rejectionReason);
 				return true;
 		}
 
 		return false;
 	}
 
-	private bool DispatchActionCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps)
+	private bool DispatchActionCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		bool isQueued = cmd.CommandType.EndsWith("_queued");
 		switch (cmd.CommandType)
 		{
 			case "attack":
 			case "attack_queued":
-				HandleAttackCommand(peerId, cmd, allUnits, isQueued);
+				HandleAttackCommand(peerId, cmd, allUnits, isQueued, rejectedServerEntityIds, ref rejectionReason);
 				return true;
 			case "follow":
 			case "follow_queued":
-				HandleFollowCommand(peerId, cmd, allUnits, isQueued);
+				HandleFollowCommand(peerId, cmd, allUnits, isQueued, rejectedServerEntityIds, ref rejectionReason);
 				return true;
 			case "gather":
 			case "gather_queued":
-				HandleGatherCommand(peerId, cmd, allUnits, allProps, isQueued);
+				HandleGatherCommand(peerId, cmd, allUnits, allProps, isQueued, rejectedServerEntityIds, ref rejectionReason);
 				return true;
 		}
 
 		return false;
 	}
 
-	private void DispatchTrainingCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	private void DispatchTrainingCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		switch (cmd.CommandType)
 		{
-			case "train": HandleTrainCommand(peerId, cmd, allUnits); break;
+			case "train": HandleTrainCommand(peerId, cmd, allUnits, rejectedServerEntityIds, ref rejectionReason); break;
 			case "cancel_train": HandleCancelTrainCommand(peerId, cmd, allUnits); break;
 		}
 	}
@@ -1300,7 +1396,7 @@ public class NetworkService
 
 	private delegate void GroupCommandAction(Entity entity, System.Numerics.Vector3 scattered);
 
-	private void ProcessGroupMovementCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, GroupCommandAction processAction, bool requireMovable = true)
+	private void ProcessGroupMovementCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, GroupCommandAction processAction, List<int> rejectedServerEntityIds, ref string rejectionReason, bool requireMovable = true)
 	{
 		var ctx = CreateMovementContext(peerId, cmd, allUnits);
 		int unitIndex = 0;
@@ -1312,18 +1408,21 @@ public class NetworkService
 			if (entity == Entity.Null)
 			{
 				rejection ??= $"entity {serverId} is not in the host unit list";
+				RecordCommandRejection(rejectedServerEntityIds, serverId, rejection);
 				continue;
 			}
 
 			if (!IsClientAuthorized(peerId, entity))
 			{
 				rejection ??= $"entity {serverId} is not owned by peer {peerId}";
+				RecordCommandRejection(rejectedServerEntityIds, serverId, rejection);
 				continue;
 			}
 
 			if (requireMovable && !GameContext.World.Has<Movable>(entity))
 			{
 				rejection ??= $"entity {serverId} is not movable";
+				RecordCommandRejection(rejectedServerEntityIds, serverId, rejection);
 				continue;
 			}
 
@@ -1332,28 +1431,52 @@ public class NetworkService
 			unitIndex++;
 		}
 
+		if (rejection != null && string.IsNullOrEmpty(rejectionReason)) rejectionReason = rejection;
+
 		if (unitIndex == 0 && cmd.UnitEntityIds.Count > 0)
 		{
 			GD.PushWarning($"[Network] Dropped '{cmd.CommandType}' from peer {peerId}: none of its {cmd.UnitEntityIds.Count} units could take the order ({rejection}).");
 		}
 	}
 
-	private void HandleMoveCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	private static void RecordCommandRejection(List<int> rejectedServerEntityIds, int serverId, string reason)
+	{
+		if (!rejectedServerEntityIds.Contains(serverId)) rejectedServerEntityIds.Add(serverId);
+		_ = reason;
+	}
+
+	private void HandleMoveCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		ProcessGroupMovementCommand(peerId, cmd, allUnits, (entity, scattered) =>
 		{
 			ClearUnitOrders(entity);
 			var moveTo = new MoveTo(scattered);
 			GameContext.World.SetOrAdd(entity, moveTo);
-		}, requireMovable: false);
+		}, rejectedServerEntityIds, ref rejectionReason, requireMovable: false);
 	}
 
-	private void HandleMoveQueuedCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	private void HandleMoveQueuedCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		ProcessGroupMovementCommand(peerId, cmd, allUnits, (entity, scattered) =>
 		{
 			ProcessQueuedMoveForEntity(entity, scattered);
-		});
+		}, rejectedServerEntityIds, ref rejectionReason);
+	}
+
+	private void HandleAttackMoveCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued, List<int> rejectedServerEntityIds, ref string rejectionReason)
+	{
+		ProcessGroupMovementCommand(peerId, cmd, allUnits, (entity, scattered) =>
+		{
+			if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
+			{
+				EnqueueCommand(entity, "attackmove", scattered);
+				return;
+			}
+
+			ClearUnitOrders(entity);
+			GameContext.World.SetOrAdd(entity, new AttackMove(scattered));
+			GameContext.World.SetOrAdd(entity, new MoveTo(scattered));
+		}, rejectedServerEntityIds, ref rejectionReason);
 	}
 
 	private void ProcessQueuedMoveForEntity(Entity entity, System.Numerics.Vector3 scattered)
@@ -1391,25 +1514,40 @@ public class NetworkService
 		}
 	}
 
-	private void HandleTargetedCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued, Action<Entity, Entity, System.Numerics.Vector3, bool> applyAction)
+	private void HandleTargetedCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued, List<int> rejectedServerEntityIds, ref string rejectionReason, Action<Entity, Entity, System.Numerics.Vector3, bool> applyAction)
 	{
 		var targetEntity = FindServerEntity(cmd.TargetEntityId, allUnits);
-		if (targetEntity == Entity.Null) return;
+		if (targetEntity == Entity.Null)
+		{
+			for (int index = 0; index < cmd.UnitEntityIds.Count; index++)
+			{
+				RecordCommandRejection(rejectedServerEntityIds, cmd.UnitEntityIds[index], "target entity is not on the host");
+			}
+
+			if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"target entity {cmd.TargetEntityId} is not on the host";
+			return;
+		}
 
 		var targetPos = GameContext.World.Has<Position>(targetEntity) ? GameContext.World.Get<Position>(targetEntity).Value : System.Numerics.Vector3.Zero;
 		foreach (int serverId in cmd.UnitEntityIds)
 		{
 			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity))
+			{
+				RecordCommandRejection(rejectedServerEntityIds, serverId, $"entity {serverId} is not owned by peer {peerId}");
+				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"entity {serverId} is not owned by peer {peerId}";
+				continue;
+			}
+
 			if (entity == targetEntity) continue;
 
 			applyAction(entity, targetEntity, targetPos, isQueued);
 		}
 	}
 
-	private void HandleAttackCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
+	private void HandleAttackCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
-		HandleTargetedCommand(peerId, cmd, allUnits, isQueued, (entity, targetEntity, targetPos, queued) =>
+		HandleTargetedCommand(peerId, cmd, allUnits, isQueued, rejectedServerEntityIds, ref rejectionReason, (entity, targetEntity, targetPos, queued) =>
 		{
 			if (queued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
 			{
@@ -1423,9 +1561,9 @@ public class NetworkService
 		});
 	}
 
-	private void HandleFollowCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
+	private void HandleFollowCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
-		HandleTargetedCommand(peerId, cmd, allUnits, isQueued, ApplyFollowOrder);
+		HandleTargetedCommand(peerId, cmd, allUnits, isQueued, rejectedServerEntityIds, ref rejectionReason, ApplyFollowOrder);
 	}
 
 	private void ApplyFollowOrder(Entity entity, Entity targetEntity, System.Numerics.Vector3 targetPos, bool isQueued)
@@ -1444,21 +1582,50 @@ public class NetworkService
 		}
 	}
 
-	private void HandleGatherCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps, bool isQueued)
+	private void HandleGatherCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps, bool isQueued, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		var targetPos = new System.Numerics.Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z);
 		Prop3D prop = FindClosestProp(targetPos, "", allProps);
-		if (prop == null) return;
+		if (prop == null)
+		{
+			for (int index = 0; index < cmd.UnitEntityIds.Count; index++)
+			{
+				RecordCommandRejection(rejectedServerEntityIds, cmd.UnitEntityIds[index], "no resource node near the target");
+			}
+
+			if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = "no resource node near the target";
+			return;
+		}
 
 		string resType = GetPropResourceType(prop.PropId);
-		if (resType == null) return;
+		if (resType == null)
+		{
+			for (int index = 0; index < cmd.UnitEntityIds.Count; index++)
+			{
+				RecordCommandRejection(rejectedServerEntityIds, cmd.UnitEntityIds[index], "the resource node is not harvestable");
+			}
+
+			if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = "the resource node is not harvestable";
+			return;
+		}
 
 		var propPos = new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z);
 		foreach (int serverId in cmd.UnitEntityIds)
 		{
 			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value != "worker") continue;
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity))
+			{
+				RecordCommandRejection(rejectedServerEntityIds, serverId, $"entity {serverId} is not owned by peer {peerId}");
+				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"entity {serverId} is not owned by peer {peerId}";
+				continue;
+			}
+
+			if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value != "worker")
+			{
+				RecordCommandRejection(rejectedServerEntityIds, serverId, $"entity {serverId} cannot gather");
+				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"entity {serverId} cannot gather";
+				continue;
+			}
 
 			ApplyGatherOrder(entity, prop.Entity, propPos, resType, isQueued);
 		}
@@ -1482,23 +1649,35 @@ public class NetworkService
 		return GameContext.RegistryService.GetResourceTypeForNode(propId);
 	}
 
-	private void HandleStopCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> stopVelocityEntityIds)
+	private void HandleStopCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> stopVelocityEntityIds, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		foreach (int serverId in cmd.UnitEntityIds)
 		{
 			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity))
+			{
+				RecordCommandRejection(rejectedServerEntityIds, serverId, $"entity {serverId} is not owned by peer {peerId}");
+				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"entity {serverId} is not owned by peer {peerId}";
+				continue;
+			}
+
 			ClearUnitOrders(entity);
 			stopVelocityEntityIds.Add(serverId);
 		}
 	}
 
-	private void HandleHoldCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> holdVelocityEntityIds)
+	private void HandleHoldCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> holdVelocityEntityIds, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		foreach (int serverId in cmd.UnitEntityIds)
 		{
 			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity))
+			{
+				RecordCommandRejection(rejectedServerEntityIds, serverId, $"entity {serverId} is not owned by peer {peerId}");
+				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"entity {serverId} is not owned by peer {peerId}";
+				continue;
+			}
+
 			ClearUnitOrders(entity);
 			holdVelocityEntityIds.Add(serverId);
 			if (!GameContext.World.Has<HoldPosition>(entity))
@@ -1508,7 +1687,7 @@ public class NetworkService
 		}
 	}
 
-	private void HandlePatrolCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
+	private void HandlePatrolCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		ProcessGroupMovementCommand(peerId, cmd, allUnits, (entity, scattered) =>
 		{
@@ -1525,7 +1704,7 @@ public class NetworkService
 				GameContext.World.SetOrAdd(entity, new Patrol(patrolA, scattered));
 				GameContext.World.SetOrAdd(entity, new MoveTo(scattered));
 			}
-		});
+		}, rejectedServerEntityIds, ref rejectionReason);
 	}
 
 	private Vector3 GetUnitPosition(Entity entity, List<Unit3D> allUnits)
@@ -1538,25 +1717,48 @@ public class NetworkService
 		return Vector3.Zero;
 	}
 
-	private void HandleTrainCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
+	private void HandleTrainCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		string unitId = cmd.ArgString;
-		if (!GameHost.UnitRegistry.TryGetValue(unitId, out var meta)) return;
+		if (!GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
+		{
+			for (int index = 0; index < cmd.UnitEntityIds.Count; index++)
+			{
+				RecordCommandRejection(rejectedServerEntityIds, cmd.UnitEntityIds[index], $"unit type '{unitId}' is not registered");
+			}
+
+			if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"unit type '{unitId}' is not registered";
+			return;
+		}
 
 		foreach (int serverId in cmd.UnitEntityIds)
 		{
 			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity))
+			{
+				RecordCommandRejection(rejectedServerEntityIds, serverId, $"entity {serverId} is not owned by peer {peerId}");
+				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"entity {serverId} is not owned by peer {peerId}";
+				continue;
+			}
 
 			var ownerComp = GameContext.World.Get<Owner>(entity);
 			var ownerEntity = ownerComp.PlayerEntity.Value;
-			if (!GameContext.World.TryGet<PlayerResources>(ownerEntity, out var res)) continue;
+			if (!GameContext.World.TryGet<PlayerResources>(ownerEntity, out var res))
+			{
+				RecordCommandRejection(rejectedServerEntityIds, serverId, "the owning player has no resource pool");
+				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = "the owning player has no resource pool";
+				continue;
+			}
 
-			TryQueueProduction(entity, ownerEntity, unitId, meta, ref res);
+			if (!TryQueueProduction(entity, ownerEntity, unitId, meta, ref res))
+			{
+				RecordCommandRejection(rejectedServerEntityIds, serverId, "not enough resources");
+				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = "not enough resources";
+			}
 		}
 	}
 
-	private void TryQueueProduction(Entity entity, Entity ownerEntity, string unitId, UnitMetadata meta, ref PlayerResources res)
+	private bool TryQueueProduction(Entity entity, Entity ownerEntity, string unitId, UnitMetadata meta, ref PlayerResources res)
 	{
 		var goldResourceId = new ResourceId("Gold");
 		var woodResourceId = new ResourceId("Wood");
@@ -1567,7 +1769,7 @@ public class NetworkService
 		int costStone = (int)meta.CostStone;
 
 		if (res[goldResourceId] < costGold || res[woodResourceId] < costWood || res[stoneResourceId] < costStone)
-			return;
+			return false;
 
 		res[goldResourceId] -= costGold;
 		res[woodResourceId] -= costWood;
@@ -1583,6 +1785,8 @@ public class NetworkService
 			prod.BuildTime = meta.ProductionTime;
 			prod.CurrentProgress = 0f;
 		}
+
+		return true;
 	}
 
 	private void HandleCancelTrainCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)

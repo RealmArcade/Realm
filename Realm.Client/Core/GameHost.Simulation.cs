@@ -597,7 +597,6 @@ public partial class GameHost
 	private Plane[] _renderFrustumPlanes = Array.Empty<Plane>();
 	private bool _renderCameraFrustumChanged;
 	private float _renderCurrentGameTime;
-	private bool _renderMovementPrediction;
 	private RuntimeTerrain? _renderGroundTerrain;
 	private Action<int>? _processRenderWorkItemDelegate;
 
@@ -654,7 +653,6 @@ public partial class GameHost
 		_renderFrustumPlanes = hasFrustum ? _cachedCameraFrustumPlanes : Array.Empty<Plane>();
 		_renderCameraFrustumChanged = cameraFrustumChanged;
 		_renderCurrentGameTime = GameElapsedTime;
-		_renderMovementPrediction = GameSettings.MovementPrediction;
 		_renderGroundTerrain = (GroundTerrain != null && GodotObject.IsInstanceValid(GroundTerrain)) ? GroundTerrain : null;
 
 		_renderWorkItemCount = 0;
@@ -775,23 +773,11 @@ public partial class GameHost
 
 		Vector3 interpPosVec = Vector3.Lerp(prevPos, posValue, fraction);
 
-		Godot.Vector3 nextPos;
-		if (_renderMovementPrediction && world.Has<RenderPosition>(entity))
+		Godot.Vector3 nextPos = new Godot.Vector3(interpPosVec.X, interpPosVec.Y, interpPosVec.Z);
+		if (world.Has<RenderPosition>(entity))
 		{
-			var currentRenderPos = world.Get<RenderPosition>(entity).Value;
-			var smoothedRenderPos = Vector3.Lerp(currentRenderPos, interpPosVec, Math.Min(1.0f, 15.0f * fDelta));
 			item.ShouldUpdateRenderPos = true;
-			item.NewRenderPos = smoothedRenderPos;
-			nextPos = new Godot.Vector3(smoothedRenderPos.X, smoothedRenderPos.Y, smoothedRenderPos.Z);
-		}
-		else
-		{
-			nextPos = new Godot.Vector3(interpPosVec.X, interpPosVec.Y, interpPosVec.Z);
-			if (world.Has<RenderPosition>(entity))
-			{
-				item.ShouldUpdateRenderPos = true;
-				item.NewRenderPos = interpPosVec;
-			}
+			item.NewRenderPos = interpPosVec;
 		}
 
 		bool posChanged = !item.HasCachedTransform || (nextPos - item.CachedPosition).LengthSquared() > 0.0001f;

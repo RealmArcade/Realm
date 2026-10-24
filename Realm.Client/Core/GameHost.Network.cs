@@ -11,6 +11,7 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
@@ -54,16 +55,124 @@ public partial class GameHost
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
-	private void QueueClientCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
+	private void SubmitOrderCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
-		if (GameSettings.MovementPrediction && (commandType == "MoveTo" || commandType == "AttackMove" || commandType == "Move" || commandType == "Gather"))
+		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
+		RegisterPredictedCommand(commandId, unitIds, commandType, targetNumerics);
+
+		if (HasRemoteAuthority)
 		{
-			GameContext.MovementPredictionService?.ApplyLocalPrediction(GameContext.World, unitIds, targetNumerics);
+			RpcId(1, nameof(SubmitCommand), payload);
+			return;
 		}
 
-		var (_, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
+		GameContext.LocalCommandTransport.Submit(ResolveLocalCommandSenderPeerId(), payload);
+	}
+
+	private void SubmitRemoteCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
+	{
+		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
+		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
+		RegisterPredictedCommand(commandId, unitIds, commandType, targetNumerics);
 		RpcId(1, nameof(SubmitCommand), payload);
+	}
+
+	private int ResolveLocalCommandSenderPeerId()
+	{
+		if (_multiplayerActive) return _localPeerId;
+
+		int localPlayerIndex = ObservingPlayerIndex;
+		if (localPlayerIndex > 0)
+		{
+			Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(localPlayerIndex);
+			if (localPlayerEntity != Entity.Null)
+			{
+				foreach (var pair in _peerIdToPlayerEntityMap)
+				{
+					if (pair.Key >= 0 && pair.Value == localPlayerEntity) return pair.Key;
+				}
+			}
+		}
+
+		return 1;
+	}
+
+	private void DrainLocalCommandQueue()
+	{
+		var transport = GameContext.LocalCommandTransport;
+		while (transport.TryDequeue(out PendingLocalCommand pending))
+		{
+			NetworkCommand command = MemoryPackSerializer.Deserialize<NetworkCommand>(pending.Payload);
+			if (IsDuplicateCommand(pending.SenderPeerId, command.CommandId)) continue;
+			ApplyAuthoritativeCommand(pending.SenderPeerId, command);
+		}
+	}
+
+	private void RegisterPredictedCommand(int commandId, List<int> serverEntityIds, string commandType, System.Numerics.Vector3 targetPosition)
+	{
+		if (!GameSettings.MovementPrediction || GameContext.MovementPredictionService == null) return;
+		if (GameContext.World == null) return;
+
+		int localPlayerIndex = LocalPlayerIndex;
+		if (localPlayerIndex < 0) return;
+
+		_predictedCommandEntities.Clear();
+		for (int index = 0; index < serverEntityIds.Count; index++)
+		{
+			if (!TryResolveLocalEntity(serverEntityIds[index], out Entity localEntity)) continue;
+			if (!GameContext.World.IsAlive(localEntity)) continue;
+			if (!GameContext.World.Has<UnitOwnerPlayer>(localEntity)) continue;
+			if (GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != localPlayerIndex) continue;
+			_predictedCommandEntities.Add(localEntity.Id);
+		}
+
+		if (_predictedCommandEntities.Count == 0) return;
+		GameContext.MovementPredictionService.RegisterPredictedCommand(commandId, _predictedCommandEntities);
+		GameContext.MovementPredictionService.ApplyPredictedOrder(
+			GameContext.World,
+			ResolvePredictedOrderKind(commandType),
+			System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_predictedCommandEntities),
+			targetPosition,
+			commandType.EndsWith("_queued", StringComparison.Ordinal));
+	}
+
+	private bool TryResolveLocalEntity(int serverEntityId, out Entity localEntity)
+	{
+		if (TryGetLocalEntity(serverEntityId, out localEntity)) return true;
+		if (!HasAuthority)
+		{
+			localEntity = Entity.Null;
+			return false;
+		}
+
+		localEntity = new Entity(serverEntityId);
+		return GameContext.World != null && GameContext.World.IsAlive(localEntity);
+	}
+
+	private static PredictedOrderKind ResolvePredictedOrderKind(string commandType)
+	{
+		return commandType switch
+		{
+			"move" => PredictedOrderKind.Move,
+			"attack_move" => PredictedOrderKind.AttackMove,
+			"attack_move_queued" => PredictedOrderKind.AttackMove,
+			"gather" => PredictedOrderKind.Gather,
+			"build" => PredictedOrderKind.Build,
+			"stop" => PredictedOrderKind.Stop,
+			_ => PredictedOrderKind.None
+		};
+	}
+
+	private readonly List<int> _predictedCommandEntities = new();
+
+	public int GetLocalPlayerIndexForHarness() => LocalPlayerIndex;
+
+	public int GetServerEntityIdForHarness(int localEntityId) => GameContext.NetworkService.GetServerEntityId(localEntityId);
+
+	public void IssueRawCommandForHarness(string commandType, List<int> serverEntityIds, Vector3 targetPosition, int targetEntityId = 0, string argString = "")
+	{
+		SubmitOrderCommand(commandType, serverEntityIds, targetPosition, targetEntityId, argString);
 	}
 
 	private void SendUnacknowledgedCommands()
@@ -98,9 +207,24 @@ public partial class GameHost
 		UpdateDayNightVisuals(progress);
 	}
 
+	private bool _clientNavMeshRebakePending;
+	private float _clientNavMeshRebakeCooldown;
+
+	private void UpdateClientNavMesh(float fDelta)
+	{
+		if (_clientNavMeshRebakeCooldown > 0f) _clientNavMeshRebakeCooldown -= fDelta;
+		if (!_clientNavMeshRebakePending || _clientNavMeshRebakeCooldown > 0f) return;
+
+		_clientNavMeshRebakePending = false;
+		_clientNavMeshRebakeCooldown = 1f;
+		RebakeNavMesh();
+	}
+
 	private void UpdateClientTick(float fDelta)
 	{
 		CapturePreviousStateSnapshots();
+
+		UpdateClientNavMesh(fDelta);
 
 		_commandSendTimer += fDelta;
 		if (_commandSendTimer >= 0.05f)
@@ -111,11 +235,7 @@ public partial class GameHost
 
 		GameContext.NetworkService.UpdateClientTickDomain();
 
-		if (GameSettings.MovementPrediction && GameContext.World != null)
-		{
-			int currentTickSeq = (int)(Time.GetTicksMsec() / 33);
-			GameContext.MovementPredictionService?.RecordTick(currentTickSeq, GameContext.World);
-		}
+		GameContext.MovementPredictionService?.Tick(GameContext.World, fDelta);
 
 		UpdateClientWorldState(fDelta);
 
@@ -253,19 +373,11 @@ public partial class GameHost
 
 		if (IsDuplicateCommand(senderId, cmd.CommandId))
 		{
-			RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId);
+			RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId, Array.Empty<int>(), string.Empty);
 			return;
 		}
 
-		var result = GameContext.NetworkService.ExecuteServerCommand(senderId, cmd, AllUnits, AllProps);
-
-		StopUnitVelocities(result.StopVelocityEntityIds);
-		StopUnitVelocities(result.HoldVelocityEntityIds);
-
-		ProcessServerCommandBuild(result);
-		ProcessServerCommandSpell(cmd, result);
-
-		RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId);
+		ApplyAuthoritativeCommand(senderId, cmd);
 		sw.Stop();
 		float responseCpuMs = (float)sw.Elapsed.TotalMilliseconds;
 		float adjustedResponseMs = responseCpuMs + GameContext.PerformanceTrackingService.TrackerLastTickDelay;
@@ -275,10 +387,47 @@ public partial class GameHost
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void AcknowledgeCommand(int commandId)
+	private void ApplyAuthoritativeCommand(int senderId, NetworkCommand cmd)
+	{
+		var result = GameContext.NetworkService.ExecuteServerCommand(senderId, cmd, AllUnits, AllProps);
+
+		StopUnitVelocities(result.StopVelocityEntityIds);
+		StopUnitVelocities(result.HoldVelocityEntityIds);
+
+		ProcessServerCommandBuild(result);
+		ProcessServerCommandSpell(cmd, result);
+
+		if (result.RejectedServerEntityIds.Count > 0)
+		{
+			PredictionDiagnostics.RecordRejection(cmd.CommandId, result.RejectionReason);
+		}
+
+		int[] rejectedEntityIds = result.RejectedServerEntityIds.ToArray();
+		if (senderId == _localPeerId) DeliverLocalCommandAck(cmd.CommandId, rejectedEntityIds, result.RejectionReason);
+		else RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId, rejectedEntityIds, result.RejectionReason);
+	}
+
+	private void DeliverLocalCommandAck(int commandId, int[] rejectedServerEntityIds, string rejectionReason)
 	{
 		GameContext.NetworkService.AcknowledgeCommand(commandId);
+
+		var prediction = GameContext.MovementPredictionService;
+		if (prediction == null) return;
+
+		if (!string.IsNullOrEmpty(rejectionReason))
+		{
+			PredictionDiagnostics.RecordRejection(commandId, rejectionReason);
+			prediction.RollbackRejectedCommand(GameContext.World, commandId, rejectedServerEntityIds ?? Array.Empty<int>(), rejectionReason);
+			return;
+		}
+
+		prediction.OnCommandAccepted(commandId);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	public void AcknowledgeCommand(int commandId, int[] rejectedServerEntityIds, string rejectionReason)
+	{
+		DeliverLocalCommandAck(commandId, rejectedServerEntityIds, rejectionReason);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
@@ -311,6 +460,7 @@ public partial class GameHost
 		for (int i = 0; i < pendingSpawns.Count; i++)
 		{
 			SpawnUnitFromSnapshot(pendingSpawns[i]);
+			if (pendingSpawns[i].IsBuilding) _clientNavMeshRebakePending = true;
 		}
 
 		foreach (var localEntity in GameContext.NetworkService.FlushPendingUnitKills())
@@ -325,6 +475,7 @@ public partial class GameHost
 		{
 			if (TryGetUnit3D(localEntity, out var unit3D))
 			{
+				if (unit3D.IsBuilding) _clientNavMeshRebakePending = true;
 				Callable.From(() => RetireUnitFromView(unit3D)).CallDeferred();
 			}
 		}
@@ -379,6 +530,14 @@ public partial class GameHost
 	private void UpdateServerSnapshotTick(float fDelta)
 	{
 		var snapshots = GameContext.NetworkService.BuildServerSnapshots(_localPeerId, AllUnits);
+		if (PredictionDiagnostics.IsHostRecording)
+		{
+			Entity worldEntity = ECSContext.WorldEntity;
+			int sequence = GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<NetworkState>(worldEntity)
+				? GameContext.World.Get<NetworkState>(worldEntity).SnapshotSequence
+				: -1;
+			if (sequence >= 0) PredictionDiagnostics.RecordHostSnapshot(sequence, GameContext.World!, AllUnits);
+		}
 		foreach (var (peerId, payload, isBaseline) in snapshots)
 		{
 			ShadowClientVerifier.VerifyPayload(peerId, payload, isBaseline);

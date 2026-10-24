@@ -272,8 +272,15 @@ public class InputService
 		}
 	}
 
+	private static bool ShouldApplyOrdersToLocalEcs()
+	{
+		return GameContext.Host == null || GameContext.Host.HasAuthority;
+	}
+
 	public void IssueMoveCommand(List<Entity> selectedEntities, Vector3 targetPos)
 	{
+		if (!ShouldApplyOrdersToLocalEcs()) return;
+
 		int unitIndex = 0;
 		int cols = (int)Math.Ceiling(Math.Sqrt(selectedEntities.Count));
 		float spacing = 2.2f;
@@ -304,6 +311,8 @@ public class InputService
 
 	public void IssueMoveCommandQueued(List<Entity> selectedEntities, Vector3 targetPos)
 	{
+		if (!ShouldApplyOrdersToLocalEcs()) return;
+
 		int unitIndex = 0;
 		int cols = (int)Math.Ceiling(Math.Sqrt(selectedEntities.Count));
 		float spacing = 2.2f;
@@ -330,6 +339,8 @@ public class InputService
 
 	public void IssueAttackCommand(List<Entity> selectedEntities, Entity targetEntity, bool isQueued = false)
 	{
+		if (!ShouldApplyOrdersToLocalEcs()) return;
+
 		var targetPos = GameContext.World.Has<Position>(targetEntity) ? GameContext.World.Get<Position>(targetEntity).Value : Vector3.Zero;
 		foreach (var entity in selectedEntities)
 		{
@@ -377,6 +388,8 @@ public class InputService
 
 	public void IssueFollowCommand(List<Entity> selectedEntities, Entity targetEntity, bool isQueued = false)
 	{
+		if (!ShouldApplyOrdersToLocalEcs()) return;
+
 		var targetPos = GameContext.World.Has<Position>(targetEntity) ? GameContext.World.Get<Position>(targetEntity).Value : Vector3.Zero;
 		foreach (var entity in selectedEntities)
 		{
@@ -414,6 +427,8 @@ public class InputService
 
 	public void IssuePatrolCommand(List<Entity> selectedEntities, Vector3 targetPos, bool isQueued = false)
 	{
+		if (!ShouldApplyOrdersToLocalEcs()) return;
+
 		int unitIndex = 0;
 		int cols = (int)Math.Ceiling(Math.Sqrt(selectedEntities.Count));
 		float spacing = 2.2f;
@@ -436,6 +451,8 @@ public class InputService
 
 	public void IssueAttackMoveCommand(List<Entity> selectedEntities, Vector3 targetPos, bool isQueued = false)
 	{
+		if (!ShouldApplyOrdersToLocalEcs()) return;
+
 		foreach (var entity in selectedEntities)
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
@@ -464,6 +481,8 @@ public class InputService
 
 	public void HoldSelectedUnits(List<Entity> selectedEntities)
 	{
+		if (!ShouldApplyOrdersToLocalEcs()) return;
+
 		foreach (var entity in selectedEntities)
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;
@@ -479,6 +498,8 @@ public class InputService
 
 	public void StopSelectedUnits(List<Entity> selectedEntities)
 	{
+		if (!ShouldApplyOrdersToLocalEcs()) return;
+
 		foreach (var entity in selectedEntities)
 		{
 			if (!GameContext.World.IsAlive(entity)) continue;

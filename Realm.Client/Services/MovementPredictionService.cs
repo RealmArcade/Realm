@@ -4,45 +4,134 @@ using System.Diagnostics;
 using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
+using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Services;
 using Realm.Client.UI;
 
 namespace Realm.Client.Services;
 
-public struct PredictedUnitState
+/// <summary>
+/// Describes the locally predicted form of a movement order issued by the local player.
+/// </summary>
+public enum PredictedOrderKind
 {
-	public Vector3 Position;
-	public Vector3 Velocity;
-}
-
-public class PredictedTickFrame
-{
-	public int Sequence;
-	public Dictionary<int, PredictedUnitState> UnitStates = new();
+	None = 0,
+	Move = 1,
+	AttackMove = 2,
+	Gather = 3,
+	Build = 4,
+	Stop = 5
 }
 
 public class MovementPredictionService
 {
-	private const int BufferSize = 128;
-	private readonly PredictedTickFrame[] _historyBuffer = new PredictedTickFrame[BufferSize];
-	private int _currentSequence;
+	public const float ActiveCorrectionDeadbandMeters = 2.0f;
+	public const float SnapThresholdMeters = 4.0f;
+	public const float CorrectionRatePerSecond = 14.0f;
+	public const float SettledCorrectionRatePerSecond = 30.0f;
+	public const float SettledErrorMeters = 0.05f;
+	public const float AuthoritativeJumpSpeedMetersPerSecond = 25.0f;
+	public const float ImpliedSnapshotIntervalSeconds = 1.0f / 30.0f;
 
-	public bool IsPredictiveFrameContext { get; private set; }
+	private const int PendingCommandCapacity = 64;
+	private const int MaximumCommandUnitCount = 32;
+	private const int MaximumTrackedUnitCount = 512;
 
-	public MovementPredictionService()
-	{
-		for (int i = 0; i < BufferSize; i++)
-		{
-			_historyBuffer[i] = new PredictedTickFrame();
-		}
-	}
+	private readonly Vector3[] _authoritativePositions = new Vector3[EcsWorld.MAX_ENTITIES];
+	private readonly Vector3[] _previousAuthoritativePositions = new Vector3[EcsWorld.MAX_ENTITIES];
+	private readonly int[] _authoritativeSequences = new int[EcsWorld.MAX_ENTITIES];
+	private readonly int[] _commandIds = new int[EcsWorld.MAX_ENTITIES];
+	private readonly bool[] _tracked = new bool[EcsWorld.MAX_ENTITIES];
+	private readonly bool[] _hasAuthoritativeSample = new bool[EcsWorld.MAX_ENTITIES];
+	private readonly int[] _trackedEntityIds = new int[MaximumTrackedUnitCount];
+	private readonly EntityCallback<Position, UnitOwnerPlayer> _localUnitQueryDelegate;
+	private int _localUnitPlayerIndex = -1;
 
-	public bool IsPredictionEnabled => GameSettings.MovementPrediction;
+	private readonly int[] _pendingCommandIds = new int[PendingCommandCapacity];
+	private readonly int[] _pendingCommandUnitCounts = new int[PendingCommandCapacity];
+	private readonly int[][] _pendingCommandUnits = new int[PendingCommandCapacity][];
+
+	private int _trackedCount;
+	private int _pendingCommandCursor;
+	private int _reconcileSequence = -1;
+	private int _lastSnapshotSequence = -1;
+	private int _lastPredictedTick;
+	private bool _isReconciling;
 
 	private long _operationStartTimestamp;
 	private float _lastOperationCostMs;
 	private bool _hasPendingOperationCost;
+
+	public MovementPredictionService()
+	{
+		for (int index = 0; index < PendingCommandCapacity; index++)
+		{
+			_pendingCommandUnits[index] = new int[MaximumCommandUnitCount];
+		}
+
+		_localUnitQueryDelegate = CollectLocalUnitAction;
+	}
+
+	public bool IsPredictiveFrameContext { get; private set; }
+	public bool IsPredictionEnabled => GameSettings.MovementPrediction;
+	public bool HasPredictedUnits => _trackedCount > 0;
+	public int TrackedUnitCount => _trackedCount;
+	public int LastSnapshotSequence => _lastSnapshotSequence;
+	public int LastPredictedTick => _lastPredictedTick;
+
+	public ReadOnlySpan<int> TrackedEntityIds => new ReadOnlySpan<int>(_trackedEntityIds, 0, _trackedCount);
+
+	public bool IsEntityTracked(int entityId)
+	{
+		if (entityId <= 0 || entityId >= EcsWorld.MAX_ENTITIES) return false;
+		return _tracked[entityId];
+	}
+
+	public void ApplyPredictedOrder(EcsWorld world, PredictedOrderKind kind, ReadOnlySpan<int> localEntityIds, Vector3 targetPosition, bool isQueued)
+	{
+		if (!IsPredictionEnabled || world == null || kind == PredictedOrderKind.None) return;
+
+		BeginOperation();
+		IsPredictiveFrameContext = true;
+		try
+		{
+			for (int index = 0; index < localEntityIds.Length; index++)
+			{
+				int entityId = localEntityIds[index];
+				var entity = new Entity(entityId);
+				if (!world.IsAlive(entity) || !world.Has<Position>(entity)) continue;
+
+				MarkTracked(entityId);
+				if (isQueued && HasActiveOrder(world, entity)) continue;
+				ClearPredictedOrder(world, entity);
+
+				if (kind == PredictedOrderKind.Stop) continue;
+
+				world.SetOrAdd(entity, new PredictedMoveTo(targetPosition, (int)kind));
+			}
+		}
+		finally
+		{
+			IsPredictiveFrameContext = false;
+			EndOperation();
+		}
+	}
+
+	public void GetAuthoritativeSample(int entityId, out Vector3 position, out int sequence)
+	{
+		if (entityId <= 0 || entityId >= EcsWorld.MAX_ENTITIES || !_hasAuthoritativeSample[entityId])
+		{
+			position = Vector3.Zero;
+			sequence = -1;
+			return;
+		}
+
+		position = _authoritativePositions[entityId];
+		sequence = _authoritativeSequences[entityId];
+	}
 
 	public bool TryConsumeOperationCost(out float costMs)
 	{
@@ -64,6 +153,26 @@ public class MovementPredictionService
 		_hasPendingOperationCost = true;
 	}
 
+	public void RegisterPredictedCommand(int commandId, IReadOnlyList<int> localEntityIds)
+	{
+		if (!IsPredictionEnabled || localEntityIds == null || localEntityIds.Count == 0) return;
+
+		int slot = _pendingCommandCursor;
+		_pendingCommandCursor = (slot + 1) % PendingCommandCapacity;
+		int storedCount = Math.Min(localEntityIds.Count, MaximumCommandUnitCount);
+		_pendingCommandIds[slot] = commandId;
+		_pendingCommandUnitCounts[slot] = storedCount;
+		for (int index = 0; index < storedCount; index++)
+		{
+			int entityId = localEntityIds[index];
+			_pendingCommandUnits[slot][index] = entityId;
+			_commandIds[entityId] = commandId;
+			MarkTracked(entityId);
+		}
+
+		PredictionDiagnostics.RecordCommandRegistered(commandId, localEntityIds);
+	}
+
 	public void ApplyLocalPrediction(EcsWorld world, IEnumerable<int> unitEntityIds, Vector3 targetPos)
 	{
 		if (!IsPredictionEnabled || world == null) return;
@@ -76,17 +185,7 @@ public class MovementPredictionService
 			{
 				var entity = new Entity(entityId);
 				if (!world.IsAlive(entity)) continue;
-
-				if (world.Has<Position>(entity))
-				{
-					var currentPos = world.Get<Position>(entity).Value;
-					if (!world.Has<RenderPosition>(entity))
-					{
-						world.Set(entity, new RenderPosition(currentPos));
-					}
-				}
-
-				world.SetOrAdd(entity, new MoveTo(targetPos));
+				MarkTracked(entityId);
 			}
 		}
 		finally
@@ -96,126 +195,295 @@ public class MovementPredictionService
 		}
 	}
 
-	public void RecordTick(int sequence, EcsWorld world)
+	public void Tick(EcsWorld world, float delta)
+	{
+		var host = GameContext.Host;
+		if (!IsPredictionEnabled || world == null || host == null) return;
+		if (host.ObservingPlayerIndex <= 0) return;
+
+		BeginOperation();
+		try
+		{
+			_lastPredictedTick++;
+			TrackLocallyOwnedUnits(world);
+			PruneUntrackedEntities(world);
+
+			if (host.HasAuthority)
+			{
+				// The authority already integrated these units this tick, so prediction must not integrate them a second
+				// time. It still records the authoritative sample so the invariant predicted == authoritative is visible.
+				SampleAuthoritativeFromWorld(world);
+			}
+			else
+			{
+				GameContext.SimulationService.StepPredictedMovement(delta);
+				ApplyBoundedCorrections(world, delta);
+			}
+
+			PredictionDiagnostics.RecordClientTick(world, _lastPredictedTick, this);
+		}
+		finally
+		{
+			EndOperation();
+		}
+	}
+
+	private void SampleAuthoritativeFromWorld(EcsWorld world)
+	{
+		for (int index = 0; index < _trackedCount; index++)
+		{
+			int entityId = _trackedEntityIds[index];
+			var entity = new Entity(entityId);
+			if (!world.IsAlive(entity) || !world.Has<Position>(entity)) continue;
+
+			Vector3 position = world.Get<Position>(entity).Value;
+			_previousAuthoritativePositions[entityId] = _hasAuthoritativeSample[entityId] ? _authoritativePositions[entityId] : position;
+			_authoritativePositions[entityId] = position;
+			_authoritativeSequences[entityId] = 0;
+			_hasAuthoritativeSample[entityId] = true;
+		}
+	}
+
+	private void ApplyBoundedCorrections(EcsWorld world, float delta)
+	{
+		if (_trackedCount == 0) return;
+
+		float movingFraction = Math.Min(1f, CorrectionRatePerSecond * delta);
+		float settledFraction = Math.Min(1f, SettledCorrectionRatePerSecond * delta);
+		for (int index = 0; index < _trackedCount; index++)
+		{
+			int entityId = _trackedEntityIds[index];
+			var entity = new Entity(entityId);
+			if (!world.IsAlive(entity) || !world.Has<Position>(entity)) continue;
+			if (!_hasAuthoritativeSample[entityId]) continue;
+
+			Vector3 predicted = world.Get<Position>(entity).Value;
+			Vector3 authoritative = _authoritativePositions[entityId];
+			Vector3 difference = predicted - authoritative;
+			float errorSquared = difference.LengthSquared();
+			if (!float.IsFinite(errorSquared)) continue;
+
+			bool hasMovementOrder = world.Has<PredictedMoveTo>(entity);
+			float deadband = hasMovementOrder ? ActiveCorrectionDeadbandMeters : SettledErrorMeters;
+			if (errorSquared <= deadband * deadband) continue;
+
+			Vector3 corrected = Vector3.Lerp(predicted, authoritative, hasMovementOrder ? movingFraction : settledFraction);
+			world.Set(entity, new Position(corrected));
+			PredictionDiagnostics.RecordCorrection(entityId, predicted, corrected, authoritative, _lastSnapshotSequence);
+		}
+	}
+
+	private void TrackLocallyOwnedUnits(EcsWorld world)
+	{
+		_localUnitPlayerIndex = GameContext.Host?.ObservingPlayerIndex ?? -1;
+		if (_localUnitPlayerIndex < 0) return;
+
+		world.Query(in QueryCache.AllPositionAndUnitOwnerPlayerNoneDeadQuery, _localUnitQueryDelegate);
+	}
+
+	private void CollectLocalUnitAction(Entity entity, ref Position position, ref UnitOwnerPlayer owner)
+	{
+		if (owner.PlayerIndex != _localUnitPlayerIndex) return;
+		if (_tracked[entity.Id]) return;
+		MarkTracked(entity.Id);
+	}
+
+	private void PruneUntrackedEntities(EcsWorld world)
+	{
+		int localPlayerIndex = _localUnitPlayerIndex;
+		int kept = 0;
+		for (int index = 0; index < _trackedCount; index++)
+		{
+			int entityId = _trackedEntityIds[index];
+			var entity = new Entity(entityId);
+			if (!world.IsAlive(entity))
+			{
+				_tracked[entityId] = false;
+				continue;
+			}
+
+			bool isLocalOwned = localPlayerIndex >= 0
+				&& world.Has<UnitOwnerPlayer>(entity)
+				&& world.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
+			if (!isLocalOwned)
+			{
+				_tracked[entityId] = false;
+				PredictionDiagnostics.RecordPredictionStopped(entityId, "ownership changed or unit is not locally controlled");
+				continue;
+			}
+
+			_trackedEntityIds[kept++] = entityId;
+		}
+
+		_trackedCount = kept;
+	}
+
+	private void MarkTracked(int entityId)
+	{
+		if (entityId <= 0 || entityId >= EcsWorld.MAX_ENTITIES) return;
+		if (_tracked[entityId]) return;
+		if (_trackedCount >= MaximumTrackedUnitCount) return;
+
+		_tracked[entityId] = true;
+		_trackedEntityIds[_trackedCount++] = entityId;
+	}
+
+	public void BeginSnapshotReconcile(int sequence)
+	{
+		if (!IsPredictionEnabled) return;
+		_lastSnapshotSequence = sequence;
+		_reconcileSequence = sequence;
+		_isReconciling = true;
+	}
+
+	public void ReconcileAuthoritativePosition(EcsWorld world, int entityId, Vector3 authoritativePosition)
+	{
+		if (!IsPredictionEnabled || world == null || !_isReconciling) return;
+		if (entityId <= 0 || entityId >= EcsWorld.MAX_ENTITIES) return;
+
+		var entity = new Entity(entityId);
+		if (!world.IsAlive(entity)) return;
+
+		bool hasPrevious = _hasAuthoritativeSample[entityId];
+		Vector3 previousAuthoritative = _previousAuthoritativePositions[entityId];
+
+		_previousAuthoritativePositions[entityId] = authoritativePosition;
+		_authoritativePositions[entityId] = authoritativePosition;
+		_authoritativeSequences[entityId] = _reconcileSequence;
+		_hasAuthoritativeSample[entityId] = true;
+
+		if (!_tracked[entityId]) return;
+		if (!world.Has<Position>(entity)) return;
+
+		Vector3 predicted = world.Get<Position>(entity).Value;
+		Vector3 difference = predicted - authoritativePosition;
+		float errorSquared = difference.LengthSquared();
+		if (!float.IsFinite(errorSquared))
+		{
+			world.Set(entity, new Position(authoritativePosition));
+			PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, false, "non-finite predicted position");
+			return;
+		}
+
+		if (errorSquared <= SnapThresholdMeters * SnapThresholdMeters) return;
+
+		bool explained = hasPrevious
+			&& (authoritativePosition - previousAuthoritative).LengthSquared()
+			> MathF.Pow(AuthoritativeJumpSpeedMetersPerSecond * ImpliedSnapshotIntervalSeconds, 2f);
+
+		if (explained)
+		{
+			world.Set(entity, new Position(authoritativePosition));
+			PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, true, "authoritative teleport");
+			return;
+		}
+
+		world.Set(entity, new Position(authoritativePosition));
+		PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, false, "prediction error above snap threshold");
+	}
+
+	public void EndSnapshotReconcile()
+	{
+		_isReconciling = false;
+	}
+
+	public void RollbackRejectedCommand(EcsWorld world, int commandId, int[] rejectedServerEntityIds, string reason)
 	{
 		if (!IsPredictionEnabled || world == null) return;
 
-		BeginOperation();
-		_currentSequence = sequence;
-		int index = sequence % BufferSize;
-		var frame = _historyBuffer[index];
-		frame.Sequence = sequence;
-		frame.UnitStates.Clear();
-
-		var query = QueryCache.AllPositionAndDefinitionIdQuery;
-		world.Query(in query, (Entity entity, ref Position pos) =>
+		int slot = -1;
+		for (int index = 0; index < PendingCommandCapacity; index++)
 		{
-			Vector3 vel = world.Has<Velocity>(entity) ? world.Get<Velocity>(entity).Value : Vector3.Zero;
-			frame.UnitStates[entity.Id] = new PredictedUnitState
-			{
-				Position = pos.Value,
-				Velocity = vel
-			};
+			if (_pendingCommandIds[index] != commandId) continue;
+			slot = index;
+			break;
+		}
 
-			if (!world.Has<RenderPosition>(entity))
-			{
-				world.Set(entity, new RenderPosition(pos.Value));
-			}
-		});
+		if (slot < 0) return;
 
-		EndOperation();
-	}
-
-	public void ReconcileServerSnapshot(EcsWorld world, int sequence, Dictionary<int, Vector3> serverPositions)
-	{
-		if (!IsPredictionEnabled || world == null || serverPositions == null) return;
-
-		int index = sequence % BufferSize;
-		var recordedFrame = _historyBuffer[index];
-		bool rollbackNeeded = false;
-		var mispredictedEntities = new List<Entity>();
-
-		foreach (var kvp in serverPositions)
+		var networkService = GameContext.NetworkService;
+		int unitCount = _pendingCommandUnitCounts[slot];
+		int clearedCount = 0;
+		for (int index = 0; index < unitCount; index++)
 		{
-			int entityId = kvp.Key;
-			Vector3 serverPos = kvp.Value;
+			int entityId = _pendingCommandUnits[slot][index];
 			var entity = new Entity(entityId);
-
 			if (!world.IsAlive(entity)) continue;
 
-			if (!world.Has<RenderPosition>(entity) && world.Has<Position>(entity))
+			int serverEntityId = networkService?.GetServerEntityId(entityId) ?? -1;
+			bool rejected = rejectedServerEntityIds.Length == 0 || serverEntityId < 0;
+			for (int rejectedIndex = 0; rejectedIndex < rejectedServerEntityIds.Length; rejectedIndex++)
 			{
-				world.Set(entity, new RenderPosition(world.Get<Position>(entity).Value));
+				if (rejectedServerEntityIds[rejectedIndex] != serverEntityId) continue;
+				rejected = true;
+				break;
 			}
 
-			Vector3 predictedPos = (recordedFrame.Sequence == sequence && recordedFrame.UnitStates.TryGetValue(entityId, out var state))
-				? state.Position
-				: (world.Has<Position>(entity) ? world.Get<Position>(entity).Value : serverPos);
+			if (!rejected) continue;
 
-			float delta = Vector3.Distance(predictedPos, serverPos);
-
-			if (delta > 0.1f)
-			{
-				rollbackNeeded = true;
-				mispredictedEntities.Add(entity);
-				world.Set(entity, new Position(serverPos));
-				world.SetOrAdd(entity, new PreviousPosition(serverPos));
-			}
+			ClearPredictedOrder(world, entity);
+			_commandIds[entityId] = 0;
+			PredictionDiagnostics.RecordRollback(commandId, entityId, reason, _lastSnapshotSequence);
+			clearedCount++;
 		}
 
-		if (rollbackNeeded)
-		{
-			IsPredictiveFrameContext = true;
-			try
-			{
-				FastForwardReSimulation(world, sequence, _currentSequence, mispredictedEntities);
-			}
-			finally
-			{
-				IsPredictiveFrameContext = false;
-			}
-		}
+		_pendingCommandIds[slot] = 0;
+		_pendingCommandUnitCounts[slot] = 0;
 	}
 
-	private void FastForwardReSimulation(EcsWorld world, int startSeq, int targetSeq, List<Entity> entities)
+	public void OnCommandAccepted(int commandId)
 	{
-		int steps = Math.Clamp(targetSeq - startSeq, 1, BufferSize);
-		float tickDelta = 0.033f;
-
-		for (int step = 0; step < steps; step++)
+		for (int index = 0; index < PendingCommandCapacity; index++)
 		{
-			foreach (var entity in entities)
-			{
-				if (!world.IsAlive(entity) || !world.Has<Position>(entity) || !world.Has<MoveTo>(entity)) continue;
-
-				Vector3 current = world.Get<Position>(entity).Value;
-				Vector3 target = world.Get<MoveTo>(entity).Target;
-				float speed = world.Has<MovementStats>(entity) ? world.Get<MovementStats>(entity).Speed : 5.0f;
-
-				Vector3 dir = target - current;
-				float dist = dir.Length();
-				if (dist > 0.05f)
-				{
-					dir = Vector3.Normalize(dir);
-					float moveStep = Math.Min(speed * tickDelta, dist);
-					world.Set(entity, new Position(current + dir * moveStep));
-				}
-				else
-				{
-					world.Remove<MoveTo>(entity);
-				}
-			}
+			if (_pendingCommandIds[index] != commandId) continue;
+			_pendingCommandIds[index] = 0;
+			_pendingCommandUnitCounts[index] = 0;
 		}
+
+		PredictionDiagnostics.RecordCommandAccepted(commandId);
+	}
+
+	public bool HasPredictedOrder(EcsWorld world, Entity entity)
+	{
+		return world != null && world.Has<PredictedMoveTo>(entity);
+	}
+
+	private static bool HasActiveOrder(EcsWorld world, Entity entity)
+	{
+		return world.Has<PredictedMoveTo>(entity)
+			|| world.Has<MoveTo>(entity)
+			|| world.Has<AttackMove>(entity)
+			|| world.Has<Follow>(entity)
+			|| world.Has<Gatherer>(entity)
+			|| world.Has<Patrol>(entity)
+			|| world.Has<Realm.Ecs.Components.Resources.BuildTask>(entity);
+	}
+
+	private static void ClearPredictedOrder(EcsWorld world, Entity entity)
+	{
+		if (world.Has<PredictedMoveTo>(entity)) world.Remove<PredictedMoveTo>(entity);
+		if (world.Has<PathFollow>(entity)) world.Remove<PathFollow>(entity);
+	}
+
+	public int ResolveCommandId(int entityId)
+	{
+		if (entityId <= 0 || entityId >= EcsWorld.MAX_ENTITIES) return 0;
+		return _commandIds[entityId];
 	}
 
 	public void Clear()
 	{
-		_currentSequence = 0;
+		_trackedCount = 0;
+		_pendingCommandCursor = 0;
+		_reconcileSequence = -1;
+		_lastSnapshotSequence = -1;
+		_lastPredictedTick = 0;
+		_isReconciling = false;
 		IsPredictiveFrameContext = false;
-		for (int i = 0; i < BufferSize; i++)
-		{
-			_historyBuffer[i].Sequence = 0;
-			_historyBuffer[i].UnitStates.Clear();
-		}
+		Array.Clear(_tracked);
+		Array.Clear(_hasAuthoritativeSample);
+		Array.Clear(_commandIds);
+		Array.Clear(_pendingCommandIds);
+		Array.Clear(_pendingCommandUnitCounts);
 	}
 }
