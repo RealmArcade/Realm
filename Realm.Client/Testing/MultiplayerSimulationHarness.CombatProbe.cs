@@ -12,6 +12,7 @@ using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
 
@@ -35,12 +36,23 @@ public partial class MultiplayerSimulationHarness
 
 		for (int sample = 0; sample < 16; sample++)
 		{
+			if (isHost && sample == 8)
+			{
+				ProbeBuildingPlacementNavigation();
+			}
+
 			LogCombatProbe(isHost, sample);
 			if (!isHost && sample == 3)
 			{
 				ProbeBuildingPlacement();
 				_ = ProbeBuildingPreviewRefreshAsync();
 			}
+
+			if (!isHost && sample == 8)
+			{
+				ProbeReplicatedBuildingNavigation();
+			}
+
 
 			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
 		}
@@ -204,12 +216,98 @@ public partial class MultiplayerSimulationHarness
 				: DescribeClientOwnUnit(host);
 
 			string placement = isHost ? string.Empty : $" activePlacement={host.ActiveBuildingPlacementType ?? "none"}";
-			GD.Print($"[COMBAT_PROBE] role={(isHost ? "host" : "client")} sample={sample} time={host.GameElapsedTime:F1} units={host.AllUnits.Count} attackUnits={attackUnits} targeted={targetedUnits} damaged={damagedUnits} projectiles={VisualProjectilePool.ActiveCount} allocated={VisualProjectilePool.TotalAllocated} {duelSummary}{placement}");
+			GD.Print($"[COMBAT_PROBE] role={(isHost ? "host" : "client")} sample={sample} time={host.GameElapsedTime:F1} units={host.AllUnits.Count} attackUnits={attackUnits} targeted={targetedUnits} damaged={damagedUnits} projectiles={VisualProjectilePool.ActiveCount} allocated={VisualProjectilePool.TotalAllocated} {duelSummary}{placement}{DescribeNavigationDigest()}");
 		}
 		catch (Exception exception)
 		{
 			GD.PrintErr($"[COMBAT_PROBE] Sample failed: {exception}");
 		}
+	}
+
+	private void ProbeBuildingPlacementNavigation()
+	{
+		try
+		{
+			GameHost host = GameHost.Instance;
+			if (host == null || GameContext.World == null) return;
+
+			Unit3D worker = host.AllUnits.Find(unit => unit != null && GodotObject.IsInstanceValid(unit) && !unit.IsBuilding && unit.Player == 1);
+			if (worker == null)
+			{
+				GD.PrintErr("[NAV_PROBE] no host worker was found for the building placement probe.");
+				return;
+			}
+
+			string buildType = string.Empty;
+			foreach (var entry in GameHost.BuildingRegistry)
+			{
+				string candidate = entry.Key.ToString();
+				if (string.IsNullOrEmpty(candidate)) continue;
+				if (entry.Value == null || string.IsNullOrEmpty(entry.Value.ModelPath)) continue;
+				if (entry.Value.PathingType == 16) continue;
+				if (string.Equals(entry.Value.VisualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase)) continue;
+				buildType = candidate;
+				break;
+			}
+
+			if (string.IsNullOrEmpty(buildType))
+			{
+				GD.PrintErr("[NAV_PROBE] no building archetype with a model was found for the placement probe.");
+				return;
+			}
+
+			NavigationParityDigest before = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+			Vector3 target = new(0f, 0f, 0f);
+			host.AssignBuildTaskToWorker(worker.Entity, buildType, new System.Numerics.Vector3(target.X, target.Y, target.Z));
+			NavigationParityDigest after = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+
+			GameHost.TryGetUnitOrBuildingMetadata(buildType, out var placedMeta);
+			GD.Print($"[NAV_PROBE] placed '{buildType}' (pathingType={placedMeta?.PathingType.ToString() ?? "?"} visualMode={placedMeta?.VisualMode ?? "?"}) from worker '{worker.UnitId}' at {target}; blocked cells {before.BlockedCellCount}->{after.BlockedCellCount}, ground polys {before.GroundPolyCount}->{after.GroundPolyCount}, pathing hash {before.PathingHash:x8}->{after.PathingHash:x8} (changed={before.PathingHash != after.PathingHash}), poly hash {before.PolyHash:x8}->{after.PolyHash:x8}");
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[NAV_PROBE] building placement probe failed: {exception}");
+		}
+	}
+
+	private void ProbeReplicatedBuildingNavigation()
+	{
+		try
+		{
+			GameHost host = GameHost.Instance;
+			if (host == null || GameContext.World == null) return;
+
+			NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+			string summary = string.Empty;
+			int buildingCount = 0;
+			foreach (Unit3D unit in host.AllUnits)
+			{
+				if (unit == null || !GodotObject.IsInstanceValid(unit) || !unit.IsBuilding) continue;
+				if (!GameContext.World.IsAlive(unit.Entity)) continue;
+
+				buildingCount++;
+				float radius = GameContext.World.Has<CollisionRadius>(unit.Entity) ? GameContext.World.Get<CollisionRadius>(unit.Entity).Value : 0f;
+				bool hasBuildingTag = GameContext.World.Has<Building>(unit.Entity);
+				if (summary.Length < 400)
+				{
+					summary += $" [{unit.UnitId} player={unit.Player} radius={radius:F2} buildingTag={hasBuildingTag}]";
+				}
+			}
+
+			GD.Print($"[NAV_PROBE] client replicated buildings={buildingCount}{summary} blocked={digest.BlockedCellCount} pathing={digest.PathingHash:x8}");
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[NAV_PROBE] replicated building probe failed: {exception}");
+		}
+	}
+
+	private static string DescribeNavigationDigest()
+	{
+		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+		GameHost host = GameHost.Instance;
+		int propCount = host != null ? host.AllProps.Count : 0;
+		return $" nav[terrain={digest.HasTerrainState} navMesh={digest.HasNavMesh} walkable={digest.WalkableCellCount} blocked={digest.BlockedCellCount} polys={digest.PolyCount} ground={digest.GroundPolyCount} pathing={digest.PathingHash:x8} polyHash={digest.PolyHash:x8} props={propCount}]";
 	}
 
 	private void IssueClientAttackCommand(GameHost host)
