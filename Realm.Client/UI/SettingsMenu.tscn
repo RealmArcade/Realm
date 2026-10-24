@@ -201,6 +201,12 @@ focus_mode = 0
 theme_override_constants/h_separation = 8
 text = "Display FPS"
 
+[node name="DisplayPingChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/h_separation = 8
+text = "Display Ping"
+
 [node name="QualRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 10

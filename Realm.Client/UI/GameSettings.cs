@@ -52,6 +52,7 @@ public static class GameSettings
 	public static HealthBarMode ShowHealthBars { get; set; } = HealthBarMode.Damaged;
 	public static GameLanguage Language { get; set; } = GameLanguage.English;
 	public static bool DisplayFps { get; set; } = false;
+	public static bool DisplayPing { get; set; } = false;
 	public static bool RecordReplays { get; set; } = false;
 	public static bool SeedMapFiles { get; set; } = false;
 	public static bool DisableShadows { get; set; } = false;
@@ -139,6 +140,7 @@ public static class GameSettings
 		ShowHealthBars = HealthBarMode.Damaged;
 		Language = GameLanguage.English;
 		DisplayFps = false;
+		DisplayPing = false;
 		RecordReplays = false;
 		SeedMapFiles = false;
 		MovementPrediction = false;
@@ -263,6 +265,7 @@ public static class GameSettings
 		HudScale = data.HudScale;
 		Language = data.Language;
 		DisplayFps = data.DisplayFps;
+		DisplayPing = data.DisplayPing;
 		RecordReplays = data.RecordReplays;
 		SeedMapFiles = data.SeedMapFiles;
 		DisableShadows = data.DisableShadows;
@@ -321,6 +324,7 @@ public static class GameSettings
 			ShowHealthBars = ShowHealthBars,
 			Language = Language,
 			DisplayFps = DisplayFps,
+			DisplayPing = DisplayPing,
 			RecordReplays = RecordReplays,
 			SeedMapFiles = SeedMapFiles,
 			DisableShadows = DisableShadows,

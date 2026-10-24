@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://d14011hvmktj7" path="res://Core/GameHost.cs" id="1_gamehost"]
 [ext_resource type="Script" uid="uid://b3hh010yxpawb" path="res://CameraControl.cs" id="3_cm0pq"]
 [ext_resource type="Script" uid="uid://b35pafpw8dx0u" path="res://FPSCounter.cs" id="3_r0du0"]
+[ext_resource type="Script" path="res://PingCounter.cs" id="5_ping"]
 [ext_resource type="PackedScene" path="res://UI/UIManager.tscn" id="4_ui"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_cm0pq"]
@@ -61,6 +62,19 @@ grow_horizontal = 0
 text = "FPS: 60"
 horizontal_alignment = 2
 script = ExtResource("3_r0du0")
+
+[node name="Ping" type="Label" parent="CanvasLayer" unique_id=1722011163]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -160.0
+offset_top = 40.0
+offset_right = -10.0
+offset_bottom = 70.0
+grow_horizontal = 0
+text = "Ping: 0 ms"
+horizontal_alignment = 2
+script = ExtResource("5_ping")
 
 [node name="UIManager" parent="CanvasLayer" unique_id=941517973 instance=ExtResource("4_ui")]
 

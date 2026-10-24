@@ -234,6 +234,7 @@ public partial class GameHost
 		}
 
 		GameContext.NetworkService.UpdateClientTickDomain();
+		GameContext.NetworkLatencyService.Update(fDelta);
 
 		GameContext.MovementPredictionService?.Tick(GameContext.World, fDelta);
 
@@ -428,6 +429,25 @@ public partial class GameHost
 	public void AcknowledgeCommand(int commandId, int[] rejectedServerEntityIds, string rejectionReason)
 	{
 		DeliverLocalCommandAck(commandId, rejectedServerEntityIds, rejectionReason);
+	}
+
+	public void SendLatencyProbe(int sequence)
+	{
+		if (!HasRemoteAuthority) return;
+		RpcId(1, nameof(SubmitLatencyProbe), sequence);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
+	public void SubmitLatencyProbe(int sequence)
+	{
+		if (!Multiplayer.IsServer()) return;
+		RpcId(Multiplayer.GetRemoteSenderId(), nameof(ReceiveLatencyProbe), sequence);
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
+	public void ReceiveLatencyProbe(int sequence)
+	{
+		GameContext.NetworkLatencyService.OnResponse(sequence);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]

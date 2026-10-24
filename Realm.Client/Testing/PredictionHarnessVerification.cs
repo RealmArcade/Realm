@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -45,6 +45,13 @@ public sealed class PredictionHarnessReport
 	public int SubmittedCommandCount { get; set; }
 	public int AcknowledgedCommandCount { get; set; }
 	public int UnacknowledgedCommandCount { get; set; }
+	public long MaximumTickAllocatedBytes { get; set; }
+	public double MeanTickAllocatedBytes { get; set; }
+	public int SnapshotOrderingViolations { get; set; }
+	public int UnpredictedOrderSamples { get; set; }
+	public int UnpredictedOrderP95Ticks { get; set; }
+	public int UnpredictedOrderMaximumTicks { get; set; }
+	public int UnpredictedOrderBudgetTicks { get; set; }
 	public List<string> UnitSummaries { get; } = new();
 	public List<string> StageSummaries { get; } = new();
 
@@ -92,7 +99,14 @@ public sealed class PredictionHarnessReport
 				authorityInvariantMaximumErrorMeters = AuthorityInvariantMaximumErrorMeters,
 				submittedCommandCount = SubmittedCommandCount,
 				acknowledgedCommandCount = AcknowledgedCommandCount,
-				unacknowledgedCommandCount = UnacknowledgedCommandCount
+				unacknowledgedCommandCount = UnacknowledgedCommandCount,
+				maximumTickAllocatedBytes = MaximumTickAllocatedBytes,
+				meanTickAllocatedBytes = MeanTickAllocatedBytes,
+				snapshotOrderingViolations = SnapshotOrderingViolations,
+				unpredictedOrderSamples = UnpredictedOrderSamples,
+				unpredictedOrderP95Ticks = UnpredictedOrderP95Ticks,
+				unpredictedOrderMaximumTicks = UnpredictedOrderMaximumTicks,
+				unpredictedOrderBudgetTicks = UnpredictedOrderBudgetTicks
 			},
 			units = UnitSummaries,
 			stages = StageSummaries
@@ -120,6 +134,9 @@ public sealed class PredictionHarnessReport
 		builder.AppendLine($"Script updates: {ScriptUpdateCount}, script orders: {ScriptOrderCount}, mismatches {ScriptOrderMismatches}");
 		builder.AppendLine($"Commands: submitted {SubmittedCommandCount}, acknowledged {AcknowledgedCommandCount}, unacknowledged {UnacknowledgedCommandCount}");
 		builder.AppendLine($"Authority invariant (predicted vs authoritative on an in-process authority): max {AuthorityInvariantMaximumErrorMeters:F4} m");
+		builder.AppendLine($"Prediction tick allocation: mean {MeanTickAllocatedBytes:F0} B, max {MaximumTickAllocatedBytes} B");
+		builder.AppendLine($"Snapshot ordering violations: {SnapshotOrderingViolations}");
+		builder.AppendLine($"Unpredicted (host-only) order visibility: samples {UnpredictedOrderSamples}, p95 {UnpredictedOrderP95Ticks} ticks, max {UnpredictedOrderMaximumTicks}, budget {UnpredictedOrderBudgetTicks}");
 		builder.AppendLine("Stages:");
 		foreach (string stage in StageSummaries) builder.AppendLine($"  {stage}");
 		builder.AppendLine("Units:");
@@ -142,6 +159,7 @@ public readonly record struct PredictionThresholds(
 	float CorrectionDisplacementMeters,
 	float RollbackWindowTicks,
 	float LoopbackInvariantMeters,
+	long AllocationBytesPerTick,
 	string Rationale);
 
 public static class PredictionHarnessVerification
@@ -165,15 +183,15 @@ public static class PredictionHarnessVerification
 	{
 		return profile switch
 		{
-			NetworkProfile.Clean => new PredictionThresholds(1f, 0.5f, 2.5f, 0.10f, 2.0f, 30f, 0.01f,
+			NetworkProfile.Clean => new PredictionThresholds(1f, 0.5f, 2.5f, 0.10f, 2.0f, 30f, 0.01f, 512,
 				"clean: no delay, so only tick-quantisation error is acceptable"),
-			NetworkProfile.Latency => new PredictionThresholds(1f, 2.5f, 6.0f, 0.5f, 4.0f, 60f, 0.01f,
+			NetworkProfile.Latency => new PredictionThresholds(1f, 2.5f, 6.0f, 0.5f, 4.0f, 60f, 0.01f, 512,
 				"150 ms one way: predicted lead equals 4.5 ticks of travel, so 2.5 m p95 is roughly 0.5 m of real divergence"),
-			NetworkProfile.LatencyJitter => new PredictionThresholds(1f, 3.0f, 7.0f, 0.6f, 5.0f, 90f, 0.01f,
+			NetworkProfile.LatencyJitter => new PredictionThresholds(1f, 3.0f, 7.0f, 0.6f, 5.0f, 90f, 0.01f, 512,
 				"120 ms +/- 40 ms: reordered arrivals widen the instantaneous gap, so the envelope is one step looser"),
-			NetworkProfile.LatencyLoss => new PredictionThresholds(1f, 3.5f, 8.0f, 1.0f, 6.0f, 150f, 0.01f,
+			NetworkProfile.LatencyLoss => new PredictionThresholds(1f, 3.5f, 8.0f, 1.0f, 6.0f, 150f, 0.01f, 512,
 				"3% datagram loss: a dropped snapshot leaves prediction unreconciled for one or more ticks"),
-			_ => new PredictionThresholds(1f, 2.5f, 6.0f, 0.5f, 4.0f, 60f, 0.01f, "default envelope")
+			_ => new PredictionThresholds(1f, 2.5f, 6.0f, 0.5f, 4.0f, 60f, 0.01f, 512, "default envelope")
 		};
 	}
 
@@ -263,6 +281,8 @@ public static class PredictionHarnessVerification
 		public List<ScenarioSample> Scenario = new();
 		public List<(int Tick, int EntityId, Vector3 Target, bool LocalOwned)> ScriptOrders = new();
 		public int ScriptUpdateCount;
+		public List<(int Tick, long AllocatedBytes)> AllocationSamples = new();
+		public List<(int RejectedSequence, int LastAppliedSequence, int Tick)> OrderingViolations = new();
 	}
 
 	public static PredictionHarnessReport Verify(MultiplayerEcsRunSettings settings)
@@ -367,11 +387,13 @@ public static class PredictionHarnessVerification
 		MeasureSettledError(records, perUnitErrors, perUnitFinalErrors, report, thresholds);
 		MeasureSnapsAndCorrections(records, report, thresholds);
 		MeasureRollbacks(records, report, thresholds);
+		MeasureAllocationAndOrdering(records, report, thresholds);
 		if (settings.Loopback) MeasureAuthorityInvariant(records, report, thresholds);
 		MeasurePathingParity(records, report, settings.Loopback);
 		MeasureOscillation(records, report);
 		MeasureCorrectionRate(records, report);
 		MeasureScript(records, report);
+		MeasureUnpredictedOrderLatency(records, report, settings);
 
 		foreach (KeyValuePair<int, List<float>> unit in perUnitErrors)
 		{
@@ -564,6 +586,38 @@ public static class PredictionHarnessVerification
 		}
 	}
 
+	private static void MeasureAllocationAndOrdering(ParsedRecords records, PredictionHarnessReport report, PredictionThresholds thresholds)
+	{
+		if (records.AllocationSamples.Count > 0)
+		{
+			long maximum = 0;
+			long total = 0;
+			foreach (var sample in records.AllocationSamples)
+			{
+				total += sample.AllocatedBytes;
+				if (sample.AllocatedBytes > maximum) maximum = sample.AllocatedBytes;
+			}
+
+			report.MaximumTickAllocatedBytes = maximum;
+			report.MeanTickAllocatedBytes = (double)total / records.AllocationSamples.Count;
+			if (maximum > thresholds.AllocationBytesPerTick)
+			{
+				report.AddFailure($"A prediction tick allocated {maximum} bytes, above the {thresholds.AllocationBytesPerTick} byte budget; the prediction tick must not allocate.");
+			}
+		}
+		else
+		{
+			report.AddFailure("No prediction tick allocation samples were recorded, so per-tick allocation was not measured.");
+		}
+
+		report.SnapshotOrderingViolations = records.OrderingViolations.Count;
+		report.SnapshotOrderingRespected = records.OrderingViolations.Count == 0;
+		foreach (var violation in records.OrderingViolations)
+		{
+			report.AddFailure($"Snapshot {violation.RejectedSequence} was offered to prediction at tick {violation.Tick} after {violation.LastAppliedSequence} had already been applied, so snapshots reached prediction out of order.");
+		}
+	}
+
 	private static void MeasureAuthorityInvariant(ParsedRecords records, PredictionHarnessReport report, PredictionThresholds thresholds)
 	{
 		float worstError = 0f;
@@ -706,6 +760,94 @@ public static class PredictionHarnessVerification
 		}
 	}
 
+	/// <summary>
+	/// Measures how late an order the client cannot anticipate becomes visible, which is the class of behaviour that
+	/// motivated client-side script execution. Every host order target is compared with the targets the scenario itself
+	/// submitted; anything else is a host-only order (map script, AI, or an authority-side override) and its visibility
+	/// delay is measured against the snapshot sequence it first appeared in. The claim this replaces is "the client runs
+	/// the map script for prediction", so the envelope is stated in ticks over the injected one-way delay instead.
+	/// </summary>
+	private static void MeasureUnpredictedOrderLatency(ParsedRecords records, PredictionHarnessReport report, MultiplayerEcsRunSettings settings)
+	{
+		if (records.HostSnapshots.Count == 0 || records.ClientTicks.Count == 0) return;
+
+		var sequenceNumbers = new List<int>(records.HostSnapshots.Keys);
+		sequenceNumbers.Sort();
+
+		var hostTransitions = new Dictionary<int, List<(int Sequence, Vector3 Target)>>();
+		foreach (int sequence in sequenceNumbers)
+		{
+			HostSnapshotSample snapshot = records.HostSnapshots[sequence];
+			foreach (var pair in snapshot.Units)
+			{
+				HostUnitSample unit = pair.Value;
+				if (!unit.HasMoveTo) continue;
+				if (!hostTransitions.TryGetValue(pair.Key, out List<(int Sequence, Vector3 Target)>? transitions))
+				{
+					transitions = new List<(int Sequence, Vector3 Target)>();
+					hostTransitions[pair.Key] = transitions;
+				}
+
+				if (transitions.Count > 0 && Vector3.Distance(transitions[^1].Target, unit.MoveTarget) <= PathTargetToleranceMeters) continue;
+				transitions.Add((sequence, unit.MoveTarget));
+			}
+		}
+
+		var latencies = new List<int>();
+		foreach (var pair in hostTransitions)
+		{
+			int serverEntityId = pair.Key;
+			foreach (var transition in pair.Value)
+			{
+				if (IsScenarioTarget(records, transition.Target)) continue;
+
+				int firstObservation = -1;
+				foreach (ClientTickSample tick in records.ClientTicks)
+				{
+					if (tick.Sequence < transition.Sequence) continue;
+					ClientUnitSample? unit = tick.Units.FirstOrDefault(candidate => candidate.ServerEntityId == serverEntityId);
+					if (unit == null) continue;
+					if (!unit.HasOrder) continue;
+					if (Vector3.Distance(unit.MoveTarget, transition.Target) > PathTargetToleranceMeters) continue;
+					firstObservation = tick.Sequence;
+					break;
+				}
+
+				if (firstObservation < 0) continue;
+				latencies.Add(firstObservation - transition.Sequence);
+			}
+		}
+
+		report.UnpredictedOrderSamples = latencies.Count;
+		int oneWayTicks = (int)MathF.Ceiling(settings.OneWayDelayMilliseconds / 1000f * 30f);
+		report.UnpredictedOrderBudgetTicks = oneWayTicks + 2;
+		if (latencies.Count == 0)
+		{
+			report.StageSummaries.Add("unpredicted orders: none observed, so the host-only order visibility envelope is unmeasured for this map");
+			return;
+		}
+
+		latencies.Sort();
+		report.UnpredictedOrderP95Ticks = latencies[(int)Math.Min(latencies.Count - 1, Math.Floor(latencies.Count * 0.95))];
+		report.UnpredictedOrderMaximumTicks = latencies[^1];
+		report.StageSummaries.Add($"unpredicted orders: {latencies.Count} samples, p95 {report.UnpredictedOrderP95Ticks} ticks, max {report.UnpredictedOrderMaximumTicks} ticks, budget {report.UnpredictedOrderBudgetTicks} ticks (one-way delay plus two ticks)");
+
+		if (latencies.Count >= 10 && report.UnpredictedOrderP95Ticks > report.UnpredictedOrderBudgetTicks)
+		{
+			report.AddFailure($"Host-only orders took p95 {report.UnpredictedOrderP95Ticks} ticks to become visible on the client, above the {report.UnpredictedOrderBudgetTicks} tick envelope (one-way delay plus two ticks).");
+		}
+	}
+
+	private static bool IsScenarioTarget(ParsedRecords records, Vector3 target)
+	{
+		foreach (ScenarioSample stage in records.Scenario)
+		{
+			if (Vector3.Distance(stage.Target, target) <= PathTargetToleranceMeters) return true;
+		}
+
+		return false;
+	}
+
 	private static void MeasureScript(ParsedRecords records, PredictionHarnessReport report)
 	{
 		report.ScriptUpdateCount = records.ScriptUpdateCount;
@@ -793,6 +935,12 @@ public static class PredictionHarnessVerification
 						EntityId = reader.ReadInt32(),
 						Target = ReadVector(reader)
 					});
+					break;
+				case PredictionDiagnostics.KindAllocation:
+					records.AllocationSamples.Add((reader.ReadInt32(), reader.ReadInt64()));
+					break;
+				case PredictionDiagnostics.KindSnapshotOrderingViolation:
+					records.OrderingViolations.Add((reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32()));
 					break;
 				default:
 					throw new InvalidDataException($"prediction_client.bin contains unknown record kind {kind}.");

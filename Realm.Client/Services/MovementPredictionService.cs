@@ -34,11 +34,25 @@ public class MovementPredictionService
 	public const float SettledCorrectionRatePerSecond = 30.0f;
 	public const float SettledErrorMeters = 0.05f;
 	public const float AuthoritativeJumpSpeedMetersPerSecond = 25.0f;
+	/// <summary>
+	/// How far the authoritative order target may sit from the predicted one before the prediction is treated as stale.
+	/// The authority scatters a group order across its formation (2.2 m spacing), so a smaller tolerance would discard
+	/// every multi-unit prediction the moment its snapshot arrived. A scripted or overridden order moves units far
+	/// beyond the formation envelope.
+	/// </summary>
+	public const float AuthoritativeOrderToleranceMeters = 4.0f;
 	public const float ImpliedSnapshotIntervalSeconds = 1.0f / 30.0f;
+
+	/// <summary>
+	/// How many prediction ticks may pass before an unacknowledged order is rolled back. The authority normally answers
+	/// within one one-way delay plus a tick, so three seconds only expires orders that were dropped, not merely delayed.
+	/// </summary>
+	public const int UnacknowledgedCommandTimeoutTicks = 90;
 
 	private const int PendingCommandCapacity = 64;
 	private const int MaximumCommandUnitCount = 32;
 	private const int MaximumTrackedUnitCount = 512;
+	private const int AllocationSampleIntervalTicks = 30;
 
 	private readonly Vector3[] _authoritativePositions = new Vector3[EcsWorld.MAX_ENTITIES];
 	private readonly Vector3[] _previousAuthoritativePositions = new Vector3[EcsWorld.MAX_ENTITIES];
@@ -52,6 +66,7 @@ public class MovementPredictionService
 
 	private readonly int[] _pendingCommandIds = new int[PendingCommandCapacity];
 	private readonly int[] _pendingCommandUnitCounts = new int[PendingCommandCapacity];
+	private readonly int[] _pendingCommandRegisteredTicks = new int[PendingCommandCapacity];
 	private readonly int[][] _pendingCommandUnits = new int[PendingCommandCapacity][];
 
 	private int _trackedCount;
@@ -78,6 +93,9 @@ public class MovementPredictionService
 	public bool IsPredictiveFrameContext { get; private set; }
 	public bool IsPredictionEnabled => GameSettings.MovementPrediction;
 	public bool HasPredictedUnits => _trackedCount > 0;
+	public int SnapshotOrderingViolations { get; private set; }
+	public int ExpiredOrderCount { get; private set; }
+	public long MaximumTickAllocatedBytes { get; private set; }
 	public int TrackedUnitCount => _trackedCount;
 	public int LastSnapshotSequence => _lastSnapshotSequence;
 	public int LastPredictedTick => _lastPredictedTick;
@@ -162,6 +180,7 @@ public class MovementPredictionService
 		int storedCount = Math.Min(localEntityIds.Count, MaximumCommandUnitCount);
 		_pendingCommandIds[slot] = commandId;
 		_pendingCommandUnitCounts[slot] = storedCount;
+		_pendingCommandRegisteredTicks[slot] = _lastPredictedTick;
 		for (int index = 0; index < storedCount; index++)
 		{
 			int entityId = localEntityIds[index];
@@ -202,6 +221,7 @@ public class MovementPredictionService
 		if (host.ObservingPlayerIndex <= 0) return;
 
 		BeginOperation();
+		long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
 		try
 		{
 			_lastPredictedTick++;
@@ -216,8 +236,18 @@ public class MovementPredictionService
 			}
 			else
 			{
+				AdoptAuthoritativeOrders(world);
 				GameContext.SimulationService.StepPredictedMovement(delta);
 				ApplyBoundedCorrections(world, delta);
+			}
+
+			ExpireUnacknowledgedCommands(world);
+
+			long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+			if (allocatedBytes > MaximumTickAllocatedBytes) MaximumTickAllocatedBytes = allocatedBytes;
+			if (_lastPredictedTick % AllocationSampleIntervalTicks == 0)
+			{
+				PredictionDiagnostics.RecordAllocation(_lastPredictedTick, allocatedBytes);
 			}
 
 			PredictionDiagnostics.RecordClientTick(world, _lastPredictedTick, this);
@@ -225,6 +255,33 @@ public class MovementPredictionService
 		finally
 		{
 			EndOperation();
+		}
+	}
+
+	private void ExpireUnacknowledgedCommands(EcsWorld world)
+	{
+		for (int slot = 0; slot < PendingCommandCapacity; slot++)
+		{
+			int commandId = _pendingCommandIds[slot];
+			if (commandId <= 0) continue;
+			if (_lastPredictedTick - _pendingCommandRegisteredTicks[slot] < UnacknowledgedCommandTimeoutTicks) continue;
+
+			int unitCount = _pendingCommandUnitCounts[slot];
+			for (int index = 0; index < unitCount; index++)
+			{
+				int entityId = _pendingCommandUnits[slot][index];
+				var entity = new Entity(entityId);
+				if (!world.IsAlive(entity)) continue;
+				if (world.Has<UnitOwnerPlayer>(entity) && world.Get<UnitOwnerPlayer>(entity).PlayerIndex != _localUnitPlayerIndex) continue;
+
+				ClearPredictedOrder(world, entity);
+				_commandIds[entityId] = 0;
+				ExpiredOrderCount++;
+				PredictionDiagnostics.RecordRollback(commandId, entityId, "the authority never acknowledged the order", _lastSnapshotSequence);
+			}
+
+			_pendingCommandIds[slot] = 0;
+			_pendingCommandUnitCounts[slot] = 0;
 		}
 	}
 
@@ -241,6 +298,30 @@ public class MovementPredictionService
 			_authoritativePositions[entityId] = position;
 			_authoritativeSequences[entityId] = 0;
 			_hasAuthoritativeSample[entityId] = true;
+		}
+	}
+
+	/// <summary>
+	/// Drops a predicted order when the authority has published a different order for the same unit. Prediction is only
+	/// allowed to lead the authority, never to outlive it: without this, a script or AI order that lands on a locally
+	/// controlled unit stays invisible until the stale predicted order completes, which is exactly the permanent
+	/// divergence prediction must not introduce.
+	/// </summary>
+	private void AdoptAuthoritativeOrders(EcsWorld world)
+	{
+		for (int index = 0; index < _trackedCount; index++)
+		{
+			int entityId = _trackedEntityIds[index];
+			var entity = new Entity(entityId);
+			if (!world.IsAlive(entity) || !world.Has<PredictedMoveTo>(entity) || !world.Has<MoveTo>(entity)) continue;
+
+			Vector3 predictedTarget = world.Get<PredictedMoveTo>(entity).Target;
+			Vector3 authoritativeTarget = world.Get<MoveTo>(entity).Target;
+			if (Vector3.Distance(predictedTarget, authoritativeTarget) <= AuthoritativeOrderToleranceMeters) continue;
+
+			ClearPredictedOrder(world, entity);
+			_commandIds[entityId] = 0;
+			PredictionDiagnostics.RecordRollback(0, entityId, "the authority published a different order", _lastSnapshotSequence);
 		}
 	}
 
@@ -331,6 +412,14 @@ public class MovementPredictionService
 	public void BeginSnapshotReconcile(int sequence)
 	{
 		if (!IsPredictionEnabled) return;
+
+		if (sequence <= _lastSnapshotSequence)
+		{
+			SnapshotOrderingViolations++;
+			PredictionDiagnostics.RecordSnapshotOrderingViolation(sequence, _lastSnapshotSequence);
+			return;
+		}
+
 		_lastSnapshotSequence = sequence;
 		_reconcileSequence = sequence;
 		_isReconciling = true;
@@ -367,14 +456,15 @@ public class MovementPredictionService
 
 		if (errorSquared <= SnapThresholdMeters * SnapThresholdMeters) return;
 
-		bool explained = hasPrevious
-			&& (authoritativePosition - previousAuthoritative).LengthSquared()
-			> MathF.Pow(AuthoritativeJumpSpeedMetersPerSecond * ImpliedSnapshotIntervalSeconds, 2f);
+		float impliedSpeed = hasPrevious
+			? Vector3.Distance(authoritativePosition, previousAuthoritative) / MathF.Max(ImpliedSnapshotIntervalSeconds, 0.0001f)
+			: float.PositiveInfinity;
+		bool explained = hasPrevious && impliedSpeed > AuthoritativeJumpSpeedMetersPerSecond;
 
 		if (explained)
 		{
 			world.Set(entity, new Position(authoritativePosition));
-			PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, true, "authoritative teleport");
+			PredictionDiagnostics.RecordSnap(entityId, _reconcileSequence, predicted, authoritativePosition, true, $"authoritative teleport at {impliedSpeed:F1} m/s");
 			return;
 		}
 
@@ -475,6 +565,10 @@ public class MovementPredictionService
 	{
 		_trackedCount = 0;
 		_pendingCommandCursor = 0;
+		_pendingCommandRegisteredTicks.AsSpan().Clear();
+		SnapshotOrderingViolations = 0;
+		ExpiredOrderCount = 0;
+		MaximumTickAllocatedBytes = 0;
 		_reconcileSequence = -1;
 		_lastSnapshotSequence = -1;
 		_lastPredictedTick = 0;

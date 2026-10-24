@@ -27,6 +27,8 @@ public static class PredictionDiagnostics
 	public const byte KindScriptOrder = 9;
 	public const byte KindScriptUpdate = 10;
 	public const byte KindScenario = 11;
+	public const byte KindAllocation = 12;
+	public const byte KindSnapshotOrderingViolation = 13;
 	public const byte KindHostSnapshot = 20;
 
 	private static BinaryWriter? _predictionWriter;
@@ -259,6 +261,26 @@ public static class PredictionDiagnostics
 		_writer.Write(tick);
 		_writer.Write(entityId);
 		WriteVector(_writer, target);
+		_writer.Flush();
+	}
+
+	public static void RecordAllocation(int tick, long allocatedBytes)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindAllocation);
+		_writer.Write(tick);
+		_writer.Write(allocatedBytes);
+	}
+
+	public static void RecordSnapshotOrderingViolation(int rejectedSequence, int lastAppliedSequence)
+	{
+		var _writer = _predictionWriter;
+		if (_writer == null) return;
+		_writer.Write(KindSnapshotOrderingViolation);
+		_writer.Write(rejectedSequence);
+		_writer.Write(lastAppliedSequence);
+		_writer.Write(_lastClientTick);
 		_writer.Flush();
 	}
 
