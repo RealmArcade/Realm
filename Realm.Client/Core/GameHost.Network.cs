@@ -792,7 +792,7 @@ public partial class GameHost
 		var baselinePayload = GameContext.NetworkService.BuildExplicitBaselineSnapshot(newPeerId, AllUnits);
 		if (baselinePayload != null && baselinePayload.Length > 0)
 		{
-			RpcId(newPeerId, nameof(ReceiveSnapshot), baselinePayload);
+			RpcId(newPeerId, nameof(ReceiveBaselineSnapshot), baselinePayload);
 		}
 	}
 

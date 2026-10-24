@@ -476,21 +476,10 @@ public class NetworkService
 	public float ComputeDynamicInterpolationFactor()
 	{
 		float bufferTime = 0.1f;
-		if (GameContext.Lobby?.PlayerList != null)
+		NetworkLatencyService? latency = GameContext.NetworkLatencyService;
+		if (latency != null && latency.HasSample && float.IsFinite(latency.SmoothedRoundTripMilliseconds))
 		{
-			var localPlayer = GameContext.Lobby.PlayerList.Find(x => x.PeerId == LocalPeerId);
-			if (localPlayer != null)
-			{
-				string latStr = localPlayer.Latency;
-				if (!string.IsNullOrEmpty(latStr) && latStr != "--" && latStr.Contains(" ms"))
-				{
-					string numStr = latStr.Replace(" ms", "").Trim();
-					if (float.TryParse(numStr, out float rttMs))
-					{
-						bufferTime = Mathf.Max(0.1f, (rttMs / 1000f) * 1.5f);
-					}
-				}
-			}
+			bufferTime = Mathf.Max(0.1f, (latency.SmoothedRoundTripMilliseconds / 1000f) * 1.5f);
 		}
 
 		return 1f / bufferTime;
@@ -596,8 +585,9 @@ public class NetworkService
 	{
 		if (_queuedDeltas.Count >= MaximumQueuedDeltas) _queuedDeltas.RemoveAt(0);
 
-		_queuedDeltas.Add(snapshot);
-		_queuedDeltas.Sort((a, b) => a.Sequence.CompareTo(b.Sequence));
+		int insertIndex = _queuedDeltas.Count;
+		while (insertIndex > 0 && _queuedDeltas[insertIndex - 1].Sequence > snapshot.Sequence) insertIndex--;
+		_queuedDeltas.Insert(insertIndex, snapshot);
 	}
 
 	private void ApplyWorldSnapshot(WorldSnapshot snapshot)

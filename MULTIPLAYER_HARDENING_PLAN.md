@@ -63,10 +63,10 @@ Severity: S1 a peer can cheat or crash the host, S2 divergence or silent data lo
 | 6 | S1 | Reconnect accepts a name as proof of identity when the token is absent, and logs the token | `LobbyManager.cs:2050`, `:2009` | **fixed**, no automated assertion yet |
 | 7 | S1 | Chat identity is client-supplied, unbounded in length and unlimited in rate | `LobbyManager.cs:2599` | **fixed**, no automated assertion yet |
 | 8 | S2 | Rejected commands were acknowledged as accepted, so the client never learned why | `GameHost.Network.cs:ApplyAuthoritativeCommand` | fixed earlier (rejections now carry a reason and roll prediction back) |
-| 9 | S2 | `ComputeDynamicInterpolationFactor` parses `"123 ms"` from a display string every client tick, culture-sensitive, two allocations | `NetworkService.cs:ComputeDynamicInterpolationFactor` | open |
+| 9 | S2 | `ComputeDynamicInterpolationFactor` parses `"123 ms"` from a display string every client tick, culture-sensitive, two allocations | `NetworkService.cs:ComputeDynamicInterpolationFactor` | **fixed** |
 | 10 | S2 | Deltas are compared against the last baseline, so a unit whose HP differs from the baseline is resent every tick for up to a second | `NetworkService.cs` delta build | open |
-| 11 | S2 | `QueueDelta` sorts the whole queue on every received packet | `NetworkService.cs` | open |
-| 12 | S2 | Reconnect baseline goes through `ReceiveSnapshot` (the delta entry point) with a non-multiple-of-30 sequence, so post-reconnect deltas queue until the next real baseline | `GameHost.Network.cs:766` | open |
+| 11 | S2 | `QueueDelta` sorts the whole queue on every received packet | `NetworkService.cs` | **fixed** |
+| 12 | S2 | Reconnect baseline goes through `ReceiveSnapshot` (the delta entry point) with a non-multiple-of-30 sequence, so post-reconnect deltas queue until the next real baseline | `GameHost.Network.cs:766` | **fixed** |
 | 13 | S3 | Baselines and command acks share the reliable channel with every other RPC, so one lost fragment stalls unrelated traffic | RPC declarations | open |
 | 14 | S3 | `GetUnacknowledgedCommandPayloads` re-serialises and resends every unacked command every 50 ms on a channel ENet already guarantees | `GameHost.Network.cs:180`, `NetworkService.cs:523` | open |
 | 15 | S3 | `TokenBucket.Consume` blocks the calling thread with `Thread.Sleep`, so it must not be used on the tick | `TokenBucket.cs:23` | **fixed** |
@@ -101,9 +101,24 @@ note: legitimate cast accepted for peer 1 with its own caster 26 (ability/ancest
 Failures: 0
 ```
 
+Lobby identity is proven end to end by the client harness sending a forged slot change, forged diagnostics and a spoofed chat name at the host:
+
+```
+note: forged slot and diagnostics RPCs targeting peer 1 were ignored: slot stayed 'HarnessHost'/'HUMAN'/'Team 1'
+      and latency '317 ms' is the host's own measurement, not the forged 999 ms
+```
+
 The forged-caster line is the failing-first assertion for item 1: before this pass the host set
 `NeedsSpellEffect` from the command type alone and applied the AoE at the payload's position, so that command
 succeeded. The last line proves the gate is not a blanket rejection.
+
+## 6c. Post-fix matrix (25 s runs, two instances)
+
+| Profile | Verdict | Error p95 | Path parity | Sync failures | Prediction failures | Hardening failures |
+| --- | --- | --- | --- | --- | --- | --- |
+| clean | PASS | 0.079 m | 334, 0 bad | 0 | 0 | 0 |
+| latency 150 ms | PASS | 1.738 m | 224, 0 bad | 0 | 0 | 0 |
+| latency + jitter | PASS | 1.734 m | 255, 0 bad | 0 | 0 | 0 |
 
 ## 7. Plan and status
 
