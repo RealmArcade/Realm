@@ -7,6 +7,13 @@ public class AbilityMetadata
 	public string TemplateID { get; set; } = string.Empty;
 	public string Name { get; set; } = string.Empty;
 	public string Description { get; set; } = string.Empty;
+
+	/// <summary>
+	///     Primary role tag: Damage, Control, Support, Tank, Mobility, Summon or Economy. Shown on the
+	///     ability tooltip so a draft choice reads as a role before it reads as a number.
+	/// </summary>
+	public string? Role { get; set; }
+
 	public string AbilityType { get; set; } = "target_spell";
 	public string? IconPath { get; set; }
 	public float ManaCost { get; set; }

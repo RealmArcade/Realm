@@ -59,7 +59,7 @@ public static class AbilityEffectService
 				? ReadAttribute(world, casterEntity, effect.ScalingAttribute.Value)
 				: 0f;
 			float amount = effect.Scale(effect.Amount, attributeValue);
-			float duration = effect.Scale(effect.Duration, attributeValue);
+			float duration = effect.ScaleDuration(effect.Duration, attributeValue);
 
 			for (int targetIndex = 0; targetIndex < Targets.Count; targetIndex++)
 			{
@@ -212,7 +212,9 @@ public static class AbilityEffectService
 			return;
 		}
 
-		Vector3 origin = effect.Delivery is AbilityEffectDelivery.Cone or AbilityEffectDelivery.Line ? casterPosition : targetPosition;
+		Vector3 origin = effect.Delivery is AbilityEffectDelivery.Cone or AbilityEffectDelivery.Line or AbilityEffectDelivery.Aura
+			? casterPosition
+			: targetPosition;
 		float facing = world.Has<RotationY>(casterEntity) ? world.Get<RotationY>(casterEntity).Value : 0f;
 		Vector3 facingDirection = new Vector3(MathF.Cos(facing), 0f, MathF.Sin(facing));
 
@@ -253,6 +255,11 @@ public static class AbilityEffectService
 				case AbilityEffectDelivery.Line:
 					distance = DistanceToSegment(targetPositionOfEntity, casterPosition, casterPosition + (facingDirection * effect.Length), out float segmentDistance);
 					if (segmentDistance > MathF.Max(effect.Radius, 0.5f)) return;
+					break;
+
+				case AbilityEffectDelivery.Aura:
+					distance = Vector3.Distance(targetPositionOfEntity, casterPosition);
+					if (distance > effect.Radius) return;
 					break;
 
 				default:

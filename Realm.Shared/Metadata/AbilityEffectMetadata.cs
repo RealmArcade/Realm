@@ -100,4 +100,11 @@ public class AbilityScalingMetadata
 
 	/// <summary>Upper bound on the scaled value. Zero means uncapped.</summary>
 	[JsonPropertyName("Cap")] public float Cap { get; set; }
+
+	/// <summary>
+	///     Whether the same formula also scales the effect's Duration. Defaults to true, which is
+	///     how a scaling block has always behaved; set it false when the magnitude should follow the
+	///     attribute but the timer is a fixed, authored number.
+	/// </summary>
+	[JsonPropertyName("ScalesDuration")] public bool ScalesDuration { get; set; } = true;
 }

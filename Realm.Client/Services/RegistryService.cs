@@ -792,6 +792,16 @@ public class RegistryService
 		return Path.GetFileNameWithoutExtension(abilityId);
 	}
 
+	/// <summary>
+	///     Leads the tooltip with the authored role so a draft shows what an ability is for before it
+	///     shows what it does.
+	/// </summary>
+	private static string BuildAbilityTooltip(AbilityMetadata meta)
+	{
+		string description = meta.Description ?? string.Empty;
+		return string.IsNullOrWhiteSpace(meta.Role) ? description : $"[{meta.Role.Trim()}] {description}";
+	}
+
 	public void RegisterCustomAbilities(List<AbilityMetadata> customAbilities)
 	{
 		if (customAbilities == null) return;
@@ -802,7 +812,7 @@ public class RegistryService
 			{
 				Id = meta.TemplateID,
 				DisplayName = meta.Name ?? "",
-				Tooltip = meta.Description ?? "",
+				Tooltip = BuildAbilityTooltip(meta),
 				IconPath = meta.IconPath ?? "",
 				IsInstant = string.Equals(meta.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase),
 				AutoCastEnabled = meta.AutoCast?.Enabled ?? true,

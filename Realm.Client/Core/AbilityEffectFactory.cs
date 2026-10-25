@@ -74,7 +74,8 @@ public static class AbilityEffectFactory
 				ScalingAttribute = attribute,
 				ScalingCoefficient = scaling?.Coefficient ?? 0f,
 				ScalingDivisor = scaling?.Divisor ?? 0f,
-				ScalingCap = scaling?.Cap ?? 0f
+				ScalingCap = scaling?.Cap ?? 0f,
+				ScalesDuration = scaling?.ScalesDuration ?? true
 			};
 
 			if (kind == AbilityEffectKind.Damage) maxDamage = MathF.Max(maxDamage, effect.Amount);
@@ -130,6 +131,7 @@ public static class AbilityEffectFactory
 			case "self": return AbilityEffectDelivery.Self;
 			case "cone": return AbilityEffectDelivery.Cone;
 			case "line": return AbilityEffectDelivery.Line;
+			case "aura": return AbilityEffectDelivery.Aura;
 			default: return radius > 0f ? AbilityEffectDelivery.Radius : AbilityEffectDelivery.Single;
 		}
 	}

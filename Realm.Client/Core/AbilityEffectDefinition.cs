@@ -21,7 +21,10 @@ public enum AbilityEffectDelivery
 	Radius,
 	Self,
 	Cone,
-	Line
+	Line,
+
+	/// <summary>A radius around the caster rather than around the cast point.</summary>
+	Aura
 }
 
 public enum AbilityTargetSide
@@ -78,6 +81,18 @@ public sealed class AbilityEffectDefinition
 	public float ScalingCoefficient { get; init; }
 	public float ScalingDivisor { get; init; }
 	public float ScalingCap { get; init; }
+
+	/// <summary>
+	///     When false the scaling formula reaches the magnitude only, and the timer stays the
+	///     authored Duration. Most kits want a shield whose size grows but whose lifetime does not.
+	/// </summary>
+	public bool ScalesDuration { get; init; } = true;
+
+	/// <summary>Applies this effect's scaling to a duration, honouring <see cref="ScalesDuration" />.</summary>
+	public float ScaleDuration(float duration, float attributeValue)
+	{
+		return ScalesDuration ? Scale(duration, attributeValue) : duration;
+	}
 
 	/// <summary>
 	///     Applies this effect's scaling to a base magnitude. One attribute in, one magnitude out;

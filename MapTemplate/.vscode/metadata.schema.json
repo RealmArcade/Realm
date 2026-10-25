@@ -1344,6 +1344,12 @@
               "Description": {
                 "type": "string"
               },
+              "Role": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "AbilityType": {
                 "type": "string"
               },
@@ -1520,6 +1526,9 @@
                         },
                         "Cap": {
                           "type": "number"
+                        },
+                        "ScalesDuration": {
+                          "type": "boolean"
                         }
                       }
                     }
