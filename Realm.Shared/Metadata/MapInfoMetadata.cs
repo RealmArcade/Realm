@@ -31,7 +31,6 @@ public class MapInfoMetadata
 	public string? LoadingTitle { get; set; }
 	public string? LoadingSubtitle { get; set; }
 	public string? LoadingBodyText { get; set; }
-	public List<string>? HowToPlayInstructions { get; set; }
 	public string? HowToPlayObjective { get; set; }
 	public string? Version { get; set; }
 	public List<MapChangelogEntry>? Changelog { get; set; }
