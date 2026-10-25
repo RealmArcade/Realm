@@ -15,6 +15,12 @@ public class CombatConfig
 	/// </summary>
 	public float MinDamageFloor { get; set; } = 1.0f;
 
+	/// <summary>
+	///     Multiplier used when the matrix does not define the pair, or when either type is missing.
+	///     One documented default instead of each caller inventing its own.
+	/// </summary>
+	public float UndefinedPairMultiplier { get; set; } = 1.0f;
+
 	private readonly Dictionary<(string DamageType, string ArmorType), float> _matrix = new();
 
 	/// <summary>
@@ -25,7 +31,7 @@ public class CombatConfig
 	{
 		if (string.IsNullOrEmpty(damageType) || string.IsNullOrEmpty(armorType))
 		{
-			return 1.0f;
+			return UndefinedPairMultiplier;
 		}
 
 		var key = (damageType.Trim().ToLowerInvariant(), armorType.Trim().ToLowerInvariant());
@@ -34,7 +40,7 @@ public class CombatConfig
 			return multiplier;
 		}
 
-		return 1.0f;
+		return UndefinedPairMultiplier;
 	}
 
 	/// <summary>

@@ -7,8 +7,6 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public static class CombatResolver
 {
-	public static CombatConfig DefaultConfig { get; } = new CombatConfig();
-
 	/// <summary>
 	///     Resolves damage through Stage 1 (Raw Damage), Stage 2 (Armor Mitigation &amp; Penetration),
 	///     and Stage 3 (Type Matrix &amp; Clamping).
@@ -27,7 +25,7 @@ public static class CombatResolver
 		CombatConfig? config = null,
 		Random? rng = null)
 	{
-		config ??= DefaultConfig;
+		config ??= ECSContext.ActiveCombatConfig;
 		rng ??= Random.Shared;
 
 		// Stage 1: Raw Damage Calculation

@@ -1792,6 +1792,10 @@ public partial class GameHost : Node3D, IGameAPI
 
 		var metadata = (GameContext.MetadataService ?? GameContext.MetadataService).LoadMetadata(path);
 
+		// Map tuning is applied before anything is spawned so the first stat calculation already
+		// sees the map's numbers rather than the engine defaults.
+		MapCombatTuningService.Apply(metadata);
+
 		UnitRegistry.Clear();
 		BuildingRegistry.Clear();
 		PropRegistry.Clear();

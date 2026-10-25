@@ -12,47 +12,9 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public static class AttributeStatCalculator
 {
-	public const float STR_ATTACK_DAMAGE_SCALE = 1.5f;
-	public const float STR_ARMOR_SCALE = 0.15f;
-	public const float ARMOR_K = 50.0f;
-	public const float STR_TENACITY_K = 100.0f;
-	public const float MAX_TENACITY = 0.75f;
-	public const float MAX_ATTACK_SPEED = 5.0f;
-
-	public const float AGI_HASTE_PER_POINT = 1.0f;
-	public const float AGI_BASE_MS_RATIO = 0.4f;
-	public const float MS_SOFT_CAP_1 = 450.0f;
-	public const float MS_SOFT_CAP_2 = 550.0f;
-	public const float AGI_CDR_HASTE_SCALE = 1.0f;
-	public const float MAX_CDR = 0.60f;
-
-	public const float VIT_HP_PER_POINT = 18.0f;
-	public const float VIT_MP_PER_POINT = 8.0f;
-	public const float VIT_LIFESTEAL_K = 150.0f;
-	public const float MAX_LIFESTEAL = 0.40f;
-
-	public const float INT_SPELL_AMP_PER_POINT = 0.0075f;
-	public const float INT_SPELL_AMP_EXPONENT = 1.05f;
-	public const float INT_MANA_REGEN_PER_POINT = 0.05f;
-	public const float INT_MAGIC_RESIST_K = 80.0f;
-	public const float MAX_MAGIC_RESIST = 0.75f;
-
-	public const float WIS_PENETRATION_K = 120.0f;
-	public const float MAX_MAGIC_PEN = 0.50f;
-	public const float WIS_HEAL_AMP_PER_POINT = 0.008f;
-	public const float WIS_HP_REGEN_BASE_SCALE = 0.04f;
-	public const float WIS_CRIT_MULT_PER_POINT = 0.006f;
-
-	public const float FORTUNE_CRIT_CHANCE_K = 100.0f;
-	public const float MAX_CRIT_CHANCE = 0.80f;
-	public const float FORTUNE_EVASION_K = 150.0f;
-	public const float MAX_EVASION = 0.50f;
-	public const float FORTUNE_PROC_MOD_K = 200.0f;
-	public const float MAX_PROC_BONUS = 0.50f;
-	public const float FORTUNE_BOUNTY_EXP_PER_POINT = 0.005f;
-
-	public static DerivedCombatStats CalculateDerivedStats(in UnitAttributes attr, in UnitBaseStats baseStats, float additionalAttackSpeedModifiers = 0f)
+	public static DerivedCombatStats CalculateDerivedStats(in UnitAttributes attr, in UnitBaseStats baseStats, float additionalAttackSpeedModifiers = 0f, CombatTuning? tuning = null)
 	{
+		CombatTuning t = tuning ?? ECSContext.ActiveCombatTuning;
 		float str = MathF.Max(0f, attr.Strength);
 		float agi = MathF.Max(0f, attr.Agility);
 		float vit = MathF.Max(0f, attr.Vitality);
@@ -60,57 +22,57 @@ public static class AttributeStatCalculator
 		float wis = MathF.Max(0f, attr.Wisdom);
 		float fort = MathF.Max(0f, attr.Fortune);
 
-		float bonusAttackDamage = str * STR_ATTACK_DAMAGE_SCALE;
+		float bonusAttackDamage = str * t.StrengthAttackPerPoint;
 		float totalAttackDamage = MathF.Max(0f, baseStats.BaseDamage + bonusAttackDamage);
-		float rawArmor = str * STR_ARMOR_SCALE;
+		float rawArmor = str * t.StrengthArmorPerPoint;
 		float totalArmor = baseStats.BaseArmor + rawArmor;
-		float rawTenacity = str / (str + STR_TENACITY_K);
-		float tenacity = MathF.Min(rawTenacity, MAX_TENACITY);
+		float rawTenacity = str / (str + t.StrengthTenacityK);
+		float tenacity = MathF.Min(rawTenacity, t.MaxTenacity);
 
-		float attackHaste = agi * AGI_HASTE_PER_POINT;
+		float attackHaste = agi * t.AgilityHastePerPoint;
 		float baseAps = baseStats.BaseAttackInterval > 0f ? (1.0f / baseStats.BaseAttackInterval) : 1.0f;
-		float attacksPerSecond = baseAps * (1.0f + (attackHaste / 100.0f) + additionalAttackSpeedModifiers);
-		float attackDelay = MathF.Max(0.01f, 1.0f / MathF.Max(0.01f, attacksPerSecond));
+		float attacksPerSecond = baseAps * (1.0f + (attackHaste / t.HastePercentDivisor) + additionalAttackSpeedModifiers);
+		float attackDelay = MathF.Max(t.MinAttackInterval, 1.0f / MathF.Max(t.MinAttackInterval, attacksPerSecond));
 
-		float rawSpeed = baseStats.BaseSpeed + (agi * AGI_BASE_MS_RATIO);
-		if (rawSpeed > MS_SOFT_CAP_2)
+		float rawSpeed = baseStats.BaseSpeed + (agi * t.AgilityMovementPerPoint);
+		if (rawSpeed > t.MovementSoftCap2)
 		{
-			rawSpeed = MS_SOFT_CAP_2 + (rawSpeed - MS_SOFT_CAP_2) * 0.5f;
+			rawSpeed = t.MovementSoftCap2 + (rawSpeed - t.MovementSoftCap2) * t.MovementSoftCap2Taper;
 		}
-		else if (rawSpeed > MS_SOFT_CAP_1)
+		else if (rawSpeed > t.MovementSoftCap1)
 		{
-			rawSpeed = MS_SOFT_CAP_1 + (rawSpeed - MS_SOFT_CAP_1) * 0.8f;
+			rawSpeed = t.MovementSoftCap1 + (rawSpeed - t.MovementSoftCap1) * t.MovementSoftCap1Taper;
 		}
 
 		float movementSpeed = MathF.Max(0f, rawSpeed);
 
-		float abilityHaste = agi * AGI_CDR_HASTE_SCALE;
-		float rawCDR = abilityHaste / (abilityHaste + 100.0f);
-		float cooldownReduction = MathF.Min(rawCDR, MAX_CDR);
+		float abilityHaste = agi * t.AgilityCooldownHastePerPoint;
+		float rawCDR = abilityHaste / (abilityHaste + t.CooldownHasteDivisor);
+		float cooldownReduction = MathF.Min(rawCDR, t.MaxCooldownReduction);
 
-		float maxHp = MathF.Max(1f, baseStats.BaseMaxHp + (vit * VIT_HP_PER_POINT));
-		float maxMana = MathF.Max(0f, baseStats.BaseMaxMana + (vit * VIT_MP_PER_POINT));
-		float rawLifesteal = (vit / (vit + VIT_LIFESTEAL_K)) * MAX_LIFESTEAL;
-		float lifeStealRate = MathF.Min(rawLifesteal, MAX_LIFESTEAL);
+		float maxHp = MathF.Max(1f, baseStats.BaseMaxHp + (vit * t.VitalityHpPerPoint));
+		float maxMana = MathF.Max(0f, baseStats.BaseMaxMana + (vit * t.VitalityManaPerPoint));
+		float rawLifesteal = (vit / (vit + t.VitalityLifeStealK)) * t.MaxLifeSteal;
+		float lifeStealRate = MathF.Min(rawLifesteal, t.MaxLifeSteal);
 
-		float spellDamageAmp = MathF.Pow(intel * INT_SPELL_AMP_PER_POINT, INT_SPELL_AMP_EXPONENT);
-		float manaRegen = baseStats.BaseManaRegen + (intel * INT_MANA_REGEN_PER_POINT);
-		float rawMR = intel / (intel + INT_MAGIC_RESIST_K);
-		float spellWard = MathF.Min(rawMR, MAX_MAGIC_RESIST);
+		float spellDamageAmp = MathF.Pow(intel * t.IntelligenceSpellAmpPerPoint, t.IntelligenceSpellAmpExponent);
+		float manaRegen = baseStats.BaseManaRegen + (intel * t.IntelligenceManaRegenPerPoint);
+		float rawMR = intel / (intel + t.IntelligenceMagicResistK);
+		float spellWard = MathF.Min(rawMR, t.MaxMagicResist);
 
-		float magicPenetration = (wis / (wis + WIS_PENETRATION_K)) * MAX_MAGIC_PEN;
-		float healingOutputMultiplier = 1.0f + (wis * WIS_HEAL_AMP_PER_POINT);
-		float rawHpRegen = baseStats.BaseHpRegen + (wis * WIS_HP_REGEN_BASE_SCALE);
+		float magicPenetration = (wis / (wis + t.WisdomMagicPenetrationK)) * t.MaxMagicPenetration;
+		float healingOutputMultiplier = 1.0f + (wis * t.WisdomHealingAmpPerPoint);
+		float rawHpRegen = baseStats.BaseHpRegen + (wis * t.WisdomHpRegenPerPoint);
 		float hpRegen = rawHpRegen * healingOutputMultiplier;
-		float critMultiplier = MathF.Max(1f, baseStats.BaseCritMultiplier + (wis * WIS_CRIT_MULT_PER_POINT));
+		float critMultiplier = MathF.Max(1f, baseStats.BaseCritMultiplier + (wis * t.WisdomCritMultiplierPerPoint));
 
-		float rawCritChance = (fort / (fort + FORTUNE_CRIT_CHANCE_K)) * MAX_CRIT_CHANCE;
-		float critChance = MathF.Min(baseStats.BaseCritChance + rawCritChance, MAX_CRIT_CHANCE);
-		float rawEvasion = (fort / (fort + FORTUNE_EVASION_K)) * MAX_EVASION;
-		float evasionChance = MathF.Min(rawEvasion, MAX_EVASION);
-		float procBonus = (fort / (fort + FORTUNE_PROC_MOD_K)) * MAX_PROC_BONUS;
+		float rawCritChance = (fort / (fort + t.FortuneCritChanceK)) * t.MaxCritChance;
+		float critChance = MathF.Min(baseStats.BaseCritChance + rawCritChance, t.MaxCritChance);
+		float rawEvasion = (fort / (fort + t.FortuneEvasionK)) * t.MaxEvasion;
+		float evasionChance = MathF.Min(rawEvasion, t.MaxEvasion);
+		float procBonus = (fort / (fort + t.FortuneProcRateK)) * t.MaxProcRateBonus;
 		float procRateMultiplier = 1.0f + procBonus;
-		float bountyMultiplier = 1.0f + (fort * FORTUNE_BOUNTY_EXP_PER_POINT);
+		float bountyMultiplier = 1.0f + (fort * t.FortuneBountyPerPoint);
 
 		return new DerivedCombatStats(
 			MaxHp: maxHp,
@@ -140,19 +102,20 @@ public static class AttributeStatCalculator
 		);
 	}
 
-	public static DerivedCombatStats RecalculateEntityStats(EcsWorld world, Entity entity, float additionalAttackSpeedModifiers = 0f)
+	public static DerivedCombatStats RecalculateEntityStats(EcsWorld world, Entity entity, float additionalAttackSpeedModifiers = 0f, CombatTuning? tuning = null)
 	{
 		if (!world.IsAlive(entity))
 		{
 			return default;
 		}
 
+		var t = tuning ?? ECSContext.ActiveCombatTuning;
 		var baseAttrs = world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity) : new UnitAttributes();
 		var modifiedAttrs = ApplyAttributeModifiers(world, entity, baseAttrs);
-		var baseStats = GetOrCreateUnitBaseStats(world, entity);
-		var derived = CalculateDerivedStats(in modifiedAttrs, in baseStats, additionalAttackSpeedModifiers);
+		var baseStats = GetOrCreateUnitBaseStats(world, entity, t);
+		var derived = CalculateDerivedStats(in modifiedAttrs, in baseStats, additionalAttackSpeedModifiers, t);
 
-		derived = ApplyDirectStatModifiers(world, entity, derived, baseStats);
+		derived = ApplyDirectStatModifiers(world, entity, derived, baseStats, t);
 
 		world.SetOrAdd(entity, derived);
 
@@ -211,7 +174,7 @@ public static class AttributeStatCalculator
 		return acc;
 	}
 
-	private static DerivedCombatStats ApplyDirectStatModifiers(EcsWorld world, Entity entity, DerivedCombatStats derived, UnitBaseStats baseStats)
+	private static DerivedCombatStats ApplyDirectStatModifiers(EcsWorld world, Entity entity, DerivedCombatStats derived, UnitBaseStats baseStats, CombatTuning t)
 	{
 		var hp = Accumulate(world, entity, StatKeys.MaxHp, derived.MaxHp);
 		var hpRegen = Accumulate(world, entity, StatKeys.HpRegen, derived.HpRegen);
@@ -239,8 +202,8 @@ public static class AttributeStatCalculator
 		var knockbackResistance = Accumulate(world, entity, StatKeys.KnockbackResistance, derived.KnockbackResistance);
 		var statusEffectBuffer = Accumulate(world, entity, StatKeys.StatusEffectBuffer, derived.StatusEffectBuffer);
 
-		float resolvedAttackSpeed = Math.Clamp(attackSpeed.Combine(1f), 0.1f, MAX_ATTACK_SPEED);
-		float resolvedAttackDelay = MathF.Max(0.01f, attackDelay.Combine(derived.AttackDelay / resolvedAttackSpeed));
+		float resolvedAttackSpeed = Math.Clamp(attackSpeed.Combine(1f), t.MinAttackSpeed, t.MaxAttackSpeed);
+		float resolvedAttackDelay = MathF.Max(t.MinAttackInterval, attackDelay.Combine(derived.AttackDelay / resolvedAttackSpeed));
 
 		return derived with
 		{
@@ -253,13 +216,13 @@ public static class AttributeStatCalculator
 			MovementSpeed = MathF.Max(0f, movementSpeed.Combine(derived.MovementSpeed)),
 			AttackDelay = resolvedAttackDelay,
 			SpellPower = MathF.Max(0f, spellPower.Combine(derived.SpellPower)),
-			Tenacity = Math.Clamp(tenacity.Combine(derived.Tenacity), 0f, MAX_TENACITY),
-			SpellWard = Math.Clamp(spellWard.Combine(derived.SpellWard), 0f, MAX_MAGIC_RESIST),
-			CooldownReduction = Math.Clamp(cooldownReduction.Combine(derived.CooldownReduction), 0f, MAX_CDR),
-			LifeSteal = Math.Clamp(lifeSteal.Combine(derived.LifeSteal), 0f, MAX_LIFESTEAL),
-			MagicPenetration = Math.Clamp(magicPenetration.Combine(derived.MagicPenetration), 0f, MAX_MAGIC_PEN),
-			Evasion = Math.Clamp(evasion.Combine(derived.Evasion), 0f, MAX_EVASION),
-			CritChance = Math.Clamp(critChance.Combine(derived.CritChance), 0f, MAX_CRIT_CHANCE),
+			Tenacity = Math.Clamp(tenacity.Combine(derived.Tenacity), 0f, t.MaxTenacity),
+			SpellWard = Math.Clamp(spellWard.Combine(derived.SpellWard), 0f, t.MaxMagicResist),
+			CooldownReduction = Math.Clamp(cooldownReduction.Combine(derived.CooldownReduction), 0f, t.MaxCooldownReduction),
+			LifeSteal = Math.Clamp(lifeSteal.Combine(derived.LifeSteal), 0f, t.MaxLifeSteal),
+			MagicPenetration = Math.Clamp(magicPenetration.Combine(derived.MagicPenetration), 0f, t.MaxMagicPenetration),
+			Evasion = Math.Clamp(evasion.Combine(derived.Evasion), 0f, t.MaxEvasion),
+			CritChance = Math.Clamp(critChance.Combine(derived.CritChance), 0f, t.MaxCritChance),
 			CritMultiplier = MathF.Max(1f, critMultiplier.Combine(derived.CritMultiplier)),
 			ProcRateMultiplier = MathF.Max(0f, procRate.Combine(derived.ProcRateMultiplier)),
 			BountyMultiplier = MathF.Max(0f, bounty.Combine(derived.BountyMultiplier)),
@@ -329,7 +292,7 @@ public static class AttributeStatCalculator
 		return (baseVal + flatSum) * (1.0f + pctAddSum) * pctMultProd + formulaBonus;
 	}
 
-	private static UnitBaseStats GetOrCreateUnitBaseStats(EcsWorld world, Entity entity)
+	private static UnitBaseStats GetOrCreateUnitBaseStats(EcsWorld world, Entity entity, CombatTuning t)
 	{
 		if (world.Has<UnitBaseStats>(entity))
 		{
@@ -359,7 +322,7 @@ public static class AttributeStatCalculator
 		float bDmg = 10f;
 		float bAtkCooldown = 1.5f;
 		float bCritChance = 0f;
-		float bCritMult = 1.5f;
+		float bCritMult = t.BaseCritMultiplier;
 		float bFlatPen = 0f;
 		if (world.Has<Attack>(entity))
 		{
@@ -382,7 +345,7 @@ public static class AttributeStatCalculator
 			BaseDamage: bDmg,
 			BaseAttackInterval: bAtkCooldown,
 			BaseSpeed: bSpeed,
-			BaseCastPoint: 0.3f,
+			BaseCastPoint: t.BaseCastPoint,
 			BaseCritChance: bCritChance,
 			BaseCritMultiplier: bCritMult,
 			BaseFlatArmorPenetration: bFlatPen

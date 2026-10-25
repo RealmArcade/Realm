@@ -2715,6 +2715,304 @@
         }
       }
     },
+    "CombatTuning": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "DamageMatrix": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "DamageType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ArmorType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "Multiplier": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "UndefinedPairMultiplier": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ArmorTuningConstantK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MinDamageFloor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "StrengthAttackPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "StrengthArmorPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "StrengthTenacityK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxTenacity": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "AgilityHastePerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "HastePercentDivisor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "AgilityMovementPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MovementSoftCap1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MovementSoftCap2": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MovementSoftCap1Taper": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MovementSoftCap2Taper": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "AgilityCooldownHastePerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "CooldownHasteDivisor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxCooldownReduction": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "VitalityHpPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "VitalityManaPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "VitalityLifeStealK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxLifeSteal": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "IntelligenceSpellAmpPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "IntelligenceSpellAmpExponent": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "IntelligenceManaRegenPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "IntelligenceMagicResistK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxMagicResist": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "WisdomMagicPenetrationK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxMagicPenetration": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "WisdomHealingAmpPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "WisdomHpRegenPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "WisdomCritMultiplierPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "FortuneCritChanceK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxCritChance": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "FortuneEvasionK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxEvasion": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "FortuneProcRateK": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxProcRateBonus": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "FortuneBountyPerPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MaxAttackSpeed": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MinAttackSpeed": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "MinAttackInterval": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "BaseCastPoint": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "BaseCritMultiplier": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
     "CustomProceduralAnimations": {
       "type": "array",
       "items": {

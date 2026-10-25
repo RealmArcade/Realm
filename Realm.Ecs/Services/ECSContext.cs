@@ -18,6 +18,15 @@ public static class ECSContext
 	public static TerrainNavMeshService? TerrainNavMeshService { get; private set; }
 	public static IWasmEvaluationEngine? EvaluationEngine { get; set; }
 
+	/// <summary>
+	///     The active stat tuning. Replaced when a map loads its own <c>CombatTuning</c> block, so a
+	///     map that authors nothing is tuned exactly like the engine defaults.
+	/// </summary>
+	public static CombatTuning ActiveCombatTuning { get; set; } = CombatTuning.Default;
+
+	/// <summary>The active damage-resolution config, including the damage/armor matrix.</summary>
+	public static CombatConfig ActiveCombatConfig { get; set; } = new();
+
 	static ECSContext()
 	{
 		EnsureServices();
@@ -34,6 +43,8 @@ public static class ECSContext
 		WorldEntity = Entity.Null;
 		IsGameOver = false;
 		ActiveMapName = "";
+		ActiveCombatTuning = CombatTuning.Default;
+		ActiveCombatConfig = new CombatConfig();
 
 		DefinitionManager = new DefinitionManager();
 		CombatService = new CombatService();
@@ -55,6 +66,8 @@ public static class ECSContext
 		StatService = null;
 		TerrainNavMeshService = null;
 		PlayerResourceService = null;
+		ActiveCombatTuning = CombatTuning.Default;
+		ActiveCombatConfig = new CombatConfig();
 		World?.Dispose();
 		World = null;
 		ColdPayloadRegistry.ResetAll();

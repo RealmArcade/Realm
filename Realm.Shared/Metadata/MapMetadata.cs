@@ -16,6 +16,11 @@ public class MapMetadata
 
 	[JsonPropertyName("Templates")] public TemplateContainer Templates { get; set; } = new();
 
+	/// <summary>
+	///     Map-authored combat tuning. Null keeps every engine default.
+	/// </summary>
+	[JsonPropertyName("CombatTuning")] public CombatTuningMetadata? CombatTuning { get; set; }
+
 	[JsonPropertyName("CustomProceduralAnimations")]
 	public List<ProceduralAnimationConfig> CustomProceduralAnimations { get; set; } = new();
 

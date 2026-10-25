@@ -21,8 +21,9 @@ namespace Realm.Client.Services
 	public class CombatAndDamageService
 	{
 		private readonly Func<bool>? _unlimitedPowerProvider;
-		private readonly CombatConfig _combatConfig = new();
-		public CombatConfig Config => _combatConfig;
+		// The map's tuning replaces this on load; reading it through the context means an attack and
+		// an ability in the same match can never resolve through two different matrices.
+		public CombatConfig Config => ECSContext.ActiveCombatConfig;
 
 		private const float UnderAttackAlertCooldown = 8f;
 
@@ -881,7 +882,7 @@ namespace Realm.Client.Services
 				critChance: atk.CritChance, critMultiplier: atk.CritMultiplier,
 				flatArmor: flatArmor, ratedArmor: armorComp.RatedArmor,
 				flatArmorPen: atk.FlatArmorPenetration, percentArmorPen: atk.PercentArmorPenetration,
-				damageType: atk.DamageType, armorType: armorComp.ArmorType, config: _combatConfig
+				damageType: atk.DamageType, armorType: armorComp.ArmorType, config: Config
 			);
 
 			finalDamage = damageResult.FinalDamage;
@@ -1080,7 +1081,7 @@ namespace Realm.Client.Services
 				critChance: atk.CritChance, critMultiplier: atk.CritMultiplier,
 				flatArmor: sFlatArmor, ratedArmor: sArmorComp.RatedArmor,
 				flatArmorPen: atk.FlatArmorPenetration, percentArmorPen: atk.PercentArmorPenetration,
-				damageType: atk.DamageType, armorType: sArmorComp.ArmorType, config: _combatConfig
+				damageType: atk.DamageType, armorType: sArmorComp.ArmorType, config: Config
 			);
 
 			float splashDamage = sResult.FinalDamage;
