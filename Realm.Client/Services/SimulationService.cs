@@ -1861,6 +1861,12 @@ public class SimulationService
 			if ((autoCast.ActiveAbilityBitmask & (1u << i)) == 0) continue;
 
 			string abilityId = abilities[i];
+
+			// An ability the unit has hidden or disabled is not castable: the player-facing slot is
+			// the source of truth for what this unit may use, and autocast must agree with it.
+			if (GameContext.RegistryService.IsAbilityHiddenForUnit(unitWrapper, abilityId)) continue;
+			if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) continue;
+
 			if (GetAbilityCooldown(unitWrapper, abilityId) > 0f) continue;
 
 			float manaCost = GameContext.RegistryService.GetAbilityManaCostForUnit(unitWrapper, abilityId);
