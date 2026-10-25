@@ -430,6 +430,32 @@
               "Fortune": {
                 "type": "number"
               },
+              "LevelGrowth": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "StrengthPerLevel": {
+                    "type": "number"
+                  },
+                  "AgilityPerLevel": {
+                    "type": "number"
+                  },
+                  "VitalityPerLevel": {
+                    "type": "number"
+                  },
+                  "IntelligencePerLevel": {
+                    "type": "number"
+                  },
+                  "WisdomPerLevel": {
+                    "type": "number"
+                  },
+                  "FortunePerLevel": {
+                    "type": "number"
+                  }
+                }
+              },
               "HpRegen": {
                 "type": "number"
               },
@@ -1358,6 +1384,29 @@
                     "string",
                     "null"
                   ]
+                }
+              },
+              "AutoCast": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "Enabled": {
+                    "type": "boolean"
+                  },
+                  "RequiresEnemyTarget": {
+                    "type": "boolean"
+                  },
+                  "AllyHealthPercentBelow": {
+                    "type": "number"
+                  },
+                  "ManaReserve": {
+                    "type": "number"
+                  },
+                  "MinManaPercent": {
+                    "type": "number"
+                  }
                 }
               },
               "AreaOfEffectRadius": {
