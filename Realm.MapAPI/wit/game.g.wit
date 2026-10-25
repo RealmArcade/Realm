@@ -27,6 +27,7 @@ interface game-api {
     count-units-owned-by-player: func(player-index: s32) -> s32;
     create-floating-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, duration: f32);
     create-static-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, font-size: s32) -> s32;
+    deal-typed-damage: func(attacker-id: s32, target-id: s32, damage: f32, damage-type: string);
     define-zone: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32) -> s32;
     destroy-static-text: func(handle: s32);
     destroy-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
