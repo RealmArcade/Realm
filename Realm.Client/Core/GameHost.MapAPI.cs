@@ -232,6 +232,24 @@ public partial class GameHost
 		return (UnitId)entity.Id;
 	}
 
+	/// <summary>
+	///     Spawns a unit for an authored summon effect. A missing or misconfigured template returns an
+	///     invalid id instead of throwing, because a bad summon in map data should cost one cast and a
+	///     warning, not the match.
+	/// </summary>
+	public UnitId SpawnAbilitySummon(string unitTypeId, Vector3 position, int playerIndex)
+	{
+		try
+		{
+			return SpawnUnitInternal(unitTypeId, position, playerIndex, bypassPopulation: true, executeSpawnShader: true);
+		}
+		catch (Exception exception)
+		{
+			GD.PushWarning($"[Ability] Summon '{unitTypeId}' could not spawn: {exception.Message}");
+			return UnitId.Invalid;
+		}
+	}
+
 	void IGameAPI.SpawnResourceNode(string resourceType, Vector3 position, float amount)
 	{
 		var pos = new Godot.Vector3(position.X, position.Y, position.Z);

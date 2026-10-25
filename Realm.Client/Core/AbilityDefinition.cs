@@ -1,7 +1,16 @@
+using System.Collections.Generic;
+
 namespace Realm.Client.Core;
 
 public class AbilityDefinition
 {
+	/// <summary>
+	///     What the cast does, in authored order. Empty means the ability is scripted: the cast
+	///     callback still fires, nothing is applied by the engine.
+	/// </summary>
+	public List<AbilityEffectDefinition> Effects { get; set; } = new();
+
+
 	public string Id { get; set; } = "";
 	public string DisplayName { get; set; } = "";
 	public string Tooltip { get; set; } = "";
@@ -14,7 +23,11 @@ public class AbilityDefinition
 	public float Cooldown { get; set; } = 0f;
 	public float TargetRange { get; set; } = 0f;
 	public float AreaOfEffectRadius { get; set; } = 0f;
+
+	/// <summary>Highest authored damage magnitude before scaling. Zero when the ability deals none.</summary>
 	public float Damage { get; set; } = 0f;
+
+	/// <summary>Highest authored heal magnitude before scaling. Zero when the ability heals none.</summary>
 	public float Healing { get; set; } = 0f;
 	public bool AutoCastEnabled { get; set; } = true;
 	public bool AutoCastRequiresEnemy { get; set; } = true;

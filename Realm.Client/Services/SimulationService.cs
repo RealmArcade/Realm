@@ -38,15 +38,11 @@ public class SimulationService
 		GameContext.RegistryService.AbilityDefinitions.TryGetValue(spellId, out var def);
 		if (def == null) return;
 
-		float aoe = def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 4.0f;
-
-		if (def.Damage > 0f)
+		// Scripts apply an ability through the same executor the command card uses, so a spell
+		// triggered from map code cannot skip buffs, shields, scaling or summons.
+		if (AbilityEffectService.HasEffects(def))
 		{
-			DealSpellDamageAOE(position, aoe, def.Damage, casterEnt);
-		}
-		else if (def.Healing > 0f)
-		{
-			HealAOE(position, aoe, def.Healing, casterEnt);
+			AbilityEffectService.Execute(casterEnt, position, def, position);
 		}
 	}
 
@@ -265,6 +261,8 @@ public class SimulationService
 
 	private readonly QueryDescription _buffQuery = QueryCache.AllBuffsNoneDeadQuery;
 	private readonly QueryDescription _buffStateQuery = QueryCache.AllBuffStateNoneDeadQuery;
+	private readonly QueryDescription _absorbQuery = new QueryDescription().WithAll<AbsorbShield>();
+	private readonly QueryDescription _summonQuery = new QueryDescription().WithAll<SummonedUnit>().WithNone<Dead>();
 	private readonly QueryDescription _statsRecalcQuery = new QueryDescription().WithAll<Stats>().WithNone<Dead>();
 	private readonly QueryDescription _patrolArrivalQuery = QueryCache.AllPatrolAndPositionNoneDeadAndAttackTargetQuery;
 	private readonly QueryDescription _followQuery = QueryCache.AllFollowAndPositionNoneDeadQuery;
@@ -278,6 +276,8 @@ public class SimulationService
 
 	private EntityCallback<Buffs> _buffsQueryDelegate = null!;
 	private EntityCallback<BuffState> _buffStateQueryDelegate = null!;
+	private EntityCallback<AbsorbShield> _absorbQueryDelegate = null!;
+	private EntityCallback<SummonedUnit> _summonQueryDelegate = null!;
 	private EntityCallback<Stats> _statsRecalcQueryDelegate = null!;
 	private EntityCallback<Patrol, Position> _patrolArrivalQueryDelegate = null!;
 	private EntityCallback<Follow, Position> _followQueryDelegate = null!;
@@ -660,6 +660,15 @@ public class SimulationService
 		_combatService.OnUnderAttackAlertRequested = (player, id) => OnUnderAttackAlertRequested?.Invoke(player, id);
 		_combatService.OnKillUnitRequested = ent => OnKillUnitRequested?.Invoke(ent);
 
+		// A summon that times out dies like any other unit for visuals and cleanup, but the expiry
+		// itself is not a kill: it has no last attacker, so no bounty or kill credit is awarded.
+		OnSummonExpired = ent =>
+		{
+			if (!GameContext.World.IsAlive(ent) || GameContext.World.Has<Dead>(ent)) return;
+			GameContext.World.Add<Dead>(ent);
+			OnKillUnitRequested?.Invoke(ent);
+		};
+
 		_economyService.OnResourceDepositedForPlayer = (player, res, amount) => OnResourceDepositedForPlayer?.Invoke(player, res, amount);
 		_economyService.OnClearUnitOrdersRequested = ent => OnClearUnitOrdersRequested?.Invoke(ent);
 		_economyService.OnStopGatheringMovementRequested = ent => OnStopGatheringMovementRequested?.Invoke(ent);
@@ -674,6 +683,8 @@ public class SimulationService
 	{
 		_buffsQueryDelegate = UpdateBuffsQueryAction;
 		_buffStateQueryDelegate = UpdateBuffStateQueryAction;
+		_absorbQueryDelegate = UpdateAbsorbQueryAction;
+		_summonQueryDelegate = UpdateSummonLifespanQueryAction;
 		_statsRecalcQueryDelegate = StatsRecalcQueryAction;
 		_patrolArrivalQueryDelegate = PatrolArrivalQueryAction;
 		_followQueryDelegate = FollowQueryAction;
@@ -795,6 +806,8 @@ public class SimulationService
 			GameContext.World.Query(in _buffQuery, _buffsQueryDelegate);
 			GameContext.World.Query(in _buffStateQuery, _buffStateQueryDelegate);
 			GameContext.World.Query(in _statsRecalcQuery, _statsRecalcQueryDelegate);
+			GameContext.World.Query(in _absorbQuery, _absorbQueryDelegate);
+			GameContext.World.Query(in _summonQuery, _summonQueryDelegate);
 		}
 
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationPatrolArrivals))
@@ -1196,6 +1209,32 @@ public class SimulationService
 	{
 		buffs.Advance(_fDelta);
 	}
+
+	private void UpdateAbsorbQueryAction(Entity entity, ref AbsorbShield shield)
+	{
+		shield.Advance(_fDelta);
+
+		// Pools with nothing left are removed with their component so a unit that never gets
+		// shielded again does not keep paying for the query.
+		if (shield.Count == 0)
+		{
+			GameContext.World.Remove<AbsorbShield>(entity);
+		}
+	}
+
+	private void UpdateSummonLifespanQueryAction(Entity entity, ref SummonedUnit summon)
+	{
+		if (summon.Remaining <= 0f) return;
+
+		summon.Remaining -= _fDelta;
+		if (summon.Remaining > 0f) return;
+
+		summon.Remaining = 0f;
+		OnSummonExpired?.Invoke(entity);
+	}
+
+	/// <summary>Raised when a summon's lifespan runs out, so it despawns without kill credit.</summary>
+	public Action<Entity>? OnSummonExpired;
 
 	private void StatsRecalcQueryAction(Entity entity, ref Stats stats)
 	{
@@ -1981,15 +2020,13 @@ public class SimulationService
 		if (def != null)
 		{
 			spawnFx?.Invoke(def, godotPos);
-			if (def.Damage > 0f)
+			if (AbilityEffectService.HasEffects(def))
 			{
-				float aoe = def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 4.0f;
-				DealSpellDamageAOE(targetPosition, aoe, def.Damage, casterEnt);
-			}
-			else if (def.Healing > 0f)
-			{
-				float aoe = def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 4.0f;
-				HealAOE(targetPosition, aoe, def.Healing, casterEnt);
+				Vector3 casterPosition = GameContext.World.IsAlive(casterEnt) && GameContext.World.Has<Position>(casterEnt)
+					? GameContext.World.Get<Position>(casterEnt).Value
+					: targetPosition;
+
+				AbilityEffectService.Execute(casterEnt, casterPosition, def, targetPosition);
 			}
 			else
 			{
@@ -2000,6 +2037,16 @@ public class SimulationService
 		{
 			onSpellCast?.Invoke(unit, abilityId, targetPosition);
 		}
+	}
+
+	public void DealResolvedDamage(Entity attacker, Entity target, float amount, string damageType)
+	{
+		_combatService.DealResolvedDamage(attacker, target, amount, damageType);
+	}
+
+	public void HealSingle(Entity casterEntity, Entity target, float amount)
+	{
+		_combatService.HealSingle(casterEntity, target, amount);
 	}
 
 	public float GetAbilityCooldown(UnitId unit, string abilityId)

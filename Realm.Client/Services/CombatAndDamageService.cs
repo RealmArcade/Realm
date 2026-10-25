@@ -895,10 +895,12 @@ namespace Realm.Client.Services
 			else _tickActionsToAddLastAttacker.Add((target, entity));
 
 			OnUnitAttackedCallback?.Invoke(entity, target);
-			OnUnitDamagedCallback?.Invoke(target, entity, damage);
+
+			float dealt = AbsorbDamage(target, damage);
+			if (dealt > 0f) OnUnitDamagedCallback?.Invoke(target, entity, dealt);
 
 			var targetHealth = GameContext.World.Get<Health>(target);
-			float newHp = Math.Max(0, targetHealth.Current - damage);
+			float newHp = Math.Max(0, targetHealth.Current - dealt);
 			targetHealth.Current = newHp;
 			targetHealth.TimeSinceLastDamage = 0f;
 			GameContext.World.Set(target, targetHealth);
@@ -1084,7 +1086,9 @@ namespace Realm.Client.Services
 				damageType: atk.DamageType, armorType: sArmorComp.ArmorType, config: Config
 			);
 
-			float splashDamage = sResult.FinalDamage;
+			float splashDamage = AbsorbDamage(splashEnt, sResult.FinalDamage);
+			if (splashDamage <= 0f) return;
+
 			sHp.Current = Math.Max(0, sHp.Current - splashDamage);
 			sHp.TimeSinceLastDamage = 0f;
 			GameContext.World.Set(splashEnt, sHp);
@@ -1573,8 +1577,41 @@ namespace Realm.Client.Services
 			ApplyResolvedDamage(entity, ref hp, result.FinalDamage, casterEntity);
 		}
 
+		/// <summary>
+		///     Runs damage through the entity's absorb pools before health. Called by every damage
+		///     source, so a shield is worth the same against an attack, a splash, a spell or an ability.
+		/// </summary>
+		private float AbsorbDamage(Entity entity, float damage)
+		{
+			if (damage <= 0f) return 0f;
+			if (!GameContext.World.Has<AbsorbShield>(entity)) return damage;
+
+			return GameContext.World.Get<AbsorbShield>(entity).Consume(damage);
+		}
+
+		/// <summary>Heals one unit, honouring the caster's healing multiplier.</summary>
+		public void HealSingle(Entity casterEntity, Entity target, float healAmount)
+		{
+			if (healAmount <= 0f) return;
+			if (!GameContext.World.IsAlive(target) || GameContext.World.Has<Dead>(target) || !GameContext.World.Has<Health>(target)) return;
+
+			float scaled = healAmount * GetHealingMultiplier(casterEntity);
+			ref var hp = ref GameContext.World.Get<Health>(target);
+			float before = hp.Current;
+			hp.Current = Math.Min(hp.Max, hp.Current + scaled);
+
+			float healed = hp.Current - before;
+			if (healed <= 0f) return;
+
+			OnHealFlashRequested?.Invoke(target);
+			OnUnitHealedCallback?.Invoke(target, casterEntity, healed);
+		}
+
 		private void ApplyResolvedDamage(Entity entity, ref Health hp, float finalDamage, Entity casterEntity)
 		{
+			finalDamage = AbsorbDamage(entity, finalDamage);
+			if (finalDamage <= 0f) return;
+
 			float newHp = Math.Max(0, hp.Current - finalDamage);
 			hp.Current = newHp;
 

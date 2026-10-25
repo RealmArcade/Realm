@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Realm.Shared.Metadata;
 
 public class AbilityMetadata
@@ -12,16 +14,19 @@ public class AbilityMetadata
 	public float TargetRange { get; set; }
 	public string? VisualEffect { get; set; }
 	public string? CastSound { get; set; }
-	public string[]? AppliedStatusEffects { get; set; }
 
 	/// <summary>Optional autocast policy. Absent means castable whenever affordable and ready.</summary>
 	public AutoCastMetadata? AutoCast { get; set; }
+
+	/// <summary>Visual and targeting size, and the default radius for effects that do not set one.</summary>
 	public float AreaOfEffectRadius { get; set; }
-	public float Damage { get; set; }
-	public float Healing { get; set; }
-	public string? SummonedUnitId { get; set; }
-	public int SummonCount { get; set; }
-	public float SummonDuration { get; set; }
+
+	/// <summary>
+	///     What the cast does, in order. An ability with no effects still fires its cast callback, which
+	///     is how scripted abilities work; an ability with effects never reaches the script.
+	/// </summary>
+	public List<AbilityEffectMetadata>? Effects { get; set; }
+
 	public int GridX { get; set; } = -1;
 	public int GridY { get; set; } = -1;
 	public string? Hotkey { get; set; }

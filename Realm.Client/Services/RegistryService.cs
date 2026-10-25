@@ -814,14 +814,17 @@ public class RegistryService
 				Cooldown = meta.Cooldown,
 				TargetRange = meta.TargetRange,
 				AreaOfEffectRadius = meta.AreaOfEffectRadius,
-				Damage = meta.Damage,
-				Healing = meta.Healing,
 				VisualEffect = meta.VisualEffect,
 				CastSound = meta.CastSound,
 				GridX = meta.GridX,
 				GridY = meta.GridY,
 				Hotkey = meta.Hotkey ?? ""
 			};
+
+			def.Effects = AbilityEffectFactory.Create(meta, meta.AreaOfEffectRadius, out float maxDamage, out float maxHealing);
+			def.Damage = maxDamage;
+			def.Healing = maxHealing;
+
 			foreach (var key in GetNormalizedAbilityIdCandidates(meta.TemplateID))
 			{
 				AbilityDefinitions[key] = def;

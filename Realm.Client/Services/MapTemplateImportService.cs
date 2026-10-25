@@ -79,8 +79,7 @@ public class MapTemplateImportService
 		["RightHandAttachment"] = new[] { "Attachments" },
 		["LeftHandAttachment"] = new[] { "Attachments" },
 		["StatusEffects"] = new[] { "StatusEffects" },
-		["PassiveStatusEffects"] = new[] { "StatusEffects" },
-		["AppliedStatusEffects"] = new[] { "StatusEffects" }
+		["PassiveStatusEffects"] = new[] { "StatusEffects" }
 	};
 
 	private static readonly string[] TemplateIdentityKeys = { "TemplateID", "AttachmentId", "VfxId", "Id" };
@@ -95,7 +94,6 @@ public class MapTemplateImportService
 		"ShopItems",
 		"StatusEffects",
 		"PassiveStatusEffects",
-		"AppliedStatusEffects",
 		"SummonedUnitId",
 		"UseAbility",
 		"GrantedWeapons",

@@ -1374,18 +1374,6 @@
                   "null"
                 ]
               },
-              "AppliedStatusEffects": {
-                "type": [
-                  "array",
-                  "null"
-                ],
-                "items": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
               "AutoCast": {
                 "type": [
                   "object",
@@ -1412,23 +1400,131 @@
               "AreaOfEffectRadius": {
                 "type": "number"
               },
-              "Damage": {
-                "type": "number"
-              },
-              "Healing": {
-                "type": "number"
-              },
-              "SummonedUnitId": {
+              "Effects": {
                 "type": [
-                  "string",
+                  "array",
                   "null"
-                ]
-              },
-              "SummonCount": {
-                "type": "integer"
-              },
-              "SummonDuration": {
-                "type": "number"
+                ],
+                "items": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "Kind": {
+                      "type": "string"
+                    },
+                    "Delivery": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "Targets": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "Radius": {
+                      "type": "number"
+                    },
+                    "Length": {
+                      "type": "number"
+                    },
+                    "AngleDegrees": {
+                      "type": "number"
+                    },
+                    "MaxTargets": {
+                      "type": "integer"
+                    },
+                    "Amount": {
+                      "type": "number"
+                    },
+                    "Duration": {
+                      "type": "number"
+                    },
+                    "DamageType": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "BuffId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "Modifiers": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "StatKey": {
+                            "type": "string"
+                          },
+                          "Type": {
+                            "type": "string"
+                          },
+                          "Value": {
+                            "type": "number"
+                          },
+                          "WASMFunctionName": {
+                            "type": "string"
+                          },
+                          "PerLevelScaling": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "SummonUnitId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "SummonCount": {
+                      "type": "integer"
+                    },
+                    "SummonCap": {
+                      "type": "integer"
+                    },
+                    "Scaling": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "Attribute": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "Shape": {
+                          "type": "string"
+                        },
+                        "Coefficient": {
+                          "type": "number"
+                        },
+                        "Divisor": {
+                          "type": "number"
+                        },
+                        "Cap": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
               },
               "GridX": {
                 "type": "integer"
@@ -1874,27 +1970,7 @@
               "Modifiers": {
                 "type": "array",
                 "items": {
-                  "type": [
-                    "object",
-                    "null"
-                  ],
-                  "properties": {
-                    "StatKey": {
-                      "type": "string"
-                    },
-                    "Type": {
-                      "type": "string"
-                    },
-                    "Value": {
-                      "type": "number"
-                    },
-                    "WASMFunctionName": {
-                      "type": "string"
-                    },
-                    "PerLevelScaling": {
-                      "type": "number"
-                    }
-                  }
+                  "$ref": "#/properties/Templates/properties/Abilities/items/properties/Effects/items/properties/Modifiers/items"
                 }
               },
               "Attribution_ImportedFromMap": {
