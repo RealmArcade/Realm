@@ -1870,10 +1870,16 @@ public class SimulationService
 			if (GetAbilityCooldown(unitWrapper, abilityId) > 0f) continue;
 
 			float manaCost = GameContext.RegistryService.GetAbilityManaCostForUnit(unitWrapper, abilityId);
-			if (GameContext.World.Has<Mana>(entity) && GameContext.World.Get<Mana>(entity).Current < manaCost) continue;
 
 			var def = GameContext.RegistryService.GetAbilityDefinition(abilityId);
-			if (def == null) continue;
+			if (def == null || !def.AutoCastEnabled) continue;
+
+			if (GameContext.World.Has<Mana>(entity))
+			{
+				ref var mana = ref GameContext.World.Get<Mana>(entity);
+				if (mana.Current < manaCost + def.AutoCastManaReserve) continue;
+				if (def.AutoCastMinManaPercent > 0f && mana.Max > 0f && mana.Current < mana.Max * def.AutoCastMinManaPercent) continue;
+			}
 
 			Vector3 casterPos = pos.Value;
 			float range = def.TargetRange > 0f ? def.TargetRange : (def.AreaOfEffectRadius > 0f ? def.AreaOfEffectRadius : 12f);
@@ -1892,13 +1898,13 @@ public class SimulationService
 
 				_movementService.QueryUnitsInRadius(casterPos, range, _autoCastFriendlyCallback);
 
-				if (_autoCastBestFriendlyEntity != Entity.Null)
+				if (_autoCastBestFriendlyEntity != Entity.Null && IsAllyWorthHealing(_autoCastBestFriendlyEntity, def.AutoCastAllyHealthPercentBelow))
 				{
 					targetPos = _autoCastBestFriendlyPos;
 					targetFound = true;
 				}
 			}
-			else if (def.Damage > 0f || !def.IsInstant)
+			else if (def.Damage > 0f || (def.AutoCastRequiresEnemy && !def.IsInstant))
 			{
 				int casterPlayerIndex = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
 
@@ -1936,6 +1942,15 @@ public class SimulationService
 				break;
 			}
 		}
+	}
+
+	private bool IsAllyWorthHealing(Entity ally, float healthPercentBelow)
+	{
+		if (healthPercentBelow >= 1f) return true;
+		if (!GameContext.World.Has<Health>(ally)) return true;
+
+		var health = GameContext.World.Get<Health>(ally);
+		return health.Max <= 0f || health.Current / health.Max <= healthPercentBelow;
 	}
 
 	public void SetPlayerComputerControlled(int playerIndex, bool isProxy)

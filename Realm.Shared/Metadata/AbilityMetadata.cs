@@ -13,6 +13,9 @@ public class AbilityMetadata
 	public string? VisualEffect { get; set; }
 	public string? CastSound { get; set; }
 	public string[]? AppliedStatusEffects { get; set; }
+
+	/// <summary>Optional autocast policy. Absent means castable whenever affordable and ready.</summary>
+	public AutoCastMetadata? AutoCast { get; set; }
 	public float AreaOfEffectRadius { get; set; }
 	public float Damage { get; set; }
 	public float Healing { get; set; }

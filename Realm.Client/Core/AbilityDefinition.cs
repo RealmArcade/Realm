@@ -16,6 +16,11 @@ public class AbilityDefinition
 	public float AreaOfEffectRadius { get; set; } = 0f;
 	public float Damage { get; set; } = 0f;
 	public float Healing { get; set; } = 0f;
+	public bool AutoCastEnabled { get; set; } = true;
+	public bool AutoCastRequiresEnemy { get; set; } = true;
+	public float AutoCastAllyHealthPercentBelow { get; set; } = 1f;
+	public float AutoCastManaReserve { get; set; }
+	public float AutoCastMinManaPercent { get; set; }
 	public string? VisualEffect { get; set; }
 	public string? CastSound { get; set; }
 }
