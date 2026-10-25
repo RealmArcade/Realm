@@ -161,7 +161,7 @@ public static class AttributeStatCalculator
 		UpdateArmor(world, entity, in derived);
 		UpdateAttack(world, entity, in derived);
 		UpdateMovementStats(world, entity, in derived);
-		UpdateStatsDictionary(world, entity, in derived);
+		UpdateStatsDictionary(world, entity, in derived, in modifiedAttrs);
 
 		return derived;
 	}
@@ -478,14 +478,30 @@ public static class AttributeStatCalculator
 		world.Set(entity, new MovementStats(derived.MovementSpeed, move.Acceleration, move.TurnRate, move.PushPriority, move.MovementType));
 	}
 
-	private static void UpdateStatsDictionary(EcsWorld world, Entity entity, in DerivedCombatStats derived)
+	private static void UpdateStatsDictionary(EcsWorld world, Entity entity, in DerivedCombatStats derived, in UnitAttributes attributes)
 	{
 		if (!world.Has<Stats>(entity))
 		{
 			return;
 		}
 
+		// The snapshot is the single read path for scripts and UI: attributes and every derived
+		// stat land here once per recalculation, never re-combined on read.
 		ref var stats = ref world.Get<Stats>(entity);
+		stats.Set(new StatId(AttributeType.Strength), attributes.Strength);
+		stats.Set(new StatId(AttributeType.Agility), attributes.Agility);
+		stats.Set(new StatId(AttributeType.Vitality), attributes.Vitality);
+		stats.Set(new StatId(AttributeType.Intelligence), attributes.Intelligence);
+		stats.Set(new StatId(AttributeType.Wisdom), attributes.Wisdom);
+		stats.Set(new StatId(AttributeType.Fortune), attributes.Fortune);
+		stats.Set(new StatId(StatKeys.AttackDelay), derived.AttackDelay);
+		stats.Set(new StatId(StatKeys.CastPoint), derived.CastPoint);
+		stats.Set(new StatId(StatKeys.CritChance), derived.CritChance);
+		stats.Set(new StatId(StatKeys.CritMultiplier), derived.CritMultiplier);
+		stats.Set(new StatId(StatKeys.FlatArmorPenetration), derived.FlatArmorPenetration);
+		stats.Set(new StatId(StatKeys.HealingMultiplier), derived.HealingMultiplier);
+		stats.Set(new StatId(StatKeys.KnockbackResistance), derived.KnockbackResistance);
+		stats.Set(new StatId(StatKeys.StatusEffectBuffer), derived.StatusEffectBuffer);
 		stats.Set(new StatId(CombatStatType.Armor), derived.TotalArmor);
 		stats.Set(new StatId(CombatStatType.Attack), derived.TotalAttackDamage);
 		stats.Set(new StatId(CombatStatType.MovementSpeed), derived.MovementSpeed);

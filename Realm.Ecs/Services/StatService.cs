@@ -4,67 +4,20 @@ using Realm.Ecs.Components.Stats;
 namespace Realm.Ecs.Services;
 
 /// <summary>
-///     Demonstrates how Stat and StatModifier components are used together.
+///     Reads the stat snapshot that the derived stat pipeline writes. Modifiers are already folded
+///     into these values, so a read never re-applies them.
 /// </summary>
 public class StatService
 {
 	/// <summary>
-	///     Gets the final calculated value of a stat after all modifiers are applied.
-	///     An entity can have multiple StatModifier components.
+	///     Gets the current value of a stat. O(1), allocation free, and consistent with the value
+	///     gameplay uses because both come from the same snapshot.
 	/// </summary>
 	public float GetStatValue(Entity entity, StatId statId)
 	{
 		if (ECSContext.World == null || !ECSContext.World.Has<Stats>(entity)) return 0f;
 
-		ref var baseStats = ref ECSContext.World.Get<Stats>(entity);
-		if (!baseStats.TryGetValue(statId, out var currentValue)) return 0f;
-
-		var query = QueryCache.AllStatModifierQuery;
-		var flatBonus = 0f;
-		var percentAdditive = 0f;
-		var percentMultiplicative = 1.0f;
-		var formulaBonus = 0f;
-
-		ECSContext.World.Query(in query, (Entity e, ref StatModifier mod) =>
-		{
-			if (e != entity || mod.StatTypeId != statId) return;
-
-			switch (mod.Type)
-			{
-				case ModifierType.Flat:
-					flatBonus += mod.Value;
-					break;
-				case ModifierType.PercentAdditive:
-					percentAdditive += mod.Value;
-					break;
-				case ModifierType.PercentMultiplicative:
-					percentMultiplicative *= mod.Value;
-					break;
-				case ModifierType.CustomFormula:
-					if (!string.IsNullOrWhiteSpace(mod.WASMFunctionName) && ECSContext.EvaluationEngine != null && ECSContext.World != null)
-					{
-						try
-						{
-							var context = new FormulaContext(ECSContext.World, entity, default, mod.WASMFunctionName);
-							formulaBonus += ECSContext.EvaluationEngine.Evaluate(in context, currentValue, mod.Value, mod.SourceLevel);
-						}
-						catch
-						{
-						}
-					}
-					break;
-			}
-		});
-
-		return (currentValue + flatBonus) * (1.0f + percentAdditive) * percentMultiplicative + formulaBonus;
-	}
-
-	/// <summary>
-	///     Adds a StatModifier to an entity. A 'BuffSystem' would be responsible
-	///     for managing the duration and removing expired modifiers.
-	/// </summary>
-	public void ApplyStatModifier(Entity entity, StatModifier modifier)
-	{
-		ECSContext.World?.Add(entity, modifier);
+		ref var stats = ref ECSContext.World.Get<Stats>(entity);
+		return stats.TryGetValue(statId, out var value) ? value : 0f;
 	}
 }
