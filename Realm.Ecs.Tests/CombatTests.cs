@@ -47,7 +47,7 @@ namespace Realm.Ecs.Tests
 				new Owner(owner),
 				new ScanRadius(scanRadius),
 				new Health(500, 500),
-				new Armor(5),
+				new Resistances(5),
 				new DefinitionId("tower"),
 				new Building()
 			);
@@ -58,7 +58,7 @@ namespace Realm.Ecs.Tests
 			return _world.Create(
 				new Position(pos),
 				new Health(maxHp, maxHp),
-				new Armor(armor),
+				new Resistances(armor),
 				new Owner(owner),
 				new DefinitionId("zombie_soldier")
 			);
@@ -79,7 +79,7 @@ namespace Realm.Ecs.Tests
 				new Owner(owner),
 				new ScanRadius(scanRadius),
 				new Health(500, 500),
-				new Armor(5),
+				new Resistances(5),
 				new DefinitionId("soldier"),
 				new CombatTargeting(false, true)
 			);
@@ -93,21 +93,22 @@ namespace Realm.Ecs.Tests
 		}
 
 		[Test]
-		public void TestDamageIsAttackMinusArmor()
+		public void TestDamageIsReducedByTheArmorCurve()
 		{
 			var tower = SpawnTower(new Vector3(0f, 0f, 0f), 20f, 20f, 1f, 50f, new PlayerEntity(CreatePlayer(0)));
 			var enemy = SpawnEnemy(new Vector3(5f, 0f, 0f), 100f, 5f, new PlayerEntity(CreatePlayer(1)));
 
 			_combatService.StepCombat(0.1f);
 
-			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(85f));
+			// 5 armor against K = 16.67 removes 5 / 21.67 of a 20 damage hit.
+			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(84.61f).Within(0.01f));
 		}
 
 		[Test]
 		public void TestDamageHasMinimumOfOne()
 		{
-			var tower = SpawnTower(new Vector3(0f, 0f, 0f), 20f, 20f, 1f, 50f, new PlayerEntity(CreatePlayer(0)));
-			var enemy = SpawnEnemy(new Vector3(5f, 0f, 0f), 100f, 30f, new PlayerEntity(CreatePlayer(1)));
+			var tower = SpawnTower(new Vector3(0f, 0f, 0f), 5f, 20f, 1f, 50f, new PlayerEntity(CreatePlayer(0)));
+			var enemy = SpawnEnemy(new Vector3(5f, 0f, 0f), 100f, 1_000_000f, new PlayerEntity(CreatePlayer(1)));
 
 			_combatService.StepCombat(0.1f);
 
@@ -132,15 +133,15 @@ namespace Realm.Ecs.Tests
 			var enemy = SpawnEnemy(new Vector3(5f, 0f, 0f), 100f, 5f, new PlayerEntity(CreatePlayer(1)));
 
 			_combatService.StepCombat(0.1f);
-			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(85f));
+			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(84.61f).Within(0.01f));
 			Assert.That(_world.Get<Attack>(tower).CurrentCooldown, Is.EqualTo(1f));
 
 			_combatService.StepCombat(0.1f);
-			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(85f), "Unit should not attack while on cooldown.");
+			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(84.61f).Within(0.01f), "Unit should not attack while on cooldown.");
 
 			_world.Set(tower, new Attack(20f, 20f, 1f, 0f));
 			_combatService.StepCombat(0.1f);
-			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(70f), "Unit should attack again once cooldown expires.");
+			Assert.That(_world.Get<Health>(enemy).Current, Is.EqualTo(69.23f).Within(0.01f), "Unit should attack again once cooldown expires.");
 		}
 
 		[Test]
@@ -246,7 +247,7 @@ namespace Realm.Ecs.Tests
 			_combatService.StepCombat(0.1f);
 
 			Assert.That(_world.Has<AttackTarget>(tower), Is.True, "Ranged tower should acquire a flying target.");
-			Assert.That(_world.Get<Health>(flyingEnemy).Current, Is.EqualTo(85f), "Ranged tower should damage a flying target.");
+			Assert.That(_world.Get<Health>(flyingEnemy).Current, Is.EqualTo(84.61f).Within(0.01f), "Ranged tower should damage a flying target.");
 		}
 
 		[Test]
@@ -258,7 +259,7 @@ namespace Realm.Ecs.Tests
 			_combatService.StepCombat(0.1f);
 
 			Assert.That(_world.Has<AttackTarget>(flyingAttacker), Is.True, "Flying unit should acquire a ground target.");
-			Assert.That(_world.Get<Health>(groundEnemy).Current, Is.EqualTo(85f));
+			Assert.That(_world.Get<Health>(groundEnemy).Current, Is.EqualTo(84.61f).Within(0.01f));
 		}
 
 		[Test]

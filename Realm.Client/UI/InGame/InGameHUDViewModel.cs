@@ -674,8 +674,8 @@ public class InGameHUDViewModel
 				info.Dps = atk.Damage / atk.Cooldown;
 		}
 
-		if (world.Has<Armor>(u.Entity))
-			info.Armor = world.Get<Armor>(u.Entity).Value;
+		if (world.Has<Resistances>(u.Entity))
+			info.Armor = world.Get<Resistances>(u.Entity).Physical;
 
 		if (world.Has<MovementStats>(u.Entity))
 			info.Speed = world.Get<MovementStats>(u.Entity).Speed;

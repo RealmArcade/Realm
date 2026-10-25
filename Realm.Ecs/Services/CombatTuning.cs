@@ -13,13 +13,13 @@ public sealed class CombatTuning
 
 	public CombatTuning Clone() => (CombatTuning)MemberwiseClone();
 
-	// --- Strength ---
+	// --- Strength: attack damage, tenacity, armor points ---
 	public float StrengthAttackPerPoint { get; set; } = 1.5f;
 	public float StrengthArmorPerPoint { get; set; } = 0.15f;
 	public float StrengthTenacityK { get; set; } = 100.0f;
 	public float MaxTenacity { get; set; } = 0.75f;
 
-	// --- Agility ---
+	// --- Agility: attack speed, movement speed, cooldown reduction ---
 	public float AgilityHastePerPoint { get; set; } = 1.0f;
 	public float HastePercentDivisor { get; set; } = 100.0f;
 	public float AgilityMovementPerPoint { get; set; } = 0.4f;
@@ -31,27 +31,31 @@ public sealed class CombatTuning
 	public float CooldownHasteDivisor { get; set; } = 100.0f;
 	public float MaxCooldownReduction { get; set; } = 0.60f;
 
-	// --- Vitality ---
+	// --- Vitality: health, mana, life steal ---
 	public float VitalityHpPerPoint { get; set; } = 18.0f;
 	public float VitalityManaPerPoint { get; set; } = 8.0f;
 	public float VitalityLifeStealK { get; set; } = 150.0f;
 	public float MaxLifeSteal { get; set; } = 0.40f;
 
-	// --- Intelligence ---
+	// --- Intelligence: ability damage, mana regeneration, magic resistance points ---
 	public float IntelligenceSpellAmpPerPoint { get; set; } = 0.0075f;
 	public float IntelligenceSpellAmpExponent { get; set; } = 1.05f;
 	public float IntelligenceManaRegenPerPoint { get; set; } = 0.05f;
-	public float IntelligenceMagicResistK { get; set; } = 80.0f;
-	public float MaxMagicResist { get; set; } = 0.75f;
 
-	// --- Wisdom ---
+	/// <summary>
+	///     Magic resistance points granted per point of Intelligence. The points are turned into a
+	///     damage reduction fraction by the resolver's curve, exactly like armor.
+	/// </summary>
+	public float IntelligenceMagicResistancePerPoint { get; set; } = 0.15f;
+
+	// --- Wisdom: magic penetration, healing and regeneration, critical damage ---
 	public float WisdomMagicPenetrationK { get; set; } = 120.0f;
-	public float MaxMagicPenetration { get; set; } = 0.50f;
+	public float MaxPercentMagicPenetration { get; set; } = 0.50f;
 	public float WisdomHealingAmpPerPoint { get; set; } = 0.008f;
 	public float WisdomHpRegenPerPoint { get; set; } = 0.04f;
 	public float WisdomCritMultiplierPerPoint { get; set; } = 0.006f;
 
-	// --- Fortune ---
+	// --- Fortune: critical chance, evasion, proc rates, bounty ---
 	public float FortuneCritChanceK { get; set; } = 100.0f;
 	public float MaxCritChance { get; set; } = 0.80f;
 	public float FortuneEvasionK { get; set; } = 150.0f;

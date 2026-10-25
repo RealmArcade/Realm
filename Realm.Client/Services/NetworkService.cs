@@ -830,7 +830,7 @@ public class NetworkService
 			GameContext.World.Add(entity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
 		}
 
-		GameContext.World.Add(entity, new Armor(meta.Armor));
+		GameContext.World.Add(entity, new Resistances(meta.Armor, meta.MagicResistance));
 		if (isBuilding)
 		{
 			GameContext.World.Add(entity, new Building());

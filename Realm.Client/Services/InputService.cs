@@ -945,8 +945,8 @@ public class InputService
 			new Godot.Vector3(position.X, position.Y, position.Z), playerEntity.AsPlayerEntity(GameContext.World), playerEntity, 
 			false, false, 
 			meta.Abilities, meta.CostGold, meta.CostWood, meta.CostStone, 
-			meta.ProductionTime, 0f, meta.ArmorType, 0f, 0f, 
-			0f, meta.AttackType, 0f, 0f, 
+			meta.ProductionTime, meta.MagicResistance, 0f, 0f, 
+			0f, meta.DamageType, 0f, 0f, 
 			meta.MovementType, 0f, 1f, 0f, 
 			meta.HpRegen, 0f, 0f, false, 
 			(int)meta.GoldBounty, "Ground");

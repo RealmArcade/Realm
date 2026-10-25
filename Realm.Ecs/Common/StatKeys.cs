@@ -23,23 +23,39 @@ public static class StatKeys
 	public const string HpRegen = "HpRegen";
 	public const string MaxMana = "MaxMana";
 	public const string ManaRegen = "ManaRegen";
+
+	/// <summary>Armor points: the physical damage resistance.</summary>
 	public const string Armor = "Armor";
+
+	/// <summary>Magic resistance points: the magic damage resistance.</summary>
+	public const string MagicResistance = "MagicResistance";
+
 	public const string Attack = "Attack";
 	public const string MovementSpeed = "MovementSpeed";
 	public const string AttackSpeed = "AttackSpeed";
 	public const string AttackDelay = "AttackDelay";
 	public const string SpellPower = "SpellPower";
 	public const string Tenacity = "Tenacity";
-	public const string SpellWard = "SpellWard";
 	public const string CooldownReduction = "CooldownReduction";
 	public const string LifeSteal = "LifeSteal";
-	public const string MagicPenetration = "MagicPenetration";
 	public const string Evasion = "Evasion";
 	public const string ProcRateMultiplier = "ProcRateMultiplier";
 	public const string BountyMultiplier = "BountyMultiplier";
 	public const string CritChance = "CritChance";
 	public const string CritMultiplier = "CritMultiplier";
+
+	/// <summary>Armor points ignored by a physical hit.</summary>
 	public const string FlatArmorPenetration = "FlatArmorPenetration";
+
+	/// <summary>Fraction of the target's armor a physical hit ignores, as 0..1.</summary>
+	public const string PercentArmorPenetration = "PercentArmorPenetration";
+
+	/// <summary>Magic resistance points ignored by a magic hit.</summary>
+	public const string FlatMagicPenetration = "FlatMagicPenetration";
+
+	/// <summary>Fraction of the target's magic resistance a magic hit ignores, as 0..1.</summary>
+	public const string PercentMagicPenetration = "PercentMagicPenetration";
+
 	public const string CastPoint = "CastPoint";
 	public const string HealingMultiplier = "HealingMultiplier";
 	public const string KnockbackResistance = "KnockbackResistance";
@@ -48,10 +64,11 @@ public static class StatKeys
 	private static readonly HashSet<string> CanonicalKeys = new(StringComparer.OrdinalIgnoreCase)
 	{
 		Strength, Agility, Vitality, Intelligence, Wisdom, Fortune,
-		MaxHp, HpRegen, MaxMana, ManaRegen, Armor, Attack, MovementSpeed, AttackSpeed,
-		AttackDelay, SpellPower, Tenacity, SpellWard, CooldownReduction, LifeSteal,
-		MagicPenetration, Evasion, ProcRateMultiplier, BountyMultiplier, CritChance,
-		CritMultiplier, FlatArmorPenetration, CastPoint, HealingMultiplier,
+		MaxHp, HpRegen, MaxMana, ManaRegen, Armor, MagicResistance, Attack, MovementSpeed, AttackSpeed,
+		AttackDelay, SpellPower, Tenacity, CooldownReduction, LifeSteal,
+		FlatArmorPenetration, PercentArmorPenetration, FlatMagicPenetration, PercentMagicPenetration,
+		Evasion, ProcRateMultiplier, BountyMultiplier, CritChance,
+		CritMultiplier, CastPoint, HealingMultiplier,
 		KnockbackResistance, StatusEffectBuffer
 	};
 

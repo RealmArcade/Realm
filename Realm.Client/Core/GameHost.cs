@@ -3140,7 +3140,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 		var entity = regMeta != null
 			? CreateEcsUnitEntityWithMeta(id, name, hp, damage, range, armor, speed, pos, owner, regMeta, hasShields, hasWeapons)
-			: GameContext.UnitSpawnService.CreateEcsUnitEntity(id, name, hp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, owner, owner.Value, hasShields, hasWeapons, null, 0f, 0f, 0f, 0f, 0f, "unarmored", 0f, 0f, 0f, "normal", 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
+			: GameContext.UnitSpawnService.CreateEcsUnitEntity(id, name, hp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, owner, owner.Value, hasShields, hasWeapons, null, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, "physical", 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
 
 		if (regMeta != null) ApplyUnitAttributes(entity, regMeta);
 
@@ -3156,9 +3156,9 @@ public partial class GameHost : Node3D, IGameAPI
 			meta.AttackCooldown > 0 ? meta.AttackCooldown : 1.5f, GetUnitPathingFlags(meta), pos, owner,
 			owner.Value, hasShields, hasWeapons, meta.Targets,
 			meta.HpRegen, meta.HpRegenCombatDelay, meta.MaxMana, meta.ManaRegen,
-			meta.RatedArmor, !string.IsNullOrEmpty(meta.ArmorType) ? meta.ArmorType : "unarmored",
+			meta.MagicResistance,
 			meta.FlatArmorPenetration, meta.PercentArmorPenetration, meta.DamageVariance,
-			!string.IsNullOrEmpty(meta.DamageType) ? meta.DamageType : (!string.IsNullOrEmpty(meta.AttackType) ? meta.AttackType : "normal"),
+			string.IsNullOrEmpty(meta.DamageType) ? "physical" : meta.DamageType,
 			meta.CritChance, meta.CritMultiplier > 0f ? meta.CritMultiplier : 1f,
 			meta.SplashType, meta.SplashInnerRadius, meta.SplashMediumRadius, meta.SplashOuterRadius,
 			meta.SplashInnerRatio, meta.SplashMediumRatio, meta.SplashOuterRatio, meta.FriendlyFire,

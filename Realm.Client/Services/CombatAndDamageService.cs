@@ -870,23 +870,45 @@ namespace Realm.Client.Services
 
 		private float ResolveAttackDamage(Entity entity, Entity target, ref Attack atk, out float finalDamage)
 		{
-			var armorComp = GameContext.World.Has<Armor>(target) ? GameContext.World.Get<Armor>(target) : new Armor(0f);
-			float baseDamage = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(entity, new StatId("Attack")) : 0f;
+			var resistances = GameContext.World.Has<Resistances>(target) ? GameContext.World.Get<Resistances>(target) : default;
+			float baseDamage = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(entity, new StatId(StatKeys.Attack)) : 0f;
 			if (baseDamage <= 0) baseDamage = atk.Damage;
 
-			float flatArmor = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(target, new StatId("Armor")) : 0f;
-			if (flatArmor <= 0) flatArmor = armorComp.FlatArmor;
-
+			bool magic = DamageTypes.IsMagic(atk.DamageType);
 			var damageResult = CombatResolver.ResolveDamage(
 				baseDamage: baseDamage, damageVariance: atk.DamageVariance,
 				critChance: atk.CritChance, critMultiplier: atk.CritMultiplier,
-				flatArmor: flatArmor, ratedArmor: armorComp.RatedArmor,
-				flatArmorPen: atk.FlatArmorPenetration, percentArmorPen: atk.PercentArmorPenetration,
-				damageType: atk.DamageType, armorType: armorComp.ArmorType, config: Config
+				physicalResistance: resistances.Physical, magicResistance: resistances.Magic,
+				flatPenetration: ReadPenetration(entity, magic, atk.FlatArmorPenetration),
+				percentPenetration: ReadPenetrationPercent(entity, magic, atk.PercentArmorPenetration),
+				damageType: atk.DamageType, config: Config
 			);
 
 			finalDamage = damageResult.FinalDamage;
 			return baseDamage;
+		}
+
+		/// <summary>
+		///     The flat penetration that matches the hit's damage type, read from the stat snapshot so
+		///     items and buffs are honoured. The attack component's authored value is the fallback for
+		///     an entity whose stats have never been recalculated.
+		/// </summary>
+		private static float ReadPenetration(Entity entity, bool magic, float authored)
+		{
+			string key = magic ? StatKeys.FlatMagicPenetration : StatKeys.FlatArmorPenetration;
+			return ReadPenetrationStat(entity, key, magic ? 0f : authored);
+		}
+
+		private static float ReadPenetrationPercent(Entity entity, bool magic, float authored)
+		{
+			string key = magic ? StatKeys.PercentMagicPenetration : StatKeys.PercentArmorPenetration;
+			return ReadPenetrationStat(entity, key, magic ? 0f : authored);
+		}
+
+		private static float ReadPenetrationStat(Entity entity, string statKey, float fallback)
+		{
+			float value = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(entity, new StatId(statKey)) : 0f;
+			return value > 0f ? value : fallback;
 		}
 
 		private void ApplyDamageAndEffects(Entity entity, Entity target, float damage, float baseDamage, ref Attack atk, Vector3 targetPos, Owner owner)
@@ -1074,16 +1096,16 @@ namespace Realm.Client.Services
 
 		private void ApplySplashDamage(Entity attacker, Entity splashEnt, float splashRatio, float baseDamage, ref Attack atk, ref Health sHp)
 		{
-			var sArmorComp = GameContext.World.Has<Armor>(splashEnt) ? GameContext.World.Get<Armor>(splashEnt) : new Armor(0f);
-			float sFlatArmor = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(splashEnt, new StatId("Armor")) : 0f;
-			if (sFlatArmor <= 0) sFlatArmor = sArmorComp.FlatArmor;
+			var sResistances = GameContext.World.Has<Resistances>(splashEnt) ? GameContext.World.Get<Resistances>(splashEnt) : default;
 
+			bool sMagic = DamageTypes.IsMagic(atk.DamageType);
 			var sResult = CombatResolver.ResolveDamage(
 				baseDamage: baseDamage * splashRatio, damageVariance: atk.DamageVariance,
 				critChance: atk.CritChance, critMultiplier: atk.CritMultiplier,
-				flatArmor: sFlatArmor, ratedArmor: sArmorComp.RatedArmor,
-				flatArmorPen: atk.FlatArmorPenetration, percentArmorPen: atk.PercentArmorPenetration,
-				damageType: atk.DamageType, armorType: sArmorComp.ArmorType, config: Config
+				physicalResistance: sResistances.Physical, magicResistance: sResistances.Magic,
+				flatPenetration: ReadPenetration(_splashAttacker, sMagic, atk.FlatArmorPenetration),
+				percentPenetration: ReadPenetrationPercent(_splashAttacker, sMagic, atk.PercentArmorPenetration),
+				damageType: atk.DamageType, config: Config
 			);
 
 			float splashDamage = AbsorbDamage(splashEnt, sResult.FinalDamage);

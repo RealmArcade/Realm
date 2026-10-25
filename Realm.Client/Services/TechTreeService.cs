@@ -38,12 +38,12 @@ public class TechTreeService
 
 		upgrades.ShieldsUpgrade = true;
 
-		var query = QueryCache.AllArmorAndOwnerNoneDeadQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Armor arm, ref Owner owner) =>
+		var query = QueryCache.AllResistancesAndOwnerNoneDeadQuery;
+		GameContext.World.Query(in query, (Entity entity, ref Resistances resistances, ref Owner owner) =>
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
-				arm.FlatArmor += 2f;
+				resistances.Physical += 2f;
 			}
 		});
 		return true;

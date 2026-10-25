@@ -79,7 +79,7 @@ public class EcsWorld : IDisposable
 		BindComponent<Health>(ComponentIds.Health, MAX_ENTITIES);
 		BindComponent<Mana>(ComponentIds.Mana, MAX_ENTITIES);
 		BindComponent<Attack>(ComponentIds.Attack, MAX_ENTITIES);
-		BindComponent<Armor>(ComponentIds.Armor, MAX_ENTITIES);
+		BindComponent<Resistances>(ComponentIds.Resistances, MAX_ENTITIES);
 		BindComponent<MovementStats>(ComponentIds.MovementStats, MAX_ENTITIES);
 		BindComponent<UnitOwnerPlayer>(ComponentIds.UnitOwnerPlayer, MAX_ENTITIES);
 		BindComponent<Level>(ComponentIds.Level, MAX_ENTITIES);
@@ -787,7 +787,7 @@ public class EcsWorld : IDisposable
 				CopyBufferToSpan<Health>(sharedDst, EcsSharedMemory.HEALTH_OFFSET, MAX_ENTITIES);
 				CopyBufferToSpan<Mana>(sharedDst, EcsSharedMemory.MANA_OFFSET, MAX_ENTITIES);
 				CopyBufferToSpan<Attack>(sharedDst, EcsSharedMemory.ATTACK_OFFSET, MAX_ENTITIES);
-				CopyBufferToSpan<Armor>(sharedDst, EcsSharedMemory.ARMOR_OFFSET, MAX_ENTITIES);
+				CopyBufferToSpan<Resistances>(sharedDst, EcsSharedMemory.ARMOR_OFFSET, MAX_ENTITIES);
 				CopyBufferToSpan<MovementStats>(sharedDst, EcsSharedMemory.MOVEMENT_STATS_OFFSET, MAX_ENTITIES);
 				CopyBufferToSpan<UnitOwnerPlayer>(sharedDst, EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET, MAX_ENTITIES);
 				CopyBufferToSpan<Level>(sharedDst, EcsSharedMemory.LEVEL_OFFSET, MAX_ENTITIES);
@@ -891,7 +891,7 @@ public class EcsWorld : IDisposable
 				RestoreComponentFromTable<Health>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Health, MAX_ENTITIES);
 				RestoreComponentFromTable<Mana>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Mana, MAX_ENTITIES);
 				RestoreComponentFromTable<Attack>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Attack, MAX_ENTITIES);
-				RestoreComponentFromTable<Armor>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Armor, MAX_ENTITIES);
+				RestoreComponentFromTable<Resistances>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Resistances, MAX_ENTITIES);
 				RestoreComponentFromTable<MovementStats>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.MovementStats, MAX_ENTITIES);
 				RestoreComponentFromTable<UnitOwnerPlayer>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.UnitOwnerPlayer, MAX_ENTITIES);
 				RestoreComponentFromTable<Level>(srcPtr, tableDir, stridesDir, baseShift, srcLen, ComponentIds.Level, MAX_ENTITIES);

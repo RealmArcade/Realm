@@ -105,12 +105,20 @@ public readonly unsafe record struct UnitId(int Value)
 	}
 
 	/// <summary>
-	/// Gets or sets the armor rating of the unit.
+	/// Gets or sets the armor points of the unit. Armor mitigates physical damage only.
 	/// </summary>
 	public float Armor
 	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Armor>(ComponentIds.Armor, Value)->FlatArmor : 0f;
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Resistances>(ComponentIds.Resistances, Value)->Physical : 0f;
 		set => GameAPI.Current.SetUnitArmor(this, value);
+	}
+
+	/// <summary>
+	/// Gets the magic resistance points of the unit. Magic resistance mitigates magic damage only.
+	/// </summary>
+	public float MagicResistance
+	{
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Resistances>(ComponentIds.Resistances, Value)->Magic : 0f;
 	}
 
 	/// <summary>

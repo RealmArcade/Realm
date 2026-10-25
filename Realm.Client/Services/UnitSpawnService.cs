@@ -159,11 +159,11 @@ public class UnitSpawnService
 				unitTypeId, name, maxHp, damage, range, armor, speed,
 				regMeta.ScanRadius > 0 ? regMeta.ScanRadius : 15.0f, regMeta.IsHero,
 				regMeta.AttackCooldown > 0 ? regMeta.AttackCooldown : 1.5f, GetUnitPathingFlags(regMeta), pos, playerOwner,
-				playerEntity, hasShieldsUpgrade, hasWeaponsUpgrade, regMeta.Targets,
+				playerEntity, hasShieldsUpgrade, hasWeaponsUpgrade,				regMeta.Targets,
 				regMeta.HpRegen, regMeta.HpRegenCombatDelay, regMeta.MaxMana, regMeta.ManaRegen,
-				regMeta.RatedArmor, !string.IsNullOrEmpty(regMeta.ArmorType) ? regMeta.ArmorType : "unarmored",
+				regMeta.MagicResistance,
 				regMeta.FlatArmorPenetration, regMeta.PercentArmorPenetration, regMeta.DamageVariance,
-				!string.IsNullOrEmpty(regMeta.DamageType) ? regMeta.DamageType : (!string.IsNullOrEmpty(regMeta.AttackType) ? regMeta.AttackType : "normal"),
+				string.IsNullOrEmpty(regMeta.DamageType) ? DamageTypes.Physical : regMeta.DamageType,
 				regMeta.CritChance, regMeta.CritMultiplier > 0f ? regMeta.CritMultiplier : 1f,
 				regMeta.SplashType, regMeta.SplashInnerRadius, regMeta.SplashMediumRadius, regMeta.SplashOuterRadius,
 				regMeta.SplashInnerRatio, regMeta.SplashMediumRatio, regMeta.SplashOuterRatio, regMeta.FriendlyFire,
@@ -193,7 +193,7 @@ public class UnitSpawnService
 		}
 		else
 		{
-			entity = CreateEcsUnitEntity(unitTypeId, name, maxHp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, playerOwner, playerEntity, hasShieldsUpgrade, hasWeaponsUpgrade, null, 0f, 0f, 0f, 0f, 0f, "unarmored", 0f, 0f, 0f, "normal", 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
+			entity = CreateEcsUnitEntity(unitTypeId, name, maxHp, damage, range, armor, speed, 15.0f, false, 1.5f, 8, pos, playerOwner, playerEntity, hasShieldsUpgrade, hasWeaponsUpgrade, null, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, DamageTypes.Physical, 0f, 1f, "None", 0f, 0f, 0f, 1f, 0.5f, 0.25f, false, 0, "Ground");
 		}
 
 		if (bypassPopulation) GameContext.World.Add(entity, new BypassPopulationTag());
@@ -205,8 +205,8 @@ public class UnitSpawnService
 	public Entity CreateEcsUnitEntity(
 		string id, string name, float hp, float damage, float range, float armor, float speed, float scanRadius, bool isHero, float attackCooldown, int pathingFlags, Vector3 pos, PlayerEntity owner, Entity playerEntity, bool hasShieldsUpgrade, bool hasWeaponsUpgrade, string[]? targets = null,
 		float hpRegen = 0f, float hpRegenCombatDelay = 0f, float maxMana = 0f, float manaRegen = 0f,
-		float ratedArmor = 0f, string armorType = "unarmored", float flatArmorPen = 0f, float percentArmorPen = 0f,
-		float damageVariance = 0f, string damageType = "normal", float critChance = 0f, float critMultiplier = 1f,
+		float magicResistance = 0f, float flatArmorPen = 0f, float percentArmorPen = 0f,
+		float damageVariance = 0f, string damageType = "physical", float critChance = 0f, float critMultiplier = 1f,
 		string splashTypeStr = "None", float splashInnerRadius = 0f, float splashMediumRadius = 0f, float splashOuterRadius = 0f,
 		float splashInnerRatio = 1f, float splashMediumRatio = 0.5f, float splashOuterRatio = 0.25f, bool friendlyFire = false,
 		int pushPriority = 0, string movementType = "Ground")
@@ -262,7 +262,7 @@ public class UnitSpawnService
 			));
 		}
 
-		GameContext.World.Add(entity, new Armor(armor, ratedArmor, string.IsNullOrEmpty(armorType) ? "unarmored" : armorType));
+		GameContext.World.Add(entity, new Resistances(armor, magicResistance));
 		GameContext.World.Add(entity, new CollisionScale(1.0f));
 		GameContext.World.Add(entity, new ScanRadius(scanRadius));
 		GameContext.World.Add(entity, new TargetIntel(scanRadius, scanRadius));
@@ -270,6 +270,7 @@ public class UnitSpawnService
 		var baseStatsDict = new Dictionary<StatId, float>
 		{
 			{ new StatId("Armor"), armor },
+			{ new StatId("MagicResistance"), magicResistance },
 			{ new StatId("Attack"), damage },
 			{ new StatId("MovementSpeed"), speed }
 		};

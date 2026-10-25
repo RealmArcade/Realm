@@ -293,9 +293,9 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 				if (actualArmor > 0f) return actualArmor;
 			}
 
-			if (_world.Has<Armor>(_entity))
+			if (_world.Has<Resistances>(_entity))
 			{
-				return _world.Get<Armor>(_entity).Value;
+				return _world.Get<Resistances>(_entity).Physical;
 			}
 
 			return 0f;
@@ -303,9 +303,10 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
-			if (_world.Has<Armor>(_entity))
+			if (_world.Has<Resistances>(_entity))
 			{
-				_world.Set(_entity, new Armor(value));
+				ref var resistances = ref _world.Get<Resistances>(_entity);
+				_world.Set(_entity, new Resistances(value, resistances.Magic));
 			}
 
 			if (_world.Has<Stats>(_entity))

@@ -280,34 +280,34 @@ public class AttackNumbersCodec : IReplicatedComponentCodec
 	}
 }
 
-public class ArmorNumbersCodec : IReplicatedComponentCodec
+public class ResistanceNumbersCodec : IReplicatedComponentCodec
 {
-	public int ComponentTypeId => ComponentType<Armor>.Id;
-	public string ComponentName => nameof(Armor);
+	public int ComponentTypeId => ComponentType<Resistances>.Id;
+	public string ComponentName => nameof(Resistances);
 	public ReplicatedScope Scope => ReplicatedScope.Unit;
 	public int SizeInBytes => 8;
 
 	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
 	{
-		if (world == null || !world.IsAlive(entity) || !world.Has<Armor>(entity)) return false;
-		ref var armor = ref world.Get<Armor>(entity);
-		BitConverter.TryWriteBytes(destination.Slice(0, 4), armor.FlatArmor);
-		BitConverter.TryWriteBytes(destination.Slice(4, 4), armor.RatedArmor);
+		if (world == null || !world.IsAlive(entity) || !world.Has<Resistances>(entity)) return false;
+		ref var resistances = ref world.Get<Resistances>(entity);
+		BitConverter.TryWriteBytes(destination.Slice(0, 4), resistances.Physical);
+		BitConverter.TryWriteBytes(destination.Slice(4, 4), resistances.Magic);
 		return true;
 	}
 
 	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
 	{
-		if (world == null || !world.IsAlive(entity) || !world.Has<Armor>(entity)) return;
-		ref var armor = ref world.Get<Armor>(entity);
-		armor.FlatArmor = BitConverter.ToSingle(source.Slice(0, 4));
-		armor.RatedArmor = BitConverter.ToSingle(source.Slice(4, 4));
+		if (world == null || !world.IsAlive(entity) || !world.Has<Resistances>(entity)) return;
+		ref var resistances = ref world.Get<Resistances>(entity);
+		resistances.Physical = BitConverter.ToSingle(source.Slice(0, 4));
+		resistances.Magic = BitConverter.ToSingle(source.Slice(4, 4));
 	}
 
 	public void Remove(EcsWorld world, Entity entity)
 	{
-		if (world == null || !world.IsAlive(entity) || !world.Has<Armor>(entity)) return;
-		world.Remove<Armor>(entity);
+		if (world == null || !world.IsAlive(entity) || !world.Has<Resistances>(entity)) return;
+		world.Remove<Resistances>(entity);
 	}
 }
 
@@ -589,7 +589,7 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<Level>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Experience>(ReplicatedScope.Unit));
 		Register(new AttackNumbersCodec());
-		Register(new ArmorNumbersCodec());
+		Register(new ResistanceNumbersCodec());
 		Register(new TagComponentCodec<Invulnerable>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<CommandsFrozen>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<AnimationsFrozen>(ReplicatedScope.Unit));

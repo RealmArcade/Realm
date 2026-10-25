@@ -11,17 +11,11 @@ namespace Realm.Shared.Metadata;
 /// </summary>
 public class CombatTuningMetadata
 {
-	/// <summary>
-	///     Damage-to-armor multipliers. A pair that is not listed resolves through
-	///     <see cref="UndefinedPairMultiplier" />.
-	/// </summary>
-	[JsonPropertyName("DamageMatrix")] public List<DamageMatrixEntryMetadata>? DamageMatrix { get; set; }
+	/// <summary>K in the resistance curve <c>R / (R + K)</c>. Higher is flatter. Default 16.67.</summary>
+	[JsonPropertyName("ResistTuningConstantK")] public float? ResistTuningConstantK { get; set; }
 
-	/// <summary>Multiplier used for a damage/armor pair the matrix does not define. Default 1.0.</summary>
-	[JsonPropertyName("UndefinedPairMultiplier")] public float? UndefinedPairMultiplier { get; set; }
-
-	/// <summary>K in the asymptotic rated-armor mitigation curve. Higher is flatter. Default 16.67.</summary>
-	[JsonPropertyName("ArmorTuningConstantK")] public float? ArmorTuningConstantK { get; set; }
+	/// <summary>Hard ceiling on the fraction of damage resistance can remove, as 0..1. Default 0.9.</summary>
+	[JsonPropertyName("MaxResistMitigation")] public float? MaxResistMitigation { get; set; }
 
 	/// <summary>Damage floor applied after mitigation. Default 1.</summary>
 	[JsonPropertyName("MinDamageFloor")] public float? MinDamageFloor { get; set; }
@@ -50,11 +44,12 @@ public class CombatTuningMetadata
 	[JsonPropertyName("IntelligenceSpellAmpPerPoint")] public float? IntelligenceSpellAmpPerPoint { get; set; }
 	[JsonPropertyName("IntelligenceSpellAmpExponent")] public float? IntelligenceSpellAmpExponent { get; set; }
 	[JsonPropertyName("IntelligenceManaRegenPerPoint")] public float? IntelligenceManaRegenPerPoint { get; set; }
-	[JsonPropertyName("IntelligenceMagicResistK")] public float? IntelligenceMagicResistK { get; set; }
-	[JsonPropertyName("MaxMagicResist")] public float? MaxMagicResist { get; set; }
+
+	/// <summary>Magic resistance points granted per point of Intelligence.</summary>
+	[JsonPropertyName("IntelligenceMagicResistancePerPoint")] public float? IntelligenceMagicResistancePerPoint { get; set; }
 
 	[JsonPropertyName("WisdomMagicPenetrationK")] public float? WisdomMagicPenetrationK { get; set; }
-	[JsonPropertyName("MaxMagicPenetration")] public float? MaxMagicPenetration { get; set; }
+	[JsonPropertyName("MaxPercentMagicPenetration")] public float? MaxPercentMagicPenetration { get; set; }
 	[JsonPropertyName("WisdomHealingAmpPerPoint")] public float? WisdomHealingAmpPerPoint { get; set; }
 	[JsonPropertyName("WisdomHpRegenPerPoint")] public float? WisdomHpRegenPerPoint { get; set; }
 	[JsonPropertyName("WisdomCritMultiplierPerPoint")] public float? WisdomCritMultiplierPerPoint { get; set; }
@@ -72,12 +67,4 @@ public class CombatTuningMetadata
 	[JsonPropertyName("MinAttackInterval")] public float? MinAttackInterval { get; set; }
 	[JsonPropertyName("BaseCastPoint")] public float? BaseCastPoint { get; set; }
 	[JsonPropertyName("BaseCritMultiplier")] public float? BaseCritMultiplier { get; set; }
-}
-
-/// <summary>One damage-type against armor-type multiplier.</summary>
-public class DamageMatrixEntryMetadata
-{
-	[JsonPropertyName("DamageType")] public string? DamageType { get; set; }
-	[JsonPropertyName("ArmorType")] public string? ArmorType { get; set; }
-	[JsonPropertyName("Multiplier")] public float? Multiplier { get; set; }
 }

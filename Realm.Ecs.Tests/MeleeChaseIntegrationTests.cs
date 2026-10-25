@@ -145,7 +145,7 @@ namespace Realm.Ecs.Tests
 				new Owner(owner),
 				new ScanRadius(scanRadius),
 				new Health(400, 400),
-				new Armor(5),
+				new Resistances(5),
 				new DefinitionId("adventurer"),
 				new CombatTargeting(canTargetAir, true),
 				new MovementStats(speed, 20f, 10f),
@@ -165,7 +165,7 @@ namespace Realm.Ecs.Tests
 			return _world.Create(
 				new Position(pos),
 				new Health(maxHp, maxHp),
-				new Armor(armor),
+				new Resistances(armor),
 				new Owner(owner),
 				new DefinitionId("zombie_soldier"),
 				new Attack(damage, range, 1.4f),
@@ -190,7 +190,7 @@ namespace Realm.Ecs.Tests
 				new Owner(owner),
 				new ScanRadius(scanRadius),
 				new Health(800, 800),
-				new Armor(5),
+				new Resistances(5),
 				new DefinitionId("arrow_tower"),
 				new CombatTargeting(false, true),
 				new Building(),
@@ -208,7 +208,7 @@ namespace Realm.Ecs.Tests
 			return _world.Create(
 				new Position(pos),
 				new Health(maxHp, maxHp),
-				new Armor(armor),
+				new Resistances(armor),
 				new Owner(owner),
 				new DefinitionId("zombie_warrior"),
 				new ScanRadius(0),
@@ -227,7 +227,7 @@ namespace Realm.Ecs.Tests
 			return _world.Create(
 				new Position(pos),
 				new Health(2000, 2000),
-				new Armor(5),
+				new Resistances(5),
 				new Owner(owner),
 				new DefinitionId("castle"),
 				new Building(),
@@ -246,7 +246,7 @@ namespace Realm.Ecs.Tests
 			return _world.Create(
 				new Position(pos),
 				new Health(300, 300),
-				new Armor(10),
+				new Resistances(10),
 				new Owner(owner),
 				new DefinitionId("cyber_dragon"),
 				new ScanRadius(40),

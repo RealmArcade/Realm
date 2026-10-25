@@ -101,8 +101,8 @@ public static unsafe class EcsSharedMemory
 	public static Mana* Mana => (Mana*)GetArrayBasePointer(ComponentIds.Mana);
 	/// <summary>Gets the raw pointer to the entity attack components array.</summary>
 	public static Attack* Attack => (Attack*)GetArrayBasePointer(ComponentIds.Attack);
-	/// <summary>Gets the raw pointer to the entity armor components array.</summary>
-	public static Armor* Armor => (Armor*)GetArrayBasePointer(ComponentIds.Armor);
+	/// <summary>Gets the raw pointer to the entity resistance components array.</summary>
+	public static Resistances* Resistances => (Resistances*)GetArrayBasePointer(ComponentIds.Resistances);
 	/// <summary>Gets the raw pointer to the entity movement stats components array.</summary>
 	public static MovementStats* MovementStats => (MovementStats*)GetArrayBasePointer(ComponentIds.MovementStats);
 	/// <summary>Gets the raw pointer to the unit owner player index array.</summary>
@@ -160,7 +160,7 @@ public static unsafe class EcsSharedMemory
 		RegisterComponent(ComponentIds.Health, MAX_ENTITIES * sizeof(Health), sizeof(Health));
 		RegisterComponent(ComponentIds.Mana, MAX_ENTITIES * sizeof(Mana), sizeof(Mana));
 		RegisterComponent(ComponentIds.Attack, MAX_ENTITIES * sizeof(Attack), sizeof(Attack));
-		RegisterComponent(ComponentIds.Armor, MAX_ENTITIES * sizeof(Armor), sizeof(Armor));
+		RegisterComponent(ComponentIds.Resistances, MAX_ENTITIES * sizeof(Resistances), sizeof(Resistances));
 		RegisterComponent(ComponentIds.MovementStats, MAX_ENTITIES * sizeof(MovementStats), sizeof(MovementStats));
 		RegisterComponent(ComponentIds.UnitOwnerPlayer, MAX_ENTITIES * sizeof(UnitOwnerPlayer), sizeof(UnitOwnerPlayer));
 		RegisterComponent(ComponentIds.Level, MAX_ENTITIES * sizeof(Level), sizeof(Level));

@@ -400,18 +400,6 @@
               "ProductionTime": {
                 "type": "number"
               },
-              "AttackType": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "ArmorType": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
               "Strength": {
                 "type": "number"
               },
@@ -468,7 +456,7 @@
               "ManaRegen": {
                 "type": "number"
               },
-              "RatedArmor": {
+              "MagicResistance": {
                 "type": "number"
               },
               "FlatArmorPenetration": {
@@ -2806,45 +2794,13 @@
         "null"
       ],
       "properties": {
-        "DamageMatrix": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "DamageType": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "ArmorType": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "Multiplier": {
-                "type": [
-                  "number",
-                  "null"
-                ]
-              }
-            }
-          }
-        },
-        "UndefinedPairMultiplier": {
+        "ResistTuningConstantK": {
           "type": [
             "number",
             "null"
           ]
         },
-        "ArmorTuningConstantK": {
+        "MaxResistMitigation": {
           "type": [
             "number",
             "null"
@@ -2982,13 +2938,7 @@
             "null"
           ]
         },
-        "IntelligenceMagicResistK": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "MaxMagicResist": {
+        "IntelligenceMagicResistancePerPoint": {
           "type": [
             "number",
             "null"
@@ -3000,7 +2950,7 @@
             "null"
           ]
         },
-        "MaxMagicPenetration": {
+        "MaxPercentMagicPenetration": {
           "type": [
             "number",
             "null"

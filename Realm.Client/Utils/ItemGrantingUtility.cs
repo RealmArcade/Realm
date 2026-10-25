@@ -202,7 +202,7 @@ public static class ItemGrantingUtility
 							maxRange: wMeta.Range,
 							attackInterval: wMeta.AttackCooldown > 0 ? wMeta.AttackCooldown : 1.5f,
 							projectileSpeed: wMeta.ProjectileSpeed > 0 ? wMeta.ProjectileSpeed : 20f,
-							damageType: !string.IsNullOrEmpty(wMeta.AttackType) ? wMeta.AttackType : "normal"
+							damageType: !string.IsNullOrEmpty(wMeta.AttackType) ? wMeta.AttackType : "physical"
 						));
 
 						if (world.Has<Attack>(entity))

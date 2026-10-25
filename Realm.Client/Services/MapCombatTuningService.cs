@@ -58,11 +58,10 @@ public static class MapCombatTuningService
 			IntelligenceSpellAmpPerPoint = Read(authored.IntelligenceSpellAmpPerPoint, fallback.IntelligenceSpellAmpPerPoint, "IntelligenceSpellAmpPerPoint", 0f, LargeBound),
 			IntelligenceSpellAmpExponent = Read(authored.IntelligenceSpellAmpExponent, fallback.IntelligenceSpellAmpExponent, "IntelligenceSpellAmpExponent", TinyPositive, 10f),
 			IntelligenceManaRegenPerPoint = Read(authored.IntelligenceManaRegenPerPoint, fallback.IntelligenceManaRegenPerPoint, "IntelligenceManaRegenPerPoint", 0f, LargeBound),
-			IntelligenceMagicResistK = Read(authored.IntelligenceMagicResistK, fallback.IntelligenceMagicResistK, "IntelligenceMagicResistK", TinyPositive, LargeBound),
-			MaxMagicResist = Read(authored.MaxMagicResist, fallback.MaxMagicResist, "MaxMagicResist", 0f, 1f),
+			IntelligenceMagicResistancePerPoint = Read(authored.IntelligenceMagicResistancePerPoint, fallback.IntelligenceMagicResistancePerPoint, "IntelligenceMagicResistancePerPoint", 0f, LargeBound),
 
 			WisdomMagicPenetrationK = Read(authored.WisdomMagicPenetrationK, fallback.WisdomMagicPenetrationK, "WisdomMagicPenetrationK", TinyPositive, LargeBound),
-			MaxMagicPenetration = Read(authored.MaxMagicPenetration, fallback.MaxMagicPenetration, "MaxMagicPenetration", 0f, 1f),
+			MaxPercentMagicPenetration = Read(authored.MaxPercentMagicPenetration, fallback.MaxPercentMagicPenetration, "MaxPercentMagicPenetration", 0f, 1f),
 			WisdomHealingAmpPerPoint = Read(authored.WisdomHealingAmpPerPoint, fallback.WisdomHealingAmpPerPoint, "WisdomHealingAmpPerPoint", 0f, LargeBound),
 			WisdomHpRegenPerPoint = Read(authored.WisdomHpRegenPerPoint, fallback.WisdomHpRegenPerPoint, "WisdomHpRegenPerPoint", 0f, LargeBound),
 			WisdomCritMultiplierPerPoint = Read(authored.WisdomCritMultiplierPerPoint, fallback.WisdomCritMultiplierPerPoint, "WisdomCritMultiplierPerPoint", 0f, LargeBound),
@@ -103,36 +102,12 @@ public static class MapCombatTuningService
 	private static CombatConfig BuildConfig(CombatTuningMetadata authored)
 	{
 		var defaults = new CombatConfig();
-		var config = new CombatConfig
+		return new CombatConfig
 		{
-			TuningConstantK = Read(authored.ArmorTuningConstantK, defaults.TuningConstantK, "ArmorTuningConstantK", TinyPositive, LargeBound),
-			MinDamageFloor = Read(authored.MinDamageFloor, defaults.MinDamageFloor, "MinDamageFloor", 0f, LargeBound),
-			UndefinedPairMultiplier = Read(authored.UndefinedPairMultiplier, defaults.UndefinedPairMultiplier, "UndefinedPairMultiplier", 0f, LargeBound)
+			ResistTuningConstantK = Read(authored.ResistTuningConstantK, defaults.ResistTuningConstantK, "ResistTuningConstantK", TinyPositive, LargeBound),
+			MaxResistMitigation = Read(authored.MaxResistMitigation, defaults.MaxResistMitigation, "MaxResistMitigation", 0f, 1f),
+			MinDamageFloor = Read(authored.MinDamageFloor, defaults.MinDamageFloor, "MinDamageFloor", 0f, LargeBound)
 		};
-
-		if (authored.DamageMatrix == null)
-		{
-			return config;
-		}
-
-		foreach (DamageMatrixEntryMetadata entry in authored.DamageMatrix)
-		{
-			if (string.IsNullOrWhiteSpace(entry.DamageType) || string.IsNullOrWhiteSpace(entry.ArmorType))
-			{
-				GD.PushWarning("[CombatTuning] Skipping a DamageMatrix entry with a missing DamageType or ArmorType.");
-				continue;
-			}
-
-			if (entry.Multiplier == null || !float.IsFinite(entry.Multiplier.Value) || entry.Multiplier.Value < 0f)
-			{
-				GD.PushWarning($"[CombatTuning] Skipping DamageMatrix entry {entry.DamageType} vs {entry.ArmorType}: multiplier must be a finite number >= 0.");
-				continue;
-			}
-
-			config.SetMultiplier(entry.DamageType, entry.ArmorType, entry.Multiplier.Value);
-		}
-
-		return config;
 	}
 
 	private static float Read(float? authored, float fallback, string field, float min, float max)

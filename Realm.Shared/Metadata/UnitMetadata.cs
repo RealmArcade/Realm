@@ -19,8 +19,6 @@ public class UnitMetadata
 	public float CostStone { get; set; }
 	public int PopCost { get; set; }
 	public float ProductionTime { get; set; }
-	public string? AttackType { get; set; }
-	public string? ArmorType { get; set; }
 	public float Strength { get; set; }
 	public float Agility { get; set; }
 	public float Vitality { get; set; }
@@ -33,11 +31,13 @@ public class UnitMetadata
 	public float HpRegenCombatDelay { get; set; }
 	public float MaxMana { get; set; }
 	public float ManaRegen { get; set; }
-	public float RatedArmor { get; set; }
+	/// <summary>Magic resistance points. Armor is the <see cref="Armor" /> field above.</summary>
+	public float MagicResistance { get; set; }
 	public float FlatArmorPenetration { get; set; }
 	public float PercentArmorPenetration { get; set; }
 	public float DamageVariance { get; set; }
-	public string DamageType { get; set; } = "normal";
+	/// <summary>Physical, magic or pure. Pure ignores resistances and penetration.</summary>
+	public string DamageType { get; set; } = "physical";
 	public float CritChance { get; set; }
 	public float CritMultiplier { get; set; } = 1.0f;
 	public string SplashType { get; set; } = "None";

@@ -76,7 +76,7 @@ public static class ComponentTypeRegistry
 			typeof(CombatTargeting),
 			typeof(Weapon),
 			typeof(Weapons),
-			typeof(Armor),
+			typeof(Resistances),
 			typeof(TargetIntel),
 			typeof(Ability),
 			typeof(HasAbilities),

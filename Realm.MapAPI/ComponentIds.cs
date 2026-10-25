@@ -19,8 +19,8 @@ public static class ComponentIds
 	public const int UnitOwnerPlayer = 37;
 	/// <summary>Attack component identifier.</summary>
 	public const int Attack = 43;
-	/// <summary>Armor component identifier.</summary>
-	public const int Armor = 48;
+	/// <summary>Resistances component identifier (armor points and magic resistance points).</summary>
+	public const int Resistances = 48;
 	/// <summary>Movement stats component identifier.</summary>
 	public const int MovementStats = 57;
 	/// <summary>Player resources component identifier.</summary>

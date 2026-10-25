@@ -219,8 +219,8 @@
         <member name="F:Realm.MapAPI.ComponentIds.Attack">
             <summary>Attack component identifier.</summary>
         </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Armor">
-            <summary>Armor component identifier.</summary>
+        <member name="F:Realm.MapAPI.ComponentIds.Resistances">
+            <summary>Resistances component identifier (armor points and magic resistance points).</summary>
         </member>
         <member name="F:Realm.MapAPI.ComponentIds.MovementStats">
             <summary>Movement stats component identifier.</summary>
@@ -804,8 +804,8 @@
         <member name="P:Realm.MapAPI.EcsSharedMemory.Attack">
             <summary>Gets the raw pointer to the entity attack components array.</summary>
         </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.Armor">
-            <summary>Gets the raw pointer to the entity armor components array.</summary>
+        <member name="P:Realm.MapAPI.EcsSharedMemory.Resistances">
+            <summary>Gets the raw pointer to the entity resistance components array.</summary>
         </member>
         <member name="P:Realm.MapAPI.EcsSharedMemory.MovementStats">
             <summary>Gets the raw pointer to the entity movement stats components array.</summary>
@@ -4886,7 +4886,12 @@
         </member>
         <member name="P:Realm.MapAPI.UnitId.Armor">
             <summary>
-            Gets or sets the armor rating of the unit.
+            Gets or sets the armor points of the unit. Armor mitigates physical damage only.
+            </summary>
+        </member>
+        <member name="P:Realm.MapAPI.UnitId.MagicResistance">
+            <summary>
+            Gets the magic resistance points of the unit. Magic resistance mitigates magic damage only.
             </summary>
         </member>
         <member name="P:Realm.MapAPI.UnitId.Speed">
@@ -5395,28 +5400,29 @@
         <member name="P:Realm.MapAPI.Components.Attack.DamageType">
             <summary>Gets or sets the damage category name.</summary>
         </member>
-        <member name="T:Realm.MapAPI.Components.Armor">
+        <member name="T:Realm.MapAPI.Components.Resistances">
             <summary>
-            Defines flat and rated armor mitigation values and armor category for an entity.
+                The two damage resistances, in points. Armor resists physical damage, magic resistance
+                resists magic damage, and neither resists pure damage.
+                They are stored as points rather than as a finished percentage so a percentage bonus is
+                applied exactly once, by the stat pipeline, and can never compound with itself: the
+                fraction a hit loses is only computed from the final points, in the resolver.
             </summary>
         </member>
-        <member name="F:Realm.MapAPI.Components.Armor.FlatArmor">
-            <summary>Flat armor value directly mitigating damage.</summary>
+        <member name="F:Realm.MapAPI.Components.Resistances.Physical">
+            <summary>Points of physical damage resistance.</summary>
         </member>
-        <member name="F:Realm.MapAPI.Components.Armor.RatedArmor">
-            <summary>Rated armor value providing percentage-based diminishing return damage mitigation.</summary>
+        <member name="F:Realm.MapAPI.Components.Resistances.Magic">
+            <summary>Points of magic damage resistance.</summary>
         </member>
-        <member name="F:Realm.MapAPI.Components.Armor.StringId">
-            <summary>String registry identifier for the armor category.</summary>
+        <member name="M:Realm.MapAPI.Components.Resistances.#ctor(System.Single,System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Resistances"/> struct.</summary>
         </member>
-        <member name="M:Realm.MapAPI.Components.Armor.#ctor(System.Single,System.Single,System.String)">
-            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Armor"/> struct.</summary>
+        <member name="P:Realm.MapAPI.Components.Resistances.Armor">
+            <summary>Gets the armor points (alias for Physical).</summary>
         </member>
-        <member name="P:Realm.MapAPI.Components.Armor.Value">
-            <summary>Gets the effective flat armor rating (alias for FlatArmor).</summary>
-        </member>
-        <member name="P:Realm.MapAPI.Components.Armor.ArmorType">
-            <summary>Gets or sets the armor category name.</summary>
+        <member name="P:Realm.MapAPI.Components.Resistances.MagicResistance">
+            <summary>Gets the magic resistance points (alias for Magic).</summary>
         </member>
         <member name="T:Realm.MapAPI.Components.Position">
             <summary>

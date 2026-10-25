@@ -40,7 +40,7 @@ public static class QueryCache
 	public static readonly QueryDescription AllReplayStateQuery = new QueryDescription().WithAll<ReplayState>();
 	public static readonly QueryDescription AllNetworkStateQuery = new QueryDescription().WithAll<NetworkState>();
 	public static readonly QueryDescription AllAttackAndOwnerNoneDeadAndBuildingQuery = new QueryDescription().WithAll<Attack, Owner>().WithNone<Dead, Building>();
-	public static readonly QueryDescription AllArmorAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Armor, Owner>().WithNone<Dead>();
+	public static readonly QueryDescription AllResistancesAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Resistances, Owner>().WithNone<Dead>();
 	public static readonly QueryDescription AllInputStateQuery = new QueryDescription().WithAll<InputState>();
 	public static readonly QueryDescription AllBuildingAndOwnerAndPositionNoneDeadQuery = new QueryDescription().WithAll<Building, Owner, Position>().WithNone<Dead>();
 	public static readonly QueryDescription AllOwnerAndMovableNoneDeadAndBuildingQuery = new QueryDescription().WithAll<Owner, Movable>().WithNone<Dead, Building>();
