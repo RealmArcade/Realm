@@ -9,7 +9,11 @@ public class WeaponMetadata
 	public float Damage { get; set; }
 	public float Range { get; set; }
 	public float AttackCooldown { get; set; }
+	/// <summary>How the weapon reaches its target: melee or ranged. Not a damage type.</summary>
 	public string? AttackType { get; set; }
+
+	/// <summary>Physical, magic or pure. Defaults to physical.</summary>
+	public string DamageType { get; set; } = "physical";
 	public float ProjectileSpeed { get; set; }
 	public string? VisualEffect { get; set; }
 	public string? AttackSound { get; set; }
