@@ -425,6 +425,9 @@ public class RegistryService
 	public Dictionary<(int UnitUniqueId, string AbilityId), float> UnitAbilityManaCosts { get; set; } = new();
 	public Dictionary<string, string> ItemTooltips { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+	/// <summary>Values the map publishes for its own tooltips, keyed by ability, item, upgrade or unit.</summary>
+	public TooltipValueStore TooltipValues { get; } = new();
+
 	public bool CheckPropRegistryForMatch(string id, string cleanId, string normTarget, Func<string, string, bool> isMatch)
 	{
 		if (PropRegistry.TryGetValue(id, out var meta) && isMatch(meta.ModelPath, normTarget)) return true;
@@ -616,7 +619,7 @@ public class RegistryService
 
 		var def = GetOrCreateAbilityDefinition(abilityId);
 		def.DisplayName = displayName ?? "";
-		def.Tooltip = tooltip ?? "";
+		def.TooltipTemplate = tooltip ?? "";
 		if (!string.IsNullOrEmpty(iconPath)) def.IconPath = iconPath;
 		def.IsInstant = isInstant;
 
@@ -725,7 +728,7 @@ public class RegistryService
 		if (string.IsNullOrEmpty(abilityId)) return;
 
 		var def = GetOrCreateAbilityDefinition(abilityId);
-		def.Tooltip = tooltip ?? "";
+		def.TooltipTemplate = tooltip ?? "";
 	}
 
 	public AbilityDefinition GetAbilityDefinition(string abilityId)
@@ -812,7 +815,7 @@ public class RegistryService
 			{
 				Id = meta.TemplateID,
 				DisplayName = meta.Name ?? "",
-				Tooltip = BuildAbilityTooltip(meta),
+				TooltipTemplate = BuildAbilityTooltip(meta),
 				IconPath = meta.IconPath ?? "",
 				IsInstant = string.Equals(meta.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase),
 				AutoCastEnabled = meta.AutoCast?.Enabled ?? true,
@@ -1137,5 +1140,6 @@ public class RegistryService
 		UnitAbilityStates.Clear();
 		UnitAbilityManaCosts.Clear();
 		ItemTooltips.Clear();
+		TooltipValues.Clear();
 	}
 }

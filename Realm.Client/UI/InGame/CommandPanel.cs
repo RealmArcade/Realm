@@ -138,7 +138,7 @@ public partial class CommandPanel
 		var def = GameContext.Host?.GetAbilityDefinition(item.AbilityId);
 		if (def == null) return;
 
-		string transTooltip = !string.IsNullOrEmpty(def.Tooltip) ? def.Tooltip : "";
+		string transTooltip = !string.IsNullOrEmpty(def.TooltipTemplate) ? def.TooltipTemplate : "";
 		if (!string.IsNullOrEmpty(transTooltip) && btn.TooltipText != transTooltip)
 		{
 			btn.TooltipText = transTooltip;
@@ -599,6 +599,7 @@ public partial class CommandPanel
 	private Button CreateButtonForItem(CommandCardItem item)
 	{
 		var btn = new CommandCardButton();
+		btn.TooltipContext = item.TooltipContext;
 		SetupBaseButtonProperties(btn, item);
 		AddHotkeyLabelIfNeeded(btn, item);
 		SetButtonStyles(btn);
@@ -1005,13 +1006,16 @@ public partial class CommandPanel
 			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.webp";
 
 			string costStr = costGold > 0f ? $" (Cost: {costGold:F0} Gold)" : "";
+			string statBlock = TooltipStatBlock.ForItem(itemMeta);
 			string tooltip = $"Buy {itemName}{costStr} — {itemDesc}";
+			if (statBlock.Length > 0) tooltip += "\n" + statBlock;
 
 			items.Add(new CommandCardItem
 			{
 				Id = "buy_" + itemId,
 				IconPath = iconPath,
 				Tooltip = tooltip,
+				TooltipContext = TooltipContext.ForItem(focusedUnit.Entity, itemId),
 				Hotkey = Key.None,
 				Callback = () =>
 				{
@@ -1072,9 +1076,11 @@ public partial class CommandPanel
 			}
 
 			string hotkeyPrefix = !hotkey.IsNone ? $"[{hotkey}] " : "";
+			string statBlock = TooltipStatBlock.ForUpgrade(upgMeta);
 			string tooltip = !string.IsNullOrEmpty(desc)
 				? $"{hotkeyPrefix}Upgrade {name}{costStr}\n{desc}"
 				: $"{hotkeyPrefix}Upgrade {name}{costStr}";
+			if (statBlock.Length > 0) tooltip += "\n" + statBlock;
 
 			string canonicalId = upgMeta != null && !string.IsNullOrEmpty(upgMeta.TemplateID) ? upgMeta.TemplateID : upgradeId;
 
@@ -1112,6 +1118,7 @@ public partial class CommandPanel
 				Id = "upgrade_" + upgradeId,
 				IconPath = iconPath,
 				Tooltip = tooltip,
+				TooltipContext = TooltipContext.ForUpgrade(focusedUnit.Entity, upgradeId),
 				Hotkey = hotkey,
 				Callback = () => GameContext.Host?.BuyUpgrade(upgradeId, localViewingIndex),
 				IsDisabled = () => isMaxed() || cannotAfford(),
@@ -1135,9 +1142,9 @@ public partial class CommandPanel
 		}
 
 		string finalTooltip;
-		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.Tooltip))
+		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate))
 		{
-			finalTooltip = abilityDef.Tooltip;
+			finalTooltip = abilityDef.TooltipTemplate;
 		}
 		else
 		{
@@ -1153,6 +1160,7 @@ public partial class CommandPanel
 			Id = "build_" + unitId,
 			IconPath = iconPath,
 			Tooltip = finalTooltip,
+			TooltipContext = TooltipContext.ForUnit(builderEntity),
 			Hotkey = hotkey,
 			GridX = abilityDef?.GridX ?? -1,
 			GridY = abilityDef?.GridY ?? -1,
@@ -1172,6 +1180,7 @@ public partial class CommandPanel
 			Id = "train_" + unitId,
 			IconPath = GetUnitIcon(unitId),
 			Tooltip = finalTooltip,
+			TooltipContext = TooltipContext.ForUnit(Entity.Null),
 			Hotkey = hotkey,
 			Callback = () => GameContext.Host?.TrainUnitAtBuilding(unitId)
 		};
@@ -1205,6 +1214,7 @@ public partial class CommandPanel
 			ManaCost = manaCost,
 			IconPath = ResolveAbilityIcon(abilityId, abilityDef),
 			Tooltip = ResolveAbilityTooltip(abilityId, abilityDef),
+			TooltipContext = TooltipContext.ForAbility(casterEntity, abilityId),
 			Hotkey = ParseHotkey(abilityDef?.Hotkey),
 			GridX = abilityDef?.GridX ?? -1,
 			GridY = abilityDef?.GridY ?? -1,
@@ -1231,9 +1241,9 @@ public partial class CommandPanel
 
 	private string ResolveAbilityTooltip(string abilityId, AbilityDefinition abilityDef)
 	{
-		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.Tooltip))
+		if (abilityDef != null && !string.IsNullOrEmpty(abilityDef.TooltipTemplate))
 		{
-			return abilityDef.Tooltip;
+			return abilityDef.TooltipTemplate;
 		}
 
 		return GetDefaultAbilityTooltip(abilityId);

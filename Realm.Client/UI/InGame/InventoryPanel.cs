@@ -254,14 +254,18 @@ public class InventoryPanel
 			if (!string.IsNullOrEmpty(itemMeta.IconPath)) iconPath = itemMeta.IconPath;
 		}
 
+		string statBlock = TooltipStatBlock.ForItem(itemMeta, count);
 		string rawTooltip = $"{name} (Have: {count})\n{desc}";
+		if (statBlock.Length > 0) rawTooltip += "\n" + statBlock;
 		string transTooltip = TranslationServer.Translate(rawTooltip);
 
 		ref var slot = ref _slots[index];
 		slot.LastItemId = itemId;
 		slot.LastCount = count;
 		slot.ItemButton.Icon = !string.IsNullOrEmpty(iconPath) ? RtexIconLoader.Load(iconPath) : null;
-		slot.ItemButton.TooltipText = string.IsNullOrEmpty(transTooltip) ? rawTooltip : transTooltip;
+		slot.ItemButton.TooltipText = TooltipTemplate.Resolve(
+			string.IsNullOrEmpty(transTooltip) ? rawTooltip : transTooltip,
+			TooltipContext.ForUnit(_lastFocusedEntity));
 		slot.CountLabel.Text = count.ToString();
 	}
 

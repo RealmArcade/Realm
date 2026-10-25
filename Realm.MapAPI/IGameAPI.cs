@@ -1323,6 +1323,59 @@ public interface IGameAPI
 	void SetItemTooltip(string itemId, string tooltip);
 
 	/// <summary>
+	/// Publishes one number that an ability's tooltip reads as <c>{{Ability.Key}}</c>. Use this for
+	/// values the engine cannot know, such as a scripted elixir's amount and cap, and publish them
+	/// from the same fields the effect applies so the card cannot claim a different number.
+	/// Keys the engine already owns (ManaCost, Cooldown, Range, Radius, Damage, Healing) are not
+	/// overridden.
+	/// </summary>
+	/// <param name="abilityId">The ability whose card should read this value.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The number to show.</param>
+	void SetAbilityTooltipValue(string abilityId, string key, float value);
+
+	/// <summary>
+	/// Publishes one text value that an ability's tooltip reads as <c>{{Ability.Key}}</c>.
+	/// </summary>
+	/// <param name="abilityId">The ability whose card should read this value.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The text to show.</param>
+	void SetAbilityTooltipText(string abilityId, string key, string value);
+
+	/// <summary>
+	/// Publishes one number that a unit's tooltip reads as <c>{{Source.Key}}</c>, for state the
+	/// engine does not model itself — a draft slot's element, a carried item's stack count.
+	/// </summary>
+	/// <param name="unit">The unit the value describes.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The number to show.</param>
+	void SetUnitTooltipValue(UnitId unit, string key, float value);
+
+	/// <summary>
+	/// Publishes one text value that a unit's tooltip reads as <c>{{Source.Key}}</c>.
+	/// </summary>
+	/// <param name="unit">The unit the value describes.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The text to show.</param>
+	void SetUnitTooltipText(UnitId unit, string key, string value);
+
+	/// <summary>
+	/// Publishes one number that an item's tooltip reads as <c>{{Item.Key}}</c>.
+	/// </summary>
+	/// <param name="itemId">The item whose card should read this value.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The number to show.</param>
+	void SetItemTooltipValue(string itemId, string key, float value);
+
+	/// <summary>
+	/// Publishes one number that an upgrade's tooltip reads as <c>{{Upgrade.Key}}</c>.
+	/// </summary>
+	/// <param name="upgradeId">The upgrade whose card should read this value.</param>
+	/// <param name="key">Property name, matched without regard to case.</param>
+	/// <param name="value">The number to show.</param>
+	void SetUpgradeTooltipValue(string upgradeId, string key, float value);
+
+	/// <summary>
 	/// Configures the grid position (X, Y) of an ability in the command card interface.
 	/// </summary>
 	void SetAbilityGridPosition(string abilityId, int x, int y);

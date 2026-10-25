@@ -13,7 +13,8 @@ public class AbilityDefinition
 
 	public string Id { get; set; } = "";
 	public string DisplayName { get; set; } = "";
-	public string Tooltip { get; set; } = "";
+	/// <summary>Authored card text. May contain {{Scope.Key}} tokens, resolved when shown.</summary>
+	public string TooltipTemplate { get; set; } = "";
 	public string IconPath { get; set; } = "";
 	public bool IsInstant { get; set; }
 	public string Hotkey { get; set; } = "";

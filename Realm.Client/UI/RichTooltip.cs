@@ -24,6 +24,11 @@ public partial class RichTooltip : PanelContainer
 	[GeneratedRegex(@"</i>", RegexOptions.IgnoreCase)]
 	private static partial Regex ItalicCloseRegex();
 
+	public static Control Create(string text, in TooltipContext context)
+	{
+		return Create(TooltipTemplate.Resolve(text, context));
+	}
+
 	public static Control Create(string text)
 	{
 		var panel = new RichTooltip();

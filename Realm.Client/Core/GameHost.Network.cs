@@ -605,7 +605,7 @@ public partial class GameHost
 	{
 		foreach (var kvp in GameContext.RegistryService.AbilityDefinitions)
 		{
-			RpcId(newPeerId, nameof(ClientRegisterAbility), kvp.Key, kvp.Value.DisplayName, kvp.Value.Tooltip, kvp.Value.IconPath ?? "", kvp.Value.IsInstant);
+			RpcId(newPeerId, nameof(ClientRegisterAbility), kvp.Key, kvp.Value.DisplayName, kvp.Value.TooltipTemplate, kvp.Value.IconPath ?? "", kvp.Value.IsInstant);
 		}
 	}
 

@@ -1,5 +1,6 @@
 using System;
 using Realm.Client.Core;
+using Realm.Client.UI;
 using Realm.Ecs;
 
 namespace Realm.Client.UI.InGame;
@@ -8,7 +9,9 @@ public class CommandCardItem
 {
 	public string Id { get; set; }
 	public string IconPath { get; set; }
+	/// <summary>May contain <c>{{Scope.Key}}</c> tokens; resolved when the tooltip is shown.</summary>
 	public string Tooltip { get; set; }
+	public TooltipContext TooltipContext { get; set; }
 	public Action Callback { get; set; }
 	public HotkeySpec Hotkey { get; set; }
 	public Func<bool> IsDisabled { get; set; }

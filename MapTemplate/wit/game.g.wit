@@ -150,10 +150,13 @@ interface game-api {
     set-ability-mana-cost: func(unit-id: s32, ability-id: string, mana-cost: f32);
     set-ability-state: func(unit-id: s32, ability-id: string, disabled: bool, hidden: bool);
     set-ability-tooltip: func(ability-id: string, tooltip: string);
+    set-ability-tooltip-text: func(ability-id: string, key: string, value: string);
+    set-ability-tooltip-value: func(ability-id: string, key: string, value: f32);
     set-countdown-timer-label: func(label: string);
     set-day-night-cycle-enabled: func(enabled: bool);
     set-environment-preset: func(preset-id: string);
     set-item-tooltip: func(item-id: string, tooltip: string);
+    set-item-tooltip-value: func(item-id: string, key: string, value: f32);
     set-leaderboard-board: func(board-id: string, title: string, visible: bool);
     set-leaderboard-board-group: func(board-id: string, group-player-index: s32, group-title: string);
     set-leaderboard-value: func(label: string, value: string);
@@ -208,6 +211,9 @@ interface game-api {
     set-unit-scale: func(unit-id: s32, value: f32);
     set-unit-speed: func(unit-id: s32, value: f32);
     set-unit-spell-immune: func(unit-id: s32, immune: bool);
+    set-unit-tooltip-text: func(unit-id: s32, key: string, value: string);
+    set-unit-tooltip-value: func(unit-id: s32, key: string, value: f32);
+    set-upgrade-tooltip-value: func(upgrade-id: string, key: string, value: f32);
     set-weather: func(weather-type: string);
     shake-camera: func(intensity: f32, duration: f32);
     shake-player-camera: func(player-index: s32, intensity: f32, duration: f32);

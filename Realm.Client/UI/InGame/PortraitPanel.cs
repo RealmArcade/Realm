@@ -356,7 +356,7 @@ public class PortraitPanel
 		statsText += $"\n{info.StateText}";
 		if (!string.IsNullOrEmpty(info.Description))
 		{
-			statsText += $"\n\n{TranslationServer.Translate(info.Description)}";
+			statsText += $"\n\n{TooltipTemplate.Resolve(TranslationServer.Translate(info.Description), TooltipContext.ForUnit(info.Entity))}";
 		}
 
 		_statsLabel.Text = statsText;

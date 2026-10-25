@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Ecs;
@@ -111,6 +111,48 @@ public partial class GameHost
 	void IGameAPI.SetAbilityTooltip(string abilityId, string tooltip)
 	{
 		GameContext.RegistryService.SetAbilityTooltip(abilityId, tooltip);
+	}
+
+	void IGameAPI.SetAbilityTooltipValue(string abilityId, string key, float value)
+	{
+		if (string.IsNullOrEmpty(abilityId)) return;
+		GameContext.RegistryService.TooltipValues.SetNumber(
+			Realm.Client.Services.TooltipValueStore.OwnerKey("ability", abilityId), key, value);
+	}
+
+	void IGameAPI.SetAbilityTooltipText(string abilityId, string key, string value)
+	{
+		if (string.IsNullOrEmpty(abilityId)) return;
+		GameContext.RegistryService.TooltipValues.SetText(
+			Realm.Client.Services.TooltipValueStore.OwnerKey("ability", abilityId), key, value);
+	}
+
+	void IGameAPI.SetUnitTooltipValue(UnitId unit, string key, float value)
+	{
+		if (!unit.IsValid) return;
+		GameContext.RegistryService.TooltipValues.SetNumber(
+			Realm.Client.Services.TooltipValueStore.OwnerKey("unit", unit.Value), key, value);
+	}
+
+	void IGameAPI.SetUnitTooltipText(UnitId unit, string key, string value)
+	{
+		if (!unit.IsValid) return;
+		GameContext.RegistryService.TooltipValues.SetText(
+			Realm.Client.Services.TooltipValueStore.OwnerKey("unit", unit.Value), key, value);
+	}
+
+	void IGameAPI.SetItemTooltipValue(string itemId, string key, float value)
+	{
+		if (string.IsNullOrEmpty(itemId)) return;
+		GameContext.RegistryService.TooltipValues.SetNumber(
+			Realm.Client.Services.TooltipValueStore.OwnerKey("item", itemId), key, value);
+	}
+
+	void IGameAPI.SetUpgradeTooltipValue(string upgradeId, string key, float value)
+	{
+		if (string.IsNullOrEmpty(upgradeId)) return;
+		GameContext.RegistryService.TooltipValues.SetNumber(
+			Realm.Client.Services.TooltipValueStore.OwnerKey("upgrade", upgradeId), key, value);
 	}
 
 	void IGameAPI.SetAbilityGridPosition(string abilityId, int x, int y)
