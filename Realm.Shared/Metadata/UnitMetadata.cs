@@ -27,6 +27,8 @@ public class UnitMetadata
 	public float Intelligence { get; set; }
 	public float Wisdom { get; set; }
 	public float Fortune { get; set; }
+	/// <summary>Attribute gain per level. Level 1 is the authored base above.</summary>
+	public LevelGrowthMetadata? LevelGrowth { get; set; }
 	public float HpRegen { get; set; }
 	public float HpRegenCombatDelay { get; set; }
 	public float MaxMana { get; set; }

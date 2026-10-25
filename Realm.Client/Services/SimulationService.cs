@@ -1677,10 +1677,31 @@ public class SimulationService
 
 	public void SetUnitLevel(UnitId unit, int level)
 	{
-		if (TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-		{
-			GameContext.World.SetOrAdd(entity, new Level(level));
-		}
+		if (!TryGetEntity(unit, out var entity) || !GameContext.World.IsAlive(entity)) return;
+
+		level = Math.Max(1, level);
+		GameContext.World.SetOrAdd(entity, new Level(level));
+
+		LevelService.Apply(GameContext.World, entity, level, ResolveLevelGrowth(entity));
+	}
+
+	private static LevelGrowth ResolveLevelGrowth(Entity entity)
+	{
+		if (!GameContext.World.Has<DefinitionId>(entity)) return LevelGrowth.None;
+
+		string definitionId = GameContext.World.Get<DefinitionId>(entity).Value;
+		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(definitionId, out var metadata)) return LevelGrowth.None;
+
+		var growth = metadata.LevelGrowth;
+		if (growth == null) return LevelGrowth.None;
+
+		return new LevelGrowth(
+			growth.StrengthPerLevel,
+			growth.AgilityPerLevel,
+			growth.VitalityPerLevel,
+			growth.IntelligencePerLevel,
+			growth.WisdomPerLevel,
+			growth.FortunePerLevel);
 	}
 
 	public void IssueAttackMoveOrderToPlayer(Vector3 destination, ReadOnlySpan<UnitId> units)
