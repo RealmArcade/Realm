@@ -169,6 +169,7 @@ namespace Realm.Client.Services
 		public static NavMeshPathfinder NavMeshPathfinder => ScreenScope.Get<NavMeshPathfinder>();
 		public static ResourceEconomyService ResourceEconomyService => ScreenScope.Get<ResourceEconomyService>();
 		public static SimulationService SimulationService => ScreenScope.Get<SimulationService>();
+		public static ConsumableService ConsumableService => ScreenScope.Get<ConsumableService>();
 		public static MovementPredictionService MovementPredictionService => ScreenScope.Get<MovementPredictionService>();
 		public static PredictionPerformanceMonitor PredictionPerformanceMonitor => ScreenScope.Get<PredictionPerformanceMonitor>();
 		public static ClientRpcService ClientRPC => ScreenScope.Get<ClientRpcService>();

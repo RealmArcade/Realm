@@ -138,6 +138,25 @@ public interface IGameAPI
 	event Action<UnitId>? OnUnitSelected;
 
 	/// <summary>
+	/// Triggered after a consumable is bound to a unit or purged from one. The engine sells the
+	/// purchase; this event is where the map switches on the behaviour the consumable grants.
+	/// </summary>
+	/// <param name="unit">The unit that now carries the consumable, or just lost it.</param>
+	/// <param name="consumableId">The attached consumable's template id, or empty when the slot was cleared.</param>
+	event Action<UnitId, string>? OnConsumableChanged;
+
+	/// <summary>
+	/// Retrieves the consumable attached to a unit in the given slot group.
+	/// </summary>
+	/// <param name="unit">The unit to inspect.</param>
+	/// <param name="slotGroup">The authored slot group, for example "elixir".</param>
+	/// <returns>The consumable's template id, or an empty string when the unit carries none.</returns>
+	string GetUnitConsumable(UnitId unit, string slotGroup)
+	{
+		return string.Empty;
+	}
+
+	/// <summary>
 	/// Triggered when a unit attacks another unit. Passes the attacker unit and the target unit.
 	/// </summary>
 	event Action<UnitId, UnitId>? OnUnitAttacked;

@@ -133,6 +133,13 @@ public class WasmEntryPoint
         if (_gameApi is GameAPI_WasmModule api) api.TriggerOnConstructionFinished(param);
     }
 
+    [UnmanagedCallersOnly(EntryPoint = "on-consumable-changed")]
+    public static void OnConsumableChanged(int param, nint textPtr, int textLen)
+    {
+        string text = ReadString(textPtr, textLen);
+        if (_gameApi is GameAPI_WasmModule api) api.TriggerOnConsumableChanged(param, text);
+    }
+
     [UnmanagedCallersOnly(EntryPoint = "on-item-sold")]
     public static void OnItemSold(int param, nint textPtr, int textLen)
     {

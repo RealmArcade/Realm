@@ -148,18 +148,6 @@
             "null"
           ]
         },
-        "HowToPlayInstructions": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
         "HowToPlayObjective": {
           "type": [
             "string",

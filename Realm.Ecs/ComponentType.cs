@@ -37,6 +37,7 @@ public static class ComponentTypeRegistry
 			typeof(CollisionScale),
 			typeof(Cooldowns),
 			typeof(SpellCooldowns),
+			typeof(ConsumableAttachment),
 			typeof(DefinitionId),
 			typeof(CustomMetadata),
 			typeof(CombatAlertState),

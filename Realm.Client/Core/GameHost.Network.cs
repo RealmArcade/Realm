@@ -236,6 +236,8 @@ public partial class GameHost
 		var caster = GetSpellCaster(cmd);
 		var casterEnt = GameContext.SimulationService.TryGetEntity(caster, out var ce) ? ce : Entity.Null;
 
+		if (ExecuteConsumablePurchase(caster, spellId, position)) return;
+
 		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
 
 		ApplySpellEffect(spellId, position, casterEnt);

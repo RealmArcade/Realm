@@ -21,7 +21,7 @@ public partial class ReplicationContractTests
 		"NetworkMappingState", "NetworkState", "OccupiedZones",
 		"PropIdentity", "PropSpawnRequest",
 		"ReplayState", "ScriptPlayer", "SpectatorPerspective",
-		"TowerUpgradeLevel", "UnitOwnerPlayer", "UnitSpawnRequest",
+		"TowerUpgradeLevel", "UnitOwnerPlayer", "UnitSpawnRequest", "ConsumableAttachment",
 		"VFXQueue", "VFXRequest", "ZoneBounds",
 		"Weapon", "Weapons",
 		"TargetIntel", "Ability", "HasAbilities",

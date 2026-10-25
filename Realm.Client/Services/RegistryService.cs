@@ -313,8 +313,42 @@ public class RegistryService
 	public readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
 	public readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
 	public readonly Dictionary<StringName, Realm.Shared.Metadata.UpgradeMetadata> UpgradeRegistry = new();
+	public readonly Dictionary<StringName, Realm.Shared.Metadata.ConsumableMetadata> ConsumableRegistry = new();
+	private readonly Dictionary<string, Realm.Shared.Metadata.ConsumableMetadata> _consumableByCard = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<string, VfxAttachmentConfig> VfxRegistry { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<string, AbilityDefinition> AbilityDefinitions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+	public void RegisterConsumable(Realm.Shared.Metadata.ConsumableMetadata consumable)
+	{
+		if (consumable == null || string.IsNullOrWhiteSpace(consumable.TemplateID)) return;
+
+		ConsumableRegistry[(StringName)consumable.TemplateID] = consumable;
+		if (consumable.TemplateID.StartsWith("consumable/", StringComparison.OrdinalIgnoreCase))
+		{
+			ConsumableRegistry[(StringName)consumable.TemplateID.Substring(11)] = consumable;
+		}
+
+		_consumableByCard[consumable.CardId] = consumable;
+		if (consumable.CardId.StartsWith("ability/", StringComparison.OrdinalIgnoreCase))
+		{
+			_consumableByCard[consumable.CardId.Substring(8)] = consumable;
+		}
+	}
+
+	public Realm.Shared.Metadata.ConsumableMetadata? GetConsumable(string consumableId)
+	{
+		if (string.IsNullOrWhiteSpace(consumableId)) return null;
+		return ConsumableRegistry.TryGetValue((StringName)consumableId, out var consumable) ? consumable : null;
+	}
+
+	public Realm.Shared.Metadata.ConsumableMetadata? GetConsumableForCard(string abilityId)
+	{
+		if (string.IsNullOrWhiteSpace(abilityId)) return null;
+		if (_consumableByCard.TryGetValue(abilityId, out var consumable)) return consumable;
+
+		int slash = abilityId.LastIndexOf('/');
+		return slash >= 0 && _consumableByCard.TryGetValue(abilityId[(slash + 1)..], out consumable) ? consumable : null;
+	}
 
 	public void RegisterVfxConfig(string vfxId, VfxAttachmentConfig config)
 	{
@@ -1135,6 +1169,8 @@ public class RegistryService
 		AttachmentRegistry.Clear();
 		ItemRegistry.Clear();
 		UpgradeRegistry.Clear();
+		ConsumableRegistry.Clear();
+		_consumableByCard.Clear();
 		VfxRegistry.Clear();
 		AbilityDefinitions.Clear();
 		UnitAbilityStates.Clear();

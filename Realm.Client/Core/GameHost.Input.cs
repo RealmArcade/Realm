@@ -3453,6 +3453,8 @@ public partial class GameHost
 			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position);
 		}
 
+		if (ExecuteConsumablePurchase(caster, spellId, position)) return;
+
 		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
 
 		Entity casterEntity = focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity) ? focusedUnit.Entity : Entity.Null;

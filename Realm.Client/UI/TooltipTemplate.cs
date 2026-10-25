@@ -234,6 +234,8 @@ public static class TooltipTemplate
 				return TryResolveItemNumber(context.ItemId, key, out value);
 			case "upgrade":
 				return TryResolveUpgradeNumber(context.UpgradeId, key, out value);
+			case "consumable":
+				return TryResolveConsumableNumber(context.AbilityId, key, out value);
 			case "owner":
 				return TryResolveOwnerNumber(key, out value);
 			default:
@@ -257,6 +259,8 @@ public static class TooltipTemplate
 				return TryResolveItemText(context.ItemId, key, out value);
 			case "upgrade":
 				return TryResolveUpgradeText(context.UpgradeId, key, out value);
+			case "consumable":
+				return TryResolveConsumableText(context.AbilityId, key, out value);
 			default:
 				return false;
 		}
@@ -474,6 +478,49 @@ public static class TooltipTemplate
 
 		value = upgrade.Name;
 		return true;
+	}
+
+	private static bool TryResolveConsumableNumber(string? cardOrId, string key, out float value)
+	{
+		value = 0f;
+		Realm.Shared.Metadata.ConsumableMetadata? consumable = ResolveConsumable(cardOrId);
+		if (consumable == null) return false;
+
+		switch (key.ToLowerInvariant())
+		{
+			case "cost":
+			case "costgold": value = consumable.CostGold; return true;
+			case "costwood": value = consumable.CostWood; return true;
+			case "coststone": value = consumable.CostStone; return true;
+			case "maxperunit": value = consumable.MaxPerUnit; return true;
+			case "range": value = consumable.PurchaseRange; return true;
+			default: return false;
+		}
+	}
+
+	private static bool TryResolveConsumableText(string? cardOrId, string key, out string value)
+	{
+		value = string.Empty;
+		Realm.Shared.Metadata.ConsumableMetadata? consumable = ResolveConsumable(cardOrId);
+		if (consumable == null) return false;
+
+		if (string.Equals(key, "SlotGroup", StringComparison.OrdinalIgnoreCase))
+		{
+			value = consumable.SlotGroup;
+			return true;
+		}
+
+		if (!string.Equals(key, "TemplateID", StringComparison.OrdinalIgnoreCase)) return false;
+
+		value = consumable.TemplateID;
+		return true;
+	}
+
+	private static Realm.Shared.Metadata.ConsumableMetadata? ResolveConsumable(string? cardOrId)
+	{
+		if (string.IsNullOrEmpty(cardOrId)) return null;
+		return GameContext.RegistryService?.GetConsumableForCard(cardOrId) ??
+			GameContext.RegistryService?.GetConsumable(cardOrId);
 	}
 
 	private static bool TryResolveOwnerNumber(string key, out float value)

@@ -242,6 +242,29 @@ public class MapMetadata
 		else Templates.Items.Add(item);
 	}
 
+	public void AddOrUpdateConsumable(ConsumableMetadata consumable)
+	{
+		if (string.IsNullOrWhiteSpace(consumable.TemplateID)) return;
+		Templates ??= new();
+		Templates.Consumables ??= new();
+		int idx = Templates.Consumables.FindIndex(c => string.Equals(c.TemplateID, consumable.TemplateID, StringComparison.OrdinalIgnoreCase));
+		if (idx >= 0) Templates.Consumables[idx] = consumable;
+		else Templates.Consumables.Add(consumable);
+	}
+
+	public ConsumableMetadata? GetConsumable(string consumableId)
+	{
+		if (Templates?.Consumables == null || string.IsNullOrWhiteSpace(consumableId)) return null;
+
+		for (int i = 0; i < Templates.Consumables.Count; i++)
+		{
+			ConsumableMetadata consumable = Templates.Consumables[i];
+			if (string.Equals(consumable.TemplateID, consumableId, StringComparison.OrdinalIgnoreCase)) return consumable;
+		}
+
+		return null;
+	}
+
 	public bool RemoveItem(string objectId)
 	{
 		if (Templates?.Items == null || string.IsNullOrWhiteSpace(objectId)) return false;

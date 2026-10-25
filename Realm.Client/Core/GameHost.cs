@@ -1107,6 +1107,32 @@ public partial class GameHost : Node3D, IGameAPI
 	public event Action<UnitId, UnitId>? OnUnitAttacked;
 	public event Action<LootItemId, UnitId>? OnLootItemCollected;
 
+	/// <summary>
+	/// Fires after a consumable is bound to a unit or purged from one. The id is the consumable that
+	/// was attached, or empty when the slot was cleared.
+	/// </summary>
+	public event Action<UnitId, string>? OnConsumableChanged;
+
+	public void RaiseConsumableChanged(UnitId unit, string consumableId)
+	{
+		OnConsumableChanged?.Invoke(unit, consumableId ?? string.Empty);
+	}
+
+	private bool ExecuteConsumablePurchase(UnitId caster, string abilityId, Godot.Vector3 position)
+	{
+		var result = GameContext.ConsumableService.TryPurchase(
+			caster, abilityId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
+
+		if (!result.IsConsumable) return false;
+
+		if (!result.Purchased && !string.IsNullOrEmpty(result.Message))
+		{
+			GameContext.InGameHud?.ShowFeedbackText(result.Message, new Godot.Color(1f, 0.55f, 0.2f));
+		}
+
+		return true;
+	}
+
 	public void TriggerPlayerChatMessage(string message)
 	{
 		UnitId selected = UnitId.Invalid;
@@ -1815,6 +1841,7 @@ public partial class GameHost : Node3D, IGameAPI
 		LoadWeaponAndAttachmentTemplates(templates);
 		LoadItemTemplates(templates);
 		LoadUpgradeTemplates(templates);
+		LoadConsumableTemplates(templates);
 		LoadUnitTemplates(templates);
 		LoadBuildingTemplates(templates);
 		LoadResourceAndPropTemplates(templates);
@@ -1878,6 +1905,15 @@ public partial class GameHost : Node3D, IGameAPI
 			{
 				UpgradeRegistry[(StringName)meta.TemplateID.Substring(8)] = meta;
 			}
+		}
+	}
+
+	private void LoadConsumableTemplates(TemplateContainer templates)
+	{
+		if (templates.Consumables == null) return;
+		foreach (var meta in templates.Consumables)
+		{
+			GameContext.RegistryService.RegisterConsumable(meta);
 		}
 	}
 

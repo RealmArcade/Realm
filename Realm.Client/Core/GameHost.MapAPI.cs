@@ -447,6 +447,19 @@ public partial class GameHost
 		remove => OnUnitEnterZone -= value;
 	}
 
+	event Action<UnitId, string>? IGameAPI.OnConsumableChanged
+	{
+		add => OnConsumableChanged += value;
+		remove => OnConsumableChanged -= value;
+	}
+
+	string IGameAPI.GetUnitConsumable(UnitId unit, string slotGroup)
+	{
+		return GameContext.SimulationService.TryGetEntity(unit, out var entity)
+			? GameContext.ConsumableService.GetAttachment(entity, slotGroup)
+			: string.Empty;
+	}
+
 	event Action<UnitId, UnitId>? IGameAPI.OnUnitAttacked
 	{
 		add => OnUnitAttacked += value;
