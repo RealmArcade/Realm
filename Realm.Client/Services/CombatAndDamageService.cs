@@ -1392,7 +1392,7 @@ namespace Realm.Client.Services
 
 			if (atk.CurrentCooldown > 0) return;
 
-			float healAmount = atk.Damage;
+			float healAmount = atk.Damage * GetHealingMultiplier(entity);
 			ApplyHealing(target.Target, healAmount, targetHealth);
 
 			atk.CurrentCooldown = GetHealCooldown(entity, atk.Cooldown);
@@ -1417,6 +1417,13 @@ namespace Realm.Client.Services
 			}
 
 			return true;
+		}
+
+		private static float GetHealingMultiplier(Entity casterEntity)
+		{
+			if (ECSContext.StatService == null) return 1f;
+			float multiplier = ECSContext.StatService.GetStatValue(casterEntity, new StatId(StatKeys.HealingMultiplier));
+			return multiplier > 0f ? multiplier : 1f;
 		}
 
 		private void ApplyHealing(Entity targetEntity, float healAmount, Health targetHealth)
@@ -1601,6 +1608,7 @@ namespace Realm.Client.Services
 		public void HealAOE(Vector3 position, float radius, float healAmount, Entity casterEntity = default)
 		{
 			int casterPlayer = GetPlayerIndexForEntity(casterEntity);
+			healAmount *= GetHealingMultiplier(casterEntity);
 
 			if (_currentMovementService != null)
 			{
