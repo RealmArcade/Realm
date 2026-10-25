@@ -14,7 +14,7 @@ public readonly record struct StatId
 
 	public StatId(string value)
 	{
-		StringId = StringRegistry.GetOrAdd(StatKeys.Canonical(value));
+		StringId = StringRegistry.GetOrAdd(value);
 	}
 
 	public StatId(AttributeType attribute)
@@ -41,8 +41,8 @@ public readonly record struct StatId
 			CombatStatType.MaxMana => nameof(CombatStatType.MaxMana),
 			CombatStatType.ManaRegen => nameof(CombatStatType.ManaRegen),
 			CombatStatType.Armor => nameof(CombatStatType.Armor),
-			CombatStatType.Damage => nameof(CombatStatType.Damage),
-			CombatStatType.Speed => nameof(CombatStatType.Speed),
+			CombatStatType.Damage => StatKeys.Attack,
+			CombatStatType.Speed => StatKeys.MovementSpeed,
 			CombatStatType.Attack => nameof(CombatStatType.Attack),
 			CombatStatType.MovementSpeed => nameof(CombatStatType.MovementSpeed),
 			CombatStatType.SpellPower => nameof(CombatStatType.SpellPower),

@@ -911,6 +911,8 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 			buffState.Set(buffId, duration, duration);
 			_world.Add(_entity, buffState);
 		}
+
+		BuffService.Apply(_world, _entity, buffId, duration);
 	}
 
 	public void RemoveBuff(string buffId)
@@ -926,6 +928,8 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		{
 			_world.Get<BuffState>(_entity).Remove(buffId);
 		}
+
+		BuffService.Remove(_world, _entity, buffId);
 	}
 
 	public bool HasBuff(string buffId)

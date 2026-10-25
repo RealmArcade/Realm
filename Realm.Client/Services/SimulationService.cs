@@ -1197,43 +1197,13 @@ public class SimulationService
 		buffs.Advance(_fDelta);
 	}
 
-	private static readonly StatId ArmorStatId = new StatId("Armor");
-	private static readonly StatId AttackStatId = new StatId("Attack");
-	private static readonly StatId MovementSpeedStatId = new StatId("MovementSpeed");
-
 	private void StatsRecalcQueryAction(Entity entity, ref Stats stats)
 	{
-		bool hadExpiredModifiers = UpdateEntityModifiers(entity);
+		// Applying or removing a modifier already recalculates the entity, so the tick only has to
+		// catch durations running out and then hand the entity back to the one stat pipeline.
+		if (!UpdateEntityModifiers(entity)) return;
 
-		bool hasModifiers = GameContext.World.Has<ModifierState>(entity) && GameContext.World.Get<ModifierState>(entity).Count > 0;
-		bool hasBuffs = GameContext.World.Has<BuffState>(entity) && GameContext.World.Get<BuffState>(entity).Count > 0;
-
-		if (!hasModifiers && !hasBuffs && !hadExpiredModifiers)
-		{
-			return;
-		}
-
-		if (!hadExpiredModifiers && ((entity.Id + _tickCount) % 6 != 0))
-		{
-			return;
-		}
-
-		float flatArmor = 0f, percentArmor = 1f;
-		float flatAttack = 0f, percentAttack = 1f;
-		float flatSpeed = 0f, percentSpeed = 1f;
-
-		if (hasModifiers)
-		{
-			ApplyEntityModifiers(entity, ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
-		}
-		if (hasBuffs)
-		{
-			ApplyEntityBuffModifiers(entity, ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
-		}
-
-		ApplyCalculatedArmor(entity, ref stats, flatArmor, percentArmor);
-		ApplyCalculatedAttack(entity, ref stats, flatAttack, percentAttack);
-		ApplyCalculatedSpeed(entity, ref stats, flatSpeed, percentSpeed);
+		AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
 	}
 
 	private bool UpdateEntityModifiers(Entity entity)
@@ -1246,82 +1216,6 @@ public class SimulationService
 		return false;
 	}
 
-	private void ApplyEntityModifiers(Entity entity, ref float flatArmor, ref float percentArmor, ref float flatAttack, ref float percentAttack, ref float flatSpeed, ref float percentSpeed)
-	{
-		if (!GameContext.World.Has<ModifierState>(entity)) return;
-		ref var modState = ref GameContext.World.Get<ModifierState>(entity);
-		for (int i = 0; i < modState.Count; i++) ApplyMod(modState.Get(i), ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
-	}
-
-	private void ApplyEntityBuffModifiers(Entity entity, ref float flatArmor, ref float percentArmor, ref float flatAttack, ref float percentAttack, ref float flatSpeed, ref float percentSpeed)
-	{
-		if (!GameContext.World.Has<BuffState>(entity)) return;
-		var buffState = GameContext.World.Get<BuffState>(entity);
-		for (int index = 0; index < buffState.Count; index++)
-		{
-			string? buffId = buffState.GetKey(index);
-			if (buffId == null) continue;
-			if (!BuffRegistry.BuffModifiers.TryGetValue(buffId, out var mods)) continue;
-			for (int i = 0; i < mods.Count; i++) ApplyMod(mods[i], ref flatArmor, ref percentArmor, ref flatAttack, ref percentAttack, ref flatSpeed, ref percentSpeed);
-		}
-	}
-
-	private void ApplyCalculatedArmor(Entity entity, ref Stats baseStats, float flatArmor, float percentArmor)
-	{
-		if (!baseStats.TryGetValue(ArmorStatId, out var baseArmor)) return;
-		float finalArmor = (baseArmor + flatArmor) * percentArmor;
-		if (GameContext.World.Has<Armor>(entity)) GameContext.World.Set(entity, new Armor(finalArmor));
-	}
-
-	private void ApplyCalculatedAttack(Entity entity, ref Stats baseStats, float flatAttack, float percentAttack)
-	{
-		if (!baseStats.TryGetValue(AttackStatId, out var baseAttack)) return;
-		float finalAttack = (baseAttack + flatAttack) * percentAttack;
-		if (GameContext.World.Has<Attack>(entity))
-		{
-			var atk = GameContext.World.Get<Attack>(entity);
-			GameContext.World.Set(entity, new Attack(finalAttack, atk.Range, atk.Cooldown, atk.CurrentCooldown));
-		}
-	}
-
-	private void ApplyCalculatedSpeed(Entity entity, ref Stats baseStats, float flatSpeed, float percentSpeed)
-	{
-		if (!baseStats.TryGetValue(MovementSpeedStatId, out var baseSpeed)) return;
-		float finalSpeed = (baseSpeed + flatSpeed) * percentSpeed;
-		if (GameContext.World.Has<MovementStats>(entity))
-		{
-			var mv = GameContext.World.Get<MovementStats>(entity);
-			GameContext.World.Set(entity, new MovementStats(finalSpeed, mv.Acceleration, mv.TurnRate));
-		}
-	}
-
-	private void ApplyMod(StatModifier mod, ref float flatArmor, ref float percentArmor, ref float flatAttack, ref float percentAttack, ref float flatSpeed, ref float percentSpeed)
-	{
-		string statId = mod.StatTypeId.Value;
-		if (string.Equals(statId, "Armor", StringComparison.OrdinalIgnoreCase))
-		{
-			ApplyModifierValue(mod, ref flatArmor, ref percentArmor);
-			return;
-		}
-
-		if (string.Equals(statId, "Attack", StringComparison.OrdinalIgnoreCase) || string.Equals(statId, "AttackDamage", StringComparison.OrdinalIgnoreCase))
-		{
-			ApplyModifierValue(mod, ref flatAttack, ref percentAttack);
-			return;
-		}
-
-		if (string.Equals(statId, "MovementSpeed", StringComparison.OrdinalIgnoreCase) || string.Equals(statId, "Speed", StringComparison.OrdinalIgnoreCase))
-		{
-			ApplyModifierValue(mod, ref flatSpeed, ref percentSpeed);
-			return;
-		}
-	}
-
-	private void ApplyModifierValue(StatModifier mod, ref float flatVal, ref float percentVal)
-	{
-		if (mod.Type == ModifierType.Flat) flatVal += mod.Value;
-		else if (mod.Type == ModifierType.Percentage) percentVal *= mod.Value;
-	}
 
 	public void DisableShroud(Action viewAction)
 	{

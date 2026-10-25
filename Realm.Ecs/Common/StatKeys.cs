@@ -4,9 +4,9 @@ using System.Collections.Generic;
 namespace Realm.Ecs.Common;
 
 /// <summary>
-/// Canonical stat keys and the single alias table that maps authoring vocabulary onto them.
-/// Every modifier, aura, buff and upgrade resolves through <see cref="Canonical"/> so that one
-/// stat has exactly one key across metadata, ECS storage and script reads.
+/// The complete set of stat keys the engine consumes. Exactly one key per stat: an authoring key
+/// outside this set is a mistake and is reported by <see cref="WarnIfUnknown"/> rather than
+/// silently resolved.
 /// </summary>
 public static class StatKeys
 {
@@ -45,34 +45,6 @@ public static class StatKeys
 	public const string KnockbackResistance = "KnockbackResistance";
 	public const string StatusEffectBuffer = "StatusEffectBuffer";
 
-	private static readonly Dictionary<string, string> Aliases = new(StringComparer.OrdinalIgnoreCase)
-	{
-		["Damage"] = Attack,
-		["AttackDamage"] = Attack,
-		["Speed"] = MovementSpeed,
-		["MoveSpeed"] = MovementSpeed,
-		["Health"] = MaxHp,
-		["MaxHealth"] = MaxHp,
-		["Mana"] = MaxMana,
-		["HPRegen"] = HpRegen,
-		["HpRegeneration"] = HpRegen,
-		["ManaRegeneration"] = ManaRegen,
-		["Haste"] = AttackSpeed,
-		["AttackRate"] = AttackSpeed,
-		["Crit"] = CritChance,
-		["ArmorPenetration"] = FlatArmorPenetration,
-		["CooldownRate"] = CooldownReduction,
-		["MagicResist"] = SpellWard,
-		["MagicResistance"] = SpellWard,
-		["SpellResist"] = SpellWard,
-		["EvasionChance"] = Evasion,
-		["LifeStealPercent"] = LifeSteal,
-		["HealingPower"] = HealingMultiplier,
-		["HealingAmplification"] = HealingMultiplier,
-		["ProcRate"] = ProcRateMultiplier,
-		["Bounty"] = BountyMultiplier
-	};
-
 	private static readonly HashSet<string> CanonicalKeys = new(StringComparer.OrdinalIgnoreCase)
 	{
 		Strength, Agility, Vitality, Intelligence, Wisdom, Fortune,
@@ -85,23 +57,7 @@ public static class StatKeys
 
 	private static readonly HashSet<string> WarnedKeys = new(StringComparer.OrdinalIgnoreCase);
 
-	/// <summary>
-	/// Resolves an authoring key to its canonical form. Unknown keys are returned unchanged so
-	/// callers can decide whether to warn; use <see cref="WarnIfUnknown"/> at authoring boundaries.
-	/// </summary>
-	public static string Canonical(string? key)
-	{
-		if (string.IsNullOrWhiteSpace(key)) return string.Empty;
-		if (Aliases.TryGetValue(key, out var canonical)) return canonical;
-		return key;
-	}
-
-	public static bool IsKnown(string? key)
-	{
-		if (string.IsNullOrWhiteSpace(key)) return false;
-		var canonical = Canonical(key);
-		return CanonicalKeys.Contains(canonical);
-	}
+	public static bool IsKnown(string? key) => !string.IsNullOrWhiteSpace(key) && CanonicalKeys.Contains(key);
 
 	/// <summary>
 	/// Reports a stat key that no pipeline consumes. Called where authored data enters the world
