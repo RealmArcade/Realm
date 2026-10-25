@@ -14,7 +14,7 @@ public readonly record struct StatId
 
 	public StatId(string value)
 	{
-		StringId = StringRegistry.GetOrAdd(value);
+		StringId = StringRegistry.GetOrAdd(StatKeys.Canonical(value));
 	}
 
 	public StatId(AttributeType attribute)

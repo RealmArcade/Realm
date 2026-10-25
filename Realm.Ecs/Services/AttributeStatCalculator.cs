@@ -17,6 +17,7 @@ public static class AttributeStatCalculator
 	public const float ARMOR_K = 50.0f;
 	public const float STR_TENACITY_K = 100.0f;
 	public const float MAX_TENACITY = 0.75f;
+	public const float MAX_ATTACK_SPEED = 5.0f;
 
 	public const float AGI_HASTE_PER_POINT = 1.0f;
 	public const float AGI_BASE_MS_RATIO = 0.4f;
@@ -191,33 +192,82 @@ public static class AttributeStatCalculator
 		return new UnitAttributes(str, agi, vit, intel, wis, fort);
 	}
 
+	private struct StatAccumulator
+	{
+		public float Flat;
+		public float PctAdd;
+		public float PctMult;
+		public float Formula;
+
+		public static StatAccumulator New() => new StatAccumulator { PctMult = 1f };
+
+		public readonly float Combine(float baseValue) => (baseValue + Flat) * (1f + PctAdd) * PctMult + Formula;
+	}
+
+	private static StatAccumulator Accumulate(EcsWorld world, Entity entity, string statKey, float baseValue)
+	{
+		var acc = StatAccumulator.New();
+		AccumulateModifiersForStat(world, entity, statKey, ref acc.Flat, ref acc.PctAdd, ref acc.PctMult, ref acc.Formula, baseValue);
+		return acc;
+	}
+
 	private static DerivedCombatStats ApplyDirectStatModifiers(EcsWorld world, Entity entity, DerivedCombatStats derived, UnitBaseStats baseStats)
 	{
-		float hpFlat = 0f, hpPctAdd = 0f, hpPctMult = 1f, hpFormula = 0f;
-		float hpRegenFlat = 0f, hpRegenPctAdd = 0f, hpRegenPctMult = 1f, hpRegenFormula = 0f;
-		float manaFlat = 0f, manaPctAdd = 0f, manaPctMult = 1f, manaFormula = 0f;
-		float manaRegenFlat = 0f, manaRegenPctAdd = 0f, manaRegenPctMult = 1f, manaRegenFormula = 0f;
-		float armorFlat = 0f, armorPctAdd = 0f, armorPctMult = 1f, armorFormula = 0f;
-		float dmgFlat = 0f, dmgPctAdd = 0f, dmgPctMult = 1f, dmgFormula = 0f;
-		float speedFlat = 0f, speedPctAdd = 0f, speedPctMult = 1f, speedFormula = 0f;
+		var hp = Accumulate(world, entity, StatKeys.MaxHp, derived.MaxHp);
+		var hpRegen = Accumulate(world, entity, StatKeys.HpRegen, derived.HpRegen);
+		var mana = Accumulate(world, entity, StatKeys.MaxMana, derived.MaxMana);
+		var manaRegen = Accumulate(world, entity, StatKeys.ManaRegen, derived.ManaRegen);
+		var armor = Accumulate(world, entity, StatKeys.Armor, derived.TotalArmor);
+		var attack = Accumulate(world, entity, StatKeys.Attack, derived.TotalAttackDamage);
+		var movementSpeed = Accumulate(world, entity, StatKeys.MovementSpeed, derived.MovementSpeed);
+		var attackSpeed = Accumulate(world, entity, StatKeys.AttackSpeed, 1f);
+		var attackDelay = Accumulate(world, entity, StatKeys.AttackDelay, derived.AttackDelay);
+		var spellPower = Accumulate(world, entity, StatKeys.SpellPower, derived.SpellPower);
+		var tenacity = Accumulate(world, entity, StatKeys.Tenacity, derived.Tenacity);
+		var spellWard = Accumulate(world, entity, StatKeys.SpellWard, derived.SpellWard);
+		var cooldownReduction = Accumulate(world, entity, StatKeys.CooldownReduction, derived.CooldownReduction);
+		var lifeSteal = Accumulate(world, entity, StatKeys.LifeSteal, derived.LifeSteal);
+		var magicPenetration = Accumulate(world, entity, StatKeys.MagicPenetration, derived.MagicPenetration);
+		var evasion = Accumulate(world, entity, StatKeys.Evasion, derived.Evasion);
+		var critChance = Accumulate(world, entity, StatKeys.CritChance, derived.CritChance);
+		var critMultiplier = Accumulate(world, entity, StatKeys.CritMultiplier, derived.CritMultiplier);
+		var procRate = Accumulate(world, entity, StatKeys.ProcRateMultiplier, derived.ProcRateMultiplier);
+		var bounty = Accumulate(world, entity, StatKeys.BountyMultiplier, derived.BountyMultiplier);
+		var healing = Accumulate(world, entity, StatKeys.HealingMultiplier, derived.HealingMultiplier);
+		var castPoint = Accumulate(world, entity, StatKeys.CastPoint, derived.CastPoint);
+		var flatPenetration = Accumulate(world, entity, StatKeys.FlatArmorPenetration, derived.FlatArmorPenetration);
+		var knockbackResistance = Accumulate(world, entity, StatKeys.KnockbackResistance, derived.KnockbackResistance);
+		var statusEffectBuffer = Accumulate(world, entity, StatKeys.StatusEffectBuffer, derived.StatusEffectBuffer);
 
-		AccumulateModifiersForStat(world, entity, CombatStatType.MaxHp, ref hpFlat, ref hpPctAdd, ref hpPctMult, ref hpFormula, derived.MaxHp);
-		AccumulateModifiersForStat(world, entity, CombatStatType.HpRegen, ref hpRegenFlat, ref hpRegenPctAdd, ref hpRegenPctMult, ref hpRegenFormula, derived.HpRegen);
-		AccumulateModifiersForStat(world, entity, CombatStatType.MaxMana, ref manaFlat, ref manaPctAdd, ref manaPctMult, ref manaFormula, derived.MaxMana);
-		AccumulateModifiersForStat(world, entity, CombatStatType.ManaRegen, ref manaRegenFlat, ref manaRegenPctAdd, ref manaRegenPctMult, ref manaRegenFormula, derived.ManaRegen);
-		AccumulateModifiersForStat(world, entity, CombatStatType.Armor, ref armorFlat, ref armorPctAdd, ref armorPctMult, ref armorFormula, derived.TotalArmor);
-		AccumulateModifiersForStat(world, entity, CombatStatType.Damage, ref dmgFlat, ref dmgPctAdd, ref dmgPctMult, ref dmgFormula, derived.TotalAttackDamage);
-		AccumulateModifiersForStat(world, entity, CombatStatType.Speed, ref speedFlat, ref speedPctAdd, ref speedPctMult, ref speedFormula, derived.MovementSpeed);
+		float resolvedAttackSpeed = Math.Clamp(attackSpeed.Combine(1f), 0.1f, MAX_ATTACK_SPEED);
+		float resolvedAttackDelay = MathF.Max(0.01f, attackDelay.Combine(derived.AttackDelay / resolvedAttackSpeed));
 
 		return derived with
 		{
-			MaxHp = CombineStat(derived.MaxHp, hpFlat, hpPctAdd, hpPctMult, hpFormula),
-			HpRegen = CombineStat(derived.HpRegen, hpRegenFlat, hpRegenPctAdd, hpRegenPctMult, hpRegenFormula),
-			MaxMana = CombineStat(derived.MaxMana, manaFlat, manaPctAdd, manaPctMult, manaFormula),
-			ManaRegen = CombineStat(derived.ManaRegen, manaRegenFlat, manaRegenPctAdd, manaRegenPctMult, manaRegenFormula),
-			TotalArmor = CombineStat(derived.TotalArmor, armorFlat, armorPctAdd, armorPctMult, armorFormula),
-			TotalAttackDamage = CombineStat(derived.TotalAttackDamage, dmgFlat, dmgPctAdd, dmgPctMult, dmgFormula),
-			MovementSpeed = CombineStat(derived.MovementSpeed, speedFlat, speedPctAdd, speedPctMult, speedFormula)
+			MaxHp = MathF.Max(1f, hp.Combine(derived.MaxHp)),
+			HpRegen = MathF.Max(0f, hpRegen.Combine(derived.HpRegen)),
+			MaxMana = MathF.Max(0f, mana.Combine(derived.MaxMana)),
+			ManaRegen = MathF.Max(0f, manaRegen.Combine(derived.ManaRegen)),
+			TotalArmor = MathF.Max(0f, armor.Combine(derived.TotalArmor)),
+			TotalAttackDamage = MathF.Max(0f, attack.Combine(derived.TotalAttackDamage)),
+			MovementSpeed = MathF.Max(0f, movementSpeed.Combine(derived.MovementSpeed)),
+			AttackDelay = resolvedAttackDelay,
+			SpellPower = MathF.Max(0f, spellPower.Combine(derived.SpellPower)),
+			Tenacity = Math.Clamp(tenacity.Combine(derived.Tenacity), 0f, MAX_TENACITY),
+			SpellWard = Math.Clamp(spellWard.Combine(derived.SpellWard), 0f, MAX_MAGIC_RESIST),
+			CooldownReduction = Math.Clamp(cooldownReduction.Combine(derived.CooldownReduction), 0f, MAX_CDR),
+			LifeSteal = Math.Clamp(lifeSteal.Combine(derived.LifeSteal), 0f, MAX_LIFESTEAL),
+			MagicPenetration = Math.Clamp(magicPenetration.Combine(derived.MagicPenetration), 0f, MAX_MAGIC_PEN),
+			Evasion = Math.Clamp(evasion.Combine(derived.Evasion), 0f, MAX_EVASION),
+			CritChance = Math.Clamp(critChance.Combine(derived.CritChance), 0f, MAX_CRIT_CHANCE),
+			CritMultiplier = MathF.Max(1f, critMultiplier.Combine(derived.CritMultiplier)),
+			ProcRateMultiplier = MathF.Max(0f, procRate.Combine(derived.ProcRateMultiplier)),
+			BountyMultiplier = MathF.Max(0f, bounty.Combine(derived.BountyMultiplier)),
+			HealingMultiplier = MathF.Max(0f, healing.Combine(derived.HealingMultiplier)),
+			CastPoint = MathF.Max(0f, castPoint.Combine(derived.CastPoint)),
+			FlatArmorPenetration = MathF.Max(0f, flatPenetration.Combine(derived.FlatArmorPenetration)),
+			KnockbackResistance = Math.Clamp(knockbackResistance.Combine(derived.KnockbackResistance), 0f, 1f),
+			StatusEffectBuffer = MathF.Max(0f, statusEffectBuffer.Combine(derived.StatusEffectBuffer))
 		};
 	}
 

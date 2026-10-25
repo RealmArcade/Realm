@@ -52,6 +52,7 @@ public class SimulationService
 
 	public void RegisterBuffModifierDomain(string buffId, string statName, bool isPercentage, float value)
 	{
+		Realm.Ecs.Common.StatKeys.WarnIfUnknown($"buff '{buffId}'", statName);
 		var statId = new StatId(statName);
 		var modType = isPercentage ? ModifierType.Percentage : ModifierType.Flat;
 		var modifier = new StatModifier(statId, modType, value);

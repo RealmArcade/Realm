@@ -145,6 +145,7 @@ public class TechTreeService
 			var modDef = upgradeDef.Modifiers[i];
 			if (string.IsNullOrWhiteSpace(modDef.StatKey)) continue;
 
+			Realm.Ecs.Common.StatKeys.WarnIfUnknown($"upgrade '{techId}'", modDef.StatKey);
 			var statId = new StatId(modDef.StatKey);
 			var modType = Enum.TryParse<ModifierType>(modDef.Type, out var parsedType) ? parsedType : ModifierType.Flat;
 
