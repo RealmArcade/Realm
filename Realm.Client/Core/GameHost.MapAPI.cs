@@ -1492,6 +1492,11 @@ public partial class GameHost
 		return GameContext.SimulationService.GetUnitRouteState(unit);
 	}
 
+	void IGameAPI.DealTypedDamage(UnitId attacker, UnitId target, float damage, string damageType)
+	{
+		GameContext.SimulationService.DealResolvedDamageDomain(attacker, target, damage, damageType);
+	}
+
 	void IGameAPI.SetUnitLevel(UnitId unit, int level)
 	{
 		GameContext.SimulationService.SetUnitLevel(unit, level);

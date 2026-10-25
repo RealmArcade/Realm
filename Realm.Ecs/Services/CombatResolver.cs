@@ -64,6 +64,46 @@ public static class CombatResolver
 	}
 
 	/// <summary>
+	///     Resolves ability damage for one attacker and target through the same three stages an
+	///     attack uses, so spells are mitigated by armor and the type matrix instead of bypassing
+	///     them. Ability damage carries no variance and cannot crit on its own.
+	/// </summary>
+	public static DamageResult ResolveAbilityDamage(
+		EcsWorld world,
+		Entity attacker,
+		Entity target,
+		float amount,
+		string damageType,
+		CombatConfig? config = null,
+		Random? rng = null)
+	{
+		var armor = world.Has<Armor>(target) ? world.Get<Armor>(target) : default;
+
+		float flatArmorPen = 0f;
+		float percentArmorPen = 0f;
+		if (world.Has<Attack>(attacker))
+		{
+			var attack = world.Get<Attack>(attacker);
+			flatArmorPen = attack.FlatArmorPenetration;
+			percentArmorPen = attack.PercentArmorPenetration;
+		}
+
+		return ResolveDamage(
+			baseDamage: amount,
+			damageVariance: 0f,
+			critChance: 0f,
+			critMultiplier: 1f,
+			flatArmor: armor.FlatArmor,
+			ratedArmor: armor.RatedArmor,
+			flatArmorPen: flatArmorPen,
+			percentArmorPen: percentArmorPen,
+			damageType: damageType,
+			armorType: armor.ArmorType,
+			config: config,
+			rng: rng);
+	}
+
+	/// <summary>
 	///     Calculates the splash damage ratio based on distance and splash configuration.
 	/// </summary>
 	public static float CalculateSplashRatio(

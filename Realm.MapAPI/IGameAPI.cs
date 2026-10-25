@@ -1377,6 +1377,14 @@ public interface IGameAPI
 	}
 
 	/// <summary>
+	/// Applies damage through the combat resolver, so the target's armor, the attacker's armor
+	/// penetration and the damage/armor type matrix all apply. Use this for ability damage instead
+	/// of setting health, which bypasses mitigation.
+	/// </summary>
+	/// <param name="damageType">Damage type key, such as normal, pierce, magic, fire or frost.</param>
+	void DealTypedDamage(UnitId attacker, UnitId target, float damage, string damageType);
+
+	/// <summary>
 	/// Spawns a replacement unit of the same type at <paramref name="position"/> for the given player.
 	/// Use this when the previous instance may already be destroyed (typical hero respawn).
 	/// </summary>

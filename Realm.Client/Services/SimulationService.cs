@@ -1639,6 +1639,16 @@ public class SimulationService
 
 	public List<Entity> GetEditorArrivedUnits() => _tickArrivedUnits;
 
+	public void DealResolvedDamageDomain(UnitId attacker, UnitId target, float amount, string damageType)
+	{
+		if (!TryGetEntity(target, out var targetEntity)) return;
+
+		var attackerEntity = Entity.Null;
+		TryGetEntity(attacker, out attackerEntity);
+
+		_combatService.DealResolvedDamage(attackerEntity, targetEntity, amount, damageType);
+	}
+
 	public void DealSpellDamageAOE(Vector3 position, float radius, float damage, Entity casterEntity, bool enemyOnly = true)
 	{
 		_combatService.DealSpellDamageAOE(position, radius, damage, casterEntity, enemyOnly);

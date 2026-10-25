@@ -1453,10 +1453,36 @@ namespace Realm.Client.Services
 			return true;
 		}
 
-		public void DealSpellDamageAOE(Vector3 position, float radius, float damage, Entity casterEntity, bool enemyOnly = true)
+		private string _aoeDamageType = "magic";
+
+		/// <summary>
+		/// Applies damage through the combat resolver so armor, penetration and the damage/armor type
+		/// matrix apply. This is the single-target counterpart to <see cref="DealSpellDamageAOE"/>.
+		/// </summary>
+		public void DealResolvedDamage(Entity attacker, Entity target, float amount, string damageType)
+		{
+			if (amount <= 0f) return;
+			if (!GameContext.World.IsAlive(target) || GameContext.World.Has<Dead>(target) || !GameContext.World.Has<Health>(target)) return;
+			if (GameContext.World.Has<Invulnerable>(target)) return;
+
+			_aoeKillList.Clear();
+			_aoeLastAttackerList.Clear();
+
+			UpdateAoeLastAttacker(target, attacker);
+
+			ref var hp = ref GameContext.World.Get<Health>(target);
+			var result = CombatResolver.ResolveAbilityDamage(GameContext.World, attacker, target, amount, damageType);
+			ApplyResolvedDamage(target, ref hp, result.FinalDamage, attacker);
+
+			ProcessAoeLastAttackers();
+			ProcessAoeKillList();
+		}
+
+		public void DealSpellDamageAOE(Vector3 position, float radius, float damage, Entity casterEntity, bool enemyOnly = true, string damageType = "magic")
 		{
 			_aoeKillList.Clear();
 			_aoeLastAttackerList.Clear();
+			_aoeDamageType = damageType;
 
 			int casterPlayer = GetPlayerIndexForEntity(casterEntity);
 
@@ -1535,10 +1561,16 @@ namespace Realm.Client.Services
 
 		private void ApplyAoeDamage(Entity entity, ref Health hp, float damage, Entity casterEntity)
 		{
-			float newHp = Math.Max(0, hp.Current - damage);
+			var result = CombatResolver.ResolveAbilityDamage(GameContext.World, casterEntity, entity, damage, _aoeDamageType);
+			ApplyResolvedDamage(entity, ref hp, result.FinalDamage, casterEntity);
+		}
+
+		private void ApplyResolvedDamage(Entity entity, ref Health hp, float finalDamage, Entity casterEntity)
+		{
+			float newHp = Math.Max(0, hp.Current - finalDamage);
 			hp.Current = newHp;
 
-			OnUnitDamagedCallback?.Invoke(entity, casterEntity, damage);
+			OnUnitDamagedCallback?.Invoke(entity, casterEntity, finalDamage);
 
 			if (newHp <= 0) _aoeKillList.Add(entity);
 			else OnDamageFlashRequested?.Invoke(entity);
