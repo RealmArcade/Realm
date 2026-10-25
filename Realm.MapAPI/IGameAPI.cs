@@ -249,6 +249,25 @@ public interface IGameAPI
 	void AddBuff(UnitId unit, string buffId, float duration);
 
 	/// <summary>
+	/// Adds one permanent stat modifier to a unit, tagged with a source id so the map can remove it later.
+	/// The modifier goes through the same pipeline as upgrades and items, so it survives stat
+	/// recalculation instead of being overwritten by the next derived-stat pass.
+	/// </summary>
+	/// <param name="unit">The target unit identifier.</param>
+	/// <param name="statName">The stat key to modify (e.g. "Armor", "Attack", "MaxHp").</param>
+	/// <param name="isPercentage">True for an additive percentage, false for a flat bonus.</param>
+	/// <param name="value">The modifier value.</param>
+	/// <param name="sourceId">Source tag, typically one per map feature, such as "elixir/blood_debt".</param>
+	void AddStatModifier(UnitId unit, string statName, bool isPercentage, float value, string sourceId);
+
+	/// <summary>
+	/// Removes every stat modifier a unit received from one source id and recalculates its stats.
+	/// </summary>
+	/// <param name="unit">The target unit identifier.</param>
+	/// <param name="sourceId">The source tag passed to <see cref="AddStatModifier"/>.</param>
+	void RemoveStatModifiers(UnitId unit, string sourceId);
+
+	/// <summary>
 	/// Registers a stat modifier for a buff type.
 	/// </summary>
 	/// <param name="buffId">The identifier of the buff.</param>

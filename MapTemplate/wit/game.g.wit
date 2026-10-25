@@ -8,6 +8,7 @@ interface game-api {
     add-leaderboard-board-row: func(board-id: string, group-player-index: s32, group-title: string, label: string, value: string);
     add-leaderboard-row: func(label: string, value: string, color-r: f32, color-g: f32, color-b: f32, color-has-color: bool);
     add-player-tech-level: func(player-index: s32, tech-id: string, delta: s32);
+    add-stat-modifier: func(unit-id: s32, stat-name: string, is-percentage: bool, value: f32, source-id: string);
     add-unit-type-ability: func(unit-type-id: string, ability-id: string);
     adjust-player-gold: func(player-index: s32, delta: f32);
     adjust-player-stone: func(player-index: s32, delta: f32);
@@ -133,6 +134,7 @@ interface game-api {
     remove-buff: func(unit-id: s32, buff-id: string);
     remove-item-from-unit: func(unit-id: s32, item-id: string) -> bool;
     remove-loot-item: func(loot-item-id: s32) -> bool;
+    remove-stat-modifiers: func(unit-id: s32, source-id: string);
     remove-unit-custom-data: func(unit-id: s32, key: string) -> bool;
     reset-player-camera-bounds: func(player-index: s32);
     schedule-repeating-timer: func(interval: f32) -> s32;
