@@ -117,6 +117,14 @@ public class RegistryService
 		return false;
 	}
 
+	public UnitMetadata? FindUnitOrBuildingMetadata(string definitionId)
+	{
+		if (string.IsNullOrEmpty(definitionId)) return null;
+		if (UnitRegistry.TryGetValue(definitionId, out var unitMeta)) return unitMeta;
+		if (BuildingRegistry.TryGetValue(definitionId, out var buildingMeta)) return buildingMeta;
+		return null;
+	}
+
 	public string GetUnitTargetModel(string unitId, ref bool isBuilding)
 	{
 		if (UnitRegistry.TryGetValue(unitId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
@@ -451,10 +459,29 @@ public class RegistryService
 		keys.Add(key);
 	}
 	public HashSet<(int UnitUniqueId, string AbilityId)> DirtyAbilityStates { get; } = new();
+	private readonly List<(int UnitUniqueId, string AbilityId)> _abilityStateKeysToClear = new();
 
 	public void ClearAbilityStateDirty()
 	{
 		DirtyAbilityStates.Clear();
+	}
+
+	public void ClearAbilityStateForUnit(UnitId unit)
+	{
+		if (!unit.IsValid) return;
+
+		_abilityStateKeysToClear.Clear();
+		foreach (var key in UnitAbilityStates.Keys)
+		{
+			if (key.UnitUniqueId == unit.Value) _abilityStateKeysToClear.Add(key);
+		}
+
+		for (int index = 0; index < _abilityStateKeysToClear.Count; index++)
+		{
+			var key = _abilityStateKeysToClear[index];
+			UnitAbilityStates.Remove(key);
+			DirtyAbilityStates.Remove(key);
+		}
 	}
 	public Dictionary<(int UnitUniqueId, string AbilityId), float> UnitAbilityManaCosts { get; set; } = new();
 	public Dictionary<string, string> ItemTooltips { get; set; } = new(StringComparer.OrdinalIgnoreCase);

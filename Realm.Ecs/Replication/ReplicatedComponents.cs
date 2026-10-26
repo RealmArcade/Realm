@@ -43,6 +43,7 @@ public interface IReplicatedComponentCodec
 
 public interface INormalizingComponentCodec : IReplicatedComponentCodec
 {
+	int ReadReferencedServerEntityId(ReadOnlySpan<byte> source) => -1;
 }
 
 public class ReplicatedComponentCodec<T> : IReplicatedComponentCodec where T : unmanaged
@@ -407,6 +408,11 @@ public class BuildTaskCodec : INormalizingComponentCodec
 		if (world == null || !world.IsAlive(entity) || !world.Has<BuildTask>(entity)) return;
 		world.Remove<BuildTask>(entity);
 	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+	}
 }
 
 public class FollowCodec : INormalizingComponentCodec
@@ -437,6 +443,11 @@ public class FollowCodec : INormalizingComponentCodec
 	{
 		if (world == null || !world.IsAlive(entity) || !world.Has<Follow>(entity)) return;
 		world.Remove<Follow>(entity);
+	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
 	}
 }
 
@@ -469,6 +480,11 @@ public class AttackTargetCodec : INormalizingComponentCodec
 		if (world == null || !world.IsAlive(entity) || !world.Has<AttackTarget>(entity)) return;
 		world.Remove<AttackTarget>(entity);
 	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+	}
 }
 
 public class LastAttackerCodec : INormalizingComponentCodec
@@ -499,6 +515,11 @@ public class LastAttackerCodec : INormalizingComponentCodec
 	{
 		if (world == null || !world.IsAlive(entity) || !world.Has<LastAttacker>(entity)) return;
 		world.Remove<LastAttacker>(entity);
+	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
 	}
 }
 
@@ -616,6 +637,51 @@ public static class ReplicatedComponents
 			if (_codecs[i].ComponentTypeId == componentTypeId) return _codecs[i];
 		}
 		return null;
+	}
+}
+
+public static class ReplicatedUnitComponentSlots
+{
+	public const int SlotCount = 64;
+
+	private static readonly List<IReplicatedComponentCodec> _slots = new();
+	private static readonly Dictionary<int, int> _slotByComponentTypeId = new();
+	private static bool _initialized;
+
+	public static IReadOnlyList<IReplicatedComponentCodec> Slots
+	{
+		get
+		{
+			EnsureInitialized();
+			return _slots;
+		}
+	}
+
+	public static bool TryGetSlot(int componentTypeId, out int slot)
+	{
+		EnsureInitialized();
+		return _slotByComponentTypeId.TryGetValue(componentTypeId, out slot);
+	}
+
+	private static void EnsureInitialized()
+	{
+		if (_initialized) return;
+		_initialized = true;
+
+		IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedComponents.All;
+		for (int index = 0; index < codecs.Count; index++)
+		{
+			var codec = codecs[index];
+			if (codec.Scope != ReplicatedScope.Unit) continue;
+
+			_slotByComponentTypeId[codec.ComponentTypeId] = _slots.Count;
+			_slots.Add(codec);
+		}
+
+		if (_slots.Count > SlotCount)
+		{
+			throw new InvalidOperationException($"{_slots.Count} unit-scoped replicated components do not fit in {SlotCount} presence bits, so a peer could not tell a component it holds from one the authority does not have.");
+		}
 	}
 }
 

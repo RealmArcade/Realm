@@ -117,6 +117,14 @@ namespace Realm.Client.Services
 		private readonly List<(Entity Attacker, Vector3 TargetPos)> _tickActionsToChase = new();
 		private readonly List<Entity> _tickActionsToStopChasing = new();
 		private readonly List<Entity> _tickUnitsToKill = new();
+		private readonly List<Entity> _clearedReferenceEntities = new();
+		private readonly QueryDescription _attackTargetReferenceQuery = new QueryDescription().WithAll<AttackTarget>();
+		private readonly QueryDescription _followReferenceQuery = new QueryDescription().WithAll<Follow>();
+		private readonly QueryDescription _lastAttackerReferenceQuery = new QueryDescription().WithAll<LastAttacker>();
+		private readonly EntityCallback<AttackTarget> _attackTargetReferenceDelegate;
+		private readonly EntityCallback<Follow> _followReferenceDelegate;
+		private readonly EntityCallback<LastAttacker> _lastAttackerReferenceDelegate;
+		private Entity _clearedReferenceTarget;
 		private readonly List<Entity> _tickHealRemoveTargets = new();
 		private readonly List<(Entity Healer, Vector3 TargetPos)> _tickHealChaseTargets = new();
 		private readonly List<Entity> _tickHealStopChasing = new();
@@ -227,7 +235,12 @@ namespace Realm.Client.Services
 			_healCandidateCallback = OnAoeHealCandidateFound;
 			_evaluateAttackerSpatialDelegate = EvaluateAttackerSpatialAction;
 			_evaluateAttackerFallbackDelegate = EvaluateAttackerFallbackAction;
+			_attackTargetReferenceDelegate = CollectAttackTargetOfClearedUnit;
+			_followReferenceDelegate = CollectFollowOfClearedUnit;
+			_lastAttackerReferenceDelegate = CollectLastAttackerOfClearedUnit;
 		}
+
+		private static bool HasAuthority => GameContext.Host?.HasAuthority != false;
 
 		public void StepCombat(float delta, MovementAndPathfindingService? movementService = null)
 		{
@@ -396,6 +409,13 @@ namespace Realm.Client.Services
 
 		private void ProcessTargetAcquisition()
 		{
+			if (!HasAuthority)
+			{
+				_attackerCount = 0;
+				_targetCandidateCount = 0;
+				return;
+			}
+
 			if (_currentMovementService == null)
 			{
 				_targetCandidateCount = 0;
@@ -694,6 +714,12 @@ namespace Realm.Client.Services
 
 		private void ProcessRetaliationTargets()
 		{
+			if (!HasAuthority)
+			{
+				_tickNewAttackTargets.Clear();
+				return;
+			}
+
 			for (int i = 0; i < _tickNewAttackTargets.Count; i++)
 			{
 				var (attacker, target) = _tickNewAttackTargets[i];
@@ -703,6 +729,13 @@ namespace Realm.Client.Services
 				}
 			}
 			_tickNewAttackTargets.Clear();
+		}
+
+		private void RecordLastAttacker(Entity target, Entity attacker)
+		{
+			if (!HasAuthority) return;
+			if (GameContext.World.Has<LastAttacker>(target)) GameContext.World.Set(target, new LastAttacker(attacker));
+			else _tickActionsToAddLastAttacker.Add((target, attacker));
 		}
 
 		private void ProcessLastAttackers()
@@ -718,6 +751,12 @@ namespace Realm.Client.Services
 
 		private void ProcessUnitsToKill()
 		{
+			if (!HasAuthority)
+			{
+				_tickUnitsToKill.Clear();
+				return;
+			}
+
 			foreach (var targetEntity in _tickUnitsToKill)
 			{
 				ClearChaseTracking(targetEntity);
@@ -725,8 +764,44 @@ namespace Realm.Client.Services
 				if (!GameContext.World.IsAlive(targetEntity) || GameContext.World.Has<Dead>(targetEntity)) continue;
 
 				GameContext.World.Add<Dead>(targetEntity);
+				ClearReferencesTo(targetEntity);
 				OnKillUnitRequested?.Invoke(targetEntity);
 			}
+		}
+
+		private void ClearReferencesTo(Entity deadEntity)
+		{
+			_clearedReferenceTarget = deadEntity;
+
+			_clearedReferenceEntities.Clear();
+			GameContext.World.Query(in _attackTargetReferenceQuery, _attackTargetReferenceDelegate);
+			for (int index = 0; index < _clearedReferenceEntities.Count; index++) GameContext.World.Remove<AttackTarget>(_clearedReferenceEntities[index]);
+
+			_clearedReferenceEntities.Clear();
+			GameContext.World.Query(in _followReferenceQuery, _followReferenceDelegate);
+			for (int index = 0; index < _clearedReferenceEntities.Count; index++) GameContext.World.Remove<Follow>(_clearedReferenceEntities[index]);
+
+			_clearedReferenceEntities.Clear();
+			GameContext.World.Query(in _lastAttackerReferenceQuery, _lastAttackerReferenceDelegate);
+			for (int index = 0; index < _clearedReferenceEntities.Count; index++) GameContext.World.Remove<LastAttacker>(_clearedReferenceEntities[index]);
+		}
+
+		private void CollectAttackTargetOfClearedUnit(Entity entity, ref AttackTarget target)
+		{
+			if (target.Target != _clearedReferenceTarget) return;
+			_clearedReferenceEntities.Add(entity);
+		}
+
+		private void CollectFollowOfClearedUnit(Entity entity, ref Follow follow)
+		{
+			if (follow.Target != _clearedReferenceTarget) return;
+			_clearedReferenceEntities.Add(entity);
+		}
+
+		private void CollectLastAttackerOfClearedUnit(Entity entity, ref LastAttacker lastAttacker)
+		{
+			if (lastAttacker.Value != _clearedReferenceTarget) return;
+			_clearedReferenceEntities.Add(entity);
 		}
 
 		private void ProcessTargetRemovals()
@@ -913,19 +988,22 @@ namespace Realm.Client.Services
 
 		private void ApplyDamageAndEffects(Entity entity, Entity target, float damage, float baseDamage, ref Attack atk, Vector3 targetPos, Owner owner)
 		{
-			if (GameContext.World.Has<LastAttacker>(target)) GameContext.World.Set(target, new LastAttacker(entity));
-			else _tickActionsToAddLastAttacker.Add((target, entity));
+			RecordLastAttacker(target, entity);
 
 			OnUnitAttackedCallback?.Invoke(entity, target);
 
 			float dealt = AbsorbDamage(target, damage);
 			if (dealt > 0f) OnUnitDamagedCallback?.Invoke(target, entity, dealt);
 
-			var targetHealth = GameContext.World.Get<Health>(target);
-			float newHp = Math.Max(0, targetHealth.Current - dealt);
-			targetHealth.Current = newHp;
-			targetHealth.TimeSinceLastDamage = 0f;
-			GameContext.World.Set(target, targetHealth);
+			float newHp = 0f;
+			if (HasAuthority)
+			{
+				var targetHealth = GameContext.World.Get<Health>(target);
+				newHp = Math.Max(0, targetHealth.Current - dealt);
+				targetHealth.Current = newHp;
+				targetHealth.TimeSinceLastDamage = 0f;
+				GameContext.World.Set(target, targetHealth);
+			}
 
 			if (atk.SplashType != SplashType.None && atk.SplashOuterRadius > 0f)
 				EvaluateSplashDamage(entity, target, targetPos, baseDamage, atk, owner);
@@ -933,7 +1011,7 @@ namespace Realm.Client.Services
 			CheckCombatAlert(target);
 			AcquireNewTargetFromAttacker(entity, target);
 
-			if (newHp <= 0) _tickUnitsToKill.Add(target);
+			if (HasAuthority && newHp <= 0) _tickUnitsToKill.Add(target);
 			else OnDamageFlashRequested?.Invoke(target);
 		}
 
@@ -1111,16 +1189,18 @@ namespace Realm.Client.Services
 			float splashDamage = AbsorbDamage(splashEnt, sResult.FinalDamage);
 			if (splashDamage <= 0f) return;
 
-			sHp.Current = Math.Max(0, sHp.Current - splashDamage);
-			sHp.TimeSinceLastDamage = 0f;
-			GameContext.World.Set(splashEnt, sHp);
+			if (HasAuthority)
+			{
+				sHp.Current = Math.Max(0, sHp.Current - splashDamage);
+				sHp.TimeSinceLastDamage = 0f;
+				GameContext.World.Set(splashEnt, sHp);
+			}
 
 			OnUnitDamagedCallback?.Invoke(splashEnt, attacker, splashDamage);
 
-			if (GameContext.World.Has<LastAttacker>(splashEnt)) GameContext.World.Set(splashEnt, new LastAttacker(attacker));
-			else _tickActionsToAddLastAttacker.Add((splashEnt, attacker));
+			RecordLastAttacker(splashEnt, attacker);
 
-			if (sHp.Current <= 0) _tickUnitsToKill.Add(splashEnt);
+			if (HasAuthority && sHp.Current <= 0) _tickUnitsToKill.Add(splashEnt);
 			else OnDamageFlashRequested?.Invoke(splashEnt);
 		}
 
@@ -1455,6 +1535,8 @@ namespace Realm.Client.Services
 
 		private void ApplyHealing(Entity targetEntity, float healAmount, Health targetHealth)
 		{
+			if (!HasAuthority) return;
+
 			float newHp = Math.Min(targetHealth.Max, targetHealth.Current + healAmount);
 			GameContext.World.Set(targetEntity, new Health(newHp, targetHealth.Max));
 		}
@@ -1588,6 +1670,7 @@ namespace Realm.Client.Services
 		{
 			if (casterEntity != Entity.Null && GameContext.World.IsAlive(casterEntity))
 			{
+				if (!HasAuthority) return;
 				if (GameContext.World.Has<LastAttacker>(entity)) GameContext.World.Set(entity, new LastAttacker(casterEntity));
 				else _aoeLastAttackerList.Add((entity, casterEntity));
 			}
@@ -1620,10 +1703,11 @@ namespace Realm.Client.Services
 			float scaled = healAmount * GetHealingMultiplier(casterEntity);
 			ref var hp = ref GameContext.World.Get<Health>(target);
 			float before = hp.Current;
-			hp.Current = Math.Min(hp.Max, hp.Current + scaled);
-
-			float healed = hp.Current - before;
+			float after = Math.Min(hp.Max, before + scaled);
+			float healed = after - before;
 			if (healed <= 0f) return;
+
+			if (HasAuthority) hp.Current = after;
 
 			OnHealFlashRequested?.Invoke(target);
 			OnUnitHealedCallback?.Invoke(target, casterEntity, healed);
@@ -1635,11 +1719,11 @@ namespace Realm.Client.Services
 			if (finalDamage <= 0f) return;
 
 			float newHp = Math.Max(0, hp.Current - finalDamage);
-			hp.Current = newHp;
+			if (HasAuthority) hp.Current = newHp;
 
 			OnUnitDamagedCallback?.Invoke(entity, casterEntity, finalDamage);
 
-			if (newHp <= 0) _aoeKillList.Add(entity);
+			if (HasAuthority && newHp <= 0) _aoeKillList.Add(entity);
 			else OnDamageFlashRequested?.Invoke(entity);
 		}
 
@@ -1656,11 +1740,18 @@ namespace Realm.Client.Services
 
 		private void ProcessAoeKillList()
 		{
+			if (!HasAuthority)
+			{
+				_aoeKillList.Clear();
+				return;
+			}
+
 			foreach (var entity in _aoeKillList)
 			{
 				if (!GameContext.World.IsAlive(entity) || GameContext.World.Has<Dead>(entity)) continue;
 
 				GameContext.World.Add<Dead>(entity);
+				ClearReferencesTo(entity);
 				OnKillUnitRequested?.Invoke(entity);
 			}
 		}
@@ -1690,8 +1781,7 @@ namespace Realm.Client.Services
 
 				if (Vector3.Distance(pos.Value, position) <= radius)
 				{
-					float newHp = Math.Min(hp.Max, hp.Current + healAmount);
-					hp.Current = newHp;
+					if (HasAuthority) hp.Current = Math.Min(hp.Max, hp.Current + healAmount);
 					OnHealFlashRequested?.Invoke(entity);
 					OnUnitHealedCallback?.Invoke(entity, casterEntity, healAmount);
 				}
@@ -1708,9 +1798,12 @@ namespace Realm.Client.Services
 
 			if (Vector3.Distance(entry.Position, _healPosition) <= _healRadius)
 			{
-				ref var hp = ref GameContext.World.Get<Health>(entity);
-				float newHp = Math.Min(hp.Max, hp.Current + _healAmount);
-				hp.Current = newHp;
+				if (HasAuthority)
+				{
+					ref var hp = ref GameContext.World.Get<Health>(entity);
+					hp.Current = Math.Min(hp.Max, hp.Current + _healAmount);
+				}
+
 				OnHealFlashRequested?.Invoke(entity);
 				OnUnitHealedCallback?.Invoke(entity, _healCasterEntity, _healAmount);
 			}

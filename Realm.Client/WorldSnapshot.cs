@@ -17,5 +17,6 @@ public partial struct WorldSnapshot
 	public List<AbilityStateDelta> AbilityStates;
 	public List<StaticTextDelta> StaticTexts;
 	public List<CatalogEntry> Catalog;
+	public List<UnitComponentPresence> UnitComponentPresence;
 	public uint StateFingerprint;
 }

@@ -1294,6 +1294,7 @@ public partial class MapEditorHUD : Control
 
 		GameContext.Host.ExitMapEditorMode();
 		GameContext.SessionState.IsTestMode = true;
+		ShadowClientVerifier.IsEnabled = true;
 
 		if (GameContext.UserInterface != null)
 		{

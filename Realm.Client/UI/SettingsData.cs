@@ -18,6 +18,7 @@ public class SettingsData
 	public HealthBarMode ShowHealthBars { get; set; } = HealthBarMode.Damaged;
 	public GameLanguage Language { get; set; } = GameLanguage.English;
 	public bool DisplayFps { get; set; } = false;
+	public bool DisplayPing { get; set; } = false;
 	public bool RecordReplays { get; set; } = false;
 	public bool SeedMapFiles { get; set; } = false;
 	public bool DisableShadows { get; set; } = false;

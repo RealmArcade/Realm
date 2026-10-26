@@ -152,6 +152,7 @@ namespace Realm.Client.Services
 		public static ModelOverrideService ModelOverrideService => ScreenScope.Get<ModelOverrideService>();
 		public static ReplayService ReplayService => ScreenScope.Get<ReplayService>();
 		public static NetworkService NetworkService => ScreenScope.Get<NetworkService>();
+		public static CommandAuthorityService CommandAuthority => ScreenScope.Get<CommandAuthorityService>();
 		public static TechTreeService TechTreeService => ScreenScope.Get<TechTreeService>();
 		public static ShroudService ShroudService => ScreenScope.Get<ShroudService>();
 		public static UnitSpawnService UnitSpawnService => ScreenScope.Get<UnitSpawnService>();
@@ -171,6 +172,8 @@ namespace Realm.Client.Services
 		public static SimulationService SimulationService => ScreenScope.Get<SimulationService>();
 		public static ConsumableService ConsumableService => ScreenScope.Get<ConsumableService>();
 		public static MovementPredictionService MovementPredictionService => ScreenScope.Get<MovementPredictionService>();
+		public static LocalCommandTransport LocalCommandTransport => ScreenScope.Get<LocalCommandTransport>();
+		public static NetworkLatencyService NetworkLatencyService => ScreenScope.Get<NetworkLatencyService>();
 		public static PredictionPerformanceMonitor PredictionPerformanceMonitor => ScreenScope.Get<PredictionPerformanceMonitor>();
 		public static ClientRpcService ClientRPC => ScreenScope.Get<ClientRpcService>();
 		public static PerspectiveFilter PerspectiveFilter => ScreenScope.Get<PerspectiveFilter>();
@@ -215,6 +218,8 @@ namespace Realm.Client.Services
 			scope.RegisterCleanup<RegistryService>(static service => service.ClearAll());
 			scope.RegisterCleanup<MapScriptService>(static service => service.ClearAll());
 			scope.RegisterCleanup<MovementPredictionService>(static service => service.Clear());
+			scope.RegisterCleanup<LocalCommandTransport>(static service => service.Clear());
+			scope.RegisterCleanup<NetworkLatencyService>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkService>(static service => service.Clear());
 			scope.RegisterDisposeAction(ECSContext.DisposeAndRecreateServices);
 

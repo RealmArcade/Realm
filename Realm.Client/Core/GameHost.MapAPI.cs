@@ -74,9 +74,6 @@ public partial class GameHost
 		return GameContext.RegistryService.GetAbilityDefinition(abilityId);
 	}
 
-	bool IGameAPI.IsPredictiveFrame => GameSettings.MovementPrediction && (GameContext.MovementPredictionService?.IsPredictiveFrameContext ?? false);
-	bool IGameAPI.IsAuthoritativeFrame => !((IGameAPI)this).IsPredictiveFrame;
-
 	void IGameAPI.RegisterAbility(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
 		if (GameContext.RegistryService.RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant))
@@ -767,41 +764,131 @@ public partial class GameHost
 		};
 	}
 
+	private readonly Dictionary<int, int> _abilityStateHandles = new();
+	private readonly Dictionary<int, int> _publishedAbilityStateHandles = new();
+	private readonly HashSet<(int UnitUniqueId, short AbilityIndex)> _abilityDeltaKeys = new();
+	private bool _abilityStateHandlesInitialized;
+
 	public List<AbilityStateDelta> CollectAbilityStateDeltas(bool includeAll, bool clearDirty = true)
 	{
 		var deltas = new List<AbilityStateDelta>();
 		var registry = GameContext.RegistryService;
 		if (registry == null) return deltas;
 
-		if (includeAll)
+		CollectAbilityStateHandles();
+		// An ability delta names a slot in the unit's own ability list, not an ability id, because an id is a string that
+		// the peer already holds. Sending the whole list every baseline was 87.5 KB of a 173 KB baseline. A slot only
+		// means the same ability while the list is unchanged, so a list that gained or lost an ability makes the peer's
+		// existing slots meaningless and every exception has to be restated against the new list.
+		bool abilityListsChanged = _abilityStateHandlesInitialized && HasAnyAbilityListChanged();
+		_abilityStateHandlesInitialized = true;
+
+		_abilityDeltaKeys.Clear();
+		if (includeAll || abilityListsChanged)
 		{
 			foreach (var kvp in registry.UnitAbilityStates)
 			{
-				deltas.Add(ToAbilityStateDelta(kvp.Key.UnitUniqueId, kvp.Key.AbilityId, kvp.Value.Disabled, kvp.Value.Hidden));
+				AppendAbilityStateDelta(deltas, kvp.Key.UnitUniqueId, kvp.Key.AbilityId, kvp.Value.Disabled, kvp.Value.Hidden, exceptionsOnly: true, warnOnMiss: false);
 			}
-			if (clearDirty) registry.ClearAbilityStateDirty();
-			return deltas;
+		}
+		else
+		{
+			foreach (var key in registry.DirtyAbilityStates)
+			{
+				if (registry.UnitAbilityStates.TryGetValue(key, out var state))
+				{
+					AppendAbilityStateDelta(deltas, key.UnitUniqueId, key.AbilityId, state.Disabled, state.Hidden, exceptionsOnly: false, warnOnMiss: true);
+				}
+			}
 		}
 
-		foreach (var key in registry.DirtyAbilityStates)
+		_publishedAbilityStateHandles.Clear();
+		foreach (var kvp in _abilityStateHandles)
 		{
-			if (registry.UnitAbilityStates.TryGetValue(key, out var state))
-			{
-				deltas.Add(ToAbilityStateDelta(key.UnitUniqueId, key.AbilityId, state.Disabled, state.Hidden));
-			}
+			_publishedAbilityStateHandles[kvp.Key] = kvp.Value;
 		}
+
 		if (clearDirty) registry.ClearAbilityStateDirty();
 		return deltas;
 	}
 
-	private static AbilityStateDelta ToAbilityStateDelta(int unitUniqueId, string abilityId, bool disabled, bool hidden)
+	private void CollectAbilityStateHandles()
 	{
-		return new AbilityStateDelta
+		_abilityStateHandles.Clear();
+		foreach (var entity in GameContext.World.Query<AbilityState>())
+		{
+			ref var abilityState = ref GameContext.World.Get<AbilityState>(entity);
+			_abilityStateHandles[entity.Id] = abilityState.Handle;
+		}
+	}
+
+	private bool HasAnyAbilityListChanged()
+	{
+		if (_abilityStateHandles.Count != _publishedAbilityStateHandles.Count) return true;
+
+		foreach (var kvp in _abilityStateHandles)
+		{
+			if (!_publishedAbilityStateHandles.TryGetValue(kvp.Key, out int publishedHandle)) return true;
+			if (publishedHandle != kvp.Value) return true;
+		}
+
+		return false;
+	}
+
+	private void AppendAbilityStateDelta(List<AbilityStateDelta> deltas, int unitUniqueId, string abilityId, bool disabled, bool hidden, bool exceptionsOnly, bool warnOnMiss)
+	{
+		byte flags = (byte)((disabled ? 1 : 0) | (hidden ? 2 : 0));
+		if (exceptionsOnly && flags == 0) return;
+
+		if (!TryResolveAbilityIndex(unitUniqueId, abilityId, out short abilityIndex))
+		{
+			if (warnOnMiss)
+			{
+				GD.PushWarning($"[Replication] Ability state for entity {unitUniqueId} names '{abilityId}', which is not in that unit's ability list, so no peer can apply it.");
+			}
+
+			return;
+		}
+
+		if (!_abilityDeltaKeys.Add((unitUniqueId, abilityIndex))) return;
+
+		deltas.Add(new AbilityStateDelta
 		{
 			ServerEntityId = unitUniqueId,
-			AbilityId = abilityId,
-			Flags = (byte)((disabled ? 1 : 0) | (hidden ? 2 : 0))
-		};
+			AbilityIndex = abilityIndex,
+			Flags = flags
+		});
+	}
+
+	private bool TryResolveAbilityIndex(int unitUniqueId, string abilityId, out short abilityIndex)
+	{
+		abilityIndex = -1;
+		Entity entity = unitUniqueId;
+		if (!GameContext.World.IsAlive(entity) || !GameContext.World.Has<AbilityState>(entity)) return false;
+
+		var abilityState = GameContext.World.Get<AbilityState>(entity);
+		for (int index = 0; index < abilityState.Count; index++)
+		{
+			string? listedAbilityId = abilityState.Get(index);
+			if (listedAbilityId == null) continue;
+			if (!IsSameAbilityId(listedAbilityId, abilityId)) continue;
+
+			abilityIndex = (short)index;
+			return true;
+		}
+
+		return false;
+	}
+
+	private static bool IsSameAbilityId(string left, string right)
+	{
+		return AbilityIdCore(left).Equals(AbilityIdCore(right), StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static ReadOnlySpan<char> AbilityIdCore(string abilityId)
+	{
+		ReadOnlySpan<char> span = abilityId.AsSpan();
+		return span.StartsWith("ability/", StringComparison.OrdinalIgnoreCase) ? span.Slice(8) : span;
 	}
 
 	void IGameAPI.SpawnVisualEffect(string effectTypeId, Vector3 position, float scale)

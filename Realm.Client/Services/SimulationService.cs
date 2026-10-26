@@ -286,6 +286,20 @@ public class SimulationService
 	private EntityCallback<Mana, ManaRegen> _manaRegenQueryDelegate = null!;
 	private EntityCallback<ProductionQueue> _prodQueryDelegate = null!;
 	private EntityCallback<InterpolationTarget> _interpolationQueryDelegate = null!;
+
+	/// <summary>
+	/// How long a follower takes to close lag that smoothing cannot explain. Fast enough that a burst of descriptions
+	/// between two ticks does not become a visible trail, slow enough that the correction is blended rather than a jump.
+	/// </summary>
+	public const float FollowerCatchUpSeconds = 0.25f;
+
+	private readonly HashSet<int> _followerCatchingUp = new();
+
+	/// <summary>
+	/// How many times a follower finished closing a lag that interpolation could not account for. Reported by the
+	/// harness, because a client that leans on this path is a client whose tick loop fell behind the description stream.
+	/// </summary>
+	public int FollowerCatchUpCount { get; private set; }
 	private EntityCallback<SpellCooldowns> _spellCooldownQueryDelegate = null!;
 	private EntityCallback<Cooldowns> _cooldownsQueryDelegate = null!;
 	private EntityCallback<AutoCastState, Position, DefinitionId, Owner> _autoCastQueryDelegate = null!;
@@ -701,7 +715,7 @@ public class SimulationService
 	public bool ShouldSimulateEntity(Entity entity)
 	{
 		var host = GameContext.Host;
-		if (host == null || !host.IsClientSimulationOnly) return true;
+		if (host == null || host.HasAuthority) return true;
 		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
 
 		int localPlayerIndex = host.LocalPlayerIndex;
@@ -783,7 +797,7 @@ public class SimulationService
 			_combatService.StepCombat(fDelta, _movementService);
 		}
 
-		if (GameContext.Host?.IsClientSimulationOnly != true)
+		if (GameContext.Host?.HasAuthority != false)
 		{
 			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationEconomyStep))
 			{
@@ -1055,6 +1069,12 @@ public class SimulationService
 	public void SetDelta(float fDelta)
 	{
 		_fDelta = fDelta;
+	}
+
+	public void StepPredictedMovement(float fDelta)
+	{
+		_fDelta = fDelta;
+		_movementService.StepMovement(fDelta, true);
 	}
 
 	public bool TryGetInterpolatedTransform(Entity entity, float fraction, out Vector3 position, out float rotationY)
@@ -1644,28 +1664,59 @@ public class SimulationService
 		OnProductionCompleted?.Invoke(buildingPlayerIndex, unitToSpawn);
 	}
 
-	private const float LocalOwnedInterpolationRateMultiplier = 2f;
-
 	private void InterpolationQueryAction(Entity entity, ref InterpolationTarget target)
 	{
 		if (!GameContext.World.Has<Position>(entity)) return;
 
+		// A tracked unit is owned by prediction for its whole lifetime, not only while it carries an order: interpolating
+		// a settled predicted unit toward a stale visual target would drag the position prediction just reconciled and
+		// give it a second, divergent smoothing model.
 		bool isLocallyPredicted = GameSettings.MovementPrediction
-			&& GameContext.Host?.IsClientSimulationOnly == true
-			&& ShouldSimulateEntity(entity)
-			&& (GameContext.World.Has<MoveTo>(entity) || GameContext.World.Has<Follow>(entity));
+			&& GameContext.MovementPredictionService != null
+			&& GameContext.MovementPredictionService.IsEntityTracked(entity.Id);
 		if (isLocallyPredicted) return;
 
+		// One smoothing model for every unit this client does not predict, at the rate the measured round trip sets. A
+		// second, faster rate for the player's own units was tried and removed: it made allies and former predicted units
+		// snap where enemies glided, for a difference no player could describe, and every placement bound then needed a
+		// per-owner allowance to stay honest. A follower that is genuinely far behind is handled where the cause is known -
+		// the snapshot apply path, which places a unit whose description resumed after a gap instead of gliding it in from
+		// a position the client was never watching.
+		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordInterpolationStep(entity.Id, GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1);
+
 		var currentPos = GameContext.World.Get<Position>(entity).Value;
-		int unitPlayer = GameContext.World.Has<UnitOwnerPlayer>(entity) ? GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
-		bool isEnemy = GameContext.PerspectiveFilter.IsHostileToObserved(unitPlayer);
-
 		float interpolationRate = GetDynamicInterpolationFactor();
-		if (!isEnemy) interpolationRate *= LocalOwnedInterpolationRateMultiplier;
-
 		float stepFraction = Math.Min(1f, interpolationRate * _fDelta);
+
+		// A description is applied when the packet arrives, which is not when this step runs. Several can land between two
+		// ticks, moving the described position further than one smoothing step covers, and the applied state then trails
+		// the authority until the smoothing catches up on its own - most of a second at four metres behind. Smoothing at
+		// the rate can only explain speed/rate plus one resend step, so any excess is time this client missed and is
+		// closed deliberately instead, fast enough to be gone in a fraction of a second and slow enough not to skip.
+		float distanceToTarget = Vector3.Distance(currentPos, target.Position);
+		float defensibleLagMeters = NetworkService.ResolveDefensibleFollowerLagMeters(target.Velocity, interpolationRate);
+		if (distanceToTarget > defensibleLagMeters)
+		{
+			// The excess is closed over a stated time rather than at the smoothing rate, and proportionally, so a lag that
+			// grew to several metres is gone in that time instead of decaying geometrically towards a bound it never reaches.
+			float excessFraction = (distanceToTarget - defensibleLagMeters) / MathF.Max(distanceToTarget, 0.0001f);
+			float catchUpFraction = excessFraction * MathF.Min(1f, _fDelta / FollowerCatchUpSeconds);
+			stepFraction = MathF.Max(stepFraction, MathF.Min(1f, catchUpFraction));
+			if (!_followerCatchingUp.Contains(entity.Id)) _followerCatchingUp.Add(entity.Id);
+		}
+		else if (_followerCatchingUp.Remove(entity.Id))
+		{
+			FollowerCatchUpCount++;
+		}
+
 		var finalPos = Vector3.Lerp(currentPos, target.Position, stepFraction);
 
+		if (MultiplayerSyncDiagnostics.IsRecording && (target.Position - currentPos).LengthSquared() > 4f)
+		{
+			MultiplayerSyncDiagnostics.RecordInterpolationStepDetail(entity.Id, currentPos, target.Position, stepFraction, finalPos);
+		}
+
+		PositionWriteTrace.MarkInterpolation(entity, stepFraction, currentPos, target.Position, finalPos, GameContext.World.Get<InterpolationTarget>(entity).Position);
 		GameContext.World.Set(entity, new Position(finalPos));
 		GameContext.World.SetOrAdd(entity, new Velocity(target.Velocity));
 	}

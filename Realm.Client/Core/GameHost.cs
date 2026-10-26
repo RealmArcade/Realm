@@ -2543,7 +2543,10 @@ public partial class GameHost : Node3D, IGameAPI
 			return;
 		}
 
-		RebakeNavMesh();
+		// A peer does not run the map script, so the props and pre-placed buildings it needs as obstacle volumes arrive as
+		// spawn requests after this point. Baking here produced a mesh with no obstacles at all, which is why a predicted
+		// route could pick a corridor the authority treats as blocked.
+		RequestNavMeshRefresh();
 	}
 
 	private bool ShouldProcessMapLoading()
@@ -3108,13 +3111,7 @@ public partial class GameHost : Node3D, IGameAPI
 		SpawnTargetIndicator(propPos, new Color(0.9f, 0.8f, 0.1f));
 		GameContext.InGameHud?.ShowFeedbackText($"Gathering {resType.ToUpper()} from {propId}", new Color(0.9f, 0.8f, 0.1f));
 
-		if (_multiplayerActive && !Multiplayer.IsServer())
-		{
-			IssueMultiplayerGatherCommand(propEntity, propPos, isQueued);
-			return;
-		}
-
-		IssueLocalGatherCommand(propEntity, propPos, resType, isQueued);
+		SubmitGatherOrderCommand(propEntity, propPos, isQueued);
 	}
 
 	private string? GetPropResourceType(string propId)
@@ -3122,7 +3119,7 @@ public partial class GameHost : Node3D, IGameAPI
 		return GameContext.RegistryService.GetResourceTypeForNode(propId);
 	}
 
-	private void IssueMultiplayerGatherCommand(Entity propEntity, Vector3 propPos, bool isQueued)
+	private void SubmitGatherOrderCommand(Entity propEntity, Vector3 propPos, bool isQueued)
 	{
 		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 		if (localPlayerIndex <= 0) return;
@@ -3131,31 +3128,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
 			targetIds.Add(GetServerEntityId(unit.Entity));
-		}
-
-		QueueClientCommand(isQueued ? "gather_queued" : "gather", targetIds, propPos, GetServerEntityId(propEntity), "");
-	}
-
-	private void IssueLocalGatherCommand(Entity propEntity, Vector3 propPos, string resType, bool isQueued)
-	{
-		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
-		if (localPlayerIndex <= 0) return;
-		foreach (var unit in SelectedUnits)
-		{
-			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
-
-				if (isQueued && GameContext.InputService != null && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(unit.Entity))
-			{
-				GameContext.InputService.EnqueueCommand(unit.Entity, "gather", new System.Numerics.Vector3(propPos.X, propPos.Y, propPos.Z), propEntity);
-			}
-			else
-			{
-				if (!isQueued) ClearUnitOrders(unit.Entity);
-
-				GameContext.World.SetOrAdd(unit.Entity, new Gatherer(resType, propEntity));
-				GameContext.World.SetOrAdd(unit.Entity, new MoveTo(new System.Numerics.Vector3(propPos.X, propPos.Y, propPos.Z)));
-			}
-		}
+		}		SubmitOrderCommand(isQueued ? "gather_queued" : "gather", targetIds, propPos, GetServerEntityId(propEntity), "");
 	}
 
 	public void IssueGatherCommand(Prop3D prop, bool isQueued = false)
@@ -3532,7 +3505,21 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public bool IsMultiplayerServerActive() => _multiplayerActive && IsServerActive();
 
-	public bool IsClientSimulationOnly => _multiplayerActive && !IsServerActive();
+	public bool HasAuthority => IsServerActive();
+
+	public bool HasRemoteAuthority => _multiplayerActive && !IsServerActive();
+
+	public int ObservingPlayerIndex
+	{
+		get
+		{
+			var filter = GameContext.PerspectiveFilter;
+			if (!filter.IsConfigured || filter.IsSpectating) return -1;
+			return filter.ControlledPlayerIndex;
+		}
+	}
+
+	public bool IsLocalViewpoint(int playerIndex) => playerIndex > 0 && playerIndex == ObservingPlayerIndex;
 
 	private bool IsServerActive()
 	{
@@ -3549,11 +3536,107 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void RebakeNavMesh()
 	{
-		if (GroundTerrain != null)
-		{
-			GroundTerrain.BakeNavMesh();
-		}
+		if (GroundTerrain == null) return;
+
+		GroundTerrain.BakeNavMesh();
+
+		// A peer receives the map's obstacle volumes from nowhere else: most of them belong to props the map script
+		// spawned, and a peer never runs that script. Sending the volumes the authority just baked with is what makes the
+		// two meshes identical, and therefore what stops a predicted route from picking a corridor the host blocks. A peer
+		// that already baked these volumes drops them, so a repeat only costs one message.
+		if (!IsServerActive() || !_multiplayerActive) return;
+
+		foreach (int peerId in GetReplicatedPeerIds()) SendNavMeshObstacleVolumesToPeer(peerId);
 	}
+
+	private List<int> GetReplicatedPeerIds()
+	{
+		_navMeshBroadcastPeerIds.Clear();
+		if (GameContext.Lobby == null) return _navMeshBroadcastPeerIds;
+
+		foreach (var player in GameContext.Lobby.PlayerList)
+		{
+			if (player.PeerId == _localPeerId || player.PeerId < 0) continue;
+			if (player.IsDisconnected) continue;
+			_navMeshBroadcastPeerIds.Add(player.PeerId);
+		}
+
+		return _navMeshBroadcastPeerIds;
+	}
+
+	private readonly List<int> _navMeshBroadcastPeerIds = new();
+
+	/// <summary>
+	/// Sends the obstacle volumes of the last bake to one peer. Sent beside every baseline, because a peer that joins or
+	/// reconnects after the bake would otherwise never learn them and would path across corridors the authority blocks.
+	/// </summary>
+	public void SendNavMeshObstacleVolumesToPeer(int peerId)
+	{
+		TerrainNavMeshService navMeshService = ECSContext.TerrainNavMeshService;
+		if (navMeshService == null) return;
+
+		ReadOnlySpan<System.Numerics.Vector3> bakedPositions = navMeshService.BakedObstaclePositions;
+		if (bakedPositions.Length == 0) return;
+
+		Vector3[] positions = new Vector3[bakedPositions.Length];
+		for (int index = 0; index < bakedPositions.Length; index++)
+		{
+			positions[index] = new Vector3(bakedPositions[index].X, bakedPositions[index].Y, bakedPositions[index].Z);
+		}
+
+		RpcId(peerId, nameof(ReceiveNavMeshObstacleVolumes), positions, navMeshService.BakedObstacleRadii.ToArray());
+	}
+
+	/// <summary>
+	/// Replaces this peer's obstacle volumes with the ones the authority baked with and rebuilds the mesh from them. The
+	/// volumes are pure geometry, so this carries no gameplay authority: the peer only learns which cells the authority
+	/// pathing treats as blocked.
+	/// </summary>
+	public void ApplyAuthoritativeNavMeshObstacles(Vector3[] positions, float[] radii)
+	{
+		TerrainNavMeshService navMeshService = ECSContext.TerrainNavMeshService;
+		if (navMeshService == null || positions == null || radii == null) return;
+
+		System.Numerics.Vector3[] domainPositions = new System.Numerics.Vector3[positions.Length];
+		for (int index = 0; index < positions.Length; index++)
+		{
+			domainPositions[index] = new System.Numerics.Vector3(positions[index].X, positions[index].Y, positions[index].Z);
+		}
+
+		if (navMeshService.HasBakedObstacleVolumes(domainPositions, radii)) return;
+
+		navMeshService.SetAuthoritativeObstacleVolumes(domainPositions, radii);
+		RebakeNavMesh();
+	}
+
+	private const ulong NavMeshRefreshDelayMsec = 500;
+	private bool _navMeshRefreshPending;
+	private ulong _navMeshRefreshDeadlineMsec;
+
+	/// <summary>
+	/// Asks for a navigation mesh bake once the world has stopped changing. A bake is expensive and a map load spawns
+	/// hundreds of props through independent requests, so the refresh waits for the last one instead of baking per prop.
+	/// The wait is measured on the clock rather than in frame deltas: a machine running several peers advances a frame by
+	/// more than the whole wait, which made the bake fire after the first prop and miss the rest of the map.
+	/// </summary>
+	public void RequestNavMeshRefresh()
+	{
+		if (GameContext.SessionState.IsMapEditorMode) return;
+		_navMeshRefreshPending = true;
+		_navMeshRefreshDeadlineMsec = Time.GetTicksMsec() + NavMeshRefreshDelayMsec;
+	}
+
+	public void UpdateNavMeshRefresh()
+	{
+		if (!_navMeshRefreshPending) return;
+		if (Time.GetTicksMsec() < _navMeshRefreshDeadlineMsec) return;
+
+		_navMeshRefreshPending = false;
+		// Any new obstacle requests the next refresh itself, so this one only has to cover what already exists.
+		RebakeNavMesh();
+	}
+
+	public bool IsNavMeshRefreshPending => _navMeshRefreshPending;
 
 	public void CarveObstacle(System.Numerics.Vector3 pos, float radius)
 	{
@@ -3852,9 +3935,16 @@ public partial class GameHost : Node3D, IGameAPI
 
 			_fDelta = fDelta;
 
+			DrainLocalCommandQueue();
+
 			ProcessCoreSimulation(fDelta);
 			ProcessVisualAndEnvironment(fDelta);
 			ProcessMiscTicks(fDelta);
+
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PredictionPerformanceSample))
+			{
+				GameContext.MovementPredictionService?.Advance(GameContext.World, fDelta);
+			}
 
 			if (_multiplayerActive && Multiplayer.IsServer())
 				UpdateServerSnapshotTick(fDelta);

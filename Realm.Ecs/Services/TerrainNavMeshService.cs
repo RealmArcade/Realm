@@ -17,6 +17,25 @@ public class TerrainNavMeshService
 {
 	public Dictionary<string, float> ObstacleRadiusCache { get; set; } = new();
 
+	/// <summary>
+	/// How many obstacle volumes went into the last bake. Reported by the host and by each peer so a mesh that differs from
+	/// the authority's can be traced to the input it was built from rather than to the bake itself.
+	/// </summary>
+	public int LastBakedObstacleCount { get; private set; }
+
+	/// <summary>
+	/// True when this instance bakes with obstacle volumes received from the authority rather than collecting them from the
+	/// entities it can see. A peer does not run the map script, so most of the authority's obstacle volumes have no entity
+	/// behind them on the peer at all.
+	/// </summary>
+	public bool UsesAuthoritativeObstacles => _authoritativeObstaclePositions.Count > 0;
+
+
+	private readonly List<Vector3> _authoritativeObstaclePositions = new();
+	private readonly List<float> _authoritativeObstacleRadii = new();
+	private readonly List<Vector3> _bakedObstaclePositions = new();
+	private readonly List<float> _bakedObstacleRadii = new();
+
 	private const float NavMeshCellHeight = 0.1f;
 	private const float AgentRadius = 1.2f;
 	private const float AgentHeight = 2.5f;
@@ -556,6 +575,14 @@ public class TerrainNavMeshService
 		float halfD = depth / 2.0f * quadSize;
 
 		var obstacles = GetNavMeshObstacles();
+		LastBakedObstacleCount = obstacles.Count;
+		_bakedObstaclePositions.Clear();
+		_bakedObstacleRadii.Clear();
+		for (int index = 0; index < obstacles.Count; index++)
+		{
+			_bakedObstaclePositions.Add(obstacles[index].Pos);
+			_bakedObstacleRadii.Add(obstacles[index].Radius);
+		}
 		if (state.Cells == null) return;
 		var bakeHeights = GetBakeHeights(in state, width, depth);
 
@@ -569,6 +596,16 @@ public class TerrainNavMeshService
 	private List<(Vector3 Pos, float Radius)> GetNavMeshObstacles()
 	{
 		_navMeshObstacles.Clear();
+		if (UsesAuthoritativeObstacles)
+		{
+			for (int index = 0; index < _authoritativeObstaclePositions.Count; index++)
+			{
+				_navMeshObstacles.Add((_authoritativeObstaclePositions[index], _authoritativeObstacleRadii[index]));
+			}
+
+			return _navMeshObstacles;
+		}
+
 		var world = ECSContext.World;
 		if (world == null) return _navMeshObstacles;
 
@@ -576,6 +613,50 @@ public class TerrainNavMeshService
 		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingQuery, _collectBuildingObstacleDelegate);
 		return _navMeshObstacles;
 	}
+
+	/// <summary>
+	/// Replaces the obstacle volumes this instance bakes with the ones the authority baked with. Called on a peer after the
+	/// authority reports a bake, so both sides build their mesh from the same volumes and answer the same path query with
+	/// the same corridor.
+	/// </summary>
+	public void SetAuthoritativeObstacleVolumes(ReadOnlySpan<Vector3> positions, ReadOnlySpan<float> radii)
+	{
+		_authoritativeObstaclePositions.Clear();
+		_authoritativeObstacleRadii.Clear();
+		int count = Math.Min(positions.Length, radii.Length);
+		for (int index = 0; index < count; index++)
+		{
+			_authoritativeObstaclePositions.Add(positions[index]);
+			_authoritativeObstacleRadii.Add(radii[index]);
+		}
+	}
+
+	/// <summary>
+	/// True when the last bake already used exactly these volumes, so applying them again would only repeat an expensive
+	/// bake for the same result.
+	/// </summary>
+	public bool HasBakedObstacleVolumes(ReadOnlySpan<Vector3> positions, ReadOnlySpan<float> radii)
+	{
+		if (positions.Length != _bakedObstaclePositions.Count || radii.Length != _bakedObstacleRadii.Count) return false;
+
+		for (int index = 0; index < positions.Length; index++)
+		{
+			if (positions[index] != _bakedObstaclePositions[index]) return false;
+			if (radii[index] != _bakedObstacleRadii[index]) return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// The obstacle volumes the last bake used. The authority sends these to its peers so a peer bakes an identical mesh.
+	/// </summary>
+	public ReadOnlySpan<Vector3> BakedObstaclePositions => System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_bakedObstaclePositions);
+
+	/// <summary>
+	/// The radii that belong to <see cref="BakedObstaclePositions"/>.
+	/// </summary>
+	public ReadOnlySpan<float> BakedObstacleRadii => System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_bakedObstacleRadii);
 
 	private float[,] GetBakeHeights(in TerrainState state, int width, int depth)
 	{

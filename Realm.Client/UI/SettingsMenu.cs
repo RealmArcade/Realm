@@ -50,6 +50,7 @@ public partial class SettingsMenu : Control
 	private OptionButton _healthBarsOpt;
 	private OptionButton _languageOpt;
 	private CheckBox _displayFpsChk;
+	private CheckBox _displayPingChk;
 	private CheckBox _unitOutlineChk;
 	private CheckBox _recordReplaysChk;
 	private CheckBox _seedMapFilesChk;
@@ -136,6 +137,7 @@ public partial class SettingsMenu : Control
 		_voiceValLabel = GetNode<Label>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/VoiceRow/VoiceValLabel");
 
 		_displayFpsChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DisplayFpsChk");
+		_displayPingChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DisplayPingChk");
 		_unitOutlineChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/UnitOutlineChk");
 		_recordReplaysChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/RecordReplaysChk");
 		_seedMapFilesChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/SeedMapFilesChk");
@@ -431,6 +433,8 @@ public partial class SettingsMenu : Control
 		_floatingCombatTextChk.Text = TranslationServer.Translate(_floatingCombatTextChk.Text);
 		UIStyle.ApplyCheckboxStyle(_displayFpsChk);
 		_displayFpsChk.Text = TranslationServer.Translate(_displayFpsChk.Text);
+		UIStyle.ApplyCheckboxStyle(_displayPingChk);
+		_displayPingChk.Text = TranslationServer.Translate(_displayPingChk.Text);
 		UIStyle.ApplyCheckboxStyle(_unitOutlineChk);
 		_unitOutlineChk.Text = TranslationServer.Translate(_unitOutlineChk.Text);
 		_unitOutlineChk.TooltipText = TranslationServer.Translate(_unitOutlineChk.TooltipText);
@@ -561,6 +565,8 @@ public partial class SettingsMenu : Control
 		_floatingCombatTextChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 		_displayFpsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
 		_displayFpsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_displayPingChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+		_displayPingChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 		_unitOutlineChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
 		_unitOutlineChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 		_recordReplaysChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
@@ -873,6 +879,7 @@ public partial class SettingsMenu : Control
 		_disableWeatherEffectsChk.ButtonPressed = GameSettings.WeatherEffectsEnabled;
 		_floatingCombatTextChk.ButtonPressed = GameSettings.FloatingCombatText;
 		_displayFpsChk.ButtonPressed = GameSettings.DisplayFps;
+		_displayPingChk.ButtonPressed = GameSettings.DisplayPing;
 		_unitOutlineChk.ButtonPressed = GameSettings.OccludedUnitOutlines;
 		_recordReplaysChk.ButtonPressed = GameSettings.RecordReplays;
 
@@ -992,6 +999,7 @@ public partial class SettingsMenu : Control
 		GameSettings.MouseSens = (float)_mouseSensSlider.Value;
 		GameSettings.HudScale = (float)_hudScaleSlider.Value;
 		GameSettings.DisplayFps = _displayFpsChk.ButtonPressed;
+		GameSettings.DisplayPing = _displayPingChk.ButtonPressed;
 		GameSettings.OccludedUnitOutlines = _unitOutlineChk.ButtonPressed;
 		GameSettings.RecordReplays = _recordReplaysChk.ButtonPressed;
 		GameSettings.SeedMapFiles = _seedMapFilesChk.ButtonPressed;

@@ -16,6 +16,13 @@ public static class ShadowClientVerifier
 	private static int _structuralFailures;
 	private static int _fingerprintFailures;
 
+	/// <summary>
+	/// Whether the host replays the stream it sends. Replaying decodes, deserializes and rebuilds a mirror for every
+	/// payload of every peer on the sending tick, so it is a verification cost and not a shipping one: the harness and
+	/// map-editor test mode turn it on explicitly, and a live match leaves it off.
+	/// </summary>
+	public static bool IsEnabled { get; set; }
+
 	public static int VerifiedBaselines => _verifiedBaselines;
 	public static int StructuralFailures => _structuralFailures;
 	public static int FingerprintFailures => _fingerprintFailures;
@@ -30,15 +37,21 @@ public static class ShadowClientVerifier
 		_fingerprintFailures = 0;
 	}
 
+	/// <summary>
+	/// Replays every payload a peer is sent into a mirror, in the order the peer receives it, and compares fingerprints
+	/// on baselines. A baseline is no longer self-contained - it restates only what changed, because the peer keeps the
+	/// components it already acknowledged - so reconstruction has to accumulate the stream instead of restarting at each
+	/// baseline, which is also what the peer itself does.
+	/// </summary>
 	public static void VerifyPayload(int peerId, byte[] payload, bool isBaseline)
 	{
-		if (!isBaseline) return;
+		if (!IsEnabled) return;
 		if (payload == null || payload.Length == 0) return;
 
 		WorldSnapshot snapshot;
 		try
 		{
-			snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(payload);
+			snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload));
 		}
 		catch (Exception exception)
 		{
@@ -52,8 +65,6 @@ public static class ShadowClientVerifier
 			_mirrors[peerId] = mirror;
 		}
 
-		mirror.Clear();
-
 		_replayedDeltaCount += (snapshot.ComponentDeltas?.Count ?? 0) + (snapshot.AbilityStates?.Count ?? 0) + (snapshot.StaticTexts?.Count ?? 0);
 		var errors = new List<string>();
 		ReplicatedPayloadReplay.Replay(mirror, snapshot.ComponentDeltas, snapshot.AbilityStates, snapshot.StaticTexts, errors, snapshot.ColdPayloads);
@@ -61,6 +72,8 @@ public static class ShadowClientVerifier
 		{
 			RecordStructuralFailure(peerId, $"peer {peerId} {errors[i]}");
 		}
+
+		if (!isBaseline) return;
 
 		_verifiedBaselines++;
 		uint replayed = ReplicatedStateFingerprint.CombineWeatherState(mirror.ComputeFingerprint(), GameContext.World, ECSContext.WorldEntity);

@@ -120,14 +120,14 @@ foreach (var delta in forward) mirrorA.RecordComponent(delta);
 foreach (var delta in forward.Reverse()) mirrorB.RecordComponent(delta);
 Check(mirrorA.ComputeFingerprint() == mirrorB.ComputeFingerprint(), "fingerprint is independent of delta arrival order");
 
-mirrorA.RecordAbility(new AbilityStateDelta { ServerEntityId = 3, AbilityId = "build", Flags = 1 });
+mirrorA.RecordAbility(new AbilityStateDelta { ServerEntityId = 3, AbilityIndex = 0, Flags = 1 });
 mirrorA.RecordText(new StaticTextDelta { Handle = 1, Text = "wave", PositionX = 1f, PositionY = 2f, PositionZ = 3f, Visible = 1 });
-mirrorB.RecordAbility(new AbilityStateDelta { ServerEntityId = 3, AbilityId = "build", Flags = 1 });
+mirrorB.RecordAbility(new AbilityStateDelta { ServerEntityId = 3, AbilityIndex = 0, Flags = 1 });
 mirrorB.RecordText(new StaticTextDelta { Handle = 1, Text = "wave", PositionX = 1f, PositionY = 2f, PositionZ = 3f, Visible = 1 });
 Check(mirrorA.ComputeFingerprint() == mirrorB.ComputeFingerprint(), "fingerprint covers ability state and static text symmetrically");
 
 uint baselineFingerprint = mirrorA.ComputeFingerprint();
-mirrorA.RecordAbility(new AbilityStateDelta { ServerEntityId = 3, AbilityId = "build", Flags = 2 });
+mirrorA.RecordAbility(new AbilityStateDelta { ServerEntityId = 3, AbilityIndex = 0, Flags = 2 });
 Check(mirrorA.ComputeFingerprint() != baselineFingerprint, "fingerprint detects an ability flag change");
 
 mirrorA.RecordText(new StaticTextDelta { Handle = 1, Text = "wave", PositionX = 1.5f, PositionY = 2f, PositionZ = 3f, Visible = 1 });
@@ -161,8 +161,8 @@ Check(new Weapons(null).Handle == 0 && new Weapons(new List<Weapon>()).Count == 
 
 var abilities = new List<AbilityStateDelta>
 {
-	new() { ServerEntityId = 7, AbilityId = "build_draft", Flags = 2 },
-	new() { ServerEntityId = 8, AbilityId = "build_draft", Flags = 0 }
+	new() { ServerEntityId = 7, AbilityIndex = 1, Flags = 2 },
+	new() { ServerEntityId = 8, AbilityIndex = 1, Flags = 0 }
 };
 var texts = new List<StaticTextDelta>
 {

@@ -1240,16 +1240,6 @@
             Gets the elapsed game time in seconds.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.IGameAPI.IsPredictiveFrame">
-            <summary>
-            Gets a value indicating whether the current frame execution is a predictive local frame.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.IGameAPI.IsAuthoritativeFrame">
-            <summary>
-            Gets a value indicating whether the current frame execution is an authoritative simulation frame.
-            </summary>
-        </member>
         <member name="P:Realm.MapAPI.IGameAPI.CheatsEnabled">
             <summary>
             Gets a value indicating whether cheats are available in the current session. Read-only: only the
@@ -1363,6 +1353,22 @@
             <summary>
             Triggered when the player selects a unit.
             </summary>
+        </member>
+        <member name="E:Realm.MapAPI.IGameAPI.OnConsumableChanged">
+            <summary>
+            Triggered after a consumable is bound to a unit or purged from one. The engine sells the
+            purchase; this event is where the map switches on the behaviour the consumable grants.
+            </summary>
+            <param name="unit">The unit that now carries the consumable, or just lost it.</param>
+            <param name="consumableId">The attached consumable's template id, or empty when the slot was cleared.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitConsumable(Realm.MapAPI.UnitId,System.String)">
+            <summary>
+            Retrieves the consumable attached to a unit in the given slot group.
+            </summary>
+            <param name="unit">The unit to inspect.</param>
+            <param name="slotGroup">The authored slot group, for example "elixir".</param>
+            <returns>The consumable's template id, or an empty string when the unit carries none.</returns>
         </member>
         <member name="E:Realm.MapAPI.IGameAPI.OnUnitAttacked">
             <summary>

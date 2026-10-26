@@ -8,6 +8,7 @@ using Godot;
 using MemoryPack;
 using Realm.Client.Core;
 using Realm.Client.Network;
+using Realm.Client.Testing;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -26,13 +27,68 @@ namespace Realm.Client.Services;
 
 public class NetworkService
 {
-	private readonly List<NetworkCommand> _unacknowledgedCommands = new();
 	private const int MaximumQueuedDeltas = 512;
 
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
+	private const int BaselineSafetyIntervalSequences = 900;
+	/// <summary>
+	/// How often a peer that has never acknowledged anything is sent another full baseline. The first one is immediate,
+	/// because a joining peer needs it; repeating it every two seconds was the expensive case, since a peer that cannot
+	/// apply a snapshot pays ~138 KB each time and a baseline is not what unblocks it. Ten seconds still recovers a peer
+	/// that recovered on its own, at a fifth of the cost, and health is measured by the acknowledgement, not by the retry.
+	/// </summary>
+	private const int BaselineRepeatWhileUnacknowledgedSequences = 300;
+	private const int MinimumBaselineRequestSpacingSequences = 30;
+	/// <summary>
+	/// How long a peer's acknowledgement may stand still before the host answers with a full baseline. This is a stall
+	/// window, not a distance from the newest sequence: a peer that is far behind but still confirms every snapshot it
+	/// applies is receiving the stream, and a baseline does not unblock it because nothing is blocking it.
+	/// </summary>
+	private const int BaselineAckStallSequences = 600;
+
+	private const int MaximumPendingComponentAcks = 8192;
+
+	private readonly UnitVisibilityIndex _visibilityIndex = new();
 	private readonly Dictionary<int, Vector3> _clientCameraPositions = new();
-	private readonly Dictionary<int, Dictionary<int, UnitSnapshot>> _lastBaselineSnapshotsPerClient = new();
-	private readonly Dictionary<int, Dictionary<(byte Scope, int Key, int TypeId), byte[]>> _lastComponentSnapshotsPerClient = new();
+	private readonly Dictionary<int, int> _lastBaselineSentSequence = new();
+	private readonly List<int> _baselinePeerIds = new(8);
+	private readonly Dictionary<int, ClientSnapshotState> _clientSnapshotStates = new();
+	private int _currentSnapshotSequence;
+
+	private class ClientSnapshotState
+	{
+		public int AckedSequence = -1;
+		public int LastAckAdvanceSequence = -1;
+		public AppliedSequenceWindow Applied;
+		public int LastBaselineSequence = -1;
+		public int AcknowledgedBaselineSequence = -1;
+		public bool HasSentBaseline;
+		public bool SentCatalog;
+		public int BaselineBackoffAttempts;
+		public readonly Dictionary<int, UnitSnapshot> AckedUnits = new();
+		public readonly Dictionary<int, UnitSnapshot> SentUnits = new();
+		public readonly Dictionary<int, int> SentUnitSequences = new();
+		public readonly Dictionary<(byte Scope, int Key, int TypeId), byte[]> AckedComponents = new();
+		public readonly Dictionary<(byte Scope, int Key, int TypeId), SentComponentEntry> SentComponents = new();
+		public readonly List<SentComponentEntry> PendingComponentAcks = new();
+		public readonly List<SentUnitEntry> PendingUnitAcks = new();
+		public readonly List<UnitComponentPresence> UnitComponentPresence = new();
+	}
+
+	private struct SentComponentEntry
+	{
+		public (byte Scope, int Key, int TypeId) Key;
+		public byte[] Bytes;
+		public int Sequence;
+		public bool Removed;
+	}
+
+	private struct SentUnitEntry
+	{
+		public int EntityId;
+		public UnitSnapshot Snapshot;
+		public int Sequence;
+	}
 	private readonly ReplicatedStateMirror _mirror = new();
 	private int _appliedComponentDeltaCount;
 	private int _appliedColdPayloadCount;
@@ -47,10 +103,16 @@ public class NetworkService
 	private readonly List<Entity> _pendingUnitKills = new();
 	private readonly List<Entity> _pendingUnitDespawns = new();
 	private readonly List<int> _untrackedServerIds = new();
+	private readonly HashSet<int> _baselineLootServerIds = new();
+	private readonly List<int> _staleLootServerIds = new();
+	private readonly Dictionary<int, ulong> _baselineUnitPresence = new();
+	private readonly HashSet<(int Key, int TypeId)> _baselineSentUnitComponents = new();
+	private byte[] _baselineReconcileScratch = new byte[256];
 
 
 	public bool IsPaused { get; set; } = false;
 	public int LastAppliedSnapshotSequenceForDiagnostics { get; private set; } = -1;
+	public int LastAppliedBaselineSequenceForDiagnostics { get; private set; } = -1;
 	public int ResumeCountdownSeconds { get; set; } = -1;
 	public float ResumeCountdownTimer { get; set; } = 0f;
 
@@ -91,18 +153,16 @@ public class NetworkService
 	public void RemoveClientToServerMapping(int localEntityId)
 	{
 		Entity worldEntity = ECSContext.WorldEntity;
-		if (worldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(worldEntity))
-		{
-			GameContext.World.Mutate<NetworkMappingState>(worldEntity, (ref NetworkMappingState mapping) =>
-			{
-				if (mapping.ClientToServerEntityMap.TryGetValue(localEntityId, out int serverId))
-				{
-					mapping.ServerToClientEntityMap.Remove(serverId);
-				}
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
 
-				mapping.ClientToServerEntityMap.Remove(localEntityId);
-			});
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		if (mapping.ClientToServerEntityMap.TryGetValue(localEntityId, out int serverEntityId))
+		{
+			mapping.ServerToClientEntityMap.Remove(serverEntityId);
+			ReplicatedEntityReferences.Unregister(serverEntityId);
 		}
+
+		mapping.ClientToServerEntityMap.Remove(localEntityId);
 	}
 
 
@@ -195,18 +255,29 @@ public class NetworkService
 		CountdownForcedByHost = false;
 		PlayerReadyStates.Clear();
 		DisallowedPausePeers.Clear();
-		_unacknowledgedCommands.Clear();
 		_queuedDeltas.Clear();
 		_clientCameraPositions.Clear();
-		_lastBaselineSnapshotsPerClient.Clear();
+		_clientSnapshotStates.Clear();
+		_coldPayloadContentPerClient.Clear();
 		_spectatorDelayedPackets.Clear();
 		_pendingUnitSpawns.Clear();
 		_pendingUnitKills.Clear();
 		_pendingUnitDespawns.Clear();
-		_hiddenOwnEntityIds.Clear();
+		_referrersByServerEntityId.Clear();
+		_referencedServerEntityIds.Clear();
 		_untrackedServerIds.Clear();
 		_playerTeams.Clear();
 		_alliances.Clear();
+		ReplicatedEntityReferences.Clear();
+	}
+
+	public bool TryGetServerEntityId(int localEntityId, out int serverEntityId)
+	{
+		serverEntityId = -1;
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		return mapping.ClientToServerEntityMap.TryGetValue(localEntityId, out serverEntityId);
 	}
 
 	public int GetServerEntityId(int localEntityId)
@@ -263,16 +334,7 @@ public class NetworkService
 		return closest;
 	}
 
-	private void EnqueueCommand(Entity entity, string type, System.Numerics.Vector3 position, Entity target = default)
-	{
-		if (!GameContext.World.Has<BuildQueue>(entity))
-		{
-			GameContext.World.Add(entity, new BuildQueue());
-		}
-
-		ref var q = ref GameContext.World.Get<BuildQueue>(entity);
-		q.TryEnqueue(type, position, target);
-	}
+	
 
 	public int GetOwnerPlayerIndex(Entity unitEntity)
 	{
@@ -317,55 +379,26 @@ public class NetworkService
 		return -1;
 	}
 
-	public bool IsClientAuthorized(int peerId, Entity unitEntity)
-	{
-		if (!GameContext.World.Has<Owner>(unitEntity)) return false;
-		var ownerComp = GameContext.World.Get<Owner>(unitEntity);
-		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-		if (mapping.PeerIdToPlayerEntityMap.TryGetValue(peerId, out var playerEntity))
-		{
-			return ownerComp.PlayerEntity.Value == playerEntity;
-		}
+	
 
-		return false;
-	}
-
-	public bool IsUnitVisibleToPlayer(Entity playerEntity, Entity unitEntity, List<Unit3D> allUnits)
+	public bool IsUnitVisibleToPlayer(Entity playerEntity, Entity unitEntity)
 	{
 		if (IsShroudRevealed())
 		{
 			return true;
 		}
 
-		if (GameContext.World.Has<Owner>(unitEntity) && GameContext.World.Get<Owner>(unitEntity).PlayerEntity.Value == playerEntity)
+		EcsWorld? world = GameContext.World;
+		if (world == null || !world.IsAlive(unitEntity)) return false;
+
+		if (world.Has<Owner>(unitEntity) && world.Get<Owner>(unitEntity).PlayerEntity.Value == playerEntity)
 		{
 			return true;
 		}
 
-		Vector3 unitPos = Vector3.Zero;
-		foreach (var unit in allUnits)
-		{
-			if (unit.Entity == unitEntity)
-			{
-				unitPos = unit.GlobalPosition;
-				break;
-			}
-		}
-
-		foreach (var unit in allUnits)
-		{
-			if (GameContext.World.Has<Owner>(unit.Entity) && GameContext.World.Get<Owner>(unit.Entity).PlayerEntity.Value == playerEntity)
-			{
-				if (unit.GlobalPosition.DistanceTo(unitPos) <= 15.0f)
-				{
-					return true;
-				}
-			}
-		}
-
-		return false;
+		if (!world.Has<Position>(unitEntity)) return false;
+		System.Numerics.Vector3 unitPosition = world.Get<Position>(unitEntity).Value;
+		return _visibilityIndex.IsVisibleToPlayer(playerEntity.Id, unitPosition);
 	}
 
 	public bool IsShroudRevealed()
@@ -375,6 +408,35 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.IsAlive(worldEntity)) return false;
 		if (!GameContext.World.Has<ShroudState>(worldEntity)) return false;
 		return GameContext.World.Get<ShroudState>(worldEntity).VisibilityMode == ShroudVisibilityMode.Revealed;
+	}
+
+	public bool IsServerEntityVisibleToEveryRemoteClient(int serverEntityId)
+	{
+		GameHost? gameHost = GameContext.Host;
+		if (gameHost == null) return true;
+
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null) return true;
+
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return true;
+
+		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+		Entity unitEntity = new(serverEntityId);
+		int localPeerId = gameHost.Multiplayer.GetUniqueId();
+		int remoteClientCount = 0;
+
+		foreach (PlayerInfo player in lobby.PlayerList)
+		{
+			if (player.PeerId <= 0 || player.PeerId == localPeerId) continue;
+			if (player.IsDisconnected) continue;
+			if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(player.PeerId, out Entity playerEntity)) continue;
+
+			remoteClientCount++;
+			if (!IsUnitVisibleToPlayer(playerEntity, unitEntity)) return false;
+		}
+
+		return remoteClientCount > 0;
 	}
 
 	public bool IsServerEntityVisibleToAnyRemoteClient(int serverEntityId)
@@ -389,7 +451,6 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return true;
 
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-		List<Unit3D> allUnits = gameHost.AllUnits;
 		Entity unitEntity = new(serverEntityId);
 		int localPeerId = gameHost.Multiplayer.GetUniqueId();
 		bool hasRemoteClient = false;
@@ -401,7 +462,7 @@ public class NetworkService
 			if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(player.PeerId, out Entity playerEntity)) continue;
 
 			hasRemoteClient = true;
-			if (IsUnitVisibleToPlayer(playerEntity, unitEntity, allUnits)) return true;
+			if (IsUnitVisibleToPlayer(playerEntity, unitEntity)) return true;
 		}
 
 		return !hasRemoteClient;
@@ -409,13 +470,14 @@ public class NetworkService
 
 	public (bool Success, string BuildUnitType, string TargetModel, PlayerEntity PlayerOwner, System.Numerics.Vector3 BuildPosition, string Name, float MaxHp, float Damage, float Range, float Armor) ProcessServerCommandBuildDomain(
 		ServerCommandResult result,
-		Dictionary<string, UnitMetadata> unitRegistry,
-		Dictionary<long, Entity> peerIdToPlayerEntityMap,
+		UnitMetadata? buildMetadata,
+		Entity buildPeerOwnerEntity,
 		Entity buildWorkerEntity)
 	{
-		if (!result.NeedsBuildUnit || !unitRegistry.TryGetValue(result.BuildUnitType, out var meta)) return (false, "", "", default, default, "", 0, 0, 0, 0);
+		if (!result.NeedsBuildUnit || buildMetadata == null || buildPeerOwnerEntity == Entity.Null) return (false, "", "", default, default, "", 0, 0, 0, 0);
 
-		var playerOwner = peerIdToPlayerEntityMap[result.BuildPeerOwner].AsPlayerEntity(GameContext.World);
+		var meta = buildMetadata;
+		var playerOwner = buildPeerOwnerEntity.AsPlayerEntity(GameContext.World);
 		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : result.BuildUnitType;
 
 		if (buildWorkerEntity != Entity.Null)
@@ -462,21 +524,10 @@ public class NetworkService
 	public float ComputeDynamicInterpolationFactor()
 	{
 		float bufferTime = 0.1f;
-		if (GameContext.Lobby?.PlayerList != null)
+		NetworkLatencyService? latency = GameContext.NetworkLatencyService;
+		if (latency != null && latency.HasSample && float.IsFinite(latency.SmoothedRoundTripMilliseconds))
 		{
-			var localPlayer = GameContext.Lobby.PlayerList.Find(x => x.PeerId == LocalPeerId);
-			if (localPlayer != null)
-			{
-				string latStr = localPlayer.Latency;
-				if (!string.IsNullOrEmpty(latStr) && latStr != "--" && latStr.Contains(" ms"))
-				{
-					string numStr = latStr.Replace(" ms", "").Trim();
-					if (float.TryParse(numStr, out float rttMs))
-					{
-						bufferTime = Mathf.Max(0.1f, (rttMs / 1000f) * 1.5f);
-					}
-				}
-			}
+			bufferTime = Mathf.Max(0.1f, (latency.SmoothedRoundTripMilliseconds / 1000f) * 1.5f);
 		}
 
 		return 1f / bufferTime;
@@ -502,24 +553,7 @@ public class NetworkService
 			TargetEntityId = targetEntityId,
 			ArgString = argString
 		};
-		_unacknowledgedCommands.Add(cmd);
 		return (cmd.CommandId, MemoryPackSerializer.Serialize(cmd));
-	}
-
-	public IReadOnlyList<byte[]> GetUnacknowledgedCommandPayloads()
-	{
-		var payloads = new List<byte[]>(_unacknowledgedCommands.Count);
-		foreach (var cmd in _unacknowledgedCommands)
-		{
-			payloads.Add(MemoryPackSerializer.Serialize(cmd));
-		}
-
-		return payloads;
-	}
-
-	public void AcknowledgeCommand(int commandId)
-	{
-		_unacknowledgedCommands.RemoveAll(c => c.CommandId == commandId);
 	}
 
 	public void RecordClientCameraPosition(int peerId, Vector3 position)
@@ -531,14 +565,28 @@ public class NetworkService
 	{
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return;
-		ref var ns = ref GameContext.World.Get<NetworkState>(worldEntity);
-		ns.LastSnapshotReceivedTime = Time.GetTicksMsec();
+		GameContext.World.Get<NetworkState>(worldEntity).LastSnapshotReceivedTime = Time.GetTicksMsec();
 		ProcessSnapshotDirect(payload);
+
+		Entity currentWorldEntity = FindWorldEntity();
+		if (currentWorldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(currentWorldEntity)) return;
+		if (!GameContext.World.Get<NetworkState>(currentWorldEntity).HasReceivedInitialBaseline) RequestSnapshotBaseline();
+	}
+
+	private ulong _lastBaselineRequestTime;
+
+	private void RequestSnapshotBaseline()
+	{
+		ulong now = Time.GetTicksMsec();
+		if (now - _lastBaselineRequestTime < 500ul) return;
+
+		_lastBaselineRequestTime = now;
+		GameContext.Host?.RequestSnapshotBaseline();
 	}
 
 	private void ProcessSnapshotDirect(byte[] payload)
 	{
-		var snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(payload);
+		var snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload));
 		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordClientSeenSequence(snapshot.Sequence);
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return;
@@ -549,26 +597,33 @@ public class NetworkService
 		{
 			if (snapshot.Sequence <= networkState.LastReceivedBaselineSeq) return;
 
+			// A baseline is larger than a delta and travels on the same reliable stream, so it can arrive after deltas that
+			// already describe a newer world. Applying it would move every replicated unit backwards, and a predicted unit
+			// would then be corrected toward positions the client has already moved past. The baseline is stale, not useful.
+			if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence)
+			{
+				networkState.LastReceivedBaselineSeq = snapshot.Sequence;
+				return;
+			}
+
 			networkState.LastReceivedBaselineSeq = snapshot.Sequence;
 			networkState.HasReceivedInitialBaseline = true;
 			networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
 			_queuedDeltas.RemoveAll(d => d.Sequence <= snapshot.Sequence);
 			ApplyWorldSnapshot(snapshot);
 
-			while (_queuedDeltas.Count > 0 && _queuedDeltas[0].BaseSequence == snapshot.Sequence)
-			{
-				var nextDelta = _queuedDeltas[0];
-				_queuedDeltas.RemoveAt(0);
-				networkState.LastAppliedSnapshotSequence = nextDelta.Sequence;
-				ApplyWorldSnapshot(nextDelta);
-			}
-
+			DrainQueuedDeltas(ref networkState);
 			return;
 		}
 
 		if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence) return;
 
-		if (!networkState.HasReceivedInitialBaseline || snapshot.BaseSequence != networkState.LastReceivedBaselineSeq)
+		// A delta names the oldest world state it assumes, not the newest baseline the host has started sending. It used
+		// to require an exact match, so every delta the host built on a baseline that was still in flight was queued until
+		// that baseline arrived: with a 138 KB baseline on the reliable channel that stalled the client for one burst per
+		// baseline interval, which is what the rendered transforms and the prediction record showed as a lag that grew
+		// and healed once a second. A delta is absolute per unit, so a base the client has already superseded is harmless.
+		if (!networkState.HasReceivedInitialBaseline || snapshot.BaseSequence > networkState.LastReceivedBaselineSeq)
 		{
 			QueueDelta(snapshot);
 			return;
@@ -578,12 +633,45 @@ public class NetworkService
 		ApplyWorldSnapshot(snapshot);
 	}
 
+	/// <summary>
+	/// Applies every queued delta that the client now has the base for, in sequence order. A burst arrives when a lost
+	/// baseline is finally delivered, and the deltas behind it are still newer than what the client has applied, so
+	/// leaving them queued would discard the world state the transport went to the trouble of recovering.
+	/// </summary>
+	private void DrainQueuedDeltas(ref NetworkState networkState)
+	{
+		while (_queuedDeltas.Count > 0)
+		{
+			WorldSnapshot nextDelta = _queuedDeltas[0];
+			if (nextDelta.BaseSequence > networkState.LastReceivedBaselineSeq) break;
+			_queuedDeltas.RemoveAt(0);
+			if (nextDelta.Sequence <= networkState.LastAppliedSnapshotSequence) continue;
+
+			networkState.LastAppliedSnapshotSequence = nextDelta.Sequence;
+			ApplyWorldSnapshot(nextDelta);
+		}
+	}
+
+	private AppliedSequenceWindow _appliedSnapshots;
+
+	private void AcknowledgeAppliedSnapshot(int sequence, bool fullyApplied)
+	{
+		if (GameContext.Host == null) return;
+
+		if (fullyApplied) _appliedSnapshots.MarkApplied(sequence);
+		else _appliedSnapshots.Advance(sequence);
+		if (_appliedSnapshots.Highest < 0) return;
+
+		GameContext.Host.SendSnapshotAck(_appliedSnapshots.Highest, _appliedSnapshots.BuildMask());
+	}
+
 	private void QueueDelta(WorldSnapshot snapshot)
 	{
 		if (_queuedDeltas.Count >= MaximumQueuedDeltas) _queuedDeltas.RemoveAt(0);
 
-		_queuedDeltas.Add(snapshot);
-		_queuedDeltas.Sort((a, b) => a.Sequence.CompareTo(b.Sequence));
+		int insertIndex = _queuedDeltas.Count;
+		while (insertIndex > 0 && _queuedDeltas[insertIndex - 1].Sequence > snapshot.Sequence) insertIndex--;
+		_queuedDeltas.Insert(insertIndex, snapshot);
 	}
 
 	private void ApplyWorldSnapshot(WorldSnapshot snapshot)
@@ -592,36 +680,52 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
 
+		MultiplayerSyncDiagnostics.RecordClientSnapshotUnitPresence(snapshot.Sequence, snapshot.Units);
+
 		ApplyReplicatedColdPayloads(snapshot);
 
 		if (snapshot.IsBaseline)
 		{
 			ProcessBaselineSnapshotMismatches(snapshot, mapping);
+			ProcessBaselineLootReconciliation(snapshot, mapping);
+			ProcessBaselineComponentReconciliation(snapshot, mapping);
 		}
 
-		if (GameSettings.MovementPrediction && GameContext.World != null)
+		var prediction = GameSettings.MovementPrediction ? GameContext.MovementPredictionService : null;
+		if (prediction != null && GameContext.World != null)
 		{
-			var serverPositions = new Dictionary<int, System.Numerics.Vector3>();
+			prediction.BeginSnapshotReconcile(snapshot.Sequence);
 			foreach (var snap in snapshot.Units)
 			{
-				if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
-				{
-					serverPositions[localEntity.Id] = snap.Position.ToNumerics();
-				}
+				if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity)) continue;
+				prediction.ReconcileAuthoritativePosition(GameContext.World, localEntity.Id, snap.Position.ToNumerics());
 			}
 
-			GameContext.MovementPredictionService?.ReconcileServerSnapshot(GameContext.World, snapshot.Sequence, serverPositions);
+			prediction.EndSnapshotReconcile();
 		}
+
+		// Published before the units are applied rather than after: a unit the apply spawns is anchored to this sequence
+		// as its first authoritative sample, and a spawn that read the previous value anchored the unit to -1 instead -
+		// which the sample gap arithmetic then treated as "no previous sample" for that unit.
+		LastAppliedSnapshotSequenceForDiagnostics = snapshot.Sequence;
 
 		foreach (var snap in snapshot.Units)
 		{
 			ApplySnapshotToUnit(snap, snapshot.Sequence, mapping);
 		}
 
-		ApplyReplicatedComponentState(snapshot);
+		GameContext.Host?.FlushReplicatedSnapshotEvents();
+		bool componentsFullyApplied = ApplyReplicatedComponentState(snapshot);
 
-		LastAppliedSnapshotSequenceForDiagnostics = snapshot.Sequence;
-		MultiplayerSyncDiagnostics.RecordClientSnapshot();
+		if (snapshot.IsBaseline) LastAppliedBaselineSequenceForDiagnostics = snapshot.Sequence;
+		if (snapshot.IsBaseline || GameContext.World.Get<NetworkState>(worldEntity).HasReceivedInitialBaseline)
+		{
+			MultiplayerSyncDiagnostics.RecordClientSnapshot(snapshot.IsBaseline);
+		}
+		// The acknowledgement names the exact sequences this client applied, so a snapshot that carried a delta it could not
+		// place simply leaves its own bit clear: the host repeats that change instead of treating it as delivered, and the
+		// rest of the stream is still confirmed.
+		AcknowledgeAppliedSnapshot(snapshot.Sequence, componentsFullyApplied);
 	}
 
 	private void ProcessBaselineSnapshotMismatches(WorldSnapshot snapshot, NetworkMappingState mapping)
@@ -641,41 +745,108 @@ public class NetworkService
 		}			for (int i = 0; i < _untrackedServerIds.Count; i++)
 			{
 				int serverEntityId = _untrackedServerIds[i];
-				if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;
-				if (GameContext.World.Has<GroundLoot>(localEntity)) continue;
+				if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out var localEntity)) continue;				if (GameContext.World.Has<GroundLoot>(localEntity)) continue;
 
-				if (IsLocallyOwnedEntity(localEntity))
-			{
-				HideUntrackedOwnEntity(localEntity);
-				continue;
-			}
-
-			RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
+				RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 		}
 	}
 
-	private readonly HashSet<int> _hiddenOwnEntityIds = new();
-
-	private bool IsLocallyOwnedEntity(Entity entity)
+	/// <summary>
+	/// Removes the unit components the authority does not have. What the authority has is the presence mask it sends with
+	/// every baselined unit, not the component records that happened to travel in this baseline: a baseline no longer
+	/// restates a component the peer already acknowledged, so treating "not in this payload" as "gone" would delete the
+	/// peer's copy of every unchanged component on every baseline.
+	/// </summary>
+	private void ProcessBaselineComponentReconciliation(WorldSnapshot snapshot, NetworkMappingState mapping)
 	{
-		int localPlayerIndex = GameContext.Host?.LocalPlayerIndex ?? -1;
-		if (localPlayerIndex < 0) return false;
-		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
+		if (snapshot.ComponentDeltas == null || snapshot.Units == null || snapshot.UnitComponentPresence == null) return;
 
-		return GameContext.World.Has<UnitOwnerPlayer>(entity) && GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex == localPlayerIndex;
+		_baselineUnitPresence.Clear();
+		for (int index = 0; index < snapshot.UnitComponentPresence.Count; index++)
+		{
+			var presence = snapshot.UnitComponentPresence[index];
+			_baselineUnitPresence[presence.ServerEntityId] = presence.Mask;
+		}
+
+		// A component that is new to the peer travels in this same baseline, and the reconciliation runs before the
+		// component deltas are applied, so only a component the payload did not carry can be missing at this point.
+		_baselineSentUnitComponents.Clear();
+		for (int index = 0; index < snapshot.ComponentDeltas.Count; index++)
+		{
+			var delta = snapshot.ComponentDeltas[index];
+			if ((ReplicatedScope)delta.Scope != ReplicatedScope.Unit) continue;
+			if (delta.Bytes == null || delta.Bytes.Length == 0) continue;
+			_baselineSentUnitComponents.Add((delta.Key, delta.ComponentTypeId));
+		}
+
+		IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedUnitComponentSlots.Slots;
+		foreach (var kvp in mapping.ServerToClientEntityMap)
+		{
+			int serverEntityId = kvp.Key;
+			if (!_baselineUnitPresence.TryGetValue(serverEntityId, out ulong presenceMask)) continue;
+
+			Entity localEntity = kvp.Value;
+			if (!GameContext.World.IsAlive(localEntity)) continue;
+
+			for (int slot = 0; slot < codecs.Count; slot++)
+			{
+				var codec = codecs[slot];
+				if (_baselineReconcileScratch.Length < codec.SizeInBytes) _baselineReconcileScratch = new byte[codec.SizeInBytes];
+
+				bool peerHasComponent = codec.TryWrite(GameContext.World, localEntity, _baselineReconcileScratch.AsSpan(0, codec.SizeInBytes));
+				if ((presenceMask & (1UL << slot)) != 0)
+				{
+					if (!peerHasComponent && !_baselineSentUnitComponents.Contains((serverEntityId, codec.ComponentTypeId)))
+					{
+						MultiplayerSyncDiagnostics.RecordMissingUnitComponent(serverEntityId, codec.ComponentName);
+					}
+
+					continue;
+				}
+
+				if (!peerHasComponent) continue;
+				codec.Remove(GameContext.World, localEntity);
+			}
+		}
 	}
 
-	private void HideUntrackedOwnEntity(Entity localEntity)
+	private void ProcessBaselineLootReconciliation(WorldSnapshot snapshot, NetworkMappingState mapping)
 	{
-		if (!_hiddenOwnEntityIds.Add(localEntity.Id)) return;
-		GameContext.Host?.SetReplicatedEntityVisible(localEntity, false);
+		if (snapshot.ComponentDeltas == null) return;
+
+		int lootComponentTypeId = ComponentType<GroundLoot>.Id;
+		_baselineLootServerIds.Clear();
+		for (int index = 0; index < snapshot.ComponentDeltas.Count; index++)
+		{
+			var delta = snapshot.ComponentDeltas[index];
+			if (delta.ComponentTypeId != lootComponentTypeId) continue;
+			if (delta.Bytes == null || delta.Bytes.Length == 0) continue;
+			_baselineLootServerIds.Add(delta.Key);
+		}
+
+		_staleLootServerIds.Clear();
+		foreach (var kvp in mapping.ServerToClientEntityMap)
+		{
+			if (_baselineLootServerIds.Contains(kvp.Key)) continue;
+			if (!GameContext.World.Has<GroundLoot>(kvp.Value)) continue;
+			_staleLootServerIds.Add(kvp.Key);
+		}
+
+		for (int index = 0; index < _staleLootServerIds.Count; index++)
+		{
+			int serverEntityId = _staleLootServerIds[index];
+			if (!mapping.ServerToClientEntityMap.TryGetValue(serverEntityId, out Entity localEntity)) continue;
+			DestroyReplicatedLootEntity(serverEntityId, localEntity, mapping);
+		}
 	}
 
-	private void RestoreHiddenOwnEntity(Entity localEntity)
-	{
-		if (!_hiddenOwnEntityIds.Remove(localEntity.Id)) return;
-		GameContext.Host?.SetReplicatedEntityVisible(localEntity, true);
-	}
+	// The host describes a unit in two precisions: inside the detailed radius of the peer's camera every movement above
+	// five centimetres is sent, while outside it a unit is only resent once it has moved more than a metre from what the
+	// peer acknowledged. The client cannot tell the two apart from the snapshot it already applied, so the precision is
+	// remembered here for the harness to judge the rendered transform against what the host actually promised.
+	private readonly HashSet<int> _unitsSentAtDetailedPrecision = new();
+
+	public bool WasUnitSentAtDetailedPrecision(int serverEntityId) => _unitsSentAtDetailedPrecision.Contains(serverEntityId);
 
 	private void RetireClientEntityForUntrackedServerId(NetworkMappingState mapping, Entity localEntity, int serverEntityId)
 	{
@@ -684,9 +855,10 @@ public class NetworkService
 			_pendingUnitDespawns.Add(localEntity);
 		}
 
-		_hiddenOwnEntityIds.Remove(localEntity.Id);
+		_unitsSentAtDetailedPrecision.Remove(serverEntityId);
 		mapping.ServerToClientEntityMap.Remove(serverEntityId);
 		mapping.ClientToServerEntityMap.Remove(localEntity.Id);
+		ReplicatedEntityReferences.Unregister(serverEntityId);
 	}
 
 	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
@@ -703,8 +875,6 @@ public class NetworkService
 			if (!snap.IsDead) _pendingUnitSpawns[snap.EntityId] = snap;
 			return;
 		}
-
-		RestoreHiddenOwnEntity(localEntity);
 
 		if (snap.IsDead)
 		{
@@ -723,15 +893,99 @@ public class NetworkService
 			hp.Current = snap.CurrentHp;
 			hp.Max = snap.MaxHp;
 			GameContext.World.Set(localEntity, hp);
-		}
-
-		var target = new InterpolationTarget
+		}		var target = new InterpolationTarget
 		{
 			Position = snap.Position.ToNumerics(),
 			Velocity = snap.Velocity.ToNumerics(),
 			RotationY = snap.RotationY
 		};
+
+		// What the last description asked this client to walk toward, read before the new one replaces it. A step larger
+		// than a unit can travel between two applied snapshots is a discontinuity in what the authority is telling this
+		// client, not movement: the client stalled and missed descriptions, drained a burst in one tick, or received a
+		// reconnect baseline, and a script can also move a unit outright. Smoothing across it means the unit visibly
+		// trails the authority for the better part of a second, which is the six metre placement gap the lossy profile
+		// used to report at the start of a run. The condition is the cause stated directly - how far the target stepped -
+		// rather than a lag bound with a round trip in it.
+		System.Numerics.Vector3 previousTargetPosition = GameContext.World.Has<InterpolationTarget>(localEntity)
+			? GameContext.World.Get<InterpolationTarget>(localEntity).Position
+			: target.Position;
+		bool targetJumped = (target.Position - previousTargetPosition).Length() > MaximumPlausibleTargetStepMeters;
+
 		GameContext.World.SetOrAdd(localEntity, target);
+
+		// The authority only describes a unit this peer can see, so a unit that leaves vision goes unmentioned for as long
+		// as it is away and comes back wherever it actually walked to. Gliding from the position the client last heard
+		// leaves the unit visibly trailing the authority for as long as the smoothing takes to cover that distance - the
+		// six to eight metres measured on the lossy profile - and there is nothing to be continuous with: the client was
+		// not watching the unit in between. The unit is placed where the authority says it is instead, and the smoothing
+		// resumes from there on the next description. A target that jumped is placed for the same reason: the follower's
+		// own lag would carry a distance the client never watched it walk.
+		int lastDescribedSequence = GameContext.World.Has<DescribedAtSequence>(localEntity)
+			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
+			: -1;
+		bool descriptionResumed = lastDescribedSequence >= 0 && sequence - lastDescribedSequence > UnobservedUnitGapSequences;
+		if ((descriptionResumed || targetJumped) && !IsUnitOwnedByPrediction(localEntity) && GameContext.World.Has<Position>(localEntity))
+		{
+			PositionWriteTrace.Mark(localEntity, PositionWriter.Placement);
+			GameContext.World.Set(localEntity, new Position(target.Position));
+		}
+
+		GameContext.World.SetOrAdd(localEntity, new DescribedAtSequence(sequence));
+
+		if (snap.IsDetailed) _unitsSentAtDetailedPrecision.Add(snap.EntityId);
+		else _unitsSentAtDetailedPrecision.Remove(snap.EntityId);
+	}
+
+	/// <summary>
+	/// How many sequences a unit can go undescribed before its next description counts as a fresh sighting rather than a
+	/// step. The far-unit resend cadence tells a peer about a moving unit every few sequences and a stationary one not at
+	/// all, so a longer silence than this means the authority had nothing to say about it - it was outside this peer's
+	/// vision - and the position it names is a sighting, not a continuation.
+	/// </summary>
+	public const int UnobservedUnitGapSequences = 10;
+
+	/// <summary>
+	/// How far a unit's described position can move between two applied snapshots before the step is a discontinuity
+	/// rather than movement. A detailed unit steps a few centimetres per snapshot and a far one steps at the resend
+	/// threshold plus the movement during its round trip - about one metre on the profiles that keep the game playable -
+	/// so two metres is above anything continuous and below the distance a stalled client has to cover.
+	/// </summary>
+	public const float MaximumPlausibleTargetStepMeters = 2f;
+
+	/// <summary>
+	/// How much further than its smoothing can explain a follower may trail a description before this client stops
+	/// gliding at the interpolation rate and catches the excess up deliberately. Margin on top of the catch-up the rate
+	/// allows, so a follower that is merely smoothing never uses the faster path.
+	/// </summary>
+	public const float FollowerLagMarginMeters = 0.5f;
+
+	/// <summary>
+	/// The distance a unit may be moved before the authority resends it while it is outside the peer's detailed radius.
+	/// A follower is allowed to be one resend step behind the described position for that reason alone.
+	/// </summary>
+	public const float FarUnitResendStepMeters = 1f;
+
+	/// <summary>
+	/// How far the applied position trails the description before interpolation stops gliding at its rate and closes the
+	/// excess deliberately. A peer applies a snapshot when the packet arrives, not on its next physics tick, so several
+	/// descriptions can land between two ticks and move the described position further than one smoothing step covers.
+	/// The excess is bounded by the speed the description carries, the resend step and a margin, which is what a follower
+	/// that is merely smoothing can account for; anything beyond it is time the client missed and must make up.
+	/// </summary>
+	public static float ResolveDefensibleFollowerLagMeters(System.Numerics.Vector3 describedVelocity, float interpolationRate)
+	{
+		if (!(interpolationRate > 0f)) return float.MaxValue;
+
+		float smoothingLagMeters = describedVelocity.Length() / interpolationRate;
+		return smoothingLagMeters + FarUnitResendStepMeters + FollowerLagMarginMeters;
+	}
+
+	private static bool IsUnitOwnedByPrediction(Entity localEntity)
+	{
+		return GameSettings.MovementPrediction
+			&& GameContext.MovementPredictionService != null
+			&& GameContext.MovementPredictionService.IsEntityTracked(localEntity.Id);
 	}
 
 	private static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
@@ -787,7 +1041,16 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return Entity.Null;
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
-		return ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.Velocity.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex, snap.OwnerPlayerIndex);
+		Entity spawned = ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.Velocity.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex, snap.OwnerPlayerIndex);
+		if (spawned != Entity.Null)
+		{
+			// The mapping exists only after this call, so the reconciliation pass that runs before the snapshot is applied
+			// could not have sampled the unit. Anchoring it here gives prediction an authoritative position from the
+			// moment the unit exists on the client.
+			GameContext.MovementPredictionService?.AdoptSpawnedEntity(spawned.Id, snap.Position.ToNumerics(), LastAppliedSnapshotSequenceForDiagnostics);
+		}
+
+		return spawned;
 	}
 
 	public static Entity ApplySnapshotToEntity(string unitId, int entityId, int ownerPlayerEntityId, System.Numerics.Vector3 position, System.Numerics.Vector3 velocity, float rotationY, float currentHp, float maxHp, bool isBuilding, UnitMetadata meta, ref NetworkMappingState mapping, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex, int ownerPlayerIndex = -1)
@@ -821,6 +1084,7 @@ public class NetworkService
 		var entity = GameContext.World.Create();
 		GameContext.World.Add(entity, new DefinitionId(unitId));
 		GameContext.World.Add(entity, new Name(meta.Name));
+		PositionWriteTrace.Mark(entity, PositionWriter.Spawn);
 		GameContext.World.Add(entity, new Position(position));
 		GameContext.World.Add(entity, new Owner(ownerPlayerEntity.AsPlayerEntity(GameContext.World)));
 		GameContext.World.Add(entity, new UnitOwnerPlayer(playerIndex));
@@ -840,6 +1104,7 @@ public class NetworkService
 			GameContext.World.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
 			GameContext.World.Add(entity, new Movable());
 			GameContext.World.Add(entity, new Inventory());
+			GameContext.World.Add(entity, new Realm.Ecs.Components.Movement.PathingFlags(GameHost.GetUnitPathingFlags(meta)));
 		}
 
 		var interpolationTarget = new InterpolationTarget
@@ -853,6 +1118,7 @@ public class NetworkService
 		mapping.ServerToClientEntityMap[entityId] = entity;
 		mapping.ClientToServerEntityMap[entity.Id] = entityId;
 		Realm.Ecs.Replication.ReplicatedEntityReferences.Register(entityId, entity.Id);
+		GameContext.NetworkService?.RefixReplicatedReferences(entityId);
 
 		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : unitId;
 		modelPath = getFallbackModelPath(targetModel, isBuilding);
@@ -875,13 +1141,16 @@ public class NetworkService
 		}
 	}
 
-	private void ApplyReplicatedComponentState(WorldSnapshot snapshot)
+
+
+	private bool ApplyReplicatedComponentState(WorldSnapshot snapshot)
 	{
+		bool allApplied = true;
 		if (snapshot.ComponentDeltas != null)
 		{
 			for (int i = 0; i < snapshot.ComponentDeltas.Count; i++)
 			{
-				ApplyComponentDelta(snapshot.ComponentDeltas[i]);
+				if (!ApplyComponentDelta(snapshot.ComponentDeltas[i], snapshot.Sequence)) allApplied = false;
 			}
 		}
 
@@ -920,6 +1189,8 @@ public class NetworkService
 		{
 			VerifyReplicatedStateFingerprint(snapshot.Sequence, snapshot.StateFingerprint);
 		}
+
+		return allApplied;
 	}
 
 	private void ApplyColdPayloadDelta(ColdPayloadDelta delta)
@@ -956,37 +1227,37 @@ public class NetworkService
 		_appliedColdPayloadCount++;
 	}
 
-	private void ApplyComponentDelta(ComponentDelta delta)
+	private bool ApplyComponentDelta(ComponentDelta delta, int snapshotSequence)
 	{
 		var codec = ReplicatedComponents.Find(delta.ComponentTypeId);
 		if (codec == null)
 		{
 			GD.PushWarning($"[Network] Received delta for unregistered component type {delta.ComponentTypeId}");
-			return;
+			return false;
 		}
 
 		if (delta.Bytes == null || (delta.Bytes.Length != 0 && delta.Bytes.Length != codec.SizeInBytes))
 		{
 			GD.PushWarning($"[Network] Discarded {codec.ComponentName} delta with {(delta.Bytes?.Length ?? 0)} bytes, expected {codec.SizeInBytes}");
-			return;
+			return false;
 		}
 
 		Entity targetEntity = Entity.Null;
 		if ((ReplicatedScope)delta.Scope == ReplicatedScope.Player)
 		{
 			Entity worldEntity = FindWorldEntity();
-			if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
+			if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
 			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-			if (mapping.PlayerEntities == null || delta.Key < 0 || delta.Key >= mapping.PlayerEntities.Length) return;
+			if (mapping.PlayerEntities == null || delta.Key < 0 || delta.Key >= mapping.PlayerEntities.Length) return false;
 			targetEntity = mapping.PlayerEntities[delta.Key];
 		}
 		else if ((ReplicatedScope)delta.Scope == ReplicatedScope.Unit)
 		{
 			if (!TryGetLocalEntity(delta.Key, out targetEntity))
 			{
-				if (codec.ComponentTypeId != ComponentType<GroundLoot>.Id || delta.Bytes.Length == 0) return;
+				if (codec.ComponentTypeId != ComponentType<GroundLoot>.Id || delta.Bytes.Length == 0) return false;
 				Entity worldEntity = FindWorldEntity();
-				if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
+				if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
 				targetEntity = CreateReplicatedLootEntity(delta.Key, GameContext.World.Get<NetworkMappingState>(worldEntity));
 			}
 		}
@@ -995,10 +1266,16 @@ public class NetworkService
 			targetEntity = ECSContext.WorldEntity;
 		}
 
-		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return;
+		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return false;
+		bool isOrderState = delta.ComponentTypeId == ComponentType<MoveTo>.Id;
 		if (delta.Bytes.Length == 0)
 		{
 			codec.Remove(GameContext.World, targetEntity);
+			if (isOrderState && PredictionDiagnostics.IsRecording)
+			{
+				PredictionDiagnostics.RecordAppliedOrder(snapshotSequence, delta.Key, false, System.Numerics.Vector3.Zero);
+			}
+
 			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id)
 			{
 				Entity worldEntity = FindWorldEntity();
@@ -1011,11 +1288,90 @@ public class NetworkService
 		else
 		{
 			codec.Apply(GameContext.World, targetEntity, delta.Bytes);
+			if (isOrderState && PredictionDiagnostics.IsRecording && GameContext.World.Has<MoveTo>(targetEntity))
+			{
+				PredictionDiagnostics.RecordAppliedOrder(snapshotSequence, delta.Key, true, GameContext.World.Get<MoveTo>(targetEntity).Target);
+			}
+
 			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id) GameContext.Host?.SyncReplicatedLootNode(delta.Key, targetEntity);
 		}
 
+		RecordReplicatedReference(delta, targetEntity, codec);
+
 		_mirror.RecordComponent(delta);
 		_appliedComponentDeltaCount++;
+		// A delta names a slot in the unit's ability list, so a list that was replaced renumbers every slot. The peer
+		// drops the flags it attached to the old numbering and takes the authority's exception set for the new list.
+		if (delta.ComponentTypeId == ComponentType<AbilityState>.Id && (ReplicatedScope)delta.Scope == ReplicatedScope.Unit)
+		{
+			GameContext.RegistryService?.ClearAbilityStateForUnit(new UnitId(targetEntity.Id));
+			_mirror.RemoveAbilitiesForEntity(delta.Key);
+		}
+		return true;
+	}
+
+	private void RecordReplicatedReference(ComponentDelta delta, Entity referrer, IReplicatedComponentCodec codec)
+	{
+		if (codec is not INormalizingComponentCodec normalizing) return;
+
+		if (delta.Bytes == null || delta.Bytes.Length == 0)
+		{
+			ForgetReplicatedReference(referrer.Id, codec.ComponentTypeId);
+			return;
+		}
+
+		int referencedServerEntityId = normalizing.ReadReferencedServerEntityId(delta.Bytes);
+		var referenceKey = (referrer.Id, codec.ComponentTypeId);
+		if (_referencedServerEntityIds.TryGetValue(referenceKey, out int previousServerEntityId))
+		{
+			if (previousServerEntityId == referencedServerEntityId) return;
+			ForgetReplicatedReference(referrer.Id, codec.ComponentTypeId);
+		}
+
+		if (referencedServerEntityId < 0) return;
+
+		if (!_referrersByServerEntityId.TryGetValue(referencedServerEntityId, out var referrers))
+		{
+			referrers = new List<(int LocalEntityId, IReplicatedComponentCodec Codec)>(4);
+			_referrersByServerEntityId[referencedServerEntityId] = referrers;
+		}
+
+		referrers.Add((referrer.Id, codec));
+		_referencedServerEntityIds[referenceKey] = referencedServerEntityId;
+	}
+
+	private void ForgetReplicatedReference(int localEntityId, int componentTypeId)
+	{
+		var referenceKey = (localEntityId, componentTypeId);
+		if (!_referencedServerEntityIds.TryGetValue(referenceKey, out int serverEntityId)) return;
+
+		_referencedServerEntityIds.Remove(referenceKey);
+		if (!_referrersByServerEntityId.TryGetValue(serverEntityId, out var referrers)) return;
+
+		for (int index = referrers.Count - 1; index >= 0; index--)
+		{
+			if (referrers[index].LocalEntityId != localEntityId || referrers[index].Codec.ComponentTypeId != componentTypeId) continue;
+			referrers.RemoveAt(index);
+		}
+
+		if (referrers.Count == 0) _referrersByServerEntityId.Remove(serverEntityId);
+	}
+
+	private void RefixReplicatedReferences(int serverEntityId)
+	{
+		if (!_referrersByServerEntityId.TryGetValue(serverEntityId, out var referrers)) return;
+
+		Span<byte> payload = stackalloc byte[sizeof(int)];
+		BitConverter.TryWriteBytes(payload, serverEntityId);
+
+		for (int index = 0; index < referrers.Count; index++)
+		{
+			var referrer = referrers[index];
+			Entity localEntity = new(referrer.LocalEntityId);
+			if (!GameContext.World.IsAlive(localEntity)) continue;
+
+			referrer.Codec.Apply(GameContext.World, localEntity, payload);
+		}
 	}
 
 	private static Entity CreateReplicatedLootEntity(int serverEntityId, NetworkMappingState mapping)
@@ -1024,6 +1380,7 @@ public class NetworkService
 		mapping.ServerToClientEntityMap[serverEntityId] = localEntity;
 		mapping.ClientToServerEntityMap[localEntity.Id] = serverEntityId;
 		ReplicatedEntityReferences.Register(serverEntityId, localEntity.Id);
+		GameContext.NetworkService?.RefixReplicatedReferences(serverEntityId);
 		return localEntity;
 	}
 
@@ -1040,13 +1397,23 @@ public class NetworkService
 	{
 		_mirror.RecordAbility(delta);
 		_appliedAbilityStateCount++;
-		ApplyAbilityStateToUnit(delta.ServerEntityId, delta.AbilityId, delta.Flags);
+		ApplyAbilityStateToUnit(delta.ServerEntityId, delta.AbilityIndex, delta.Flags);
 	}
 
-	private void ApplyAbilityStateToUnit(int serverEntityId, string abilityId, byte flags)
+	private void ApplyAbilityStateToUnit(int serverEntityId, short abilityIndex, byte flags)
 	{
 		if (!TryGetLocalEntity(serverEntityId, out var localEntity)) return;
+		string? abilityId = ResolveAbilityIdAt(localEntity, abilityIndex);
+		if (abilityId == null) return;
+
 		GameContext.RegistryService?.SetAbilityState(new UnitId(localEntity.Id), abilityId, (flags & 1) != 0, (flags & 2) != 0);
+	}
+
+	private static string? ResolveAbilityIdAt(Entity localEntity, short abilityIndex)
+	{
+		if (!GameContext.World.Has<AbilityState>(localEntity)) return null;
+
+		return GameContext.World.Get<AbilityState>(localEntity).Get(abilityIndex);
 	}
 
 	public void ReapplyAbilityStatesToUnits()
@@ -1054,7 +1421,7 @@ public class NetworkService
 		if (_mirror.Abilities.Count == 0) return;
 		foreach (var kvp in _mirror.Abilities)
 		{
-			ApplyAbilityStateToUnit(kvp.Key.ServerEntityId, kvp.Key.AbilityId, kvp.Value);
+			ApplyAbilityStateToUnit(kvp.Key.ServerEntityId, kvp.Key.AbilityIndex, kvp.Value);
 		}
 		GameContext.RegistryService?.ClearAbilityStateDirty();
 	}
@@ -1167,7 +1534,8 @@ public class NetworkService
 	public void ResetReplicatedStateMirrors()
 	{
 		_mirror.Clear();
-		_lastComponentSnapshotsPerClient.Clear();
+		_clientSnapshotStates.Clear();
+		_coldPayloadContentPerClient.Clear();
 	}
 
 	public bool TryGetLocalEntity(int serverEntityId, out Entity localEntity)
@@ -1192,488 +1560,20 @@ public class NetworkService
 	}
 
 
+	
 	public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps)
 	{
-		var stopVelocityEntityIds = new List<int>();
-		var holdVelocityEntityIds = new List<int>();
-
-		DispatchServerCommand(peerId, cmd, allUnits, allProps, stopVelocityEntityIds, holdVelocityEntityIds);
-
-		bool needsBuildUnit = cmd.CommandType == "build";
-		string buildUnitType = needsBuildUnit ? cmd.ArgString : null;
-		Vector3 buildPosition = needsBuildUnit ? cmd.TargetPosition.ToGodot() : Vector3.Zero;
-		int buildPeerOwner = needsBuildUnit ? peerId : -1;
-		int buildWorkerServerEntityId = needsBuildUnit && cmd.UnitEntityIds.Count > 0 ? cmd.UnitEntityIds[0] : -1;
-
-		bool needsSpellEffect = cmd.CommandType == "spell";
-		string spellId = needsSpellEffect ? cmd.ArgString : null;
-		Vector3 spellPosition = needsSpellEffect ? cmd.TargetPosition.ToGodot() : Vector3.Zero;
-
-		return new ServerCommandResult(
-			needsBuildUnit, buildUnitType, buildPosition, buildPeerOwner, buildWorkerServerEntityId,
-			needsSpellEffect, spellId, spellPosition,
-			stopVelocityEntityIds, holdVelocityEntityIds);
+		return GameContext.CommandAuthority.ExecuteServerCommand(peerId, cmd, allUnits, allProps);
 	}
 
-	private void DispatchServerCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps, List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds)
+	public bool TryGetPlayerEntityForPeer(int peerId, out Entity playerEntity)
 	{
-		if (DispatchMovementCommand(peerId, cmd, allUnits, stopVelocityEntityIds, holdVelocityEntityIds)) return;
-		if (DispatchActionCommand(peerId, cmd, allUnits, allProps)) return;
-		DispatchTrainingCommand(peerId, cmd, allUnits);
+		return GameContext.CommandAuthority.TryGetPlayerEntityForPeer(peerId, out playerEntity);
 	}
 
-	private bool DispatchMovementCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds)
+	public bool ValidateSpellCommandForHarness(int peerId, NetworkCommand cmd, out string rejectionReason)
 	{
-		switch (cmd.CommandType)
-		{
-			case "move":
-				HandleMoveCommand(peerId, cmd, allUnits);
-				return true;
-			case "move_queued":
-				HandleMoveQueuedCommand(peerId, cmd, allUnits);
-				return true;
-			case "stop":
-				HandleStopCommand(peerId, cmd, allUnits, stopVelocityEntityIds);
-				return true;
-			case "hold":
-				HandleHoldCommand(peerId, cmd, allUnits, holdVelocityEntityIds);
-				return true;
-			case "patrol":
-			case "patrol_queued":
-				HandlePatrolCommand(peerId, cmd, allUnits, cmd.CommandType == "patrol_queued");
-				return true;
-		}
-
-		return false;
-	}
-
-	private bool DispatchActionCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps)
-	{
-		bool isQueued = cmd.CommandType.EndsWith("_queued");
-		switch (cmd.CommandType)
-		{
-			case "attack":
-			case "attack_queued":
-				HandleAttackCommand(peerId, cmd, allUnits, isQueued);
-				return true;
-			case "follow":
-			case "follow_queued":
-				HandleFollowCommand(peerId, cmd, allUnits, isQueued);
-				return true;
-			case "gather":
-			case "gather_queued":
-				HandleGatherCommand(peerId, cmd, allUnits, allProps, isQueued);
-				return true;
-		}
-
-		return false;
-	}
-
-	private void DispatchTrainingCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
-	{
-		switch (cmd.CommandType)
-		{
-			case "train": HandleTrainCommand(peerId, cmd, allUnits); break;
-			case "cancel_train": HandleCancelTrainCommand(peerId, cmd, allUnits); break;
-		}
-	}
-
-	private struct GroupMovementContext
-	{
-		public System.Numerics.Vector3 MoveDir;
-		public System.Numerics.Vector3 Right;
-		public int Cols;
-		public float Spacing;
-	}
-
-	private GroupMovementContext CreateMovementContext(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
-	{
-		CalculateGroupMovement(peerId, cmd.UnitEntityIds, allUnits, cmd.TargetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right);
-		return new GroupMovementContext
-		{
-			MoveDir = moveDir,
-			Right = right,
-			Cols = Mathf.CeilToInt(Mathf.Sqrt(cmd.UnitEntityIds.Count)),
-			Spacing = 2.2f
-		};
-	}
-
-	private delegate void GroupCommandAction(Entity entity, System.Numerics.Vector3 scattered);
-
-	private void ProcessGroupMovementCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, GroupCommandAction processAction, bool requireMovable = true)
-	{
-		var ctx = CreateMovementContext(peerId, cmd, allUnits);
-		int unitIndex = 0;
-		string? rejection = null;
-
-		foreach (int serverId in cmd.UnitEntityIds)
-		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null)
-			{
-				rejection ??= $"entity {serverId} is not in the host unit list";
-				continue;
-			}
-
-			if (!IsClientAuthorized(peerId, entity))
-			{
-				rejection ??= $"entity {serverId} is not owned by peer {peerId}";
-				continue;
-			}
-
-			if (requireMovable && !GameContext.World.Has<Movable>(entity))
-			{
-				rejection ??= $"entity {serverId} is not movable";
-				continue;
-			}
-
-			var scattered = CalculateScatteredPosition(cmd.TargetPosition, ctx.MoveDir, ctx.Right, unitIndex, ctx.Cols, ctx.Spacing);
-			processAction(entity, scattered);
-			unitIndex++;
-		}
-
-		if (unitIndex == 0 && cmd.UnitEntityIds.Count > 0)
-		{
-			GD.PushWarning($"[Network] Dropped '{cmd.CommandType}' from peer {peerId}: none of its {cmd.UnitEntityIds.Count} units could take the order ({rejection}).");
-		}
-	}
-
-	private void HandleMoveCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
-	{
-		ProcessGroupMovementCommand(peerId, cmd, allUnits, (entity, scattered) =>
-		{
-			ClearUnitOrders(entity);
-			var moveTo = new MoveTo(scattered);
-			GameContext.World.SetOrAdd(entity, moveTo);
-		}, requireMovable: false);
-	}
-
-	private void HandleMoveQueuedCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
-	{
-		ProcessGroupMovementCommand(peerId, cmd, allUnits, (entity, scattered) =>
-		{
-			ProcessQueuedMoveForEntity(entity, scattered);
-		});
-	}
-
-	private void ProcessQueuedMoveForEntity(Entity entity, System.Numerics.Vector3 scattered)
-	{
-		bool hasNonMoveTasks = GameContext.World.Has<BuildTask>(entity) ||
-		                       GameContext.World.Has<AttackTarget>(entity) ||
-		                       GameContext.World.Has<AttackMove>(entity) ||
-		                       GameContext.World.Has<Follow>(entity) ||
-		                       GameContext.World.Has<Patrol>(entity) ||
-		                       GameContext.World.Has<Gatherer>(entity);
-
-		if (hasNonMoveTasks)
-		{
-			EnqueueCommand(entity, "move", scattered);
-			return;
-		}
-
-		if (GameContext.World.Has<MoveTo>(entity))
-		{
-			if (GameContext.World.Has<WaypointQueue>(entity))
-			{
-				var q = GameContext.World.Get<WaypointQueue>(entity);
-				q.Add(scattered);
-				GameContext.World.Set(entity, q);
-			}
-			else
-			{
-				GameContext.World.Add(entity, new WaypointQueue(scattered));
-			}
-		}
-		else
-		{
-			ClearUnitOrders(entity);
-			GameContext.World.SetOrAdd(entity, new MoveTo(scattered));
-		}
-	}
-
-	private void HandleTargetedCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued, Action<Entity, Entity, System.Numerics.Vector3, bool> applyAction)
-	{
-		var targetEntity = FindServerEntity(cmd.TargetEntityId, allUnits);
-		if (targetEntity == Entity.Null) return;
-
-		var targetPos = GameContext.World.Has<Position>(targetEntity) ? GameContext.World.Get<Position>(targetEntity).Value : System.Numerics.Vector3.Zero;
-		foreach (int serverId in cmd.UnitEntityIds)
-		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			if (entity == targetEntity) continue;
-
-			applyAction(entity, targetEntity, targetPos, isQueued);
-		}
-	}
-
-	private void HandleAttackCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
-	{
-		HandleTargetedCommand(peerId, cmd, allUnits, isQueued, (entity, targetEntity, targetPos, queued) =>
-		{
-			if (queued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
-			{
-				EnqueueCommand(entity, "attack", targetPos, targetEntity);
-			}
-			else
-			{
-				if (!queued) ClearUnitOrders(entity);
-				GameContext.World.SetOrAdd(entity, new AttackTarget(targetEntity));
-			}
-		});
-	}
-
-	private void HandleFollowCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
-	{
-		HandleTargetedCommand(peerId, cmd, allUnits, isQueued, ApplyFollowOrder);
-	}
-
-	private void ApplyFollowOrder(Entity entity, Entity targetEntity, System.Numerics.Vector3 targetPos, bool isQueued)
-	{
-			if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
-		{
-			EnqueueCommand(entity, "follow", targetPos, targetEntity);
-			return;
-		}
-
-		if (!isQueued) ClearUnitOrders(entity);
-
-		if (GameContext.World.Has<Movable>(entity))
-		{
-			GameContext.World.SetOrAdd(entity, new Follow(targetEntity));
-		}
-	}
-
-	private void HandleGatherCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps, bool isQueued)
-	{
-		var targetPos = new System.Numerics.Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z);
-		Prop3D prop = FindClosestProp(targetPos, "", allProps);
-		if (prop == null) return;
-
-		string resType = GetPropResourceType(prop.PropId);
-		if (resType == null) return;
-
-		var propPos = new System.Numerics.Vector3(prop.GlobalPosition.X, prop.GlobalPosition.Y, prop.GlobalPosition.Z);
-		foreach (int serverId in cmd.UnitEntityIds)
-		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			if (GameContext.World.Has<DefinitionId>(entity) && GameContext.World.Get<DefinitionId>(entity).Value != "worker") continue;
-
-			ApplyGatherOrder(entity, prop.Entity, propPos, resType, isQueued);
-		}
-	}
-
-	private void ApplyGatherOrder(Entity entity, Entity propEntity, System.Numerics.Vector3 propPos, string resType, bool isQueued)
-	{
-			if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
-		{
-			EnqueueCommand(entity, "gather", propPos, propEntity);
-			return;
-		}
-
-		if (!isQueued) ClearUnitOrders(entity);
-		GameContext.World.SetOrAdd(entity, new Gatherer(resType, propEntity));
-		GameContext.World.SetOrAdd(entity, new MoveTo(propPos));
-	}
-
-	private string GetPropResourceType(string propId)
-	{
-		return GameContext.RegistryService.GetResourceTypeForNode(propId);
-	}
-
-	private void HandleStopCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> stopVelocityEntityIds)
-	{
-		foreach (int serverId in cmd.UnitEntityIds)
-		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			ClearUnitOrders(entity);
-			stopVelocityEntityIds.Add(serverId);
-		}
-	}
-
-	private void HandleHoldCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<int> holdVelocityEntityIds)
-	{
-		foreach (int serverId in cmd.UnitEntityIds)
-		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			ClearUnitOrders(entity);
-			holdVelocityEntityIds.Add(serverId);
-			if (!GameContext.World.Has<HoldPosition>(entity))
-			{
-				GameContext.World.Add<HoldPosition>(entity);
-			}
-		}
-	}
-
-	private void HandlePatrolCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, bool isQueued)
-	{
-		ProcessGroupMovementCommand(peerId, cmd, allUnits, (entity, scattered) =>
-		{
-			var unitPos = GetUnitPosition(entity, allUnits);
-			var patrolA = new System.Numerics.Vector3(unitPos.X, unitPos.Y, unitPos.Z);
-
-				if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
-			{
-				EnqueueCommand(entity, "patrol", scattered);
-			}
-			else
-			{
-				if (!isQueued) ClearUnitOrders(entity);
-				GameContext.World.SetOrAdd(entity, new Patrol(patrolA, scattered));
-				GameContext.World.SetOrAdd(entity, new MoveTo(scattered));
-			}
-		});
-	}
-
-	private Vector3 GetUnitPosition(Entity entity, List<Unit3D> allUnits)
-	{
-		foreach (var u in allUnits)
-		{
-			if (u.Entity == entity) return u.GlobalPosition;
-		}
-
-		return Vector3.Zero;
-	}
-
-	private void HandleTrainCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
-	{
-		string unitId = cmd.ArgString;
-		if (!GameHost.UnitRegistry.TryGetValue(unitId, out var meta)) return;
-
-		foreach (int serverId in cmd.UnitEntityIds)
-		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-
-			var ownerComp = GameContext.World.Get<Owner>(entity);
-			var ownerEntity = ownerComp.PlayerEntity.Value;
-			if (!GameContext.World.TryGet<PlayerResources>(ownerEntity, out var res)) continue;
-
-			TryQueueProduction(entity, ownerEntity, unitId, meta, ref res);
-		}
-	}
-
-	private void TryQueueProduction(Entity entity, Entity ownerEntity, string unitId, UnitMetadata meta, ref PlayerResources res)
-	{
-		var goldResourceId = new ResourceId("Gold");
-		var woodResourceId = new ResourceId("Wood");
-		var stoneResourceId = new ResourceId("Stone");
-
-		int costGold = (int)meta.CostGold;
-		int costWood = (int)meta.CostWood;
-		int costStone = (int)meta.CostStone;
-
-		if (res[goldResourceId] < costGold || res[woodResourceId] < costWood || res[stoneResourceId] < costStone)
-			return;
-
-		res[goldResourceId] -= costGold;
-		res[woodResourceId] -= costWood;
-		res[stoneResourceId] -= costStone;
-		GameContext.World.Set(ownerEntity, res);
-
-		if (!GameContext.World.Has<ProductionQueue>(entity)) GameContext.World.Add(entity, new ProductionQueue());
-
-		ref var prod = ref GameContext.World.Get<ProductionQueue>(entity);
-		prod.Enqueue(unitId);
-		if (prod.Count == 1)
-		{
-			prod.BuildTime = meta.ProductionTime;
-			prod.CurrentProgress = 0f;
-		}
-	}
-
-	private void HandleCancelTrainCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits)
-	{
-		foreach (int serverId in cmd.UnitEntityIds)
-		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			if (!GameContext.World.Has<ProductionQueue>(entity)) continue;
-
-			CancelProductionQueueItem(entity, cmd.TargetEntityId);
-		}
-	}
-
-	private void CancelProductionQueueItem(Entity entity, int idx)
-	{
-		ref var prod = ref GameContext.World.Get<ProductionQueue>(entity);
-		if (idx < 0 || idx >= prod.Count) return;
-
-		string? unitId = prod.RemoveAt(idx);
-
-		if (idx == 0)
-		{
-			prod.CurrentProgress = 0f;
-			string? nextUnitId = prod.Get(0);
-			if (nextUnitId != null && GameHost.UnitRegistry.TryGetValue(nextUnitId, out var nextMeta))
-			{
-				prod.BuildTime = nextMeta.ProductionTime;
-			}
-		}
-
-		if (unitId != null && GameHost.UnitRegistry.TryGetValue(unitId, out var regMeta))
-		{
-			RefundCanceledProduction(entity, regMeta);
-		}
-	}
-
-	private void RefundCanceledProduction(Entity entity, UnitMetadata regMeta)
-	{
-		var ownerComp = GameContext.World.Get<Owner>(entity);
-		var ownerEntity = ownerComp.PlayerEntity.Value;
-
-		if (GameContext.World.TryGet<PlayerResources>(ownerEntity, out var res))
-		{
-			res[new ResourceId("Gold")] += (int)regMeta.CostGold;
-			res[new ResourceId("Wood")] += (int)regMeta.CostWood;
-			res[new ResourceId("Stone")] += (int)regMeta.CostStone;
-			GameContext.World.Set(ownerEntity, res);
-		}
-
-	}
-
-	private void CalculateGroupMovement(int peerId, List<int> unitEntityIds, List<Unit3D> allUnits, NetworkVector3 targetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right)
-	{
-		System.Numerics.Vector3 groupCenter = System.Numerics.Vector3.Zero;
-		int movableCount = 0;
-		foreach (int serverId in unitEntityIds)
-		{
-			var entity = FindServerEntity(serverId, allUnits);
-			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
-			if (GameContext.World.Has<Position>(entity))
-			{
-				groupCenter += GameContext.World.Get<Position>(entity).Value;
-				movableCount++;
-			}
-		}
-
-		if (movableCount > 0) groupCenter /= movableCount;
-
-		moveDir = new System.Numerics.Vector3(targetPosition.X, targetPosition.Y, targetPosition.Z) - groupCenter;
-		moveDir.Y = 0f;
-		if (moveDir.LengthSquared() > 0.01f)
-		{
-			moveDir = System.Numerics.Vector3.Normalize(moveDir);
-		}
-		else
-		{
-			moveDir = new System.Numerics.Vector3(0f, 0f, -1f);
-		}
-
-		right = new System.Numerics.Vector3(-moveDir.Z, 0f, moveDir.X);
-	}
-
-	private System.Numerics.Vector3 CalculateScatteredPosition(NetworkVector3 targetPos, System.Numerics.Vector3 moveDir, System.Numerics.Vector3 right, int unitIndex, int cols, float spacing)
-	{
-		int row = unitIndex / cols;
-		int col = unitIndex % cols;
-		float offsetX = (col - cols * 0.5f + 0.5f) * spacing;
-		float offsetZ = -row * spacing;
-		var tPos = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
-		return tPos + right * offsetX + moveDir * offsetZ;
+		return GameContext.CommandAuthority.ValidateSpellCommandForHarness(peerId, cmd, out rejectionReason);
 	}
 
 	public List<(int PeerId, byte[] Payload, bool IsBaseline)> BuildServerSnapshots(int localPeerId, List<Unit3D> allUnits)
@@ -1685,41 +1585,316 @@ public class NetworkService
 		ref var networkState = ref GameContext.World.Get<NetworkState>(worldEntity);
 		networkState.SnapshotSequence++;
 		int snapshotSequence = networkState.SnapshotSequence;
-		bool isBaseline = (snapshotSequence % 30 == 0);
+		_currentSnapshotSequence = snapshotSequence;
+		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordHostSnapshotSequence(snapshotSequence);
 
-		if (MultiplayerSyncDiagnostics.IsRecording)
-		{
-			MultiplayerSyncDiagnostics.RecordHostSnapshot(BuildDiagnosticAuthoritativeSnapshot(allUnits, snapshotSequence, isBaseline));
-		}
-
+		bool anyPeerNeedsBaseline = false;
+		int snapshotPeerCount = 0;
 		if (GameContext.Lobby != null)
 		{
 			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-			var abilityStates = CollectHostAbilityStateDeltas(isBaseline);
-			var staticTexts = CollectHostStaticTextDeltas(isBaseline);
-			ProcessLobbyPlayersForSnapshots(localPeerId, allUnits, results, snapshotSequence, isBaseline, mapping, abilityStates, staticTexts);
+			foreach (var player in GameContext.Lobby.PlayerList)
+			{
+				if (player.PeerId == localPeerId || player.PeerId < 0) continue;
+				if (!mapping.PeerIdToPlayerEntityMap.ContainsKey(player.PeerId)) continue;
+
+				snapshotPeerCount++;
+				if (ShouldSendBaseline(GetClientSnapshotState(player.PeerId), snapshotSequence)) anyPeerNeedsBaseline = true;
+			}
+		}
+
+		if (GameContext.Lobby != null && snapshotPeerCount > 0)
+		{
+			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
+
+			// Ability and static-text state is collected once per tick, but only a peer that is receiving a baseline needs
+			// the whole set: every other peer already has it from its last baseline and only needs what changed. Passing one
+			// list built from "any peer needs a baseline" put the complete ability state in every peer's delta on any tick
+			// where a single peer was due a baseline, which with eight peers is almost every tick.
+			var abilityStates = CollectHostAbilityStateDeltas(false);
+			var staticTexts = CollectHostStaticTextDeltas(false);
+			List<AbilityStateDelta>? baselineAbilityStates = null;
+			List<StaticTextDelta>? baselineStaticTexts = null;
+			if (anyPeerNeedsBaseline)
+			{
+				baselineAbilityStates = CollectHostAbilityStateDeltas(true, clearDirty: false);
+				baselineStaticTexts = CollectHostStaticTextDeltas(true, clearDirty: false);
+			}
+
+			ProcessLobbyPlayersForSnapshots(localPeerId, allUnits, results, snapshotSequence, mapping, abilityStates, staticTexts, baselineAbilityStates, baselineStaticTexts);
+		}
+
+		if (MultiplayerSyncDiagnostics.IsRecording)
+		{
+			_baselinePeerIds.Clear();
+			for (int index = 0; index < results.Count; index++)
+			{
+				if (results[index].IsBaseline) _baselinePeerIds.Add(results[index].PeerId);
+			}
+
+			MultiplayerSyncDiagnostics.RecordHostSnapshot(BuildDiagnosticAuthoritativeSnapshot(allUnits, snapshotSequence, _baselinePeerIds.Count > 0), _baselinePeerIds);
 		}
 
 		return results;
 	}
 
-	private void ProcessLobbyPlayersForSnapshots(int localPeerId, List<Unit3D> allUnits, List<(int PeerId, byte[] Payload, bool IsBaseline)> results, int snapshotSequence, bool isBaseline, NetworkMappingState mapping, List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
+	/// <summary>
+	/// Rewrites the host's diagnostic record for the current sequence as a baseline, because the reconnect baseline goes
+	/// to one peer outside the per-tick fan-out and would otherwise be recorded as a delta. The verifier pairs records by
+	/// sequence and keeps the last one, so this replaces the tick's own record.
+	/// </summary>
+	public void RecordReconnectBaselineForDiagnostics(List<Unit3D> allUnits, int reconnectedPeerId)
+	{
+		if (!MultiplayerSyncDiagnostics.IsRecording) return;
+
+		int sequence = ResolveCurrentSnapshotSequence();
+		_baselinePeerIds.Clear();
+		_baselinePeerIds.Add(reconnectedPeerId);
+		MultiplayerSyncDiagnostics.RecordHostSnapshot(BuildDiagnosticAuthoritativeSnapshot(allUnits, sequence, true), _baselinePeerIds);
+	}
+
+	private ClientSnapshotState GetClientSnapshotState(int peerId)
+	{
+		if (!_clientSnapshotStates.TryGetValue(peerId, out var state))
+		{
+			state = new ClientSnapshotState();
+			_clientSnapshotStates[peerId] = state;
+		}
+
+		return state;
+	}
+
+	public void ResetClientSnapshotState(int peerId)
+	{
+		_clientSnapshotStates.Remove(peerId);
+		_coldPayloadContentPerClient.Remove(peerId);
+		_stringTableCursorPerClient.Remove(peerId);
+	}
+
+	public void HandleClientBaselineRequest(int peerId)
+	{
+		int currentSequence = ResolveCurrentSnapshotSequence();
+
+		// The spacing is tracked outside the per-peer snapshot state because a reset creates fresh state with no record of
+		// the baseline that was just sent, which let a client that keeps requesting one refresh that state every tick.
+		if (_lastBaselineSentSequence.TryGetValue(peerId, out int lastSentSequence)
+			&& currentSequence - lastSentSequence < MinimumBaselineRequestSpacingSequences) return;
+
+		ResetClientSnapshotState(peerId);
+	}
+
+	private int ResolveCurrentSnapshotSequence()
+	{
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return 0;
+		return GameContext.World.Get<NetworkState>(worldEntity).SnapshotSequence;
+	}
+
+	public void RecordClientSnapshotAck(int peerId, int sequence, ulong appliedMask)
+	{
+		if (sequence < 0) return;
+
+		ClientSnapshotState state = GetClientSnapshotState(peerId);
+		state.Applied.Merge(sequence, appliedMask);
+		if (sequence > state.AckedSequence)
+		{
+			state.AckedSequence = sequence;
+			state.LastAckAdvanceSequence = _currentSnapshotSequence;
+			// The peer is applying what it receives, so it is not stuck and the next recovery starts from one attempt again.
+			state.BaselineBackoffAttempts = 0;
+		}
+
+		// The peer confirms the baseline that carried the world its later deltas are built on, so that baseline becomes
+		// the base those deltas name. An unacknowledged baseline is still in flight and must not gate the stream.
+		if (state.LastBaselineSequence >= 0 && state.AcknowledgedBaselineSequence < state.LastBaselineSequence && state.Applied.Contains(state.LastBaselineSequence))
+		{
+			state.AcknowledgedBaselineSequence = state.LastBaselineSequence;
+		}
+
+		// A pending entry is confirmed only by the sequence that actually carried it. An acknowledgement for a later
+		// snapshot used to confirm everything before it, so a dropped spawn or rotation change left the host believing the
+		// peer had it and never resending it.
+		List<SentUnitEntry> pendingUnits = state.PendingUnitAcks;
+		int writeUnits = 0;
+		for (int read = 0; read < pendingUnits.Count; read++)
+		{
+			SentUnitEntry entry = pendingUnits[read];
+			if (state.Applied.Contains(entry.Sequence))
+			{
+				state.AckedUnits[entry.EntityId] = entry.Snapshot;
+				if (state.SentUnitSequences.TryGetValue(entry.EntityId, out int latest) && latest == entry.Sequence)
+				{
+					state.SentUnits.Remove(entry.EntityId);
+					state.SentUnitSequences.Remove(entry.EntityId);
+				}
+
+				continue;
+			}
+
+			if (state.Applied.Highest - entry.Sequence >= AppliedSequenceWindow.WindowSize)
+			{
+				if (state.SentUnitSequences.TryGetValue(entry.EntityId, out int staleLatest) && staleLatest == entry.Sequence)
+				{
+					state.SentUnits.Remove(entry.EntityId);
+					state.SentUnitSequences.Remove(entry.EntityId);
+				}
+
+				continue;
+			}
+
+			if (writeUnits != read) pendingUnits[writeUnits] = entry;
+			writeUnits++;
+		}
+
+		if (writeUnits < pendingUnits.Count) pendingUnits.RemoveRange(writeUnits, pendingUnits.Count - writeUnits);
+
+		List<SentComponentEntry> pending = state.PendingComponentAcks;
+		int writeComponents = 0;
+		for (int read = 0; read < pending.Count; read++)
+		{
+			SentComponentEntry entry = pending[read];
+			if (state.Applied.Contains(entry.Sequence))
+			{
+				if (entry.Removed)
+				{
+					state.AckedComponents.Remove(entry.Key);
+				}
+				else
+				{
+					state.AckedComponents[entry.Key] = entry.Bytes;
+				}
+
+				if (state.SentComponents.TryGetValue(entry.Key, out var latest) && latest.Sequence == entry.Sequence)
+				{
+					state.SentComponents.Remove(entry.Key);
+				}
+
+				continue;
+			}
+
+			if (state.Applied.Highest - entry.Sequence >= AppliedSequenceWindow.WindowSize)
+			{
+				if (state.SentComponents.TryGetValue(entry.Key, out var staleLatest) && staleLatest.Sequence == entry.Sequence)
+				{
+					state.SentComponents.Remove(entry.Key);
+				}
+
+				continue;
+			}
+
+			if (writeComponents != read) pending[writeComponents] = entry;
+			writeComponents++;
+		}
+
+		if (writeComponents < pending.Count) pending.RemoveRange(writeComponents, pending.Count - writeComponents);
+	}
+
+	private static void TrackSentUnit(ClientSnapshotState state, UnitSnapshot snapshot, int snapshotSequence)
+	{
+		state.SentUnits[snapshot.EntityId] = snapshot;
+		state.SentUnitSequences[snapshot.EntityId] = snapshotSequence;
+		state.PendingUnitAcks.Add(new SentUnitEntry
+		{
+			EntityId = snapshot.EntityId,
+			Snapshot = snapshot,
+			Sequence = snapshotSequence
+		});
+
+		if (state.PendingUnitAcks.Count > MaximumPendingComponentAcks)
+		{
+			state.PendingUnitAcks.RemoveRange(0, state.PendingUnitAcks.Count - MaximumPendingComponentAcks);
+		}
+	}
+
+	/// <summary>
+	/// The sequence a delta is computed on top of. It has to be a baseline the peer has acknowledged, not the newest one
+	/// the host has sent: naming an in-flight baseline makes the client drop everything sent until that baseline lands,
+	/// which costs one stall per baseline interval even on a healthy link and turns into a freeze under loss.
+	/// </summary>
+	private static int ResolveDeltaBaseSequence(ClientSnapshotState state)
+	{
+		if (state.AcknowledgedBaselineSequence >= 0) return state.AcknowledgedBaselineSequence;
+		return state.LastBaselineSequence;
+	}
+
+	/// <summary>
+	/// Whether this peer needs a full baseline instead of a delta. A baseline only helps a peer that cannot place what it
+	/// receives, so the recovery branch is keyed on the acknowledgement standing still, not on its distance from the newest
+	/// sequence. Distance measured the wrong thing: on the eight-peer loss run a peer that applied 98 % of its deltas and
+	/// acknowledged continuously sat 1 364 sequences behind — late, not stuck — and was answered with 47 full baselines,
+	/// 3.9 KB/s of its 22.1 KB/s, none of which unblocked anything. The periodic safety baseline is what bounds drift.
+	/// </summary>
+	private bool ShouldSendBaseline(ClientSnapshotState state, int snapshotSequence)
+	{
+		if (state.AckedSequence < 0)
+		{
+			if (state.LastBaselineSequence < 0) return true;
+			return snapshotSequence - state.LastBaselineSequence >= ResolveBaselineSpacing(state, BaselineRepeatWhileUnacknowledgedSequences);
+		}
+
+		if (snapshotSequence - state.LastBaselineSequence >= BaselineSafetyIntervalSequences) return true;
+		if (snapshotSequence - state.LastAckAdvanceSequence < BaselineAckStallSequences) return false;
+		return snapshotSequence - state.LastBaselineSequence >= ResolveBaselineSpacing(state, MinimumBaselineRequestSpacingSequences);
+	}
+
+	/// <summary>
+	/// How long to wait before re-sending a full baseline to a peer that is not acknowledging. A peer that is stuck because
+	/// it missed a delta is unblocked by one baseline; a peer that is stuck because its acknowledgements are not arriving,
+	/// or because it cannot apply what it receives, is not unblocked by any number of them, and each attempt costs the
+	/// whole world. Repeating the attempt every second turned a single stuck peer into 139 KB/s of traffic that then
+	/// competed with the acknowledgements it depended on. The wait doubles per attempt up to the safety interval, and any
+	/// acknowledgement that advances clears it, so a peer that recovers is served at once.
+	/// </summary>
+	private static int ResolveBaselineSpacing(ClientSnapshotState state, int baseSpacingSequences)
+	{
+		int spacing = baseSpacingSequences;
+		for (int attempt = 0; attempt < state.BaselineBackoffAttempts && spacing < BaselineSafetyIntervalSequences; attempt++)
+		{
+			spacing *= 2;
+		}
+
+		return Math.Min(spacing, BaselineSafetyIntervalSequences);
+	}
+
+	private static BaselineSendReason ResolveBaselineReason(ClientSnapshotState state, int snapshotSequence)
+	{
+		if (state.AckedSequence < 0) return state.LastBaselineSequence < 0 ? BaselineSendReason.Initial : BaselineSendReason.Unacknowledged;
+		if (snapshotSequence - state.LastBaselineSequence >= BaselineSafetyIntervalSequences) return BaselineSendReason.Safety;
+		return BaselineSendReason.Resync;
+	}
+
+	private void ProcessLobbyPlayersForSnapshots(int localPeerId, List<Unit3D> allUnits, List<(int PeerId, byte[] Payload, bool IsBaseline)> results, int snapshotSequence, NetworkMappingState mapping, List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts, List<AbilityStateDelta>? baselineAbilityStates, List<StaticTextDelta>? baselineStaticTexts)
 	{
 		foreach (var p in GameContext.Lobby.PlayerList)
 		{
 			if (p.PeerId == localPeerId || p.PeerId < 0) continue;
+			if (p.IsDisconnected) continue;
 			if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(p.PeerId, out var playerEntity)) continue;
 
-			bool hasBaseline = _lastBaselineSnapshotsPerClient.TryGetValue(p.PeerId, out var lastBaselineMap);
-			if (!hasBaseline && !isBaseline) continue;
-
-			var payload = BuildClientSnapshotPayload(p.PeerId, playerEntity, allUnits, isBaseline, snapshotSequence, lastBaselineMap, abilityStates, staticTexts);
-			results.Add((p.PeerId, payload, isBaseline));
+			ClientSnapshotState state = GetClientSnapshotState(p.PeerId);
+			bool sendBaseline = ShouldSendBaseline(state, snapshotSequence);
+			if (!sendBaseline && state.AckedSequence < 0) continue;
+			BaselineSendReason baselineReason = sendBaseline ? ResolveBaselineReason(state, snapshotSequence) : BaselineSendReason.None;
+			// A peer that has never acknowledged anything has no lag to report: recording its distance from the current
+			// sequence as a lag made a joining peer look twenty seconds behind when it had simply not been sent anything yet.
+			int ackLagSequences = state.AckedSequence < 0 ? -1 : snapshotSequence - state.AckedSequence;
+			// How long the acknowledgement has stood still, which is what the recovery branch is keyed on: lag says how far
+			// behind the peer is, not whether anything is reaching it.
+			int ackStallSequences = state.LastAckAdvanceSequence < 0 ? -1 : snapshotSequence - state.LastAckAdvanceSequence;
+			if (baselineReason == BaselineSendReason.Resync || baselineReason == BaselineSendReason.Unacknowledged) state.BaselineBackoffAttempts++;
+			List<AbilityStateDelta> peerAbilityStates = sendBaseline && baselineAbilityStates != null ? baselineAbilityStates : abilityStates;
+			List<StaticTextDelta> peerStaticTexts = sendBaseline && baselineStaticTexts != null ? baselineStaticTexts : staticTexts;
+			var payload = BuildClientSnapshotPayload(p.PeerId, playerEntity, allUnits, sendBaseline, snapshotSequence, state, peerAbilityStates, peerStaticTexts);
+			MultiplayerBandwidthMeter.RecordSnapshotPayload(p.PeerId, payload.Length, sendBaseline, baselineReason, ackLagSequences, ackStallSequences);
+			MultiplayerBandwidthMeter.RecordSnapshotSequence(p.PeerId, snapshotSequence);
+			results.Add((p.PeerId, payload, sendBaseline));
 		}
 	}
 
-	private byte[] BuildClientSnapshotPayload(int peerId, Entity playerEntity, List<Unit3D> allUnits, bool isBaseline, int snapshotSequence, Dictionary<int, UnitSnapshot> lastBaselineMap, List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
+	private byte[] BuildClientSnapshotPayload(int peerId, Entity playerEntity, List<Unit3D> allUnits, bool sendBaseline, int snapshotSequence, ClientSnapshotState state, List<AbilityStateDelta> abilityStates, List<StaticTextDelta> staticTexts)
 	{
+		_compositionSampling = ShouldSampleSnapshotComposition(peerId, sendBaseline);
+		_compositionComponentBytes.Clear();
 		Vector3 cameraPos = _clientCameraPositions.TryGetValue(peerId, out var cam) ? cam : Vector3.Zero;
 		if (!_snapshotUnitsPerClient.TryGetValue(peerId, out var snapshotUnits))
 		{
@@ -1728,51 +1903,187 @@ public class NetworkService
 		}
 
 		snapshotUnits.Clear();
-		var nextBaselineMap = isBaseline ? new Dictionary<int, UnitSnapshot>() : null;
+		_visibleServerEntityIds.Clear();
+		if (sendBaseline)
+		{
+			state.SentUnits.Clear();
+			state.SentUnitSequences.Clear();
+			state.PendingUnitAcks.Clear();
+		}
 
 		foreach (var unit in allUnits)
 		{
 			if (!GodotObject.IsInstanceValid(unit)) continue;
-			if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity, allUnits)) continue;
+			if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity)) continue;
 
 			var currentSnap = CreateUnitSnapshot(unit, cameraPos, out bool isDetailed);
+			if (!isDetailed && GetOwnerPeerId(unit.Entity) == peerId)
+			{
+				isDetailed = true;
+				currentSnap.IsDetailed = true;
+			}
 
-			if (isBaseline)
+			if (sendBaseline)
 			{
 				snapshotUnits.Add(currentSnap);
-				nextBaselineMap[unit.Entity.Id] = currentSnap;
+				_visibleServerEntityIds.Add(currentSnap.EntityId);
+				TrackSentUnit(state, currentSnap, snapshotSequence);
+				continue;
 			}
-			else if (HasUnitChanged(unit, ref currentSnap, isDetailed, lastBaselineMap))
+
+			// What the peer was last told about this unit, not what it last acknowledged, decides whether it needs telling
+			// again. Comparing against the acknowledgement let the peer's own round trip inflate the step: a unit moving at
+			// 8 m/s travelled another two metres while the state sent to it was in flight, and the resend that followed
+			// landed as one 2.1 m jump instead of the 1 m the threshold promises. The client then has to cover that step on
+			// top of the lag its smoothing already explains, which is what pushed fast far units past the placement bound.
+			// A send still inside the retransmit window is exactly the state the peer is waiting on, so it is the baseline
+			// for the next step; once it has been acknowledged the next step is measured from that instead.
+			bool hasUnacknowledgedSend = state.SentUnits.TryGetValue(unit.Entity.Id, out UnitSnapshot sentSnap)
+				&& state.SentUnitSequences.TryGetValue(unit.Entity.Id, out int sentSequence)
+				&& !state.Applied.Contains(sentSequence)
+				&& snapshotSequence - sentSequence < UnacknowledgedRetransmitSequences;
+			UnitSnapshot referenceSnapshot = default;
+			bool hasReferenceSnapshot = false;
+			if (hasUnacknowledgedSend)
 			{
-				snapshotUnits.Add(currentSnap);
+				referenceSnapshot = sentSnap!;
+				hasReferenceSnapshot = true;
 			}
+			else if (state.AckedUnits.TryGetValue(unit.Entity.Id, out UnitSnapshot ackedSnap))
+			{
+				referenceSnapshot = ackedSnap;
+				hasReferenceSnapshot = true;
+			}
+
+			if (hasReferenceSnapshot)
+			{
+				bool shouldSend = HasUnitChanged(unit, ref currentSnap, isDetailed, referenceSnapshot);
+				if (!shouldSend && sendBaseline) shouldSend = HealthDiffersFromPeer(currentSnap, referenceSnapshot);
+				if (!shouldSend) continue;
+			}
+
+			snapshotUnits.Add(currentSnap);
+			TrackSentUnit(state, currentSnap, snapshotSequence);
 		}
 
-		if (isBaseline)
-		{
-			_lastBaselineSnapshotsPerClient[peerId] = nextBaselineMap;
-		}
+		// A peer retires a unit the authority stops describing, so the components acknowledged for it no longer exist
+		// in the peer's world. Forgetting them here is what makes the component set that comes back with the unit a
+		// complete one instead of what happened to differ from a record of an entity the peer no longer has.
+		if (sendBaseline) PruneUnmentionedPeerState(state);
 
 		var coldPayloadCandidates = BuildColdPayloadCandidates(snapshotSequence);
-		var coldPayloads = BuildColdPayloadDeltas(peerId, coldPayloadCandidates, isBaseline);
-		var componentDeltas = BuildComponentDeltas(peerId, playerEntity, allUnits, isBaseline);
-		var catalog = isBaseline ? BuildCatalogEntriesWithStringTable(peerId) : BuildStringTableEntries(peerId, false);
-		uint stateFingerprint = isBaseline ? ComputeHostStateFingerprint(abilityStates, staticTexts, coldPayloadCandidates) : 0u;
+		var coldPayloads = BuildColdPayloadDeltas(peerId, coldPayloadCandidates);
+		var componentDeltas = BuildComponentDeltas(peerId, playerEntity, allUnits, state, snapshotSequence, sendBaseline);
+		List<CatalogEntry> catalog;
+		if (state.SentCatalog)
+		{
+			catalog = BuildStringTableEntries(peerId, false);
+		}
+		else
+		{
+			catalog = BuildCatalogEntriesWithStringTable(peerId);
+			state.SentCatalog = true;
+		}
+
+		uint stateFingerprint = sendBaseline ? ComputeHostStateFingerprint(abilityStates, staticTexts, coldPayloadCandidates) : 0u;
 
 		var worldSnapshot = new WorldSnapshot
 		{
 			Sequence = snapshotSequence,
-			IsBaseline = isBaseline,
-			BaseSequence = isBaseline ? snapshotSequence : (snapshotSequence / 30) * 30,
+			IsBaseline = sendBaseline,
+			BaseSequence = sendBaseline ? snapshotSequence : ResolveDeltaBaseSequence(state),
 			Units = snapshotUnits,
 			ColdPayloads = coldPayloads,
 			ComponentDeltas = componentDeltas,
 			AbilityStates = abilityStates,
 			StaticTexts = staticTexts,
 			Catalog = catalog,
+			UnitComponentPresence = sendBaseline ? state.UnitComponentPresence : null,
 			StateFingerprint = stateFingerprint
 		};
-		return MemoryPackSerializer.Serialize(worldSnapshot);
+
+		if (sendBaseline)
+		{
+			state.LastBaselineSequence = snapshotSequence;
+			state.HasSentBaseline = true;
+			_lastBaselineSentSequence[peerId] = snapshotSequence;
+		}
+
+		RecordSnapshotComposition(peerId, worldSnapshot);
+		byte[] serialized = MemoryPackSerializer.Serialize(worldSnapshot);
+
+		// Framing costs a millisecond or two on the tick that sends it, which is worth stating because that cost is what
+		// decides how small a payload can be made before the host feels it.
+		long framingStartTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+		byte[] framed = sendBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
+		double framingMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(framingStartTicks).TotalMilliseconds;
+		MultiplayerBandwidthMeter.RecordSnapshotFraming(peerId, sendBaseline, serialized.Length, framed.Length, framingMilliseconds, snapshotSequence);
+		return framed;
+	}
+
+	private int _compositionSampleCounter;
+	private int _compositionSamplePeerId = -1;
+	private bool _compositionSampling;
+	private readonly Dictionary<string, int> _compositionComponentBytes = new();
+
+	private bool ShouldSampleSnapshotComposition(int peerId, bool isBaseline)
+	{
+		if (!MultiplayerBandwidthMeter.IsRecording) return false;
+		if (_compositionSamplePeerId < 0) _compositionSamplePeerId = peerId;
+		if (peerId != _compositionSamplePeerId) return false;
+		return isBaseline || ++_compositionSampleCounter % 20 == 0;
+	}
+
+	private void RecordSnapshotComposition(int peerId, WorldSnapshot snapshot)
+	{
+		if (!_compositionSampling) return;
+		_compositionSampling = false;
+
+		int emptyBytes = MeasureCompositionMember(snapshot, 0);
+		MultiplayerBandwidthMeter.RecordSnapshotComposition(
+			snapshot.IsBaseline,
+			MeasureCompositionMember(snapshot, 1) - emptyBytes,
+			MeasureCompositionMember(snapshot, 2) - emptyBytes,
+			MeasureCompositionMember(snapshot, 3) - emptyBytes,
+			MeasureCompositionMember(snapshot, 4) - emptyBytes,
+			MeasureCompositionMember(snapshot, 5) - emptyBytes,
+			MeasureCompositionMember(snapshot, 6) - emptyBytes,
+			snapshot.Units?.Count ?? 0,
+			snapshot.ComponentDeltas?.Count ?? 0,
+			snapshot.ColdPayloads?.Count ?? 0);
+
+		foreach (var pair in _compositionComponentBytes)
+		{
+			MultiplayerBandwidthMeter.RecordComponentBytes(snapshot.IsBaseline, pair.Key, pair.Value);
+		}
+
+		_compositionComponentBytes.Clear();
+	}
+
+	private void RecordComponentBytesForSample(IReplicatedComponentCodec codec, int byteCount)
+	{
+		if (!_compositionSampling) return;
+		string name = codec.GetType().Name;
+		int existing = _compositionComponentBytes.TryGetValue(name, out int stored) ? stored : 0;
+		_compositionComponentBytes[name] = existing + byteCount;
+	}
+
+	private static int MeasureCompositionMember(WorldSnapshot source, int member)
+	{
+		var measured = new WorldSnapshot
+		{
+			Sequence = source.Sequence,
+			IsBaseline = source.IsBaseline,
+			BaseSequence = source.BaseSequence,
+			StateFingerprint = source.StateFingerprint,
+			Units = member == 1 ? source.Units : null,
+			ComponentDeltas = member == 2 ? source.ComponentDeltas : null,
+			ColdPayloads = member == 3 ? source.ColdPayloads : null,
+			AbilityStates = member == 4 ? source.AbilityStates : null,
+			StaticTexts = member == 5 ? source.StaticTexts : null,
+			Catalog = member == 6 ? source.Catalog : null
+		};
+		return MemoryPackSerializer.Serialize(measured).Length;
 	}
 
 	private const string StringTableChannel = "string";
@@ -1984,10 +2295,8 @@ public class NetworkService
 		return unchecked((int)hash);
 	}
 
-	private List<ColdPayloadDelta> BuildColdPayloadDeltas(int peerId, List<ColdPayloadDelta> candidates, bool isBaseline)
+	private List<ColdPayloadDelta> BuildColdPayloadDeltas(int peerId, List<ColdPayloadDelta> candidates)
 	{
-		if (!isBaseline) return _emptyColdPayloadDeltas;
-
 		if (!_coldPayloadContentPerClient.TryGetValue(peerId, out var previousContentIds))
 		{
 			previousContentIds = new Dictionary<(byte Scope, int Key, byte Kind, byte Role), int>();
@@ -2002,7 +2311,7 @@ public class NetworkService
 			var key = (candidate.Scope, candidate.Key, candidate.Kind, candidate.Role);
 			_coldPayloadSeenKeys.Add(key);
 
-			if (!isBaseline && previousContentIds.TryGetValue(key, out int previousContentId) && previousContentId == candidate.ContentId) continue;
+			if (previousContentIds.TryGetValue(key, out int previousContentId) && previousContentId == candidate.ContentId) continue;
 
 			previousContentIds[key] = candidate.ContentId;
 			deltas.Add(candidate);
@@ -2036,7 +2345,7 @@ public class NetworkService
 	private readonly Dictionary<int, List<UnitSnapshot>> _snapshotUnitsPerClient = new();
 	private byte[] _componentWriteScratch = Array.Empty<byte>();
 
-	private List<ComponentDelta> BuildComponentDeltas(int peerId, Entity viewerEntity, List<Unit3D> allUnits, bool isBaseline)
+	private List<ComponentDelta> BuildComponentDeltas(int peerId, Entity viewerEntity, List<Unit3D> allUnits, ClientSnapshotState state, int snapshotSequence, bool sendBaseline)
 	{
 		if (!_componentDeltasPerClient.TryGetValue(peerId, out var deltas))
 		{
@@ -2049,11 +2358,8 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return deltas;
 
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-		if (!_lastComponentSnapshotsPerClient.TryGetValue(peerId, out var previous) || isBaseline)
-		{
-			previous = new Dictionary<(byte Scope, int Key, int TypeId), byte[]>();
-			_lastComponentSnapshotsPerClient[peerId] = previous;
-		}
+		if (sendBaseline) state.SentComponents.Clear();
+		if (sendBaseline) state.UnitComponentPresence.Clear();
 
 		var codecs = ReplicatedComponents.All;
 		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
@@ -2061,7 +2367,7 @@ public class NetworkService
 			var codec = codecs[codecIndex];
 			if (codec.Scope != ReplicatedScope.World) continue;
 
-			TryAppendComponentDelta(worldEntity, codec, (byte)ReplicatedScope.World, 0, previous, deltas, isBaseline);
+			TryAppendComponentDelta(worldEntity, codec, (byte)ReplicatedScope.World, 0, state, deltas, snapshotSequence, sendBaseline, false);
 		}
 
 		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
@@ -2075,7 +2381,7 @@ public class NetworkService
 				Entity playerEntity = mapping.PlayerEntities[slot];
 				if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) continue;
 
-				TryAppendComponentDelta(playerEntity, codec, (byte)ReplicatedScope.Player, slot, previous, deltas, isBaseline);
+				TryAppendComponentDelta(playerEntity, codec, (byte)ReplicatedScope.Player, slot, state, deltas, snapshotSequence, sendBaseline, false);
 			}
 		}
 
@@ -2083,15 +2389,27 @@ public class NetworkService
 		{
 			var unit = allUnits[unitIndex];
 			if (!GodotObject.IsInstanceValid(unit)) continue;
-			if (!IsUnitVisibleToPlayer(viewerEntity, unit.Entity, allUnits)) continue;
+			if (!IsUnitVisibleToPlayer(viewerEntity, unit.Entity)) continue;
 
+			// A peer writes order state for its own units before the authority confirms it, so what it holds and what it
+			// acknowledged can differ. Those units are restated in full on a baseline, which is what repairs a prediction
+			// the authority rejected; every other unit only needs what changed. A unit instance the peer would re-create
+			// needs its whole component set on a delta too: the id is the same id, but the entity behind it is not the one
+			// the peer acknowledged.
+			bool forceSend = IsNewEntityInstanceForPeer(state, unit) || (sendBaseline && GetOwnerPeerId(unit.Entity) == peerId);
+			ulong presenceMask = 0;
 			for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
 			{
 				var codec = codecs[codecIndex];
 				if (codec.Scope != ReplicatedScope.Unit) continue;
 
-				TryAppendComponentDelta(unit.Entity, codec, (byte)ReplicatedScope.Unit, unit.Entity.Id, previous, deltas, isBaseline);
+				if (!TryAppendComponentDelta(unit.Entity, codec, (byte)ReplicatedScope.Unit, unit.Entity.Id, state, deltas, snapshotSequence, sendBaseline, forceSend)) continue;
+				if (!ReplicatedUnitComponentSlots.TryGetSlot(codec.ComponentTypeId, out int presenceSlot)) continue;
+
+				presenceMask |= 1UL << presenceSlot;
 			}
+
+			if (sendBaseline) state.UnitComponentPresence.Add(new UnitComponentPresence { ServerEntityId = unit.Entity.Id, Mask = presenceMask });
 		}
 
 		var lootCodec = ReplicatedComponents.Find(ComponentType<GroundLoot>.Id);
@@ -2105,14 +2423,14 @@ public class NetworkService
 				if (loot == null || !GodotObject.IsInstanceValid(loot) || loot.IsDespawned) continue;
 				if (loot.Entity == Entity.Null || !GameContext.World.IsAlive(loot.Entity)) continue;
 
-				TryAppendComponentDelta(loot.Entity, lootCodec, (byte)ReplicatedScope.Unit, loot.Entity.Id, previous, deltas, isBaseline);
+				TryAppendComponentDelta(loot.Entity, lootCodec, (byte)ReplicatedScope.Unit, loot.Entity.Id, state, deltas, snapshotSequence, sendBaseline, sendBaseline);
 			}
 		}
 
 		return deltas;
 	}
 
-	private void TryAppendComponentDelta(Entity entity, IReplicatedComponentCodec codec, byte scope, int key, Dictionary<(byte Scope, int Key, int TypeId), byte[]> previous, List<ComponentDelta> deltas, bool isBaseline)
+	private bool TryAppendComponentDelta(Entity entity, IReplicatedComponentCodec codec, byte scope, int key, ClientSnapshotState state, List<ComponentDelta> deltas, int snapshotSequence, bool sendBaseline, bool forceSend)
 	{
 		if (_componentWriteScratch.Length < codec.SizeInBytes) _componentWriteScratch = new byte[codec.SizeInBytes];
 
@@ -2120,36 +2438,144 @@ public class NetworkService
 		var deltaKey = (scope, key, codec.ComponentTypeId);
 		if (!codec.TryWrite(GameContext.World, entity, scratch))
 		{
-			if (!previous.Remove(deltaKey)) return;
-
-			deltas.Add(new ComponentDelta
+			if (!state.AckedComponents.ContainsKey(deltaKey))
 			{
-				Key = key,
-				ComponentTypeId = codec.ComponentTypeId,
-				Scope = scope,
-				Bytes = Array.Empty<byte>()
-			});
-			return;
+				state.SentComponents.Remove(deltaKey);
+				return false;
+			}
+
+			if (IsInFlight(state, deltaKey, snapshotSequence, out var inFlightRemoval) && inFlightRemoval) return false;
+
+			EmitComponentDelta(deltaKey, Array.Empty<byte>(), snapshotSequence, true, state, deltas);
+			RecordComponentBytesForSample(codec, 0);
+			return false;
 		}
 
-		if (!previous.TryGetValue(deltaKey, out var storedBytes))
+		// A baseline is not a reason to restate what the peer confirmed it already holds. The peer keeps its units
+		// across a baseline; only a peer being handed a unit instance it does not have needs the whole component set,
+		// and that is what forceSend marks - including a send that is still in flight, because that send described the
+		// instance the peer is replacing.
+		if (!forceSend)
 		{
-			storedBytes = new byte[codec.SizeInBytes];
-			previous[deltaKey] = storedBytes;
-		}
-		else if (!isBaseline && storedBytes.AsSpan().SequenceEqual(scratch))
-		{
-			return;
+			if (state.AckedComponents.TryGetValue(deltaKey, out var ackedBytes) && scratch.SequenceEqual(ackedBytes)) return true;
+
+			if (!sendBaseline
+				&& IsInFlight(state, deltaKey, snapshotSequence, out _)
+				&& state.SentComponents.TryGetValue(deltaKey, out var pendingEntry)
+				&& !pendingEntry.Removed
+				&& scratch.SequenceEqual(pendingEntry.Bytes)) return true;
 		}
 
-		scratch.CopyTo(storedBytes);
+		byte[] bytes;
+		if (state.SentComponents.TryGetValue(deltaKey, out var previousEntry) && !previousEntry.Removed && previousEntry.Bytes.Length == codec.SizeInBytes && scratch.SequenceEqual(previousEntry.Bytes))
+		{
+			bytes = previousEntry.Bytes;
+		}
+		else
+		{
+			bytes = new byte[codec.SizeInBytes];
+			scratch.CopyTo(bytes);
+		}
+
+		EmitComponentDelta(deltaKey, bytes, snapshotSequence, false, state, deltas);
+		RecordComponentBytesForSample(codec, bytes.Length);
+		return true;
+	}
+
+	/// <summary>
+	/// Whether this peer would treat the unit as a new instance: it has never acknowledged a description of the id, or
+	/// what it acknowledged was a different unit, dead, or of another owner. The peer's apply path retires and re-creates
+	/// its copy in exactly those cases, so the components it held for the old instance are not the ones it needs now.
+	/// </summary>
+	private bool IsNewEntityInstanceForPeer(ClientSnapshotState state, Unit3D unit)
+	{
+		if (!state.AckedUnits.TryGetValue(unit.Entity.Id, out UnitSnapshot ackedUnit)) return true;
+
+		if (ackedUnit.IsDead != GameContext.World.Has<Dead>(unit.Entity)) return true;
+		if (ackedUnit.IsBuilding != unit.IsBuilding) return true;
+		if (ackedUnit.OwnerPlayerIndex != GetOwnerPlayerIndex(unit.Entity)) return true;
+		return !string.Equals(ackedUnit.UnitId, unit.UnitId, StringComparison.Ordinal);
+	}
+
+	private readonly HashSet<int> _visibleServerEntityIds = new();
+	private readonly List<(byte Scope, int Key, int TypeId)> _prunedComponentKeys = new();
+	private readonly List<int> _prunedUnitIds = new();
+	private readonly Dictionary<int, List<(int LocalEntityId, IReplicatedComponentCodec Codec)>> _referrersByServerEntityId = new();
+	private readonly Dictionary<(int LocalEntityId, int ComponentTypeId), int> _referencedServerEntityIds = new();
+
+	private void PruneUnmentionedPeerState(ClientSnapshotState state)
+	{
+		_prunedComponentKeys.Clear();
+		foreach (var pair in state.AckedComponents)
+		{
+			if (pair.Key.Scope != (byte)ReplicatedScope.Unit) continue;
+			if (_visibleServerEntityIds.Contains(pair.Key.Key)) continue;
+
+			_prunedComponentKeys.Add(pair.Key);
+		}
+
+		for (int index = 0; index < _prunedComponentKeys.Count; index++)
+		{
+			state.AckedComponents.Remove(_prunedComponentKeys[index]);
+			state.SentComponents.Remove(_prunedComponentKeys[index]);
+		}
+
+		_prunedUnitIds.Clear();
+		foreach (var pair in state.AckedUnits)
+		{
+			if (_visibleServerEntityIds.Contains(pair.Key)) continue;
+
+			_prunedUnitIds.Add(pair.Key);
+		}
+
+		for (int index = 0; index < _prunedUnitIds.Count; index++)
+		{
+			state.AckedUnits.Remove(_prunedUnitIds[index]);
+		}
+	}
+
+	/// <summary>
+	/// Safety net for a change no acknowledgement confirms. Acknowledgements travel reliably, so an ordinary lost
+	/// snapshot is repaired by the acknowledgement of the next one, which is one round trip away; this bound only
+	/// catches a peer that stops acknowledging altogether (a client that cannot apply a snapshot, or one that is
+	/// disconnecting) and keeps its state from stalling until the next baseline.
+	/// </summary>
+	public const int UnacknowledgedRetransmitSequences = 15;
+
+	private static bool IsInFlight(ClientSnapshotState state, (byte Scope, int Key, int TypeId) deltaKey, int snapshotSequence, out bool removed)
+	{
+		removed = false;
+		if (!state.SentComponents.TryGetValue(deltaKey, out var entry)) return false;
+		if (state.Applied.Contains(entry.Sequence)) return false;
+		if (snapshotSequence - entry.Sequence >= UnacknowledgedRetransmitSequences) return false;
+		removed = entry.Removed;
+		return true;
+	}
+
+	private static void EmitComponentDelta((byte Scope, int Key, int TypeId) deltaKey, byte[] bytes, int snapshotSequence, bool removed, ClientSnapshotState state, List<ComponentDelta> deltas)
+	{
 		deltas.Add(new ComponentDelta
 		{
-			Key = key,
-			ComponentTypeId = codec.ComponentTypeId,
-			Scope = scope,
-			Bytes = storedBytes
+			Key = deltaKey.Key,
+			ComponentTypeId = deltaKey.TypeId,
+			Scope = deltaKey.Scope,
+			Bytes = bytes
 		});
+
+		var entry = new SentComponentEntry
+		{
+			Key = deltaKey,
+			Bytes = bytes,
+			Sequence = snapshotSequence,
+			Removed = removed
+		};
+
+		state.SentComponents[deltaKey] = entry;
+		state.PendingComponentAcks.Add(entry);
+		if (state.PendingComponentAcks.Count > MaximumPendingComponentAcks)
+		{
+			state.PendingComponentAcks.RemoveRange(0, state.PendingComponentAcks.Count - MaximumPendingComponentAcks);
+		}
 	}
 
 	private List<AbilityStateDelta> CollectHostAbilityStateDeltas(bool includeAll, bool clearDirty = true)
@@ -2160,7 +2586,7 @@ public class NetworkService
 		deltas.Sort(static (left, right) =>
 		{
 			int byEntity = left.ServerEntityId.CompareTo(right.ServerEntityId);
-			return byEntity != 0 ? byEntity : string.CompareOrdinal(left.AbilityId, right.AbilityId);
+			return byEntity != 0 ? byEntity : left.AbilityIndex.CompareTo(right.AbilityIndex);
 		});
 		return deltas;
 	}
@@ -2219,7 +2645,7 @@ public class NetworkService
 			var ability = abilityStates[i];
 			hash = ReplicatedStateFingerprint.Combine(hash, 3);
 			hash = ReplicatedStateFingerprint.Combine(hash, ability.ServerEntityId);
-			hash = ReplicatedStateFingerprint.Combine(hash, ability.AbilityId);
+			hash = ReplicatedStateFingerprint.Combine(hash, ability.AbilityIndex);
 			hash = ReplicatedStateFingerprint.Combine(hash, ability.Flags);
 		}
 		for (int i = 0; i < staticTexts.Count; i++)
@@ -2241,13 +2667,39 @@ public class NetworkService
 		return ReplicatedStateFingerprint.CombineWeatherState(hash, GameContext.World, worldEntity);
 	}
 
+	/// <summary>
+	/// How close a peer's camera has to be for a unit to be described at detailed precision. Inside it every movement
+	/// above five centimetres is sent; outside it a unit is resent once it has moved a metre from what the peer holds.
+	/// </summary>
+	private const float DetailedPrecisionRadiusMeters = 35.0f;
+
+	/// <summary>
+	/// Whether this unit was described at detailed precision to every remote peer, which is what lets the verifier hold a
+	/// baseline to exact equality. Measured against the world origin, the old flag said nothing about any peer: a unit
+	/// near the origin was called detailed and then held to exactness by a client that had been sent the one metre resend
+	/// cadence, which is what made two freshly produced units near the origin look like state divergences at eight peers.
+	/// </summary>
+	private bool IsUnitDetailedForEveryRemotePeer(Unit3D unit)
+	{
+		if (_clientCameraPositions.Count == 0) return false;
+
+		foreach (var cameraPosition in _clientCameraPositions.Values)
+		{
+			if (unit.GlobalPosition.DistanceTo(cameraPosition) > DetailedPrecisionRadiusMeters) return false;
+		}
+
+		return true;
+	}
+
 	private WorldSnapshot BuildDiagnosticAuthoritativeSnapshot(List<Unit3D> allUnits, int snapshotSequence, bool isBaseline)
 	{
 		var snapshotUnits = new List<UnitSnapshot>(allUnits.Count);
 		foreach (var unit in allUnits)
 		{
 			if (!GodotObject.IsInstanceValid(unit)) continue;
-			snapshotUnits.Add(CreateUnitSnapshot(unit, Vector3.Zero, out _));
+			UnitSnapshot snapshot = CreateUnitSnapshot(unit, Vector3.Zero, out _);
+			snapshot.IsDetailed = IsUnitDetailedForEveryRemotePeer(unit);
+			snapshotUnits.Add(snapshot);
 		}
 
 		return new WorldSnapshot
@@ -2267,7 +2719,7 @@ public class NetworkService
 	{
 		var world = GameContext.World;
 		float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
-		isDetailed = distToCamera <= 35.0f;
+		isDetailed = distToCamera <= DetailedPrecisionRadiusMeters;
 		System.Numerics.Vector3 position = world.Has<Position>(unit.Entity) ? world.Get<Position>(unit.Entity).Value : new System.Numerics.Vector3(unit.GlobalPosition.X, unit.GlobalPosition.Y, unit.GlobalPosition.Z);
 		System.Numerics.Vector3 velocity = world.Has<Velocity>(unit.Entity) ? world.Get<Velocity>(unit.Entity).Value : new System.Numerics.Vector3(unit.Velocity.X, unit.Velocity.Y, unit.Velocity.Z);
 		return new UnitSnapshot
@@ -2287,10 +2739,20 @@ public class NetworkService
 		};
 	}
 
-	private bool HasUnitChanged(Unit3D unit, ref UnitSnapshot currentSnap, bool isDetailed, Dictionary<int, UnitSnapshot> lastBaselineMap)
+	/// <summary>
+	/// Whether this unit's health differs at all from what the peer holds. A baseline is a recovery point, so it restates
+	/// health even when the difference is under the threshold a delta uses to decide a unit is worth resending: a
+	/// regenerating unit drifts by a few hundredths, never crosses that threshold, and the peer is left holding a value the
+	/// authority has already moved past.
+	/// </summary>
+	private static bool HealthDiffersFromPeer(in UnitSnapshot current, in UnitSnapshot peerSnapshot)
 	{
-		if (!lastBaselineMap.TryGetValue(unit.Entity.Id, out var baseSnap)) return true;
+		return MathF.Abs(current.CurrentHp - peerSnapshot.CurrentHp) > 0.001f
+			|| MathF.Abs(current.MaxHp - peerSnapshot.MaxHp) > 0.001f;
+	}
 
+	private bool HasUnitChanged(Unit3D unit, ref UnitSnapshot currentSnap, bool isDetailed, UnitSnapshot baseSnap)
+	{
 		if (isDetailed)
 		{
 			bool posChanged = baseSnap.Position.ToGodot().DistanceTo(currentSnap.Position.ToGodot()) > 0.05f;
@@ -2318,18 +2780,23 @@ public class NetworkService
 
 		Vector3 cameraPos = _clientCameraPositions.TryGetValue(targetPeerId, out var cam) ? cam : Vector3.Zero;
 		var snapshotUnits = new List<UnitSnapshot>();
-		var nextBaselineMap = new Dictionary<int, UnitSnapshot>();
+		ResetClientSnapshotState(targetPeerId);
+		ClientSnapshotState state = GetClientSnapshotState(targetPeerId);
 
 		foreach (var unit in allUnits)
 		{
-			ProcessUnitForBaselineSnapshot(unit, playerEntity, cameraPos, allUnits, snapshotUnits, nextBaselineMap);
+			ProcessUnitForBaselineSnapshot(unit, playerEntity, cameraPos, allUnits, snapshotUnits, state.AckedUnits);
 		}
-
-		_lastBaselineSnapshotsPerClient[targetPeerId] = nextBaselineMap;
 
 		var abilityStates = CollectHostAbilityStateDeltas(true, clearDirty: false);
 		var staticTexts = CollectHostStaticTextDeltas(true, clearDirty: false);
 		var coldPayloadCandidates = BuildColdPayloadCandidates(networkState.SnapshotSequence);
+		var coldPayloads = BuildColdPayloadDeltas(targetPeerId, coldPayloadCandidates);
+		var componentDeltas = BuildComponentDeltas(targetPeerId, playerEntity, allUnits, state, networkState.SnapshotSequence, true);
+
+		state.LastBaselineSequence = networkState.SnapshotSequence;
+		state.HasSentBaseline = true;
+		state.SentCatalog = true;
 
 		var worldSnapshot = new WorldSnapshot
 		{
@@ -2337,74 +2804,71 @@ public class NetworkService
 			IsBaseline = true,
 			BaseSequence = networkState.SnapshotSequence,
 			Units = snapshotUnits,
-			ColdPayloads = BuildColdPayloadDeltas(targetPeerId, coldPayloadCandidates, true),
-			ComponentDeltas = BuildComponentDeltas(targetPeerId, playerEntity, allUnits, true),
+			ColdPayloads = coldPayloads,
+			ComponentDeltas = componentDeltas,
 			AbilityStates = abilityStates,
 			StaticTexts = staticTexts,
 			Catalog = BuildCatalogEntriesWithStringTable(targetPeerId),
+			UnitComponentPresence = state.UnitComponentPresence,
 			StateFingerprint = ComputeHostStateFingerprint(abilityStates, staticTexts, coldPayloadCandidates)
 		};
-		return MemoryPackSerializer.Serialize(worldSnapshot);
+		return SnapshotWireFormat.EncodeBaseline(MemoryPackSerializer.Serialize(worldSnapshot));
 	}
 
-	private void ProcessUnitForBaselineSnapshot(Unit3D unit, Entity playerEntity, Vector3 cameraPos, List<Unit3D> allUnits, List<UnitSnapshot> snapshotUnits, Dictionary<int, UnitSnapshot> nextBaselineMap)
+	private void ProcessUnitForBaselineSnapshot(Unit3D unit, Entity playerEntity, Vector3 cameraPos, List<Unit3D> allUnits, List<UnitSnapshot> snapshotUnits, Dictionary<int, UnitSnapshot> baselinedUnits)
 	{
 		if (!GodotObject.IsInstanceValid(unit)) return;
-		if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity, allUnits)) return;
+		if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity)) return;
 
 		var currentSnap = CreateUnitSnapshot(unit, cameraPos, out _);
 		snapshotUnits.Add(currentSnap);
-		nextBaselineMap[unit.Entity.Id] = currentSnap;
+		baselinedUnits[unit.Entity.Id] = currentSnap;
 	}
 
-	public void QueueSpectatorDelayedPacket(int peerId, string functionName, object[] arguments)
+	private readonly List<DelayedPacket> _readySpectatorPackets = new();
+	private readonly List<int> _disconnectedSpectatorPeerIds = new();
+
+	public void QueueSpectatorDelayedPacket(DelayedPacket packet)
 	{
-		double sendTime = (Time.GetTicksMsec() / 1000.0) + 300.0;
-		if (!_spectatorDelayedPackets.TryGetValue(peerId, out var list))
+		packet.SendTime = (Time.GetTicksMsec() / 1000.0) + 300.0;
+		if (!_spectatorDelayedPackets.TryGetValue(packet.PeerId, out var list))
 		{
 			list = new List<DelayedPacket>();
-			_spectatorDelayedPackets[peerId] = list;
+			_spectatorDelayedPackets[packet.PeerId] = list;
 		}
 
-		list.Add(new DelayedPacket
-		{
-			FunctionName = functionName,
-			Arguments = arguments,
-			SendTime = sendTime
-		});
+		list.Add(packet);
 	}
 
-
-	public List<ReadyPacket> FlushReadySpectatorPackets()
+	public List<DelayedPacket> FlushReadySpectatorPackets()
 	{
-		if (_spectatorDelayedPackets.Count == 0) return new List<ReadyPacket>();
+		_readySpectatorPackets.Clear();
+		if (_spectatorDelayedPackets.Count == 0) return _readySpectatorPackets;
 
 		double currentTime = Time.GetTicksMsec() / 1000.0;
-		var disconnectedPeers = new List<int>();
+		_disconnectedSpectatorPeerIds.Clear();
 		foreach (var key in _spectatorDelayedPackets.Keys)
 		{
 			if (GameContext.Lobby == null || !GameContext.Lobby.PlayerList.Exists(p => p.PeerId == key))
 			{
-				disconnectedPeers.Add(key);
+				_disconnectedSpectatorPeerIds.Add(key);
 			}
 		}
 
-		foreach (var peerId in disconnectedPeers)
+		foreach (var peerId in _disconnectedSpectatorPeerIds)
 		{
 			_spectatorDelayedPackets.Remove(peerId);
 		}
 
-		var readyPackets = new List<ReadyPacket>();
 		foreach (var kvp in _spectatorDelayedPackets)
 		{
-			int peerId = kvp.Key;
 			var list = kvp.Value;
 			int sentCount = 0;
 			for (int i = 0; i < list.Count; i++)
 			{
 				if (list[i].SendTime <= currentTime)
 				{
-					readyPackets.Add(new ReadyPacket(peerId, list[i].FunctionName, list[i].Arguments));
+					_readySpectatorPackets.Add(list[i]);
 					sentCount++;
 				}
 				else
@@ -2419,7 +2883,7 @@ public class NetworkService
 			}
 		}
 
-		return readyPackets;
+		return _readySpectatorPackets;
 	}
 
 	public bool IsSpectatorWithDelay(int peerId)
@@ -2429,36 +2893,18 @@ public class NetworkService
 		return p != null && p.Team == "Spectator" && GameContext.Lobby.SpectatorDelay;
 	}
 
-	private void ClearUnitOrders(Entity entity)
-	{
-		ClearMovementOrders(entity);
-		ClearActionOrders(entity);
-	}
+	
 
-	private void ClearMovementOrders(Entity entity)
-	{
-		if (GameContext.World.Has<MoveTo>(entity)) GameContext.World.Remove<MoveTo>(entity);
-		if (GameContext.World.Has<PathFollow>(entity)) GameContext.World.Remove<PathFollow>(entity);
-		if (GameContext.World.Has<HoldPosition>(entity)) GameContext.World.Remove<HoldPosition>(entity);
-		if (GameContext.World.Has<WaypointQueue>(entity)) GameContext.World.Remove<WaypointQueue>(entity);
-		if (GameContext.World.Has<Follow>(entity)) GameContext.World.Remove<Follow>(entity);
-	}
+	
 
-	private void ClearActionOrders(Entity entity)
-	{
-		if (GameContext.World.Has<AttackTarget>(entity)) GameContext.World.Remove<AttackTarget>(entity);
-		if (GameContext.World.Has<AttackMove>(entity)) GameContext.World.Remove<AttackMove>(entity);
-		if (GameContext.World.Has<Patrol>(entity)) GameContext.World.Remove<Patrol>(entity);
-		if (GameContext.World.Has<HealingTarget>(entity)) GameContext.World.Remove<HealingTarget>(entity);
-		if (GameContext.World.Has<Gatherer>(entity)) GameContext.World.Remove<Gatherer>(entity);
-	}
+	
 
 	private Entity FindWorldEntity()
 	{
-		Entity worldEntity = Entity.Null;
-		var query = QueryCache.AllNetworkStateQuery;
-		GameContext.World.Query(in query, (Entity entity) => worldEntity = entity);
-		return worldEntity;
+		Entity worldEntity = ECSContext.WorldEntity;
+		if (GameContext.World == null || worldEntity == Entity.Null) return Entity.Null;
+		if (!GameContext.World.IsAlive(worldEntity)) return Entity.Null;
+		return GameContext.World.Has<NetworkState>(worldEntity) ? worldEntity : Entity.Null;
 	}
 
 	public bool WasClientInMultiplayer { get; private set; } = false;
@@ -2546,7 +2992,7 @@ public class NetworkService
 
 	public void ResetReconnectionState()
 	{
-		_unacknowledgedCommands.Clear();
+		_unitsSentAtDetailedPrecision.Clear();
 		_queuedDeltas.Clear();
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity != Entity.Null && GameContext.World.Has<NetworkState>(worldEntity))
@@ -2783,18 +3229,15 @@ public class NetworkService
 
 	public void RemoveMultiplayerMapping(int entityId)
 	{
-		if (GameContext.World.TryGet<NetworkMappingState>(ECSContext.WorldEntity, out var mapState))
-		{
-			GameContext.World.Mutate<NetworkMappingState>(ECSContext.WorldEntity, (ref NetworkMappingState state) =>
-			{
-				if (state.ClientToServerEntityMap.TryGetValue(entityId, out int serverId))
-				{
-					state.ServerToClientEntityMap.Remove(serverId);
-				}
+		if (!GameContext.World.TryGet<NetworkMappingState>(ECSContext.WorldEntity, out var mapState)) return;
 
-				state.ClientToServerEntityMap.Remove(entityId);
-			});
+		if (mapState.ClientToServerEntityMap.TryGetValue(entityId, out int serverEntityId))
+		{
+			mapState.ServerToClientEntityMap.Remove(serverEntityId);
+			ReplicatedEntityReferences.Unregister(serverEntityId);
 		}
+
+		mapState.ClientToServerEntityMap.Remove(entityId);
 	}
 
 	public void ProcessRequestPause(int peerId, bool isServer, Action<bool, int, bool> broadcastPauseStateRpc, Action<bool> startCountdown)

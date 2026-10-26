@@ -2086,6 +2086,56 @@
             }
           }
         },
+        "Consumables": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "TemplateID": {
+                "type": "string"
+              },
+              "AbilityId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "CostGold": {
+                "type": "number"
+              },
+              "CostWood": {
+                "type": "number"
+              },
+              "CostStone": {
+                "type": "number"
+              },
+              "TargetScope": {
+                "type": "string"
+              },
+              "SlotGroup": {
+                "type": "string"
+              },
+              "MaxPerUnit": {
+                "type": "integer"
+              },
+              "ClearsSlot": {
+                "type": "boolean"
+              },
+              "PurchaseRange": {
+                "type": "number"
+              },
+              "CardId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
         "Attachments": {
           "type": "array",
           "items": {

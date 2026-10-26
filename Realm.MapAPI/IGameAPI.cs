@@ -13,16 +13,6 @@ public interface IGameAPI
 	float GameElapsedTime { get; }
 
 	/// <summary>
-	/// Gets a value indicating whether the current frame execution is a predictive local frame.
-	/// </summary>
-	bool IsPredictiveFrame => false;
-
-	/// <summary>
-	/// Gets a value indicating whether the current frame execution is an authoritative simulation frame.
-	/// </summary>
-	bool IsAuthoritativeFrame => !IsPredictiveFrame;
-
-	/// <summary>
 	/// Gets a value indicating whether cheats are available in the current session. Read-only: only the
 	/// engine can enable cheats, which are available in the map editor, in test mode and in single player.
 	/// </summary>

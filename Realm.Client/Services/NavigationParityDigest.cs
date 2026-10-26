@@ -2,6 +2,7 @@ using System;
 using DotRecast.Detour;
 using Realm.Ecs;
 using Realm.Ecs.Components.Terrain;
+using Realm.Ecs.Services;
 
 namespace Realm.Client.Services;
 
@@ -17,6 +18,8 @@ public struct NavigationParityDigest
 	public int PolyCount;
 	public int GroundPolyCount;
 	public uint PolyHash;
+	public int ObstacleVolumeCount;
+	public uint ObstacleHash;
 
 	public bool HasEqualPathing(in NavigationParityDigest other)
 	{
@@ -47,7 +50,34 @@ public struct NavigationParityDigest
 		digest.Depth = state.Depth;
 		CapturePathing(ref digest, in state);
 		CaptureNavMesh(ref digest, in state);
+		CaptureObstacleVolumes(ref digest);
 		return digest;
+	}
+
+	/// <summary>
+	/// Hashes the obstacle volumes the mesh was baked from. Two meshes that were built from the same volumes and the same
+	/// terrain are the same mesh, so this is the input a differing mesh is reported against.
+	/// </summary>
+	private static void CaptureObstacleVolumes(ref NavigationParityDigest digest)
+	{
+		TerrainNavMeshService? navMeshService = ECSContext.TerrainNavMeshService;
+		if (navMeshService == null) return;
+
+		ReadOnlySpan<System.Numerics.Vector3> positions = navMeshService.BakedObstaclePositions;
+		ReadOnlySpan<float> radii = navMeshService.BakedObstacleRadii;
+		uint hash = 2166136261u;
+		for (int index = 0; index < positions.Length; index++)
+		{
+			unchecked
+			{
+				hash = (hash ^ (uint)(int)MathF.Round(positions[index].X * 100f)) * 16777619u;
+				hash = (hash ^ (uint)(int)MathF.Round(positions[index].Z * 100f)) * 16777619u;
+				hash = (hash ^ (uint)(int)MathF.Round(radii[index] * 100f)) * 16777619u;
+			}
+		}
+
+		digest.ObstacleVolumeCount = positions.Length;
+		digest.ObstacleHash = hash;
 	}
 
 	private static void CapturePathing(ref NavigationParityDigest digest, in TerrainState state)

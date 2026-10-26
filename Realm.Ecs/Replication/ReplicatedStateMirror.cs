@@ -8,8 +8,15 @@ namespace Realm.Ecs.Replication;
 public partial struct AbilityStateDelta
 {
 	public int ServerEntityId;
-	public string AbilityId;
+	public short AbilityIndex;
 	public byte Flags;
+}
+
+[MemoryPackable]
+public partial struct UnitComponentPresence
+{
+	public int ServerEntityId;
+	public ulong Mask;
 }
 
 [MemoryPackable]
@@ -49,7 +56,7 @@ public partial struct StaticTextDelta
 public class ReplicatedStateMirror
 {
 	public Dictionary<(byte Scope, int Key, int TypeId), byte[]> Components { get; } = new();
-	public Dictionary<(int ServerEntityId, string AbilityId), byte> Abilities { get; } = new();
+	public Dictionary<(int ServerEntityId, short AbilityIndex), byte> Abilities { get; } = new();
 	public Dictionary<int, StaticTextDelta> Texts { get; } = new();
 	public Dictionary<(byte Scope, int Key, byte Kind, byte Role), int> ColdPayloads { get; } = new();
 
@@ -75,8 +82,24 @@ public class ReplicatedStateMirror
 
 	public void RecordAbility(AbilityStateDelta delta)
 	{
-		Abilities[(delta.ServerEntityId, delta.AbilityId)] = delta.Flags;
+		Abilities[(delta.ServerEntityId, delta.AbilityIndex)] = delta.Flags;
 	}
+
+	public void RemoveAbilitiesForEntity(int serverEntityId)
+	{
+		_removedAbilityKeys.Clear();
+		foreach (var kvp in Abilities)
+		{
+			if (kvp.Key.ServerEntityId == serverEntityId) _removedAbilityKeys.Add(kvp.Key);
+		}
+
+		for (int index = 0; index < _removedAbilityKeys.Count; index++)
+		{
+			Abilities.Remove(_removedAbilityKeys[index]);
+		}
+	}
+
+	private readonly List<(int ServerEntityId, short AbilityIndex)> _removedAbilityKeys = new();
 
 	public void RecordText(StaticTextDelta delta)
 	{
@@ -124,7 +147,7 @@ public class ReplicatedStateMirror
 			hash = ReplicatedStateFingerprint.Combine(hash, record.Bytes);
 		}
 
-		var abilityRecords = new List<((int ServerEntityId, string AbilityId) Key, byte Flags)>(Abilities.Count);
+		var abilityRecords = new List<((int ServerEntityId, short AbilityIndex) Key, byte Flags)>(Abilities.Count);
 		foreach (var kvp in Abilities)
 		{
 			abilityRecords.Add((kvp.Key, kvp.Value));
@@ -132,14 +155,14 @@ public class ReplicatedStateMirror
 		abilityRecords.Sort(static (left, right) =>
 		{
 			int byEntity = left.Key.ServerEntityId.CompareTo(right.Key.ServerEntityId);
-			return byEntity != 0 ? byEntity : string.CompareOrdinal(left.Key.AbilityId, right.Key.AbilityId);
+			return byEntity != 0 ? byEntity : left.Key.AbilityIndex.CompareTo(right.Key.AbilityIndex);
 		});
 		for (int i = 0; i < abilityRecords.Count; i++)
 		{
 			var record = abilityRecords[i];
 			hash = ReplicatedStateFingerprint.Combine(hash, 3);
 			hash = ReplicatedStateFingerprint.Combine(hash, record.Key.ServerEntityId);
-			hash = ReplicatedStateFingerprint.Combine(hash, record.Key.AbilityId);
+			hash = ReplicatedStateFingerprint.Combine(hash, record.Key.AbilityIndex);
 			hash = ReplicatedStateFingerprint.Combine(hash, record.Flags);
 		}
 

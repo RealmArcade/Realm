@@ -20,7 +20,7 @@ namespace Realm.Client.Services;
 public static class MultiplayerSyncDiagnostics
 {
 	private const uint FileMagic = 0x504E5352;
-	private const int FileVersion = 4;
+	private const int FileVersion = 8;
 	private const int BaselineIntervalTicks = 30;
 	private const int PlayerSlotCount = 25;
 
@@ -34,6 +34,7 @@ public static class MultiplayerSyncDiagnostics
 	private static int _lastRecordedSequence = -1;
 	private static int _lastPresentedSequence = -1;
 	private static float _presentationWindowStartTime = -1f;
+	private static int _presentationAnchorSequence = -1;
 	private static int _fingerprintMismatchCount;
 	private static string _fingerprintMismatchSummary = string.Empty;
 	private static readonly HashSet<int> _clientSeenSequences = new();
@@ -76,8 +77,72 @@ public static class MultiplayerSyncDiagnostics
 		_fingerprintMismatchSummary += $"{sequence}:{hostFingerprint:x8}:{clientFingerprint:x8}; ";
 	}
 
+	private static int _missingUnitComponentCount;
+	private static string _missingUnitComponentSummary = string.Empty;
+
+	public static int MissingUnitComponentCount => _missingUnitComponentCount;
+
+	/// <summary>
+	/// A baseline's presence mask said the authority has a component the peer does not hold. The peer keeps what it has
+	/// and reports it rather than inventing the value, because the mask and the component bytes disagree and only the
+	/// authority can say which one is right.
+	/// </summary>
+	public static void RecordMissingUnitComponent(int serverEntityId, string componentName)
+	{
+		_missingUnitComponentCount++;
+		if (_missingUnitComponentCount > 20) return;
+		_missingUnitComponentSummary += $"{serverEntityId}:{componentName}; ";
+	}
+
+
+	/// <summary>
+	/// How many sequences a unit can go unmentioned by the host before the client's copy of it counts as withheld rather
+	/// than merely quiet. A unit the host is telling this peer about is resent within a few sequences of moving, so a
+	/// longer silence means the visibility filter stopped describing it - which the client cannot distinguish from the
+	/// unit holding still, and which decides whether a placement gap is the protocol doing its job or a defect.
+	/// </summary>
+	public const int ClientUnitGapAlertSequences = 8;
+
+	private static readonly Dictionary<int, int> _clientUnitLastPresentSequence = new();
+	private static readonly Dictionary<int, int> _clientUnitLastUpdateInterval = new();
+	private static readonly List<(int EntityId, int FromSequence, int ToSequence)> _clientUnitGaps = new();
+	private static int _clientUnitGapCount;
+
+	public static int ClientUnitGapCount => _clientUnitGapCount;
+
+	/// <summary>
+	/// Records which units each applied snapshot actually mentioned, so the recorded placement series can be read against
+	/// what the host told this peer. A unit absent from the payloads is not a replication mismatch: the client is holding a
+	/// last-known state on purpose, and comparing it to the authority would blame the client for the vision filter.
+	/// </summary>
+	public static void RecordClientSnapshotUnitPresence(int sequence, List<UnitSnapshot> units)
+	{
+		if (!IsRecording || _isHost) return;
+
+		for (int index = 0; index < units.Count; index++)
+		{
+			int entityId = units[index].EntityId;
+			if (_clientUnitLastPresentSequence.TryGetValue(entityId, out int lastPresentSequence))
+			{
+				int gap = sequence - lastPresentSequence;
+				_clientUnitLastUpdateInterval[entityId] = gap;
+				if (gap > ClientUnitGapAlertSequences)
+				{
+					_clientUnitGapCount++;
+					if (_clientUnitGaps.Count < 128) _clientUnitGaps.Add((entityId, lastPresentSequence, sequence));
+				}
+			}
+
+			_clientUnitLastPresentSequence[entityId] = sequence;
+		}
+	}
+
 	public static float PresentationWindowSeconds { get; set; } = 2f;
+	public static float PresentationSettleSeconds { get; set; } = 0.5f;
 	public static bool IsRecording => _writer != null;
+
+	private static bool _lastAppliedWasBaseline;
+	private static int _presentationAnchorBaselineSequence = -1;
 	public static int WrittenRecordCount => _writtenRecordCount;
 	public static string OutputDirectory => _outputDirectory;
 
@@ -91,8 +156,15 @@ public static class MultiplayerSyncDiagnostics
 		_lastRecordedSequence = -1;
 		_lastPresentedSequence = -1;
 		_presentationWindowStartTime = -1f;
+		_presentationAnchorSequence = -1;
 		_fingerprintMismatchCount = 0;
 		_fingerprintMismatchSummary = string.Empty;
+		_clientUnitGapCount = 0;
+		_followerDiagnostics.Clear();
+		_interpolationStepDetails.Clear();
+		_clientUnitLastPresentSequence.Clear();
+		_clientUnitLastUpdateInterval.Clear();
+		_clientUnitGaps.Clear();
 		_clientSeenSequences.Clear();
 		_digestBuffer.Clear();
 
@@ -116,6 +188,8 @@ public static class MultiplayerSyncDiagnostics
 
 		if (isHost) return;
 
+		PositionWriteTrace.IsEnabled = true;
+
 		string presentationPath = Path.Combine(outputDirectory, "ECS_client_presentation.bin");
 		using (MemoryStream presentationHeaderStream = new())
 		{
@@ -133,6 +207,69 @@ public static class MultiplayerSyncDiagnostics
 		_presentationWriter = new BinaryWriter(presentationStream);
 		_presentationWriter.Write(_presentationHeader);
 		_presentationWriter.Flush();
+	}
+
+	private const float FollowerGapAlertMeters = 1.5f;
+	private static readonly List<string> _followerDiagnostics = new();
+	private static readonly HashSet<int> _interpolationSteppedEntities = new();
+	private static int _interpolationSteppedSequence = -1;
+
+	private static readonly List<string> _interpolationStepDetails = new();
+
+	/// <summary>
+	/// Records what one interpolation step actually computed for a follower that is far from its target: the position it
+	/// started from, the target, the fraction it applied and the value it wrote. A follower that is visited by the step,
+	/// computes a new position and still does not move can only be one whose write is undone or whose read is of another
+	/// entity, and those two are indistinguishable without these numbers.
+	/// </summary>
+	public static void RecordInterpolationStepDetail(int entityId, System.Numerics.Vector3 currentPosition, System.Numerics.Vector3 targetPosition, float stepFraction, System.Numerics.Vector3 writtenPosition)
+	{
+		if (!IsRecording || _interpolationStepDetails.Count >= 240) return;
+		_interpolationStepDetails.Add($"step={entityId}:{_interpolationSteppedSequence}:from={currentPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{currentPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:to={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:fraction={stepFraction.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:wrote={writtenPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{writtenPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
+	}
+
+	private static int _duplicateMappingsReported;
+	private static ulong _presentationFrame = ulong.MaxValue;
+	private static int _presentationAppliesInFrame;
+
+	/// <summary>
+	/// Notes that the interpolation step ran for an entity, so a follower that is not closing its gap can be told apart
+	/// from one the step never visited. Recording only: the check is one boolean when no run is being recorded.
+	/// </summary>
+	public static void RecordInterpolationStep(int entityId, int sequence)
+	{
+		if (!IsRecording) return;
+		if (sequence != _interpolationSteppedSequence)
+		{
+			_interpolationSteppedSequence = sequence;
+			_interpolationSteppedEntities.Clear();
+		}
+
+		_interpolationSteppedEntities.Add(entityId);
+	}
+
+	/// <summary>
+	/// Records a unit whose follower is far from the position it was last told to walk toward, with the target it has and
+	/// the local entity that owns it. The placement check reports applied-versus-authority, which cannot distinguish a
+	/// client whose follower stopped advancing from one that was never told anything; this separates them, and it records
+	/// the local id so a mapping that puts two local entities on one server id becomes visible instead of looking like a
+	/// frozen follower.
+	/// </summary>
+	private static void RecordFollowerDiagnostic(EcsWorld world, int sequence, int localEntityId, int serverEntityId, Entity localEntity, System.Numerics.Vector3 appliedPosition, bool isPredicted, bool isCulled)
+	{
+		if (_followerDiagnostics.Count >= 240) return;
+
+		bool hasTarget = world.Has<InterpolationTarget>(localEntity);
+		System.Numerics.Vector3 targetPosition = hasTarget ? world.Get<InterpolationTarget>(localEntity).Position : appliedPosition;
+		float followerGap = (targetPosition - appliedPosition).Length();
+		if (followerGap < FollowerGapAlertMeters) return;
+
+		bool hasPosition = world.Has<Position>(localEntity);
+		bool wasStepped = _interpolationSteppedEntities.Contains(localEntityId);
+		Entity worldEntity = ECSContext.WorldEntity;
+		float interpolationFactor = world.Has<NetworkState>(worldEntity) ? world.Get<NetworkState>(worldEntity).DynamicInterpolationFactor : -1f;
+		float roundTripMilliseconds = GameContext.NetworkLatencyService?.SmoothedRoundTripMilliseconds ?? -1f;
+		_followerDiagnostics.Add($"appliesInFrame={_presentationAppliesInFrame}:follower={serverEntityId}:{sequence}:local={localEntityId}:gap={followerGap.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:hasTarget={(hasTarget ? 1 : 0)}:hasPos={(hasPosition ? 1 : 0)}:stepped={(wasStepped ? 1 : 0)}:rate={interpolationFactor.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}:rtt={roundTripMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)}:target={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:applied={appliedPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{appliedPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:predicted={(isPredicted ? 1 : 0)}:culled={(isCulled ? 1 : 0)}:writer={PositionWriteTrace.Last(localEntity)}:frac={PositionWriteTrace.LastInterpolationFraction(localEntity).ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:wrote={PositionWriteTrace.LastInterpolationWrite(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationWrite(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:age={Godot.Engine.GetPhysicsFrames() - PositionWriteTrace.LastWriteFrame(localEntity)}:cur={PositionWriteTrace.LastInterpolationFrom(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationFrom(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:tgt={PositionWriteTrace.LastInterpolationTarget(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationTarget(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:back={PositionWriteTrace.LastReadBack(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastReadBack(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
 	}
 
 	public static void Stop()
@@ -169,21 +306,50 @@ public static class MultiplayerSyncDiagnostics
 
 		try
 		{
-			string summary = $"fingerprint_mismatches={_fingerprintMismatchCount}\nshadow_baselines={ShadowClientVerifier.VerifiedBaselines}\nshadow_replayed_deltas={ShadowClientVerifier.ReplayedDeltaCount}\nshadow_structural_failures={ShadowClientVerifier.StructuralFailures}\nshadow_fingerprint_failures={ShadowClientVerifier.FingerprintFailures}\n{_fingerprintMismatchSummary}\n";
+			string summary = $"fingerprint_mismatches={_fingerprintMismatchCount}\nmissing_unit_components={_missingUnitComponentCount}\nfollower_catch_ups={GameContext.SimulationService?.FollowerCatchUpCount ?? 0}\nshadow_baselines={ShadowClientVerifier.VerifiedBaselines}\nshadow_replayed_deltas={ShadowClientVerifier.ReplayedDeltaCount}\nshadow_structural_failures={ShadowClientVerifier.StructuralFailures}\nshadow_fingerprint_failures={ShadowClientVerifier.FingerprintFailures}\n{_fingerprintMismatchSummary}{_missingUnitComponentSummary}\n";
 			File.WriteAllText(Path.Combine(_outputDirectory, _isHost ? "ECS_host_replication.txt" : "ECS_client_replication.txt"), summary);
+		}
+		catch (IOException)
+		{
+		}
+
+		if (_isHost) return;
+
+		try
+		{
+			using StreamWriter followerWriter = new(Path.Combine(_outputDirectory, "ECS_client_follower_gaps.txt"), false);
+			followerWriter.WriteLine($"count={_followerDiagnostics.Count}");
+			followerWriter.WriteLine($"alert_meters={FollowerGapAlertMeters.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+			for (int index = 0; index < _followerDiagnostics.Count; index++) followerWriter.WriteLine(_followerDiagnostics[index]);
+			for (int index = 0; index < _interpolationStepDetails.Count; index++) followerWriter.WriteLine(_interpolationStepDetails[index]);
+		}
+		catch (IOException)
+		{
+		}
+
+		try
+		{
+			using StreamWriter gapWriter = new(Path.Combine(_outputDirectory, "ECS_client_unit_gaps.txt"), false);
+			gapWriter.WriteLine($"count={_clientUnitGapCount}");
+			gapWriter.WriteLine($"alert_sequences={ClientUnitGapAlertSequences}");
+			for (int index = 0; index < _clientUnitGaps.Count; index++)
+			{
+				(int entityId, int fromSequence, int toSequence) = _clientUnitGaps[index];
+				gapWriter.WriteLine($"gap={entityId}:{fromSequence}:{toSequence}");
+			}
 		}
 		catch (IOException)
 		{
 		}
 	}
 
-	public static void RecordHostSnapshot(WorldSnapshot snapshot)
+	public static void RecordHostSnapshot(WorldSnapshot snapshot, IReadOnlyList<int> baselinePeerIds)
 	{
 		if (_writer == null || !_isHost) return;
 		if (snapshot.Units == null) return;
 
 		List<UnitSnapshot> units = snapshot.Units;
-		byte[] record = BuildRecord(snapshot.Sequence, snapshot.IsBaseline, writer =>
+		byte[] record = BuildRecord(snapshot.Sequence, snapshot.IsBaseline, baselinePeerIds ?? Array.Empty<int>(), writer =>
 		{
 			List<int> orderedIndices = new(units.Count);
 			for (int i = 0; i < units.Count; i++)
@@ -206,6 +372,9 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(rotationY);
 				writer.Write(currentHp);
 				writer.Write(maxHp);
+				writer.Write(position.X);
+				writer.Write(position.Y);
+				writer.Write(position.Z);
 				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, unit.IsDetailed, IsVisibleToRemoteClient(unit.EntityId)));
 				WriteComponentDigests(writer, GameContext.World, new Entity(unit.EntityId), ReplicatedScope.Unit, null);
 			}
@@ -241,10 +410,10 @@ public static class MultiplayerSyncDiagnostics
 	{
 		NetworkService? networkService = GameContext.NetworkService;
 		if (networkService == null) return true;
-		return networkService.IsServerEntityVisibleToAnyRemoteClient(serverEntityId);
+		return networkService.IsServerEntityVisibleToEveryRemoteClient(serverEntityId);
 	}
 
-	public static void RecordClientSnapshot()
+	public static void RecordClientSnapshot(bool isBaseline)
 	{
 		if (_writer == null || _isHost) return;
 
@@ -277,7 +446,7 @@ public static class MultiplayerSyncDiagnostics
 
 		units.Sort((left, right) => left.ServerEntityId.CompareTo(right.ServerEntityId));
 
-		bool isBaseline = sequence % BaselineIntervalTicks == 0;
+		_lastAppliedWasBaseline = isBaseline;
 		byte[] record = BuildRecord(sequence, isBaseline, writer =>
 		{
 			writer.Write(units.Count);
@@ -291,6 +460,9 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(unit.RotationY);
 				writer.Write(unit.CurrentHp);
 				writer.Write(unit.MaxHp);
+				writer.Write(unit.PositionX);
+				writer.Write(unit.PositionY);
+				writer.Write(unit.PositionZ);
 				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, true, true));
 				WriteComponentDigests(writer, world, new Entity(unit.LocalEntityId), ReplicatedScope.Unit, mapping.ClientToServerEntityMap);
 			}
@@ -418,6 +590,8 @@ public static class MultiplayerSyncDiagnostics
 		writer.Write(digest.PolyCount);
 		writer.Write(digest.GroundPolyCount);
 		writer.Write(digest.PolyHash);
+		writer.Write(digest.ObstacleVolumeCount);
+		writer.Write(digest.ObstacleHash);
 	}
 
 	public static void RecordClientPresentation()
@@ -426,12 +600,6 @@ public static class MultiplayerSyncDiagnostics
 
 		GameHost? gameHost = GameContext.Host;
 		if (gameHost == null) return;
-		if (_presentationWindowStartTime < 0f)
-		{
-			_presentationWindowStartTime = gameHost.GameElapsedTime;
-		}
-
-		if (gameHost.GameElapsedTime - _presentationWindowStartTime > PresentationWindowSeconds) return;
 
 		EcsWorld? world = GameContext.World;
 		if (world == null) return;
@@ -442,8 +610,25 @@ public static class MultiplayerSyncDiagnostics
 		int sequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 		if (sequence < 0 || sequence == _lastPresentedSequence) return;
 
+		ulong presentationFrame = Godot.Engine.GetPhysicsFrames();
+		_presentationAppliesInFrame = presentationFrame == _presentationFrame ? _presentationAppliesInFrame + 1 : 1;
+		_presentationFrame = presentationFrame;
+
+		int baselineSequence = GameContext.NetworkService.LastAppliedBaselineSequenceForDiagnostics;
+		if (baselineSequence != _presentationAnchorBaselineSequence)
+		{
+			_presentationAnchorBaselineSequence = baselineSequence;
+			_presentationWindowStartTime = gameHost.GameElapsedTime;
+			_presentationAnchorSequence = sequence;
+		}
+
+		float presentationElapsed = gameHost.GameElapsedTime - _presentationWindowStartTime;
+		if (presentationElapsed < PresentationSettleSeconds) return;
+		if (presentationElapsed > PresentationWindowSeconds) return;
+
 		NetworkMappingState mapping = world.Get<NetworkMappingState>(worldEntity);
 		var units = new List<PresentedUnitState>();
+		HashSet<int>? recordServerIds = _duplicateMappingsReported < 20 ? new HashSet<int>() : null;
 		foreach (var kvp in mapping.ClientToServerEntityMap)
 		{
 			Entity localEntity = new(kvp.Key);
@@ -457,13 +642,25 @@ public static class MultiplayerSyncDiagnostics
 			bool isBuilding = world.Has<Building>(localEntity);
 			int ownerPlayerIndex = ResolveOwnerPlayerIndex(world, localEntity);
 
-			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding));
+			bool isPredicted = GameContext.MovementPredictionService != null
+				&& GameContext.MovementPredictionService.IsEntityTracked(localEntity.Id);
+			bool wasSentAtDetailedPrecision = GameContext.NetworkService != null
+				&& GameContext.NetworkService.WasUnitSentAtDetailedPrecision(kvp.Value);
+			System.Numerics.Vector3 appliedPosition = world.Has<Position>(localEntity) ? world.Get<Position>(localEntity).Value : new System.Numerics.Vector3(unit3D.GlobalPosition.X, unit3D.GlobalPosition.Y, unit3D.GlobalPosition.Z);
+			RecordFollowerDiagnostic(world, sequence, kvp.Key, kvp.Value, localEntity, appliedPosition, isPredicted, unit3D.IsCulled);			if (recordServerIds != null)
+			{
+				if (!recordServerIds.Add(kvp.Value) && _duplicateMappingsReported < 20)
+				{
+					_duplicateMappingsReported++;
+					_followerDiagnostics.Add($"duplicate={kvp.Value}:{sequence}:a second local entity {kvp.Key} maps to this server entity, two records for one unit will be written");
+				}
+			}
+			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding, isPredicted, unit3D.IsCulled, appliedPosition, wasSentAtDetailedPrecision));
 		}
 
 		units.Sort((left, right) => left.ServerEntityId.CompareTo(right.ServerEntityId));
 
-		bool isBaseline = sequence % BaselineIntervalTicks == 0;
-		byte[] record = BuildRecord(sequence, isBaseline, writer =>
+		byte[] record = BuildRecord(sequence, _lastAppliedWasBaseline, writer =>
 		{
 			writer.Write(units.Count);
 			foreach (PresentedUnitState unit in units)
@@ -476,7 +673,10 @@ public static class MultiplayerSyncDiagnostics
 				writer.Write(unit.RotationY);
 				writer.Write(unit.CurrentHp);
 				writer.Write(unit.MaxHp);
-				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, false, true));
+				writer.Write(unit.AppliedPositionX);
+				writer.Write(unit.AppliedPositionY);
+				writer.Write(unit.AppliedPositionZ);
+				writer.Write(BuildFlags(unit.IsDead, unit.IsBuilding, unit.IsDetailed, true, unit.IsPredicted, unit.IsCulled));
 				writer.Write(0);
 			}
 
@@ -487,7 +687,6 @@ public static class MultiplayerSyncDiagnostics
 		});
 
 		_presentationWriter.Write(record);
-		_presentationWriter.Flush();
 		_lastPresentedSequence = sequence;
 	}
 
@@ -497,23 +696,42 @@ public static class MultiplayerSyncDiagnostics
 		return world.Get<UnitOwnerPlayer>(localEntity).PlayerIndex;
 	}
 
-	private static byte BuildFlags(bool isDead, bool isBuilding, bool isDetailed, bool isVisibleToRemoteClient)
+	private static byte BuildFlags(bool isDead, bool isBuilding, bool isDetailed, bool isVisibleToRemoteClient, bool isLocallyPredicted = false, bool isCulled = false)
 	{
 		byte flags = 0;
 		if (isDead) flags |= 1;
 		if (isBuilding) flags |= 2;
 		if (isDetailed) flags |= 4;
 		if (isVisibleToRemoteClient) flags |= 8;
+		if (isLocallyPredicted) flags |= 16;
+		if (isCulled) flags |= 32;
 		return flags;
 	}
 
 	private static byte[] BuildRecord(int sequence, bool isBaseline, Action<BinaryWriter> writeUnits)
+	{
+		return BuildRecord(sequence, isBaseline, Array.Empty<int>(), writeUnits);
+	}
+
+	/// <summary>
+	/// A baseline is decided per peer, not per sequence: a peer that needs a full world dump gets one while the peers whose
+	/// acknowledged state is healthy keep receiving deltas. The record therefore carries the peers this sequence was a
+	/// baseline for, so the verifier can compare a client's own flag against what it was actually sent rather than against
+	/// a single shared flag that no longer describes the stream.
+	/// </summary>
+	private static byte[] BuildRecord(int sequence, bool isBaseline, IReadOnlyList<int> baselinePeerIds, Action<BinaryWriter> writeUnits)
 	{
 		using MemoryStream stream = new(4096);
 		using (BinaryWriter writer = new(stream, System.Text.Encoding.UTF8, leaveOpen: true))
 		{
 			writer.Write(sequence);
 			writer.Write(isBaseline);
+			writer.Write(baselinePeerIds.Count);
+			for (int index = 0; index < baselinePeerIds.Count; index++) writer.Write(baselinePeerIds[index]);
+			// Snapshots are applied when the packet arrives, not on the next physics tick, so one tick can produce several
+			// records of the same instant. Readers that judge a per-tick quantity - how far the renderer has followed, how
+			// far the follower has advanced - need to know which records share a tick, or one instant is counted as dozens.
+			writer.Write(Godot.Engine.GetPhysicsFrames());
 			writeUnits(writer);
 		}
 
@@ -524,7 +742,6 @@ public static class MultiplayerSyncDiagnostics
 	{
 		if (_writer == null) return;
 		_writer.Write(record);
-		_writer.Flush();
 		_writtenRecordCount++;
 		_lastRecordedSequence = sequence;
 
@@ -561,8 +778,14 @@ public static class MultiplayerSyncDiagnostics
 		public readonly float MaxHp;
 		public readonly bool IsDead;
 		public readonly bool IsBuilding;
+		public readonly bool IsPredicted;
+		public readonly bool IsCulled;
+		public readonly bool IsDetailed;
+		public readonly float AppliedPositionX;
+		public readonly float AppliedPositionY;
+		public readonly float AppliedPositionZ;
 
-		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding)
+		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding, bool isPredicted, bool isCulled, System.Numerics.Vector3 appliedPosition, bool isDetailed)
 		{
 			ServerEntityId = serverEntityId;
 			OwnerPlayerIndex = ownerPlayerIndex;
@@ -574,6 +797,12 @@ public static class MultiplayerSyncDiagnostics
 			MaxHp = maxHp;
 			IsDead = isDead;
 			IsBuilding = isBuilding;
+			IsPredicted = isPredicted;
+			IsCulled = isCulled;
+			IsDetailed = isDetailed;
+			AppliedPositionX = appliedPosition.X;
+			AppliedPositionY = appliedPosition.Y;
+			AppliedPositionZ = appliedPosition.Z;
 		}
 	}
 
