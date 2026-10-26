@@ -166,8 +166,8 @@ public class SaveLoadService
 	{
 		SaveHeightsAndWater(directory, width, depth, terrain);
 		SavePathing(directory, width, depth, terrain);
-		SaveSplatData(directory, width, depth, htmlColors, "terrain_splat");
-		SaveSplatData(directory, width, depth, cliffHtmlColors, "terrain_cliff_splat");
+		SaveSplatData(directory, width, depth, htmlColors, MapTerrainFiles.SplatPrefix);
+		SaveSplatData(directory, width, depth, cliffHtmlColors, MapTerrainFiles.CliffSplatPrefix);
 	}
 
 	private void SaveHeightsAndWater(string directory, int width, int depth, TerrainState terrain)
