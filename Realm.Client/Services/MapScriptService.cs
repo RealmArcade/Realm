@@ -16,7 +16,7 @@ public class MapScriptService
 
 	public int DefineZone(float minX, float minZ, float maxX, float maxZ)
 	{
-		var worldEntity = ECSContext.WorldEntity;
+		var worldEntity = GameContext.Simulation.WorldEntity;
 		if (GameContext.World == null || worldEntity == Entity.Null || !GameContext.World.IsAlive(worldEntity)) return -1;
 		if (!GameContext.World.Has<ScriptZonesState>(worldEntity)) return -1;
 
@@ -38,7 +38,7 @@ public class MapScriptService
 
 	public Vector3 GetZoneCenter(int zoneHandle)
 	{
-		var worldEntity = ECSContext.WorldEntity;
+		var worldEntity = GameContext.Simulation.WorldEntity;
 		if (GameContext.World == null || worldEntity == Entity.Null || !GameContext.World.IsAlive(worldEntity)) return Vector3.Zero;
 		if (!GameContext.World.Has<ScriptZonesState>(worldEntity)) return Vector3.Zero;
 

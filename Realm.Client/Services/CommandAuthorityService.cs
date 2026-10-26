@@ -56,7 +56,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd, 
 	public bool TryGetPlayerEntityForPeer(int peerId, out Entity playerEntity)
 	{
 		playerEntity = Entity.Null;
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
 		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(peerId, out playerEntity)) return false;
@@ -744,7 +744,7 @@ public bool IsClientAuthorized(int peerId, Entity unitEntity)
 	{
 		if (!GameContext.World.Has<Owner>(unitEntity)) return false;
 		var ownerComp = GameContext.World.Get<Owner>(unitEntity);
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return false;
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
 		if (mapping.PeerIdToPlayerEntityMap.TryGetValue(peerId, out var playerEntity))

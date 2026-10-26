@@ -26,9 +26,9 @@ namespace Realm.Client.Services
 			{
 				if (_resolvedWorldEntity == Entity.Null || !GameContext.World.IsAlive(_resolvedWorldEntity))
 				{
-					if (ECSContext.WorldEntity != Entity.Null && GameContext.World.IsAlive(ECSContext.WorldEntity))
+					if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity))
 					{
-						_resolvedWorldEntity = ECSContext.WorldEntity;
+						_resolvedWorldEntity = GameContext.Simulation.WorldEntity;
 					}
 					else
 					{
@@ -700,7 +700,7 @@ namespace Realm.Client.Services
 			}
 			else if (_hasTerrainState)
 			{
-				ECSContext.TerrainNavMeshService.GetHeightAndNormal(in _currentTerrainState, nextPos.X, nextPos.Z, out float groundHeight, out _);
+				GameContext.Simulation.TerrainNavMeshService.GetHeightAndNormal(in _currentTerrainState, nextPos.X, nextPos.Z, out float groundHeight, out _);
 				desiredY = groundHeight;
 				velocity.Y = 0f;
 			}
@@ -906,7 +906,7 @@ namespace Realm.Client.Services
 				return stats.Speed;
 			}
 
-			float actualSpeed = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(entity, MovementSpeedStatId) : 0f;
+			float actualSpeed = GameContext.Simulation.StatService != null ? GameContext.Simulation.StatService.GetStatValue(entity, MovementSpeedStatId) : 0f;
 			return actualSpeed <= 0 ? stats.Speed : actualSpeed;
 		}
 

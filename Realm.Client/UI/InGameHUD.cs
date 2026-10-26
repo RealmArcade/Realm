@@ -2339,7 +2339,7 @@ public partial class InGameHUD : Control
 		if (GameContext.PerspectiveFilter.IsSpectating) return false;
 		Entity localPlayerEntity = GameContext.Host.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
 		var (result, _) = GameContext.CheatService.TryTriggerCheat(
-			text, isMultiplayer, localPlayerEntity, ECSContext.DefinitionManager, selectedEntities);
+			text, isMultiplayer, localPlayerEntity, GameContext.Simulation.DefinitionManager, selectedEntities);
 
 		if (result == CheatResult.None) return false;
 

@@ -119,7 +119,7 @@ public partial class MultiplayerSimulationHarness
 
 	private bool IsScenarioNavigationReady()
 	{
-		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity);
 		return digest.HasNavMesh && digest.PolyCount > 0;
 	}
 
@@ -228,8 +228,8 @@ public partial class MultiplayerSimulationHarness
 
 	private void PrintNavigationProbe(Unit3D unit)
 	{
-		if (!GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity)) return;
-		var state = GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity);
+		if (!GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity)) return;
+		var state = GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
 		if (state.NavMeshQuery == null) return;
 
 		ushort includeFlags = (ushort)(GameContext.World.Has<Realm.Ecs.Components.Movement.PathingFlags>(unit.Entity)
@@ -256,7 +256,7 @@ public partial class MultiplayerSimulationHarness
 			out long anyReference,
 			out DotRecast.Core.Numerics.RcVec3f anyNearest,
 			out _);
-		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity);
 		GD.Print($"[MP_HARNESS] Nav probe unit {unit.Entity.Id}: includeFlags={includeFlags} startRef={reference} nearest=({nearest.X:0.00},{nearest.Y:0.00},{nearest.Z:0.00}) anyRef={anyReference} anyNearest=({anyNearest.X:0.00},{anyNearest.Y:0.00},{anyNearest.Z:0.00}) polys={digest.PolyCount} ground={digest.GroundPolyCount} polyHash={digest.PolyHash:x8}.");
 	}
 
@@ -382,8 +382,8 @@ public partial class MultiplayerSimulationHarness
 
 	private static bool CanScenarioPath(Entity entity, Vector3 start, Vector3 target)
 	{
-		if (GameContext.World == null || !GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity)) return false;
-		var state = GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity);
+		if (GameContext.World == null || !GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity)) return false;
+		var state = GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
 		if (state.NavMeshQuery == null) return false;
 
 		ushort includeFlags = (ushort)(GameContext.World.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)

@@ -158,7 +158,7 @@ public static class AnimationRetargetingService
 		string activeMap = null;
 		if (GameContext.Host != null)
 		{
-			activeMap = ECSContext.ActiveMapName;
+			activeMap = GameContext.Simulation.ActiveMapName;
 		}
 
 		if (string.IsNullOrEmpty(activeMap) && GameContext.Lobby != null)

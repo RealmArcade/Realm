@@ -56,7 +56,7 @@ public partial class GameHost
 	private EditorSaveState CaptureEditorState()
 	{
 		var camera = MainCamera;
-		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity);
+		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity);
 
 		return new EditorSaveState
 		{
@@ -76,7 +76,7 @@ public partial class GameHost
 			HasCameraPosition = camera != null,
 			CameraPosition = camera != null ? camera.Position : default,
 			HasCameraState = hasCameraState,
-			CameraStateSnapshot = hasCameraState ? GameContext.World.Get<CameraState>(ECSContext.WorldEntity) : default
+			CameraStateSnapshot = hasCameraState ? GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity) : default
 		};
 	}
 
@@ -217,10 +217,10 @@ public partial class GameHost
 			MainCamera.Position = savedState.CameraPosition;
 		}
 
-		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity);
+		bool hasCameraState = GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity);
 		if (savedState.HasCameraState && hasCameraState)
 		{
-			ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 			state = savedState.CameraStateSnapshot;
 		}
 	}
@@ -297,7 +297,7 @@ public partial class GameHost
 		var currentBounds = new MapCameraBounds(EditorCameraBoundsLeft, EditorCameraBoundsRight, EditorCameraBoundsTop, EditorCameraBoundsBottom);
 		if (!currentBounds.Matches(MapCameraBounds.LegacyDefaults) || currentBounds.Matches(mapBounds)) return;
 
-		GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, mapBounds);
+		GameContext.EditorService.SetCameraBounds(GameContext.Simulation.WorldEntity, mapBounds);
 		RebuildCameraBoundsOverlay();
 	}
 

@@ -23,7 +23,7 @@ namespace Realm.Client.Services
 		private readonly Func<bool>? _unlimitedPowerProvider;
 		// The map's tuning replaces this on load; reading it through the context means an attack and
 		// an ability in the same match can never resolve through two different matrices.
-		public CombatConfig Config => ECSContext.ActiveCombatConfig;
+		public CombatConfig Config => GameContext.Simulation.ActiveCombatConfig;
 
 		private const float UnderAttackAlertCooldown = 8f;
 
@@ -323,9 +323,9 @@ namespace Realm.Client.Services
 			{
 				if (_cachedWorldEntity == Entity.Null || !GameContext.World.IsAlive(_cachedWorldEntity))
 				{
-					if (ECSContext.WorldEntity != Entity.Null && GameContext.World.IsAlive(ECSContext.WorldEntity))
+					if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity))
 					{
-						_cachedWorldEntity = ECSContext.WorldEntity;
+						_cachedWorldEntity = GameContext.Simulation.WorldEntity;
 					}
 					else
 					{
@@ -946,7 +946,7 @@ namespace Realm.Client.Services
 		private float ResolveAttackDamage(Entity entity, Entity target, ref Attack atk, out float finalDamage)
 		{
 			var resistances = GameContext.World.Has<Resistances>(target) ? GameContext.World.Get<Resistances>(target) : default;
-			float baseDamage = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(entity, new StatId(StatKeys.Attack)) : 0f;
+			float baseDamage = GameContext.Simulation.StatService != null ? GameContext.Simulation.StatService.GetStatValue(entity, new StatId(StatKeys.Attack)) : 0f;
 			if (baseDamage <= 0) baseDamage = atk.Damage;
 
 			bool magic = DamageTypes.IsMagic(atk.DamageType);
@@ -982,7 +982,7 @@ namespace Realm.Client.Services
 
 		private static float ReadPenetrationStat(Entity entity, string statKey, float fallback)
 		{
-			float value = ECSContext.StatService != null ? ECSContext.StatService.GetStatValue(entity, new StatId(statKey)) : 0f;
+			float value = GameContext.Simulation.StatService != null ? GameContext.Simulation.StatService.GetStatValue(entity, new StatId(statKey)) : 0f;
 			return value > 0f ? value : fallback;
 		}
 
@@ -1528,8 +1528,8 @@ namespace Realm.Client.Services
 
 		private static float GetHealingMultiplier(Entity casterEntity)
 		{
-			if (ECSContext.StatService == null) return 1f;
-			float multiplier = ECSContext.StatService.GetStatValue(casterEntity, new StatId(StatKeys.HealingMultiplier));
+			if (GameContext.Simulation.StatService == null) return 1f;
+			float multiplier = GameContext.Simulation.StatService.GetStatValue(casterEntity, new StatId(StatKeys.HealingMultiplier));
 			return multiplier > 0f ? multiplier : 1f;
 		}
 

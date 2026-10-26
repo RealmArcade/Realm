@@ -227,7 +227,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			var statService = ECSContext.StatService;
+			var statService = GameContext.Simulation.StatService;
 			if (statService != null)
 			{
 				float actualDamage = statService.GetStatValue(_entity, new StatId("Attack"));
@@ -286,7 +286,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			var statService = ECSContext.StatService;
+			var statService = GameContext.Simulation.StatService;
 			if (statService != null)
 			{
 				float actualArmor = statService.GetStatValue(_entity, new StatId("Armor"));
@@ -322,7 +322,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		get
 		{
 			if (!_world.IsAlive(_entity)) return 0f;
-			var statService = ECSContext.StatService;
+			var statService = GameContext.Simulation.StatService;
 			if (statService != null)
 			{
 				float actualSpeed = statService.GetStatValue(_entity, new StatId("MovementSpeed"));

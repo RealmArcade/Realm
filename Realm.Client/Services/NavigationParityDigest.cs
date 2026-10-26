@@ -60,7 +60,7 @@ public struct NavigationParityDigest
 	/// </summary>
 	private static void CaptureObstacleVolumes(ref NavigationParityDigest digest)
 	{
-		TerrainNavMeshService? navMeshService = ECSContext.TerrainNavMeshService;
+		TerrainNavMeshService? navMeshService = GameContext.Simulation.TerrainNavMeshService;
 		if (navMeshService == null) return;
 
 		ReadOnlySpan<System.Numerics.Vector3> positions = navMeshService.BakedObstaclePositions;

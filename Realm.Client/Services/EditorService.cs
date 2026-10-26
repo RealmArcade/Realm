@@ -565,7 +565,7 @@ public partial class EditorService : IEditorAPI
 
 		UpdateLocalRegistryForModelPath(entityId, fieldName, domain, newModelPath);
 		UpdateMetadataFileForModelPath(entityId, fieldName, domain, newModelPath);
-		ECSContext.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
+		GameContext.Simulation.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
 	}
 
 	private void UpdateLocalRegistryForModelPath(string entityId, string fieldName, string domain, string newModelPath)
@@ -5728,9 +5728,9 @@ public partial class EditorService : IEditorAPI
 	public bool TryGetMapNameFromActiveHost(out string mapName)
 	{
 		mapName = string.Empty;
-		if (!string.IsNullOrEmpty(ECSContext.ActiveMapName))
+		if (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName))
 		{
-			string candidate = Path.GetFileNameWithoutExtension(ECSContext.ActiveMapName);
+			string candidate = Path.GetFileNameWithoutExtension(GameContext.Simulation.ActiveMapName);
 			return TrySanitizeCandidate(candidate, out mapName);
 		}
 
@@ -6585,7 +6585,7 @@ public class {mapName} : IMapScript
 
 	public void InitializeDefaultTerrainStateDomain(int defaultWidth, int defaultDepth)
 	{
-		if (!GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity)) return;
+		if (!GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity)) return;
 
 		float[,] defaultHeights = new float[defaultWidth, defaultDepth];
 		int[,] defaultPathing = new int[defaultWidth, defaultDepth];
@@ -6599,10 +6599,10 @@ public class {mapName} : IMapScript
 			}
 		}
 
-		ref var ts = ref GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity);
+		ref var ts = ref GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
 		ts.SetHeights(defaultHeights);
 		ts.PathingCodes = defaultPathing;
-		GameContext.World.Set(ECSContext.WorldEntity, ts);
+		GameContext.World.Set(GameContext.Simulation.WorldEntity, ts);
 	}
 
 	public void UpdateMetadataJsonAssetDomain(string category, string fileName, string blake3Hash, string subCategory = null, int columns = 0, int rows = 0, int targetSlot = -1)
@@ -6626,7 +6626,7 @@ public class {mapName} : IMapScript
 					{
 						float rounded = (float)Math.Round(radius, 2);
 						GameContext.ModelOverrideService.ModelObstacleRadii[normKey] = rounded;
-						ECSContext.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
+						GameContext.Simulation.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
 					}
 				}
 			}

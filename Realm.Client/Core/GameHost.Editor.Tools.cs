@@ -222,7 +222,7 @@ namespace Realm.Client.Core
 
 			float clampedScale = Mathf.Clamp(scale, 0.05f, 20.0f);
 			GameContext.ModelOverrideService.ModelScales[norm] = clampedScale;
-			ECSContext.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
+			GameContext.Simulation.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
 
 			UpdatePropsScale(norm, clampedScale);
 			UpdateUnitsScale(norm, clampedScale);
@@ -1258,7 +1258,7 @@ namespace Realm.Client.Core
 
 		private static void DestroyMapEntity(Entity entity)
 		{
-			if (entity.IsNull || entity == ECSContext.WorldEntity) return;
+			if (entity.IsNull || entity == GameContext.Simulation.WorldEntity) return;
 			if (GameContext.World != null && GameContext.World.IsAlive(entity))
 			{
 				GameContext.World.Destroy(entity);
@@ -2641,9 +2641,9 @@ namespace Realm.Client.Core
 				if (camera != null)
 				{
 					camera.Position = GameContext.SessionState.SavedCameraPosition;
-					if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
+					if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity))
 					{
-						ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+						ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 						state.TargetHeight = GameContext.SessionState.SavedTargetHeight;
 						state.CurrentHeight = GameContext.SessionState.SavedTargetHeight;
 						state.TargetYaw = GameContext.SessionState.SavedTargetYaw;

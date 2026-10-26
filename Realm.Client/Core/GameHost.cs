@@ -120,8 +120,8 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private int _nextCommandId
 	{
-		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(ECSContext.WorldEntity, s => s.NextCommandId, 1) ?? 1;
-		set => GameContext.World?.Mutate(ECSContext.WorldEntity, (ref NetworkState s) => s.NextCommandId = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(GameContext.Simulation.WorldEntity, s => s.NextCommandId, 1) ?? 1;
+		set => GameContext.World?.Mutate(GameContext.Simulation.WorldEntity, (ref NetworkState s) => s.NextCommandId = value);
 	}
 
 	private float _commandSendTimer
@@ -135,26 +135,26 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private int _snapshotSequence
 	{
-		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(ECSContext.WorldEntity, s => s.SnapshotSequence) ?? 0;
-		set => GameContext.World?.Mutate(ECSContext.WorldEntity, (ref NetworkState s) => s.SnapshotSequence = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(GameContext.Simulation.WorldEntity, s => s.SnapshotSequence) ?? 0;
+		set => GameContext.World?.Mutate(GameContext.Simulation.WorldEntity, (ref NetworkState s) => s.SnapshotSequence = value);
 	}
 
 	private int _lastReceivedBaselineSeq
 	{
-		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(ECSContext.WorldEntity, s => s.LastReceivedBaselineSeq, -1) ?? -1;
-		set => GameContext.World?.Mutate(ECSContext.WorldEntity, (ref NetworkState s) => s.LastReceivedBaselineSeq = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(GameContext.Simulation.WorldEntity, s => s.LastReceivedBaselineSeq, -1) ?? -1;
+		set => GameContext.World?.Mutate(GameContext.Simulation.WorldEntity, (ref NetworkState s) => s.LastReceivedBaselineSeq = value);
 	}
 
 	private bool _hasReceivedInitialBaseline
 	{
-		get => GameContext.World?.GetFieldOrDefault<NetworkState, bool>(ECSContext.WorldEntity, s => s.HasReceivedInitialBaseline) ?? false;
-		set => GameContext.World?.Mutate(ECSContext.WorldEntity, (ref NetworkState s) => s.HasReceivedInitialBaseline = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkState, bool>(GameContext.Simulation.WorldEntity, s => s.HasReceivedInitialBaseline) ?? false;
+		set => GameContext.World?.Mutate(GameContext.Simulation.WorldEntity, (ref NetworkState s) => s.HasReceivedInitialBaseline = value);
 	}
 
 	private int _lastAppliedSnapshotSequence
 	{
-		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(ECSContext.WorldEntity, s => s.LastAppliedSnapshotSequence, -1) ?? -1;
-		set => GameContext.World?.Mutate(ECSContext.WorldEntity, (ref NetworkState s) => s.LastAppliedSnapshotSequence = value);
+		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(GameContext.Simulation.WorldEntity, s => s.LastAppliedSnapshotSequence, -1) ?? -1;
+		set => GameContext.World?.Mutate(GameContext.Simulation.WorldEntity, (ref NetworkState s) => s.LastAppliedSnapshotSequence = value);
 	}
 
 	private ulong _lastSnapshotReceivedTime
@@ -170,13 +170,13 @@ public partial class GameHost : Node3D, IGameAPI
 	public bool IsConnectionLost => GameContext.NetworkService?.IsConnectionLost ?? false;
 
 	private Dictionary<int, Entity> _peerIdToPlayerEntityMap
-		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(ECSContext.WorldEntity, s => s.PeerIdToPlayerEntityMap);
+		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(GameContext.Simulation.WorldEntity, s => s.PeerIdToPlayerEntityMap);
 
 	private Dictionary<int, Entity> _serverToClientEntityMap
-		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(ECSContext.WorldEntity, s => s.ServerToClientEntityMap);
+		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(GameContext.Simulation.WorldEntity, s => s.ServerToClientEntityMap);
 
 	private Dictionary<int, int> _clientToServerEntityMap
-		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, int>>(ECSContext.WorldEntity, s => s.ClientToServerEntityMap);
+		=> GameContext.World?.GetFieldOrDefault<NetworkMappingState, Dictionary<int, int>>(GameContext.Simulation.WorldEntity, s => s.ClientToServerEntityMap);
 
 	public List<Unit3D> SelectedUnits { get; set; } = new List<Unit3D>();
 	private readonly List<Unit3D> _activeImpulseUnits = new();
@@ -245,9 +245,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public Entity GetPlayerEntityForPlayerIndex(int playerIndex)
 	{
-		if (ECSContext.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
+		if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity))
 		{
-			var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+			var playerEntities = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
 			if (playerEntities != null && playerIndex >= 0 && playerIndex < playerEntities.Length)
 			{
 				var pe = playerEntities[playerIndex];
@@ -269,8 +269,8 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private int _replayTickCounter
 	{
-		get => GameContext.World?.GetFieldOrDefault<ReplayState, int>(ECSContext.WorldEntity, s => s.ReplayTickCounter) ?? 0;
-		set => GameContext.World?.Mutate<ReplayState>(ECSContext.WorldEntity, (ref ReplayState s) => s.ReplayTickCounter = value);
+		get => GameContext.World?.GetFieldOrDefault<ReplayState, int>(GameContext.Simulation.WorldEntity, s => s.ReplayTickCounter) ?? 0;
+		set => GameContext.World?.Mutate<ReplayState>(GameContext.Simulation.WorldEntity, (ref ReplayState s) => s.ReplayTickCounter = value);
 	}
 
 
@@ -550,7 +550,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public void LoadMapProperties(string path)
 	{
 		ApplyTestRandomSeedIfNeeded(path);
-		GameContext.MapPropertiesLoader?.LoadMapProperties(ECSContext.WorldEntity, path);
+		GameContext.MapPropertiesLoader?.LoadMapProperties(GameContext.Simulation.WorldEntity, path);
 		_defaultCameraBoundsCaptured = false;
 		CaptureDefaultCameraBounds();
 	}
@@ -580,34 +580,34 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public float EditorCameraBoundsLeft
 	{
-		get => GameContext.EditorService.GetCameraBoundsLeft(ECSContext.WorldEntity);
-		set => GameContext.EditorService.SetCameraBoundsLeft(ECSContext.WorldEntity, value);
+		get => GameContext.EditorService.GetCameraBoundsLeft(GameContext.Simulation.WorldEntity);
+		set => GameContext.EditorService.SetCameraBoundsLeft(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public float EditorCameraBoundsRight
 	{
-		get => GameContext.EditorService.GetCameraBoundsRight(ECSContext.WorldEntity);
-		set => GameContext.EditorService.SetCameraBoundsRight(ECSContext.WorldEntity, value);
+		get => GameContext.EditorService.GetCameraBoundsRight(GameContext.Simulation.WorldEntity);
+		set => GameContext.EditorService.SetCameraBoundsRight(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public float EditorCameraBoundsTop
 	{
-		get => GameContext.EditorService.GetCameraBoundsTop(ECSContext.WorldEntity);
-		set => GameContext.EditorService.SetCameraBoundsTop(ECSContext.WorldEntity, value);
+		get => GameContext.EditorService.GetCameraBoundsTop(GameContext.Simulation.WorldEntity);
+		set => GameContext.EditorService.SetCameraBoundsTop(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public float EditorCameraBoundsBottom
 	{
-		get => GameContext.EditorService.GetCameraBoundsBottom(ECSContext.WorldEntity);
-		set => GameContext.EditorService.SetCameraBoundsBottom(ECSContext.WorldEntity, value);
+		get => GameContext.EditorService.GetCameraBoundsBottom(GameContext.Simulation.WorldEntity);
+		set => GameContext.EditorService.SetCameraBoundsBottom(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public MirrorMode EditorMirrorMode
 	{
-		get => GameContext.World?.GetFieldOrDefault<EditorState, MirrorMode>(ECSContext.WorldEntity, s => s.MirrorMode, MirrorMode.None) ?? MirrorMode.None;
+		get => GameContext.World?.GetFieldOrDefault<EditorState, MirrorMode>(GameContext.Simulation.WorldEntity, s => s.MirrorMode, MirrorMode.None) ?? MirrorMode.None;
 		set
 		{
-			GameContext.World?.Mutate<EditorState>(ECSContext.WorldEntity, (ref EditorState s) => s.MirrorMode = value);
+			GameContext.World?.Mutate<EditorState>(GameContext.Simulation.WorldEntity, (ref EditorState s) => s.MirrorMode = value);
 			if (value == MirrorMode.Rotational)
 			{
 				GameContext.EditorService.EditorPolarRadialStep = 360.0f / Mathf.Max(1, EditorSymmetryFolds);
@@ -681,26 +681,26 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public string EditorSkyboxPath
 	{
-		get => GameContext.EditorService.GetSkyboxPath(ECSContext.WorldEntity);
-		set => GameContext.EditorService.SetSkyboxPath(ECSContext.WorldEntity, value);
+		get => GameContext.EditorService.GetSkyboxPath(GameContext.Simulation.WorldEntity);
+		set => GameContext.EditorService.SetSkyboxPath(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public bool EditorHasUnsavedChanges
 	{
-		get => GameContext.EditorService.GetHasUnsavedChanges(ECSContext.WorldEntity);
-		set => GameContext.EditorService.SetHasUnsavedChanges(ECSContext.WorldEntity, value);
+		get => GameContext.EditorService.GetHasUnsavedChanges(GameContext.Simulation.WorldEntity);
+		set => GameContext.EditorService.SetHasUnsavedChanges(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public bool EditorBlockMode
 	{
-		get => GameContext.EditorService.GetBlockMode(ECSContext.WorldEntity);
-		set => GameContext.EditorService.SetBlockMode(ECSContext.WorldEntity, value);
+		get => GameContext.EditorService.GetBlockMode(GameContext.Simulation.WorldEntity);
+		set => GameContext.EditorService.SetBlockMode(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public float EditorBlockLevelHeight
 	{
-		get => GameContext.EditorService.GetBlockLevelHeight(ECSContext.WorldEntity);
-		set => GameContext.EditorService.SetBlockLevelHeight(ECSContext.WorldEntity, value);
+		get => GameContext.EditorService.GetBlockLevelHeight(GameContext.Simulation.WorldEntity);
+		set => GameContext.EditorService.SetBlockLevelHeight(GameContext.Simulation.WorldEntity, value);
 	}
 
 
@@ -712,14 +712,14 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public WaterType EditorWaterMode
 	{
-		get => GameContext.EditorService.GetWaterMode(ECSContext.WorldEntity);
-		set => GameContext.EditorService.SetWaterMode(ECSContext.WorldEntity, value);
+		get => GameContext.EditorService.GetWaterMode(GameContext.Simulation.WorldEntity);
+		set => GameContext.EditorService.SetWaterMode(GameContext.Simulation.WorldEntity, value);
 	}
 
 	public byte ActiveWaterProfileIndex
 	{
-		get => GameContext.EditorService.GetWaterProfileIndex(ECSContext.WorldEntity);
-		set => GameContext.EditorService.SetWaterProfileIndex(ECSContext.WorldEntity, value);
+		get => GameContext.EditorService.GetWaterProfileIndex(GameContext.Simulation.WorldEntity);
+		set => GameContext.EditorService.SetWaterProfileIndex(GameContext.Simulation.WorldEntity, value);
 	}
 
 
@@ -974,19 +974,19 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public float GameElapsedTime
 	{
-		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(ECSContext.WorldEntity, s => s.GameElapsedTime) ?? 0f;
-		private set => GameContext.World?.Mutate<WorldState>(ECSContext.WorldEntity, (ref WorldState s) =>
-			GameContext.World.Set(ECSContext.WorldEntity, new WorldState(value, s.TimeOfDayIndex, s.TimeOfDayTimer, s.DayNightCycleEnabled)));
+		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(GameContext.Simulation.WorldEntity, s => s.GameElapsedTime) ?? 0f;
+		private set => GameContext.World?.Mutate<WorldState>(GameContext.Simulation.WorldEntity, (ref WorldState s) =>
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new WorldState(value, s.TimeOfDayIndex, s.TimeOfDayTimer, s.DayNightCycleEnabled)));
 	}
 
 	public int TimeOfDayIndex
-		=> GameContext.World?.GetFieldOrDefault<WorldState, int>(ECSContext.WorldEntity, s => s.TimeOfDayIndex) ?? 0;
+		=> GameContext.World?.GetFieldOrDefault<WorldState, int>(GameContext.Simulation.WorldEntity, s => s.TimeOfDayIndex) ?? 0;
 
 	private float TimeOfDayTimer
 	{
-		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(ECSContext.WorldEntity, s => s.TimeOfDayTimer) ?? 0f;
-		set => GameContext.World?.Mutate<WorldState>(ECSContext.WorldEntity, (ref WorldState s) =>
-			GameContext.World.Set(ECSContext.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, value, s.DayNightCycleEnabled)));
+		get => GameContext.World?.GetFieldOrDefault<WorldState, float>(GameContext.Simulation.WorldEntity, s => s.TimeOfDayTimer) ?? 0f;
+		set => GameContext.World?.Mutate<WorldState>(GameContext.Simulation.WorldEntity, (ref WorldState s) =>
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, value, s.DayNightCycleEnabled)));
 	}
 
 
@@ -1047,20 +1047,20 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private float _goldBackup
 	{
-		get => GameContext.World?.GetFieldOrDefault<ReplayState, float>(ECSContext.WorldEntity, s => s.GoldBackup, 500f) ?? 500f;
-		set => GameContext.World?.Mutate<ReplayState>(ECSContext.WorldEntity, (ref ReplayState s) => s.GoldBackup = value);
+		get => GameContext.World?.GetFieldOrDefault<ReplayState, float>(GameContext.Simulation.WorldEntity, s => s.GoldBackup, 500f) ?? 500f;
+		set => GameContext.World?.Mutate<ReplayState>(GameContext.Simulation.WorldEntity, (ref ReplayState s) => s.GoldBackup = value);
 	}
 
 	private float _woodBackup
 	{
-		get => GameContext.World?.GetFieldOrDefault<ReplayState, float>(ECSContext.WorldEntity, s => s.WoodBackup, 400f) ?? 400f;
-		set => GameContext.World?.Mutate<ReplayState>(ECSContext.WorldEntity, (ref ReplayState s) => s.WoodBackup = value);
+		get => GameContext.World?.GetFieldOrDefault<ReplayState, float>(GameContext.Simulation.WorldEntity, s => s.WoodBackup, 400f) ?? 400f;
+		set => GameContext.World?.Mutate<ReplayState>(GameContext.Simulation.WorldEntity, (ref ReplayState s) => s.WoodBackup = value);
 	}
 
 	private float _stoneBackup
 	{
-		get => GameContext.World?.GetFieldOrDefault<ReplayState, float>(ECSContext.WorldEntity, s => s.StoneBackup, 200f) ?? 200f;
-		set => GameContext.World?.Mutate<ReplayState>(ECSContext.WorldEntity, (ref ReplayState s) => s.StoneBackup = value);
+		get => GameContext.World?.GetFieldOrDefault<ReplayState, float>(GameContext.Simulation.WorldEntity, s => s.StoneBackup, 200f) ?? 200f;
+		set => GameContext.World?.Mutate<ReplayState>(GameContext.Simulation.WorldEntity, (ref ReplayState s) => s.StoneBackup = value);
 	}
 
 	private IMapScript? _activeMapScript
@@ -1093,9 +1093,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private bool DayNightCycleEnabled
 	{
-		get => GameContext.World?.GetFieldOrDefault<WorldState, bool>(ECSContext.WorldEntity, s => s.DayNightCycleEnabled, true) ?? true;
-		set => GameContext.World?.Mutate<WorldState>(ECSContext.WorldEntity, (ref WorldState s) =>
-			GameContext.World.Set(ECSContext.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, s.TimeOfDayTimer, value)));
+		get => GameContext.World?.GetFieldOrDefault<WorldState, bool>(GameContext.Simulation.WorldEntity, s => s.DayNightCycleEnabled, true) ?? true;
+		set => GameContext.World?.Mutate<WorldState>(GameContext.Simulation.WorldEntity, (ref WorldState s) =>
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, s.TimeOfDayTimer, value)));
 	}
 
 	public event Action<UnitId>? OnUnitCreated;
@@ -1153,9 +1153,9 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		var resourcesDict = new Dictionary<ResourceId, int>
 		{
-			{ ECSContext.PlayerResourceService.GoldResourceId, 500 },
-			{ ECSContext.PlayerResourceService.WoodResourceId, 400 },
-			{ ECSContext.PlayerResourceService.StoneResourceId, 200 }
+			{ GameContext.Simulation.PlayerResourceService.GoldResourceId, 500 },
+			{ GameContext.Simulation.PlayerResourceService.WoodResourceId, 400 },
+			{ GameContext.Simulation.PlayerResourceService.StoneResourceId, 200 }
 		};
 		GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
 	}
@@ -1178,7 +1178,7 @@ public partial class GameHost : Node3D, IGameAPI
 		DtNavMesh navMesh = GroundTerrain != null ? GroundTerrain.NavMesh : null;
 		DtNavMeshQuery navMeshQuery = GroundTerrain != null ? GroundTerrain.NavMeshQuery : null;
 
-		ECSContext.WorldEntity = GameContext.WorldInitService.SetupWorldEntityComponents(
+		GameContext.Simulation.WorldEntity = GameContext.WorldInitService.SetupWorldEntityComponents(
 			width, depth, quadSize, cellSize,
 			cells, pathingCodes, navMesh, navMeshQuery
 		);
@@ -1441,9 +1441,9 @@ public partial class GameHost : Node3D, IGameAPI
 	public void CaptureDefaultCameraBounds()
 	{
 		if (_defaultCameraBoundsCaptured) return;
-		if (ECSContext.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
+		if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var cam = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			ref var cam = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 			DefaultCameraBoundsLeft = cam.LimitLeft;
 			DefaultCameraBoundsRight = cam.LimitRight;
 			DefaultCameraBoundsTop = cam.LimitTop;
@@ -1568,7 +1568,7 @@ public partial class GameHost : Node3D, IGameAPI
 		if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
 		{
 			ref var res = ref GameContext.World.Get<PlayerResources>(pe);
-			res[ECSContext.PlayerResourceService.GoldResourceId] = (int)Math.Max(0f, goldAmount);
+			res[GameContext.Simulation.PlayerResourceService.GoldResourceId] = (int)Math.Max(0f, goldAmount);
 		}
 	}
 
@@ -1577,9 +1577,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void TickZoneTriggers()
 	{
-		if (OnUnitEnterZone == null || GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<ScriptZonesState>(ECSContext.WorldEntity)) return;
+		if (OnUnitEnterZone == null || GameContext.World == null || !GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) || !GameContext.World.Has<ScriptZonesState>(GameContext.Simulation.WorldEntity)) return;
 
-		int zoneHandle = GameContext.World.Get<ScriptZonesState>(ECSContext.WorldEntity).Handle;
+		int zoneHandle = GameContext.World.Get<ScriptZonesState>(GameContext.Simulation.WorldEntity).Handle;
 		int zoneCount = ScriptZonesState.GetZones(zoneHandle).Length;
 		if (zoneCount == 0) return;
 
@@ -1807,8 +1807,8 @@ public partial class GameHost : Node3D, IGameAPI
 	public void LoadUnitMetadata(string mapName = null)
 	{
 		ResetAbilityCatalog();
-		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(ECSContext.ActiveMapName) ? ECSContext.ActiveMapName : MapWorkspaceService.DefaultWorkspaceFolder);
-		ECSContext.ActiveMapName = mapName;
+		mapName = !string.IsNullOrEmpty(mapName) ? mapName : (!string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName) ? GameContext.Simulation.ActiveMapName : MapWorkspaceService.DefaultWorkspaceFolder);
+		GameContext.Simulation.ActiveMapName = mapName;
 		LocalizationManager.CurrentMapName = mapName;
 		LocalizationManager.SetupTranslations();
 
@@ -2042,7 +2042,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private void LoadMapScript(string mapName)
 	{
 		_activeMapScript = null;
-		ECSContext.IsGameOver = false;
+		GameContext.Simulation.IsGameOver = false;
 
 		if (string.IsNullOrEmpty(PendingMapScriptPath))
 		{
@@ -2295,14 +2295,14 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void InitializeResourceIds()
 	{
-		ECSContext.PlayerResourceService.GoldResourceId = "gold".AsResourceId(ECSContext.DefinitionManager);
-		ECSContext.PlayerResourceService.WoodResourceId = "wood".AsResourceId(ECSContext.DefinitionManager);
-		ECSContext.PlayerResourceService.StoneResourceId = "stone".AsResourceId(ECSContext.DefinitionManager);
+		GameContext.Simulation.PlayerResourceService.GoldResourceId = "gold".AsResourceId(GameContext.Simulation.DefinitionManager);
+		GameContext.Simulation.PlayerResourceService.WoodResourceId = "wood".AsResourceId(GameContext.Simulation.DefinitionManager);
+		GameContext.Simulation.PlayerResourceService.StoneResourceId = "stone".AsResourceId(GameContext.Simulation.DefinitionManager);
 	}
 
 	private void InitializeSimulationService()
 	{
-		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, ECSContext.DefinitionManager, ECSContext.PlayerResourceService.GoldResourceId, ECSContext.PlayerResourceService.WoodResourceId, ECSContext.PlayerResourceService.StoneResourceId, GroundTerrain);
+		GameContext.SimulationService.SetRuntimeReferences(AllUnits, AllProps, GameContext.Simulation.DefinitionManager, GameContext.Simulation.PlayerResourceService.GoldResourceId, GameContext.Simulation.PlayerResourceService.WoodResourceId, GameContext.Simulation.PlayerResourceService.StoneResourceId, GroundTerrain);
 		GameContext.SimulationService.Initialize();
 		GameContext.SimulationService.EditorHeightProvider = p => GetTerrainHeightAt(new Vector3(p.X, p.Y, p.Z));
 
@@ -2433,7 +2433,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void SetupLobbyPlayers()
 	{
-		var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+		var playerEntities = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
 		_peerIdToPlayerEntityMap[0] = playerEntities[0];
 		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true, teamIndex: 0);
 
@@ -2464,7 +2464,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void SetupDefaultPlayers()
 	{
-		var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+		var playerEntities = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
 		_peerIdToPlayerEntityMap[0] = playerEntities[0];
 		_peerIdToPlayerEntityMap[1] = playerEntities[1];
 		_peerIdToPlayerEntityMap[-1] = playerEntities[2];
@@ -2478,9 +2478,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void UpdateScriptPlayerState(int pIdx, string name, bool active = true, bool isComputer = false, int teamIndex = -1)
 	{
-		if (!GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity)) return;
+		if (!GameContext.World.Has<ScriptPlayersState>(GameContext.Simulation.WorldEntity)) return;
 
-		ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+		ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 		if (playersState.IsValidSlot(pIdx))
 		{
 			playersState.SetName(pIdx, name);
@@ -2495,9 +2495,9 @@ public partial class GameHost : Node3D, IGameAPI
 			var player = playersState.Get(pIdx);
 			GameContext.World.GetBuffer<ScriptPlayer>().Set(pIdx, in player);
 
-			if (teamIndex >= 0 && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
+			if (teamIndex >= 0 && GameContext.World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity))
 			{
-				var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+				var playerEntities = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
 				if (pIdx < playerEntities.Length && playerEntities[pIdx] != Entity.Null && GameContext.World.IsAlive(playerEntities[pIdx]))
 				{
 					int stringId = playersState.Get(pIdx).TeamNameStringId;
@@ -2518,9 +2518,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void EnsureFallbackPlayers()
 	{
-		if (GameContext.World != null && ECSContext.WorldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity))
 		{
-			var playerEntities = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity).PlayerEntities;
+			var playerEntities = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity).PlayerEntities;
 			if (playerEntities != null && playerEntities.Length > 2)
 			{
 				_peerIdToPlayerEntityMap[0] = playerEntities[0];
@@ -3572,7 +3572,7 @@ public partial class GameHost : Node3D, IGameAPI
 	/// </summary>
 	public void SendNavMeshObstacleVolumesToPeer(int peerId)
 	{
-		TerrainNavMeshService navMeshService = ECSContext.TerrainNavMeshService;
+		TerrainNavMeshService navMeshService = GameContext.Simulation.TerrainNavMeshService;
 		if (navMeshService == null) return;
 
 		ReadOnlySpan<System.Numerics.Vector3> bakedPositions = navMeshService.BakedObstaclePositions;
@@ -3594,7 +3594,7 @@ public partial class GameHost : Node3D, IGameAPI
 	/// </summary>
 	public void ApplyAuthoritativeNavMeshObstacles(Vector3[] positions, float[] radii)
 	{
-		TerrainNavMeshService navMeshService = ECSContext.TerrainNavMeshService;
+		TerrainNavMeshService navMeshService = GameContext.Simulation.TerrainNavMeshService;
 		if (navMeshService == null || positions == null || radii == null) return;
 
 		System.Numerics.Vector3[] domainPositions = new System.Numerics.Vector3[positions.Length];
@@ -3640,19 +3640,19 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void CarveObstacle(System.Numerics.Vector3 pos, float radius)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			ECSContext.TerrainNavMeshService?.CarveObstacle(ref state, pos, radius);
+			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			GameContext.Simulation.TerrainNavMeshService?.CarveObstacle(ref state, pos, radius);
 		}
 	}
 
 	public void UncarveObstacle(System.Numerics.Vector3 pos, float radius)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			ECSContext.TerrainNavMeshService?.UncarveObstacle(ref state, pos, radius);
+			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			GameContext.Simulation.TerrainNavMeshService?.UncarveObstacle(ref state, pos, radius);
 		}
 	}
 
@@ -3661,7 +3661,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public float GetOrCalculateObstacleRadius(string id, Node3D node)
 	{
-		if (ECSContext.TerrainNavMeshService.ObstacleRadiusCache.TryGetValue(id, out float cachedRadius))
+		if (GameContext.Simulation.TerrainNavMeshService.ObstacleRadiusCache.TryGetValue(id, out float cachedRadius))
 		{
 			return cachedRadius;
 		}
@@ -3673,7 +3673,7 @@ public partial class GameHost : Node3D, IGameAPI
 			if (modelScale <= 0f) modelScale = 1f;
 
 			float scaledRadius = measuredRadius * modelScale;
-			ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = scaledRadius;
+			GameContext.Simulation.TerrainNavMeshService.ObstacleRadiusCache[id] = scaledRadius;
 			return scaledRadius;
 		}
 
@@ -3681,7 +3681,7 @@ public partial class GameHost : Node3D, IGameAPI
 		{
 			if (TryMeasureModelAssetRadius(id, modelKey, out float assetRadius))
 			{
-				ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = assetRadius;
+				GameContext.Simulation.TerrainNavMeshService.ObstacleRadiusCache[id] = assetRadius;
 				return assetRadius;
 			}
 
@@ -3689,7 +3689,7 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 
 		float calculatedRadius = CalculateNodeRadius(node);
-		ECSContext.TerrainNavMeshService.ObstacleRadiusCache[id] = calculatedRadius;
+		GameContext.Simulation.TerrainNavMeshService.ObstacleRadiusCache[id] = calculatedRadius;
 		return calculatedRadius;
 	}
 
@@ -3925,7 +3925,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void ProcessGameplayTick(float fDelta)
 	{
-		if (ECSContext.IsGameOver) return;
+		if (GameContext.Simulation.IsGameOver) return;
 
 		CapturePreviousStateSnapshots();
 
@@ -3940,11 +3940,6 @@ public partial class GameHost : Node3D, IGameAPI
 			ProcessCoreSimulation(fDelta);
 			ProcessVisualAndEnvironment(fDelta);
 			ProcessMiscTicks(fDelta);
-
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PredictionPerformanceSample))
-			{
-				GameContext.MovementPredictionService?.Advance(GameContext.World, fDelta);
-			}
 
 			if (_multiplayerActive && Multiplayer.IsServer())
 				UpdateServerSnapshotTick(fDelta);
@@ -4015,9 +4010,9 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessVisualAndEnvironment))
 		{
-			if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
+			if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<WorldState>(GameContext.Simulation.WorldEntity))
 			{
-				var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
+				var state = GameContext.World.Get<WorldState>(GameContext.Simulation.WorldEntity);
 				if (state.DayNightCycleEnabled && !GameContext.SessionState.IsMapEditorMode)
 				{
 					using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateDayNightVisuals))
@@ -4110,9 +4105,9 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void PollVFXQueue()
 	{
-		if (GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<VFXQueue>(ECSContext.WorldEntity)) return;
+		if (GameContext.World == null || !GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) || !GameContext.World.Has<VFXQueue>(GameContext.Simulation.WorldEntity)) return;
 
-		ref var queue = ref GameContext.World.Get<VFXQueue>(ECSContext.WorldEntity);
+		ref var queue = ref GameContext.World.Get<VFXQueue>(GameContext.Simulation.WorldEntity);
 		if (queue.Count == 0) return;
 
 		for (int i = 0; i < queue.Count; i++)
@@ -4210,12 +4205,12 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) SetTimeOfDay(int timeOfDayIndex)
 	{
-		return GameContext.EnvironmentService?.SetTimeOfDay(ECSContext.WorldEntity, timeOfDayIndex, GameContext.EnvironmentService.TimeOfDayCycleDuration) ?? (0, 0f);
+		return GameContext.EnvironmentService?.SetTimeOfDay(GameContext.Simulation.WorldEntity, timeOfDayIndex, GameContext.EnvironmentService.TimeOfDayCycleDuration) ?? (0, 0f);
 	}
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) CycleTimeOfDay()
 	{
-		return GameContext.EnvironmentService?.CycleTimeOfDay(ECSContext.WorldEntity, GameContext.EnvironmentService.TimeOfDayCycleDuration) ?? (0, 0f);
+		return GameContext.EnvironmentService?.CycleTimeOfDay(GameContext.Simulation.WorldEntity, GameContext.EnvironmentService.TimeOfDayCycleDuration) ?? (0, 0f);
 	}
 
 	public string GetTimeOfDayName()

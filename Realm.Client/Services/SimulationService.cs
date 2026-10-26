@@ -210,9 +210,9 @@ public class SimulationService
 		{
 			if (_resolvedWorldEntity == Entity.Null || !GameContext.World.IsAlive(_resolvedWorldEntity))
 			{
-				if (ECSContext.WorldEntity != Entity.Null && GameContext.World.IsAlive(ECSContext.WorldEntity))
+				if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity))
 				{
-					_resolvedWorldEntity = ECSContext.WorldEntity;
+					_resolvedWorldEntity = GameContext.Simulation.WorldEntity;
 				}
 				else
 				{
@@ -338,7 +338,7 @@ public class SimulationService
 
 	private bool HasScriptPlayersState()
 	{
-		var worldEntity = ECSContext.WorldEntity;
+		var worldEntity = GameContext.Simulation.WorldEntity;
 		return GameContext.World != null && worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity);
 	}
 
@@ -348,7 +348,7 @@ public class SimulationService
 
 		if (HasScriptPlayersState())
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex))
 			{
 				playersState.SetTeam(playerIndex, teamIndex, stringId);
@@ -357,7 +357,7 @@ public class SimulationService
 			}
 		}
 
-		var worldEntity = ECSContext.WorldEntity;
+		var worldEntity = GameContext.Simulation.WorldEntity;
 		if (GameContext.World != null && worldEntity != Entity.Null && GameContext.World.Has<NetworkMappingState>(worldEntity))
 		{
 			var playerEntities = GameContext.World.Get<NetworkMappingState>(worldEntity).PlayerEntities;
@@ -406,7 +406,7 @@ public class SimulationService
 
 		if (HasScriptPlayersState())
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Team;
 		}
 
@@ -601,7 +601,7 @@ public class SimulationService
 	{
 		if (HasScriptPlayersState())
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex))
 			{
 				playersState.SetActive(playerIndex, active);
@@ -944,7 +944,7 @@ public class SimulationService
 	{
 		if (!_botControllers.TryGetValue(playerIndex, out var bot))
 		{
-			var profile = genreProvider.CreateDefaultProfile(ECSContext.ActiveMapName ?? "GenericMap");
+			var profile = genreProvider.CreateDefaultProfile(GameContext.Simulation.ActiveMapName ?? "GenericMap");
 			bot = new BotController(playerIndex, profile, genreProvider);
 			bot.CustomActionCallback = (pIdx, actId, pos, intent) => { OnBotCustomActionExecuted?.Invoke(pIdx, actId, intent, pos, string.Empty); };
 			_botControllers[playerIndex] = bot;
@@ -1038,7 +1038,7 @@ public class SimulationService
 
 	private void LoadBotProfileFromDisk(BotController bot)
 	{
-		string mapName = ECSContext.ActiveMapName ?? "";
+		string mapName = GameContext.Simulation.ActiveMapName ?? "";
 		string botPath = Path.Combine(OS.GetUserDataDir(), $"{mapName}_bot.json");
 		if (!File.Exists(botPath)) return;
 		try
@@ -1305,10 +1305,10 @@ public class SimulationService
 
 		if (isBuilding)
 		{
-			if (GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+			if (GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-				ECSContext.TerrainNavMeshService?.UncarveObstacle(ref state, unitPos, radius);
+				ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+				GameContext.Simulation.TerrainNavMeshService?.UncarveObstacle(ref state, unitPos, radius);
 			}
 		}
 
@@ -2047,7 +2047,7 @@ public class SimulationService
 	{
 		if (HasScriptPlayersState())
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex))
 			{
 				playersState.SetComputerControlled(playerIndex, isProxy);
@@ -2289,12 +2289,12 @@ public class SimulationService
 
 	public void TriggerVictoryDomain()
 	{
-		ECSContext.IsGameOver = true;
+		GameContext.Simulation.IsGameOver = true;
 	}
 
 	public void TriggerDefeatDomain()
 	{
-		ECSContext.IsGameOver = true;
+		GameContext.Simulation.IsGameOver = true;
 	}
 
 	public string GetPlayerNameDomain(int playerIndex)
@@ -2302,7 +2302,7 @@ public class SimulationService
 		if (playerIndex == 0) return "Neutral";
 		if (HasScriptPlayersState())
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Name;
 		}
 		return $"Player {playerIndex}";
@@ -2312,7 +2312,7 @@ public class SimulationService
 	{
 		if (HasScriptPlayersState())
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Active;
 		}
 		return false;
@@ -2322,7 +2322,7 @@ public class SimulationService
 	{
 		if (HasScriptPlayersState())
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Gold;
 		}
 		return 0f;
@@ -2332,7 +2332,7 @@ public class SimulationService
 	{
 		if (HasScriptPlayersState())
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex))
 			{
 				playersState.SetGold(playerIndex, Math.Max(0f, amount));
@@ -2348,7 +2348,7 @@ public class SimulationService
 	{
 		if (HasScriptPlayersState())
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).KillCount;
 		}
 		return 0;
@@ -2358,7 +2358,7 @@ public class SimulationService
 	{
 		if (HasScriptPlayersState())
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex))
 			{
 				playersState.SetKills(playerIndex, kills);

@@ -44,11 +44,11 @@ public class WorldInitService
 		AddOrSet(worldEntity, new ReplayState(0, 500f, 400f, 200f));
 		AddOrSet(worldEntity, new NetworkState(1, 0f, 0, -1, -1, false, 0, 1));
 		var mappingState = new NetworkMappingState(new(), new(), new());
-		if (ECSContext.PlayerResourceService.GoldResourceId == default)
+		if (GameContext.Simulation.PlayerResourceService.GoldResourceId == default)
 		{
-			ECSContext.PlayerResourceService.GoldResourceId = "gold".AsResourceId(ECSContext.DefinitionManager);
-			ECSContext.PlayerResourceService.WoodResourceId = "wood".AsResourceId(ECSContext.DefinitionManager);
-			ECSContext.PlayerResourceService.StoneResourceId = "stone".AsResourceId(ECSContext.DefinitionManager);
+			GameContext.Simulation.PlayerResourceService.GoldResourceId = "gold".AsResourceId(GameContext.Simulation.DefinitionManager);
+			GameContext.Simulation.PlayerResourceService.WoodResourceId = "wood".AsResourceId(GameContext.Simulation.DefinitionManager);
+			GameContext.Simulation.PlayerResourceService.StoneResourceId = "stone".AsResourceId(GameContext.Simulation.DefinitionManager);
 		}
 
 		var defaultPlayers = CreateDefaultPlayers();
@@ -61,9 +61,9 @@ public class WorldInitService
 			GameContext.World.Add(playerEntity, new Name(i == 0 ? "Neutral" : (i == 1 ? "Horaid_Topa" : $"Player {i}")));
 			var resourcesDict = new Dictionary<ResourceId, int>
 			{
-				{ ECSContext.PlayerResourceService.GoldResourceId, i == 1 ? 500 : 0 },
-				{ ECSContext.PlayerResourceService.WoodResourceId, i == 1 ? 400 : 0 },
-				{ ECSContext.PlayerResourceService.StoneResourceId, i == 1 ? 200 : 0 }
+				{ GameContext.Simulation.PlayerResourceService.GoldResourceId, i == 1 ? 500 : 0 },
+				{ GameContext.Simulation.PlayerResourceService.WoodResourceId, i == 1 ? 400 : 0 },
+				{ GameContext.Simulation.PlayerResourceService.StoneResourceId, i == 1 ? 200 : 0 }
 			};
 			GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
 			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));

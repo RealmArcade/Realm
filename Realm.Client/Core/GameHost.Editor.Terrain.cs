@@ -381,7 +381,7 @@ namespace Realm.Client.Core
 			MapCameraBounds oldMapBounds = MapCameraBounds.FromTerrain(oldWidth, oldDepth, quadSize);
 			MapCameraBounds newMapBounds = MapCameraBounds.FromTerrain(newWidth, newDepth, quadSize);
 			MapCameraBounds resizedCameraBounds = new MapCameraBounds(EditorCameraBoundsLeft, EditorCameraBoundsRight, EditorCameraBoundsTop, EditorCameraBoundsBottom).MapTo(oldMapBounds, newMapBounds);
-			GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, resizedCameraBounds);
+			GameContext.EditorService.SetCameraBounds(GameContext.Simulation.WorldEntity, resizedCameraBounds);
 
 			GroundTerrain.ResizeTerrain(newWidth, newDepth);
 

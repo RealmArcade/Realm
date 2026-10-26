@@ -65,10 +65,10 @@ public partial class RuntimeTerrain : Node3D
 	{
 		if (GameContext.Host != null &&
 		    GameContext.World != null &&
-		    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-		    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
+		    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			return GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			return GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 		}
 
 		return new TerrainState(128, 128, DefaultQuadSize, DefaultCellSize, (TerrainCell[,])null, null, null, null);
@@ -79,8 +79,8 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().CellSize;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				state.Width, state.Depth, state.QuadSize, value,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -95,8 +95,8 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().Width;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				value, state.Depth, state.QuadSize, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -108,8 +108,8 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().Depth;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				state.Width, value, state.QuadSize, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -121,8 +121,8 @@ public partial class RuntimeTerrain : Node3D
 		get => GetTerrainStateSafe().QuadSize;
 		protected set
 		{
-			ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
-			GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 				state.Width, state.Depth, value, state.CellSize,
 				state.Cells, state.PathingCodes, state.NavMesh, state.NavMeshQuery
 			));
@@ -431,10 +431,10 @@ public partial class RuntimeTerrain : Node3D
 		{
 			if (GameContext.Host != null &&
 			    GameContext.World != null &&
-			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+			    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+				ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 				
 				int targetWidth = state.Width;
 				int targetDepth = state.Depth;
@@ -450,7 +450,7 @@ public partial class RuntimeTerrain : Node3D
 					targetDepth = newPathingCodes.GetLength(1);
 				}
 
-				GameContext.World.Set(ECSContext.WorldEntity, new TerrainState(
+				GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
 					targetWidth, targetDepth, state.QuadSize, state.CellSize,
 					newCells ?? state.Cells, newPathingCodes ?? state.PathingCodes, state.NavMesh, state.NavMeshQuery
 				));
@@ -463,10 +463,10 @@ public partial class RuntimeTerrain : Node3D
 		{
 			if (GameContext.Host != null &&
 			    GameContext.World != null &&
-			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+			    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+				ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 				if (state.Cells == null)
 				{
 					state.Cells = new TerrainCell[state.Width, state.Depth];
@@ -530,10 +530,10 @@ public partial class RuntimeTerrain : Node3D
 		{
 			if (GameContext.Host != null &&
 			    GameContext.World != null &&
-			    GameContext.World.IsAlive(ECSContext.WorldEntity) &&
-			    GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+			    GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) &&
+			    GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var state = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+				ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 				if (state.PathingCodes == null)
 				{
 					state.PathingCodes = new int[state.Width, state.Depth];
@@ -1451,9 +1451,9 @@ public partial class RuntimeTerrain : Node3D
 
 	private void UpdateEcsTerrainSwatchConfig(int targetIndex, float heightScale, float heightOffset, float crevicePower, float normalScale)
 	{
-		if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var ts = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			ref var ts = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 			if (ts.SwatchConfigs == null || ts.SwatchConfigs.Length != TextureSwatchSlots.MaxSlots)
 			{
 				ts.SwatchConfigs = new TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
@@ -1821,9 +1821,9 @@ public partial class RuntimeTerrain : Node3D
 		_material.SetShaderParameter("swatch_height_params", swatchHeightParams);
 		_material.SetShaderParameter("swatch_albedo_params", swatchAlbedoParams);
 
-		if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.Host != null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var ts = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			ref var ts = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 			ts.SwatchConfigs = new TerrainSwatchConfig[TextureSwatchSlots.MaxSlots];
 			for (int i = 0; i < TextureSwatchSlots.MaxSlots; i++)
 			{
@@ -3403,11 +3403,11 @@ public partial class RuntimeTerrain : Node3D
 	{
 		GameHost tempQualifier = GameContext.Host;
 		var world = (tempQualifier != null ? GameContext.World : null);
-		var worldEntity = GameContext.Host != null ? ECSContext.WorldEntity : default;
+		var worldEntity = GameContext.Host != null ? GameContext.Simulation.WorldEntity : default;
 		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
 		{
 			ref var state = ref world.Get<TerrainState>(worldEntity);
-			var terrainNavMeshService = ECSContext.TerrainNavMeshService;
+			var terrainNavMeshService = GameContext.Simulation.TerrainNavMeshService;
 			terrainNavMeshService.BakeNavMesh(ref state);
 			world.Set(worldEntity, state);
 		}

@@ -269,7 +269,7 @@ public static class TooltipTemplate
 	private static bool TryResolveUnitNumber(Entity entity, string key, out float value)
 	{
 		value = 0f;
-		EcsWorld? world = ECSContext.World;
+		EcsWorld? world = GameContext.Simulation.World;
 		if (world == null || entity == Entity.Null || !world.IsAlive(entity)) return false;
 
 		if (string.Equals(key, "Health", StringComparison.OrdinalIgnoreCase))
@@ -326,9 +326,9 @@ public static class TooltipTemplate
 			return true;
 		}
 
-		if (StatKeys.IsKnown(key) && ECSContext.StatService != null)
+		if (StatKeys.IsKnown(key) && GameContext.Simulation.StatService != null)
 		{
-			value = ECSContext.StatService.GetStatValue(entity, new StatId(key));
+			value = GameContext.Simulation.StatService.GetStatValue(entity, new StatId(key));
 			return true;
 		}
 

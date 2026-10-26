@@ -529,10 +529,10 @@ public static class GameSettings
 	private static float GetTimeOfDayProgress(GameHost gameHost)
 	{
 		if (GameContext.World == null) return 0f;
-		if (!GameContext.World.IsAlive(ECSContext.WorldEntity)) return 0f;
-		if (!GameContext.World.Has<WorldState>(ECSContext.WorldEntity)) return 0f;
+		if (!GameContext.World.IsAlive(GameContext.Simulation.WorldEntity)) return 0f;
+		if (!GameContext.World.Has<WorldState>(GameContext.Simulation.WorldEntity)) return 0f;
 
-		var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
+		var state = GameContext.World.Get<WorldState>(GameContext.Simulation.WorldEntity);
 		return state.TimeOfDayTimer / GameContext.EnvironmentService.TimeOfDayCycleDuration;
 	}
 

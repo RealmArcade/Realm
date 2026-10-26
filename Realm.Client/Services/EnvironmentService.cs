@@ -339,9 +339,9 @@ public class EnvironmentService
 
 	private Entity FindWorldEntity()
 	{
-		if (ECSContext.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity))
+		if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity))
 		{
-			return ECSContext.WorldEntity;
+			return GameContext.Simulation.WorldEntity;
 		}
 
 		return Entity.Null;
@@ -749,10 +749,10 @@ public class EnvironmentService
 
 	public (bool UpdateVisuals, float Progress) UpdateClientWorldStateDomain(float fDelta, bool isMapEditorMode, bool advanceSimulationClock)
 	{
-				if (GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
+				if (GameContext.World == null || !GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) || !GameContext.World.Has<WorldState>(GameContext.Simulation.WorldEntity))
 			return (false, 0f);
 
-		var state = GameContext.World.Get<WorldState>(ECSContext.WorldEntity);
+		var state = GameContext.World.Get<WorldState>(GameContext.Simulation.WorldEntity);
 		if (!advanceSimulationClock)
 		{
 			float replicatedProgress = state.TimeOfDayTimer / TimeOfDayCycleDuration;
@@ -782,7 +782,7 @@ public class EnvironmentService
 			}
 		}
 
-		GameContext.World.Set(ECSContext.WorldEntity, new WorldState(elapsed, index, timer, state.DayNightCycleEnabled));
+		GameContext.World.Set(GameContext.Simulation.WorldEntity, new WorldState(elapsed, index, timer, state.DayNightCycleEnabled));
 		return (updateVisuals, progress);
 	}
 
@@ -968,10 +968,10 @@ public class EnvironmentService
 
 		float timer = (clampedTime / 24f) * TimeOfDayCycleDuration;
 
-				if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<WorldState>(ECSContext.WorldEntity))
+				if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<WorldState>(GameContext.Simulation.WorldEntity))
 		{
-			GameContext.World.Mutate<WorldState>(ECSContext.WorldEntity, (ref WorldState state) =>
-				GameContext.World.Set(ECSContext.WorldEntity, new WorldState(state.GameElapsedTime, index, timer, state.DayNightCycleEnabled)));
+			GameContext.World.Mutate<WorldState>(GameContext.Simulation.WorldEntity, (ref WorldState state) =>
+				GameContext.World.Set(GameContext.Simulation.WorldEntity, new WorldState(state.GameElapsedTime, index, timer, state.DayNightCycleEnabled)));
 		}
 
 		return clampedTime / 24f;

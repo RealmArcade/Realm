@@ -13,17 +13,25 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public class CombatService
 {
+	private readonly SimulationContext _context;
+
+	public CombatService(SimulationContext context)
+	{
+		_context = context;
+	}
+
 	/// <summary>
 	///     Makes one entity attack another using the 3-stage combat resolution pipeline.
 	/// </summary>
 	public void PerformAttack(Entity attacker, Entity defender)
 	{
-		if (ECSContext.World == null || !ECSContext.World.Has<Attack>(attacker) || !ECSContext.World.Has<Health>(defender)) return;
-		if (ECSContext.World.Has<Invulnerable>(defender)) return;
+		EcsWorld? world = _context.World;
+		if (world == null || !world.Has<Attack>(attacker) || !world.Has<Health>(defender)) return;
+		if (world.Has<Invulnerable>(defender)) return;
 
-		var attack = ECSContext.World.Get<Attack>(attacker);
-		var health = ECSContext.World.Get<Health>(defender);
-		var resistances = ECSContext.World.Has<Resistances>(defender) ? ECSContext.World.Get<Resistances>(defender) : default;
+		var attack = world.Get<Attack>(attacker);
+		var health = world.Get<Health>(defender);
+		var resistances = world.Has<Resistances>(defender) ? world.Get<Resistances>(defender) : default;
 		bool magic = DamageTypes.IsMagic(attack.DamageType);
 
 		var result = CombatResolver.ResolveDamage(
@@ -35,7 +43,8 @@ public class CombatService
 			magicResistance: resistances.Magic,
 			flatPenetration: magic ? ReadStat(attacker, StatKeys.FlatMagicPenetration) : attack.FlatArmorPenetration,
 			percentPenetration: magic ? ReadStat(attacker, StatKeys.PercentMagicPenetration) : attack.PercentArmorPenetration,
-			damageType: attack.DamageType
+			damageType: attack.DamageType,
+			context: _context
 		);
 
 		health.CurrentHp -= result.FinalDamage;
@@ -44,18 +53,18 @@ public class CombatService
 		if (health.CurrentHp <= 0)
 		{
 			health.CurrentHp = 0;
-			ECSContext.World.Add<Dead>(defender);
-			if (ECSContext.World.Has<Name>(defender))
+			world.Add<Dead>(defender);
+			if (world.Has<Name>(defender))
 			{
-				Console.WriteLine($"{ECSContext.World.Get<Name>(defender).Value} has been slain!");
+				Console.WriteLine($"{world.Get<Name>(defender).Value} has been slain!");
 			}
 		}
 
-		ECSContext.World.Set(defender, health);
+		world.Set(defender, health);
 	}
 
-	private static float ReadStat(Entity entity, string statKey)
+	private float ReadStat(Entity entity, string statKey)
 	{
-		return ECSContext.StatService?.GetStatValue(entity, new StatId(statKey)) ?? 0f;
+		return _context.StatService?.GetStatValue(entity, new StatId(statKey)) ?? 0f;
 	}
 }

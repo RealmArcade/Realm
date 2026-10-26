@@ -208,7 +208,7 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 			if (updateFn != null) _update = updateFn.WrapAction<float>();
 
 			FlushWasiLogFile();
-			ECSContext.EvaluationEngine = this;
+			GameContext.Simulation.EvaluationEngine = this;
 		}
 		catch (Exception ex)
 		{
@@ -718,9 +718,9 @@ public partial class WasmRuntime : IWasmRuntime, IWasmEvaluationEngine, IDisposa
 		{
 			_cachedApi.OnPlayerChatMessage -= HandleDebugChatCommand;
 		}
-		if (ECSContext.EvaluationEngine == this)
+		if (GameContext.Simulation.EvaluationEngine == this)
 		{
-			ECSContext.EvaluationEngine = null;
+			GameContext.Simulation.EvaluationEngine = null;
 		}
 		_formulaFuncCache.Clear();
 		FlushWasiLogFile();

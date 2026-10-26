@@ -2128,7 +2128,7 @@ public partial class VSCodeManager
 		if (TryGetBlankMapPath(out string blankPath))
 			return blankPath;
 
-		string fallbackMap = ECSContext.ActiveMapName ?? "melee";
+		string fallbackMap = GameContext.Simulation.ActiveMapName ?? "melee";
 		return Path.Combine(projectRoot, "Maps", fallbackMap).Replace("\\", "/");
 	}
 

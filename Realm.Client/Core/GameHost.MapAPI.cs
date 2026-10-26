@@ -389,14 +389,14 @@ public partial class GameHost
 
 	void IGameAPI.WriteSavedData(string fileName, string content)
 	{
-		string mapNameOnly = Path.GetFileNameWithoutExtension(ECSContext.ActiveMapName);
+		string mapNameOnly = Path.GetFileNameWithoutExtension(GameContext.Simulation.ActiveMapName);
 		GameContext.MapSaveDataService
 			.WriteSavedData(mapNameOnly, fileName, content);
 	}
 
 	string IGameAPI.ReadSavedData(string fileName, string sourceMapName)
 	{
-		string targetMap = !string.IsNullOrWhiteSpace(sourceMapName) ? sourceMapName : ECSContext.ActiveMapName;
+		string targetMap = !string.IsNullOrWhiteSpace(sourceMapName) ? sourceMapName : GameContext.Simulation.ActiveMapName;
 		string mapNameOnly = Path.GetFileNameWithoutExtension(targetMap);
 		return GameContext.MapSaveDataService
 			.ReadSavedData(mapNameOnly, fileName);
@@ -1327,9 +1327,9 @@ public partial class GameHost
 	{
 		get
 		{
-			if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity))
+			if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(GameContext.Simulation.WorldEntity))
 			{
-				ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+				ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 				int count = 0;
 				for (int playerIndex = 0; playerIndex < ScriptPlayersState.SlotCount; playerIndex++)
 				{
@@ -1529,9 +1529,9 @@ public partial class GameHost
 	public bool IsPlayerComputer(int playerIndex)
 	{
 		if (playerIndex == 0) return true;
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).IsComputer;
 		}
 		if (GameContext.Lobby != null)
@@ -1899,11 +1899,11 @@ public partial class GameHost
 	public PathingFlags GetRegionPathing(float minX, float minZ, float maxX, float maxZ)
 	{
 		var world = GameContext.World;
-		var worldEntity = ECSContext.WorldEntity;
+		var worldEntity = GameContext.Simulation.WorldEntity;
 		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
 		{
 			ref var state = ref world.Get<TerrainState>(worldEntity);
-			int code = ECSContext.TerrainNavMeshService?.GetRegionPathing(in state, minX, minZ, maxX, maxZ) ?? (int)PathingFlags.All;
+			int code = GameContext.Simulation.TerrainNavMeshService?.GetRegionPathing(in state, minX, minZ, maxX, maxZ) ?? (int)PathingFlags.All;
 			return (PathingFlags)code;
 		}
 		return PathingFlags.All;
@@ -1929,9 +1929,9 @@ public partial class GameHost
 	ReadOnlySpan<PlayerId> IGameAPI.GetActivePlayers()
 	{
 		int count = 0;
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(ECSContext.WorldEntity);
+			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);
 			int maxIndex = Math.Min(ScriptPlayersState.SlotCount, _cachedPlayersBuffer.Length);
 			for (int i = 0; i < maxIndex; i++)
 			{

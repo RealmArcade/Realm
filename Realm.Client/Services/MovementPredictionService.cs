@@ -110,6 +110,8 @@ public class MovementPredictionService
 	}
 
 	public bool IsPredictionEnabled => GameSettings.MovementPrediction;
+	private static bool IsClientPredictionContext => GameContext.Host?.HasAuthority == false;
+
 	public bool HasPredictedUnits => _trackedCount > 0;
 	public int SnapshotOrderingViolations { get; private set; }
 	public long MaximumPredictionTickAllocatedBytes { get; private set; }
@@ -128,7 +130,7 @@ public class MovementPredictionService
 
 	public void ApplyPredictedOrder(EcsWorld world, PredictedOrderKind kind, ReadOnlySpan<int> localEntityIds, Vector3 targetPosition, bool isQueued)
 	{
-		if (!IsPredictionEnabled || world == null || kind == PredictedOrderKind.None) return;
+		if (!IsClientPredictionContext || !IsPredictionEnabled || world == null || kind == PredictedOrderKind.None) return;
 
 		BeginOperation();
 		try
@@ -219,7 +221,7 @@ public class MovementPredictionService
 	/// </summary>
 	public void RegisterPredictedCommand(int commandId, IReadOnlyList<int> localEntityIds)
 	{
-		if (!IsPredictionEnabled || localEntityIds == null || localEntityIds.Count == 0) return;
+		if (!IsClientPredictionContext || !IsPredictionEnabled || localEntityIds == null || localEntityIds.Count == 0) return;
 
 		for (int index = 0; index < localEntityIds.Count; index++)
 		{
@@ -249,7 +251,7 @@ public class MovementPredictionService
 
 	public void Advance(EcsWorld world, float frameDelta)
 	{
-		if (!IsPredictionEnabled || world == null) return;
+		if (!IsClientPredictionContext || !IsPredictionEnabled || world == null) return;
 		if (!float.IsFinite(frameDelta) || frameDelta <= 0f) return;
 
 		_tickAccumulator += frameDelta;
@@ -280,27 +282,16 @@ public class MovementPredictionService
 			long predictionWorkBefore = GC.GetAllocatedBytesForCurrentThread();
 			long sharedMovementBytes = 0;
 
-			if (host.HasAuthority)
-			{
-				// The authority already integrated these units this tick, so prediction must not integrate them a second
-				// time. It still records the authoritative sample so the invariant predicted == authoritative is visible.
-				SampleAuthoritativeFromWorld(world);
-			}
-			else
-			{
-				AdoptAuthoritativeOrders(world);
-				CaptureStepStartPositions(world);
+			AdoptAuthoritativeOrders(world);
+			CaptureStepStartPositions(world);
 
-				// The shared movement step is the same code the authority runs, so its allocations are reported apart
-				// from prediction's own: only the latter is this service's to keep allocation free.
-				long movementBefore = GC.GetAllocatedBytesForCurrentThread();
-				GameContext.SimulationService.StepPredictedMovement(delta);
-				sharedMovementBytes = GC.GetAllocatedBytesForCurrentThread() - movementBefore;
+			long movementBefore = GC.GetAllocatedBytesForCurrentThread();
+			GameContext.SimulationService.StepPredictedMovement(delta);
+			sharedMovementBytes = GC.GetAllocatedBytesForCurrentThread() - movementBefore;
 
-				RevertImplausibleSteps(world);
-				ApplyBoundedCorrections(world, delta);
-				ClampPredictionLead(world);
-			}
+			RevertImplausibleSteps(world);
+			ApplyBoundedCorrections(world, delta);
+			ClampPredictionLead(world);
 
 			long predictionWorkBytes = GC.GetAllocatedBytesForCurrentThread() - predictionWorkBefore - sharedMovementBytes;
 			if (sharedMovementBytes > MaximumSharedMovementTickAllocatedBytes) MaximumSharedMovementTickAllocatedBytes = sharedMovementBytes;
@@ -315,22 +306,6 @@ public class MovementPredictionService
 		finally
 		{
 			EndOperation();
-		}
-	}
-
-	private void SampleAuthoritativeFromWorld(EcsWorld world)
-	{
-		for (int index = 0; index < _trackedCount; index++)
-		{
-			int entityId = _trackedEntityIds[index];
-			var entity = new Entity(entityId);
-			if (!world.IsAlive(entity) || !world.Has<Position>(entity)) continue;
-
-			Vector3 position = world.Get<Position>(entity).Value;
-			_previousAuthoritativePositions[entityId] = _hasAuthoritativeSample[entityId] ? _authoritativePositions[entityId] : position;
-			_authoritativePositions[entityId] = position;
-			_authoritativeSequences[entityId] = 0;
-			_hasAuthoritativeSample[entityId] = true;
 		}
 	}
 

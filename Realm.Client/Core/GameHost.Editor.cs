@@ -919,7 +919,7 @@ public partial class GameHost
 		MapCameraBounds resetCameraBounds = GroundTerrain != null
 			? MapCameraBounds.FromTerrain(GroundTerrain.Width, GroundTerrain.Depth, GroundTerrain.QuadSize)
 			: MapCameraBounds.LegacyDefaults;
-		GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, resetCameraBounds);
+		GameContext.EditorService.SetCameraBounds(GameContext.Simulation.WorldEntity, resetCameraBounds);
 		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
 		RebuildCameraBoundsOverlay();
 
@@ -1041,12 +1041,12 @@ public partial class GameHost
 
 	private void UpdateEcsTerrainState()
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var ts = ref GameContext.World.Get<TerrainState>(ECSContext.WorldEntity);
+			ref var ts = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
 			ts.Cells = GroundTerrain.Cells;
 			ts.PathingCodes = GroundTerrain.PathingCodes;
-			GameContext.World.Set(ECSContext.WorldEntity, ts);
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, ts);
 		}
 	}
 
@@ -1539,7 +1539,7 @@ public partial class GameHost
 		MapCameraBounds oldMapBounds = MapCameraBounds.FromTerrain(oldWidth, oldDepth, quadSize);
 		MapCameraBounds newMapBounds = MapCameraBounds.FromTerrain(newWidth, newDepth, quadSize);
 		MapCameraBounds scaledCameraBounds = new MapCameraBounds(EditorCameraBoundsLeft, EditorCameraBoundsRight, EditorCameraBoundsTop, EditorCameraBoundsBottom).MapTo(oldMapBounds, newMapBounds);
-		GameContext.EditorService.SetCameraBounds(ECSContext.WorldEntity, scaledCameraBounds);
+		GameContext.EditorService.SetCameraBounds(GameContext.Simulation.WorldEntity, scaledCameraBounds);
 
 		DeleteEntitiesOutsideBounds();
 		GameContext.PropMultiMesh?.RebuildAll();

@@ -830,7 +830,7 @@ public partial class GameHost
 		var snapshots = GameContext.NetworkService.BuildServerSnapshots(_localPeerId, AllUnits);
 		if (PredictionDiagnostics.IsHostRecording)
 		{
-			Entity worldEntity = ECSContext.WorldEntity;
+			Entity worldEntity = GameContext.Simulation.WorldEntity;
 			int sequence = GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<NetworkState>(worldEntity)
 				? GameContext.World.Get<NetworkState>(worldEntity).SnapshotSequence
 				: -1;
@@ -1324,11 +1324,11 @@ public partial class GameHost
 	{
 		_dynamicPathingOverrides.Add((minX, minZ, maxX, maxZ, flags, blocked));
 		var world = GameContext.World;
-		var worldEntity = ECSContext.WorldEntity;
+		var worldEntity = GameContext.Simulation.WorldEntity;
 		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
 		{
 			ref var state = ref world.Get<TerrainState>(worldEntity);
-			ECSContext.TerrainNavMeshService?.SetRegionPathing(ref state, minX, minZ, maxX, maxZ, flags, blocked);
+			GameContext.Simulation.TerrainNavMeshService?.SetRegionPathing(ref state, minX, minZ, maxX, maxZ, flags, blocked);
 			world.Set(worldEntity, state);
 		}
 	}

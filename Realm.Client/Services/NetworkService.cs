@@ -153,7 +153,7 @@ public class NetworkService
 
 	public void RemoveClientToServerMapping(int localEntityId)
 	{
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return;
 
 		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
@@ -169,7 +169,7 @@ public class NetworkService
 
 	public void SetGameOver()
 	{
-		ECSContext.IsGameOver = true;
+		GameContext.Simulation.IsGameOver = true;
 	}
 
 	public Entity ResolveReconnectedPlayerEntity(int oldPeerId, int newPeerId, Dictionary<int, Entity> peerIdToPlayerEntityMap)
@@ -195,11 +195,11 @@ public class NetworkService
 
 	public void UpdateReconnectedNetworkMapping(int oldPeerId, int newPeerId, Entity playerEntity)
 	{
-		if (ECSContext.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity)) return;
+		if (GameContext.Simulation.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity)) return;
 
 		if (playerEntity != Entity.Null)
 		{
-			var mapping = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity);
+			var mapping = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity);
 			mapping.PeerIdToPlayerEntityMap.Remove(oldPeerId);
 			mapping.PeerIdToPlayerEntityMap[newPeerId] = playerEntity;
 		}
@@ -210,9 +210,9 @@ public class NetworkService
 		duration = 0f;
 		text = string.Empty;
 
-		if (ECSContext.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<CountdownState>(ECSContext.WorldEntity)) return false;
+		if (GameContext.Simulation.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<CountdownState>(GameContext.Simulation.WorldEntity)) return false;
 
-		var countdown = GameContext.World.Get<CountdownState>(ECSContext.WorldEntity);
+		var countdown = GameContext.World.Get<CountdownState>(GameContext.Simulation.WorldEntity);
 		if (countdown.Active)
 		{
 			duration = countdown.Duration;
@@ -242,9 +242,9 @@ public class NetworkService
 
 	public void UpdateReconnectedClientMapping(Entity playerEntity, int localPeerId)
 	{
-		if (ECSContext.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<NetworkMappingState>(ECSContext.WorldEntity)) return;
+		if (GameContext.Simulation.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity)) return;
 
-		var mapping = GameContext.World.Get<NetworkMappingState>(ECSContext.WorldEntity);
+		var mapping = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity);
 		if (playerEntity != Entity.Null)
 		{
 			mapping.PeerIdToPlayerEntityMap[localPeerId] = playerEntity;
@@ -516,7 +516,7 @@ public class NetworkService
 	public void UpdateClientTickDomain()
 	{
 		
-		GameContext.World?.Mutate<NetworkState>(ECSContext.WorldEntity, (ref NetworkState netState) =>
+		GameContext.World?.Mutate<NetworkState>(GameContext.Simulation.WorldEntity, (ref NetworkState netState) =>
 			netState.DynamicInterpolationFactor = ComputeDynamicInterpolationFactor());
 
 		VerifyReplicatedEcsDriftDomain();
@@ -1264,7 +1264,7 @@ public class NetworkService
 		}
 		else if ((ReplicatedScope)delta.Scope == ReplicatedScope.World)
 		{
-			targetEntity = ECSContext.WorldEntity;
+			targetEntity = GameContext.Simulation.WorldEntity;
 		}
 
 		if (targetEntity == Entity.Null || !GameContext.World.IsAlive(targetEntity)) return false;
@@ -2902,7 +2902,7 @@ public class NetworkService
 
 	private Entity FindWorldEntity()
 	{
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (GameContext.World == null || worldEntity == Entity.Null) return Entity.Null;
 		if (!GameContext.World.IsAlive(worldEntity)) return Entity.Null;
 		return GameContext.World.Has<NetworkState>(worldEntity) ? worldEntity : Entity.Null;
@@ -3089,7 +3089,7 @@ public class NetworkService
 	{
 		if (!isEnemy) return localPeerId;
 
-		var mappingEntity = ECSContext.WorldEntity;
+		var mappingEntity = GameContext.Simulation.WorldEntity;
 		if (mappingEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(mappingEntity)) return -1;
 
 		var mapping = GameContext.World.Get<NetworkMappingState>(mappingEntity);
@@ -3230,7 +3230,7 @@ public class NetworkService
 
 	public void RemoveMultiplayerMapping(int entityId)
 	{
-		if (!GameContext.World.TryGet<NetworkMappingState>(ECSContext.WorldEntity, out var mapState)) return;
+		if (!GameContext.World.TryGet<NetworkMappingState>(GameContext.Simulation.WorldEntity, out var mapState)) return;
 
 		if (mapState.ClientToServerEntityMap.TryGetValue(entityId, out int serverEntityId))
 		{

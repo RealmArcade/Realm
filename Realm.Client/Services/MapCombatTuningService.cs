@@ -26,8 +26,8 @@ public static class MapCombatTuningService
 		CombatTuningMetadata? authored = metadata?.CombatTuning;
 		if (authored == null)
 		{
-			ECSContext.ActiveCombatTuning = CombatTuning.Default;
-			ECSContext.ActiveCombatConfig = new CombatConfig();
+			GameContext.Simulation.ActiveCombatTuning = CombatTuning.Default;
+			GameContext.Simulation.ActiveCombatConfig = new CombatConfig();
 			return;
 		}
 
@@ -95,8 +95,8 @@ public static class MapCombatTuningService
 			t.MovementSoftCap2 = fallback.MovementSoftCap2;
 		}
 
-		ECSContext.ActiveCombatTuning = t;
-		ECSContext.ActiveCombatConfig = BuildConfig(authored);
+		GameContext.Simulation.ActiveCombatTuning = t;
+		GameContext.Simulation.ActiveCombatConfig = BuildConfig(authored);
 	}
 
 	private static CombatConfig BuildConfig(CombatTuningMetadata authored)

@@ -14,7 +14,7 @@ public static class AttributeStatCalculator
 {
 	public static DerivedCombatStats CalculateDerivedStats(in UnitAttributes attr, in UnitBaseStats baseStats, float additionalAttackSpeedModifiers = 0f, CombatTuning? tuning = null)
 	{
-		CombatTuning t = tuning ?? ECSContext.ActiveCombatTuning;
+		CombatTuning t = tuning ?? CombatTuning.Default;
 		float str = MathF.Max(0f, attr.Strength);
 		float agi = MathF.Max(0f, attr.Agility);
 		float vit = MathF.Max(0f, attr.Vitality);
@@ -110,7 +110,7 @@ public static class AttributeStatCalculator
 			return default;
 		}
 
-		var t = tuning ?? ECSContext.ActiveCombatTuning;
+		var t = tuning ?? world.Context?.ActiveCombatTuning ?? CombatTuning.Default;
 		var baseAttrs = world.Has<UnitAttributes>(entity) ? world.Get<UnitAttributes>(entity) : new UnitAttributes();
 		var modifiedAttrs = ApplyAttributeModifiers(world, entity, baseAttrs);
 		var baseStats = GetOrCreateUnitBaseStats(world, entity, t);
@@ -276,12 +276,12 @@ public static class AttributeStatCalculator
 					pctMult *= mod.Value;
 					break;
 				case ModifierType.CustomFormula:
-					if (!string.IsNullOrWhiteSpace(mod.WASMFunctionName) && ECSContext.EvaluationEngine != null)
+					if (!string.IsNullOrWhiteSpace(mod.WASMFunctionName) && world.Context?.EvaluationEngine != null)
 					{
 						try
 						{
 							var context = new FormulaContext(world, entity, default, mod.WASMFunctionName);
-							formulaBonus += ECSContext.EvaluationEngine.Evaluate(in context, baseValue, mod.Value, mod.SourceLevel);
+							formulaBonus += world.Context.EvaluationEngine.Evaluate(in context, baseValue, mod.Value, mod.SourceLevel);
 						}
 						catch
 						{

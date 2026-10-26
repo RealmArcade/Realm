@@ -267,7 +267,7 @@ public static class MultiplayerSyncDiagnostics
 
 		bool hasPosition = world.Has<Position>(localEntity);
 		bool wasStepped = _interpolationSteppedEntities.Contains(localEntityId);
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		float interpolationFactor = world.Has<NetworkState>(worldEntity) ? world.Get<NetworkState>(worldEntity).DynamicInterpolationFactor : -1f;
 		float roundTripMilliseconds = GameContext.NetworkLatencyService?.SmoothedRoundTripMilliseconds ?? -1f;
 		_followerDiagnostics.Add($"appliesInFrame={_presentationAppliesInFrame}:follower={serverEntityId}:{sequence}:local={localEntityId}:gap={followerGap.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:hasTarget={(hasTarget ? 1 : 0)}:hasPos={(hasPosition ? 1 : 0)}:stepped={(wasStepped ? 1 : 0)}:rate={interpolationFactor.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}:rtt={roundTripMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)}:target={targetPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{targetPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:applied={appliedPosition.X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{appliedPosition.Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:predicted={(isPredicted ? 1 : 0)}:culled={(isCulled ? 1 : 0)}:writer={PositionWriteTrace.Last(localEntity)}:frac={PositionWriteTrace.LastInterpolationFraction(localEntity).ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}:wrote={PositionWriteTrace.LastInterpolationWrite(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationWrite(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:age={Godot.Engine.GetPhysicsFrames() - PositionWriteTrace.LastWriteFrame(localEntity)}:cur={PositionWriteTrace.LastInterpolationFrom(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationFrom(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:tgt={PositionWriteTrace.LastInterpolationTarget(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastInterpolationTarget(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}:back={PositionWriteTrace.LastReadBack(localEntity).X.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},{PositionWriteTrace.LastReadBack(localEntity).Z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
@@ -420,7 +420,7 @@ public static class MultiplayerSyncDiagnostics
 
 		EcsWorld? world = GameContext.World;
 		if (world == null) return;
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity)) return;
 		if (!world.Has<NetworkState>(worldEntity) || !world.Has<NetworkMappingState>(worldEntity)) return;
 
@@ -533,7 +533,7 @@ public static class MultiplayerSyncDiagnostics
 
 	private static void AppendPlayerScopeState(BinaryWriter writer, EcsWorld? world, Dictionary<int, int>? clientToServerEntityMap)
 	{
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		Entity[]? playerEntities = null;
 		if (world != null && worldEntity != Entity.Null && world.IsAlive(worldEntity) && world.Has<NetworkMappingState>(worldEntity))
 		{
@@ -580,7 +580,7 @@ public static class MultiplayerSyncDiagnostics
 
 	private static void AppendNavigationState(BinaryWriter writer)
 	{
-		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity);
 		writer.Write(digest.HasTerrainState);
 		writer.Write(digest.HasNavMesh);
 		writer.Write(digest.Width);
@@ -604,7 +604,7 @@ public static class MultiplayerSyncDiagnostics
 
 		EcsWorld? world = GameContext.World;
 		if (world == null) return;
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity)) return;
 		if (!world.Has<NetworkState>(worldEntity) || !world.Has<NetworkMappingState>(worldEntity)) return;
 

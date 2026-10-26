@@ -17,7 +17,7 @@ namespace Realm.Ecs.Tests
 	{
 		private EcsWorld _world
 		{
-			get { return ECSContext.World!; }
+			get { return GameContext.Simulation.World!; }
 		}
 
 		private CombatAndDamageService _combatService = null!;
@@ -31,7 +31,7 @@ namespace Realm.Ecs.Tests
 		[TearDown]
 		public void TearDown()
 		{
-			ECSContext.DisposeAndRecreateServices();
+			GameContext.RecreateSimulation();
 		}
 
 		private Entity CreatePlayer(int index)

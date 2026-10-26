@@ -42,6 +42,7 @@ public class TerrainNavMeshService
 	private const float AgentMaxClimb = 0.9f;
 	private const float AgentMaxSlope = 55.0f;
 
+	private readonly SimulationContext _context;
 	private readonly EntityCallback<Position, MoveTo, PathFollow> _invalidatePathsDelegate;
 	private Vector3 _invalidateCenter;
 	private float _invalidateRadiusSq;
@@ -55,8 +56,9 @@ public class TerrainNavMeshService
 	private float _checkCellZ;
 	private bool _isCellBlockedByOtherObstacle;
 
-	public TerrainNavMeshService()
+	public TerrainNavMeshService(SimulationContext context)
 	{
+		_context = context;
 		_invalidatePathsDelegate = InvalidatePathsQueryAction;
 		_collectPropObstacleDelegate = CollectPropObstacle;
 		_collectBuildingObstacleDelegate = CollectBuildingObstacle;
@@ -97,7 +99,7 @@ public class TerrainNavMeshService
 	{
 		_invalidateCenter = center;
 		_invalidateRadiusSq = radius * radius;
-		ECSContext.World?.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
+		_context.World?.Query(in QueryCache.AllPositionAndMoveToAndPathFollowNoneDeadQuery, _invalidatePathsDelegate);
 	}
 
 	private void CollectPropObstacle(Entity entity, ref Position pos, ref CollisionRadius colRad, ref PropIdentity propIdentity)
@@ -140,9 +142,10 @@ public class TerrainNavMeshService
 		}
 	}
 
-	private static float ResolveObstacleRadius(Entity entity, float authoredRadius)
+	private float ResolveObstacleRadius(Entity entity, float authoredRadius)
 	{
-		float scale = (ECSContext.World != null && ECSContext.World.Has<CollisionScale>(entity)) ? ECSContext.World.Get<CollisionScale>(entity).Value : 1.0f;
+		EcsWorld? world = _context.World;
+		float scale = (world != null && world.Has<CollisionScale>(entity)) ? world.Get<CollisionScale>(entity).Value : 1.0f;
 		return authoredRadius * scale;
 	}
 
@@ -151,7 +154,7 @@ public class TerrainNavMeshService
 		_checkCellX = px;
 		_checkCellZ = pz;
 		_isCellBlockedByOtherObstacle = false;
-		var world = ECSContext.World;
+		var world = _context.World;
 		if (world == null) return false;
 
 		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery, _checkPropObstacleDelegate);
@@ -606,7 +609,7 @@ public class TerrainNavMeshService
 			return _navMeshObstacles;
 		}
 
-		var world = ECSContext.World;
+		var world = _context.World;
 		if (world == null) return _navMeshObstacles;
 
 		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery, _collectPropObstacleDelegate);

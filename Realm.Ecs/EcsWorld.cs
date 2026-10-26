@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Text;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Realm.Ecs.Services;
 using Realm.MapAPI;
 
 namespace Realm.Ecs;
@@ -39,6 +40,12 @@ public class EcsWorld : IDisposable
 	public ComponentBuffer<ComponentMask> EntityMasksBuffer => _entityMasks;
 	public ulong[] ActiveEntityBitset => _activeEntityBitset;
 	public unsafe ulong* ExternalActiveEntityBitset => _externalActiveEntityBitset;
+
+	/// <summary>
+	///     The per-match simulation that owns this world, or null for a bare world. Services reach their tuning, combat
+	///     config and WASM evaluation engine through it, so two worlds in one process never read each other's settings.
+	/// </summary>
+	public SimulationContext? Context { get; set; }
 
 	public void BindExternalAliveMemory(IntPtr pointer, int lengthInBytes)
 	{
@@ -117,8 +124,6 @@ public class EcsWorld : IDisposable
 				new Span<ulong>(_externalActiveEntityBitset, BITSET_CHUNKS).Clear();
 			}
 		}
-		ColdPayloadRegistry.ResetAll();
-		StringRegistry.Reset();
 	}
 
 	public Entity Create()
@@ -669,6 +674,16 @@ public class EcsWorld : IDisposable
 				ColdPayloadRegistry<DotRecast.Detour.DtNavMeshQuery>.Free(s.NavMeshQueryHandle);
 				ColdPayloadRegistry<Realm.Ecs.Components.Terrain.TerrainSwatchConfig[]>.Free(s.SwatchConfigsHandle);
 			};
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.CustomMetadata))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.CustomMetadata>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<Dictionary<string, object>>.Free(b.Get(id).Handle);
+		}
+		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.LeaderboardState))
+		{
+			var b = (ComponentBuffer<Realm.Ecs.Components.Core.LeaderboardState>)(object)buffer;
+			b.ClearHandler = id => ColdPayloadRegistry<Realm.Ecs.Common.LeaderboardBoards>.Free(b.Get(id).BoardsHandle);
 		}
 		else if (typeof(T) == typeof(Realm.Ecs.Components.Core.NetworkMappingState))
 		{

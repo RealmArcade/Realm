@@ -3017,7 +3017,7 @@ public partial class GameHost
 			unitIds.Add(u.UnitId);
 		}
 
-		int index = GameContext.InputService.CycleSelectionFocus(ECSContext.WorldEntity, unitIds, reverse);
+		int index = GameContext.InputService.CycleSelectionFocus(GameContext.Simulation.WorldEntity, unitIds, reverse);
 		var focusUnit = SelectedUnits[index];
 
 		var camera = GetViewport().GetCamera3D();

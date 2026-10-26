@@ -25,12 +25,12 @@ namespace Realm.Ecs.Tests
 	{
 		private EcsWorld _world
 		{
-			get { return ECSContext.World!; }
+			get { return GameContext.Simulation.World!; }
 		}
 
 		private TerrainNavMeshService _terrainNavMeshService
 		{
-			get { return ECSContext.TerrainNavMeshService!; }
+			get { return GameContext.Simulation.TerrainNavMeshService!; }
 		}
 
 		private readonly NavMeshPathfinder _pathfinder = new();
@@ -50,7 +50,7 @@ namespace Realm.Ecs.Tests
 		[TearDown]
 		public void TearDown()
 		{
-			ECSContext.DisposeAndRecreateServices();
+			GameContext.RecreateSimulation();
 		}
 
 		private void InitializeFlatTerrain(int width = 128, int depth = 128, float quadSize = 2.0f, float cellSize = 0.5f)
@@ -67,7 +67,7 @@ namespace Realm.Ecs.Tests
 
 			var terrainState = new TerrainState(width, depth, quadSize, cellSize, heights, pathingCodes, new DtNavMesh(), new DtNavMeshQuery(new DtNavMesh()));
 			_worldEntity = _world.Create(terrainState);
-			ECSContext.WorldEntity = _worldEntity;
+			GameContext.Simulation.WorldEntity = _worldEntity;
 			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
 
 			_movementService = new MovementAndPathfindingService();
@@ -94,7 +94,7 @@ namespace Realm.Ecs.Tests
 
 			var terrainState = new TerrainState(width, depth, quadSize, cellSize, heights, pathingCodes, new DtNavMesh(), new DtNavMeshQuery(new DtNavMesh()));
 			_worldEntity = _world.Create(terrainState);
-			ECSContext.WorldEntity = _worldEntity;
+			GameContext.Simulation.WorldEntity = _worldEntity;
 			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
 
 			_movementService = new MovementAndPathfindingService();
@@ -122,7 +122,7 @@ namespace Realm.Ecs.Tests
 
 			var terrainState = new TerrainState(width, depth, quadSize, cellSize, heights, pathingCodes, new DtNavMesh(), new DtNavMeshQuery(new DtNavMesh()));
 			_worldEntity = _world.Create(terrainState);
-			ECSContext.WorldEntity = _worldEntity;
+			GameContext.Simulation.WorldEntity = _worldEntity;
 			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
 
 			_movementService = new MovementAndPathfindingService();

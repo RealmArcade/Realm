@@ -35,21 +35,39 @@ namespace Realm.Client.Services
 		/// </summary>
 		public static ServiceScope ScreenScope => _screenScope is { IsDisposed: false } scope ? scope : CreateScreenScope();
 
-		public static EcsWorld? World => ECSContext.World;
+		/// <summary>
+		///     This client's own simulation world and services. The authoritative process runs a separate
+		///     <see cref="SimulationContext" /> in its own process; nothing here can name one of its worlds.
+		/// </summary>
+		public static SimulationContext Simulation => _simulation;
+
+		private static SimulationContext _simulation = new();
+
+		/// <summary>
+		///     Replaces this client's world and services with a fresh set. Ending a screen returns the world to a known
+		///     empty state instead of leaving the previous match's entities and handles behind.
+		/// </summary>
+		public static void RecreateSimulation()
+		{
+			_simulation.Dispose();
+			_simulation = new SimulationContext();
+		}
+
+		public static EcsWorld? World => _simulation.World;
 		public static Entity WorldEntity
 		{
-			get => ECSContext.WorldEntity;
-			set => ECSContext.WorldEntity = value;
+			get => _simulation.WorldEntity;
+			set => _simulation.WorldEntity = value;
 		}
 		public static bool IsGameOver
 		{
-			get => ECSContext.IsGameOver;
-			set => ECSContext.IsGameOver = value;
+			get => _simulation.IsGameOver;
+			set => _simulation.IsGameOver = value;
 		}
 		public static string ActiveMapName
 		{
-			get => ECSContext.ActiveMapName;
-			set => ECSContext.ActiveMapName = value;
+			get => _simulation.ActiveMapName;
+			set => _simulation.ActiveMapName = value;
 		}
 
 		public static GameHost? Host { get; private set; }
@@ -195,8 +213,6 @@ namespace Realm.Client.Services
 
 		public static void EnsureServices()
 		{
-			ECSContext.EnsureServices();
-
 			if (_globalScope.IsDisposed)
 			{
 				_globalScope = new ServiceScope("Global");
@@ -221,7 +237,7 @@ namespace Realm.Client.Services
 			scope.RegisterCleanup<LocalCommandTransport>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkLatencyService>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkService>(static service => service.Clear());
-			scope.RegisterDisposeAction(ECSContext.DisposeAndRecreateServices);
+			scope.RegisterDisposeAction(RecreateSimulation);
 
 			_screenScope = scope;
 			return scope;
@@ -245,7 +261,7 @@ namespace Realm.Client.Services
 			VisualProjectilePool.Clear();
 			VisualProjectile3D.ClearSharedShaderCache();
 
-			ECSContext.Dispose();
+			Simulation.Dispose();
 		}
 	}
 }

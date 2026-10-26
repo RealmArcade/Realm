@@ -403,7 +403,7 @@ public class ResourceEconomyService
 
 	public float GetPlayerWood(int playerIndex)
 	{
-		var worldEntity = ECSContext.WorldEntity;
+		var worldEntity = GameContext.Simulation.WorldEntity;
 		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
 		{
 			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
@@ -415,7 +415,7 @@ public class ResourceEconomyService
 
 	private void UpdatePlayerResourceECS(int playerIndex, float amount, bool isWood)
 	{
-		var worldEntity = ECSContext.WorldEntity;
+		var worldEntity = GameContext.Simulation.WorldEntity;
 		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
 		{
 			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
@@ -437,7 +437,7 @@ public class ResourceEconomyService
 			if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
 			{
 				ref var res = ref GameContext.World.Get<PlayerResources>(pe);
-				res[isWood ? ECSContext.PlayerResourceService.WoodResourceId : ECSContext.PlayerResourceService.StoneResourceId] = (int)amount;
+				res[isWood ? GameContext.Simulation.PlayerResourceService.WoodResourceId : GameContext.Simulation.PlayerResourceService.StoneResourceId] = (int)amount;
 			}
 		}
 	}
@@ -450,7 +450,7 @@ public class ResourceEconomyService
 
 	public void AdjustPlayerWood(int playerIndex, float delta)
 	{
-		var worldEntity = ECSContext.WorldEntity;
+		var worldEntity = GameContext.Simulation.WorldEntity;
 		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
 		{
 			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);

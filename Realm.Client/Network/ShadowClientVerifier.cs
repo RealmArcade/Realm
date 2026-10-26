@@ -77,7 +77,7 @@ public static class ShadowClientVerifier
 		if (!isBaseline) return;
 
 		_verifiedBaselines++;
-		uint replayed = ReplicatedStateFingerprint.CombineWeatherState(mirror.ComputeFingerprint(), GameContext.World, ECSContext.WorldEntity);
+		uint replayed = ReplicatedStateFingerprint.CombineWeatherState(mirror.ComputeFingerprint(), GameContext.World, GameContext.Simulation.WorldEntity);
 		if (replayed == snapshot.StateFingerprint)
 		{
 			if (_verifiedBaselines == 1)

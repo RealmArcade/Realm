@@ -1197,9 +1197,9 @@ public partial class MapEditorHUD : Control
 		GameContext.SessionState.SavedCameraPosition = camera.Position;
 
 		var host = GameContext.Host;
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity))
 		{
-			var state = GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			var state = GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 			GameContext.SessionState.SavedTargetHeight = state.TargetHeight;
 			GameContext.SessionState.SavedCurrentHeight = state.CurrentHeight;
 			GameContext.SessionState.SavedTargetYaw = state.TargetYaw;

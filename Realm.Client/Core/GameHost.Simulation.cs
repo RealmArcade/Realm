@@ -83,7 +83,7 @@ public partial class GameHost
 
 	private void HandleUnitBountyEconomy(Unit3D unit)
 	{
-		float resCap = ECSContext.PlayerResourceService.ResourceCap;
+		float resCap = GameContext.Simulation.PlayerResourceService.ResourceCap;
 		Entity beneficiaryPlayerEntity = Entity.Null;
 
 		if (GameContext.World.IsAlive(unit.Entity) && GameContext.World.Has<LastAttacker>(unit.Entity))

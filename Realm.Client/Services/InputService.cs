@@ -651,9 +651,9 @@ public class InputService
 
 	public bool IsAreaObstructed(Vector3 position, float clearance)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity))
 		{
-			ref var terrain = ref GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(ECSContext.WorldEntity);
+			ref var terrain = ref GameContext.World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
 			if (terrain.PathingCodes != null && terrain.Width > 0 && terrain.Depth > 0 && terrain.QuadSize > 0f)
 			{
 				int cx = Math.Clamp((int)MathF.Floor(position.X / terrain.QuadSize + terrain.Width / 2.0f), 0, terrain.Width - 1);
@@ -1004,9 +1004,9 @@ public class InputService
 
 	public bool TryGetCameraState(out CameraState state)
 	{
-		if (GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<CameraState>(ECSContext.WorldEntity))
+		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity))
 		{
-			state = GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+			state = GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 			return true;
 		}
 
@@ -1016,9 +1016,9 @@ public class InputService
 
 	public void TrySaveCameraSlot(int slotIndex, Vector3 pos, float zoom)
 	{
-		if (GameContext.World == null || !GameContext.World.IsAlive(ECSContext.WorldEntity) || !GameContext.World.Has<CameraState>(ECSContext.WorldEntity)) return;
+		if (GameContext.World == null || !GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) || !GameContext.World.Has<CameraState>(GameContext.Simulation.WorldEntity)) return;
 
-		ref var state = ref GameContext.World.Get<CameraState>(ECSContext.WorldEntity);
+		ref var state = ref GameContext.World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 		var slot = new CameraLocationSlot
 		{
 			Position = pos,

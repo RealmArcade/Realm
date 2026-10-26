@@ -396,7 +396,7 @@ public class ShroudService
 		}
 
 		var world = GameContext.World;
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (world == null || worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<NetworkMappingState>(worldEntity)) return -1;
 
 		var mapping = world.Get<NetworkMappingState>(worldEntity);

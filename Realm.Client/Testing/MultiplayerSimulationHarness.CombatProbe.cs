@@ -256,10 +256,10 @@ public partial class MultiplayerSimulationHarness
 				return;
 			}
 
-			NavigationParityDigest before = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+			NavigationParityDigest before = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity);
 			Vector3 target = new(0f, 0f, 0f);
 			host.AssignBuildTaskToWorker(worker.Entity, buildType, new System.Numerics.Vector3(target.X, target.Y, target.Z));
-			NavigationParityDigest after = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+			NavigationParityDigest after = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity);
 
 			GameHost.TryGetUnitOrBuildingMetadata(buildType, out var placedMeta);
 			GD.Print($"[NAV_PROBE] placed '{buildType}' (pathingType={placedMeta?.PathingType.ToString() ?? "?"} visualMode={placedMeta?.VisualMode ?? "?"}) from worker '{worker.UnitId}' at {target}; blocked cells {before.BlockedCellCount}->{after.BlockedCellCount}, ground polys {before.GroundPolyCount}->{after.GroundPolyCount}, pathing hash {before.PathingHash:x8}->{after.PathingHash:x8} (changed={before.PathingHash != after.PathingHash}), poly hash {before.PolyHash:x8}->{after.PolyHash:x8}");
@@ -277,7 +277,7 @@ public partial class MultiplayerSimulationHarness
 			GameHost host = GameContext.Host;
 			if (host == null || GameContext.World == null) return;
 
-			NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+			NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity);
 			string summary = string.Empty;
 			int buildingCount = 0;
 			foreach (Unit3D unit in host.AllUnits)
@@ -304,7 +304,7 @@ public partial class MultiplayerSimulationHarness
 
 	private static string DescribeNavigationDigest()
 	{
-		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, ECSContext.WorldEntity);
+		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity);
 		GameHost host = GameContext.Host;
 		int propCount = host != null ? host.AllProps.Count : 0;
 		return $" nav[terrain={digest.HasTerrainState} navMesh={digest.HasNavMesh} walkable={digest.WalkableCellCount} blocked={digest.BlockedCellCount} polys={digest.PolyCount} ground={digest.GroundPolyCount} pathing={digest.PathingHash:x8} polyHash={digest.PolyHash:x8} props={propCount}]";
@@ -397,7 +397,7 @@ public partial class MultiplayerSimulationHarness
 
 			int localIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
 			var world = GameContext.World;
-			Entity worldEntity = ECSContext.WorldEntity;
+			Entity worldEntity = GameContext.Simulation.WorldEntity;
 			bool hasMatrix = world.Has<PlayerRelationshipMatrix>(worldEntity);
 			string matrixRelationship = hasMatrix ? world.Get<PlayerRelationshipMatrix>(worldEntity).GetRelationship(localIndex, 1).ToString() : "missing";
 			bool hasPlayersState = world.Has<ScriptPlayersState>(worldEntity);

@@ -170,9 +170,9 @@ namespace Realm.Client.Utils
 
 		private static string GetActiveMapName()
 		{
-			if (GameContext.Host != null && !string.IsNullOrEmpty(ECSContext.ActiveMapName))
+			if (GameContext.Host != null && !string.IsNullOrEmpty(GameContext.Simulation.ActiveMapName))
 			{
-				return ECSContext.ActiveMapName;
+				return GameContext.Simulation.ActiveMapName;
 			}
 
 			if (GameContext.Lobby != null && !string.IsNullOrEmpty(GameContext.Lobby.ActiveMapName))

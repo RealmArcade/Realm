@@ -9,6 +9,13 @@ namespace Realm.Ecs.Services;
 /// </summary>
 public class MovementService
 {
+	private readonly SimulationContext _context;
+
+	public MovementService(SimulationContext context)
+	{
+		_context = context;
+	}
+
 	/// <summary>
 	/// Sets or updates the movement target for an entity.
 	/// This demonstrates the "intent" pattern. You don't move the entity here.
@@ -17,8 +24,9 @@ public class MovementService
 	/// </summary>
 	public void SetMoveTarget(Entity entity, Vector3 targetPosition)
 	{
-		if (ECSContext.World == null || !ECSContext.World.Has<Movable>(entity)) return;
+		EcsWorld? world = _context.World;
+		if (world == null || !world.Has<Movable>(entity)) return;
 
-		ECSContext.World.SetOrAdd(entity, new MoveTo(targetPosition));
+		world.SetOrAdd(entity, new MoveTo(targetPosition));
 	}
 }

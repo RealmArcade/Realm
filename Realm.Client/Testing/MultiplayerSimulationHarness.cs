@@ -517,8 +517,8 @@ public partial class MultiplayerSimulationHarness : Node
 			if (!isReady && readinessLogCounter % 50 == 0)
 			{
 				int appliedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
-				bool hasBaseline = GameContext.World != null && GameContext.World.IsAlive(ECSContext.WorldEntity) && GameContext.World.Has<NetworkState>(ECSContext.WorldEntity)
-					&& GameContext.World.Get<NetworkState>(ECSContext.WorldEntity).HasReceivedInitialBaseline;
+				bool hasBaseline = GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<NetworkState>(GameContext.Simulation.WorldEntity)
+					&& GameContext.World.Get<NetworkState>(GameContext.Simulation.WorldEntity).HasReceivedInitialBaseline;
 				GD.Print($"[MP_HARNESS] Readiness wait ({(isHost ? "host" : "client")}): elapsed={host?.GameElapsedTime ?? 0f:F2} units={host?.AllUnits.Count ?? 0} appliedSequence={appliedSequence} baseline={hasBaseline} peerPresent={Multiplayer.MultiplayerPeer != null}");
 			}
 
@@ -732,7 +732,7 @@ public partial class MultiplayerSimulationHarness : Node
 	private static int ResolveSnapshotSequence()
 	{
 		if (GameContext.World == null) return -1;
-		Entity worldEntity = ECSContext.WorldEntity;
+		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return -1;
 		return GameContext.World.Get<NetworkState>(worldEntity).SnapshotSequence;
 	}

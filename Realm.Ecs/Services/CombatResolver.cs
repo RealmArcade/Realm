@@ -35,9 +35,10 @@ public static class CombatResolver
 		float percentPenetration,
 		string? damageType,
 		CombatConfig? config = null,
-		Random? rng = null)
+		Random? rng = null,
+		SimulationContext? context = null)
 	{
-		config ??= ECSContext.ActiveCombatConfig;
+		config ??= context?.ActiveCombatConfig ?? new CombatConfig();
 		rng ??= Random.Shared;
 
 		// Stage 1: raw.
@@ -94,6 +95,8 @@ public static class CombatResolver
 		string? damageType,
 		CombatConfig? config = null)
 	{
+		config ??= world.Context?.ActiveCombatConfig;
+
 		Resistances resistances = world.Has<Resistances>(target) ? world.Get<Resistances>(target) : default;
 
 		string type = DamageTypes.Normalize(damageType);
@@ -117,7 +120,8 @@ public static class CombatResolver
 			flatPenetration: flatPenetration,
 			percentPenetration: percentPenetration,
 			damageType: type,
-			config: config);
+			config: config,
+			context: world.Context);
 	}
 
 	/// <summary>
