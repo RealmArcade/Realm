@@ -17,7 +17,7 @@ public partial class ReplicationContractTests
 		"Position", "PreviousPosition", "Health", "Owner",
 		"ManaRegen", "CollisionRadius", "CollisionScale", "DefinitionId",		"CustomMetadata",
 		"CountdownState", "DecalIdentity", "DecalSpawnRequest", "EditorState",
-		"GroundLoot", "InputState",
+		"InputState",
 		"NetworkMappingState", "NetworkState", "OccupiedZones",
 		"PropIdentity", "PropSpawnRequest",
 		"ReplayState", "ScriptPlayer", "SpectatorPerspective",
