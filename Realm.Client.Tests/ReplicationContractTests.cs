@@ -17,6 +17,7 @@ public partial class ReplicationContractTests
 		"Position", "PreviousPosition", "Health", "Owner",
 		"ManaRegen", "CollisionRadius", "CollisionScale", "DefinitionId",		"CustomMetadata",
 		"CountdownState", "DecalIdentity", "DecalSpawnRequest", "EditorState",
+		"DescribedAtSequence",
 		"InputState",
 		"NetworkMappingState", "NetworkState", "OccupiedZones",
 		"PropIdentity", "PropSpawnRequest",
@@ -41,7 +42,8 @@ public partial class ReplicationContractTests
 		"PreviousRotationY", "ShroudState", "TerrainCell", "TerrainColorsState",
 		"TerrainSwatchConfig",
 		"PlayerRelationshipMatrix", "HealingTarget",
-		"ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset"
+		"ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset",
+		"PredictedMoveTo", "SummonedUnit"
 	};
 
 	private static readonly string[] RpcReplicatedComponents =
@@ -64,7 +66,8 @@ public partial class ReplicationContractTests
 	{
 		"BuffSlot", "BuffSlotArray", "InventorySlot", "InventorySlotArray",
 		"ModifierSlotArray", "PlayerSlotArray", "StatSlot", "StatSlotArray",
-		"VFXSlotArray", "OccupiedZoneMask", "CameraLocationSlot"
+		"VFXSlotArray", "OccupiedZoneMask", "CameraLocationSlot",
+		"BuildQueueSlot", "BuildQueueSlots", "AbsorbShieldSlot", "AbsorbShieldSlotArray"
 	};
 
 	private const int MinimumComponentTypeCount = 120;
