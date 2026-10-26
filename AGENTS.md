@@ -71,6 +71,10 @@
 - Map Migrations (`MapUpgradeService.cs`): Backwards compatibility for older maps is handled exclusively via sequential `IMapMigration` classes inside `MapUpgradeService`, modeled after Entity Framework Migrations. Each release build only transitions from the immediate prior version (`v0.0.0 -> v0.0.1 -> v0.0.2...`), allowing multi-version outdated maps to upgrade sequentially in sequence.
 - `GameBuildNumber`: Every `metadata.json` must include a `GameBuildNumber` string matching `RealmVersion.GameBuildNumber`. This value is hardcoded and only changed manually when publishing and tagging an official release. Matches in the game lobby are locked to the map's `GameBuildNumber`.
 
+## Client and Server Process Split:
+- `Realm.Client` must never have a compile-time project reference to `Realm.ListenServer`, and `Realm.ListenServer` must never reference `Realm.Client` or Godot. All gameplay communication crosses the process boundary as serialized transport frames; there is no shared in-process world, service, or static state between them.
+- `Realm.Shared` owns every serialized payload, protocol constant, transport contract and handshake type. A payload the authoritative process has to serialize can never live in `Realm.Client`.
+
 ## AI "Vibe" Coding & Maintenance Instructions:
 - Avoid using proprietary or copyrighted terms from other games.
 - For fast lookup during queries without breaking the PURE DATA PRINCIPLE, do not put Godot Nodes inside components. Instead, map the relationship using unique entity IDs, or look up corresponding visual nodes via a managed registry outside the ECS system arrays.

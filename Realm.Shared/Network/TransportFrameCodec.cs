@@ -9,7 +9,7 @@ public static class TransportFrameCodec
 	public static void WriteFrame(Stream stream, NetworkFrameKind kind, ReadOnlySpan<byte> payload)
 	{
 		int frameLength = RealmProtocol.FrameKindBytes + payload.Length;
-		if (frameLength <= RealmProtocol.FrameKindBytes || frameLength > RealmProtocol.MaximumFrameBytes)
+		if (frameLength < RealmProtocol.FrameKindBytes || frameLength > RealmProtocol.MaximumFrameBytes)
 		{
 			throw new InvalidDataException($"A {kind} frame of {frameLength} bytes is outside the protocol's frame limits.");
 		}
@@ -28,7 +28,7 @@ public static class TransportFrameCodec
 		if (!TryReadExactly(stream, lengthPrefix, allowCleanEndOfStream: true)) return Fail(out frame);
 
 		int frameLength = BinaryPrimitives.ReadInt32LittleEndian(lengthPrefix);
-		if (frameLength <= RealmProtocol.FrameKindBytes || frameLength > RealmProtocol.MaximumFrameBytes)
+		if (frameLength < RealmProtocol.FrameKindBytes || frameLength > RealmProtocol.MaximumFrameBytes)
 		{
 			throw new InvalidDataException($"A frame declares {frameLength} bytes, outside the protocol's frame limits.");
 		}

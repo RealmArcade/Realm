@@ -8,7 +8,7 @@ public interface IClientTransport : IDisposable
 
 	void Send(NetworkFrameKind kind, ReadOnlySpan<byte> payload);
 
-	bool TryReceive(out NetworkFrame frame);
+	bool TryReceive(int timeoutMilliseconds, out NetworkFrame frame);
 
 	void Close();
 }

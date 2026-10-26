@@ -9,6 +9,7 @@
   </Project>
   <Project Path="Realm.Distribution.Tests/Realm.Distribution.Tests.csproj" />
   <Project Path="Realm.Ecs/Realm.Ecs.csproj" />
+  <Project Path="Realm.ListenServer/Realm.ListenServer.csproj" />
   <Project Path="Realm.EditorAPI/Realm.EditorAPI.csproj" />
   <Project Path="Realm.AdminServer/Realm.AdminServer.csproj" />
   <Project Path="Realm.MapAPI/Realm.MapAPI.csproj" />

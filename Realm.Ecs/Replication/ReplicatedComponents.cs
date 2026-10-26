@@ -630,6 +630,28 @@ public static class ReplicatedComponents
 
 	public static IReadOnlyList<IReplicatedComponentCodec> All => _codecs;
 
+	public static string ComputeWireTableHash()
+	{
+		uint hash = ReplicatedStateFingerprint.Seed;
+		IReadOnlyList<IReplicatedComponentCodec> codecs = _codecs;
+		for (int index = 0; index < codecs.Count; index++)
+		{
+			IReplicatedComponentCodec codec = codecs[index];
+			hash = ReplicatedStateFingerprint.Combine(hash, codec.ComponentName);
+			hash = ReplicatedStateFingerprint.Combine(hash, codec.ComponentTypeId);
+			hash = ReplicatedStateFingerprint.Combine(hash, (int)codec.Scope);
+		}
+
+		IReadOnlyList<IReplicatedComponentCodec> slots = ReplicatedUnitComponentSlots.Slots;
+		hash = ReplicatedStateFingerprint.Combine(hash, slots.Count);
+		for (int index = 0; index < slots.Count; index++)
+		{
+			hash = ReplicatedStateFingerprint.Combine(hash, slots[index].ComponentTypeId);
+		}
+
+		return hash.ToString("x8");
+	}
+
 	public static IReplicatedComponentCodec? Find(int componentTypeId)
 	{
 		for (int i = 0; i < _codecs.Count; i++)
