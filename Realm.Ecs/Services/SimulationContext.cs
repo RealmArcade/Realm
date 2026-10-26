@@ -18,6 +18,8 @@ public class SimulationContext : IDisposable
 	public DefinitionManager DefinitionManager { get; private set; }
 	public CombatService CombatService { get; private set; }
 	public MovementService MovementService { get; private set; }
+	public MovementAndPathfindingService MovementPathfindingService { get; private set; }
+	public NavMeshPathfinder NavMeshPathfinder { get; private set; }
 	public PlayerResourceService PlayerResourceService { get; private set; }
 	public StatService StatService { get; private set; }
 	public TerrainNavMeshService TerrainNavMeshService { get; private set; }
@@ -43,6 +45,8 @@ public class SimulationContext : IDisposable
 		DefinitionManager = new DefinitionManager();
 		CombatService = new CombatService(this);
 		MovementService = new MovementService(this);
+		MovementPathfindingService = new MovementAndPathfindingService(this);
+		NavMeshPathfinder = new NavMeshPathfinder();
 		StatService = new StatService(this);
 		TerrainNavMeshService = new TerrainNavMeshService(this);
 		PlayerResourceService = new PlayerResourceService();

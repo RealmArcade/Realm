@@ -70,7 +70,7 @@ namespace Realm.Ecs.Tests
 			GameContext.Simulation.WorldEntity = _worldEntity;
 			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
 
-			_movementService = new MovementAndPathfindingService();
+			_movementService = new MovementAndPathfindingService(GameContext.Simulation);
 		}
 
 		/// <summary>
@@ -97,7 +97,7 @@ namespace Realm.Ecs.Tests
 			GameContext.Simulation.WorldEntity = _worldEntity;
 			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
 
-			_movementService = new MovementAndPathfindingService();
+			_movementService = new MovementAndPathfindingService(GameContext.Simulation);
 		}
 
 		/// <summary>
@@ -125,7 +125,7 @@ namespace Realm.Ecs.Tests
 			GameContext.Simulation.WorldEntity = _worldEntity;
 			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
 
-			_movementService = new MovementAndPathfindingService();
+			_movementService = new MovementAndPathfindingService(GameContext.Simulation);
 		}
 
 		private Entity CreatePlayer(int index)

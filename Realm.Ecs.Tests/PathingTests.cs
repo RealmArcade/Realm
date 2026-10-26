@@ -57,7 +57,7 @@ namespace Realm.Ecs.Tests
 			_worldEntity = _world.Create(terrainState);
 			GameContext.Simulation.WorldEntity = _worldEntity;
 
-			_movementService = new MovementAndPathfindingService();
+			_movementService = new MovementAndPathfindingService(GameContext.Simulation);
 		}
 
 		private void SpawnObstacle(Vector3 pos, float radius)

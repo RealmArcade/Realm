@@ -185,7 +185,7 @@ namespace Realm.Client.Services
 		public static TimerService TimerService => ScreenScope.Get<TimerService>();
 		public static RandomService RandomService => ScreenScope.Get<RandomService>();
 		public static PerformanceTrackingService PerformanceTrackingService => ScreenScope.Get<PerformanceTrackingService>();
-		public static NavMeshPathfinder NavMeshPathfinder => ScreenScope.Get<NavMeshPathfinder>();
+		public static NavMeshPathfinder NavMeshPathfinder => Simulation.NavMeshPathfinder;
 		public static ResourceEconomyService ResourceEconomyService => ScreenScope.Get<ResourceEconomyService>();
 		public static SimulationService SimulationService => ScreenScope.Get<SimulationService>();
 		public static ConsumableService ConsumableService => ScreenScope.Get<ConsumableService>();

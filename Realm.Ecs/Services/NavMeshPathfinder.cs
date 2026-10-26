@@ -6,7 +6,7 @@ using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using WaypointBuffer = Realm.Ecs.Components.Movement.WaypointBuffer;
 
-namespace Realm.Client
+namespace Realm.Ecs.Services
 {
 	public class NavMeshPathfinder
 	{

@@ -1,6 +1,6 @@
 using DotRecast.Core.Numerics;
 
-namespace Realm.Client
+namespace Realm.Ecs.Services
 {
 	public readonly struct NavMeshStartRecovery
 	{

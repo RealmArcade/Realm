@@ -14,26 +14,27 @@ using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
-namespace Realm.Client.Services
+namespace Realm.Ecs.Services
 {
 	public class MovementAndPathfindingService
 	{
+		private readonly SimulationContext _context;
 		private Entity _resolvedWorldEntity = Entity.Null;
 
 		private Entity ActiveWorldEntity
 		{
 			get
 			{
-				if (_resolvedWorldEntity == Entity.Null || !GameContext.World.IsAlive(_resolvedWorldEntity))
+				if (_resolvedWorldEntity == Entity.Null || !_context.World.IsAlive(_resolvedWorldEntity))
 				{
-					if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity))
+					if (_context.WorldEntity != Entity.Null && _context.World.IsAlive(_context.WorldEntity))
 					{
-						_resolvedWorldEntity = GameContext.Simulation.WorldEntity;
+						_resolvedWorldEntity = _context.WorldEntity;
 					}
 					else
 					{
 						var worldQuery = QueryCache.AllTerrainStateQuery;
-						GameContext.World.Query(in worldQuery, entity => _resolvedWorldEntity = entity);
+						_context.World.Query(in worldQuery, entity => _resolvedWorldEntity = entity);
 					}
 				}
 
@@ -192,8 +193,21 @@ namespace Realm.Client.Services
 			set => _editorHeightProvider = value;
 		}
 
-		public MovementAndPathfindingService()
+		/// <summary>
+		///     Decides whether an entity takes part in movement planning. A client narrows this to the units it predicts;
+		///     an authoritative context leaves it unset and plans every entity in the world.
+		/// </summary>
+		public Func<Entity, bool>? SimulateEntityFilter { get; set; }
+
+		/// <summary>Where the start-recovery diagnostics go. A headless process has no Godot logger, so it stays silent.</summary>
+		public Action<string>? WarningSink { get; set; }
+
+		/// <summary>Raised for an entity whose position this step wrote, so a client can attribute the write in its diagnostics.</summary>
+		public Action<Entity>? PositionWrittenSink { get; set; }
+
+		public MovementAndPathfindingService(SimulationContext context)
 		{
+			_context = context;
 			_movementQueryDelegate = MovementQueryAction;
 			_collectMovementWorkItemDelegate = CollectMovementWorkItemAction;
 			_collectPredictedMovementWorkItemDelegate = CollectPredictedMovementWorkItemAction;
@@ -201,6 +215,8 @@ namespace Realm.Client.Services
 			_unitSpatialQueryDelegate = UnitSpatialGridQueryAction;
 			_propSpatialQueryDelegate = PropSpatialGridQueryAction;
 		}
+
+		private bool ShouldSimulateEntity(Entity entity) => SimulateEntityFilter == null || SimulateEntityFilter(entity);
 
 		public void InvalidatePropGrid()
 		{
@@ -236,14 +252,14 @@ namespace Realm.Client.Services
 			RebuildSpatialGrid();
 
 			_movementWorkCount = 0;
-			GameContext.World.Query(in _movementQuery, _collectMovementWorkItemDelegate);
-			GameContext.World.Query(in _predictedMovementQuery, _collectPredictedMovementWorkItemDelegate);
+			_context.World.Query(in _movementQuery, _collectMovementWorkItemDelegate);
+			_context.World.Query(in _predictedMovementQuery, _collectPredictedMovementWorkItemDelegate);
 
 			if (_movementWorkCount > 0)
 			{
 				ParallelRunner.Execute(_movementWorkCount, _processMovementWorkItemDelegate);
 
-				var world = GameContext.World;
+				var world = _context.World;
 				for (int i = 0; i < _movementWorkCount; i++)
 				{
 					ref var item = ref _movementWorkItems[i];
@@ -260,8 +276,8 @@ namespace Realm.Client.Services
 					{
 						if (item.IsPredicted)
 						{
-							GameContext.World.Remove<PredictedMoveTo>(item.Entity);
-							if (GameContext.World.Has<PathFollow>(item.Entity)) GameContext.World.Remove<PathFollow>(item.Entity);
+							_context.World.Remove<PredictedMoveTo>(item.Entity);
+							if (_context.World.Has<PathFollow>(item.Entity)) _context.World.Remove<PathFollow>(item.Entity);
 						}
 						else
 						{
@@ -272,7 +288,7 @@ namespace Realm.Client.Services
 					}
 					else
 					{
-						PositionWriteTrace.Mark(item.Entity, PositionWriter.Movement);
+						PositionWrittenSink?.Invoke(item.Entity);
 						world.Set(item.Entity, new Position(item.NextPosition));
 						world.SetOrAdd(item.Entity, new Velocity(item.NextVelocity));
 					}
@@ -281,41 +297,41 @@ namespace Realm.Client.Services
 
 			foreach (var entity in _tickArrivedUnits)
 			{
-				if (GameContext.World.IsAlive(entity) && GameContext.World.Has<MoveTo>(entity))
+				if (_context.World.IsAlive(entity) && _context.World.Has<MoveTo>(entity))
 				{
-					if (GameContext.World.Has<PathFollow>(entity))
+					if (_context.World.Has<PathFollow>(entity))
 					{
-						GameContext.World.Remove<PathFollow>(entity);
+						_context.World.Remove<PathFollow>(entity);
 					}
 
-					if (GameContext.World.Has<WaypointQueue>(entity))
+					if (_context.World.Has<WaypointQueue>(entity))
 					{
-						var q = GameContext.World.Get<WaypointQueue>(entity);
+						var q = _context.World.Get<WaypointQueue>(entity);
 						if (q.Count > 0)
 						{
 							var nextWaypoint = q.Dequeue();
-							GameContext.World.Set(entity, q);
-							GameContext.World.Set(entity, new MoveTo(nextWaypoint));
+							_context.World.Set(entity, q);
+							_context.World.Set(entity, new MoveTo(nextWaypoint));
 							continue;
 						}
 						else
 						{
-							GameContext.World.Remove<WaypointQueue>(entity);
+							_context.World.Remove<WaypointQueue>(entity);
 						}
 					}
 
-					GameContext.World.Remove<MoveTo>(entity);
+					_context.World.Remove<MoveTo>(entity);
 				}
 			}
 		}
 
 		public void RefreshTerrainState()
 		{
-			_hasTerrainState = GameContext.World.IsAlive(ActiveWorldEntity) && GameContext.World.Has<TerrainState>(ActiveWorldEntity);
+			_hasTerrainState = _context.World.IsAlive(ActiveWorldEntity) && _context.World.Has<TerrainState>(ActiveWorldEntity);
 			if (_hasTerrainState)
 			{
 				Entity worldEntity = ActiveWorldEntity;
-				TerrainState terrainState = GameContext.World.Get<TerrainState>(worldEntity);
+				TerrainState terrainState = _context.World.Get<TerrainState>(worldEntity);
 				if (worldEntity != _offMeshStartRecoveryWorldEntity || !ReferenceEquals(terrainState.NavMesh, _currentTerrainState.NavMesh))
 				{
 					ResetOffMeshStartRecoveryDiagnostics();
@@ -370,7 +386,7 @@ namespace Realm.Client.Services
 
 			_unitGrid.Clear();
 
-			var world = GameContext.World;
+			var world = _context.World;
 			world.Query(in _unitSpatialQuery, _unitSpatialQueryDelegate);
 
 			int currentPropCount = world.CountEntities(in _propSpatialQuery);
@@ -394,7 +410,7 @@ namespace Realm.Client.Services
 
 		private void UnitSpatialGridQueryAction(Entity entity, ref Position p)
 		{
-			var world = GameContext.World;
+			var world = _context.World;
 			Vector3 pos = p.Value;
 			long key = GetCellKey(pos.X, pos.Z);
 
@@ -415,7 +431,7 @@ namespace Realm.Client.Services
 
 		private void PropSpatialGridQueryAction(Entity entity, ref Position p)
 		{
-			var world = GameContext.World;
+			var world = _context.World;
 			if (world.Has<Dead>(entity)) return;
 
 			Vector3 pos = p.Value;
@@ -446,9 +462,9 @@ namespace Realm.Client.Services
 				return false;
 			}
 
-			pathingFlags = (ushort)(GameContext.World.Has<PathingFlags>(entity) ? GameContext.World.Get<PathingFlags>(entity).Value : 8);
+			pathingFlags = (ushort)(_context.World.Has<PathingFlags>(entity) ? _context.World.Get<PathingFlags>(entity).Value : 8);
 			isFlying = ((TerrainPathingFlags)pathingFlags & TerrainPathingFlags.Flying) != 0;
-			hasPf = GameContext.World.Has<PathFollow>(entity);
+			hasPf = _context.World.Has<PathFollow>(entity);
 			pf = GetOrCreatePathFollow(hasPf, entity, pos, target);
 
 			return true;
@@ -456,11 +472,11 @@ namespace Realm.Client.Services
 
 		private void CollectMovementWorkItemAction(Entity entity, ref Position pos, ref MoveTo moveTo, ref MovementStats stats)
 		{
-			if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
+			if (!ShouldSimulateEntity(entity)) return;
 
-			if (GameContext.World.Has<PredictedMoveTo>(entity)) return;
+			if (_context.World.Has<PredictedMoveTo>(entity)) return;
 
-			if (GameContext.World.Has<CommandsFrozen>(entity)) return;
+			if (_context.World.Has<CommandsFrozen>(entity)) return;
 
 			if (!TryGetMovementContext(entity, pos.Value, moveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
 
@@ -486,9 +502,9 @@ namespace Realm.Client.Services
 
 		private void CollectPredictedMovementWorkItemAction(Entity entity, ref Position pos, ref PredictedMoveTo predictedMoveTo, ref MovementStats stats)
 		{
-			if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
+			if (!ShouldSimulateEntity(entity)) return;
 
-			if (GameContext.World.Has<CommandsFrozen>(entity)) return;
+			if (_context.World.Has<CommandsFrozen>(entity)) return;
 
 			if (!TryGetMovementContext(entity, pos.Value, predictedMoveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
 
@@ -573,7 +589,7 @@ namespace Realm.Client.Services
 				: Vector3.Normalize(toTarget) * actualSpeed;
 
 			Vector3 steering = CalculateSteering(entity, posValue, desiredVelocity, actualSpeed, pf.StuckTime >= StuckEscalationTime);
-			Vector3 currentVelocity = GameContext.World.Has<Velocity>(entity) ? GameContext.World.Get<Velocity>(entity).Value : Vector3.Zero;
+			Vector3 currentVelocity = _context.World.Has<Velocity>(entity) ? _context.World.Get<Velocity>(entity).Value : Vector3.Zero;
 
 			Vector3 velocity = stats.Acceleration > 0f ? MoveTowards(currentVelocity, steering, stats.Acceleration * _fDelta) : steering;
 			Vector3 nextPos = posValue + velocity * _fDelta;
@@ -700,7 +716,7 @@ namespace Realm.Client.Services
 			}
 			else if (_hasTerrainState)
 			{
-				GameContext.Simulation.TerrainNavMeshService.GetHeightAndNormal(in _currentTerrainState, nextPos.X, nextPos.Z, out float groundHeight, out _);
+				_context.TerrainNavMeshService.GetHeightAndNormal(in _currentTerrainState, nextPos.X, nextPos.Z, out float groundHeight, out _);
 				desiredY = groundHeight;
 				velocity.Y = 0f;
 			}
@@ -741,12 +757,12 @@ namespace Realm.Client.Services
 
 		private bool TryHandleStun(Entity entity)
 		{
-			if (!GameContext.World.Has<Buffs>(entity) || !GameContext.World.Get<Buffs>(entity).TryGetValue("stun", out _))
+			if (!_context.World.Has<Buffs>(entity) || !_context.World.Get<Buffs>(entity).TryGetValue("stun", out _))
 				return false;
 
-			if (GameContext.World.Has<Velocity>(entity))
+			if (_context.World.Has<Velocity>(entity))
 			{
-				GameContext.World.Set(entity, new Velocity(Vector3.Zero));
+				_context.World.Set(entity, new Velocity(Vector3.Zero));
 			}
 
 			return true;
@@ -754,7 +770,7 @@ namespace Realm.Client.Services
 
 		private PathFollow GetOrCreatePathFollow(bool hasPf, Entity entity, Vector3 posValue, Vector3 target)
 		{
-			if (hasPf) return GameContext.World.Get<PathFollow>(entity);
+			if (hasPf) return _context.World.Get<PathFollow>(entity);
 
 			return new PathFollow
 			{
@@ -791,7 +807,7 @@ namespace Realm.Client.Services
 			else
 			{
 				replanCause = ResolveReplanCause(pf, target);
-				GameContext.NavMeshPathfinder.ComputePath(_currentTerrainState.NavMeshQuery, start, target, pathingFlags, ref pf, out startRecovery);
+				_context.NavMeshPathfinder.ComputePath(_currentTerrainState.NavMeshQuery, start, target, pathingFlags, ref pf, out startRecovery);
 			}
 
 			pf.Target = target;
@@ -809,7 +825,7 @@ namespace Realm.Client.Services
 			_offMeshStartRecoveryLogTimeByEntityId[entityId] = _elapsedTime;
 			_offMeshStartRecoveryCount++;
 
-			var world = GameContext.World;
+			var world = _context.World;
 			string entityName = world != null && world.Has<Name>(entity) ? world.Get<Name>(entity).Value : "-";
 			string definitionId = world != null && world.Has<DefinitionId>(entity) ? world.Get<DefinitionId>(entity).Value : "-";
 			string snappedText = startRecovery.Found
@@ -818,7 +834,7 @@ namespace Realm.Client.Services
 			string lateralText = startRecovery.Found ? startRecovery.LateralDistance.ToString("0.00") : "na";
 			string verticalText = startRecovery.Found ? startRecovery.VerticalDelta.ToString("0.00") : "na";
 
-			Godot.GD.PushWarning(
+			WarningSink?.Invoke(
 				$"[NavMesh.StartRecovery] incident=#{_offMeshStartRecoveryCount} entity={entityId} name={entityName} def={definitionId} cause={GetOffMeshReplanCauseLabel(replanCause)} found={startRecovery.Found} startRef={startRecovery.StartRef} requested=({startRecovery.Requested.X:0.00},{startRecovery.Requested.Y:0.00},{startRecovery.Requested.Z:0.00}) snapped={snappedText} lateral={lateralText} dy={verticalText}");
 		}
 
@@ -845,7 +861,7 @@ namespace Realm.Client.Services
 		{
 			if (_offMeshStartRecoveryLogTimeByEntityId.Count == 0) return;
 
-			var world = GameContext.World;
+			var world = _context.World;
 			if (world == null) return;
 
 			_deadOffMeshStartRecoveryEntityIds.Clear();
@@ -880,7 +896,7 @@ namespace Realm.Client.Services
 			if (pf.CurrentWaypointIndex >= pf.WaypointCount)
 			{
 				_tickArrivedUnits.Add(entity);
-				GameContext.World.SetOrAdd(entity, new Velocity(Vector3.Zero));
+				_context.World.SetOrAdd(entity, new Velocity(Vector3.Zero));
 				return true;
 			}
 
@@ -906,7 +922,7 @@ namespace Realm.Client.Services
 				return stats.Speed;
 			}
 
-			float actualSpeed = GameContext.Simulation.StatService != null ? GameContext.Simulation.StatService.GetStatValue(entity, MovementSpeedStatId) : 0f;
+			float actualSpeed = _context.StatService != null ? _context.StatService.GetStatValue(entity, MovementSpeedStatId) : 0f;
 			return actualSpeed <= 0 ? stats.Speed : actualSpeed;
 		}
 
@@ -924,7 +940,7 @@ namespace Realm.Client.Services
 				: Vector3.Normalize(toTarget) * actualSpeed;
 
 			Vector3 steering = CalculateSteering(entity, current, desiredVelocity, actualSpeed, pf.StuckTime >= StuckEscalationTime);
-			Vector3 currentVelocity = GameContext.World.Has<Velocity>(entity) ? GameContext.World.Get<Velocity>(entity).Value : Vector3.Zero;
+			Vector3 currentVelocity = _context.World.Has<Velocity>(entity) ? _context.World.Get<Velocity>(entity).Value : Vector3.Zero;
 
 			Vector3 velocity = stats.Acceleration > 0f ? MoveTowards(currentVelocity, steering, stats.Acceleration * _fDelta) : steering;
 			Vector3 nextPos = current + velocity * _fDelta;
@@ -937,7 +953,7 @@ namespace Realm.Client.Services
 			ApplyVerticalFollow(pos.Value, isFlying, ref nextPos, ref velocity);
 
 			pos.Value = nextPos;
-			GameContext.World.SetOrAdd(entity, new Velocity(velocity));
+			_context.World.SetOrAdd(entity, new Velocity(velocity));
 		}
 
 		private Vector3 CalculateSteering(Entity entity, Vector3 current, Vector3 desiredVelocity, float actualSpeed, bool stuck)
@@ -1013,8 +1029,8 @@ namespace Realm.Client.Services
 
 		private void ApplyCollisionAvoidance(Entity entity, Vector3 current, ref Vector3 nextPos)
 		{
-			float scale1 = GameContext.World.Has<CollisionScale>(entity) ? GameContext.World.Get<CollisionScale>(entity).Value : 1.0f;
-			float authoredRadius = GameContext.World.Has<CollisionRadius>(entity) ? GameContext.World.Get<CollisionRadius>(entity).Value : 0f;
+			float scale1 = _context.World.Has<CollisionScale>(entity) ? _context.World.Get<CollisionScale>(entity).Value : 1.0f;
+			float authoredRadius = _context.World.Has<CollisionRadius>(entity) ? _context.World.Get<CollisionRadius>(entity).Value : 0f;
 			float r1 = GameplayConstants.ResolveUnitContactRadius(authoredRadius, scale1);
 
 			int baseCx = (int)Math.Floor(nextPos.X / _collisionCellSize);
@@ -1091,11 +1107,11 @@ namespace Realm.Client.Services
 		{
 			if (hasPf)
 			{
-				GameContext.World.Set(entity, pf);
+				_context.World.Set(entity, pf);
 			}
 			else
 			{
-				GameContext.World.Add(entity, pf);
+				_context.World.Add(entity, pf);
 			}
 		}
 	}

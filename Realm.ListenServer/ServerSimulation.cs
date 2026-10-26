@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using Realm.Shared.Maps;
+using Realm.Shared.Simulation;
 
 namespace Realm.ListenServer;
 
@@ -15,15 +16,20 @@ public class ServerSimulation : IDisposable
 
 	private readonly LoadedMap _map;
 	private readonly ServerLog _log;
+	private readonly MatchTick _matchTick;
 	private bool _disposed;
 
 	public ServerSimulation(LoadedMap map, ServerLog log)
 	{
 		_map = map;
 		_log = log;
+		_matchTick = new MatchTick(map.Simulation);
 	}
 
 	public LoadedMap Map => _map;
+
+	/// <summary>The shared timed steps this match advances, so the server can report what it is configured to run.</summary>
+	public MatchTick MatchTick => _matchTick;
 
 	/// <summary>How far the match has advanced, in simulated seconds.</summary>
 	public double MatchSeconds { get; private set; }
@@ -31,13 +37,20 @@ public class ServerSimulation : IDisposable
 	public long TickCount { get; private set; }
 
 	/// <summary>
-	///     Advances the world by exactly one tick. Only simulated time moves at this point: the command pipeline that
-	///     turns a player's orders into movement, combat and production is not wired to the transport yet.
+	///     Advances the world by exactly one tick, in the order the simulation expects: the clock and cooldowns drain,
+	///     movement resolves the orders on the board, then timed statuses, regeneration and visibility catch up.
+	///     Combat, production and the command pipeline are not wired in yet, so an orderless match only ages.
 	/// </summary>
 	public void Step()
 	{
 		MatchSeconds += FixedTickSeconds;
 		TickCount++;
+
+		float deltaSeconds = (float)FixedTickSeconds;
+		_matchTick.AdvanceCooldowns(deltaSeconds);
+		_map.Simulation.MovementPathfindingService.StepMovement(deltaSeconds);
+		_matchTick.AdvanceStatusEffects(deltaSeconds);
+		_matchTick.AdvanceRegeneration(deltaSeconds);
 	}
 
 	/// <summary>A one-line account of what the map loaded, for the match log.</summary>

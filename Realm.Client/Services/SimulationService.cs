@@ -642,7 +642,10 @@ public class SimulationService
 
 	public SimulationService()
 	{
-		_movementService = new MovementAndPathfindingService();
+		_movementService = GameContext.Simulation.MovementPathfindingService;
+		_movementService.SimulateEntityFilter = ShouldSimulateEntity;
+		_movementService.PositionWrittenSink = entity => PositionWriteTrace.Mark(entity, PositionWriter.Movement);
+		_movementService.WarningSink = message => Godot.GD.PushWarning(message);
 		_combatService = new CombatAndDamageService(() => GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled);
 		_economyService = new ResourceEconomyService();
 
