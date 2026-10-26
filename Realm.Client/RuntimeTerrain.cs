@@ -1,3 +1,4 @@
+using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -138,19 +139,7 @@ public partial class RuntimeTerrain : Node3D
 	public const int PATHING_GROUND = (int)TerrainPathingFlags.Ground;
 	public const int PATHING_BUILDABLE = (int)TerrainPathingFlags.Buildable;
 
-	public static int GetDefaultPathingCode(WaterType waterMode)
-	{
-		switch (waterMode)
-		{
-			case WaterType.Shallow:
-				return PATHING_SHALLOW_WATER | PATHING_FLYING;
-			case WaterType.Deep:
-				return PATHING_DEEP_WATER | PATHING_FLYING;
-			case WaterType.None:
-			default:
-				return PATHING_GROUND | PATHING_BUILDABLE | PATHING_FLYING;
-		}
-	}
+	public static int GetDefaultPathingCode(WaterType waterMode) => TerrainPathing.DefaultCode(waterMode);
 
 	public static int GetDefaultPathingCode(TerrainCell cell)
 	{

@@ -1,3 +1,4 @@
+using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6166,15 +6167,13 @@ public partial class EditorService : IEditorAPI
 		string dir = Path.GetDirectoryName(baseTerrainJsonPath);
 		if (!string.IsNullOrEmpty(dir))
 		{
-			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(Path.Combine(dir, "terrain_heights.exr")));
-			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(Path.Combine(dir, "terrain_water.exr")));
-			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(Path.Combine(dir, "terrain_splat_indices.exr")));
-			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(Path.Combine(dir, "terrain_splat_weights.exr")));
-			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(Path.Combine(dir, "terrain_cliff_splat_indices.exr")));
-			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(Path.Combine(dir, "terrain_cliff_splat_weights.exr")));
-			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(Path.Combine(dir, "terrain_splat_indices.png")));
-			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(Path.Combine(dir, "terrain_splat_weights.png")));
-			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(Path.Combine(dir, "terrain_pathing.png")));
+			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(MapTerrainFiles.HeightsPath(dir)));
+			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(MapTerrainFiles.WaterPath(dir)));
+			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(MapTerrainFiles.PathingPath(dir)));
+			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(MapTerrainFiles.SplatIndicesPath(dir, MapTerrainFiles.SplatPrefix)));
+			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(MapTerrainFiles.SplatWeightsPath(dir, MapTerrainFiles.SplatPrefix)));
+			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(MapTerrainFiles.SplatIndicesPath(dir, MapTerrainFiles.CliffSplatPrefix)));
+			maxTime = Math.Max(maxTime, GetLastWriteTimeSafe(MapTerrainFiles.SplatWeightsPath(dir, MapTerrainFiles.CliffSplatPrefix)));
 		}
 
 		return maxTime;

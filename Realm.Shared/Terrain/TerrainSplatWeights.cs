@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using System.Runtime.InteropServices;
 
-namespace Realm.Client;
+namespace Realm.Shared.Terrain;
 
 [StructLayout(LayoutKind.Sequential)]
 public struct TerrainSplatWeights : IEquatable<TerrainSplatWeights>

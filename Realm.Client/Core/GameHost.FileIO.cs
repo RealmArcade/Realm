@@ -11,6 +11,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
+using Realm.Shared.Maps;
 using Realm.Shared.Textures;
 using Vector3 = System.Numerics.Vector3;
 
@@ -423,39 +424,16 @@ public partial class GameHost
 		int splatW = GroundTerrain.Width + 1;
 		int splatD = GroundTerrain.Depth + 1;
 
-		string groundIndicesPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_splat_indices.exr");
-		string groundWeightsPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_splat_weights.exr");
-		bool groundSplatLoaded = false;
+		string directory = Path.GetDirectoryName(absolutePath);
+		TerrainSplatWeights[,]? splatMap = MapTerrainFiles.ReadSplatMap(directory, MapTerrainFiles.SplatPrefix, splatW, splatD);
 
-		if (File.Exists(groundIndicesPath) && File.Exists(groundWeightsPath))
-		{
-			groundSplatLoaded = TryLoadSplatMapImagesView(groundIndicesPath, groundWeightsPath, splatW, splatD);
-		}
-
-		if (!groundSplatLoaded)
+		if (splatMap == null)
 		{
 			LoadSplatMapFallbackView(splatW, splatD);
+			return;
 		}
-	}
 
-	private bool TryLoadSplatMapImagesView(string indicesPath, string weightsPath, int splatW, int splatD)
-	{
-		Image splatIdxImg = Image.LoadFromFile(indicesPath);
-		Image splatWgtImg = Image.LoadFromFile(weightsPath);
-		if (splatIdxImg == null || splatWgtImg == null) return false;
-
-		splatIdxImg.Convert(Image.Format.Rgbaf);
-		splatWgtImg.Convert(Image.Format.Rgbaf);
-		int sW = splatIdxImg.GetWidth();
-		int sD = splatIdxImg.GetHeight();
-		int wgtW = splatWgtImg.GetWidth();
-		int wgtD = splatWgtImg.GetHeight();
-
-		byte[] idxBytes = splatIdxImg.GetData();
-		byte[] wgtBytes = splatWgtImg.GetData();
-
-		GroundTerrain.SplatMap = GameContext.SaveLoadService.GenerateSplatMapFromImages(idxBytes, wgtBytes, splatW, splatD, sW, sD, wgtW, wgtD);
-		return true;
+		GroundTerrain.SplatMap = splatMap;
 	}
 
 	private void LoadSplatMapFallbackView(int splatW, int splatD)
@@ -469,46 +447,23 @@ public partial class GameHost
 
 		int targetCliffW = GroundTerrain.Width + 1;
 		int targetCliffD = GroundTerrain.Depth + 1;
-		string cliffIndicesPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_cliff_splat_indices.exr");
-		string cliffWeightsPath = Path.Combine(Path.GetDirectoryName(absolutePath), "terrain_cliff_splat_weights.exr");
+		string directory = Path.GetDirectoryName(absolutePath);
+		TerrainSplatWeights[,]? cliffSplatMap = MapTerrainFiles.ReadSplatMap(directory, MapTerrainFiles.CliffSplatPrefix, targetCliffW, targetCliffD);
 
-		bool loaded = false;
-		if (File.Exists(cliffIndicesPath) && File.Exists(cliffWeightsPath))
+		if (cliffSplatMap != null)
 		{
-			loaded = TryLoadCliffSplatMapImagesView(cliffIndicesPath, cliffWeightsPath, targetCliffW, targetCliffD);
+			GroundTerrain.CliffSplatMap = cliffSplatMap;
+			return;
 		}
 
-		if (!loaded)
+		GroundTerrain.CliffSplatMap = new TerrainSplatWeights[targetCliffW, targetCliffD];
+		for (int z = 0; z < targetCliffD; z++)
 		{
-			GroundTerrain.CliffSplatMap = new TerrainSplatWeights[targetCliffW, targetCliffD];
-			for (int z = 0; z < targetCliffD; z++)
+			for (int x = 0; x < targetCliffW; x++)
 			{
-				for (int x = 0; x < targetCliffW; x++)
-				{
-					GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
-				}
+				GroundTerrain.CliffSplatMap[x, z] = TerrainSplatWeights.CreateSolid(1);
 			}
 		}
-	}
-
-	private bool TryLoadCliffSplatMapImagesView(string indicesPath, string weightsPath, int targetCliffW, int targetCliffD)
-	{
-		Image cliffIdxImg = Image.LoadFromFile(indicesPath);
-		Image cliffWgtImg = Image.LoadFromFile(weightsPath);
-		if (cliffIdxImg == null || cliffWgtImg == null) return false;
-
-		cliffIdxImg.Convert(Image.Format.Rgbaf);
-		cliffWgtImg.Convert(Image.Format.Rgbaf);
-		int cW = cliffIdxImg.GetWidth();
-		int cD = cliffIdxImg.GetHeight();
-		int wgtW = cliffWgtImg.GetWidth();
-		int wgtD = cliffWgtImg.GetHeight();
-
-		byte[] idxBytes = cliffIdxImg.GetData();
-		byte[] wgtBytes = cliffWgtImg.GetData();
-
-		GroundTerrain.CliffSplatMap = GameContext.SaveLoadService.GenerateSplatMapFromImages(idxBytes, wgtBytes, targetCliffW, targetCliffD, cW, cD, wgtW, wgtD);
-		return true;
 	}
 
 	private void ProcessSpawnRequests()
