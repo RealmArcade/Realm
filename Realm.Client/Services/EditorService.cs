@@ -2627,16 +2627,15 @@ public partial class EditorService : IEditorAPI
 
 	public Entity SpawnPropDomain(string propId, System.Numerics.Vector3 position, float rotationY, float scale, string cleanId, float defaultAmount, float terrainHeight, float collisionRadius)
 	{
-		var entity = GameContext.World.Create();
-		GameContext.World.Add(entity, new PropIdentity(propId));
-		GameContext.RegistryService.TryAddResourceNodeComponent(entity, propId, cleanId, defaultAmount);
+		var entity = PropEntityFactory.CreateCore(
+			GameContext.World,
+			propId,
+			new System.Numerics.Vector3(position.X, terrainHeight, position.Z),
+			rotationY,
+			scale,
+			collisionRadius);
 
-		GameContext.World.Add(entity, new Prop());
-		GameContext.World.Add(entity, new Position(new System.Numerics.Vector3(position.X, terrainHeight, position.Z)));
-		GameContext.World.Add(entity, new RotationY(rotationY));
-		GameContext.World.Add(entity, new ModelScale(scale));
-		GameContext.World.Add(entity, new CollisionScale(scale));
-		GameContext.World.Add(entity, new CollisionRadius(collisionRadius));
+		GameContext.RegistryService.TryAddResourceNodeComponent(entity, propId, cleanId, defaultAmount);
 		return entity;
 	}
 

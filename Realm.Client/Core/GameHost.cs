@@ -1831,23 +1831,23 @@ public partial class GameHost : Node3D, IGameAPI
 		ItemRegistry.Clear();
 		GameContext.RegistryService.VfxRegistry.Clear();
 
-		if (metadata.Templates != null) LoadMetadataTemplates(metadata.Templates);
+		if (metadata.Templates != null) LoadMetadataTemplates(DefinitionCatalog.Build(metadata));
 
 		Prop3D.ClearModelPathCache();
 	}
 
-	private void LoadMetadataTemplates(TemplateContainer templates)
+	private void LoadMetadataTemplates(DefinitionCatalog catalog)
 	{
-		LoadWeaponAndAttachmentTemplates(templates);
-		LoadItemTemplates(templates);
-		LoadUpgradeTemplates(templates);
-		LoadConsumableTemplates(templates);
-		LoadUnitTemplates(templates);
-		LoadBuildingTemplates(templates);
-		LoadResourceAndPropTemplates(templates);
+		LoadWeaponAndAttachmentTemplates(catalog.Metadata.Templates);
+		LoadItemTemplates(catalog.Metadata.Templates);
+		LoadUpgradeTemplates(catalog.Metadata.Templates);
+		LoadConsumableTemplates(catalog.Metadata.Templates);
+		LoadUnitTemplates(catalog);
+		LoadBuildingTemplates(catalog);
+		LoadResourceAndPropTemplates(catalog);
 
-		if (templates.Abilities != null && templates.Abilities.Count > 0) RegisterCustomAbilities(templates.Abilities);
-		foreach (var cfg in templates.Vfx)
+		if (catalog.Metadata.Templates.Abilities != null && catalog.Metadata.Templates.Abilities.Count > 0) RegisterCustomAbilities(catalog.Metadata.Templates.Abilities);
+		foreach (var cfg in catalog.Metadata.Templates.Vfx)
 		{
 			if (!string.IsNullOrEmpty(cfg.VfxId))
 			{
@@ -1917,72 +1917,37 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	private void LoadUnitTemplates(TemplateContainer templates)
+	private void LoadUnitTemplates(DefinitionCatalog catalog)
 	{
-		foreach (var meta in templates.Units)
+		RegisterTemplates(UnitRegistry, catalog.Units);
+		PreloadTemplates(catalog.Metadata.Templates.Units);
+	}
+
+	private void LoadBuildingTemplates(DefinitionCatalog catalog)
+	{
+		RegisterTemplates(BuildingRegistry, catalog.Buildings);
+		PreloadTemplates(catalog.Metadata.Templates.Buildings);
+	}
+
+	private void LoadResourceAndPropTemplates(DefinitionCatalog catalog)
+	{
+		RegisterTemplates(ResourceRegistry, catalog.Resources);
+		RegisterTemplates(PropRegistry, catalog.Props);
+	}
+
+	private static void RegisterTemplates<T>(Dictionary<StringName, T> registry, IReadOnlyDictionary<string, T> templates)
+	{
+		foreach (KeyValuePair<string, T> entry in templates)
 		{
-			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
-			if (meta.Scale <= 0f) meta.Scale = 1.0f;
-
-			UnitRegistry[(StringName)meta.TemplateID] = meta;
-			if (meta.TemplateID.StartsWith("unit/", StringComparison.OrdinalIgnoreCase))
-			{
-				UnitRegistry[(StringName)meta.TemplateID.Substring(5)] = meta;
-			}
-
-			if (!string.IsNullOrEmpty(meta.ModelPath))
-			{
-				ModelCache.PreloadModel(meta.ModelPath);
-			}
+			registry[(StringName)entry.Key] = entry.Value;
 		}
 	}
 
-	private void LoadBuildingTemplates(TemplateContainer templates)
+	private static void PreloadTemplates(List<UnitMetadata> templates)
 	{
-		foreach (var meta in templates.Buildings)
+		for (int index = 0; index < templates.Count; index++)
 		{
-			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
-			if (meta.Scale <= 0f) meta.Scale = 1.5f;
-
-			BuildingRegistry[(StringName)meta.TemplateID] = meta;
-			if (meta.TemplateID.StartsWith("building/", StringComparison.OrdinalIgnoreCase))
-			{
-				BuildingRegistry[(StringName)meta.TemplateID.Substring(9)] = meta;
-			}
-
-			if (!string.IsNullOrEmpty(meta.ModelPath))
-			{
-				ModelCache.PreloadModel(meta.ModelPath);
-			}
-		}
-	}
-
-	private void LoadResourceAndPropTemplates(TemplateContainer templates)
-	{
-		foreach (var meta in templates.Resources)
-		{
-			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
-			if (meta.Scale <= 0f) meta.Scale = 2.75f;
-			if (meta.PathingType == 0) meta.PathingType = 255;
-
-			ResourceRegistry[(StringName)meta.TemplateID] = meta;
-			if (meta.TemplateID.StartsWith("resource/", StringComparison.OrdinalIgnoreCase))
-			{
-				ResourceRegistry[(StringName)meta.TemplateID.Substring(9)] = meta;
-			}
-		}
-
-		foreach (var meta in templates.Props)
-		{
-			if (string.IsNullOrEmpty(meta.TemplateID)) continue;
-			if (meta.Scale <= 0f) meta.Scale = 1.25f;
-			if (meta.PathingType == 0) meta.PathingType = 255;
-
-			PropRegistry[(StringName)meta.TemplateID] = meta;
-			if (meta.TemplateID.StartsWith("prop/", StringComparison.OrdinalIgnoreCase))
-			{
-				PropRegistry[(StringName)meta.TemplateID.Substring(5)] = meta;
-			}
+			if (!string.IsNullOrEmpty(templates[index].ModelPath)) ModelCache.PreloadModel(templates[index].ModelPath);
 		}
 	}
 

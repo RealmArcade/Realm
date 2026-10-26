@@ -635,18 +635,13 @@ public class RegistryService
 
 	public void TryAddResourceNodeComponent(Entity entity, string propId, string cleanId, float defaultAmount)
 	{
-		if ((ResourceRegistry.TryGetValue(propId, out var meta) || (!string.IsNullOrEmpty(cleanId) && ResourceRegistry.TryGetValue(cleanId, out meta))) && (meta.MaxCapacity > 0f || defaultAmount > 0f))
+		ResourceMetadata? metadata = null;
+		if (!ResourceRegistry.TryGetValue(propId, out metadata) && !string.IsNullOrEmpty(cleanId))
 		{
-			float amount = meta.MaxCapacity > 0f ? meta.MaxCapacity : defaultAmount;
-			float harvestRate = meta.HarvestRate > 0f ? meta.HarvestRate : 10f;
-			float growthRate = meta.GrowthRate;
-			int maxWorkers = meta.MaxWorkers > 0 ? meta.MaxWorkers : 5;
-			GameContext.World.Add(entity, new ResourceNode(Guid.Empty, amount, amount, harvestRate, growthRate, maxWorkers));
+			ResourceRegistry.TryGetValue(cleanId, out metadata);
 		}
-		else if (defaultAmount > 0f)
-		{
-			GameContext.World.Add(entity, new ResourceNode(Guid.Empty, defaultAmount, defaultAmount, 10f, 0f, 5));
-		}
+
+		PropEntityFactory.AddResourceNode(GameContext.World, entity, metadata, defaultAmount);
 	}
 
 

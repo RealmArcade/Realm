@@ -42,32 +42,7 @@ public class UnitSpawnService
 		return modelPathOrId;
 	}
 
-	private static int GetFlagForPathingCapability(string cap)
-	{
-		return cap.ToLower() switch
-		{
-			"shallow_water" => 1,
-			"deep_water" => 2,
-			"flying" or "air" => 4,
-			"ground" => 8,
-			"buildable" => 32,
-			_ => 0,
-		};
-	}
-
-	public int GetUnitPathingFlags(UnitMetadata meta)
-	{
-		if (meta.PathingType != 0) return meta.PathingType;
-		if (meta.PathingCapabilities == null || meta.PathingCapabilities.Length == 0) return 8;
-
-		int flags = 0;
-		foreach (var cap in meta.PathingCapabilities)
-		{
-			flags |= GetFlagForPathingCapability(cap);
-		}
-
-		return flags != 0 ? flags : 8;
-	}
+	public int GetUnitPathingFlags(UnitMetadata meta) => UnitEntityFactory.GetPathingFlags(meta);
 
 	public string GetEnemyUnitName(string unitTypeId, string defaultName)
 	{
@@ -77,34 +52,6 @@ public class UnitSpawnService
 		}
 
 		return defaultName;
-	}
-
-	private static SplashType ParseSplashType(string? splashType)
-	{
-		if (string.IsNullOrEmpty(splashType)) return SplashType.None;
-		if (splashType.Equals("RadialStep", StringComparison.OrdinalIgnoreCase) || splashType.Equals("Radial_Step", StringComparison.OrdinalIgnoreCase)) return SplashType.RadialStep;
-		if (splashType.Equals("RadialLinear", StringComparison.OrdinalIgnoreCase) || splashType.Equals("Radial_Linear", StringComparison.OrdinalIgnoreCase)) return SplashType.RadialLinear;
-		return SplashType.None;
-	}
-
-	private static void ParseCombatTargeting(string[]? targets, out bool canTargetAir, out bool canTargetGround)
-	{
-		canTargetAir = true;
-		canTargetGround = true;
-
-		if (targets == null || targets.Length == 0) return;
-
-		bool hasAir = false;
-		bool hasGround = false;
-		foreach (var targetType in targets)
-		{
-			string normalized = targetType.Trim().ToLowerInvariant();
-			if (normalized == "air") hasAir = true;
-			else if (normalized == "ground") hasGround = true;
-		}
-
-		canTargetAir = hasAir;
-		canTargetGround = hasGround;
 	}
 
 
@@ -211,105 +158,18 @@ public class UnitSpawnService
 		float splashInnerRatio = 1f, float splashMediumRatio = 0.5f, float splashOuterRatio = 0.25f, bool friendlyFire = false,
 		int pushPriority = 0, string movementType = "Ground")
 	{
-		var entity = GameContext.World.Create();
-		GameContext.World.Add(entity, new DefinitionId(id));
-		GameContext.World.Add(entity, new Name(name));
-		GameContext.World.Add(entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
-		GameContext.World.Add(entity, new PreviousPosition(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
-		GameContext.World.Add(entity, new Owner(owner));
-
-		ParseCombatTargeting(targets, out bool canTargetAir, out bool canTargetGround);
-		GameContext.World.Add(entity, new CombatTargeting(canTargetAir, canTargetGround));
-
-		if (isHero)
-		{
-			GameContext.World.Add(entity, new Hero());
-			GameContext.World.Add(entity, new Level(1));
-			GameContext.World.Add(entity, new Experience(0f));
-		}
-
-		GameContext.World.Add(entity, new Health(hp, hp, hpRegen, hpRegenCombatDelay));
-
-		if (maxMana > 0f)
-		{
-			GameContext.World.Add(entity, new Mana(maxMana, maxMana, manaRegen));
-			GameContext.World.Add(entity, new ManaRegen(manaRegen));
-		}
-
-		SplashType splashType = ParseSplashType(splashTypeStr);
-
-		if (damage > 0)
-		{
-			GameContext.World.Add(entity, new Attack(
-				damage: damage,
-				range: range,
-				cooldown: attackCooldown,
-				currentCooldown: 0f,
-				damageVariance: damageVariance,
-				damageType: string.IsNullOrEmpty(damageType) ? "normal" : damageType,
-				flatArmorPenetration: flatArmorPen,
-				percentArmorPenetration: percentArmorPen,
-				critChance: critChance,
-				critMultiplier: critMultiplier,
-				splashType: splashType,
-				splashInnerRadius: splashInnerRadius,
-				splashMediumRadius: splashMediumRadius,
-				splashOuterRadius: splashOuterRadius,
-				splashInnerRatio: splashInnerRatio,
-				splashMediumRatio: splashMediumRatio,
-				splashOuterRatio: splashOuterRatio,
-				friendlyFire: friendlyFire
-			));
-		}
-
-		GameContext.World.Add(entity, new Resistances(armor, magicResistance));
-		GameContext.World.Add(entity, new CollisionScale(1.0f));
-		GameContext.World.Add(entity, new ScanRadius(scanRadius));
-		GameContext.World.Add(entity, new TargetIntel(scanRadius, scanRadius));
-
-		var baseStatsDict = new Dictionary<StatId, float>
-		{
-			{ new StatId("Armor"), armor },
-			{ new StatId("MagicResistance"), magicResistance },
-			{ new StatId("Attack"), damage },
-			{ new StatId("MovementSpeed"), speed }
-		};
-		GameContext.World.Add(entity, new Stats(baseStatsDict));
-
-		if (speed > 0)
-		{
-			GameContext.World.Add(entity, new MovementStats(speed, 0f, 10f, pushPriority, movementType));
-			GameContext.World.Add(entity, new PathingFlags(pathingFlags));
-			GameContext.World.Add(entity, new Movable());
-			GameContext.World.Add(entity, new Inventory());
-		}
-		else
-		{
-			GameContext.World.Add(entity, new Building());
-		}
-
-		GameContext.World.Add(entity, new UnitAttributes());
-		GameContext.World.Add(entity, new UnitBaseStats(
-			BaseMaxHp: hp,
-			BaseHpRegen: hpRegen,
-			BaseMaxMana: maxMana,
-			BaseManaRegen: manaRegen,
-			BaseArmor: armor,
-			BaseDamage: damage,
-			BaseAttackInterval: attackCooldown,
-			BaseSpeed: speed,
-			BaseCastPoint: 0.3f,
-			BaseCritChance: critChance,
-			BaseCritMultiplier: critMultiplier,
-			BaseFlatArmorPenetration: flatArmorPen
-		));
+		Entity entity = UnitEntityFactory.CreateCore(
+			GameContext.World, id, name, hp, damage, range, armor, speed, scanRadius, isHero, attackCooldown, pathingFlags,
+			new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), owner, targets, hpRegen, hpRegenCombatDelay, maxMana, manaRegen,
+			magicResistance, flatArmorPen, percentArmorPen, damageVariance, damageType, critChance, critMultiplier,
+			splashTypeStr, splashInnerRadius, splashMediumRadius, splashOuterRadius, splashInnerRatio, splashMediumRatio,
+			splashOuterRatio, friendlyFire, pushPriority, movementType);
 
 		ApplyPlayerUpgradesToNewUnit(entity, owner, playerEntity);
-
 		AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
-
 		return entity;
 	}
+
 
 	private void ApplyPlayerUpgradesToNewUnit(Entity entity, PlayerEntity owner, Entity playerEntity)
 	{

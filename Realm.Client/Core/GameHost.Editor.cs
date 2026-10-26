@@ -1254,16 +1254,7 @@ public partial class GameHost
 		return false;
 	}
 
-	private float GetDefaultResourceAmount(string propId)
-	{
-		return propId switch
-		{
-			"goldmine" => 2000f,
-			"rock" => 1000f,
-			"tree" => 500f,
-			_ => 0f
-		};
-	}
+	private float GetDefaultResourceAmount(string propId) => DefinitionCatalog.DefaultResourceAmount(propId);
 
 	public ProceduralVfxInstance3D SpawnVfxExternalWithParams(
 		string vfxId,
