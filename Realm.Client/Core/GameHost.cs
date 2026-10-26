@@ -1820,7 +1820,12 @@ public partial class GameHost : Node3D, IGameAPI
 
 		// Map tuning is applied before anything is spawned so the first stat calculation already
 		// sees the map's numbers rather than the engine defaults.
-		MapCombatTuningService.Apply(metadata);
+		var combatTuningWarnings = new List<string>(4);
+		MapCombatTuning.Apply(GameContext.Simulation, metadata, combatTuningWarnings);
+		for (int index = 0; index < combatTuningWarnings.Count; index++)
+		{
+			GD.PushWarning(combatTuningWarnings[index]);
+		}
 
 		UnitRegistry.Clear();
 		BuildingRegistry.Clear();

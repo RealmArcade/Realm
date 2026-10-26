@@ -3,6 +3,7 @@ using System.Text;
 using MemoryPack;
 using Realm.Ecs.Replication;
 using Realm.Shared;
+using Realm.Shared.Maps;
 using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
@@ -19,6 +20,8 @@ public class ListenServerHost : IServerHost
 	private readonly List<Thread> _peerThreads = new();
 	private readonly object _peersLock = new();
 
+	private ServerSimulation? _simulation;
+	private ServerTickLoop? _tickLoop;
 	private Thread? _acceptThread;
 	private bool _disposed;
 
@@ -41,16 +44,40 @@ public class ListenServerHost : IServerHost
 			throw new DirectoryNotFoundException($"The map folder '{_arguments.MapPath}' does not exist.");
 		}
 
-		_transport.Start(AcceptBacklog);
-		IsRunning = true;
+		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath);
+		try
+		{
+			_simulation = new ServerSimulation(map, _log);
+			_log.Write(_simulation.Describe());
+			for (int index = 0; index < map.Warnings.Count; index++)
+			{
+				_log.Write($"map warning: {map.Warnings[index]}");
+			}
 
-		string mapHash = MapContentHash.Compute(_arguments.MapPath);
+			_transport.Start(AcceptBacklog);
+			IsRunning = true;
+			RunSimulation(_simulation);
+		}
+		catch
+		{
+			_simulation?.Dispose();
+			_simulation = null;
+			throw;
+		}
+	}
+
+	private void RunSimulation(ServerSimulation simulation)
+	{
+		string mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 		string wireTableHash = ReplicatedComponents.ComputeWireTableHash();
 		var readyInfo = new ServerReadyInfo(_transport.BoundPort, RealmProtocol.Version, RealmVersion.GameBuildNumber, mapHash, wireTableHash);
 
 		_log.Write($"ready protocol={readyInfo.Protocol} build={readyInfo.Build} mapHash={mapHash} wireTableHash={wireTableHash}");
 		Console.Out.WriteLine(readyInfo.ToReadyLine());
 		Console.Out.Flush();
+
+		_tickLoop = new ServerTickLoop(simulation, _log);
+		_tickLoop.Start();
 
 		_acceptThread = new Thread(AcceptLoop)
 		{
@@ -70,6 +97,7 @@ public class ListenServerHost : IServerHost
 		_shutdownRequested.Set();
 		_transport.Dispose();
 		ClosePeers();
+		_tickLoop?.Stop();
 		JoinThreads();
 	}
 
@@ -81,6 +109,11 @@ public class ListenServerHost : IServerHost
 		Stop();
 		_transport.Dispose();
 		_shutdownRequested.Dispose();
+
+		_tickLoop?.Dispose();
+		_tickLoop = null;
+		_simulation?.Dispose();
+		_simulation = null;
 	}
 
 	private void AcceptLoop()

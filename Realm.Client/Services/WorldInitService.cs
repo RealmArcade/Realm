@@ -131,43 +131,7 @@ public class WorldInitService
 		GameContext.SimulationService?.RecalculatePlayerRelationships();
 	}
 
-	private static ScriptPlayer[] CreateDefaultPlayers()
-	{
-		var players = new ScriptPlayer[25];
-
-		// Slot 0 is always neutral Gaia
-		players[0] = new ScriptPlayer
-		{
-			Gold = 0f,
-			Wood = 0f,
-			Stone = 0f,
-			Active = true,
-			IsComputer = true,
-			Team = 0,
-			Name = "Neutral",
-			KillCount = 0,
-			TeamNameStringId = StringRegistry.GetOrAdd("Neutral")
-		};
-
-		// Slots 1 to 24 are match participants
-		for (int i = 1; i < 25; i++)
-		{
-			players[i] = new ScriptPlayer
-			{
-				Gold = i == 1 ? 500f : 0f,
-				Wood = i == 1 ? 400f : 0f,
-				Stone = i == 1 ? 200f : 0f,
-				Active = i == 1,
-				IsComputer = false,
-				Team = i,
-				Name = $"Player {i}",
-				KillCount = 0,
-				TeamNameStringId = StringRegistry.GetOrAdd($"Team {i}")
-			};
-		}
-
-		return players;
-	}
+	private static ScriptPlayer[] CreateDefaultPlayers() => MatchRoster.CreateDefaultPlayers();
 
 	private void UpdateTerrainState(
 		Entity worldEntity,
