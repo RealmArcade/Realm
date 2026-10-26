@@ -244,6 +244,7 @@ for (int iteration = 0; iteration < 500; iteration++)
 long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
 Check(allocatedBytes == 0, $"500 component writes into one reused buffer allocate nothing (allocated {allocatedBytes} bytes)");
 
+EcsWorld.SetAmbient(world);
 var emptyWorldEntity = world.Create();
 Check(!world.Has<Realm.Ecs.Components.Core.PlayerPopulation>(emptyWorldEntity), "bare entity has no population component");
 
@@ -537,7 +538,8 @@ Check(saturatedEffects.Get(0).EffectTypeId == "effect_1", "a full effect queue d
 saturatedEffects.Clear();
 Check(saturatedEffects.Count == 0, "clearing the effect queue frees every slot");
 
-ColdPayloadRegistry<List<string>>.Reset();
+var handleWorld = new EcsWorld();
+handleWorld.PayloadStores.GetOrCreateColdPayloadStore<List<string>>().Reset();
 const string sharedContentKey = "production_queue|worker,farm";
 int sharedHandle = ColdPayloadRegistry<List<string>>.Share(new List<string> { "worker", "farm" }, sharedContentKey);
 int secondSharedHandle = ColdPayloadRegistry<List<string>>.Share(new List<string> { "worker", "farm" }, sharedContentKey);
@@ -552,6 +554,16 @@ Check(ColdPayloadRegistry<List<string>>.Get(sharedHandle) == null, "releasing th
 int unsharedFirst = ColdPayloadRegistry<List<string>>.Register(new List<string> { "same" });
 int unsharedSecond = ColdPayloadRegistry<List<string>>.Register(new List<string> { "same" });
 Check(unsharedFirst != unsharedSecond, "unshared registrations stay independent for mutable payloads");
+
+List<string>? firstWorldPayload = ColdPayloadRegistry<List<string>>.Get(unsharedFirst);
+var otherWorld = new EcsWorld();
+Check(ColdPayloadRegistry<List<string>>.Get(unsharedFirst) == null, "a second world never resolves the first world's cold payloads");
+var otherWorldPayload = new List<string> { "same" };
+int otherWorldHandle = ColdPayloadRegistry<List<string>>.Register(otherWorldPayload);
+Check(ReferenceEquals(otherWorld.PayloadStores.GetOrCreateColdPayloadStore<List<string>>().Get(otherWorldHandle), otherWorldPayload), "a world's store holds only the payloads registered in it");
+Check(!ReferenceEquals(handleWorld.PayloadStores.GetOrCreateColdPayloadStore<List<string>>().Get(unsharedFirst), otherWorldPayload), "the two worlds never share a payload slot");
+EcsWorld.SetAmbient(handleWorld);
+Check(ReferenceEquals(ColdPayloadRegistry<List<string>>.Get(unsharedFirst), firstWorldPayload), "switching the ambient world resolves the payload the handle was registered in");
 
 Console.WriteLine($"replication verifier: {checks - failures}/{checks} checks passed");
 if (failures > 0)

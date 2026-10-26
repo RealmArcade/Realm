@@ -1,62 +1,34 @@
-using System.Collections.Generic;
-
 namespace Realm.Ecs.Components.Terrain;
 
+/// <summary>
+///     Resolves a shroud grid handle in the ambient world's own store. Only one world is alive per process at a time,
+///     so a component can name its grid without holding a world reference, and a second world constructed in the same
+///     process never aliases or frees the first world's grids.
+/// </summary>
 public static class ShroudGridRegistry
 {
-	private static readonly List<ShroudGridData> Store = new() { null };
-	private static readonly Queue<int> FreeHandles = new();
+	private static EcsWorld? _cachedWorld;
+	private static ShroudGridStore? _cachedStore;
+	private static ShroudGridStore? _worldlessStore;
 
-	static ShroudGridRegistry()
+	private static ShroudGridStore Store
 	{
-		ColdPayloadRegistry.RegisterResetAction(Reset);
-	}
-
-	public static int Create()
-	{
-		var grid = new ShroudGridData();
-
-		if (FreeHandles.Count > 0)
+		get
 		{
-			int reusedHandle = FreeHandles.Dequeue();
-			Store[reusedHandle] = grid;
-			return reusedHandle;
+			EcsWorld? ambient = EcsWorld.Ambient;
+			if (!ReferenceEquals(ambient, _cachedWorld))
+			{
+				_cachedWorld = ambient;
+				_cachedStore = ambient?.PayloadStores.ShroudGrids;
+			}
+
+			return _cachedStore ?? (_worldlessStore ??= new ShroudGridStore());
 		}
-
-		int handle = Store.Count;
-		Store.Add(grid);
-		return handle;
 	}
 
-	public static ShroudGridData Get(int handle)
-	{
-		if (handle <= 0 || handle >= Store.Count) return null;
-		return Store[handle];
-	}
+	public static int Create() => Store.Create();
 
-	public static void Release(int handle)
-	{
-		if (handle <= 0 || handle >= Store.Count) return;
+	public static ShroudGridData? Get(int handle) => Store.Get(handle);
 
-		var grid = Store[handle];
-		if (grid == null) return;
-
-		grid.Release();
-		Store[handle] = null;
-		FreeHandles.Enqueue(handle);
-	}
-
-	public static void Reset()
-	{
-		for (int handle = 1; handle < Store.Count; handle++)
-		{
-			var grid = Store[handle];
-			if (grid == null) continue;
-			grid.Release();
-			Store[handle] = null;
-		}
-
-		Store.RemoveRange(1, Store.Count - 1);
-		FreeHandles.Clear();
-	}
+	public static void Release(int handle) => Store.Release(handle);
 }

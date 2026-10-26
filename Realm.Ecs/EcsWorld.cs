@@ -47,6 +47,31 @@ public class EcsWorld : IDisposable
 	/// </summary>
 	public SimulationContext? Context { get; set; }
 
+	/// <summary>
+	///     The world the current session runs in. Exactly one world is alive per process at a time, so a pure-data
+	///     component reaches its own world's handle stores through this instead of holding a world reference. A world
+	///     becomes ambient when it is constructed and stops being ambient when it is disposed, which is what lets the
+	///     editor save its world, hand the process to a playtest world, and restore itself afterwards.
+	/// </summary>
+	public static EcsWorld? Ambient { get; private set; }
+
+	/// <summary>
+	///     The cold payload and shroud grid handles this world owns. Handles are allocation indices into these stores,
+	///     so they are never sent over the wire and never shared with another world.
+	/// </summary>
+	public WorldPayloadStores PayloadStores { get; } = new WorldPayloadStores();
+
+	/// <summary>
+	///     Hands the session to the given world. A tool that deliberately holds more than one world calls this before
+	///     touching each one so its components resolve handles in the world they belong to.
+	/// </summary>
+	public static void SetAmbient(EcsWorld? world) => Ambient = world;
+
+	public EcsWorld()
+	{
+		Ambient = this;
+	}
+
 	public void BindExternalAliveMemory(IntPtr pointer, int lengthInBytes)
 	{
 		_alive.BindExternalMemory(pointer, lengthInBytes);
@@ -117,6 +142,8 @@ public class EcsWorld : IDisposable
 		_freeListCount = 0;
 		_nextEntityId = 0;
 		Array.Clear(_activeEntityBitset);
+		PayloadStores.Reset();
+		if (ReferenceEquals(Ambient, this)) Ambient = null;
 		unsafe
 		{
 			if (_externalActiveEntityBitset != null)
