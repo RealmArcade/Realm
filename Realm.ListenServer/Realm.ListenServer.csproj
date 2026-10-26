@@ -10,6 +10,7 @@
     <RootNamespace>Realm.ListenServer</RootNamespace>
     <AssemblyName>Realm.ListenServer</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
