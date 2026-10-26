@@ -8,6 +8,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Services;
+using Realm.Shared.Network;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Core;
@@ -99,7 +100,7 @@ public partial class GameHost
 		var result = GameContext.ReplayService.SpawnUnitFromReplaySnapshot(snap);
 		if (result.Entity == Entity.Null) return;
 
-		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, snap.Position.ToGodot(), snap.IsBuilding, result.Player);
+		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, new Godot.Vector3(snap.Position.X, snap.Position.Y, snap.Position.Z), snap.IsBuilding, result.Player);
 	}
 
 	private void RecordGameplayTick()

@@ -16,6 +16,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Core;
 
@@ -126,6 +127,7 @@ public partial class GameHost
 
 	private void RegisterPredictedCommand(int commandId, List<int> serverEntityIds, string commandType, System.Numerics.Vector3 targetPosition)
 	{
+		if (HasAuthority) return;
 		if (!GameSettings.MovementPrediction || GameContext.MovementPredictionService == null) return;
 		if (GameContext.World == null) return;
 
@@ -194,7 +196,7 @@ public partial class GameHost
 	{
 		var camera = GetViewport().GetCamera3D();
 		if (camera == null) return;
-		var pos = new NetworkVector3(camera.GlobalPosition);
+		var pos = new NetworkVector3(camera.GlobalPosition.X, camera.GlobalPosition.Y, camera.GlobalPosition.Z);
 		RpcId(1, nameof(UpdateClientCamera), MemoryPackSerializer.Serialize(pos));
 	}
 
@@ -546,7 +548,7 @@ public partial class GameHost
 		if (!Multiplayer.IsServer()) return;
 		int senderId = Multiplayer.GetRemoteSenderId();
 		if (!TryDeserializePeerPayload(payload, CameraPayloadBytes, out NetworkVector3 pos)) return;
-		GameContext.NetworkService.RecordClientCameraPosition(senderId, pos.ToGodot());
+		GameContext.NetworkService.RecordClientCameraPosition(senderId, new Vector3(pos.X, pos.Y, pos.Z));
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -848,7 +850,7 @@ public partial class GameHost
 	{
 		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out int playerIndex);
 		if (entity == Entity.Null) return;
-		var unit3D = SpawnUnit3D(entity, snap.UnitId, modelPath, snap.Position.ToGodot(), snap.IsBuilding, playerIndex);
+		var unit3D = SpawnUnit3D(entity, snap.UnitId, modelPath, new Vector3(snap.Position.X, snap.Position.Y, snap.Position.Z), snap.IsBuilding, playerIndex);
 		unit3D.Rotation = new Vector3(0f, snap.RotationY, 0f);
 		if (_pendingSelectUnitServerId == snap.EntityId && GodotObject.IsInstanceValid(unit3D))
 		{

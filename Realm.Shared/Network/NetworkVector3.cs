@@ -1,7 +1,6 @@
 using MemoryPack;
-using Vector3 = Godot.Vector3;
 
-namespace Realm.Client;
+namespace Realm.Shared.Network;
 
 /// <summary>Network-serializable representation of a 3D vector.</summary>
 [MemoryPackable]
@@ -18,13 +17,5 @@ public partial struct NetworkVector3
 		Z = z;
 	}
 
-	public NetworkVector3(Vector3 v)
-	{
-		X = v.X;
-		Y = v.Y;
-		Z = v.Z;
-	}
-
-	public Vector3 ToGodot() => new Vector3(X, Y, Z);
 	public System.Numerics.Vector3 ToNumerics() => new System.Numerics.Vector3(X, Y, Z);
 }

@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 using System.IO;
 using ZstdSharp;
 
-namespace Realm.Client;
+namespace Realm.Shared.Network;
 
 /// <summary>
 /// The wire form of every snapshot the host sends. A baseline carries the entire replicated world — a component record

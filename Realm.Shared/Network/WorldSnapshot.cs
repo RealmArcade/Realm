@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using MemoryPack;
 using Realm.Ecs.Replication;
 
-namespace Realm.Client;
+namespace Realm.Shared.Network;
 
 /// <summary>Replicated state of the entire world simulation for a specific tick.</summary>
 [MemoryPackable]

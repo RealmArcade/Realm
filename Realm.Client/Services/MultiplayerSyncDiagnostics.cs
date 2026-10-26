@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
+using Realm.Shared.Network;
 using FileAccess = System.IO.FileAccess;
 
 namespace Realm.Client.Services;

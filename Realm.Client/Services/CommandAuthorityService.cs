@@ -14,6 +14,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
 
@@ -30,7 +31,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd, 
 
 		bool needsBuildUnit = cmd.CommandType == "build";
 		string buildUnitType = needsBuildUnit ? cmd.ArgString : null;
-		Vector3 buildPosition = needsBuildUnit ? cmd.TargetPosition.ToGodot() : Vector3.Zero;
+		Vector3 buildPosition = needsBuildUnit ? new Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z) : Vector3.Zero;
 		int buildPeerOwner = needsBuildUnit ? peerId : -1;
 		int buildWorkerServerEntityId = needsBuildUnit && cmd.UnitEntityIds.Count > 0 ? cmd.UnitEntityIds[0] : -1;
 
@@ -43,7 +44,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd, 
 		}
 
 		string spellId = needsSpellEffect ? cmd.ArgString : null;
-		Vector3 spellPosition = needsSpellEffect ? cmd.TargetPosition.ToGodot() : Vector3.Zero;
+		Vector3 spellPosition = needsSpellEffect ? new Vector3(cmd.TargetPosition.X, cmd.TargetPosition.Y, cmd.TargetPosition.Z) : Vector3.Zero;
 
 		return new ServerCommandResult(
 			needsBuildUnit, buildUnitType, buildPosition, buildPeerOwner, buildWorkerServerEntityId,

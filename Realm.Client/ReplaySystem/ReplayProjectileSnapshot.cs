@@ -1,4 +1,5 @@
 using MemoryPack;
+using Realm.Shared.Network;
 
 namespace Realm.Client.ReplaySystem
 {

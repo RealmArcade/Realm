@@ -1,6 +1,6 @@
 using MemoryPack;
 
-namespace Realm.Client;
+namespace Realm.Shared.Network;
 
 /// <summary>Replicated state of a single unit or building.</summary>
 [MemoryPackable]

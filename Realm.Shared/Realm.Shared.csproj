@@ -36,5 +36,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Realm.EditorAPI\Realm.EditorAPI.csproj" />
+    <ProjectReference Include="..\Realm.Ecs\Realm.Ecs.csproj" />
   </ItemGroup>
 </Project>

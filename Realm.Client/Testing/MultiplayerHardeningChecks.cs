@@ -10,6 +10,7 @@ using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Testing;
 

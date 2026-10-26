@@ -5,6 +5,7 @@ using MemoryPack;
 using Realm.Client.Services;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
+using Realm.Shared.Network;
 
 namespace Realm.Client;
 

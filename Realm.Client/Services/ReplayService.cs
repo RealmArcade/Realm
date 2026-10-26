@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
 

@@ -15,6 +15,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
+using Realm.Shared.Network;
 using FileAccess = System.IO.FileAccess;
 
 namespace Realm.Client.ReplaySystem
@@ -318,8 +319,8 @@ namespace Realm.Client.ReplaySystem
 			GameHost.TryGetUnit3D(localEntity, out var unit3DNode);
 			if (GodotObject.IsInstanceValid(unit3DNode))
 			{
-				unit3DNode.GlobalPosition = snap.Position.ToGodot();
-				unit3DNode.Velocity = snap.Velocity.ToGodot();
+				unit3DNode.GlobalPosition = new Vector3(snap.Position.X, snap.Position.Y, snap.Position.Z);
+				unit3DNode.Velocity = new Vector3(snap.Velocity.X, snap.Velocity.Y, snap.Velocity.Z);
 				unit3DNode.GlobalRotation = new Vector3(0, snap.RotationY, 0);
 			}
 		}

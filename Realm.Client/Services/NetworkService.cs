@@ -21,6 +21,7 @@ using Realm.Ecs.Services;
 using Realm.Client.UI;
 using Realm.MapAPI;
 using Realm.Ecs.Replication;
+using Realm.Shared.Network;
 using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Services;
@@ -2755,14 +2756,14 @@ public class NetworkService
 	{
 		if (isDetailed)
 		{
-			bool posChanged = baseSnap.Position.ToGodot().DistanceTo(currentSnap.Position.ToGodot()) > 0.05f;
+			bool posChanged = System.Numerics.Vector3.Distance(baseSnap.Position.ToNumerics(), currentSnap.Position.ToNumerics()) > 0.05f;
 			bool rotChanged = Mathf.Abs(baseSnap.RotationY - currentSnap.RotationY) > 0.05f;
 			bool hpChanged = Mathf.Abs(baseSnap.CurrentHp - currentSnap.CurrentHp) > 0.1f;
 			bool deadChanged = baseSnap.IsDead != currentSnap.IsDead;
 			return posChanged || rotChanged || hpChanged || deadChanged;
 		}
 
-		bool posFarChanged = baseSnap.Position.ToGodot().DistanceTo(currentSnap.Position.ToGodot()) > 1.0f;
+		bool posFarChanged = System.Numerics.Vector3.Distance(baseSnap.Position.ToNumerics(), currentSnap.Position.ToNumerics()) > 1.0f;
 		bool deadFarChanged = baseSnap.IsDead != currentSnap.IsDead;
 		bool rotFarChanged = Mathf.Abs(Mathf.AngleDifference(baseSnap.RotationY, currentSnap.RotationY)) > 0.15f;
 

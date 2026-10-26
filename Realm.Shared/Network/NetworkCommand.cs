@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using MemoryPack;
 
-namespace Realm.Client;
+namespace Realm.Shared.Network;
 
 /// <summary>Command sent from a client to the server representing a player action.</summary>
 [MemoryPackable]
