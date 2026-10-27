@@ -3009,15 +3009,7 @@ public class NetworkService
 		IsConnectionLost = false;
 	}
 
-	public void BroadcastMessageDomainLogic(string message, bool isMultiplayerActive, bool isServerActive)
-	{
-		string formatted = $"[HOST BROADCAST] {message}";
-		WasmRuntime.LogToConsole(formatted);
-		if (isMultiplayerActive && isServerActive)
-		{
-			GameContext.Lobby?.SendChatMessage("System", message, false);
-		}
-	}
+	public void BroadcastMessageDomainLogic(string message) => WasmRuntime.LogToConsole($"[HOST BROADCAST] {message}");
 
 	/// <summary>
 	///     Marks the match lost because the process running it ended. The screen shows this instead of waiting for a

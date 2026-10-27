@@ -42,16 +42,6 @@ public class ClientRpcService
 			return true;
 		}
 
-		if (host.IsMultiplayerServerActive() && GameContext.Lobby != null)
-		{
-			var playerInfo = GameContext.Lobby.PlayerList.Find(x => x.Slot == playerIndex);
-			if (playerInfo != null && playerInfo.PeerId > 1)
-			{
-				remotePeerId = playerInfo.PeerId;
-				return true;
-			}
-		}
-
 		return false;
 	}
 
@@ -93,10 +83,6 @@ public class ClientRpcService
 			return;
 
 		host.ShakeCameraInternal(intensity, duration);
-		if (host.IsMultiplayerServerActive())
-		{
-			host.Rpc(nameof(GameHost.ClientShakeCamera), intensity, duration);
-		}
 	}
 
 	public void SetPlayerCameraBounds(int playerIndex, float minX, float minZ, float maxX, float maxZ)
@@ -211,7 +197,7 @@ public class ClientRpcService
 
 		GD.Print($"[HOST BROADCAST] {message}");
 		BroadcastFeedbackText(message, new Vector3(0.9f, 0.9f, 0.9f));
-		GameContext.NetworkService?.BroadcastMessageDomainLogic(message, host.IsMultiplayerActive(), host.IsMultiplayerServerActive());
+		GameContext.NetworkService?.BroadcastMessageDomainLogic(message);
 	}
 
 	public void ShowFeedbackText(int playerIndex, string text, Vector3 color)
@@ -245,10 +231,6 @@ public class ClientRpcService
 			Callable.From(() => GameContext.InGameHud?.ShowFeedbackText(text, gColor)).CallDeferred();
 		}
 
-		if (host.IsMultiplayerServerActive())
-		{
-			host.Rpc(nameof(GameHost.ClientShowFeedbackText), text, new Godot.Vector3(color.X, color.Y, color.Z));
-		}
 	}
 
 	public void PingMinimap(int playerIndex, Vector3 position)
@@ -372,10 +354,6 @@ public class ClientRpcService
 		GD.Print("[GameHost] Victory triggered by map script!");
 		GameContext.SimulationService?.TriggerVictoryDomain();
 		Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
-		if (host.IsMultiplayerServerActive())
-		{
-			host.Rpc(nameof(GameHost.ClientGameOver), true);
-		}
 	}
 
 	public void BroadcastDefeat()
@@ -387,10 +365,6 @@ public class ClientRpcService
 		GD.Print("[GameHost] Defeat triggered by map script!");
 		GameContext.SimulationService?.TriggerDefeatDomain();
 		Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
-		if (host.IsMultiplayerServerActive())
-		{
-			host.Rpc(nameof(GameHost.ClientGameOver), false);
-		}
 	}
 
 	public void RegisterAbility(int playerIndex, string abilityId, string displayName,

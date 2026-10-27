@@ -15,8 +15,6 @@ namespace Realm.Client.Core;
 /// </summary>
 public partial class GameHost
 {
-	private ClientServerSession? _authoritySession;
-
 	/// <summary>
 	///     Holds the connection the match was started with. The authority frames that arrived before this scene existed
 	///     are still queued in the session, so nothing the authority said while the map was loading is lost.
@@ -26,7 +24,6 @@ public partial class GameHost
 		ClientServerSession? session = GameContext.ServerSession;
 		if (session == null) return;
 
-		_authoritySession = session;
 		session.Seated += ApplyRosterAssignment;
 		session.SnapshotReceived += ApplyReceivedSnapshot;
 		session.PresentationReceived += ApplyPresentation;
