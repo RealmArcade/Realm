@@ -8,7 +8,7 @@ namespace Realm.Ecs.Replication;
 
 public enum ColdPayloadKind : byte
 {
-	InternedPayload = 0,
+	ContentIdPayload = 0,
 	LeaderboardBoards = 1,
 	SummaryTable = 2
 }
@@ -28,7 +28,7 @@ public partial struct ColdPayloadDelta
 	public int Key;
 	public byte Kind;
 	public byte Role;
-	public byte InternedKind;
+	public byte ContentKind;
 	public int ContentId;
 	public byte Destroyed;
 	public byte[] Bytes;

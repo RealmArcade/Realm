@@ -153,8 +153,8 @@ foreach (var codec in codecs)
 var weaponSlots = new List<Weapon> { new Weapon(12f, maxRange: 6f), new Weapon(7f, maxRange: 9f) };
 var firstWeapons = new Weapons(weaponSlots);
 var secondWeapons = new Weapons(new List<Weapon>(weaponSlots));
-Check(firstWeapons.Count == 2 && firstWeapons.Handle == secondWeapons.Handle, "identical weapon slots share one interned payload");
-Check(firstWeapons.TryGet(0, out Weapon firstSlot) && firstSlot.BaseDamage == 12f && firstSlot.MaxRange == 6f, "a weapon slot round trips through the interned payload");
+Check(firstWeapons.Count == 2 && firstWeapons.Handle == secondWeapons.Handle, "identical weapon slots share one content id payload");
+Check(firstWeapons.TryGet(0, out Weapon firstSlot) && firstSlot.BaseDamage == 12f && firstSlot.MaxRange == 6f, "a weapon slot round trips through the content id payload");
 Check(!firstWeapons.TryGet(5, out _), "a missing weapon slot reports a miss");
 Check(new Weapons(null).Handle == 0 && new Weapons(new List<Weapon>()).Count == 0, "an entity without weapons stores no payload");
 
@@ -206,7 +206,7 @@ Check(truncatedCatalog.ComputeFingerprint() == ReplicatedStateFingerprint.Seed, 
 
 var coldPayloads = new List<ColdPayloadDelta>
 {
-	new() { Scope = (byte)ReplicatedScope.World, Key = 0, Kind = (byte)ColdPayloadKind.InternedPayload, ContentId = 42, Bytes = new byte[] { 1, 2, 3 } }
+	new() { Scope = (byte)ReplicatedScope.World, Key = 0, Kind = (byte)ColdPayloadKind.ContentIdPayload, ContentId = 42, Bytes = new byte[] { 1, 2, 3 } }
 };
 var coldMirror = new ReplicatedStateMirror();
 var coldBaseline = new ReplicatedStateMirror();
@@ -216,7 +216,7 @@ ReplicatedPayloadReplay.Replay(coldMirror, null, null, null, null, coldPayloads)
 Check(coldMirror.ComputeFingerprint() != fingerprintWithoutColdPayload, "a cold payload changes the fingerprint");
 ReplicatedPayloadReplay.Replay(coldMirror, null, null, null, null, new List<ColdPayloadDelta>
 {
-	new() { Scope = (byte)ReplicatedScope.World, Key = 0, Kind = (byte)ColdPayloadKind.InternedPayload, Destroyed = 1 }
+	new() { Scope = (byte)ReplicatedScope.World, Key = 0, Kind = (byte)ColdPayloadKind.ContentIdPayload, Destroyed = 1 }
 });
 Check(coldMirror.ColdPayloads.Count == 0, "a cold payload tombstone removes the entry");
 Check(ColdPayloadCodecs.ComputeContentId(new byte[] { 1, 2, 3 }) != ColdPayloadCodecs.ComputeContentId(new byte[] { 1, 2, 4 }), "cold payload content ids distinguish payload bytes");
@@ -251,10 +251,10 @@ StringRegistry.Reset();
 int goldId = StringRegistry.GetOrAdd("Gold");
 Check(goldId != 0 && goldId == StringRegistry.ComputeId("Gold"), "string ids are content hashes");
 Check(StringRegistry.ComputeId("Neutral") == 975127632, "text ids stay identical to the established hash");
-Check(InternedValueStore.SchemeVersion == 1, "the identifier scheme version is pinned");
-Check(InternedValueStore.GetOrAddBytes(InternedValueStore.WeaponListKind, new byte[] { 1, 2, 3, 4 }) == 721294077, "payload ids stay identical to the established hash");
-Check(InternedValueStore.GetOrAddBytes(InternedValueStore.TextListKind, new byte[] { 1, 2, 3, 4 }) != 721294077, "payload ids include their kind");
-Check(InternedValueStore.TryGetKind(goldId, out byte goldKind) && goldKind == InternedValueStore.TextKind, "registered text carries the text kind tag");
+Check(ContentIdStore.SchemeVersion == 1, "the identifier scheme version is pinned");
+Check(ContentIdStore.GetOrAddBytes(ContentIdStore.WeaponListKind, new byte[] { 1, 2, 3, 4 }) == 721294077, "payload ids stay identical to the established hash");
+Check(ContentIdStore.GetOrAddBytes(ContentIdStore.TextListKind, new byte[] { 1, 2, 3, 4 }) != 721294077, "payload ids include their kind");
+Check(ContentIdStore.TryGetKind(goldId, out byte goldKind) && goldKind == ContentIdStore.TextKind, "registered text carries the text kind tag");
 Check(StringRegistry.GetOrAdd("Gold") == goldId, "string ids are stable across repeated registration");
 int woodId = StringRegistry.GetOrAdd("Wood");
 Check(woodId != 0 && woodId != goldId, "distinct text yields distinct ids");
@@ -332,7 +332,7 @@ var cursorFirstBatch = new List<(int Id, string Text)>();
 int textCursor = StringRegistry.GetEntriesSince(0, cursorFirstBatch);
 Check(cursorFirstBatch.Count == 1 && cursorFirstBatch[0].Id == firstCursorText && textCursor == 1, "an empty text cursor publishes the text table");
 
-InternedValueStore.GetOrAddTextList(new[] { firstCursorText });
+ContentIdStore.GetOrAddTextList(new[] { firstCursorText });
 int secondCursorText = StringRegistry.GetOrAdd("cursor probe two");
 var cursorSecondBatch = new List<(int Id, string Text)>();
 int advancedTextCursor = StringRegistry.GetEntriesSince(textCursor, cursorSecondBatch);
@@ -353,8 +353,8 @@ firstQueue.Enqueue("farm");
 secondQueue.Enqueue("worker");
 secondQueue.Enqueue("farm");
 Check(firstQueue.Count == 2 && firstQueue.Get(0) == "worker" && firstQueue.Get(1) == "farm", "a production queue preserves insertion order");
-Check(firstQueue.Handle == secondQueue.Handle, "queues with identical content share one interned payload");
-Check(InternedValueStore.TryGetKind(firstQueue.Handle, out byte queueKind) && queueKind == InternedValueStore.TextListKind, "a production queue payload carries the text list kind");
+Check(firstQueue.Handle == secondQueue.Handle, "queues with identical content share one content id payload");
+Check(ContentIdStore.TryGetKind(firstQueue.Handle, out byte queueKind) && queueKind == ContentIdStore.TextListKind, "a production queue payload carries the text list kind");
 
 int sharedQueueHandle = firstQueue.Handle;
 firstQueue.Enqueue("grunt");
@@ -508,14 +508,14 @@ var scriptZones = new ScriptZonesState(null);
 Check(scriptZones.Count == 0 && scriptZones.GetZones().Length == 0 && scriptZones.GetZone(0).MaxX == 0f, "a map without zones reports no zones");
 scriptZones.Add(new ZoneBounds { MinX = 0f, MinZ = 0f, MaxX = 10f, MaxZ = 10f });
 scriptZones.Add(new ZoneBounds { MinX = 20f, MinZ = 20f, MaxX = 30f, MaxZ = 30f });
-Check(scriptZones.Count == 2 && scriptZones.GetZones().Length == 2, "adding a zone grows the interned zone list");
+Check(scriptZones.Count == 2 && scriptZones.GetZones().Length == 2, "adding a zone grows the content id zone list");
 Check(Math.Abs(scriptZones.GetZone(0).MaxX - 10f) < 0.0001f && Math.Abs(scriptZones.GetZone(1).MinX - 20f) < 0.0001f, "zones keep the order they were defined in");
 Check(scriptZones.GetZone(-1).MaxX == 0f && scriptZones.GetZone(7).MaxX == 0f, "a zone index outside the list reads as an empty zone");
-Check(InternedValueStore.TryGetKind(scriptZones.Handle, out byte zoneKind) && zoneKind == InternedValueStore.ZoneListKind, "the zone list payload carries the zone list kind");
+Check(ContentIdStore.TryGetKind(scriptZones.Handle, out byte zoneKind) && zoneKind == ContentIdStore.ZoneListKind, "the zone list payload carries the zone list kind");
 var identicalZones = new ScriptZonesState(null);
 identicalZones.Add(new ZoneBounds { MinX = 0f, MinZ = 0f, MaxX = 10f, MaxZ = 10f });
 identicalZones.Add(new ZoneBounds { MinX = 20f, MinZ = 20f, MaxX = 30f, MaxZ = 30f });
-Check(identicalZones.Handle == scriptZones.Handle, "maps that define the same zones share one interned payload");
+Check(identicalZones.Handle == scriptZones.Handle, "maps that define the same zones share one content id payload");
 scriptZones.Clear();
 Check(scriptZones.Count == 0 && scriptZones.Handle == 0 && scriptZones.GetZones().Length == 0, "clearing the zone list drops the payload");
 

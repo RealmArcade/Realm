@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
-/// Holds the spatial trigger zones a map registered, as positions into one immutable interned payload.
+/// Holds the spatial trigger zones a map registered, as positions into one immutable content id payload.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct ScriptZonesState
@@ -53,8 +53,8 @@ public struct ScriptZonesState
 	public static ReadOnlySpan<ZoneBounds> GetZones(int handle)
 	{
 		if (handle == 0) return ReadOnlySpan<ZoneBounds>.Empty;
-		if (!InternedValueStore.TryGetPayload(handle, out byte kind, out ReadOnlySpan<byte> payload)) return ReadOnlySpan<ZoneBounds>.Empty;
-		if (kind != InternedValueStore.ZoneListKind) return ReadOnlySpan<ZoneBounds>.Empty;
+		if (!ContentIdStore.TryGetPayload(handle, out byte kind, out ReadOnlySpan<byte> payload)) return ReadOnlySpan<ZoneBounds>.Empty;
+		if (kind != ContentIdStore.ZoneListKind) return ReadOnlySpan<ZoneBounds>.Empty;
 
 		return MemoryMarshal.Cast<byte, ZoneBounds>(payload);
 	}
@@ -67,7 +67,7 @@ public struct ScriptZonesState
 
 	private void Apply(ReadOnlySpan<ZoneBounds> zones)
 	{
-		Handle = InternedValueStore.GetOrAddBytes(InternedValueStore.ZoneListKind, MemoryMarshal.AsBytes(zones));
+		Handle = ContentIdStore.GetOrAddBytes(ContentIdStore.ZoneListKind, MemoryMarshal.AsBytes(zones));
 		Count = Handle == 0 ? 0 : zones.Length;
 	}
 }

@@ -18,7 +18,7 @@ namespace Realm.Ecs;
 /// <see cref="CollisionCount"/> and <see cref="CollisionSummary"/> because the fallback decision is only reachable
 /// once both payloads have been registered in the same process.
 /// </remarks>
-public static class InternedValueStore
+public static class ContentIdStore
 {
 	/// <summary>
 	/// The kind tag of the entries whose payload is text.
@@ -60,10 +60,10 @@ public static class InternedValueStore
 	private const uint PrimaryHashSeed = 2166136261u;
 	private const uint FallbackHashSeed = 0x811C9DC5u ^ 0x5BD1E995u;
 
-	private static readonly Dictionary<int, InternedEntry> _entryById = new Dictionary<int, InternedEntry>();
+	private static readonly Dictionary<int, ContentIdEntry> _entryById = new Dictionary<int, ContentIdEntry>();
 	private static readonly Dictionary<string, int> _textIdByText = new Dictionary<string, int>(StringComparer.Ordinal);
-	private static readonly List<InternedEntry> _registeredEntries = new List<InternedEntry>();
-	private static readonly List<InternedEntry> _registeredTextEntries = new List<InternedEntry>();
+	private static readonly List<ContentIdEntry> _registeredEntries = new List<ContentIdEntry>();
+	private static readonly List<ContentIdEntry> _registeredTextEntries = new List<ContentIdEntry>();
 	private static readonly object _lock = new object();
 
 	private static int _collisionCount;
@@ -144,13 +144,13 @@ public static class InternedValueStore
 			if (_textIdByText.TryGetValue(text, out int existingId)) return existingId;
 
 			int primaryId = ComputeTextId(text);
-			if (_entryById.TryGetValue(primaryId, out InternedEntry occupant))
+			if (_entryById.TryGetValue(primaryId, out ContentIdEntry occupant))
 			{
 				if (occupant.Kind == TextKind && string.Equals(occupant.Text, text, StringComparison.Ordinal)) return primaryId;
 				return RegisterTextFallback(text, primaryId, occupant.Text);
 			}
 
-			Store(new InternedEntry(primaryId, TextKind, text));
+			Store(new ContentIdEntry(primaryId, TextKind, text));
 			return primaryId;
 		}
 	}
@@ -171,7 +171,7 @@ public static class InternedValueStore
 
 		lock (_lock)
 		{
-			if (_entryById.TryGetValue(id, out InternedEntry entry) && entry.Kind == TextKind)
+			if (_entryById.TryGetValue(id, out ContentIdEntry entry) && entry.Kind == TextKind)
 			{
 				text = entry.Text;
 				return true;
@@ -196,7 +196,7 @@ public static class InternedValueStore
 		{
 			if (_entryById.ContainsKey(id)) return false;
 
-			Store(new InternedEntry(id, TextKind, text));
+			Store(new ContentIdEntry(id, TextKind, text));
 			return true;
 		}
 	}
@@ -231,7 +231,7 @@ public static class InternedValueStore
 
 		lock (_lock)
 		{
-			return _entryById.TryGetValue(id, out InternedEntry entry) && entry.Kind == TextListKind && entry.Bytes != null
+			return _entryById.TryGetValue(id, out ContentIdEntry entry) && entry.Kind == TextListKind && entry.Bytes != null
 				? ReadTextListCount(entry.Bytes)
 				: 0;
 		}
@@ -249,7 +249,7 @@ public static class InternedValueStore
 
 		lock (_lock)
 		{
-			if (!_entryById.TryGetValue(id, out InternedEntry entry) || entry.Kind != TextListKind || entry.Bytes == null) return 0;
+			if (!_entryById.TryGetValue(id, out ContentIdEntry entry) || entry.Kind != TextListKind || entry.Bytes == null) return 0;
 
 			int count = ReadTextListCount(entry.Bytes);
 			if (index >= count) return 0;
@@ -269,7 +269,7 @@ public static class InternedValueStore
 	{
 		lock (_lock)
 		{
-			if (_entryById.TryGetValue(id, out InternedEntry entry))
+			if (_entryById.TryGetValue(id, out ContentIdEntry entry))
 			{
 				kind = entry.Kind;
 				payload = entry.Bytes ?? ReadOnlySpan<byte>.Empty;
@@ -334,7 +334,7 @@ public static class InternedValueStore
 			int start = Math.Clamp(cursor, 0, _registeredTextEntries.Count);
 			for (int index = start; index < _registeredTextEntries.Count; index++)
 			{
-				InternedEntry entry = _registeredTextEntries[index];
+				ContentIdEntry entry = _registeredTextEntries[index];
 				destination.Add((entry.Id, entry.Text));
 			}
 
@@ -352,7 +352,7 @@ public static class InternedValueStore
 	{
 		lock (_lock)
 		{
-			if (_entryById.TryGetValue(id, out InternedEntry entry))
+			if (_entryById.TryGetValue(id, out ContentIdEntry entry))
 			{
 				kind = entry.Kind;
 				return true;
@@ -373,14 +373,14 @@ public static class InternedValueStore
 		lock (_lock)
 		{
 			var builder = new StringBuilder();
-			builder.AppendLine($"interned table: {_registeredEntries.Count} entries, {_collisionCount} collisions");
+			builder.AppendLine($"content id table: {_registeredEntries.Count} entries, {_collisionCount} collisions");
 
 			int start = Math.Max(0, _registeredEntries.Count - Math.Max(0, maximumEntries));
 			if (start > 0) builder.AppendLine($"showing the last {_registeredEntries.Count - start} entries");
 
 			for (int index = start; index < _registeredEntries.Count; index++)
 			{
-				InternedEntry entry = _registeredEntries[index];
+				ContentIdEntry entry = _registeredEntries[index];
 				builder.AppendLine(entry.Bytes == null
 					? $"id={entry.Id} kind={DescribeKind(entry.Kind)} text='{entry.Text}'"
 					: $"id={entry.Id} kind={DescribeKind(entry.Kind)} count={ReadTextListCount(entry.Bytes)}");
@@ -428,18 +428,18 @@ public static class InternedValueStore
 		lock (_lock)
 		{
 			int primaryId = ComputePayloadId(kind, payload);
-			if (_entryById.TryGetValue(primaryId, out InternedEntry occupant))
+			if (_entryById.TryGetValue(primaryId, out ContentIdEntry occupant))
 			{
 				if (occupant.Kind == kind && occupant.Bytes != null && occupant.Bytes.AsSpan().SequenceEqual(payload)) return primaryId;
 				return RegisterPayloadFallback(kind, payload, primaryId, occupant);
 			}
 
-			Store(new InternedEntry(primaryId, kind, string.Empty, payload));
+			Store(new ContentIdEntry(primaryId, kind, string.Empty, payload));
 			return primaryId;
 		}
 	}
 
-	private static int RegisterPayloadFallback(byte kind, byte[] payload, int primaryId, InternedEntry occupant)
+	private static int RegisterPayloadFallback(byte kind, byte[] payload, int primaryId, ContentIdEntry occupant)
 	{
 		_collisionCount++;
 		if (_collisionSummary.Length < 512)
@@ -453,13 +453,13 @@ public static class InternedValueStore
 		}
 
 		int fallbackId = ComputePayloadFallbackId(kind, payload);
-		if (_entryById.TryGetValue(fallbackId, out InternedEntry fallbackOccupant))
+		if (_entryById.TryGetValue(fallbackId, out ContentIdEntry fallbackOccupant))
 		{
 			if (fallbackOccupant.Kind == kind && fallbackOccupant.Bytes != null && fallbackOccupant.Bytes.AsSpan().SequenceEqual(payload)) return fallbackId;
 			return fallbackId;
 		}
 
-		Store(new InternedEntry(fallbackId, kind, string.Empty, payload));
+		Store(new ContentIdEntry(fallbackId, kind, string.Empty, payload));
 		return fallbackId;
 	}
 
@@ -513,17 +513,17 @@ public static class InternedValueStore
 		}
 
 		int fallbackId = ComputeTextFallbackId(text);
-		if (_entryById.TryGetValue(fallbackId, out InternedEntry fallbackOccupant))
+		if (_entryById.TryGetValue(fallbackId, out ContentIdEntry fallbackOccupant))
 		{
 			if (fallbackOccupant.Kind == TextKind && string.Equals(fallbackOccupant.Text, text, StringComparison.Ordinal)) return fallbackId;
 			return fallbackId;
 		}
 
-		Store(new InternedEntry(fallbackId, TextKind, text));
+		Store(new ContentIdEntry(fallbackId, TextKind, text));
 		return fallbackId;
 	}
 
-	private static void Store(InternedEntry entry)
+	private static void Store(ContentIdEntry entry)
 	{
 		_entryById[entry.Id] = entry;
 		_registeredEntries.Add(entry);
@@ -557,9 +557,9 @@ public static class InternedValueStore
 		}
 	}
 
-	private readonly struct InternedEntry
+	private readonly struct ContentIdEntry
 	{
-		public InternedEntry(int id, byte kind, string text, byte[]? bytes = null)
+		public ContentIdEntry(int id, byte kind, string text, byte[]? bytes = null)
 		{
 			Id = id;
 			Kind = kind;

@@ -15,7 +15,7 @@ namespace Realm.Ecs;
 /// identifier from the reserved fallback range so no two strings alias. Colliding texts are reported through
 /// <see cref="CollisionCount"/> and <see cref="CollisionSummary"/> because the fallback decision is only
 /// reachable once both strings have been registered in the same process. The table itself lives in
-/// <see cref="InternedValueStore"/>, which shares one identifier space between text and the structured
+/// <see cref="ContentIdStore"/>, which shares one identifier space between text and the structured
 /// payload kinds that are still being migrated onto it.
 /// </remarks>
 public static class StringRegistry
@@ -23,23 +23,23 @@ public static class StringRegistry
 	/// <summary>
 	/// First identifier of the reserved fallback range used when a primary content hash is already taken.
 	/// </summary>
-	public const int FallbackIdBase = InternedValueStore.FallbackIdBase;
+	public const int FallbackIdBase = ContentIdStore.FallbackIdBase;
 
 	/// <summary>
 	/// Gets the number of text registrations that had to move into the reserved fallback range because another
 	/// string already owned their primary content hash.
 	/// </summary>
-	public static int CollisionCount => InternedValueStore.CollisionCount;
+	public static int CollisionCount => ContentIdStore.CollisionCount;
 
 	/// <summary>
 	/// Gets a human readable summary of the first few hash collisions, listing both colliding texts.
 	/// </summary>
-	public static string CollisionSummary => InternedValueStore.CollisionSummary;
+	public static string CollisionSummary => ContentIdStore.CollisionSummary;
 
 	/// <summary>
 	/// Gets the number of text entries that have been registered or received in this process, in registration order.
 	/// </summary>
-	public static int EntryCount => InternedValueStore.TextEntryCount;
+	public static int EntryCount => ContentIdStore.TextEntryCount;
 
 	/// <summary>
 	/// Registers a text in the table and returns its stable identifier.
@@ -51,7 +51,7 @@ public static class StringRegistry
 	/// </returns>
 	public static int GetOrAdd(string? text)
 	{
-		return InternedValueStore.GetOrAddText(text);
+		return ContentIdStore.GetOrAddText(text);
 	}
 
 	/// <summary>
@@ -103,7 +103,7 @@ public static class StringRegistry
 	/// <returns>True when the identifier is present in the text table.</returns>
 	public static bool TryGetText(int id, out string text)
 	{
-		return InternedValueStore.TryGetText(id, out text);
+		return ContentIdStore.TryGetText(id, out text);
 	}
 
 	/// <summary>
@@ -114,7 +114,7 @@ public static class StringRegistry
 	/// <returns>True when the table gained the entry, false when the identifier was already known.</returns>
 	public static bool RegisterRemote(int id, string? text)
 	{
-		return InternedValueStore.RegisterRemoteText(id, text);
+		return ContentIdStore.RegisterRemoteText(id, text);
 	}
 
 	/// <summary>
@@ -124,7 +124,7 @@ public static class StringRegistry
 	/// <returns>Zero for null or empty text, the text's content hash otherwise.</returns>
 	public static int ComputeId(string? text)
 	{
-		return InternedValueStore.ComputeTextId(text);
+		return ContentIdStore.ComputeTextId(text);
 	}
 
 	/// <summary>
@@ -136,7 +136,7 @@ public static class StringRegistry
 	/// <returns>The cursor that stands for the end of the table after this copy.</returns>
 	public static int GetEntriesSince(int cursor, List<(int Id, string Text)> destination)
 	{
-		return InternedValueStore.GetTextEntriesSince(cursor, destination);
+		return ContentIdStore.GetTextEntriesSince(cursor, destination);
 	}
 
 	/// <summary>
@@ -156,7 +156,7 @@ public static class StringRegistry
 	/// <returns>One line per entry with its identifier, kind and text, framed by a summary of the table and its collisions.</returns>
 	public static string DescribeTable(int maximumEntries = 200)
 	{
-		return InternedValueStore.DescribeTable(maximumEntries);
+		return ContentIdStore.DescribeTable(maximumEntries);
 	}
 
 	/// <summary>
@@ -164,6 +164,6 @@ public static class StringRegistry
 	/// </summary>
 	public static void Reset()
 	{
-		InternedValueStore.Reset();
+		ContentIdStore.Reset();
 	}
 }

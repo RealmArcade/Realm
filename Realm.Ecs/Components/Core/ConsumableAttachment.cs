@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Core;
 
 /// <summary>
-/// The consumable a unit is carrying, in the slot group it was bought for. Identifiers are interned
+/// The consumable a unit is carrying, in the slot group it was bought for. Identifiers are content ids
 /// text ids so the component stays blittable while still naming a map-authored definition.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]

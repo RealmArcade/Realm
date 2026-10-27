@@ -1202,9 +1202,9 @@ public class NetworkService
 
 		switch ((ColdPayloadKind)delta.Kind)
 		{
-			case ColdPayloadKind.InternedPayload:
+			case ColdPayloadKind.ContentIdPayload:
 			{
-				int registeredContentId = InternedValueStore.GetOrAddBytes(delta.InternedKind, delta.Bytes);
+				int registeredContentId = ContentIdStore.GetOrAddBytes(delta.ContentKind, delta.Bytes);
 				if (registeredContentId != delta.ContentId)
 				{
 					GD.PushWarning($"[Network] Cold payload content id {delta.ContentId} registered as {registeredContentId}; the payload bytes disagree with the sender's handle.");
@@ -2158,7 +2158,7 @@ public class NetworkService
 	private readonly HashSet<(byte Scope, int Key, byte Kind, byte Role)> _coldPayloadSeenKeys = new();
 	private readonly List<(byte Scope, int Key, byte Kind, byte Role)> _coldPayloadExpiredKeys = new();
 	private readonly Dictionary<int, Dictionary<(byte Scope, int Key, byte Kind, byte Role), int>> _coldPayloadContentPerClient = new();
-	private readonly Dictionary<int, (byte InternedKind, byte[] Bytes)> _internedPayloadBytesCache = new();
+	private readonly Dictionary<int, (byte ContentKind, byte[] Bytes)> _contentIdPayloadBytesCache = new();
 	private int _coldPayloadCandidatesSequence = -1;
 	private byte[] _leaderboardPayloadBytes = Array.Empty<byte>();
 	private int _leaderboardPayloadContentId;
@@ -2210,7 +2210,7 @@ public class NetworkService
 
 			if (world.Has<ScriptZonesState>(worldEntity))
 			{
-				AddInternedPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadRole.ZoneList, world.Get<ScriptZonesState>(worldEntity).Handle);
+				AddContentIdPayloadCandidate((byte)ReplicatedScope.World, 0, ColdPayloadRole.ZoneList, world.Get<ScriptZonesState>(worldEntity).Handle);
 			}
 		}
 
@@ -2219,7 +2219,7 @@ public class NetworkService
 			ref var queue = ref world.Get<ProductionQueue>(entity);
 			if (queue.Count <= 0 || queue.Handle == 0) continue;
 
-			AddInternedPayloadCandidate((byte)ReplicatedScope.Unit, GetServerEntityId(entity.Id), ColdPayloadRole.ProductionQueue, queue.Handle);
+			AddContentIdPayloadCandidate((byte)ReplicatedScope.Unit, GetServerEntityId(entity.Id), ColdPayloadRole.ProductionQueue, queue.Handle);
 		}
 
 		foreach (var entity in world.Query<AbilityState>())
@@ -2227,28 +2227,28 @@ public class NetworkService
 			ref var abilityState = ref world.Get<AbilityState>(entity);
 			if (abilityState.Count <= 0 || abilityState.Handle == 0) continue;
 
-			AddInternedPayloadCandidate((byte)ReplicatedScope.Unit, GetServerEntityId(entity.Id), ColdPayloadRole.AbilityList, abilityState.Handle);
+			AddContentIdPayloadCandidate((byte)ReplicatedScope.Unit, GetServerEntityId(entity.Id), ColdPayloadRole.AbilityList, abilityState.Handle);
 		}
 
 		return _coldPayloadCandidates;
 	}
 
-	private void AddInternedPayloadCandidate(byte scope, int key, ColdPayloadRole role, int handle)
+	private void AddContentIdPayloadCandidate(byte scope, int key, ColdPayloadRole role, int handle)
 	{
 		if (handle == 0) return;
 
-		if (!_internedPayloadBytesCache.TryGetValue(handle, out var cached))
+		if (!_contentIdPayloadBytesCache.TryGetValue(handle, out var cached))
 		{
-			if (!InternedValueStore.TryGetPayload(handle, out byte internedKind, out ReadOnlySpan<byte> payload)) return;
+			if (!ContentIdStore.TryGetPayload(handle, out byte contentKind, out ReadOnlySpan<byte> payload)) return;
 
-			cached = (internedKind, payload.ToArray());
-			_internedPayloadBytesCache[handle] = cached;
+			cached = (contentKind, payload.ToArray());
+			_contentIdPayloadBytesCache[handle] = cached;
 		}
 
-		AddColdPayloadCandidate(scope, key, ColdPayloadKind.InternedPayload, role, cached.InternedKind, handle, cached.Bytes);
+		AddColdPayloadCandidate(scope, key, ColdPayloadKind.ContentIdPayload, role, cached.ContentKind, handle, cached.Bytes);
 	}
 
-	private void AddColdPayloadCandidate(byte scope, int key, ColdPayloadKind kind, ColdPayloadRole role, byte internedKind, int contentId, byte[] bytes)
+	private void AddColdPayloadCandidate(byte scope, int key, ColdPayloadKind kind, ColdPayloadRole role, byte contentKind, int contentId, byte[] bytes)
 	{
 		_coldPayloadCandidates.Add(new ColdPayloadDelta
 		{
@@ -2256,7 +2256,7 @@ public class NetworkService
 			Key = key,
 			Kind = (byte)kind,
 			Role = (byte)role,
-			InternedKind = internedKind,
+			ContentKind = contentKind,
 			ContentId = contentId,
 			Destroyed = 0,
 			Bytes = bytes

@@ -23,7 +23,7 @@ public struct AbilityState
 	{
 		if (index < 0 || index >= Count) return null;
 
-		int textId = InternedValueStore.GetTextListItemId(Handle, index);
+		int textId = ContentIdStore.GetTextListItemId(Handle, index);
 		return textId == 0 ? null : StringRegistry.Get(textId);
 	}
 
@@ -48,11 +48,11 @@ public struct AbilityState
 		Span<int> textIds = stackalloc int[Count + 1];
 		for (int index = 0; index < Count; index++)
 		{
-			textIds[index] = InternedValueStore.GetTextListItemId(Handle, index);
+			textIds[index] = ContentIdStore.GetTextListItemId(Handle, index);
 		}
 
 		textIds[Count] = textId;
-		Handle = InternedValueStore.GetOrAddTextList(textIds);
+		Handle = ContentIdStore.GetOrAddTextList(textIds);
 		Count = textIds.Length;
 		return true;
 	}
@@ -92,6 +92,6 @@ public struct AbilityState
 		}
 
 		count = writeIndex;
-		return InternedValueStore.GetOrAddTextList(textIds.Slice(0, writeIndex));
+		return ContentIdStore.GetOrAddTextList(textIds.Slice(0, writeIndex));
 	}
 }
