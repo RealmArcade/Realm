@@ -12,7 +12,13 @@ namespace Realm.ListenServer;
 public class ServerMapScript : IDisposable
 {
 	private const string PublishRelativePath = "bin/Release/net10.0/wasi-wasm/publish/MapScript.wasm";
-	private const string ScriptFileName = "MapScript.wasm";
+
+	/// <summary>
+	///     What a map's compiled script is called. A workspace names its project after itself, so a map kept in a workspace
+	///     built from the current template compiles to the first name, and a map whose workspace still carries the project
+	///     name the template shipped under compiles to the second. Both are the map's own script and nothing else.
+	/// </summary>
+	private static readonly string[] ScriptFileNames = ["MapScript.wasm", "CustomMap.wasm"];
 
 	private readonly ServerGameAPI _api;
 	private readonly WasmScriptHost? _host;
@@ -65,9 +71,9 @@ public class ServerMapScript : IDisposable
 	public ServerGameAPI Api => _api;
 
 	/// <summary>
-	///     Finds the script a map folder carries. A published map keeps it where the map's own workspace compiled it,
-	///     and a workspace that has been built but not packaged keeps it under its build output, so both are looked for
-	///     rather than requiring a map to be packaged before the authority can run it.
+	///     Finds the script a map folder carries. A published map keeps it where the map's own workspace compiled it, and a
+	///     workspace that has been built but not packaged keeps it under its build output, so both are looked for rather
+	///     than requiring a map to be packaged before the authority can run it.
 	/// </summary>
 	public static bool TryFindScript(string mapPath, out string wasmPath)
 	{
@@ -86,14 +92,17 @@ public class ServerMapScript : IDisposable
 
 		string? publishedElsewhere = null;
 		string? anyScript = null;
-		foreach (string candidate in Directory.EnumerateFiles(binDirectory, ScriptFileName, SearchOption.AllDirectories))
+		foreach (string scriptFileName in ScriptFileNames)
 		{
-			publishedElsewhere ??= candidate;
-			anyScript = candidate;
-			if (candidate.Replace('\\', '/').Contains("/publish/", StringComparison.OrdinalIgnoreCase))
+			foreach (string candidate in Directory.EnumerateFiles(binDirectory, scriptFileName, SearchOption.AllDirectories))
 			{
-				wasmPath = candidate;
-				return true;
+				publishedElsewhere ??= candidate;
+				anyScript = candidate;
+				if (candidate.Replace('\\', '/').Contains("/publish/", StringComparison.OrdinalIgnoreCase))
+				{
+					wasmPath = candidate;
+					return true;
+				}
 			}
 		}
 
