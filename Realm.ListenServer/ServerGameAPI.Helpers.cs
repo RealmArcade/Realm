@@ -9,7 +9,12 @@ namespace Realm.ListenServer;
 public partial class ServerGameAPI
 {
 	private static readonly QueryDescription ResourceNodeQuery = new QueryDescription().WithAll<ResourceNode>();
-	private static readonly QueryDescription OwnedUnitQuery = new QueryDescription().WithAll<Owner>().WithNone<Dead>();
+
+	/// <summary>
+	///     What a script means by a player's units: something a map template built and a player owns. A player's own
+	///     entity and the props a map places carry no template, so they never show up in a script's army count.
+	/// </summary>
+	private static readonly QueryDescription PlayerUnitsQuery = new QueryDescription().WithAll<Owner, UnitOwnerPlayer, DefinitionId>().WithNone<Dead, Player, Prop>();
 
 	private readonly EntityCallback<ResourceNode> _countResourceNodes;
 	private readonly EntityCallback<Owner> _countOwnedUnits;

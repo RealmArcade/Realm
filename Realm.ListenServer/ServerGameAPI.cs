@@ -36,6 +36,8 @@ public partial class ServerGameAPI : IGameAPI
 		_presentation = presentation;
 		_countResourceNodes = CountResourceNodes;
 		_countOwnedUnits = CountOwnedUnits;
+		_collectOwnedUnits = CollectOwnedUnits;
+		_collectResourceNodes = CollectResourceNodes;
 	}
 
 	/// <summary>The world this surface writes to, so the host that runs a script can hand it the same world.</summary>
@@ -228,7 +230,7 @@ public partial class ServerGameAPI : IGameAPI
 
 		_countingScratch = 0;
 		_countedOwner = playerEntity;
-		_context.World.Query(in OwnedUnitQuery, _countOwnedUnits);
+		_context.World.Query(in PlayerUnitsQuery, _countOwnedUnits);
 		return _countingScratch;
 	}
 

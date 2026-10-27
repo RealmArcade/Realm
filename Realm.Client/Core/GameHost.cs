@@ -3012,18 +3012,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	public void ClearUnitOrders(Entity entity)
 	{
-		RemoveIfHas<MoveTo>(entity);
-		RemoveIfHas<PathFollow>(entity);
-		RemoveIfHas<AttackTarget>(entity);
-		RemoveIfHas<AttackMove>(entity);
-		RemoveIfHas<HoldPosition>(entity);
-		RemoveIfHas<Follow>(entity);
-		RemoveIfHas<Patrol>(entity);
-		RemoveIfHas<HealingTarget>(entity);
-		RemoveIfHas<WaypointQueue>(entity);
-		RemoveIfHas<Gatherer>(entity);
-		RemoveIfHas<BuildTask>(entity);
-		RemoveIfHas<BuildQueue>(entity);
+		UnitOrderService.ClearOrders(GameContext.World, entity);
 	}
 
 	private void StopGatheringMovement(Entity entity)

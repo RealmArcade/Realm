@@ -29,9 +29,9 @@ public partial class ServerGameAPI
 	public event Action<UnitId, string, Vector3>? OnUnitOrdered;
 	public event Action<int, string, string, Vector3, string>? OnBotCustomActionExecuted;
 
-	public void SpawnResourceNode(string resourceType, Vector3 position, float amount) => throw new NotSupportedException("SpawnResourceNode is not answered by the authority yet");
-	public ResourceNodeId GetResourceNode(int index) => throw new NotSupportedException("GetResourceNode is not answered by the authority yet");
-	public ReadOnlySpan<ResourceNodeId> GetResourceNodes() => throw new NotSupportedException("GetResourceNodes is not answered by the authority yet");
+
+
+
 	public void GenerateMapDirectory(string mapName, string? targetDirectory = null) => throw new NotSupportedException("GenerateMapDirectory is not answered by the authority yet");
 	public void SpawnVisualEffect(string effectTypeId, Vector3 position, float scale = 1.0f) => throw new NotSupportedException("SpawnVisualEffect is not answered by the authority yet");
 	public void SpawnBarrageVolley(string effectTypeId, Vector3 targetAreaCenter, float radius, int count, float intervalSeconds) => throw new NotSupportedException("SpawnBarrageVolley is not answered by the authority yet");
@@ -39,15 +39,15 @@ public partial class ServerGameAPI
 	public void DrawLineOnTerrain(Vector2 start, Vector2 end, Vector3? color = null, float duration = 1.0f, float width = 0.2f) => throw new NotSupportedException("DrawLineOnTerrain is not answered by the authority yet");
 	public void SpawnExpandingBurstSphere(Vector3 position, float maxRadius = 6.0f, float speed = 15.0f, float duration = 0.8f, Vector3? color = null) => throw new NotSupportedException("SpawnExpandingBurstSphere is not answered by the authority yet");
 	public void AttachPersistentAura(UnitId unit, string auraVfxId, float scale = 1.0f) => throw new NotSupportedException("AttachPersistentAura is not answered by the authority yet");
-	public void AddBuff(UnitId unit, string buffId, float duration) => throw new NotSupportedException("AddBuff is not answered by the authority yet");
-	public void AddStatModifier(UnitId unit, string statName, bool isPercentage, float value, string sourceId) => throw new NotSupportedException("AddStatModifier is not answered by the authority yet");
-	public void RemoveStatModifiers(UnitId unit, string sourceId) => throw new NotSupportedException("RemoveStatModifiers is not answered by the authority yet");
-	public void RegisterBuffModifier(string buffId, string statName, bool isPercentage, float value) => throw new NotSupportedException("RegisterBuffModifier is not answered by the authority yet");
+
+
+
+
 	public void CastAbility(UnitId unit, string abilityId, Vector3 targetPosition) => throw new NotSupportedException("CastAbility is not answered by the authority yet");
-	public float GetAbilityCooldown(UnitId unit, string abilityId) => throw new NotSupportedException("GetAbilityCooldown is not answered by the authority yet");
-	public void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown) => throw new NotSupportedException("SetAbilityCooldown is not answered by the authority yet");
-	public void RemoveBuff(UnitId unit, string buffId) => throw new NotSupportedException("RemoveBuff is not answered by the authority yet");
-	public IEnumerable<string> GetModifiers(UnitId unit) => throw new NotSupportedException("GetModifiers is not answered by the authority yet");
+
+
+
+
 	public void SpawnProjectile(string projectileTypeId, Vector3 start, Vector3 target, float speed) => throw new NotSupportedException("SpawnProjectile is not answered by the authority yet");
 	public void SetLeaderboardVisible(string title, bool visible) => throw new NotSupportedException("SetLeaderboardVisible is not answered by the authority yet");
 	public void SetLeaderboardValue(string label, string value) => throw new NotSupportedException("SetLeaderboardValue is not answered by the authority yet");
@@ -70,19 +70,19 @@ public partial class ServerGameAPI
 	public void KickPlayer(int playerIndex, string reason = "Kicked by host") => throw new NotSupportedException("KickPlayer is not answered by the authority yet");
 	public bool AddComputerPlayer(int playerIndex, string? name = null, int teamIndex = -1) => throw new NotSupportedException("AddComputerPlayer is not answered by the authority yet");
 	public void SetUnitColor(UnitId unit, Vector3 color) => throw new NotSupportedException("SetUnitColor is not answered by the authority yet");
-	public void IssueAttackMoveOrder(UnitId unit, Vector3 destination) => throw new NotSupportedException("IssueAttackMoveOrder is not answered by the authority yet");
+
 	public void IssueCastOrder(UnitId caster, string abilityId, UnitId target) => throw new NotSupportedException("IssueCastOrder is not answered by the authority yet");
 	public void IssueCastOrderAt(UnitId caster, string abilityId, Vector3 position) => throw new NotSupportedException("IssueCastOrderAt is not answered by the authority yet");
-	public void SetAbilityAutoCast(UnitId unit, string abilityId, bool active) => throw new NotSupportedException("SetAbilityAutoCast is not answered by the authority yet");
+
 	public void SetPlayerComputerControlled(int playerIndex, bool isProxy) => throw new NotSupportedException("SetPlayerComputerControlled is not answered by the authority yet");
 	public void AddLeaderboardRow(string label, string value, Vector3? color = null) => throw new NotSupportedException("AddLeaderboardRow is not answered by the authority yet");
 	public void SetCountdownTimerLabel(string label) => throw new NotSupportedException("SetCountdownTimerLabel is not answered by the authority yet");
-	public void IssueAttackMoveOrderToPlayer(int playerIndex, Vector3 destination) => throw new NotSupportedException("IssueAttackMoveOrderToPlayer is not answered by the authority yet");
+
 	public int DefineZone(float minX, float minZ, float maxX, float maxZ) => throw new NotSupportedException("DefineZone is not answered by the authority yet");
 	public Vector3 GetZoneCenter(int zoneHandle) => throw new NotSupportedException("GetZoneCenter is not answered by the authority yet");
-	public void SetUnitRouteState(UnitId unit, int state) => throw new NotSupportedException("SetUnitRouteState is not answered by the authority yet");
-	public int GetUnitRouteState(UnitId unit) => throw new NotSupportedException("GetUnitRouteState is not answered by the authority yet");
-	public void IssueMoveOrder(UnitId unit, Vector3 destination) => throw new NotSupportedException("IssueMoveOrder is not answered by the authority yet");
+
+
+
 	public bool HasCoordinate(string coordinateName) => throw new NotSupportedException("HasCoordinate is not answered by the authority yet");
 	public Vector3 GetCoordinateMin(string coordinateName) => throw new NotSupportedException("GetCoordinateMin is not answered by the authority yet");
 	public Vector3 GetCoordinateMax(string coordinateName) => throw new NotSupportedException("GetCoordinateMax is not answered by the authority yet");
@@ -117,7 +117,7 @@ public partial class ServerGameAPI
 	public void SetAbilityManaCost(UnitId unit, string abilityId, float manaCost) => throw new NotSupportedException("SetAbilityManaCost is not answered by the authority yet");
 	public void SetUnitAnimation(UnitId unit, string animationName) => throw new NotSupportedException("SetUnitAnimation is not answered by the authority yet");
 	public void SetUnitHandAttachment(UnitId unit, string hand, string? attachmentId) => throw new NotSupportedException("SetUnitHandAttachment is not answered by the authority yet");
-	public void DealTypedDamage(UnitId attacker, UnitId target, float damage, string damageType) => throw new NotSupportedException("DealTypedDamage is not answered by the authority yet");
+
 	public void TriggerMeshImpulse(UnitId unit, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f) => throw new NotSupportedException("TriggerMeshImpulse is not answered by the authority yet");
 	public void TriggerResourceMeshImpulse(ResourceNodeId node, float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f) => throw new NotSupportedException("TriggerResourceMeshImpulse is not answered by the authority yet");
 	public void SetPlayerBotProfile(int playerIndex, string profileJson) => throw new NotSupportedException("SetPlayerBotProfile is not answered by the authority yet");
@@ -157,15 +157,15 @@ public partial class ServerGameAPI
 	public bool RemoveLootItem(int lootItemId) => throw new NotSupportedException("RemoveLootItem is not answered by the authority yet");
 	public bool CollectLootItem(int lootItemId, UnitId unit) => throw new NotSupportedException("CollectLootItem is not answered by the authority yet");
 	public bool CollectLootItemByPlayer(int lootItemId, int playerIndex) => throw new NotSupportedException("CollectLootItemByPlayer is not answered by the authority yet");
-	public void SetUnitName(UnitId unit, string value) => throw new NotSupportedException("SetUnitName is not answered by the authority yet");
-	public void SetUnitAnimationsFrozen(UnitId unit, bool value) => throw new NotSupportedException("SetUnitAnimationsFrozen is not answered by the authority yet");
-	public void SetUnitHideHealthAndManaBars(UnitId unit, bool value) => throw new NotSupportedException("SetUnitHideHealthAndManaBars is not answered by the authority yet");
-	public void IssueAttackOrder(UnitId unit, UnitId target) => throw new NotSupportedException("IssueAttackOrder is not answered by the authority yet");
-	public void IssueGatherOrder(UnitId unit, ResourceNodeId resourceNode) => throw new NotSupportedException("IssueGatherOrder is not answered by the authority yet");
-	public void IssueStopOrder(UnitId unit) => throw new NotSupportedException("IssueStopOrder is not answered by the authority yet");
-	public void IssueHoldPositionOrder(UnitId unit) => throw new NotSupportedException("IssueHoldPositionOrder is not answered by the authority yet");
-	public void StunUnit(UnitId unit, float duration) => throw new NotSupportedException("StunUnit is not answered by the authority yet");
-	public void SilenceUnit(UnitId unit, float duration) => throw new NotSupportedException("SilenceUnit is not answered by the authority yet");
+
+
+
+
+
+
+
+
+
 	public bool AddItemToUnit(UnitId unit, string itemId) => throw new NotSupportedException("AddItemToUnit is not answered by the authority yet");
 	public bool AddItemToUnitWithCharges(UnitId unit, string itemId, int charges) => throw new NotSupportedException("AddItemToUnitWithCharges is not answered by the authority yet");
 	public bool RemoveItemFromUnit(UnitId unit, string itemId) => throw new NotSupportedException("RemoveItemFromUnit is not answered by the authority yet");
@@ -173,11 +173,11 @@ public partial class ServerGameAPI
 	public IReadOnlyList<string> GetUnitItems(UnitId unit) => throw new NotSupportedException("GetUnitItems is not answered by the authority yet");
 	public int GetUnitItemCharges(UnitId unit, string itemId) => throw new NotSupportedException("GetUnitItemCharges is not answered by the authority yet");
 	public void SetUnitItemCharges(UnitId unit, string itemId, int charges) => throw new NotSupportedException("SetUnitItemCharges is not answered by the authority yet");
-	public bool UnitHasBuff(UnitId unit, string buffId) => throw new NotSupportedException("UnitHasBuff is not answered by the authority yet");
-	public void SetUnitCustomData(UnitId unit, string key, string value) => throw new NotSupportedException("SetUnitCustomData is not answered by the authority yet");
-	public string? GetUnitCustomData(UnitId unit, string key) => throw new NotSupportedException("GetUnitCustomData is not answered by the authority yet");
-	public bool RemoveUnitCustomData(UnitId unit, string key) => throw new NotSupportedException("RemoveUnitCustomData is not answered by the authority yet");
-	public bool UnitHasCustomData(UnitId unit, string key) => throw new NotSupportedException("UnitHasCustomData is not answered by the authority yet");
+
+
+
+
+
 	public string GetLootItemTypeId(LootItemId item) => throw new NotSupportedException("GetLootItemTypeId is not answered by the authority yet");
 	public Vector3 GetLootItemPosition(LootItemId item) => throw new NotSupportedException("GetLootItemPosition is not answered by the authority yet");
 	public int GetLootItemCharges(LootItemId item) => throw new NotSupportedException("GetLootItemCharges is not answered by the authority yet");
@@ -186,9 +186,9 @@ public partial class ServerGameAPI
 	public bool IsLootItemAutoPickup(LootItemId item) => throw new NotSupportedException("IsLootItemAutoPickup is not answered by the authority yet");
 	public int GetLootItemOwner(LootItemId item) => throw new NotSupportedException("GetLootItemOwner is not answered by the authority yet");
 	public bool IsLootItemDespawned(LootItemId item) => throw new NotSupportedException("IsLootItemDespawned is not answered by the authority yet");
-	public string GetResourceNodeType(ResourceNodeId node) => throw new NotSupportedException("GetResourceNodeType is not answered by the authority yet");
-	public Vector3 GetResourceNodePosition(ResourceNodeId node) => throw new NotSupportedException("GetResourceNodePosition is not answered by the authority yet");
-	public float GetResourceNodeAmount(ResourceNodeId node) => throw new NotSupportedException("GetResourceNodeAmount is not answered by the authority yet");
-	public void SetResourceNodeAmount(ResourceNodeId node, float value) => throw new NotSupportedException("SetResourceNodeAmount is not answered by the authority yet");
-	public bool IsResourceNodeDepleted(ResourceNodeId node) => throw new NotSupportedException("IsResourceNodeDepleted is not answered by the authority yet");
+
+
+
+
+
 }

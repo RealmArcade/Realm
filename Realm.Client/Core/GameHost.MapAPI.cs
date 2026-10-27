@@ -2184,39 +2184,15 @@ public partial class GameHost
 		if (!GameContext.SimulationService.TryGetEntity(unit, out var entity) || !GameContext.World.IsAlive(entity)) return;
 
 		Realm.Ecs.Common.StatKeys.WarnIfUnknown($"script '{sourceId}'", statName);
-
-		if (!GameContext.World.Has<ModifierState>(entity))
-		{
-			GameContext.World.Add(entity, new ModifierState(null));
-		}
-
-		ref var modState = ref GameContext.World.Get<ModifierState>(entity);
-		modState.Add(new StatModifier(
-			statTypeId: new StatId(statName),
-			type: isPercentage ? ModifierType.Percentage : ModifierType.Flat,
-			value: value,
-			duration: -1f,
-			sourceUpgradeId: sourceId));
-
-		AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
+		UnitOrderService.AddStatModifier(GameContext.World, entity, statName, isPercentage, value, sourceId);
 	}
 
 	void IGameAPI.RemoveStatModifiers(UnitId unit, string sourceId)
 	{
 		if (string.IsNullOrWhiteSpace(sourceId)) return;
 		if (!GameContext.SimulationService.TryGetEntity(unit, out var entity) || !GameContext.World.IsAlive(entity)) return;
-		if (!GameContext.World.Has<ModifierState>(entity)) return;
 
-		ref var modState = ref GameContext.World.Get<ModifierState>(entity);
-		bool removed = false;
-		for (int index = modState.Count - 1; index >= 0; index--)
-		{
-			if (!string.Equals(modState.Get(index).SourceUpgradeId, sourceId, StringComparison.OrdinalIgnoreCase)) continue;
-			modState.RemoveAt(index);
-			removed = true;
-		}
-
-		if (removed) AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
+		UnitOrderService.RemoveStatModifiers(GameContext.World, entity, sourceId);
 	}
 
 
