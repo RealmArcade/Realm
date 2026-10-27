@@ -1187,6 +1187,17 @@ public partial class MapEditorHUD : Control
 	{
 		SaveCameraState();
 		SaveGameHostStates();
+		SaveEditorWorldBeforeTest();
+	}
+
+	/// <summary>
+	///     Keeps the editor's world so the world the playtest builds cannot be built on it. What is played has to be the
+	///     map as it was saved, standing in a world of its own, and the editor is put back from here once the playtest
+	///     has ended.
+	/// </summary>
+	private void SaveEditorWorldBeforeTest()
+	{
+		GameContext.SessionState.EditorWorldState = MapStateSnapshot.CreateSnapshot();
 	}
 
 	private void SaveCameraState()

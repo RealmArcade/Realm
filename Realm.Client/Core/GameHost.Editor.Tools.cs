@@ -2630,7 +2630,18 @@ namespace Realm.Client.Core
 		{
 			try
 			{
-				LoadMapFromFile(GameContext.EditorService.TempWorkspaceGodotPath + "/terrain.json");
+				GameContext.SessionState.ReturningFromTest = false;
+
+				MapStateSnapshot editorState = GameContext.SessionState.EditorWorldState;
+				if (editorState == null)
+					throw new InvalidOperationException("The editor's world was not kept before the playtest that is ending.");
+
+				GameContext.SessionState.EditorWorldState = null;
+
+				// The playtest ran on a world of its own; the ground it stood on is replaced with the editable one the
+				// editor paints, and what the editor looked like before the playtest is put back into it.
+				CreateGround();
+				MapStateSnapshot.Restore(editorState, updateMapSize: false);
 				RestoreEditorDirtyStateAfterTest();
 
 				GameContext.EditorService.EditorGridMode = GameContext.SessionState.SavedGridMode;
@@ -2658,7 +2669,9 @@ namespace Realm.Client.Core
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"Failed loading map state: {ex.Message}. Resetting to blank map.");
+				GD.PrintErr($"Failed to put the editor's world back after the playtest: {ex.Message}. Resetting to a blank map.");
+				GameContext.SessionState.EditorWorldState = null;
+				GameContext.SessionState.ReturningFromTest = false;
 				ResetWorldAndState();
 				ClearMapEntirely();
 			}

@@ -1,8 +1,12 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Client.VFX;
 using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client;
@@ -52,6 +56,146 @@ public class MapStateSnapshot
 	public List<SavedDecal> Decals = new List<SavedDecal>();
 	public List<VfxSaveData> Vfx = new List<VfxSaveData>();
 	public List<CoordinateSaveData> Coordinates = new List<CoordinateSaveData>();
+
+	/// <summary>
+	///     Puts the world under the host back to what this snapshot describes: the terrain it was taken from, the units,
+	///     props, decals and effects that were standing on it, and the coordinates a map had named. Restoring is what
+	///     lets a world be torn down for a playtest and come back afterwards without a file being written in between.
+	/// </summary>
+	public static void Restore(MapStateSnapshot snapshot, bool updateMapSize)
+	{
+		var host = GameContext.Host;
+		if (host == null || host.GroundTerrain == null) return;
+
+		ClearRestoredWorld(host);
+		RestoreTerrain(host, snapshot);
+		RestoreEntities(host, snapshot);
+		RestoreCoordinates(host, snapshot);
+		if (updateMapSize) UpdateMetadataMapSize(snapshot);
+		RebuildRestoredWorldViews(host);
+	}
+
+	private static void ClearRestoredWorld(GameHost host)
+	{
+		var unitsCopy = new List<Unit3D>(host.AllUnits);
+		foreach (var unit in unitsCopy)
+		{
+			if (GodotObject.IsInstanceValid(unit))
+			{
+				host.DeleteNodeExternal(unit);
+			}
+		}
+
+		host.SelectedUnits.Clear();
+		host.AllUnits.Clear();
+
+		var children = host.GetChildren();
+		foreach (var child in children)
+		{
+			if (child is Prop3D prop && GodotObject.IsInstanceValid(prop))
+			{
+				host.DeleteNodeExternal(prop);
+			}
+			else if (child is Decal decal && GodotObject.IsInstanceValid(decal))
+			{
+				host.DeleteNodeExternal(decal);
+			}
+			else if (child is ProceduralVfxInstance3D vfx && GodotObject.IsInstanceValid(vfx))
+			{
+				host.DeleteNodeExternal(vfx);
+			}
+		}
+	}
+
+	private static void RestoreTerrain(GameHost host, MapStateSnapshot snapshot)
+	{
+		host.GroundTerrain.RestoreTerrainFromSnapshot(
+			snapshot.Width,
+			snapshot.Depth,
+			host.GroundTerrain.QuadSize,
+			snapshot.Cells,
+			snapshot.PathingCodes,
+			snapshot.SplatMap,
+			snapshot.CliffSplatMap
+		);
+
+		host.EditorCameraBoundsLeft = snapshot.CameraBoundsLeft;
+		host.EditorCameraBoundsRight = snapshot.CameraBoundsRight;
+		host.EditorCameraBoundsTop = snapshot.CameraBoundsTop;
+		host.EditorCameraBoundsBottom = snapshot.CameraBoundsBottom;
+	}
+
+	private static void RestoreEntities(GameHost host, MapStateSnapshot snapshot)
+	{
+		foreach (var unit in snapshot.Units)
+		{
+			host.SpawnUnitExternal(unit.Id, unit.Position, unit.RotationY, unit.Scale, unit.Player);
+		}
+
+		foreach (var prop in snapshot.Props)
+		{
+			host.SpawnPropExternalWithParams(prop.Id, prop.Position, prop.RotationY, prop.Scale);
+		}
+
+		foreach (var decal in snapshot.Decals)
+		{
+			host.SpawnDecalExternalWithParams(decal.Id, decal.Position, decal.RotationY, decal.Scale);
+		}
+
+		if (snapshot.Vfx == null) return;
+		foreach (var vfx in snapshot.Vfx)
+		{
+			host.SpawnVfxExternalWithParams(
+				vfx.VfxId,
+				new Vector3(vfx.PosX, vfx.PosY, vfx.PosZ),
+				new Vector3(vfx.RotationX, vfx.RotationY, vfx.RotationZ),
+				new Vector3(vfx.ScaleX <= 0f ? 1f : vfx.ScaleX, vfx.ScaleY <= 0f ? 1f : vfx.ScaleY, vfx.ScaleZ <= 0f ? 1f : vfx.ScaleZ),
+				vfx.NormalOffset,
+				vfx.Config
+			);
+		}
+	}
+
+	private static void RestoreCoordinates(GameHost host, MapStateSnapshot snapshot)
+	{
+		if (snapshot.Coordinates == null) return;
+
+		GameContext.EditorService.EditorCoordinates.Clear();
+		GameContext.EditorService.EditorCoordinates.AddRange(snapshot.Coordinates.Select(coordinate => new EditorCoordinate { Name = coordinate.Name, MinX = coordinate.MinX, MinZ = coordinate.MinZ, MaxX = coordinate.MaxX, MaxZ = coordinate.MaxZ }));
+		host.RebuildAllCoordinatePersistentMeshes();
+		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
+	}
+
+	private static void UpdateMetadataMapSize(MapStateSnapshot snapshot)
+	{
+		string workspacePath = MapWorkspaceService.GetActiveWorkspacePath();
+		string metadataPath = MetadataService.ResolveMetadataPath(workspacePath);
+		if (!File.Exists(metadataPath)) return;
+
+		try
+		{
+			GameContext.MetadataService.UpdateMetadata(workspacePath, metadata =>
+			{
+				metadata.MapProperties.MapWidth = snapshot.Width;
+				metadata.MapProperties.MapHeight = snapshot.Depth;
+			});
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"Failed to update metadata.json during snapshot restore: {exception.Message}");
+		}
+	}
+
+	private static void RebuildRestoredWorldViews(GameHost host)
+	{
+		host.GroundTerrain.UpdateMeshAndPhysics(true, true);
+		host.GroundTerrain.ReloadTerrainTextures();
+		GameContext.EditorService.SetTerrainSplatMap(host.GroundTerrain.SplatMap, host.GroundTerrain.CliffSplatMap);
+		host.RebuildCameraBoundsOverlay();
+		GameContext.PropMultiMesh?.RebuildAll();
+		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
+		GameContext.MapEditorHud?.RegenerateMinimap();
+	}
 
 	public static MapStateSnapshot CreateSnapshot()
 	{

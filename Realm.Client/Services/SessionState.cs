@@ -7,6 +7,12 @@ public class SessionState
 	public bool IsMapEditorMode { get; set; }
 	public bool IsTestMode { get; set; } = false;
 	public bool ReturningFromTest { get; set; } = false;
+
+	/// <summary>
+	///     The editor's world, taken before it is torn down for a playtest. A world belongs to one session, so the map
+	///     being tested is given an empty one and the editor's is put back from here when the playtest ends.
+	/// </summary>
+	public MapStateSnapshot EditorWorldState { get; set; }
 	public bool SavedEditorHasUnsavedChanges { get; set; } = false;
 	public Godot.Vector3 SavedCameraPosition { get; set; }
 	public float SavedTargetHeight { get; set; }
