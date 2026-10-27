@@ -64,13 +64,7 @@ public partial class GameHost
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
 		RegisterPredictedCommand(commandId, unitIds, commandType, targetNumerics);
 
-		if (HasRemoteAuthority)
-		{
-			RpcId(1, nameof(SubmitCommand), payload);
-			return;
-		}
-
-		GameContext.LocalCommandTransport.Submit(ResolveLocalCommandSenderPeerId(), payload);
+		GameContext.ServerSession?.Submit(payload);
 	}
 
 	/// <summary>
@@ -84,7 +78,7 @@ public partial class GameHost
 		for (int index = 0; index < count; index++)
 		{
 			var (_, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, 0, string.Empty);
-			RpcId(1, nameof(SubmitCommand), payload);
+			GameContext.ServerSession?.Submit(payload);
 		}
 	}
 
@@ -93,38 +87,7 @@ public partial class GameHost
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
 		RegisterPredictedCommand(commandId, unitIds, commandType, targetNumerics);
-		RpcId(1, nameof(SubmitCommand), payload);
-	}
-
-	private int ResolveLocalCommandSenderPeerId()
-	{
-		if (_multiplayerActive) return _localPeerId;
-
-		int localPlayerIndex = ObservingPlayerIndex;
-		if (localPlayerIndex > 0)
-		{
-			Entity localPlayerEntity = GetPlayerEntityForPlayerIndex(localPlayerIndex);
-			if (localPlayerEntity != Entity.Null)
-			{
-				foreach (var pair in _peerIdToPlayerEntityMap)
-				{
-					if (pair.Key >= 0 && pair.Value == localPlayerEntity) return pair.Key;
-				}
-			}
-		}
-
-		return 1;
-	}
-
-	private void DrainLocalCommandQueue()
-	{
-		var transport = GameContext.LocalCommandTransport;
-		while (transport.TryDequeue(out PendingLocalCommand pending))
-		{
-			NetworkCommand command = MemoryPackSerializer.Deserialize<NetworkCommand>(pending.Payload);
-			if (IsDuplicateCommand(pending.SenderPeerId, command.CommandId)) continue;
-			ApplyAuthoritativeCommand(pending.SenderPeerId, command);
-		}
+		GameContext.ServerSession?.Submit(payload);
 	}
 
 	private void RegisterPredictedCommand(int commandId, List<int> serverEntityIds, string commandType, System.Numerics.Vector3 targetPosition)
@@ -194,14 +157,6 @@ public partial class GameHost
 		SubmitOrderCommand(commandType, serverEntityIds, targetPosition, targetEntityId, argString);
 	}
 
-	private void UpdateClientCameraPosition()
-	{
-		var camera = GetViewport().GetCamera3D();
-		if (camera == null) return;
-		var pos = new NetworkVector3(camera.GlobalPosition.X, camera.GlobalPosition.Y, camera.GlobalPosition.Z);
-		RpcId(1, nameof(UpdateClientCamera), MemoryPackSerializer.Serialize(pos));
-	}
-
 	private void UpdateClientWorldState(float fDelta)
 	{
 		bool isEditorMode = GameContext.SessionState.IsMapEditorMode;
@@ -229,15 +184,13 @@ public partial class GameHost
 	private void UpdateClientTick(float fDelta)
 	{
 		CapturePreviousStateSnapshots();
+		_fDelta = fDelta;
 
 		UpdateClientNavMesh();
 
-		_commandSendTimer += fDelta;
-		if (_commandSendTimer >= 0.05f)
-		{
-			_commandSendTimer = 0f;
-			UpdateClientTickViewLogic();
-		}
+		PollVFXQueue();
+		TickConstructionSystem(fDelta, isAuthoritative: false);
+		ProcessVisualAndEnvironment(fDelta);
 
 		GameContext.NetworkService.UpdateClientTickDomain();
 		GameContext.NetworkLatencyService.Update(fDelta);
@@ -251,11 +204,8 @@ public partial class GameHost
 		GameContext.World.Query(in query, GameContext.SimulationService.InterpolationQueryDelegate);
 		UpdateVisualNodesFromEcs(fDelta);
 		UpdateBuildingPreview();
-	}
 
-	private void UpdateClientTickViewLogic()
-	{
-		UpdateClientCameraPosition();
+		RecordGameplayTickIfNeeded();
 	}
 
 	private void StopUnitVelocities(IEnumerable<int> entityIds)
@@ -559,11 +509,7 @@ public partial class GameHost
 		ApplyReceivedSnapshot(payload);
 	}
 
-	public void SendSnapshotAck(int sequence, ulong appliedMask)
-	{
-		if (!_multiplayerActive || Multiplayer.IsServer() || Multiplayer.MultiplayerPeer == null) return;
-		RpcId(1, nameof(AcknowledgeSnapshot), sequence, (long)appliedMask);
-	}
+	public void SendSnapshotAck(int sequence, ulong appliedMask) => GameContext.ServerSession?.Acknowledge(sequence);
 
 	/// <summary>
 	/// The peer's acknowledgement of what it applied. It travels on its own channel because the reliable channel is
@@ -580,11 +526,7 @@ public partial class GameHost
 		GameContext.NetworkService.RecordClientSnapshotAck(senderId, sequence, (ulong)appliedMask);
 	}
 
-	public void RequestSnapshotBaseline()
-	{
-		if (!_multiplayerActive || Multiplayer.IsServer() || Multiplayer.MultiplayerPeer == null) return;
-		RpcId(1, nameof(HandleSnapshotBaselineRequest));
-	}
+	public void RequestSnapshotBaseline() => GameContext.ServerSession?.RequestBaseline();
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void HandleSnapshotBaselineRequest()
@@ -603,8 +545,14 @@ public partial class GameHost
 
 	private void ApplyReceivedSnapshot(byte[] payload)
 	{
-		if (Multiplayer.IsServer()) return;
 		GameContext.NetworkService.RecordSnapshotReceived(payload);
+		FlushReplicatedSnapshotEvents();
+		MultiplayerSyncDiagnostics.RecordClientPresentation();
+	}
+
+	private void ApplyReceivedSnapshot(WorldSnapshot snapshot)
+	{
+		GameContext.NetworkService.RecordSnapshotReceived(snapshot);
 		FlushReplicatedSnapshotEvents();
 		MultiplayerSyncDiagnostics.RecordClientPresentation();
 	}
@@ -821,31 +769,6 @@ public partial class GameHost
 		byte[] payload = GameContext.NetworkService.BuildExplicitBaselineSnapshot(1, AllUnits);
 		if (payload.Length == 0) return;
 		ShadowClientVerifier.VerifyPayload(1, payload, true);
-	}
-
-	private void UpdateServerSnapshotTick(float fDelta)
-	{
-		// Refusal notices leave on the snapshot tick rather than per refused command, so a peer that floods the authority
-		// cannot make it answer once per message.
-		FlushRefusedCommandNotices();
-		ProcessDelayedSpectatorPackets();
-		var snapshots = GameContext.NetworkService.BuildServerSnapshots(_localPeerId, AllUnits);
-		if (PredictionDiagnostics.IsHostRecording)
-		{
-			Entity worldEntity = GameContext.Simulation.WorldEntity;
-			int sequence = GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<NetworkState>(worldEntity)
-				? GameContext.World.Get<NetworkState>(worldEntity).SnapshotSequence
-				: -1;
-			if (sequence >= 0) PredictionDiagnostics.RecordHostSnapshot(sequence, GameContext.World!, AllUnits);
-		}
-		foreach (var (peerId, payload, isBaseline) in snapshots)
-		{
-			ShadowClientVerifier.VerifyPayload(peerId, payload, isBaseline);
-			// The volumes go out before the baseline that gives the peer its first units, so it never plans a route on a mesh
-			// that is still missing the authority's obstacles. Both travel on the ordered reliable channel.
-			if (isBaseline) SendNavMeshObstacleVolumesToPeer(peerId);
-			QueueOrSendSnapshot(peerId, payload, isBaseline);
-		}
 	}
 
 	private void SpawnUnitFromSnapshot(UnitSnapshot snap)

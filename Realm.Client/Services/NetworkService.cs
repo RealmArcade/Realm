@@ -562,12 +562,14 @@ public class NetworkService
 		_clientCameraPositions[peerId] = position;
 	}
 
-	public void RecordSnapshotReceived(byte[] payload)
+	public void RecordSnapshotReceived(byte[] payload) => RecordSnapshotReceived(MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload)));
+
+	public void RecordSnapshotReceived(WorldSnapshot snapshot)
 	{
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return;
 		GameContext.World.Get<NetworkState>(worldEntity).LastSnapshotReceivedTime = Time.GetTicksMsec();
-		ProcessSnapshotDirect(payload);
+		ProcessSnapshot(snapshot);
 
 		Entity currentWorldEntity = FindWorldEntity();
 		if (currentWorldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(currentWorldEntity)) return;
@@ -585,9 +587,8 @@ public class NetworkService
 		GameContext.Host?.RequestSnapshotBaseline();
 	}
 
-	private void ProcessSnapshotDirect(byte[] payload)
+	private void ProcessSnapshot(WorldSnapshot snapshot)
 	{
-		var snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload));
 		if (MultiplayerSyncDiagnostics.IsRecording) MultiplayerSyncDiagnostics.RecordClientSeenSequence(snapshot.Sequence);
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return;
@@ -3017,6 +3018,12 @@ public class NetworkService
 			GameContext.Lobby?.SendChatMessage("System", message, false);
 		}
 	}
+
+	/// <summary>
+	///     Marks the match lost because the process running it ended. The screen shows this instead of waiting for a
+	///     snapshot that will never arrive.
+	/// </summary>
+	public void ReportAuthorityLost() => IsConnectionLost = true;
 
 	public void UpdateConnectionStatus(bool multiplayerActive, bool isServer)
 	{

@@ -503,8 +503,57 @@ public partial class LobbyManager : BaseMapTransferNode
 			PlayerList.Add(botPlayer);
 		}
 
-		Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
+		if (!TryStartAuthority(mapDirectory, mapPathName)) return;
+
 		CallDeferred(nameof(LoadMap), mapPathName, MatchSeed);
+	}
+
+	/// <summary>
+	///     Starts the process that runs this match and joins it. A single-player match is run by an authority exactly as a
+	///     remote one is, so the client never simulates the world it is playing in and a bug cannot behave differently in
+	///     one mode than the other.
+	/// </summary>
+	private bool TryStartAuthority(string? mapDirectory, string mapPathName)
+	{
+		if (string.IsNullOrEmpty(mapDirectory))
+		{
+			LastHostError = $"The map folder for '{mapPathName}' could not be found.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			IsGameStarted = false;
+			return false;
+		}
+
+		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+		if (channel == null)
+		{
+			LastHostError = "This build has no channel to an authority.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			IsGameStarted = false;
+			return false;
+		}
+
+		GameContext.ServerSession?.Dispose();
+
+		var session = new ClientServerSession(channel);
+		var start = new ServerMatchStart(
+			ProjectSettings.GlobalizePath(mapDirectory),
+			mapPathName,
+			MatchSeed,
+			Path.Combine(OS.GetUserDataDir(), "logs"),
+			OS.GetUserDataDir(),
+			LocalizationManager.GetCurrentLanguageCode());
+
+		if (!session.TryStart(start, out string failure))
+		{
+			LastHostError = failure;
+			GD.PushError($"[LobbyManager] {failure}");
+			IsGameStarted = false;
+			session.Dispose();
+			return false;
+		}
+
+		GameContext.AttachServerSession(session);
+		return true;
 	}
 
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)

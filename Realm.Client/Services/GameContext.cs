@@ -71,6 +71,18 @@ namespace Realm.Client.Services
 			set => _simulation.ActiveMapName = value;
 		}
 
+		/// <summary>
+		///     This client's connection to the process that runs its match, or nothing outside a match. A match is always
+		///     run by an authority this client only speaks to, so this is the one way anything here reaches it.
+		/// </summary>
+		public static ClientServerSession? ServerSession { get; private set; }
+
+		/// <summary>Holds the session a match was started with, so every part of the match reaches the same authority.</summary>
+		public static void AttachServerSession(ClientServerSession session) => ServerSession = session;
+
+		/// <summary>Drops the session of a match that ended, so nothing reaches an authority that is gone.</summary>
+		public static void DetachServerSession() => ServerSession = null;
+
 		public static GameHost? Host { get; private set; }
 		public static RuntimeTerrain? Terrain { get; private set; }
 		public static LobbyManager? Lobby { get; private set; }
@@ -197,7 +209,6 @@ namespace Realm.Client.Services
 		public static SimulationService SimulationService => ScreenScope.Get<SimulationService>();
 		public static ConsumableService ConsumableService => ScreenScope.Get<ConsumableService>();
 		public static MovementPredictionService MovementPredictionService => ScreenScope.Get<MovementPredictionService>();
-		public static LocalCommandTransport LocalCommandTransport => ScreenScope.Get<LocalCommandTransport>();
 		public static NetworkLatencyService NetworkLatencyService => ScreenScope.Get<NetworkLatencyService>();
 		public static PredictionPerformanceMonitor PredictionPerformanceMonitor => ScreenScope.Get<PredictionPerformanceMonitor>();
 		public static ClientRpcService ClientRPC => ScreenScope.Get<ClientRpcService>();
@@ -241,7 +252,6 @@ namespace Realm.Client.Services
 			scope.RegisterCleanup<RegistryService>(static service => service.ClearAll());
 			scope.RegisterCleanup<MapScriptService>(static service => service.ClearAll());
 			scope.RegisterCleanup<MovementPredictionService>(static service => service.Clear());
-			scope.RegisterCleanup<LocalCommandTransport>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkLatencyService>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkService>(static service => service.Clear());
 			scope.RegisterDisposeAction(RecreateSimulation);

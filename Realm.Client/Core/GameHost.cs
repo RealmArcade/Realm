@@ -126,15 +126,6 @@ public partial class GameHost : Node3D, IGameAPI
 		set => GameContext.World?.Mutate(GameContext.Simulation.WorldEntity, (ref NetworkState s) => s.NextCommandId = value);
 	}
 
-	private float _commandSendTimer
-	{
-		get => GameContext.NetworkService?.CommandSendTimer ?? 0f;
-		set
-		{
-			if (GameContext.NetworkService != null) GameContext.NetworkService.CommandSendTimer = value;
-		}
-	}
-
 	private int _snapshotSequence
 	{
 		get => GameContext.World?.GetFieldOrDefault<NetworkState, int>(GameContext.Simulation.WorldEntity, s => s.SnapshotSequence) ?? 0;
@@ -2197,6 +2188,7 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 
 		ReinitializeEcsAndServices();
+		JoinAuthority();
 	}
 
 	private void InitializeGameEcs()
@@ -2774,6 +2766,8 @@ public partial class GameHost : Node3D, IGameAPI
 			GameContext.Lobby.ServerChatCommandReceived -= HandleServerChatCommand;
 
 		StopRecording();
+		GameContext.ServerSession?.Stop();
+		GameContext.DetachServerSession();
 		GameContext.Dispose();
 		GameContext.UnregisterHost(this);
 	}
@@ -3410,6 +3404,8 @@ public partial class GameHost : Node3D, IGameAPI
 				return;
 			}
 
+			GameContext.ServerSession?.Pump();
+
 			if (Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer()) UpdatePauseCountdown(fDelta);
 			if (GameContext.NetworkService.IsPaused) return;
 
@@ -3432,9 +3428,8 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.DispatchPhysicsTick))
 		{
-			if (_multiplayerActive && !IsServerActive()) UpdateClientTick(fDelta);
-			else if (GameContext.SessionState.IsMapEditorMode) ProcessMapEditorTick(fDelta);
-			else ProcessGameplayTick(fDelta);
+			if (GameContext.SessionState.IsMapEditorMode) ProcessMapEditorTick(fDelta);
+			else UpdateClientTick(fDelta);
 		}
 	}
 
@@ -3886,89 +3881,6 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	private void ProcessGameplayTick(float fDelta)
-	{
-		if (GameContext.Simulation.IsGameOver) return;
-
-		CapturePreviousStateSnapshots();
-
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessGameplayTick))
-		{
-			float actualIntervalMs = BeginTickTracking();
-
-			_fDelta = fDelta;
-
-			DrainLocalCommandQueue();
-
-			ProcessCoreSimulation(fDelta);
-			ProcessVisualAndEnvironment(fDelta);
-			ProcessMiscTicks(fDelta);
-
-			if (_multiplayerActive && Multiplayer.IsServer())
-				UpdateServerSnapshotTick(fDelta);
-
-			if (GameContext.SessionState.IsTestMode)
-				RunShadowClientVerification();
-
-			EndTickTracking(actualIntervalMs);
-		}
-	}
-
-	private float BeginTickTracking()
-	{
-		float actualIntervalMs = 0f;
-		if (Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer())
-		{
-			if (GameContext.PerformanceTrackingService.TrackerIntervalStopwatch.IsRunning)
-			{
-				actualIntervalMs = (float)GameContext.PerformanceTrackingService.TrackerIntervalStopwatch.Elapsed.TotalMilliseconds;
-				GameContext.PerformanceTrackingService.TrackerIntervalStopwatch.Restart();
-			}
-			else
-			{
-				GameContext.PerformanceTrackingService.TrackerIntervalStopwatch.Start();
-			}
-
-			GameContext.PerformanceTrackingService.TrackerTickStopwatch.Restart();
-		}
-
-		return actualIntervalMs;
-	}
-
-	private int _populationRecomputeTick;
-
-	private void ProcessCoreSimulation(float fDelta)
-	{
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessCoreSimulation))
-		{
-			TickAuthoritativePopulation();
-			bool isAuthoritative = !_multiplayerActive || IsServerActive();
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationTickEcs))
-			{
-				GameContext.SimulationService.TickEcs(fDelta, isAuthoritative);
-			}
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.PollVfxQueue))
-			{
-				PollVFXQueue();
-			}
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickConstructionSystem))
-			{
-				TickConstructionSystem(fDelta, isAuthoritative);
-			}
-		}
-	}
-
-	private void TickAuthoritativePopulation()
-	{
-		if (_multiplayerActive && !IsServerActive()) return;
-
-		_populationRecomputeTick++;
-		if (_populationRecomputeTick < 5) return;
-
-		_populationRecomputeTick = 0;
-		GameContext.ResourceEconomyService?.RecomputeCurrentPopulation();
-	}
-
 	private void ProcessVisualAndEnvironment(float fDelta)
 	{
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessVisualAndEnvironment))
@@ -4005,65 +3917,16 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	private void ProcessMiscTicks(float fDelta)
+	/// <summary>Writes the frame a replay shows, from the world this client has been told about.</summary>
+	private void RecordGameplayTickIfNeeded()
 	{
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.ProcessMiscTicks))
+		if (GameContext.ReplayPlayback.IsPlayingReplay || !GameSettings.RecordReplays) return;
+		if (GameContext.ReplayService == null || !GameContext.ReplayService.IsRecording) return;
+
+		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.RecordGameplayTick))
 		{
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickScheduledTimers))
-			{
-				TickScheduledTimers(fDelta);
-			}
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickZoneTriggers))
-			{
-				TickZoneTriggers();
-			}
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.TickGroundLoot))
-			{
-				TickGroundLoot(fDelta);
-			}
-
-			if (_activeMapScript != null)
-			{
-				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.WasmRuntimeUpdate))
-				{
-					try
-					{
-						_activeMapScript.Update(this, fDelta);
-					}
-					catch (Exception ex)
-					{
-						GD.PrintErr($"[GameHost] Exception during active map script Update: {ex.Message}");
-					}
-				}
-			}
-
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.UpdateBuildingPreview))
-			{
-				UpdateBuildingPreview();
-			}
-
-			if (!GameContext.ReplayPlayback.IsPlayingReplay && GameSettings.RecordReplays && GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
-			{
-				using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.RecordGameplayTick))
-				{
-					RecordGameplayTick();
-				}
-			}
+			RecordGameplayTick();
 		}
-	}
-
-	private void EndTickTracking(float actualIntervalMs)
-	{
-		if (Multiplayer.MultiplayerPeer != null && !Multiplayer.IsServer()) return;
-
-		GameContext.PerformanceTrackingService.TrackerTickStopwatch.Stop();
-		float tickCpuMs = (float)GameContext.PerformanceTrackingService.TrackerTickStopwatch.Elapsed.TotalMilliseconds;
-		float tickDelay = actualIntervalMs > 33.33f ? actualIntervalMs - 33.33f : 0f;
-
-		float adjustedTickMs = tickCpuMs + tickDelay;
-		if (GameContext.PerformanceTrackingService.TrackerTickDurations != null) GameContext.PerformanceTrackingService.TrackerTickDurations.Add(adjustedTickMs);
-
-		GameContext.PerformanceTrackingService.TrackerLastTickDelay = tickDelay;
 	}
 
 	private void PollVFXQueue()

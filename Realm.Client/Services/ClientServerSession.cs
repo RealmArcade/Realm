@@ -8,8 +8,8 @@ using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
 
-/// <summary>What a client needs in order to have a match run for it: which map, where the authority writes its own log, where a map's saved data belongs, and the language this player reads in.</summary>
-public record ServerMatchStart(string MapFolderPath, string MapName, string LogDirectory, string DataFolderPath, string Language);
+/// <summary>What a client needs in order to have a match run for it: which map, the seed the match's scripts draw from, where the authority writes its own log, where a map's saved data belongs, and the language this player reads in.</summary>
+public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language);
 
 /// <summary>
 ///     One client's match. A client never simulates a match: it starts the authority beside it, joins it as an ordinary
@@ -25,7 +25,6 @@ public class ClientServerSession : IDisposable
 	private ServerProcessLauncher? _launcher;
 	private string _language = string.Empty;
 	private string _token = string.Empty;
-	private int _seed;
 	private bool _helloSent;
 	private bool _disposed;
 
@@ -102,8 +101,7 @@ public class ClientServerSession : IDisposable
 		}
 
 		_token = RealmProtocol.CreateToken();
-		_seed = RealmProtocol.CreateSeed();
-		var request = new ServerLaunchRequest(target, start.MapFolderPath, logPath, _token, _seed)
+		var request = new ServerLaunchRequest(target, start.MapFolderPath, logPath, _token, start.Seed)
 		{
 			DataFolderPath = start.DataFolderPath
 		};
@@ -123,12 +121,12 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
-	/// <summary>Hands the authority one of this client's orders, as the client authored it.</summary>
-	public bool Submit(NetworkCommand command)
+	/// <summary>Hands the authority one of this client's orders, as the client authored it and already encoded.</summary>
+	public bool Submit(byte[] payload)
 	{
-		if (_launcher == null) return false;
+		if (_launcher == null || payload.Length == 0) return false;
 
-		_channel.Send(NetworkFrameKind.Command, MemoryPackSerializer.Serialize(command));
+		_channel.Send(NetworkFrameKind.Command, payload);
 		return true;
 	}
 
