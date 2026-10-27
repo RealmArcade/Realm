@@ -59,11 +59,12 @@ public class WorldInitService
 			GameContext.World.Add(playerEntity, new Player());
 			GameContext.World.Add(playerEntity, new UnitOwnerPlayer(i));
 			GameContext.World.Add(playerEntity, new Name(i == 0 ? "Neutral" : (i == 1 ? "Horaid_Topa" : $"Player {i}")));
+			// Everyone starts with nothing; the map's own script decides what a player begins with.
 			var resourcesDict = new Dictionary<ResourceId, int>
 			{
-				{ GameContext.Simulation.PlayerResourceService.GoldResourceId, i == 1 ? 500 : 0 },
-				{ GameContext.Simulation.PlayerResourceService.WoodResourceId, i == 1 ? 400 : 0 },
-				{ GameContext.Simulation.PlayerResourceService.StoneResourceId, i == 1 ? 200 : 0 }
+				{ GameContext.Simulation.PlayerResourceService.GoldResourceId, 0 },
+				{ GameContext.Simulation.PlayerResourceService.WoodResourceId, 0 },
+				{ GameContext.Simulation.PlayerResourceService.StoneResourceId, 0 }
 			};
 			GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
 			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));

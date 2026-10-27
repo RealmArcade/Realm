@@ -15,7 +15,8 @@ public static class MatchRoster
 
 	/// <summary>
 	///     Slot zero is the neutral player the map's own scenery belongs to. The remaining slots are the match
-	///     participants, and only the first one starts with resources and is active.
+	///     participants. Nobody starts with anything: what a player begins with is a rule the map authors, so the
+	///     roster hands out zero and the map's own script grants whatever its rules call for.
 	/// </summary>
 	public static ScriptPlayer[] CreateDefaultPlayers()
 	{
@@ -38,9 +39,9 @@ public static class MatchRoster
 		{
 			players[index] = new ScriptPlayer
 			{
-				Gold = index == 1 ? 500f : 0f,
-				Wood = index == 1 ? 400f : 0f,
-				Stone = index == 1 ? 200f : 0f,
+				Gold = 0f,
+				Wood = 0f,
+				Stone = 0f,
 				Active = index == 1,
 				IsComputer = false,
 				Team = index,
