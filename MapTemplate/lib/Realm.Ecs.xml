@@ -1355,6 +1355,12 @@
             </code>
             </remarks>
         </member>
+        <member name="M:Realm.Ecs.Replication.ConsumableAttachmentCodec.Apply(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.ReadOnlySpan{System.Byte})">
+            <summary>
+                Rebuilds what a unit carries. The identifiers are content hashes, so a peer renders the consumable it is told
+                about without having registered its text itself, and no text crosses the wire.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Replication.ReplicatedEntityReferences">
             <summary>
                 Maps the host entity ids carried by replicated components onto the client entities that represent them.

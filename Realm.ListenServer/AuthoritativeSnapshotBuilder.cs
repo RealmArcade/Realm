@@ -56,6 +56,9 @@ public class AuthoritativeSnapshotBuilder
 	{
 		public Dictionary<(byte Scope, int Key, int TypeId), byte[]> SentComponents { get; } = new();
 		public int LastBaselineSequence { get; set; } = -1;
+
+		/// <summary>How far this peer has been walked through the authority's text table.</summary>
+		public int StringTableCursor { get; set; }
 	}
 
 	/// <summary>
@@ -114,6 +117,7 @@ public class AuthoritativeSnapshotBuilder
 		}
 
 		if (isBaseline) AppendRuleEntries(snapshot.Catalog);
+		AppendTextEntries(state, snapshot.Catalog);
 		if (Abilities != null) snapshot.AbilityStates = Abilities.CollectDeltas(peerId, _world, isBaseline);
 		AppendComponentDeltas(state, snapshot, isBaseline);
 		ForgetUntrackedUnitComponents(state);
@@ -159,6 +163,40 @@ public class AuthoritativeSnapshotBuilder
 
 		TechLevels?.AppendDescription(entries);
 	}
+
+	/// <summary>The channel a peer receives the authority's text table in, one entry per identifier.</summary>
+	private const string TextChannel = "string";
+
+	/// <summary>
+	///     Describes the text the authority registered, so a peer can name the content ids every other description is
+	///     made of. An identifier is a content hash and travels as a number, so a peer that never registered a map's own
+	///     text, such as a client that never ran its map script, could not render the item a unit carries, the consumable
+	///     bound to it or the team it belongs to without this. Only identifiers this peer has not been told are sent, so
+	///     the cost after the first snapshot is zero until the map registers new text.
+	/// </summary>
+	private void AppendTextEntries(PeerReplicationState state, List<CatalogEntry> entries)
+	{
+		int entryCount = StringRegistry.EntryCount;
+		int cursor = state.StringTableCursor > entryCount ? 0 : state.StringTableCursor;
+
+		_stringTableEntries.Clear();
+		state.StringTableCursor = StringRegistry.GetEntriesSince(cursor, _stringTableEntries);
+
+		for (int index = 0; index < _stringTableEntries.Count; index++)
+		{
+			(int id, string text) = _stringTableEntries[index];
+			if (id == 0 || string.IsNullOrEmpty(text)) continue;
+
+			entries.Add(new CatalogEntry
+			{
+				Channel = TextChannel,
+				Key = id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+				Value = text
+			});
+		}
+	}
+
+	private readonly List<(int Id, string Text)> _stringTableEntries = new();
 
 	private PeerReplicationState GetState(int peerId)
 	{

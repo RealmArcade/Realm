@@ -34,7 +34,6 @@ public sealed class MultiplayerEcsRunSettings
 	public NetworkProfile Profile { get; init; } = NetworkProfile.Latency;
 	public bool PredictionEnabled { get; init; }
 	public bool RunPredictionScenario { get; init; }
-	public bool Loopback { get; init; }
 	public int PeerCount { get; init; } = 2;
 	/// <summary>
 	/// Game time at which the first client drops its connection on purpose. Zero disables the reconnect scenario.
@@ -198,12 +197,6 @@ public static class MultiplayerEcsSyncTestSupport
 			File.Delete(file);
 		}
 
-		if (settings.Loopback)
-		{
-			await RunLoopbackAsync(settings);
-			return;
-		}
-
 		int peerCount = Math.Max(2, settings.PeerCount);
 		string hostListeningFile = Path.Combine(settings.OutputDirectory, "host_listening.txt");
 		string hostReadyFile = Path.Combine(settings.OutputDirectory, "host_ready.txt");
@@ -320,22 +313,6 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
-	private static async Task RunLoopbackAsync(MultiplayerEcsRunSettings settings)
-	{
-		string readyFile = Path.Combine(settings.OutputDirectory, "loopback_ready.txt");
-		using HarnessProcess loopbackProcess = StartHarnessProcess(settings, "loopback", settings.Port, null, readyFile, string.Empty, settings.OutputDirectory, 1);
-		bool ready = await WaitForFileOrExitAsync(readyFile, loopbackProcess.Process, TimeSpan.FromSeconds(180));
-		if (!ready) throw new InvalidOperationException($"Loopback harness did not become ready.\n{loopbackProcess.ReadLog()}");
-
-		bool exited = await WaitForExitAsync(loopbackProcess.Process, TimeSpan.FromSeconds(settings.DurationSeconds * 4 + 300));
-		if (!exited) loopbackProcess.Process.Kill(true);
-		if (!exited) throw new InvalidOperationException($"Loopback harness did not finish in time.\n{loopbackProcess.ReadLog()}");
-		if (loopbackProcess.Process.ExitCode != 0)
-		{
-			throw new InvalidOperationException($"Loopback harness exited with code {loopbackProcess.Process.ExitCode}.\n{loopbackProcess.ReadLog()}");
-		}
-	}
-
 	private static HarnessProcess StartHarnessProcess(
 		MultiplayerEcsRunSettings settings,
 		string role,
@@ -364,7 +341,6 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--host=127.0.0.1");
 		startInfo.ArgumentList.Add($"--port={connectionPort}");
 		startInfo.ArgumentList.Add($"--map={settings.MapFolder}");
-		startInfo.ArgumentList.Add($"--wasm={settings.WasmPath}");
 		startInfo.ArgumentList.Add($"--output={outputDirectory}");
 		startInfo.ArgumentList.Add($"--listening-file={Path.Combine(settings.OutputDirectory, "host_listening.txt")}");
 		startInfo.ArgumentList.Add($"--ready-file={readyFile}");
@@ -375,7 +351,6 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--prediction={(settings.PredictionEnabled ? 1 : 0)}");
 		startInfo.ArgumentList.Add($"--scenario={(settings.RunPredictionScenario ? 1 : 0)}");
 		startInfo.ArgumentList.Add($"--profile={settings.Profile}");
-		startInfo.ArgumentList.Add($"--loopback={(settings.Loopback ? 1 : 0)}");
 		startInfo.ArgumentList.Add($"--peers={Math.Max(2, settings.PeerCount)}");
 		startInfo.ArgumentList.Add($"--peer-index={peerIndex}");
 		startInfo.ArgumentList.Add($"--wait-for-peer-ready={waitForPeerReadyFile}");

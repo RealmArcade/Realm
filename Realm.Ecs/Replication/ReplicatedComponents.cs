@@ -312,6 +312,53 @@ public class ResistanceNumbersCodec : IReplicatedComponentCodec
 	}
 }
 
+public class ConsumableAttachmentCodec : IReplicatedComponentCodec
+{
+	private const int PayloadSize = 12;
+
+	public int ComponentTypeId => ComponentType<ConsumableAttachment>.Id;
+	public string ComponentName => nameof(ConsumableAttachment);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => PayloadSize;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<ConsumableAttachment>(entity)) return false;
+
+		ref var attachment = ref world.Get<ConsumableAttachment>(entity);
+		if (!attachment.HasDefinition) return false;
+
+		int definitionStringId = attachment.DefinitionStringId;
+		int slotGroupStringId = attachment.SlotGroupStringId;
+		int purchasedByPlayer = attachment.PurchasedByPlayer;
+		MemoryMarshal.Write(destination.Slice(0, 4), in definitionStringId);
+		MemoryMarshal.Write(destination.Slice(4, 4), in slotGroupStringId);
+		MemoryMarshal.Write(destination.Slice(8, 4), in purchasedByPlayer);
+		return true;
+	}
+
+	/// <summary>
+	///     Rebuilds what a unit carries. The identifiers are content hashes, so a peer renders the consumable it is told
+	///     about without having registered its text itself, and no text crosses the wire.
+	/// </summary>
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		var attachment = default(ConsumableAttachment);
+		attachment.DefinitionStringId = MemoryMarshal.Read<int>(source.Slice(0, 4));
+		attachment.SlotGroupStringId = MemoryMarshal.Read<int>(source.Slice(4, 4));
+		attachment.PurchasedByPlayer = MemoryMarshal.Read<int>(source.Slice(8, 4));
+		world.SetOrAdd(entity, in attachment);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<ConsumableAttachment>(entity)) return;
+		world.Remove<ConsumableAttachment>(entity);
+	}
+}
+
 public class GroundLootCodec : IReplicatedComponentCodec
 {
 	private const int PayloadSize = 4 + 4 + 4 + 4 + 4 + 1 + 4 + 12;
@@ -662,6 +709,7 @@ public static class ReplicatedComponents
 		Register(new TagComponentCodec<MovementSpeed>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<AttackSpeedStat>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Inventory>(ReplicatedScope.Unit));
+		Register(new ConsumableAttachmentCodec());
 		Register(new ReplicatedComponentCodec<RallyPoint>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ResourceNode>(ReplicatedScope.Unit));
 		Register(new GroundLootCodec());

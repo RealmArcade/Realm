@@ -744,17 +744,27 @@ public class InGameHUDViewModel
 	private void UpdateUnitInventory(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
 		info.InventoryItems.Clear();
+		info.CarriedConsumables.Clear();
 		info.HasInventory = world.Has<Inventory>(u.Entity);
-		if (!info.HasInventory)
-			return;
 
-		var inv = world.Get<Inventory>(u.Entity);
-		for (int itemIndex = 0; itemIndex < inv.Count; itemIndex++)
+		if (info.HasInventory)
 		{
-			string? itemId = inv.GetItemId(itemIndex);
-			if (itemId == null) continue;
-			info.InventoryItems[itemId] = inv.GetCharges(itemIndex);
+			var inv = world.Get<Inventory>(u.Entity);
+			for (int itemIndex = 0; itemIndex < inv.Count; itemIndex++)
+			{
+				string? itemId = inv.GetItemId(itemIndex);
+				if (itemId == null) continue;
+				info.InventoryItems[itemId] = inv.GetCharges(itemIndex);
+			}
 		}
+
+		if (!world.TryGet<ConsumableAttachment>(u.Entity, out ConsumableAttachment attachment)) return;
+		if (!attachment.HasDefinition) return;
+
+		string definitionId = attachment.GetDefinitionId();
+		if (definitionId.Length == 0) return;
+
+		info.CarriedConsumables.Add(new CarriedConsumableInfo(definitionId, attachment.GetSlotGroup()));
 	}
 
 	private void UpdateUnitProduction(EcsWorld world, Unit3D u, SelectedUnitInfo info)

@@ -359,6 +359,9 @@ public static class PredictionHarnessVerification
 	public static PredictionHarnessReport Verify(MultiplayerEcsRunSettings settings, string? clientDirectory = null)
 	{
 		PredictionThresholds thresholds = ThresholdsFor(settings.Profile);
+		// A stream with no injected delay behaves like the loopback case: there is no flight time to allow for, so
+		// prediction is held to converging on the next authoritative sample.
+		bool zeroLatency = settings.OneWayDelayMilliseconds == 0 && settings.JitterMilliseconds == 0 && settings.PacketLossPercent == 0;
 		var report = new PredictionHarnessReport { Profile = settings.Profile.ToString(), ThresholdRationale = thresholds.Rationale };
 		string clientPath = Path.Combine(clientDirectory ?? settings.OutputDirectory, "prediction_client.bin");
 		string hostPath = Path.Combine(settings.OutputDirectory, "prediction_host.bin");
@@ -486,15 +489,15 @@ public static class PredictionHarnessVerification
 			report.AddFailure($"Predicted position error peaked at {report.MaximumErrorMeters:F3} m, above the stated {thresholds.MaximumErrorMeters:F3} m limit for {settings.Profile}.");
 		}
 
-		MeasureInputResponse(records, report, thresholds, settings.Loopback);
+		MeasureInputResponse(records, report, thresholds, zeroLatency);
 		MeasureDuplicateMappings(records, report);
 		Dictionary<int, List<(int Sequence, Vector3 Position)>> hostMotion = BuildHostMotionSeries(records);
-		MeasureSettledError(records, hostMotion, perUnitErrors, perUnitFinalErrors, report, thresholds, settings.Loopback);
+		MeasureSettledError(records, hostMotion, perUnitErrors, perUnitFinalErrors, report, thresholds, zeroLatency);
 		MeasureSnapsAndCorrections(records, report, thresholds);
 		MeasureRollbacks(records, report, thresholds);
 		MeasureAllocationAndOrdering(records, report, thresholds);
-		if (settings.Loopback) MeasureAuthorityInvariant(records, report, thresholds);
-		MeasurePathingParity(records, report, settings.Loopback);
+		if (zeroLatency) MeasureAuthorityInvariant(records, report, thresholds);
+		MeasurePathingParity(records, report, zeroLatency);
 		MeasureOscillation(records, report);
 		MeasureCorrectionRate(records, report);
 		MeasureUnpredictedOrderLatency(records, report, settings);
@@ -533,7 +536,7 @@ public static class PredictionHarnessVerification
 
 	private static string Describe(Vector3 value) => $"({value.X:F2}, {value.Y:F2}, {value.Z:F2})";
 
-	private static void MeasureInputResponse(ParsedRecords records, PredictionHarnessReport report, PredictionThresholds thresholds, bool loopback)
+	private static void MeasureInputResponse(ParsedRecords records, PredictionHarnessReport report, PredictionThresholds thresholds, bool zeroLatency)
 	{
 		ScenarioSample? firstOrder = records.Scenario.FirstOrDefault(stage => stage.Stage == "move");
 		if (firstOrder == null)
@@ -590,7 +593,7 @@ public static class PredictionHarnessVerification
 		ClientUnitSample? movedUnit = firstMoved.Units.First(candidate => candidate.EntityId == firstOrder.EntityId);
 		float authoritativeTravel = Vector3.Distance(movedUnit.Authoritative, baselineUnit.Authoritative);
 		report.StageSummaries.Add($"move: response {responseTicks:F1} ticks, predicted displacement {largestDistance:F3} m, authoritative displacement {authoritativeTravel:F3} m");
-		if (!loopback && authoritativeTravel >= largestDistance * 0.5f)
+		if (!zeroLatency && authoritativeTravel >= largestDistance * 0.5f)
 		{
 			report.AddFailure($"The move response was dominated by authoritative movement ({authoritativeTravel:F3} m of {largestDistance:F3} m), so local prediction was not the source of the displacement.");
 		}
@@ -635,7 +638,7 @@ public static class PredictionHarnessVerification
 		return Vector3.Distance(positions[latestIndex].Position, positions[previousIndex].Position) <= StationaryAuthoritativeMeters;
 	}
 
-	private static void MeasureSettledError(ParsedRecords records, Dictionary<int, List<(int Sequence, Vector3 Position)>> hostMotion, Dictionary<int, List<float>> perUnitErrors, Dictionary<int, float> perUnitFinalErrors, PredictionHarnessReport report, PredictionThresholds thresholds, bool loopback)
+	private static void MeasureSettledError(ParsedRecords records, Dictionary<int, List<(int Sequence, Vector3 Position)>> hostMotion, Dictionary<int, List<float>> perUnitErrors, Dictionary<int, float> perUnitFinalErrors, PredictionHarnessReport report, PredictionThresholds thresholds, bool zeroLatency)
 	{
 		ScenarioSample? firstOrder = records.Scenario.FirstOrDefault();
 		if (firstOrder == null || records.ClientTicks.Count == 0)
@@ -695,7 +698,7 @@ public static class PredictionHarnessVerification
 				long sampleKey = ((long)unit.EntityId << 32) | (uint)unit.AuthoritativeSequence;
 				int sampleAgeTicks = tick.Tick - sampleFirstSeenTick[sampleKey];
 				// An in-process authority has no snapshot stream to stall, so freshness is inherent there.
-				bool streamStalled = !loopback
+				bool streamStalled = !zeroLatency
 					&& tick.Tick - sequenceFirstSeenTick.GetValueOrDefault(tick.Sequence, tick.Tick) > MaximumAuthoritativeSampleAgeTicks;
 				if (streamStalled)
 				{
@@ -707,7 +710,7 @@ public static class PredictionHarnessVerification
 				// snapshot shows no authoritative order, and the authority is not moving. Sampling earlier measures the
 				// authoritative unit still travelling to a destination prediction already reached, which is the prediction
 				// lead rather than residual error.
-				if (!loopback)
+				if (!zeroLatency)
 				{
 					if (!records.HostSnapshots.TryGetValue(tick.Sequence, out HostSnapshotSample? hostSnapshot)) continue;
 					if (!hostSnapshot.Units.TryGetValue(unit.ServerEntityId, out HostUnitSample? hostUnit) || hostUnit.HasMoveTo) continue;
@@ -729,7 +732,7 @@ public static class PredictionHarnessVerification
 
 		settledErrors.AddRange(SettleSustainedErrors(settledErrorsByUnit, thresholds, report, out string sustainedAttribution));
 		report.ConcentratedOrderUnits = sampledUnits.Count;
-		MeasureConvergenceDeadline(records, sequenceFirstSeenTick, lastOrderTickByUnit, report, thresholds, loopback);
+		MeasureConvergenceDeadline(records, sequenceFirstSeenTick, lastOrderTickByUnit, report, thresholds, zeroLatency);
 
 		if (settledErrors.Count == 0)
 		{
@@ -864,7 +867,7 @@ public static class PredictionHarnessVerification
 	/// authoritative position the client actually received, so a snapshot that never arrived delays the deadline instead
 	/// of being blamed on prediction, and a prediction that drifts or stalls still fails.
 	/// </summary>
-	private static void MeasureConvergenceDeadline(ParsedRecords records, Dictionary<int, int> sequenceFirstSeenTick, Dictionary<int, int> lastOrderTickByUnit, PredictionHarnessReport report, PredictionThresholds thresholds, bool loopback)
+	private static void MeasureConvergenceDeadline(ParsedRecords records, Dictionary<int, int> sequenceFirstSeenTick, Dictionary<int, int> lastOrderTickByUnit, PredictionHarnessReport report, PredictionThresholds thresholds, bool zeroLatency)
 	{
 		foreach (KeyValuePair<int, int> entry in lastOrderTickByUnit)
 		{
@@ -882,7 +885,7 @@ public static class PredictionHarnessVerification
 				foreach (ClientUnitSample unit in tick.Units)
 				{
 					if (unit.EntityId != entityId || unit.AuthoritativeSequence < 0) continue;
-					int age = loopback ? 0 : tick.Tick - sequenceFirstSeenTick.GetValueOrDefault(tick.Sequence, tick.Tick);
+					int age = zeroLatency ? 0 : tick.Tick - sequenceFirstSeenTick.GetValueOrDefault(tick.Sequence, tick.Tick);
 					if (age > MaximumAuthoritativeSampleAgeTicks) continue;
 
 					float error = Vector3.Distance(unit.Predicted, unit.Authoritative);
@@ -1044,9 +1047,9 @@ public static class PredictionHarnessVerification
 		}
 	}
 
-	private static void MeasurePathingParity(ParsedRecords records, PredictionHarnessReport report, bool loopback)
+	private static void MeasurePathingParity(ParsedRecords records, PredictionHarnessReport report, bool zeroLatency)
 	{
-		if (loopback) return;
+		if (zeroLatency) return;
 
 		int predictedPathSamples = 0;
 		int hostSampleMissing = 0;

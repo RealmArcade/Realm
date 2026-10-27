@@ -93,6 +93,16 @@ public partial class GameHost : Node3D
 			return;
 		}
 
+		// The authority seated this connection on a player slot, and that seat is what this client plays as whatever the
+		// lobby or the map happen to look like here. The seat can arrive after this scene does, so until it does the
+		// screen stays with the first player and is moved to the seat the moment the authority answers.
+		ClientServerSession? session = GameContext.ServerSession;
+		if (session != null)
+		{
+			filter.ConfigureParticipant(session.LocalPlayerSlot > 0 ? session.LocalPlayerSlot : 1);
+			return;
+		}
+
 		var lobbyPlayers = GameContext.Lobby?.PlayerList;
 		if (lobbyPlayers == null || lobbyPlayers.Count == 0)
 		{
@@ -3651,10 +3661,6 @@ public partial class GameHost : Node3D
 	private void UpdateConnectionStatus()
 	{
 		GameContext.NetworkService.UpdateConnectionStatus(_multiplayerActive, isServer: false);
-		if (GameContext.NetworkService.IsConnectionLost && GameContext.Lobby != null && !GameContext.Lobby.IsReconnecting)
-		{
-			GameContext.Lobby.TriggerReconnect();
-		}
 	}
 
 	private void ProcessVisualAndEnvironment(float fDelta)

@@ -15,7 +15,6 @@ public partial class PredictionHarnessRunner : Node
 	private string _outputDirectory = string.Empty;
 	private string _mapFolder = @"c:\temp\ugc-ChaosArena";
 	private string _wasmPath = string.Empty;
-	private bool _loopback;
 	private bool _negativeControl;
 	private int _peerCount = 2;
 	private float _dropClientAtSeconds;
@@ -35,6 +34,9 @@ public partial class PredictionHarnessRunner : Node
 			if (string.IsNullOrEmpty(_wasmPath)) _wasmPath = MultiplayerEcsSyncTestSupport.EnsureChaosArenaWasm(_mapFolder);
 
 			ResolveNetworkProfile(out NetworkProfile profile, out int oneWayDelayMilliseconds, out int jitterMilliseconds, out int packetLossPercent);
+			// A run that injects no delay behaves like the loopback case: prediction must converge on the next authoritative
+			// sample rather than being given a window to converge in.
+			bool zeroLatencyRun = oneWayDelayMilliseconds == 0 && jitterMilliseconds == 0 && packetLossPercent == 0;
 			MultiplayerEcsRunSettings settings = new()
 			{
 				GodotBinary = MultiplayerEcsSyncTestSupport.ResolveGodotBinary(),
@@ -47,7 +49,6 @@ public partial class PredictionHarnessRunner : Node
 				Profile = profile,
 				PredictionEnabled = !_negativeControl,
 				RunPredictionScenario = true,
-				Loopback = _loopback,
 				PeerCount = _peerCount,
 				DropClientAtSeconds = _dropClientAtSeconds,
 				OneWayDelayMilliseconds = oneWayDelayMilliseconds,
@@ -55,7 +56,7 @@ public partial class PredictionHarnessRunner : Node
 				PacketLossPercent = packetLossPercent
 			};
 
-			GD.Print($"[PREDICTION_HARNESS] Running profile {profile} with {_peerCount} peers loopback={_loopback} negativeControl={_negativeControl} dropAt={_dropClientAtSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}s on port {_port} for {_durationSeconds:F0}s.");
+			GD.Print($"[PREDICTION_HARNESS] Running profile {profile} with {_peerCount} peers negativeControl={_negativeControl} dropAt={_dropClientAtSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}s on port {_port} for {_durationSeconds:F0}s.");
 			await MultiplayerEcsSyncTestSupport.RunAsync(settings);
 
 			IReadOnlyList<string> clientDirectories = settings.ResolveClientDirectories();
@@ -77,7 +78,7 @@ public partial class PredictionHarnessRunner : Node
 				GD.Print($"[PREDICTION_HARNESS] === Peer {peerId} prediction report ===");
 				GD.Print(predictionText);
 
-				if (!_loopback)
+				if (!zeroLatencyRun)
 				{
 					MultiplayerEcsSyncReport syncReport = MultiplayerEcsSyncTestSupport.Verify(settings, clientDirectory);
 					string syncRendered = syncReport.Render();
@@ -96,17 +97,8 @@ public partial class PredictionHarnessRunner : Node
 
 			int hardeningFailures;
 			int bandwidthFailures;
-			if (_loopback)
-			{
-				GD.Print("[PREDICTION_HARNESS] Loopback role: the hardening and bandwidth checks need separate processes to measure, so this run does not produce them and they are not counted in its verdict.");
-				hardeningFailures = 0;
-				bandwidthFailures = 0;
-			}
-			else
-			{
-				hardeningFailures = ReadHardeningFailures(_outputDirectory);
-				bandwidthFailures = CheckBandwidthBudget(_outputDirectory);
-			}
+			hardeningFailures = zeroLatencyRun ? 0 : ReadHardeningFailures(_outputDirectory);
+			bandwidthFailures = zeroLatencyRun ? 0 : CheckBandwidthBudget(_outputDirectory);
 			bool passed = predictionFailures == 0 && syncFailures == 0 && hardeningFailures == 0 && bandwidthFailures == 0;
 			exitCode = passed ? 0 : 1;
 			WriteVerdictReport(settings, exitCode, predictionFailures, syncFailures, hardeningFailures, bandwidthFailures);
@@ -148,7 +140,7 @@ public partial class PredictionHarnessRunner : Node
 				{
 					profile = _profile,
 				peers = _peerCount,
-				loopback = _loopback,
+				loopback = settings.OneWayDelayMilliseconds == 0 && settings.JitterMilliseconds == 0 && settings.PacketLossPercent == 0,
 				durationSeconds = _durationSeconds,
 				predictionFailures,
 				syncFailures,
@@ -300,9 +292,6 @@ public partial class PredictionHarnessRunner : Node
 					break;
 				case "--wasm":
 					_wasmPath = value;
-					break;
-				case "--loopback":
-					_loopback = value == "1";
 					break;
 				case "--negative-control":
 					_negativeControl = value == "1";

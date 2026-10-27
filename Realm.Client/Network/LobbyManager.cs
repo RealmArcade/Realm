@@ -111,10 +111,6 @@ public partial class LobbyManager : BaseMapTransferNode
 	private readonly string _persistentSessionToken = Guid.NewGuid().ToString();
 	private readonly Dictionary<int, string> _pendingSessionTokens = new();
 	private readonly HashSet<int> _peersWithRegisteredSessionTokens = new();
-	private bool _isReconnecting = false;
-	private string? _reconnectRejectionReason;
-	public bool IsReconnecting => _isReconnecting;
-	public string? LastReconnectError { get; private set; }
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
 	public bool IsHost { get; set; }
@@ -1997,161 +1993,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		_isConnectedToHost = false;
 		GD.Print("[LobbyManager] Host disconnected.");
-		if (IsGameStarted)
-		{
-			GD.Print("[LobbyManager] Allowing local play after host disconnect. Starting reconnect attempt...");
-			TriggerReconnect();
-			return;
-		}
-
 		KickReceived?.Invoke("Host closed the server.");
 		Disconnect();
-	}
-
-	/// <summary>
-	/// Closes this client's connection the way a lost host would, then hands control to the reconnect loop. Used by the
-	/// harness to exercise a mid-match drop without killing the process.
-	/// </summary>
-	public void SimulateConnectionLossForHarness()
-	{
-		if (IsHost) return;
-
-		_isConnectedToHost = false;
-		try
-		{
-			Multiplayer.MultiplayerPeer?.Close();
-		}
-		catch (Exception exception)
-		{
-			GD.PrintErr($"[LobbyManager] Failed to close the connection for the reconnect scenario: {exception.Message}");
-		}
-
-		Multiplayer.MultiplayerPeer = null;
-		TriggerReconnect();
-	}
-
-	public void TriggerReconnect()
-	{
-		if (_isReconnecting || !IsGameStarted || IsHost)
-		{
-			return;
-		}
-
-		_reconnectRejectionReason = null;
-		LastReconnectError = null;
-		_ = AttemptReconnectLoopAsync();
-	}
-
-	private async Task AttemptReconnectLoopAsync()
-	{
-		if (_isReconnecting || !IsGameStarted || IsHost) return;
-
-		_isReconnecting = true;
-		_isConnectedToHost = false;
-		string hostIp = _connectedHostIp;
-		int hostPort = _connectedHostPort;
-
-		GD.Print($"[LobbyManager] Starting match reconnect loop to {hostIp}:{hostPort}...");
-
-		DateTime startTime = DateTime.UtcNow;
-		TimeSpan maxTimeout = TimeSpan.FromSeconds(60);
-
-		while (_isReconnecting && IsGameStarted && DateTime.UtcNow - startTime < maxTimeout)
-		{
-			if (await TrySingleReconnectAttemptAsync(hostIp, hostPort))
-			{
-				GD.Print("[LobbyManager] Match reconnect handshake completed.");
-				return;
-			}
-
-			await Task.Delay(2000);
-		}
-
-		if (_isReconnecting)
-		{
-			_isReconnecting = false;
-			GD.PrintErr("[LobbyManager] Match reconnection timed out.");
-			Disconnect();
-			CallDeferred(nameof(OnReconnectFailed));
-		}
-	}
-
-	private async Task<bool> TrySingleReconnectAttemptAsync(string hostIp, int hostPort)
-	{
-		try
-		{
-			if (Multiplayer.MultiplayerPeer != null)
-			{
-				try
-				{
-					Multiplayer.MultiplayerPeer.Close();
-				}
-				catch
-				{
-				}
-
-				Multiplayer.MultiplayerPeer = null;
-			}
-
-			bool isLocal = IsPrivateIp(hostIp);
-			if (!isLocal)
-			{
-				await UdpHolePuncher.PunchHoleAsync(hostIp, hostPort, ENetPort);
-			}
-
-			var peer = new ENetMultiplayerPeer();
-			var err = peer.CreateClient(hostIp, hostPort, localPort: isLocal ? 0 : ENetPort);
-			if (err != Error.Ok) return false;
-
-			Multiplayer.MultiplayerPeer = peer;
-			if (!await WaitForPeerConnectionAsync(peer)) return false;
-
-			GD.Print("[LobbyManager] Connected socket during reconnect. Sending RequestReconnect RPC...");
-			RpcId(1, nameof(RequestReconnect), _persistentSessionToken, AuthenticatedUsername, RealmVersion.GameBinaryVersion);
-
-			if (await WaitForReconnectAckAsync()) return true;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[LobbyManager] Reconnect attempt failed: {ex.Message}");
-		}
-
-		return false;
-	}
-
-	private async Task<bool> WaitForPeerConnectionAsync(ENetMultiplayerPeer peer)
-	{
-		DateTime connectTimeout = DateTime.UtcNow.AddSeconds(4);
-		while (DateTime.UtcNow < connectTimeout && peer.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connecting)
-		{
-			await Task.Delay(100);
-		}
-
-		return peer.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
-	}
-
-	private async Task<bool> WaitForReconnectAckAsync()
-	{
-		DateTime ackTimeout = DateTime.UtcNow.AddSeconds(5);
-		while (DateTime.UtcNow < ackTimeout && _isReconnecting)
-		{
-			await Task.Delay(150);
-		}
-
-		return !_isReconnecting && _isConnectedToHost;
-	}
-
-	private void OnReconnectFailed()
-	{
-		string reason = !string.IsNullOrWhiteSpace(_reconnectRejectionReason)
-			? _reconnectRejectionReason!
-			: Tr("Connection to host lost permanently.");
-
-		_reconnectRejectionReason = null;
-		LastReconnectError = reason;
-		LobbyJoinError = reason;
-		KickReceived?.Invoke(reason);
-		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyBrowser);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -2212,7 +2055,6 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void AcceptReconnect(int slot, string activeMapName, string serializedPlayers, int matchSeed)
 	{
 		GD.Print($"[LobbyManager] AcceptReconnect received! Slot={slot}, Map={activeMapName}");
-		_isReconnecting = false;
 		_isConnectedToHost = true;
 		ActiveMapName = activeMapName;
 		MatchSeed = matchSeed;
@@ -2288,15 +2130,6 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void RejectConnection(string reason)
 	{
 		GD.Print($"[LobbyManager] Connection Rejected: {reason}");
-
-		if (_isReconnecting)
-		{
-			_reconnectRejectionReason = reason;
-			_isReconnecting = false;
-			Disconnect();
-			CallDeferred(nameof(OnReconnectFailed));
-			return;
-		}
 
 		ConnectionFailed?.Invoke(reason);
 		Disconnect();

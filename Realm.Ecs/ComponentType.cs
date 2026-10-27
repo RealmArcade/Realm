@@ -156,7 +156,9 @@ public static class ComponentTypeRegistry
 			typeof(OverheadBarsHidden),
 			typeof(AnimationsFrozen),
 			typeof(AttackTarget),
-			typeof(LastAttacker)
+			typeof(LastAttacker),
+			typeof(AbsorbShield),
+			typeof(AttackSpeedStat)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

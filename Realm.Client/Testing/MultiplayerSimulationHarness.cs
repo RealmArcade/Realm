@@ -20,27 +20,24 @@ public partial class MultiplayerSimulationHarness : Node
 {
 	private const int PlayableSlotCount = 12;
 	private const string HostPlayerName = "HarnessHost";
-	private const string ClientPlayerName = "HarnessClient";
+	private const int HarnessMatchSeed = 12345;
 
 	private string _role = "host";
 	private string _hostAddress = "127.0.0.1";
 	private int _port = 8999;
 	private string _mapFolder = string.Empty;
-	private string _wasmPath = string.Empty;
 	private string _outputDirectory = string.Empty;
 	private string _listeningFile = string.Empty;
 	private string _readyFile = string.Empty;
 	private string _doneFile = string.Empty;
 	private string _sequenceFile = string.Empty;
 	private string _clientBuildId = string.Empty;
-	private string _clientTeam = string.Empty;
 	private int _drainMilliseconds = 0;
 	private int _finalSequence = -1;
 	private float _durationSeconds = 15f;
 	private bool _predictionEnabled;
 	private bool _scenarioEnabled;
 	private string _networkProfile = "Latency";
-	private bool _loopback;
 	private int _peerCount = 2;
 	private int _peerIndex = 1;
 	private float _dropAtSeconds;
@@ -48,27 +45,7 @@ public partial class MultiplayerSimulationHarness : Node
 	private string _waitForPeerReadyFile = string.Empty;
 	private int _hardeningFailureCount;
 	private int _recordedClientPeerId = -1;
-	private PlayerInfo? _hostSlotBaseline;
-
-	private async Task ForgeLobbyIdentityAsync(LobbyManager lobby, int localPeerId)
-	{
-		await ToSignal(GetTree().CreateTimer(4.0f), SceneTreeTimer.SignalName.Timeout);
-
-		try
-		{
-			RpcId(1, nameof(LobbyManager.UpdatePlayerSlot), 1, "FORGED", "FORGED", new Color(1f, 0f, 0f), "ForgedSlot");
-			RpcId(1, nameof(LobbyManager.UpdateDiagnostics), 1, 999f, 999f, 999f, 999f, 99f, 99);
-			lobby.SendChatMessage("Host", "forged chat from the peer harness");
-
-			string markerPath = Path.Combine(_outputDirectory, "forged_rpc_sent.txt");
-			File.WriteAllText(markerPath, $"peer {localPeerId} sent forged slot, diagnostics and chat for peer 1 at {DateTime.UtcNow:O}");
-			GD.Print($"[MP_HARNESS] Client peer {localPeerId} sent forged lobby RPCs targeting peer 1.");
-		}
-		catch (Exception exception)
-		{
-			GD.PrintErr($"[MP_HARNESS] Failed to send forged lobby RPCs: {exception.Message}");
-		}
-	}
+	private ClientServerSession? _session;
 
 	public override void _Ready()
 	{
@@ -86,7 +63,6 @@ public partial class MultiplayerSimulationHarness : Node
 			exitCode = _role switch
 			{
 				"host" => await RunHostAsync(),
-				"loopback" => await RunLoopbackAsync(),
 				_ => await RunClientAsync()
 			};
 		}
@@ -124,8 +100,6 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--map":
 					_mapFolder = value;
 					break;
-				case "--wasm":
-					_wasmPath = value;
 					break;
 				case "--output":
 					_outputDirectory = value;
@@ -145,8 +119,6 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--client-build":
 					_clientBuildId = value;
 					break;
-				case "--client-team":
-					_clientTeam = value;
 					break;
 				case "--drain-ms":
 					_drainMilliseconds = int.Parse(value);
@@ -163,8 +135,6 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--profile":
 					_networkProfile = value;
 					break;
-				case "--loopback":
-					_loopback = value == "1";
 					break;
 				case "--peers":
 					_peerCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
@@ -193,13 +163,13 @@ public partial class MultiplayerSimulationHarness : Node
 
 		lobby.IsSinglePlayer = false;
 		lobby.IsHost = true;
-		lobby.IsGameStarted = false;
+		lobby.IsGameStarted = true;
+		lobby.ActiveMapName = _mapFolder;
 		SetPrivateProperty(lobby, "MaxPlayers", PlayableSlotCount);
-		SetPrivateProperty(lobby, "ENetPort", _port);
 		SetPrivateProperty(lobby, "ActiveLobbyId", $"direct-harness-{Guid.NewGuid():N}");
 
 		lobby.PlayerList.Clear();
-		var hostSlot = new PlayerInfo
+		lobby.PlayerList.Add(new PlayerInfo
 		{
 			PeerId = 1,
 			Slot = 1,
@@ -212,55 +182,22 @@ public partial class MultiplayerSimulationHarness : Node
 			Jitter = "0 ms",
 			PacketLoss = "0%",
 			BinaryVersion = RealmVersion.GameBinaryVersion
-		};
-		lobby.PlayerList.Add(hostSlot);
-		_hostSlotBaseline = new PlayerInfo
-		{
-			PeerId = hostSlot.PeerId,
-			Slot = hostSlot.Slot,
-			Name = hostSlot.Name,
-			Faction = hostSlot.Faction,
-			Team = hostSlot.Team,
-			Color = hostSlot.Color,
-			Latency = hostSlot.Latency
-		};
-
-		for (int slot = 2; slot <= ResolveAiPlayerCount() + 1; slot++)
-		{
-			lobby.PlayerList.Add(new PlayerInfo
-			{
-				PeerId = -(slot + 100),
-				Slot = slot,
-				Name = $"HarnessAI{slot - 1}",
-				Faction = "AI",
-				Team = $"Team {slot}",
-				Color = PlayerColorConfig.GetColor(slot),
-				IsHost = false,
-				Latency = "0 ms",
-				Jitter = "0 ms",
-				PacketLoss = "0%",
-				BinaryVersion = RealmVersion.GameBinaryVersion
-			});
-		}
+		});
 
 		MultiplayerBandwidthMeter.Reset();
 		MultiplayerBandwidthMeter.IsRecording = true;
-		MethodInfo? createServerMethod = typeof(LobbyManager).GetMethod("TryCreateENetServerAsync", BindingFlags.NonPublic | BindingFlags.Instance);
-		if (createServerMethod == null) throw new InvalidOperationException("LobbyManager.TryCreateENetServerAsync could not be resolved.");
-		if (createServerMethod.Invoke(lobby, null) is not Task<bool> createServerTask) throw new InvalidOperationException("LobbyManager.TryCreateENetServerAsync did not return a task.");
-		if (!await createServerTask) throw new InvalidOperationException($"Failed to host ENet server on port {_port}.");
+
+		ClientServerSession session = StartAuthority();
+		GD.Print($"[MP_HARNESS] The authority is listening on port {session.Port}; this process plays as one of its clients.");
+		if (!string.IsNullOrEmpty(_listeningFile)) File.WriteAllText(_listeningFile, session.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
 		int expectedClientCount = Math.Max(1, _peerCount - 1);
-		GD.Print($"[MP_HARNESS] Host listening on port {_port}. Waiting for {expectedClientCount} client peer(s).");
-		if (!string.IsNullOrEmpty(_listeningFile)) File.WriteAllText(_listeningFile, DateTime.UtcNow.ToString("O"));
+		bool clientsSeated = await WaitUntilAsync(() => CountSeatedPeers(session) >= expectedClientCount + 1, 240f);
+		if (!clientsSeated)
+		{
+			throw new InvalidOperationException($"Timed out waiting for {expectedClientCount} client peer(s) to be seated; the authority recorded {CountSeatedPeers(session)} seat(s) including this process.");
+		}
 
-		bool clientConnected = await WaitUntilAsync(
-			() => lobby.PlayerList.FindAll(player => player.PeerId > 1 && !player.IsDisconnected).Count >= expectedClientCount,
-			60f);
-		if (!clientConnected) throw new InvalidOperationException($"Timed out waiting for {expectedClientCount} client peer(s) to join the host lobby.");
-		await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
-		int joinedClientCount = lobby.PlayerList.FindAll(player => player.PeerId > 1 && !player.IsDisconnected).Count;
-		GD.Print($"[MP_HARNESS] Starting the match with {joinedClientCount + 1} peers: {string.Join(", ", lobby.PlayerList.ConvertAll(player => $"{player.Name}#{player.PeerId}"))}.");
 		if (!await StartSimulationAsync(lobby, true)) return 1;
 
 		if (_probesEnabled) _ = RunCombatProbeAsync(true);
@@ -293,8 +230,7 @@ public partial class MultiplayerSimulationHarness : Node
 			await ToSignal(GetTree().CreateTimer(_drainMilliseconds / 1000f), SceneTreeTimer.SignalName.Timeout);
 		}
 
-		LobbyManager hardeningLobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
-		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true, hardeningLobby, _hostSlotBaseline);
+		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true);
 
 		_finalSequence = ResolveSnapshotSequence();
 		MultiplayerBandwidthMeter.BuildReport(_outputDirectory, gameHost.GameElapsedTime);
@@ -305,71 +241,67 @@ public partial class MultiplayerSimulationHarness : Node
 		return 0;
 	}
 
-	private async Task<int> RunLoopbackAsync()
+	private ClientServerSession StartAuthority()
 	{
-		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
+		ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
+		GameContext.ServerSession?.Dispose();
 
-		lobby.IsSinglePlayer = true;
-		lobby.IsHost = true;
-		lobby.IsGameStarted = false;
-		SetPrivateProperty(lobby, "MaxPlayers", PlayableSlotCount);
+		var session = new ClientServerSession(channel);
+		var start = new ServerMatchStart(
+			_mapFolder,
+			Path.GetFileName(Path.TrimEndingDirectorySeparator(_mapFolder)),
+			HarnessMatchSeed,
+			Path.Combine(_outputDirectory, "listen_server"),
+			_outputDirectory,
+			LocalizationManager.GetCurrentLanguageCode(),
+			OpenToOthers: true);
 
-		lobby.PlayerList.Clear();
-		lobby.PlayerList.Add(new PlayerInfo
+		if (!session.TryStart(start, out string failure, _port)) throw new InvalidOperationException($"The authority could not be started on port {_port}: {failure}");
+
+		GameContext.AttachServerSession(session);
+		_session = session;
+		return session;
+	}
+
+	private ClientServerSession JoinAuthority()
+	{
+		ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
+		GameContext.ServerSession?.Dispose();
+
+		var session = new ClientServerSession(channel);
+		if (!session.TryJoin(_hostAddress, _port, LocalizationManager.GetCurrentLanguageCode(), out string failure))
 		{
-			PeerId = 1,
-			Slot = 1,
-			Name = HostPlayerName,
-			Faction = "HUMAN",
-			Team = "Team 1",
-			Color = PlayerColorConfig.GetColor(1),
-			IsHost = true,
-			Latency = "0 ms",
-			Jitter = "0 ms",
-			PacketLoss = "0%",
-			BinaryVersion = RealmVersion.GameBinaryVersion
-		});
+			throw new InvalidOperationException($"The authority at {_hostAddress}:{_port} could not be reached: {failure}");
+		}
 
-		for (int slot = 2; slot <= ResolveAiPlayerCount() + 1; slot++)
+		GameContext.AttachServerSession(session);
+		_session = session;
+		return session;
+	}
+
+	private static int CountSeatedPeers(ClientServerSession session)
+	{
+		if (!File.Exists(session.LogPath)) return 0;
+
+		try
 		{
-			lobby.PlayerList.Add(new PlayerInfo
+			using var stream = new FileStream(session.LogPath, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
+			using var reader = new StreamReader(stream);
+			string log = reader.ReadToEnd();
+			int count = 0;
+			int index = log.IndexOf("seated as player", StringComparison.Ordinal);
+			while (index >= 0)
 			{
-				PeerId = -(slot + 100),
-				Slot = slot,
-				Name = $"HarnessAI{slot - 1}",
-				Faction = "AI",
-				Team = $"Team {slot}",
-				Color = PlayerColorConfig.GetColor(slot),
-				IsHost = false,
-				Latency = "0 ms",
-				Jitter = "0 ms",
-				PacketLoss = "0%",
-				BinaryVersion = RealmVersion.GameBinaryVersion
-			});
+				count++;
+				index = log.IndexOf("seated as player", index + 1, StringComparison.Ordinal);
+			}
+
+			return count;
 		}
-
-		MultiplayerBandwidthMeter.Reset();
-		MultiplayerBandwidthMeter.IsRecording = true;
-		Multiplayer.MultiplayerPeer = new OfflineMultiplayerPeer();
-		GD.Print("[MP_HARNESS] Loopback role: hosting and playing in one process over the in-memory command transport.");
-		if (!await StartSimulationAsync(lobby, true)) return 1;
-
-		GameHost gameHost = GameContext.Host ?? throw new InvalidOperationException("GameHost instance is unavailable.");
-		ulong simulationDeadline = Time.GetTicksMsec() + (ulong)((_durationSeconds * 4f + 120f) * 1000f);
-		while (Time.GetTicksMsec() < simulationDeadline)
+		catch (IOException)
 		{
-			if (gameHost.GameElapsedTime >= _durationSeconds) break;
-			GD.Print($"[MP_HARNESS] Loopback game time {gameHost.GameElapsedTime:F2}s / {_durationSeconds:F0}s, units {gameHost.AllUnits.Count}, predicted {GameContext.MovementPredictionService?.TrackedUnitCount ?? 0}.");
-			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+			return 0;
 		}
-
-		_finalSequence = ResolveSnapshotSequence();
-		bool finished = gameHost.GameElapsedTime >= _durationSeconds;
-		GD.Print($"[MP_HARNESS] Loopback finished={finished} at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and {GameContext.MovementPredictionService?.TrackedUnitCount ?? 0} predicted units.");
-		MultiplayerSyncDiagnostics.Stop();
-		PredictionDiagnostics.Stop();
-		WriteFinalWorldSnapshot("ECS_loopback_final_full.bin");
-		return finished ? 0 : 1;
 	}
 
 	private async Task<int> RunClientAsync()
@@ -377,21 +309,18 @@ public partial class MultiplayerSimulationHarness : Node
 		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
 
 		lobby.IsSinglePlayer = false;
+		lobby.IsHost = false;
+		lobby.IsGameStarted = true;
+		lobby.ActiveMapName = _mapFolder;
 		SetPrivateProperty(lobby, "MaxPlayers", PlayableSlotCount);
-		SetPrivateProperty(lobby, "ENetPort", _port);
 
-		bool joined = await lobby.JoinByIpAsync(_hostAddress, _port);
-		if (!joined) throw new InvalidOperationException($"Failed to connect to host at {_hostAddress}:{_port}.");
+		ClientServerSession session = JoinAuthority();
+		bool seated = await WaitUntilAsync(() => session.LocalPlayerSlot >= 0, 120f);
+		if (!seated) throw new InvalidOperationException($"The authority at {_hostAddress}:{_port} never seated this client: {session.TerminationReport ?? "it did not answer"}.");
 
-		int localPeerId = Multiplayer.GetUniqueId();
+		int localPeerId = session.LocalPeerId;
 		RecordClientPeerId(localPeerId);
-		GD.Print($"[MP_HARNESS] Client peer index {_peerIndex} connected with peer id {localPeerId}. Waiting for lobby sync.");
-
-		bool playerSynced = await WaitUntilAsync(
-			() => lobby.PlayerList.Exists(player => player.PeerId == localPeerId),
-			30f);
-		if (!playerSynced) throw new InvalidOperationException("Timed out waiting for the host to sync the lobby player list.");
-		if (!string.IsNullOrEmpty(_clientTeam)) await ApplyClientTeamAsync(lobby, localPeerId);
+		GD.Print($"[MP_HARNESS] Client peer index {_peerIndex} was seated as player {session.LocalPlayerSlot} with peer id {localPeerId}.");
 
 		if (!string.IsNullOrEmpty(_waitForPeerReadyFile))
 		{
@@ -412,8 +341,7 @@ public partial class MultiplayerSimulationHarness : Node
 			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
 			IssueClientBuildRequest(GameContext.Host);
 		}
-		_ = ForgeLobbyIdentityAsync(lobby, localPeerId);
-		if (_dropAtSeconds > 0f) _ = RunConnectionLossScenarioAsync(lobby);
+		if (_dropAtSeconds > 0f) _ = RunConnectionLossScenarioAsync(session);
 
 		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 120f + (_drainMilliseconds / 1000f));
 		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
@@ -437,7 +365,7 @@ public partial class MultiplayerSimulationHarness : Node
 	/// way a lost host would exercise it. The outcome is written for the verifier: the sequence the client had applied
 	/// when it dropped, the first sequence it applied after rejoining, and whether it rejoined at all.
 	/// </summary>
-	private async Task RunConnectionLossScenarioAsync(LobbyManager lobby)
+	private async Task RunConnectionLossScenarioAsync(ClientServerSession session)
 	{
 		string path = Path.Combine(_outputDirectory, "client_drop.txt");
 		try
@@ -452,7 +380,7 @@ public partial class MultiplayerSimulationHarness : Node
 			int dropSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 			float dropGameTime = GameContext.Host?.GameElapsedTime ?? 0f;
 			GD.Print($"[MP_HARNESS] Dropping the client connection at game time {dropGameTime:F2}s, applied sequence {dropSequence}.");
-			lobby.SimulateConnectionLossForHarness();
+			session.DropConnectionForHarness();
 
 			bool resumed = await WaitUntilAsync(
 				() => GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics > dropSequence,
@@ -479,18 +407,6 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 	}
 
-	private async Task ApplyClientTeamAsync(LobbyManager lobby, int localPeerId)
-	{
-		PlayerInfo? localPlayer = lobby.PlayerList.Find(player => player.PeerId == localPeerId);
-		if (localPlayer == null) return;
-
-		lobby.UpdatePlayerSlot(localPeerId, localPlayer.Faction, _clientTeam, localPlayer.Color, localPlayer.Name);
-		bool applied = await WaitUntilAsync(
-			() => lobby.PlayerList.Exists(player => player.PeerId == localPeerId && player.Team == _clientTeam),
-			10f);
-		GD.Print($"[MP_HARNESS] Client team request '{_clientTeam}' applied={applied}.");
-	}
-
 	private async Task<bool> StartSimulationAsync(LobbyManager lobby, bool isHost)
 	{
 		lobby.ActiveMapName = _mapFolder;
@@ -510,14 +426,15 @@ public partial class MultiplayerSimulationHarness : Node
 		bool ready = await WaitUntilAsync(() =>
 		{
 			GameHost? host = GameContext.Host;
-			bool clockReady = !isHost || (host != null && Math.Abs(host.GameElapsedTime) >= 0.01f);
-			bool isReady = host != null && clockReady && host.AllUnits.Count > 0;
+			int appliedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
+			bool hasBaseline = GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<NetworkState>(GameContext.Simulation.WorldEntity)
+				&& GameContext.World.Get<NetworkState>(GameContext.Simulation.WorldEntity).HasReceivedInitialBaseline;
+			// A peer is playing the match once the authority has described a world to it and it has applied it. How many
+			// units that world holds is the map's business, and a map may give a player nothing at all until it drafts.
+			bool isReady = host != null && appliedSequence >= 0 && hasBaseline;
 			readinessLogCounter++;
 			if (!isReady && readinessLogCounter % 50 == 0)
 			{
-				int appliedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
-				bool hasBaseline = GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<NetworkState>(GameContext.Simulation.WorldEntity)
-					&& GameContext.World.Get<NetworkState>(GameContext.Simulation.WorldEntity).HasReceivedInitialBaseline;
 				GD.Print($"[MP_HARNESS] Readiness wait ({(isHost ? "host" : "client")}): elapsed={host?.GameElapsedTime ?? 0f:F2} units={host?.AllUnits.Count ?? 0} appliedSequence={appliedSequence} baseline={hasBaseline} peerPresent={Multiplayer.MultiplayerPeer != null}");
 			}
 
@@ -531,7 +448,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		MultiplayerSyncDiagnostics.Start(_outputDirectory, isHost);
-		PredictionDiagnostics.Start(_outputDirectory, isHost, !isHost || _loopback);
+		PredictionDiagnostics.Start(_outputDirectory, isHost, !isHost);
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
 		GameHost currentHost = GameContext.Host!;
@@ -604,6 +521,9 @@ public partial class MultiplayerSimulationHarness : Node
 
 	public override void _PhysicsProcess(double delta)
 	{
+		// The session has to be read before a match scene exists too, because the seat a client is given is what decides
+		// when it may load the map. Once the match runs, it pumps the same queue and this call finds nothing to do.
+		_session?.Pump();
 		RecordClientPeerId(Multiplayer.GetUniqueId());
 		if (!_scenarioEnabled) return;
 		AimClientCameraAtNearestRemoteGroup(delta);
@@ -703,7 +623,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 	private void TryWriteDoneFile()
 	{
-		if (_role != "host" && _role != "loopback") return;
+		if (_role != "host") return;
 		if (string.IsNullOrEmpty(_doneFile)) return;
 		try
 		{

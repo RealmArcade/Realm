@@ -52,6 +52,13 @@ public partial class GameHost
 		GameContext.NetworkService.LocalPeerId = assignment.PeerId;
 		GameContext.NetworkService.MarkClientEnteredMultiplayer();
 
+		// The seat is the authority's answer to who this client plays as, so the screens read it as soon as it arrives
+		// rather than keeping whatever the lobby guessed before the match started.
+		if (assignment.PlayerSlot > 0 && GameContext.ReplayPlayback is not { IsPlayingReplay: true })
+		{
+			GameContext.PerspectiveFilter.ConfigureParticipant(assignment.PlayerSlot);
+		}
+
 		var world = GameContext.World;
 		Entity worldEntity = GameContext.Simulation.WorldEntity;
 		if (world == null || worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<NetworkMappingState>(worldEntity)) return;

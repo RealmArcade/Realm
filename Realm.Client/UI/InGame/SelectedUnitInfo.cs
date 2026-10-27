@@ -4,6 +4,13 @@ using Realm.Ecs;
 
 namespace Realm.Client.UI.InGame;
 
+/// <summary>
+/// One of the map's consumables a unit is carrying, as the authority described it. Nothing about it is decided on the
+/// screen: the unit's own carried state arrives as replicated state, so a player sees the elixir an ally bound to a unit
+/// exactly as the authority recorded it.
+/// </summary>
+public readonly record struct CarriedConsumableInfo(string DefinitionId, string SlotGroup);
+
 public class SelectedUnitInfo
 {
 	public Entity Entity { get; set; }
@@ -25,6 +32,7 @@ public class SelectedUnitInfo
 	public List<string> Abilities { get; set; } = new();
 	public int Potions { get; set; }
 	public Dictionary<string, int> InventoryItems { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	public List<CarriedConsumableInfo> CarriedConsumables { get; set; } = new();
 	public bool HasInventory { get; set; }
 
 	public bool HasProduction { get; set; }

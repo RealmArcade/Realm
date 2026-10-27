@@ -145,7 +145,7 @@ public partial class MultiplayerSimulationHarness
 			return;
 		}
 
-		if (_role != "client" && _role != "loopback") return;
+		if (_role != "client") return;
 		if (GameContext.Host == null || GameContext.World == null) return;
 		if (_role == "client" && GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics < ScenarioMinimumSnapshotSequence) return;
 		if (!IsScenarioNavigationReady()) return;

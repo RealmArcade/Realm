@@ -66,6 +66,13 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 	/// </summary>
 	public bool Cheats { get; init; }
 
+	/// <summary>
+	///     The port the authority listens on, or zero to let the operating system pick one. A match this machine plays by
+	///     itself is reached on the port the authority reports, but a match other machines are told to join has to be
+	///     listening where they were told to look.
+	/// </summary>
+	public int Port { get; init; }
+
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
 
@@ -269,7 +276,7 @@ public class ServerProcessLauncher : IDisposable
 		startInfo.ArgumentList.Add(ServerArgumentFlags.MapFlag);
 		startInfo.ArgumentList.Add(Path.GetFullPath(request.MapFolderPath));
 		startInfo.ArgumentList.Add(ServerArgumentFlags.PortFlag);
-		startInfo.ArgumentList.Add("0");
+		startInfo.ArgumentList.Add(request.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
 		startInfo.ArgumentList.Add(ServerArgumentFlags.SeedFlag);
 		startInfo.ArgumentList.Add(request.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture));
 		if (request.JoinTicket != null)
