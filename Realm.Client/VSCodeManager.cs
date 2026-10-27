@@ -2182,7 +2182,8 @@ public partial class VSCodeManager
 				string blankDir = Path.Combine(docPath, "blank_map");
 				if (!Directory.Exists(blankDir))
 				{
-					((IGameAPI)GameContext.Host).GenerateMapDirectory("blank_map", docPath);
+					GameContext.EditorService.GenerateMapDirectoryDomain("blank_map", blankDir, Realm.Client.Utils.PathUtils.GetProjectRoot(), Realm.Client.Utils.PathUtils.FindPath("MapTemplate"));
+					GameHost.EnsureMapProjectFiles(blankDir);
 				}
 
 				path = blankDir.Replace("\\", "/");
