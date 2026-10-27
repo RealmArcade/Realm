@@ -1,23 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text.Json;
 using Realm.Client.Services;
+using Realm.Client.UI;
 using Realm.Ecs;
 using Godot;
-using MemoryPack;
-using Realm.Client.Network;
-
-using Realm.Client.UI;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
-using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
-using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Shared.Network;
-using Realm.Shared.Abilities;
 
 namespace Realm.Client.Core;
 
@@ -114,9 +105,9 @@ public partial class GameHost
 	}
 
 	/// <summary>
-	/// Submits commands without registering them for prediction. The harness uses this to exercise the host's command
+	/// Submits commands without registering them for prediction. The harness uses this to exercise the authority's command
 	/// budget: a flood must be refused by the authority, and registering hundreds of predicted orders locally would
-	/// measure the client's rollback bookkeeping instead of the host's rate limit.
+	/// measure the client's rollback bookkeeping instead of the authority's rate limit.
 	/// </summary>
 	public void SubmitCommandFloodForHarness(string commandType, List<int> unitIds, Vector3 targetPos, int count)
 	{
@@ -199,9 +190,9 @@ public partial class GameHost
 
 	private void UpdateClientWorldState(float fDelta)
 	{
-		bool isEditorMode = GameContext.SessionState.IsMapEditorMode;
-		bool advanceSimulationClock = !_multiplayerActive || Multiplayer.IsServer();
-		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, isEditorMode, advanceSimulationClock);
+		// The client's own copy of the clock keeps running: what the authority decides about the hour arrives as a
+		// presentation request, and this is the fall of light between those requests.
+		var res = GameContext.EnvironmentService.UpdateClientWorldStateDomain(fDelta, GameContext.SessionState.IsMapEditorMode, advanceSimulationClock: true);
 		if (res.UpdateVisuals)
 		{
 			UpdateClientWorldStateViewLogic(res.Progress);
@@ -248,182 +239,9 @@ public partial class GameHost
 		RecordGameplayTickIfNeeded();
 	}
 
-	private void StopUnitVelocities(IEnumerable<int> entityIds)
-	{
-		foreach (int entityId in entityIds)
-		{
-			foreach (var unit in AllUnits)
-			{
-				if (unit.Entity.Id == entityId)
-				{
-					unit.Velocity = Vector3.Zero;
-					break;
-				}
-			}
-		}
-	}
-
-	private void ProcessServerCommandBuild(ServerCommandResult result)
-	{
-		Entity buildWorkerEntity = Entity.Null;
-		if (result.BuildWorkerServerEntityId >= 0)
-		{
-			buildWorkerEntity = GameContext.NetworkService.FindServerEntity(result.BuildWorkerServerEntityId, AllUnits);
-			if (buildWorkerEntity == Entity.Null || !GameContext.World.IsAlive(buildWorkerEntity))
-			{
-				GD.PushWarning($"[Build] Rejected '{result.BuildUnitType}': worker server entity {result.BuildWorkerServerEntityId} is not a live unit on the host.");
-				return;
-			}
-		}
-
-		UnitMetadata? buildMetadata = GameContext.RegistryService.FindUnitOrBuildingMetadata(result.BuildUnitType);
-		_peerIdToPlayerEntityMap.TryGetValue(result.BuildPeerOwner, out Entity buildPeerOwnerEntity);
-		var domainRes = GameContext.NetworkService.ProcessServerCommandBuildDomain(result, buildMetadata, buildPeerOwnerEntity, buildWorkerEntity);
-		if (!domainRes.Success)
-		{
-			GD.PushWarning($"[Build] Rejected '{result.BuildUnitType}': build metadata is missing from the unit registry or the worker is not owned by the commanding peer.");
-			return;
-		}
-
-		var godotPos = new Vector3(domainRes.BuildPosition.X, domainRes.BuildPosition.Y, domainRes.BuildPosition.Z);
-		if (buildWorkerEntity != Entity.Null)
-		{
-			AssignBuildTaskToWorker(buildWorkerEntity, domainRes.BuildUnitType, domainRes.BuildPosition);
-			GD.Print($"[Build] Worker {buildWorkerEntity.Id} started constructing '{domainRes.BuildUnitType}' at {domainRes.BuildPosition}.");
-			return;
-		}
-
-		var bldEntity = CreateEcsUnit(domainRes.BuildUnitType, domainRes.Name, domainRes.MaxHp, domainRes.Damage, domainRes.Range, domainRes.Armor, 0f, godotPos, domainRes.PlayerOwner);
-		ProcessServerCommandBuildViewLogic(bldEntity, domainRes.BuildUnitType, domainRes.TargetModel, godotPos, domainRes.PlayerOwner);
-	}
-
-	private void ProcessServerCommandBuildViewLogic(Entity bldEntity, string buildUnitType, string targetModel, Vector3 buildPosition, PlayerEntity playerOwner)
-	{
-		string modelPath = GetFallbackModelPath(targetModel, true);
-		int playerIndex = (playerOwner.Value != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(playerOwner.Value))
-			? GameContext.World.Get<UnitOwnerPlayer>(playerOwner.Value).PlayerIndex
-			: 0;
-		SpawnUnit3D(bldEntity, buildUnitType, modelPath, buildPosition, true, playerIndex);
-	}
-
-	private UnitId GetSpellCaster(NetworkCommand cmd)
-	{
-		var casterEntity = GameContext.NetworkService.GetSpellCasterEntityDomain(cmd, AllUnits);
-		return casterEntity != Entity.Null ? (UnitId)casterEntity.Id : UnitId.Invalid;
-	}
-
-	private void ApplySpellEffect(string spellId, Vector3 position, Entity casterEnt)
-	{
-		var pos = new System.Numerics.Vector3(position.X, position.Y, position.Z);
-		GameContext.SimulationService.ApplySpellEffectDomain(spellId, pos, casterEnt);
-	}
-
-	private void BroadcastSpellEffect(string spellId, Vector3 position)
-	{
-		var peers = GameContext.NetworkService.GetPeersToBroadcastSpellEffect(_localPeerId);
-		foreach (var peerId in peers)
-		{
-			QueueOrSendSpellEffect(peerId, spellId, position);
-		}
-	}
-
-	private readonly Dictionary<int, int> _lastAppliedCommandIdPerPeer = new();
-
-	private bool IsDuplicateCommand(int peerId, int commandId)
-	{
-		if (commandId <= 0) return true;
-
-		if (_lastAppliedCommandIdPerPeer.TryGetValue(peerId, out int lastAppliedCommandId) && commandId <= lastAppliedCommandId) return true;
-
-		_lastAppliedCommandIdPerPeer[peerId] = commandId;
-		return false;
-	}
-
-	public void ResetCommandDedupe()
-	{
-		_lastAppliedCommandIdPerPeer.Clear();
-	}
-
-	private void ProcessServerCommandSpell(NetworkCommand cmd, ServerCommandResult result)
-	{
-		if (!result.NeedsSpellEffect) return;
-
-		string spellId = result.SpellId;
-		Vector3 position = new Vector3(result.SpellPosition.X, result.SpellPosition.Y, result.SpellPosition.Z);
-		var caster = GetSpellCaster(cmd);
-		var casterEnt = GameContext.SimulationService.TryGetEntity(caster, out var ce) ? ce : Entity.Null;
-
-		if (ExecuteConsumablePurchase(caster, spellId, position)) return;
-
-		OnSpellCast?.Invoke(caster, spellId, new System.Numerics.Vector3(position.X, position.Y, position.Z));
-
-		ApplySpellEffect(spellId, position, casterEnt);
-		GameContext.InGameHud?.RefreshUI(SelectedUnits);
-		BroadcastSpellEffect(spellId, position);
-	}
-
-	private const int CameraPayloadBytes = 64;
-
-	private static bool TryDeserializePeerPayload<T>(byte[]? payload, int maximumBytes, out T value) where T : struct
-	{
-		return PeerPayloadGuard.TryDeserialize(payload, maximumBytes, out value);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
-	public void UpdateClientCamera(byte[] payload)
-	{
-		if (!Multiplayer.IsServer()) return;
-		int senderId = Multiplayer.GetRemoteSenderId();
-		if (!TryDeserializePeerPayload(payload, CameraPayloadBytes, out NetworkVector3 pos)) return;
-		GameContext.NetworkService.RecordClientCameraPosition(senderId, new Vector3(pos.X, pos.Y, pos.Z));
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ReceiveSnapshot(byte[] payload)
-	{
-		ApplyReceivedSnapshot(payload);
-	}
-
 	public void SendSnapshotAck(int sequence, ulong appliedMask) => GameContext.ServerSession?.Acknowledge(sequence);
 
-	/// <summary>
-	/// The peer's acknowledgement of what it applied. It travels on its own channel because the reliable channel is
-	/// ordered: a 139 KB baseline being retransmitted over a lossy link used to hold every acknowledgement behind it,
-	/// which made the host believe the peer had fallen far behind and answer with another full baseline. That loop was
-	/// self-sustaining, and separating the channels is what breaks it.
-	/// </summary>
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferChannel = SnapshotAckChannel, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void AcknowledgeSnapshot(int sequence, long appliedMask)
-	{
-		if (!Multiplayer.IsServer()) return;
-		int senderId = Multiplayer.GetRemoteSenderId();
-		if (senderId <= 1) return;
-		GameContext.NetworkService.RecordClientSnapshotAck(senderId, sequence, (ulong)appliedMask);
-	}
-
 	public void RequestSnapshotBaseline() => GameContext.ServerSession?.RequestBaseline();
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void HandleSnapshotBaselineRequest()
-	{
-		if (!Multiplayer.IsServer()) return;
-		int senderId = Multiplayer.GetRemoteSenderId();
-		if (senderId <= 1) return;
-		GameContext.NetworkService.HandleClientBaselineRequest(senderId);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferChannel = BaselineChannel, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ReceiveBaselineSnapshot(byte[] payload)
-	{
-		ApplyReceivedSnapshot(payload);
-	}
-
-	private void ApplyReceivedSnapshot(byte[] payload)
-	{
-		GameContext.NetworkService.RecordSnapshotReceived(payload);
-		FlushReplicatedSnapshotEvents();
-		MultiplayerSyncDiagnostics.RecordClientPresentation();
-	}
 
 	private void ApplyReceivedSnapshot(WorldSnapshot snapshot)
 	{
@@ -431,144 +249,6 @@ public partial class GameHost
 		FlushReplicatedSnapshotEvents();
 		MultiplayerSyncDiagnostics.RecordClientPresentation();
 	}
-
-	/// <summary>
-	/// The most bytes one unreliable snapshot packet may carry. A delta above the MTU is fragmented by ENet, and losing
-	/// any one fragment loses the whole snapshot: on the relayed profiles a single delta reached 2 444 bytes and 7-22 %
-	/// of host sequences never arrived. A larger delta is split into independently addressed fragments and reassembled
-	/// on the peer, so losing one costs one snapshot instead of all of them.
-	/// </summary>
-	public const int MaximumUnfragmentedSnapshotBytes = 1024;
-
-	/// <summary>
-	/// How many fragments one delta may be split into. A delta that needs more than this is a sign the payload belongs on
-	/// the baseline path, and it is dropped rather than turned into an unbounded burst of packets.
-	/// </summary>
-	private const int MaximumSnapshotFragmentCount = 64;
-
-	private int _snapshotFragmentGroupId;
-	private int _newestSnapshotFragmentGroupId;
-	private readonly Dictionary<int, SnapshotReassembly> _snapshotReassembly = new();
-
-	private class SnapshotReassembly
-	{
-		private readonly byte[] _buffer;
-		private readonly bool[] _received;
-		private int _receivedCount;
-		private int _writtenBytes;
-
-		public readonly int FragmentCount;
-
-		public SnapshotReassembly(int fragmentCount)
-		{
-			FragmentCount = fragmentCount;
-			_buffer = new byte[fragmentCount * MaximumUnfragmentedSnapshotBytes];
-			_received = new bool[fragmentCount];
-		}
-
-		public bool Claim(int fragmentIndex, byte[] fragment, int length)
-		{
-			if (_received[fragmentIndex]) return false;
-
-			_received[fragmentIndex] = true;
-			_receivedCount++;
-			Buffer.BlockCopy(fragment, 0, _buffer, fragmentIndex * MaximumUnfragmentedSnapshotBytes, length);
-			_writtenBytes += length;
-			return true;
-		}
-
-		public bool IsComplete => _receivedCount == FragmentCount;
-
-		public byte[] BuildPayload()
-		{
-			var payload = new byte[_writtenBytes];
-			Buffer.BlockCopy(_buffer, 0, payload, 0, _writtenBytes);
-			return payload;
-		}
-	}
-
-	private void SendSnapshotPayload(int peerId, byte[] payload)
-	{
-		if (payload == null || payload.Length == 0) return;
-		if (payload.Length <= MaximumUnfragmentedSnapshotBytes)
-		{
-			RpcId(peerId, nameof(ReceiveSnapshot), payload);
-			return;
-		}
-
-		int fragmentCount = (payload.Length + MaximumUnfragmentedSnapshotBytes - 1) / MaximumUnfragmentedSnapshotBytes;
-		if (fragmentCount > MaximumSnapshotFragmentCount)
-		{
-			GD.PushWarning($"[Network] A {payload.Length} byte snapshot needs {fragmentCount} fragments; it was not sent.");
-			return;
-		}
-
-		_snapshotFragmentGroupId++;
-		int groupId = _snapshotFragmentGroupId;
-		for (int fragmentIndex = 0; fragmentIndex < fragmentCount; fragmentIndex++)
-		{
-			int offset = fragmentIndex * MaximumUnfragmentedSnapshotBytes;
-			int length = Math.Min(MaximumUnfragmentedSnapshotBytes, payload.Length - offset);
-			var fragment = new byte[length];
-			Buffer.BlockCopy(payload, offset, fragment, 0, length);
-			RpcId(peerId, nameof(ReceiveSnapshotFragment), groupId, fragmentCount, fragmentIndex, length, fragment);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
-	public void ReceiveSnapshotFragment(int groupId, int fragmentCount, int fragmentIndex, int length, byte[] fragment)
-	{
-		if (Multiplayer.IsServer()) return;
-		if (fragmentCount <= 0 || fragmentCount > MaximumSnapshotFragmentCount) return;
-		if (fragmentIndex < 0 || fragmentIndex >= fragmentCount) return;
-		if (length <= 0 || length > MaximumUnfragmentedSnapshotBytes) return;
-		if (fragment == null || fragment.Length != length) return;
-		if (groupId < _newestSnapshotFragmentGroupId) return;
-
-		if (!_snapshotReassembly.TryGetValue(groupId, out SnapshotReassembly? reassembly))
-		{
-			reassembly = new SnapshotReassembly(fragmentCount);
-			_snapshotReassembly[groupId] = reassembly;
-		}
-
-		if (reassembly.FragmentCount != fragmentCount) return;
-		if (!reassembly.Claim(fragmentIndex, fragment, length)) return;
-		if (!reassembly.IsComplete) return;
-
-		_snapshotReassembly.Remove(groupId);
-		if (groupId > _newestSnapshotFragmentGroupId)
-		{
-			_newestSnapshotFragmentGroupId = groupId;
-			DropSupersededSnapshotReassemblies(groupId);
-		}
-
-		ApplyReceivedSnapshot(reassembly.BuildPayload());
-	}
-
-	private void DropSupersededSnapshotReassemblies(int newestGroupId)
-	{
-		List<int>? superseded = null;
-		foreach (int groupId in _snapshotReassembly.Keys)
-		{
-			if (groupId >= newestGroupId - 1) continue;
-			(superseded ??= new List<int>()).Add(groupId);
-		}
-
-		if (superseded == null) return;
-		for (int index = 0; index < superseded.Count; index++) _snapshotReassembly.Remove(superseded[index]);
-	}
-
-	/// <summary>
-	/// The ENet channel a peer's snapshot acknowledgement travels on. Separate from the channel that carries baselines
-	/// and from the unreliable channel that carries deltas, so neither can delay it.
-	/// </summary>
-	public const int SnapshotAckChannel = 1;
-
-	/// <summary>
-	/// The ENet channel full baselines travel on. A baseline is the whole replicated world on its own channel so that
-	/// retransmitting it cannot block every other reliable message to that peer.
-	/// </summary>
-	public const int BaselineChannel = 2;
 
 	public void FlushReplicatedSnapshotEvents()
 	{
@@ -600,50 +280,9 @@ public partial class GameHost
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ReceiveNavMeshObstacleVolumes(Vector3[] positions, float[] radii)
-	{
-		if (Multiplayer.IsServer()) return;
-		ApplyAuthoritativeNavMeshObstacles(positions, radii);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void PlaySpellEffect(string spellId, Vector3 position)
-	{
-		var def = GetAbilityDefinition(spellId);
-		if (def != null)
-		{
-			GameContext.FXService.SpawnAbilityEffect(this, def, position);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSpawnArrowProjectile(Vector3 start, Vector3 target, int ownerPlayerIndex = 0)
-	{
-		GameContext.FXService.SpawnArrowProjectile(this, start, target, ownerPlayerIndex);
-	}
-
 	public void RefreshReplicatedOverlayUi()
 	{
 		GameContext.InGameHud?.InvalidateReplicatedOverlays();
-	}
-
-	public void SetReplicatedEntityVisible(Entity entity, bool visible)
-	{
-		if (!TryGetUnit3D(entity, out var unit) || !GodotObject.IsInstanceValid(unit)) return;
-		unit.Visible = visible;
-	}
-
-	private int _shadowVerificationTickCounter;
-
-	private void RunShadowClientVerification()
-	{
-		_shadowVerificationTickCounter++;
-		if (_shadowVerificationTickCounter % 60 != 0) return;
-
-		byte[] payload = GameContext.NetworkService.BuildExplicitBaselineSnapshot(1, AllUnits);
-		if (payload.Length == 0) return;
-		ShadowClientVerifier.VerifyPayload(1, payload, true);
 	}
 
 	private void SpawnUnitFromSnapshot(UnitSnapshot snap)
@@ -661,189 +300,19 @@ public partial class GameHost
 		}
 	}
 
-	private void QueueOrSendSnapshot(int peerId, byte[] payload, bool isBaseline)
-	{
-		if (GameContext.NetworkService.IsSpectatorWithDelay(peerId))
-		{
-			GameContext.NetworkService.QueueSpectatorDelayedPacket(new DelayedPacket
-			{
-				PeerId = peerId,
-				Kind = isBaseline ? DelayedPacketKind.Baseline : DelayedPacketKind.Snapshot,
-				SnapshotPayload = payload
-			});
-			return;
-		}
-
-		SendPresentationPacket(peerId, isBaseline ? DelayedPacketKind.Baseline : DelayedPacketKind.Snapshot, payload, null, default);
-	}
-
-	private void QueueOrSendSpellEffect(int peerId, string spellId, Vector3 position)
-	{
-		if (GameContext.NetworkService.IsSpectatorWithDelay(peerId))
-		{
-			GameContext.NetworkService.QueueSpectatorDelayedPacket(new DelayedPacket
-			{
-				PeerId = peerId,
-				Kind = DelayedPacketKind.SpellEffect,
-				SpellId = spellId,
-				Position = position
-			});
-			return;
-		}
-
-		SendPresentationPacket(peerId, DelayedPacketKind.SpellEffect, null, spellId, position);
-	}
-
-	/// <summary>
-	/// The queue a delayed spectator's packets wait in. It is drained on the snapshot tick, which is also what makes the
-	/// hold-back real: the queue used to be filled and never read, so enabling the delay stopped a spectator receiving
-	/// anything at all.
-	/// </summary>
-	private void ProcessDelayedSpectatorPackets()
-	{
-		var readyPackets = GameContext.NetworkService.FlushReadySpectatorPackets();
-		for (int index = 0; index < readyPackets.Count; index++)
-		{
-			DelayedPacket packet = readyPackets[index];
-			SendPresentationPacket(packet.PeerId, packet.Kind, packet.SnapshotPayload, packet.SpellId, packet.Position);
-		}
-	}
-
-	private void SendPresentationPacket(int peerId, DelayedPacketKind kind, byte[]? payload, string? spellId, Vector3 position)
-	{
-		switch (kind)
-		{
-			case DelayedPacketKind.Baseline:
-				RpcId(peerId, nameof(ReceiveBaselineSnapshot), payload);
-				break;
-			case DelayedPacketKind.Snapshot:
-				SendSnapshotPayload(peerId, payload!);
-				break;
-			case DelayedPacketKind.SpellEffect:
-				RpcId(peerId, nameof(PlaySpellEffect), spellId, position);
-				break;
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void NetworkPingMinimap(Vector3 position)
 	{
 		AddMinimapPing(position);
 	}
 
+	/// <summary>
+	///     Pause is match state, and the clock that would stop belongs to the process running the match. That process
+	///     does not carry a pause channel yet, so this reports the request instead of pretending to stop a world this
+	///     process no longer steps.
+	/// </summary>
 	public void TogglePauseRequest()
 	{
-		if (_multiplayerActive)
-		{
-			RpcId(1, nameof(RequestPause), Multiplayer.GetUniqueId());
-		}
-		else
-		{
-			GameContext.NetworkService.ToggleLocalPause();
-			UpdatePauseUI();
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void RequestPause(int peerId)
-	{
-		GameContext.NetworkService.ProcessRequestPause(
-			peerId,
-			Multiplayer.IsServer(),
-			(paused, byPeerId, instant) => Rpc(nameof(BroadcastPauseState), paused, byPeerId, instant),
-			StartCountdown
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void RequestToggleReady(int peerId, bool ready)
-	{
-		GameContext.NetworkService.ProcessRequestToggleReady(
-			peerId, ready, Multiplayer.IsServer(),
-			CheckAllPlayersReady,
-			StartCountdown,
-			(serialized) => Rpc(nameof(BroadcastReadyStates), serialized),
-			() => Rpc(nameof(BroadcastCountdownCancel))
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void RequestSetDisallowPause(int peerId, bool disallowed)
-	{
-		GameContext.NetworkService.ProcessRequestSetDisallowPause(
-			peerId, disallowed, Multiplayer.IsServer(), Multiplayer.GetRemoteSenderId(),
-			(serialized) => Rpc(nameof(BroadcastDisallowedPausePeers), serialized)
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void RequestForceResume()
-	{
-		GameContext.NetworkService.ProcessRequestForceResume(
-			Multiplayer.IsServer(), Multiplayer.GetRemoteSenderId(), StartCountdown
-		);
-	}
-
-	private void StartCountdown(bool forcedByHost)
-	{
-		GameContext.NetworkService.ProcessStartCountdown(
-			forcedByHost,
-			(seconds, forced) => Rpc(nameof(BroadcastCountdownState), seconds, forced)
-		);
-	}
-
-	private bool CheckAllPlayersReady()
-	{
-		return GameContext.NetworkService.ProcessCheckAllPlayersReady(GameContext.Lobby?.PlayerList);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void BroadcastPauseState(bool paused, int pausedByPeerId, bool instantResume)
-	{
-		GameContext.NetworkService.ProcessBroadcastPauseState(
-			paused, instantResume, UpdatePauseUI
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void BroadcastReadyStates(string serializedReadyStates)
-	{
-		GameContext.NetworkService.ProcessBroadcastReadyStates(
-			serializedReadyStates, UpdatePauseUI
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void BroadcastDisallowedPausePeers(string serializedDisallowed)
-	{
-		GameContext.NetworkService.ProcessBroadcastDisallowedPausePeers(
-			serializedDisallowed, UpdatePauseUI
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void BroadcastCountdownState(int seconds, bool forcedByHost)
-	{
-		GameContext.NetworkService.ProcessBroadcastCountdownState(
-			seconds, forcedByHost, UpdatePauseUI
-		);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void BroadcastCountdownCancel()
-	{
-		GameContext.NetworkService.BroadcastCountdownCancelDomain();
-		UpdatePauseUI();
-	}
-
-	public void GetPlayerReadyState(int peerId, out bool ready)
-	{
-		GameContext.NetworkService.GetPlayerReadyStateDomain(peerId, out ready);
-	}
-
-	public void GetPlayerDisallowPause(int peerId, out bool disallowed)
-	{
-		GameContext.NetworkService.GetPlayerDisallowPauseDomain(peerId, out disallowed);
+		GD.PushWarning("[GameHost] Pause is not carried by the match authority yet, so a pause request has nowhere to go.");
 	}
 
 	private void UpdatePauseUI()
@@ -851,7 +320,6 @@ public partial class GameHost
 		GameContext.InGameHud?.UpdatePauseUI();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void SyncEnvironmentPresetRpc(string presetId, float durationSeconds)
 	{
 		if (durationSeconds <= 0.001f)
@@ -864,87 +332,12 @@ public partial class GameHost
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void SyncWeatherRpc(string weatherType)
 	{
 		GameContext.EnvironmentService?.SetCurrentWeather(weatherType);
 		GameContext.InGameHud?.ApplyWeatherEffects(weatherType);
 	}
 
-	private void SendReconnectedBaselineSnapshot(int newPeerId)
-	{
-		var baselinePayload = GameContext.NetworkService.BuildExplicitBaselineSnapshot(newPeerId, AllUnits);
-		if (baselinePayload != null && baselinePayload.Length > 0)
-		{
-			SendNavMeshObstacleVolumesToPeer(newPeerId);
-			RpcId(newPeerId, nameof(ReceiveBaselineSnapshot), baselinePayload);
-		}
-
-		GameContext.NetworkService.RecordReconnectBaselineForDiagnostics(AllUnits, newPeerId);
-	}
-
-	private void SyncReconnectedCountdown(int newPeerId)
-	{
-		if (GameContext.NetworkService.TryGetReconnectedCountdown(out float duration, out string text))
-		{
-			RpcId(newPeerId, nameof(ClientStartCountdownTimer), duration, text);
-		}
-	}
-
-	private void RegisterReconnectedAbilities(int newPeerId)
-	{
-		foreach (var kvp in GameContext.RegistryService.AbilityDefinitions)
-		{
-			RpcId(newPeerId, nameof(ClientRegisterAbility), kvp.Key, kvp.Value.DisplayName, kvp.Value.TooltipTemplate, kvp.Value.IconPath ?? "", kvp.Value.IsInstant);
-		}
-	}
-
-	private void SyncReconnectedPauseState(int newPeerId)
-	{
-		if (!GameContext.NetworkService.IsPaused) return;
-
-		RpcId(newPeerId, nameof(BroadcastPauseState), true, 1, false);
-		var serializedReady = JsonSerializer.Serialize(GameContext.NetworkService.PlayerReadyStates);
-		RpcId(newPeerId, nameof(BroadcastReadyStates), serializedReady);
-	}
-
-	public void HandlePeerReconnected(int oldPeerId, int newPeerId, int slot)
-	{
-		if (!Multiplayer.IsServer()) return;
-
-		GD.Print($"[GameHost] HandlePeerReconnected: OldPeer={oldPeerId}, NewPeer={newPeerId}, Slot={slot}");
-
-		Entity playerEntity = GameContext.NetworkService.ResolveReconnectedPlayerEntity(oldPeerId, newPeerId, _peerIdToPlayerEntityMap);
-		GameContext.NetworkService.UpdateReconnectedNetworkMapping(oldPeerId, newPeerId, playerEntity);
-		GameContext.NetworkService.ResetClientSnapshotState(oldPeerId);
-		SendReconnectedBaselineSnapshot(newPeerId);
-		SyncReconnectedCountdown(newPeerId);
-		RegisterReconnectedAbilities(newPeerId);
-		SyncReconnectedPauseState(newPeerId);
-		SyncReconnectedCameraBounds(newPeerId, slot);
-		SyncReconnectedHudVisibility(newPeerId, slot);
-	}
-
-	private void SyncReconnectedCameraBounds(int newPeerId, int slot)
-	{
-		if (_playerCameraBoundsOverrides.TryGetValue(slot, out var bounds))
-		{
-			RpcId(newPeerId, nameof(ClientSetCameraBounds), bounds.MinX, bounds.MinZ, bounds.MaxX, bounds.MaxZ);
-		}
-	}
-
-	private void SyncReconnectedHudVisibility(int newPeerId, int slot)
-	{
-		if (_playerHudVisibilityOverrides.TryGetValue(slot, out var dict))
-		{
-			foreach (var kvp in dict)
-			{
-				RpcId(newPeerId, nameof(ClientSetHudElementVisible), (int)kvp.Key, kvp.Value);
-			}
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientRegisterAbility(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
 		if (GameContext.RegistryService.RegisterAbility(abilityId, displayName, tooltip, iconPath, isInstant))
@@ -953,69 +346,24 @@ public partial class GameHost
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientShowFeedbackText(string text, Vector3 color)
 	{
-		if (GameContext.InGameHud != null)
-		{
-			var gColor = new Color(color.X, color.Y, color.Z);
-			Callable.From(() => GameContext.InGameHud?.ShowFeedbackText(text, gColor)).CallDeferred();
-		}
+		if (GameContext.InGameHud == null) return;
+
+		var textColor = new Color(color.X, color.Y, color.Z);
+		Callable.From(() => GameContext.InGameHud?.ShowFeedbackText(text, textColor)).CallDeferred();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
-	public void ClientCreateFloatingText(string text, Vector3 position, Vector3 color, float duration)
-	{
-		CreateFloatingTextInternal(text, position, new Color(color.X, color.Y, color.Z), duration);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientStartCountdownTimer(float duration, string label)
 	{
 		Callable.From(() => GameContext.InGameHud?.StartCountdownTimer(duration, label)).CallDeferred();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientStopCountdownTimer()
 	{
 		Callable.From(() => GameContext.InGameHud?.StopCountdownTimer()).CallDeferred();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientPanCameraTo(Vector3 position, float duration)
-	{
-		Callable.From(() => { PanCameraInternal(position, duration); }).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientShakeCamera(float intensity, float duration)
-	{
-		ShakeCameraInternal(intensity, duration);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSetCameraBounds(float minX, float minZ, float maxX, float maxZ)
-	{
-		Callable.From(() => SetCameraBoundsInternal(minX, minZ, maxX, maxZ)).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientResetCameraBounds()
-	{
-		Callable.From(() => ResetCameraBoundsInternal()).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSetHudElementVisible(int elementInt, bool visible)
-	{
-		Callable.From(() =>
-		{
-			HudElement element = (HudElement)elementInt;
-			SetHudElementVisibleInternal(element, visible);
-		}).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientSelectUnit(int serverEntityId)
 	{
 		Callable.From(() =>
@@ -1023,11 +371,11 @@ public partial class GameHost
 			Entity targetEntity = Entity.Null;
 			if (!TryGetLocalEntity(serverEntityId, out targetEntity))
 			{
-				foreach (var u in AllUnits)
+				foreach (var unit in AllUnits)
 				{
-					if (GodotObject.IsInstanceValid(u) && u.Entity.Id == serverEntityId)
+					if (GodotObject.IsInstanceValid(unit) && unit.Entity.Id == serverEntityId)
 					{
-						targetEntity = u.Entity;
+						targetEntity = unit.Entity;
 						break;
 					}
 				}
@@ -1046,132 +394,8 @@ public partial class GameHost
 		}).CallDeferred();
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void ClientClearSelection()
 	{
 		ClearSelectionInternal();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientPingMinimap(Vector3 position)
-	{
-		Callable.From(() => AddMinimapPing(position)).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientPlayWarningSound()
-	{
-		Callable.From(() => GameContext.AudioService?.PlayWarningSound()).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientPlayClickSound()
-	{
-		Callable.From(() => GameContext.AudioService?.PlayClickSound()).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientStartBuildingPlacement(string unitTypeId)
-	{
-		Callable.From(() => EnterBuildingPlacement(unitTypeId)).CallDeferred();
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientGameOver(bool isVictory)
-	{
-		GameContext.NetworkService.SetGameOver();
-		Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, isVictory)).CallDeferred();
-	}
-
-	public void OnClientReconnected(int slot)
-	{
-		_snapshotReassembly.Clear();
-		_newestSnapshotFragmentGroupId = 0;
-		_localPeerId = Multiplayer.GetUniqueId();
-		GameContext.NetworkService.LocalPeerId = _localPeerId;
-		GameContext.NetworkService.MarkClientEnteredMultiplayer();
-		GameContext.NetworkService.ResetReconnectionState();
-
-		Entity reconnectedEntity = Entity.Null;
-		if (GameContext.Lobby != null && GameContext.Lobby.PlayerList.Count > 0)
-		{
-			reconnectedEntity = GameContext.NetworkService.AssignReconnectedPlayerEntity(slot, GameContext.Lobby.PlayerList, _localPeerId, _peerIdToPlayerEntityMap);
-		}
-
-		GameContext.NetworkService.UpdateReconnectedClientMapping(reconnectedEntity, _localPeerId);
-
-		GameContext.InGameHud?.RefreshUI(SelectedUnits);
-		GD.Print($"[GameHost] OnClientReconnected completed for LocalPeerId={_localPeerId}, Slot={slot}");
-	}
-
-	private readonly List<(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)> _dynamicPathingOverrides = new();
-	private int _regionPathingSequence;
-	private int _appliedRegionPathingSequence;
-
-	private int NextRegionPathingSequence()
-	{
-		_regionPathingSequence++;
-		_appliedRegionPathingSequence = _regionPathingSequence;
-		return _regionPathingSequence;
-	}
-
-	public void ApplyRegionPathingInternal(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked)
-	{
-		_dynamicPathingOverrides.Add((minX, minZ, maxX, maxZ, flags, blocked));
-		var world = GameContext.World;
-		var worldEntity = GameContext.Simulation.WorldEntity;
-		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
-		{
-			ref var state = ref world.Get<TerrainState>(worldEntity);
-			GameContext.Simulation.TerrainNavMeshService?.SetRegionPathing(ref state, minX, minZ, maxX, maxZ, flags, blocked);
-			world.Set(worldEntity, state);
-		}
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientUpdateRegionPathing(float minX, float minZ, float maxX, float maxZ, int flags, bool blocked, int sequence)
-	{
-		if (sequence <= _appliedRegionPathingSequence) return;
-
-		_appliedRegionPathingSequence = sequence;
-		ApplyRegionPathingInternal(minX, minZ, maxX, maxZ, flags, blocked);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ServerRequestDynamicPathingSync()
-	{
-		int senderId = Multiplayer.GetRemoteSenderId();
-		if (senderId <= 1) return;
-
-		var sb = new System.Text.StringBuilder();
-		for (int i = 0; i < _dynamicPathingOverrides.Count; i++)
-		{
-			var o = _dynamicPathingOverrides[i];
-			if (i > 0) sb.Append(';');
-			sb.Append($"{o.minX:F2},{o.minZ:F2},{o.maxX:F2},{o.maxZ:F2},{o.flags},{(o.blocked ? 1 : 0)}");
-		}
-		RpcId(senderId, nameof(ClientSyncDynamicPathingOverrides), _regionPathingSequence, sb.ToString());
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void ClientSyncDynamicPathingOverrides(int sequence, string serializedData)
-	{
-		if (sequence > _appliedRegionPathingSequence) _appliedRegionPathingSequence = sequence;
-		if (string.IsNullOrEmpty(serializedData)) return;
-		var parts = serializedData.Split(';', StringSplitOptions.RemoveEmptyEntries);
-		foreach (var part in parts)
-		{
-			var tokens = part.Split(',');
-			if (tokens.Length >= 6 &&
-			    float.TryParse(tokens[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x1) &&
-			    float.TryParse(tokens[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z1) &&
-			    float.TryParse(tokens[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x2) &&
-			    float.TryParse(tokens[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z2) &&
-			    int.TryParse(tokens[4], out int flags) &&
-			    int.TryParse(tokens[5], out int blockedInt))
-			{
-				ApplyRegionPathingInternal(x1, z1, x2, z2, flags, blockedInt != 0);
-			}
-		}
 	}
 }

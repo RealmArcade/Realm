@@ -2458,8 +2458,6 @@ public partial class InGameHUD : Control
 	private PanelContainer _pausePanel;
 	private VBoxContainer _pausePlayerListContainer;
 	private Label _pauseTitleLabel;
-	private CheckButton _pauseReadyCheck;
-	private Button _pauseForceResumeBtn;
 
 	public void UpdatePauseUI()
 	{
@@ -2472,22 +2470,12 @@ public partial class InGameHUD : Control
 		UpdatePauseTitle();
 
 		ClearPausePlayerList();
-
-		GetLocalPlayerInfo(out bool isLocalHost, out int localPeerId);
-
-		UpdatePausePlayerList(isLocalHost);
-		UpdatePauseControls(localPeerId, isLocalHost);
+		UpdatePausePlayerList();
 	}
 
 	private void ClearPausePlayerList()
 	{
 		foreach (var child in _pausePlayerListContainer.GetChildren()) child.QueueFree();
-	}
-
-	private void GetLocalPlayerInfo(out bool isLocalHost, out int localPeerId)
-	{
-		localPeerId = GameContext.Host?.LocalPeerId ?? 1;
-		isLocalHost = GameContext.Lobby?.IsHost ?? false;
 	}
 
 	private void UpdatePauseTitle()
@@ -2497,7 +2485,7 @@ public partial class InGameHUD : Control
 			: "Game Paused";
 	}
 
-	private void UpdatePausePlayerList(bool isLocalHost)
+	private void UpdatePausePlayerList()
 	{
 		if (GameContext.Lobby == null) return;
 
@@ -2512,33 +2500,8 @@ public partial class InGameHUD : Control
 			var nameLabel = new Label { Text = player.Name, CustomMinimumSize = new Vector2(150, 0) };
 			row.AddChild(nameLabel);
 
-			GameContext.Host.GetPlayerReadyState(player.PeerId, out bool ready);
-			var readyLabel = new Label
-			{
-				Text = ready ? "READY" : "NOT READY",
-				CustomMinimumSize = new Vector2(100, 0)
-			};
-			readyLabel.AddThemeColorOverride("font_color", ready ? new Color(0.2f, 0.9f, 0.3f) : new Color(0.9f, 0.3f, 0.2f));
-			row.AddChild(readyLabel);
-
-			var disallowCheck = new CheckBox { Text = "Disallow Pause", Disabled = !isLocalHost || player.PeerId == 1 };
-			GameContext.Host.GetPlayerDisallowPause(player.PeerId, out bool disallowed);
-			disallowCheck.ButtonPressed = disallowed;
-			disallowCheck.Toggled += (buttonPressed) => GameContext.Host.RequestSetDisallowPause(player.PeerId, buttonPressed);
-			row.AddChild(disallowCheck);
-
 			_pausePlayerListContainer.AddChild(row);
 		}
-	}
-
-	private void UpdatePauseControls(int localPeerId, bool isLocalHost)
-	{
-		GameContext.Host.GetPlayerReadyState(localPeerId, out bool localReady);
-		_pauseReadyCheck.ButtonPressed = localReady;
-		_pauseReadyCheck.Disabled = GameContext.NetworkService.ResumeCountdownSeconds >= 0;
-
-		_pauseForceResumeBtn.Visible = isLocalHost;
-		_pauseForceResumeBtn.Disabled = GameContext.NetworkService.ResumeCountdownSeconds >= 0;
 	}
 
 	private void BuildPausePanel()
@@ -2586,34 +2549,10 @@ public partial class InGameHUD : Control
 		_pausePlayerListContainer.AddThemeConstantOverride("separation", 10);
 		scroll.AddChild(_pausePlayerListContainer);
 
-		var actionHBox = new HBoxContainer();
-		actionHBox.Name = "ActionHBox_HBoxContainer";
-		actionHBox.AddThemeConstantOverride("separation", 20);
-		actionHBox.Alignment = BoxContainer.AlignmentMode.Center;
-		mainVBox.AddChild(actionHBox);
-
-		_pauseReadyCheck = new CheckButton();
-		_pauseReadyCheck.Text = "Ready to Resume";
-		_pauseReadyCheck.Toggled += (buttonPressed) =>
-		{
-			int localPeerId = GameContext.Host?.LocalPeerId ?? 1;
-			GameContext.Host?.RequestToggleReady(localPeerId, buttonPressed);
-		};
-		actionHBox.AddChild(_pauseReadyCheck);
-
-		_pauseForceResumeBtn = new Button();
-		_pauseForceResumeBtn.Name = "PauseForceResumeBtn_Button";
-		_pauseForceResumeBtn.Text = "Force Resume";
-		_pauseForceResumeBtn.Pressed += OnForceResumePressed;
-		actionHBox.AddChild(_pauseForceResumeBtn);
-
 		AddChild(_pausePanel);
 	}
 
-	private void OnForceResumePressed()
-	{
-		GameContext.Host?.RequestForceResume();
-	}		private string GetBuildOptionTooltip(string unitId, string hotkeyStr)
+	private string GetBuildOptionTooltip(string unitId, string hotkeyStr)
 		{
 			HotkeySpec hotkey = HotkeySpec.ParseOrDefault(hotkeyStr);
 			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Build");

@@ -108,7 +108,7 @@ public partial class ServerGameAPI
 	}
 
 	public void SetAbilityGridPosition(string abilityId, int x, int y) =>
-		WriteAbilityDetail(PresentationKind.AbilityGridPositionSet, abilityId, string.Empty, 0, x, y, () => _abilities.SetGridPosition(abilityId, x, y));
+		WriteAbilityDetail(PresentationKind.AbilityGridPositionSet, abilityId, string.Empty, x, y, () => _abilities.SetGridPosition(abilityId, x, y));
 
 	public void SetItemTooltip(string itemId, string tooltip)
 	{
@@ -174,7 +174,7 @@ public partial class ServerGameAPI
 		return _abilities.UnitAbilityManaCost(caster.Id, abilityId);
 	}
 
-	private void WriteAbilityDetail(PresentationKind kind, string abilityId, string text, int count, int secondCount = 0, int gridY = 0, Action? mutation = null)
+	private void WriteAbilityDetail(PresentationKind kind, string abilityId, string text, int count, int secondCount = 0, Action? mutation = null)
 	{
 		if (string.IsNullOrWhiteSpace(abilityId)) return;
 

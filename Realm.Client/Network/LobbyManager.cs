@@ -2071,8 +2071,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		string serializedPlayers = JsonSerializer.Serialize(PlayerList);
 		RpcId(senderId, nameof(AcceptReconnect), targetPlayer.Slot, ActiveMapName, serializedPlayers, MatchSeed);
-
-		GameContext.Host?.HandlePeerReconnected(oldPeerId, senderId, targetPlayer.Slot);
 	}
 
 	private PlayerInfo? FindReconnectSessionOwner(string sessionToken)
@@ -2118,7 +2116,9 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Host))
 		{
-			GameContext.Host.OnClientReconnected(slot);
+			// The match is run by its own process, so a peer that comes back asks that process for the world again
+			// rather than being handed one by whichever peer used to hold it.
+			GameContext.Host.RequestSnapshotBaseline();
 		}
 		else
 		{
@@ -2761,7 +2761,6 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void EnterMatchScene(string mapName, int matchSeed)
 	{
 		GD.Print($"[LobbyManager] LoadMap RPC received for: {mapName} with deterministic random seed {matchSeed}");
-		GameContext.Host?.ResetCommandDedupe();
 		GameContext.ReplayPlayback.StopReplay();
 		ActiveMapName = mapName;
 		MatchSeed = matchSeed;

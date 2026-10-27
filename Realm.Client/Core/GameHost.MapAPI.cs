@@ -175,22 +175,6 @@ public partial class GameHost
 	public event Action<UnitId, string, Vector3>? OnUnitOrdered;
 
 
-	private void SetUnitFacingViewLogic(Entity entity, float facingRadians)
-	{
-		if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
-		{
-			var rot = unit3D.Rotation;
-			rot.Y = facingRadians;
-			unit3D.Rotation = rot;
-		}
-	}
-
-
-
-
-
-
-
 	public void ApplyStaticTextDelta(StaticTextDelta delta)
 	{
 		if (delta.Destroyed != 0)
@@ -503,13 +487,6 @@ public partial class GameHost
 	}
 
 
-	private void StopCountdownTimerViewLogic()
-	{
-		Callable.From(() => GameContext.InGameHud?.StopCountdownTimer()).CallDeferred();
-	}
-
-
-
 	private void SetTimeOfDayViewLogic(float normalizedTime)
 	{
 		Callable.From(() => { UpdateDayNightVisuals(normalizedTime); }).CallDeferred();
@@ -520,35 +497,6 @@ public partial class GameHost
 	{
 		DayNightCycleEnabled = enabled;
 	}
-
-
-	private void SetEnvironmentPresetViewLogic(string presetId)
-	{
-		Callable.From(() => { GameContext.EnvironmentService?.ApplyPresetById(presetId); }).CallDeferred();
-	}
-
-
-	private void TransitionEnvironmentPresetViewLogic(string presetId, float durationSeconds)
-	{
-		Callable.From(() => { GameContext.EnvironmentService?.TransitionToPreset(presetId, durationSeconds); }).CallDeferred();
-	}
-
-
-
-	private void SetWeatherViewLogic(string weatherType)
-	{
-		Callable.From(() =>
-		{
-			GameContext.EnvironmentService?.SetCurrentWeather(weatherType);
-			GameContext.InGameHud?.ApplyWeatherEffects(weatherType);
-		}).CallDeferred();
-	}
-
-
-
-
-
-
 
 
 	private void RemoveUnitFromCollections(Unit3D unit3D, in Entity entity)
@@ -617,26 +565,6 @@ public partial class GameHost
 	}
 
 
-	public void SetUnitColor(UnitId unit, Vector3 color)
-	{
-		if (GameContext.SimulationService.TryGetEntity(unit, out var entity) && GameContext.World.IsAlive(entity))
-		{
-			if (TryGetUnit3D(entity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
-				unit3D.ApplyModelTint(new Color(color.X, color.Y, color.Z));
-		}
-	}
-
-
-
-
-
-
-
-
-
-
-
-
 	private void SetCountdownTimerLabelView(string label)
 	{
 		GameContext.InGameHud?.UpdateCountdownLabel(label);
@@ -686,11 +614,6 @@ public partial class GameHost
 
 
 
-	public LootItemId SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f)
-	{
-		return SpawnLootItemInternal(itemTypeId, position, charges, lifetime, 2.0f, true, -1);
-	}
-
 	public LootItemId SpawnLootItemInternal(string itemTypeId, Vector3 position, int charges, float lifetime, float pickupRadius, bool autoPickup, int ownerPlayerIndex)
 	{
 		if (string.IsNullOrWhiteSpace(itemTypeId)) return LootItemId.Invalid;
@@ -716,49 +639,6 @@ public partial class GameHost
 		IdToLootItem[entity.Id] = new LootItem_WasmRuntime(entity);
 
 		return (LootItemId)entity.Id;
-	}
-
-
-	public LootItemId GetLootItemById(int uniqueId)
-	{
-		return IdToLootItem.TryGetValue(uniqueId, out var loot) && !loot.IsDespawned ? (LootItemId)uniqueId : LootItemId.Invalid;
-	}
-
-
-	public ReadOnlySpan<LootItemId> GetAllLootItems()
-	{
-		int count = 0;
-		for (int i = 0; i < AllLootItems.Count && count < _cachedLootBuffer.Length; i++)
-		{
-			var node = AllLootItems[i];
-			if (GodotObject.IsInstanceValid(node) && !node.IsDespawned && IdToLootItem.TryGetValue(node.UniqueId, out _))
-			{
-				_cachedLootBuffer[count++] = (LootItemId)node.UniqueId;
-			}
-		}
-		return new ReadOnlySpan<LootItemId>(_cachedLootBuffer, 0, count);
-	}
-
-
-	public ReadOnlySpan<LootItemId> GetLootItemsInRadius(Vector3 center, float radius)
-	{
-		int count = 0;
-		float rSq = radius * radius;
-		for (int i = 0; i < AllLootItems.Count && count < _cachedLootBuffer.Length; i++)
-		{
-			var node = AllLootItems[i];
-			if (GodotObject.IsInstanceValid(node) && !node.IsDespawned)
-			{
-				float dx = node.GlobalPosition.X - center.X;
-				float dy = node.GlobalPosition.Y - center.Y;
-				float dz = node.GlobalPosition.Z - center.Z;
-				if (dx * dx + dy * dy + dz * dz <= rSq && IdToLootItem.TryGetValue(node.UniqueId, out _))
-				{
-					_cachedLootBuffer[count++] = (LootItemId)node.UniqueId;
-				}
-			}
-		}
-		return new ReadOnlySpan<LootItemId>(_cachedLootBuffer, 0, count);
 	}
 
 
@@ -865,102 +745,6 @@ public partial class GameHost
 		RemoveLootItem(lootItemId);
 		return true;
 	}
-
-
-	public bool CollectLootItemByPlayer(int lootItemId, int playerIndex)
-	{
-		if (!IdToLootItem.TryGetValue(lootItemId, out var loot) || loot.IsDespawned) return false;
-
-		var pos = loot.Position;
-		UnitId bestUnit = UnitId.Invalid;
-		float bestDistSq = float.MaxValue;
-
-		for (int i = 0; i < AllUnits.Count; i++)
-		{
-			var u = AllUnits[i];
-			if (!GodotObject.IsInstanceValid(u) || u.IsBuilding || u.Player != playerIndex) continue;
-			if (!GameContext.World.IsAlive(u.Entity) || GameContext.World.Has<Dead>(u.Entity)) continue;
-
-			if (GameContext.World.Has<Inventory>(u.Entity))
-			{
-				var inv = GameContext.World.Get<Inventory>(u.Entity);
-				if (inv.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
-					continue;
-			}
-
-			float dx = u.Position.X - pos.X;
-			float dy = u.Position.Y - pos.Y;
-			float dz = u.Position.Z - pos.Z;
-			float dsq = dx * dx + dy * dy + dz * dz;
-
-			if (dsq < bestDistSq)
-			{
-				bestDistSq = dsq;
-				bestUnit = (UnitId)u.Entity.Id;
-			}
-		}
-
-		if (bestUnit.IsValid)
-		{
-			return CollectLootItem(lootItemId, bestUnit);
-		}
-
-		return false;
-	}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 }

@@ -574,7 +574,10 @@ public partial class ServerGameAPI : IGameAPI
 	/// <summary>Publishes a number that floats over a place on the map.</summary>
 	public void CreateFloatingText(string text, Vector3 position, Vector3 color, float duration)
 	{
-		_presentation.WriteText(PresentationKind.FloatingText, -1, text, position);
+		if (string.IsNullOrEmpty(text)) return;
+
+		_presentation.Write(PresentationKind.FloatingText, -1, 0, string.Empty, text, string.Empty, string.Empty, null,
+			position, Vector3.Zero, color, 0, 0, 0f, 0f, duration, false);
 	}
 
 	/// <summary>Marks a place on one player's minimap.</summary>
@@ -586,7 +589,8 @@ public partial class ServerGameAPI : IGameAPI
 	/// <summary>Marks a place on the map for every player.</summary>
 	public void SpawnTargetIndicator(Vector3 position, Vector3 color)
 	{
-		_presentation.Write(PresentationKind.TargetIndicator, -1, position);
+		_presentation.Write(PresentationKind.TargetIndicator, -1, 0, string.Empty, string.Empty, string.Empty, string.Empty, null,
+			position, Vector3.Zero, color, 0, 0, 0f, 0f, 0f, false);
 	}
 
 	/// <summary>Ends the match in victory, which every client reads from the match state.</summary>

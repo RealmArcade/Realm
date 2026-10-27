@@ -3228,20 +3228,13 @@ public partial class GameHost : Node3D
 		GameContext.NetworkService.ResumeCountdownTimer -= 1.0f;
 		GameContext.NetworkService.ResumeCountdownSeconds--;
 
-		bool isServer = Multiplayer.MultiplayerPeer != null && Multiplayer.IsServer();
-
 		if (GameContext.NetworkService.ResumeCountdownSeconds <= 0)
 		{
 			GameContext.NetworkService.ResumeCountdownSeconds = -1;
 			GameContext.NetworkService.IsPaused = false;
-			if (isServer) Rpc(nameof(BroadcastPauseState), false, -1, true);
-			else UpdatePauseUI();
 		}
-		else
-		{
-			if (isServer) Rpc(nameof(BroadcastCountdownState), GameContext.NetworkService.ResumeCountdownSeconds, GameContext.NetworkService.CountdownForcedByHost);
-			else UpdatePauseUI();
-		}
+
+		UpdatePauseUI();
 	}
 
 	public bool IsMultiplayerActive() => _multiplayerActive;
@@ -3263,74 +3256,6 @@ public partial class GameHost : Node3D
 		if (GroundTerrain == null) return;
 
 		GroundTerrain.BakeNavMesh();
-
-		// A peer receives the map's obstacle volumes from nowhere else: most of them belong to props the map script
-		// spawned, and a peer never runs that script. Sending the volumes the authority just baked with is what makes the
-		// two meshes identical, and therefore what stops a predicted route from picking a corridor the host blocks. A peer
-		// that already baked these volumes drops them, so a repeat only costs one message.
-		if (!_multiplayerActive) return;
-
-		foreach (int peerId in GetReplicatedPeerIds()) SendNavMeshObstacleVolumesToPeer(peerId);
-	}
-
-	private List<int> GetReplicatedPeerIds()
-	{
-		_navMeshBroadcastPeerIds.Clear();
-		if (GameContext.Lobby == null) return _navMeshBroadcastPeerIds;
-
-		foreach (var player in GameContext.Lobby.PlayerList)
-		{
-			if (player.PeerId == _localPeerId || player.PeerId < 0) continue;
-			if (player.IsDisconnected) continue;
-			_navMeshBroadcastPeerIds.Add(player.PeerId);
-		}
-
-		return _navMeshBroadcastPeerIds;
-	}
-
-	private readonly List<int> _navMeshBroadcastPeerIds = new();
-
-	/// <summary>
-	/// Sends the obstacle volumes of the last bake to one peer. Sent beside every baseline, because a peer that joins or
-	/// reconnects after the bake would otherwise never learn them and would path across corridors the authority blocks.
-	/// </summary>
-	public void SendNavMeshObstacleVolumesToPeer(int peerId)
-	{
-		TerrainNavMeshService navMeshService = GameContext.Simulation.TerrainNavMeshService;
-		if (navMeshService == null) return;
-
-		ReadOnlySpan<System.Numerics.Vector3> bakedPositions = navMeshService.BakedObstaclePositions;
-		if (bakedPositions.Length == 0) return;
-
-		Vector3[] positions = new Vector3[bakedPositions.Length];
-		for (int index = 0; index < bakedPositions.Length; index++)
-		{
-			positions[index] = new Vector3(bakedPositions[index].X, bakedPositions[index].Y, bakedPositions[index].Z);
-		}
-
-		RpcId(peerId, nameof(ReceiveNavMeshObstacleVolumes), positions, navMeshService.BakedObstacleRadii.ToArray());
-	}
-
-	/// <summary>
-	/// Replaces this peer's obstacle volumes with the ones the authority baked with and rebuilds the mesh from them. The
-	/// volumes are pure geometry, so this carries no gameplay authority: the peer only learns which cells the authority
-	/// pathing treats as blocked.
-	/// </summary>
-	public void ApplyAuthoritativeNavMeshObstacles(Vector3[] positions, float[] radii)
-	{
-		TerrainNavMeshService navMeshService = GameContext.Simulation.TerrainNavMeshService;
-		if (navMeshService == null || positions == null || radii == null) return;
-
-		System.Numerics.Vector3[] domainPositions = new System.Numerics.Vector3[positions.Length];
-		for (int index = 0; index < positions.Length; index++)
-		{
-			domainPositions[index] = new System.Numerics.Vector3(positions[index].X, positions[index].Y, positions[index].Z);
-		}
-
-		if (navMeshService.HasBakedObstacleVolumes(domainPositions, radii)) return;
-
-		navMeshService.SetAuthoritativeObstacleVolumes(domainPositions, radii);
-		RebakeNavMesh();
 	}
 
 	private const ulong NavMeshRefreshDelayMsec = 500;

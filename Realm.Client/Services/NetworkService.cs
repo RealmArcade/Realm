@@ -120,36 +120,6 @@ public class NetworkService
 	public readonly Dictionary<int, bool> PlayerReadyStates = new();
 	public readonly Dictionary<int, bool> DisallowedPausePeers = new();
 
-	public void BroadcastCountdownCancelDomain()
-	{
-		ResumeCountdownSeconds = -1;
-		CountdownForcedByHost = false;
-	}
-	public void GetPlayerReadyStateDomain(int peerId, out bool ready)
-	{
-		PlayerReadyStates.TryGetValue(peerId, out ready);
-	}
-	public void GetPlayerDisallowPauseDomain(int peerId, out bool disallowed)
-	{
-		DisallowedPausePeers.TryGetValue(peerId, out disallowed);
-	}
-
-
-
-
-	public Entity GetSpellCasterEntityDomain(NetworkCommand cmd, List<Unit3D> allUnits)
-	{
-		if (cmd.UnitEntityIds.Count == 0) return Entity.Null;
-
-		var casterEntity = FindServerEntity(cmd.UnitEntityIds[0], allUnits);
-		if (casterEntity != Entity.Null && GameContext.World.IsAlive(casterEntity))
-		{
-			return casterEntity;
-		}
-
-		return Entity.Null;
-	}
-
 	public void RemoveClientToServerMapping(int localEntityId)
 	{
 		Entity worldEntity = GameContext.Simulation.WorldEntity;
@@ -165,90 +135,6 @@ public class NetworkService
 		mapping.ClientToServerEntityMap.Remove(localEntityId);
 	}
 
-
-	public void SetGameOver()
-	{
-		GameContext.Simulation.IsGameOver = true;
-	}
-
-	public Entity ResolveReconnectedPlayerEntity(int oldPeerId, int newPeerId, Dictionary<int, Entity> peerIdToPlayerEntityMap)
-	{
-		Entity playerEntity = Entity.Null;
-		if (peerIdToPlayerEntityMap.TryGetValue(oldPeerId, out var existingEntity))
-		{
-			playerEntity = existingEntity;
-			peerIdToPlayerEntityMap.Remove(oldPeerId);
-		}
-		else if (peerIdToPlayerEntityMap.TryGetValue(newPeerId, out var directEntity))
-		{
-			playerEntity = directEntity;
-		}
-
-		if (playerEntity != Entity.Null)
-		{
-			peerIdToPlayerEntityMap[newPeerId] = playerEntity;
-		}
-
-		return playerEntity;
-	}
-
-	public void UpdateReconnectedNetworkMapping(int oldPeerId, int newPeerId, Entity playerEntity)
-	{
-		if (GameContext.Simulation.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity)) return;
-
-		if (playerEntity != Entity.Null)
-		{
-			var mapping = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity);
-			mapping.PeerIdToPlayerEntityMap.Remove(oldPeerId);
-			mapping.PeerIdToPlayerEntityMap[newPeerId] = playerEntity;
-		}
-	}
-
-	public bool TryGetReconnectedCountdown(out float duration, out string text)
-	{
-		duration = 0f;
-		text = string.Empty;
-
-		if (GameContext.Simulation.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<CountdownState>(GameContext.Simulation.WorldEntity)) return false;
-
-		var countdown = GameContext.World.Get<CountdownState>(GameContext.Simulation.WorldEntity);
-		if (countdown.Active)
-		{
-			duration = countdown.Duration;
-			text = countdown.Text;
-			return true;
-		}
-
-		return false;
-	}
-
-	public Entity AssignReconnectedPlayerEntity(int slot, IEnumerable<PlayerInfo> playerList, int localPeerId, Dictionary<int, Entity> peerIdToPlayerEntityMap)
-	{
-		Entity playerEntity = Entity.Null;
-		foreach (var p in playerList)
-		{
-			if (p.Slot == slot || p.PeerId == localPeerId)
-			{
-				if (peerIdToPlayerEntityMap.TryGetValue(localPeerId, out var myEntity))
-				{
-					playerEntity = myEntity;
-				}
-			}
-		}
-
-		return playerEntity;
-	}
-
-	public void UpdateReconnectedClientMapping(Entity playerEntity, int localPeerId)
-	{
-		if (GameContext.Simulation.WorldEntity == Entity.Null || GameContext.World == null || !GameContext.World.Has<NetworkMappingState>(GameContext.Simulation.WorldEntity)) return;
-
-		var mapping = GameContext.World.Get<NetworkMappingState>(GameContext.Simulation.WorldEntity);
-		if (playerEntity != Entity.Null)
-		{
-			mapping.PeerIdToPlayerEntityMap[localPeerId] = playerEntity;
-		}
-	}
 
 	public void Clear()
 	{
@@ -306,32 +192,6 @@ public class NetworkService
 		}
 
 		return Entity.Null;
-	}
-
-	public Prop3D FindClosestProp(System.Numerics.Vector3 position, string propIdType, List<Prop3D> allProps)
-	{
-		Prop3D closest = null;
-		float closestDist = float.MaxValue;
-		foreach (var prop in allProps)
-		{
-			if (GodotObject.IsInstanceValid(prop))
-			{
-				if (!string.IsNullOrEmpty(propIdType) && prop.PropId != propIdType)
-				{
-					continue;
-				}
-
-				Vector3 godotPos = new Vector3(position.X, position.Y, position.Z);
-				float dist = prop.GlobalPosition.DistanceTo(godotPos);
-				if (dist < closestDist)
-				{
-					closestDist = dist;
-					closest = prop;
-				}
-			}
-		}
-
-		return closest;
 	}
 
 	
@@ -439,62 +299,6 @@ public class NetworkService
 		return remoteClientCount > 0;
 	}
 
-	public bool IsServerEntityVisibleToAnyRemoteClient(int serverEntityId)
-	{
-		GameHost? gameHost = GameContext.Host;
-		if (gameHost == null) return true;
-
-		LobbyManager? lobby = GameContext.Lobby;
-		if (lobby == null) return true;
-
-		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return true;
-
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-		Entity unitEntity = new(serverEntityId);
-		int localPeerId = gameHost.Multiplayer.GetUniqueId();
-		bool hasRemoteClient = false;
-
-		foreach (PlayerInfo player in lobby.PlayerList)
-		{
-			if (player.PeerId <= 0 || player.PeerId == localPeerId) continue;
-			if (player.IsDisconnected) continue;
-			if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(player.PeerId, out Entity playerEntity)) continue;
-
-			hasRemoteClient = true;
-			if (IsUnitVisibleToPlayer(playerEntity, unitEntity)) return true;
-		}
-
-		return !hasRemoteClient;
-	}
-
-	public (bool Success, string BuildUnitType, string TargetModel, PlayerEntity PlayerOwner, System.Numerics.Vector3 BuildPosition, string Name, float MaxHp, float Damage, float Range, float Armor) ProcessServerCommandBuildDomain(
-		ServerCommandResult result,
-		UnitMetadata? buildMetadata,
-		Entity buildPeerOwnerEntity,
-		Entity buildWorkerEntity)
-	{
-		if (!result.NeedsBuildUnit || buildMetadata == null || buildPeerOwnerEntity == Entity.Null) return (false, "", "", default, default, "", 0, 0, 0, 0);
-
-		var meta = buildMetadata;
-		var playerOwner = buildPeerOwnerEntity.AsPlayerEntity(GameContext.World);
-		string targetModel = !string.IsNullOrEmpty(meta.ModelPath) ? meta.ModelPath : result.BuildUnitType;
-
-		if (buildWorkerEntity != Entity.Null)
-		{
-			if (!GameContext.World.Has<Owner>(buildWorkerEntity)) return (false, "", "", default, default, "", 0, 0, 0, 0);
-			if (GameContext.World.Get<Owner>(buildWorkerEntity).PlayerEntity.Value != playerOwner.Value) return (false, "", "", default, default, "", 0, 0, 0, 0);
-		}
-
-		if (!TryChargeBuildingCost(playerOwner.Value, meta))
-		{
-			GD.PushWarning($"[Build] Rejected '{result.BuildUnitType}' for player {playerOwner.Value.Id}: insufficient resources or missing PlayerResources.");
-			return (false, "", "", default, default, "", 0, 0, 0, 0);
-		}
-
-		return (true, result.BuildUnitType, targetModel, playerOwner, new System.Numerics.Vector3(result.BuildPosition.X, result.BuildPosition.Y, result.BuildPosition.Z), meta.Name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor);
-	}
-
 	private bool TryChargeBuildingCost(Entity playerEntity, UnitMetadata meta)
 	{
 		if (!GameContext.World.TryGet<PlayerResources>(playerEntity, out var res)) return false;
@@ -554,11 +358,6 @@ public class NetworkService
 			ArgString = argString
 		};
 		return (cmd.CommandId, MemoryPackSerializer.Serialize(cmd));
-	}
-
-	public void RecordClientCameraPosition(int peerId, Vector3 position)
-	{
-		_clientCameraPositions[peerId] = position;
 	}
 
 	public void RecordSnapshotReceived(byte[] payload) => RecordSnapshotReceived(MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload)));
@@ -1126,12 +925,6 @@ public class NetworkService
 		return entity;
 	}
 
-	public void ApplyReplicatedState(WorldSnapshot snapshot)
-	{
-		ApplyReplicatedColdPayloads(snapshot);
-		ApplyReplicatedComponentState(snapshot);
-	}
-
 	private void ApplyReplicatedColdPayloads(WorldSnapshot snapshot)
 	{
 		if (snapshot.ColdPayloads == null) return;
@@ -1532,13 +1325,6 @@ public class NetworkService
 		return records;
 	}
 
-	public void ResetReplicatedStateMirrors()
-	{
-		_mirror.Clear();
-		_clientSnapshotStates.Clear();
-		_coldPayloadContentPerClient.Clear();
-	}
-
 	public bool TryGetLocalEntity(int serverEntityId, out Entity localEntity)
 	{
 		localEntity = Entity.Null;
@@ -1577,83 +1363,6 @@ public class NetworkService
 		return GameContext.CommandAuthority.ValidateSpellCommandForHarness(peerId, cmd, out rejectionReason);
 	}
 
-	public List<(int PeerId, byte[] Payload, bool IsBaseline)> BuildServerSnapshots(int localPeerId, List<Unit3D> allUnits)
-	{
-		var results = new List<(int PeerId, byte[] Payload, bool IsBaseline)>();
-		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity) || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return results;
-
-		ref var networkState = ref GameContext.World.Get<NetworkState>(worldEntity);
-		networkState.SnapshotSequence++;
-		int snapshotSequence = networkState.SnapshotSequence;
-		_currentSnapshotSequence = snapshotSequence;
-		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordHostSnapshotSequence(snapshotSequence);
-
-		bool anyPeerNeedsBaseline = false;
-		int snapshotPeerCount = 0;
-		if (GameContext.Lobby != null)
-		{
-			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-			foreach (var player in GameContext.Lobby.PlayerList)
-			{
-				if (player.PeerId == localPeerId || player.PeerId < 0) continue;
-				if (!mapping.PeerIdToPlayerEntityMap.ContainsKey(player.PeerId)) continue;
-
-				snapshotPeerCount++;
-				if (ShouldSendBaseline(GetClientSnapshotState(player.PeerId), snapshotSequence)) anyPeerNeedsBaseline = true;
-			}
-		}
-
-		if (GameContext.Lobby != null && snapshotPeerCount > 0)
-		{
-			var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-
-			// Ability and static-text state is collected once per tick, but only a peer that is receiving a baseline needs
-			// the whole set: every other peer already has it from its last baseline and only needs what changed. Passing one
-			// list built from "any peer needs a baseline" put the complete ability state in every peer's delta on any tick
-			// where a single peer was due a baseline, which with eight peers is almost every tick.
-			var abilityStates = CollectHostAbilityStateDeltas(false);
-			var staticTexts = CollectHostStaticTextDeltas(false);
-			List<AbilityStateDelta>? baselineAbilityStates = null;
-			List<StaticTextDelta>? baselineStaticTexts = null;
-			if (anyPeerNeedsBaseline)
-			{
-				baselineAbilityStates = CollectHostAbilityStateDeltas(true, clearDirty: false);
-				baselineStaticTexts = CollectHostStaticTextDeltas(true, clearDirty: false);
-			}
-
-			ProcessLobbyPlayersForSnapshots(localPeerId, allUnits, results, snapshotSequence, mapping, abilityStates, staticTexts, baselineAbilityStates, baselineStaticTexts);
-		}
-
-		if (MultiplayerSyncDiagnostics.IsRecording)
-		{
-			_baselinePeerIds.Clear();
-			for (int index = 0; index < results.Count; index++)
-			{
-				if (results[index].IsBaseline) _baselinePeerIds.Add(results[index].PeerId);
-			}
-
-			MultiplayerSyncDiagnostics.RecordHostSnapshot(BuildDiagnosticAuthoritativeSnapshot(allUnits, snapshotSequence, _baselinePeerIds.Count > 0), _baselinePeerIds);
-		}
-
-		return results;
-	}
-
-	/// <summary>
-	/// Rewrites the host's diagnostic record for the current sequence as a baseline, because the reconnect baseline goes
-	/// to one peer outside the per-tick fan-out and would otherwise be recorded as a delta. The verifier pairs records by
-	/// sequence and keeps the last one, so this replaces the tick's own record.
-	/// </summary>
-	public void RecordReconnectBaselineForDiagnostics(List<Unit3D> allUnits, int reconnectedPeerId)
-	{
-		if (!MultiplayerSyncDiagnostics.IsRecording) return;
-
-		int sequence = ResolveCurrentSnapshotSequence();
-		_baselinePeerIds.Clear();
-		_baselinePeerIds.Add(reconnectedPeerId);
-		MultiplayerSyncDiagnostics.RecordHostSnapshot(BuildDiagnosticAuthoritativeSnapshot(allUnits, sequence, true), _baselinePeerIds);
-	}
-
 	private ClientSnapshotState GetClientSnapshotState(int peerId)
 	{
 		if (!_clientSnapshotStates.TryGetValue(peerId, out var state))
@@ -1665,129 +1374,11 @@ public class NetworkService
 		return state;
 	}
 
-	public void ResetClientSnapshotState(int peerId)
-	{
-		_clientSnapshotStates.Remove(peerId);
-		_coldPayloadContentPerClient.Remove(peerId);
-		_stringTableCursorPerClient.Remove(peerId);
-	}
-
-	public void HandleClientBaselineRequest(int peerId)
-	{
-		int currentSequence = ResolveCurrentSnapshotSequence();
-
-		// The spacing is tracked outside the per-peer snapshot state because a reset creates fresh state with no record of
-		// the baseline that was just sent, which let a client that keeps requesting one refresh that state every tick.
-		if (_lastBaselineSentSequence.TryGetValue(peerId, out int lastSentSequence)
-			&& currentSequence - lastSentSequence < MinimumBaselineRequestSpacingSequences) return;
-
-		ResetClientSnapshotState(peerId);
-	}
-
 	private int ResolveCurrentSnapshotSequence()
 	{
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return 0;
 		return GameContext.World.Get<NetworkState>(worldEntity).SnapshotSequence;
-	}
-
-	public void RecordClientSnapshotAck(int peerId, int sequence, ulong appliedMask)
-	{
-		if (sequence < 0) return;
-
-		ClientSnapshotState state = GetClientSnapshotState(peerId);
-		state.Applied.Merge(sequence, appliedMask);
-		if (sequence > state.AckedSequence)
-		{
-			state.AckedSequence = sequence;
-			state.LastAckAdvanceSequence = _currentSnapshotSequence;
-			// The peer is applying what it receives, so it is not stuck and the next recovery starts from one attempt again.
-			state.BaselineBackoffAttempts = 0;
-		}
-
-		// The peer confirms the baseline that carried the world its later deltas are built on, so that baseline becomes
-		// the base those deltas name. An unacknowledged baseline is still in flight and must not gate the stream.
-		if (state.LastBaselineSequence >= 0 && state.AcknowledgedBaselineSequence < state.LastBaselineSequence && state.Applied.Contains(state.LastBaselineSequence))
-		{
-			state.AcknowledgedBaselineSequence = state.LastBaselineSequence;
-		}
-
-		// A pending entry is confirmed only by the sequence that actually carried it. An acknowledgement for a later
-		// snapshot used to confirm everything before it, so a dropped spawn or rotation change left the host believing the
-		// peer had it and never resending it.
-		List<SentUnitEntry> pendingUnits = state.PendingUnitAcks;
-		int writeUnits = 0;
-		for (int read = 0; read < pendingUnits.Count; read++)
-		{
-			SentUnitEntry entry = pendingUnits[read];
-			if (state.Applied.Contains(entry.Sequence))
-			{
-				state.AckedUnits[entry.EntityId] = entry.Snapshot;
-				if (state.SentUnitSequences.TryGetValue(entry.EntityId, out int latest) && latest == entry.Sequence)
-				{
-					state.SentUnits.Remove(entry.EntityId);
-					state.SentUnitSequences.Remove(entry.EntityId);
-				}
-
-				continue;
-			}
-
-			if (state.Applied.Highest - entry.Sequence >= AppliedSequenceWindow.WindowSize)
-			{
-				if (state.SentUnitSequences.TryGetValue(entry.EntityId, out int staleLatest) && staleLatest == entry.Sequence)
-				{
-					state.SentUnits.Remove(entry.EntityId);
-					state.SentUnitSequences.Remove(entry.EntityId);
-				}
-
-				continue;
-			}
-
-			if (writeUnits != read) pendingUnits[writeUnits] = entry;
-			writeUnits++;
-		}
-
-		if (writeUnits < pendingUnits.Count) pendingUnits.RemoveRange(writeUnits, pendingUnits.Count - writeUnits);
-
-		List<SentComponentEntry> pending = state.PendingComponentAcks;
-		int writeComponents = 0;
-		for (int read = 0; read < pending.Count; read++)
-		{
-			SentComponentEntry entry = pending[read];
-			if (state.Applied.Contains(entry.Sequence))
-			{
-				if (entry.Removed)
-				{
-					state.AckedComponents.Remove(entry.Key);
-				}
-				else
-				{
-					state.AckedComponents[entry.Key] = entry.Bytes;
-				}
-
-				if (state.SentComponents.TryGetValue(entry.Key, out var latest) && latest.Sequence == entry.Sequence)
-				{
-					state.SentComponents.Remove(entry.Key);
-				}
-
-				continue;
-			}
-
-			if (state.Applied.Highest - entry.Sequence >= AppliedSequenceWindow.WindowSize)
-			{
-				if (state.SentComponents.TryGetValue(entry.Key, out var staleLatest) && staleLatest.Sequence == entry.Sequence)
-				{
-					state.SentComponents.Remove(entry.Key);
-				}
-
-				continue;
-			}
-
-			if (writeComponents != read) pending[writeComponents] = entry;
-			writeComponents++;
-		}
-
-		if (writeComponents < pending.Count) pending.RemoveRange(writeComponents, pending.Count - writeComponents);
 	}
 
 	private static void TrackSentUnit(ClientSnapshotState state, UnitSnapshot snapshot, int snapshotSequence)
@@ -2770,52 +2361,6 @@ public class NetworkService
 		return posFarChanged || deadFarChanged || rotFarChanged || Mathf.Abs(baseSnap.CurrentHp - currentSnap.CurrentHp) > 1.0f;
 	}
 
-	public byte[] BuildExplicitBaselineSnapshot(int targetPeerId, List<Unit3D> allUnits)
-	{
-		Entity worldEntity = FindWorldEntity();
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity) || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return Array.Empty<byte>();
-
-		ref var networkState = ref GameContext.World.Get<NetworkState>(worldEntity);
-		var mapping = GameContext.World.Get<NetworkMappingState>(worldEntity);
-		if (!mapping.PeerIdToPlayerEntityMap.TryGetValue(targetPeerId, out var playerEntity)) return Array.Empty<byte>();
-
-		Vector3 cameraPos = _clientCameraPositions.TryGetValue(targetPeerId, out var cam) ? cam : Vector3.Zero;
-		var snapshotUnits = new List<UnitSnapshot>();
-		ResetClientSnapshotState(targetPeerId);
-		ClientSnapshotState state = GetClientSnapshotState(targetPeerId);
-
-		foreach (var unit in allUnits)
-		{
-			ProcessUnitForBaselineSnapshot(unit, playerEntity, cameraPos, allUnits, snapshotUnits, state.AckedUnits);
-		}
-
-		var abilityStates = CollectHostAbilityStateDeltas(true, clearDirty: false);
-		var staticTexts = CollectHostStaticTextDeltas(true, clearDirty: false);
-		var coldPayloadCandidates = BuildColdPayloadCandidates(networkState.SnapshotSequence);
-		var coldPayloads = BuildColdPayloadDeltas(targetPeerId, coldPayloadCandidates);
-		var componentDeltas = BuildComponentDeltas(targetPeerId, playerEntity, allUnits, state, networkState.SnapshotSequence, true);
-
-		state.LastBaselineSequence = networkState.SnapshotSequence;
-		state.HasSentBaseline = true;
-		state.SentCatalog = true;
-
-		var worldSnapshot = new WorldSnapshot
-		{
-			Sequence = networkState.SnapshotSequence,
-			IsBaseline = true,
-			BaseSequence = networkState.SnapshotSequence,
-			Units = snapshotUnits,
-			ColdPayloads = coldPayloads,
-			ComponentDeltas = componentDeltas,
-			AbilityStates = abilityStates,
-			StaticTexts = staticTexts,
-			Catalog = BuildCatalogEntriesWithStringTable(targetPeerId),
-			UnitComponentPresence = state.UnitComponentPresence,
-			StateFingerprint = ComputeHostStateFingerprint(abilityStates, staticTexts, coldPayloadCandidates)
-		};
-		return SnapshotWireFormat.EncodeBaseline(MemoryPackSerializer.Serialize(worldSnapshot));
-	}
-
 	private void ProcessUnitForBaselineSnapshot(Unit3D unit, Entity playerEntity, Vector3 cameraPos, List<Unit3D> allUnits, List<UnitSnapshot> snapshotUnits, Dictionary<int, UnitSnapshot> baselinedUnits)
 	{
 		if (!GodotObject.IsInstanceValid(unit)) return;
@@ -2828,71 +2373,6 @@ public class NetworkService
 
 	private readonly List<DelayedPacket> _readySpectatorPackets = new();
 	private readonly List<int> _disconnectedSpectatorPeerIds = new();
-
-	public void QueueSpectatorDelayedPacket(DelayedPacket packet)
-	{
-		packet.SendTime = (Time.GetTicksMsec() / 1000.0) + 300.0;
-		if (!_spectatorDelayedPackets.TryGetValue(packet.PeerId, out var list))
-		{
-			list = new List<DelayedPacket>();
-			_spectatorDelayedPackets[packet.PeerId] = list;
-		}
-
-		list.Add(packet);
-	}
-
-	public List<DelayedPacket> FlushReadySpectatorPackets()
-	{
-		_readySpectatorPackets.Clear();
-		if (_spectatorDelayedPackets.Count == 0) return _readySpectatorPackets;
-
-		double currentTime = Time.GetTicksMsec() / 1000.0;
-		_disconnectedSpectatorPeerIds.Clear();
-		foreach (var key in _spectatorDelayedPackets.Keys)
-		{
-			if (GameContext.Lobby == null || !GameContext.Lobby.PlayerList.Exists(p => p.PeerId == key))
-			{
-				_disconnectedSpectatorPeerIds.Add(key);
-			}
-		}
-
-		foreach (var peerId in _disconnectedSpectatorPeerIds)
-		{
-			_spectatorDelayedPackets.Remove(peerId);
-		}
-
-		foreach (var kvp in _spectatorDelayedPackets)
-		{
-			var list = kvp.Value;
-			int sentCount = 0;
-			for (int i = 0; i < list.Count; i++)
-			{
-				if (list[i].SendTime <= currentTime)
-				{
-					_readySpectatorPackets.Add(list[i]);
-					sentCount++;
-				}
-				else
-				{
-					break;
-				}
-			}
-
-			if (sentCount > 0)
-			{
-				list.RemoveRange(0, sentCount);
-			}
-		}
-
-		return _readySpectatorPackets;
-	}
-
-	public bool IsSpectatorWithDelay(int peerId)
-	{
-		if (GameContext.Lobby == null) return false;
-		var p = GameContext.Lobby.PlayerList.Find(x => x.PeerId == peerId);
-		return p != null && p.Team == "Spectator" && GameContext.Lobby.SpectatorDelay;
-	}
 
 	
 
@@ -2971,41 +2451,10 @@ public class NetworkService
 		}
 	}
 
-	public List<int> GetPeersToBroadcastSpellEffect(int localPeerId)
-	{
-		var peers = new List<int>();
-		if (GameContext.Lobby == null) return peers;
-
-		foreach (var p in GameContext.Lobby.PlayerList)
-		{
-			if (p.PeerId == localPeerId || p.PeerId < 0) continue;
-			peers.Add(p.PeerId);
-		}
-
-		return peers;
-	}
-
 	public void MarkClientEnteredMultiplayer()
 	{
 		WasClientInMultiplayer = true;
 		LastSnapshotReceivedTime = Time.GetTicksMsec();
-	}
-
-	public void ResetReconnectionState()
-	{
-		_unitsSentAtDetailedPrecision.Clear();
-		_queuedDeltas.Clear();
-		Entity worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.Has<NetworkState>(worldEntity))
-		{
-			ref var ns = ref GameContext.World.Get<NetworkState>(worldEntity);
-			ns.HasReceivedInitialBaseline = false;
-			ns.LastReceivedBaselineSeq = -1;
-			ns.LastAppliedSnapshotSequence = -1;
-			ns.LastSnapshotReceivedTime = Time.GetTicksMsec();
-		}
-
-		IsConnectionLost = false;
 	}
 
 	public void BroadcastMessageDomainLogic(string message) => GameLog.LogToConsole($"[HOST BROADCAST] {message}");
@@ -3061,68 +2510,6 @@ public class NetworkService
 		_alliances[(playerIndex2, playerIndex1)] = allied;
 	}
 
-	public static bool ArePeersEnemies(int peerId1, int peerId2)
-	{
-		if (peerId1 == peerId2) return false;
-
-		if (GameContext.Lobby?.PlayerList != null)
-		{
-			var p1 = GameContext.Lobby.PlayerList.Find(x => x.PeerId == peerId1);
-			var p2 = GameContext.Lobby.PlayerList.Find(x => x.PeerId == peerId2);
-			if (p1 != null && p2 != null)
-			{
-				return ArePlayerIndicesEnemies(p1.Slot, p2.Slot);
-			}
-		}
-
-		if (!HasActiveLobby()) return true;
-
-		int t1 = GetTeamIndexForPeer(peerId1, 1);
-		int t2 = GetTeamIndexForPeer(peerId2, 2);
-		return t1 != t2;
-	}
-
-
-	public int DetermineOwnerPeerId(bool isEnemy, int localPeerId)
-	{
-		if (!isEnemy) return localPeerId;
-
-		var mappingEntity = GameContext.Simulation.WorldEntity;
-		if (mappingEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(mappingEntity)) return -1;
-
-		var mapping = GameContext.World.Get<NetworkMappingState>(mappingEntity);
-		foreach (var kvp in mapping.PeerIdToPlayerEntityMap)
-		{
-			if (kvp.Key != localPeerId) return kvp.Key;
-		}
-
-		return -1;
-	}
-
-	public Entity DeterminePlayerOwnerEntity(int ownerPeerId, bool actualIsEnemy, Dictionary<int, Entity> peerIdToPlayerEntityMap, Entity[] playerEntities, int localSlot)
-	{
-		if (peerIdToPlayerEntityMap != null && peerIdToPlayerEntityMap.TryGetValue(ownerPeerId, out var pe) && GameContext.World.IsAlive(pe))
-		{
-			return pe;
-		}
-
-		if (playerEntities != null && playerEntities.Length > 0)
-		{
-			if (actualIsEnemy)
-			{
-				if (playerEntities.Length > 2 && playerEntities[2] != Entity.Null && GameContext.World.IsAlive(playerEntities[2]))
-					return playerEntities[2];
-			}
-			else
-			{
-				if (localSlot >= 0 && localSlot < playerEntities.Length && playerEntities[localSlot] != Entity.Null && GameContext.World.IsAlive(playerEntities[localSlot]))
-					return playerEntities[localSlot];
-			}
-		}
-
-		return Entity.Null;
-	}
-
 	public static bool ArePlayerIndicesEnemies(int playerIndex1, int playerIndex2)
 	{
 		if (playerIndex1 == playerIndex2) return false;
@@ -3172,25 +2559,6 @@ public class NetworkService
 		return defaultTeam;
 	}
 
-	public static bool IsPlayerEnemy(int playerIndex, int localPlayerIndex)
-	{
-		return ArePlayerIndicesEnemies(localPlayerIndex, playerIndex);
-	}
-
-	public void ToggleLocalPause()
-	{
-		IsPaused = !IsPaused;
-		if (!IsPaused)
-		{
-			ResumeCountdownSeconds = -1;
-		}
-	}
-
-	public void StopCountdownTimerDomain(bool isServer, Action rpcAction)
-	{
-		BroadcastActionIfServer(isServer, rpcAction);
-	}
-
 	public void StartCountdownTimer(float duration, string label, bool multiplayerActive, bool isServerActive, Action<float, string> startView, Action<float, string> rpcAction)
 	{
 		startView?.Invoke(duration, label);
@@ -3206,18 +2574,6 @@ public class NetworkService
 		{
 			rpcAction.Invoke();
 		}
-	}
-
-	public void SetEnvironmentPreset(string presetId, bool isMultiplayer, bool isServer, Action<string> viewAction, Action<string> rpcAction)
-	{
-		viewAction?.Invoke(presetId);
-		if (isMultiplayer && isServer) rpcAction?.Invoke(presetId);
-	}
-
-	public void TransitionEnvironmentPreset(string presetId, float durationSeconds, bool isMultiplayer, bool isServer, Action<string, float> viewAction, Action<string, float> rpcAction)
-	{
-		viewAction?.Invoke(presetId, durationSeconds);
-		if (isMultiplayer && isServer) rpcAction?.Invoke(presetId, durationSeconds);
 	}
 
 	public void SetWeather(string weatherType, bool isMultiplayer, bool isServer, Action<string> viewAction, Action<string> rpcAction)
@@ -3237,147 +2593,6 @@ public class NetworkService
 		}
 
 		mapState.ClientToServerEntityMap.Remove(entityId);
-	}
-
-	public void ProcessRequestPause(int peerId, bool isServer, Action<bool, int, bool> broadcastPauseStateRpc, Action<bool> startCountdown)
-	{
-		if (!isServer) return;
-
-		if (DisallowedPausePeers.TryGetValue(peerId, out bool disallowed) && disallowed)
-		{
-			return;
-		}
-
-		if (ResumeCountdownSeconds >= 0)
-		{
-			ResumeCountdownSeconds = -1;
-			CountdownForcedByHost = false;
-			IsPaused = true;
-			broadcastPauseStateRpc?.Invoke(true, peerId, false);
-			return;
-		}
-
-		IsPaused = !IsPaused;
-		if (IsPaused)
-		{
-			ResumeCountdownSeconds = -1;
-			CountdownForcedByHost = false;
-			PlayerReadyStates.Clear();
-			broadcastPauseStateRpc?.Invoke(true, peerId, false);
-		}
-		else
-		{
-			startCountdown?.Invoke(peerId == 1);
-		}
-	}
-
-	public void ProcessRequestToggleReady(int peerId, bool ready, bool isServer, Func<bool> checkAllPlayersReady, Action<bool> startCountdown, Action<string> broadcastReadyStatesRpc, Action broadcastCountdownCancelRpc)
-	{
-		if (!isServer) return;
-		if (!IsPaused) return;
-
-		PlayerReadyStates[peerId] = ready;
-
-		var serializedReady = JsonSerializer.Serialize(PlayerReadyStates);
-		broadcastReadyStatesRpc?.Invoke(serializedReady);
-
-		if (checkAllPlayersReady?.Invoke() == true)
-		{
-			startCountdown?.Invoke(false);
-		}
-		else if (ResumeCountdownSeconds >= 0 && !CountdownForcedByHost)
-		{
-			ResumeCountdownSeconds = -1;
-			broadcastCountdownCancelRpc?.Invoke();
-		}
-	}
-
-	public void ProcessRequestSetDisallowPause(int peerId, bool disallowed, bool isServer, int senderId, Action<string> broadcastDisallowedPausePeersRpc)
-	{
-		if (!isServer) return;
-		if (senderId != 1) return;
-
-		DisallowedPausePeers[peerId] = disallowed;
-
-		var serializedDisallowed = JsonSerializer.Serialize(DisallowedPausePeers);
-		broadcastDisallowedPausePeersRpc?.Invoke(serializedDisallowed);
-	}
-
-	public void ProcessRequestForceResume(bool isServer, int senderId, Action<bool> startCountdown)
-	{
-		if (!isServer) return;
-		if (senderId != 1) return;
-
-		startCountdown?.Invoke(true);
-	}
-
-	public void ProcessStartCountdown(bool forcedByHost, Action<int, bool> broadcastCountdownStateRpc)
-	{
-		ResumeCountdownSeconds = 5;
-		ResumeCountdownTimer = 0f;
-		CountdownForcedByHost = forcedByHost;
-		broadcastCountdownStateRpc?.Invoke(5, forcedByHost);
-	}
-
-	public bool ProcessCheckAllPlayersReady(IEnumerable<PlayerInfo> playerList)
-	{
-		if (playerList == null) return true;
-		foreach (var player in playerList)
-		{
-			if (player.Team == "Spectator") continue;
-			PlayerReadyStates.TryGetValue(player.PeerId, out bool ready);
-			if (!ready) return false;
-		}
-
-		return true;
-	}
-
-	public void ProcessBroadcastPauseState(bool paused, bool instantResume, Action updatePauseUI)
-	{
-		IsPaused = paused;
-		if (paused || instantResume)
-		{
-			ResumeCountdownSeconds = -1;
-		}
-
-		updatePauseUI?.Invoke();
-	}
-
-	public void ProcessBroadcastReadyStates(string serializedReadyStates, Action updatePauseUI)
-	{
-		var states = JsonSerializer.Deserialize<Dictionary<int, bool>>(serializedReadyStates);
-		if (states != null)
-		{
-			PlayerReadyStates.Clear();
-			foreach (var kvp in states)
-			{
-				PlayerReadyStates[kvp.Key] = kvp.Value;
-			}
-		}
-
-		updatePauseUI?.Invoke();
-	}
-
-	public void ProcessBroadcastDisallowedPausePeers(string serializedDisallowed, Action updatePauseUI)
-	{
-		var states = JsonSerializer.Deserialize<Dictionary<int, bool>>(serializedDisallowed);
-		if (states != null)
-		{
-			DisallowedPausePeers.Clear();
-			foreach (var kvp in states)
-			{
-				DisallowedPausePeers[kvp.Key] = kvp.Value;
-			}
-		}
-
-		updatePauseUI?.Invoke();
-	}
-
-	public void ProcessBroadcastCountdownState(int seconds, bool forcedByHost, Action updatePauseUI)
-	{
-		ResumeCountdownSeconds = seconds;
-		CountdownForcedByHost = forcedByHost;
-		updatePauseUI?.Invoke();
 	}
 
 	public async Task CheckCreatorRegistrationAsync(string pubKeyStr, string seedServerUrl, Action<string> onNotFound)
