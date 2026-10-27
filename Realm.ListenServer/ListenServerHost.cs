@@ -38,6 +38,23 @@ public class ListenServerHost : IServerHost
 
 	public bool IsRunning { get; private set; }
 
+	/// <summary>
+	///     The seed a match's scripts draw from. It comes from the token the client generated for this match, so a
+	///     match is reproducible from the token and two matches do not share a sequence.
+	/// </summary>
+	private int SeedFromToken()
+	{
+		uint hash = 2166136261;
+		string token = _arguments.Token;
+		for (int index = 0; index < token.Length; index++)
+		{
+			hash ^= token[index];
+			hash *= 16777619;
+		}
+
+		return (int)(hash & 0x7FFFFFFF);
+	}
+
 	public int Port => _transport.BoundPort;
 
 	public void Start()
@@ -51,7 +68,7 @@ public class ListenServerHost : IServerHost
 		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath);
 		try
 		{
-			_simulation = new ServerSimulation(map, _log);
+			_simulation = new ServerSimulation(map, _arguments.MapPath, _log, Path.GetDirectoryName(_arguments.LogPath), SeedFromToken());
 			_log.Write(_simulation.Describe());
 			for (int index = 0; index < map.Warnings.Count; index++)
 			{

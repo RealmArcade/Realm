@@ -29,6 +29,8 @@ public class ServerSimulation : IDisposable
 	private readonly Dictionary<int, int> _lastAnsweredCommandIdPerPeer = new();
 	private readonly AuthoritativeSnapshotBuilder _snapshots;
 	private readonly ServerProductionStep _production;
+	private readonly ServerPresentationQueue _presentation = new();
+	private readonly ServerMapScript _script;
 	private int _snapshotSequence;
 
 	/// <summary>
@@ -40,7 +42,7 @@ public class ServerSimulation : IDisposable
 	private int _nextPlayerSlot = MatchRoster.NeutralSlot + 1;
 	private bool _disposed;
 
-	public ServerSimulation(LoadedMap map, ServerLog log)
+	public ServerSimulation(LoadedMap map, string mapPath, ServerLog log, string? logDirectory = null, int randomSeed = 0)
 	{
 		_map = map;
 		_log = log;
@@ -50,6 +52,7 @@ public class ServerSimulation : IDisposable
 		map.Catalog.BindTo(_commands);
 		_snapshots = new AuthoritativeSnapshotBuilder(map.World, map.WorldEntity, map.Simulation.MapRules, PeerIdForPlayerSlot);
 		_production = new ServerProductionStep(map.World, map, log);
+		_script = ServerMapScript.Load(map, mapPath, logDirectory, randomSeed, log, _presentation);
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
@@ -88,6 +91,7 @@ public class ServerSimulation : IDisposable
 			_map.Simulation.CombatDamageService.StepCombat(deltaSeconds, _map.Simulation.MovementPathfindingService);
 			_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
 			_production.Step(deltaSeconds);
+			_script.Step(deltaSeconds);
 			_matchTick.AdvanceStatusEffects(deltaSeconds);
 			_matchTick.AdvanceRegeneration(deltaSeconds);
 		}
@@ -284,6 +288,8 @@ public class ServerSimulation : IDisposable
 	{
 		if (_disposed) return;
 		_disposed = true;
+
+		_script.Dispose();
 		_map.Dispose();
 	}
 }
