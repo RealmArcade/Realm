@@ -19,6 +19,13 @@ namespace Realm.Client.Core;
 public partial class GameHost
 {
 	/// <summary>
+	///     The match this screen joined. A match belongs to the session that was started for it rather than to whichever
+	///     screen is showing it, so a screen that leaves while another takes the match over - the map editor handing a
+	///     playtest to the screen that plays it - must not end a match it never joined.
+	/// </summary>
+	private ClientServerSession? _joinedSession;
+
+	/// <summary>
 	///     Holds the connection the match was started with. The authority frames that arrived before this scene existed
 	///     are still queued in the session, so nothing the authority said while the map was loading is lost.
 	/// </summary>
@@ -27,6 +34,7 @@ public partial class GameHost
 		ClientServerSession? session = GameContext.ServerSession;
 		if (session == null) return;
 
+		_joinedSession = session;
 		session.Seated += ApplyRosterAssignment;
 		session.SnapshotReceived += ApplyReceivedSnapshot;
 		session.PresentationReceived += ApplyPresentation;

@@ -137,7 +137,11 @@ public class ClientServerSession : IDisposable
 
 		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out failure) || target == null) return false;
 
-		string logPath = Path.Combine(start.LogDirectory, $"{start.MapName}.listen_server.log");
+		// The log is named after the folder the map lives in, never after the name the caller knows it by: a match started
+		// for an unsaved map is named after a Godot path like 'user://temp_map_workspace', which is not a file name.
+		string logName = Path.GetFileName(Path.TrimEndingDirectorySeparator(start.MapFolderPath));
+		if (string.IsNullOrEmpty(logName)) logName = "map";
+		string logPath = Path.Combine(start.LogDirectory, $"{logName}.listen_server.log");
 		try
 		{
 			Directory.CreateDirectory(start.LogDirectory);

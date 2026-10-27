@@ -2568,8 +2568,16 @@ public partial class GameHost : Node3D
 		LogGameStabilitySummary();
 
 		StopRecording();
-		GameContext.ServerSession?.Stop();
-		GameContext.DetachServerSession();
+
+		// Only the screen that joined this match may end it. The map editor's screen leaves as the playtest's screen
+		// arrives, and the session under it was started for the playtest, so ending it here would leave the playtest
+		// playing a world nothing runs.
+		if (ReferenceEquals(GameContext.ServerSession, _joinedSession))
+		{
+			GameContext.ServerSession?.Stop();
+			GameContext.DetachServerSession();
+		}
+
 		GameContext.Dispose();
 		GameContext.UnregisterHost(this);
 	}

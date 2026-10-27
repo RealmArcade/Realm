@@ -22,7 +22,21 @@ public partial class MultiplayerSimulationHarness : Node
 	private const string HostPlayerName = "HarnessHost";
 	private const int HarnessMatchSeed = 12345;
 
+	/// <summary>
+	/// The role this harness runs as. A second instance is given one before it enters the tree, which is how a probe can
+	/// be left behind to watch a scene the first instance replaces.
+	/// </summary>
+	public string Role
+	{
+		set
+		{
+			_role = value;
+			_roleLocked = true;
+		}
+	}
+
 	private string _role = "host";
+	private bool _roleLocked;
 	private string _hostAddress = "127.0.0.1";
 	private int _port = 8999;
 	private string _mapFolder = string.Empty;
@@ -42,6 +56,10 @@ public partial class MultiplayerSimulationHarness : Node
 	private int _peerIndex = 1;
 	private float _dropAtSeconds;
 	private float _pauseAtSeconds;
+	private bool _startAuthority;
+	private bool _editorFirst;
+	private bool _realFlow;
+	private bool _probeOwnsProcess;
 	private bool _probesEnabled;
 	private string _waitForPeerReadyFile = string.Empty;
 	private int _hardeningFailureCount;
@@ -64,6 +82,8 @@ public partial class MultiplayerSimulationHarness : Node
 			exitCode = _role switch
 			{
 				"host" => await RunHostAsync(),
+				"testmap" => await RunTestMapAsync(),
+				"probe" => await RunProbeAsync(),
 				_ => await RunClientAsync()
 			};
 		}
@@ -74,7 +94,7 @@ public partial class MultiplayerSimulationHarness : Node
 		finally
 		{
 			TryWriteDoneFile();
-			GetTree().Quit(exitCode);
+			if (!_probeOwnsProcess) GetTree().Quit(exitCode);
 		}
 	}
 
@@ -90,7 +110,7 @@ public partial class MultiplayerSimulationHarness : Node
 			switch (key)
 			{
 				case "--role":
-					_role = value;
+					if (!_roleLocked) _role = value;
 					break;
 				case "--host":
 					_hostAddress = value;
@@ -151,6 +171,15 @@ public partial class MultiplayerSimulationHarness : Node
 					break;
 				case "--pause-at":
 					_pauseAtSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--start-authority":
+					_startAuthority = value == "1";
+					break;
+				case "--editor-first":
+					_editorFirst = value == "1";
+					break;
+				case "--real-flow":
+					_realFlow = value == "1";
 					break;
 				case "--probes":
 					_probesEnabled = value == "1";
@@ -246,6 +275,156 @@ public partial class MultiplayerSimulationHarness : Node
 		PredictionDiagnostics.Stop();
 		WriteFinalWorldSnapshot("ECS_host_final_full.bin");
 		return 0;
+	}
+
+	/// <summary>
+	/// Opens the map the map editor playtests, through the same lobby state and the same scene the editor's Test Map
+	/// button produces, and reports what this screen actually built for it.
+	/// </summary>
+	private async Task<int> RunTestMapAsync()
+	{
+		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("LobbyManager autoload is unavailable.");
+
+		GameContext.SessionState.IsTestMode = true;
+		lobby.IsSinglePlayer = true;
+		lobby.IsHost = true;
+		lobby.IsGameStarted = true;
+		lobby.ActiveMapName = _mapFolder;
+
+		string? mapDirectory = GameHost.ResolveMapDirectory(_mapFolder);
+		GD.Print($"[TESTMAP] map '{_mapFolder}' resolved to '{mapDirectory}'.");
+		if (string.IsNullOrEmpty(mapDirectory)) return 1;
+
+		if (_realFlow)
+		{
+			return await RunRealTestMapFlowAsync(mapDirectory);
+		}
+
+		if (_editorFirst)
+		{
+			// The editor playtest runs in a process that is already standing in the map, so the map it plays is loaded by a
+			// screen that replaces the one holding the editable terrain.
+			GameContext.SessionState.IsMapEditorMode = true;
+			PackedScene editorScene = GD.Load<PackedScene>("res://GameHost.tscn");
+			Node editorHost = editorScene.Instantiate();
+			editorHost.Name = "GameHost";
+			AddChild(editorHost);
+			await ToSignal(GetTree().CreateTimer(4.0f), SceneTreeTimer.SignalName.Timeout);
+			DescribeTerrain(-1);
+
+			GameContext.Host?.ExitMapEditorMode();
+			RemoveChild(editorHost);
+			editorHost.QueueFree();
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		}
+
+		if (_startAuthority)
+		{
+			ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
+			GameContext.ServerSession?.Dispose();
+			var session = new ClientServerSession(channel);
+			var start = new ServerMatchStart(mapDirectory, "Test Map", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode());
+			if (!session.TryStart(start, out string failure, _port)) throw new InvalidOperationException($"The authority could not be started: {failure}");
+			GameContext.AttachServerSession(session);
+			_session = session;
+			GD.Print($"[TESTMAP] the authority is listening on port {session.Port} with its log at {session.LogPath}.");
+		}
+
+		PackedScene scene = GD.Load<PackedScene>("res://GameHost.tscn");
+		Node gameHost = scene.Instantiate();
+		gameHost.Name = "GameHost";
+		AddChild(gameHost);
+
+		for (int second = 0; second < 12; second++)
+		{
+			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+			DescribeTerrain(second);
+		}
+
+		return 0;
+	}
+
+	/// <summary>
+	/// Runs the map safe from whatever the screen that loads it does. A node added to the tree's root outlives the scene
+	/// the playtest replaces, so it can report what the screen that took its place actually built.
+	/// </summary>
+	private async Task<int> RunProbeAsync()
+	{
+		_probeOwnsProcess = true;
+		GD.Print("[PROBE] watching the map the playtest loads.");
+		for (int second = 0; second < 30; second++)
+		{
+			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+			DescribeTerrain(second);
+			GameHost? current = GameContext.Host;
+			int appliedSequence = GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
+			GD.Print($"[PROBE] {second}s: session={(GameContext.ServerSession == null ? "none" : "attached")} started={GameContext.Lobby?.IsGameStarted} sequence={appliedSequence} units={current?.AllUnits.Count ?? -1} slot={GameContext.ServerSession?.LocalPlayerSlot ?? -1}");
+		}
+
+		GetTree().Quit(0);
+		return 0;
+	}
+
+	/// <summary>
+	/// Triggers the map editor's own Test Map path in this process: a screen already standing in the map, the lobby asked
+	/// for a single-player match, and the scene the lobby changes to. What the probe reports is what a playtest shows.
+	/// </summary>
+	private async Task<int> RunRealTestMapFlowAsync(string mapDirectory)
+	{
+		// The tree is still setting this scene up while this runs, so the probe is attached once a frame has passed.
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		var probeScene = GD.Load<PackedScene>("res://Testing/MultiplayerSimulationHarness.tscn");
+		Node probe = probeScene.Instantiate();
+		probe.Name = "TestMapProbe";
+		SetPrivateProperty(probe, "Role", "probe");
+		GetTree().Root.AddChild(probe);
+
+		GameContext.SessionState.IsMapEditorMode = true;
+		PackedScene editorScene = GD.Load<PackedScene>("res://GameHost.tscn");
+		Node editorHost = editorScene.Instantiate();
+		editorHost.Name = "GameHost";
+		AddChild(editorHost);
+		await ToSignal(GetTree().CreateTimer(4.0f), SceneTreeTimer.SignalName.Timeout);
+
+		GameContext.Host?.ExitMapEditorMode();
+		GameContext.SessionState.IsTestMode = true;
+		GD.Print($"[TESTMAP] asking the lobby for a single-player match of '{_mapFolder}' ('{mapDirectory}').");
+		GameContext.Lobby?.HostSinglePlayerGame(_mapFolder, "Test Map");
+		GD.Print("[TESTMAP] the lobby was asked; the probe reports what follows.");
+
+		// This instance is about to be replaced by the scene the lobby changes to, so the process is left to the probe.
+		_probeOwnsProcess = true;
+		return 0;
+	}
+
+	private static void DescribeTerrain(int second)
+	{
+		GameHost? host = GameContext.Host;
+		RuntimeTerrain? terrain = host?.GroundTerrain;
+		if (terrain == null)
+		{
+			GD.Print($"[TESTMAP] {second}s: no ground terrain node.");
+			return;
+		}
+
+		int chunks = terrain.Chunks.Count;
+		int visibleChunks = 0;
+		int surfaces = 0;
+		int vertices = 0;
+		foreach (TerrainChunk chunk in terrain.Chunks)
+		{
+			if (chunk.MeshInstance != null && GodotObject.IsInstanceValid(chunk.MeshInstance))
+			{
+				if (chunk.MeshInstance.Visible) visibleChunks++;
+				ArrayMesh? mesh = chunk.MeshInstance.Mesh as ArrayMesh;
+				if (mesh == null) continue;
+				surfaces += mesh.GetSurfaceCount();
+				for (int surface = 0; surface < mesh.GetSurfaceCount(); surface++) vertices += mesh.SurfaceGetArrays(surface)[(int)Mesh.ArrayType.Vertex].AsVector3Array().Length;
+			}
+		}
+
+		Godot.Vector3 camera = host!.MainCamera?.GlobalPosition ?? Godot.Vector3.Zero;
+		GD.Print($"[TESTMAP] {second}s: grid={terrain.Width}x{terrain.Depth} quad={terrain.QuadSize} nodeVisible={terrain.Visible} at={terrain.GlobalPosition} chunks={chunks} visibleChunks={visibleChunks} surfaces={surfaces} vertices={vertices} camera={camera} world={GameContext.World != null}");
 	}
 
 	private ClientServerSession StartAuthority()

@@ -1316,6 +1316,17 @@ public partial class MapEditorHUD : Control
 			GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map");
 		}
 
+		// Leaving editor mode takes the ground with it, and the match is what builds the one this screen plays on. A match
+		// that could not be started therefore leaves a map with no terrain and nothing in it, so the console that was
+		// reporting the launch stays open and says why instead of closing on a playtest that never began.
+		if (GameContext.Lobby == null || !GameContext.Lobby.IsGameStarted)
+		{
+			_wasmHasErrors = true;
+			SetWasmConsoleStatus("❌ Test mode could not start", new Color(1f, 0.3f, 0.3f));
+			AppendWasmConsoleLog($"[ERROR] {GameContext.Lobby?.LastHostError ?? "this build has no lobby to start a match with"}");
+			return;
+		}
+
 		await Task.Delay(500);
 		CloseWasmConsoleModal();
 	}
