@@ -78,7 +78,10 @@ public enum PresentationKind : byte
 	PlayerKicked,
 
 	/// <summary>How far a player is up one tech track: the track is the key and the level is the value.</summary>
-	TechLevelSet
+	TechLevelSet,
+
+	/// <summary>An ability was cast: the sound is the key and the place it came from is its position.</summary>
+	CastSound
 }
 
 /// <summary>

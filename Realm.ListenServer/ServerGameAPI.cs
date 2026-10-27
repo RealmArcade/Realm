@@ -31,6 +31,8 @@ public partial class ServerGameAPI : IGameAPI
 	private readonly ServerLocalization _localization;
 	private readonly ServerSavedData _savedData;
 	private readonly ServerTechLevels _techLevels;
+	private readonly ServerBots _bots;
+	private readonly AbilityEffectRunner _effects;
 	private readonly PlayerId[] _activePlayersBuffer = new PlayerId[ScriptPlayersState.SlotCount];
 	private int _countingScratch;
 
@@ -44,6 +46,10 @@ public partial class ServerGameAPI : IGameAPI
 		_localization = new ServerLocalization(paths, log);
 		_savedData = new ServerSavedData(paths.DataDirectory, log);
 		_techLevels = new ServerTechLevels(_context, map);
+		_abilities = new ScriptAbilityRegistry(map.Catalog);
+		_bots = new ServerBots(_context, paths.MapName, paths.DataDirectory, log);
+		_bots.CustomActionExecuted = ForwardBotCustomAction;
+		_effects = new AbilityEffectRunner(_context, ArePlayersAllied, SpawnAbilitySummon);
 		Items = items;
 		Loot = loot;
 		_countResourceNodes = CountResourceNodes;
@@ -60,6 +66,9 @@ public partial class ServerGameAPI : IGameAPI
 
 	/// <summary>How far each player is up each of the map's tech tracks.</summary>
 	public ServerTechLevels TechLevels => _techLevels;
+
+	/// <summary>The opponents this match plays itself.</summary>
+	public ServerBots Bots => _bots;
 
 	/// <summary>What puts items on units and takes them off again in this match.</summary>
 	public ItemGrantService Items { get; }
@@ -608,6 +617,20 @@ public partial class ServerGameAPI : IGameAPI
 		_presentation.Write(PresentationKind.PlayerVictory, playerIndex, Vector3.Zero);
 		_log.Write($"player {playerIndex} victorious");
 	}
+
+	/// <summary>
+	///     Brings one of a spell's summons into the world as the caster's own unit, which is how a summon ends up owned,
+	///     replicated and simulated like any other unit rather than being something only the caster's screen knows about.
+	/// </summary>
+	private UnitId SpawnAbilitySummon(string unitTypeId, Vector3 position, int playerIndex)
+	{
+		var spawnPosition = new Vector2(position.X, position.Z);
+		return SpawnUnitForPlayer(unitTypeId, spawnPosition, playerIndex, executeSpawnShader: false, bypassPopulation: true);
+	}
+
+	/// <summary>What a bot's own decision asked for, handed to the map that taught it the decision.</summary>
+	private void ForwardBotCustomAction(int playerIndex, string actionId, string intent, Vector3 position, string payload) =>
+		OnBotCustomActionExecuted?.Invoke(playerIndex, actionId, intent, position, payload);
 
 	/// <summary>A whole number in a script-visible range, drawn from the match's own deterministic sequence.</summary>
 	public int RandomInt(int min, int max)

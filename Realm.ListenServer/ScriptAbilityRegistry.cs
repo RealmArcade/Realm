@@ -2,19 +2,11 @@ using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Replication;
+using Realm.Shared.Abilities;
+using Realm.Shared.Maps;
+using Realm.Shared.Metadata;
 
 namespace Realm.ListenServer;
-
-/// <summary>What a map said about one ability when it registered or adjusted it.</summary>
-public readonly record struct ScriptAbilityDefinition(
-	string DisplayName,
-	string TooltipTemplate,
-	string IconPath,
-	bool IsInstant,
-	string Hotkey,
-	int GridX,
-	int GridY,
-	float ManaCost);
 
 /// <summary>Whether one unit's ability is currently shown as unusable, hidden, or both.</summary>
 public readonly record struct ScriptAbilityState(bool Disabled, bool Hidden);
@@ -26,7 +18,8 @@ public readonly record struct ScriptAbilityState(bool Disabled, bool Hidden);
 /// </summary>
 public class ScriptAbilityRegistry
 {
-	private readonly Dictionary<string, ScriptAbilityDefinition> _definitions = new(StringComparer.OrdinalIgnoreCase);
+	private readonly DefinitionCatalog _catalog;
+	private readonly Dictionary<string, AbilityDefinition> _definitions = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, Dictionary<string, float>> _tooltipNumbers = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, Dictionary<string, string>> _tooltipTexts = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<(int UnitId, string AbilityId), ScriptAbilityState> _unitAbilityStates = new();
@@ -39,54 +32,126 @@ public class ScriptAbilityRegistry
 	private readonly List<(int UnitId, short AbilityIndex)> _clearedKeys = new();
 	private bool _abilityListsPublished;
 
+	public ScriptAbilityRegistry(DefinitionCatalog catalog)
+	{
+		_catalog = catalog;
+	}
+
+	/// <summary>
+	///     What an ability is: the definition the map authored for it, with whatever the map's script has since changed
+	///     about its name, its card and its cost written over the top. A cast reads the definition, so what a script says
+	///     about an ability is what the cast does.
+	/// </summary>
+	public AbilityDefinition GetDefinition(string abilityId)
+	{
+		string key = NormalizeKey(abilityId);
+		if (_definitions.TryGetValue(key, out AbilityDefinition? definition)) return definition;
+
+		definition = BuildFromCatalog(abilityId);
+		_definitions[key] = definition;
+		return definition;
+	}
+
+	/// <summary>Whether this build has anything at all to say about an ability.</summary>
+	public bool Knows(string abilityId) => !string.IsNullOrWhiteSpace(abilityId);
+
 	/// <summary>Records what an ability is called and what its card says, replacing what the map said before.</summary>
 	public bool Register(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
 		if (string.IsNullOrWhiteSpace(abilityId)) return false;
 
-		ScriptAbilityDefinition existing = _definitions.TryGetValue(abilityId, out ScriptAbilityDefinition found) ? found : default;
-		_definitions[abilityId] = new ScriptAbilityDefinition(
-			displayName ?? string.Empty,
-			tooltip ?? string.Empty,
-			string.IsNullOrEmpty(iconPath) ? existing.IconPath : iconPath,
-			isInstant,
-			existing.Hotkey,
-			existing.GridX,
-			existing.GridY,
-			existing.ManaCost);
+		AbilityDefinition definition = GetDefinition(abilityId);
+		definition.DisplayName = displayName ?? string.Empty;
+		definition.TooltipTemplate = tooltip ?? string.Empty;
+		if (!string.IsNullOrEmpty(iconPath)) definition.IconPath = iconPath;
+		definition.IsInstant = isInstant;
 
 		return true;
 	}
 
-	public void SetInstant(string abilityId, bool isInstant) => Mutate(abilityId, definition => definition with { IsInstant = isInstant });
+	public void SetInstant(string abilityId, bool isInstant) => GetDefinition(abilityId).IsInstant = isInstant;
 
-	public void SetIcon(string abilityId, string iconPath) => Mutate(abilityId, definition => definition with { IconPath = iconPath ?? string.Empty });
+	public void SetIcon(string abilityId, string iconPath) => GetDefinition(abilityId).IconPath = iconPath ?? string.Empty;
 
-	public void SetTooltip(string abilityId, string tooltip) => Mutate(abilityId, definition => definition with { TooltipTemplate = tooltip ?? string.Empty });
+	public void SetTooltip(string abilityId, string tooltip) => GetDefinition(abilityId).TooltipTemplate = tooltip ?? string.Empty;
 
-	public void SetHotkey(string abilityId, string hotkey) => Mutate(abilityId, definition => definition with { Hotkey = hotkey?.Trim() ?? string.Empty });
+	public void SetHotkey(string abilityId, string hotkey) => GetDefinition(abilityId).Hotkey = hotkey?.Trim() ?? string.Empty;
 
-	public void SetGridPosition(string abilityId, int x, int y) => Mutate(abilityId, definition => definition with { GridX = x, GridY = y });
+	public void SetGridPosition(string abilityId, int x, int y)
+	{
+		AbilityDefinition definition = GetDefinition(abilityId);
+		definition.GridX = x;
+		definition.GridY = y;
+	}
 
 	/// <summary>What an ability costs a caster unless a map says otherwise for one unit.</summary>
-	public void SetManaCost(string abilityId, float manaCost) => Mutate(abilityId, definition => definition with { ManaCost = manaCost });
+	public void SetManaCost(string abilityId, float manaCost) => GetDefinition(abilityId).ManaCost = manaCost;
 
 	/// <summary>The name an ability shows, as the map registered it, falling back to the template's own name.</summary>
 	public string GetName(string abilityId, string? templateName)
 	{
 		if (string.IsNullOrWhiteSpace(abilityId)) return string.Empty;
-		if (_definitions.TryGetValue(abilityId, out ScriptAbilityDefinition definition) && !string.IsNullOrWhiteSpace(definition.DisplayName)) return definition.DisplayName;
+
+		AbilityDefinition definition = GetDefinition(abilityId);
+		if (!string.IsNullOrWhiteSpace(definition.DisplayName)) return definition.DisplayName;
 		if (!string.IsNullOrWhiteSpace(templateName)) return templateName;
 
 		return Path.GetFileNameWithoutExtension(abilityId);
 	}
 
-	public bool TryGetDefinition(string abilityId, out ScriptAbilityDefinition definition)
+	/// <summary>
+	///     The definition an ability starts from: what the map's catalog authored for it, in the shape the cast path reads.
+	///     An ability the map never declared is still an ability a script may register and cast, so an empty definition is
+	///     what the script then fills in.
+	/// </summary>
+	private AbilityDefinition BuildFromCatalog(string abilityId)
 	{
-		definition = default;
-		if (string.IsNullOrWhiteSpace(abilityId)) return false;
+		var definition = new AbilityDefinition { Id = abilityId };
+		AbilityMetadata? metadata = _catalog.FindAbility(abilityId);
+		if (metadata == null) return definition;
 
-		return _definitions.TryGetValue(abilityId, out definition);
+		string description = metadata.Description ?? string.Empty;
+		definition.DisplayName = metadata.Name ?? string.Empty;
+		definition.TooltipTemplate = string.IsNullOrWhiteSpace(metadata.Role) ? description : $"[{metadata.Role.Trim()}] {description}";
+		definition.IconPath = metadata.IconPath ?? string.Empty;
+		definition.IsInstant = string.Equals(metadata.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase);
+		definition.AutoCastEnabled = metadata.AutoCast?.Enabled ?? true;
+		definition.AutoCastRequiresEnemy = metadata.AutoCast?.RequiresEnemyTarget ?? true;
+		definition.AutoCastAllyHealthPercentBelow = metadata.AutoCast?.AllyHealthPercentBelow ?? 1f;
+		definition.AutoCastManaReserve = metadata.AutoCast?.ManaReserve ?? 0f;
+		definition.AutoCastMinManaPercent = metadata.AutoCast?.MinManaPercent ?? 0f;
+		definition.ManaCost = metadata.ManaCost;
+		definition.Cooldown = metadata.Cooldown;
+		definition.TargetRange = metadata.TargetRange;
+		definition.AreaOfEffectRadius = metadata.AreaOfEffectRadius;
+		definition.VisualEffect = metadata.VisualEffect;
+		definition.CastSound = metadata.CastSound;
+		definition.GridX = metadata.GridX;
+		definition.GridY = metadata.GridY;
+		definition.Hotkey = metadata.Hotkey ?? string.Empty;
+
+		definition.Effects = AbilityEffectFactory.Create(metadata, metadata.AreaOfEffectRadius, out float maxDamage, out float maxHealing);
+		definition.Damage = maxDamage;
+		definition.Healing = maxHealing;
+		return definition;
+	}
+
+	/// <summary>
+	///     The key a definition is held under. A map may name an ability with or without the kind its template id carries,
+	///     and both names mean the same ability, so they share one definition.
+	/// </summary>
+	private static string NormalizeKey(string abilityId)
+	{
+		ReadOnlySpan<char> span = abilityId.AsSpan().Trim();
+		string[] prefixes = ["ability/", "unit/", "building/"];
+		for (int index = 0; index < prefixes.Length; index++)
+		{
+			if (!span.StartsWith(prefixes[index], StringComparison.OrdinalIgnoreCase)) continue;
+
+			return span[prefixes[index].Length..].ToString();
+		}
+
+		return span.ToString();
 	}
 
 	/// <summary>Records a number a registered card reads, keyed by what owns it.</summary>
@@ -415,11 +480,4 @@ public class ScriptAbilityRegistry
 		yield return $"ability/{trimmed}";
 	}
 
-	private void Mutate(string abilityId, Func<ScriptAbilityDefinition, ScriptAbilityDefinition> mutation)
-	{
-		if (string.IsNullOrWhiteSpace(abilityId)) return;
-
-		ScriptAbilityDefinition definition = _definitions.TryGetValue(abilityId, out ScriptAbilityDefinition existing) ? existing : default;
-		_definitions[abilityId] = mutation(definition);
-	}
 }

@@ -26,6 +26,7 @@ using Realm.Ecs.Services;
 using UnitId = Realm.MapAPI.UnitId;
 using Vector3 = System.Numerics.Vector3;
 using Realm.MapAPI;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Services;
 

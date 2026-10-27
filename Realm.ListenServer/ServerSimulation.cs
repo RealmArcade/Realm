@@ -121,6 +121,10 @@ public class ServerSimulation : IDisposable
 			_loot.Step(deltaSeconds);
 			_script.Step(deltaSeconds);
 			_script.Api.AdvanceTimers(deltaSeconds);
+
+			// The opponents the match plays itself decide after the map has had its say this tick, so a map that seats one
+			// and hands it a profile is answered by a bot that already exists rather than by the default one.
+			_script.Api.Bots.Step(deltaSeconds);
 			_matchTick.AdvanceStatusEffects(deltaSeconds);
 			_matchTick.AdvanceRegeneration(deltaSeconds);
 		}

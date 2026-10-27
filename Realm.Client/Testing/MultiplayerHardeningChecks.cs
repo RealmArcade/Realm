@@ -11,6 +11,7 @@ using Realm.Client.Services;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
 using Realm.Shared.Network;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Testing;
 

@@ -9,6 +9,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Client.Utils;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.UI.InGame;
 

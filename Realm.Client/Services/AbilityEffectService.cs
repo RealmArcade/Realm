@@ -12,6 +12,7 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.MapAPI;
 using Vector3 = System.Numerics.Vector3;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Services;
 

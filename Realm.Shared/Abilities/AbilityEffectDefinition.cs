@@ -1,7 +1,7 @@
 using System;
 using Realm.Ecs.Components.Stats;
 
-namespace Realm.Client.Core;
+namespace Realm.Shared.Abilities;
 
 public enum AbilityEffectKind
 {

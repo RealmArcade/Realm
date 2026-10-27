@@ -14,7 +14,7 @@ namespace Realm.ListenServer;
 /// </summary>
 public partial class ServerGameAPI
 {
-	private readonly ScriptAbilityRegistry _abilities = new();
+	private readonly ScriptAbilityRegistry _abilities;
 
 	private const string AbilityOwnerKind = "ability";
 	private const string ItemOwnerKind = "item";

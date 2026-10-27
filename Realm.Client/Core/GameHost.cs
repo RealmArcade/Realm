@@ -32,6 +32,7 @@ using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Environment = Godot.Environment;
 using FileAccess = System.IO.FileAccess;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Core;
 

@@ -19,6 +19,7 @@ using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
 using Array = System.Array;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Core;
 

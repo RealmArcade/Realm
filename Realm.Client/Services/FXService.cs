@@ -8,6 +8,7 @@ using Realm.Client.UI;
 using Realm.Client.VFX;
 using Realm.Shared.Metadata;
 using Realm.Shared.Textures;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Services;
 

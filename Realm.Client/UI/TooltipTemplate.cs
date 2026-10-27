@@ -11,6 +11,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Services;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.UI;
 

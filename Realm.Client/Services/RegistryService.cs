@@ -13,11 +13,18 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Services;
 
 public class RegistryService
 {
+	/// <summary>
+	///     Where a map's own ability definitions are reported when they do not say enough to be followed. The definitions
+	///     are read here and on the authority, and a screen is the side that has somewhere to show a complaint.
+	/// </summary>
+	static RegistryService() => AbilityEffectFactory.WarningSink = GD.PushWarning;
+
 	private static MapRulesCatalog Rules => GameContext.Simulation.MapRules;
 
 	public void RegisterPlacementRadius(string definitionKey, float radius) => Rules.RegisterPlacementRadius(definitionKey, radius);

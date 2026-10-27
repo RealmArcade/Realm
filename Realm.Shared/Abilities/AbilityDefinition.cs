@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Realm.Client.Core;
+namespace Realm.Shared.Abilities;
 
 public class AbilityDefinition
 {

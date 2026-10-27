@@ -18,6 +18,7 @@ using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
 using Realm.Shared.Network;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Core;
 

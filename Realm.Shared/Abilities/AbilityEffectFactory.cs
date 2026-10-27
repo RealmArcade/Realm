@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
-using Godot;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Stats;
 using Realm.Shared.Metadata;
 
-namespace Realm.Client.Core;
+namespace Realm.Shared.Abilities;
 
 /// <summary>
 ///     Turns authored ability effects into the immutable definitions the cast path reads, and
@@ -13,6 +12,12 @@ namespace Realm.Client.Core;
 /// </summary>
 public static class AbilityEffectFactory
 {
+	/// <summary>
+	///     Where a map's own definitions are reported when they do not say enough to be followed. It is set by the process
+	///     that owns the screen or the log the complaint belongs on, so this can be read by a headless authority too.
+	/// </summary>
+	public static Action<string>? WarningSink { get; set; }
+
 	/// <summary>
 	///     Parses the authored effects. Returns the definitions, plus the highest damage and heal
 	///     magnitude before scaling, which the command card and autocast heuristics use to tell damage
@@ -33,7 +38,7 @@ public static class AbilityEffectFactory
 
 			if (!TryParseKind(effect.Kind, out AbilityEffectKind kind))
 			{
-				GD.PushWarning($"[Ability] '{meta.TemplateID}' effect {index} has unknown kind '{effect.Kind}' and was skipped.");
+				Warn($"[Ability] '{meta.TemplateID}' effect {index} has unknown kind '{effect.Kind}' and was skipped.");
 				continue;
 			}
 
@@ -83,7 +88,7 @@ public static class AbilityEffectFactory
 
 			if (kind == AbilityEffectKind.Summon && definition.SummonUnitId == null)
 			{
-				GD.PushWarning($"[Ability] '{meta.TemplateID}' effect {index} is a summon with no SummonUnitId and will do nothing.");
+				Warn($"[Ability] '{meta.TemplateID}' effect {index} is a summon with no SummonUnitId and will do nothing.");
 			}
 
 			result.Add(definition);
@@ -171,7 +176,9 @@ public static class AbilityEffectFactory
 
 		if (Enum.TryParse(attribute.Trim(), true, out AttributeType parsed)) return parsed;
 
-		GD.PushWarning($"[Ability] '{abilityId}' effect {index} scales from unknown attribute '{attribute}'; effect left unscaled.");
+		Warn($"[Ability] '{abilityId}' effect {index} scales from unknown attribute '{attribute}'; effect left unscaled.");
 		return null;
 	}
+
+	private static void Warn(string message) => WarningSink?.Invoke(message);
 }

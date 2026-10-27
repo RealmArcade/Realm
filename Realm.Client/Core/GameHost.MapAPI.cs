@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Ecs;
@@ -21,6 +21,7 @@ using Realm.Ecs.Replication;
 using PathingFlags = Realm.MapAPI.PathingFlags;
 using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
+using Realm.Shared.Abilities;
 
 namespace Realm.Client.Core;
 
