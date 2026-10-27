@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
-using MemoryPack;
 
 namespace Realm.Shared.Network;
 
@@ -22,14 +21,22 @@ public static class ServerArgumentFlags
 	public const string DataFlag = "--data";
 }
 
-/// <summary>What a match needs in order to start its own authority: where the server is, which map it runs, where it logs, and where it keeps the data a map asked to persist.</summary>
-public record ServerLaunchRequest(string ExecutablePath, string MapFolderPath, string LogPath, string Token)
+/// <summary>
+///     What to run in order to have an authority. The authority is a Godot process because ENet and RPC are the
+///     engine's, so there are two shapes of it: a project the engine is pointed at while developing, and an exported
+///     executable shipped beside the game.
+/// </summary>
+public record ServerLaunchTarget(string ExecutablePath, string? ProjectDirectory)
+{
+	/// <summary>Whether this target is a project the engine is pointed at rather than an exported executable.</summary>
+	public bool IsProject => !string.IsNullOrEmpty(ProjectDirectory);
+}
+
+/// <summary>What a match needs in order to start its own authority: what to run, which map it runs, where it logs, and where it keeps the data a map asked to persist.</summary>
+public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPath, string LogPath, string Token)
 {
 	/// <summary>The folder the authority resolves a map's saved data under, or nothing to let it use its own folder.</summary>
 	public string? DataFolderPath { get; init; }
-
-	/// <summary>The locale this client reads in, which the authority answers map text in for this player.</summary>
-	public string? Language { get; init; }
 
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
@@ -99,17 +106,15 @@ public class ServerConsoleCapture : IDisposable
 }
 
 /// <summary>
-///     Starts the authoritative process for one match and connects this process to it. It waits for the one line the
-///     authority prints when it is listening, connects to the port that line names, and sends the token the authority was
-///     started with, so an authority can refuse a connection that did not come from its own launcher. The transport it
-///     hands back is an ordinary peer: nothing about the match is shared in memory between the two processes.
+///     Starts the authoritative process for one match. It waits for the one line the authority prints when it is
+///     listening and keeps everything the authority prints afterwards, so a chatty process cannot fill the pipe it is
+///     writing into. The connection itself is the client's: it is an ordinary ENet peer of the process this starts.
 /// </summary>
 public class ServerProcessLauncher : IDisposable
 {
 	private readonly ServerLaunchRequest _request;
 	private readonly Process _process;
 	private readonly ServerConsoleCapture _console;
-	private readonly LoopbackClientTransport _transport;
 	private readonly ServerReadyInfo _readyInfo;
 	private readonly Thread _standardOutputThread;
 	private readonly Thread _standardErrorThread;
@@ -117,12 +122,11 @@ public class ServerProcessLauncher : IDisposable
 	private bool _shutdownRequested;
 	private bool _disposed;
 
-	private ServerProcessLauncher(ServerLaunchRequest request, Process process, ServerConsoleCapture console, LoopbackClientTransport transport, ServerReadyInfo readyInfo)
+	private ServerProcessLauncher(ServerLaunchRequest request, Process process, ServerConsoleCapture console, ServerReadyInfo readyInfo)
 	{
 		_request = request;
 		_process = process;
 		_console = console;
-		_transport = transport;
 		_readyInfo = readyInfo;
 
 		_standardOutputThread = StartReader(process.StandardOutput, "RealmListenServerOutput");
@@ -145,9 +149,6 @@ public class ServerProcessLauncher : IDisposable
 	/// <summary>Where what the authority printed on its console was kept.</summary>
 	public string ConsoleLogPath => ServerConsoleCapture.ResolvePath(_request.LogPath);
 
-	/// <summary>The peer's end of the connection to the authority, which the match writes orders to and reads snapshots from.</summary>
-	public LoopbackClientTransport Transport => _transport;
-
 	/// <summary>Whether the authority is still there. A match that finds this false reports the loss rather than waiting.</summary>
 	public bool IsRunning => !_process.HasExited;
 
@@ -155,20 +156,15 @@ public class ServerProcessLauncher : IDisposable
 	public int ExitCode => _process.HasExited ? _process.ExitCode : int.MinValue;
 
 	/// <summary>
-	///     Starts the authority and connects to it, or reports why it could not, having ended what it started. Everything
-	///     the authority printed goes to the match log, including the line this waits for.
+	///     Starts the authority and waits for it to report that it is listening, or reports why it could not, having
+	///     ended what it started. Everything the authority printed goes to the match's console capture.
 	/// </summary>
 	public static bool TryLaunch(ServerLaunchRequest request, out ServerProcessLauncher? launcher, out string failure)
 	{
 		launcher = null;
 		failure = string.Empty;
 
-		if (!File.Exists(request.ExecutablePath))
-		{
-			failure = $"the authority was not found at '{request.ExecutablePath}'";
-			return false;
-		}
-
+		if (!DescribeTargetProblem(request.Target, out failure)) return false;
 		if (!Directory.Exists(request.MapFolderPath))
 		{
 			failure = $"the map folder '{request.MapFolderPath}' does not exist";
@@ -193,32 +189,40 @@ public class ServerProcessLauncher : IDisposable
 			return false;
 		}
 
-		if (!LoopbackClientTransport.TryConnect("127.0.0.1", readyInfo.Port, request.ReadyTimeoutMilliseconds, out LoopbackClientTransport? transport, out string connectFailure) || transport == null)
-		{
-			failure = $"the authority reported port {readyInfo.Port} but the connection to it failed: {connectFailure}";
-			EndProcess(process, request.ShutdownTimeoutMilliseconds);
-			console.Dispose();
-			return false;
-		}
-
-		if (!TryHandshake(transport, request, readyInfo, out string handshakeFailure))
-		{
-			failure = handshakeFailure;
-			transport.Dispose();
-			EndProcess(process, request.ShutdownTimeoutMilliseconds);
-			console.Dispose();
-			return false;
-		}
-
-		launcher = new ServerProcessLauncher(request, process, console, transport, readyInfo);
+		launcher = new ServerProcessLauncher(request, process, console, readyInfo);
 		return true;
 	}
 
+	/// <summary>Whether the target names something that can actually be started, and why not when it cannot.</summary>
+	private static bool DescribeTargetProblem(ServerLaunchTarget target, out string failure)
+	{
+		failure = string.Empty;
+
+		if (!File.Exists(target.ExecutablePath))
+		{
+			failure = $"the authority was not found at '{target.ExecutablePath}'";
+			return false;
+		}
+
+		if (!target.IsProject) return true;
+
+		string projectFile = Path.Combine(target.ProjectDirectory!, "project.godot");
+		if (File.Exists(projectFile)) return true;
+
+		failure = $"'{target.ProjectDirectory}' is not the authority's project: it holds no project.godot";
+		return false;
+	}
+
+	/// <summary>
+	///     Builds the command the authority is started with. A project is pointed at by the engine that is already
+	///     running this client, and an exported authority is started directly; both are started headless, and both take
+	///     their own arguments after the separator so the engine does not read them first.
+	/// </summary>
 	private static Process? StartProcess(ServerLaunchRequest request, out string failure)
 	{
 		failure = string.Empty;
 
-		var startInfo = new ProcessStartInfo(request.ExecutablePath)
+		var startInfo = new ProcessStartInfo(request.Target.ExecutablePath)
 		{
 			UseShellExecute = false,
 			CreateNoWindow = true,
@@ -226,6 +230,14 @@ public class ServerProcessLauncher : IDisposable
 			RedirectStandardError = true
 		};
 
+		startInfo.ArgumentList.Add("--headless");
+		if (request.Target.IsProject)
+		{
+			startInfo.ArgumentList.Add("--path");
+			startInfo.ArgumentList.Add(Path.GetFullPath(request.Target.ProjectDirectory!));
+		}
+
+		startInfo.ArgumentList.Add("--");
 		startInfo.ArgumentList.Add(ServerArgumentFlags.MapFlag);
 		startInfo.ArgumentList.Add(Path.GetFullPath(request.MapFolderPath));
 		startInfo.ArgumentList.Add(ServerArgumentFlags.PortFlag);
@@ -321,47 +333,6 @@ public class ServerProcessLauncher : IDisposable
 		return $"the authority did not report that it was listening within {request.ReadyTimeoutMilliseconds}ms; see '{request.LogPath}' and '{ServerConsoleCapture.ResolvePath(request.LogPath)}'";
 	}
 
-	private static bool TryHandshake(LoopbackClientTransport transport, ServerLaunchRequest request, ServerReadyInfo readyInfo, out string failure)
-	{
-		failure = string.Empty;
-
-		var hello = new ClientHello
-		{
-			Protocol = RealmProtocol.Version,
-			Build = readyInfo.Build,
-			Token = request.Token,
-			WireTableHash = readyInfo.WireTableHash,
-			Language = request.Language ?? string.Empty
-		};
-
-		try
-		{
-			transport.Send(NetworkFrameKind.ClientHello, MemoryPackSerializer.Serialize(hello));
-			if (!transport.TryReceive(request.ReadyTimeoutMilliseconds, out NetworkFrame frame))
-			{
-				failure = "the authority closed the connection before answering the hello";
-				return false;
-			}
-
-			if (frame.Kind != NetworkFrameKind.ServerHello)
-			{
-				failure = $"the authority answered a hello with a {frame.Kind} frame";
-				return false;
-			}
-
-			ServerHello response = MemoryPackSerializer.Deserialize<ServerHello>(frame.Payload);
-			if (response.Accepted) return true;
-
-			failure = $"the authority refused the connection: {response.Rejection}";
-			return false;
-		}
-		catch (Exception exception) when (exception is IOException or ObjectDisposedException or InvalidDataException)
-		{
-			failure = $"the handshake with the authority failed: {exception.Message}";
-			return false;
-		}
-	}
-
 	private Thread StartReader(StreamReader reader, string threadName)
 	{
 		var thread = new Thread(() =>
@@ -391,23 +362,13 @@ public class ServerProcessLauncher : IDisposable
 	}
 
 	/// <summary>
-	///     Asks the authority to leave and gives it the time it was promised before it is ended. A match that has ended
-	///     needs its authority gone, whether or not the authority agrees that it should be.
+	///     Ends the authority and gives it the time it was promised before it is ended. A match that has ended needs its
+	///     authority gone, whether or not the authority agrees that it should be.
 	/// </summary>
 	public void RequestShutdown()
 	{
 		if (_shutdownRequested) return;
 		_shutdownRequested = true;
-
-		try
-		{
-			_transport.Send(NetworkFrameKind.Shutdown, ReadOnlySpan<byte>.Empty);
-		}
-		catch (Exception exception) when (exception is IOException or ObjectDisposedException)
-		{
-		}
-
-		if (_process.WaitForExit(_request.ShutdownTimeoutMilliseconds)) return;
 
 		EndProcess(_process, _request.ShutdownTimeoutMilliseconds);
 	}
@@ -435,7 +396,6 @@ public class ServerProcessLauncher : IDisposable
 		_disposed = true;
 
 		RequestShutdown();
-		_transport.Dispose();
 
 		_standardOutputThread.Join(500);
 		_standardErrorThread.Join(500);

@@ -21,6 +21,7 @@ config/icon="res://icon.png"
 
 [autoload]
 
+RealmNetwork="*res://Network/ClientNetworkChannel.cs"
 LobbyManager="*res://Network/LobbyManager.cs"
 
 [debug]

@@ -72,7 +72,9 @@
 - `GameBuildNumber`: Every `metadata.json` must include a `GameBuildNumber` string matching `RealmVersion.GameBuildNumber`. This value is hardcoded and only changed manually when publishing and tagging an official release. Matches in the game lobby are locked to the map's `GameBuildNumber`.
 
 ## Client and Server Process Split:
-- `Realm.Client` must never have a compile-time project reference to `Realm.ListenServer`, and `Realm.ListenServer` must never reference `Realm.Client` or Godot. All gameplay communication crosses the process boundary as serialized transport frames; there is no shared in-process world, service, or static state between them.
+- `Realm.Client` must never have a compile-time project reference to `Realm.ListenServer` or `Realm.ListenServerHost`, and `Realm.ListenServer` must never reference `Realm.Client` or Godot. All gameplay communication crosses the process boundary as serialized transport frames; there is no shared in-process world, service, or static state between them.
+- Three projects, three responsibilities: `Realm.ListenServer` is the simulation and stays Godot-free (a `using Godot` there is a bug); `Realm.ListenServerHost` is a headless Godot project that exists only to give the authority ENet and RPC, so it may reference Godot for transport and process lifecycle but must hold no simulation, world or game rule logic; `Realm.Client` owns input, presentation and rendering.
+- Both processes speak through one channel: the node autoloaded as `RealmNetwork` in each project, with the same path and the same `Frame(kind, payload)` RPC. A new gameplay or presentation message is a `NetworkFrameKind` plus a `Realm.Shared` payload, never a second protocol.
 - `Realm.Shared` owns every serialized payload, protocol constant, transport contract and handshake type. A payload the authoritative process has to serialize can never live in `Realm.Client`.
 
 ## AI "Vibe" Coding & Maintenance Instructions:

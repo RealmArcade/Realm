@@ -1,0 +1,17 @@
+; The listen server's project. It carries no scenes and no assets: it exists so the authority runs inside a Godot
+; process, which is what gives it ENet and RPC that are wire-compatible with a client, and it runs headless.
+config_version=5
+
+[application]
+
+config/name="Realm.ListenServerHost"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+run/main_scene="res://Main.tscn"
+
+[dotnet]
+
+project/assembly_name="Realm.ListenServerHost"
+
+[autoload]
+
+RealmNetwork="*res://Network/ServerNetworkChannel.cs"
