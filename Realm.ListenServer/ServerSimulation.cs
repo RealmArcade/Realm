@@ -28,6 +28,7 @@ public class ServerSimulation : IDisposable
 	private readonly Dictionary<int, int> _peerPlayerSlots = new();
 	private readonly Dictionary<int, int> _lastAnsweredCommandIdPerPeer = new();
 	private readonly AuthoritativeSnapshotBuilder _snapshots;
+	private readonly ServerProductionStep _production;
 	private int _snapshotSequence;
 
 	/// <summary>
@@ -48,6 +49,7 @@ public class ServerSimulation : IDisposable
 		_commands.DroppedOrderSink = log.Write;
 		map.Catalog.BindTo(_commands);
 		_snapshots = new AuthoritativeSnapshotBuilder(map.World, map.WorldEntity, map.Simulation.MapRules, PeerIdForPlayerSlot);
+		_production = new ServerProductionStep(map.World, map, log);
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
@@ -70,8 +72,8 @@ public class ServerSimulation : IDisposable
 	/// <summary>
 	///     Advances the world by exactly one tick, in the order the simulation expects: the clock and cooldowns drain,
 	///     movement resolves the orders on the board, fights resolve, harvesting and production advance, then timed
-	///     statuses, regeneration and visibility catch up. The command pipeline is not wired to the transport yet, so a
-	///     match nobody has ordered anything in only ages.
+	///     statuses, regeneration and visibility catch up. A peer's order arrives from its own thread and is applied
+	///     between ticks, so what a peer is told about is always a world one whole tick old.
 	/// </summary>
 	public void Step()
 	{
@@ -85,6 +87,7 @@ public class ServerSimulation : IDisposable
 			_map.Simulation.MovementPathfindingService.StepMovement(deltaSeconds);
 			_map.Simulation.CombatDamageService.StepCombat(deltaSeconds, _map.Simulation.MovementPathfindingService);
 			_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
+			_production.Step(deltaSeconds);
 			_matchTick.AdvanceStatusEffects(deltaSeconds);
 			_matchTick.AdvanceRegeneration(deltaSeconds);
 		}
