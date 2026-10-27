@@ -12,6 +12,7 @@ using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Ecs.Utils;
+using Realm.Shared.Metadata;
 using Realm.Shared.Network;
 
 namespace Realm.Shared.Simulation;
@@ -40,6 +41,9 @@ public class CommandAuthorityService
 
 	/// <summary>Grants a player a level on a tech track. Granting a level is what changes the units they already own.</summary>
 	public Action<int, string, int>? TechLevelWriter { get; set; }
+
+	/// <summary>Answers what a card a building sells is, or nothing when the card is an ordinary cast.</summary>
+	public Func<string, ConsumableMetadata?>? ConsumableProvider { get; set; }
 
 	/// <summary>Where a dropped order is reported. A headless process has no Godot logger and leaves this unset.</summary>
 	public Action<string>? DroppedOrderSink { get; set; }
@@ -219,6 +223,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		if (DispatchActionCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
 		if (DispatchTrainingCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
 		if (DispatchResearchCommand(peerId, cmd, ref rejectionReason)) return;
+		if (DispatchConsumableCommand(peerId, cmd, ref rejectionReason)) return;
 		DispatchCheatCommand(peerId, cmd, ref rejectionReason);
 	}
 
@@ -851,6 +856,133 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 
 		HandleCheatCommand(peerId, cmd, ref rejectionReason);
 		return true;
+	}
+
+	private bool DispatchConsumableCommand(int peerId, NetworkCommand cmd, ref string rejectionReason)
+	{
+		if (cmd.CommandType != "use_consumable") return false;
+
+		HandleConsumableCommand(peerId, cmd, ref rejectionReason);
+		return true;
+	}
+
+	/// <summary>
+	///     Applies a purchase a building sells and binds to one unit it was aimed at. The whole decision belongs to the
+	///     authority because it is a decision about world state: which unit is close enough to receive the card, whether it
+	///     has room for it, and what the card costs are all read from the world the players are playing in, and the unit is
+	///     changed here so every screen is told the same thing.
+	/// </summary>
+	private void HandleConsumableCommand(int peerId, NetworkCommand cmd, ref string rejectionReason)
+	{
+		string cardId = cmd.ArgString ?? string.Empty;
+		if (string.IsNullOrEmpty(cardId))
+		{
+			rejectionReason = "a purchase order names no consumable";
+			return;
+		}
+
+		if (ConsumableProvider == null)
+		{
+			rejectionReason = $"nothing is sold as '{cardId}' in this match";
+			return;
+		}
+
+		ConsumableMetadata? consumable = ConsumableProvider(cardId);
+		if (consumable == null)
+		{
+			rejectionReason = $"the map sells no consumable '{cardId}'";
+			return;
+		}
+
+		if (cmd.UnitEntityIds == null || cmd.UnitEntityIds.Count == 0)
+		{
+			rejectionReason = "a purchase order names no building to buy from";
+			return;
+		}
+
+		Entity building = _targets.Resolve(cmd.UnitEntityIds[0]);
+		if (building == Entity.Null || !IsClientAuthorized(peerId, building))
+		{
+			rejectionReason = $"building {cmd.UnitEntityIds[0]} is not owned by peer {peerId}";
+			return;
+		}
+
+		if (!TryGetPlayerEntityForPeer(peerId, out Entity playerEntity))
+		{
+			rejectionReason = $"peer {peerId} has no player entity";
+			return;
+		}
+
+		Entity target = FindConsumableTarget(building, playerEntity, consumable, cmd.TargetPosition.ToNumerics());
+		if (target == Entity.Null)
+		{
+			rejectionReason = consumable.ClearsSlot
+				? "nothing of the buyer's is close enough to purge"
+				: "no unit of the buyer's is close enough to receive it";
+			return;
+		}
+
+		bool carriesOne = CarriesAttachment(target, consumable);
+		if (consumable.ClearsSlot && !carriesOne)
+		{
+			rejectionReason = "that unit is not carrying one";
+			return;
+		}
+
+		if (!consumable.ClearsSlot && carriesOne)
+		{
+			rejectionReason = "that unit already carries one";
+			return;
+		}
+
+		if (!TryPayCosts(playerEntity, consumable.CostGold, consumable.CostWood, consumable.CostStone))
+		{
+			rejectionReason = $"'{consumable.TemplateID}' costs more than the player has";
+			return;
+		}
+
+		if (consumable.ClearsSlot)
+		{
+			_context.World.Remove<ConsumableAttachment>(target);
+			return;
+		}
+
+		_context.World.SetOrAdd(target, new ConsumableAttachment(consumable.TemplateID, consumable.SlotGroup, _context.PlayerSlotForEntity(playerEntity)));
+	}
+
+	/// <summary>
+	///     The unit a purchase was aimed at: the nearest one to the place the buyer clicked, within the reach the card was
+	///     authored with, and one of their own unless the card was authored to reach anyone's.
+	/// </summary>
+	private Entity FindConsumableTarget(Entity building, Entity playerEntity, ConsumableMetadata consumable, Vector3 position)
+	{
+		bool ownOnly = !string.Equals(consumable.TargetScope, "AnyUnit", StringComparison.OrdinalIgnoreCase);
+		float bestDistance = consumable.PurchaseRange;
+		Entity best = Entity.Null;
+
+		var query = QueryCache.AllPositionAndOwnerNoneDeadQuery;
+		_context.World.Query(in query, (Entity candidate, ref Position candidatePosition, ref Owner owner) =>
+		{
+			if (candidate == building) return;
+			if (ownOnly && owner.PlayerEntity.Value != playerEntity) return;
+
+			float distance = (candidatePosition.Value - position).Length();
+			if (distance > bestDistance) return;
+
+			bestDistance = distance;
+			best = candidate;
+		});
+
+		return best;
+	}
+
+	/// <summary>Whether a unit already carries a consumable in the group this card fills.</summary>
+	private bool CarriesAttachment(Entity unit, ConsumableMetadata consumable)
+	{
+		if (!_context.World.TryGet<ConsumableAttachment>(unit, out ConsumableAttachment attachment)) return false;
+		if (!attachment.HasDefinition) return false;
+
+		return attachment.IsInGroup(consumable.SlotGroup);
 	}
 
 	/// <summary>

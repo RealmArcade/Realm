@@ -83,6 +83,28 @@ public partial class GameHost
 		GameContext.ServerSession.Submit(payload);
 	}
 
+	/// <summary>
+	///     Hands the authority a purchase of one of the map's consumables, aimed at a place on the board. What the card
+	///     costs, which unit is close enough to receive it and whether that unit has room are the match's to decide, so a
+	///     purchase leaves this screen as an order rather than as a change it makes to its own copy of the world.
+	/// </summary>
+	public void SubmitConsumableOrder(UnitId building, string cardId, System.Numerics.Vector3 targetPosition)
+	{
+		if (string.IsNullOrWhiteSpace(cardId)) return;
+		if (GameContext.ServerSession == null || GameContext.NetworkService == null) return;
+		if (!building.IsValid) return;
+
+		Entity localBuilding = new Entity(building.Value);
+		if (!GameContext.World.IsAlive(localBuilding)) return;
+
+		int serverBuildingId = GetServerEntityId(localBuilding);
+		if (serverBuildingId <= 0) return;
+
+		var unitIds = new List<int> { serverBuildingId };
+		var (_, payload) = GameContext.NetworkService.BuildClientCommand("use_consumable", unitIds, targetPosition, 0, cardId);
+		GameContext.ServerSession.Submit(payload);
+	}
+
 	private void SubmitOrderCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);

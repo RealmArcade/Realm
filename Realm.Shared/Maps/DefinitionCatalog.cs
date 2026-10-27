@@ -20,6 +20,8 @@ public class DefinitionCatalog
 	private readonly Dictionary<string, ResourceMetadata> _resources = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, ItemMetadata> _items = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, UpgradeMetadata> _upgrades = new(StringComparer.OrdinalIgnoreCase);
+	private readonly Dictionary<string, ConsumableMetadata> _consumables = new(StringComparer.OrdinalIgnoreCase);
+	private readonly Dictionary<string, ConsumableMetadata> _consumablesByCard = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, WeaponMetadata> _weapons = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, AbilityMetadata> _abilities = new(StringComparer.OrdinalIgnoreCase);
 
@@ -92,6 +94,15 @@ public class DefinitionCatalog
 			if (!string.IsNullOrEmpty(upgrade.TemplateID)) catalog.AddWithAliases(catalog._upgrades, upgrade.TemplateID, upgrade);
 		}
 
+		for (int index = 0; index < templates.Consumables.Count; index++)
+		{
+			ConsumableMetadata consumable = templates.Consumables[index];
+			if (string.IsNullOrEmpty(consumable.TemplateID)) continue;
+
+			catalog.AddWithAliases(catalog._consumables, consumable.TemplateID, consumable);
+			catalog.AddConsumableCard(consumable.CardId, consumable);
+		}
+
 		for (int index = 0; index < templates.Weapons.Count; index++)
 		{
 			WeaponMetadata weapon = templates.Weapons[index];
@@ -136,6 +147,8 @@ public class DefinitionCatalog
 		authority.UpgradeRulesProvider = upgradeId => FindUpgrade(upgradeId) is { } upgrade
 			? new UpgradeRules(upgrade.TemplateID, upgrade.MaxLevel > 0 ? upgrade.MaxLevel : 1, upgrade.CostGold, upgrade.CostWood, upgrade.CostStone)
 			: null;
+
+		authority.ConsumableProvider = FindConsumableForCard;
 	}
 
 	public UnitMetadata? FindUnit(string templateId) => Find(_units, templateId);
@@ -150,6 +163,18 @@ public class DefinitionCatalog
 	public ResourceMetadata? FindResource(string templateId) => Find(_resources, templateId);
 
 	public ItemMetadata? FindItem(string templateId) => Find(_items, templateId);
+
+	public ConsumableMetadata? FindConsumable(string templateId) => Find(_consumables, templateId);
+
+	/// <summary>
+	///     The consumable the card a player clicked sells, or nothing when that card is an ordinary cast. A card is named
+	///     by an ability, by the purchase's own id, or by either of those without its type prefix.
+	/// </summary>
+	public ConsumableMetadata? FindConsumableForCard(string cardId)
+	{
+		if (string.IsNullOrEmpty(cardId)) return null;
+		return _consumablesByCard.TryGetValue(cardId, out ConsumableMetadata? consumable) ? consumable : null;
+	}
 
 	public UpgradeMetadata? FindUpgrade(string templateId) => Find(_upgrades, templateId);
 
@@ -178,6 +203,22 @@ public class DefinitionCatalog
 			"tree" => 500f,
 			_ => 0f
 		};
+	}
+
+	private void AddConsumableCard(string cardId, ConsumableMetadata consumable)
+	{
+		if (string.IsNullOrEmpty(cardId)) return;
+
+		_consumablesByCard[cardId] = consumable;
+
+		for (int index = 0; index < StrippablePrefixes.Length; index++)
+		{
+			string prefix = StrippablePrefixes[index];
+			if (!cardId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+
+			_consumablesByCard.TryAdd(cardId[prefix.Length..], consumable);
+			return;
+		}
 	}
 
 	private void AddWithAliases<T>(Dictionary<string, T> target, string templateId, T value)
