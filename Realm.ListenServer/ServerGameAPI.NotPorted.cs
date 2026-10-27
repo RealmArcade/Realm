@@ -41,32 +41,11 @@ public partial class ServerGameAPI
 
 	public void SetPlayerComputerControlled(int playerIndex, bool isProxy) => throw new NotSupportedException("SetPlayerComputerControlled is not answered by the authority yet");
 
-	public void AddUnitTypeAbility(string unitTypeId, string abilityId) => throw new NotSupportedException("AddUnitTypeAbility is not answered by the authority yet");
-	public IReadOnlyList<string> GetUnitTypeAbilities(string unitTypeId) => throw new NotSupportedException("GetUnitTypeAbilities is not answered by the authority yet");
-	public string GetUnitName(string unitTypeId) => throw new NotSupportedException("GetUnitName is not answered by the authority yet");
-	public string GetAbilityName(string abilityId) => throw new NotSupportedException("GetAbilityName is not answered by the authority yet");
-	public string GetStringText(int stringId) => throw new NotSupportedException("GetStringText is not answered by the authority yet");
 	public void WriteSavedData(string fileName, string content) => throw new NotSupportedException("WriteSavedData is not answered by the authority yet");
 	public string ReadSavedData(string fileName, string sourceMapName = "") => throw new NotSupportedException("ReadSavedData is not answered by the authority yet");
 	public int GetPlayerTechLevel(int playerIndex, string techId) => throw new NotSupportedException("GetPlayerTechLevel is not answered by the authority yet");
 	public void SetPlayerTechLevel(int playerIndex, string techId, int level) => throw new NotSupportedException("SetPlayerTechLevel is not answered by the authority yet");
 	public void AddPlayerTechLevel(int playerIndex, string techId, int delta = 1) => throw new NotSupportedException("AddPlayerTechLevel is not answered by the authority yet");
-	public void RegisterAbility(string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false) => throw new NotSupportedException("RegisterAbility is not answered by the authority yet");
-	public void RegisterPlayerAbility(int playerIndex, string abilityId, string displayName, string tooltip, string iconPath = "", bool isInstant = false) => throw new NotSupportedException("RegisterPlayerAbility is not answered by the authority yet");
-	public void SetAbilityInstant(string abilityId, bool isInstant) => throw new NotSupportedException("SetAbilityInstant is not answered by the authority yet");
-	public void SetAbilityIcon(string abilityId, string iconPath) => throw new NotSupportedException("SetAbilityIcon is not answered by the authority yet");
-	public void SetAbilityTooltip(string abilityId, string tooltip) => throw new NotSupportedException("SetAbilityTooltip is not answered by the authority yet");
-	public void SetItemTooltip(string itemId, string tooltip) => throw new NotSupportedException("SetItemTooltip is not answered by the authority yet");
-	public void SetAbilityTooltipValue(string abilityId, string key, float value) => throw new NotSupportedException("SetAbilityTooltipValue is not answered by the authority yet");
-	public void SetAbilityTooltipText(string abilityId, string key, string value) => throw new NotSupportedException("SetAbilityTooltipText is not answered by the authority yet");
-	public void SetUnitTooltipValue(UnitId unit, string key, float value) => throw new NotSupportedException("SetUnitTooltipValue is not answered by the authority yet");
-	public void SetUnitTooltipText(UnitId unit, string key, string value) => throw new NotSupportedException("SetUnitTooltipText is not answered by the authority yet");
-	public void SetItemTooltipValue(string itemId, string key, float value) => throw new NotSupportedException("SetItemTooltipValue is not answered by the authority yet");
-	public void SetUpgradeTooltipValue(string upgradeId, string key, float value) => throw new NotSupportedException("SetUpgradeTooltipValue is not answered by the authority yet");
-	public void SetAbilityGridPosition(string abilityId, int x, int y) => throw new NotSupportedException("SetAbilityGridPosition is not answered by the authority yet");
-	public void SetAbilityHotkey(string abilityId, string hotkey) => throw new NotSupportedException("SetAbilityHotkey is not answered by the authority yet");
-	public void SetAbilityState(UnitId unit, string abilityId, bool disabled, bool hidden) => throw new NotSupportedException("SetAbilityState is not answered by the authority yet");
-	public void SetAbilityManaCost(UnitId unit, string abilityId, float manaCost) => throw new NotSupportedException("SetAbilityManaCost is not answered by the authority yet");
 	public void SetPlayerBotProfile(int playerIndex, string profileJson) => throw new NotSupportedException("SetPlayerBotProfile is not answered by the authority yet");
 	public string GetPlayerBotProfile(int playerIndex) => throw new NotSupportedException("GetPlayerBotProfile is not answered by the authority yet");
 	public void SetPlayerBotGenre(int playerIndex, string genreName, string? configJson = null) => throw new NotSupportedException("SetPlayerBotGenre is not answered by the authority yet");

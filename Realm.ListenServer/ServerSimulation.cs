@@ -57,6 +57,7 @@ public class ServerSimulation : IDisposable
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
 		_script = ServerMapScript.Load(map, mapPath, logDirectory, randomSeed, log, _presentation, Items, _loot);
+		_snapshots.Abilities = _script.Api.Abilities;
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(

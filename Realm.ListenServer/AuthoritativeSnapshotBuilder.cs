@@ -59,10 +59,20 @@ public class AuthoritativeSnapshotBuilder
 	}
 
 	/// <summary>
+	///     What the map registered about abilities. A map marks an order unavailable or hides a button on the authority,
+	///     so how each unit's abilities are shown is described from here rather than worked out again on every client.
+	/// </summary>
+	public ScriptAbilityRegistry? Abilities { get; set; }
+
+	/// <summary>
 	///     Forgets everything a peer was told. A peer that disconnects leaves this behind, and the peer that takes its
 	///     place is described from scratch rather than from a description built for someone else.
 	/// </summary>
-	public void ForgetPeer(int peerId) => _statesByPeerId.Remove(peerId);
+	public void ForgetPeer(int peerId)
+	{
+		_statesByPeerId.Remove(peerId);
+		Abilities?.ForgetPeer(peerId);
+	}
 
 	/// <summary>
 	///     Describes the world as the viewer's player can see it. What this peer was already told is left out unless it
@@ -98,6 +108,7 @@ public class AuthoritativeSnapshotBuilder
 		}
 
 		if (isBaseline) AppendRuleEntries(snapshot.Catalog);
+		if (Abilities != null) snapshot.AbilityStates = Abilities.CollectDeltas(peerId, _world, isBaseline);
 		AppendComponentDeltas(state, snapshot, isBaseline);
 		ForgetUntrackedUnitComponents(state);
 		return snapshot;

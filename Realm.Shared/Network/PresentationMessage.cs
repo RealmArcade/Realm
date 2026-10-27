@@ -62,7 +62,17 @@ public enum PresentationKind : byte
 	UnitAnimationSet,
 	UnitHandAttachmentSet,
 	UnitMeshImpulse,
-	ResourceMeshImpulse
+	ResourceMeshImpulse,
+	AbilityRegistered,
+	PlayerAbilityRegistered,
+	AbilityInstantSet,
+	AbilityIconSet,
+	AbilityTooltipSet,
+	AbilityHotkeySet,
+	AbilityGridPositionSet,
+	ItemTooltipSet,
+	TooltipNumberSet,
+	TooltipTextSet
 }
 
 /// <summary>
