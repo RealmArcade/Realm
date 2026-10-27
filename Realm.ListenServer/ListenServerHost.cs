@@ -289,7 +289,12 @@ public class ListenServerHost : IServerHost
 	/// </summary>
 	private void BroadcastSnapshots(int sequence)
 	{
-		if (_simulation == null) return;
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		// What the map asked a screen to show this tick is collected whether or not anyone is listening, so a
+		// request that nobody could receive is dropped rather than piling up behind the next one.
+		ServerPresentationEvent[] presentation = simulation.CollectPresentation();
 
 		IClientTransport[] seatedPeers;
 		bool[] needsBaseline;
@@ -309,7 +314,7 @@ public class ListenServerHost : IServerHost
 			SendSnapshot(seatedPeers[index], sequence, needsBaseline[index]);
 		}
 
-		SendPresentation(seatedPeers);
+		if (presentation.Length > 0) SendPresentation(seatedPeers, presentation);
 	}
 
 	/// <summary>
@@ -317,13 +322,10 @@ public class ListenServerHost : IServerHost
 	///     only to the peer acting as that player; one addressed to everyone goes to all of them. Nothing here depends on
 	///     who is hosting, so a client is told what to show rather than deciding for itself.
 	/// </summary>
-	private void SendPresentation(IClientTransport[] seatedPeers)
+	private void SendPresentation(IClientTransport[] seatedPeers, ServerPresentationEvent[] events)
 	{
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
-
-		ServerPresentationEvent[] events = simulation.CollectPresentation();
-		if (events.Length == 0) return;
 
 		for (int peerIndex = 0; peerIndex < seatedPeers.Length; peerIndex++)
 		{

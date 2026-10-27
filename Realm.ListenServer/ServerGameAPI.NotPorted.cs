@@ -41,15 +41,6 @@ public partial class ServerGameAPI
 
 	public void SetPlayerComputerControlled(int playerIndex, bool isProxy) => throw new NotSupportedException("SetPlayerComputerControlled is not answered by the authority yet");
 
-	public int DefineZone(float minX, float minZ, float maxX, float maxZ) => throw new NotSupportedException("DefineZone is not answered by the authority yet");
-	public Vector3 GetZoneCenter(int zoneHandle) => throw new NotSupportedException("GetZoneCenter is not answered by the authority yet");
-
-	public bool HasCoordinate(string coordinateName) => throw new NotSupportedException("HasCoordinate is not answered by the authority yet");
-	public Vector3 GetCoordinateMin(string coordinateName) => throw new NotSupportedException("GetCoordinateMin is not answered by the authority yet");
-	public Vector3 GetCoordinateMax(string coordinateName) => throw new NotSupportedException("GetCoordinateMax is not answered by the authority yet");
-	public bool IsPositionInCoordinate(Vector3 position, string coordinateName) => throw new NotSupportedException("IsPositionInCoordinate is not answered by the authority yet");
-	public void SetRegionPathing(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags, bool blocked) => throw new NotSupportedException("SetRegionPathing is not answered by the authority yet");
-	public PathingFlags GetRegionPathing(float minX, float minZ, float maxX, float maxZ) => throw new NotSupportedException("GetRegionPathing is not answered by the authority yet");
 	public void AddUnitTypeAbility(string unitTypeId, string abilityId) => throw new NotSupportedException("AddUnitTypeAbility is not answered by the authority yet");
 	public IReadOnlyList<string> GetUnitTypeAbilities(string unitTypeId) => throw new NotSupportedException("GetUnitTypeAbilities is not answered by the authority yet");
 	public string GetUnitName(string unitTypeId) => throw new NotSupportedException("GetUnitName is not answered by the authority yet");
