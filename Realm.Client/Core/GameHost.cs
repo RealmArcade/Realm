@@ -2182,11 +2182,6 @@ public partial class GameHost : Node3D, IGameAPI
 		GD.Print($"[GAMEHOST_READY] GameHost _Ready starting");
 		GameContext.RegisterHost(this);
 		GameSettings.ApplyGraphicsSettings(this);
-		if (GameContext.Lobby != null)
-		{
-			GameContext.Lobby.ServerChatCommandReceived += HandleServerChatCommand;
-		}
-
 		ReinitializeEcsAndServices();
 		JoinAuthority();
 	}
@@ -2531,7 +2526,7 @@ public partial class GameHost : Node3D, IGameAPI
 		if (GameContext.SaveLoadService.IsLoadingMap) return false;
 
 		bool isGameStarted = GameContext.Lobby?.IsGameStarted ?? false;
-		return !isGameStarted || IsServerActive() || GameContext.SessionState.IsMapEditorMode;
+		return !isGameStarted || GameContext.SessionState.IsMapEditorMode;
 	}
 
 	private void ApplyTestRandomSeedIfNeeded(string rawMapNameOrPath)
@@ -2762,9 +2757,6 @@ public partial class GameHost : Node3D, IGameAPI
 	{
 		LogGameStabilitySummary();
 
-		if (GameContext.Lobby != null)
-			GameContext.Lobby.ServerChatCommandReceived -= HandleServerChatCommand;
-
 		StopRecording();
 		GameContext.ServerSession?.Stop();
 		GameContext.DetachServerSession();
@@ -2786,23 +2778,6 @@ public partial class GameHost : Node3D, IGameAPI
 				MaxApiMs = HostStabilityTracker.CalculateMax(GameContext.PerformanceTrackingService.TrackerApiDurations)
 			});
 		}
-	}
-
-	private void HandleServerChatCommand(int slot, string message)
-	{
-		if (!IsServerActive()) return;
-
-		UnitId heroUnit = UnitId.Invalid;
-		foreach (var u in AllUnits)
-		{
-			if (GodotObject.IsInstanceValid(u) && u.Player == slot && GameContext.World != null && GameContext.World.IsAlive(u.Entity) && !GameContext.World.Has<Dead>(u.Entity))
-			{
-				heroUnit = (UnitId)u.Entity.Id;
-				break;
-			}
-		}
-
-		OnPlayerChatMessage?.Invoke(message, heroUnit);
 	}
 
 	private void CreateGround()
@@ -3270,7 +3245,7 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void UpdatePopulationStats(string id, int playerIndex, bool isFromQueue)
 	{
-		if (_multiplayerActive && !IsServerActive()) return;
+		if (_multiplayerActive) return;
 		if (!UnitRegistry.TryGetValue(id, out var popMeta)) return;
 
 		if (!isFromQueue && popMeta.PopCost > 0)
@@ -3502,7 +3477,7 @@ public partial class GameHost : Node3D, IGameAPI
 		// spawned, and a peer never runs that script. Sending the volumes the authority just baked with is what makes the
 		// two meshes identical, and therefore what stops a predicted route from picking a corridor the host blocks. A peer
 		// that already baked these volumes drops them, so a repeat only costs one message.
-		if (!IsServerActive() || !_multiplayerActive) return;
+		if (!_multiplayerActive) return;
 
 		foreach (int peerId in GetReplicatedPeerIds()) SendNavMeshObstacleVolumesToPeer(peerId);
 	}
@@ -3874,8 +3849,8 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private void UpdateConnectionStatus()
 	{
-		GameContext.NetworkService.UpdateConnectionStatus(_multiplayerActive, IsServerActive());
-		if (GameContext.NetworkService.IsConnectionLost && !IsServerActive() && GameContext.Lobby != null && !GameContext.Lobby.IsReconnecting)
+		GameContext.NetworkService.UpdateConnectionStatus(_multiplayerActive, isServer: false);
+		if (GameContext.NetworkService.IsConnectionLost && GameContext.Lobby != null && !GameContext.Lobby.IsReconnecting)
 		{
 			GameContext.Lobby.TriggerReconnect();
 		}
@@ -4090,11 +4065,6 @@ public partial class GameHost : Node3D, IGameAPI
 		if (GameContext.ReplayService != null && GameContext.ReplayService.IsRecording)
 		{
 			GameContext.ReplayService.RecordProjectile(weaponId ?? "arrow", new System.Numerics.Vector3(start.X, start.Y, start.Z), new System.Numerics.Vector3(target.X, target.Y, target.Z));
-		}
-
-		if (_multiplayerActive && IsServerActive())
-		{
-			Rpc(nameof(ClientSpawnArrowProjectile), start, target, ownerPlayerIndex);
 		}
 	}
 
