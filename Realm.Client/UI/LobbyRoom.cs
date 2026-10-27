@@ -513,7 +513,7 @@ public partial class LobbyRoom : Control
 
 		var btnConfirm = new Button();
 		btnConfirm.Name = "BtnConfirm_Button";
-		btnConfirm.Text = "OK";
+		btnConfirm.Text = Tr("OK");
 		btnConfirm.Pressed += () =>
 		{
 			overlay.QueueFree();
@@ -1110,9 +1110,9 @@ public partial class LobbyRoom : Control
 
 		ApplyTeamOptionStyle(optTeam);
 
-		optTeam.AddItem("Team 1");
-		optTeam.AddItem("Team 2");
-		optTeam.AddItem("Spectator");
+		optTeam.AddItem(Tr("Team 1"));
+		optTeam.AddItem(Tr("Team 2"));
+		optTeam.AddItem(Tr("Spectator"));
 
 		int teamIdx = p.Team == "Team 1" ? 0 : (p.Team == "Team 2" ? 1 : 2);
 		optTeam.Select(teamIdx);
@@ -1269,7 +1269,7 @@ public partial class LobbyRoom : Control
 
 	private void SetupSpectatorFactionOption(OptionButton optFaction)
 	{
-		optFaction.AddItem("SPECTATOR");
+		optFaction.AddItem(Tr("SPECTATOR"));
 		optFaction.Select(0);
 		optFaction.Disabled = true;
 		optFaction.AddThemeColorOverride("font_disabled_color", new Color(0.5f, 0.5f, 0.5f));
@@ -1277,10 +1277,10 @@ public partial class LobbyRoom : Control
 
 	private void SetupPlayerFactionOption(OptionButton optFaction, PlayerInfo p, bool isLocalPlayer)
 	{
-		foreach (var fact in _factions)
-		{
-			optFaction.AddItem(fact);
-		}
+		optFaction.AddItem(Tr("HUMAN"));
+		optFaction.AddItem(Tr("ORC"));
+		optFaction.AddItem(Tr("UNDEAD"));
+		optFaction.AddItem(Tr("ELF"));
 
 		int selIdx = Array.IndexOf(_factions, p.Faction);
 		if (selIdx >= 0) optFaction.Select(selIdx);
@@ -1330,9 +1330,9 @@ public partial class LobbyRoom : Control
 			return $"  [color=#ffa040]{Tr("downloading...")}[/color]";
 		}
 
-		string latencyText = p.Latency == "--" ? "measuring..." : p.Latency;
-		string jitterText = p.Jitter == "--" ? "n/a" : p.Jitter;
-		string lossText = p.PacketLoss == "--" ? "n/a" : p.PacketLoss;
+		string latencyText = p.Latency == "--" ? Tr("measuring...") : p.Latency;
+		string jitterText = p.Jitter == "--" ? Tr("n/a") : p.Jitter;
+		string lossText = p.PacketLoss == "--" ? Tr("n/a") : p.PacketLoss;
 
 		string pingColor = GetPingColorCode(p.Latency);
 		string jitterColor = GetJitterColorCode(p.Jitter);

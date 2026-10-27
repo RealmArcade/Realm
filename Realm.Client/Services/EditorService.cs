@@ -4885,16 +4885,49 @@ public partial class EditorService : IEditorAPI
 		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.HasUnsavedChanges = value);
 	}
 
+	public static string GetLocalizedToolName(string toolName)
+	{
+		return toolName.ToLowerInvariant() switch
+		{
+			"raise" => TranslationServer.Translate("RAISE"),
+			"lower" => TranslationServer.Translate("LOWER"),
+			"height" => TranslationServer.Translate("HEIGHT"),
+			"smooth" => TranslationServer.Translate("SMOOTH"),
+			"plateau" => TranslationServer.Translate("PLATEAU"),
+			"ramp" => TranslationServer.Translate("RAMP"),
+			"noise" => TranslationServer.Translate("NOISE"),
+			"water" => TranslationServer.Translate("WATER"),
+			"painttexture" => TranslationServer.Translate("PAINT TEXTURE"),
+			"floodfill" => TranslationServer.Translate("FLOOD FILL"),
+			"selectarea" => TranslationServer.Translate("SELECT AREA"),
+			"pastearea" => TranslationServer.Translate("PASTE AREA"),
+			"placeunit" => TranslationServer.Translate("PLACE UNIT"),
+			"placeprop" => TranslationServer.Translate("PLACE PROP"),
+			"placepropclump" => TranslationServer.Translate("PLACE CLUMP"),
+			"placedecal" => TranslationServer.Translate("PLACE DECAL"),
+			"placevfx" => TranslationServer.Translate("PLACE VFX"),
+			"deleteobject" => TranslationServer.Translate("DELETE OBJECT"),
+			"selectmove" => TranslationServer.Translate("SELECT / MOVE"),
+			"eyedropper" => TranslationServer.Translate("EYEDROPPER"),
+			"paintpathing" => TranslationServer.Translate("PAINT PATHING"),
+			"floodfillpathing" => TranslationServer.Translate("FLOOD FILL PATHING"),
+			"drawcoordinate" => TranslationServer.Translate("DRAW COORD"),
+			"measure" => TranslationServer.Translate("MEASURE"),
+			"none" => TranslationServer.Translate("NONE"),
+			_ => toolName.ToUpperInvariant()
+		};
+	}
+
 	public string GetTerrainStatusString(Godot.Vector3 pos, string toolName, string activePlaceId)
 	{
-		string formattedToolName = toolName.ToUpper();
+		string formattedToolName = GetLocalizedToolName(toolName);
 		if (!string.IsNullOrEmpty(activePlaceId))
 		{
 			string shortId = Path.GetFileName(activePlaceId).ToUpper();
 			formattedToolName += $" ({shortId})";
 		}
 
-		string status = $"ACTIVE TOOL: {formattedToolName} | Pos: {pos.X:F1}, {pos.Z:F1}, {pos.Y:F1}";
+		string status = string.Format(TranslationServer.Translate("ACTIVE TOOL: {0} | Pos: {1}, {2}, {3}"), formattedToolName, pos.X.ToString("F1"), pos.Z.ToString("F1"), pos.Y.ToString("F1"));
 
 		ref var terrain = ref GetTerrainState();
 
@@ -4911,31 +4944,31 @@ public partial class EditorService : IEditorAPI
 				var layers = new List<string>();
 				if ((code & EditableTerrain.PATHING_GROUND) != 0)
 				{
-					layers.Add("Ground");
+					layers.Add(TranslationServer.Translate("Ground"));
 				}
 
 				if ((code & EditableTerrain.PATHING_FLYING) != 0)
 				{
-					layers.Add("Flying");
+					layers.Add(TranslationServer.Translate("Flying"));
 				}
 
 				if ((code & EditableTerrain.PATHING_SHALLOW_WATER) != 0)
 				{
-					layers.Add("Shallow Water");
+					layers.Add(TranslationServer.Translate("Shallow Water"));
 				}
 
 				if ((code & EditableTerrain.PATHING_DEEP_WATER) != 0)
 				{
-					layers.Add("Deep Water");
+					layers.Add(TranslationServer.Translate("Deep Water"));
 				}
 
 				if ((code & EditableTerrain.PATHING_BUILDABLE) != 0)
 				{
-					layers.Add("Buildable");
+					layers.Add(TranslationServer.Translate("Buildable"));
 				}
 
-				string layersStr = layers.Count > 0 ? string.Join(", ", layers) : "None";
-				status += $" | Path: {layersStr}";
+				string layersStr = layers.Count > 0 ? string.Join(", ", layers) : TranslationServer.Translate("None");
+				status += $" | {TranslationServer.Translate("Path")}: {layersStr}";
 			}
 		}
 

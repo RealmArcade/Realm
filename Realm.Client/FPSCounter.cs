@@ -31,7 +31,7 @@ public partial class FPSCounter : Label
 			if (_updateTimer >= 0.25f)
 			{
 				_updateTimer = 0f;
-				Text = $"FPS: {Engine.GetFramesPerSecond():F0}";
+				Text = string.Format(TranslationServer.Translate("FPS: {0}"), (int)Engine.GetFramesPerSecond());
 			}
 		}
 	}
