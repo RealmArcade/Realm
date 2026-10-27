@@ -256,8 +256,8 @@ public class ServerSimulation : IDisposable
 	private static ServerCommandResult NoResult(string rejectionReason)
 	{
 		return new ServerCommandResult(
-			false, null, Vector3.Zero, -1, -1,
-			false, null, Vector3.Zero,
+			false, string.Empty, Vector3.Zero, -1, -1,
+			false, string.Empty, Vector3.Zero,
 			new List<int>(), new List<int>(),
 			new List<int>(), rejectionReason);
 	}

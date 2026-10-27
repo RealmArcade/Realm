@@ -1,13 +1,14 @@
 using System.Globalization;
+using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
 public record ServerArguments(string MapPath, int Port, string Token, string LogPath)
 {
-	public const string MapFlag = "--map";
-	public const string PortFlag = "--port";
-	public const string TokenFlag = "--token";
-	public const string LogFlag = "--log";
+	public const string MapFlag = ServerArgumentFlags.MapFlag;
+	public const string PortFlag = ServerArgumentFlags.PortFlag;
+	public const string TokenFlag = ServerArgumentFlags.TokenFlag;
+	public const string LogFlag = ServerArgumentFlags.LogFlag;
 
 	public const string Usage = $"{MapFlag} <absolute map folder> {PortFlag} <port> {TokenFlag} <token> {LogFlag} <log file>";
 
