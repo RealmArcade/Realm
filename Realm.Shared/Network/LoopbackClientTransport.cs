@@ -16,6 +16,8 @@ public class LoopbackClientTransport : IClientTransport
 	private readonly TcpClient _client;
 	private readonly NetworkStream _stream;
 
+	private readonly object _sendLock = new();
+
 	private byte[]? _receiveBuffer;
 	private bool _closed;
 
@@ -88,7 +90,14 @@ public class LoopbackClientTransport : IClientTransport
 	public void Send(NetworkFrameKind kind, ReadOnlySpan<byte> payload)
 	{
 		if (_closed) return;
-		TransportFrameCodec.WriteFrame(_stream, kind, payload);
+
+		// A client sends orders from its game thread and acknowledges snapshots from whichever thread received them,
+		// and two frames interleaved into one stream would be one corrupt frame rather than two good ones.
+		lock (_sendLock)
+		{
+			if (_closed) return;
+			TransportFrameCodec.WriteFrame(_stream, kind, payload);
+		}
 	}
 
 	public bool TryReceive(int timeoutMilliseconds, out NetworkFrame frame)

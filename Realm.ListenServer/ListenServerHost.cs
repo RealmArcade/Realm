@@ -18,8 +18,11 @@ public class ListenServerHost : IServerHost
 	private readonly IServerTransport _transport;
 	private readonly ManualResetEventSlim _shutdownRequested = new(false);
 	private readonly List<IClientTransport> _peers = new();
+	private readonly List<IClientTransport> _seatedPeers = new();
+	private readonly HashSet<IClientTransport> _peersNeedingBaseline = new();
 	private readonly List<Thread> _peerThreads = new();
 	private readonly object _peersLock = new();
+	private long _lastLoggedAckSequence;
 
 	private ServerSimulation? _simulation;
 	private ServerTickLoop? _tickLoop;
@@ -77,7 +80,7 @@ public class ListenServerHost : IServerHost
 		Console.Out.WriteLine(readyInfo.ToReadyLine());
 		Console.Out.Flush();
 
-		_tickLoop = new ServerTickLoop(simulation, _log);
+		_tickLoop = new ServerTickLoop(simulation, _log, BroadcastSnapshots);
 		_tickLoop.Start();
 
 		_acceptThread = new Thread(AcceptLoop)
@@ -181,7 +184,19 @@ public class ListenServerHost : IServerHost
 					continue;
 				}
 
-				_log.Write($"refusing a {frame.Kind} frame of {frame.PayloadLength} bytes: this build answers hellos, commands and a shutdown");
+				if (frame.Kind == NetworkFrameKind.SnapshotAck)
+				{
+					NoteSnapshotAck(in frame);
+					continue;
+				}
+
+				if (frame.Kind == NetworkFrameKind.BaselineRequest)
+				{
+					RequestBaseline(peer);
+					continue;
+				}
+
+				_log.Write($"refusing a {frame.Kind} frame of {frame.PayloadLength} bytes: this build answers hellos, orders, acknowledgements, baseline requests and a shutdown");
 				return;
 			}
 		}
@@ -195,7 +210,11 @@ public class ListenServerHost : IServerHost
 			lock (_peersLock)
 			{
 				_peers.Remove(peer);
+				_seatedPeers.Remove(peer);
+				_peersNeedingBaseline.Remove(peer);
 			}
+
+			_simulation?.ForgetPeer(peer.PeerId);
 		}
 	}
 
@@ -223,8 +242,99 @@ public class ListenServerHost : IServerHost
 
 		peer.Send(NetworkFrameKind.Roster, MemoryPackSerializer.Serialize(assignment));
 		_log.Write($"peer {peer.PeerId} seated as player {playerSlot} (team {team})");
+
+		lock (_peersLock)
+		{
+			_seatedPeers.Add(peer);
+			_peersNeedingBaseline.Add(peer);
+		}
+
 		return true;
 	}
+
+	/// <summary>
+	///     Marks a peer to be described from scratch. The world is described to every peer on the same tick from the same
+	///     sequence, so a baseline is owed to the peer that asked rather than assembled beside the stream, where it would
+	///     arrive under a sequence the peer had already moved past.
+	/// </summary>
+	private void RequestBaseline(IClientTransport peer)
+	{
+		lock (_peersLock)
+		{
+			if (_seatedPeers.Contains(peer)) _peersNeedingBaseline.Add(peer);
+		}
+	}
+
+	/// <summary>
+	///     Describes the world to every seated peer for the tick that just finished. One order is sent to all of them:
+	///     the tick is what they are all being told about, so a peer that joined a moment ago and one that has been here
+	///     since the start agree on which world they are looking at.
+	/// </summary>
+	private void BroadcastSnapshots(int sequence)
+	{
+		if (_simulation == null) return;
+
+		IClientTransport[] seatedPeers;
+		bool[] needsBaseline;
+		lock (_peersLock)
+		{
+			if (_seatedPeers.Count == 0) return;
+			seatedPeers = _seatedPeers.ToArray();
+			needsBaseline = new bool[seatedPeers.Length];
+			for (int index = 0; index < seatedPeers.Length; index++)
+			{
+				needsBaseline[index] = _peersNeedingBaseline.Remove(seatedPeers[index]);
+			}
+		}
+
+		for (int index = 0; index < seatedPeers.Length; index++)
+		{
+			SendSnapshot(seatedPeers[index], sequence, needsBaseline[index]);
+		}
+	}
+
+	private void SendSnapshot(IClientTransport peer, int sequence, bool forceBaseline)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		try
+		{
+			WorldSnapshot snapshot = simulation.BuildSnapshotForPeer(peer.PeerId, sequence, forceBaseline);
+			byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
+			byte[] framed = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
+			peer.Send(NetworkFrameKind.Snapshot, framed);
+		}
+		catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+		{
+			_log.Write($"peer {peer.PeerId} could not be described: {exception.Message}");
+		}
+	}
+
+	/// <summary>
+	///     Records how far a peer has applied the world. The stream is reliable, so this is not what makes a peer catch
+	///     up; it is what tells the match log whether a peer is actually keeping pace with the tick it is being sent.
+	/// </summary>
+	private void NoteSnapshotAck(in NetworkFrame frame)
+	{
+		SnapshotAck ack;
+		try
+		{
+			ack = MemoryPackSerializer.Deserialize<SnapshotAck>(frame.Payload);
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			_log.Write($"a snapshot acknowledgement could not be read: {exception.Message}");
+			return;
+		}
+
+		if (ack.Sequence - _lastLoggedAckSequence < AckReportInterval) return;
+
+		_lastLoggedAckSequence = ack.Sequence;
+		_log.Write($"peer acknowledged sequence {ack.Sequence} with mask {ack.AppliedMask:x16}");
+	}
+
+	private const long AckReportInterval = 100;
 
 	/// <summary>
 	///     Answers one order. The authority validates and applies it, and the peer is told whether it was taken, which

@@ -16,6 +16,15 @@ public enum NetworkFrameKind : byte
 	/// <summary>Whether the authority took one command, and why not when it did not.</summary>
 	CommandOutcome = 5,
 
+	/// <summary>The world as the peer's player can see it.</summary>
+	Snapshot = 6,
+
 	/// <summary>The player slot the authority gave the peer that received it.</summary>
-	Roster = 6
+	Roster = 7,
+
+	/// <summary>The newest snapshot a peer has applied, so the authority knows what it no longer has to repeat.</summary>
+	SnapshotAck = 8,
+
+	/// <summary>A peer asking to be described from scratch, which is what a client that lost its place does.</summary>
+	BaselineRequest = 9
 }

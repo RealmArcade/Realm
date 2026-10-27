@@ -9,6 +9,8 @@ public class LoopbackPeer : IClientTransport
 	private readonly NetworkStream _stream;
 	private readonly int _peerId;
 
+	private readonly object _sendLock = new();
+
 	private byte[]? _receiveBuffer;
 	private bool _closed;
 
@@ -27,7 +29,14 @@ public class LoopbackPeer : IClientTransport
 	public void Send(NetworkFrameKind kind, ReadOnlySpan<byte> payload)
 	{
 		if (_closed) return;
-		TransportFrameCodec.WriteFrame(_stream, kind, payload);
+
+		// A peer is written to by the thread reading its frames and by the tick thread describing the world, and two
+		// frames interleaved into one stream would be one corrupt frame rather than two good ones.
+		lock (_sendLock)
+		{
+			if (_closed) return;
+			TransportFrameCodec.WriteFrame(_stream, kind, payload);
+		}
 	}
 
 	public bool TryReceive(int timeoutMilliseconds, out NetworkFrame frame)
