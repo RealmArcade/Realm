@@ -43,11 +43,6 @@ public partial class ServerGameAPI
 	public void AddStatModifier(UnitId unit, string statName, bool isPercentage, float value, string sourceId) => throw new NotSupportedException("AddStatModifier is not answered by the authority yet");
 	public void RemoveStatModifiers(UnitId unit, string sourceId) => throw new NotSupportedException("RemoveStatModifiers is not answered by the authority yet");
 	public void RegisterBuffModifier(string buffId, string statName, bool isPercentage, float value) => throw new NotSupportedException("RegisterBuffModifier is not answered by the authority yet");
-	public void RegisterPlacementRadius(string definitionKey, float radius) => throw new NotSupportedException("RegisterPlacementRadius is not answered by the authority yet");
-	public void RegisterResourceDropoffBuilding(string definitionKey) => throw new NotSupportedException("RegisterResourceDropoffBuilding is not answered by the authority yet");
-	public void RegisterResourceWorkerUnit(string unitKey) => throw new NotSupportedException("RegisterResourceWorkerUnit is not answered by the authority yet");
-	public void RegisterPrimaryBuilding(string definitionId) => throw new NotSupportedException("RegisterPrimaryBuilding is not answered by the authority yet");
-	public void RegisterResourceNodeType(string nodeDefinitionId, string resourceType) => throw new NotSupportedException("RegisterResourceNodeType is not answered by the authority yet");
 	public void CastAbility(UnitId unit, string abilityId, Vector3 targetPosition) => throw new NotSupportedException("CastAbility is not answered by the authority yet");
 	public float GetAbilityCooldown(UnitId unit, string abilityId) => throw new NotSupportedException("GetAbilityCooldown is not answered by the authority yet");
 	public void SetAbilityCooldown(UnitId unit, string abilityId, float cooldown) => throw new NotSupportedException("SetAbilityCooldown is not answered by the authority yet");
@@ -72,10 +67,6 @@ public partial class ServerGameAPI
 	public void ShakeCamera(float intensity, float duration) => throw new NotSupportedException("ShakeCamera is not answered by the authority yet");
 	public void SetTimeOfDay(float time) => throw new NotSupportedException("SetTimeOfDay is not answered by the authority yet");
 	public void SetDayNightCycleEnabled(bool enabled) => throw new NotSupportedException("SetDayNightCycleEnabled is not answered by the authority yet");
-	public UnitId SpawnUnitForPlayer(string unitTypeId, Vector2 position, int playerIndex, bool executeSpawnShader = true, bool bypassPopulation = false) => throw new NotSupportedException("SpawnUnitForPlayer is not answered by the authority yet");
-	public int ScheduleTimer(float delay) => throw new NotSupportedException("ScheduleTimer is not answered by the authority yet");
-	public int ScheduleRepeatingTimer(float interval) => throw new NotSupportedException("ScheduleRepeatingTimer is not answered by the authority yet");
-	public void CancelTimer(int timerHandle) => throw new NotSupportedException("CancelTimer is not answered by the authority yet");
 	public void KickPlayer(int playerIndex, string reason = "Kicked by host") => throw new NotSupportedException("KickPlayer is not answered by the authority yet");
 	public bool AddComputerPlayer(int playerIndex, string? name = null, int teamIndex = -1) => throw new NotSupportedException("AddComputerPlayer is not answered by the authority yet");
 	public void SetUnitColor(UnitId unit, Vector3 color) => throw new NotSupportedException("SetUnitColor is not answered by the authority yet");

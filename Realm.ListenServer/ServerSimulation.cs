@@ -51,6 +51,7 @@ public class ServerSimulation : IDisposable
 		_commands.DroppedOrderSink = log.Write;
 		map.Catalog.BindTo(_commands);
 		_snapshots = new AuthoritativeSnapshotBuilder(map.World, map.WorldEntity, map.Simulation.MapRules, PeerIdForPlayerSlot);
+		EnsureMatchClock(map);
 		_production = new ServerProductionStep(map.World, map, log);
 		_script = ServerMapScript.Load(map, mapPath, logDirectory, randomSeed, log, _presentation);
 
@@ -60,6 +61,20 @@ public class ServerSimulation : IDisposable
 			resources.GoldResourceId,
 			resources.WoodResourceId,
 			resources.StoneResourceId);
+	}
+
+	/// <summary>
+	///     Gives the match the world state every clock reads: the elapsed time a script schedules against, the time of
+	///     day, and the countdown a map can show. A map that says nothing about them starts at zero and lets the match
+	///     advance them.
+	/// </summary>
+	private static void EnsureMatchClock(LoadedMap map)
+	{
+		Entity worldEntity = map.WorldEntity;
+		if (worldEntity == Entity.Null || !map.World.IsAlive(worldEntity)) return;
+
+		if (!map.World.Has<WorldState>(worldEntity)) map.World.Add(worldEntity, new WorldState(0f, 0, 0f, false));
+		if (!map.World.Has<CountdownState>(worldEntity)) map.World.Add(worldEntity, new CountdownState(false, 0f, string.Empty));
 	}
 
 	public LoadedMap Map => _map;
@@ -92,6 +107,7 @@ public class ServerSimulation : IDisposable
 			_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
 			_production.Step(deltaSeconds);
 			_script.Step(deltaSeconds);
+			_script.Api.AdvanceTimers(deltaSeconds);
 			_matchTick.AdvanceStatusEffects(deltaSeconds);
 			_matchTick.AdvanceRegeneration(deltaSeconds);
 		}

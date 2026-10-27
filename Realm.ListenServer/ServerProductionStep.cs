@@ -126,6 +126,7 @@ public class ServerProductionStep
 			return;
 		}
 
+		_world.SetOrAdd(spawned, new UnitOwnerPlayer(buildingPlayerSlot));
 		_log.Write($"building {pending.Building.Id} trained '{pending.UnitId}' as entity {spawned.Id} for player {buildingPlayerSlot}");
 	}
 }
