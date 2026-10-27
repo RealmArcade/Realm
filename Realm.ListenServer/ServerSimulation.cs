@@ -54,6 +54,12 @@ public class ServerSimulation : IDisposable
 		_snapshots.TechLevels = _script.Api.TechLevels;
 		_script.Api.PlayerDroppedSink = DropPlayer;
 
+		// A research order is authorized against how far the player is up the track, and granting the next level is what
+		// changes the units they already own. Both live with the match's own tech state, so the authority is pointed at it
+		// rather than keeping a second copy that could drift.
+		_commands.TechLevelReader = ReadPlayerTechLevel;
+		_commands.TechLevelWriter = WritePlayerTechLevel;
+
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
 			map.Simulation.DefinitionManager,
@@ -268,6 +274,26 @@ public class ServerSimulation : IDisposable
 		ServerCommandResult result = _commands.ExecuteServerCommand(peerId, command);
 		PlaceBuildingOrderedBy(command, result);
 		return result;
+	}
+
+	/// <summary>
+	///     How far a player is up one of the map's tech tracks, which is what a research order is checked against. The
+	///     match's own tech state answers, so an order is authorized against the levels the world is playing at rather
+	///     than against whatever the peer asking for it believes.
+	/// </summary>
+	private int ReadPlayerTechLevel(int playerIndex, string techId)
+	{
+		return _script.Api.TechLevels.Get(playerIndex, techId);
+	}
+
+	/// <summary>
+	///     Grants a player a level on a tech track. Granting it is what applies the level's modifiers to the units they
+	///     already own, and the level is then published to every screen, so the ones offering the next level can show the
+	///     one the player is on.
+	/// </summary>
+	private void WritePlayerTechLevel(int playerIndex, string techId, int level)
+	{
+		_script.Api.SetPlayerTechLevel(playerIndex, techId, level);
 	}
 
 	private bool IsAlreadyAnswered(int peerId, int commandId)

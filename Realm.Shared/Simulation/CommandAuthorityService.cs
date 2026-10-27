@@ -31,6 +31,15 @@ public class CommandAuthorityService
 	/// <summary>Answers what a unit order costs and how long it takes to produce.</summary>
 	public Func<string, ProductionCosts?>? ProductionCostsProvider { get; set; }
 
+	/// <summary>Answers what a tech track costs and how far it goes, so a research order is authorized against the map's numbers.</summary>
+	public Func<string, UpgradeRules?>? UpgradeRulesProvider { get; set; }
+
+	/// <summary>Reads how far a player is up a tech track, which lives with whoever owns the match's tech state.</summary>
+	public Func<int, string, int>? TechLevelReader { get; set; }
+
+	/// <summary>Grants a player a level on a tech track. Granting a level is what changes the units they already own.</summary>
+	public Action<int, string, int>? TechLevelWriter { get; set; }
+
 	/// <summary>Where a dropped order is reported. A headless process has no Godot logger and leaves this unset.</summary>
 	public Action<string>? DroppedOrderSink { get; set; }
 
@@ -203,7 +212,8 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 	{
 		if (DispatchMovementCommand(peerId, cmd, stopVelocityEntityIds, holdVelocityEntityIds, rejectedServerEntityIds, ref rejectionReason)) return;
 		if (DispatchActionCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
-		DispatchTrainingCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason);
+		if (DispatchTrainingCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
+		DispatchResearchCommand(peerId, cmd, ref rejectionReason);
 	}
 
 	private bool DispatchMovementCommand(int peerId, NetworkCommand cmd, List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds, List<int> rejectedServerEntityIds, ref string rejectionReason)
@@ -259,13 +269,27 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		return false;
 	}
 
-	private void DispatchTrainingCommand(int peerId, NetworkCommand cmd, List<int> rejectedServerEntityIds, ref string rejectionReason)
+	private bool DispatchTrainingCommand(int peerId, NetworkCommand cmd, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		switch (cmd.CommandType)
 		{
-			case "train": HandleTrainCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason); break;
-			case "cancel_train": HandleCancelTrainCommand(peerId, cmd); break;
+			case "train":
+				HandleTrainCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason);
+				return true;
+			case "cancel_train":
+				HandleCancelTrainCommand(peerId, cmd);
+				return true;
 		}
+
+		return false;
+	}
+
+	private bool DispatchResearchCommand(int peerId, NetworkCommand cmd, ref string rejectionReason)
+	{
+		if (cmd.CommandType != "research") return false;
+
+		HandleResearchCommand(peerId, cmd, ref rejectionReason);
+		return true;
 	}
 
 	private struct GroupMovementContext
@@ -735,6 +759,84 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 			_context.World.Set(ownerEntity, res);
 		}
 
+	}
+
+	/// <summary>
+	///     Applies a technology order. The track the map declares says what the next level costs and when the last one is
+	///     reached, and a level the player can pay for is granted here rather than by the peer that asked for it: the level
+	///     is what grants the modifiers, so the units the player already owns change on this side and reach every screen as
+	///     replicated state.
+	/// </summary>
+	private void HandleResearchCommand(int peerId, NetworkCommand cmd, ref string rejectionReason)
+	{
+		string requestedId = cmd.ArgString ?? string.Empty;
+		if (string.IsNullOrEmpty(requestedId))
+		{
+			rejectionReason = "a research order names no technology";
+			return;
+		}
+
+		if (UpgradeRulesProvider == null || TechLevelReader == null || TechLevelWriter == null)
+		{
+			rejectionReason = $"'{requestedId}' cannot be researched in this match";
+			return;
+		}
+
+		UpgradeRules? resolved = UpgradeRulesProvider(requestedId);
+		if (resolved == null)
+		{
+			rejectionReason = $"the map declares no technology '{requestedId}'";
+			return;
+		}
+
+		UpgradeRules rules = resolved.Value;
+		if (!TryGetPlayerEntityForPeer(peerId, out Entity playerEntity))
+		{
+			rejectionReason = $"peer {peerId} has no player entity";
+			return;
+		}
+
+		int playerIndex = _context.PlayerSlotForEntity(playerEntity);
+		int currentLevel = TechLevelReader(playerIndex, rules.CanonicalId);
+		if (currentLevel >= rules.MaxLevel)
+		{
+			rejectionReason = $"technology '{rules.CanonicalId}' is already at its last level ({currentLevel})";
+			return;
+		}
+
+		if (!TryPayCosts(playerEntity, rules.Gold, rules.Wood, rules.Stone))
+		{
+			rejectionReason = $"technology '{rules.CanonicalId}' costs more than the player has";
+			return;
+		}
+
+		TechLevelWriter(playerIndex, rules.CanonicalId, currentLevel + 1);
+	}
+
+	/// <summary>
+	///     Takes an order's price out of the player's pool, or nothing at all when they cannot pay it. The pool is read,
+	///     changed and written back as one value, so an order that is refused leaves the resources it was measured against
+	///     exactly as they were.
+	/// </summary>
+	private bool TryPayCosts(Entity playerEntity, float gold, float wood, float stone)
+	{
+		if (!_context.World.TryGet<PlayerResources>(playerEntity, out PlayerResources resources)) return false;
+
+		var goldResourceId = new ResourceId("Gold");
+		var woodResourceId = new ResourceId("Wood");
+		var stoneResourceId = new ResourceId("Stone");
+
+		int costGold = (int)gold;
+		int costWood = (int)wood;
+		int costStone = (int)stone;
+
+		if (resources[goldResourceId] < costGold || resources[woodResourceId] < costWood || resources[stoneResourceId] < costStone) return false;
+
+		resources[goldResourceId] -= costGold;
+		resources[woodResourceId] -= costWood;
+		resources[stoneResourceId] -= costStone;
+		_context.World.Set(playerEntity, resources);
+		return true;
 	}
 
 	private void CalculateGroupMovement(int peerId, List<int> unitEntityIds, NetworkVector3 targetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right)

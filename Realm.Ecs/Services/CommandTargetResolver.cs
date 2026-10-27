@@ -44,6 +44,29 @@ public readonly struct AbilityRules
 }
 
 /// <summary>
+///     What one tech track costs and how far it goes, as the map authored it. The canonical id is the template's own
+///     name rather than whatever alias an order used, so the level a player is on is keyed the same way by every
+///     process that reads it.
+/// </summary>
+public readonly struct UpgradeRules
+{
+	public readonly string CanonicalId;
+	public readonly int MaxLevel;
+	public readonly float Gold;
+	public readonly float Wood;
+	public readonly float Stone;
+
+	public UpgradeRules(string canonicalId, int maxLevel, float gold, float wood, float stone)
+	{
+		CanonicalId = canonicalId;
+		MaxLevel = maxLevel;
+		Gold = gold;
+		Wood = wood;
+		Stone = stone;
+	}
+}
+
+/// <summary>
 ///     Turns the entity ids a client names in a command into entities in this process's world, and finds the prop a
 ///     gather order points at. The process that owns the world carved those ids out of it, so a wire id is the entity
 ///     id there; a peer holds local entities the snapshot mapped from the authority's ids, so it translates through the

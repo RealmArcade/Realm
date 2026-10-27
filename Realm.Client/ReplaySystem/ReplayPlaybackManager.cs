@@ -229,14 +229,7 @@ namespace Realm.Client.ReplaySystem
 
 			foreach (var proj in frame.Projectiles)
 			{
-				if (proj.ProjectileTypeId == "arrow")
-				{
-					GameContext.Host.SpawnArrowProjectileForReplay(proj.Start.ToNumerics(), proj.Target.ToNumerics());
-				}
-				else
-				{
-					((IGameAPI)GameContext.Host).SpawnProjectile(proj.ProjectileTypeId, proj.Start.ToNumerics(), proj.Target.ToNumerics(), proj.Speed);
-				}
+				GameContext.Host.SpawnWeaponProjectileForReplay(proj.Start.ToNumerics(), proj.Target.ToNumerics(), proj.ProjectileTypeId);
 			}
 		}
 

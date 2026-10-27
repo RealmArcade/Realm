@@ -138,21 +138,6 @@ public class InputService
 		}
 	}
 
-	public bool BuyWeaponsUpgrade(Entity playerEntity)
-	{
-		return GameContext.TechTreeService.BuyWeaponsUpgrade(playerEntity);
-	}
-
-	public bool BuyShieldsUpgrade(Entity playerEntity)
-	{
-		return GameContext.TechTreeService.BuyShieldsUpgrade(playerEntity);
-	}
-
-	public bool BuyHarvestingUpgrade(Entity playerEntity)
-	{
-		return GameContext.TechTreeService.BuyHarvestingUpgrade(playerEntity);
-	}
-
 	public void AssignResumeTasksToWorkers(IEnumerable<Entity> selectedWorkerEntities, Entity targetBuildingEntity, string targetBuildingUnitId, Vector3 bPos, bool shiftHeld)
 	{
 		foreach (var workerEntity in selectedWorkerEntities)

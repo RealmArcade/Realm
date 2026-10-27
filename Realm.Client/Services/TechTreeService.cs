@@ -9,117 +9,33 @@ using Realm.Ecs.Components.Stats;
 
 namespace Realm.Client.Services;
 
+/// <summary>
+///     What each player is up to on the map's tech tracks, as the authority reported it. The authority owns the levels
+///     and grants what a level does to the units it simulates, so a screen keeps the numbers only to offer the next
+///     level and to show the one a player is on: applying a level here as well would double what the world already says.
+/// </summary>
 public class TechTreeService
 {
-	public bool BuyWeaponsUpgrade(Entity playerEntity)
-	{
-		if (!GameContext.World.IsAlive(playerEntity)) return false;
-		ref var upgrades = ref GameContext.World.Get<PlayerUpgrades>(playerEntity);
-		if (upgrades.WeaponsUpgrade) return false;
-
-		upgrades.WeaponsUpgrade = true;
-
-		var query = QueryCache.AllAttackAndOwnerNoneDeadAndBuildingQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Attack atk, ref Owner owner) =>
-		{
-			if (owner.PlayerEntity.Value == playerEntity)
-			{
-				atk.Damage += 3f;
-			}
-		});
-		return true;
-	}
-
-	public bool BuyShieldsUpgrade(Entity playerEntity)
-	{
-		if (!GameContext.World.IsAlive(playerEntity)) return false;
-		ref var upgrades = ref GameContext.World.Get<PlayerUpgrades>(playerEntity);
-		if (upgrades.ShieldsUpgrade) return false;
-
-		upgrades.ShieldsUpgrade = true;
-
-		var query = QueryCache.AllResistancesAndOwnerNoneDeadQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Resistances resistances, ref Owner owner) =>
-		{
-			if (owner.PlayerEntity.Value == playerEntity)
-			{
-				resistances.Physical += 2f;
-			}
-		});
-		return true;
-	}
-
-	public bool BuyHarvestingUpgrade(Entity playerEntity)
-	{
-		if (!GameContext.World.IsAlive(playerEntity)) return false;
-		ref var upgrades = ref GameContext.World.Get<PlayerUpgrades>(playerEntity);
-		if (upgrades.HarvestingUpgrade) return false;
-
-		upgrades.HarvestingUpgrade = true;
-		return true;
-	}
-
-	public Dictionary<(int PlayerIndex, string TechId), int> PlayerTechLevels { get; } = new();
+	private readonly Dictionary<(int PlayerIndex, string TechId), int> _levels = new();
 
 	public int GetPlayerTechLevel(int playerIndex, string techId)
 	{
 		if (string.IsNullOrEmpty(techId)) return 0;
-		return PlayerTechLevels.TryGetValue((playerIndex, techId), out int level) ? level : 0;
+		return _levels.TryGetValue((playerIndex, techId), out int level) ? level : 0;
 	}
 
-	public void SetPlayerTechLevel(int playerIndex, string techId, int level)
+	/// <summary>Records how far the authority says a player is up one of the map's tech tracks.</summary>
+	public void ApplyReplicatedLevel(int playerIndex, string techId, int level)
 	{
 		if (string.IsNullOrEmpty(techId)) return;
-		PlayerTechLevels[(playerIndex, techId)] = level;
-		ApplyTechUpgradesToPlayerUnits(playerIndex, techId, level);
+		_levels[(playerIndex, techId)] = level;
 	}
 
-	public void AddPlayerTechLevel(int playerIndex, string techId, int delta)
-	{
-		if (string.IsNullOrEmpty(techId)) return;
-		int current = GetPlayerTechLevel(playerIndex, techId);
-		int newLevel = current + delta;
-		PlayerTechLevels[(playerIndex, techId)] = newLevel;
-		ApplyTechUpgradesToPlayerUnits(playerIndex, techId, newLevel);
-	}
-
-	public void ApplyTechUpgradesToPlayerUnits(int playerIndex, string techId, int level)
-	{
-		if (GameContext.World == null) return;
-
-		var upgradeDef = GameContext.RegistryService?.UpgradeRegistry?.TryGetValue(techId, out var meta) == true ? meta : null;
-		var affectedUnits = upgradeDef?.AffectedUnitIds;
-
-		var query = QueryCache.AllOwnerNoneDeadQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Owner owner) =>
-		{
-			if (owner.PlayerEntity.Value != Entity.Null && GameContext.World.Has<UnitOwnerPlayer>(owner.PlayerEntity.Value))
-			{
-				var pIndex = GameContext.World.Get<UnitOwnerPlayer>(owner.PlayerEntity.Value).PlayerIndex;
-				if (pIndex != playerIndex) return;
-			}
-
-			if (affectedUnits != null && affectedUnits.Length > 0)
-			{
-				if (!GameContext.World.Has<DefinitionId>(entity)) return;
-				string unitDefId = GameContext.World.Get<DefinitionId>(entity).Value;
-				bool isAffected = false;
-				for (int i = 0; i < affectedUnits.Length; i++)
-				{
-					if (string.Equals(affectedUnits[i], unitDefId, System.StringComparison.OrdinalIgnoreCase))
-					{
-						isAffected = true;
-						break;
-					}
-				}
-				if (!isAffected) return;
-			}
-
-			ApplyUpgradeModifiersToEntity(entity, techId, level, upgradeDef);
-			Realm.Ecs.Services.AttributeStatCalculator.RecalculateEntityStats(GameContext.World, entity);
-		});
-	}
-
+	/// <summary>
+	///     Grants one of a map's authored modifiers to an entity a screen made for itself, which is what an item that
+	///     confers an upgrade does. A level the authority granted is not applied here: it arrives as replicated state on
+	///     the units the authority changed.
+	/// </summary>
 	public static void ApplyUpgradeModifiersToEntity(Entity entity, string techId, int level, Realm.Shared.Metadata.UpgradeMetadata? upgradeDef)
 	{
 		if (upgradeDef == null || upgradeDef.Modifiers == null || upgradeDef.Modifiers.Count == 0) return;

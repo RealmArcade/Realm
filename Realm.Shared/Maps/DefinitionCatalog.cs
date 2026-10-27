@@ -132,6 +132,10 @@ public class DefinitionCatalog
 		authority.ProductionCostsProvider = unitId => FindUnitOrBuilding(unitId) is { } unit
 			? new ProductionCosts(unit.CostGold, unit.CostWood, unit.CostStone, unit.ProductionTime)
 			: null;
+
+		authority.UpgradeRulesProvider = upgradeId => FindUpgrade(upgradeId) is { } upgrade
+			? new UpgradeRules(upgrade.TemplateID, upgrade.MaxLevel > 0 ? upgrade.MaxLevel : 1, upgrade.CostGold, upgrade.CostWood, upgrade.CostStone)
+			: null;
 	}
 
 	public UnitMetadata? FindUnit(string templateId) => Find(_units, templateId);

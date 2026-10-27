@@ -1603,6 +1603,13 @@
                 What one ability costs its caster and how far it reaches, as the map authored it.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Services.UpgradeRules">
+            <summary>
+                What one tech track costs and how far it goes, as the map authored it. The canonical id is the template's own
+                name rather than whatever alias an order used, so the level a player is on is keyed the same way by every
+                process that reads it.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Services.CommandTargetResolver">
             <summary>
                 Turns the entity ids a client names in a command into entities in this process's world, and finds the prop a

@@ -703,20 +703,6 @@ public partial class GameHost
 	}
 
 
-	public void SetRegionPathing(string coordinateName, PathingFlags pathingFlags, bool blocked)
-	{
-		if (((IGameAPI)this).TryGetCoordinate(coordinateName, out var coord))
-		{
-			SetRegionPathing(
-				MathF.Min(coord.Min.X, coord.Max.X),
-				MathF.Min(coord.Min.Z, coord.Max.Z),
-				MathF.Max(coord.Min.X, coord.Max.X),
-				MathF.Max(coord.Min.Z, coord.Max.Z),
-				pathingFlags,
-				blocked);
-		}
-	}
-
 
 	public PathingFlags GetRegionPathing(float minX, float minZ, float maxX, float maxZ)
 	{
@@ -731,19 +717,6 @@ public partial class GameHost
 		return PathingFlags.All;
 	}
 
-
-	public PathingFlags GetRegionPathing(string coordinateName)
-	{
-		if (((IGameAPI)this).TryGetCoordinate(coordinateName, out var coord))
-		{
-			return GetRegionPathing(
-				MathF.Min(coord.Min.X, coord.Max.X),
-				MathF.Min(coord.Min.Z, coord.Max.Z),
-				MathF.Max(coord.Min.X, coord.Max.X),
-				MathF.Max(coord.Min.Z, coord.Max.Z));
-		}
-		return PathingFlags.None;
-	}
 
 
 	public LootItemId SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f)

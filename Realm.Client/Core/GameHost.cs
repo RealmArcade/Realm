@@ -3845,11 +3845,6 @@ public partial class GameHost : Node3D
 		GameContext.FXService.SpawnPing3DEffect(this, position);
 	}
 
-	public void SpawnArrowProjectileForReplay(System.Numerics.Vector3 start, System.Numerics.Vector3 target)
-	{
-		GameContext.FXService.SpawnArrowProjectile(this, new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z));
-	}
-
 	public void SpawnWeaponProjectileForReplay(System.Numerics.Vector3 start, System.Numerics.Vector3 target, string? weaponId = null)
 	{
 		GameContext.FXService.SpawnWeaponProjectile(this, new Vector3(start.X, start.Y, start.Z), new Vector3(target.X, target.Y, target.Z), weaponId);

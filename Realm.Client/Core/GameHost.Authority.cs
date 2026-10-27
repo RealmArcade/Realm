@@ -179,6 +179,10 @@ public partial class GameHost
 				ClientRegisterAbility(message.Key, message.Text, message.Text2, message.Text3, message.Flag);
 				break;
 
+			case PresentationKind.TechLevelSet:
+				GameContext.TechTreeService?.ApplyReplicatedLevel(message.PlayerIndex, message.Key, (int)message.Value);
+				break;
+
 			case PresentationKind.PlayerDefeated:
 				clientRpc.TriggerDefeat(message.PlayerIndex, message.Text);
 				break;
