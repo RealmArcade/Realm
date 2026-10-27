@@ -497,7 +497,6 @@ public partial class MultiplayerSimulationHarness : Node
 		lobby.IsGameStarted = true;
 		GameSettings.RecordReplays = false;
 		GameSettings.MovementPrediction = _predictionEnabled;
-		GameHost.PendingMapScriptPath = !string.IsNullOrEmpty(_wasmPath) && (isHost || _predictionEnabled) ? _wasmPath : null;
 
 		PackedScene scene = GD.Load<PackedScene>("res://GameHost.tscn");
 		Node gameHost = scene.Instantiate();

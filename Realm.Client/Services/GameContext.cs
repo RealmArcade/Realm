@@ -200,7 +200,6 @@ namespace Realm.Client.Services
 		public static SpectatorService SpectatorService => ScreenScope.Get<SpectatorService>();
 		public static MapSaveDataService MapSaveDataService => ScreenScope.Get<MapSaveDataService>();
 		public static RegistryService RegistryService => ScreenScope.Get<RegistryService>();
-		public static MapScriptService MapScriptService => ScreenScope.Get<MapScriptService>();
 		public static TimerService TimerService => ScreenScope.Get<TimerService>();
 		public static RandomService RandomService => ScreenScope.Get<RandomService>();
 		public static PerformanceTrackingService PerformanceTrackingService => ScreenScope.Get<PerformanceTrackingService>();
@@ -250,7 +249,6 @@ namespace Realm.Client.Services
 			scope.RegisterCleanup<MapGenerationService>(static service => service.DiscardRun());
 			scope.RegisterCleanup<ModelOverrideService>(static service => service.ClearAll());
 			scope.RegisterCleanup<RegistryService>(static service => service.ClearAll());
-			scope.RegisterCleanup<MapScriptService>(static service => service.ClearAll());
 			scope.RegisterCleanup<MovementPredictionService>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkLatencyService>(static service => service.Clear());
 			scope.RegisterCleanup<NetworkService>(static service => service.Clear());

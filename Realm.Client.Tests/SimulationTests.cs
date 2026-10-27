@@ -57,128 +57,7 @@ public partial class SimulationTests
 	}
 
 	[TestCase]
-	public async Task TestWasmMeleePathingAroundTree()
-	{
-		if (GameContext.Lobby == null)
-		{
-			return;
-		}
-
-		string tempMapDir = Path.Combine(Path.GetTempPath(), "Realm_Simulation_WasmTestMap");
-		if (Directory.Exists(tempMapDir))
-		{
-			try
-			{
-				Directory.Delete(tempMapDir, true);
-			}
-			catch
-			{
-			}
-		}
-
-		Directory.CreateDirectory(tempMapDir);
-
-		MapWorkspaceService.SetupWorkspace(tempMapDir, "TestWasmMap");
-
-		string generatedCsproj = File.ReadAllText(Path.Combine(tempMapDir, "TestWasmMap.csproj"));
-		Assertions.AssertThat(!generatedCsproj.Contains("C:")).IsTrue();
-		Assertions.AssertThat(generatedCsproj.Contains("lib/Realm.MapAPI.dll")).IsTrue();
-		Assertions.AssertThat(File.Exists(Path.Combine(tempMapDir, "lib", "Realm.MapAPI.dll"))).IsTrue();
-
-		string mapScript = @"
-namespace Realm.Maps;
-
-using Realm.MapAPI;
-using System;
-using System.Numerics;
-
-public class TestWasmMap : IWasmModule
-{
-    public void Initialize(IGameAPI api)
-    {
-        api.SpawnResourceNode(""tree"", new Vector3(-18f, 0f, -35f), 500f);
-        api.SpawnResourceNode(""tree"", new Vector3(-22f, 0f, -36f), 500f);
-        api.SpawnResourceNode(""tree"", new Vector3(-26f, 0f, -34f), 500f);
-
-        var worker = api.SpawnUnit(""worker"", new Vector3(-16f, 0f, -20f), false);
-        api.BroadcastMessage(""wasm_unit_created"");
-
-        worker.MoveTo(new Vector3(-20f, 0f, -50f));
-        api.BroadcastMessage(""wasm_move_command_given"");
-    }
-
-    public void Update(IGameAPI api, float delta) { }
-}";
-		File.WriteAllText(Path.Combine(tempMapDir, "MapScript.cs"), mapScript);
-
-		string wasmPath = CompileWasmProgram(tempMapDir);
-
-		SetupSinglePlayerLobby(Path.GetFullPath("Realm.ClientMaps/melee"));
-		GameHost.PendingMapScriptPath = wasmPath;
-
-		WasmLogTracker tracker = AttachWasmLogListener();
-
-		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
-		await runner.AwaitMillis(1000);
-
-		GameHost gameHost = GameContext.Host;
-		if (gameHost == null)
-		{
-			WasmRuntime.OnWasmLog -= tracker.Listener;
-			return;
-		}
-
-		await WaitAndVerifyWasmLogs(runner, tracker);
-
-		Unit3D worker = await FindWorkerUnitAsync(gameHost, runner);
-		await runner.AwaitMillis(100);
-		VerifyWasmPathFollowComponent(gameHost, worker);
-
-		await TakeSimulationScreenshots(runner, "Realm_Simulation_Wasm_Screenshots");
-	}
-
 	[TestCase]
-	public async Task TestMapEditorTestButtonWasmExecution()
-	{
-		BypassMapEditorAgreement();
-
-		if (GameContext.Lobby == null)
-		{
-			return;
-		}
-
-		GameContext.Lobby.IsSinglePlayer = true;
-		PropertyInfo isHostProp = typeof(LobbyManager).GetProperty("IsHost", BindingFlags.Public | BindingFlags.Instance);
-		isHostProp?.SetValue(GameContext.Lobby, true);
-
-		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
-		await runner.AwaitMillis(1500);
-
-		GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
-		await runner.AwaitMillis(2500);
-
-		var hud = GameContext.MapEditorHud;
-		if (hud == null)
-		{
-			throw new Exception("MapEditorHUD instance was null after transition.");
-		}
-
-		await LoadChaosArenaFolder(hud, runner);
-
-		string artifactDir = @"C:\Users\devin\.gemini\antigravity-cli\brain\7000f492-ab70-4409-bc47-42fbecc00ce5";
-		Directory.CreateDirectory(artifactDir);
-
-		await hud.ProceedToTestMap();
-		await runner.AwaitMillis(2000);
-
-		await ExecuteTestMapSteps(runner, artifactDir);
-
-		Image finalImage = runner.Scene().GetViewport().GetTexture().GetImage();
-		File.WriteAllBytes(Path.Combine(artifactDir, "ChaosArena_Wasm_Tested.png"), finalImage.SavePngToBuffer());
-
-		VerifyAllUnitsKilled();
-	}
-
 	[TestCase]
 	public async Task MultiplayerECS()
 	{
@@ -321,7 +200,6 @@ public class TestWasmMap : IWasmModule
 			});
 		}
 
-		GameHost.PendingMapScriptPath = wasmPath;
 		GameContext.UserInterface?.TransitionTo(GameScreen.InGameHUD);
 
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
@@ -336,8 +214,6 @@ public class TestWasmMap : IWasmModule
 		GameContext.PerformanceTrackingService.IsFunctionProfilingEnabled = true;
 		GameContext.PerformanceTrackingService.ResetFunctionProfiling();
 
-		var wasmRuntimeInit = GameContext.MapScriptService?.ActiveMapScript as WasmRuntime;
-		wasmRuntimeInit?.ResetApiProfiling();
 
 		var camera = gameHost.MainCamera;
 		if (camera != null)
@@ -501,14 +377,6 @@ public class TestWasmMap : IWasmModule
 
 		reportBuilder.AppendLine(GameContext.PerformanceTrackingService.GetFunctionProfilingBreakdown());
 		reportBuilder.AppendLine();
-
-		var wasmRuntime = GameContext.MapScriptService?.ActiveMapScript as WasmRuntime;
-		if (wasmRuntime != null)
-		{
-			reportBuilder.AppendLine("=== WASM VM API Call Profiling Breakdown ===");
-			reportBuilder.AppendLine(wasmRuntime.GetApiCallProfilingBreakdown(topCount: 50));
-			reportBuilder.AppendLine();
-		}
 
 		var renderingDevice = RenderingServer.GetRenderingDevice();
 		if (renderingDevice != null)
@@ -848,78 +716,6 @@ public class TestWasmMap : IWasmModule
 		}
 	}
 
-	private string CompileWasmProgram(string tempMapDir)
-	{
-		var compileProcess = new Process();
-		string resolvedWasiSdk = WasiSdkResolver.ResolveWasiSdkPath();
-		compileProcess.StartInfo.FileName = "dotnet";
-		compileProcess.StartInfo.Arguments = $"publish \"TestWasmMap.csproj\" -c Release -r wasi-wasm -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
-		compileProcess.StartInfo.EnvironmentVariables["WASI_SDK_PATH"] = resolvedWasiSdk;
-		compileProcess.StartInfo.WorkingDirectory = tempMapDir;
-		compileProcess.StartInfo.CreateNoWindow = true;
-		compileProcess.StartInfo.UseShellExecute = false;
-		compileProcess.StartInfo.RedirectStandardOutput = false;
-		compileProcess.StartInfo.RedirectStandardError = false;
-		compileProcess.Start();
-		compileProcess.WaitForExit();
-		if (compileProcess.ExitCode != 0)
-		{
-			throw new Exception($"Wasm compilation failed (exit code {compileProcess.ExitCode})");
-		}
-
-		string wasmPath = Directory.GetFiles(Path.Combine(tempMapDir, "bin"), "*.wasm", SearchOption.AllDirectories).OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault();
-		if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
-		{
-			throw new FileNotFoundException("Compiled WASM file not found in build directory.");
-		}
-
-		return wasmPath;
-	}
-
-	private class WasmLogTracker
-	{
-		public bool UnitCreatedLogged;
-		public bool MoveCommandLogged;
-		public Action<string> Listener;
-	}
-
-	private WasmLogTracker AttachWasmLogListener()
-	{
-		var tracker = new WasmLogTracker();
-		tracker.Listener = msg =>
-		{
-			if (msg.Contains("wasm_unit_created")) tracker.UnitCreatedLogged = true;
-			if (msg.Contains("wasm_move_command_given")) tracker.MoveCommandLogged = true;
-		};
-		WasmRuntime.OnWasmLog += tracker.Listener;
-		return tracker;
-	}
-
-	private async Task WaitAndVerifyWasmLogs(ISceneRunner runner, WasmLogTracker tracker)
-	{
-		for (int i = 0; i < 100; i++)
-		{
-			if (tracker.UnitCreatedLogged && tracker.MoveCommandLogged)
-			{
-				break;
-			}
-
-			await runner.AwaitMillis(50);
-		}
-
-		WasmRuntime.OnWasmLog -= tracker.Listener;
-
-		if (!tracker.UnitCreatedLogged)
-		{
-			throw new Exception("WASM sandbox failed to notify unit creation via debug log.");
-		}
-
-		if (!tracker.MoveCommandLogged)
-		{
-			throw new Exception("WASM sandbox failed to notify move command issue via debug log.");
-		}
-	}
-
 	private async Task<Unit3D> FindWorkerUnitAsync(GameHost gameHost, ISceneRunner runner)
 	{
 		Unit3D worker = null;
@@ -940,29 +736,6 @@ public class TestWasmMap : IWasmModule
 		}
 
 		return worker;
-	}
-
-	private void VerifyWasmPathFollowComponent(GameHost gameHost, Unit3D worker)
-	{
-		if (GameContext.World.Has<PathFollow>(worker.Entity))
-		{
-			var pf = GameContext.World.Get<PathFollow>(worker.Entity);
-			GD.Print($"WASM WAYPOINTS COUNT: {pf.WaypointCount}");
-			for (int i = 0; i < pf.WaypointCount; i++)
-			{
-				GD.Print($"Wasm Waypoint {i}: {pf.Waypoints[i]}");
-			}
-
-			if (pf.WaypointCount <= 0)
-			{
-				throw new Exception("Worker has PathFollow component but waypoint count is 0.");
-			}
-		}
-		else
-		{
-			GD.Print("WASM NO PATHFOLLOW COMPONENT");
-			throw new Exception("PathFollow component missing on unit under WASM sandbox.");
-		}
 	}
 
 	private void BypassMapEditorAgreement()

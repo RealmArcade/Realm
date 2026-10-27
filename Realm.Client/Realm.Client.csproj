@@ -88,7 +88,6 @@
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Realm.WasmBindgen\Realm.WasmBindgen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- The authority is a process of its own and nothing is linked against it: it is built here so a development run
          always has one, and it is exported separately into the folder ListenServerTarget names. -->
     <ProjectReference Include="..\Realm.ListenServerHost\Realm.ListenServerHost.csproj" ReferenceOutputAssembly="false" />

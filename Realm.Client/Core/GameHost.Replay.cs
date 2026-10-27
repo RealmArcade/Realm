@@ -23,7 +23,6 @@ public partial class GameHost
 		try
 		{
 			ReinitializeEcsAndServices();
-			InitializeMapScript();
 		}
 		finally
 		{
@@ -54,32 +53,6 @@ public partial class GameHost
 		EntityToProp3D.Clear();
 	}
 
-	private void InitializeMapScript()
-	{
-		if (_activeMapScript == null) return;
-
-		try
-		{
-			_activeMapScript.Initialize(this);
-		}
-		catch (System.Exception ex)
-		{
-			GD.PrintErr($"[GameHost.Replay] Exception during active map script Initialize: {ex.Message}");
-		}
-
-		var entitiesToDestroy = new List<Entity>();
-		foreach (var unit in AllUnits)
-		{
-			entitiesToDestroy.Add(unit.Entity);
-			if (GodotObject.IsInstanceValid(unit)) unit.QueueFree();
-		}
-
-		GameContext.SimulationService.DestroyEntitiesDomain(entitiesToDestroy);
-
-		AllUnits.Clear();
-		EntityToUnit3D.Clear();
-		EntityIdToUnit3D.Clear();
-	}
 
 	private void SetupReplayPlayers()
 	{

@@ -68,7 +68,7 @@ public partial class WasmConsoleWindow : Window
 
 		BuildUI();
 
-		WasmRuntime.OnWasmLog += line => AppendLog(line);
+		GameLog.OnLine += line => AppendLog(line);
 
 		EnsureInTree();
 	}

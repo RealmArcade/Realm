@@ -184,7 +184,7 @@ public class ClientRpcService
 	public void SendMessage(int playerIndex, string message)
 	{
 		string formatted = $"[HOST MESSAGE P{playerIndex}] {message}";
-		WasmRuntime.LogToConsole(formatted);
+		GameLog.LogToConsole(formatted);
 
 		ShowFeedbackText(playerIndex, message, new Vector3(0.9f, 0.9f, 0.9f));
 	}

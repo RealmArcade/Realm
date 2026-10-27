@@ -1155,7 +1155,7 @@ public partial class MapEditorHUD : Control
 		_wasmHasErrors = false;
 		ShowWasmConsoleModal();
 		Action<string> logHandler = line => AppendWasmConsoleLog(line);
-		WasmRuntime.OnWasmLog += logHandler;
+		GameLog.OnLine += logHandler;
 
 		try
 		{
@@ -1166,7 +1166,6 @@ public partial class MapEditorHUD : Control
 
 			if (!TryLocateCompiledWasm(out string wasmPath)) return;
 
-			GameHost.PendingMapScriptPath = wasmPath;
 			AppendWasmConsoleLog($"[WASM] Located compiled WASM binary: {Path.GetFileName(wasmPath)}");
 
 			await LaunchTestModeEngine();
@@ -1179,7 +1178,7 @@ public partial class MapEditorHUD : Control
 		}
 		finally
 		{
-			WasmRuntime.OnWasmLog -= logHandler;
+			GameLog.OnLine -= logHandler;
 		}
 	}
 

@@ -1723,7 +1723,7 @@ namespace Realm.Client.UI
 			GameContext.WasmConsole.Hide();
 			_wasmHasErrors = false;
 			_exportLogHandler = line => AppendWasmConsoleLog(line);
-			WasmRuntime.OnWasmLog += _exportLogHandler;
+			GameLog.OnLine += _exportLogHandler;
 		}
 
 		private Action<string> _exportLogHandler { get; set; }
@@ -1947,7 +1947,7 @@ namespace Realm.Client.UI
 		{
 			if (_exportLogHandler != null)
 			{
-				WasmRuntime.OnWasmLog -= _exportLogHandler;
+				GameLog.OnLine -= _exportLogHandler;
 				_exportLogHandler = null;
 			}
 

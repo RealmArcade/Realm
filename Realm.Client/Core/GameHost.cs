@@ -36,12 +36,11 @@ using Realm.Shared.Abilities;
 
 namespace Realm.Client.Core;
 
-public partial class GameHost : Node3D, IGameAPI
+public partial class GameHost : Node3D
 {
 	public GameHost()
 	{
 		GameContext.RegisterHost(this);
-		Realm.MapAPI.GameAPI.Current = this;
 	}
 
 	public CameraControl MainCamera { get; set; }
@@ -1056,32 +1055,8 @@ public partial class GameHost : Node3D, IGameAPI
 		set => GameContext.World?.Mutate<ReplayState>(GameContext.Simulation.WorldEntity, (ref ReplayState s) => s.StoneBackup = value);
 	}
 
-	private IMapScript? _activeMapScript
-	{
-		get => GameContext.MapScriptService?.ActiveMapScript;
-		set
-		{
-			GameContext.MapScriptService?.ActiveMapScript = value;
-		}
-	}
 
-	public static string? PendingMapScriptPath
-	{
-		get => GameContext.MapScriptService?.PendingMapScriptPath;
-		set
-		{
-			GameContext.MapScriptService?.PendingMapScriptPath = value;
-		}
-	}
 
-	private AssemblyLoadContext? _mapScriptLoadContext
-	{
-		get => GameContext.MapScriptService?.MapScriptLoadContext;
-		set
-		{
-			GameContext.MapScriptService?.MapScriptLoadContext = value;
-		}
-	}
 
 
 	private bool DayNightCycleEnabled
@@ -2004,165 +1979,10 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	private void LoadMapScript(string mapName)
-	{
-		_activeMapScript = null;
-		GameContext.Simulation.IsGameOver = false;
 
-		if (string.IsNullOrEmpty(PendingMapScriptPath))
-		{
-			PendingMapScriptPath = ResolveWasmPath(mapName);
-		}
 
-		if (!string.IsNullOrEmpty(PendingMapScriptPath))
-		{
-			LoadPendingMapScript();
-		}
-		else
-		{
-			LoadEmbeddedMapScript(mapName);
-		}
 
-		if (_activeMapScript == null) _activeMapScript = new EmptyMapScript();
-	}
 
-	private string? ResolveWasmPath(string mapName)
-	{
-		string norm = mapName.Replace('\\', '/');
-		string? checkDir = ResolveMapDirectory(mapName) ?? ResolveExplicitWasmDir(norm);
-
-		if (string.IsNullOrEmpty(checkDir) || !Directory.Exists(checkDir)) return null;
-
-		var allWasm = Directory.GetFiles(checkDir, "*.wasm", SearchOption.AllDirectories)
-			.Where(f => !f.Contains("native") && !f.Contains("obj")).ToList();
-
-		if (allWasm.Count == 0) return null;
-
-		return FindBestWasmMatch(allWasm);
-	}
-
-	private string? ResolveExplicitWasmDir(string norm)
-	{
-		if (norm.StartsWith("user://") || norm.StartsWith("res://") || Path.IsPathRooted(norm))
-			return norm.StartsWith("user://") || norm.StartsWith("res://") ? ProjectSettings.GlobalizePath(norm) : norm;
-		return null;
-	}
-
-	private string? FindBestWasmMatch(List<string> allWasm)
-	{
-		return allWasm.FirstOrDefault(f => f.Contains("publish") && Path.GetFileName(f).Equals("MapScript.wasm", StringComparison.OrdinalIgnoreCase))
-			   ?? allWasm.FirstOrDefault(f => f.Contains("publish"))
-			   ?? allWasm.FirstOrDefault(f => Path.GetFileName(f).Equals("MapScript.wasm", StringComparison.OrdinalIgnoreCase))
-			   ?? allWasm.OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
-	}
-
-	private void LoadPendingMapScript()
-	{
-		if (_mapScriptLoadContext != null)
-		{
-			_mapScriptLoadContext.Unload();
-			_mapScriptLoadContext = null;
-		}
-
-		try
-		{
-			GD.Print($"[{DateTime.Now:HH:mm:ss}] GameHost LoadMapScript: PendingMapScriptPath={PendingMapScriptPath}");
-			if (PendingMapScriptPath.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase))
-			{
-				_activeMapScript = new WasmRuntime(PendingMapScriptPath, ResolveWasmName(PendingMapScriptPath), isDebug: GameContext.SessionState.IsTestMode);
-			}
-			else
-			{
-				_mapScriptLoadContext = new MapScriptLoadContext();
-				using var fs = new FileStream(PendingMapScriptPath, FileMode.Open, FileAccess.Read);
-				var asm = _mapScriptLoadContext.LoadFromStream(fs);
-				_activeMapScript = FindMapScriptInAssembly(asm);
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"Failed to load pending map script from {PendingMapScriptPath}: {ex.Message}");
-		}
-		finally
-		{
-			PendingMapScriptPath = null;
-		}
-	}
-
-	private string ResolveWasmName(string path)
-	{
-		string name = Path.GetFileNameWithoutExtension(path);
-		if (!name.Equals("MapScript", StringComparison.OrdinalIgnoreCase)) return name;
-
-		string parentDir = Path.GetDirectoryName(path);
-		string[] ignore = { "bin", "Release", "net10.0", "wasi-wasm", "publish" };
-
-		while (!string.IsNullOrEmpty(parentDir))
-		{
-			string folderName = Path.GetFileName(parentDir);
-			if (!string.IsNullOrEmpty(folderName) && !ignore.Contains(folderName, StringComparer.OrdinalIgnoreCase))
-				return folderName;
-			parentDir = Path.GetDirectoryName(parentDir);
-		}
-
-		return name;
-	}
-
-	private void LoadEmbeddedMapScript(string mapName)
-	{
-		string searchName = mapName?.Replace("_", "").ToLower() ?? string.Empty;
-		if (string.IsNullOrEmpty(searchName)) return;
-
-		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-		{
-			_activeMapScript = FindMapScriptInAssembly(assembly, searchName);
-			if (_activeMapScript != null) break;
-		}
-	}
-
-	private IMapScript? FindMapScriptInAssembly(Assembly asm, string? searchName = null)
-	{
-		Type?[]? types = GetAssemblyTypesSafe(asm);
-		if (types == null) return null;
-
-		foreach (var t in types)
-		{
-			if (!IsValidMapScriptType(t, searchName)) continue;
-
-			try
-			{
-				return (IMapScript?)Activator.CreateInstance(t);
-			}
-			catch
-			{
-			}
-		}
-
-		return null;
-	}
-
-	private Type?[]? GetAssemblyTypesSafe(Assembly asm)
-	{
-		try
-		{
-			return asm.GetTypes();
-		}
-		catch (ReflectionTypeLoadException ex)
-		{
-			return ex.Types;
-		}
-		catch
-		{
-			return null;
-		}
-	}
-
-	private bool IsValidMapScriptType(Type? t, string? searchName)
-	{
-		if (t == null || !typeof(IMapScript).IsAssignableFrom(t) || t.IsInterface || t.IsAbstract || typeof(IWasmRuntime).IsAssignableFrom(t) || t.GetConstructor(Type.EmptyTypes) == null) return false;
-		if (searchName != null && !t.Name.ToLower().Contains(searchName) && !searchName.Contains(t.Name.ToLower())) return false;
-		return true;
-	}
 
 	public List<Unit3D>[] _controlGroups { get; set; } = new List<Unit3D>[10];
 	private double[] _lastGroupPressTime { get; set; } = new double[10];
@@ -2500,7 +2320,8 @@ public partial class GameHost : Node3D, IGameAPI
 
 		if (ShouldLoadAndRunMapScript())
 		{
-			ExecuteMapScriptLoading(rawMapName);
+			ApplyTestRandomSeedIfNeeded(rawMapName);
+			RebakeNavMesh();
 			return;
 		}
 
@@ -2547,24 +2368,6 @@ public partial class GameHost : Node3D, IGameAPI
 		}
 	}
 
-	private void ExecuteMapScriptLoading(string rawMapName)
-	{
-		ApplyTestRandomSeedIfNeeded(rawMapName);
-		LoadMapScript(rawMapName);
-		if (_activeMapScript != null && !GameContext.SessionState.IsMapEditorMode)
-		{
-			try
-			{
-				_activeMapScript.Initialize(this);
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[GameHost] Exception during active map script Initialize: {ex.Message}");
-			}
-		}
-		ReportStringTableCollisions();
-		RebakeNavMesh();
-	}
 
 	private static void ReportStringTableCollisions()
 	{
@@ -2692,7 +2495,6 @@ public partial class GameHost : Node3D, IGameAPI
 		_playerHudVisibilityOverrides.Clear();
 		LocalHudVisibilityOverrides.Clear();
 		_cachedWorldEnvironment = null;
-		_activeMapScript = null;
 
 		ReinitializeEcsAndServices();
 	}
@@ -2715,7 +2517,6 @@ public partial class GameHost : Node3D, IGameAPI
 		EntityToProp3D.Clear();
 		ClearNodeCollection(AllLootItems);
 		IdToLootItem.Clear();
-		_activeMapScript = null;
 		ClearStaticText();
 
 		bool wasMapEditorMode = GameContext.SessionState.IsMapEditorMode;

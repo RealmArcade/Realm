@@ -2522,7 +2522,7 @@ namespace Realm.Client.UI
 
 			_wasmHasErrors = false;
 			Action<string> logHandler = line => AppendWasmConsoleLog(line);
-			WasmRuntime.OnWasmLog += logHandler;
+			GameLog.OnLine += logHandler;
 
 			try
 			{
@@ -2918,7 +2918,7 @@ namespace Realm.Client.UI
 			}
 			finally
 			{
-				WasmRuntime.OnWasmLog -= logHandler;
+				GameLog.OnLine -= logHandler;
 				if (GameContext.EditorService != null)
 				{
 					GameContext.EditorService.IsPaused = false;
