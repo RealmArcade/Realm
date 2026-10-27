@@ -72,7 +72,13 @@ public enum PresentationKind : byte
 	AbilityGridPositionSet,
 	ItemTooltipSet,
 	TooltipNumberSet,
-	TooltipTextSet
+	TooltipTextSet,
+
+	/// <summary>A player was dropped from the match by the map, and reads the reason as its text.</summary>
+	PlayerKicked,
+
+	/// <summary>How far a player is up one tech track: the track is the key and the level is the value.</summary>
+	TechLevelSet
 }
 
 /// <summary>

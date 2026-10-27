@@ -36,11 +36,11 @@ public class ServerMapScript : IDisposable
 	///     set the match up. A map without a compiled script is a map that declared nothing to run, which is not an
 	///     error: the match simply starts with whatever the map files described.
 	/// </summary>
-	public static ServerMapScript Load(LoadedMap map, string mapPath, string? logDirectory, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot)
+	public static ServerMapScript Load(LoadedMap map, ServerMatchPaths paths, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot)
 	{
-		var api = new ServerGameAPI(map, log, presentation, items, loot);
+		var api = new ServerGameAPI(map, log, presentation, items, loot, paths);
 
-		if (!TryFindScript(mapPath, out string wasmPath))
+		if (!TryFindScript(paths.MapPath, out string wasmPath))
 		{
 			log.Write("the map brought no compiled script; the match runs on what its files describe");
 			return new ServerMapScript(api, null, string.Empty, log);
@@ -48,7 +48,7 @@ public class ServerMapScript : IDisposable
 
 		GameAPI.Current = api;
 
-		var host = new WasmScriptHost(wasmPath, map.Metadata.MapProperties?.MapName ?? "map", map.Simulation, map.World, randomSeed, logDirectory, null);
+		var host = new WasmScriptHost(wasmPath, paths.MapName, map.Simulation, map.World, randomSeed, paths.LogDirectory, null);
 		host.Initialize(api);
 
 		log.Write($"map script '{wasmPath}' initialized");

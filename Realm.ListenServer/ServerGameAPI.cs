@@ -27,15 +27,23 @@ public partial class ServerGameAPI : IGameAPI
 	private readonly LoadedMap _map;
 	private readonly ServerLog _log;
 	private readonly ServerPresentationQueue _presentation;
+	private readonly ServerMatchPaths _paths;
+	private readonly ServerLocalization _localization;
+	private readonly ServerSavedData _savedData;
+	private readonly ServerTechLevels _techLevels;
 	private readonly PlayerId[] _activePlayersBuffer = new PlayerId[ScriptPlayersState.SlotCount];
 	private int _countingScratch;
 
-	public ServerGameAPI(LoadedMap map, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot)
+	public ServerGameAPI(LoadedMap map, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, ServerMatchPaths paths)
 	{
 		_map = map;
 		_context = map.Simulation;
 		_log = log;
 		_presentation = presentation;
+		_paths = paths;
+		_localization = new ServerLocalization(paths, log);
+		_savedData = new ServerSavedData(paths.DataDirectory, log);
+		_techLevels = new ServerTechLevels(_context, map);
 		Items = items;
 		Loot = loot;
 		_countResourceNodes = CountResourceNodes;
@@ -46,6 +54,12 @@ public partial class ServerGameAPI : IGameAPI
 
 	/// <summary>The world this surface writes to, so the host that runs a script can hand it the same world.</summary>
 	public EcsWorld World => _context.World;
+
+	/// <summary>The languages a map's text is available in and the language each player connected in.</summary>
+	public ServerLocalization Localization => _localization;
+
+	/// <summary>How far each player is up each of the map's tech tracks.</summary>
+	public ServerTechLevels TechLevels => _techLevels;
 
 	/// <summary>What puts items on units and takes them off again in this match.</summary>
 	public ItemGrantService Items { get; }

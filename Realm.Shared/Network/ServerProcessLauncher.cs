@@ -13,11 +13,24 @@ public static class ServerArgumentFlags
 	public const string PortFlag = "--port";
 	public const string TokenFlag = "--token";
 	public const string LogFlag = "--log";
+
+	/// <summary>
+	///     Where the authority keeps data a map asked to persist between matches. The client passes the folder it keeps
+	///     its own user data in, so a map's saved progress is the same progress whether it is read by an authority this
+	///     machine started or by the editor.
+	/// </summary>
+	public const string DataFlag = "--data";
 }
 
-/// <summary>What a match needs in order to start its own authority: where the server is, which map it runs, and where it logs.</summary>
+/// <summary>What a match needs in order to start its own authority: where the server is, which map it runs, where it logs, and where it keeps the data a map asked to persist.</summary>
 public record ServerLaunchRequest(string ExecutablePath, string MapFolderPath, string LogPath, string Token)
 {
+	/// <summary>The folder the authority resolves a map's saved data under, or nothing to let it use its own folder.</summary>
+	public string? DataFolderPath { get; init; }
+
+	/// <summary>The locale this client reads in, which the authority answers map text in for this player.</summary>
+	public string? Language { get; init; }
+
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
 
@@ -221,6 +234,11 @@ public class ServerProcessLauncher : IDisposable
 		startInfo.ArgumentList.Add(request.Token);
 		startInfo.ArgumentList.Add(ServerArgumentFlags.LogFlag);
 		startInfo.ArgumentList.Add(Path.GetFullPath(request.LogPath));
+		if (!string.IsNullOrWhiteSpace(request.DataFolderPath))
+		{
+			startInfo.ArgumentList.Add(ServerArgumentFlags.DataFlag);
+			startInfo.ArgumentList.Add(Path.GetFullPath(request.DataFolderPath));
+		}
 
 		try
 		{
@@ -312,7 +330,8 @@ public class ServerProcessLauncher : IDisposable
 			Protocol = RealmProtocol.Version,
 			Build = readyInfo.Build,
 			Token = request.Token,
-			WireTableHash = readyInfo.WireTableHash
+			WireTableHash = readyInfo.WireTableHash,
+			Language = request.Language ?? string.Empty
 		};
 
 		try

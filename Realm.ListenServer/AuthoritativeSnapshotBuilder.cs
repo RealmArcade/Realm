@@ -65,6 +65,12 @@ public class AuthoritativeSnapshotBuilder
 	public ScriptAbilityRegistry? Abilities { get; set; }
 
 	/// <summary>
+	///     How far each player is up each of the map's tech tracks. A peer that joins a match already in progress learns
+	///     what every player has researched from the description it is given.
+	/// </summary>
+	public ServerTechLevels? TechLevels { get; set; }
+
+	/// <summary>
 	///     Forgets everything a peer was told. A peer that disconnects leaves this behind, and the peer that takes its
 	///     place is described from scratch rather than from a description built for someone else.
 	/// </summary>
@@ -150,6 +156,8 @@ public class AuthoritativeSnapshotBuilder
 		{
 			entries.Add(new CatalogEntry { Channel = "resource_node_type", Key = nodeType.Key, Value = nodeType.Value });
 		}
+
+		TechLevels?.AppendDescription(entries);
 	}
 
 	private PeerReplicationState GetState(int peerId)

@@ -68,7 +68,10 @@ public class ListenServerHost : IServerHost
 		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath);
 		try
 		{
-			_simulation = new ServerSimulation(map, _arguments.MapPath, _log, Path.GetDirectoryName(_arguments.LogPath), SeedFromToken());
+			var paths = ServerMatchPaths.From(_arguments);
+			_simulation = new ServerSimulation(map, paths, _log, SeedFromToken());
+			_simulation.PeerDropped += DropPeer;
+			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());
 			for (int index = 0; index < map.Warnings.Count; index++)
 			{
@@ -163,12 +166,45 @@ public class ListenServerHost : IServerHost
 		}
 	}
 
+	/// <summary>
+	///     Ends one peer's connection because the match dropped the player it was playing as. The peer is told the match
+	///     is over for it before its connection closes, so the screen it belongs to reports a dropped player rather than a
+	///     connection that stopped answering, and nothing is done to its thread: it is reading the same socket, which
+	///     fails as soon as the connection is closed.
+	/// </summary>
+	private void DropPeer(int peerId)
+	{
+		IClientTransport? dropped = null;
+		lock (_peersLock)
+		{
+			for (int index = 0; index < _seatedPeers.Count; index++)
+			{
+				if (_seatedPeers[index].PeerId != peerId) continue;
+
+				dropped = _seatedPeers[index];
+				break;
+			}
+
+			if (dropped != null)
+			{
+				_seatedPeers.Remove(dropped);
+				_peersNeedingBaseline.Remove(dropped);
+			}
+		}
+
+		if (dropped == null) return;
+
+		_log.Write($"peer {peerId} was dropped by the map");
+		dropped.Send(NetworkFrameKind.Shutdown, ReadOnlySpan<byte>.Empty);
+		dropped.Close();
+	}
+
 	private void ServePeer(IClientTransport peer)
 	{
 		try
 		{
-			if (!TryHandshake(peer)) return;
-			if (!TrySeatPeer(peer)) return;
+			if (!TryHandshake(peer, out ClientHello hello)) return;
+			if (!TrySeatPeer(peer, in hello)) return;
 
 			while (!_shutdownRequested.IsSet)
 			{
@@ -239,16 +275,17 @@ public class ListenServerHost : IServerHost
 	///     Seats a peer on the roster and tells it which player it is. A peer with no slot owns nothing, so it is
 	///     refused here rather than allowed to send orders that would all be rejected one by one.
 	/// </summary>
-	private bool TrySeatPeer(IClientTransport peer)
+	private bool TrySeatPeer(IClientTransport peer, in ClientHello hello)
 	{
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return false;
 
+		string language = hello.Language;
 		if (!simulation.TryAssignPlayerSlot(peer.PeerId, out int playerSlot, out int team))
 		{
 			_log.Write($"peer {peer.PeerId} refused: every player slot this map declares is taken");
 			return false;
-		}
+		}			simulation.SetPlayerLanguage(playerSlot, language);
 
 		var assignment = new PeerRosterAssignment
 		{
@@ -444,8 +481,9 @@ public class ListenServerHost : IServerHost
 		peer.Send(NetworkFrameKind.CommandOutcome, MemoryPackSerializer.Serialize(outcome));
 	}
 
-	private bool TryHandshake(IClientTransport peer)
+	private bool TryHandshake(IClientTransport peer, out ClientHello hello)
 	{
+		hello = default;
 		NetworkFrame frame;
 		try
 		{
@@ -467,7 +505,7 @@ public class ListenServerHost : IServerHost
 			return false;
 		}
 
-		ClientHello hello = MemoryPackSerializer.Deserialize<ClientHello>(frame.Payload);
+		hello = MemoryPackSerializer.Deserialize<ClientHello>(frame.Payload);
 		string rejection = DescribeHandshakeRejection(in hello);
 
 		var response = new ServerHello
@@ -486,7 +524,7 @@ public class ListenServerHost : IServerHost
 			return false;
 		}
 
-		_log.Write($"peer accepted protocol={hello.Protocol} build={hello.Build}");
+		_log.Write($"peer accepted protocol={hello.Protocol} build={hello.Build} language='{hello.Language}'");
 		return true;
 	}
 

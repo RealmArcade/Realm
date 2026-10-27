@@ -43,7 +43,7 @@ public class ServerSimulation : IDisposable
 	private int _nextPlayerSlot = MatchRoster.NeutralSlot + 1;
 	private bool _disposed;
 
-	public ServerSimulation(LoadedMap map, string mapPath, ServerLog log, string? logDirectory = null, int randomSeed = 0)
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0)
 	{
 		_map = map;
 		_log = log;
@@ -56,8 +56,10 @@ public class ServerSimulation : IDisposable
 		_production = new ServerProductionStep(map.World, map, log);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
-		_script = ServerMapScript.Load(map, mapPath, logDirectory, randomSeed, log, _presentation, Items, _loot);
+		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot);
 		_snapshots.Abilities = _script.Api.Abilities;
+		_snapshots.TechLevels = _script.Api.TechLevels;
+		_script.Api.PlayerDroppedSink = DropPlayer;
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
@@ -176,6 +178,32 @@ public class ServerSimulation : IDisposable
 
 	/// <summary>The player slot a peer acts as, once it has been seated on the roster.</summary>
 	public bool TryGetPlayerSlot(int peerId, out int playerSlot) => _peerPlayerSlots.TryGetValue(peerId, out playerSlot);
+
+	/// <summary>
+	///     What the match asks the host to end: the connection of the peer acting as a player the map dropped. The peer
+	///     and its slot are given up here as well, so the slot can be seated again by whoever takes it next.
+	/// </summary>
+	public event Action<int>? PeerDropped;
+
+	/// <summary>Records the language a player reads in, which is what the map's text is answered in for that player.</summary>
+	public void SetPlayerLanguage(int playerSlot, string? language) => _script.Api.Localization.SetPlayerLanguage(playerSlot, language);
+
+	/// <summary>Where this match keeps the data its map asked to persist, so the host can report it.</summary>
+	public string MapSavedDataDirectory() => _script.Api.SavedDataDirectory;
+
+	/// <summary>
+	///     Ends the connection a player is playing through, which is what a map asking to drop a player means. The slot is
+	///     forgotten here so a match that carries on does not report a player whose connection has gone.
+	/// </summary>
+	private void DropPlayer(int playerSlot)
+	{
+		int peerId = PeerIdForPlayerSlot(playerSlot);
+		if (peerId == 0) return;
+
+		ForgetPeer(peerId);
+		_script.Api.Localization.ForgetPlayer(playerSlot);
+		PeerDropped?.Invoke(peerId);
+	}
 
 	/// <summary>The peer that acts as a player slot, which is who owns what the world says that player owns.</summary>
 	public int PeerIdForPlayerSlot(int playerSlot)

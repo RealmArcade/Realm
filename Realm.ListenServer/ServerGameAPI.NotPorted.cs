@@ -29,29 +29,15 @@ public partial class ServerGameAPI
 	public event Action<UnitId, string, Vector3>? OnUnitOrdered;
 	public event Action<int, string, string, Vector3, string>? OnBotCustomActionExecuted;
 
-	public void GenerateMapDirectory(string mapName, string? targetDirectory = null) => throw new NotSupportedException("GenerateMapDirectory is not answered by the authority yet");
 	public void CastAbility(UnitId unit, string abilityId, Vector3 targetPosition) => throw new NotSupportedException("CastAbility is not answered by the authority yet");
 
-	public string GetPlayerLanguage(int playerIndex) => throw new NotSupportedException("GetPlayerLanguage is not answered by the authority yet");
-	public string Translate(string key, int playerIndex) => throw new NotSupportedException("Translate is not answered by the authority yet");
-	public void KickPlayer(int playerIndex, string reason = "Kicked by host") => throw new NotSupportedException("KickPlayer is not answered by the authority yet");
-	public bool AddComputerPlayer(int playerIndex, string? name = null, int teamIndex = -1) => throw new NotSupportedException("AddComputerPlayer is not answered by the authority yet");
 	public void IssueCastOrder(UnitId caster, string abilityId, UnitId target) => throw new NotSupportedException("IssueCastOrder is not answered by the authority yet");
 	public void IssueCastOrderAt(UnitId caster, string abilityId, Vector3 position) => throw new NotSupportedException("IssueCastOrderAt is not answered by the authority yet");
 
-	public void SetPlayerComputerControlled(int playerIndex, bool isProxy) => throw new NotSupportedException("SetPlayerComputerControlled is not answered by the authority yet");
-
-	public void WriteSavedData(string fileName, string content) => throw new NotSupportedException("WriteSavedData is not answered by the authority yet");
-	public string ReadSavedData(string fileName, string sourceMapName = "") => throw new NotSupportedException("ReadSavedData is not answered by the authority yet");
-	public int GetPlayerTechLevel(int playerIndex, string techId) => throw new NotSupportedException("GetPlayerTechLevel is not answered by the authority yet");
-	public void SetPlayerTechLevel(int playerIndex, string techId, int level) => throw new NotSupportedException("SetPlayerTechLevel is not answered by the authority yet");
-	public void AddPlayerTechLevel(int playerIndex, string techId, int delta = 1) => throw new NotSupportedException("AddPlayerTechLevel is not answered by the authority yet");
 	public void SetPlayerBotProfile(int playerIndex, string profileJson) => throw new NotSupportedException("SetPlayerBotProfile is not answered by the authority yet");
 	public string GetPlayerBotProfile(int playerIndex) => throw new NotSupportedException("GetPlayerBotProfile is not answered by the authority yet");
 	public void SetPlayerBotGenre(int playerIndex, string genreName, string? configJson = null) => throw new NotSupportedException("SetPlayerBotGenre is not answered by the authority yet");
 	public string GetPlayerBotGenre(int playerIndex) => throw new NotSupportedException("GetPlayerBotGenre is not answered by the authority yet");
 	public void ClearCustomBotDecisions(int playerIndex) => throw new NotSupportedException("ClearCustomBotDecisions is not answered by the authority yet");
 	public string TrainBotProfile(string mapName, int generations = 5, int populationSize = 8, int matchesPerEvaluation = 4, string genre = "rts") => throw new NotSupportedException("TrainBotProfile is not answered by the authority yet");
-	public string GetPlayerColorHex(int playerIndex) => throw new NotSupportedException("GetPlayerColorHex is not answered by the authority yet");
-	public Vector3 GetPlayerColor(int playerIndex) => throw new NotSupportedException("GetPlayerColor is not answered by the authority yet");
 }

@@ -3,14 +3,15 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-public record ServerArguments(string MapPath, int Port, string Token, string LogPath)
+public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath)
 {
 	public const string MapFlag = ServerArgumentFlags.MapFlag;
 	public const string PortFlag = ServerArgumentFlags.PortFlag;
 	public const string TokenFlag = ServerArgumentFlags.TokenFlag;
 	public const string LogFlag = ServerArgumentFlags.LogFlag;
+	public const string DataFlag = ServerArgumentFlags.DataFlag;
 
-	public const string Usage = $"{MapFlag} <absolute map folder> {PortFlag} <port> {TokenFlag} <token> {LogFlag} <log file>";
+	public const string Usage = $"{MapFlag} <absolute map folder> {PortFlag} <port> {TokenFlag} <token> {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>]";
 
 	public static bool TryParse(string[] args, out ServerArguments? arguments, out string error)
 	{
@@ -20,6 +21,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		string? mapPath = null;
 		string? token = null;
 		string? logPath = null;
+		string? dataPath = null;
 		int port = 0;
 
 		for (int index = 0; index < args.Length; index++)
@@ -43,6 +45,9 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 					break;
 				case LogFlag:
 					if (!TryTakeValue(args, ref index, flag, out logPath, out error)) return false;
+					break;
+				case DataFlag:
+					if (!TryTakeValue(args, ref index, flag, out dataPath, out error)) return false;
 					break;
 				default:
 					error = $"'{flag}' is not a listen server argument.";
@@ -68,7 +73,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 			return false;
 		}
 
-		arguments = new ServerArguments(mapPath, port, token, logPath);
+		arguments = new ServerArguments(mapPath, port, token, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath);
 		return true;
 	}
 
