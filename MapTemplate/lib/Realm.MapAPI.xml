@@ -265,9 +265,10 @@
             Gets or sets the active <see cref="T:Realm.MapAPI.IGameAPI"/> instance.
             </summary>
             <remarks>
-            Setting the instance also lets the text table answer identifiers this process never registered, which only the
-            sandbox can do: its host owns every text a map script may be asked to render. A process that hosts the world
-            itself registers the text it writes and keeps no answerer.
+            Setting the instance also gives the shared handles somewhere to send an assignment, and lets the text table
+            answer identifiers this process never registered, which only the sandbox can do: its host owns every text a
+            map script may be asked to render. A process that hosts the world itself registers the text it writes and
+            keeps no answerer.
             </remarks>
         </member>
         <member name="T:Realm.MapAPI.GameAPIExtensions">
@@ -349,7 +350,7 @@
             <param name="playerName">The expected player name, or null to match the active player.</param>
             <returns>The loaded arcade profile instance, or null if loading fails.</returns>
         </member>
-        <member name="M:Realm.MapAPI.GameAPIExtensions.SnapshotHero(Realm.MapAPI.UnitId,System.Single,System.Int32)">
+        <member name="M:Realm.MapAPI.GameAPIExtensions.SnapshotHero(Realm.Ecs.UnitId,System.Single,System.Int32)">
             <summary>
             Captures the persistent progression and combat statistics of an active unit into a <see cref="T:Realm.MapAPI.HeroSaveData"/> record.
             </summary>
@@ -358,21 +359,21 @@
             <param name="skillPoints">Optional unspent skill points to assign.</param>
             <returns>A new <see cref="T:Realm.MapAPI.HeroSaveData"/> containing the unit's current state.</returns>
         </member>
-        <member name="M:Realm.MapAPI.GameAPIExtensions.RestoreHero(Realm.MapAPI.UnitId,Realm.MapAPI.HeroSaveData)">
+        <member name="M:Realm.MapAPI.GameAPIExtensions.RestoreHero(Realm.Ecs.UnitId,Realm.MapAPI.HeroSaveData)">
             <summary>
             Restores persistent hero stats, level, experience, and custom attributes onto an active unit instance.
             </summary>
             <param name="unit">The target unit to update.</param>
             <param name="heroData">The saved hero progression data to apply.</param>
         </member>
-        <member name="M:Realm.MapAPI.GameAPIExtensions.SnapshotInventory(Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.GameAPIExtensions.SnapshotInventory(Realm.Ecs.UnitId)">
             <summary>
             Captures all items currently held in the unit's inventory into a list of <see cref="T:Realm.MapAPI.InventoryItemSaveData"/>.
             </summary>
             <param name="unit">The unit whose inventory will be snapshotted.</param>
             <returns>A list of persistent inventory item records.</returns>
         </member>
-        <member name="M:Realm.MapAPI.GameAPIExtensions.RestoreInventory(Realm.MapAPI.UnitId,System.Collections.Generic.IEnumerable{Realm.MapAPI.InventoryItemSaveData})">
+        <member name="M:Realm.MapAPI.GameAPIExtensions.RestoreInventory(Realm.Ecs.UnitId,System.Collections.Generic.IEnumerable{Realm.MapAPI.InventoryItemSaveData})">
             <summary>
             Populates a unit's inventory from a collection of <see cref="T:Realm.MapAPI.InventoryItemSaveData"/> records.
             </summary>
@@ -732,7 +733,7 @@
             <param name="unit">The unit that now carries the consumable, or just lost it.</param>
             <param name="consumableId">The attached consumable's template id, or empty when the slot was cleared.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitConsumable(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitConsumable(Realm.Ecs.UnitId,System.String)">
             <summary>
             Retrieves the consumable attached to a unit in the given slot group.
             </summary>
@@ -831,7 +832,7 @@
             <param name="duration">Total lifespan in seconds before fading out.</param>
             <param name="color">Optional RGB color tint for the burst sphere.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.AttachPersistentAura(Realm.MapAPI.UnitId,System.String,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.AttachPersistentAura(Realm.Ecs.UnitId,System.String,System.Single)">
             <summary>
             Attaches a persistent volume shield or aura visual effect to a unit.
             </summary>
@@ -839,7 +840,7 @@
             <param name="auraVfxId">The identifier of the visual effect or attachment configuration.</param>
             <param name="scale">The visual scale multiplier.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.AddBuff(Realm.MapAPI.UnitId,System.String,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.AddBuff(Realm.Ecs.UnitId,System.String,System.Single)">
             <summary>
             Adds a buff to a unit.
             </summary>
@@ -847,7 +848,7 @@
             <param name="buffId">The identifier of the buff.</param>
             <param name="duration">The duration of the buff in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.AddStatModifier(Realm.MapAPI.UnitId,System.String,System.Boolean,System.Single,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.AddStatModifier(Realm.Ecs.UnitId,System.String,System.Boolean,System.Single,System.String)">
             <summary>
             Adds one permanent stat modifier to a unit, tagged with a source id so the map can remove it later.
             The modifier goes through the same pipeline as upgrades and items, so it survives stat
@@ -859,12 +860,12 @@
             <param name="value">The modifier value.</param>
             <param name="sourceId">Source tag, typically one per map feature, such as "elixir/blood_debt".</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.RemoveStatModifiers(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.RemoveStatModifiers(Realm.Ecs.UnitId,System.String)">
             <summary>
             Removes every stat modifier a unit received from one source id and recalculates its stats.
             </summary>
             <param name="unit">The target unit identifier.</param>
-            <param name="sourceId">The source tag passed to <see cref="M:Realm.MapAPI.IGameAPI.AddStatModifier(Realm.MapAPI.UnitId,System.String,System.Boolean,System.Single,System.String)"/>.</param>
+            <param name="sourceId">The source tag passed to <see cref="M:Realm.MapAPI.IGameAPI.AddStatModifier(Realm.Ecs.UnitId,System.String,System.Boolean,System.Single,System.String)"/>.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.RegisterBuffModifier(System.String,System.String,System.Boolean,System.Single)">
             <summary>
@@ -907,7 +908,7 @@
             <param name="nodeDefinitionId">The prop definition identifier of the harvestable node (case-insensitive).</param>
             <param name="resourceType">The resource type gathered from the node, such as "gold", "wood" or "stone".</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.CastAbility(Realm.MapAPI.UnitId,System.String,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.IGameAPI.CastAbility(Realm.Ecs.UnitId,System.String,System.Numerics.Vector3)">
             <summary>
             Executes an ability generically by ID on a unit targeting a position.
             </summary>
@@ -915,7 +916,7 @@
             <param name="abilityId">The identifier of the ability.</param>
             <param name="targetPosition">The target position in 3D world space.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetAbilityCooldown(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetAbilityCooldown(Realm.Ecs.UnitId,System.String)">
             <summary>
             Gets the remaining cooldown of a unit's ability in seconds.
             </summary>
@@ -923,7 +924,7 @@
             <param name="abilityId">The identifier of the ability.</param>
             <returns>Remaining cooldown in seconds, or 0 if ready or not found.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetAbilityCooldown(Realm.MapAPI.UnitId,System.String,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetAbilityCooldown(Realm.Ecs.UnitId,System.String,System.Single)">
             <summary>
             Sets the cooldown of a unit's ability.
             </summary>
@@ -931,14 +932,14 @@
             <param name="abilityId">The identifier of the ability.</param>
             <param name="cooldown">The cooldown duration in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.RemoveBuff(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.RemoveBuff(Realm.Ecs.UnitId,System.String)">
             <summary>
             Removes a buff from a unit.
             </summary>
             <param name="unit">The target unit identifier.</param>
             <param name="buffId">The identifier of the buff to remove.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetModifiers(Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetModifiers(Realm.Ecs.UnitId)">
             <summary>
             Gets active modifiers on a unit.
             </summary>
@@ -1083,7 +1084,7 @@
             </summary>
             <param name="enabled">True to enable, false to freeze the time of day.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.KillUnit(Realm.MapAPI.UnitId,System.Boolean,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.KillUnit(Realm.Ecs.UnitId,System.Boolean,System.Boolean)">
             <summary>
             Kills the specified unit naturally, triggering death animations and bounties.
             </summary>
@@ -1091,7 +1092,7 @@
             <param name="executeDespawnShader">True to execute the despawn or death shader effect if configured, false to skip.</param>
             <param name="playDeathAnimation">True to play the death animation if available, false to skip.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.DestroyUnit(Realm.MapAPI.UnitId,System.Boolean,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.DestroyUnit(Realm.Ecs.UnitId,System.Boolean,System.Boolean)">
             <summary>
             Instantly removes the specified unit from the game.
             </summary>
@@ -1284,7 +1285,7 @@
             <param name="teamIndex">Optional team index (default -1 for unassigned).</param>
             <returns>True if successfully added or configured.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitColor(Realm.MapAPI.UnitId,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitColor(Realm.Ecs.UnitId,System.Numerics.Vector3)">
             <summary>
             Applies an RGBA color tint to the specified unit's 3D mesh.
             Use <see cref="P:System.Numerics.Vector3.One"/> (white) to reset to the default appearance.
@@ -1292,21 +1293,21 @@
             <param name="unit">The unit to tint.</param>
             <param name="color">RGB color values in the range [0, 1].</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitFacing(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitFacing(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the rotation angle or facing direction of the unit in radians or towards a target direction.
             </summary>
             <param name="unit">The unit whose facing direction is being set.</param>
             <param name="facingRadians">The target facing angle in radians around the vertical axis.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitFacing(Realm.MapAPI.UnitId,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitFacing(Realm.Ecs.UnitId,System.Numerics.Vector3)">
             <summary>
             Sets the facing direction of the unit to look at the specified target position.
             </summary>
             <param name="unit">The unit to rotate.</param>
             <param name="targetPosition">The 3D coordinates in world space to face towards.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IssueAttackMoveOrder(Realm.MapAPI.UnitId,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.IGameAPI.IssueAttackMoveOrder(Realm.Ecs.UnitId,System.Numerics.Vector3)">
             <summary>
             Orders the unit to attack-move to the specified world position.
             The unit will attack any enemies it encounters along the way.
@@ -1314,7 +1315,7 @@
             <param name="unit">The unit to command.</param>
             <param name="destination">The destination position in world coordinates.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IssueCastOrder(Realm.MapAPI.UnitId,System.String,Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.IssueCastOrder(Realm.Ecs.UnitId,System.String,Realm.Ecs.UnitId)">
             <summary>
             Orders the unit to cast a targeted spell on a specific enemy unit.
             Does nothing if the unit does not have the specified ability.
@@ -1323,7 +1324,7 @@
             <param name="abilityId">The ability identifier string.</param>
             <param name="target">The target unit.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IssueCastOrderAt(Realm.MapAPI.UnitId,System.String,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.IGameAPI.IssueCastOrderAt(Realm.Ecs.UnitId,System.String,System.Numerics.Vector3)">
             <summary>
             Orders the unit to cast a ground-targeted spell at the specified world position.
             Does nothing if the unit does not have the specified ability.
@@ -1332,7 +1333,7 @@
             <param name="abilityId">The ability identifier string.</param>
             <param name="position">The target position in world coordinates.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetAbilityAutoCast(Realm.MapAPI.UnitId,System.String,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetAbilityAutoCast(Realm.Ecs.UnitId,System.String,System.Boolean)">
             <summary>
             Orders the unit to activate or deactivate an auto-cast ability.
             </summary>
@@ -1373,7 +1374,7 @@
             <param name="playerIndex">Zero-based player slot index.</param>
             <param name="delta">The amount to add (may be negative).</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitOwner(Realm.MapAPI.UnitId,System.Int32)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitOwner(Realm.Ecs.UnitId,System.Int32)">
             <summary>
             Transfers ownership of the specified unit to a different player slot.
             </summary>
@@ -1431,7 +1432,7 @@
             The callback receives the unit that entered and the zone handle it entered.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitRouteState(Realm.MapAPI.UnitId,System.Int32)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitRouteState(Realm.Ecs.UnitId,System.Int32)">
             <summary>
             Associates an integer route-state value with the specified unit.
             Useful for tracking which waypoint branch a unit is following.
@@ -1439,14 +1440,14 @@
             <param name="unit">The unit to tag.</param>
             <param name="state">An arbitrary integer value meaningful to the caller.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitRouteState(Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitRouteState(Realm.Ecs.UnitId)">
             <summary>
             Retrieves the integer route-state value previously set on the unit,
             or 0 if none has been set.
             </summary>
             <param name="unit">The unit to query.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitLevel(Realm.MapAPI.UnitId,System.Int32)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitLevel(Realm.Ecs.UnitId,System.Int32)">
             <summary>
             Sets the level of the specified hero unit.
             Has no effect on non-hero units.
@@ -1467,15 +1468,15 @@
             <param name="playerIndex">Zero-based player slot index.</param>
             <param name="kills">The new kill count.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IssueMoveOrder(Realm.MapAPI.UnitId,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.IGameAPI.IssueMoveOrder(Realm.Ecs.UnitId,System.Numerics.Vector3)">
             <summary>
             Orders the unit to move to the specified destination without attacking anything en route.
-            Unlike <see cref="M:Realm.MapAPI.IGameAPI.IssueAttackMoveOrder(Realm.MapAPI.UnitId,System.Numerics.Vector3)"/>, this is a pure positional move command.
+            Unlike <see cref="M:Realm.MapAPI.IGameAPI.IssueAttackMoveOrder(Realm.Ecs.UnitId,System.Numerics.Vector3)"/>, this is a pure positional move command.
             </summary>
             <param name="unit">The unit to command.</param>
             <param name="destination">The destination in world coordinates.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitSpellImmune(Realm.MapAPI.UnitId,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitSpellImmune(Realm.Ecs.UnitId,System.Boolean)">
             <summary>
             Adds or removes a spell-immunity buff from the specified unit.
             Spell-immune units cannot be targeted by magic-type attacks or abilities.
@@ -1547,16 +1548,16 @@
             <param name="playerIndex">The player index who will own the unit.</param>
             <param name="executeSpawnShader">True to play the spawn shader effect if configured, false to skip.</param>
             <param name="bypassPopulation">True to bypass population cap limits when spawning, false to enforce population limits.</param>
-            <returns>The spawned <see cref="T:Realm.MapAPI.UnitId"/>.</returns>
+            <returns>The spawned <see cref="T:Realm.Ecs.UnitId"/>.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IssueMoveOrder(Realm.MapAPI.UnitId,Realm.MapAPI.Coordinate)">
+        <member name="M:Realm.MapAPI.IGameAPI.IssueMoveOrder(Realm.Ecs.UnitId,Realm.MapAPI.Coordinate)">
             <summary>
             Orders a unit to move to the center of the specified coordinate region.
             </summary>
             <param name="unit">The unit to order.</param>
             <param name="destination">The coordinate region to move to.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IssueAttackMoveOrder(Realm.MapAPI.UnitId,Realm.MapAPI.Coordinate)">
+        <member name="M:Realm.MapAPI.IGameAPI.IssueAttackMoveOrder(Realm.Ecs.UnitId,Realm.MapAPI.Coordinate)">
             <summary>
             Orders a unit to attack-move to the center of the specified coordinate region.
             </summary>
@@ -1696,7 +1697,7 @@
             <param name="stringId">The content-hash identifier to resolve, as found in shared component memory.</param>
             <returns>The text, or an empty string when no table entry exists for the identifier.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.EnableUnitAutoCombat(Realm.MapAPI.UnitId,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.EnableUnitAutoCombat(Realm.Ecs.UnitId,System.Boolean)">
             <summary>
             Enables or disables automated combat AI for a specific unit instance.
             </summary>
@@ -1815,7 +1816,7 @@
             <param name="key">Property name, matched without regard to case.</param>
             <param name="value">The text to show.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitTooltipValue(Realm.MapAPI.UnitId,System.String,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitTooltipValue(Realm.Ecs.UnitId,System.String,System.Single)">
             <summary>
             Publishes one number that a unit's tooltip reads as <c>{{Source.Key}}</c>, for state the
             engine does not model itself — a draft slot's element, a carried item's stack count.
@@ -1824,7 +1825,7 @@
             <param name="key">Property name, matched without regard to case.</param>
             <param name="value">The number to show.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitTooltipText(Realm.MapAPI.UnitId,System.String,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitTooltipText(Realm.Ecs.UnitId,System.String,System.String)">
             <summary>
             Publishes one text value that a unit's tooltip reads as <c>{{Source.Key}}</c>.
             </summary>
@@ -1863,24 +1864,24 @@
             <param name="abilityId">Unique identifier of the ability.</param>
             <param name="hotkey">The key with optional modifiers that triggers the ability.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetAbilityState(Realm.MapAPI.UnitId,System.String,System.Boolean,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetAbilityState(Realm.Ecs.UnitId,System.String,System.Boolean,System.Boolean)">
             <summary>
             Sets whether an ability on a unit is disabled or hidden in the UI.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetAbilityManaCost(Realm.MapAPI.UnitId,System.String,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetAbilityManaCost(Realm.Ecs.UnitId,System.String,System.Single)">
             <summary>
             Sets the mana cost of a unit's ability.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitAnimation(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitAnimation(Realm.Ecs.UnitId,System.String)">
             <summary>
             Plays a named visual animation on the unit's 3D model and equips any configured hand attachments for that animation.
             </summary>
             <param name="unit">The unit to animate.</param>
             <param name="animationName">The animation name (e.g., "Idle", "Labor", "Attack").</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitHandAttachment(Realm.MapAPI.UnitId,System.String,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitHandAttachment(Realm.Ecs.UnitId,System.String,System.String)">
             <summary>
             Attaches or removes a 3D model object on the specified hand bone of the unit's rigged skeleton.
             </summary>
@@ -1888,10 +1889,10 @@
             <param name="hand">The target hand ("RightHand" or "LeftHand").</param>
             <param name="attachmentId">The attachment identifier or model filename, or null/empty to clear the hand attachment.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.MoveUnit(Realm.MapAPI.UnitId,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.IGameAPI.MoveUnit(Realm.Ecs.UnitId,System.Numerics.Vector3)">
             <summary>
             Orders the unit to move to a world position without attacking along the way.
-            Generic alias for <see cref="M:Realm.MapAPI.IGameAPI.IssueMoveOrder(Realm.MapAPI.UnitId,System.Numerics.Vector3)"/>.
+            Generic alias for <see cref="M:Realm.MapAPI.IGameAPI.IssueMoveOrder(Realm.Ecs.UnitId,System.Numerics.Vector3)"/>.
             </summary>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitsInRange(System.Numerics.Vector3,System.Single)">
@@ -1900,13 +1901,13 @@
             Generic alias for <see cref="M:Realm.MapAPI.IGameAPI.GetUnitsInRadius(System.Numerics.Vector3,System.Single)"/>.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.DealDamage(Realm.MapAPI.UnitId,Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.DealDamage(Realm.Ecs.UnitId,Realm.Ecs.UnitId,System.Single)">
             <summary>
             Subtracts <paramref name="damage"/> from the target's health. Kills the target at 0 HP.
             Does not apply armor. Safe to call from any map script.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.DealTypedDamage(Realm.MapAPI.UnitId,Realm.MapAPI.UnitId,System.Single,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.DealTypedDamage(Realm.Ecs.UnitId,Realm.Ecs.UnitId,System.Single,System.String)">
             <summary>
             Applies damage through the combat resolver, so the target's armor, the attacker's armor
             penetration and the damage/armor type matrix all apply. Use this for ability damage instead
@@ -1924,7 +1925,7 @@
             <param name="playerIndex">The zero-based player index to own the revived unit.</param>
             <returns>The revived unit instance.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.ReviveUnit(Realm.MapAPI.UnitId,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.IGameAPI.ReviveUnit(Realm.Ecs.UnitId,System.Numerics.Vector3)">
             <summary>
             Destroys <paramref name="unit"/> and spawns a new copy of its type at <paramref name="position"/> with the same owner player index.
             </summary>
@@ -1932,7 +1933,7 @@
             <param name="position">The spawn coordinates in 3D world space.</param>
             <returns>The revived unit instance.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.TriggerMeshImpulse(Realm.MapAPI.UnitId,System.Single,System.Single,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.TriggerMeshImpulse(Realm.Ecs.UnitId,System.Single,System.Single,System.Single)">
             <summary>
             Triggers a transient mesh deformation or hit impulse on a unit.
             </summary>
@@ -1941,7 +1942,7 @@
             <param name="duration">The duration of the impulse oscillation in seconds.</param>
             <param name="frequency">The oscillation frequency in Hz.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.TriggerResourceMeshImpulse(Realm.MapAPI.ResourceNodeId,System.Single,System.Single,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.TriggerResourceMeshImpulse(Realm.Ecs.ResourceNodeId,System.Single,System.Single,System.Single)">
             <summary>
             Triggers a transient mesh deformation or harvest shake impulse on a resource node.
             </summary>
@@ -2089,17 +2090,17 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetPlayer(System.Int32)">
             <summary>
-            Retrieves a <see cref="T:Realm.MapAPI.PlayerId"/> identifier for the specified zero-based player slot index,
+            Retrieves a <see cref="T:Realm.Ecs.PlayerId"/> identifier for the specified zero-based player slot index,
             providing fluent zero-allocation access to player state and actions.
             </summary>
             <param name="playerIndex">Zero-based player slot index.</param>
-            <returns>A <see cref="T:Realm.MapAPI.PlayerId"/> bound to the specified player slot.</returns>
+            <returns>A <see cref="T:Realm.Ecs.PlayerId"/> bound to the specified player slot.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetActivePlayers">
             <summary>
             Retrieves all active player slot identifiers in the current session.
             </summary>
-            <returns>A read-only span of active <see cref="T:Realm.MapAPI.PlayerId"/> identifiers in ascending slot order.</returns>
+            <returns>A read-only span of active <see cref="T:Realm.Ecs.PlayerId"/> identifiers in ascending slot order.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetActivePlayerIndices">
             <summary>
@@ -2202,7 +2203,7 @@
             <param name="element">The HUD element to show or hide.</param>
             <param name="visible">True to make the element visible; false to hide it.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SelectPlayerUnit(System.Int32,Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.SelectPlayerUnit(System.Int32,Realm.Ecs.UnitId)">
             <summary>
             Selects the specified unit on the given player's client, clearing their previous selection.
             </summary>
@@ -2271,7 +2272,7 @@
             <typeparam name="T">The element type.</typeparam>
             <param name="items">The list to shuffle.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetRandomUnitInRadius(System.Numerics.Vector3,System.Single,System.Func{Realm.MapAPI.UnitId,System.Boolean})">
+        <member name="M:Realm.MapAPI.IGameAPI.GetRandomUnitInRadius(System.Numerics.Vector3,System.Single,System.Func{Realm.Ecs.UnitId,System.Boolean})">
             <summary>
             Returns a random alive unit within the radius that satisfies the optional filter.
             </summary>
@@ -2280,14 +2281,14 @@
             <param name="filter">Optional predicate that returns true for eligible units.</param>
             <returns>A random matching unit, or UnitId.Invalid if none qualify.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.HealUnit(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.HealUnit(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Restores health to the unit, clamped to its maximum health. Dead units are ignored.
             </summary>
             <param name="unit">The unit to heal.</param>
             <param name="amount">The amount of health to restore.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SwapUnitPositions(Realm.MapAPI.UnitId,Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.SwapUnitPositions(Realm.Ecs.UnitId,Realm.Ecs.UnitId)">
             <summary>
             Exchanges the world positions of two units.
             </summary>
@@ -2400,7 +2401,7 @@
             <param name="lootItemId">The unique identifier of the loot item to despawn.</param>
             <returns>True if the loot item was found and despawned; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.CollectLootItem(System.Int32,Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.CollectLootItem(System.Int32,Realm.Ecs.UnitId)">
             <summary>
             Attempts to collect a ground loot item using the specified unit.
             </summary>
@@ -2416,133 +2417,133 @@
             <param name="playerIndex">The zero-based player slot index whose unit should collect the item.</param>
             <returns>True if an eligible unit owned by the player successfully collected the item; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitHealth(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitHealth(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the current health points of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new health value.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitMaxHealth(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitMaxHealth(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the maximum health points capacity of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new maximum health capacity.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitMana(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitMana(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the current mana points of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new mana value.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitMaxMana(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitMaxMana(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the maximum mana capacity of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new maximum mana capacity.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitManaRegen(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitManaRegen(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the mana regeneration rate of the specified unit per second.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new mana regeneration rate.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitDamage(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitDamage(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the base attack damage of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new attack damage.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitRange(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitRange(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the attack range of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new attack range.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitArmor(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitArmor(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the armor defense rating of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new armor rating.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitSpeed(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitSpeed(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the movement speed of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new movement speed.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitAttackSpeed(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitAttackSpeed(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the attack speed multiplier of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new attack speed multiplier.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitInstanceName(Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitInstanceName(Realm.Ecs.UnitId)">
             <summary>
             Retrieves the display name of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <returns>The unit display name.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitName(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitName(Realm.Ecs.UnitId,System.String)">
             <summary>
             Sets the display name of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new display name.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitTemplateId(Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitTemplateId(Realm.Ecs.UnitId)">
             <summary>
             Retrieves the canonical archetype template identifier of the specified unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <returns>The archetype template identifier string.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitExperience(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitExperience(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the accumulated experience points of the specified hero unit.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new experience points value.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitScale(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitScale(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Sets the visual scaling multiplier of the specified unit model.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">The new visual scale factor.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitInvulnerable(Realm.MapAPI.UnitId,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitInvulnerable(Realm.Ecs.UnitId,System.Boolean)">
             <summary>
             Sets whether the specified unit is invulnerable to all damage.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="value">True for invulnerability; otherwise, false.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitAnimationsFrozen(Realm.MapAPI.UnitId,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitAnimationsFrozen(Realm.Ecs.UnitId,System.Boolean)">
             <summary>
             Suspends or resumes animation playback for a unit.
             </summary>
             <remarks>
             An animations-frozen unit holds a single pose because locomotion, attack, idle and death
             animation playback is suspended together with any procedural sway. It can still move, attack
-            and cast, so combine this with <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.MapAPI.UnitId,System.Boolean)"/> to build a statue. The state
+            and cast, so combine this with <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.Ecs.UnitId,System.Boolean)"/> to build a statue. The state
             lives on the unit entity, so it survives tile level changes, element swaps and re-drafting until
             the entity is destroyed or unfrozen.
             </remarks>
             <param name="unit">The unit identifier.</param>
             <param name="value">True to hold the current pose; false to resume animation playback.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.MapAPI.UnitId,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.Ecs.UnitId,System.Boolean)">
             <summary>
             Makes a unit ignore movement, attack and hold orders, or releases it again.
             </summary>
@@ -2557,23 +2558,23 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">True to ignore movement and attack orders; false to accept them again.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitFrozen(Realm.MapAPI.UnitId,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitFrozen(Realm.Ecs.UnitId,System.Boolean)">
             <summary>
             Pins a unit in place, or releases it again.
             </summary>
             <remarks>
-            This sets both <see cref="M:Realm.MapAPI.IGameAPI.SetUnitAnimationsFrozen(Realm.MapAPI.UnitId,System.Boolean)"/> and <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.MapAPI.UnitId,System.Boolean)"/>.
+            This sets both <see cref="M:Realm.MapAPI.IGameAPI.SetUnitAnimationsFrozen(Realm.Ecs.UnitId,System.Boolean)"/> and <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.Ecs.UnitId,System.Boolean)"/>.
             A frozen unit never moves, never rotates in response to orders, never acquires targets, and holds
             a single pose. Existing orders and targets are cleared when the unit freezes, and unfreezing
             restores normal behaviour immediately. Freezing is idempotent, cheap, and composes with
-            <see cref="M:Realm.MapAPI.IGameAPI.SetUnitInvulnerable(Realm.MapAPI.UnitId,System.Boolean)"/>, facing and the health-bar visibility flags, so a map can build
+            <see cref="M:Realm.MapAPI.IGameAPI.SetUnitInvulnerable(Realm.Ecs.UnitId,System.Boolean)"/>, facing and the health-bar visibility flags, so a map can build
             statues out of real units. The state lives on the unit entity, so it survives tile level changes,
             element swaps, unit swaps and re-drafting until the entity is destroyed or unfrozen.
             </remarks>
             <param name="unit">The unit identifier.</param>
             <param name="value">True to freeze the unit in place; false to let it act normally again.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitHideHealthAndManaBars(Realm.MapAPI.UnitId,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitHideHealthAndManaBars(Realm.Ecs.UnitId,System.Boolean)">
             <summary>
             Shows or hides the overhead health and mana bars for a single unit.
             </summary>
@@ -2585,54 +2586,54 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">True to never draw bars for the unit; false to draw them according to the player's settings.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IssueAttackOrder(Realm.MapAPI.UnitId,Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.IssueAttackOrder(Realm.Ecs.UnitId,Realm.Ecs.UnitId)">
             <summary>
             Issues an attack order targeting a specific enemy unit.
             </summary>
             <param name="unit">The attacking unit.</param>
             <param name="target">The target enemy unit.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IssueGatherOrder(Realm.MapAPI.UnitId,Realm.MapAPI.ResourceNodeId)">
+        <member name="M:Realm.MapAPI.IGameAPI.IssueGatherOrder(Realm.Ecs.UnitId,Realm.Ecs.ResourceNodeId)">
             <summary>
             Issues a resource gathering order targeting a harvestable resource node.
             </summary>
             <param name="unit">The harvesting unit.</param>
             <param name="resourceNode">The target resource node.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IssueStopOrder(Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.IssueStopOrder(Realm.Ecs.UnitId)">
             <summary>
             Orders the unit to stop its current action immediately.
             </summary>
             <param name="unit">The unit identifier.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IssueHoldPositionOrder(Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.IssueHoldPositionOrder(Realm.Ecs.UnitId)">
             <summary>
             Orders the unit to hold its ground and defend itself without moving.
             </summary>
             <param name="unit">The unit identifier.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.TeleportUnit(Realm.MapAPI.UnitId,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.IGameAPI.TeleportUnit(Realm.Ecs.UnitId,System.Numerics.Vector3)">
             <summary>
             Teleports the specified unit to the given coordinates in 3D world space.
             </summary>
             <param name="unit">The unit to teleport.</param>
             <param name="position">The destination coordinates in 3D world space.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.StunUnit(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.StunUnit(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Stuns the specified unit for the given duration in seconds.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="duration">The stun duration in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SilenceUnit(Realm.MapAPI.UnitId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SilenceUnit(Realm.Ecs.UnitId,System.Single)">
             <summary>
             Silences the specified unit, preventing ability casting for the given duration in seconds.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="duration">The silence duration in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.AddItemToUnit(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.AddItemToUnit(Realm.Ecs.UnitId,System.String)">
             <summary>
             Adds an item archetype to the specified unit's inventory.
             </summary>
@@ -2640,7 +2641,7 @@
             <param name="itemId">The item definition identifier.</param>
             <returns>True if added successfully; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.AddItemToUnitWithCharges(Realm.MapAPI.UnitId,System.String,System.Int32)">
+        <member name="M:Realm.MapAPI.IGameAPI.AddItemToUnitWithCharges(Realm.Ecs.UnitId,System.String,System.Int32)">
             <summary>
             Adds an item archetype to the specified unit's inventory with a stack of the given charge count.
             </summary>
@@ -2649,7 +2650,7 @@
             <param name="charges">The number of stacked charges to grant; values below one are treated as one.</param>
             <returns>True if added successfully; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.RemoveItemFromUnit(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.RemoveItemFromUnit(Realm.Ecs.UnitId,System.String)">
             <summary>
             Removes an item archetype from the specified unit's inventory.
             </summary>
@@ -2657,7 +2658,7 @@
             <param name="itemId">The item definition identifier.</param>
             <returns>True if removed successfully; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.UnitHasItem(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.UnitHasItem(Realm.Ecs.UnitId,System.String)">
             <summary>
             Returns true if the specified unit's inventory carries the item.
             </summary>
@@ -2665,14 +2666,14 @@
             <param name="itemId">The item definition identifier.</param>
             <returns>True if carried; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitItems(Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitItems(Realm.Ecs.UnitId)">
             <summary>
             Retrieves the item archetype identifiers currently held in the unit's inventory.
             </summary>
             <param name="unit">The unit identifier.</param>
             <returns>A read-only collection of item archetype identifiers.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitItemCharges(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitItemCharges(Realm.Ecs.UnitId,System.String)">
             <summary>
             Returns the stacked charge count of an item in the specified unit's inventory.
             </summary>
@@ -2680,7 +2681,7 @@
             <param name="itemId">The item definition identifier.</param>
             <returns>The charge count, or zero when the unit does not carry the item.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitItemCharges(Realm.MapAPI.UnitId,System.String,System.Int32)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitItemCharges(Realm.Ecs.UnitId,System.String,System.Int32)">
             <summary>
             Sets the stacked charge count of an item in the specified unit's inventory and reapplies its grants.
             </summary>
@@ -2688,7 +2689,7 @@
             <param name="itemId">The item definition identifier.</param>
             <param name="charges">The new charge count; zero removes the item's grants.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.UnitHasBuff(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.UnitHasBuff(Realm.Ecs.UnitId,System.String)">
             <summary>
             Returns true if the specified unit currently has an active buff with the given identifier.
             </summary>
@@ -2696,7 +2697,7 @@
             <param name="buffId">The buff identifier.</param>
             <returns>True if active; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitCustomData(Realm.MapAPI.UnitId,System.String,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitCustomData(Realm.Ecs.UnitId,System.String,System.String)">
             <summary>
             Stores custom string metadata associated with the specified unit.
             </summary>
@@ -2704,7 +2705,7 @@
             <param name="key">The custom data key.</param>
             <param name="value">The custom data value.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetUnitCustomData(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitCustomData(Realm.Ecs.UnitId,System.String)">
             <summary>
             Retrieves custom string metadata associated with the specified unit.
             </summary>
@@ -2712,7 +2713,7 @@
             <param name="key">The custom data key.</param>
             <returns>The stored string value, or null if not found.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.RemoveUnitCustomData(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.RemoveUnitCustomData(Realm.Ecs.UnitId,System.String)">
             <summary>
             Removes custom string metadata associated with the specified unit.
             </summary>
@@ -2720,7 +2721,7 @@
             <param name="key">The custom data key.</param>
             <returns>True if found and removed; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.UnitHasCustomData(Realm.MapAPI.UnitId,System.String)">
+        <member name="M:Realm.MapAPI.IGameAPI.UnitHasCustomData(Realm.Ecs.UnitId,System.String)">
             <summary>
             Returns true if custom string metadata exists for the given key on the specified unit.
             </summary>
@@ -2784,35 +2785,35 @@
             <param name="item">The loot item identifier.</param>
             <returns>True if despawned; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetResourceNodeType(Realm.MapAPI.ResourceNodeId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetResourceNodeType(Realm.Ecs.ResourceNodeId)">
             <summary>
             Retrieves the resource type identifier provided by the specified resource node (e.g. "gold", "wood", "stone").
             </summary>
             <param name="node">The resource node identifier.</param>
             <returns>The resource type string.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetResourceNodePosition(Realm.MapAPI.ResourceNodeId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetResourceNodePosition(Realm.Ecs.ResourceNodeId)">
             <summary>
             Retrieves the 3D world space position of the specified resource node.
             </summary>
             <param name="node">The resource node identifier.</param>
             <returns>The 3D coordinates of the resource node.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetResourceNodeAmount(Realm.MapAPI.ResourceNodeId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetResourceNodeAmount(Realm.Ecs.ResourceNodeId)">
             <summary>
             Retrieves the remaining harvestable resource amount in the specified resource node.
             </summary>
             <param name="node">The resource node identifier.</param>
             <returns>The remaining resource amount.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetResourceNodeAmount(Realm.MapAPI.ResourceNodeId,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetResourceNodeAmount(Realm.Ecs.ResourceNodeId,System.Single)">
             <summary>
             Sets the remaining harvestable resource amount in the specified resource node.
             </summary>
             <param name="node">The resource node identifier.</param>
             <param name="value">The new resource amount.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IsResourceNodeDepleted(Realm.MapAPI.ResourceNodeId)">
+        <member name="M:Realm.MapAPI.IGameAPI.IsResourceNodeDepleted(Realm.Ecs.ResourceNodeId)">
             <summary>
             Returns true if the specified resource node is fully depleted of resources.
             </summary>
@@ -3055,7 +3056,7 @@
             Provides helper methods for common map script gameplay mechanics, such as automated tower defense updates.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.MapScriptHelpers.RunTowerDefenseTick(Realm.MapAPI.IGameAPI,Realm.MapAPI.UnitId,Realm.MapAPI.TowerDefenseConfig,System.Single@,System.Single)">
+        <member name="M:Realm.MapAPI.MapScriptHelpers.RunTowerDefenseTick(Realm.MapAPI.IGameAPI,Realm.Ecs.UnitId,Realm.MapAPI.TowerDefenseConfig,System.Single@,System.Single)">
             <summary>
             Runs a single simulation tick of tower defense logic for a tower unit, acquiring the nearest valid enemy target within range and performing an attack if the cooldown has elapsed.
             </summary>
@@ -3190,125 +3191,224 @@
             All traversal and buildability flags enabled.
             </summary>
         </member>
-        <member name="T:Realm.MapAPI.PlayerId">
+        <member name="T:Realm.MapAPI.PlayerIdScriptExtensions">
             <summary>
-            Represents a strongly-typed, unmanaged identifier for a player slot in the game session,
-            providing zero-allocation fluent access to player resources, units, and camera actions.
+            Adds the map script surface of a player slot: its units, its camera and the notifications it receives.
             </summary>
+            <remarks>
+            The handle itself is a plain index owned by the shared simulation, so the simulation can name this subject
+            without the script surface. What a script reads answers straight out of the world the process is simulating,
+            and everything that changes the world routes through the authoritative host imports.
+            </remarks>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.#ctor(System.Int32)">
-            <summary>
-            Represents a strongly-typed, unmanaged identifier for a player slot in the game session,
-            providing zero-allocation fluent access to player resources, units, and camera actions.
-            </summary>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.get_Name(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.Name"/>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.op_Implicit(System.Int32)~Realm.MapAPI.PlayerId">
-            <summary>
-            Implicitly converts a 32-bit integer slot index into a <see cref="T:Realm.MapAPI.PlayerId"/>.
-            </summary>
-            <param name="value">The zero-based player slot index.</param>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.get_IsActive(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.IsActive"/>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.op_Explicit(Realm.MapAPI.PlayerId)~System.Int32">
-            <summary>
-            Explicitly converts a <see cref="T:Realm.MapAPI.PlayerId"/> into a 32-bit integer slot index.
-            </summary>
-            <param name="id">The player identifier.</param>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetActive(Realm.Ecs.PlayerId,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetActive(System.Boolean)"/>
         </member>
-        <member name="F:Realm.MapAPI.PlayerId.Invalid">
-            <summary>
-            Gets an invalid or unassigned player slot identifier.
-            </summary>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.AdjustGold(Realm.Ecs.PlayerId,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.AdjustGold(System.Single)"/>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.IsValid">
-            <summary>
-            Gets a value indicating whether this identifier represents a valid player slot index.
-            </summary>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.AdjustWood(Realm.Ecs.PlayerId,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.AdjustWood(System.Single)"/>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.Index">
-            <summary>
-            Gets the zero-based slot index of this player.
-            </summary>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.AdjustStone(Realm.Ecs.PlayerId,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.AdjustStone(System.Single)"/>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.Id">
-            <summary>
-            Gets the zero-based slot index of this player (alias for <see cref="P:Realm.MapAPI.PlayerId.Index"/>).
-            </summary>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.get_CurrentPopulation(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.CurrentPopulation"/>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.Name">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SpawnUnit(Realm.Ecs.PlayerId,System.String,System.Numerics.Vector2,System.Boolean,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SpawnUnit(System.String,System.Numerics.Vector2,System.Boolean,System.Boolean)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SpawnUnit(Realm.Ecs.PlayerId,System.String,System.Numerics.Vector3,System.Boolean,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SpawnUnit(System.String,System.Numerics.Vector3,System.Boolean,System.Boolean)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetUnits(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetUnits"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SendMessage(Realm.Ecs.PlayerId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SendMessage(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.TriggerVictory(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.TriggerVictory"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.TriggerDefeat(Realm.Ecs.PlayerId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.TriggerDefeat(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetAllied(Realm.Ecs.PlayerId,Realm.Ecs.PlayerId,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetAllied(Realm.Ecs.PlayerId,System.Boolean)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.IsAlliedWith(Realm.Ecs.PlayerId,Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.IsAlliedWith(Realm.Ecs.PlayerId)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.Kick(Realm.Ecs.PlayerId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.Kick(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.get_StartLocation(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.StartLocation"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetTechLevel(Realm.Ecs.PlayerId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetTechLevel(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetTechLevel(Realm.Ecs.PlayerId,System.String,System.Int32)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetTechLevel(System.String,System.Int32)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.AddTechLevel(Realm.Ecs.PlayerId,System.String,System.Int32)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.AddTechLevel(System.String,System.Int32)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.PanCameraTo(Realm.Ecs.PlayerId,System.Numerics.Vector3,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.PanCameraTo(System.Numerics.Vector3,System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.MoveCameraTo(Realm.Ecs.PlayerId,System.Numerics.Vector3,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.MoveCameraTo(System.Numerics.Vector3,System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.ShakeCamera(Realm.Ecs.PlayerId,System.Single,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ShakeCamera(System.Single,System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetCameraBounds(Realm.Ecs.PlayerId,System.Single,System.Single,System.Single,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetCameraBounds(System.Single,System.Single,System.Single,System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetCameraBounds(Realm.Ecs.PlayerId,Realm.MapAPI.Coordinate)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetCameraBounds(Realm.MapAPI.Coordinate)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetCameraBounds(Realm.Ecs.PlayerId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetCameraBounds(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.ResetCameraBounds(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ResetCameraBounds"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetHudElementVisible(Realm.Ecs.PlayerId,Realm.MapAPI.HudElement,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetHudElementVisible(Realm.MapAPI.HudElement,System.Boolean)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SelectUnit(Realm.Ecs.PlayerId,Realm.Ecs.UnitId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SelectUnit(Realm.Ecs.UnitId)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.ClearSelection(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ClearSelection"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetSelectedUnits(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetSelectedUnits"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.ShowFeedbackText(Realm.Ecs.PlayerId,System.String,System.Numerics.Vector3)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ShowFeedbackText(System.String,System.Numerics.Vector3)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.RegisterAbility(Realm.Ecs.PlayerId,System.String,System.String,System.String,System.String,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.RegisterAbility(System.String,System.String,System.String,System.String,System.Boolean)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.PingMinimap(Realm.Ecs.PlayerId,System.Numerics.Vector3)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.PingMinimap(System.Numerics.Vector3)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.PlayWarningSound(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.PlayWarningSound"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.PlayClickSound(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.PlayClickSound"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.StartBuildingPlacement(Realm.Ecs.PlayerId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.StartBuildingPlacement(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.get_Language(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.Language"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.get_ColorHex(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ColorHex"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.get_Color(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.Color"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.get_ColoredName(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ColoredName"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetName(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetName"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetTeam(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetTeam"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetTeam(Realm.Ecs.PlayerId,System.Int32)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetTeam(System.Int32)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetStartLocation(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetStartLocation"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetGold(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetGold"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetGold(Realm.Ecs.PlayerId,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetGold(System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetWood(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetWood"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetWood(Realm.Ecs.PlayerId,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetWood(System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetStone(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetStone"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetStone(Realm.Ecs.PlayerId,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetStone(System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetCurrentPopulation(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetCurrentPopulation"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetMaxPopulation(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetMaxPopulation"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetMaxPopulation(Realm.Ecs.PlayerId,System.Int32)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetMaxPopulation(System.Int32)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.GetKills(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetKills"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetKills(Realm.Ecs.PlayerId,System.Int32)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetKills(System.Int32)"/>
+        </member>
+        <member name="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.Name">
             <summary>
             Gets the display name of this player.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.IsActive">
+        <member name="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.IsActive">
             <summary>
             Gets a value indicating whether this player slot is occupied by an active human or AI participant.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetActive(System.Boolean)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetActive(System.Boolean)">
             <summary>
             Sets whether this player slot is active in the game session.
             </summary>
             <param name="active">True if the slot is active; otherwise false.</param>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.IsComputer">
-            <summary>
-            Gets or sets a value indicating whether this player slot is controlled by a computer AI.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.PlayerId.Team">
-            <summary>
-            Gets or sets the team index that this player belongs to.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.PlayerId.Gold">
-            <summary>
-            Gets or sets the current gold resource amount for this player.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerId.AdjustGold(System.Single)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.AdjustGold(System.Single)">
             <summary>
             Modifies the gold resource amount for this player by a signed delta.
             </summary>
             <param name="delta">The amount of gold to add (or subtract if negative).</param>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.Wood">
-            <summary>
-            Gets or sets the current wood resource amount for this player.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerId.AdjustWood(System.Single)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.AdjustWood(System.Single)">
             <summary>
             Modifies the wood resource amount for this player by a signed delta.
             </summary>
             <param name="delta">The amount of wood to add (or subtract if negative).</param>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.Stone">
-            <summary>
-            Gets or sets the current stone resource amount for this player.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerId.AdjustStone(System.Single)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.AdjustStone(System.Single)">
             <summary>
             Modifies the stone resource amount for this player by a signed delta.
             </summary>
             <param name="delta">The amount of stone to add (or subtract if negative).</param>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.CurrentPopulation">
+        <member name="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.CurrentPopulation">
             <summary>
             Gets the current population count consumed by this player's living units.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.MaxPopulation">
-            <summary>
-            Gets or sets the maximum population supply capacity for this player.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.PlayerId.Kills">
-            <summary>
-            Gets or sets the total number of enemy unit kills credited to this player.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerId.SpawnUnit(System.String,System.Numerics.Vector2,System.Boolean,System.Boolean)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SpawnUnit(System.String,System.Numerics.Vector2,System.Boolean,System.Boolean)">
             <summary>
             Spawns a new unit of the specified type for this player at the given 2D ground coordinates.
             </summary>
@@ -3316,9 +3416,9 @@
             <param name="position">The 2D world coordinates.</param>
             <param name="executeSpawnShader">Whether to play the material spawn shader animation.</param>
             <param name="bypassPopulation">Whether to bypass the player's maximum population check.</param>
-            <returns>The spawned <see cref="T:Realm.MapAPI.UnitId"/>.</returns>
+            <returns>The spawned <see cref="T:Realm.Ecs.UnitId"/>.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SpawnUnit(System.String,System.Numerics.Vector3,System.Boolean,System.Boolean)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SpawnUnit(System.String,System.Numerics.Vector3,System.Boolean,System.Boolean)">
             <summary>
             Spawns a new unit of the specified type for this player at the given 3D world coordinates.
             </summary>
@@ -3326,99 +3426,99 @@
             <param name="position">The 3D world coordinates.</param>
             <param name="executeSpawnShader">Whether to play the material spawn shader animation.</param>
             <param name="bypassPopulation">Whether to bypass the player's maximum population check.</param>
-            <returns>The spawned <see cref="T:Realm.MapAPI.UnitId"/>.</returns>
+            <returns>The spawned <see cref="T:Realm.Ecs.UnitId"/>.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetUnits">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetUnits">
             <summary>
             Retrieves a read-only span of all unit identifiers currently owned by this player.
             </summary>
             <returns>A read-only span of unit identifiers.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SendMessage(System.String)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SendMessage(System.String)">
             <summary>
             Sends a direct chat message notification to this player.
             </summary>
             <param name="message">The text message to transmit.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.TriggerVictory">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.TriggerVictory">
             <summary>
             Triggers the match victory sequence for this player.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.TriggerDefeat(System.String)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.TriggerDefeat(System.String)">
             <summary>
             Triggers the match defeat sequence for this player.
             </summary>
             <param name="reason">An optional defeat explanation message.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetAllied(Realm.MapAPI.PlayerId,System.Boolean)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetAllied(Realm.Ecs.PlayerId,System.Boolean)">
             <summary>
             Configures whether this player and another player slot treat each other as passive allies.
             </summary>
             <param name="otherPlayer">The other player identifier.</param>
             <param name="allied">True if allied; otherwise false.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.IsAlliedWith(Realm.MapAPI.PlayerId)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.IsAlliedWith(Realm.Ecs.PlayerId)">
             <summary>
             Returns true if this player and another player slot treat each other as allies.
             </summary>
             <param name="otherPlayer">The other player identifier.</param>
             <returns>True if allied; otherwise false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.Kick(System.String)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.Kick(System.String)">
             <summary>
             Kicks this player from the game session.
             </summary>
             <param name="reason">An optional kick explanation message.</param>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.StartLocation">
+        <member name="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.StartLocation">
             <summary>
             Gets the start location for this player in 3D world space.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetTechLevel(System.String)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetTechLevel(System.String)">
             <summary>
             Gets the research level of a technology upgrade for this player.
             </summary>
             <param name="techId">The technology identifier.</param>
             <returns>The research level.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetTechLevel(System.String,System.Int32)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetTechLevel(System.String,System.Int32)">
             <summary>
             Sets the research level of a technology upgrade for this player.
             </summary>
             <param name="techId">The technology identifier.</param>
             <param name="level">The research level to assign.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.AddTechLevel(System.String,System.Int32)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.AddTechLevel(System.String,System.Int32)">
             <summary>
             Increments the research level of a technology upgrade for this player by delta.
             </summary>
             <param name="techId">The technology identifier.</param>
             <param name="delta">The amount to add to the research level.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.PanCameraTo(System.Numerics.Vector3,System.Single)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.PanCameraTo(System.Numerics.Vector3,System.Single)">
             <summary>
             Smoothly pans this player's camera to the specified 3D world position.
             </summary>
             <param name="position">The destination coordinates.</param>
             <param name="duration">Duration of the camera pan transition in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.MoveCameraTo(System.Numerics.Vector3,System.Single)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.MoveCameraTo(System.Numerics.Vector3,System.Single)">
             <summary>
-            Smoothly moves or pans this player's camera to the specified 3D world position (alias for <see cref="M:Realm.MapAPI.PlayerId.PanCameraTo(System.Numerics.Vector3,System.Single)"/>).
+            Smoothly moves or pans this player's camera to the specified 3D world position (alias for <see cref="!:PanCameraTo(Vector3, float)"/>).
             </summary>
             <param name="position">The destination coordinates.</param>
             <param name="duration">Duration of the camera pan transition in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.ShakeCamera(System.Single,System.Single)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ShakeCamera(System.Single,System.Single)">
             <summary>
             Shakes this player's camera to simulate an explosion or impact.
             </summary>
             <param name="intensity">The vibration intensity amplitude.</param>
             <param name="duration">The shake duration in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetCameraBounds(System.Single,System.Single,System.Single,System.Single)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetCameraBounds(System.Single,System.Single,System.Single,System.Single)">
             <summary>
             Restricts this player's camera movement limits in world space coordinates.
             </summary>
@@ -3427,55 +3527,55 @@
             <param name="maxX">The maximum X world boundary.</param>
             <param name="maxZ">The maximum Z world boundary.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetCameraBounds(Realm.MapAPI.Coordinate)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetCameraBounds(Realm.MapAPI.Coordinate)">
             <summary>
             Restricts this player's camera movement limits to the specified authored coordinate region.
             </summary>
             <param name="coordinate">The coordinate marker region.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetCameraBounds(System.String)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetCameraBounds(System.String)">
             <summary>
             Restricts this player's camera movement limits to the named authored coordinate region.
             </summary>
             <param name="coordinateName">The name of the coordinate region.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.ResetCameraBounds">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ResetCameraBounds">
             <summary>
             Resets this player's camera movement boundaries back to the map default boundaries.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetHudElementVisible(Realm.MapAPI.HudElement,System.Boolean)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetHudElementVisible(Realm.MapAPI.HudElement,System.Boolean)">
             <summary>
             Sets whether a specific built-in HUD element is visible for this player.
             </summary>
             <param name="element">The HUD element to show or hide.</param>
             <param name="visible">True to make the element visible; false to hide it.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SelectUnit(Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SelectUnit(Realm.Ecs.UnitId)">
             <summary>
             Selects the specified unit on this player's client, clearing previous selections.
             </summary>
             <param name="unit">The unit to select.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.ClearSelection">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ClearSelection">
             <summary>
             Clears the unit selection on this player's client.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetSelectedUnits">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetSelectedUnits">
             <summary>
             Retrieves a read-only span of units currently selected by this player.
             </summary>
             <returns>A read-only span of selected unit identifiers.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.ShowFeedbackText(System.String,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ShowFeedbackText(System.String,System.Numerics.Vector3)">
             <summary>
             Displays floating feedback text on this player's screen with the specified RGB color.
             </summary>
             <param name="text">The message text.</param>
             <param name="color">The text color vector.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.RegisterAbility(System.String,System.String,System.String,System.String,System.Boolean)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.RegisterAbility(System.String,System.String,System.String,System.String,System.Boolean)">
             <summary>
             Registers an ability with display metadata and execution behavior for this player's command card.
             </summary>
@@ -3485,143 +3585,137 @@
             <param name="iconPath">Resource path to the ability icon texture.</param>
             <param name="isInstant">True if the ability executes immediately without ground targeting.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.PingMinimap(System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.PingMinimap(System.Numerics.Vector3)">
             <summary>
             Spawns a minimap ping on this player's client at the specified 3D world position.
             </summary>
             <param name="position">The coordinates of the ping.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.PlayWarningSound">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.PlayWarningSound">
             <summary>
             Plays an audible warning sound effect on this player's client.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.PlayClickSound">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.PlayClickSound">
             <summary>
             Plays an audible click UI sound effect on this player's client.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.StartBuildingPlacement(System.String)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.StartBuildingPlacement(System.String)">
             <summary>
             Begins interactive building placement on this player's client for the specified building type.
             </summary>
             <param name="buildingTypeId">The archetype identifier of the building to place.</param>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.Language">
+        <member name="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.Language">
             <summary>
             Gets the language code preference of this player.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.ColorHex">
+        <member name="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ColorHex">
             <summary>
             Gets the hexadecimal color string for this player slot.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.Color">
+        <member name="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.Color">
             <summary>
             Gets the RGB color assigned to this player slot.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.PlayerId.ColoredName">
+        <member name="P:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ColoredName">
             <summary>
             Gets the formatted bbcode colored name of this player.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetName">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetName">
             <summary>
             Gets the display name of this player.
             </summary>
             <returns>The display name string.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetTeam">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetTeam">
             <summary>
             Gets the team index that this player belongs to.
             </summary>
             <returns>The team index.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetTeam(System.Int32)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetTeam(System.Int32)">
             <summary>
             Sets the team index that this player belongs to.
             </summary>
             <param name="teamIndex">The new team index.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetStartLocation">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetStartLocation">
             <summary>
             Gets the start location for this player in 3D world space.
             </summary>
             <returns>The 3D start coordinates.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetGold">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetGold">
             <summary>
             Gets the current gold resource amount for this player.
             </summary>
             <returns>The gold resource value.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetGold(System.Single)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetGold(System.Single)">
             <summary>
             Sets the current gold resource amount for this player.
             </summary>
             <param name="amount">The new gold amount.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetWood">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetWood">
             <summary>
             Gets the current wood resource amount for this player.
             </summary>
             <returns>The wood resource value.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetWood(System.Single)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetWood(System.Single)">
             <summary>
             Sets the current wood resource amount for this player.
             </summary>
             <param name="amount">The new wood amount.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetStone">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetStone">
             <summary>
             Gets the current stone resource amount for this player.
             </summary>
             <returns>The stone resource value.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetStone(System.Single)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetStone(System.Single)">
             <summary>
             Sets the current stone resource amount for this player.
             </summary>
             <param name="amount">The new stone amount.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetCurrentPopulation">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetCurrentPopulation">
             <summary>
             Gets the current population count consumed by this player's living units.
             </summary>
             <returns>The current population count.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetMaxPopulation">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetMaxPopulation">
             <summary>
             Gets the maximum population supply capacity for this player.
             </summary>
             <returns>The maximum population limit.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetMaxPopulation(System.Int32)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetMaxPopulation(System.Int32)">
             <summary>
             Sets the maximum population supply capacity for this player.
             </summary>
             <param name="max">The new maximum population capacity.</param>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.GetKills">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.GetKills">
             <summary>
             Gets the total number of enemy unit kills credited to this player.
             </summary>
             <returns>The total kill count.</returns>
         </member>
-        <member name="M:Realm.MapAPI.PlayerId.SetKills(System.Int32)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetKills(System.Int32)">
             <summary>
             Sets the total number of enemy unit kills credited to this player.
             </summary>
             <param name="kills">The new kill count.</param>
-        </member>
-        <member name="M:Realm.MapAPI.PlayerId.ToString">
-            <summary>
-            Formats the player identifier as a string.
-            </summary>
-            <returns>A string representation of the player slot index.</returns>
         </member>
         <member name="T:Realm.MapAPI.QueryResultBuffer">
             <summary>
@@ -3634,83 +3728,50 @@
             </summary>
             <returns>A span pointing to the allocated ring buffer slot segment.</returns>
         </member>
-        <member name="T:Realm.MapAPI.ResourceNodeId">
+        <member name="T:Realm.MapAPI.ResourceNodeIdScriptExtensions">
             <summary>
-            Represents a strongly-typed, unmanaged identifier for a harvestable resource node in the game world,
-            providing zero-allocation fluent access to resource node state and harvest capacity.
+            Adds the map script surface of a resource node: what it yields and how it reacts on screen.
             </summary>
+            <remarks>
+            The handle itself is a plain index owned by the shared simulation, so the simulation can name this subject
+            without the script surface. What a script reads answers straight out of the world the process is simulating,
+            and everything that changes the world routes through the authoritative host imports.
+            </remarks>
         </member>
-        <member name="M:Realm.MapAPI.ResourceNodeId.#ctor(System.Int32)">
-            <summary>
-            Represents a strongly-typed, unmanaged identifier for a harvestable resource node in the game world,
-            providing zero-allocation fluent access to resource node state and harvest capacity.
-            </summary>
+        <member name="M:Realm.MapAPI.ResourceNodeIdScriptExtensions.get_ResourceType(Realm.Ecs.ResourceNodeId)">
+            <inheritdoc cref="P:Realm.MapAPI.ResourceNodeIdScriptExtensions.&lt;G&gt;$E2896DC0C95C5308CD1E9E164B55DB09.ResourceType"/>
         </member>
-        <member name="M:Realm.MapAPI.ResourceNodeId.op_Implicit(System.Int32)~Realm.MapAPI.ResourceNodeId">
-            <summary>
-            Implicitly converts a 32-bit integer index into a <see cref="T:Realm.MapAPI.ResourceNodeId"/>.
-            </summary>
-            <param name="value">The zero-based resource node index.</param>
+        <member name="M:Realm.MapAPI.ResourceNodeIdScriptExtensions.get_Position(Realm.Ecs.ResourceNodeId)">
+            <inheritdoc cref="P:Realm.MapAPI.ResourceNodeIdScriptExtensions.&lt;G&gt;$E2896DC0C95C5308CD1E9E164B55DB09.Position"/>
         </member>
-        <member name="M:Realm.MapAPI.ResourceNodeId.op_Explicit(Realm.MapAPI.ResourceNodeId)~System.Int32">
-            <summary>
-            Explicitly converts a <see cref="T:Realm.MapAPI.ResourceNodeId"/> into a 32-bit integer index.
-            </summary>
-            <param name="id">The resource node identifier.</param>
+        <member name="M:Realm.MapAPI.ResourceNodeIdScriptExtensions.get_IsDepleted(Realm.Ecs.ResourceNodeId)">
+            <inheritdoc cref="P:Realm.MapAPI.ResourceNodeIdScriptExtensions.&lt;G&gt;$E2896DC0C95C5308CD1E9E164B55DB09.IsDepleted"/>
         </member>
-        <member name="F:Realm.MapAPI.ResourceNodeId.Invalid">
-            <summary>
-            Gets an invalid or unassigned resource node identifier.
-            </summary>
+        <member name="M:Realm.MapAPI.ResourceNodeIdScriptExtensions.TriggerMeshImpulse(Realm.Ecs.ResourceNodeId,System.Single,System.Single,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.ResourceNodeIdScriptExtensions.&lt;G&gt;$E2896DC0C95C5308CD1E9E164B55DB09.TriggerMeshImpulse(System.Single,System.Single,System.Single)"/>
         </member>
-        <member name="P:Realm.MapAPI.ResourceNodeId.IsValid">
-            <summary>
-            Gets a value indicating whether this identifier represents a valid resource node index.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.ResourceNodeId.Index">
-            <summary>
-            Gets the zero-based index of this resource node.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.ResourceNodeId.Id">
-            <summary>
-            Gets the zero-based index of this resource node (alias for <see cref="P:Realm.MapAPI.ResourceNodeId.Index"/>).
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.ResourceNodeId.ResourceType">
+        <member name="P:Realm.MapAPI.ResourceNodeIdScriptExtensions.&lt;G&gt;$E2896DC0C95C5308CD1E9E164B55DB09.ResourceType">
             <summary>
             Gets the resource category identifier provided by this node (e.g., "gold", "wood", "stone").
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.ResourceNodeId.Position">
+        <member name="P:Realm.MapAPI.ResourceNodeIdScriptExtensions.&lt;G&gt;$E2896DC0C95C5308CD1E9E164B55DB09.Position">
             <summary>
             Gets the position of the resource node in 3D world space.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.ResourceNodeId.ResourceAmount">
-            <summary>
-            Gets or sets the remaining harvestable resource amount in this node.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.ResourceNodeId.IsDepleted">
+        <member name="P:Realm.MapAPI.ResourceNodeIdScriptExtensions.&lt;G&gt;$E2896DC0C95C5308CD1E9E164B55DB09.IsDepleted">
             <summary>
             Gets a value indicating whether the resource node is fully depleted of resources.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.ResourceNodeId.TriggerMeshImpulse(System.Single,System.Single,System.Single)">
+        <member name="M:Realm.MapAPI.ResourceNodeIdScriptExtensions.&lt;G&gt;$E2896DC0C95C5308CD1E9E164B55DB09.TriggerMeshImpulse(System.Single,System.Single,System.Single)">
             <summary>
             Triggers an elastic deformation mesh impulse visual effect on the resource node model.
             </summary>
             <param name="strength">The peak displacement amplitude of the impulse vibration.</param>
             <param name="duration">The total time in seconds over which the impulse decays.</param>
             <param name="frequency">The oscillatory speed of the displacement impulse.</param>
-        </member>
-        <member name="M:Realm.MapAPI.ResourceNodeId.ToString">
-            <summary>
-            Formats the resource node identifier as a string.
-            </summary>
-            <returns>A string representation of the resource node index.</returns>
         </member>
         <member name="T:Realm.MapAPI.SaveEnvelope`1">
             <summary>
@@ -3926,323 +3987,300 @@
             </summary>
             <returns>A JSON string representation of the configuration parameters.</returns>
         </member>
-        <member name="T:Realm.MapAPI.UnitId">
+        <member name="T:Realm.MapAPI.UnitIdScriptExtensions">
             <summary>
-            Represents a strongly-typed, unmanaged entity identifier for a unit instance in the game world,
-            providing zero-allocation fluent access to unit properties and commands.
+            Adds the map script surface of a unit: its template, its orders and the effects a map can put on it.
             </summary>
+            <remarks>
+            The handle itself is a plain index owned by the shared simulation, so the simulation can name this subject
+            without the script surface. What a script reads answers straight out of the world the process is simulating,
+            and everything that changes the world routes through the authoritative host imports.
+            </remarks>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.#ctor(System.Int32)">
-            <summary>
-            Represents a strongly-typed, unmanaged entity identifier for a unit instance in the game world,
-            providing zero-allocation fluent access to unit properties and commands.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_MagicResistance(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.MagicResistance"/>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.op_Implicit(System.Int32)~Realm.MapAPI.UnitId">
-            <summary>
-            Implicitly converts a 32-bit integer identifier into a <see cref="T:Realm.MapAPI.UnitId"/>.
-            </summary>
-            <param name="value">The raw integer unit identifier.</param>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_Position(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Position"/>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.op_Explicit(Realm.MapAPI.UnitId)~System.Int32">
-            <summary>
-            Explicitly converts a <see cref="T:Realm.MapAPI.UnitId"/> into a 32-bit integer identifier.
-            </summary>
-            <param name="id">The unit identifier.</param>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_TemplateID(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.TemplateID"/>
         </member>
-        <member name="F:Realm.MapAPI.UnitId.Invalid">
-            <summary>
-            Gets an invalid or unassigned unit identifier.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_TypeId(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.TypeId"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.IsValid">
-            <summary>
-            Gets a value indicating whether this identifier represents a valid unit index.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_UnitTypeId(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.UnitTypeId"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.UniqueId">
-            <summary>
-            Gets the raw integer identifier.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_UnitIdString(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.UnitIdString"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Id">
-            <summary>
-            Gets the raw integer identifier (alias for <see cref="P:Realm.MapAPI.UnitId.UniqueId"/>).
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_IsBuilding(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.IsBuilding"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Health">
-            <summary>
-            Gets or sets the current health point value of the unit.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_IsHero(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.IsHero"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.MaxHealth">
-            <summary>
-            Gets or sets the maximum health point capacity of the unit.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_XpBounty(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.XpBounty"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Mana">
-            <summary>
-            Gets or sets the current mana points of the unit.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_GoldBounty(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GoldBounty"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.MaxMana">
-            <summary>
-            Gets or sets the maximum mana capacity of the unit.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_IsDead(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.IsDead"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.ManaRegen">
-            <summary>
-            Gets or sets the mana regeneration rate of the unit per second.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.MoveTo(Realm.Ecs.UnitId,System.Numerics.Vector3)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.MoveTo(System.Numerics.Vector3)"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Damage">
-            <summary>
-            Gets or sets the base attack damage of the unit.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.AttackMove(Realm.Ecs.UnitId,System.Numerics.Vector3)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.AttackMove(System.Numerics.Vector3)"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Range">
-            <summary>
-            Gets or sets the attack range of the unit.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.Attack(Realm.Ecs.UnitId,Realm.Ecs.UnitId)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Attack(Realm.Ecs.UnitId)"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Armor">
-            <summary>
-            Gets or sets the armor points of the unit. Armor mitigates physical damage only.
-            </summary>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.Gather(Realm.Ecs.UnitId,Realm.Ecs.ResourceNodeId)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Gather(Realm.Ecs.ResourceNodeId)"/>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.MagicResistance">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.Teleport(Realm.Ecs.UnitId,System.Numerics.Vector3)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Teleport(System.Numerics.Vector3)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.Stop(Realm.Ecs.UnitId)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Stop"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.HoldPosition(Realm.Ecs.UnitId)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.HoldPosition"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.AddBuff(Realm.Ecs.UnitId,System.String,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.AddBuff(System.String,System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.RemoveBuff(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.RemoveBuff(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.CastAbility(Realm.Ecs.UnitId,System.String,System.Numerics.Vector3)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.CastAbility(System.String,System.Numerics.Vector3)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.GetAbilityCooldown(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GetAbilityCooldown(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.SetAbilityCooldown(Realm.Ecs.UnitId,System.String,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetAbilityCooldown(System.String,System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.Stun(Realm.Ecs.UnitId,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Stun(System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.Silence(Realm.Ecs.UnitId,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Silence(System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.AddItem(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.AddItem(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.AddItem(Realm.Ecs.UnitId,System.String,System.Int32)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.AddItem(System.String,System.Int32)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.GetItemCharges(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GetItemCharges(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.SetItemCharges(Realm.Ecs.UnitId,System.String,System.Int32)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetItemCharges(System.String,System.Int32)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.RemoveItem(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.RemoveItem(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.HasItem(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.HasItem(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.GetItems(Realm.Ecs.UnitId)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GetItems"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.HasBuff(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.HasBuff(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.SetCustomData(Realm.Ecs.UnitId,System.String,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetCustomData(System.String,System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.GetCustomData(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GetCustomData(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.RemoveCustomData(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.RemoveCustomData(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.HasCustomData(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.HasCustomData(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.SetAutoCast(Realm.Ecs.UnitId,System.String,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetAutoCast(System.String,System.Boolean)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.CollectLootItem(Realm.Ecs.UnitId,Realm.Ecs.LootItemId)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.CollectLootItem(Realm.Ecs.LootItemId)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.SetColor(Realm.Ecs.UnitId,System.Numerics.Vector3)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetColor(System.Numerics.Vector3)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.SetAnimation(Realm.Ecs.UnitId,System.String)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetAnimation(System.String)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.SetSpellImmune(Realm.Ecs.UnitId,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetSpellImmune(System.Boolean)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.TriggerMeshImpulse(Realm.Ecs.UnitId,System.Single,System.Single,System.Single)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.TriggerMeshImpulse(System.Single,System.Single,System.Single)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.Kill(Realm.Ecs.UnitId,System.Boolean,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Kill(System.Boolean,System.Boolean)"/>
+        </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.Destroy(Realm.Ecs.UnitId,System.Boolean,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Destroy(System.Boolean,System.Boolean)"/>
+        </member>
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.MagicResistance">
             <summary>
             Gets the magic resistance points of the unit. Magic resistance mitigates magic damage only.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Speed">
-            <summary>
-            Gets or sets the movement speed of the unit.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.AttackSpeed">
-            <summary>
-            Gets or sets the attack speed multiplier of the unit.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.Position">
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Position">
             <summary>
             Gets the current position of the unit in 3D world space.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Name">
-            <summary>
-            Gets or sets the display name of the unit.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.TemplateID">
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.TemplateID">
             <summary>
             Gets the canonical template identifier of the unit archetype.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.TypeId">
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.TypeId">
             <summary>
-            Gets the canonical archetype identifier (alias for <see cref="P:Realm.MapAPI.UnitId.TemplateID"/>).
+            Gets the canonical archetype identifier (alias for <see cref="!:TemplateID"/>).
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.UnitTypeId">
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.UnitTypeId">
             <summary>
-            Gets the canonical archetype identifier (alias for <see cref="P:Realm.MapAPI.UnitId.TemplateID"/>).
+            Gets the canonical archetype identifier (alias for <see cref="!:TemplateID"/>).
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.UnitIdString">
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.UnitIdString">
             <summary>
-            Gets the canonical template identifier (alias for <see cref="P:Realm.MapAPI.UnitId.TemplateID"/>).
+            Gets the canonical template identifier (alias for <see cref="!:TemplateID"/>).
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Player">
-            <summary>
-            Gets or sets the zero-based player slot index that owns this unit.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.IsBuilding">
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.IsBuilding">
             <summary>
             Gets a value indicating whether the unit is a structural building.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.IsHero">
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.IsHero">
             <summary>
             Gets a value indicating whether the unit is a Hero unit.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Level">
-            <summary>
-            Gets or sets the experience level of the unit.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.Experience">
-            <summary>
-            Gets or sets the experience points accumulated by the hero unit.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.XpBounty">
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.XpBounty">
             <summary>
             Gets the experience point bounty awarded upon defeating this unit.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.GoldBounty">
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GoldBounty">
             <summary>
             Gets the gold resource bounty awarded upon defeating this unit.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.IsDead">
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.IsDead">
             <summary>
             Gets a value indicating whether this unit is dead.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.UnitId.Scale">
-            <summary>
-            Gets or sets the visual scaling factor of the unit model.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.Invulnerable">
-            <summary>
-            Gets or sets a value indicating whether the unit is invulnerable to all damage.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.AnimationsFrozen">
-            <summary>
-            Gets or sets a value indicating whether the unit holds its current animation pose.
-            </summary>
-            <remarks>
-            An animations-frozen unit plays no locomotion, attack, idle or death animation, including
-            procedural sway, but it can still receive movement, attack and ability orders. Combine it with
-            <see cref="P:Realm.MapAPI.UnitId.CommandsFrozen"/> to pin a unit in place, or use <see cref="P:Realm.MapAPI.UnitId.Frozen"/> to set both.
-            </remarks>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.CommandsFrozen">
-            <summary>
-            Gets or sets a value indicating whether the unit ignores movement, attack and hold orders.
-            </summary>
-            <remarks>
-            A commands-frozen unit keeps its current position, does not acquire targets and does not respond
-            to move, stop, hold or attack commands, and clients hide those command buttons for it. Ability
-            casting and ability buttons stay available, so map-authored abilities such as rerolls keep
-            working. Setting the property to the value it already has does nothing.
-            </remarks>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.Frozen">
-            <summary>
-            Gets or sets a value indicating whether the unit is frozen in place with its animation suspended.
-            </summary>
-            <remarks>
-            This sets both <see cref="P:Realm.MapAPI.UnitId.AnimationsFrozen"/> and <see cref="P:Realm.MapAPI.UnitId.CommandsFrozen"/>. A frozen unit keeps
-            its current position and pose and ignores orders, and it does not acquire targets. Setting the
-            property to the value it already has does nothing. The flag lives on the entity, so it survives
-            level changes, element swaps and unit swaps until the entity is destroyed or the flag is cleared,
-            and it does not conflict with <see cref="P:Realm.MapAPI.UnitId.Invulnerable"/>, <see cref="P:Realm.MapAPI.UnitId.Facing"/> or
-            <see cref="P:Realm.MapAPI.UnitId.HideHealthAndManaBars"/>.
-            </remarks>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.HideHealthAndManaBars">
-            <summary>
-            Gets or sets a value indicating whether overhead health and mana bars are hidden for this unit.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.UnitId.Facing">
-            <summary>
-            Gets or sets the facing orientation of the unit in radians.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.UnitId.MoveTo(System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.MoveTo(System.Numerics.Vector3)">
             <summary>
             Orders the unit to move to the specified destination in world coordinates.
             </summary>
             <param name="destination">The destination position.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.AttackMove(System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.AttackMove(System.Numerics.Vector3)">
             <summary>
             Orders the unit to attack-move towards the specified destination.
             </summary>
             <param name="destination">The target destination.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.Attack(Realm.MapAPI.UnitId)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Attack(Realm.Ecs.UnitId)">
             <summary>
             Orders the unit to attack the specified target unit.
             </summary>
             <param name="target">The target unit.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.Gather(Realm.MapAPI.ResourceNodeId)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Gather(Realm.Ecs.ResourceNodeId)">
             <summary>
             Orders the unit to harvest resources from the specified resource node.
             </summary>
             <param name="resourceNode">The target resource node.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.Teleport(System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Teleport(System.Numerics.Vector3)">
             <summary>
             Instantly teleports the unit to the specified position in world coordinates.
             </summary>
             <param name="position">The destination coordinates.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.Stop">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Stop">
             <summary>
             Orders the unit to stop its current action immediately.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.HoldPosition">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.HoldPosition">
             <summary>
             Orders the unit to hold its ground and defend itself without moving.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.AddBuff(System.String,System.Single)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.AddBuff(System.String,System.Single)">
             <summary>
             Applies a timed status effect buff to the unit.
             </summary>
             <param name="buffId">The registered buff identifier.</param>
             <param name="duration">The duration of the buff in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.RemoveBuff(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.RemoveBuff(System.String)">
             <summary>
             Removes an active status effect buff from the unit.
             </summary>
             <param name="buffId">The buff identifier to remove.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.CastAbility(System.String,System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.CastAbility(System.String,System.Numerics.Vector3)">
             <summary>
             Orders the unit to cast an ability at the specified target position.
             </summary>
             <param name="abilityId">The registered ability identifier.</param>
             <param name="targetPosition">The target world coordinates.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.GetAbilityCooldown(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GetAbilityCooldown(System.String)">
             <summary>
             Gets the remaining cooldown of an ability on this unit in seconds.
             </summary>
             <param name="abilityId">The registered ability identifier.</param>
             <returns>The remaining cooldown in seconds.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.SetAbilityCooldown(System.String,System.Single)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetAbilityCooldown(System.String,System.Single)">
             <summary>
             Sets the remaining cooldown of an ability on this unit.
             </summary>
             <param name="abilityId">The registered ability identifier.</param>
             <param name="cooldown">The cooldown in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.Stun(System.Single)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Stun(System.Single)">
             <summary>
             Stuns the unit, disabling movement and attack orders for the specified duration.
             </summary>
             <param name="duration">The stun duration in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.Silence(System.Single)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Silence(System.Single)">
             <summary>
             Silences the unit, preventing ability casting for the specified duration.
             </summary>
             <param name="duration">The silence duration in seconds.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.AddItem(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.AddItem(System.String)">
             <summary>
             Adds an item to the unit's inventory.
             </summary>
             <param name="itemId">The identifier of the item definition to grant.</param>
             <returns>True if the item was successfully added; otherwise false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.AddItem(System.String,System.Int32)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.AddItem(System.String,System.Int32)">
             <summary>
             Adds an item to the unit's inventory with the specified initial number of charges.
             </summary>
@@ -4250,108 +4288,108 @@
             <param name="charges">The initial charge count for the item.</param>
             <returns>True if the item was successfully added; otherwise false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.GetItemCharges(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GetItemCharges(System.String)">
             <summary>
             Gets the number of charges for the specified item in the unit's inventory.
             </summary>
             <param name="itemId">The identifier of the item.</param>
             <returns>The charge count, or 0 if the unit does not carry the item.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.SetItemCharges(System.String,System.Int32)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetItemCharges(System.String,System.Int32)">
             <summary>
             Sets the number of charges for the specified item in the unit's inventory.
             </summary>
             <param name="itemId">The identifier of the item.</param>
             <param name="charges">The new charge count; zero removes the item's grants.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.RemoveItem(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.RemoveItem(System.String)">
             <summary>
             Removes an item from the unit's inventory.
             </summary>
             <param name="itemId">The identifier of the item definition to remove.</param>
             <returns>True if the item was found and removed; otherwise false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.HasItem(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.HasItem(System.String)">
             <summary>
             Determines whether the unit currently carries the specified item in its inventory.
             </summary>
             <param name="itemId">The item identifier to check.</param>
             <returns>True if the item exists in the unit's inventory; otherwise false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.GetItems">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GetItems">
             <summary>
             Retrieves the item archetype identifiers currently held in the unit's inventory.
             </summary>
             <returns>A read-only collection of item archetype identifiers.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.HasBuff(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.HasBuff(System.String)">
             <summary>
             Determines whether the unit currently has an active buff with the specified identifier.
             </summary>
             <param name="buffId">The buff identifier to check.</param>
             <returns>True if the buff is active on the unit; otherwise false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.SetCustomData(System.String,System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetCustomData(System.String,System.String)">
             <summary>
             Stores a custom string metadata key-value pair on this unit.
             </summary>
             <param name="key">The custom data key.</param>
             <param name="value">The custom data string value.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.GetCustomData(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GetCustomData(System.String)">
             <summary>
             Retrieves custom string metadata associated with this unit, or null if not found.
             </summary>
             <param name="key">The custom data key.</param>
             <returns>The stored string value, or null.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.RemoveCustomData(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.RemoveCustomData(System.String)">
             <summary>
             Removes custom metadata associated with the specified key on this unit.
             </summary>
             <param name="key">The custom data key to remove.</param>
             <returns>True if data was removed; otherwise false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.HasCustomData(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.HasCustomData(System.String)">
             <summary>
             Determines whether custom metadata exists for the specified key on this unit.
             </summary>
             <param name="key">The custom data key to check.</param>
             <returns>True if custom data exists; otherwise false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.SetAutoCast(System.String,System.Boolean)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetAutoCast(System.String,System.Boolean)">
             <summary>
             Enables or disables automatic ability autocasting for the specified ability on this unit.
             </summary>
             <param name="abilityId">The registered ability identifier.</param>
             <param name="active">True to enable autocast; otherwise false.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.CollectLootItem(Realm.Ecs.LootItemId)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.CollectLootItem(Realm.Ecs.LootItemId)">
             <summary>
             Orders the unit to collect the specified ground loot item.
             </summary>
             <param name="item">The target loot item to pick up.</param>
             <returns>True if the collection command was accepted; otherwise false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.SetColor(System.Numerics.Vector3)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetColor(System.Numerics.Vector3)">
             <summary>
             Sets the team or tint color of the unit's material.
             </summary>
             <param name="color">The RGB color vector.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.SetAnimation(System.String)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetAnimation(System.String)">
             <summary>
             Plays the specified skeletal or state animation on the unit model.
             </summary>
             <param name="animationName">The animation clip name.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.SetSpellImmune(System.Boolean)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.SetSpellImmune(System.Boolean)">
             <summary>
             Sets whether the unit is immune to spell effects and magic abilities.
             </summary>
             <param name="immune">True for spell immunity; otherwise false.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.TriggerMeshImpulse(System.Single,System.Single,System.Single)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.TriggerMeshImpulse(System.Single,System.Single,System.Single)">
             <summary>
             Triggers an elastic deformation mesh impulse visual effect on the unit model.
             </summary>
@@ -4359,25 +4397,19 @@
             <param name="duration">The total time in seconds over which the impulse decays.</param>
             <param name="frequency">The oscillatory speed of the displacement impulse.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.Kill(System.Boolean,System.Boolean)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Kill(System.Boolean,System.Boolean)">
             <summary>
             Kills the unit, executing its death sequence and optionally playing animations/shaders.
             </summary>
             <param name="executeDespawnShader">Whether to execute the despawn material dissolve shader.</param>
             <param name="playDeathAnimation">Whether to play the death skeletal animation.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.Destroy(System.Boolean,System.Boolean)">
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.Destroy(System.Boolean,System.Boolean)">
             <summary>
             Instantly destroys the unit entity without death bounty awards.
             </summary>
             <param name="executeDespawnShader">Whether to execute the despawn material dissolve shader.</param>
             <param name="playDeathAnimation">Whether to play the death skeletal animation.</param>
-        </member>
-        <member name="M:Realm.MapAPI.UnitId.ToString">
-            <summary>
-            Formats the unit identifier as a string.
-            </summary>
-            <returns>A string representation of the unit identifier.</returns>
         </member>
         <member name="T:Realm.MapAPI.WaypointMarchConfig">
             <summary>
@@ -4411,7 +4443,7 @@
             Manages automated lane movement and combat engagement for a unit marching along a sequence of waypoints.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.WaypointMarcher.#ctor(Realm.MapAPI.UnitId,System.Collections.Generic.IReadOnlyList{System.Numerics.Vector3},System.Nullable{Realm.MapAPI.WaypointMarchConfig})">
+        <member name="M:Realm.MapAPI.WaypointMarcher.#ctor(Realm.Ecs.UnitId,System.Collections.Generic.IReadOnlyList{System.Numerics.Vector3},System.Nullable{Realm.MapAPI.WaypointMarchConfig})">
             <summary>
             Initializes a new instance of the <see cref="T:Realm.MapAPI.WaypointMarcher"/> class.
             </summary>

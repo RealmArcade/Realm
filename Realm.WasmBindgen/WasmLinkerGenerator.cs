@@ -265,12 +265,12 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		}
 
 		string fullName = unwrapped.ToDisplayString();
-		if (fullName == "Realm.MapAPI.UnitId" || unwrapped.Name == "UnitId")
+		if (fullName == "Realm.Ecs.UnitId" || unwrapped.Name == "UnitId")
 		{
 			typeName = "UnitId";
 			return true;
 		}
-		if (fullName == "Realm.MapAPI.PlayerId" || unwrapped.Name == "PlayerId")
+		if (fullName == "Realm.Ecs.PlayerId" || unwrapped.Name == "PlayerId")
 		{
 			typeName = "PlayerId";
 			return true;
@@ -280,7 +280,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			typeName = "LootItemId";
 			return true;
 		}
-		if (fullName == "Realm.MapAPI.ResourceNodeId" || unwrapped.Name == "ResourceNodeId")
+		if (fullName == "Realm.Ecs.ResourceNodeId" || unwrapped.Name == "ResourceNodeId")
 		{
 			typeName = "ResourceNodeId";
 			return true;

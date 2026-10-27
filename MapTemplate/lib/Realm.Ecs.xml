@@ -2761,6 +2761,16 @@
             <param name="componentId">The component type identifier (0-255).</param>
             <returns>True if the component bit is present; otherwise false.</returns>
         </member>
+        <member name="T:Realm.Ecs.IHandleCommands">
+            <summary>
+            The commands a handle property sends when a script assigns to it, implemented by whoever runs the map script.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.HandleCommands">
+            <summary>
+            Holds the command sink that handle properties reach, which is the map script api of the process running them.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.LootItemId">
             <summary>
             Identifies a dropped loot item by the entity index it occupies in the world.
@@ -2769,6 +2779,26 @@
         <member name="M:Realm.Ecs.LootItemId.#ctor(System.Int32)">
             <summary>
             Identifies a dropped loot item by the entity index it occupies in the world.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.PlayerId">
+            <summary>
+            Identifies a player slot in the running match by its zero-based index.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.PlayerId.#ctor(System.Int32)">
+            <summary>
+            Identifies a player slot in the running match by its zero-based index.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.ResourceNodeId">
+            <summary>
+            Identifies a harvestable resource node by its index in the world's resource table.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.ResourceNodeId.#ctor(System.Int32)">
+            <summary>
+            Identifies a harvestable resource node by its index in the world's resource table.
             </summary>
         </member>
         <member name="T:Realm.Ecs.StringRegistry">
@@ -2890,6 +2920,16 @@
         <member name="M:Realm.Ecs.StringRegistry.Reset">
             <summary>
             Clears every text entry while keeping identifiers stable, since identifiers are content hashes and not table slots.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.UnitId">
+            <summary>
+            Identifies a unit by the entity index it occupies in the world.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.UnitId.#ctor(System.Int32)">
+            <summary>
+            Identifies a unit by the entity index it occupies in the world.
             </summary>
         </member>
     </members>

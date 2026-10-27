@@ -23,7 +23,7 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using UnitId = Realm.MapAPI.UnitId;
+using UnitId = Realm.Ecs.UnitId;
 using Vector3 = System.Numerics.Vector3;
 using Realm.MapAPI;
 using Realm.Shared.Abilities;

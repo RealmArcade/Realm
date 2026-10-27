@@ -54,7 +54,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 
 	Entity IEcsEntityWrapper.Entity => _entity;
 	public Entity Entity => _entity;
-	public static implicit operator Realm.MapAPI.UnitId(Unit_WasmRuntime? runtime) => runtime != null ? (Realm.MapAPI.UnitId)runtime.UniqueId : Realm.MapAPI.UnitId.Invalid;
+	public static implicit operator Realm.Ecs.UnitId(Unit_WasmRuntime? runtime) => runtime != null ? (Realm.Ecs.UnitId)runtime.UniqueId : Realm.Ecs.UnitId.Invalid;
 
 	public int UniqueId => _entity.Id;
 
@@ -706,7 +706,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
-			((IGameAPI?)GameContext.Host)?.SetUnitFacing((Realm.MapAPI.UnitId)_entity.Id, value);
+			((IGameAPI?)GameContext.Host)?.SetUnitFacing((Realm.Ecs.UnitId)_entity.Id, value);
 		}
 	}
 

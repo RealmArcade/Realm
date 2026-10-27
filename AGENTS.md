@@ -57,15 +57,16 @@
 - Everything in `Realm.MapAPI` (including `IGameAPI` and `IEditorAPI`) must have full, comprehensive XML-doc comments for public consumption.
 - Zero-Allocation Facade Pattern & 0ns Direct Reads:
 	- `IGameAPI` should strictly require integer IDs as parameters, never full objects.
-	- Facade handles exposed to map scripts (e.g. `PlayerId`, `UnitId`) must be defined as `readonly record struct PlayerId(int Value)` with implicit type-cast 'FROM int' but NEVER 'TO int'.
+	- Facade handles exposed to map scripts (`PlayerId`, `UnitId`, `ResourceNodeId`, `LootItemId`) are plain index structs in `Realm.Ecs` defined as `readonly record struct PlayerId(int Value)` with implicit type-cast 'FROM int' but NEVER 'TO int'.
 	- Primitive property getters (`get => EcsSharedMemory.PlayerResources[Value].Gold;`) perform **0ns direct memory reads** straight from the shared WASM linear memory ECS arrays without crossing the host boundary.
-	- Property setters (`set => GameAPI.Current.Set...`) and commands route through authoritative Host imports, executing full domain rules and side-effects in-place.
+	- Property setters (`set => HandleCommands.Current?.SetPlayerGold(Value, value);`) and commands route through authoritative Host imports, executing full domain rules and side-effects in-place. A settable property stays an instance member on the handle rather than an extension member, because only an instance setter may be assigned through a `foreach` iteration variable or a `ReadOnlySpan` element.
+	- Everything else a script calls on a handle — reads that need the host and every order, cast and effect — is a C# 14 extension member supplied by `Realm.MapAPI`.
 
 ### Map Workspaces & WASM Compilation (Portability):
 - The map temp workspace is compiled to WASM via `dotnet publish`. Workspaces and saved map folders MUST be machine-portable: never write absolute paths into generated/saved `.csproj` files.
 - `MapWorkspaceService.EnsureCsproj` always normalizes the `Realm.MapAPI` and `Realm.Ecs` references to the relative `<HintPath>lib/Realm.MapAPI.dll</HintPath>` and `<HintPath>lib/Realm.Ecs.dll</HintPath>`, and `EnsureApiLib` copies both DLLs (build output preferred, `MapTemplate/lib` as fallback) into the workspace so it is self-contained. A workspace also carries `<Using Include="Realm.Ecs" />` so a map script keeps writing `using Realm.MapAPI;` while still naming the shared simulation handles.
 - `MapTemplate/lib/Realm.MapAPI.xml` and `MapTemplate/lib/Realm.Ecs.xml` are the committed API documentation beside those DLLs. When changing `Realm.MapAPI` or `Realm.Ecs` source, rebuild it (`dotnet build Realm.MapAPI`) so the `CopyToMapTemplate` target refreshes the whole of `MapTemplate/lib`, and commit the refreshed documentation together with the API changes.
-- Simulation primitives below the script surface (`ComponentIds`, `ComponentMask`, `EcsSharedMemory`, `ContentIdStore`, `StringRegistry`, `DeterministicRandom`, `LootItemId`) live in `Realm.Ecs`, and a handle's script-facing properties are supplied from `Realm.MapAPI` as C# 14 extension members. `Realm.Ecs` never references `Realm.MapAPI`.
+- Simulation primitives below the script surface (`ComponentIds`, `ComponentMask`, `EcsSharedMemory`, `ContentIdStore`, `StringRegistry`, `DeterministicRandom`, `HandleCommands`, the map script handles) live in `Realm.Ecs`, and the script surface a handle offers on top of them is supplied from `Realm.MapAPI`. `Realm.Ecs` never references `Realm.MapAPI`.
 - Shared map folders are portable when they contain a relative `.csproj` and the `lib/` folder. Saved/opened map folders are auto-repaired by `EnsureCsproj` on the next workspace setup.
 
 ### Map File Format & Zero-Fallback Policy:

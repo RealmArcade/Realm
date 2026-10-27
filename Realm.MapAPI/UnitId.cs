@@ -1,214 +1,63 @@
 using System.Collections.Generic;
 using System.Numerics;
+using Realm.Ecs;
 
 namespace Realm.MapAPI;
 
 /// <summary>
-/// Represents a strongly-typed, unmanaged entity identifier for a unit instance in the game world,
-/// providing zero-allocation fluent access to unit properties and commands.
+/// Adds the map script surface of a unit: its template, its orders and the effects a map can put on it.
 /// </summary>
-public readonly unsafe record struct UnitId(int Value)
+/// <remarks>
+/// The handle itself is a plain index owned by the shared simulation, so the simulation can name this subject
+/// without the script surface. What a script reads answers straight out of the world the process is simulating,
+/// and everything that changes the world routes through the authoritative host imports.
+/// </remarks>
+public static unsafe class UnitIdScriptExtensions
 {
-	/// <summary>
-	/// Implicitly converts a 32-bit integer identifier into a <see cref="UnitId"/>.
-	/// </summary>
-	/// <param name="value">The raw integer unit identifier.</param>
-	public static implicit operator UnitId(int value) => new(value);
-
-	/// <summary>
-	/// Explicitly converts a <see cref="UnitId"/> into a 32-bit integer identifier.
-	/// </summary>
-	/// <param name="id">The unit identifier.</param>
-	public static explicit operator int(UnitId id) => id.Value;
-
-	/// <summary>
-	/// Gets an invalid or unassigned unit identifier.
-	/// </summary>
-	public static readonly UnitId Invalid = new(0);
-
-	/// <summary>
-	/// Gets a value indicating whether this identifier represents a valid unit index.
-	/// </summary>
-	public bool IsValid => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES;
-
-	/// <summary>
-	/// Gets the raw integer identifier.
-	/// </summary>
-	public int UniqueId => Value;
-
-	/// <summary>
-	/// Gets the raw integer identifier (alias for <see cref="UniqueId"/>).
-	/// </summary>
-	public int Id => Value;
-
-	/// <summary>
-	/// Gets or sets the current health point value of the unit.
-	/// </summary>
-	public float Health
+	extension(UnitId unitId)
 	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Health>(ComponentIds.Health, Value)->Current : 0f;
-		set => GameAPI.Current.SetUnitHealth(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets the maximum health point capacity of the unit.
-	/// </summary>
-	public float MaxHealth
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Health>(ComponentIds.Health, Value)->Max : 0f;
-		set => GameAPI.Current.SetUnitMaxHealth(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets the current mana points of the unit.
-	/// </summary>
-	public float Mana
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Mana>(ComponentIds.Mana, Value)->Current : 0f;
-		set => GameAPI.Current.SetUnitMana(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets the maximum mana capacity of the unit.
-	/// </summary>
-	public float MaxMana
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Mana>(ComponentIds.Mana, Value)->Max : 0f;
-		set => GameAPI.Current.SetUnitMaxMana(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets the mana regeneration rate of the unit per second.
-	/// </summary>
-	public float ManaRegen
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Mana>(ComponentIds.Mana, Value)->ManaRegen : 0f;
-		set => GameAPI.Current.SetUnitManaRegen(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets the base attack damage of the unit.
-	/// </summary>
-	public float Damage
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Attack>(ComponentIds.Attack, Value)->Damage : 0f;
-		set => GameAPI.Current.SetUnitDamage(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets the attack range of the unit.
-	/// </summary>
-	public float Range
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Attack>(ComponentIds.Attack, Value)->Range : 0f;
-		set => GameAPI.Current.SetUnitRange(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets the armor points of the unit. Armor mitigates physical damage only.
-	/// </summary>
-	public float Armor
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Resistances>(ComponentIds.Resistances, Value)->Physical : 0f;
-		set => GameAPI.Current.SetUnitArmor(this, value);
-	}
-
 	/// <summary>
 	/// Gets the magic resistance points of the unit. Magic resistance mitigates magic damage only.
 	/// </summary>
 	public float MagicResistance
 	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Resistances>(ComponentIds.Resistances, Value)->Magic : 0f;
-	}
-
-	/// <summary>
-	/// Gets or sets the movement speed of the unit.
-	/// </summary>
-	public float Speed
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<MovementStats>(ComponentIds.MovementStats, Value)->Speed : 0f;
-		set => GameAPI.Current.SetUnitSpeed(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets the attack speed multiplier of the unit.
-	/// </summary>
-	public float AttackSpeed
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Attack>(ComponentIds.Attack, Value)->Cooldown : 0f;
-		set => GameAPI.Current.SetUnitAttackSpeed(this, value);
+		get => unitId.Value > 0 && unitId.Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[unitId.Value] != 0 ? EcsSharedMemory.GetComponent<Resistances>(ComponentIds.Resistances, unitId.Value)->Magic : 0f;
 	}
 
 	/// <summary>
 	/// Gets the current position of the unit in 3D world space.
 	/// </summary>
-	public Vector3 Position => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Position>(ComponentIds.Position, Value)->Value : Vector3.Zero;
-
-	/// <summary>
-	/// Gets or sets the display name of the unit.
-	/// </summary>
-	public string Name
-	{
-		get => GameAPI.Current.GetUnitInstanceName(this);
-		set => GameAPI.Current.SetUnitName(this, value);
-	}
+	public Vector3 Position => unitId.Value > 0 && unitId.Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[unitId.Value] != 0 ? EcsSharedMemory.GetComponent<Position>(ComponentIds.Position, unitId.Value)->Value : Vector3.Zero;
 
 	/// <summary>
 	/// Gets the canonical template identifier of the unit archetype.
 	/// </summary>
-	public string TemplateID => GameAPI.Current.GetUnitTemplateId(this);
+	public string TemplateID => GameAPI.Current.GetUnitTemplateId(unitId);
 
 	/// <summary>
 	/// Gets the canonical archetype identifier (alias for <see cref="TemplateID"/>).
 	/// </summary>
-	public string TypeId => TemplateID;
+	public string TypeId => unitId.TemplateID;
 
 	/// <summary>
 	/// Gets the canonical archetype identifier (alias for <see cref="TemplateID"/>).
 	/// </summary>
-	public string UnitTypeId => TemplateID;
+	public string UnitTypeId => unitId.TemplateID;
 
 	/// <summary>
 	/// Gets the canonical template identifier (alias for <see cref="TemplateID"/>).
 	/// </summary>
-	public string UnitIdString => TemplateID;
-
-	/// <summary>
-	/// Gets or sets the zero-based player slot index that owns this unit.
-	/// </summary>
-	public int Player
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<UnitOwnerPlayer>(ComponentIds.UnitOwnerPlayer, Value)->PlayerIndex : -1;
-		set => GameAPI.Current.SetUnitOwner(this, value);
-	}
+	public string UnitIdString => unitId.TemplateID;
 
 	/// <summary>
 	/// Gets a value indicating whether the unit is a structural building.
 	/// </summary>
-	public bool IsBuilding => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.Building);
+	public bool IsBuilding => unitId.Value > 0 && unitId.Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[unitId.Value] != 0 && EcsSharedMemory.HasComponent(unitId.Value, ComponentIds.Building);
 
 	/// <summary>
 	/// Gets a value indicating whether the unit is a Hero unit.
 	/// </summary>
-	public bool IsHero => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.Hero);
-
-	/// <summary>
-	/// Gets or sets the experience level of the unit.
-	/// </summary>
-	public int Level
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Level>(ComponentIds.Level, Value)->Value : 0;
-		set => GameAPI.Current.SetUnitLevel(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets the experience points accumulated by the hero unit.
-	/// </summary>
-	public float Experience
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<Experience>(ComponentIds.Experience, Value)->Value : 0f;
-		set => GameAPI.Current.SetUnitExperience(this, value);
-	}
+	public bool IsHero => unitId.Value > 0 && unitId.Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[unitId.Value] != 0 && EcsSharedMemory.HasComponent(unitId.Value, ComponentIds.Hero);
 
 	/// <summary>
 	/// Gets the experience point bounty awarded upon defeating this unit.
@@ -223,183 +72,100 @@ public readonly unsafe record struct UnitId(int Value)
 	/// <summary>
 	/// Gets a value indicating whether this unit is dead.
 	/// </summary>
-	public bool IsDead => Value <= 0 || Value >= EcsSharedMemory.MAX_ENTITIES || EcsSharedMemory.Alive[Value] == 0;
-
-	/// <summary>
-	/// Gets or sets the visual scaling factor of the unit model.
-	/// </summary>
-	public float Scale
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<ModelScale>(ComponentIds.ModelScale, Value)->Value : 1f;
-		set => GameAPI.Current.SetUnitScale(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets a value indicating whether the unit is invulnerable to all damage.
-	/// </summary>
-	public bool Invulnerable
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.Invulnerable);
-		set => GameAPI.Current.SetUnitInvulnerable(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets a value indicating whether the unit holds its current animation pose.
-	/// </summary>
-	/// <remarks>
-	/// An animations-frozen unit plays no locomotion, attack, idle or death animation, including
-	/// procedural sway, but it can still receive movement, attack and ability orders. Combine it with
-	/// <see cref="CommandsFrozen"/> to pin a unit in place, or use <see cref="Frozen"/> to set both.
-	/// </remarks>
-	public bool AnimationsFrozen
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.AnimationsFrozen);
-		set => GameAPI.Current.SetUnitAnimationsFrozen(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets a value indicating whether the unit ignores movement, attack and hold orders.
-	/// </summary>
-	/// <remarks>
-	/// A commands-frozen unit keeps its current position, does not acquire targets and does not respond
-	/// to move, stop, hold or attack commands, and clients hide those command buttons for it. Ability
-	/// casting and ability buttons stay available, so map-authored abilities such as rerolls keep
-	/// working. Setting the property to the value it already has does nothing.
-	/// </remarks>
-	public bool CommandsFrozen
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.CommandsFrozen);
-		set => GameAPI.Current.SetUnitCommandsFrozen(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets a value indicating whether the unit is frozen in place with its animation suspended.
-	/// </summary>
-	/// <remarks>
-	/// This sets both <see cref="AnimationsFrozen"/> and <see cref="CommandsFrozen"/>. A frozen unit keeps
-	/// its current position and pose and ignores orders, and it does not acquire targets. Setting the
-	/// property to the value it already has does nothing. The flag lives on the entity, so it survives
-	/// level changes, element swaps and unit swaps until the entity is destroyed or the flag is cleared,
-	/// and it does not conflict with <see cref="Invulnerable"/>, <see cref="Facing"/> or
-	/// <see cref="HideHealthAndManaBars"/>.
-	/// </remarks>
-	public bool Frozen
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0
-			&& (EcsSharedMemory.HasComponent(Value, ComponentIds.CommandsFrozen) || EcsSharedMemory.HasComponent(Value, ComponentIds.AnimationsFrozen));
-		set => GameAPI.Current.SetUnitFrozen(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets a value indicating whether overhead health and mana bars are hidden for this unit.
-	/// </summary>
-	public bool HideHealthAndManaBars
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.OverheadBarsHidden);
-		set => GameAPI.Current.SetUnitHideHealthAndManaBars(this, value);
-	}
-
-	/// <summary>
-	/// Gets or sets the facing orientation of the unit in radians.
-	/// </summary>
-	public float Facing
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<RotationY>(ComponentIds.RotationY, Value)->Value : 0f;
-		set => GameAPI.Current.SetUnitFacing(this, value);
-	}
+	public bool IsDead => unitId.Value <= 0 || unitId.Value >= EcsSharedMemory.MAX_ENTITIES || EcsSharedMemory.Alive[unitId.Value] == 0;
 
 	/// <summary>
 	/// Orders the unit to move to the specified destination in world coordinates.
 	/// </summary>
 	/// <param name="destination">The destination position.</param>
-	public void MoveTo(Vector3 destination) => GameAPI.Current.IssueMoveOrder(this, destination);
+	public void MoveTo(Vector3 destination) => GameAPI.Current.IssueMoveOrder(unitId, destination);
 
 	/// <summary>
 	/// Orders the unit to attack-move towards the specified destination.
 	/// </summary>
 	/// <param name="destination">The target destination.</param>
-	public void AttackMove(Vector3 destination) => GameAPI.Current.IssueAttackMoveOrder(this, destination);
+	public void AttackMove(Vector3 destination) => GameAPI.Current.IssueAttackMoveOrder(unitId, destination);
 
 	/// <summary>
 	/// Orders the unit to attack the specified target unit.
 	/// </summary>
 	/// <param name="target">The target unit.</param>
-	public void Attack(UnitId target) => GameAPI.Current.IssueAttackOrder(this, target);
+	public void Attack(UnitId target) => GameAPI.Current.IssueAttackOrder(unitId, target);
 
 	/// <summary>
 	/// Orders the unit to harvest resources from the specified resource node.
 	/// </summary>
 	/// <param name="resourceNode">The target resource node.</param>
-	public void Gather(ResourceNodeId resourceNode) => GameAPI.Current.IssueGatherOrder(this, resourceNode);
+	public void Gather(ResourceNodeId resourceNode) => GameAPI.Current.IssueGatherOrder(unitId, resourceNode);
 
 	/// <summary>
 	/// Instantly teleports the unit to the specified position in world coordinates.
 	/// </summary>
 	/// <param name="position">The destination coordinates.</param>
-	public void Teleport(Vector3 position) => GameAPI.Current.TeleportUnit(this, position);
+	public void Teleport(Vector3 position) => GameAPI.Current.TeleportUnit(unitId, position);
 
 	/// <summary>
 	/// Orders the unit to stop its current action immediately.
 	/// </summary>
-	public void Stop() => GameAPI.Current.IssueStopOrder(this);
+	public void Stop() => GameAPI.Current.IssueStopOrder(unitId);
 
 	/// <summary>
 	/// Orders the unit to hold its ground and defend itself without moving.
 	/// </summary>
-	public void HoldPosition() => GameAPI.Current.IssueHoldPositionOrder(this);
+	public void HoldPosition() => GameAPI.Current.IssueHoldPositionOrder(unitId);
 
 	/// <summary>
 	/// Applies a timed status effect buff to the unit.
 	/// </summary>
 	/// <param name="buffId">The registered buff identifier.</param>
 	/// <param name="duration">The duration of the buff in seconds.</param>
-	public void AddBuff(string buffId, float duration) => GameAPI.Current.AddBuff(this, buffId, duration);
+	public void AddBuff(string buffId, float duration) => GameAPI.Current.AddBuff(unitId, buffId, duration);
 
 	/// <summary>
 	/// Removes an active status effect buff from the unit.
 	/// </summary>
 	/// <param name="buffId">The buff identifier to remove.</param>
-	public void RemoveBuff(string buffId) => GameAPI.Current.RemoveBuff(this, buffId);
+	public void RemoveBuff(string buffId) => GameAPI.Current.RemoveBuff(unitId, buffId);
 
 	/// <summary>
 	/// Orders the unit to cast an ability at the specified target position.
 	/// </summary>
 	/// <param name="abilityId">The registered ability identifier.</param>
 	/// <param name="targetPosition">The target world coordinates.</param>
-	public void CastAbility(string abilityId, Vector3 targetPosition) => GameAPI.Current.CastAbility(this, abilityId, targetPosition);
+	public void CastAbility(string abilityId, Vector3 targetPosition) => GameAPI.Current.CastAbility(unitId, abilityId, targetPosition);
 
 	/// <summary>
 	/// Gets the remaining cooldown of an ability on this unit in seconds.
 	/// </summary>
 	/// <param name="abilityId">The registered ability identifier.</param>
 	/// <returns>The remaining cooldown in seconds.</returns>
-	public float GetAbilityCooldown(string abilityId) => GameAPI.Current.GetAbilityCooldown(this, abilityId);
+	public float GetAbilityCooldown(string abilityId) => GameAPI.Current.GetAbilityCooldown(unitId, abilityId);
 
 	/// <summary>
 	/// Sets the remaining cooldown of an ability on this unit.
 	/// </summary>
 	/// <param name="abilityId">The registered ability identifier.</param>
 	/// <param name="cooldown">The cooldown in seconds.</param>
-	public void SetAbilityCooldown(string abilityId, float cooldown) => GameAPI.Current.SetAbilityCooldown(this, abilityId, cooldown);
+	public void SetAbilityCooldown(string abilityId, float cooldown) => GameAPI.Current.SetAbilityCooldown(unitId, abilityId, cooldown);
 
 	/// <summary>
 	/// Stuns the unit, disabling movement and attack orders for the specified duration.
 	/// </summary>
 	/// <param name="duration">The stun duration in seconds.</param>
-	public void Stun(float duration) => GameAPI.Current.StunUnit(this, duration);
+	public void Stun(float duration) => GameAPI.Current.StunUnit(unitId, duration);
 
 	/// <summary>
 	/// Silences the unit, preventing ability casting for the specified duration.
 	/// </summary>
 	/// <param name="duration">The silence duration in seconds.</param>
-	public void Silence(float duration) => GameAPI.Current.SilenceUnit(this, duration);
+	public void Silence(float duration) => GameAPI.Current.SilenceUnit(unitId, duration);
 
 	/// <summary>
 	/// Adds an item to the unit's inventory.
 	/// </summary>
 	/// <param name="itemId">The identifier of the item definition to grant.</param>
 	/// <returns>True if the item was successfully added; otherwise false.</returns>
-	public bool AddItem(string itemId) => GameAPI.Current.AddItemToUnit(this, itemId);
+	public bool AddItem(string itemId) => GameAPI.Current.AddItemToUnit(unitId, itemId);
 
 	/// <summary>
 	/// Adds an item to the unit's inventory with the specified initial number of charges.
@@ -407,108 +173,108 @@ public readonly unsafe record struct UnitId(int Value)
 	/// <param name="itemId">The identifier of the item definition to grant.</param>
 	/// <param name="charges">The initial charge count for the item.</param>
 	/// <returns>True if the item was successfully added; otherwise false.</returns>
-	public bool AddItem(string itemId, int charges) => GameAPI.Current.AddItemToUnitWithCharges(this, itemId, charges);
+	public bool AddItem(string itemId, int charges) => GameAPI.Current.AddItemToUnitWithCharges(unitId, itemId, charges);
 
 	/// <summary>
 	/// Gets the number of charges for the specified item in the unit's inventory.
 	/// </summary>
 	/// <param name="itemId">The identifier of the item.</param>
 	/// <returns>The charge count, or 0 if the unit does not carry the item.</returns>
-	public int GetItemCharges(string itemId) => GameAPI.Current.GetUnitItemCharges(this, itemId);
+	public int GetItemCharges(string itemId) => GameAPI.Current.GetUnitItemCharges(unitId, itemId);
 
 	/// <summary>
 	/// Sets the number of charges for the specified item in the unit's inventory.
 	/// </summary>
 	/// <param name="itemId">The identifier of the item.</param>
 	/// <param name="charges">The new charge count; zero removes the item's grants.</param>
-	public void SetItemCharges(string itemId, int charges) => GameAPI.Current.SetUnitItemCharges(this, itemId, charges);
+	public void SetItemCharges(string itemId, int charges) => GameAPI.Current.SetUnitItemCharges(unitId, itemId, charges);
 
 	/// <summary>
 	/// Removes an item from the unit's inventory.
 	/// </summary>
 	/// <param name="itemId">The identifier of the item definition to remove.</param>
 	/// <returns>True if the item was found and removed; otherwise false.</returns>
-	public bool RemoveItem(string itemId) => GameAPI.Current.RemoveItemFromUnit(this, itemId);
+	public bool RemoveItem(string itemId) => GameAPI.Current.RemoveItemFromUnit(unitId, itemId);
 
 	/// <summary>
 	/// Determines whether the unit currently carries the specified item in its inventory.
 	/// </summary>
 	/// <param name="itemId">The item identifier to check.</param>
 	/// <returns>True if the item exists in the unit's inventory; otherwise false.</returns>
-	public bool HasItem(string itemId) => GameAPI.Current.UnitHasItem(this, itemId);
+	public bool HasItem(string itemId) => GameAPI.Current.UnitHasItem(unitId, itemId);
 
 	/// <summary>
 	/// Retrieves the item archetype identifiers currently held in the unit's inventory.
 	/// </summary>
 	/// <returns>A read-only collection of item archetype identifiers.</returns>
-	public IReadOnlyList<string> GetItems() => GameAPI.Current.GetUnitItems(this);
+	public IReadOnlyList<string> GetItems() => GameAPI.Current.GetUnitItems(unitId);
 
 	/// <summary>
 	/// Determines whether the unit currently has an active buff with the specified identifier.
 	/// </summary>
 	/// <param name="buffId">The buff identifier to check.</param>
 	/// <returns>True if the buff is active on the unit; otherwise false.</returns>
-	public bool HasBuff(string buffId) => GameAPI.Current.UnitHasBuff(this, buffId);
+	public bool HasBuff(string buffId) => GameAPI.Current.UnitHasBuff(unitId, buffId);
 
 	/// <summary>
 	/// Stores a custom string metadata key-value pair on this unit.
 	/// </summary>
 	/// <param name="key">The custom data key.</param>
 	/// <param name="value">The custom data string value.</param>
-	public void SetCustomData(string key, string value) => GameAPI.Current.SetUnitCustomData(this, key, value);
+	public void SetCustomData(string key, string value) => GameAPI.Current.SetUnitCustomData(unitId, key, value);
 
 	/// <summary>
 	/// Retrieves custom string metadata associated with this unit, or null if not found.
 	/// </summary>
 	/// <param name="key">The custom data key.</param>
 	/// <returns>The stored string value, or null.</returns>
-	public string? GetCustomData(string key) => GameAPI.Current.GetUnitCustomData(this, key);
+	public string? GetCustomData(string key) => GameAPI.Current.GetUnitCustomData(unitId, key);
 
 	/// <summary>
 	/// Removes custom metadata associated with the specified key on this unit.
 	/// </summary>
 	/// <param name="key">The custom data key to remove.</param>
 	/// <returns>True if data was removed; otherwise false.</returns>
-	public bool RemoveCustomData(string key) => GameAPI.Current.RemoveUnitCustomData(this, key);
+	public bool RemoveCustomData(string key) => GameAPI.Current.RemoveUnitCustomData(unitId, key);
 
 	/// <summary>
 	/// Determines whether custom metadata exists for the specified key on this unit.
 	/// </summary>
 	/// <param name="key">The custom data key to check.</param>
 	/// <returns>True if custom data exists; otherwise false.</returns>
-	public bool HasCustomData(string key) => GameAPI.Current.UnitHasCustomData(this, key);
+	public bool HasCustomData(string key) => GameAPI.Current.UnitHasCustomData(unitId, key);
 
 	/// <summary>
 	/// Enables or disables automatic ability autocasting for the specified ability on this unit.
 	/// </summary>
 	/// <param name="abilityId">The registered ability identifier.</param>
 	/// <param name="active">True to enable autocast; otherwise false.</param>
-	public void SetAutoCast(string abilityId, bool active) => GameAPI.Current.SetAbilityAutoCast(this, abilityId, active);
+	public void SetAutoCast(string abilityId, bool active) => GameAPI.Current.SetAbilityAutoCast(unitId, abilityId, active);
 
 	/// <summary>
 	/// Orders the unit to collect the specified ground loot item.
 	/// </summary>
 	/// <param name="item">The target loot item to pick up.</param>
 	/// <returns>True if the collection command was accepted; otherwise false.</returns>
-	public bool CollectLootItem(LootItemId item) => GameAPI.Current.CollectLootItem(item.Value, this);
+	public bool CollectLootItem(LootItemId item) => GameAPI.Current.CollectLootItem(item.Value, unitId);
 
 	/// <summary>
 	/// Sets the team or tint color of the unit's material.
 	/// </summary>
 	/// <param name="color">The RGB color vector.</param>
-	public void SetColor(Vector3 color) => GameAPI.Current.SetUnitColor(this, color);
+	public void SetColor(Vector3 color) => GameAPI.Current.SetUnitColor(unitId, color);
 
 	/// <summary>
 	/// Plays the specified skeletal or state animation on the unit model.
 	/// </summary>
 	/// <param name="animationName">The animation clip name.</param>
-	public void SetAnimation(string animationName) => GameAPI.Current.SetUnitAnimation(this, animationName);
+	public void SetAnimation(string animationName) => GameAPI.Current.SetUnitAnimation(unitId, animationName);
 
 	/// <summary>
 	/// Sets whether the unit is immune to spell effects and magic abilities.
 	/// </summary>
 	/// <param name="immune">True for spell immunity; otherwise false.</param>
-	public void SetSpellImmune(bool immune) => GameAPI.Current.SetUnitSpellImmune(this, immune);
+	public void SetSpellImmune(bool immune) => GameAPI.Current.SetUnitSpellImmune(unitId, immune);
 
 	/// <summary>
 	/// Triggers an elastic deformation mesh impulse visual effect on the unit model.
@@ -517,7 +283,7 @@ public readonly unsafe record struct UnitId(int Value)
 	/// <param name="duration">The total time in seconds over which the impulse decays.</param>
 	/// <param name="frequency">The oscillatory speed of the displacement impulse.</param>
 	public void TriggerMeshImpulse(float strength = 1.0f, float duration = 0.5f, float frequency = 12.0f) =>
-		GameAPI.Current.TriggerMeshImpulse(this, strength, duration, frequency);
+		GameAPI.Current.TriggerMeshImpulse(unitId, strength, duration, frequency);
 
 	/// <summary>
 	/// Kills the unit, executing its death sequence and optionally playing animations/shaders.
@@ -525,7 +291,7 @@ public readonly unsafe record struct UnitId(int Value)
 	/// <param name="executeDespawnShader">Whether to execute the despawn material dissolve shader.</param>
 	/// <param name="playDeathAnimation">Whether to play the death skeletal animation.</param>
 	public void Kill(bool executeDespawnShader = true, bool playDeathAnimation = true) =>
-		GameAPI.Current.KillUnit(this, executeDespawnShader, playDeathAnimation);
+		GameAPI.Current.KillUnit(unitId, executeDespawnShader, playDeathAnimation);
 
 	/// <summary>
 	/// Instantly destroys the unit entity without death bounty awards.
@@ -533,11 +299,6 @@ public readonly unsafe record struct UnitId(int Value)
 	/// <param name="executeDespawnShader">Whether to execute the despawn material dissolve shader.</param>
 	/// <param name="playDeathAnimation">Whether to play the death skeletal animation.</param>
 	public void Destroy(bool executeDespawnShader = true, bool playDeathAnimation = true) =>
-		GameAPI.Current.DestroyUnit(this, executeDespawnShader, playDeathAnimation);
-
-	/// <summary>
-	/// Formats the unit identifier as a string.
-	/// </summary>
-	/// <returns>A string representation of the unit identifier.</returns>
-	public override string ToString() => Value.ToString();
+		GameAPI.Current.DestroyUnit(unitId, executeDespawnShader, playDeathAnimation);
+	}
 }
