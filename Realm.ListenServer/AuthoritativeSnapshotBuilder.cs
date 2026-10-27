@@ -7,6 +7,7 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Replication;
+using Realm.Ecs.Services;
 using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
@@ -27,6 +28,7 @@ public class AuthoritativeSnapshotBuilder
 
 	private readonly EcsWorld _world;
 	private readonly Entity _worldEntity;
+	private readonly MapRulesCatalog _rules;
 	private readonly Func<int, int> _peerIdForPlayerSlot;
 	private readonly EntityCallback<UnitOwnerPlayer, Position> _collectDescribedUnits;
 	private readonly EntityCallback<UnitOwnerPlayer, Position> _collectVisionSources;
@@ -40,10 +42,11 @@ public class AuthoritativeSnapshotBuilder
 	private Entity[] _playerEntities = Array.Empty<Entity>();
 	private Entity _viewer = Entity.Null;
 
-	public AuthoritativeSnapshotBuilder(EcsWorld world, Entity worldEntity, Func<int, int> peerIdForPlayerSlot)
+	public AuthoritativeSnapshotBuilder(EcsWorld world, Entity worldEntity, MapRulesCatalog rules, Func<int, int> peerIdForPlayerSlot)
 	{
 		_world = world;
 		_worldEntity = worldEntity;
+		_rules = rules;
 		_peerIdForPlayerSlot = peerIdForPlayerSlot;
 		_collectDescribedUnits = CollectDescribedUnit;
 		_collectVisionSources = CollectVisionSource;
@@ -94,9 +97,48 @@ public class AuthoritativeSnapshotBuilder
 			snapshot.Units.Add(DescribeUnit(unitEntity, unitPosition));
 		}
 
+		if (isBaseline) AppendRuleEntries(snapshot.Catalog);
 		AppendComponentDeltas(state, snapshot, isBaseline);
 		ForgetUntrackedUnitComponents(state);
 		return snapshot;
+	}
+
+	/// <summary>
+	///     States the rules the map published, in the channels a peer applies them through. A peer that never ran the map
+	///     script has no other way to learn which buildings take a delivery, which units gather, which building is a
+	///     player's base, how much room a placement needs, or what a resource node yields, and it needs all of them to
+	///     resolve an order the authority and it both understand.
+	/// </summary>
+	private void AppendRuleEntries(List<CatalogEntry> entries)
+	{
+		IReadOnlyList<(string DefinitionKey, float Radius)> placementRadii = _rules.PlacementRadiusRules;
+		for (int index = 0; index < placementRadii.Count; index++)
+		{
+			entries.Add(new CatalogEntry { Channel = "placement_radius", Key = placementRadii[index].DefinitionKey, Number = placementRadii[index].Radius });
+		}
+
+		IReadOnlyList<string> dropoffBuildings = _rules.ResourceDropoffBuildingKeys;
+		for (int index = 0; index < dropoffBuildings.Count; index++)
+		{
+			entries.Add(new CatalogEntry { Channel = "dropoff", Key = dropoffBuildings[index] });
+		}
+
+		IReadOnlyList<string> workerUnits = _rules.ResourceWorkerUnitKeys;
+		for (int index = 0; index < workerUnits.Count; index++)
+		{
+			entries.Add(new CatalogEntry { Channel = "worker", Key = workerUnits[index] });
+		}
+
+		IReadOnlyList<string> primaryBuildings = _rules.PrimaryBuildingIds;
+		for (int index = 0; index < primaryBuildings.Count; index++)
+		{
+			entries.Add(new CatalogEntry { Channel = "primary", Key = primaryBuildings[index] });
+		}
+
+		foreach (var nodeType in _rules.ResourceNodeTypes)
+		{
+			entries.Add(new CatalogEntry { Channel = "resource_node_type", Key = nodeType.Key, Value = nodeType.Value });
+		}
 	}
 
 	private PeerReplicationState GetState(int peerId)

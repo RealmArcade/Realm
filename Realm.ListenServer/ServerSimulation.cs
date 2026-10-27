@@ -47,7 +47,7 @@ public class ServerSimulation : IDisposable
 		_commands = new CommandAuthorityService(map.Simulation);
 		_commands.DroppedOrderSink = log.Write;
 		map.Catalog.BindTo(_commands);
-		_snapshots = new AuthoritativeSnapshotBuilder(map.World, map.WorldEntity, PeerIdForPlayerSlot);
+		_snapshots = new AuthoritativeSnapshotBuilder(map.World, map.WorldEntity, map.Simulation.MapRules, PeerIdForPlayerSlot);
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
