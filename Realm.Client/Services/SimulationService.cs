@@ -647,7 +647,7 @@ public class SimulationService
 		_movementService.PositionWrittenSink = entity => PositionWriteTrace.Mark(entity, PositionWriter.Movement);
 		_movementService.WarningSink = message => Godot.GD.PushWarning(message);
 		_combatService = new CombatAndDamageService(() => GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled);
-		_economyService = new ResourceEconomyService();
+		_economyService = GameContext.Simulation.ResourceEconomyService;
 
 		_combatService.OnArrowProjectileRequested = (p1, p2) => EnqueueVFXRequest("arrow", p1, p2, 1.0f, 40f);
 		_combatService.UnitWeaponsProvider = defId =>

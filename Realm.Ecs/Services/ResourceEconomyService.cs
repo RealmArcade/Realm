@@ -2,9 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Realm.Ecs;
-using Realm.Client.Core;
-using Realm.Client.Network;
-using Realm.Client.UI;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
@@ -13,10 +10,11 @@ using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using static Realm.Ecs.Common.ResourceConstants;
 
-namespace Realm.Client.Services;
+namespace Realm.Ecs.Services;
 
 public class ResourceEconomyService
 {
+	private readonly SimulationContext _context;
 	private float _fDelta;
 
 	private readonly List<(Entity Worker, Gatherer NewState, Vector3? NewDestination)> _tickGatherersToUpdate = new();
@@ -37,8 +35,9 @@ public class ResourceEconomyService
 	public Action<Entity> OnPropDepleted;
 	public Action<Entity>? OnResourceHarvested;
 
-	public ResourceEconomyService()
+	public ResourceEconomyService(SimulationContext context)
 	{
+		_context = context;
 		_gatherQueryDelegate = GatherQueryAction;
 		_passiveIncomeQueryDelegate = UpdatePassiveIncomeQueryAction;
 		_populationUnitDelegate = PopulationUnitQueryAction;
@@ -61,7 +60,7 @@ public class ResourceEconomyService
 	{
 		_fDelta = delta;
 
-		GameContext.World.Query(in _passiveIncomeQuery, _passiveIncomeQueryDelegate);
+		_context.World.Query(in _passiveIncomeQuery, _passiveIncomeQueryDelegate);
 		ProcessGatheringTicks();
 	}
 
@@ -69,14 +68,14 @@ public class ResourceEconomyService
 	{
 		Entity worldEntity = Entity.Null;
 		var query = QueryCache.AllWorldStateQuery;
-		GameContext.World.Query(in query, (Entity entity) => worldEntity = entity);
+		_context.World.Query(in query, (Entity entity) => worldEntity = entity);
 		return worldEntity;
 	}
 
 	private bool GetHarvestingUpgrade(Entity playerEntity)
 	{
-		if (playerEntity == Entity.Null || !GameContext.World.IsAlive(playerEntity)) return false;
-		return GameContext.World.GetFieldOrDefault<PlayerUpgrades, bool>(playerEntity, u => u.HarvestingUpgrade);
+		if (playerEntity == Entity.Null || !_context.World.IsAlive(playerEntity)) return false;
+		return _context.World.GetFieldOrDefault<PlayerUpgrades, bool>(playerEntity, u => u.HarvestingUpgrade);
 	}
 
 	private readonly Dictionary<Entity, Dictionary<ResourceId, float>> _accumulators = new();
@@ -123,17 +122,17 @@ public class ResourceEconomyService
 	private void ProcessGatheringTicks()
 	{
 		_tickGatherersToUpdate.Clear();
-		GameContext.World.Query(in _gatherQuery, _gatherQueryDelegate);
+		_context.World.Query(in _gatherQuery, _gatherQueryDelegate);
 
 		foreach (var (worker, newState, dest) in _tickGatherersToUpdate)
 		{
-			if (GameContext.World.IsAlive(worker))
+			if (_context.World.IsAlive(worker))
 			{
-				GameContext.World.Set(worker, newState);
+				_context.World.Set(worker, newState);
 				if (dest.HasValue)
 				{
 					var moveTo = new MoveTo(dest.Value);
-					GameContext.World.SetOrAdd(worker, moveTo);
+					_context.World.SetOrAdd(worker, moveTo);
 				}
 			}
 		}
@@ -144,9 +143,9 @@ public class ResourceEconomyService
 		Entity closest = Entity.Null;
 		float closestDist = radius;
 		var query = QueryCache.AllPositionAndResourceNodeAndPropIdentityQuery;
-		GameContext.World.Query(in query, (Entity entity, ref Position nodePos, ref PropIdentity identity) =>
+		_context.World.Query(in query, (Entity entity, ref Position nodePos, ref PropIdentity identity) =>
 		{
-			string pType = GameContext.RegistryService.GetResourceTypeForNode(identity.PropId);
+			string pType = _context.MapRules.GetResourceTypeForNode(identity.PropId);
 
 			if (pType == type)
 			{
@@ -176,7 +175,7 @@ public class ResourceEconomyService
 	private void HandleReturningToBase(Entity entity, ref Position pos, ref Gatherer gather)
 	{
 		var currentPos = pos.Value;
-		var wOwner = GameContext.World.Get<Owner>(entity).PlayerEntity;
+		var wOwner = _context.World.Get<Owner>(entity).PlayerEntity;
 
 		FindNearestDropoff(currentPos, wOwner, out var nearestDropoff, out var nearestDropoffPos, out float dropoffRadius);
 
@@ -191,7 +190,7 @@ public class ResourceEconomyService
 			DepositResources(entity, ref gather);
 			HandleNodeAfterDeposit(entity, ref gather);
 		}
-		else if (!GameContext.World.Has<MoveTo>(entity))
+		else if (!_context.World.Has<MoveTo>(entity))
 		{
 			_tickGatherersToUpdate.Add((entity, gather, nearestDropoffPos));
 		}
@@ -209,11 +208,11 @@ public class ResourceEconomyService
 	private void DepositResources(Entity entity, ref Gatherer gather)
 	{
 		float carry = gather.CarriedAmount;
-		var ownerEntity = GameContext.World.Get<Owner>(entity).PlayerEntity.Value;
+		var ownerEntity = _context.World.Get<Owner>(entity).PlayerEntity.Value;
 
-		if (GameContext.World.Has<PlayerResources>(ownerEntity))
+		if (_context.World.Has<PlayerResources>(ownerEntity))
 		{
-			ref var playerRes = ref GameContext.World.Get<PlayerResources>(ownerEntity);
+			ref var playerRes = ref _context.World.Get<PlayerResources>(ownerEntity);
 			var resId = gather.ResourceType.AsResourceId(_definitionManagerRef);
 			if (playerRes.TryGetValue(resId, out var currentAmount))
 			{
@@ -221,8 +220,8 @@ public class ResourceEconomyService
 			}
 		}
 
-		int depositPlayer = GameContext.World.Has<UnitOwnerPlayer>(ownerEntity)
-			? GameContext.World.Get<UnitOwnerPlayer>(ownerEntity).PlayerIndex
+		int depositPlayer = _context.World.Has<UnitOwnerPlayer>(ownerEntity)
+			? _context.World.Get<UnitOwnerPlayer>(ownerEntity).PlayerIndex
 			: 0;
 		OnResourceDepositedForPlayer?.Invoke(depositPlayer, gather.ResourceType, carry);
 	}
@@ -230,7 +229,7 @@ public class ResourceEconomyService
 	private void HandleNodeAfterDeposit(Entity entity, ref Gatherer gather)
 	{
 		Entity targetNode = gather.TargetEntity;
-		bool nodeAlive = GameContext.World.IsAlive(targetNode) && GameContext.World.Has<Position>(targetNode);
+		bool nodeAlive = _context.World.IsAlive(targetNode) && _context.World.Has<Position>(targetNode);
 
 		var newState = gather;
 		newState.ReturningToBase = false;
@@ -238,7 +237,7 @@ public class ResourceEconomyService
 
 		if (nodeAlive)
 		{
-			var dest = GameContext.World.Get<Position>(targetNode).Value;
+			var dest = _context.World.Get<Position>(targetNode).Value;
 			_tickGatherersToUpdate.Add((entity, newState, dest));
 		}
 		else
@@ -252,7 +251,7 @@ public class ResourceEconomyService
 	{
 		var currentPos = pos.Value;
 		Entity targetNode = gather.TargetEntity;
-		bool nodeAlive = GameContext.World.IsAlive(targetNode) && GameContext.World.Has<Position>(targetNode) && GameContext.World.Has<ResourceNode>(targetNode);
+		bool nodeAlive = _context.World.IsAlive(targetNode) && _context.World.Has<Position>(targetNode) && _context.World.Has<ResourceNode>(targetNode);
 
 		if (!nodeAlive)
 		{
@@ -260,7 +259,7 @@ public class ResourceEconomyService
 			return;
 		}
 
-		var targetPos = GameContext.World.Get<Position>(targetNode).Value;
+		var targetPos = _context.World.Get<Position>(targetNode).Value;
 		float dist = Vector3.Distance(currentPos, targetPos);
 		float gatherRange = 3.5f;
 
@@ -268,7 +267,7 @@ public class ResourceEconomyService
 		{
 			MineResource(entity, ref gather, targetNode, currentPos);
 		}
-		else if (!GameContext.World.Has<MoveTo>(entity))
+		else if (!_context.World.Has<MoveTo>(entity))
 		{
 			_tickGatherersToUpdate.Add((entity, gather, targetPos));
 		}
@@ -281,7 +280,7 @@ public class ResourceEconomyService
 		{
 			var newState = gather;
 			newState.TargetEntity = alternate;
-			var dest = GameContext.World.Get<Position>(alternate).Value;
+			var dest = _context.World.Get<Position>(alternate).Value;
 			_tickGatherersToUpdate.Add((entity, newState, dest));
 		}
 		else
@@ -292,7 +291,7 @@ public class ResourceEconomyService
 
 	private void MineResource(Entity entity, ref Gatherer gather, Entity targetNode, Vector3 currentPos)
 	{
-		if (GameContext.World.Has<MoveTo>(entity))
+		if (_context.World.Has<MoveTo>(entity))
 		{
 			OnStopGatheringMovementRequested?.Invoke(entity);
 		}
@@ -300,11 +299,11 @@ public class ResourceEconomyService
 		var newState = gather;
 		float mineRate = CalculateMineRate(entity);
 
-		ref var resNode = ref GameContext.World.Get<ResourceNode>(targetNode);
+		ref var resNode = ref _context.World.Get<ResourceNode>(targetNode);
 		mineRate = Math.Min(mineRate, resNode.Amount);
 
 		resNode.Amount -= mineRate;
-		GameContext.World.Set(targetNode, resNode);
+		_context.World.Set(targetNode, resNode);
 		OnResourceHarvested?.Invoke(targetNode);
 
 		newState.CarriedAmount = Math.Min(gather.MaxCapacity, gather.CarriedAmount + mineRate);
@@ -328,7 +327,7 @@ public class ResourceEconomyService
 	private float CalculateMineRate(Entity entity)
 	{
 		float mineRate = 4.0f * _fDelta;
-		var ownerPlayerEntity = GameContext.World.Has<Owner>(entity) ? GameContext.World.Get<Owner>(entity).PlayerEntity.Value : Entity.Null;
+		var ownerPlayerEntity = _context.World.Has<Owner>(entity) ? _context.World.Get<Owner>(entity).PlayerEntity.Value : Entity.Null;
 		if (ownerPlayerEntity != Entity.Null && GetHarvestingUpgrade(ownerPlayerEntity))
 		{
 			mineRate *= 1.5f;
@@ -345,9 +344,9 @@ public class ResourceEconomyService
 		float nearestDist = float.MaxValue;
 
 		var buildingQuery = QueryCache.AllPositionAndDefinitionIdAndOwnerNoneDeadQuery;
-		GameContext.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
+		_context.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
 		{
-			if (ownerComp.PlayerEntity == wOwner && GameContext.RegistryService.IsResourceDropoffBuilding(defId.Value))
+			if (ownerComp.PlayerEntity == wOwner && _context.MapRules.IsResourceDropoffBuilding(defId.Value))
 			{
 				float dist = Vector3.Distance(currentPos, bldPos.Value);
 				if (dist < nearestDist)
@@ -361,9 +360,9 @@ public class ResourceEconomyService
 
 		if (foundDropoff == Entity.Null)
 		{
-			GameContext.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
+			_context.World.Query(in buildingQuery, (Entity bldEntity, ref Position bldPos, ref DefinitionId defId, ref Owner ownerComp) =>
 			{
-				if (ownerComp.PlayerEntity == wOwner && GameContext.World.Has<Building>(bldEntity) && !GameContext.World.Has<ConstructionState>(bldEntity))
+				if (ownerComp.PlayerEntity == wOwner && _context.World.Has<Building>(bldEntity) && !_context.World.Has<ConstructionState>(bldEntity))
 				{
 					float dist = Vector3.Distance(currentPos, bldPos.Value);
 					if (dist < nearestDist)
@@ -376,9 +375,9 @@ public class ResourceEconomyService
 			});
 		}
 
-		if (foundDropoff != Entity.Null && GameContext.World.Has<CollisionRadius>(foundDropoff))
+		if (foundDropoff != Entity.Null && _context.World.Has<CollisionRadius>(foundDropoff))
 		{
-			foundRadius = Math.Max(4f, GameContext.World.Get<CollisionRadius>(foundDropoff).Value + 2.0f);
+			foundRadius = Math.Max(4f, _context.World.Get<CollisionRadius>(foundDropoff).Value + 2.0f);
 		}
 
 		nearestDropoff = foundDropoff;
@@ -388,7 +387,7 @@ public class ResourceEconomyService
 
 	private void FindNearestDropoffAndReturn(Entity entity, ref Gatherer gather, Vector3 currentPos)
 	{
-		var wOwner = GameContext.World.Get<Owner>(entity).PlayerEntity;
+		var wOwner = _context.World.Get<Owner>(entity).PlayerEntity;
 		FindNearestDropoff(currentPos, wOwner, out var nearestDropoff, out var nearestDropoffPos, out _);
 
 		if (nearestDropoff != Entity.Null)
@@ -403,10 +402,10 @@ public class ResourceEconomyService
 
 	public float GetPlayerWood(int playerIndex)
 	{
-		var worldEntity = GameContext.Simulation.WorldEntity;
-		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
+		var worldEntity = _context.WorldEntity;
+		if (_context.World != null && _context.World.IsAlive(worldEntity) && _context.World.Has<ScriptPlayersState>(worldEntity))
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
+			ref var playersState = ref _context.World.Get<ScriptPlayersState>(worldEntity);
 			if (playersState.IsValidSlot(playerIndex)) return playersState.Get(playerIndex).Wood;
 		}
 
@@ -415,10 +414,10 @@ public class ResourceEconomyService
 
 	private void UpdatePlayerResourceECS(int playerIndex, float amount, bool isWood)
 	{
-		var worldEntity = GameContext.Simulation.WorldEntity;
-		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
+		var worldEntity = _context.WorldEntity;
+		if (_context.World != null && _context.World.IsAlive(worldEntity) && _context.World.Has<ScriptPlayersState>(worldEntity))
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
+			ref var playersState = ref _context.World.Get<ScriptPlayersState>(worldEntity);
 			if (playersState.IsValidSlot(playerIndex))
 			{
 				if (isWood)
@@ -427,17 +426,17 @@ public class ResourceEconomyService
 					playersState.SetStone(playerIndex, amount);
 
 				var player = playersState.Get(playerIndex);
-				GameContext.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in player);
+				_context.World.GetBuffer<ScriptPlayer>().Set(playerIndex, in player);
 			}
 		}
 
-		if (GameContext.Host != null)
+		if (_context.WorldEntity != Entity.Null)
 		{
-			var pe = GameContext.Host.GetPlayerEntityForPlayerIndex(playerIndex);
-			if (pe != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(pe) && GameContext.World.Has<PlayerResources>(pe))
+			var pe = _context.GetPlayerEntity(playerIndex);
+			if (pe != Entity.Null && _context.World != null && _context.World.IsAlive(pe) && _context.World.Has<PlayerResources>(pe))
 			{
-				ref var res = ref GameContext.World.Get<PlayerResources>(pe);
-				res[isWood ? GameContext.Simulation.PlayerResourceService.WoodResourceId : GameContext.Simulation.PlayerResourceService.StoneResourceId] = (int)amount;
+				ref var res = ref _context.World.Get<PlayerResources>(pe);
+				res[isWood ? _context.PlayerResourceService.WoodResourceId : _context.PlayerResourceService.StoneResourceId] = (int)amount;
 			}
 		}
 	}
@@ -450,10 +449,10 @@ public class ResourceEconomyService
 
 	public void AdjustPlayerWood(int playerIndex, float delta)
 	{
-		var worldEntity = GameContext.Simulation.WorldEntity;
-		if (GameContext.World != null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<ScriptPlayersState>(worldEntity))
+		var worldEntity = _context.WorldEntity;
+		if (_context.World != null && _context.World.IsAlive(worldEntity) && _context.World.Has<ScriptPlayersState>(worldEntity))
 		{
-			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(worldEntity);
+			ref var playersState = ref _context.World.Get<ScriptPlayersState>(worldEntity);
 			if (playersState.IsValidSlot(playerIndex)) SetPlayerWood(playerIndex, playersState.Get(playerIndex).Wood + delta);
 		}
 	}
@@ -484,7 +483,7 @@ public class ResourceEconomyService
 
 	public void RecomputeCurrentPopulation()
 	{
-		var world = GameContext.World;
+		var world = _context.World;
 		if (world == null || _populationUnitDelegate == null) return;
 
 		Array.Clear(_populationTotals);
@@ -493,7 +492,7 @@ public class ResourceEconomyService
 
 		for (int playerIndex = 0; playerIndex < EcsWorld.MAX_PLAYERS; playerIndex++)
 		{
-			var playerEntity = GameContext.Host?.GetPlayerEntityForPlayerIndex(playerIndex) ?? Entity.Null;
+			var playerEntity = _context.GetPlayerEntity(playerIndex);
 			if (playerEntity == Entity.Null || !world.IsAlive(playerEntity)) continue;
 			if (!world.Has<PlayerPopulation>(playerEntity)) continue;
 
@@ -505,7 +504,7 @@ public class ResourceEconomyService
 
 	private void PopulationUnitQueryAction(Entity entity, ref UnitOwnerPlayer owner, ref DefinitionId definition)
 	{
-		if (GameContext.World.Has<BypassPopulationTag>(entity)) return;
+		if (_context.World.Has<BypassPopulationTag>(entity)) return;
 		AccumulatePopulationCost(owner.PlayerIndex, definition.Value);
 	}
 
@@ -521,19 +520,20 @@ public class ResourceEconomyService
 	private void AccumulatePopulationCost(int playerIndex, string definitionId)
 	{
 		if (playerIndex < 0 || playerIndex >= EcsWorld.MAX_PLAYERS) return;
-		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(definitionId, out var meta)) return;
-		if (meta.PopCost <= 0) return;
-		_populationTotals[playerIndex] += meta.PopCost;
+
+		int populationCost = _context.MapRules.GetPopulationCost(definitionId);
+		if (populationCost <= 0) return;
+		_populationTotals[playerIndex] += populationCost;
 	}
 
 	public int GetPlayerCurrentPopulation(int playerIndex)
 	{
-		if (GameContext.Host != null)
+		if (_context.WorldEntity != Entity.Null)
 		{
-			var playerEntity = GameContext.Host.GetPlayerEntityForPlayerIndex(playerIndex);
-			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerPopulation>(playerEntity))
+			var playerEntity = _context.GetPlayerEntity(playerIndex);
+			if (playerEntity != Entity.Null && _context.World != null && _context.World.IsAlive(playerEntity) && _context.World.Has<PlayerPopulation>(playerEntity))
 			{
-				return GameContext.World.Get<PlayerPopulation>(playerEntity).Current;
+				return _context.World.Get<PlayerPopulation>(playerEntity).Current;
 			}
 		}
 
@@ -542,19 +542,19 @@ public class ResourceEconomyService
 
 	public void SetPlayerCurrentPopulation(int playerIndex, int current)
 	{
-		if (GameContext.Host != null)
+		if (_context.WorldEntity != Entity.Null)
 		{
-			var playerEntity = GameContext.Host.GetPlayerEntityForPlayerIndex(playerIndex);
-			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity))
+			var playerEntity = _context.GetPlayerEntity(playerIndex);
+			if (playerEntity != Entity.Null && _context.World != null && _context.World.IsAlive(playerEntity))
 			{
-				if (GameContext.World.Has<PlayerPopulation>(playerEntity))
+				if (_context.World.Has<PlayerPopulation>(playerEntity))
 				{
-					ref var pop = ref GameContext.World.Get<PlayerPopulation>(playerEntity);
-					GameContext.World.Set(playerEntity, new PlayerPopulation(current, pop.Max));
+					ref var pop = ref _context.World.Get<PlayerPopulation>(playerEntity);
+					_context.World.Set(playerEntity, new PlayerPopulation(current, pop.Max));
 				}
 				else
 				{
-					GameContext.World.Add(playerEntity, new PlayerPopulation(current, 0));
+					_context.World.Add(playerEntity, new PlayerPopulation(current, 0));
 				}
 			}
 		}
@@ -562,19 +562,19 @@ public class ResourceEconomyService
 
 	public void SetPlayerMaxPopulation(int playerIndex, int max)
 	{
-		if (GameContext.Host != null)
+		if (_context.WorldEntity != Entity.Null)
 		{
-			var playerEntity = GameContext.Host.GetPlayerEntityForPlayerIndex(playerIndex);
-			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity))
+			var playerEntity = _context.GetPlayerEntity(playerIndex);
+			if (playerEntity != Entity.Null && _context.World != null && _context.World.IsAlive(playerEntity))
 			{
-				if (GameContext.World.Has<PlayerPopulation>(playerEntity))
+				if (_context.World.Has<PlayerPopulation>(playerEntity))
 				{
-					ref var pop = ref GameContext.World.Get<PlayerPopulation>(playerEntity);
-					GameContext.World.Set(playerEntity, new PlayerPopulation(pop.Current, max));
+					ref var pop = ref _context.World.Get<PlayerPopulation>(playerEntity);
+					_context.World.Set(playerEntity, new PlayerPopulation(pop.Current, max));
 				}
 				else
 				{
-					GameContext.World.Add(playerEntity, new PlayerPopulation(0, max));
+					_context.World.Add(playerEntity, new PlayerPopulation(0, max));
 				}
 			}
 		}
@@ -582,12 +582,12 @@ public class ResourceEconomyService
 
 	public int GetPlayerMaxPopulation(int playerIndex)
 	{
-		if (GameContext.Host != null)
+		if (_context.WorldEntity != Entity.Null)
 		{
-			var playerEntity = GameContext.Host.GetPlayerEntityForPlayerIndex(playerIndex);
-			if (playerEntity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(playerEntity) && GameContext.World.Has<PlayerPopulation>(playerEntity))
+			var playerEntity = _context.GetPlayerEntity(playerIndex);
+			if (playerEntity != Entity.Null && _context.World != null && _context.World.IsAlive(playerEntity) && _context.World.Has<PlayerPopulation>(playerEntity))
 			{
-				return GameContext.World.Get<PlayerPopulation>(playerEntity).Max;
+				return _context.World.Get<PlayerPopulation>(playerEntity).Max;
 			}
 		}
 

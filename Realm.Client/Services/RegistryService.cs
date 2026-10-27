@@ -18,91 +18,25 @@ namespace Realm.Client.Services;
 
 public class RegistryService
 {
-	private const float DefaultPlacementRadius = 1.2f;
+	private static MapRulesCatalog Rules => GameContext.Simulation.MapRules;
 
-	private readonly List<(string DefinitionKey, float Radius)> _placementRadiusRules = new();
-	private readonly List<string> _resourceDropoffBuildingKeys = new();
-	private readonly List<string> _resourceWorkerUnitKeys = new();
-	private readonly List<string> _primaryBuildingIds = new();
-	private readonly Dictionary<string, string> _resourceTypeByNodeId = new(StringComparer.OrdinalIgnoreCase);
+	public void RegisterPlacementRadius(string definitionKey, float radius) => Rules.RegisterPlacementRadius(definitionKey, radius);
 
-	public void RegisterPlacementRadius(string definitionKey, float radius)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(definitionKey);
-		_placementRadiusRules.Add((definitionKey, radius));
-	}
+	public float GetPlacementRadius(string placeId, float scale) => Rules.GetPlacementRadius(placeId, scale);
 
-	public float GetPlacementRadius(string placeId, float scale)
-	{
-		if (string.IsNullOrEmpty(placeId)) return DefaultPlacementRadius * scale;
-		foreach (var (definitionKey, radius) in _placementRadiusRules)
-		{
-			if (placeId.Contains(definitionKey, StringComparison.OrdinalIgnoreCase)) return radius * scale;
-		}
+	public void RegisterResourceDropoffBuilding(string definitionKey) => Rules.RegisterResourceDropoffBuilding(definitionKey);
 
-		return DefaultPlacementRadius * scale;
-	}
+	public void RegisterResourceWorkerUnit(string unitKey) => Rules.RegisterResourceWorkerUnit(unitKey);
 
-	public void RegisterResourceDropoffBuilding(string definitionKey)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(definitionKey);
-		_resourceDropoffBuildingKeys.Add(definitionKey);
-	}
+	public bool IsResourceDropoffBuilding(string definitionId) => Rules.IsResourceDropoffBuilding(definitionId);
 
-	public void RegisterResourceWorkerUnit(string unitKey)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(unitKey);
-		_resourceWorkerUnitKeys.Add(unitKey);
-	}
+	public void RegisterPrimaryBuilding(string definitionId) => Rules.RegisterPrimaryBuilding(definitionId);
 
-	public bool IsResourceDropoffBuilding(string definitionId)
-	{
-		if (string.IsNullOrEmpty(definitionId)) return false;
-		foreach (var key in _resourceDropoffBuildingKeys)
-		{
-			if (definitionId.Contains(key, StringComparison.OrdinalIgnoreCase)) return true;
-		}
+	public bool IsPrimaryBuilding(string definitionId) => Rules.IsPrimaryBuilding(definitionId);
 
-		if (!BuildingRegistry.TryGetValue(definitionId, out var meta) || meta.BuildOptions == null) return false;
-		foreach (var option in meta.BuildOptions)
-		{
-			foreach (var workerKey in _resourceWorkerUnitKeys)
-			{
-				if (option.Contains(workerKey, StringComparison.Ordinal)) return true;
-			}
-		}
+	public void RegisterResourceNodeType(string nodeDefinitionId, string resourceType) => Rules.RegisterResourceNodeType(nodeDefinitionId, resourceType);
 
-		return false;
-	}
-
-	public void RegisterPrimaryBuilding(string definitionId)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(definitionId);
-		_primaryBuildingIds.Add(definitionId);
-	}
-
-	public bool IsPrimaryBuilding(string definitionId)
-	{
-		if (string.IsNullOrEmpty(definitionId)) return false;
-		foreach (var primaryId in _primaryBuildingIds)
-		{
-			if (string.Equals(definitionId, primaryId, StringComparison.OrdinalIgnoreCase)) return true;
-		}
-
-		return false;
-	}
-
-	public void RegisterResourceNodeType(string nodeDefinitionId, string resourceType)
-	{
-		ArgumentException.ThrowIfNullOrEmpty(nodeDefinitionId);
-		ArgumentException.ThrowIfNullOrEmpty(resourceType);
-		_resourceTypeByNodeId[nodeDefinitionId] = resourceType;
-	}
-
-	public string? GetResourceTypeForNode(string nodeDefinitionId)
-	{
-		return _resourceTypeByNodeId.TryGetValue(nodeDefinitionId, out var resourceType) ? resourceType : null;
-	}
+	public string? GetResourceTypeForNode(string nodeDefinitionId) => Rules.GetResourceTypeForNode(nodeDefinitionId);
 
 	public bool UnitHasAbility(string unitId, string abilityId)
 	{
@@ -410,54 +344,29 @@ public class RegistryService
 	}
 	public Dictionary<(int UnitUniqueId, string AbilityId), (bool Disabled, bool Hidden)> UnitAbilityStates { get; set; } = new();
 
-	public IReadOnlyList<(string DefinitionKey, float Radius)> PlacementRadiusRules => _placementRadiusRules;
-	public IReadOnlyList<string> ResourceDropoffBuildingKeys => _resourceDropoffBuildingKeys;
-	public IReadOnlyList<string> ResourceWorkerUnitKeys => _resourceWorkerUnitKeys;
-	public IReadOnlyList<string> PrimaryBuildingIds => _primaryBuildingIds;
-	public IReadOnlyDictionary<string, string> ResourceNodeTypes => _resourceTypeByNodeId;
+	public IReadOnlyList<(string DefinitionKey, float Radius)> PlacementRadiusRules => Rules.PlacementRadiusRules;
+	public IReadOnlyList<string> ResourceDropoffBuildingKeys => Rules.ResourceDropoffBuildingKeys;
+	public IReadOnlyList<string> ResourceWorkerUnitKeys => Rules.ResourceWorkerUnitKeys;
+	public IReadOnlyList<string> PrimaryBuildingIds => Rules.PrimaryBuildingIds;
+	public IReadOnlyDictionary<string, string> ResourceNodeTypes => Rules.ResourceNodeTypes;
 
 	public void ApplyCatalogEntry(string channel, string key, string value, float number)
 	{
 		if (string.IsNullOrEmpty(key)) return;
 
-		switch (channel)
+		if (channel == "string")
 		{
-			case "placement_radius":
-				for (int i = 0; i < _placementRadiusRules.Count; i++)
-				{
-					if (string.Equals(_placementRadiusRules[i].DefinitionKey, key, StringComparison.OrdinalIgnoreCase)) return;
-				}
-				_placementRadiusRules.Add((key, number));
-				break;
-			case "dropoff":
-				AddKeyIfMissing(_resourceDropoffBuildingKeys, key);
-				break;
-			case "worker":
-				AddKeyIfMissing(_resourceWorkerUnitKeys, key);
-				break;
-			case "primary":
-				AddKeyIfMissing(_primaryBuildingIds, key);
-				break;
-			case "resource_node_type":
-				if (!_resourceTypeByNodeId.ContainsKey(key)) _resourceTypeByNodeId[key] = value;
-				break;
-			case "string":
-				if (int.TryParse(key, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int stringId))
-				{
-					StringRegistry.RegisterRemote(stringId, value);
-				}
-				break;
+			if (int.TryParse(key, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int stringId))
+			{
+				StringRegistry.RegisterRemote(stringId, value);
+			}
+
+			return;
 		}
+
+		Rules.ApplyCatalogEntry(channel, key, value, number);
 	}
 
-	private static void AddKeyIfMissing(List<string> keys, string key)
-	{
-		for (int i = 0; i < keys.Count; i++)
-		{
-			if (string.Equals(keys[i], key, StringComparison.OrdinalIgnoreCase)) return;
-		}
-		keys.Add(key);
-	}
 	public HashSet<(int UnitUniqueId, string AbilityId)> DirtyAbilityStates { get; } = new();
 	private readonly List<(int UnitUniqueId, string AbilityId)> _abilityStateKeysToClear = new();
 

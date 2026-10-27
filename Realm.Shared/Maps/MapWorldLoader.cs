@@ -96,6 +96,7 @@ public static class MapWorldLoader
 		try
 		{
 			MapCombatTuning.Apply(simulation, metadata, loaded.Warnings);
+			catalog.BindTo(simulation.MapRules);
 
 			DetermineGridSize(metadata, saveData, out int width, out int depth);
 			loaded.Width = width;

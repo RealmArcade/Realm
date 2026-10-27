@@ -20,9 +20,15 @@ public class SimulationContext : IDisposable
 	public MovementService MovementService { get; private set; }
 	public MovementAndPathfindingService MovementPathfindingService { get; private set; }
 	public NavMeshPathfinder NavMeshPathfinder { get; private set; }
+
+	/// <summary>The harvesting and placement rules this match runs under, as its map scripts declared them.</summary>
+	public MapRulesCatalog MapRules { get; private set; }
 	public PlayerResourceService PlayerResourceService { get; private set; }
 	public StatService StatService { get; private set; }
 	public TerrainNavMeshService TerrainNavMeshService { get; private set; }
+
+	/// <summary>The harvesting and production stepping this match's resources run through.</summary>
+	public ResourceEconomyService ResourceEconomyService { get; private set; }
 
 	/// <summary>
 	///     The evaluator a map's WASM scripts are called through. Only an authoritative context has one: a client never
@@ -47,9 +53,28 @@ public class SimulationContext : IDisposable
 		MovementService = new MovementService(this);
 		MovementPathfindingService = new MovementAndPathfindingService(this);
 		NavMeshPathfinder = new NavMeshPathfinder();
+		MapRules = new MapRulesCatalog();
 		StatService = new StatService(this);
 		TerrainNavMeshService = new TerrainNavMeshService(this);
+		ResourceEconomyService = new ResourceEconomyService(this);
 		PlayerResourceService = new PlayerResourceService();
+	}
+
+	/// <summary>
+	///     The entity that owns a player slot this match, or <see cref="Entity.Null" /> when the slot has no live owner.
+	///     Player assignment lands in the world's mapping state as the match is built, so every system that has to turn a
+	///     player index into an entity asks here rather than reaching for a process-wide one.
+	/// </summary>
+	public Entity GetPlayerEntity(int playerSlot)
+	{
+		if (playerSlot < 0 || WorldEntity == Entity.Null || !World.IsAlive(WorldEntity)) return Entity.Null;
+		if (!World.Has<NetworkMappingState>(WorldEntity)) return Entity.Null;
+
+		Entity[]? playerEntities = World.Get<NetworkMappingState>(WorldEntity).PlayerEntities;
+		if (playerEntities == null || playerSlot >= playerEntities.Length) return Entity.Null;
+
+		Entity player = playerEntities[playerSlot];
+		return player != Entity.Null && World.IsAlive(player) ? player : Entity.Null;
 	}
 
 	/// <summary>
@@ -59,6 +84,7 @@ public class SimulationContext : IDisposable
 	public void ResetForMatch()
 	{
 		WorldEntity = Entity.Null;
+		MapRules = new MapRulesCatalog();
 		IsGameOver = false;
 		ActiveMapName = "";
 		ActiveCombatTuning = CombatTuning.Default;

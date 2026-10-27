@@ -1,3 +1,4 @@
+using Realm.Ecs.Services;
 using Realm.Shared.Metadata;
 using Realm.Shared.Services;
 
@@ -103,6 +104,17 @@ public class DefinitionCatalog
 		}
 
 		return catalog;
+	}
+
+	/// <summary>
+	///     Points a match's rule catalog at these templates, so a rule that asks what a definition can build or what
+	///     population it costs gets the map's answer. Both processes bind the catalog they loaded, which is what keeps a
+	///     delivery point and a population total identical on either side.
+	/// </summary>
+	public void BindTo(MapRulesCatalog rules)
+	{
+		rules.BuildOptionsProvider = templateId => FindBuilding(templateId)?.BuildOptions;
+		rules.PopulationCostProvider = templateId => FindUnit(templateId)?.PopCost ?? 0;
 	}
 
 	public UnitMetadata? FindUnit(string templateId) => Find(_units, templateId);

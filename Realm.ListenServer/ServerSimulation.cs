@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Realm.Ecs.Services;
 using Realm.Shared.Maps;
 using Realm.Shared.Simulation;
 
@@ -24,6 +25,13 @@ public class ServerSimulation : IDisposable
 		_map = map;
 		_log = log;
 		_matchTick = new MatchTick(map.Simulation);
+
+		PlayerResourceService resources = map.Simulation.PlayerResourceService;
+		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
+			map.Simulation.DefinitionManager,
+			resources.GoldResourceId,
+			resources.WoodResourceId,
+			resources.StoneResourceId);
 	}
 
 	public LoadedMap Map => _map;
@@ -49,6 +57,7 @@ public class ServerSimulation : IDisposable
 		float deltaSeconds = (float)FixedTickSeconds;
 		_matchTick.AdvanceCooldowns(deltaSeconds);
 		_map.Simulation.MovementPathfindingService.StepMovement(deltaSeconds);
+		_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
 		_matchTick.AdvanceStatusEffects(deltaSeconds);
 		_matchTick.AdvanceRegeneration(deltaSeconds);
 	}
