@@ -1,5 +1,6 @@
 using Realm.MapAPI;
 using Realm.Shared.Maps;
+using Realm.Shared.Simulation;
 
 namespace Realm.ListenServer;
 
@@ -35,9 +36,9 @@ public class ServerMapScript : IDisposable
 	///     set the match up. A map without a compiled script is a map that declared nothing to run, which is not an
 	///     error: the match simply starts with whatever the map files described.
 	/// </summary>
-	public static ServerMapScript Load(LoadedMap map, string mapPath, string? logDirectory, int randomSeed, ServerLog log, ServerPresentationQueue presentation)
+	public static ServerMapScript Load(LoadedMap map, string mapPath, string? logDirectory, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot)
 	{
-		var api = new ServerGameAPI(map, log, presentation);
+		var api = new ServerGameAPI(map, log, presentation, items, loot);
 
 		if (!TryFindScript(mapPath, out string wasmPath))
 		{

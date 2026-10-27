@@ -9,6 +9,8 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
+using Realm.Shared.Network;
+using Realm.Shared.Simulation;
 using Realm.MapAPI;
 
 namespace Realm.ListenServer;
@@ -28,12 +30,14 @@ public partial class ServerGameAPI : IGameAPI
 	private readonly PlayerId[] _activePlayersBuffer = new PlayerId[ScriptPlayersState.SlotCount];
 	private int _countingScratch;
 
-	public ServerGameAPI(LoadedMap map, ServerLog log, ServerPresentationQueue presentation)
+	public ServerGameAPI(LoadedMap map, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot)
 	{
 		_map = map;
 		_context = map.Simulation;
 		_log = log;
 		_presentation = presentation;
+		Items = items;
+		Loot = loot;
 		_countResourceNodes = CountResourceNodes;
 		_countOwnedUnits = CountOwnedUnits;
 		_collectOwnedUnits = CollectOwnedUnits;
@@ -42,6 +46,12 @@ public partial class ServerGameAPI : IGameAPI
 
 	/// <summary>The world this surface writes to, so the host that runs a script can hand it the same world.</summary>
 	public EcsWorld World => _context.World;
+
+	/// <summary>What puts items on units and takes them off again in this match.</summary>
+	public ItemGrantService Items { get; }
+
+	/// <summary>What drops, expires and sweeps up the loot lying on this match's map.</summary>
+	public GroundLootService Loot { get; }
 
 	/// <summary>How long the match has run, which is the clock a map script schedules against.</summary>
 	public float GameElapsedTime
@@ -513,7 +523,7 @@ public partial class ServerGameAPI : IGameAPI
 	{
 		if (string.IsNullOrEmpty(message)) return;
 
-		_presentation.Write(ServerPresentationKind.PlayerMessage, playerIndex, string.Empty, message, Vector3.Zero);
+		_presentation.WriteText(PresentationKind.PlayerMessage, playerIndex, message, Vector3.Zero);
 		_log.Write($"script message to player {playerIndex}: {message}");
 	}
 
@@ -522,38 +532,38 @@ public partial class ServerGameAPI : IGameAPI
 	{
 		if (string.IsNullOrEmpty(message)) return;
 
-		_presentation.Write(ServerPresentationKind.BroadcastMessage, -1, string.Empty, message, Vector3.Zero);
+		_presentation.WriteText(PresentationKind.BroadcastMessage, -1, message, Vector3.Zero);
 		_log.Write($"script message: {message}");
 	}
 
 	/// <summary>Publishes a line of feedback to one player's screen.</summary>
 	public void ShowPlayerFeedbackText(int playerIndex, string text, Vector3 color)
 	{
-		_presentation.Write(ServerPresentationKind.PlayerFeedbackText, playerIndex, string.Empty, text, color);
+		_presentation.WriteText(PresentationKind.PlayerFeedbackText, playerIndex, text, color);
 	}
 
 	/// <summary>Publishes a line of feedback to every player's screen.</summary>
 	public void ShowFeedbackText(string text, Vector3 color)
 	{
-		_presentation.Write(ServerPresentationKind.FeedbackText, -1, string.Empty, text, color);
+		_presentation.WriteText(PresentationKind.FeedbackText, -1, text, color);
 	}
 
 	/// <summary>Publishes a number that floats over a place on the map.</summary>
 	public void CreateFloatingText(string text, Vector3 position, Vector3 color, float duration)
 	{
-		_presentation.Write(ServerPresentationKind.FloatingText, -1, string.Empty, text, position);
+		_presentation.WriteText(PresentationKind.FloatingText, -1, text, position);
 	}
 
 	/// <summary>Marks a place on one player's minimap.</summary>
 	public void PingPlayerMinimap(int playerIndex, Vector3 position)
 	{
-		_presentation.Write(ServerPresentationKind.MinimapPing, playerIndex, string.Empty, string.Empty, position);
+		_presentation.Write(PresentationKind.MinimapPing, playerIndex, position);
 	}
 
 	/// <summary>Marks a place on the map for every player.</summary>
 	public void SpawnTargetIndicator(Vector3 position, Vector3 color)
 	{
-		_presentation.Write(ServerPresentationKind.TargetIndicator, -1, string.Empty, string.Empty, position);
+		_presentation.Write(PresentationKind.TargetIndicator, -1, position);
 	}
 
 	/// <summary>Ends the match in victory, which every client reads from the match state.</summary>
@@ -574,14 +584,14 @@ public partial class ServerGameAPI : IGameAPI
 	public void TriggerPlayerDefeat(int playerIndex, string reason = "")
 	{
 		SetPlayerActive(playerIndex, false);
-		_presentation.Write(ServerPresentationKind.PlayerDefeated, playerIndex, string.Empty, reason, Vector3.Zero);
+		_presentation.WriteText(PresentationKind.PlayerDefeated, playerIndex, reason, Vector3.Zero);
 		_log.Write(string.IsNullOrEmpty(reason) ? $"player {playerIndex} defeated" : $"player {playerIndex} defeated ({reason})");
 	}
 
 	/// <summary>Declares one player's victory, which the match reports to that player.</summary>
 	public void TriggerPlayerVictory(int playerIndex)
 	{
-		_presentation.Write(ServerPresentationKind.PlayerVictory, playerIndex, string.Empty, string.Empty, Vector3.Zero);
+		_presentation.Write(PresentationKind.PlayerVictory, playerIndex, Vector3.Zero);
 		_log.Write($"player {playerIndex} victorious");
 	}
 

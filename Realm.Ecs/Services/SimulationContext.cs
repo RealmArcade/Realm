@@ -48,6 +48,12 @@ public class SimulationContext : IDisposable
 	/// <summary>The active damage-resolution config, including the damage/armor matrix.</summary>
 	public CombatConfig ActiveCombatConfig { get; set; } = new();
 
+	/// <summary>
+	///     Whether this match hides anything from anyone. A match that has been told not to shroud stops advancing
+	///     visibility altogether, which is what a map wants when every player is meant to see the whole board.
+	/// </summary>
+	public bool ShroudDisabled { get; set; }
+
 	public SimulationContext()
 	{
 		World = new EcsWorld { Context = this };
@@ -82,6 +88,27 @@ public class SimulationContext : IDisposable
 	}
 
 	/// <summary>
+	///     The player slot an entity owns a player for, or nothing when the entity is not one of this match's players.
+	///     It is the reverse of <see cref="GetPlayerEntity" />, so a system holding only an owner entity can name the
+	///     slot whose rules apply to it.
+	/// </summary>
+	public int PlayerSlotForEntity(Entity playerEntity)
+	{
+		if (playerEntity == Entity.Null || WorldEntity == Entity.Null) return -1;
+		if (!World.IsAlive(WorldEntity) || !World.Has<NetworkMappingState>(WorldEntity)) return -1;
+
+		Entity[]? playerEntities = World.Get<NetworkMappingState>(WorldEntity).PlayerEntities;
+		if (playerEntities == null) return -1;
+
+		for (int slot = 0; slot < playerEntities.Length; slot++)
+		{
+			if (playerEntities[slot] == playerEntity) return slot;
+		}
+
+		return -1;
+	}
+
+	/// <summary>
 	///     Clears the match state a reload replaces while keeping the same world and services, which is what starting a
 	///     second match without restarting the process needs.
 	/// </summary>
@@ -93,6 +120,7 @@ public class SimulationContext : IDisposable
 		ActiveMapName = "";
 		ActiveCombatTuning = CombatTuning.Default;
 		ActiveCombatConfig = new CombatConfig();
+		ShroudDisabled = false;
 	}
 
 	public void Dispose()

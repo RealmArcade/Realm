@@ -26,5 +26,8 @@ public enum NetworkFrameKind : byte
 	SnapshotAck = 8,
 
 	/// <summary>A peer asking to be described from scratch, which is what a client that lost its place does.</summary>
-	BaselineRequest = 9
+	BaselineRequest = 9,
+
+	/// <summary>Something the authority decided a screen should show: an effect, a line of text, a sound, a camera move.</summary>
+	Presentation = 10
 }

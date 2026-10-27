@@ -82,11 +82,14 @@ public class MatchTick
 	{
 		_deltaSeconds = deltaSeconds;
 
-		_shroudTimer += deltaSeconds;
-		if (_shroudTimer >= ShroudInterval)
+		if (!_simulation.ShroudDisabled)
 		{
-			_shroudTimer = 0f;
-			ShroudSimulationService.Tick(World, _simulation.WorldEntity);
+			_shroudTimer += deltaSeconds;
+			if (_shroudTimer >= ShroudInterval)
+			{
+				_shroudTimer = 0f;
+				ShroudSimulationService.Tick(World, _simulation.WorldEntity);
+			}
 		}
 
 		World.Query(in BuffQuery, _buffsDelegate);

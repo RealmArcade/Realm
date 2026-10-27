@@ -31,6 +31,7 @@ public class ServerSimulation : IDisposable
 	private readonly ServerProductionStep _production;
 	private readonly ServerPresentationQueue _presentation = new();
 	private readonly ServerMapScript _script;
+	private readonly GroundLootService _loot;
 	private int _snapshotSequence;
 
 	/// <summary>
@@ -53,7 +54,9 @@ public class ServerSimulation : IDisposable
 		_snapshots = new AuthoritativeSnapshotBuilder(map.World, map.WorldEntity, map.Simulation.MapRules, PeerIdForPlayerSlot);
 		EnsureMatchClock(map);
 		_production = new ServerProductionStep(map.World, map, log);
-		_script = ServerMapScript.Load(map, mapPath, logDirectory, randomSeed, log, _presentation);
+		Items = new ItemGrantService(map.Simulation, map.Catalog);
+		_loot = new GroundLootService(map.Simulation, Items);
+		_script = ServerMapScript.Load(map, mapPath, logDirectory, randomSeed, log, _presentation, Items, _loot);
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
@@ -78,6 +81,12 @@ public class ServerSimulation : IDisposable
 	}
 
 	public LoadedMap Map => _map;
+
+	/// <summary>What puts items on units and takes them off again in this match, from the map's own catalog.</summary>
+	public ItemGrantService Items { get; }
+
+	/// <summary>What drops, expires and sweeps up the loot lying on this match's map.</summary>
+	public GroundLootService Loot => _loot;
 
 	/// <summary>The shared timed steps this match advances, so the server can report what it is configured to run.</summary>
 	public MatchTick MatchTick => _matchTick;
@@ -106,6 +115,7 @@ public class ServerSimulation : IDisposable
 			_map.Simulation.CombatDamageService.StepCombat(deltaSeconds, _map.Simulation.MovementPathfindingService);
 			_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
 			_production.Step(deltaSeconds);
+			_loot.Step(deltaSeconds);
 			_script.Step(deltaSeconds);
 			_script.Api.AdvanceTimers(deltaSeconds);
 			_matchTick.AdvanceStatusEffects(deltaSeconds);
@@ -150,6 +160,21 @@ public class ServerSimulation : IDisposable
 			return true;
 		}
 	}
+
+	/// <summary>
+	///     What the match wants a screen to show since the last time the host collected it. Handing them over empties the
+	///     queue, so a request is delivered once rather than on every tick that follows it.
+	/// </summary>
+	public ServerPresentationEvent[] CollectPresentation()
+	{
+		lock (_worldGate)
+		{
+			return _presentation.Drain();
+		}
+	}
+
+	/// <summary>The player slot a peer acts as, once it has been seated on the roster.</summary>
+	public bool TryGetPlayerSlot(int peerId, out int playerSlot) => _peerPlayerSlots.TryGetValue(peerId, out playerSlot);
 
 	/// <summary>The peer that acts as a player slot, which is who owns what the world says that player owns.</summary>
 	public int PeerIdForPlayerSlot(int playerSlot)

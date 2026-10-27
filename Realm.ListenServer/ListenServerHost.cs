@@ -308,6 +308,44 @@ public class ListenServerHost : IServerHost
 		{
 			SendSnapshot(seatedPeers[index], sequence, needsBaseline[index]);
 		}
+
+		SendPresentation(seatedPeers);
+	}
+
+	/// <summary>
+	///     Tells each peer what the map asked its screen to show this tick. A request addressed to one player is delivered
+	///     only to the peer acting as that player; one addressed to everyone goes to all of them. Nothing here depends on
+	///     who is hosting, so a client is told what to show rather than deciding for itself.
+	/// </summary>
+	private void SendPresentation(IClientTransport[] seatedPeers)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		ServerPresentationEvent[] events = simulation.CollectPresentation();
+		if (events.Length == 0) return;
+
+		for (int peerIndex = 0; peerIndex < seatedPeers.Length; peerIndex++)
+		{
+			IClientTransport peer = seatedPeers[peerIndex];
+			bool seated = simulation.TryGetPlayerSlot(peer.PeerId, out int playerSlot);
+
+			for (int eventIndex = 0; eventIndex < events.Length; eventIndex++)
+			{
+				ServerPresentationEvent request = events[eventIndex];
+				if (request.PlayerIndex != ServerPresentationEvent.Everyone && (!seated || request.PlayerIndex != playerSlot)) continue;
+
+				try
+				{
+					peer.Send(NetworkFrameKind.Presentation, MemoryPackSerializer.Serialize(request.ToMessage()));
+				}
+				catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+				{
+					_log.Write($"peer {peer.PeerId} could not be told what to show: {exception.Message}");
+					break;
+				}
+			}
+		}
 	}
 
 	private void SendSnapshot(IClientTransport peer, int sequence, bool forceBaseline)
