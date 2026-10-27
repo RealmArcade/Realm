@@ -614,6 +614,15 @@ public static class MapArchiveHelper
 		}
 	}
 
+	private static bool IsWorkspaceApiLibFile(string fileName)
+	{
+		return fileName.Equals("Realm.MapAPI.dll", StringComparison.OrdinalIgnoreCase) ||
+		       fileName.Equals("Realm.MapAPI.pdb", StringComparison.OrdinalIgnoreCase) ||
+		       fileName.Equals("Realm.MapAPI.xml", StringComparison.OrdinalIgnoreCase) ||
+		       fileName.Equals("Realm.Ecs.dll", StringComparison.OrdinalIgnoreCase) ||
+		       fileName.Equals("Realm.Ecs.pdb", StringComparison.OrdinalIgnoreCase);
+	}
+
 	private static int GetFilePriority(string relPath)
 	{
 		if (relPath.Equals("manifest.json", StringComparison.OrdinalIgnoreCase)) return 0;
@@ -630,13 +639,10 @@ public static class MapArchiveHelper
 			string binDir = Path.Combine(workspacePath, "bin");
 			if (Directory.Exists(binDir))
 			{
-				var mapApiFiles = Directory.GetFiles(binDir, "Realm.MapAPI.*", SearchOption.AllDirectories);
+				var mapApiFiles = Directory.GetFiles(binDir, "Realm.*", SearchOption.AllDirectories);
 				foreach (var file in mapApiFiles)
 				{
-					string fn = Path.GetFileName(file);
-					if (fn.Equals("Realm.MapAPI.dll", StringComparison.OrdinalIgnoreCase) ||
-					    fn.Equals("Realm.MapAPI.pdb", StringComparison.OrdinalIgnoreCase) ||
-					    fn.Equals("Realm.MapAPI.xml", StringComparison.OrdinalIgnoreCase))
+					if (IsWorkspaceApiLibFile(Path.GetFileName(file)))
 					{
 						try { File.Delete(file); } catch { }
 					}

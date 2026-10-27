@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace Realm.MapAPI;
+namespace Realm.Ecs;
 
 /// <summary>
 /// Manages the zero-allocation Structure-of-Arrays (SoA) shared linear memory region between WebAssembly guest and host runtime contexts.

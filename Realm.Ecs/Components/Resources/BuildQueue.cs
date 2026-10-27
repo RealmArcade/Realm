@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Numerics;
 using Realm.Ecs.Common;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.Components.Resources;
 

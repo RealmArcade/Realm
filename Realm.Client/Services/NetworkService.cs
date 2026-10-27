@@ -2102,11 +2102,11 @@ public class NetworkService
 
 	private List<CatalogEntry> BuildStringTableEntries(int peerId, bool includeAllEntries)
 	{
-		int entryCount = Realm.MapAPI.StringRegistry.EntryCount;
+		int entryCount = Realm.Ecs.StringRegistry.EntryCount;
 		if (!_stringTableCursorPerClient.TryGetValue(peerId, out int cursor) || cursor > entryCount) cursor = 0;
 
 		_stringTableEntries.Clear();
-		int nextCursor = Realm.MapAPI.StringRegistry.GetEntriesSince(includeAllEntries ? 0 : cursor, _stringTableEntries);
+		int nextCursor = Realm.Ecs.StringRegistry.GetEntriesSince(includeAllEntries ? 0 : cursor, _stringTableEntries);
 
 		var entries = new List<CatalogEntry>(_stringTableEntries.Count);
 		for (int index = 0; index < _stringTableEntries.Count; index++)

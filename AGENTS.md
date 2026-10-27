@@ -63,8 +63,9 @@
 
 ### Map Workspaces & WASM Compilation (Portability):
 - The map temp workspace is compiled to WASM via `dotnet publish`. Workspaces and saved map folders MUST be machine-portable: never write absolute paths into generated/saved `.csproj` files.
-- `MapWorkspaceService.EnsureCsproj` always normalizes the `Realm.MapAPI` reference to the relative `<HintPath>lib/Realm.MapAPI.dll</HintPath>` and `EnsureApiLib` copies the DLL (build output preferred, `MapTemplate/lib` as fallback) into the workspace so it is self-contained.
-- `MapTemplate/lib/Realm.MapAPI.{dll,pdb,xml}` is the canonical committed API binary. When changing `Realm.MapAPI` source, rebuild it (`dotnet build Realm.MapAPI`) so the `CopyToMapTemplate` target refreshes `MapTemplate/lib` and commit the updated binaries together with the API changes.
+- `MapWorkspaceService.EnsureCsproj` always normalizes the `Realm.MapAPI` and `Realm.Ecs` references to the relative `<HintPath>lib/Realm.MapAPI.dll</HintPath>` and `<HintPath>lib/Realm.Ecs.dll</HintPath>`, and `EnsureApiLib` copies both DLLs (build output preferred, `MapTemplate/lib` as fallback) into the workspace so it is self-contained. A workspace also carries `<Using Include="Realm.Ecs" />` so a map script keeps writing `using Realm.MapAPI;` while still naming the shared simulation handles.
+- `MapTemplate/lib/Realm.MapAPI.xml` and `MapTemplate/lib/Realm.Ecs.xml` are the committed API documentation beside those DLLs. When changing `Realm.MapAPI` or `Realm.Ecs` source, rebuild it (`dotnet build Realm.MapAPI`) so the `CopyToMapTemplate` target refreshes the whole of `MapTemplate/lib`, and commit the refreshed documentation together with the API changes.
+- Simulation primitives below the script surface (`ComponentIds`, `ComponentMask`, `EcsSharedMemory`, `InternedValueStore`, `StringRegistry`, `DeterministicRandom`, `LootItemId`) live in `Realm.Ecs`, and a handle's script-facing properties are supplied from `Realm.MapAPI` as C# 14 extension members. `Realm.Ecs` never references `Realm.MapAPI`.
 - Shared map folders are portable when they contain a relative `.csproj` and the `lib/` folder. Saved/opened map folders are auto-repaired by `EnsureCsproj` on the next workspace setup.
 
 ### Map File Format & Zero-Fallback Policy:

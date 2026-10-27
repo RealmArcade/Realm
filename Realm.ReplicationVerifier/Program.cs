@@ -7,7 +7,6 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Common;
 using Realm.Ecs.Replication;
-using Realm.MapAPI;
 
 int failures = 0;
 int checks = 0;

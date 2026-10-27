@@ -1,4 +1,4 @@
-namespace Realm.MapAPI;
+namespace Realm.Ecs;
 
 /// <summary>
 /// Defines deterministic canonical component type identifiers agreed upon by both host and guest simulation runtimes.

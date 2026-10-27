@@ -1,3 +1,6 @@
+using System.Runtime.InteropServices;
+using Realm.Ecs;
+
 namespace Realm.MapAPI;
 
 /// <summary>
@@ -5,8 +8,24 @@ namespace Realm.MapAPI;
 /// </summary>
 public static class GameAPI
 {
+	private static IGameAPI _current = null!;
+
 	/// <summary>
 	/// Gets or sets the active <see cref="IGameAPI"/> instance.
 	/// </summary>
-	public static IGameAPI Current { get; set; } = null!;
+	/// <remarks>
+	/// Setting the instance also lets the text table answer identifiers this process never registered, which only the
+	/// sandbox can do: its host owns every text a map script may be asked to render. A process that hosts the world
+	/// itself registers the text it writes and keeps no answerer.
+	/// </remarks>
+	public static IGameAPI Current
+	{
+		get => _current;
+		set
+		{
+			_current = value;
+			StringRegistry.UnregisteredTextSource =
+				value != null && RuntimeInformation.ProcessArchitecture == Architecture.Wasm ? value.GetStringText : null;
+		}
+	}
 }

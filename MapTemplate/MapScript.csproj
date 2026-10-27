@@ -19,7 +19,11 @@
     <Reference Include="Realm.MapAPI">
       <HintPath>lib/Realm.MapAPI.dll</HintPath>
     </Reference>
+    <Reference Include="Realm.Ecs">
+      <HintPath>lib/Realm.Ecs.dll</HintPath>
+    </Reference>
     <Using Include="Realm.Maps" />
+    <Using Include="Realm.Ecs" />
     <Using Include="GameClientWorld.WasmRandomProxy" Alias="Random" />
   </ItemGroup>
   <ItemGroup>

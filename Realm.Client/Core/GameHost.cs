@@ -963,7 +963,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public bool CheatsEnabled
 		=> GameContext.SessionState.IsMapEditorMode || GameContext.SessionState.IsTestMode || (GameContext.Lobby?.IsSinglePlayer ?? false);
 
-	public string GetStringText(int stringId) => Realm.MapAPI.StringRegistry.Get(stringId);
+	public string GetStringText(int stringId) => Realm.Ecs.StringRegistry.Get(stringId);
 
 	public float GameElapsedTime
 	{
@@ -2449,7 +2449,7 @@ public partial class GameHost : Node3D, IGameAPI
 			playersState.SetComputerControlled(pIdx, isComputer);
 			if (teamIndex >= 0)
 			{
-				int teamNameStringId = Realm.MapAPI.StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
+				int teamNameStringId = Realm.Ecs.StringRegistry.GetOrAdd(teamIndex == 0 ? "Neutral" : $"Team {teamIndex}");
 				playersState.SetTeam(pIdx, teamIndex, teamNameStringId);
 			}
 
@@ -2568,10 +2568,10 @@ public partial class GameHost : Node3D, IGameAPI
 
 	private static void ReportStringTableCollisions()
 	{
-		int collisions = Realm.MapAPI.StringRegistry.CollisionCount;
+		int collisions = Realm.Ecs.StringRegistry.CollisionCount;
 		if (collisions == 0) return;
 
-		GD.PushError($"[GameHost] {collisions} texts collided on their content hash and moved into the reserved identifier range, so peers can disagree about which text an identifier stands for: {Realm.MapAPI.StringRegistry.CollisionSummary}");
+		GD.PushError($"[GameHost] {collisions} texts collided on their content hash and moved into the reserved identifier range, so peers can disagree about which text an identifier stands for: {Realm.Ecs.StringRegistry.CollisionSummary}");
 	}
 
 	private void LoadCustomTerrain(string rawMapName)

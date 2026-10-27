@@ -328,6 +328,8 @@ public static partial class MapWorkspaceService
 	}
 
 	private const string MapApiDllRelativePath = "lib/Realm.MapAPI.dll";
+	private const string EcsDllRelativePath = "lib/Realm.Ecs.dll";
+	private const string EcsUsingItem = "<Using Include=\"Realm.Ecs\" />";
 
 	private static string FindBuiltApiDll()
 	{
@@ -699,6 +701,12 @@ public static partial class MapWorkspaceService
 	[GeneratedRegex(@"<HintPath>[^<]*Realm\.MapAPI\.dll</HintPath>", RegexOptions.Singleline)]
 	private static partial Regex HintPathMapApiRegex();
 
+	[GeneratedRegex(@"<Reference\s+Include=""Realm\.Ecs""\s*>.*?</Reference>", RegexOptions.Singleline)]
+	private static partial Regex ReferenceEcsRegex();
+
+	[GeneratedRegex(@"<HintPath>[^<]*Realm\.Ecs\.dll</HintPath>", RegexOptions.Singleline)]
+	private static partial Regex HintPathEcsRegex();
+
 	[GeneratedRegex(@"<IlcLlvmTarget>\s*([^<\s]+)\s*</IlcLlvmTarget>", RegexOptions.IgnoreCase)]
 	private static partial Regex IlcLlvmTargetRegex();
 
@@ -723,6 +731,11 @@ public static partial class MapWorkspaceService
 
 	private static string NormalizeMapApiReference(string csprojContent)
 	{
+		string mapApiReference = $"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>";
+		string ecsReference = $"<Reference Include=\"Realm.Ecs\">\n      <HintPath>{EcsDllRelativePath}</HintPath>\n    </Reference>";
+
+		bool hasEcsReference = ReferenceEcsRegex().IsMatch(csprojContent);
+
 		csprojContent = ProjectReferenceMapApiRegex().Replace(csprojContent,
 			$"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>");
 
@@ -731,6 +744,23 @@ public static partial class MapWorkspaceService
 
 		csprojContent = HintPathMapApiRegex().Replace(csprojContent,
 			$"<HintPath>{MapApiDllRelativePath}</HintPath>");
+
+		csprojContent = ReferenceEcsRegex().Replace(csprojContent, ecsReference);
+		csprojContent = HintPathEcsRegex().Replace(csprojContent, $"<HintPath>{EcsDllRelativePath}</HintPath>");
+
+		if (!hasEcsReference && csprojContent.Contains(mapApiReference, StringComparison.Ordinal))
+		{
+			csprojContent = csprojContent.Replace(mapApiReference, mapApiReference + "\n    " + ecsReference);
+		}
+
+		if (!csprojContent.Contains(EcsUsingItem, StringComparison.Ordinal))
+		{
+			string anchor = "<Using Include=\"Realm.Maps\" />";
+			if (csprojContent.Contains(anchor, StringComparison.Ordinal))
+				csprojContent = csprojContent.Replace(anchor, anchor + "\n    " + EcsUsingItem);
+			else if (csprojContent.Contains(ecsReference, StringComparison.Ordinal))
+				csprojContent = csprojContent.Replace(ecsReference, ecsReference + "\n    " + EcsUsingItem);
+		}
 
 		if (!csprojContent.Contains("TrimmerRootAssembly"))
 		{
@@ -793,7 +823,7 @@ public static partial class MapWorkspaceService
 		}
 
 		string dllName = Path.GetFileName(sourceDll);
-		string[] fileNames = { dllName, Path.ChangeExtension(dllName, ".pdb"), Path.ChangeExtension(dllName, ".xml"), "Realm.EditorAPI.xml" };
+		string[] fileNames = { dllName, Path.ChangeExtension(dllName, ".pdb"), Path.ChangeExtension(dllName, ".xml"), "Realm.Ecs.dll", "Realm.Ecs.pdb", "Realm.Ecs.xml", "Realm.EditorAPI.xml" };
 
 		foreach (var fileName in fileNames)
 		{

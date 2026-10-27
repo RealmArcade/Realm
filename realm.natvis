@@ -12,18 +12,6 @@
       <Item Name="Value">Value</Item>
     </Expand>
   </Type>
-  <Type Name="Realm.MapAPI.LootItemId">
-    <DisplayString>LootItem {{Value}}</DisplayString>
-    <Expand>
-      <Item Name="Value">Value</Item>
-    </Expand>
-  </Type>
-  <Type Name="Realm::MapAPI::LootItemId">
-    <DisplayString>LootItem {{Value}}</DisplayString>
-    <Expand>
-      <Item Name="Value">Value</Item>
-    </Expand>
-  </Type>
   <Type Name="Realm.MapAPI.PlayerId">
     <DisplayString>Player {{Value}}</DisplayString>
     <Expand>

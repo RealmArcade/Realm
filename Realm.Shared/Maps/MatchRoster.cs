@@ -1,7 +1,6 @@
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
-using Realm.MapAPI;
 
 namespace Realm.Shared.Maps;
 

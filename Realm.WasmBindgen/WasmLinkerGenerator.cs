@@ -275,7 +275,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			typeName = "PlayerId";
 			return true;
 		}
-		if (fullName == "Realm.MapAPI.LootItemId" || unwrapped.Name == "LootItemId")
+		if (fullName == "Realm.Ecs.LootItemId" || unwrapped.Name == "LootItemId")
 		{
 			typeName = "LootItemId";
 			return true;
@@ -404,6 +404,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		sb.AppendLine("using System;");
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using Wasmtime;");
+		sb.AppendLine("using Realm.Ecs;");
 		sb.AppendLine("using Realm.MapAPI;");
 		sb.AppendLine("using System.Runtime.InteropServices;");
 		sb.AppendLine();
@@ -1805,6 +1806,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		sb.AppendLine("using System;");
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using Wasmtime;");
+		sb.AppendLine("using Realm.Ecs;");
 		sb.AppendLine("using Realm.MapAPI;");
 		sb.AppendLine();
 		sb.AppendLine($"namespace {hostNamespace};");
@@ -2909,7 +2911,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 
 		if (string.IsNullOrEmpty(templateContent)) return;
 
-		var sharedMemorySymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.EcsSharedMemory");
+		var sharedMemorySymbol = compilation.GetTypeByMetadataName("Realm.Ecs.EcsSharedMemory");
 		var constants = new List<(string Name, int Value)>();
 		if (sharedMemorySymbol != null)
 		{
@@ -3257,6 +3259,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Collections.Generic;");
 		sb.AppendLine("using System.Numerics;");
 		sb.AppendLine("using System.Runtime.InteropServices;");
+		sb.AppendLine("using Realm.Ecs;");
 		sb.AppendLine("using Realm.MapAPI;");
 		sb.AppendLine();
 		sb.AppendLine("namespace Realm.MapAPI.Components;");

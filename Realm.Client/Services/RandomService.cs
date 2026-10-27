@@ -1,5 +1,5 @@
 using System;
-using Realm.MapAPI;
+using Realm.Ecs;
 
 namespace Realm.Client.Services
 {

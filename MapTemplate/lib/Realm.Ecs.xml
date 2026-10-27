@@ -1,0 +1,2896 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Realm.Ecs</name>
+    </assembly>
+    <members>
+        <member name="T:Realm.Ecs.AI.Affordances.AffordanceScanner">
+            <summary>
+            Scans the ECS world for candidate affordances (legal actions) available to a specific player.
+            Generates normalized feature vectors for each affordance.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.AI.Affordances.GenericAffordance">
+            <summary>
+            Represents a generic candidate action discovered by the AI action scanner.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.ColdPayloadRegistry`1">
+            <summary>
+                Resolves a cold payload handle in the ambient world's own store. Only one world is alive per process at a time,
+                so a component can name its payload without holding a world reference, and a second world constructed in the
+                same process never aliases or frees the first world's payloads.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.ComponentMutator`1">
+            <summary>
+                A delegate used by <see cref="M:Realm.Ecs.Common.WorldExtensions.Mutate``1(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,Realm.Ecs.Common.ComponentMutator{``0})"/> to perform
+                in-place mutations on a component without boxing or copying.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.DamageTypes">
+            <summary>
+                The complete set of damage types the engine mitigates differently. Three, deliberately:
+                physical is resisted by armor, magic by magic resistance, and pure by nothing at all.
+                Flavours such as fire or frost are presentation, not a fourth mitigation path — a map that
+                genuinely wants a type chart authors matrix rows instead (see <c>CombatConfig</c>).
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.DamageTypes.IsKnown(System.String)">
+            <summary>True when the type is not one of the three engine types.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.DamageTypes.IsPure(System.String)">
+            <summary>Pure damage skips resistance, penetration and the type matrix entirely.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.DamageTypes.IsMagic(System.String)">
+            <summary>Magic damage is resisted by magic resistance; everything else falls to armor.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.DamageTypes.Normalize(System.String)">
+            <summary>
+                Resolves an authored damage type to an engine type. An unknown string resolves to
+                physical and is reported once per value, so a typo costs a log line rather than silently
+                changing what a unit's damage does.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.Definition">
+            <summary>
+                A common base class for serializable definitions like resources or stats.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.DefinitionAttribute">
+            <summary>
+                Base attribute for defining metadata for various game elements (tags, resources, stats).
+                This allows game elements to be defined directly in code with associated display information.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.GameplayConstants">
+            <summary>
+            Shared simulation constants for gameplay.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Common.GameplayConstants.DefaultCollisionRadius">
+            <summary>
+                Contact radius assumed when a unit has no authored CollisionRadius, expressed as a
+                fraction of its collision scale. Shared by the movement separation system and the
+                combat melee reach so both agree on how close units can get.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Common.GameplayConstants.DefaultPropCollisionRadius">
+            <summary>
+                Contact radius assumed for props (trees, rocks, ...) that have no authored
+                CollisionRadius, expressed as a fraction of their collision scale.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Common.GameplayConstants.MinimumAuthoredCollisionRadius">
+            <summary>
+                Authored CollisionRadius values at or below this are treated as "never authored"
+                rather than as a real body size. Shared by movement separation and combat so both
+                agree on when the default body size applies.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Common.GameplayConstants.CollisionSeparationFactor">
+            <summary>
+                Fraction of the combined collision radii at which units start being pushed apart.
+                Lower values let units overlap and clump together more (and squeeze through gaps
+                narrower than their collision diameter), higher values keep them spread out.
+                Combat melee reach uses the same value so melee units can always close to a
+                distance where they can attack.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.GameplayConstants.ResolveUnitContactRadius(System.Single,System.Single)">
+            <summary>
+                Resolves the contact radius of a unit body: the authored CollisionRadius scaled by
+                CollisionScale, or the default radius when the body size was never authored
+                (missing, zero or negative). Combat melee reach must use the same value the movement
+                separation uses, otherwise the two disagree on how wide a body is.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.GameplayConstants.ResolveContactRadius(System.Single,System.Single,System.Single)">
+            <summary>
+                Resolves the contact radius of a body from its authored CollisionRadius and
+                CollisionScale, falling back to the supplied default when the body size was never
+                authored (missing, zero or negative).
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.GameplayConstants.ResolveBodyRadius(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.Single)">
+            <summary>
+                Resolves the world-space contact radius of an entity from the shared collision
+                components, so picking, placement and simulation all agree on how wide a body is.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.IdExtensions">
+            <summary>
+                Provides extension methods for type-safe ID construction from the DefinitionManager.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.IdExtensions.AsResourceId(System.String,Realm.Ecs.Services.DefinitionManager)">
+            <summary>
+                Creates a type-safe ResourceId wrapper from a string.
+                Performs a runtime check to ensure the ID is registered with the DefinitionManager.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.IdExtensions.AsStatId(System.String,Realm.Ecs.Services.DefinitionManager)">
+            <summary>
+                Creates a type-safe StatId wrapper from a string.
+                Performs a runtime check to ensure the ID is registered with the DefinitionManager.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.PlayerEntity">
+            <summary>
+                A type-safe wrapper for an Entity that is guaranteed to represent a player.
+                This enforces compile-time type safety for player references.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.PlayerEntityExtensions.AsPlayerEntity(Realm.Ecs.Entity,Realm.Ecs.EcsWorld)">
+            <summary>
+                Creates a type-safe PlayerEntity wrapper from a raw Entity.
+                Performs a runtime check to ensure the Entity has the 'Player' tag.
+                This is the trusted way to construct a PlayerEntity.
+            </summary>
+            <param name="entity">The raw Entity to wrap.</param>
+            <param name="world">The EcsWorld instance.</param>
+            <returns>A PlayerEntity instance if the entity is a player.</returns>
+            <exception cref="T:System.ArgumentException">Thrown if the entity does not have the 'Player' tag.</exception>
+        </member>
+        <member name="T:Realm.Ecs.Common.ResourceConstants">
+            <summary>
+                Shared simulation constants for resource economy, accessible by both ECS services
+                and Godot orchestrators without cross-layer coupling.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.ResourceDefinition">
+            <summary>
+                Represents a Resource Definition.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.ResourceDefinitionAttribute">
+            <summary>
+                Attribute for defining a resource type's metadata.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.ResourceId">
+            <summary>
+            A type-safe unmanaged identifier wrapper for a resource category.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.StatDefinition">
+            <summary>
+                Represents a Stat Definition.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.StatDefinitionAttribute">
+            <summary>
+                Attribute for defining a stat type's metadata.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.StatId">
+            <summary>
+                A type-safe wrapper for a Stat ID.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.StatKeys">
+            <summary>
+            The complete set of stat keys the engine consumes. Exactly one key per stat: an authoring key
+            outside this set is a mistake and is reported by <see cref="M:Realm.Ecs.Common.StatKeys.WarnIfUnknown(System.String,System.String)"/> rather than
+            silently resolved.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Common.StatKeys.Armor">
+            <summary>Armor points: the physical damage resistance.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Common.StatKeys.MagicResistance">
+            <summary>Magic resistance points: the magic damage resistance.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Common.StatKeys.FlatArmorPenetration">
+            <summary>Armor points ignored by a physical hit.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Common.StatKeys.PercentArmorPenetration">
+            <summary>Fraction of the target's armor a physical hit ignores, as 0..1.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Common.StatKeys.FlatMagicPenetration">
+            <summary>Magic resistance points ignored by a magic hit.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Common.StatKeys.PercentMagicPenetration">
+            <summary>Fraction of the target's magic resistance a magic hit ignores, as 0..1.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Common.StatKeys.WarnIfUnknown(System.String,System.String)">
+            <summary>
+            Reports a stat key that no pipeline consumes. Called where authored data enters the world
+            (upgrades, items, buffs, script) so a typo fails visibly instead of silently doing nothing.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.TagDefinition">
+            <summary>
+                Represents a Tag Definition.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.TagDefinitionAttribute">
+            <summary>
+                Attribute for defining a tag component's metadata.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.TagId">
+            <summary>
+                A type-safe wrapper for a Tag ID.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Common.TooltipAttribute">
+            <summary>
+            Specifies a tooltip description for a property, field, or parameter.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Abilities.Ability">
+            <summary>
+                Defines the core properties of an ability.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Abilities.Ability.#ctor(System.Single,System.Single)">
+            <summary>
+                Defines the core properties of an ability.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Abilities.AbilityTargetFilter">
+            <summary>
+                A component that defines the targeting criteria for an ability.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Abilities.AbilityTargetFilter.#ctor(Realm.Ecs.Components.Abilities.TargetAlliance,System.Single)">
+            <summary>
+                A component that defines the targeting criteria for an ability.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Abilities.AutoCastState">
+            <summary>
+                Stores native auto-cast settings for a unit's abilities.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Abilities.AutoCastState.ActiveAbilityBitmask">
+            <summary>
+                Bitmask of active auto-cast ability slots.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Abilities.AutoCastState.#ctor(System.Boolean,System.UInt32)">
+            <summary>
+                Initializes a new instance of the <see cref="T:Realm.Ecs.Components.Abilities.AutoCastState"/> struct.
+            </summary>
+            <param name="enabled">Whether auto-cast is enabled.</param>
+            <param name="activeAbilityBitmask">Bitmask of active ability slots.</param>
+        </member>
+        <member name="T:Realm.Ecs.Components.Abilities.HasAbilities">
+            <summary>
+                A tag component indicating that an entity has abilities.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Abilities.TargetAlliance">
+            <summary>
+                Specifies the valid targets for an ability.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.AbsorbShieldSlot">
+            <summary>One absorb pool: what granted it, how much is left, and when it expires.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.AbsorbShield">
+            <summary>
+                Absorb pools standing in front of an entity's health. Damage is taken from the oldest pool
+                first, so a shield applied later never shields damage that an earlier one should have eaten.
+                A pool with no duration lasts until it is used up.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Combat.AbsorbShield.Consume(System.Single)">
+            <summary>Consumes as much of the incoming damage as the pools can take and returns the rest.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.Attack">
+            <summary>
+            Defines combat attack parameters including damage, range, cooldowns, and area-of-effect splash.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.AttackSpeedMultiplier">
+            <summary>
+                Scales an entity's attack rate. A multiplier of 1 uses the base attack cooldown, 2 attacks twice as often.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Combat.AttackSpeedMultiplier.#ctor(System.Single)">
+            <summary>
+                Scales an entity's attack rate. A multiplier of 1 uses the base attack cooldown, 2 attacks twice as often.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.AttackTarget">
+            <summary>
+                An intent component that signals an entity should attack a specific target.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Combat.AttackTarget.#ctor(Realm.Ecs.Entity)">
+            <summary>
+                An intent component that signals an entity should attack a specific target.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.AutoCombatState">
+            <summary>
+                Stores native automated combat AI settings for a unit.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Combat.AutoCombatState.#ctor(System.Boolean)">
+            <summary>
+                Initializes a new instance of the <see cref="T:Realm.Ecs.Components.Combat.AutoCombatState"/> struct.
+            </summary>
+            <param name="enabled">Whether auto-combat is enabled.</param>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.CombatTargeting">
+            <summary>
+                Defines which target types an entity's attacks can affect.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.DeliveryStyle">
+            <summary>
+                Defines delivery style options for weapons.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.HealingTarget">
+            <summary>
+                An intent component that signals a healer entity should heal a specific friendly target.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Combat.HealingTarget.#ctor(Realm.Ecs.Entity)">
+            <summary>
+                An intent component that signals a healer entity should heal a specific friendly target.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.LastAttacker">
+            <summary>
+                Represents the entity that last attacked/damaged this entity.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Combat.LastAttacker.#ctor(Realm.Ecs.Entity)">
+            <summary>
+                Represents the entity that last attacked/damaged this entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.Resistances">
+            <summary>
+                The two damage resistances, in points. Armor resists physical damage, magic resistance
+                resists magic damage, and neither resists pure damage.
+                They are stored as points rather than as a finished percentage so a percentage bonus is
+                applied exactly once, by the stat pipeline, and can never compound with itself: the
+                fraction a hit loses is only computed from the final points, in the resolver.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Combat.Resistances.Physical">
+            <summary>Points of physical damage resistance.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Combat.Resistances.Magic">
+            <summary>Points of magic damage resistance.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.ScanRadius">
+            <summary>
+                Defines the range in world units within which a unit scans for and acquires attack targets.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Combat.ScanRadius.#ctor(System.Single)">
+            <summary>
+                Defines the range in world units within which a unit scans for and acquires attack targets.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.SplashType">
+            <summary>
+            Defines area-of-effect splash damage distribution patterns.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.SummonedUnit">
+            <summary>
+                Marks a unit as summoned with a lifespan. A zero remaining time means it lasts until killed.
+                The source entity is kept so a caster's per-template summon cap can be counted without
+                trusting ownership alone, which changes when a summon is converted or gifted.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.TargetIntel">
+            <summary>
+            Defines sight range, acquisition range, stealth detection, and target filtering intelligence for an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.Weapon">
+            <summary>
+            Defines combat weapon properties including damage delivery, projectile speed, bursts, and cooldowns.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Combat.Weapons">
+            <summary>
+            Holds a collection of weapon slots for an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.AbilityState">
+            <summary>
+            Holds the ability identifiers an entity can currently use.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.Buffs">
+            <summary>
+            Holds the timed buffs active on an entity, each with its remaining and original duration.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.BuffSlot">
+            <summary>
+            Describes one timed status effect: which effect is active, how long it has left and how long it originally lasts.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.BuffSlotArray">
+            <summary>
+            Holds the fixed number of timed status slots one entity can carry, sized for the busiest hand authored map.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.BuffState">
+            <summary>
+            Holds the ongoing buffs and status effects that shape an entity's derived stats, with their timers.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.BuildingSpawnOffset">
+            <summary>
+                Stores the world-space forward offset from the building's origin at which newly
+                trained units should be spawned. Set once when the building entity is created so
+                that production logic can derive spawn positions purely from ECS data without
+                touching any Godot scene nodes.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.BuildingSpawnOffset.#ctor(System.Numerics.Vector3)">
+            <summary>
+                Stores the world-space forward offset from the building's origin at which newly
+                trained units should be spawned. Set once when the building entity is created so
+                that production logic can derive spawn positions purely from ECS data without
+                touching any Godot scene nodes.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.CameraLocationSlot">
+            <summary>
+                Represents a saved camera location and zoom level.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.CameraState">
+            <summary>
+                Holds the state and configuration of the game camera.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.CastTarget">
+            <summary>
+            Represents the target of a pending or active cast action.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.CastTarget.#ctor(System.Numerics.Vector3,Realm.Ecs.Entity)">
+            <summary>
+            Represents the target of a pending or active cast action.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.CollisionRadius">
+            <summary>
+                Stores the calculated horizontal collision radius of an obstacle for navigation mesh baking.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.CollisionRadius.#ctor(System.Single)">
+            <summary>
+                Stores the calculated horizontal collision radius of an obstacle for navigation mesh baking.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.CollisionScale">
+            <summary>
+            Represents the uniform collision scale or multiplier for physics calculations on the entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.CombatAlertState">
+            <summary>
+                Tracks the cooldown timer for under-attack UI alert notifications, stored on the world entity
+                so both the ECS service and the GameHost orchestrator can read and update it without coupling.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.CombatAlertState.#ctor(System.Single)">
+            <summary>
+                Tracks the cooldown timer for under-attack UI alert notifications, stored on the world entity
+                so both the ECS service and the GameHost orchestrator can read and update it without coupling.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.ConsumableAttachment">
+            <summary>
+            The consumable a unit is carrying, in the slot group it was bought for. Identifiers are interned
+            text ids so the component stays blittable while still naming a map-authored definition.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.Cooldowns">
+            <summary>
+            Holds the ability and action cooldown timers running on an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.CountdownState">
+            <summary>
+                Represents the active countdown timer state.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.CustomMetadata">
+            <summary>
+            Holds a dictionary of arbitrary custom metadata for an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.DecalIdentity">
+            <summary>
+            Identifies the decal resource associated with an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.DecalSpawnRequest">
+            <summary>
+                Represents a request to spawn a decal with specified parameters.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.DefinitionId">
+            <summary>
+            Holds the canonical definition identifier string for an entity template.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.EditorState">
+            <summary>
+                Holds the state and configuration of the map editor, including block modes, camera boundary limits, and file status.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.GroundLoot">
+            <summary>
+            Represents ground loot item entity state and pickup properties.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.Health">
+            <summary>
+            Represents the health point capacity and regeneration state of an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.InputState">
+            <summary>
+            Holds active user input targeting, command modes, and selection states.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.Inventory">
+            <summary>
+            Holds the items a unit carries together with the number of charges left for each, in the order they were picked up.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.InventorySlot">
+            <summary>
+            Describes one carried item: which item it is and how many charges of it remain.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.InventorySlotArray">
+            <summary>
+            Holds the fixed number of item slots one entity can carry, sized for the busiest hand authored map.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.LeaderboardState">
+            <summary>
+                Holds the leaderboard boards published by the active map script.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.Mana">
+            <summary>
+            Represents the mana energy capacity and regeneration rate of an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.ManaRegen">
+            <summary>
+                Mana points restored per second for an entity that has a <see cref="T:Realm.Ecs.Components.Core.Mana" /> component.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.ManaRegen.#ctor(System.Single)">
+            <summary>
+                Mana points restored per second for an entity that has a <see cref="T:Realm.Ecs.Components.Core.Mana" /> component.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.ModifierSlotArray">
+            <summary>
+            Holds the fixed number of stat modifiers one entity can stack, sized for the busiest hand authored map.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.ModifierState">
+            <summary>
+            Holds the stat modifiers currently shaping an entity, each with its own value, duration and source.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.NetworkMappingState">
+            <summary>
+                Holds mapping dictionaries between server/client entities and peer ID to player entities.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.NetworkState">
+            <summary>
+                Holds network synchronization, snapshot sequences, command sequencing, and latency tracking state.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.OccupiedZoneMask">
+            <summary>
+            Holds one membership bit per script zone, sized for the busiest hand authored map.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.OccupiedZones">
+            <summary>
+            Tracks which script zones currently contain a unit entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.Owner">
+            <summary>
+                Represents the ownership of an entity by a player.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.Owner.#ctor(Realm.Ecs.Common.PlayerEntity)">
+            <summary>
+                Represents the ownership of an entity by a player.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.PlayerPopulation">
+            <summary>
+            Tracks current and maximum food population unit capacities for a player.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.PlayerRelationshipMatrix">
+            <summary>
+            Pre-calculated matrix storing pairwise relationship states between all players.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.PlayerSlotArray">
+            <summary>
+            Holds one slot per script player addressable by the map API, covering slots zero through twenty four.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.PlayerTeam">
+            <summary>
+            Associates an entity with a team index and team name identifier.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.PlayerUpgrades">
+            <summary>
+            Represents the active upgrades purchased by a player entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.Position">
+            <summary>
+            Defines 3D spatial world position vector coordinates of an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.PreviousPosition">
+            <summary>
+            Stores prior simulation tick 3D spatial world position vector coordinates for visual state-snapshot interpolation.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.ProductionQueue">
+            <summary>
+            Holds the unit production and training queue state for a production building.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.PropIdentity">
+            <summary>
+            Identifies the prop definition archetype for an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.PropSpawnRequest">
+            <summary>
+                Represents a request to spawn a prop with specified parameters.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.RallyPoint">
+            <summary>
+                Represents a rally point with a queue of waypoints for trained units to move along upon spawning.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.ReplayState">
+            <summary>
+                Holds replay recording and playback metadata, tracking tick progress and resource fallbacks.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.ScriptPlayer">
+            <summary>
+            Represents the configuration and runtime properties of a player slot.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.ScriptPlayersState">
+            <summary>
+            Stores the simulation state for all script players, one slot per player index the map API can address.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.ScriptZonesState">
+            <summary>
+            Holds the spatial trigger zones a map registered, as positions into one immutable interned payload.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.SpectatorPerspective">
+            <summary>
+                Represents the active player perspective ID being viewed by a live spectator.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.SpectatorPerspective.#ctor(System.Int32)">
+            <summary>
+                Represents the active player perspective ID being viewed by a live spectator.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.SpellCooldowns">
+            <summary>
+            Holds the individual spell cooldown timers running on an entity or player.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.SummaryTableState">
+            <summary>
+                Represents the current multiplayer summary statistics table display state.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.TowerUpgradeLevel">
+            <summary>
+                Represents the upgrade level of a defensive tower structure.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.TowerUpgradeLevel.#ctor(System.Int32)">
+            <summary>
+                Represents the upgrade level of a defensive tower structure.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.UnitOwnerPlayer">
+            <summary>
+            Associates an entity with its controlling player slot index.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.UnitSpawnRequest">
+            <summary>
+            Represents a request to spawn a unit with specified parameters.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.VFXQueue">
+            <summary>
+            Holds the visual effect spawn requests waiting to be shown, in the order they were queued.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.VFXRequest">
+            <summary>
+            Represents a request to spawn a visual effect.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.VFXSlotArray">
+            <summary>
+            Holds the fixed number of visual effect requests one tick can queue, sized for the busiest fight a map can stage.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.WorldState">
+            <summary>
+                Holds global world simulation state such as elapsed game time and day-night cycle parameters.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.ZoneBounds">
+            <summary>
+            Represents the boundary coordinates of a zone defined by a script.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Meta.Experience">
+            <summary>
+            Tracks accumulated hero experience points.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Meta.Icon">
+            <summary>
+            Identifies the UI icon resource path for an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Meta.Level">
+            <summary>
+            Tracks current hero advancement level.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Meta.Model">
+            <summary>
+            Identifies the 3D visual mesh model path for an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Meta.ModelScale">
+            <summary>
+            Defines visual mesh scaling factor for an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Meta.Name">
+            <summary>
+            Holds the human-readable display name string for an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Meta.PreviousRotationY">
+            <summary>
+            Stores prior simulation tick rotational azimuth heading around the vertical Y-axis in radians for visual state-snapshot interpolation.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Meta.ReplayAnimationState">
+            <summary>
+            Represents the current animation state for a unit during replay playback.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Meta.Rotation3D">
+            <summary>
+            Represents 3D rotation in Euler degrees.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Meta.Rotation3D.#ctor(System.Numerics.Vector3)">
+            <summary>
+            Represents 3D rotation in Euler degrees.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Meta.RotationY">
+            <summary>
+            Tracks rotational azimuth heading around the vertical Y-axis in radians.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.AttackMove">
+            <summary>
+                Signals that an entity is moving to a destination while attacking enemies on the way.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Movement.AttackMove.#ctor(System.Numerics.Vector3)">
+            <summary>
+                Signals that an entity is moving to a destination while attacking enemies on the way.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.DescribedAtSequence">
+            <summary>
+                The snapshot sequence that last described this unit on a client, so a unit the authority stopped describing can be told apart from one it describes every tick.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Movement.DescribedAtSequence.#ctor(System.Int32)">
+            <summary>
+                The snapshot sequence that last described this unit on a client, so a unit the authority stopped describing can be told apart from one it describes every tick.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.Follow">
+            <summary>Follow component: unit follows a target entity.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.HoldPosition">
+            <summary>
+                Tag indicating the entity is holding its position and should not move to chase targets.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.InterpolationTarget">
+            <summary>
+                Stores the network interpolation target state for non-local units.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.MovementStats">
+            <summary>
+            Defines the movement, locomotion, and crowd footprint properties of an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.MovementType">
+            <summary>
+            Specifies the locomotion medium traversed by a moving entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.MoveTo">
+            <summary>
+                An intent component that signals an entity should move to a target position.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Movement.MoveTo.#ctor(System.Numerics.Vector3)">
+            <summary>
+                An intent component that signals an entity should move to a target position.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.PathingFlags">
+            <summary>
+                Bitmask of terrain types this unit can traverse during pathfinding.
+                Uses the same bit layout as <see cref="T:Realm.Ecs.Components.Terrain.TerrainPathingFlags"/>
+                (bit 1 = shallow water, bit 2 = deep water, bit 4 = flying/air, bit 8 = ground).
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Movement.PathingFlags.#ctor(System.Int32)">
+            <summary>
+                Bitmask of terrain types this unit can traverse during pathfinding.
+                Uses the same bit layout as <see cref="T:Realm.Ecs.Components.Terrain.TerrainPathingFlags"/>
+                (bit 1 = shallow water, bit 2 = deep water, bit 4 = flying/air, bit 8 = ground).
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.Patrol">
+            <summary>Patrol component: unit walks back and forth between PointA and PointB, attacking enemies on sight.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.PredictedMoveTo">
+            <summary>
+                A client-only movement intent that predicts an order before the host confirms it, never replicated and never authoritative.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Movement.PredictedMoveTo.#ctor(System.Numerics.Vector3,System.Int32)">
+            <summary>
+                A client-only movement intent that predicts an order before the host confirms it, never replicated and never authoritative.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.RenderPosition">
+            <summary>
+                Stores the visual render position for smooth interpolation during prediction and state reconciliation.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.Velocity">
+            <summary>
+                A component holding the movement velocity vector of an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.WaypointBuffer">
+            <summary>
+            An inline fixed buffer of 16 Vector3 waypoint positions for unit pathing.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.WaypointQueue">
+            <summary>
+            Stores a queue of pending waypoints for sequential pathing.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.BuildQueue">
+            <summary>
+                Holds a queue of pending construction tasks for a worker unit, to be executed sequentially after the current task completes.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.BuildTask">
+            <summary>
+                Tracks the active construction task assigned to a worker unit, referencing the building entity being constructed.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.ConstructionState">
+            <summary>
+                Tracks the construction progress of a building entity, from placement to completion.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.Food">
+            <summary>
+                Represents the Food resource.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.Gatherer">
+            <summary>
+                Stores the gathering state for a worker unit entity, including the resource type,
+                carried amount, capacity, and the target resource node entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.Gold">
+            <summary>
+                Represents the Gold resource.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.PlayerResources">
+            <summary>
+            A component holding all resource stockpile amounts for a player slot directly in unmanaged memory.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.ResourceCost">
+            <summary>
+                Specifies a cost in terms of a specific resource.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Resources.ResourceCost.#ctor(Realm.Ecs.Common.ResourceId,System.Int32)">
+            <summary>
+                Specifies a cost in terms of a specific resource.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.ResourceNode">
+            <summary>
+                A component for harvestable resource node entities storing resource type, amount, capacity, harvest rate, growth rate, and worker slot limits.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Resources.ResourceNode.#ctor(System.Guid,System.Single,System.Single,System.Single,System.Single,System.Int32)">
+            <summary>
+                A component for harvestable resource node entities storing resource type, amount, capacity, harvest rate, growth rate, and worker slot limits.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.Stone">
+            <summary>
+                Represents the Stone resource.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.Wood">
+            <summary>
+                Represents the Wood resource.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.ArmorStat">
+            <summary>
+                Represents the Armor stat.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.AttackDamage">
+            <summary>
+                Represents the Attack Damage stat.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.AttackSpeedStat">
+            <summary>
+                Represents the Attack Speed stat.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.AttributeType">
+            <summary>
+                The 6 core RPG attribute types.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.CombatStatType">
+            <summary>
+                Combat and derived stat types.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.DerivedCombatStats">
+            <summary>
+            Holds the derived combat stats calculated from RPG attributes and baseline stats.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Stats.DerivedCombatStats.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Holds the derived combat stats calculated from RPG attributes and baseline stats.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Components.Stats.DerivedCombatStats.Armor">
+            <summary>Armor points.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.HealthStat">
+            <summary>
+                Represents the Health stat.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.ModifierType">
+            <summary>
+                The type of modification to apply to a stat.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.MovementSpeed">
+            <summary>
+                Represents the Movement Speed stat.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.StatModifier">
+            <summary>
+                A component that modifies a stat on an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.Stats">
+            <summary>
+            Holds the stats that shape an entity together with the value it has for each of them.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.StatSlot">
+            <summary>
+            Describes one stat and the value an entity currently has for it.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.StatSlotArray">
+            <summary>
+            Holds the fixed number of stats one entity can expose, sized for the busiest hand authored map.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.UnitAttributes">
+            <summary>
+            Represents the 6 core RPG attributes for an entity.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Stats.UnitAttributes.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Represents the 6 core RPG attributes for an entity.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Stats.UnitBaseStats">
+            <summary>
+            Represents the baseline un-modified combat stats for an entity before RPG attribute contributions.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Stats.UnitBaseStats.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Represents the baseline un-modified combat stats for an entity before RPG attribute contributions.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.AnimationsFrozen">
+            <summary>
+                Tag indicating the entity holds its current animation pose.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.Attackable">
+            <summary>
+                Tag indicating the entity can be attacked.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.Building">
+            <summary>
+                Tag indicating the entity is a static building.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.BypassPopulationTag">
+            <summary>
+                Tag indicating that a spawned unit bypasses the player population cap.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.Caster">
+            <summary>
+                Tag indicating the entity can cast spells or abilities.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.CommandsFrozen">
+            <summary>
+                Tag indicating the entity ignores movement, attack and hold orders while abilities stay available.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.Dead">
+            <summary>
+                Tag indicating the entity is dead and awaiting cleanup.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.Hero">
+            <summary>
+                Tag indicating the entity is a unique, powerful hero unit.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.Invulnerable">
+            <summary>
+                Tag indicating the entity is invulnerable to damage.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.Movable">
+            <summary>
+                Tag indicating the entity is capable of movement.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.OverheadBarsHidden">
+            <summary>
+                Tag indicating the entity never draws overhead health and mana bars.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.Player">
+            <summary>
+                Tag indicating the entity represents a player.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.Prop">
+            <summary>
+                Tag indicating the entity is a static or destructible world object.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.SpellImmune">
+            <summary>
+                Tag indicating the entity is immune to spell and magic-type attacks.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.UnderConstruction">
+            <summary>
+                Tag marking a building entity as currently under construction and not yet fully built.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.Unit">
+            <summary>
+                Tag indicating the entity is a primary game unit.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Terrain.ShroudGridRegistry">
+            <summary>
+                Resolves a shroud grid handle in the ambient world's own store. Only one world is alive per process at a time,
+                so a component can name its grid without holding a world reference, and a second world constructed in the same
+                process never aliases or frees the first world's grids.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Terrain.ShroudState">
+            <summary>
+            Points the world entity at its registry-owned shroud grid buffers and stores the map-authored shroud visibility mode.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Terrain.ShroudVisibilityMode">
+            <summary>
+            Selects how unseen terrain is hidden: ExplorationShroud keeps a permanent exploration memory, VisionShroud starts with the whole map explored so only live vision dims terrain, and Revealed disables the shroud entirely.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Terrain.TerrainCell">
+            <summary>
+            Represents cell quad terrain data including tier, absolute corner heights, and per-cell discrete water state.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Terrain.TerrainColorsState">
+            <summary>
+            Holds the terrain color palette configurations.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Terrain.TerrainPathing">
+            <summary>
+                The pathing code a terrain cell carries when a map authored nothing for it, derived from the cell's water
+                state. The client's editor and the authoritative process both derive codes here so a cell that was never
+                painted is traversable identically in both.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Terrain.TerrainPathingFlags">
+            <summary>
+                Bit flags describing how a terrain cell can be traversed or used.
+                Stored as raw <see cref="T:System.Int32"/> values in <see cref="P:Realm.Ecs.Components.Terrain.TerrainState.PathingCodes"/>.
+                Keep the bit values in sync with the pathing overlay shader in <c>EditableTerrain</c>.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Terrain.TerrainState">
+            <summary>
+            Holds global terrain grid dimensions, height cells, navmesh handles, and pathing codes.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Terrain.TerrainSwatchConfig">
+            <summary>
+            Stores procedural height-blending calibration parameters for a terrain texture swatch.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Terrain.WeatherState">
+            <summary>
+            Represents the domain data for atmospheric weather conditions and environmental fog.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsWorld.Context">
+            <summary>
+                The per-match simulation that owns this world, or null for a bare world. Services reach their tuning, combat
+                config and WASM evaluation engine through it, so two worlds in one process never read each other's settings.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsWorld.Ambient">
+            <summary>
+                The world the current session runs in. Exactly one world is alive per process at a time, so a pure-data
+                component reaches its own world's handle stores through this instead of holding a world reference. A world
+                becomes ambient when it is constructed and stops being ambient when it is disposed, which is what lets the
+                editor save its world, hand the process to a playtest world, and restore itself afterwards.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsWorld.PayloadStores">
+            <summary>
+                The cold payload and shroud grid handles this world owns. Handles are allocation indices into these stores,
+                so they are never sent over the wire and never shared with another world.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.EcsWorld.SetAmbient(Realm.Ecs.EcsWorld)">
+            <summary>
+                Hands the session to the given world. A tool that deliberately holds more than one world calls this before
+                touching each one so its components resolve handles in the world they belong to.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Entity">
+            <summary>
+            Represents an entity handle in the ECS world.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Entity.#ctor(System.Int32)">
+            <summary>
+            Represents an entity handle in the ECS world.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.QueryDescription">
+            <summary>
+            Description of a query filter containing required and excluded component masks.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.QueryEnumerable">
+            <summary>
+            Provides zero-allocation enumeration over entities matching an ECS query.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.QueryEnumerator">
+            <summary>
+            Enumerator yielding entities that match an ECS query chunk by chunk using bit manipulation.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Replication.ColdPayloadDelta">
+            <remarks>
+            MemoryPack GenerateType: Object<br/>
+            <code>
+            <b>byte</b> Scope<br/>
+            <b>int</b> Key<br/>
+            <b>byte</b> Kind<br/>
+            <b>byte</b> Role<br/>
+            <b>byte</b> InternedKind<br/>
+            <b>int</b> ContentId<br/>
+            <b>byte</b> Destroyed<br/>
+            <b>byte[]</b> Bytes<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Replication.LeaderboardBoardsSnapshot">
+            <remarks>
+            MemoryPack GenerateType: Object<br/>
+            <code>
+            <b>Realm.Ecs.Replication.LeaderboardBoardSnapshot[]</b> Boards<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Replication.LeaderboardBoardSnapshot">
+            <remarks>
+            MemoryPack GenerateType: Object<br/>
+            <code>
+            <b>string</b> Id<br/>
+            <b>string</b> Title<br/>
+            <b>bool</b> Visible<br/>
+            <b>Realm.Ecs.Replication.LeaderboardBoardGroupSnapshot[]</b> Groups<br/>
+            <b>Realm.Ecs.Replication.LeaderboardBoardRowSnapshot[]</b> Rows<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Replication.LeaderboardBoardGroupSnapshot">
+            <remarks>
+            MemoryPack GenerateType: Object<br/>
+            <code>
+            <b>int</b> PlayerIndex<br/>
+            <b>string</b> Title<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Replication.LeaderboardBoardRowSnapshot">
+            <remarks>
+            MemoryPack GenerateType: Object<br/>
+            <code>
+            <b>int</b> GroupPlayerIndex<br/>
+            <b>string</b> GroupTitle<br/>
+            <b>string</b> Label<br/>
+            <b>string</b> Value<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Replication.SummaryTableSnapshot">
+            <remarks>
+            MemoryPack GenerateType: Object<br/>
+            <code>
+            <b>bool</b> Visible<br/>
+            <b>int</b> TitleStringId<br/>
+            <b>string[]</b> Headers<br/>
+            <b>string[]</b> RowKeys<br/>
+            <b>string[][]</b> RowValues<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Replication.ComponentDelta">
+            <remarks>
+            MemoryPack GenerateType: Object<br/>
+            <code>
+            <b>int</b> Key<br/>
+            <b>int</b> ComponentTypeId<br/>
+            <b>byte</b> Scope<br/>
+            <b>byte[]</b> Bytes<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Replication.ReplicatedEntityReferences">
+            <summary>
+                Maps the host entity ids carried by replicated components onto the client entities that represent them.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Replication.AbilityStateDelta">
+            <remarks>
+            MemoryPack GenerateType: unmanaged<br/>
+            <code>
+            <b>int</b> ServerEntityId<br/>
+            <b>short</b> AbilityIndex<br/>
+            <b>byte</b> Flags<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Replication.UnitComponentPresence">
+            <remarks>
+            MemoryPack GenerateType: unmanaged<br/>
+            <code>
+            <b>int</b> ServerEntityId<br/>
+            <b>ulong</b> Mask<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Replication.CatalogEntry">
+            <remarks>
+            MemoryPack GenerateType: Object<br/>
+            <code>
+            <b>string</b> Channel<br/>
+            <b>string</b> Key<br/>
+            <b>string</b> Value<br/>
+            <b>float</b> Number<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Replication.StaticTextDelta">
+            <remarks>
+            MemoryPack GenerateType: Object<br/>
+            <code>
+            <b>int</b> Handle<br/>
+            <b>string</b> Text<br/>
+            <b>float</b> PositionX<br/>
+            <b>float</b> PositionY<br/>
+            <b>float</b> PositionZ<br/>
+            <b>float</b> ColorX<br/>
+            <b>float</b> ColorY<br/>
+            <b>float</b> ColorZ<br/>
+            <b>float</b> FontSize<br/>
+            <b>byte</b> Visible<br/>
+            <b>byte</b> Destroyed<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="T:Realm.Ecs.Services.AttributeStatCalculator">
+            <summary>
+            Converts 6 core RPG attributes and base stats into derived combat stats and updates entity components.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.BuffService">
+            <summary>
+            Bridges a timed buff onto the one stat modifier pipeline. A buff with registered modifiers
+            contributes them while the buff is active, tagged with the buff as their source so refreshing
+            or removing the buff changes only that buff's contribution.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.BuffService.Apply(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String,System.Single)">
+            <summary>
+            Adds (or refreshes) the buff's stat contribution and recalculates the entity.
+            A duration of zero or less marks the contribution permanent for as long as the buff exists.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.BuffService.Remove(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String)">
+            <summary>
+            Drops the buff's stat contribution immediately, for example when a dispel removes it.
+            Returns true when a contribution was actually removed.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CombatAndDamageService.UnlimitedPowerProvider">
+            <summary>Answers whether the match is running with cooldowns switched off, which a cheat sets and a server does not.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CombatAndDamageService.AuthoritativeProvider">
+            <summary>
+                Decides whether this service is the one that applies the damage it computed. A client predicts its own
+                units and takes the authority's health, so it leaves this unset only when it is the authority; the
+                authoritative process answers yes and owns the outcome.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CombatAndDamageService.SimulateEntityFilter">
+            <summary>
+                Decides whether an entity takes part in combat resolution. A client narrows this to the units it predicts;
+                an authoritative context leaves it unset and resolves every entity in the world.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CombatAndDamageService.ItemGrantedWeaponsProvider">
+            <summary>Answers the weapons an inventory item grants, so an item that arms a unit is armed on screen as well.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CombatAndDamageService.EnemyPredicate">
+            <summary>
+                Answers whether two players are enemies when the world carries no relationship matrix, which is what a
+                lobby that has not started yet looks like. A match that has a matrix never asks.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.ReadPenetration(Realm.Ecs.Entity,System.Boolean,System.Single)">
+            <summary>
+                The flat penetration that matches the hit's damage type, read from the stat snapshot so
+                items and buffs are honoured. The attack component's authored value is the fallback for
+                an entity whose stats have never been recalculated.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.GetUnitContactRadius(Realm.Ecs.Entity)">
+            <summary>
+                Physical contact radius used by the movement separation system: the authored
+                CollisionRadius scaled by CollisionScale, or the shared default fraction of the
+                scale when the unit has no authored radius. A non-positive authored radius means the
+                value was never set, so it falls back to the default instead of describing a
+                zero-width body. Combat uses the same rule so melee reach is consistent with how
+                close units can actually get to each other.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.GetMinimumMeleeContactReach(Realm.Ecs.Entity,Realm.Ecs.Entity)">
+            <summary>
+                Distance at which movement separation parks two unit bodies against each other:
+                the combined contact radii scaled by CollisionSeparationFactor, plus a small safety
+                margin so steering/clump variance never leaves a pair hovering just out of reach.
+                Melee reach must never be smaller than the distance the bodies rest at, otherwise a
+                crowd of attackers parks the front rank just outside their own attack range.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.GetEffectiveRange(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single,System.Boolean@,System.Single@)">
+            <summary>
+                Effective distance at which an attacker can land a hit on the target. Ranged
+                attacks use range plus both collision radii. Melee attacks also need to cover the
+                distance at which the two bodies come to rest against each other; otherwise units
+                whose attack range is shorter than their own body width can never land a hit.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.DealResolvedDamage(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single,System.String)">
+            <summary>
+            Applies damage through the combat resolver so armor, penetration and the damage/armor type
+            matrix apply. This is the single-target counterpart to <see cref="M:Realm.Ecs.Services.CombatAndDamageService.DealSpellDamageAOE(System.Numerics.Vector3,System.Single,System.Single,Realm.Ecs.Entity,System.Boolean,System.String)"/>.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.AbsorbDamage(Realm.Ecs.Entity,System.Single)">
+            <summary>
+                Runs damage through the entity's absorb pools before health. Called by every damage
+                source, so a shield is worth the same against an attack, a splash, a spell or an ability.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.HealSingle(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single)">
+            <summary>Heals one unit, honouring the caster's healing multiplier.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.CombatConfig">
+            <summary>
+                The three numbers every damage application shares: the resistance curve's K, the ceiling on
+                how much resistance may remove, and the floor a resisted hit still deals. A map overrides
+                them through its metadata's combat tuning block; a map that authors nothing gets these.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CombatConfig.ResistTuningConstantK">
+            <summary>
+                K in the asymptotic curve <c>R / (R + K)</c>. Higher is flatter: at K points a unit takes
+                half damage, and no amount of resistance ever reaches immunity.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CombatConfig.MaxResistMitigation">
+            <summary>Hard ceiling on the fraction of damage resistance can remove. Default 90%.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CombatConfig.MinDamageFloor">
+            <summary>Minimum damage a resisted hit still deals, so no hit is ever free.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.CombatResolver">
+            <summary>
+                One ordered damage pipeline for every source: attacks, splash, spells, abilities and
+                periodic effects. The stages, in order, are:
+                <list type="number">
+                    <item>Raw damage: authored or scaled magnitude, plus variance, plus an optional critical.</item>
+                    <item>Effective resistance: the target's resistance for the damage type, reduced by
+                        percentage penetration and then by flat penetration, never below zero. Pure damage
+                        skips this stage entirely.</item>
+                    <item>Mitigation: <c>R / (R + K)</c>, capped by <see cref="P:Realm.Ecs.Services.CombatConfig.MaxResistMitigation" />.</item>
+                    <item>Damage floor: a resisted hit still deals <see cref="P:Realm.Ecs.Services.CombatConfig.MinDamageFloor" />,
+                        while pure damage keeps whatever it rolled.</item>
+                </list>
+                Percentage resistance bonuses never re-enter this pipeline: they are folded into the
+                resistance points once, by the stat pipeline, so no chain of percentage effects can
+                compound with itself.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatResolver.ResolveDamage(System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.String,Realm.Ecs.Services.CombatConfig,System.Random,Realm.Ecs.Services.SimulationContext)">
+            <summary>Resolves one hit.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatResolver.ResolveAbilityDamage(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single,System.String,Realm.Ecs.Services.CombatConfig)">
+            <summary>
+                Resolves ability damage for one attacker and target through the same pipeline an attack
+                uses. Ability damage carries no variance and does not roll a critical, but it does carry
+                the caster's ability damage amplification and the penetration matching its damage type.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatResolver.ReadAbilityDamageMultiplier(Realm.Ecs.EcsWorld,Realm.Ecs.Entity)">
+            <summary>
+                The caster's ability damage amplification, as a multiplier. Intelligence feeds the
+                SpellPower stat and items or upgrades may add to it, so an ability's authored number is
+                a base, exactly like an attack's.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatResolver.CalculateSplashRatio(System.Single,Realm.Ecs.Components.Combat.SplashType,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+                Calculates the splash damage ratio based on distance and splash configuration.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.CombatService">
+            <summary>
+                Demonstrates how Combat-related components are used.
+                A real game would have systems that perform these actions every frame.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatService.PerformAttack(Realm.Ecs.Entity,Realm.Ecs.Entity)">
+            <summary>
+                Makes one entity attack another using the 3-stage combat resolution pipeline.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.CombatTuning">
+            <summary>
+                Every coefficient, cap, floor and conversion constant the stat pipeline uses. One instance
+                is active per match; a map overrides individual values through its metadata's
+                <c>CombatTuning</c> block, and anything the map leaves out keeps the default below, which
+                is the behaviour the engine had when these were compile-time constants.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CombatTuning.Default">
+            <summary>The defaults every field falls back to. Never mutated.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CombatTuning.IntelligenceMagicResistancePerPoint">
+            <summary>
+                Magic resistance points granted per point of Intelligence. The points are turned into a
+                damage reduction fraction by the resolver's curve, exactly like armor.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.ProductionCosts">
+            <summary>
+                The resources and the time one production order costs, as the map authored them.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.AbilityRules">
+            <summary>
+                What one ability costs its caster and how far it reaches, as the map authored it.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.CommandTargetResolver">
+            <summary>
+                Turns the entity ids a client names in a command into entities in this process's world, and finds the prop a
+                gather order points at. The process that owns the world carved those ids out of it, so a wire id is the entity
+                id there; a peer holds local entities the snapshot mapped from the authority's ids, so it translates through the
+                match's mapping. Either way a command is resolved without a scene node.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.CommandTargetResolver.OwnsEntityIds">
+            <summary>
+                True on the process that owns the world, where a wire id is the entity id it was carved from. A peer that
+                received its entities over the snapshot sets this false and resolves through the mapping instead.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CommandTargetResolver.Resolve(System.Int32)">
+            <summary>The entity a command names, or <see cref="F:Realm.Ecs.Entity.Null" /> when the id names nothing that is alive here.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CommandTargetResolver.ToWireEntityId(Realm.Ecs.Entity)">
+            <summary>The id a command has to name this entity by, so an order round-trips through the same id it arrived on.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CommandTargetResolver.TryFindClosestProp(System.Numerics.Vector3,System.String,Realm.Ecs.Entity@,System.String@,System.Numerics.Vector3@)">
+            <summary>The nearest prop to a position, optionally restricted to one template id. Null when the world holds none.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.DamageResult">
+            <summary>
+                One damage application, with the number every stage produced. The stages are ordered and
+                documented in <see cref="T:Realm.Ecs.Services.CombatResolver" />: raw, effective resistance, mitigation, floor.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Services.DamageResult.EffectiveResistance">
+            <summary>Resistance points actually applied, after penetration. Zero for pure damage.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Services.DamageResult.Mitigation">
+            <summary>Fraction of damage removed by resistance, in [0, MaxResistMitigation].</summary>
+        </member>
+        <member name="F:Realm.Ecs.Services.DamageResult.MitigatedDamage">
+            <summary>Damage after resistance, before the minimum-damage floor.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Services.DamageResult.FinalDamage">
+            <summary>Damage actually applied.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.DefinitionManager">
+            <summary>
+                Manages the definitions of all game elements (tags, resources, stats) by discovering them
+                from attributes on structs in specified assemblies.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.FormulaContext">
+            <summary>
+            Evaluation context for dynamic formula resolution against units, spell metadata, and dynamic properties.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.LevelGrowth">
+            <summary>
+            Attribute gain per level, independent of where the authored curve came from.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.LevelGrowth.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single,System.Single)">
+            <summary>
+            Attribute gain per level, independent of where the authored curve came from.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.LevelService">
+            <summary>
+            Turns a unit's level into attribute growth through the shared modifier pipeline, so level
+            scaling composes with items, upgrades and buffs instead of bypassing them.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.MapRulesCatalog">
+            <summary>
+                The harvesting and placement rules a match runs under, as the map's scripts declared them: which definition
+                yields which resource, which buildings accept a delivery, which units may carry one, which building is a
+                player's primary, and how much room a placement takes. The rules belong to the match, so the client reads the
+                same answers the authority acts on instead of holding a second copy that can drift.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.MapRulesCatalog.BuildOptionsProvider">
+            <summary>
+                Answers a building's build options. A building that trains a resource worker counts as a delivery point even
+                when the map never named it as one, so this is asked before the answer is a no.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.MapRulesCatalog.PopulationCostProvider">
+            <summary>Answers the population a unit costs, which the per-player population totals are summed from.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.MapRulesCatalog.ApplyCatalogEntry(System.String,System.String,System.String,System.Single)">
+            <summary>
+                Takes one rule a peer published, ignoring one this match already has. A rule that arrived by either route —
+                a map script declaring it or a peer sending it — is the same rule, so the first arrival wins and a late
+                duplicate never doubles a list.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.MapRulesCatalog.GetPopulationCost(System.String)">
+            <summary>The population a definition occupies, or zero when the provider has no answer for it.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Services.MovementAndPathfindingService.MovementWorkItem.IsPlanOnly">
+            <summary>
+            Set for a unit the client does not predict. Its route is planned so pathing parity and a later predicted
+            order both start from the corridor the authority uses, but its position belongs to reconciliation.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.MovementAndPathfindingService.SimulateEntityFilter">
+            <summary>
+                Decides whether an entity takes part in movement planning. A client narrows this to the units it predicts;
+                an authoritative context leaves it unset and plans every entity in the world.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.MovementAndPathfindingService.WarningSink">
+            <summary>Where the start-recovery diagnostics go. A headless process has no Godot logger, so it stays silent.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.MovementAndPathfindingService.PositionWrittenSink">
+            <summary>Raised for an entity whose position this step wrote, so a client can attribute the write in its diagnostics.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.MovementAndPathfindingService.StepMovement(System.Single,System.Boolean)">
+            <summary>
+            Steps movement for the given rate. With <paramref name="predictedEntitiesOnly"/> set - which is how the client's
+            prediction path calls it - only units carrying a predicted order are integrated. Every other unit the local
+            player owns is still planned, so it keeps a route the authority would have produced, but it is never written:
+            its position arrives in snapshots and is smoothed by the interpolation step, and a second writer here pinned
+            such a unit at the position it spawned with because the client cannot advance the authority's own route.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.MovementService">
+            <summary>
+                Demonstrates how Movement components are used, particularly "intent" components.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.MovementService.SetMoveTarget(Realm.Ecs.Entity,System.Numerics.Vector3)">
+            <summary>
+            Sets or updates the movement target for an entity.
+            This demonstrates the "intent" pattern. You don't move the entity here.
+            You simply add the 'MoveTo' component. A 'MovementSystem' would then query
+            for all entities with this component and perform the actual pathfinding and movement.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.PathFollow">
+            <summary>
+            Caches the pathfinding waypoints for navigation to avoid GC allocations in the tick query loop.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.PlayerResourceService">
+            <summary>
+                Demonstrates how player-specific resource data is used with archetype definition data.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.SimulationContext">
+            <summary>
+                One match worth of simulation state: the world, its services and the tuning a map loaded. It is constructed per
+                match and owned by whoever runs the simulation, so the authoritative process and a client each get their own
+                instance instead of sharing one static world. Nothing here is static, so two contexts can exist in one process
+                without one naming the other's world.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.SimulationContext.MapRules">
+            <summary>The harvesting and placement rules this match runs under, as its map scripts declared them.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.SimulationContext.ResourceEconomyService">
+            <summary>The harvesting and production stepping this match's resources run through.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.SimulationContext.CombatDamageService">
+            <summary>The damage resolution and targeting this match's fights run through.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.SimulationContext.EvaluationEngine">
+            <summary>
+                The evaluator a map's WASM scripts are called through. Only an authoritative context has one: a client never
+                runs map scripts, so its context leaves this null and the stat pipeline skips formula modifiers.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.SimulationContext.ActiveCombatTuning">
+            <summary>
+                The active stat tuning. Replaced when a map loads its own <c>CombatTuning</c> block, so a map that authors
+                nothing is tuned exactly like the engine defaults.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.SimulationContext.ActiveCombatConfig">
+            <summary>The active damage-resolution config, including the damage/armor matrix.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.SimulationContext.ShroudDisabled">
+            <summary>
+                Whether this match hides anything from anyone. A match that has been told not to shroud stops advancing
+                visibility altogether, which is what a map wants when every player is meant to see the whole board.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.SimulationContext.GetPlayerEntity(System.Int32)">
+            <summary>
+                The entity that owns a player slot this match, or <see cref="F:Realm.Ecs.Entity.Null" /> when the slot has no live owner.
+                Player assignment lands in the world's mapping state as the match is built, so every system that has to turn a
+                player index into an entity asks here rather than reaching for a process-wide one.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.SimulationContext.PlayerSlotForEntity(Realm.Ecs.Entity)">
+            <summary>
+                The player slot an entity owns a player for, or nothing when the entity is not one of this match's players.
+                It is the reverse of <see cref="M:Realm.Ecs.Services.SimulationContext.GetPlayerEntity(System.Int32)" />, so a system holding only an owner entity can name the
+                slot whose rules apply to it.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.SimulationContext.ResetForMatch">
+            <summary>
+                Clears the match state a reload replaces while keeping the same world and services, which is what starting a
+                second match without restarting the process needs.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.StatService">
+            <summary>
+                Reads the stat snapshot that the derived stat pipeline writes. Modifiers are already folded
+                into these values, so a read never re-applies them.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.StatService.GetStatValue(Realm.Ecs.Entity,Realm.Ecs.Common.StatId)">
+            <summary>
+                Gets the current value of a stat. O(1), allocation free, and consistent with the value
+                gameplay uses because both come from the same snapshot.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.LastBakedObstacleCount">
+            <summary>
+            How many obstacle volumes went into the last bake. Reported by the host and by each peer so a mesh that differs from
+            the authority's can be traced to the input it was built from rather than to the bake itself.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.UsesAuthoritativeObstacles">
+            <summary>
+            True when this instance bakes with obstacle volumes received from the authority rather than collecting them from the
+            entities it can see. A peer does not run the map script, so most of the authority's obstacle volumes have no entity
+            behind them on the peer at all.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.TerrainNavMeshService.SetAuthoritativeObstacleVolumes(System.ReadOnlySpan{System.Numerics.Vector3},System.ReadOnlySpan{System.Single})">
+            <summary>
+            Replaces the obstacle volumes this instance bakes with the ones the authority baked with. Called on a peer after the
+            authority reports a bake, so both sides build their mesh from the same volumes and answer the same path query with
+            the same corridor.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.TerrainNavMeshService.HasBakedObstacleVolumes(System.ReadOnlySpan{System.Numerics.Vector3},System.ReadOnlySpan{System.Single})">
+            <summary>
+            True when the last bake already used exactly these volumes, so applying them again would only repeat an expensive
+            bake for the same result.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.BakedObstaclePositions">
+            <summary>
+            The obstacle volumes the last bake used. The authority sends these to its peers so a peer bakes an identical mesh.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.BakedObstacleRadii">
+            <summary>
+            The radii that belong to <see cref="P:Realm.Ecs.Services.TerrainNavMeshService.BakedObstaclePositions"/>.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.UnitOrderService">
+            <summary>
+                The orders, statuses and per-unit bookkeeping a unit can be given. The authoritative process, the client's own
+                command path and a map script all call these, so an order a script issues, an order a player clicks and an
+                order a client predicts are the same components with the same values.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Services.UnitOrderService.RouteStateKey">
+            <summary>The custom data key a routed unit stores its route state under.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.ClearOrders(Realm.Ecs.EcsWorld,Realm.Ecs.Entity)">
+            <summary>
+                Drops every intent a unit carries, which is what stopping means: nothing left to walk to, shoot at, follow,
+                gather or build.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.MoveTo(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.Numerics.Vector3)">
+            <summary>Sends a unit to a place, dropping whatever else it was doing.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.AttackMove(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.Numerics.Vector3)">
+            <summary>Sends a unit to a place while it engages whatever it meets on the way.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.Attack(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,Realm.Ecs.Entity)">
+            <summary>Points a unit's attack at a target.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.Gather(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,Realm.Ecs.Entity,System.String)">
+            <summary>Sends a worker to a resource node.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.Stop(Realm.Ecs.EcsWorld,Realm.Ecs.Entity)">
+            <summary>Stops a unit where it stands without holding it there.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.HoldPosition(Realm.Ecs.EcsWorld,Realm.Ecs.Entity)">
+            <summary>Stops a unit and tells it to stay put instead of chasing what it meets.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.Teleport(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.Numerics.Vector3)">
+            <summary>Puts a unit at a place without asking the movement step to walk it there.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.ApplyBuff(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String,System.Single)">
+            <summary>
+                Puts a timed status on a unit: the two status tables the match advances and the buff pipeline that folds the
+                buff's registered modifiers into the unit's stats.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.RemoveBuff(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String)">
+            <summary>Drops a status from a unit and with it the modifiers the status was contributing.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.HasBuff(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String)">
+            <summary>Whether a unit currently carries a status.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.AddStatModifier(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String,System.Boolean,System.Single,System.String)">
+            <summary>
+                Adds one stat modifier under a source, so everything one source granted can be taken back together. A
+                modifier added this way lasts until its source removes it.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.RemoveStatModifiers(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String)">
+            <summary>Drops every stat modifier one source granted and recalculates the unit's stats.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.GetAbilityCooldownRemaining(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String)">
+            <summary>How long a unit must wait before it can use an ability again.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.SetAbilityCooldown(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String,System.Single)">
+            <summary>Puts an ability on cooldown, in both cooldown tables the match advances.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.SetCustomData(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String,System.Object)">
+            <summary>Stores a script's own value on a unit.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.TryGetCustomData(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String,System.Object@)">
+            <summary>Reads back a value a script stored on a unit.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.HasCustomData(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String)">
+            <summary>Whether a script ever stored a value under a key.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.RemoveCustomData(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String)">
+            <summary>Drops one script-stored value.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.GetRouteState(Realm.Ecs.EcsWorld,Realm.Ecs.Entity)">
+            <summary>The route a script put a unit on, or zero when it is on none.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.SetRouteState(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.Int32)">
+            <summary>Puts a unit on a route.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Services.WaypointBuffer">
+            <summary>
+            An inline fixed buffer of 256 Vector3 pathfinding waypoints for navigation.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.ComponentIds">
+            <summary>
+            Defines deterministic canonical component type identifiers agreed upon by both host and guest simulation runtimes.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Position">
+            <summary>Position component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Health">
+            <summary>Health component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Mana">
+            <summary>Mana component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.PlayerPopulation">
+            <summary>Player population component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.ScriptPlayer">
+            <summary>Script player component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.UnitOwnerPlayer">
+            <summary>Unit owner player component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Attack">
+            <summary>Attack component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Resistances">
+            <summary>Resistances component identifier (armor points and magic resistance points).</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.MovementStats">
+            <summary>Movement stats component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.PlayerResources">
+            <summary>Player resources component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Building">
+            <summary>Building tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Dead">
+            <summary>Dead tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Hero">
+            <summary>Hero tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Invulnerable">
+            <summary>Invulnerable tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Unit">
+            <summary>Unit tag component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Experience">
+            <summary>Experience component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Level">
+            <summary>Level component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.ModelScale">
+            <summary>Model scale component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.RotationY">
+            <summary>Rotation around Y-axis component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.PreviousPosition">
+            <summary>Previous position component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.PreviousRotationY">
+            <summary>Previous rotation around Y-axis component identifier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.CommandsFrozen">
+            <summary>Commands frozen tag component identifier, marking units that ignore movement and attack orders.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.AnimationsFrozen">
+            <summary>Animations frozen tag component identifier, marking units that hold their current animation pose.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Frozen">
+            <summary>Frozen tag component identifier kept for maps that need the commands-frozen slot.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.OverheadBarsHidden">
+            <summary>Overhead bars hidden tag component identifier.</summary>
+        </member>
+        <member name="T:Realm.Ecs.ComponentMask">
+            <summary>
+            Bitmask representing a set of component types for entity filter queries.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentMask.Mask0">
+            <summary>
+            Bitmask word 0 (components 0-63).
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentMask.Mask1">
+            <summary>
+            Bitmask word 1 (components 64-127).
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentMask.Mask2">
+            <summary>
+            Bitmask word 2 (components 128-191).
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentMask.Mask3">
+            <summary>
+            Bitmask word 3 (components 192-255).
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.#ctor(System.UInt64,System.UInt64,System.UInt64,System.UInt64)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Realm.Ecs.ComponentMask"/> struct.
+            </summary>
+            <param name="mask0">Bitmask word 0.</param>
+            <param name="mask1">Bitmask word 1.</param>
+            <param name="mask2">Bitmask word 2.</param>
+            <param name="mask3">Bitmask word 3.</param>
+        </member>
+        <member name="P:Realm.Ecs.ComponentMask.Empty">
+            <summary>
+            Gets an empty component mask with all bits set to 0.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.FromId(System.Int32)">
+            <summary>
+            Creates a component mask from a specific 0-based component type identifier.
+            </summary>
+            <param name="componentId">The component type identifier (0-255).</param>
+            <returns>A new component mask with only the specified component bit set.</returns>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.op_BitwiseOr(Realm.Ecs.ComponentMask,Realm.Ecs.ComponentMask)">
+            <summary>
+            Computes the bitwise OR union of two component masks.
+            </summary>
+            <param name="left">The first component mask.</param>
+            <param name="right">The second component mask.</param>
+            <returns>The bitwise OR union mask.</returns>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.op_BitwiseAnd(Realm.Ecs.ComponentMask,Realm.Ecs.ComponentMask)">
+            <summary>
+            Computes the bitwise AND intersection of two component masks.
+            </summary>
+            <param name="left">The first component mask.</param>
+            <param name="right">The second component mask.</param>
+            <returns>The bitwise AND intersection mask.</returns>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.HasAll(Realm.Ecs.ComponentMask)">
+            <summary>
+            Determines whether this mask contains all bits set in the required mask.
+            </summary>
+            <param name="required">The required component mask.</param>
+            <returns>True if all required bits are present; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.HasAny(Realm.Ecs.ComponentMask)">
+            <summary>
+            Determines whether this mask contains any bits set in the required mask.
+            </summary>
+            <param name="required">The target component mask.</param>
+            <returns>True if any bits intersect; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.Equals(Realm.Ecs.ComponentMask)">
+            <summary>
+            Indicates whether the current object is equal to another object of the same type.
+            </summary>
+            <param name="other">An object to compare with this object.</param>
+            <returns>True if the current object is equal to the other parameter; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.Equals(System.Object)">
+            <summary>
+            Determines whether the specified object is equal to the current object.
+            </summary>
+            <param name="obj">The object to compare with the current object.</param>
+            <returns>True if the specified object is equal to the current object; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.GetHashCode">
+            <summary>
+            Returns the hash code for this instance.
+            </summary>
+            <returns>A 32-bit signed integer hash code.</returns>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.op_Equality(Realm.Ecs.ComponentMask,Realm.Ecs.ComponentMask)">
+            <summary>
+            Compares two component masks for equality.
+            </summary>
+            <param name="left">The first component mask.</param>
+            <param name="right">The second component mask.</param>
+            <returns>True if equal; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.Ecs.ComponentMask.op_Inequality(Realm.Ecs.ComponentMask,Realm.Ecs.ComponentMask)">
+            <summary>
+            Compares two component masks for inequality.
+            </summary>
+            <param name="left">The first component mask.</param>
+            <param name="right">The second component mask.</param>
+            <returns>True if not equal; otherwise false.</returns>
+        </member>
+        <member name="T:Realm.Ecs.DeterministicRandom">
+            <summary>
+            Provides a deterministic pseudo random stream whose sequence is identical on the host simulation and in WebAssembly map scripts for the same seed.
+            </summary>
+            <remarks>
+            The generator is a fixed SplitMix64 implementation rather than <see cref="T:System.Random"/>, so the produced sequence does not depend on the runtime version,
+            the platform, or whether the code executes inside WebAssembly. Host code and map scripts must draw from <see cref="P:Realm.Ecs.DeterministicRandom.Shared"/> so that both sides advance the
+            same logical stream and client-side movement prediction cannot diverge because of a random draw.
+            </remarks>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.#ctor(System.Int32)">
+            <summary>
+            Initializes a new deterministic stream with the given seed.
+            </summary>
+            <param name="seed">The seed that determines the sequence. The same seed always produces the same sequence.</param>
+        </member>
+        <member name="P:Realm.Ecs.DeterministicRandom.Shared">
+            <summary>
+            Gets the single stream shared by the host simulation and the WebAssembly map script.
+            </summary>
+            <remarks>
+            The stream seeds itself from <see cref="P:Realm.Ecs.EcsSharedMemory.RandomSeed"/> on first access, so the seed published by the host is the one the map script uses.
+            </remarks>
+        </member>
+        <member name="P:Realm.Ecs.DeterministicRandom.Seed">
+            <summary>
+            Gets the seed currently driving this stream.
+            </summary>
+            <value>The seed supplied to <see cref="M:Realm.Ecs.DeterministicRandom.Reset(System.Int32)"/> or to the constructor.</value>
+        </member>
+        <member name="P:Realm.Ecs.DeterministicRandom.DrawCount">
+            <summary>
+            Gets the number of values drawn from this stream since it was last reset.
+            </summary>
+            <value>A monotonically increasing draw counter that is useful when debugging sequence divergence.</value>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.Reset(System.Int32)">
+            <summary>
+            Restarts the stream at the given seed, discarding any previously drawn values.
+            </summary>
+            <param name="seed">The seed that determines the sequence. Two streams reset with the same seed produce identical values.</param>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.NextUInt64">
+            <summary>
+            Returns the next raw 64-bit value from the stream and advances the stream exactly once.
+            </summary>
+            <returns>A pseudo random 64-bit value.</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.NextUInt32">
+            <summary>
+            Returns the next raw 32-bit value from the stream and advances the stream exactly once.
+            </summary>
+            <returns>A pseudo random 32-bit value.</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.Next">
+            <summary>
+            Returns a non-negative random integer below <see cref="F:System.Int32.MaxValue"/>.
+            </summary>
+            <returns>A pseudo random integer in the range [0, <see cref="F:System.Int32.MaxValue"/>).</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.Next(System.Int32)">
+            <summary>
+            Returns a non-negative random integer below the exclusive upper bound.
+            </summary>
+            <param name="maxValueExclusive">The exclusive upper bound. Values of zero or less return zero.</param>
+            <returns>A pseudo random integer in the range [0, <paramref name="maxValueExclusive"/>).</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.Next(System.Int32,System.Int32)">
+            <summary>
+            Returns a random integer in the half-open range [<paramref name="minValueInclusive"/>, <paramref name="maxValueExclusive"/>).
+            </summary>
+            <param name="minValueInclusive">The inclusive lower bound.</param>
+            <param name="maxValueExclusive">The exclusive upper bound.</param>
+            <returns>A pseudo random integer in the requested range; the lower bound when the range is empty.</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.NextInt(System.Int32,System.Int32)">
+            <summary>
+            Returns a random integer in the inclusive range [<paramref name="minValueInclusive"/>, <paramref name="maxValueInclusive"/>].
+            </summary>
+            <param name="minValueInclusive">The inclusive lower bound.</param>
+            <param name="maxValueInclusive">The inclusive upper bound.</param>
+            <returns>A pseudo random integer in the requested range; the lower bound when the range is empty.</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.NextDouble">
+            <summary>
+            Returns a random double in the range [0, 1).
+            </summary>
+            <returns>A pseudo random double with 53 bits of precision.</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.NextSingle">
+            <summary>
+            Returns a random single-precision value in the range [0, 1).
+            </summary>
+            <returns>A pseudo random float with 24 bits of precision.</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.NextInt64">
+            <summary>
+            Returns a non-negative random 64-bit integer below <see cref="F:System.Int64.MaxValue"/>.
+            </summary>
+            <returns>A pseudo random 64-bit integer in the range [0, <see cref="F:System.Int64.MaxValue"/>).</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.NextInt64(System.Int64)">
+            <summary>
+            Returns a non-negative random 64-bit integer below the exclusive upper bound.
+            </summary>
+            <param name="maxValueExclusive">The exclusive upper bound. Values of zero or less return zero.</param>
+            <returns>A pseudo random 64-bit integer in the range [0, <paramref name="maxValueExclusive"/>).</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.NextInt64(System.Int64,System.Int64)">
+            <summary>
+            Returns a random 64-bit integer in the half-open range [<paramref name="minValueInclusive"/>, <paramref name="maxValueExclusive"/>).
+            </summary>
+            <param name="minValueInclusive">The inclusive lower bound.</param>
+            <param name="maxValueExclusive">The exclusive upper bound.</param>
+            <returns>A pseudo random 64-bit integer in the requested range; the lower bound when the range is empty.</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.NextBytes(System.Span{System.Byte})">
+            <summary>
+            Fills the destination buffer with random bytes and advances the stream once per filled 64-bit chunk.
+            </summary>
+            <param name="buffer">The buffer to fill.</param>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.NextBytes(System.Byte[])">
+            <summary>
+            Fills the destination buffer with random bytes.
+            </summary>
+            <param name="buffer">The buffer to fill.</param>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.Shuffle``1(System.Span{``0})">
+            <summary>
+            Shuffles the given span in place using a Fisher-Yates shuffle driven by this stream.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="values">The values to shuffle in place.</param>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.Shuffle``1(``0[])">
+            <summary>
+            Shuffles the given array in place using a Fisher-Yates shuffle driven by this stream.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="values">The values to shuffle in place.</param>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.GetItems``1(System.ReadOnlySpan{``0},System.Int32)">
+            <summary>
+            Copies a random selection of values into a new array.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="choices">The values to select from.</param>
+            <param name="length">The number of values to select. Selection is with replacement, matching <see cref="M:System.Random.GetItems``1(System.ReadOnlySpan{``0},System.Int32)"/>.</param>
+            <returns>A new array containing the selected values.</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.GetItems``1(``0[],System.Int32)">
+            <summary>
+            Copies a random selection of values into a new array.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="choices">The values to select from.</param>
+            <param name="length">The number of values to select. Selection is with replacement.</param>
+            <returns>A new array containing the selected values.</returns>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.GetItems``1(System.ReadOnlySpan{``0},System.Span{``0})">
+            <summary>
+            Fills the destination with a random selection of values.
+            </summary>
+            <typeparam name="T">The element type.</typeparam>
+            <param name="choices">The values to select from. Nothing is written when this span is empty.</param>
+            <param name="destination">The destination to fill. Selection is with replacement.</param>
+        </member>
+        <member name="M:Realm.Ecs.DeterministicRandom.Verify(System.Int32,System.Int32)">
+            <summary>
+            Verifies that two streams built from the same seed produce the same sequence of values.
+            </summary>
+            <param name="seed">The seed to verify.</param>
+            <param name="drawCount">The number of values to compare. Values of zero or less are treated as one.</param>
+            <returns>A report describing whether the sequence is deterministic and where the first divergence occurred.</returns>
+        </member>
+        <member name="T:Realm.Ecs.RandomDeterminismReport">
+            <summary>
+            Describes the outcome of a deterministic random sequence verification.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.RandomDeterminismReport.#ctor(System.Int32,System.Int32,System.Int32,System.UInt64,System.UInt64)">
+            <summary>
+            Initializes a new report for the given verification run.
+            </summary>
+            <param name="seed">The verified seed.</param>
+            <param name="drawCount">The number of compared values.</param>
+            <param name="divergenceIndex">The zero-based index of the first divergence, or -1 when the sequences matched.</param>
+            <param name="firstSequenceValue">The value produced by the first sequence at the divergence point.</param>
+            <param name="secondSequenceValue">The value produced by the second sequence at the divergence point.</param>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.Seed">
+            <summary>
+            Gets the verified seed.
+            </summary>
+            <value>The seed both sequences were started with.</value>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.DrawCount">
+            <summary>
+            Gets the number of compared values.
+            </summary>
+            <value>The requested comparison count.</value>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.DivergenceIndex">
+            <summary>
+            Gets the zero-based index of the first divergence.
+            </summary>
+            <value>The divergence index, or -1 when both sequences matched for the whole comparison.</value>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.FirstSequenceValue">
+            <summary>
+            Gets the value produced by the first sequence at the divergence point.
+            </summary>
+            <value>The first sequence value, or zero when no divergence occurred.</value>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.SecondSequenceValue">
+            <summary>
+            Gets the value produced by the second sequence at the divergence point.
+            </summary>
+            <value>The second sequence value, or zero when no divergence occurred.</value>
+        </member>
+        <member name="P:Realm.Ecs.RandomDeterminismReport.IsDeterministic">
+            <summary>
+            Gets a value indicating whether both sequences were identical for the whole comparison.
+            </summary>
+            <value><see langword="true"/> when no divergence occurred; otherwise <see langword="false"/>.</value>
+        </member>
+        <member name="M:Realm.Ecs.RandomDeterminismReport.Describe">
+            <summary>
+            Produces a human readable description of the verification outcome.
+            </summary>
+            <returns>A message stating whether the sequence is deterministic and, on divergence, where it diverged.</returns>
+        </member>
+        <member name="T:Realm.Ecs.EcsSharedMemory">
+            <summary>
+            Manages the zero-allocation Structure-of-Arrays (SoA) shared linear memory region between WebAssembly guest and host runtime contexts.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.MAX_PLAYERS">
+            <summary>The maximum number of player slots allocated in shared memory.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.MAX_PLAYER_ENTITIES">
+            <summary>The maximum number of player entity slots allocated in shared memory (accounting for entity index 0).</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.MAX_ENTITIES">
+            <summary>The maximum number of entity slots allocated in shared memory.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.BITSET_CHUNKS">
+            <summary>The number of 64-bit words required to represent active entity bitsets for all entities.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.MAX_COMPONENT_TYPES">
+            <summary>The maximum number of distinct component types supported in the table directory.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.COMPONENT_ARRAY_BASE_OFFSETS_OFFSET">
+            <summary>Offset to the component array base offsets directory table.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.COMPONENT_STRIDES_OFFSET">
+            <summary>Offset to the component strides directory table.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.RANDOM_SEED_OFFSET">
+            <summary>Offset to the global random seed in the shared memory header.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.HEADER_SIZE">
+            <summary>Total byte size reserved for the shared memory header.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET">
+            <summary>Offset to the active entity bitset word array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.ALIVE_OFFSET">
+            <summary>Offset to the entity alive bytes array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.ENTITY_MASKS_OFFSET">
+            <summary>Offset to the entity component masks array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.COMPONENTS_START_OFFSET">
+            <summary>Offset at which contiguous component arrays begin.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.POSITION_OFFSET">
+            <summary>Default offset to the entity positions array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.HEALTH_OFFSET">
+            <summary>Default offset to the entity health components array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.MANA_OFFSET">
+            <summary>Default offset to the entity mana components array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.ATTACK_OFFSET">
+            <summary>Default offset to the entity attack components array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.ARMOR_OFFSET">
+            <summary>Default offset to the entity armor components array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.MOVEMENT_STATS_OFFSET">
+            <summary>Default offset to the entity movement stats array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET">
+            <summary>Default offset to the entity unit owner player array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.LEVEL_OFFSET">
+            <summary>Default offset to the entity level array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.EXPERIENCE_OFFSET">
+            <summary>Default offset to the entity experience array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.MODEL_SCALE_OFFSET">
+            <summary>Default offset to the entity model scale array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.ROTATION_Y_OFFSET">
+            <summary>Default offset to the entity rotation Y-axis array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.PLAYER_RESOURCES_OFFSET">
+            <summary>Default offset to the player resources array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.SCRIPT_PLAYER_OFFSET">
+            <summary>Default offset to the script player array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.PLAYER_POPULATION_OFFSET">
+            <summary>Default offset to the player population array.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.TOTAL_SIZE_BYTES">
+            <summary>Total byte capacity of the contiguous shared memory block.</summary>
+        </member>
+        <member name="F:Realm.Ecs.EcsSharedMemory.g_realmSharedMemoryBase">
+            <summary>
+            The global static base address pointer for shared memory linear layout visible to native debuggers.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.ComponentArrayBaseOffsets">
+            <summary>Gets the raw pointer to the component array base offsets directory table.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.ComponentStrides">
+            <summary>Gets the raw pointer to the component strides directory table.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.ActiveEntityBitset">
+            <summary>Gets the raw pointer to the active entity bitset words array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.Alive">
+            <summary>Gets the raw pointer to the entity alive bytes array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.EntityMasks">
+            <summary>Gets the raw pointer to the entity component masks array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.Position">
+            <summary>Gets the raw pointer to the entity position vectors array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.PreviousPosition">
+            <summary>Gets the raw pointer to the entity previous position vectors array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.Health">
+            <summary>Gets the raw pointer to the entity health components array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.Mana">
+            <summary>Gets the raw pointer to the entity mana components array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.Attack">
+            <summary>Gets the raw pointer to the entity attack components array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.Resistances">
+            <summary>Gets the raw pointer to the entity resistance components array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.MovementStats">
+            <summary>Gets the raw pointer to the entity movement stats components array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.UnitOwnerPlayer">
+            <summary>Gets the raw pointer to the unit owner player index array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.Level">
+            <summary>Gets the raw pointer to the unit experience level array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.Experience">
+            <summary>Gets the raw pointer to the unit experience points array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.ModelScale">
+            <summary>Gets the raw pointer to the unit model scale array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.RotationY">
+            <summary>Gets the raw pointer to the unit rotation Y-axis array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.PreviousRotationY">
+            <summary>Gets the raw pointer to the unit previous rotation Y-axis array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.PlayerResources">
+            <summary>Gets the raw pointer to the player resources stockpile array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.ScriptPlayer">
+            <summary>Gets the raw pointer to the script player state array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.PlayerPopulation">
+            <summary>Gets the raw pointer to the player population limits array.</summary>
+        </member>
+        <member name="P:Realm.Ecs.EcsSharedMemory.RandomSeed">
+            <summary>
+            Gets or sets the global random seed stored in shared memory between WebAssembly guest and host runtime contexts.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.EcsSharedMemory.GetArrayBasePointer(System.Int32)">
+            <summary>
+            Resolves the base pointer for a component array from the runtime table directory.
+            </summary>
+            <param name="componentId">The component type identifier.</param>
+            <returns>A pointer to the base of the component array.</returns>
+        </member>
+        <member name="M:Realm.Ecs.EcsSharedMemory.GetComponent``1(System.Int32,System.Int32)">
+            <summary>
+            Resolves the pointer to a component struct for a specific entity or player slot using dynamic stride arithmetic.
+            </summary>
+            <typeparam name="T">The unmanaged component struct type.</typeparam>
+            <param name="componentId">The component type identifier.</param>
+            <param name="id">The entity identifier or player slot index.</param>
+            <returns>A typed pointer to the component instance in shared memory.</returns>
+        </member>
+        <member name="M:Realm.Ecs.EcsSharedMemory.GetRealmSharedMemoryBase">
+            <summary>
+            Retrieves the linear memory offset of the shared memory region for the WebAssembly host.
+            </summary>
+            <returns>The 32-bit guest linear memory address offset.</returns>
+        </member>
+        <member name="M:Realm.Ecs.EcsSharedMemory.SetRealmSharedMemoryTableDirectory(System.Int32)">
+            <summary>
+            Sets the component array base offsets runtime table directory from the WebAssembly host.
+            </summary>
+            <param name="tableDirectoryGuestOffset">The 32-bit linear memory address of the table directory.</param>
+        </member>
+        <member name="M:Realm.Ecs.EcsSharedMemory.SetRealmSharedMemoryStrides(System.Int32)">
+            <summary>
+            Sets the component strides runtime directory from the WebAssembly host.
+            </summary>
+            <param name="stridesGuestOffset">The 32-bit linear memory address of the strides directory.</param>
+        </member>
+        <member name="M:Realm.Ecs.EcsSharedMemory.GetActiveEntityBitset">
+            <summary>
+            Retrieves the raw pointer to the active entity bitset array in shared memory.
+            </summary>
+            <returns>A pointer to the array of 64-bit words representing active entity bitsets.</returns>
+        </member>
+        <member name="M:Realm.Ecs.EcsSharedMemory.HasComponent(System.Int32,System.Int32)">
+            <summary>
+            Checks whether an entity has a specific component bit set in its component mask.
+            </summary>
+            <param name="entityId">The entity identifier.</param>
+            <param name="componentId">The component type identifier (0-255).</param>
+            <returns>True if the component bit is present; otherwise false.</returns>
+        </member>
+        <member name="T:Realm.Ecs.InternedValueStore">
+            <summary>
+            Owns the single table that every process uses to translate content identifiers into the values they stand for,
+            starting with text and structured to hold further payload kinds in the same identifier space.
+            </summary>
+            <remarks>
+            Identifiers are content hashes rather than allocation sequence numbers, so the host, the client and the map
+            script sandbox agree on the identifier for a given payload without sharing any state. Two payloads of the same
+            kind that hash to the same primary identifier are resolved at registration time: the later one receives an
+            identifier from the reserved fallback range so no two values alias. Colliding payloads are reported through
+            <see cref="P:Realm.Ecs.InternedValueStore.CollisionCount"/> and <see cref="P:Realm.Ecs.InternedValueStore.CollisionSummary"/> because the fallback decision is only reachable
+            once both payloads have been registered in the same process.
+            </remarks>
+        </member>
+        <member name="F:Realm.Ecs.InternedValueStore.TextKind">
+            <summary>
+            The kind tag of the entries whose payload is text.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.InternedValueStore.TextListKind">
+            <summary>
+            The kind tag of the entries whose payload is an ordered list of text identifiers.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.InternedValueStore.WeaponListKind">
+            <summary>
+            The kind tag of the entries whose payload is an ordered list of blittable weapon records.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.InternedValueStore.ZoneListKind">
+            <summary>
+            The kind tag of the entries whose payload is an ordered list of blittable zone boundaries.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.InternedValueStore.FallbackIdBase">
+            <summary>
+            First identifier of the reserved fallback range used when a primary content hash is already taken.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.InternedValueStore.SchemeVersion">
+            <summary>
+            The version of the identifier scheme that maps content to identifiers.
+            </summary>
+            <remarks>
+            The host, the client and the map script sandbox must derive the same identifier for the same content, so the
+            scheme is frozen: text is a 32 bit FNV-1a hash over its UTF-16 code units, taken in low byte then high byte
+            order, and a structured payload is the same hash over its kind byte followed by its payload bytes, masked to
+            31 bits with zero remapped to one. Colliding content of the same kind moves into <see cref="F:Realm.Ecs.InternedValueStore.FallbackIdBase"/>.
+            Raising this version means every peer and every saved payload must migrate, not that hashes shift silently.
+            </remarks>
+        </member>
+        <member name="P:Realm.Ecs.InternedValueStore.CollisionCount">
+            <summary>
+            Gets the number of payload registrations that had to move into the reserved fallback range because another
+            payload already owned their primary content hash.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.InternedValueStore.CollisionSummary">
+            <summary>
+            Gets a human readable summary of the first few hash collisions, listing both colliding payloads.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.InternedValueStore.EntryCount">
+            <summary>
+            Gets the number of entries that have been registered or received in this process, in registration order.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.InternedValueStore.TextEntryCount">
+            <summary>
+            Gets the number of text entries that have been registered or received in this process, which is the number
+            of entries a peer's text cursor walks past.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.GetOrAddText(System.String)">
+            <summary>
+            Registers a text in the table and returns its stable identifier.
+            </summary>
+            <param name="text">The text to identify.</param>
+            <returns>
+            Zero for null or empty text, the text's content hash otherwise, or an identifier from the reserved
+            fallback range when another text already owns that hash.
+            </returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.TryGetText(System.Int32,System.String@)">
+            <summary>
+            Retrieves the text registered for an identifier in this process.
+            </summary>
+            <param name="id">The identifier to resolve.</param>
+            <param name="text">The registered text when the identifier is known to this process.</param>
+            <returns>True when the identifier is present in the table and carries text.</returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.RegisterRemoteText(System.Int32,System.String)">
+            <summary>
+            Stores text that was registered by another peer, so identifiers this process never created can still be rendered.
+            </summary>
+            <param name="id">The identifier chosen by the owning peer.</param>
+            <param name="text">The text that identifier stands for.</param>
+            <returns>True when the table gained the entry, false when the identifier was already known.</returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.GetOrAddTextList(System.ReadOnlySpan{System.Int32})">
+            <summary>
+            Registers an ordered list of text identifiers and returns its stable identifier.
+            </summary>
+            <param name="textIds">The text identifiers the list contains, in order.</param>
+            <returns>Zero for an empty list, the list's content hash otherwise.</returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.GetTextListCount(System.Int32)">
+            <summary>
+            Gets the number of text identifiers stored in a list payload.
+            </summary>
+            <param name="id">The identifier of the list payload.</param>
+            <returns>The entry count, or zero when the identifier is unknown or does not carry a list.</returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.GetTextListItemId(System.Int32,System.Int32)">
+            <summary>
+            Gets the text identifier stored at a position in a list payload.
+            </summary>
+            <param name="id">The identifier of the list payload.</param>
+            <param name="index">The zero-based position to read.</param>
+            <returns>The text identifier at that position, or zero when the position is outside the list.</returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.TryGetPayload(System.Int32,System.Byte@,System.ReadOnlySpan{System.Byte}@)">
+            <summary>
+            Gets the kind and payload bytes stored for an identifier.
+            </summary>
+            <param name="id">The identifier to inspect.</param>
+            <param name="kind">The kind tag of the stored payload.</param>
+            <param name="payload">The immutable payload bytes, empty for text entries.</param>
+            <returns>True when the identifier is present in the table.</returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.GetOrAddBytes(System.Byte,System.ReadOnlySpan{System.Byte})">
+            <summary>
+            Registers an opaque blittable payload and returns its stable identifier.
+            </summary>
+            <param name="kind">The kind tag that tells readers how to interpret the bytes.</param>
+            <param name="payload">The immutable payload bytes.</param>
+            <returns>Zero for an empty payload, the payload's content hash otherwise.</returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.ComputeTextId(System.String)">
+            <summary>
+            Computes the stable identifier a text would receive, without registering it.
+            </summary>
+            <param name="text">The text to identify.</param>
+            <returns>Zero for null or empty text, the text's content hash otherwise.</returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.GetTextEntriesSince(System.Int32,System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}})">
+            <summary>
+            Copies the text entries a peer has not received yet into a caller supplied buffer, and reports the cursor
+            that peer should pass next time.
+            </summary>
+            <remarks>
+            The cursor counts text entries only, so registering a payload of another kind between two texts never
+            advances it past a text the peer has not received.
+            </remarks>
+            <param name="cursor">The cursor previously returned for this peer, or zero to copy every text entry.</param>
+            <param name="destination">The list that receives the entries.</param>
+            <returns>The cursor that stands for the end of the text table after this copy.</returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.TryGetKind(System.Int32,System.Byte@)">
+            <summary>
+            Gets the kind tag stored for an identifier.
+            </summary>
+            <param name="id">The identifier to inspect.</param>
+            <returns>True when the identifier is present in the table.</returns>
+            <param name="kind">The kind tag of the stored payload.</param>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.DescribeTable(System.Int32)">
+            <summary>
+            Builds a human readable dump of the table for diagnosing an identifier that renders as the wrong value or not at all.
+            </summary>
+            <param name="maximumEntries">The maximum number of entries to include, taken from the most recently registered end.</param>
+            <returns>One line per entry with its identifier, kind and text, framed by a summary of the table and its collisions.</returns>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.Reset">
+            <summary>
+            Clears every entry while keeping identifiers stable, since identifiers are content hashes and not table slots.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.InternedValueStore.DescribeKind(System.Byte)">
+            <summary>
+            Gets the lower case name of a kind tag for logs and dumps.
+            </summary>
+            <param name="kind">The kind tag to describe.</param>
+            <returns>The kind name, or the numeric tag when the kind has no name yet.</returns>
+        </member>
+        <member name="T:Realm.Ecs.LootItemId">
+            <summary>
+            Identifies a dropped loot item by the entity index it occupies in the world.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.LootItemId.#ctor(System.Int32)">
+            <summary>
+            Identifies a dropped loot item by the entity index it occupies in the world.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.StringRegistry">
+            <summary>
+            Maps text to stable integer identifiers that every process computes identically, and keeps a
+            text table so a peer can render identifiers it never registered itself.
+            </summary>
+            <remarks>
+            Identifiers are content hashes rather than allocation sequence numbers, so the host, the client and the
+            map script sandbox agree on the identifier for a given text without sharing any state. Two strings that
+            hash to the same primary identifier are resolved at registration time: the later one receives an
+            identifier from the reserved fallback range so no two strings alias. Colliding texts are reported through
+            <see cref="P:Realm.Ecs.StringRegistry.CollisionCount"/> and <see cref="P:Realm.Ecs.StringRegistry.CollisionSummary"/> because the fallback decision is only
+            reachable once both strings have been registered in the same process. The table itself lives in
+            <see cref="T:Realm.Ecs.InternedValueStore"/>, which shares one identifier space between text and the structured
+            payload kinds that are still being migrated onto it.
+            </remarks>
+        </member>
+        <member name="F:Realm.Ecs.StringRegistry.FallbackIdBase">
+            <summary>
+            First identifier of the reserved fallback range used when a primary content hash is already taken.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.StringRegistry.CollisionCount">
+            <summary>
+            Gets the number of text registrations that had to move into the reserved fallback range because another
+            string already owned their primary content hash.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.StringRegistry.CollisionSummary">
+            <summary>
+            Gets a human readable summary of the first few hash collisions, listing both colliding texts.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.StringRegistry.EntryCount">
+            <summary>
+            Gets the number of text entries that have been registered or received in this process, in registration order.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.StringRegistry.GetOrAdd(System.String)">
+            <summary>
+            Registers a text in the table and returns its stable identifier.
+            </summary>
+            <param name="text">The text to identify.</param>
+            <returns>
+            Zero for null or empty text, the text's content hash otherwise, or an identifier from the reserved
+            fallback range when another string already owns that hash.
+            </returns>
+        </member>
+        <member name="P:Realm.Ecs.StringRegistry.UnregisteredTextSource">
+            <summary>
+            The source a process asks for text it has never registered, set by whatever hosts the shared memory.
+            </summary>
+            <remarks>
+            The table itself cannot open a channel to a peer, so a process that can answer for text registered elsewhere
+            installs an answerer here. The map script sandbox installs the host's <c>GetStringText</c> when it receives its
+            game api, and a process that only ever registers its own text leaves it empty.
+            </remarks>
+        </member>
+        <member name="M:Realm.Ecs.StringRegistry.Get(System.Int32)">
+            <summary>
+            Retrieves the text registered for an identifier, asking the installed source for text this process has never seen.
+            </summary>
+            <param name="id">The identifier to resolve.</param>
+            <returns>The registered text, or an empty string when no process knows the identifier.</returns>
+            <remarks>
+            A miss is forwarded to <see cref="P:Realm.Ecs.StringRegistry.UnregisteredTextSource"/> and cached locally, so an identifier written by a
+            peer into shared component memory becomes readable even when this process never registered that text. Because
+            identifiers are content hashes the answer can be verified: text whose hash does not match the requested
+            identifier is discarded.
+            </remarks>
+        </member>
+        <member name="M:Realm.Ecs.StringRegistry.TryGetText(System.Int32,System.String@)">
+            <summary>
+            Attempts to retrieve the text registered for an identifier without allocating a fallback string.
+            </summary>
+            <param name="id">The identifier to resolve.</param>
+            <param name="text">The registered text when the identifier is known to this process.</param>
+            <returns>True when the identifier is present in the text table.</returns>
+        </member>
+        <member name="M:Realm.Ecs.StringRegistry.RegisterRemote(System.Int32,System.String)">
+            <summary>
+            Stores text that was registered by another peer, so identifiers this process never created can still be rendered.
+            </summary>
+            <param name="id">The identifier chosen by the owning peer.</param>
+            <param name="text">The text that identifier stands for.</param>
+            <returns>True when the table gained the entry, false when the identifier was already known.</returns>
+        </member>
+        <member name="M:Realm.Ecs.StringRegistry.ComputeId(System.String)">
+            <summary>
+            Computes the stable identifier a text would receive, without registering it.
+            </summary>
+            <param name="text">The text to identify.</param>
+            <returns>Zero for null or empty text, the text's content hash otherwise.</returns>
+        </member>
+        <member name="M:Realm.Ecs.StringRegistry.GetEntriesSince(System.Int32,System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}})">
+            <summary>
+            Copies the entries a peer has not received yet into a caller supplied buffer, and reports the cursor
+            that peer should pass next time.
+            </summary>
+            <param name="cursor">The cursor previously returned for this peer, or zero to copy every entry.</param>
+            <param name="destination">The list that receives the entries.</param>
+            <returns>The cursor that stands for the end of the table after this copy.</returns>
+        </member>
+        <member name="M:Realm.Ecs.StringRegistry.CopyEntries(System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}},System.Int32)">
+            <summary>
+            Copies registered entries into a caller supplied buffer for replication.
+            </summary>
+            <param name="destination">The list that receives the entries.</param>
+            <param name="startIndex">The first entry index to copy.</param>
+        </member>
+        <member name="M:Realm.Ecs.StringRegistry.DescribeTable(System.Int32)">
+            <summary>
+            Builds a human readable dump of the table for diagnosing an identifier that renders as the wrong text or not at all.
+            </summary>
+            <param name="maximumEntries">The maximum number of entries to include, taken from the most recently registered end.</param>
+            <returns>One line per entry with its identifier, kind and text, framed by a summary of the table and its collisions.</returns>
+        </member>
+        <member name="M:Realm.Ecs.StringRegistry.Reset">
+            <summary>
+            Clears every text entry while keeping identifiers stable, since identifiers are content hashes and not table slots.
+            </summary>
+        </member>
+    </members>
+</doc>

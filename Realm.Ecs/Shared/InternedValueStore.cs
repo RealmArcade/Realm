@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
-namespace Realm.MapAPI;
+namespace Realm.Ecs;
 
 /// <summary>
 /// Owns the single table that every process uses to translate content identifiers into the values they stand for,

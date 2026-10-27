@@ -5,7 +5,6 @@ using System.Text;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 
 namespace Realm.Ecs;
 

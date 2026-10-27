@@ -193,198 +193,6 @@
             Gets the default AI bot profile configuration.
             </summary>
         </member>
-        <member name="T:Realm.MapAPI.ComponentIds">
-            <summary>
-            Defines deterministic canonical component type identifiers agreed upon by both host and guest simulation runtimes.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Position">
-            <summary>Position component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Health">
-            <summary>Health component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Mana">
-            <summary>Mana component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.PlayerPopulation">
-            <summary>Player population component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.ScriptPlayer">
-            <summary>Script player component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.UnitOwnerPlayer">
-            <summary>Unit owner player component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Attack">
-            <summary>Attack component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Resistances">
-            <summary>Resistances component identifier (armor points and magic resistance points).</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.MovementStats">
-            <summary>Movement stats component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.PlayerResources">
-            <summary>Player resources component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Building">
-            <summary>Building tag component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Dead">
-            <summary>Dead tag component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Hero">
-            <summary>Hero tag component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Invulnerable">
-            <summary>Invulnerable tag component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Unit">
-            <summary>Unit tag component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Experience">
-            <summary>Experience component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Level">
-            <summary>Level component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.ModelScale">
-            <summary>Model scale component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.RotationY">
-            <summary>Rotation around Y-axis component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.PreviousPosition">
-            <summary>Previous position component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.PreviousRotationY">
-            <summary>Previous rotation around Y-axis component identifier.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.CommandsFrozen">
-            <summary>Commands frozen tag component identifier, marking units that ignore movement and attack orders.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.AnimationsFrozen">
-            <summary>Animations frozen tag component identifier, marking units that hold their current animation pose.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.Frozen">
-            <summary>Frozen tag component identifier kept for maps that need the commands-frozen slot.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentIds.OverheadBarsHidden">
-            <summary>Overhead bars hidden tag component identifier.</summary>
-        </member>
-        <member name="T:Realm.MapAPI.ComponentMask">
-            <summary>
-            Bitmask representing a set of component types for entity filter queries.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentMask.Mask0">
-            <summary>
-            Bitmask word 0 (components 0-63).
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentMask.Mask1">
-            <summary>
-            Bitmask word 1 (components 64-127).
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentMask.Mask2">
-            <summary>
-            Bitmask word 2 (components 128-191).
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.ComponentMask.Mask3">
-            <summary>
-            Bitmask word 3 (components 192-255).
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.#ctor(System.UInt64,System.UInt64,System.UInt64,System.UInt64)">
-            <summary>
-            Initializes a new instance of the <see cref="T:Realm.MapAPI.ComponentMask"/> struct.
-            </summary>
-            <param name="mask0">Bitmask word 0.</param>
-            <param name="mask1">Bitmask word 1.</param>
-            <param name="mask2">Bitmask word 2.</param>
-            <param name="mask3">Bitmask word 3.</param>
-        </member>
-        <member name="P:Realm.MapAPI.ComponentMask.Empty">
-            <summary>
-            Gets an empty component mask with all bits set to 0.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.FromId(System.Int32)">
-            <summary>
-            Creates a component mask from a specific 0-based component type identifier.
-            </summary>
-            <param name="componentId">The component type identifier (0-255).</param>
-            <returns>A new component mask with only the specified component bit set.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.op_BitwiseOr(Realm.MapAPI.ComponentMask,Realm.MapAPI.ComponentMask)">
-            <summary>
-            Computes the bitwise OR union of two component masks.
-            </summary>
-            <param name="left">The first component mask.</param>
-            <param name="right">The second component mask.</param>
-            <returns>The bitwise OR union mask.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.op_BitwiseAnd(Realm.MapAPI.ComponentMask,Realm.MapAPI.ComponentMask)">
-            <summary>
-            Computes the bitwise AND intersection of two component masks.
-            </summary>
-            <param name="left">The first component mask.</param>
-            <param name="right">The second component mask.</param>
-            <returns>The bitwise AND intersection mask.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.HasAll(Realm.MapAPI.ComponentMask)">
-            <summary>
-            Determines whether this mask contains all bits set in the required mask.
-            </summary>
-            <param name="required">The required component mask.</param>
-            <returns>True if all required bits are present; otherwise false.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.HasAny(Realm.MapAPI.ComponentMask)">
-            <summary>
-            Determines whether this mask contains any bits set in the required mask.
-            </summary>
-            <param name="required">The target component mask.</param>
-            <returns>True if any bits intersect; otherwise false.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.Equals(Realm.MapAPI.ComponentMask)">
-            <summary>
-            Indicates whether the current object is equal to another object of the same type.
-            </summary>
-            <param name="other">An object to compare with this object.</param>
-            <returns>True if the current object is equal to the other parameter; otherwise false.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.Equals(System.Object)">
-            <summary>
-            Determines whether the specified object is equal to the current object.
-            </summary>
-            <param name="obj">The object to compare with the current object.</param>
-            <returns>True if the specified object is equal to the current object; otherwise false.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.GetHashCode">
-            <summary>
-            Returns the hash code for this instance.
-            </summary>
-            <returns>A 32-bit signed integer hash code.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.op_Equality(Realm.MapAPI.ComponentMask,Realm.MapAPI.ComponentMask)">
-            <summary>
-            Compares two component masks for equality.
-            </summary>
-            <param name="left">The first component mask.</param>
-            <param name="right">The second component mask.</param>
-            <returns>True if equal; otherwise false.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.ComponentMask.op_Inequality(Realm.MapAPI.ComponentMask,Realm.MapAPI.ComponentMask)">
-            <summary>
-            Compares two component masks for inequality.
-            </summary>
-            <param name="left">The first component mask.</param>
-            <param name="right">The second component mask.</param>
-            <returns>True if not equal; otherwise false.</returns>
-        </member>
         <member name="T:Realm.MapAPI.Coordinate">
             <summary>
             Represents a 3D bounding region defined by a minimum and maximum coordinate.
@@ -447,449 +255,6 @@
             Gets or sets arbitrary payload data or arguments passed to the execution callback.
             </summary>
         </member>
-        <member name="T:Realm.MapAPI.DeterministicRandom">
-            <summary>
-            Provides a deterministic pseudo random stream whose sequence is identical on the host simulation and in WebAssembly map scripts for the same seed.
-            </summary>
-            <remarks>
-            The generator is a fixed SplitMix64 implementation rather than <see cref="T:System.Random"/>, so the produced sequence does not depend on the runtime version,
-            the platform, or whether the code executes inside WebAssembly. Host code and map scripts must draw from <see cref="P:Realm.MapAPI.DeterministicRandom.Shared"/> so that both sides advance the
-            same logical stream and client-side movement prediction cannot diverge because of a random draw.
-            </remarks>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.#ctor(System.Int32)">
-            <summary>
-            Initializes a new deterministic stream with the given seed.
-            </summary>
-            <param name="seed">The seed that determines the sequence. The same seed always produces the same sequence.</param>
-        </member>
-        <member name="P:Realm.MapAPI.DeterministicRandom.Shared">
-            <summary>
-            Gets the single stream shared by the host simulation and the WebAssembly map script.
-            </summary>
-            <remarks>
-            The stream seeds itself from <see cref="P:Realm.MapAPI.EcsSharedMemory.RandomSeed"/> on first access, so the seed published by the host is the one the map script uses.
-            </remarks>
-        </member>
-        <member name="P:Realm.MapAPI.DeterministicRandom.Seed">
-            <summary>
-            Gets the seed currently driving this stream.
-            </summary>
-            <value>The seed supplied to <see cref="M:Realm.MapAPI.DeterministicRandom.Reset(System.Int32)"/> or to the constructor.</value>
-        </member>
-        <member name="P:Realm.MapAPI.DeterministicRandom.DrawCount">
-            <summary>
-            Gets the number of values drawn from this stream since it was last reset.
-            </summary>
-            <value>A monotonically increasing draw counter that is useful when debugging sequence divergence.</value>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.Reset(System.Int32)">
-            <summary>
-            Restarts the stream at the given seed, discarding any previously drawn values.
-            </summary>
-            <param name="seed">The seed that determines the sequence. Two streams reset with the same seed produce identical values.</param>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.NextUInt64">
-            <summary>
-            Returns the next raw 64-bit value from the stream and advances the stream exactly once.
-            </summary>
-            <returns>A pseudo random 64-bit value.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.NextUInt32">
-            <summary>
-            Returns the next raw 32-bit value from the stream and advances the stream exactly once.
-            </summary>
-            <returns>A pseudo random 32-bit value.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.Next">
-            <summary>
-            Returns a non-negative random integer below <see cref="F:System.Int32.MaxValue"/>.
-            </summary>
-            <returns>A pseudo random integer in the range [0, <see cref="F:System.Int32.MaxValue"/>).</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.Next(System.Int32)">
-            <summary>
-            Returns a non-negative random integer below the exclusive upper bound.
-            </summary>
-            <param name="maxValueExclusive">The exclusive upper bound. Values of zero or less return zero.</param>
-            <returns>A pseudo random integer in the range [0, <paramref name="maxValueExclusive"/>).</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.Next(System.Int32,System.Int32)">
-            <summary>
-            Returns a random integer in the half-open range [<paramref name="minValueInclusive"/>, <paramref name="maxValueExclusive"/>).
-            </summary>
-            <param name="minValueInclusive">The inclusive lower bound.</param>
-            <param name="maxValueExclusive">The exclusive upper bound.</param>
-            <returns>A pseudo random integer in the requested range; the lower bound when the range is empty.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.NextInt(System.Int32,System.Int32)">
-            <summary>
-            Returns a random integer in the inclusive range [<paramref name="minValueInclusive"/>, <paramref name="maxValueInclusive"/>].
-            </summary>
-            <param name="minValueInclusive">The inclusive lower bound.</param>
-            <param name="maxValueInclusive">The inclusive upper bound.</param>
-            <returns>A pseudo random integer in the requested range; the lower bound when the range is empty.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.NextDouble">
-            <summary>
-            Returns a random double in the range [0, 1).
-            </summary>
-            <returns>A pseudo random double with 53 bits of precision.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.NextSingle">
-            <summary>
-            Returns a random single-precision value in the range [0, 1).
-            </summary>
-            <returns>A pseudo random float with 24 bits of precision.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.NextInt64">
-            <summary>
-            Returns a non-negative random 64-bit integer below <see cref="F:System.Int64.MaxValue"/>.
-            </summary>
-            <returns>A pseudo random 64-bit integer in the range [0, <see cref="F:System.Int64.MaxValue"/>).</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.NextInt64(System.Int64)">
-            <summary>
-            Returns a non-negative random 64-bit integer below the exclusive upper bound.
-            </summary>
-            <param name="maxValueExclusive">The exclusive upper bound. Values of zero or less return zero.</param>
-            <returns>A pseudo random 64-bit integer in the range [0, <paramref name="maxValueExclusive"/>).</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.NextInt64(System.Int64,System.Int64)">
-            <summary>
-            Returns a random 64-bit integer in the half-open range [<paramref name="minValueInclusive"/>, <paramref name="maxValueExclusive"/>).
-            </summary>
-            <param name="minValueInclusive">The inclusive lower bound.</param>
-            <param name="maxValueExclusive">The exclusive upper bound.</param>
-            <returns>A pseudo random 64-bit integer in the requested range; the lower bound when the range is empty.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.NextBytes(System.Span{System.Byte})">
-            <summary>
-            Fills the destination buffer with random bytes and advances the stream once per filled 64-bit chunk.
-            </summary>
-            <param name="buffer">The buffer to fill.</param>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.NextBytes(System.Byte[])">
-            <summary>
-            Fills the destination buffer with random bytes.
-            </summary>
-            <param name="buffer">The buffer to fill.</param>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.Shuffle``1(System.Span{``0})">
-            <summary>
-            Shuffles the given span in place using a Fisher-Yates shuffle driven by this stream.
-            </summary>
-            <typeparam name="T">The element type.</typeparam>
-            <param name="values">The values to shuffle in place.</param>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.Shuffle``1(``0[])">
-            <summary>
-            Shuffles the given array in place using a Fisher-Yates shuffle driven by this stream.
-            </summary>
-            <typeparam name="T">The element type.</typeparam>
-            <param name="values">The values to shuffle in place.</param>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.GetItems``1(System.ReadOnlySpan{``0},System.Int32)">
-            <summary>
-            Copies a random selection of values into a new array.
-            </summary>
-            <typeparam name="T">The element type.</typeparam>
-            <param name="choices">The values to select from.</param>
-            <param name="length">The number of values to select. Selection is with replacement, matching <see cref="M:System.Random.GetItems``1(System.ReadOnlySpan{``0},System.Int32)"/>.</param>
-            <returns>A new array containing the selected values.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.GetItems``1(``0[],System.Int32)">
-            <summary>
-            Copies a random selection of values into a new array.
-            </summary>
-            <typeparam name="T">The element type.</typeparam>
-            <param name="choices">The values to select from.</param>
-            <param name="length">The number of values to select. Selection is with replacement.</param>
-            <returns>A new array containing the selected values.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.GetItems``1(System.ReadOnlySpan{``0},System.Span{``0})">
-            <summary>
-            Fills the destination with a random selection of values.
-            </summary>
-            <typeparam name="T">The element type.</typeparam>
-            <param name="choices">The values to select from. Nothing is written when this span is empty.</param>
-            <param name="destination">The destination to fill. Selection is with replacement.</param>
-        </member>
-        <member name="M:Realm.MapAPI.DeterministicRandom.Verify(System.Int32,System.Int32)">
-            <summary>
-            Verifies that two streams built from the same seed produce the same sequence of values.
-            </summary>
-            <param name="seed">The seed to verify.</param>
-            <param name="drawCount">The number of values to compare. Values of zero or less are treated as one.</param>
-            <returns>A report describing whether the sequence is deterministic and where the first divergence occurred.</returns>
-        </member>
-        <member name="T:Realm.MapAPI.RandomDeterminismReport">
-            <summary>
-            Describes the outcome of a deterministic random sequence verification.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.RandomDeterminismReport.#ctor(System.Int32,System.Int32,System.Int32,System.UInt64,System.UInt64)">
-            <summary>
-            Initializes a new report for the given verification run.
-            </summary>
-            <param name="seed">The verified seed.</param>
-            <param name="drawCount">The number of compared values.</param>
-            <param name="divergenceIndex">The zero-based index of the first divergence, or -1 when the sequences matched.</param>
-            <param name="firstSequenceValue">The value produced by the first sequence at the divergence point.</param>
-            <param name="secondSequenceValue">The value produced by the second sequence at the divergence point.</param>
-        </member>
-        <member name="P:Realm.MapAPI.RandomDeterminismReport.Seed">
-            <summary>
-            Gets the verified seed.
-            </summary>
-            <value>The seed both sequences were started with.</value>
-        </member>
-        <member name="P:Realm.MapAPI.RandomDeterminismReport.DrawCount">
-            <summary>
-            Gets the number of compared values.
-            </summary>
-            <value>The requested comparison count.</value>
-        </member>
-        <member name="P:Realm.MapAPI.RandomDeterminismReport.DivergenceIndex">
-            <summary>
-            Gets the zero-based index of the first divergence.
-            </summary>
-            <value>The divergence index, or -1 when both sequences matched for the whole comparison.</value>
-        </member>
-        <member name="P:Realm.MapAPI.RandomDeterminismReport.FirstSequenceValue">
-            <summary>
-            Gets the value produced by the first sequence at the divergence point.
-            </summary>
-            <value>The first sequence value, or zero when no divergence occurred.</value>
-        </member>
-        <member name="P:Realm.MapAPI.RandomDeterminismReport.SecondSequenceValue">
-            <summary>
-            Gets the value produced by the second sequence at the divergence point.
-            </summary>
-            <value>The second sequence value, or zero when no divergence occurred.</value>
-        </member>
-        <member name="P:Realm.MapAPI.RandomDeterminismReport.IsDeterministic">
-            <summary>
-            Gets a value indicating whether both sequences were identical for the whole comparison.
-            </summary>
-            <value><see langword="true"/> when no divergence occurred; otherwise <see langword="false"/>.</value>
-        </member>
-        <member name="M:Realm.MapAPI.RandomDeterminismReport.Describe">
-            <summary>
-            Produces a human readable description of the verification outcome.
-            </summary>
-            <returns>A message stating whether the sequence is deterministic and, on divergence, where it diverged.</returns>
-        </member>
-        <member name="T:Realm.MapAPI.EcsSharedMemory">
-            <summary>
-            Manages the zero-allocation Structure-of-Arrays (SoA) shared linear memory region between WebAssembly guest and host runtime contexts.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.MAX_PLAYERS">
-            <summary>The maximum number of player slots allocated in shared memory.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.MAX_PLAYER_ENTITIES">
-            <summary>The maximum number of player entity slots allocated in shared memory (accounting for entity index 0).</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.MAX_ENTITIES">
-            <summary>The maximum number of entity slots allocated in shared memory.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.BITSET_CHUNKS">
-            <summary>The number of 64-bit words required to represent active entity bitsets for all entities.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.MAX_COMPONENT_TYPES">
-            <summary>The maximum number of distinct component types supported in the table directory.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.COMPONENT_ARRAY_BASE_OFFSETS_OFFSET">
-            <summary>Offset to the component array base offsets directory table.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.COMPONENT_STRIDES_OFFSET">
-            <summary>Offset to the component strides directory table.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.RANDOM_SEED_OFFSET">
-            <summary>Offset to the global random seed in the shared memory header.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.HEADER_SIZE">
-            <summary>Total byte size reserved for the shared memory header.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.ACTIVE_ENTITY_BITSET_OFFSET">
-            <summary>Offset to the active entity bitset word array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.ALIVE_OFFSET">
-            <summary>Offset to the entity alive bytes array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.ENTITY_MASKS_OFFSET">
-            <summary>Offset to the entity component masks array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.COMPONENTS_START_OFFSET">
-            <summary>Offset at which contiguous component arrays begin.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.POSITION_OFFSET">
-            <summary>Default offset to the entity positions array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.HEALTH_OFFSET">
-            <summary>Default offset to the entity health components array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.MANA_OFFSET">
-            <summary>Default offset to the entity mana components array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.ATTACK_OFFSET">
-            <summary>Default offset to the entity attack components array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.ARMOR_OFFSET">
-            <summary>Default offset to the entity armor components array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.MOVEMENT_STATS_OFFSET">
-            <summary>Default offset to the entity movement stats array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.UNIT_OWNER_PLAYER_OFFSET">
-            <summary>Default offset to the entity unit owner player array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.LEVEL_OFFSET">
-            <summary>Default offset to the entity level array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.EXPERIENCE_OFFSET">
-            <summary>Default offset to the entity experience array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.MODEL_SCALE_OFFSET">
-            <summary>Default offset to the entity model scale array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.ROTATION_Y_OFFSET">
-            <summary>Default offset to the entity rotation Y-axis array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.PLAYER_RESOURCES_OFFSET">
-            <summary>Default offset to the player resources array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.SCRIPT_PLAYER_OFFSET">
-            <summary>Default offset to the script player array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.PLAYER_POPULATION_OFFSET">
-            <summary>Default offset to the player population array.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.TOTAL_SIZE_BYTES">
-            <summary>Total byte capacity of the contiguous shared memory block.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.EcsSharedMemory.g_realmSharedMemoryBase">
-            <summary>
-            The global static base address pointer for shared memory linear layout visible to native debuggers.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.ComponentArrayBaseOffsets">
-            <summary>Gets the raw pointer to the component array base offsets directory table.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.ComponentStrides">
-            <summary>Gets the raw pointer to the component strides directory table.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.ActiveEntityBitset">
-            <summary>Gets the raw pointer to the active entity bitset words array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.Alive">
-            <summary>Gets the raw pointer to the entity alive bytes array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.EntityMasks">
-            <summary>Gets the raw pointer to the entity component masks array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.Position">
-            <summary>Gets the raw pointer to the entity position vectors array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.PreviousPosition">
-            <summary>Gets the raw pointer to the entity previous position vectors array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.Health">
-            <summary>Gets the raw pointer to the entity health components array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.Mana">
-            <summary>Gets the raw pointer to the entity mana components array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.Attack">
-            <summary>Gets the raw pointer to the entity attack components array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.Resistances">
-            <summary>Gets the raw pointer to the entity resistance components array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.MovementStats">
-            <summary>Gets the raw pointer to the entity movement stats components array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.UnitOwnerPlayer">
-            <summary>Gets the raw pointer to the unit owner player index array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.Level">
-            <summary>Gets the raw pointer to the unit experience level array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.Experience">
-            <summary>Gets the raw pointer to the unit experience points array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.ModelScale">
-            <summary>Gets the raw pointer to the unit model scale array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.RotationY">
-            <summary>Gets the raw pointer to the unit rotation Y-axis array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.PreviousRotationY">
-            <summary>Gets the raw pointer to the unit previous rotation Y-axis array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.PlayerResources">
-            <summary>Gets the raw pointer to the player resources stockpile array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.ScriptPlayer">
-            <summary>Gets the raw pointer to the script player state array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.PlayerPopulation">
-            <summary>Gets the raw pointer to the player population limits array.</summary>
-        </member>
-        <member name="P:Realm.MapAPI.EcsSharedMemory.RandomSeed">
-            <summary>
-            Gets or sets the global random seed stored in shared memory between WebAssembly guest and host runtime contexts.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.EcsSharedMemory.GetArrayBasePointer(System.Int32)">
-            <summary>
-            Resolves the base pointer for a component array from the runtime table directory.
-            </summary>
-            <param name="componentId">The component type identifier.</param>
-            <returns>A pointer to the base of the component array.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.EcsSharedMemory.GetComponent``1(System.Int32,System.Int32)">
-            <summary>
-            Resolves the pointer to a component struct for a specific entity or player slot using dynamic stride arithmetic.
-            </summary>
-            <typeparam name="T">The unmanaged component struct type.</typeparam>
-            <param name="componentId">The component type identifier.</param>
-            <param name="id">The entity identifier or player slot index.</param>
-            <returns>A typed pointer to the component instance in shared memory.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.EcsSharedMemory.GetRealmSharedMemoryBase">
-            <summary>
-            Retrieves the linear memory offset of the shared memory region for the WebAssembly host.
-            </summary>
-            <returns>The 32-bit guest linear memory address offset.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.EcsSharedMemory.SetRealmSharedMemoryTableDirectory(System.Int32)">
-            <summary>
-            Sets the component array base offsets runtime table directory from the WebAssembly host.
-            </summary>
-            <param name="tableDirectoryGuestOffset">The 32-bit linear memory address of the table directory.</param>
-        </member>
-        <member name="M:Realm.MapAPI.EcsSharedMemory.SetRealmSharedMemoryStrides(System.Int32)">
-            <summary>
-            Sets the component strides runtime directory from the WebAssembly host.
-            </summary>
-            <param name="stridesGuestOffset">The 32-bit linear memory address of the strides directory.</param>
-        </member>
-        <member name="M:Realm.MapAPI.EcsSharedMemory.GetActiveEntityBitset">
-            <summary>
-            Retrieves the raw pointer to the active entity bitset array in shared memory.
-            </summary>
-            <returns>A pointer to the array of 64-bit words representing active entity bitsets.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.EcsSharedMemory.HasComponent(System.Int32,System.Int32)">
-            <summary>
-            Checks whether an entity has a specific component bit set in its component mask.
-            </summary>
-            <param name="entityId">The entity identifier.</param>
-            <param name="componentId">The component type identifier (0-255).</param>
-            <returns>True if the component bit is present; otherwise false.</returns>
-        </member>
         <member name="T:Realm.MapAPI.GameAPI">
             <summary>
             Provides global access to the current <see cref="T:Realm.MapAPI.IGameAPI"/> instance within the WebAssembly or host runtime execution context.
@@ -899,6 +264,11 @@
             <summary>
             Gets or sets the active <see cref="T:Realm.MapAPI.IGameAPI"/> instance.
             </summary>
+            <remarks>
+            Setting the instance also lets the text table answer identifiers this process never registered, which only the
+            sandbox can do: its host owns every text a map script may be asked to render. A process that hosts the world
+            itself registers the text it writes and keeps no answerer.
+            </remarks>
         </member>
         <member name="T:Realm.MapAPI.GameAPIExtensions">
             <summary>
@@ -3358,56 +2728,56 @@
             <param name="key">The custom data key.</param>
             <returns>True if data exists; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemTypeId(Realm.MapAPI.LootItemId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemTypeId(Realm.Ecs.LootItemId)">
             <summary>
             Retrieves the item type identifier of the specified ground loot item.
             </summary>
             <param name="item">The loot item identifier.</param>
             <returns>The item type identifier.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemPosition(Realm.MapAPI.LootItemId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemPosition(Realm.Ecs.LootItemId)">
             <summary>
             Retrieves the 3D world space position of the specified ground loot item.
             </summary>
             <param name="item">The loot item identifier.</param>
             <returns>The 3D coordinates of the loot item.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemCharges(Realm.MapAPI.LootItemId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemCharges(Realm.Ecs.LootItemId)">
             <summary>
             Retrieves the remaining charge count for the specified ground loot item.
             </summary>
             <param name="item">The loot item identifier.</param>
             <returns>The charge count.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemLifetime(Realm.MapAPI.LootItemId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemLifetime(Realm.Ecs.LootItemId)">
             <summary>
             Retrieves the configured lifespan duration of the specified ground loot item in seconds.
             </summary>
             <param name="item">The loot item identifier.</param>
             <returns>The lifespan duration in seconds.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemPickupRadius(Realm.MapAPI.LootItemId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemPickupRadius(Realm.Ecs.LootItemId)">
             <summary>
             Retrieves the pickup trigger radius of the specified ground loot item in world units.
             </summary>
             <param name="item">The loot item identifier.</param>
             <returns>The pickup trigger radius.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IsLootItemAutoPickup(Realm.MapAPI.LootItemId)">
+        <member name="M:Realm.MapAPI.IGameAPI.IsLootItemAutoPickup(Realm.Ecs.LootItemId)">
             <summary>
             Returns true if the specified ground loot item automatically triggers pickup upon proximity.
             </summary>
             <param name="item">The loot item identifier.</param>
             <returns>True if auto-pickup is enabled; otherwise, false.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemOwner(Realm.MapAPI.LootItemId)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetLootItemOwner(Realm.Ecs.LootItemId)">
             <summary>
             Retrieves the owning player slot index restricted to collect the specified loot item, or -1 for unowned items.
             </summary>
             <param name="item">The loot item identifier.</param>
             <returns>The owning player slot index, or -1.</returns>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.IsLootItemDespawned(Realm.MapAPI.LootItemId)">
+        <member name="M:Realm.MapAPI.IGameAPI.IsLootItemDespawned(Realm.Ecs.LootItemId)">
             <summary>
             Returns true if the specified ground loot item has already despawned.
             </summary>
@@ -3477,191 +2847,6 @@
             Called on every simulation physics tick using <see cref="P:Realm.MapAPI.GameAPI.Current"/>.
             </summary>
             <param name="delta">The time elapsed since the last physics tick, in seconds.</param>
-        </member>
-        <member name="T:Realm.MapAPI.InternedValueStore">
-            <summary>
-            Owns the single table that every process uses to translate content identifiers into the values they stand for,
-            starting with text and structured to hold further payload kinds in the same identifier space.
-            </summary>
-            <remarks>
-            Identifiers are content hashes rather than allocation sequence numbers, so the host, the client and the map
-            script sandbox agree on the identifier for a given payload without sharing any state. Two payloads of the same
-            kind that hash to the same primary identifier are resolved at registration time: the later one receives an
-            identifier from the reserved fallback range so no two values alias. Colliding payloads are reported through
-            <see cref="P:Realm.MapAPI.InternedValueStore.CollisionCount"/> and <see cref="P:Realm.MapAPI.InternedValueStore.CollisionSummary"/> because the fallback decision is only reachable
-            once both payloads have been registered in the same process.
-            </remarks>
-        </member>
-        <member name="F:Realm.MapAPI.InternedValueStore.TextKind">
-            <summary>
-            The kind tag of the entries whose payload is text.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.InternedValueStore.TextListKind">
-            <summary>
-            The kind tag of the entries whose payload is an ordered list of text identifiers.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.InternedValueStore.WeaponListKind">
-            <summary>
-            The kind tag of the entries whose payload is an ordered list of blittable weapon records.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.InternedValueStore.ZoneListKind">
-            <summary>
-            The kind tag of the entries whose payload is an ordered list of blittable zone boundaries.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.InternedValueStore.FallbackIdBase">
-            <summary>
-            First identifier of the reserved fallback range used when a primary content hash is already taken.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.InternedValueStore.SchemeVersion">
-            <summary>
-            The version of the identifier scheme that maps content to identifiers.
-            </summary>
-            <remarks>
-            The host, the client and the map script sandbox must derive the same identifier for the same content, so the
-            scheme is frozen: text is a 32 bit FNV-1a hash over its UTF-16 code units, taken in low byte then high byte
-            order, and a structured payload is the same hash over its kind byte followed by its payload bytes, masked to
-            31 bits with zero remapped to one. Colliding content of the same kind moves into <see cref="F:Realm.MapAPI.InternedValueStore.FallbackIdBase"/>.
-            Raising this version means every peer and every saved payload must migrate, not that hashes shift silently.
-            </remarks>
-        </member>
-        <member name="P:Realm.MapAPI.InternedValueStore.CollisionCount">
-            <summary>
-            Gets the number of payload registrations that had to move into the reserved fallback range because another
-            payload already owned their primary content hash.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.InternedValueStore.CollisionSummary">
-            <summary>
-            Gets a human readable summary of the first few hash collisions, listing both colliding payloads.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.InternedValueStore.EntryCount">
-            <summary>
-            Gets the number of entries that have been registered or received in this process, in registration order.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.InternedValueStore.TextEntryCount">
-            <summary>
-            Gets the number of text entries that have been registered or received in this process, which is the number
-            of entries a peer's text cursor walks past.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.GetOrAddText(System.String)">
-            <summary>
-            Registers a text in the table and returns its stable identifier.
-            </summary>
-            <param name="text">The text to identify.</param>
-            <returns>
-            Zero for null or empty text, the text's content hash otherwise, or an identifier from the reserved
-            fallback range when another text already owns that hash.
-            </returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.TryGetText(System.Int32,System.String@)">
-            <summary>
-            Retrieves the text registered for an identifier in this process.
-            </summary>
-            <param name="id">The identifier to resolve.</param>
-            <param name="text">The registered text when the identifier is known to this process.</param>
-            <returns>True when the identifier is present in the table and carries text.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.RegisterRemoteText(System.Int32,System.String)">
-            <summary>
-            Stores text that was registered by another peer, so identifiers this process never created can still be rendered.
-            </summary>
-            <param name="id">The identifier chosen by the owning peer.</param>
-            <param name="text">The text that identifier stands for.</param>
-            <returns>True when the table gained the entry, false when the identifier was already known.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.GetOrAddTextList(System.ReadOnlySpan{System.Int32})">
-            <summary>
-            Registers an ordered list of text identifiers and returns its stable identifier.
-            </summary>
-            <param name="textIds">The text identifiers the list contains, in order.</param>
-            <returns>Zero for an empty list, the list's content hash otherwise.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.GetTextListCount(System.Int32)">
-            <summary>
-            Gets the number of text identifiers stored in a list payload.
-            </summary>
-            <param name="id">The identifier of the list payload.</param>
-            <returns>The entry count, or zero when the identifier is unknown or does not carry a list.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.GetTextListItemId(System.Int32,System.Int32)">
-            <summary>
-            Gets the text identifier stored at a position in a list payload.
-            </summary>
-            <param name="id">The identifier of the list payload.</param>
-            <param name="index">The zero-based position to read.</param>
-            <returns>The text identifier at that position, or zero when the position is outside the list.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.TryGetPayload(System.Int32,System.Byte@,System.ReadOnlySpan{System.Byte}@)">
-            <summary>
-            Gets the kind and payload bytes stored for an identifier.
-            </summary>
-            <param name="id">The identifier to inspect.</param>
-            <param name="kind">The kind tag of the stored payload.</param>
-            <param name="payload">The immutable payload bytes, empty for text entries.</param>
-            <returns>True when the identifier is present in the table.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.GetOrAddBytes(System.Byte,System.ReadOnlySpan{System.Byte})">
-            <summary>
-            Registers an opaque blittable payload and returns its stable identifier.
-            </summary>
-            <param name="kind">The kind tag that tells readers how to interpret the bytes.</param>
-            <param name="payload">The immutable payload bytes.</param>
-            <returns>Zero for an empty payload, the payload's content hash otherwise.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.ComputeTextId(System.String)">
-            <summary>
-            Computes the stable identifier a text would receive, without registering it.
-            </summary>
-            <param name="text">The text to identify.</param>
-            <returns>Zero for null or empty text, the text's content hash otherwise.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.GetTextEntriesSince(System.Int32,System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}})">
-            <summary>
-            Copies the text entries a peer has not received yet into a caller supplied buffer, and reports the cursor
-            that peer should pass next time.
-            </summary>
-            <remarks>
-            The cursor counts text entries only, so registering a payload of another kind between two texts never
-            advances it past a text the peer has not received.
-            </remarks>
-            <param name="cursor">The cursor previously returned for this peer, or zero to copy every text entry.</param>
-            <param name="destination">The list that receives the entries.</param>
-            <returns>The cursor that stands for the end of the text table after this copy.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.TryGetKind(System.Int32,System.Byte@)">
-            <summary>
-            Gets the kind tag stored for an identifier.
-            </summary>
-            <param name="id">The identifier to inspect.</param>
-            <returns>True when the identifier is present in the table.</returns>
-            <param name="kind">The kind tag of the stored payload.</param>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.DescribeTable(System.Int32)">
-            <summary>
-            Builds a human readable dump of the table for diagnosing an identifier that renders as the wrong value or not at all.
-            </summary>
-            <param name="maximumEntries">The maximum number of entries to include, taken from the most recently registered end.</param>
-            <returns>One line per entry with its identifier, kind and text, framed by a summary of the table and its collisions.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.Reset">
-            <summary>
-            Clears every entry while keeping identifiers stable, since identifiers are content hashes and not table slots.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.InternedValueStore.DescribeKind(System.Byte)">
-            <summary>
-            Gets the lower case name of a kind tag for logs and dumps.
-            </summary>
-            <param name="kind">The kind tag to describe.</param>
-            <returns>The kind name, or the numeric tag when the kind has no name yet.</returns>
         </member>
         <member name="T:Realm.MapAPI.InventoryItemSaveData">
             <summary>
@@ -3747,100 +2932,88 @@
             <param name="level">The source level of the modifier.</param>
             <returns>The calculated bonus stat value, or zero if execution fails.</returns>
         </member>
-        <member name="T:Realm.MapAPI.LootItemId">
+        <member name="T:Realm.MapAPI.LootItemIdScriptExtensions">
             <summary>
-            Represents a strongly-typed, unmanaged entity identifier for a dropped loot item in the game world,
-            providing zero-allocation fluent access to loot properties and actions.
+            Adds the map script surface of a dropped loot item: what the item is, where it lies, who may take it and how it
+            leaves the world.
             </summary>
+            <remarks>
+            The handle itself is a plain entity index owned by the shared simulation, so the simulation can name loot without
+            the script surface. Reads answer straight out of the world the process is simulating and writes route through the
+            authoritative host imports, which is what keeps a map script unable to invent state of its own.
+            </remarks>
         </member>
-        <member name="M:Realm.MapAPI.LootItemId.#ctor(System.Int32)">
-            <summary>
-            Represents a strongly-typed, unmanaged entity identifier for a dropped loot item in the game world,
-            providing zero-allocation fluent access to loot properties and actions.
-            </summary>
+        <member name="M:Realm.MapAPI.LootItemIdScriptExtensions.get_ItemTypeId(Realm.Ecs.LootItemId)">
+            <inheritdoc cref="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.ItemTypeId"/>
         </member>
-        <member name="M:Realm.MapAPI.LootItemId.op_Implicit(System.Int32)~Realm.MapAPI.LootItemId">
-            <summary>
-            Implicitly converts a 32-bit integer identifier into a <see cref="T:Realm.MapAPI.LootItemId"/>.
-            </summary>
-            <param name="value">The raw integer loot item identifier.</param>
+        <member name="M:Realm.MapAPI.LootItemIdScriptExtensions.get_Position(Realm.Ecs.LootItemId)">
+            <inheritdoc cref="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.Position"/>
         </member>
-        <member name="M:Realm.MapAPI.LootItemId.op_Explicit(Realm.MapAPI.LootItemId)~System.Int32">
-            <summary>
-            Explicitly converts a <see cref="T:Realm.MapAPI.LootItemId"/> into a 32-bit integer identifier.
-            </summary>
-            <param name="id">The loot item identifier.</param>
+        <member name="M:Realm.MapAPI.LootItemIdScriptExtensions.get_Charges(Realm.Ecs.LootItemId)">
+            <inheritdoc cref="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.Charges"/>
         </member>
-        <member name="F:Realm.MapAPI.LootItemId.Invalid">
-            <summary>
-            Gets an invalid or unassigned loot item identifier.
-            </summary>
+        <member name="M:Realm.MapAPI.LootItemIdScriptExtensions.get_Lifetime(Realm.Ecs.LootItemId)">
+            <inheritdoc cref="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.Lifetime"/>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.IsValid">
-            <summary>
-            Gets a value indicating whether this identifier represents a valid loot item index.
-            </summary>
+        <member name="M:Realm.MapAPI.LootItemIdScriptExtensions.get_PickupRadius(Realm.Ecs.LootItemId)">
+            <inheritdoc cref="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.PickupRadius"/>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.UniqueId">
-            <summary>
-            Gets the raw integer identifier.
-            </summary>
+        <member name="M:Realm.MapAPI.LootItemIdScriptExtensions.get_AutoPickup(Realm.Ecs.LootItemId)">
+            <inheritdoc cref="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.AutoPickup"/>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.Id">
-            <summary>
-            Gets the raw integer identifier (alias for <see cref="P:Realm.MapAPI.LootItemId.UniqueId"/>).
-            </summary>
+        <member name="M:Realm.MapAPI.LootItemIdScriptExtensions.get_OwnerPlayerIndex(Realm.Ecs.LootItemId)">
+            <inheritdoc cref="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.OwnerPlayerIndex"/>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.ItemTypeId">
+        <member name="M:Realm.MapAPI.LootItemIdScriptExtensions.get_IsDespawned(Realm.Ecs.LootItemId)">
+            <inheritdoc cref="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.IsDespawned"/>
+        </member>
+        <member name="M:Realm.MapAPI.LootItemIdScriptExtensions.Despawn(Realm.Ecs.LootItemId)">
+            <inheritdoc cref="M:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.Despawn"/>
+        </member>
+        <member name="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.ItemTypeId">
             <summary>
             Gets the item archetype identifier of this dropped item.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.Position">
+        <member name="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.Position">
             <summary>
             Gets the current position of the loot item in 3D world space.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.Charges">
+        <member name="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.Charges">
             <summary>
             Gets the remaining charge count for consumable loot items.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.Lifetime">
+        <member name="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.Lifetime">
             <summary>
             Gets the configured lifespan duration of the loot item in seconds.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.PickupRadius">
+        <member name="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.PickupRadius">
             <summary>
             Gets the world-space pickup trigger radius for this loot item.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.AutoPickup">
+        <member name="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.AutoPickup">
             <summary>
             Gets a value indicating whether this item automatically triggers collection upon proximity.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.OwnerPlayerIndex">
+        <member name="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.OwnerPlayerIndex">
             <summary>
             Gets the owning player slot index restricted to collect this item, or -1 for unowned items.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.LootItemId.IsDespawned">
+        <member name="P:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.IsDespawned">
             <summary>
             Gets a value indicating whether this loot item has already despawned.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.LootItemId.Despawn">
+        <member name="M:Realm.MapAPI.LootItemIdScriptExtensions.&lt;G&gt;$3E900F9011C761EAD2F9B6125F149DB0.Despawn">
             <summary>
             Removes and despawns the loot item from the game world.
             </summary>
-        </member>
-        <member name="M:Realm.MapAPI.LootItemId.ToString">
-            <summary>
-            Formats the loot item identifier as a string.
-            </summary>
-            <returns>A string representation of the loot item identifier.</returns>
         </member>
         <member name="T:Realm.MapAPI.MapCosmeticSaveData">
             <summary>
@@ -4662,117 +3835,6 @@
             <param name="radius">The query radius distance.</param>
             <returns>A read-only span of unit handles inside the radius.</returns>
         </member>
-        <member name="T:Realm.MapAPI.StringRegistry">
-            <summary>
-            Maps text to stable integer identifiers that every process computes identically, and keeps a
-            text table so a peer can render identifiers it never registered itself.
-            </summary>
-            <remarks>
-            Identifiers are content hashes rather than allocation sequence numbers, so the host, the client and the
-            map script sandbox agree on the identifier for a given text without sharing any state. Two strings that
-            hash to the same primary identifier are resolved at registration time: the later one receives an
-            identifier from the reserved fallback range so no two strings alias. Colliding texts are reported through
-            <see cref="P:Realm.MapAPI.StringRegistry.CollisionCount"/> and <see cref="P:Realm.MapAPI.StringRegistry.CollisionSummary"/> because the fallback decision is only
-            reachable once both strings have been registered in the same process. The table itself lives in
-            <see cref="T:Realm.MapAPI.InternedValueStore"/>, which shares one identifier space between text and the structured
-            payload kinds that are still being migrated onto it.
-            </remarks>
-        </member>
-        <member name="F:Realm.MapAPI.StringRegistry.FallbackIdBase">
-            <summary>
-            First identifier of the reserved fallback range used when a primary content hash is already taken.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.StringRegistry.CollisionCount">
-            <summary>
-            Gets the number of text registrations that had to move into the reserved fallback range because another
-            string already owned their primary content hash.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.StringRegistry.CollisionSummary">
-            <summary>
-            Gets a human readable summary of the first few hash collisions, listing both colliding texts.
-            </summary>
-        </member>
-        <member name="P:Realm.MapAPI.StringRegistry.EntryCount">
-            <summary>
-            Gets the number of text entries that have been registered or received in this process, in registration order.
-            </summary>
-        </member>
-        <member name="M:Realm.MapAPI.StringRegistry.GetOrAdd(System.String)">
-            <summary>
-            Registers a text in the table and returns its stable identifier.
-            </summary>
-            <param name="text">The text to identify.</param>
-            <returns>
-            Zero for null or empty text, the text's content hash otherwise, or an identifier from the reserved
-            fallback range when another string already owns that hash.
-            </returns>
-        </member>
-        <member name="M:Realm.MapAPI.StringRegistry.Get(System.Int32)">
-            <summary>
-            Retrieves the text registered for an identifier, asking the host for text this process has never seen.
-            </summary>
-            <param name="id">The identifier to resolve.</param>
-            <returns>The registered text, or an empty string when no process knows the identifier.</returns>
-            <remarks>
-            Inside the map script sandbox a miss is forwarded to the host through <see cref="M:Realm.MapAPI.IGameAPI.GetStringText(System.Int32)"/> and
-            cached locally, so an identifier written by the host into shared component memory becomes readable even when
-            the script never registered that text. Because identifiers are content hashes the sandbox can verify what it
-            receives: a host answer whose hash does not match the requested identifier is discarded.
-            </remarks>
-        </member>
-        <member name="M:Realm.MapAPI.StringRegistry.TryGetText(System.Int32,System.String@)">
-            <summary>
-            Attempts to retrieve the text registered for an identifier without allocating a fallback string.
-            </summary>
-            <param name="id">The identifier to resolve.</param>
-            <param name="text">The registered text when the identifier is known to this process.</param>
-            <returns>True when the identifier is present in the text table.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.StringRegistry.RegisterRemote(System.Int32,System.String)">
-            <summary>
-            Stores text that was registered by another peer, so identifiers this process never created can still be rendered.
-            </summary>
-            <param name="id">The identifier chosen by the owning peer.</param>
-            <param name="text">The text that identifier stands for.</param>
-            <returns>True when the table gained the entry, false when the identifier was already known.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.StringRegistry.ComputeId(System.String)">
-            <summary>
-            Computes the stable identifier a text would receive, without registering it.
-            </summary>
-            <param name="text">The text to identify.</param>
-            <returns>Zero for null or empty text, the text's content hash otherwise.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.StringRegistry.GetEntriesSince(System.Int32,System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}})">
-            <summary>
-            Copies the entries a peer has not received yet into a caller supplied buffer, and reports the cursor
-            that peer should pass next time.
-            </summary>
-            <param name="cursor">The cursor previously returned for this peer, or zero to copy every entry.</param>
-            <param name="destination">The list that receives the entries.</param>
-            <returns>The cursor that stands for the end of the table after this copy.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.StringRegistry.CopyEntries(System.Collections.Generic.List{System.ValueTuple{System.Int32,System.String}},System.Int32)">
-            <summary>
-            Copies registered entries into a caller supplied buffer for replication.
-            </summary>
-            <param name="destination">The list that receives the entries.</param>
-            <param name="startIndex">The first entry index to copy.</param>
-        </member>
-        <member name="M:Realm.MapAPI.StringRegistry.DescribeTable(System.Int32)">
-            <summary>
-            Builds a human readable dump of the table for diagnosing an identifier that renders as the wrong text or not at all.
-            </summary>
-            <param name="maximumEntries">The maximum number of entries to include, taken from the most recently registered end.</param>
-            <returns>One line per entry with its identifier, kind and text, framed by a summary of the table and its collisions.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.StringRegistry.Reset">
-            <summary>
-            Clears every text entry while keeping identifiers stable, since identifiers are content hashes and not table slots.
-            </summary>
-        </member>
         <member name="T:Realm.MapAPI.TowerDefenseBotConfig">
             <summary>
             Configuration parameters for a Tower Defense AI bot.
@@ -5264,7 +4326,7 @@
             <param name="abilityId">The registered ability identifier.</param>
             <param name="active">True to enable autocast; otherwise false.</param>
         </member>
-        <member name="M:Realm.MapAPI.UnitId.CollectLootItem(Realm.MapAPI.LootItemId)">
+        <member name="M:Realm.MapAPI.UnitId.CollectLootItem(Realm.Ecs.LootItemId)">
             <summary>
             Orders the unit to collect the specified ground loot item.
             </summary>

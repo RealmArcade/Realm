@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using MemoryPack;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.Replication;
 

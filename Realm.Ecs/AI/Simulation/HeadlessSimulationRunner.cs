@@ -10,7 +10,6 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.AI.Simulation;
 

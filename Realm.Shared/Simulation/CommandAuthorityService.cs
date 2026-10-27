@@ -11,7 +11,6 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Ecs.Utils;
-using Realm.MapAPI;
 using Realm.Shared.Network;
 
 namespace Realm.Shared.Simulation;

@@ -28,6 +28,7 @@
     <ProjectReference Include="..\Realm.WasmBindgen\Realm.WasmBindgen.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Realm.Ecs\Realm.Ecs.csproj" />
   </ItemGroup>
 
   <Target Name="CopyToMapTemplate" AfterTargets="Build">
@@ -35,6 +36,9 @@
       <_MapApiOutput Include="$(TargetDir)$(TargetName).dll" />
       <_MapApiOutput Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
       <_MapApiOutput Include="$(TargetDir)$(TargetName).xml" Condition="Exists('$(TargetDir)$(TargetName).xml')" />
+      <_MapApiOutput Include="$(TargetDir)Realm.Ecs.dll" Condition="Exists('$(TargetDir)Realm.Ecs.dll')" />
+      <_MapApiOutput Include="$(TargetDir)Realm.Ecs.pdb" Condition="Exists('$(TargetDir)Realm.Ecs.pdb')" />
+      <_MapApiOutput Include="$(TargetDir)Realm.Ecs.xml" Condition="Exists('$(TargetDir)Realm.Ecs.xml')" />
       <_MapApiWit Include="$(MSBuildProjectDirectory)\wit\game.g.wit" Condition="Exists('$(MSBuildProjectDirectory)\wit\game.g.wit')" />
     </ItemGroup>
     <Copy SourceFiles="@(_MapApiOutput)" DestinationFolder="$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)\..\MapTemplate\lib'))\" SkipUnchangedFiles="true" />

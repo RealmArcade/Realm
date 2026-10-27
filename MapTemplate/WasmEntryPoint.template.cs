@@ -10,6 +10,7 @@ namespace GameClientWorld;
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Realm.Ecs;
 using Realm.MapAPI;
 
 public class WasmRandomProxy

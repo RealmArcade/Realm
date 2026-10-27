@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using Realm.Ecs.Common;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.Components.Combat;
 

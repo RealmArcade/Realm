@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Realm.Ecs.Components.Core;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.Common;
 

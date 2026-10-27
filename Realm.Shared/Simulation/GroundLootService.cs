@@ -6,7 +6,6 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 
 namespace Realm.Shared.Simulation;
 

@@ -1,6 +1,6 @@
 using System;
 
-namespace Realm.MapAPI;
+namespace Realm.Ecs;
 
 /// <summary>
 /// Provides a deterministic pseudo random stream whose sequence is identical on the host simulation and in WebAssembly map scripts for the same seed.

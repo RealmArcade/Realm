@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace Realm.MapAPI;
+namespace Realm.Ecs;
 
 /// <summary>
 /// Bitmask representing a set of component types for entity filter queries.

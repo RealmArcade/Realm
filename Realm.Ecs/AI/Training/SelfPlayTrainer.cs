@@ -1,7 +1,6 @@
 using Realm.Ecs.AI.Genres;
 using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Simulation;
-using Realm.MapAPI;
 
 namespace Realm.Ecs.AI.Training;
 
