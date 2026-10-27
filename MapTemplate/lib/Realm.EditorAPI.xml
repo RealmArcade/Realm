@@ -437,6 +437,22 @@
             </summary>
             <returns>Whether something was deleted, and why not when nothing was.</returns>
         </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.ClearMap">
+            <summary>
+            Discards everything currently in the map and leaves a blank grid of the same size.
+            </summary>
+            <returns>Whether the map was cleared, and why not when it was not.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.ResizeMap(System.Int32,System.Int32)">
+            <summary>
+            Resizes the map grid, keeping the terrain and entities that still fit.
+            The requested size is rounded to the editor's grid multiple and clamped to its supported range,
+            so the committed size may differ from the requested one; read it back with <see cref="M:Realm.EditorAPI.IEditorAPI.GetTerrainGridInfo"/>.
+            </summary>
+            <param name="width">Requested width in cells.</param>
+            <param name="depth">Requested depth in cells.</param>
+            <returns>Whether the map was resized, and why not when it was not.</returns>
+        </member>
         <member name="T:Realm.EditorAPI.TemplateType">
             <summary>
             Specifies the template category type in map metadata.

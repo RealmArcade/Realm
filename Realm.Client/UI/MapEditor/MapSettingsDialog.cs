@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -315,7 +315,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			if (w <= 32) return;
 
 			int targetW = Math.Max(32, (w % 32 == 0 ? w - 32 : (w / 32) * 32));
-			GameContext.Host.ResizeMapExternal(targetW, GameContext.Host.GroundTerrain.Depth);
+			GameContext.IEditorAPI.ResizeMap(targetW, GameContext.Host.GroundTerrain.Depth);
 			UpdateCameraBoundsUI();
 		});
 		var btnWidthInc = CreateControlButton(UnicodeIcons.PLUS, "Increase map tile columns (East)", () =>
@@ -326,7 +326,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			if (w >= 512) return;
 
 			int targetW = Math.Min(512, (w / 32 + 1) * 32);
-			GameContext.Host.ResizeMapExternal(targetW, GameContext.Host.GroundTerrain.Depth);
+			GameContext.IEditorAPI.ResizeMap(targetW, GameContext.Host.GroundTerrain.Depth);
 			UpdateCameraBoundsUI();
 		});
 		sizeGrid.AddChild(_lblMapWidthVal);
@@ -345,7 +345,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			if (d <= 32) return;
 
 			int targetD = Math.Max(32, (d % 32 == 0 ? d - 32 : (d / 32) * 32));
-			GameContext.Host.ResizeMapExternal(GameContext.Host.GroundTerrain.Width, targetD);
+			GameContext.IEditorAPI.ResizeMap(GameContext.Host.GroundTerrain.Width, targetD);
 			UpdateCameraBoundsUI();
 		});
 		var btnHeightInc = CreateControlButton(UnicodeIcons.PLUS, "Increase map tile rows (South)", () =>
@@ -356,7 +356,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			if (d >= 512) return;
 
 			int targetD = Math.Min(512, (d / 32 + 1) * 32);
-			GameContext.Host.ResizeMapExternal(GameContext.Host.GroundTerrain.Width, targetD);
+			GameContext.IEditorAPI.ResizeMap(GameContext.Host.GroundTerrain.Width, targetD);
 			UpdateCameraBoundsUI();
 		});
 		sizeGrid.AddChild(_lblMapHeightVal);

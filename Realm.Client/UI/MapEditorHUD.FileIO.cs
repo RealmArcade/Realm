@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -172,7 +172,7 @@ namespace Realm.Client.UI
 
 		private void TryReloadGroundTerrainTexturesSafe()
 		{
-			MapWorkspaceService.TryReloadGroundTerrainTexturesSafeDomain(() => { GameContext.Host.ClearMapEntirely(); }
+			MapWorkspaceService.TryReloadGroundTerrainTexturesSafeDomain(() => { GameContext.IEditorAPI.ClearMap(); }
 			);
 		}
 

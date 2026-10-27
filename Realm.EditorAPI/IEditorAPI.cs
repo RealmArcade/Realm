@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Realm.EditorAPI;
@@ -245,4 +245,20 @@ public interface IEditorAPI
 	/// </summary>
 	/// <returns>Whether something was deleted, and why not when nothing was.</returns>
 	EditorOperationResult DeleteSelectedObject();
+
+	/// <summary>
+	/// Discards everything currently in the map and leaves a blank grid of the same size.
+	/// </summary>
+	/// <returns>Whether the map was cleared, and why not when it was not.</returns>
+	EditorOperationResult ClearMap();
+
+	/// <summary>
+	/// Resizes the map grid, keeping the terrain and entities that still fit.
+	/// The requested size is rounded to the editor's grid multiple and clamped to its supported range,
+	/// so the committed size may differ from the requested one; read it back with <see cref="GetTerrainGridInfo"/>.
+	/// </summary>
+	/// <param name="width">Requested width in cells.</param>
+	/// <param name="depth">Requested depth in cells.</param>
+	/// <returns>Whether the map was resized, and why not when it was not.</returns>
+	EditorOperationResult ResizeMap(int width, int depth);
 }

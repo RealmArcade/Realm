@@ -197,6 +197,22 @@ public partial class EditorService
 		GameContext.Host?.ResetScaleSelectedObject();
 	}
 
+	public EditorOperationResult ClearMap()
+	{
+		if (GameContext.Host == null) return EditorOperationResult.Failed("there is no map open in the editor");
+
+		GameContext.Host.ClearMapEntirely();
+		return EditorOperationResult.Succeeded();
+	}
+
+	public EditorOperationResult ResizeMap(int width, int depth)
+	{
+		if (GameContext.Host?.GroundTerrain == null) return EditorOperationResult.Failed("there is no map open in the editor");
+
+		GameContext.Host.ResizeMapExternal(width, depth);
+		return EditorOperationResult.Succeeded();
+	}
+
 	public EditorOperationResult DeleteSelectedObject()
 	{
 		if (GameContext.Host == null) return EditorOperationResult.Failed("there is no map open in the editor");
