@@ -613,8 +613,10 @@
         </member>
         <member name="P:Realm.MapAPI.IGameAPI.CheatsEnabled">
             <summary>
-            Gets a value indicating whether cheats are available in the current session. Read-only: only the
-            engine can enable cheats, which are available in the map editor, in test mode and in single player.
+            Gets a value indicating whether the match this script runs in lets a player cheat. Read-only: only the
+            engine decides it, and it answers true exactly for a match a single person plays against the computer, which is
+            a single player match or a map being tested from the editor. A match that anyone else can join never answers
+            true, so a script may branch on it without having to ask who is connected.
             </summary>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SpawnResourceNode(System.String,System.Numerics.Vector3,System.Single)">

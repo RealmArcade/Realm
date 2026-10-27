@@ -35,6 +35,14 @@ namespace Realm.Client.Network;
 public partial class LobbyManager : BaseMapTransferNode
 {
 	public bool IsSinglePlayer { get; set; } = false;
+
+	/// <summary>
+	///     Whether the match being started may run with cheats. Only a match played against the computer may: a single
+	///     player match, or a map being tested from the editor, both of which run by themselves on this machine. The
+	///     authority acts on it by listening on the loopback address and seating one peer, so a match started with
+	///     cheats is one nobody else can reach.
+	/// </summary>
+	public bool AllowsCheats => IsSinglePlayer;
 	public string? LastHostError { get; private set; }
 	public bool IsRestrictedHost { get; private set; }
 
@@ -542,7 +550,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			Path.Combine(OS.GetUserDataDir(), "logs"),
 			OS.GetUserDataDir(),
 			LocalizationManager.GetCurrentLanguageCode(),
-			IsSinglePlayer);
+			AllowsCheats);
 
 		if (!session.TryStart(start, out string failure))
 		{

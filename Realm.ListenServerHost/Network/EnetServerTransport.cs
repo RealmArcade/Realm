@@ -10,6 +10,9 @@ namespace Realm.ListenServerHost.Network;
 /// </summary>
 public class EnetServerTransport : IServerTransport
 {
+	/// <summary>The address a match that plays by itself is reachable on, and the only one a peer on this machine can name.</summary>
+	private const string LoopbackAddress = "127.0.0.1";
+
 	private readonly ServerNetworkChannel _channel;
 	private readonly int _requestedPort;
 
@@ -28,19 +31,25 @@ public class EnetServerTransport : IServerTransport
 
 	/// <summary>
 	///     Starts listening. A match started by a client asks for port zero, which ENet binds to whatever port this
-	///     machine has free, and the port it got is reported through the readiness line so the client can reach it.
+	///     machine has free, and the port it got is reported through the readiness line so the client can reach it. A
+	///     match this machine plays by itself binds the loopback address, so no other machine can open a connection to
+	///     it however it learned the port.
 	/// </summary>
-	public bool TryStart(int maximumPeers, IServerTransportSink sink, out string failure)
+	public bool TryStart(int maximumPeers, bool loopbackOnly, IServerTransportSink sink, out string failure)
 	{
 		failure = string.Empty;
 		_sink = sink;
 
 		var peer = new ENetMultiplayerPeer();
+		if (loopbackOnly) peer.SetBindIP(LoopbackAddress);
+
 		Error error = peer.CreateServer(_requestedPort, maximumPeers);
 		if (error != Error.Ok)
 		{
 			peer.Dispose();
-			failure = $"ENet could not listen on port {_requestedPort}: {error}";
+			failure = loopbackOnly
+				? $"ENet could not listen on {LoopbackAddress}:{_requestedPort}: {error}"
+				: $"ENet could not listen on port {_requestedPort}: {error}";
 			return false;
 		}
 

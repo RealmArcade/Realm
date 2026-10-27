@@ -28,7 +28,9 @@ public static class ServerArgumentFlags
 
 	/// <summary>
 	///     Whether this match lets a player cheat. Only a match this machine plays by itself is started with it, so a
-	///     cheat typed at one of its screens is applied by the authority rather than refused.
+	///     cheat typed at one of its screens is applied by the authority rather than refused. Such a match is reachable
+	///     on the loopback address only and seats the single player it was started for, so enabling cheats cannot make a
+	///     match anyone else can join and cheat in.
 	/// </summary>
 	public const string CheatsFlag = "--cheats";
 }
@@ -56,7 +58,12 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 	/// </summary>
 	public string? JoinTicket => string.IsNullOrEmpty(Token) ? null : Token;
 
-	/// <summary>Whether this match lets a player cheat, which only a match played against the computer does.</summary>
+	/// <summary>
+	///     Whether this match lets a player cheat, which only a match played against the computer does. It is set for a
+	///     single player match and for a map being tested from the editor, and the authority it starts is then reachable
+	///     from this machine alone: a cheat belongs to the person playing by themselves, and a match open to others may
+	///     not be started with one.
+	/// </summary>
 	public bool Cheats { get; init; }
 
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>

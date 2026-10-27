@@ -71,7 +71,12 @@ public class ListenServerHost : IServerTransportSink
 				_log.Write($"map warning: {map.Warnings[index]}");
 			}
 
-			if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, this, out string failure))
+			if (_arguments.Cheats)
+			{
+				_log.Write("cheats are enabled: this match is reachable on the loopback address only and seats the one player it was started for");
+			}
+
+			if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, _arguments.Cheats, this, out string failure))
 			{
 				throw new IOException($"the match could not listen for peers: {failure}");
 			}
@@ -227,6 +232,14 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
+		if (_arguments.Cheats && _seatedPeers.Count > 0)
+		{
+			_log.Write($"peer {peerId} refused: this match was started with cheats, so it belongs to the single player it was started for");
+			SendHello(peerId, CheatsMatchRejection);
+			_transport.Disconnect(peerId);
+			return;
+		}
+
 		ClientHello hello;
 		try
 		{
@@ -285,6 +298,12 @@ public class ListenServerHost : IServerTransportSink
 
 		_transport.Send(peerId, NetworkFrameKind.ServerHello, MemoryPackSerializer.Serialize(response));
 	}
+
+	/// <summary>
+	///     What a peer is told when it tries to join a match that was started with cheats. Such a match is played by
+	///     one person against the computer, so it takes one peer and nobody else is offered a seat.
+	/// </summary>
+	private const string CheatsMatchRejection = "server_rejected_cheats_match_is_local_only";
 
 	private string DescribeHandshakeRejection(in ClientHello hello)
 	{

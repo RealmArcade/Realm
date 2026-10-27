@@ -28,10 +28,16 @@ public interface IServerTransport : IDisposable
 	int Port { get; }
 
 	/// <summary>
-	///     Starts listening for up to <paramref name="maximumPeers" /> peers. A refusal reports why rather than throwing,
-	///     because the caller is starting a match and has to report the failure to the player.
+	///     Starts listening for up to <paramref name="maximumPeers" /> peers. A match that plays by itself asks to be
+	///     reachable on the loopback address only, which is what keeps a development match from being joined across the
+	///     network. A refusal reports why rather than throwing, because the caller is starting a match and has to report
+	///     the failure to the player.
 	/// </summary>
-	bool TryStart(int maximumPeers, IServerTransportSink sink, out string failure);
+	/// <param name="maximumPeers">How many peers may be connected at once.</param>
+	/// <param name="loopbackOnly">Whether the match may only be reached from this machine.</param>
+	/// <param name="sink">What the transport reports peers and frames to.</param>
+	/// <param name="failure">Why listening could not start, or an empty string when it did.</param>
+	bool TryStart(int maximumPeers, bool loopbackOnly, IServerTransportSink sink, out string failure);
 
 	/// <summary>Sends one frame to one peer. A peer that is gone is not an error: the match is told it left.</summary>
 	void Send(int peerId, NetworkFrameKind kind, byte[] payload);
