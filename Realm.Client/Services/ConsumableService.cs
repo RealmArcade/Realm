@@ -1,6 +1,5 @@
 using Realm.Client.Core;
 using Realm.Ecs;
-using Realm.MapAPI;
 using Realm.Shared.Metadata;
 
 namespace Realm.Client.Services;

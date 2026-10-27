@@ -110,7 +110,6 @@ public class MovementPredictionService
 	}
 
 	public bool IsPredictionEnabled => GameSettings.MovementPrediction;
-	private static bool IsClientPredictionContext => GameContext.Host?.HasAuthority == false;
 
 	public bool HasPredictedUnits => _trackedCount > 0;
 	public int SnapshotOrderingViolations { get; private set; }
@@ -130,7 +129,7 @@ public class MovementPredictionService
 
 	public void ApplyPredictedOrder(EcsWorld world, PredictedOrderKind kind, ReadOnlySpan<int> localEntityIds, Vector3 targetPosition, bool isQueued)
 	{
-		if (!IsClientPredictionContext || !IsPredictionEnabled || world == null || kind == PredictedOrderKind.None) return;
+		if (!IsPredictionEnabled || world == null || kind == PredictedOrderKind.None) return;
 
 		BeginOperation();
 		try
@@ -221,7 +220,7 @@ public class MovementPredictionService
 	/// </summary>
 	public void RegisterPredictedCommand(int commandId, IReadOnlyList<int> localEntityIds)
 	{
-		if (!IsClientPredictionContext || !IsPredictionEnabled || localEntityIds == null || localEntityIds.Count == 0) return;
+		if (!IsPredictionEnabled || localEntityIds == null || localEntityIds.Count == 0) return;
 
 		for (int index = 0; index < localEntityIds.Count; index++)
 		{
@@ -251,7 +250,7 @@ public class MovementPredictionService
 
 	public void Advance(EcsWorld world, float frameDelta)
 	{
-		if (!IsClientPredictionContext || !IsPredictionEnabled || world == null) return;
+		if (!IsPredictionEnabled || world == null) return;
 		if (!float.IsFinite(frameDelta) || frameDelta <= 0f) return;
 
 		_tickAccumulator += frameDelta;

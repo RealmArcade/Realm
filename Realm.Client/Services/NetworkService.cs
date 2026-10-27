@@ -19,7 +19,6 @@ using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Client.UI;
-using Realm.MapAPI;
 using Realm.Ecs.Replication;
 using Realm.Shared.Network;
 using HttpClient = System.Net.Http.HttpClient;

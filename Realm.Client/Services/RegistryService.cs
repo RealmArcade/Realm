@@ -12,7 +12,6 @@ using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 using Realm.Shared.Abilities;
 
 namespace Realm.Client.Services;

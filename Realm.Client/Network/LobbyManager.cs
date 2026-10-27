@@ -509,7 +509,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		if (!TryStartAuthority(mapDirectory, mapPathName)) return;
 
-		CallDeferred(nameof(LoadMap), mapPathName, MatchSeed);
+		CallDeferred(nameof(EnterMatchScene), mapPathName, MatchSeed);
 	}
 
 	/// <summary>
@@ -517,7 +517,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	///     remote one is, so the client never simulates the world it is playing in and a bug cannot behave differently in
 	///     one mode than the other.
 	/// </summary>
-	private bool TryStartAuthority(string? mapDirectory, string mapPathName)
+	private bool TryStartAuthority(string? mapDirectory, string mapPathName, int authorityPort = 0, bool openToOthers = false)
 	{
 		if (string.IsNullOrEmpty(mapDirectory))
 		{
@@ -546,9 +546,10 @@ public partial class LobbyManager : BaseMapTransferNode
 			Path.Combine(OS.GetUserDataDir(), "logs"),
 			OS.GetUserDataDir(),
 			LocalizationManager.GetCurrentLanguageCode(),
-			AllowsCheats);
+			AllowsCheats,
+			openToOthers);
 
-		if (!session.TryStart(start, out string failure))
+		if (!session.TryStart(start, out string failure, authorityPort))
 		{
 			LastHostError = failure;
 			GD.PushError($"[LobbyManager] {failure}");
@@ -560,6 +561,35 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.AttachServerSession(session);
 		return true;
 	}
+
+	/// <summary>
+	///     Hands a hosted match over to the process that runs it. Every player already in the lobby is told where to
+	///     connect first, so the announcement survives the connection it was sent over: the authority takes the port the
+	///     lobby was advertised on, which is the port every player already reached this machine on. Only then does the
+	///     host leave the lobby, which is what frees that port for the authority.
+	/// </summary>
+	/// <param name="mapName">The map the match plays.</param>
+	/// <param name="matchSeed">The seed the match's scripts draw from.</param>
+	private async void StartHostedMatch(string mapName, int matchSeed)
+	{
+		await ToSignal(GetTree().CreateTimer(HandoffDelaySeconds), SceneTreeTimer.SignalName.Timeout);
+		if (!IsHost || IsSinglePlayer) return;
+
+		string? mapDirectory = GameHost.ResolveMapDirectory(mapName, ActiveMapVersion);
+		Multiplayer.MultiplayerPeer?.Close();
+		Multiplayer.MultiplayerPeer = null;
+
+		if (!TryStartAuthority(mapDirectory, mapName, ENetPort, openToOthers: true))
+		{
+			ConnectionFailed?.Invoke(LastHostError ?? "The match could not be started.");
+			return;
+		}
+
+		EnterMatchScene(mapName, matchSeed);
+	}
+
+	/// <summary>How long every player is given to be told where the match is before the lobby it was announced over is closed.</summary>
+	private const double HandoffDelaySeconds = 0.75;
 
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
 	{
@@ -2677,8 +2707,58 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 	}
 
-	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	private void LoadMap(string mapName, int matchSeed)
+	/// <summary>
+	///     Tells a player that the match has started and where the process running it listens. The host runs this too,
+	///     because it is the one that has to start that process; every other player joins it as an ordinary peer.
+	/// </summary>
+	/// <param name="mapName">The map the match plays.</param>
+	/// <param name="matchSeed">The seed the match's scripts draw from.</param>
+	/// <param name="authorityPort">The port the process running the match listens on.</param>
+	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+	private void LoadMap(string mapName, int matchSeed, int authorityPort)
+	{
+		if (IsHost) return;
+
+		GD.Print($"[LobbyManager] Joining the authority for {mapName} on port {authorityPort}");
+		if (!TryJoinAuthority(authorityPort)) return;
+
+		EnterMatchScene(mapName, matchSeed);
+	}
+
+	/// <summary>Joins the process running a match this client did not start, as the player the lobby seated it as.</summary>
+	/// <param name="authorityPort">The port the process running the match listens on.</param>
+	/// <returns>True once this client is connected to that process.</returns>
+	private bool TryJoinAuthority(int authorityPort)
+	{
+		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+		if (channel == null)
+		{
+			LastHostError = "This build has no channel to an authority.";
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			ConnectionFailed?.Invoke(LastHostError);
+			return false;
+		}
+
+		GameContext.ServerSession?.Dispose();
+
+		var session = new ClientServerSession(channel);
+		if (!session.TryJoin(_connectedHostIp, authorityPort, LocalizationManager.GetCurrentLanguageCode(), out string failure))
+		{
+			LastHostError = failure;
+			GD.PushError($"[LobbyManager] {failure}");
+			ConnectionFailed?.Invoke(failure);
+			session.Dispose();
+			return false;
+		}
+
+		GameContext.AttachServerSession(session);
+		return true;
+	}
+
+	/// <summary>Enters the screen the match is played on, having already been given its connection.</summary>
+	/// <param name="mapName">The map the match plays.</param>
+	/// <param name="matchSeed">The seed the match's scripts draw from.</param>
+	private void EnterMatchScene(string mapName, int matchSeed)
 	{
 		GD.Print($"[LobbyManager] LoadMap RPC received for: {mapName} with deterministic random seed {matchSeed}");
 		GameContext.Host?.ResetCommandDedupe();
@@ -2758,7 +2838,8 @@ public partial class LobbyManager : BaseMapTransferNode
 			if (IsHost && _countdownMapName != null)
 			{
 				MatchSeed = System.Random.Shared.Next(1, int.MaxValue);
-				Rpc(nameof(LoadMap), _countdownMapName, MatchSeed);
+				Rpc(nameof(LoadMap), _countdownMapName, MatchSeed, ENetPort);
+				StartHostedMatch(_countdownMapName, MatchSeed);
 			}
 
 			return;

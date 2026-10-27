@@ -1262,6 +1262,56 @@
             Represents an entity handle in the ECS world.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.HudElement">
+            <summary>
+            Identifies built-in HUD (Heads-Up Display) interface elements whose visibility can be toggled per player.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.HudElement.Minimap">
+            <summary>
+            The terrain minimap display and camera view rectangle in the bottom-left corner.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.HudElement.ResourceBar">
+            <summary>
+            The top resource panel displaying gold, wood, stone, food/population, and game time.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.HudElement.CommandCard">
+            <summary>
+            The command card panel displaying unit actions, abilities, attack/move commands, and build menus.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.HudElement.UnitPortrait">
+            <summary>
+            The unit portrait and stats display showing the active selection's 3D portrait, name, and attributes.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.HudElement.Chat">
+            <summary>
+            The multiplayer in-game chat box and message history overlay.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.HudElement.Leaderboard">
+            <summary>
+            The custom map leaderboard panel on the right side of the screen.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.HudElement.SummaryTable">
+            <summary>
+            The full-screen summary table panel displaying multi-column statistics and player standings.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.HudElement.Inventory">
+            <summary>
+            The unit inventory item slots panel.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.HudElement.CountdownTimer">
+            <summary>
+            The countdown timer panel displayed at the top of the screen.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.QueryDescription">
             <summary>
             Description of a query filter containing required and excluded component masks.

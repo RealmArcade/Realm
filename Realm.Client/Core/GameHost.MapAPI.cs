@@ -16,9 +16,7 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 using Realm.Ecs.Replication;
-using PathingFlags = Realm.MapAPI.PathingFlags;
 using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
 using Realm.Shared.Abilities;
@@ -77,13 +75,6 @@ public partial class GameHost
 
 
 
-	private void RegisterAbilityView(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
-	{
-		if (_multiplayerActive && IsServerActive())
-		{
-			Rpc(nameof(ClientRegisterAbility), abilityId, displayName ?? "", tooltip ?? "", iconPath ?? "", isInstant);
-		}
-	}
 
 
 
@@ -692,30 +683,6 @@ public partial class GameHost
 
 
 
-
-	public void SetRegionPathing(float minX, float minZ, float maxX, float maxZ, PathingFlags pathingFlags, bool blocked)
-	{
-		ApplyRegionPathingInternal(minX, minZ, maxX, maxZ, (int)pathingFlags, blocked);
-		if (IsMultiplayerServerActive())
-		{
-			Rpc(nameof(ClientUpdateRegionPathing), minX, minZ, maxX, maxZ, (int)pathingFlags, blocked, NextRegionPathingSequence());
-		}
-	}
-
-
-
-	public PathingFlags GetRegionPathing(float minX, float minZ, float maxX, float maxZ)
-	{
-		var world = GameContext.World;
-		var worldEntity = GameContext.Simulation.WorldEntity;
-		if (world != null && world.IsAlive(worldEntity) && world.Has<TerrainState>(worldEntity))
-		{
-			ref var state = ref world.Get<TerrainState>(worldEntity);
-			int code = GameContext.Simulation.TerrainNavMeshService?.GetRegionPathing(in state, minX, minZ, maxX, maxZ) ?? (int)PathingFlags.All;
-			return (PathingFlags)code;
-		}
-		return PathingFlags.All;
-	}
 
 
 

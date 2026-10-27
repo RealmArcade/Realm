@@ -16,7 +16,6 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;
@@ -706,7 +705,11 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		set
 		{
 			if (!_world.IsAlive(_entity)) return;
-			((IGameAPI?)GameContext.Host)?.SetUnitFacing((Realm.Ecs.UnitId)_entity.Id, value);
+			if (!GameHost.TryGetUnit3D(_entity, out var unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
+
+			Godot.Vector3 rotation = unit3D.Rotation;
+			rotation.Y = value;
+			unit3D.Rotation = rotation;
 		}
 	}
 

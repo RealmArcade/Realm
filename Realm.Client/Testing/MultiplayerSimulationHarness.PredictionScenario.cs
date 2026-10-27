@@ -131,10 +131,7 @@ public partial class MultiplayerSimulationHarness
 	private static bool TryResolveScenarioServerId(Entity entity, out int serverEntityId)
 	{
 		serverEntityId = -1;
-		if (GameContext.NetworkService.TryGetServerEntityId(entity.Id, out serverEntityId)) return true;
-		if (GameContext.Host?.HasAuthority != true) return false;
-		serverEntityId = entity.Id;
-		return serverEntityId > 0;
+		return GameContext.NetworkService.TryGetServerEntityId(entity.Id, out serverEntityId);
 	}
 
 	private void RunPredictionScenarioTick(double delta)

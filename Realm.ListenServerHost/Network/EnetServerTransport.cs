@@ -30,6 +30,15 @@ public class EnetServerTransport : IServerTransport
 	public int Port { get; private set; }
 
 	/// <summary>
+	///     How long a match waits for a port it was told to use to be released. A host hands its lobby over to the
+	///     process running the match, so the socket was held by the client a moment ago and may take a frame or two to go.
+	/// </summary>
+	private const int BindAttempts = 60;
+
+	/// <summary>How long one of those attempts waits before asking for the port again.</summary>
+	private const int BindRetryMilliseconds = 100;
+
+	/// <summary>
 	///     Starts listening. A match started by a client asks for port zero, which ENet binds to whatever port this
 	///     machine has free, and the port it got is reported through the readiness line so the client can reach it. A
 	///     match this machine plays by itself binds the loopback address, so no other machine can open a connection to
@@ -44,6 +53,15 @@ public class EnetServerTransport : IServerTransport
 		if (loopbackOnly) peer.SetBindIP(LoopbackAddress);
 
 		Error error = peer.CreateServer(_requestedPort, maximumPeers);
+		for (int attempt = 0; error != Error.Ok && _requestedPort != 0 && attempt < BindAttempts; attempt++)
+		{
+			OS.DelayMsec(BindRetryMilliseconds);
+			peer.Dispose();
+			peer = new ENetMultiplayerPeer();
+			if (loopbackOnly) peer.SetBindIP(LoopbackAddress);
+			error = peer.CreateServer(_requestedPort, maximumPeers);
+		}
+
 		if (error != Error.Ok)
 		{
 			peer.Dispose();

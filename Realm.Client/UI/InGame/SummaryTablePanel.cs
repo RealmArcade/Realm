@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using Realm.MapAPI;
 using Realm.Client.Services;
 
 namespace Realm.Client.UI.InGame;

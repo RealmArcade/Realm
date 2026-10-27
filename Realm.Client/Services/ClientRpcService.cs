@@ -6,7 +6,6 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.UI;
 using Realm.Ecs.Common;
-using Realm.MapAPI;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client.Services;

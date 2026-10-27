@@ -200,7 +200,6 @@ public partial class MultiplayerSimulationHarness : Node
 
 		if (!await StartSimulationAsync(lobby, true)) return 1;
 
-		if (_probesEnabled) _ = RunCombatProbeAsync(true);
 
 		GameHost gameHost = GameContext.Host ?? throw new InvalidOperationException("GameHost instance is unavailable.");
 
@@ -331,7 +330,6 @@ public partial class MultiplayerSimulationHarness : Node
 
 		if (!await StartSimulationAsync(lobby, false)) return 1;
 
-		if (_probesEnabled) _ = RunCombatProbeAsync(false);
 
 		GD.Print("[MP_HARNESS] Client simulation started. Recording until the host signals completion.");
 		_scenarioTick = 0;

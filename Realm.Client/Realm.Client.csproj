@@ -13,7 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Realm.Shared\Realm.Shared.csproj" />
     <ProjectReference Include="..\Realm.Ecs\Realm.Ecs.csproj" />
-    <ProjectReference Include="..\Realm.MapAPI\Realm.MapAPI.csproj" />
     <ProjectReference Include="..\Realm.EditorAPI\Realm.EditorAPI.csproj" />
   </ItemGroup>
   <ItemGroup>
@@ -84,7 +83,6 @@
     <PackageReference Include="MemoryPack" Version="1.21.4" />
     <PackageReference Include="SharpToken" Version="2.0.6" />
     <PackageReference Include="SkiaSharp" Version="3.116.1" />
-    <PackageReference Include="Wasmtime" Version="44.0.0" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
   <ItemGroup>

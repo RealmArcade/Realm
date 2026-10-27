@@ -15,7 +15,6 @@ using Realm.Client.Services;
 using Realm.Client.Testing;
 using Realm.Client.UI;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 using Realm.Shared;
 using Vector3 = System.Numerics.Vector3;
 

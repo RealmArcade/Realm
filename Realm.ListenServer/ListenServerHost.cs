@@ -212,6 +212,9 @@ public class ListenServerHost : IServerTransportSink
 			case NetworkFrameKind.BaselineRequest:
 				simulation.RequestBaseline(peerId);
 				break;
+			case NetworkFrameKind.LatencyProbe:
+				_transport.Send(peerId, NetworkFrameKind.LatencyProbeEcho, payload.ToArray());
+				break;
 			case NetworkFrameKind.Shutdown:
 				_log.Write($"peer {peerId} asked the match to end");
 				Stop();

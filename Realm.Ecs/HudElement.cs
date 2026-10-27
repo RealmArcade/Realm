@@ -1,4 +1,4 @@
-namespace Realm.MapAPI;
+namespace Realm.Ecs;
 
 /// <summary>
 /// Identifies built-in HUD (Heads-Up Display) interface elements whose visibility can be toggled per player.

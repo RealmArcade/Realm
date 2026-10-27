@@ -25,7 +25,6 @@ using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using UnitId = Realm.Ecs.UnitId;
 using Vector3 = System.Numerics.Vector3;
-using Realm.MapAPI;
 using Realm.Shared.Abilities;
 
 namespace Realm.Client.Services;
@@ -649,7 +648,7 @@ public class SimulationService
 		_movementService.WarningSink = message => Godot.GD.PushWarning(message);
 		_combatService = GameContext.Simulation.CombatDamageService;
 		_combatService.UnlimitedPowerProvider = () => GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled;
-		_combatService.AuthoritativeProvider = () => GameContext.Host?.HasAuthority != false;
+		_combatService.AuthoritativeProvider = () => false;
 		_combatService.SimulateEntityFilter = ShouldSimulateEntity;
 		_combatService.ItemGrantedWeaponsProvider = itemId => GameContext.RegistryService?.ItemRegistry.TryGetValue(itemId, out var itemMeta) == true ? itemMeta.GrantedWeapons : null;
 		_combatService.EnemyPredicate = ArePlayersEnemies;
@@ -724,7 +723,7 @@ public class SimulationService
 	public bool ShouldSimulateEntity(Entity entity)
 	{
 		var host = GameContext.Host;
-		if (host == null || host.HasAuthority) return true;
+		if (host == null) return false;
 		if (GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
 
 		int localPlayerIndex = host.LocalPlayerIndex;
@@ -804,14 +803,6 @@ public class SimulationService
 		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationCombatStep))
 		{
 			_combatService.StepCombat(fDelta, _movementService);
-		}
-
-		if (GameContext.Host?.HasAuthority != false)
-		{
-			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.SimulationEconomyStep))
-			{
-				_economyService.StepEconomy(fDelta);
-			}
 		}
 
 		_shroudSimulationTimer += fDelta;

@@ -551,56 +551,6 @@
             Gets or sets custom arbitrary key-value metadata associated with the hero.
             </summary>
         </member>
-        <member name="T:Realm.MapAPI.HudElement">
-            <summary>
-            Identifies built-in HUD (Heads-Up Display) interface elements whose visibility can be toggled per player.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.HudElement.Minimap">
-            <summary>
-            The terrain minimap display and camera view rectangle in the bottom-left corner.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.HudElement.ResourceBar">
-            <summary>
-            The top resource panel displaying gold, wood, stone, food/population, and game time.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.HudElement.CommandCard">
-            <summary>
-            The command card panel displaying unit actions, abilities, attack/move commands, and build menus.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.HudElement.UnitPortrait">
-            <summary>
-            The unit portrait and stats display showing the active selection's 3D portrait, name, and attributes.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.HudElement.Chat">
-            <summary>
-            The multiplayer in-game chat box and message history overlay.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.HudElement.Leaderboard">
-            <summary>
-            The custom map leaderboard panel on the right side of the screen.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.HudElement.SummaryTable">
-            <summary>
-            The full-screen summary table panel displaying multi-column statistics and player standings.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.HudElement.Inventory">
-            <summary>
-            The unit inventory item slots panel.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.HudElement.CountdownTimer">
-            <summary>
-            The countdown timer panel displayed at the top of the screen.
-            </summary>
-        </member>
         <member name="T:Realm.MapAPI.IGameAPI">
             <summary>
             Defines the safe, public API exposed to map scripts to interact with the game engine.
@@ -2188,7 +2138,7 @@
             </summary>
             <param name="playerIndex">Zero-based player slot index.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerHudElementVisible(System.Int32,Realm.MapAPI.HudElement,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerHudElementVisible(System.Int32,Realm.Ecs.HudElement,System.Boolean)">
             <summary>
             Sets whether a specific built-in HUD element is visible for the designated player.
             Persists across HUD refreshes and reconnects.
@@ -2197,9 +2147,9 @@
             <param name="element">The HUD element to show or hide.</param>
             <param name="visible">True to make the element visible; false to hide it.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.ToggleUserInterfaceElement(System.Int32,Realm.MapAPI.HudElement,System.Boolean)">
+        <member name="M:Realm.MapAPI.IGameAPI.ToggleUserInterfaceElement(System.Int32,Realm.Ecs.HudElement,System.Boolean)">
             <summary>
-            Toggles whether a specific built-in HUD element is visible for the designated player (alias for <see cref="M:Realm.MapAPI.IGameAPI.SetPlayerHudElementVisible(System.Int32,Realm.MapAPI.HudElement,System.Boolean)"/>).
+            Toggles whether a specific built-in HUD element is visible for the designated player (alias for <see cref="M:Realm.MapAPI.IGameAPI.SetPlayerHudElementVisible(System.Int32,Realm.Ecs.HudElement,System.Boolean)"/>).
             </summary>
             <param name="playerIndex">Zero-based player slot index.</param>
             <param name="element">The HUD element to show or hide.</param>
@@ -3284,8 +3234,8 @@
         <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.ResetCameraBounds(Realm.Ecs.PlayerId)">
             <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ResetCameraBounds"/>
         </member>
-        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetHudElementVisible(Realm.Ecs.PlayerId,Realm.MapAPI.HudElement,System.Boolean)">
-            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetHudElementVisible(Realm.MapAPI.HudElement,System.Boolean)"/>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetHudElementVisible(Realm.Ecs.PlayerId,Realm.Ecs.HudElement,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetHudElementVisible(Realm.Ecs.HudElement,System.Boolean)"/>
         </member>
         <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SelectUnit(Realm.Ecs.PlayerId,Realm.Ecs.UnitId)">
             <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SelectUnit(Realm.Ecs.UnitId)"/>
@@ -3546,7 +3496,7 @@
             Resets this player's camera movement boundaries back to the map default boundaries.
             </summary>
         </member>
-        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetHudElementVisible(Realm.MapAPI.HudElement,System.Boolean)">
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetHudElementVisible(Realm.Ecs.HudElement,System.Boolean)">
             <summary>
             Sets whether a specific built-in HUD element is visible for this player.
             </summary>

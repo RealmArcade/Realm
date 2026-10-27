@@ -16,7 +16,6 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 using Realm.Shared.Network;
 using Realm.Shared.Abilities;
 
@@ -139,7 +138,6 @@ public partial class GameHost
 
 	private void RegisterPredictedCommand(int commandId, List<int> serverEntityIds, string commandType, System.Numerics.Vector3 targetPosition)
 	{
-		if (HasAuthority) return;
 		if (!GameSettings.MovementPrediction || GameContext.MovementPredictionService == null) return;
 		if (GameContext.World == null) return;
 
@@ -169,14 +167,9 @@ public partial class GameHost
 	private bool TryResolveLocalEntity(int serverEntityId, out Entity localEntity)
 	{
 		if (TryGetLocalEntity(serverEntityId, out localEntity)) return true;
-		if (!HasAuthority)
-		{
-			localEntity = Entity.Null;
-			return false;
-		}
 
-		localEntity = new Entity(serverEntityId);
-		return GameContext.World != null && GameContext.World.IsAlive(localEntity);
+		localEntity = Entity.Null;
+		return false;
 	}
 
 	private static PredictedOrderKind ResolvePredictedOrderKind(string commandType)
@@ -374,171 +367,6 @@ public partial class GameHost
 	private static bool TryDeserializePeerPayload<T>(byte[]? payload, int maximumBytes, out T value) where T : struct
 	{
 		return PeerPayloadGuard.TryDeserialize(payload, maximumBytes, out value);
-	}
-
-	/// <summary>
-	/// A peer may submit at most this many commands per second on average, with a burst allowance for the several orders a
-	/// player issues while dragging a selection around. The budget exists because every accepted command runs the full
-	/// authority path on the host tick: a peer that submits thousands per second would otherwise spend the simulation
-	/// budget of everyone in the match. Legitimate play never approaches it, and going over it is a refusal the client is
-	/// told about, not a silent drop.
-	/// </summary>
-	public const int CommandBudgetCapacity = 40;
-	public const double CommandBudgetRefillPerSecond = 20.0;
-
-	private readonly Dictionary<int, TokenBucket> _commandBudgets = new();
-	private int _rateLimitedCommandCount;
-
-	public int RateLimitedCommandCountForHarness => _rateLimitedCommandCount;
-
-	/// <summary>
-	/// The highest command id the rate limiter has refused for each peer since that peer was last told. Telling a peer
-	/// about a refusal costs one reliable RPC back to it, so answering every refused command turns one inbound message
-	/// into one outbound message: a peer that resent 400 commands every 50 ms on the reliable channel earned 295 315
-	/// refusals in a single match, and the replies starved the snapshots and snapshot acknowledgements the peer needed to
-	/// stay connected, for the whole 36 s the resend storm lasted. One notice per peer per quarter second, naming the
-	/// highest id refused in that window, is enough for a client to revert the order it sent.
-	/// </summary>
-	private readonly Dictionary<int, int> _pendingRefusedCommandHighWater = new();
-	private ulong _lastRefusedCommandNoticeMsec;
-	private const ulong RefusedCommandNoticeIntervalMsec = 250;
-
-	private void RecordRefusedCommand(int peerId, int commandId)
-	{
-		if (commandId <= 0) return;
-		if (_pendingRefusedCommandHighWater.TryGetValue(peerId, out int pending) && pending >= commandId) return;
-		_pendingRefusedCommandHighWater[peerId] = commandId;
-	}
-
-	private void FlushRefusedCommandNotices()
-	{
-		if (_pendingRefusedCommandHighWater.Count == 0) return;
-
-		ulong now = Time.GetTicksMsec();
-		if (now - _lastRefusedCommandNoticeMsec < RefusedCommandNoticeIntervalMsec) return;
-
-		_lastRefusedCommandNoticeMsec = now;
-		foreach (KeyValuePair<int, int> entry in _pendingRefusedCommandHighWater)
-		{
-			RpcId(entry.Key, nameof(AcknowledgeCommand), entry.Value, Array.Empty<int>(), Tr("Command rate limit exceeded."));
-		}
-
-		_pendingRefusedCommandHighWater.Clear();
-	}
-
-	private bool TryConsumeCommandBudget(int peerId)
-	{
-		if (!_commandBudgets.TryGetValue(peerId, out TokenBucket? budget))
-		{
-			budget = new TokenBucket(CommandBudgetCapacity, CommandBudgetRefillPerSecond);
-			_commandBudgets[peerId] = budget;
-		}
-
-		if (budget.TryConsume(1)) return true;
-		_rateLimitedCommandCount++;
-		return false;
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void SubmitCommand(byte[] payload)
-	{
-		if (!Multiplayer.IsServer()) return;
-		int senderId = Multiplayer.GetRemoteSenderId();
-		if (!TryDeserializePeerPayload(payload, NetworkCommandLimits.MaximumPayloadBytes, out NetworkCommand cmd))
-		{
-			GD.PushWarning($"[Network] Dropped a malformed command payload ({payload?.Length ?? 0} bytes) from peer {senderId}.");
-			return;
-		}
-
-		if (!TryConsumeCommandBudget(senderId))
-		{
-			if (_rateLimitedCommandCount % 200 == 1) GD.PushWarning($"[Network] Peer {senderId} is above the command rate limit; {_rateLimitedCommandCount} commands refused so far.");
-			RecordRefusedCommand(senderId, cmd.CommandId);
-			return;
-		}
-
-		if (!NetworkCommandLimits.TrySanitize(ref cmd, out string sanitizeRejection))
-		{
-			GD.PushWarning($"[Network] Rejected a command from peer {senderId}: {sanitizeRejection}");
-			if (cmd.CommandId > 0) RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId, Array.Empty<int>(), sanitizeRejection);
-			return;
-		}
-
-		var sw = Stopwatch.StartNew();
-		if (IsDuplicateCommand(senderId, cmd.CommandId))
-		{
-			RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId, Array.Empty<int>(), string.Empty);
-			return;
-		}
-
-		ApplyAuthoritativeCommand(senderId, cmd);
-		sw.Stop();
-		float responseCpuMs = (float)sw.Elapsed.TotalMilliseconds;
-		float adjustedResponseMs = responseCpuMs + GameContext.PerformanceTrackingService.TrackerLastTickDelay;
-		if (GameContext.PerformanceTrackingService.TrackerApiDurations != null)
-		{
-			GameContext.PerformanceTrackingService.TrackerApiDurations.Add(adjustedResponseMs);
-		}
-	}
-
-	private void ApplyAuthoritativeCommand(int senderId, NetworkCommand cmd)
-	{
-		var result = GameContext.NetworkService.ExecuteServerCommand(senderId, cmd);
-
-		StopUnitVelocities(result.StopVelocityEntityIds);
-		StopUnitVelocities(result.HoldVelocityEntityIds);
-
-		ProcessServerCommandBuild(result);
-		ProcessServerCommandSpell(cmd, result);
-
-		if (result.RejectedServerEntityIds.Count > 0)
-		{
-			PredictionDiagnostics.RecordRejection(cmd.CommandId, result.RejectionReason);
-		}
-
-		int[] rejectedEntityIds = result.RejectedServerEntityIds.ToArray();
-		if (senderId == _localPeerId) DeliverLocalCommandAck(cmd.CommandId, rejectedEntityIds, result.RejectionReason);
-		else RpcId(senderId, nameof(AcknowledgeCommand), cmd.CommandId, rejectedEntityIds, result.RejectionReason);
-	}
-
-	private void DeliverLocalCommandAck(int commandId, int[] rejectedServerEntityIds, string rejectionReason)
-	{
-		var prediction = GameContext.MovementPredictionService;
-		if (prediction == null) return;
-
-		if (!string.IsNullOrEmpty(rejectionReason))
-		{
-			PredictionDiagnostics.RecordRejection(commandId, rejectionReason);
-			prediction.RollbackRejectedCommand(GameContext.World, commandId, rejectedServerEntityIds ?? Array.Empty<int>(), rejectionReason);
-			return;
-		}
-
-		prediction.OnCommandAccepted(commandId);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-	public void AcknowledgeCommand(int commandId, int[] rejectedServerEntityIds, string rejectionReason)
-	{
-		DeliverLocalCommandAck(commandId, rejectedServerEntityIds, rejectionReason);
-	}
-
-	public void SendLatencyProbe(int sequence)
-	{
-		if (!HasRemoteAuthority) return;
-		RpcId(1, nameof(SubmitLatencyProbe), sequence);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
-	public void SubmitLatencyProbe(int sequence)
-	{
-		if (!Multiplayer.IsServer()) return;
-		RpcId(Multiplayer.GetRemoteSenderId(), nameof(ReceiveLatencyProbe), sequence);
-	}
-
-	[Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
-	public void ReceiveLatencyProbe(int sequence)
-	{
-		GameContext.NetworkLatencyService.OnResponse(sequence);
 	}
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
@@ -1271,11 +1099,6 @@ public partial class GameHost
 		}
 
 		GameContext.NetworkService.UpdateReconnectedClientMapping(reconnectedEntity, _localPeerId);
-
-		if (IsMultiplayerActive() && !IsMultiplayerServerActive())
-		{
-			RpcId(1, nameof(ServerRequestDynamicPathingSync));
-		}
 
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 		GD.Print($"[GameHost] OnClientReconnected completed for LocalPeerId={_localPeerId}, Slot={slot}");

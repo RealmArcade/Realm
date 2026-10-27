@@ -11,7 +11,6 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Ecs.Components.Terrain;
-using Realm.MapAPI;
 
 namespace Realm.Client.Services;
 

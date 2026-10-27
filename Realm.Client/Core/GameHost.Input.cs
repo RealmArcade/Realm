@@ -17,7 +17,6 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 using Array = System.Array;
 using Realm.Shared.Abilities;
 
@@ -4221,11 +4220,6 @@ public partial class GameHost
 		if (!GameContext.World.IsAlive(buildingEntity) || !GameContext.World.Has<ProductionQueue>(buildingEntity)) return;
 
 		SubmitOrderCommand("cancel_train", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, index, "");
-
-		if (HasRemoteAuthority && GameContext.InputService.CancelQueuedUnitAt(buildingEntity, index, out string? cancelledId, out _))
-		{
-			RefundCancelledUnit(cancelledId);
-		}
 
 		GameContext.UserInterface?.PlayClickSound();
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);

@@ -3,7 +3,6 @@ using Godot;
 using Realm.Client.Services;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
-using Realm.MapAPI;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Core;
@@ -28,6 +27,7 @@ public partial class GameHost
 		session.SnapshotReceived += ApplyReceivedSnapshot;
 		session.PresentationReceived += ApplyPresentation;
 		session.CommandAnswered += ApplyCommandOutcome;
+		session.LatencyProbeAnswered += GameContext.NetworkLatencyService.OnResponse;
 		session.ServerLost += ReportAuthorityLost;
 
 		if (session.LocalPlayerSlot >= 0)
@@ -75,7 +75,34 @@ public partial class GameHost
 	/// </summary>
 	private void ApplyCommandOutcome(CommandOutcome outcome)
 	{
+		if (!outcome.Accepted) RefusedCommandCount++;
+
 		DeliverLocalCommandAck(outcome.CommandId, Array.Empty<int>(), outcome.Accepted ? string.Empty : outcome.RejectionReason ?? string.Empty);
+	}
+
+	/// <summary>How many of this client's orders the authority refused, which is what a harness asserts a flood runs into.</summary>
+	public int RefusedCommandCount { get; private set; }
+
+	/// <summary>
+	///     Applies what the authority decided about one order. An order that was predicted as soon as it was issued is
+	///     rolled back here, because the world this client is showing is not the world the authority kept.
+	/// </summary>
+	/// <param name="commandId">Which order the authority answered.</param>
+	/// <param name="rejectedServerEntityIds">The units the authority refused, which are the ones that must be restored.</param>
+	/// <param name="rejectionReason">Why the order was refused, or nothing when it was accepted.</param>
+	private void DeliverLocalCommandAck(int commandId, int[] rejectedServerEntityIds, string rejectionReason)
+	{
+		var prediction = GameContext.MovementPredictionService;
+		if (prediction == null) return;
+
+		if (!string.IsNullOrEmpty(rejectionReason))
+		{
+			PredictionDiagnostics.RecordRejection(commandId, rejectionReason);
+			prediction.RollbackRejectedCommand(GameContext.World, commandId, rejectedServerEntityIds ?? Array.Empty<int>(), rejectionReason);
+			return;
+		}
+
+		prediction.OnCommandAccepted(commandId);
 	}
 
 	/// <summary>

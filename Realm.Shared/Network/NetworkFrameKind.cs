@@ -29,5 +29,11 @@ public enum NetworkFrameKind : byte
 	BaselineRequest = 9,
 
 	/// <summary>Something the authority decided a screen should show: an effect, a line of text, a sound, a camera move.</summary>
-	Presentation = 10
+	Presentation = 10,
+
+	/// <summary>A client asking to be answered at once, so it can measure the round trip to the authority.</summary>
+	LatencyProbe = 11,
+
+	/// <summary>That probe, answered unchanged.</summary>
+	LatencyProbeEcho = 12
 }

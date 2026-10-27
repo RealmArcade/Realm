@@ -14,7 +14,6 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 using Realm.Shared.Network;
 using FileAccess = System.IO.FileAccess;
 

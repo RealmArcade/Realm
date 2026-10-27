@@ -38,14 +38,15 @@
 
 ### Realm.ECS Data Layer (Flat Bitmask SoA Shared Memory):
 - Core simulation component buffers (`PlayerResource`, `Health`, etc.) are implemented as a custom Flat Bitmask Structure-of-Arrays (SoA) ECS where component arrays are stored in contiguous unmanaged memory mapped directly into WASM linear memory (`Wasmtime.Memory`).
-- Keep system logic separated from presentation. Physics process query loops in `GameHost.cs` should inspect and manipulate ECS data via components, updating `Unit3D` / `Prop3D` nodes accordingly.
+- Only the authoritative process simulates. `GameHost.cs` renders the replicated world it receives: its physics tick applies snapshots, runs the client tick, and moves `Unit3D` / `Prop3D` nodes to the state the authority described. It never steps movement, combat, economy, production, shroud, or AI.
+- One world per process. The client owns exactly one client world and the authority owns exactly one authoritative world; there is no static accessor that can name the other. A menu screen owns no world at all, and a world is created when a match or the editor starts and torn down when it ends (the editor serialises its world before a playtest and restores it afterwards).
 - Do not store Godot lifecycle elements, scene nodes, or UI references directly inside ECS components. Components must remain pure unmanaged, blittable data structures (`[StructLayout(LayoutKind.Sequential, Pack = 4)]`).
 - Entity creation, lifecycle recycling, and queries use hardware bit manipulation (`BitOperations.TrailingZeroCount`) over entity bitmasks for zero-allocation performance.
 
 ### Logic Services:
 - Classes inheriting from Godot should have minimal orchestration logic, deferring complex logic to domain-specific services.
 - Decoupled Communication: Avoid using DTOs to communicate between orchestrators (`GameHost`) and services. Communication should be minimal and limited to simple ephemeral primitive parameters and return values. All persistent shared data must be stored directly in the ECS, allowing both services and `GameHost` to query and write to the ECS independently to coordinate.
-- Services should never be instantiated directly, they should always be accessed via the global GameContext
+- Services should never be instantiated directly, they should always be accessed via the global GameContext. `GameContext.Simulation` is this process's own world and services, so the same service type exists once per process and never spans the process boundary.
 
 ### Realm.MapAPI & WASM Zero-Allocation Shared Memory Architecture:
 - Only expose safe APIs to map authors and external tools to prevent direct manipulation of raw Godot nodes or C# ECS structures.
@@ -63,6 +64,7 @@
 	- Everything else a script calls on a handle — reads that need the host and every order, cast and effect — is a C# 14 extension member supplied by `Realm.MapAPI`.
 
 ### Map Workspaces & WASM Compilation (Portability):
+- A map's WASM is produced by the editor's workspace publish and shipped inside the map folder next to its metadata. The authority executes exactly that artifact and nothing recompiles it at match time, so every host of the same map runs the same canonical bytes. The client never loads a map assembly.
 - The map temp workspace is compiled to WASM via `dotnet publish`. Workspaces and saved map folders MUST be machine-portable: never write absolute paths into generated/saved `.csproj` files.
 - `MapWorkspaceService.EnsureCsproj` always normalizes the `Realm.MapAPI` and `Realm.Ecs` references to the relative `<HintPath>lib/Realm.MapAPI.dll</HintPath>` and `<HintPath>lib/Realm.Ecs.dll</HintPath>`, and `EnsureApiLib` copies both DLLs (build output preferred, `MapTemplate/lib` as fallback) into the workspace so it is self-contained. A workspace also carries `<Using Include="Realm.Ecs" />` so a map script keeps writing `using Realm.MapAPI;` while still naming the shared simulation handles.
 - `MapTemplate/lib/Realm.MapAPI.xml` and `MapTemplate/lib/Realm.Ecs.xml` are the committed API documentation beside those DLLs. When changing `Realm.MapAPI` or `Realm.Ecs` source, rebuild it (`dotnet build Realm.MapAPI`) so the `CopyToMapTemplate` target refreshes the whole of `MapTemplate/lib`, and commit the refreshed documentation together with the API changes.
@@ -75,10 +77,14 @@
 - `GameBuildNumber`: Every `metadata.json` must include a `GameBuildNumber` string matching `RealmVersion.GameBuildNumber`. This value is hardcoded and only changed manually when publishing and tagging an official release. Matches in the game lobby are locked to the map's `GameBuildNumber`.
 
 ## Client and Server Process Split:
-- `Realm.Client` must never have a compile-time project reference to `Realm.ListenServer` or `Realm.ListenServerHost`, and `Realm.ListenServer` must never reference `Realm.Client` or Godot. All gameplay communication crosses the process boundary as serialized transport frames; there is no shared in-process world, service, or static state between them.
+- `Realm.Client` must never have a compile-time project reference to `Realm.ListenServer`, and no `using Realm.ListenServer` may appear in its source. `Realm.ListenServer` must never reference `Realm.Client` or Godot. All gameplay communication crosses the process boundary as serialized transport frames; there is no shared in-process world, service, or static state between them.
+- The one assembly reference allowed is build ordering: `Realm.Client` carries a `ProjectReference` to `Realm.ListenServerHost` with `ReferenceOutputAssembly="false"` so a development build always produces a current authority beside the client. Nothing is linked against it, and it is not a way to call into the authority.
 - Three projects, three responsibilities: `Realm.ListenServer` is the simulation and stays Godot-free (a `using Godot` there is a bug); `Realm.ListenServerHost` is a headless Godot project that exists only to give the authority ENet and RPC, so it may reference Godot for transport and process lifecycle but must hold no simulation, world or game rule logic; `Realm.Client` owns input, presentation and rendering.
 - Both processes speak through one channel: the node autoloaded as `RealmNetwork` in each project, with the same path and the same `Frame(kind, payload)` RPC. A new gameplay or presentation message is a `NetworkFrameKind` plus a `Realm.Shared` payload, never a second protocol.
 - `Realm.Shared` owns every serialized payload, protocol constant, transport contract and handshake type. A payload the authoritative process has to serialize can never live in `Realm.Client`.
+- The client launches the authority with `--map --port --token --log`, reads its single `REALM_SERVER_READY` line, and joins it as an ordinary peer. A hosted lobby hands its whole roster over to the authority: the host tells every player the port, closes the lobby it was announced over (freeing that port), starts the authority on it, and joins as a peer like everyone else. The authority reports that port to the lobby registry, so a remote player connects to the authority rather than to the host client.
+- The client never runs WASM and does not reference `Realm.MapAPI` or `Wasmtime`. Map scripts, `IGameAPI`, `EcsSharedMemory` and the `Wasmtime` host live only in the authority. The editor compiles a map to WASM and the authority executes that artifact; `IEditorAPI` (`Realm.EditorAPI`) remains the client's map-editing surface and is unrelated to `IGameAPI`.
+- Authority-only components are never replicated, and the wire component ids are part of the handshake (`wireTableHash`). Adding a replicated component means adding it to the canonical table in `Realm.Ecs.Replication.ReplicatedComponents`.
 
 ## AI "Vibe" Coding & Maintenance Instructions:
 - Avoid using proprietary or copyrighted terms from other games.

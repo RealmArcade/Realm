@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
-using Realm.MapAPI;
 using Realm.Client.Services;
 
 namespace Realm.Client.UI.InGame;

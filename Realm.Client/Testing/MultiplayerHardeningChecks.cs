@@ -67,7 +67,7 @@ public static class MultiplayerHardeningChecks
 		}
 
 		int sentCount = int.TryParse(File.ReadAllText(markerPath).Trim(), out int parsed) ? parsed : 0;
-		int rateLimited = GameContext.Host?.RateLimitedCommandCountForHarness ?? 0;
+		int rateLimited = GameContext.Host?.RefusedCommandCount ?? 0;
 		notes.Add($"command flood: the client submitted {sentCount} commands and the authority refused {rateLimited} of them for exceeding the rate limit");
 		if (rateLimited == 0)
 		{

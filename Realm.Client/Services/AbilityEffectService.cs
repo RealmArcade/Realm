@@ -10,7 +10,6 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
-using Realm.MapAPI;
 using Vector3 = System.Numerics.Vector3;
 using Realm.Shared.Abilities;
 

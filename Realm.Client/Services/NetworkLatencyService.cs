@@ -62,7 +62,8 @@ public class NetworkLatencyService
 
 	public void Update(float delta)
 	{
-		if (GameContext.Host == null || !GameContext.Host.HasRemoteAuthority) return;
+		ClientServerSession? session = GameContext.ServerSession;
+		if (session == null || !session.IsRunning) return;
 
 		if (delta >= StallFrameSeconds) DiscardPendingSamples();
 
@@ -70,7 +71,7 @@ public class NetworkLatencyService
 		if (_sampleTimer > 0f) return;
 
 		_sampleTimer = SampleIntervalSeconds;
-		GameContext.Host.SendLatencyProbe(BeginSample());
+		session.SendLatencyProbe(BeginSample());
 	}
 
 	public int BeginSample()

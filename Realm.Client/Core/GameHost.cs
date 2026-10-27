@@ -27,7 +27,6 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.MapAPI;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Environment = Godot.Environment;
@@ -3247,12 +3246,6 @@ public partial class GameHost : Node3D
 
 	public bool IsMultiplayerActive() => _multiplayerActive;
 
-	public bool IsMultiplayerServerActive() => _multiplayerActive && IsServerActive();
-
-	public bool HasAuthority => IsServerActive();
-
-	public bool HasRemoteAuthority => _multiplayerActive && !IsServerActive();
-
 	public int ObservingPlayerIndex
 	{
 		get
@@ -3264,19 +3257,6 @@ public partial class GameHost : Node3D
 	}
 
 	public bool IsLocalViewpoint(int playerIndex) => playerIndex > 0 && playerIndex == ObservingPlayerIndex;
-
-	private bool IsServerActive()
-	{
-		if (Multiplayer.MultiplayerPeer == null) return true;
-		try
-		{
-			return Multiplayer.IsServer();
-		}
-		catch
-		{
-			return true;
-		}
-	}
 
 	public void RebakeNavMesh()
 	{

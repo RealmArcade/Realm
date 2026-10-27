@@ -6260,7 +6260,6 @@ public partial class EditorService : IEditorAPI
 		{
 			scriptContent = $@"namespace Realm.Maps;
 
-using Realm.MapAPI;
 
 public class {mapName} : IMapScript
 {{

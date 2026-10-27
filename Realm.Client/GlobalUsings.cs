@@ -4,3 +4,4 @@ global using Realm.Shared.Metadata;
 global using Realm.Shared.Simulation;
 global using Realm.Shared.Terrain;
 global using Random = Realm.Client.Services.RandomProxy;
+global using Realm.Ecs;

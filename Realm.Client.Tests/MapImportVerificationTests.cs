@@ -807,7 +807,8 @@ public class MapImportVerificationTests
 		referencePaths.Add(typeof(object).Assembly.Location);
 		referencePaths.Add(typeof(List<>).Assembly.Location);
 		referencePaths.Add(typeof(Enumerable).Assembly.Location);
-		referencePaths.Add(typeof(Realm.MapAPI.IGameAPI).Assembly.Location);
+		string mapApiAssemblyPath = Path.Combine(AppContext.BaseDirectory, "MapTemplate", "lib", "Realm.MapAPI.dll");
+		if (File.Exists(mapApiAssemblyPath)) referencePaths.Add(mapApiAssemblyPath);
 
 		IEnumerable<MetadataReference> references = referencePaths.Select(referencePath => MetadataReference.CreateFromFile(referencePath));
 		CSharpCompilation compilation = CSharpCompilation.Create(

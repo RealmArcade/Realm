@@ -41,7 +41,7 @@ public class ClientServerSession : IDisposable
 	private int _port;
 	private bool _connectedBefore;
 	private int _reconnectAttempts;
-	private long _lastReconnectAttemptMilliseconds = long.MinValue;
+	private long _lastReconnectAttemptMilliseconds;
 	private bool _disposed;
 
 	/// <summary>What the authority said when it stopped, or nothing while it is still there.</summary>
@@ -88,6 +88,9 @@ public class ClientServerSession : IDisposable
 
 	/// <summary>Whether the authority took one of this client's orders, and why not when it did not.</summary>
 	public event Action<CommandOutcome>? CommandAnswered;
+
+	/// <summary>One of this client's probes came back, which is what the round trip is measured from.</summary>
+	public event Action<int>? LatencyProbeAnswered;
 
 	/// <summary>The authority ended in the middle of a match, whether or not it meant to.</summary>
 	public event Action<string>? ServerLost;
@@ -179,7 +182,7 @@ public class ClientServerSession : IDisposable
 	/// <summary>Hands the authority one of this client's orders, as the client authored it and already encoded.</summary>
 	public bool Submit(byte[] payload)
 	{
-		if (_launcher == null || payload.Length == 0) return false;
+		if (!IsRunning || payload.Length == 0) return false;
 
 		_channel.Send(NetworkFrameKind.Command, payload);
 		return true;
@@ -188,9 +191,20 @@ public class ClientServerSession : IDisposable
 	/// <summary>Asks the authority to describe the world from scratch, which is what a client that lost its place does.</summary>
 	public bool RequestBaseline()
 	{
-		if (_launcher == null) return false;
+		if (!IsRunning) return false;
 
 		_channel.Send(NetworkFrameKind.BaselineRequest, Array.Empty<byte>());
+		return true;
+	}
+
+	/// <summary>Asks the authority to answer at once, so this client can measure the round trip it is playing over.</summary>
+	/// <param name="sequence">Which probe this is, so a stale answer is not taken for a fresh one.</param>
+	/// <returns>True once the probe was handed to the transport.</returns>
+	public bool SendLatencyProbe(int sequence)
+	{
+		if (!IsRunning) return false;
+
+		_channel.Send(NetworkFrameKind.LatencyProbe, MemoryPackSerializer.Serialize(new LatencyProbe(sequence)));
 		return true;
 	}
 
@@ -221,6 +235,8 @@ public class ClientServerSession : IDisposable
 
 		bool handed = false;
 
+		if (_helloSent && _connectedBefore && !_channel.IsConnected) _helloSent = false;
+
 		if (!_helloSent && _channel.IsConnected)
 		{
 			SendHello();
@@ -228,10 +244,9 @@ public class ClientServerSession : IDisposable
 			_connectedBefore = true;
 			_reconnectAttempts = 0;
 		}
-		else if (_connectedBefore && !_channel.IsConnected)
+		else if (!_helloSent && !TryReconnect())
 		{
-			_helloSent = false;
-			if (!TryReconnect()) return false;
+			return false;
 		}
 
 		while (_incoming.Count > 0)
@@ -266,7 +281,7 @@ public class ClientServerSession : IDisposable
 		if (_address.Length == 0 || _port <= 0) return true;
 
 		long now = Environment.TickCount64;
-		if (now - _lastReconnectAttemptMilliseconds < ReconnectIntervalMilliseconds) return true;
+		if (_lastReconnectAttemptMilliseconds != 0 && now - _lastReconnectAttemptMilliseconds < ReconnectIntervalMilliseconds) return true;
 
 		_lastReconnectAttemptMilliseconds = now;
 		_reconnectAttempts++;
@@ -335,6 +350,10 @@ public class ClientServerSession : IDisposable
 
 			case NetworkFrameKind.CommandOutcome:
 				CommandAnswered?.Invoke(MemoryPackSerializer.Deserialize<CommandOutcome>(payload));
+				break;
+
+			case NetworkFrameKind.LatencyProbeEcho:
+				LatencyProbeAnswered?.Invoke(MemoryPackSerializer.Deserialize<LatencyProbe>(payload).Sequence);
 				break;
 
 			case NetworkFrameKind.Shutdown:
