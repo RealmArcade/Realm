@@ -2950,13 +2950,21 @@ public partial class GameHost : Node3D
 
 	private void HandleBuildingSpawn(Entity entity, Unit3D unit3D, string id, Vector3 pos)
 	{
-		if (TryGetUnitOrBuildingMetadata(id, out var meta) && (meta.PathingType == 16 || string.Equals(meta.VisualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase)))
+		UnitMetadata meta = TryGetUnitOrBuildingMetadata(id, out var resolved) ? resolved : null;
+		if (meta != null && !UnitEntityFactory.BlocksMovement(meta))
 		{
 			return;
 		}
 
 		GameContext.World.SetOrAdd(entity, new BuildingSpawnOffset(new System.Numerics.Vector3(0f, 0f, 8f)));
-		float baseRadius = GetOrCalculateObstacleRadius(id, unit3D) * GetModelCollisionCircleRatio(GetModelAssetKey(unit3D));
+		if (GameContext.World.Has<CollisionRadius>(entity)) return;
+
+		// The radius comes from the template the authority builds the same building from, so the ground this building
+		// blocks is the ground the authority pathing treats as blocked, and is scaled by its collision scale where it is
+		// used. Only a template that is not registered at all falls back to measuring the model.
+		float baseRadius = meta != null
+			? UnitEntityFactory.ResolveCollisionRadius(meta)
+			: GetOrCalculateObstacleRadius(id, unit3D) * GetModelCollisionCircleRatio(GetModelAssetKey(unit3D));
 		GameContext.World.SetOrAdd(entity, new CollisionRadius(baseRadius));
 		if (!GameContext.SessionState.IsMapEditorMode) CarveObstacle(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), baseRadius);
 	}

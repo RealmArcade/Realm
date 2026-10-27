@@ -158,8 +158,8 @@ public class TerrainNavMeshService
 		var world = _context.World;
 		if (world == null) return false;
 
-		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery, _checkPropObstacleDelegate);
-		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingQuery, _checkBuildingObstacleDelegate);
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityNoneDeadQuery, _checkPropObstacleDelegate);
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingNoneDeadQuery, _checkBuildingObstacleDelegate);
 		return _isCellBlockedByOtherObstacle;
 	}
 
@@ -614,14 +614,16 @@ public class TerrainNavMeshService
 		var world = _context.World;
 		if (world == null) return _navMeshObstacles;
 
-		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery, _collectPropObstacleDelegate);
-		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingQuery, _collectBuildingObstacleDelegate);
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityNoneDeadQuery, _collectPropObstacleDelegate);
+		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingNoneDeadQuery, _collectBuildingObstacleDelegate);
 		return _navMeshObstacles;
 	}
 
 	/// <summary>
 	/// True when the volumes this instance would bake with are not the ones its mesh was last built from, which is how the
 	/// authority notices that a prop, a building or a blocker its script spawned has appeared or gone since the last bake.
+	/// A building counts as gone only once it is destroyed: it stops contributing a volume the moment it is dead, and the
+	/// next bake paths units through the ground it used to stand on.
 	/// </summary>
 	public bool ObstaclesChangedSinceBake()
 	{

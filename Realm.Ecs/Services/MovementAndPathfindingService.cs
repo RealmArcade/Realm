@@ -119,9 +119,12 @@ namespace Realm.Ecs.Services
 			QueryGridInRadius(_unitGrid, center, radius, callback);
 		}
 
-		public void QueryPropsInRadius(Vector3 center, float radius, SpatialGridEntryCallback callback)
+		/// <summary>
+		///     Visits every static obstacle body - a prop or a building - whose cell lies within the radius.
+		/// </summary>
+		public void QueryObstaclesInRadius(Vector3 center, float radius, SpatialGridEntryCallback callback)
 		{
-			QueryGridInRadius(_propGrid, center, radius, callback);
+			QueryGridInRadius(_obstacleGrid, center, radius, callback);
 		}
 
 		private enum OffMeshReplanCause
@@ -166,7 +169,7 @@ namespace Realm.Ecs.Services
 		private readonly ThreadLocal<(DtNavMesh? Mesh, DtNavMeshQuery? Query)> _threadLocalNavQuery = new();
 
 		private readonly Dictionary<long, List<SpatialGridEntry>> _unitGrid = new();
-		private readonly Dictionary<long, List<SpatialGridEntry>> _propGrid = new();
+		private readonly Dictionary<long, List<SpatialGridEntry>> _obstacleGrid = new();
 		private readonly List<List<SpatialGridEntry>> _listPool = new();
 
 		private readonly List<Entity> _tickArrivedUnits = new();
@@ -174,14 +177,16 @@ namespace Realm.Ecs.Services
 		private readonly QueryDescription _movementQuery = QueryCache.AllPositionAndMoveToAndMovementStatsNoneDeadQuery;
 		private readonly QueryDescription _predictedMovementQuery = QueryCache.AllPositionAndPredictedMoveToAndMovementStatsNoneDeadQuery;
 		private readonly QueryDescription _unitSpatialQuery = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
-		private readonly QueryDescription _propSpatialQuery = QueryCache.AllPropIdentityAndPositionQuery;
+		private readonly QueryDescription _propObstacleQuery = QueryCache.AllPropIdentityAndPositionNoneDeadQuery;
+		private readonly QueryDescription _buildingObstacleQuery = QueryCache.AllBuildingAndPositionNoneDeadQuery;
 		private EntityCallback<Position, MoveTo, MovementStats> _movementQueryDelegate;
 		private EntityCallback<Position> _unitSpatialQueryDelegate;
-		private EntityCallback<Position> _propSpatialQueryDelegate;
-		private int _lastPropEntityCount = -1;
-		private EcsWorld? _lastPropWorld;
+		private EntityCallback<Position> _propObstacleQueryDelegate;
+		private EntityCallback<Position> _buildingObstacleQueryDelegate;
+		private int _lastObstacleCount = -1;
+		private EcsWorld? _lastObstacleWorld;
 		private bool _planOnlyLocallyOwnedMovement;
-		private bool _propGridDirty = true;
+		private bool _obstacleGridDirty = true;
 
 		private TerrainState _currentTerrainState;
 		private bool _hasTerrainState;
@@ -213,14 +218,20 @@ namespace Realm.Ecs.Services
 			_collectPredictedMovementWorkItemDelegate = CollectPredictedMovementWorkItemAction;
 			_processMovementWorkItemDelegate = ProcessMovementWorkItemParallel;
 			_unitSpatialQueryDelegate = UnitSpatialGridQueryAction;
-			_propSpatialQueryDelegate = PropSpatialGridQueryAction;
+			_propObstacleQueryDelegate = PropObstacleQueryAction;
+			_buildingObstacleQueryDelegate = BuildingObstacleQueryAction;
 		}
 
 		private bool ShouldSimulateEntity(Entity entity) => SimulateEntityFilter == null || SimulateEntityFilter(entity);
 
-		public void InvalidatePropGrid()
+		/// <summary>
+		///     Asks for the static obstacle grid to be built again on the next step. A prop or a building that appeared,
+		///     went away or was moved without the grid noticing is picked up by the next step, which is how a building
+		///     spawned or destroyed mid-match starts and stops blocking movement.
+		/// </summary>
+		public void InvalidateObstacleGrid()
 		{
-			_propGridDirty = true;
+			_obstacleGridDirty = true;
 		}
 
 		public void AdvanceElapsedTime(float delta)
@@ -389,22 +400,23 @@ namespace Realm.Ecs.Services
 			var world = _context.World;
 			world.Query(in _unitSpatialQuery, _unitSpatialQueryDelegate);
 
-			int currentPropCount = world.CountEntities(in _propSpatialQuery);
-			if (_propGridDirty || !ReferenceEquals(_lastPropWorld, world) || currentPropCount != _lastPropEntityCount)
+			int currentObstacleCount = world.CountEntities(in _propObstacleQuery) + world.CountEntities(in _buildingObstacleQuery);
+			if (_obstacleGridDirty || !ReferenceEquals(_lastObstacleWorld, world) || currentObstacleCount != _lastObstacleCount)
 			{
-				_propGridDirty = false;
-				_lastPropWorld = world;
-				_lastPropEntityCount = currentPropCount;
+				_obstacleGridDirty = false;
+				_lastObstacleWorld = world;
+				_lastObstacleCount = currentObstacleCount;
 
-				foreach (var list in _propGrid.Values)
+				foreach (var list in _obstacleGrid.Values)
 				{
 					list.Clear();
 					_listPool.Add(list);
 				}
 
-				_propGrid.Clear();
+				_obstacleGrid.Clear();
 
-				world.Query(in _propSpatialQuery, _propSpatialQueryDelegate);
+				world.Query(in _propObstacleQuery, _propObstacleQueryDelegate);
+				world.Query(in _buildingObstacleQuery, _buildingObstacleQueryDelegate);
 			}
 		}
 
@@ -429,24 +441,47 @@ namespace Realm.Ecs.Services
 			list.Add(new SpatialGridEntry(entity, pos, vel, radius, hasVel));
 		}
 
-		private void PropSpatialGridQueryAction(Entity entity, ref Position p)
+		private void PropObstacleQueryAction(Entity entity, ref Position p)
+		{
+			var world = _context.World;
+			float scale = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
+			float radius = world.Has<CollisionRadius>(entity)
+				? world.Get<CollisionRadius>(entity).Value * scale
+				: scale * GameplayConstants.DefaultPropCollisionRadius;
+
+			AddObstacleEntry(entity, p.Value, radius);
+		}
+
+		/// <summary>
+		///     Registers a building as an obstacle body the tick after it is spawned and leaves its body out again the tick
+		///     it is destroyed, which is the same lifecycle a unit's body has; the only difference is that a building is not
+		///     rebuilt from a moving body every tick. A building that carries no authored radius - a template the map draws
+		///     as a flat ground marker - blocks nothing, exactly as it contributes no obstacle volume to the navigation bake.
+		/// </summary>
+		private void BuildingObstacleQueryAction(Entity entity, ref Position p)
+		{
+			var world = _context.World;
+			if (!world.Has<CollisionRadius>(entity)) return;
+
+			float scale = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
+			float radius = world.Get<CollisionRadius>(entity).Value * scale;
+			if (radius <= GameplayConstants.MinimumAuthoredCollisionRadius) return;
+
+			AddObstacleEntry(entity, p.Value, radius);
+		}
+
+		private void AddObstacleEntry(Entity entity, Vector3 pos, float radius)
 		{
 			var world = _context.World;
 			if (world.Has<Dead>(entity)) return;
 
-			Vector3 pos = p.Value;
 			long key = GetCellKey(pos.X, pos.Z);
 
-			if (!_propGrid.TryGetValue(key, out var list))
+			if (!_obstacleGrid.TryGetValue(key, out var list))
 			{
 				list = GetEntityListFromPool();
-				_propGrid[key] = list;
+				_obstacleGrid[key] = list;
 			}
-
-			float scaleProp = world.Has<CollisionScale>(entity) ? world.Get<CollisionScale>(entity).Value : 1.0f;
-			float radius = world.Has<CollisionRadius>(entity)
-				? world.Get<CollisionRadius>(entity).Value * scaleProp
-				: scaleProp * GameplayConstants.DefaultPropCollisionRadius;
 
 			list.Add(new SpatialGridEntry(entity, pos, Vector3.Zero, radius, false));
 		}
@@ -1037,7 +1072,7 @@ namespace Realm.Ecs.Services
 			int baseCz = (int)Math.Floor(nextPos.Z / _collisionCellSize);
 
 			ApplyUnitCollision(entity, baseCx, baseCz, r1, ref nextPos);
-			ApplyPropCollision(baseCx, baseCz, r1, ref nextPos);
+			ApplyObstacleCollision(baseCx, baseCz, r1, ref nextPos);
 		}
 
 		private void ApplyUnitCollision(Entity entity, int baseCx, int baseCz, float r1, ref Vector3 nextPos)
@@ -1060,19 +1095,19 @@ namespace Realm.Ecs.Services
 			}
 		}
 
-		private void ApplyPropCollision(int baseCx, int baseCz, float r1, ref Vector3 nextPos)
+		private void ApplyObstacleCollision(int baseCx, int baseCz, float r1, ref Vector3 nextPos)
 		{
 			for (int dx = -1; dx <= 1; dx++)
 			{
 				for (int dz = -1; dz <= 1; dz++)
 				{
 					long key = ((long)(baseCx + dx) << 32) | (uint)(baseCz + dz);
-					if (!_propGrid.TryGetValue(key, out var list)) continue;
+					if (!_obstacleGrid.TryGetValue(key, out var list)) continue;
 
 					for (int i = 0; i < list.Count; i++)
 					{
-						var prop = list[i];
-						ResolveCollision(r1, prop.CollisionRadius, prop.Position, ref nextPos);
+						var obstacle = list[i];
+						ResolveCollision(r1, obstacle.CollisionRadius, obstacle.Position, ref nextPos);
 					}
 				}
 			}

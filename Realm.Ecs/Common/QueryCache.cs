@@ -68,10 +68,12 @@ public static class QueryCache
 	public static readonly QueryDescription AllCooldownsQuery = new QueryDescription().WithAll<Cooldowns>();
 	public static readonly QueryDescription AllPositionQuery = new QueryDescription().WithAll<Position>();
 	public static readonly QueryDescription AllPropIdentityAndPositionQuery = new QueryDescription().WithAll<PropIdentity, Position>();
+	public static readonly QueryDescription AllPropIdentityAndPositionNoneDeadQuery = new QueryDescription().WithAll<PropIdentity, Position>().WithNone<Dead>();
+	public static readonly QueryDescription AllBuildingAndPositionNoneDeadQuery = new QueryDescription().WithAll<Building, Position>().WithNone<Dead>();
 	public static readonly QueryDescription AllDecalIdentityAndPositionQuery = new QueryDescription().WithAll<DecalIdentity, Position>();
 	public static readonly QueryDescription AllPositionAndCollisionRadiusQuery = new QueryDescription().WithAll<Position, CollisionRadius>();
-	public static readonly QueryDescription AllPositionAndCollisionRadiusAndPropIdentityQuery = new QueryDescription().WithAll<Position, CollisionRadius, PropIdentity>();
-	public static readonly QueryDescription AllPositionAndCollisionRadiusAndBuildingQuery = new QueryDescription().WithAll<Position, CollisionRadius, Building>();
+	public static readonly QueryDescription AllPositionAndCollisionRadiusAndPropIdentityNoneDeadQuery = new QueryDescription().WithAll<Position, CollisionRadius, PropIdentity>().WithNone<Dead>();
+	public static readonly QueryDescription AllPositionAndCollisionRadiusAndBuildingNoneDeadQuery = new QueryDescription().WithAll<Position, CollisionRadius, Building>().WithNone<Dead>();
 	public static readonly QueryDescription AllPositionAndBuildTaskNoneDeadQuery = new QueryDescription().WithAll<Position, BuildTask>().WithNone<Dead>();
 	public static readonly QueryDescription AllBuildingAndConstructionStateAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Building, ConstructionState, Owner>().WithNone<Dead>();
 	public static readonly QueryDescription AllBuildQueueNoneDeadQuery = new QueryDescription().WithAll<BuildQueue>().WithNone<Dead>();

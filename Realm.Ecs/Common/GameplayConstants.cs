@@ -27,6 +27,14 @@ public static class GameplayConstants
 	public const float DefaultPropCollisionRadius = 1.5f;
 
 	/// <summary>
+	///     Contact radius assumed for a building whose template authors no collision circle,
+	///     expressed as a fraction of its collision scale. A building is a body the movement
+	///     step, the collision grid and the navigation bake all path around, so it needs a
+	///     radius even when the map never authored one.
+	/// </summary>
+	public const float DefaultBuildingCollisionRadius = 1.5f;
+
+	/// <summary>
 	///     Authored CollisionRadius values at or below this are treated as "never authored"
 	///     rather than as a real body size. Shared by movement separation and combat so both
 	///     agree on when the default body size applies.

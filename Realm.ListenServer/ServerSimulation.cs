@@ -173,6 +173,11 @@ public class ServerSimulation : IDisposable
 		ref TerrainState terrain = ref _map.World.Get<TerrainState>(worldEntity);
 		navMesh.BakeNavMesh(ref terrain);
 		_map.World.Set(worldEntity, terrain);
+
+		// The mesh is rebuilt when any obstacle volume differs from the baked ones, which includes a prop or building
+		// that was moved rather than spawned or destroyed. The movement obstacle grid watches the obstacle count on its
+		// own, so a move is the one case that has to be handed to it.
+		_map.Simulation.MovementPathfindingService.InvalidateObstacleGrid();
 		_log.Write($"navigation mesh rebaked with {navMesh.LastBakedObstacleCount} obstacle volumes");
 	}
 

@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
@@ -113,9 +114,37 @@ public static class UnitEntityFactory
 		world.SetOrAdd(entity, new CollisionScale(placedScale));
 
 		if (bypassPopulation) world.Add(entity, new BypassPopulationTag());
-		if (isBuilding) world.SetOrAdd(entity, new Building());
+		if (isBuilding)
+		{
+			world.SetOrAdd(entity, new Building());
+			if (BlocksMovement(metadata)) world.SetOrAdd(entity, new CollisionRadius(ResolveCollisionRadius(metadata)));
+		}
 
 		return entity;
+	}
+
+	/// <summary>
+	///     True when a building stands on the ground and therefore blocks the units that walk around it. A template
+	///     drawn as a flat ground-plane marker is a decoration the map lays on the floor, so nothing paths around it.
+	///     Every process asks this, so a building blocks the same ground wherever it is simulated.
+	/// </summary>
+	public static bool BlocksMovement(UnitMetadata metadata)
+	{
+		return !string.Equals(metadata.VisualMode, GroundPlaneVisualMode, StringComparison.OrdinalIgnoreCase);
+	}
+
+	private const string GroundPlaneVisualMode = "GroundPlane";
+
+	/// <summary>
+	///     The radius a building blocks movement and routing with: the collision circle its template authors, or the
+	///     shared default building radius when it authors none. Every consumer scales it by the building's placed
+	///     collision scale, so a building placed at twice the size blocks twice as much ground.
+	/// </summary>
+	public static float ResolveCollisionRadius(UnitMetadata metadata)
+	{
+		return metadata.CollisionCircle > GameplayConstants.MinimumAuthoredCollisionRadius
+			? metadata.CollisionCircle
+			: GameplayConstants.DefaultBuildingCollisionRadius;
 	}
 
 	public static Entity CreateCore(
