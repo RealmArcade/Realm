@@ -261,4 +261,84 @@ public interface IEditorAPI
 	/// <param name="depth">Requested depth in cells.</param>
 	/// <returns>Whether the map was resized, and why not when it was not.</returns>
 	EditorOperationResult ResizeMap(int width, int depth);
+
+	/// <summary>Sets how far a model is lifted above the terrain when it is placed.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="offset">Vertical offset in world units.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelYOffset(string assetKey, float offset);
+
+	/// <summary>Sets the uniform size a model is drawn at when it is placed.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="scale">Uniform scale multiplier.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelScale(string assetKey, float scale);
+
+	/// <summary>Sets the collision radius of a model as a fraction of its drawn radius.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="ratio">Collision radius divided by drawn radius.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelCollisionCircleRatio(string assetKey, float ratio);
+
+	/// <summary>Sets the brightness multiplier a model is drawn with.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="brightness">Brightness multiplier.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelBrightness(string assetKey, float brightness);
+
+	/// <summary>Sets the colour tint a model is multiplied by when it is drawn.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="red">Red channel, 0 to 1.</param>
+	/// <param name="green">Green channel, 0 to 1.</param>
+	/// <param name="blue">Blue channel, 0 to 1.</param>
+	/// <param name="alpha">Alpha channel, 0 to 1.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelColorTint(string assetKey, float red, float green, float blue, float alpha);
+
+	/// <summary>Whether a model keeps its own colours instead of being tinted by the owner's player colour.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="ignorePlayerColor">True to keep the model's own colours.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelIgnorePlayerColor(string assetKey, bool ignorePlayerColor);
+
+	/// <summary>Whether a model removes the player colour already painted into its textures.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="despillPlayerColor">True to remove the painted player colour.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelDespillPlayerColor(string assetKey, bool despillPlayerColor);
+
+	/// <summary>Whether a model's colour is normalised so lighting differences between assets do not show.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="normalizeLuminance">True to normalise luminance.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelNormalizeLuminance(string assetKey, bool normalizeLuminance);
+
+	/// <summary>Sets the effect played when a model is created.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="shaderKey">Registered shader key, or empty for none.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelSpawnShader(string assetKey, string shaderKey);
+
+	/// <summary>Sets the effect played when a model is destroyed.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="shaderKey">Registered shader key, or empty for none.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelDeathShader(string assetKey, string shaderKey);
+
+	/// <summary>Whether a model plays a procedural animation instead of a baked one.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="enable">True to enable the procedural animation.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelEnableProceduralAnimation(string assetKey, bool enable);
+
+	/// <summary>Selects which procedural animation a model plays.</summary>
+	/// <param name="assetKey">Map asset key the model belongs to.</param>
+	/// <param name="animationId">Registered procedural animation id.</param>
+	/// <returns>Whether the change was recorded.</returns>
+	EditorOperationResult SetModelProceduralAnimation(string assetKey, string animationId);
+
+	/// <summary>Redraws every placed object of an asset so a change to how it looks is visible at once.</summary>
+	/// <param name="assetKey">Map asset key to redraw, or empty to redraw every placed object.</param>
+	/// <returns>Whether anything was redrawn.</returns>
+	EditorOperationResult RefreshPlacedObjectModels(string assetKey = "");
 }

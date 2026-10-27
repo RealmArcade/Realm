@@ -1,4 +1,4 @@
-using Realm.Client.Core;
+﻿using Realm.Client.Core;
 using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
@@ -34,18 +34,18 @@ public class EntityVisualEditUndoAction : IEditorAction
 
 		EntityVisualEditDialog.UpdateStaticRegistryModelAndVisualMode(_category, _assetKey, snapshot.ModelPath, snapshot.VisualMode);
 
-		GameContext.Host.SetModelScale(_assetKey, snapshot.Scale);
-		GameContext.Host.SetModelYOffset(_assetKey, snapshot.YOffset);
-		GameContext.Host.SetModelCollisionCircleRatio(_assetKey, snapshot.CollisionCircleRatio);
-		GameContext.Host.SetModelBrightness(_assetKey, snapshot.Brightness);
-		GameContext.Host.SetModelColorTint(_assetKey, snapshot.ColorTint);
-		GameContext.Host.SetModelNormalizeLuminance(_assetKey, snapshot.NormalizeLuminance);
-		GameContext.Host.SetModelIgnorePlayerColor(_assetKey, snapshot.IgnorePlayerColor);
-		GameContext.Host.SetModelDespillPlayerColor(_assetKey, snapshot.DespillPlayerColor);
-		GameContext.Host.SetModelSpawnShader(_assetKey, snapshot.SpawnShader);
-		GameContext.Host.SetModelDeathShader(_assetKey, snapshot.DeathShader);
-		GameContext.Host.SetModelEnableProceduralAnimation(_assetKey, snapshot.EnableProceduralAnimation);
-		GameContext.Host.SetModelProceduralAnimation(_assetKey, snapshot.ProceduralAnimation);
+		GameContext.IEditorAPI.SetModelScale(_assetKey, snapshot.Scale);
+		GameContext.IEditorAPI.SetModelYOffset(_assetKey, snapshot.YOffset);
+		GameContext.IEditorAPI.SetModelCollisionCircleRatio(_assetKey, snapshot.CollisionCircleRatio);
+		GameContext.IEditorAPI.SetModelBrightness(_assetKey, snapshot.Brightness);
+		GameContext.IEditorAPI.SetModelColorTint(_assetKey, snapshot.ColorTint.R, snapshot.ColorTint.G, snapshot.ColorTint.B, snapshot.ColorTint.A);
+		GameContext.IEditorAPI.SetModelNormalizeLuminance(_assetKey, snapshot.NormalizeLuminance);
+		GameContext.IEditorAPI.SetModelIgnorePlayerColor(_assetKey, snapshot.IgnorePlayerColor);
+		GameContext.IEditorAPI.SetModelDespillPlayerColor(_assetKey, snapshot.DespillPlayerColor);
+		GameContext.IEditorAPI.SetModelSpawnShader(_assetKey, snapshot.SpawnShader);
+		GameContext.IEditorAPI.SetModelDeathShader(_assetKey, snapshot.DeathShader);
+		GameContext.IEditorAPI.SetModelEnableProceduralAnimation(_assetKey, snapshot.EnableProceduralAnimation);
+		GameContext.IEditorAPI.SetModelProceduralAnimation(_assetKey, snapshot.ProceduralAnimation);
 
 		Prop3D.InvalidateModelPathCache(_assetKey);
 		ModelCache.InvalidateModelPath(_assetKey);
@@ -55,7 +55,7 @@ public class EntityVisualEditUndoAction : IEditorAction
 			ModelCache.InvalidateModelPath(snapshot.ModelPath);
 		}
 
-		GameContext.Host.RefreshAllPlacedObjectModels(_assetKey);
+		GameContext.IEditorAPI.RefreshPlacedObjectModels(_assetKey);
 		GameContext.Host.FlushModelYOffsetSave();
 		GameContext.Host.FlushModelCollisionCircleSave();
 	}

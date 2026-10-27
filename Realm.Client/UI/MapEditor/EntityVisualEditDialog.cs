@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -272,8 +272,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				_yOffset = val;
 				if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 				{
-					GameContext.Host.SetModelYOffset(_originalTemplateID, val);
-					GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+					GameContext.IEditorAPI.SetModelYOffset(_originalTemplateID, val);
+					GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 				}
 			},
 			"0.00",
@@ -293,8 +293,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				_collisionCircle = val;
 				if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 				{
-					GameContext.Host.SetModelCollisionCircleRatio(_originalTemplateID, val);
-					GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+					GameContext.IEditorAPI.SetModelCollisionCircleRatio(_originalTemplateID, val);
+					GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 				}
 			},
 			"0.00",
@@ -325,14 +325,14 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 			if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				GameContext.Host.SetModelYOffset(_originalTemplateID, newYOffset);
+				GameContext.IEditorAPI.SetModelYOffset(_originalTemplateID, newYOffset);
 			}
 		}
 
 		if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 		{
-			GameContext.Host.SetModelScale(_originalTemplateID, newScale);
-			GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+			GameContext.IEditorAPI.SetModelScale(_originalTemplateID, newScale);
+			GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 		}
 	}
 
@@ -351,8 +351,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				_brightness = val;
 				if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 				{
-					GameContext.Host.SetModelBrightness(_originalTemplateID, val);
-					GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+					GameContext.IEditorAPI.SetModelBrightness(_originalTemplateID, val);
+					GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 				}
 			},
 			"0.00x",
@@ -369,8 +369,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 				_tint = color;
 				if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 				{
-					GameContext.Host.SetModelColorTint(_originalTemplateID, color);
-					GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+					GameContext.IEditorAPI.SetModelColorTint(_originalTemplateID, color.R, color.G, color.B, color.A);
+					GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 				}
 			},
 			140f
@@ -385,8 +385,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			_normalizeLuminance = val;
 			if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				GameContext.Host.SetModelNormalizeLuminance(_originalTemplateID, val);
-				GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+				GameContext.IEditorAPI.SetModelNormalizeLuminance(_originalTemplateID, val);
+				GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 			}
 		});
 
@@ -396,8 +396,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			_ignorePlayerColor = val;
 			if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				GameContext.Host.SetModelIgnorePlayerColor(_originalTemplateID, val);
-				GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+				GameContext.IEditorAPI.SetModelIgnorePlayerColor(_originalTemplateID, val);
+				GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 			}
 		});
 
@@ -407,8 +407,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			_despillPlayerColor = val;
 			if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				GameContext.Host.SetModelDespillPlayerColor(_originalTemplateID, val);
-				GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+				GameContext.IEditorAPI.SetModelDespillPlayerColor(_originalTemplateID, val);
+				GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 			}
 		});
 	}
@@ -456,15 +456,15 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private void UpdateModelSpawnShader(string selectedKey)
 	{
 		if (GameContext.Host == null || string.IsNullOrEmpty(_originalTemplateID)) return;
-		GameContext.Host.SetModelSpawnShader(_originalTemplateID, selectedKey);
-		GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+		GameContext.IEditorAPI.SetModelSpawnShader(_originalTemplateID, selectedKey);
+		GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 	}
 
 	private void UpdateModelDeathShader(string selectedKey)
 	{
 		if (GameContext.Host == null || string.IsNullOrEmpty(_originalTemplateID)) return;
-		GameContext.Host.SetModelDeathShader(_originalTemplateID, selectedKey);
-		GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+		GameContext.IEditorAPI.SetModelDeathShader(_originalTemplateID, selectedKey);
+		GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 	}
 
 	private void BuildProceduralAnimationControls(VBoxContainer contentVBox)
@@ -475,8 +475,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			_enableProceduralAnimation = pressed;
 			if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				GameContext.Host.SetModelEnableProceduralAnimation(_originalTemplateID, pressed);
-				GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+				GameContext.IEditorAPI.SetModelEnableProceduralAnimation(_originalTemplateID, pressed);
+				GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 			}
 		});
 
@@ -495,8 +495,8 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			_proceduralAnimation = selectedKey;
 			if (GameContext.Host != null && !string.IsNullOrEmpty(_originalTemplateID))
 			{
-				GameContext.Host.SetModelProceduralAnimation(_originalTemplateID, selectedKey);
-				GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+				GameContext.IEditorAPI.SetModelProceduralAnimation(_originalTemplateID, selectedKey);
+				GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 			}
 		}, 140f);
 	}
@@ -546,7 +546,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		if (GameContext.Host != null && !string.IsNullOrEmpty(targetKey))
 		{
-			GameContext.Host.RefreshAllPlacedObjectModels(targetKey);
+			GameContext.IEditorAPI.RefreshPlacedObjectModels(targetKey);
 		}
 	}
 
@@ -594,9 +594,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	{
 		if (GameContext.Host == null || string.IsNullOrEmpty(_originalTemplateID)) return;
 
-		GameContext.Host.SetModelProceduralAnimation(_originalTemplateID, animId);
-		GameContext.Host.SetModelEnableProceduralAnimation(_originalTemplateID, true);
-		GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+		GameContext.IEditorAPI.SetModelProceduralAnimation(_originalTemplateID, animId);
+		GameContext.IEditorAPI.SetModelEnableProceduralAnimation(_originalTemplateID, true);
+		GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 	}
 
 	private void UpdateStudioButtonVisibility()
@@ -1237,11 +1237,11 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			ModelCache.InvalidateModelPath(_modelPath);
 		}
 
-		GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+		GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 
 		if (!string.IsNullOrEmpty(_slug))
 		{
-			GameContext.Host.RefreshAllPlacedObjectModels($"{_objectType}/{_slug}");
+			GameContext.IEditorAPI.RefreshPlacedObjectModels($"{_objectType}/{_slug}");
 		}
 
 		if (_currentSelectedObject != null && GodotObject.IsInstanceValid(_currentSelectedObject))
@@ -1874,7 +1874,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
 		{
 			FlushModelPropertiesToGameHost(_originalTemplateID, spawnKey, deathKey, animKey);
-			GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+			GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 		}
 
 		GameContext.Host.LoadUnitMetadata(wsPath);
@@ -1884,10 +1884,10 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		var action = new EntityVisualEditUndoAction(newTemplateID, _category, _initialSnapshot, currentSnapshot);
 		EditorHistoryManager.RecordAction(action);
 
-		GameContext.Host.RefreshAllPlacedObjectModels(newTemplateID);
+		GameContext.IEditorAPI.RefreshPlacedObjectModels(newTemplateID);
 		if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
 		{
-			GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+			GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 		}
 
 		RefreshCurrentSelectedObject();
@@ -2120,18 +2120,18 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	private void FlushModelPropertiesToGameHost(string templateID, string spawnKey, string deathKey, string animKey)
 	{
-		GameContext.Host.SetModelScale(templateID, _scale);
-		GameContext.Host.SetModelYOffset(templateID, _yOffset);
-		GameContext.Host.SetModelCollisionCircleRatio(templateID, _collisionCircle);
-		GameContext.Host.SetModelBrightness(templateID, _brightness);
-		GameContext.Host.SetModelColorTint(templateID, _tint);
-		GameContext.Host.SetModelNormalizeLuminance(templateID, _normalizeLuminance);
-		GameContext.Host.SetModelIgnorePlayerColor(templateID, _ignorePlayerColor);
-		GameContext.Host.SetModelDespillPlayerColor(templateID, _despillPlayerColor);
-		GameContext.Host.SetModelSpawnShader(templateID, spawnKey);
-		GameContext.Host.SetModelDeathShader(templateID, deathKey);
-		GameContext.Host.SetModelEnableProceduralAnimation(templateID, _enableProceduralAnimation);
-		GameContext.Host.SetModelProceduralAnimation(templateID, animKey);
+		GameContext.IEditorAPI.SetModelScale(templateID, _scale);
+		GameContext.IEditorAPI.SetModelYOffset(templateID, _yOffset);
+		GameContext.IEditorAPI.SetModelCollisionCircleRatio(templateID, _collisionCircle);
+		GameContext.IEditorAPI.SetModelBrightness(templateID, _brightness);
+		GameContext.IEditorAPI.SetModelColorTint(templateID, _tint.R, _tint.G, _tint.B, _tint.A);
+		GameContext.IEditorAPI.SetModelNormalizeLuminance(templateID, _normalizeLuminance);
+		GameContext.IEditorAPI.SetModelIgnorePlayerColor(templateID, _ignorePlayerColor);
+		GameContext.IEditorAPI.SetModelDespillPlayerColor(templateID, _despillPlayerColor);
+		GameContext.IEditorAPI.SetModelSpawnShader(templateID, spawnKey);
+		GameContext.IEditorAPI.SetModelDeathShader(templateID, deathKey);
+		GameContext.IEditorAPI.SetModelEnableProceduralAnimation(templateID, _enableProceduralAnimation);
+		GameContext.IEditorAPI.SetModelProceduralAnimation(templateID, animKey);
 	}
 
 
@@ -2154,18 +2154,18 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		RestoreStaticRegistryMode();
 
-		GameContext.Host.SetModelScale(_originalTemplateID, _initialSnapshot.Scale);
-		GameContext.Host.SetModelYOffset(_originalTemplateID, _initialSnapshot.YOffset);
-		GameContext.Host.SetModelCollisionCircleRatio(_originalTemplateID, _initialSnapshot.CollisionCircleRatio);
-		GameContext.Host.SetModelBrightness(_originalTemplateID, _initialSnapshot.Brightness);
-		GameContext.Host.SetModelColorTint(_originalTemplateID, _initialSnapshot.ColorTint);
-		GameContext.Host.SetModelNormalizeLuminance(_originalTemplateID, _initialSnapshot.NormalizeLuminance);
-		GameContext.Host.SetModelIgnorePlayerColor(_originalTemplateID, _initialSnapshot.IgnorePlayerColor);
-		GameContext.Host.SetModelDespillPlayerColor(_originalTemplateID, _initialSnapshot.DespillPlayerColor);
-		GameContext.Host.SetModelSpawnShader(_originalTemplateID, _initialSnapshot.SpawnShader);
-		GameContext.Host.SetModelDeathShader(_originalTemplateID, _initialSnapshot.DeathShader);
-		GameContext.Host.SetModelEnableProceduralAnimation(_originalTemplateID, _initialSnapshot.EnableProceduralAnimation);
-		GameContext.Host.SetModelProceduralAnimation(_originalTemplateID, _initialSnapshot.ProceduralAnimation);
+		GameContext.IEditorAPI.SetModelScale(_originalTemplateID, _initialSnapshot.Scale);
+		GameContext.IEditorAPI.SetModelYOffset(_originalTemplateID, _initialSnapshot.YOffset);
+		GameContext.IEditorAPI.SetModelCollisionCircleRatio(_originalTemplateID, _initialSnapshot.CollisionCircleRatio);
+		GameContext.IEditorAPI.SetModelBrightness(_originalTemplateID, _initialSnapshot.Brightness);
+		GameContext.IEditorAPI.SetModelColorTint(_originalTemplateID, _initialSnapshot.ColorTint.R, _initialSnapshot.ColorTint.G, _initialSnapshot.ColorTint.B, _initialSnapshot.ColorTint.A);
+		GameContext.IEditorAPI.SetModelNormalizeLuminance(_originalTemplateID, _initialSnapshot.NormalizeLuminance);
+		GameContext.IEditorAPI.SetModelIgnorePlayerColor(_originalTemplateID, _initialSnapshot.IgnorePlayerColor);
+		GameContext.IEditorAPI.SetModelDespillPlayerColor(_originalTemplateID, _initialSnapshot.DespillPlayerColor);
+		GameContext.IEditorAPI.SetModelSpawnShader(_originalTemplateID, _initialSnapshot.SpawnShader);
+		GameContext.IEditorAPI.SetModelDeathShader(_originalTemplateID, _initialSnapshot.DeathShader);
+		GameContext.IEditorAPI.SetModelEnableProceduralAnimation(_originalTemplateID, _initialSnapshot.EnableProceduralAnimation);
+		GameContext.IEditorAPI.SetModelProceduralAnimation(_originalTemplateID, _initialSnapshot.ProceduralAnimation);
 
 		Prop3D.InvalidateModelPathCache(_originalTemplateID);
 		ModelCache.InvalidateModelPath(_originalTemplateID);
@@ -2175,7 +2175,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 			ModelCache.InvalidateModelPath(_initialSnapshot.ModelPath);
 		}
 
-		GameContext.Host.RefreshAllPlacedObjectModels(_originalTemplateID);
+		GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 
 		if (_currentSelectedObject != null && GodotObject.IsInstanceValid(_currentSelectedObject))
 		{

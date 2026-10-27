@@ -220,4 +220,40 @@ public partial class EditorService
 		(bool success, string error) = GameContext.Host.DeleteSelectedObject();
 		return success ? EditorOperationResult.Succeeded() : EditorOperationResult.Failed(error);
 	}
+
+	public EditorOperationResult SetModelYOffset(string assetKey, float offset) => WithHost(host => host.SetModelYOffset(assetKey, offset));
+
+	public EditorOperationResult SetModelScale(string assetKey, float scale) => WithHost(host => host.SetModelScale(assetKey, scale));
+
+	public EditorOperationResult SetModelCollisionCircleRatio(string assetKey, float ratio) => WithHost(host => host.SetModelCollisionCircleRatio(assetKey, ratio));
+
+	public EditorOperationResult SetModelBrightness(string assetKey, float brightness) => WithHost(host => host.SetModelBrightness(assetKey, brightness));
+
+	public EditorOperationResult SetModelColorTint(string assetKey, float red, float green, float blue, float alpha) =>
+		WithHost(host => host.SetModelColorTint(assetKey, new Color(red, green, blue, alpha)));
+
+	public EditorOperationResult SetModelIgnorePlayerColor(string assetKey, bool ignorePlayerColor) => WithHost(host => host.SetModelIgnorePlayerColor(assetKey, ignorePlayerColor));
+
+	public EditorOperationResult SetModelDespillPlayerColor(string assetKey, bool despillPlayerColor) => WithHost(host => host.SetModelDespillPlayerColor(assetKey, despillPlayerColor));
+
+	public EditorOperationResult SetModelNormalizeLuminance(string assetKey, bool normalizeLuminance) => WithHost(host => host.SetModelNormalizeLuminance(assetKey, normalizeLuminance));
+
+	public EditorOperationResult SetModelSpawnShader(string assetKey, string shaderKey) => WithHost(host => host.SetModelSpawnShader(assetKey, shaderKey));
+
+	public EditorOperationResult SetModelDeathShader(string assetKey, string shaderKey) => WithHost(host => host.SetModelDeathShader(assetKey, shaderKey));
+
+	public EditorOperationResult SetModelEnableProceduralAnimation(string assetKey, bool enable) => WithHost(host => host.SetModelEnableProceduralAnimation(assetKey, enable));
+
+	public EditorOperationResult SetModelProceduralAnimation(string assetKey, string animationId) => WithHost(host => host.SetModelProceduralAnimation(assetKey, animationId));
+
+	public EditorOperationResult RefreshPlacedObjectModels(string assetKey = "") => WithHost(host => host.RefreshAllPlacedObjectModels(string.IsNullOrEmpty(assetKey) ? null : assetKey));
+
+	/// <summary>Runs an operation against the open map, reporting that there is nothing to run it against otherwise.</summary>
+	private static EditorOperationResult WithHost(Action<GameHost> operation)
+	{
+		if (GameContext.Host == null) return EditorOperationResult.Failed("there is no map open in the editor");
+
+		operation(GameContext.Host);
+		return EditorOperationResult.Succeeded();
+	}
 }

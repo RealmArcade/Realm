@@ -453,6 +453,86 @@
             <param name="depth">Requested depth in cells.</param>
             <returns>Whether the map was resized, and why not when it was not.</returns>
         </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelYOffset(System.String,System.Single)">
+            <summary>Sets how far a model is lifted above the terrain when it is placed.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="offset">Vertical offset in world units.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelScale(System.String,System.Single)">
+            <summary>Sets the uniform size a model is drawn at when it is placed.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="scale">Uniform scale multiplier.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelCollisionCircleRatio(System.String,System.Single)">
+            <summary>Sets the collision radius of a model as a fraction of its drawn radius.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="ratio">Collision radius divided by drawn radius.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelBrightness(System.String,System.Single)">
+            <summary>Sets the brightness multiplier a model is drawn with.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="brightness">Brightness multiplier.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelColorTint(System.String,System.Single,System.Single,System.Single,System.Single)">
+            <summary>Sets the colour tint a model is multiplied by when it is drawn.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="red">Red channel, 0 to 1.</param>
+            <param name="green">Green channel, 0 to 1.</param>
+            <param name="blue">Blue channel, 0 to 1.</param>
+            <param name="alpha">Alpha channel, 0 to 1.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelIgnorePlayerColor(System.String,System.Boolean)">
+            <summary>Whether a model keeps its own colours instead of being tinted by the owner's player colour.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="ignorePlayerColor">True to keep the model's own colours.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelDespillPlayerColor(System.String,System.Boolean)">
+            <summary>Whether a model removes the player colour already painted into its textures.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="despillPlayerColor">True to remove the painted player colour.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelNormalizeLuminance(System.String,System.Boolean)">
+            <summary>Whether a model's colour is normalised so lighting differences between assets do not show.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="normalizeLuminance">True to normalise luminance.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelSpawnShader(System.String,System.String)">
+            <summary>Sets the effect played when a model is created.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="shaderKey">Registered shader key, or empty for none.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelDeathShader(System.String,System.String)">
+            <summary>Sets the effect played when a model is destroyed.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="shaderKey">Registered shader key, or empty for none.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelEnableProceduralAnimation(System.String,System.Boolean)">
+            <summary>Whether a model plays a procedural animation instead of a baked one.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="enable">True to enable the procedural animation.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.SetModelProceduralAnimation(System.String,System.String)">
+            <summary>Selects which procedural animation a model plays.</summary>
+            <param name="assetKey">Map asset key the model belongs to.</param>
+            <param name="animationId">Registered procedural animation id.</param>
+            <returns>Whether the change was recorded.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.RefreshPlacedObjectModels(System.String)">
+            <summary>Redraws every placed object of an asset so a change to how it looks is visible at once.</summary>
+            <param name="assetKey">Map asset key to redraw, or empty to redraw every placed object.</param>
+            <returns>Whether anything was redrawn.</returns>
+        </member>
         <member name="T:Realm.EditorAPI.TemplateType">
             <summary>
             Specifies the template category type in map metadata.
