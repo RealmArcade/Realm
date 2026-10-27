@@ -40,6 +40,7 @@ public partial class GameHost : Node3D, IGameAPI
 	public GameHost()
 	{
 		GameContext.RegisterHost(this);
+		Realm.MapAPI.GameAPI.Current = this;
 	}
 
 	public CameraControl MainCamera { get; set; }
