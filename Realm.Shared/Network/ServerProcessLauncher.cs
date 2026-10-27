@@ -25,6 +25,12 @@ public static class ServerArgumentFlags
 	///     so a match can be replayed from its seed by anyone the match is open to.
 	/// </summary>
 	public const string SeedFlag = "--seed";
+
+	/// <summary>
+	///     Whether this match lets a player cheat. Only a match this machine plays by itself is started with it, so a
+	///     cheat typed at one of its screens is applied by the authority rather than refused.
+	/// </summary>
+	public const string CheatsFlag = "--cheats";
 }
 
 /// <summary>
@@ -49,6 +55,9 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 	///     started for its own client is private to that client; a dedicated authority serves whoever reaches it.
 	/// </summary>
 	public string? JoinTicket => string.IsNullOrEmpty(Token) ? null : Token;
+
+	/// <summary>Whether this match lets a player cheat, which only a match played against the computer does.</summary>
+	public bool Cheats { get; init; }
 
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
@@ -268,6 +277,7 @@ public class ServerProcessLauncher : IDisposable
 			startInfo.ArgumentList.Add(ServerArgumentFlags.DataFlag);
 			startInfo.ArgumentList.Add(Path.GetFullPath(request.DataFolderPath));
 		}
+		if (request.Cheats) startInfo.ArgumentList.Add(ServerArgumentFlags.CheatsFlag);
 
 		try
 		{

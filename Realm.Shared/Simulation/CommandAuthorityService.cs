@@ -9,6 +9,7 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Ecs.Utils;
 using Realm.Shared.Network;
@@ -121,6 +122,10 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 
 		if (!TryGetPlayerEntityForPeer(peerId, out Entity playerEntity)) return false;
 
+		// A match that was started with cheats on does not charge a caster for what it casts, and does not start the
+		// cooldown the map asked for either.
+		if (_context.UnlimitedPowerEnabled) return true;
+
 		if (definition.ManaCost > 0f && _context.World.Has<Mana>(casterEntity))
 		{
 			ref var mana = ref _context.World.Get<Mana>(casterEntity);
@@ -173,7 +178,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 			return false;
 		}
 
-		if (definition.Cooldown > 0f && _context.World.Has<SpellCooldowns>(playerEntity))
+		if (!_context.UnlimitedPowerEnabled && definition.Cooldown > 0f && _context.World.Has<SpellCooldowns>(playerEntity))
 		{
 			ref var cooldowns = ref _context.World.Get<SpellCooldowns>(playerEntity);
 			if (cooldowns.TryGetValue(spellId, out float remaining) && remaining > 0f)
@@ -183,7 +188,7 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 			}
 		}
 
-		if (definition.ManaCost > 0f && _context.World.Has<Mana>(casterEntity))
+		if (!_context.UnlimitedPowerEnabled && definition.ManaCost > 0f && _context.World.Has<Mana>(casterEntity))
 		{
 			ref var mana = ref _context.World.Get<Mana>(casterEntity);
 			if (mana.Current < definition.ManaCost)
@@ -213,7 +218,8 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		if (DispatchMovementCommand(peerId, cmd, stopVelocityEntityIds, holdVelocityEntityIds, rejectedServerEntityIds, ref rejectionReason)) return;
 		if (DispatchActionCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
 		if (DispatchTrainingCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
-		DispatchResearchCommand(peerId, cmd, ref rejectionReason);
+		if (DispatchResearchCommand(peerId, cmd, ref rejectionReason)) return;
+		DispatchCheatCommand(peerId, cmd, ref rejectionReason);
 	}
 
 	private bool DispatchMovementCommand(int peerId, NetworkCommand cmd, List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds, List<int> rejectedServerEntityIds, ref string rejectionReason)
@@ -837,6 +843,161 @@ public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 		resources[stoneResourceId] -= costStone;
 		_context.World.Set(playerEntity, resources);
 		return true;
+	}
+
+	private bool DispatchCheatCommand(int peerId, NetworkCommand cmd, ref string rejectionReason)
+	{
+		if (cmd.CommandType != "cheat") return false;
+
+		HandleCheatCommand(peerId, cmd, ref rejectionReason);
+		return true;
+	}
+
+	/// <summary>
+	///     Applies a development cheat a player typed. A cheat is an order like any other because it changes the world
+	///     the match plays at: a screen that applied one to its own copy would be describing a world nobody else is
+	///     playing in. Only a match that was started for a player to play alone allows them at all.
+	/// </summary>
+	private void HandleCheatCommand(int peerId, NetworkCommand cmd, ref string rejectionReason)
+	{
+		string key = (cmd.ArgString ?? string.Empty).Trim().ToLowerInvariant();
+		if (key.Length == 0)
+		{
+			rejectionReason = "a cheat order names no cheat";
+			return;
+		}
+
+		if (!_context.CheatsEnabled)
+		{
+			rejectionReason = "this match does not allow cheats";
+			return;
+		}
+
+		if (!TryGetPlayerEntityForPeer(peerId, out Entity playerEntity))
+		{
+			rejectionReason = $"peer {peerId} has no player entity";
+			return;
+		}
+
+		switch (key)
+		{
+			case "securethebag":
+				ApplySecureTheBag(playerEntity);
+				break;
+			case "gigachad":
+				ApplyGigachad(playerEntity);
+				break;
+			case "needforspeed":
+				ApplyNeedForSpeed(peerId, cmd);
+				break;
+			case "thanossnap":
+				ApplyThanosSnap();
+				break;
+			case "ezclap":
+				_context.IsGameOver = true;
+				break;
+			case "aura":
+				ApplyAura();
+				break;
+			case "speedrun":
+				_context.FastBuildEnabled = !_context.FastBuildEnabled;
+				break;
+			case "skibidi":
+				ApplySkibidi(playerEntity);
+				break;
+			default:
+				rejectionReason = $"'{key}' is not a cheat this build knows";
+				break;
+		}
+	}
+
+	/// <summary>Fills what a player has of every resource they can hold, stopping at the ceiling a match stockpiles to.</summary>
+	private void ApplySecureTheBag(Entity playerEntity)
+	{
+		if (!_context.World.TryGet<PlayerResources>(playerEntity, out PlayerResources resources)) return;
+
+		const float ceiling = 9999f;
+		var goldResourceId = new ResourceId("Gold");
+		var woodResourceId = new ResourceId("Wood");
+		var stoneResourceId = new ResourceId("Stone");
+
+		if (resources.TryGetValue(goldResourceId, out int gold)) resources[goldResourceId] = (int)Math.Min(ceiling, gold + 10000f);
+		if (resources.TryGetValue(woodResourceId, out int wood)) resources[woodResourceId] = (int)Math.Min(ceiling, wood + 10000f);
+		if (resources.TryGetValue(stoneResourceId, out int stone)) resources[stoneResourceId] = (int)Math.Min(ceiling, stone + 10000f);
+
+		_context.World.Set(playerEntity, resources);
+	}
+
+	/// <summary>Makes everything a player owns close to unkillable, which is what the cheat is for.</summary>
+	private void ApplyGigachad(Entity playerEntity)
+	{
+		var query = QueryCache.AllHealthAndOwnerQuery;
+		_context.World.Query(in query, (Entity entity, ref Owner owner) =>
+		{
+			if (owner.PlayerEntity.Value != playerEntity) return;
+
+			if (_context.World.TryGet<Health>(entity, out Health _)) _context.World.Set(entity, new Health(9000f, 9000f));
+			if (_context.World.TryGet<Attack>(entity, out Attack attack)) _context.World.Set(entity, new Attack(9001f, attack.Range, attack.Cooldown, attack.CurrentCooldown));
+		});
+	}
+
+	/// <summary>Speeds up the units an order named, which is what a player had selected when they typed it.</summary>
+	private void ApplyNeedForSpeed(int peerId, NetworkCommand cmd)
+	{
+		if (cmd.UnitEntityIds == null) return;
+
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			Entity entity = _targets.Resolve(serverId);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (!_context.World.TryGet<MovementStats>(entity, out MovementStats movement)) continue;
+
+			_context.World.Set(entity, new MovementStats(25f, movement.Acceleration, movement.TurnRate));
+		}
+	}
+
+	/// <summary>Destroys everything the computer plays with, which is the cheat that ends a match the player is losing.</summary>
+	private void ApplyThanosSnap()
+	{
+		var targets = new List<Entity>();
+		var query = QueryCache.AllHealthAndOwnerQuery;
+
+		_context.World.Query(in query, (Entity entity, ref Owner owner) =>
+		{
+			Entity ownerEntity = owner.PlayerEntity.Value;
+			if (!_context.World.IsAlive(ownerEntity)) return;
+			if (!_context.World.TryGet<Name>(ownerEntity, out Name name)) return;
+			if (!string.Equals(name.Value, "Enemy_AI", StringComparison.Ordinal)) return;
+
+			targets.Add(entity);
+		});
+
+		for (int index = 0; index < targets.Count; index++)
+		{
+			Entity entity = targets[index];
+			if (!_context.World.IsAlive(entity)) continue;
+
+			if (_context.World.TryGet<Health>(entity, out Health health)) _context.World.Set(entity, new Health(0f, health.Max));
+			if (!_context.World.Has<Dead>(entity)) _context.World.Add<Dead>(entity);
+		}
+	}
+
+	/// <summary>Reveals what the match was hiding, which is the whole board when a map shrouds nothing.</summary>
+	private void ApplyAura()
+	{
+		Entity worldEntity = _context.WorldEntity;
+		if (worldEntity == Entity.Null || !_context.World.IsAlive(worldEntity)) return;
+
+		_context.World.Mutate<ShroudState>(worldEntity, (ref ShroudState shroud) => shroud.VisibilityMode = ShroudVisibilityMode.Revealed);
+	}
+
+	/// <summary>Waives what a player's casts cost, and gives back the cooldowns they already started.</summary>
+	private void ApplySkibidi(Entity playerEntity)
+	{
+		_context.UnlimitedPowerEnabled = !_context.UnlimitedPowerEnabled;
+		if (!_context.UnlimitedPowerEnabled) return;
+
+		_context.World.Mutate<SpellCooldowns>(playerEntity, (ref SpellCooldowns cooldowns) => cooldowns.Clear());
 	}
 
 	private void CalculateGroupMovement(int peerId, List<int> unitEntityIds, NetworkVector3 targetPosition, out System.Numerics.Vector3 moveDir, out System.Numerics.Vector3 right)

@@ -36,10 +36,11 @@ public class ServerSimulation : IDisposable
 	private int _nextPlayerSlot = MatchRoster.NeutralSlot + 1;
 	private bool _disposed;
 
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0)
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false)
 	{
 		_map = map;
 		_log = log;
+		map.Simulation.CheatsEnabled = cheatsEnabled;
 		_matchTick = new MatchTick(map.Simulation);
 		_commands = new CommandAuthorityService(map.Simulation);
 		_commands.DroppedOrderSink = log.Write;

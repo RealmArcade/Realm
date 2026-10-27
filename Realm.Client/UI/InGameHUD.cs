@@ -2337,9 +2337,7 @@ public partial class InGameHUD : Control
 		                                                   && Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
 
 		if (GameContext.PerspectiveFilter.IsSpectating) return false;
-		Entity localPlayerEntity = GameContext.Host.GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex);
-		var (result, _) = GameContext.CheatService.TryTriggerCheat(
-			text, isMultiplayer, localPlayerEntity, GameContext.Simulation.DefinitionManager, selectedEntities);
+		var (result, _) = GameContext.CheatService.TryTriggerCheat(text, isMultiplayer, selectedEntities);
 
 		if (result == CheatResult.None) return false;
 

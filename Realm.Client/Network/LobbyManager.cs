@@ -541,7 +541,8 @@ public partial class LobbyManager : BaseMapTransferNode
 			MatchSeed,
 			Path.Combine(OS.GetUserDataDir(), "logs"),
 			OS.GetUserDataDir(),
-			LocalizationManager.GetCurrentLanguageCode());
+			LocalizationManager.GetCurrentLanguageCode(),
+			IsSinglePlayer);
 
 		if (!session.TryStart(start, out string failure))
 		{

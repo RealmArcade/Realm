@@ -3,7 +3,7 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed)
+public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false)
 {
 	public const string MapFlag = ServerArgumentFlags.MapFlag;
 	public const string PortFlag = ServerArgumentFlags.PortFlag;
@@ -11,8 +11,9 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 	public const string LogFlag = ServerArgumentFlags.LogFlag;
 	public const string DataFlag = ServerArgumentFlags.DataFlag;
 	public const string SeedFlag = ServerArgumentFlags.SeedFlag;
+	public const string CheatsFlag = ServerArgumentFlags.CheatsFlag;
 
-	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>]";
+	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{CheatsFlag}]";
 
 	public static bool TryParse(string[] args, out ServerArguments? arguments, out string error)
 	{
@@ -25,6 +26,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		string? dataPath = null;
 		int port = 0;
 		int seed = 0;
+		bool cheats = false;
 
 		for (int index = 0; index < args.Length; index++)
 		{
@@ -59,6 +61,9 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 						return false;
 					}
 					break;
+				case CheatsFlag:
+					cheats = true;
+					break;
 				default:
 					error = $"'{flag}' is not a listen server argument.";
 					return false;
@@ -77,7 +82,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 			return false;
 		}
 
-		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed);
+		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats);
 		return true;
 	}
 

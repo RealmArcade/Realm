@@ -54,6 +54,18 @@ public class SimulationContext : IDisposable
 	/// </summary>
 	public bool ShroudDisabled { get; set; }
 
+	/// <summary>
+	///     Whether this match lets a player cheat. A development match does, so a cheat a player typed is applied by the
+	///     process that owns the world rather than by the screen that asked for it.
+	/// </summary>
+	public bool CheatsEnabled { get; set; }
+
+	/// <summary>Whether construction runs at the rate a cheat asked for rather than the map's own production times.</summary>
+	public bool FastBuildEnabled { get; set; }
+
+	/// <summary>Whether a cast still spends its mana and starts its cooldown, which a cheat can waive.</summary>
+	public bool UnlimitedPowerEnabled { get; set; }
+
 	public SimulationContext()
 	{
 		World = new EcsWorld { Context = this };
@@ -121,6 +133,8 @@ public class SimulationContext : IDisposable
 		ActiveCombatTuning = CombatTuning.Default;
 		ActiveCombatConfig = new CombatConfig();
 		ShroudDisabled = false;
+		FastBuildEnabled = false;
+		UnlimitedPowerEnabled = false;
 	}
 
 	public void Dispose()

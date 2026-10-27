@@ -90,7 +90,7 @@ public partial class ServerGameAPI : IGameAPI
 	}
 
 	/// <summary>A match the authority runs gives a script no shortcuts, so cheating is always off here.</summary>
-	public bool CheatsEnabled => false;
+	public bool CheatsEnabled => _context.CheatsEnabled;
 
 	/// <summary>How many players the map has seated and left in the match.</summary>
 	public int PlayerCount

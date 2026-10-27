@@ -1793,6 +1793,18 @@
                 visibility altogether, which is what a map wants when every player is meant to see the whole board.
             </summary>
         </member>
+        <member name="P:Realm.Ecs.Services.SimulationContext.CheatsEnabled">
+            <summary>
+                Whether this match lets a player cheat. A development match does, so a cheat a player typed is applied by the
+                process that owns the world rather than by the screen that asked for it.
+            </summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.SimulationContext.FastBuildEnabled">
+            <summary>Whether construction runs at the rate a cheat asked for rather than the map's own production times.</summary>
+        </member>
+        <member name="P:Realm.Ecs.Services.SimulationContext.UnlimitedPowerEnabled">
+            <summary>Whether a cast still spends its mana and starts its cooldown, which a cheat can waive.</summary>
+        </member>
         <member name="M:Realm.Ecs.Services.SimulationContext.GetPlayerEntity(System.Int32)">
             <summary>
                 The entity that owns a player slot this match, or <see cref="F:Realm.Ecs.Entity.Null" /> when the slot has no live owner.

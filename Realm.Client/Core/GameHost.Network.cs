@@ -58,6 +58,31 @@ public partial class GameHost
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
+	/// <summary>
+	///     Hands the authority a cheat the player typed, with what they had selected, which is what a cheat that reaches
+	///     a unit acts on. What a cheat does is the match's to decide, so this is the only way one reaches the world.
+	/// </summary>
+	public void SubmitCheatOrder(string cheatKey, IEnumerable<Entity> selection)
+	{
+		if (string.IsNullOrWhiteSpace(cheatKey)) return;
+		if (GameContext.ServerSession == null || GameContext.NetworkService == null) return;
+
+		var unitIds = new List<int>();
+		if (selection != null)
+		{
+			foreach (Entity entity in selection)
+			{
+				if (entity == Entity.Null) continue;
+
+				int serverId = GetServerEntityId(entity);
+				if (serverId > 0) unitIds.Add(serverId);
+			}
+		}
+
+		var (_, payload) = GameContext.NetworkService.BuildClientCommand("cheat", unitIds, System.Numerics.Vector3.Zero, 0, cheatKey);
+		GameContext.ServerSession.Submit(payload);
+	}
+
 	private void SubmitOrderCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);

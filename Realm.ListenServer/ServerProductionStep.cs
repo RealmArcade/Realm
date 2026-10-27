@@ -65,7 +65,7 @@ public class ServerProductionStep
 	{
 		if (queue.Count == 0) return;
 
-		queue.CurrentProgress += _deltaSeconds;
+		queue.CurrentProgress += _deltaSeconds * FastBuildMultiplier;
 		if (queue.CurrentProgress < queue.BuildTime) return;
 
 		string? trainedUnitId = queue.RemoveAt(0);
@@ -85,6 +85,12 @@ public class ServerProductionStep
 			UnitId = trainedUnitId
 		});
 	}
+
+	/// <summary>
+	///     How much faster than the map's own production times this match builds. A cheat asks for it, so the work a
+	///     building does per tick is scaled rather than its queue being rewritten.
+	/// </summary>
+	private float FastBuildMultiplier => _map.Simulation.FastBuildEnabled ? 10f : 1f;
 
 	private float ReadProductionSeconds(string unitId)
 	{

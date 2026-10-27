@@ -9,7 +9,7 @@ using Realm.Shared.Network;
 namespace Realm.Client.Services;
 
 /// <summary>What a client needs in order to have a match run for it: which map, the seed the match's scripts draw from, where the authority writes its own log, where a map's saved data belongs, and the language this player reads in.</summary>
-public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language);
+public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false);
 
 /// <summary>
 ///     One client's match. A client never simulates a match: it starts the authority beside it, joins it as an ordinary
@@ -103,7 +103,8 @@ public class ClientServerSession : IDisposable
 		_token = RealmProtocol.CreateToken();
 		var request = new ServerLaunchRequest(target, start.MapFolderPath, logPath, _token, start.Seed)
 		{
-			DataFolderPath = start.DataFolderPath
+			DataFolderPath = start.DataFolderPath,
+			Cheats = start.Cheats
 		};
 
 		if (!ServerProcessLauncher.TryLaunch(request, out ServerProcessLauncher? launcher, out failure) || launcher == null) return false;

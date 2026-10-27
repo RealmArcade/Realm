@@ -62,7 +62,7 @@ public class ListenServerHost : IServerTransportSink
 		try
 		{
 			var paths = ServerMatchPaths.From(_arguments);
-			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed);
+			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats);
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());
