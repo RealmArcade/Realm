@@ -5,6 +5,7 @@ using Realm.Client.VFX;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Replication;
+using Realm.Ecs.Services;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
 
@@ -29,6 +30,8 @@ public partial class GameHost
 		session.Seated += ApplyRosterAssignment;
 		session.SnapshotReceived += ApplyReceivedSnapshot;
 		session.PresentationReceived += ApplyPresentation;
+		session.NavMeshObstaclesReceived += ApplyNavMeshObstacles;
+		session.PauseStateReceived += ApplyMatchPause;
 		session.CommandAnswered += ApplyCommandOutcome;
 		session.LatencyProbeAnswered += GameContext.NetworkLatencyService.OnResponse;
 		session.ServerLost += ReportAuthorityLost;
@@ -42,6 +45,11 @@ public partial class GameHost
 				Team = session.LocalTeam
 			});
 		}
+
+		// Both of these are sent the moment the authority seats this connection, which is before this screen exists, so
+		// the newest of each is applied here rather than waiting for a second copy that is never sent.
+		if (session.LatestNavMeshObstacles is { } obstacles) ApplyNavMeshObstacles(obstacles);
+		if (session.LatestPauseState is { } pause) ApplyMatchPause(pause);
 	}
 
 	/// <summary>
@@ -117,6 +125,66 @@ public partial class GameHost
 		GD.PushError($"[GameHost] {report}");
 		GameContext.NetworkService.ReportAuthorityLost();
 		GameContext.InGameHud?.ShowFeedbackText(report, new Color(1.0f, 0.35f, 0.3f));
+	}
+
+	/// <summary>
+	///     Replaces this screen's obstacle volumes with the ones the match pathing was baked with and rebakes from them.
+	///     A map's placed props are in both worlds because both load the same files; what this adds is whatever the map's
+	///     script spawned, which this screen never ran and would otherwise path straight through. The volumes are kept so
+	///     every later bake uses them too, including one that runs after this world was replaced.
+	/// </summary>
+	private void ApplyNavMeshObstacles(NavMeshObstacleVolumes volumes)
+	{
+		if (volumes.Positions == null || volumes.Radii == null) return;
+
+		int count = Math.Min(volumes.Positions.Length, volumes.Radii.Length);
+		var positions = new System.Numerics.Vector3[count];
+		for (int index = 0; index < count; index++)
+		{
+			NetworkVector3 position = volumes.Positions[index];
+			positions[index] = new System.Numerics.Vector3(position.X, position.Y, position.Z);
+		}
+
+		var radii = new float[count];
+		Array.Copy(volumes.Radii, radii, count);
+
+		_authoritativeObstaclePositions = positions;
+		_authoritativeObstacleRadii = radii;
+
+		ApplyStoredObstacleVolumes();
+		RebakeNavMesh();
+	}
+
+	private System.Numerics.Vector3[] _authoritativeObstaclePositions = System.Array.Empty<System.Numerics.Vector3>();
+	private float[] _authoritativeObstacleRadii = System.Array.Empty<float>();
+
+	/// <summary>
+	///     Hands the volumes the match baked with to this screen's navigation mesh before it bakes, so a bake made
+	///     before the authority's set arrived and one made long after it agree.
+	/// </summary>
+	private void ApplyStoredObstacleVolumes()
+	{
+		if (_authoritativeObstaclePositions.Length == 0) return;
+
+		TerrainNavMeshService? navMesh = GameContext.Simulation.TerrainNavMeshService;
+		if (navMesh == null) return;
+		if (navMesh.HasBakedObstacleVolumes(_authoritativeObstaclePositions, _authoritativeObstacleRadii)) return;
+
+		navMesh.SetAuthoritativeObstacleVolumes(_authoritativeObstaclePositions, _authoritativeObstacleRadii);
+	}
+
+	/// <summary>
+	///     Shows the pause state the match holds. The clock belongs to the process running the match, so what this screen
+	///     shows is what that process said rather than anything it decided itself.
+	/// </summary>
+	private void ApplyMatchPause(MatchPauseState state)
+	{
+		var network = GameContext.NetworkService;
+		if (network == null) return;
+
+		network.IsPaused = state.Paused;
+		network.PausedByPlayerIndex = state.Paused ? state.RequestedByPlayer : -1;
+		UpdatePauseUI();
 	}
 
 	/// <summary>

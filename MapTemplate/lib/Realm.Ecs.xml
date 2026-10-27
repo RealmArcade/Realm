@@ -1906,6 +1906,17 @@
             behind them on the peer at all.
             </summary>
         </member>
+        <member name="M:Realm.Ecs.Services.TerrainNavMeshService.ObstaclesChangedSinceBake">
+            <summary>
+            True when the volumes this instance would bake with are not the ones its mesh was last built from, which is how the
+            authority notices that a prop, a building or a blocker its script spawned has appeared or gone since the last bake.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.TerrainNavMeshService.ComputeObstacleSignature(System.Collections.Generic.List{System.ValueTuple{System.Numerics.Vector3,System.Single}})">
+            <summary>
+            Fingerprints one set of obstacle volumes so two bakes can be compared without keeping the volumes themselves.
+            </summary>
+        </member>
         <member name="M:Realm.Ecs.Services.TerrainNavMeshService.SetAuthoritativeObstacleVolumes(System.ReadOnlySpan{System.Numerics.Vector3},System.ReadOnlySpan{System.Single})">
             <summary>
             Replaces the obstacle volumes this instance bakes with the ones the authority baked with. Called on a peer after the

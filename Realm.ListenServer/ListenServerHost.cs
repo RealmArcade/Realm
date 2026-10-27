@@ -3,6 +3,7 @@ using System.Text;
 using MemoryPack;
 using Realm.Ecs;
 using Realm.Ecs.Replication;
+using Realm.Ecs.Services;
 using Realm.Shared;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
@@ -28,6 +29,11 @@ public class ListenServerHost : IServerTransportSink
 	private long _lastLoggedAckSequence;
 	private bool _readyAnnounced;
 	private bool _disposed;
+	private bool _paused;
+	private int _pausedByPlayerSlot = -1;
+	private int _lastBroadcastObstacleSignature = int.MinValue;
+	private double _nextObstacleCheckTime;
+	private long _deliveredPresentationCount;
 
 	public ListenServerHost(ServerArguments arguments, ServerLog log, IServerTransport transport)
 	{
@@ -120,7 +126,21 @@ public class ListenServerHost : IServerTransportSink
 		ServerSimulation? simulation = _simulation;
 		if (!IsRunning || simulation == null) return;
 
+		// A paused match holds its world where it is. Nothing is stepped and nothing is published, so every screen keeps
+		// the world it was last told about instead of watching it drift while nobody can act in it.
+		if (_paused)
+		{
+			_nextTickTime = nowSeconds + ServerSimulation.FixedTickSeconds;
+			return;
+		}
+
 		if (_nextTickTime <= 0) _nextTickTime = nowSeconds;
+
+		if (nowSeconds >= _nextObstacleCheckTime)
+		{
+			_nextObstacleCheckTime = nowSeconds + ObstacleCheckIntervalSeconds;
+			BroadcastNavMeshObstaclesWhenChanged();
+		}
 
 		int stepped = 0;
 		while (nowSeconds >= _nextTickTime && stepped < MaximumTicksPerCall)
@@ -137,6 +157,12 @@ public class ListenServerHost : IServerTransportSink
 	/// <summary>How many ticks one call may run, so a process that was suspended does not replay the whole pause.</summary>
 	private const int MaximumTicksPerCall = 5;
 
+	/// <summary>
+	///     How often the match looks for a change to the volumes its navigation mesh was baked with. A map's script can
+	///     spawn a blocker after the match started, so the set is compared rather than sent once.
+	/// </summary>
+	private const double ObstacleCheckIntervalSeconds = 1.0;
+
 	public void Stop()
 	{
 		if (!IsRunning)
@@ -148,6 +174,11 @@ public class ListenServerHost : IServerTransportSink
 		IsRunning = false;
 		ShutdownRequested = true;
 		_transport.Stop();
+
+		// What the match managed to tell its screens, so a match that ran with nothing to show is distinguishable from
+		// one whose presentation channel never delivered.
+		if (_readyAnnounced) _log.Write($"the match delivered {_deliveredPresentationCount} presentation messages");
+
 		_seatedPeers.Clear();
 	}
 
@@ -177,6 +208,21 @@ public class ListenServerHost : IServerTransportSink
 		_log.Write(wasSeated ? $"peer {peerId} left: {reason}" : $"peer {peerId} dropped before it was seated: {reason}");
 
 		_simulation?.ForgetPeer(peerId);
+
+		// A pause belongs to whoever asked for it. If that player is gone, nobody left in the match can resume it, so the
+		// match resumes itself rather than staying stopped for the rest of the session.
+		if (!wasSeated || !_paused || _seatedPeers.Count == 0) return;
+		if (_pausedByPlayerSlot < 0) return;
+
+		foreach (int seatedPlayerSlot in _seatedPeers.Values)
+		{
+			if (seatedPlayerSlot == _pausedByPlayerSlot) return;
+		}
+
+		_paused = false;
+		_pausedByPlayerSlot = -1;
+		_log.Write("the player who paused the match left, so the match resumes");
+		BroadcastPauseState(-1);
 	}
 
 	/// <summary>
@@ -214,6 +260,9 @@ public class ListenServerHost : IServerTransportSink
 				break;
 			case NetworkFrameKind.LatencyProbe:
 				_transport.Send(peerId, NetworkFrameKind.LatencyProbeEcho, payload.ToArray());
+				break;
+			case NetworkFrameKind.PauseRequest:
+				HandlePauseRequest(peerId, payload);
 				break;
 			case NetworkFrameKind.Shutdown:
 				_log.Write($"peer {peerId} asked the match to end");
@@ -287,6 +336,11 @@ public class ListenServerHost : IServerTransportSink
 		_transport.Send(peerId, NetworkFrameKind.Roster, MemoryPackSerializer.Serialize(assignment));
 		_log.Write($"peer {peerId} seated as player {playerSlot} (team {team})");
 		simulation.RequestBaseline(peerId);
+
+		// A peer that has just been seated bakes its navigation mesh from the same obstacles this match pathed with, and
+		// is told the pause state the match is already in rather than having to ask for it.
+		SendNavMeshObstacles(peerId);
+		SendPauseState(peerId);
 	}
 
 	private void SendHello(int peerId, string rejection)
@@ -374,6 +428,7 @@ public class ListenServerHost : IServerTransportSink
 				if (request.PlayerIndex != ServerPresentationEvent.Everyone && (!seated || request.PlayerIndex != playerSlot)) continue;
 
 				_transport.Send(peerId, NetworkFrameKind.Presentation, MemoryPackSerializer.Serialize(request.ToMessage()));
+				_deliveredPresentationCount++;
 			}
 		}
 	}
@@ -435,6 +490,13 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		int commandId = command.CommandId;
+		if (_paused)
+		{
+			_log.Write($"peer {peerId} command {commandId} '{command.CommandType}' refused: the match is paused");
+			SendOutcome(peerId, commandId, false, "the match is paused");
+			return;
+		}
+
 		if (!NetworkCommandLimits.TrySanitize(ref command, out string rejection))
 		{
 			_log.Write($"peer {peerId} command {commandId} refused: {rejection}");
@@ -462,6 +524,138 @@ public class ListenServerHost : IServerTransportSink
 		};
 
 		_transport.Send(peerId, NetworkFrameKind.CommandOutcome, MemoryPackSerializer.Serialize(outcome));
+	}
+
+	/// <summary>
+	///     Applies a peer's request to pause or resume. Pausing is a match-wide decision, so any seated player may ask
+	///     for either state and the answer is broadcast to everyone: two clients can never end up showing one paused
+		///     match and one running one.
+	/// </summary>
+	private void HandlePauseRequest(int peerId, ReadOnlySpan<byte> payload)
+	{
+		if (!_seatedPeers.TryGetValue(peerId, out int playerSlot))
+		{
+			_log.Write($"peer {peerId} asked to change the pause state before it was seated");
+			return;
+		}
+
+		MatchPauseState request;
+		try
+		{
+			request = MemoryPackSerializer.Deserialize<MatchPauseState>(payload.ToArray());
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			_log.Write($"peer {peerId} sent a pause request that could not be read: {exception.Message}");
+			return;
+		}
+
+		if (_paused == request.Paused)
+		{
+			SendPauseState(peerId);
+			return;
+		}
+
+		_paused = request.Paused;
+		_pausedByPlayerSlot = request.Paused ? playerSlot : -1;
+		_log.Write(request.Paused
+			? $"player {playerSlot} paused the match"
+			: $"player {playerSlot} resumed the match");
+
+		BroadcastPauseState(playerSlot);
+	}
+
+	/// <summary>Tells one peer the pause state this match holds.</summary>
+	private void SendPauseState(int peerId) =>
+		_transport.Send(peerId, NetworkFrameKind.MatchPaused, MemoryPackSerializer.Serialize(new MatchPauseState { Paused = _paused, RequestedByPlayer = -1 }));
+
+	/// <summary>Tells every seated peer the pause state this match now holds, naming who asked for it.</summary>
+	private void BroadcastPauseState(int requestedByPlayer)
+	{
+		if (_seatedPeers.Count == 0) return;
+
+		var state = new MatchPauseState { Paused = _paused, RequestedByPlayer = requestedByPlayer };
+		byte[] payload = MemoryPackSerializer.Serialize(state);
+
+		int[] peerIds = new int[_seatedPeers.Count];
+		_seatedPeers.Keys.CopyTo(peerIds, 0);
+		for (int index = 0; index < peerIds.Length; index++) _transport.Send(peerIds[index], NetworkFrameKind.MatchPaused, payload);
+	}
+
+	/// <summary>
+	///     Sends the obstacle volumes this match baked with to one peer. The volumes are pure geometry and carry no
+	///     gameplay authority: a peer only learns which cells the authority pathing treats as blocked, so its own mesh
+	///     agrees instead of routing through a blocker the map's script spawned.
+	/// </summary>
+	private void SendNavMeshObstacles(int peerId)
+	{
+		if (!TryBuildObstacleVolumes(out NavMeshObstacleVolumes volumes, out int signature, out int count)) return;
+
+		_lastBroadcastObstacleSignature = signature;
+		_transport.Send(peerId, NetworkFrameKind.NavMeshObstacles, MemoryPackSerializer.Serialize(volumes));
+		_log.Write($"peer {peerId} given the {count} obstacle volumes this match pathing was baked with");
+	}
+
+	/// <summary>
+	///     Tells every seated peer the volumes the match now paths with, once and only when they have changed since the
+	///     last set was sent. A script that spawns a blocker after the match started changes them, and a peer that kept
+	///     the earlier set would predict a route through it.
+	/// </summary>
+	private void BroadcastNavMeshObstaclesWhenChanged()
+	{
+		if (_seatedPeers.Count == 0) return;
+		if (!TryBuildObstacleVolumes(out NavMeshObstacleVolumes volumes, out int signature, out int count)) return;
+		if (signature == _lastBroadcastObstacleSignature) return;
+
+		_lastBroadcastObstacleSignature = signature;
+		byte[] payload = MemoryPackSerializer.Serialize(volumes);
+
+		int[] peerIds = new int[_seatedPeers.Count];
+		_seatedPeers.Keys.CopyTo(peerIds, 0);
+		for (int index = 0; index < peerIds.Length; index++) _transport.Send(peerIds[index], NetworkFrameKind.NavMeshObstacles, payload);
+
+		_log.Write($"the match now paths with {count} obstacle volumes; every peer was given the new set");
+	}
+
+	/// <summary>
+	///     Copies the volumes the last bake used into the shape the wire carries, and fingerprints them so a resend is
+	///     only made when the set actually changed.
+	/// </summary>
+	private bool TryBuildObstacleVolumes(out NavMeshObstacleVolumes volumes, out int signature, out int count)
+	{
+		volumes = default;
+		signature = 0;
+		count = 0;
+
+		TerrainNavMeshService? navMesh = _simulation?.Map.Simulation.TerrainNavMeshService;
+		if (navMesh == null) return false;
+
+		ReadOnlySpan<System.Numerics.Vector3> positions = navMesh.BakedObstaclePositions;
+		ReadOnlySpan<float> radii = navMesh.BakedObstacleRadii;
+		count = Math.Min(positions.Length, radii.Length);
+
+		volumes = new NavMeshObstacleVolumes
+		{
+			Positions = new NetworkVector3[count],
+			Radii = new float[count]
+		};
+
+		int hash = 17;
+		for (int index = 0; index < count; index++)
+		{
+			System.Numerics.Vector3 position = positions[index];
+			float radius = radii[index];
+			volumes.Positions[index] = new NetworkVector3(position.X, position.Y, position.Z);
+			volumes.Radii[index] = radius;
+
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(position.X);
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(position.Y);
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(position.Z);
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(radius);
+		}
+
+		signature = hash;
+		return true;
 	}
 
 	/// <summary>

@@ -3191,7 +3191,6 @@ public partial class GameHost : Node3D
 
 			GameContext.ServerSession?.Pump();
 
-			if (Multiplayer.MultiplayerPeer == null || Multiplayer.IsServer()) UpdatePauseCountdown(fDelta);
 			if (GameContext.NetworkService.IsPaused) return;
 
 			DispatchPhysicsTick(fDelta);
@@ -3218,25 +3217,6 @@ public partial class GameHost : Node3D
 		}
 	}
 
-	private void UpdatePauseCountdown(float fDelta)
-	{
-		if (GameContext.NetworkService.ResumeCountdownSeconds < 0) return;
-
-		GameContext.NetworkService.ResumeCountdownTimer += fDelta;
-		if (GameContext.NetworkService.ResumeCountdownTimer < 1.0f) return;
-
-		GameContext.NetworkService.ResumeCountdownTimer -= 1.0f;
-		GameContext.NetworkService.ResumeCountdownSeconds--;
-
-		if (GameContext.NetworkService.ResumeCountdownSeconds <= 0)
-		{
-			GameContext.NetworkService.ResumeCountdownSeconds = -1;
-			GameContext.NetworkService.IsPaused = false;
-		}
-
-		UpdatePauseUI();
-	}
-
 	public bool IsMultiplayerActive() => _multiplayerActive;
 
 	public int ObservingPlayerIndex
@@ -3255,6 +3235,9 @@ public partial class GameHost : Node3D
 	{
 		if (GroundTerrain == null) return;
 
+		// Every bake uses the volumes the match baked with, so a bake that runs after the authority's set arrived and one
+		// that ran before it both describe the same corridors.
+		ApplyStoredObstacleVolumes();
 		GroundTerrain.BakeNavMesh();
 	}
 

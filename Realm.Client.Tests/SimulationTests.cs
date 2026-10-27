@@ -77,6 +77,8 @@ public partial class SimulationTests
 		float durationSeconds = float.Parse(durationText, System.Globalization.CultureInfo.InvariantCulture);
 		string pingText = System.Environment.GetEnvironmentVariable("REALM_MULTIPLAYER_ECS_PING_MS") ?? "120";
 		int pingMilliseconds = int.Parse(pingText, System.Globalization.CultureInfo.InvariantCulture);
+		string peersText = System.Environment.GetEnvironmentVariable("REALM_MULTIPLAYER_ECS_PEERS") ?? "2";
+		int peerCount = int.Parse(peersText, System.Globalization.CultureInfo.InvariantCulture);
 
 		MultiplayerEcsRunSettings settings = new()
 		{
@@ -87,7 +89,8 @@ public partial class SimulationTests
 			OutputDirectory = outputDirectory,
 			DurationSeconds = durationSeconds,
 			Port = FindAvailableUdpPort(),
-			PingMilliseconds = pingMilliseconds
+			PingMilliseconds = pingMilliseconds,
+			PeerCount = peerCount
 		};
 
 		await MultiplayerEcsSyncTestSupport.RunAsync(settings);

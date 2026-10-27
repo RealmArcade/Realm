@@ -35,6 +35,7 @@ public class TerrainNavMeshService
 	private readonly List<float> _authoritativeObstacleRadii = new();
 	private readonly List<Vector3> _bakedObstaclePositions = new();
 	private readonly List<float> _bakedObstacleRadii = new();
+	private int _bakedObstacleSignature = int.MinValue;
 
 	private const float NavMeshCellHeight = 0.1f;
 	private const float AgentRadius = 1.2f;
@@ -579,6 +580,7 @@ public class TerrainNavMeshService
 
 		var obstacles = GetNavMeshObstacles();
 		LastBakedObstacleCount = obstacles.Count;
+		_bakedObstacleSignature = ComputeObstacleSignature(obstacles);
 		_bakedObstaclePositions.Clear();
 		_bakedObstacleRadii.Clear();
 		for (int index = 0; index < obstacles.Count; index++)
@@ -615,6 +617,35 @@ public class TerrainNavMeshService
 		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityQuery, _collectPropObstacleDelegate);
 		world.Query(in QueryCache.AllPositionAndCollisionRadiusAndBuildingQuery, _collectBuildingObstacleDelegate);
 		return _navMeshObstacles;
+	}
+
+	/// <summary>
+	/// True when the volumes this instance would bake with are not the ones its mesh was last built from, which is how the
+	/// authority notices that a prop, a building or a blocker its script spawned has appeared or gone since the last bake.
+	/// </summary>
+	public bool ObstaclesChangedSinceBake()
+	{
+		var obstacles = GetNavMeshObstacles();
+		return ComputeObstacleSignature(obstacles) != _bakedObstacleSignature;
+	}
+
+	/// <summary>
+	/// Fingerprints one set of obstacle volumes so two bakes can be compared without keeping the volumes themselves.
+	/// </summary>
+	private static int ComputeObstacleSignature(List<(Vector3 Pos, float Radius)> obstacles)
+	{
+		int hash = 17;
+		for (int index = 0; index < obstacles.Count; index++)
+		{
+			Vector3 position = obstacles[index].Pos;
+			float radius = obstacles[index].Radius;
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(position.X);
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(position.Y);
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(position.Z);
+			hash = hash * 31 + BitConverter.SingleToInt32Bits(radius);
+		}
+
+		return hash;
 	}
 
 	/// <summary>

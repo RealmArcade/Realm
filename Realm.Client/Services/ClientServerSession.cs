@@ -86,6 +86,25 @@ public class ClientServerSession : IDisposable
 	/// <summary>Something the map asked a screen to show.</summary>
 	public event Action<PresentationMessage>? PresentationReceived;
 
+	/// <summary>
+	///     The obstacle volumes the authority baked its navigation mesh with, sent once this peer is seated so the mesh
+	///     baked here agrees with the one the match paths units through.
+	/// </summary>
+	public event Action<NavMeshObstacleVolumes>? NavMeshObstaclesReceived;
+
+	/// <summary>
+	///     The newest obstacle volumes the authority sent, kept so a screen that starts listening after they arrived still
+	///     bakes the mesh the match paths with. A peer is seated before its screen exists, so the first set always arrives
+	///     earlier than anything waiting for it.
+	/// </summary>
+	public NavMeshObstacleVolumes? LatestNavMeshObstacles { get; private set; }
+
+	/// <summary>The pause state the match holds, which is what this screen shows.</summary>
+	public event Action<MatchPauseState>? PauseStateReceived;
+
+	/// <summary>The newest pause state the authority sent, for the same reason as <see cref="LatestNavMeshObstacles" />.</summary>
+	public MatchPauseState? LatestPauseState { get; private set; }
+
 	/// <summary>Whether the authority took one of this client's orders, and why not when it did not.</summary>
 	public event Action<CommandOutcome>? CommandAnswered;
 
@@ -205,6 +224,19 @@ public class ClientServerSession : IDisposable
 		if (!IsRunning) return false;
 
 		_channel.Send(NetworkFrameKind.LatencyProbe, MemoryPackSerializer.Serialize(new LatencyProbe(sequence)));
+		return true;
+	}
+
+	/// <summary>
+	///     Asks the match to pause or resume. Pausing is the match's decision, so this is a request rather than a
+	///     change: the authority answers with the state it holds and this screen shows that.
+	/// </summary>
+	/// <returns>True once the request was handed to the transport.</returns>
+	public bool RequestPause(bool paused)
+	{
+		if (!IsRunning) return false;
+
+		_channel.Send(NetworkFrameKind.PauseRequest, MemoryPackSerializer.Serialize(new MatchPauseState { Paused = paused, RequestedByPlayer = -1 }));
 		return true;
 	}
 
@@ -355,6 +387,22 @@ public class ClientServerSession : IDisposable
 			case NetworkFrameKind.LatencyProbeEcho:
 				LatencyProbeAnswered?.Invoke(MemoryPackSerializer.Deserialize<LatencyProbe>(payload).Sequence);
 				break;
+
+			case NetworkFrameKind.NavMeshObstacles:
+			{
+				NavMeshObstacleVolumes volumes = MemoryPackSerializer.Deserialize<NavMeshObstacleVolumes>(payload);
+				LatestNavMeshObstacles = volumes;
+				NavMeshObstaclesReceived?.Invoke(volumes);
+				break;
+			}
+
+			case NetworkFrameKind.MatchPaused:
+			{
+				MatchPauseState state = MemoryPackSerializer.Deserialize<MatchPauseState>(payload);
+				LatestPauseState = state;
+				PauseStateReceived?.Invoke(state);
+				break;
+			}
 
 			case NetworkFrameKind.Shutdown:
 				ReportLost("the authority ended the match");

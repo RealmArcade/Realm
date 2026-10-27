@@ -2480,9 +2480,28 @@ public partial class InGameHUD : Control
 
 	private void UpdatePauseTitle()
 	{
-		_pauseTitleLabel.Text = GameContext.NetworkService.ResumeCountdownSeconds >= 0
-			? $"Resuming in {GameContext.NetworkService.ResumeCountdownSeconds}s..."
-			: "Game Paused";
+		int pausedByPlayer = GameContext.NetworkService.PausedByPlayerIndex;
+		string pausedByName = ResolvePlayerName(pausedByPlayer);
+
+		_pauseTitleLabel.Text = string.IsNullOrEmpty(pausedByName)
+			? TranslationServer.Translate("Game Paused")
+			: string.Format(TranslationServer.Translate("Paused by {0}"), pausedByName);
+	}
+
+	/// <summary>
+	/// The name of the player the authority named as having paused the match, or an empty string when it paused
+	/// itself. The match sends a player slot, and this screen only names a slot its own roster knows.
+	/// </summary>
+	private static string ResolvePlayerName(int playerSlot)
+	{
+		if (playerSlot < 0 || GameContext.Lobby == null) return string.Empty;
+
+		foreach (PlayerInfo player in GameContext.Lobby.PlayerList)
+		{
+			if (player.Slot == playerSlot) return player.Name;
+		}
+
+		return string.Empty;
 	}
 
 	private void UpdatePausePlayerList()

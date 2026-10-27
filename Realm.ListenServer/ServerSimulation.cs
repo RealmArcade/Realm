@@ -3,6 +3,7 @@ using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
@@ -35,6 +36,7 @@ public class ServerSimulation : IDisposable
 
 	private int _nextPlayerSlot = MatchRoster.NeutralSlot + 1;
 	private bool _disposed;
+	private long _navMeshRebakeTick = -1;
 
 	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false)
 	{
@@ -119,12 +121,59 @@ public class ServerSimulation : IDisposable
 		_loot.Step(deltaSeconds);
 		_script.Step(deltaSeconds);
 		_script.Api.AdvanceTimers(deltaSeconds);
+		RefreshNavMeshWhenObstaclesChange();
 
 		// The opponents the match plays itself decide after the map has had its say this tick, so a map that seats one
 		// and hands it a profile is answered by a bot that already exists rather than by the default one.
 		_script.Api.Bots.Step(deltaSeconds);
 		_matchTick.AdvanceStatusEffects(deltaSeconds);
 		_matchTick.AdvanceRegeneration(deltaSeconds);
+	}
+
+	/// <summary>
+	/// How often the match looks for obstacles the last bake did not have, in ticks.
+	/// </summary>
+	private const int ObstacleScanIntervalTicks = 20;
+
+	/// <summary>
+	/// How long a change waits before the mesh is rebuilt, so a wave of spawns - a player's starting buildings, a
+	/// completed construction site - costs one bake instead of one per prop. Measured in ticks.
+	/// </summary>
+	private const int NavMeshRebakeDelayTicks = 10;
+
+	/// <summary>
+	///     Rebuilds the authority's navigation mesh when the world holds obstacles the mesh was not built from. A map's
+	///     script spawns its blockers after the map loads, so the single bake taken at load knows about none of them; the
+	///     mesh the match paths units through is the one every peer bakes from, so it has to be rebuilt from the volumes
+	///     the world actually holds.
+	/// </summary>
+	private void RefreshNavMeshWhenObstaclesChange()
+	{
+		if (TickCount % ObstacleScanIntervalTicks != 0) return;
+
+		TerrainNavMeshService navMesh = _map.Simulation.TerrainNavMeshService;
+		if (!navMesh.ObstaclesChangedSinceBake())
+		{
+			_navMeshRebakeTick = -1;
+			return;
+		}
+
+		if (_navMeshRebakeTick < 0)
+		{
+			_navMeshRebakeTick = TickCount + NavMeshRebakeDelayTicks;
+			return;
+		}
+
+		if (TickCount < _navMeshRebakeTick) return;
+		_navMeshRebakeTick = -1;
+
+		Entity worldEntity = _map.WorldEntity;
+		if (!_map.World.IsAlive(worldEntity) || !_map.World.Has<TerrainState>(worldEntity)) return;
+
+		ref TerrainState terrain = ref _map.World.Get<TerrainState>(worldEntity);
+		navMesh.BakeNavMesh(ref terrain);
+		_map.World.Set(worldEntity, terrain);
+		_log.Write($"navigation mesh rebaked with {navMesh.LastBakedObstacleCount} obstacle volumes");
 	}
 
 	/// <summary>

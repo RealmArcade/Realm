@@ -35,5 +35,17 @@ public enum NetworkFrameKind : byte
 	LatencyProbe = 11,
 
 	/// <summary>That probe, answered unchanged.</summary>
-	LatencyProbeEcho = 12
+	LatencyProbeEcho = 12,
+
+	/// <summary>
+	///     The obstacle volumes the authority baked its navigation mesh with, so a peer bakes the same one rather than a
+	///     mesh that is missing what the map's script spawned.
+	/// </summary>
+	NavMeshObstacles = 13,
+
+	/// <summary>A peer asking the match to pause or resume. The authority decides and answers with <see cref="MatchPaused" />.</summary>
+	PauseRequest = 14,
+
+	/// <summary>The pause state the authority holds, which is what every screen shows.</summary>
+	MatchPaused = 15
 }

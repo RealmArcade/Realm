@@ -41,6 +41,7 @@ public partial class MultiplayerSimulationHarness : Node
 	private int _peerCount = 2;
 	private int _peerIndex = 1;
 	private float _dropAtSeconds;
+	private float _pauseAtSeconds;
 	private bool _probesEnabled;
 	private string _waitForPeerReadyFile = string.Empty;
 	private int _hardeningFailureCount;
@@ -148,6 +149,9 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--drop-at":
 					_dropAtSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
 					break;
+				case "--pause-at":
+					_pauseAtSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
 				case "--probes":
 					_probesEnabled = value == "1";
 					break;
@@ -202,6 +206,10 @@ public partial class MultiplayerSimulationHarness : Node
 
 
 		GameHost gameHost = GameContext.Host ?? throw new InvalidOperationException("GameHost instance is unavailable.");
+
+		// The peer that started the authority is the one player this map gives starting units to, so it is also the one
+		// that can be asked to spend one on a building. That order travels the same path a player's order does.
+		if (!string.IsNullOrEmpty(_clientBuildId)) IssueClientBuildRequest(gameHost);
 
 		// Every client joins the lobby before the map loads, but the clients load the map one at a time so a single
 		// machine is not asked to compile and instantiate several at once. The match clock would otherwise run out for the
@@ -340,6 +348,7 @@ public partial class MultiplayerSimulationHarness : Node
 			IssueClientBuildRequest(GameContext.Host);
 		}
 		if (_dropAtSeconds > 0f) _ = RunConnectionLossScenarioAsync(session);
+		if (_pauseAtSeconds > 0f) _ = RunPauseScenarioAsync(session);
 
 		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 120f + (_drainMilliseconds / 1000f));
 		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
@@ -356,6 +365,52 @@ public partial class MultiplayerSimulationHarness : Node
 		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
 		return hostFinished ? 0 : 1;
+	}
+
+	/// <summary>
+	/// Pauses the match once from this peer and resumes it again, and records what this screen saw, so a test can prove
+	/// the pause travelled: the peer asked, the authority decided, and every screen was told the state it holds.
+	/// </summary>
+	private async Task RunPauseScenarioAsync(ClientServerSession session)
+	{
+		string path = Path.Combine(_outputDirectory, "pause.txt");
+		try
+		{
+			bool reachedPauseTime = await WaitUntilAsync(() => (GameContext.Host?.GameElapsedTime ?? 0f) >= _pauseAtSeconds, 180f);
+			if (!reachedPauseTime)
+			{
+				File.WriteAllText(path, "paused=0\nreason=game time never reached the pause point\n");
+				return;
+			}
+
+			int obstacles = session.LatestNavMeshObstacles?.Positions?.Length ?? -1;
+			GD.Print($"[MP_HARNESS] This client holds {obstacles} obstacle volumes from the match.");
+
+			bool requested = session.RequestPause(true);
+			bool paused = await WaitUntilAsync(() => GameContext.NetworkService.IsPaused, 30f);
+			GD.Print($"[MP_HARNESS] Pause requested={requested}; the match reports paused={paused} by player {GameContext.NetworkService.PausedByPlayerIndex}.");
+
+			await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
+
+			bool resumeRequested = session.RequestPause(false);
+			bool resumed = await WaitUntilAsync(() => !GameContext.NetworkService.IsPaused, 30f);
+			GD.Print($"[MP_HARNESS] Resume requested={resumeRequested}; the match reports paused={GameContext.NetworkService.IsPaused}.");
+
+			File.WriteAllText(
+				path,
+				$"paused={(paused ? 1 : 0)}\nresumed={(resumed ? 1 : 0)}\nobstacle_volumes={obstacles}\nrequested_by={GameContext.NetworkService.PausedByPlayerIndex}\n");
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MP_HARNESS] Pause scenario failed: {exception.Message}");
+			try
+			{
+				File.WriteAllText(path, $"paused=0\nreason={exception.Message}\n");
+			}
+			catch
+			{
+			}
+		}
 	}
 
 	/// <summary>
@@ -646,13 +701,11 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 	}
 
-	private static int ResolveSnapshotSequence()
-	{
-		if (GameContext.World == null) return -1;
-		Entity worldEntity = GameContext.Simulation.WorldEntity;
-		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return -1;
-		return GameContext.World.Get<NetworkState>(worldEntity).SnapshotSequence;
-	}
+	/// <summary>
+	/// The newest snapshot this process has applied. Every process in a match is a client now, so this reads what it
+	/// applied rather than the counter the process that used to simulate the world published.
+	/// </summary>
+	private static int ResolveSnapshotSequence() => GameContext.NetworkService?.LastAppliedSnapshotSequenceForDiagnostics ?? -1;
 
 	private static void SetPrivateProperty(object target, string propertyName, object value)
 	{

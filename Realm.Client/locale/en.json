@@ -1260,6 +1260,7 @@
   "Pause VFX": "Pause VFX",
   "Pause animation": "Pause animation",
   "Pause projectile animation": "Pause projectile animation",
+  "Paused by {0}": "Paused by {0}",
   "Pick / sample entities, terrain height (Shift+Click), or vertex color under cursor (I)": "Pick / sample entities, terrain height (Shift+Click), or vertex color under cursor (I)",
   "Pick 3D Asset": "Pick 3D Asset",
   "Pick Decal": "Pick Decal",

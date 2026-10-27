@@ -306,13 +306,15 @@ public partial class GameHost
 	}
 
 	/// <summary>
-	///     Pause is match state, and the clock that would stop belongs to the process running the match. That process
-	///     does not carry a pause channel yet, so this reports the request instead of pretending to stop a world this
-	///     process no longer steps.
+	///     Asks the match to pause or resume. The clock belongs to the process running the match, so this is a request:
+	///     what the screen shows afterwards is the state that process answered with.
 	/// </summary>
 	public void TogglePauseRequest()
 	{
-		GD.PushWarning("[GameHost] Pause is not carried by the match authority yet, so a pause request has nowhere to go.");
+		ClientServerSession? session = GameContext.ServerSession;
+		if (session != null && session.RequestPause(!GameContext.NetworkService.IsPaused)) return;
+
+		GD.PushWarning("[GameHost] There is no match to ask for a pause: nothing is running this world's clock.");
 	}
 
 	private void UpdatePauseUI()

@@ -113,12 +113,12 @@ public class NetworkService
 	public bool IsPaused { get; set; } = false;
 	public int LastAppliedSnapshotSequenceForDiagnostics { get; private set; } = -1;
 	public int LastAppliedBaselineSequenceForDiagnostics { get; private set; } = -1;
-	public int ResumeCountdownSeconds { get; set; } = -1;
-	public float ResumeCountdownTimer { get; set; } = 0f;
 
-	public bool CountdownForcedByHost { get; set; } = false;
-	public readonly Dictionary<int, bool> PlayerReadyStates = new();
-	public readonly Dictionary<int, bool> DisallowedPausePeers = new();
+	/// <summary>
+	/// The player slot that asked the match to pause, or -1 when the match paused itself. The match owns the pause, so
+	/// this is only ever what the authority last reported.
+	/// </summary>
+	public int PausedByPlayerIndex { get; set; } = -1;
 
 	public void RemoveClientToServerMapping(int localEntityId)
 	{
@@ -138,9 +138,8 @@ public class NetworkService
 
 	public void Clear()
 	{
-		CountdownForcedByHost = false;
-		PlayerReadyStates.Clear();
-		DisallowedPausePeers.Clear();
+		IsPaused = false;
+		PausedByPlayerIndex = -1;
 		_queuedDeltas.Clear();
 		_clientCameraPositions.Clear();
 		_clientSnapshotStates.Clear();
