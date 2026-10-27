@@ -25,7 +25,7 @@ public interface IServerTransportSink
 public interface IServerTransport : IDisposable
 {
 	/// <summary>The port peers reach this match on, known once it is started.</summary>
-	int BoundPort { get; }
+	int Port { get; }
 
 	/// <summary>
 	///     Starts listening for up to <paramref name="maximumPeers" /> peers. A refusal reports why rather than throwing,

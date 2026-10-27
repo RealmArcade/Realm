@@ -1,7 +1,7 @@
 namespace Realm.Shared.Network;
 
 /// <summary>
-///     Every kind of frame that crosses the loopback transport. The numbers are part of the wire protocol, so a kind
+///     Every kind of frame two processes exchange about one match. The numbers are part of the wire protocol, so a kind
 ///     keeps its value once a build ships it.
 /// </summary>
 public enum NetworkFrameKind : byte

@@ -16,7 +16,7 @@ namespace Realm.ListenServer;
 ///     <see cref="OnFrameReceived" /> from that same call path, so a command is applied between ticks and never inside
 ///     one.
 /// </summary>
-public class ListenServerHost : IServerHost, IServerTransportSink
+public class ListenServerHost : IServerTransportSink
 {
 	private readonly ServerArguments _arguments;
 	private readonly ServerLog _log;
@@ -41,27 +41,10 @@ public class ListenServerHost : IServerHost, IServerTransportSink
 	/// <summary>Whether the match has been asked to end, by a peer or by its own map.</summary>
 	public bool ShutdownRequested { get; private set; }
 
-	public int Port => _transport.BoundPort;
+	public int Port => _transport.Port;
 
 	/// <summary>The authority's own log, so a failure can be reported with the file that explains it.</summary>
 	public ServerLog Log => _log;
-
-	/// <summary>
-	///     The seed a match's scripts draw from. It comes from the token the client generated for this match, so a
-	///     match is reproducible from the token and two matches do not share a sequence.
-	/// </summary>
-	private int SeedFromToken()
-	{
-		uint hash = 2166136261;
-		string token = _arguments.Token;
-		for (int index = 0; index < token.Length; index++)
-		{
-			hash ^= token[index];
-			hash *= 16777619;
-		}
-
-		return (int)(hash & 0x7FFFFFFF);
-	}
 
 	/// <summary>
 	///     Loads the map, builds the world, and starts listening. The line the launcher waits for is printed here, once,
@@ -79,7 +62,7 @@ public class ListenServerHost : IServerHost, IServerTransportSink
 		try
 		{
 			var paths = ServerMatchPaths.From(_arguments);
-			_simulation = new ServerSimulation(map, paths, _log, SeedFromToken());
+			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed);
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());
@@ -312,8 +295,13 @@ public class ListenServerHost : IServerHost, IServerTransportSink
 		return string.Empty;
 	}
 
+	/// <summary>
+	///     Whether a peer presented the ticket this match was started with. A match started without one is open, which
+	///     is what a dedicated authority needs: the players it accepts never saw the command line it was started with.
+	/// </summary>
 	private bool TokenMatches(string? presentedToken)
 	{
+		if (_arguments.Token.Length == 0) return true;
 		if (presentedToken == null) return false;
 
 		byte[] presented = Encoding.UTF8.GetBytes(presentedToken);

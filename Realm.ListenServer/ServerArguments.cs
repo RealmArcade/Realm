@@ -3,15 +3,16 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath)
+public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed)
 {
 	public const string MapFlag = ServerArgumentFlags.MapFlag;
 	public const string PortFlag = ServerArgumentFlags.PortFlag;
 	public const string TokenFlag = ServerArgumentFlags.TokenFlag;
 	public const string LogFlag = ServerArgumentFlags.LogFlag;
 	public const string DataFlag = ServerArgumentFlags.DataFlag;
+	public const string SeedFlag = ServerArgumentFlags.SeedFlag;
 
-	public const string Usage = $"{MapFlag} <absolute map folder> {PortFlag} <port> {TokenFlag} <token> {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>]";
+	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>]";
 
 	public static bool TryParse(string[] args, out ServerArguments? arguments, out string error)
 	{
@@ -23,6 +24,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		string? logPath = null;
 		string? dataPath = null;
 		int port = 0;
+		int seed = 0;
 
 		for (int index = 0; index < args.Length; index++)
 		{
@@ -49,6 +51,14 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 				case DataFlag:
 					if (!TryTakeValue(args, ref index, flag, out dataPath, out error)) return false;
 					break;
+				case SeedFlag:
+					if (!TryTakeValue(args, ref index, flag, out string? seedText, out error)) return false;
+					if (!int.TryParse(seedText, NumberStyles.Integer, CultureInfo.InvariantCulture, out seed))
+					{
+						error = $"{SeedFlag} expects an integer, not '{seedText}'.";
+						return false;
+					}
+					break;
 				default:
 					error = $"'{flag}' is not a listen server argument.";
 					return false;
@@ -61,19 +71,13 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 			return false;
 		}
 
-		if (string.IsNullOrWhiteSpace(token))
-		{
-			error = $"{TokenFlag} is required.";
-			return false;
-		}
-
 		if (string.IsNullOrWhiteSpace(logPath))
 		{
 			error = $"{LogFlag} is required.";
 			return false;
 		}
 
-		arguments = new ServerArguments(mapPath, port, token, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath);
+		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed);
 		return true;
 	}
 

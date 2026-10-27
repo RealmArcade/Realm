@@ -25,6 +25,7 @@ public class ClientServerSession : IDisposable
 	private ServerProcessLauncher? _launcher;
 	private string _language = string.Empty;
 	private string _token = string.Empty;
+	private int _seed;
 	private bool _helloSent;
 	private bool _disposed;
 
@@ -101,7 +102,8 @@ public class ClientServerSession : IDisposable
 		}
 
 		_token = RealmProtocol.CreateToken();
-		var request = new ServerLaunchRequest(target, start.MapFolderPath, logPath, _token)
+		_seed = RealmProtocol.CreateSeed();
+		var request = new ServerLaunchRequest(target, start.MapFolderPath, logPath, _token, _seed)
 		{
 			DataFolderPath = start.DataFolderPath
 		};

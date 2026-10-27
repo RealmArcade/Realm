@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
 using Godot;
 using Realm.Shared.Network;
 
@@ -12,9 +10,6 @@ namespace Realm.ListenServerHost.Network;
 /// </summary>
 public class EnetServerTransport : IServerTransport
 {
-	/// <summary>How many ports are tried before a match gives up on finding one that is free.</summary>
-	private const int PortAttempts = 5;
-
 	private readonly ServerNetworkChannel _channel;
 	private readonly int _requestedPort;
 
@@ -29,50 +24,38 @@ public class EnetServerTransport : IServerTransport
 		_requestedPort = requestedPort;
 	}
 
-	public int BoundPort { get; private set; }
+	public int Port { get; private set; }
 
 	/// <summary>
-	///     Starts listening. A match started by a client asks for port zero, which means "any port this machine has
-	///     free", and reports the one it was given through the readiness line.
+	///     Starts listening. A match started by a client asks for port zero, which ENet binds to whatever port this
+	///     machine has free, and the port it got is reported through the readiness line so the client can reach it.
 	/// </summary>
 	public bool TryStart(int maximumPeers, IServerTransportSink sink, out string failure)
 	{
 		failure = string.Empty;
 		_sink = sink;
 
-		_channel.FrameArrived += OnFrameArrived;
-
-		for (int attempt = 0; attempt < PortAttempts; attempt++)
+		var peer = new ENetMultiplayerPeer();
+		Error error = peer.CreateServer(_requestedPort, maximumPeers);
+		if (error != Error.Ok)
 		{
-			int port = _requestedPort != 0 ? _requestedPort : FindFreePort();
-			if (port == 0)
-			{
-				failure = "no free port could be found for the match";
-				return false;
-			}
-
-			var peer = new ENetMultiplayerPeer();
-			Error error = peer.CreateServer(port, maximumPeers);
-			if (error != Error.Ok)
-			{
-				peer.Dispose();
-				if (_requestedPort != 0)
-				{
-					failure = $"ENet could not listen on port {port}: {error}";
-					return false;
-				}
-
-				continue;
-			}
-
-			_peer = peer;
-			BoundPort = port;
-			Attach();
-			return true;
+			peer.Dispose();
+			failure = $"ENet could not listen on port {_requestedPort}: {error}";
+			return false;
 		}
 
-		failure = "ENet could not listen on any of the ports that were tried";
-		return false;
+		_peer = peer;
+		Port = peer.GetHost().GetLocalPort();
+		if (Port == 0)
+		{
+			failure = "ENet is listening but did not report the port it took";
+			Stop();
+			return false;
+		}
+
+		_channel.FrameArrived += OnFrameArrived;
+		Attach();
+		return true;
 	}
 
 	/// <summary>
@@ -85,23 +68,6 @@ public class EnetServerTransport : IServerTransport
 		_channel.Multiplayer.PeerConnected += OnPeerConnected;
 		_channel.Multiplayer.PeerDisconnected += OnPeerDisconnected;
 		_connected = true;
-	}
-
-	/// <summary>
-	///     Asks the operating system which UDP port it would give this process, then hands that port to ENet. A match
-	///     started by a client cannot be told its port ahead of time and must report one it actually got.
-	/// </summary>
-	private static int FindFreePort()
-	{
-		try
-		{
-			using var probe = new UdpClient(new IPEndPoint(IPAddress.Any, 0));
-			return ((IPEndPoint)probe.Client.LocalEndPoint!).Port;
-		}
-		catch (SocketException)
-		{
-			return 0;
-		}
 	}
 
 	public void Send(int peerId, NetworkFrameKind kind, byte[] payload) => _channel.Send(peerId, kind, payload);

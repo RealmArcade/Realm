@@ -19,6 +19,12 @@ public static class ServerArgumentFlags
 	///     machine started or by the editor.
 	/// </summary>
 	public const string DataFlag = "--data";
+
+	/// <summary>
+	///     The seed a match's scripts draw from. It is a separate value from the ticket a private match is joined with,
+	///     so a match can be replayed from its seed by anyone the match is open to.
+	/// </summary>
+	public const string SeedFlag = "--seed";
 }
 
 /// <summary>
@@ -33,10 +39,16 @@ public record ServerLaunchTarget(string ExecutablePath, string? ProjectDirectory
 }
 
 /// <summary>What a match needs in order to start its own authority: what to run, which map it runs, where it logs, and where it keeps the data a map asked to persist.</summary>
-public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPath, string LogPath, string Token)
+public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPath, string LogPath, string Token, int Seed)
 {
 	/// <summary>The folder the authority resolves a map's saved data under, or nothing to let it use its own folder.</summary>
 	public string? DataFolderPath { get; init; }
+
+	/// <summary>
+	///     The ticket a peer has to present to be seated, or nothing for a match anyone may join. A match this machine
+	///     started for its own client is private to that client; a dedicated authority serves whoever reaches it.
+	/// </summary>
+	public string? JoinTicket => string.IsNullOrEmpty(Token) ? null : Token;
 
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
@@ -242,8 +254,13 @@ public class ServerProcessLauncher : IDisposable
 		startInfo.ArgumentList.Add(Path.GetFullPath(request.MapFolderPath));
 		startInfo.ArgumentList.Add(ServerArgumentFlags.PortFlag);
 		startInfo.ArgumentList.Add("0");
-		startInfo.ArgumentList.Add(ServerArgumentFlags.TokenFlag);
-		startInfo.ArgumentList.Add(request.Token);
+		startInfo.ArgumentList.Add(ServerArgumentFlags.SeedFlag);
+		startInfo.ArgumentList.Add(request.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture));
+		if (request.JoinTicket != null)
+		{
+			startInfo.ArgumentList.Add(ServerArgumentFlags.TokenFlag);
+			startInfo.ArgumentList.Add(request.JoinTicket);
+		}
 		startInfo.ArgumentList.Add(ServerArgumentFlags.LogFlag);
 		startInfo.ArgumentList.Add(Path.GetFullPath(request.LogPath));
 		if (!string.IsNullOrWhiteSpace(request.DataFolderPath))
