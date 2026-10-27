@@ -31,8 +31,6 @@ public class EnetServerTransport : IServerTransport
 
 	public int BoundPort { get; private set; }
 
-	public bool HasPeers => _peer != null && _channel.Multiplayer.GetPeers().Length > 0;
-
 	/// <summary>
 	///     Starts listening. A match started by a client asks for port zero, which means "any port this machine has
 	///     free", and reports the one it was given through the readiness line.

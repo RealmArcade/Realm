@@ -149,18 +149,6 @@ public class ListenServerHost : IServerHost, IServerTransportSink
 	/// <summary>How many ticks one call may run, so a process that was suspended does not replay the whole pause.</summary>
 	private const int MaximumTicksPerCall = 5;
 
-	public bool WaitForShutdown(int millisecondsTimeout = Timeout.Infinite)
-	{
-		long deadline = Environment.TickCount64 + millisecondsTimeout;
-		while (!ShutdownRequested)
-		{
-			if (millisecondsTimeout != Timeout.Infinite && Environment.TickCount64 >= deadline) return false;
-			Thread.Sleep(16);
-		}
-
-		return true;
-	}
-
 	public void Stop()
 	{
 		if (!IsRunning)

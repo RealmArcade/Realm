@@ -27,9 +27,6 @@ public interface IServerTransport : IDisposable
 	/// <summary>The port peers reach this match on, known once it is started.</summary>
 	int BoundPort { get; }
 
-	/// <summary>Whether the match has anyone connected to it right now.</summary>
-	bool HasPeers { get; }
-
 	/// <summary>
 	///     Starts listening for up to <paramref name="maximumPeers" /> peers. A refusal reports why rather than throwing,
 	///     because the caller is starting a match and has to report the failure to the player.
