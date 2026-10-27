@@ -1,7 +1,10 @@
 using System.Diagnostics;
 using System.Globalization;
+using Realm.Ecs;
+using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
+using Realm.Shared.Network;
 using Realm.Shared.Simulation;
 
 namespace Realm.ListenServer;
@@ -18,6 +21,16 @@ public class ServerSimulation : IDisposable
 	private readonly LoadedMap _map;
 	private readonly ServerLog _log;
 	private readonly MatchTick _matchTick;
+	private readonly CommandAuthorityService _commands;
+	private readonly Dictionary<int, int> _peerPlayerSlots = new();
+
+	/// <summary>
+	///     Serializes the tick against the peer threads that hand it commands. One world is stepped by one thread at a
+	///     time, so a command cannot be applied halfway through the tick that is reading the same components.
+	/// </summary>
+	private readonly object _worldGate = new();
+
+	private int _nextPlayerSlot = MatchRoster.NeutralSlot + 1;
 	private bool _disposed;
 
 	public ServerSimulation(LoadedMap map, ServerLog log)
@@ -25,6 +38,9 @@ public class ServerSimulation : IDisposable
 		_map = map;
 		_log = log;
 		_matchTick = new MatchTick(map.Simulation);
+		_commands = new CommandAuthorityService(map.Simulation);
+		_commands.DroppedOrderSink = log.Write;
+		map.Catalog.BindTo(_commands);
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
@@ -52,16 +68,76 @@ public class ServerSimulation : IDisposable
 	/// </summary>
 	public void Step()
 	{
-		MatchSeconds += FixedTickSeconds;
-		TickCount++;
+		lock (_worldGate)
+		{
+			MatchSeconds += FixedTickSeconds;
+			TickCount++;
 
-		float deltaSeconds = (float)FixedTickSeconds;
-		_matchTick.AdvanceCooldowns(deltaSeconds);
-		_map.Simulation.MovementPathfindingService.StepMovement(deltaSeconds);
-		_map.Simulation.CombatDamageService.StepCombat(deltaSeconds, _map.Simulation.MovementPathfindingService);
-		_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
-		_matchTick.AdvanceStatusEffects(deltaSeconds);
-		_matchTick.AdvanceRegeneration(deltaSeconds);
+			float deltaSeconds = (float)FixedTickSeconds;
+			_matchTick.AdvanceCooldowns(deltaSeconds);
+			_map.Simulation.MovementPathfindingService.StepMovement(deltaSeconds);
+			_map.Simulation.CombatDamageService.StepCombat(deltaSeconds, _map.Simulation.MovementPathfindingService);
+			_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
+			_matchTick.AdvanceStatusEffects(deltaSeconds);
+			_matchTick.AdvanceRegeneration(deltaSeconds);
+		}
+	}
+
+	/// <summary>
+	///     Gives a peer the player it acts as, once. A peer that is not on the roster owns nothing, so its commands are
+	///     refused rather than quietly applied to whoever happens to own the units. Returns false when the map has no
+	///     slot left, which is a refusal the peer has to hear about.
+	/// </summary>
+	public bool TryAssignPlayerSlot(int peerId, out int playerSlot, out int team)
+	{
+		team = 0;
+
+		lock (_worldGate)
+		{
+			if (_peerPlayerSlots.TryGetValue(peerId, out playerSlot))
+			{
+				team = ReadTeam(playerSlot);
+				return true;
+			}
+
+			if (_nextPlayerSlot >= _map.PlayerEntities.Length)
+			{
+				playerSlot = -1;
+				return false;
+			}
+
+			playerSlot = _nextPlayerSlot++;
+			_peerPlayerSlots[peerId] = playerSlot;
+
+			Entity worldEntity = _map.WorldEntity;
+			if (_map.World.IsAlive(worldEntity) && _map.World.Has<NetworkMappingState>(worldEntity))
+			{
+				NetworkMappingState mapping = _map.World.Get<NetworkMappingState>(worldEntity);
+				mapping.PeerIdToPlayerEntityMap[peerId] = _map.GetPlayerEntity(playerSlot).Value;
+			}
+
+			team = ReadTeam(playerSlot);
+			return true;
+		}
+	}
+
+	/// <summary>The team a player slot belongs to, so a peer can tell who its allies are before it is told anything else.</summary>
+	public int ReadTeam(int playerSlot)
+	{
+		Entity worldEntity = _map.WorldEntity;
+		if (!_map.World.IsAlive(worldEntity) || !_map.World.Has<ScriptPlayersState>(worldEntity)) return 0;
+
+		ScriptPlayersState players = _map.World.Get<ScriptPlayersState>(worldEntity);
+		return players.IsValidSlot(playerSlot) ? players.Get(playerSlot).Team : 0;
+	}
+
+	/// <summary>Validates a peer's order against the world and applies the parts of it that are legal.</summary>
+	public ServerCommandResult ApplyCommand(int peerId, NetworkCommand command)
+	{
+		lock (_worldGate)
+		{
+			return _commands.ExecuteServerCommand(peerId, command);
+		}
 	}
 
 	/// <summary>A one-line account of what the map loaded, for the match log.</summary>

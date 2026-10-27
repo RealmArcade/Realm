@@ -5,6 +5,7 @@ using Realm.Ecs.Replication;
 using Realm.Shared;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
+using Realm.Shared.Simulation;
 
 namespace Realm.ListenServer;
 
@@ -147,6 +148,7 @@ public class ListenServerHost : IServerHost
 		try
 		{
 			if (!TryHandshake(peer)) return;
+			if (!TrySeatPeer(peer)) return;
 
 			while (!_shutdownRequested.IsSet)
 			{
@@ -173,7 +175,13 @@ public class ListenServerHost : IServerHost
 					return;
 				}
 
-				_log.Write($"refusing a {frame.Kind} frame of {frame.PayloadLength} bytes: this build answers nothing but a shutdown frame");
+				if (frame.Kind == NetworkFrameKind.Command)
+				{
+					HandleCommand(peer, in frame);
+					continue;
+				}
+
+				_log.Write($"refusing a {frame.Kind} frame of {frame.PayloadLength} bytes: this build answers hellos, commands and a shutdown");
 				return;
 			}
 		}
@@ -189,6 +197,84 @@ public class ListenServerHost : IServerHost
 				_peers.Remove(peer);
 			}
 		}
+	}
+
+	/// <summary>
+	///     Seats a peer on the roster and tells it which player it is. A peer with no slot owns nothing, so it is
+	///     refused here rather than allowed to send orders that would all be rejected one by one.
+	/// </summary>
+	private bool TrySeatPeer(IClientTransport peer)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return false;
+
+		if (!simulation.TryAssignPlayerSlot(peer.PeerId, out int playerSlot, out int team))
+		{
+			_log.Write($"peer {peer.PeerId} refused: every player slot this map declares is taken");
+			return false;
+		}
+
+		var assignment = new PeerRosterAssignment
+		{
+			PeerId = peer.PeerId,
+			PlayerSlot = playerSlot,
+			Team = team
+		};
+
+		peer.Send(NetworkFrameKind.Roster, MemoryPackSerializer.Serialize(assignment));
+		_log.Write($"peer {peer.PeerId} seated as player {playerSlot} (team {team})");
+		return true;
+	}
+
+	/// <summary>
+	///     Answers one order. The authority validates and applies it, and the peer is told whether it was taken, which
+	///     is what lets a predicting client keep or roll back what it already showed.
+	/// </summary>
+	private void HandleCommand(IClientTransport peer, in NetworkFrame frame)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		NetworkCommand command;
+		try
+		{
+			command = MemoryPackSerializer.Deserialize<NetworkCommand>(frame.Payload);
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			_log.Write($"peer {peer.PeerId} sent a command that could not be read: {exception.Message}");
+			return;
+		}
+
+		int commandId = command.CommandId;
+		string rejection;
+		if (!NetworkCommandLimits.TrySanitize(ref command, out rejection))
+		{
+			_log.Write($"peer {peer.PeerId} command {commandId} refused: {rejection}");
+			SendOutcome(peer, commandId, false, rejection);
+			return;
+		}
+
+		ServerCommandResult result = simulation.ApplyCommand(peer.PeerId, command);
+		bool accepted = !result.HasRejection;
+
+		_log.Write(accepted
+			? $"peer {peer.PeerId} command {commandId} '{command.CommandType}' accepted"
+			: $"peer {peer.PeerId} command {commandId} '{command.CommandType}' refused: {result.RejectionReason}");
+
+		SendOutcome(peer, commandId, accepted, result.RejectionReason);
+	}
+
+	private void SendOutcome(IClientTransport peer, int commandId, bool accepted, string rejectionReason)
+	{
+		var outcome = new CommandOutcome
+		{
+			CommandId = commandId,
+			Accepted = accepted,
+			RejectionReason = rejectionReason ?? string.Empty
+		};
+
+		peer.Send(NetworkFrameKind.CommandOutcome, MemoryPackSerializer.Serialize(outcome));
 	}
 
 	private bool TryHandshake(IClientTransport peer)
