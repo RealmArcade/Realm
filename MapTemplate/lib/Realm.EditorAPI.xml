@@ -174,6 +174,26 @@
             <param name="fallback">The fallback value to return if parsing fails.</param>
             <returns>The parsed <see cref="T:Realm.EditorAPI.AssetType"/> or the specified fallback value.</returns>
         </member>
+        <member name="T:Realm.EditorAPI.EditorOperationResult">
+            <summary>
+            What became of one editor operation. An operation is asked for by something that may not be able to see the
+            editor's screen — a tool, a script, or a second process over the editor's API — so a refusal is reported to the
+            caller rather than shown only as a line of feedback in the editor.
+            </summary>
+        </member>
+        <member name="M:Realm.EditorAPI.EditorOperationResult.#ctor(System.Boolean,System.String)">
+            <summary>
+            What became of one editor operation. An operation is asked for by something that may not be able to see the
+            editor's screen — a tool, a script, or a second process over the editor's API — so a refusal is reported to the
+            caller rather than shown only as a line of feedback in the editor.
+            </summary>
+        </member>
+        <member name="M:Realm.EditorAPI.EditorOperationResult.Succeeded">
+            <summary>An operation that did what it was asked to do.</summary>
+        </member>
+        <member name="M:Realm.EditorAPI.EditorOperationResult.Failed(System.String)">
+            <summary>An operation that was refused, and why, in words the caller can act on.</summary>
+        </member>
         <member name="T:Realm.EditorAPI.IEditorAPI">
             <summary>
             Provides domain service capabilities for map editing operations.
@@ -415,6 +435,7 @@
             <summary>
             Deletes the currently selected editor object.
             </summary>
+            <returns>Whether something was deleted, and why not when nothing was.</returns>
         </member>
         <member name="T:Realm.EditorAPI.TemplateType">
             <summary>

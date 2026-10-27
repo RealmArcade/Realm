@@ -243,5 +243,6 @@ public interface IEditorAPI
 	/// <summary>
 	/// Deletes the currently selected editor object.
 	/// </summary>
-	void DeleteSelectedObject();
+	/// <returns>Whether something was deleted, and why not when nothing was.</returns>
+	EditorOperationResult DeleteSelectedObject();
 }

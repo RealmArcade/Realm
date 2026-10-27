@@ -50,6 +50,7 @@
 ### Realm.MapAPI & WASM Zero-Allocation Shared Memory Architecture:
 - Only expose safe APIs to map authors and external tools to prevent direct manipulation of raw Godot nodes or C# ECS structures.
 - All map scripting operations proxy through `IGameAPI`, while map editing operations proxy through `IEditorAPI`.
+- Editor operations belong on `IEditorAPI` (`Realm.EditorAPI`) and are implemented by `EditorService`, never grown on `GameHost`. The interface is the editor's remote-control surface: a tool, a DLL consumer or an MCP server reaches the editor only through it, by method name, so every operation must report an `EditorOperationResult` rather than relying on on-screen feedback.
 - APIs must generate zero heap allocations and zero GC pressure.
 - Do not use `yield return` keyword inside WASM layer because it compiles to a GC heap allocation.
 - Use `ReadOnlySpan<T>` over facade types for enumeration rather than `T[]` or `List<T>`.

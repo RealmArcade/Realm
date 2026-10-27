@@ -1936,16 +1936,14 @@ namespace Realm.Client.UI
 
 		private void DeleteSelectedObject()
 		{
-			if (GameContext.Host == null) return;
-
-			var (success, error) = GameContext.Host.DeleteSelectedObject();
-			if (!string.IsNullOrEmpty(error))
+			EditorOperationResult result = GameContext.IEditorAPI.DeleteSelectedObject();
+			if (!string.IsNullOrEmpty(result.Error))
 			{
-				ShowFeedback(error);
+				ShowFeedback(result.Error);
 				return;
 			}
 
-			if (success)
+			if (result.Success)
 			{
 				_instanceManagerDialog?.RefreshIfOpen();
 			}

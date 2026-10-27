@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
 using Realm.Ecs.Components.Core;
+using Realm.EditorAPI;
 
 namespace Realm.Client.Services;
 
@@ -196,8 +197,11 @@ public partial class EditorService
 		GameContext.Host?.ResetScaleSelectedObject();
 	}
 
-	public void DeleteSelectedObject()
+	public EditorOperationResult DeleteSelectedObject()
 	{
-		GameContext.Host?.DeleteSelectedObject();
+		if (GameContext.Host == null) return EditorOperationResult.Failed("there is no map open in the editor");
+
+		(bool success, string error) = GameContext.Host.DeleteSelectedObject();
+		return success ? EditorOperationResult.Succeeded() : EditorOperationResult.Failed(error);
 	}
 }
