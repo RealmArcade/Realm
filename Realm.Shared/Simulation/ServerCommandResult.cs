@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using Godot;
+using System.Numerics;
 
-namespace Realm.Client.Services;
+namespace Realm.Shared.Simulation;
 
 public readonly struct ServerCommandResult
 {

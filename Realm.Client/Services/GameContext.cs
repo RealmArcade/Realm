@@ -51,6 +51,7 @@ namespace Realm.Client.Services
 		{
 			_simulation.Dispose();
 			_simulation = new SimulationContext();
+			_commandAuthority = null;
 		}
 
 		public static EcsWorld? World => _simulation.World;
@@ -170,7 +171,13 @@ namespace Realm.Client.Services
 		public static ModelOverrideService ModelOverrideService => ScreenScope.Get<ModelOverrideService>();
 		public static ReplayService ReplayService => ScreenScope.Get<ReplayService>();
 		public static NetworkService NetworkService => ScreenScope.Get<NetworkService>();
-		public static CommandAuthorityService CommandAuthority => ScreenScope.Get<CommandAuthorityService>();
+		private static CommandAuthorityService? _commandAuthority;
+
+		/// <summary>
+		///     This client's command authority. It belongs to the match, so it is rebuilt with the world rather than
+		///     carried over from the last one; the map's catalog binds its cost tables as it loads.
+		/// </summary>
+		public static CommandAuthorityService CommandAuthority => _commandAuthority ??= new CommandAuthorityService(_simulation);
 		public static TechTreeService TechTreeService => ScreenScope.Get<TechTreeService>();
 		public static ShroudService ShroudService => ScreenScope.Get<ShroudService>();
 		public static UnitSpawnService UnitSpawnService => ScreenScope.Get<UnitSpawnService>();

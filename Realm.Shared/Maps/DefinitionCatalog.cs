@@ -1,6 +1,7 @@
 using Realm.Ecs.Services;
 using Realm.Shared.Metadata;
 using Realm.Shared.Services;
+using Realm.Shared.Simulation;
 
 namespace Realm.Shared.Maps;
 
@@ -115,6 +116,22 @@ public class DefinitionCatalog
 	{
 		rules.BuildOptionsProvider = templateId => FindBuilding(templateId)?.BuildOptions;
 		rules.PopulationCostProvider = templateId => FindUnit(templateId)?.PopCost ?? 0;
+	}
+
+	/// <summary>
+	///     Points the command authority at these templates, so the mana a cast spends, the cooldown it starts and the
+	///     resources an order costs are the map's numbers. Both processes bind what they loaded, which is what stops an
+	///     order being affordable on one side and refused on the other.
+	/// </summary>
+	public void BindTo(CommandAuthorityService authority)
+	{
+		authority.AbilityRulesProvider = spellId => FindAbility(spellId) is { } ability
+			? new AbilityRules(ability.ManaCost, ability.Cooldown, ability.TargetRange)
+			: null;
+
+		authority.ProductionCostsProvider = unitId => FindUnitOrBuilding(unitId) is { } unit
+			? new ProductionCosts(unit.CostGold, unit.CostWood, unit.CostStone, unit.ProductionTime)
+			: null;
 	}
 
 	public UnitMetadata? FindUnit(string templateId) => Find(_units, templateId);

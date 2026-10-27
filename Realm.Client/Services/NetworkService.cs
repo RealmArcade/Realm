@@ -1562,9 +1562,9 @@ public class NetworkService
 
 
 	
-	public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd, List<Unit3D> allUnits, List<Prop3D> allProps)
+	public ServerCommandResult ExecuteServerCommand(int peerId, NetworkCommand cmd)
 	{
-		return GameContext.CommandAuthority.ExecuteServerCommand(peerId, cmd, allUnits, allProps);
+		return GameContext.CommandAuthority.ExecuteServerCommand(peerId, cmd);
 	}
 
 	public bool TryGetPlayerEntityForPeer(int peerId, out Entity playerEntity)

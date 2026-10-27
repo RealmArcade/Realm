@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Realm.Ecs;
+using Realm.Ecs.Utils;
 using Realm.Client.Core;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
@@ -113,7 +114,7 @@ public class InputService
 
 	public bool ShouldEnqueueWorkerBuild(Entity entity)
 	{
-			return Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity) || GameContext.World.Has<BuildQueue>(entity);
+			return UnitActivityHelper.IsUnitActive(GameContext.World, entity) || GameContext.World.Has<BuildQueue>(entity);
 	}
 
 	public void EnqueueBuildTask(Entity worker, string type, Vector3 pos)
@@ -155,7 +156,7 @@ public class InputService
 	{
 		foreach (var workerEntity in selectedWorkerEntities)
 		{
-				if (shiftHeld && (Realm.Client.Utils.UnitActivityHelper.IsUnitActive(workerEntity) || GameContext.World.Has<BuildQueue>(workerEntity)))
+				if (shiftHeld && (UnitActivityHelper.IsUnitActive(GameContext.World, workerEntity) || GameContext.World.Has<BuildQueue>(workerEntity)))
 			{
 				if (!GameContext.World.Has<BuildQueue>(workerEntity))
 				{
@@ -348,7 +349,7 @@ public class InputService
 			bool isBuilding = GameContext.World.Has<Building>(entity);
 			if (isBuilding) continue;
 
-				if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
+				if (isQueued && UnitActivityHelper.IsUnitActive(GameContext.World, entity))
 			{
 				EnqueueCommand(entity, "attack", targetPos, targetEntity);
 			}
@@ -367,7 +368,7 @@ public class InputService
 
 	private void AssignFollowCommand(Entity entity, Entity targetEntity, Vector3 targetPos, bool isQueued)
 	{
-			if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
+			if (isQueued && UnitActivityHelper.IsUnitActive(GameContext.World, entity))
 		{
 			EnqueueCommand(entity, "follow", targetPos, targetEntity);
 			return;
@@ -401,7 +402,7 @@ public class InputService
 
 	private void AssignPatrolCommand(Entity entity, Vector3 scattered, bool isQueued)
 	{
-			if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
+			if (isQueued && UnitActivityHelper.IsUnitActive(GameContext.World, entity))
 		{
 			EnqueueCommand(entity, "patrol", scattered);
 			return;
@@ -459,7 +460,7 @@ public class InputService
 			bool isBuilding = GameContext.World.Has<Building>(entity);
 			if (isBuilding) continue;
 
-				if (isQueued && Realm.Client.Utils.UnitActivityHelper.IsUnitActive(entity))
+				if (isQueued && UnitActivityHelper.IsUnitActive(GameContext.World, entity))
 			{
 				EnqueueCommand(entity, "attackmove", targetPos);
 			}

@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.Json;
+using Realm.Client.Services;
 using Realm.Ecs;
 using Godot;
 using MemoryPack;
 using Realm.Client.Network;
-using Realm.Client.Services;
+
 using Realm.Client.UI;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
@@ -357,7 +358,7 @@ public partial class GameHost
 		if (!result.NeedsSpellEffect) return;
 
 		string spellId = result.SpellId;
-		Vector3 position = result.SpellPosition;
+		Vector3 position = new Vector3(result.SpellPosition.X, result.SpellPosition.Y, result.SpellPosition.Z);
 		var caster = GetSpellCaster(cmd);
 		var casterEnt = GameContext.SimulationService.TryGetEntity(caster, out var ce) ? ce : Entity.Null;
 
@@ -484,7 +485,7 @@ public partial class GameHost
 
 	private void ApplyAuthoritativeCommand(int senderId, NetworkCommand cmd)
 	{
-		var result = GameContext.NetworkService.ExecuteServerCommand(senderId, cmd, AllUnits, AllProps);
+		var result = GameContext.NetworkService.ExecuteServerCommand(senderId, cmd);
 
 		StopUnitVelocities(result.StopVelocityEntityIds);
 		StopUnitVelocities(result.HoldVelocityEntityIds);

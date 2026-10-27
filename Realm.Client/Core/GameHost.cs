@@ -1844,6 +1844,7 @@ public partial class GameHost : Node3D, IGameAPI
 	private void LoadMetadataTemplates(DefinitionCatalog catalog)
 	{
 		catalog.BindTo(GameContext.Simulation.MapRules);
+		catalog.BindTo(GameContext.CommandAuthority);
 		LoadWeaponAndAttachmentTemplates(catalog.Metadata.Templates);
 		LoadItemTemplates(catalog.Metadata.Templates);
 		LoadUpgradeTemplates(catalog.Metadata.Templates);
