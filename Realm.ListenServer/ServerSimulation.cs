@@ -46,8 +46,9 @@ public class ServerSimulation : IDisposable
 
 	/// <summary>
 	///     Advances the world by exactly one tick, in the order the simulation expects: the clock and cooldowns drain,
-	///     movement resolves the orders on the board, then timed statuses, regeneration and visibility catch up.
-	///     Combat, production and the command pipeline are not wired in yet, so an orderless match only ages.
+	///     movement resolves the orders on the board, fights resolve, harvesting and production advance, then timed
+	///     statuses, regeneration and visibility catch up. The command pipeline is not wired to the transport yet, so a
+	///     match nobody has ordered anything in only ages.
 	/// </summary>
 	public void Step()
 	{
@@ -57,6 +58,7 @@ public class ServerSimulation : IDisposable
 		float deltaSeconds = (float)FixedTickSeconds;
 		_matchTick.AdvanceCooldowns(deltaSeconds);
 		_map.Simulation.MovementPathfindingService.StepMovement(deltaSeconds);
+		_map.Simulation.CombatDamageService.StepCombat(deltaSeconds, _map.Simulation.MovementPathfindingService);
 		_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
 		_matchTick.AdvanceStatusEffects(deltaSeconds);
 		_matchTick.AdvanceRegeneration(deltaSeconds);

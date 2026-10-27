@@ -25,7 +25,7 @@ namespace Realm.Ecs.Tests
 		[SetUp]
 		public void Setup()
 		{
-			_combatService = new CombatAndDamageService();
+			_combatService = new CombatAndDamageService(GameContext.Simulation);
 		}
 
 		[TearDown]

@@ -30,6 +30,9 @@ public class SimulationContext : IDisposable
 	/// <summary>The harvesting and production stepping this match's resources run through.</summary>
 	public ResourceEconomyService ResourceEconomyService { get; private set; }
 
+	/// <summary>The damage resolution and targeting this match's fights run through.</summary>
+	public CombatAndDamageService CombatDamageService { get; private set; }
+
 	/// <summary>
 	///     The evaluator a map's WASM scripts are called through. Only an authoritative context has one: a client never
 	///     runs map scripts, so its context leaves this null and the stat pipeline skips formula modifiers.
@@ -57,6 +60,7 @@ public class SimulationContext : IDisposable
 		StatService = new StatService(this);
 		TerrainNavMeshService = new TerrainNavMeshService(this);
 		ResourceEconomyService = new ResourceEconomyService(this);
+		CombatDamageService = new CombatAndDamageService(this);
 		PlayerResourceService = new PlayerResourceService();
 	}
 

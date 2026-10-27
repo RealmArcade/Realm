@@ -646,7 +646,12 @@ public class SimulationService
 		_movementService.SimulateEntityFilter = ShouldSimulateEntity;
 		_movementService.PositionWrittenSink = entity => PositionWriteTrace.Mark(entity, PositionWriter.Movement);
 		_movementService.WarningSink = message => Godot.GD.PushWarning(message);
-		_combatService = new CombatAndDamageService(() => GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled);
+		_combatService = GameContext.Simulation.CombatDamageService;
+		_combatService.UnlimitedPowerProvider = () => GameContext.Host != null && GameContext.CheatService.UnlimitedPowerEnabled;
+		_combatService.AuthoritativeProvider = () => GameContext.Host?.HasAuthority != false;
+		_combatService.SimulateEntityFilter = ShouldSimulateEntity;
+		_combatService.ItemGrantedWeaponsProvider = itemId => GameContext.RegistryService?.ItemRegistry.TryGetValue(itemId, out var itemMeta) == true ? itemMeta.GrantedWeapons : null;
+		_combatService.EnemyPredicate = ArePlayersEnemies;
 		_economyService = GameContext.Simulation.ResourceEconomyService;
 
 		_combatService.OnArrowProjectileRequested = (p1, p2) => EnqueueVFXRequest("arrow", p1, p2, 1.0f, 40f);

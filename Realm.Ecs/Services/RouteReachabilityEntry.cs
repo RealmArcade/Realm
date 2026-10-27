@@ -1,7 +1,7 @@
 using System.Numerics;
 using DotRecast.Detour;
 
-namespace Realm.Client.Services;
+namespace Realm.Ecs.Services;
 
 public readonly struct RouteReachabilityEntry
 {

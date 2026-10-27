@@ -13,17 +13,20 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using Realm.Client.Core;
 using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
-namespace Realm.Client.Services
+namespace Realm.Ecs.Services
 {
 	public class CombatAndDamageService
 	{
-		private readonly Func<bool>? _unlimitedPowerProvider;
+		private readonly SimulationContext _context;
+
+		/// <summary>Answers whether the match is running with cooldowns switched off, which a cheat sets and a server does not.</summary>
+		public Func<bool>? UnlimitedPowerProvider { get; set; }
+
 		// The map's tuning replaces this on load; reading it through the context means an attack and
 		// an ability in the same match can never resolve through two different matrices.
-		public CombatConfig Config => GameContext.Simulation.ActiveCombatConfig;
+		public CombatConfig Config => _context.ActiveCombatConfig;
 
 		private const float UnderAttackAlertCooldown = 8f;
 
@@ -36,8 +39,8 @@ namespace Realm.Client.Services
 
 		private bool IsFlying(Entity entity)
 		{
-			return GameContext.World.Has<PathingFlags>(entity)
-			       && ((TerrainPathingFlags)GameContext.World.Get<PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
+			return _context.World.Has<PathingFlags>(entity)
+			       && ((TerrainPathingFlags)_context.World.Get<PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
 		}
 
 		private bool CanAttackTarget(Entity attacker, Entity target)
@@ -47,12 +50,12 @@ namespace Realm.Client.Services
 				return true;
 			}
 
-			if (!GameContext.World.Has<CombatTargeting>(attacker))
+			if (!_context.World.Has<CombatTargeting>(attacker))
 			{
 				return true;
 			}
 
-			return GameContext.World.Get<CombatTargeting>(attacker).CanTargetAir;
+			return _context.World.Get<CombatTargeting>(attacker).CanTargetAir;
 		}
 
 		public readonly struct TargetCandidateSnapshot
@@ -224,9 +227,9 @@ namespace Realm.Client.Services
 		public Action<int, string>? OnUnderAttackAlertRequested;
 		public Action<Entity>? OnKillUnitRequested;
 
-		public CombatAndDamageService(Func<bool>? unlimitedPowerProvider = null)
+		public CombatAndDamageService(SimulationContext context)
 		{
-			_unlimitedPowerProvider = unlimitedPowerProvider;
+			_context = context;
 			_combatQueryDelegate = CombatQueryAction;
 			_healingExecutionQueryDelegate = HealingExecutionQueryAction;
 
@@ -240,7 +243,44 @@ namespace Realm.Client.Services
 			_lastAttackerReferenceDelegate = CollectLastAttackerOfClearedUnit;
 		}
 
-		private static bool HasAuthority => GameContext.Host?.HasAuthority != false;
+		/// <summary>
+		///     Decides whether this service is the one that applies the damage it computed. A client predicts its own
+		///     units and takes the authority's health, so it leaves this unset only when it is the authority; the
+		///     authoritative process answers yes and owns the outcome.
+		/// </summary>
+		public Func<bool>? AuthoritativeProvider { get; set; }
+
+		/// <summary>
+		///     Decides whether an entity takes part in combat resolution. A client narrows this to the units it predicts;
+		///     an authoritative context leaves it unset and resolves every entity in the world.
+		/// </summary>
+		public Func<Entity, bool>? SimulateEntityFilter { get; set; }
+
+		/// <summary>Answers the weapons an inventory item grants, so an item that arms a unit is armed on screen as well.</summary>
+		public Func<string, string[]?>? ItemGrantedWeaponsProvider { get; set; }
+
+		/// <summary>
+		///     Answers whether two players are enemies when the world carries no relationship matrix, which is what a
+		///     lobby that has not started yet looks like. A match that has a matrix never asks.
+		/// </summary>
+		public Func<int, int, bool>? EnemyPredicate { get; set; }
+
+		private bool ArePlayerIndicesEnemies(int playerIndex, int otherPlayerIndex)
+		{
+			if (playerIndex == otherPlayerIndex) return false;
+
+			Entity worldEntity = _context.WorldEntity;
+			if (worldEntity != Entity.Null && _context.World.IsAlive(worldEntity) && _context.World.Has<PlayerRelationshipMatrix>(worldEntity))
+			{
+				return _context.World.Get<PlayerRelationshipMatrix>(worldEntity).AreEnemies(playerIndex, otherPlayerIndex);
+			}
+
+			return EnemyPredicate?.Invoke(playerIndex, otherPlayerIndex) ?? playerIndex != otherPlayerIndex;
+		}
+
+		private bool HasAuthority => AuthoritativeProvider?.Invoke() ?? true;
+
+		private bool ShouldSimulateEntity(Entity entity) => SimulateEntityFilter == null || SimulateEntityFilter(entity);
 
 		public void StepCombat(float delta, MovementAndPathfindingService? movementService = null)
 		{
@@ -273,7 +313,7 @@ namespace Realm.Client.Services
 			_staleRouteReachabilityEntries.Clear();
 			foreach (var kvp in _routeReachabilityCache)
 			{
-				if (!GameContext.World.IsAlive(kvp.Key.Attacker) || !GameContext.World.IsAlive(kvp.Key.Target))
+				if (!_context.World.IsAlive(kvp.Key.Attacker) || !_context.World.IsAlive(kvp.Key.Target))
 				{
 					_staleRouteReachabilityEntries.Add(kvp.Key);
 					continue;
@@ -321,16 +361,16 @@ namespace Realm.Client.Services
 		{
 			get
 			{
-				if (_cachedWorldEntity == Entity.Null || !GameContext.World.IsAlive(_cachedWorldEntity))
+				if (_cachedWorldEntity == Entity.Null || !_context.World.IsAlive(_cachedWorldEntity))
 				{
-					if (GameContext.Simulation.WorldEntity != Entity.Null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity))
+					if (_context.WorldEntity != Entity.Null && _context.World.IsAlive(_context.WorldEntity))
 					{
-						_cachedWorldEntity = GameContext.Simulation.WorldEntity;
+						_cachedWorldEntity = _context.WorldEntity;
 					}
 					else
 					{
 						var query = QueryCache.AllWorldStateQuery;
-						GameContext.World.Query(in query, (Entity entity) => _cachedWorldEntity = entity);
+						_context.World.Query(in query, (Entity entity) => _cachedWorldEntity = entity);
 					}
 				}
 				return _cachedWorldEntity;
@@ -342,17 +382,17 @@ namespace Realm.Client.Services
 		{
 			get
 			{
-				if (_cachedTerrainEntity == Entity.Null || !GameContext.World.IsAlive(_cachedTerrainEntity))
+				if (_cachedTerrainEntity == Entity.Null || !_context.World.IsAlive(_cachedTerrainEntity))
 				{
 					var we = ActiveWorldEntity;
-					if (we != Entity.Null && GameContext.World.Has<TerrainState>(we))
+					if (we != Entity.Null && _context.World.Has<TerrainState>(we))
 					{
 						_cachedTerrainEntity = we;
 					}
 					else
 					{
 						var query = QueryCache.AllTerrainStateQuery;
-						GameContext.World.Query(in query, (Entity entity) => _cachedTerrainEntity = entity);
+						_context.World.Query(in query, (Entity entity) => _cachedTerrainEntity = entity);
 					}
 				}
 				return _cachedTerrainEntity;
@@ -365,9 +405,9 @@ namespace Realm.Client.Services
 		private int GetTimeOfDayIndex()
 		{
 			var worldEntity = FindWorldEntity();
-			if (worldEntity != Entity.Null && GameContext.World.Has<WorldState>(worldEntity))
+			if (worldEntity != Entity.Null && _context.World.Has<WorldState>(worldEntity))
 			{
-				return GameContext.World.Get<WorldState>(worldEntity).TimeOfDayIndex;
+				return _context.World.Get<WorldState>(worldEntity).TimeOfDayIndex;
 			}
 
 			return 0;
@@ -376,9 +416,9 @@ namespace Realm.Client.Services
 		private float GetCombatAlertTimer()
 		{
 			Entity worldEntity = ActiveWorldEntity;
-			if (worldEntity != Entity.Null && GameContext.World.Has<CombatAlertState>(worldEntity))
+			if (worldEntity != Entity.Null && _context.World.Has<CombatAlertState>(worldEntity))
 			{
-				return GameContext.World.Get<CombatAlertState>(worldEntity).UnderAttackAlertTimer;
+				return _context.World.Get<CombatAlertState>(worldEntity).UnderAttackAlertTimer;
 			}
 
 			return 0f;
@@ -387,9 +427,9 @@ namespace Realm.Client.Services
 		private void SetCombatAlertTimer(float value)
 		{
 			Entity worldEntity = ActiveWorldEntity;
-			if (worldEntity != Entity.Null && GameContext.World.Has<CombatAlertState>(worldEntity))
+			if (worldEntity != Entity.Null && _context.World.Has<CombatAlertState>(worldEntity))
 			{
-				ref var state = ref GameContext.World.Get<CombatAlertState>(worldEntity);
+				ref var state = ref _context.World.Get<CombatAlertState>(worldEntity);
 				state.UnderAttackAlertTimer = value;
 			}
 		}
@@ -397,9 +437,9 @@ namespace Realm.Client.Services
 		private void TickCombatAlertTimer(float fDelta)
 		{
 			Entity worldEntity = ActiveWorldEntity;
-			if (worldEntity != Entity.Null && GameContext.World.Has<CombatAlertState>(worldEntity))
+			if (worldEntity != Entity.Null && _context.World.Has<CombatAlertState>(worldEntity))
 			{
-				ref var state = ref GameContext.World.Get<CombatAlertState>(worldEntity);
+				ref var state = ref _context.World.Get<CombatAlertState>(worldEntity);
 				if (state.UnderAttackAlertTimer > 0f)
 				{
 					state.UnderAttackAlertTimer = Math.Max(0f, state.UnderAttackAlertTimer - fDelta);
@@ -419,9 +459,9 @@ namespace Realm.Client.Services
 			if (_currentMovementService == null)
 			{
 				_targetCandidateCount = 0;
-				GameContext.World.Query(in _enemyQuery, (Entity potentialEnemy, ref Position enemyPos, ref Owner enemyOwner) =>
+				_context.World.Query(in _enemyQuery, (Entity potentialEnemy, ref Position enemyPos, ref Owner enemyOwner) =>
 				{
-					if (GameContext.World.Has<Invulnerable>(potentialEnemy)) return;
+					if (_context.World.Has<Invulnerable>(potentialEnemy)) return;
 					int pIdx = GetPlayerIndexForEntity(potentialEnemy);
 					bool flying = IsFlying(potentialEnemy);
 					float colRadius = GetTargetCollisionRadius(potentialEnemy);
@@ -438,28 +478,28 @@ namespace Realm.Client.Services
 
 			_attackerCount = 0;
 			int timeOfDay = GetTimeOfDayIndex();
-			GameContext.World.Query(in _targetAcquisitionQuery, (Entity entity, ref Position pos, ref Attack atk, ref Owner owner) =>
+			_context.World.Query(in _targetAcquisitionQuery, (Entity entity, ref Position pos, ref Attack atk, ref Owner owner) =>
 			{
-				if (atk.Damage <= 0f || GameContext.World.Has<Invulnerable>(entity) || GameContext.World.Has<CommandsFrozen>(entity)) return;
-				if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
+				if (atk.Damage <= 0f || _context.World.Has<Invulnerable>(entity) || _context.World.Has<CommandsFrozen>(entity)) return;
+				if (!ShouldSimulateEntity(entity)) return;
 
-				bool isAutoCombat = GameContext.World.Has<AutoCombatState>(entity) && GameContext.World.Get<AutoCombatState>(entity).Enabled;
-				bool isAttackMove = GameContext.World.Has<AttackMove>(entity);
-				bool isPatrol = GameContext.World.Has<Patrol>(entity);
-				bool isIdle = !GameContext.World.Has<MoveTo>(entity) && !isAttackMove;
+				bool isAutoCombat = _context.World.Has<AutoCombatState>(entity) && _context.World.Get<AutoCombatState>(entity).Enabled;
+				bool isAttackMove = _context.World.Has<AttackMove>(entity);
+				bool isPatrol = _context.World.Has<Patrol>(entity);
+				bool isIdle = !_context.World.Has<MoveTo>(entity) && !isAttackMove;
 
 				if (!isIdle && !isAttackMove && !isPatrol && !isAutoCombat) return;
 
 				// Stagger target acquisition across ticks in simulation so idle entities do not all scan simultaneously on every 30Hz tick
 				if (_currentMovementService != null && (entity.Id + _combatTickCount) % 4 != 0) return;
 
-				float scanRadius = GameContext.World.Has<ScanRadius>(entity) ? GameContext.World.Get<ScanRadius>(entity).Value : 15.0f;
+				float scanRadius = _context.World.Has<ScanRadius>(entity) ? _context.World.Get<ScanRadius>(entity).Value : 15.0f;
 				if (timeOfDay == 2) scanRadius *= 0.7f;
 
 				bool isFlying = IsFlying(entity);
-				bool canTargetAir = !GameContext.World.Has<CombatTargeting>(entity) || GameContext.World.Get<CombatTargeting>(entity).CanTargetAir;
+				bool canTargetAir = !_context.World.Has<CombatTargeting>(entity) || _context.World.Get<CombatTargeting>(entity).CanTargetAir;
 				bool isGroundMelee = !isFlying && atk.Range <= MeleeRangeThreshold;
-				int includeFlags = GameContext.World.Has<PathingFlags>(entity) ? GameContext.World.Get<PathingFlags>(entity).Value : (int)TerrainPathingFlags.Ground;
+				int includeFlags = _context.World.Has<PathingFlags>(entity) ? _context.World.Get<PathingFlags>(entity).Value : (int)TerrainPathingFlags.Ground;
 
 				if (_attackerCount >= _attackerArray.Length)
 					Array.Resize(ref _attackerArray, _attackerArray.Length * 2);
@@ -495,9 +535,9 @@ namespace Realm.Client.Services
 			for (int i = 0; i < _attackerCount; i++)
 			{
 				ref readonly var attacker = ref _attackerArray[i];
-				if (attacker.SelectedTarget != Entity.Null && GameContext.World.IsAlive(attacker.Entity))
+				if (attacker.SelectedTarget != Entity.Null && _context.World.IsAlive(attacker.Entity))
 				{
-					GameContext.World.SetOrAdd(attacker.Entity, new AttackTarget(attacker.SelectedTarget));
+					_context.World.SetOrAdd(attacker.Entity, new AttackTarget(attacker.SelectedTarget));
 				}
 			}
 		}
@@ -523,7 +563,7 @@ namespace Realm.Client.Services
 			float scanRadius = MathF.Sqrt(attacker.ScanMaxDistSq);
 			float cellSize = movementService.CollisionCellSize;
 			var center = attacker.Position;
-			var world = GameContext.World;
+			var world = _context.World;
 
 			int minCx = (int)Math.Floor((center.X - scanRadius) / cellSize);
 			int maxCx = (int)Math.Floor((center.X + scanRadius) / cellSize);
@@ -545,7 +585,7 @@ namespace Realm.Client.Services
 						if (!world.IsAlive(potentialEnemy) || world.Has<Dead>(potentialEnemy) || world.Has<Invulnerable>(potentialEnemy)) continue;
 
 						int candidatePlayer = GetPlayerIndexForEntity(potentialEnemy);
-						if (!NetworkService.ArePlayerIndicesEnemies(attacker.PlayerIndex, candidatePlayer)) continue;
+						if (!ArePlayerIndicesEnemies(attacker.PlayerIndex, candidatePlayer)) continue;
 
 						bool flying = IsFlying(potentialEnemy);
 						if (flying && (attacker.IsGroundMelee || !attacker.CanTargetAir)) continue;
@@ -573,7 +613,7 @@ namespace Realm.Client.Services
 			for (int c = 0; c < candidateCountTotal; c++)
 			{
 				ref readonly var candidate = ref candidates[c];
-				if (NetworkService.ArePlayerIndicesEnemies(attacker.PlayerIndex, candidate.PlayerIndex))
+				if (ArePlayerIndicesEnemies(attacker.PlayerIndex, candidate.PlayerIndex))
 				{
 					if (candidate.IsFlying && (attacker.IsGroundMelee || !attacker.CanTargetAir))
 					{
@@ -659,14 +699,14 @@ namespace Realm.Client.Services
 
 		private int GetPlayerIndexForEntity(Entity entity)
 		{
-			if (entity == Entity.Null || !GameContext.World.IsAlive(entity)) return 0;
-			if (GameContext.World.Has<UnitOwnerPlayer>(entity))
-				return GameContext.World.Get<UnitOwnerPlayer>(entity).PlayerIndex;
-			if (GameContext.World.Has<Owner>(entity))
+			if (entity == Entity.Null || !_context.World.IsAlive(entity)) return 0;
+			if (_context.World.Has<UnitOwnerPlayer>(entity))
+				return _context.World.Get<UnitOwnerPlayer>(entity).PlayerIndex;
+			if (_context.World.Has<Owner>(entity))
 			{
-				var pEnt = GameContext.World.Get<Owner>(entity).PlayerEntity.Value;
-				if (GameContext.World.IsAlive(pEnt) && GameContext.World.Has<UnitOwnerPlayer>(pEnt))
-					return GameContext.World.Get<UnitOwnerPlayer>(pEnt).PlayerIndex;
+				var pEnt = _context.World.Get<Owner>(entity).PlayerEntity.Value;
+				if (_context.World.IsAlive(pEnt) && _context.World.Has<UnitOwnerPlayer>(pEnt))
+					return _context.World.Get<UnitOwnerPlayer>(pEnt).PlayerIndex;
 			}
 			return 0;
 		}
@@ -702,7 +742,7 @@ namespace Realm.Client.Services
 			_tickActionsToStopChasing.Clear();
 			_tickUnitsToKill.Clear();
 
-			GameContext.World.Query(in _combatQuery, _combatQueryDelegate);
+			_context.World.Query(in _combatQuery, _combatQueryDelegate);
 
 			ProcessLastAttackers();
 			ProcessUnitsToKill();
@@ -723,9 +763,9 @@ namespace Realm.Client.Services
 			for (int i = 0; i < _tickNewAttackTargets.Count; i++)
 			{
 				var (attacker, target) = _tickNewAttackTargets[i];
-				if (GameContext.World.IsAlive(attacker))
+				if (_context.World.IsAlive(attacker))
 				{
-					GameContext.World.SetOrAdd(attacker, target);
+					_context.World.SetOrAdd(attacker, target);
 				}
 			}
 			_tickNewAttackTargets.Clear();
@@ -734,7 +774,7 @@ namespace Realm.Client.Services
 		private void RecordLastAttacker(Entity target, Entity attacker)
 		{
 			if (!HasAuthority) return;
-			if (GameContext.World.Has<LastAttacker>(target)) GameContext.World.Set(target, new LastAttacker(attacker));
+			if (_context.World.Has<LastAttacker>(target)) _context.World.Set(target, new LastAttacker(attacker));
 			else _tickActionsToAddLastAttacker.Add((target, attacker));
 		}
 
@@ -742,9 +782,9 @@ namespace Realm.Client.Services
 		{
 			foreach (var (targetEnt, attackerEnt) in _tickActionsToAddLastAttacker)
 			{
-				if (GameContext.World.IsAlive(targetEnt))
+				if (_context.World.IsAlive(targetEnt))
 				{
-					GameContext.World.AddOrGet(targetEnt, new LastAttacker(attackerEnt)) = new LastAttacker(attackerEnt);
+					_context.World.AddOrGet(targetEnt, new LastAttacker(attackerEnt)) = new LastAttacker(attackerEnt);
 				}
 			}
 		}
@@ -761,9 +801,9 @@ namespace Realm.Client.Services
 			{
 				ClearChaseTracking(targetEntity);
 				_abandonedTargetCooldown.TryRemove(targetEntity, out _);
-				if (!GameContext.World.IsAlive(targetEntity) || GameContext.World.Has<Dead>(targetEntity)) continue;
+				if (!_context.World.IsAlive(targetEntity) || _context.World.Has<Dead>(targetEntity)) continue;
 
-				GameContext.World.Add<Dead>(targetEntity);
+				_context.World.Add<Dead>(targetEntity);
 				ClearReferencesTo(targetEntity);
 				OnKillUnitRequested?.Invoke(targetEntity);
 			}
@@ -774,16 +814,16 @@ namespace Realm.Client.Services
 			_clearedReferenceTarget = deadEntity;
 
 			_clearedReferenceEntities.Clear();
-			GameContext.World.Query(in _attackTargetReferenceQuery, _attackTargetReferenceDelegate);
-			for (int index = 0; index < _clearedReferenceEntities.Count; index++) GameContext.World.Remove<AttackTarget>(_clearedReferenceEntities[index]);
+			_context.World.Query(in _attackTargetReferenceQuery, _attackTargetReferenceDelegate);
+			for (int index = 0; index < _clearedReferenceEntities.Count; index++) _context.World.Remove<AttackTarget>(_clearedReferenceEntities[index]);
 
 			_clearedReferenceEntities.Clear();
-			GameContext.World.Query(in _followReferenceQuery, _followReferenceDelegate);
-			for (int index = 0; index < _clearedReferenceEntities.Count; index++) GameContext.World.Remove<Follow>(_clearedReferenceEntities[index]);
+			_context.World.Query(in _followReferenceQuery, _followReferenceDelegate);
+			for (int index = 0; index < _clearedReferenceEntities.Count; index++) _context.World.Remove<Follow>(_clearedReferenceEntities[index]);
 
 			_clearedReferenceEntities.Clear();
-			GameContext.World.Query(in _lastAttackerReferenceQuery, _lastAttackerReferenceDelegate);
-			for (int index = 0; index < _clearedReferenceEntities.Count; index++) GameContext.World.Remove<LastAttacker>(_clearedReferenceEntities[index]);
+			_context.World.Query(in _lastAttackerReferenceQuery, _lastAttackerReferenceDelegate);
+			for (int index = 0; index < _clearedReferenceEntities.Count; index++) _context.World.Remove<LastAttacker>(_clearedReferenceEntities[index]);
 		}
 
 		private void CollectAttackTargetOfClearedUnit(Entity entity, ref AttackTarget target)
@@ -809,9 +849,9 @@ namespace Realm.Client.Services
 			foreach (var ent in _tickActionsToRemoveTarget)
 			{
 				ClearChaseTracking(ent);
-				if (!GameContext.World.IsAlive(ent)) continue;
+				if (!_context.World.IsAlive(ent)) continue;
 
-				if (GameContext.World.Has<AttackTarget>(ent)) GameContext.World.Remove<AttackTarget>(ent);
+				if (_context.World.Has<AttackTarget>(ent)) _context.World.Remove<AttackTarget>(ent);
 
 				if (HandleAttackMoveRemoval(ent)) continue;
 				if (HandlePatrolRemoval(ent)) continue;
@@ -821,45 +861,45 @@ namespace Realm.Client.Services
 
 		private bool HandleAttackMoveRemoval(Entity ent)
 		{
-			if (!GameContext.World.Has<AttackMove>(ent)) return false;
+			if (!_context.World.Has<AttackMove>(ent)) return false;
 
-			var am = GameContext.World.Get<AttackMove>(ent);
-			if (!GameContext.World.Has<MoveTo>(ent)) GameContext.World.Add(ent, new MoveTo(am.Target));
+			var am = _context.World.Get<AttackMove>(ent);
+			if (!_context.World.Has<MoveTo>(ent)) _context.World.Add(ent, new MoveTo(am.Target));
 			return true;
 		}
 
 		private bool HandlePatrolRemoval(Entity ent)
 		{
-			if (!GameContext.World.Has<Patrol>(ent)) return false;
+			if (!_context.World.Has<Patrol>(ent)) return false;
 
-			var patrol = GameContext.World.Get<Patrol>(ent);
+			var patrol = _context.World.Get<Patrol>(ent);
 			var destVec = patrol.GoingToB ? patrol.PointB : patrol.PointA;
-			if (!GameContext.World.Has<MoveTo>(ent)) GameContext.World.Add(ent, new MoveTo(destVec));
+			if (!_context.World.Has<MoveTo>(ent)) _context.World.Add(ent, new MoveTo(destVec));
 			return true;
 		}
 
 		private void HandleMoveToRemoval(Entity ent)
 		{
-			if (!GameContext.World.Has<MoveTo>(ent)) return;
+			if (!_context.World.Has<MoveTo>(ent)) return;
 
-			GameContext.World.Remove<MoveTo>(ent);
-			if (GameContext.World.Has<Velocity>(ent)) GameContext.World.Set(ent, new Velocity(Vector3.Zero));
+			_context.World.Remove<MoveTo>(ent);
+			if (_context.World.Has<Velocity>(ent)) _context.World.Set(ent, new Velocity(Vector3.Zero));
 		}
 
 		private void ProcessChaseActions()
 		{
 			foreach (var (attacker, targetPos) in _tickActionsToChase)
 			{
-				if (!GameContext.World.IsAlive(attacker) || !GameContext.World.Has<AttackTarget>(attacker)) continue;
+				if (!_context.World.IsAlive(attacker) || !_context.World.Has<AttackTarget>(attacker)) continue;
 
 				bool needsRetarget = true;
-				if (GameContext.World.Has<MoveTo>(attacker))
+				if (_context.World.Has<MoveTo>(attacker))
 				{
-					var existingTarget = GameContext.World.Get<MoveTo>(attacker).Target;
+					var existingTarget = _context.World.Get<MoveTo>(attacker).Target;
 					if (Distance(existingTarget, targetPos) < ChaseRetargetDistance) needsRetarget = false;
 				}
 
-				if (needsRetarget) GameContext.World.SetOrAdd(attacker, new MoveTo(targetPos));
+				if (needsRetarget) _context.World.SetOrAdd(attacker, new MoveTo(targetPos));
 			}
 		}
 
@@ -867,18 +907,18 @@ namespace Realm.Client.Services
 		{
 			foreach (var attacker in _tickActionsToStopChasing)
 			{
-				if (!GameContext.World.IsAlive(attacker)) continue;
+				if (!_context.World.IsAlive(attacker)) continue;
 
-				if (GameContext.World.Has<MoveTo>(attacker)) GameContext.World.Remove<MoveTo>(attacker);
-				if (GameContext.World.Has<Velocity>(attacker)) GameContext.World.Set(attacker, new Velocity(Vector3.Zero));
+				if (_context.World.Has<MoveTo>(attacker)) _context.World.Remove<MoveTo>(attacker);
+				if (_context.World.Has<Velocity>(attacker)) _context.World.Set(attacker, new Velocity(Vector3.Zero));
 			}
 		}
 
 		private void CombatQueryAction(Entity entity, ref Position pos, ref Attack atk, ref AttackTarget target, ref Owner owner)
 		{
-			if (!GameContext.SimulationService.ShouldSimulateEntity(entity)) return;
+			if (!ShouldSimulateEntity(entity)) return;
 
-			if (!GameContext.World.IsAlive(target.Target) || GameContext.World.Has<Dead>(target.Target) || GameContext.World.Has<Invulnerable>(target.Target))
+			if (!_context.World.IsAlive(target.Target) || _context.World.Has<Dead>(target.Target) || _context.World.Has<Invulnerable>(target.Target))
 			{
 				_tickActionsToRemoveTarget.Add(entity);
 				return;
@@ -896,7 +936,7 @@ namespace Realm.Client.Services
 		private bool TryProcessCombatAction(Entity entity, ref Position pos, ref Attack atk, ref AttackTarget target, ref Owner owner)
 		{
 			var currentPos = pos.Value;
-			var targetPos = GameContext.World.Get<Position>(target.Target).Value;
+			var targetPos = _context.World.Get<Position>(target.Target).Value;
 			float effectiveRange = GetEffectiveRange(entity, target.Target, atk.Range, out bool isMelee, out float meleeVerticalReach);
 
 			bool withinRange = isMelee
@@ -910,9 +950,9 @@ namespace Realm.Client.Services
 
 				if (atk.CurrentCooldown > 0) return true;
 
-				if (GameContext.World.Has<Invulnerable>(target.Target))
+				if (_context.World.Has<Invulnerable>(target.Target))
 				{
-					atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
+					atk.CurrentCooldown = (UnlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
 					return true;
 				}
 
@@ -938,15 +978,15 @@ namespace Realm.Client.Services
 			float baseDamage = ResolveAttackDamage(entity, target, ref atk, out float finalDamage);
 			ApplyDamageAndEffects(entity, target, finalDamage, baseDamage, ref atk, targetPos, owner);
 
-			atk.CurrentCooldown = (_unlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
+			atk.CurrentCooldown = (UnlimitedPowerProvider?.Invoke() == true) ? 0f : GetEffectiveAttackCooldown(entity, atk.Cooldown);
 
 			HandleProjectile(entity, target, currentPos, targetPos, atk.Range);
 		}
 
 		private float ResolveAttackDamage(Entity entity, Entity target, ref Attack atk, out float finalDamage)
 		{
-			var resistances = GameContext.World.Has<Resistances>(target) ? GameContext.World.Get<Resistances>(target) : default;
-			float baseDamage = GameContext.Simulation.StatService != null ? GameContext.Simulation.StatService.GetStatValue(entity, new StatId(StatKeys.Attack)) : 0f;
+			var resistances = _context.World.Has<Resistances>(target) ? _context.World.Get<Resistances>(target) : default;
+			float baseDamage = _context.StatService != null ? _context.StatService.GetStatValue(entity, new StatId(StatKeys.Attack)) : 0f;
 			if (baseDamage <= 0) baseDamage = atk.Damage;
 
 			bool magic = DamageTypes.IsMagic(atk.DamageType);
@@ -968,21 +1008,21 @@ namespace Realm.Client.Services
 		///     items and buffs are honoured. The attack component's authored value is the fallback for
 		///     an entity whose stats have never been recalculated.
 		/// </summary>
-		private static float ReadPenetration(Entity entity, bool magic, float authored)
+		private float ReadPenetration(Entity entity, bool magic, float authored)
 		{
 			string key = magic ? StatKeys.FlatMagicPenetration : StatKeys.FlatArmorPenetration;
 			return ReadPenetrationStat(entity, key, magic ? 0f : authored);
 		}
 
-		private static float ReadPenetrationPercent(Entity entity, bool magic, float authored)
+		private float ReadPenetrationPercent(Entity entity, bool magic, float authored)
 		{
 			string key = magic ? StatKeys.PercentMagicPenetration : StatKeys.PercentArmorPenetration;
 			return ReadPenetrationStat(entity, key, magic ? 0f : authored);
 		}
 
-		private static float ReadPenetrationStat(Entity entity, string statKey, float fallback)
+		private float ReadPenetrationStat(Entity entity, string statKey, float fallback)
 		{
-			float value = GameContext.Simulation.StatService != null ? GameContext.Simulation.StatService.GetStatValue(entity, new StatId(statKey)) : 0f;
+			float value = _context.StatService != null ? _context.StatService.GetStatValue(entity, new StatId(statKey)) : 0f;
 			return value > 0f ? value : fallback;
 		}
 
@@ -998,11 +1038,11 @@ namespace Realm.Client.Services
 			float newHp = 0f;
 			if (HasAuthority)
 			{
-				var targetHealth = GameContext.World.Get<Health>(target);
+				var targetHealth = _context.World.Get<Health>(target);
 				newHp = Math.Max(0, targetHealth.Current - dealt);
 				targetHealth.Current = newHp;
 				targetHealth.TimeSinceLastDamage = 0f;
-				GameContext.World.Set(target, targetHealth);
+				_context.World.Set(target, targetHealth);
 			}
 
 			if (atk.SplashType != SplashType.None && atk.SplashOuterRadius > 0f)
@@ -1017,10 +1057,10 @@ namespace Realm.Client.Services
 
 		private void CheckCombatAlert(Entity target)
 		{
-			if (!GameContext.World.Has<DefinitionId>(target)) return;
+			if (!_context.World.Has<DefinitionId>(target)) return;
 
-			int targetPlayer = GameContext.World.Has<UnitOwnerPlayer>(target) ? GameContext.World.Get<UnitOwnerPlayer>(target).PlayerIndex : 0;
-			string targetUnitId = GameContext.World.Get<DefinitionId>(target).Value;
+			int targetPlayer = _context.World.Has<UnitOwnerPlayer>(target) ? _context.World.Get<UnitOwnerPlayer>(target).PlayerIndex : 0;
+			string targetUnitId = _context.World.Get<DefinitionId>(target).Value;
 			if (GetCombatAlertTimer() <= 0f)
 			{
 				SetCombatAlertTimer(UnderAttackAlertCooldown);
@@ -1030,11 +1070,11 @@ namespace Realm.Client.Services
 
 		private void AcquireNewTargetFromAttacker(Entity entity, Entity target)
 		{
-			if (!GameContext.World.IsAlive(target) || GameContext.World.Has<Dead>(target) || GameContext.World.Has<AttackTarget>(target)) return;
-			if (!GameContext.World.Has<Attack>(target)) return;
+			if (!_context.World.IsAlive(target) || _context.World.Has<Dead>(target) || _context.World.Has<AttackTarget>(target)) return;
+			if (!_context.World.Has<Attack>(target)) return;
 
-			bool hasMoveTo = GameContext.World.Has<MoveTo>(target);
-			if (!hasMoveTo || GameContext.World.Has<AttackMove>(target))
+			bool hasMoveTo = _context.World.Has<MoveTo>(target);
+			if (!hasMoveTo || _context.World.Has<AttackMove>(target))
 			{
 				if (IsFlying(entity) && !CanAttackTarget(target, entity)) return;
 				_tickNewAttackTargets.Add((target, new AttackTarget(entity)));
@@ -1046,24 +1086,25 @@ namespace Realm.Client.Services
 			if (range <= 3f) return;
 
 			string? weaponId = null;
-			if (GameContext.World.Has<Inventory>(entity))
+			if (_context.World.Has<Inventory>(entity))
 			{
-				var inv = GameContext.World.Get<Inventory>(entity);
+				var inv = _context.World.Get<Inventory>(entity);
 				for (int itemIndex = 0; itemIndex < inv.Count; itemIndex++)
 				{
 					string? item = inv.GetItemId(itemIndex);
 					if (item == null) continue;
-					if (GameContext.RegistryService?.ItemRegistry != null && GameContext.RegistryService.ItemRegistry.TryGetValue(item, out var itemMeta) && itemMeta?.GrantedWeapons != null && itemMeta.GrantedWeapons.Length > 0)
+					string[]? grantedWeapons = ItemGrantedWeaponsProvider?.Invoke(item);
+					if (grantedWeapons != null && grantedWeapons.Length > 0)
 					{
-						weaponId = itemMeta.GrantedWeapons[0];
+						weaponId = grantedWeapons[0];
 						break;
 					}
 				}
 			}
 
-			if (weaponId == null && GameContext.World.Has<DefinitionId>(entity))
+			if (weaponId == null && _context.World.Has<DefinitionId>(entity))
 			{
-				var defId = GameContext.World.Get<DefinitionId>(entity).Value;
+				var defId = _context.World.Get<DefinitionId>(entity).Value;
 				var weapons = UnitWeaponsProvider?.Invoke(defId);
 				weaponId = (weapons != null && weapons.Length > 0) ? weapons[0] : defId;
 			}
@@ -1073,12 +1114,12 @@ namespace Realm.Client.Services
 
 		private void HandleOutOfRangeAction(Entity entity, Entity target, Vector3 currentPos, Vector3 targetPos, float effectiveRange, bool isMelee, float meleeVerticalReach)
 		{
-			if (GameContext.World.Has<Building>(entity))
+			if (_context.World.Has<Building>(entity))
 			{
 				_tickActionsToRemoveTarget.Add(entity);
 				ClearChaseTracking(entity);
 			}
-			else if (!GameContext.World.Has<HoldPosition>(entity) && GameContext.World.Has<Movable>(entity))
+			else if (!_context.World.Has<HoldPosition>(entity) && _context.World.Has<Movable>(entity))
 			{
 				if (!IsReachableWithinRange(entity, target, currentPos, targetPos, effectiveRange, isMelee, meleeVerticalReach))
 				{
@@ -1100,7 +1141,7 @@ namespace Realm.Client.Services
 
 		private void EvaluateSplashDamage(Entity attacker, Entity primaryTarget, Vector3 impactPos, float baseDamage, Attack atk, Owner attackerOwner)
 		{
-			int attackerPlayer = GameContext.World.Has<UnitOwnerPlayer>(attacker) ? GameContext.World.Get<UnitOwnerPlayer>(attacker).PlayerIndex : 0;
+			int attackerPlayer = _context.World.Has<UnitOwnerPlayer>(attacker) ? _context.World.Get<UnitOwnerPlayer>(attacker).PlayerIndex : 0;
 
 			if (_currentMovementService != null)
 			{
@@ -1118,15 +1159,15 @@ namespace Realm.Client.Services
 
 			var splashQuery = QueryCache.AllPositionAndHealthAndOwnerNoneDeadQuery;
 
-			GameContext.World.Query(in splashQuery, (Entity splashEnt, ref Position sPos, ref Health sHp, ref Owner sOwner) =>
+			_context.World.Query(in splashQuery, (Entity splashEnt, ref Position sPos, ref Health sHp, ref Owner sOwner) =>
 			{
 				if (splashEnt == primaryTarget || splashEnt == attacker) return;
-				if (GameContext.World.Has<Invulnerable>(splashEnt)) return;
+				if (_context.World.Has<Invulnerable>(splashEnt)) return;
 
 				if (!atk.FriendlyFire)
 				{
-					int splashPlayer = GameContext.World.Has<UnitOwnerPlayer>(splashEnt) ? GameContext.World.Get<UnitOwnerPlayer>(splashEnt).PlayerIndex : 0;
-					if (!NetworkService.ArePlayerIndicesEnemies(attackerPlayer, splashPlayer) || sOwner.PlayerEntity == attackerOwner.PlayerEntity) return;
+					int splashPlayer = _context.World.Has<UnitOwnerPlayer>(splashEnt) ? _context.World.Get<UnitOwnerPlayer>(splashEnt).PlayerIndex : 0;
+					if (!ArePlayerIndicesEnemies(attackerPlayer, splashPlayer) || sOwner.PlayerEntity == attackerOwner.PlayerEntity) return;
 				}
 
 				float distToImpact = Distance(impactPos, sPos.Value);
@@ -1147,15 +1188,15 @@ namespace Realm.Client.Services
 		{
 			Entity splashEnt = entry.Entity;
 			if (splashEnt == _splashPrimaryTarget || splashEnt == _splashAttacker) return;
-			if (!GameContext.World.IsAlive(splashEnt) || GameContext.World.Has<Dead>(splashEnt) || !GameContext.World.Has<Health>(splashEnt)) return;
-			if (GameContext.World.Has<Invulnerable>(splashEnt)) return;
+			if (!_context.World.IsAlive(splashEnt) || _context.World.Has<Dead>(splashEnt) || !_context.World.Has<Health>(splashEnt)) return;
+			if (_context.World.Has<Invulnerable>(splashEnt)) return;
 
-			Owner sOwner = GameContext.World.Has<Owner>(splashEnt) ? GameContext.World.Get<Owner>(splashEnt) : default;
+			Owner sOwner = _context.World.Has<Owner>(splashEnt) ? _context.World.Get<Owner>(splashEnt) : default;
 
 			if (!_splashAtk.FriendlyFire)
 			{
-				int splashPlayer = GameContext.World.Has<UnitOwnerPlayer>(splashEnt) ? GameContext.World.Get<UnitOwnerPlayer>(splashEnt).PlayerIndex : 0;
-				if (!NetworkService.ArePlayerIndicesEnemies(_splashAttackerPlayer, splashPlayer) || sOwner.PlayerEntity == _splashAttackerOwner.PlayerEntity) return;
+				int splashPlayer = _context.World.Has<UnitOwnerPlayer>(splashEnt) ? _context.World.Get<UnitOwnerPlayer>(splashEnt).PlayerIndex : 0;
+				if (!ArePlayerIndicesEnemies(_splashAttackerPlayer, splashPlayer) || sOwner.PlayerEntity == _splashAttackerOwner.PlayerEntity) return;
 			}
 
 			float distToImpact = Distance(_splashImpactPos, entry.Position);
@@ -1167,14 +1208,14 @@ namespace Realm.Client.Services
 
 			if (splashRatio > 0f)
 			{
-				ref var sHp = ref GameContext.World.Get<Health>(splashEnt);
+				ref var sHp = ref _context.World.Get<Health>(splashEnt);
 				ApplySplashDamage(_splashAttacker, splashEnt, splashRatio, _splashBaseDamage, ref _splashAtk, ref sHp);
 			}
 		}
 
 		private void ApplySplashDamage(Entity attacker, Entity splashEnt, float splashRatio, float baseDamage, ref Attack atk, ref Health sHp)
 		{
-			var sResistances = GameContext.World.Has<Resistances>(splashEnt) ? GameContext.World.Get<Resistances>(splashEnt) : default;
+			var sResistances = _context.World.Has<Resistances>(splashEnt) ? _context.World.Get<Resistances>(splashEnt) : default;
 
 			bool sMagic = DamageTypes.IsMagic(atk.DamageType);
 			var sResult = CombatResolver.ResolveDamage(
@@ -1193,7 +1234,7 @@ namespace Realm.Client.Services
 			{
 				sHp.Current = Math.Max(0, sHp.Current - splashDamage);
 				sHp.TimeSinceLastDamage = 0f;
-				GameContext.World.Set(splashEnt, sHp);
+				_context.World.Set(splashEnt, sHp);
 			}
 
 			OnUnitDamagedCallback?.Invoke(splashEnt, attacker, splashDamage);
@@ -1206,9 +1247,9 @@ namespace Realm.Client.Services
 
 		private float GetEffectiveAttackCooldown(Entity entity, float baseCooldown)
 		{
-			if (GameContext.World.Has<AttackSpeedMultiplier>(entity))
+			if (_context.World.Has<AttackSpeedMultiplier>(entity))
 			{
-				float multiplier = GameContext.World.Get<AttackSpeedMultiplier>(entity).Multiplier;
+				float multiplier = _context.World.Get<AttackSpeedMultiplier>(entity).Multiplier;
 				if (multiplier > 0f)
 				{
 					return baseCooldown / multiplier;
@@ -1220,12 +1261,12 @@ namespace Realm.Client.Services
 
 		private float GetTargetCollisionRadius(Entity target)
 		{
-			if (!GameContext.World.Has<CollisionRadius>(target)) return 0f;
+			if (!_context.World.Has<CollisionRadius>(target)) return 0f;
 
-			float radius = GameContext.World.Get<CollisionRadius>(target).Value;
-			if (GameContext.World.Has<CollisionScale>(target))
+			float radius = _context.World.Get<CollisionRadius>(target).Value;
+			if (_context.World.Has<CollisionScale>(target))
 			{
-				radius *= GameContext.World.Get<CollisionScale>(target).Value;
+				radius *= _context.World.Get<CollisionScale>(target).Value;
 			}
 
 			return radius;
@@ -1241,8 +1282,8 @@ namespace Realm.Client.Services
 		/// </summary>
 		private float GetUnitContactRadius(Entity entity)
 		{
-			float scale = GameContext.World.Has<CollisionScale>(entity) ? GameContext.World.Get<CollisionScale>(entity).Value : 1.0f;
-			float authoredRadius = GameContext.World.Has<CollisionRadius>(entity) ? GameContext.World.Get<CollisionRadius>(entity).Value : 0f;
+			float scale = _context.World.Has<CollisionScale>(entity) ? _context.World.Get<CollisionScale>(entity).Value : 1.0f;
+			float authoredRadius = _context.World.Has<CollisionRadius>(entity) ? _context.World.Get<CollisionRadius>(entity).Value : 0f;
 			return GameplayConstants.ResolveUnitContactRadius(authoredRadius, scale);
 		}
 
@@ -1301,7 +1342,7 @@ namespace Realm.Client.Services
 		private bool IsReachableWithinRange(Entity attacker, Entity target, Vector3 attackerPos, Vector3 targetPos, float effectiveRange, bool isMelee, float meleeVerticalReach)
 		{
 			bool attackerIsFlying = IsFlying(attacker);
-			int includeFlags = GameContext.World.Has<PathingFlags>(attacker) ? GameContext.World.Get<PathingFlags>(attacker).Value : (int)TerrainPathingFlags.Ground;
+			int includeFlags = _context.World.Has<PathingFlags>(attacker) ? _context.World.Get<PathingFlags>(attacker).Value : (int)TerrainPathingFlags.Ground;
 			return IsReachableWithinRangeThreadSafe(attacker, target, attackerPos, targetPos, effectiveRange, isMelee, meleeVerticalReach, attackerIsFlying, includeFlags);
 		}
 
@@ -1325,11 +1366,6 @@ namespace Realm.Client.Services
 				return Distance(attackerPos, targetPos) <= effectiveRange + RouteReachMargin;
 			}
 
-			if (GameContext.NavMeshPathfinder == null)
-			{
-				return IsVerticallyReachableForRange(attackerIsFlying, attackerPos, targetPos, effectiveRange, isMelee, meleeVerticalReach);
-			}
-
 			var navMeshQuery = _currentNavMeshQuery;
 			if (navMeshQuery == null)
 			{
@@ -1343,7 +1379,7 @@ namespace Realm.Client.Services
 			}
 
 			var threadQuery = GetThreadLocalNavMeshQuery(navMeshQuery, _currentNavMesh) ?? navMeshQuery;
-			var threadPathfinder = _threadLocalPathfinder.Value ?? GameContext.NavMeshPathfinder;
+			var threadPathfinder = _threadLocalPathfinder.Value ?? _context.NavMeshPathfinder;
 
 			PathFollow pf = default;
 			threadPathfinder.ComputePath(threadQuery, attackerPos, targetPos, (ushort)includeFlags, ref pf);
@@ -1367,9 +1403,9 @@ namespace Realm.Client.Services
 			navMeshQuery = null;
 			navMesh = null;
 			Entity terrainEntity = FindTerrainEntity();
-			if (terrainEntity == Entity.Null || !GameContext.World.Has<TerrainState>(terrainEntity)) return false;
+			if (terrainEntity == Entity.Null || !_context.World.Has<TerrainState>(terrainEntity)) return false;
 
-			ref var ts = ref GameContext.World.Get<TerrainState>(terrainEntity);
+			ref var ts = ref _context.World.Get<TerrainState>(terrainEntity);
 			if (ts.NavMeshQuery == null) return false;
 
 			navMeshQuery = ts.NavMeshQuery;
@@ -1443,7 +1479,7 @@ namespace Realm.Client.Services
 			_tickHealRemoveTargets.Clear();
 			_tickHealChaseTargets.Clear();
 			_tickHealStopChasing.Clear();
-			GameContext.World.Query(in _healingExecutionQuery, _healingExecutionQueryDelegate);
+			_context.World.Query(in _healingExecutionQuery, _healingExecutionQueryDelegate);
 
 			ProcessHealRemovals();
 			ProcessHealChases();
@@ -1454,9 +1490,9 @@ namespace Realm.Client.Services
 		{
 			foreach (var ent in _tickHealRemoveTargets)
 			{
-				if (GameContext.World.IsAlive(ent) && GameContext.World.Has<HealingTarget>(ent))
+				if (_context.World.IsAlive(ent) && _context.World.Has<HealingTarget>(ent))
 				{
-					GameContext.World.Remove<HealingTarget>(ent);
+					_context.World.Remove<HealingTarget>(ent);
 				}
 			}
 		}
@@ -1465,16 +1501,16 @@ namespace Realm.Client.Services
 		{
 			foreach (var (healer, targetPos) in _tickHealChaseTargets)
 			{
-				if (!GameContext.World.IsAlive(healer)) continue;
+				if (!_context.World.IsAlive(healer)) continue;
 
 				bool needsRetarget = true;
-				if (GameContext.World.Has<MoveTo>(healer))
+				if (_context.World.Has<MoveTo>(healer))
 				{
-					var existingTarget = GameContext.World.Get<MoveTo>(healer).Target;
+					var existingTarget = _context.World.Get<MoveTo>(healer).Target;
 					if (Distance(existingTarget, targetPos) < ChaseRetargetDistance) needsRetarget = false;
 				}
 
-				if (needsRetarget) GameContext.World.SetOrAdd(healer, new MoveTo(targetPos));
+				if (needsRetarget) _context.World.SetOrAdd(healer, new MoveTo(targetPos));
 			}
 		}
 
@@ -1482,10 +1518,10 @@ namespace Realm.Client.Services
 		{
 			foreach (var healer in _tickHealStopChasing)
 			{
-				if (!GameContext.World.IsAlive(healer)) continue;
+				if (!_context.World.IsAlive(healer)) continue;
 
-				if (GameContext.World.Has<MoveTo>(healer)) GameContext.World.Remove<MoveTo>(healer);
-				if (GameContext.World.Has<Velocity>(healer)) GameContext.World.Set(healer, new Velocity(Vector3.Zero));
+				if (_context.World.Has<MoveTo>(healer)) _context.World.Remove<MoveTo>(healer);
+				if (_context.World.Has<Velocity>(healer)) _context.World.Set(healer, new Velocity(Vector3.Zero));
 			}
 		}
 
@@ -1510,13 +1546,13 @@ namespace Realm.Client.Services
 		private bool IsValidHealingTarget(Entity entity, Entity targetEntity, out Health targetHealth)
 		{
 			targetHealth = default;
-			if (!GameContext.World.IsAlive(targetEntity) || GameContext.World.Has<Dead>(targetEntity))
+			if (!_context.World.IsAlive(targetEntity) || _context.World.Has<Dead>(targetEntity))
 			{
 				_tickHealRemoveTargets.Add(entity);
 				return false;
 			}
 
-			targetHealth = GameContext.World.Get<Health>(targetEntity);
+			targetHealth = _context.World.Get<Health>(targetEntity);
 			if (targetHealth.Current >= targetHealth.Max)
 			{
 				_tickHealRemoveTargets.Add(entity);
@@ -1526,10 +1562,10 @@ namespace Realm.Client.Services
 			return true;
 		}
 
-		private static float GetHealingMultiplier(Entity casterEntity)
+		private float GetHealingMultiplier(Entity casterEntity)
 		{
-			if (GameContext.Simulation.StatService == null) return 1f;
-			float multiplier = GameContext.Simulation.StatService.GetStatValue(casterEntity, new StatId(StatKeys.HealingMultiplier));
+			if (_context.StatService == null) return 1f;
+			float multiplier = _context.StatService.GetStatValue(casterEntity, new StatId(StatKeys.HealingMultiplier));
 			return multiplier > 0f ? multiplier : 1f;
 		}
 
@@ -1538,30 +1574,30 @@ namespace Realm.Client.Services
 			if (!HasAuthority) return;
 
 			float newHp = Math.Min(targetHealth.Max, targetHealth.Current + healAmount);
-			GameContext.World.Set(targetEntity, new Health(newHp, targetHealth.Max));
+			_context.World.Set(targetEntity, new Health(newHp, targetHealth.Max));
 		}
 
 		private float GetHealCooldown(Entity entity, float baseCooldown)
 		{
-			if (_unlimitedPowerProvider?.Invoke() == true) return 0f;
+			if (UnlimitedPowerProvider?.Invoke() == true) return 0f;
 			return GetEffectiveAttackCooldown(entity, baseCooldown);
 		}
 
 		private void InvokeHealEvents(Entity entity, Vector3 pos, Entity targetEntity, float healAmount)
 		{
-			OnHealEffectRequested?.Invoke(pos, GameContext.World.Get<Position>(targetEntity).Value);
+			OnHealEffectRequested?.Invoke(pos, _context.World.Get<Position>(targetEntity).Value);
 			OnHealFlashRequested?.Invoke(targetEntity);
 			OnUnitHealedCallback?.Invoke(targetEntity, entity, healAmount);
 		}
 
 		private bool HandleHealingDistance(Entity entity, Vector3 currentPos, Entity targetEntity, float atkRange)
 		{
-			var targetPos = GameContext.World.Get<Position>(targetEntity).Value;
+			var targetPos = _context.World.Get<Position>(targetEntity).Value;
 			float effectiveRange = Math.Max(atkRange + GetTargetCollisionRadius(targetEntity), GetMinimumMeleeContactReach(entity, targetEntity));
 
 			if (Distance(currentPos, targetPos) <= effectiveRange) return false;
 
-			if (!GameContext.World.Has<HoldPosition>(entity) && GameContext.World.Has<Movable>(entity))
+			if (!_context.World.Has<HoldPosition>(entity) && _context.World.Has<Movable>(entity))
 			{
 				_tickHealChaseTargets.Add((entity, targetPos));
 			}
@@ -1578,16 +1614,16 @@ namespace Realm.Client.Services
 		public void DealResolvedDamage(Entity attacker, Entity target, float amount, string damageType)
 		{
 			if (amount <= 0f) return;
-			if (!GameContext.World.IsAlive(target) || GameContext.World.Has<Dead>(target) || !GameContext.World.Has<Health>(target)) return;
-			if (GameContext.World.Has<Invulnerable>(target)) return;
+			if (!_context.World.IsAlive(target) || _context.World.Has<Dead>(target) || !_context.World.Has<Health>(target)) return;
+			if (_context.World.Has<Invulnerable>(target)) return;
 
 			_aoeKillList.Clear();
 			_aoeLastAttackerList.Clear();
 
 			UpdateAoeLastAttacker(target, attacker);
 
-			ref var hp = ref GameContext.World.Get<Health>(target);
-			var result = CombatResolver.ResolveAbilityDamage(GameContext.World, attacker, target, amount, damageType);
+			ref var hp = ref _context.World.Get<Health>(target);
+			var result = CombatResolver.ResolveAbilityDamage(_context.World, attacker, target, amount, damageType);
 			ApplyResolvedDamage(target, ref hp, result.FinalDamage, attacker);
 
 			ProcessAoeLastAttackers();
@@ -1616,7 +1652,7 @@ namespace Realm.Client.Services
 			else
 			{
 				var query = QueryCache.AllPositionAndHealthNoneDeadQuery;
-				GameContext.World.Query(in query, (Entity entity, ref Position pos, ref Health hp) => { ProcessAoeTarget(entity, ref pos, ref hp, position, radius, damage, casterEntity, enemyOnly); });
+				_context.World.Query(in query, (Entity entity, ref Position pos, ref Health hp) => { ProcessAoeTarget(entity, ref pos, ref hp, position, radius, damage, casterEntity, enemyOnly); });
 			}
 
 			ProcessAoeLastAttackers();
@@ -1626,9 +1662,9 @@ namespace Realm.Client.Services
 		private void OnAoeDamageCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
 		{
 			Entity entity = entry.Entity;
-			if (!GameContext.World.IsAlive(entity) || GameContext.World.Has<Dead>(entity) || !GameContext.World.Has<Health>(entity)) return;
+			if (!_context.World.IsAlive(entity) || _context.World.Has<Dead>(entity) || !_context.World.Has<Health>(entity)) return;
 
-			ref var hp = ref GameContext.World.Get<Health>(entity);
+			ref var hp = ref _context.World.Get<Health>(entity);
 			ProcessAoeTarget(entity, ref hp, _aoeDamage, _aoeCasterEntity, entry.Position, _aoePosition, _aoeRadius, _aoeEnemyOnly);
 		}
 
@@ -1652,13 +1688,13 @@ namespace Realm.Client.Services
 
 		private bool IsAoeTargetValid(Entity entity, Vector3 entityPos, Vector3 aoePosition, float aoeRadius, bool enemyOnly, Entity casterEntity)
 		{
-			if (GameContext.World.Has<Invulnerable>(entity)) return false;
+			if (_context.World.Has<Invulnerable>(entity)) return false;
 
 			if (enemyOnly)
 			{
 				int casterPlayer = GetPlayerIndexForEntity(casterEntity);
 				int targetPlayer = GetPlayerIndexForEntity(entity);
-				if (!NetworkService.ArePlayerIndicesEnemies(casterPlayer, targetPlayer)) return false;
+				if (!ArePlayerIndicesEnemies(casterPlayer, targetPlayer)) return false;
 			}
 
 			if (Vector3.Distance(entityPos, aoePosition) > aoeRadius) return false;
@@ -1668,17 +1704,17 @@ namespace Realm.Client.Services
 
 		private void UpdateAoeLastAttacker(Entity entity, Entity casterEntity)
 		{
-			if (casterEntity != Entity.Null && GameContext.World.IsAlive(casterEntity))
+			if (casterEntity != Entity.Null && _context.World.IsAlive(casterEntity))
 			{
 				if (!HasAuthority) return;
-				if (GameContext.World.Has<LastAttacker>(entity)) GameContext.World.Set(entity, new LastAttacker(casterEntity));
+				if (_context.World.Has<LastAttacker>(entity)) _context.World.Set(entity, new LastAttacker(casterEntity));
 				else _aoeLastAttackerList.Add((entity, casterEntity));
 			}
 		}
 
 		private void ApplyAoeDamage(Entity entity, ref Health hp, float damage, Entity casterEntity)
 		{
-			var result = CombatResolver.ResolveAbilityDamage(GameContext.World, casterEntity, entity, damage, _aoeDamageType);
+			var result = CombatResolver.ResolveAbilityDamage(_context.World, casterEntity, entity, damage, _aoeDamageType);
 			ApplyResolvedDamage(entity, ref hp, result.FinalDamage, casterEntity);
 		}
 
@@ -1689,19 +1725,19 @@ namespace Realm.Client.Services
 		private float AbsorbDamage(Entity entity, float damage)
 		{
 			if (damage <= 0f) return 0f;
-			if (!GameContext.World.Has<AbsorbShield>(entity)) return damage;
+			if (!_context.World.Has<AbsorbShield>(entity)) return damage;
 
-			return GameContext.World.Get<AbsorbShield>(entity).Consume(damage);
+			return _context.World.Get<AbsorbShield>(entity).Consume(damage);
 		}
 
 		/// <summary>Heals one unit, honouring the caster's healing multiplier.</summary>
 		public void HealSingle(Entity casterEntity, Entity target, float healAmount)
 		{
 			if (healAmount <= 0f) return;
-			if (!GameContext.World.IsAlive(target) || GameContext.World.Has<Dead>(target) || !GameContext.World.Has<Health>(target)) return;
+			if (!_context.World.IsAlive(target) || _context.World.Has<Dead>(target) || !_context.World.Has<Health>(target)) return;
 
 			float scaled = healAmount * GetHealingMultiplier(casterEntity);
-			ref var hp = ref GameContext.World.Get<Health>(target);
+			ref var hp = ref _context.World.Get<Health>(target);
 			float before = hp.Current;
 			float after = Math.Min(hp.Max, before + scaled);
 			float healed = after - before;
@@ -1731,9 +1767,9 @@ namespace Realm.Client.Services
 		{
 			foreach (var (targetEnt, attackerEnt) in _aoeLastAttackerList)
 			{
-				if (GameContext.World.IsAlive(targetEnt))
+				if (_context.World.IsAlive(targetEnt))
 				{
-					GameContext.World.AddOrGet(targetEnt, new LastAttacker(attackerEnt)) = new LastAttacker(attackerEnt);
+					_context.World.AddOrGet(targetEnt, new LastAttacker(attackerEnt)) = new LastAttacker(attackerEnt);
 				}
 			}
 		}
@@ -1748,9 +1784,9 @@ namespace Realm.Client.Services
 
 			foreach (var entity in _aoeKillList)
 			{
-				if (!GameContext.World.IsAlive(entity) || GameContext.World.Has<Dead>(entity)) continue;
+				if (!_context.World.IsAlive(entity) || _context.World.Has<Dead>(entity)) continue;
 
-				GameContext.World.Add<Dead>(entity);
+				_context.World.Add<Dead>(entity);
 				ClearReferencesTo(entity);
 				OnKillUnitRequested?.Invoke(entity);
 			}
@@ -1774,10 +1810,10 @@ namespace Realm.Client.Services
 			}
 
 			var query = QueryCache.AllPositionAndHealthNoneDeadQuery;
-			GameContext.World.Query(in query, (Entity entity, ref Position pos, ref Health hp) =>
+			_context.World.Query(in query, (Entity entity, ref Position pos, ref Health hp) =>
 			{
 				int targetPlayer = GetPlayerIndexForEntity(entity);
-				if (NetworkService.ArePlayerIndicesEnemies(casterPlayer, targetPlayer)) return;
+				if (ArePlayerIndicesEnemies(casterPlayer, targetPlayer)) return;
 
 				if (Vector3.Distance(pos.Value, position) <= radius)
 				{
@@ -1791,16 +1827,16 @@ namespace Realm.Client.Services
 		private void OnAoeHealCandidateFound(in MovementAndPathfindingService.SpatialGridEntry entry)
 		{
 			Entity entity = entry.Entity;
-			if (!GameContext.World.IsAlive(entity) || GameContext.World.Has<Dead>(entity) || !GameContext.World.Has<Health>(entity)) return;
+			if (!_context.World.IsAlive(entity) || _context.World.Has<Dead>(entity) || !_context.World.Has<Health>(entity)) return;
 
 			int targetPlayer = GetPlayerIndexForEntity(entity);
-			if (NetworkService.ArePlayerIndicesEnemies(_healCasterPlayer, targetPlayer)) return;
+			if (ArePlayerIndicesEnemies(_healCasterPlayer, targetPlayer)) return;
 
 			if (Vector3.Distance(entry.Position, _healPosition) <= _healRadius)
 			{
 				if (HasAuthority)
 				{
-					ref var hp = ref GameContext.World.Get<Health>(entity);
+					ref var hp = ref _context.World.Get<Health>(entity);
 					hp.Current = Math.Min(hp.Max, hp.Current + _healAmount);
 				}
 
