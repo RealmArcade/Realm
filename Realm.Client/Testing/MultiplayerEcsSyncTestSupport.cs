@@ -489,7 +489,6 @@ public static class MultiplayerEcsSyncTestSupport
 		// id, so the harness appends every id the process used and a baseline counts as sent to this client when any of
 		// them appears in the record. Attributing by the first id alone reported every later baseline as a mismatch.
 		HashSet<int> clientPeerIds = ReadClientPeerIds(clientOutputDirectory);
-		ulong clientPeerMask = BuildPeerMask(clientPeerIds);
 		int inFlightSequenceCount = 0;
 		int supersededSequenceCount = 0;
 
@@ -515,6 +514,7 @@ public static class MultiplayerEcsSyncTestSupport
 		List<(int Sequence, int Count)> transientMismatchSequences = new();
 		List<(int EntityId, string Field, int Sequence, string Message)> deltaDivergences = new();
 		int comparedLootEntities = 0;
+		ReferenceDigestCoverage referenceCoverage = new();
 		int comparedNavigationBaselines = 0;
 		int pathingMismatchCount = 0;
 		int navMeshMissingCount = 0;
@@ -593,7 +593,8 @@ public static class MultiplayerEcsSyncTestSupport
 			List<string> digestTarget = hostSentBaselineToThisPeer ? mismatches : transientDigestMismatches;
 			int digestMismatchCountBefore = transientDigestMismatches.Count;
 			if (hostSentBaselineToThisPeer) comparedLootEntities += hostEntry.Value.Loot.Count;
-			CompareSnapshotRecord(hostEntry.Value, clientRecord, hostSentBaselineToThisPeer, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits, deltaDivergences, clientPeerMask);
+			ulong clientPeerMask = BuildPeerMask(hostEntry.Value.DescribedPeerIds, clientPeerIds);
+			CompareSnapshotRecord(hostEntry.Value, clientRecord, hostSentBaselineToThisPeer, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits, deltaDivergences, clientPeerMask, referenceCoverage);
 			CompareScopeDigests(hostEntry.Value, clientRecord, digestTarget);
 			int transientAddedForSequence = transientDigestMismatches.Count - digestMismatchCountBefore;
 			transientDigestMismatchCount += transientAddedForSequence;
@@ -751,6 +752,9 @@ public static class MultiplayerEcsSyncTestSupport
 		{
 			report.AddFailure($"{navMeshDisagreementAfterAgreementCount} paired records had a mesh that differed from the host's after the two sides had already agreed on one, so one side re-baked from different obstacle input.");
 		}
+
+		report.AddSummaryLine(
+			$"Reference digests: compared {referenceCoverage.Compared} and passed over {referenceCoverage.Skipped} whose target the authority did not describe to this peer (a reference is a statement only the peers it was sent to can be held to).");
 
 		if (mismatches.Count > 0)
 		{
@@ -1357,14 +1361,21 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
-	private static void CompareDigestSets(int sequence, string owner, Dictionary<int, ComponentDigestEntry> hostDigests, Dictionary<int, ComponentDigestEntry> clientDigests, ulong peerMask, List<string> mismatches)
+	private static void CompareDigestSets(int sequence, string owner, Dictionary<int, ComponentDigestEntry> hostDigests, Dictionary<int, ComponentDigestEntry> clientDigests, ulong peerMask, List<string> mismatches, ReferenceDigestCoverage? coverage = null)
 	{
 		const int mismatchCountBefore = 0;
 		foreach (KeyValuePair<int, ComponentDigestEntry> hostDigest in hostDigests)
 		{
 			// The authority states a reference only for the peers it described its target to, so a peer outside that set is
-			// asked nothing about it: reporting it as absent would describe the shroud as a defect.
-			if (!hostDigest.Value.IsNameableBy(peerMask)) continue;
+			// asked nothing about it: reporting it as absent would describe the shroud as a defect. The counters keep that
+			// skip visible, because a rule that skips everything passes every run it is asked to judge.
+			if (!hostDigest.Value.IsNameableBy(peerMask))
+			{
+				if (hostDigest.Value.IsScoped) coverage?.RecordSkipped();
+				continue;
+			}
+
+			if (hostDigest.Value.IsScoped) coverage?.RecordCompared();
 
 			string componentName = DescribeComponent(hostDigest.Key);
 			if (!clientDigests.TryGetValue(hostDigest.Key, out ComponentDigestEntry clientDigest))
@@ -1457,7 +1468,7 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Unit fields that diverged on a delta record and healed inside the {allowance}-record retransmit window: {healedCount} (counted from {divergences.Count} observations)");
 	}
 
-	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, bool exact, List<string> mismatches, List<string> digestMismatches, ref int comparedUnits, ref int offscreenMissingUnits, List<(int EntityId, string Field, int Sequence, string Message)> deltaDivergences, ulong clientPeerMask)
+	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, bool exact, List<string> mismatches, List<string> digestMismatches, ref int comparedUnits, ref int offscreenMissingUnits, List<(int EntityId, string Field, int Sequence, string Message)> deltaDivergences, ulong clientPeerMask, ReferenceDigestCoverage coverage)
 	{
 		int mismatchCountBefore = mismatches.Count;
 
@@ -1544,7 +1555,7 @@ public static class MultiplayerEcsSyncTestSupport
 				ReportUnitField(hostUnit.EntityId, "max health", $"seq {hostRecord.Sequence}: entity {hostUnit.EntityId} max health host={hostUnit.MaxHp:F3} client={clientUnit.MaxHp:F3}.");
 			}
 
-			CompareDigestSets(hostRecord.Sequence, $"entity {hostUnit.EntityId}", hostUnit.ComponentDigests, clientUnit.ComponentDigests, clientPeerMask, digestMismatches);
+			CompareDigestSets(hostRecord.Sequence, $"entity {hostUnit.EntityId}", hostUnit.ComponentDigests, clientUnit.ComponentDigests, clientPeerMask, digestMismatches, coverage);
 		}
 
 		if (!exact) return;
@@ -1876,6 +1887,9 @@ public static class MultiplayerEcsSyncTestSupport
 			HashSet<int> baselinePeerIds = new(baselinePeerCount);
 			for (int index = 0; index < baselinePeerCount; index++) baselinePeerIds.Add(reader.ReadInt32());
 			ulong physicsFrame = reader.ReadUInt64();
+			int describedPeerCount = reader.ReadInt32();
+			List<int> describedPeerIds = new(describedPeerCount);
+			for (int index = 0; index < describedPeerCount; index++) describedPeerIds.Add(reader.ReadInt32());
 			int unitCount = reader.ReadInt32();
 			Dictionary<int, MultiplayerSnapshotUnit> units = new(unitCount);
 
@@ -1900,7 +1914,7 @@ public static class MultiplayerEcsSyncTestSupport
 				units[unit.EntityId] = unit;
 			}
 
-			MultiplayerSnapshotRecord record = new() { Sequence = sequence, PhysicsFrame = physicsFrame, IsBaseline = isBaseline, BaselinePeerIds = baselinePeerIds, Units = units };
+			MultiplayerSnapshotRecord record = new() { Sequence = sequence, PhysicsFrame = physicsFrame, IsBaseline = isBaseline, BaselinePeerIds = baselinePeerIds, DescribedPeerIds = describedPeerIds, Units = units };
 			int playerCount = reader.ReadInt32();
 			for (int index = 0; index < playerCount; index++)
 			{
@@ -1968,16 +1982,36 @@ public static class MultiplayerEcsSyncTestSupport
 			NamedByMask = namedByMask;
 		}
 
+		/// <summary>Whether this digest states which peers could name what it refers to, which only a reference does.</summary>
+		public bool IsScoped => NamedByMask != SyncRecordFormat.NamedByEveryPeer;
+
 		public bool IsNameableBy(ulong peerMask) => (NamedByMask & peerMask) != 0;
 	}
 
-	/// <summary>Which bit of a record's peer mask stands for one peer, matching the authority's own numbering.</summary>
-	private static ulong BuildPeerMask(HashSet<int> peerIds)
+	/// <summary>
+	/// How many reference digests this comparison actually held the screen to, and how many it passed over because the
+	/// authority never described the target to it. A rule that skips every reference still passes every run, so the counts
+	/// are reported rather than assumed.
+	/// </summary>
+	private sealed class ReferenceDigestCoverage
+	{
+		public int Compared;
+		public int Skipped;
+
+		public void RecordCompared() => Compared++;
+		public void RecordSkipped() => Skipped++;
+	}
+
+	/// <summary>
+	/// Which bits of a record's reference masks stand for this screen: the authority numbers the peers it described a
+	/// sequence for in the order the record states, so the screen's own bits are wherever it appears in that list.
+	/// </summary>
+	private static ulong BuildPeerMask(List<int> describedPeerIds, HashSet<int> peerIds)
 	{
 		ulong mask = 0;
-		foreach (int peerId in peerIds)
+		for (int slot = 0; slot < describedPeerIds.Count && slot < 64; slot++)
 		{
-			if (peerId is >= 0 and < 64) mask |= 1UL << peerId;
+			if (peerIds.Contains(describedPeerIds[slot])) mask |= 1UL << slot;
 		}
 
 		return mask;
@@ -1989,6 +2023,8 @@ public static class MultiplayerEcsSyncTestSupport
 		public ulong PhysicsFrame;
 		public bool IsBaseline;
 		public HashSet<int> BaselinePeerIds = new();
+		/// <summary>The peers this sequence was described for, in the order its reference masks count them.</summary>
+		public List<int> DescribedPeerIds = new();
 		public Dictionary<int, MultiplayerSnapshotUnit> Units = new();
 		public Dictionary<int, Dictionary<int, ComponentDigestEntry>> Players = new();
 		public Dictionary<int, ComponentDigestEntry> WorldDigests = new();

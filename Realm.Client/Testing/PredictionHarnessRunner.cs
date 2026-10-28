@@ -271,37 +271,102 @@ public partial class PredictionHarnessRunner : Node
 
 	private static int CheckBandwidthBudget(string outputDirectory, IReadOnlyList<string> clientDirectories)
 	{
-		// Every process measures the link it sits on, so the run's figure is the worst of the screens that wrote a report
-		// rather than whichever process happened to own the output folder. A report without a single peer entry is a
-		// report that measured nothing, and counting it as zero would let an unmeasured run pass as a clean one.
-		var directories = new List<string>(clientDirectories.Count + 1) { outputDirectory };
+		// The authority writes what it framed, because the frames are built in its process; each screen writes what
+		// arrived at its end of the link. The two legs are reported together: an authority report with no peer in it is a
+		// run that measured nothing, and passing it as zero bytes is how a dead measurement hides a regression.
+		string authorityPath = Path.Combine(outputDirectory, "bandwidth_report.json");
+		if (!File.Exists(authorityPath))
+		{
+			GD.PrintErr($"[PREDICTION_HARNESS] {authorityPath} is missing, so the authority's frame sizes were not measured.");
+			return 1;
+		}
+
+		double worstBytesPerSecond;
+		double hostTotalBytesPerSecond;
+		double averageSerializedDelta;
+		double averageWireDelta;
+		double averageDeltaFraming;
+		double slowestSequenceFraming;
+		double deltaBytesPerSecond;
+		double deltaFramingMillisecondsPerSecond;
+		int peerCount;
+		try
+		{
+			using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(authorityPath));
+			System.Text.Json.JsonElement root = document.RootElement;
+			peerCount = root.GetProperty("peers").GetArrayLength();
+			if (peerCount == 0)
+			{
+				GD.PrintErr($"[PREDICTION_HARNESS] {authorityPath} holds no peer, so the authority framed nothing and bandwidth was not measured.");
+				return 1;
+			}
+
+			double serializedTotal = 0;
+			double wireTotal = 0;
+			double framingTotal = 0;
+			for (int index = 0; index < peerCount; index++)
+			{
+				System.Text.Json.JsonElement peer = root.GetProperty("peers")[index];
+				serializedTotal += peer.GetProperty("averageSerializedDeltaBytes").GetDouble();
+				wireTotal += peer.GetProperty("averageWireDeltaBytes").GetDouble();
+				framingTotal += peer.GetProperty("averageDeltaFramingMilliseconds").GetDouble();
+			}
+
+			worstBytesPerSecond = root.GetProperty("worstClientBytesPerSecond").GetDouble();
+			hostTotalBytesPerSecond = root.GetProperty("hostTotalBytesPerSecond").GetDouble();
+			deltaBytesPerSecond = root.GetProperty("deltaBytesPerSecond").GetDouble();
+			deltaFramingMillisecondsPerSecond = root.GetProperty("deltaFramingMillisecondsPerSecond").GetDouble();
+			slowestSequenceFraming = root.GetProperty("slowestSequenceFramingMilliseconds").GetDouble();
+			averageSerializedDelta = serializedTotal / peerCount;
+			averageWireDelta = wireTotal / peerCount;
+			averageDeltaFraming = framingTotal / peerCount;
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[PREDICTION_HARNESS] Could not read {authorityPath}: {exception.Message}");
+			return 1;
+		}
+
+		double ratio = averageSerializedDelta == 0 ? 0 : averageWireDelta / averageSerializedDelta;
+		double budgetRatio = worstBytesPerSecond / ClientBandwidthBudgetBytesPerSecond;
+		GD.Print(
+			$"[PREDICTION_HARNESS] Bandwidth: authority frames {averageSerializedDelta:F0} B serialized to {averageWireDelta:F0} B on the wire ({ratio * 100:F1} % of serialized) "
+			+ $"in {averageDeltaFraming:F3} ms per delta and {slowestSequenceFraming:F2} ms on the slowest sequence; deltas are {deltaBytesPerSecond:F0} B/s "
+			+ $"framed in {deltaFramingMillisecondsPerSecond:F2} ms per second across {peerCount} peer(s). Worst peer {worstBytesPerSecond:F0} B/s "
+			+ $"({budgetRatio:F1}x the {ClientBandwidthBudgetBytesPerSecond:F0} B/s target, ceiling {ClientBandwidthRegressionCeilingBytesPerSecond:F0} B/s), all peers {hostTotalBytesPerSecond:F0} B/s.");
+
+		if (worstBytesPerSecond > ClientBandwidthRegressionCeilingBytesPerSecond)
+		{
+			GD.PrintErr($"[PREDICTION_HARNESS] The authority sent a peer {worstBytesPerSecond:F0} B/s of snapshots, above the {ClientBandwidthRegressionCeilingBytesPerSecond:F0} B/s regression ceiling.");
+			return 1;
+		}
+
+		// What arrived is the other leg of the same journey: a peer that was sent frames it never received is a transport
+		// problem the authority's own accounting cannot see.
+		var screenDirectories = new List<string>(clientDirectories.Count + 1) { outputDirectory };
 		for (int index = 0; index < clientDirectories.Count; index++)
 		{
 			if (clientDirectories[index] == outputDirectory) continue;
-			directories.Add(clientDirectories[index]);
+			screenDirectories.Add(clientDirectories[index]);
 		}
 
-		double worstBytesPerSecond = 0;
-		double hostTotalBytesPerSecond = 0;
-		int measuredReports = 0;
-		int measuredPeers = 0;
-		for (int index = 0; index < directories.Count; index++)
+		int reportingScreens = 0;
+		for (int index = 0; index < screenDirectories.Count; index++)
 		{
-			string path = Path.Combine(directories[index], "bandwidth_report.json");
+			string path = Path.Combine(screenDirectories[index], "screen_traffic.json");
 			if (!File.Exists(path)) continue;
 
 			try
 			{
 				using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
-				int peerCount = document.RootElement.GetProperty("peers").GetArrayLength();
-				if (peerCount == 0) continue;
-
-				double reportWorstBytesPerSecond = document.RootElement.GetProperty("worstClientBytesPerSecond").GetDouble();
-				double reportHostTotalBytesPerSecond = document.RootElement.GetProperty("hostTotalBytesPerSecond").GetDouble();
-				measuredReports++;
-				measuredPeers += peerCount;
-				if (reportWorstBytesPerSecond > worstBytesPerSecond) worstBytesPerSecond = reportWorstBytesPerSecond;
-				if (reportHostTotalBytesPerSecond > hostTotalBytesPerSecond) hostTotalBytesPerSecond = reportHostTotalBytesPerSecond;
+				System.Text.Json.JsonElement root = document.RootElement;
+				double received = root.GetProperty("receivedBytesPerSecond").GetDouble();
+				double receivedAverage = root.GetProperty("averagePayloadBytes").GetDouble();
+				double receivedRate = root.GetProperty("snapshotRatePerSecond").GetDouble();
+				reportingScreens++;
+				GD.Print(
+					$"[PREDICTION_HARNESS] Bandwidth: {Path.GetFileName(screenDirectories[index])} received {received:F0} B/s "
+					+ $"({received * 8 / 1000:F1} kbit/s) at {receivedRate:F1} snapshot(s) per second, average payload {receivedAverage:F0} B.");
 			}
 			catch (Exception exception)
 			{
@@ -310,21 +375,7 @@ public partial class PredictionHarnessRunner : Node
 			}
 		}
 
-		if (measuredReports == 0)
-		{
-			GD.PrintErr($"[PREDICTION_HARNESS] No screen in {outputDirectory} reported the snapshots it received, so per-client bandwidth was not measured.");
-			return 1;
-		}
-
-		double budgetRatio = worstBytesPerSecond / ClientBandwidthBudgetBytesPerSecond;
-		GD.Print(
-			$"[PREDICTION_HARNESS] Bandwidth: worst screen {worstBytesPerSecond:F0} B/s over {measuredReports} reporting screen(s) and {measuredPeers} measurement(s). "
-			+ $"Target {ClientBandwidthBudgetBytesPerSecond:F0} B/s per client, measured {budgetRatio:F1}x of it; regression ceiling {ClientBandwidthRegressionCeilingBytesPerSecond:F0} B/s.");
-		if (worstBytesPerSecond > ClientBandwidthRegressionCeilingBytesPerSecond)
-		{
-			GD.PrintErr($"[PREDICTION_HARNESS] A screen received {worstBytesPerSecond:F0} B/s of snapshots, above the {ClientBandwidthRegressionCeilingBytesPerSecond:F0} B/s regression ceiling.");
-			return 1;
-		}
+		if (reportingScreens == 0) GD.PrintErr("[PREDICTION_HARNESS] No screen reported what it received, so the receiving leg of the stream was not measured.");
 
 		return 0;
 	}

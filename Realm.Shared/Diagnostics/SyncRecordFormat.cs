@@ -24,7 +24,7 @@ public static class SyncRecordFormat
 	public const uint Magic = 0x504E5352;
 
 	/// <summary>Which layout of the records a stream holds. A reader refuses a stream it was not built for.</summary>
-	public const int Version = 9;
+	public const int Version = 10;
 
 	/// <summary>
 	///     The mask that says every peer could name a reference, so the digest is a statement every peer can be held to.

@@ -282,7 +282,7 @@ public partial class MultiplayerSimulationHarness : Node
 		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true, _session?.LogPath ?? string.Empty);
 
 		_finalSequence = ResolveSnapshotSequence();
-		MultiplayerBandwidthMeter.BuildReport(_outputDirectory, gameHost.GameElapsedTime);
+		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, gameHost.GameElapsedTime);
 		GD.Print($"[MP_HARNESS] Host finished at game time {gameHost.GameElapsedTime:F2}s with {gameHost.AllUnits.Count} units and snapshot sequence {_finalSequence}.");
 		MultiplayerSyncDiagnostics.Stop();
 		PredictionDiagnostics.Stop();
@@ -581,7 +581,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 		_finalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameContext.Host?.GameElapsedTime ?? 0f:F2}s.");
-		MultiplayerBandwidthMeter.BuildReport(_outputDirectory, GameContext.Host?.GameElapsedTime ?? 0f);
+		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, GameContext.Host?.GameElapsedTime ?? 0f);
 		MultiplayerSyncDiagnostics.Stop();
 		PredictionDiagnostics.Stop();
 		TryWriteSequenceFile(_finalSequence);

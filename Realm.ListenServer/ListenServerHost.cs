@@ -5,6 +5,7 @@ using Realm.Ecs;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
 using Realm.Shared;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
 using Realm.Shared.Simulation;
@@ -47,6 +48,9 @@ public class ListenServerHost : IServerTransportSink
 	private readonly WorldSnapshot[] _publishedSnapshots = new WorldSnapshot[EcsWorld.MAX_PLAYERS];
 	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
+	private readonly SnapshotBaselineReason[] _pendingBaselineReasons = new SnapshotBaselineReason[EcsWorld.MAX_PLAYERS];
+	private readonly int[] _publishedSerializedBytes = new int[EcsWorld.MAX_PLAYERS];
+	private readonly double[] _publishedFramingMilliseconds = new double[EcsWorld.MAX_PLAYERS];
 	private ParallelOptions? _publishParallelism;
 	private Action<int>? _describeOnePeer;
 	private int _publishSequence;
@@ -61,6 +65,18 @@ public class ListenServerHost : IServerTransportSink
 	private Action<string>? _scriptLogSink;
 	private AuthoritySnapshotRecorder? _predictionRecorder;
 	private AuthoritySyncRecorder? _syncRecorder;
+	private SnapshotTrafficRecorder? _trafficRecorder;
+
+	/// <summary>Writes what this match put on the wire, once, so a run that asked for it finds it after this process ends.</summary>
+	private void WriteTrafficReport()
+	{
+		SnapshotTrafficRecorder? recorder = _trafficRecorder;
+		if (recorder == null) return;
+
+		_trafficRecorder = null;
+		double recordedSeconds = (_simulation?.TickCount ?? 0) * MatchTiming.FixedTickSeconds;
+		recorder.WriteReport(_arguments.RecordPredictionPath, recordedSeconds, MatchTiming.SimulationTickRateHz);
+	}
 
 	public ListenServerHost(ServerArguments arguments, ServerLog log, IServerTransport transport)
 	{
@@ -135,6 +151,9 @@ public class ListenServerHost : IServerTransportSink
 				// decided the world is the only one that can say what a screen should hold after applying a sequence.
 				_syncRecorder = new AuthoritySyncRecorder(map, _arguments.RecordPredictionPath, out string syncRecordPath);
 				_log.Write($"this match records the world it publishes into '{syncRecordPath}'");
+				// What each peer's frame weighed and what framing it cost is known only here, because the frames are built in
+				// this process; the folder the other records go to is where a run reads it back from.
+				_trafficRecorder = new SnapshotTrafficRecorder();
 			}
 
 			IsRunning = true;
@@ -271,6 +290,10 @@ public class ListenServerHost : IServerTransportSink
 		if (_readyAnnounced) _log.Write($"the match delivered {_deliveredPresentationCount} presentation messages");
 		if (_readyAnnounced) _log.Write($"the command rate limit refused {_rateLimitedCommandCount} command(s)");
 
+		// A match that was asked to end writes what it framed before it goes, because the run that asked for the record
+		// reads the folder once this process is gone.
+		WriteTrafficReport();
+
 		_seatedPeers.Clear();
 	}
 
@@ -281,6 +304,11 @@ public class ListenServerHost : IServerTransportSink
 
 		Stop();
 		_transport.Dispose();
+
+		// The report states how much match time it covers, and the clock that says so belongs to the simulation, so it is
+		// written before the world is torn down. A match that was already stopped has written it.
+		WriteTrafficReport();
+
 		_simulation?.Dispose();
 		_simulation = null;
 
@@ -604,10 +632,16 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		int peerCount = CopySeatedPeerIds();
+		_trafficRecorder?.BeginSequence(sequence);
 		for (int index = 0; index < peerCount; index++)
 		{
 			int seatedPeerId = _seatedPeerIds[index];
-			_pendingBaselineRequests[index] = simulation.ConsumeBaselineRequest(seatedPeerId) || IsRefreshDue(seatedPeerId, simulation.TickCount);
+			bool resyncRequested = simulation.ConsumeBaselineRequest(seatedPeerId);
+			bool refreshDue = !resyncRequested && IsRefreshDue(seatedPeerId, simulation.TickCount);
+			_pendingBaselineRequests[index] = resyncRequested || refreshDue;
+			_pendingBaselineReasons[index] = resyncRequested
+				? SnapshotBaselineReason.Resync
+				: refreshDue ? SnapshotBaselineReason.Safety : SnapshotBaselineReason.None;
 		}
 
 		// A unit record names the peer that owns the unit, so every worker has to agree on which peer acts as which
@@ -649,8 +683,15 @@ public class ListenServerHost : IServerTransportSink
 		WorldSnapshot snapshot = simulation.BuildSnapshotForPeer(peerId, _publishSequence, _pendingBaselineRequests[index]);
 		_publishedSnapshots[index] = snapshot;
 
+		// Serializing and framing is the host's cost of describing one peer, and it is measured where it is paid so the
+		// report states the real figure rather than the cost of a frame somebody else built.
+		long framingStarted = _trafficRecorder == null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
 		byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
 		_publishedFrames[index] = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
+		if (_trafficRecorder == null) return;
+
+		_publishedSerializedBytes[index] = serialized.Length;
+		_publishedFramingMilliseconds[index] = (System.Diagnostics.Stopwatch.GetTimestamp() - framingStarted) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 	}
 
 	/// <summary>
@@ -666,6 +707,27 @@ public class ListenServerHost : IServerTransportSink
 		WorldSnapshot snapshot = _publishedSnapshots[index];
 
 		_syncRecorder?.AddPeerSnapshot(peerId, in snapshot);
+
+		// The first frame a peer is sent restates the world, so it is the initial baseline whatever asked for it; after that
+		// the reason it was sent one is what the tick decided when it asked the simulation for the snapshot.
+		if (_trafficRecorder != null)
+		{
+			bool wasFirstFrameForPeer = !_firstSnapshotSequencePerPeer.ContainsKey(peerId);
+			SnapshotBaselineReason reason = !snapshot.IsBaseline
+				? SnapshotBaselineReason.None
+				: wasFirstFrameForPeer ? SnapshotBaselineReason.Initial : _pendingBaselineReasons[index];
+			_trafficRecorder.RecordFrame(
+				peerId,
+				_publishSequence,
+				_publishedSerializedBytes[index],
+				_publishedFrames[index]?.Length ?? 0,
+				snapshot.IsBaseline,
+				reason,
+				_publishedFramingMilliseconds[index],
+				simulation.TickCount,
+				System.Diagnostics.Stopwatch.GetTimestamp());
+		}
+
 		_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index]);
 
 		// The first sequence this peer was described with bounds what its acknowledgement mask can claim: a bit for a

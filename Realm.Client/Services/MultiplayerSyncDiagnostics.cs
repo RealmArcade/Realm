@@ -587,6 +587,9 @@ public static class MultiplayerSyncDiagnostics
 			// records of the same instant. Readers that judge a per-tick quantity - how far the renderer has followed, how
 			// far the follower has advanced - need to know which records share a tick, or one instant is counted as dozens.
 			writer.Write(Godot.Engine.GetPhysicsFrames());
+			// A screen describes only itself, so there is no peer whose bit a reader would look up here; the authority's
+			// record is the one that states the order its reference masks count peers in.
+			writer.Write(0);
 			writeUnits(writer);
 		}
 
