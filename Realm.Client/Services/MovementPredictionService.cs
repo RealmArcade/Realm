@@ -64,6 +64,13 @@ public class MovementPredictionService
 	/// not the client heard anything back about the command that started the order.
 	/// </summary>
 	public const float PredictionLeadLimitMeters = 3.0f;
+
+	/// <summary>
+	/// How many prediction ticks an unanswered order is trusted before its samples are reconciled anyway. The authority
+	/// answers every order it is sent, so this only bounds the damage of an answer that is lost with the peer's
+	/// connection, and it keeps a unit from being frozen out of reconciliation by a command the match never took.
+	/// </summary>
+	private const int OrderAcceptanceGraceTicks = 90;
 	/// <summary>
 	/// The furthest a predicted unit may move in a single tick. Prediction runs the shared movement step, which performs
 	/// off-mesh recovery and waypoint repairs that legitimately teleport the authority's unit between two of its ticks;
@@ -81,6 +88,8 @@ public class MovementPredictionService
 	private readonly int[] _commandIds = new int[EcsWorld.MAX_ENTITIES];
 	private readonly bool[] _tracked = new bool[EcsWorld.MAX_ENTITIES];
 	private readonly bool[] _hasAuthoritativeSample = new bool[EcsWorld.MAX_ENTITIES];
+	private readonly bool[] _orderAccepted = new bool[EcsWorld.MAX_ENTITIES];
+	private readonly int[] _orderIssuedTicks = new int[EcsWorld.MAX_ENTITIES];
 	private readonly Vector3[] _stepStartPositions = new Vector3[EcsWorld.MAX_ENTITIES];
 	private readonly bool[] _hasStepStartPosition = new bool[EcsWorld.MAX_ENTITIES];
 	private readonly Vector3[] _preTickAuthoritativePositions = new Vector3[EcsWorld.MAX_ENTITIES];
@@ -226,6 +235,11 @@ public class MovementPredictionService
 		{
 			int entityId = localEntityIds[index];
 			_commandIds[entityId] = commandId;
+			// Until the authority answers, every snapshot it sends predates this order, so its positions describe the
+			// unit before the order existed. Correcting the prediction toward them rubber-banded the unit backwards at
+			// the start of every move the moment the authority became a separate process.
+			_orderAccepted[entityId] = false;
+			_orderIssuedTicks[entityId] = _lastPredictedTick;
 			MarkTracked(entityId);
 		}
 
@@ -396,6 +410,7 @@ public class MovementPredictionService
 			var entity = new Entity(entityId);
 			if (!world.IsAlive(entity) || !world.Has<Position>(entity) || !world.Has<PredictedMoveTo>(entity)) continue;
 			if (!_hasAuthoritativeSample[entityId]) continue;
+			if (IsAwaitingOrderAcceptance(entityId)) continue;
 
 			float leadMeters = Vector3.Distance(world.Get<Position>(entity).Value, _authoritativePositions[entityId]);
 			if (leadMeters <= PredictionLeadLimitMeters) continue;
@@ -418,6 +433,7 @@ public class MovementPredictionService
 			var entity = new Entity(entityId);
 			if (!world.IsAlive(entity) || !world.Has<Position>(entity)) continue;
 			if (!_hasAuthoritativeSample[entityId]) continue;
+			if (IsAwaitingOrderAcceptance(entityId)) continue;
 
 			Vector3 predicted = world.Get<Position>(entity).Value;
 			Vector3 authoritative = _authoritativePositions[entityId];
@@ -487,6 +503,7 @@ public class MovementPredictionService
 				// unresolved after a spawn, and prediction then ran again with nothing to clamp or expire against.
 				_tracked[entityId] = false;
 				_commandIds[entityId] = 0;
+				_orderAccepted[entityId] = false;
 				PredictionDiagnostics.RecordPredictionStopped(entityId, "ownership changed or unit is not locally controlled");
 				continue;
 			}
@@ -509,6 +526,8 @@ public class MovementPredictionService
 		_authoritativePositions[entityId] = Vector3.Zero;
 		_previousAuthoritativePositions[entityId] = Vector3.Zero;
 		_commandIds[entityId] = 0;
+		_orderAccepted[entityId] = false;
+		_orderIssuedTicks[entityId] = 0;
 	}
 
 	private void MarkTracked(int entityId)
@@ -673,11 +692,32 @@ public class MovementPredictionService
 		}
 
 		_commandIds[entity.Id] = 0;
+		_orderAccepted[entity.Id] = false;
 	}
 
 	public void OnCommandAccepted(int commandId)
 	{
 		PredictionDiagnostics.RecordCommandAccepted(commandId);
+
+		for (int index = 0; index < _trackedCount; index++)
+		{
+			int entityId = _trackedEntityIds[index];
+			if (_commandIds[entityId] != commandId) continue;
+			_orderAccepted[entityId] = true;
+		}
+	}
+
+	/// <summary>
+	/// Whether the unit's newest predicted order is still waiting for the authority to answer it. A snapshot the
+	/// authority sent before it answered cannot describe the order, so reconciling against it would undo the prediction
+	/// the order created. The wait is bounded: an answer that never arrives must not leave a unit permanently
+	/// unreconciled, so after <see cref="OrderAcceptanceGraceTicks" /> the sample is trusted again.
+	/// </summary>
+	private bool IsAwaitingOrderAcceptance(int entityId)
+	{
+		if (_commandIds[entityId] == 0) return false;
+		if (_orderAccepted[entityId]) return false;
+		return _lastPredictedTick - _orderIssuedTicks[entityId] <= OrderAcceptanceGraceTicks;
 	}
 
 	public bool HasPredictedOrder(EcsWorld world, Entity entity)
@@ -722,6 +762,8 @@ public class MovementPredictionService
 		Array.Clear(_tracked);
 		Array.Clear(_hasAuthoritativeSample);
 		Array.Clear(_commandIds);
+		Array.Clear(_orderAccepted);
+		Array.Clear(_orderIssuedTicks);
 		Array.Fill(_preTickCaptureTicks, -1);
 		Array.Clear(_preTickAuthoritativeSequences);
 	}

@@ -17,12 +17,12 @@ namespace Realm.Client.Testing;
 
 public static class MultiplayerHardeningChecks
 {
-	public static int Run(string outputDirectory, bool hasAuthority)
+	public static int Run(string outputDirectory, bool hasAuthority, string authorityLogPath = "")
 	{
-		return Run(outputDirectory, hasAuthority, null, null);
+		return Run(outputDirectory, hasAuthority, null, null, authorityLogPath);
 	}
 
-	public static int Run(string outputDirectory, bool hasAuthority, LobbyManager? lobby, PlayerInfo? hostSlotBaseline)
+	public static int Run(string outputDirectory, bool hasAuthority, LobbyManager? lobby, PlayerInfo? hostSlotBaseline, string authorityLogPath = "")
 	{
 		var failures = new List<string>();
 		var notes = new List<string>();
@@ -30,7 +30,7 @@ public static class MultiplayerHardeningChecks
 		RunPayloadChecks(failures, notes);
 		if (hasAuthority) RunSpellAuthorityChecks(failures, notes);
 		if (hasAuthority && lobby != null && hostSlotBaseline != null) RunLobbyIdentityChecks(outputDirectory, lobby, hostSlotBaseline, failures, notes);
-		if (hasAuthority) RunCommandBudgetChecks(outputDirectory, failures, notes);
+		if (hasAuthority) RunCommandBudgetChecks(outputDirectory, authorityLogPath, failures, notes);
 		if (hasAuthority && lobby != null) RunSessionIdentityChecks(lobby, failures, notes);
 
 		var builder = new StringBuilder();
@@ -57,7 +57,7 @@ public static class MultiplayerHardeningChecks
 	/// the excess, and the match has to keep running: the peer that flooded must not be able to spend the host tick on
 	/// commands nobody could have issued, and the refusal has to be reported rather than silently accepted.
 	/// </summary>
-	private static void RunCommandBudgetChecks(string outputDirectory, List<string> failures, List<string> notes)
+	private static void RunCommandBudgetChecks(string outputDirectory, string authorityLogPath, List<string> failures, List<string> notes)
 	{
 		string markerPath = Path.Combine(outputDirectory, "command_flood_sent.txt");
 		if (!File.Exists(markerPath))
@@ -67,12 +67,51 @@ public static class MultiplayerHardeningChecks
 		}
 
 		int sentCount = int.TryParse(File.ReadAllText(markerPath).Trim(), out int parsed) ? parsed : 0;
-		int rateLimited = GameContext.Host?.RefusedCommandCount ?? 0;
+
+		// The peer that floods is not the peer that runs this check: a match is a process per player, so what the flood
+		// cost the match is read from the authority's own log rather than from whoever happens to be reporting.
+		int rateLimited = ReadAuthorityRateLimitRefusals(authorityLogPath);
+		if (rateLimited <= 0) rateLimited = GameContext.Host?.RefusedCommandCount ?? 0;
 		notes.Add($"command flood: the client submitted {sentCount} commands and the authority refused {rateLimited} of them for exceeding the rate limit");
 		if (rateLimited == 0)
 		{
 			failures.Add($"the client submitted {sentCount} commands in one tick and the authority refused none of them, so a peer can drive unlimited authority work per tick.");
 		}
+	}
+
+	/// <summary>The number of orders the authority's own log says it refused for exceeding the per-tick budget.</summary>
+	private static int ReadAuthorityRateLimitRefusals(string authorityLogPath)
+	{
+		if (string.IsNullOrEmpty(authorityLogPath) || !File.Exists(authorityLogPath)) return 0;
+
+		try
+		{
+			using var stream = new FileStream(authorityLogPath, FileMode.Open, System.IO.FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+			using var reader = new StreamReader(stream);
+			string log = reader.ReadToEnd();
+			// The authority restates its refusal total while the flood is happening and again when it stops, so a check that
+			// runs against a still-running authority reads the live total instead of waiting for the closing summary.
+			int closedTotal = ReadLastReportedCount(log, "the command rate limit refused ");
+			int liveTotal = ReadLastReportedCount(log, "the command rate limit has refused ");
+			return Math.Max(closedTotal, liveTotal);
+		}
+		catch (IOException)
+		{
+			return 0;
+		}
+	}
+
+	/// <summary>The number the last line carrying <paramref name="marker" /> reports, or zero when the log has none.</summary>
+	private static int ReadLastReportedCount(string log, string marker)
+	{
+		int index = log.LastIndexOf(marker, StringComparison.Ordinal);
+		if (index < 0) return 0;
+
+		int start = index + marker.Length;
+		int end = log.IndexOf(' ', start);
+		if (end < 0) return 0;
+
+		return int.TryParse(log.AsSpan(start, end - start), out int reported) ? reported : 0;
 	}
 
 	/// <summary>

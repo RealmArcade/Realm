@@ -17,6 +17,7 @@ public partial class PredictionHarnessRunner : Node
 	private string _wasmPath = string.Empty;
 	private bool _negativeControl;
 	private int _peerCount = 2;
+	private int _botCount;
 	private float _dropClientAtSeconds;
 
 	public override void _Ready()
@@ -50,13 +51,14 @@ public partial class PredictionHarnessRunner : Node
 				PredictionEnabled = !_negativeControl,
 				RunPredictionScenario = true,
 				PeerCount = _peerCount,
+				BotCount = _botCount,
 				DropClientAtSeconds = _dropClientAtSeconds,
 				OneWayDelayMilliseconds = oneWayDelayMilliseconds,
 				JitterMilliseconds = jitterMilliseconds,
 				PacketLossPercent = packetLossPercent
 			};
 
-			GD.Print($"[PREDICTION_HARNESS] Running profile {profile} with {_peerCount} peers negativeControl={_negativeControl} dropAt={_dropClientAtSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}s on port {_port} for {_durationSeconds:F0}s.");
+			GD.Print($"[PREDICTION_HARNESS] Running profile {profile} with {_peerCount} peers, {_botCount} bot(s), negativeControl={_negativeControl} dropAt={_dropClientAtSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}s on port {_port} for {_durationSeconds:F0}s.");
 			await MultiplayerEcsSyncTestSupport.RunAsync(settings);
 
 			IReadOnlyList<string> clientDirectories = settings.ResolveClientDirectories();
@@ -97,12 +99,16 @@ public partial class PredictionHarnessRunner : Node
 
 			int hardeningFailures;
 			int bandwidthFailures;
-			hardeningFailures = zeroLatencyRun ? 0 : ReadHardeningFailures(_outputDirectory);
-			bandwidthFailures = zeroLatencyRun ? 0 : CheckBandwidthBudget(_outputDirectory);
-			bool passed = predictionFailures == 0 && syncFailures == 0 && hardeningFailures == 0 && bandwidthFailures == 0;
+			int splitFailures;
+			// Every check runs on every profile. Skipping them on a clean run made the clean profile the one that proved the
+			// least, and the verdict's failure counts then disagreed with the reports it was reading.
+			hardeningFailures = ReadHardeningFailures(_outputDirectory);
+			bandwidthFailures = CheckBandwidthBudget(_outputDirectory);
+			splitFailures = CheckSplitMatch(_outputDirectory, clientDirectories);
+			bool passed = predictionFailures == 0 && syncFailures == 0 && hardeningFailures == 0 && bandwidthFailures == 0 && splitFailures == 0;
 			exitCode = passed ? 0 : 1;
-			WriteVerdictReport(settings, exitCode, predictionFailures, syncFailures, hardeningFailures, bandwidthFailures);
-			GD.Print($"[PREDICTION_HARNESS] Verdict: {(passed ? "PASS" : "FAIL")} across {clientDirectories.Count + 1} peers (sync failures {syncFailures}, prediction failures {predictionFailures}, hardening failures {hardeningFailures}, bandwidth failures {bandwidthFailures}).");
+			WriteVerdictReport(settings, exitCode, predictionFailures, syncFailures, hardeningFailures, bandwidthFailures, splitFailures);
+			GD.Print($"[PREDICTION_HARNESS] Verdict: {(passed ? "PASS" : "FAIL")} across {clientDirectories.Count + 1} peers (sync failures {syncFailures}, prediction failures {predictionFailures}, hardening failures {hardeningFailures}, bandwidth failures {bandwidthFailures}, split failures {splitFailures}).");
 		}
 		catch (Exception exception)
 		{
@@ -119,7 +125,67 @@ public partial class PredictionHarnessRunner : Node
 	/// code to know what happened. Every check that can fail contributes its own count and its own messages, and the exit
 	/// code the process actually returns is recorded alongside them so the artifact and the exit status cannot disagree.
 	/// </summary>
-	private void WriteVerdictReport(MultiplayerEcsRunSettings settings, int exitCode, int predictionFailures, int syncFailures, int hardeningFailures, int bandwidthFailures)
+	/// <summary>
+	/// Compares what every process in the match holds and what the run's own split checks reported. A match only works if
+	/// a change the authority made reaches every screen, so disagreement between two screens is a failure even when each
+	/// screen is internally consistent.
+	/// </summary>
+	private int CheckSplitMatch(string outputDirectory, IReadOnlyList<string> clientDirectories)
+	{
+		SplitWorldReport worldReport = MultiplayerSplitVerification.Verify(outputDirectory, clientDirectories);
+		string worldText = worldReport.Render();
+		File.WriteAllText(Path.Combine(outputDirectory, "split_world_report.txt"), worldText);
+		GD.Print(worldText);
+
+		int scenarioFailures = ReadReportFailures("split", Path.Combine(outputDirectory, "split_report.json"), out string scenarioText);
+		if (scenarioText.Length > 0) GD.Print(scenarioText);
+		return worldReport.Failures.Count + scenarioFailures;
+	}
+
+	/// <summary>Reads the checks the host harness ran while the match was being played.</summary>
+	private static int ReadReportFailures(string name, string path, out string rendered)
+	{
+		rendered = string.Empty;
+		if (!File.Exists(path))
+		{
+			GD.PrintErr($"[PREDICTION_HARNESS] {path} is missing, so the {name} checks did not run.");
+			return 1;
+		}
+
+		try
+		{
+			using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+			System.Text.Json.JsonElement root = document.RootElement;
+			int failures = root.TryGetProperty("failures", out System.Text.Json.JsonElement failuresElement) ? failuresElement.GetInt32() : 0;
+
+			var builder = new System.Text.StringBuilder();
+			builder.AppendLine($"=== {name} checks ===");
+			if (root.TryGetProperty("notes", out System.Text.Json.JsonElement notes) && notes.ValueKind == System.Text.Json.JsonValueKind.Array)
+			{
+				foreach (System.Text.Json.JsonElement note in notes.EnumerateArray()) builder.AppendLine($"  note: {note.GetString()}");
+			}
+
+			if (root.TryGetProperty("messages", out System.Text.Json.JsonElement messages) && messages.ValueKind == System.Text.Json.JsonValueKind.Array)
+			{
+				foreach (System.Text.Json.JsonElement message in messages.EnumerateArray())
+				{
+					builder.AppendLine($"  - {message.GetString()}");
+					GD.PrintErr($"[PREDICTION_HARNESS] {name}: {message.GetString()}");
+				}
+			}
+
+			builder.AppendLine($"Failures: {failures}");
+			rendered = builder.ToString();
+			return failures;
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[PREDICTION_HARNESS] Could not read {path}: {exception.Message}");
+			return 1;
+		}
+	}
+
+	private void WriteVerdictReport(MultiplayerEcsRunSettings settings, int exitCode, int predictionFailures, int syncFailures, int hardeningFailures, int bandwidthFailures, int splitFailures)
 	{
 		try
 		{
@@ -135,7 +201,9 @@ public partial class PredictionHarnessRunner : Node
 			}
 
 			CollectReport(checks, failureMessages, "hardening", Path.Combine(_outputDirectory, "hardening_report.json"));
+			CollectReport(checks, failureMessages, "split", Path.Combine(_outputDirectory, "split_report.json"));
 			checks.Add(new { name = "sync", present = true, failures = syncFailures });
+			checks.Add(new { name = "splitWorld", present = true, failures = splitFailures });
 				var payload = new
 				{
 					profile = _profile,
@@ -143,10 +211,10 @@ public partial class PredictionHarnessRunner : Node
 				loopback = settings.OneWayDelayMilliseconds == 0 && settings.JitterMilliseconds == 0 && settings.PacketLossPercent == 0,
 				durationSeconds = _durationSeconds,
 				predictionFailures,
-				syncFailures,
-				hardeningFailures,
-				bandwidthFailures,
-				exitCode,
+				syncFailures,					hardeningFailures,
+					bandwidthFailures,
+					splitFailures,
+					exitCode,
 				verdict = exitCode == 0 ? "PASS" : "FAIL",
 				checks,
 				failureMessages
@@ -298,6 +366,9 @@ public partial class PredictionHarnessRunner : Node
 					break;
 				case "--peers":
 					_peerCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--bots":
+					_botCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
 					break;
 				case "--drop-at":
 					_dropClientAtSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);

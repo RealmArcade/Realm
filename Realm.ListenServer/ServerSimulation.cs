@@ -35,6 +35,8 @@ public class ServerSimulation : IDisposable
 	private readonly ServerMapScript _script;
 	private readonly GroundLootService _loot;
 	private readonly HashSet<int> _peersNeedingBaseline = new();
+	private readonly Queue<int> _unseatedPlayerSlots = new();
+	private readonly bool _hasRoster;
 	private int _snapshotSequence;
 
 	private int _nextPlayerSlot = MatchRoster.NeutralSlot + 1;
@@ -51,16 +53,28 @@ public class ServerSimulation : IDisposable
 	///     map reaches the process the script runs in.
 	/// </param>
 	/// <param name="mapWorkspacePath">The workspace the script was compiled from, or nothing to work it out from the map.</param>
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null)
+	/// <param name="roster">
+	///     The players the lobby arranged, or nothing for a match seated as its peers connect. A roster names the slots
+	///     people play, so a peer that connects takes the seat the lobby gave it rather than the next free one.
+	/// </param>
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null)
 	{
 		_map = map;
+		_hasRoster = roster is { Count: > 0 };
+		if (roster != null)
+		{
+			for (int index = 0; index < roster.Count; index++)
+			{
+				if (!roster[index].IsComputer) _unseatedPlayerSlots.Enqueue(roster[index].Slot);
+			}
+		}
 		_log = log;
 		map.Simulation.CheatsEnabled = cheatsEnabled;
 		_matchTick = new MatchTick(map.Simulation);
 		_commands = new CommandAuthorityService(map.Simulation);
 		_commands.DroppedOrderSink = log.Write;
 		map.Catalog.BindTo(_commands);
-		_snapshots = new AuthoritativeSnapshotBuilder(map.World, map.WorldEntity, map.Simulation.MapRules, PeerIdForPlayerSlot);
+		_snapshots = new AuthoritativeSnapshotBuilder(map.World, map.Simulation, map.WorldEntity, map.Simulation.MapRules, PeerIdForPlayerSlot);
 		EnsureMatchClock(map);
 		_production = new ServerProductionStep(map.World, map, log);
 		_construction = new ConstructionTick(map.Simulation, map.Catalog);
@@ -273,13 +287,27 @@ public class ServerSimulation : IDisposable
 			return true;
 		}
 
-		if (_nextPlayerSlot >= _map.PlayerEntities.Length)
+		if (_hasRoster)
 		{
-			playerSlot = -1;
-			return false;
+			if (_unseatedPlayerSlots.Count == 0)
+			{
+				playerSlot = -1;
+				return false;
+			}
+
+			playerSlot = _unseatedPlayerSlots.Dequeue();
+		}
+		else
+		{
+			if (_nextPlayerSlot >= _map.PlayerEntities.Length)
+			{
+				playerSlot = -1;
+				return false;
+			}
+
+			playerSlot = _nextPlayerSlot++;
 		}
 
-		playerSlot = _nextPlayerSlot++;
 		_peerPlayerSlots[peerId] = playerSlot;
 
 		Entity worldEntity = _map.WorldEntity;
@@ -396,6 +424,31 @@ public class ServerSimulation : IDisposable
 
 	/// <summary>Takes the baseline a peer is owed, if it is owed one. Asking twice is answered once.</summary>
 	public bool ConsumeBaselineRequest(int peerId) => _peersNeedingBaseline.Remove(peerId);
+
+	/// <summary>The name a player slot is shown under, so a line of chat says who sent it.</summary>
+	public string ReadPlayerName(int playerSlot)
+	{
+		Entity worldEntity = _map.WorldEntity;
+		if (!_map.World.IsAlive(worldEntity) || !_map.World.Has<ScriptPlayersState>(worldEntity)) return $"Player {playerSlot}";
+
+		ScriptPlayersState players = _map.World.Get<ScriptPlayersState>(worldEntity);
+		if (!players.IsValidSlot(playerSlot)) return $"Player {playerSlot}";
+
+		string name = players.Get(playerSlot).Name;
+		return string.IsNullOrWhiteSpace(name) ? $"Player {playerSlot}" : name;
+	}
+
+	/// <summary>
+	///     Hands a line a player typed in chat to the map that owns its meaning. A map's own commands are chat lines, so
+	///     the match passes them on with the player they came from and lets the map decide what they do.
+	/// </summary>
+	public void ApplyChatLine(int peerId, string message)
+	{
+		if (!_peerPlayerSlots.TryGetValue(peerId, out int playerSlot)) return;
+		if (!ChatLineLimits.IsAcceptable(message)) return;
+
+		_script.Api.RaisePlayerChatMessage(playerSlot, message.Trim(), 0);
+	}
 
 	/// <summary>The team a player slot belongs to, so a peer can tell who its allies are before it is told anything else.</summary>
 	public int ReadTeam(int playerSlot)

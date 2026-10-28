@@ -47,6 +47,13 @@ public static class ServerArgumentFlags
 	///     the debugger configuration the workspace already carries finds the very module the running script was built from.
 	/// </summary>
 	public const string WorkspaceFlag = "--workspace";
+
+	/// <summary>
+	///     The file naming the players the match is played by. A map's script spawns every player's starting units while
+	///     it initializes, which happens before the authority is listening, so the seats have to travel with the launch
+	///     rather than arrive with the peers that fill them.
+	/// </summary>
+	public const string RosterFlag = "--roster";
 }
 
 /// <summary>
@@ -99,6 +106,12 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 	///     its own.
 	/// </summary>
 	public string? MapWorkspacePath { get; init; }
+
+	/// <summary>
+	///     The file naming the players this match is played by, or nothing for a match seated as its peers connect. It is
+	///     what lets a map's script see every seat - the ones the match plays itself included - while it initializes.
+	/// </summary>
+	public string? RosterPath { get; init; }
 
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
@@ -330,6 +343,11 @@ public class ServerProcessLauncher : IDisposable
 		{
 			startInfo.ArgumentList.Add(ServerArgumentFlags.WorkspaceFlag);
 			startInfo.ArgumentList.Add(Path.GetFullPath(request.MapWorkspacePath));
+		}
+		if (!string.IsNullOrWhiteSpace(request.RosterPath))
+		{
+			startInfo.ArgumentList.Add(ServerArgumentFlags.RosterFlag);
+			startInfo.ArgumentList.Add(Path.GetFullPath(request.RosterPath));
 		}
 
 		try

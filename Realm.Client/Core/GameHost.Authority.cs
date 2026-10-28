@@ -43,6 +43,7 @@ public partial class GameHost
 		session.CommandAnswered += ApplyCommandOutcome;
 		session.LatencyProbeAnswered += GameContext.NetworkLatencyService.OnResponse;
 		session.ServerLost += ReportAuthorityLost;
+		session.ChatReceived += ApplyChatLine;
 
 		if (session.LocalPlayerSlot >= 0)
 		{
@@ -58,6 +59,15 @@ public partial class GameHost
 		// the newest of each is applied here rather than waiting for a second copy that is never sent.
 		if (session.LatestNavMeshObstacles is { } obstacles) ApplyNavMeshObstacles(obstacles);
 		if (session.LatestPauseState is { } pause) ApplyMatchPause(pause);
+	}
+
+	/// <summary>
+	///     Shows a line of chat the match relayed. The line reaches the screen through the lobby the chat panel already
+	///     listens to, so a message the authority relayed is shown the same way a line typed here is.
+	/// </summary>
+	private void ApplyChatLine(ChatLine line)
+	{
+		GameContext.Lobby?.ReceiveChatFromAuthority(line.Sender, line.Message, line.AlliesOnly, line.TimestampUtcTicks);
 	}
 
 	/// <summary>

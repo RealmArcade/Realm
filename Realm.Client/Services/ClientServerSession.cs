@@ -22,7 +22,12 @@ namespace Realm.Client.Services;
 ///     Whether the authority is started with the map script's debug information kept. A map tested from the editor asks for
 ///     it so its breakpoints reach the process the script runs in; every other match runs the script compiled for speed.
 /// </param>
-public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false);
+/// <param name="Roster">
+///     The players the match is played by, as the lobby listed them. A map's script spawns each player's starting units
+///     while it initializes, which is before the authority is listening, so the seats travel with the launch rather than
+///     arriving with the peers that fill them.
+/// </param>
+public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null);
 
 /// <summary>
 ///     One client's match. A client never simulates a match: it starts the authority beside it, joins it as an ordinary
@@ -115,6 +120,9 @@ public class ClientServerSession : IDisposable
 	/// <summary>The newest pause state the authority sent, for the same reason as <see cref="LatestNavMeshObstacles" />.</summary>
 	public MatchPauseState? LatestPauseState { get; private set; }
 
+	/// <summary>A line of chat the match relayed, as the player who sent it is named there.</summary>
+	public event Action<ChatLine>? ChatReceived;
+
 	/// <summary>Whether the authority took one of this client's orders, and why not when it did not.</summary>
 	public event Action<CommandOutcome>? CommandAnswered;
 
@@ -165,12 +173,23 @@ public class ClientServerSession : IDisposable
 		_token = start.OpenToOthers ? string.Empty : RealmProtocol.CreateToken();
 		// A map being tested is played from the workspace it was compiled from, so the authority exports the script's JIT ELF
 		// into that same workspace and the debugger configuration it already carries finds the module that is running.
+		// The seats the lobby arranged travel beside the log, because the authority builds the world and runs the map's
+		// script before it is listening: a roster that arrived with the peers would arrive after every starting unit was
+		// already spawned for somebody else.
+		string? rosterPath = null;
+		if (start.Roster is { Count: > 0 })
+		{
+			rosterPath = Path.Combine(start.LogDirectory, $"{logName}{MatchRosterFile.FileSuffix}");
+			MatchRosterFile.Write(rosterPath, start.Roster);
+		}
+
 		var request = new ServerLaunchRequest(target, start.MapFolderPath, logPath, _token, start.Seed)
 		{
 			DataFolderPath = start.DataFolderPath,
 			Cheats = start.Cheats,
 			WasmDebug = start.WasmDebug,
 			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : null,
+			RosterPath = rosterPath,
 			Port = authorityPort
 		};
 
@@ -255,6 +274,29 @@ public class ClientServerSession : IDisposable
 		if (!IsRunning) return false;
 
 		_channel.Send(NetworkFrameKind.PauseRequest, MemoryPackSerializer.Serialize(new MatchPauseState { Paused = paused, RequestedByPlayer = -1 }));
+		return true;
+	}
+
+	/// <summary>
+	///     Hands the match a line this player typed into chat. A map's script reads the chat of the player it came from -
+	///     that is how a map's own commands are typed - so the line is sent to the process that runs the script, which is
+	///     also the only process that can show it to the other players.
+	/// </summary>
+	/// <returns>True once the line was handed to the transport.</returns>
+	public bool SendChat(string message, bool alliesOnly)
+	{
+		if (!IsRunning) return false;
+		if (!ChatLineLimits.IsAcceptable(message)) return false;
+
+		var line = new ChatLine
+		{
+			Sender = string.Empty,
+			Message = message.Trim(),
+			AlliesOnly = alliesOnly,
+			TimestampUtcTicks = DateTime.UtcNow.Ticks
+		};
+
+		_channel.Send(NetworkFrameKind.ChatLine, MemoryPackSerializer.Serialize(line));
 		return true;
 	}
 
@@ -423,6 +465,10 @@ public class ClientServerSession : IDisposable
 
 			case NetworkFrameKind.LatencyProbeEcho:
 				LatencyProbeAnswered?.Invoke(MemoryPackSerializer.Deserialize<LatencyProbe>(payload).Sequence);
+				break;
+
+			case NetworkFrameKind.ChatLine:
+				ChatReceived?.Invoke(MemoryPackSerializer.Deserialize<ChatLine>(payload));
 				break;
 
 			case NetworkFrameKind.NavMeshObstacles:

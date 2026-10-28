@@ -165,6 +165,13 @@ public class NetworkService
 		return mapping.ClientToServerEntityMap.TryGetValue(localEntityId, out serverEntityId);
 	}
 
+	/// <summary>
+	///     The authoritative entity a local one replicates, or nothing when it replicates none. The mapping is the only
+	///     truth: this screen holds no world of its own, so a local id is not a server id and an entity the authority never
+	///     described has no server entity at all. Answering with the local id made a local entity indistinguishable from
+	///     the authoritative unit that happened to carry that number, which is how an order could name a unit the match
+	///     does not have.
+	/// </summary>
 	public int GetServerEntityId(int localEntityId)
 	{
 		Entity worldEntity = FindWorldEntity();
@@ -177,7 +184,7 @@ public class NetworkService
 			}
 		}
 
-		return localEntityId;
+		return -1;
 	}
 
 	public Entity FindServerEntity(int entityId, List<Unit3D> allUnits)
@@ -840,6 +847,13 @@ public class NetworkService
 		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkMappingState>(worldEntity)) return Entity.Null;
 
 		ref var mapping = ref GameContext.World.Get<NetworkMappingState>(worldEntity);
+		if (mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out Entity alreadySpawned))
+		{
+			GD.PushWarning($"[Network] Replicated entity {snap.EntityId} ('{snap.UnitId}') is already local entity {alreadySpawned.Id} at sequence {LastAppliedSnapshotSequenceForDiagnostics}; the duplicate spawn is ignored.");
+			modelPath = string.Empty;
+			return Entity.Null;
+		}
+
 		Entity spawned = ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.Velocity.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex, snap.OwnerPlayerIndex);
 		if (spawned != Entity.Null)
 		{

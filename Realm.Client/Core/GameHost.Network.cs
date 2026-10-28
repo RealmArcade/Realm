@@ -97,6 +97,17 @@ public partial class GameHost
 
 	private void SubmitOrderCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
+		// An entity the authority never described has no authoritative id, so it cannot be part of an order. Dropping it
+		// here keeps every order path honest: what is named is exactly what the match has.
+		for (int index = unitIds.Count - 1; index >= 0; index--)
+		{
+			if (unitIds[index] > 0) continue;
+
+			unitIds.RemoveAt(index);
+		}
+
+		if (unitIds.Count == 0) return;
+
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
 		RegisterPredictedCommand(commandId, unitIds, commandType, targetNumerics);
@@ -121,6 +132,15 @@ public partial class GameHost
 
 	private void SubmitRemoteCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
+		for (int index = unitIds.Count - 1; index >= 0; index--)
+		{
+			if (unitIds[index] > 0) continue;
+
+			unitIds.RemoveAt(index);
+		}
+
+		if (unitIds.Count == 0) return;
+
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
 		RegisterPredictedCommand(commandId, unitIds, commandType, targetNumerics);

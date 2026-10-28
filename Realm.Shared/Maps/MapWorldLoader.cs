@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
@@ -78,7 +79,12 @@ public static class MapWorldLoader
 	///     Loads the map at the given folder into a fresh simulation. The caller owns the result and disposes it, which
 	///     tears the world down along with the payload handles it allocated.
 	/// </summary>
-	public static LoadedMap Load(string mapFolderPath)
+	/// <param name="mapFolderPath">The map folder to load.</param>
+	/// <param name="roster">
+	///     The players the match is played by, or nothing for the default single player a map is opened with. An
+	///     authority hands the lobby's roster over so the world it simulates is seated before the map's script runs.
+	/// </param>
+	public static LoadedMap Load(string mapFolderPath, IReadOnlyList<MatchRosterSeat>? roster = null)
 	{
 		string folder = Path.GetFullPath(mapFolderPath);
 		if (!Directory.Exists(folder))
@@ -111,7 +117,7 @@ public static class MapWorldLoader
 			loaded.HasNavMesh = terrain.NavMesh != null;
 			simulation.World.Add(worldEntity, terrain);
 
-			SpawnPlayers(loaded);
+			SpawnPlayers(loaded, roster);
 			SpawnPlacedContent(loaded);
 			return loaded;
 		}
@@ -207,7 +213,7 @@ public static class MapWorldLoader
 		MapTerrainFiles.ApplyPathing(pathing, imageWidth, imageHeight, pathingCodes, width, depth);
 	}
 
-	private static void SpawnPlayers(LoadedMap loaded)
+	private static void SpawnPlayers(LoadedMap loaded, IReadOnlyList<MatchRosterSeat>? roster)
 	{
 		EcsWorld world = loaded.World;
 		SimulationContext simulation = loaded.Simulation;
@@ -220,6 +226,7 @@ public static class MapWorldLoader
 		}
 
 		ScriptPlayer[] players = MatchRoster.CreateDefaultPlayers();
+		MatchRoster.SeatPlayers(players, roster);
 		var mappingState = new NetworkMappingState(new Dictionary<int, Entity>(), new Dictionary<int, int>(), new Dictionary<int, Entity>());
 
 		for (int index = 0; index < EcsWorld.MAX_PLAYERS; index++)

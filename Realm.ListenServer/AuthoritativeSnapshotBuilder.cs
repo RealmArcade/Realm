@@ -27,6 +27,7 @@ public class AuthoritativeSnapshotBuilder
 	private static readonly QueryDescription DescribedUnitsQuery = new QueryDescription().WithAll<UnitOwnerPlayer, Health, Position>();
 
 	private readonly EcsWorld _world;
+	private readonly SimulationContext _context;
 	private readonly Entity _worldEntity;
 	private readonly MapRulesCatalog _rules;
 	private readonly Func<int, int> _peerIdForPlayerSlot;
@@ -42,9 +43,10 @@ public class AuthoritativeSnapshotBuilder
 	private Entity[] _playerEntities = Array.Empty<Entity>();
 	private Entity _viewer = Entity.Null;
 
-	public AuthoritativeSnapshotBuilder(EcsWorld world, Entity worldEntity, MapRulesCatalog rules, Func<int, int> peerIdForPlayerSlot)
+	public AuthoritativeSnapshotBuilder(EcsWorld world, SimulationContext context, Entity worldEntity, MapRulesCatalog rules, Func<int, int> peerIdForPlayerSlot)
 	{
 		_world = world;
+		_context = context;
 		_worldEntity = worldEntity;
 		_rules = rules;
 		_peerIdForPlayerSlot = peerIdForPlayerSlot;
@@ -290,6 +292,10 @@ public class AuthoritativeSnapshotBuilder
 	/// </summary>
 	private bool IsVisibleToViewer(Entity entity, Vector3 position)
 	{
+		// A map that shrouds nothing is a board every player watches whole, so the authority describes all of it rather
+		// than making each peer's screen reconstruct what its own units happen to be near. Only a map that keeps its
+		// shroud pays for the vision filter.
+		if (_context.ShroudDisabled) return true;
 		if (_viewer == Entity.Null) return true;
 		if (!_world.TryGet<Owner>(entity, out Owner owner)) return true;
 		if (owner.PlayerEntity.Value == _viewer) return true;

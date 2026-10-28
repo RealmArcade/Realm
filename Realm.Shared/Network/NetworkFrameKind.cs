@@ -50,5 +50,12 @@ public enum NetworkFrameKind : byte
 	MatchPaused = 15,
 
 	/// <summary>A line a player typed into the map script's console, which only the authority can interpret.</summary>
-	ConsoleCommand = 16
+	ConsoleCommand = 16,
+
+	/// <summary>
+	///     A line of chat, either on its way to the authority or relayed by it. The match is what every screen is
+	///     connected to, so a line a map's script has to see - and every line other players have to read - travels here
+	///     rather than between peers.
+	/// </summary>
+	ChatLine = 17
 }

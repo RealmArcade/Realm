@@ -36,6 +36,11 @@ public sealed class MultiplayerEcsRunSettings
 	public bool RunPredictionScenario { get; init; }
 	public int PeerCount { get; init; } = 2;
 	/// <summary>
+	/// How many seats the match is asked to play itself. They are part of the roster the lobby hands over, so a map's
+	/// script seats them before it runs its own logic, exactly as it does for a player who connected.
+	/// </summary>
+	public int BotCount { get; init; }
+	/// <summary>
 	/// Game time at which the first client drops its connection on purpose. Zero disables the reconnect scenario.
 	/// </summary>
 	public float DropClientAtSeconds { get; init; }
@@ -214,7 +219,7 @@ public static class MultiplayerEcsSyncTestSupport
 				foreach (string file in Directory.GetFiles(extraClientDirectory)) File.Delete(file);
 			}
 
-			using HarnessProcess hostProcess = StartHarnessProcess(settings, "host", settings.Port, null, hostReadyFile, hostDoneFile, settings.OutputDirectory, peerCount);
+			using HarnessProcess hostProcess = StartHarnessProcess(settings, "host", settings.Port, null, hostReadyFile, hostDoneFile, settings.OutputDirectory, 1);
 			bool hostListening = await WaitForFileOrExitAsync(hostListeningFile, hostProcess.Process, TimeSpan.FromSeconds(120));
 			if (!hostListening) throw new InvalidOperationException($"Host harness did not start listening.\n{hostProcess.ReadLog()}");
 
@@ -353,8 +358,9 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--profile={settings.Profile}");
 		startInfo.ArgumentList.Add($"--peers={Math.Max(2, settings.PeerCount)}");
 		startInfo.ArgumentList.Add($"--peer-index={peerIndex}");
+		startInfo.ArgumentList.Add($"--bots={(role == "host" ? settings.BotCount : 0)}");
 		startInfo.ArgumentList.Add($"--wait-for-peer-ready={waitForPeerReadyFile}");
-		startInfo.ArgumentList.Add($"--drop-at={(peerIndex == 1 ? settings.DropClientAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
+		startInfo.ArgumentList.Add($"--drop-at={(role == "client" && peerIndex == 2 ? settings.DropClientAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
 
 		string logName = peerIndex <= 1 ? $"{role}.log" : $"{role}{peerIndex}.log";
 		HarnessProcess harnessProcess = new(Path.Combine(outputDirectory, logName));

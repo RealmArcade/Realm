@@ -23,6 +23,7 @@ public class ListenServerHost : IServerTransportSink
 	private readonly ServerLog _log;
 	private readonly IServerTransport _transport;
 	private readonly Dictionary<int, int> _seatedPeers = new();
+	private readonly Dictionary<int, int> _commandsThisTick = new();
 
 	private ServerSimulation? _simulation;
 	private double _nextTickTime;
@@ -34,6 +35,8 @@ public class ListenServerHost : IServerTransportSink
 	private int _lastBroadcastObstacleSignature = int.MinValue;
 	private double _nextObstacleCheckTime;
 	private long _deliveredPresentationCount;
+	private int _rateLimitedCommandCount;
+	private long _nextRateLimitReportTicks;
 	private Action<string>? _scriptLogSink;
 
 	public ListenServerHost(ServerArguments arguments, ServerLog log, IServerTransport transport)
@@ -70,11 +73,12 @@ public class ListenServerHost : IServerTransportSink
 		_scriptLogSink = _log.Write;
 		WasmScriptHost.OnWasmLog += _scriptLogSink;
 
-		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath);
+		MatchRosterSeat[] roster = ReadRoster();
+		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath, roster);
 		try
 		{
 			var paths = ServerMatchPaths.From(_arguments);
-			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath);
+			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster);
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());
@@ -107,6 +111,31 @@ public class ListenServerHost : IServerTransportSink
 			_simulation = null;
 			throw;
 		}
+	}
+
+	/// <summary>
+	///     The players the match was started for. The roster names every seat the lobby arranged, so the map's script
+	///     seats each of them - and spawns what its rules give them - before the authority is listening.
+	/// </summary>
+	private MatchRosterSeat[] ReadRoster()
+	{
+		if (string.IsNullOrWhiteSpace(_arguments.RosterPath)) return Array.Empty<MatchRosterSeat>();
+
+		if (!MatchRosterFile.TryRead(_arguments.RosterPath, out MatchRosterSeat[] roster, out string error))
+		{
+			throw new InvalidDataException(error);
+		}
+
+		int people = 0;
+		int computers = 0;
+		for (int index = 0; index < roster.Length; index++)
+		{
+			if (roster[index].IsComputer) computers++;
+			else people++;
+		}
+
+		_log.Write($"the match was started for {people} player(s) and {computers} computer(s) on the roster");
+		return roster;
 	}
 
 	/// <summary>
@@ -147,6 +176,10 @@ public class ListenServerHost : IServerTransportSink
 
 		if (_nextTickTime <= 0) _nextTickTime = nowSeconds;
 
+		// Orders handed over since the last tick are this tick's budget. The window is cleared on the tick that consumes it
+		// rather than on the frame, so a peer cannot send more work than a tick can be asked to do.
+		_commandsThisTick.Clear();
+
 		if (nowSeconds >= _nextObstacleCheckTime)
 		{
 			_nextObstacleCheckTime = nowSeconds + ObstacleCheckIntervalSeconds;
@@ -169,6 +202,16 @@ public class ListenServerHost : IServerTransportSink
 	private const int MaximumTicksPerCall = 5;
 
 	/// <summary>
+	///     How many commands one peer may hand the match between two ticks. A player's order is one command however many
+	///     units it names, so thirty-two is far more than a person can author in a tick and far less than a peer has to be
+	///     allowed to spend the tick on: a peer that sends more has its excess refused and answered rather than simulated.
+	/// </summary>
+	private const int MaximumCommandsPerPeerPerTick = 32;
+
+	/// <summary>How often a flood of refused orders restates the running refusal total in the authority's log.</summary>
+	private const long RateLimitReportIntervalMilliseconds = 1000;
+
+	/// <summary>
 	///     How often the match looks for a change to the volumes its navigation mesh was baked with. A map's script can
 	///     spawn a blocker after the match started, so the set is compared rather than sent once.
 	/// </summary>
@@ -189,6 +232,7 @@ public class ListenServerHost : IServerTransportSink
 		// What the match managed to tell its screens, so a match that ran with nothing to show is distinguishable from
 		// one whose presentation channel never delivered.
 		if (_readyAnnounced) _log.Write($"the match delivered {_deliveredPresentationCount} presentation messages");
+		if (_readyAnnounced) _log.Write($"the command rate limit refused {_rateLimitedCommandCount} command(s)");
 
 		_seatedPeers.Clear();
 	}
@@ -284,6 +328,9 @@ public class ListenServerHost : IServerTransportSink
 			case NetworkFrameKind.ConsoleCommand:
 				HandleConsoleCommand(peerId, payload);
 				break;
+			case NetworkFrameKind.ChatLine:
+				HandleChatLine(peerId, payload);
+				break;
 			case NetworkFrameKind.Shutdown:
 				_log.Write($"peer {peerId} asked the match to end");
 				Stop();
@@ -316,6 +363,50 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		simulation.ApplyConsoleCommand(peerId, command);
+	}
+
+	/// <summary>
+	///     Reads a line of chat, hands it to the map whose script reads it, and shows it to every player it is meant for.
+	///     A map's own commands are typed in chat, so a line that only reached the other screens would never reach the
+	///     script that is supposed to act on it.
+	/// </summary>
+	private void HandleChatLine(int peerId, ReadOnlySpan<byte> payload)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+		if (!_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
+
+		ChatLine line;
+		try
+		{
+			line = MemoryPackSerializer.Deserialize<ChatLine>(payload.ToArray());
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			_log.Write($"peer {peerId} sent a chat line that could not be read: {exception.Message}");
+			return;
+		}
+
+		if (!ChatLineLimits.IsAcceptable(line.Message)) return;
+
+		simulation.ApplyChatLine(peerId, line.Message);
+
+		var relayed = new ChatLine
+		{
+			Sender = simulation.ReadPlayerName(playerSlot),
+			Message = line.Message.Trim(),
+			AlliesOnly = line.AlliesOnly,
+			TimestampUtcTicks = line.TimestampUtcTicks > 0 ? line.TimestampUtcTicks : DateTime.UtcNow.Ticks
+		};
+
+		byte[] bytes = MemoryPackSerializer.Serialize(relayed);
+		int senderTeam = simulation.ReadTeam(playerSlot);
+		foreach (var seated in _seatedPeers)
+		{
+			if (relayed.AlliesOnly && simulation.ReadTeam(seated.Value) != senderTeam) continue;
+
+			_transport.Send(seated.Key, NetworkFrameKind.ChatLine, bytes);
+		}
 	}
 
 	/// <summary>
@@ -541,6 +632,32 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		int commandId = command.CommandId;
+		_commandsThisTick.TryGetValue(peerId, out int commandsThisTick);
+		if (commandsThisTick >= MaximumCommandsPerPeerPerTick)
+		{
+			if (commandsThisTick == MaximumCommandsPerPeerPerTick)
+			{
+				_log.Write($"peer {peerId} is above the {MaximumCommandsPerPeerPerTick} command(s) a tick allows; its further orders are refused");
+			}
+
+			_commandsThisTick[peerId] = commandsThisTick + 1;
+			_rateLimitedCommandCount++;
+			// A peer that floods keeps being refused long after the first refusal, and a reader watching the match live has
+			// to be able to see the budget doing its job. The running total is restated at most once a second rather than
+			// once per refused order, so the report itself cannot become the flood.
+			long nowTicks = Environment.TickCount64;
+			if (nowTicks >= _nextRateLimitReportTicks)
+			{
+				_nextRateLimitReportTicks = nowTicks + RateLimitReportIntervalMilliseconds;
+				_log.Write($"the command rate limit has refused {_rateLimitedCommandCount} command(s) so far");
+			}
+
+			SendOutcome(peerId, commandId, false, "the command rate limit for one tick was exceeded");
+			return;
+		}
+
+		_commandsThisTick[peerId] = commandsThisTick + 1;
+
 		if (_paused)
 		{
 			_log.Write($"peer {peerId} command {commandId} '{command.CommandType}' refused: the match is paused");

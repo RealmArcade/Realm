@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -22,6 +23,7 @@ using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
 using Realm.Shared.Distribution;
+using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Services;
 using SharpToken;
@@ -558,7 +560,8 @@ public partial class LobbyManager : BaseMapTransferNode
 			LocalizationManager.GetCurrentLanguageCode(),
 			AllowsCheats,
 			openToOthers,
-			wasmDebug);
+			wasmDebug,
+			BuildMatchRoster());
 
 		if (!session.TryStart(start, out string failure, authorityPort))
 		{
@@ -2374,9 +2377,62 @@ public partial class LobbyManager : BaseMapTransferNode
 		return "Team 1";
 	}
 
+	/// <summary>
+	///     The players this match is played by, as this lobby listed them. An authority seats them before its map's script
+	///     runs, so the seats a map spawns starting units for are the seats the match actually has: a bot the lobby
+	///     added is a computer player from the first tick rather than an empty slot nobody fills.
+	/// </summary>
+	private List<MatchRosterSeat> BuildMatchRoster()
+	{
+		var seats = new List<MatchRosterSeat>(PlayerList.Count);
+		for (int index = 0; index < PlayerList.Count; index++)
+		{
+			PlayerInfo player = PlayerList[index];
+			if (player.Slot <= 0) continue;
+
+			bool isComputer = string.Equals(player.Faction, "AI", StringComparison.OrdinalIgnoreCase) || player.PeerId < 0;
+			seats.Add(new MatchRosterSeat(player.Slot, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer));
+		}
+
+		seats.Sort((left, right) => left.Slot.CompareTo(right.Slot));
+		return seats;
+	}
+
+	/// <summary>The team number a lobby team name stands for, falling back to the seat's own slot.</summary>
+	private static int ResolveSeatTeam(string? teamName, int slot)
+	{
+		if (!string.IsNullOrWhiteSpace(teamName)
+			&& teamName.StartsWith("Team ", StringComparison.OrdinalIgnoreCase)
+			&& int.TryParse(teamName.AsSpan(5), NumberStyles.Integer, CultureInfo.InvariantCulture, out int team)
+			&& team > 0)
+		{
+			return team;
+		}
+
+		return slot;
+	}
+
+	/// <summary>
+	///     Shows a line of chat the match relayed. A line is sent to the authority and comes back from it, so this is the
+	///     one place a message reaches a screen whether it was typed here or somewhere else.
+	/// </summary>
+	public void ReceiveChatFromAuthority(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
+	{
+		ChatReceived?.Invoke(SanitizeLobbyText(senderName, 32), message, alliesOnly, timestampUtcTicks);
+	}
+
 	public void SendChatMessage(string senderName, string message, bool alliesOnly = false, long timestampUtcTicks = 0)
 	{
 		long sentAtUtcTicks = timestampUtcTicks > 0 ? timestampUtcTicks : DateTime.UtcNow.Ticks;
+
+		// Once a match is running, the process that runs it is the one every screen is connected to. A line goes there
+		// and is relayed back to everyone it is meant for, which is also how a map's own chat commands reach the map.
+		ClientServerSession? matchSession = GameContext.ServerSession;
+		if (matchSession != null && matchSession.IsRunning && IsGameStarted && senderName != "System")
+		{
+			if (matchSession.SendChat(message, alliesOnly)) return;
+		}
+
 		if (IsHost)
 		{
 			if (senderName == "System")

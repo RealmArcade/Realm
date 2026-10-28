@@ -394,7 +394,7 @@ public static class PredictionDiagnostics
 			bool hasPathFollow = world.Has<PathFollow>(entity);
 			PathFollow pathFollow = hasPathFollow ? world.Get<PathFollow>(entity) : default;
 			int ownerPlayerIndex = world.Has<UnitOwnerPlayer>(entity) ? world.Get<UnitOwnerPlayer>(entity).PlayerIndex : -1;
-			int serverEntityId = GameContext.NetworkService?.GetServerEntityId(entity.Id) ?? entity.Id;
+			int serverEntityId = GameContext.NetworkService?.GetServerEntityId(entity.Id) ?? -1;
 
 			_writer.Write(serverEntityId);
 			_writer.Write(ownerPlayerIndex);

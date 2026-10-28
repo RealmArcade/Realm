@@ -3,7 +3,7 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "")
+public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "")
 {
 	public const string MapFlag = ServerArgumentFlags.MapFlag;
 	public const string PortFlag = ServerArgumentFlags.PortFlag;
@@ -14,8 +14,9 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 	public const string CheatsFlag = ServerArgumentFlags.CheatsFlag;
 	public const string WasmDebugFlag = ServerArgumentFlags.WasmDebugFlag;
 	public const string WorkspaceFlag = ServerArgumentFlags.WorkspaceFlag;
+	public const string RosterFlag = ServerArgumentFlags.RosterFlag;
 
-	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
+	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
 
 	public static bool TryParse(string[] args, out ServerArguments? arguments, out string error)
 	{
@@ -31,6 +32,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		bool cheats = false;
 		bool wasmDebug = false;
 		string? workspacePath = null;
+		string? rosterPath = null;
 
 		for (int index = 0; index < args.Length; index++)
 		{
@@ -71,6 +73,9 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 				case WasmDebugFlag:
 					wasmDebug = true;
 					break;
+				case RosterFlag:
+					if (!TryTakeValue(args, ref index, flag, out rosterPath, out error)) return false;
+					break;
 				case WorkspaceFlag:
 					if (!TryTakeValue(args, ref index, flag, out workspacePath, out error)) return false;
 					break;
@@ -96,7 +101,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		// the script's JIT ELF is exported into when the caller named none.
 		string resolvedWorkspace = wasmDebug ? workspacePath ?? mapPath : workspacePath ?? string.Empty;
 
-		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats, wasmDebug, resolvedWorkspace);
+		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats, wasmDebug, resolvedWorkspace, rosterPath ?? string.Empty);
 		return true;
 	}
 

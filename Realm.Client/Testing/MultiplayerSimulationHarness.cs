@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -12,6 +13,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared;
+using Realm.Shared.Maps;
 
 namespace Realm.Client.Testing;
 
@@ -54,6 +56,8 @@ public partial class MultiplayerSimulationHarness : Node
 	private string _networkProfile = "Latency";
 	private int _peerCount = 2;
 	private int _peerIndex = 1;
+	private int _botCount;
+	private int _splitUnitsBeforeCommand = -1;
 	private float _dropAtSeconds;
 	private float _pauseAtSeconds;
 	private bool _startAuthority;
@@ -163,6 +167,9 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--peer-index":
 					_peerIndex = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
 					break;
+				case "--bots":
+					_botCount = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
 				case "--wait-for-peer-ready":
 					_waitForPeerReadyFile = value;
 					break;
@@ -233,8 +240,8 @@ public partial class MultiplayerSimulationHarness : Node
 
 		if (!await StartSimulationAsync(lobby, true)) return 1;
 
-
 		GameHost gameHost = GameContext.Host ?? throw new InvalidOperationException("GameHost instance is unavailable.");
+		await RunSplitScenarioAsync(lobby, gameHost);
 
 		// The peer that started the authority is the one player this map gives starting units to, so it is also the one
 		// that can be asked to spend one on a building. That order travels the same path a player's order does.
@@ -266,7 +273,7 @@ public partial class MultiplayerSimulationHarness : Node
 			await ToSignal(GetTree().CreateTimer(_drainMilliseconds / 1000f), SceneTreeTimer.SignalName.Timeout);
 		}
 
-		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true);
+		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true, _session?.LogPath ?? string.Empty);
 
 		_finalSequence = ResolveSnapshotSequence();
 		MultiplayerBandwidthMeter.BuildReport(_outputDirectory, gameHost.GameElapsedTime);
@@ -274,6 +281,7 @@ public partial class MultiplayerSimulationHarness : Node
 		MultiplayerSyncDiagnostics.Stop();
 		PredictionDiagnostics.Stop();
 		WriteFinalWorldSnapshot("ECS_host_final_full.bin");
+		WriteWorldSummary("world_summary_host.json", "host");
 		return 0;
 	}
 
@@ -440,13 +448,37 @@ public partial class MultiplayerSimulationHarness : Node
 			Path.Combine(_outputDirectory, "listen_server"),
 			_outputDirectory,
 			LocalizationManager.GetCurrentLanguageCode(),
-			OpenToOthers: true);
+			OpenToOthers: true,
+			Roster: BuildHarnessRoster());
 
 		if (!session.TryStart(start, out string failure, _port)) throw new InvalidOperationException($"The authority could not be started on port {_port}: {failure}");
 
 		GameContext.AttachServerSession(session);
 		_session = session;
 		return session;
+	}
+
+	/// <summary>
+	/// The players this match is played by, exactly as a lobby lists them before it hands the match over: one seat per
+	/// peer, plus the seats the match is asked to play itself. The authority seats them before the map's script runs, so
+	/// a map that spawns starting units only spawns them for a seat that exists.
+	/// </summary>
+	private List<MatchRosterSeat> BuildHarnessRoster()
+	{
+		var roster = new List<MatchRosterSeat>(_peerCount + _botCount);
+		for (int slot = 1; slot <= _peerCount; slot++)
+		{
+			string name = slot == 1 ? HostPlayerName : $"HarnessPeer{slot}";
+			roster.Add(new MatchRosterSeat(slot, name, slot, $"Team {slot}", false));
+		}
+
+		for (int index = 0; index < _botCount; index++)
+		{
+			int slot = _peerCount + index + 1;
+			roster.Add(new MatchRosterSeat(slot, $"Bot {slot}", slot, $"Team {slot}", true));
+		}
+
+		return roster;
 	}
 
 	private ClientServerSession JoinAuthority()
@@ -543,6 +575,7 @@ public partial class MultiplayerSimulationHarness : Node
 		PredictionDiagnostics.Stop();
 		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
+		WriteWorldSummary($"world_summary_peer{_peerIndex}.json", "client");
 		return hostFinished ? 0 : 1;
 	}
 
