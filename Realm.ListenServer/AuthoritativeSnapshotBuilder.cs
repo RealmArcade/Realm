@@ -194,10 +194,22 @@ public class AuthoritativeSnapshotBuilder
 			if (!state.SentUnits.TryGetValue(unitEntity.Id, out UnitDescriptionState? held))
 			{
 				held = new UnitDescriptionState(UnitCodecs.Length);
+
+				// A unit coming back into this peer's sight is one it stopped hearing about. What the peer holds for it is
+				// still what it was told before the unit left, so the components it was told about then are stated again or
+				// stated gone; only the bytes are unknown, which is why they are not remembered across the gap.
+				if (state.UnseenUnitComponents.Remove(unitEntity.Id, out ulong toldBeforeLeavingSight)) held.ToldCodecMask = toldBeforeLeavingSight;
+
 				state.SentUnits[unitEntity.Id] = held;
 			}
 
 			_describedUnitStates.Add(held);
+
+			// A peer replaces its replica when the unit behind an identifier becomes a different thing, and everything it
+			// held for that identifier goes with the replica. What it was told about the old unit is therefore no longer
+			// true of the new one, so its components are stated again rather than compared against bytes that describe
+			// something else. The rule is the client's own: a changed definition, owner or building state is a new thing.
+			if (!isBaseline && !IsSameUnitAsSent(in described, in held.SentRecord)) held.ForgetToldPayloadBytes();
 
 			// A unit that is exactly where this peer was last told it is carries no information: a building, a unit
 			// holding position or one standing where its order ended all stay on the peer's screen as they are. It is
@@ -223,6 +235,19 @@ public class AuthoritativeSnapshotBuilder
 		AppendComponentDeltas(state, snapshot, sequence, isBaseline);
 		ForgetUntrackedUnitComponents(state);
 		return snapshot;
+	}
+
+	/// <summary>
+	///     Whether two descriptions are of the same unit at all, as opposed to the same identifier describing a different
+	///     one. A peer replaces its replica when the unit behind an identifier changes definition, owner or building state,
+	///     so nothing it held for that identifier survived and the components have to be stated again. This mirrors the
+	///     client's own rule for when it replaces a replica.
+	/// </summary>
+	private static bool IsSameUnitAsSent(in UnitSnapshot described, in UnitSnapshot sent)
+	{
+		if (!string.Equals(described.UnitId, sent.UnitId, StringComparison.Ordinal)) return false;
+		if (described.OwnerPlayerIndex != sent.OwnerPlayerIndex) return false;
+		return described.IsBuilding == sent.IsBuilding;
 	}
 
 	/// <summary>
@@ -840,9 +865,19 @@ public class AuthoritativeSnapshotBuilder
 			if (!_describedEntityIds.Contains(rememberedEntityId)) _forgottenEntityIds.Add(rememberedEntityId);
 		}
 
-		// Everything this peer held about a unit that left its sight is on the unit's own record, so forgetting one is one
-		// removal rather than one per component it might have carried.
-		for (int index = 0; index < _forgottenEntityIds.Count; index++) state.SentUnits.Remove(_forgottenEntityIds[index]);
+		// A unit that left this peer's sight keeps the components it was told about: the peer still holds them, so the ones
+		// the authority drops while it is away are stated as gone when it comes back. Only the bytes are dropped, because
+		// they describe a tick the peer will never be told about.
+		for (int index = 0; index < _forgottenEntityIds.Count; index++)
+		{
+			int forgottenEntityId = _forgottenEntityIds[index];
+			if (state.SentUnits.TryGetValue(forgottenEntityId, out UnitDescriptionState? forgotten) && forgotten.ToldCodecMask != 0)
+			{
+				state.UnseenUnitComponents[forgottenEntityId] = forgotten.ToldCodecMask;
+			}
+
+			state.SentUnits.Remove(forgottenEntityId);
+		}
 
 		state.DescribedEntityIds.Clear();
 		foreach (int describedEntityId in _describedEntityIds) state.DescribedEntityIds.Add(describedEntityId);

@@ -37,6 +37,14 @@ public class SnapshotPeerState
 	/// <summary>The entities this peer was described last, so the ones that left its sight are found without a full walk.</summary>
 	public HashSet<int> DescribedEntityIds { get; } = new();
 
+	/// <summary>
+	///     Which components this peer was last told that a unit it can no longer see carries. A peer keeps the unit as it
+	///     last saw it, so a component the authority drops while the unit is away has to be stated as gone when the unit
+	///     comes back; without this the peer would hold it until the next baseline. One mask per unit is the whole cost of
+	///     keeping that promise, and a baseline clears it because a baseline restates the world.
+	/// </summary>
+	public Dictionary<int, ulong> UnseenUnitComponents { get; } = new();
+
 	/// <summary>The newest baseline this peer was given, which every delta it receives is written against.</summary>
 	public int LastBaselineSequence { get; set; } = -1;
 
@@ -56,6 +64,7 @@ public class SnapshotPeerState
 		SentComponents.Clear();
 		SentUnits.Clear();
 		DescribedEntityIds.Clear();
+		UnseenUnitComponents.Clear();
 	}
 }
 
@@ -81,4 +90,14 @@ public class UnitDescriptionState
 
 	/// <summary>The bytes this peer holds for each component of the unit, or nothing where it was told the unit lacks one.</summary>
 	public byte[]?[] SentPayloads;
+
+	/// <summary>
+	///     Forgets the bytes this peer was told each component of the unit has, so every component it does carry is stated
+	///     again. Which components the peer holds is kept: a peer replaces its replica when the identifier starts
+	///     describing a different unit, and what it held for the old one has to be stated gone as well as restated.
+	/// </summary>
+	public void ForgetToldPayloadBytes()
+	{
+		Array.Clear(SentPayloads, 0, SentPayloads.Length);
+	}
 }

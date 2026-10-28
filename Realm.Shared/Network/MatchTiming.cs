@@ -19,17 +19,20 @@ public static class MatchTiming
 {
 	/// <summary>
 	///     How often the authoritative world advances, in hertz. A match that measures 300 combat units at 24 players
-	///     spends about 0.8 ms of one core on the simulation tick and, once the peers are described across four workers,
-	///     about 2.8 ms on describing that tick to all of them with the shroud on, which is a sixth of one core of an
-	///     average gaming processor rather than the third it used to be. Thirty hertz is still the rate an RTS wants: it
-	///     halves how stale a remote unit is compared with twenty hertz, and sixty hertz would double the upstream
-	///     bandwidth for a difference no one can see.
+	///     spends 0.63 ms of one core on the simulation tick and, once the peers are described across three workers, 3.3 ms
+	///     on describing that tick to all of them with the shroud on: 3.9 ms per tick, or 18 percent of one core of an
+	///     average gaming processor at this rate against the 50 percent a match is allowed to spend. Sixty hertz would cost
+	///     36 percent and take the 24-player upstream from 6.9 to 13.8 Mbps for a difference in how fresh a remote unit
+	///     looks that is a sixteenth of a second, so thirty hertz is the rate an RTS wants: it leaves the headroom to a
+	///     little under three times this much work, which is unit count rather than rate.
 	/// </summary>
 	public const int SimulationTickRateHz = 30;
 
 	/// <summary>
 	///     How often a peer is told what changed, in hertz. A snapshot describes exactly one tick, so this matches
-	///     <see cref="SimulationTickRateHz" />.
+	///     <see cref="SimulationTickRateHz" />: describing the world more often than it advances sends the same world twice
+	///     and describing it less often leaves the client interpolating across ticks it never heard about. At this rate one
+	///     peer's delta is 1193 bytes with the shroud on, which the twenty-four of a full room send as 6.9 Mbps.
 	/// </summary>
 	public const int SnapshotRateHz = 30;
 

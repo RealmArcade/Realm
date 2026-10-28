@@ -512,6 +512,7 @@ public static class MultiplayerEcsSyncTestSupport
 		List<int> startupCatchUpSequences = new();
 		List<string> transientDigestMismatches = new();
 		int transientDigestMismatchCount = 0;
+		List<(int Sequence, int Count)> transientMismatchSequences = new();
 		List<(int EntityId, string Field, int Sequence, string Message)> deltaDivergences = new();
 		int comparedLootEntities = 0;
 		int comparedNavigationBaselines = 0;
@@ -582,7 +583,9 @@ public static class MultiplayerEcsSyncTestSupport
 			if (hostSentBaselineToThisPeer) comparedLootEntities += hostEntry.Value.Loot.Count;
 			CompareSnapshotRecord(hostEntry.Value, clientRecord, hostSentBaselineToThisPeer, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits, deltaDivergences);
 			CompareScopeDigests(hostEntry.Value, clientRecord, digestTarget);
-			transientDigestMismatchCount += transientDigestMismatches.Count - digestMismatchCountBefore;
+			int transientAddedForSequence = transientDigestMismatches.Count - digestMismatchCountBefore;
+			transientDigestMismatchCount += transientAddedForSequence;
+			if (transientAddedForSequence > 0) transientMismatchSequences.Add((hostEntry.Key, transientAddedForSequence));
 
 			if (hostSentBaselineToThisPeer)
 			{
@@ -652,7 +655,12 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 		report.AddSummaryLine($"Host navigation changes between baselines: {hostNavigationChangeSequences.Count} ({DescribeSequenceList(hostNavigationChangeSequences)})");
 		report.AddSummaryLine($"Differences seen only on delta snapshots and healed by the next baseline: {transientDigestMismatchCount}");
-		for (int index = 0; index < Math.Min(transientDigestMismatches.Count, 5); index++)
+		for (int index = 0; index < transientMismatchSequences.Count; index++)
+		{
+			report.AddSummaryLine($"  seq {transientMismatchSequences[index].Sequence}: {transientMismatchSequences[index].Count} difference(s)");
+		}
+
+		for (int index = 0; index < Math.Min(transientDigestMismatches.Count, 16); index++)
 		{
 			report.AddSummaryLine($"  {transientDigestMismatches[index]}");
 		}
