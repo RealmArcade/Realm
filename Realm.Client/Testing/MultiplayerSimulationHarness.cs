@@ -88,6 +88,8 @@ public partial class MultiplayerSimulationHarness : Node
 				"host" => await RunHostAsync(),
 				"testmap" => await RunTestMapAsync(),
 				"probe" => await RunProbeAsync(),
+				"editorreturn" => await RunEditorReturnLauncherAsync(),
+				"editorreturnwork" => await RunEditorReturnWorkAsync(),
 				_ => await RunClientAsync()
 			};
 		}

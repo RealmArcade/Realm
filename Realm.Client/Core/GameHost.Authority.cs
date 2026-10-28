@@ -62,6 +62,22 @@ public partial class GameHost
 	}
 
 	/// <summary>
+	///     Ends the match this screen joined, if it joined one. A screen that stops being a match - the map editor
+	///     taking back the world a playtest was played in - has to leave the match before it puts its own world back,
+	///     because the authority keeps describing the match it ran and the next snapshot would repaint the units that
+	///     were just cleared.
+	/// </summary>
+	public void EndJoinedMatch()
+	{
+		ClientServerSession? session = GameContext.ServerSession;
+		if (session == null || !ReferenceEquals(session, _joinedSession)) return;
+
+		_joinedSession = null;
+		session.Stop();
+		GameContext.DetachServerSession();
+	}
+
+	/// <summary>
 	///     Shows a line of chat the match relayed. The line reaches the screen through the lobby the chat panel already
 	///     listens to, so a message the authority relayed is shown the same way a line typed here is.
 	/// </summary>
