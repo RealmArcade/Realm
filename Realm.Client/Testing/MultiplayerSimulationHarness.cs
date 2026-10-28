@@ -60,6 +60,7 @@ public partial class MultiplayerSimulationHarness : Node
 	private int _splitUnitsBeforeCommand = -1;
 	private float _dropAtSeconds;
 	private float _pauseAtSeconds;
+	private float _discardAtSeconds;
 	private bool _startAuthority;
 	private bool _editorFirst;
 	private bool _realFlow;
@@ -180,6 +181,9 @@ public partial class MultiplayerSimulationHarness : Node
 					break;
 				case "--pause-at":
 					_pauseAtSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+					break;
+				case "--discard-at":
+					_discardAtSeconds = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
 					break;
 				case "--start-authority":
 					_startAuthority = value == "1";
@@ -563,6 +567,7 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 		if (_dropAtSeconds > 0f) _ = RunConnectionLossScenarioAsync(session);
 		if (_pauseAtSeconds > 0f) _ = RunPauseScenarioAsync(session);
+		if (_discardAtSeconds > 0f) _ = RunSnapshotDiscardScenarioAsync();
 
 		bool hostFinished = await WaitUntilAsync(() => File.Exists(_doneFile), _durationSeconds * 4f + 120f + (_drainMilliseconds / 1000f));
 		if (!hostFinished) GD.PrintErr("[MP_HARNESS] Host completion marker was not observed before the timeout.");
@@ -627,6 +632,68 @@ public partial class MultiplayerSimulationHarness : Node
 			}
 		}
 	}
+
+	/// <summary>
+	/// Discards one snapshot this peer was sent and records what the repair cost, so a test can prove the authority
+	/// describes a hole in the acknowledgement mask from scratch exactly once rather than leaving the peer to drift
+	/// against a world it is missing one change of.
+	/// </summary>
+	private async Task RunSnapshotDiscardScenarioAsync()
+	{
+		string path = Path.Combine(_outputDirectory, "snapshot_discard.txt");
+		try
+		{
+			bool reachedDiscardTime = await WaitUntilAsync(() => (GameContext.Host?.GameElapsedTime ?? 0f) >= _discardAtSeconds, 120f);
+			if (!reachedDiscardTime)
+			{
+				File.WriteAllText(path, "discarded=0\nreason=game time never reached the discard point\n");
+				return;
+			}
+
+			int appliedBefore = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
+			int baselineBefore = GameContext.NetworkService.LastAppliedBaselineSequenceForDiagnostics;
+			float discardGameTime = GameContext.Host?.GameElapsedTime ?? 0f;
+			MultiplayerSyncDiagnostics.RequestSnapshotDiscard();
+
+			bool discarded = await WaitUntilAsync(() => MultiplayerSyncDiagnostics.DiscardedSnapshotSequence >= 0, 30f);
+			int discardedSequence = MultiplayerSyncDiagnostics.DiscardedSnapshotSequence;
+			var baselinesAfter = new List<int>();
+			if (discarded)
+			{
+				int lastBaseline = baselineBefore;
+				ulong observationDeadline = Time.GetTicksMsec() + RepairObservationMilliseconds;
+				while (Time.GetTicksMsec() < observationDeadline)
+				{
+					int currentBaseline = GameContext.NetworkService.LastAppliedBaselineSequenceForDiagnostics;
+					if (currentBaseline > lastBaseline)
+					{
+						lastBaseline = currentBaseline;
+						baselinesAfter.Add(currentBaseline);
+					}
+
+					await ToSignal(GetTree().CreateTimer(0.05f), SceneTreeTimer.SignalName.Timeout);
+				}
+			}
+
+			File.WriteAllText(
+				path,
+				$"discarded={(discarded ? 1 : 0)}\ndiscarded_sequence={discardedSequence}\napplied_before={appliedBefore}\nbaseline_before={baselineBefore}\nbaseline_count_after={baselinesAfter.Count}\nbaselines_after={string.Join(',', baselinesAfter)}\ndiscard_game_time={discardGameTime.ToString(System.Globalization.CultureInfo.InvariantCulture)}\n");
+			GD.Print($"[MP_HARNESS] Snapshot {discardedSequence} was discarded at game time {discardGameTime:F2}s; the authority described this peer from scratch {baselinesAfter.Count} time(s) afterwards.");
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[MP_HARNESS] Snapshot discard scenario failed: {exception.Message}");
+			try
+			{
+				File.WriteAllText(path, $"discarded=0\nreason={exception.Message}\n");
+			}
+			catch
+			{
+			}
+		}
+	}
+
+	private const ulong RepairObservationMilliseconds = 4000;
 
 	/// <summary>
 	/// Drops this client's connection once mid-match and waits for it to rejoin, so the reconnect path is exercised the

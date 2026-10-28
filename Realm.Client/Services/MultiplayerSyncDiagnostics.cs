@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using Godot;
 using Realm.Client.Core;
 using Realm.Ecs;
@@ -38,6 +39,17 @@ public static class MultiplayerSyncDiagnostics
 	{
 		_clientSeenSequences.Add(sequence);
 	}
+
+	private static int _snapshotDiscardRequested;
+	private static int _discardedSnapshotSequence = -1;
+
+	public static int DiscardedSnapshotSequence => Volatile.Read(ref _discardedSnapshotSequence);
+
+	public static void RequestSnapshotDiscard() => Interlocked.Exchange(ref _snapshotDiscardRequested, 1);
+
+	public static bool ConsumeSnapshotDiscardRequest() => Interlocked.Exchange(ref _snapshotDiscardRequested, 0) == 1;
+
+	public static void RecordDiscardedSnapshotSequence(int sequence) => Volatile.Write(ref _discardedSnapshotSequence, sequence);
 
 	public static int FingerprintMismatchCount => _fingerprintMismatchCount;
 	public static string FingerprintMismatchSummary => _fingerprintMismatchSummary;

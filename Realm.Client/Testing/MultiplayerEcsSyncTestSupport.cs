@@ -44,6 +44,7 @@ public sealed class MultiplayerEcsRunSettings
 	/// Game time at which the first client drops its connection on purpose. Zero disables the reconnect scenario.
 	/// </summary>
 	public float DropClientAtSeconds { get; init; }
+	public float DiscardSnapshotAtSeconds { get; init; }
 	/// <summary>
 	/// How many host snapshot sequences the dropped client may miss before the reconnect counts as failed. At 30 snapshots
 	/// per second this is roughly eight seconds: the reconnect handshake, a fresh baseline and the first deltas.
@@ -143,6 +144,19 @@ public static class MultiplayerEcsSyncTestSupport
 	private const int PlacementLagAllowanceSequences = 30;
 	private const int StartupWarmupSequenceCount = 60;
 	private const int SyncRecordVersion = 8;
+
+	public static string ResolveClientProjectDirectory()
+	{
+		DirectoryInfo? directory = new(AppContext.BaseDirectory);
+		while (directory != null)
+		{
+			string candidate = Path.Combine(directory.FullName, "Realm.Client");
+			if (File.Exists(Path.Combine(candidate, "project.godot"))) return candidate;
+			directory = directory.Parent;
+		}
+
+		throw new DirectoryNotFoundException($"The Realm client project was not found above {AppContext.BaseDirectory}.");
+	}
 
 	public static string ResolveGodotBinary()
 	{
@@ -361,6 +375,7 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--bots={(role == "host" ? settings.BotCount : 0)}");
 		startInfo.ArgumentList.Add($"--wait-for-peer-ready={waitForPeerReadyFile}");
 		startInfo.ArgumentList.Add($"--drop-at={(role == "client" && peerIndex == 2 ? settings.DropClientAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
+		startInfo.ArgumentList.Add($"--discard-at={(role == "client" && peerIndex == 1 ? settings.DiscardSnapshotAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
 
 		string logName = peerIndex <= 1 ? $"{role}.log" : $"{role}{peerIndex}.log";
 		HarnessProcess harnessProcess = new(Path.Combine(outputDirectory, logName));
@@ -479,7 +494,7 @@ public static class MultiplayerEcsSyncTestSupport
 		int supersededSequenceCount = 0;
 
 		ReconnectExpectation? reconnectExpectation = ReadReconnectExpectation(settings, clientDirectory, report);
-		HashSet<int>? sequencesSentToPeer = reconnectExpectation == null ? ReadHostSentSequences(settings.OutputDirectory, clientDirectory) : null;
+		HashSet<int>? sequencesSentToPeer = reconnectExpectation == null ? ReadHostSentSequences(outputDirectory, clientOutputDirectory) : null;
 		List<int> notSentSequences = new();
 		int reconnectOutageSequences = 0;
 		int pairedSequencesAfterReconnect = 0;
@@ -1525,6 +1540,87 @@ public static class MultiplayerEcsSyncTestSupport
 		{
 			report.AddFailure($"Client final sequence {clientFinalSequence} is ahead of the host final sequence {hostFinalSequence}.");
 		}
+
+	}
+
+	/// <summary>
+	/// Reports whether one discarded snapshot cost the peer exactly one baseline. A repair that repeats describes the
+	/// peer from scratch on every cooldown for a hole it no longer has, which is the difference between a protocol that
+	/// heals and one that never stops healing.
+	/// </summary>
+	public static void VerifySnapshotDiscardRepair(MultiplayerEcsRunSettings settings, string? clientDirectory, MultiplayerEcsSyncReport report)
+	{
+		if (settings.DiscardSnapshotAtSeconds <= 0f) return;
+
+		string peerDirectory = clientDirectory ?? settings.ResolveClientDirectory(1);
+		string path = Path.Combine(peerDirectory, "snapshot_discard.txt");
+		if (!File.Exists(path))
+		{
+			report.AddFailure("The repair scenario asked a peer to discard a snapshot, but the peer wrote no discard record.");
+			return;
+		}
+
+		var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+		foreach (string line in File.ReadAllLines(path))
+		{
+			int separator = line.IndexOf('=');
+			if (separator <= 0) continue;
+			fields[line.Substring(0, separator)] = line.Substring(separator + 1);
+		}
+
+		if (!fields.TryGetValue("discarded", out string? discarded) || discarded != "1")
+		{
+			report.AddFailure($"The peer never discarded a snapshot: {fields.GetValueOrDefault("reason") ?? "no reason recorded"}.");
+			return;
+		}
+
+		int discardedSequence = int.Parse(fields.GetValueOrDefault("discarded_sequence", "-1"), NumberStyles.Integer, CultureInfo.InvariantCulture);
+		int baselinesAfter = int.Parse(fields.GetValueOrDefault("baseline_count_after", "0"), NumberStyles.Integer, CultureInfo.InvariantCulture);
+		string baselinesAfterText = fields.GetValueOrDefault("baselines_after") ?? string.Empty;
+
+		report.AddSummaryLine($"Repair scenario: the peer discarded snapshot {discardedSequence}, leaving one clear bit in its acknowledgement mask; the authority described it from scratch {baselinesAfter} time(s) afterwards ({baselinesAfterText}).");
+		if (baselinesAfter != 1)
+		{
+			report.AddFailure($"A discarded snapshot produced {baselinesAfter} baselines instead of exactly one, so the repair either never happened or repeated after the hole was already filled.");
+		}
+
+		List<string> authorityLogs = ResolveAuthorityLogs(settings.OutputDirectory);
+		if (authorityLogs.Count == 0)
+		{
+			report.AddFailure("The authority log is missing, so the repairs it logged could not be counted.");
+			return;
+		}
+
+		int repairCount = 0;
+		foreach (string log in authorityLogs)
+		{
+			foreach (string line in File.ReadLines(log))
+			{
+				if (line.Contains("is missing a snapshot it was sent", StringComparison.Ordinal)) repairCount++;
+			}
+		}
+
+		report.AddSummaryLine($"Repair scenario: the authority logged {repairCount} repair(s) for the discarded snapshot.");
+		if (repairCount != 1)
+		{
+			report.AddFailure($"The authority logged {repairCount} repairs for one discarded snapshot; a peer that misses one change is meant to be described from scratch once, not once per cooldown.");
+		}
+	}
+
+	/// <summary>
+	/// Finds the logs the authority itself wrote for this run. It writes beside the output directory it is given, so the
+	/// harness wrapper's own stdout is a fallback rather than the place the repair is recorded.
+	/// </summary>
+	private static List<string> ResolveAuthorityLogs(string outputDirectory)
+	{
+		var logs = new List<string>();
+		string listenServerDirectory = Path.Combine(outputDirectory, "listen_server");
+		if (Directory.Exists(listenServerDirectory)) logs.AddRange(Directory.GetFiles(listenServerDirectory, "*.log"));
+		if (logs.Count > 0) return logs;
+
+		string hostLogPath = Path.Combine(outputDirectory, "host.log");
+		if (File.Exists(hostLogPath)) logs.Add(hostLogPath);
+		return logs;
 	}
 
 	private static string DescribeSequenceBursts(List<int> sequences)

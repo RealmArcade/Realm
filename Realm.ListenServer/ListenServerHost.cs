@@ -657,8 +657,9 @@ public class ListenServerHost : IServerTransportSink
 
 		// The first sequence this peer was described with bounds what its acknowledgement mask can claim: a bit for a
 		// sequence the match never sent was never meant to be set, so counting it as a loss would describe the peer
-		// from scratch on every acknowledgement.
-		if (!_firstSnapshotSequencePerPeer.ContainsKey(peerId)) _firstSnapshotSequencePerPeer[peerId] = _publishSequence;
+		// from scratch on every acknowledgement. A baseline starts that bound over, because it restates the world and
+		// the peer is no longer expected to have applied anything the match described before it.
+		if (snapshot.IsBaseline || !_firstSnapshotSequencePerPeer.ContainsKey(peerId)) _firstSnapshotSequencePerPeer[peerId] = _publishSequence;
 
 		if (!snapshot.IsBaseline || !_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
 

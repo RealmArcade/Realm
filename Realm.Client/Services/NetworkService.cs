@@ -420,6 +420,11 @@ public class NetworkService
 			networkState.HasReceivedInitialBaseline = true;
 			networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
 			_queuedDeltas.RemoveAll(d => d.Sequence <= snapshot.Sequence);
+			// A baseline restates the whole world, so every sequence before it is superseded rather than missing. Keeping
+			// the earlier mask left the hole that caused this baseline in the acknowledgement window for another two
+			// seconds, which reported the peer as still missing state it had just been given and repaired it again on
+			// every cooldown.
+			_appliedSnapshots.Reset();
 			ApplyWorldSnapshot(snapshot);
 
 			DrainQueuedDeltas(ref networkState);
@@ -474,6 +479,12 @@ public class NetworkService
 	private void AcknowledgeAppliedSnapshot(int sequence, bool fullyApplied)
 	{
 		if (GameContext.Host == null) return;
+
+		if (fullyApplied && MultiplayerSyncDiagnostics.ConsumeSnapshotDiscardRequest())
+		{
+			fullyApplied = false;
+			MultiplayerSyncDiagnostics.RecordDiscardedSnapshotSequence(sequence);
+		}
 
 		if (fullyApplied) _appliedSnapshots.MarkApplied(sequence);
 		else _appliedSnapshots.Advance(sequence);
