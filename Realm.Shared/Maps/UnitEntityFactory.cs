@@ -108,9 +108,14 @@ public static class UnitEntityFactory
 
 		AttributeStatCalculator.RecalculateEntityStats(world, entity);
 
-		float placedScale = scale <= 0.001f ? metadata.Scale : scale;
+		float modelScale = scale <= 0.001f ? metadata.Scale : scale;
+		// A template's collision circle is the ground its body occupies, already measured at the size the map drew it.
+		// The model scale makes the mesh larger, not the body, so only a scale the map placed the unit at multiplies
+		// the circle; feeding the model scale in as well made every unit occupy - and draw its selection ring over -
+		// as much extra ground as its model happened to be scaled by.
+		float placedScale = scale <= 0.001f ? 1f : scale;
 		world.SetOrAdd(entity, new RotationY(rotationY));
-		world.SetOrAdd(entity, new ModelScale(placedScale));
+		world.SetOrAdd(entity, new ModelScale(modelScale));
 		world.SetOrAdd(entity, new CollisionScale(placedScale));
 
 		if (bypassPopulation) world.Add(entity, new BypassPopulationTag());

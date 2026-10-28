@@ -164,6 +164,7 @@ public class ServerSimulation : IDisposable
 		_loot.Step(deltaSeconds);
 		_script.Step(deltaSeconds);
 		_script.Api.AdvanceTimers(deltaSeconds);
+		RecomputePopulationWhenDue();
 		RefreshNavMeshWhenObstaclesChange();
 
 		// The opponents the match plays itself decide after the map has had its say this tick, so a map that seats one
@@ -175,6 +176,25 @@ public class ServerSimulation : IDisposable
 		// What entered the world this tick is announced last, so a map told about a unit can already read everything
 		// about it that this tick decided.
 		_events.Step();
+	}
+
+	/// <summary>
+	///     How many ticks pass between two counts of the food a player has used. A count walks every owned unit and
+	///     every training queue, so it runs on a cadence rather than every tick.
+	/// </summary>
+	private const int PopulationRecomputeIntervalTicks = 5;
+
+	/// <summary>
+	///     Counts what each player's units and training queues cost and stores it as the food they have used. The total
+	///     is derived from the world rather than kept as a running figure, so a unit that spawns, dies or has its
+	///     training cancelled lands in the count on the next pass without anything having to remember it. This ran on
+	///     the screen that hosted the match before the authority owned the world; the match keeps its own books now.
+	/// </summary>
+	private void RecomputePopulationWhenDue()
+	{
+		if (TickCount % PopulationRecomputeIntervalTicks != 0) return;
+
+		_map.Simulation.ResourceEconomyService.RecomputeCurrentPopulation();
 	}
 
 	/// <summary>

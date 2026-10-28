@@ -272,7 +272,12 @@ namespace Realm.Ecs.Services
 			Entity worldEntity = _context.WorldEntity;
 			if (worldEntity != Entity.Null && _context.World.IsAlive(worldEntity) && _context.World.Has<PlayerRelationshipMatrix>(worldEntity))
 			{
-				return _context.World.Get<PlayerRelationshipMatrix>(worldEntity).AreEnemies(playerIndex, otherPlayerIndex);
+				// Only a pair the map actually decided about is answered by the table. A pair it never marked is neutral,
+				// which is the state of two players who were never allied, and those two fight: treating neutral as
+				// peaceful made every player in a match that declares no alliances ignore every other player.
+				PlayerRelationship relationship = _context.World.Get<PlayerRelationshipMatrix>(worldEntity).GetRelationship(playerIndex, otherPlayerIndex);
+				if ((relationship & PlayerRelationship.Ally) != 0) return false;
+				if ((relationship & PlayerRelationship.Enemy) != 0) return true;
 			}
 
 			return EnemyPredicate?.Invoke(playerIndex, otherPlayerIndex) ?? playerIndex != otherPlayerIndex;

@@ -163,7 +163,11 @@ public partial class MultiplayerSimulationHarness
 					y = MathF.Round(unit.GlobalPosition.Y, 3),
 					z = MathF.Round(unit.GlobalPosition.Z, 3),
 					hp = MathF.Round(hp, 3),
-					maxHp = MathF.Round(maxHp, 3)
+					maxHp = MathF.Round(maxHp, 3),
+					nodeScale = MathF.Round(unit.Scale.Y, 3),
+					modelScale = MathF.Round(unit.ModelNode is { } model ? model.Scale.Y : 0f, 3),
+					bodyScale = world.Has<CollisionScale>(unit.Entity) ? MathF.Round(world.Get<CollisionScale>(unit.Entity).Value, 3) : -1f,
+					bodyRadius = MathF.Round(unit.GetBaseObstacleRadius(), 3)
 				});
 			}
 
@@ -179,16 +183,20 @@ public partial class MultiplayerSimulationHarness
 					ScriptPlayer player = playersState.Get(slot);
 					if (!player.Active && !player.IsComputer && slot > _peerCount + _botCount + 1) continue;
 
+					Entity playerEntity = GameContext.Simulation.GetPlayerEntity(slot);
+
 					players.Add(new
-					{
-						slot,
-						active = player.Active,
-						computer = player.IsComputer,
-						team = player.Team,
-						gold = MathF.Round(player.Gold, 3),
-						wood = MathF.Round(player.Wood, 3),
-						stone = MathF.Round(player.Stone, 3)
-					});
+				{
+					slot,
+					active = player.Active,
+					computer = player.IsComputer,
+					team = player.Team,
+					gold = MathF.Round(player.Gold, 3),
+					wood = MathF.Round(player.Wood, 3),
+					stone = MathF.Round(player.Stone, 3),
+					foodUsed = world.Has<PlayerPopulation>(playerEntity) ? world.Get<PlayerPopulation>(playerEntity).Current : 0,
+					foodCap = world.Has<PlayerPopulation>(playerEntity) ? world.Get<PlayerPopulation>(playerEntity).Max : 0
+				});
 				}
 			}
 
@@ -197,6 +205,8 @@ public partial class MultiplayerSimulationHarness
 				role,
 				peerIndex = _peerIndex,
 				playerSlot = GameContext.ServerSession?.LocalPlayerSlot ?? -1,
+				staticTexts = CountStaticTextLabels(gameHost),
+				staticTextLabels = DescribeStaticTextLabels(gameHost),
 				units,
 				players
 			};
@@ -207,6 +217,51 @@ public partial class MultiplayerSimulationHarness
 		{
 			GD.PrintErr($"[MP_HARNESS] Could not write {fileName}: {exception.Message}");
 		}
+	}
+
+	/// <summary>
+	///     How many labels the map's script put into this world and this screen is actually showing. A label is drawn by
+	///     the screen that receives it, so a count of zero on a peer the map addressed means the text never crossed the
+	///     transport rather than that it was placed somewhere unhelpful.
+	/// </summary>
+	private static int CountStaticTextLabels(GameHost gameHost)
+	{
+		return ReadStaticTextLabels(gameHost) is { } labels ? labels.Count : -1;
+	}
+
+	/// <summary>
+	///     What each label the map drew actually says and where the screen put it. A label the map created but the screen
+	///     holds at the wrong height is a placement problem, and one the screen does not hold at all is a delivery one;
+	///     the two look identical on a screenshot and are fixed in different places.
+	/// </summary>
+	private static List<object> DescribeStaticTextLabels(GameHost gameHost)
+	{
+		var described = new List<object>();
+		if (ReadStaticTextLabels(gameHost) is not { } labels) return described;
+
+		foreach (System.Collections.DictionaryEntry entry in labels)
+		{
+			if (entry.Value is not Label3D label || !GodotObject.IsInstanceValid(label)) continue;
+
+			described.Add(new
+			{
+				handle = (int)entry.Key,
+				text = label.Text,
+				x = MathF.Round(label.GlobalPosition.X, 2),
+				y = MathF.Round(label.GlobalPosition.Y, 2),
+				z = MathF.Round(label.GlobalPosition.Z, 2),
+				fontSize = label.FontSize,
+				visible = label.Visible
+			});
+		}
+
+		return described;
+	}
+
+	private static System.Collections.IDictionary? ReadStaticTextLabels(GameHost gameHost)
+	{
+		System.Reflection.PropertyInfo? labels = typeof(GameHost).GetProperty("_staticTextLabels", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+		return labels?.GetValue(gameHost) as System.Collections.IDictionary;
 	}
 
 	private static int ReadSummaryServerId(object unit)
