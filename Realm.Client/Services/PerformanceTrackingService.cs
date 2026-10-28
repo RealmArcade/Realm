@@ -33,7 +33,7 @@ public enum ProfileFunctionId
 	ProcessMiscTicks = 23,
 	TickScheduledTimers = 24,
 	TickZoneTriggers = 25,
-	TickGroundLoot = 26,
+
 	WasmRuntimeUpdate = 27,
 	UpdateBuildingPreview = 28,
 	RecordGameplayTick = 29,
@@ -129,7 +129,7 @@ public class PerformanceTrackingService
 		RegisterMetric(ProfileFunctionId.ProcessMiscTicks, "ProcessMiscTicks", "ProcessGameplayTick");
 		RegisterMetric(ProfileFunctionId.TickScheduledTimers, "TickScheduledTimers", "ProcessMiscTicks");
 		RegisterMetric(ProfileFunctionId.TickZoneTriggers, "TickZoneTriggers", "ProcessMiscTicks");
-		RegisterMetric(ProfileFunctionId.TickGroundLoot, "TickGroundLoot", "ProcessMiscTicks");
+
 		RegisterMetric(ProfileFunctionId.WasmRuntimeUpdate, "WasmRuntime.Update", "ProcessMiscTicks");
 		RegisterMetric(ProfileFunctionId.UpdateBuildingPreview, "UpdateBuildingPreview", "ProcessMiscTicks");
 		RegisterMetric(ProfileFunctionId.RecordGameplayTick, "RecordGameplayTick", "ProcessMiscTicks");

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -66,7 +66,6 @@ public partial class GameHost : Node3D
 	private WorldEnvironment? _cachedWorldEnvironment;
 	private UnitOcclusionOutlineService _unitOcclusionOutlineService;
 
-
 	private bool _multiplayerActive => Multiplayer.MultiplayerPeer != null && Multiplayer.MultiplayerPeer is not OfflineMultiplayerPeer;
 
 	private int _localPeerId
@@ -126,7 +125,6 @@ public partial class GameHost : Node3D
 		if (entry.Team == SpectatorTeamName) filter.ConfigureSpectator();
 		else filter.ConfigureParticipant(entry.Slot);
 	}
-
 
 	private int _nextCommandId
 	{
@@ -219,10 +217,7 @@ public partial class GameHost : Node3D
 	public List<Decal> AllDecals { get; set; } = new List<Decal>();
 	public List<ProceduralVfxInstance3D> AllVfx { get; set; } = new List<ProceduralVfxInstance3D>();
 	public List<LootItem3D> AllLootItems { get; set; } = new();
-	public static Dictionary<int, LootItem_WasmRuntime> IdToLootItem { get; set; } = new();
-	private readonly List<int> _expiredLootToDespawn = new();
-	private readonly List<(int LootId, Entity UnitEntity)> _collectedLootToProcess = new();
-
+	
 	public static Dictionary<Entity, Unit3D> EntityToUnit3D { get; set; } = new();
 	public static Dictionary<int, Unit3D> EntityIdToUnit3D { get; set; } = new();
 	public static Dictionary<int, List<Unit3D>> PlayerToUnits { get; set; } = new();
@@ -267,13 +262,11 @@ public partial class GameHost : Node3D
 		return pe;
 	}
 
-
 	private int _replayTickCounter
 	{
 		get => GameContext.World?.GetFieldOrDefault<ReplayState, int>(GameContext.Simulation.WorldEntity, s => s.ReplayTickCounter) ?? 0;
 		set => GameContext.World?.Mutate<ReplayState>(GameContext.Simulation.WorldEntity, (ref ReplayState s) => s.ReplayTickCounter = value);
 	}
-
 
 	public string? ActiveSpellTargeting
 	{
@@ -479,9 +472,7 @@ public partial class GameHost : Node3D
 		return GetPlayerTechLevel(playerIndex, techId) > 0;
 	}
 
-
 	private Node3D? _buildingPreviewMesh { get; set; }
-
 
 	private RuntimeTerrain _groundTerrain { get; set; }
 
@@ -570,7 +561,6 @@ public partial class GameHost : Node3D
 
 	public bool EditorSnapToGrid { get; set; } = false;
 
-
 	public float EditorPlacementScale
 	{
 		get => GameContext.EditorService.EditorPlacementScale;
@@ -648,12 +638,10 @@ public partial class GameHost : Node3D
 		}
 	}
 
-
 	public Vector3? EditorTapeMeasureEnd { get; set; }
 	public bool EditorTapeMeasureActive { get; set; } = false;
 
 	public bool EditorBrushIsSquare { get; set; } = true;
-
 
 	public float EditorClumpCount
 	{
@@ -661,13 +649,11 @@ public partial class GameHost : Node3D
 		set => GameContext.EditorService.EditorClumpCount = Mathf.Clamp(value, EditorService.MIN_CLUMP_COUNT, EditorService.MAX_CLUMP_COUNT);
 	}
 
-
 	public float EditorClumpScale
 	{
 		get => GameContext.EditorService.EditorClumpScale;
 		set => GameContext.EditorService.EditorClumpScale = Mathf.Clamp(value, EditorService.MIN_CLUMP_SCALE, EditorService.MAX_CLUMP_SCALE);
 	}
-
 
 	public bool EditorClumpMode
 	{
@@ -678,7 +664,6 @@ public partial class GameHost : Node3D
 			UpdateBrushMesh();
 		}
 	}
-
 
 	public string EditorSkyboxPath
 	{
@@ -704,7 +689,6 @@ public partial class GameHost : Node3D
 		set => GameContext.EditorService.SetBlockLevelHeight(GameContext.Simulation.WorldEntity, value);
 	}
 
-
 	public float EditorExactHeight
 	{
 		get => GameContext.EditorService.EditorExactHeight;
@@ -723,7 +707,6 @@ public partial class GameHost : Node3D
 		set => GameContext.EditorService.SetWaterProfileIndex(GameContext.Simulation.WorldEntity, value);
 	}
 
-
 	private Node? _hoveredEditorObject { get; set; }
 	private MeshInstance3D? _selectionHighlightMesh { get; set; }
 	private MeshInstance3D? _coordinatePreviewMesh { get; set; }
@@ -732,12 +715,10 @@ public partial class GameHost : Node3D
 	private MeshInstance3D? _objectMarqueeOutlineMesh { get; set; }
 	private List<MeshInstance3D> _coordinatePersistentMeshes { get; set; } = new();
 
-
 	public void GenerateNewRandomPlacementRotationAndScale()
 	{
 		GameContext.EditorService.GenerateNewRandomPlacementRotationAndScale();
 	}
-
 
 	public bool PasteOptionPathing
 	{
@@ -748,7 +729,6 @@ public partial class GameHost : Node3D
 			UpdatePathingOverlay();
 		}
 	}
-
 
 	public Node SelectedEditorObject
 	{
@@ -926,7 +906,6 @@ public partial class GameHost : Node3D
 	private Vector3 _dragObjectStartScale { get; set; }
 	private readonly List<(Node3D Node, Vector3 Position, Vector3 Rotation, Vector3 Scale)> _dragSelectionStartTransforms = new();
 
-
 	private Node3D _editorPreviewNode { get; set; }
 
 	private string _editorPreviewId { get; set; } = "";
@@ -941,12 +920,10 @@ public partial class GameHost : Node3D
 		}
 	}
 
-
 	public static int GetUnitPathingFlags(UnitMetadata meta)
 	{
 		return (GameContext.Host != null ? GameContext.UnitSpawnService : null)?.GetUnitPathingFlags(meta) ?? 8;
 	}
-
 
 	public int GetMaxPopulation(int playerIndex)
 	{
@@ -990,7 +967,6 @@ public partial class GameHost : Node3D
 			GameContext.World.Set(GameContext.Simulation.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, value, s.DayNightCycleEnabled)));
 	}
 
-
 	public float GetPlayerSpellCooldown(int playerIndex, string abilityId)
 	{
 		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
@@ -1014,7 +990,6 @@ public partial class GameHost : Node3D
 			spellCooldowns.Set(abilityId, cooldown, cooldown);
 		}
 	}
-
 
 	public static Dictionary<StringName, UnitMetadata> UnitRegistry => GameContext.RegistryService?.UnitRegistry ?? new();
 	public static Dictionary<StringName, UnitMetadata> BuildingRegistry => GameContext.RegistryService?.BuildingRegistry ?? new();
@@ -1064,10 +1039,6 @@ public partial class GameHost : Node3D
 		set => GameContext.World?.Mutate<ReplayState>(GameContext.Simulation.WorldEntity, (ref ReplayState s) => s.StoneBackup = value);
 	}
 
-
-
-
-
 	private bool DayNightCycleEnabled
 	{
 		get => GameContext.World?.GetFieldOrDefault<WorldState, bool>(GameContext.Simulation.WorldEntity, s => s.DayNightCycleEnabled, true) ?? true;
@@ -1081,7 +1052,6 @@ public partial class GameHost : Node3D
 	public event Action<UnitId, string, System.Numerics.Vector3>? OnSpellCast;
 	public event Action<UnitId>? OnUnitSelected;
 	public event Action<UnitId, UnitId>? OnUnitAttacked;
-	public event Action<LootItemId, UnitId>? OnLootItemCollected;
 
 	/// <summary>
 	/// Fires after a consumable is bound to a unit or purged from one. The id is the consumable that
@@ -1168,7 +1138,6 @@ public partial class GameHost : Node3D
 			cells, pathingCodes, navMesh, navMeshQuery
 		);
 	}
-
 
 	private readonly ResourceNodeId[] _cachedResourceNodesBuffer = new ResourceNodeId[4096];
 	private int _cachedResourceNodesCount = 0;
@@ -1546,7 +1515,6 @@ public partial class GameHost : Node3D
 		}).CallDeferred();
 	}
 
-
 	private void SyncPlayerResourceEcs(int playerIndex, float goldAmount)
 	{
 		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
@@ -1599,92 +1567,6 @@ public partial class GameHost : Node3D
 		}
 	}
 
-
-	private void TickGroundLoot(float delta)
-	{
-		if (AllLootItems.Count == 0) return;
-
-		_expiredLootToDespawn.Clear();
-		_collectedLootToProcess.Clear();
-
-		for (int i = 0; i < AllLootItems.Count; i++)
-		{
-			var loot = AllLootItems[i];
-			if (!GodotObject.IsInstanceValid(loot) || loot.IsDespawned) continue;
-
-			Entity lootEntity = loot.Entity;
-			if (!GameContext.World.IsAlive(lootEntity) || !GameContext.World.Has<GroundLoot>(lootEntity)) continue;
-
-			ref var lootState = ref GameContext.World.Get<GroundLoot>(lootEntity);
-			if (lootState.Lifetime > 0f)
-			{
-				lootState.RemainingLifetime -= delta;
-				loot.RemainingLifetime = lootState.RemainingLifetime;
-				if (lootState.RemainingLifetime <= 0f)
-				{
-					_expiredLootToDespawn.Add(loot.UniqueId);
-					continue;
-				}
-			}
-
-			if (!lootState.AutoPickup) continue;
-
-			float radiusSq = lootState.PickupRadius * lootState.PickupRadius;
-			string itemTypeId = lootState.ItemTypeId;
-			int ownerPlayerIndex = lootState.OwnerPlayerIndex;
-			var lootPosition = GameContext.World.Has<Position>(lootEntity) ? GameContext.World.Get<Position>(lootEntity).Value : System.Numerics.Vector3.Zero;
-			var lootPos = new Godot.Vector3(lootPosition.X, lootPosition.Y, lootPosition.Z);
-
-			Unit3D? bestUnit = null;
-			float bestDistSq = float.MaxValue;
-
-			for (int u = 0; u < AllUnits.Count; u++)
-			{
-				var unit = AllUnits[u];
-				if (!GodotObject.IsInstanceValid(unit) || unit.IsBuilding) continue;
-				if (ownerPlayerIndex >= 0 && unit.Player != ownerPlayerIndex) continue;
-				if (!GameContext.World.IsAlive(unit.Entity) || GameContext.World.Has<Dead>(unit.Entity)) continue;
-
-				if (GameContext.World.Has<Inventory>(unit.Entity))
-				{
-					ref var inv = ref GameContext.World.Get<Inventory>(unit.Entity);
-					if (inv.Count >= 6 && !inv.HasItem(itemTypeId))
-						continue;
-				}
-
-				float dx = unit.GlobalPosition.X - lootPos.X;
-				float dy = unit.GlobalPosition.Y - lootPos.Y;
-				float dz = unit.GlobalPosition.Z - lootPos.Z;
-				float distSq = dx * dx + dy * dy + dz * dz;
-
-				if (distSq <= radiusSq && distSq < bestDistSq)
-				{
-					bestDistSq = distSq;
-					bestUnit = unit;
-				}
-			}
-
-			if (bestUnit != null)
-			{
-				_collectedLootToProcess.Add((loot.UniqueId, bestUnit.Entity));
-			}
-		}
-
-		for (int i = 0; i < _expiredLootToDespawn.Count; i++)
-		{
-			RemoveLootItem(_expiredLootToDespawn[i]);
-		}
-
-		for (int i = 0; i < _collectedLootToProcess.Count; i++)
-		{
-			var (lootId, unitEnt) = _collectedLootToProcess[i];
-			if (GameContext.World.IsAlive(unitEnt))
-			{
-				CollectLootItem(lootId, GameContext.SimulationService.GetUnitWrapper(unitEnt));
-			}
-		}
-	}
-
 	public void NotifyPlayerLeft(int playerIndex)
 	{
 		OnPlayerLeft?.Invoke(playerIndex);
@@ -1693,7 +1575,6 @@ public partial class GameHost : Node3D
 	private void TickScheduledTimers(float delta)
 	{
 		if (GameContext.TimerService.ScheduledTimers.Count == 0) return;
-
 
 		Span<int> keysBuffer = stackalloc int[Math.Min(GameContext.TimerService.ScheduledTimers.Count, 64)];
 		int keyCount = 0;
@@ -1996,14 +1877,8 @@ public partial class GameHost : Node3D
 		}
 	}
 
-
-
-
-
-
 	public List<Unit3D>[] _controlGroups { get; set; } = new List<Unit3D>[10];
 	private double[] _lastGroupPressTime { get; set; } = new double[10];
-
 
 	private bool _isDragging { get; set; }
 	private Vector2 _dragStart { get; set; }
@@ -2385,7 +2260,6 @@ public partial class GameHost : Node3D
 		}
 	}
 
-
 	private static void ReportStringTableCollisions()
 	{
 		int collisions = Realm.Ecs.StringRegistry.CollisionCount;
@@ -2490,7 +2364,6 @@ public partial class GameHost : Node3D
 		ClearNodeCollection(AllProps);
 		ClearNodeCollection(AllDecals);
 		ClearNodeCollection(AllLootItems);
-		IdToLootItem.Clear();
 		ClearStaticText();
 
 		GameContext.FXService.ActivePings.Clear();
@@ -2533,7 +2406,6 @@ public partial class GameHost : Node3D
 		PlayerToUnits.Clear();
 		EntityToProp3D.Clear();
 		ClearNodeCollection(AllLootItems);
-		IdToLootItem.Clear();
 		ClearStaticText();
 
 		bool wasMapEditorMode = GameContext.SessionState.IsMapEditorMode;
@@ -3101,7 +2973,6 @@ public partial class GameHost : Node3D
 		if (!string.IsNullOrEmpty(spawnShader)) SpawnDeathShaderManager.AnimateTransition(unit3D, spawnShader, true);
 	}
 
-
 	public bool TryGetInterpolatedTransform(Entity entity, float fraction, out System.Numerics.Vector3 position, out float rotationY)
 	{
 		if (GameContext.SimulationService != null)
@@ -3349,7 +3220,6 @@ public partial class GameHost : Node3D
 		}
 	}
 
-
 	/// <summary>
 	///     The body a template places on the ground, used where a placement is checked against the world before the
 	///     entity exists. It is the same number the authoritative process builds that template with.
@@ -3592,7 +3462,6 @@ public partial class GameHost : Node3D
 		if (entityId == -1) return Entity.Null;
 		return EntityIdToUnit3D.TryGetValue(entityId, out var unit) && GodotObject.IsInstanceValid(unit) ? unit.Entity : Entity.Null;
 	}
-
 
 	private void UpdateMinimapPings(float fDelta)
 	{

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Ecs;
@@ -26,7 +26,6 @@ namespace Realm.Client.Core;
 public partial class GameHost
 {
 	private readonly UnitId[] _cachedUnitsBuffer = new UnitId[4096];
-	private readonly LootItemId[] _cachedLootBuffer = new LootItemId[512];
 	private readonly PlayerId[] _cachedPlayersBuffer = new PlayerId[25];
 	private readonly UnitId[] _cachedSelectedUnitsBuffer = new UnitId[512];
 	private readonly string[] _cachedModifiersBuffer = new string[128];
@@ -73,30 +72,6 @@ public partial class GameHost
 		return GameContext.RegistryService.GetAbilityDefinition(abilityId);
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 	public bool IsAbilityHiddenForUnit(UnitId unit, string abilityId)
 	{
 		return GameContext.RegistryService.IsAbilityHiddenForUnit(unit, abilityId);
@@ -106,10 +81,6 @@ public partial class GameHost
 	{
 		return GameContext.RegistryService.GetAbilityManaCostForUnit(unit, abilityId);
 	}
-
-
-
-
 
 	private UnitId SpawnUnitInternal(string unitTypeId, Vector3 position, int playerIndex, bool bypassPopulation, bool executeSpawnShader)
 	{
@@ -152,28 +123,11 @@ public partial class GameHost
 		}
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 	public event Action<UnitId, string>? OnItemSold;
-
 
 	public event Action<UnitId>? OnConstructionFinished;
 
-
 	public event Action<UnitId, string, Vector3>? OnUnitOrdered;
-
 
 	public void ApplyStaticTextDelta(StaticTextDelta delta)
 	{
@@ -403,7 +357,6 @@ public partial class GameHost
 		return span.StartsWith("ability/", StringComparison.OrdinalIgnoreCase) ? span.Slice(8) : span;
 	}
 
-
 	private void SpawnVisualEffectViewLogic(string effectTypeId, Vector3 position, float scale)
 	{
 		Callable.From(() =>
@@ -420,26 +373,6 @@ public partial class GameHost
 			}
 		}).CallDeferred();
 	}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 	private void QueueLeaderboardOperation(LeaderboardOperation operation)
 	{
@@ -492,18 +425,15 @@ public partial class GameHost
 		_pendingLeaderboardOperations.Clear();
 	}
 
-
 	private void SetTimeOfDayViewLogic(float normalizedTime)
 	{
 		Callable.From(() => { UpdateDayNightVisuals(normalizedTime); }).CallDeferred();
 	}
 
-
 	private void SetDayNightCycleEnabledViewLogic(bool enabled)
 	{
 		DayNightCycleEnabled = enabled;
 	}
-
 
 	private void RemoveUnitFromCollections(Unit3D unit3D, in Entity entity)
 	{
@@ -546,9 +476,7 @@ public partial class GameHost
 		}
 	}
 
-
 	private event Action<int>? _onTimerExpired;
-
 
 	public bool IsPlayerComputer(int playerIndex)
 	{
@@ -570,94 +498,13 @@ public partial class GameHost
 		return false;
 	}
 
-
 	private void SetCountdownTimerLabelView(string label)
 	{
 		GameContext.InGameHud?.UpdateCountdownLabel(label);
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	public LootItemId SpawnLootItemInternal(string itemTypeId, Vector3 position, int charges, float lifetime, float pickupRadius, bool autoPickup, int ownerPlayerIndex)
-	{
-		if (string.IsNullOrWhiteSpace(itemTypeId)) return LootItemId.Invalid;
-
-		float terrainY = GetTerrainHeightAt(new Godot.Vector3(position.X, position.Y, position.Z));
-		var finalPos = new Godot.Vector3(position.X, terrainY + 0.1f, position.Z);
-
-		var entity = GameContext.World.Create(
-			new Position(new Vector3(finalPos.X, finalPos.Y, finalPos.Z)),
-			new GroundLoot(0, itemTypeId, Math.Max(1, charges), lifetime, pickupRadius, autoPickup, ownerPlayerIndex)
-		);
-
-		ref var lootComp = ref GameContext.World.Get<GroundLoot>(entity);
-		lootComp.UniqueId = entity.Id;
-
-		var lootNode = new LootItem3D();
-		lootNode.Entity = entity;
-		lootNode.Position = finalPos;
-		lootNode.Initialize(entity.Id, itemTypeId, Math.Max(1, charges), lifetime, pickupRadius, autoPickup, ownerPlayerIndex);
-
-		AddChild(lootNode);
-		AllLootItems.Add(lootNode);
-		IdToLootItem[entity.Id] = new LootItem_WasmRuntime(entity);
-
-		return (LootItemId)entity.Id;
-	}
-
-
-	public bool RemoveLootItem(int lootItemId)
-	{
-		if (!IdToLootItem.ContainsKey(lootItemId)) return false;
-		RemoveLootItemLocal(lootItemId);
-		return true;
-	}
-
 	public void RemoveLootItemLocal(int lootItemId)
 	{
-		IdToLootItem.Remove(lootItemId);
 		for (int i = AllLootItems.Count - 1; i >= 0; i--)
 		{
 			var node = AllLootItems[i];
@@ -705,7 +552,6 @@ public partial class GameHost
 			existing.AutoPickup = loot.AutoPickup;
 			existing.OwnerPlayerIndex = loot.OwnerPlayerIndex;
 			existing.Position = new Godot.Vector3(x, y, z);
-			IdToLootItem[lootItemId] = new LootItem_WasmRuntime(localEntity);
 			return;
 		}
 
@@ -716,41 +562,6 @@ public partial class GameHost
 
 		AddChild(lootNode);
 		AllLootItems.Add(lootNode);
-		IdToLootItem[lootItemId] = new LootItem_WasmRuntime(localEntity);
 	}
-
-
-	public bool CollectLootItem(int lootItemId, UnitId unit)
-	{
-		if (!unit.IsValid) return false;
-		if (!IdToLootItem.TryGetValue(lootItemId, out var loot) || loot.IsDespawned) return false;
-
-		if (!EntityIdToUnit3D.TryGetValue(unit.Value, out var u3d) || !GodotObject.IsInstanceValid(u3d)) return false;
-		var unitEntity = u3d.Entity;
-		if (!GameContext.World.IsAlive(unitEntity) || GameContext.World.Has<Dead>(unitEntity)) return false;
-
-		var wrapper = GameContext.SimulationService.GetUnitWrapper(unitEntity);
-		if (loot.OwnerPlayerIndex >= 0 && wrapper.Player != loot.OwnerPlayerIndex) return false;
-
-		if (GameContext.World.Has<Inventory>(unitEntity))
-		{
-			var inv = GameContext.World.Get<Inventory>(unitEntity);
-			if (inv.Count >= 6 && !inv.HasItem(loot.ItemTypeId))
-				return false;
-		}
-
-		bool equipped = ItemGrantingUtility.EquipItem(GameContext.World, unitEntity, loot.ItemTypeId, loot.Charges);
-		if (!equipped) return false;
-
-		if (GameContext.InGameHud != null && SelectedUnits.Contains(u3d))
-		{
-			GameContext.InGameHud.RefreshUI(SelectedUnits);
-		}
-
-		OnLootItemCollected?.Invoke((LootItemId)lootItemId, unit);
-		RemoveLootItem(lootItemId);
-		return true;
-	}
-
 
 }

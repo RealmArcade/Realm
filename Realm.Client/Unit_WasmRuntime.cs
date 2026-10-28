@@ -762,12 +762,6 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 		return success;
 	}
 
-	public bool CollectLootItem(LootItemId lootItem)
-	{
-		if (!lootItem.IsValid) return false;
-		return GameContext.Host?.CollectLootItem(lootItem.Value, (UnitId)_entity.Id) ?? false;
-	}
-
 	public int GetItemCharges(string itemId)
 	{
 		if (!_world.IsAlive(_entity) || string.IsNullOrWhiteSpace(itemId)) return 0;
