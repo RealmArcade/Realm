@@ -333,11 +333,11 @@ public class NetworkService
 
 	public float ComputeDynamicInterpolationFactor()
 	{
-		float bufferTime = 0.1f;
+		float bufferTime = MatchTiming.MinimumInterpolationBufferSeconds;
 		NetworkLatencyService? latency = GameContext.NetworkLatencyService;
 		if (latency != null && latency.HasSample && float.IsFinite(latency.SmoothedRoundTripMilliseconds))
 		{
-			bufferTime = Mathf.Max(0.1f, (latency.SmoothedRoundTripMilliseconds / 1000f) * 1.5f);
+			bufferTime = Mathf.Max(MatchTiming.MinimumInterpolationBufferSeconds, (latency.SmoothedRoundTripMilliseconds / 1000f) * 1.5f);
 		}
 
 		return 1f / bufferTime;

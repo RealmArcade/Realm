@@ -18,9 +18,6 @@ namespace Realm.ListenServer;
 /// </summary>
 public class ServerSimulation : IDisposable
 {
-	/// <summary>The rate the authoritative world advances at. Every client interpolates from the same cadence.</summary>
-	public const double FixedTickSeconds = 1.0 / 20.0;
-
 	private readonly LoadedMap _map;
 	private readonly ServerLog _log;
 	private readonly MatchTick _matchTick;
@@ -151,10 +148,10 @@ public class ServerSimulation : IDisposable
 	/// </summary>
 	public void Step()
 	{
-		MatchSeconds += FixedTickSeconds;
+		MatchSeconds += MatchTiming.FixedTickSeconds;
 		TickCount++;
 
-		float deltaSeconds = (float)FixedTickSeconds;
+		float deltaSeconds = (float)MatchTiming.FixedTickSeconds;
 		_matchTick.AdvanceCooldowns(deltaSeconds);
 		_map.Simulation.MovementPathfindingService.StepMovement(deltaSeconds);
 		_map.Simulation.CombatDamageService.StepCombat(deltaSeconds, _map.Simulation.MovementPathfindingService);

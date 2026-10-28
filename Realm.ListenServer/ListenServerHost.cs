@@ -27,12 +27,16 @@ public class ListenServerHost : IServerTransportSink
 
 	private ServerSimulation? _simulation;
 	private double _nextTickTime;
-	private long _lastLoggedAckSequence;
+	private readonly Dictionary<int, long> _lastLoggedAckSequencePerPeer = new();
+	private readonly Dictionary<int, int> _firstSnapshotSequencePerPeer = new();
+	private readonly Dictionary<int, long> _lastRepairBaselineTickPerPeer = new();
+	private readonly Dictionary<int, int> _obstacleSignaturePerPeer = new();
+	private readonly int[] _seatedPeerIds = new int[EcsWorld.MAX_PLAYERS];
+	private readonly List<(int PlayerIndex, byte[] Payload)> _presentationPayloads = new();
 	private bool _readyAnnounced;
 	private bool _disposed;
 	private bool _paused;
 	private int _pausedByPlayerSlot = -1;
-	private int _lastBroadcastObstacleSignature = int.MinValue;
 	private double _nextObstacleCheckTime;
 	private long _deliveredPresentationCount;
 	private int _rateLimitedCommandCount;
@@ -184,15 +188,11 @@ public class ListenServerHost : IServerTransportSink
 		// the world it was last told about instead of watching it drift while nobody can act in it.
 		if (_paused)
 		{
-			_nextTickTime = nowSeconds + ServerSimulation.FixedTickSeconds;
+			_nextTickTime = nowSeconds + MatchTiming.FixedTickSeconds;
 			return;
 		}
 
 		if (_nextTickTime <= 0) _nextTickTime = nowSeconds;
-
-		// Orders handed over since the last tick are this tick's budget. The window is cleared on the tick that consumes it
-		// rather than on the frame, so a peer cannot send more work than a tick can be asked to do.
-		_commandsThisTick.Clear();
 
 		if (nowSeconds >= _nextObstacleCheckTime)
 		{
@@ -203,13 +203,19 @@ public class ListenServerHost : IServerTransportSink
 		int stepped = 0;
 		while (nowSeconds >= _nextTickTime && stepped < MaximumTicksPerCall)
 		{
+			// Orders handed over since the last tick are this tick's budget. The window is cleared by the tick that
+			// consumes it rather than by the frame that happened to arrive before it, so a peer cannot spend the
+			// budget once per physics frame: this process runs physics faster than the match ticks, and clearing on
+			// the frame let a peer hand over three times the work a tick is allowed to do between two ticks.
+			_commandsThisTick.Clear();
+
 			simulation.Step();
 			PublishTick(simulation.AdvanceSnapshotSequence());
-			_nextTickTime += ServerSimulation.FixedTickSeconds;
+			_nextTickTime += MatchTiming.FixedTickSeconds;
 			stepped++;
 		}
 
-		if (nowSeconds >= _nextTickTime) _nextTickTime = nowSeconds + ServerSimulation.FixedTickSeconds;
+		if (nowSeconds >= _nextTickTime) _nextTickTime = nowSeconds + MatchTiming.FixedTickSeconds;
 	}
 
 	/// <summary>How many ticks one call may run, so a process that was suspended does not replay the whole pause.</summary>
@@ -288,6 +294,7 @@ public class ListenServerHost : IServerTransportSink
 		_log.Write(wasSeated ? $"peer {peerId} left: {reason}" : $"peer {peerId} dropped before it was seated: {reason}");
 
 		_simulation?.ForgetPeer(peerId);
+		ForgetPeerBookkeeping(peerId);
 
 		// A pause belongs to whoever asked for it. If that player is gone, nobody left in the match can resume it, so the
 		// match resumes itself rather than staying stopped for the rest of the session.
@@ -303,6 +310,19 @@ public class ListenServerHost : IServerTransportSink
 		_pausedByPlayerSlot = -1;
 		_log.Write("the player who paused the match left, so the match resumes");
 		BroadcastPauseState(-1);
+	}
+
+	/// <summary>
+	///     Drops everything this match remembered about a peer that has gone, so the peer that takes its place starts
+	///     from nothing rather than inheriting a description some other connection was given.
+	/// </summary>
+	private void ForgetPeerBookkeeping(int peerId)
+	{
+		_lastLoggedAckSequencePerPeer.Remove(peerId);
+		_firstSnapshotSequencePerPeer.Remove(peerId);
+		_lastRepairBaselineTickPerPeer.Remove(peerId);
+		_obstacleSignaturePerPeer.Remove(peerId);
+		_commandsThisTick.Remove(peerId);
 	}
 
 	/// <summary>
@@ -333,7 +353,7 @@ public class ListenServerHost : IServerTransportSink
 				HandleCommand(peerId, payload);
 				break;
 			case NetworkFrameKind.SnapshotAck:
-				HandleSnapshotAck(payload);
+				HandleSnapshotAck(peerId, payload);
 				break;
 			case NetworkFrameKind.BaselineRequest:
 				simulation.RequestBaseline(peerId);
@@ -565,36 +585,69 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
-		int[] peerIds = new int[_seatedPeers.Count];
-		_seatedPeers.Keys.CopyTo(peerIds, 0);
+		int peerCount = CopySeatedPeerIds();
 
-		for (int index = 0; index < peerIds.Length; index++)
+		for (int index = 0; index < peerCount; index++)
 		{
-			SendSnapshot(peerIds[index], sequence, simulation.ConsumeBaselineRequest(peerIds[index]));
+			SendSnapshot(_seatedPeerIds[index], sequence, simulation.ConsumeBaselineRequest(_seatedPeerIds[index]));
 		}
 
 		_syncRecorder?.EndSequence();
 
-		if (presentation.Length > 0) SendPresentation(peerIds, presentation);
+		if (presentation.Length > 0) SendPresentation(peerCount, presentation);
+	}
+
+	/// <summary>
+	///     Copies the seated peers into the scratch list a tick walks, so publishing a tick allocates nothing. The list is
+	///     only read inside the call that filled it.
+	/// </summary>
+	private int CopySeatedPeerIds()
+	{
+		int count = 0;
+		foreach (int peerId in _seatedPeers.Keys)
+		{
+			if (count == _seatedPeerIds.Length) break;
+			_seatedPeerIds[count++] = peerId;
+		}
+
+		return count;
 	}
 
 	/// <summary>
 	///     Tells each peer what the map asked its screen to show. A request addressed to one player reaches only the
 	///     peer acting as that player; one addressed to everyone reaches all of them.
 	/// </summary>
-	private void SendPresentation(int[] peerIds, ServerPresentationEvent[] events)
+	private void SendPresentation(int peerCount, ServerPresentationEvent[] events) => SendPresentation(_seatedPeerIds.AsSpan(0, peerCount), events);
+
+	private void SendPresentationToPeer(int peerId, ServerPresentationEvent[] events)
 	{
+		Span<int> singlePeer = stackalloc int[1];
+		singlePeer[0] = peerId;
+		SendPresentation(singlePeer, events);
+	}
+
+	private void SendPresentation(ReadOnlySpan<int> peerIds, ServerPresentationEvent[] events)
+	{
+		// Each request is serialized once and handed to every peer it addresses. Serializing it inside the per-peer
+		// loop made a room of twenty-four pay for the same event twenty-four times.
+		_presentationPayloads.Clear();
+		for (int eventIndex = 0; eventIndex < events.Length; eventIndex++)
+		{
+			ServerPresentationEvent request = events[eventIndex];
+			_presentationPayloads.Add((request.PlayerIndex, MemoryPackSerializer.Serialize(request.ToMessage())));
+		}
+
 		for (int peerIndex = 0; peerIndex < peerIds.Length; peerIndex++)
 		{
 			int peerId = peerIds[peerIndex];
 			bool seated = _seatedPeers.TryGetValue(peerId, out int playerSlot);
 
-			for (int eventIndex = 0; eventIndex < events.Length; eventIndex++)
+			for (int payloadIndex = 0; payloadIndex < _presentationPayloads.Count; payloadIndex++)
 			{
-				ServerPresentationEvent request = events[eventIndex];
-				if (request.PlayerIndex != ServerPresentationEvent.Everyone && (!seated || request.PlayerIndex != playerSlot)) continue;
+				(int playerIndex, byte[] payload) = _presentationPayloads[payloadIndex];
+				if (playerIndex != ServerPresentationEvent.Everyone && (!seated || playerIndex != playerSlot)) continue;
 
-				_transport.Send(peerId, NetworkFrameKind.Presentation, MemoryPackSerializer.Serialize(request.ToMessage()));
+				_transport.Send(peerId, NetworkFrameKind.Presentation, payload);
 				_deliveredPresentationCount++;
 			}
 		}
@@ -611,21 +664,31 @@ public class ListenServerHost : IServerTransportSink
 		byte[] framed = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
 		_transport.Send(peerId, NetworkFrameKind.Snapshot, framed);
 
+		// The first sequence this peer was described with bounds what its acknowledgement mask can claim: a bit for a
+		// sequence the match never sent was never meant to be set, so counting it as a loss would describe the peer
+		// from scratch on every acknowledgement.
+		if (!_firstSnapshotSequencePerPeer.ContainsKey(peerId)) _firstSnapshotSequencePerPeer[peerId] = sequence;
+
 		if (!snapshot.IsBaseline || !_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
 
 		// A baseline says what the world holds now, and the map declared its cards, its colours and its labels while
 		// it was setting that world up, long before this peer could hear any of it. They follow the snapshot that
 		// introduces what they describe.
 		ServerPresentationEvent[] description = simulation.DescribePresentationStateFor(playerSlot);
-		if (description.Length > 0) SendPresentation([peerId], description);
+		if (description.Length > 0) SendPresentationToPeer(peerId, description);
 	}
 
 	/// <summary>
-	///     Records how far a peer has applied the world. The stream is reliable and ordered, so this is not what makes a
-	///     peer catch up; it is what tells the match log whether a peer is keeping pace with the ticks it is sent.
+	///     Records how far a peer has applied the world, and repairs the peer when the mask says it discarded part of a
+	///     snapshot it was sent. A sequence inside the window that the match described but the peer did not apply is
+	///     state the peer will never be told again from the delta stream, so it is described from scratch instead of
+	///     being left to drift against a world the authority has already moved past.
 	/// </summary>
-	private void HandleSnapshotAck(ReadOnlySpan<byte> payload)
+	private void HandleSnapshotAck(int peerId, ReadOnlySpan<byte> payload)
 	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
 		SnapshotAck ack;
 		try
 		{
@@ -633,17 +696,50 @@ public class ListenServerHost : IServerTransportSink
 		}
 		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
 		{
-			_log.Write($"a snapshot acknowledgement could not be read: {exception.Message}");
+			_log.Write($"peer {peerId} sent a snapshot acknowledgement that could not be read: {exception.Message}");
 			return;
 		}
 
-		if (ack.Sequence - _lastLoggedAckSequence < AckReportInterval) return;
+		LogAcknowledgedSequence(peerId, ack);
 
-		_lastLoggedAckSequence = ack.Sequence;
-		_log.Write($"peer acknowledged sequence {ack.Sequence} with mask {ack.AppliedMask:x16}");
+		if (!_firstSnapshotSequencePerPeer.TryGetValue(peerId, out int firstDescribedSequence)) return;
+
+		// Only sequences this peer was actually described with can be missing. The peer reports the newest one it
+		// applied in the low bit, so the mask covers as many bits back as the match has described to it.
+		int describedSequences = ack.Sequence - firstDescribedSequence;
+		if (describedSequences <= 0) return;
+
+		int coveredBits = Math.Min(64, describedSequences + 1);
+		ulong expected = coveredBits >= 64 ? ulong.MaxValue : (1UL << coveredBits) - 1UL;
+		if ((ack.AppliedMask & expected) == expected) return;
+
+		RequestRepairBaseline(peerId, simulation);
+	}
+
+	private void LogAcknowledgedSequence(int peerId, in SnapshotAck ack)
+	{
+		if (_lastLoggedAckSequencePerPeer.TryGetValue(peerId, out long lastLogged) && ack.Sequence - lastLogged < AckReportInterval) return;
+
+		_lastLoggedAckSequencePerPeer[peerId] = ack.Sequence;
+		_log.Write($"peer {peerId} acknowledged sequence {ack.Sequence} with mask {ack.AppliedMask:x16}");
+	}
+
+	private void RequestRepairBaseline(int peerId, ServerSimulation simulation)
+	{
+		if (_lastRepairBaselineTickPerPeer.TryGetValue(peerId, out long lastRepairTick) && simulation.TickCount - lastRepairTick < RepairBaselineCooldownTicks) return;
+
+		_lastRepairBaselineTickPerPeer[peerId] = simulation.TickCount;
+		simulation.RequestBaseline(peerId);
+		_log.Write($"peer {peerId} is missing a snapshot it was sent; it is described from scratch");
 	}
 
 	private const long AckReportInterval = 100;
+
+	/// <summary>
+	///     How long one peer waits between two repairs, in ticks. A peer that keeps losing state is described from
+	///     scratch once a second rather than on every snapshot, which bounds what a broken peer can cost the match.
+	/// </summary>
+	private const long RepairBaselineCooldownTicks = MatchTiming.SimulationTickRateHz;
 
 	/// <summary>
 	///     Answers one order. The authority validates and applies it, and the peer is told whether it was taken, which
@@ -793,7 +889,10 @@ public class ListenServerHost : IServerTransportSink
 	{
 		if (!TryBuildObstacleVolumes(out NavMeshObstacleVolumes volumes, out int signature, out int count)) return;
 
-		_lastBroadcastObstacleSignature = signature;
+		// What one peer was given is remembered per peer. Recording it in a value the whole match shares made a peer
+		// joining after a change tell the match that every peer already had the new set, so the peers that were here
+		// first kept the set they were given before the blocker appeared.
+		_obstacleSignaturePerPeer[peerId] = signature;
 		_transport.Send(peerId, NetworkFrameKind.NavMeshObstacles, MemoryPackSerializer.Serialize(volumes));
 		_log.Write($"peer {peerId} given the {count} obstacle volumes this match pathing was baked with");
 	}
@@ -807,16 +906,26 @@ public class ListenServerHost : IServerTransportSink
 	{
 		if (_seatedPeers.Count == 0) return;
 		if (!TryBuildObstacleVolumes(out NavMeshObstacleVolumes volumes, out int signature, out int count)) return;
-		if (signature == _lastBroadcastObstacleSignature) return;
 
-		_lastBroadcastObstacleSignature = signature;
+		int staleCount = 0;
+		foreach (int seatedPeerId in _seatedPeers.Keys)
+		{
+			if (staleCount == _seatedPeerIds.Length) break;
+			if (_obstacleSignaturePerPeer.TryGetValue(seatedPeerId, out int sentSignature) && sentSignature == signature) continue;
+
+			_seatedPeerIds[staleCount++] = seatedPeerId;
+		}
+
+		if (staleCount == 0) return;
+
 		byte[] payload = MemoryPackSerializer.Serialize(volumes);
+		for (int index = 0; index < staleCount; index++)
+		{
+			_obstacleSignaturePerPeer[_seatedPeerIds[index]] = signature;
+			_transport.Send(_seatedPeerIds[index], NetworkFrameKind.NavMeshObstacles, payload);
+		}
 
-		int[] peerIds = new int[_seatedPeers.Count];
-		_seatedPeers.Keys.CopyTo(peerIds, 0);
-		for (int index = 0; index < peerIds.Length; index++) _transport.Send(peerIds[index], NetworkFrameKind.NavMeshObstacles, payload);
-
-		_log.Write($"the match now paths with {count} obstacle volumes; every peer was given the new set");
+		_log.Write($"the match now paths with {count} obstacle volumes; {staleCount} peer(s) were given the new set");
 	}
 
 	/// <summary>

@@ -325,12 +325,16 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
-	/// <summary>Tells the authority how far this client has applied the world.</summary>
-	public bool Acknowledge(int sequence)
+	/// <summary>
+	///     Tells the authority how far this client has applied the world, and which of the snapshots behind that one it
+	///     applied whole. The mask is what lets the authority tell a peer that kept up from one that discarded part of
+	///     a payload, so it travels with every acknowledgement rather than being dropped here.
+	/// </summary>
+	public bool Acknowledge(int sequence, ulong appliedMask)
 	{
 		if (sequence <= 0) return false;
 
-		var ack = new SnapshotAck { Sequence = sequence };
+		var ack = new SnapshotAck { Sequence = sequence, AppliedMask = appliedMask };
 		_channel.Send(NetworkFrameKind.SnapshotAck, MemoryPackSerializer.Serialize(ack));
 		return true;
 	}

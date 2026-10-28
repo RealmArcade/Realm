@@ -10,6 +10,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Client.UI;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
 
@@ -54,7 +55,12 @@ public class MovementPredictionService
 	/// reconciling against a stale position for the whole gap.
 	/// </summary>
 	public const int SnapshotGapToleranceTicks = 6;
-	public const float ImpliedSnapshotIntervalSeconds = 1.0f / 30.0f;
+	/// <summary>
+	///     The interval the authority describes the world at, which every gap measured in snapshots is converted with. It
+	///     is read from the shared cadence rather than restated here, because a client that assumed a rate the authority
+	///     does not send at reads every gap as a different length of time than it really was.
+	/// </summary>
+	public const float ImpliedSnapshotIntervalSeconds = MatchTiming.SnapshotIntervalSeconds;
 
 	/// <summary>
 	/// The furthest a predicted order may ever lead the latest authoritative sample. It sits above the authority's 2.2 m

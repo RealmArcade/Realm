@@ -259,7 +259,7 @@ public partial class GameHost
 		RecordGameplayTickIfNeeded();
 	}
 
-	public void SendSnapshotAck(int sequence, ulong appliedMask) => GameContext.ServerSession?.Acknowledge(sequence);
+	public void SendSnapshotAck(int sequence, ulong appliedMask) => GameContext.ServerSession?.Acknowledge(sequence, appliedMask);
 
 	public void RequestSnapshotBaseline() => GameContext.ServerSession?.RequestBaseline();
 
