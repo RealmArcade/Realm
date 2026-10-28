@@ -27,6 +27,36 @@ public class MultiplayerEcsSyncTests
 		Verify(settings);
 	}
 
+	/// <summary>
+	///     The same two peers over a link that drops datagrams and reorders them by jitter. Loss is what turns a
+	///     description that is only correct on a reliable stream into a visible divergence: every section the protocol
+	///     treats as "already told" has to be repaired by something other than the dropped snapshot, and the record is read
+	///     the same way it is at the end of the clean run.
+	/// </summary>
+	[TestCase]
+	public async Task LossyTwoPeerRunKeepsBothClientsConverged()
+	{
+		MultiplayerEcsRunSettings settings = new()
+		{
+			GodotBinary = MultiplayerEcsSyncTestSupport.ResolveGodotBinary(),
+			ProjectDirectory = MultiplayerEcsSyncTestSupport.ResolveClientProjectDirectory(),
+			MapFolder = ChaosArenaFolder,
+			WasmPath = MultiplayerEcsSyncTestSupport.EnsureChaosArenaWasm(ChaosArenaFolder),
+			OutputDirectory = Path.Combine(Path.GetTempPath(), "Realm_MultiplayerEcsSync_Lossy"),
+			DurationSeconds = 30f,
+			Port = FindAvailableUdpPort(),
+			Profile = NetworkProfile.LatencyLoss,
+			OneWayDelayMilliseconds = 45,
+			JitterMilliseconds = 15,
+			PacketLossPercent = 3,
+			PeerCount = 2,
+			BotCount = BotSeatCount
+		};
+
+		await MultiplayerEcsSyncTestSupport.RunAsync(settings);
+		Verify(settings);
+	}
+
 	[TestCase]
 	public async Task DiscardedSnapshotIsRepairedWithExactlyOneBaseline()
 	{
