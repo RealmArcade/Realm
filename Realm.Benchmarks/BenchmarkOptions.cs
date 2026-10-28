@@ -10,8 +10,10 @@ public sealed record BenchmarkOptions(
 	double ReferenceDerate,
 	double TickDeltaSeconds,
 	int Workers,
-	bool Probe)
+	bool Probe,
+	bool ZstdSweep)
 {
+	public const int DefaultZstdSweepFrames = 120;
 	public const int DefaultUnits = 300;
 	public const int DefaultPlayers = 24;
 	public const int DefaultTicks = 600;
@@ -21,11 +23,11 @@ public sealed record BenchmarkOptions(
 	public const int DefaultWorkers = 0;
 
 	public static string Usage =>
-		"Realm.Benchmarks [--units 300] [--players 24] [--ticks 600] [--warmup 120] [--derate 0.75] [--tick-delta 0.0333] [--workers 0]";
+		"Realm.Benchmarks [--units 300] [--players 24] [--ticks 600] [--warmup 120] [--derate 0.75] [--tick-delta 0.0333] [--workers 0] [--zstd-sweep]";
 
 	public static bool TryParse(string[] arguments, out BenchmarkOptions options, out string error)
 	{
-		options = new BenchmarkOptions(DefaultUnits, DefaultPlayers, DefaultTicks, DefaultWarmupTicks, DefaultReferenceDerate, DefaultTickDeltaSeconds, DefaultWorkers, false);
+		options = new BenchmarkOptions(DefaultUnits, DefaultPlayers, DefaultTicks, DefaultWarmupTicks, DefaultReferenceDerate, DefaultTickDeltaSeconds, DefaultWorkers, false, false);
 		error = string.Empty;
 
 		for (int index = 0; index < arguments.Length; index++)
@@ -40,6 +42,12 @@ public sealed record BenchmarkOptions(
 			if (name is "--probe")
 			{
 				options = options with { Probe = true };
+				continue;
+			}
+
+			if (name is "--zstd-sweep")
+			{
+				options = options with { ZstdSweep = true };
 				continue;
 			}
 

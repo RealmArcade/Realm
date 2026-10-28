@@ -12,6 +12,7 @@ using Realm.Ecs.Services;
 using Realm.ListenServer;
 using Realm.Shared.Network;
 using Realm.Shared.Simulation;
+using ZstdSharp;
 
 namespace Realm.Benchmarks;
 
@@ -350,6 +351,72 @@ public sealed class AuthorityBenchmark : IDisposable
 			allVisibleDeltaBytes,
 			snapshotPasses == 0 ? 0 : visibleUnits / (snapshotPasses * (double)_options.Players),
 			composition);
+	}
+
+	/// <summary>
+	///     Frames one delta stream at every level worth considering, so the encoder's level is chosen from what this room
+	///     actually compresses rather than from a rule of thumb. The frames are encoded in sequence through one encoder
+	///     each: a compressor carries state between the frames it produces, and a stream is what a peer receives.
+	/// </summary>
+	public ZstdSweep MeasureZstdSweep(int frameCount)
+	{
+		for (int slot = 0; slot < _options.Players; slot++) DescribePeer(slot, ++_sequence, true);
+
+		var payloads = new byte[frameCount][];
+		for (int index = 0; index < frameCount; index++)
+		{
+			StepOnce();
+			_sequence++;
+			payloads[index] = MemoryPackSerializer.Serialize(DescribePeer(0, _sequence, false));
+		}
+
+		int largestPayload = 0;
+		double uncompressedBytes = 0;
+		for (int index = 0; index < frameCount; index++)
+		{
+			largestPayload = Math.Max(largestPayload, payloads[index].Length);
+			uncompressedBytes += payloads[index].Length + SnapshotWireFormat.FrameHeaderBytes;
+		}
+
+		long copyStart = Stopwatch.GetTimestamp();
+		var copyBuffer = new byte[largestPayload];
+		for (int index = 0; index < frameCount; index++) payloads[index].AsSpan().CopyTo(copyBuffer);
+		double uncompressedMicros = Elapsed(copyStart) / frameCount;
+
+		int compressionBound = Compressor.GetCompressBound(largestPayload);
+
+		int[] levels = { 1, 2, 3, 5, 7, 9, 12, 15, 19 };
+		var samples = new List<ZstdLevelSample>(levels.Length);
+
+		foreach (int level in levels)
+		{
+			var compressor = new Compressor(level);
+			var buffer = new byte[compressionBound];
+			var frameMicros = new double[frameCount];
+			long framedBytes = 0;
+
+			for (int index = 0; index < frameCount; index++)
+			{
+				long start = Stopwatch.GetTimestamp();
+				int compressedLength = compressor.Wrap(payloads[index], buffer);
+				frameMicros[index] = Elapsed(start);
+				framedBytes += compressedLength + SnapshotWireFormat.FrameHeaderBytes;
+			}
+
+			Array.Sort(frameMicros);
+			double bytesPerFrame = framedBytes / (double)frameCount;
+
+			// The median rather than the mean: the first frames of a fresh encoder carry its window setup, which a peer
+			// pays once when it connects rather than on every frame of the stream.
+			samples.Add(new ZstdLevelSample(
+				level,
+				bytesPerFrame,
+				Percentile(frameMicros, 0.50),
+				Percentile(frameMicros, 0.95),
+				bytesPerFrame / (uncompressedBytes / frameCount)));
+		}
+
+		return new ZstdSweep(uncompressedBytes / frameCount, uncompressedMicros, frameCount, samples);
 	}
 
 	/// <summary>

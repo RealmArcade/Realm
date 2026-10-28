@@ -18,13 +18,15 @@ public class SnapshotFanOut
 
 	/// <summary>
 	///     How many descriptions this machine is given unless it is told otherwise. Measured on a 300-unit room of
-	///     twenty-four players, the describing phase takes 6.85 ms on one worker, 4.12 ms on two, 2.95 ms on four,
-	///     2.52 ms on six and 2.52 ms on eight, while the work each description does grows as they are spread — 0.15 ms
-	///     for a peer alone against 0.41 ms on eight, because they contend for the same memory and the same locks. Four
-	///     is where most of the wall clock is gone for little more work than one description, and the rest of the cores are
-	///     left to the authority, the transport, and on a hosting machine's own screen the client it is also running.
+	///     twenty-four players, the describing phase takes 8.0 ms on one worker, 5.4 ms on two, 3.8 ms on three and 3.4 ms
+	///     on four, while the room's total description cost per tick rises 7.9, 10.3, 10.8 and 12.6 ms over the same steps:
+	///     peers share one description cache, so a worker beyond the first re-reads lines another core has just written and
+	///     describing one peer costs 0.33 ms alone against 0.53 ms on four. Three workers take the phase to within half a
+	///     millisecond of the floor, where the fourth adds 1.8 ms to the room's per-tick CPU to save 0.4 ms of wall clock,
+	///     and the cores left over belong to the authority, the transport, and on a self-hosted match the client the host
+	///     is also running.
 	/// </summary>
-	public const int DefaultWorkerLimit = 4;
+	public const int DefaultWorkerLimit = 3;
 
 	private readonly AuthoritativeSnapshotBuilder[] _builders;
 	private readonly ConcurrentBag<AuthoritativeSnapshotBuilder> _idleBuilders = new();

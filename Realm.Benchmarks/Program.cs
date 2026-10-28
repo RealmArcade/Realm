@@ -90,6 +90,22 @@ Console.WriteLine();
 Console.WriteLine("baseline burst (one baseline per peer on the same tick)");
 WriteRow("all peers", result.BaselineBytesPerPeer * result.Players / 1_000_000.0, " MB");
 
+if (options.ZstdSweep)
+{
+	ZstdSweep sweep = benchmark.MeasureZstdSweep(BenchmarkOptions.DefaultZstdSweepFrames);
+	Console.WriteLine();
+	Console.WriteLine($"delta framing at each zstd level ({sweep.FrameCount:F0} consecutive ticks of one peer)");
+	WriteRow("unframed frame", sweep.UncompressedBytesPerFrame, " B");
+	WriteRow("unframed copy", sweep.UncompressedMicrosPerFrame, " us");
+	Console.WriteLine("    level     bytes     ratio    median       p95   upstream 30 Hz");
+
+	foreach (ZstdLevelSample sample in sweep.Levels)
+	{
+		Console.WriteLine(
+			$"  {sample.Level,-8}{sample.BytesPerFrame,10:F1}{sample.Ratio,9:F3}{sample.MedianMicrosPerFrame,10:F1}{sample.P95MicrosPerFrame,9:F1}{sample.UpstreamMbps(result.Players, 30),15:F2} Mbps");
+	}
+}
+
 return 0;
 
 string RuntimeInformation() => System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
