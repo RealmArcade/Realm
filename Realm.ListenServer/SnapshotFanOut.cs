@@ -18,10 +18,11 @@ public class SnapshotFanOut
 
 	/// <summary>
 	///     How many descriptions this machine is given unless it is told otherwise. Measured on a 300-unit room of
-	///     twenty-four players, four workers cut the describing phase from 17.6 ms to 9.4 ms and the next four cut it to
-	///     8.9 ms: beyond four the phase is bound by the memory each description walks rather than by arithmetic, so the
-	///     rest of the cores are left to the authority, the transport, and on this machine's own screen the client it is
-	///     also running.
+	///     twenty-four players, the describing phase takes 6.85 ms on one worker, 4.12 ms on two, 2.95 ms on four,
+	///     2.52 ms on six and 2.52 ms on eight, while the work each description does grows as they are spread — 0.15 ms
+	///     for a peer alone against 0.41 ms on eight, because they contend for the same memory and the same locks. Four
+	///     is where most of the wall clock is gone for little more work than one description, and the rest of the cores are
+	///     left to the authority, the transport, and on a hosting machine's own screen the client it is also running.
 	/// </summary>
 	public const int DefaultWorkerLimit = 4;
 
