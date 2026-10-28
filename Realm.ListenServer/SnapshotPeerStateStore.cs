@@ -30,6 +30,13 @@ public class SnapshotPeerState
 	/// <summary>The unit record last sent for one entity, so a unit that has not changed is not described again.</summary>
 	public Dictionary<int, UnitSnapshot> SentUnits { get; } = new();
 
+	/// <summary>
+	///     The unit components this peer was told each unit carries, one bit per unit codec. A unit carries a handful of
+	///     the components a match replicates, so asking this word whether the peer was ever told about one costs a single
+	///     bit test where asking the component table cost a hashed lookup for every component the unit does not have.
+	/// </summary>
+	public Dictionary<int, ulong> SentUnitComponentMasks { get; } = new();
+
 	/// <summary>The entities this peer was described last, so the ones that left its sight are found without a full walk.</summary>
 	public HashSet<int> DescribedEntityIds { get; } = new();
 
@@ -51,6 +58,7 @@ public class SnapshotPeerState
 	{
 		SentComponents.Clear();
 		SentUnits.Clear();
+		SentUnitComponentMasks.Clear();
 		DescribedEntityIds.Clear();
 	}
 }

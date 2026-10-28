@@ -31,6 +31,23 @@ public class AuthoritativeSnapshotBuilder
 	private static readonly IReplicatedComponentCodec[] UnitCodecs = SelectCodecs(ReplicatedScope.Unit);
 	private static readonly ComponentMask[] UnitCodecMasks = SelectMasks(UnitCodecs);
 
+	/// <summary>Whether one word can name every unit codec this match replicates, which is what makes the bit test valid.</summary>
+	private static readonly bool UnitCodecMaskCoversEveryCodec = UnitCodecs.Length <= 64;
+
+	/// <summary>The presence slot of each unit codec, or minus one for a codec the wire contract does not state presence for.</summary>
+	private static readonly int[] UnitCodecPresenceSlots = SelectPresenceSlots(UnitCodecs);
+
+	private static int[] SelectPresenceSlots(IReplicatedComponentCodec[] codecs)
+	{
+		var slots = new int[codecs.Length];
+		for (int index = 0; index < codecs.Length; index++)
+		{
+			slots[index] = ReplicatedUnitComponentSlots.TryGetSlot(codecs[index].ComponentTypeId, out int slot) ? slot : -1;
+		}
+
+		return slots;
+	}
+
 	private readonly EcsWorld _world;
 	private readonly SimulationContext _context;
 	private readonly Entity _worldEntity;
@@ -491,25 +508,38 @@ public class AuthoritativeSnapshotBuilder
 		{
 			Entity unitEntity = _describedUnits[unitIndex].Entity;
 			ulong presenceMask = 0;
+			ulong toldMask = state.SentUnitComponentMasks.TryGetValue(unitEntity.Id, out ulong rememberedMask) ? rememberedMask : 0UL;
 
 			for (int codecIndex = 0; codecIndex < UnitCodecs.Length; codecIndex++)
 			{
 				IReplicatedComponentCodec codec = UnitCodecs[codecIndex];
+				ulong toldBit = UnitCodecMaskCoversEveryCodec ? 1UL << codecIndex : 0UL;
 
 				// A unit carries a handful of the components this match replicates. Asking its own mask costs one bit
 				// test where calling the codec cost a virtual call that only ever answered "this unit does not have me".
 				if (!_world.Has(unitEntity, UnitCodecMasks[codecIndex]))
 				{
-					RemoveComponentDeltaWhenSent(state, snapshot, codec, (byte)ReplicatedScope.Unit, unitEntity.Id);
+					// Nothing to take back unless this peer was told the unit carried it, and that is one bit of the word
+					// this loop is already holding. Without it the tick hashed every absent component of every visible unit
+					// for every peer, which was most of what describing a unit cost.
+					if ((toldMask & toldBit) != 0)
+					{
+						toldMask &= ~toldBit;
+						RemoveComponentDeltaWhenSent(state, snapshot, codec, (byte)ReplicatedScope.Unit, unitEntity.Id);
+					}
+
 					continue;
 				}
 
 				if (!AppendComponentDelta(state, snapshot, codec, unitEntity, (byte)ReplicatedScope.Unit, unitEntity.Id, isBaseline)) continue;
-				if (!ReplicatedUnitComponentSlots.TryGetSlot(codec.ComponentTypeId, out int presenceSlot)) continue;
+				toldMask |= toldBit;
+				int presenceSlot = UnitCodecPresenceSlots[codecIndex];
+				if (presenceSlot < 0) continue;
 
 				presenceMask |= 1UL << presenceSlot;
 			}
 
+			state.SentUnitComponentMasks[unitEntity.Id] = toldMask;
 			snapshot.UnitComponentPresence?.Add(new UnitComponentPresence
 			{
 				ServerEntityId = unitEntity.Id,
@@ -608,6 +638,8 @@ public class AuthoritativeSnapshotBuilder
 			{
 				state.SentComponents.Remove(((byte)ReplicatedScope.Unit, forgottenEntityId, UnitCodecs[codecIndex].ComponentTypeId));
 			}
+
+			state.SentUnitComponentMasks.Remove(forgottenEntityId);
 		}
 
 		state.DescribedEntityIds.Clear();
