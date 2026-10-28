@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Numerics;
 using MemoryPack;
@@ -362,13 +363,39 @@ public sealed class AuthorityBenchmark : IDisposable
 	{
 		for (int slot = 0; slot < _options.Players; slot++) DescribePeer(slot, ++_sequence, true);
 
+		var snapshots = new WorldSnapshot[frameCount];
 		var payloads = new byte[frameCount][];
 		for (int index = 0; index < frameCount; index++)
 		{
 			StepOnce();
 			_sequence++;
-			payloads[index] = MemoryPackSerializer.Serialize(DescribePeer(0, _sequence, false));
+			snapshots[index] = DescribePeer(0, _sequence, false);
+			payloads[index] = MemoryPackSerializer.Serialize(snapshots[index]);
 		}
+
+		var serializeMicros = new double[frameCount];
+		long allocationBefore = GC.GetAllocatedBytesForCurrentThread();
+		for (int index = 0; index < frameCount; index++)
+		{
+			long start = Stopwatch.GetTimestamp();
+			payloads[index] = MemoryPackSerializer.Serialize(snapshots[index]);
+			serializeMicros[index] = Elapsed(start);
+		}
+
+		double serializeAllocated = (GC.GetAllocatedBytesForCurrentThread() - allocationBefore) / (double)frameCount;
+		Array.Sort(serializeMicros);
+
+		var encodeMicros = new double[frameCount];
+		allocationBefore = GC.GetAllocatedBytesForCurrentThread();
+		for (int index = 0; index < frameCount; index++)
+		{
+			long start = Stopwatch.GetTimestamp();
+			SnapshotWireFormat.EncodeDelta(payloads[index]);
+			encodeMicros[index] = Elapsed(start);
+		}
+
+		double encodeAllocated = (GC.GetAllocatedBytesForCurrentThread() - allocationBefore) / (double)frameCount;
+		Array.Sort(encodeMicros);
 
 		int largestPayload = 0;
 		double uncompressedBytes = 0;
@@ -416,7 +443,123 @@ public sealed class AuthorityBenchmark : IDisposable
 				bytesPerFrame / (uncompressedBytes / frameCount)));
 		}
 
-		return new ZstdSweep(uncompressedBytes / frameCount, uncompressedMicros, frameCount, samples);
+		return new ZstdSweep(
+			uncompressedBytes / frameCount,
+			uncompressedMicros,
+			frameCount,
+			Percentile(serializeMicros, 0.50),
+			serializeAllocated,
+			Percentile(encodeMicros, 0.50),
+			encodeAllocated,
+			samples);
+	}
+
+	/// <summary>
+	///     Frames the same deltas twice: once with the unit records laid out entity by entity as the wire carries them
+	///     today, and once with the same values laid out field by field across the peer's units. Both go through their
+	///     own encoder at the level a delta uses, because a stream that alternated between two layouts would let each
+	///     find matches in the other.
+	/// </summary>
+	public ColumnMajorComparison MeasureColumnMajorDelta(int frameCount)
+	{
+		for (int slot = 0; slot < _options.Players; slot++) DescribePeer(slot, ++_sequence, true);
+
+		double rowSerialized = 0;
+		double rowFrame = 0;
+		double rowMicros = 0;
+		double columnImage = 0;
+		double columnFrame = 0;
+		double columnMicros = 0;
+		double units = 0;
+
+		var rowCompressor = new Compressor(SnapshotWireFormat.DeltaCompressionLevel);
+		var columnCompressor = new Compressor(SnapshotWireFormat.DeltaCompressionLevel);
+		var rowBuffer = new byte[Compressor.GetCompressBound(1 << 20)];
+		var columnBuffer = new byte[Compressor.GetCompressBound(1 << 20)];
+		var columnWriter = new byte[1 << 20];
+
+		for (int index = 0; index < frameCount; index++)
+		{
+			StepOnce();
+			_sequence++;
+			WorldSnapshot snapshot = DescribePeer(0, _sequence, false);
+			units += snapshot.Units.Count;
+
+			byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
+			long start = Stopwatch.GetTimestamp();
+			int rowLength = rowCompressor.Wrap(serialized, rowBuffer);
+			rowMicros += Elapsed(start);
+			rowSerialized += serialized.Length;
+			rowFrame += rowLength + SnapshotWireFormat.FrameHeaderBytes;
+
+			int imageLength = WriteColumnMajor(snapshot.Units, columnWriter);
+			start = Stopwatch.GetTimestamp();
+			int columnLength = columnCompressor.Wrap(columnWriter.AsSpan(0, imageLength), columnBuffer);
+			columnMicros += Elapsed(start);
+			columnImage += imageLength;
+			columnFrame += columnLength + SnapshotWireFormat.FrameHeaderBytes;
+		}
+
+		return new ColumnMajorComparison(
+			units / frameCount,
+			rowSerialized / frameCount,
+			rowFrame / frameCount,
+			rowMicros / frameCount,
+			columnImage / frameCount,
+			columnFrame / frameCount,
+			columnMicros / frameCount);
+	}
+
+	/// <summary>
+	///     Writes one peer's units field by field into <paramref name="destination" /> and returns the bytes it used: the
+	///     count, then every entity's id, then every owner, then each position axis, then the scalars, then the flags, and
+	///     finally the ids of the units themselves. Every column carries the same value of the same kind, which is what an
+	///     encoder can find redundancy in and what a vector copy could move.
+	/// </summary>
+	private static int WriteColumnMajor(List<UnitSnapshot> units, byte[] destination)
+	{
+		int count = units.Count;
+		int offset = 0;
+		BinaryPrimitives.WriteInt32LittleEndian(destination.AsSpan(offset), count);
+		offset += 4;
+
+		for (int index = 0; index < count; index++) offset = WriteInt32(destination, offset, units[index].EntityId);
+		for (int index = 0; index < count; index++) offset = WriteInt32(destination, offset, units[index].OwnerPlayerEntityId);
+		for (int index = 0; index < count; index++) offset = WriteInt32(destination, offset, units[index].OwnerPlayerIndex);
+
+		for (int index = 0; index < count; index++) offset = WriteSingle(destination, offset, units[index].Position.X);
+		for (int index = 0; index < count; index++) offset = WriteSingle(destination, offset, units[index].Position.Y);
+		for (int index = 0; index < count; index++) offset = WriteSingle(destination, offset, units[index].Position.Z);
+		for (int index = 0; index < count; index++) offset = WriteSingle(destination, offset, units[index].RotationY);
+		for (int index = 0; index < count; index++) offset = WriteSingle(destination, offset, units[index].CurrentHp);
+		for (int index = 0; index < count; index++) offset = WriteSingle(destination, offset, units[index].MaxHp);
+
+		for (int index = 0; index < count; index++)
+		{
+			int flags = (units[index].IsDead ? 1 : 0) | (units[index].IsBuilding ? 2 : 0) | (units[index].IsDetailed ? 4 : 0);
+			destination[offset++] = (byte)flags;
+		}
+
+		for (int index = 0; index < count; index++)
+		{
+			string unitId = units[index].UnitId ?? string.Empty;
+			destination[offset++] = (byte)unitId.Length;
+			for (int character = 0; character < unitId.Length; character++) destination[offset++] = (byte)unitId[character];
+		}
+
+		return offset;
+	}
+
+	private static int WriteInt32(byte[] destination, int offset, int value)
+	{
+		BinaryPrimitives.WriteInt32LittleEndian(destination.AsSpan(offset), value);
+		return offset + 4;
+	}
+
+	private static int WriteSingle(byte[] destination, int offset, float value)
+	{
+		BinaryPrimitives.WriteSingleLittleEndian(destination.AsSpan(offset), value);
+		return offset + 4;
 	}
 
 	/// <summary>

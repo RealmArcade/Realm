@@ -28,7 +28,7 @@ public static class SnapshotWireFormat
 	/// bytes at level 3, for 55 and 63 microseconds respectively; the levels above 3 buy a further 2 to 8 percent of bytes
 	/// for five to thirty times the encoder's time, which is a bad trade for a stream sent thirty times a second.
 	/// </summary>
-	private const int DeltaCompressionLevel = 1;
+	public const int DeltaCompressionLevel = 1;
 
 	/// <summary>
 	/// A baseline is two orders of magnitude larger and is framed once per peer that is due one, several of them on the

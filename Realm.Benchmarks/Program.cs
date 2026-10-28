@@ -97,6 +97,10 @@ if (options.ZstdSweep)
 	Console.WriteLine($"delta framing at each zstd level ({sweep.FrameCount:F0} consecutive ticks of one peer)");
 	WriteRow("unframed frame", sweep.UncompressedBytesPerFrame, " B");
 	WriteRow("unframed copy", sweep.UncompressedMicrosPerFrame, " us");
+	WriteRow("memorypack serialize", sweep.SerializeMedianMicros, " us");
+	WriteRow("  allocated by it", sweep.SerializeBytesAllocated, " B");
+	WriteRow("encode (build frame)", sweep.EncodeMedianMicros, " us");
+	WriteRow("  allocated by it", sweep.EncodeBytesAllocated, " B");
 	Console.WriteLine("    level     bytes     ratio    median       p95   upstream 30 Hz");
 
 	foreach (ZstdLevelSample sample in sweep.Levels)
@@ -104,6 +108,16 @@ if (options.ZstdSweep)
 		Console.WriteLine(
 			$"  {sample.Level,-8}{sample.BytesPerFrame,10:F1}{sample.Ratio,9:F3}{sample.MedianMicrosPerFrame,10:F1}{sample.P95MicrosPerFrame,9:F1}{sample.UpstreamMbps(result.Players, 30),15:F2} Mbps");
 	}
+
+	ColumnMajorComparison layout = benchmark.MeasureColumnMajorDelta(BenchmarkOptions.DefaultZstdSweepFrames);
+	Console.WriteLine();
+	Console.WriteLine($"unit record layout ({layout.Units:F1} units on a delta)");
+	WriteHeaderRow("layout", "serialized", "frame");
+	Console.WriteLine($"  {"entity by entity",-26}{layout.RowMajorSerializedBytes,14:F1}{layout.RowMajorFrameBytes,14:F1}");
+	Console.WriteLine($"  {"field by field",-26}{layout.ColumnMajorBytes,14:F1}{layout.ColumnMajorFrameBytes,14:F1}");
+	WriteRow("field-major saving", layout.FrameSaving * 100.0, " %");
+	WriteRow("entity-major encode", layout.RowMajorEncodeMicros, " us");
+	WriteRow("field-major encode", layout.ColumnMajorEncodeMicros, " us");
 }
 
 return 0;
