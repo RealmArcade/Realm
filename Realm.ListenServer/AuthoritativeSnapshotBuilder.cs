@@ -69,6 +69,7 @@ public class AuthoritativeSnapshotBuilder
 	private readonly List<(Entity Entity, Vector3 Position)> _candidates = new();
 	private readonly bool[] _candidateVisibility = new bool[EcsWorld.MAX_ENTITIES];
 	private readonly List<(Entity Entity, Vector3 Position)> _describedUnits = new();
+	private readonly List<UnitDescriptionState> _describedUnitStates = new();
 	private readonly HashSet<int> _describedEntityIds = new();
 	private readonly List<int> _forgottenEntityIds = new();
 	private readonly Dictionary<(int X, int Z), List<int>> _unitCells = new();
@@ -157,6 +158,7 @@ public class AuthoritativeSnapshotBuilder
 		}
 
 		CollectDescribedUnits(viewer.Value, sequence);
+		_describedUnitStates.Clear();
 
 		var snapshot = new WorldSnapshot
 		{
@@ -187,13 +189,23 @@ public class AuthoritativeSnapshotBuilder
 				_descriptions.SetUnitRecord(sequence, unitEntity.Id, in described);
 			}
 
+			// The record of this unit this peer holds, which both what it is told and which components it holds are written
+			// into. A unit it has not been told about yet starts from nothing, so its first record states everything.
+			if (!state.SentUnits.TryGetValue(unitEntity.Id, out UnitDescriptionState? held))
+			{
+				held = new UnitDescriptionState(UnitCodecs.Length);
+				state.SentUnits[unitEntity.Id] = held;
+			}
+
+			_describedUnitStates.Add(held);
+
 			// A unit that is exactly where this peer was last told it is carries no information: a building, a unit
 			// holding position or one standing where its order ended all stay on the peer's screen as they are. It is
 			// left out of the description and its record is kept, so the tick it moves it is described again. A
 			// baseline always states every unit, because that is what a peer with nothing recovers from.
-			if (!isBaseline && state.SentUnits.TryGetValue(unitEntity.Id, out UnitSnapshot sent) && MatchesIn(in described, in sent)) continue;
+			if (!isBaseline && MatchesIn(in described, in held.SentRecord)) continue;
 
-			state.SentUnits[unitEntity.Id] = described;
+			held.SentRecord = described;
 			snapshot.Units.Add(described);
 		}
 
@@ -597,7 +609,7 @@ public class AuthoritativeSnapshotBuilder
 
 		for (int unitIndex = 0; unitIndex < _describedUnits.Count; unitIndex++)
 		{
-			AppendUnitComponentDeltas(state, snapshot, _describedUnits[unitIndex].Entity, sequence, isBaseline);
+			AppendUnitComponentDeltas(snapshot, _describedUnits[unitIndex].Entity, _describedUnitStates[unitIndex], sequence, isBaseline);
 		}
 	}
 
@@ -606,7 +618,7 @@ public class AuthoritativeSnapshotBuilder
 	///     written into and the presence a baseline states are all the same for every peer, so they are worked out once
 	///     per tick; what is left here is one peer comparing its own record of what it was told.
 	/// </summary>
-	private void AppendUnitComponentDeltas(SnapshotPeerState state, WorldSnapshot snapshot, Entity unitEntity, int tick, bool isBaseline)
+	private void AppendUnitComponentDeltas(WorldSnapshot snapshot, Entity unitEntity, UnitDescriptionState held, int tick, bool isBaseline)
 	{
 		if (!_descriptions.TryGetUnitComponentState(tick, unitEntity.Id, out ulong presentCodecMask, out ulong presenceMask))
 		{
@@ -614,26 +626,23 @@ public class AuthoritativeSnapshotBuilder
 			_descriptions.SetUnitComponentState(tick, unitEntity.Id, presentCodecMask, presenceMask);
 		}
 
-		state.SentUnitComponentMasks.TryGetValue(unitEntity.Id, out ulong toldMask);
-
 		// A component the authority dropped since this peer was told about it is stated as a removal, which is what lets
 		// a peer drop what the authority dropped.
-		for (ulong forgottenBits = toldMask & ~presentCodecMask; forgottenBits != 0; forgottenBits &= forgottenBits - 1)
+		for (ulong forgottenBits = held.ToldCodecMask & ~presentCodecMask; forgottenBits != 0; forgottenBits &= forgottenBits - 1)
 		{
-			int codecIndex = BitOperations.TrailingZeroCount(forgottenBits);
-			RemoveComponentDeltaWhenSent(state, snapshot, UnitCodecs[codecIndex], (byte)ReplicatedScope.Unit, unitEntity.Id);
+			RemoveSentUnitComponent(snapshot, held, BitOperations.TrailingZeroCount(forgottenBits), unitEntity.Id);
 		}
 
 		ulong describedMask = 0;
 		for (ulong presentBits = presentCodecMask; presentBits != 0; presentBits &= presentBits - 1)
 		{
 			int codecIndex = BitOperations.TrailingZeroCount(presentBits);
-			if (!AppendUnitComponentDelta(state, snapshot, UnitCodecs[codecIndex], codecIndex, unitEntity, tick, isBaseline)) continue;
+			if (!AppendUnitComponentDelta(snapshot, held, UnitCodecs[codecIndex], codecIndex, unitEntity, tick, isBaseline)) continue;
 
 			describedMask |= 1UL << codecIndex;
 		}
 
-		state.SentUnitComponentMasks[unitEntity.Id] = describedMask;
+		held.ToldCodecMask = describedMask;
 		snapshot.UnitComponentPresence?.Add(new UnitComponentPresence
 		{
 			ServerEntityId = unitEntity.Id,
@@ -668,22 +677,22 @@ public class AuthoritativeSnapshotBuilder
 	///     Describes one component of one unit to one peer, unless it was already told exactly this value. The bytes come
 	///     from this tick's description of that unit rather than from writing the component again for this peer.
 	/// </summary>
-	private bool AppendUnitComponentDelta(SnapshotPeerState state, WorldSnapshot snapshot, IReplicatedComponentCodec codec, int codecIndex, Entity entity, int tick, bool isBaseline)
+	private bool AppendUnitComponentDelta(WorldSnapshot snapshot, UnitDescriptionState held, IReplicatedComponentCodec codec, int codecIndex, Entity entity, int tick, bool isBaseline)
 	{
 		if (!_descriptions.TryGetComponentPayload(tick, entity.Id, codecIndex, out ReadOnlySpan<byte> payload))
 		{
 			payload = WriteComponentPayload(codec, entity);
 			if (payload.Length == 0)
 			{
-				RemoveComponentDeltaWhenSent(state, snapshot, codec, (byte)ReplicatedScope.Unit, entity.Id);
+				RemoveSentUnitComponent(snapshot, held, codecIndex, entity.Id);
 				return false;
 			}
 
 			_descriptions.SetComponentPayload(tick, entity.Id, codecIndex, payload);
 		}
 
-		var deltaKey = ((byte)ReplicatedScope.Unit, entity.Id, codec.ComponentTypeId);
-		if (!isBaseline && state.SentComponents.TryGetValue(deltaKey, out byte[]? previous))
+		byte[]? previous = isBaseline ? null : held.SentPayloads[codecIndex];
+		if (previous != null)
 		{
 			if (previous.AsSpan().SequenceEqual(payload)) return true;
 
@@ -703,7 +712,7 @@ public class AuthoritativeSnapshotBuilder
 
 		var bytes = new byte[codec.SizeInBytes];
 		payload.CopyTo(bytes);
-		state.SentComponents[deltaKey] = bytes;
+		held.SentPayloads[codecIndex] = bytes;
 
 		snapshot.ComponentDeltas.Add(new ComponentDelta
 		{
@@ -713,6 +722,24 @@ public class AuthoritativeSnapshotBuilder
 			Bytes = bytes
 		});
 		return true;
+	}
+
+	/// <summary>
+	///     States that a unit no longer carries a component this peer was told it had, which is what lets a peer drop what
+	///     the authority dropped. A component the peer was never told about states nothing.
+	/// </summary>
+	private static void RemoveSentUnitComponent(WorldSnapshot snapshot, UnitDescriptionState held, int codecIndex, int entityId)
+	{
+		if (held.SentPayloads[codecIndex] == null) return;
+
+		held.SentPayloads[codecIndex] = null;
+		snapshot.ComponentDeltas.Add(new ComponentDelta
+		{
+			Key = entityId,
+			ComponentTypeId = UnitCodecs[codecIndex].ComponentTypeId,
+			Scope = (byte)ReplicatedScope.Unit,
+			Bytes = Array.Empty<byte>()
+		});
 	}
 
 	/// <summary>
@@ -807,18 +834,9 @@ public class AuthoritativeSnapshotBuilder
 			if (!_describedEntityIds.Contains(rememberedEntityId)) _forgottenEntityIds.Add(rememberedEntityId);
 		}
 
-		for (int index = 0; index < _forgottenEntityIds.Count; index++)
-		{
-			int forgottenEntityId = _forgottenEntityIds[index];
-			state.SentUnits.Remove(forgottenEntityId);
-
-			for (int codecIndex = 0; codecIndex < UnitCodecs.Length; codecIndex++)
-			{
-				state.SentComponents.Remove(((byte)ReplicatedScope.Unit, forgottenEntityId, UnitCodecs[codecIndex].ComponentTypeId));
-			}
-
-			state.SentUnitComponentMasks.Remove(forgottenEntityId);
-		}
+		// Everything this peer held about a unit that left its sight is on the unit's own record, so forgetting one is one
+		// removal rather than one per component it might have carried.
+		for (int index = 0; index < _forgottenEntityIds.Count; index++) state.SentUnits.Remove(_forgottenEntityIds[index]);
 
 		state.DescribedEntityIds.Clear();
 		foreach (int describedEntityId in _describedEntityIds) state.DescribedEntityIds.Add(describedEntityId);
