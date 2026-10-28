@@ -142,6 +142,7 @@ public class RegistryService
 		if (string.IsNullOrEmpty(primaryKey)) return 1.0f;
 
 		if (UnitRegistry.TryGetValue(primaryKey, out var meta) && meta.CollisionCircle > 0f) return meta.CollisionCircle;
+		if (BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta) && buildingMeta.CollisionCircle > 0f) return buildingMeta.CollisionCircle;
 		if (ResourceRegistry.TryGetValue(primaryKey, out var resMeta) && resMeta.CollisionCircle > 0f) return resMeta.CollisionCircle;
 		if (PropRegistry.TryGetValue(primaryKey, out var propMeta) && propMeta.CollisionCircle > 0f) return propMeta.CollisionCircle;
 
@@ -154,6 +155,12 @@ public class RegistryService
 		if (UnitRegistry.TryGetValue(key, out var meta) && meta.Brightness > 0f)
 		{
 			brightness = meta.Brightness;
+			return true;
+		}
+
+		if (BuildingRegistry.TryGetValue(key, out var buildingMeta) && buildingMeta.Brightness > 0f)
+		{
+			brightness = buildingMeta.Brightness;
 			return true;
 		}
 
@@ -178,6 +185,12 @@ public class RegistryService
 		if (UnitRegistry.TryGetValue(key, out var meta) && !string.IsNullOrEmpty(meta.Tint) && Color.HtmlIsValid(meta.Tint))
 		{
 			color = Color.FromHtml(meta.Tint);
+			return true;
+		}
+
+		if (BuildingRegistry.TryGetValue(key, out var buildingMeta) && !string.IsNullOrEmpty(buildingMeta.Tint) && Color.HtmlIsValid(buildingMeta.Tint))
+		{
+			color = Color.FromHtml(buildingMeta.Tint);
 			return true;
 		}
 

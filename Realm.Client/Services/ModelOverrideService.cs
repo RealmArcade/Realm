@@ -68,6 +68,7 @@ public class ModelOverrideService
 		{
 			var registry = GameContext.RegistryService;
 			if (registry.UnitRegistry.TryGetValue(primaryKey, out var meta)) return meta.DespillPlayerColor;
+			if (registry.BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta)) return buildingMeta.DespillPlayerColor;
 			if (registry.ResourceRegistry.TryGetValue(primaryKey, out var resMeta)) return resMeta.DespillPlayerColor;
 			if (registry.PropRegistry.TryGetValue(primaryKey, out var propMeta)) return propMeta.DespillPlayerColor;
 		}
@@ -87,6 +88,7 @@ public class ModelOverrideService
 		{
 			var registry = GameContext.RegistryService;
 			if (registry.UnitRegistry.TryGetValue(primaryKey, out var meta)) return meta.NormalizeLuminance;
+			if (registry.BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta)) return buildingMeta.NormalizeLuminance;
 			if (registry.ResourceRegistry.TryGetValue(primaryKey, out var resMeta)) return resMeta.NormalizeLuminance;
 			if (registry.PropRegistry.TryGetValue(primaryKey, out var propMeta)) return propMeta.NormalizeLuminance;
 		}

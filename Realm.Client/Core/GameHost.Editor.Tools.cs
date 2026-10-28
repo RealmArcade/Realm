@@ -577,6 +577,7 @@ namespace Realm.Client.Core
 		{
 			if (string.IsNullOrEmpty(primaryKey)) return false;
 			if (UnitRegistry.TryGetValue(primaryKey, out var meta)) return meta.IgnorePlayerColor;
+			if (BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta)) return buildingMeta.IgnorePlayerColor;
 			if (ResourceRegistry.TryGetValue(primaryKey, out var resMeta)) return resMeta.IgnorePlayerColor;
 			if (PropRegistry.TryGetValue(primaryKey, out var propMeta)) return propMeta.IgnorePlayerColor;
 			if (AttachmentRegistry.TryGetValue(primaryKey, out _)) return true;
