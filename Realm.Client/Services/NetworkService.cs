@@ -689,6 +689,19 @@ public class NetworkService
 		ReplicatedEntityReferences.Unregister(serverEntityId);
 	}
 
+	/// <summary>
+	///     How fast a description says a unit is going, worked out from the distance it covered since the description
+	///     before it. A unit is described wherever the authority put it, and not every one of those descriptions reaches
+	///     this client, so the span is counted in sequences rather than assumed to be one snapshot.
+	/// </summary>
+	private static System.Numerics.Vector3 ResolveDescribedVelocity(System.Numerics.Vector3 displacement, int sequences, bool discontinuous)
+	{
+		if (discontinuous || sequences <= 0) return System.Numerics.Vector3.Zero;
+
+		float seconds = sequences * MatchTiming.SnapshotIntervalSeconds;
+		return seconds > 0f ? displacement / seconds : System.Numerics.Vector3.Zero;
+	}
+
 	private void ApplySnapshotToUnit(UnitSnapshot snap, int sequence, NetworkMappingState mapping)
 	{
 		if (!mapping.ServerToClientEntityMap.TryGetValue(snap.EntityId, out var localEntity))
@@ -721,12 +734,7 @@ public class NetworkService
 			hp.Current = snap.CurrentHp;
 			hp.Max = snap.MaxHp;
 			GameContext.World.Set(localEntity, hp);
-		}		var target = new InterpolationTarget
-		{
-			Position = snap.Position.ToNumerics(),
-			Velocity = snap.Velocity.ToNumerics(),
-			RotationY = snap.RotationY
-		};
+		}
 
 		// What the last description asked this client to walk toward, read before the new one replaces it. A step larger
 		// than a unit can travel between two applied snapshots is a discontinuity in what the authority is telling this
@@ -735,12 +743,11 @@ public class NetworkService
 		// trails the authority for the better part of a second, which is the six metre placement gap the lossy profile
 		// used to report at the start of a run. The condition is the cause stated directly - how far the target stepped -
 		// rather than a lag bound with a round trip in it.
+		System.Numerics.Vector3 describedPosition = snap.Position.ToNumerics();
 		System.Numerics.Vector3 previousTargetPosition = GameContext.World.Has<InterpolationTarget>(localEntity)
 			? GameContext.World.Get<InterpolationTarget>(localEntity).Position
-			: target.Position;
-		bool targetJumped = (target.Position - previousTargetPosition).Length() > MaximumPlausibleTargetStepMeters;
-
-		GameContext.World.SetOrAdd(localEntity, target);
+			: describedPosition;
+		bool targetJumped = (describedPosition - previousTargetPosition).Length() > MaximumPlausibleTargetStepMeters;
 
 		// The authority only describes a unit this peer can see, so a unit that leaves vision goes unmentioned for as long
 		// as it is away and comes back wherever it actually walked to. Gliding from the position the client last heard
@@ -753,6 +760,19 @@ public class NetworkService
 			? GameContext.World.Get<DescribedAtSequence>(localEntity).Sequence
 			: -1;
 		bool descriptionResumed = lastDescribedSequence >= 0 && sequence - lastDescribedSequence > UnobservedUnitGapSequences;
+
+		// How fast a unit is going is not on the wire: two descriptions of where it is say it, and carrying it as well
+		// cost half of what a description of a moving unit costs, because it is the part of a record that compression
+		// cannot fold away. A description that continues the one before it states the speed it covered that distance at;
+		// one that follows a gap or a jump states none, because the distance between them is not walking.
+		var target = new InterpolationTarget
+		{
+			Position = describedPosition,
+			Velocity = ResolveDescribedVelocity(describedPosition - previousTargetPosition, sequence - lastDescribedSequence, targetJumped || descriptionResumed),
+			RotationY = snap.RotationY
+		};
+
+		GameContext.World.SetOrAdd(localEntity, target);
 		if ((descriptionResumed || targetJumped) && !IsUnitOwnedByPrediction(localEntity) && GameContext.World.Has<Position>(localEntity))
 		{
 			PositionWriteTrace.Mark(localEntity, PositionWriter.Placement);
@@ -876,7 +896,7 @@ public class NetworkService
 			return Entity.Null;
 		}
 
-		Entity spawned = ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), snap.Velocity.ToNumerics(), snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex, snap.OwnerPlayerIndex);
+		Entity spawned = ApplySnapshotToEntity(snap.UnitId, snap.EntityId, snap.OwnerPlayerEntityId, snap.Position.ToNumerics(), System.Numerics.Vector3.Zero, snap.RotationY, snap.CurrentHp, snap.MaxHp, snap.IsBuilding, meta, ref mapping, getFallbackModelPath, out modelPath, out playerIndex, snap.OwnerPlayerIndex);
 		if (spawned != Entity.Null)
 		{
 			// The mapping exists only after this call, so the reconciliation pass that runs before the snapshot is applied
@@ -2358,7 +2378,6 @@ public class NetworkService
 		float distToCamera = unit.GlobalPosition.DistanceTo(cameraPos);
 		isDetailed = distToCamera <= DetailedPrecisionRadiusMeters;
 		System.Numerics.Vector3 position = world.Has<Position>(unit.Entity) ? world.Get<Position>(unit.Entity).Value : new System.Numerics.Vector3(unit.GlobalPosition.X, unit.GlobalPosition.Y, unit.GlobalPosition.Z);
-		System.Numerics.Vector3 velocity = world.Has<Velocity>(unit.Entity) ? world.Get<Velocity>(unit.Entity).Value : new System.Numerics.Vector3(unit.Velocity.X, unit.Velocity.Y, unit.Velocity.Z);
 		return new UnitSnapshot
 		{
 			EntityId = unit.Entity.Id,
@@ -2371,8 +2390,7 @@ public class NetworkService
 			MaxHp = world.Has<Health>(unit.Entity) ? world.Get<Health>(unit.Entity).Max : 0f,
 			IsDead = world.Has<Dead>(unit.Entity),
 			IsBuilding = unit.IsBuilding,
-			IsDetailed = isDetailed,
-			Velocity = new NetworkVector3(velocity.X, velocity.Y, velocity.Z)
+			IsDetailed = isDetailed
 		};
 	}
 

@@ -30,8 +30,18 @@ public class AuthoritativeSnapshotBuilder
 	private static readonly IReplicatedComponentCodec[] UnitCodecs = SelectCodecs(ReplicatedScope.Unit);
 	private static readonly ComponentMask[] UnitCodecMasks = SelectMasks(UnitCodecs);
 
-	/// <summary>Whether one word can name every unit codec this match replicates, which is what makes the bit test valid.</summary>
-	private static readonly bool UnitCodecMaskCoversEveryCodec = UnitCodecs.Length <= 64;
+	/// <summary>
+	///     How many components one unit can be described with. One component of one unit is described once for the whole
+	///     room, so the description cache needs room for this many per entity.
+	/// </summary>
+	public static int UnitCodecCount => UnitCodecs.Length;
+
+	static AuthoritativeSnapshotBuilder()
+	{
+		// What a unit carries this tick, what a peer was told it carried and the presence a baseline states are each held
+		// in one word. A component added beyond the last bit would be described by a mask that cannot name it.
+		if (UnitCodecs.Length > 64) throw new InvalidOperationException("A unit cannot be described with more than 64 replicated components.");
+	}
 
 	/// <summary>The presence slot of each unit codec, or minus one for a codec the wire contract does not state presence for.</summary>
 	private static readonly int[] UnitCodecPresenceSlots = SelectPresenceSlots(UnitCodecs);
@@ -198,7 +208,7 @@ public class AuthoritativeSnapshotBuilder
 			lock (_abilityLock) snapshot.AbilityStates = new List<AbilityStateDelta>(Abilities.CollectDeltas(peerId, _world, isBaseline));
 		}
 
-		AppendComponentDeltas(state, snapshot, isBaseline);
+		AppendComponentDeltas(state, snapshot, sequence, isBaseline);
 		ForgetUntrackedUnitComponents(state);
 		return snapshot;
 	}
@@ -220,7 +230,6 @@ public class AuthoritativeSnapshotBuilder
 		if (described.IsBuilding != sent.IsBuilding) return false;
 		if (described.IsDetailed != sent.IsDetailed) return false;
 		if (described.Position.X != sent.Position.X || described.Position.Y != sent.Position.Y || described.Position.Z != sent.Position.Z) return false;
-		if (described.Velocity.X != sent.Velocity.X || described.Velocity.Y != sent.Velocity.Y || described.Velocity.Z != sent.Velocity.Z) return false;
 
 		return string.Equals(described.UnitId, sent.UnitId, StringComparison.Ordinal);
 	}
@@ -521,7 +530,6 @@ public class AuthoritativeSnapshotBuilder
 
 	private UnitSnapshot DescribeUnit(Entity entity, Vector3 position)
 	{
-		Vector3 velocity = _world.TryGet<Velocity>(entity, out Velocity describedVelocity) ? describedVelocity.Value : Vector3.Zero;
 		float rotation = _world.TryGet<RotationY>(entity, out RotationY describedRotation) ? describedRotation.Value : 0f;
 		Health health = _world.Get<Health>(entity);
 
@@ -537,8 +545,7 @@ public class AuthoritativeSnapshotBuilder
 			MaxHp = health.Max,
 			IsDead = _world.Has<Dead>(entity),
 			IsBuilding = _world.Has<Building>(entity),
-			IsDetailed = true,
-			Velocity = new NetworkVector3(velocity.X, velocity.Y, velocity.Z)
+			IsDetailed = true
 		};
 	}
 
@@ -567,7 +574,7 @@ public class AuthoritativeSnapshotBuilder
 		return _peerIdByPlayerSlot[playerIndex];
 	}
 
-	private void AppendComponentDeltas(SnapshotPeerState state, WorldSnapshot snapshot, bool isBaseline)
+	private void AppendComponentDeltas(SnapshotPeerState state, WorldSnapshot snapshot, int sequence, bool isBaseline)
 	{
 		for (int codecIndex = 0; codecIndex < WorldCodecs.Length; codecIndex++)
 		{
@@ -590,46 +597,133 @@ public class AuthoritativeSnapshotBuilder
 
 		for (int unitIndex = 0; unitIndex < _describedUnits.Count; unitIndex++)
 		{
-			Entity unitEntity = _describedUnits[unitIndex].Entity;
-			ulong presenceMask = 0;
-			ulong toldMask = state.SentUnitComponentMasks.TryGetValue(unitEntity.Id, out ulong rememberedMask) ? rememberedMask : 0UL;
+			AppendUnitComponentDeltas(state, snapshot, _describedUnits[unitIndex].Entity, sequence, isBaseline);
+		}
+	}
 
-			for (int codecIndex = 0; codecIndex < UnitCodecs.Length; codecIndex++)
+	/// <summary>
+	///     Describes the components one unit carries to one peer. Which components a unit carries, the bytes they are
+	///     written into and the presence a baseline states are all the same for every peer, so they are worked out once
+	///     per tick; what is left here is one peer comparing its own record of what it was told.
+	/// </summary>
+	private void AppendUnitComponentDeltas(SnapshotPeerState state, WorldSnapshot snapshot, Entity unitEntity, int tick, bool isBaseline)
+	{
+		if (!_descriptions.TryGetUnitComponentState(tick, unitEntity.Id, out ulong presentCodecMask, out ulong presenceMask))
+		{
+			(presentCodecMask, presenceMask) = DescribeUnitComponentState(unitEntity);
+			_descriptions.SetUnitComponentState(tick, unitEntity.Id, presentCodecMask, presenceMask);
+		}
+
+		state.SentUnitComponentMasks.TryGetValue(unitEntity.Id, out ulong toldMask);
+
+		// A component the authority dropped since this peer was told about it is stated as a removal, which is what lets
+		// a peer drop what the authority dropped.
+		for (ulong forgottenBits = toldMask & ~presentCodecMask; forgottenBits != 0; forgottenBits &= forgottenBits - 1)
+		{
+			int codecIndex = BitOperations.TrailingZeroCount(forgottenBits);
+			RemoveComponentDeltaWhenSent(state, snapshot, UnitCodecs[codecIndex], (byte)ReplicatedScope.Unit, unitEntity.Id);
+		}
+
+		ulong describedMask = 0;
+		for (ulong presentBits = presentCodecMask; presentBits != 0; presentBits &= presentBits - 1)
+		{
+			int codecIndex = BitOperations.TrailingZeroCount(presentBits);
+			if (!AppendUnitComponentDelta(state, snapshot, UnitCodecs[codecIndex], codecIndex, unitEntity, tick, isBaseline)) continue;
+
+			describedMask |= 1UL << codecIndex;
+		}
+
+		state.SentUnitComponentMasks[unitEntity.Id] = describedMask;
+		snapshot.UnitComponentPresence?.Add(new UnitComponentPresence
+		{
+			ServerEntityId = unitEntity.Id,
+			Mask = presenceMask
+		});
+	}
+
+	/// <summary>
+	///     Which of the components a unit can be described with it carries, and which of those a baseline states the
+	///     presence of. A unit carries a handful of them, so walking the components it has is a fraction of walking every
+	///     component the wire contract describes.
+	/// </summary>
+	private (ulong PresentCodecMask, ulong PresenceMask) DescribeUnitComponentState(Entity unitEntity)
+	{
+		ulong presentCodecMask = 0;
+		ulong presenceMask = 0;
+
+		for (int codecIndex = 0; codecIndex < UnitCodecs.Length; codecIndex++)
+		{
+			if (!_world.Has(unitEntity, UnitCodecMasks[codecIndex])) continue;
+
+			presentCodecMask |= 1UL << codecIndex;
+
+			int presenceSlot = UnitCodecPresenceSlots[codecIndex];
+			if (presenceSlot >= 0) presenceMask |= 1UL << presenceSlot;
+		}
+
+		return (presentCodecMask, presenceMask);
+	}
+
+	/// <summary>
+	///     Describes one component of one unit to one peer, unless it was already told exactly this value. The bytes come
+	///     from this tick's description of that unit rather than from writing the component again for this peer.
+	/// </summary>
+	private bool AppendUnitComponentDelta(SnapshotPeerState state, WorldSnapshot snapshot, IReplicatedComponentCodec codec, int codecIndex, Entity entity, int tick, bool isBaseline)
+	{
+		if (!_descriptions.TryGetComponentPayload(tick, entity.Id, codecIndex, out ReadOnlySpan<byte> payload))
+		{
+			payload = WriteComponentPayload(codec, entity);
+			if (payload.Length == 0)
 			{
-				IReplicatedComponentCodec codec = UnitCodecs[codecIndex];
-				ulong toldBit = UnitCodecMaskCoversEveryCodec ? 1UL << codecIndex : 0UL;
-
-				// A unit carries a handful of the components this match replicates. Asking its own mask costs one bit
-				// test where calling the codec cost a virtual call that only ever answered "this unit does not have me".
-				if (!_world.Has(unitEntity, UnitCodecMasks[codecIndex]))
-				{
-					// Nothing to take back unless this peer was told the unit carried it, and that is one bit of the word
-					// this loop is already holding. Without it the tick hashed every absent component of every visible unit
-					// for every peer, which was most of what describing a unit cost.
-					if ((toldMask & toldBit) != 0)
-					{
-						toldMask &= ~toldBit;
-						RemoveComponentDeltaWhenSent(state, snapshot, codec, (byte)ReplicatedScope.Unit, unitEntity.Id);
-					}
-
-					continue;
-				}
-
-				if (!AppendComponentDelta(state, snapshot, codec, unitEntity, (byte)ReplicatedScope.Unit, unitEntity.Id, isBaseline)) continue;
-				toldMask |= toldBit;
-				int presenceSlot = UnitCodecPresenceSlots[codecIndex];
-				if (presenceSlot < 0) continue;
-
-				presenceMask |= 1UL << presenceSlot;
+				RemoveComponentDeltaWhenSent(state, snapshot, codec, (byte)ReplicatedScope.Unit, entity.Id);
+				return false;
 			}
 
-			state.SentUnitComponentMasks[unitEntity.Id] = toldMask;
-			snapshot.UnitComponentPresence?.Add(new UnitComponentPresence
-			{
-				ServerEntityId = unitEntity.Id,
-				Mask = presenceMask
-			});
+			_descriptions.SetComponentPayload(tick, entity.Id, codecIndex, payload);
 		}
+
+		var deltaKey = ((byte)ReplicatedScope.Unit, entity.Id, codec.ComponentTypeId);
+		if (!isBaseline && state.SentComponents.TryGetValue(deltaKey, out byte[]? previous))
+		{
+			if (previous.AsSpan().SequenceEqual(payload)) return true;
+
+			// The payload is written into the buffer this peer's description already owned. A component that changes
+			// every tick used to allocate a new array for every peer that had to be told about it, and those arrays
+			// were the bulk of what this process left to the collector.
+			payload.CopyTo(previous);
+			snapshot.ComponentDeltas.Add(new ComponentDelta
+			{
+				Key = entity.Id,
+				ComponentTypeId = codec.ComponentTypeId,
+				Scope = (byte)ReplicatedScope.Unit,
+				Bytes = previous
+			});
+			return true;
+		}
+
+		var bytes = new byte[codec.SizeInBytes];
+		payload.CopyTo(bytes);
+		state.SentComponents[deltaKey] = bytes;
+
+		snapshot.ComponentDeltas.Add(new ComponentDelta
+		{
+			Key = entity.Id,
+			ComponentTypeId = codec.ComponentTypeId,
+			Scope = (byte)ReplicatedScope.Unit,
+			Bytes = bytes
+		});
+		return true;
+	}
+
+	/// <summary>
+	///     Writes one component of one entity into the builder's scratch, or nothing when the entity does not carry it.
+	/// </summary>
+	private ReadOnlySpan<byte> WriteComponentPayload(IReplicatedComponentCodec codec, Entity entity)
+	{
+		if (_writeScratch.Length < codec.SizeInBytes) _writeScratch = new byte[codec.SizeInBytes];
+
+		Span<byte> scratch = _writeScratch.AsSpan(0, codec.SizeInBytes);
+		return codec.TryWrite(_world, entity, scratch) ? scratch : ReadOnlySpan<byte>.Empty;
 	}
 
 	/// <summary>

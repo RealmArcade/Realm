@@ -320,6 +320,7 @@ public sealed class AuthorityBenchmark : IDisposable
 		}
 
 		double allVisibleDeltaBytes = MeasureAllVisibleDelta();
+		DeltaComposition composition = MeasureComposition();
 
 		Array.Sort(tickMicros);
 
@@ -347,7 +348,35 @@ public sealed class AuthorityBenchmark : IDisposable
 			deltaPasses == 0 ? 0 : deltaBytes / deltaPasses,
 			snapshotPasses == 0 ? 0 : baselineBytes / _options.Players,
 			allVisibleDeltaBytes,
-			snapshotPasses == 0 ? 0 : visibleUnits / (snapshotPasses * (double)_options.Players));
+			snapshotPasses == 0 ? 0 : visibleUnits / (snapshotPasses * (double)_options.Players),
+			composition);
+	}
+
+	/// <summary>
+	///     What a delta frame carries, section by section, on the same peer. The frame is measured on a tick that
+	///     follows a baseline, so every section holds what a match in progress actually sends rather than a catalog or a
+	///     content payload that only a baseline carries.
+	/// </summary>
+	private DeltaComposition MeasureComposition()
+	{
+		DescribePeer(0, ++_sequence, true);
+		StepOnce();
+		_sequence++;
+
+		WorldSnapshot snapshot = DescribePeer(0, _sequence, false);
+		byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
+		double frameBytes = SnapshotWireFormat.EncodeDelta(serialized).Length;
+
+		return new DeltaComposition(
+			frameBytes,
+			serialized.Length,
+			MemoryPackSerializer.Serialize(snapshot.Units).Length,
+			snapshot.Units.Count,
+			MemoryPackSerializer.Serialize(snapshot.ComponentDeltas).Length,
+			snapshot.ComponentDeltas.Count,
+			MemoryPackSerializer.Serialize(snapshot.AbilityStates).Length,
+			MemoryPackSerializer.Serialize(snapshot.Catalog).Length,
+			MemoryPackSerializer.Serialize(snapshot.ColdPayloads).Length);
 	}
 
 	private double MeasureAllVisibleDelta()

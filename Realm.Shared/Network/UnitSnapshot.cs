@@ -17,5 +17,4 @@ public partial struct UnitSnapshot
 	public bool IsDead;
 	public bool IsBuilding;
 	public bool IsDetailed;
-	public NetworkVector3 Velocity;
 }

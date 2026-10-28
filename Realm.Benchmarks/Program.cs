@@ -76,6 +76,17 @@ for (int rateIndex = 0; rateIndex < 3; rateIndex++)
 }
 
 Console.WriteLine();
+Console.WriteLine();
+Console.WriteLine($"delta frame composition ({result.Composition.UnitCount:F0} unit records, {result.Composition.ComponentCount:F0} component records)");
+WriteRow("serialized", result.Composition.SerializedBytes, " B");
+WriteRow("frame", result.Composition.FrameBytes, " B");
+WriteRow("unit records", result.Composition.UnitBytes, " B");
+WriteRow("component records", result.Composition.ComponentBytes, " B");
+WriteRow("ability states", result.Composition.AbilityBytes, " B");
+WriteRow("catalog", result.Composition.CatalogBytes, " B");
+WriteRow("cold payloads", result.Composition.ColdPayloadBytes, " B");
+Console.WriteLine();
+
 Console.WriteLine("baseline burst (one baseline per peer on the same tick)");
 WriteRow("all peers", result.BaselineBytesPerPeer * result.Players / 1_000_000.0, " MB");
 

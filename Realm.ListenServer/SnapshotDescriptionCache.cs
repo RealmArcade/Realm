@@ -23,6 +23,12 @@ public class SnapshotDescriptionCache
 	private readonly object[] _stripes = new object[StripeCount];
 	private readonly UnitSnapshot[] _unitRecords = new UnitSnapshot[EcsWorld.MAX_ENTITIES];
 	private readonly int[] _unitRecordTicks = new int[EcsWorld.MAX_ENTITIES];
+	private readonly ulong[] _presentCodecMasks = new ulong[EcsWorld.MAX_ENTITIES];
+	private readonly ulong[] _presenceMasks = new ulong[EcsWorld.MAX_ENTITIES];
+	private readonly int[] _componentStateTicks = new int[EcsWorld.MAX_ENTITIES];
+	private readonly int _unitCodecCount;
+	private readonly byte[]?[] _componentPayloads;
+	private readonly int[] _componentPayloadTicks;
 
 	private readonly object _wholeBoardLock = new();
 	private int _wholeBoardTick = int.MinValue;
@@ -39,10 +45,17 @@ public class SnapshotDescriptionCache
 	/// <summary>The lock a worker takes to decide whether this tick's whole-board visibility has to be walked or is already there.</summary>
 	public object WholeBoardGate => _wholeBoardLock;
 
-	public SnapshotDescriptionCache()
+	/// <param name="unitCodecCount">How many components one unit can be described with, so a payload has somewhere to live.</param>
+	public SnapshotDescriptionCache(int unitCodecCount)
 	{
+		_unitCodecCount = unitCodecCount;
+		_componentPayloads = new byte[]?[EcsWorld.MAX_ENTITIES * unitCodecCount];
+		_componentPayloadTicks = new int[EcsWorld.MAX_ENTITIES * unitCodecCount];
+
 		for (int index = 0; index < _stripes.Length; index++) _stripes[index] = new object();
 	}
+
+	private object Stripe(int entityId) => _stripes[entityId & (StripeCount - 1)];
 
 	/// <summary>Records the visibility the whole board shares, for the peers of the same tick that follow.</summary>
 	public void PublishWholeBoard(int tick) => Volatile.Write(ref _wholeBoardTick, tick);
@@ -53,7 +66,7 @@ public class SnapshotDescriptionCache
 	/// </summary>
 	public bool TryGetUnitRecord(int tick, int entityId, out UnitSnapshot described)
 	{
-		lock (_stripes[entityId & (StripeCount - 1)])
+		lock (Stripe(entityId))
 		{
 			described = _unitRecords[entityId];
 			return _unitRecordTicks[entityId] == tick;
@@ -63,12 +76,77 @@ public class SnapshotDescriptionCache
 	/// <summary>Remembers what this tick says about one unit, so the peers that follow it do not work it out again.</summary>
 	public void SetUnitRecord(int tick, int entityId, in UnitSnapshot described)
 	{
-		lock (_stripes[entityId & (StripeCount - 1)])
+		lock (Stripe(entityId))
 		{
 			if (_unitRecordTicks[entityId] == tick) return;
 
 			_unitRecords[entityId] = described;
 			_unitRecordTicks[entityId] = tick;
+		}
+	}
+
+	/// <summary>
+	///     Which of the components a unit can be described with it actually carries, and which of them a baseline states
+	///     presence for, if a peer describing this tick already worked that out. A unit carries a handful of the components
+	///     the wire contract describes, so this is the difference between asking about forty-five of them for every peer
+	///     and asking once for the room.
+	/// </summary>
+	public bool TryGetUnitComponentState(int tick, int entityId, out ulong presentCodecMask, out ulong presenceMask)
+	{
+		lock (Stripe(entityId))
+		{
+			presentCodecMask = _presentCodecMasks[entityId];
+			presenceMask = _presenceMasks[entityId];
+			return _componentStateTicks[entityId] == tick;
+		}
+	}
+
+	/// <summary>Remembers the components one unit carries this tick, so the peers that follow do not look for them again.</summary>
+	public void SetUnitComponentState(int tick, int entityId, ulong presentCodecMask, ulong presenceMask)
+	{
+		lock (Stripe(entityId))
+		{
+			if (_componentStateTicks[entityId] == tick) return;
+
+			_presentCodecMasks[entityId] = presentCodecMask;
+			_presenceMasks[entityId] = presenceMask;
+			_componentStateTicks[entityId] = tick;
+		}
+	}
+
+	/// <summary>
+	///     The bytes one component of one unit is described with this tick, if a peer already wrote them. The bytes a
+	///     component is written into are the same for every peer, so a room of twenty-four described the same component
+	///     twenty-four times over before this.
+	/// </summary>
+	public bool TryGetComponentPayload(int tick, int entityId, int codecIndex, out ReadOnlySpan<byte> payload)
+	{
+		int slot = entityId * _unitCodecCount + codecIndex;
+		lock (Stripe(entityId))
+		{
+			byte[]? stored = _componentPayloads[slot];
+			if (stored != null && _componentPayloadTicks[slot] == tick)
+			{
+				payload = stored;
+				return true;
+			}
+
+			payload = default;
+			return false;
+		}
+	}
+
+	/// <summary>Keeps the bytes one component of one unit was written into, for the peers that follow this tick.</summary>
+	public void SetComponentPayload(int tick, int entityId, int codecIndex, ReadOnlySpan<byte> payload)
+	{
+		int slot = entityId * _unitCodecCount + codecIndex;
+		lock (Stripe(entityId))
+		{
+			if (_componentPayloadTicks[slot] == tick) return;
+
+			byte[] stored = _componentPayloads[slot] ??= new byte[payload.Length];
+			payload.CopyTo(stored);
+			_componentPayloadTicks[slot] = tick;
 		}
 	}
 }

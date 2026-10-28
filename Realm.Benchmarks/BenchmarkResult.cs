@@ -24,7 +24,8 @@ public sealed record BenchmarkResult(
 	double DeltaBytesPerPeer,
 	double BaselineBytesPerPeer,
 	double AllVisibleDeltaBytesPerPeer,
-	double VisibleUnitsPerPeer)
+	double VisibleUnitsPerPeer,
+	DeltaComposition Composition)
 {
 	public double SnapshotMicrosPerPeer => SnapshotBuildMicros + SnapshotSerializeMicros + SnapshotCompressMicros;
 

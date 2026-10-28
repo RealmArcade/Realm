@@ -28,7 +28,7 @@ public class SnapshotFanOut
 	private readonly AuthoritativeSnapshotBuilder[] _builders;
 	private readonly ConcurrentBag<AuthoritativeSnapshotBuilder> _idleBuilders = new();
 	private readonly SnapshotPeerStateStore _peerStates = new();
-	private readonly SnapshotDescriptionCache _descriptions = new();
+	private readonly SnapshotDescriptionCache _descriptions = new(AuthoritativeSnapshotBuilder.UnitCodecCount);
 	private readonly object _abilityLock = new();
 
 	public SnapshotFanOut(EcsWorld world, SimulationContext context, Entity worldEntity, MapRulesCatalog rules, int workerCount)
