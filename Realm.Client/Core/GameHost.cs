@@ -3261,12 +3261,46 @@ public partial class GameHost : Node3D
 		// Every bake uses the volumes the match baked with, so a bake that runs after the authority's set arrived and one
 		// that ran before it both describe the same corridors.
 		ApplyStoredObstacleVolumes();
+
+		// A screen that joined a match paths through the mesh the authority built, and the volumes that mesh was built
+		// from are on their way from the process that decided them. Baking before they arrive builds a mesh with none of
+		// the map's blockers - a screen runs no map script, so it has none of its own - and every corridor it answers
+		// from that mesh is one the authority does not have. The wait is bounded: a match whose authority has no mesh to
+		// report never sends one, and the screen cannot stay meshless for it.
+		if (_awaitingAuthoritativeObstacleVolumes && Time.GetTicksMsec() < _authoritativeObstacleDeadlineMsec)
+		{
+			RequestNavMeshRefresh();
+			return;
+		}
+
 		GroundTerrain.BakeNavMesh();
 	}
 
 	private const ulong NavMeshRefreshDelayMsec = 500;
 	private bool _navMeshRefreshPending;
 	private ulong _navMeshRefreshDeadlineMsec;
+
+	/// <summary>
+	///     How long a screen waits for the obstacle volumes its match was baked with before it bakes without them. The set
+	///     is sent the moment the connection is seated, so this only runs out for a match that never had a mesh to report.
+	/// </summary>
+	private const ulong AuthoritativeObstacleWaitMsec = 2000;
+
+	private bool _awaitingAuthoritativeObstacleVolumes;
+	private ulong _authoritativeObstacleDeadlineMsec;
+
+	/// <summary>
+	///     States that this screen's mesh is not its own: a joined match bakes from the volumes its authority reports, so a
+	///     bake is held until they arrive rather than built from the props this screen happens to hold.
+	/// </summary>
+	public void AwaitAuthoritativeObstacleVolumes()
+	{
+		_awaitingAuthoritativeObstacleVolumes = true;
+		_authoritativeObstacleDeadlineMsec = Time.GetTicksMsec() + AuthoritativeObstacleWaitMsec;
+	}
+
+	/// <summary>States that the volumes this match was baked with have arrived, so a bake may be made from them.</summary>
+	public void StopAwaitingAuthoritativeObstacleVolumes() => _awaitingAuthoritativeObstacleVolumes = false;
 
 	/// <summary>
 	/// Asks for a navigation mesh bake once the world has stopped changing. A bake is expensive and a map load spawns

@@ -56,8 +56,11 @@ public partial class GameHost
 		}
 
 		// Both of these are sent the moment the authority seats this connection, which is before this screen exists, so
-		// the newest of each is applied here rather than waiting for a second copy that is never sent.
+		// the newest of each is applied here rather than waiting for a second copy that is never sent. A connection that
+		// was seated with its volumes still on the way holds its first bake until they arrive, because the mesh this
+		// screen paths through has to be the one the authority built.
 		if (session.LatestNavMeshObstacles is { } obstacles) ApplyNavMeshObstacles(obstacles);
+		else AwaitAuthoritativeObstacleVolumes();
 		if (session.LatestPauseState is { } pause) ApplyMatchPause(pause);
 	}
 
@@ -73,6 +76,7 @@ public partial class GameHost
 		if (session == null || !ReferenceEquals(session, _joinedSession)) return;
 
 		_joinedSession = null;
+		StopAwaitingAuthoritativeObstacleVolumes();
 		session.Stop();
 		GameContext.DetachServerSession();
 	}
@@ -169,6 +173,8 @@ public partial class GameHost
 	/// </summary>
 	private void ApplyNavMeshObstacles(NavMeshObstacleVolumes volumes)
 	{
+		StopAwaitingAuthoritativeObstacleVolumes();
+
 		if (volumes.Positions == null || volumes.Radii == null) return;
 
 		int count = Math.Min(volumes.Positions.Length, volumes.Radii.Length);
