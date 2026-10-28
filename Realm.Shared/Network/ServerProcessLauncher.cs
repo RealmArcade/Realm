@@ -33,6 +33,20 @@ public static class ServerArgumentFlags
 	///     match anyone else can join and cheat in.
 	/// </summary>
 	public const string CheatsFlag = "--cheats";
+
+	/// <summary>
+	///     Whether the authority keeps the debug information of the map script it runs. Wasmtime only emits the JIT ELF a
+	///     debugger loads when it was told to keep DWARF, so this is what makes a map script breakpoint-able. Only a map
+	///     being tested from the editor is started with it: a normal match compiles its script for speed and writes no
+	///     debug artifact.
+	/// </summary>
+	public const string WasmDebugFlag = "--wasm-debug";
+
+	/// <summary>
+	///     The map workspace the script being run was compiled from. The authority exports the script's JIT ELF into it, so
+	///     the debugger configuration the workspace already carries finds the very module the running script was built from.
+	/// </summary>
+	public const string WorkspaceFlag = "--workspace";
 }
 
 /// <summary>
@@ -72,6 +86,19 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 	///     listening where they were told to look.
 	/// </summary>
 	public int Port { get; init; }
+
+	/// <summary>
+	///     Whether the authority keeps the debug information of the map script and exports its JIT ELF, which is what lets a
+	///     debugger attach to the script. Only a map being tested from the editor asks for it, so every other match compiles
+	///     its script for speed and leaves no debug artifact behind.
+	/// </summary>
+	public bool WasmDebug { get; init; }
+
+	/// <summary>
+	///     The map workspace the script was compiled from, which is where the authority exports the JIT ELF a debugger loads.	///     Nothing means the authority works it out from where the script sits, which is the case for a map folder opened on
+	///     its own.
+	/// </summary>
+	public string? MapWorkspacePath { get; init; }
 
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
@@ -187,6 +214,12 @@ public class ServerProcessLauncher : IDisposable
 	/// <summary>Whether the authority is still there. A match that finds this false reports the loss rather than waiting.</summary>
 	public bool IsRunning => !_process.HasExited;
 
+	/// <summary>
+	///     The identifier of the process running the match. A debugger attaches to this one, not to the screen the match is
+	///     played on, because this is the process the map script runs inside.
+	/// </summary>
+	public int ProcessId => _process.Id;
+
 	/// <summary>The exit code of an authority that has ended, or the smallest integer when it is still running.</summary>
 	public int ExitCode => _process.HasExited ? _process.ExitCode : int.MinValue;
 
@@ -292,6 +325,12 @@ public class ServerProcessLauncher : IDisposable
 			startInfo.ArgumentList.Add(Path.GetFullPath(request.DataFolderPath));
 		}
 		if (request.Cheats) startInfo.ArgumentList.Add(ServerArgumentFlags.CheatsFlag);
+		if (request.WasmDebug) startInfo.ArgumentList.Add(ServerArgumentFlags.WasmDebugFlag);
+		if (request.WasmDebug && !string.IsNullOrWhiteSpace(request.MapWorkspacePath))
+		{
+			startInfo.ArgumentList.Add(ServerArgumentFlags.WorkspaceFlag);
+			startInfo.ArgumentList.Add(Path.GetFullPath(request.MapWorkspacePath));
+		}
 
 		try
 		{

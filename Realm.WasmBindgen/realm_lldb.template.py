@@ -16,8 +16,9 @@ def get_shared_memory_base(target):
 
     candidate_names = [
         "g_realmSharedMemoryBase",
-        "Realm_MapAPI_EcsSharedMemory_g_realmSharedMemoryBase",
-        "Realm.MapAPI.EcsSharedMemory.g_realmSharedMemoryBase",
+        "Realm_Ecs_EcsSharedMemory_g_realmSharedMemoryBase",
+        "Realm.Ecs.EcsSharedMemory.g_realmSharedMemoryBase",
+        "Realm::Ecs::EcsSharedMemory::g_realmSharedMemoryBase",
     ]
 
     process = target.GetProcess()
@@ -307,10 +308,10 @@ def UnitIdSummaryProvider(valobj, internal_dict):
 def __lldb_init_module(debugger, internal_dict):
     category = "Realm"
 
-    debugger.HandleCommand(f"type synthetic add -l realm_lldb.PlayerIdSyntheticProvider -x \"^Realm[.:]MapAPI[.:]PlayerId$\" -w {category}")
-    debugger.HandleCommand(f"type summary add -F realm_lldb.PlayerIdSummaryProvider -x \"^Realm[.:]MapAPI[.:]PlayerId$\" -w {category}")
+    debugger.HandleCommand(f"type synthetic add -l realm_lldb.PlayerIdSyntheticProvider -x \"^Realm[.:]Ecs[.:]PlayerId$\" -w {category}")
+    debugger.HandleCommand(f"type summary add -F realm_lldb.PlayerIdSummaryProvider -x \"^Realm[.:]Ecs[.:]PlayerId$\" -w {category}")
 
-    debugger.HandleCommand(f"type synthetic add -l realm_lldb.UnitIdSyntheticProvider -x \"^Realm[.:]MapAPI[.:]UnitId$\" -w {category}")
-    debugger.HandleCommand(f"type summary add -F realm_lldb.UnitIdSummaryProvider -x \"^Realm[.:]MapAPI[.:]UnitId$\" -w {category}")
+    debugger.HandleCommand(f"type synthetic add -l realm_lldb.UnitIdSyntheticProvider -x \"^Realm[.:]Ecs[.:]UnitId$\" -w {category}")
+    debugger.HandleCommand(f"type summary add -F realm_lldb.UnitIdSummaryProvider -x \"^Realm[.:]Ecs[.:]UnitId$\" -w {category}")
 
     debugger.HandleCommand(f"type category enable {category}")

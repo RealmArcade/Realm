@@ -41,7 +41,17 @@ public class ServerSimulation : IDisposable
 	private bool _disposed;
 	private long _navMeshRebakeTick = -1;
 
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false)
+	/// <param name="map">The map the match plays.</param>
+	/// <param name="paths">Where the match's files are.</param>
+	/// <param name="log">The log the match writes what it decided.</param>
+	/// <param name="randomSeed">The seed the map's script draws from.</param>
+	/// <param name="cheatsEnabled">Whether a player of this match may cheat.</param>
+	/// <param name="wasmDebug">
+	///     Whether the map's script is kept debug-able, which is what the editor's playtest asks for so a breakpoint in the
+	///     map reaches the process the script runs in.
+	/// </param>
+	/// <param name="mapWorkspacePath">The workspace the script was compiled from, or nothing to work it out from the map.</param>
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null)
 	{
 		_map = map;
 		_log = log;
@@ -56,7 +66,7 @@ public class ServerSimulation : IDisposable
 		_construction = new ConstructionTick(map.Simulation, map.Catalog);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
-		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot);
+		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath);
 		_snapshots.Abilities = _script.Api.Abilities;
 		_snapshots.TechLevels = _script.Api.TechLevels;
 		_script.Api.PlayerDroppedSink = DropPlayer;

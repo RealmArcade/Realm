@@ -2,7 +2,7 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Debug WASM Map Script (Attach via CodeLLDB)",
+			"name": "Attach to Realm Authority (Map Script WASM)",
 			"type": "lldb",
 			"request": "attach",
 			"pid": "${command:pickMyProcess}",

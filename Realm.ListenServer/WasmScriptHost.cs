@@ -41,7 +41,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 	private readonly EcsWorld? _world;
 	private readonly int _randomSeed;
 	private readonly string? _logDirectory;
-	private readonly string? _tempWorkspacePath;
+	private readonly string? _mapWorkspacePath;
 
 	public static event Action<string>? OnWasmLog;
 
@@ -95,20 +95,15 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 
 	public bool IsFaulted { get; private set; }
 
-	private static bool IsDebugWasmFlagActive()
-	{
-		return Array.Exists(System.Environment.GetCommandLineArgs(), a => a.Equals("--debug-wasm", StringComparison.OrdinalIgnoreCase));
-	}
-
-	public WasmScriptHost(string wasmPath, string mapName, SimulationContext simulation, EcsWorld world, int randomSeed, string? logDirectory = null, string? tempWorkspacePath = null, bool isDebug = false)
+	public WasmScriptHost(string wasmPath, string mapName, SimulationContext simulation, EcsWorld world, int randomSeed, string? logDirectory = null, string? mapWorkspacePath = null, bool isDebug = false)
 	{
 		_mapName = mapName;
 		_simulation = simulation;
 		_world = world;
 		_randomSeed = randomSeed;
-		_tempWorkspacePath = tempWorkspacePath;
+		_mapWorkspacePath = mapWorkspacePath;
 		_logDirectory = logDirectory;
-		_isDebugMode = isDebug || IsDebugWasmFlagActive();
+		_isDebugMode = isDebug;
 
 		try
 		{
@@ -119,7 +114,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 			_engine = new Engine(config);
 			if (_isDebugMode)
 			{
-				LogToConsole($"[WASM RUNTIME] Debug mode enabled with DWARF symbols. Attach debugger to process '{System.Diagnostics.Process.GetCurrentProcess().ProcessName}' (PID {System.Diagnostics.Process.GetCurrentProcess().Id}).");
+				LogToConsole($"[WASM RUNTIME] Debug mode enabled with DWARF symbols for '{wasmPath}'. Attach the map workspace debugger to process '{System.Diagnostics.Process.GetCurrentProcess().ProcessName}' (PID {System.Diagnostics.Process.GetCurrentProcess().Id}).");
 			}
 			_module = Module.FromFile(_engine, wasmPath);
 			_linker = new Linker(_engine);
@@ -765,17 +760,20 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 
 			if (wasmtimeModuleAddress == IntPtr.Zero)
 			{
+				LogToConsole("[WASM DEBUG] wasmtime is not loaded in this process, so there is no JIT ELF to export.", true);
 				return;
 			}
 
 			if (!NativeLibrary.TryGetExport(wasmtimeModuleAddress, "__jit_debug_descriptor", out IntPtr descriptorPointer))
 			{
+				LogToConsole("[WASM DEBUG] wasmtime exports no JIT debug descriptor, so there is no JIT ELF to export.", true);
 				return;
 			}
 
 			IntPtr currentEntryPointer = Marshal.ReadIntPtr(descriptorPointer, 16);
 			if (currentEntryPointer == IntPtr.Zero)
 			{
+				LogToConsole("[WASM DEBUG] No JITed module is registered in this process yet, so there is no JIT ELF to export.", true);
 				return;
 			}
 
@@ -804,11 +802,11 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 						{
 							string workspaceElfPath = Path.Combine(workspaceDirectory, $"MapScript{suffix}.jit.elf");
 							File.WriteAllBytes(workspaceElfPath, elfBytes);
-							LogToConsole($"[WASM DEBUG] Exported JIT debug symbols to '{workspaceElfPath}'.");
+							LogToConsole($"[WASM DEBUG] Exported the JIT ELF of pid {System.Environment.ProcessId} to '{workspaceElfPath}'.");
 						}
 						else
 						{
-							LogToConsole($"[WASM DEBUG] Exported JIT debug symbols to '{publishElfPath}'.");
+							LogToConsole($"[WASM DEBUG] No map workspace was found, so the JIT ELF of pid {System.Environment.ProcessId} was only written beside the script at '{publishElfPath}'.", true);
 						}
 
 						exportedCount++;
@@ -826,9 +824,9 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 
 	private string? ResolveWorkspaceDirectory(string wasmPath)
 	{
-		if (!string.IsNullOrEmpty(_tempWorkspacePath) && Directory.Exists(_tempWorkspacePath))
+		if (!string.IsNullOrEmpty(_mapWorkspacePath) && Directory.Exists(_mapWorkspacePath))
 		{
-			return _tempWorkspacePath;
+			return _mapWorkspacePath;
 		}
 
 		string? currentDirectory = Path.GetDirectoryName(Path.GetFullPath(wasmPath));

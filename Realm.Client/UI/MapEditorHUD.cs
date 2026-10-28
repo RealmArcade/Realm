@@ -1254,7 +1254,7 @@ public partial class MapEditorHUD : Control
 
 		SetWasmConsoleStatus("Compiling WASM map script...", UIStyle.ColorCyanGlow);
 		AppendWasmConsoleLog("=== WASM COMPILATION PIPELINE STARTED ===");
-		AppendWasmConsoleLog($"[DEBUG] Godot Host Process ID: {System.Environment.ProcessId}. Select this PID in CodeLLDB when attaching.");
+		AppendWasmConsoleLog("[DEBUG] The map script runs in the authority process, not in this editor. Attach with the workspace's 'Attach to Realm Authority (Map Script WASM)' configuration; the authority reports its PID and the JIT ELF it exported once it is running.");
 
 		await CompileAndSignMapAsync(GameContext.EditorService._tempWorkspacePath, skipAttribution: true, isDebug: true);
 
@@ -1313,7 +1313,7 @@ public partial class MapEditorHUD : Control
 
 		if (GameContext.Lobby != null)
 		{
-			GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map");
+			GameContext.Lobby.HostSinglePlayerGame(GameContext.EditorService.TempWorkspaceGodotPath, "Test Map", debugMapScript: true);
 		}
 
 		// Leaving editor mode takes the ground with it, and the match is what builds the one this screen plays on. A match
@@ -1325,6 +1325,16 @@ public partial class MapEditorHUD : Control
 			SetWasmConsoleStatus("❌ Test mode could not start", new Color(1f, 0.3f, 0.3f));
 			AppendWasmConsoleLog($"[ERROR] {GameContext.Lobby?.LastHostError ?? "this build has no lobby to start a match with"}");
 			return;
+		}
+
+		// The authority is the process the script runs in, so its identifier is what a debugger has to be given. It is
+		// printed for the console that closes in a moment and written to the game log the match itself keeps.
+		int authorityProcessId = GameContext.ServerSession?.AuthorityProcessId ?? 0;
+		if (authorityProcessId > 0)
+		{
+			string attachHint = $"[DEBUG] Authority process ID: {authorityProcessId}. Attach to it in CodeLLDB with the workspace's map script configuration.";
+			AppendWasmConsoleLog(attachHint);
+			GameLog.LogToConsole(attachHint);
 		}
 
 		await Task.Delay(500);

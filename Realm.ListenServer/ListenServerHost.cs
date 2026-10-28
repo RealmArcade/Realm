@@ -34,6 +34,7 @@ public class ListenServerHost : IServerTransportSink
 	private int _lastBroadcastObstacleSignature = int.MinValue;
 	private double _nextObstacleCheckTime;
 	private long _deliveredPresentationCount;
+	private Action<string>? _scriptLogSink;
 
 	public ListenServerHost(ServerArguments arguments, ServerLog log, IServerTransport transport)
 	{
@@ -64,11 +65,16 @@ public class ListenServerHost : IServerTransportSink
 			throw new DirectoryNotFoundException($"The map folder '{_arguments.MapPath}' does not exist.");
 		}
 
+		// What the sandbox reports about the script it is running - the debug mode it started in, the process a debugger
+		// attaches to and the JIT ELF it exported - belongs in this match's own log, beside the rest of what it decided.
+		_scriptLogSink = _log.Write;
+		WasmScriptHost.OnWasmLog += _scriptLogSink;
+
 		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath);
 		try
 		{
 			var paths = ServerMatchPaths.From(_arguments);
-			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats);
+			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath);
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());
@@ -80,6 +86,11 @@ public class ListenServerHost : IServerTransportSink
 			if (_arguments.Cheats)
 			{
 				_log.Write("cheats are enabled: this match is reachable on the loopback address only and seats the one player it was started for");
+			}
+
+			if (_arguments.WasmDebug)
+			{
+				_log.Write($"map script debug mode is on: pid={Environment.ProcessId} workspace='{_arguments.WorkspacePath}'");
 			}
 
 			if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, _arguments.Cheats, this, out string failure))
@@ -191,6 +202,12 @@ public class ListenServerHost : IServerTransportSink
 		_transport.Dispose();
 		_simulation?.Dispose();
 		_simulation = null;
+
+		if (_scriptLogSink != null)
+		{
+			WasmScriptHost.OnWasmLog -= _scriptLogSink;
+			_scriptLogSink = null;
+		}
 	}
 
 	/// <summary>

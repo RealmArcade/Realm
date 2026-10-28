@@ -42,7 +42,19 @@ public class ServerMapScript : IDisposable
 	///     set the match up. A map without a compiled script is a map that declared nothing to run, which is not an
 	///     error: the match simply starts with whatever the map files described.
 	/// </summary>
-	public static ServerMapScript Load(LoadedMap map, ServerMatchPaths paths, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot)
+	/// <param name="map">The map whose script is being loaded.</param>
+	/// <param name="paths">Where the map's files are.</param>
+	/// <param name="randomSeed">The seed the script draws from.</param>
+	/// <param name="log">The log the match writes what it decided.</param>
+	/// <param name="presentation">What the script asks a screen to show.</param>
+	/// <param name="items">What puts items on units in this match.</param>
+	/// <param name="loot">What the match drops and sweeps up.</param>
+	/// <param name="wasmDebug">
+	///     Whether the script is kept debug-able. The sandbox then keeps the script's debug information and its JIT ELF is
+	///     exported into the workspace, which is what a debugger attaches to.
+	/// </param>
+	/// <param name="mapWorkspacePath">The workspace the script was compiled from, or nothing to work it out from the map.</param>
+	public static ServerMapScript Load(LoadedMap map, ServerMatchPaths paths, int randomSeed, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, bool wasmDebug = false, string? mapWorkspacePath = null)
 	{
 		var api = new ServerGameAPI(map, log, presentation, items, loot, paths);
 
@@ -54,10 +66,10 @@ public class ServerMapScript : IDisposable
 
 		GameAPI.Current = api;
 
-		var host = new WasmScriptHost(wasmPath, paths.MapName, map.Simulation, map.World, randomSeed, paths.LogDirectory, null);
+		var host = new WasmScriptHost(wasmPath, paths.MapName, map.Simulation, map.World, randomSeed, paths.LogDirectory, mapWorkspacePath, wasmDebug);
 		host.Initialize(api);
 
-		log.Write($"map script '{wasmPath}' initialized");
+		log.Write(wasmDebug ? $"map script '{wasmPath}' initialized with debug information kept" : $"map script '{wasmPath}' initialized");
 		return new ServerMapScript(api, host, wasmPath, log);
 	}
 

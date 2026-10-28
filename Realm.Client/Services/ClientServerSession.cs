@@ -18,7 +18,11 @@ namespace Realm.Client.Services;
 ///     it, because the ticket the authority was started with is one only its starter saw; a match whose port other
 ///     players are told about is started without one.
 /// </param>
-public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false);
+/// <param name="WasmDebug">
+///     Whether the authority is started with the map script's debug information kept. A map tested from the editor asks for
+///     it so its breakpoints reach the process the script runs in; every other match runs the script compiled for speed.
+/// </param>
+public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false);
 
 /// <summary>
 ///     One client's match. A client never simulates a match: it starts the authority beside it, joins it as an ordinary
@@ -73,6 +77,12 @@ public class ClientServerSession : IDisposable
 
 	/// <summary>The port the authority is listening on.</summary>
 	public int Port => _launcher?.Port ?? _joinedPort;
+
+	/// <summary>
+	///     The process running the match this client started, or zero for a match joined remotely. It is the process the map
+	///     script runs inside, so it is the one a debugger attaches to.
+	/// </summary>
+	public int AuthorityProcessId => _launcher?.ProcessId ?? 0;
 
 	/// <summary>The wire table hash the two processes agreed on, so a mismatch is refused rather than played through.</summary>
 	public string WireTableHash => _launcher?.WireTableHash ?? string.Empty;
@@ -153,10 +163,14 @@ public class ClientServerSession : IDisposable
 		}
 
 		_token = start.OpenToOthers ? string.Empty : RealmProtocol.CreateToken();
+		// A map being tested is played from the workspace it was compiled from, so the authority exports the script's JIT ELF
+		// into that same workspace and the debugger configuration it already carries finds the module that is running.
 		var request = new ServerLaunchRequest(target, start.MapFolderPath, logPath, _token, start.Seed)
 		{
 			DataFolderPath = start.DataFolderPath,
 			Cheats = start.Cheats,
+			WasmDebug = start.WasmDebug,
+			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : null,
 			Port = authorityPort
 		};
 

@@ -412,7 +412,17 @@ public partial class LobbyManager : BaseMapTransferNode
 	}
 
 
-	public void HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null)
+	/// <summary>
+	///     Starts a match this machine plays by itself.
+	/// </summary>
+	/// <param name="mapPathName">The map to play.</param>
+	/// <param name="mapDisplayName">The name the map is shown under.</param>
+	/// <param name="mapVersion">The version of the map to play, or nothing for the newest one.</param>
+	/// <param name="debugMapScript">
+	///     Whether the authority keeps the map script's debug information, which a map tested from the editor asks for so a
+	///     breakpoint in the script reaches the process running it.
+	/// </param>
+	public void HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null, bool debugMapScript = false)
 	{
 		IsSinglePlayer = true;
 		IsHost = true;
@@ -507,7 +517,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			PlayerList.Add(botPlayer);
 		}
 
-		if (!TryStartAuthority(mapDirectory, mapPathName)) return;
+		if (!TryStartAuthority(mapDirectory, mapPathName, wasmDebug: debugMapScript)) return;
 
 		CallDeferred(nameof(EnterMatchScene), mapPathName, MatchSeed);
 	}
@@ -517,7 +527,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	///     remote one is, so the client never simulates the world it is playing in and a bug cannot behave differently in
 	///     one mode than the other.
 	/// </summary>
-	private bool TryStartAuthority(string? mapDirectory, string mapPathName, int authorityPort = 0, bool openToOthers = false)
+	private bool TryStartAuthority(string? mapDirectory, string mapPathName, int authorityPort = 0, bool openToOthers = false, bool wasmDebug = false)
 	{
 		if (string.IsNullOrEmpty(mapDirectory))
 		{
@@ -547,7 +557,8 @@ public partial class LobbyManager : BaseMapTransferNode
 			OS.GetUserDataDir(),
 			LocalizationManager.GetCurrentLanguageCode(),
 			AllowsCheats,
-			openToOthers);
+			openToOthers,
+			wasmDebug);
 
 		if (!session.TryStart(start, out string failure, authorityPort))
 		{
