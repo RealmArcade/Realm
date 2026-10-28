@@ -292,6 +292,23 @@ public class ServerSimulation : IDisposable
 		return _presentation.Drain();
 	}
 
+	/// <summary>
+	///     What a player that has just been seated has to be told for its screen to look like everyone else's: the cards
+	///     and colours the map declared while it was setting the match up, which happened before this peer could hear
+	///     any of it, and the labels the map has put over what it created. A screen that never hears these offers the
+	///     default orders and names for everything, which is what a match whose map runs on the authority must not do.
+	/// </summary>
+	public ServerPresentationEvent[] DescribePresentationStateFor(int playerSlot)
+	{
+		ServerPresentationEvent[] declared = _presentation.ReplayDurable(playerSlot);
+
+		var description = new List<ServerPresentationEvent>(declared.Length + 16);
+		description.AddRange(declared);
+		_script.Api.AppendStaticTextDescription(description);
+
+		return description.Count == 0 ? Array.Empty<ServerPresentationEvent>() : description.ToArray();
+	}
+
 	/// <summary>The player slot a peer acts as, once it has been seated on the roster.</summary>
 	public bool TryGetPlayerSlot(int peerId, out int playerSlot) => _peerPlayerSlots.TryGetValue(peerId, out playerSlot);
 

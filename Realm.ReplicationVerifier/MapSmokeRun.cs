@@ -50,7 +50,12 @@ public static class MapSmokeRun
 		var created = new List<int>();
 		var died = new List<int>();
 		var built = new List<int>();
-		api.OnUnitCreated += unit => created.Add(unit.Value);
+		var spawnOrigins = new Dictionary<Entity, Vector3>();
+		api.OnUnitCreated += unit =>
+		{
+			created.Add(unit.Value);
+			if (map.World.TryGet<Position>(new Entity(unit.Value), out Position position)) spawnOrigins[new Entity(unit.Value)] = position.Value;
+		};
 		api.OnUnitDied += (unit, killer) => died.Add(unit.Value);
 		api.OnConstructionFinished += unit => built.Add(unit.Value);
 
@@ -90,6 +95,36 @@ public static class MapSmokeRun
 		Check(unitsWithNamedAbilities > 0, "the authority can name the abilities a unit offers");
 		Check(abilityListPayloads > 0, "the description carries the payload behind an ability list");
 
+		int namedAbilityChanges = 0;
+		for (int index = 0; index < baseline.AbilityStates.Count; index++)
+		{
+			if (!string.IsNullOrEmpty(baseline.AbilityStates[index].AbilityId)) namedAbilityChanges++;
+		}
+
+		Console.WriteLine($"ability state: {baseline.AbilityStates.Count} change(s), {namedAbilityChanges} about an ability their unit does not list");
+		Check(namedAbilityChanges > 0, "the map can withhold an option its unit does not list among its own abilities");
+
+		int registeredCards = 0;
+		int describedLabels = 0;
+		ServerPresentationEvent[] joinDescription = simulation.DescribePresentationStateFor(1);
+		for (int index = 0; index < joinDescription.Length; index++)
+		{
+			switch (joinDescription[index].Kind)
+			{
+				case PresentationKind.AbilityRegistered:
+				case PresentationKind.PlayerAbilityRegistered:
+					registeredCards++;
+					break;
+				case PresentationKind.StaticTextCreated:
+					describedLabels++;
+					break;
+			}
+		}
+
+		Console.WriteLine($"join description: {joinDescription.Length} request(s), {registeredCards} ability card(s), {describedLabels} label(s)");
+		Check(registeredCards > 0, "a peer joining is told the ability cards the map registered before it arrived");
+		Check(describedLabels > 0, "a peer joining is told the labels the map put over what it created");
+
 		string consoleAnswer = TryConsoleCommand(simulation, "-addai 2");
 		Console.WriteLine($"console: '-addai 2' answered with '{consoleAnswer}'");
 		Check(consoleAnswer.Contains("AI", StringComparison.OrdinalIgnoreCase), "a console command reaches the map and is answered");
@@ -99,7 +134,7 @@ public static class MapSmokeRun
 		Check(constructionFinished, "a worker finished the site it was sent to build");
 		Check(built.Count > 0, "the map was told a construction site finished");
 
-		PlayOutTheDraft(map, simulation, seconds);
+		Check(PlayOutTheDraft(map, simulation, seconds, spawnOrigins), "the units a wave fields walk to where the map ordered them");
 
 		Console.WriteLine($"units created after setup: {created.Count}, died: {died.Count}, sites finished: {built.Count}");
 
@@ -214,7 +249,7 @@ public static class MapSmokeRun
 	///     authority created for a clone wave, and the labels the map drew over the heroes it drafted. A map whose draft
 	///     never finishes fields nothing, which is what a match whose construction sites never complete looks like.
 	/// </summary>
-	private static void PlayOutTheDraft(LoadedMap map, ServerSimulation simulation, int seconds)
+	private static bool PlayOutTheDraft(LoadedMap map, ServerSimulation simulation, int seconds, Dictionary<Entity, Vector3> spawnOrigins)
 	{
 		int createdBefore = CountUnits(map.World);
 		for (int second = 0; second < seconds; second++)
@@ -231,6 +266,14 @@ public static class MapSmokeRun
 			if (owner.PlayerIndex >= ProxySlotOffset) proxyOwned++;
 		}
 
+		int walkers = 0;
+		foreach (KeyValuePair<Entity, Vector3> origin in spawnOrigins)
+		{
+			if (!map.World.IsAlive(origin.Key)) continue;
+			if (!map.World.TryGet<Position>(origin.Key, out Position position)) continue;
+			if (Vector3.Distance(origin.Value, position.Value) > 2f) walkers++;
+		}
+
 		int labelledHeroes = 0;
 		ServerPresentationEvent[] presentations = simulation.CollectPresentation();
 		for (int index = 0; index < presentations.Length; index++)
@@ -238,7 +281,8 @@ public static class MapSmokeRun
 			if (presentations[index].Kind == PresentationKind.StaticTextCreated) labelledHeroes++;
 		}
 
-		Console.WriteLine($"draft: {createdAfter - createdBefore} unit(s) appeared, {proxyOwned} owned by a clone seat, {labelledHeroes} label(s) drawn");
+		Console.WriteLine($"draft: {createdAfter - createdBefore} unit(s) appeared, {proxyOwned} owned by a clone seat, {walkers} of the {spawnOrigins.Count} new unit(s) walked off their spawn, {labelledHeroes} label(s) drawn");
+		return walkers > 0;
 	}
 
 	/// <summary>The first player slot the map uses for the units it fields on a player's behalf.</summary>

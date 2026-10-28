@@ -8,8 +8,18 @@ namespace Realm.Ecs.Replication;
 public partial struct AbilityStateDelta
 {
 	public int ServerEntityId;
+
+	/// <summary>The slot in the unit's own ability list, or -1 when the ability is named instead.</summary>
 	public short AbilityIndex;
+
 	public byte Flags;
+
+	/// <summary>
+	///     The ability a change is about, for the ones a unit does not list among its own abilities. A map hides a build
+	///     option its builder offers without that option being an ability the builder can cast, so the change names it
+	///     rather than pointing at a slot that does not exist.
+	/// </summary>
+	public string AbilityId;
 }
 
 [MemoryPackable]
@@ -57,6 +67,7 @@ public class ReplicatedStateMirror
 {
 	public Dictionary<(byte Scope, int Key, int TypeId), byte[]> Components { get; } = new();
 	public Dictionary<(int ServerEntityId, short AbilityIndex), byte> Abilities { get; } = new();
+	public Dictionary<(int ServerEntityId, string AbilityId), byte> AbilitiesById { get; } = new();
 	public Dictionary<int, StaticTextDelta> Texts { get; } = new();
 	public Dictionary<(byte Scope, int Key, byte Kind, byte Role), int> ColdPayloads { get; } = new();
 
@@ -64,6 +75,7 @@ public class ReplicatedStateMirror
 	{
 		Components.Clear();
 		Abilities.Clear();
+		AbilitiesById.Clear();
 		Texts.Clear();
 		ColdPayloads.Clear();
 	}
@@ -82,6 +94,12 @@ public class ReplicatedStateMirror
 
 	public void RecordAbility(AbilityStateDelta delta)
 	{
+		if (!string.IsNullOrEmpty(delta.AbilityId))
+		{
+			AbilitiesById[(delta.ServerEntityId, delta.AbilityId)] = delta.Flags;
+			return;
+		}
+
 		Abilities[(delta.ServerEntityId, delta.AbilityIndex)] = delta.Flags;
 	}
 
@@ -97,9 +115,21 @@ public class ReplicatedStateMirror
 		{
 			Abilities.Remove(_removedAbilityKeys[index]);
 		}
+
+		_removedAbilityIdKeys.Clear();
+		foreach (var kvp in AbilitiesById)
+		{
+			if (kvp.Key.ServerEntityId == serverEntityId) _removedAbilityIdKeys.Add(kvp.Key);
+		}
+
+		for (int index = 0; index < _removedAbilityIdKeys.Count; index++)
+		{
+			AbilitiesById.Remove(_removedAbilityIdKeys[index]);
+		}
 	}
 
 	private readonly List<(int ServerEntityId, short AbilityIndex)> _removedAbilityKeys = new();
+	private readonly List<(int ServerEntityId, string AbilityId)> _removedAbilityIdKeys = new();
 
 	public void RecordText(StaticTextDelta delta)
 	{

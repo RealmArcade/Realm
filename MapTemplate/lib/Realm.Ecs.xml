@@ -1426,13 +1426,24 @@
         </member>
         <member name="T:Realm.Ecs.Replication.AbilityStateDelta">
             <remarks>
-            MemoryPack GenerateType: unmanaged<br/>
+            MemoryPack GenerateType: Object<br/>
             <code>
             <b>int</b> ServerEntityId<br/>
             <b>short</b> AbilityIndex<br/>
             <b>byte</b> Flags<br/>
+            <b>string</b> AbilityId<br/>
             </code>
             </remarks>
+        </member>
+        <member name="F:Realm.Ecs.Replication.AbilityStateDelta.AbilityIndex">
+            <summary>The slot in the unit's own ability list, or -1 when the ability is named instead.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Replication.AbilityStateDelta.AbilityId">
+            <summary>
+                The ability a change is about, for the ones a unit does not list among its own abilities. A map hides a build
+                option its builder offers without that option being an ability the builder can cast, so the change names it
+                rather than pointing at a slot that does not exist.
+            </summary>
         </member>
         <member name="T:Realm.Ecs.Replication.UnitComponentPresence">
             <remarks>

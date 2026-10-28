@@ -8,8 +8,11 @@ using Realm.Shared.Metadata;
 
 namespace Realm.ListenServer;
 
-/// <summary>Whether one unit's ability is currently shown as unusable, hidden, or both.</summary>
-public readonly record struct ScriptAbilityState(bool Disabled, bool Hidden);
+/// <summary>
+///     Whether one unit's ability is currently shown as unusable, hidden, or both, and the name the map used for the
+///     ability, which is what a peer is told when the unit does not list the ability among its own.
+/// </summary>
+public readonly record struct ScriptAbilityState(bool Disabled, bool Hidden, string DeclaredId);
 
 /// <summary>
 ///     The authority's own view of abilities: what a map registered, what it wrote on a card, and how each unit's
@@ -28,7 +31,9 @@ public class ScriptAbilityRegistry
 	private readonly Dictionary<int, int> _publishedAbilityListHandles = new();
 	private readonly List<AbilityStateDelta> _deltas = new();
 	private readonly Dictionary<(int UnitId, short AbilityIndex), byte> _currentFlags = new();
+	private readonly Dictionary<(int UnitId, string AbilityId), byte> _currentIdFlags = new();
 	private readonly Dictionary<int, Dictionary<(int UnitId, short AbilityIndex), byte>> _toldByPeer = new();
+	private readonly Dictionary<int, Dictionary<(int UnitId, string AbilityId), byte>> _toldIdFlagsByPeer = new();
 	private readonly List<(int UnitId, short AbilityIndex)> _clearedKeys = new();
 	private bool _abilityListsPublished;
 
@@ -213,7 +218,7 @@ public class ScriptAbilityRegistry
 		foreach (string candidate in NormalizedAbilityIds(abilityId))
 		{
 			var key = (unitId, candidate);
-			_unitAbilityStates[key] = new ScriptAbilityState(disabled, hidden);
+			_unitAbilityStates[key] = new ScriptAbilityState(disabled, hidden, abilityId);
 		}
 	}
 
@@ -319,6 +324,8 @@ public class ScriptAbilityRegistry
 
 		for (int index = 0; index < _clearedKeys.Count; index++) told.Remove(_clearedKeys[index]);
 
+		CollectNamedDeltas(peerId, includeAll);
+
 		_publishedAbilityListHandles.Clear();
 		foreach (var entry in _abilityListHandles)
 		{
@@ -334,10 +341,58 @@ public class ScriptAbilityRegistry
 		return _deltas;
 	}
 
+	/// <summary>
+	///     Adds the changes about abilities a unit does not list, which a peer is told about by name rather than by a
+	///     slot. What each peer has already heard is remembered per name, so a name only travels when it changes.
+	/// </summary>
+	private void CollectNamedDeltas(int peerId, bool includeAll)
+	{
+		if (!_toldIdFlagsByPeer.TryGetValue(peerId, out Dictionary<(int UnitId, string AbilityId), byte>? told))
+		{
+			told = new Dictionary<(int UnitId, string AbilityId), byte>();
+			_toldIdFlagsByPeer[peerId] = told;
+		}
+
+		foreach (var entry in _currentIdFlags)
+		{
+			if (!includeAll && told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value) continue;
+
+			_deltas.Add(new AbilityStateDelta
+			{
+				ServerEntityId = entry.Key.UnitId,
+				AbilityIndex = -1,
+				Flags = entry.Value,
+				AbilityId = entry.Key.AbilityId
+			});
+
+			told[entry.Key] = entry.Value;
+		}
+
+		_clearedNamedKeys.Clear();
+		foreach (var entry in told)
+		{
+			if (_currentIdFlags.ContainsKey(entry.Key)) continue;
+
+			_clearedNamedKeys.Add(entry.Key);
+			_deltas.Add(new AbilityStateDelta
+			{
+				ServerEntityId = entry.Key.UnitId,
+				AbilityIndex = -1,
+				Flags = 0,
+				AbilityId = entry.Key.AbilityId
+			});
+		}
+
+		for (int index = 0; index < _clearedNamedKeys.Count; index++) told.Remove(_clearedNamedKeys[index]);
+	}
+
+	private readonly List<(int UnitId, string AbilityId)> _clearedNamedKeys = new();
+
 	/// <summary>Forgets what a peer was told, so the peer that takes its place is described from scratch.</summary>
 	public void ForgetPeer(int peerId)
 	{
 		_toldByPeer.Remove(peerId);
+		_toldIdFlagsByPeer.Remove(peerId);
 	}
 
 	private Dictionary<(int UnitId, short AbilityIndex), byte> GetTold(int peerId)
@@ -349,15 +404,26 @@ public class ScriptAbilityRegistry
 		return told;
 	}
 
-	/// <summary>Every ability a unit is not currently offering normally, keyed by the slot the peer is told about.</summary>
+	/// <summary>
+	///     Every ability a unit is not currently offering normally. One the unit lists is keyed by its slot, and one it
+	///     does not list at all, such as a build option the map decided to withhold, is keyed by the name the map used.
+	/// </summary>
 	private void CollectExceptionFlags(EcsWorld world)
 	{
 		_currentFlags.Clear();
+		_currentIdFlags.Clear();
+
 		foreach (var entry in _unitAbilityStates)
 		{
 			byte flags = (byte)((entry.Value.Disabled ? 1 : 0) | (entry.Value.Hidden ? 2 : 0));
 			if (flags == 0) continue;
-			if (!TryResolveAbilityIndex(world, entry.Key.UnitId, entry.Key.AbilityId, out short abilityIndex)) continue;
+
+			if (!TryResolveAbilityIndex(world, entry.Key.UnitId, entry.Key.AbilityId, out short abilityIndex))
+			{
+				var namedKey = (entry.Key.UnitId, entry.Value.DeclaredId);
+				_currentIdFlags[namedKey] = (byte)(_currentIdFlags.TryGetValue(namedKey, out byte namedExisting) ? namedExisting | flags : flags);
+				continue;
+			}
 
 			var key = (entry.Key.UnitId, abilityIndex);
 			_currentFlags[key] = (byte)(_currentFlags.TryGetValue(key, out byte existing) ? existing | flags : flags);
@@ -400,6 +466,17 @@ public class ScriptAbilityRegistry
 			}
 
 			for (int index = 0; index < _toldKeys.Count; index++) told.Remove(_toldKeys[index]);
+		}
+
+		foreach (var told in _toldIdFlagsByPeer.Values)
+		{
+			_clearedNamedKeys.Clear();
+			foreach (var entry in told)
+			{
+				if (entry.Key.UnitId == unitId) _clearedNamedKeys.Add(entry.Key);
+			}
+
+			for (int index = 0; index < _clearedNamedKeys.Count; index++) told.Remove(_clearedNamedKeys[index]);
 		}
 	}
 

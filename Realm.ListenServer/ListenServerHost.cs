@@ -468,6 +468,14 @@ public class ListenServerHost : IServerTransportSink
 		byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
 		byte[] framed = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
 		_transport.Send(peerId, NetworkFrameKind.Snapshot, framed);
+
+		if (!snapshot.IsBaseline || !_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
+
+		// A baseline says what the world holds now, and the map declared its cards, its colours and its labels while
+		// it was setting that world up, long before this peer could hear any of it. They follow the snapshot that
+		// introduces what they describe.
+		ServerPresentationEvent[] description = simulation.DescribePresentationStateFor(playerSlot);
+		if (description.Length > 0) SendPresentation([peerId], description);
 	}
 
 	/// <summary>

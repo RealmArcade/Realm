@@ -1190,13 +1190,16 @@ public class NetworkService
 	{
 		_mirror.RecordAbility(delta);
 		_appliedAbilityStateCount++;
-		ApplyAbilityStateToUnit(delta.ServerEntityId, delta.AbilityIndex, delta.Flags);
+		ApplyAbilityStateToUnit(delta.ServerEntityId, delta.AbilityIndex, delta.Flags, delta.AbilityId);
 	}
 
-	private void ApplyAbilityStateToUnit(int serverEntityId, short abilityIndex, byte flags)
+	private void ApplyAbilityStateToUnit(int serverEntityId, short abilityIndex, byte flags, string? namedAbilityId = null)
 	{
 		if (!TryGetLocalEntity(serverEntityId, out var localEntity)) return;
-		string? abilityId = ResolveAbilityIdAt(localEntity, abilityIndex);
+
+		// A change about an ability the unit does not list is named rather than slotted, which is how a build option the
+		// map withheld reaches a screen even though the unit can never cast it.
+		string? abilityId = string.IsNullOrEmpty(namedAbilityId) ? ResolveAbilityIdAt(localEntity, abilityIndex) : namedAbilityId;
 		if (abilityId == null) return;
 
 		GameContext.RegistryService?.SetAbilityState(new UnitId(localEntity.Id), abilityId, (flags & 1) != 0, (flags & 2) != 0);
@@ -1211,11 +1214,18 @@ public class NetworkService
 
 	public void ReapplyAbilityStatesToUnits()
 	{
-		if (_mirror.Abilities.Count == 0) return;
+		if (_mirror.Abilities.Count == 0 && _mirror.AbilitiesById.Count == 0) return;
+
 		foreach (var kvp in _mirror.Abilities)
 		{
 			ApplyAbilityStateToUnit(kvp.Key.ServerEntityId, kvp.Key.AbilityIndex, kvp.Value);
 		}
+
+		foreach (var kvp in _mirror.AbilitiesById)
+		{
+			ApplyAbilityStateToUnit(kvp.Key.ServerEntityId, -1, kvp.Value, kvp.Key.AbilityId);
+		}
+
 		GameContext.RegistryService?.ClearAbilityStateDirty();
 	}
 

@@ -29,10 +29,36 @@ public partial class ServerGameAPI
 	{
 		if (string.IsNullOrWhiteSpace(unitTypeId) || string.IsNullOrWhiteSpace(abilityId)) return;
 
-		if (AddAbilityToTemplate(_map.Catalog.FindUnit(unitTypeId), abilityId)) return;
+		bool added = AddAbilityToTemplate(_map.Catalog.FindUnit(unitTypeId), abilityId);
+		if (!added) added = AddAbilityToTemplate(_map.Catalog.FindBuilding(unitTypeId), abilityId);
+		if (!added) return;
 
-		AddAbilityToTemplate(_map.Catalog.FindBuilding(unitTypeId), abilityId);
+		PublishTemplateAbility(abilityId);
 	}
+
+	/// <summary>
+	///     Tells screens what a button a map added to a template reads. The template a button belongs to is the
+	///     authority's own catalog, so a client that was never told would have the command without a name or a picture
+	///     for it: an ability the map's own files describe is published under that description, and one that names a unit
+	///     type is published as the unit it offers, which is how a map's build list can offer units as buttons.
+	/// </summary>
+	private void PublishTemplateAbility(string abilityId)
+	{
+		if (!_declaredTemplateAbilities.Add(abilityId)) return;
+
+		AbilityMetadata? ability = _map.Catalog.FindAbility(abilityId);
+		UnitMetadata? unit = ability == null ? _map.Catalog.FindUnitOrBuilding(abilityId) : null;
+
+		string displayName = ability?.Name ?? unit?.Name ?? GetUnitName(abilityId);
+		string tooltip = ability?.Description ?? unit?.Description ?? string.Empty;
+		string iconPath = ability?.IconPath ?? string.Empty;
+
+		_presentation.Write(PresentationKind.AbilityRegistered, AllPlayers, 0, abilityId, displayName, tooltip, iconPath, null,
+			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
+	}
+
+	/// <summary>The buttons this map put on a template, published once each.</summary>
+	private readonly HashSet<string> _declaredTemplateAbilities = new(StringComparer.OrdinalIgnoreCase);
 
 	/// <summary>The abilities a unit or building template offers, in the order a map declared them.</summary>
 	public IReadOnlyList<string> GetUnitTypeAbilities(string unitTypeId)

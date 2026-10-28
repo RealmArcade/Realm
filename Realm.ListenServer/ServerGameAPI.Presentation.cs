@@ -359,6 +359,38 @@ public partial class ServerGameAPI
 		_presentation.Write(PresentationKind.StaticTextDestroyed, AllPlayers, handle, Vector3.Zero);
 	}
 
+	/// <summary>
+	///     Adds what every label the map created currently reads, so a peer that joins after the map set the match up
+	///     still sees the numbers the map put over its tiles and its heroes. The handle is the label's own, which is
+	///     what a later change addresses, so what the peer is handed here is the label itself rather than a replay of
+	///     how it got here.
+	/// </summary>
+	public void AppendStaticTextDescription(List<ServerPresentationEvent> destination)
+	{
+		foreach (KeyValuePair<int, ScriptStaticText> entry in _staticTexts)
+		{
+			ScriptStaticText label = entry.Value;
+			destination.Add(new ServerPresentationEvent(
+				PresentationKind.StaticTextCreated,
+				AllPlayers,
+				entry.Key,
+				string.Empty,
+				label.Text,
+				string.Empty,
+				string.Empty,
+				null,
+				label.Position,
+				Vector3.Zero,
+				label.Color,
+				label.FontSize,
+				0,
+				0f,
+				0f,
+				0f,
+				label.Visible));
+		}
+	}
+
 	/// <summary>Sets the hour the match is lit by, which the day/night cycle then runs forward from.</summary>
 	public void SetTimeOfDay(float time)
 	{
