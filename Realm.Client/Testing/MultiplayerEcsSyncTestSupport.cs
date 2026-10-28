@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Realm.Client.Services;
 using Realm.Ecs.Replication;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Testing;
 
@@ -1117,14 +1118,18 @@ public static class MultiplayerEcsSyncTestSupport
 	}
 
 	/// <summary>
-	/// The interpolation buffer the client derives from its measured round trip, reproduced here from the same formula so
-	/// the bound on a unit's visual lag follows the profile the run injected instead of a single constant that would be
-	/// wrong on every profile but one.
+	/// The interpolation buffer the client derives from its measured round trip, reproduced here from the same formula
+	/// (<see cref="NetworkService.ComputeDynamicInterpolationFactor" />) so the bound on a unit's visual lag follows the
+	/// profile the run injected instead of a single constant that would be wrong on every profile but one. The round trip
+	/// is read from both ways a profile can inject one: a latency profile states the ping it delays by, and a lossy profile
+	/// states the one-way delay its relay applies in each direction. Reading only the one-way delay left the lagged run
+	/// bounded as if it were played on the minimum buffer, four sequences short of the buffer the client had measured for
+	/// itself, and three units moving at speed were reported for trailing by exactly that difference.
 	/// </summary>
 	private static float ResolveInterpolationBufferSeconds(MultiplayerEcsRunSettings settings)
 	{
-		float roundTripSeconds = MathF.Max(0f, settings.OneWayDelayMilliseconds * 2f / 1000f);
-		return MathF.Max(0.1f, roundTripSeconds * 1.5f);
+		float roundTripSeconds = MathF.Max(settings.PingMilliseconds, settings.OneWayDelayMilliseconds * 2f) / 1000f;
+		return MathF.Max(MatchTiming.MinimumInterpolationBufferSeconds, roundTripSeconds * 1.5f);
 	}
 
 	/// <summary>
