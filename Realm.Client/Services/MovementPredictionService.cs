@@ -258,7 +258,12 @@ public class MovementPredictionService
 	/// fixed on a remote client and the frame rate on the host, so one constant meant 0.6 s on a 144 fps host and 3 s on a
 	/// 60 fps client, and the settled correction ran at a different geometric rate on each.
 	/// </summary>
-	public const float PredictionTickIntervalSeconds = 1.0f / 30.0f;
+	/// <summary>
+	///     The step a predicted order advances the local unit by. It is the authority's own tick, so a prediction that ran
+	///     for the same wall-clock time as the authority lands on the same place instead of leading or lagging it by a
+	///     fraction of a step that reconciliation then has to remove.
+	/// </summary>
+	public const float PredictionTickIntervalSeconds = MatchTiming.SnapshotIntervalSeconds;
 
 	/// <summary>
 	/// The most prediction ticks one frame may run. A long frame must not turn into a burst of prediction ticks that walks
