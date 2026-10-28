@@ -107,7 +107,9 @@ public class ServerSimulation : IDisposable
 	/// <summary>
 	///     Gives the match the world state every clock reads: the elapsed time a script schedules against, the time of
 	///     day, and the countdown a map can show. A map that says nothing about them starts at zero and lets the match
-	///     advance them.
+	///     advance them. The zone list is world state a peer always creates for itself, so the authority owns one from the
+	///     start of the match as well: a map that declares no zones then agrees with every peer instead of telling a peer
+	///     holding an empty list that the authority has no such state at all.
 	/// </summary>
 	private static void EnsureMatchClock(LoadedMap map)
 	{
@@ -116,6 +118,7 @@ public class ServerSimulation : IDisposable
 
 		if (!map.World.Has<WorldState>(worldEntity)) map.World.Add(worldEntity, new WorldState(0f, 0, 0f, false));
 		if (!map.World.Has<CountdownState>(worldEntity)) map.World.Add(worldEntity, new CountdownState(false, 0f, string.Empty));
+		if (!map.World.Has<ScriptZonesState>(worldEntity)) map.World.Add(worldEntity, new ScriptZonesState(null));
 	}
 
 	public LoadedMap Map => _map;
