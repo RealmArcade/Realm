@@ -19,11 +19,11 @@ public static class MatchTiming
 {
 	/// <summary>
 	///     How often the authoritative world advances, in hertz. A match that measures 300 combat units at 24 players
-	///     spends about 0.7 ms of one core on the simulation tick and, once the peers are described across four workers,
-	///     about 7 ms on describing that tick to all of them with the shroud on. Thirty hertz puts that room at roughly
-	///     a third of one core of an average gaming processor, which is the rate an RTS wants: it halves how stale a
-	///     remote unit is compared with twenty hertz, and sixty hertz would need both twice the upstream bandwidth and
-	///     more than half the core for a difference no one can see.
+	///     spends about 0.8 ms of one core on the simulation tick and, once the peers are described across four workers,
+	///     about 3.3 ms on describing that tick to all of them with the shroud on, which is a fifth of one core of an
+	///     average gaming processor rather than the third it used to be. Thirty hertz is still the rate an RTS wants: it
+	///     halves how stale a remote unit is compared with twenty hertz, and sixty hertz would double the upstream
+	///     bandwidth for a difference no one can see.
 	/// </summary>
 	public const int SimulationTickRateHz = 30;
 
