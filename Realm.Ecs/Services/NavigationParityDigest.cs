@@ -1,11 +1,14 @@
 using System;
 using DotRecast.Detour;
-using Realm.Ecs;
 using Realm.Ecs.Components.Terrain;
-using Realm.Ecs.Services;
 
-namespace Realm.Client.Services;
+namespace Realm.Ecs.Services;
 
+/// <summary>
+///     What a world's navigation looked like at one instant: the pathing grid it was built from, the mesh baked over it
+///     and the obstacle volumes the bake consumed. Two processes that agree on all three route a unit the same way, so
+///     this is what the authority's copy is measured against.
+/// </summary>
 public struct NavigationParityDigest
 {
 	public bool HasTerrainState;
@@ -38,7 +41,11 @@ public struct NavigationParityDigest
 			&& PolyHash == other.PolyHash;
 	}
 
-	public static NavigationParityDigest Capture(EcsWorld? world, Entity worldEntity)
+	/// <summary>
+	///     Takes the digest of one world. The nav mesh service is passed in rather than read from a global because the
+	///     authority and a client each have their own, and a digest of the wrong one would compare a world against itself.
+	/// </summary>
+	public static NavigationParityDigest Capture(EcsWorld? world, Entity worldEntity, TerrainNavMeshService? navMeshService)
 	{
 		NavigationParityDigest digest = default;
 		if (world == null || worldEntity == Entity.Null) return digest;
@@ -50,17 +57,16 @@ public struct NavigationParityDigest
 		digest.Depth = state.Depth;
 		CapturePathing(ref digest, in state);
 		CaptureNavMesh(ref digest, in state);
-		CaptureObstacleVolumes(ref digest);
+		CaptureObstacleVolumes(ref digest, navMeshService);
 		return digest;
 	}
 
 	/// <summary>
-	/// Hashes the obstacle volumes the mesh was baked from. Two meshes that were built from the same volumes and the same
-	/// terrain are the same mesh, so this is the input a differing mesh is reported against.
+	///     Hashes the obstacle volumes the mesh was baked from. Two meshes that were built from the same volumes and the
+	///     same terrain are the same mesh, so this is the input a differing mesh is reported against.
 	/// </summary>
-	private static void CaptureObstacleVolumes(ref NavigationParityDigest digest)
+	private static void CaptureObstacleVolumes(ref NavigationParityDigest digest, TerrainNavMeshService? navMeshService)
 	{
-		TerrainNavMeshService? navMeshService = GameContext.Simulation.TerrainNavMeshService;
 		if (navMeshService == null) return;
 
 		ReadOnlySpan<System.Numerics.Vector3> positions = navMeshService.BakedObstaclePositions;

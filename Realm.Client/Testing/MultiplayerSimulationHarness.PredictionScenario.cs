@@ -119,7 +119,7 @@ public partial class MultiplayerSimulationHarness
 
 	private bool IsScenarioNavigationReady()
 	{
-		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity);
+		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity, GameContext.Simulation.TerrainNavMeshService);
 		return digest.HasNavMesh && digest.PolyCount > 0;
 	}
 
@@ -253,7 +253,7 @@ public partial class MultiplayerSimulationHarness
 			out long anyReference,
 			out DotRecast.Core.Numerics.RcVec3f anyNearest,
 			out _);
-		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity);
+		NavigationParityDigest digest = NavigationParityDigest.Capture(GameContext.World, GameContext.Simulation.WorldEntity, GameContext.Simulation.TerrainNavMeshService);
 		GD.Print($"[MP_HARNESS] Nav probe unit {unit.Entity.Id}: includeFlags={includeFlags} startRef={reference} nearest=({nearest.X:0.00},{nearest.Y:0.00},{nearest.Z:0.00}) anyRef={anyReference} anyNearest=({anyNearest.X:0.00},{anyNearest.Y:0.00},{anyNearest.Z:0.00}) polys={digest.PolyCount} ground={digest.GroundPolyCount} polyHash={digest.PolyHash:x8}.");
 	}
 

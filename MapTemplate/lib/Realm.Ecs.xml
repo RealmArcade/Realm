@@ -1840,6 +1840,25 @@
             for all entities with this component and perform the actual pathfinding and movement.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Services.NavigationParityDigest">
+            <summary>
+                What a world's navigation looked like at one instant: the pathing grid it was built from, the mesh baked over it
+                and the obstacle volumes the bake consumed. Two processes that agree on all three route a unit the same way, so
+                this is what the authority's copy is measured against.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.NavigationParityDigest.Capture(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,Realm.Ecs.Services.TerrainNavMeshService)">
+            <summary>
+                Takes the digest of one world. The nav mesh service is passed in rather than read from a global because the
+                authority and a client each have their own, and a digest of the wrong one would compare a world against itself.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.NavigationParityDigest.CaptureObstacleVolumes(Realm.Ecs.Services.NavigationParityDigest@,Realm.Ecs.Services.TerrainNavMeshService)">
+            <summary>
+                Hashes the obstacle volumes the mesh was baked from. Two meshes that were built from the same volumes and the
+                same terrain are the same mesh, so this is the input a differing mesh is reported against.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Services.PathFollow">
             <summary>
             Caches the pathfinding waypoints for navigation to avoid GC allocations in the tick query loop.

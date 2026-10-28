@@ -56,9 +56,9 @@ public static class ServerArgumentFlags
 	public const string RosterFlag = "--roster";
 
 	/// <summary>
-	///     The folder the authority writes what it knows about every unit on every sequence it publishes. A prediction
-	///     report measures a screen's guess against the process that decided the movement, so only a run that asks for
-	///     the record gets one: a normal match writes nothing here.
+	///     The folder the authority writes its own account of the match into: the orders and routes of every unit it moved,
+	///     and the world it described on every sequence it published. A report measures a screen against the process that
+	///     decided the match, so only a run that asks for the record gets one: a normal match writes nothing here.
 	/// </summary>
 	public const string RecordPredictionFlag = "--record-prediction";
 }
@@ -122,8 +122,9 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 
 	/// <summary>
 	///     The folder the authority writes its own account of every published sequence into, or nothing to write none. It
-	///     is what a prediction report compares a screen's prediction against, so a run that measures prediction asks for
-	///     it and every other match leaves no such file behind.
+	///     is what a prediction report compares a screen's prediction against and what an ECS sync report compares a
+	///     screen's applied world against, so a run that measures either asks for it and every other match leaves no such
+	///     file behind.
 	/// </summary>
 	public string? PredictionRecordFolderPath { get; init; }
 

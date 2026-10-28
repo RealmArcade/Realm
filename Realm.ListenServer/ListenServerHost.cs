@@ -39,6 +39,7 @@ public class ListenServerHost : IServerTransportSink
 	private long _nextRateLimitReportTicks;
 	private Action<string>? _scriptLogSink;
 	private AuthoritySnapshotRecorder? _predictionRecorder;
+	private AuthoritySyncRecorder? _syncRecorder;
 
 	public ListenServerHost(ServerArguments arguments, ServerLog log, IServerTransport transport)
 	{
@@ -109,6 +110,10 @@ public class ListenServerHost : IServerTransportSink
 			{
 				_predictionRecorder = new AuthoritySnapshotRecorder(_arguments.RecordPredictionPath, map.World, out string recordPath);
 				_log.Write($"this match records what it decides into '{recordPath}'");
+				// A run that compares a screen's ECS against this one asks for the same folder, because the process that
+				// decided the world is the only one that can say what a screen should hold after applying a sequence.
+				_syncRecorder = new AuthoritySyncRecorder(map, _arguments.RecordPredictionPath, out string syncRecordPath);
+				_log.Write($"this match records the world it publishes into '{syncRecordPath}'");
 			}
 
 			IsRunning = true;
@@ -258,6 +263,8 @@ public class ListenServerHost : IServerTransportSink
 
 		_predictionRecorder?.Dispose();
 		_predictionRecorder = null;
+		_syncRecorder?.Dispose();
+		_syncRecorder = null;
 
 		if (_scriptLogSink != null)
 		{
@@ -545,10 +552,18 @@ public class ListenServerHost : IServerTransportSink
 		// sequences a screen applied, and a gap in the record would hide the very ticks a peer was still catching up on.
 		_predictionRecorder?.Record(sequence);
 
+		// The world this tick described is recorded as it is sent, because a screen can only be judged against the world
+		// the process that decided it held, and only a run that asked for the record pays for it.
+		_syncRecorder?.BeginSequence(sequence, simulation.TickCount);
+
 		// What the map asked a screen to show this tick is collected whether or not anyone is listening, so a request
 		// that nobody could receive is dropped rather than piling up behind the next one.
 		ServerPresentationEvent[] presentation = simulation.CollectPresentation();
-		if (_seatedPeers.Count == 0) return;
+		if (_seatedPeers.Count == 0)
+		{
+			_syncRecorder?.EndSequence();
+			return;
+		}
 
 		int[] peerIds = new int[_seatedPeers.Count];
 		_seatedPeers.Keys.CopyTo(peerIds, 0);
@@ -557,6 +572,8 @@ public class ListenServerHost : IServerTransportSink
 		{
 			SendSnapshot(peerIds[index], sequence, simulation.ConsumeBaselineRequest(peerIds[index]));
 		}
+
+		_syncRecorder?.EndSequence();
 
 		if (presentation.Length > 0) SendPresentation(peerIds, presentation);
 	}
@@ -589,6 +606,7 @@ public class ListenServerHost : IServerTransportSink
 		if (simulation == null) return;
 
 		WorldSnapshot snapshot = simulation.BuildSnapshotForPeer(peerId, sequence, forceBaseline);
+		_syncRecorder?.AddPeerSnapshot(peerId, in snapshot);
 		byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
 		byte[] framed = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
 		_transport.Send(peerId, NetworkFrameKind.Snapshot, framed);

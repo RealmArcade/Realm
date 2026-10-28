@@ -715,7 +715,10 @@ public partial class MultiplayerSimulationHarness : Node
 			return false;
 		}
 
-		MultiplayerSyncDiagnostics.Start(_outputDirectory, isHost);
+		// The process that owns the authority plays as a peer like any other, and every peer keeps its own record. Its
+		// record goes in its own folder because the run directory is also where the authority writes its own stream and
+		// where the peer this process is playing beside writes its own.
+		MultiplayerSyncDiagnostics.Start(isHost ? Path.Combine(_outputDirectory, "host") : _outputDirectory);
 		// The stream a prediction is judged against belongs to the authority, which recorded it from the first sequence
 		// it published. A screen records only what it predicted, so this process records nothing when it hosts.
 		if (isHost) PredictionDiagnostics.Stop();

@@ -17,7 +17,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 	public const string RosterFlag = ServerArgumentFlags.RosterFlag;
 	public const string RecordPredictionFlag = ServerArgumentFlags.RecordPredictionFlag;
 
-	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{RecordPredictionFlag} <folder a prediction report reads>] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
+	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{RecordPredictionFlag} <folder the run's reports read>] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
 
 	public static bool TryParse(string[] args, out ServerArguments? arguments, out string error)
 	{
