@@ -28,6 +28,7 @@ public class SnapshotFanOut
 	private readonly AuthoritativeSnapshotBuilder[] _builders;
 	private readonly ConcurrentBag<AuthoritativeSnapshotBuilder> _idleBuilders = new();
 	private readonly SnapshotPeerStateStore _peerStates = new();
+	private readonly SnapshotDescriptionCache _descriptions = new();
 	private readonly object _abilityLock = new();
 
 	public SnapshotFanOut(EcsWorld world, SimulationContext context, Entity worldEntity, MapRulesCatalog rules, int workerCount)
@@ -37,7 +38,7 @@ public class SnapshotFanOut
 
 		for (int index = 0; index < WorkerCount; index++)
 		{
-			var builder = new AuthoritativeSnapshotBuilder(world, context, worldEntity, rules, _peerStates, _abilityLock);
+			var builder = new AuthoritativeSnapshotBuilder(world, context, worldEntity, rules, _peerStates, _descriptions, _abilityLock);
 			_builders[index] = builder;
 			_idleBuilders.Add(builder);
 		}

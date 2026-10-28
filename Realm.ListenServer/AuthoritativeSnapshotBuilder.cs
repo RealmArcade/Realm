@@ -22,7 +22,6 @@ public class AuthoritativeSnapshotBuilder
 	private const float MaximumDescribedCoordinate = 100000f;
 	private const float VisionCellSize = 16f;
 	private const float DefaultVisionRadius = 15f;
-	private const int VisionCellReach = 1;
 
 	private static readonly QueryDescription DescribedUnitsQuery = new QueryDescription().WithAll<UnitOwnerPlayer, Health, Position>();
 
@@ -53,30 +52,32 @@ public class AuthoritativeSnapshotBuilder
 	private readonly Entity _worldEntity;
 	private readonly MapRulesCatalog _rules;
 	private readonly SnapshotPeerStateStore _peerStates;
+	private readonly SnapshotDescriptionCache _descriptions;
 	private readonly object _abilityLock;
 	private readonly int[] _peerIdByPlayerSlot = new int[EcsWorld.MAX_PLAYERS];
-	private readonly EntityCallback<UnitOwnerPlayer, Position> _collectDescribedUnits;
-	private readonly EntityCallback<UnitOwnerPlayer, Position> _collectVisionSources;
+	private readonly EntityCallback<UnitOwnerPlayer, Position> _collectCandidates;
+	private readonly List<(Entity Entity, Vector3 Position)> _candidates = new();
+	private readonly bool[] _candidateVisibility = new bool[EcsWorld.MAX_ENTITIES];
 	private readonly List<(Entity Entity, Vector3 Position)> _describedUnits = new();
 	private readonly HashSet<int> _describedEntityIds = new();
 	private readonly List<int> _forgottenEntityIds = new();
-	private readonly Dictionary<(float X, float Z), List<int>> _visionCellSources = new();
+	private readonly Dictionary<(int X, int Z), List<int>> _unitCells = new();
 	private readonly List<(Vector3 Position, float Radius)> _visionSources = new();
 	private readonly Dictionary<int, string> _textByStringId = new();
 	private byte[] _writeScratch = Array.Empty<byte>();
 	private Entity[] _playerEntities = Array.Empty<Entity>();
 	private Entity _viewer = Entity.Null;
 
-	public AuthoritativeSnapshotBuilder(EcsWorld world, SimulationContext context, Entity worldEntity, MapRulesCatalog rules, SnapshotPeerStateStore peerStates, object abilityLock)
+	public AuthoritativeSnapshotBuilder(EcsWorld world, SimulationContext context, Entity worldEntity, MapRulesCatalog rules, SnapshotPeerStateStore peerStates, SnapshotDescriptionCache descriptions, object abilityLock)
 	{
 		_world = world;
 		_context = context;
 		_worldEntity = worldEntity;
 		_rules = rules;
 		_peerStates = peerStates;
+		_descriptions = descriptions;
 		_abilityLock = abilityLock;
-		_collectDescribedUnits = CollectDescribedUnit;
-		_collectVisionSources = CollectVisionSource;
+		_collectCandidates = CollectCandidate;
 	}
 
 	/// <summary>
@@ -145,7 +146,7 @@ public class AuthoritativeSnapshotBuilder
 			state.ResetForDescription();
 		}
 
-		CollectDescribedUnits(viewer.Value);
+		CollectDescribedUnits(viewer.Value, sequence);
 
 		var snapshot = new WorldSnapshot
 		{
@@ -165,7 +166,16 @@ public class AuthoritativeSnapshotBuilder
 		for (int index = 0; index < _describedUnits.Count; index++)
 		{
 			(Entity unitEntity, Vector3 unitPosition) = _describedUnits[index];
-			UnitSnapshot described = DescribeUnit(unitEntity, unitPosition);
+
+			// What this tick says about a unit is the same for every peer that can see it, so the first peer to reach it
+			// describes it and the rest read what it said. A room of twenty-four peers sharing a field of units used to
+			// read every component of every visible unit once per peer.
+			UnitSnapshot described;
+			if (!_descriptions.TryGetUnitRecord(sequence, unitEntity.Id, out described))
+			{
+				described = DescribeUnit(unitEntity, unitPosition);
+				_descriptions.SetUnitRecord(sequence, unitEntity.Id, in described);
+			}
 
 			// A unit that is exactly where this peer was last told it is carries no information: a building, a unit
 			// holding position or one standing where its order ended all stay on the peer's screen as they are. It is
@@ -337,102 +347,176 @@ public class AuthoritativeSnapshotBuilder
 		});
 	}
 
-	private void CollectDescribedUnits(Entity viewerPlayer)
+	/// <summary>
+	///     Gathers the units this peer is told about. A map that shrouds nothing shows every peer the whole board, so what
+	///     is visible is the same answer for the entire room and is walked once per tick rather than once per peer; only a
+	///     map that keeps its shroud makes each peer look at the world through its own units.
+	/// </summary>
+	private void CollectDescribedUnits(Entity viewerPlayer, int tick)
 	{
 		_describedUnits.Clear();
 		_describedEntityIds.Clear();
 		_viewer = viewerPlayer;
 		_playerEntities = Array.Empty<Entity>();
-		_visionSources.Clear();
 
-		// The cells are emptied rather than replaced. A peer's own units sit in a handful of cells tick after tick, and
+		if (_context.ShroudDisabled || viewerPlayer == Entity.Null)
+		{
+			CollectWholeBoard(tick);
+			return;
+		}
+
+		// The cells are emptied rather than replaced. A peer's units sit in a handful of cells tick after tick, and
 		// allocating a fresh list for every one of them on every tick was one of the larger allocations on this path.
-		foreach (var cell in _visionCellSources) cell.Value.Clear();
+		foreach (var cell in _unitCells) cell.Value.Clear();
 
-		if (viewerPlayer != Entity.Null) CollectVisionSources();
-		_world.Query(in DescribedUnitsQuery, _collectDescribedUnits);
-	}
+		_candidates.Clear();
+		_visionSources.Clear();
+		_world.Query(in DescribedUnitsQuery, _collectCandidates);
 
-	private void CollectDescribedUnit(Entity entity, ref UnitOwnerPlayer owner, ref Position position)
-	{
-		if (!IsVisibleToViewer(entity, position.Value)) return;
-
-		_describedUnits.Add((entity, position.Value));
-		_describedEntityIds.Add(entity.Id);
+		MarkUnitsWithinSight();
+		AppendVisibleCandidates();
 	}
 
 	/// <summary>
-	///     Whether the viewer can see an entity at all: what it owns is its own business, and anything else has to be
-	///     inside the sight of something the viewer has on the field. That is the rule the shroud grid encodes, read
-	///     from the entities that cast it.
+	///     Takes the visibility every peer of an unshrouded map shares, walking the board for this tick if no other peer
+	///     has walked it yet. The worker that walks it is the only one that does: the others wait for it and are described
+	///     from what it found, which is what makes the walk one pass over the board instead of one per peer.
 	/// </summary>
-	private bool IsVisibleToViewer(Entity entity, Vector3 position)
+	private void CollectWholeBoard(int tick)
 	{
-		// A map that shrouds nothing is a board every player watches whole, so the authority describes all of it rather
-		// than making each peer's screen reconstruct what its own units happen to be near. Only a map that keeps its
-		// shroud pays for the vision filter.
-		if (_context.ShroudDisabled) return true;
-		if (_viewer == Entity.Null) return true;
-		if (!_world.TryGet<Owner>(entity, out Owner owner)) return true;
-		if (owner.PlayerEntity.Value == _viewer) return true;
-
-		return IsWithinVision(position);
-	}
-
-	private void CollectVisionSources()
-	{
-		_world.Query(in DescribedUnitsQuery, _collectVisionSources);
-
-		for (int index = 0; index < _visionSources.Count; index++)
+		lock (_descriptions.WholeBoardGate)
 		{
-			(float x, float z) cell = VisionCell(_visionSources[index].Position);
-			if (!_visionCellSources.TryGetValue(cell, out List<int>? sources))
+			if (_descriptions.WholeBoardTick != tick)
 			{
-				sources = new List<int>();
-				_visionCellSources[cell] = sources;
+				_candidates.Clear();
+				_world.Query(in DescribedUnitsQuery, _collectCandidates);
+
+				List<(Entity Entity, Vector3 Position)> wholeBoardUnits = _descriptions.WholeBoardUnits;
+				List<int> wholeBoardEntityIds = _descriptions.WholeBoardEntityIds;
+				wholeBoardUnits.Clear();
+				wholeBoardEntityIds.Clear();
+
+				for (int index = 0; index < _candidates.Count; index++)
+				{
+					wholeBoardUnits.Add(_candidates[index]);
+					wholeBoardEntityIds.Add(_candidates[index].Entity.Id);
+					_describedUnits.Add(_candidates[index]);
+					_describedEntityIds.Add(_candidates[index].Entity.Id);
+				}
+
+				_descriptions.PublishWholeBoard(tick);
+				return;
 			}
 
-			sources.Add(index);
+			List<(Entity Entity, Vector3 Position)> sharedUnits = _descriptions.WholeBoardUnits;
+			List<int> sharedEntityIds = _descriptions.WholeBoardEntityIds;
+			for (int index = 0; index < sharedUnits.Count; index++) _describedUnits.Add(sharedUnits[index]);
+			for (int index = 0; index < sharedEntityIds.Count; index++) _describedEntityIds.Add(sharedEntityIds[index]);
 		}
 	}
 
-	private void CollectVisionSource(Entity entity, ref UnitOwnerPlayer owner, ref Position position)
+	/// <summary>
+	///     Gathers every unit that could be described, and what each one of them is to the viewer: what the viewer owns is
+	///     in its own sight, what nobody owns is on the board for everyone, and everything else is decided afterwards by
+	///     where the viewer's own units are looking. The units are filed into cells as they are gathered, so the second
+	///     pass visits only the units a source could possibly see instead of testing every unit against every source.
+	/// </summary>
+	private void CollectCandidate(Entity entity, ref UnitOwnerPlayer owner, ref Position position)
 	{
-		if (!_world.TryGet<Owner>(entity, out Owner entityOwner)) return;
-		if (entityOwner.PlayerEntity.Value != _viewer) return;
+		bool visible = true;
+		if (_world.TryGet<Owner>(entity, out Owner entityOwner))
+		{
+			if (entityOwner.PlayerEntity.Value == _viewer)
+			{
+				float radius = _world.TryGet<ScanRadius>(entity, out ScanRadius scanRadius) ? scanRadius.Value : DefaultVisionRadius;
+				if (radius > 0f) _visionSources.Add((position.Value, radius));
+			}
+			else visible = false;
+		}
 
-		float radius = _world.TryGet<ScanRadius>(entity, out ScanRadius scanRadius) ? scanRadius.Value : DefaultVisionRadius;
-		if (radius <= 0f) return;
+		int candidateIndex = _candidates.Count;
+		_candidates.Add((entity, position.Value));
+		_candidateVisibility[candidateIndex] = visible;
 
-		_visionSources.Add((position.Value, radius));
+		(int cellX, int cellZ) cell = VisionCell(position.Value);
+		if (!_unitCells.TryGetValue(cell, out List<int>? unitsInCell))
+		{
+			unitsInCell = new List<int>();
+			_unitCells[cell] = unitsInCell;
+		}
+
+		unitsInCell.Add(candidateIndex);
 	}
 
-	private bool IsWithinVision(Vector3 position)
+	/// <summary>
+	///     Marks every unit that lies inside the sight of one of the viewer's own units. Each source states the cells its
+	///     circle reaches and each unit in those cells is measured against it, so a source costs the units around it rather
+	///     than the whole board. A sight wide enough to cover more cells than there are units is answered by walking the
+	///     units instead, because a map that reveals everything would otherwise probe thousands of empty cells.
+	/// </summary>
+	private void MarkUnitsWithinSight()
 	{
-		(float x, float z) cell = VisionCell(position);
-
-		for (int offsetX = -VisionCellReach; offsetX <= VisionCellReach; offsetX++)
+		for (int sourceIndex = 0; sourceIndex < _visionSources.Count; sourceIndex++)
 		{
-			for (int offsetZ = -VisionCellReach; offsetZ <= VisionCellReach; offsetZ++)
-			{
-				if (!_visionCellSources.TryGetValue((cell.x + offsetX, cell.z + offsetZ), out List<int>? sources)) continue;
+			(Vector3 sourcePosition, float radius) = _visionSources[sourceIndex];
+			float squaredRadius = radius * radius;
 
-				for (int index = 0; index < sources.Count; index++)
+			(int minimumCellX, int minimumCellZ) = VisionCellCoordinates(sourcePosition.X - radius, sourcePosition.Z - radius);
+			(int maximumCellX, int maximumCellZ) = VisionCellCoordinates(sourcePosition.X + radius, sourcePosition.Z + radius);
+			long coveredCells = (long)(maximumCellX - minimumCellX + 1) * (maximumCellZ - minimumCellZ + 1);
+
+			if (coveredCells > _unitCells.Count)
+			{
+				MarkUnitsWithinSightOf(sourcePosition, squaredRadius, null);
+				continue;
+			}
+
+			for (int cellX = minimumCellX; cellX <= maximumCellX; cellX++)
+			{
+				for (int cellZ = minimumCellZ; cellZ <= maximumCellZ; cellZ++)
 				{
-					(Vector3 sourcePosition, float radius) = _visionSources[sources[index]];
-					if (Vector3.DistanceSquared(sourcePosition, position) <= radius * radius) return true;
+					if (_unitCells.TryGetValue((cellX, cellZ), out List<int>? unitsInCell)) MarkUnitsWithinSightOf(sourcePosition, squaredRadius, unitsInCell);
 				}
 			}
 		}
-
-		return false;
 	}
 
-	private static (float X, float Z) VisionCell(Vector3 position)
+	/// <summary>
+	///     Marks the units of one cell, or every unit when no cell is named, that a source can see. A unit that is already
+	///     visible is left alone, so a unit under the sight of several of the viewer's units is measured once.
+	/// </summary>
+	private void MarkUnitsWithinSightOf(Vector3 sourcePosition, float squaredRadius, List<int>? unitsInCell)
 	{
-		float x = Math.Clamp(position.X, -MaximumDescribedCoordinate, MaximumDescribedCoordinate);
-		float z = Math.Clamp(position.Z, -MaximumDescribedCoordinate, MaximumDescribedCoordinate);
-		return (MathF.Floor(x / VisionCellSize), MathF.Floor(z / VisionCellSize));
+		int count = unitsInCell?.Count ?? _candidates.Count;
+		for (int index = 0; index < count; index++)
+		{
+			int candidateIndex = unitsInCell == null ? index : unitsInCell[index];
+			if (_candidateVisibility[candidateIndex]) continue;
+			if (Vector3.DistanceSquared(sourcePosition, _candidates[candidateIndex].Position) > squaredRadius) continue;
+
+			_candidateVisibility[candidateIndex] = true;
+		}
+	}
+
+	private void AppendVisibleCandidates()
+	{
+		for (int index = 0; index < _candidates.Count; index++)
+		{
+			if (!_candidateVisibility[index]) continue;
+
+			(Entity entity, Vector3 position) = _candidates[index];
+			_describedUnits.Add((entity, position));
+			_describedEntityIds.Add(entity.Id);
+		}
+	}
+
+	private static (int X, int Z) VisionCell(Vector3 position) => VisionCellCoordinates(position.X, position.Z);
+
+	private static (int X, int Z) VisionCellCoordinates(float x, float z)
+	{
+		float clampedX = Math.Clamp(x, -MaximumDescribedCoordinate, MaximumDescribedCoordinate);
+		float clampedZ = Math.Clamp(z, -MaximumDescribedCoordinate, MaximumDescribedCoordinate);
+		return ((int)MathF.Floor(clampedX / VisionCellSize), (int)MathF.Floor(clampedZ / VisionCellSize));
 	}
 
 	private UnitSnapshot DescribeUnit(Entity entity, Vector3 position)
