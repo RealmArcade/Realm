@@ -241,6 +241,11 @@ public partial class LobbyBrowser : Control
 
 	private void SetupCheckboxes()
 	{
+		_campaignCheck.Text = Tr("Campaign");
+		_meleeCheck.Text = Tr("Melee");
+		_tutorialCheck.Text = Tr("Tutorial");
+		_arcadeCheck.Text = Tr("Arcade");
+
 		var checkBoxes = new[] { _campaignCheck, _meleeCheck, _tutorialCheck, _arcadeCheck };
 		foreach (var cb in checkBoxes)
 		{
