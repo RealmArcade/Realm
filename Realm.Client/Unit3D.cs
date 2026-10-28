@@ -994,11 +994,16 @@ public partial class Unit3D : Node3D
 		Realm.Client.Utils.PreviewHologram.Apply(this, PreviewHologramColor.Value);
 	}
 
+	/// <summary>
+	///     The radius of the body this unit stands in, which is the number the simulation separates and paths around.
+	///     It comes from the same metadata the authority builds the unit from, so the ring this unit shows is the ground
+	///     it actually occupies rather than a measurement of the model on this screen.
+	/// </summary>
 	public float GetBaseObstacleRadius()
 	{
 		if (GameContext.Host != null)
 		{
-			return GameContext.Host.GetOrCalculateObstacleRadius(UnitId, this);
+			return GameContext.Host.ResolveEntityBodyRadius(Entity, UnitId);
 		}
 
 		return 1.4f;
@@ -1024,7 +1029,7 @@ public partial class Unit3D : Node3D
 		var existing = GetNodeOrNull<Decal>("DropShadow");
 		if (existing != null)
 		{
-			float updatedRadius = GameContext.Host.GetOrCalculateObstacleRadius(UnitId, this) * GameContext.Host.GetModelCollisionCircleRatio(ModelPath);
+			float updatedRadius = GetBaseObstacleRadius();
 			if (updatedRadius > 0.001f)
 			{
 				float safeRadius = Mathf.Max(0.1f, updatedRadius * 2.5f);
@@ -1034,7 +1039,7 @@ public partial class Unit3D : Node3D
 			return;
 		}
 
-		float radius = GameContext.Host.GetOrCalculateObstacleRadius(UnitId, this) * GameContext.Host.GetModelCollisionCircleRatio(ModelPath);
+		float radius = GetBaseObstacleRadius();
 		if (radius <= 0.001f) radius = 1f;
 
 		Decal shadowDecal = new Decal();

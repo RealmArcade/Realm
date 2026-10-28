@@ -119,6 +119,10 @@ public static class UnitEntityFactory
 			world.SetOrAdd(entity, new Building());
 			if (BlocksMovement(metadata)) world.SetOrAdd(entity, new CollisionRadius(ResolveCollisionRadius(metadata)));
 		}
+		else
+		{
+			world.SetOrAdd(entity, new CollisionRadius(ResolveUnitCollisionRadius(metadata)));
+		}
 
 		return entity;
 	}
@@ -142,9 +146,17 @@ public static class UnitEntityFactory
 	/// </summary>
 	public static float ResolveCollisionRadius(UnitMetadata metadata)
 	{
-		return metadata.CollisionCircle > GameplayConstants.MinimumAuthoredCollisionRadius
-			? metadata.CollisionCircle
-			: GameplayConstants.DefaultBuildingCollisionRadius;
+		return GameplayConstants.ResolveContactRadius(metadata.CollisionCircle, 1f, GameplayConstants.DefaultBuildingCollisionRadius);
+	}
+
+	/// <summary>
+	///     The radius a unit body uses: the collision circle its template authors, or the shared default unit radius
+	///     when it authors none. Every consumer scales it by the unit's collision scale, so a unit placed at twice the
+	///     size occupies twice the room and both processes resolve it the same way.
+	/// </summary>
+	public static float ResolveUnitCollisionRadius(UnitMetadata metadata)
+	{
+		return GameplayConstants.ResolveContactRadius(metadata.CollisionCircle, 1f, GameplayConstants.DefaultCollisionRadius);
 	}
 
 	public static Entity CreateCore(

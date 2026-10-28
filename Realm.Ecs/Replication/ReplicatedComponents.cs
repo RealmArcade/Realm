@@ -725,6 +725,8 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<Mana>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<MovementStats>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ModelScale>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<CollisionRadius>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<CollisionScale>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Level>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Experience>(ReplicatedScope.Unit));
 		Register(new AttackNumbersCodec());

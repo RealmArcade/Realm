@@ -158,6 +158,7 @@ public partial class GameHost
 
 		_authoritativeObstaclePositions = positions;
 		_authoritativeObstacleRadii = radii;
+		_hasAuthoritativeObstacleVolumes = true;
 
 		ApplyStoredObstacleVolumes();
 		RebakeNavMesh();
@@ -165,18 +166,19 @@ public partial class GameHost
 
 	private System.Numerics.Vector3[] _authoritativeObstaclePositions = System.Array.Empty<System.Numerics.Vector3>();
 	private float[] _authoritativeObstacleRadii = System.Array.Empty<float>();
+	private bool _hasAuthoritativeObstacleVolumes;
 
 	/// <summary>
-	///     Hands the volumes the match baked with to this screen's navigation mesh before it bakes, so a bake made
-	///     before the authority's set arrived and one made long after it agree.
+	///     Hands the volumes the match baked with to this screen's navigation mesh before it bakes, so every bake this
+	///     screen makes uses the authority's own obstacle set instead of collecting its own. Until the authority's first
+	///     set arrives this screen has nothing to defer to and bakes from the entities it loaded itself.
 	/// </summary>
 	private void ApplyStoredObstacleVolumes()
 	{
-		if (_authoritativeObstaclePositions.Length == 0) return;
+		if (!_hasAuthoritativeObstacleVolumes) return;
 
 		TerrainNavMeshService? navMesh = GameContext.Simulation.TerrainNavMeshService;
 		if (navMesh == null) return;
-		if (navMesh.HasBakedObstacleVolumes(_authoritativeObstaclePositions, _authoritativeObstacleRadii)) return;
 
 		navMesh.SetAuthoritativeObstacleVolumes(_authoritativeObstaclePositions, _authoritativeObstacleRadii);
 	}

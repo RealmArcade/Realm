@@ -2961,12 +2961,11 @@ public partial class GameHost : Node3D
 
 		// The radius comes from the template the authority builds the same building from, so the ground this building
 		// blocks is the ground the authority pathing treats as blocked, and is scaled by its collision scale where it is
-		// used. Only a template that is not registered at all falls back to measuring the model.
+		// used. A template the map does not register at all still gets the shared default body.
 		float baseRadius = meta != null
 			? UnitEntityFactory.ResolveCollisionRadius(meta)
-			: GetOrCalculateObstacleRadius(id, unit3D) * GetModelCollisionCircleRatio(GetModelAssetKey(unit3D));
+			: GameplayConstants.DefaultBuildingCollisionRadius;
 		GameContext.World.SetOrAdd(entity, new CollisionRadius(baseRadius));
-		if (!GameContext.SessionState.IsMapEditorMode) CarveObstacle(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), baseRadius);
 	}
 
 	private Unit3D SpawnUnit3D(Entity entity, string id, string modelPath, Vector3 pos, bool isBuilding, int player = 0, bool isFromQueue = false, bool executeSpawnShader = false)
@@ -3286,17 +3285,14 @@ public partial class GameHost : Node3D
 
 	public bool IsNavMeshRefreshPending => _navMeshRefreshPending;
 
-	public void CarveObstacle(System.Numerics.Vector3 pos, float radius)
-	{
-		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
-		{
-			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-			GameContext.Simulation.TerrainNavMeshService?.CarveObstacle(ref state, pos, radius);
-		}
-	}
-
+	/// <summary>
+	///     Opens the ground a destroyed obstacle used to block. Only the editor does this: in a match the navigation mesh
+	///     is baked from the obstacle set the authority reports, so a screen that carved its own holes would path
+	///     through ground the authority still treats as blocked.
+	/// </summary>
 	public void UncarveObstacle(System.Numerics.Vector3 pos, float radius)
 	{
+		if (!GameContext.SessionState.IsMapEditorMode) return;
 		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 		{
 			ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
@@ -3305,139 +3301,15 @@ public partial class GameHost : Node3D
 	}
 
 
-	private const float DefaultObstacleRadius = 0.5f;
-
-	public float GetOrCalculateObstacleRadius(string id, Node3D node)
+	/// <summary>
+	///     The body a template places on the ground, used where a placement is checked against the world before the
+	///     entity exists. It is the same number the authoritative process builds that template with.
+	/// </summary>
+	public float ResolveTemplateBodyRadius(string templateId)
 	{
-		if (GameContext.Simulation.TerrainNavMeshService.ObstacleRadiusCache.TryGetValue(id, out float cachedRadius))
-		{
-			return cachedRadius;
-		}
-
-		string modelKey = node != null ? GetModelAssetKey(node) : GetModelAssetKey(id);
-		if (!string.IsNullOrEmpty(modelKey) && GameContext.ModelOverrideService.ModelObstacleRadii.TryGetValue(modelKey, out float measuredRadius) && measuredRadius > 0f)
-		{
-			float modelScale = GetModelScale(id);
-			if (modelScale <= 0f) modelScale = 1f;
-
-			float scaledRadius = measuredRadius * modelScale;
-			GameContext.Simulation.TerrainNavMeshService.ObstacleRadiusCache[id] = scaledRadius;
-			return scaledRadius;
-		}
-
-		if (node == null)
-		{
-			if (TryMeasureModelAssetRadius(id, modelKey, out float assetRadius))
-			{
-				GameContext.Simulation.TerrainNavMeshService.ObstacleRadiusCache[id] = assetRadius;
-				return assetRadius;
-			}
-
-			return DefaultObstacleRadius;
-		}
-
-		float calculatedRadius = CalculateNodeRadius(node);
-		GameContext.Simulation.TerrainNavMeshService.ObstacleRadiusCache[id] = calculatedRadius;
-		return calculatedRadius;
-	}
-
-	private bool TryMeasureModelAssetRadius(string id, string modelKey, out float radius)
-	{
-		radius = 0f;
-		string modelPath = GetTemplateModelPath(id);
-		if (string.IsNullOrEmpty(modelPath)) return false;
-
-		Node modelNode = ModelCache.GetModel(modelPath);
-		if (modelNode == null) return false;
-
-		try
-		{
-			if (modelNode is not Node3D modelRoot) return false;
-
-			float rawRadius = MeasureModelRadius(modelRoot);
-			if (rawRadius <= 0f) return false;
-
-			float modelScale = GetModelScale(id);
-			if (modelScale <= 0f) modelScale = 1f;
-
-			if (!string.IsNullOrEmpty(modelKey)) GameContext.ModelOverrideService.ModelObstacleRadii[modelKey] = rawRadius;
-			radius = rawRadius * modelScale;
-			return true;
-		}
-		finally
-		{
-			modelNode.Free();
-		}
-	}
-
-	private string GetTemplateModelPath(string id)
-	{
-		if (UnitRegistry.TryGetValue(id, out var unitMeta) && !string.IsNullOrEmpty(unitMeta.ModelPath)) return unitMeta.ModelPath;
-		if (BuildingRegistry.TryGetValue(id, out var buildingMeta) && !string.IsNullOrEmpty(buildingMeta.ModelPath)) return buildingMeta.ModelPath;
-		if (PropRegistry.TryGetValue(id, out var propMeta) && !string.IsNullOrEmpty(propMeta.ModelPath)) return propMeta.ModelPath;
-		if (ResourceRegistry.TryGetValue(id, out var resourceMeta) && !string.IsNullOrEmpty(resourceMeta.ModelPath)) return resourceMeta.ModelPath;
-		return null;
-	}
-
-	public float ResolveTemplateBodyRadius(string templateId, Node3D node)
-	{
-		float radius = GetOrCalculateObstacleRadius(templateId, node) * GetModelCollisionCircleRatio(templateId);
+		float radius = ResolveTemplateCollisionRadius(templateId);
 		if (radius <= GameplayConstants.MinimumAuthoredCollisionRadius) return GameplayConstants.DefaultCollisionRadius;
 		return radius;
-	}
-
-	private float CalculateNodeRadius(Node node)
-	{
-		if (node is not Node3D root) return DefaultObstacleRadius;
-
-		float maxRadius = DefaultObstacleRadius;
-		var toRoot = root.GlobalTransform.AffineInverse();
-
-		foreach (var shapeNode in FindChildrenOfType<CollisionShape3D>(node))
-		{
-			if (shapeNode.Shape == null) continue;
-			float r = GetShapeRadius(shapeNode.Shape) * GetScaleRelativeToRoot(root, shapeNode);
-			if (r > maxRadius) maxRadius = r;
-		}
-
-		foreach (var meshNode in FindChildrenOfType<MeshInstance3D>(node))
-		{
-			if (meshNode.Mesh == null) continue;
-
-			var aabb = meshNode.Mesh.GetAabb();
-			if (aabb.Size == Vector3.Zero) continue;
-
-			var meshTransform = toRoot * meshNode.GlobalTransform;
-			for (int i = 0; i < 8; i++)
-			{
-				var corner = meshTransform * aabb.GetEndpoint(i);
-				float r = MathF.Sqrt(corner.X * corner.X + corner.Z * corner.Z);
-				if (r > maxRadius) maxRadius = r;
-			}
-		}
-
-		return maxRadius;
-	}
-
-	private static float GetScaleRelativeToRoot(Node3D root, Node3D child)
-	{
-		var rootBasis = root.GlobalTransform.Basis;
-		var childBasis = child.GlobalTransform.Basis;
-		float rootScale = Math.Max(Math.Abs(rootBasis.Scale.X), Math.Abs(rootBasis.Scale.Z));
-		float childScale = Math.Max(Math.Abs(childBasis.Scale.X), Math.Abs(childBasis.Scale.Z));
-		return rootScale > 0.0001f ? childScale / rootScale : childScale;
-	}
-
-	private float GetShapeRadius(Shape3D shape)
-	{
-		return shape switch
-		{
-			BoxShape3D box => Math.Max(box.Size.X, box.Size.Z) * 0.5f,
-			CylinderShape3D cyl => cyl.Radius,
-			SphereShape3D sphere => sphere.Radius,
-			CapsuleShape3D capsule => capsule.Radius,
-			_ => 0.5f
-		};
 	}
 
 	/// <summary>
@@ -3540,26 +3412,6 @@ public partial class GameHost : Node3D
 
 		SharedShadowGradient = ImageTexture.CreateFromImage(img);
 		return SharedShadowGradient;
-	}
-
-	private List<T> FindChildrenOfType<T>(Node parent) where T : Node
-	{
-		var result = new List<T>();
-		FindChildrenOfTypeRecursive(parent, result);
-		return result;
-	}
-
-	private void FindChildrenOfTypeRecursive<T>(Node parent, List<T> result) where T : Node
-	{
-		if (parent is T typed)
-		{
-			result.Add(typed);
-		}
-
-		foreach (var child in parent.GetChildren())
-		{
-			FindChildrenOfTypeRecursive(child, result);
-		}
 	}
 
 	private void UpdateConnectionStatus()

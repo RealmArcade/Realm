@@ -480,7 +480,7 @@ public partial class GameHost
 	{
 		var mesh = new MeshInstance3D();
 		mesh.Name = "Mesh_MeshInstance3D";
-		float bRadius = ResolveTemplateBodyRadius(buildType, null);
+		float bRadius = ResolveTemplateBodyRadius(buildType);
 		float bWidth = bRadius * 2f;
 		float bHeight = Math.Max(4f, bRadius);
 		var box = new BoxMesh();
@@ -527,10 +527,9 @@ public partial class GameHost
 		GameContext.World.Add(bldEntity, new ConstructionState(buildTime));
 		GameContext.World.Add(bldEntity, new UnderConstruction());
 
-		float bldRadius = GetOrCalculateObstacleRadius(buildType, null);
 		if (!GameContext.World.Has<CollisionRadius>(bldEntity))
 		{
-			GameContext.World.Add(bldEntity, new CollisionRadius(bldRadius));
+			GameContext.World.Add(bldEntity, new CollisionRadius(ResolveTemplateCollisionRadius(buildType)));
 		}
 
 		EnsureBuildingModel(bldEntity, targetPos);

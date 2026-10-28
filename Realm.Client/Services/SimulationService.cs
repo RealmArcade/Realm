@@ -1303,7 +1303,9 @@ public class SimulationService
 	{
 		if (!GameContext.World.IsAlive(entity)) return;
 
-		if (isBuilding)
+		// Only the editor opens ground itself. In a match the mesh is baked from the authority's obstacle set, so a
+		// screen that uncarved here would path through a blocker the authority still has.
+		if (isBuilding && GameContext.SessionState.IsMapEditorMode)
 		{
 			if (GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<TerrainState>(GameContext.Simulation.WorldEntity))
 			{

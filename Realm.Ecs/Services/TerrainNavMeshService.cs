@@ -15,8 +15,6 @@ namespace Realm.Ecs.Services;
 
 public class TerrainNavMeshService
 {
-	public Dictionary<string, float> ObstacleRadiusCache { get; set; } = new();
-
 	/// <summary>
 	/// How many obstacle volumes went into the last bake. Reported by the host and by each peer so a mesh that differs from
 	/// the authority's can be traced to the input it was built from rather than to the bake itself.
@@ -26,11 +24,12 @@ public class TerrainNavMeshService
 	/// <summary>
 	/// True when this instance bakes with obstacle volumes received from the authority rather than collecting them from the
 	/// entities it can see. A peer does not run the map script, so most of the authority's obstacle volumes have no entity
-	/// behind them on the peer at all.
+	/// behind them on the peer at all. An empty authoritative set still counts: a map with no blockers is baked with no
+	/// volumes rather than with whatever bodies the peer happens to hold.
 	/// </summary>
-	public bool UsesAuthoritativeObstacles => _authoritativeObstaclePositions.Count > 0;
+	public bool UsesAuthoritativeObstacles => _hasAuthoritativeObstacles;
 
-
+	private bool _hasAuthoritativeObstacles;
 	private readonly List<Vector3> _authoritativeObstaclePositions = new();
 	private readonly List<float> _authoritativeObstacleRadii = new();
 	private readonly List<Vector3> _bakedObstaclePositions = new();
@@ -657,6 +656,7 @@ public class TerrainNavMeshService
 	/// </summary>
 	public void SetAuthoritativeObstacleVolumes(ReadOnlySpan<Vector3> positions, ReadOnlySpan<float> radii)
 	{
+		_hasAuthoritativeObstacles = true;
 		_authoritativeObstaclePositions.Clear();
 		_authoritativeObstacleRadii.Clear();
 		int count = Math.Min(positions.Length, radii.Length);
@@ -665,23 +665,6 @@ public class TerrainNavMeshService
 			_authoritativeObstaclePositions.Add(positions[index]);
 			_authoritativeObstacleRadii.Add(radii[index]);
 		}
-	}
-
-	/// <summary>
-	/// True when the last bake already used exactly these volumes, so applying them again would only repeat an expensive
-	/// bake for the same result.
-	/// </summary>
-	public bool HasBakedObstacleVolumes(ReadOnlySpan<Vector3> positions, ReadOnlySpan<float> radii)
-	{
-		if (positions.Length != _bakedObstaclePositions.Count || radii.Length != _bakedObstacleRadii.Count) return false;
-
-		for (int index = 0; index < positions.Length; index++)
-		{
-			if (positions[index] != _bakedObstaclePositions[index]) return false;
-			if (radii[index] != _bakedObstacleRadii[index]) return false;
-		}
-
-		return true;
 	}
 
 	/// <summary>

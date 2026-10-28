@@ -222,7 +222,6 @@ namespace Realm.Client.Core
 
 			float clampedScale = Mathf.Clamp(scale, 0.05f, 20.0f);
 			GameContext.ModelOverrideService.ModelScales[norm] = clampedScale;
-			GameContext.Simulation.TerrainNavMeshService?.ObstacleRadiusCache.Clear();
 
 			UpdatePropsScale(norm, clampedScale);
 			UpdateUnitsScale(norm, clampedScale);
@@ -2901,10 +2900,7 @@ namespace Realm.Client.Core
 
 		private void ApplyGeneralClumpSpawn(Vector3 centerPos)
 		{
-			float autoDetectedRadius = GetOrCalculateObstacleRadius(ActivePlaceId, _editorPreviewNode);
-			string assetKey = GetModelAssetKey(_editorPreviewNode ?? (object)ActivePlaceId);
-			float ratio = GetModelCollisionCircleRatio(assetKey);
-			float assetBaseCollisionRadius = Mathf.Max(0.1f, autoDetectedRadius * ratio);
+			float assetBaseCollisionRadius = Mathf.Max(0.1f, ResolveTemplateCollisionRadius(ActivePlaceId));
 
 			var requests = GameContext.EditorService.BuildClumpSpawnRequests(
 				centerPos,

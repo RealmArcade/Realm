@@ -130,6 +130,41 @@ public partial class GameHost
 		return GameContext.ModelOverrideService.GetModelCollisionCircleRatio(primaryKey, assetKey, GameContext.EditorService.NormalizeModelAssetKey);
 	}
 
+	/// <summary>
+	///     The body radius a template declares in metadata.json, or the shared default for its kind when it declares
+	///     none. The authoritative process builds units, buildings, props and resource nodes through the same resolvers,
+	///     so a screen and the match it is watching agree on how much ground a body occupies instead of one measuring a
+	///     model the other cannot see.
+	/// </summary>
+	public float ResolveTemplateCollisionRadius(string templateId)
+	{
+		if (string.IsNullOrEmpty(templateId)) return GameplayConstants.DefaultCollisionRadius;
+
+		float authoredCollisionRadius = GetModelCollisionCircleRatio(templateId);
+
+		if (UnitRegistry.ContainsKey(templateId)) return GameplayConstants.ResolveContactRadius(authoredCollisionRadius, 1f, GameplayConstants.DefaultCollisionRadius);
+		if (BuildingRegistry.ContainsKey(templateId)) return GameplayConstants.ResolveContactRadius(authoredCollisionRadius, 1f, GameplayConstants.DefaultBuildingCollisionRadius);
+
+		return GameplayConstants.ResolveContactRadius(authoredCollisionRadius, 1f, GameplayConstants.DefaultPropCollisionRadius);
+	}
+
+	/// <summary>
+	///     The body radius an entity actually has: the number the simulation separates and paths around when the entity
+	///     carries one, which is what a replicated unit, building or prop always does. A preview node that has no entity
+	///     yet falls back to what its template declares, scaled by its placed model scale.
+	/// </summary>
+	public float ResolveEntityBodyRadius(Entity entity, string templateId)
+	{
+		if (GameContext.World != null && entity != Entity.Null && GameContext.World.IsAlive(entity) && GameContext.World.Has<CollisionRadius>(entity))
+		{
+			return GameplayConstants.ResolveBodyRadius(GameContext.World, entity, GameplayConstants.DefaultCollisionRadius);
+		}
+
+		float scale = GetModelScale(templateId);
+		if (scale <= 0f) scale = 1f;
+		return ResolveTemplateCollisionRadius(templateId) * scale;
+	}
+
 	private float GetRegistryCollisionCircleRatio(string primaryKey)
 	{
 		return GameContext.RegistryService.GetRegistryCollisionCircleRatio(primaryKey);
@@ -465,7 +500,7 @@ public partial class GameHost
 		float circleRatio = GetModelCollisionCircleRatio(unit);
 		unit.UpdateCollisionCircleScale(circleRatio);
 
-		float baseRadius = GetOrCalculateObstacleRadius(unit.UnitId, unit) * circleRatio;
+		float baseRadius = ResolveTemplateCollisionRadius(unit.UnitId);
 		GameContext.ModelOverrideService.UpdateCollisionRadius(unit.Entity, baseRadius);
 
 		if (unit.IsPreview) return;
@@ -493,7 +528,7 @@ public partial class GameHost
 		float circleRatio = GetModelCollisionCircleRatio(prop);
 		prop.UpdateCollisionCircleScale(circleRatio);
 
-		float baseRadius = GetOrCalculateObstacleRadius(prop.PropId, prop) * circleRatio;
+		float baseRadius = ResolveTemplateCollisionRadius(prop.PropId);
 		GameContext.ModelOverrideService.UpdateCollisionRadius(prop.Entity, baseRadius);
 
 		if (prop.IsPreview) return;
@@ -676,8 +711,7 @@ public partial class GameHost
 			prop.UpdateCollisionCircleScale(ratio);
 			if (prop.Entity != Entity.Null && GameContext.World.IsAlive(prop.Entity))
 			{
-				float baseRadius = GetOrCalculateObstacleRadius(prop.PropId, prop) * ratio;
-				GameContext.World.SetOrAdd(prop.Entity, new CollisionRadius(baseRadius));
+				GameContext.World.SetOrAdd(prop.Entity, new CollisionRadius(ResolveTemplateCollisionRadius(prop.PropId)));
 			}
 		}
 	}
@@ -691,8 +725,7 @@ public partial class GameHost
 			unit.UpdateCollisionCircleScale(ratio);
 			if (unit.Entity != Entity.Null && GameContext.World.IsAlive(unit.Entity))
 			{
-				float baseRadius = GetOrCalculateObstacleRadius(unit.UnitId, unit) * ratio;
-				GameContext.World.SetOrAdd(unit.Entity, new CollisionRadius(baseRadius));
+				GameContext.World.SetOrAdd(unit.Entity, new CollisionRadius(ResolveTemplateCollisionRadius(unit.UnitId)));
 			}
 		}
 	}
@@ -1190,9 +1223,7 @@ public partial class GameHost
 		float defaultAmount = GetDefaultResourceAmount(propId);
 		position.Y = GetTerrainHeightAt(position);
 
-		string propAssetKey = GameContext.EditorService.NormalizeModelAssetKey(propId);
-		float autoDetectedRadius = GetOrCalculateObstacleRadius(propId, null);
-		float baseRadius = autoDetectedRadius * GetModelCollisionCircleRatio(propAssetKey);
+		float baseRadius = ResolveTemplateCollisionRadius(propId);
 
 		var entity = GameContext.EditorService.SpawnPropDomain(propId, new System.Numerics.Vector3(position.X, position.Y, position.Z), rotationY, scale, cleanId, defaultAmount, position.Y, baseRadius);
 

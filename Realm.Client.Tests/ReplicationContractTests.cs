@@ -15,7 +15,7 @@ public partial class ReplicationContractTests
 	private static readonly string[] HostOnlyComponents =
 	{
 		"Position", "PreviousPosition", "Health", "Owner",
-		"ManaRegen", "CollisionRadius", "CollisionScale", "DefinitionId",		"CustomMetadata",
+		"ManaRegen", "DefinitionId",		"CustomMetadata",
 		"CountdownState", "DecalIdentity", "DecalSpawnRequest", "EditorState",
 		"DescribedAtSequence",
 		"InputState",

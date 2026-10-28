@@ -11,6 +11,7 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
+using Realm.Shared.Metadata;
 using Realm.MapAPI;
 
 namespace Realm.ListenServer;
@@ -386,7 +387,9 @@ public partial class ServerGameAPI
 
 		float groundHeight = ReadTerrainHeight(position);
 		var placed = new Vector3(position.X, groundHeight, position.Z);
-		Entity node = PropEntityFactory.CreateCore(_context.World, resourceType, placed, 0f, 1f, 1.5f);
+		PlaceableMetadata? metadata = _map.Catalog.FindResource(resourceType) ?? (PlaceableMetadata?)_map.Catalog.FindProp(resourceType);
+		float collisionRadius = metadata != null ? PropEntityFactory.ResolveCollisionRadius(metadata) : 0f;
+		Entity node = PropEntityFactory.CreateCore(_context.World, resourceType, placed, 0f, 1f, collisionRadius);
 		PropEntityFactory.AddResourceNode(_context.World, node, metadata: null, savedAmount: amount);
 		_log.Write($"spawned a '{resourceType}' node with {amount} in it");
 	}

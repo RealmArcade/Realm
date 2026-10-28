@@ -2,6 +2,7 @@ using System.Numerics;
 using DotRecast.Detour;
 using NUnit.Framework;
 using Realm.Ecs;
+using Realm.Ecs.Common;
 using Realm.Client;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Core;
@@ -30,21 +31,21 @@ namespace Realm.Ecs.Tests
 		private MovementAndPathfindingService _movementService = null!;
 		private Entity _worldEntity;
 
-		[SetUp]
-		public void Setup()
-		{
-		}
-
 		[TearDown]
 		public void TearDown()
 		{
 			GameContext.RecreateSimulation();
 		}
 
+		/// <summary>
+		///     Builds the terrain the test paths on. The heights are kept by the terrain component itself: a test that
+		///     wants a cliff or a cone writes them through <see cref="SetTerrainHeights" />, which replaces the cells the
+		///     bake reads.
+		/// </summary>
 		private void InitializeTerrain(int width = 64, int depth = 64, float quadSize = 2.0f, float cellSize = 0.5f)
 		{
-			float[,] heights = new float[width, depth];
-			int[,] pathingCodes = new int[width, depth];
+			var heights = new float[width, depth];
+			var pathingCodes = new int[width, depth];
 			for (int z = 0; z < depth; z++)
 			{
 				for (int x = 0; x < width; x++)
@@ -53,11 +54,63 @@ namespace Realm.Ecs.Tests
 				}
 			}
 
-			var terrainState = new TerrainState(width, depth, quadSize, cellSize, heights, pathingCodes, new DtNavMesh(), new DtNavMeshQuery(new DtNavMesh()));
-			_worldEntity = _world.Create(terrainState);
+			// The world must exist before the terrain state is built: its cells and pathing codes are
+			// registered as cold payloads in the ambient world's store, and a state built before that
+			// world exists would register into a store the simulation never reads.
+			EcsWorld world = _world;
+			var terrainState = new TerrainState(width, depth, quadSize, cellSize, heights, pathingCodes);
+			_worldEntity = world.Create(terrainState);
 			GameContext.Simulation.WorldEntity = _worldEntity;
 
 			_movementService = new MovementAndPathfindingService(GameContext.Simulation);
+		}
+
+		private void SetTerrainHeights(float[,] heights)
+		{
+			ref var terrain = ref _world.Get<TerrainState>(_worldEntity);
+			terrain.SetHeights(heights);
+			Assert.That(terrain.Cells, Is.Not.Null, "The terrain cells the bake reads have to exist.");
+		}
+
+		/// <summary>
+		///     Bakes the navigation mesh and proves the bake did the work the test needs: real cells, a real mesh, and
+		///     exactly the obstacle volumes the test spawned. Without this a test that silently bakes nothing looks
+		///     like a test that passed.
+		/// </summary>
+		private void BakeAndAssert(int expectedObstacleCount)
+		{
+			ref var terrain = ref _world.Get<TerrainState>(_worldEntity);
+			Assert.That(terrain.Cells, Is.Not.Null, "No terrain cells: the bake would return without doing anything.");
+
+			int spawnedObstacles = _world.CountEntities(in QueryCache.AllPositionAndCollisionRadiusAndPropIdentityNoneDeadQuery)
+				+ _world.CountEntities(in QueryCache.AllPositionAndCollisionRadiusAndBuildingNoneDeadQuery);
+			Assert.That(spawnedObstacles, Is.EqualTo(expectedObstacleCount), "The test spawned a different set of obstacles than it expects to path around.");
+
+			_terrainNavMeshService.BakeNavMesh(ref terrain);
+
+			Assert.That(terrain.NavMesh, Is.Not.Null, "The bake produced no navigation mesh.");
+			Assert.That(terrain.NavMeshQuery, Is.Not.Null, "The bake produced no navigation query.");
+			Assert.That(_terrainNavMeshService.LastBakedObstacleCount, Is.EqualTo(expectedObstacleCount),
+				"The bake did not use the obstacle volumes the test spawned.");
+			Assert.That(CountNavMeshPolygons(terrain.NavMesh), Is.GreaterThan(0), "The baked mesh has no polygons, so no unit could path on it.");
+
+			GameContext.Simulation.WorldEntity = _worldEntity;
+		}
+
+		private static int CountNavMeshPolygons(DtNavMesh? navMesh)
+		{
+			if (navMesh == null) return 0;
+
+			int polygons = 0;
+			int maxTiles = navMesh.GetMaxTiles();
+			for (int tileIndex = 0; tileIndex < maxTiles; tileIndex++)
+			{
+				var tile = navMesh.GetTile(tileIndex);
+				if (tile?.data?.header == null) continue;
+				polygons += tile.data.header.polyCount;
+			}
+
+			return polygons;
 		}
 
 		private void SpawnObstacle(Vector3 pos, float radius)
@@ -87,14 +140,14 @@ namespace Realm.Ecs.Tests
 			// of a steep mountain) must NOT fall back to a single straight-line waypoint at the
 			// raw destination. That fallback let ground units climb terrain the navmesh rejects.
 			InitializeTerrain();
-			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
+			BakeAndAssert(expectedObstacleCount: 0);
 
 			var start = new Vector3(0f, 0f, 0f);
 			// Both points resolve to walkable polygons -> a normal path is expected.
 			var walkableTarget = new Vector3(20f, 0f, 0f);
 
 			var pf = new PathFollow();
-			_pathfinder.ComputePath(_world.Get<TerrainState>(_worldEntity).NavMeshQuery, start, walkableTarget, (ushort)TerrainPathingFlags.Ground, ref pf);
+			_pathfinder.ComputePath(_world.Get<TerrainState>(_worldEntity).NavMeshQuery!, start, walkableTarget, (ushort)TerrainPathingFlags.Ground, ref pf);
 			Assert.That(pf.WaypointCount, Is.GreaterThanOrEqualTo(1), "Walkable targets should produce a path.");
 			Assert.That(pf.Waypoints[0], Is.Not.EqualTo(walkableTarget), "Normal path waypoint should follow the navmesh, not the raw destination.");
 
@@ -104,7 +157,7 @@ namespace Realm.Ecs.Tests
 			// (its "foot") so the unit walks up to the obstacle instead of climbing the wall.
 			var unreachableTarget = new Vector3(0f, 100f, 0f);
 			pf = new PathFollow();
-			_pathfinder.ComputePath(_world.Get<TerrainState>(_worldEntity).NavMeshQuery, start, unreachableTarget, (ushort)TerrainPathingFlags.Ground, ref pf);
+			_pathfinder.ComputePath(_world.Get<TerrainState>(_worldEntity).NavMeshQuery!, start, unreachableTarget, (ushort)TerrainPathingFlags.Ground, ref pf);
 			Assert.That(pf.WaypointCount, Is.GreaterThanOrEqualTo(1),
 				"An elevated off-mesh destination should resolve to the walkable ground beneath it.");
 			for (int i = 0; i < pf.WaypointCount; i++)
@@ -116,16 +169,15 @@ namespace Realm.Ecs.Tests
 			// A destination just off the near walkable surface snaps to the closest walkable point.
 			var nearEdgeTarget = new Vector3(20f, 2f, 20f);
 			pf = new PathFollow();
-			_pathfinder.ComputePath(_world.Get<TerrainState>(_worldEntity).NavMeshQuery, start, nearEdgeTarget, (ushort)TerrainPathingFlags.Ground, ref pf);
+			_pathfinder.ComputePath(_world.Get<TerrainState>(_worldEntity).NavMeshQuery!, start, nearEdgeTarget, (ushort)TerrainPathingFlags.Ground, ref pf);
 			Assert.That(pf.WaypointCount, Is.GreaterThanOrEqualTo(1), "Targets close to walkable terrain should still resolve to the nearest walkable point.");
 		}
-
 
 		[Test]
 		public void TestOpenAreaPathing()
 		{
 			InitializeTerrain();
-			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
+			BakeAndAssert(expectedObstacleCount: 0);
 
 			var unit = SpawnUnit(new Vector3(-20f, 0f, -20f));
 			var destination = new Vector3(20f, 0f, 20f);
@@ -162,16 +214,17 @@ namespace Realm.Ecs.Tests
 			float quadSize = 2.0f;
 			InitializeTerrain(width, depth, quadSize);
 
-			ref var terrain = ref _world.Get<TerrainState>(_worldEntity);
+			var heights = new float[width, depth];
 			for (int z = 0; z < depth; z++)
 			{
 				if (z != 32 && z != 31 && z != 33)
 				{
-					terrain.Heights![32, z] = 10.0f;
+					heights[32, z] = 10.0f;
 				}
 			}
 
-			_terrainNavMeshService.BakeNavMesh(ref terrain);
+			SetTerrainHeights(heights);
+			BakeAndAssert(expectedObstacleCount: 0);
 
 			var start = new Vector3(-20f, 0f, 0f);
 			var destination = new Vector3(20f, 0f, 0f);
@@ -200,11 +253,13 @@ namespace Realm.Ecs.Tests
 
 			Assert.That(pathLength, Is.LessThan(48.0f));
 
+			// The wall stands on cell column 32 (world X ~ 0) and leaves a gap at Z ~ 0, so a
+			// unit crossing it has to do so through that gap instead of climbing the wall.
 			foreach (var pt in path)
 			{
-				if (Math.Abs(pt.X - 1.0f) < 0.5f)
+				if (Math.Abs(pt.X) < 1.5f)
 				{
-					Assert.That(Math.Abs(pt.Z - 1.0f), Is.LessThan(4.0f));
+					Assert.That(Math.Abs(pt.Z), Is.LessThan(5.0f), $"The path crossed the cliff wall at Z={pt.Z}.");
 				}
 			}
 		}
@@ -213,8 +268,8 @@ namespace Realm.Ecs.Tests
 		public void TestGroundUnitRoundsSteepSlopeInsteadOfFreezingClimbing()
 		{
 			// Regression for the smoother-walking change: a ground unit whose destination lies
-			// beyond a >30-degree slope must walk AROUND it (the 30-degree navmesh refuses the
-			// slope) without freezing at the slope's lip or climbing it. Steep cells must never
+			// beyond a >30-degree slope must walk AROUND it (the navmesh refuses the slope)
+			// without freezing at the slope's lip or climbing it. Steep cells must never
 			// push the unit upward: sliding keeps Y clamped to the current polygon height.
 			int width = 64, depth = 64;
 			float quadSize = 2.0f;
@@ -226,17 +281,18 @@ namespace Realm.Ecs.Tests
 			const float peakHeight = 6.0f;
 			const int centerCell = 32;
 
-			ref var terrain = ref _world.Get<TerrainState>(_worldEntity);
+			var heights = new float[width, depth];
 			for (int z = 0; z < depth; z++)
 			{
 				for (int x = 0; x < width; x++)
 				{
 					float r = (float)Math.Sqrt((x - centerCell) * (x - centerCell) + (z - centerCell) * (z - centerCell));
-					terrain.Heights![x, z] = Math.Max(0f, Math.Min(peakHeight, slopePerCell * (coneRadiusCells - r)));
+					heights[x, z] = Math.Max(0f, Math.Min(peakHeight, slopePerCell * (coneRadiusCells - r)));
 				}
 			}
 
-			_terrainNavMeshService.BakeNavMesh(ref terrain);
+			SetTerrainHeights(heights);
+			BakeAndAssert(expectedObstacleCount: 0);
 
 			var start = new Vector3(-20f, 0f, 0f);
 			var destination = new Vector3(20f, 0f, 0f);
@@ -280,12 +336,14 @@ namespace Realm.Ecs.Tests
 		{
 			InitializeTerrain();
 
+			int obstacles = 0;
 			for (float z = -16.0f; z <= 16.0f; z += 2.0f)
 			{
 				SpawnObstacle(new Vector3(0f, 0f, z), 1.0f);
+				obstacles++;
 			}
 
-			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
+			BakeAndAssert(obstacles);
 
 			var start = new Vector3(-20f, 0f, 0f);
 			var destination = new Vector3(20f, 0f, 0f);
@@ -312,22 +370,6 @@ namespace Realm.Ecs.Tests
 				ticks++;
 			}
 
-			if (_world.Has<PathFollow>(unit))
-			{
-				var pf = _world.Get<PathFollow>(unit);
-				Console.WriteLine($"Obstacle Wall test - Waypoint count: {pf.WaypointCount}, Current Index: {pf.CurrentWaypointIndex}");
-				for (int i = 0; i < pf.WaypointCount; i++)
-				{
-					Console.WriteLine($"  WP {i}: {pf.Waypoints[i]}");
-				}
-			}
-			else
-			{
-				Console.WriteLine("Obstacle Wall test - No PathFollow component!");
-			}
-
-			Console.WriteLine($"Obstacle Wall test - Final position: {_world.Get<Position>(unit).Value}");
-
 			Assert.That(_world.Has<MoveTo>(unit), Is.False);
 
 			float pathLength = 0;
@@ -346,7 +388,7 @@ namespace Realm.Ecs.Tests
 
 			SpawnObstacle(new Vector3(0f, 0f, 0f), 3.0f);
 
-			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
+			BakeAndAssert(expectedObstacleCount: 1);
 
 			var start = new Vector3(-20f, 0f, 0f);
 			var destination = new Vector3(20f, 0f, 0f);
@@ -390,7 +432,9 @@ namespace Realm.Ecs.Tests
 				);
 			}
 
-			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
+			// Units are bodies the movement step separates against, not volumes the mesh is baked
+			// from, so the bake must stay empty here.
+			BakeAndAssert(expectedObstacleCount: 0);
 
 			var start = new Vector3(-20f, 0f, 0f);
 			var destination = new Vector3(20f, 0f, 0f);
@@ -425,15 +469,18 @@ namespace Realm.Ecs.Tests
 		{
 			InitializeTerrain(128, 128, 0.5f);
 
+			int obstacles = 0;
 			SpawnObstacle(new Vector3(0f, 0f, -2.3f), 1.5f);
 			SpawnObstacle(new Vector3(0f, 0f, 2.3f), 1.5f);
+			obstacles += 2;
 			for (float z = -64.0f; z <= 64.0f; z += 3.0f)
 			{
 				if (z > -3.5f && z < 3.5f) continue;
 				SpawnObstacle(new Vector3(0f, 0f, z), 1.5f);
+				obstacles++;
 			}
 
-			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
+			BakeAndAssert(obstacles);
 
 			var start = new Vector3(-20f, 0f, 0f);
 			var destination = new Vector3(20f, 0f, 0f);
@@ -451,7 +498,6 @@ namespace Realm.Ecs.Tests
 			Assert.That(_world.Has<MoveTo>(unit), Is.False);
 			var finalPos = _world.Get<Position>(unit).Value;
 			Assert.That(Vector3.Distance(finalPos, destination), Is.LessThan(1.5f));
-			Console.WriteLine($"Squeeze and Unstuck Ticks: {ticks}");
 		}
 
 		[Test]
@@ -462,15 +508,18 @@ namespace Realm.Ecs.Tests
 			// narrower than its collision diameter (intentional RTS clumping behavior).
 			InitializeTerrain(128, 128, 0.5f);
 
+			int obstacles = 0;
 			SpawnObstacle(new Vector3(0f, 0f, -2.3f), 1.5f);
 			SpawnObstacle(new Vector3(0f, 0f, 2.3f), 1.5f);
+			obstacles += 2;
 			for (float z = -64.0f; z <= 64.0f; z += 3.0f)
 			{
 				if (z > -3.5f && z < 3.5f) continue;
 				SpawnObstacle(new Vector3(0f, 0f, z), 1.5f);
+				obstacles++;
 			}
 
-			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
+			BakeAndAssert(obstacles);
 
 			var start = new Vector3(-20f, 0f, 0f);
 			var destination = new Vector3(20f, 0f, 0f);
@@ -510,7 +559,7 @@ namespace Realm.Ecs.Tests
 				terrain.PathingCodes![45, z] = (int)TerrainPathingFlags.Flying;
 			}
 
-			_terrainNavMeshService.BakeNavMesh(ref terrain);
+			BakeAndAssert(expectedObstacleCount: 0);
 
 			var start = new Vector3(-20f, 0f, 0f);
 
@@ -553,7 +602,7 @@ namespace Realm.Ecs.Tests
 		public void TestArrivalToleratesSmallHeightDifference()
 		{
 			InitializeTerrain();
-			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
+			BakeAndAssert(expectedObstacleCount: 0);
 
 			var unit = SpawnUnit(new Vector3(20f, 0f, 20f));
 			_world.Add(unit, new PathingFlags((int)TerrainPathingFlags.Flying));
@@ -575,7 +624,7 @@ namespace Realm.Ecs.Tests
 		public void TestFlyingUnitArrivesAcrossHeight()
 		{
 			InitializeTerrain();
-			_terrainNavMeshService.BakeNavMesh(ref _world.Get<TerrainState>(_worldEntity));
+			BakeAndAssert(expectedObstacleCount: 0);
 
 			var unit = SpawnUnit(new Vector3(20f, 0f, 20f));
 			_world.Add(unit, new PathingFlags((int)TerrainPathingFlags.Flying));
@@ -597,11 +646,11 @@ namespace Realm.Ecs.Tests
 		public void TestFlyingUnitFollowsTerrainHeight()
 		{
 			InitializeTerrain();
-			ref var terrain = ref _world.Get<TerrainState>(_worldEntity);
 
 			// Raise the whole terrain so we can verify the unit sticks to the terrain height
 			// instead of flying at a hardcoded absolute altitude.
-			float[,] raised = new float[terrain.Width, terrain.Depth];
+			ref var terrain = ref _world.Get<TerrainState>(_worldEntity);
+			var raised = new float[terrain.Width, terrain.Depth];
 			for (int z = 0; z < terrain.Depth; z++)
 			{
 				for (int x = 0; x < terrain.Width; x++)
@@ -610,8 +659,8 @@ namespace Realm.Ecs.Tests
 				}
 			}
 
-			terrain.SetHeights(raised);
-			_terrainNavMeshService.BakeNavMesh(ref terrain);
+			SetTerrainHeights(raised);
+			BakeAndAssert(expectedObstacleCount: 0);
 
 			var unit = SpawnUnit(new Vector3(0f, 0f, 0f));
 			_world.Add(unit, new PathingFlags((int)TerrainPathingFlags.Flying));

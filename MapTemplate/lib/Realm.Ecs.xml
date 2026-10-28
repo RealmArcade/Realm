@@ -1931,7 +1931,8 @@
             <summary>
             True when this instance bakes with obstacle volumes received from the authority rather than collecting them from the
             entities it can see. A peer does not run the map script, so most of the authority's obstacle volumes have no entity
-            behind them on the peer at all.
+            behind them on the peer at all. An empty authoritative set still counts: a map with no blockers is baked with no
+            volumes rather than with whatever bodies the peer happens to hold.
             </summary>
         </member>
         <member name="M:Realm.Ecs.Services.TerrainNavMeshService.ObstaclesChangedSinceBake">
@@ -1952,12 +1953,6 @@
             Replaces the obstacle volumes this instance bakes with the ones the authority baked with. Called on a peer after the
             authority reports a bake, so both sides build their mesh from the same volumes and answer the same path query with
             the same corridor.
-            </summary>
-        </member>
-        <member name="M:Realm.Ecs.Services.TerrainNavMeshService.HasBakedObstacleVolumes(System.ReadOnlySpan{System.Numerics.Vector3},System.ReadOnlySpan{System.Single})">
-            <summary>
-            True when the last bake already used exactly these volumes, so applying them again would only repeat an expensive
-            bake for the same result.
             </summary>
         </member>
         <member name="P:Realm.Ecs.Services.TerrainNavMeshService.BakedObstaclePositions">
