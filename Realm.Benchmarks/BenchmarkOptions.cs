@@ -8,7 +8,9 @@ public sealed record BenchmarkOptions(
 	int Ticks,
 	int WarmupTicks,
 	double ReferenceDerate,
-	double TickDeltaSeconds)
+	double TickDeltaSeconds,
+	int Workers,
+	bool Probe)
 {
 	public const int DefaultUnits = 300;
 	public const int DefaultPlayers = 24;
@@ -16,13 +18,14 @@ public sealed record BenchmarkOptions(
 	public const int DefaultWarmupTicks = 120;
 	public const double DefaultReferenceDerate = 0.65;
 	public const double DefaultTickDeltaSeconds = 1.0 / 30.0;
+	public const int DefaultWorkers = 0;
 
 	public static string Usage =>
-		"Realm.Benchmarks [--units 300] [--players 24] [--ticks 600] [--warmup 120] [--derate 0.65] [--tick-delta 0.0333]";
+		"Realm.Benchmarks [--units 300] [--players 24] [--ticks 600] [--warmup 120] [--derate 0.75] [--tick-delta 0.0333] [--workers 0]";
 
 	public static bool TryParse(string[] arguments, out BenchmarkOptions options, out string error)
 	{
-		options = new BenchmarkOptions(DefaultUnits, DefaultPlayers, DefaultTicks, DefaultWarmupTicks, DefaultReferenceDerate, DefaultTickDeltaSeconds);
+		options = new BenchmarkOptions(DefaultUnits, DefaultPlayers, DefaultTicks, DefaultWarmupTicks, DefaultReferenceDerate, DefaultTickDeltaSeconds, DefaultWorkers, false);
 		error = string.Empty;
 
 		for (int index = 0; index < arguments.Length; index++)
@@ -32,6 +35,12 @@ public sealed record BenchmarkOptions(
 			{
 				error = Usage;
 				return false;
+			}
+
+			if (name is "--probe")
+			{
+				options = options with { Probe = true };
+				continue;
 			}
 
 			if (index + 1 >= arguments.Length)
@@ -60,6 +69,10 @@ public sealed record BenchmarkOptions(
 				case "--warmup":
 					if (!TryReadInt(value, 0, 200000, out int warmup)) return Fail(out error, name, value);
 					options = options with { WarmupTicks = warmup };
+					break;
+				case "--workers":
+					if (!TryReadInt(value, 0, 64, out int workers)) return Fail(out error, name, value);
+					options = options with { Workers = workers };
 					break;
 				case "--derate":
 					if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double derate) || derate <= 0.05 || derate > 1.0) return Fail(out error, name, value);

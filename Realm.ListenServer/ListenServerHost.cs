@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using MemoryPack;
 using Realm.Ecs;
@@ -33,6 +33,12 @@ public class ListenServerHost : IServerTransportSink
 	private readonly Dictionary<int, int> _obstacleSignaturePerPeer = new();
 	private readonly int[] _seatedPeerIds = new int[EcsWorld.MAX_PLAYERS];
 	private readonly List<(int PlayerIndex, byte[] Payload)> _presentationPayloads = new();
+	private readonly WorldSnapshot[] _publishedSnapshots = new WorldSnapshot[EcsWorld.MAX_PLAYERS];
+	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
+	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
+	private ParallelOptions? _publishParallelism;
+	private Action<int>? _describeOnePeer;
+	private int _publishSequence;
 	private bool _readyAnnounced;
 	private bool _disposed;
 	private bool _paused;
@@ -586,15 +592,78 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		int peerCount = CopySeatedPeerIds();
-
 		for (int index = 0; index < peerCount; index++)
 		{
-			SendSnapshot(_seatedPeerIds[index], sequence, simulation.ConsumeBaselineRequest(_seatedPeerIds[index]));
+			_pendingBaselineRequests[index] = simulation.ConsumeBaselineRequest(_seatedPeerIds[index]);
 		}
+
+		// A unit record names the peer that owns the unit, so every worker has to agree on which peer acts as which
+		// player before any of them describes a unit. This is the lookup the description used to do once per unit.
+		simulation.PreparePeerDescriptions();
+
+		_publishSequence = sequence;
+
+		if (peerCount == 1)
+		{
+			DescribeAndFrameOnePeer(0);
+		}
+		else
+		{
+			_publishParallelism ??= new ParallelOptions();
+			_publishParallelism.MaxDegreeOfParallelism = Math.Min(peerCount, simulation.SnapshotWorkerCount);
+			_describeOnePeer ??= DescribeAndFrameOnePeer;
+			Parallel.For(0, peerCount, _publishParallelism, _describeOnePeer);
+		}
+
+		// Everything that touches the transport or the record runs here rather than on a worker: the channel is the
+		// engine's, so it is spoken to from the thread the engine runs the match on.
+		for (int index = 0; index < peerCount; index++) SendPublishedSnapshot(index);
 
 		_syncRecorder?.EndSequence();
 
 		if (presentation.Length > 0) SendPresentation(peerCount, presentation);
+	}
+
+	/// <summary>
+	///     Describes one seated peer and frames what it is told, on whichever thread this runs. It touches nothing but its
+	///     own slot of the tick's arrays, so several of them run at once without coordinating.
+	/// </summary>
+	private void DescribeAndFrameOnePeer(int index)
+	{
+		ServerSimulation simulation = _simulation!;
+		int peerId = _seatedPeerIds[index];
+
+		WorldSnapshot snapshot = simulation.BuildSnapshotForPeer(peerId, _publishSequence, _pendingBaselineRequests[index]);
+		_publishedSnapshots[index] = snapshot;
+
+		byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
+		_publishedFrames[index] = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
+	}
+
+	/// <summary>
+	///     Hands one peer what was described for it, and follows a baseline with the cards, colours and labels the map
+	///     declared while it was setting the match up.
+	/// </summary>
+	private void SendPublishedSnapshot(int index)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		int peerId = _seatedPeerIds[index];
+		WorldSnapshot snapshot = _publishedSnapshots[index];
+
+		_syncRecorder?.AddPeerSnapshot(peerId, in snapshot);
+		_transport.Send(peerId, NetworkFrameKind.Snapshot, _publishedFrames[index]);
+
+		// The first sequence this peer was described with bounds what its acknowledgement mask can claim: a bit for a
+		// sequence the match never sent was never meant to be set, so counting it as a loss would describe the peer
+		// from scratch on every acknowledgement.
+		if (!_firstSnapshotSequencePerPeer.ContainsKey(peerId)) _firstSnapshotSequencePerPeer[peerId] = _publishSequence;
+
+		if (!snapshot.IsBaseline || !_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
+
+		ServerPresentationEvent[] description = simulation.DescribePresentationStateFor(playerSlot);
+		if (description.Length > 0) SendPresentationToPeer(peerId, description);
 	}
 
 	/// <summary>
@@ -651,31 +720,6 @@ public class ListenServerHost : IServerTransportSink
 				_deliveredPresentationCount++;
 			}
 		}
-	}
-
-	private void SendSnapshot(int peerId, int sequence, bool forceBaseline)
-	{
-		ServerSimulation? simulation = _simulation;
-		if (simulation == null) return;
-
-		WorldSnapshot snapshot = simulation.BuildSnapshotForPeer(peerId, sequence, forceBaseline);
-		_syncRecorder?.AddPeerSnapshot(peerId, in snapshot);
-		byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
-		byte[] framed = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
-		_transport.Send(peerId, NetworkFrameKind.Snapshot, framed);
-
-		// The first sequence this peer was described with bounds what its acknowledgement mask can claim: a bit for a
-		// sequence the match never sent was never meant to be set, so counting it as a loss would describe the peer
-		// from scratch on every acknowledgement.
-		if (!_firstSnapshotSequencePerPeer.ContainsKey(peerId)) _firstSnapshotSequencePerPeer[peerId] = sequence;
-
-		if (!snapshot.IsBaseline || !_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
-
-		// A baseline says what the world holds now, and the map declared its cards, its colours and its labels while
-		// it was setting that world up, long before this peer could hear any of it. They follow the snapshot that
-		// introduces what they describe.
-		ServerPresentationEvent[] description = simulation.DescribePresentationStateFor(playerSlot);
-		if (description.Length > 0) SendPresentationToPeer(peerId, description);
 	}
 
 	/// <summary>

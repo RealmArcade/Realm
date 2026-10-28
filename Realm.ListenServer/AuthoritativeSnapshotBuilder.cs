@@ -26,48 +26,71 @@ public class AuthoritativeSnapshotBuilder
 
 	private static readonly QueryDescription DescribedUnitsQuery = new QueryDescription().WithAll<UnitOwnerPlayer, Health, Position>();
 
+	private static readonly IReplicatedComponentCodec[] WorldCodecs = SelectCodecs(ReplicatedScope.World);
+	private static readonly IReplicatedComponentCodec[] PlayerCodecs = SelectCodecs(ReplicatedScope.Player);
+	private static readonly IReplicatedComponentCodec[] UnitCodecs = SelectCodecs(ReplicatedScope.Unit);
+	private static readonly ComponentMask[] UnitCodecMasks = SelectMasks(UnitCodecs);
+
 	private readonly EcsWorld _world;
 	private readonly SimulationContext _context;
 	private readonly Entity _worldEntity;
 	private readonly MapRulesCatalog _rules;
-	private readonly Func<int, int> _peerIdForPlayerSlot;
+	private readonly SnapshotPeerStateStore _peerStates;
+	private readonly object _abilityLock;
+	private readonly int[] _peerIdByPlayerSlot = new int[EcsWorld.MAX_PLAYERS];
 	private readonly EntityCallback<UnitOwnerPlayer, Position> _collectDescribedUnits;
 	private readonly EntityCallback<UnitOwnerPlayer, Position> _collectVisionSources;
-	private readonly Dictionary<int, PeerReplicationState> _statesByPeerId = new();
 	private readonly List<(Entity Entity, Vector3 Position)> _describedUnits = new();
 	private readonly HashSet<int> _describedEntityIds = new();
-	private readonly List<(byte Scope, int Key, int TypeId)> _forgottenComponentKeys = new();
+	private readonly List<int> _forgottenEntityIds = new();
 	private readonly Dictionary<(float X, float Z), List<int>> _visionCellSources = new();
 	private readonly List<(Vector3 Position, float Radius)> _visionSources = new();
+	private readonly Dictionary<int, string> _textByStringId = new();
 	private byte[] _writeScratch = Array.Empty<byte>();
 	private Entity[] _playerEntities = Array.Empty<Entity>();
 	private Entity _viewer = Entity.Null;
 
-	public AuthoritativeSnapshotBuilder(EcsWorld world, SimulationContext context, Entity worldEntity, MapRulesCatalog rules, Func<int, int> peerIdForPlayerSlot)
+	public AuthoritativeSnapshotBuilder(EcsWorld world, SimulationContext context, Entity worldEntity, MapRulesCatalog rules, SnapshotPeerStateStore peerStates, object abilityLock)
 	{
 		_world = world;
 		_context = context;
 		_worldEntity = worldEntity;
 		_rules = rules;
-		_peerIdForPlayerSlot = peerIdForPlayerSlot;
+		_peerStates = peerStates;
+		_abilityLock = abilityLock;
 		_collectDescribedUnits = CollectDescribedUnit;
 		_collectVisionSources = CollectVisionSource;
 	}
 
-	private class PeerReplicationState
+	/// <summary>
+	///     The codecs that describe one scope, taken once from the table the wire contract is built from. A description
+	///     walks three short lists instead of asking every codec which scope it belongs to on every entity.
+	/// </summary>
+	private static IReplicatedComponentCodec[] SelectCodecs(ReplicatedScope scope)
 	{
-		public Dictionary<(byte Scope, int Key, int TypeId), byte[]> SentComponents { get; } = new();
-		public int LastBaselineSequence { get; set; } = -1;
+		IReadOnlyList<IReplicatedComponentCodec> all = ReplicatedComponents.All;
+		var selected = new List<IReplicatedComponentCodec>(all.Count);
+		for (int index = 0; index < all.Count; index++)
+		{
+			if (all[index].Scope == scope) selected.Add(all[index]);
+		}
 
-		/// <summary>How far this peer has been walked through the authority's text table.</summary>
-		public int StringTableCursor { get; set; }
-
-		/// <summary>
-		///     The content payloads this peer already holds. A list a component names by handle only has to travel once,
-		///     because the peer's own table keeps it for as long as the process does.
-		/// </summary>
-		public HashSet<int> SentContentIds { get; } = new();
+		return selected.ToArray();
 	}
+
+	/// <summary>
+	///     The single-component mask of each codec, so whether an entity carries it is one bit test on the entity's own
+	///     mask rather than a codec call that would only report the component is not there.
+	/// </summary>
+	private static ComponentMask[] SelectMasks(IReplicatedComponentCodec[] codecs)
+	{
+		var masks = new ComponentMask[codecs.Length];
+		for (int index = 0; index < codecs.Length; index++) masks[index] = ComponentMask.FromId(codecs[index].ComponentTypeId);
+		return masks;
+	}
+
+	/// <summary>The peer id each player slot is connected through, refreshed once per tick before any peer is described.</summary>
+	public void PrepareFor(ReadOnlySpan<int> peerIdByPlayerSlot) => peerIdByPlayerSlot.CopyTo(_peerIdByPlayerSlot);
 
 	/// <summary>
 	///     What the map registered about abilities. A map marks an order unavailable or hides a button on the authority,
@@ -87,7 +110,7 @@ public class AuthoritativeSnapshotBuilder
 	/// </summary>
 	public void ForgetPeer(int peerId)
 	{
-		_statesByPeerId.Remove(peerId);
+		_peerStates.Forget(peerId);
 		Abilities?.ForgetPeer(peerId);
 	}
 
@@ -97,9 +120,13 @@ public class AuthoritativeSnapshotBuilder
 	/// </summary>
 	public WorldSnapshot Build(int peerId, int sequence, PlayerEntity viewer, bool forceBaseline = false)
 	{
-		PeerReplicationState state = GetState(peerId);
+		SnapshotPeerState state = _peerStates.Get(peerId);
 		bool isBaseline = forceBaseline || state.LastBaselineSequence < 0;
-		if (isBaseline) state.LastBaselineSequence = sequence;
+		if (isBaseline)
+		{
+			state.LastBaselineSequence = sequence;
+			state.ResetForDescription();
+		}
 
 		CollectDescribedUnits(viewer.Value);
 
@@ -121,16 +148,54 @@ public class AuthoritativeSnapshotBuilder
 		for (int index = 0; index < _describedUnits.Count; index++)
 		{
 			(Entity unitEntity, Vector3 unitPosition) = _describedUnits[index];
-			snapshot.Units.Add(DescribeUnit(unitEntity, unitPosition));
+			UnitSnapshot described = DescribeUnit(unitEntity, unitPosition);
+
+			// A unit that is exactly where this peer was last told it is carries no information: a building, a unit
+			// holding position or one standing where its order ended all stay on the peer's screen as they are. It is
+			// left out of the description and its record is kept, so the tick it moves it is described again. A
+			// baseline always states every unit, because that is what a peer with nothing recovers from.
+			if (!isBaseline && state.SentUnits.TryGetValue(unitEntity.Id, out UnitSnapshot sent) && MatchesIn(in described, in sent)) continue;
+
+			state.SentUnits[unitEntity.Id] = described;
+			snapshot.Units.Add(described);
 		}
 
 		if (isBaseline) AppendRuleEntries(snapshot.Catalog);
 		AppendTextEntries(state, snapshot.Catalog);
 		AppendContentPayloads(state, snapshot);
-		if (Abilities != null) snapshot.AbilityStates = Abilities.CollectDeltas(peerId, _world, isBaseline);
+		if (Abilities != null)
+		{
+			// The ability registry keeps one scratch table per process rather than one per peer, so two workers
+			// describing two peers may not be inside it at once. Everything this match spends on describing a peer is
+			// outside this lock; the ability state of a unit is a handful of entries, not the unit records themselves.
+			lock (_abilityLock) snapshot.AbilityStates = new List<AbilityStateDelta>(Abilities.CollectDeltas(peerId, _world, isBaseline));
+		}
+
 		AppendComponentDeltas(state, snapshot, isBaseline);
 		ForgetUntrackedUnitComponents(state);
 		return snapshot;
+	}
+
+	/// <summary>
+	///     Whether two descriptions of a unit say the same thing, which is what makes leaving the second one out of a
+	///     delta safe. Every replicated field of the record is compared: a unit that is standing still but has lost hit
+	///     points, started dying or been repainted by its owner is still a change the peer has to hear.
+	/// </summary>
+	private static bool MatchesIn(in UnitSnapshot described, in UnitSnapshot sent)
+	{
+		if (described.EntityId != sent.EntityId) return false;
+		if (described.OwnerPlayerEntityId != sent.OwnerPlayerEntityId) return false;
+		if (described.OwnerPlayerIndex != sent.OwnerPlayerIndex) return false;
+		if (described.RotationY != sent.RotationY) return false;
+		if (described.CurrentHp != sent.CurrentHp) return false;
+		if (described.MaxHp != sent.MaxHp) return false;
+		if (described.IsDead != sent.IsDead) return false;
+		if (described.IsBuilding != sent.IsBuilding) return false;
+		if (described.IsDetailed != sent.IsDetailed) return false;
+		if (described.Position.X != sent.Position.X || described.Position.Y != sent.Position.Y || described.Position.Z != sent.Position.Z) return false;
+		if (described.Velocity.X != sent.Velocity.X || described.Velocity.Y != sent.Velocity.Y || described.Velocity.Z != sent.Velocity.Z) return false;
+
+		return string.Equals(described.UnitId, sent.UnitId, StringComparison.Ordinal);
 	}
 
 	/// <summary>
@@ -183,7 +248,7 @@ public class AuthoritativeSnapshotBuilder
 	///     bound to it or the team it belongs to without this. Only identifiers this peer has not been told are sent, so
 	///     the cost after the first snapshot is zero until the map registers new text.
 	/// </summary>
-	private void AppendTextEntries(PeerReplicationState state, List<CatalogEntry> entries)
+	private void AppendTextEntries(SnapshotPeerState state, List<CatalogEntry> entries)
 	{
 		int entryCount = StringRegistry.EntryCount;
 		int cursor = state.StringTableCursor > entryCount ? 0 : state.StringTableCursor;
@@ -214,7 +279,7 @@ public class AuthoritativeSnapshotBuilder
 	///     payloads this peer has not been sent travel, so a list that never changes costs nothing after the first
 	///     description of it.
 	/// </summary>
-	private void AppendContentPayloads(PeerReplicationState state, WorldSnapshot snapshot)
+	private void AppendContentPayloads(SnapshotPeerState state, WorldSnapshot snapshot)
 	{
 		if (_world.IsAlive(_worldEntity) && _world.TryGet<ScriptZonesState>(_worldEntity, out ScriptZonesState zones))
 		{
@@ -237,7 +302,7 @@ public class AuthoritativeSnapshotBuilder
 		}
 	}
 
-	private void AppendContentPayload(PeerReplicationState state, WorldSnapshot snapshot, byte scope, int key, ColdPayloadRole role, int handle)
+	private void AppendContentPayload(SnapshotPeerState state, WorldSnapshot snapshot, byte scope, int key, ColdPayloadRole role, int handle)
 	{
 		if (handle == 0 || !state.SentContentIds.Add(handle)) return;
 		if (!ContentIdStore.TryGetPayload(handle, out byte contentKind, out ReadOnlySpan<byte> payload)) return;
@@ -255,15 +320,6 @@ public class AuthoritativeSnapshotBuilder
 		});
 	}
 
-	private PeerReplicationState GetState(int peerId)
-	{
-		if (_statesByPeerId.TryGetValue(peerId, out PeerReplicationState? state)) return state;
-
-		state = new PeerReplicationState();
-		_statesByPeerId[peerId] = state;
-		return state;
-	}
-
 	private void CollectDescribedUnits(Entity viewerPlayer)
 	{
 		_describedUnits.Clear();
@@ -271,7 +327,10 @@ public class AuthoritativeSnapshotBuilder
 		_viewer = viewerPlayer;
 		_playerEntities = Array.Empty<Entity>();
 		_visionSources.Clear();
-		_visionCellSources.Clear();
+
+		// The cells are emptied rather than replaced. A peer's own units sit in a handful of cells tick after tick, and
+		// allocating a fresh list for every one of them on every tick was one of the larger allocations on this path.
+		foreach (var cell in _visionCellSources) cell.Value.Clear();
 
 		if (viewerPlayer != Entity.Null) CollectVisionSources();
 		_world.Query(in DescribedUnitsQuery, _collectDescribedUnits);
@@ -368,7 +427,7 @@ public class AuthoritativeSnapshotBuilder
 		return new UnitSnapshot
 		{
 			EntityId = entity.Id,
-			UnitId = _world.TryGet<DefinitionId>(entity, out DefinitionId definition) ? definition.Value : string.Empty,
+			UnitId = _world.TryGet<DefinitionId>(entity, out DefinitionId definition) ? ResolveDefinitionText(definition.StringId) : string.Empty,
 			OwnerPlayerEntityId = ResolveOwnerPeerId(entity),
 			OwnerPlayerIndex = _world.TryGet<UnitOwnerPlayer>(entity, out UnitOwnerPlayer owner) ? owner.PlayerIndex : -1,
 			Position = new NetworkVector3(position.X, position.Y, position.Z),
@@ -382,32 +441,42 @@ public class AuthoritativeSnapshotBuilder
 		};
 	}
 
+	/// <summary>
+	///     The text an identifier stands for, remembered per builder. The table behind it is guarded by one lock for the
+	///     whole process, and this was the lock a tick took once for every unit it described to every peer: thirteen
+	///     hundred times over for a room of twenty-four, all answering with the same few dozen strings.
+	/// </summary>
+	private string ResolveDefinitionText(int stringId)
+	{
+		if (_textByStringId.TryGetValue(stringId, out string? known)) return known;
+
+		string text = StringRegistry.Get(stringId);
+		_textByStringId[stringId] = text;
+		return text;
+	}
+
 	private int ResolveOwnerPeerId(Entity unitEntity)
 	{
 		if (!_world.TryGet<Owner>(unitEntity, out Owner owner)) return 0;
 		if (!_world.TryGet<UnitOwnerPlayer>(owner.PlayerEntity.Value, out UnitOwnerPlayer ownerPlayer)) return 0;
 
-		return _peerIdForPlayerSlot(ownerPlayer.PlayerIndex);
+		int playerIndex = ownerPlayer.PlayerIndex;
+		if ((uint)playerIndex >= (uint)_peerIdByPlayerSlot.Length) return 0;
+
+		return _peerIdByPlayerSlot[playerIndex];
 	}
 
-	private void AppendComponentDeltas(PeerReplicationState state, WorldSnapshot snapshot, bool isBaseline)
+	private void AppendComponentDeltas(SnapshotPeerState state, WorldSnapshot snapshot, bool isBaseline)
 	{
-		if (isBaseline) state.SentComponents.Clear();
-
-		IReadOnlyList<IReplicatedComponentCodec> codecs = ReplicatedComponents.All;
-		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+		for (int codecIndex = 0; codecIndex < WorldCodecs.Length; codecIndex++)
 		{
-			IReplicatedComponentCodec codec = codecs[codecIndex];
-			if (codec.Scope != ReplicatedScope.World) continue;
-
-			AppendComponentDelta(state, snapshot, codec, _worldEntity, (byte)ReplicatedScope.World, 0, isBaseline);
+			AppendComponentDelta(state, snapshot, WorldCodecs[codecIndex], _worldEntity, (byte)ReplicatedScope.World, 0, isBaseline);
 		}
 
 		Entity[] playerEntities = ResolvePlayerEntities();
-		for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+		for (int codecIndex = 0; codecIndex < PlayerCodecs.Length; codecIndex++)
 		{
-			IReplicatedComponentCodec codec = codecs[codecIndex];
-			if (codec.Scope != ReplicatedScope.Player) continue;
+			IReplicatedComponentCodec codec = PlayerCodecs[codecIndex];
 
 			for (int slot = 0; slot < playerEntities.Length; slot++)
 			{
@@ -423,10 +492,17 @@ public class AuthoritativeSnapshotBuilder
 			Entity unitEntity = _describedUnits[unitIndex].Entity;
 			ulong presenceMask = 0;
 
-			for (int codecIndex = 0; codecIndex < codecs.Count; codecIndex++)
+			for (int codecIndex = 0; codecIndex < UnitCodecs.Length; codecIndex++)
 			{
-				IReplicatedComponentCodec codec = codecs[codecIndex];
-				if (codec.Scope != ReplicatedScope.Unit) continue;
+				IReplicatedComponentCodec codec = UnitCodecs[codecIndex];
+
+				// A unit carries a handful of the components this match replicates. Asking its own mask costs one bit
+				// test where calling the codec cost a virtual call that only ever answered "this unit does not have me".
+				if (!_world.Has(unitEntity, UnitCodecMasks[codecIndex]))
+				{
+					RemoveComponentDeltaWhenSent(state, snapshot, codec, (byte)ReplicatedScope.Unit, unitEntity.Id);
+					continue;
+				}
 
 				if (!AppendComponentDelta(state, snapshot, codec, unitEntity, (byte)ReplicatedScope.Unit, unitEntity.Id, isBaseline)) continue;
 				if (!ReplicatedUnitComponentSlots.TryGetSlot(codec.ComponentTypeId, out int presenceSlot)) continue;
@@ -446,28 +522,35 @@ public class AuthoritativeSnapshotBuilder
 	///     Describes one component, unless this peer was already told exactly this value. A component the entity no
 	///     longer carries is stated as a removal, which is what lets a peer drop what the authority dropped.
 	/// </summary>
-	private bool AppendComponentDelta(PeerReplicationState state, WorldSnapshot snapshot, IReplicatedComponentCodec codec, Entity entity, byte scope, int key, bool isBaseline)
+	private bool AppendComponentDelta(SnapshotPeerState state, WorldSnapshot snapshot, IReplicatedComponentCodec codec, Entity entity, byte scope, int key, bool isBaseline)
 	{
 		if (_writeScratch.Length < codec.SizeInBytes) _writeScratch = new byte[codec.SizeInBytes];
 
 		Span<byte> scratch = _writeScratch.AsSpan(0, codec.SizeInBytes);
-		var deltaKey = (scope, key, codec.ComponentTypeId);
 		if (!codec.TryWrite(_world, entity, scratch))
 		{
-			if (!state.SentComponents.ContainsKey(deltaKey)) return false;
+			RemoveComponentDeltaWhenSent(state, snapshot, codec, scope, key);
+			return false;
+		}
 
-			state.SentComponents.Remove(deltaKey);
+		var deltaKey = (scope, key, codec.ComponentTypeId);
+		if (!isBaseline && state.SentComponents.TryGetValue(deltaKey, out byte[]? previous))
+		{
+			if (previous.AsSpan().SequenceEqual(scratch)) return true;
+
+			// The payload is written into the buffer this peer's description already owned. A component that changes
+			// every tick used to allocate a new array for every peer that had to be told about it, and those arrays
+			// were the bulk of what this process left to the collector.
+			scratch.CopyTo(previous);
 			snapshot.ComponentDeltas.Add(new ComponentDelta
 			{
 				Key = key,
 				ComponentTypeId = codec.ComponentTypeId,
 				Scope = scope,
-				Bytes = Array.Empty<byte>()
+				Bytes = previous
 			});
-			return false;
+			return true;
 		}
-
-		if (!isBaseline && state.SentComponents.TryGetValue(deltaKey, out byte[]? previous) && previous.AsSpan().SequenceEqual(scratch)) return true;
 
 		var bytes = new byte[codec.SizeInBytes];
 		scratch.CopyTo(bytes);
@@ -484,25 +567,51 @@ public class AuthoritativeSnapshotBuilder
 	}
 
 	/// <summary>
+	///     States that an entity no longer carries a component this peer was told it had, which is what lets a peer drop
+	///     what the authority dropped.
+	/// </summary>
+	private static void RemoveComponentDeltaWhenSent(SnapshotPeerState state, WorldSnapshot snapshot, IReplicatedComponentCodec codec, byte scope, int key)
+	{
+		if (!state.SentComponents.Remove((scope, key, codec.ComponentTypeId))) return;
+
+		snapshot.ComponentDeltas.Add(new ComponentDelta
+		{
+			Key = key,
+			ComponentTypeId = codec.ComponentTypeId,
+			Scope = scope,
+			Bytes = Array.Empty<byte>()
+		});
+	}
+
+	/// <summary>
 	///     Stops tracking the components of a unit this peer can no longer see. The unit is not described again until it
 	///     comes back, and nothing tells the peer to drop what it holds: a unit that walked out of vision is still where
 	///     the peer last saw it, and only a death or a removal says otherwise.
 	/// </summary>
-	private void ForgetUntrackedUnitComponents(PeerReplicationState state)
+	private void ForgetUntrackedUnitComponents(SnapshotPeerState state)
 	{
-		_forgottenComponentKeys.Clear();
-		foreach (var pair in state.SentComponents)
+		// Only the units that left this peer's sight are dropped, found by comparing the set it was described with last
+		// tick against the one it is described with now. Walking every remembered component instead cost a full pass
+		// over the peer's whole history on every tick, and a peer whose sight is steady has nothing to forget at all.
+		_forgottenEntityIds.Clear();
+		foreach (int rememberedEntityId in state.DescribedEntityIds)
 		{
-			if (pair.Key.Scope != (byte)ReplicatedScope.Unit) continue;
-			if (_describedEntityIds.Contains(pair.Key.Key)) continue;
-
-			_forgottenComponentKeys.Add(pair.Key);
+			if (!_describedEntityIds.Contains(rememberedEntityId)) _forgottenEntityIds.Add(rememberedEntityId);
 		}
 
-		for (int index = 0; index < _forgottenComponentKeys.Count; index++)
+		for (int index = 0; index < _forgottenEntityIds.Count; index++)
 		{
-			state.SentComponents.Remove(_forgottenComponentKeys[index]);
+			int forgottenEntityId = _forgottenEntityIds[index];
+			state.SentUnits.Remove(forgottenEntityId);
+
+			for (int codecIndex = 0; codecIndex < UnitCodecs.Length; codecIndex++)
+			{
+				state.SentComponents.Remove(((byte)ReplicatedScope.Unit, forgottenEntityId, UnitCodecs[codecIndex].ComponentTypeId));
+			}
 		}
+
+		state.DescribedEntityIds.Clear();
+		foreach (int describedEntityId in _describedEntityIds) state.DescribedEntityIds.Add(describedEntityId);
 	}
 
 	private Entity[] ResolvePlayerEntities()

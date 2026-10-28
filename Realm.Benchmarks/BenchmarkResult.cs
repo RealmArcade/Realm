@@ -3,6 +3,7 @@ namespace Realm.Benchmarks;
 public sealed record BenchmarkResult(
 	int Units,
 	int Players,
+	int Workers,
 	int Ticks,
 	double TickDeltaSeconds,
 	double ReferenceDerate,
@@ -19,6 +20,7 @@ public sealed record BenchmarkResult(
 	double SnapshotBuildMicros,
 	double SnapshotSerializeMicros,
 	double SnapshotCompressMicros,
+	double SnapshotPhaseMicros,
 	double DeltaBytesPerPeer,
 	double BaselineBytesPerPeer,
 	double AllVisibleDeltaBytesPerPeer,
@@ -26,7 +28,7 @@ public sealed record BenchmarkResult(
 {
 	public double SnapshotMicrosPerPeer => SnapshotBuildMicros + SnapshotSerializeMicros + SnapshotCompressMicros;
 
-	public double PerTickMicrosAllPeers => MeanTickMicros + (SnapshotMicrosPerPeer * Players);
+	public double PerTickMicrosAllPeers => MeanTickMicros + SnapshotPhaseMicros;
 
 	public double DeratedPerTickMicros => PerTickMicrosAllPeers / ReferenceDerate;
 

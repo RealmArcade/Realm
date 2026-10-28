@@ -43,7 +43,16 @@ public sealed class AuthorityBenchmark : IDisposable
 	private readonly List<Entity> _units = new();
 	private readonly Entity[] _playerEntities;
 	private readonly Entity _worldEntity;
-	private readonly AuthoritativeSnapshotBuilder _snapshots;
+	private readonly SnapshotFanOut _snapshots;
+	private readonly double[] _peerBuildMicros;
+	private readonly double[] _peerSerializeMicros;
+	private readonly double[] _peerCompressMicros;
+	private readonly int[] _peerFrameBytes;
+	private readonly int[] _peerVisibleUnits;
+	private readonly bool[] _peerIsBaseline;
+	private readonly ParallelOptions _parallelOptions = new();
+	private readonly Action<int> _describeAndFrameOnePeer;
+	private bool _measuredForceBaseline;
 	private readonly Random _random = new(20261028);
 
 	private int _sequence = BaselineSequence;
@@ -53,6 +62,13 @@ public sealed class AuthorityBenchmark : IDisposable
 	{
 		_options = options;
 		_playerEntities = new Entity[EcsWorld.MAX_PLAYERS];
+		_peerBuildMicros = new double[options.Players];
+		_peerSerializeMicros = new double[options.Players];
+		_peerCompressMicros = new double[options.Players];
+		_peerFrameBytes = new int[options.Players];
+		_peerVisibleUnits = new int[options.Players];
+		_peerIsBaseline = new bool[options.Players];
+		_describeAndFrameOnePeer = DescribeAndFrameOnePeer;
 
 		_worldEntity = CreateWorld();
 		_playerEntities = CreatePlayers();
@@ -70,12 +86,52 @@ public sealed class AuthorityBenchmark : IDisposable
 		_combat.UnlimitedPowerProvider = () => false;
 		_combat.OnKillUnitRequested = _ => { };
 
-		_snapshots = new AuthoritativeSnapshotBuilder(_context.World, _context, _worldEntity, _context.MapRules, PeerIdForPlayerSlot);
+		_snapshots = new SnapshotFanOut(_context.World, _context, _worldEntity, _context.MapRules, options.Workers > 0 ? options.Workers : SnapshotFanOut.DefaultWorkerCount);
+		_snapshots.PrepareFor(PeerIdByPlayerSlot());
+		_parallelOptions.MaxDegreeOfParallelism = Math.Min(options.Players, _snapshots.WorkerCount);
 	}
 
 	private static int TeamOf(int playerIndex) => playerIndex < EcsWorld.MAX_PLAYERS / 2 ? 0 : 1;
 
+	private int[] PeerIdByPlayerSlot()
+	{
+		var peerIds = new int[EcsWorld.MAX_PLAYERS];
+		for (int slot = 0; slot < _options.Players; slot++) peerIds[slot] = slot + 1;
+		return peerIds;
+	}
+
 	private static int PeerIdForPlayerSlot(int playerSlot) => playerSlot + 1;
+
+	private WorldSnapshot DescribePeer(int playerSlot, int sequence, bool forceBaseline)
+	{
+		AuthoritativeSnapshotBuilder builder = _snapshots.Rent();
+		try
+		{
+			return builder.Build(PeerIdForPlayerSlot(playerSlot), sequence, new PlayerEntity(_playerEntities[playerSlot]), forceBaseline);
+		}
+		finally
+		{
+			_snapshots.Return(builder);
+		}
+	}
+
+	private void DescribeAndFrameOnePeer(int playerSlot)
+	{
+		long start = Stopwatch.GetTimestamp();
+		WorldSnapshot snapshot = DescribePeer(playerSlot, _sequence, _measuredForceBaseline);
+		_peerBuildMicros[playerSlot] = Elapsed(start);
+		_peerVisibleUnits[playerSlot] = snapshot.Units.Count;
+		_peerIsBaseline[playerSlot] = snapshot.IsBaseline;
+
+		start = Stopwatch.GetTimestamp();
+		byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
+		_peerSerializeMicros[playerSlot] = Elapsed(start);
+
+		start = Stopwatch.GetTimestamp();
+		byte[] frame = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
+		_peerCompressMicros[playerSlot] = Elapsed(start);
+		_peerFrameBytes[playerSlot] = frame.Length;
+	}
 
 	private Entity CreateWorld()
 	{
@@ -200,6 +256,7 @@ public sealed class AuthorityBenchmark : IDisposable
 		double deltaBytes = 0;
 		double baselineBytes = 0;
 		double visibleUnits = 0;
+		double snapshotPhaseMicros = 0;
 		int snapshotPasses = 0;
 		int deltaPasses = 0;
 		bool baselineTaken = false;
@@ -236,26 +293,24 @@ public sealed class AuthorityBenchmark : IDisposable
 
 			if (_sequence % SnapshotSampleIntervalTicks != 0) continue;
 
-			bool forceBaseline = !baselineTaken;
+			// The authority describes every peer of a room at once, so the thing worth measuring is the whole phase on
+			// the wall clock, not the sum of the descriptions a single thread would have made.
+			_measuredForceBaseline = !baselineTaken;
+			long snapshotStart = Stopwatch.GetTimestamp();
+			Parallel.For(0, _options.Players, _parallelOptions, _describeAndFrameOnePeer);
+			snapshotPhaseMicros += Elapsed(snapshotStart);
+
 			for (int slot = 0; slot < _options.Players; slot++)
 			{
-				phaseStart = Stopwatch.GetTimestamp();
-				WorldSnapshot snapshot = _snapshots.Build(PeerIdForPlayerSlot(slot), _sequence, new PlayerEntity(_playerEntities[slot]), forceBaseline);
-				snapshotBuildMicros += Elapsed(phaseStart);
-				visibleUnits += snapshot.Units.Count;
+				snapshotBuildMicros += _peerBuildMicros[slot];
+				snapshotSerializeMicros += _peerSerializeMicros[slot];
+				snapshotCompressMicros += _peerCompressMicros[slot];
+				visibleUnits += _peerVisibleUnits[slot];
 
-				phaseStart = Stopwatch.GetTimestamp();
-				byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
-				snapshotSerializeMicros += Elapsed(phaseStart);
-
-				phaseStart = Stopwatch.GetTimestamp();
-				byte[] frame = snapshot.IsBaseline ? SnapshotWireFormat.EncodeBaseline(serialized) : SnapshotWireFormat.EncodeDelta(serialized);
-				snapshotCompressMicros += Elapsed(phaseStart);
-
-				if (snapshot.IsBaseline) baselineBytes += frame.Length;
+				if (_peerIsBaseline[slot]) baselineBytes += _peerFrameBytes[slot];
 				else
 				{
-					deltaBytes += frame.Length;
+					deltaBytes += _peerFrameBytes[slot];
 					deltaPasses++;
 				}
 			}
@@ -271,6 +326,7 @@ public sealed class AuthorityBenchmark : IDisposable
 		return new BenchmarkResult(
 			_options.Units,
 			_options.Players,
+			_snapshots.WorkerCount,
 			_options.Ticks,
 			_options.TickDeltaSeconds,
 			_options.ReferenceDerate,
@@ -287,6 +343,7 @@ public sealed class AuthorityBenchmark : IDisposable
 			snapshotPasses == 0 ? 0 : snapshotBuildMicros / (snapshotPasses * (double)_options.Players),
 			snapshotPasses == 0 ? 0 : snapshotSerializeMicros / (snapshotPasses * (double)_options.Players),
 			snapshotPasses == 0 ? 0 : snapshotCompressMicros / (snapshotPasses * (double)_options.Players),
+			snapshotPasses == 0 ? 0 : snapshotPhaseMicros / snapshotPasses,
 			deltaPasses == 0 ? 0 : deltaBytes / deltaPasses,
 			snapshotPasses == 0 ? 0 : baselineBytes / _options.Players,
 			allVisibleDeltaBytes,
@@ -297,12 +354,17 @@ public sealed class AuthorityBenchmark : IDisposable
 	{
 		_context.ShroudDisabled = true;
 
-		for (int slot = 0; slot < _options.Players; slot++) _snapshots.Build(PeerIdForPlayerSlot(slot), ++_sequence, new PlayerEntity(_playerEntities[slot]), true);
+		for (int slot = 0; slot < _options.Players; slot++) DescribePeer(slot, ++_sequence, true);
+
+		// Every unit has to have changed for this to measure what describing them costs: a delta that skipped the
+		// units standing still would measure how empty a description can be, not how large a full-board one is.
+		StepOnce();
+		_sequence++;
 
 		double bytes = 0;
 		for (int slot = 0; slot < _options.Players; slot++)
 		{
-			WorldSnapshot snapshot = _snapshots.Build(PeerIdForPlayerSlot(slot), _sequence + 1, new PlayerEntity(_playerEntities[slot]), false);
+			WorldSnapshot snapshot = DescribePeer(slot, _sequence + 1, false);
 			byte[] frame = SnapshotWireFormat.EncodeDelta(MemoryPackSerializer.Serialize(snapshot));
 			bytes += frame.Length;
 		}

@@ -34,8 +34,18 @@ public static class SnapshotWireFormat
 	/// </summary>
 	private const int BaselineCompressionLevel = 1;
 
+	/// <summary>
+	///     The encoder of one thread. A match describes several peers at once, so each of those threads frames its own
+	///     peer with its own encoder: a compressor carries state between the frames it produces, and two threads inside
+	///     one would corrupt both streams.
+	/// </summary>
+	[ThreadStatic]
 	private static Compressor? _deltaCompressor;
+
+	[ThreadStatic]
 	private static Compressor? _baselineCompressor;
+
+	[ThreadStatic]
 	private static Decompressor? _decompressor;
 
 	[ThreadStatic]
@@ -43,23 +53,25 @@ public static class SnapshotWireFormat
 
 	public static byte[] EncodeBaseline(byte[] serialized)
 	{
-		return Encode(serialized, BaselineCompressionLevel, ref _baselineCompressor);
+		return Encode(serialized, isBaseline: true);
 	}
 
 	public static byte[] EncodeDelta(byte[] serialized)
 	{
-		return Encode(serialized, DeltaCompressionLevel, ref _deltaCompressor);
+		return Encode(serialized, isBaseline: false);
 	}
 
 	/// <summary>
 	/// Compresses a serialized snapshot into a frame. Both the compressor and the scratch buffer are reused, so framing
 	/// a per-tick payload allocates only the frame the transport is about to copy.
 	/// </summary>
-	private static byte[] Encode(byte[] serialized, int compressionLevel, ref Compressor? cachedCompressor)
+	private static byte[] Encode(byte[] serialized, bool isBaseline)
 	{
 		if (serialized.Length == 0) return serialized;
 
-		Compressor compressor = cachedCompressor ??= new Compressor(compressionLevel);
+		Compressor compressor = isBaseline
+			? _baselineCompressor ??= new Compressor(BaselineCompressionLevel)
+			: _deltaCompressor ??= new Compressor(DeltaCompressionLevel);
 		int bound = Compressor.GetCompressBound(serialized.Length);
 		byte[] buffer = _compressionBuffer ??= new byte[bound];
 		if (buffer.Length < bound) buffer = _compressionBuffer = new byte[bound];

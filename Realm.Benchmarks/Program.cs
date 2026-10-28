@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using Realm.Benchmarks;
 
@@ -5,6 +6,12 @@ if (!BenchmarkOptions.TryParse(args, out BenchmarkOptions options, out string er
 {
 	Console.Error.WriteLine(error);
 	return 64;
+}
+
+if (options.Probe)
+{
+	RunScalingProbe();
+	return 0;
 }
 
 int gen0Before = GC.CollectionCount(0);
@@ -21,6 +28,7 @@ int gen2 = GC.CollectionCount(2) - gen2Before;
 Console.WriteLine("Realm authority capacity benchmark");
 Console.WriteLine($"machine            {Environment.MachineName}  {Environment.ProcessorCount} logical cores  {RuntimeInformation()}");
 Console.WriteLine($"scenario           {result.Units} combat units, {result.Players} players, {result.Ticks} measured ticks after {options.WarmupTicks} warmup");
+Console.WriteLine($"description workers {result.Workers}");
 Console.WriteLine($"tick delta         {result.TickDeltaSeconds * 1000.0:F2} ms ({1.0 / result.TickDeltaSeconds:F0} Hz nominal)");
 Console.WriteLine($"reference derate   {result.ReferenceDerate:F2} (measured micros are divided by this to model an average gaming CPU)");
 Console.WriteLine($"gc during run      gen0={gen0} gen1={gen1} gen2={gen2}");
@@ -44,6 +52,7 @@ WriteRow("build", result.SnapshotBuildMicros / 1000.0);
 WriteRow("memorypack serialize", result.SnapshotSerializeMicros / 1000.0);
 WriteRow("zstd frame", result.SnapshotCompressMicros / 1000.0);
 WriteRow("snapshot total", result.SnapshotMicrosPerPeer / 1000.0);
+WriteRow("phase, all peers wall clock", result.SnapshotPhaseMicros / 1000.0);
 WriteRow("delta frame bytes", result.DeltaBytesPerPeer, " B");
 WriteRow("baseline frame bytes", result.BaselineBytesPerPeer, " B");
 WriteRow("delta bytes, shroud off", result.AllVisibleDeltaBytesPerPeer, " B");
@@ -75,6 +84,35 @@ return 0;
 string RuntimeInformation() => System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
 
 static double Megabits(double bytesPerSecond) => bytesPerSecond * 8.0 / 1_000_000.0;
+
+// Measures what this machine does with the same purely arithmetic work spread over a number of threads. Comparing it
+// with the description phase separates a limit that belongs to the hardware from one the match's own code imposes.
+static void RunScalingProbe()
+{
+	const int IterationsPerTask = 4_000_000;
+	const int Tasks = 24;
+
+	Console.WriteLine($"parallel scaling probe: {Tasks} tasks of {IterationsPerTask:N0} arithmetic iterations");
+	double singleThread = 0;
+
+	foreach (int workers in new[] { 1, 2, 4, 8, 12 })
+	{
+		var options = new ParallelOptions { MaxDegreeOfParallelism = workers };
+		long start = Stopwatch.GetTimestamp();
+		Parallel.For(0, Tasks, options, _ => Work(IterationsPerTask));
+		double elapsed = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+
+		if (workers == 1) singleThread = elapsed;
+		Console.WriteLine($"  {workers,2} worker(s)  {elapsed,9:F2} ms  speedup {singleThread / elapsed,5:F2}x  {(singleThread / elapsed) / workers * 100,5:F0}% of linear");
+	}
+
+	static double Work(int iterations)
+	{
+		double total = 0;
+		for (int index = 0; index < iterations; index++) total += Math.Sqrt(index * 0.5 + 1.0) * 0.25 - Math.Sin(index * 0.001);
+		return total;
+	}
+}
 
 static void WriteRow(string label, double value, string suffix = " ms")
 {

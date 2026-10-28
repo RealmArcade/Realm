@@ -24,7 +24,7 @@ public class ServerSimulation : IDisposable
 	private readonly CommandAuthorityService _commands;
 	private readonly Dictionary<int, int> _peerPlayerSlots = new();
 	private readonly Dictionary<int, int> _lastAnsweredCommandIdPerPeer = new();
-	private readonly AuthoritativeSnapshotBuilder _snapshots;
+	private readonly SnapshotFanOut _snapshots;
 	private readonly ServerProductionStep _production;
 	private readonly ConstructionTick _construction;
 	private readonly ServerSimulationEvents _events;
@@ -75,7 +75,7 @@ public class ServerSimulation : IDisposable
 		_commands = new CommandAuthorityService(map.Simulation);
 		_commands.DroppedOrderSink = log.Write;
 		map.Catalog.BindTo(_commands);
-		_snapshots = new AuthoritativeSnapshotBuilder(map.World, map.Simulation, map.WorldEntity, map.Simulation.MapRules, PeerIdForPlayerSlot);
+		_snapshots = new SnapshotFanOut(map.World, map.Simulation, map.WorldEntity, map.Simulation.MapRules, SnapshotFanOut.DefaultWorkerCount);
 		EnsureMatchClock(map);
 		_production = new ServerProductionStep(map.World, map, log);
 		_construction = new ConstructionTick(map.Simulation, map.Catalog);
@@ -418,14 +418,45 @@ public class ServerSimulation : IDisposable
 		return ++_snapshotSequence;
 	}
 
+	/// <summary>How many peers this match may be describing at the same time.</summary>
+	public int SnapshotWorkerCount => _snapshots.WorkerCount;
+
+	/// <summary>
+	///     Tells the description workers which peer acts as each player slot. A unit record names the peer that owns it, so
+	///     the whole fan-out has to agree on that mapping before any of them describes a unit.
+	/// </summary>
+	public void PreparePeerDescriptions()
+	{
+		Span<int> peerIdsByPlayerSlot = stackalloc int[EcsWorld.MAX_PLAYERS];
+		peerIdsByPlayerSlot.Clear();
+
+		foreach (var pair in _peerPlayerSlots)
+		{
+			if ((uint)pair.Value >= (uint)peerIdsByPlayerSlot.Length) continue;
+			peerIdsByPlayerSlot[pair.Value] = pair.Key;
+		}
+
+		_snapshots.PrepareFor(peerIdsByPlayerSlot);
+	}
+
 	/// <summary>
 	///     Describes the world to one peer as the player it acts as can see it. A peer that asks to be described from
-	///     scratch is given a baseline rather than the changes since a description it may never have received.
+	///     scratch is given a baseline rather than the changes since a description it may never have received. It is safe
+	///     to call from several threads for several peers at once, which is how a tick describes a whole room.
 	/// </summary>
 	public WorldSnapshot BuildSnapshotForPeer(int peerId, int sequence, bool forceBaseline)
 	{
 		Entity viewer = TryGetPlayerEntity(peerId, out Entity playerEntity) ? playerEntity : Entity.Null;
-		return _snapshots.Build(peerId, sequence, new PlayerEntity(viewer), forceBaseline);
+
+		AuthoritativeSnapshotBuilder builder = _snapshots.Rent();
+		try
+		{
+			return builder.Build(peerId, sequence, new PlayerEntity(viewer), forceBaseline);
+		}
+		finally
+		{
+			_snapshots.Return(builder);
+		}
 	}
 
 	/// <summary>Forgets a peer that has gone, so the peer taking its place is described from scratch.</summary>
