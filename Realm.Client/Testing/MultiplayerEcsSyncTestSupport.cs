@@ -118,15 +118,10 @@ public static class MultiplayerEcsSyncTestSupport
 	private const float PresentationPositionTolerance = 0.25f;
 	private const float PresentationRotationTolerance = 0.2f;
 	/// <summary>
-	/// The distance a unit must move before the host resends it to a peer whose camera is outside the detailed radius of
-	/// that unit, so the replicated position of a far unit arrives in steps of this size rather than every tick.
+	/// The smallest movement the wire can state, so a unit the match describes to a peer is fresh to within this much on
+	/// every tick it is described on. The match states one precision, which this is the resend step of.
 	/// </summary>
-	private const float FarUnitPositionThresholdMeters = 1.0f;
-	/// <summary>
-	/// The distance a unit must move before the host resends it to a peer whose camera is inside the detailed radius of
-	/// that unit, so a detailed unit's replicated position is fresh to within this much on every tick.
-	/// </summary>
-	private const float DetailedPositionThresholdMeters = 0.05f;
+	private const float StatedPositionThresholdMeters = 0.05f;
 	private const float SnapshotRecordsPerSecond = 60f;
 	/// <summary>
 	/// A host step this large is a spawn, a teleport or a correction, not travel, so it is left out of the speed measured
@@ -134,9 +129,8 @@ public static class MultiplayerEcsSyncTestSupport
 	/// </summary>
 	private const float MaximumTravelStepMeters = 2f;
 	private const int PlacementQuantityRendererFidelity = 0;
-	private const int PlacementQuantityDetailedAuthority = 1;
-	private const int PlacementQuantityFarUnitAuthority = 2;
-	private const int PlacementQuantityCount = 3;
+	private const int PlacementQuantityAuthority = 1;
+	private const int PlacementQuantityCount = 2;
 	/// <summary>
 	/// How many consecutive records a measured distance may exceed its tolerance before it is reported: at the harness's
 	/// sixty records per second this is half a second, which is longer than any legitimate catch-up the protocol allows.
@@ -975,8 +969,7 @@ public static class MultiplayerEcsSyncTestSupport
 		float fastestUnitSpeed = MeasureFastestUnitSpeed(hostRecords);
 		float interpolationBufferSeconds = ResolveInterpolationBufferSeconds(settings);
 		float interpolationLagMeters = fastestUnitSpeed * interpolationBufferSeconds;
-		float farUnitAppliedTolerance = FarUnitPositionThresholdMeters + interpolationLagMeters + placementTolerance;
-		float detailedAuthorityTolerance = DetailedPositionThresholdMeters + interpolationLagMeters + placementTolerance;
+		float detailedAuthorityTolerance = StatedPositionThresholdMeters + interpolationLagMeters + placementTolerance;
 		var mismatches = new List<string>();
 		int pairedSequences = 0;
 		int comparedTransforms = 0;
@@ -987,7 +980,6 @@ public static class MultiplayerEcsSyncTestSupport
 		int unitsNoPeerWasToldAbout = 0;
 		int describedUnitsInPairedRecords = 0;
 		int detailedTransforms = 0;
-		int farUnitTransforms = 0;
 		int renderedBeyondTolerance = 0;
 		float worstRenderedOffset = 0f;
 		int rotationDeviationCount = 0;
@@ -1052,19 +1044,11 @@ public static class MultiplayerEcsSyncTestSupport
 				}
 
 				comparedTransforms++;
-				if ((presentedUnit.Flags & 32) != 0) culledTransforms++;
+				if ((presentedUnit.Flags & 32) != 0) culledTransforms++;				// The host states a unit at one precision, so the rendered transform is held to the authoritative position
+				// directly: the description the client applied is the movement threshold plus the catch-up interpolation
+				// allows, and nothing about where the peer's camera happens to be widens either.
+				detailedTransforms++;
 
-				// Two precisions reach this comparison, and they come from the host. Inside the detailed radius of the peer's
-				// camera the host resends a unit once it has moved five centimetres, so the rendered transform is held to the
-				// authoritative position directly. Outside that radius it resends a unit only after a metre of movement, which
-				// is a deliberate bandwidth decision, so the rendered transform is judged against the state the client was
-				// actually sent and that applied state is held to the resend threshold plus the catch-up the interpolation
-				// allows. Judging a far unit against the detailed tolerance asked the client to render a position the protocol
-				// never described to it, which is what four far units moving at speed exposed: their rendered transforms sat
-				// 1.2-1.6 m from authority while staying 0.03-0.27 m from their own applied state.
-				bool isDetailed = (presentedUnit.Flags & 4) != 0;
-				if (isDetailed) detailedTransforms++;
-				else farUnitTransforms++;
 
 				PlacementOffset observed = new(
 					MaxAxisOffset(hostUnit.PositionX, hostUnit.PositionY, hostUnit.PositionZ, presentedUnit.PositionX, presentedUnit.PositionY, presentedUnit.PositionZ),
@@ -1075,8 +1059,7 @@ public static class MultiplayerEcsSyncTestSupport
 				if (observed.HostToRendered > worstRenderedOffset) worstRenderedOffset = observed.HostToRendered;
 
 				TrackPlacementStreak(placementStreaks, completedPlacementStreaks, hostUnit.EntityId, PlacementQuantityRendererFidelity, true, hostEntry.Key, in observed, PresentationPositionTolerance);
-				TrackPlacementStreak(placementStreaks, completedPlacementStreaks, hostUnit.EntityId, PlacementQuantityDetailedAuthority, isDetailed, hostEntry.Key, in observed, detailedAuthorityTolerance);
-				TrackPlacementStreak(placementStreaks, completedPlacementStreaks, hostUnit.EntityId, PlacementQuantityFarUnitAuthority, !isDetailed, hostEntry.Key, in observed, farUnitAppliedTolerance);
+				TrackPlacementStreak(placementStreaks, completedPlacementStreaks, hostUnit.EntityId, PlacementQuantityAuthority, true, hostEntry.Key, in observed, detailedAuthorityTolerance);
 
 				if (observed.HostToRendered > placementTolerance)
 				{
@@ -1107,13 +1090,13 @@ public static class MultiplayerEcsSyncTestSupport
 			if (mismatches.Count < 20) mismatches.Add(DescribePlacementStreak(entityId, quantity, streak));
 		}
 
-		report.AddSummaryLine($"Presentation parity window: from {MultiplayerSyncDiagnostics.PresentationSettleSeconds:F1}s to {MultiplayerSyncDiagnostics.PresentationWindowSeconds:F1}s after a baseline, paired ticks: {pairedSequences}, compared rendered transforms: {comparedTransforms} ({detailedTransforms} detailed, {farUnitTransforms} far), placement mismatches: {mismatchCount}");
+		report.AddSummaryLine($"Presentation parity window: from {MultiplayerSyncDiagnostics.PresentationSettleSeconds:F1}s to {MultiplayerSyncDiagnostics.PresentationWindowSeconds:F1}s after a baseline, paired ticks: {pairedSequences}, compared rendered transforms: {comparedTransforms} ({detailedTransforms} of a stated position), placement mismatches: {mismatchCount}");
 		report.AddSummaryLine($"Records sharing a physics tick with a later record of the same tick: {collapsedRepeatedSamples} (the follower and the renderer advance once per tick, so only the last record of a tick is the state that tick produced)");
-		report.AddSummaryLine($"Both precisions are judged by what they promise: a detailed transform within {detailedAuthorityTolerance:F2} m of the authority ({DetailedPositionThresholdMeters:F2} m resend threshold + {interpolationLagMeters:F2} m interpolation catch-up + {placementTolerance:F2} m of {profile} allowance), a far transform within {farUnitAppliedTolerance:F2} m ({FarUnitPositionThresholdMeters:F2} m + the same catch-up and allowance), and both within {PresentationPositionTolerance:F2} m of the client's own applied state. The catch-up is the run's fastest {fastestUnitSpeed:F2} m/s over its {interpolationBufferSeconds:F2} s interpolation buffer.");
+		report.AddSummaryLine($"A rendered transform is judged by what the protocol promised it: within {detailedAuthorityTolerance:F2} m of the authority ({StatedPositionThresholdMeters:F2} m resend threshold + {interpolationLagMeters:F2} m interpolation catch-up + {placementTolerance:F2} m of {profile} allowance) and within {PresentationPositionTolerance:F2} m of the client's own applied state. The catch-up is the run's fastest {fastestUnitSpeed:F2} m/s over its {interpolationBufferSeconds:F2} s interpolation buffer.");
 		report.AddSummaryLine($"Locally predicted rendered transforms excluded from placement parity: {skippedPredictedTransforms} (prediction intentionally leads the authoritative position).");
 		report.AddSummaryLine($"Host units the client had not applied yet, so there was nothing to render: {notYetAppliedUnits} (the state comparison owns whether the client received them).");
 		report.AddSummaryLine($"Rendered transforms outside the camera frustum: {culledTransforms} of {comparedTransforms} (culling freezes rotation but still advances position, so they stay comparable).");
-		report.AddSummaryLine($"Rendered transforms more than {placementTolerance:F2} m from the authoritative position: {renderedBeyondTolerance} of {comparedTransforms}, worst {worstRenderedOffset:F2} m; a far unit cannot be closer than the host's {FarUnitPositionThresholdMeters:F2} m resend threshold, so this figure is context rather than an assertion.");			report.AddSummaryLine($"Follower lags closed deliberately because interpolation could not account for them: {ReadFollowerCatchUpCount(outputDirectory)} (several descriptions can land between two physics ticks, and the excess over speed/rate is not something smoothing can absorb)");
+		report.AddSummaryLine($"Rendered transforms more than {placementTolerance:F2} m from the authoritative position: {renderedBeyondTolerance} of {comparedTransforms}, worst {worstRenderedOffset:F2} m; a moving unit trails the authority by its interpolation buffer, so this figure is context rather than an assertion.");			report.AddSummaryLine($"Follower lags closed deliberately because interpolation could not account for them: {ReadFollowerCatchUpCount(outputDirectory)} (several descriptions can land between two physics ticks, and the excess over speed/rate is not something smoothing can absorb)");
 		report.AddSummaryLine($"Rendered rotation deviations beyond {PresentationRotationTolerance:F2} rad: {rotationDeviationCount} of {comparedTransforms}, largest {largestRotationDeviation:F2} rad (off-frustum units keep their frozen transform until they enter the view)");
 		// The authority marks a unit as comparable only when every seated peer was told about it, which a room of this size
 		// with the shroud on almost never satisfies. That is a limit of what a single shared host record can say, not a
@@ -1135,8 +1118,8 @@ public static class MultiplayerEcsSyncTestSupport
 
 	/// <summary>
 	/// The interpolation buffer the client derives from its measured round trip, reproduced here from the same formula so
-	/// the bound on a far unit's visual lag follows the profile the run injected instead of a single constant that would
-	/// be wrong on every profile but one.
+	/// the bound on a unit's visual lag follows the profile the run injected instead of a single constant that would be
+	/// wrong on every profile but one.
 	/// </summary>
 	private static float ResolveInterpolationBufferSeconds(MultiplayerEcsRunSettings settings)
 	{
@@ -1165,8 +1148,8 @@ public static class MultiplayerEcsSyncTestSupport
 
 	/// <summary>
 	/// The fastest travel the authority recorded, measured from consecutive host records. A first-order interpolation
-	/// that chases the replicated position settles at speed divided by its rate, so the bound on a far unit needs the
-	/// speed the run actually reached rather than a guess.
+	/// that chases the replicated position settles at speed divided by its rate, so the bound needs the speed the run
+	/// actually reached rather than a guess.
 	/// </summary>
 	private static float MeasureFastestUnitSpeed(SortedDictionary<int, MultiplayerSnapshotRecord> hostRecords)
 	{
@@ -1246,8 +1229,7 @@ public static class MultiplayerEcsSyncTestSupport
 
 	/// <summary>
 	/// Names the quantity that left its bound, so a red run says whether the renderer stopped following the client's own
-	/// simulation, whether a unit the host described precisely was rendered loosely, or whether the applied state itself
-	/// fell behind what the protocol allows a far unit.
+	/// simulation or whether a unit the host described was rendered loosely.
 	/// </summary>
 	private static void ClosePlacementStreak(List<(int EntityId, int Quantity, PlacementStreak Streak)> completed, int entityId, int quantity, in PlacementStreak streak)
 	{
@@ -1260,8 +1242,7 @@ public static class MultiplayerEcsSyncTestSupport
 		string explanation = quantity switch
 		{
 			PlacementQuantityRendererFidelity => $"the rendered transform stayed {streak.WorstOffset:F2} m from the state the client had already applied, so the renderer stopped following the client's own simulation",
-			PlacementQuantityDetailedAuthority => $"the host described this unit at detailed precision and the rendered transform stayed {streak.WorstOffset:F2} m from the authoritative position",
-			_ => $"the client's applied state stayed {streak.WorstOffset:F2} m from the authoritative position, beyond the {FarUnitPositionThresholdMeters:F2} m far-unit resend threshold plus the interpolation catch-up the protocol allows"
+			_ => $"the host described this unit and the rendered transform stayed {streak.WorstOffset:F2} m from the authoritative position, beyond the {StatedPositionThresholdMeters:F2} m resend threshold plus the interpolation catch-up the protocol allows"
 		};
 
 		return $"entity {entityId} for {streak.Count} consecutive records (sequences {streak.FirstSequence}-{streak.LastSequence}): {explanation}. At sequence {streak.WorstSequence} the render was {streak.WorstHostToRendered:F2} m from the authority, {streak.WorstAppliedToRendered:F2} m from the applied state, and the applied state was {streak.WorstHostToApplied:F2} m from the authority.";
@@ -1283,8 +1264,7 @@ public static class MultiplayerEcsSyncTestSupport
 		public float DistanceFor(int quantity) => quantity switch
 		{
 			PlacementQuantityRendererFidelity => AppliedToRendered,
-			PlacementQuantityDetailedAuthority => HostToRendered,
-			_ => HostToApplied
+			_ => HostToRendered
 		};
 	}
 
