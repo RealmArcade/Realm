@@ -29,6 +29,12 @@ public class TerrainNavMeshService
 	/// </summary>
 	public bool UsesAuthoritativeObstacles => _hasAuthoritativeObstacles;
 
+	/// <summary>
+	/// True once this instance has built a mesh. The volumes a bake consumed are only meaningful after one, so a peer
+	/// that is seated before the match bakes must be told nothing rather than told that the map has no blockers.
+	/// </summary>
+	public bool HasBakedMesh { get; private set; }
+
 	private bool _hasAuthoritativeObstacles;
 	private readonly List<Vector3> _authoritativeObstaclePositions = new();
 	private readonly List<float> _authoritativeObstacleRadii = new();
@@ -595,6 +601,7 @@ public class TerrainNavMeshService
 		AddUnwalkableVolumes(in state, geom, width, depth, quadSize);
 
 		BuildNavMesh(ref state, geom, width, depth, quadSize);
+		HasBakedMesh = true;
 	}
 
 	private List<(Vector3 Pos, float Radius)> GetNavMeshObstacles()

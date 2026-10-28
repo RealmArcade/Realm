@@ -265,7 +265,6 @@ public class AuthoritativeSnapshotBuilder
 		if (described.MaxHp != sent.MaxHp) return false;
 		if (described.IsDead != sent.IsDead) return false;
 		if (described.IsBuilding != sent.IsBuilding) return false;
-		if (described.IsDetailed != sent.IsDetailed) return false;
 		if (described.Position.X != sent.Position.X || described.Position.Y != sent.Position.Y || described.Position.Z != sent.Position.Z) return false;
 
 		return string.Equals(described.UnitId, sent.UnitId, StringComparison.Ordinal);
@@ -587,8 +586,7 @@ public class AuthoritativeSnapshotBuilder
 			CurrentHp = UnitQuantization.SnapHealth(health.Current),
 			MaxHp = UnitQuantization.SnapHealth(health.Max),
 			IsDead = _world.Has<Dead>(entity),
-			IsBuilding = _world.Has<Building>(entity),
-			IsDetailed = true
+			IsBuilding = _world.Has<Building>(entity)
 		};
 	}
 
@@ -756,12 +754,15 @@ public class AuthoritativeSnapshotBuilder
 	}
 
 	/// <summary>
-	///     States that a unit no longer carries a component this peer was told it had, which is what lets a peer drop what
-	///     the authority dropped. A component the peer was never told about states nothing.
+	///     States that a unit no longer carries a component this peer holds, which is what lets a peer drop what the
+	///     authority dropped. Whether the peer holds it is held by the told mask rather than by the bytes: the bytes are
+	///     dropped when the unit leaves this peer's sight or is replaced by a different unit behind the same identifier,
+	///     and a removal read from them was never stated for a component the peer still had. The statement is harmless for
+	///     a component the peer does not hold.
 	/// </summary>
 	private static void RemoveSentUnitComponent(WorldSnapshot snapshot, UnitDescriptionState held, int codecIndex, int entityId)
 	{
-		if (held.SentPayloads[codecIndex] == null) return;
+		if ((held.ToldCodecMask & (1UL << codecIndex)) == 0) return;
 
 		held.SentPayloads[codecIndex] = null;
 		snapshot.ComponentDeltas.Add(new ComponentDelta

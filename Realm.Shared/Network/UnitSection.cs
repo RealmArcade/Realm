@@ -28,7 +28,6 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 
 	private const byte IsDeadFlag = 1;
 	private const byte IsBuildingFlag = 2;
-	private const byte IsDetailedFlag = 4;
 
 	private int[] _entityIds = Array.Empty<int>();
 	private int[] _ownerPlayerEntityIds = Array.Empty<int>();
@@ -81,8 +80,7 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 				CurrentHp = UnitQuantization.DequantizeHealth(_currentHealths[index]),
 				MaxHp = UnitQuantization.DequantizeHealth(_maximumHealths[index]),
 				IsDead = (flags & IsDeadFlag) != 0,
-				IsBuilding = (flags & IsBuildingFlag) != 0,
-				IsDetailed = (flags & IsDetailedFlag) != 0
+				IsBuilding = (flags & IsBuildingFlag) != 0
 			};
 		}
 	}
@@ -102,7 +100,7 @@ public sealed class UnitSection : IReadOnlyList<UnitSnapshot>
 		_rotations[index] = UnitQuantization.QuantizeRotation(unit.RotationY);
 		_currentHealths[index] = UnitQuantization.QuantizeHealth(unit.CurrentHp);
 		_maximumHealths[index] = UnitQuantization.QuantizeHealth(unit.MaxHp);
-		_flags[index] = (byte)((unit.IsDead ? IsDeadFlag : 0) | (unit.IsBuilding ? IsBuildingFlag : 0) | (unit.IsDetailed ? IsDetailedFlag : 0));
+		_flags[index] = (byte)((unit.IsDead ? IsDeadFlag : 0) | (unit.IsBuilding ? IsBuildingFlag : 0));
 		_unitIds[index] = unit.UnitId ?? string.Empty;
 		_count = index + 1;
 	}

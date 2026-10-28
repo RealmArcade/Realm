@@ -83,7 +83,6 @@ public class AuthoritySyncRecorder : IDisposable
 			if (_units.TryGetValue(unit.EntityId, out RecordedUnit recorded))
 			{
 				recorded.PresentIn++;
-				if (unit.IsDetailed) recorded.DetailedIn++;
 				_units[unit.EntityId] = recorded;
 				continue;
 			}
@@ -91,8 +90,7 @@ public class AuthoritySyncRecorder : IDisposable
 			_units[unit.EntityId] = new RecordedUnit
 			{
 				Snapshot = unit,
-				PresentIn = 1,
-				DetailedIn = unit.IsDetailed ? 1 : 0
+				PresentIn = 1
 			};
 		}
 	}
@@ -137,8 +135,7 @@ public class AuthoritySyncRecorder : IDisposable
 				_units[entity.Id] = new RecordedUnit
 				{
 					Snapshot = DescribeUnit(entity),
-					PresentIn = 1,
-					DetailedIn = 1
+					PresentIn = 1
 				};
 			}
 		}
@@ -155,7 +152,12 @@ public class AuthoritySyncRecorder : IDisposable
 		{
 			RecordedUnit recorded = _units[_orderedEntityIds[index]];
 			bool isVisibleToEveryPeer = recorded.PresentIn >= _peerCount;
-			bool isDetailedForEveryPeer = recorded.DetailedIn >= _peerCount;
+
+			// The match states a unit at one precision, so a peer that was told about a unit was told everything the
+			// match holds about it. Reading the flag off the unit's own record said the same thing while the wire no
+			// longer carries a second precision, and it is kept apart from visibility because a reader judges a
+			// rendered transform against the precision it was promised rather than against how many peers it reached.
+			bool isDetailedForEveryPeer = isVisibleToEveryPeer;
 
 			Entity entity = new(recorded.Snapshot.EntityId);
 			bool alive = _world.IsAlive(entity);
@@ -224,8 +226,7 @@ public class AuthoritySyncRecorder : IDisposable
 			CurrentHp = currentHp,
 			MaxHp = maxHp,
 			IsDead = _world.Has<Dead>(entity),
-			IsBuilding = _world.Has<Building>(entity),
-			IsDetailed = true
+			IsBuilding = _world.Has<Building>(entity)
 		};
 	}
 
@@ -243,7 +244,6 @@ public class AuthoritySyncRecorder : IDisposable
 	{
 		public UnitSnapshot Snapshot;
 		public int PresentIn;
-		public int DetailedIn;
 	}
 
 	public void Dispose()

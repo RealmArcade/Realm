@@ -16,5 +16,4 @@ public partial struct UnitSnapshot
 	public float MaxHp;
 	public bool IsDead;
 	public bool IsBuilding;
-	public bool IsDetailed;
 }

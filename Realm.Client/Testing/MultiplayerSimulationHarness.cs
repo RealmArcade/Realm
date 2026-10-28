@@ -717,8 +717,13 @@ public partial class MultiplayerSimulationHarness : Node
 			GD.Print($"[MP_HARNESS] Dropping the client connection at game time {dropGameTime:F2}s, applied sequence {dropSequence}.");
 			session.DropConnectionForHarness();
 
+			// A peer that has been seated again is described from scratch, so the resumption is the baseline the match sends
+			// the re-established connection - not merely the next snapshot that reaches the screen. Frames already in the
+			// transport when the connection was dropped arrive first, and counting one of them as the resume made an outage
+			// of eleven seconds read as a single sequence.
 			bool resumed = await WaitUntilAsync(
-				() => GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics > dropSequence,
+				() => GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics > dropSequence
+					&& GameContext.NetworkService.LastAppliedBaselineSequenceForDiagnostics > dropSequence,
 				60f);
 
 			int resumeSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;

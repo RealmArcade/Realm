@@ -1965,6 +1965,12 @@
             volumes rather than with whatever bodies the peer happens to hold.
             </summary>
         </member>
+        <member name="P:Realm.Ecs.Services.TerrainNavMeshService.HasBakedMesh">
+            <summary>
+            True once this instance has built a mesh. The volumes a bake consumed are only meaningful after one, so a peer
+            that is seated before the match bakes must be told nothing rather than told that the map has no blockers.
+            </summary>
+        </member>
         <member name="M:Realm.Ecs.Services.TerrainNavMeshService.ObstaclesChangedSinceBake">
             <summary>
             True when the volumes this instance would bake with are not the ones its mesh was last built from, which is how the

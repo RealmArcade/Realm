@@ -374,7 +374,10 @@ public static class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--peer-index={peerIndex}");
 		startInfo.ArgumentList.Add($"--bots={(role == "host" ? settings.BotCount : 0)}");
 		startInfo.ArgumentList.Add($"--wait-for-peer-ready={waitForPeerReadyFile}");
-		startInfo.ArgumentList.Add($"--drop-at={(role == "client" && peerIndex == 2 ? settings.DropClientAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
+		// The scenarios are named after what they ask of a peer rather than after a seat in a particular room: the
+		// reconnect drops the first client's connection and the repair makes the first client discard a snapshot, so a
+		// room of two peers - one screen - runs both, and a room of three runs them on the screen they were written for.
+		startInfo.ArgumentList.Add($"--drop-at={(role == "client" && peerIndex == 1 ? settings.DropClientAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
 		startInfo.ArgumentList.Add($"--discard-at={(role == "client" && peerIndex == 1 ? settings.DiscardSnapshotAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
 
 		string logName = peerIndex <= 1 ? $"{role}.log" : $"{role}{peerIndex}.log";
@@ -493,7 +496,7 @@ public static class MultiplayerEcsSyncTestSupport
 		int inFlightSequenceCount = 0;
 		int supersededSequenceCount = 0;
 
-		ReconnectExpectation? reconnectExpectation = ReadReconnectExpectation(settings, clientDirectory, report);
+		ReconnectExpectation? reconnectExpectation = ReadReconnectExpectation(settings, clientOutputDirectory, report);
 		HashSet<int>? sequencesSentToPeer = reconnectExpectation == null ? ReadHostSentSequences(outputDirectory, clientOutputDirectory) : null;
 		List<int> notSentSequences = new();
 		int reconnectOutageSequences = 0;
@@ -545,9 +548,17 @@ public static class MultiplayerEcsSyncTestSupport
 				if (firstPairedSequence >= 0)
 				{
 					unpairedSequenceCount++;
+
+					// A sequence the scenario asked the peer to be away for was never going to be applied, so nothing it carried
+					// - a baseline included - is a fault in the protocol.
+					if (reconnectExpectation != null && reconnectExpectation.Contains(hostEntry.Key))
+					{
+						reconnectOutageSequences++;
+						continue;
+					}
+
 					if (clientSeenSequences.Contains(hostEntry.Key)) supersededSequenceCount++;
 					else if (hostEntry.Key <= firstPairedSequence + StartupWarmupSequenceCount) startupCatchUpSequences.Add(hostEntry.Key);
-					else if (reconnectExpectation != null && reconnectExpectation.Contains(hostEntry.Key)) reconnectOutageSequences++;
 					else if (sequencesSentToPeer != null && !sequencesSentToPeer.Contains(hostEntry.Key)) notSentSequences.Add(hostEntry.Key);
 					else lostSequences.Add(hostEntry.Key);
 					// A baseline travels on its own reliable channel, so a burst of deltas can overtake it and the client then
@@ -801,6 +812,8 @@ public static class MultiplayerEcsSyncTestSupport
 	private static ReconnectExpectation? ReadReconnectExpectation(MultiplayerEcsRunSettings settings, string clientDirectory, MultiplayerEcsSyncReport report)
 	{
 		if (settings.DropClientAtSeconds <= 0f) return null;
+
+		// The scenario drops the connection of the first peer, so only that peer's record carries the drop.
 		if (!string.Equals(Path.GetFullPath(clientDirectory), Path.GetFullPath(settings.ResolveClientDirectory(1)), StringComparison.OrdinalIgnoreCase)) return null;
 
 		string path = Path.Combine(clientDirectory, "client_drop.txt");
@@ -1359,14 +1372,16 @@ public static class MultiplayerEcsSyncTestSupport
 
 	/// <summary>
 	/// How many consecutive delta records a field may stay divergent before it counts as divergence rather than a
-	/// retransmit in progress. The host repeats an unacknowledged change every
-	/// <see cref="NetworkService.UnacknowledgedRetransmitSequences"/> sequences, so a lost snapshot is repaired one
-	/// retransmit cycle later; a lossy profile gets two cycles because the retransmit itself can be dropped.
+	/// repair in progress. The authority describes a unit again when what it holds differs from what the peer was last
+	/// told, so a single lost description is repaired by the next one that changes it; a lossy profile gets two windows
+	/// because the record that carries the repair can be dropped too.
 	/// </summary>
+	private const int DeltaDivergenceRecordAllowance = 15;
+
 	private static int ResolveDeltaDivergenceRecordAllowance(MultiplayerEcsRunSettings settings)
 		=> settings.PacketLossPercent > 0
-			? 2 * NetworkService.UnacknowledgedRetransmitSequences + 1
-			: NetworkService.UnacknowledgedRetransmitSequences + 1;
+			? 2 * DeltaDivergenceRecordAllowance + 1
+			: DeltaDivergenceRecordAllowance + 1;
 
 	private static void ReportDeltaDivergences(MultiplayerEcsSyncReport report, List<(int EntityId, string Field, int Sequence, string Message)> divergences, MultiplayerEcsRunSettings settings)
 	{

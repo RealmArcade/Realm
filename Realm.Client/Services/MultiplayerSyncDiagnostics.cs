@@ -477,8 +477,6 @@ public static class MultiplayerSyncDiagnostics
 
 			bool isPredicted = GameContext.MovementPredictionService != null
 				&& GameContext.MovementPredictionService.IsEntityTracked(localEntity.Id);
-			bool wasSentAtDetailedPrecision = GameContext.NetworkService != null
-				&& GameContext.NetworkService.WasUnitSentAtDetailedPrecision(kvp.Value);
 			System.Numerics.Vector3 appliedPosition = world.Has<Position>(localEntity) ? world.Get<Position>(localEntity).Value : new System.Numerics.Vector3(unit3D.GlobalPosition.X, unit3D.GlobalPosition.Y, unit3D.GlobalPosition.Z);
 			RecordFollowerDiagnostic(world, sequence, kvp.Key, kvp.Value, localEntity, appliedPosition, isPredicted, unit3D.IsCulled);			if (recordServerIds != null)
 			{
@@ -488,7 +486,7 @@ public static class MultiplayerSyncDiagnostics
 					_followerDiagnostics.Add($"duplicate={kvp.Value}:{sequence}:a second local entity {kvp.Key} maps to this server entity, two records for one unit will be written");
 				}
 			}
-			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding, isPredicted, unit3D.IsCulled, appliedPosition, wasSentAtDetailedPrecision));
+			units.Add(new PresentedUnitState(kvp.Value, ownerPlayerIndex, unit3D.GlobalPosition, unit3D.GlobalRotation.Y, currentHp, maxHp, isDead, isBuilding, isPredicted, unit3D.IsCulled, appliedPosition));
 		}
 
 		units.Sort((left, right) => left.ServerEntityId.CompareTo(right.ServerEntityId));
@@ -512,7 +510,9 @@ public static class MultiplayerSyncDiagnostics
 				byte flags = 0;
 				if (unit.IsDead) flags |= SyncRecordFormat.FlagDead;
 				if (unit.IsBuilding) flags |= SyncRecordFormat.FlagBuilding;
-				if (unit.IsDetailed) flags |= SyncRecordFormat.FlagDetailed;
+				// The match states a unit at one precision, so a transform this screen rendered came from a full description
+				// of where the match holds the unit.
+				flags |= SyncRecordFormat.FlagDetailed;
 				flags |= SyncRecordFormat.FlagVisibleToRemoteClient;
 				if (unit.IsPredicted) flags |= SyncRecordFormat.FlagLocallyPredicted;
 				if (unit.IsCulled) flags |= SyncRecordFormat.FlagCulled;
@@ -596,12 +596,11 @@ public static class MultiplayerSyncDiagnostics
 		public readonly bool IsBuilding;
 		public readonly bool IsPredicted;
 		public readonly bool IsCulled;
-		public readonly bool IsDetailed;
 		public readonly float AppliedPositionX;
 		public readonly float AppliedPositionY;
 		public readonly float AppliedPositionZ;
 
-		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding, bool isPredicted, bool isCulled, System.Numerics.Vector3 appliedPosition, bool isDetailed)
+		public PresentedUnitState(int serverEntityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, bool isDead, bool isBuilding, bool isPredicted, bool isCulled, System.Numerics.Vector3 appliedPosition)
 		{
 			ServerEntityId = serverEntityId;
 			OwnerPlayerIndex = ownerPlayerIndex;
@@ -615,7 +614,6 @@ public static class MultiplayerSyncDiagnostics
 			IsBuilding = isBuilding;
 			IsPredicted = isPredicted;
 			IsCulled = isCulled;
-			IsDetailed = isDetailed;
 			AppliedPositionX = appliedPosition.X;
 			AppliedPositionY = appliedPosition.Y;
 			AppliedPositionZ = appliedPosition.Z;

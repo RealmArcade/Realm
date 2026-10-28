@@ -30,6 +30,17 @@ public class ListenServerHost : IServerTransportSink
 	private readonly Dictionary<int, long> _lastLoggedAckSequencePerPeer = new();
 	private readonly Dictionary<int, int> _firstSnapshotSequencePerPeer = new();
 	private readonly Dictionary<int, long> _lastRepairBaselineTickPerPeer = new();
+	private readonly Dictionary<int, long> _lastRefreshBaselineTickPerPeer = new();
+
+	/// <summary>
+	///     How often a peer is described from scratch even though nothing was reported wrong, in ticks. Every section of a
+	///     delta states a change against what that peer was already told, so a peer that lost track of one component
+	///     without losing a whole snapshot — a replica it replaced, a component the authority dropped while the unit was
+	///     out of its sight — would hold the stale value until something else happened to ask for a baseline. Ten seconds
+	///     bounds any such drift to ten seconds: a baseline is 2.6 kB per peer, which is forty kilobytes a second of a
+	///     full room's six point nine megabits.
+	/// </summary>
+	private const int SnapshotRefreshTicks = MatchTiming.SimulationTickRateHz * 10;
 	private readonly Dictionary<int, int> _obstacleSignaturePerPeer = new();
 	private readonly int[] _seatedPeerIds = new int[EcsWorld.MAX_PLAYERS];
 	private readonly List<(int PlayerIndex, byte[] Payload)> _presentationPayloads = new();
@@ -327,6 +338,7 @@ public class ListenServerHost : IServerTransportSink
 		_lastLoggedAckSequencePerPeer.Remove(peerId);
 		_firstSnapshotSequencePerPeer.Remove(peerId);
 		_lastRepairBaselineTickPerPeer.Remove(peerId);
+		_lastRefreshBaselineTickPerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 		_commandsThisTick.Remove(peerId);
 	}
@@ -594,7 +606,8 @@ public class ListenServerHost : IServerTransportSink
 		int peerCount = CopySeatedPeerIds();
 		for (int index = 0; index < peerCount; index++)
 		{
-			_pendingBaselineRequests[index] = simulation.ConsumeBaselineRequest(_seatedPeerIds[index]);
+			int seatedPeerId = _seatedPeerIds[index];
+			_pendingBaselineRequests[index] = simulation.ConsumeBaselineRequest(seatedPeerId) || IsRefreshDue(seatedPeerId, simulation.TickCount);
 		}
 
 		// A unit record names the peer that owns the unit, so every worker has to agree on which peer acts as which
@@ -660,6 +673,7 @@ public class ListenServerHost : IServerTransportSink
 		// from scratch on every acknowledgement. A baseline starts that bound over, because it restates the world and
 		// the peer is no longer expected to have applied anything the match described before it.
 		if (snapshot.IsBaseline || !_firstSnapshotSequencePerPeer.ContainsKey(peerId)) _firstSnapshotSequencePerPeer[peerId] = _publishSequence;
+		if (snapshot.IsBaseline) _lastRefreshBaselineTickPerPeer[peerId] = simulation.TickCount;
 
 		if (!snapshot.IsBaseline || !_seatedPeers.TryGetValue(peerId, out int playerSlot)) return;
 
@@ -767,6 +781,16 @@ public class ListenServerHost : IServerTransportSink
 
 		_lastLoggedAckSequencePerPeer[peerId] = ack.Sequence;
 		_log.Write($"peer {peerId} acknowledged sequence {ack.Sequence} with mask {ack.AppliedMask:x16}");
+	}
+
+	/// <summary>
+	///     Whether this peer's description should be refreshed from scratch at this tick. A peer that has never been given
+	///     a baseline is already due one because seating asks for it, so only a peer that has been described measures the
+	///     interval from its last baseline.
+	/// </summary>
+	private bool IsRefreshDue(int peerId, long tick)
+	{
+		return _lastRefreshBaselineTickPerPeer.TryGetValue(peerId, out long lastBaselineTick) && tick - lastBaselineTick >= SnapshotRefreshTicks;
 	}
 
 	private void RequestRepairBaseline(int peerId, ServerSimulation simulation)
@@ -985,6 +1009,11 @@ public class ListenServerHost : IServerTransportSink
 
 		TerrainNavMeshService? navMesh = _simulation?.Map.Simulation.TerrainNavMeshService;
 		if (navMesh == null) return false;
+
+		// A mesh that has not been baked yet has no volumes to report, and reporting an empty set would tell the peer the
+		// map blocks nothing. Peers are seated before the map finishes loading, so this is the state every one of them
+		// starts in: it is told nothing and keeps waiting for the set the first bake produces.
+		if (!navMesh.HasBakedMesh) return false;
 
 		ReadOnlySpan<System.Numerics.Vector3> positions = navMesh.BakedObstaclePositions;
 		ReadOnlySpan<float> radii = navMesh.BakedObstacleRadii;

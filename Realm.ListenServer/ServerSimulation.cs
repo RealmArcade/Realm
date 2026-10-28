@@ -102,6 +102,13 @@ public class ServerSimulation : IDisposable
 			resources.GoldResourceId,
 			resources.WoodResourceId,
 			resources.StoneResourceId);
+
+		// The bake the map load took knows about none of the map's blockers, because a script spawns them after the
+		// terrain exists. Baking here - with the world the script has just built, before the first tick and before any
+		// peer is seated - is what makes the mesh this match paths through the one the first peer is told about. Left to
+		// the per-tick scan, the match pathfound through its own starting buildings for the first second, and the peer
+		// that joined in that second was told a map that blocks nothing and baked a mesh with no obstacles at all.
+		BakeNavMesh();
 	}
 
 	/// <summary>
@@ -282,9 +289,16 @@ public class ServerSimulation : IDisposable
 		if (TickCount < _navMeshRebakeTick) return;
 		_navMeshRebakeTick = -1;
 
+		BakeNavMesh();
+	}
+
+	/// <summary>Rebuilds the mesh the match paths through from the obstacle volumes its world holds now.</summary>
+	private void BakeNavMesh()
+	{
 		Entity worldEntity = _map.WorldEntity;
 		if (!_map.World.IsAlive(worldEntity) || !_map.World.Has<TerrainState>(worldEntity)) return;
 
+		TerrainNavMeshService navMesh = _map.Simulation.TerrainNavMeshService;
 		ref TerrainState terrain = ref _map.World.Get<TerrainState>(worldEntity);
 		navMesh.BakeNavMesh(ref terrain);
 		_map.World.Set(worldEntity, terrain);
@@ -293,7 +307,7 @@ public class ServerSimulation : IDisposable
 		// that was moved rather than spawned or destroyed. The movement obstacle grid watches the obstacle count on its
 		// own, so a move is the one case that has to be handed to it.
 		_map.Simulation.MovementPathfindingService.InvalidateObstacleGrid();
-		_log.Write($"navigation mesh rebaked with {navMesh.LastBakedObstacleCount} obstacle volumes");
+		_log.Write($"navigation mesh baked with {navMesh.LastBakedObstacleCount} obstacle volumes");
 	}
 
 	/// <summary>

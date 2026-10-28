@@ -550,7 +550,7 @@ public sealed class AuthorityBenchmark : IDisposable
 
 		for (int index = 0; index < count; index++)
 		{
-			int flags = (units[index].IsDead ? 1 : 0) | (units[index].IsBuilding ? 2 : 0) | (units[index].IsDetailed ? 4 : 0);
+			int flags = (units[index].IsDead ? 1 : 0) | (units[index].IsBuilding ? 2 : 0);
 			destination[offset++] = (byte)flags;
 		}
 

@@ -1376,6 +1376,7 @@ public class SimulationService
 	{
 		if (!GameContext.World.IsAlive(unitEntity)) return;
 		UnitWrapperCache.Remove(unitEntity.Id);
+		GameContext.NetworkService.ForgetReferencesHeldBy(unitEntity.Id);
 		GameContext.World.Destroy(unitEntity);
 		RemoveReferencesToDestroyedEntity(unitEntity);
 	}

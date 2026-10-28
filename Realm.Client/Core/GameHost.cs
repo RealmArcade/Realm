@@ -2965,6 +2965,11 @@ public partial class GameHost : Node3D
 		}
 
 		GameContext.World.SetOrAdd(entity, new BuildingSpawnOffset(new System.Numerics.Vector3(0f, 0f, 8f)));
+
+		// A screen in a match holds the components the authority stated and nothing else. The authority describes a
+		// building's body along with the rest of it, so working out a radius here made this screen hold a component the
+		// match did not have until the next baseline took it away again. Only a screen playing no match supplies its own.
+		if (GameContext.ServerSession != null) return;
 		if (GameContext.World.Has<CollisionRadius>(entity)) return;
 
 		// The radius comes from the template the authority builds the same building from, so the ground this building
@@ -3282,9 +3287,11 @@ public partial class GameHost : Node3D
 
 	/// <summary>
 	///     How long a screen waits for the obstacle volumes its match was baked with before it bakes without them. The set
-	///     is sent the moment the connection is seated, so this only runs out for a match that never had a mesh to report.
+	///     follows the match's first bake, and a screen can be seated before that bake has run - a match this machine
+	///     hosts loads its map while its own screen is already waiting - so the wait covers a slow map load rather than
+	///     only a set that is already on its way. It runs out for a match that never bakes a mesh to report at all.
 	/// </summary>
-	private const ulong AuthoritativeObstacleWaitMsec = 2000;
+	private const ulong AuthoritativeObstacleWaitMsec = 10000;
 
 	private bool _awaitingAuthoritativeObstacleVolumes;
 	private ulong _authoritativeObstacleDeadlineMsec;

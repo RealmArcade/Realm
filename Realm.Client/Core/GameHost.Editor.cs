@@ -502,8 +502,15 @@ public partial class GameHost
 		float circleRatio = GetModelCollisionCircleRatio(unit);
 		unit.UpdateCollisionCircleScale(circleRatio);
 
-		float baseRadius = ResolveTemplateCollisionRadius(unit.UnitId);
-		GameContext.ModelOverrideService.UpdateCollisionRadius(unit.Entity, baseRadius);
+		// The body a unit occupies is a replicated component, so a screen in a match holds the one the authority stated
+		// and works nothing out for itself. Every replicated unit runs through here while its node is built, which is how
+		// this screen ended up carrying a radius the match did not have until its next baseline took it away again. The
+		// visual overrides below stay local either way: they describe how the model is drawn, not what the world holds.
+		if (GameContext.ServerSession == null)
+		{
+			float baseRadius = ResolveTemplateCollisionRadius(unit.UnitId);
+			GameContext.ModelOverrideService.UpdateCollisionRadius(unit.Entity, baseRadius);
+		}
 
 		if (unit.IsPreview) return;
 
