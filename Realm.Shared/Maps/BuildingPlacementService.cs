@@ -41,7 +41,11 @@ public static class BuildingPlacementService
 		if (!PlayerResourceCost.TryCharge(world, ownerPlayer.Value, metadata)) return false;
 
 		float buildSeconds = Math.Max(metadata.ProductionTime, 0f);
-		bool builtByWorker = workerEntity != Entity.Null && world.IsAlive(workerEntity) && buildSeconds > 0f;
+
+		// A worker's order always raises a site, even for a template the map gives no build time: finishing work a map
+		// can react to is what tells it the thing it asked for is there, and a template with nothing to build finishes
+		// on the first tick rather than never being announced at all.
+		bool builtByWorker = workerEntity != Entity.Null && world.IsAlive(workerEntity);
 
 		buildingEntity = UnitEntityFactory.CreateFromMetadata(world, catalog, templateId, position, 0f, 0f, ownerPlayer, bypassPopulation: true);
 		if (buildingEntity == Entity.Null) return false;

@@ -47,5 +47,8 @@ public enum NetworkFrameKind : byte
 	PauseRequest = 14,
 
 	/// <summary>The pause state the authority holds, which is what every screen shows.</summary>
-	MatchPaused = 15
+	MatchPaused = 15,
+
+	/// <summary>A line a player typed into the map script's console, which only the authority can interpret.</summary>
+	ConsoleCommand = 16
 }

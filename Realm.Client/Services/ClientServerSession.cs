@@ -244,6 +244,25 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	///     Hands the authority a line this player typed into the map script's console. A map's commands belong to the map,
+	///     and the map runs on the authority, so the line is sent rather than interpreted here.
+	/// </summary>
+	public bool SubmitConsoleCommand(string command, int selectedUnitEntityId)
+	{
+		if (!IsRunning) return false;
+		if (!ScriptConsoleCommandLimits.IsAcceptable(command)) return false;
+
+		var payload = new ScriptConsoleCommand
+		{
+			Command = command.Trim(),
+			SelectedUnitEntityId = selectedUnitEntityId > 0 ? selectedUnitEntityId : 0
+		};
+
+		_channel.Send(NetworkFrameKind.ConsoleCommand, MemoryPackSerializer.Serialize(payload));
+		return true;
+	}
+
 	/// <summary>Tells the authority how far this client has applied the world.</summary>
 	public bool Acknowledge(int sequence)
 	{

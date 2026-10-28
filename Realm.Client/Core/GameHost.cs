@@ -1079,7 +1079,6 @@ public partial class GameHost : Node3D
 	public event Action<UnitId, UnitId>? OnUnitDied;
 	public event Action<UnitId, UnitId, float>? OnUnitDamaged;
 	public event Action<UnitId, string, System.Numerics.Vector3>? OnSpellCast;
-	public event Action<string, UnitId>? OnPlayerChatMessage;
 	public event Action<UnitId>? OnUnitSelected;
 	public event Action<UnitId, UnitId>? OnUnitAttacked;
 	public event Action<LootItemId, UnitId>? OnLootItemCollected;
@@ -1110,15 +1109,24 @@ public partial class GameHost : Node3D
 		return true;
 	}
 
+	/// <summary>
+	///     Hands the authority a line typed into the map script's console, with the unit that was selected when it was
+	///     typed. A map's console commands are read by the map, and the map runs on the authority, so nothing is
+	///     interpreted on this screen.
+	/// </summary>
 	public void TriggerPlayerChatMessage(string message)
 	{
-		UnitId selected = UnitId.Invalid;
+		if (string.IsNullOrWhiteSpace(message)) return;
+
+		int selectedServerEntityId = 0;
 		if (SelectedUnits.Count > 0 && GameContext.World.IsAlive(SelectedUnits[0].Entity))
 		{
-			selected = (UnitId)SelectedUnits[0].Entity.Id;
+			selectedServerEntityId = GetServerEntityId(SelectedUnits[0].Entity);
 		}
 
-		OnPlayerChatMessage?.Invoke(message, selected);
+		if (GameContext.ServerSession?.SubmitConsoleCommand(message, selectedServerEntityId) == true) return;
+
+		GD.PushWarning($"[GameHost] '{message.Trim()}' was not sent: there is no match running to hand it to.");
 	}
 
 	public void TriggerKillUnit(Unit3D unit, bool executeDespawnShader = true, bool playDeathAnimation = true)

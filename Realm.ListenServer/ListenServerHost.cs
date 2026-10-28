@@ -264,6 +264,9 @@ public class ListenServerHost : IServerTransportSink
 			case NetworkFrameKind.PauseRequest:
 				HandlePauseRequest(peerId, payload);
 				break;
+			case NetworkFrameKind.ConsoleCommand:
+				HandleConsoleCommand(peerId, payload);
+				break;
 			case NetworkFrameKind.Shutdown:
 				_log.Write($"peer {peerId} asked the match to end");
 				Stop();
@@ -273,6 +276,29 @@ public class ListenServerHost : IServerTransportSink
 				_transport.Disconnect(peerId);
 				break;
 		}
+	}
+
+	/// <summary>
+	///     Reads a line a player typed into the map script's console and hands it to the map. A line the transport could not
+	///     carry intact is dropped rather than shown to the map as a half-read command.
+	/// </summary>
+	private void HandleConsoleCommand(int peerId, ReadOnlySpan<byte> payload)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		ScriptConsoleCommand command;
+		try
+		{
+			command = MemoryPackSerializer.Deserialize<ScriptConsoleCommand>(payload.ToArray());
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			_log.Write($"peer {peerId} sent a console command that could not be read: {exception.Message}");
+			return;
+		}
+
+		simulation.ApplyConsoleCommand(peerId, command);
 	}
 
 	/// <summary>

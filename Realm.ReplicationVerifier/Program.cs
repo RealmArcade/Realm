@@ -8,6 +8,12 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Common;
 using Realm.Ecs.Replication;
 
+if (args.Length >= 2 && args[0] == "--map")
+{
+	int smokeSeconds = args.Length >= 3 && int.TryParse(args[2], out int parsedSeconds) ? parsedSeconds : 30;
+	return Realm.ReplicationVerifier.MapSmokeRun.Run(args[1], smokeSeconds);
+}
+
 int failures = 0;
 int checks = 0;
 

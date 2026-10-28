@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
+using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
@@ -28,6 +29,8 @@ public class ServerSimulation : IDisposable
 	private readonly Dictionary<int, int> _lastAnsweredCommandIdPerPeer = new();
 	private readonly AuthoritativeSnapshotBuilder _snapshots;
 	private readonly ServerProductionStep _production;
+	private readonly ConstructionTick _construction;
+	private readonly ServerSimulationEvents _events;
 	private readonly ServerPresentationQueue _presentation = new();
 	private readonly ServerMapScript _script;
 	private readonly GroundLootService _loot;
@@ -50,12 +53,17 @@ public class ServerSimulation : IDisposable
 		_snapshots = new AuthoritativeSnapshotBuilder(map.World, map.WorldEntity, map.Simulation.MapRules, PeerIdForPlayerSlot);
 		EnsureMatchClock(map);
 		_production = new ServerProductionStep(map.World, map, log);
+		_construction = new ConstructionTick(map.Simulation, map.Catalog);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
 		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot);
 		_snapshots.Abilities = _script.Api.Abilities;
 		_snapshots.TechLevels = _script.Api.TechLevels;
 		_script.Api.PlayerDroppedSink = DropPlayer;
+
+		_events = new ServerSimulationEvents(map.World);
+		_events.Attach(_script.Api);
+		WireSimulationCallbacks();
 
 		// A research order is authorized against how far the player is up the track, and granting the next level is what
 		// changes the units they already own. Both live with the match's own tech state, so the authority is pointed at it
@@ -86,6 +94,12 @@ public class ServerSimulation : IDisposable
 	}
 
 	public LoadedMap Map => _map;
+
+	/// <summary>
+	///     The surface the map's own script answers through. A host runs the match rather than the map, so this is what a
+	///     diagnostic or a harness reads when it has to report what the script did.
+	/// </summary>
+	public ServerGameAPI ScriptApi => _script.Api;
 
 	/// <summary>What puts items on units and takes them off again in this match, from the map's own catalog.</summary>
 	public ItemGrantService Items { get; }
@@ -118,6 +132,7 @@ public class ServerSimulation : IDisposable
 		_map.Simulation.CombatDamageService.StepCombat(deltaSeconds, _map.Simulation.MovementPathfindingService);
 		_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
 		_production.Step(deltaSeconds);
+		_construction.Step(deltaSeconds);
 		_loot.Step(deltaSeconds);
 		_script.Step(deltaSeconds);
 		_script.Api.AdvanceTimers(deltaSeconds);
@@ -128,6 +143,58 @@ public class ServerSimulation : IDisposable
 		_script.Api.Bots.Step(deltaSeconds);
 		_matchTick.AdvanceStatusEffects(deltaSeconds);
 		_matchTick.AdvanceRegeneration(deltaSeconds);
+
+		// What entered the world this tick is announced last, so a map told about a unit can already read everything
+		// about it that this tick decided.
+		_events.Step();
+	}
+
+	/// <summary>
+	///     Hands the shared simulation the decisions only the authority can make: which units are enemies, what weapons a
+	///     template carries, what happens to a unit whose hit points ran out, and what a map is told about each of those.
+	///     The services are the same ones a screen ticks; what differs is who answers for the world they change.
+	/// </summary>
+	private void WireSimulationCallbacks()
+	{
+		SimulationContext simulation = _map.Simulation;
+
+		simulation.CombatDamageService.EnemyPredicate = ArePlayersEnemies;
+		simulation.CombatDamageService.UnitWeaponsProvider = definitionId => _map.Catalog.FindUnitOrBuilding(definitionId)?.Weapons;
+		simulation.CombatDamageService.ItemGrantedWeaponsProvider = itemId => _map.Catalog.FindItem(itemId)?.GrantedWeapons;
+		simulation.CombatDamageService.UnlimitedPowerProvider = () => simulation.UnlimitedPowerEnabled;
+		simulation.CombatDamageService.OnKillUnitRequested = KillUnit;
+		simulation.CombatDamageService.OnUnitDamagedCallback = (target, attacker, damage) =>
+			_script.Api.RaiseUnitDamaged(target.Id, attacker.Id, damage);
+		simulation.CombatDamageService.OnUnitAttackedCallback = (attacker, target) =>
+			_script.Api.RaiseUnitAttacked(attacker.Id, target.Id);
+
+		_matchTick.SummonExpired += KillUnit;
+		_construction.Completed += site => _script.Api.RaiseConstructionFinished(site.Id);
+	}
+
+	/// <summary>
+	///     Whether two players are on opposite sides, which is what a fight is resolved against. A map that seats allies
+	///     says so in the relationship table, so the table answers rather than the player indexes.
+	/// </summary>
+	private bool ArePlayersEnemies(int playerIndex, int otherPlayerIndex)
+	{
+		if (playerIndex == otherPlayerIndex) return false;
+
+		return !_script.Api.ArePlayersAllied(playerIndex, otherPlayerIndex);
+	}
+
+	/// <summary>
+	///     Takes a unit out of the world when its hit points ran out. The map is told first, with whatever struck the last
+	///     blow, so its own death rules see the unit as it stood rather than as an entity that is already gone.
+	/// </summary>
+	private void KillUnit(Entity entity)
+	{
+		if (!_map.World.IsAlive(entity)) return;
+
+		Entity killer = _map.World.TryGet<LastAttacker>(entity, out LastAttacker lastAttacker) ? lastAttacker.Value : Entity.Null;
+		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
+
+		if (_map.World.IsAlive(entity)) _map.World.Destroy(entity);
 	}
 
 	/// <summary>
@@ -332,6 +399,18 @@ public class ServerSimulation : IDisposable
 	}
 
 	/// <summary>
+	///     Hands a line a player typed to the map that owns its meaning. The map's own console commands are the map's
+	///     business, so the authority passes the line on with the player it came from and the unit they had selected.
+	/// </summary>
+	public void ApplyConsoleCommand(int peerId, ScriptConsoleCommand command)
+	{
+		if (!_peerPlayerSlots.TryGetValue(peerId, out int playerSlot)) return;
+		if (!ScriptConsoleCommandLimits.IsAcceptable(command.Command)) return;
+
+		_script.Api.RaisePlayerChatMessage(playerSlot, command.Command.Trim(), command.SelectedUnitEntityId);
+	}
+
+	/// <summary>
 	///     How far a player is up one of the map's tech tracks, which is what a research order is checked against. The
 	///     match's own tech state answers, so an order is authorized against the levels the world is playing at rather
 	///     than against whatever the peer asking for it believes.
@@ -427,7 +506,10 @@ public class ServerSimulation : IDisposable
 		if (_disposed) return;
 		_disposed = true;
 
-		_script.Dispose();
+		// The world's component arrays live inside the script sandbox's linear memory, so the world has to be cleared
+		// while that memory is still mapped. Freeing the sandbox first would leave the world writing into memory it no
+		// longer owns, which is a crash at the end of every match.
 		_map.Dispose();
+		_script.Dispose();
 	}
 }
