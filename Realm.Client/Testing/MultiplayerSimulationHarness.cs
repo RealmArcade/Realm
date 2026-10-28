@@ -789,7 +789,9 @@ public partial class MultiplayerSimulationHarness : Node
 		// The session has to be read before a match scene exists too, because the seat a client is given is what decides
 		// when it may load the map. Once the match runs, it pumps the same queue and this call finds nothing to do.
 		_session?.Pump();
-		RecordClientPeerId(Multiplayer.GetUniqueId());
+		// The match reaches this process over the session's own transport, so Godot's multiplayer peer is not assigned at
+		// all. Asking it for an id errored on every physics frame and never produced the id the session already holds.
+		RecordClientPeerId(_session?.LocalPeerId ?? 0);
 		if (!_scenarioEnabled) return;
 		AimClientCameraAtNearestRemoteGroup(delta);
 		RunPredictionScenarioTick(delta);

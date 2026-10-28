@@ -32,7 +32,12 @@ public partial class PredictionHarnessRunner : Node
 		{
 			ParseArguments();
 			if (string.IsNullOrEmpty(_outputDirectory)) _outputDirectory = Path.Combine(Path.GetTempPath(), "Realm_PredictionHarness");
-			if (string.IsNullOrEmpty(_wasmPath)) _wasmPath = MultiplayerEcsSyncTestSupport.EnsureChaosArenaWasm(_mapFolder);
+			// A map that carries its compiled script in its own folder needs nothing built here; the authority runs whatever
+			// the map shipped. Only a map that keeps its script as a workspace has to be compiled for the run.
+			if (string.IsNullOrEmpty(_wasmPath) && File.Exists(Path.Combine(_mapFolder, "MapScript.csproj")))
+			{
+				_wasmPath = MultiplayerEcsSyncTestSupport.EnsureChaosArenaWasm(_mapFolder);
+			}
 
 			ResolveNetworkProfile(out NetworkProfile profile, out int oneWayDelayMilliseconds, out int jitterMilliseconds, out int packetLossPercent);
 			// A run that injects no delay behaves like the loopback case: prediction must converge on the next authoritative

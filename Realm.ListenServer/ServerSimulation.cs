@@ -35,7 +35,11 @@ public class ServerSimulation : IDisposable
 	private readonly ServerMapScript _script;
 	private readonly GroundLootService _loot;
 	private readonly HashSet<int> _peersNeedingBaseline = new();
-	private readonly Queue<int> _unseatedPlayerSlots = new();
+	/// <summary>
+	/// The roster seats no peer holds yet. Sorted rather than queued, so a peer that reconnects after losing its
+	/// connection takes the same seat it had: a roster of two humans that both reconnect must not swap their slots.
+	/// </summary>
+	private readonly SortedSet<int> _unseatedPlayerSlots = new();
 	private readonly bool _hasRoster;
 	private int _snapshotSequence;
 
@@ -65,7 +69,7 @@ public class ServerSimulation : IDisposable
 		{
 			for (int index = 0; index < roster.Count; index++)
 			{
-				if (!roster[index].IsComputer) _unseatedPlayerSlots.Enqueue(roster[index].Slot);
+				if (!roster[index].IsComputer) _unseatedPlayerSlots.Add(roster[index].Slot);
 			}
 		}
 		_log = log;
@@ -295,7 +299,8 @@ public class ServerSimulation : IDisposable
 				return false;
 			}
 
-			playerSlot = _unseatedPlayerSlots.Dequeue();
+			playerSlot = _unseatedPlayerSlots.Min;
+			_unseatedPlayerSlots.Remove(playerSlot);
 		}
 		else
 		{
@@ -410,7 +415,10 @@ public class ServerSimulation : IDisposable
 	public void ForgetPeer(int peerId)
 	{
 		_snapshots.ForgetPeer(peerId);
-		_peerPlayerSlots.Remove(peerId);
+		// The seat comes back to the roster. Leaving it with the peer that left meant a peer whose connection dropped
+		// burned a roster seat for the rest of the match, and the player who reconnected to play on was refused because
+		// every seat was 'taken' by connections that no longer existed.
+		if (_hasRoster && _peerPlayerSlots.Remove(peerId, out int releasedSlot)) _unseatedPlayerSlots.Add(releasedSlot);
 		_lastAnsweredCommandIdPerPeer.Remove(peerId);
 		_peersNeedingBaseline.Remove(peerId);
 	}

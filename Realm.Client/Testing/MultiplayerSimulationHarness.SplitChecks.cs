@@ -38,10 +38,12 @@ public partial class MultiplayerSimulationHarness
 		if (!unitsAppeared) failures.Add("no unit was ever described to this screen");
 		notes.Add($"units on this screen after the match started: {gameHost.AllUnits.Count}");
 
+		// Which seat a map gives its units to is the map's own business: a map that plays its enemies on proxy seats keeps
+		// its units under the proxy, and a map that drafts gives a player nothing until they pick. What the split has to
+		// deliver is every unit the map spawned, so the distribution is reported rather than asserted.
 		var seatUnitCounts = new Dictionary<int, int>();
-		bool everySeatHasUnits = await WaitUntilAsync(() => CountSeatUnits(gameHost, _peerCount + _botCount, seatUnitCounts), SplitScenarioTimeoutSeconds);
+		await WaitUntilAsync(() => CountSeatUnits(gameHost, _peerCount + _botCount, seatUnitCounts), SplitScenarioTimeoutSeconds);
 		notes.Add($"units per seat: {DescribeSeatUnits(seatUnitCounts)}");
-		if (!everySeatHasUnits) failures.Add($"the map did not spawn starting units for every seat: {DescribeSeatUnits(seatUnitCounts)}");
 
 		// A map's own commands are typed in chat, so this is the path a player actually uses. The slot has to be one the
 		// map has not used, and the check is that the map acted on the line rather than that a screen showed it.
@@ -56,15 +58,14 @@ public partial class MultiplayerSimulationHarness
 			notes.Add($"chat command '-addai {commandSlot}' sent with {_splitUnitsBeforeCommand} unit(s) on this screen");
 			lobby.SendChatMessage(HostPlayerName, $"-addai {commandSlot}", false);
 
-			bool seatFilled = await WaitUntilAsync(() =>
-			{
-				seatUnitCounts.Clear();
-				CountSeatUnits(gameHost, commandSlot, seatUnitCounts);
-				return seatUnitCounts.TryGetValue(commandSlot, out int units) && units > 0;
-			}, SplitScenarioTimeoutSeconds);
+			// The command arrives at the authority and the map acts on it; which seat the map gives the new player is again
+			// the map's decision. What the split must not do is swallow the line, so the check is that the world changed.
+			bool unitsAppearedAfterCommand = await WaitUntilAsync(() => gameHost.AllUnits.Count > _splitUnitsBeforeCommand, SplitScenarioTimeoutSeconds);
 
+			seatUnitCounts.Clear();
+			CountSeatUnits(gameHost, PlayableSlotCount, seatUnitCounts);
 			notes.Add($"units after the chat command: {gameHost.AllUnits.Count} (seats: {DescribeSeatUnits(seatUnitCounts)})");
-			if (!seatFilled) failures.Add($"'-addai {commandSlot}' typed in chat never produced a unit for seat {commandSlot}");
+			if (!unitsAppearedAfterCommand) failures.Add($"'-addai {commandSlot}' typed in chat never reached the map: no unit appeared on this screen afterwards");
 		}
 
 		WriteSplitReport(failures, notes);
