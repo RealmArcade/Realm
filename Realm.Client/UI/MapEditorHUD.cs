@@ -801,7 +801,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (_statusLabel == null) return;
 
-		string toolName = Realm.Client.Services.EditorService.GetLocalizedToolName(tool.ToString());
+		string toolName = Realm.Client.Services.EditorService.GetLocalizedToolName(tool);
 		if (!string.IsNullOrEmpty(shortPlaceName)) toolName += $" ({shortPlaceName})";
 
 		_statusLabel.Text = string.Format(TranslationServer.Translate("ACTIVE TOOL: {0}"), toolName);

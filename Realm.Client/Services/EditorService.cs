@@ -4885,42 +4885,41 @@ public partial class EditorService : IEditorAPI
 		GameContext.World.Mutate<EditorState>(worldEntity, (ref EditorState s) => s.HasUnsavedChanges = value);
 	}
 
-	public static string GetLocalizedToolName(string toolName)
+	public static string GetLocalizedToolName(EditorTool tool)
 	{
-		return toolName.ToLowerInvariant() switch
+		return tool switch
 		{
-			"raise" => TranslationServer.Translate("RAISE"),
-			"lower" => TranslationServer.Translate("LOWER"),
-			"height" => TranslationServer.Translate("HEIGHT"),
-			"smooth" => TranslationServer.Translate("SMOOTH"),
-			"plateau" => TranslationServer.Translate("PLATEAU"),
-			"ramp" => TranslationServer.Translate("RAMP"),
-			"noise" => TranslationServer.Translate("NOISE"),
-			"water" => TranslationServer.Translate("WATER"),
-			"painttexture" => TranslationServer.Translate("PAINT TEXTURE"),
-			"floodfill" => TranslationServer.Translate("FLOOD FILL"),
-			"selectarea" => TranslationServer.Translate("SELECT AREA"),
-			"pastearea" => TranslationServer.Translate("PASTE AREA"),
-			"placeunit" => TranslationServer.Translate("PLACE UNIT"),
-			"placeprop" => TranslationServer.Translate("PLACE PROP"),
-			"placepropclump" => TranslationServer.Translate("PLACE CLUMP"),
-			"placedecal" => TranslationServer.Translate("PLACE DECAL"),
-			"placevfx" => TranslationServer.Translate("PLACE VFX"),
-			"deleteobject" => TranslationServer.Translate("DELETE OBJECT"),
-			"selectmove" => TranslationServer.Translate("SELECT / MOVE"),
-			"eyedropper" => TranslationServer.Translate("EYEDROPPER"),
-			"paintpathing" => TranslationServer.Translate("PAINT PATHING"),
-			"floodfillpathing" => TranslationServer.Translate("FLOOD FILL PATHING"),
-			"drawcoordinate" => TranslationServer.Translate("DRAW COORD"),
-			"measure" => TranslationServer.Translate("MEASURE"),
-			"none" => TranslationServer.Translate("NONE"),
-			_ => toolName.ToUpperInvariant()
+			EditorTool.None => TranslationServer.Translate("NONE"),
+			EditorTool.Raise => TranslationServer.Translate("RAISE"),
+			EditorTool.Lower => TranslationServer.Translate("LOWER"),
+			EditorTool.Height => TranslationServer.Translate("HEIGHT"),
+			EditorTool.Smooth => TranslationServer.Translate("SMOOTH"),
+			EditorTool.Plateau => TranslationServer.Translate("PLATEAU"),
+			EditorTool.PaintTexture => TranslationServer.Translate("PAINT TEXTURE"),
+			EditorTool.PlaceUnit => TranslationServer.Translate("PLACE UNIT"),
+			EditorTool.PlaceProp => TranslationServer.Translate("PLACE PROP"),
+			EditorTool.PlaceDecal => TranslationServer.Translate("PLACE DECAL"),
+			EditorTool.PlaceVfx => TranslationServer.Translate("PLACE VFX"),
+			EditorTool.DeleteObject => TranslationServer.Translate("DELETE OBJECT"),
+			EditorTool.SelectMove => TranslationServer.Translate("SELECT / MOVE"),
+			EditorTool.Eyedropper => TranslationServer.Translate("EYEDROPPER"),
+			EditorTool.Noise => TranslationServer.Translate("NOISE"),
+			EditorTool.Ramp => TranslationServer.Translate("RAMP"),
+			EditorTool.PlacePropClump => TranslationServer.Translate("PLACE CLUMP"),
+			EditorTool.FloodFill => TranslationServer.Translate("FLOOD FILL"),
+			EditorTool.SelectArea => TranslationServer.Translate("SELECT AREA"),
+			EditorTool.PasteArea => TranslationServer.Translate("PASTE AREA"),
+			EditorTool.PaintPathing => TranslationServer.Translate("PAINT PATHING"),
+			EditorTool.FloodFillPathing => TranslationServer.Translate("FLOOD FILL PATHING"),
+			EditorTool.DrawCoordinate => TranslationServer.Translate("DRAW COORD"),
+			EditorTool.Water => TranslationServer.Translate("WATER"),
+			EditorTool.Measure => TranslationServer.Translate("MEASURE")
 		};
 	}
 
-	public string GetTerrainStatusString(Godot.Vector3 pos, string toolName, string activePlaceId)
+	public string GetTerrainStatusString(Godot.Vector3 pos, EditorTool tool, string activePlaceId)
 	{
-		string formattedToolName = GetLocalizedToolName(toolName);
+		string formattedToolName = GetLocalizedToolName(tool);
 		if (!string.IsNullOrEmpty(activePlaceId))
 		{
 			string shortId = Path.GetFileName(activePlaceId).ToUpper();
@@ -4931,7 +4930,7 @@ public partial class EditorService : IEditorAPI
 
 		ref var terrain = ref GetTerrainState();
 
-		if (terrain.Cells != null && toolName.Equals("PaintPathing", StringComparison.OrdinalIgnoreCase))
+		if (terrain.Cells != null && tool == EditorTool.PaintPathing)
 		{
 			float fx = pos.X / terrain.QuadSize + terrain.Width / 2.0f;
 			float fz = pos.Z / terrain.QuadSize + terrain.Depth / 2.0f;
