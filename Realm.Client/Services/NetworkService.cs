@@ -1211,6 +1211,19 @@ public class NetworkService
 	///     reference kept past that point is applied to whoever took the identifier the next time its target is described,
 	///     which put a target and an attacker on units the authority never said had either.
 	/// </summary>
+	/// <summary>
+	///     Whether this screen holds a reference it was told about but cannot name. The authority names a unit by the
+	///     identifier both processes know it by, and the peer translates it into the entity it holds for that unit; a unit
+	///     the peer was never told about has no such entity, so the reference stays empty. That is the shroud working, not
+	///     a missing update: the peer is not allowed to know which of the units it cannot see attacked it.
+	/// </summary>
+	public bool IsReferenceUnresolved(int localEntityId, int componentTypeId)
+	{
+		if (!_referencedServerEntityIds.TryGetValue((localEntityId, componentTypeId), out int serverEntityId)) return false;
+
+		return ReplicatedEntityReferences.Resolve(new Entity(serverEntityId)) == Entity.Null;
+	}
+
 	public void ForgetReferencesHeldBy(int localEntityId)
 	{
 		if (!_referencedComponentTypesByLocalEntity.Remove(localEntityId, out List<int>? componentTypeIds)) return;

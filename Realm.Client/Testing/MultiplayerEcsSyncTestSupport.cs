@@ -520,6 +520,9 @@ public static class MultiplayerEcsSyncTestSupport
 		int navMeshAgreedRecords = 0;
 		int navMeshDisagreementAfterAgreementCount = 0;
 		int navMeshDisagreementBeforeAgreementCount = 0;
+		int navMeshAwaitingObstacleInputCount = 0;
+		int navMeshObstacleInputRun = 0;
+		int longestObstacleInputRun = 0;
 		int firstNavMeshAgreementSequence = -1;
 		int lastAgreedHostPolyCount = 0;
 		int lastAgreedHostGroundPolyCount = 0;
@@ -529,6 +532,7 @@ public static class MultiplayerEcsSyncTestSupport
 		List<string> navMeshObservations = new();
 		List<int> hostNavigationChangeSequences = new();
 		MultiplayerNavigationState? previousHostNavigation = null;
+		int navMeshObstacleInputAllowance = ResolveObstacleInputAllowanceSequences(settings);
 
 		foreach (KeyValuePair<int, MultiplayerSnapshotRecord> hostEntry in hostRecords)
 		{
@@ -616,6 +620,7 @@ public static class MultiplayerEcsSyncTestSupport
 					&& hostEntry.Value.Navigation.PolyHash == clientRecord.Navigation.PolyHash;
 				if (shapeMatches)
 				{
+					navMeshObstacleInputRun = 0;
 					navMeshAgreedRecords++;
 					lastAgreedHostPolyCount = hostEntry.Value.Navigation.PolyCount;
 					lastAgreedHostGroundPolyCount = hostEntry.Value.Navigation.GroundPolyCount;
@@ -626,10 +631,24 @@ public static class MultiplayerEcsSyncTestSupport
 				}
 				else if (firstNavMeshAgreementSequence >= 0)
 				{
+					// The two sides bake the same volumes into the same mesh, so a mesh that differs is only a defect when
+					// they baked the same volumes. A volume the authority gained takes the sender's compare cadence and
+					// one trip over the link to reach the peer, so for a moment the peer's mesh is that volume behind by
+					// design; only an input difference that outlives that window, or a mesh difference over identical
+					// input, says one side baked something the other never held.
+					bool obstacleInputDiffers = hostEntry.Value.Navigation.ObstacleVolumeCount != clientRecord.Navigation.ObstacleVolumeCount
+						|| hostEntry.Value.Navigation.ObstacleHash != clientRecord.Navigation.ObstacleHash;
+					if (obstacleInputDiffers && ++navMeshObstacleInputRun <= navMeshObstacleInputAllowance)
+					{
+						navMeshAwaitingObstacleInputCount++;
+						if (navMeshObstacleInputRun > longestObstacleInputRun) longestObstacleInputRun = navMeshObstacleInputRun;
+						continue;
+					}
+
 					navMeshDisagreementAfterAgreementCount++;
 					if (navMeshObservations.Count < 20)
 					{
-						navMeshObservations.Add($"seq {hostEntry.Key}: the mesh agreed at seq {firstNavMeshAgreementSequence} and differs here: host=(polys {hostEntry.Value.Navigation.PolyCount}, ground {hostEntry.Value.Navigation.GroundPolyCount}, hash {hostEntry.Value.Navigation.PolyHash:x8}, obstacle volumes {hostEntry.Value.Navigation.ObstacleVolumeCount}) client=(polys {clientRecord.Navigation.PolyCount}, ground {clientRecord.Navigation.GroundPolyCount}, hash {clientRecord.Navigation.PolyHash:x8}, obstacle volumes {clientRecord.Navigation.ObstacleVolumeCount}).");
+						navMeshObservations.Add($"seq {hostEntry.Key}: the mesh agreed at seq {firstNavMeshAgreementSequence} and differs here: host=(polys {hostEntry.Value.Navigation.PolyCount}, ground {hostEntry.Value.Navigation.GroundPolyCount}, hash {hostEntry.Value.Navigation.PolyHash:x8}, obstacle volumes {hostEntry.Value.Navigation.ObstacleVolumeCount}, volumes {hostEntry.Value.Navigation.ObstacleHash:x8}) client=(polys {clientRecord.Navigation.PolyCount}, ground {clientRecord.Navigation.GroundPolyCount}, hash {clientRecord.Navigation.PolyHash:x8}, obstacle volumes {clientRecord.Navigation.ObstacleVolumeCount}, volumes {clientRecord.Navigation.ObstacleHash:x8}) after {navMeshObstacleInputRun} record(s) of differing obstacle input.");
 					}
 				}
 				else
@@ -655,6 +674,7 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Navigation parity: compared {comparedNavigationBaselines} baselines, pathing grid mismatches {pathingMismatchCount}, baselines missing a navmesh {navMeshMissingCount}");
 		report.AddSummaryLine($"Navmesh shape differences: {navMeshShapeDifferenceCount} of {comparedNavigationBaselines} baselines (a peer bakes the obstacle volumes the authority reports, so a peer's mesh must be the authority's mesh polygon for polygon)");
 		report.AddSummaryLine($"Navmesh on every paired record: agreed on {navMeshAgreedRecords} records from seq {firstNavMeshAgreementSequence} onward, differed on {navMeshDisagreementBeforeAgreementCount} before the two sides first agreed (the peer's first bake) and on {navMeshDisagreementAfterAgreementCount} after; the agreed mesh is host {lastAgreedHostPolyCount} polygons ({lastAgreedHostGroundPolyCount} ground) and peer {lastAgreedClientPolyCount} polygons ({lastAgreedClientGroundPolyCount} ground) from {lastAgreedObstacleVolumeCount} obstacle volumes");
+		report.AddSummaryLine($"Navmesh waiting for the authority's obstacle volumes: {navMeshAwaitingObstacleInputCount} records, longest run {longestObstacleInputRun} of {navMeshObstacleInputAllowance} allowed (the authority compares volumes once a second and a peer bakes the set it was last told, so a difference over a changed set is the report travelling rather than a divergent bake)");
 		for (int index = 0; index < Math.Min(navMeshObservations.Count, 3); index++)
 		{
 			report.AddSummaryLine($"  {navMeshObservations[index]}");
@@ -1108,6 +1128,10 @@ public static class MultiplayerEcsSyncTestSupport
 			report.AddSummaryLine($"Rendered placement parity was not measured: the {pairedSequences} paired host records described {describedUnitsInPairedRecords} units in total, of which {unitsNoPeerWasToldAbout} were comparable for a room this size, so there was no rendered transform to hold against an authority position.");
 		}
 		else if (pairedSequences == 0) report.AddFailure("No rendered presentation records paired with host snapshots, so placement parity was not verified.");
+		else if (comparedTransforms == 0 && skippedPredictedTransforms > 0)
+		{
+			report.AddSummaryLine($"Rendered placement parity was not measured: all {skippedPredictedTransforms} rendered transforms in the window belonged to units this screen was predicting, and a predicted transform leads the authority on purpose. The prediction report owns how far it leads and how it reconciles.");
+		}
 		else if (comparedTransforms < 20) report.AddFailure($"Only {comparedTransforms} rendered unit transforms were compared in the presentation window.");
 
 		if (mismatchCount > 0)
@@ -1115,6 +1139,19 @@ public static class MultiplayerEcsSyncTestSupport
 			report.AddSummaryLine("First presentation mismatches:");
 			foreach (string mismatch in mismatches) report.AddSummaryLine($"  {mismatch}");
 		}
+	}
+
+	/// <summary>
+	/// How many consecutive paired records may show a mesh difference explained by obstacle volumes that have not reached
+	/// the peer yet. The authority compares its volumes once a second and sends the set when it changes, so a change is a
+	/// second of not being noticed plus one trip over the link before the peer can bake it. Bounded so a profile with a
+	/// pathological delay cannot turn the check into no check at all.
+	/// </summary>
+	private static int ResolveObstacleInputAllowanceSequences(MultiplayerEcsRunSettings settings)
+	{
+		float oneWaySeconds = MathF.Max(settings.OneWayDelayMilliseconds, settings.PingMilliseconds / 2f) / 1000f;
+		int linkSequences = (int)MathF.Ceiling((oneWaySeconds + (settings.JitterMilliseconds / 1000f)) * MatchTiming.SnapshotRateHz);
+		return Math.Min(90, MatchTiming.SnapshotRateHz + linkSequences + 4);
 	}
 
 	/// <summary>

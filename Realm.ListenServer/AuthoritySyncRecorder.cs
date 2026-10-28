@@ -30,6 +30,13 @@ public class AuthoritySyncRecorder : IDisposable
 	private readonly List<(int UniqueId, Entity Entity)> _loot = new(64);
 	private readonly List<int> _baselinePeerIds = new();
 	private readonly List<int> _orderedEntityIds = new(256);
+
+	/// <summary>
+	///     The units this sequence described to every peer. A component that names one of them is a statement both
+	///     processes can hold and compare; one that names a unit a peer was never told about is not.
+	/// </summary>
+	private readonly HashSet<int> _describedToEveryPeer = new(256);
+	private readonly SyncRecordFormat.ComponentComparability _isComparable;
 	private readonly EntityCallback<UnitOwnerPlayer, Health, Position> _collectUnit;
 	private readonly EntityCallback<GroundLoot> _collectLoot;
 	private int _peerCount;
@@ -44,6 +51,7 @@ public class AuthoritySyncRecorder : IDisposable
 		_navMeshService = map.Simulation.TerrainNavMeshService;
 		_collectUnit = CollectUnit;
 		_collectLoot = CollectLoot;
+		_isComparable = IsComponentComparable;
 
 		Directory.CreateDirectory(folder);
 		path = Path.Combine(folder, "ECS_host_sync.bin");
@@ -145,7 +153,13 @@ public class AuthoritySyncRecorder : IDisposable
 		if (unitCount == 0) return;
 
 		_orderedEntityIds.Clear();
-		foreach (KeyValuePair<int, RecordedUnit> entry in _units) _orderedEntityIds.Add(entry.Key);
+		_describedToEveryPeer.Clear();
+		foreach (KeyValuePair<int, RecordedUnit> entry in _units)
+		{
+			_orderedEntityIds.Add(entry.Key);
+			if (entry.Value.PresentIn >= _peerCount) _describedToEveryPeer.Add(entry.Key);
+		}
+
 		_orderedEntityIds.Sort();
 
 		for (int index = 0; index < _orderedEntityIds.Count; index++)
@@ -186,8 +200,37 @@ public class AuthoritySyncRecorder : IDisposable
 			if (isVisibleToEveryPeer) flags |= SyncRecordFormat.FlagVisibleToRemoteClient;
 
 			SyncRecordFormat.SyncUnitRecord unit = new(recorded.Snapshot.EntityId, recorded.Snapshot.OwnerPlayerIndex, position, rotationY, currentHp, maxHp, position, flags);
-			SyncRecordFormat.WriteUnit(_writer, in unit, _world, entity, ReplicatedScope.Unit, null);
+			SyncRecordFormat.WriteUnit(_writer, in unit, _world, entity, ReplicatedScope.Unit, null, _isComparable);
 		}
+	}
+
+	/// <summary>
+	///     Whether one component of one unit is a statement this record can hold a peer to. Only a component that names
+	///     another entity can be unnameable to a peer: a reference to a unit this sequence described to every peer is one
+	///     both processes can name, and every component that names no entity is a value both hold or neither does.
+	/// </summary>
+	private bool IsComponentComparable(int componentTypeId, ReadOnlySpan<byte> payload)
+	{
+		if (!ReferenceCodecs.TryGetValue(componentTypeId, out INormalizingComponentCodec? codec)) return true;
+
+		int referencedServerEntityId = codec.ReadReferencedServerEntityId(payload);
+		if (referencedServerEntityId < 0) return true;
+
+		return _describedToEveryPeer.Contains(referencedServerEntityId);
+	}
+
+	private static readonly Dictionary<int, INormalizingComponentCodec> ReferenceCodecs = BuildReferenceCodecs();
+
+	private static Dictionary<int, INormalizingComponentCodec> BuildReferenceCodecs()
+	{
+		var codecs = new Dictionary<int, INormalizingComponentCodec>();
+		IReadOnlyList<IReplicatedComponentCodec> all = ReplicatedComponents.All;
+		for (int index = 0; index < all.Count; index++)
+		{
+			if (all[index] is INormalizingComponentCodec normalizing) codecs[normalizing.ComponentTypeId] = normalizing;
+		}
+
+		return codecs;
 	}
 
 	private void WriteLoot()

@@ -381,7 +381,8 @@ public static class MultiplayerSyncDiagnostics
 
 				System.Numerics.Vector3 position = new(unit.PositionX, unit.PositionY, unit.PositionZ);
 				SyncRecordFormat.SyncUnitRecord unitRecord = new(unit.ServerEntityId, unit.OwnerPlayerIndex, position, unit.RotationY, unit.CurrentHp, unit.MaxHp, position, flags);
-				SyncRecordFormat.WriteUnit(writer, in unitRecord, world, new Entity(unit.LocalEntityId), ReplicatedScope.Unit, mapping.ClientToServerEntityMap);
+				_comparabilityLocalEntityId = unit.LocalEntityId;
+				SyncRecordFormat.WriteUnit(writer, in unitRecord, world, new Entity(unit.LocalEntityId), ReplicatedScope.Unit, mapping.ClientToServerEntityMap, ClientComponentComparability);
 			}
 
 			AppendPlayerScopeState(writer, world, mapping.ClientToServerEntityMap);
@@ -528,6 +529,27 @@ public static class MultiplayerSyncDiagnostics
 
 		_presentationWriter.Write(record);
 		_lastPresentedSequence = sequence;
+	}
+
+	/// <summary>
+	///     The entity the record being written describes, read by <see cref="ClientComponentComparability" />. A recording
+	///     pass writes one unit at a time and allocates nothing per unit, so the comparability rule is a static delegate
+	///     reading the identifier the loop just set rather than a closure over it.
+	/// </summary>
+	private static int _comparabilityLocalEntityId;
+
+	private static readonly SyncRecordFormat.ComponentComparability ClientComponentComparability = IsClientComponentComparable;
+
+	/// <summary>
+	///     Whether this screen can state one component of the unit in hand. A reference the authority named and this
+	///     screen could not resolve is one it must leave out: it was told to point at a unit it was never given, and the
+	///     authority holds the identifier of a unit this peer is not allowed to know. Writing that as a hash difference
+	///     reports the shroud as a defect.
+	/// </summary>
+	private static bool IsClientComponentComparable(int componentTypeId, ReadOnlySpan<byte> payload)
+	{
+		NetworkService? networkService = GameContext.NetworkService;
+		return networkService == null || !networkService.IsReferenceUnresolved(_comparabilityLocalEntityId, componentTypeId);
 	}
 
 	private static int ResolveOwnerPlayerIndex(EcsWorld world, Entity localEntity)

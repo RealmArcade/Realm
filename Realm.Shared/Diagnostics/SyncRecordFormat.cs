@@ -36,6 +36,15 @@ public static class SyncRecordFormat
 	public const byte FlagLocallyPredicted = 16;
 	public const byte FlagCulled = 32;
 
+	/// <summary>
+	///     Decides whether one component of one entity can be compared between the two processes at all. A component whose
+	///     payload starts with an entity reference is only comparable when both sides could name the entity: the authority
+	///     cannot ask a peer to name a unit it never described to that peer, and a peer that was never told about the unit
+	///     holds no name for it. The side that cannot name it leaves the digest out, so the reader sees no statement
+	///     instead of a hash difference that describes the shroud rather than a defect.
+	/// </summary>
+	public delegate bool ComponentComparability(int componentTypeId, ReadOnlySpan<byte> payload);
+
 	/// <summary>What one unit looked like on one sequence, as either process describes it.</summary>
 	public readonly struct SyncUnitRecord
 	{
@@ -75,7 +84,7 @@ public static class SyncRecordFormat
 	///     hashed from is passed in because a client records the unit under the authority's identifier while holding it
 	///     under its own.
 	/// </summary>
-	public static void WriteUnit(BinaryWriter writer, in SyncUnitRecord unit, EcsWorld? world, Entity digestEntity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap)
+	public static void WriteUnit(BinaryWriter writer, in SyncUnitRecord unit, EcsWorld? world, Entity digestEntity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap, ComponentComparability? isComparable = null)
 	{
 		writer.Write(unit.EntityId);
 		writer.Write(unit.OwnerPlayerIndex);
@@ -89,7 +98,7 @@ public static class SyncRecordFormat
 		writer.Write(unit.AppliedPosition.Y);
 		writer.Write(unit.AppliedPosition.Z);
 		writer.Write(unit.Flags);
-		WriteComponentDigests(writer, world, digestEntity, scope, clientToServerEntityMap);
+		WriteComponentDigests(writer, world, digestEntity, scope, clientToServerEntityMap, isComparable);
 	}
 
 	/// <summary>
@@ -97,7 +106,7 @@ public static class SyncRecordFormat
 	///     a fingerprint of one ECS at one instant: two processes agreeing on every hash hold the same world, and one that
 	///     disagrees names the component that differs without either side having to send its values.
 	/// </summary>
-	public static void WriteComponentDigests(BinaryWriter writer, EcsWorld? world, Entity entity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap)
+	public static void WriteComponentDigests(BinaryWriter writer, EcsWorld? world, Entity entity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap, ComponentComparability? isComparable = null)
 	{
 		_digestBuffer.Clear();
 
@@ -114,6 +123,10 @@ public static class SyncRecordFormat
 				Span<byte> payload = _codecScratch.AsSpan(0, size);
 				payload.Clear();
 				if (!codec.TryWrite(world, entity, payload)) continue;
+
+				// Asked before the reference is rewritten, because the writer's own value is the one it can name, and a
+				// reference it cannot name is exactly the statement it must leave out.
+				if (isComparable != null && !isComparable(codec.ComponentTypeId, payload)) continue;
 
 				NormalizeEntityReferences(payload, codec.ComponentTypeId, clientToServerEntityMap);
 				_digestBuffer.Add(new ComponentDigest(codec.ComponentTypeId, HashPayload(payload)));
