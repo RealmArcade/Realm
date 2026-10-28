@@ -160,9 +160,11 @@ public partial class GameHost
 			return GameplayConstants.ResolveBodyRadius(GameContext.World, entity, GameplayConstants.DefaultCollisionRadius);
 		}
 
-		float scale = GetModelScale(templateId);
-		if (scale <= 0f) scale = 1f;
-		return ResolveTemplateCollisionRadius(templateId) * scale;
+		// A body that has not been told its size yet falls back to what its template authors. The model scale is not part
+		// of that number: it makes the mesh larger, and multiplying by it here drew a ring around a fire element that
+		// was the size of its template times three while the same building on another screen drew the template's own
+		// radius.
+		return ResolveTemplateCollisionRadius(templateId);
 	}
 
 	private float GetRegistryCollisionCircleRatio(string primaryKey)

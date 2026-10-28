@@ -201,7 +201,11 @@ public partial class GameHost
 				label = new Label3D
 				{
 					Name = $"StaticText_{delta.Handle}",
-					Billboard = BaseMaterial3D.BillboardModeEnum.Enabled
+					Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
+					// A label a map puts over a unit is a tag to read at a glance, not scenery: a hero taller than the height
+					// the map hung its number at hid the number inside its own mesh, which is why the level above a tile
+					// went missing while the label itself was arriving and visible.
+					NoDepthTest = true
 				};
 				label.OutlineModulate = Colors.Black;
 				AddChild(label);
@@ -211,7 +215,9 @@ public partial class GameHost
 			label.Text = delta.Text;
 			label.Modulate = new Color(delta.ColorX, delta.ColorY, delta.ColorZ);
 			label.FontSize = (int)delta.FontSize;
-			label.Position = new Godot.Vector3(delta.PositionX, delta.PositionY + 1.5f, delta.PositionZ);
+			// A map hangs its label above whatever it describes, and a body drawn at a model scale of three is taller than
+			// the distance the label used to be lifted by, so the text sat inside the model it belonged to.
+			label.Position = new Godot.Vector3(delta.PositionX, delta.PositionY + 3.5f, delta.PositionZ);
 			label.Visible = delta.Visible != 0;
 		}).CallDeferred();
 	}
