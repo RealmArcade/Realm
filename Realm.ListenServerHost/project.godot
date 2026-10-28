@@ -15,3 +15,10 @@ project/assembly_name="Realm.ListenServerHost"
 [autoload]
 
 RealmNetwork="*res://Network/ServerNetworkChannel.cs"
+
+; The match ticks from real time, so the engine only decides how often it is asked. At the engine's default of 60 Hz a
+; tick that has come due waits up to a frame for its turn, which is a third of a tick at 30 Hz: the process is driven
+; four times per tick instead, so a tick is delivered within a twelfth of its own period.
+[physics]
+
+common/physics_ticks_per_second=120

@@ -19,17 +19,19 @@ public static class MatchTiming
 {
 	/// <summary>
 	///     How often the authoritative world advances, in hertz. A match that measures 300 combat units at 24 players
-	///     spends about 0.7 ms of one core on a simulation tick and about 24 ms on describing that tick to all 24 peers
-	///     with the shroud on, so the snapshot fan-out and not the tick itself is what bounds the rate; 20 Hz is the
-	///     highest rate that keeps a 24-player match inside half of one core on an average gaming processor.
+	///     spends about 0.7 ms of one core on the simulation tick and, once the peers are described across four workers,
+	///     about 7 ms on describing that tick to all of them with the shroud on. Thirty hertz puts that room at roughly
+	///     a third of one core of an average gaming processor, which is the rate an RTS wants: it halves how stale a
+	///     remote unit is compared with twenty hertz, and sixty hertz would need both twice the upstream bandwidth and
+	///     more than half the core for a difference no one can see.
 	/// </summary>
-	public const int SimulationTickRateHz = 20;
+	public const int SimulationTickRateHz = 30;
 
 	/// <summary>
 	///     How often a peer is told what changed, in hertz. A snapshot describes exactly one tick, so this matches
 	///     <see cref="SimulationTickRateHz" />.
 	/// </summary>
-	public const int SnapshotRateHz = 20;
+	public const int SnapshotRateHz = 30;
 
 	/// <summary>How deeply the client buffers authoritative samples before it renders them, as a multiple of the snapshot interval.</summary>
 	public const float InterpolationBufferSnapshotIntervals = 2f;
