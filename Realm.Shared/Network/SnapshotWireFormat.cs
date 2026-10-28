@@ -11,7 +11,10 @@ namespace Realm.Shared.Network;
 /// component records, unit records and (for a peer in combat) the cooldown state that changed since the last one. Both
 /// are dominated by repeated ability ids, repeated component type ids and repeated catalog strings, and a delta pays a
 /// thirteen byte header per component record, so both are framed through Zstandard before they reach the transport: a
-/// per-tick delta falls to about a third of its serialized size and a baseline to about a seventh.
+/// per-tick delta falls to about a fifth of its serialized size and a baseline to about a seventh. A delta is now mostly
+/// one <see cref="UnitSection" />, which states the units field by field rather than one record at a time: homogeneous
+/// columns are what an encoder finds redundancy in, and they measured a tenth off the frame of a peer in a three hundred
+/// unit room against the same units as records.
 /// A frame states its uncompressed length, so a receiver allocates the exact buffer once. Its magic is the protocol
 /// version: both instances come from the same build, so a frame that does not carry it is a defect rather than
 /// something to tolerate.
@@ -24,9 +27,9 @@ public static class SnapshotWireFormat
 
 	/// <summary>
 	/// A delta is framed on a per-tick path, so its level is the cheapest one that reaches the size the frame settles at.
-	/// Measured over 120 consecutive ticks of one peer, a delta of about 3.5 kB frames to 895 bytes at level 1 and 895
-	/// bytes at level 3, for 55 and 63 microseconds respectively; the levels above 3 buy a further 2 to 8 percent of bytes
-	/// for five to thirty times the encoder's time, which is a bad trade for a stream sent thirty times a second.
+	/// Measured over 120 consecutive ticks of one peer, a delta of about 3.1 kB frames to 658 bytes at level 1 and 671
+	/// bytes at level 3, for 44 and 62 microseconds respectively; the levels above 3 buy 3 percent of bytes for five to
+	/// forty times the encoder's time, which is a bad trade for a stream sent thirty times a second.
 	/// </summary>
 	public const int DeltaCompressionLevel = 1;
 

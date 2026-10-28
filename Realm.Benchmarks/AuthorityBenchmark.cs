@@ -455,28 +455,33 @@ public sealed class AuthorityBenchmark : IDisposable
 	}
 
 	/// <summary>
-	///     Frames the same deltas twice: once with the unit records laid out entity by entity as the wire carries them
-	///     today, and once with the same values laid out field by field across the peer's units. Both go through their
-	///     own encoder at the level a delta uses, because a stream that alternated between two layouts would let each
-	///     find matches in the other.
+	///     Frames the same delta's units three ways: as one record per unit, which is what a peer received before the
+	///     section became columnar; the same values laid out field by field but still as floats, which is the layout
+	///     change alone; and as the quantized columnar section a peer is sent now. Each goes through its own encoder at the
+	///     level a delta uses, because a stream that alternated between layouts would let each find matches in the other.
 	/// </summary>
-	public ColumnMajorComparison MeasureColumnMajorDelta(int frameCount)
+	public UnitSectionComparison MeasureUnitSection(int frameCount)
 	{
 		for (int slot = 0; slot < _options.Players; slot++) DescribePeer(slot, ++_sequence, true);
 
-		double rowSerialized = 0;
-		double rowFrame = 0;
-		double rowMicros = 0;
-		double columnImage = 0;
-		double columnFrame = 0;
-		double columnMicros = 0;
+		double recordSerialized = 0;
+		double recordFrame = 0;
+		double recordMicros = 0;
+		double fieldMajorBytes = 0;
+		double fieldMajorFrame = 0;
+		double sectionSerialized = 0;
+		double sectionFrame = 0;
+		double sectionMicros = 0;
 		double units = 0;
 
-		var rowCompressor = new Compressor(SnapshotWireFormat.DeltaCompressionLevel);
-		var columnCompressor = new Compressor(SnapshotWireFormat.DeltaCompressionLevel);
-		var rowBuffer = new byte[Compressor.GetCompressBound(1 << 20)];
-		var columnBuffer = new byte[Compressor.GetCompressBound(1 << 20)];
-		var columnWriter = new byte[1 << 20];
+		var recordCompressor = new Compressor(SnapshotWireFormat.DeltaCompressionLevel);
+		var fieldMajorCompressor = new Compressor(SnapshotWireFormat.DeltaCompressionLevel);
+		var sectionCompressor = new Compressor(SnapshotWireFormat.DeltaCompressionLevel);
+		var recordBuffer = new byte[Compressor.GetCompressBound(1 << 20)];
+		var fieldMajorBuffer = new byte[Compressor.GetCompressBound(1 << 20)];
+		var sectionBuffer = new byte[Compressor.GetCompressBound(1 << 20)];
+		var fieldMajorWriter = new byte[1 << 20];
+		var records = new List<UnitSnapshot>(256);
 
 		for (int index = 0; index < frameCount; index++)
 		{
@@ -485,29 +490,38 @@ public sealed class AuthorityBenchmark : IDisposable
 			WorldSnapshot snapshot = DescribePeer(0, _sequence, false);
 			units += snapshot.Units.Count;
 
-			byte[] serialized = MemoryPackSerializer.Serialize(snapshot);
+			records.Clear();
+			foreach (UnitSnapshot unit in snapshot.Units) records.Add(unit);
+			byte[] serializedRecords = MemoryPackSerializer.Serialize(records);
 			long start = Stopwatch.GetTimestamp();
-			int rowLength = rowCompressor.Wrap(serialized, rowBuffer);
-			rowMicros += Elapsed(start);
-			rowSerialized += serialized.Length;
-			rowFrame += rowLength + SnapshotWireFormat.FrameHeaderBytes;
+			int recordLength = recordCompressor.Wrap(serializedRecords, recordBuffer);
+			recordMicros += Elapsed(start);
+			recordSerialized += serializedRecords.Length;
+			recordFrame += recordLength + SnapshotWireFormat.FrameHeaderBytes;
 
-			int imageLength = WriteColumnMajor(snapshot.Units, columnWriter);
+			int fieldMajorLength = WriteColumnMajor(snapshot.Units, fieldMajorWriter);
+			int fieldMajorCompressed = fieldMajorCompressor.Wrap(fieldMajorWriter.AsSpan(0, fieldMajorLength), fieldMajorBuffer);
+			fieldMajorBytes += fieldMajorLength;
+			fieldMajorFrame += fieldMajorCompressed + SnapshotWireFormat.FrameHeaderBytes;
+
 			start = Stopwatch.GetTimestamp();
-			int columnLength = columnCompressor.Wrap(columnWriter.AsSpan(0, imageLength), columnBuffer);
-			columnMicros += Elapsed(start);
-			columnImage += imageLength;
-			columnFrame += columnLength + SnapshotWireFormat.FrameHeaderBytes;
+			byte[] serializedSection = MemoryPackSerializer.Serialize(snapshot.Units);
+			int sectionLength = sectionCompressor.Wrap(serializedSection, sectionBuffer);
+			sectionMicros += Elapsed(start);
+			sectionSerialized += serializedSection.Length;
+			sectionFrame += sectionLength + SnapshotWireFormat.FrameHeaderBytes;
 		}
 
-		return new ColumnMajorComparison(
+		return new UnitSectionComparison(
 			units / frameCount,
-			rowSerialized / frameCount,
-			rowFrame / frameCount,
-			rowMicros / frameCount,
-			columnImage / frameCount,
-			columnFrame / frameCount,
-			columnMicros / frameCount);
+			recordSerialized / frameCount,
+			recordFrame / frameCount,
+			recordMicros / frameCount,
+			fieldMajorBytes / frameCount,
+			fieldMajorFrame / frameCount,
+			sectionSerialized / frameCount,
+			sectionFrame / frameCount,
+			sectionMicros / frameCount);
 	}
 
 	/// <summary>
@@ -516,7 +530,7 @@ public sealed class AuthorityBenchmark : IDisposable
 	///     finally the ids of the units themselves. Every column carries the same value of the same kind, which is what an
 	///     encoder can find redundancy in and what a vector copy could move.
 	/// </summary>
-	private static int WriteColumnMajor(List<UnitSnapshot> units, byte[] destination)
+	private static int WriteColumnMajor(IReadOnlyList<UnitSnapshot> units, byte[] destination)
 	{
 		int count = units.Count;
 		int offset = 0;

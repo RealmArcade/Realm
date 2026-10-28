@@ -165,7 +165,7 @@ public class AuthoritativeSnapshotBuilder
 			Sequence = sequence,
 			IsBaseline = isBaseline,
 			BaseSequence = isBaseline ? sequence : state.LastBaselineSequence,
-			Units = new List<UnitSnapshot>(_describedUnits.Count),
+			Units = new UnitSection(_describedUnits.Count),
 			ColdPayloads = new List<ColdPayloadDelta>(),
 			ComponentDeltas = new List<ComponentDelta>(),
 			AbilityStates = new List<AbilityStateDelta>(),
@@ -545,16 +545,22 @@ public class AuthoritativeSnapshotBuilder
 		float rotation = _world.TryGet<RotationY>(entity, out RotationY describedRotation) ? describedRotation.Value : 0f;
 		Health health = _world.Get<Health>(entity);
 
+		// Snapped to the precision the wire states a unit in, so what a peer is told is the value this match compares its
+		// own copy against. Separation and formation move a unit by fractions of a centimetre it cannot show; left
+		// unsnapped, every such nudge would cost a record in every peer's frame.
 		return new UnitSnapshot
 		{
 			EntityId = entity.Id,
 			UnitId = _world.TryGet<DefinitionId>(entity, out DefinitionId definition) ? ResolveDefinitionText(definition.StringId) : string.Empty,
 			OwnerPlayerEntityId = ResolveOwnerPeerId(entity),
 			OwnerPlayerIndex = _world.TryGet<UnitOwnerPlayer>(entity, out UnitOwnerPlayer owner) ? owner.PlayerIndex : -1,
-			Position = new NetworkVector3(position.X, position.Y, position.Z),
-			RotationY = rotation,
-			CurrentHp = health.Current,
-			MaxHp = health.Max,
+			Position = new NetworkVector3(
+				UnitQuantization.SnapPosition(position.X),
+				UnitQuantization.SnapPosition(position.Y),
+				UnitQuantization.SnapPosition(position.Z)),
+			RotationY = UnitQuantization.SnapRotation(rotation),
+			CurrentHp = UnitQuantization.SnapHealth(health.Current),
+			MaxHp = UnitQuantization.SnapHealth(health.Max),
 			IsDead = _world.Has<Dead>(entity),
 			IsBuilding = _world.Has<Building>(entity),
 			IsDetailed = true

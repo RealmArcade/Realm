@@ -4,7 +4,7 @@ namespace Realm.Shared.Network;
 
 public static class RealmProtocol
 {
-	public const int Version = 2;
+	public const int Version = 3;
 
 	public const string ReadyLinePrefix = "REALM_SERVER_READY ";
 

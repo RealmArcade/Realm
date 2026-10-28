@@ -11,7 +11,8 @@ public partial struct WorldSnapshot
 	public int Sequence;
 	public bool IsBaseline;
 	public int BaseSequence;
-	public List<UnitSnapshot> Units;
+	[UnitSectionFormatter]
+	public UnitSection Units;
 	public List<ColdPayloadDelta> ColdPayloads;
 	public List<ComponentDelta> ComponentDeltas;
 	public List<AbilityStateDelta> AbilityStates;

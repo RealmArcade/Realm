@@ -9,6 +9,10 @@ public sealed record ZstdSweep(
 	double UncompressedBytesPerFrame,
 	double UncompressedMicrosPerFrame,
 	double FrameCount,
+	double SerializeMedianMicros,
+	double SerializeBytesAllocated,
+	double EncodeMedianMicros,
+	double EncodeBytesAllocated,
 	IReadOnlyList<ZstdLevelSample> Levels);
 
 /// <summary>

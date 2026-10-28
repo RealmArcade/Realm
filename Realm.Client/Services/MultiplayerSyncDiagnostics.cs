@@ -112,7 +112,7 @@ public static class MultiplayerSyncDiagnostics
 	/// what the host told this peer. A unit absent from the payloads is not a replication mismatch: the client is holding a
 	/// last-known state on purpose, and comparing it to the authority would blame the client for the vision filter.
 	/// </summary>
-	public static void RecordClientSnapshotUnitPresence(int sequence, List<UnitSnapshot> units)
+	public static void RecordClientSnapshotUnitPresence(int sequence, IReadOnlyList<UnitSnapshot> units)
 	{
 		if (!IsRecording) return;
 

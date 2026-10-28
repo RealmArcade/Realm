@@ -76,7 +76,7 @@ public class AuthoritySyncRecorder : IDisposable
 		_peerCount++;
 		if (snapshot.IsBaseline) _baselinePeerIds.Add(peerId);
 
-		List<UnitSnapshot> units = snapshot.Units;
+		UnitSection units = snapshot.Units;
 		for (int index = 0; index < units.Count; index++)
 		{
 			UnitSnapshot unit = units[index];

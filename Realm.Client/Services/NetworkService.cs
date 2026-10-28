@@ -1555,7 +1555,7 @@ public class NetworkService
 		Vector3 cameraPos = _clientCameraPositions.TryGetValue(peerId, out var cam) ? cam : Vector3.Zero;
 		if (!_snapshotUnitsPerClient.TryGetValue(peerId, out var snapshotUnits))
 		{
-			snapshotUnits = new List<UnitSnapshot>(64);
+			snapshotUnits = new UnitSection(64);
 			_snapshotUnitsPerClient[peerId] = snapshotUnits;
 		}
 
@@ -1999,7 +1999,7 @@ public class NetworkService
 	}
 
 	private readonly Dictionary<int, List<ComponentDelta>> _componentDeltasPerClient = new();
-	private readonly Dictionary<int, List<UnitSnapshot>> _snapshotUnitsPerClient = new();
+	private readonly Dictionary<int, UnitSection> _snapshotUnitsPerClient = new();
 	private byte[] _componentWriteScratch = Array.Empty<byte>();
 
 	private List<ComponentDelta> BuildComponentDeltas(int peerId, Entity viewerEntity, List<Unit3D> allUnits, ClientSnapshotState state, int snapshotSequence, bool sendBaseline)
@@ -2350,7 +2350,7 @@ public class NetworkService
 
 	private WorldSnapshot BuildDiagnosticAuthoritativeSnapshot(List<Unit3D> allUnits, int snapshotSequence, bool isBaseline)
 	{
-		var snapshotUnits = new List<UnitSnapshot>(allUnits.Count);
+		var snapshotUnits = new UnitSection(allUnits.Count);
 		foreach (var unit in allUnits)
 		{
 			if (!GodotObject.IsInstanceValid(unit)) continue;
@@ -2424,7 +2424,7 @@ public class NetworkService
 		return posFarChanged || deadFarChanged || rotFarChanged || Mathf.Abs(baseSnap.CurrentHp - currentSnap.CurrentHp) > 1.0f;
 	}
 
-	private void ProcessUnitForBaselineSnapshot(Unit3D unit, Entity playerEntity, Vector3 cameraPos, List<Unit3D> allUnits, List<UnitSnapshot> snapshotUnits, Dictionary<int, UnitSnapshot> baselinedUnits)
+	private void ProcessUnitForBaselineSnapshot(Unit3D unit, Entity playerEntity, Vector3 cameraPos, List<Unit3D> allUnits, UnitSection snapshotUnits, Dictionary<int, UnitSnapshot> baselinedUnits)
 	{
 		if (!GodotObject.IsInstanceValid(unit)) return;
 		if (!IsUnitVisibleToPlayer(playerEntity, unit.Entity)) return;
