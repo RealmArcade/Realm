@@ -67,16 +67,22 @@ public class ListenServerHost : IServerTransportSink
 	private AuthoritySyncRecorder? _syncRecorder;
 	private SnapshotTrafficRecorder? _trafficRecorder;
 
-	/// <summary>Writes what this match put on the wire, once, so a run that asked for it finds it after this process ends.</summary>
+	/// <summary>
+	///     Writes what this match has put on the wire so far. It is written periodically as well as at the end, because an
+	///     authority that is ended without being asked leaves the run that launched it nothing to read: a report rewritten
+	///     every ten seconds is the difference between a measurement and a missing file.
+	/// </summary>
 	private void WriteTrafficReport()
 	{
 		SnapshotTrafficRecorder? recorder = _trafficRecorder;
 		if (recorder == null) return;
 
-		_trafficRecorder = null;
 		double recordedSeconds = (_simulation?.TickCount ?? 0) * MatchTiming.FixedTickSeconds;
 		recorder.WriteReport(_arguments.RecordPredictionPath, recordedSeconds, MatchTiming.SimulationTickRateHz);
 	}
+
+	/// <summary>How often the frame report is rewritten while a match runs, in published sequences.</summary>
+	private const int TrafficReportIntervalSequences = MatchTiming.SnapshotRateHz * 10;
 
 	public ListenServerHost(ServerArguments arguments, ServerLog log, IServerTransport transport)
 	{
@@ -667,6 +673,8 @@ public class ListenServerHost : IServerTransportSink
 		for (int index = 0; index < peerCount; index++) SendPublishedSnapshot(index);
 
 		_syncRecorder?.EndSequence();
+
+		if (_trafficRecorder != null && sequence % TrafficReportIntervalSequences == 0) WriteTrafficReport();
 
 		if (presentation.Length > 0) SendPresentation(peerCount, presentation);
 	}

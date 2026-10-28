@@ -465,6 +465,21 @@ public class MovementPredictionService
 			else
 			{
 				if (errorSquared <= SettledErrorMeters * SettledErrorMeters) continue;
+
+				// A unit with no predicted order has nothing to lead, so the sample is where it belongs and the renderer
+				// smooths toward it. A difference larger than a snap is still a step no renderer can smooth: a predicted
+				// order that ended somewhere the authority never reached leaves the client that far off, and applying it as a
+				// quiet correction dragged the unit across the ground in a single tick. It is announced as a snap instead, so
+				// the screen places the unit rather than animating a jump nobody asked for.
+				if (errorSquared > SnapThresholdMeters * SnapThresholdMeters)
+				{
+					float postOrderErrorMeters = MathF.Sqrt(errorSquared);
+					PositionWriteTrace.Mark(entity, PositionWriter.Prediction);
+					world.Set(entity, new Position(authoritative));
+					PredictionDiagnostics.RecordSnap(entityId, _lastSnapshotSequence, predicted, authoritative, true, $"the unit's predicted order ended {postOrderErrorMeters:F2} m from where the authority holds it, beyond the snap threshold");
+					continue;
+				}
+
 				corrected = authoritative;
 			}
 
