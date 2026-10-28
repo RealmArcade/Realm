@@ -35,8 +35,9 @@ public class AuthoritySyncRecorder : IDisposable
 	///     The units this sequence described to every peer. A component that names one of them is a statement both
 	///     processes can hold and compare; one that names a unit a peer was never told about is not.
 	/// </summary>
-	private readonly HashSet<int> _describedToEveryPeer = new(256);
-	private readonly SyncRecordFormat.ComponentComparability _isComparable;
+	private readonly Dictionary<int, ulong> _namedByPeerMask = new(256);
+	private ulong _peersDescribedMask;
+	private readonly SyncRecordFormat.ComponentComparabilityMask _namedBy;
 	private readonly EntityCallback<UnitOwnerPlayer, Health, Position> _collectUnit;
 	private readonly EntityCallback<GroundLoot> _collectLoot;
 	private int _peerCount;
@@ -51,7 +52,7 @@ public class AuthoritySyncRecorder : IDisposable
 		_navMeshService = map.Simulation.TerrainNavMeshService;
 		_collectUnit = CollectUnit;
 		_collectLoot = CollectLoot;
-		_isComparable = IsComponentComparable;
+		_namedBy = ResolveNamedByMask;
 
 		Directory.CreateDirectory(folder);
 		path = Path.Combine(folder, "ECS_host_sync.bin");
@@ -68,6 +69,7 @@ public class AuthoritySyncRecorder : IDisposable
 		_sequence = sequence;
 		_tick = tick;
 		_peerCount = 0;
+		_peersDescribedMask = 0;
 		_units.Clear();
 		_baselinePeerIds.Clear();
 	}
@@ -82,6 +84,7 @@ public class AuthoritySyncRecorder : IDisposable
 		if (_disposed || snapshot.Units == null) return;
 
 		_peerCount++;
+		_peersDescribedMask |= PeerBit(peerId);
 		if (snapshot.IsBaseline) _baselinePeerIds.Add(peerId);
 
 		UnitSection units = snapshot.Units;
@@ -91,6 +94,7 @@ public class AuthoritySyncRecorder : IDisposable
 			if (_units.TryGetValue(unit.EntityId, out RecordedUnit recorded))
 			{
 				recorded.PresentIn++;
+				recorded.NamedByMask |= PeerBit(peerId);
 				_units[unit.EntityId] = recorded;
 				continue;
 			}
@@ -98,7 +102,8 @@ public class AuthoritySyncRecorder : IDisposable
 			_units[unit.EntityId] = new RecordedUnit
 			{
 				Snapshot = unit,
-				PresentIn = 1
+				PresentIn = 1,
+				NamedByMask = PeerBit(peerId)
 			};
 		}
 	}
@@ -143,7 +148,8 @@ public class AuthoritySyncRecorder : IDisposable
 				_units[entity.Id] = new RecordedUnit
 				{
 					Snapshot = DescribeUnit(entity),
-					PresentIn = 1
+					PresentIn = 1,
+					NamedByMask = SyncRecordFormat.NamedByEveryPeer
 				};
 			}
 		}
@@ -153,11 +159,15 @@ public class AuthoritySyncRecorder : IDisposable
 		if (unitCount == 0) return;
 
 		_orderedEntityIds.Clear();
-		_describedToEveryPeer.Clear();
+		_namedByPeerMask.Clear();
 		foreach (KeyValuePair<int, RecordedUnit> entry in _units)
 		{
 			_orderedEntityIds.Add(entry.Key);
-			if (entry.Value.PresentIn >= _peerCount) _describedToEveryPeer.Add(entry.Key);
+			// Which peers could name this entity. A unit every peer was told about is one any peer can be held to; a unit
+			// only some were told about is a statement only those peers can make, so the mask travels with the reference.
+			_namedByPeerMask[entry.Key] = entry.Value.NamedByMask == SyncRecordFormat.NamedByEveryPeer
+				? entry.Value.NamedByMask
+				: entry.Value.NamedByMask & _peersDescribedMask;
 		}
 
 		_orderedEntityIds.Sort();
@@ -165,7 +175,7 @@ public class AuthoritySyncRecorder : IDisposable
 		for (int index = 0; index < _orderedEntityIds.Count; index++)
 		{
 			RecordedUnit recorded = _units[_orderedEntityIds[index]];
-			bool isVisibleToEveryPeer = recorded.PresentIn >= _peerCount;
+			bool isVisibleToEveryPeer = (recorded.NamedByMask & _peersDescribedMask) == _peersDescribedMask;
 
 			// The match states a unit at one precision, so a peer that was told about a unit was told everything the
 			// match holds about it. Reading the flag off the unit's own record said the same thing while the wire no
@@ -200,24 +210,31 @@ public class AuthoritySyncRecorder : IDisposable
 			if (isVisibleToEveryPeer) flags |= SyncRecordFormat.FlagVisibleToRemoteClient;
 
 			SyncRecordFormat.SyncUnitRecord unit = new(recorded.Snapshot.EntityId, recorded.Snapshot.OwnerPlayerIndex, position, rotationY, currentHp, maxHp, position, flags);
-			SyncRecordFormat.WriteUnit(_writer, in unit, _world, entity, ReplicatedScope.Unit, null, _isComparable);
+			SyncRecordFormat.WriteUnit(_writer, in unit, _world, entity, ReplicatedScope.Unit, null, _namedBy);
 		}
 	}
 
 	/// <summary>
-	///     Whether one component of one unit is a statement this record can hold a peer to. Only a component that names
-	///     another entity can be unnameable to a peer: a reference to a unit this sequence described to every peer is one
-	///     both processes can name, and every component that names no entity is a value both hold or neither does.
+	///     Which peers could name the entity one component of one unit points at. Only a component that names another
+	///     entity can be unnameable to a peer: a component that names no entity is a value both processes hold or neither
+	///     does, and a reference is a statement by exactly the peers this sequence described its target to.
 	/// </summary>
-	private bool IsComponentComparable(int componentTypeId, ReadOnlySpan<byte> payload)
+	private bool ResolveNamedByMask(int componentTypeId, ReadOnlySpan<byte> payload, out ulong namedByPeers)
 	{
+		namedByPeers = SyncRecordFormat.NamedByEveryPeer;
 		if (!ReferenceCodecs.TryGetValue(componentTypeId, out INormalizingComponentCodec? codec)) return true;
 
 		int referencedServerEntityId = codec.ReadReferencedServerEntityId(payload);
 		if (referencedServerEntityId < 0) return true;
 
-		return _describedToEveryPeer.Contains(referencedServerEntityId);
+		// A target this sequence described to nobody is still a value the authority holds, written with an empty mask so a
+		// screen that kept the name from an earlier description is not reported as carrying a component the host lacks.
+		namedByPeers = _namedByPeerMask.TryGetValue(referencedServerEntityId, out ulong mask) ? mask : 0;
+		return true;
 	}
+
+	/// <summary>Which bit of a record's peer mask stands for one peer of this match.</summary>
+	private static ulong PeerBit(int peerId) => peerId is >= 0 and < 64 ? 1UL << peerId : 0;
 
 	private static readonly Dictionary<int, INormalizingComponentCodec> ReferenceCodecs = BuildReferenceCodecs();
 
@@ -287,6 +304,7 @@ public class AuthoritySyncRecorder : IDisposable
 	{
 		public UnitSnapshot Snapshot;
 		public int PresentIn;
+		public ulong NamedByMask;
 	}
 
 	public void Dispose()

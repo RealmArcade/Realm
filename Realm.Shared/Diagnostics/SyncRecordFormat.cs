@@ -24,7 +24,15 @@ public static class SyncRecordFormat
 	public const uint Magic = 0x504E5352;
 
 	/// <summary>Which layout of the records a stream holds. A reader refuses a stream it was not built for.</summary>
-	public const int Version = 8;
+	public const int Version = 9;
+
+	/// <summary>
+	///     The mask that says every peer could name a reference, so the digest is a statement every peer can be held to.
+	///     Any other mask names only the peers that were told about the entity the reference points at, because the
+	///     shroud is decided per peer: a reference the authority sent to one screen and withheld from another is a
+	///     statement the first screen can be judged on and the second cannot.
+	/// </summary>
+	public const ulong NamedByEveryPeer = ulong.MaxValue;
 
 	/// <summary>How many player slots a record describes, whatever the match actually seats.</summary>
 	public const int PlayerSlotCount = 25;
@@ -37,13 +45,15 @@ public static class SyncRecordFormat
 	public const byte FlagCulled = 32;
 
 	/// <summary>
-	///     Decides whether one component of one entity can be compared between the two processes at all. A component whose
-	///     payload starts with an entity reference is only comparable when both sides could name the entity: the authority
-	///     cannot ask a peer to name a unit it never described to that peer, and a peer that was never told about the unit
-	///     holds no name for it. The side that cannot name it leaves the digest out, so the reader sees no statement
-	///     instead of a hash difference that describes the shroud rather than a defect.
+	///     Says whether the writer can state one component and which peers could name the entity it points at. A component
+	///     that names no entity is comparable by everyone; a reference is comparable only by the peers that were told about
+	///     the entity it points at, because a peer that was never told holds no name for it. Returning false means the
+	///     writer has no statement to make and the digest is left out; returning true with an empty mask means the writer
+	///     holds a value that no peer was ever given a name for, which is a statement the reader must not hold anyone to
+	///     either — the difference between the two is what keeps a name this screen kept from an earlier description out
+	///     of the comparison instead of being reported as a component the host does not have.
 	/// </summary>
-	public delegate bool ComponentComparability(int componentTypeId, ReadOnlySpan<byte> payload);
+	public delegate bool ComponentComparabilityMask(int componentTypeId, ReadOnlySpan<byte> payload, out ulong namedByPeers);
 
 	/// <summary>What one unit looked like on one sequence, as either process describes it.</summary>
 	public readonly struct SyncUnitRecord
@@ -84,7 +94,7 @@ public static class SyncRecordFormat
 	///     hashed from is passed in because a client records the unit under the authority's identifier while holding it
 	///     under its own.
 	/// </summary>
-	public static void WriteUnit(BinaryWriter writer, in SyncUnitRecord unit, EcsWorld? world, Entity digestEntity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap, ComponentComparability? isComparable = null)
+	public static void WriteUnit(BinaryWriter writer, in SyncUnitRecord unit, EcsWorld? world, Entity digestEntity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap, ComponentComparabilityMask? namedBy = null)
 	{
 		writer.Write(unit.EntityId);
 		writer.Write(unit.OwnerPlayerIndex);
@@ -98,7 +108,7 @@ public static class SyncRecordFormat
 		writer.Write(unit.AppliedPosition.Y);
 		writer.Write(unit.AppliedPosition.Z);
 		writer.Write(unit.Flags);
-		WriteComponentDigests(writer, world, digestEntity, scope, clientToServerEntityMap, isComparable);
+		WriteComponentDigests(writer, world, digestEntity, scope, clientToServerEntityMap, namedBy);
 	}
 
 	/// <summary>
@@ -106,7 +116,7 @@ public static class SyncRecordFormat
 	///     a fingerprint of one ECS at one instant: two processes agreeing on every hash hold the same world, and one that
 	///     disagrees names the component that differs without either side having to send its values.
 	/// </summary>
-	public static void WriteComponentDigests(BinaryWriter writer, EcsWorld? world, Entity entity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap, ComponentComparability? isComparable = null)
+	public static void WriteComponentDigests(BinaryWriter writer, EcsWorld? world, Entity entity, ReplicatedScope scope, IReadOnlyDictionary<int, int>? clientToServerEntityMap, ComponentComparabilityMask? namedBy = null)
 	{
 		_digestBuffer.Clear();
 
@@ -126,10 +136,11 @@ public static class SyncRecordFormat
 
 				// Asked before the reference is rewritten, because the writer's own value is the one it can name, and a
 				// reference it cannot name is exactly the statement it must leave out.
-				if (isComparable != null && !isComparable(codec.ComponentTypeId, payload)) continue;
+				ulong namedByMask = NamedByEveryPeer;
+				if (namedBy != null && !namedBy(codec.ComponentTypeId, payload, out namedByMask)) continue;
 
 				NormalizeEntityReferences(payload, codec.ComponentTypeId, clientToServerEntityMap);
-				_digestBuffer.Add(new ComponentDigest(codec.ComponentTypeId, HashPayload(payload)));
+				_digestBuffer.Add(new ComponentDigest(codec.ComponentTypeId, HashPayload(payload), namedByMask));
 			}
 		}
 
@@ -139,6 +150,11 @@ public static class SyncRecordFormat
 		{
 			writer.Write(_digestBuffer[index].ComponentTypeId);
 			writer.Write(_digestBuffer[index].Hash);
+			// Only a reference is ever scoped, so the byte is written for every entry and the mask after it only for the
+			// one entry in a unit's component set that can be about the shroud rather than about the world.
+			bool isScoped = _digestBuffer[index].NamedByMask != NamedByEveryPeer;
+			writer.Write((byte)(isScoped ? 1 : 0));
+			if (isScoped) writer.Write(_digestBuffer[index].NamedByMask);
 		}
 	}
 
@@ -221,11 +237,13 @@ public static class SyncRecordFormat
 	{
 		public readonly int ComponentTypeId;
 		public readonly uint Hash;
+		public readonly ulong NamedByMask;
 
-		public ComponentDigest(int componentTypeId, uint hash)
+		public ComponentDigest(int componentTypeId, uint hash, ulong namedByMask)
 		{
 			ComponentTypeId = componentTypeId;
 			Hash = hash;
+			NamedByMask = namedByMask;
 		}
 	}
 

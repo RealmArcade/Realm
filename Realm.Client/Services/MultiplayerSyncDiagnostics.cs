@@ -538,7 +538,7 @@ public static class MultiplayerSyncDiagnostics
 	/// </summary>
 	private static int _comparabilityLocalEntityId;
 
-	private static readonly SyncRecordFormat.ComponentComparability ClientComponentComparability = IsClientComponentComparable;
+	private static readonly SyncRecordFormat.ComponentComparabilityMask ClientComponentComparability = IsClientComponentComparable;
 
 	/// <summary>
 	///     Whether this screen can state one component of the unit in hand. A reference the authority named and this
@@ -546,10 +546,15 @@ public static class MultiplayerSyncDiagnostics
 	///     authority holds the identifier of a unit this peer is not allowed to know. Writing that as a hash difference
 	///     reports the shroud as a defect.
 	/// </summary>
-	private static bool IsClientComponentComparable(int componentTypeId, ReadOnlySpan<byte> payload)
+	private static bool IsClientComponentComparable(int componentTypeId, ReadOnlySpan<byte> payload, out ulong namedByPeers)
 	{
+		namedByPeers = SyncRecordFormat.NamedByEveryPeer;
 		NetworkService? networkService = GameContext.NetworkService;
-		return networkService == null || !networkService.IsReferenceUnresolved(_comparabilityLocalEntityId, componentTypeId);
+		if (networkService == null) return true;
+
+		// A screen speaks only for itself: a reference it can name is a statement about its own copy of the world, which
+		// the reader holds this screen to. One it cannot name is left out rather than written as a value it invented.
+		return !networkService.IsReferenceUnresolved(_comparabilityLocalEntityId, componentTypeId);
 	}
 
 	private static int ResolveOwnerPlayerIndex(EcsWorld world, Entity localEntity)

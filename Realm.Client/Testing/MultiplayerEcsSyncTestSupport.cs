@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Realm.Client.Services;
 using Realm.Ecs.Replication;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Testing;
@@ -138,7 +139,7 @@ public static class MultiplayerEcsSyncTestSupport
 	/// </summary>
 	private const int PlacementLagAllowanceSequences = 30;
 	private const int StartupWarmupSequenceCount = 60;
-	private const int SyncRecordVersion = 8;
+	private const int SyncRecordVersion = SyncRecordFormat.Version;
 
 	public static string ResolveClientProjectDirectory()
 	{
@@ -488,6 +489,7 @@ public static class MultiplayerEcsSyncTestSupport
 		// id, so the harness appends every id the process used and a baseline counts as sent to this client when any of
 		// them appears in the record. Attributing by the first id alone reported every later baseline as a mismatch.
 		HashSet<int> clientPeerIds = ReadClientPeerIds(clientOutputDirectory);
+		ulong clientPeerMask = BuildPeerMask(clientPeerIds);
 		int inFlightSequenceCount = 0;
 		int supersededSequenceCount = 0;
 
@@ -591,7 +593,7 @@ public static class MultiplayerEcsSyncTestSupport
 			List<string> digestTarget = hostSentBaselineToThisPeer ? mismatches : transientDigestMismatches;
 			int digestMismatchCountBefore = transientDigestMismatches.Count;
 			if (hostSentBaselineToThisPeer) comparedLootEntities += hostEntry.Value.Loot.Count;
-			CompareSnapshotRecord(hostEntry.Value, clientRecord, hostSentBaselineToThisPeer, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits, deltaDivergences);
+			CompareSnapshotRecord(hostEntry.Value, clientRecord, hostSentBaselineToThisPeer, mismatches, digestTarget, ref comparedUnits, ref offscreenMissingUnits, deltaDivergences, clientPeerMask);
 			CompareScopeDigests(hostEntry.Value, clientRecord, digestTarget);
 			int transientAddedForSequence = transientDigestMismatches.Count - digestMismatchCountBefore;
 			transientDigestMismatchCount += transientAddedForSequence;
@@ -1324,28 +1326,28 @@ public static class MultiplayerEcsSyncTestSupport
 
 	private static void CompareScopeDigests(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, List<string> mismatches)
 	{
-		foreach (KeyValuePair<int, Dictionary<int, uint>> hostPlayer in hostRecord.Players)
+		foreach (KeyValuePair<int, Dictionary<int, ComponentDigestEntry>> hostPlayer in hostRecord.Players)
 		{
-			if (!clientRecord.Players.TryGetValue(hostPlayer.Key, out Dictionary<int, uint>? clientDigests))
+			if (!clientRecord.Players.TryGetValue(hostPlayer.Key, out Dictionary<int, ComponentDigestEntry>? clientDigests))
 			{
 				AddMismatch(mismatches, 0, $"seq {hostRecord.Sequence}: player slot {hostPlayer.Key} has no applied state on the client.");
 				continue;
 			}
 
-			CompareDigestSets(hostRecord.Sequence, $"player slot {hostPlayer.Key}", hostPlayer.Value, clientDigests, mismatches);
+			CompareDigestSets(hostRecord.Sequence, $"player slot {hostPlayer.Key}", hostPlayer.Value, clientDigests, SyncRecordFormat.NamedByEveryPeer, mismatches);
 		}
 
-		CompareDigestSets(hostRecord.Sequence, "world entity", hostRecord.WorldDigests, clientRecord.WorldDigests, mismatches);
+		CompareDigestSets(hostRecord.Sequence, "world entity", hostRecord.WorldDigests, clientRecord.WorldDigests, SyncRecordFormat.NamedByEveryPeer, mismatches);
 
-		foreach (KeyValuePair<int, Dictionary<int, uint>> hostLoot in hostRecord.Loot)
+		foreach (KeyValuePair<int, Dictionary<int, ComponentDigestEntry>> hostLoot in hostRecord.Loot)
 		{
-			if (!clientRecord.Loot.TryGetValue(hostLoot.Key, out Dictionary<int, uint>? clientDigests))
+			if (!clientRecord.Loot.TryGetValue(hostLoot.Key, out Dictionary<int, ComponentDigestEntry>? clientDigests))
 			{
 				AddMismatch(mismatches, 0, $"seq {hostRecord.Sequence}: loot {hostLoot.Key} has no applied state on the client.");
 				continue;
 			}
 
-			CompareDigestSets(hostRecord.Sequence, $"loot {hostLoot.Key}", hostLoot.Value, clientDigests, mismatches);
+			CompareDigestSets(hostRecord.Sequence, $"loot {hostLoot.Key}", hostLoot.Value, clientDigests, SyncRecordFormat.NamedByEveryPeer, mismatches);
 		}
 
 		foreach (int clientLootId in clientRecord.Loot.Keys)
@@ -1355,26 +1357,32 @@ public static class MultiplayerEcsSyncTestSupport
 		}
 	}
 
-	private static void CompareDigestSets(int sequence, string owner, Dictionary<int, uint> hostDigests, Dictionary<int, uint> clientDigests, List<string> mismatches)
+	private static void CompareDigestSets(int sequence, string owner, Dictionary<int, ComponentDigestEntry> hostDigests, Dictionary<int, ComponentDigestEntry> clientDigests, ulong peerMask, List<string> mismatches)
 	{
 		const int mismatchCountBefore = 0;
-		foreach (KeyValuePair<int, uint> hostDigest in hostDigests)
+		foreach (KeyValuePair<int, ComponentDigestEntry> hostDigest in hostDigests)
 		{
+			// The authority states a reference only for the peers it described its target to, so a peer outside that set is
+			// asked nothing about it: reporting it as absent would describe the shroud as a defect.
+			if (!hostDigest.Value.IsNameableBy(peerMask)) continue;
+
 			string componentName = DescribeComponent(hostDigest.Key);
-			if (!clientDigests.TryGetValue(hostDigest.Key, out uint clientHash))
+			if (!clientDigests.TryGetValue(hostDigest.Key, out ComponentDigestEntry clientDigest))
 			{
 				AddMismatch(mismatches, mismatchCountBefore, $"seq {sequence}: {owner} carries {componentName} on the host but not in the client's applied ECS.");
 				continue;
 			}
 
-			if (clientHash != hostDigest.Value)
+			if (clientDigest.Hash != hostDigest.Value.Hash)
 			{
-				AddMismatch(mismatches, mismatchCountBefore, $"seq {sequence}: {owner} {componentName} differs between the host ECS ({hostDigest.Value:x8}) and the client's applied ECS ({clientHash:x8}).");
+				AddMismatch(mismatches, mismatchCountBefore, $"seq {sequence}: {owner} {componentName} differs between the host ECS ({hostDigest.Value.Hash:x8}) and the client's applied ECS ({clientDigest.Hash:x8}).");
 			}
 		}
 
-		foreach (KeyValuePair<int, uint> clientDigest in clientDigests)
+		foreach (KeyValuePair<int, ComponentDigestEntry> clientDigest in clientDigests)
 		{
+			// Present on the host but stated only to other peers: this screen's own copy is not a defect.
+			if (hostDigests.TryGetValue(clientDigest.Key, out ComponentDigestEntry hostDigest) && !hostDigest.IsNameableBy(peerMask)) continue;
 			if (hostDigests.ContainsKey(clientDigest.Key)) continue;
 			AddMismatch(mismatches, mismatchCountBefore, $"seq {sequence}: {owner} carries {DescribeComponent(clientDigest.Key)} in the client's applied ECS but not on the host.");
 		}
@@ -1449,7 +1457,7 @@ public static class MultiplayerEcsSyncTestSupport
 		report.AddSummaryLine($"Unit fields that diverged on a delta record and healed inside the {allowance}-record retransmit window: {healedCount} (counted from {divergences.Count} observations)");
 	}
 
-	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, bool exact, List<string> mismatches, List<string> digestMismatches, ref int comparedUnits, ref int offscreenMissingUnits, List<(int EntityId, string Field, int Sequence, string Message)> deltaDivergences)
+	private static void CompareSnapshotRecord(MultiplayerSnapshotRecord hostRecord, MultiplayerSnapshotRecord clientRecord, bool exact, List<string> mismatches, List<string> digestMismatches, ref int comparedUnits, ref int offscreenMissingUnits, List<(int EntityId, string Field, int Sequence, string Message)> deltaDivergences, ulong clientPeerMask)
 	{
 		int mismatchCountBefore = mismatches.Count;
 
@@ -1536,7 +1544,7 @@ public static class MultiplayerEcsSyncTestSupport
 				ReportUnitField(hostUnit.EntityId, "max health", $"seq {hostRecord.Sequence}: entity {hostUnit.EntityId} max health host={hostUnit.MaxHp:F3} client={clientUnit.MaxHp:F3}.");
 			}
 
-			CompareDigestSets(hostRecord.Sequence, $"entity {hostUnit.EntityId}", hostUnit.ComponentDigests, clientUnit.ComponentDigests, digestMismatches);
+			CompareDigestSets(hostRecord.Sequence, $"entity {hostUnit.EntityId}", hostUnit.ComponentDigests, clientUnit.ComponentDigests, clientPeerMask, digestMismatches);
 		}
 
 		if (!exact) return;
@@ -1928,16 +1936,51 @@ public static class MultiplayerEcsSyncTestSupport
 		return records;
 	}
 
-	private static Dictionary<int, uint> ReadComponentDigests(BinaryReader reader)
+	private static Dictionary<int, ComponentDigestEntry> ReadComponentDigests(BinaryReader reader)
 	{
 		int count = reader.ReadInt32();
-		Dictionary<int, uint> digests = new(count);
+		Dictionary<int, ComponentDigestEntry> digests = new(count);
 		for (int index = 0; index < count; index++)
 		{
-			digests[reader.ReadInt32()] = reader.ReadUInt32();
+			int componentTypeId = reader.ReadInt32();
+			uint hash = reader.ReadUInt32();
+			bool isScoped = reader.ReadByte() != 0;
+			ulong namedByMask = isScoped ? reader.ReadUInt64() : SyncRecordFormat.NamedByEveryPeer;
+			digests[componentTypeId] = new ComponentDigestEntry(hash, namedByMask);
 		}
 
 		return digests;
+	}
+
+	/// <summary>
+	/// One component digest with the peers that could have named whatever it points at. An authority record scopes a
+	/// reference to the peers it described the target to, so a peer that was never told about the target is not held to a
+	/// statement about it instead of being reported as a missing component.
+	/// </summary>
+	private readonly struct ComponentDigestEntry
+	{
+		public readonly uint Hash;
+		public readonly ulong NamedByMask;
+
+		public ComponentDigestEntry(uint hash, ulong namedByMask)
+		{
+			Hash = hash;
+			NamedByMask = namedByMask;
+		}
+
+		public bool IsNameableBy(ulong peerMask) => (NamedByMask & peerMask) != 0;
+	}
+
+	/// <summary>Which bit of a record's peer mask stands for one peer, matching the authority's own numbering.</summary>
+	private static ulong BuildPeerMask(HashSet<int> peerIds)
+	{
+		ulong mask = 0;
+		foreach (int peerId in peerIds)
+		{
+			if (peerId is >= 0 and < 64) mask |= 1UL << peerId;
+		}
+
+		return mask;
 	}
 
 	private sealed class MultiplayerSnapshotRecord
@@ -1947,9 +1990,9 @@ public static class MultiplayerEcsSyncTestSupport
 		public bool IsBaseline;
 		public HashSet<int> BaselinePeerIds = new();
 		public Dictionary<int, MultiplayerSnapshotUnit> Units = new();
-		public Dictionary<int, Dictionary<int, uint>> Players = new();
-		public Dictionary<int, uint> WorldDigests = new();
-		public Dictionary<int, Dictionary<int, uint>> Loot = new();
+		public Dictionary<int, Dictionary<int, ComponentDigestEntry>> Players = new();
+		public Dictionary<int, ComponentDigestEntry> WorldDigests = new();
+		public Dictionary<int, Dictionary<int, ComponentDigestEntry>> Loot = new();
 		public MultiplayerNavigationState Navigation = new();
 	}
 
@@ -1983,6 +2026,6 @@ public static class MultiplayerEcsSyncTestSupport
 		public float AppliedPositionY;
 		public float AppliedPositionZ;
 		public byte Flags;
-		public Dictionary<int, uint> ComponentDigests = new();
+		public Dictionary<int, ComponentDigestEntry> ComponentDigests = new();
 	}
 }
