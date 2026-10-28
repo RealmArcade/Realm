@@ -518,6 +518,10 @@ public static class MultiplayerSyncDiagnostics
 				if (unit.IsPredicted) flags |= SyncRecordFormat.FlagLocallyPredicted;
 				if (unit.IsCulled) flags |= SyncRecordFormat.FlagCulled;
 				writer.Write(flags);
+				// A presented transform is this screen's own account of a unit it holds, so every peer could name it as far
+				// as this record speaks, and the digest count that follows states none: the presentation stream is read by
+				// the same reader as the applied state and both keep one unit header.
+				writer.Write(SyncRecordFormat.NamedByEveryPeer);
 				writer.Write(0);
 			}
 

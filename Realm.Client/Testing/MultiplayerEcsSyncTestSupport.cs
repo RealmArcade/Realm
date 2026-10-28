@@ -1487,6 +1487,11 @@ public static class MultiplayerEcsSyncTestSupport
 		{
 			bool isDead = (hostUnit.Flags & 1) != 0;
 			bool isVisibleToRemoteClient = (hostUnit.Flags & 8) != 0;
+			// A unit can be described to some peers and not others, which is what the shroud does: the digests are then a
+			// statement only for the peers that were told about it, and this screen's own bit is what decides whether it
+			// was. Field comparisons stay bound to the flag that says every peer was told, because that is the promise the
+			// tolerance was written against.
+			bool isDescribedToThisPeer = (hostUnit.NamedByPeers & clientPeerMask) != 0;
 			bool isDetailedForThisClient = (hostUnit.Flags & 4) != 0;
 			bool exactUnit = exact && isDetailedForThisClient;
 			float positionTolerance = exactUnit ? BaselineTolerance : DeltaPositionTolerance;
@@ -1497,7 +1502,7 @@ public static class MultiplayerEcsSyncTestSupport
 			{
 				if (isDead) continue;
 
-				if (!isVisibleToRemoteClient)
+				if (!isDescribedToThisPeer)
 				{
 					offscreenMissingUnits++;
 					continue;
@@ -1509,6 +1514,14 @@ public static class MultiplayerEcsSyncTestSupport
 			}
 
 			comparedUnits++;
+
+			// Component digests are compared for every unit this peer was told about, so a reference on a unit only this
+			// screen can see is still held to its value there. What that unit looks like is compared only when every peer
+			// was told about it.
+			if (isDescribedToThisPeer)
+			{
+				CompareDigestSets(hostRecord.Sequence, $"entity {hostUnit.EntityId}", hostUnit.ComponentDigests, clientUnit.ComponentDigests, clientPeerMask, digestMismatches, coverage);
+			}
 
 			if (!isVisibleToRemoteClient) continue;
 
@@ -1554,8 +1567,6 @@ public static class MultiplayerEcsSyncTestSupport
 			{
 				ReportUnitField(hostUnit.EntityId, "max health", $"seq {hostRecord.Sequence}: entity {hostUnit.EntityId} max health host={hostUnit.MaxHp:F3} client={clientUnit.MaxHp:F3}.");
 			}
-
-			CompareDigestSets(hostRecord.Sequence, $"entity {hostUnit.EntityId}", hostUnit.ComponentDigests, clientUnit.ComponentDigests, clientPeerMask, digestMismatches, coverage);
 		}
 
 		if (!exact) return;
@@ -1909,6 +1920,7 @@ public static class MultiplayerEcsSyncTestSupport
 					AppliedPositionY = reader.ReadSingle(),
 					AppliedPositionZ = reader.ReadSingle(),
 					Flags = reader.ReadByte(),
+					NamedByPeers = reader.ReadUInt64(),
 					ComponentDigests = ReadComponentDigests(reader)
 				};
 				units[unit.EntityId] = unit;
@@ -2062,6 +2074,8 @@ public static class MultiplayerEcsSyncTestSupport
 		public float AppliedPositionY;
 		public float AppliedPositionZ;
 		public byte Flags;
+		/// <summary>The peers this sequence described the unit to, as bits of the record's peer mask.</summary>
+		public ulong NamedByPeers = SyncRecordFormat.NamedByEveryPeer;
 		public Dictionary<int, ComponentDigestEntry> ComponentDigests = new();
 	}
 }

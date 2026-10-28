@@ -24,7 +24,7 @@ public static class SyncRecordFormat
 	public const uint Magic = 0x504E5352;
 
 	/// <summary>Which layout of the records a stream holds. A reader refuses a stream it was not built for.</summary>
-	public const int Version = 10;
+	public const int Version = 11;
 
 	/// <summary>
 	///     The mask that says every peer could name a reference, so the digest is a statement every peer can be held to.
@@ -67,7 +67,10 @@ public static class SyncRecordFormat
 		public readonly Vector3 AppliedPosition;
 		public readonly byte Flags;
 
-		public SyncUnitRecord(int entityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, Vector3 appliedPosition, byte flags)
+		/// <summary>Which peers this sequence described the unit to, as the bits of the record's peer mask.</summary>
+		public readonly ulong NamedByPeers;
+
+		public SyncUnitRecord(int entityId, int ownerPlayerIndex, Vector3 position, float rotationY, float currentHp, float maxHp, Vector3 appliedPosition, byte flags, ulong namedByPeers = NamedByEveryPeer)
 		{
 			EntityId = entityId;
 			OwnerPlayerIndex = ownerPlayerIndex;
@@ -77,6 +80,7 @@ public static class SyncRecordFormat
 			MaxHp = maxHp;
 			AppliedPosition = appliedPosition;
 			Flags = flags;
+			NamedByPeers = namedByPeers;
 		}
 	}
 
@@ -108,6 +112,9 @@ public static class SyncRecordFormat
 		writer.Write(unit.AppliedPosition.Y);
 		writer.Write(unit.AppliedPosition.Z);
 		writer.Write(unit.Flags);
+		// A unit only some peers were told about is still a unit those peers can be held to, so the record states which
+		// peers it reached rather than leaving a reader to assume it reached everyone or no one.
+		writer.Write(unit.NamedByPeers);
 		WriteComponentDigests(writer, world, digestEntity, scope, clientToServerEntityMap, namedBy);
 	}
 

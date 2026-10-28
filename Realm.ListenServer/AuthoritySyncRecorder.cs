@@ -36,6 +36,8 @@ public class AuthoritySyncRecorder : IDisposable
 	///     processes can hold and compare; one that names a unit a peer was never told about is not.
 	/// </summary>
 	private readonly Dictionary<int, ulong> _namedByPeerMask = new(256);
+	private readonly Dictionary<int, int> _peerSlotById = new(8);
+	private readonly List<int> _describedPeerIds = new(8);
 	private ulong _peersDescribedMask;
 	private readonly SyncRecordFormat.ComponentComparabilityMask _namedBy;
 	private readonly EntityCallback<UnitOwnerPlayer, Health, Position> _collectUnit;
@@ -70,6 +72,8 @@ public class AuthoritySyncRecorder : IDisposable
 		_tick = tick;
 		_peerCount = 0;
 		_peersDescribedMask = 0;
+		_peerSlotById.Clear();
+		_describedPeerIds.Clear();
 		_units.Clear();
 		_baselinePeerIds.Clear();
 	}
@@ -84,6 +88,9 @@ public class AuthoritySyncRecorder : IDisposable
 		if (_disposed || snapshot.Units == null) return;
 
 		_peerCount++;
+		// A transport hands out whatever peer identifiers it likes, so a mask is indexed by the order this sequence first
+		// described its peers in; the record states that order beside the mask.
+		if (_peerSlotById.TryAdd(peerId, _describedPeerIds.Count)) _describedPeerIds.Add(peerId);
 		_peersDescribedMask |= PeerBit(peerId);
 		if (snapshot.IsBaseline) _baselinePeerIds.Add(peerId);
 
@@ -123,6 +130,11 @@ public class AuthoritySyncRecorder : IDisposable
 		_writer.Write(recordedPeers);
 		for (int index = 0; index < recordedPeers; index++) _writer.Write(_baselinePeerIds[index]);
 		_writer.Write((ulong)_tick);
+
+		// Which bit of a reference digest's mask stands for which peer, so a reader can find its own bit without knowing
+		// how the transport numbered the peers.
+		_writer.Write(_describedPeerIds.Count);
+		for (int index = 0; index < _describedPeerIds.Count; index++) _writer.Write(_describedPeerIds[index]);
 
 		WriteUnits();
 		SyncRecordFormat.WritePlayerScope(_writer, _world, _worldEntity, ReplicatedScope.Player, null);
@@ -209,7 +221,7 @@ public class AuthoritySyncRecorder : IDisposable
 			if (isDetailedForEveryPeer) flags |= SyncRecordFormat.FlagDetailed;
 			if (isVisibleToEveryPeer) flags |= SyncRecordFormat.FlagVisibleToRemoteClient;
 
-			SyncRecordFormat.SyncUnitRecord unit = new(recorded.Snapshot.EntityId, recorded.Snapshot.OwnerPlayerIndex, position, rotationY, currentHp, maxHp, position, flags);
+			SyncRecordFormat.SyncUnitRecord unit = new(recorded.Snapshot.EntityId, recorded.Snapshot.OwnerPlayerIndex, position, rotationY, currentHp, maxHp, position, flags, recorded.NamedByMask);
 			SyncRecordFormat.WriteUnit(_writer, in unit, _world, entity, ReplicatedScope.Unit, null, _namedBy);
 		}
 	}
@@ -233,8 +245,12 @@ public class AuthoritySyncRecorder : IDisposable
 		return true;
 	}
 
-	/// <summary>Which bit of a record's peer mask stands for one peer of this match.</summary>
-	private static ulong PeerBit(int peerId) => peerId is >= 0 and < 64 ? 1UL << peerId : 0;
+	/// <summary>Which bit of a record's peer mask stands for one peer, by the order this sequence described them in.</summary>
+	private ulong PeerBit(int peerId)
+	{
+		int slot = _peerSlotById.TryGetValue(peerId, out int existing) ? existing : _describedPeerIds.Count;
+		return slot < 64 ? 1UL << slot : 0;
+	}
 
 	private static readonly Dictionary<int, INormalizingComponentCodec> ReferenceCodecs = BuildReferenceCodecs();
 
