@@ -38,6 +38,7 @@ public class ListenServerHost : IServerTransportSink
 	private int _rateLimitedCommandCount;
 	private long _nextRateLimitReportTicks;
 	private Action<string>? _scriptLogSink;
+	private AuthoritySnapshotRecorder? _predictionRecorder;
 
 	public ListenServerHost(ServerArguments arguments, ServerLog log, IServerTransport transport)
 	{
@@ -100,6 +101,14 @@ public class ListenServerHost : IServerTransportSink
 			if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, _arguments.Cheats, this, out string failure))
 			{
 				throw new IOException($"the match could not listen for peers: {failure}");
+			}
+
+			// A run that measures prediction asks the match to say where every unit really is, because only this process
+			// decided it. Nothing else is asked for it, so a normal match writes no such record.
+			if (_arguments.RecordPredictionPath.Length > 0)
+			{
+				_predictionRecorder = new AuthoritySnapshotRecorder(_arguments.RecordPredictionPath, map.World, out string recordPath);
+				_log.Write($"this match records what it decides into '{recordPath}'");
 			}
 
 			IsRunning = true;
@@ -246,6 +255,9 @@ public class ListenServerHost : IServerTransportSink
 		_transport.Dispose();
 		_simulation?.Dispose();
 		_simulation = null;
+
+		_predictionRecorder?.Dispose();
+		_predictionRecorder = null;
 
 		if (_scriptLogSink != null)
 		{
@@ -528,6 +540,10 @@ public class ListenServerHost : IServerTransportSink
 	{
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
+
+		// The account of this sequence is taken whether or not anyone is listening: a run measures prediction against the
+		// sequences a screen applied, and a gap in the record would hide the very ticks a peer was still catching up on.
+		_predictionRecorder?.Record(sequence);
 
 		// What the map asked a screen to show this tick is collected whether or not anyone is listening, so a request
 		// that nobody could receive is dropped rather than piling up behind the next one.

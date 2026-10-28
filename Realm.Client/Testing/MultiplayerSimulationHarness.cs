@@ -331,7 +331,7 @@ public partial class MultiplayerSimulationHarness : Node
 			ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
 			GameContext.ServerSession?.Dispose();
 			var session = new ClientServerSession(channel);
-			var start = new ServerMatchStart(mapDirectory, "Test Map", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode());
+			var start = new ServerMatchStart(mapDirectory, "Test Map", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode(), PredictionRecordDirectory: _outputDirectory);
 			if (!session.TryStart(start, out string failure, _port)) throw new InvalidOperationException($"The authority could not be started: {failure}");
 			GameContext.AttachServerSession(session);
 			_session = session;
@@ -449,7 +449,8 @@ public partial class MultiplayerSimulationHarness : Node
 			_outputDirectory,
 			LocalizationManager.GetCurrentLanguageCode(),
 			OpenToOthers: true,
-			Roster: BuildHarnessRoster());
+			Roster: BuildHarnessRoster(),
+			PredictionRecordDirectory: _outputDirectory);
 
 		if (!session.TryStart(start, out string failure, _port)) throw new InvalidOperationException($"The authority could not be started on port {_port}: {failure}");
 
@@ -713,7 +714,10 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		MultiplayerSyncDiagnostics.Start(_outputDirectory, isHost);
-		PredictionDiagnostics.Start(_outputDirectory, isHost, !isHost);
+		// The stream a prediction is judged against belongs to the authority, which recorded it from the first sequence
+		// it published. A screen records only what it predicted, so this process records nothing when it hosts.
+		if (isHost) PredictionDiagnostics.Stop();
+		else PredictionDiagnostics.Start(_outputDirectory);
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
 		GameHost currentHost = GameContext.Host!;

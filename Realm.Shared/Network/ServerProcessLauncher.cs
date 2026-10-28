@@ -54,6 +54,13 @@ public static class ServerArgumentFlags
 	///     rather than arrive with the peers that fill them.
 	/// </summary>
 	public const string RosterFlag = "--roster";
+
+	/// <summary>
+	///     The folder the authority writes what it knows about every unit on every sequence it publishes. A prediction
+	///     report measures a screen's guess against the process that decided the movement, so only a run that asks for
+	///     the record gets one: a normal match writes nothing here.
+	/// </summary>
+	public const string RecordPredictionFlag = "--record-prediction";
 }
 
 /// <summary>
@@ -112,6 +119,13 @@ public record ServerLaunchRequest(ServerLaunchTarget Target, string MapFolderPat
 	///     what lets a map's script see every seat - the ones the match plays itself included - while it initializes.
 	/// </summary>
 	public string? RosterPath { get; init; }
+
+	/// <summary>
+	///     The folder the authority writes its own account of every published sequence into, or nothing to write none. It
+	///     is what a prediction report compares a screen's prediction against, so a run that measures prediction asks for
+	///     it and every other match leaves no such file behind.
+	/// </summary>
+	public string? PredictionRecordFolderPath { get; init; }
 
 	/// <summary>How long the authority has to load its map and report that it is listening.</summary>
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
@@ -348,6 +362,11 @@ public class ServerProcessLauncher : IDisposable
 		{
 			startInfo.ArgumentList.Add(ServerArgumentFlags.RosterFlag);
 			startInfo.ArgumentList.Add(Path.GetFullPath(request.RosterPath));
+		}
+		if (!string.IsNullOrWhiteSpace(request.PredictionRecordFolderPath))
+		{
+			startInfo.ArgumentList.Add(ServerArgumentFlags.RecordPredictionFlag);
+			startInfo.ArgumentList.Add(Path.GetFullPath(request.PredictionRecordFolderPath));
 		}
 
 		try

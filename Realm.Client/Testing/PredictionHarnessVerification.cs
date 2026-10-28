@@ -7,6 +7,7 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using Realm.Client.Services;
+using Realm.Shared.Diagnostics;
 
 namespace Realm.Client.Testing;
 
@@ -380,6 +381,13 @@ public static class PredictionHarnessVerification
 		{
 			ReadClientRecords(clientPath, records);
 			if (File.Exists(hostPath)) ReadHostRecords(hostPath, records);
+			else if (!zeroLatency)
+			{
+				// Settled error and pathing parity are both measured against the process that decided the movement. A run
+				// that did not ask the authority to record it can only state that the screen stayed near its own guess,
+				// which is not a measurement of prediction at all.
+				report.AddFailure($"{Path.GetFileName(hostPath)} is missing; the authority was not asked to record the world it published, so settled error and pathing parity could not be measured against it.");
+			}
 		}
 		catch (Exception exception)
 		{
@@ -1809,15 +1817,15 @@ public static class PredictionHarnessVerification
 		using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16);
 		using BinaryReader reader = new(stream);
 		uint magic = reader.ReadUInt32();
-		if (magic != PredictionDiagnostics.FileMagic) throw new InvalidDataException("prediction_host.bin has an unexpected magic number.");
+		if (magic != PredictionRecordFormat.Magic) throw new InvalidDataException("prediction_host.bin has an unexpected magic number.");
 		int version = reader.ReadInt32();
-		if (version != PredictionDiagnostics.FileVersion) throw new InvalidDataException($"prediction_host.bin uses unsupported version {version}.");
+		if (version != PredictionRecordFormat.Version) throw new InvalidDataException($"prediction_host.bin uses unsupported version {version}.");
 		reader.ReadBoolean();
 
 		while (stream.Position < stream.Length)
 		{
 			byte kind = reader.ReadByte();
-			if (kind == PredictionDiagnostics.KindRejection)
+			if (kind == PredictionRecordFormat.KindRejection)
 			{
 				reader.ReadBoolean();
 				reader.ReadInt32();
@@ -1826,7 +1834,7 @@ public static class PredictionHarnessVerification
 				continue;
 			}
 
-			if (kind != PredictionDiagnostics.KindHostSnapshot) throw new InvalidDataException($"prediction_host.bin contains unknown record kind {kind}.");
+			if (kind != PredictionRecordFormat.KindHostSnapshot) throw new InvalidDataException($"prediction_host.bin contains unknown record kind {kind}.");
 
 			HostSnapshotSample snapshot = new() { Sequence = reader.ReadInt32() };
 			int unitCount = reader.ReadInt32();
