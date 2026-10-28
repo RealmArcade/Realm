@@ -408,7 +408,11 @@ public class NetworkService
 			// would then be corrected toward positions the client has already moved past. The baseline is stale, not useful.
 			if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence)
 			{
+				// The baseline is stale for the units, but it is still the base every later delta is written against, so it
+				// is recorded and the deltas that were waiting for it are applied here. Returning without draining left them
+				// queued until some future baseline arrived, which on a delayed link was several seconds of a frozen world.
 				networkState.LastReceivedBaselineSeq = snapshot.Sequence;
+				DrainQueuedDeltas(ref networkState);
 				return;
 			}
 
@@ -431,12 +435,19 @@ public class NetworkService
 		// and healed once a second. A delta is absolute per unit, so a base the client has already superseded is harmless.
 		if (!networkState.HasReceivedInitialBaseline || snapshot.BaseSequence > networkState.LastReceivedBaselineSeq)
 		{
+			// A delta the client cannot place is a delta whose base it never applied. Only waiting for one used to be
+			// enough because the base could not move without the baseline that moved it, but a baseline that is superseded
+			// in flight leaves the client queuing against a base nobody sent it any more: the match then ran for seconds
+			// on a frozen sequence, which is exactly the state prediction must never be left to reconcile against. Asking
+			// for the world the deltas are written against bounds the recovery to one round trip.
 			QueueDelta(snapshot);
+			RequestSnapshotBaseline();
 			return;
 		}
 
 		networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
 		ApplyWorldSnapshot(snapshot);
+		DrainQueuedDeltas(ref networkState);
 	}
 
 	/// <summary>
