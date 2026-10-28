@@ -108,7 +108,7 @@ public partial class PredictionHarnessRunner : Node
 			// Every check runs on every profile. Skipping them on a clean run made the clean profile the one that proved the
 			// least, and the verdict's failure counts then disagreed with the reports it was reading.
 			hardeningFailures = ReadHardeningFailures(_outputDirectory);
-			bandwidthFailures = CheckBandwidthBudget(_outputDirectory);
+			bandwidthFailures = CheckBandwidthBudget(_outputDirectory, clientDirectories);
 			splitFailures = CheckSplitMatch(_outputDirectory, clientDirectories);
 			bool passed = predictionFailures == 0 && syncFailures == 0 && hardeningFailures == 0 && bandwidthFailures == 0 && splitFailures == 0;
 			exitCode = passed ? 0 : 1;
@@ -269,36 +269,64 @@ public partial class PredictionHarnessRunner : Node
 	private const double ClientBandwidthBudgetBytesPerSecond = 40000;
 	private const double ClientBandwidthRegressionCeilingBytesPerSecond = 450000;
 
-	private static int CheckBandwidthBudget(string outputDirectory)
+	private static int CheckBandwidthBudget(string outputDirectory, IReadOnlyList<string> clientDirectories)
 	{
-		string path = Path.Combine(outputDirectory, "bandwidth_report.json");
-		if (!File.Exists(path))
+		// Every process measures the link it sits on, so the run's figure is the worst of the screens that wrote a report
+		// rather than whichever process happened to own the output folder. A report without a single peer entry is a
+		// report that measured nothing, and counting it as zero would let an unmeasured run pass as a clean one.
+		var directories = new List<string>(clientDirectories.Count + 1) { outputDirectory };
+		for (int index = 0; index < clientDirectories.Count; index++)
 		{
-			GD.PrintErr($"[PREDICTION_HARNESS] {path} is missing, so per-client bandwidth was not measured.");
-			return 1;
+			if (clientDirectories[index] == outputDirectory) continue;
+			directories.Add(clientDirectories[index]);
 		}
 
-		try
+		double worstBytesPerSecond = 0;
+		double hostTotalBytesPerSecond = 0;
+		int measuredReports = 0;
+		int measuredPeers = 0;
+		for (int index = 0; index < directories.Count; index++)
 		{
-			using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
-			double worstBytesPerSecond = document.RootElement.GetProperty("worstClientBytesPerSecond").GetDouble();
-			double hostTotalBytesPerSecond = document.RootElement.GetProperty("hostTotalBytesPerSecond").GetDouble();
-			int peerCount = document.RootElement.GetProperty("peers").GetArrayLength();
-			double budgetRatio = worstBytesPerSecond / ClientBandwidthBudgetBytesPerSecond;
-			GD.Print($"[PREDICTION_HARNESS] Bandwidth: worst client {worstBytesPerSecond:F0} B/s, host total {hostTotalBytesPerSecond:F0} B/s across {peerCount} client peer(s). Target {ClientBandwidthBudgetBytesPerSecond:F0} B/s per client, measured {budgetRatio:F1}x of it; regression ceiling {ClientBandwidthRegressionCeilingBytesPerSecond:F0} B/s.");
-			if (worstBytesPerSecond > ClientBandwidthRegressionCeilingBytesPerSecond)
+			string path = Path.Combine(directories[index], "bandwidth_report.json");
+			if (!File.Exists(path)) continue;
+
+			try
 			{
-				GD.PrintErr($"[PREDICTION_HARNESS] A client received {worstBytesPerSecond:F0} B/s of snapshots, above the {ClientBandwidthRegressionCeilingBytesPerSecond:F0} B/s regression ceiling.");
+				using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+				int peerCount = document.RootElement.GetProperty("peers").GetArrayLength();
+				if (peerCount == 0) continue;
+
+				double reportWorstBytesPerSecond = document.RootElement.GetProperty("worstClientBytesPerSecond").GetDouble();
+				double reportHostTotalBytesPerSecond = document.RootElement.GetProperty("hostTotalBytesPerSecond").GetDouble();
+				measuredReports++;
+				measuredPeers += peerCount;
+				if (reportWorstBytesPerSecond > worstBytesPerSecond) worstBytesPerSecond = reportWorstBytesPerSecond;
+				if (reportHostTotalBytesPerSecond > hostTotalBytesPerSecond) hostTotalBytesPerSecond = reportHostTotalBytesPerSecond;
+			}
+			catch (Exception exception)
+			{
+				GD.PrintErr($"[PREDICTION_HARNESS] Could not read {path}: {exception.Message}");
 				return 1;
 			}
-
-			return 0;
 		}
-		catch (Exception exception)
+
+		if (measuredReports == 0)
 		{
-			GD.PrintErr($"[PREDICTION_HARNESS] Could not read {path}: {exception.Message}");
+			GD.PrintErr($"[PREDICTION_HARNESS] No screen in {outputDirectory} reported the snapshots it received, so per-client bandwidth was not measured.");
 			return 1;
 		}
+
+		double budgetRatio = worstBytesPerSecond / ClientBandwidthBudgetBytesPerSecond;
+		GD.Print(
+			$"[PREDICTION_HARNESS] Bandwidth: worst screen {worstBytesPerSecond:F0} B/s over {measuredReports} reporting screen(s) and {measuredPeers} measurement(s). "
+			+ $"Target {ClientBandwidthBudgetBytesPerSecond:F0} B/s per client, measured {budgetRatio:F1}x of it; regression ceiling {ClientBandwidthRegressionCeilingBytesPerSecond:F0} B/s.");
+		if (worstBytesPerSecond > ClientBandwidthRegressionCeilingBytesPerSecond)
+		{
+			GD.PrintErr($"[PREDICTION_HARNESS] A screen received {worstBytesPerSecond:F0} B/s of snapshots, above the {ClientBandwidthRegressionCeilingBytesPerSecond:F0} B/s regression ceiling.");
+			return 1;
+		}
+
+		return 0;
 	}
 
 	private static int ReadHardeningFailures(string outputDirectory)

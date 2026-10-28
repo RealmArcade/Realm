@@ -118,6 +118,27 @@ public static class MultiplayerBandwidthMeter
 
 	public static bool IsRecording { get; set; }
 
+	private static long _receivedSnapshotBytes;
+	private static long _receivedBaselineBytes;
+	private static int _receivedSnapshotCount;
+	private static int _receivedBaselineCount;
+
+	/// <summary>
+	///     Counts one snapshot a screen received from the authority. The authority builds the frames in its own process,
+	///     so what a run on this machine can measure directly is what each peer was sent down its link; the authority's
+	///     framing cost and byte composition are measured by <c>Realm.Benchmarks</c>, which runs inside the authority.
+	/// </summary>
+	public static void RecordReceivedSnapshot(int byteCount, bool isBaseline)
+	{
+		if (byteCount <= 0) return;
+		_receivedSnapshotBytes += byteCount;
+		_receivedSnapshotCount++;
+		if (!isBaseline) return;
+
+		_receivedBaselineBytes += byteCount;
+		_receivedBaselineCount++;
+	}
+
 	public static void Reset()
 	{
 		_peers.Clear();
@@ -125,6 +146,10 @@ public static class MultiplayerBandwidthMeter
 		_sentSequences.Clear();
 		_framingMillisecondsBySequence.Clear();
 		_framedBaselinesBySequence.Clear();
+		_receivedSnapshotBytes = 0;
+		_receivedBaselineBytes = 0;
+		_receivedSnapshotCount = 0;
+		_receivedBaselineCount = 0;
 		_firstSequence = -1;
 		_lastSequence = -1;
 		_firstTicksMsec = 0;
@@ -322,14 +347,42 @@ public static class MultiplayerBandwidthMeter
 		double duration = Math.Max(0.001, elapsedSeconds);
 		StringBuilder text = new();
 		StringBuilder json = new();
-		text.AppendLine("=== Host snapshot bandwidth per client ===");
-		text.AppendLine($"Measured over {duration.ToString("F2", CultureInfo.InvariantCulture)} s of game time with {_peerOrder.Count} client peer(s).");
+		text.AppendLine(_receivedSnapshotCount > 0 ? "=== Snapshot bandwidth this screen received ===" : "=== Host snapshot bandwidth per client ===");
+		text.AppendLine($"Measured over {duration.ToString("F2", CultureInfo.InvariantCulture)} s of game time with {_peerOrder.Count + (_receivedSnapshotCount > 0 ? 1 : 0)} client peer(s).");
 		json.Append('{');
 		json.Append("\"elapsedSeconds\":").Append(duration.ToString("F3", CultureInfo.InvariantCulture));
 		json.Append(",\"peers\":[");
-
 		double worstBytesPerSecond = 0;
 		double totalBytesPerSecond = 0;
+		bool wrotePeerEntry = false;
+
+		// A screen measures its own downstream link. Reporting it as one peer entry keeps the run's worst-client figure
+		// comparable across processes, and the entry is written before the authority-side peers so a report that has both
+		// still states the screen's own number.
+		if (_receivedSnapshotCount > 0)
+		{
+			double receivedBytesPerSecond = _receivedSnapshotBytes / duration;
+			double receivedAveragePayload = (double)_receivedSnapshotBytes / _receivedSnapshotCount;
+			double receivedBaselineBytesPerSecond = _receivedBaselineBytes / duration;
+			text.AppendLine(
+				$"this screen: {receivedBytesPerSecond.ToString("F0", CultureInfo.InvariantCulture)} B/s received "
+				+ $"({(receivedBytesPerSecond * 8 / 1000).ToString("F1", CultureInfo.InvariantCulture)} kbit/s) over {_receivedSnapshotCount} snapshot(s), "
+				+ $"average payload {receivedAveragePayload.ToString("F0", CultureInfo.InvariantCulture)} B, "
+				+ $"baseline {receivedBaselineBytesPerSecond.ToString("F0", CultureInfo.InvariantCulture)} B/s over {_receivedBaselineCount} baseline(s)");
+			if (receivedBytesPerSecond > worstBytesPerSecond) worstBytesPerSecond = receivedBytesPerSecond;
+			totalBytesPerSecond += receivedBytesPerSecond;
+			json.Append('{');
+			wrotePeerEntry = true;
+			json.Append("\"peerId\":0");
+			json.Append(",\"bytesPerSecond\":").Append(receivedBytesPerSecond.ToString("F1", CultureInfo.InvariantCulture));
+			json.Append(",\"baselineBytesPerSecond\":").Append(receivedBaselineBytesPerSecond.ToString("F1", CultureInfo.InvariantCulture));
+			json.Append(",\"deltaBytesPerSecond\":").Append(((double)(_receivedSnapshotBytes - _receivedBaselineBytes) / duration).ToString("F1", CultureInfo.InvariantCulture));
+			json.Append(",\"averagePayloadBytes\":").Append(receivedAveragePayload.ToString("F1", CultureInfo.InvariantCulture));
+			json.Append(",\"snapshotCount\":").Append(_receivedSnapshotCount);
+			json.Append(",\"baselineCount\":").Append(_receivedBaselineCount);
+			json.Append('}');
+		}
+
 		for (int index = 0; index < _peerOrder.Count; index++)
 		{
 			int peerId = _peerOrder[index];
@@ -374,7 +427,8 @@ public static class MultiplayerBandwidthMeter
 			text.AppendLine(
 				$"  baselines by reason: {totals.InitialBaselineCount} initial, {totals.UnacknowledgedBaselineCount} unacknowledged, {totals.SafetyBaselineCount} safety, {totals.ResyncBaselineCount} resync; worst acknowledgement lag {worstAckLag}; longest stretch without a new acknowledgement {worstAckStall}");
 
-			if (index > 0) json.Append(',');
+			if (wrotePeerEntry) json.Append(',');
+			wrotePeerEntry = true;
 			json.Append('{');
 			json.Append("\"peerId\":").Append(peerId);
 			json.Append(",\"bytesPerSecond\":").Append(bytesPerSecond.ToString("F1", CultureInfo.InvariantCulture));

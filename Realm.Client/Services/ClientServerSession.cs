@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using MemoryPack;
 using Realm.Client.Network;
+using Realm.Client.Testing;
 using Realm.Ecs.Replication;
 using Realm.Shared;
 using Realm.Shared.Network;
@@ -523,6 +524,10 @@ public class ClientServerSession : IDisposable
 	private void ApplySnapshot(byte[] payload)
 	{
 		WorldSnapshot snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(SnapshotWireFormat.Decode(payload));
+
+		// What a peer's link carries is measured here rather than in the authority, because the authority builds these
+		// frames in another process; a run that asks for the figure is the run that reads this counter.
+		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordReceivedSnapshot(payload.Length, snapshot.IsBaseline);
 
 		AppliedSequence = snapshot.Sequence;
 		SnapshotReceived?.Invoke(snapshot);

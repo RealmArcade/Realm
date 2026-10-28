@@ -554,6 +554,8 @@ public partial class MultiplayerSimulationHarness : Node
 			if (!previousPeerReady) throw new InvalidOperationException($"Client peer index {_peerIndex} waited too long for the previous peer to become ready.");
 		}
 
+		MultiplayerBandwidthMeter.Reset();
+		MultiplayerBandwidthMeter.IsRecording = true;
 		if (!await StartSimulationAsync(lobby, false)) return 1;
 
 
@@ -579,6 +581,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 		_finalSequence = GameContext.NetworkService.LastAppliedSnapshotSequenceForDiagnostics;
 		GD.Print($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameContext.Host?.GameElapsedTime ?? 0f:F2}s.");
+		MultiplayerBandwidthMeter.BuildReport(_outputDirectory, GameContext.Host?.GameElapsedTime ?? 0f);
 		MultiplayerSyncDiagnostics.Stop();
 		PredictionDiagnostics.Stop();
 		TryWriteSequenceFile(_finalSequence);
