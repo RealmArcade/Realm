@@ -106,6 +106,8 @@ public static class MapSmokeRun
 
 		int registeredCards = 0;
 		int describedLabels = 0;
+		int placedCameras = 0;
+		int selectedSomething = 0;
 		ServerPresentationEvent[] joinDescription = simulation.DescribePresentationStateFor(1);
 		for (int index = 0; index < joinDescription.Length; index++)
 		{
@@ -118,12 +120,19 @@ public static class MapSmokeRun
 				case PresentationKind.StaticTextCreated:
 					describedLabels++;
 					break;
+				case PresentationKind.CameraPanned:
+					placedCameras++;
+					break;
+				case PresentationKind.SelectionChanged:
+					selectedSomething++;
+					break;
 			}
 		}
 
-		Console.WriteLine($"join description: {joinDescription.Length} request(s), {registeredCards} ability card(s), {describedLabels} label(s)");
+		Console.WriteLine($"join description: {joinDescription.Length} request(s), {registeredCards} ability card(s), {describedLabels} label(s), {placedCameras} camera(s), {selectedSomething} selection(s)");
 		Check(registeredCards > 0, "a peer joining is told the ability cards the map registered before it arrived");
 		Check(describedLabels > 0, "a peer joining is told the labels the map put over what it created");
+		Check(placedCameras > 0, "a peer joining is shown where the map put the camera of the player it acts as");
 
 		string consoleAnswer = TryConsoleCommand(simulation, "-addai 2");
 		Console.WriteLine($"console: '-addai 2' answered with '{consoleAnswer}'");

@@ -180,7 +180,8 @@ public class ServerPresentationQueue
 				or PresentationKind.TooltipTextSet or PresentationKind.TechLevelSet or PresentationKind.UnitColored
 				or PresentationKind.UnitAnimationSet or PresentationKind.UnitHandAttachmentSet or PresentationKind.TimeOfDaySet
 				or PresentationKind.DayNightCycleSet or PresentationKind.EnvironmentPresetSet or PresentationKind.WeatherSet
-				or PresentationKind.HudElementVisible or PresentationKind.CameraBoundsSet => true,
+				or PresentationKind.HudElementVisible or PresentationKind.CameraBoundsSet or PresentationKind.CameraPanned
+				or PresentationKind.SelectionChanged => true,
 			_ => false
 		};
 	}
