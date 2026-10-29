@@ -2868,7 +2868,8 @@ public partial class GameHost
 		var targetIds = new List<int>();
 		ViewCollectMoveCommandTargets(selectedEntities, targetIds);
 
-		SubmitOrderCommand(isQueued ? "move_queued" : "move", targetIds, targetPos, 0, "");
+		int commandId = SubmitOrderCommand(isQueued ? "move_queued" : "move", targetIds, targetPos, 0, "");
+		if (!isQueued) PreviewRouteForOrder(commandId, targetIds, targetPos);
 
 		ViewPlayMoveCommandSound(selectedEntities);
 	}
@@ -4002,7 +4003,8 @@ public partial class GameHost
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 
-		SubmitOrderCommand(isQueued ? "patrol_queued" : "patrol", targetIds, targetPos, 0, "");
+		int commandId = SubmitOrderCommand(isQueued ? "patrol_queued" : "patrol", targetIds, targetPos, 0, "");
+		if (!isQueued) PreviewRouteForOrder(commandId, targetIds, targetPos);
 	}
 
 	public void IssueAttackMoveCommand(Vector3 targetPos, bool isQueued = false)
@@ -4030,7 +4032,8 @@ public partial class GameHost
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 
-		SubmitOrderCommand(isQueued ? "attack_move_queued" : "attack_move", targetIds, targetPos, 0, "");
+		int commandId = SubmitOrderCommand(isQueued ? "attack_move_queued" : "attack_move", targetIds, targetPos, 0, "");
+		if (!isQueued) PreviewRouteForOrder(commandId, targetIds, targetPos);
 	}
 
 	private void UpdateBuildingPreview()

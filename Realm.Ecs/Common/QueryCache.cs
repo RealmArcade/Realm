@@ -62,7 +62,8 @@ public static class QueryCache
 	public static readonly QueryDescription AllProductionQueueQuery = new QueryDescription().WithAll<ProductionQueue>();
 	public static readonly QueryDescription AllUnitOwnerPlayerAndDefinitionIdNoneDeadQuery = new QueryDescription().WithAll<UnitOwnerPlayer, DefinitionId>().WithNone<Dead>();
 	public static readonly QueryDescription AllPositionAndUnitOwnerPlayerNoneDeadQuery = new QueryDescription().WithAll<Position, UnitOwnerPlayer>().WithNone<Dead>();
-	public static readonly QueryDescription AllPositionAndPredictedMoveToAndMovementStatsNoneDeadQuery = new QueryDescription().WithAll<Position, PredictedMoveTo, MovementStats>().WithNone<Dead>();
+	public static readonly QueryDescription AllPositionAndPreviewMoveToAndMovementStatsNoneDeadQuery = new QueryDescription().WithAll<Position, PreviewMoveTo, MovementStats>().WithNone<Dead>();
+	public static readonly QueryDescription AllPreviewMoveToQuery = new QueryDescription().WithAll<PreviewMoveTo>();
 	public static readonly QueryDescription AllProductionQueueAndUnitOwnerPlayerQuery = new QueryDescription().WithAll<ProductionQueue, UnitOwnerPlayer>();
 	public static readonly QueryDescription AllSpellCooldownsQuery = new QueryDescription().WithAll<SpellCooldowns>();
 	public static readonly QueryDescription AllCooldownsQuery = new QueryDescription().WithAll<Cooldowns>();

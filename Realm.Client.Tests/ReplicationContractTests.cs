@@ -43,7 +43,7 @@ public partial class ReplicationContractTests
 		"TerrainSwatchConfig",
 		"PlayerRelationshipMatrix", "HealingTarget",
 		"ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset",
-		"PredictedMoveTo", "SummonedUnit"
+		"SummonedUnit"
 	};
 
 	private static readonly string[] RpcReplicatedComponents =

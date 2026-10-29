@@ -124,7 +124,10 @@ public partial class GameHost
 	/// </summary>
 	private void ApplyCommandOutcome(CommandOutcome outcome)
 	{
-		if (!outcome.Accepted) RefusedCommandCount++;
+		if (outcome.Accepted) return;
+
+		RefusedCommandCount++;
+		ClearPreviewRoute(outcome.CommandId);
 	}
 
 	/// <summary>How many of this client's orders the authority refused, which is what a harness asserts a flood runs into.</summary>

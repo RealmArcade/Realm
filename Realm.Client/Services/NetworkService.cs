@@ -1147,6 +1147,14 @@ public class NetworkService
 		{
 			codec.Apply(GameContext.World, targetEntity, delta.Bytes);
 
+			// The route a click drew is replaced by the order the match actually gave, which is the same shape from the
+			// same planner and arrives a round trip later. Keeping both would leave the drawn one behind to be planned
+			// again once the real order completed.
+			if (codec.ComponentTypeId == ComponentType<MoveTo>.Id && GameContext.World.Has<PreviewMoveTo>(targetEntity))
+			{
+				GameContext.World.Remove<PreviewMoveTo>(targetEntity);
+			}
+
 			if (codec.ComponentTypeId == ComponentType<GroundLoot>.Id) GameContext.Host?.SyncReplicatedLootNode(delta.Key, targetEntity);
 		}
 

@@ -2678,6 +2678,15 @@ public partial class Unit3D : Node3D
 			points.Add(new Vector3(mt.Target.X, mt.Target.Y, mt.Target.Z));
 		}
 
+		// The route a click drew a moment ago, shown until the match says what it did with the order. It is the same
+		// shape as an order's route because it comes from the same planner, and it is never walked: it is what makes a
+		// click feel answered without moving a unit the authority has not answered for yet.
+		if (!hasPathPoints && world.Has<PreviewMoveTo>(Entity))
+		{
+			var preview = world.Get<PreviewMoveTo>(Entity);
+			points.Add(new Vector3(preview.Target.X, preview.Target.Y, preview.Target.Z));
+		}
+
 		if (world.Has<WaypointQueue>(Entity))
 		{
 			var q = world.Get<WaypointQueue>(Entity);

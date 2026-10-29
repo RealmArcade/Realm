@@ -150,7 +150,6 @@ namespace Realm.Ecs.Services
 			public OffMeshReplanCause ReplanCause;
 
 			public bool HasArrived;
-			public bool IsPredicted;
 			/// <summary>
 			/// Set for a unit the client does not predict. Its route is planned so pathing parity and a later predicted
 			/// order both start from the corridor the authority uses, but its position belongs to reconciliation.
@@ -164,7 +163,7 @@ namespace Realm.Ecs.Services
 		private int _movementWorkCount = 0;
 		private readonly Action<int> _processMovementWorkItemDelegate;
 		private readonly EntityCallback<Position, MoveTo, MovementStats> _collectMovementWorkItemDelegate;
-		private readonly EntityCallback<Position, PredictedMoveTo, MovementStats> _collectPredictedMovementWorkItemDelegate;
+		private readonly EntityCallback<Position, PreviewMoveTo, MovementStats> _collectPreviewMovementWorkItemDelegate;
 		private readonly ThreadLocal<NavMeshPathfinder> _threadLocalPathfinder = new(() => new NavMeshPathfinder());
 		private readonly ThreadLocal<(DtNavMesh? Mesh, DtNavMeshQuery? Query)> _threadLocalNavQuery = new();
 
@@ -175,7 +174,7 @@ namespace Realm.Ecs.Services
 		private readonly List<Entity> _tickArrivedUnits = new();
 
 		private readonly QueryDescription _movementQuery = QueryCache.AllPositionAndMoveToAndMovementStatsNoneDeadQuery;
-		private readonly QueryDescription _predictedMovementQuery = QueryCache.AllPositionAndPredictedMoveToAndMovementStatsNoneDeadQuery;
+		private readonly QueryDescription _previewMovementQuery = QueryCache.AllPositionAndPreviewMoveToAndMovementStatsNoneDeadQuery;
 		private readonly QueryDescription _unitSpatialQuery = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
 		private readonly QueryDescription _propObstacleQuery = QueryCache.AllPropIdentityAndPositionNoneDeadQuery;
 		private readonly QueryDescription _buildingObstacleQuery = QueryCache.AllBuildingAndPositionNoneDeadQuery;
@@ -215,7 +214,7 @@ namespace Realm.Ecs.Services
 			_context = context;
 			_movementQueryDelegate = MovementQueryAction;
 			_collectMovementWorkItemDelegate = CollectMovementWorkItemAction;
-			_collectPredictedMovementWorkItemDelegate = CollectPredictedMovementWorkItemAction;
+			_collectPreviewMovementWorkItemDelegate = CollectPreviewMovementWorkItemAction;
 			_processMovementWorkItemDelegate = ProcessMovementWorkItemParallel;
 			_unitSpatialQueryDelegate = UnitSpatialGridQueryAction;
 			_propObstacleQueryDelegate = PropObstacleQueryAction;
@@ -264,7 +263,7 @@ namespace Realm.Ecs.Services
 
 			_movementWorkCount = 0;
 			_context.World.Query(in _movementQuery, _collectMovementWorkItemDelegate);
-			_context.World.Query(in _predictedMovementQuery, _collectPredictedMovementWorkItemDelegate);
+			_context.World.Query(in _previewMovementQuery, _collectPreviewMovementWorkItemDelegate);
 
 			if (_movementWorkCount > 0)
 			{
@@ -285,16 +284,7 @@ namespace Realm.Ecs.Services
 
 					if (item.HasArrived)
 					{
-						if (item.IsPredicted)
-						{
-							_context.World.Remove<PredictedMoveTo>(item.Entity);
-							if (_context.World.Has<PathFollow>(item.Entity)) _context.World.Remove<PathFollow>(item.Entity);
-						}
-						else
-						{
-							_tickArrivedUnits.Add(item.Entity);
-						}
-
+						_tickArrivedUnits.Add(item.Entity);
 						world.SetOrAdd(item.Entity, new Velocity(Vector3.Zero));
 					}
 					else
@@ -509,7 +499,7 @@ namespace Realm.Ecs.Services
 		{
 			if (!ShouldSimulateEntity(entity)) return;
 
-			if (_context.World.Has<PredictedMoveTo>(entity)) return;
+			if (_context.World.Has<PreviewMoveTo>(entity)) return;
 
 			if (_context.World.Has<CommandsFrozen>(entity)) return;
 
@@ -535,13 +525,20 @@ namespace Realm.Ecs.Services
 			};
 		}
 
-		private void CollectPredictedMovementWorkItemAction(Entity entity, ref Position pos, ref PredictedMoveTo predictedMoveTo, ref MovementStats stats)
+		/// <summary>
+		///     Plans the route a click drew before the authority answered it. The order it stands for has not been decided
+		///     yet, so the route is only ever drawn: <see cref="MovementWorkItem.IsPlanOnly" /> is set for it, which is what
+		///     keeps the planning pass from writing a position. A unit that still carries the order it is replacing is
+		///     planned from the new destination instead of the old one, because this runs after the order pass and the route
+		///     it saves is the last one written.
+		/// </summary>
+		private void CollectPreviewMovementWorkItemAction(Entity entity, ref Position pos, ref PreviewMoveTo previewMoveTo, ref MovementStats stats)
 		{
 			if (!ShouldSimulateEntity(entity)) return;
 
 			if (_context.World.Has<CommandsFrozen>(entity)) return;
 
-			if (!TryGetMovementContext(entity, pos.Value, predictedMoveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
+			if (!TryGetMovementContext(entity, pos.Value, previewMoveTo.Target, out ushort pathingFlags, out bool isFlying, out bool hasPf, out PathFollow pf)) return;
 
 			if (_movementWorkCount >= _movementWorkItems.Length)
 			{
@@ -552,14 +549,14 @@ namespace Realm.Ecs.Services
 			{
 				Entity = entity,
 				PosValue = pos.Value,
-				MoveTarget = predictedMoveTo.Target,
+				MoveTarget = previewMoveTo.Target,
 				Stats = stats,
 				PathingFlags = pathingFlags,
 				IsFlying = isFlying,
 				HasPf = hasPf,
 				Pf = pf,
 				ActualSpeed = GetActualSpeed(entity, stats),
-				IsPredicted = true
+				IsPlanOnly = true
 			};
 		}
 

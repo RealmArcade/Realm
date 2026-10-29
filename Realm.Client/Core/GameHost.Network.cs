@@ -6,6 +6,7 @@ using Realm.Ecs;
 using Godot;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared.Network;
@@ -97,7 +98,10 @@ public partial class GameHost
 		GameContext.ServerSession.Submit(payload);
 	}
 
-	private void SubmitOrderCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
+	/// <summary>
+	///     Hands the authority one order and answers which order it was, or nothing when it could not be authored.
+	/// </summary>
+	private int SubmitOrderCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
 	{
 		// An entity the authority never described has no authoritative id, so it cannot be part of an order. Dropping it
 		// here keeps every order path honest: what is named is exactly what the match has.
@@ -108,13 +112,68 @@ public partial class GameHost
 			unitIds.RemoveAt(index);
 		}
 
-		if (unitIds.Count == 0) return;
+		if (unitIds.Count == 0) return 0;
 
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
-		if (commandId <= 0) return;
+		if (commandId <= 0) return 0;
 
 		GameContext.ServerSession?.Submit(payload);
+		return commandId;
+	}
+
+	/// <summary>
+	///     Draws the route the order just sent is asking for, on the tick it was asked for. The authority decides what an
+	///     order means - which unit goes where, and whether it is legal at all - so this is only ever a route to look at:
+	///     the planning pass that reads it writes a path and no position. The match's own answer replaces it, because a
+	///     unit the authority has given a destination to is planned from that instead.
+	/// </summary>
+	private void PreviewRouteForOrder(int commandId, List<int> serverEntityIds, Vector3 targetPosition)
+	{
+		if (commandId <= 0 || GameContext.World == null) return;
+
+		int localPlayerIndex = LocalPlayerIndex;
+		if (localPlayerIndex < 0) return;
+
+		var target = new System.Numerics.Vector3(targetPosition.X, targetPosition.Y, targetPosition.Z);
+		for (int index = 0; index < serverEntityIds.Count; index++)
+		{
+			if (!TryGetLocalEntity(serverEntityIds[index], out Entity localEntity)) continue;
+			if (!GameContext.World.IsAlive(localEntity)) continue;
+			if (!GameContext.World.Has<UnitOwnerPlayer>(localEntity)) continue;
+			if (GameContext.World.Get<UnitOwnerPlayer>(localEntity).PlayerIndex != localPlayerIndex) continue;
+
+			GameContext.World.SetOrAdd(localEntity, new PreviewMoveTo { Target = target, CommandId = commandId });
+		}
+	}
+
+	private readonly List<Entity> _previewRouteEntitiesToClear = new();
+	private EntityCallback<PreviewMoveTo>? _collectPreviewRouteToClear;
+	private int _previewCommandIdToClear;
+
+	/// <summary>
+	///     Takes back the routes an order drew, which is what a refused order calls for: the units were never going
+	///     anywhere, and a route left on screen would say they were.
+	/// </summary>
+	private void ClearPreviewRoute(int commandId)
+	{
+		if (commandId <= 0 || GameContext.World == null) return;
+
+		_previewCommandIdToClear = commandId;
+		_previewRouteEntitiesToClear.Clear();
+		_collectPreviewRouteToClear ??= CollectPreviewRouteToClear;
+		GameContext.World.Query(in QueryCache.AllPreviewMoveToQuery, _collectPreviewRouteToClear);
+		for (int index = 0; index < _previewRouteEntitiesToClear.Count; index++)
+		{
+			GameContext.World.Remove<PreviewMoveTo>(_previewRouteEntitiesToClear[index]);
+		}
+
+		_previewRouteEntitiesToClear.Clear();
+	}
+
+	private void CollectPreviewRouteToClear(Entity entity, ref PreviewMoveTo preview)
+	{
+		if (preview.CommandId == _previewCommandIdToClear) _previewRouteEntitiesToClear.Add(entity);
 	}
 
 	/// <summary>
