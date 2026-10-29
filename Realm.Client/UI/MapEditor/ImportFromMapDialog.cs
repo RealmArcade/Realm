@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Services;
 
@@ -21,6 +23,8 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 	private Button _btnSelectAll;
 	private Button _btnSelectNone;
 	private Button _btnImportSelected;
+	private Button _btnAddArchive;
+	private Button _btnAddFolder;
 
 	private readonly List<MapAssetImportSource> _sources = new();
 	private readonly List<MapAssetImportCandidate> _assetCandidates = new();
@@ -98,6 +102,12 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		_optMapSource.FocusMode = FocusModeEnum.None;
 		_optMapSource.ItemSelected += _ => OnSourceChanged();
 		sourceRow.AddChild(_optMapSource);
+
+		_btnAddArchive = CreateActionButton("BtnAddArchive_Button", "📥 " + TranslationServer.Translate("Add .rmap"), () => PromptAddExternalMap(selectFolder: false), TranslationServer.Translate("Copy a map package into storage and use it as the source map"), 92);
+		sourceRow.AddChild(_btnAddArchive);
+
+		_btnAddFolder = CreateActionButton("BtnAddFolder_Button", "📂 " + TranslationServer.Translate("Add Folder"), () => PromptAddExternalMap(selectFolder: true), TranslationServer.Translate("Copy a map folder into storage and use it as the source map"), 100);
+		sourceRow.AddChild(_btnAddFolder);
 
 		BodyContainer.AddChild(sourceRow);
 
@@ -258,6 +268,111 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		if (index < 0 || index >= _sources.Count) return null;
 
 		return _sources[index];
+	}
+
+	private void PromptAddExternalMap(bool selectFolder)
+	{
+		var dialogMode = selectFolder ? DisplayServer.FileDialogMode.OpenDir : DisplayServer.FileDialogMode.OpenFile;
+		string[] filters = selectFolder ? Array.Empty<string>() : new[] { "*.rmap ; Realm Map Package (*.rmap)" };
+		string dialogTitle = selectFolder
+			? TranslationServer.Translate("Select Map Folder")
+			: TranslationServer.Translate("Select Map Package (.rmap)");
+
+		var dialogError = DisplayServer.FileDialogShow(
+			dialogTitle,
+			OS.GetSystemDir(OS.SystemDir.Documents),
+			"",
+			false,
+			dialogMode,
+			filters,
+			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
+			{
+				if (status && selectedPaths.Length > 0)
+				{
+					_ = AddExternalMapAsync(selectedPaths[0]);
+				}
+			}));
+
+		if (dialogError != Error.Ok)
+		{
+			_lblSummary.Text = TranslationServer.Translate("The map picker could not be opened.");
+		}
+	}
+
+	private async Task AddExternalMapAsync(string sourcePath)
+	{
+		if (string.IsNullOrWhiteSpace(sourcePath)) return;
+		if (!File.Exists(sourcePath) && !Directory.Exists(sourcePath))
+		{
+			_lblSummary.Text = TranslationServer.Translate("The selected map package or folder no longer exists.");
+			return;
+		}
+
+		SetAddSourceButtonsEnabled(false);
+		_lblSummary.Text = string.Format(
+			TranslationServer.Translate("Adding {0} to storage..."),
+			Path.GetFileName(sourcePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+
+		try
+		{
+			var result = await GameContext.MapStorageService.ImportMapAsync(sourcePath);
+			if (!result.Success)
+			{
+				_lblSummary.Text = result.Message;
+				Hud?.ShowFeedback(result.Message);
+				return;
+			}
+
+			LoadSources();
+
+			if (SelectSource(result.MapTitle, result.MapVersion))
+			{
+				string selectedSourceText = string.Format(
+					TranslationServer.Translate("Added {0} v{1} to storage and selected it as the source map."),
+					result.MapTitle,
+					result.MapVersion);
+				_lblSummary.Text = selectedSourceText;
+				Hud?.ShowFeedback(selectedSourceText);
+			}
+			else
+			{
+				_lblSummary.Text = result.Message;
+				Hud?.ShowFeedback(result.Message);
+			}
+		}
+		catch (Exception exception)
+		{
+			GD.PrintErr($"[ImportFromMapDialog] Failed to add '{sourcePath}': {exception.Message}");
+			_lblSummary.Text = string.Format(TranslationServer.Translate("The map could not be added: {0}"), exception.Message);
+		}
+		finally
+		{
+			SetAddSourceButtonsEnabled(true);
+		}
+	}
+
+	private bool SelectSource(string? mapTitle, string? mapVersion)
+	{
+		if (string.IsNullOrWhiteSpace(mapTitle)) return false;
+
+		for (int sourceIndex = 0; sourceIndex < _sources.Count; sourceIndex++)
+		{
+			MapAssetImportSource source = _sources[sourceIndex];
+			if (!string.Equals(source.MapTitle, mapTitle, StringComparison.OrdinalIgnoreCase)) continue;
+			if (!string.IsNullOrWhiteSpace(mapVersion) && !string.Equals(source.MapVersion, mapVersion, StringComparison.OrdinalIgnoreCase)) continue;
+
+			_optMapSource.Select(sourceIndex);
+			ReloadCandidates();
+			return true;
+		}
+
+		return false;
+	}
+
+	private void SetAddSourceButtonsEnabled(bool isEnabled)
+	{
+		if (_btnAddArchive != null) _btnAddArchive.Disabled = !isEnabled;
+		if (_btnAddFolder != null) _btnAddFolder.Disabled = !isEnabled;
 	}
 
 	private void OnImportKindChanged()
