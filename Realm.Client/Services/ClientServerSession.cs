@@ -560,13 +560,20 @@ public class ClientServerSession : IDisposable
 	/// <summary>
 	///     Tells the authority how far this client has applied the world, and which of the snapshots behind that one it
 	///     applied whole. The mask is what lets the authority tell a peer that kept up from one that discarded part of
-	///     a payload, so it travels with every acknowledgement rather than being dropped here.
+	///     a payload, so it travels with every acknowledgement rather than being dropped here. The round trip travels with
+	///     it because the sequence named is that much older than the tick the answer is read on, and without it the match
+	///     would count a slow link as a screen that stopped drawing.
 	/// </summary>
-	public bool Acknowledge(int sequence, ulong appliedMask)
+	public bool Acknowledge(int sequence, ulong appliedMask, int roundTripMilliseconds)
 	{
 		if (sequence <= 0) return false;
 
-		var ack = new SnapshotAck { Sequence = sequence, AppliedMask = appliedMask };
+		var ack = new SnapshotAck
+		{
+			Sequence = sequence,
+			AppliedMask = appliedMask,
+			RoundTripMilliseconds = roundTripMilliseconds > 0 ? roundTripMilliseconds : 0
+		};
 		_channel.Send(NetworkFrameKind.SnapshotAck, MemoryPackSerializer.Serialize(ack));
 		return true;
 	}

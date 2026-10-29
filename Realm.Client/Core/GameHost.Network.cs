@@ -350,7 +350,16 @@ public partial class GameHost
 		RecordGameplayTickIfNeeded();
 	}
 
-	public void SendSnapshotAck(int sequence, ulong appliedMask) => GameContext.ServerSession?.Acknowledge(sequence, appliedMask);
+	/// <summary>
+	///     States how far this screen has applied the world, and how long the link took to carry it. The round trip travels
+	///     with the answer because the answer names a sequence one round trip old: the match cannot tell a peer that is
+	///     keeping up from one its link is merely slow without knowing which of the two it is measuring.
+	/// </summary>
+	public void SendSnapshotAck(int sequence, ulong appliedMask)
+	{
+		int roundTripMilliseconds = Mathf.RoundToInt(GameContext.NetworkLatencyService?.SmoothedRoundTripMilliseconds ?? 0f);
+		GameContext.ServerSession?.Acknowledge(sequence, appliedMask, roundTripMilliseconds);
+	}
 
 	public void RequestSnapshotBaseline() => GameContext.ServerSession?.RequestBaseline();
 

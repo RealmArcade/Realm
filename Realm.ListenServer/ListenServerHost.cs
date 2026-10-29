@@ -74,10 +74,24 @@ public class ListenServerHost : IServerTransportSink
 
 	/// <summary>
 	///     How many descriptions this peer has been sent since it last acknowledged one, or negative for a peer that has
-	///     not acknowledged anything yet. It is the only measure this process has of how far behind a screen is: the
-	///     transport reports what it was handed, not what the peer read.
+	///     not acknowledged anything yet. This is not how far behind a screen is - an acknowledgement is one round trip old
+	///     when it arrives, so a healthy link always leaves descriptions unanswered - but it is what says whether a screen
+	///     is reading at all, and a peer that has left a quarter of a minute of publishing unanswered is dropped by it.
 	/// </summary>
 	private readonly Dictionary<int, int> _unacknowledgedPublicationsPerPeer = new();
+
+	/// <summary>
+	///     The newest sequence each peer has said it applied. Taken against the sequence being published, this is how far
+	///     behind that screen actually is: a peer that is keeping up answers with a sequence one round trip of publishing
+	///     behind, whatever the link's latency is, while a screen that stopped drawing falls further behind every tick.
+	/// </summary>
+	private readonly Dictionary<int, int> _acknowledgedSequencePerPeer = new();
+
+	/// <summary>
+	///     The round trip each peer last measured, in milliseconds, carried in its acknowledgement. It is what the gate
+	///     above allows a peer to be behind for reasons that are the link's rather than the screen's.
+	/// </summary>
+	private readonly Dictionary<int, int> _roundTripMillisecondsPerPeer = new();
 
 	/// <summary>
 	///     How often a peer is described from scratch even though nothing was reported wrong, in ticks. Every section of a
@@ -420,6 +434,7 @@ public class ListenServerHost : IServerTransportSink
 
 			_seatedPeers[peerId] = slot;
 			_unacknowledgedPublicationsPerPeer[peerId] = -1;
+			_acknowledgedSequencePerPeer.Remove(peerId);
 			_seatedAtTickPerPeer[peerId] = _simulation.TickCount;
 			if (_peerLanguages.TryGetValue(peerId, out string? language)) _simulation.SetPlayerLanguage(slot, language);
 
@@ -694,6 +709,8 @@ public class ListenServerHost : IServerTransportSink
 		_lastBaselineRequestTickPerPeer.Remove(peerId);
 		_lastRefreshBaselineTickPerPeer.Remove(peerId);
 		_unacknowledgedPublicationsPerPeer.Remove(peerId);
+		_acknowledgedSequencePerPeer.Remove(peerId);
+		_roundTripMillisecondsPerPeer.Remove(peerId);
 		_seatedAtTickPerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 		_commandsThisTick.Remove(peerId);
@@ -1075,6 +1092,8 @@ public class ListenServerHost : IServerTransportSink
 
 		_seatedPeers[peerId] = playerSlot;
 		_unacknowledgedPublicationsPerPeer[peerId] = -1;
+		_acknowledgedSequencePerPeer.Remove(peerId);
+		_roundTripMillisecondsPerPeer.Remove(peerId);
 		_seatedAtTickPerPeer[peerId] = simulation.TickCount;
 		simulation.SetPlayerLanguage(playerSlot, hello.Language);
 		SendHello(peerId, string.Empty);
@@ -1421,6 +1440,18 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
+		// How far behind this peer is is measured from what it says it applied, not from how many descriptions it has left
+		// unanswered: an answer is one round trip old when it arrives, so a perfectly healthy peer on a long link always
+		// has descriptions in flight. The round trip it states travels with the answer for the same reason, and a peer that
+		// reports an older sequence than it did before - which is a restarted screen rather than a peer going backwards -
+		// is taken at the value it now holds.
+		if (!_acknowledgedSequencePerPeer.TryGetValue(peerId, out int acknowledgedSequence) || ack.Sequence >= acknowledgedSequence)
+		{
+			_acknowledgedSequencePerPeer[peerId] = ack.Sequence;
+		}
+
+		_roundTripMillisecondsPerPeer[peerId] = Math.Max(0, ack.RoundTripMilliseconds);
+
 		LogAcknowledgedSequence(peerId, ack);
 
 		if (!_firstSnapshotSequencePerPeer.TryGetValue(peerId, out int firstDescribedSequence)) return;
@@ -1479,13 +1510,14 @@ public class ListenServerHost : IServerTransportSink
 	/// <summary>
 	///     Whether this peer is too far behind to be described this tick, and what it is owed instead. A peer that has
 	///     never acknowledged anything is not behind: it is a screen still loading the map it was told to play, and it is
-	///     left alone for the grace a load is allowed. One that has answered and then stopped is measurable, and half a
-	///     second of publishing behind it is skipped and described from a baseline once a second, so it can catch up rather
-	///     than be starved by the stream it is not reading. A peer that has left a quarter of a minute of publishing
-	///     unanswered is dropped, so the seat and the transport state it holds do not outlive the screen that forgot it.
-	///     A peer that never answers at all leaves the grace and enters this same measure, so a screen that reached the
-	///     handshake and then stopped reading costs a baseline a second for a while and is then dropped, rather than being
-	///     described in full thirty times a second for the length of the match.
+	///     left alone for the grace a load is allowed. One that has answered and then stopped is measurable, and a peer more
+	///     than half a second of publishing behind what it last acknowledged - plus whatever its own round trip accounts
+	///     for - is skipped and described from a baseline once a second, so it can catch up rather than be starved by the
+	///     stream it is not reading. A peer that has left a quarter of a minute of publishing unanswered is dropped, so the
+	///     seat and the transport state it holds do not outlive the screen that forgot it. A peer that never answers at all
+	///     leaves the grace and enters this same measure, so a screen that reached the handshake and then stopped reading
+	///     costs a baseline a second for a while and is then dropped, rather than being described in full thirty times a
+	///     second for the length of the match.
 	/// </summary>
 	private bool ShouldSkipSlowPeer(int peerId, long tick, int index)
 	{
@@ -1502,7 +1534,17 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		_unacknowledgedPublicationsPerPeer[peerId] = unacknowledged + 1;
-		if (unacknowledged < MaximumUnacknowledgedPublications) return false;
+
+		// Behind is measured from the sequence the peer says it applied. Counting unanswered descriptions instead measured
+		// the link rather than the screen: on a healthy connection that count settles at one round trip of publishing plus
+		// the descriptions sent since the newest answer, so past about four hundred milliseconds of round trip a peer that
+		// was drawing everything it was sent tripped the bound, had its deltas suppressed and was re-baselined once a
+		// second - penalising exactly the peers whose link needed the smooth stream most.
+		if (_acknowledgedSequencePerPeer.TryGetValue(peerId, out int acknowledgedSequence))
+		{
+			int lagSequences = _publishSequence - acknowledgedSequence;
+			if (lagSequences <= MaximumLagBehindSequences + RoundTripSequences(peerId)) return false;
+		}
 
 		// A baseline asked for here is the only thing this peer is sent while it stays silent. One the cooldown refuses
 		// means a description from scratch is already on its way, so the tick it would have been described on is skipped
@@ -1520,6 +1562,18 @@ public class ListenServerHost : IServerTransportSink
 		_seatedPeers.Remove(peerId);
 		_transport.Disconnect(peerId);
 		return true;
+	}
+
+	/// <summary>
+	///     How many sequences the round trip this peer last measured covers. An acknowledgement states a sequence the peer
+	///     applied one round trip before it arrives here, so that much of the apparent lag is the link carrying the answer
+	///     rather than the screen falling behind, and a peer is only behind by what is left over.
+	/// </summary>
+	private int RoundTripSequences(int peerId)
+	{
+		if (!_roundTripMillisecondsPerPeer.TryGetValue(peerId, out int roundTripMilliseconds)) return 0;
+
+		return (int)MathF.Ceiling(roundTripMilliseconds * 0.001f * MatchTiming.SnapshotRateHz);
 	}
 
 	private const long AckReportInterval = 100;
@@ -1540,13 +1594,15 @@ public class ListenServerHost : IServerTransportSink
 	private const int NeverAnsweredGraceTicks = MatchTiming.SimulationTickRateHz * 45;
 
 	/// <summary>
-	///     How many descriptions a peer may leave unanswered before the match stops spending a tick's describing on it.
-	///     Half a second is twice the deepest buffer a screen renders from, so a peer this far behind is not drawing the
-	///     world it is being sent: the description states a moment its screen has already passed, while the frames it does
-	///     not read wait in the transport behind it. The figure is a duration rather than the screen's own bound, because
-	///     how deeply a screen buffers belongs to the link it is on and nothing this process can read.
+	///     How far behind the newest sequence a peer's own acknowledgement may name before the match stops spending a tick
+	///     describing it. Half a second is twice the deepest buffer a screen renders from, so a peer further behind than
+	///     this is not drawing the world it is being sent: the description states a moment its screen has already passed,
+	///     while the frames it does not read wait in the transport behind it. The link's own round trip is added to this
+	///     figure, because an acknowledgement is that old when it arrives and a peer cannot answer for the sequences still
+	///     in flight. The figure is a duration rather than the screen's own bound, because how deeply a screen buffers
+	///     belongs to the link it is on and nothing this process can read.
 	/// </summary>
-	private const int MaximumUnacknowledgedPublications = MatchTiming.SnapshotRateHz / 2;
+	private const int MaximumLagBehindSequences = MatchTiming.SnapshotRateHz / 2;
 
 	/// <summary>
 	///     How many descriptions a peer may leave unanswered before the match ends its connection, counted in published
