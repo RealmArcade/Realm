@@ -55,14 +55,14 @@ public class SnapshotApplyService
 
 	/// <summary>
 	///     Asks the authority to describe this peer from scratch. A peer that has lost its place can only be repaired by
-	///     a baseline, and this is the one place that asks: at most once every half second, because a peer that asked on
-	///     every unplaceable delta would be answered with a baseline for each one and the reliable stream would be
-	///     nothing but baselines.
+	///     a baseline, and this is the one place that asks. It is throttled on the same policy the authority grants one on
+	///     rather than a figure of its own: the two clocks were half a second here and a second there, so the client asked
+	///     twice as often as the match would answer and half of every repair was spent on a request already in flight.
 	/// </summary>
 	public void RequestBaseline()
 	{
 		ulong now = Time.GetTicksMsec();
-		if (now - _lastBaselineRequestTime < 500ul) return;
+		if (now - _lastBaselineRequestTime < (ulong)MatchTiming.BaselineRequestCooldownMilliseconds) return;
 
 		_lastBaselineRequestTime = now;
 		GameContext.Host?.RequestSnapshotBaseline();
@@ -153,11 +153,15 @@ public class SnapshotApplyService
 		DrainQueuedDeltas(ref networkState);
 
 		// A delta names the last baseline it was written against and never the last delta, so a description that did not
-		// arrive leaves this screen applying a change over a world it never received. The values a later delta restates
-		// replace that hole, but a component the authority stopped naming stays named here until something restates the
-		// whole world - and the authority only learns of the hole from the acknowledgement after it is sent. Asking for
-		// the world the moment a sequence is skipped repairs it in one round trip rather than up to a second later.
-		if (sequencesSkipped > 0) RequestBaseline();
+		// arrive leaves this screen applying a change over a world it never received. One sequence missing is a datagram
+		// the unreliable stream dropped, and the acknowledgement already reports it: the mask it carries leaves that
+		// sequence's bit clear and the authority describes the hole once its own cooldown allows. Asking as well repaired
+		// the same hole twice - a full description and a reliable frame of it per peer per second on a link losing three
+		// percent - for state the ack was about to report. A gap of two or more is not a dropped datagram but a stall, and
+		// asking for the world is the one thing that puts the screen back where the authority is rather than leaving it to
+		// apply changes over a hole it will not be told about until the next baseline. A delta that could not be placed at
+		// all never reaches this point: it is answered by the branch above, which knows the base it is missing.
+		if (sequencesSkipped > 1) RequestBaseline();
 	}
 
 	/// <summary>

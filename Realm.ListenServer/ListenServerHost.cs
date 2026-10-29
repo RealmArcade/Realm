@@ -1581,9 +1581,11 @@ public class ListenServerHost : IServerTransportSink
 	/// <summary>
 	///     How long one peer waits between two descriptions from scratch, in ticks, whatever asked for them. A peer that
 	///     keeps losing state is described from scratch once a second rather than on every snapshot, and one that asks on
-	///     every frame is answered on the same cadence, which bounds what a broken or hostile peer can cost the match.
+	///     every frame is answered on the same cadence, which bounds what a broken or hostile peer can cost the match. The
+	///     duration is stated once in <see cref="MatchTiming" />, because the client asks on the same policy in its own
+	///     clock and two figures for it were two policies that could drift apart.
 	/// </summary>
-	private const long BaselineRequestCooldownTicks = MatchTiming.SimulationTickRateHz;
+	private const long BaselineRequestCooldownTicks = MatchTiming.BaselineRequestCooldownTicks;
 
 	/// <summary>
 	///     How long a peer that has never acknowledged a description is given before it is measured like any other. A

@@ -44,6 +44,21 @@ public static class MatchTiming
 	/// <summary>The seconds one snapshot interval covers, which is also what one sequence of a snapshot's timeline covers.</summary>
 	public const float SnapshotIntervalSeconds = 1.0f / SnapshotRateHz;
 
+	/// <summary>
+	///     How long one peer waits between two descriptions from scratch, in seconds, whatever asked for them - the peer
+	///     itself, an acknowledgement that reports a hole, the gate that skips a screen that stopped reading, or the safety
+	///     refresh. It is a match policy rather than a property of either process, so both clocks are derived from it here:
+	///     the authority counts it in ticks and the client in milliseconds, and a peer that asks every frame costs the same
+	///     as one that asks once a second instead of a full description and a reliable frame of it per request.
+	/// </summary>
+	public const int BaselineRequestCooldownSeconds = 1;
+
+	/// <summary>The same policy in the authority's clock, which is the tick it is due on.</summary>
+	public const int BaselineRequestCooldownTicks = SimulationTickRateHz * BaselineRequestCooldownSeconds;
+
+	/// <summary>The same policy in the client's clock, which is when it may ask again.</summary>
+	public const int BaselineRequestCooldownMilliseconds = 1000 * BaselineRequestCooldownSeconds;
+
 	/// <summary>Converts a number of ticks into the simulated seconds they cover.</summary>
 	public static float TicksToSeconds(int ticks) => (float)(ticks * FixedTickSeconds);
 
