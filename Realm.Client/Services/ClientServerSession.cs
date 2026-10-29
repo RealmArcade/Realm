@@ -53,7 +53,15 @@ public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlay
 public class ClientServerSession : IDisposable
 {
 	private readonly ClientNetworkChannel _channel;
-	private readonly Queue<(NetworkFrameKind Kind, byte[] Payload)> _incoming = new();
+
+	/// <summary>
+	///     What the authority has said since the last time the match read it, in the order it arrived. A match reads this
+	///     every frame, so it is only ever as long as the frames one frame's worth of reading missed - except while the
+	///     screen is building the world it is about to play, where nothing reads it at all.
+	/// </summary>
+	private readonly List<(NetworkFrameKind Kind, byte[] Payload)> _incoming = new();
+	private int _incomingIndex;
+	private bool _descriptionsWereDropped;
 
 	private ServerProcessLauncher? _launcher;
 	private string _language = string.Empty;
@@ -96,6 +104,15 @@ public class ClientServerSession : IDisposable
 
 	private const int ReconnectIntervalMilliseconds = 250;
 	private const int MaximumReconnectAttempts = 240;
+
+	/// <summary>
+	///     How many frames may wait for the match to read them. A match drains this every frame, so a queue this deep is a
+	///     screen that is not reading - a world still being built, or a main thread that stopped - and the stream behind
+	///     it is thirty descriptions a second of a world that has moved on. Keeping the newest of them is what matters:
+	///     the oldest is a moment this screen has already passed, and remembering it costs the memory the queue is bounded
+	///     against.
+	/// </summary>
+	private const int MaximumQueuedFrames = 256;
 
 	/// <summary>Whether this client is still connected to a living authority.</summary>
 	public bool IsRunning => TerminationReport == null && (_launcher == null ? _joined : _launcher.IsRunning);
@@ -561,9 +578,10 @@ public class ClientServerSession : IDisposable
 			return false;
 		}
 
-		while (_incoming.Count > 0)
+		while (_incomingIndex < _incoming.Count)
 		{
-			(NetworkFrameKind kind, byte[] payload) = _incoming.Dequeue();
+			(NetworkFrameKind kind, byte[] payload) = _incoming[_incomingIndex];
+			_incomingIndex++;
 
 			// One frame this build cannot read is not a match that cannot be played. It is dropped and the world is asked for
 			// again from a baseline, because letting it throw out of the frame would abort every frame behind it in the same
@@ -582,6 +600,22 @@ public class ClientServerSession : IDisposable
 			}
 
 			handed = true;
+		}
+
+		// What has been read is released here rather than by an index that walks a list growing for the length of a match.
+		if (_incomingIndex >= _incoming.Count)
+		{
+			_incoming.Clear();
+			_incomingIndex = 0;
+		}
+
+		// A description dropped before it could be read leaves a hole in the sequence this screen applies, and the frames
+		// after it were written against a world this one never saw. The world is asked for again once the queue has been
+		// drained, because asking before that would put a reliable baseline behind the stream that is already waiting.
+		if (_descriptionsWereDropped)
+		{
+			_descriptionsWereDropped = false;
+			if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
 		}
 
 		return handed;
@@ -661,7 +695,37 @@ public class ClientServerSession : IDisposable
 		_channel.Send(NetworkFrameKind.ClientHello, MemoryPackSerializer.Serialize(hello));
 	}
 
-	private void Enqueue(NetworkFrameKind kind, byte[] payload) => _incoming.Enqueue((kind, payload));
+	private void Enqueue(NetworkFrameKind kind, byte[] payload)
+	{
+		if (_incoming.Count >= MaximumQueuedFrames && !DropOldestDescription())
+		{
+			// Nothing waiting describes a world, so nothing waiting is restated by a later frame: the frame that has just
+			// arrived is the one that is refused, and the world it carried is asked for again from a baseline.
+			if (kind is NetworkFrameKind.Snapshot or NetworkFrameKind.Presentation) _descriptionsWereDropped = true;
+			return;
+		}
+
+		_incoming.Add((kind, payload));
+	}
+
+	/// <summary>
+	///     Makes room for one more frame by discarding the oldest one that describes a world. A frame the session has to act
+	///     on - a hello, a roster, an answer to an order - is never the one dropped: what a full queue holds is a stream of
+	///     descriptions, and the newest of them is the one worth keeping.
+	/// </summary>
+	private bool DropOldestDescription()
+	{
+		for (int index = _incomingIndex; index < _incoming.Count; index++)
+		{
+			if (_incoming[index].Kind is not (NetworkFrameKind.Snapshot or NetworkFrameKind.Presentation)) continue;
+
+			_incoming.RemoveAt(index);
+			_descriptionsWereDropped = true;
+			return true;
+		}
+
+		return false;
+	}
 
 	private void Dispatch(NetworkFrameKind kind, byte[] payload)
 	{
@@ -812,6 +876,11 @@ public class ClientServerSession : IDisposable
 		_address = string.Empty;
 		_port = 0;
 		_channel.FrameArrived -= Enqueue;
+
+		// What arrived for a match this session no longer belongs to is a world something else will be told about.
+		_incoming.Clear();
+		_incomingIndex = 0;
+		_descriptionsWereDropped = false;
 
 		// A player leaving a match someone else runs does not end it for everyone, so only the authority this client
 		// started is asked to stop.

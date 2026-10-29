@@ -29,8 +29,11 @@ public class SnapshotApplyService
 	///     queue cannot be skipped - but replaying it in one frame is the work that produced the hitch which built it, and
 	///     the world it describes is already a moment in the past. A baseline is self-contained and re-anchors this screen
 	///     in one round trip, which is why the backlog is answered rather than drained.
+	///     It is the deepest presentation delay rather than a figure of its own: a screen that has missed that much of the
+	///     stream is further behind than the buffer it renders from is ever meant to cover, so the two bounds are the same
+	///     decision and stating one beside the other would let a tuning of the buffer leave this behind.
 	/// </summary>
-	private const int MaximumBacklogSequences = 8;
+	private const int MaximumBacklogSequences = SnapshotTimeline.MaximumDelaySequences;
 
 	private readonly List<WorldSnapshot> _queuedDeltas = new();
 
@@ -113,11 +116,15 @@ public class SnapshotApplyService
 
 		if (snapshot.Sequence <= networkState.LastAppliedSnapshotSequence) return;
 
+		// The authority describes every seated peer on every tick, so the sequences this screen is sent are contiguous and
+		// one it never applied is a description that did not arrive rather than one it was never meant to see.
+		int sequencesSkipped = snapshot.Sequence - networkState.LastAppliedSnapshotSequence - 1;
+
 		// A queue deeper than the buffer is a screen that stopped reading, not a link that is merely late: applying it in
 		// one frame costs more the deeper it is and leaves the world one frame closer to the moment it describes, whereas a
 		// baseline is a few kilobytes and puts the screen where the authority is. The queued descriptions are the tail of
 		// the same backlog, so they go with it.
-		if (snapshot.Sequence - networkState.LastAppliedSnapshotSequence > MaximumBacklogSequences)
+		if (sequencesSkipped >= MaximumBacklogSequences)
 		{
 			_queuedDeltas.Clear();
 			RequestBaseline();
@@ -144,6 +151,13 @@ public class SnapshotApplyService
 		networkState.LastAppliedSnapshotSequence = snapshot.Sequence;
 		GameContext.NetworkService.ApplySnapshotToWorld(snapshot);
 		DrainQueuedDeltas(ref networkState);
+
+		// A delta names the last baseline it was written against and never the last delta, so a description that did not
+		// arrive leaves this screen applying a change over a world it never received. The values a later delta restates
+		// replace that hole, but a component the authority stopped naming stays named here until something restates the
+		// whole world - and the authority only learns of the hole from the acknowledgement after it is sent. Asking for
+		// the world the moment a sequence is skipped repairs it in one round trip rather than up to a second later.
+		if (sequencesSkipped > 0) RequestBaseline();
 	}
 
 	/// <summary>
