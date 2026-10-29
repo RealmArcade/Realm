@@ -12,6 +12,8 @@ public class SettingsData
 	public float MusicVolume { get; set; } = 70f;
 	public float SfxVolume { get; set; } = 90f;
 	public float VoiceVolume { get; set; } = 60f;
+	public bool PositionalDoppler { get; set; } = false;
+	public bool PositionalAttenuationFilter { get; set; } = true;
 	public float ScrollSpeed { get; set; } = 50f;
 	public float MouseSens { get; set; } = 40f;
 	public float HudScale { get; set; } = 100f;

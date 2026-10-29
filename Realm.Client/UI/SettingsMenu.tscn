@@ -408,6 +408,20 @@ layout_mode = 2
 text = "60"
 horizontal_alignment = 2
 
+[node name="DopplerChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox"]
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/h_separation = 8
+theme_override_constants/icon_max_width = 0
+text = "Doppler Effect"
+
+[node name="DistanceMuffleChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox"]
+layout_mode = 2
+focus_mode = 0
+theme_override_constants/h_separation = 8
+theme_override_constants/icon_max_width = 0
+text = "Distance Muffling"
+
 [node name="ControlsPanel" type="PanelContainer" parent="CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn"]
 layout_mode = 2
 size_flags_horizontal = 3

@@ -2719,7 +2719,7 @@ public partial class GameHost
 		{
 			SelectedUnits.Add(unit);
 			unit.IsSelected = true;
-			GameContext.AudioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Select, unit.GlobalPosition);
+			GameContext.AudioService?.PlayUnitSound(unit.UnitId, UnitSoundEvent.Select, unit.GlobalPosition, 0f, AudioPriorityTier.Critical);
 			OnUnitSelected?.Invoke((UnitId)unit.Entity.Id);
 		}
 	}
@@ -2914,7 +2914,7 @@ public partial class GameHost
 		if (selectedEntities.Count > 0 && SelectedUnits.Count > 0)
 		{
 			var primaryUnit = SelectedUnits[0];
-			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.MoveOrder, primaryUnit.GlobalPosition);
+			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.MoveOrder, primaryUnit.GlobalPosition, 0f, AudioPriorityTier.Critical);
 		}
 	}
 
@@ -2964,7 +2964,7 @@ public partial class GameHost
 		if (selectedEntities.Count > 0 && SelectedUnits.Count > 0)
 		{
 			var primaryUnit = SelectedUnits[0];
-			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.AttackOrder, primaryUnit.GlobalPosition);
+			GameContext.AudioService?.PlayUnitSound(primaryUnit.UnitId, UnitSoundEvent.AttackOrder, primaryUnit.GlobalPosition, 0f, AudioPriorityTier.Critical);
 		}
 	}
 
@@ -3450,7 +3450,7 @@ public partial class GameHost
 		if (focusedUnit != null && GameContext.World.IsAlive(focusedUnit.Entity))
 		{
 			caster = (UnitId)focusedUnit.Entity.Id;
-			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position);
+			GameContext.AudioService?.PlayUnitSound(focusedUnit.UnitId, UnitSoundEvent.SpellCast, position, 0f, AudioPriorityTier.Critical);
 		}
 
 		if (ExecuteConsumablePurchase(caster, spellId, position)) return;

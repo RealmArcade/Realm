@@ -45,6 +45,8 @@ public static class GameSettings
 	public static float MusicVolume { get; set; } = 70f;
 	public static float SfxVolume { get; set; } = 90f;
 	public static float VoiceVolume { get; set; } = 60f;
+	public static bool PositionalDoppler { get; set; } = false;
+	public static bool PositionalAttenuationFilter { get; set; } = true;
 
 	public static float ScrollSpeed { get; set; } = 50f;
 	public static float MouseSens { get; set; } = 40f;
@@ -133,6 +135,8 @@ public static class GameSettings
 		MusicVolume = 70f;
 		SfxVolume = 90f;
 		VoiceVolume = 60f;
+		PositionalDoppler = false;
+		PositionalAttenuationFilter = true;
 		ScrollSpeed = 50f;
 		MouseSens = 40f;
 		HudScale = 100f;
@@ -258,6 +262,8 @@ public static class GameSettings
 		MusicVolume = data.MusicVolume;
 		SfxVolume = data.SfxVolume;
 		VoiceVolume = data.VoiceVolume;
+		PositionalDoppler = data.PositionalDoppler;
+		PositionalAttenuationFilter = data.PositionalAttenuationFilter;
 		ScrollSpeed = data.ScrollSpeed;
 		MouseSens = data.MouseSens;
 		HudScale = data.HudScale;
@@ -315,6 +321,8 @@ public static class GameSettings
 			MusicVolume = MusicVolume,
 			SfxVolume = SfxVolume,
 			VoiceVolume = VoiceVolume,
+			PositionalDoppler = PositionalDoppler,
+			PositionalAttenuationFilter = PositionalAttenuationFilter,
 			ScrollSpeed = ScrollSpeed,
 			MouseSens = MouseSens,
 			HudScale = HudScale,

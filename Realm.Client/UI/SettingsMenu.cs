@@ -60,6 +60,9 @@ public partial class SettingsMenu : Control
 	private HSlider _sfxSlider;
 	private HSlider _voiceSlider;
 
+	private CheckBox? _dopplerChk;
+	private CheckBox? _distanceMuffleChk;
+
 	private Label _masterValLabel;
 	private Label _musicValLabel;
 	private Label _sfxValLabel;
@@ -134,6 +137,9 @@ public partial class SettingsMenu : Control
 		_musicValLabel = GetNode<Label>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MusicRow/MusicValLabel");
 		_sfxValLabel = GetNode<Label>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/SfxRow/SfxValLabel");
 		_voiceValLabel = GetNode<Label>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/VoiceRow/VoiceValLabel");
+
+		_dopplerChk = GetNodeOrNull<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/DopplerChk");
+		_distanceMuffleChk = GetNodeOrNull<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/DistanceMuffleChk");
 
 		_displayFpsChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DisplayFpsChk");
 		_unitOutlineChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/UnitOutlineChk");
@@ -444,6 +450,18 @@ public partial class SettingsMenu : Control
 			UIStyle.ApplyCheckboxStyle(_movementPredictionChk);
 			_movementPredictionChk.Text = TranslationServer.Translate(_movementPredictionChk.Text);
 		}
+
+		if (_dopplerChk != null)
+		{
+			UIStyle.ApplyCheckboxStyle(_dopplerChk);
+			_dopplerChk.Text = TranslationServer.Translate(_dopplerChk.Text);
+		}
+
+		if (_distanceMuffleChk != null)
+		{
+			UIStyle.ApplyCheckboxStyle(_distanceMuffleChk);
+			_distanceMuffleChk.Text = TranslationServer.Translate(_distanceMuffleChk.Text);
+		}
 	}
 
 	private void PopulateDropdowns()
@@ -572,6 +590,18 @@ public partial class SettingsMenu : Control
 			_movementPredictionChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
 			_movementPredictionChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 			_movementPredictionChk.Toggled += OnMovementPredictionToggled;
+		}
+
+		if (_dopplerChk != null)
+		{
+			_dopplerChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+			_dopplerChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		}
+
+		if (_distanceMuffleChk != null)
+		{
+			_distanceMuffleChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
+			_distanceMuffleChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
 		}
 	}
 
@@ -876,6 +906,9 @@ public partial class SettingsMenu : Control
 		_unitOutlineChk.ButtonPressed = GameSettings.OccludedUnitOutlines;
 		_recordReplaysChk.ButtonPressed = GameSettings.RecordReplays;
 
+		if (_dopplerChk != null) _dopplerChk.ButtonPressed = GameSettings.PositionalDoppler;
+		if (_distanceMuffleChk != null) _distanceMuffleChk.ButtonPressed = GameSettings.PositionalAttenuationFilter;
+
 		bool canHost = GameContext.Lobby != null && GameContext.Lobby.LocalNatType != NatType.Symmetric;
 		if (!canHost)
 		{
@@ -919,6 +952,7 @@ public partial class SettingsMenu : Control
 
 			GameSettings.Save();
 			GameSettings.ApplyGraphicsSettings(this);
+			GameContext.UserInterface.UpdateAudioVolumes();
 
 			if (GameContext.InGameHud != null)
 			{
@@ -987,6 +1021,8 @@ public partial class SettingsMenu : Control
 		GameSettings.MusicVolume = (float)_musicSlider.Value;
 		GameSettings.SfxVolume = (float)_sfxSlider.Value;
 		GameSettings.VoiceVolume = (float)_voiceSlider.Value;
+		GameSettings.PositionalDoppler = _dopplerChk?.ButtonPressed ?? GameSettings.PositionalDoppler;
+		GameSettings.PositionalAttenuationFilter = _distanceMuffleChk?.ButtonPressed ?? GameSettings.PositionalAttenuationFilter;
 
 		GameSettings.ScrollSpeed = (float)_scrollSpeedSlider.Value;
 		GameSettings.MouseSens = (float)_mouseSensSlider.Value;
