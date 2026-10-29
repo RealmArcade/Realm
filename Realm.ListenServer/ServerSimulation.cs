@@ -543,7 +543,7 @@ public class ServerSimulation : IDisposable
 		if (IsAlreadyAnswered(peerId, command.CommandId))
 		{
 			_log.Write($"peer {peerId} repeated command {command.CommandId}; it was already answered and is dropped");
-			return NoResult("command was already answered");
+			return NoResult("command was already answered", wasAlreadyAnswered: true);
 		}
 
 		ServerCommandResult result = _commands.ExecuteServerCommand(peerId, command);
@@ -630,13 +630,13 @@ public class ServerSimulation : IDisposable
 		return playerEntity != Entity.Null && _map.World.IsAlive(playerEntity);
 	}
 
-	private static ServerCommandResult NoResult(string rejectionReason)
+	private static ServerCommandResult NoResult(string rejectionReason, bool wasAlreadyAnswered = false)
 	{
 		return new ServerCommandResult(
 			false, string.Empty, Vector3.Zero, -1, -1,
 			false, string.Empty, Vector3.Zero,
 			new List<int>(), new List<int>(),
-			new List<int>(), rejectionReason);
+			new List<int>(), rejectionReason, wasAlreadyAnswered);
 	}
 
 	/// <summary>A one-line account of what the map loaded, for the match log.</summary>

@@ -948,6 +948,12 @@ public class ListenServerHost : IServerTransportSink
 			? $"peer {peerId} command {commandId} '{command.CommandType}' accepted"
 			: $"peer {peerId} command {commandId} '{command.CommandType}' refused: {result.RejectionReason}");
 
+		// A repeat of an order that was already answered is not answered again. The peer already holds the answer - the
+		// transport is reliable and ordered, so it arrived unless the connection that carried it is gone, and a peer that
+		// reconnects is described from scratch under a new connection that has no record to repeat. Sending a second,
+		// negative answer here told a predicting client to roll back an order this match had accepted.
+		if (result.WasAlreadyAnswered) return;
+
 		SendOutcome(peerId, commandId, accepted, result.RejectionReason);
 	}
 

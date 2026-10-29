@@ -3,7 +3,7 @@ using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
 
-public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "", string RecordPredictionPath = "")
+public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "", string RecordPredictionPath = "", int ParentProcessId = 0)
 {
 	public const string MapFlag = ServerArgumentFlags.MapFlag;
 	public const string PortFlag = ServerArgumentFlags.PortFlag;
@@ -16,8 +16,9 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 	public const string WorkspaceFlag = ServerArgumentFlags.WorkspaceFlag;
 	public const string RosterFlag = ServerArgumentFlags.RosterFlag;
 	public const string RecordPredictionFlag = ServerArgumentFlags.RecordPredictionFlag;
+	public const string ParentProcessIdFlag = ServerArgumentFlags.ParentProcessIdFlag;
 
-	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{RecordPredictionFlag} <folder the run's reports read>] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
+	public const string Usage = $"{MapFlag} <absolute map folder> [{PortFlag} <port>] [{SeedFlag} <integer>] [{TokenFlag} <join ticket>] {LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{RosterFlag} <match roster file>] [{RecordPredictionFlag} <folder the run's reports read>] [{ParentProcessIdFlag} <process id of the screen that started the match>] [{CheatsFlag}] [{WasmDebugFlag} [{WorkspaceFlag} <map workspace folder>]]";
 
 	public static bool TryParse(string[] args, out ServerArguments? arguments, out string error)
 	{
@@ -35,6 +36,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		string? workspacePath = null;
 		string? rosterPath = null;
 		string? recordPredictionPath = null;
+		int parentProcessId = 0;
 
 		for (int index = 0; index < args.Length; index++)
 		{
@@ -81,6 +83,14 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 				case RecordPredictionFlag:
 					if (!TryTakeValue(args, ref index, flag, out recordPredictionPath, out error)) return false;
 					break;
+				case ParentProcessIdFlag:
+					if (!TryTakeValue(args, ref index, flag, out string? parentText, out error)) return false;
+					if (!int.TryParse(parentText, NumberStyles.Integer, CultureInfo.InvariantCulture, out parentProcessId) || parentProcessId <= 0)
+					{
+						error = $"{ParentProcessIdFlag} expects a process id above zero, not '{parentText}'.";
+						return false;
+					}
+					break;
 				case WorkspaceFlag:
 					if (!TryTakeValue(args, ref index, flag, out workspacePath, out error)) return false;
 					break;
@@ -106,7 +116,7 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 		// the script's JIT ELF is exported into when the caller named none.
 		string resolvedWorkspace = wasmDebug ? workspacePath ?? mapPath : workspacePath ?? string.Empty;
 
-		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats, wasmDebug, resolvedWorkspace, rosterPath ?? string.Empty, recordPredictionPath ?? string.Empty);
+		arguments = new ServerArguments(mapPath, port, token ?? string.Empty, logPath, string.IsNullOrWhiteSpace(dataPath) ? AppContext.BaseDirectory : dataPath, seed, cheats, wasmDebug, resolvedWorkspace, rosterPath ?? string.Empty, recordPredictionPath ?? string.Empty, parentProcessId);
 		return true;
 	}
 

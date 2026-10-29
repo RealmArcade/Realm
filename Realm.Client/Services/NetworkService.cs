@@ -310,14 +310,18 @@ public class NetworkService
 
 	public (int CommandId, byte[] Payload) BuildClientCommand(string commandType, List<int> unitIds, System.Numerics.Vector3 targetPos, int targetEntityId, string argString)
 	{
-		int commandId = 1;
+		// A command id is this peer's own counter, and the authority answers a repeat of one it already answered as a
+		// duplicate. Falling back to a fixed first id meant a window in which the counter could not be read - the world
+		// entity before a match builds it, or after a playtest rebuilds it - minted the id of an order already sent, and
+		// the order was then dropped as a repeat. Nothing is authored here rather than something that might be a repeat.
 		Entity worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.Has<NetworkState>(worldEntity))
-		{
-			commandId = GameContext.World.Get<NetworkState>(worldEntity).NextCommandId;
-			ref var ns = ref GameContext.World.Get<NetworkState>(worldEntity);
-			ns.NextCommandId++;
-		}
+		if (worldEntity == Entity.Null || !GameContext.World.Has<NetworkState>(worldEntity)) return (0, Array.Empty<byte>());
+
+		int commandId = GameContext.World.Get<NetworkState>(worldEntity).NextCommandId;
+		if (commandId <= 0) return (0, Array.Empty<byte>());
+
+		ref var ns = ref GameContext.World.Get<NetworkState>(worldEntity);
+		ns.NextCommandId++;
 
 		var cmd = new NetworkCommand
 		{

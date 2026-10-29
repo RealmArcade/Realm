@@ -61,6 +61,13 @@ public static class ServerArgumentFlags
 	///     decided the match, so only a run that asks for the record gets one: a normal match writes nothing here.
 	/// </summary>
 	public const string RecordPredictionFlag = "--record-prediction";
+
+	/// <summary>
+	///     The process that started this authority, or nothing for one nobody is waiting on. A match is over when the
+	///     screen that started it is gone: without this the authority keeps listening on the port, simulating a world no
+	///     one watches, until the machine is restarted. A dedicated or exported authority is started without it.
+	/// </summary>
+	public const string ParentProcessIdFlag = "--parent-pid";
 }
 
 /// <summary>
@@ -345,6 +352,8 @@ public class ServerProcessLauncher : IDisposable
 			startInfo.ArgumentList.Add(ServerArgumentFlags.TokenFlag);
 			startInfo.ArgumentList.Add(request.JoinTicket);
 		}
+		startInfo.ArgumentList.Add(ServerArgumentFlags.ParentProcessIdFlag);
+		startInfo.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 		startInfo.ArgumentList.Add(ServerArgumentFlags.LogFlag);
 		startInfo.ArgumentList.Add(Path.GetFullPath(request.LogPath));
 		if (!string.IsNullOrWhiteSpace(request.DataFolderPath))

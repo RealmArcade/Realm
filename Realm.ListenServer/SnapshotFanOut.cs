@@ -29,7 +29,7 @@ public class SnapshotFanOut
 	public const int DefaultWorkerLimit = 3;
 
 	private readonly AuthoritativeSnapshotBuilder[] _builders;
-	private readonly ConcurrentBag<AuthoritativeSnapshotBuilder> _idleBuilders = new();
+	private readonly BlockingCollection<AuthoritativeSnapshotBuilder> _idleBuilders = new();
 	private readonly SnapshotPeerStateStore _peerStates = new();
 	private readonly SnapshotDescriptionCache _descriptions = new(AuthoritativeSnapshotBuilder.UnitCodecCount);
 	private readonly object _abilityLock = new();
@@ -88,13 +88,18 @@ public class SnapshotFanOut
 	/// </summary>
 	public AuthoritativeSnapshotBuilder Rent()
 	{
-		while (true)
-		{
-			if (_idleBuilders.TryTake(out AuthoritativeSnapshotBuilder? builder)) return builder;
+		// The number of descriptions at once is bounded by WorkerCount where the room is described, so every builder a
+		// caller asked for is owed back. Waiting for one is only ever a wait for a description already in flight, and a
+		// builder that is never returned stops the match inside a tick. That was a spin that could not end; it is a wait
+		// with a deadline that says so instead, because a tick that blocks forever leaves no log and no frame.
+		if (_idleBuilders.TryTake(out AuthoritativeSnapshotBuilder? builder, RentTimeoutMilliseconds)) return builder;
 
-			Thread.SpinWait(64);
-		}
+		throw new InvalidOperationException(
+			$"all {_builders.Length} snapshot builders are still checked out after {RentTimeoutMilliseconds} ms; a description was rented and never returned");
 	}
+
+	/// <summary>How long a description waits for a builder before the match is told something went wrong instead of stopping.</summary>
+	private const int RentTimeoutMilliseconds = 5000;
 
 	/// <summary>Gives a builder back once its description has been serialized.</summary>
 	public void Return(AuthoritativeSnapshotBuilder builder) => _idleBuilders.Add(builder);

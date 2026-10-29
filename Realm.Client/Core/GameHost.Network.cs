@@ -69,7 +69,8 @@ public partial class GameHost
 			}
 		}
 
-		var (_, payload) = GameContext.NetworkService.BuildClientCommand("cheat", unitIds, System.Numerics.Vector3.Zero, 0, cheatKey);
+		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand("cheat", unitIds, System.Numerics.Vector3.Zero, 0, cheatKey);
+		if (commandId <= 0) return;
 		GameContext.ServerSession.Submit(payload);
 	}
 
@@ -91,7 +92,8 @@ public partial class GameHost
 		if (serverBuildingId <= 0) return;
 
 		var unitIds = new List<int> { serverBuildingId };
-		var (_, payload) = GameContext.NetworkService.BuildClientCommand("use_consumable", unitIds, targetPosition, 0, cardId);
+		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand("use_consumable", unitIds, targetPosition, 0, cardId);
+		if (commandId <= 0) return;
 		GameContext.ServerSession.Submit(payload);
 	}
 
@@ -110,6 +112,7 @@ public partial class GameHost
 
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
+		if (commandId <= 0) return;
 		RegisterPredictedCommand(commandId, unitIds, commandType, targetNumerics);
 
 		GameContext.ServerSession?.Submit(payload);
@@ -125,7 +128,8 @@ public partial class GameHost
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		for (int index = 0; index < count; index++)
 		{
-			var (_, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, 0, string.Empty);
+			var (floodCommandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, 0, string.Empty);
+			if (floodCommandId <= 0) return;
 			GameContext.ServerSession?.Submit(payload);
 		}
 	}
@@ -143,6 +147,7 @@ public partial class GameHost
 
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
+		if (commandId <= 0) return;
 		RegisterPredictedCommand(commandId, unitIds, commandType, targetNumerics);
 		GameContext.ServerSession?.Submit(payload);
 	}
@@ -390,20 +395,14 @@ public partial class GameHost
 	{
 		Callable.From(() =>
 		{
-			Entity targetEntity = Entity.Null;
-			if (!TryGetLocalEntity(serverEntityId, out targetEntity))
-			{
-				foreach (var unit in AllUnits)
-				{
-					if (GodotObject.IsInstanceValid(unit) && unit.Entity.Id == serverEntityId)
-					{
-						targetEntity = unit.Entity;
-						break;
-					}
-				}
-			}
-
-			if (targetEntity != Entity.Null && TryGetUnit3D(targetEntity, out var unit3D) && GodotObject.IsInstanceValid(unit3D))
+			// A selection the authority named is a server entity id, so it is resolved only through the mapping that keeps
+			// the two domains apart. Matching it against the client's own ids instead compared a server id with an
+			// unrelated client id, and in the first seconds of a match - where both start low and count up - it selected
+			// whatever unit happened to reuse the number. A unit this screen has not been told about yet is selected when
+			// its spawn arrives, which is what the pending id is for.
+			if (TryGetLocalEntity(serverEntityId, out Entity targetEntity)
+				&& TryGetUnit3D(targetEntity, out var unit3D)
+				&& GodotObject.IsInstanceValid(unit3D))
 			{
 				ClearSelection();
 				SelectUnit(unit3D);

@@ -21,6 +21,7 @@ public partial class ListenServerEntry : Node
 
 	private MatchHost? _host;
 	private ServerLog? _log;
+	private ParentProcessWatchdog? _parentWatchdog;
 	private double _startedAtSeconds;
 
 	/// <summary>
@@ -42,6 +43,11 @@ public partial class ListenServerEntry : Node
 
 		_log = new ServerLog(parsed!.LogPath);
 		_log.Write($"starting pid={System.Environment.ProcessId} map={parsed.MapPath} port={parsed.Port} protocol={RealmProtocol.Version} build={RealmVersion.GameBuildNumber}");
+
+		// A match is over when the screen that started it is gone. The launcher always names itself here, so this is the
+		// path a normal or self-hosted match takes; a dedicated authority is started without it and watches nothing.
+		_parentWatchdog = new ParentProcessWatchdog(parsed.ParentProcessId);
+		if (_parentWatchdog.IsWatching) _log.Write($"watching the screen that started this match, pid={parsed.ParentProcessId}");
 
 		ServerNetworkChannel channel = GetNode<ServerNetworkChannel>("/root/RealmNetwork");
 		var transport = new EnetServerTransport(channel, parsed.Port);
@@ -70,13 +76,21 @@ public partial class ListenServerEntry : Node
 	{
 		if (_host == null) return;
 
+		double now = Now();
+		if (_parentWatchdog != null && _parentWatchdog.Update(now))
+		{
+			_log?.Write("the screen that started this match is gone; stopping");
+			Shutdown();
+			return;
+		}
+
 		if (_host.ShutdownRequested)
 		{
 			Shutdown();
 			return;
 		}
 
-		_host.Tick(Now() - _startedAtSeconds);
+		_host.Tick(now - _startedAtSeconds);
 	}
 
 	public override void _ExitTree() => Shutdown();
@@ -94,6 +108,8 @@ public partial class ListenServerEntry : Node
 		_log?.Write("stopped");
 		_log?.Dispose();
 		_log = null;
+		_parentWatchdog?.Dispose();
+		_parentWatchdog = null;
 
 		GetTree().Quit();
 	}
