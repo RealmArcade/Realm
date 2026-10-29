@@ -38,6 +38,8 @@ public class ListenServerHost : IServerTransportSink
 
 	private readonly Dictionary<int, string> _peerLanguages = new();
 
+	private readonly Dictionary<string, int> _sessionTokenSlots = new();
+
 	private double _lastTickSeconds;
 	private double _nextTickTime;
 	private readonly Dictionary<int, long> _lastLoggedAckSequencePerPeer = new();
@@ -308,7 +310,11 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		_lobbySessionSlots.Clear();
-		foreach (var pair in sessionSlots) _lobbySessionSlots[pair.Key] = pair.Value;
+		foreach (var pair in sessionSlots)
+		{
+			_lobbySessionSlots[pair.Key] = pair.Value;
+			_sessionTokenSlots[pair.Key] = pair.Value;
+		}
 
 		for (int index = 0; index < assignments.Count; index++)
 		{
@@ -458,6 +464,7 @@ public class ListenServerHost : IServerTransportSink
 		_seatedPeers.Clear();
 		_connectedPeers.Clear();
 		_peerLanguages.Clear();
+		_sessionTokenSlots.Clear();
 		_lobbySessionSlots.Clear();
 		_lobby = null;
 		_mapShares = null;
@@ -529,6 +536,25 @@ public class ListenServerHost : IServerTransportSink
 		_pausedByPlayerSlot = -1;
 		_log.Write("the player who paused the match left, so the match resumes");
 		BroadcastPauseState(-1);
+	}
+
+	private bool TryReclaimSessionSlot(ServerSimulation simulation, int peerId, string sessionToken, out int playerSlot, out int team)
+	{
+		playerSlot = 0;
+		team = 0;
+
+		if (string.IsNullOrEmpty(sessionToken)) return false;
+		if (!_sessionTokenSlots.TryGetValue(sessionToken, out playerSlot)) return false;
+
+		if (!simulation.SeatPeerAtSlot(peerId, playerSlot))
+		{
+			playerSlot = 0;
+			return false;
+		}
+
+		team = simulation.ReadTeam(playerSlot);
+		_log.Write($"peer {peerId} took back player slot {playerSlot} with the session it was seated with");
+		return true;
 	}
 
 	private void BeginSeatedPeerBookkeeping(int peerId, int playerSlot, long tick)
@@ -882,7 +908,8 @@ public class ListenServerHost : IServerTransportSink
 
 			team = simulation.ReadTeam(playerSlot);
 		}
-		else if (!simulation.TryAssignPlayerSlot(peerId, out playerSlot, out team))
+		else if (!TryReclaimSessionSlot(simulation, peerId, hello.SessionToken, out playerSlot, out team)
+		         && !simulation.TryAssignPlayerSlot(peerId, out playerSlot, out team))
 		{
 			const string noSlot = "server_rejected_no_free_slot";
 			_log.Write($"peer {peerId} refused: every player slot this map declares is taken");
@@ -891,6 +918,7 @@ public class ListenServerHost : IServerTransportSink
 			return;
 		}
 
+		if (!string.IsNullOrEmpty(hello.SessionToken)) _sessionTokenSlots[hello.SessionToken] = playerSlot;
 		BeginSeatedPeerBookkeeping(peerId, playerSlot, simulation.TickCount);
 		simulation.SetPlayerLanguage(playerSlot, hello.Language);
 		SendHello(peerId, string.Empty);
