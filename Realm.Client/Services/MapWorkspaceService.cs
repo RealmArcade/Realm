@@ -1099,8 +1099,7 @@ please visit the URL above.
 			AllowedPixelError = 1.5f,
 			MaxTextureResolution = 1024,
 			ForceReDecimate = false,
-			CompressTextures = true,
-			GenerateLods = true
+			CompressTextures = true
 		};
 
 		foreach (string glbPath in glbFiles)
@@ -1389,8 +1388,7 @@ please visit the URL above.
 			AllowedPixelError = 1.5f,
 			MaxTextureResolution = 1024,
 			ForceReDecimate = false,
-			CompressTextures = true,
-			GenerateLods = true
+			CompressTextures = true
 		};
 
 		var unoptimizedList = GetUnoptimizedGlbFiles(glbFiles, optimizer);

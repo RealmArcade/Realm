@@ -7,7 +7,6 @@ public struct OptimizationOptions
 	public int MaxTextureResolution { get; set; } = 1024;
 	public bool ForceReDecimate { get; set; } = false;
 	public bool CompressTextures { get; set; } = true;
-	public bool GenerateLods { get; set; } = true;
 	public float CreaseAngleDegrees { get; set; } = ModelOptimization.GlbMeshSmoother.DefaultCreaseAngleDegrees;
 	public ModelOptimization.LodDecimationProfile? DecimationProfile { get; set; } = null;
 	public bool ReduceUvIslands { get; set; } = true;
