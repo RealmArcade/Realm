@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using MemoryPack;
@@ -113,6 +114,19 @@ public class ListenServerHost : IServerTransportSink
 	private string _mapHash = string.Empty;
 
 	/// <summary>
+	///     How long this process has spent starting the match it is starting. The gap between the countdown reaching zero
+	///     and the first description is what a player waits through, and this process is the only one that knows what it
+	///     was spent on, so each stage of it is written to the match's own log.
+	/// </summary>
+	private readonly Stopwatch _startClock = new();
+
+	/// <summary>Writes one stage of the start to the match's log, with how far into the start it finished.</summary>
+	private void MarkStartStage(string stage)
+	{
+		_log.Write($"match start: {stage} at {_startClock.Elapsed.TotalMilliseconds:F0} ms");
+	}
+
+	/// <summary>
 	///     The seat each session identity owned when a lobby handed its roster to this match, keyed by the identity the
 	///     client minted. A match a lobby arranged is closed to everyone the lobby did not seat, and a seat whose
 	///     connection dropped is handed back to the identity that owned it rather than to whoever connects next.
@@ -171,6 +185,8 @@ public class ListenServerHost : IServerTransportSink
 			throw new DirectoryNotFoundException($"The map folder '{_arguments.MapPath}' does not exist.");
 		}
 
+		_startClock.Restart();
+
 		if (_arguments.Lobby)
 		{
 			StartLobby();
@@ -184,10 +200,12 @@ public class ListenServerHost : IServerTransportSink
 
 		MatchRosterSeat[] roster = ReadRoster();
 		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath, roster);
+		MarkStartStage("map loaded");
 		try
 		{
 			var paths = ServerMatchPaths.From(_arguments);
 			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster);
+			MarkStartStage("simulation built");
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());
@@ -211,6 +229,8 @@ public class ListenServerHost : IServerTransportSink
 				throw new IOException($"the match could not listen for peers: {failure}");
 			}
 
+			MarkStartStage("listening");
+
 			if (_arguments.RecordAuthorityPath.Length > 0)
 			{
 				// A run that compares a screen's ECS against this one asks for the same folder, because the process that
@@ -224,6 +244,7 @@ public class ListenServerHost : IServerTransportSink
 
 			IsRunning = true;
 			_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
+			MarkStartStage("ready to be joined");
 			AnnounceReady();
 		}
 		catch
@@ -258,6 +279,7 @@ public class ListenServerHost : IServerTransportSink
 
 		IsRunning = true;
 		_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
+		MarkStartStage("lobby listening");
 		_log.Write($"lobby opened for map '{_lobby.MapName}' version {_lobby.MapVersion} with {_lobby.MaximumPlayers} playable slot(s)");
 		AnnounceReady();
 	}
@@ -272,14 +294,19 @@ public class ListenServerHost : IServerTransportSink
 	{
 		if (_simulation != null) return "This lobby has already started its match.";
 
+		// The countdown has reached zero, so this is the wait a player is in the middle of. Everything it is spent on is
+		// written to the match's log, because the process that decides the world is the only one that can say what it cost.
+		_startClock.Restart();
 		_scriptLogSink = _log.Write;
 		WasmScriptHost.OnWasmLog += _scriptLogSink;
 
 		try
 		{
 			LoadedMap map = MapWorldLoader.Load(_arguments.MapPath, roster);
+			MarkStartStage("map loaded");
 			var paths = ServerMatchPaths.From(_arguments);
 			_simulation = new ServerSimulation(map, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster);
+			MarkStartStage("simulation built");
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());
@@ -343,6 +370,7 @@ public class ListenServerHost : IServerTransportSink
 		}
 
 		_log.Write($"the lobby handed {_seatedPeers.Count} connection(s) to the match; the port it was reached on belongs to the match now");
+		MarkStartStage("match ready to describe");
 		return null;
 	}
 
