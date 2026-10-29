@@ -88,20 +88,6 @@ public static class Program
 		}
 	}
 
-	private static MeshSurfaceCategory? ParseSurfaceCategory(string? surfaceCategory)
-	{
-		if (string.IsNullOrWhiteSpace(surfaceCategory)) return null;
-
-		string normalized = surfaceCategory.Trim().Replace("-", "_").Replace(" ", "_");
-		if (string.Equals(normalized, "auto", StringComparison.OrdinalIgnoreCase)) return null;
-		if (string.Equals(normalized, "hard_edged", StringComparison.OrdinalIgnoreCase)) return MeshSurfaceCategory.HardEdged;
-		if (string.Equals(normalized, "hardedged", StringComparison.OrdinalIgnoreCase)) return MeshSurfaceCategory.HardEdged;
-		if (string.Equals(normalized, "organic", StringComparison.OrdinalIgnoreCase)) return MeshSurfaceCategory.Organic;
-
-		Console.Error.WriteLine($"Warning: unknown --surface_category '{surfaceCategory}', falling back to auto detection.");
-		return null;
-	}
-
 	private static bool EnsurePathExists(string inputPath)
 	{
 		if (File.Exists(inputPath) || Directory.Exists(inputPath))
@@ -1127,7 +1113,7 @@ public static class Program
 
 	private static OptimizationOptions BuildMeshConvertOptimizationOptions(MeshConvertOptions options)
 	{
-		var optimizationOptions = ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force, ParseSurfaceCategory(options.SurfaceCategory));
+		var optimizationOptions = ModelConverter.GetAutomaticOptimizationOptions(options.AssetType, options.Force);
 		optimizationOptions.ReduceUvIslands = !options.NoUvChartReduction;
 		if (options.UvChartTolerance > 0f)
 		{
