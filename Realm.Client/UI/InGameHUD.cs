@@ -178,6 +178,7 @@ public partial class InGameHUD : Control
 	private VBoxContainer _leaderboardContent;
 	private Label _leaderboardTitleLabel;
 	private PanelContainer _countdownPanel;
+	private Button _countdownCancelButton;
 	private Label _countdownLabel;
 
 	private Label _unitDescLabel;
@@ -307,6 +308,10 @@ public partial class InGameHUD : Control
 		lobby.CountdownTick += OnLobbyCountdownTick;
 		lobby.CountdownCancelled += StopCountdownTimer;
 		lobby.CountdownFinished += StopCountdownTimer;
+
+		// This screen is created once the countdown has already begun on the lobby screen it replaced, so the clock it is
+		// showing is read here rather than waited for a second start that will not come.
+		if (lobby.IsCountdownActive) StartCountdownTimer(lobby.CountdownRemainingSeconds, TranslationServer.Translate("MATCH STARTS IN"));
 	}
 
 	private void UnsubscribeFromLobbyCountdown()
@@ -697,13 +702,34 @@ public partial class InGameHUD : Control
 		countdownStyle.ContentMarginBottom = 6;
 		_countdownPanel.AddThemeStyleboxOverride("panel", countdownStyle);
 
+		var countdownRow = new HBoxContainer();
+		countdownRow.Name = "CountdownRow";
+		countdownRow.AddThemeConstantOverride("separation", 8);
+
 		_countdownLabel = new Label();
 		_countdownLabel.Name = "CountdownLabel";
 		_countdownLabel.Text = "";
 		_countdownLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		_countdownLabel.VerticalAlignment = VerticalAlignment.Center;
 		_countdownLabel.AddThemeFontSizeOverride("font_size", 14);
 		_countdownLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_countdownPanel.AddChild(_countdownLabel);
+		countdownRow.AddChild(_countdownLabel);
+
+		// The countdown is shown over the match now, so the host's cancel has to come with it.
+		_countdownCancelButton = new Button();
+		_countdownCancelButton.Name = "CountdownCancelButton";
+		_countdownCancelButton.CustomMinimumSize = new Vector2(0, 24);
+		_countdownCancelButton.AddThemeConstantOverride("icon_max_width", 0);
+		_countdownCancelButton.FocusMode = FocusModeEnum.None;
+		_countdownCancelButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		_countdownCancelButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
+		_countdownCancelButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		_countdownCancelButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonText(_countdownCancelButton, TranslationServer.Translate("CANCEL"), 12);
+		_countdownCancelButton.Pressed += OnCountdownCancelPressed;
+		countdownRow.AddChild(_countdownCancelButton);
+
+		_countdownPanel.AddChild(countdownRow);
 		_customUIPanel.AddChild(_countdownPanel);
 	}
 
@@ -2162,6 +2188,17 @@ public partial class InGameHUD : Control
 		_viewModel.CountdownDuration = duration;
 		_viewModel.CountdownText = labelText;
 		_viewModel.CountdownActive = true;
+
+		if (_countdownCancelButton != null && GodotObject.IsInstanceValid(_countdownCancelButton))
+		{
+			_countdownCancelButton.Visible = GameContext.Lobby?.IsHost == true;
+		}
+	}
+
+	private void OnCountdownCancelPressed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.Lobby?.RequestCancelCountdown();
 	}
 
 	public void StopCountdownTimer()

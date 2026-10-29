@@ -1928,49 +1928,181 @@ public partial class GameHost : Node3D
 	/// <summary>Whether this screen has already recorded the tick at which its match became live.</summary>
 	private bool _simulationStartTraced;
 
+	/// <summary>How many stages <see cref="InitializeGameEcs" /> is made of.</summary>
+	private const int WorldBuildStageCount = 7;
+
+	/// <summary>The stage a world build is on, so the lobby can run one per frame instead of all in one.</summary>
+	private int _worldBuildStage;
+
+	/// <summary>
+	///     Whether this screen is building its match world before the match exists, behind the lobby. Nothing ticks and
+	///     nothing is drawn while this holds; the build is finished by the time the authority starts the match.
+	/// </summary>
+	public bool IsBuildingMatchWorld { get; private set; }
+
+	/// <summary>Whether a world built behind a lobby is waiting for the match that will play it.</summary>
+	public bool HasPreparedMatchWorld { get; private set; }
+
+	/// <summary>
+	///     Builds the world this screen is about to play, from the map files it already holds, without a seat and without
+	///     the map's script. It is the same build a match scene does on load, split into stages so the lobby keeps
+	///     answering between them.
+	/// </summary>
+	public void BeginMatchWorldPreparation(string mapName)
+	{
+		if (IsBuildingMatchWorld) return;
+		if (GameContext.Lobby?.IsGameStarted == true) return;
+		if (string.IsNullOrWhiteSpace(mapName)) return;
+
+		IsBuildingMatchWorld = true;
+		_worldBuildStage = 0;
+		GameContext.Lobby.ActiveMapName = mapName;
+		MatchLoadTrace.Begin("lobby_prebuild");
+		HideWorldUntilMatchStarts();
+		ClearWorldNodesForRebuild();
+		ResetScreenScopeForWorldRebuild();
+	}
+
+	/// <summary>
+	///     Runs one stage of a preparation started by <see cref="BeginMatchWorldPreparation" />.
+	/// </summary>
+	/// <returns>True once the whole world is built.</returns>
+	public bool AdvanceMatchWorldPreparation()
+	{
+		if (!IsBuildingMatchWorld) return false;
+		if (_worldBuildStage >= WorldBuildStageCount)
+		{
+			FinishMatchWorldPreparation();
+			return true;
+		}
+
+		RunWorldBuildStage(_worldBuildStage);
+		_worldBuildStage++;
+
+		if (_worldBuildStage < WorldBuildStageCount) return false;
+
+		FinishMatchWorldPreparation();
+		return true;
+	}
+
+	/// <summary>
+	///     Shows the world a lobby prepared, because the authority has started the match on it. The first frames are drawn
+	///     from here, so it happens as soon as the countdown starts rather than when it ends.
+	/// </summary>
+	public void ShowPreparedMatchWorld()
+	{
+		_matchWorldVisible = true;
+		if (MainCamera != null && GodotObject.IsInstanceValid(MainCamera)) MainCamera.Current = true;
+		MatchLoadTrace.Mark("world_shown");
+	}
+
+	/// <summary>Whether the match world is on screen, which is the point the first frame can be measured from.</summary>
+	private bool _matchWorldVisible;
+
+	/// <summary>
+	///     Throws away a world that was built for a match which will not be played, so a lobby that was left, cancelled or
+	///     disconnected leaves no world behind for the next one.
+	/// </summary>
+	public void DiscardPreparedMatchWorld()
+	{
+		bool hadWorld = IsBuildingMatchWorld || HasPreparedMatchWorld;
+		if (!hadWorld) return;
+
+		IsBuildingMatchWorld = false;
+		HasPreparedMatchWorld = false;
+		_worldBuildStage = WorldBuildStageCount;
+		if (MainCamera != null && GodotObject.IsInstanceValid(MainCamera)) MainCamera.Current = true;
+
+		MatchLoadTrace.Mark("world_discarded");
+		MatchLoadTrace.WriteSummary("world_discarded");
+	}
+
+	/// <summary>Starts recording the match that just began, which is the tick zero the world was prepared for.</summary>
+	public void StartMatchRecording() => StartReplayRecordingIfNeeded(GameContext.Lobby?.ActiveMapName ?? "");
+
+	private void FinishMatchWorldPreparation()
+	{
+		IsBuildingMatchWorld = false;
+		HasPreparedMatchWorld = true;
+		MatchLoadTrace.Mark("world_built");
+		MatchLoadTrace.WriteSummary("lobby_prebuild");
+	}
+
+	/// <summary>
+	///     Takes the prepared world out of the frame while the lobby is still what the player is looking at. Shader
+	///     compilation, geometry upload and material setup happen on the first draw under the real camera, so the first
+	///     draw is deliberately left for the countdown rather than spent behind a lobby nobody can see through.
+	/// </summary>
+	private void HideWorldUntilMatchStarts()
+	{
+		if (MainCamera != null && GodotObject.IsInstanceValid(MainCamera)) MainCamera.Current = false;
+	}
+
 	private void InitializeGameEcs()
 	{
-		ResolveServices();
+		for (int stage = 0; stage < WorldBuildStageCount; stage++) RunWorldBuildStage(stage);
+	}
 
-		if (OperatingSystem.IsWindows()) GameContext.VSCode.StartInstallIfNeeded();
+	/// <summary>
+	///     One stage of the world build. The stages are ordered exactly as the single-pass build used to run them, and
+	///     splitting them only decides where a frame boundary may fall.
+	/// </summary>
+	private void RunWorldBuildStage(int stage)
+	{
+		switch (stage)
+		{
+			case 0:
+				ResolveServices();
+				if (OperatingSystem.IsWindows()) GameContext.VSCode.StartInstallIfNeeded();
+				InitializeTracking();
+				break;
+			case 1:
+				CreateGround();
+				EnsurePropMultiMeshManager();
+				EnsureUnitOcclusionOutlineService();
+				SetupWorldEntityComponents();
+				MatchLoadTrace.Mark("ground_and_world");
 
-		InitializeTracking();
+				if (GroundTerrain != null) GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 
-		CreateGround();
-		EnsurePropMultiMeshManager();
-		EnsureUnitOcclusionOutlineService();
-		SetupWorldEntityComponents();
-		MatchLoadTrace.Mark("ground_and_world");
+				SetupSkybox();
+				UpdateDayNightVisuals(0.0f);
+				break;
+			case 2:
+				InitializeResourceIds();
+				InitializeSimulationService();
+				MatchLoadTrace.Mark("simulation_services");
 
-		if (GroundTerrain != null) GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+				if (_multiplayerActive) InitializeMultiplayerPlayers();
+				else InitializeSingleplayerPlayers();
 
-		SetupSkybox();
-		UpdateDayNightVisuals(0.0f);
+				EnsureFallbackPlayers();
+				ConfigurePerspective();
+				break;
+			case 3:
+				string rawMapName = GameContext.Lobby?.ActiveMapName ?? "";
+				if (!string.IsNullOrEmpty(rawMapName)) LoadUnitMetadata(rawMapName);
+				MatchLoadTrace.Mark("catalog_and_models");
+				break;
+			case 4:
+				BeginLobbyMapWorldLoad(GameContext.Lobby?.ActiveMapName ?? "");
+				break;
+			case 5:
+				InstantiateMapSpawnRequests();
+				MatchLoadTrace.Mark("prop_instancing");
+				break;
+			case 6:
+				CompleteMapWorldLoad();
+				MatchLoadTrace.Mark("map_load");
 
-		InitializeResourceIds();
+				StartReplayRecordingIfNeeded(GameContext.Lobby?.ActiveMapName ?? "");
 
-		InitializeSimulationService();
-		MatchLoadTrace.Mark("simulation_services");
+				if (!GameContext.ReplayService.IsResettingForReplay) SchedulePostInitializationTasks();
+				MatchLoadTrace.Mark("post_initialization");
 
-		if (_multiplayerActive) InitializeMultiplayerPlayers();
-		else InitializeSingleplayerPlayers();
-
-		EnsureFallbackPlayers();
-		ConfigurePerspective();
-
-		string rawMapName = GameContext.Lobby?.ActiveMapName ?? "";
-		if (!string.IsNullOrEmpty(rawMapName)) LoadUnitMetadata(rawMapName);
-		MatchLoadTrace.Mark("catalog_and_models");
-
-		ProcessMapLoadingAndScript(rawMapName);
-		MatchLoadTrace.Mark("map_load");
-
-		StartReplayRecordingIfNeeded(rawMapName);
-
-		if (!GameContext.ReplayService.IsResettingForReplay) SchedulePostInitializationTasks();
-		MatchLoadTrace.Mark("post_initialization");
-
-		GameContext.ShroudService.Initialize();
+				GameContext.ShroudService.Initialize();
+				break;
+		}
 	}
 
 	private void InitializeTracking()
@@ -2261,7 +2393,7 @@ public partial class GameHost : Node3D
 	private bool ShouldProcessMapLoading()
 	{
 		bool isGameStarted = GameContext.Lobby?.IsGameStarted ?? false;
-		return isGameStarted || GameContext.SessionState.IsMapEditorMode;
+		return isGameStarted || IsBuildingMatchWorld || GameContext.SessionState.IsMapEditorMode;
 	}
 
 	private bool ShouldLoadCustomTerrain()
@@ -2273,8 +2405,10 @@ public partial class GameHost : Node3D
 	{
 		if (GameContext.SaveLoadService.IsLoadingMap) return false;
 
+		// The script creates the starting units from the roster, so it runs on the authority and never on a peer. A world
+		// the lobby prepares is built before that roster exists, which is why preparing is not the same as playing.
 		bool isGameStarted = GameContext.Lobby?.IsGameStarted ?? false;
-		return !isGameStarted || GameContext.SessionState.IsMapEditorMode;
+		return (!isGameStarted && !IsBuildingMatchWorld) || GameContext.SessionState.IsMapEditorMode;
 	}
 
 	private void ApplyTestRandomSeedIfNeeded(string rawMapNameOrPath)
@@ -2390,6 +2524,16 @@ public partial class GameHost : Node3D
 
 	public void ResetWorldAndState()
 	{
+		ClearWorldNodesForRebuild();
+		ReinitializeEcsAndServices();
+	}
+
+	/// <summary>
+	///     Frees every node the previous world put in the tree and forgets the maps that pointed at them, leaving the
+	///     screen-scope services and the world itself for the rebuild that follows.
+	/// </summary>
+	private void ClearWorldNodesForRebuild()
+	{
 		GameContext.ReplayPlayback.StopReplay();
 		StopRecording();
 
@@ -2420,8 +2564,6 @@ public partial class GameHost : Node3D
 		_playerHudVisibilityOverrides.Clear();
 		LocalHudVisibilityOverrides.Clear();
 		_cachedWorldEnvironment = null;
-
-		ReinitializeEcsAndServices();
 	}
 
 	private void ClearNodeCollection<T>(List<T> collection) where T : Node
@@ -2435,6 +2577,17 @@ public partial class GameHost : Node3D
 	}
 
 	private void ReinitializeEcsAndServices()
+	{
+		ResetScreenScopeForWorldRebuild();
+		InitializeGameEcs();
+	}
+
+	/// <summary>
+	///     Drops everything the previous world held and gives this screen a fresh set of screen-scope services, so the
+	///     build that follows starts from nothing. It is separate from the build itself because a world the lobby prepares
+	///     is reset on one frame and built over the next few.
+	/// </summary>
+	private void ResetScreenScopeForWorldRebuild()
 	{
 		EntityToUnit3D.Clear();
 		EntityIdToUnit3D.Clear();
@@ -2469,8 +2622,6 @@ public partial class GameHost : Node3D
 		{
 			GameContext.EditorService.SetTerrainSplatMap(_groundTerrain.SplatMap, _groundTerrain.CliffSplatMap);
 		}
-
-		InitializeGameEcs();
 	}
 
 	public void StopRecording()
@@ -2571,7 +2722,7 @@ public partial class GameHost : Node3D
 
 	private bool ShouldCreateRuntimeGround()
 	{
-		return GameContext.Lobby != null && GameContext.Lobby.IsGameStarted;
+		return GameContext.Lobby != null && (GameContext.Lobby.IsGameStarted || IsBuildingMatchWorld);
 	}
 
 	private string ResolveTerrainPath(string rawMapName)
@@ -2624,8 +2775,13 @@ public partial class GameHost : Node3D
 			? ProjectSettings.GlobalizePath(terrainPath)
 			: terrainPath;
 
-		if (File.Exists(targetPath))
-			LoadMapFromFile(terrainPath, true, false);
+		if (!File.Exists(targetPath)) return;
+
+		// A world the lobby prepares reads the map in the map stages instead, one frame each, so its ground is created here
+		// and filled there.
+		if (IsBuildingMatchWorld) return;
+
+		LoadMapFromFile(terrainPath, true, false);
 	}
 
 	public void SetSkyboxTexture(string path)
@@ -3029,7 +3185,7 @@ public partial class GameHost : Node3D
 
 	public override void _Process(double delta)
 	{
-		if (!_firstFrameTraced)
+		if (!_firstFrameTraced && (_matchWorldVisible || GameContext.SessionState.IsMapEditorMode || GameContext.Lobby?.IsGameStarted == true))
 		{
 			_firstFrameTraced = true;
 			MatchLoadTrace.Mark("first_frame");
@@ -3127,9 +3283,9 @@ public partial class GameHost : Node3D
 
 	private bool ShouldProcessPhysicsTick()
 	{
-		// A match scene that is only being built under the lobby's countdown is a picture, not a world yet: the match
-		// begins at tick zero, which is the tick the authority seats this connection on.
-		if (GameContext.Lobby?.IsPreparingMatchScene == true) return false;
+		// A match world that is only prepared for a lobby is a picture, not a world yet: the match begins at tick zero,
+		// which is the tick the authority seats this connection on.
+		if (IsBuildingMatchWorld) return false;
 		return GameContext.Lobby?.IsGameStarted == true || GameContext.SessionState.IsMapEditorMode;
 	}
 

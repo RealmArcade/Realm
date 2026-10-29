@@ -128,19 +128,25 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// <summary>The port the authority holding this lobby is reachable on, which is the only public port the session uses.</summary>
 	public int BoundPort => _lobbySession?.Port ?? ENetPort;
 
-	/// <summary>
-	///     Whether the match scene is already built and on screen under the countdown, before the authority starts the
-	///     match at tick zero. While this holds, the scene draws but does not simulate.
-	/// </summary>
-	public bool IsPreparingMatchScene => _matchSceneOpen;
+	/// <summary>Whether the authority is counting down to a start, so a screen opened mid-countdown can show it.</summary>
+	public bool IsCountdownActive => _countdownActive;
 
-	/// <summary>Whether the models the lobby's map names are already in the cache the match will read them from.</summary>
-	public bool IsMatchPrepared => _preparation.IsPrepared;
+	/// <summary>How many seconds the authority's countdown has left.</summary>
+	public int CountdownRemainingSeconds => _countdownRemaining;
 
-	/// <summary>The model catalog warm the lobby runs while a player waits, so Start only has to swap a scene in.</summary>
+	/// <summary>The model catalog warm and the match-world build the lobby runs while a player waits.</summary>
 	private readonly LobbyMatchPreparation _preparation = new();
 
-	private bool _matchSceneOpen;
+	/// <summary>Whether the match world for the map below is built and hidden behind the lobby.</summary>
+	private bool _worldPrepared;
+
+	/// <summary>The map the built world belongs to, so a lobby that changes its map builds the new one instead.</summary>
+	private string? _worldPreparedMapName;
+
+	/// <summary>Whether the countdown is being shown over the match screen, which is what a cancel takes back.</summary>
+	private bool _matchPresentationOpen;
+
+	/// <summary>Whether this seat has already told the authority it can start, so it tells it once per preparation.</summary>
 	private bool _loadReadyReported;
 
 	private readonly HttpClient _httpClient = new();
@@ -297,13 +303,77 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// </summary>
 	private void TickMatchPreparation()
 	{
-		if (!_preparation.HasWork) return;
+		if (_preparation.HasWork)
+		{
+			if (!_preparation.Tick()) return;
 
-		bool justPrepared = _preparation.Tick();
-		if (!justPrepared) return;
+			GD.Print($"MATCH_LOAD preparation models={_preparation.TotalModels} warm_ms={_preparation.WarmMilliseconds.ToString("F1", CultureInfo.InvariantCulture)}");
+			BeginMatchWorldBuild();
+			return;
+		}
 
-		GD.Print($"MATCH_LOAD preparation models={_preparation.TotalModels} warm_ms={_preparation.WarmMilliseconds.ToString("F1", CultureInfo.InvariantCulture)}");
-		if (_loadReadyReported) return;
+		AdvanceMatchWorldBuild();
+	}
+
+	/// <summary>
+	///     Starts building the match world behind the lobby, once every model the map names is warm. The world is built from
+	///     the map files this machine holds, so it needs neither a seat nor a roster; the map's own script waits for the
+	///     roster at tick zero, which is why nothing it creates is built here.
+	/// </summary>
+	private void BeginMatchWorldBuild()
+	{
+		if (_worldPrepared && string.Equals(_worldPreparedMapName, ActiveMapName, StringComparison.Ordinal)) return;
+		_loadReadyReported = false;
+		if (string.IsNullOrWhiteSpace(ActiveMapName)) return;
+
+		GameHost? host = GameContext.Host;
+		if (host == null) return;
+
+		if (host.IsBuildingMatchWorld) return;
+
+		// A world built for a map the lobby has since moved away from is not a world this match will play.
+		if (_worldPrepared) host.DiscardPreparedMatchWorld();
+		_worldPrepared = false;
+		_worldPreparedMapName = null;
+
+		host.BeginMatchWorldPreparation(ActiveMapName);
+		MatchLoadTrace.Mark("world_build_begun");
+	}
+
+	/// <summary>
+	///     Spends one frame of the lobby's time on one stage of the world build. The lobby keeps answering between stages,
+	///     and the seat is only reported ready once the whole world exists.
+	/// </summary>
+	private void AdvanceMatchWorldBuild()
+	{
+		GameHost? host = GameContext.Host;
+		if (host == null) return;
+		if (!host.IsBuildingMatchWorld)
+		{
+			ReportWorldPreparedIfReady();
+			return;
+		}
+
+		if (!host.AdvanceMatchWorldPreparation()) return;
+
+		_worldPrepared = true;
+		_worldPreparedMapName = ActiveMapName;
+		MatchLoadTrace.Mark("lobby_ready");
+		MatchLoadTrace.WriteSummary("lobby_ready");
+		ReportWorldPreparedIfReady();
+	}
+
+	/// <summary>
+	///     Tells the authority this seat can start on the tick the countdown ends. A seat that holds the map but has not
+	///     built its world yet is still loading, and the host may wait for it or remove it.
+	/// </summary>
+	private void ReportWorldPreparedIfReady()
+	{
+		if (!_worldPrepared || _loadReadyReported) return;
+
+		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
+		if (me == null || !me.IsMapReady) return;
+
 		_loadReadyReported = true;
 		ReportLocalLoadReadyState(true);
 	}
@@ -952,29 +1022,41 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void StartMatchPreparationForCurrentMap()
 	{
 		if (string.IsNullOrWhiteSpace(ActiveMapName)) return;
-		if (!MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion)) return;
-		if (_preparation.IsPrepared && string.Equals(_preparation.MapName, ActiveMapName, StringComparison.Ordinal))
+
+		// The host plays the map from wherever it already lives; every other seat can only prepare a map its download
+		// has finished, which is the same gate the authority applies before it seats anyone.
+		bool holdsMap = IsHost
+			? !string.IsNullOrEmpty(GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion))
+			: MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion);
+		if (!holdsMap) return;
+
+		bool preparedForThisMap = _preparation.IsPrepared && string.Equals(_preparation.MapName, ActiveMapName, StringComparison.Ordinal);
+		if (preparedForThisMap)
 		{
-			if (_loadReadyReported) return;
-			_loadReadyReported = true;
-			ReportLocalLoadReadyState(true);
+			// A warm that finished before the map was reported as held is not a forgotten seat: the world it makes room for
+			// is built next, and the authority hears about the seat when that world exists.
+			if (!_worldPrepared || !string.Equals(_worldPreparedMapName, ActiveMapName, StringComparison.Ordinal)) BeginMatchWorldBuild();
+			ReportWorldPreparedIfReady();
 			return;
 		}
 
 		if (_preparation.IsPreparing(ActiveMapName)) return;
 
-		_loadReadyReported = false;
+		// The lobby's map is fixed when it is created, so this only runs when a map that was prepared was replaced.
+		if (_worldPrepared) GameContext.Host?.DiscardPreparedMatchWorld();
+		_worldPrepared = false;
+		_worldPreparedMapName = null;
+
 		ReportLocalLoadReadyState(false);
 		MatchLoadTrace.Begin("lobby_preparation");
 		_preparation.Prepare(ActiveMapName, ActiveMapVersion);
 		MatchLoadTrace.Mark("preparation_started");
 		MatchLoadTrace.WriteSummary("preparation_started");
 
-		// A map with no model to warm is already prepared, and one whose metadata could not be read has nothing this
-		// seat can do about it here: either way the seat is not left blocking a start it will never finish preparing.
+		// A map with no model to warm still has a world to build, and one whose metadata could not be read has nothing
+		// this seat can do about it here.
 		if (_preparation.HasWork) return;
-		_loadReadyReported = true;
-		ReportLocalLoadReadyState(true);
+		BeginMatchWorldBuild();
 	}
 
 	/// <summary>
@@ -1042,9 +1124,9 @@ public partial class LobbyManager : BaseMapTransferNode
 				_countdownRemaining = state.CountdownRemainingSeconds;
 				CountdownStarted?.Invoke(state.MapName, state.CountdownRemainingSeconds);
 
-				// The countdown is the build window. Swapping to the match scene now means the first frames are drawn
-				// while the clock is still counting, rather than after it has already reached zero.
-				BeginMatchSceneForCountdown(state.MapName);
+				// The world was built while the lobby was open, so the countdown begins on the match screen: the first frames
+				// are drawn while the clock is still counting, rather than after it has already reached zero.
+				BeginMatchPresentation(state.MapName);
 			}
 			else if (state.CountdownRemainingSeconds != _countdownRemaining)
 			{
@@ -1061,42 +1143,54 @@ public partial class LobbyManager : BaseMapTransferNode
 		_countdownMapName = null;
 		_countdownRemaining = 0;
 		CountdownCancelled?.Invoke();
-		EndMatchSceneForCountdown();
+		EndMatchPresentation();
 	}
 
 	/// <summary>
-	///     Builds the match scene while the authority counts down. The connection stays the lobby's for the whole window:
-	///     the scene is built from the map files this machine already holds, so it needs no seat and no snapshot, and the
-	///     session is handed to it only when the match actually starts.
+	///     Puts the match screen in front of the world the lobby already built, when the authority starts its countdown. It is
+	///     a change of screen, not a scene load: the terrain, the props and the catalog are already there, and only the first
+	///     draw is left to do.
 	/// </summary>
-	private void BeginMatchSceneForCountdown(string mapName)
+	private void BeginMatchPresentation(string mapName)
 	{
-		if (_matchSceneOpen || _matchStarted) return;
+		if (_matchPresentationOpen || _matchStarted) return;
 
-		_matchSceneOpen = true;
 		ActiveMapName = mapName;
-		IsGameStarted = true;
 		GameContext.ReplayPlayback.StopReplay();
 
-		MatchLoadTrace.Begin("countdown_scene");
+		// A start that was forced through while this seat was still building finishes the remaining stages here rather than
+		// showing a world that is not whole. The authority does not let a start happen in that window, so this is a guard.
+		GameHost? host = GameContext.Host;
+		while (host != null && host.IsBuildingMatchWorld) host.AdvanceMatchWorldPreparation();
+		if (host != null && host.HasPreparedMatchWorld)
+		{
+			_worldPrepared = true;
+			_worldPreparedMapName = mapName;
+		}
+
+		// Nothing was prepared for this map, so there is no world to show. The match is entered the way it always was, by
+		// loading the match scene at tick zero, and the countdown stays on the lobby screen.
+		if (!_worldPrepared) return;
+
+		_matchPresentationOpen = true;
+		MatchLoadTrace.Begin("start_presentation");
 		MatchLoadTrace.Mark("countdown_received");
-		GD.Print($"[LobbyManager] Building the match scene for '{mapName}' while the countdown runs");
-		GetTree().ChangeSceneToFile("res://GameHost.tscn");
+		GD.Print($"[LobbyManager] Showing the match world for '{mapName}' under the countdown");
+
+		host?.ShowPreparedMatchWorld();
+		GameContext.UserInterface?.TransitionTo(GameScreen.InGameHUD);
 	}
 
 	/// <summary>
-	///     Puts a cancelled countdown back in the lobby. The scene is left behind rather than kept: a countdown that is
-	///     cancelled is a start that did not happen, and the models that were warmed for it stay in the cache that every
-	///     later start reads.
+	///     Puts a cancelled countdown back in the lobby, with the world it built still there for the next start.
 	/// </summary>
-	private void EndMatchSceneForCountdown()
+	private void EndMatchPresentation()
 	{
-		if (!_matchSceneOpen) return;
+		if (!_matchPresentationOpen) return;
 
-		_matchSceneOpen = false;
-		IsGameStarted = false;
+		_matchPresentationOpen = false;
 		GD.Print("[LobbyManager] Countdown cancelled; returning to the lobby");
-		GetTree().ChangeSceneToFile("res://UI/LobbyRoom.tscn");
+		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
 	}
 
 	/// <summary>Sends the authority whether this seat has finished preparing the match in memory.</summary>
@@ -1122,10 +1216,10 @@ public partial class LobbyManager : BaseMapTransferNode
 		GD.Print($"[LobbyManager] Removed from the lobby: {kicked.Reason}");
 		KickReceived?.Invoke(string.IsNullOrEmpty(kicked.Reason) ? "Kicked by Host" : kicked.Reason);
 
-		// A seat removed while its scene was already built under the countdown has nowhere to go back to, because the
+		// A seat removed while the countdown was already showing the match screen has nowhere to go back to, because the
 		// lobby screen it came from is gone. It is returned to the menu rather than left looking at a world it will
 		// never be told about.
-		bool wasBuilding = _matchSceneOpen;
+		bool wasBuilding = _matchPresentationOpen;
 		var session = _lobbySession;
 		if (session != null)
 		{
@@ -1142,7 +1236,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		if (_matchStarted) return;
 
-		bool wasBuilding = _matchSceneOpen;
+		bool wasBuilding = _matchPresentationOpen;
 		bool administeredHere = IsHost;
 		if (administeredHere)
 		{
@@ -1175,14 +1269,18 @@ public partial class LobbyManager : BaseMapTransferNode
 		_countdownActive = false;
 		CountdownFinished?.Invoke();
 
+		// The lobby stops being advertised the moment its match begins, whether this screen was still the lobby screen or
+		// the match screen that replaced it at countdown start. The port stays, because the match runs on it.
+		if (IsHost) UnregisterActiveLobbyFromRegistry();
+
 		ClientServerSession? session = _lobbySession;
 		if (session == null) return;
 
-		if (_matchSceneOpen)
+		if (_matchPresentationOpen)
 		{
-			// The scene is already built and drawing under the countdown. Tick zero only seats this connection, which is
+			// The world is already built and drawing under the countdown. Tick zero only seats this connection, which is
 			// what turns the picture into the match.
-			_matchSceneOpen = false;
+			_matchPresentationOpen = false;
 			DetachLobbySession(session);
 			_lobbySession = null;
 			MatchSeed = started.Seed;
@@ -1190,6 +1288,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			GameSessionStartTime = DateTime.UtcNow;
 			GameContext.AttachServerSession(session);
 			GameContext.Host?.AttachMatchSession();
+			GameContext.Host?.StartMatchRecording();
 			MatchLoadTrace.Mark("match_started");
 			return;
 		}
@@ -1347,8 +1446,12 @@ public partial class LobbyManager : BaseMapTransferNode
 	private void ResetLobbyState()
 	{
 		_preparation.Cancel();
+
+		bool hadPreparedWorld = _worldPrepared || GameContext.Host?.IsBuildingMatchWorld == true;
+		_worldPrepared = false;
+		_worldPreparedMapName = null;
 		_loadReadyReported = false;
-		_matchSceneOpen = false;
+		_matchPresentationOpen = false;
 		_isConnectedToHost = false;
 		IsHost = false;
 		IsGameStarted = false;
@@ -1360,6 +1463,12 @@ public partial class LobbyManager : BaseMapTransferNode
 		_downloadingMapName = null;
 		PlayerList.Clear();
 		PlayerListUpdated?.Invoke();
+
+		// A lobby that is left, cancelled or disconnected takes the world it built with it: no scene, no cache and no
+		// camera left behind for the next lobby to inherit. It runs after the flags above, because the world the screen
+		// is put back to is the empty one a lobby-less screen shows.
+		GameContext.Host?.DiscardPreparedMatchWorld();
+		if (hadPreparedWorld) GameContext.Host?.ResetWorldAndState();
 	}
 
 	private bool _matchStarted;

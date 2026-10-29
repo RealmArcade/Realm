@@ -58,7 +58,6 @@ public class LobbyMatchPreparation
 		if (name.Length == 0) return;
 		if (IsPrepared && string.Equals(_mapName, name, StringComparison.Ordinal) && string.Equals(_mapVersion, version, StringComparison.Ordinal)) return;
 		if (HasWork && string.Equals(_mapName, name, StringComparison.Ordinal) && string.Equals(_mapVersion, version, StringComparison.Ordinal)) return;
-		if (!MapAssetManager.IsMapDownloaded(name, version)) return;
 
 		Cancel();
 
